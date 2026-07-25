@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "euroleghe-ingest"
+version = "0.1.0"
+description = "Toolkit di ingestione dati per il motore previsionale fantacalcio EuroLeghe"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Proprietary" }
+authors = [{ name = "a.clemente" }]
+dependencies = [
+    "pandas>=2.1",
+    "openpyxl>=3.1",        # read season Excel files
+    "requests>=2.31",       # polite HTTP
+    "beautifulsoup4>=4.12",  # HTML/MHT parsing
+    "lxml>=5.0",
+    "python-dotenv>=1.0",   # credentials from .env
+    # "soccerdata>=1.8",    # candidate (FBref/SofaScore/ClubElo) - enable when touching the network
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6",
+    "mypy>=1.11",
+]
+
+[project.scripts]
+euroleghe-ingest = "euroleghe_ingest.cli:main"
+
+[project.gui-scripts]
+# Console-less launch (double-click / pythonw) of the operator panel.
+euroleghe-ingest-gui = "euroleghe_ingest.gui:main"
+
+[tool.setuptools.packages.find]
+include = ["euroleghe_ingest*"]
+
+[tool.setuptools.package-data]
+euroleghe_ingest = ["db/*.sql"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

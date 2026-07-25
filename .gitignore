@@ -1,0 +1,37 @@
+# --- Segreti: MAI committare ---
+.env
+.env.*
+!.env.example
+
+# --- Dati: fonte di verità su Drive, DB ricostruibile ---
+/data/*.db
+/data/*.sqlite
+/data/raw/*
+!/data/raw/.gitkeep
+/data/inbox/*
+!/data/inbox/.gitkeep
+/data/cache/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# --- Node / app ---
+node_modules/
+/app/dist/
+/app/out/
+/app/.angular/
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+*.log

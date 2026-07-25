@@ -1,0 +1,10 @@
+# File che Claude non deve leggere
+.env
+.env.*
+/data/
+node_modules/
+.venv/
+venv/
+__pycache__/
+*.db
+*.sqlite
