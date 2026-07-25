@@ -90,3 +90,33 @@ def backfill_clubs(ctx: Context) -> None:
                      (club_id, fc_id, season))
         filled += 1
     print(f"[rosters] backfilled {filled} missing clubs from ratings")
+
+
+def backfill_serie_a_rosters(ctx: Context) -> None:
+    """Create roster entries for FULL Serie A players who exist only in the serie_a ratings scrape
+    (not in the EuroLeghe listone), so the Players view can show all 20 Serie A teams, not just the
+    EuroLeghe top clubs. Mantra roles stay NULL (ratings only give the Classic role)."""
+    conn = ctx.require_conn()
+    pairs = conn.execute(
+        "SELECT DISTINCT fc_id, season FROM match_ratings mr "
+        "WHERE mr.competition = 'serie_a' AND mr.role IN ('P','D','C','A') "
+        "AND NOT EXISTS (SELECT 1 FROM rosters r WHERE r.fc_id = mr.fc_id AND r.season = mr.season)"
+    ).fetchall()
+    created = 0
+    for fc_id, season in pairs:
+        team = conn.execute(
+            "SELECT team FROM match_ratings WHERE fc_id=? AND season=? AND competition='serie_a' "
+            "AND team IS NOT NULL GROUP BY team ORDER BY COUNT(*) DESC LIMIT 1", (fc_id, season)).fetchone()
+        if team is None:
+            continue
+        role = conn.execute(
+            "SELECT role FROM match_ratings WHERE fc_id=? AND season=? AND competition='serie_a' "
+            "AND role IN ('P','D','C','A') GROUP BY role ORDER BY COUNT(*) DESC LIMIT 1", (fc_id, season)).fetchone()
+        club_id = _get_or_create_club(conn, team[0], "serie_a")
+        conn.execute(
+            "INSERT OR IGNORE INTO rosters(fc_id, season, fc_club_id, role_classic, league) "
+            "VALUES (?, ?, ?, ?, 'serie_a')",
+            (fc_id, season, club_id, role[0] if role else None),
+        )
+        created += 1
+    print(f"[rosters] created {created} full-Serie-A roster entries from ratings")

@@ -9,7 +9,7 @@ explicitly (or with include_network=True) - rebuild stays offline and fast.
 from __future__ import annotations
 
 from euroleghe_ingest.context import Context
-from euroleghe_ingest.db.database import init_db
+from euroleghe_ingest.db.database import apply_schema, connect
 from euroleghe_ingest.modules import PIPELINE, load
 
 NAME = "rebuild"
@@ -20,15 +20,23 @@ NETWORK = False
 
 
 def run(ctx: Context, *, include_network: bool = False, **kwargs) -> None:
-    # Rebuild "from scratch": remove the existing DB to guarantee idempotency and stable ids.
+    # Rebuild "from scratch": reset in-place by dropping all tables (avoids a file-lock failure if
+    # the GUI has the DB open, and applies any schema changes), then re-apply the schema.
     db = ctx.config.db_path
     if ctx.conn is not None:
-        ctx.conn.close()  # on Windows the file can't be deleted while a connection is open
+        ctx.conn.close()
         ctx.conn = None
-    if db.exists():
-        db.unlink()
-    ctx.conn = init_db(db)
-    print(f"[rebuild] schema applied -> {db}")
+    conn = connect(db)
+    conn.execute("PRAGMA foreign_keys = OFF")
+    for (name,) in conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+    ).fetchall():
+        conn.execute(f'DROP TABLE IF EXISTS "{name}"')
+    conn.commit()
+    conn.execute("PRAGMA foreign_keys = ON")
+    apply_schema(conn)
+    ctx.conn = conn
+    print(f"[rebuild] schema reset (in-place) -> {db}")
 
     done, deferred, todo = [], [], []
     for name in PIPELINE:
@@ -52,6 +60,7 @@ def run(ctx: Context, *, include_network: bool = False, **kwargs) -> None:
     # (the raw source of truth), then backfill any missing clubs (e.g. 2024-25) from the ratings team.
     load("ratings").reingest_from_cache(ctx)
     load("rosters").backfill_clubs(ctx)
+    load("rosters").backfill_serie_a_rosters(ctx)   # full Serie A teams from the serie_a ratings
     load("arrivals").run(ctx)   # roster diff needs the backfilled clubs
     ctx.conn.commit()
 

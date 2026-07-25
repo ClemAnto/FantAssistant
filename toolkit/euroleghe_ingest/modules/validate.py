@@ -32,6 +32,7 @@ ALLOWED_EMPTY: dict[str, set[str]] = {
     "season_stats": {"own_goals"},  # own goals only in the 25/26 Excel, not in the CSVs
     # the ratings Excel doesn't provide these yet (future/enrichment fields)
     "match_ratings": {"assists_set_piece", "player_of_the_match", "started", "minutes"},
+    "arrivals": {"tier", "foreign_fm_equiv"},  # need fbref/transfers, not computed yet
 }
 
 

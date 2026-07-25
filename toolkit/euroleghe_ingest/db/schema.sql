@@ -78,6 +78,7 @@ CREATE TABLE IF NOT EXISTS match_ratings (
     matchday  INTEGER NOT NULL,
     role      TEXT,                              -- matchday role: P|D|C|A, or ALL for coaches (kept for info)
     team      TEXT,                              -- club name from the ratings Excel (used to backfill missing clubs)
+    competition TEXT,                            -- euroleghe | serie_a (which product the row was scraped from)
     mv        REAL,                              -- base rating (voto), NULL if no vote
     goals     INTEGER,
     assists   INTEGER,                           -- canonical: sum of all assist subtypes

@@ -117,6 +117,30 @@ def test_backfill_clubs_from_ratings(tmp_path):
     assert tuple(row) == ("Inter", "serie_a")
 
 
+def test_backfill_serie_a_rosters(tmp_path):
+    from euroleghe_ingest.config import Config
+    from euroleghe_ingest.context import Context
+    from euroleghe_ingest.modules import rosters
+
+    cfg = Config(data_dir=tmp_path / "data", db_path=tmp_path / "data" / "euroleghe.db")
+    (tmp_path / "data").mkdir()
+    conn = init_db(cfg.db_path)
+    conn.execute("INSERT INTO players(fc_id, canonical_name) VALUES (7, 'SerieAonly')")
+    conn.executemany(
+        "INSERT INTO match_ratings(fc_id, season, matchday, role, team, competition, mv) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        [(7, "2023-24", 1, "C", "Cagliari", "serie_a", 6.0),
+         (7, "2023-24", 2, "C", "Cagliari", "serie_a", 6.5)],
+    )
+    conn.commit()
+    rosters.backfill_serie_a_rosters(Context(config=cfg, conn=conn))
+    row = conn.execute(
+        "SELECT c.canonical_name, r.role_classic, r.league FROM rosters r "
+        "JOIN clubs c ON c.fc_club_id = r.fc_club_id WHERE r.fc_id = 7 AND r.season = '2023-24'"
+    ).fetchone()
+    assert tuple(row) == ("Cagliari", "C", "serie_a")
+
+
 def test_ratings_consistency_check(tmp_path):
     conn = init_db(tmp_path / "euroleghe.db")
     for fc_id in (100, 200):

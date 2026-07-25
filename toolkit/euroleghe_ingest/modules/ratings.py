@@ -39,7 +39,7 @@ BASE_URL = "https://www.fantacalcio.it"
 LOGIN_ENDPOINT = BASE_URL + "/api/v1/User/login"
 EXCEL_ENDPOINT = BASE_URL + "/api/v1/Excel/votes/{cid}/{matchday}"
 _EXCEL_HREF = re.compile(r"/api/v1/Excel/votes/(\d+)/")
-_CACHE_NAME = re.compile(r"(\d{4}-\d{2})_md(\d+)\.xlsx$")
+_CACHE_NAME = re.compile(r"ratings_(?:([a-z_]+)_)?(\d{4}-\d{2})_md(\d+)\.xlsx$")
 
 # Competitions and their voti-page URL (the championship id + Excel link are read from that page).
 # EuroLeghe = 5 leagues, top clubs only (Serie A is PARTIAL). serie_a = the full classic Serie A.
@@ -190,7 +190,8 @@ def compute_fantavoto(canon: dict, scoring: dict[str, float]) -> float | None:
 
 
 # ---------- persistence ----------
-def upsert_records(conn, records: list[dict], scoring: dict[str, float]) -> int:
+def upsert_records(conn, records: list[dict], scoring: dict[str, float],
+                   competition: str = DEFAULT_COMPETITION) -> int:
     for rec in records:
         conn.execute(
             "INSERT OR IGNORE INTO players(fc_id, canonical_name) VALUES (?, ?)",
@@ -205,13 +206,13 @@ def upsert_records(conn, records: list[dict], scoring: dict[str, float]) -> int:
         conn.execute(
             """
             INSERT OR REPLACE INTO match_ratings(
-                fc_id, season, matchday, role, team, mv, goals, assists, own_goals,
+                fc_id, season, matchday, role, team, competition, mv, goals, assists, own_goals,
                 pen_scored, pen_missed, pen_saved, goals_conceded, yellows, reds,
                 fantavoto, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
-                rec["fc_id"], rec["season"], rec["matchday"], rec["role"], rec.get("team"), mv,
+                rec["fc_id"], rec["season"], rec["matchday"], rec["role"], rec.get("team"), competition, mv,
                 c.get("goals"), c.get("assists"), c.get("own_goals"), c.get("pen_scored"),
                 c.get("pen_missed"), c.get("pen_saved"), c.get("goals_conceded"),
                 c.get("yellows"), c.get("reds"), compute_fantavoto(c, scoring), status,
@@ -284,7 +285,7 @@ def run(ctx: Context, *, competition: str = DEFAULT_COMPETITION, seasons=None,
                 teams = len({r["team"] for r in records if r.get("team")})
                 players = sum(1 for r in records if r["role"] in _PLAYER_ROLES)
                 voted = sum(1 for r in records if r["canon"].get("mv") is not None)
-                total += upsert_records(conn, records, scoring)
+                total += upsert_records(conn, records, scoring, competition)
                 conn.commit()
                 season_rows += len(records)
                 last_md = matchday
@@ -312,8 +313,10 @@ def reingest_from_cache(ctx: Context) -> None:
         m = _CACHE_NAME.search(path.name)
         if not m:
             continue
-        season, matchday = m.group(1), int(m.group(2))
-        total += upsert_records(conn, parse_workbook(path.read_bytes(), season, matchday), scoring)
+        competition = m.group(1) or DEFAULT_COMPETITION
+        season, matchday = m.group(2), int(m.group(3))
+        total += upsert_records(conn, parse_workbook(path.read_bytes(), season, matchday),
+                                scoring, competition)
     conn.commit()
     if files:
         print(f"[ratings] reingested {total} rows from {len(files)} cached files")
