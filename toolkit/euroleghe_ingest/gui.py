@@ -828,8 +828,11 @@ class ToolkitGUI:
                      values=["euroleghe", "serie_a"]).grid(row=0, column=1, pady=4)
         ttk.Label(frm, text="Season:").grid(row=1, column=0, sticky="w", pady=4)
         season = tk.StringVar(value="all")
+        # EuroLeghe voti go back to ~2021-22, Serie A classic to ~2015-16 (the module resolves the
+        # championship id per season, so any listed season works if the site has it).
+        seasons = ["all"] + [f"{y}-{(y + 1) % 100:02d}" for y in range(2025, 2014, -1)]
         ttk.Combobox(frm, textvariable=season, state="readonly", width=18,
-                     values=["all", "2023-24", "2024-25", "2025-26"]).grid(row=1, column=1, pady=4)
+                     values=seasons).grid(row=1, column=1, pady=4)
         refresh = tk.BooleanVar(value=False)
         ttk.Checkbutton(frm, text="Refresh (re-download existing matchdays)",
                         variable=refresh).grid(row=2, column=0, columnspan=2, sticky="w", pady=4)
