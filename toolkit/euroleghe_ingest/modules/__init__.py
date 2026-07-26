@@ -15,10 +15,12 @@ PIPELINE: tuple[str, ...] = (
     "rosters",
     "stats",
     "ratings",
+    "matchdays",
     "fc_site",
     "transfers",
     "fbref",
     "positions",
+    "synth",
     "arrivals",
     "tournaments",
     "elo",
@@ -32,7 +34,9 @@ ALL_MODULES: tuple[str, ...] = STANDALONE + PIPELINE
 
 # Modules whose run() is fully implemented (the rest are stubs raising NotImplementedError).
 # Single source of truth: add a name here when its module becomes real.
-IMPLEMENTED: frozenset[str] = frozenset({"rosters", "stats", "ratings", "arrivals", "elo", "validate"})
+IMPLEMENTED: frozenset[str] = frozenset(
+    {"rosters", "stats", "ratings", "matchdays", "positions", "synth", "arrivals", "elo", "validate"}
+)
 
 
 def load(name: str) -> ModuleType:

@@ -17,7 +17,7 @@ dependencies = [
     "beautifulsoup4>=4.12",  # HTML/MHT parsing
     "lxml>=5.0",
     "python-dotenv>=1.0",   # credentials from .env
-    # "soccerdata>=1.8",    # candidate (FBref/SofaScore/ClubElo) - enable when touching the network
+    "curl_cffi>=0.7",       # browser-fingerprint client: api.sofascore.com 403s plain requests
 ]
 
 [project.optional-dependencies]

@@ -1,0 +1,142 @@
+"""Identity resolution: external provider names -> fc_id / fc_club_id.
+
+fc_id is the primary key, so every external source (SofaScore today, FBref later) has to be pinned
+to it. The two name conventions are very different:
+
+    ours (fantacalcio.it)   'Zapata D.'   'Pellegrini Lo.'   'N'Dicka'   'Ikon��'
+    provider                'Duvan Zapata' 'Lorenzo Pellegrini' 'Evan Ndicka' 'Jonathan Ikone'
+
+so the matcher works on a normalized form (accents folded, punctuation dropped) and applies TIERED
+rules, from strict to loose, inside a POOL that is itself narrowed from club to league to season.
+A tier only produces a match when it is UNIQUE in the pool: ties are reported, never guessed.
+
+Two source quirks drive the odd details:
+- the 2023-24/2024-25 CSVs lost accented characters byte by byte, so one accent shows up as a RUN of
+  U+FFFD ('Ikon��' = 'Ikone'); a run of k of them matches 1..k characters.
+- a one-token provider name ('Sulemana') has no first name, so our trailing initial ('Sulemana I.')
+  cannot be checked and must not be required.
+"""
+
+from __future__ import annotations
+
+import re
+import unicodedata
+from difflib import SequenceMatcher
+
+# Characters NFKD does not decompose but that the two sources spell differently.
+_FOLD = str.maketrans({"ð": "d", "Ð": "D", "đ": "d", "Đ": "D", "ø": "o", "Ø": "O", "ı": "i",
+                       "ł": "l", "Ł": "L", "þ": "th", "æ": "ae", "Æ": "AE", "œ": "oe", "ß": "ss"})
+_LOST = "�"                                    # accent lost at the source (one byte each)
+_INITIAL = re.compile(r"\s+([A-Za-z�]{1,3})\.$")
+_FUZZY_MIN = 0.88                                   # last-resort ratio, club pool only
+
+# Our canonical club name -> the provider's name for the same club. Only the ones that differ:
+# everything else matches after normalization. The Italian exonyms (Lipsia, Stoccarda, Lilla, ...)
+# make an explicit map safer than fuzzy matching, which would happily pair 'Monaco' (AS Monaco)
+# with 'Bayern Monaco'.
+CLUB_ALIASES: dict[str, str] = {
+    # Serie A
+    "Milan": "AC Milan", "Roma": "AS Roma", "Napoli": "SSC Napoli", "Verona": "Hellas Verona",
+    # Premier League
+    "Brighton": "Brighton & Hove Albion", "Liverpool": "Liverpool FC",
+    "Newcastle": "Newcastle United", "Tottenham": "Tottenham Hotspur",
+    "West Ham": "West Ham United", "Wolverhampton": "Wolverhampton",
+    "Nottingham": "Nottingham Forest",
+    # LaLiga
+    "Athletic Bilbao": "Athletic Club", "Barcellona": "FC Barcelona", "Betis": "Real Betis",
+    "Siviglia": "Sevilla", "Atletico Madrid": "Atletico Madrid", "Alaves": "Deportivo Alaves",
+    # Bundesliga
+    "Bayer Leverkusen": "Bayer 04 Leverkusen", "Bayern Monaco": "FC Bayern Munchen",
+    "Eintracht": "Eintracht Frankfurt", "Eintracht Francoforte": "Eintracht Frankfurt",
+    "Lipsia": "RB Leipzig", "Stoccarda": "VfB Stuttgart", "Union Berlino": "1. FC Union Berlin",
+    "Friburgo": "SC Freiburg", "Colonia": "1. FC Koln", "Amburgo": "Hamburger SV",
+    "Borussia M'Gladbach": "Borussia M'gladbach", "Werder Brema": "SV Werder Bremen",
+    "Magonza": "1. FSV Mainz 05", "Augsburg": "FC Augsburg", "Wolfsburg": "VfL Wolfsburg",
+    # Ligue 1
+    "Lens": "RC Lens", "Lilla": "Lille", "Monaco": "AS Monaco",
+    "Olympique Lione": "Olympique Lyonnais", "Olympique Marsiglia": "Olympique de Marseille",
+    "Paris Saint Germain": "Paris Saint-Germain", "Rennes": "Stade Rennais",
+    "Strasburgo": "RC Strasbourg", "Nizza": "Nice", "Marsiglia": "Olympique de Marseille",
+    "Lione": "Olympique Lyonnais", "Brest": "Stade Brestois", "Reims": "Stade de Reims",
+}
+
+# Corporate tokens that only one of the two sources spells out.
+_CLUB_NOISE = {"fc", "ac", "as", "ss", "ssc", "cf", "sc", "sv", "vfb", "vfl", "tsg", "rb", "rc",
+               "us", "usl", "afc", "cd", "ud", "sd", "club", "calcio", "de", "the"}
+
+
+def fold(text: str | None) -> str:
+    """Lowercase, accent-folded, punctuation-free form used for every comparison."""
+    text = (text or "").translate(_FOLD)
+    text = unicodedata.normalize("NFKD", text)
+    text = "".join(c for c in text if not unicodedata.combining(c)).lower()
+    text = re.sub(rf"[^a-z0-9{_LOST} ]+", " ", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def split_initial(name: str | None) -> tuple[str, str | None]:
+    """Our style 'Zapata D.' -> ('zapata', 'd') · 'Pellegrini Lo.' -> ('pellegrini', 'lo')."""
+    match = _INITIAL.search(name or "")
+    base = fold(name[:match.start()] if match else name)
+    return base, (fold(match.group(1)) if match else None)
+
+
+def lossy_eq(ours: str, theirs: str) -> bool:
+    """Equality where a run of k U+FFFD in OUR string matches 1..k of their characters."""
+    if _LOST not in ours:
+        return ours == theirs
+    pattern = re.sub(rf"{_LOST}+", lambda m: f".{{1,{len(m.group(0))}}}",
+                     re.escape(ours).replace("\\" + _LOST, _LOST))
+    return re.fullmatch(pattern, theirs) is not None
+
+
+def match_in_pool(provider_name: str, pool) -> tuple[int, list[tuple[int, str]]]:
+    """Best (lowest) tier that yields candidates for `provider_name`, and those candidates.
+
+    `pool` = iterable of (fc_id, our_name, base, initial) as produced by `build_pool_entry`.
+    Tiers: 1 surname/tail match · 2 squashed-name match · 3 single-token match · 4 fuzzy.
+    Returns (0, []) when nothing matches.
+    """
+    theirs = fold(provider_name)
+    their_tokens = theirs.split()
+    if not their_tokens:
+        return 0, []
+    their_squash = theirs.replace(" ", "")
+    tiers: dict[int, list[tuple[int, str]]] = {}
+    for fc_id, our_name, base, initial in pool:
+        if not base:
+            continue
+        our_tokens = base.split()
+        our_squash = base.replace(" ", "")
+        tail = " ".join(their_tokens[-len(our_tokens):])
+        # A one-token provider name carries no first name -> the initial cannot be checked.
+        if initial is not None and len(their_tokens) > 1 \
+                and not lossy_eq(initial, their_tokens[0][:len(initial)]):
+            continue
+        if lossy_eq(base, tail) or lossy_eq(base, theirs):
+            tiers.setdefault(1, []).append((fc_id, our_name))
+        elif lossy_eq(our_squash, their_squash) or (len(our_squash) >= 5
+                                                   and their_squash.endswith(our_squash)):
+            tiers.setdefault(2, []).append((fc_id, our_name))   # "N'Dicka" vs 'Evan Ndicka'
+        elif len(our_tokens[-1]) >= 4 and lossy_eq(our_tokens[-1], their_tokens[-1]):
+            tiers.setdefault(3, []).append((fc_id, our_name))
+        elif len(our_tokens) > 1 and len(our_tokens[0]) >= 4 \
+                and lossy_eq(our_tokens[0], their_tokens[0]):
+            tiers.setdefault(3, []).append((fc_id, our_name))   # 'Arthur Melo' vs 'Arthur'
+        elif max(SequenceMatcher(None, base, tail).ratio(),
+                 SequenceMatcher(None, base, theirs).ratio()) >= _FUZZY_MIN:
+            tiers.setdefault(4, []).append((fc_id, our_name))
+    for tier in sorted(tiers):
+        return tier, tiers[tier]
+    return 0, []
+
+
+def build_pool_entry(fc_id: int, our_name: str) -> tuple[int, str, str, str | None]:
+    base, initial = split_initial(our_name)
+    return (fc_id, our_name, base, initial)
+
+
+def club_key(name: str | None) -> str:
+    """Comparable club key: folded, corporate tokens and digits dropped ('AC Milan' -> 'milan')."""
+    tokens = [t for t in fold(name).split() if t not in _CLUB_NOISE and not t.isdigit()]
+    return " ".join(tokens) or fold(name)

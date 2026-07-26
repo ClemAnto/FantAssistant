@@ -38,8 +38,8 @@ def run(ctx: Context, *, include_network: bool = False, **kwargs) -> None:
 
     done, deferred, todo = [], [], []
     for name in PIPELINE:
-        if name in ("arrivals", "validate"):
-            continue   # run after the offline ratings re-ingest + club backfill (need clubs)
+        if name in ("arrivals", "matchdays", "synth", "validate"):
+            continue   # run after the offline ratings re-ingest + club backfill (need clubs/ratings)
         module = load(name)
         if getattr(module, "NETWORK", False) and not include_network:
             deferred.append(name)
@@ -61,7 +61,11 @@ def run(ctx: Context, *, include_network: bool = False, **kwargs) -> None:
     load("rosters").backfill_rosters_from_ratings(ctx)   # Serie A + voti-only seasons
     load("ratings").reingest_listone_from_cache(ctx)     # Mantra roles + prices for ALL teams (listone)
     load("rosters").fix_club_leagues(ctx)                # correct clubs mislabeled by transferred players
+    load("positions").reingest_from_cache(ctx)           # SofaScore facts, offline (needs final rosters)
+    load("positions").reingest_match_layer(ctx)          # SofaScore per-match layer, offline
     load("stats").derive_from_ratings(ctx)               # season aggregates for players without a listone
+    load("matchdays").run(ctx)                           # euro<->real calendar map (needs both platforms)
+    load("synth").run(ctx)                               # calibrated synthetic base voto (needs the map)
     load("arrivals").run(ctx)   # roster diff needs the backfilled clubs
     ctx.conn.commit()
 

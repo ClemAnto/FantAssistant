@@ -1,4 +1,4 @@
--- Main schema for euroleghe.db (spec v8).
+-- Main schema for euroleghe.db (spec v9).
 -- fc_id = players' primary key; the other sites live in the xref tables.
 -- Volatile states (penalty takers, starters, injuries) = DATED tables with valid_from, never static flags.
 -- The DB is always rebuildable from scratch from the raw files in data/raw (idempotent rebuild).
@@ -113,6 +113,71 @@ CREATE TABLE IF NOT EXISTS match_rating_bonuses (
     bonus_key TEXT NOT NULL,                     -- raw source column name (e.g. Gf, Ass, Rp, ...)
     value     REAL,
     PRIMARY KEY (fc_id, season, matchday, platform, bonus_key)
+);
+
+-- ---------- External sources (full-season propensity, spec v9) ----------
+-- Season aggregates from the external providers. The euro calendar only SAMPLES a player's real
+-- season, so propensity (goals/assists/xG per 90) is computed here, over the full real season.
+-- Source-tagged on purpose: this layer must never contaminate the 'euro' target in season_stats.
+CREATE TABLE IF NOT EXISTS external_stats (
+    fc_id       INTEGER NOT NULL REFERENCES players(fc_id),
+    season      TEXT NOT NULL,
+    source      TEXT NOT NULL,               -- sofascore | fbref
+    competition TEXT NOT NULL DEFAULT '',    -- league key (serie_a, ...); '' = all competitions
+    matches     INTEGER,
+    starts      INTEGER,
+    minutes     INTEGER,
+    goals       INTEGER,
+    assists     INTEGER,
+    pen_scored  INTEGER,
+    pen_taken   INTEGER,
+    xg          REAL,
+    xa          REAL,
+    rating      REAL,                        -- provider's average rating (SofaScore scale)
+    yellows     INTEGER,
+    reds        INTEGER,
+    PRIMARY KEY (fc_id, season, source, competition)
+);
+
+-- Per-match layer from the external providers: the granularity the CALIBRATED synthetic base voto
+-- needs (fitted on the matches where we also know the real Mv) and where the real matchday comes
+-- from for the 4 foreign leagues. source='synthetic' rows carry the fitted mv_synth only.
+CREATE TABLE IF NOT EXISTS external_match_stats (
+    fc_id       INTEGER NOT NULL REFERENCES players(fc_id),
+    season      TEXT NOT NULL,
+    source      TEXT NOT NULL,               -- sofascore | fbref | synthetic
+    match_id    TEXT NOT NULL,               -- provider event id
+    competition TEXT,                        -- league key
+    real_md     INTEGER,                     -- real league matchday (round)
+    match_date  TEXT,                        -- ISO date
+    club        TEXT,
+    opponent    TEXT,
+    home        INTEGER,                     -- 0/1
+    position    TEXT,                        -- provider position code (G|D|M|F)
+    started     INTEGER,                     -- 0/1
+    minutes     INTEGER,
+    rating      REAL,                        -- provider rating (SofaScore scale)
+    goals       INTEGER,
+    assists     INTEGER,
+    xg          REAL,
+    xa          REAL,
+    yellows     INTEGER,
+    reds        INTEGER,
+    mv_synth    REAL,                        -- calibrated synthetic base voto, never the euro target
+    PRIMARY KEY (fc_id, season, source, match_id)
+);
+
+-- euro <-> real matchday alignment, PER LEAGUE: one euro round bundles a DIFFERENT real round in
+-- each of the 5 leagues, and skips some real rounds entirely. Lets the views tell the real
+-- euro-calendar matchdays from the synthetically filled ones.
+CREATE TABLE IF NOT EXISTS matchday_map (
+    season   TEXT NOT NULL,
+    euro_md  INTEGER NOT NULL,
+    league   TEXT NOT NULL,
+    real_md  INTEGER NOT NULL,
+    source   TEXT,                           -- derived (from our ratings) | sofascore | manual
+    confidence REAL,                         -- share of rating rows that agreed on this alignment
+    PRIMARY KEY (season, euro_md, league)
 );
 
 CREATE TABLE IF NOT EXISTS positions (
@@ -245,3 +310,8 @@ CREATE TABLE IF NOT EXISTS ingest_runs (
 CREATE INDEX IF NOT EXISTS idx_clubs_name ON clubs(canonical_name);
 -- match_ratings PK leads with fc_id; the resume/derive/consistency queries filter by season+platform.
 CREATE INDEX IF NOT EXISTS idx_match_ratings_season_platform ON match_ratings(season, platform);
+-- the external per-match layer is scanned per season+competition (resume, calibration, aggregation).
+CREATE INDEX IF NOT EXISTS idx_external_match_season_comp
+    ON external_match_stats(season, competition, real_md);
+-- player_xref is queried the "wrong way round" too (fc_id -> source id) when resuming a scrape.
+CREATE INDEX IF NOT EXISTS idx_player_xref_fc_id ON player_xref(fc_id, source);

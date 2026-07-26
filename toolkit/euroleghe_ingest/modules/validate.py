@@ -27,6 +27,10 @@ class ValidationError(RuntimeError):
 # (documented, not an extraction bug). Any other entirely-NULL column is suspicious.
 ALLOWED_EMPTY: dict[str, set[str]] = {
     "players": {"birth_year", "nationality"},
+    # the providers give an id, not the window it is valid for: we date a mapping only when a source
+    # actually tells us it changed (e.g. a manual override), which has not happened yet.
+    "player_xref": {"valid_from", "valid_to"},
+    "club_xref": {"valid_from", "valid_to"},
     "rosters": {"price"},  # current roster lists don't report the auction price
     "season_stats": {"own_goals"},  # own goals only in the 25/26 Excel, not in the CSVs
     # future/enrichment fields + source-/season-dependent event columns that can be legitimately all
@@ -34,6 +38,10 @@ ALLOWED_EMPTY: dict[str, set[str]] = {
     "match_ratings": {"assists_set_piece", "player_of_the_match", "started", "minutes",
                       "own_goals", "pen_scored", "pen_missed", "pen_saved", "goals_conceded"},
     "arrivals": {"tier", "foreign_fm_equiv"},  # need fbref/transfers, not computed yet
+    # external layer: each provider fills a different subset (SofaScore has no penalty split, xG is
+    # missing on some competitions/seasons, mv_synth only exists after the calibration step).
+    "external_stats": {"pen_scored", "pen_taken", "xg", "xa", "starts", "yellows", "reds"},
+    "external_match_stats": {"xg", "xa", "yellows", "reds", "mv_synth", "started", "position"},
 }
 
 

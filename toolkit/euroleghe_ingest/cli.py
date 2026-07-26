@@ -41,6 +41,15 @@ def build_parser() -> argparse.ArgumentParser:
                            help="season to import, e.g. 2024-25 (repeatable; default: all)")
             p.add_argument("--refresh", action="store_true",
                            help="re-download matchdays even if already present")
+        if name == "positions":
+            p.add_argument("--league", action="append", metavar="LEAGUE",
+                           help="league to import, e.g. premier_league (repeatable; default: all 5)")
+            p.add_argument("--season", action="append", metavar="YYYY-YY",
+                           help="season to import, e.g. 2024-25 (repeatable; default: all)")
+            p.add_argument("--refresh", action="store_true",
+                           help="re-download league-seasons even if already present")
+            p.add_argument("--layer", choices=["season", "match", "all"], default="season",
+                           help="season aggregates (fast), the per-match layer (hours), or both")
 
     return parser
 
@@ -79,6 +88,9 @@ def main(argv: list[str] | None = None) -> int:
             if args.command == "ratings":
                 load("ratings").run(ctx, platform=args.platform,
                                     seasons=args.season, refresh=args.refresh)
+            elif args.command == "positions":
+                load("positions").run(ctx, leagues=args.league, seasons=args.season,
+                                      refresh=args.refresh, layer=args.layer)
             else:
                 load(args.command).run(ctx)
         except NotImplementedError as exc:
