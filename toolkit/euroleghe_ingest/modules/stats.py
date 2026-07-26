@@ -42,3 +42,40 @@ def run(ctx: Context, **kwargs) -> None:
 
     n = conn.execute("SELECT COUNT(*) FROM season_stats").fetchone()[0]
     print(f"[stats] season_stats={n}")
+
+
+def derive_from_ratings(ctx: Context) -> None:
+    """Compute season_stats (Pv, Mv, FM, and the bonus sums) from the per-matchday match_ratings,
+    for any (player, season) NOT already covered by the listone. This gives seasons that have no
+    listone (older voti-only seasons) their aggregates, and fills players missing from the listone.
+    The listone-backed seasons are left untouched (authoritative). No Mantra roles / prices here."""
+    conn = ctx.require_conn()
+    rows = conn.execute(
+        """
+        SELECT mr.fc_id, mr.season,
+               COUNT(mr.mv), AVG(mr.mv), AVG(mr.fantavoto),
+               SUM(mr.goals), SUM(mr.assists), SUM(mr.yellows), SUM(mr.reds), SUM(mr.own_goals),
+               SUM(mr.pen_scored), SUM(mr.pen_missed), SUM(mr.goals_conceded), SUM(mr.pen_saved)
+        FROM match_ratings mr
+        WHERE mr.role IN ('P','D','C','A')
+          AND NOT EXISTS (SELECT 1 FROM season_stats s WHERE s.fc_id = mr.fc_id AND s.season = mr.season)
+        GROUP BY mr.fc_id, mr.season
+        """
+    ).fetchall()
+
+    def r2(v):
+        return round(v, 2) if v is not None else None
+
+    for row in rows:
+        fc_id, season, pv, mv, fm, g, a, y, red, og, ps, pm, gc, psv = row
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO season_stats(
+                fc_id, season, pv, mv, fm, goals, assists, yellows, reds, own_goals,
+                pen_scored, pen_missed, goals_conceded, pen_saved)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (fc_id, season, pv, r2(mv), r2(fm), g, a, y, red, og, ps, pm, gc, psv),
+        )
+    seasons = {row[1] for row in rows}
+    print(f"[stats] derived {len(rows)} season_stats rows from ratings for {sorted(seasons)}")

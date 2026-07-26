@@ -60,7 +60,9 @@ def run(ctx: Context, *, include_network: bool = False, **kwargs) -> None:
     # (the raw source of truth), then backfill any missing clubs (e.g. 2024-25) from the ratings team.
     load("ratings").reingest_from_cache(ctx)
     load("rosters").backfill_clubs(ctx)
-    load("rosters").backfill_serie_a_rosters(ctx)   # full Serie A teams from the serie_a ratings
+    load("rosters").backfill_rosters_from_ratings(ctx)   # Serie A + voti-only seasons
+    load("rosters").fix_club_leagues(ctx)                # correct clubs mislabeled by transferred players
+    load("stats").derive_from_ratings(ctx)               # season aggregates for players without a listone
     load("arrivals").run(ctx)   # roster diff needs the backfilled clubs
     ctx.conn.commit()
 

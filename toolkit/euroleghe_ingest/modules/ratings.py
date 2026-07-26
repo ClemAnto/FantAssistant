@@ -129,28 +129,38 @@ def download_matchday(session: requests.Session, cid: str, matchday: int) -> byt
 
 # ---------- parsing (pure, offline-testable) ----------
 def parse_workbook(data: bytes, season: str, matchday: int) -> list[dict]:
-    """Parse one official votes Excel into per-player records (players + coaches)."""
+    """Parse one official votes Excel into per-player records (players + coaches).
+
+    Handles both layouts: EuroLeghe has a 'Squadra' column; the classic Serie A has none and instead
+    prints the club as a separator row before each team block (with the header repeated per team)."""
     wb = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
     try:
         ws = wb["Statistico"] if "Statistico" in wb.sheetnames else wb[wb.sheetnames[0]]
         header_idx: dict[str, int] = {}
+        current_team: str | None = None
         records: list[dict] = []
         for row in ws.iter_rows(values_only=True):
             first = row[0]
-            if not header_idx:
-                if isinstance(first, str) and first.strip().startswith("Cod"):
+            if isinstance(first, str):
+                s = first.strip()
+                if s.startswith("Cod"):
                     header_idx = {str(c).strip(): i for i, c in enumerate(row) if c is not None}
+                elif all(c is None for c in row[1:]) and len(s) <= 30 and "fantacalcio" not in s.lower():
+                    current_team = s          # team-separator row (not a disclaimer)
                 continue
-            if not isinstance(first, int):   # disclaimer / team separator / blank
+            if not isinstance(first, int) or not header_idx:
                 continue
-            role = (str(row[header_idx["Ruolo"]]).strip() if "Ruolo" in header_idx else None)
+            team = None
+            if "Squadra" in header_idx:
+                v = row[header_idx["Squadra"]]
+                team = str(v).strip() if v is not None else None
             rec = {
                 "fc_id": first,
                 "season": season,
                 "matchday": matchday,
-                "role": role,
+                "role": (str(row[header_idx["Ruolo"]]).strip() if "Ruolo" in header_idx else None),
                 "name": (str(row[header_idx["Nome"]]).strip() if "Nome" in header_idx else None),
-                "team": (str(row[header_idx["Squadra"]]).strip() if "Squadra" in header_idx else None),
+                "team": team or current_team,
                 "canon": {},
                 "raw": {},
             }

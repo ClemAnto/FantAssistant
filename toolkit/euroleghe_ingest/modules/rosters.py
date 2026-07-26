@@ -92,31 +92,56 @@ def backfill_clubs(ctx: Context) -> None:
     print(f"[rosters] backfilled {filled} missing clubs from ratings")
 
 
-def backfill_serie_a_rosters(ctx: Context) -> None:
-    """Create roster entries for FULL Serie A players who exist only in the serie_a ratings scrape
-    (not in the EuroLeghe listone), so the Players view can show all 20 Serie A teams, not just the
-    EuroLeghe top clubs. Mantra roles stay NULL (ratings only give the Classic role)."""
+def backfill_rosters_from_ratings(ctx: Context) -> None:
+    """Create roster entries for players present in the ratings but not in a listone, so the Players
+    view can show them: the full Serie A teams (serie_a product) and older voti-only seasons.
+    League = serie_a for the serie_a product; otherwise inferred from the team's league in `clubs`.
+    Mantra roles stay NULL (ratings only give the Classic role)."""
     conn = ctx.require_conn()
     pairs = conn.execute(
-        "SELECT DISTINCT fc_id, season FROM match_ratings mr "
-        "WHERE mr.competition = 'serie_a' AND mr.role IN ('P','D','C','A') "
+        "SELECT DISTINCT fc_id, season FROM match_ratings mr WHERE mr.role IN ('P','D','C','A') "
         "AND NOT EXISTS (SELECT 1 FROM rosters r WHERE r.fc_id = mr.fc_id AND r.season = mr.season)"
     ).fetchall()
+
+    def _mode(fc_id, season, column, where=""):
+        row = conn.execute(
+            f"SELECT {column} FROM match_ratings WHERE fc_id=? AND season=? {where} "
+            f"GROUP BY {column} ORDER BY COUNT(*) DESC LIMIT 1", (fc_id, season)).fetchone()
+        return row[0] if row else None
+
     created = 0
     for fc_id, season in pairs:
-        team = conn.execute(
-            "SELECT team FROM match_ratings WHERE fc_id=? AND season=? AND competition='serie_a' "
-            "AND team IS NOT NULL GROUP BY team ORDER BY COUNT(*) DESC LIMIT 1", (fc_id, season)).fetchone()
-        if team is None:
+        team = _mode(fc_id, season, "team", "AND team IS NOT NULL")
+        if not team:
             continue
-        role = conn.execute(
-            "SELECT role FROM match_ratings WHERE fc_id=? AND season=? AND competition='serie_a' "
-            "AND role IN ('P','D','C','A') GROUP BY role ORDER BY COUNT(*) DESC LIMIT 1", (fc_id, season)).fetchone()
-        club_id = _get_or_create_club(conn, team[0], "serie_a")
+        role = _mode(fc_id, season, "role", "AND role IN ('P','D','C','A')")
+        if _mode(fc_id, season, "competition") == "serie_a":
+            league = "serie_a"
+        else:
+            lk = conn.execute("SELECT league FROM clubs WHERE canonical_name=? AND league IS NOT NULL "
+                              "LIMIT 1", (team,)).fetchone()
+            league = lk[0] if lk else None
+        club_id = _get_or_create_club(conn, team, league)
         conn.execute(
             "INSERT OR IGNORE INTO rosters(fc_id, season, fc_club_id, role_classic, league) "
-            "VALUES (?, ?, ?, ?, 'serie_a')",
-            (fc_id, season, club_id, role[0] if role else None),
+            "VALUES (?, ?, ?, ?, ?)",
+            (fc_id, season, club_id, role, league),
         )
         created += 1
-    print(f"[rosters] created {created} full-Serie-A roster entries from ratings")
+    print(f"[rosters] created {created} roster entries from ratings")
+
+
+def fix_club_leagues(ctx: Context) -> None:
+    """Set each club's league to the most common league among its rosters. This corrects clubs
+    mislabeled by a single transferred player whose listone league differed from the club's real
+    one (e.g. Genoa/Torino ending up as premier_league/bundesliga)."""
+    conn = ctx.require_conn()
+    fixed = 0
+    for (club_id, current) in conn.execute("SELECT fc_club_id, league FROM clubs").fetchall():
+        row = conn.execute(
+            "SELECT league FROM rosters WHERE fc_club_id = ? AND league IS NOT NULL "
+            "GROUP BY league ORDER BY COUNT(*) DESC LIMIT 1", (club_id,)).fetchone()
+        if row and row[0] and row[0] != current:
+            conn.execute("UPDATE clubs SET league = ? WHERE fc_club_id = ?", (row[0], club_id))
+            fixed += 1
+    print(f"[rosters] fixed {fixed} club leagues to the majority roster league")

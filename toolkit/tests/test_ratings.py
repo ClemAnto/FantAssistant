@@ -117,7 +117,7 @@ def test_backfill_clubs_from_ratings(tmp_path):
     assert tuple(row) == ("Inter", "serie_a")
 
 
-def test_backfill_serie_a_rosters(tmp_path):
+def test_backfill_rosters_from_ratings(tmp_path):
     from euroleghe_ingest.config import Config
     from euroleghe_ingest.context import Context
     from euroleghe_ingest.modules import rosters
@@ -133,12 +133,56 @@ def test_backfill_serie_a_rosters(tmp_path):
          (7, "2023-24", 2, "C", "Cagliari", "serie_a", 6.5)],
     )
     conn.commit()
-    rosters.backfill_serie_a_rosters(Context(config=cfg, conn=conn))
+    rosters.backfill_rosters_from_ratings(Context(config=cfg, conn=conn))
     row = conn.execute(
         "SELECT c.canonical_name, r.role_classic, r.league FROM rosters r "
         "JOIN clubs c ON c.fc_club_id = r.fc_club_id WHERE r.fc_id = 7 AND r.season = '2023-24'"
     ).fetchone()
     assert tuple(row) == ("Cagliari", "C", "serie_a")
+
+
+def test_fix_club_leagues(tmp_path):
+    from euroleghe_ingest.config import Config
+    from euroleghe_ingest.context import Context
+    from euroleghe_ingest.modules import rosters
+
+    cfg = Config(data_dir=tmp_path / "data", db_path=tmp_path / "data" / "euroleghe.db")
+    (tmp_path / "data").mkdir()
+    conn = init_db(cfg.db_path)
+    conn.execute("INSERT INTO clubs(fc_club_id, canonical_name, league) VALUES (1, 'Genoa', 'premier_league')")
+    conn.executemany("INSERT INTO players(fc_id, canonical_name) VALUES (?, ?)", [(1, "A"), (2, "B"), (3, "C")])
+    conn.executemany("INSERT INTO rosters(fc_id, season, fc_club_id, league) VALUES (?, ?, 1, ?)", [
+        (1, "2023-24", "serie_a"), (2, "2023-24", "serie_a"), (3, "2024-25", "premier_league"),
+    ])
+    conn.commit()
+    rosters.fix_club_leagues(Context(config=cfg, conn=conn))
+    assert conn.execute("SELECT league FROM clubs WHERE fc_club_id = 1").fetchone()[0] == "serie_a"
+
+
+def test_derive_season_stats_from_ratings(tmp_path):
+    from euroleghe_ingest.config import Config
+    from euroleghe_ingest.context import Context
+    from euroleghe_ingest.modules import stats
+
+    cfg = Config(data_dir=tmp_path / "data", db_path=tmp_path / "data" / "euroleghe.db")
+    (tmp_path / "data").mkdir()
+    conn = init_db(cfg.db_path)
+    conn.executemany("INSERT INTO players(fc_id, canonical_name) VALUES (?, ?)", [(9, "Old"), (8, "Listone")])
+    conn.executemany(
+        "INSERT INTO match_ratings(fc_id, season, matchday, role, mv, fantavoto, goals, assists) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        [(9, "2016-17", 1, "A", 6.0, 9.0, 1, 0), (9, "2016-17", 2, "A", 7.0, 7.0, 0, 1),
+         (8, "2016-17", 1, "C", 5.0, 5.0, 0, 0)],
+    )
+    # a player already in season_stats (from a listone) must NOT be overwritten
+    conn.execute("INSERT INTO season_stats(fc_id, season, pv, mv, fm) VALUES (8, '2016-17', 30, 6.9, 7.7)")
+    conn.commit()
+
+    stats.derive_from_ratings(Context(config=cfg, conn=conn))
+    derived = conn.execute("SELECT pv, mv, fm, goals, assists FROM season_stats WHERE fc_id=9 AND season='2016-17'").fetchone()
+    assert tuple(derived) == (2, 6.5, 8.0, 1, 1)
+    kept = conn.execute("SELECT pv, mv, fm FROM season_stats WHERE fc_id=8 AND season='2016-17'").fetchone()
+    assert tuple(kept) == (30, 6.9, 7.7)   # listone value untouched
 
 
 def test_ratings_consistency_check(tmp_path):
