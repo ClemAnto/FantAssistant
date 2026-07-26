@@ -65,9 +65,13 @@ REQUEST_DELAY = 3.0
 REQUEST_JITTER = 2.0
 
 # Source Excel header (Italian abbreviations) -> canonical match_ratings column.
+# NOTE on the penalty columns (verified against SofaScore's penaltyGoals on 3 seasons of Serie A):
+# Rf = "rigori fatti" = penalties SCORED · Rs = "rigori sbagliati" = penalties MISSED · Rp = saved.
+# Gf EXCLUDES penalties (Calhanoglu 2023-24: Gf=3, Rf=10, 13 goals in total), so goals + pen_scored
+# is the real tally and compute_fantavoto never double-counts.
 CANON: dict[str, str] = {
     "Voto": "mv", "Gf": "goals", "Gs": "goals_conceded", "Rp": "pen_saved",
-    "Rs": "pen_scored", "Rf": "pen_missed", "Au": "own_goals",
+    "Rf": "pen_scored", "Rs": "pen_missed", "Au": "own_goals",
     "Amm": "yellows", "Esp": "reds", "Ass": "assists",
 }
 _META_COLS = {"Cod.", "Ruolo", "Squadra", "Nome"}

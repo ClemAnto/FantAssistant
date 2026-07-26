@@ -18,7 +18,8 @@ ROWS = [
     ["Bayern", None, None, None, None, None, None, None, None, None, None, None, None, None],
     HEADER,
     [100, "P", "Bayern", "Neuer", 6, 0, 1, 0, 0, 0, 0, 0, 0, 0],            # GK conceded 1 -> fanta 5.0
-    [200, "A", "Bayern", "Kane", 7, 2, 0, 0, 1, 0, 0, 1, 0, 1],             # 2 goals, pen, yellow, assist
+    # 2 goals + a SCORED penalty (Rf, not Rs - Rs = "rigori sbagliati") + a yellow + an assist
+    [200, "A", "Bayern", "Kane", 7, 2, 0, 0, 0, 1, 0, 1, 0, 1],
     [300, "ALL", "Bayern", "Kompany", 6.5, 0, 0, 0, 0, 0, 0, 0, 0, 0],      # coach
     [400, "C", "Bayern", "Benched", None, 0, 0, 0, 0, 0, 0, 0, 0, 0],       # no vote
 ]
