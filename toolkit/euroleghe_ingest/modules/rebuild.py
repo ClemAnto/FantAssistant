@@ -9,7 +9,7 @@ explicitly (or with include_network=True) - rebuild stays offline and fast.
 from __future__ import annotations
 
 from euroleghe_ingest.context import Context
-from euroleghe_ingest.db.database import apply_schema, connect
+from euroleghe_ingest.db.database import apply_schema, connect, table_names
 from euroleghe_ingest.modules import PIPELINE, load
 
 NAME = "rebuild"
@@ -28,9 +28,7 @@ def run(ctx: Context, *, include_network: bool = False, **kwargs) -> None:
         ctx.conn = None
     conn = connect(db)
     conn.execute("PRAGMA foreign_keys = OFF")
-    for (name,) in conn.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
-    ).fetchall():
+    for name in table_names(conn):
         conn.execute(f'DROP TABLE IF EXISTS "{name}"')
     conn.commit()
     conn.execute("PRAGMA foreign_keys = ON")

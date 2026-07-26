@@ -64,6 +64,8 @@ def test_compute_fantavoto():
     assert ratings.compute_fantavoto(recs[100]["canon"], s) == 5.0          # 6 - 1 conceded
     assert ratings.compute_fantavoto(recs[200]["canon"], s) == 16.5         # 7 +6 +1 +3 -0.5
     assert ratings.compute_fantavoto(recs[400]["canon"], s) is None         # no vote
+    # GK clean-sheet is intentionally excluded (mirrors the source fantavoto): 6 - 0 = 6.0
+    assert ratings.compute_fantavoto({"mv": 6.0, "goals_conceded": 0}, s) == 6.0
 
 
 def test_upsert(tmp_path):

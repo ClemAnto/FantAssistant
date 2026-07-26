@@ -65,17 +65,25 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "fetch":
-        load("fetch").run(ctx, plan=args.plan, do_run=args.do_run, inbox=args.inbox)
+        try:
+            load("fetch").run(ctx, plan=args.plan, do_run=args.do_run, inbox=args.inbox)
+        except NotImplementedError as exc:
+            print(f"[fetch] not implemented yet: {exc}")
+            return 1
         return 0
 
     # Single pipeline module: ensure the schema exists, then run.
     if args.command in ALL_MODULES:
         ctx.conn = init_db(cfg.db_path)
-        if args.command == "ratings":
-            load("ratings").run(ctx, platform=args.platform,
-                                seasons=args.season, refresh=args.refresh)
-        else:
-            load(args.command).run(ctx)
+        try:
+            if args.command == "ratings":
+                load("ratings").run(ctx, platform=args.platform,
+                                    seasons=args.season, refresh=args.refresh)
+            else:
+                load(args.command).run(ctx)
+        except NotImplementedError as exc:
+            print(f"[{args.command}] not implemented yet: {exc}")
+            return 1
         ctx.conn.commit()
         return 0
 

@@ -111,7 +111,9 @@ def _clean(value) -> str | None:
 
 # ---------- per-format readers ----------
 def _read_csv(path: Path, season: str):
-    text = path.read_bytes().decode("utf-8", errors="replace")
+    # utf-8-sig strips a UTF-8 BOM; otherwise the first header becomes "﻿id" and every row is
+    # dropped (fc_id None), silently losing the whole season.
+    text = path.read_bytes().decode("utf-8-sig", errors="replace")
     reader = csv.DictReader(text.splitlines())
     for row in reader:
         fc_id = _to_int(row.get("id"))

@@ -85,7 +85,7 @@ def _num(v):
 
 
 def _polite_sleep(cancel_event=None) -> None:
-    delay = REQUEST_DELAY + random.uniform(0, REQUEST_JITTER)  # noqa: S311 - not crypto
+    delay = REQUEST_DELAY + random.uniform(0, REQUEST_JITTER)   # jitter (not crypto)
     if cancel_event is not None:
         cancel_event.wait(delay)   # wakes up immediately if cancellation is requested
     else:
@@ -107,10 +107,35 @@ def _new_session(user_agent: str) -> requests.Session:
     return s
 
 
+def _http(session: requests.Session, method: str, url: str, *, tries: int = 3, **kwargs):
+    """A GET/POST with a few retries on TRANSIENT failures (network errors / HTTP 5xx). A non-5xx
+    response is returned as-is (callers handle 200 vs not); the last exception is re-raised if every
+    attempt failed. Terminal statuses (401/404) are not retried."""
+    response = None
+    for attempt in range(1, tries + 1):
+        try:
+            response = session.request(method, url, **kwargs)
+            if response.status_code < 500 or attempt == tries:
+                return response
+        except requests.RequestException:
+            if attempt == tries:
+                raise
+        time.sleep(1.5 * attempt)
+    return response
+
+
+def _atomic_write(path, data: bytes) -> None:
+    """Write via a temp file + os.replace, so a kill mid-write never leaves a truncated cache file
+    (which would then crash the offline re-ingest with BadZipFile)."""
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_bytes(data)
+    os.replace(tmp, path)
+
+
 # ---------- network ----------
 def login(session: requests.Session, username: str, password: str) -> None:
     """POST credentials; the session cookie is stored on the session on success."""
-    r = session.post(LOGIN_ENDPOINT, json={"username": username, "password": password}, timeout=30)
+    r = _http(session, "POST", LOGIN_ENDPOINT, json={"username": username, "password": password}, timeout=30)
     try:
         data = r.json()
     except ValueError:
@@ -121,7 +146,7 @@ def login(session: requests.Session, username: str, password: str) -> None:
 
 
 def resolve_championship_id(session: requests.Session, platform: str, season: str) -> str | None:
-    r = session.get(PLATFORMS[platform].format(season=season), timeout=30)
+    r = _http(session, "GET", PLATFORMS[platform].format(season=season), timeout=30)
     if r.status_code != 200:
         return None
     m = _EXCEL_HREF.search(r.text)
@@ -129,7 +154,7 @@ def resolve_championship_id(session: requests.Session, platform: str, season: st
 
 
 def download_matchday(session: requests.Session, cid: str, matchday: int) -> bytes | None:
-    r = session.get(EXCEL_ENDPOINT.format(cid=cid, matchday=matchday), timeout=30)
+    r = _http(session, "GET", EXCEL_ENDPOINT.format(cid=cid, matchday=matchday), timeout=30)
     if r.status_code != 200:
         return None
     content = r.content
@@ -138,7 +163,7 @@ def download_matchday(session: requests.Session, cid: str, matchday: int) -> byt
 
 def download_listone(session: requests.Session, cid: str) -> bytes | None:
     """Download the season listone (quotazioni) Excel for a championship id (Mantra roles + prices)."""
-    r = session.get(PRICES_ENDPOINT.format(cid=cid), timeout=30)
+    r = _http(session, "GET", PRICES_ENDPOINT.format(cid=cid), timeout=30)
     if r.status_code != 200:
         return None
     return r.content if r.content[:2] == b"PK" else None
@@ -254,6 +279,9 @@ def compute_fantavoto(canon: dict, scoring: dict[str, float]) -> float | None:
         - scoring["yellow_card_malus"] * (canon.get("yellows") or 0)
         - scoring["red_card_malus"] * (canon.get("reds") or 0)
     )
+    # NOTE: the GK clean-sheet bonus (clean_sheet_bonus_gk) is deliberately NOT added here — the
+    # source's own per-matchday fantavoto excludes it (verified reconciliation), and adding it made
+    # the ratings-vs-listone FM check markedly worse. The engine applies per-league scoring separately.
     return round(val, 2)
 
 
@@ -374,7 +402,7 @@ def run(ctx: Context, *, platform: str = DEFAULT_PLATFORM, seasons=None,
             if not ctx.cancelled():
                 listone = download_listone(session, cid)
                 if listone:
-                    (ctx.config.cache_dir / f"listone_{platform}_{season}.xlsx").write_bytes(listone)
+                    _atomic_write(ctx.config.cache_dir / f"listone_{platform}_{season}.xlsx", listone)
                     n_lst = upsert_listone(conn, season, parse_listone(listone, season), platform)
                     conn.commit()
                     print(f"[ratings] {season}: listone {platform} -> {n_lst} players (Mantra roles + prices)")
@@ -399,7 +427,7 @@ def run(ctx: Context, *, platform: str = DEFAULT_PLATFORM, seasons=None,
                     # beyond the last played matchday the endpoint still returns a valid but empty sheet
                     print(f"[ratings] {season}: stop at md{matchday} (empty sheet - end of season)")
                     break
-                (ctx.config.cache_dir / f"ratings_{platform}_{season}_md{matchday}.xlsx").write_bytes(data)
+                _atomic_write(ctx.config.cache_dir / f"ratings_{platform}_{season}_md{matchday}.xlsx", data)
                 teams = len({r["team"] for r in records if r.get("team")})
                 players = sum(1 for r in records if r["role"] in _PLAYER_ROLES)
                 voted = sum(1 for r in records if r["canon"].get("mv") is not None)
@@ -434,8 +462,11 @@ def reingest_from_cache(ctx: Context) -> None:
         token = m.group(1)
         platform = _PLATFORM_ALIAS.get(token, token) if token else DEFAULT_PLATFORM
         season, matchday = m.group(2), int(m.group(3))
-        total += upsert_records(conn, parse_workbook(path.read_bytes(), season, matchday),
-                                scoring, platform)
+        try:
+            total += upsert_records(conn, parse_workbook(path.read_bytes(), season, matchday),
+                                    scoring, platform)
+        except Exception as exc:  # noqa: BLE001 - a corrupt cache file must not abort the rebuild
+            print(f"[ratings] skipping unreadable cache {path.name}: {exc}")
     conn.commit()
     if files:
         print(f"[ratings] reingested {total} rows from {len(files)} cached files")
@@ -453,7 +484,10 @@ def reingest_listone_from_cache(ctx: Context) -> None:
             continue
         token, season = m.group(1), m.group(2)
         platform = _PLATFORM_ALIAS.get(token, token)
-        total += upsert_listone(conn, season, parse_listone(path.read_bytes(), season), platform)
+        try:
+            total += upsert_listone(conn, season, parse_listone(path.read_bytes(), season), platform)
+        except Exception as exc:  # noqa: BLE001 - a corrupt cache file must not abort the rebuild
+            print(f"[ratings] skipping unreadable listone {path.name}: {exc}")
     conn.commit()
     if files:
         print(f"[ratings] reingested {total} listone rows from {len(files)} cached files")

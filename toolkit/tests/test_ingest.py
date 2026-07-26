@@ -94,7 +94,10 @@ def _headless_root():
 
 def test_role_and_vote_helpers():
     from euroleghe_ingest.gui import (
-        role_pill_color, role_sort_key, rating_cell_style, rating_cell_text,
+        rating_cell_style,
+        rating_cell_text,
+        role_pill_color,
+        role_sort_key,
     )
 
     assert role_pill_color("P") != role_pill_color("A")

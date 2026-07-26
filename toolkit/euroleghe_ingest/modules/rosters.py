@@ -13,16 +13,13 @@ from __future__ import annotations
 import sqlite3
 
 from euroleghe_ingest.context import Context
-from euroleghe_ingest.sources import iter_records
+from euroleghe_ingest.sources import SEASON_SOURCES, iter_records
 
 NAME = "rosters"
 DESCRIPTION = "Roster lists -> players, clubs, rosters (fc_id primary key)"
 DEPENDS_ON: list[str] = []
-RAW_INPUTS: list[str] = [
-    "Statistiche_Fantacalcio_EuroLeghe_Stagione_2025_26.xlsx",
-    "euro-stats-2024-25.csv",
-    "euro-stats-2023-24.csv",
-]
+# The actual source file names (single source of truth: sources.SEASON_SOURCES).
+RAW_INPUTS: list[str] = [filename for _season, filename, _fmt in SEASON_SOURCES]
 NETWORK = False
 
 

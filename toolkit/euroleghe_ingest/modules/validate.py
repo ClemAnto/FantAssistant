@@ -8,10 +8,9 @@ producing wrong data. Extend with: stable fc_id, recomputed FM formula, club x s
 
 from __future__ import annotations
 
-import re
-
 from euroleghe_ingest.context import Context
-from euroleghe_ingest.sources import CLASSIC_ROLES, MANTRA_ROLES
+from euroleghe_ingest.db.database import table_names
+from euroleghe_ingest.sources import CLASSIC_ROLES, MANTRA_ROLES, _norm_roles
 
 NAME = "validate"
 DESCRIPTION = "Integrity checks (e.g. no entirely-null column)"
@@ -30,17 +29,12 @@ ALLOWED_EMPTY: dict[str, set[str]] = {
     "players": {"birth_year", "nationality"},
     "rosters": {"price"},  # current roster lists don't report the auction price
     "season_stats": {"own_goals"},  # own goals only in the 25/26 Excel, not in the CSVs
-    # the ratings Excel doesn't provide these yet (future/enrichment fields)
-    "match_ratings": {"assists_set_piece", "player_of_the_match", "started", "minutes"},
+    # future/enrichment fields + source-/season-dependent event columns that can be legitimately all
+    # empty on a partial scrape (a raise here would abort an otherwise-good rebuild).
+    "match_ratings": {"assists_set_piece", "player_of_the_match", "started", "minutes",
+                      "own_goals", "pen_scored", "pen_missed", "pen_saved", "goals_conceded"},
     "arrivals": {"tier", "foreign_fm_equiv"},  # need fbref/transfers, not computed yet
 }
-
-
-def _table_names(conn) -> list[str]:
-    rows = conn.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
-    ).fetchall()
-    return [r[0] for r in rows]
 
 
 def _all_null_columns(conn, table: str) -> list[str]:
@@ -123,9 +117,8 @@ def check_role_vocabulary(conn) -> None:
     for role_classic, roles in conn.execute("SELECT role_classic, roles FROM rosters"):
         if role_classic and role_classic not in canon_c:
             bad_c.add(role_classic)
-        for token in re.split(r"[;/|]", roles or ""):
-            token = token.strip().lower()
-            if token and token not in canon_m:
+        for token in _norm_roles(roles):
+            if token not in canon_m:
                 bad_m.add(token)
     if bad_c or bad_m:
         print(f"[validate] non-canonical roles (not normalized): "
@@ -137,7 +130,7 @@ def check_role_vocabulary(conn) -> None:
 def run(ctx: Context, **kwargs) -> None:
     conn = ctx.require_conn()
     problems: list[str] = []
-    for table in _table_names(conn):
+    for table in table_names(conn):
         allowed = ALLOWED_EMPTY.get(table, set())
         offenders = [c for c in _all_null_columns(conn, table) if c not in allowed]
         problems += [f"{table}.{c}: entirely-NULL column" for c in offenders]

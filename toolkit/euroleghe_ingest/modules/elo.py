@@ -31,7 +31,7 @@ def run(ctx: Context, **kwargs) -> None:
         print(f"[elo] seed file missing ({path.name}) - nothing to do")
         return
 
-    text = path.read_bytes().decode("utf-8", errors="replace")
+    text = path.read_bytes().decode("utf-8-sig", errors="replace")   # strip a BOM if present
     matched = rows = 0
     unresolved: list[str] = []
     for record in csv.DictReader(text.splitlines()):

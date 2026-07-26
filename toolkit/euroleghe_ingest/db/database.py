@@ -24,6 +24,13 @@ def apply_schema(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+def table_names(conn: sqlite3.Connection) -> list[str]:
+    """User table names (excludes SQLite's internal tables)."""
+    return [r[0] for r in conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+    ).fetchall()]
+
+
 def init_db(db_path: Path) -> sqlite3.Connection:
     conn = connect(db_path)
     apply_schema(conn)

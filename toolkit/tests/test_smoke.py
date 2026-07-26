@@ -35,18 +35,18 @@ def test_pipeline_modules_importable():
     for name in PIPELINE:
         module = load(name)
         assert hasattr(module, "run")
-        assert getattr(module, "NAME") == name
+        assert module.NAME == name
 
 
 def test_gui_module_importable():
     # Importable without opening windows (Tk() is not instantiated at import time).
-    import euroleghe_ingest.gui as gui
+    from euroleghe_ingest import gui
 
     assert hasattr(gui, "ToolkitGUI") and hasattr(gui, "main")
 
 
 def test_every_button_has_a_tooltip():
-    import euroleghe_ingest.gui as gui
+    from euroleghe_ingest import gui
 
     for _label, command in gui.OPERATIONS:
         assert gui.TOOLTIPS.get(command), f"missing tooltip for {command!r}"

@@ -82,7 +82,7 @@ CREATE TABLE IF NOT EXISTS match_ratings (
     matchday  INTEGER NOT NULL,
     role      TEXT,                              -- matchday role: P|D|C|A, or ALL for coaches (kept for info)
     team      TEXT,                              -- club name from the ratings Excel (used to backfill missing clubs)
-    platform TEXT NOT NULL DEFAULT 'euro',  -- euroleghe | serie_a: DIFFERENT calendars, so part of the key
+    platform TEXT NOT NULL DEFAULT 'euro',  -- euro | default: DIFFERENT calendars, so part of the key
     mv        REAL,                              -- base rating (voto), NULL if no vote
     goals     INTEGER,
     assists   INTEGER,                           -- canonical: sum of all assist subtypes
@@ -239,3 +239,9 @@ CREATE TABLE IF NOT EXISTS ingest_runs (
     detail     TEXT,
     PRIMARY KEY (module, started_at)
 );
+
+-- ---------- Indexes for hot lookups ----------
+-- clubs are looked up by name once per player (rosters/listone/elo) -> avoid full scans.
+CREATE INDEX IF NOT EXISTS idx_clubs_name ON clubs(canonical_name);
+-- match_ratings PK leads with fc_id; the resume/derive/consistency queries filter by season+platform.
+CREATE INDEX IF NOT EXISTS idx_match_ratings_season_platform ON match_ratings(season, platform);

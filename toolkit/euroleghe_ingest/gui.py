@@ -15,7 +15,6 @@ Launch: `python -m euroleghe_ingest gui`  (or with no arguments).
 from __future__ import annotations
 
 import queue
-import re
 import sqlite3
 import sys
 import threading
@@ -25,9 +24,9 @@ from tkinter import scrolledtext, ttk
 from euroleghe_ingest import __version__
 from euroleghe_ingest.config import Config
 from euroleghe_ingest.context import Context
-from euroleghe_ingest.db.database import connect, init_db
+from euroleghe_ingest.db.database import connect, init_db, table_names
 from euroleghe_ingest.modules import IMPLEMENTED, PIPELINE, load
-from euroleghe_ingest.sources import available_sources
+from euroleghe_ingest.sources import _norm_roles, available_sources
 
 
 class _QueueWriter:
@@ -228,8 +227,8 @@ def role_pill_color(role) -> tuple[str, str]:
 
 
 def _split_roles(value) -> list[str]:
-    # Mantra roles are multi-valued; sources separate them with ';', '|' or '/'.
-    return [r.strip().lower() for r in re.split(r"[;/|]", str(value)) if r.strip()] if value else []
+    # Single canonical splitter for multi-valued Mantra roles (';', '|' or '/').
+    return _norm_roles(value)
 
 
 def role_sort_key(role_classic, roles, fm) -> tuple:
@@ -657,8 +656,6 @@ class PlayersView(ttk.Frame):
         bc.configure(scrollregion=(0, 0, total_w, max(len(players) * ROW_H, 1)))
         suffix = "" if days else " (run ratings to fill)"
         self.info_var.set(f"{len(players)} players · {len(days)} matchdays{suffix}")
-        bc.configure(scrollregion=(0, 0, total_w, max(len(players) * ROW_H, 1)))
-        self.info_var.set(f"{len(players)} players · {len(days)} matchdays")
 
     # ---------- legend ----------
     def _draw_legend(self) -> None:
@@ -716,8 +713,8 @@ def make_app_icon() -> tk.PhotoImage:
     frame(size - m - 11, c - box // 2, size - m, c + box // 2)  # right penalty box
     r = 10                                              # centre circle (ring of dots)
     for deg in range(0, 360, 8):
-        x = int(round(c + r * math.cos(math.radians(deg))))
-        y = int(round(c + r * math.sin(math.radians(deg))))
+        x = round(c + r * math.cos(math.radians(deg)))
+        y = round(c + r * math.sin(math.radians(deg)))
         img.put(line, to=(x, y, x + 2, y + 2))
     img.put(line, to=(c - 1, c - 1, c + 1, c + 1))      # centre spot
     return img
@@ -737,7 +734,7 @@ class ToolkitGUI:
         try:
             self._app_icon = make_app_icon()           # keep a reference (Tk needs it alive)
             root.iconphoto(True, self._app_icon)
-        except Exception:
+        except tk.TclError:
             pass  # the icon is cosmetic; never block startup over it
 
         notebook = ttk.Notebook(root)
@@ -815,9 +812,7 @@ class ToolkitGUI:
         conn = connect(db)
         try:
             counts: dict[str, int] = {}
-            for (name,) in conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
-            ).fetchall():
+            for name in table_names(conn):
                 (counts[name],) = conn.execute(f"SELECT COUNT(*) FROM {name}").fetchone()
             return counts
         except Exception:  # noqa: BLE001 - a broken DB just means "no counts"
