@@ -268,8 +268,11 @@ def run(ctx: Context, *, competition: str = DEFAULT_COMPETITION, seasons=None,
             if not cid:
                 print(f"[ratings] {season}: championship id not found - skipping")
                 continue
+            # resume PER COMPETITION: EuroLeghe and Serie A share the (season, matchday) key but
+            # cover different teams, so a matchday scraped for one is NOT done for the other.
             done = {md for (md,) in conn.execute(
-                "SELECT DISTINCT matchday FROM match_ratings WHERE season = ?", (season,))}
+                "SELECT DISTINCT matchday FROM match_ratings WHERE season = ? AND competition = ?",
+                (season, competition))}
             note = f" (resuming, {len(done)} matchdays already present)" if done and not refresh else ""
             print(f"[ratings] {season}: championship {cid}{note} - downloading...")
             season_rows = last_md = 0
