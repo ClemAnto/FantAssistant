@@ -182,7 +182,156 @@ def test_fantavoti_grid_renders(tmp_path):
 
         view.mode_var.set(True)
         view._toggle_mode()
-        assert view.body_canvas.find_all()          # something was drawn
-        assert "2 matchdays" in view.info_var.get()  # md 1 and 2 present
+        assert view.body_canvas.find_all()               # something was drawn
+        # no calendar map yet -> the columns are the euro matchdays (1 and 2)
+        assert "2 euro matchdays" in view.info_var.get()
+    finally:
+        root.destroy()
+
+
+def test_rerunning_rosters_keeps_what_the_pipeline_recovered(tmp_path):
+    """The 2024-25 roster list has no club column, so a re-run must NOT wipe the club that
+    backfill_clubs / the listone recovered - otherwise those players disappear from the views."""
+    data_dir = tmp_path / "data"
+    (data_dir / "raw").mkdir(parents=True)
+    (data_dir / "raw" / "euroleghe-stats-2023-24.csv").write_text(   # empty `squadra`, as in 2024-25
+        "id,nome,lega,squadra,r,rm,pv,mv,fm,gf,gs,rig_s,rig_t,rp,ass,amm,esp\n"
+        "100,Tizio,Serie A,,C,m,10,6.0,6.5,1,0,0,0,0,2,1,0\n", encoding="utf-8")
+    cfg = Config(data_dir=data_dir, db_path=data_dir / "euroleghe.db")
+    ctx = Context(config=cfg, conn=init_db(cfg.db_path))
+
+    load("rosters").run(ctx)
+    conn = ctx.conn
+    assert conn.execute("SELECT fc_club_id FROM rosters WHERE fc_id = 100").fetchone()[0] is None
+    # what backfill_clubs / the listone add on top of the raw list
+    conn.execute("INSERT INTO clubs(fc_club_id, canonical_name, league) VALUES (99, 'Inter', 'serie_a')")
+    conn.execute("UPDATE rosters SET fc_club_id = 99, price = 14 WHERE fc_id = 100")
+    conn.commit()
+
+    load("rosters").run(ctx)                       # run the module again, as the panel button does
+    row = conn.execute("SELECT fc_club_id, roles, price FROM rosters WHERE fc_id = 100").fetchone()
+    assert row["fc_club_id"] == 99                  # club preserved
+    assert row["price"] == 14                       # so is the price (the raw list has none)
+    assert row["roles"] == "m"                      # the raw list IS authoritative where it speaks
+
+
+def test_synthetic_votes_are_shown_on_the_half_point_grid():
+    from euroleghe_ingest.gui import half_step
+
+    assert half_step(6.41) == 6.5
+    assert half_step(6.24) == 6.0
+    assert half_step(6.75) == 7.0          # .75 goes up
+    assert half_step(5.0) == 5.0
+    assert half_step(None) is None
+
+
+def test_grid_shows_the_whole_season_calendar(tmp_path):
+    """Columns come from the season/league calendar, not from the selected squad: a team with one
+    known player must still show every matchday."""
+    from euroleghe_ingest.gui import PlayersView
+
+    ctx = _build_db(tmp_path, CSV_MULTI)
+    # the season has 5 euro matchdays league-wide; our Bayern player only played matchday 3
+    ctx.conn.executemany(
+        "INSERT INTO players(fc_id, canonical_name) VALUES (?, ?)", [(900 + i, f"Other{i}") for i in range(5)])
+    ctx.conn.executemany(
+        "INSERT INTO match_ratings(fc_id, season, matchday, platform, fantavoto, status) "
+        "VALUES (?, '2023-24', ?, 'euro', 6.0, 'played')",
+        [(900 + i, i + 1) for i in range(5)])
+    ctx.conn.execute(
+        "INSERT INTO match_ratings(fc_id, season, matchday, platform, fantavoto, status) "
+        "VALUES (2557, '2023-24', 3, 'euro', 7.0, 'played')")
+    ctx.conn.commit()
+
+    root = _headless_root()
+    try:
+        view = PlayersView(root, ctx.config)
+        view.reload()
+        view.season_var.set("2023-24"); view._on_season_change()
+        view.league_var.set("Bundesliga"); view._on_league_change()
+        view.team_var.set("Bayern Monaco"); view._on_team_change()
+        view.mode_var.set(True)
+        view._toggle_mode()
+        assert "5 euro matchdays" in view.info_var.get()
+    finally:
+        root.destroy()
+
+
+def test_ratings_query_picks_the_fuller_calendar_and_real_matchdays(tmp_path):
+    """A Serie A player has both platforms: we show `default` (38 rounds, already the real calendar),
+    not the 30-round euro one - and never both, or the grid would double up on every matchday."""
+    from euroleghe_ingest.gui import _RATINGS_QUERY
+
+    ctx = _make_ctx(tmp_path)
+    load("rosters").run(ctx)
+    conn = ctx.conn
+    conn.executemany(
+        "INSERT INTO match_ratings(fc_id, season, matchday, platform, fantavoto, status) "
+        "VALUES (100, '2023-24', ?, ?, ?, 'played')",
+        [(md, "default", 6.0) for md in range(1, 39)] + [(md, "euro", 7.0) for md in range(1, 31)],
+    )
+    conn.execute("INSERT INTO matchday_map(season, euro_md, league, real_md, source) "
+                 "VALUES ('2023-24', 1, 'serie_a', 2, 'derived')")
+    conn.commit()
+
+    rows = conn.execute(_RATINGS_QUERY,
+                        ("2023-24", "serie_a", "Inter", "2023-24", "2023-24")).fetchall()
+    assert len(rows) == 38                                  # the default platform only
+    assert {row["matchday"] for row in rows} == set(range(1, 39))
+    assert {row["fantavoto"] for row in rows} == {6.0}       # the euro rows were dropped
+
+
+def test_ratings_query_translates_euro_matchdays_to_real_ones(tmp_path):
+    """A foreign-league player only has euro rounds: those go through matchday_map."""
+    from euroleghe_ingest.gui import _RATINGS_QUERY
+
+    ctx = _make_ctx(tmp_path)
+    load("rosters").run(ctx)
+    conn = ctx.conn
+    conn.executemany(
+        "INSERT INTO match_ratings(fc_id, season, matchday, platform, fantavoto, status) "
+        "VALUES (2557, '2023-24', ?, 'euro', 7.0, 'played')", [(1,), (2,)])
+    conn.execute("INSERT INTO matchday_map(season, euro_md, league, real_md, source) "
+                 "VALUES ('2023-24', 1, 'bundesliga', 4, 'sofascore')")
+    conn.commit()
+
+    rows = conn.execute(_RATINGS_QUERY,
+                        ("2023-24", "bundesliga", "Bayern Monaco", "2023-24", "2023-24")).fetchall()
+    # euro 1 -> real 4 (mapped); euro 2 has no mapping yet -> keeps its own number
+    assert sorted(row["matchday"] for row in rows) == [2, 4]
+
+
+def test_fantavoti_grid_marks_synthetic_matchdays(tmp_path):
+    """With matchday_map the grid switches to the REAL calendar and flags the rounds EuroLeghe
+    skipped, whose value is the synthetic base voto."""
+    from euroleghe_ingest.gui import PlayersView
+
+    ctx = _build_db(tmp_path, CSV_MULTI)
+    ctx.conn.execute(
+        "INSERT INTO match_ratings(fc_id, season, matchday, platform, fantavoto, status) "
+        "VALUES (2557, '2023-24', 1, 'euro', 7.5, 'played')")
+    ctx.conn.execute(
+        "INSERT INTO matchday_map(season, euro_md, league, real_md, source) "
+        "VALUES ('2023-24', 1, 'bundesliga', 2, 'sofascore')")
+    ctx.conn.executemany(
+        "INSERT INTO external_match_stats(fc_id, season, source, match_id, competition, real_md,"
+        " minutes, rating, mv_synth) VALUES (2557, '2023-24', 'sofascore', ?, 'bundesliga', ?, 90,"
+        " 7.0, ?)",
+        [("e2", 2, 6.4), ("e3", 3, 6.1)],       # real matchday 3 is outside the euro calendar
+    )
+    ctx.conn.commit()
+
+    root = _headless_root()
+    try:
+        view = PlayersView(root, ctx.config)
+        view.reload()
+        view.season_var.set("2023-24"); view._on_season_change()
+        view.league_var.set("Bundesliga"); view._on_league_change()
+        view.team_var.set("Bayern Monaco"); view._on_team_change()
+        view.mode_var.set(True)
+        view._toggle_mode()
+        info = view.info_var.get()
+        assert "2 real matchdays" in info
+        assert "1 in the euro calendar" in info and "1 outside it" in info
     finally:
         root.destroy()

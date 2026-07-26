@@ -52,6 +52,61 @@ def test_every_button_has_a_tooltip():
         assert gui.TOOLTIPS.get(command), f"missing tooltip for {command!r}"
 
 
+def test_every_operation_is_in_exactly_one_cadence_group():
+    """The panel groups operations by how often they are run; a new module must be filed in one."""
+    from euroleghe_ingest import gui
+
+    grouped = [command for _group, commands in gui.OPERATION_GROUPS for command in commands]
+    assert len(grouped) == len(set(grouped)), "an operation is listed in two groups"
+    assert set(PIPELINE) <= set(grouped), f"ungrouped modules: {sorted(set(PIPELINE) - set(grouped))}"
+
+
+def test_module_buttons_are_labelled_with_the_module_name():
+    from euroleghe_ingest import gui
+
+    labels = {command: label for label, command in gui.OPERATIONS}
+    assert labels["ratings"] == "ratings"          # no "Module:" prefix
+    assert labels["initdb"] == "Initialize DB"     # meta-operations keep a readable label
+
+
+def test_every_implemented_module_reports_when_it_is_done():
+    """Without an output counter a module's dot stays orange forever, however often it is run."""
+    from euroleghe_ingest import gui
+    from euroleghe_ingest.modules import IMPLEMENTED
+
+    producers = IMPLEMENTED - {"validate"}          # validate is a check, it produces nothing
+    assert producers <= set(gui.OUTPUT_COUNTER), \
+        f"no output counter for: {sorted(producers - set(gui.OUTPUT_COUNTER))}"
+
+
+def test_new_modules_turn_green_once_their_output_exists():
+    from euroleghe_ingest.gui import operation_state
+
+    counts = {"players": 10, "rosters": 10, "season_stats": 10}
+    for command, counter in (("matchdays", "matchday_map"), ("positions", "external_stats"),
+                             ("synth", "external_match_stats.mv_synth")):
+        assert operation_state(command, counts, True) == "todo"
+        assert operation_state(command, {**counts, counter: 1}, True) == "completed"
+
+
+def test_option_dialogs_and_follow_ups_point_at_real_things():
+    from euroleghe_ingest.gui import ToolkitGUI
+    from euroleghe_ingest.modules import ALL_MODULES
+
+    for command, method in ToolkitGUI.DIALOGS.items():
+        assert command in ALL_MODULES
+        assert callable(getattr(ToolkitGUI, method))
+
+    # the per-match layer is useless until the map and the calibration are recomputed
+    assert ToolkitGUI._follow_ups("positions", {"layer": "match"}) == ("matchdays", "synth")
+    assert ToolkitGUI._follow_ups("positions", {"layer": "season"}) == ()
+    assert ToolkitGUI._follow_ups("ratings", {}) == ("matchdays",)
+    assert ToolkitGUI._follow_ups("elo", {}) == ()
+    for follow_ups in (ToolkitGUI._follow_ups("positions", {"layer": "all"}),
+                       ToolkitGUI._follow_ups("ratings", {})):
+        assert set(follow_ups) <= set(ALL_MODULES)
+
+
 def test_operation_state_logic():
     from euroleghe_ingest.gui import operation_state
 

@@ -20,12 +20,13 @@ import sys
 import threading
 import tkinter as tk
 from tkinter import scrolledtext, ttk
+from typing import ClassVar
 
 from euroleghe_ingest import __version__
 from euroleghe_ingest.config import Config
 from euroleghe_ingest.context import Context
 from euroleghe_ingest.db.database import connect, init_db, table_names
-from euroleghe_ingest.modules import IMPLEMENTED, PIPELINE, load
+from euroleghe_ingest.modules import IMPLEMENTED, load
 from euroleghe_ingest.sources import _norm_roles, available_sources
 
 
@@ -45,12 +46,34 @@ class _QueueWriter:
 
 # ============================ Operations tab ============================
 
-# Operations exposed in the panel: (label, command-key).
-OPERATIONS: tuple[tuple[str, str], ...] = (
-    ("Initialize DB", "initdb"),
-    ("Rebuild all", "rebuild"),
-    ("Plan fetch (--plan)", "fetch:plan"),
-    *[(f"Module: {name}", name) for name in PIPELINE],
+# Operations grouped by HOW OFTEN they are run - the panel's layout follows this, because the
+# question in front of the panel is always "what do I have to run now?".
+#   setup   = once (or after a schema/code change)
+#   season  = when a new season opens: new squads, prices, arrivals, auction-time club strength
+#   weekly  = as the season goes: new ratings, the round they map to, the external layer, the checks
+OPERATION_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("Setup - once", ("initdb", "rebuild", "fetch:plan")),
+    ("Start of season", ("rosters", "stats", "elo", "transfers", "tournaments", "arrivals", "fbref")),
+    ("During the season - every matchday",
+     ("ratings", "matchdays", "positions", "synth", "fc_site", "validate")),
+)
+
+# Labels for the operations that are not pipeline modules (those just use their own name).
+OPERATION_LABELS: dict[str, str] = {
+    "initdb": "Initialize DB",
+    "rebuild": "Rebuild all",
+    "fetch:plan": "Plan fetch (--plan)",
+}
+
+
+def operation_label(command: str) -> str:
+    return OPERATION_LABELS.get(command, command)
+
+
+# Flat view of the same operations, in layout order: (label, command-key).
+OPERATIONS: tuple[tuple[str, str], ...] = tuple(
+    (operation_label(command), command)
+    for _group, commands in OPERATION_GROUPS for command in commands
 )
 
 # One descriptive tooltip per button (what it does, in plain terms).
@@ -66,14 +89,20 @@ TOOLTIPS: dict[str, str] = {
              "into season_stats.",
     "ratings": "Scrape per-matchday ratings from fantacalcio.it (login required) into match_ratings, "
                "splitting standard assists from set-piece assists.",
+    "matchdays": "Line the EuroLeghe calendar up with the real one, league by league (matchday_map): "
+                 "which real matchdays the euro rounds cover, and which ones they skip.",
     "fc_site": "Read fantacalcio.it editorial lists (penalty takers, probable starters, unavailable "
                "players) into dated tables.",
     "transfers": "Read transfers, coach history and injuries from Transfermarkt; derive the exit_risk and "
                  "new_coach flags.",
     "fbref": "Import from FBref: foreign-league performance, career penalty conversion, set pieces, "
              "xG/xA and minutes.",
-    "positions": "Derive each player's real role from SofaScore heatmaps (friendlies included) to flag "
-                 "off-role usage.",
+    "positions": "Import the FULL real season from SofaScore. Asks which layer: 'season' = the facts "
+                 "(goals, assists, minutes, xG/xA) into external_stats; 'match' = the per-match "
+                 "ratings of the perimeter clubs, which is what fills the SYNTHETIC matchdays "
+                 "(long, resumable - matchdays and synth run right after it).",
+    "synth": "Fit the SofaScore rating onto the real base voto on the overlap and fill the synthetic "
+             "base voto (mv_synth) for the matches EuroLeghe never voted.",
     "arrivals": "Detect new arrivals by diffing the roster lists and classify them by tier (T1/T2/T3) "
                 "for pricing.",
     "tournaments": "Load international tournament squads from Wikidata (post-tournament effect, "
@@ -94,6 +123,26 @@ STATE_LABEL: dict[str, str] = {
     "todo": "To do - available, should be run.",
     "unavailable": "Not available.",
 }
+
+
+# What each module PRODUCES: as soon as that has rows, the module counts as done. Keep this in sync
+# with IMPLEMENTED (a test enforces it) - a module missing from here would stay orange forever.
+# `synth` writes a COLUMN, not a table, hence the "table.column" pseudo-key filled by _db_counts.
+OUTPUT_COUNTER: dict[str, str] = {
+    "rosters": "rosters",
+    "stats": "season_stats",
+    "ratings": "match_ratings",
+    "matchdays": "matchday_map",
+    "positions": "external_stats",
+    "synth": "external_match_stats.mv_synth",
+    "arrivals": "arrivals",
+    "elo": "club_elo",
+}
+
+# Column-level outputs to count alongside the table row counts: (pseudo-key, table, column).
+COLUMN_COUNTERS: tuple[tuple[str, str, str], ...] = (
+    ("external_match_stats.mv_synth", "external_match_stats", "mv_synth"),
+)
 
 
 def operation_state(command: str, counts: dict[str, int] | None, has_sources: bool) -> str:
@@ -117,9 +166,8 @@ def operation_state(command: str, counts: dict[str, int] | None, has_sources: bo
         return "todo" if rows("players") > 0 else "unavailable"
     if not has_sources:
         return "unavailable"
-    output_table = {"rosters": "rosters", "stats": "season_stats", "ratings": "match_ratings",
-                    "arrivals": "arrivals", "elo": "club_elo"}.get(command)
-    if output_table and rows(output_table) > 0:
+    counter = OUTPUT_COUNTER.get(command)
+    if counter and rows(counter) > 0:
         return "completed"
     return "todo"
 
@@ -256,7 +304,22 @@ RATING_STATUS_LABEL: dict[str, str] = {
 RATING_MARKER: dict[str, str] = {
     "no_vote": "sv", "bench": "•", "injured": "inf", "suspended": "sq", "not_in_squad": "–",
 }
+# Real matchdays the EuroLeghe calendar never voted: the value shown is the CALIBRATED SYNTHETIC
+# base voto (external_match_stats.mv_synth), not a real vote - hence its own colour.
+SYNTHETIC_STYLE = ("#ede4ff", "#4b2a86")
+SYNTHETIC_HEADER = "#ded0f7"
 _DEFAULT_RATING_STYLE = ("#ffffff", "#111111")
+
+
+def half_step(value) -> float | None:
+    """Round to the nearest 0.5 - the grid real votes live on.
+
+    Only for DISPLAY: external_match_stats.mv_synth keeps the continuous fit, which is what the
+    engine should average over a season (rounding every match first only adds noise).
+    """
+    if value is None:
+        return None
+    return round(value * 2) / 2
 
 
 def rating_cell_style(status) -> tuple[str, str]:
@@ -315,17 +378,82 @@ _TEAM_PLAYERS_QUERY = """
     WHERE r.season = ? AND c.league = ? AND c.canonical_name = ?
 """
 
+# Per-matchday ratings of one team, on the REAL calendar.
+#
+# Two things happen here, both in SQL on purpose:
+#  * one platform per player - EuroLeghe and the classic Serie A have different calendars, so we take
+#    the fuller one (Serie A players come from `default`, everyone else from `euro`);
+#  * the matchday is translated to the REAL one, so the grid can put a euro round and a synthetic
+#    round side by side: `default` matchdays already ARE real ones, `euro` matchdays go through
+#    matchday_map (and fall back to themselves when the map has not been built yet).
+#
+# The team is resolved FIRST (the `team` CTE) and everything else joins onto those ~30 players. The
+# earlier version asked "which platform is fuller?" as a correlated subquery in the WHERE clause,
+# which re-ran a GROUP BY over match_ratings for every candidate row: 130 s on 91k rows.
 _RATINGS_QUERY = """
-    SELECT v.fc_id AS fc_id, v.matchday AS matchday, v.fantavoto AS fantavoto, v.status AS status
+    WITH team AS (
+        SELECT r.fc_id AS fc_id, c.league AS league
+        FROM rosters r
+        JOIN clubs c ON c.fc_club_id = r.fc_club_id
+        WHERE r.season = ? AND c.league = ? AND c.canonical_name = ?
+    ),
+    per_platform AS (
+        SELECT v.fc_id AS fc_id, v.platform AS platform, COUNT(*) AS n
+        FROM match_ratings v
+        JOIN team t ON t.fc_id = v.fc_id
+        WHERE v.season = ?
+        GROUP BY v.fc_id, v.platform
+    ),
+    chosen AS (   -- MIN(platform) only breaks a tie, deterministically
+        SELECT fc_id, MIN(platform) AS platform
+        FROM per_platform p
+        WHERE p.n = (SELECT MAX(q.n) FROM per_platform q WHERE q.fc_id = p.fc_id)
+        GROUP BY fc_id
+    )
+    SELECT v.fc_id AS fc_id,
+           CASE WHEN v.platform = 'default' THEN v.matchday
+                ELSE COALESCE(m.real_md, v.matchday) END AS matchday,
+           v.fantavoto AS fantavoto, v.status AS status
     FROM match_ratings v
-    JOIN rosters r ON r.fc_id = v.fc_id AND r.season = v.season
+    JOIN team t ON t.fc_id = v.fc_id
+    JOIN chosen ch ON ch.fc_id = v.fc_id AND ch.platform = v.platform
+    LEFT JOIN matchday_map m ON m.season = v.season AND m.league = t.league
+                            AND m.euro_md = v.matchday
+    WHERE v.season = ?
+"""
+
+# euro <-> real calendar (per league) and the synthetic per-match layer, for the fantavoti grid.
+_MATCHDAY_MAP_QUERY = """
+    SELECT euro_md, real_md FROM matchday_map WHERE season = ? AND league = ? ORDER BY real_md
+"""
+
+# Every matchday of the season for a league, so the grid shows the WHOLE calendar and not just the
+# rounds the selected team's players happen to have a row for (a squad with 2 known players used to
+# get 2 columns). Three sources, unioned: the euro rounds (translated to real where the map exists),
+# the classic Serie A calendar, and the real rounds seen by the external per-match layer.
+_CALENDAR_QUERY = """
+    SELECT DISTINCT md FROM (
+        SELECT COALESCE(m.real_md, v.matchday) AS md
+        FROM (SELECT DISTINCT matchday FROM match_ratings
+              WHERE season = ? AND platform = 'euro') v
+        LEFT JOIN matchday_map m ON m.season = ? AND m.league = ? AND m.euro_md = v.matchday
+        UNION
+        SELECT DISTINCT matchday AS md FROM match_ratings
+        WHERE season = ? AND platform = 'default' AND ? = 'serie_a'
+        UNION
+        SELECT DISTINCT real_md AS md FROM external_match_stats
+        WHERE season = ? AND competition = ? AND real_md IS NOT NULL
+    )
+    WHERE md IS NOT NULL ORDER BY md
+"""
+
+_SYNTH_QUERY = """
+    SELECT e.fc_id AS fc_id, e.real_md AS real_md, e.mv_synth AS mv_synth, e.minutes AS minutes
+    FROM external_match_stats e
+    JOIN rosters r ON r.fc_id = e.fc_id AND r.season = e.season
     JOIN clubs c ON c.fc_club_id = r.fc_club_id
-    WHERE v.season = ? AND c.league = ? AND c.canonical_name = ?
-      -- EuroLeghe and the classic Serie A use different calendars: show one platform per player
-      -- (the one with the most matchdays, i.e. the fuller calendar).
-      AND v.platform = (SELECT platform FROM match_ratings x
-                        WHERE x.fc_id = v.fc_id AND x.season = v.season
-                        GROUP BY platform ORDER BY COUNT(*) DESC LIMIT 1)
+    WHERE e.season = ? AND c.league = ? AND c.canonical_name = ?
+      AND e.source = 'sofascore' AND e.real_md IS NOT NULL
 """
 
 ROW_H = 26
@@ -354,6 +482,9 @@ class PlayersView(ttk.Frame):
         self._rows: list[sqlite3.Row] = []
         self._rating_rows: list[sqlite3.Row] = []
         self._rating_players: list[sqlite3.Row] = []
+        self._matchday_map: list[sqlite3.Row] = []
+        self._synth_rows: list[sqlite3.Row] = []
+        self._calendar: list[int] = []
         self._build()
 
     # ---------- layout ----------
@@ -486,8 +617,13 @@ class PlayersView(ttk.Frame):
             self.info_var.set("")
             return
         if self.mode_var.get():
-            self._rating_rows = self._query(_RATINGS_QUERY, (season, raw_league, team))
+            self._rating_rows = self._query(_RATINGS_QUERY,
+                                           (season, raw_league, team, season, season))
             self._rating_players = self._query(_TEAM_PLAYERS_QUERY, (season, raw_league, team))
+            self._matchday_map = self._query(_MATCHDAY_MAP_QUERY, (season, raw_league))
+            self._synth_rows = self._query(_SYNTH_QUERY, (season, raw_league, team))
+            self._calendar = [row["md"] for row in self._query(
+                _CALENDAR_QUERY, (season, season, raw_league, season, raw_league, season, raw_league))]
             self._draw_ratings()
         else:
             self._rows = list(self._query(_PLAYER_QUERY, (season, raw_league, team)))
@@ -602,12 +738,18 @@ class PlayersView(ttk.Frame):
         bc.delete("all")
 
         players = self._sort_players_list(self._rating_players)
-        data: dict[tuple, tuple] = {}
-        matchdays: set[int] = set()
-        for r in self._rating_rows:
-            data[(r["fc_id"], r["matchday"])] = (r["fantavoto"], r["status"])
-            matchdays.add(r["matchday"])
-        days = sorted(matchdays)
+        # The query already speaks REAL matchdays (see _RATINGS_QUERY), so do the synthetic rows.
+        data = {(r["fc_id"], r["matchday"]): (r["fantavoto"], r["status"])
+                for r in self._rating_rows}
+        synth = {(row["fc_id"], row["real_md"]): (row["mv_synth"], row["minutes"])
+                 for row in self._synth_rows}
+        # Which real matchdays the euro calendar actually covers. Empty map (nothing scraped yet)
+        # -> treat every column as a euro round, i.e. behave as before.
+        euro_rounds = {row["real_md"] for row in self._matchday_map}
+        days = sorted(set(self._calendar) | {md for _fc_id, md in data}
+                      | {md for _fc_id, md in synth})
+        if not euro_rounds:
+            euro_rounds = set(days)
 
         # left fixed columns (name + role pills) - stay visible and sortable in votes mode too
         left, x = [], 0
@@ -626,8 +768,12 @@ class PlayersView(ttk.Frame):
             hc.create_text(cx + 6, HEADER_H // 2, anchor="w", text=text, font=("Segoe UI", 8, "bold"))
         for j, md in enumerate(days):
             cx = left_w + j * CELL_W
-            hc.create_rectangle(cx, 0, cx + CELL_W, HEADER_H, fill="#e9e9e9", outline="#cfcfcf")
-            hc.create_text(cx + CELL_W // 2, HEADER_H // 2, text=str(md), font=("Segoe UI", 8, "bold"))
+            in_euro = md in euro_rounds
+            hc.create_rectangle(cx, 0, cx + CELL_W, HEADER_H,
+                                fill="#e9e9e9" if in_euro else SYNTHETIC_HEADER, outline="#cfcfcf")
+            hc.create_text(cx + CELL_W // 2, HEADER_H // 2, text=str(md),
+                           font=("Segoe UI", 8, "bold"),
+                           fill="#111111" if in_euro else SYNTHETIC_STYLE[1])
         hc.configure(scrollregion=(0, 0, total_w, HEADER_H))
 
         for i, pl in enumerate(players):
@@ -643,19 +789,29 @@ class PlayersView(ttk.Frame):
             for j, md in enumerate(days):
                 cx = left_w + j * CELL_W
                 cell = data.get((pl["fc_id"], md))
-                if cell is None:
-                    bg, fg, txt = "#f4f4f4", "#bbbbbb", ""
-                else:
+                if cell is not None:
                     fv, status = cell
                     bg, fg = rating_cell_style(status)
                     txt = rating_cell_text(fv, status)
+                    font = ("Segoe UI", 8)
+                else:
+                    mv_synth, minutes = synth.get((pl["fc_id"], md), (None, None))
+                    bg, fg = (SYNTHETIC_STYLE if mv_synth is not None else ("#f4f4f4", "#bbbbbb"))
+                    shown = half_step(mv_synth) if (minutes or 0) > 0 else None
+                    txt = f"{shown:g}" if shown is not None else ""
+                    font = ("Segoe UI", 8, "italic")
                 bc.create_rectangle(cx, y, cx + CELL_W, y + ROW_H, fill=bg, outline="#e6e6e6")
                 if txt:
-                    bc.create_text(cx + CELL_W // 2, y + ROW_H // 2, text=txt, fill=fg,
-                                   font=("Segoe UI", 8))
+                    bc.create_text(cx + CELL_W // 2, y + ROW_H // 2, text=txt, fill=fg, font=font)
         bc.configure(scrollregion=(0, 0, total_w, max(len(players) * ROW_H, 1)))
-        suffix = "" if days else " (run ratings to fill)"
-        self.info_var.set(f"{len(players)} players · {len(days)} matchdays{suffix}")
+        if not days:
+            self.info_var.set(f"{len(players)} players · 0 matchdays (run ratings to fill)")
+            return
+        euro_count = sum(1 for md in days if md in euro_rounds)
+        scale = "real" if self._matchday_map else "euro"
+        self.info_var.set(f"{len(players)} players · {len(days)} {scale} matchdays "
+                          f"({euro_count} in the euro calendar, "
+                          f"{len(days) - euro_count} outside it)")
 
     # ---------- legend ----------
     def _draw_legend(self) -> None:
@@ -668,6 +824,10 @@ class PlayersView(ttk.Frame):
                 tk.Label(self.legend, text="  ", background=bg, relief="solid",
                          borderwidth=1).pack(side="left", padx=(8, 3))
                 ttk.Label(self.legend, text=RATING_STATUS_LABEL[st]).pack(side="left")
+            tk.Label(self.legend, text="  ", background=SYNTHETIC_STYLE[0], relief="solid",
+                     borderwidth=1).pack(side="left", padx=(8, 3))
+            ttk.Label(self.legend, text="synthetic voto, to the nearest 0.5 "
+                                        "(real matchday outside the euro calendar)").pack(side="left")
         else:
             ttk.Label(self.legend, text="Roles:").pack(side="left")
             for role in ("P", "D", "C", "A"):
@@ -729,8 +889,8 @@ class ToolkitGUI:
         self._cancel_event = threading.Event()
 
         root.title(f"euroleghe-ingest - operator panel v{__version__}")
-        root.geometry("1000x640")
-        root.minsize(820, 520)
+        root.geometry("1000x700")
+        root.minsize(820, 640)   # the three operation groups + legend need this much height
         try:
             self._app_icon = make_app_icon()           # keep a reference (Tk needs it alive)
             root.iconphoto(True, self._app_icon)
@@ -757,25 +917,27 @@ class ToolkitGUI:
         main = ttk.Frame(parent, padding=10)
         main.pack(fill="both", expand=True)
 
-        left = ttk.LabelFrame(main, text="Operations", padding=8)
+        left = ttk.Frame(main)
         left.pack(side="left", fill="y")
         self.buttons: list[ttk.Button] = []
         self.dots: list[tk.Label] = []
         self.op_commands: list[str] = []
-        for label, command in OPERATIONS:
-            row = ttk.Frame(left)
-            row.pack(fill="x", pady=2)
-            dot = tk.Label(row, text="○", width=2, font=("Segoe UI", 11))
-            dot.pack(side="left")
-            btn = ttk.Button(row, text=label, width=27,
-                             command=lambda c=command: self.run_operation(c))
-            btn.pack(side="left", fill="x", expand=True)
-            Tooltip(btn, lambda c=command: self._tooltip_for(c))
-            self.buttons.append(btn)
-            self.dots.append(dot)
-            self.op_commands.append(command)
+        for group, commands in OPERATION_GROUPS:
+            box = ttk.LabelFrame(left, text=group, padding=6)
+            box.pack(fill="x", pady=(0, 6))
+            for command in commands:
+                row = ttk.Frame(box)
+                row.pack(fill="x", pady=1)
+                dot = tk.Label(row, text="○", width=2, font=("Segoe UI", 11))
+                dot.pack(side="left")
+                btn = ttk.Button(row, text=operation_label(command), width=25,
+                                 command=lambda c=command: self.run_operation(c))
+                btn.pack(side="left", fill="x", expand=True)
+                Tooltip(btn, lambda c=command: self._tooltip_for(c))
+                self.buttons.append(btn)
+                self.dots.append(dot)
+                self.op_commands.append(command)
 
-        ttk.Separator(left, orient="horizontal").pack(fill="x", pady=(8, 6))
         legend = ttk.Frame(left)
         legend.pack(anchor="w")
         for state in ("completed", "todo", "unavailable"):
@@ -812,8 +974,14 @@ class ToolkitGUI:
         conn = connect(db)
         try:
             counts: dict[str, int] = {}
-            for name in table_names(conn):
+            tables = set(table_names(conn))
+            for name in tables:
                 (counts[name],) = conn.execute(f"SELECT COUNT(*) FROM {name}").fetchone()
+            # modules whose output is a column: COUNT(col) ignores NULLs, so it tells whether the
+            # step actually ran (mv_synth is empty until `synth` fits the calibration).
+            for key, table, column in COLUMN_COUNTERS:
+                if table in tables:
+                    (counts[key],) = conn.execute(f'SELECT COUNT("{column}") FROM {table}').fetchone()
             return counts
         except Exception:  # noqa: BLE001 - a broken DB just means "no counts"
             return None
@@ -845,9 +1013,10 @@ class ToolkitGUI:
             self.status_var.set(f"DB: {db}\n(not created yet - use 'Initialize DB' or 'Rebuild all')")
             return
         counts = self._db_counts() or {}
-        populated = [f"{name}={n}" for name, n in sorted(counts.items()) if n]
+        tables = {name: n for name, n in counts.items() if "." not in name}   # drop column counters
+        populated = [f"{name}={n}" for name, n in sorted(tables.items()) if n]
         rows = ", ".join(populated) if populated else "all empty"
-        self.status_var.set(f"DB: {db}\nTables: {len(counts)} · rows: {rows}")
+        self.status_var.set(f"DB: {db}\nTables: {len(tables)} · rows: {rows}")
 
     def _refresh_all(self) -> None:
         self.refresh_status()
@@ -899,12 +1068,97 @@ class ToolkitGUI:
         dlg.wait_window()
         return out or None
 
+    def _positions_dialog(self) -> dict | None:
+        """Ask which league/season and WHICH LAYER to import. Returns run() kwargs, or None.
+
+        The two layers cost wildly different amounts of network, so the choice has to be explicit:
+        'season' is ~6 requests per league-season, 'match' walks every round of every perimeter club
+        (hours) and is what produces the synthetic matchdays.
+        """
+        from euroleghe_ingest.modules.positions import SEASONS, TOURNAMENTS
+
+        dlg = tk.Toplevel(self.root)
+        dlg.title("Import SofaScore")
+        dlg.transient(self.root)
+        dlg.grab_set()
+        dlg.resizable(False, False)
+        frm = ttk.Frame(dlg, padding=12)
+        frm.pack(fill="both", expand=True)
+
+        ttk.Label(frm, text="Layer:").grid(row=0, column=0, sticky="w", pady=4)
+        layer = tk.StringVar(value="season")
+        ttk.Combobox(frm, textvariable=layer, state="readonly", width=24,
+                     values=["season", "match", "all"]).grid(row=0, column=1, pady=4)
+        ttk.Label(frm, text="League:").grid(row=1, column=0, sticky="w", pady=4)
+        league = tk.StringVar(value="all")
+        ttk.Combobox(frm, textvariable=league, state="readonly", width=24,
+                     values=["all", *TOURNAMENTS]).grid(row=1, column=1, pady=4)
+        ttk.Label(frm, text="Season:").grid(row=2, column=0, sticky="w", pady=4)
+        season = tk.StringVar(value="all")
+        ttk.Combobox(frm, textvariable=season, state="readonly", width=24,
+                     values=["all", *SEASONS]).grid(row=2, column=1, pady=4)
+        refresh = tk.BooleanVar(value=False)
+        ttk.Checkbutton(frm, text="Refresh (re-download what is already cached)",
+                        variable=refresh).grid(row=3, column=0, columnspan=2, sticky="w", pady=4)
+
+        hint = tk.StringVar()
+        ttk.Label(frm, textvariable=hint, foreground="#555", wraplength=330,
+                  justify="left").grid(row=4, column=0, columnspan=2, sticky="w", pady=(6, 0))
+
+        def describe(*_args) -> None:
+            hint.set({
+                "season": "Season facts (goals, assists, minutes, xG/xA) -> external_stats. "
+                          "Fast: about 6 requests per league-season.",
+                "match": "Per-match ratings of the perimeter clubs -> external_match_stats. This is "
+                         "what fills the SYNTHETIC matchdays. Hours for everything; resumable, and "
+                         "'Stop' keeps whatever landed. Run 'matchdays' and 'synth' afterwards.",
+                "all": "Both layers, one after the other.",
+            }[layer.get()])
+
+        layer.trace_add("write", describe)
+        describe()
+
+        out: dict = {}
+
+        def confirm():
+            out["layer"] = layer.get()
+            out["leagues"] = None if league.get() == "all" else [league.get()]
+            out["seasons"] = None if season.get() == "all" else [season.get()]
+            out["refresh"] = refresh.get()
+            dlg.destroy()
+
+        btns = ttk.Frame(frm)
+        btns.grid(row=5, column=0, columnspan=2, pady=(10, 0))
+        ttk.Button(btns, text="Run", command=confirm).pack(side="left", padx=4)
+        ttk.Button(btns, text="Cancel", command=dlg.destroy).pack(side="left", padx=4)
+        dlg.wait_window()
+        return out or None
+
+    # Operations that ask for options before running: command -> dialog method name.
+    DIALOGS: ClassVar[dict[str, str]] = {"ratings": "_ratings_dialog",
+                                         "positions": "_positions_dialog"}
+
+    @staticmethod
+    def _follow_ups(command: str, params: dict) -> tuple[str, ...]:
+        """Offline steps to run right after an operation, because its output feeds them.
+
+        Downloading the per-match layer is pointless on its own: the synthetic base voto only shows
+        up once the calendar map and the calibration are recomputed (exactly what `rebuild` does, in
+        this order). Chaining them here spares the operator three clicks in a mandatory order - and
+        the log names every step, so nothing runs invisibly.
+        """
+        if command == "positions" and params.get("layer") in ("match", "all"):
+            return ("matchdays", "synth")
+        if command == "ratings":
+            return ("matchdays",)   # new matchdays to line up with the real calendar
+        return ()
+
     def run_operation(self, command: str) -> None:
         if self.busy:
             return
         params: dict = {}
-        if command == "ratings":
-            params = self._ratings_dialog()
+        if command in self.DIALOGS:
+            params = getattr(self, self.DIALOGS[command])()
             if params is None:
                 return   # user cancelled the dialog
         self._cancel_event.clear()
@@ -928,6 +1182,10 @@ class ToolkitGUI:
                 ctx.conn = init_db(self.config.db_path)
                 load(command).run(ctx, **(params or {}))
                 ctx.conn.commit()
+                for follow_up in self._follow_ups(command, params or {}):
+                    print(f"\n> {follow_up} (follow-up: {command} changed what it depends on)")
+                    load(follow_up).run(ctx)
+                    ctx.conn.commit()
             print(f"OK {command}: done")
         except NotImplementedError as exc:
             print(f".. {command}: to implement - {exc}")

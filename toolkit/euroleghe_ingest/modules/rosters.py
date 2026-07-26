@@ -52,12 +52,23 @@ def run(ctx: Context, **kwargs) -> None:
             (rec.fc_id, rec.name, None, rec.nationality),
         )
         club_id = _get_or_create_club(conn, rec.club, rec.league)
+        # UPSERT, not INSERT OR REPLACE: a field the source leaves empty must keep whatever the rest
+        # of the pipeline learned. The 2024-25 roster list has NO club column, so a plain REPLACE
+        # wiped the ~1000 clubs recovered by backfill_clubs/the listone every time this module was
+        # run on its own (it is a button in the panel), and those players vanished from the views.
         conn.execute(
             """
-            INSERT OR REPLACE INTO rosters(fc_id, season, fc_club_id, roles, role_classic, league, price)
+            INSERT INTO rosters(fc_id, season, fc_club_id, roles, role_classic, league, price)
             VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(fc_id, season) DO UPDATE SET
+                fc_club_id   = COALESCE(excluded.fc_club_id, rosters.fc_club_id),
+                roles        = COALESCE(excluded.roles, rosters.roles),
+                role_classic = COALESCE(excluded.role_classic, rosters.role_classic),
+                league       = COALESCE(excluded.league, rosters.league),
+                price        = COALESCE(excluded.price, rosters.price)
             """,
-            (rec.fc_id, rec.season, club_id, ";".join(rec.roles) or None, rec.role_classic, rec.league, None),
+            (rec.fc_id, rec.season, club_id, ";".join(rec.roles) or None, rec.role_classic,
+             rec.league, None),
         )
         seasons.add(rec.season)
 
