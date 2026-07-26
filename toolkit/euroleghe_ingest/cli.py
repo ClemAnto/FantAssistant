@@ -35,8 +35,8 @@ def build_parser() -> argparse.ArgumentParser:
         module = load(name)
         p = sub.add_parser(name, help=getattr(module, "DESCRIPTION", name))
         if name == "ratings":
-            p.add_argument("--competition", choices=["euroleghe", "serie_a"], default="euroleghe",
-                           help="which competition to import (default: euroleghe)")
+            p.add_argument("--platform", choices=["euro", "default"], default="euro",
+                           help="which platform to import (default: euro)")
             p.add_argument("--season", action="append", metavar="YYYY-YY",
                            help="season to import, e.g. 2024-25 (repeatable; default: all)")
             p.add_argument("--refresh", action="store_true",
@@ -72,7 +72,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command in ALL_MODULES:
         ctx.conn = init_db(cfg.db_path)
         if args.command == "ratings":
-            load("ratings").run(ctx, competition=args.competition,
+            load("ratings").run(ctx, platform=args.platform,
                                 seasons=args.season, refresh=args.refresh)
         else:
             load(args.command).run(ctx)

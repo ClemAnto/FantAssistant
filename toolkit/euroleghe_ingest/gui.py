@@ -317,6 +317,11 @@ _RATINGS_QUERY = """
     JOIN rosters r ON r.fc_id = v.fc_id AND r.season = v.season
     JOIN clubs c ON c.fc_club_id = r.fc_club_id
     WHERE v.season = ? AND c.league = ? AND c.canonical_name = ?
+      -- EuroLeghe and the classic Serie A use different calendars: show one platform per player
+      -- (the one with the most matchdays, i.e. the fuller calendar).
+      AND v.platform = (SELECT platform FROM match_ratings x
+                        WHERE x.fc_id = v.fc_id AND x.season = v.season
+                        GROUP BY platform ORDER BY COUNT(*) DESC LIMIT 1)
 """
 
 ROW_H = 26
@@ -813,7 +818,7 @@ class ToolkitGUI:
         self._append("\n[stop requested - finishing the current step; saved data is kept]\n")
 
     def _ratings_dialog(self) -> dict | None:
-        """Ask which competition + season to import. Returns run() kwargs, or None if cancelled."""
+        """Ask which platform + season to import. Returns run() kwargs, or None if cancelled."""
         dlg = tk.Toplevel(self.root)
         dlg.title("Scrape ratings")
         dlg.transient(self.root)
@@ -823,9 +828,9 @@ class ToolkitGUI:
         frm.pack(fill="both", expand=True)
 
         ttk.Label(frm, text="Competition:").grid(row=0, column=0, sticky="w", pady=4)
-        comp = tk.StringVar(value="euroleghe")
+        comp = tk.StringVar(value="euro")
         ttk.Combobox(frm, textvariable=comp, state="readonly", width=18,
-                     values=["euroleghe", "serie_a"]).grid(row=0, column=1, pady=4)
+                     values=["euro", "default"]).grid(row=0, column=1, pady=4)
         ttk.Label(frm, text="Season:").grid(row=1, column=0, sticky="w", pady=4)
         season = tk.StringVar(value="all")
         # EuroLeghe voti go back to ~2021-22, Serie A classic to ~2015-16 (the module resolves the
@@ -840,7 +845,7 @@ class ToolkitGUI:
         out: dict = {}
 
         def confirm():
-            out["competition"] = comp.get()
+            out["platform"] = comp.get()
             out["seasons"] = None if season.get() == "all" else [season.get()]
             out["refresh"] = refresh.get()
             dlg.destroy()

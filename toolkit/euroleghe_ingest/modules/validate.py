@@ -81,6 +81,7 @@ def check_ratings_consistency(conn) -> list[str]:
                s.pv AS pv_s, s.mv AS mv_s, s.fm AS fm_s
         FROM match_ratings r
         JOIN season_stats s ON s.fc_id = r.fc_id AND s.season = r.season
+        WHERE r.platform = 'euro'   -- the listone Mv/FM are the EuroLeghe perspective
         GROUP BY r.fc_id, r.season
         """
     ).fetchall()

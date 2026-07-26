@@ -78,7 +78,7 @@ CREATE TABLE IF NOT EXISTS match_ratings (
     matchday  INTEGER NOT NULL,
     role      TEXT,                              -- matchday role: P|D|C|A, or ALL for coaches (kept for info)
     team      TEXT,                              -- club name from the ratings Excel (used to backfill missing clubs)
-    competition TEXT,                            -- euroleghe | serie_a (which product the row was scraped from)
+    platform TEXT NOT NULL DEFAULT 'euro',  -- euroleghe | serie_a: DIFFERENT calendars, so part of the key
     mv        REAL,                              -- base rating (voto), NULL if no vote
     goals     INTEGER,
     assists   INTEGER,                           -- canonical: sum of all assist subtypes
@@ -95,7 +95,7 @@ CREATE TABLE IF NOT EXISTS match_ratings (
     minutes   INTEGER,                           -- (not in the Excel yet)
     fantavoto REAL,                              -- fantasy rating (mv + bonus/malus), default scoring
     status    TEXT,                              -- played | sub | no_vote | bench | injured | suspended | not_in_squad
-    PRIMARY KEY (fc_id, season, matchday)
+    PRIMARY KEY (fc_id, season, matchday, platform)
 );
 
 -- Lossless raw bonus layer (aggregation option A): every bonus column of the source Excel as-is,
@@ -105,9 +105,10 @@ CREATE TABLE IF NOT EXISTS match_rating_bonuses (
     fc_id     INTEGER NOT NULL REFERENCES players(fc_id),
     season    TEXT NOT NULL,
     matchday  INTEGER NOT NULL,
+    platform TEXT NOT NULL DEFAULT 'euro',
     bonus_key TEXT NOT NULL,                     -- raw source column name (e.g. Gf, Ass, Rp, ...)
     value     REAL,
-    PRIMARY KEY (fc_id, season, matchday, bonus_key)
+    PRIMARY KEY (fc_id, season, matchday, platform, bonus_key)
 );
 
 CREATE TABLE IF NOT EXISTS positions (

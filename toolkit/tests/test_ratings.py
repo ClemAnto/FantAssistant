@@ -67,7 +67,7 @@ def test_compute_fantavoto():
 
 
 def test_upsert(tmp_path):
-    conn = init_db(tmp_path / "euroleghe.db")
+    conn = init_db(tmp_path / "euro.db")
     recs = ratings.parse_workbook(_xlsx_bytes(ROWS), "2023-24", 5)
     n = ratings.upsert_records(conn, recs, _scoring())
     assert n == 4
@@ -83,7 +83,7 @@ def test_reingest_from_cache(tmp_path):
     from euroleghe_ingest.config import Config
     from euroleghe_ingest.context import Context
 
-    cfg = Config(data_dir=tmp_path / "data", db_path=tmp_path / "data" / "euroleghe.db")
+    cfg = Config(data_dir=tmp_path / "data", db_path=tmp_path / "data" / "euro.db")
     cfg.cache_dir.mkdir(parents=True)
     (cfg.cache_dir / "ratings_euroleghe_2023-24_md5.xlsx").write_bytes(_xlsx_bytes(ROWS))
     ctx = Context(config=cfg, conn=init_db(cfg.db_path))
@@ -99,7 +99,7 @@ def test_backfill_clubs_from_ratings(tmp_path):
     from euroleghe_ingest.context import Context
     from euroleghe_ingest.modules import rosters
 
-    cfg = Config(data_dir=tmp_path / "data", db_path=tmp_path / "data" / "euroleghe.db")
+    cfg = Config(data_dir=tmp_path / "data", db_path=tmp_path / "data" / "euro.db")
     (tmp_path / "data").mkdir()
     conn = init_db(cfg.db_path)
     conn.execute("INSERT INTO players(fc_id, canonical_name) VALUES (1, 'X')")
@@ -122,15 +122,15 @@ def test_backfill_rosters_from_ratings(tmp_path):
     from euroleghe_ingest.context import Context
     from euroleghe_ingest.modules import rosters
 
-    cfg = Config(data_dir=tmp_path / "data", db_path=tmp_path / "data" / "euroleghe.db")
+    cfg = Config(data_dir=tmp_path / "data", db_path=tmp_path / "data" / "euro.db")
     (tmp_path / "data").mkdir()
     conn = init_db(cfg.db_path)
     conn.execute("INSERT INTO players(fc_id, canonical_name) VALUES (7, 'SerieAonly')")
     conn.executemany(
-        "INSERT INTO match_ratings(fc_id, season, matchday, role, team, competition, mv) "
+        "INSERT INTO match_ratings(fc_id, season, matchday, role, team, platform, mv) "
         "VALUES (?, ?, ?, ?, ?, ?, ?)",
-        [(7, "2023-24", 1, "C", "Cagliari", "serie_a", 6.0),
-         (7, "2023-24", 2, "C", "Cagliari", "serie_a", 6.5)],
+        [(7, "2023-24", 1, "C", "Cagliari", "default", 6.0),
+         (7, "2023-24", 2, "C", "Cagliari", "default", 6.5)],
     )
     conn.commit()
     rosters.backfill_rosters_from_ratings(Context(config=cfg, conn=conn))
@@ -146,7 +146,7 @@ def test_fix_club_leagues(tmp_path):
     from euroleghe_ingest.context import Context
     from euroleghe_ingest.modules import rosters
 
-    cfg = Config(data_dir=tmp_path / "data", db_path=tmp_path / "data" / "euroleghe.db")
+    cfg = Config(data_dir=tmp_path / "data", db_path=tmp_path / "data" / "euro.db")
     (tmp_path / "data").mkdir()
     conn = init_db(cfg.db_path)
     conn.execute("INSERT INTO clubs(fc_club_id, canonical_name, league) VALUES (1, 'Genoa', 'premier_league')")
@@ -164,7 +164,7 @@ def test_derive_season_stats_from_ratings(tmp_path):
     from euroleghe_ingest.context import Context
     from euroleghe_ingest.modules import stats
 
-    cfg = Config(data_dir=tmp_path / "data", db_path=tmp_path / "data" / "euroleghe.db")
+    cfg = Config(data_dir=tmp_path / "data", db_path=tmp_path / "data" / "euro.db")
     (tmp_path / "data").mkdir()
     conn = init_db(cfg.db_path)
     conn.executemany("INSERT INTO players(fc_id, canonical_name) VALUES (?, ?)", [(9, "Old"), (8, "Listone")])
@@ -186,7 +186,7 @@ def test_derive_season_stats_from_ratings(tmp_path):
 
 
 def test_ratings_consistency_check(tmp_path):
-    conn = init_db(tmp_path / "euroleghe.db")
+    conn = init_db(tmp_path / "euro.db")
     for fc_id in (100, 200):
         conn.execute("INSERT INTO players(fc_id, canonical_name) VALUES (?, ?)", (fc_id, f"P{fc_id}"))
     # season aggregates

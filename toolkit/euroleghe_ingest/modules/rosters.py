@@ -20,8 +20,8 @@ DESCRIPTION = "Roster lists -> players, clubs, rosters (fc_id primary key)"
 DEPENDS_ON: list[str] = []
 RAW_INPUTS: list[str] = [
     "Statistiche_Fantacalcio_EuroLeghe_Stagione_2025_26.xlsx",
-    "euroleghe-stats-2024-25.csv",
-    "euroleghe-stats-2023-24.csv",
+    "euro-stats-2024-25.csv",
+    "euro-stats-2023-24.csv",
 ]
 NETWORK = False
 
@@ -94,8 +94,8 @@ def backfill_clubs(ctx: Context) -> None:
 
 def backfill_rosters_from_ratings(ctx: Context) -> None:
     """Create roster entries for players present in the ratings but not in a listone, so the Players
-    view can show them: the full Serie A teams (serie_a product) and older voti-only seasons.
-    League = serie_a for the serie_a product; otherwise inferred from the team's league in `clubs`.
+    view can show them: the full Serie A teams (the 'default' platform) and older voti-only seasons.
+    League = serie_a for the 'default' (classic Serie A) platform; otherwise inferred from the team's clubs entry.
     Mantra roles stay NULL (ratings only give the Classic role)."""
     conn = ctx.require_conn()
     pairs = conn.execute(
@@ -115,7 +115,7 @@ def backfill_rosters_from_ratings(ctx: Context) -> None:
         if not team:
             continue
         role = _mode(fc_id, season, "role", "AND role IN ('P','D','C','A')")
-        if _mode(fc_id, season, "competition") == "serie_a":
+        if _mode(fc_id, season, "platform") == "default":
             league = "serie_a"
         else:
             lk = conn.execute("SELECT league FROM clubs WHERE canonical_name=? AND league IS NOT NULL "

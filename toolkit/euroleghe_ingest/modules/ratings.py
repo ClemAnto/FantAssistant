@@ -41,13 +41,17 @@ EXCEL_ENDPOINT = BASE_URL + "/api/v1/Excel/votes/{cid}/{matchday}"
 _EXCEL_HREF = re.compile(r"/api/v1/Excel/votes/(\d+)/")
 _CACHE_NAME = re.compile(r"ratings_(?:([a-z_]+)_)?(\d{4}-\d{2})_md(\d+)\.xlsx$")
 
-# Competitions and their voti-page URL (the championship id + Excel link are read from that page).
-# EuroLeghe = 5 leagues, top clubs only (Serie A is PARTIAL). serie_a = the full classic Serie A.
-COMPETITIONS: dict[str, str] = {
-    "euroleghe": BASE_URL + "/voti-fantacalcio-euro-leghe/{season}/1",
-    "serie_a": BASE_URL + "/voti-fantacalcio-serie-a/{season}/1",
+# Platforms and their voti-page URL (the championship id + Excel link are read from that page).
+# 'euro' = EuroLeghe (5 leagues, top clubs only - Serie A is PARTIAL); 'default' = the classic
+# fantacalcio.it Serie A (all 20 teams). NOTE: the two use DIFFERENT matchday calendars.
+PLATFORMS: dict[str, str] = {
+    "euro": BASE_URL + "/voti-fantacalcio-euro-leghe/{season}/1",
+    "default": BASE_URL + "/voti-fantacalcio-serie-a/{season}/1",
 }
-DEFAULT_COMPETITION = "euroleghe"
+DEFAULT_PLATFORM = "euro"
+
+# Old cache files used the pre-rename tokens; map them to the platform values.
+_PLATFORM_ALIAS = {"euroleghe": "euro", "serie_a": "default"}
 SEASONS: tuple[str, ...] = ("2023-24", "2024-25", "2025-26")   # default when no season is selected
 MAX_MATCHDAYS = 60
 
@@ -111,8 +115,8 @@ def login(session: requests.Session, username: str, password: str) -> None:
         raise RuntimeError(f"Login failed: {msgs}")   # never log the password
 
 
-def resolve_championship_id(session: requests.Session, competition: str, season: str) -> str | None:
-    r = session.get(COMPETITIONS[competition].format(season=season), timeout=30)
+def resolve_championship_id(session: requests.Session, platform: str, season: str) -> str | None:
+    r = session.get(PLATFORMS[platform].format(season=season), timeout=30)
     if r.status_code != 200:
         return None
     m = _EXCEL_HREF.search(r.text)
@@ -201,7 +205,7 @@ def compute_fantavoto(canon: dict, scoring: dict[str, float]) -> float | None:
 
 # ---------- persistence ----------
 def upsert_records(conn, records: list[dict], scoring: dict[str, float],
-                   competition: str = DEFAULT_COMPETITION) -> int:
+                   platform: str = DEFAULT_PLATFORM) -> int:
     for rec in records:
         conn.execute(
             "INSERT OR IGNORE INTO players(fc_id, canonical_name) VALUES (?, ?)",
@@ -216,13 +220,13 @@ def upsert_records(conn, records: list[dict], scoring: dict[str, float],
         conn.execute(
             """
             INSERT OR REPLACE INTO match_ratings(
-                fc_id, season, matchday, role, team, competition, mv, goals, assists, own_goals,
+                fc_id, season, matchday, role, team, platform, mv, goals, assists, own_goals,
                 pen_scored, pen_missed, pen_saved, goals_conceded, yellows, reds,
                 fantavoto, status)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
-                rec["fc_id"], rec["season"], rec["matchday"], rec["role"], rec.get("team"), competition, mv,
+                rec["fc_id"], rec["season"], rec["matchday"], rec["role"], rec.get("team"), platform, mv,
                 c.get("goals"), c.get("assists"), c.get("own_goals"), c.get("pen_scored"),
                 c.get("pen_missed"), c.get("pen_saved"), c.get("goals_conceded"),
                 c.get("yellows"), c.get("reds"), compute_fantavoto(c, scoring), status,
@@ -230,21 +234,21 @@ def upsert_records(conn, records: list[dict], scoring: dict[str, float],
         )
         for key, value in rec["raw"].items():
             conn.execute(
-                "INSERT OR REPLACE INTO match_rating_bonuses(fc_id, season, matchday, bonus_key, value) "
-                "VALUES (?, ?, ?, ?, ?)",
-                (rec["fc_id"], rec["season"], rec["matchday"], key, value),
+                "INSERT OR REPLACE INTO match_rating_bonuses"
+                "(fc_id, season, matchday, platform, bonus_key, value) VALUES (?, ?, ?, ?, ?, ?)",
+                (rec["fc_id"], rec["season"], rec["matchday"], platform, key, value),
             )
     return len(records)
 
 
 # ---------- orchestration ----------
-def run(ctx: Context, *, competition: str = DEFAULT_COMPETITION, seasons=None,
+def run(ctx: Context, *, platform: str = DEFAULT_PLATFORM, seasons=None,
         refresh: bool = False, **kwargs) -> None:
-    """Scrape ratings for a competition ('euroleghe' or 'serie_a') and one or more seasons.
+    """Scrape ratings for a platform ('euro' or 'default') and one or more seasons.
     Resumable (skips matchdays already in the DB unless refresh=True) and interruptible (Ctrl-C or
     ctx.cancel_event): each matchday is committed as it lands, so a stop never loses what was downloaded."""
-    if competition not in COMPETITIONS:
-        raise RuntimeError(f"Unknown competition {competition!r}; choose from {sorted(COMPETITIONS)}")
+    if platform not in PLATFORMS:
+        raise RuntimeError(f"Unknown platform {platform!r}; choose from {sorted(PLATFORMS)}")
     if isinstance(seasons, str):
         seasons = [seasons]
     seasons = tuple(seasons) if seasons else SEASONS
@@ -255,7 +259,7 @@ def run(ctx: Context, *, competition: str = DEFAULT_COMPETITION, seasons=None,
     scoring = ctx.config.load_scoring()   # default fantacalcio.it scoring for the stored fantavoto
 
     session = _new_session(user_agent)
-    print(f"[ratings] competition={competition} seasons={list(seasons)} - logging in...")
+    print(f"[ratings] platform={platform} seasons={list(seasons)} - logging in...")
     login(session, user, pwd)
 
     ctx.config.cache_dir.mkdir(parents=True, exist_ok=True)
@@ -264,15 +268,15 @@ def run(ctx: Context, *, competition: str = DEFAULT_COMPETITION, seasons=None,
         for season in seasons:
             if ctx.cancelled():
                 break
-            cid = resolve_championship_id(session, competition, season)
+            cid = resolve_championship_id(session, platform, season)
             if not cid:
                 print(f"[ratings] {season}: championship id not found - skipping")
                 continue
             # resume PER COMPETITION: EuroLeghe and Serie A share the (season, matchday) key but
             # cover different teams, so a matchday scraped for one is NOT done for the other.
             done = {md for (md,) in conn.execute(
-                "SELECT DISTINCT matchday FROM match_ratings WHERE season = ? AND competition = ?",
-                (season, competition))}
+                "SELECT DISTINCT matchday FROM match_ratings WHERE season = ? AND platform = ?",
+                (season, platform))}
             note = f" (resuming, {len(done)} matchdays already present)" if done and not refresh else ""
             print(f"[ratings] {season}: championship {cid}{note} - downloading...")
             season_rows = last_md = 0
@@ -294,11 +298,11 @@ def run(ctx: Context, *, competition: str = DEFAULT_COMPETITION, seasons=None,
                     # beyond the last played matchday the endpoint still returns a valid but empty sheet
                     print(f"[ratings] {season}: stop at md{matchday} (empty sheet - end of season)")
                     break
-                (ctx.config.cache_dir / f"ratings_{competition}_{season}_md{matchday}.xlsx").write_bytes(data)
+                (ctx.config.cache_dir / f"ratings_{platform}_{season}_md{matchday}.xlsx").write_bytes(data)
                 teams = len({r["team"] for r in records if r.get("team")})
                 players = sum(1 for r in records if r["role"] in _PLAYER_ROLES)
                 voted = sum(1 for r in records if r["canon"].get("mv") is not None)
-                total += upsert_records(conn, records, scoring, competition)
+                total += upsert_records(conn, records, scoring, platform)
                 conn.commit()
                 season_rows += len(records)
                 last_md = matchday
@@ -326,10 +330,11 @@ def reingest_from_cache(ctx: Context) -> None:
         m = _CACHE_NAME.search(path.name)
         if not m:
             continue
-        competition = m.group(1) or DEFAULT_COMPETITION
+        token = m.group(1)
+        platform = _PLATFORM_ALIAS.get(token, token) if token else DEFAULT_PLATFORM
         season, matchday = m.group(2), int(m.group(3))
         total += upsert_records(conn, parse_workbook(path.read_bytes(), season, matchday),
-                                scoring, competition)
+                                scoring, platform)
     conn.commit()
     if files:
         print(f"[ratings] reingested {total} rows from {len(files)} cached files")
