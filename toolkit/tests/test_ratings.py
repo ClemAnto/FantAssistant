@@ -232,15 +232,20 @@ def test_parse_and_upsert_listone(tmp_path):
     ws.title = "Tutti"
     for r in rows:
         ws.append(r)
+    ced = wb.create_sheet("Ceduti")           # a mid-season departure: still played -> in the voti
+    ced.append(["Quotazioni Fantacalcio Stagione 2023 24 - Ceduti"] + [None] * 12)
+    ced.append(header)
+    ced.append([333, "D", "Dd;Dc", "Sold", "Salernitana", 2, 3, -1, 2, 3, -1, 5, 6])
     buf = io.BytesIO()
     wb.save(buf)
     data = buf.getvalue()
 
     recs = ratings.parse_listone(data, "2023-24")
-    assert len(recs) == 2
+    assert len(recs) == 3
     by = {r["fc_id"]: r for r in recs}
     assert by[222]["roles"] == ["dc", "ds"] and by[222]["role_classic"] == "D"
     assert by[111]["team"] == "Cagliari" and by[111]["price"] == 5
+    assert by[333]["roles"] == ["dd", "dc"] and by[333]["team"] == "Salernitana"   # from 'Ceduti'
 
     conn = init_db(tmp_path / "euro.db")
     conn.execute("INSERT INTO players(fc_id, canonical_name) VALUES (222, 'Caio')")
@@ -249,7 +254,7 @@ def test_parse_and_upsert_listone(tmp_path):
     conn.commit()
 
     n = ratings.upsert_listone(conn, "2023-24", recs, "default")
-    assert n == 2
+    assert n == 3
     filled = conn.execute("SELECT roles, price FROM rosters WHERE fc_id=222 AND season='2023-24'").fetchone()
     assert filled[0] == "dc;ds" and filled[1] == 12         # Mantra roles + price now present
     created = conn.execute(

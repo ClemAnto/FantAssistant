@@ -198,37 +198,41 @@ def parse_workbook(data: bytes, season: str, matchday: int) -> list[dict]:
 
 
 def parse_listone(data: bytes, season: str) -> list[dict]:
-    """Parse a listone (quotazioni) Excel into per-player role/price records (sheet 'Tutti').
+    """Parse a listone (quotazioni) Excel into per-player role/price records.
 
-    Header: Id | R | RM | Nome | Squadra | Qt.A | Qt.I | ... (Id=fc_id, R=Classic role,
-    RM=Mantra roles, Qt.A=current auction price). Rows above the header (the season title) and any
-    non-integer Id are skipped."""
+    Reads both 'Tutti' (current squads) AND 'Ceduti' (players sold mid/pre-season who still played
+    and are in the voti); both carry Id | R | RM | Nome | Squadra | Qt.A with the player's Serie A
+    club, so the Ceduti sheet fills those left out of 'Tutti'. The per-role sheets are subsets of
+    'Tutti' and are skipped. Id=fc_id, R=Classic role, RM=Mantra roles, Qt.A=current auction price.
+    Rows above each header (the season title) and any non-integer Id are skipped."""
     wb = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
     try:
-        ws = wb["Tutti"] if "Tutti" in wb.sheetnames else wb[wb.sheetnames[0]]
-        header: dict[str, int] = {}
+        sheets = [s for s in ("Tutti", "Ceduti") if s in wb.sheetnames] or [wb.sheetnames[0]]
         out: list[dict] = []
-        for row in ws.iter_rows(values_only=True):
-            first = row[0]
-            if isinstance(first, str) and first.strip() == "Id":
-                header = {str(c).strip(): i for i, c in enumerate(row) if c is not None}
-                continue
-            if not isinstance(first, int) or not header:
-                continue
+        for name in sheets:
+            ws = wb[name]
+            header: dict[str, int] = {}
+            for row in ws.iter_rows(values_only=True):
+                first = row[0]
+                if isinstance(first, str) and first.strip() == "Id":
+                    header = {str(c).strip(): i for i, c in enumerate(row) if c is not None}
+                    continue
+                if not isinstance(first, int) or not header:
+                    continue
 
-            def cell(col):
-                i = header.get(col)
-                return row[i] if (i is not None and i < len(row)) else None
+                def cell(col, _row=row, _header=header):
+                    i = _header.get(col)
+                    return _row[i] if (i is not None and i < len(_row)) else None
 
-            out.append({
-                "fc_id": first,
-                "season": season,
-                "role_classic": (str(cell("R")).strip() if cell("R") is not None else None),
-                "roles": _norm_roles(cell("RM")),
-                "name": (str(cell("Nome")).strip() if cell("Nome") is not None else None),
-                "team": (str(cell("Squadra")).strip() if cell("Squadra") is not None else None),
-                "price": _num(cell("Qt.A")),
-            })
+                out.append({
+                    "fc_id": first,
+                    "season": season,
+                    "role_classic": (str(cell("R")).strip() if cell("R") is not None else None),
+                    "roles": _norm_roles(cell("RM")),
+                    "name": (str(cell("Nome")).strip() if cell("Nome") is not None else None),
+                    "team": (str(cell("Squadra")).strip() if cell("Squadra") is not None else None),
+                    "price": _num(cell("Qt.A")),
+                })
         return out
     finally:
         wb.close()
