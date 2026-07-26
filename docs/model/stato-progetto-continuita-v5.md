@@ -16,7 +16,9 @@ App per leghe EuroLeghe/fantacalcio.it (Classic+Mantra, 5 campionati) con motore
 Python, SQLite, naming inglese, con **UI operatore** (Tkinter, python -m euroleghe_ingest gui). Stato:
 - **Operativi**: rosters, stats, ratings (scraping Excel autenticato + **listone** quotazioni), arrivals, elo, validate, rebuild idempotente (reset in-place per evitare lock del file) + GUI (vista calciatori con pillole ruolo colorate, ordinamento persistente per ruolo, toggle Fantavoti a griglia, icona campetto).
 - **Voti scaricati**: EuroLeghe (platform='euro') e Serie A classica (platform='default'), profondita' storica. rebuild li conserva re-ingerendo la cache Excel offline.
-- **Listone (quotazioni)**: `GET /api/v1/Excel/prices/{championshipId}/1` (stesso id dei voti), fogli Tutti+Ceduti -> ruoli Mantra (RM) + prezzi per TUTTE le squadre, riempie i non-top di Serie A ricostruiti dai voti. Scaricato dentro lo scraping, ri-applicato offline nel rebuild.
+- **Listone (quotazioni)**: `GET /api/v1/Excel/prices/{championshipId}/1` (stesso id dei voti), fogli Tutti+Ceduti -> ruoli Mantra (RM) + prezzi per TUTTE le squadre, riempie i non-top di Serie A ricostruiti dai voti. Scaricato dentro lo scraping, ri-applicato offline nel rebuild. Copertura Mantra Serie A ~96%; prezzi anche su Premier/Liga/Bundes/Ligue1.
+- **Code review (26/07)**: robustezza (utf-8-sig/BOM, scritture cache atomiche + try/except nei reingest, retry di rete, indici DB clubs.name e match_ratings(season,platform)) + consolidamenti (table_names, split ruoli su _norm_roles, RAW_INPUTS da SEASON_SOURCES). Scartato il bonus imbattibilita' nel fantavoto grezzo (verificato: FM-off 234->411, la fonte lo esclude). Ruff pulito, 25 test verdi (+1 skip GUI headless).
+- **Commit** (branch master): 0bceb23 platform · 85b7a09 season_stats per-piattaforma · 258905e listone · 7619d27 listone Ceduti · e7e2394 migrazione doc in git · b831f5f code review.
 - **Decisioni chiave v9** (dettaglio in spec-euroleghe-ingest-v9.md):
   - **platform = euro | default** in PK (calendari diversi; euro PARZIALE per la Serie A). euro = fantamedia/target; default = stagione reale piena. Ortogonale: **gameType = classic | mantra** (concern del motore).
   - **Aggregazione opzione A**: canoniche + layer grezzo match_rating_bonuses.
@@ -24,11 +26,12 @@ Python, SQLite, naming inglese, con **UI operatore** (Tkinter, python -m euroleg
   - **Propensione su stagione piena**: il calendario euro e' un sottoinsieme delle partite reali (un difensore puo' segnare fuori dal calendario euro). Target FM/Mv resta su euro; la propensione (gol/assist/xG per 90') si calcola su tutte le partite reali. Serie A dai voti default (gia' disponibile); altre 4 leghe da **FBref** (fatti) + **Sofascore** (rating + heatmap) con **voto sintetico CALIBRATO sulla sovrapposizione** (non a bucket), in external_stats taggato per fonte, mai nel target euro. Tutto passa dal gate.
   - **Mappa giornate euro<->reali PER LEGA** (matchday_map): una giornata euro = giornata reale diversa in ogni campionato. Verificata su Serie A 2023-24.
 
-## Prossimo lavoro (Fase 1, in corso)
+## Prossimo lavoro (Fase 1, NON ancora iniziata)
+0. **Schema**: aggiungere le tabelle **`external_stats`** (FBref/Sofascore) e **`matchday_map(season, euro_md, league, real_md)`** — oggi solo documentate nello spec v9, NON in schema.sql.
 1. **FBref** (fatti: gol/assist/minuti/xG/xA) + risoluzione identita' player_xref (nome+club+stagione), **validato su Serie A** (gol FBref ~ gol default) prima delle leghe estere.
 2. **Sofascore** (rating per-partita + heatmap -> positions, fattore 21).
-3. **Voto sintetico calibrato** dalla sovrapposizione.
-4. **matchday_map** + evidenziazione nella vista delle giornate euro effettive vs sintetiche.
+3. **Voto sintetico calibrato** dalla sovrapposizione (Mv reale <-> rating Sofascore), sul Mv base.
+4. **Vista calciatori**: evidenziare le giornate euro effettive vs quelle riempite sinteticamente (usando matchday_map).
 5. Poi: arrivals+flag -> gate 3.2 + FM-equivalente estera + **2.5 pieno -> ALGORITMO COMPLETO asta 26/27**.
 
 ## Respinte dal gate (non riproporre senza nuove finestre)

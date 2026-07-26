@@ -58,5 +58,7 @@ fantacalcio.it credentials **only** in the local `.env` (see `.env.example`). NE
 in the repository, or in logs. `.env` is in `.gitignore` and `.claudeignore`.
 
 ## Conventions
-Drive is updated ONLY on the user's explicit request · versioning vN replaces vN-1 ·
-consolidate on Drive at the end of a session.
+The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
+Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,
+consolidate all `docs/model/` docs (and this file if conventions changed) with the current
+state/decisions/commits/next steps, then commit — so a new chat resumes with no lost context.
