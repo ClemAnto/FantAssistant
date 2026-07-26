@@ -686,6 +686,43 @@ class PlayersView(ttk.Frame):
 _READY_OPS: frozenset[str] = frozenset({"initdb", "rebuild"})
 
 
+def make_app_icon() -> tk.PhotoImage:
+    """Soccer-pitch window/taskbar icon drawn at runtime (stdlib only, no asset file).
+
+    A green mowing-striped field with white markings (touchlines, halfway line,
+    centre circle + spot, penalty boxes). Requires an existing Tk root.
+    """
+    import math
+
+    size = 64
+    img = tk.PhotoImage(width=size, height=size)
+    grass = ("#2f7d32", "#37913a")          # two mowing-stripe greens
+    line = "#f4f6f5"
+    stripe = size // 8
+    for i in range(0, size, stripe):
+        img.put(grass[(i // stripe) % 2], to=(0, i, size, i + stripe))
+
+    def frame(x0, y0, x1, y1, w=2):
+        img.put(line, to=(x0, y0, x1, y0 + w))          # top
+        img.put(line, to=(x0, y1 - w, x1, y1))          # bottom
+        img.put(line, to=(x0, y0, x0 + w, y1))          # left
+        img.put(line, to=(x1 - w, y0, x1, y1))          # right
+
+    m, c = 5, size // 2
+    frame(m, m, size - m, size - m)                     # touchlines
+    img.put(line, to=(c - 1, m, c + 1, size - m))       # halfway line
+    box = 22
+    frame(m, c - box // 2, m + 11, c + box // 2)        # left penalty box
+    frame(size - m - 11, c - box // 2, size - m, c + box // 2)  # right penalty box
+    r = 10                                              # centre circle (ring of dots)
+    for deg in range(0, 360, 8):
+        x = int(round(c + r * math.cos(math.radians(deg))))
+        y = int(round(c + r * math.sin(math.radians(deg))))
+        img.put(line, to=(x, y, x + 2, y + 2))
+    img.put(line, to=(c - 1, c - 1, c + 1, c + 1))      # centre spot
+    return img
+
+
 class ToolkitGUI:
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
@@ -697,6 +734,11 @@ class ToolkitGUI:
         root.title(f"euroleghe-ingest - operator panel v{__version__}")
         root.geometry("1000x640")
         root.minsize(820, 520)
+        try:
+            self._app_icon = make_app_icon()           # keep a reference (Tk needs it alive)
+            root.iconphoto(True, self._app_icon)
+        except Exception:
+            pass  # the icon is cosmetic; never block startup over it
 
         notebook = ttk.Notebook(root)
         notebook.pack(fill="both", expand=True)

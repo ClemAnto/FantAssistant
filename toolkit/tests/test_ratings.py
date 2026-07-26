@@ -216,6 +216,48 @@ def test_derive_season_stats_per_platform(tmp_path):
     assert tuple(default) == (3, 2)                        # full-season propensity captured
 
 
+def test_parse_and_upsert_listone(tmp_path):
+    """The listone (quotazioni) fills Mantra roles (RM) + price on rosters, incl. non-top teams
+    whose roster came from the voti (Classic role only)."""
+    header = ["Id", "R", "RM", "Nome", "Squadra", "Qt.A", "Qt.I", "Diff.",
+              "Qt.A M", "Qt.I M", "Diff.M", "FVM", "FVM M"]
+    rows = [
+        ["Quotazioni Fantacalcio Stagione 2023 24"] + [None] * 12,
+        header,
+        [111, "P", "Por", "Tizio", "Cagliari", 5, 5, 0, 5, 5, 0, 10, 10],
+        [222, "D", "Dc;Ds", "Caio", "Torino", 12, 10, 2, 14, 12, 2, 40, 45],
+    ]
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Tutti"
+    for r in rows:
+        ws.append(r)
+    buf = io.BytesIO()
+    wb.save(buf)
+    data = buf.getvalue()
+
+    recs = ratings.parse_listone(data, "2023-24")
+    assert len(recs) == 2
+    by = {r["fc_id"]: r for r in recs}
+    assert by[222]["roles"] == ["dc", "ds"] and by[222]["role_classic"] == "D"
+    assert by[111]["team"] == "Cagliari" and by[111]["price"] == 5
+
+    conn = init_db(tmp_path / "euro.db")
+    conn.execute("INSERT INTO players(fc_id, canonical_name) VALUES (222, 'Caio')")
+    # a roster reconstructed from the voti: Classic role only, no Mantra role
+    conn.execute("INSERT INTO rosters(fc_id, season, role_classic, league) VALUES (222,'2023-24','D','serie_a')")
+    conn.commit()
+
+    n = ratings.upsert_listone(conn, "2023-24", recs, "default")
+    assert n == 2
+    filled = conn.execute("SELECT roles, price FROM rosters WHERE fc_id=222 AND season='2023-24'").fetchone()
+    assert filled[0] == "dc;ds" and filled[1] == 12         # Mantra roles + price now present
+    created = conn.execute(
+        "SELECT c.canonical_name, r.league, r.roles FROM rosters r JOIN clubs c "
+        "ON c.fc_club_id = r.fc_club_id WHERE r.fc_id = 111 AND r.season='2023-24'").fetchone()
+    assert tuple(created) == ("Cagliari", "serie_a", "por")  # brand-new player got a full roster row
+
+
 def test_ratings_consistency_check(tmp_path):
     conn = init_db(tmp_path / "euro.db")
     for fc_id in (100, 200):

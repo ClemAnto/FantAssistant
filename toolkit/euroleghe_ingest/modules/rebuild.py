@@ -61,6 +61,7 @@ def run(ctx: Context, *, include_network: bool = False, **kwargs) -> None:
     load("ratings").reingest_from_cache(ctx)
     load("rosters").backfill_clubs(ctx)
     load("rosters").backfill_rosters_from_ratings(ctx)   # Serie A + voti-only seasons
+    load("ratings").reingest_listone_from_cache(ctx)     # Mantra roles + prices for ALL teams (listone)
     load("rosters").fix_club_leagues(ctx)                # correct clubs mislabeled by transferred players
     load("stats").derive_from_ratings(ctx)               # season aggregates for players without a listone
     load("arrivals").run(ctx)   # roster diff needs the backfilled clubs

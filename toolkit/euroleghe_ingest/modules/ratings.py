@@ -28,6 +28,7 @@ from dotenv import load_dotenv
 from openpyxl import load_workbook
 
 from euroleghe_ingest.context import Context
+from euroleghe_ingest.sources import _norm_roles
 
 NAME = "ratings"
 DESCRIPTION = "Official per-matchday Excel -> match_ratings (+ raw bonuses)"
@@ -38,8 +39,12 @@ NETWORK = True
 BASE_URL = "https://www.fantacalcio.it"
 LOGIN_ENDPOINT = BASE_URL + "/api/v1/User/login"
 EXCEL_ENDPOINT = BASE_URL + "/api/v1/Excel/votes/{cid}/{matchday}"
+# Listone (quotazioni): the season's Mantra roles (RM) + prices for ALL teams. Same championship id
+# as the votes (verified: default 18/19/20, euro 106/107/108), listType 1 = the full list.
+PRICES_ENDPOINT = BASE_URL + "/api/v1/Excel/prices/{cid}/1"
 _EXCEL_HREF = re.compile(r"/api/v1/Excel/votes/(\d+)/")
 _CACHE_NAME = re.compile(r"ratings_(?:([a-z_]+)_)?(\d{4}-\d{2})_md(\d+)\.xlsx$")
+_LISTONE_NAME = re.compile(r"listone_([a-z_]+)_(\d{4}-\d{2})\.xlsx$")
 
 # Platforms and their voti-page URL (the championship id + Excel link are read from that page).
 # 'euro' = EuroLeghe (5 leagues, top clubs only - Serie A is PARTIAL); 'default' = the classic
@@ -131,6 +136,14 @@ def download_matchday(session: requests.Session, cid: str, matchday: int) -> byt
     return content if content[:2] == b"PK" else None   # xlsx = zip (starts with PK)
 
 
+def download_listone(session: requests.Session, cid: str) -> bytes | None:
+    """Download the season listone (quotazioni) Excel for a championship id (Mantra roles + prices)."""
+    r = session.get(PRICES_ENDPOINT.format(cid=cid), timeout=30)
+    if r.status_code != 200:
+        return None
+    return r.content if r.content[:2] == b"PK" else None
+
+
 # ---------- parsing (pure, offline-testable) ----------
 def parse_workbook(data: bytes, season: str, matchday: int) -> list[dict]:
     """Parse one official votes Excel into per-player records (players + coaches).
@@ -180,6 +193,43 @@ def parse_workbook(data: bytes, season: str, matchday: int) -> list[dict]:
                     rec["canon"][canon] = _num(value)
             records.append(rec)
         return records
+    finally:
+        wb.close()
+
+
+def parse_listone(data: bytes, season: str) -> list[dict]:
+    """Parse a listone (quotazioni) Excel into per-player role/price records (sheet 'Tutti').
+
+    Header: Id | R | RM | Nome | Squadra | Qt.A | Qt.I | ... (Id=fc_id, R=Classic role,
+    RM=Mantra roles, Qt.A=current auction price). Rows above the header (the season title) and any
+    non-integer Id are skipped."""
+    wb = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+    try:
+        ws = wb["Tutti"] if "Tutti" in wb.sheetnames else wb[wb.sheetnames[0]]
+        header: dict[str, int] = {}
+        out: list[dict] = []
+        for row in ws.iter_rows(values_only=True):
+            first = row[0]
+            if isinstance(first, str) and first.strip() == "Id":
+                header = {str(c).strip(): i for i, c in enumerate(row) if c is not None}
+                continue
+            if not isinstance(first, int) or not header:
+                continue
+
+            def cell(col):
+                i = header.get(col)
+                return row[i] if (i is not None and i < len(row)) else None
+
+            out.append({
+                "fc_id": first,
+                "season": season,
+                "role_classic": (str(cell("R")).strip() if cell("R") is not None else None),
+                "roles": _norm_roles(cell("RM")),
+                "name": (str(cell("Nome")).strip() if cell("Nome") is not None else None),
+                "team": (str(cell("Squadra")).strip() if cell("Squadra") is not None else None),
+                "price": _num(cell("Qt.A")),
+            })
+        return out
     finally:
         wb.close()
 
@@ -241,6 +291,41 @@ def upsert_records(conn, records: list[dict], scoring: dict[str, float],
     return len(records)
 
 
+def upsert_listone(conn, season: str, records: list[dict], platform: str = DEFAULT_PLATFORM) -> int:
+    """Enrich rosters with the listone: Mantra roles (RM), Classic role, price and club. This fills
+    the non-top Serie A players whose rosters came from the voti (Classic role only, no Mantra).
+    The listone is authoritative for roles/role/price; the roster league is preserved when known."""
+    from euroleghe_ingest.modules.rosters import _get_or_create_club
+
+    n = 0
+    for rec in records:
+        conn.execute("INSERT OR IGNORE INTO players(fc_id, canonical_name) VALUES (?, ?)",
+                     (rec["fc_id"], rec["name"] or str(rec["fc_id"])))
+        if platform == "default":
+            league = "serie_a"
+        else:  # euro spans 5 leagues: take the club's known league if we have it, else leave unknown
+            lk = conn.execute("SELECT league FROM clubs WHERE canonical_name = ? AND league IS NOT NULL "
+                              "LIMIT 1", (rec["team"],)).fetchone()
+            league = lk[0] if lk else None
+        club_id = _get_or_create_club(conn, rec["team"], league)
+        roles = ";".join(rec["roles"]) or None
+        conn.execute(
+            """
+            INSERT INTO rosters(fc_id, season, fc_club_id, roles, role_classic, league, price)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(fc_id, season) DO UPDATE SET
+                roles        = COALESCE(excluded.roles, rosters.roles),
+                role_classic = COALESCE(excluded.role_classic, rosters.role_classic),
+                price        = COALESCE(excluded.price, rosters.price),
+                fc_club_id   = COALESCE(excluded.fc_club_id, rosters.fc_club_id),
+                league       = COALESCE(rosters.league, excluded.league)
+            """,
+            (rec["fc_id"], season, club_id, roles, rec["role_classic"], league, rec["price"]),
+        )
+        n += 1
+    return n
+
+
 # ---------- orchestration ----------
 def run(ctx: Context, *, platform: str = DEFAULT_PLATFORM, seasons=None,
         refresh: bool = False, **kwargs) -> None:
@@ -279,6 +364,18 @@ def run(ctx: Context, *, platform: str = DEFAULT_PLATFORM, seasons=None,
                 (season, platform))}
             note = f" (resuming, {len(done)} matchdays already present)" if done and not refresh else ""
             print(f"[ratings] {season}: championship {cid}{note} - downloading...")
+            # Listone (quotazioni), same championship id as the votes: Mantra roles (RM) + prices for
+            # ALL teams -> enrich rosters (fills non-top Serie A players who had only the Classic role).
+            _polite_sleep(ctx.cancel_event)
+            if not ctx.cancelled():
+                listone = download_listone(session, cid)
+                if listone:
+                    (ctx.config.cache_dir / f"listone_{platform}_{season}.xlsx").write_bytes(listone)
+                    n_lst = upsert_listone(conn, season, parse_listone(listone, season), platform)
+                    conn.commit()
+                    print(f"[ratings] {season}: listone {platform} -> {n_lst} players (Mantra roles + prices)")
+                else:
+                    print(f"[ratings] {season}: listone not available (prices/{cid})")
             season_rows = last_md = 0
             for matchday in range(1, MAX_MATCHDAYS + 1):
                 if ctx.cancelled():
@@ -338,3 +435,21 @@ def reingest_from_cache(ctx: Context) -> None:
     conn.commit()
     if files:
         print(f"[ratings] reingested {total} rows from {len(files)} cached files")
+
+
+def reingest_listone_from_cache(ctx: Context) -> None:
+    """Re-apply the cached listone files to rosters offline (rebuild path), so the Mantra roles +
+    prices survive a rebuild without re-downloading."""
+    conn = ctx.require_conn()
+    files = sorted(ctx.config.cache_dir.glob("listone_*.xlsx"))
+    total = 0
+    for path in files:
+        m = _LISTONE_NAME.search(path.name)
+        if not m:
+            continue
+        token, season = m.group(1), m.group(2)
+        platform = _PLATFORM_ALIAS.get(token, token)
+        total += upsert_listone(conn, season, parse_listone(path.read_bytes(), season), platform)
+    conn.commit()
+    if files:
+        print(f"[ratings] reingested {total} listone rows from {len(files)} cached files")
