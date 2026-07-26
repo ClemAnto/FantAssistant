@@ -51,9 +51,13 @@ CREATE TABLE IF NOT EXISTS rosters (
     PRIMARY KEY (fc_id, season)
 );
 
+-- Season aggregates PER PLATFORM: 'euro' = the EuroLeghe calendar (fantamedia/target, from the
+-- listone); 'default' = the full real-league season (classic Serie A here) -> the propensity/ability
+-- view, so a player's goals/assists count even when they fall outside the EuroLeghe calendar.
 CREATE TABLE IF NOT EXISTS season_stats (
     fc_id   INTEGER NOT NULL REFERENCES players(fc_id),
     season  TEXT NOT NULL,
+    platform TEXT NOT NULL DEFAULT 'euro',      -- euro (fantamedia) | default (full-season propensity)
     pv      INTEGER,                            -- appearances with a vote
     mv      REAL,                               -- average vote
     fm      REAL,                               -- fantamedia
@@ -66,7 +70,7 @@ CREATE TABLE IF NOT EXISTS season_stats (
     pen_missed INTEGER,
     goals_conceded INTEGER,                     -- goalkeepers
     pen_saved INTEGER,                          -- goalkeepers
-    PRIMARY KEY (fc_id, season)
+    PRIMARY KEY (fc_id, season, platform)
 );
 
 -- Canonical per-matchday ratings (comparable across seasons). Base rating (mv) + the classic

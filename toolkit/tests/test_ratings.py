@@ -185,6 +185,37 @@ def test_derive_season_stats_from_ratings(tmp_path):
     assert tuple(kept) == (30, 6.9, 7.7)   # listone value untouched
 
 
+def test_derive_season_stats_per_platform(tmp_path):
+    """euro (listone, EuroLeghe subset) and default (full real season) coexist as separate rows,
+    so a player's full-season goals count even when they fall outside the EuroLeghe calendar."""
+    from euroleghe_ingest.config import Config
+    from euroleghe_ingest.context import Context
+    from euroleghe_ingest.modules import stats
+
+    cfg = Config(data_dir=tmp_path / "data", db_path=tmp_path / "data" / "euro.db")
+    (tmp_path / "data").mkdir()
+    conn = init_db(cfg.db_path)
+    conn.execute("INSERT INTO players(fc_id, canonical_name) VALUES (5, 'SerieA')")
+    # EuroLeghe listone: only the euro-calendar subset -> no goals recorded there
+    conn.execute("INSERT INTO season_stats(fc_id, season, platform, pv, mv, fm, goals) "
+                 "VALUES (5, '2023-24', 'euro', 2, 6.0, 6.0, 0)")
+    # full Serie A voti (default): the player actually scored 2 goals across the season
+    conn.executemany(
+        "INSERT INTO match_ratings(fc_id, season, matchday, role, platform, mv, fantavoto, goals) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        [(5, "2023-24", 1, "D", "default", 6.0, 9.0, 1),
+         (5, "2023-24", 2, "D", "default", 6.0, 6.0, 0),
+         (5, "2023-24", 3, "D", "default", 7.0, 10.0, 1)],
+    )
+    conn.commit()
+
+    stats.derive_from_ratings(Context(config=cfg, conn=conn))
+    euro = conn.execute("SELECT goals FROM season_stats WHERE fc_id=5 AND platform='euro'").fetchone()
+    assert euro[0] == 0                                    # target perspective untouched
+    default = conn.execute("SELECT pv, goals FROM season_stats WHERE fc_id=5 AND platform='default'").fetchone()
+    assert tuple(default) == (3, 2)                        # full-season propensity captured
+
+
 def test_ratings_consistency_check(tmp_path):
     conn = init_db(tmp_path / "euro.db")
     for fc_id in (100, 200):

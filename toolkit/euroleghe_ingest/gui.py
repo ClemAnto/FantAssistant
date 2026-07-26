@@ -299,6 +299,11 @@ _PLAYER_QUERY = """
     JOIN players p ON p.fc_id = r.fc_id
     JOIN clubs c ON c.fc_club_id = r.fc_club_id
     LEFT JOIN season_stats s ON s.fc_id = r.fc_id AND s.season = r.season
+      -- prefer the fuller-season aggregate (default = full real season) so a player's goals/assists
+      -- count even when they fall outside the EuroLeghe calendar; euro for non-Serie-A players.
+      AND s.platform = (SELECT platform FROM season_stats x
+                        WHERE x.fc_id = r.fc_id AND x.season = r.season
+                        ORDER BY x.pv DESC, x.platform LIMIT 1)
     WHERE r.season = ? AND c.league = ? AND c.canonical_name = ?
 """
 

@@ -80,7 +80,7 @@ def check_ratings_consistency(conn) -> list[str]:
                COUNT(r.mv) AS pv_r, AVG(r.mv) AS mv_r, AVG(r.fantavoto) AS fm_r,
                s.pv AS pv_s, s.mv AS mv_s, s.fm AS fm_s
         FROM match_ratings r
-        JOIN season_stats s ON s.fc_id = r.fc_id AND s.season = r.season
+        JOIN season_stats s ON s.fc_id = r.fc_id AND s.season = r.season AND s.platform = 'euro'
         WHERE r.platform = 'euro'   -- the listone Mv/FM are the EuroLeghe perspective
         GROUP BY r.fc_id, r.season
         """
