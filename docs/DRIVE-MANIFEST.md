@@ -1,27 +1,29 @@
 # Document manifest - Google Drive (SOURCE OF TRUTH)
 
-The consolidated documents and datasets live in the Drive folder **"Modello Previsionale Fantacalcio"**
-(owner: a.clemente@fantacalcio.it). This repo does NOT keep copies of them (they would go stale): here
-there is only the map with the IDs, so any session can re-download them with the Google Drive connectors.
-The Drive documents themselves are in Italian (the user's knowledge base).
+**The markdown knowledge base now lives in git under [model/](model/)** (Italian, the canonical home;
+git handles versioning). The Drive folder **"Modello Previsionale Fantacalcio"** (owner:
+a.clemente@fantacalcio.it) is kept as a **mirror/archive** and still hosts the **datasets** (xlsx/csv,
+not committed to git). This file maps the Drive IDs so any session can re-download them. A
+`00-MOVED-TO-GIT.md` marker (Drive) records the migration.
 
-- Folder: `1v_PtplA9E_vwcuALwAL-23skjjoU1MqF`
-- Rule: Drive is updated ONLY on the user's explicit request; the vN-1 versions are disposable.
+- Folder: `1v_PtplA9E_vwcuALwAL-23skjjoU1MqF` · migration marker: `1Gh11eYqbCJujcGDOybNVM4K8FfdLwDVB`
+- Docs in git: [docs/model/](model/) · Drive = archive; datasets stay on Drive.
+- Rule: Drive is updated ONLY on the user's explicit request.
 
-## Reading order (initialization)
+## Reading order (now in git: `docs/model/`; Drive IDs = archive copies)
 
-| # | Document | File ID |
+| # | Document (in `docs/model/`) | Drive archive ID |
 |---|---|---|
 | 1 | `00-BRIDGE-punto-di-ingresso.md` (entry point) | `1t_7B7MFpOSIZv-6JFbrv7XBYiL3lzK-i` |
-| 2 | `stato-progetto-continuita-v4.md` (full status) | `1QmjFyV9qiB7bSiAnjPivP9rh0mAr04fS` |
-| 3 | `todolist-mantra-euroleghe-v4.md` (roadmap) | `17c9w4iH22NoVi6gxeNz7BNA2hVtrbf0e` |
-| 4 | `spec-euroleghe-ingest-v8.md` (toolkit spec) | `1CshEefLB6G2FNoxMFJbL86RdDmH8fuSq` |
+| 2 | `stato-progetto-continuita-v5.md` (full status) | `1TfVe_fOI3oQy_2lAX4KM8pDcHuI8rszQ` |
+| 3 | `todolist-mantra-euroleghe-v5.md` (roadmap) | `1WodSnKJqZzNz8W7iDBUN23P1DYMGiDgf` |
+| 4 | `spec-euroleghe-ingest-v9.md` (toolkit spec) | `154sAC1XKbZc6jQ4NQqxihlLDmJPNUslP` |
 | 5 | `nota-modello-set-pieces-v2.md` (penalty takers/set pieces) | `1GsaKRLNJiNKvSQEHQ3D4uVm45BIZ3eZF` |
 | 6 | `modello-previsionale-v3.8.md` (parent doc, 22 factors) | `14cNaqt_olU0oDqYaB8S9HaaRL3FRwKmW` |
 
-## Consolidated detail notes
+## Consolidated detail notes (also in `docs/model/`)
 
-| Document | File ID |
+| Document | Drive archive ID |
 |---|---|
 | `ancore-mantra-fase2_1.md` | `1DsMT__I2urhq0apviplkMEkfeLpelhhA` |
 | `modulo-portieri-fase2_2.md` | `1QuCpbKAtjZBp05aTdiwWPf5wveZ85lHU` |

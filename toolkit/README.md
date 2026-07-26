@@ -3,9 +3,9 @@
 Data ingestion toolkit (roadmap task 1.0). Python + SQLite. Produces `data/euroleghe.db` +
 normalized CSVs, read by the app's `prediction-engine`.
 
-Reference spec: `spec-euroleghe-ingest-v8.md` on Drive (see [../docs/DRIVE-MANIFEST.md](../docs/DRIVE-MANIFEST.md)).
+Reference spec: `spec-euroleghe-ingest-v9.md` on Drive (see [../docs/DRIVE-MANIFEST.md](../docs/DRIVE-MANIFEST.md)).
 
-## Principles (spec v8)
+## Principles (spec v9)
 
 1. Raw files (Drive) = source of truth; the **DB is always rebuildable from scratch** (idempotent `rebuild`).
 2. The prediction engine reads only from the normalized data.
@@ -15,6 +15,27 @@ Reference spec: `spec-euroleghe-ingest-v8.md` on Drive (see [../docs/DRIVE-MANIF
 6. Autonomy via authenticated scraping (credentials in the local `.env`, nowhere else).
 7. `manual_overrides` = optional highest-precedence overrides.
 8. Volatile states as **dated time series**, never static flags.
+
+## Data model: `platform`, `gameType`, full-season propensity (v9)
+
+- **`platform`** = `euro` | `default`. `euro` = EuroLeghe (5 leagues, top clubs; Serie A is **partial**);
+  `default` = classic Serie A (all 20 teams, endpoint `/voti-fantacalcio-serie-a/{season}/{md}`). The two
+  use **different matchday calendars**, so `platform` is part of the PK of `match_ratings`,
+  `match_rating_bonuses` and `season_stats`. `euro` is the fantamedia/**target**; `default` is the
+  **full real-league season**.
+- **`gameType`** = `classic` | `mantra` is an **engine** dimension (roles + fantavoto modifiers); the base
+  voto is shared, so it is not stored in the raw ratings.
+- **Ratings** come from the authenticated **Excel API** (login + `/api/v1/Excel/votes/{championshipId}/{md}`),
+  never the anti-bot HTML page. Aggregation **option A**: canonical `match_ratings` columns + a lossless
+  `match_rating_bonuses` layer (raw key/value) for season-specific bonuses. The cached Excel are the raw
+  source of truth: `rebuild` re-ingests them offline (`reingest_from_cache`) so scraped ratings survive.
+- **Full-season propensity**: the euro calendar is a *subset* of a player's real matches. Propensity
+  (goals/assists/xG per 90) is computed over the FULL real season, while the FM/Mv target stays on `euro`.
+  Serie A gets the full season from `default`; the other 4 leagues from **FBref** (facts) + **Sofascore**
+  (per-match rating + heatmaps), with a **calibrated** synthetic base-voto (fitted on the euro/real overlap,
+  not fixed buckets) in a source-tagged `external_stats` layer that never contaminates the `euro` target.
+- **euro<->real matchday map** is **per league**: one euro round bundles a *different* real round in each of
+  the 5 leagues -> `matchday_map(season, euro_md, league, real_md)`.
 
 ## UI (operator panel)
 
