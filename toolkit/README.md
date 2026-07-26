@@ -31,11 +31,16 @@ Reference spec: `spec-euroleghe-ingest-v9.md` on Drive (see [../docs/DRIVE-MANIF
   source of truth: `rebuild` re-ingests them offline (`reingest_from_cache`) so scraped ratings survive.
 - **Full-season propensity**: the euro calendar is a *subset* of a player's real matches. Propensity
   (goals/assists/xG per 90) is computed over the FULL real season, while the FM/Mv target stays on `euro`.
-  Serie A gets the full season from `default`; the other 4 leagues from **FBref** (facts) + **Sofascore**
-  (per-match rating + heatmaps), with a **calibrated** synthetic base-voto (fitted on the euro/real overlap,
-  not fixed buckets) in a source-tagged `external_stats` layer that never contaminates the `euro` target.
+  Serie A gets the full season from `default`; the other 4 leagues from **SofaScore** - season facts in
+  `external_stats`, per-match rating in `external_match_stats` - with a **calibrated** synthetic base-voto
+  (`mv_synth`, a least-squares line per role fitted on the euro/real overlap, not fixed buckets). The whole
+  external layer is source-tagged and never contaminates the `euro` target.
+  FBref was the planned source for the facts but sits behind a Cloudflare interstitial (403 on every request,
+  TLS impersonation included); it stays an optional enrichment (career penalties, set-piece pass types).
 - **euro<->real matchday map** is **per league**: one euro round bundles a *different* real round in each of
-  the 5 leagues -> `matchday_map(season, euro_md, league, real_md)`.
+  the 5 leagues -> `matchday_map(season, euro_md, league, real_md)`. Serie A is derived offline from the two
+  platforms' ratings; the other leagues from the per-match layer. The two derivations agree 29/29 where
+  they overlap.
 
 ## UI (operator panel)
 
@@ -59,12 +64,21 @@ python -m euroleghe_ingest rebuild          # rebuild the whole DB from raw file
 python -m euroleghe_ingest fetch --plan     # compute the needs -> whitelist_request.md
 python -m euroleghe_ingest rosters          # run a single module
 python -m euroleghe_ingest validate         # integrity checks
+
+python -m euroleghe_ingest ratings --platform euro --season 2024-25   # authenticated Excel + listone
+python -m euroleghe_ingest positions                    # SofaScore season facts (5 leagues x 3 seasons)
+python -m euroleghe_ingest positions --layer match      # per-match ratings, perimeter clubs only (hours)
+python -m euroleghe_ingest matchdays                    # euro <-> real calendar map (+ cross-check)
+python -m euroleghe_ingest synth                        # calibrate rating -> Mv, fill mv_synth
 ```
+
+Every network module is resumable (the raw cache is the source of truth) and interruptible; `rebuild`
+re-ingests everything offline.
 
 ## Pipeline (`rebuild` order)
 
-`fetch` (network) -> `rosters` (always first) -> `stats` -> `ratings` -> `fc_site` -> `transfers` ->
-`fbref` -> `positions` -> `arrivals` -> `tournaments` -> `elo` -> `validate`.
+`fetch` (network) -> `rosters` (always first) -> `stats` -> `ratings` -> `matchdays` -> `fc_site` ->
+`transfers` -> `fbref` -> `positions` -> `synth` -> `arrivals` -> `tournaments` -> `elo` -> `validate`.
 
 ## Suggested first pass (no network)
 

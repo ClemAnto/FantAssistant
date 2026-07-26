@@ -11,6 +11,8 @@
 /data/inbox/*
 !/data/inbox/.gitkeep
 /data/cache/
+# report/modelli rigenerati dal toolkit (coverage, calibrazione voto sintetico)
+/data/reports/
 
 # --- Python ---
 __pycache__/

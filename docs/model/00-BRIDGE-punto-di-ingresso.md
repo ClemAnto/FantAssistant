@@ -17,22 +17,41 @@ La knowledge base è ora nel repo git **`FantAssistant`**, cartella **`docs/mode
 ## Ordine di lettura per una nuova sessione
 `00-BRIDGE` (questo) → `stato-progetto-continuita-v5.md` → `todolist-mantra-euroleghe-v5.md` → `spec-euroleghe-ingest-v9.md` → `nota-modello-set-pieces-v2.md` → `modello-previsionale-v3.8.md` → consolidati di dettaglio. Tutti in `docs/model/`.
 
-## STATO ATTUALE (fine sessione 26 luglio 2026)
+## STATO PRECEDENTE (primo giro toolkit, 26 luglio 2026)
 **Toolkit `euroleghe-ingest` — primo giro IMPLEMENTATO** (Python 3.13, venv in `toolkit/.venv`, SQLite `data/euroleghe.db`, GUI Tkinter `python -m euroleghe_ingest gui`):
 - **Operativi**: `rosters`, `stats`, `ratings` (scraping Excel autenticato **+ listone quotazioni**), `arrivals`, `elo`, `validate`, `rebuild` (idempotente, reset in-place). GUI: vista calciatori (pillole ruolo colorate, ordinamento persistente per ruolo, toggle Fantavoti a griglia, icona campetto).
-- **Dati scaricati e riallineati**: voti EuroLeghe (`platform='euro'`) + Serie A classica (`platform='default'`) per 2023-24/24-25/25-26; **listoni** (ruoli Mantra + prezzi, fogli Tutti+Ceduti) per entrambe le piattaforme → Serie A copertura Mantra ~96%, prezzi anche su Premier/Liga/Bundes/Ligue1. `rebuild` verde (234 FM-off, soft check).
+- **Dati scaricati e riallineati**: voti EuroLeghe (`platform='euro'`) + Serie A classica (`platform='default'`) per 2023-24/24-25/25-26; **listoni** (ruoli Mantra + prezzi, fogli Tutti+Ceduti) per entrambe le piattaforme → Serie A copertura Mantra ~96%, prezzi anche su Premier/Liga/Bundes/Ligue1. `rebuild` verde (allora 234 FM-off nel soft check: causa individuata e corretta in fase 1, ora 0).
 - **Decisioni chiave** (dettaglio in `spec-euroleghe-ingest-v9.md`): `platform` = euro|default in PK (calendari diversi) · `gameType` = classic|mantra (motore) · aggregazione opzione A · `season_stats` per piattaforma · propensione stagione piena (FBref fatti + Sofascore rating/heatmap + **voto sintetico calibrato**, mai nel target euro; tutto passa dal gate) · mappa giornate euro↔reali **per lega**.
 - **Code review** fatta (robustezza: utf-8-sig/BOM, scritture atomiche + try/except nei reingest, retry di rete, indici DB; consolidamenti). Scartato l'aggiunta del bonus imbattibilità al fantavoto grezzo (verificato: peggiora la coerenza FM). Ruff pulito, 25 test verdi (+1 skip GUI headless).
 
 **Commit** (branch `master`): `0bceb23` platform · `85b7a09` season_stats per-piattaforma · `258905e` listone · `7619d27` listone Ceduti · `e7e2394` migrazione doc in git · `b831f5f` code review.
 
-## PROSSIMO LAVORO — Fase 1 (NON ancora iniziata)
-1. **Schema**: aggiungere le tabelle **`external_stats`** (FBref/Sofascore, propensione stagione piena) e **`matchday_map(season, euro_md, league, real_md)`** — oggi solo documentate nello spec v9, NON in `schema.sql`.
-2. **FBref** (i fatti): gol/assist/minuti/xG/xA per lega/stagione → `external_stats(source='fbref')`; risoluzione identità `player_xref` (nome+club+stagione); **validare su Serie A** (gol FBref ≈ gol `default`) prima delle 4 leghe estere.
-3. **Sofascore** (`positions`): rating per-partita → `external_stats(source='sofascore')` + heatmap → `positions` (fattore 21).
-4. **Voto sintetico calibrato** dalla sovrapposizione (Mv reale ↔ rating Sofascore), sul Mv base.
-5. **Vista calciatori**: evidenziare le giornate euro effettive vs quelle riempite sinteticamente (usando `matchday_map`).
-Poi: arrivals+flag → gate 3.2 + FM-equivalente estera + 2.5 pieno → algoritmo completo asta 26/27.
+## FASE 1 — FATTA (26 luglio 2026), con SofaScore al posto di FBref
+Dettaglio tecnico e numeri in `spec-euroleghe-ingest-v9.md` → «Novità v9.1».
+- **FBref è bloccato** (interstitial Cloudflare: 403 su ogni path anche con impersonation TLS) → **SofaScore
+  è la fonte primaria dei fatti**: stessi dati (gol/assist/minuti/xG/xA) **più il rating per-partita** che
+  serve al voto sintetico. FBref resta arricchimento futuro (rigori di carriera, piazzati) via browser
+  headless o inbox manuale. Client `curl_cffi` (impersonate chrome): `requests` prende 403.
+- **Nuove tabelle**: `external_stats`, `external_match_stats`, `matchday_map`. **Nuovi moduli**: `matchdays`
+  (calendario euro↔reale) e `synth` (voto sintetico); `positions` è il modulo SofaScore
+  (`--layer season|match|all`). Identità in `matching.py` (tier + pool club→lega→stagione, iniettività
+  fc_id↔id provider, `manual_overrides` con precedenza, non risolti nel `coverage_report`).
+- **BUG CORRETTO: rigori invertiti** nell'Excel dei voti (`Rf` = fatti, `Rs` = sbagliati; erano scambiati) →
+  ai rigoristi il fantavoto applicava −3 invece di +3. **Il check FM è passato da 234 fuori tolleranza a 0.**
+- **Validazioni**: gol SofaScore vs Serie A `default` **100% esatti** su 3 stagioni · copertura perimetro
+  **96–100%** · la mappa giornate da SofaScore concorda **29/29** con quella dai nostri voti.
+- **Voto sintetico**: retta per ruolo sul Mv euro (pendenza 0.52 P → 0.84 A), MAE 0.358 vs 0.460 baseline.
+- **Vista calciatori**: griglia sul calendario **reale** con le giornate fuori dal calendario euro colorate
+  a parte (valore = voto sintetico). Test: 52 verdi. `rebuild` offline verde.
+
+## PROSSIMO LAVORO
+1. **Scraping per-partita delle 4 leghe estere** (+ Serie A 24/25 e 25/26): comando già pronto,
+   `positions --layer match`, ~2 h di rete, ripartibile. Poi ri-calibrare `synth` (avrà anche il controllo
+   fuori campione) e ri-derivare `matchdays` per le leghe estere.
+2. **Heatmap SofaScore → `positions.derived_role`** (fattore 21, off_role_usage): manca l'endpoint heatmap
+   stagionale per giocatore.
+3. Poi: `fc_site` (rigoristi/probabili/indisponibili) e `transfers` → arrivals+flag → gate 3.2 +
+   FM-equivalente estera + 2.5 pieno → algoritmo completo asta 26/27.
 
 ## Convenzioni operative
 git = casa canonica (Drive solo su richiesta esplicita) · risposte in chat in **italiano**, tutto il repo (codice, commenti, log, nomi file, .md) in **inglese**; i doc KB in `docs/model/` restano in italiano · `fc_id` chiave primaria · credenziali solo in `.env` · **quando l'utente scrive "chiudi"**: consolidare tutti gli .md di `docs/model/` (+ CLAUDE.md se serve) con stato/decisioni/commit/prossimi passi e committare.
