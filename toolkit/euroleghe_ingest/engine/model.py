@@ -227,6 +227,24 @@ def propensity_adjustment(gamma: float, z_propensity: float) -> float:
     return gamma * z_propensity
 
 
+def predict_fm_from_recent(anchor: float, rating_deviation: float, lam: float) -> float:
+    """R13: price a player whose only measured football is `recent_form`, elsewhere.
+
+    His rating comes from a competition the synthetic voto was never fitted on, so it is NOT converted
+    into a base voto. What is used is its DEVIATION from the mean rating of that same sample: "better
+    than the other newcomers we could measure" travels across leagues in a way that "7.0" does not.
+    Everything else stays the role anchor, which is what the engine had for him before.
+    """
+    return anchor + lam * rating_deviation
+
+
+def recent_minutes_share(minutes: int, matches: int) -> float | None:
+    """How much of a starter he was where he came from: minutes per match played, over 90."""
+    if not matches:
+        return None
+    return clip(minutes / (90.0 * matches), 0.0, 1.0)
+
+
 def market_expectation_adjustment(price_z: float | None, lam: float) -> float:
     """R12: what the market expected of him, over and above what his own history says.
 

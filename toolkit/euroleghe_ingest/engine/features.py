@@ -81,6 +81,13 @@ class Observation:
     # quantity a year earlier - so the engine can read how the market REVISED him before the auction.
     price_initial: float | None = None
     price_initial_prev: float | None = None
+    # `recent_form`: a small dated sample for players with no history at all. Ratings from a
+    # competition the synthetic voto was never fitted on, so kept as its own thing.
+    recent_matches: int = 0
+    recent_minutes: int = 0
+    recent_goals: int = 0
+    recent_assists: int = 0
+    recent_rating: float | None = None
     birth_year: int | None = None
     derived_role_prev: str | None = None
     off_role_prev: bool = False
@@ -268,6 +275,28 @@ def _external(conn: sqlite3.Connection, season: str) -> dict[int, tuple]:
     return out
 
 
+def _recent_form(conn: sqlite3.Connection, auction_date: str) -> dict[int, dict]:
+    """The last matches of players with no history, from `recent_form`, STRICTLY before the auction.
+
+    A separate source on purpose (`sofascore_recent`): these matches are in competitions the synthetic
+    voto was never calibrated on, so their rating is a rating and not a base voto. What the engine gets
+    is a small, honest sample - how many matches, how many minutes, what the provider thought of him -
+    for players it would otherwise price on a role anchor alone.
+
+    The date filter is what makes the same rows legal in a backtest: the scraper is anchored to today,
+    the engine only ever looks at what predated that window's auction.
+    """
+    return {fc_id: {"matches": matches, "minutes": minutes, "goals": goals,
+                    "assists": assists, "rating": rating}
+            for fc_id, matches, minutes, goals, assists, rating in conn.execute(
+                """SELECT fc_id, COUNT(*), SUM(COALESCE(minutes, 0)), SUM(COALESCE(goals, 0)),
+                          SUM(COALESCE(assists, 0)), AVG(rating)
+                   FROM external_match_stats
+                   WHERE source = 'sofascore_recent' AND match_date < ?
+                     AND COALESCE(minutes, 0) > 0
+                   GROUP BY fc_id""", (auction_date,))}
+
+
 def _probable_starters(conn: sqlite3.Connection, auction_date: str) -> dict[int, float]:
     """Auction-day view of a dated series: the last row with valid_from <= the auction date."""
     out: dict[int, float] = {}
@@ -320,6 +349,7 @@ def load(conn: sqlite3.Connection, window: Window, platform: str) -> list[Observ
         (window.input_season,))}
     derived = {fc_id: role for fc_id, role in conn.execute(
         "SELECT fc_id, derived_role FROM positions WHERE season = ?", (window.input_season,))}
+    recent = _recent_form(conn, window.auction_date)
     starters = _probable_starters(conn, window.auction_date)
     penalties = _penalty_state(conn, window.auction_date)
     euro_minutes = euro_minutes_shares(conn, window.input_season)
@@ -348,6 +378,7 @@ def load(conn: sqlite3.Connection, window: Window, platform: str) -> list[Observ
          price_initial, price_initial_prev) in rows:
         matches, starts, minutes, goals, assists, xg, xa, rating = external.get(fc_id, (None,) * 8)
         kind, tier, origin, equivalent = arrivals.get(fc_id, (None, None, None, None))
+        sample = recent.get(fc_id) or {}
         rank, confidence = penalties.get(fc_id, (None, None))
         observations.append(Observation(
             fc_id=fc_id, name=name, role_classic=role_classic,
@@ -358,6 +389,9 @@ def load(conn: sqlite3.Connection, window: Window, platform: str) -> list[Observ
             goals_prev=goals, assists_prev=assists, xg_prev=xg, xa_prev=xa, rating_prev=rating,
             minutes_share_euro_prev=euro_minutes.get(fc_id),
             price_initial=price_initial, price_initial_prev=price_initial_prev,
+            recent_matches=sample.get("matches", 0), recent_minutes=sample.get("minutes", 0),
+            recent_goals=sample.get("goals", 0), recent_assists=sample.get("assists", 0),
+            recent_rating=sample.get("rating"),
             birth_year=birth_year, derived_role_prev=derived.get(fc_id),
             off_role_prev=fc_id in off_role,
             arrival_type=kind, arrival_tier=tier, origin_league=origin,
@@ -380,6 +414,7 @@ FEATURE_CHECKS: tuple[tuple[str, str], ...] = (
     ("minutes_share_euro_prev", "minutes on the euro calendar's rounds - R3c"),
     ("xg_prev", "provider xG/xA - R2 per-90 propensity"),
     ("foreign_fm_equiv", "foreign FM-equivalent - R1 arrivals"),
+    ("recent_rating", "last matches elsewhere (recent_form) - R13 no-history players"),
     ("price_initial", "pre-auction quotation Qt.I - R12 market expectation"),
     ("price_initial_prev", "last season's Qt.I - R12b expectation revision"),
     ("birth_year", "birth year - R4 age curve"),

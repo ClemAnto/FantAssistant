@@ -68,13 +68,15 @@ RULES: tuple[Rule, ...] = (
          metric="pv"),
     Rule("R12", "market expectation: pre-auction quotation Qt.I, standardised inside the role", True),
     Rule("R12b", "expectation revision: how Qt.I moved year on year, before the auction", True),
+    Rule("R13", "recent form elsewhere: price the no-history players off their last matches", True,
+         kind="coverage"),
     Rule("R11b", "crowded position: 2+ same-role arrivals as a threshold, not a slope", True,
          metric="pv"),
 )
 
 # Rules that get fitted and compared one at a time by `compare`.
 CANDIDATES: tuple[str, ...] = ("R1", "R1b", "R2", "R3", "R3c", "R4", "R4b", "R5", "R6", "R7",
-                               "R8", "R10", "R11", "R11b", "R12", "R12b")
+                               "R8", "R10", "R11", "R11b", "R12", "R12b", "R13")
 
 # What survived the gate, PER PLATFORM. Keeping it per platform is not a hedge: `platform` is a
 # first-class dimension of the data model (different calendars, different perimeters), and the gate
@@ -186,6 +188,7 @@ class Derived:
     elo_z: dict[int, float] = field(default_factory=dict)
     price_z: dict[int, float] = field(default_factory=dict)
     price_revision: dict[int, float] = field(default_factory=dict)
+    recent_deviation: dict[int, float] = field(default_factory=dict)
 
 
 def _elo_z_scores(data: features.WindowData) -> dict[int, float]:
@@ -272,8 +275,16 @@ def derive(data: features.WindowData) -> Derived:
         if value is not None and entry is not None:
             # clipped: one outlier per-90 rate must not swing a whole prediction
             propensity_z[obs.fc_id] = model.clip((value - entry[0]) / entry[1], -3.0, 3.0)
+    # R13: deviation from the mean rating of the players we could measure this way at all
+    rated = [obs.recent_rating for obs in data.observations
+             if obs.recent_matches and obs.recent_rating is not None]
+    mean_rating = sum(rated) / len(rated) if rated else None
+    recent_deviation = {obs.fc_id: obs.recent_rating - mean_rating
+                        for obs in data.observations
+                        if mean_rating is not None and obs.recent_matches
+                        and obs.recent_rating is not None}
     price_z, price_revision = _price_signals(data)
-    return Derived(minutes_share=minutes_share, propensity_z=propensity_z,
+    return Derived(recent_deviation=recent_deviation,minutes_share=minutes_share, propensity_z=propensity_z,
                    elo_z=_elo_z_scores(data), price_z=price_z, price_revision=price_revision)
 
 
@@ -295,6 +306,8 @@ class Params:
     elo_lam: float | None = None                  # R5: club-strength anchor shift
     price_lam: float | None = None                # R12: market expectation
     revision_lam: float | None = None             # R12b: pre-auction expectation revision
+    recent_lam: float | None = None               # R13: rating deviation of the recent-form sample
+    recent_share: tuple[float, ...] | None = None  # R13: appearances from his minutes elsewhere
     coach_level: float | None = None              # R10: new coach, average share change
     coach_interaction: float | None = None         # R10: new coach x previous share
     competition_lam: float | None = None           # R11: same-role arrivals at his club
@@ -348,6 +361,25 @@ def fit_params(data: features.WindowData, rules: tuple[str, ...]) -> Params:
                    if _is_goalkeeper(obs) and obs.pv_prev is not None and obs.pv_act is not None]
         params.share_gk = fit_linear(samples)
         params.notes["R7_n"] = len(samples)
+
+    if "R13" in rules:
+        deviations, shares = [], []
+        for obs in data.observations:
+            if not obs.recent_matches or obs.fm_prev is not None:
+                continue
+            anchor = _anchor_for(obs, data)
+            deviation = derived.recent_deviation.get(obs.fc_id)
+            if (anchor is not None and deviation is not None and obs.fm_act is not None
+                    and (obs.pv_act or 0) >= MIN_PV_ACT):
+                deviations.append(((deviation,), obs.fm_act - anchor))
+            share = model.recent_minutes_share(obs.recent_minutes, obs.recent_matches)
+            if share is not None and obs.pv_act is not None and matchdays:
+                shares.append(((share,), obs.pv_act / matchdays))
+        fitted = fit_linear(deviations, intercept=False)
+        params.recent_lam = fitted[0] if fitted else None
+        params.recent_share = fit_linear(shares)
+        params.notes["R13_fm_n"] = len(deviations)
+        params.notes["R13_pv_n"] = len(shares)
 
     if "R1" in rules or "R1b" in rules:
         # appearances for players the game has never rated: minutes elsewhere are all we have
@@ -520,6 +552,14 @@ def _rule_fm(obs: features.Observation, data: features.WindowData, rules: tuple[
             and not _is_goalkeeper(obs)):
         fm_pred = model.predict_fm_arrival(anchor, obs.foreign_fm_equiv, params.beta_new)
 
+    # R13 - his only measured football is elsewhere: the role anchor plus how he compared to the
+    # other newcomers we could measure. Only where the engine has nothing else.
+    if (fm_pred is None and "R13" in rules and anchor is not None and obs.recent_matches
+            and params.recent_lam is not None):
+        deviation = derived.recent_deviation.get(obs.fc_id)
+        if deviation is not None:
+            fm_pred = model.predict_fm_from_recent(anchor, deviation, params.recent_lam)
+
     if fm_pred is None:
         return None
 
@@ -587,6 +627,11 @@ def _rule_pv(obs: features.Observation, data: features.WindowData, rules: tuple[
     elif ("R1" in rules and params.share_new and obs.pv_prev is None
             and minutes_share is not None):
         share = model.linear_share(params.share_new, (minutes_share,))
+    elif ("R13" in rules and params.recent_share and obs.pv_prev is None
+            and obs.recent_matches):
+        elsewhere = model.recent_minutes_share(obs.recent_minutes, obs.recent_matches)
+        if elsewhere is not None:
+            share = model.linear_share(params.recent_share, (elsewhere,))
 
     if share is None:
         pv_pred = _predict_pv(obs, data)
