@@ -80,6 +80,31 @@ def test_expected_appearances_cannot_exceed_the_calendar():
     assert model.season_value(7.0, 25.0) == 175.0
 
 
+def test_penalty_adjustment_scales_with_the_hierarchy_confidence():
+    assert model.penalty_adjustment(None, 0.3) == 0.0        # not a taker -> nothing
+    assert model.penalty_adjustment(1.0, 0.3) == pytest.approx(0.3)
+    assert model.penalty_adjustment(0.5, 0.3) == pytest.approx(0.15)
+
+
+def test_off_role_adjustment_is_asymmetric_and_direction_aware():
+    forward, backward = 0.10, -0.20
+    # a defender used as a midfielder is used further FORWARD
+    assert model.off_role_adjustment("D", "C", forward, backward) == pytest.approx(forward)
+    # a midfielder used as a defender is used further BACK
+    assert model.off_role_adjustment("C", "D", forward, backward) == pytest.approx(backward)
+    assert model.off_role_adjustment("C", "C", forward, backward) == 0.0
+    # unknown on either side -> no adjustment, never a guess
+    assert model.off_role_adjustment(None, "A", forward, backward) == 0.0
+    assert model.off_role_adjustment("D", None, forward, backward) == 0.0
+    assert model.off_role_adjustment("D", "??", forward, backward) == pytest.approx(backward)
+
+
+def test_role_advancement_covers_the_classic_vocabulary():
+    assert set(model.ROLE_ADVANCEMENT) == set(model.CLASSIC_ROLES)
+    order = [model.ROLE_ADVANCEMENT[role] for role in ("P", "D", "C", "A")]
+    assert order == sorted(order)
+
+
 # ---------------------------------------------------------------- published constants
 
 

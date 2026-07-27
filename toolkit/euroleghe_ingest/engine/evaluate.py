@@ -52,25 +52,32 @@ RULES: tuple[Rule, ...] = (
     Rule("R1b", "adaptation discount for players who changed league (control: changed club)", True),
     Rule("R2", "beta corroborated by per-90 propensity (xG/xA per 90)", True),
     Rule("R3", "minutes inside expected appearances", True, metric="pv"),
+    Rule("R3c", "minutes measured on the euro calendar's own rounds (matchday_map)", True,
+         metric="pv"),
+    Rule("R6", "penalty duty at auction date, reduced form on the hierarchy's confidence", True),
+    Rule("R8", "off-role usage from the heatmap (set-piece/penalty halves are data-blocked)", True),
     Rule("R4", "age curve on the fantamedia past 30", True),
     Rule("R4b", "age curve on expected appearances past 30", True, metric="pv"),
     Rule("R7", "goalkeeper appearances: dedicated persistence instead of the shared share model",
          True, metric="pv"),
-    Rule("R8", "defenders' bonus potential (real role + set pieces)"),
     Rule("R9", "anchor recency weight (goal-environment drift)"),
 )
 
 # Rules that get fitted and compared one at a time by `compare`.
-CANDIDATES: tuple[str, ...] = ("R1", "R1b", "R2", "R3", "R4", "R4b", "R7")
+CANDIDATES: tuple[str, ...] = ("R1", "R1b", "R2", "R3", "R3c", "R4", "R4b", "R6", "R7", "R8")
 
 # What survived the gate, PER PLATFORM. Keeping it per platform is not a hedge: `platform` is a
 # first-class dimension of the data model (different calendars, different perimeters), and the gate
 # says these rules behave differently across it - R3 only helps where the target calendar IS the real
 # calendar (Serie A), R1/R4 only where the perimeter is the 5-league top clubs (EuroLeghe).
 ADOPTED: dict[str, tuple[str, ...]] = {
-    "euro": ("R1", "R4", "R7"),
+    "euro": ("R1", "R3c", "R4", "R7"),
     "default": ("R3", "R7"),
 }
+# Why R3c on euro and R3 on Serie A, when both pass on Serie A: there the euro map covers 31 of the
+# 38 rounds, so the two features are nearly the same quantity and R3c wins on Pv MAE but drops a
+# top-10 slot in T2. On euro only the aligned version passes at all - the target is the 31-round
+# subset, and minutes played in the rounds the game ignores predict nothing.
 RULES_BY_KEY: dict[str, Rule] = {rule.key: rule for rule in RULES}
 
 TOP_N = 10                 # the auction looks at the top 10 of each role
@@ -222,6 +229,10 @@ class Params:
 
     source: str = "none"
     share: tuple[float, ...] | None = None        # R3: share incl. minutes
+    share_euro: tuple[float, ...] | None = None   # R3c: minutes on the euro rounds
+    penalty_lam: float | None = None              # R6: penalty duty
+    off_role_forward: float | None = None         # R8: used further forward than listed
+    off_role_backward: float | None = None        # R8: used further back than listed
     share_gk: tuple[float, ...] | None = None     # R7: goalkeepers
     share_new: tuple[float, ...] | None = None    # R1: players with no history in the game
     beta_new: float | None = None                 # R1: FM from the foreign equivalent
@@ -252,6 +263,15 @@ def fit_params(data: features.WindowData, rules: tuple[str, ...]) -> Params:
                    and obs.fc_id in derived.minutes_share and obs.role_classic != "P"]
         params.share = fit_linear(samples)
         params.notes["R3_n"] = len(samples)
+
+    if "R3c" in rules:
+        samples = [((obs.share_prev(data.matchdays_prev), obs.minutes_share_euro_prev,
+                     _mv_term(obs), 1.0 if obs.club_change else 0.0), obs.pv_act / matchdays)
+                   for obs in data.observations
+                   if obs.pv_prev is not None and obs.pv_act is not None
+                   and obs.minutes_share_euro_prev is not None and obs.role_classic != "P"]
+        params.share_euro = fit_linear(samples)
+        params.notes["R3c_n"] = len(samples)
 
     if "R7" in rules:
         samples = [((obs.share_prev(data.matchdays_prev), 1.0 if obs.club_change else 0.0),
@@ -292,8 +312,10 @@ def fit_params(data: features.WindowData, rules: tuple[str, ...]) -> Params:
                 setattr(params, key, sum(values) / len(values))
             params.notes[f"R1_{key}_n"] = len(values)
 
-    if "R2" in rules or "R4" in rules or "R4b" in rules:
+    if {"R2", "R4", "R4b", "R6", "R8"} & set(rules):
         propensity, ageing, ageing_share = [], [], []
+        penalties: list[tuple[tuple[float, ...], float]] = []
+        off_role: list[tuple[tuple[float, ...], float]] = []
         for obs in data.observations:
             baseline, _anchor = _predict_fm(obs, data)
             if baseline is not None and obs.fm_act is not None and (obs.pv_act or 0) >= MIN_PV_ACT:
@@ -304,6 +326,13 @@ def fit_params(data: features.WindowData, rules: tuple[str, ...]) -> Params:
                 age = obs.age(data.window)
                 if age is not None:
                     ageing.append(((float(max(0, age - model.AGE_KNEE)),), residual))
+                if not _is_goalkeeper(obs) and obs.penalty_rank == 1:
+                    penalties.append(((obs.penalty_confidence or 0.0,), residual))
+                if not _is_goalkeeper(obs) and obs.derived_role_prev and obs.role_classic:
+                    delta = (model.ROLE_ADVANCEMENT.get(obs.derived_role_prev, -1)
+                             - model.ROLE_ADVANCEMENT.get(obs.role_classic, -1))
+                    off_role.append(((1.0 if delta > 0 else 0.0, 1.0 if delta < 0 else 0.0),
+                                     residual))
             share_pred = _predict_pv(obs, data)
             age = obs.age(data.window)
             if share_pred is not None and obs.pv_act is not None and age is not None:
@@ -320,6 +349,17 @@ def fit_params(data: features.WindowData, rules: tuple[str, ...]) -> Params:
             params.age_share = fitted_share[0] if fitted_share else None
             params.notes["R4_n"] = len(ageing)
             params.notes["R4b_n"] = len(ageing_share)
+        if "R6" in rules:
+            fitted = fit_linear(penalties, intercept=False)
+            params.penalty_lam = fitted[0] if fitted else None
+            params.notes["R6_n"] = len(penalties)
+        if "R8" in rules:
+            fitted = fit_linear(off_role, intercept=False)
+            if fitted:
+                params.off_role_forward, params.off_role_backward = fitted
+            params.notes["R8_n"] = len(off_role)
+            params.notes["R8_forward_n"] = sum(1 for features_, _r in off_role if features_[0])
+            params.notes["R8_backward_n"] = sum(1 for features_, _r in off_role if features_[1])
     return params
 
 
@@ -378,6 +418,16 @@ def _rule_fm(obs: features.Observation, data: features.WindowData, rules: tuple[
         if z is not None:
             fm_pred += model.propensity_adjustment(params.gamma, z)
 
+    # R6 - penalty duty as known on auction day
+    if "R6" in rules and params.penalty_lam is not None and obs.penalty_rank == 1:
+        fm_pred += model.penalty_adjustment(obs.penalty_confidence, params.penalty_lam)
+
+    # R8 - the heatmap says he is used further forward (or back) than his listed role
+    if ("R8" in rules and params.off_role_forward is not None
+            and params.off_role_backward is not None and not _is_goalkeeper(obs)):
+        fm_pred += model.off_role_adjustment(obs.role_classic, obs.derived_role_prev,
+                                             params.off_role_forward, params.off_role_backward)
+
     # R4 - ageing
     if "R4" in rules and params.age_fm is not None:
         fm_pred += model.age_adjustment(obs.age(data.window), params.age_fm)
@@ -393,6 +443,12 @@ def _rule_pv(obs: features.Observation, data: features.WindowData, rules: tuple[
     if _is_goalkeeper(obs) and "R7" in rules and params.share_gk and obs.pv_prev is not None:
         share = model.linear_share(params.share_gk, (obs.share_prev(data.matchdays_prev),
                                                      1.0 if obs.club_change else 0.0))
+    elif ("R3c" in rules and params.share_euro and obs.pv_prev is not None
+            and obs.minutes_share_euro_prev is not None and not _is_goalkeeper(obs)):
+        share = model.linear_share(params.share_euro,
+                                   (obs.share_prev(data.matchdays_prev),
+                                    obs.minutes_share_euro_prev, _mv_term(obs),
+                                    1.0 if obs.club_change else 0.0))
     elif ("R3" in rules and params.share and obs.pv_prev is not None
             and minutes_share is not None and not _is_goalkeeper(obs)):
         share = model.linear_share(params.share, (obs.share_prev(data.matchdays_prev),

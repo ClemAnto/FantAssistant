@@ -74,6 +74,7 @@ class Observation:
     xg_prev: float | None = None
     xa_prev: float | None = None
     rating_prev: float | None = None
+    minutes_share_euro_prev: float | None = None    # minutes on the euro calendar's own rounds
     birth_year: int | None = None
     derived_role_prev: str | None = None
     off_role_prev: bool = False
@@ -136,6 +137,33 @@ def league_rounds(conn: sqlite3.Connection, season: str) -> dict[str, int]:
         "SELECT competition, MAX(real_md) FROM external_match_stats "
         "WHERE season = ? AND competition IS NOT NULL AND real_md IS NOT NULL "
         "GROUP BY competition", (season,))}
+
+
+def euro_minutes_shares(conn: sqlite3.Connection, season: str) -> dict[int, float]:
+    """Minutes played IN THE ROUNDS THE EURO CALENDAR ACTUALLY USES, as a share of those rounds.
+
+    The reason R3 (minutes over the full real season) failed on the euro platform: the target is
+    appearances in a 27-31 round SUBSET of a 34-38 round league, and a player's minutes in the rounds
+    the game ignores say nothing about the rounds it scores. `matchday_map` knows which real round
+    each euro round bundles, per league, so the minutes can be measured on the same calendar as the
+    target. Summed across competitions for players who changed league mid-season.
+    """
+    mapped_rounds = {league: count for league, count in conn.execute(
+        "SELECT league, COUNT(*) FROM matchday_map WHERE season = ? GROUP BY league", (season,))}
+    if not mapped_rounds:
+        return {}
+    totals: dict[int, float] = {}
+    for fc_id, competition, minutes in conn.execute(
+            """SELECT e.fc_id, e.competition, SUM(COALESCE(e.minutes, 0))
+               FROM external_match_stats e
+               JOIN matchday_map m ON m.season = e.season AND m.league = e.competition
+                                  AND m.real_md = e.real_md
+               WHERE e.season = ? AND e.source = 'sofascore'
+               GROUP BY e.fc_id, e.competition""", (season,)):
+        rounds = mapped_rounds.get(competition)
+        if rounds:
+            totals[fc_id] = totals.get(fc_id, 0.0) + minutes / (90.0 * rounds)
+    return {fc_id: min(share, 1.0) for fc_id, share in totals.items()}
 
 
 def anchors(conn: sqlite3.Connection, platform: str, seasons: tuple[str, ...], game: str,
@@ -268,6 +296,7 @@ def load(conn: sqlite3.Connection, window: Window, platform: str) -> list[Observ
         "SELECT fc_id, derived_role FROM positions WHERE season = ?", (window.input_season,))}
     starters = _probable_starters(conn, window.auction_date)
     penalties = _penalty_state(conn, window.auction_date)
+    euro_minutes = euro_minutes_shares(conn, window.input_season)
 
     observations: list[Observation] = []
     for (fc_id, name, role_classic, roles_raw, league, price, club_target, club_prev, birth_year,
@@ -282,6 +311,7 @@ def load(conn: sqlite3.Connection, window: Window, platform: str) -> list[Observ
             pv_prev=pv_prev, mv_prev=mv_prev, fm_prev=fm_prev,
             minutes_prev=minutes, starts_prev=starts, matches_prev=matches,
             goals_prev=goals, assists_prev=assists, xg_prev=xg, xa_prev=xa, rating_prev=rating,
+            minutes_share_euro_prev=euro_minutes.get(fc_id),
             birth_year=birth_year, derived_role_prev=derived.get(fc_id),
             off_role_prev=fc_id in off_role,
             arrival_type=kind, arrival_tier=tier, origin_league=origin,
@@ -297,6 +327,7 @@ def load(conn: sqlite3.Connection, window: Window, platform: str) -> list[Observ
 FEATURE_CHECKS: tuple[tuple[str, str], ...] = (
     ("fm_prev", "previous fantamedia - the core's only input today"),
     ("minutes_prev", "provider minutes - R3 titolare vs spezzonista"),
+    ("minutes_share_euro_prev", "minutes on the euro calendar's rounds - R3c"),
     ("xg_prev", "provider xG/xA - R2 per-90 propensity"),
     ("foreign_fm_equiv", "foreign FM-equivalent - R1 arrivals"),
     ("birth_year", "birth year - R4 age curve"),

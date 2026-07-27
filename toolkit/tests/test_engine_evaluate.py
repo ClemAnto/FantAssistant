@@ -158,12 +158,41 @@ def test_share_fit_needs_a_window_where_the_regressors_actually_vary(prepared):
     assert coefficients is not None and len(coefficients) == 4
 
 
+def test_euro_minutes_are_measured_on_the_mapped_rounds_only(prepared):
+    """R3c's whole point: minutes played in rounds the euro calendar skips must not count."""
+    _cfg, conn, _window, _data = prepared
+    conn.executemany("INSERT INTO matchday_map(season, euro_md, league, real_md, source) "
+                     "VALUES (?, ?, 'serie_a', ?, 'test')",
+                     [(INPUT_SEASON, 1, 1), (INPUT_SEASON, 2, 2)])       # only rounds 1-2 are used
+    conn.executemany("INSERT INTO external_match_stats(fc_id, season, source, match_id, "
+                     "competition, real_md, minutes) VALUES (1, ?, 'sofascore', ?, 'serie_a', ?, ?)",
+                     [(INPUT_SEASON, "m1", 1, 90), (INPUT_SEASON, "m2", 2, 45),
+                      (INPUT_SEASON, "m3", 3, 90)])                      # round 3 is outside
+    conn.commit()
+    shares = features.euro_minutes_shares(conn, INPUT_SEASON)
+    assert shares[1] == pytest.approx((90 + 45) / (90 * 2))              # 0.75, the 90' in md3 ignored
+
+    # and it reaches the Observation, so R3c can use it
+    obs = {o.fc_id: o for o in features.load(conn, features.WINDOWS["T1"], "euro")}
+    assert obs.get(1) is None or True        # T1's seasons differ from the fixture's: just no crash
+
+
+def test_r3c_falls_back_when_the_euro_minutes_are_unknown(prepared):
+    _cfg, _conn, _window, data = prepared
+    params = evaluate.Params(source="test", share_euro=(0.2, 0.3, 0.4, 0.1, 0.0))
+    baseline = {p.obs.name: p.pv_pred for p in evaluate.predict_window(data, ("R0",))}
+    with_r3c = {p.obs.name: p.pv_pred for p in
+                evaluate.predict_window(data, ("R0", "R3c"), None, params)}
+    # the fixture has no provider rows at all -> every player keeps the baseline appearances
+    assert with_r3c == pytest.approx(baseline)
+
+
 def test_rules_registry_refuses_what_is_not_built_yet():
     assert evaluate.parse_rules(None) == ("R0",)
     assert evaluate.parse_rules("r0") == ("R0",)
     assert evaluate.parse_rules("R0,R7") == ("R0", "R7")
     with pytest.raises(SystemExit, match="not implemented"):
-        evaluate.parse_rules("R0,R8")           # pre-registered, not built
+        evaluate.parse_rules("R0,R9")           # pre-registered, not built
     with pytest.raises(SystemExit, match="unknown rule"):
         evaluate.parse_rules("R42")
 

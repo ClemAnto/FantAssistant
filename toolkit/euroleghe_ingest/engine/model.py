@@ -222,6 +222,44 @@ def propensity_adjustment(gamma: float, z_propensity: float) -> float:
     return gamma * z_propensity
 
 
+def penalty_adjustment(confidence: float | None, lam: float) -> float:
+    """R6: the designated taker's expected penalty income, in reduced form.
+
+    The set-pieces note models this as rigori_attesi x taker_share x [conv*bonus - (1-conv)*malus].
+    Here the whole product is collapsed into one fitted coefficient times the hierarchy's own
+    CONFIDENCE, because that is what the data supports: `penalty_hierarchy` is a dated series with a
+    graded confidence, but we have no per-club penalty-award rate and no career conversion rate yet.
+    A reduced form that passes the gate is worth more than a structural form that cannot be fitted.
+    """
+    if confidence is None:
+        return 0.0
+    return lam * confidence
+
+
+# Classic roles ordered by how far forward they play: the off-role signal is a MOVE along this axis.
+ROLE_ADVANCEMENT: dict[str, int] = {"P": 0, "D": 1, "C": 2, "A": 3}
+
+
+def off_role_adjustment(listed: str | None, derived: str | None,
+                        forward: float, backward: float) -> float:
+    """R8: the heatmap says he is used further forward (or further back) than his listed role.
+
+    Asymmetric on purpose: being used further forward buys bonus chances, being used further back
+    costs them, and there is no reason for the two to have the same size. What this rule does NOT
+    contain is the set-piece and penalty half of the original hypothesis: `assists_set_piece` is NULL
+    on every rating row in these three seasons (the source never split assists), and only 7 defenders
+    are designated penalty takers - neither can be fitted, so neither is claimed.
+    """
+    if not listed or not derived:
+        return 0.0
+    delta = ROLE_ADVANCEMENT.get(derived, -1) - ROLE_ADVANCEMENT.get(listed, -1)
+    if delta > 0:
+        return forward
+    if delta < 0:
+        return backward
+    return 0.0
+
+
 def age_adjustment(age: int | None, slope: float, knee: int = AGE_KNEE) -> float:
     """R4: linear decline past the knee, nothing before it. Missing age -> no adjustment.
 
