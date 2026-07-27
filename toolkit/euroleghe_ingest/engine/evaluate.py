@@ -1381,9 +1381,11 @@ def _print_gate(result: dict) -> None:
                       f"from the role anchor and the mean share")
         mark = "PASSES" if verdict["passes"] else "DOES NOT PASS"
         if verdict["kind"] == "coverage":
+            # said differently for R0c: it does not beat the trivial answer, it IS the trivial answer
+            beats = ("is the trivial answer, by construction" if rule == "R0c"
+                     else f"beats the trivial answer: {verdict['beats_naive']}")
             criterion = (f"coverage up on both windows: {verdict['coverage_up']} · "
-                         f"what it adds is not noise: {verdict['added_sane']} · "
-                         f"beats the trivial answer: {verdict['beats_naive']}")
+                         f"what it adds is not noise: {verdict['added_sane']} · {beats}")
         else:
             criterion = f"target improved on both windows: {verdict['improved_both']}"
         print(f"    -> {mark} [{verdict['kind']}] · {criterion} · "

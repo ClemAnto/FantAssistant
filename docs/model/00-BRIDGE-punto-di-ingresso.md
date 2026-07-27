@@ -77,13 +77,26 @@ in `app/prediction-engine`, quindi resta senza dipendenze ed esplicito.
 - L'**inventario input** stampato dice cosa manca al motore: su T2/euro `starter_prob` è **0/1453**
   (le probabili sono di oggi, non della stagione passata → servono snapshot settimanali).
 
-## GATE ESEGUITO — 6 REGOLE ADOTTATE SU 15 (27 luglio 2026)
+## GATE ESEGUITO — 7 REGOLE ADOTTATE SU 17 (27 luglio 2026, criteri irrigiditi la sera dello stesso giorno)
 Documento dedicato, con tutti i numeri e le ipotesi falsificate: **`gate-motore-v1.md`**. In sintesi:
-- **Adottate per piattaforma**: **euro → R1** (copertura nuovi entrati) **+ R3c** (minuti sulle giornate
-  del calendario euro) **+ R4** (età sulla FM) **+ R7** (persistenza portieri) **+ R10** (nuovo
-  allenatore) · **Serie A → R3 + R7**.
-- **Risultato**: euro VALORE **−1.7% / −1.6%** con ogni ruolo in miglioramento e top-10 6→8 e 12→14,
-  copertura +4 punti · Serie A VALORE **−4.3% / −2.7%**, top-10 11→13 e 14→15. Portieri: presenze −17%.
+- **Adottate per piattaforma**: **euro → R0c** (copri i non prezzati con l'àncora di ruolo e la quota
+  media) **+ R3c** (minuti sulle giornate del calendario euro) **+ R4** (età sulla FM) **+ R7**
+  (persistenza portieri) **+ R10** (nuovo allenatore) · **Serie A → R3 + R7 + R13**.
+- ⚠️ **R1 e R13-euro sono USCITE**: una code review ha mostrato che il criterio di copertura si
+  soddisfaceva **prevedendo una costante**. Ora una regola di copertura deve battere la risposta banale
+  (àncora di ruolo + quota media) sui giocatori che aggiunge, e R1 non la batte (0.391 contro 0.373 su
+  T1). Al loro posto **R0c**, la risposta banale dichiarata come tale: costa niente e porta la copertura
+  euro **dal 31% al 100%**. Le regole di accuratezza si giudicano ora sui giocatori che **spostano**, con
+  una soglia dello 0.5%: R4 e R10 ne escono molto più forti (−3.8% e −3.5% sul loro sottoinsieme), R14
+  ne esce bocciata.
+- **Risultato**: euro VALORE **−1.7% / −1.5%**, top-10 6→8 e 12→**15**, copertura **31%→100%** ·
+  Serie A VALORE **−4.2% / −2.8%**, top-10 11→13 e 14→15. Portieri: presenze −17%.
+- **Simulazione dell'asta 25/26** (`backtest --auction`, §3-bis del documento del gate): 15/40 nomi
+  azzeccati, ma **80% (euro) e 81% (Serie A) del VALORE** che avrebbero reso le top 10 perfette. La
+  metrica dei nomi tratta ogni errore allo stesso modo; quella dei punti dice che gli errori del motore
+  sono fra giocatori comparabili. Gli errori residui si dividono in **cambio di regime** (14 sull'euro,
+  giocatori esplosi da un anno all'altro) e **mai prezzati** (8 su Serie A, di cui 4 attaccanti su 10 →
+  quel ruolo è tappato a 6/10 finché la copertura Serie A non migliora).
 - **I 3 numeri presenze/T1 sono spiegati** (era il blocco n.1): i coefficienti rifittati coincidono col
   pubblicato entro 0.015, quindi non è il codice; non è nemmeno la definizione dei segmenti (testata);
   è la **composizione del campione** (764/774 giocatori contro 750/754) su un effetto da −1.6%. Del

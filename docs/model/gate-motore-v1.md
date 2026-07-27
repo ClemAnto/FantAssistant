@@ -8,11 +8,12 @@ configurazioni prezzano · VALORE = FM × presenze.*
 
 ## 1. Come gira il gate
 
-`python -m euroleghe_ingest backtest [--verify] [--gate] [--cases]` — read-only sul DB, scrive solo
+`python -m euroleghe_ingest backtest [--verify] [--gate] [--auction] [--cases]` — read-only sul DB, scrive solo
 `data/reports/engine_backtest.json`. Codice in `toolkit/euroleghe_ingest/engine/`
 (`model` formule pure · `fitting` minimi quadrati · `features` DB→osservazioni · `evaluate` gate).
 
-Quattro regole di misura, tutte imparate sbagliando almeno una volta:
+Sei regole di misura, tutte imparate sbagliando almeno una volta (le ultime due il 27/07,
+rileggendo il codice del gate stesso):
 
 1. **Parametri cross-fitted**: ogni coefficiente è stimato sulla finestra che NON lo giudica.
 2. **Confronto sul campione comune.** Una regola che prezza giocatori prima esclusi (copertura) non va
@@ -24,6 +25,16 @@ Quattro regole di misura, tutte imparate sbagliando almeno una volta:
    +30% del baseline.
 4. **Un'ipotesi = una famiglia di parametri = un verdetto.** Le regole composite vanno spezzate
    (R1/R1b, R4/R4b): unire «copri i nuovi» con «scontagli l'adattamento» nasconde quale metà funziona.
+5. **Le regole di copertura devono battere la risposta banale** *(irrigidito il 27/07 dopo la code
+   review)*. Il criterio 3 da solo si soddisfa **prevedendo una costante**, ed è esattamente ciò che
+   àncora di ruolo + quota media della popolazione danno gratis. Ora i giocatori che una regola
+   *aggiunge* ricevono anche una previsione naive, e la regola deve batterla. Ha cambiato i verdetti:
+   R1 e R13-euro non la battono e sono uscite dal set adottato (§3).
+6. **Le regole di accuratezza si giudicano sui giocatori che SPOSTANO**, con una soglia relativa di
+   **0.5%** *(idem)*. L'aggregato diluiva le regole di sottopopolazione e lusingava il rumore: R4
+   passava da −0.3% diluito a −3.8%/−1.1% sugli over-30 che tocca, e R14 «guadagnava» lo 0.04% con un
+   coefficiente di segno sbagliato. Le due metriche si riportano entrambe: il campione spostato dice
+   se la regola funziona, l'aggregato resta il guardrail di non-danno.
 
 **Domini diversi per i due moduli**: il core FM vale per Pv_prec ≥ 15 (dominio su cui è stato fittato
 il beta), le presenze bastano di una riga di stagione precedente. Valutarli sullo stesso dominio
@@ -62,34 +73,66 @@ giocatori con una riga di stagione precedente contro i 750/754 pubblicati, su un
 giornate fantasma sui titolari), **non** il guadagno di MAE su T1, che con coefficienti cross-fitted
 diventa +1.3%. Nessuna regola nuova va promossa su quel decimale.
 
-## 3. Verdetti — 6 regole adottate su 15 provate
+## 3. Verdetti — 7 regole adottate su 17 provate
 
 **Adottate, per piattaforma** (`platform` è già una dimensione del modello dati):
-**euro → R1 + R3c + R4 + R7 + R10 + R13** · **Serie A → R3 + R7 + R13**
+**euro → R0c + R3c + R4 + R7 + R10** · **Serie A → R3 + R7 + R13**
+
+⚠️ **Cambiato il 27/07 con i criteri 5 e 6**: R1 (copertura nuovi entrati) e R13 sull'euro **non
+battono la risposta banale** e sono uscite; al loro posto entra **R0c**, che è la risposta banale
+dichiarata come tale. Non è una resa: R1 dava una previsione dall'aria informata (FM-equivalente
+estera, minuti) con MAE 0.391 sui giocatori che aggiunge contro **0.373 della sola àncora di ruolo** su
+T1. Pagare la complessità di uno strato arrivi per un numero peggiore dell'àncora è il tipo di
+autoinganno che il gate esiste per fermare. R13 resta adottata su **Serie A**, dove batte la risposta
+banale su entrambe le finestre (è lì che i giocatori senza storico vengono dall'estero e le ultime
+partite dicono davvero qualcosa).
 
 | Regola | euro | Serie A | Parametro (T1 / T2) |
 |---|---|---|---|
-| **R7** persistenza dedicata alle presenze dei portieri | ✅ | ✅ | persistenza **0.70 / 0.80** (contro 0.50 condiviso) |
-| **R3c** minuti sulle **giornate del calendario euro** | ✅ | ✅¹ | minuti **0.291 / 0.352** |
-| **R10** nuovo allenatore (livello + interazione) | ✅ | ❌ | −0.014/−0.031 · **+0.051/+0.067** |
-| **R1** copertura nuovi entrati (FM-equivalente + minuti) | ✅ | ❌² | β_new 0.186 / 0.230 → **0.431 / 0.398** col layer completo |
-| **R4** curva d'età sulla FM oltre i 30 | ✅ | ❌ | −0.006 / −0.016 per anno |
-| **R3** minuti sulla stagione reale intera | ❌³ → ✅⁴ | ✅ | minuti 0.342 / 0.219 → **0.326 / 0.256** |
-| **R13** presenze dalle ultime partite in un campionato non coperto | ✅ | ✅ | share 0.40+0.09·m / 0.21+0.37·m |
+| **R7** persistenza dedicata alle presenze dei portieri | ✅ | ✅ | persistenza **0.698 / 0.803** euro · 0.656 / 0.651 Serie A (contro 0.50 condiviso) |
+| **R3c** minuti sulle **giornate del calendario euro** | ✅ | ✅¹ | minuti **0.235 / 0.249** (quota_prec 0.252 / 0.253) |
+| **R10** nuovo allenatore (livello + interazione) | ✅ | ❌ | livello −0.127 / −0.078 · interazione **+0.199 / +0.127** |
+| **R1** copertura nuovi entrati (FM-equivalente + minuti) | ❌⁵ | ❌² | β_new 0.186 / 0.230 → **0.431 / 0.398** col layer completo |
+| **R4** curva d'età sulla FM oltre i 30 | ✅ | ❌ | **−0.011 / −0.018** per anno |
+| **R3** minuti sulla stagione reale intera | ❌³ → ✅⁴ | ✅ | Serie A: minuti **0.146 / 0.384**, quota_prec 0.229 / **−0.024** ⁷ |
+| **R13** presenze dalle ultime partite in un campionato non coperto | ❌⁵ | ✅ | intensità **0.359 / 0.231** · disponibilità **+0.041 / +0.191** |
+| **R0c** copri i non prezzati con àncora di ruolo + quota media (modello nullo esplicito) | ✅ | ❌⁶ | nessun parametro fittato: quota media **0.498 / 0.497** |
+
+⚠️ **I coefficienti sono cambiati rispetto al primo giro** (27/07, dopo la code review) per due ragioni
+legittime, non per una ritaratura: (a) l'input dei minuti è cambiato — `features._external` preferiva il
+layer per-partita anche quando aveva meno partite dell'aggregato stagionale, dimezzando i minuti dove la
+passata di completamento non era arrivata; (b) le regole **residue** (R10, R4b, R14) sono ora fittate
+contro la quota che la configurazione produce davvero, non contro B0. R10 in particolare passa da
++0.051/+0.067 a +0.199/+0.127 di interazione: stessa direzione, magnitudo tripla, perché prima
+condivideva la varianza con R3c senza saperlo.
+
+⁷ **Nota di identificabilità su R3 (Serie A)**: quota_prec e minuti sono collineari e si scambiano peso
+fra le finestre (0.229/0.146 su T1, −0.024/0.384 su T2) mentre la **somma** resta stabile (0.375 /
+0.360). La regola passa il gate — il MAE fuori campione migliora su entrambe le finestre — ma il
+*singolo* coefficiente non è interpretabile: non si può concludere «i minuti pesano 0.38». Vale la stessa
+cautela già registrata per l'euro nel primo giro.
 
 ¹ passa anche su Serie A ma perde una posizione top-10 in T2, dove R3 la tiene: lì la mappa copre 31
 delle 38 giornate e le due feature sono quasi la stessa cosa. ² i nuovi entrati in Serie A hanno un
 equivalente troppo rumoroso (oltre il +30%). ³ sull'euro i due regressori sono collineari e si
 scambiano peso fra finestre. ⁴ col layer per-partita completo R3 passa anche sull'euro, ma resta
 **ridondante** con R3c (misurano la stessa cosa su calendari diversi) e non viene adottata due volte:
-sull'euro vince la versione allineata al bersaglio.
+sull'euro vince la versione allineata al bersaglio. ⁵ non battono la risposta banale (criterio 5):
+R1 0.391 contro 0.373 dell'àncora su T1, R13-euro peggio su entrambe. ⁶ su Serie A il core è così
+accurato (FM MAE **0.281**) che una stima di qualità-àncora (0.369) sfora il limite del +30% di un
+punto: la copertura resta al 42-47% e **8 dei 40 posti nelle top 10 reali sono inarrivabili** (§3-bis).
 
 ### Risultati misurati (MAE di VALORE, campione comune, T1 / T2)
 
 | | P | D | C | A | totale | top-10 | copertura |
 |---|---|---|---|---|---|---|---|
-| **euro** | −0.5% / **−5.6%** | −1.6% / −1.7% | −1.6% / −1.5% | −1.9% / −0.3% | **−1.6% / −1.7%** | 6→8 · 12→14 | **475→644 · 489→628** |
-| **Serie A** | **−6.9% / −14.7%** | −5.4% / −3.1% | −3.8% / −1.5% | −2.1% / −0.4% | **−4.3% / −2.7%** | 11→13 · 14→15 | invariata |
+| **euro** | −0.3% / **−7.3%** | −1.6% / −2.0% | −2.0% / −1.0% | −1.9% / −0.0% | **−1.7% / −1.5%** | 6→8 · 12→**15** | **31% → 100%** |
+| **Serie A** | **−6.9% / −14.7%** | −5.1% / −3.1% | −3.3% / −1.7% | −3.0% / −0.2% | **−4.2% / −2.8%** | 11→13 · 14→15 | 42→46% · 42→47% |
+
+Sull'euro la copertura passa da **31% a 100% del listone** (1095 e 1045 giocatori): ogni nome ha un
+prezzo, e i 208/182 che prima non ne avevano ricevono una stima di qualità-àncora (FM MAE 0.386 / 0.409
+contro 0.362 / 0.364 del core, dentro il limite del +30%). È R0c a farlo, cioè il modello nullo: la
+copertura vale, gli stimatori sofisticati che la promettevano no.
 
 Presenze Serie A: 8.38 → 8.02 e 8.41 → 7.92 giornate di MAE. Portieri euro: 7.24 → 5.99 e 6.02 → 5.01
 (**−17%**), l'effetto singolo più grande di tutto il gate.
@@ -111,6 +154,51 @@ Presenze Serie A: 8.38 → 8.02 e 8.41 → 7.92 giornate di MAE. Portieri euro: 
 - **R1** non tocca nessun giocatore già prezzato (per costruzione): vale +4 punti di copertura e i
   nuovi prezzati hanno MAE 0.40 contro 0.35-0.37 di chi c'era già.
 
+## 3-bis. Simulazione dell'asta 25/26 (27 luglio 2026) — 15/40 nomi, ma **80% del VALORE**
+
+`python -m euroleghe_ingest backtest --auction --window T2` — set adottato, parametri stimati su **T1**,
+niente della stagione prevista entra nella previsione. Stampa per ruolo le due liste affiancate con
+Qt.I, FM/Pv/VALORE previsti, ciò che il giocatore ha reso davvero e il rango di ciascuna lista
+nell'ordinamento dell'altra.
+
+| | P | D | C | A | totale |
+|---|---|---|---|---|---|
+| **euro** — nomi (B0 → adottato) | 5→**6**/10 | 2→**3**/10 | 2→2/10 | 3→**4**/10 | 12→**15**/40 |
+| **euro** — VALORE catturato | 82→**88%** | 67→**70%** | 77→**81%** | 80→**82%** | 76→**80%** |
+| **Serie A** — nomi | 6→**7**/10 | 3→3/10 | 3→3/10 | 2→2/10 | 14→**15**/40 |
+| **Serie A** — VALORE catturato | 79→**87%** | 77→77% | 70→**87%** | 77→**74%** | 76→**81%** |
+
+**Il VALORE catturato è la metrica d'asta che mancava.** «15/40» tratta ogni errore allo stesso modo;
+questa chiede quanto avrebbe reso comprare i dieci del motore invece dei dieci perfetti, e la risposta
+è **80% (euro) e 81% (Serie A)** — un motore che sbaglia i nomi e prende quasi tutti i punti, perché i
+suoi errori sono fra giocatori comparabili. Da mettere accanto alla precisione in ogni report futuro,
+non al suo posto: sono due domande diverse (chi comprare / quanto costa sbagliare).
+
+**Unica regressione**: attaccanti Serie A 77% → 74%. Il set adottato non peggiora il MAE del ruolo
+(−0.2%) né la precisione (2/10), ma riordina il vertice in modo che i dieci scelti rendono 86 punti in
+meno. Con 4 dei 10 attaccanti reali senza previsione, il ranking gioca su un insieme mutilato: è la
+copertura, non l'ordinamento.
+
+**I 25 errori non sono la stessa cosa** — e la differenza fra le due piattaforme dice dove intervenire:
+
+| Tipo di errore | euro | Serie A | Che problema è |
+|---|---|---|---|
+| **vicino** (previsto 11°-50°) | 11 | 14 | rumore di ordinamento fra giocatori comparabili: costa poco |
+| **cambio di regime** (previsto oltre il 50°) | **14** | 3 | il giocatore era un altro rispetto all'anno prima |
+| **mai prezzato** | **0** | **8** | buco di copertura: irraggiungibile per costruzione |
+
+- **euro: 0 mai prezzati** (era il 19% dei posti) grazie a R0c, e il residuo è tutto **cambio di
+  regime**: 6 dei 10 centrocampisti reali erano previsti oltre il rango 50 (Diomande 171°,
+  Baumgartner 135°, Fornals 172°, Moleiro 173°). Sono esplosioni da un anno all'altro, non errori di
+  taratura: il motore non ha nessun input che le anticipi.
+- **Serie A: 8 mai prezzati**, di cui **4 attaccanti su 10** (Douvikas, Bonazzoli, Højlund,
+  Pellegrino M.) → quel ruolo è **tappato a 6/10** qualunque cosa faccia l'ordinamento. È il caso in
+  cui R0c servirebbe e non passa il gate: la prossima mossa sulla copertura Serie A è uno stimatore che
+  batta l'àncora, non l'adozione di quello che non la batte.
+- I portieri sono il ruolo che funziona (6/10 e 7/10, 87-88% del VALORE): presenze molto persistenti +
+  R7. I difensori sono il peggiore su entrambe (3/10, 70-77%): l'àncora li schiaccia su ~6.1 e il
+  vertice si decide sui bonus, che il motore non modella (Dimarco 7.50 reale previsto 6.52).
+
 ## 4. Ipotesi FALSIFICATE — non riproporre senza finestre nuove
 
 | Regola | Parametro (T1 / T2) | Perché cade |
@@ -126,6 +214,8 @@ Presenze Serie A: 8.38 → 8.02 e 8.41 → 7.92 giornate di MAE. Portieri euro: 
 | **R12b** revisione dell'attesa (Qt.I anno su anno) | λ −0.040 / −0.076 | Segno stabile ma significato opposto: dice che chi è rivisto **al ribasso** rende *più* di B0, cioè approssima il ritorno alla media che B0 già fa. Fallisce su T1 e sul VALORE. |
 | **R4b** curva d'età sulle presenze | −0.014 / −0.014 | Stabile e inutile: Pv MAE −0.0%, VALORE peggiore. L'effetto età sta sulla FM, non sulle presenze. |
 | **R14 / R14b** inattività: costo di uno stop di 45+ giorni su presenze / fantamedia | share **+0.011 / +0.001** · FM **+0.044 / −0.044** | Il segnale c'è nei dati **grezzi** — oltre 90 giorni di stop dentro la stagione significa ~13 presenze l'anno dopo contro ~18 della banda normale — ma **non è incrementale**: `share_prec` lo assorbe già. Chi è stato fuori ha una quota bassa, il baseline gli predice già poche presenze, e al rientro ne fa *più* di quel minimo. Il residuo non ha segno stabile. Vedi §5-quater. |
+| **R1** copertura nuovi entrati, *sull'euro* | β_new 0.431 / 0.398 | **Non batte la risposta banale** (criterio 5): FM MAE 0.391 sui giocatori che aggiunge contro 0.373 della sola àncora di ruolo su T1. Lo strato arrivi + FM-equivalente estera produce un numero peggiore di una costante per ruolo. Resta il *meccanismo* di copertura, non lo stimatore: al suo posto R0c. |
+| **R13** presenze dalle ultime partite, *sull'euro* | share 0.40+0.09·m | Idem, su entrambe le finestre. Su **Serie A** invece la batte e resta adottata: i senza-storico di Serie A vengono dall'estero e le ultime dieci partite dicono qualcosa; sull'euro sono in gran parte giovani di club del perimetro, dove l'àncora di ruolo è già la miglior stima. |
 | **R13b** fantamedia dal rating confrontato fra campionati | λ **−0.454 / +0.05** | Fallisce su Serie A (+40% di errore sugli aggiunti, oltre il limite) e il segno si inverte. Vedi §5-ter: **quanto** gioca si trasferisce, **quanto bene** no. |
 
 ## 5. Difetti dei dati trovati dal gate (due corretti, tre aperti)
@@ -347,4 +437,7 @@ generazione dell'ipotesi, non di conferma indipendente. Il cross-fit protegge da
 
 `d572644` gate delle candidate (3 su 7) · `3a212b0` R3c passa, R6/R8 no · `9b3b3f9` fix FM-equivalente
 portieri · `c733096` R10 passa, R5 ri-bocciata, R11 falsificata · `2087519` quotazione d'asta (Qt.I) e
-tier corretti. 117 test verdi, ruff pulito.
+tier corretti · `c1a645b` code review: i due criteri irrigiditi (copertura batte il banale,
+accuratezza sui giocatori spostati) + cache di `recent_form`, migrazione additiva dello schema, fit a
+due passate · `1c8a0ec` una sola standardizzazione, previsioni calcolate una volta ·
+`86e937e` `backtest --auction` e il VALORE catturato. **130 test verdi, ruff pulito.**

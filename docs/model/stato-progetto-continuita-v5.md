@@ -73,12 +73,26 @@ rating e minuti, datate, sotto `source='sofascore_recent'` (mai nella retta del 
 di Serie B non e' un 7.0 di Serie A). **113 giocatori, 1.094 partite, 89% risolti** con una scala di
 identita' che rifiuta invece di indovinare. Il gate ha diviso la regola: **R13 presenze** dai minuti al
 vecchio club PASSA su tutte e tre le piattaforme ed **e' adottata**; **R13b fantamedia** dal rating
-confrontato fra campionati NO (lambda -0.45/+0.05). Copertura del motore sull'euro **dal 31% al
-45-49%**. Set adottati: euro R1+R3c+R4+R7+R10+**R13** · Serie A R3+R7+**R13**.
+confrontato fra campionati NO (lambda -0.45/+0.05). **Rivisto la sera del 27/07** col criterio
+irrigidito: R13 batte la risposta banale su **Serie A** (dove i senza-storico vengono dall'estero) ma
+non sull'euro, e la stessa sorte tocca a R1. Set adottati: **euro R0c+R3c+R4+R7+R10 · Serie A
+R3+R7+R13**, con la copertura euro **dal 31% al 100%** grazie a R0c (il modello nullo esplicito:
+ancora di ruolo + quota media, che nessuno degli stimatori sofisticati riusciva a battere).
+Il regressore di R13 ora ha due termini invece di uno: **intensita'** (minuti per presenza) e
+**disponibilita'** (partite a settimana sull'arco del campione) - il primo da solo non poteva
+distinguere 38 presenze da 5, perche' il campione e' tagliato a dieci partite.
+
+## Simulazione dell'asta 25/26 (27 luglio 2026) - la verifica che il committente ha chiesto
+`backtest --auction --window T2`: set adottato, parametri stimati su T1, per ogni ruolo Classic le due
+top 10 affiancate. **15/40 nomi** su entrambe le piattaforme (da 12/40 e 14/40 del baseline) ma
+**l'80-81% del VALORE** delle top 10 perfette: il motore sbaglia i nomi fra giocatori comparabili.
+Portieri il ruolo migliore (6/10 e 7/10, 87-88% del VALORE), difensori il peggiore (3/10, 70-77%:
+l'ancora li schiaccia su ~6.1 e il vertice si decide sui bonus, che il motore non modella).
+Dettaglio per ruolo, nomi e classificazione dei 25 errori in `gate-motore-v1.md` §3-bis.
 
 ## Prossimo lavoro
 1. ~~Completare il layer per-partita~~ **FATTO il 27/07** (sezione sopra): 100% delle partite, bias di
-   selezione chiuso, copertura del motore dal 31% al 42-43%.
+   selezione chiuso, copertura del motore dal 31% al 42-43% (e al 100% sull'euro con R0c).
 2. **Storico `injuries`** (Transfermarkt, una richiesta per giocatore): l'unico input della Priorita' 1
    ancora assente, e meta' dei buchi nelle top-10 dei difensori sono infortuni.
 3. **Terza finestra**: verificare quanto indietro va l'API Excel dei voti. Con T0 = 22/23->23/24 i
