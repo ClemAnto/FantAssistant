@@ -92,11 +92,26 @@
    trasferimenti per club-stagione → `transfers_history` con le cifre. La data del trasferimento è
    **approssimata alla finestra** (la pagina non ne porta una) e `injuries`/`exit_risk` **non** sono
    coperti: servirebbe una richiesta per giocatore e i dati di scadenza contratto.
-7. **`arrivals` completato**: **tier** T1=57 / T2=660 / T3=673 e **FM-equivalente estera** su 655
+7. **`arrivals` completato**: **tier** T1=76 / T2=656 / T3=658 e **FM-equivalente estera** su 610
    arrivi. L'equivalente è calcolato sulla **stagione reale piena** con voto reale euro dove c'è e
    `mv_synth` altrove, sotto lo scoring euro; i cartellini sono l'unica approssimazione (il layer
    per-partita non li ha → totali stagionali distribuiti). **Sanity check**: su 294 giocatori dove
    conosciamo anche la FM euro reale la differenza media è **+0.035** (mediana +0.027).
+
+   ⚠️ **Due correzioni dal gate (27/07)** — quel +0.035 vale per i **giocatori di movimento del
+   perimetro**, non in generale:
+   - **portieri esclusi**: l'equivalente non ha il termine gol subiti (il layer per-partita ha i gol
+     *fatti* e non il risultato), quindi per un portiere manca tutto il lato negativo del fantavoto.
+     Misurato su Serie A: **+1.117 / +1.076 / +1.064** sopra la fantamedia reale, **0% entro 0.3** sulle
+     tre stagioni. 45 righe lo portavano → ora NULL. Un equivalente per i portieri richiede i gol
+     subiti, che questa fonte non dà.
+   - **i tier ora usano `Qt.I`, non `Qt.A`**: il percentile di prezzo era calcolato sulla quotazione
+     **attuale**, cioè di fine stagione per una stagione già giocata. Era look-ahead in ogni uso
+     retrospettivo (Openda 25/26: Qt.I 20 prima dell'asta, Qt.A 3 dopo 12 presenze).
+   - ⚠️ **bias di selezione a monte**: il layer per-partita è scaricato seguendo le partite dei club del
+     perimetro, quindi chi sta **fuori** perimetro è misurato solo contro le squadre forti (9 club Serie
+     A con 38 giornate, gli altri 11 con esattamente 18). L'equivalente ne esce distorto al ribasso:
+     **A −0.224 · P −0.164 · C −0.076 · D −0.053**. Vedi `gate-motore-v1.md` §5.
    Soglie di tier (`T1_PRICE_PCT`, `FULL_HISTORY_MATCHES`, `U22_AGE`) **provvisorie, del gate**.
 8. **Il matcher ora gestisce anche la NOSTRA convenzione** in ingresso ("Fofana Y."): le liste
    editoriali di fantacalcio.it la usano, e senza questo 25 nomi su 152 restavano fuori.
@@ -122,7 +137,13 @@
 
 ## Listone (quotazioni) — ruoli Mantra + prezzi, scaricato con i voti
 - Endpoint: `GET /api/v1/Excel/prices/{championshipId}/1` con lo **stesso championshipId dei voti**, per stagione, per entrambe le piattaforme (verificato: default 18/19/20, euro 106/107/108).
-- Fogli: `Tutti` (rose correnti) + `Ceduti` (ceduti a stagione in corso, comunque a voto) → si leggono **entrambi** (i fogli per-ruolo sono sottoinsiemi di `Tutti`). Colonne: `Id, R, RM, Nome, Squadra, Qt.A, ...` (RM = ruoli Mantra, Qt.A = quotazione asta).
+- Fogli: `Tutti` (rose correnti) + `Ceduti` (ceduti a stagione in corso, comunque a voto) → si leggono **entrambi** (i fogli per-ruolo sono sottoinsiemi di `Tutti`). Colonne: `Id, R, RM, Nome, Squadra, Qt.A, Qt.I, Diff., Qt.A M, Qt.I M, FVM, FVM M`.
+- ⚠️ **`Qt.A` è la quotazione ATTUALE, `Qt.I` quella INIZIALE, e non sono interscambiabili.** Qt.A viene
+  rivista tutta la stagione: per una stagione già giocata **incorpora il risultato** e non può predire
+  nulla (Milinković-Savić 25/26: Qt.I 4 → Qt.A 17). Qt.I è fissata **prima dell'asta** — l'attesa del
+  mercato — ed è l'unica che un backtest può leggere. Dal 27/07 entrambe in `rosters`: `price` = Qt.A
+  (solo descrittiva), **`price_initial` = Qt.I** (copertura 1515/1467/1395). `Qt.A M`/`Qt.I M`/`FVM`
+  sono nel file e non ancora salvate.
 - Uso: arricchisce `rosters` (ruoli Mantra, ruolo classic, prezzo, club) per **tutte** le squadre — riempie i giocatori non-top di Serie A ricostruiti dai soli voti (che avevano solo il ruolo classic). Scaricato dentro `ratings.run` e ri-applicato offline nel `rebuild` (`reingest_listone_from_cache`).
 
 ## Gerarchia rigoristi — stato dinamico

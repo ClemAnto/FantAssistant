@@ -11,7 +11,11 @@ Invariata (storico 9 stagioni, endpoint Excel, fallback SofaScore, scala ricalib
 - [x] 2.3 FM per ruolo posseduto + rank + flessibilita' (fuori FM) -> fm-per-ruolo-fase2_3-2_4.md
 - [x] 2.4 Cambi ruolo = cambi d'ancora ASIMMETRICI -> idem
 - [x] 2.5-lite backtest core (Mantra non-inferiore a Classic) -> backtest-mantra-fase2_5lite.md
-- [ ] **2.5 pieno (con flag)** — i dati non sono piu' un blocco (flag/arrivi generati il 27/07) e l'harness esiste (`backtest`). Resta da eseguire. Include le ipotesi pre-registrate set-pieces.
+- [x] **2.5 pieno (con flag) — ESEGUITO il 27/07**: 15 ipotesi passate dal gate, **6 adottate**
+  (euro R1+R3c+R4+R7+R10 · Serie A R3+R7), 9 falsificate con motivo registrato. Esito completo,
+  protocollo e numeri per ruolo in **`gate-motore-v1.md`**. Le ipotesi set-pieces pre-registrate:
+  `penalty_ev` in forma ridotta **bocciata**, `set_piece_duty` **non misurabile**
+  (`assists_set_piece` NULL su tutte le righe di voti).
 
 ## MODULO PRESENZE ATTESE [x] (22/7)
 - [x] share_att = 0.26 + 0.50*share_prec + 0.14*(Mv-6.2) + 0.04*cambio; bias titolari +5.2 azzerato; **VALORE = FM_pred x Pv_att** -> presenze-attese-v1.md

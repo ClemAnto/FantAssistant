@@ -1,5 +1,20 @@
 # Nota di modello — Set pieces v2: rigoristi e specialisti da piazzato
 **Aggiornata: 22 luglio 2026 (v2 — SOSTITUISCE la v1)** · Ipotesi PRE-REGISTRATE per il backtest 2.5 pieno · Dati: coperti dalla spec toolkit v8
+
+> ## ⚠️ ESITO DEL GATE (27 luglio 2026) — leggere prima di lavorare su questa nota
+> - **`set_piece_duty` NON È MISURABILE con i dati attuali.** La colonna `assists_set_piece` è **NULL su
+>   tutte le ~18.000 righe di voti di ogni stagione**: la sorgente non ha mai splittato gli assist. Non
+>   è un'ipotesi che ha fallito il gate, è un'ipotesi che non può entrarci. Serve una fonte che separi
+>   gli assist da fermo (FBref, oggi bloccato da Cloudflare).
+> - **`penalty_ev` in forma ridotta è stato provato e BOCCIATO**: λ +0.332 su T1 e −0.222 su T2 (segni
+>   opposti) e peggiora gli attaccanti di +1.8%/+2.7% di FM MAE. La forma ridotta collassa tutto il
+>   prodotto su `confidence` perché mancano il **tasso di rigori per club** e la **conversione di
+>   carriera**: senza quei due input la forma strutturale di questa nota non è fittabile. I rigoristi
+>   datati prima dell'asta sono solo 22 (T1) e 29 (T2).
+> - **Difensori: 7 rigoristi designati in totale** → la parte «potenziale bonus dei difensori» non è
+>   fittabile, anche se è il ruolo dove servirebbe di più (i difensori hanno il MAE migliore e la
+>   precisione top-10 peggiore).
+> Dettaglio e numeri in `gate-motore-v1.md` §4 e §5.
 *Sigle: EV = valore atteso · conv_shrunk = conversione individuale regredita verso la media di lega · confidence = affidabilità della gerarchia dinamica (penalty_hierarchy, spec v8) · 2.5 pieno = backtest del motore completo con lo strato flag · scoring_config = configurazione punteggi della lega.*
 
 ## Principio 1 (v2) — ASIMMETRIA del rischio tra piazzati

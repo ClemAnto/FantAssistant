@@ -12,6 +12,15 @@ Prevedere la fantamedia di un calciatore per la stagione successiva usando solo 
 
 ## 2. Formula v3 (validata su Serie A)
 
+> **Nota di allineamento (27 luglio 2026)** — questo documento resta la doc madre del *disegno*, ma il
+> gate è stato eseguito e alcune sue proposte sono cadute. Cosa è **entrato** nel motore, con che numeri,
+> e cosa **non va riproposto**: **`gate-motore-v1.md`**. In breve: il primo punto della lista
+> «miglioramenti» qui sotto — l'**àncora forza-squadra da ClubElo** — è stato ritestato ed è la **terza
+> bocciatura** di quella famiglia (segno giusto su entrambe le finestre, MAE di T1 sempre peggiore); il
+> **fattore allenatore** invece è entrato (R10) ma con il segno opposto a quello che ci si aspettava —
+> sui top club un nuovo allenatore *rafforza* la gerarchia precedente; la **propensione xG/xA** non
+> aggiunge nulla alla FM precedente (γ ≈ 0 di segno sbagliato).
+
 ### Struttura
 
 ```

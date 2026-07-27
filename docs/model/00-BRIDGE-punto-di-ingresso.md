@@ -16,7 +16,10 @@ La knowledge base è ora nel repo git **`FantAssistant`**, cartella **`docs/mode
 | **Credenziali fantacalcio.it** | Solo in `.env` locale | MAI su Drive/chat/repo/log |
 
 ## Ordine di lettura per una nuova sessione
-`00-BRIDGE` (questo) → `stato-progetto-continuita-v5.md` → `todolist-mantra-euroleghe-v5.md` → `spec-euroleghe-ingest-v9.md` → `nota-modello-set-pieces-v2.md` → `modello-previsionale-v3.8.md` → consolidati di dettaglio. Tutti in `docs/model/`.
+`00-BRIDGE` (questo) → `stato-progetto-continuita-v5.md` → `todolist-mantra-euroleghe-v5.md` →
+**`gate-motore-v1.md`** (protocollo del gate, verdetti, ipotesi falsificate: leggerlo prima di
+proporre qualsiasi regola) → `spec-euroleghe-ingest-v9.md` → `nota-modello-set-pieces-v2.md` →
+`modello-previsionale-v3.8.md` → consolidati di dettaglio. Tutti in `docs/model/`.
 
 ## STATO PRECEDENTE (primo giro toolkit, 26 luglio 2026)
 **Toolkit `euroleghe-ingest` — primo giro IMPLEMENTATO** (Python 3.13, venv in `toolkit/.venv`, SQLite `data/euroleghe.db`, GUI Tkinter `python -m euroleghe_ingest gui`):
@@ -74,17 +77,45 @@ in `app/prediction-engine`, quindi resta senza dipendenze ed esplicito.
 - L'**inventario input** stampato dice cosa manca al motore: su T2/euro `starter_prob` è **0/1453**
   (le probabili sono di oggi, non della stagione passata → servono snapshot settimanali).
 
+## GATE ESEGUITO — 6 REGOLE ADOTTATE SU 15 (27 luglio 2026)
+Documento dedicato, con tutti i numeri e le ipotesi falsificate: **`gate-motore-v1.md`**. In sintesi:
+- **Adottate per piattaforma**: **euro → R1** (copertura nuovi entrati) **+ R3c** (minuti sulle giornate
+  del calendario euro) **+ R4** (età sulla FM) **+ R7** (persistenza portieri) **+ R10** (nuovo
+  allenatore) · **Serie A → R3 + R7**.
+- **Risultato**: euro VALORE **−1.7% / −1.6%** con ogni ruolo in miglioramento e top-10 6→8 e 12→14,
+  copertura +4 punti · Serie A VALORE **−4.3% / −2.7%**, top-10 11→13 e 14→15. Portieri: presenze −17%.
+- **I 3 numeri presenze/T1 sono spiegati** (era il blocco n.1): i coefficienti rifittati coincidono col
+  pubblicato entro 0.015, quindi non è il codice; non è nemmeno la definizione dei segmenti (testata);
+  è la **composizione del campione** (764/774 giocatori contro 750/754) su un effetto da −1.6%. Del
+  modulo presenze è confermato il **bias**, non il guadagno di MAE su T1.
+- **9 ipotesi falsificate con motivo registrato**, fra cui: sconto adattamento cross-lega (segno opposto
+  fra finestre), propensione per-90 (γ≈0 di segno sbagliato), **àncora forza-club da Elo ri-bocciata la
+  terza volta**, rigoristi in forma ridotta, concorrenza posizionale (migliora il MAE **col segno
+  contrario all'ipotesi**), attesa di mercato e sua revisione.
+- **Due difetti dei dati corretti dal gate**: l'FM-equivalente dei **portieri** era gonfio di +1.06
+  (nessun termine gol subiti → ora NULL) e il **prezzo era di fine stagione** (`Qt.A`): ora c'è
+  `rosters.price_initial` = `Qt.I`, la quotazione d'asta, e i tier degli arrivi la usano.
+
 ## PROSSIMO LAVORO
-1. **Chiarire i 3 numeri presenze/T1**: è l'unico punto dove harness e documenti non concordano.
-   Prima di questo, non aggiungere regole.
-2. **Eseguire i gate ora possibili**: 3.2 club-a-club con ClubElo (input pronto), 2.5 pieno con i
-   flag, e **tarare i parametri provvisori** del 27/07 (decadimento/quarantena rigoristi, soglie tier,
-   U22) — sono scelte di modello, non dati.
-3. **Dati ancora mancanti**: `injuries` + flag `exit_risk`; heatmap per `avg_x/avg_y`;
-   `starter_prob` storico; `fbref` (bloccato da Cloudflare).
+1. **Completare il layer per-partita su TUTTI i club delle 5 leghe.** Oggi è scaricato seguendo le
+   partite del perimetro: i 9 club Serie A del perimetro hanno 38 giornate, **gli altri 11 esattamente
+   18** (le partite contro il perimetro). Chi è fuori perimetro è quindi misurato solo contro le
+   squadre forti, e il suo FM-equivalente è distorto al ribasso (**A −0.22 · P −0.16 · C −0.08 ·
+   D −0.05**, peggiori Douvikas −1.17). È l'input di R1, e sbloccherebbe anche le **presenze** dei nuovi
+   entrati (oggi Ezzalzouli riceve una FM ma nessuna presenza → resta fuori dal ranking). Ore di rete,
+   ripartibile.
+2. **Storico `injuries`**: l'unico input della Priorità 1 ancora assente (Transfermarkt, una richiesta
+   per giocatore). Metà dei buchi nelle top-10 dei difensori sono infortuni.
+3. **Terza finestra**: verificare quanto indietro va l'API Excel dei voti. Con T0 = 22/23→23/24 i
+   parametri che oggi oscillano (età −0.006/−0.016, δ_cross −0.04/+0.16) diventerebbero identificabili.
 4. **Ad agosto, quando esce**: listone/quotazioni 26/27 → aggiungere `2026-27` alle costanti `SEASONS`
    (`ratings.py`, `positions.py`, `transfers.py`), scaricare voti e Elo alla data d'asta 2026-08.
-5. Poi: algoritmo completo asta 26/27.
+   Salvare anche `Qt.A M`/`Qt.I M`/`FVM`, già presenti nel file.
+5. **Non misurabile con i dati attuali** (registrato, non da riproporre): il modello piazzati — la
+   colonna `assists_set_piece` è NULL su tutte le righe di voti di ogni stagione, la sorgente non ha mai
+   splittato gli assist. E `probable_starter`/`availability` esistono solo come snapshot di oggi:
+   usabili live per l'asta 26/27, inutili nel gate retrospettivo.
+6. Poi: algoritmo completo asta 26/27.
 
 ## Convenzioni operative
 git = casa canonica (Drive solo su richiesta esplicita) · risposte in chat in **italiano**, tutto il repo (codice, commenti, log, nomi file, .md) in **inglese**; i doc KB in `docs/model/` restano in italiano · `fc_id` chiave primaria · credenziali solo in `.env` · **quando l'utente scrive "chiudi"**: consolidare tutti gli .md di `docs/model/` (+ CLAUDE.md se serve) con stato/decisioni/commit/prossimi passi e committare.
