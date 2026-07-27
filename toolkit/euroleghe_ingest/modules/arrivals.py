@@ -70,6 +70,13 @@ def foreign_fm_equivalent(conn, scoring: dict[str, float], season: str) -> dict[
     Cards are the one approximation: the per-match layer has no bookings, so the season totals from
     external_stats are spread evenly over the appearances. That biases the equivalent slightly
     upward for players who are booked in bursts, never by more than the card malus itself.
+
+    GOALKEEPERS ARE EXCLUDED, and that is not a shortcut. Their fantavoto is dominated by the goals
+    conceded malus, which the external per-match layer does not carry (the provider gives goals
+    SCORED, and no match score), so an equivalent built this way is missing the whole negative side.
+    Measured on Serie A, where both vote sets exist: it came out +1.06 / +1.08 / +1.12 above the real
+    fantamedia on the three seasons, with 0% of keepers inside 0.3. A NULL says "we cannot price
+    him"; a number inflated by a goal a game says something false with a straight face.
     """
     rows = conn.execute(
         """
@@ -81,8 +88,10 @@ def foreign_fm_equivalent(conn, scoring: dict[str, float], season: str) -> dict[
                                 AND m.real_md = e.real_md
         LEFT JOIN match_ratings mr ON mr.fc_id = e.fc_id AND mr.season = e.season
                                   AND mr.platform = 'euro' AND mr.matchday = m.euro_md
+        LEFT JOIN rosters r ON r.fc_id = e.fc_id AND r.season = e.season
         WHERE e.season = ? AND e.source = 'sofascore' AND COALESCE(e.minutes, 0) > 0
           AND COALESCE(mr.mv, e.mv_synth) IS NOT NULL
+          AND COALESCE(r.role_classic, '') != 'P' AND COALESCE(e.position, '') != 'G'
         """,
         (season,),
     ).fetchall()

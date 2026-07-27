@@ -2,10 +2,35 @@
 
 from __future__ import annotations
 
+import pytest
+
 from euroleghe_ingest.config import Config
 from euroleghe_ingest.context import Context
 from euroleghe_ingest.db.database import init_db
 from euroleghe_ingest.modules import arrivals
+
+
+def test_no_foreign_equivalent_for_goalkeepers(tmp_path):
+    """The equivalent has no goals-conceded term, so for a keeper it is inflated by about a goal a
+    game (measured on Serie A: +1.06 / +1.08 / +1.12 across the three seasons). Better no number."""
+    cfg = Config(data_dir=tmp_path / "data", db_path=tmp_path / "data" / "euroleghe.db")
+    (tmp_path / "data").mkdir()
+    conn = init_db(cfg.db_path)
+    conn.executemany("INSERT INTO players(fc_id, canonical_name) VALUES (?, ?)",
+                     [(1, "Keeper"), (2, "Striker")])
+    conn.executemany("INSERT INTO rosters(fc_id, season, roles, role_classic, league) "
+                     "VALUES (?, '2024-25', ?, ?, 'serie_a')",
+                     [(1, "por", "P"), (2, "pc", "A")])
+    conn.executemany(
+        "INSERT INTO external_match_stats(fc_id, season, source, match_id, competition, real_md, "
+        "minutes, position, goals, assists, mv_synth) VALUES (?, '2024-25', 'sofascore', ?, "
+        "'serie_a', ?, 90, ?, 0, 0, 6.0)",
+        [(1, "k1", 1, "G"), (1, "k2", 2, "G"), (2, "s1", 1, "F"), (2, "s2", 2, "F")])
+    conn.commit()
+
+    equivalents = arrivals.foreign_fm_equivalent(conn, cfg.load_scoring("serie_a"), "2024-25")
+    assert 1 not in equivalents, "a goalkeeper must not get a foreign FM-equivalent"
+    assert equivalents[2][0] == pytest.approx(6.0)      # the outfielder still gets one
 
 
 def test_arrivals_classification(tmp_path):
