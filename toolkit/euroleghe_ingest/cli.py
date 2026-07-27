@@ -61,6 +61,10 @@ def build_parser() -> argparse.ArgumentParser:
                            help="season to import, e.g. 2024-25 (repeatable; default: all)")
             p.add_argument("--refresh", action="store_true",
                            help="re-download matchdays even if already present")
+        if name == "synth":
+            p.add_argument("--validate", action="store_true",
+                           help="only re-measure the synthetic layer against the Serie A real votes "
+                                "(read-only) -> data/reports/mv_synth_validation.json")
         if name == "positions":
             p.add_argument("--league", action="append", metavar="LEAGUE",
                            help="league to import, e.g. premier_league (repeatable; default: all 5)")
@@ -113,6 +117,8 @@ def main(argv: list[str] | None = None) -> int:
             elif args.command == "positions":
                 load("positions").run(ctx, leagues=args.league, seasons=args.season,
                                       refresh=args.refresh, layer=args.layer)
+            elif args.command == "synth":
+                load("synth").run(ctx, validate=args.validate)
             elif args.command == "backtest":
                 load("backtest").run(ctx, windows=args.window, platforms=args.platform,
                                      games=args.game, rules=args.rules, cases=args.cases,

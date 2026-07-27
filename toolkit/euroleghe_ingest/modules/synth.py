@@ -115,12 +115,142 @@ def evaluate(model: dict, pairs) -> dict:
     }
 
 
-def run(ctx: Context, *, holdout_season: str = "2025-26", **kwargs) -> None:
+VALIDATION_FILE = "mv_synth_validation.json"
+
+
+def validate_against_default(ctx: Context) -> dict:
+    """Validate the synthetic layer where BOTH real vote sets exist: Serie A.
+
+    Three levels, because they answer different questions, and only the third one tells you what to
+    fix:
+      1. per match - mv_synth against the euro Mv it was fitted on, and against the classic `default`
+         Mv. The euro-vs-default gap is the FLOOR: the two real vote sets disagree by about 0.21 on
+         the same match, so no synthetic voto calibrated on one can be closer than that to the other.
+      2. per season - the FM-equivalent (real euro vote where the euro calendar covered the round,
+         mv_synth elsewhere) against the real Serie A fantamedia over the same rounds.
+      3. fixture selection - for clubs whose per-match layer is INCOMPLETE, the real fantamedia on the
+         covered rounds minus the real fantamedia on the whole season. That isolates "we measured him
+         on the wrong half of the season" from "the synthetic voto is wrong", and the two need
+         completely different fixes (more scraping vs recalibration).
+
+    Read-only. Writes data/reports/mv_synth_validation.json.
+    """
+    conn = ctx.require_conn()
+    report: dict = {"per_match": {}, "per_season": {}, "fixture_selection": {}}
+
+    rows = conn.execute(
+        """
+        SELECT COALESCE(mr_e.role, mr_d.role), e.mv_synth, mr_e.mv, mr_d.mv
+        FROM external_match_stats e
+        JOIN matchday_map m ON m.season = e.season AND m.league = e.competition
+                           AND m.real_md = e.real_md
+        LEFT JOIN match_ratings mr_e ON mr_e.fc_id = e.fc_id AND mr_e.season = e.season
+                                    AND mr_e.platform = 'euro' AND mr_e.matchday = m.euro_md
+        LEFT JOIN match_ratings mr_d ON mr_d.fc_id = e.fc_id AND mr_d.season = e.season
+                                    AND mr_d.platform = 'default' AND mr_d.matchday = e.real_md
+        WHERE e.competition = 'serie_a' AND e.source = 'sofascore'
+          AND e.mv_synth IS NOT NULL AND COALESCE(e.minutes, 0) > 0
+        """).fetchall()
+    for role in ("P", "D", "C", "A", "ALL"):
+        picked = [r for r in rows if role == "ALL" or r[0] == role]
+        pairs = {
+            "synth_vs_euro": [(s, e) for _r, s, e, _d in picked if e is not None],
+            "synth_vs_default": [(s, d) for _r, s, _e, d in picked if d is not None],
+            "euro_vs_default": [(e, d) for _r, _s, e, d in picked
+                                if e is not None and d is not None],
+        }
+        entry = {}
+        for name, values in pairs.items():
+            if values:
+                errors = [a - b for a, b in values]
+                entry[name] = {"n": len(errors),
+                               "bias": round(sum(errors) / len(errors), 4),
+                               "mae": round(sum(abs(x) for x in errors) / len(errors), 4)}
+        report["per_match"][role] = entry
+
+    from euroleghe_ingest.modules.arrivals import foreign_fm_equivalent
+    scoring = ctx.config.load_scoring("serie_a")
+    seasons = [s for (s,) in conn.execute("SELECT DISTINCT season FROM rosters ORDER BY season")]
+    for season in seasons:
+        equivalents = foreign_fm_equivalent(conn, scoring, season)
+        by_role: dict[str, list[float]] = {}
+        for fc_id, role, fm_real in conn.execute(
+                """SELECT r.fc_id, r.role_classic, ss.fm FROM rosters r
+                   JOIN season_stats ss ON ss.fc_id = r.fc_id AND ss.season = r.season
+                                       AND ss.platform = 'default'
+                   WHERE r.season = ? AND r.league = 'serie_a' AND ss.pv >= 15
+                     AND ss.fm IS NOT NULL""", (season,)):
+            entry = equivalents.get(fc_id)
+            if entry and role:
+                by_role.setdefault(role, []).append(entry[0] - fm_real)
+        report["per_season"][season] = {
+            role: {"n": len(errors), "bias": round(sum(errors) / len(errors), 3),
+                   "mae": round(sum(abs(e) for e in errors) / len(errors), 3),
+                   "within_0_3": round(sum(1 for e in errors if abs(e) <= 0.3) / len(errors), 3)}
+            for role, errors in sorted(by_role.items()) if errors}
+
+        covered: dict[str, set[int]] = {}
+        for club, real_md in conn.execute(
+                "SELECT DISTINCT club, real_md FROM external_match_stats "
+                "WHERE season = ? AND competition = 'serie_a' AND club IS NOT NULL", (season,)):
+            covered.setdefault(club, set()).add(real_md)
+        partial = {club: rounds for club, rounds in covered.items() if len(rounds) < 38}
+        deltas: dict[str, list[float]] = {}
+        for fc_id, role, fm_real, club in conn.execute(
+                """SELECT r.fc_id, r.role_classic, ss.fm,
+                          (SELECT e.club FROM external_match_stats e
+                            WHERE e.fc_id = r.fc_id AND e.season = r.season LIMIT 1)
+                   FROM rosters r
+                   JOIN season_stats ss ON ss.fc_id = r.fc_id AND ss.season = r.season
+                                       AND ss.platform = 'default'
+                   WHERE r.season = ? AND r.league = 'serie_a' AND ss.pv >= 25
+                     AND ss.fm IS NOT NULL""", (season,)):
+            rounds = partial.get(club or "")
+            if not rounds or not role:
+                continue
+            votes = conn.execute(
+                "SELECT matchday, fantavoto FROM match_ratings WHERE fc_id = ? AND season = ? "
+                "AND platform = 'default' AND fantavoto IS NOT NULL", (fc_id, season)).fetchall()
+            on_covered = [value for matchday, value in votes if matchday in rounds]
+            if len(on_covered) >= 8:
+                deltas.setdefault(role, []).append(
+                    sum(on_covered) / len(on_covered) - fm_real)
+        report["fixture_selection"][season] = {
+            "clubs_incomplete": len(partial),
+            "by_role": {role: {"n": len(values), "bias": round(sum(values) / len(values), 3)}
+                        for role, values in sorted(deltas.items())}}
+
+    path = ctx.config.data_dir / "reports" / VALIDATION_FILE
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(report, indent=2), encoding="utf-8")
+
+    overall = report["per_match"].get("ALL", {})
+    print(f"[synth] per match (Serie A): synth vs euro MAE "
+          f"{overall.get('synth_vs_euro', {}).get('mae')} · vs default "
+          f"{overall.get('synth_vs_default', {}).get('mae')} · the two REAL sets "
+          f"{overall.get('euro_vs_default', {}).get('mae')} (the floor)")
+    for season, entry in report["fixture_selection"].items():
+        biases = " ".join(f"{role} {value['bias']:+.3f}"
+                          for role, value in entry["by_role"].items())
+        print(f"[synth] {season}: {entry['clubs_incomplete']} clubs with an incomplete layer · "
+              f"fixture-selection bias {biases or 'none measurable'}")
+    print(f"[synth] validation -> {path}")
+    return report
+
+
+def run(ctx: Context, *, holdout_season: str = "2025-26", validate: bool = False,
+        **kwargs) -> None:
     """Fit the rating -> Mv map on the overlap and write mv_synth for every provider match row.
+
+    `validate=True` skips the fit and only re-measures the layer against the Serie A real votes
+    (`validate_against_default`), which is read-only.
 
     The most recent season is held out by default, so the log shows an out-of-sample MAE next to the
     in-sample one. This is a sanity check, NOT the project's gate: the gate lives in the engine.
     """
+    if validate:
+        validate_against_default(ctx)
+        return
     conn = ctx.require_conn()
     fit_pairs, test_pairs = overlap_pairs(conn, holdout_season)
     if not fit_pairs:
