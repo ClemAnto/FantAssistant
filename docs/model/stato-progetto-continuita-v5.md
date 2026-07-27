@@ -66,6 +66,16 @@ per-partita (identita' indipendente dalla stagione, quindi copre i nuovi entrati
 numeri sul campione comune invariati. Dettaglio, verdetti corretti (R2, R8) e il nuovo effetto da
 ri-pre-registrare: `gate-motore-v1.md` §5-bis.
 
+## RECENT_FORM — nuovo modulo (27/07): i prezzati senza storico
+Ogni agosto il listone prezza 60-65 giocatori sopra la mediana del loro ruolo di cui non abbiamo NIENTE
+(altri campionati o club fuori perimetro). `recent_form` ne prende le ultime N partite di club con
+rating e minuti, datate, sotto `source='sofascore_recent'` (mai nella retta del voto sintetico: un 7.0
+di Serie B non e' un 7.0 di Serie A). **113 giocatori, 1.094 partite, 89% risolti** con una scala di
+identita' che rifiuta invece di indovinare. Il gate ha diviso la regola: **R13 presenze** dai minuti al
+vecchio club PASSA su tutte e tre le piattaforme ed **e' adottata**; **R13b fantamedia** dal rating
+confrontato fra campionati NO (lambda -0.45/+0.05). Copertura del motore sull'euro **dal 31% al
+45-49%**. Set adottati: euro R1+R3c+R4+R7+R10+**R13** · Serie A R3+R7+**R13**.
+
 ## Prossimo lavoro
 1. ~~Completare il layer per-partita~~ **FATTO il 27/07** (sezione sopra): 100% delle partite, bias di
    selezione chiuso, copertura del motore dal 31% al 42-43%.

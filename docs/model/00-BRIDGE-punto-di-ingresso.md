@@ -107,6 +107,16 @@ raddoppia** (0.19 → 0.43), Ezzalzouli passa da fuori-classifica a VALORE 110. 
 Due verdetti corretti (R2 e R8: l'instabilità di segno era dei dati) e un effetto vero con l'etichetta
 sbagliata da ri-pre-registrare — tutto in `gate-motore-v1.md` §5-bis.
 
+## GIOCATORI PREZZATI SENZA STORICO — FATTO (27 luglio 2026)
+Nuovo modulo **`recent_form`**: per i giocatori che il listone prezza sopra la mediana del loro ruolo e
+di cui non abbiamo niente (arrivano da Eredivisie, Championship, Liga Portugal, Serie B, Süper Lig…),
+scarica le ultime N partite di club con rating e minuti, **datate**, sotto `source='sofascore_recent'`
+per non contaminare la retta del voto sintetico. **113 giocatori, 1.094 partite, 89% di identità
+risolte.** Il gate ha spezzato la regola che le usa: **quanto** gioca si trasferisce (R13, presenze dai
+minuti al vecchio club: ✅ su tutte e tre le piattaforme, adottata), **quanto bene** gioca no (R13b,
+rating confrontato fra campionati: ❌, λ −0.45/+0.05). Copertura del motore sull'euro **dal 31% al
+45-49%** del listone. Dettaglio in `gate-motore-v1.md` §5-ter.
+
 ## PROSSIMO LAVORO
 1. **Storico `injuries`**: l'unico input della Priorità 1 ancora assente (Transfermarkt, una richiesta
    per giocatore). Metà dei buchi nelle top-10 dei difensori sono infortuni.

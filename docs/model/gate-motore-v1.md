@@ -65,7 +65,7 @@ diventa +1.3%. Nessuna regola nuova va promossa su quel decimale.
 ## 3. Verdetti — 6 regole adottate su 15 provate
 
 **Adottate, per piattaforma** (`platform` è già una dimensione del modello dati):
-**euro → R1 + R3c + R4 + R7 + R10** · **Serie A → R3 + R7**
+**euro → R1 + R3c + R4 + R7 + R10 + R13** · **Serie A → R3 + R7 + R13**
 
 | Regola | euro | Serie A | Parametro (T1 / T2) |
 |---|---|---|---|
@@ -75,6 +75,7 @@ diventa +1.3%. Nessuna regola nuova va promossa su quel decimale.
 | **R1** copertura nuovi entrati (FM-equivalente + minuti) | ✅ | ❌² | β_new 0.186 / 0.230 → **0.431 / 0.398** col layer completo |
 | **R4** curva d'età sulla FM oltre i 30 | ✅ | ❌ | −0.006 / −0.016 per anno |
 | **R3** minuti sulla stagione reale intera | ❌³ → ✅⁴ | ✅ | minuti 0.342 / 0.219 → **0.326 / 0.256** |
+| **R13** presenze dalle ultime partite in un campionato non coperto | ✅ | ✅ | share 0.40+0.09·m / 0.21+0.37·m |
 
 ¹ passa anche su Serie A ma perde una posizione top-10 in T2, dove R3 la tiene: lì la mappa copre 31
 delle 38 giornate e le due feature sono quasi la stessa cosa. ² i nuovi entrati in Serie A hanno un
@@ -124,6 +125,7 @@ Presenze Serie A: 8.38 → 8.02 e 8.41 → 7.92 giornate di MAE. Portieri euro: 
 | **R12** attesa di mercato (Qt.I nel ruolo) | λ −0.003 / +0.010 | L'attesa **assoluta** del mercato non aggiunge nulla alla fantamedia precedente: è costruita sulla stessa storia. |
 | **R12b** revisione dell'attesa (Qt.I anno su anno) | λ −0.040 / −0.076 | Segno stabile ma significato opposto: dice che chi è rivisto **al ribasso** rende *più* di B0, cioè approssima il ritorno alla media che B0 già fa. Fallisce su T1 e sul VALORE. |
 | **R4b** curva d'età sulle presenze | −0.014 / −0.014 | Stabile e inutile: Pv MAE −0.0%, VALORE peggiore. L'effetto età sta sulla FM, non sulle presenze. |
+| **R13b** fantamedia dal rating confrontato fra campionati | λ **−0.454 / +0.05** | Fallisce su Serie A (+40% di errore sugli aggiunti, oltre il limite) e il segno si inverte. Vedi §5-ter: **quanto** gioca si trasferisce, **quanto bene** no. |
 
 ## 5. Difetti dei dati trovati dal gate (due corretti, tre aperti)
 
@@ -198,6 +200,56 @@ comprano 2+ giocatori in un ruolo hanno giocatori che giocano **più** di quanto
 prima, **sottostima chi cambia contesto** (neopromosse, rose rifatte). Non adottata: rinominare
 l'ipotesi dopo aver visto il segno è post-hoc. **Pre-registrata** come «sottostima da rifacimento
 rosa», con una misura di churn vera, per la finestra 26/27.
+
+## 5-ter. Giocatori prezzati senza storico: `recent_form` e R13 (27 luglio 2026)
+
+Ogni agosto il listone prezza giocatori di cui non abbiamo **niente**: arrivano da un campionato che
+non scarichiamo (Eredivisie, Championship, Liga Portugal, Serie B, Süper Lig, Pro League, Brasile) o da
+un club fuori perimetro. Misurati sui due listoni: **63 nel 25/26 e 64 nel 24/25** con quotazione
+d'asta **sopra la mediana del loro ruolo** e zero righe sia in `season_stats` sia nel layer
+per-partita — Gyökeres, Cancelo, Tillman, Giménez, O'Riley, João Neves, Neres, più gli uomini delle
+neopromosse. Il motore li prezzava sulla sola àncora di ruolo.
+
+Il modulo **`recent_form`** prende le loro ultime N partite di club con rating, minuti, gol e assist,
+**datate**. Stato: **113 giocatori, 1.094 partite**, identità risolte all'**89%**. Competizioni più
+frequenti: serie-b 116 · eredivisie 98 · pro-league 68 · championship 63 · liga-portugal 42 ·
+süper lig 34 · laliga-2 19.
+
+Quattro decisioni di progetto, ognuna un punto dove si sbagliava facilmente:
+- **sopra la mediana, non «almeno»**: per i portieri la mediana è **1 credito**, quindi «almeno media»
+  avrebbe pescato tutti i terzi portieri (56 contro 8);
+- **`source='sofascore_recent'`, non `'sofascore'`**: `synth` fitta e applica la sua retta solo alla
+  fonte calibrata, quindi un 7.0 di Serie B non diventa mai un voto base di Serie A;
+- **partite datate + filtro sulla data d'asta nel motore**: l'endpoint del provider è ancorato a
+  *oggi*, quindi per una finestra passata si pagina indietro finché le partite precedono quell'asta.
+  È il filtro che rende gli stessi dati legali in un backtest;
+- **identità a scala che rifiuta invece di indovinare**: tier1 club confermato · tier2 anno di nascita
+  (una richiesta per candidato, spesa solo su un pareggio) · tier3 nessun altro vicino nei follower,
+  etichettato. Confronti **folded** con `matching.fold`/`split_initial`: senza quelli quattro Vázquez
+  restavano irrisolti (l'accento) e «James J.» diventava il cognome «J», che matcha ogni nome con una j.
+
+**R13 spezzata in due, e la divisione è il risultato.** Dalle ultime partite in un campionato che non
+copriamo, **quanto** gioca si trasferisce e **quanto bene** gioca no:
+- **R13 (presenze dai minuti al vecchio club, àncora di ruolo per il rendimento): ✅ passa su tutte e
+  tre le piattaforme.** Adottata.
+- **R13b (fantamedia dal rating confrontato con gli altri nuovi): ❌** fallisce su Serie A e λ si
+  inverte (−0.454 / +0.05). Un rating confrontato fra competizioni diverse non è un livello.
+
+**Effetto complessivo dei set adottati** (campione comune invariato: euro −1.6%/−1.7% di VALORE,
+Serie A −4.2%/−2.8%; top-10 6→8/9 e 12→14 · 11→13 e 14→15):
+
+| | copertura prima | dopo |
+|---|---|---|
+| euro T1 / T2 | 31.2% / 33.7% | **45.7% / 48.9%** |
+| Serie A T1 / T2 | 42.4% / 41.8% | 45.7% / 47.5% |
+
+Sull'euro sono **156 e 137 giocatori** che il baseline non prezzava affatto, ora con un VALORE (errore
+49.7/48.9 contro il 46.3/42.4 del baseline sui suoi: più difficili, come è giusto, ma dentro il limite).
+
+**Limite noto**: un nome privato dei diacritici può restituire **zero** candidati dalla ricerca
+(«Gronbaek» contro «Grønbæk»): lì non è il confronto a fallire ma l'indice del provider. La strada
+robusta è risolvere attraverso la **rosa del club** invece che per nome, e richiede gli id squadra
+SofaScore in `club_xref`, che oggi contiene solo quelli di Transfermarkt.
 
 ## 6. Validazione del voto sintetico (Serie A, dove esistono entrambi i set reali)
 
