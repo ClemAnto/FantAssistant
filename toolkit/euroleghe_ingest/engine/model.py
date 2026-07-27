@@ -20,6 +20,7 @@ from collections.abc import Mapping, Sequence
 
 # `sources` owns the canonical role vocabulary and the multi-role splitter (';' / '|' / '/');
 # reusing the private helper keeps one parser in the codebase instead of two that can drift.
+from euroleghe_ingest.engine.fitting import predict_linear
 from euroleghe_ingest.sources import CLASSIC_ROLES, MANTRA_ROLES
 from euroleghe_ingest.sources import _norm_roles as split_roles
 
@@ -198,8 +199,7 @@ def linear_share(coeffs: Sequence[float], featureset: Sequence[float]) -> float:
     R3 (minutes), R7 (goalkeepers) and R1 (newcomers) are all this function with a different feature
     vector, so the clipping and the bounds live in one place.
     """
-    total = coeffs[0] + sum(c * x for c, x in zip(coeffs[1:], featureset, strict=True))
-    return clip(total, 0.0, 1.0)
+    return clip(predict_linear(coeffs, featureset), 0.0, 1.0)
 
 
 def predict_fm_arrival(anchor: float, fm_equivalent: float, beta_new: float) -> float:

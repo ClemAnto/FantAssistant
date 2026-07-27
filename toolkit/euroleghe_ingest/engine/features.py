@@ -533,6 +533,10 @@ class WindowData:
     matchdays_prev: int = 0
     matchdays_target: int = 0
     rounds: dict[str, int] = field(default_factory=dict)
+    # scratch space for quantities derived from this window's own population (evaluate.derive).
+    # Computing them is a full pass over ~1500 observations and the gate asks for the same window
+    # dozens of times, so they are memoised here rather than recomputed per rule.
+    cache: dict = field(default_factory=dict, repr=False)
 
     def rounds_for(self, league: str | None) -> int:
         """Real rounds of the player's league, with the 38-round default for unknown leagues."""

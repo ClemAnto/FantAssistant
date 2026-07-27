@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
@@ -220,19 +221,46 @@ class Derived:
     recent_deviation: dict[int, float] = field(default_factory=dict)
 
 
+def _scale(values: Sequence[float], min_n: int) -> tuple[float, float] | None:
+    """(mean, sd) of a sample, or None when it is too thin or has no spread to standardise by."""
+    if len(values) < min_n:
+        return None
+    mean = sum(values) / len(values)
+    variance = sum((value - mean) ** 2 for value in values) / (len(values) - 1)
+    return (mean, variance ** 0.5) if variance > 1e-9 else None
+
+
+def _z_scores(samples: dict[int, tuple[object, float]], min_n: int) -> dict[int, float]:
+    """Standardise each player's value inside its own group, clipped to three deviations.
+
+    One helper for every standardisation in the engine (propensity per role x league, price per role,
+    club Elo): the mean, the deviation, the minimum group size and the clip are decided in one place,
+    so a change of policy cannot reach two of the three and miss the third.
+    """
+    groups: dict[object, list[float]] = {}
+    for group, value in samples.values():
+        groups.setdefault(group, []).append(value)
+    stats = {group: scale for group, values in groups.items()
+             if (scale := _scale(values, min_n)) is not None}
+    out: dict[int, float] = {}
+    for fc_id, (group, value) in samples.items():
+        entry = stats.get(group)
+        if entry is not None:
+            out[fc_id] = model.clip((value - entry[0]) / entry[1], -3.0, 3.0)
+    return out
+
+
 def _elo_z_scores(data: features.WindowData) -> dict[int, float]:
-    """Standardise the destination club's Elo across the clubs in this window (R5)."""
-    values = {obs.club_target: obs.elo_target for obs in data.observations
-              if obs.club_target and obs.elo_target is not None}
-    if len(values) < 5:
+    """Standardise the destination club's Elo across the CLUBS in this window (R5).
+
+    Across clubs, not across players: otherwise a club with thirty listed players would pull the mean
+    towards itself thirty times over.
+    """
+    scale = _scale([elo for elo in {obs.club_target: obs.elo_target for obs in data.observations
+                                    if obs.club_target and obs.elo_target is not None}.values()], 5)
+    if scale is None:
         return {}
-    elos = list(values.values())
-    mean = sum(elos) / len(elos)
-    variance = sum((elo - mean) ** 2 for elo in elos) / (len(elos) - 1)
-    if variance < 1e-9:
-        return {}
-    deviation = variance ** 0.5
-    return {obs.fc_id: model.clip((obs.elo_target - mean) / deviation, -3.0, 3.0)
+    return {obs.fc_id: model.clip((obs.elo_target - scale[0]) / scale[1], -3.0, 3.0)
             for obs in data.observations if obs.elo_target is not None}
 
 
@@ -242,24 +270,11 @@ def _price_signals(data: features.WindowData) -> tuple[dict[int, float], dict[in
     Inside the role because 20 credits is elite for a defender and mid-table for a striker. The
     revision is a ratio, so a 30 -> 13 collapse and a 3 -> 1.3 one count the same.
     """
-    groups: dict[str, list[float]] = {}
-    for obs in data.observations:
-        if obs.price_initial is not None and obs.role_classic:
-            groups.setdefault(obs.role_classic, []).append(obs.price_initial)
-    stats: dict[str, tuple[float, float]] = {}
-    for role, values in groups.items():
-        if len(values) < 10:
-            continue
-        mean = sum(values) / len(values)
-        variance = sum((value - mean) ** 2 for value in values) / (len(values) - 1)
-        if variance > 1e-9:
-            stats[role] = (mean, variance ** 0.5)
-    price_z: dict[int, float] = {}
+    price_z = _z_scores({obs.fc_id: (obs.role_classic, obs.price_initial)
+                         for obs in data.observations
+                         if obs.price_initial is not None and obs.role_classic}, 10)
     revision: dict[int, float] = {}
     for obs in data.observations:
-        entry = stats.get(obs.role_classic or "")
-        if obs.price_initial is not None and entry:
-            price_z[obs.fc_id] = model.clip((obs.price_initial - entry[0]) / entry[1], -3.0, 3.0)
         if obs.price_initial is not None and obs.price_initial_prev:
             revision[obs.fc_id] = model.clip(
                 (obs.price_initial - obs.price_initial_prev) / obs.price_initial_prev, -1.0, 2.0)
@@ -267,10 +282,16 @@ def _price_signals(data: features.WindowData) -> tuple[dict[int, float], dict[in
 
 
 def derive(data: features.WindowData) -> Derived:
-    """Minutes share and the per-90 propensity z-score, both from the INPUT season only."""
+    """Minutes share and the per-90 propensity z-score, both from the INPUT season only.
+
+    Memoised on the window: the gate evaluates the same window under every candidate rule, and none
+    of this depends on which rules are active.
+    """
+    cached = data.cache.get("derived")
+    if cached is not None:
+        return cached
     minutes_share: dict[int, float] = {}
-    raw: dict[int, float] = {}
-    groups: dict[tuple[str | None, str | None], list[float]] = {}
+    raw: dict[int, tuple[object, float]] = {}
     for obs in data.observations:
         share = obs.minutes_share_prev(data.rounds_for(obs.league))
         if share is not None:
@@ -283,27 +304,11 @@ def derive(data: features.WindowData) -> Derived:
         expected = ((obs.xg_prev or 0.0) + (obs.xa_prev or 0.0)) * 90.0 / obs.minutes_prev
         # half realised, half expected: the first is what the fantamedia was paid on, the second is
         # what is likely to repeat
-        value = 0.5 * (realised + expected)
-        raw[obs.fc_id] = value
-        groups.setdefault((obs.role_classic, obs.league), []).append(value)
+        raw[obs.fc_id] = ((obs.role_classic, obs.league), 0.5 * (realised + expected))
 
     # standardise inside (role, league): a striker's volume is not a defender's, and league scoring
     # environments differ
-    stats: dict[tuple[str | None, str | None], tuple[float, float]] = {}
-    for key, values in groups.items():
-        if len(values) < 5:
-            continue
-        mean = sum(values) / len(values)
-        variance = sum((value - mean) ** 2 for value in values) / (len(values) - 1)
-        if variance > 1e-9:
-            stats[key] = (mean, variance ** 0.5)
-    propensity_z: dict[int, float] = {}
-    for obs in data.observations:
-        value = raw.get(obs.fc_id)
-        entry = stats.get((obs.role_classic, obs.league))
-        if value is not None and entry is not None:
-            # clipped: one outlier per-90 rate must not swing a whole prediction
-            propensity_z[obs.fc_id] = model.clip((value - entry[0]) / entry[1], -3.0, 3.0)
+    propensity_z = _z_scores(raw, 5)
     # R13: deviation from the mean rating of the players we could measure this way at all
     rated = [obs.recent_rating for obs in data.observations
              if obs.recent_matches and obs.recent_rating is not None]
@@ -313,8 +318,11 @@ def derive(data: features.WindowData) -> Derived:
                         if mean_rating is not None and obs.recent_matches
                         and obs.recent_rating is not None}
     price_z, price_revision = _price_signals(data)
-    return Derived(recent_deviation=recent_deviation,minutes_share=minutes_share, propensity_z=propensity_z,
-                   elo_z=_elo_z_scores(data), price_z=price_z, price_revision=price_revision)
+    derived = Derived(recent_deviation=recent_deviation, minutes_share=minutes_share,
+                      propensity_z=propensity_z, elo_z=_elo_z_scores(data),
+                      price_z=price_z, price_revision=price_revision)
+    data.cache["derived"] = derived
+    return derived
 
 
 # ---------------------------------------------------------------- cross-fitted parameters
@@ -866,8 +874,15 @@ def appearance_segments(data: features.WindowData, predictions: list[Prediction]
 
 def evaluate_window(data: features.WindowData, rules: tuple[str, ...],
                     share_coeffs: tuple[float, ...] | None = None,
-                    params: Params | None = None) -> dict:
-    predictions = predict_window(data, rules, share_coeffs, params)
+                    params: Params | None = None,
+                    predictions: list[Prediction] | None = None) -> dict:
+    """Metrics for one configuration.
+
+    `predictions` lets a caller that already has them skip a second identical pass: `compare` was
+    predicting every window twice for every candidate rule.
+    """
+    if predictions is None:
+        predictions = predict_window(data, rules, share_coeffs, params)
     by_role: dict[str, dict] = {}
     for role in model.CLASSIC_ROLES:
         role_observations = [obs for obs in data.observations if obs.role_classic == role]
@@ -1051,12 +1066,13 @@ def compare(conn: sqlite3.Connection, candidates: tuple[str, ...], platform: str
     predictions: dict[str, dict[str, list[Prediction]]] = {}
     for key, data in prepared.items():
         other = next(name for name in prepared if name != key)
-        configurations = {"R0": evaluate_window(data, ("R0",))}
         predicted = {"R0": predict_window(data, ("R0",))}
+        configurations = {"R0": evaluate_window(data, ("R0",), predictions=predicted["R0"])}
         for rule in (*candidates, "ALL", "ADOPTED"):
             active = {"ALL": everything, "ADOPTED": adopted}.get(rule, ("R0", rule))
-            configurations[rule] = evaluate_window(data, active, None, fitted[other])
             predicted[rule] = predict_window(data, active, None, fitted[other])
+            configurations[rule] = evaluate_window(data, active, None, fitted[other],
+                                                   predictions=predicted[rule])
         out["windows"][key] = configurations
         predictions[key] = predicted
     out["adopted"] = list(adopted[1:])
