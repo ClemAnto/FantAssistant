@@ -45,10 +45,24 @@ class Window:
 # still start at 2023-24, so those two seasons exist in the DB from the API alone.
 #
 # ⚠️ The older windows are NOT equally instrumented. `external_stats` (SofaScore minutes, xG),
-# `arrivals`, `club_elo` and the `new_coach` flag start at 2023-24, so on T0 and Tm1 the rules that
-# read them have no sample at all. The gate reports that as NOT MEASURABLE, never as a failure: a
-# window that cannot see a feature says nothing about the hypothesis.
+# `arrivals`, `club_elo` and the `new_coach` flag start at 2023-24, so on anything older than T1 the
+# rules that read them have no sample at all. The gate reports that as NOT MEASURABLE, never as a
+# failure: a window that cannot see a feature says nothing about the hypothesis. What the old windows DO
+# test is the part of the engine that only needs the votes - the anchors, the beta, the appearances
+# share, the keepers - which is most of it.
+#
+# ⚠️ Tm3 and Tm4 straddle COVID: 2019-20 was suspended in March and finished in the summer, 2020-21 was
+# played behind closed doors with no home advantage. Both are legitimate windows and both are unusual
+# football. A rule that holds across them is better tested; one that fails ONLY there deserves the
+# question asked out loud rather than a silent rejection.
+# Which of these are usable depends on the PLATFORM, and `_window_is_usable` decides it from the data
+# rather than from a list kept by hand. Serie A has votes in every one of them; EuroLeghe is split in two
+# by a hole at 2021-22 (votes exist for 2020-21 and for 2022-23, not in between), so on euro Tm4 is a
+# valid window, Tm3 and Tm2 are not, and Tm1's own input season is the empty one.
 WINDOWS: dict[str, Window] = {
+    "Tm4": Window("Tm4", "2018-19", "2019-20", "2019-08-15"),
+    "Tm3": Window("Tm3", "2019-20", "2020-21", "2020-09-15"),   # COVID: 20/21 kicked off in September
+    "Tm2": Window("Tm2", "2020-21", "2021-22", "2021-08-15"),
     "Tm1": Window("Tm1", "2021-22", "2022-23", "2022-08-15"),
     "T0": Window("T0", "2022-23", "2023-24", "2023-08-15"),
     "T1": Window("T1", "2023-24", "2024-25", "2024-08-15"),

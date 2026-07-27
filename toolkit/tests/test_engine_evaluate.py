@@ -118,6 +118,21 @@ def test_metrics_separate_coverage_of_value_and_appearances(prepared):
     assert report["share_coeffs"][1] == pytest.approx(0.50)        # published coefficients by default
 
 
+def test_every_window_is_a_coherent_prediction_exercise():
+    """One season predicting the next, with an auction date between the two. Cheap to get wrong."""
+    previous = None
+    for key, window in features.WINDOWS.items():
+        start, end = window.input_season.split("-")
+        assert window.target_season.startswith(str(int(start) + 1)), key
+        assert window.target_season.endswith(str(int(end) + 1).zfill(2)), key
+        # the auction happens in the target season's first calendar year, before a ball is kicked
+        assert window.auction_date[:4] == window.target_season[:4], key
+        assert window.auction_date[5:7] in {"07", "08", "09"}, key
+        if previous is not None:      # WINDOWS is ordered oldest first, and cross_fit_source relies on it
+            assert previous.input_season < window.input_season, key
+        previous = window
+
+
 def test_cross_fit_never_scores_a_window_with_its_own_parameters():
     """The protocol's one inviolable rule, and the pairing the published numbers were made with."""
     for key in features.WINDOWS:
@@ -346,3 +361,11 @@ def test_run_writes_a_report_and_leaves_the_db_alone(prepared):
     after = {table: conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
              for table in before}
     assert after == before, "backtest must be read-only on the DB"
+
+
+def test_robust_verdict_needs_a_majority_a_mean_gain_and_a_bounded_worst_case():
+    """The second verdict exists because an AND over many windows rejects good rules; it must not
+    become an OR that accepts bad ones."""
+    assert evaluate.MIN_WINDOWS_FOR_ROBUST >= 3        # no "majority" of two
+    assert 0 < evaluate.MAX_WINDOW_LOSS <= 0.05        # a bounded, not an unlimited, single-window loss
+    assert evaluate.MAX_WINDOW_LOSS > evaluate.MIN_RELATIVE_GAIN

@@ -984,6 +984,11 @@ def _naive_added(data: features.WindowData, baseline: list[Prediction],
 
 
 MIN_RELATIVE_GAIN = 0.005      # half a percent on the players it touches: below that it is noise
+# How much a single window may go AGAINST an accuracy rule before the robust verdict gives up on it.
+# Only used by the robust verdict; the strict one tolerates nothing, which is the point of having both.
+MAX_WINDOW_LOSS = 0.02
+# Below this many measuring windows there is no majority to speak of and only the strict verdict applies.
+MIN_WINDOWS_FOR_ROBUST = 3
 
 
 def _changed_mae(baseline: list[Prediction], candidate: list[Prediction],
@@ -1199,6 +1204,27 @@ def compare(conn: sqlite3.Connection, candidates: tuple[str, ...], platform: str
         verdict["passes"] = (
             (coverage_up and added_sane and beats_naive and no_harm and verdict["top10_not_worse"])
             if kind == "coverage" else (improved and no_harm))
+
+        # The robust verdict: majority of measuring windows, mean gain above the floor, and no single
+        # window losing more than MAX_WINDOW_LOSS. Only for accuracy rules and only once there are
+        # enough windows for "majority" to mean anything. None = not applicable, never a silent False.
+        gains = [1 - row["changed_after"] / row["changed_before"]
+                 for row in measured
+                 if row["changed_before"] and row["changed_after"] is not None]
+        if kind == "coverage" or len(gains) < MIN_WINDOWS_FOR_ROBUST:
+            verdict["robust"] = None
+        else:
+            wins = sum(1 for gain in gains if gain >= MIN_RELATIVE_GAIN)
+            verdict["robust_detail"] = {
+                "wins": wins, "of": len(gains),
+                "mean_gain": _round(sum(gains) / len(gains), 4),
+                "worst_loss": _round(-min(gains), 4),
+            }
+            verdict["robust"] = bool(
+                wins * 2 > len(gains)
+                and sum(gains) / len(gains) >= MIN_RELATIVE_GAIN
+                and -min(gains) <= MAX_WINDOW_LOSS
+                and no_harm)
         out["verdicts"][rule] = verdict
     return out
 
@@ -1434,6 +1460,15 @@ def _print_gate(result: dict) -> None:
                       f"{target} MAE {row['added_mae']} against {row['added_mae_naive']} "
                       f"from the role anchor and the mean share")
         mark = "PASSES" if verdict["passes"] else "DOES NOT PASS"
+        detail = verdict.get("robust_detail")
+        if detail is not None:
+            agreement = ("agrees" if verdict["robust"] == verdict["passes"]
+                         else "DISAGREES with the strict verdict")
+            print(f"    robust verdict ({agreement}): "
+                  f"{'holds' if verdict['robust'] else 'does not hold'} · "
+                  f"wins {detail['wins']}/{detail['of']} windows · mean gain "
+                  f"{detail['mean_gain'] * 100:+.1f}% · worst single window "
+                  f"{detail['worst_loss'] * 100:+.1f}%")
         if verdict["kind"] == "coverage":
             # said differently for R0c: it does not beat the trivial answer, it IS the trivial answer
             beats = ("is the trivial answer, by construction" if rule == "R0c"
