@@ -140,10 +140,23 @@ def search_candidates(session, name: str) -> list[dict]:
 
 
 def birth_year(session, provider_id: int) -> int | None:
-    """The provider's birth year for one player - one request, spent only to break a tie."""
+    """The provider's birth year for one player - one request, spent only to break a tie.
+
+    The search reaches every era, so a candidate can carry a pre-1970 (negative) timestamp, which
+    `time.gmtime` refuses on Windows. An unreadable date is simply not a discriminator.
+    """
     data = _get_json(session, PLAYER_ENDPOINT.format(pid=provider_id))
     timestamp = ((data or {}).get("player") or {}).get("dateOfBirthTimestamp")
-    return time.gmtime(timestamp).tm_year if timestamp else None
+    return _year_of(timestamp)
+
+
+def _year_of(timestamp) -> int | None:
+    if not timestamp or timestamp <= 0:
+        return None
+    try:
+        return time.gmtime(timestamp).tm_year
+    except (OSError, ValueError, OverflowError):
+        return None
 
 
 def resolve(session, player: dict, cancel_event=None) -> tuple[int | None, str]:
@@ -300,9 +313,63 @@ def store(conn, fc_id: int, matches: list[dict]) -> int:
     return len(rows)
 
 
+def _process(ctx: Context, session, conn, player: dict, target: str, cutoff: int,
+             wanted: int, bonuses: bool) -> dict | None:
+    """One player: resolve, fetch, store. None = already covered, nothing to do."""
+    already = conn.execute(
+        "SELECT COUNT(*) FROM external_match_stats WHERE fc_id = ? AND source = ? "
+        "AND match_date < ?",
+        (player["fc_id"], SOURCE, f"{target.split('-')[0]}{AUCTION_MONTH_DAY}")).fetchone()
+    if already and already[0] >= wanted:
+        return None                                   # resumable: already covered
+
+    _polite_sleep(ctx.cancel_event)
+    provider_id, tier = resolve(session, player, ctx.cancel_event)
+    entry = {"season": target, "fc_id": player["fc_id"], "name": player["name"],
+             "role": player["role"], "price": player["price"], "club": player["club"],
+             "provider_id": provider_id or "", "tier": tier or "unresolved",
+             "matches": 0, "competitions": "", "_stored": 0}
+    if not provider_id:
+        return entry
+
+    _polite_sleep(ctx.cancel_event)
+    matches = recent_matches(session, provider_id, cutoff, wanted, ctx.cancel_event)
+    if matches and bonuses:
+        enrich_with_bonuses(session, provider_id, matches, ctx.cancel_event)
+    if matches:
+        entry["_stored"] = store(conn, player["fc_id"], matches)
+        conn.commit()
+    entry["matches"] = len(matches)
+    entry["competitions"] = ";".join(sorted({match["competition"] for match in matches}))
+    return entry
+
+
+def _write_report(ctx: Context, report: list[dict], stored_total: int) -> None:
+    resolved = sum(1 for entry in report if entry["provider_id"])
+    with_matches = sum(1 for entry in report if entry["matches"])
+    path = ctx.config.data_dir / "reports" / COVERAGE_FILE
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if report:
+        with path.open("w", newline="", encoding="utf-8") as handle:
+            writer = csv.DictWriter(handle, fieldnames=sorted({k for e in report for k in e}))
+            writer.writeheader()
+            writer.writerows(report)
+    tiers: dict[str, int] = {}
+    for entry in report:
+        tiers[entry["tier"]] = tiers.get(entry["tier"], 0) + 1
+    print(f"[recent_form] {resolved}/{len(report)} identities resolved · {with_matches} with matches "
+          f"· {stored_total} rows stored · report -> {path}")
+    print(f"[recent_form] tiers: {json.dumps(tiers, sort_keys=True)}")
+
+
 def run(ctx: Context, *, seasons=None, wanted: int = MATCHES_WANTED, bonuses: bool = True,
         limit: int | None = None, **kwargs) -> None:
-    """Resolve and fetch the recent form of priced players with no history, season by season."""
+    """Resolve and fetch the recent form of priced players with no history, season by season.
+
+    Resumable (a player with enough stored matches is skipped), interruptible, and tolerant: one odd
+    player is reported and stepped over rather than ending the run, and the coverage report is written
+    whatever happens - a crash two thirds of the way through used to leave nothing to look at.
+    """
     conn = ctx.require_conn()
     all_seasons = [row[0] for row in conn.execute(
         "SELECT DISTINCT season FROM rosters ORDER BY season")]
@@ -324,28 +391,19 @@ def run(ctx: Context, *, seasons=None, wanted: int = MATCHES_WANTED, bonuses: bo
             for player in players:
                 if ctx.cancelled():
                     raise KeyboardInterrupt
-                already = conn.execute(
-                    "SELECT COUNT(*) FROM external_match_stats WHERE fc_id = ? AND source = ? "
-                    "AND match_date < ?", (player["fc_id"], SOURCE,
-                                           f"{target.split('-')[0]}{AUCTION_MONTH_DAY}")).fetchone()
-                if already and already[0] >= wanted:
-                    continue                                   # resumable: already covered
-                _polite_sleep(ctx.cancel_event)
-                provider_id, tier = resolve(session, player, ctx.cancel_event)
-                entry = {"season": target, "fc_id": player["fc_id"], "name": player["name"],
-                         "role": player["role"], "price": player["price"], "club": player["club"],
-                         "provider_id": provider_id or "", "tier": tier or "unresolved",
-                         "matches": 0}
-                if provider_id:
-                    _polite_sleep(ctx.cancel_event)
-                    matches = recent_matches(session, provider_id, cutoff, wanted, ctx.cancel_event)
-                    if matches and bonuses:
-                        enrich_with_bonuses(session, provider_id, matches, ctx.cancel_event)
-                    if matches:
-                        stored_total += store(conn, player["fc_id"], matches)
-                        conn.commit()
-                    entry["matches"] = len(matches)
-                    entry["competitions"] = ";".join(sorted({m["competition"] for m in matches}))
+                try:
+                    entry = _process(ctx, session, conn, player, target, cutoff, wanted, bonuses)
+                except KeyboardInterrupt:
+                    raise
+                except Exception as exc:   # noqa: BLE001 - one odd player must not end the run
+                    print(f"[recent_form]   {player['name'][:22]:<22} skipped: {exc!r}")
+                    entry = {"season": target, "fc_id": player["fc_id"], "name": player["name"],
+                             "role": player["role"], "price": player["price"],
+                             "club": player["club"], "provider_id": "", "tier": "error",
+                             "matches": 0, "competitions": "", "_stored": 0}
+                if entry is None:
+                    continue
+                stored_total += entry.pop("_stored", 0)
                 report.append(entry)
                 print(f"[recent_form]   {player['name'][:22]:<22} Qt.I {player['price']:>4.0f} "
                       f"{entry['tier']:<20} {entry['matches']} matches")
@@ -353,19 +411,4 @@ def run(ctx: Context, *, seasons=None, wanted: int = MATCHES_WANTED, bonuses: bo
         print("[recent_form] interrupted - what is stored is committed, rerun to continue")
     finally:
         session.close()
-
-    resolved = sum(1 for entry in report if entry["provider_id"])
-    with_matches = sum(1 for entry in report if entry["matches"])
-    path = ctx.config.data_dir / "reports" / COVERAGE_FILE
-    path.parent.mkdir(parents=True, exist_ok=True)
-    if report:
-        with path.open("w", newline="", encoding="utf-8") as handle:
-            writer = csv.DictWriter(handle, fieldnames=sorted({k for e in report for k in e}))
-            writer.writeheader()
-            writer.writerows(report)
-    print(f"[recent_form] {resolved}/{len(report)} identities resolved · {with_matches} with matches "
-          f"· {stored_total} rows stored · report -> {path}")
-    tiers: dict[str, int] = {}
-    for entry in report:
-        tiers[entry["tier"]] = tiers.get(entry["tier"], 0) + 1
-    print(f"[recent_form] tiers: {json.dumps(tiers, sort_keys=True)}")
+        _write_report(ctx, report, stored_total)

@@ -7,6 +7,7 @@ and the date cutoff (a backtest must not see matches played after the auction).
 
 from __future__ import annotations
 
+import csv
 import time
 
 import pytest
@@ -170,3 +171,53 @@ def test_run_is_safe_when_nobody_qualifies(tmp_path):
         monkeypatch_failed = True
         pytest.fail(f"run touched the network with an empty population: {exc}")
     assert not monkeypatch_failed
+
+
+def test_a_prehistoric_birth_date_is_not_a_crash(monkeypatch):
+    """The search reaches every era: a pre-1970 timestamp is negative and `time.gmtime` refuses it on
+    Windows, which used to kill the whole run two thirds of the way through."""
+    assert recent_form._year_of(-1_000_000_000) is None
+    assert recent_form._year_of(0) is None
+    assert recent_form._year_of(None) is None
+    assert recent_form._year_of(946_684_800) == 2000
+
+    monkeypatch.setattr(recent_form, "_get_json",
+                        lambda *_a, **_k: {"player": {"dateOfBirthTimestamp": -1_262_304_000}})
+    assert recent_form.birth_year(None, 1) is None
+
+
+def test_one_bad_player_does_not_end_the_run(tmp_path, monkeypatch):
+    cfg, conn = _db(tmp_path)
+    conn.executemany("INSERT INTO players(fc_id, canonical_name) VALUES (?, ?)",
+                     [(1, "Boom"), (2, "Fine"), (3, "Cheap"), (4, "Cheaper")])
+    # median of 1, 2, 15, 20 is 8.5, so both Boom and Fine are strictly above it
+    conn.executemany(
+        "INSERT INTO rosters(fc_id, season, role_classic, price_initial) VALUES (?, ?, 'A', ?)",
+        [(1, "2024-25", 20.0), (2, "2024-25", 15.0), (3, "2024-25", 1.0), (4, "2024-25", 2.0),
+         (1, "2023-24", 20.0), (2, "2023-24", 15.0), (3, "2023-24", 1.0), (4, "2023-24", 2.0)])
+    conn.commit()
+
+    monkeypatch.setattr(recent_form, "_client", lambda: _Session())
+    monkeypatch.setattr(recent_form, "_polite_sleep", lambda *_a, **_k: None)
+
+    def explode_on_the_first(_ctx, _session, _conn, player, *_a, **_k):
+        if player["name"] == "Boom":
+            raise RuntimeError("provider said something odd")
+        return {"season": "2024-25", "fc_id": player["fc_id"], "name": player["name"],
+                "role": "A", "price": player["price"], "club": None, "provider_id": 9,
+                "tier": "tier1_club_confirmed", "matches": 4, "competitions": "serie-b",
+                "_stored": 4}
+
+    monkeypatch.setattr(recent_form, "_process", explode_on_the_first)
+    recent_form.run(Context(config=cfg, conn=conn), seasons=["2024-25"])
+
+    written = list(csv.DictReader(
+        (cfg.data_dir / "reports" / recent_form.COVERAGE_FILE).open(encoding="utf-8")))
+    tiers = {row["name"]: row["tier"] for row in written}
+    assert tiers["Boom"] == "error"                      # reported, not fatal
+    assert tiers["Fine"] == "tier1_club_confirmed"       # and the run carried on
+
+
+class _Session:
+    def close(self):
+        pass
