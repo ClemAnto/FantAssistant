@@ -1043,6 +1043,28 @@ def _common_by_role(baseline: list[Prediction], candidate: list[Prediction],
     return out
 
 
+# A window needs a real input season, not just a listone: below this many players with a previous
+# fantamedia there is nothing to predict FROM and every metric would be computed on a handful of names.
+MIN_WITH_HISTORY = 50
+
+
+def _window_is_usable(data: features.WindowData, platform: str) -> bool:
+    """Does this window have an input season the model can actually read?
+
+    EuroLeghe 2021-22 answers no: the votes Excel exists for all 30 matchdays and every cell is '-'.
+    Reported out loud, because a silently dropped window looks the same as a window that passed.
+    """
+    with_history = sum(1 for obs in data.observations if obs.fm_prev is not None)
+    if not data.observations:
+        print(f"[gate] {data.window.label} {platform}: no observations - skipped")
+        return False
+    if with_history < MIN_WITH_HISTORY:
+        print(f"[gate] {data.window.label} {platform}: only {with_history} players have a previous "
+              f"fantamedia - the input season has no votes, window skipped")
+        return False
+    return True
+
+
 def compare(conn: sqlite3.Connection, candidates: tuple[str, ...], platform: str,
             game: str, windows: tuple[str, ...] | None = None) -> dict:
     """Run B0 and B0+rule on both windows, with every parameter fitted on the OTHER window.
@@ -1053,10 +1075,10 @@ def compare(conn: sqlite3.Connection, candidates: tuple[str, ...], platform: str
     """
     keys = tuple(windows or features.WINDOWS)
     prepared = {key: features.prepare(conn, features.WINDOWS[key], platform, game) for key in keys}
-    prepared = {key: data for key, data in prepared.items() if data.observations}
+    prepared = {key: data for key, data in prepared.items() if _window_is_usable(data, platform)}
     if len(prepared) < 2:
-        raise RuntimeError("the gate needs at least two windows with observations, got "
-                           f"{list(prepared)}")
+        raise RuntimeError("the gate needs at least two usable windows, got "
+                           f"{list(prepared)} on {platform}/{game}")
     everything = ("R0", *candidates)
     adopted = ("R0", *ADOPTED.get(platform, ()))
     fitted = {key: fit_params(data, everything) for key, data in prepared.items()}
