@@ -132,6 +132,16 @@ def _price_percentiles(conn, season: str) -> dict[int, float]:
     already played it embeds the outcome: tiers built on it would look prescient and be worthless
     (Openda 25/26: Qt.I 20 before the auction, Qt.A 3 after 12 appearances).
     """
+    total = conn.execute("SELECT COUNT(*) FROM rosters WHERE season = ?", (season,)).fetchone()[0]
+    with_initial = conn.execute(
+        "SELECT COUNT(*) FROM rosters WHERE season = ? AND price_initial IS NOT NULL",
+        (season,)).fetchone()[0]
+    if total and not with_initial:
+        # Every tier would silently fall to the no-price branch and `validate` would still call the DB
+        # healthy, because price_initial is allowed to be empty (a roster rebuilt from the votes alone
+        # has neither quotation). Say it out loud instead.
+        print(f"[arrivals] WARNING {season}: no pre-auction quotation (Qt.I) on any of the {total} "
+              "roster rows - every tier will be assigned without the price dimension")
     by_role: dict[str, list[tuple[float, int]]] = {}
     for fc_id, role, price in conn.execute(
             "SELECT fc_id, role_classic, price_initial FROM rosters "

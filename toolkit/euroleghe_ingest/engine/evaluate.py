@@ -47,6 +47,11 @@ class Rule:
 # (or the fantamedia side of ageing with the appearances side) hides which half is working.
 RULES: tuple[Rule, ...] = (
     Rule("R0", "baseline: the current validated engine (core + M2e + expected appearances)", True),
+    # R0c is not a hypothesis, it is the null model made explicit: the role anchor and the mean share
+    # for everyone the core cannot price. It exists because the stricter coverage criterion showed that
+    # R1 and R13 do not beat it on euro - so the coverage is worth having and their estimators are not.
+    Rule("R0c", "cover the unpriced with the role anchor and the population's mean share", True,
+         kind="coverage"),
     Rule("R1", "cover the newcomers: foreign FM-equivalent + minutes-based appearances", True,
          kind="coverage"),
     Rule("R1b", "adaptation discount for players who changed league (control: changed club)", True),
@@ -58,7 +63,14 @@ RULES: tuple[Rule, ...] = (
     Rule("R8", "off-role usage from the heatmap (set-piece/penalty halves are data-blocked)", True),
     Rule("R4", "age curve on the fantamedia past 30", True),
     Rule("R4b", "age curve on expected appearances past 30", True, metric="pv"),
-    Rule("R7", "goalkeeper appearances: dedicated persistence instead of the shared share model",
+    # ⚠️ The key R7 was PRE-REGISTERED as "goalkeeper starter probability as a binary event". That
+    # hypothesis turned out not to be testable at all - `probable_starter` exists only as a 2026-07
+    # snapshot, so it is 0/1453 in every past window - and what is implemented and adopted under this
+    # key is a DIFFERENT hypothesis: a dedicated persistence coefficient. Recorded here rather than
+    # quietly overwritten, because a key whose hypothesis is redefined after a gate run is no longer
+    # pre-registered in the sense the golden rule means.
+    Rule("R7", "goalkeeper appearances: dedicated persistence (NOT the pre-registered binary "
+               "starter probability, which `probable_starter` cannot support retrospectively)",
          True, metric="pv"),
     Rule("R9", "anchor recency weight (goal-environment drift)"),
     Rule("R5", "club-strength anchor from club_elo (RETEST of a rejected family)", True),
@@ -79,7 +91,7 @@ RULES: tuple[Rule, ...] = (
 )
 
 # Rules that get fitted and compared one at a time by `compare`.
-CANDIDATES: tuple[str, ...] = ("R1", "R1b", "R2", "R3", "R3c", "R4", "R4b", "R5", "R6", "R7",
+CANDIDATES: tuple[str, ...] = ("R0c", "R1", "R1b", "R2", "R3", "R3c", "R4", "R4b", "R5", "R6", "R7",
                                "R8", "R10", "R11", "R11b", "R12", "R12b", "R13", "R13b",
                                "R14", "R14b")
 
@@ -88,17 +100,25 @@ CANDIDATES: tuple[str, ...] = ("R1", "R1b", "R2", "R3", "R3c", "R4", "R4b", "R5"
 # says these rules behave differently across it - R3 only helps where the target calendar IS the real
 # calendar (Serie A), R1/R4 only where the perimeter is the 5-league top clubs (EuroLeghe).
 ADOPTED: dict[str, tuple[str, ...]] = {
-    "euro": ("R1", "R3c", "R4", "R7", "R10", "R13"),
+    "euro": ("R0c", "R3c", "R4", "R7", "R10"),
     "default": ("R3", "R7", "R13"),
 }
-# R13 is in and R13b is out, and the split is the finding: from a player's last matches in a league
-# we do not cover, HOW MUCH he plays transfers (minutes -> appearances, passes on all three
-# platforms) and HOW WELL he plays does not (a rating compared across leagues: fails on Serie A and
-# its coefficient flips sign between windows, -0.45 / +0.05).
-# Why R3c on euro and R3 on Serie A, when both pass on Serie A: there the euro map covers 31 of the
-# 38 rounds, so the two features are nearly the same quantity and R3c wins on Pv MAE but drops a
-# top-10 slot in T2. On euro only the aligned version passes at all - the target is the 31-round
-# subset, and minutes played in the rounds the game ignores predict nothing.
+# What the corrected criteria changed, and why the list is shorter than it was:
+# * accuracy rules are judged on the players they MOVE, with a 0.5% floor. That made R4 and R10 much
+#   stronger than the diluted aggregate suggested (R4 -3.8%/-1.1% on the over-30s it touches, R10
+#   -3.5%/-4.9% on its 234/260) and it killed R14, whose 0.04% "gain" carried a coefficient of the
+#   wrong sign.
+# * coverage rules must beat the TRIVIAL answer - the role anchor and the mean share - for the players
+#   they add. R1's foreign FM-equivalent does not (0.391 against the anchor's 0.373 on T1), and neither
+#   does R13's rating comparison on euro. So the coverage is kept and their estimators are not: R0c
+#   prices the unpriced at the anchor, which is what the data supports and no more.
+# * R13 survives on Serie A, where it does beat the trivial answer on both windows.
+# * R0c is NOT adopted on Serie A: there the core's own error is 0.281 and an anchor-quality estimate
+#   is 0.369, which misses the pre-declared "within +30%" bound by a point. Pricing the rest of that
+#   listone anyway is a product decision, not something the gate licenses.
+
+
+
 RULES_BY_KEY: dict[str, Rule] = {rule.key: rule for rule in RULES}
 
 TOP_N = 10                 # the auction looks at the top 10 of each role
@@ -309,6 +329,7 @@ class Params:
     """
 
     source: str = "none"
+    mean_share: float | None = None               # R0c: the population's mean predicted share
     share: tuple[float, ...] | None = None        # R3: share incl. minutes
     share_euro: tuple[float, ...] | None = None   # R3c: minutes on the euro rounds
     penalty_lam: float | None = None              # R6: penalty duty
@@ -341,11 +362,37 @@ def _mv_term(obs: features.Observation) -> float:
     return model.clip(mv_prev - model.MV_PIVOT, -model.MV_CLIP, model.MV_CLIP)
 
 
+# Rules that REPLACE the appearances share outright. A residual correction has to be fitted against
+# whichever of these is active, not against B0 - otherwise both absorb the same variance and the
+# combined configuration over-corrects (finding 7).
+SHARE_REPLACING: frozenset[str] = frozenset({"R3", "R3c", "R7", "R13", "R0c"})
+
+
 def fit_params(data: features.WindowData, rules: tuple[str, ...]) -> Params:
-    """Estimate every requested rule's parameters on `data`. Caller applies them to another window."""
+    """Estimate every requested rule's parameters on `data`. Caller applies them to another window.
+
+    Two passes, because the rules are not independent: the share-REPLACING rules are fitted first
+    against B0, and the residual corrections (R10, R11, R4b, R14) are then fitted against the share
+    those rules actually produce. Fitting everything against B0 and adding it all up in the ADOPTED
+    configuration double-counted the same variance.
+    """
     derived = derive(data)
     params = Params(source=data.window.key)
     matchdays = data.matchdays_target or 1
+
+    def baseline_share(obs: features.Observation) -> float | None:
+        """The share the configuration's own replacing rules produce for this player."""
+        active = tuple(rule for rule in rules if rule in SHARE_REPLACING or rule == "R0")
+        value = _rule_pv(obs, data, active, params, derived) if active != ("R0",) else None
+        if value is None:
+            value = _predict_pv(obs, data)
+        return None if value is None else value / matchdays
+
+    if "R0c" in rules:
+        priced = [_predict_pv(obs, data) for obs in data.observations]
+        shares = [value / matchdays for value in priced if value is not None]
+        params.mean_share = (sum(shares) / len(shares)) if shares else None
+        params.notes["R0c_n"] = len(shares)
 
     if "R3" in rules:
         samples = [((obs.share_prev(data.matchdays_prev), derived.minutes_share[obs.fc_id],
@@ -383,9 +430,11 @@ def fit_params(data: features.WindowData, rules: tuple[str, ...]) -> Params:
             if (anchor is not None and deviation is not None and obs.fm_act is not None
                     and (obs.pv_act or 0) >= MIN_PV_ACT):
                 deviations.append(((deviation,), obs.fm_act - anchor))
-            share = model.recent_minutes_share(obs.recent_minutes, obs.recent_matches)
-            if share is not None and obs.pv_act is not None and matchdays:
-                shares.append(((share,), obs.pv_act / matchdays))
+            intensity = model.recent_minutes_per_appearance(obs.recent_minutes, obs.recent_matches)
+            availability = model.recent_availability(obs.recent_matches, obs.recent_span_days)
+            if (intensity is not None and availability is not None and obs.pv_act is not None
+                    and matchdays):
+                shares.append(((intensity, availability), obs.pv_act / matchdays))
         fitted = fit_linear(deviations, intercept=False)
         params.recent_lam = fitted[0] if fitted else None
         params.recent_share = fit_linear(shares)
@@ -429,9 +478,9 @@ def fit_params(data: features.WindowData, rules: tuple[str, ...]) -> Params:
             months = model.months_out(obs.longest_gap_days)
             if not months:
                 continue
-            baseline_pv = _predict_pv(obs, data)
-            if baseline_pv is not None and obs.pv_act is not None:
-                idle_share.append(((months,), (obs.pv_act - baseline_pv) / matchdays))
+            base = baseline_share(obs)
+            if base is not None and obs.pv_act is not None:
+                idle_share.append(((months,), obs.pv_act / matchdays - base))
             baseline_fm, _anchor = _predict_fm(obs, data)
             if (baseline_fm is not None and obs.fm_act is not None
                     and (obs.pv_act or 0) >= MIN_PV_ACT):
@@ -448,10 +497,10 @@ def fit_params(data: features.WindowData, rules: tuple[str, ...]) -> Params:
     if {"R10", "R11", "R11b"} & set(rules):
         coach, competition, crowded = [], [], []
         for obs in data.observations:
-            baseline = _predict_pv(obs, data)
-            if baseline is None or obs.pv_act is None or not matchdays:
+            base = baseline_share(obs)
+            if base is None or obs.pv_act is None or not matchdays:
                 continue
-            residual_share = (obs.pv_act - baseline) / matchdays
+            residual_share = obs.pv_act / matchdays - base
             if obs.new_coach_target:
                 coach.append(((1.0, obs.share_prev(data.matchdays_prev)), residual_share))
             competition.append(((float(obs.same_role_arrivals),), residual_share))
@@ -504,11 +553,11 @@ def fit_params(data: features.WindowData, rules: tuple[str, ...]) -> Params:
                              - model.ROLE_ADVANCEMENT.get(obs.role_classic, -1))
                     off_role.append(((1.0 if delta > 0 else 0.0, 1.0 if delta < 0 else 0.0),
                                      residual))
-            share_pred = _predict_pv(obs, data)
+            base = baseline_share(obs)
             age = obs.age(data.window)
-            if share_pred is not None and obs.pv_act is not None and age is not None:
+            if base is not None and obs.pv_act is not None and age is not None:
                 ageing_share.append(((float(max(0, age - model.AGE_KNEE)),),
-                                     (obs.pv_act - share_pred) / matchdays))
+                                     obs.pv_act / matchdays - base))
         if "R2" in rules:
             fitted = fit_linear(propensity, intercept=False)
             params.gamma = fitted[0] if fitted else None
@@ -584,6 +633,11 @@ def _rule_fm(obs: features.Observation, data: features.WindowData, rules: tuple[
             and obs.foreign_fm_equiv is not None and params.beta_new is not None
             and not _is_goalkeeper(obs)):
         fm_pred = model.predict_fm_arrival(anchor, obs.foreign_fm_equiv, params.beta_new)
+
+    # R0c - the engine has nothing for him: say so with the role anchor rather than with a number
+    # dressed up as a measurement
+    if fm_pred is None and "R0c" in rules and anchor is not None:
+        fm_pred = anchor
 
     # R13 - his only measured football is elsewhere: the role anchor plus how he compared to the
     # other newcomers we could measure. Only where the engine has nothing else.
@@ -670,9 +724,13 @@ def _rule_pv(obs: features.Observation, data: features.WindowData, rules: tuple[
         share = model.linear_share(params.share_new, (minutes_share,))
     elif ({"R13", "R13b"} & set(rules) and params.recent_share and obs.pv_prev is None
             and obs.recent_matches):
-        elsewhere = model.recent_minutes_share(obs.recent_minutes, obs.recent_matches)
-        if elsewhere is not None:
-            share = model.linear_share(params.recent_share, (elsewhere,))
+        intensity = model.recent_minutes_per_appearance(obs.recent_minutes, obs.recent_matches)
+        availability = model.recent_availability(obs.recent_matches, obs.recent_span_days)
+        if intensity is not None and availability is not None:
+            share = model.linear_share(params.recent_share, (intensity, availability))
+
+    if share is None and "R0c" in rules and obs.pv_prev is None and params.mean_share is not None:
+        share = params.mean_share
 
     if share is None:
         pv_pred = _predict_pv(obs, data)
@@ -842,14 +900,11 @@ def _delta(before: float | None, after: float | None) -> str:
     return f"{(after - before) / before * 100:+5.1f}%"
 
 
-def _errors(predictions: list[Prediction], metric: str,
-            keep: set[int] | None = None) -> dict[int, float]:
+def _errors(predictions: list[Prediction], metric: str) -> dict[int, float]:
     """{fc_id: absolute error} for the players this configuration actually priced."""
     out: dict[int, float] = {}
     for prediction in predictions:
         obs = prediction.obs
-        if keep is not None and obs.fc_id not in keep:
-            continue
         if metric == "fm":
             if (prediction.fm_pred is None or obs.fm_act is None
                     or (obs.pv_act or 0) < MIN_PV_ACT):
@@ -864,6 +919,74 @@ def _errors(predictions: list[Prediction], metric: str,
                 continue
             out[obs.fc_id] = abs(prediction.value_pred - obs.value_act)
     return out
+
+
+def _naive_added(data: features.WindowData, baseline: list[Prediction],
+                 candidate: list[Prediction], metric: str) -> float | None:
+    """MAE the players a coverage rule ADDS would get from the trivial answer.
+
+    The trivial answer is what the engine already had for them: the role anchor for the fantamedia and
+    the mean predicted share for appearances. A coverage rule that cannot beat this is not carrying
+    information - it is spreading the population mean over a new set of names.
+    """
+    priced = [p.pv_pred / data.matchdays_target for p in baseline
+              if p.pv_pred is not None and data.matchdays_target]
+    mean_share = (sum(priced) / len(priced)) if priced else None
+    known = {p.obs.fc_id for p in baseline
+             if (p.fm_pred if metric == "fm" else
+                 p.pv_pred if metric == "pv" else p.value_pred) is not None}
+    errors: list[float] = []
+    for prediction in candidate:
+        obs = prediction.obs
+        if obs.fc_id in known:
+            continue
+        anchor = _anchor_for(obs, data)
+        naive_pv = (mean_share * data.matchdays_target) if mean_share is not None else None
+        if metric == "fm":
+            if anchor is None or obs.fm_act is None or (obs.pv_act or 0) < MIN_PV_ACT:
+                continue
+            errors.append(abs(anchor - obs.fm_act))
+        elif metric == "pv":
+            if naive_pv is None or obs.pv_act is None:
+                continue
+            errors.append(abs(naive_pv - obs.pv_act))
+        else:
+            if anchor is None or naive_pv is None or obs.value_act is None:
+                continue
+            errors.append(abs(anchor * naive_pv - obs.value_act))
+    return (sum(errors) / len(errors)) if errors else None
+
+
+MIN_RELATIVE_GAIN = 0.005      # half a percent on the players it touches: below that it is noise
+
+
+def _changed_mae(baseline: list[Prediction], candidate: list[Prediction],
+                 metric: str) -> tuple[float | None, float | None, int]:
+    """(before, after, n) on the players whose prediction the rule actually MOVED.
+
+    A rule that only touches over-30s or players with a spell out is diluted to nothing by the whole
+    population, and one that moves everyone by a hair looks the same as one that fixes a segment. The
+    changed subset is the denominator that makes the comparison mean something.
+    """
+    before, after = _errors(baseline, metric), _errors(candidate, metric)
+    by_id = {p.obs.fc_id: p for p in baseline}
+    moved: list[int] = []
+    for prediction in candidate:
+        twin = by_id.get(prediction.obs.fc_id)
+        if twin is None:
+            continue
+        pairs = ((twin.fm_pred, prediction.fm_pred) if metric == "fm"
+                 else (twin.pv_pred, prediction.pv_pred) if metric == "pv"
+                 else (twin.value_pred, prediction.value_pred))
+        if pairs[0] is None or pairs[1] is None:
+            continue
+        if abs(pairs[0] - pairs[1]) > 1e-9:
+            moved.append(prediction.obs.fc_id)
+    shared = [fc_id for fc_id in moved if fc_id in before and fc_id in after]
+    if not shared:
+        return None, None, 0
+    return (sum(before[i] for i in shared) / len(shared),
+            sum(after[i] for i in shared) / len(shared), len(shared))
 
 
 def _common_mae(baseline: list[Prediction], candidate: list[Prediction],
@@ -942,7 +1065,7 @@ def compare(conn: sqlite3.Connection, candidates: tuple[str, ...], platform: str
         # A mixed set moves both halves, so it is judged on the product - the auction metric.
         target = RULES_BY_KEY[rule].metric if rule in RULES_BY_KEY else "value"
         rows = []
-        for key in prepared:
+        for key, window_data in prepared.items():
             baseline = out["windows"][key]["R0"]["overall"]
             candidate = out["windows"][key][rule]["overall"]
             before, after, shared, added_mae, added_n = _common_mae(
@@ -952,8 +1075,14 @@ def compare(conn: sqlite3.Connection, candidates: tuple[str, ...], platform: str
             _vb, vla, _n2, _a2, _an2 = _common_mae(
                 predictions[key]["R0"], predictions[key][rule], "value")
             fm_before, value_before = _fmb, _vb
+            changed_before, changed_after, changed_n = _changed_mae(
+                predictions[key]["R0"], predictions[key][rule], target)
             rows.append({
                 "window": key, "n_common": shared,
+                "changed_n": changed_n, "changed_before": _round(changed_before),
+                "changed_after": _round(changed_after),
+                "added_mae_naive": _round(_naive_added(
+                    window_data, predictions[key]["R0"], predictions[key][rule], target)),
                 "by_role": _common_by_role(predictions[key]["R0"], predictions[key][rule], target),
                 "target_before": _round(before), "target_after": _round(after),
                 "added_mae": _round(added_mae), "added_n": added_n,
@@ -969,8 +1098,13 @@ def compare(conn: sqlite3.Connection, candidates: tuple[str, ...], platform: str
             return all(row[field_after] is not None and row[field_before] is not None
                        and row[field_after] <= row[field_before] * tolerance for row in rows_)
 
-        improved = all(row["target_after"] is not None and row["target_before"] is not None
-                       and row["target_after"] < row["target_before"] for row in rows)
+        # improvement is measured on the players the rule MOVES, and has to clear a floor: an
+        # 0.04% gain on a coefficient whose sign contradicts its own hypothesis is not a rule.
+        improved = all(
+            row["changed_before"] is not None and row["changed_after"] is not None
+            and row["changed_n"] > 0
+            and row["changed_after"] <= row["changed_before"] * (1 - MIN_RELATIVE_GAIN)
+            for row in rows)
         kind = RULES_BY_KEY[rule].kind if rule in RULES_BY_KEY else "accuracy"
         coverage_up = all((row["coverage_after"] or 0) > (row["coverage_before"] or 0)
                           for row in rows)
@@ -978,16 +1112,24 @@ def compare(conn: sqlite3.Connection, candidates: tuple[str, ...], platform: str
         # than the baseline's own error is the line, beyond which "a prediction" is just noise
         added_sane = all(row["added_mae"] is not None and row["target_before"] is not None
                          and row["added_mae"] <= row["target_before"] * 1.30 for row in rows)
+        # ... and it must beat the trivial answer for those same players, or it is only spreading the
+        # population mean over new names (finding 8: a near-constant prediction passed the old test).
+        # R0c is exempt because it IS the trivial answer - the null model is not asked to beat itself.
+        beats_naive = rule == "R0c" or all(
+            row["added_mae"] is not None and row["added_mae_naive"] is not None
+            and row["added_mae"] < row["added_mae_naive"] for row in rows)
         verdict = {
             "kind": kind, "metric": target, "rows": rows, "improved_both": improved,
             "coverage_up": coverage_up, "added_sane": added_sane,
+            "beats_naive": beats_naive,
             "fm_not_worse": better(rows, "fm_before", "fm_after", 1.001),
             "value_not_worse": better(rows, "value_before", "value_after", 1.001),
             "top10_not_worse": all(row["top_after"] >= row["top_before"] for row in rows),
         }
         no_harm = verdict["fm_not_worse"] and verdict["value_not_worse"]
-        verdict["passes"] = ((coverage_up and added_sane and no_harm and verdict["top10_not_worse"])
-                             if kind == "coverage" else (improved and no_harm))
+        verdict["passes"] = (
+            (coverage_up and added_sane and beats_naive and no_harm and verdict["top10_not_worse"])
+            if kind == "coverage" else (improved and no_harm))
         out["verdicts"][rule] = verdict
     return out
 
@@ -1205,6 +1347,10 @@ def _print_gate(result: dict) -> None:
                           f"->{after['top_n']['hits']}").rjust(12)
             print(cells)
         for row in verdict["rows"]:
+            if row["changed_n"]:
+                print(f"    {row['window']} on the {row['changed_n']} players it MOVES: "
+                      f"{target} MAE {row['changed_before']} -> {row['changed_after']} "
+                      f"({_delta(row['changed_before'], row['changed_after'])})")
             print(f"    {row['window']} on the {row['n_common']} players both configurations price: "
                   f"{target} MAE {row['target_before']} -> {row['target_after']} "
                   f"({_delta(row['target_before'], row['target_after'])}) · "
@@ -1215,11 +1361,13 @@ def _print_gate(result: dict) -> None:
                   f"coverage {row['coverage_before']} -> {row['coverage_after']}")
             if row["added_n"]:
                 print(f"        + {row['added_n']} players the baseline could not price at all: "
-                      f"{target} MAE {row['added_mae']} (no baseline to beat)")
+                      f"{target} MAE {row['added_mae']} against {row['added_mae_naive']} "
+                      f"from the role anchor and the mean share")
         mark = "PASSES" if verdict["passes"] else "DOES NOT PASS"
         if verdict["kind"] == "coverage":
             criterion = (f"coverage up on both windows: {verdict['coverage_up']} · "
-                         f"what it adds is not noise: {verdict['added_sane']}")
+                         f"what it adds is not noise: {verdict['added_sane']} · "
+                         f"beats the trivial answer: {verdict['beats_naive']}")
         else:
             criterion = f"target improved on both windows: {verdict['improved_both']}"
         print(f"    -> {mark} [{verdict['kind']}] · {criterion} · "

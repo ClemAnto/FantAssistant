@@ -299,7 +299,7 @@ def fetch_match_layer(ctx: Context, leagues, seasons, refresh: bool = False) -> 
     reingest_match_layer(ctx, seasons=seasons)
 
 
-def _lineups_for(session, event_id, cancel_event=None) -> dict | None:
+def _lineups_for(session, event_id) -> dict | None:
     """The two lineups of one match, in the shape the round cache stores."""
     detail = _get_json(session, LINEUPS_ENDPOINT.format(eid=event_id))
     if not detail:
@@ -356,8 +356,12 @@ def complete_match_layer(ctx: Context, leagues, seasons) -> dict[str, int]:
                                                        rnd=rnd))
                     added["requests"] += 1
                     if not listing or not listing.get("events"):
-                        print(f"[positions] {league} {season}: no events at round {rnd}, stopping")
-                        break
+                        # `continue`, not `break`: _get_json returns None on a non-retryable status
+                        # too, and breaking here would silently truncate the season at that round -
+                        # exactly the partial coverage this pass exists to remove. `fetch_match_layer`
+                        # already makes the same choice.
+                        print(f"[positions] {league} {season}: no events at round {rnd}, skipping")
+                        continue
                     payload = payload or {"league": league, "round": rnd, "events": [],
                                           "lineups": {}}
                     known = {str(event.get("id")) for event in payload["events"]}
@@ -370,7 +374,7 @@ def complete_match_layer(ctx: Context, leagues, seasons) -> dict[str, int]:
                         if ctx.cancelled():
                             raise KeyboardInterrupt
                         _polite_sleep(ctx.cancel_event)
-                        lineups = _lineups_for(session, event.get("id"), ctx.cancel_event)
+                        lineups = _lineups_for(session, event.get("id"))
                         added["requests"] += 1
                         if not lineups:
                             continue

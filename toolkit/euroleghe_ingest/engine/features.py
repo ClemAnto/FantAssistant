@@ -88,6 +88,9 @@ class Observation:
     recent_goals: int = 0
     recent_assists: int = 0
     recent_rating: float | None = None
+    # how many days his sample spans: with the match count it says how OFTEN he played, which is a
+    # different thing from how long he stayed on the pitch when he did (R13)
+    recent_span_days: int | None = None
     # inactivity, from the dated per-match layer: the injury proxy while `injuries` stays empty
     longest_gap_days: int | None = None
     days_since_last_match: int | None = None
@@ -243,29 +246,33 @@ def goalkeeper_club_rates(conn: sqlite3.Connection, platform: str,
 
 
 def _external(conn: sqlite3.Connection, season: str) -> dict[int, tuple]:
-    """Input-season provider aggregates, built from the PER-MATCH layer with the season aggregates
-    as a fallback.
+    """Input-season provider aggregates: the per-match layer OR the season aggregates, whichever has
+    more evidence for that player.
 
-    The per-match layer is the better source now that it is complete (all clubs of all 5 leagues,
-    not just the perimeter's fixtures): it resolves identity through `player_xref`, which is
-    season-agnostic, so a player who was outside the fc listone in the input season still gets his
-    minutes. `external_stats` resolves identity against THAT season's roster, so it silently misses
-    exactly the population R1 exists for - the newcomers. Ezzalzouli is the case that showed it: 33
-    matches and 1995 minutes in 24/25 in the per-match layer, no season-aggregate row at all.
+    Both sources are incomplete in different ways. The per-match layer resolves identity through
+    `player_xref`, which is season-agnostic, so it reaches players who were outside the fc listone that
+    season - the population R1 exists for (Ezzalzouli: 33 matches in the layer, no aggregate row at
+    all). But it is only complete where `positions --layer complete` has run: before that pass a
+    non-perimeter club had 18 of its 38 matches, and nothing in the schema records whether a
+    league-season was completed. Preferring it unconditionally would therefore HALVE the minutes of a
+    whole population wherever the pass has not run.
 
-    `external_stats` still fills anyone the per-match layer does not cover, and the ratings are
-    match-weighted either way.
+    So the choice is per player and by evidence: more matches wins. Where the layer is complete it has
+    at least as many as the aggregate; where it is not, the aggregate does.
+
+    Ratings use AVG, which ignores NULLs. Dividing SUM(COALESCE(rating, 0)) by COUNT(*) counted an
+    unrated cameo as a 0.0 - four of them among thirty matches pulled a 7.0 average down to 6.18.
     """
     out: dict[int, tuple] = {}
-    for fc_id, matches, starts, minutes, goals, assists, xg, xa, rating_weighted in conn.execute(
+    for fc_id, matches, starts, minutes, goals, assists, xg, xa, rating in conn.execute(
             """SELECT fc_id, COUNT(*), SUM(COALESCE(started, 0)), SUM(COALESCE(minutes, 0)),
                       SUM(COALESCE(goals, 0)), SUM(COALESCE(assists, 0)), SUM(COALESCE(xg, 0)),
-                      SUM(COALESCE(xa, 0)), SUM(COALESCE(rating, 0))
+                      SUM(COALESCE(xa, 0)), AVG(rating)
                FROM external_match_stats
                WHERE season = ? AND source = 'sofascore' AND COALESCE(minutes, 0) > 0
                GROUP BY fc_id""", (season,)):
-        out[fc_id] = (matches, starts, minutes, goals, assists, xg, xa,
-                      (rating_weighted / matches) if matches else None)
+        out[fc_id] = (matches, starts, minutes, goals, assists, xg, xa, rating)
+
     for fc_id, matches, starts, minutes, goals, assists, xg, xa, rating_weighted in conn.execute(
             """SELECT fc_id, SUM(COALESCE(matches, 0)), SUM(COALESCE(starts, 0)),
                       SUM(COALESCE(minutes, 0)), SUM(COALESCE(goals, 0)), SUM(COALESCE(assists, 0)),
@@ -273,13 +280,14 @@ def _external(conn: sqlite3.Connection, season: str) -> dict[int, tuple]:
                       SUM(COALESCE(rating, 0) * COALESCE(matches, 0))
                FROM external_stats WHERE season = ? AND source = 'sofascore' GROUP BY fc_id""",
             (season,)):
-        if fc_id not in out:
+        existing = out.get(fc_id)
+        if existing is None or (matches or 0) > (existing[0] or 0):
             out[fc_id] = (matches, starts, minutes, goals, assists, xg, xa,
                           (rating_weighted / matches) if matches else None)
     return out
 
 
-def _recent_form(conn: sqlite3.Connection, auction_date: str) -> dict[int, dict]:
+def _recent_form(conn: sqlite3.Connection, window: Window) -> dict[int, dict]:
     """The last matches of players with no history, from `recent_form`, STRICTLY before the auction.
 
     A separate source on purpose (`sofascore_recent`): these matches are in competitions the synthetic
@@ -287,28 +295,39 @@ def _recent_form(conn: sqlite3.Connection, auction_date: str) -> dict[int, dict]
     is a small, honest sample - how many matches, how many minutes, what the provider thought of him -
     for players it would otherwise price on a role anchor alone.
 
-    The date filter is what makes the same rows legal in a backtest: the scraper is anchored to today,
+    Bounded on BOTH sides, and the floor matters as much as the ceiling: the rows are scraped once and
+    serve every window, so without it T2 would aggregate T1's matches too and the same feature would
+    mean "one season" in one window and "two seasons" in the other - exactly the cross-window
+    comparability the gate rests on. The floor is the input season's July.
+
+    The ceiling is what makes the rows legal in a backtest at all: the scraper is anchored to today,
     the engine only ever looks at what predated that window's auction.
     """
+    floor = f"{window.input_season.split('-')[0]}-07-01"
     return {fc_id: {"matches": matches, "minutes": minutes, "goals": goals,
-                    "assists": assists, "rating": rating}
-            for fc_id, matches, minutes, goals, assists, rating in conn.execute(
+                    "assists": assists, "rating": rating, "first": first, "last": last}
+            for fc_id, matches, minutes, goals, assists, rating, first, last in conn.execute(
                 """SELECT fc_id, COUNT(*), SUM(COALESCE(minutes, 0)), SUM(COALESCE(goals, 0)),
-                          SUM(COALESCE(assists, 0)), AVG(rating)
+                          SUM(COALESCE(assists, 0)), AVG(rating), MIN(match_date), MAX(match_date)
                    FROM external_match_stats
-                   WHERE source = 'sofascore_recent' AND match_date < ?
+                   WHERE source = 'sofascore_recent' AND match_date >= ? AND match_date < ?
                      AND COALESCE(minutes, 0) > 0
-                   GROUP BY fc_id""", (auction_date,))}
+                   GROUP BY fc_id""", (floor, window.auction_date))}
 
 
-def _inactivity(conn: sqlite3.Connection, auction_date: str) -> dict[int, dict]:
+def _inactivity(conn: sqlite3.Connection, window: Window) -> dict[int, dict]:
     """How long a player went without playing, from the dated per-match layer. The injury proxy.
 
     `injuries` is empty and no source fills it yet, but the per-match layer already says when a player
     did NOT appear: a gap of 90+ days inside a season is a spell out, whatever its cause. Measured on
     both providers' rows (the 5 leagues and `recent_form`), always before the auction date.
 
-    Gaps that straddle 1 July are DISCARDED, and that correction is the whole difference between a
+    Restricted to the INPUT SEASON, not to everything before the auction: pooling seasons makes the
+    maximum a max over twice as many gaps in T2 as in T1, so the regressor's distribution would differ
+    by window by construction and a coefficient fitted on one window would be applied to a shifted one
+    on the other.
+
+    Gaps that straddle 1 July are DISCARDED too, and that correction is the whole difference between a
     signal and noise: measured across the close season, "longest gap" ranked 520 players in the
     over-90-days band and the relationship with next season's appearances inverted. Measured inside a
     season it is monotone on both windows - over 90 days out means about 13 appearances the year after
@@ -316,11 +335,13 @@ def _inactivity(conn: sqlite3.Connection, auction_date: str) -> dict[int, dict]:
     """
     import datetime
 
+    floor = f"{window.input_season.split('-')[0]}-07-01"
     rows = conn.execute(
         """SELECT fc_id, match_date, COALESCE(minutes, 0) FROM external_match_stats
-           WHERE match_date IS NOT NULL AND match_date < ? AND COALESCE(minutes, 0) > 0
-           ORDER BY fc_id, match_date""", (auction_date,)).fetchall()
-    auction = datetime.date.fromisoformat(auction_date)
+           WHERE match_date IS NOT NULL AND match_date >= ? AND match_date < ?
+             AND COALESCE(minutes, 0) > 0
+           ORDER BY fc_id, match_date""", (floor, window.auction_date)).fetchall()
+    auction = datetime.date.fromisoformat(window.auction_date)
     played: dict[int, list] = {}
     for fc_id, date, minutes in rows:
         played.setdefault(fc_id, []).append((datetime.date.fromisoformat(date), minutes))
@@ -346,6 +367,13 @@ def _inactivity(conn: sqlite3.Connection, auction_date: str) -> dict[int, dict]:
             "minutes_last_3": sum(minutes for _date, minutes in appearances[-3:]) / 3,
         }
     return out
+
+
+def _span_days(first: str | None, last: str | None) -> int | None:
+    if not first or not last:
+        return None
+    import datetime
+    return (datetime.date.fromisoformat(last) - datetime.date.fromisoformat(first)).days
 
 
 def _probable_starters(conn: sqlite3.Connection, auction_date: str) -> dict[int, float]:
@@ -400,8 +428,8 @@ def load(conn: sqlite3.Connection, window: Window, platform: str) -> list[Observ
         (window.input_season,))}
     derived = {fc_id: role for fc_id, role in conn.execute(
         "SELECT fc_id, derived_role FROM positions WHERE season = ?", (window.input_season,))}
-    recent = _recent_form(conn, window.auction_date)
-    inactivity = _inactivity(conn, window.auction_date)
+    recent = _recent_form(conn, window)
+    inactivity = _inactivity(conn, window)
     starters = _probable_starters(conn, window.auction_date)
     penalties = _penalty_state(conn, window.auction_date)
     euro_minutes = euro_minutes_shares(conn, window.input_season)
@@ -445,6 +473,7 @@ def load(conn: sqlite3.Connection, window: Window, platform: str) -> list[Observ
             recent_matches=sample.get("matches", 0), recent_minutes=sample.get("minutes", 0),
             recent_goals=sample.get("goals", 0), recent_assists=sample.get("assists", 0),
             recent_rating=sample.get("rating"),
+            recent_span_days=_span_days(sample.get("first"), sample.get("last")),
             longest_gap_days=idle.get("longest_gap"),
             days_since_last_match=idle.get("days_since_last"),
             minutes_last_3=idle.get("minutes_last_3"),
@@ -476,7 +505,9 @@ FEATURE_CHECKS: tuple[tuple[str, str], ...] = (
     ("price_initial_prev", "last season's Qt.I - R12b expectation revision"),
     ("birth_year", "birth year - R4 age curve"),
     ("elo_target", "destination club Elo - R5 (backlog)"),
-    ("starter_prob", "probable starter at auction date - R7 goalkeepers"),
+    # kept in the inventory to show it is EMPTY in every past window - no rule reads it, and the
+    # pre-registered R7 that would have needed it is therefore untestable until weekly snapshots exist
+    ("starter_prob", "probable starter at auction date - unused: 0 rows before any past auction"),
     ("penalty_rank", "penalty hierarchy at auction date - R6/R8"),
 )
 

@@ -38,7 +38,13 @@ from urllib.parse import quote
 # policy for one API, so this module borrows it instead of keeping a second copy in sync.
 from euroleghe_ingest.context import Context
 from euroleghe_ingest.matching import CLUB_ALIASES, club_key, fold, split_initial
-from euroleghe_ingest.modules.positions import _client, _get_json, _polite_sleep
+from euroleghe_ingest.modules.positions import (
+    _atomic_write_text,
+    _client,
+    _get_json,
+    _iso_date,
+    _polite_sleep,
+)
 
 NAME = "recent_form"
 DESCRIPTION = "Last N matches of priced players with no history (other leagues) -> external_match_stats"
@@ -101,9 +107,12 @@ def priced_without_history(conn, target_season: str, input_season: str) -> list[
         has_stats = conn.execute(
             "SELECT 1 FROM season_stats WHERE fc_id = ? AND season = ? AND pv > 0 LIMIT 1",
             (fc_id, input_season)).fetchone()
+        # source-filtered: our OWN rows are not evidence of history. Without this the population
+        # collapses to empty on the second run - the matches we just stored are dated in the input
+        # season, so every player we covered would look like he had a season behind him.
         has_matches = conn.execute(
-            "SELECT 1 FROM external_match_stats WHERE fc_id = ? AND season = ? LIMIT 1",
-            (fc_id, input_season)).fetchone()
+            "SELECT 1 FROM external_match_stats WHERE fc_id = ? AND season = ? AND source = ? "
+            "LIMIT 1", (fc_id, input_season, "sofascore")).fetchone()
         if has_stats or has_matches:
             continue
         out.append({"fc_id": fc_id, "name": name, "role": role, "price": price,
@@ -324,9 +333,59 @@ def enrich_with_bonuses(session, provider_id: int, matches: list[dict], cancel_e
     return filled
 
 
+CACHE_NAME = re.compile(r"sofascore_recent_(\d+)\.json$")
+
+
+def _cache_path(ctx: Context, fc_id: int):
+    return ctx.config.cache_dir / f"sofascore_recent_{fc_id}.json"
+
+
+def _write_cache(ctx: Context, fc_id: int, matches: list[dict]) -> None:
+    """Keep the raw fetch on disk, like every other network module in the toolkit.
+
+    Without this `recent_form` was the only scraper whose output existed nowhere but in the DB, and
+    `rebuild` drops every table - so hours of polite requests were one command away from being
+    irrecoverable, against the project's own rule that the DB is always rebuildable from scratch.
+    Merged with whatever is already cached, so a second window's fetch does not erase the first's.
+    """
+    path = _cache_path(ctx, fc_id)
+    known: dict[str, dict] = {}
+    if path.exists():
+        try:
+            known = {entry["event_id"]: entry
+                     for entry in json.loads(path.read_text(encoding="utf-8"))}
+        except (OSError, ValueError, KeyError):
+            known = {}
+    known.update({match["event_id"]: match for match in matches})
+    ordered = sorted(known.values(), key=lambda match: match["timestamp"])
+    _atomic_write_text(path, json.dumps(ordered, ensure_ascii=False))
+
+
+def reingest_from_cache(ctx: Context) -> None:
+    """Re-apply every cached player fetch offline (the rebuild path)."""
+    conn = ctx.require_conn()
+    files = sorted(ctx.config.cache_dir.glob("sofascore_recent_*.json"))
+    players = rows = 0
+    for path in files:
+        found = CACHE_NAME.search(path.name)
+        if not found:
+            continue
+        try:
+            matches = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):   # a corrupt cache file must not abort the rebuild
+            print(f"[recent_form] skipping unreadable cache {path.name}")
+            continue
+        if matches:
+            rows += store(conn, int(found.group(1)), matches)
+            players += 1
+    conn.commit()
+    if files:
+        print(f"[recent_form] reingested {rows} matches for {players} players from cache")
+
+
 def store(conn, fc_id: int, matches: list[dict]) -> int:
     rows = [(fc_id, match["season"], SOURCE, match["event_id"], match["competition"],
-             match.get("round"), time.strftime("%Y-%m-%d", time.gmtime(match["timestamp"])),
+             match.get("round"), _iso_date(match["timestamp"]),
              match.get("club"), match.get("opponent"), match.get("home"), match.get("minutes"),
              match.get("rating"), match.get("goals"), match.get("assists"),
              match.get("xg"), match.get("xa"))
@@ -342,10 +401,16 @@ def store(conn, fc_id: int, matches: list[dict]) -> int:
 def _process(ctx: Context, session, conn, player: dict, target: str, cutoff: int,
              wanted: int, bonuses: bool) -> dict | None:
     """One player: resolve, fetch, store. None = already covered, nothing to do."""
+    # Covered means covered FOR THIS WINDOW: the same bounds the engine reads with
+    # (features._recent_form), input-season July to auction day. Counting everything before the
+    # auction instead would let matches fetched for an earlier listone stand in as this window's
+    # recent form - a player scraped for 24/25 would be skipped for 25/26 and priced on football he
+    # played two seasons before.
     already = conn.execute(
         "SELECT COUNT(*) FROM external_match_stats WHERE fc_id = ? AND source = ? "
-        "AND match_date < ?",
-        (player["fc_id"], SOURCE, f"{target.split('-')[0]}{AUCTION_MONTH_DAY}")).fetchone()
+        "AND match_date >= ? AND match_date < ?",
+        (player["fc_id"], SOURCE, f"{int(target.split('-')[0]) - 1}-07-01",
+         f"{target.split('-')[0]}{AUCTION_MONTH_DAY}")).fetchone()
     if already and already[0] >= wanted:
         return None                                   # resumable: already covered
 
@@ -364,6 +429,7 @@ def _process(ctx: Context, session, conn, player: dict, target: str, cutoff: int
         enrich_with_bonuses(session, provider_id, matches, ctx.cancel_event)
     if matches:
         entry["_stored"] = store(conn, player["fc_id"], matches)
+        _write_cache(ctx, player["fc_id"], matches)
         conn.commit()
     entry["matches"] = len(matches)
     entry["competitions"] = ";".join(sorted({match["competition"] for match in matches}))

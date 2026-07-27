@@ -255,11 +255,37 @@ def predict_fm_from_recent(anchor: float, rating_deviation: float, lam: float) -
     return anchor + lam * rating_deviation
 
 
-def recent_minutes_share(minutes: int, matches: int) -> float | None:
-    """How much of a starter he was where he came from: minutes per match played, over 90."""
+# Below this the match rate is an artefact of the window, not a property of the player.
+MIN_SPAN_DAYS = 21
+
+
+def recent_minutes_per_appearance(minutes: int, matches: int) -> float | None:
+    """Minutes per match PLAYED, over 90 - how long he stayed on when he was picked.
+
+    Named for what it measures. It was called a "minutes share" and read as "how much of a starter he
+    was", which it cannot be: the sample only holds matches with minutes and is cut at ten of them, so
+    a man who started 38 and a man who started 5 both come out at 1.0. Availability is
+    `recent_availability` below; this is intensity.
+    """
     if not matches:
         return None
     return clip(minutes / (90.0 * matches), 0.0, 1.0)
+
+
+def recent_availability(matches: int, span_days: int | None) -> float | None:
+    """Matches per week over the span of the sample: how OFTEN he was on the pitch.
+
+    Ten matches inside seventy days is a regular; ten spread over eight months is a man in and out of
+    the side. This is the part of "how much he plays" that the per-appearance figure cannot express,
+    and it comes from dates we already store. Clipped at two a week, which is the real ceiling.
+
+    A span under three weeks says nothing: three matches in four days is a rate of 5 a week, which is
+    an artefact of a short window and not a fact about the player. Those return None and fall back to
+    the baseline rather than entering the fit as noise.
+    """
+    if not matches or not span_days or span_days < MIN_SPAN_DAYS:
+        return None
+    return clip(matches / (span_days / 7.0), 0.0, 2.0)
 
 
 def market_expectation_adjustment(price_z: float | None, lam: float) -> float:
