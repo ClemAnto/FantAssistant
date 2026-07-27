@@ -232,22 +232,39 @@ def goalkeeper_club_rates(conn: sqlite3.Connection, platform: str,
 
 
 def _external(conn: sqlite3.Connection, season: str) -> dict[int, tuple]:
-    """Input-season provider aggregates, summed across competitions (mid-season league changes).
+    """Input-season provider aggregates, built from the PER-MATCH layer with the season aggregates
+    as a fallback.
 
-    The average rating is re-weighted by matches: averaging two league averages would give a
-    two-appearance spell the same weight as a full season.
+    The per-match layer is the better source now that it is complete (all clubs of all 5 leagues,
+    not just the perimeter's fixtures): it resolves identity through `player_xref`, which is
+    season-agnostic, so a player who was outside the fc listone in the input season still gets his
+    minutes. `external_stats` resolves identity against THAT season's roster, so it silently misses
+    exactly the population R1 exists for - the newcomers. Ezzalzouli is the case that showed it: 33
+    matches and 1995 minutes in 24/25 in the per-match layer, no season-aggregate row at all.
+
+    `external_stats` still fills anyone the per-match layer does not cover, and the ratings are
+    match-weighted either way.
     """
-    rows = conn.execute(
-        """SELECT fc_id, SUM(COALESCE(matches, 0)), SUM(COALESCE(starts, 0)),
-                  SUM(COALESCE(minutes, 0)), SUM(COALESCE(goals, 0)), SUM(COALESCE(assists, 0)),
-                  SUM(COALESCE(xg, 0)), SUM(COALESCE(xa, 0)),
-                  SUM(COALESCE(rating, 0) * COALESCE(matches, 0))
-           FROM external_stats WHERE season = ? AND source = 'sofascore' GROUP BY fc_id""",
-        (season,)).fetchall()
     out: dict[int, tuple] = {}
-    for fc_id, matches, starts, minutes, goals, assists, xg, xa, rating_weighted in rows:
-        rating = (rating_weighted / matches) if matches else None
-        out[fc_id] = (matches, starts, minutes, goals, assists, xg, xa, rating)
+    for fc_id, matches, starts, minutes, goals, assists, xg, xa, rating_weighted in conn.execute(
+            """SELECT fc_id, COUNT(*), SUM(COALESCE(started, 0)), SUM(COALESCE(minutes, 0)),
+                      SUM(COALESCE(goals, 0)), SUM(COALESCE(assists, 0)), SUM(COALESCE(xg, 0)),
+                      SUM(COALESCE(xa, 0)), SUM(COALESCE(rating, 0))
+               FROM external_match_stats
+               WHERE season = ? AND source = 'sofascore' AND COALESCE(minutes, 0) > 0
+               GROUP BY fc_id""", (season,)):
+        out[fc_id] = (matches, starts, minutes, goals, assists, xg, xa,
+                      (rating_weighted / matches) if matches else None)
+    for fc_id, matches, starts, minutes, goals, assists, xg, xa, rating_weighted in conn.execute(
+            """SELECT fc_id, SUM(COALESCE(matches, 0)), SUM(COALESCE(starts, 0)),
+                      SUM(COALESCE(minutes, 0)), SUM(COALESCE(goals, 0)), SUM(COALESCE(assists, 0)),
+                      SUM(COALESCE(xg, 0)), SUM(COALESCE(xa, 0)),
+                      SUM(COALESCE(rating, 0) * COALESCE(matches, 0))
+               FROM external_stats WHERE season = ? AND source = 'sofascore' GROUP BY fc_id""",
+            (season,)):
+        if fc_id not in out:
+            out[fc_id] = (matches, starts, minutes, goals, assists, xg, xa,
+                          (rating_weighted / matches) if matches else None)
     return out
 
 
