@@ -57,7 +57,7 @@ MATCHES_WANTED = 10          # "the last 10 valid matches" - valid = club match,
 MAX_PAGES = 4                # 30 matches a page; 4 pages reach ~2 seasons back
 MIN_MINUTES = 1
 COVERAGE_FILE = "recent_form_coverage.csv"
-MAX_BIRTHYEAR_PROBES = 3     # how many ambiguous candidates are worth one request each
+MAX_BIRTHYEAR_PROBES = 5     # how many ambiguous candidates are worth one request each
 POPULARITY_DOMINANCE = 5.0   # tier3 only when the top candidate is followed this many times more
 
 # Auction day, by convention the same date the engine's windows use.
@@ -112,6 +112,20 @@ def priced_without_history(conn, target_season: str, input_season: str) -> list[
 # ---------- identity ----------
 
 _PAREN = re.compile(r"\s*\([^)]*\)")
+_INITIAL = re.compile(r"^\w{1,2}\.$")
+
+
+def listone_surname(name: str) -> str:
+    """The surname inside a listone name, which is written "Surname" or "Surname X.".
+
+    Taking the last token would return the INITIAL - "James J." gives "J", which then matches every
+    name containing a j - so trailing initials are dropped first. Two-word names without an initial
+    ("Joao Neves") still resolve to their last token.
+    """
+    tokens = [token for token in _PAREN.sub("", name).split() if token]
+    while len(tokens) > 1 and _INITIAL.match(tokens[-1]):
+        tokens.pop()
+    return tokens[-1].lower() if tokens else ""
 
 
 def search_candidates(session, name: str) -> list[dict]:
@@ -183,7 +197,7 @@ def resolve(session, player: dict, cancel_event=None) -> tuple[int | None, str]:
         if len(confirmed) > 1:
             return None, ""            # two footballers, same name, same club: refuse
 
-    surname = player["name"].split()[-1].lower().rstrip(".")
+    surname = listone_surname(player["name"])
     shortlist = [c for c in candidates if surname and surname in c["name"].lower()] or candidates
     if len(shortlist) == 1:
         return shortlist[0]["id"], "tier2_name_only"

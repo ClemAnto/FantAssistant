@@ -221,3 +221,29 @@ def test_one_bad_player_does_not_end_the_run(tmp_path, monkeypatch):
 class _Session:
     def close(self):
         pass
+
+
+def test_the_listone_surname_is_not_the_initial():
+    """Listone names are written "Surname X.", so the last token is an initial. Taking it as the
+    surname made "James J." match every name containing a j - 14 candidates and no decision."""
+    assert recent_form.listone_surname("James J.") == "james"
+    assert recent_form.listone_surname("Marin M.") == "marin"
+    assert recent_form.listone_surname("Torres F.") == "torres"
+    assert recent_form.listone_surname("Milinkovic-Savic V.") == "milinkovic-savic"
+    # no initial: a two-word name keeps its last token
+    assert recent_form.listone_surname("Joao Neves") == "neves"
+    assert recent_form.listone_surname("Gyokeres") == "gyokeres"
+    assert recent_form.listone_surname("O'Riley") == "o'riley"
+
+
+def test_the_initial_bug_no_longer_swallows_the_shortlist(monkeypatch):
+    candidates = [
+        {"id": 1, "name": "James Justin", "team": "Leeds United", "followers": 1419},
+        {"id": 2, "name": "James Rodriguez", "team": "No team", "followers": 85610},
+        {"id": 3, "name": "Jaden James", "team": "Rennes", "followers": 300},
+    ]
+    monkeypatch.setattr(recent_form, "search_candidates", lambda *_a, **_k: candidates)
+    monkeypatch.setattr(recent_form, "_polite_sleep", lambda *_a, **_k: None)
+    # the club still decides when it can
+    assert recent_form.resolve(None, {"name": "James J.", "club": "Rennes"}) == (
+        3, "tier1_club_confirmed")
