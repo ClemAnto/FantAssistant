@@ -224,6 +224,21 @@ game scelto** (4 Classic, 12 Mantra), due tabelle affiancate:
   l'FVM, **il VALORE che il motore aveva previsto** e la sua posizione nella classifica prevista
   («not priced» se il motore non lo prezzava affatto).
 
+Ogni riga porta anche la **squadra** come sigla (`matching.club_abbreviation`): tre giocatori del Napoli
+in una top-10 di difensori è informazione, e il nome intero raddoppierebbe la larghezza della colonna.
+La sigla è una **funzione pura del nome** — una parola dà le sue prime tre lettere, più parole danno
+un'iniziale ciascuna riempita dall'ultima (`Manchester United` → MUN, `Schalke 04` → S04, `Hannover 96`
+→ H96) — quindi lo stesso club si legge uguale in ogni vista. I soli casi che l'algoritmo non separa
+stanno in `CLUB_ABBREVIATIONS`: cinque coppie di nomi di una parola con lo stesso prefisso
+(Mainz/Maiorca, Monaco/Monza, Cardiff/Carpi, Valencia/Valladolid, Wolfsburg/Wolverhampton) più il PSG.
+**108 club del perimetro → 108 sigle, zero collisioni**, e un test lo verifica: un club nuovo che
+collide fa fallire il test invece di oscurarne un altro in silenzio.
+
+Durante il calcolo c'è uno **spinner** (`ttk.Progressbar` indeterminata): valutare una piattaforma stima
+i parametri di ogni finestra, sono decine di secondi, e prima l'unico segno di vita era una riga di testo
+— una passata lenta era indistinguibile da una finestra bloccata. Viene impacchettato e disimpacchettato
+invece di restare fermo sullo schermo, così una barra immobile non sembra mai una bloccata.
+
 L'intestazione di ogni ruolo riporta nomi in comune, VALORE catturato e la scomposizione degli errori
 (vicini / oltre il rango 50 / mai prezzati).
 

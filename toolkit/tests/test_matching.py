@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from euroleghe_ingest.matching import (
     build_pool_entry,
+    club_abbreviation,
     club_key,
     fold,
     lossy_eq,
@@ -81,3 +82,31 @@ def test_club_key_normalizes_corporate_tokens():
     assert club_key("FC Bayern Munchen") == "bayern munchen"
     assert club_key("1. FC Union Berlin") == "union berlin"
     assert club_key("Monaco") != club_key("FC Bayern Munchen")   # the exonym trap
+
+
+def test_club_abbreviations_are_unique_across_the_whole_perimeter():
+    """The point of an abbreviation is to identify a club. Every pair below shares a three-letter
+    prefix, which is why the naive prefix was not enough - and the pairs are the real perimeter's,
+    not invented. A new club that clashes must fail here and get an entry in CLUB_ABBREVIATIONS,
+    never silently shadow another."""
+    clubs = [
+        "Bayer Leverkusen", "Bayern Monaco", "Bordeaux", "Borussia Dortmund", "Borussia MGladbach",
+        "Cardiff", "Carpi", "Eintracht", "Eintracht Francoforte", "Mainz", "Maiorca",
+        "Manchester City", "Manchester United", "Monaco", "Monza", "Newcastle", "Newcastle United",
+        "Olympique Lione", "Olympique Marsiglia", "Paris Saint-Germain", "Parma",
+        "Real Madrid", "Real Sociedad", "Valencia", "Valladolid", "Wolfsburg", "Wolverhampton",
+    ]
+    codes = [club_abbreviation(name) for name in clubs]
+    assert len(set(codes)) == len(clubs), sorted(
+        code for code in set(codes) if codes.count(code) > 1)
+    assert all(3 <= len(code) <= 4 and code.isupper() for code in codes)
+
+
+def test_club_abbreviation_reads_like_the_conventional_short_form():
+    for name, expected in (("Atalanta", "ATA"), ("Inter", "INT"), ("Manchester United", "MUN"),
+                           ("Real Madrid", "RMA"), ("Schalke 04", "S04"), ("Hannover 96", "H96"),
+                           ("Paris Saint-Germain", "PSG"), ("Alav\u00e9s", "ALA")):
+        assert club_abbreviation(name) == expected, name
+    # a club we do not know about is still safe to display
+    assert club_abbreviation(None) == ""
+    assert club_abbreviation("   ") == ""

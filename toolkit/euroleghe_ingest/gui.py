@@ -30,6 +30,7 @@ from euroleghe_ingest import __version__
 from euroleghe_ingest.config import Config
 from euroleghe_ingest.context import Context
 from euroleghe_ingest.db.database import connect, init_db, table_names
+from euroleghe_ingest.matching import club_abbreviation
 from euroleghe_ingest.modules import IMPLEMENTED, load
 from euroleghe_ingest.sources import _norm_roles, available_sources
 
@@ -934,6 +935,10 @@ class AuctionView(ttk.Frame):
         self.game_cb = self._selector(top, "Game", self.game_var,
                                       list(self.GAMES["euro"]), self._on_config_change, width=10)
         self.season_cb = self._selector(top, "Season", self.season_var, [], self._on_season_change)
+        # Indeterminate, because the work has no progress to report: the engine either has the window
+        # fitted or it does not. It is packed and unpacked rather than left in place, so a still bar
+        # never sits there looking like a stalled one.
+        self.spinner = ttk.Progressbar(top, mode="indeterminate", length=90)
         self.status_var = tk.StringVar(value="")
         ttk.Label(top, textvariable=self.status_var, foreground="#555").pack(side="left", padx=8)
 
@@ -993,6 +998,7 @@ class AuctionView(ttk.Frame):
             return
         self._running = True
         self.status_var.set("valuing the listone (the engine fits every window)...")
+        self._busy(True)
         self._clear()
         threading.Thread(target=self._compute, args=key, daemon=True).start()
 
@@ -1034,8 +1040,18 @@ class AuctionView(ttk.Frame):
         finally:
             conn.close()
 
+    def _busy(self, running: bool) -> None:
+        """Show/hide the spinner. Also called on the error path, or a failure would spin forever."""
+        if running:
+            self.spinner.pack(side="left", padx=(4, 0))
+            self.spinner.start(12)
+        else:
+            self.spinner.stop()
+            self.spinner.pack_forget()
+
     def _done(self, platform: str, game: str, views: dict, error: str | None) -> None:
         self._running = False
+        self._busy(False)
         if error:
             self.status_var.set(error)
             return
@@ -1097,15 +1113,18 @@ class AuctionView(ttk.Frame):
         left.pack(side="left", fill="both", expand=True, padx=(0, 6))
         right.pack(side="left", fill="both", expand=True)
         self._table(left, "Predicted at the auction",
-                    ("#", "Player", "Qt.I", "FM", "Pv", "VALUE", "real VALUE", "FVM", "real #"),
-                    [(row["rank"], row["name"], self._num(row["price_initial"]),
+                    ("#", "Player", "Team", "Qt.I", "FM", "Pv", "VALUE", "real VALUE", "FVM", "real #"),
+                    [(row["rank"], row["name"], club_abbreviation(row["club"]),
+                      self._num(row["price_initial"]),
                       self._num(row["fm_pred"], 2), self._num(row["pv_pred"], 1),
                       self._num(row["value_pred"]), self._num(row["value_act"]),
                       self._num(row["fvm"]), row["actual_rank"] or "-")
                      for row in block["predicted"]])
         self._table(right, "Actual, end of season",
-                    ("#", "Player", "Qt.I", "FM", "Pv", "VALUE", "FVM", "pred. VALUE", "pred. #"),
-                    [(row["rank"], row["name"], self._num(row["price_initial"]),
+                    ("#", "Player", "Team", "Qt.I", "FM", "Pv", "VALUE", "FVM", "pred. VALUE",
+                     "pred. #"),
+                    [(row["rank"], row["name"], club_abbreviation(row["club"]),
+                      self._num(row["price_initial"]),
                       self._num(row["fm_act"], 2), self._num(row["pv_act"]),
                       self._num(row["value_act"]), self._num(row["fvm"]),
                       self._num(row["value_pred"]),
@@ -1118,8 +1137,10 @@ class AuctionView(ttk.Frame):
         tree = ttk.Treeview(parent, columns=columns, show="headings", height=max(1, len(rows)))
         for column in columns:
             tree.heading(column, text=column)
-            width = 130 if column == "Player" else 46 if column == "#" else 68
-            tree.column(column, width=width, anchor="w" if column == "Player" else "e",
+            width = (130 if column == "Player" else 46 if column == "#"
+                     else 52 if column == "Team" else 68)
+            tree.column(column, width=width,
+                        anchor="w" if column in ("Player", "Team") else "e",
                         stretch=column == "Player")
         for row in rows:
             tree.insert("", "end", values=row)

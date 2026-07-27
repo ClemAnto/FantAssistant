@@ -174,3 +174,44 @@ def club_key(name: str | None) -> str:
     """Comparable club key: folded, corporate tokens and digits dropped ('AC Milan' -> 'milan')."""
     tokens = [t for t in fold(name).split() if t not in _CLUB_NOISE and not t.isdigit()]
     return " ".join(tokens) or fold(name)
+
+
+# The abbreviations the algorithm below cannot produce or cannot keep unique. Kept small and explicit:
+# five pairs of single-word names that share a three-letter prefix, plus the one club whose conventional
+# short form is not derivable from its words. A test asserts that no two clubs in the perimeter collide,
+# so a new arrival that clashes fails loudly and gets an entry here instead of silently shadowing another.
+CLUB_ABBREVIATIONS: dict[str, str] = {
+    "mainz": "MAIN", "maiorca": "MAIO",
+    "monaco": "MONA", "monza": "MONZ",
+    "cardiff": "CARD", "carpi": "CARP",
+    "valencia": "VALE", "valladolid": "VALL",
+    "wolfsburg": "WOLF", "wolverhampton": "WOLV",
+    "paris saint germain": "PSG",
+}
+
+
+def club_abbreviation(name: str | None) -> str:
+    """Short display code for a club: 'Atalanta' -> ATA, 'Manchester United' -> MUN, 'Schalke 04' -> S04.
+
+    One word gives its first three letters; several give one letter each, padded from the last word when
+    that leaves fewer than three. Hyphens split like spaces, which is what makes Paris Saint-Germain
+    three words. Accents are folded first, so 'Alavés' and 'Leganés' behave like any other name.
+
+    Deliberately a pure function of the name, not of the set of clubs on screen: the same club must read
+    the same in every view, so genuine clashes are resolved by the table above rather than by whoever
+    happens to be displayed next to it.
+    """
+    if not name:
+        return ""
+    folded = fold(name).replace("-", " ")
+    if folded in CLUB_ABBREVIATIONS:
+        return CLUB_ABBREVIATIONS[folded]
+    words = [word for word in folded.split() if word]
+    if not words:
+        return ""
+    if len(words) == 1:
+        return words[0][:3].upper()
+    code = "".join(word[0] for word in words)
+    if len(code) < 3:                    # 'Manchester City' -> 'MC' -> pad from 'City' -> 'MCI'
+        code += words[-1][1:1 + (3 - len(code))]
+    return code[:3].upper()
