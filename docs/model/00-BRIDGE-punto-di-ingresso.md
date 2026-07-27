@@ -112,6 +112,19 @@ Documento dedicato, con tutti i numeri e le ipotesi falsificate: **`gate-motore-
   esce (3/4 ma solo +1.9-3.3%, sfora il non-danno, pareggio sulla metrica d'asta).
   Set adottati ora: **euro R0c+R3c+R10 · Serie A R3+R7+R13**. Il set Serie A migliora il MAE di VALORE
   su **tutte e sette** le finestre e non perde mai una posizione top-10 (91→96 nomi).
+- **AUDIT DEI DATI (§3-quinquies)**: lo strato voti è completo (15 coppie stagione-piattaforma,
+  218.672 righe, `validate` a 5195 giocatori consistenti) e **non serve altro scraping per i voti**.
+  Due input non mancavano, erano solo **non ricalcolati**: `flags.new_coach` (da `coaches`, che risale
+  al 1886) e `arrivals` (diff fra listoni) — ora 8 e 7 stagioni invece di 3 e 2, **senza una richiesta
+  di rete**. E col test finalmente eseguibile **R10 cade** (3/4 finestre su euro, 4/7 su Serie A,
+  peggior finestra −6.7%): aiutava sulle finestre su cui era stata inventata. Terza volta in un giorno
+  che il gate trova lo stesso schema, dopo R4 e R7-euro.
+  **Set adottati: `euro → R0c + R3c` · `Serie A → R3 + R7 + R13`.** Sull'euro restano due
+  miglioramenti dimostrati, uno dei quali è il modello nullo; su Serie A il set tiene 7/7.
+  **La sola passata di scraping che conta**: SofaScore su 19/20-22/23, perché senza i minuti storici le
+  finestre vecchie sono cieche esattamente sulle regole che il motore usa. Poi, a costo quasi nullo:
+  euro 18/19 (~5 min) e Serie A 17/18-15/16 (~20 min) per quattro finestre in più.
+  Impossibili: voti EuroLeghe 21/22 (file vuoti alla sorgente) e la storia di `probable_starter`.
 - **Vista «Auction» nella GUI** (terzo tab, spec §Vista Auction): stagione / piattaforma / game
   selezionabili e, per ogni ruolo, i 10 di VALORE previsto più alto con l'**FVM effettivo di fine
   stagione** accanto, più i 10 realmente migliori con il **VALORE che il motore aveva previsto**.

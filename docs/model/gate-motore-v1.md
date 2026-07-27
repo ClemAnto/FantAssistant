@@ -76,9 +76,10 @@ diventa +1.3%. Nessuna regola nuova va promossa su quel decimale.
 ## 3. Verdetti — 5 regole adottate su 17 provate
 
 **Adottate, per piattaforma** (`platform` è già una dimensione del modello dati):
-**euro → R0c + R3c + R10** · **Serie A → R3 + R7 + R13**
-*(§3-ter e §3-quater hanno la storia: R4 esce con la terza finestra, R7 esce dall'euro e viene
-**confermata su tutte e 7 le finestre Serie A** quando il suo coefficiente è messo in comune.)*
+**euro → R0c + R3c** · **Serie A → R3 + R7 + R13**
+*(la storia è in §3-ter, §3-quater e §3-quinquies: R4 esce con la terza finestra, R7 esce dall'euro ed è
+**confermata 7/7 su Serie A** col coefficiente messo in comune, R10 esce da entrambe appena i suoi input
+vengono ricalcolati sulle stagioni vecchie.)*
 
 ⚠️ **Aggiornato la sera del 27/07 con due stagioni in più** (§3-ter): con una terza finestra euro
 (T0 = 22/23→23/24) e una quarta su Serie A (Tm1 = 21/22→22/23), **R4 esce** (contraddetta su T0,
@@ -411,6 +412,66 @@ scaricamento per stagione, una finestra ciascuna), e **19/20 e 18/19 su euro** p
 finestre vecchie con più di R0c dentro. Ma il vero collo di bottiglia dell'euro non è il numero di
 finestre: sono gli **input** (`external_stats`, `arrivals`, `club_elo`, `new_coach`) che partono dal
 23/24 e rendono cieche le finestre vecchie sulle regole che contano.
+
+## 3-quinquies. Audit dei dati (27 luglio 2026) — due input erano solo **non ricalcolati**, e R10 cade
+
+Domanda: servono altri dati o basta quello che c'è? Risposta in tre parti.
+
+### (a) Lo strato voti è completo, e non serve rete
+
+15 coppie stagione-piattaforma dal 18/19 al 25/26: **218.672** righe `match_ratings`, **2.28 M**
+`match_rating_bonuses`, `season_stats` derivate per ognuna, listone completo (ruoli Classic e Mantra,
+`Qt.A`/`Qt.I`/`FVM` e le tre corrispondenti Mantra). `validate`: **5195 giocatori
+Mv-consistenti e FM-consistenti, 0 FM-off**. L'unico buco è **EuroLeghe 21/22, vuoto alla sorgente**.
+
+Verificato anche un sospetto: il modello portieri M2e **non usa `club_elo`** —
+`features.goalkeeper_club_rates` legge solo `season_stats.goals_conceded` — quindi le due sole date di
+Elo *non* degradano il baseline dei portieri sulle finestre vecchie. Il commento in `elo.py` che parla
+di un mix 50/50 con l'Elo descrive un'altra implementazione, non quella dell'harness.
+
+### (b) Due input non mancavano: non erano stati ricalcolati — e R10 cade
+
+`flags.new_coach` esisteva solo dal 23/24 e `arrivals` solo dal 24/25. **Nessuno dei due richiede una
+richiesta di rete**: `derive_new_coach` legge `coaches` (2273 righe, storia fino al 1886) e `arrivals` è
+un diff fra listoni consecutivi, che ora abbiamo dal 18/19. Ricalcolati offline:
+
+| | prima | dopo |
+|---|---|---|
+| `flags.new_coach` | 3 stagioni, 1907 flag | **8 stagioni, 2917 flag** |
+| `arrivals` | 2 stagioni, 1390 righe | **7 stagioni, 5157 righe** |
+
+E con il test finalmente eseguibile, **R10 cade**. Era la regola che sembrava la più forte del motore
+(−5.2% / −3.5% / −4.9% di MAE presenze su tre finestre); su tutte le finestre vince **3 su 4** sull'euro
+(media +1.7%, peggior finestra **−6.7%**) e **4 su 7** su Serie A (media +2.7%, peggiore −6.3%). Sulla
+metrica d'asta lo stesso quadro: **+1 nome su T1 e T2, −3 punti di VALORE catturato su Tm3 e T0**.
+Aiuta sulle finestre su cui è stata inventata e danneggia quelle su cui non lo è stata.
+
+**È la terza volta in un giorno che il gate trova lo stesso schema** (R4, poi R7 su euro, ora R10), e la
+causa non è la sfortuna: T1 e T2 sono le finestre di *generazione* delle ipotesi, e finché erano le sole
+strumentate ogni regola veniva giudicata sui dati che l'avevano suggerita.
+
+**Set adottati ora: `euro → R0c + R3c` · `Serie A → R3 + R7 + R13`.**
+Sull'euro restano in piedi solo la copertura col modello nullo e la regola dei minuti — e R3c è
+misurabile su **due** finestre sole, perché i minuti partono dal 23/24. Detto senza attenuanti:
+**sull'euro il motore ha oggi due miglioramenti dimostrati, uno dei quali è il modello nullo.**
+Su Serie A il set tiene su **tutte e 7** le finestre (media +8.9%, peggior finestra +1.5%).
+
+### (c) Cosa comprerebbe una passata di scraping
+
+| Cosa manca | Perché conta | Costo | Priorità |
+|---|---|---|---|
+| **`external_stats` + layer per-partita per 19/20-22/23** | R3c è l'unica regola euro non banale rimasta e è **cieca prima del 23/24**; con essa anche R2, R8, R11, R13 tornano testabili sulle vecchie finestre | SofaScore: ~1300 richieste/stagione per gli aggregati, ore per il layer per-partita | **1 - è LA passata che serve** |
+| euro **2018-19** voti | darebbe all'euro una quinta finestra (Tm4) | ~30 download, ~5 minuti | 2 - banale |
+| Serie A **17/18, 16/17, 15/16** | tre finestre in più (10 in totale) | ~114 download, ~20 minuti | 2 - banale |
+| `club_elo` alle date d'asta vecchie | **solo** R5, famiglia già bocciata tre volte. Non serve ai portieri | 5 richieste all'API ClubElo (oggi il modulo legge un CSV seed) | 4 - basso valore |
+| **`injuries`** | metà dei buchi nelle top-10 dei difensori | nessuna fonte agganciata (piano: Transfermarkt) | 3 - serve una decisione, non una passata |
+| storia di `probable_starter`/`availability` | la forma pre-registrata di R7 | **impossibile a posteriori** (esiste solo lo snapshot 2026-07): va accumulata da adesso | 3 - avviare un job settimanale |
+| voti EuroLeghe 21/22 | chiuderebbe il buco euro | **impossibile**: i file della sorgente sono vuoti | - |
+
+**La risposta breve**: per lo strato voti no, non serve altro scraping. Per il *gate*, sì, e una sola
+passata conta: **SofaScore sulle stagioni 19/20-22/23**, perché senza i minuti storici le finestre
+vecchie sono cieche esattamente sulle regole che il motore usa — ed è per questo che R4, R7-euro e R10
+sono sopravvissute così a lungo.
 
 ## 4. Ipotesi FALSIFICATE — non riproporre senza finestre nuove
 

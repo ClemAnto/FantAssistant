@@ -125,6 +125,21 @@ euro. Ma il collo di bottiglia dell'euro non e' il numero di finestre: sono gli 
 (`external_stats`, `arrivals`, `club_elo`, `new_coach`) che partono dal 23/24 e rendono cieche le
 finestre vecchie sulle regole che contano.
 
+## Audit dei dati (27 luglio 2026) - cosa manca davvero
+Lo strato voti e' completo e **non serve altro scraping per i voti**. Due input non mancavano, erano solo
+non ricalcolati - `flags.new_coach` (da `coaches`, storia fino al 1886) e `arrivals` (diff fra listoni):
+ora 8 e 7 stagioni invece di 3 e 2, **senza una richiesta di rete**. Col test eseguibile **R10 cade**
+(3/4 finestre euro, 4/7 Serie A, peggior finestra -6.7%). Set adottati: **euro R0c+R3c · Serie A
+R3+R7+R13**. Verificato anche che il modello portieri M2e non usa `club_elo`, quindi le due sole date
+di Elo non degradano nulla.
+
+**La sola passata che conta**: SofaScore su 19/20-22/23 (aggregati stagionali ~1300 richieste/stagione,
+layer per-partita ore) - senza i minuti storici le finestre vecchie sono cieche sulle regole che il
+motore usa, ed e' per questo che R4, R7-euro e R10 sono sopravvissute cosi' a lungo. A costo quasi nullo:
+euro 18/19 (~5 min) e Serie A 17/18-15/16 (~20 min) = quattro finestre in piu'. Impossibili: voti
+EuroLeghe 21/22 (file vuoti alla sorgente) e la storia di `probable_starter`/`availability`, che va
+accumulata da adesso. `injuries` resta senza fonte agganciata: e' una decisione, non una passata.
+
 ## Prossimo lavoro
 1. ~~Completare il layer per-partita~~ **FATTO il 27/07** (sezione sopra): 100% delle partite, bias di
    selezione chiuso, copertura del motore dal 31% al 42-43% (e al 100% sull'euro con R0c).

@@ -114,8 +114,16 @@ CANDIDATES: tuple[str, ...] = ("R0c", "R1", "R1b", "R2", "R3", "R3c", "R4", "R4b
 # neighbour's higher coefficient was worth 17% on T1/T2 and nothing before), it trips the no-harm
 # guardrail on T1, and across the four windows it is a wash on the auction metric: -1 name on Tm3 and T0,
 # +1 on T1 and T2. Two platforms, two verdicts, which is what `platform` being a model dimension is for.
+# ⚠️ R10 LEFT both sets on 27/07/2026, the moment it became testable on the older windows. Its inputs
+# (`flags.new_coach`) had never been computed for the seasons before 2023-24 - not missing data, just
+# uncomputed: `derive_new_coach` reads `coaches`, which goes back to 1886. Recomputing it took no network
+# request and no new source, and the rule that had looked like the engine's strongest (-5.2%/-3.5%/-4.9%
+# of appearances MAE on three windows) turns out to win 3 of 4 on euro and 4 of 7 on Serie A, with a
+# worst window of -6.7%. On the auction metric it is the same story: +1 name on T1 and T2, -3 points of
+# captured VALUE on Tm3 and T0. It helps on the windows it was invented on and hurts on the ones it was
+# not. That is the pattern the gate exists to find, and it is the third time today it has found it.
 ADOPTED: dict[str, tuple[str, ...]] = {
-    "euro": ("R0c", "R3c", "R10"),
+    "euro": ("R0c", "R3c"),
     "default": ("R3", "R7", "R13"),
 }
 # What the corrected criteria changed, and why the list is shorter than it was:
