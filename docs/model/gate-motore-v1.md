@@ -125,6 +125,7 @@ Presenze Serie A: 8.38 → 8.02 e 8.41 → 7.92 giornate di MAE. Portieri euro: 
 | **R12** attesa di mercato (Qt.I nel ruolo) | λ −0.003 / +0.010 | L'attesa **assoluta** del mercato non aggiunge nulla alla fantamedia precedente: è costruita sulla stessa storia. |
 | **R12b** revisione dell'attesa (Qt.I anno su anno) | λ −0.040 / −0.076 | Segno stabile ma significato opposto: dice che chi è rivisto **al ribasso** rende *più* di B0, cioè approssima il ritorno alla media che B0 già fa. Fallisce su T1 e sul VALORE. |
 | **R4b** curva d'età sulle presenze | −0.014 / −0.014 | Stabile e inutile: Pv MAE −0.0%, VALORE peggiore. L'effetto età sta sulla FM, non sulle presenze. |
+| **R14 / R14b** inattività: costo di uno stop di 45+ giorni su presenze / fantamedia | share **+0.011 / +0.001** · FM **+0.044 / −0.044** | Il segnale c'è nei dati **grezzi** — oltre 90 giorni di stop dentro la stagione significa ~13 presenze l'anno dopo contro ~18 della banda normale — ma **non è incrementale**: `share_prec` lo assorbe già. Chi è stato fuori ha una quota bassa, il baseline gli predice già poche presenze, e al rientro ne fa *più* di quel minimo. Il residuo non ha segno stabile. Vedi §5-quater. |
 | **R13b** fantamedia dal rating confrontato fra campionati | λ **−0.454 / +0.05** | Fallisce su Serie A (+40% di errore sugli aggiunti, oltre il limite) e il segno si inverte. Vedi §5-ter: **quanto** gioca si trasferisce, **quanto bene** no. |
 
 ## 5. Difetti dei dati trovati dal gate (due corretti, tre aperti)
@@ -261,6 +262,41 @@ i nuovi entrati sono previsti meglio della media di chi era già prezzato.
 («Gronbaek» contro «Grønbæk»): lì non è il confronto a fallire ma l'indice del provider. La strada
 robusta è risolvere attraverso la **rosa del club** invece che per nome, e richiede gli id squadra
 SofaScore in `club_xref`, che oggi contiene solo quelli di Transfermarkt.
+
+## 5-quater. Inattività e rientri da infortunio (27 luglio 2026) — segnale reale, non incrementale
+
+`injuries` è vuota e nessuna fonte la riempie, ma il layer per-partita **datato** dice già quando un
+giocatore non è sceso in campo: un buco di 90+ giorni dentro una stagione è uno stop, qualunque ne sia
+la causa. Calcolato in `features._inactivity` su entrambe le fonti (le 5 leghe e `recent_form`), sempre
+prima della data d'asta, con tre misure: intervallo massimo senza giocare, giorni dall'ultima partita,
+minuti nelle ultime 3 presenze.
+
+**Una correzione fa la differenza fra segnale e rumore**: gli intervalli che contengono il **1° luglio**
+vanno scartati. Misurando a cavallo della pausa estiva, 520 giocatori finivano nella banda «oltre 90
+giorni» e la relazione con le presenze dell'anno dopo **si invertiva**. Misurato dentro la stagione è
+monotono su entrambe le finestre:
+
+| Intervallo massimo | presenze T1 dopo (prima) | presenze T2 dopo (prima) |
+|---|---|---|
+| 0-20 giorni | 17.6 (11.2) | 18.3 (15.0) |
+| 21-45 giorni | 18.3 (17.0) | 17.6 (17.8) |
+| 46-90 giorni | 16.2 (12.8) | 15.6 (14.0) |
+| **oltre 90** | **13.5** (8.7) | **12.6** (8.9) |
+
+Le misure trovano i nomi giusti: Perin 265 giorni, J. Timber 281, Musso 267, Cragno 246, Milner 267.
+
+**Ma R14 e R14b non passano il gate**, ed è il gate a fare il suo lavoro: share **+0.011 / +0.001** e
+FM **+0.044 / −0.044**, segno instabile e magnitudo quasi nulla. Il motivo è che il segnale **non è
+incrementale**: `share_prec` assorbe già l'assenza — chi è stato fuori tre mesi ha una quota bassa, il
+baseline gli predice già poche presenze, e al rientro ne fa *più* di quel minimo (ritorno alla media).
+Il residuo non contiene più informazione. Stessa lezione di R12b: un segnale vero nei dati grezzi può
+essere già interamente dentro il baseline.
+
+**Resta utile come descrizione**, non come regola: le tre misure sono sull'`Observation` e nel report
+di inventario, quindi un `PlayerCard` può dire «reduce da 265 giorni di stop» anche se il motore non
+sposta il numero. E se un giorno `injuries` porterà la **causa** (muscolare, crociato) e la data di
+**rientro** previsto, quella è informazione che il baseline non può avere — l'ipotesi va ri-provata
+allora, non ora.
 
 ## 6. Validazione del voto sintetico (Serie A, dove esistono entrambi i set reali)
 

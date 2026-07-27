@@ -72,13 +72,16 @@ RULES: tuple[Rule, ...] = (
          kind="coverage", metric="pv"),
     Rule("R13b", "recent form elsewhere: FANTAMEDIA from how his rating compared to the other "
                  "newcomers", True, kind="coverage"),
+    Rule("R14", "inactivity: what a spell out of 45+ days costs in APPEARANCES", True, metric="pv"),
+    Rule("R14b", "inactivity: what a spell out of 45+ days costs in FANTAMEDIA", True),
     Rule("R11b", "crowded position: 2+ same-role arrivals as a threshold, not a slope", True,
          metric="pv"),
 )
 
 # Rules that get fitted and compared one at a time by `compare`.
 CANDIDATES: tuple[str, ...] = ("R1", "R1b", "R2", "R3", "R3c", "R4", "R4b", "R5", "R6", "R7",
-                               "R8", "R10", "R11", "R11b", "R12", "R12b", "R13", "R13b")
+                               "R8", "R10", "R11", "R11b", "R12", "R12b", "R13", "R13b",
+                               "R14", "R14b")
 
 # What survived the gate, PER PLATFORM. Keeping it per platform is not a hedge: `platform` is a
 # first-class dimension of the data model (different calendars, different perimeters), and the gate
@@ -314,6 +317,8 @@ class Params:
     revision_lam: float | None = None             # R12b: pre-auction expectation revision
     recent_lam: float | None = None               # R13: rating deviation of the recent-form sample
     recent_share: tuple[float, ...] | None = None  # R13: appearances from his minutes elsewhere
+    idle_share: float | None = None               # R14: cost of a spell out, in share
+    idle_fm: float | None = None                  # R14b: cost of a spell out, in fantamedia
     coach_level: float | None = None              # R10: new coach, average share change
     coach_interaction: float | None = None         # R10: new coach x previous share
     competition_lam: float | None = None           # R11: same-role arrivals at his club
@@ -417,6 +422,28 @@ def fit_params(data: features.WindowData, rules: tuple[str, ...]) -> Params:
             if len(values) >= 10:
                 setattr(params, key, sum(values) / len(values))
             params.notes[f"R1_{key}_n"] = len(values)
+
+    if {"R14", "R14b"} & set(rules):
+        idle_share, idle_fm = [], []
+        for obs in data.observations:
+            months = model.months_out(obs.longest_gap_days)
+            if not months:
+                continue
+            baseline_pv = _predict_pv(obs, data)
+            if baseline_pv is not None and obs.pv_act is not None:
+                idle_share.append(((months,), (obs.pv_act - baseline_pv) / matchdays))
+            baseline_fm, _anchor = _predict_fm(obs, data)
+            if (baseline_fm is not None and obs.fm_act is not None
+                    and (obs.pv_act or 0) >= MIN_PV_ACT):
+                idle_fm.append(((months,), obs.fm_act - baseline_fm))
+        if "R14" in rules:
+            fitted = fit_linear(idle_share, intercept=False)
+            params.idle_share = fitted[0] if fitted else None
+            params.notes["R14_n"] = len(idle_share)
+        if "R14b" in rules:
+            fitted = fit_linear(idle_fm, intercept=False)
+            params.idle_fm = fitted[0] if fitted else None
+            params.notes["R14b_n"] = len(idle_fm)
 
     if {"R10", "R11", "R11b"} & set(rules):
         coach, competition, crowded = [], [], []
@@ -608,6 +635,10 @@ def _rule_fm(obs: features.Observation, data: features.WindowData, rules: tuple[
         fm_pred += model.off_role_adjustment(obs.role_classic, obs.derived_role_prev,
                                              params.off_role_forward, params.off_role_backward)
 
+    # R14b - he is coming back from a spell out
+    if "R14b" in rules and params.idle_fm is not None:
+        fm_pred += model.inactivity_adjustment(obs.longest_gap_days, params.idle_fm)
+
     # R4 - ageing
     if "R4" in rules and params.age_fm is not None:
         fm_pred += model.age_adjustment(obs.age(data.window), params.age_fm)
@@ -656,6 +687,8 @@ def _rule_pv(obs: features.Observation, data: features.WindowData, rules: tuple[
         share += model.coach_change_adjustment(
             obs.new_coach_target, obs.share_prev(data.matchdays_prev),
             params.coach_level, params.coach_interaction)
+    if "R14" in rules and params.idle_share is not None:
+        share += model.inactivity_adjustment(obs.longest_gap_days, params.idle_share)
     if "R11" in rules and params.competition_lam is not None:
         share += model.competition_adjustment(obs.same_role_arrivals, params.competition_lam)
     if "R11b" in rules and params.crowded_lam is not None:

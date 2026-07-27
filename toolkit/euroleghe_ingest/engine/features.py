@@ -88,6 +88,10 @@ class Observation:
     recent_goals: int = 0
     recent_assists: int = 0
     recent_rating: float | None = None
+    # inactivity, from the dated per-match layer: the injury proxy while `injuries` stays empty
+    longest_gap_days: int | None = None
+    days_since_last_match: int | None = None
+    minutes_last_3: float | None = None
     birth_year: int | None = None
     derived_role_prev: str | None = None
     off_role_prev: bool = False
@@ -297,6 +301,53 @@ def _recent_form(conn: sqlite3.Connection, auction_date: str) -> dict[int, dict]
                    GROUP BY fc_id""", (auction_date,))}
 
 
+def _inactivity(conn: sqlite3.Connection, auction_date: str) -> dict[int, dict]:
+    """How long a player went without playing, from the dated per-match layer. The injury proxy.
+
+    `injuries` is empty and no source fills it yet, but the per-match layer already says when a player
+    did NOT appear: a gap of 90+ days inside a season is a spell out, whatever its cause. Measured on
+    both providers' rows (the 5 leagues and `recent_form`), always before the auction date.
+
+    Gaps that straddle 1 July are DISCARDED, and that correction is the whole difference between a
+    signal and noise: measured across the close season, "longest gap" ranked 520 players in the
+    over-90-days band and the relationship with next season's appearances inverted. Measured inside a
+    season it is monotone on both windows - over 90 days out means about 13 appearances the year after
+    against 18 for a normal 21-45 day gap.
+    """
+    import datetime
+
+    rows = conn.execute(
+        """SELECT fc_id, match_date, COALESCE(minutes, 0) FROM external_match_stats
+           WHERE match_date IS NOT NULL AND match_date < ? AND COALESCE(minutes, 0) > 0
+           ORDER BY fc_id, match_date""", (auction_date,)).fetchall()
+    auction = datetime.date.fromisoformat(auction_date)
+    played: dict[int, list] = {}
+    for fc_id, date, minutes in rows:
+        played.setdefault(fc_id, []).append((datetime.date.fromisoformat(date), minutes))
+
+    def crosses_july(start: datetime.date, end: datetime.date) -> bool:
+        for year in range(start.year, end.year + 1):
+            if start < datetime.date(year, 7, 1) <= end:
+                return True
+        return False
+
+    out: dict[int, dict] = {}
+    for fc_id, appearances in played.items():
+        if len(appearances) < 3:
+            continue
+        dates = [date for date, _minutes in appearances]
+        gaps = [(dates[i + 1] - dates[i]).days for i in range(len(dates) - 1)
+                if not crosses_july(dates[i], dates[i + 1])]
+        out[fc_id] = {
+            "longest_gap": max(gaps) if gaps else 0,
+            # to the auction it is always at least a close season, so this reads as "did he finish
+            # the season playing" rather than as an absolute
+            "days_since_last": (auction - dates[-1]).days,
+            "minutes_last_3": sum(minutes for _date, minutes in appearances[-3:]) / 3,
+        }
+    return out
+
+
 def _probable_starters(conn: sqlite3.Connection, auction_date: str) -> dict[int, float]:
     """Auction-day view of a dated series: the last row with valid_from <= the auction date."""
     out: dict[int, float] = {}
@@ -350,6 +401,7 @@ def load(conn: sqlite3.Connection, window: Window, platform: str) -> list[Observ
     derived = {fc_id: role for fc_id, role in conn.execute(
         "SELECT fc_id, derived_role FROM positions WHERE season = ?", (window.input_season,))}
     recent = _recent_form(conn, window.auction_date)
+    inactivity = _inactivity(conn, window.auction_date)
     starters = _probable_starters(conn, window.auction_date)
     penalties = _penalty_state(conn, window.auction_date)
     euro_minutes = euro_minutes_shares(conn, window.input_season)
@@ -379,6 +431,7 @@ def load(conn: sqlite3.Connection, window: Window, platform: str) -> list[Observ
         matches, starts, minutes, goals, assists, xg, xa, rating = external.get(fc_id, (None,) * 8)
         kind, tier, origin, equivalent = arrivals.get(fc_id, (None, None, None, None))
         sample = recent.get(fc_id) or {}
+        idle = inactivity.get(fc_id) or {}
         rank, confidence = penalties.get(fc_id, (None, None))
         observations.append(Observation(
             fc_id=fc_id, name=name, role_classic=role_classic,
@@ -392,6 +445,9 @@ def load(conn: sqlite3.Connection, window: Window, platform: str) -> list[Observ
             recent_matches=sample.get("matches", 0), recent_minutes=sample.get("minutes", 0),
             recent_goals=sample.get("goals", 0), recent_assists=sample.get("assists", 0),
             recent_rating=sample.get("rating"),
+            longest_gap_days=idle.get("longest_gap"),
+            days_since_last_match=idle.get("days_since_last"),
+            minutes_last_3=idle.get("minutes_last_3"),
             birth_year=birth_year, derived_role_prev=derived.get(fc_id),
             off_role_prev=fc_id in off_role,
             arrival_type=kind, arrival_tier=tier, origin_league=origin,
@@ -415,6 +471,7 @@ FEATURE_CHECKS: tuple[tuple[str, str], ...] = (
     ("xg_prev", "provider xG/xA - R2 per-90 propensity"),
     ("foreign_fm_equiv", "foreign FM-equivalent - R1 arrivals"),
     ("recent_rating", "last matches elsewhere (recent_form) - R13 no-history players"),
+    ("longest_gap_days", "longest spell without playing - R14 inactivity"),
     ("price_initial", "pre-auction quotation Qt.I - R12 market expectation"),
     ("price_initial_prev", "last season's Qt.I - R12b expectation revision"),
     ("birth_year", "birth year - R4 age curve"),

@@ -227,6 +227,23 @@ def propensity_adjustment(gamma: float, z_propensity: float) -> float:
     return gamma * z_propensity
 
 
+# R14: a gap this long inside a season is not rotation. Measured: 21-45 days is the normal band on
+# both windows, and beyond 90 next season's appearances drop from ~18 to ~13.
+NORMAL_GAP_DAYS = 45
+
+
+def months_out(longest_gap_days: int | None) -> float:
+    """Absence beyond a normal between-matches gap, in months - 0 for anyone who kept playing."""
+    if not longest_gap_days:
+        return 0.0
+    return max(0, longest_gap_days - NORMAL_GAP_DAYS) / 30.0
+
+
+def inactivity_adjustment(longest_gap_days: int | None, lam: float) -> float:
+    """R14: what a spell out costs, per month out. Fitted, and expected negative."""
+    return lam * months_out(longest_gap_days)
+
+
 def predict_fm_from_recent(anchor: float, rating_deviation: float, lam: float) -> float:
     """R13: price a player whose only measured football is `recent_form`, elsewhere.
 
