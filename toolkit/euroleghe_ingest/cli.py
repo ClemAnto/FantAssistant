@@ -68,8 +68,10 @@ def build_parser() -> argparse.ArgumentParser:
                            help="season to import, e.g. 2024-25 (repeatable; default: all)")
             p.add_argument("--refresh", action="store_true",
                            help="re-download league-seasons even if already present")
-            p.add_argument("--layer", choices=["season", "match", "all"], default="season",
-                           help="season aggregates (fast), the per-match layer (hours), or both")
+            p.add_argument("--layer", choices=["season", "match", "complete", "all"],
+                           default="season",
+                           help="season aggregates (fast), the per-match layer (hours), "
+                                "'complete' to add the matches the perimeter filter skipped, or both")
 
     return parser
 

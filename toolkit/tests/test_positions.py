@@ -136,6 +136,76 @@ def test_parse_round_uses_the_xref_and_keeps_the_real_matchday():
     assert match_date == "2023-09-29"
 
 
+def test_completion_merges_the_missing_matches_and_keeps_the_cached_ones(tmp_path, monkeypatch):
+    """The completion pass must ADD what the perimeter filter skipped without losing or duplicating
+    what is already cached - the round file is the only copy of those lineups."""
+    ctx = _ctx(tmp_path)
+    cached = {"league": "serie_a", "round": 3,
+              "events": [{"id": 111, "home": "Inter", "away": "Cremonese", "round": 3,
+                          "startTimestamp": 1_696_000_000}],
+              "lineups": {"111": {"home": [{"player": {"id": 30}, "substitute": False,
+                                            "statistics": {"rating": 7.0, "minutesPlayed": 90}}],
+                                  "away": []}}}
+    path = ctx.config.cache_dir / "sofascore_round_serie_a_2025-26_r3.json"
+    path.write_text(json.dumps(cached), encoding="utf-8")
+
+    round_three = {"events": [
+        # already cached: must not be fetched again
+        {"id": 111, "homeTeam": {"name": "Inter"}, "awayTeam": {"name": "Cremonese"},
+         "roundInfo": {"round": 3}, "status": {"type": "finished"}, "startTimestamp": 1_696_000_000},
+        # two non-perimeter clubs: the match the old filter dropped
+        {"id": 222, "homeTeam": {"name": "Lecce"}, "awayTeam": {"name": "Pisa"},
+         "roundInfo": {"round": 3}, "status": {"type": "finished"}, "startTimestamp": 1_696_100_000},
+        # not played yet: must be left alone
+        {"id": 333, "homeTeam": {"name": "Parma"}, "awayTeam": {"name": "Como"},
+         "roundInfo": {"round": 3}, "status": {"type": "notstarted"}},
+    ]}
+    # rounds 1-2 are already complete: their listing holds exactly what the cache holds
+    for other in (1, 2):
+        (ctx.config.cache_dir / f"sofascore_round_serie_a_2025-26_r{other}.json").write_text(
+            json.dumps({**cached, "round": other,
+                        "events": [{**cached["events"][0], "id": 100 + other, "round": other}],
+                        "lineups": {str(100 + other): cached["lineups"]["111"]}}), encoding="utf-8")
+    listings = {
+        1: {"events": [{"id": 101, "homeTeam": {"name": "Inter"}, "awayTeam": {"name": "Cremonese"},
+                        "roundInfo": {"round": 1}, "status": {"type": "finished"}}]},
+        2: {"events": [{"id": 102, "homeTeam": {"name": "Inter"}, "awayTeam": {"name": "Cremonese"},
+                        "roundInfo": {"round": 2}, "status": {"type": "finished"}}]},
+        3: round_three,
+    }
+    fetched: list[int] = []
+
+    monkeypatch.setattr(positions, "_client", lambda: _FakeSession())
+    monkeypatch.setattr(positions, "_polite_sleep", lambda *_a, **_k: None)
+    monkeypatch.setattr(positions, "resolve_season_id", lambda *_a, **_k: 77)
+    monkeypatch.setattr(
+        positions, "_get_json",
+        lambda _s, url, **_k: listings.get(int(url.rsplit("/", 1)[1])) if "/round/" in url else None)
+
+    def fake_lineups(_session, event_id, cancel_event=None):
+        fetched.append(event_id)
+        return {"home": [{"player": {"id": 31}, "substitute": False,
+                          "statistics": {"rating": 6.5, "minutesPlayed": 90}}], "away": []}
+
+    monkeypatch.setattr(positions, "_lineups_for", fake_lineups)
+    monkeypatch.setattr(positions, "MAX_ROUNDS", 3)
+
+    added = positions.complete_match_layer(ctx, ["serie_a"], ["2025-26"])
+
+    assert fetched == [222], "only the missing FINISHED match may be fetched"
+    assert added["matches"] == 1
+    merged = json.loads(path.read_text(encoding="utf-8"))
+    assert {str(event["id"]) for event in merged["events"]} == {"111", "222"}
+    assert set(merged["lineups"]) == {"111", "222"}
+    # the pre-existing lineup is untouched
+    assert merged["lineups"]["111"]["home"][0]["player"]["id"] == 30
+
+
+class _FakeSession:
+    def close(self):
+        pass
+
+
 def test_reingest_match_layer_is_idempotent(tmp_path):
     ctx = _ctx(tmp_path)
     ctx.conn.execute("INSERT INTO players(fc_id, canonical_name) VALUES (1, 'Nunez')")

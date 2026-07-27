@@ -299,6 +299,103 @@ def fetch_match_layer(ctx: Context, leagues, seasons, refresh: bool = False) -> 
     reingest_match_layer(ctx, seasons=seasons)
 
 
+def _lineups_for(session, event_id, cancel_event=None) -> dict | None:
+    """The two lineups of one match, in the shape the round cache stores."""
+    detail = _get_json(session, LINEUPS_ENDPOINT.format(eid=event_id))
+    if not detail:
+        return None
+    return {
+        side: [{"player": {k: (entry.get("player") or {}).get(k)
+                           for k in ("id", "name", "position", "dateOfBirthTimestamp")},
+                "substitute": entry.get("substitute"),
+                "position": entry.get("position"),
+                "statistics": entry.get("statistics") or {}}
+               for entry in (detail.get(side) or {}).get("players") or []]
+        for side in ("home", "away")
+    }
+
+
+def complete_match_layer(ctx: Context, leagues, seasons) -> dict[str, int]:
+    """Fill the matches the perimeter-driven scrape skipped: NON-perimeter vs NON-perimeter.
+
+    Why this exists (gate-motore-v1 §5): `download_round` only kept matches involving a perimeter
+    club, so a club outside the perimeter ended up with just its games AGAINST the strong teams - 18
+    of 38 in Serie A - and its players' FM-equivalent came out biased low by 0.05 (defenders) to 0.22
+    (forwards). Measuring a season on its hardest half is not a smaller sample, it is a different one.
+
+    Incremental on purpose: each round's cached payload is READ, the round listing tells us which
+    finished matches are missing from it, and only those lineups are fetched and merged back. Cost is
+    one listing per round plus one request per missing match, instead of re-downloading everything.
+    """
+    session = _client()
+    added = {"rounds": 0, "matches": 0, "requests": 0}
+    try:
+        for season in seasons:
+            for league in leagues:
+                season_id = None
+                for rnd in range(1, MAX_ROUNDS + 1):
+                    if ctx.cancelled():
+                        raise KeyboardInterrupt
+                    cache = ctx.config.cache_dir / f"sofascore_round_{league}_{season}_r{rnd}.json"
+                    payload = None
+                    if cache.exists():
+                        try:
+                            payload = json.loads(cache.read_text(encoding="utf-8"))
+                        except (OSError, json.JSONDecodeError):
+                            payload = None
+                    if season_id is None:
+                        _polite_sleep(ctx.cancel_event)
+                        season_id = resolve_season_id(session, league, season)
+                        added["requests"] += 1
+                        if season_id is None:
+                            print(f"[positions] {league} {season}: season not found upstream")
+                            break
+                    _polite_sleep(ctx.cancel_event)
+                    listing = _get_json(
+                        session, ROUND_ENDPOINT.format(tid=TOURNAMENTS[league], sid=season_id,
+                                                       rnd=rnd))
+                    added["requests"] += 1
+                    if not listing or not listing.get("events"):
+                        print(f"[positions] {league} {season}: no events at round {rnd}, stopping")
+                        break
+                    payload = payload or {"league": league, "round": rnd, "events": [],
+                                          "lineups": {}}
+                    known = {str(event.get("id")) for event in payload["events"]}
+                    missing = [event for event in listing["events"]
+                               if (event.get("status") or {}).get("type") == "finished"
+                               and str(event.get("id")) not in known]
+                    if not missing:
+                        continue
+                    for event in missing:
+                        if ctx.cancelled():
+                            raise KeyboardInterrupt
+                        _polite_sleep(ctx.cancel_event)
+                        lineups = _lineups_for(session, event.get("id"), ctx.cancel_event)
+                        added["requests"] += 1
+                        if not lineups:
+                            continue
+                        payload["events"].append({
+                            "id": event.get("id"),
+                            "home": (event.get("homeTeam") or {}).get("name") or "",
+                            "away": (event.get("awayTeam") or {}).get("name") or "",
+                            "round": (event.get("roundInfo") or {}).get("round") or rnd,
+                            "startTimestamp": event.get("startTimestamp"),
+                        })
+                        payload["lineups"][str(event.get("id"))] = lineups
+                        added["matches"] += 1
+                    _atomic_write_text(cache, json.dumps(payload, ensure_ascii=False))
+                    added["rounds"] += 1
+                    print(f"[positions] {league} {season} r{rnd}: +{len(missing)} matches "
+                          f"(now {len(payload['events'])}) · {added['matches']} added so far")
+    except KeyboardInterrupt:
+        print("[positions] interrupted - every merged round is already on disk, rerun to continue")
+    finally:
+        session.close()
+    print(f"[positions] completion: +{added['matches']} matches over {added['rounds']} rounds "
+          f"({added['requests']} requests)")
+    return added
+
+
 def reingest_match_layer(ctx: Context, seasons=None) -> None:
     """Rebuild external_match_stats offline from the cached round payloads."""
     conn = ctx.require_conn()
@@ -719,10 +816,15 @@ def run(ctx: Context, *, leagues=None, seasons=None, refresh: bool = False,
     unknown = [league for league in leagues if league not in TOURNAMENTS]
     if unknown:
         raise RuntimeError(f"Unknown league(s) {unknown}; choose from {sorted(TOURNAMENTS)}")
-    if layer not in ("season", "match", "all"):
-        raise RuntimeError(f"Unknown layer {layer!r}; choose from season|match|all")
+    if layer not in ("season", "match", "complete", "all"):
+        raise RuntimeError(f"Unknown layer {layer!r}; choose from season|match|complete|all")
 
     ctx.config.cache_dir.mkdir(parents=True, exist_ok=True)
+    if layer == "complete":
+        complete_match_layer(ctx, leagues, seasons)
+        reingest_match_layer(ctx, seasons=seasons)
+        derive_roles_from_match_layer(ctx)
+        return
     if layer == "match":
         fetch_match_layer(ctx, leagues, seasons, refresh)
         derive_roles_from_match_layer(ctx)
