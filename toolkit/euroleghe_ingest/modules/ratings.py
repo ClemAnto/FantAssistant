@@ -270,6 +270,8 @@ def parse_listone(data: bytes, season: str) -> list[dict]:
                     "price_initial": _num(cell("Qt.I")),
                     "fvm": _num(cell("FVM")),
                     "fvm_mantra": _num(cell("FVM M")),
+                    "price_mantra": _num(cell("Qt.A M")),
+                    "price_initial_mantra": _num(cell("Qt.I M")),
                 })
         return out
     finally:
@@ -357,8 +359,9 @@ def upsert_listone(conn, season: str, records: list[dict], platform: str = DEFAU
         conn.execute(
             """
             INSERT INTO rosters(fc_id, season, fc_club_id, roles, role_classic, league,
-                                price, price_initial, fvm, fvm_mantra)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                price, price_initial, fvm, fvm_mantra,
+                                price_mantra, price_initial_mantra)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(fc_id, season) DO UPDATE SET
                 roles         = COALESCE(excluded.roles, rosters.roles),
                 role_classic  = COALESCE(excluded.role_classic, rosters.role_classic),
@@ -366,11 +369,15 @@ def upsert_listone(conn, season: str, records: list[dict], platform: str = DEFAU
                 price_initial = COALESCE(excluded.price_initial, rosters.price_initial),
                 fvm           = COALESCE(excluded.fvm, rosters.fvm),
                 fvm_mantra    = COALESCE(excluded.fvm_mantra, rosters.fvm_mantra),
+                price_mantra  = COALESCE(excluded.price_mantra, rosters.price_mantra),
+                price_initial_mantra = COALESCE(excluded.price_initial_mantra,
+                                                rosters.price_initial_mantra),
                 fc_club_id    = COALESCE(excluded.fc_club_id, rosters.fc_club_id),
                 league        = COALESCE(rosters.league, excluded.league)
             """,
             (rec["fc_id"], season, club_id, roles, rec["role_classic"], league,
-             rec["price"], rec.get("price_initial"), rec.get("fvm"), rec.get("fvm_mantra")),
+             rec["price"], rec.get("price_initial"), rec.get("fvm"), rec.get("fvm_mantra"),
+             rec.get("price_mantra"), rec.get("price_initial_mantra")),
         )
         n += 1
     return n

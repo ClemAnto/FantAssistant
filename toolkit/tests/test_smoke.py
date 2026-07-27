@@ -148,10 +148,11 @@ def test_auction_view_tab_exists_and_labels_every_role():
         assert role in gui.AuctionView.ROLE_LABELS, role
 
 
-def test_auction_tab_offers_mantra_only_where_it_exists():
-    """Mantra is a EuroLeghe dimension: the classic Serie A game has no Mantra roles, and the CLI
-    already refuses that combination. The panel must not offer what the CLI will not run."""
+def test_auction_tab_offers_both_games_on_both_platforms():
+    """Mantra is played on the classic Serie A game too - its listone carries RM, Qt.A M, Qt.I M and
+    FVM M, and rosters.roles holds the Serie A Mantra roles. The panel must offer what the data
+    supports, and the gate must not skip the combination."""
     from euroleghe_ingest import gui
 
-    assert gui.AuctionView.GAMES["default"] == ("classic",)
-    assert set(gui.AuctionView.GAMES["euro"]) == {"classic", "mantra"}
+    for platform in ("euro", "default"):
+        assert set(gui.AuctionView.GAMES[platform]) == {"classic", "mantra"}

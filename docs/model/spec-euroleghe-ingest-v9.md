@@ -231,19 +231,29 @@ Tre vincoli che la vista rispetta per costruzione:
 1. **Stessa strada del gate**: chiama `evaluate.auction_view` con il set adottato e i parametri
    cross-fitted (compreso il pooling di `POOLED_PARAMS`), quindi pannello e `backtest --auction` non
    possono divergere.
-2. **`mantra` solo su `euro`**: il game classico di Serie A non ha ruoli Mantra e il CLI già rifiuta
-   quella combinazione; il selettore non offre ciò che il CLI non esegue.
+2. **Entrambi i game su entrambe le piattaforme.** Il Mantra si gioca anche sul campionato classico di
+   Serie A: il suo listone porta l'intero apparato Mantra (`RM`, `Qt.A M`, `Qt.I M`, `FVM M`) e
+   `rosters.roles` tiene i ruoli Mantra di 641-751 giocatori di Serie A ogni stagione dal 18/19.
+   L'affermazione «i ruoli Mantra esistono solo sul listone euro» era **sbagliata** e spegneva una
+   combinazione che i dati supportano interamente: il gate la saltava, la GUI non la offriva. Corretta
+   in tutti e tre i punti. Serie A/Mantra su T2: **52/120 nomi, 82% del VALORE perfetto**.
 3. **Solo le stagioni con una finestra utilizzabile**: servono voti su *entrambi* i lati (ingresso e
    bersaglio). Serie A ne ha 7, euro 4 — il buco EuroLeghe del 21/22 ne toglie due.
 
 Il calcolo gira in un thread (il motore stima i parametri di ogni finestra) ed è messo in cache per
 piattaforma+game, che è l'unità in cui il costo si paga: cambiare stagione dopo è istantaneo.
 
-### Nuove colonne `rosters.fvm` / `rosters.fvm_mantra`
+### Nuove colonne `rosters.fvm` / `fvm_mantra` / `price_mantra` / `price_initial_mantra`
 
 L'Excel del listone porta **FVM** e **FVM M** accanto a `Qt.A`/`Qt.I` (già letti e scartati).
 Ora sono in `rosters`, con migrazione additiva (`ADDED_COLUMNS`) e riapplicati offline dalla cache.
 Come `Qt.A`, per una stagione conclusa l'FVM è il valore di **fine stagione**: colonna di
 **rendicontazione, mai un input del modello** — sta dalla parte sbagliata della data d'asta per
 costruzione, ed è per questo che `feature_availability` la elenca con quell'etichetta.
-Copertura: 641/1291/1383/1471/1459/1515/1467/1395 righe dal 18/19 al 25/26.
+Salvate anche le due quotazioni in **valuta Mantra** (`Qt.A M` / `Qt.I M`): un'asta si compra nella
+valuta del proprio game, e la vista Mantra mostra Qt.I M e FVM M invece dei corrispondenti Classic.
+Non sono identiche a quelle Classic (Douvikas 25/26: Qt.I 8, Qt.I M 7). Anche queste sono di sola
+rendicontazione: `price_initial_mantra` **sarebbe** l'input onesto per una regola di attesa di mercato
+sotto Mantra, e agganciarla a una regola è una **pre-registrazione**, non un dettaglio da far passare
+dietro un cambio di visualizzazione.
+Copertura, identica per tutte e quattro: 641/1291/1383/1471/1459/1515/1467/1395 righe dal 18/19 al 25/26.

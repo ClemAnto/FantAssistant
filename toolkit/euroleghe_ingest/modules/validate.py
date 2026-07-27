@@ -32,7 +32,8 @@ ALLOWED_EMPTY: dict[str, set[str]] = {
     "player_xref": {"valid_from", "valid_to"},
     "club_xref": {"valid_from", "valid_to"},
     # quotations and FVM all come from the listone: a roster rebuilt from the votes alone has none
-    "rosters": {"price", "price_initial", "fvm", "fvm_mantra"},
+    "rosters": {"price", "price_initial", "fvm", "fvm_mantra",
+                "price_mantra", "price_initial_mantra"},
     "season_stats": {"own_goals"},  # own goals only in the 25/26 Excel, not in the CSVs
     # future/enrichment fields + source-/season-dependent event columns that can be legitimately all
     # empty on a partial scrape (a raise here would abort an otherwise-good rebuild).

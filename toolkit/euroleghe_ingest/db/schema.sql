@@ -59,6 +59,13 @@ CREATE TABLE IF NOT EXISTS rosters (
     -- question the engine answers with the predicted VALUE, and the two belong side by side.
     fvm            REAL,
     fvm_mantra     REAL,
+    -- The same two quotations in the MANTRA currency (Qt.A M / Qt.I M). Mantra is played on both
+    -- platforms - the Serie A listone carries RM, Qt.A M, Qt.I M and FVM M like the EuroLeghe one - and
+    -- an auction is bought in the currency of its own game. `price_mantra` is hindsight for a past
+    -- season, `price_initial_mantra` is pre-auction and would be the honest input for a Mantra
+    -- market-expectation rule; today both are reporting columns and no rule reads them.
+    price_mantra         REAL,
+    price_initial_mantra REAL,
     PRIMARY KEY (fc_id, season)
 );
 

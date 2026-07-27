@@ -1599,6 +1599,10 @@ def auction_view(data: features.WindowData, predictions: list[Prediction],
             """The market's own end-of-season answer, in the game's own currency."""
             return obs.fvm_mantra if _game == "mantra" else obs.fvm
 
+        def asked(obs, _game=data.game):
+            """What the market asked for him BEFORE the auction, in the same currency."""
+            return obs.price_initial_mantra if _game == "mantra" else obs.price_initial
+
         captured = sum(p.obs.value_act or 0.0 for p in ranked[:top_n])
         perfect = sum(obs.value_act or 0.0 for obs in actual[:top_n])
         out[role] = {
@@ -1619,7 +1623,7 @@ def auction_view(data: features.WindowData, predictions: list[Prediction],
             },
             "predicted": [{
                 "rank": index, "name": p.obs.name, "club": p.obs.club_target,
-                "price_initial": p.obs.price_initial,
+                "price_initial": asked(p.obs),
                 "fm_pred": _round(p.fm_pred, 2), "pv_pred": _round(p.pv_pred, 1),
                 "value_pred": _round(p.value_pred, 1),
                 "fm_act": p.obs.fm_act, "pv_act": p.obs.pv_act,
@@ -1628,7 +1632,7 @@ def auction_view(data: features.WindowData, predictions: list[Prediction],
             } for index, p in enumerate(ranked[:top_n], 1)],
             "actual": [{
                 "rank": index, "name": obs.name, "club": obs.club_target,
-                "price_initial": obs.price_initial,
+                "price_initial": asked(obs),
                 "fm_act": obs.fm_act, "pv_act": obs.pv_act,
                 "value_act": _round(obs.value_act, 1), "fvm": market(obs),
                 "fm_pred": _round(by_id[obs.fc_id].fm_pred, 2) if obs.fc_id in by_id else None,
@@ -1697,9 +1701,9 @@ def run(ctx: Context, *, windows: list[str] | None = None, platforms: list[str] 
 
     for platform in platform_keys:
         for game in game_keys:
-            # Mantra roles only exist on the euro listone; `default` is the classic Serie A game.
-            if platform == "default" and game == "mantra":
-                continue
+            # No platform/game combination is skipped: Mantra is played on the classic Serie A game
+            # too, and its listone carries the whole Mantra apparatus (RM, Qt.A M, Qt.I M, FVM M).
+            # `rosters.roles` has held 641-751 Serie A players' Mantra roles every season since 18/19.
             if auction:
                 # The auction simulation: the ADOPTED set, parameters fitted on the OTHER window, so
                 # nothing in the prediction comes from the season being predicted.

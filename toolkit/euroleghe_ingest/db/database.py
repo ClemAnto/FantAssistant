@@ -26,6 +26,8 @@ ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("rosters", "price_initial", "REAL"),
     ("rosters", "fvm", "REAL"),
     ("rosters", "fvm_mantra", "REAL"),
+    ("rosters", "price_mantra", "REAL"),
+    ("rosters", "price_initial_mantra", "REAL"),
 )
 
 

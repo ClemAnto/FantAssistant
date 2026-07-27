@@ -903,11 +903,11 @@ class AuctionView(ttk.Frame):
     priced in the third hundred, or noise between comparable names.
     """
 
-    # Mantra is a EuroLeghe thing: the classic Serie A game has no Mantra roles, and offering the
-    # combination would compute a ranking for a game nobody plays. The CLI skips it for the same
-    # reason - `platform == "default" and game == "mantra"` never runs.
+    # Both games on both platforms. Mantra is played on the classic Serie A game as well, and its
+    # listone carries the whole Mantra apparatus - the earlier "euro only" restriction was wrong and
+    # was switching off a combination the data fully supports.
     GAMES: ClassVar[dict[str, tuple[str, ...]]] = {
-        "euro": ("classic", "mantra"), "default": ("classic",)}
+        "euro": ("classic", "mantra"), "default": ("classic", "mantra")}
 
     ROLE_LABELS: ClassVar[dict[str, str]] = {
         "P": "Goalkeepers", "D": "Defenders", "C": "Midfielders", "A": "Forwards",
