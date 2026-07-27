@@ -118,6 +118,23 @@ def test_metrics_separate_coverage_of_value_and_appearances(prepared):
     assert report["share_coeffs"][1] == pytest.approx(0.50)        # published coefficients by default
 
 
+def test_auction_view_lists_both_sides_and_agrees_with_the_score(prepared):
+    """The named comparison must be the same fact as the "n/10" the gate prints."""
+    _cfg, _conn, _window, data = prepared
+    predictions = evaluate.predict_window(data, ("R0",))
+    view = evaluate.auction_view(data, predictions, top_n=2)
+    metrics = evaluate.evaluate_window(data, ("R0",), predictions=predictions)
+    for role, block in view.items():
+        assert block["hits"] == len({row["name"] for row in block["predicted"]}
+                                    & {row["name"] for row in block["actual"]})
+        assert block["hits"] <= metrics["by_role"][role]["top_n"]["hits"]   # top 2 within top 10
+        # a real top-N player the engine never priced is reported as such, not silently dropped
+        for row in block["actual"]:
+            assert ("value_pred" in row) and ("predicted_rank" in row)
+        assert [row["rank"] for row in block["predicted"]] == list(
+            range(1, len(block["predicted"]) + 1))
+
+
 def test_target_season_flags_and_late_states_are_invisible(prepared):
     """The look-ahead audit, pinned: only what predates the auction may reach an Observation."""
     _cfg, conn, window, _data = prepared

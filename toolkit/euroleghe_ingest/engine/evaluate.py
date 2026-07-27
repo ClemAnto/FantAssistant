@@ -1416,12 +1416,105 @@ def _print_cases(data: features.WindowData, predictions: list[Prediction]) -> No
         print(f"    {name:<16} FM {fm} Pv {pv} VALUE {value} | actual {actual}{delta}")
 
 
+def auction_view(data: features.WindowData, predictions: list[Prediction],
+                 top_n: int = TOP_N) -> dict:
+    """Per role: the predicted top N and the real top N, each annotated with the other's rank.
+
+    Two lists rather than one score. A precision of 6/10 hides whether the four misses were injuries,
+    players the engine could not price at all, or ranking noise between comparable names - and only the
+    named comparison shows which.
+    """
+    out: dict[str, dict] = {}
+    for role in model.CLASSIC_ROLES:
+        observations = [obs for obs in data.observations if obs.role_classic == role]
+        valued = [p for p in predictions
+                  if p.obs.role_classic == role and p.value_pred is not None]
+        if not observations:
+            continue
+        ranked = sorted(valued, key=lambda p: -(p.value_pred or 0.0))
+        predicted_rank = {p.obs.fc_id: index for index, p in enumerate(ranked, 1)}
+        by_id = {p.obs.fc_id: p for p in valued}
+        actual = sorted((obs for obs in observations if obs.value_act is not None),
+                        key=lambda obs: -(obs.value_act or 0.0))
+        actual_rank = {obs.fc_id: index for index, obs in enumerate(actual, 1)}
+
+        # What buying the engine's ten would have RETURNED, against what the perfect ten returned.
+        # Precision counts names and treats every miss alike; this counts points, so missing the tenth
+        # defender costs what the tenth defender was worth. It is the closest thing the harness has to
+        # the question the auction actually asks.
+        captured = sum(p.obs.value_act or 0.0 for p in ranked[:top_n])
+        perfect = sum(obs.value_act or 0.0 for obs in actual[:top_n])
+        out[role] = {
+            "n_actual": len(actual),
+            "hits": len({p.obs.fc_id for p in ranked[:top_n]}
+                        & {obs.fc_id for obs in actual[:top_n]}),
+            "captured_value": _round(captured, 1),
+            "perfect_value": _round(perfect, 1),
+            "captured_share": _round(captured / perfect, 3) if perfect else None,
+            # a miss is one of three different problems, and they need different fixes
+            "misses": {
+                "near": sum(1 for obs in actual[:top_n]
+                            if top_n < (predicted_rank.get(obs.fc_id) or 10**6) <= REGIME_RANK),
+                "regime": sum(1 for obs in actual[:top_n]
+                              if obs.fc_id in predicted_rank
+                              and predicted_rank[obs.fc_id] > REGIME_RANK),
+                "unpriced": sum(1 for obs in actual[:top_n] if obs.fc_id not in predicted_rank),
+            },
+            "predicted": [{
+                "rank": index, "name": p.obs.name, "club": p.obs.club_target,
+                "price_initial": p.obs.price_initial,
+                "fm_pred": _round(p.fm_pred, 2), "pv_pred": _round(p.pv_pred, 1),
+                "value_pred": _round(p.value_pred, 1),
+                "fm_act": p.obs.fm_act, "pv_act": p.obs.pv_act,
+                "value_act": _round(p.obs.value_act, 1),
+                "actual_rank": actual_rank.get(p.obs.fc_id),
+            } for index, p in enumerate(ranked[:top_n], 1)],
+            "actual": [{
+                "rank": index, "name": obs.name, "club": obs.club_target,
+                "price_initial": obs.price_initial,
+                "fm_act": obs.fm_act, "pv_act": obs.pv_act,
+                "value_act": _round(obs.value_act, 1),
+                "fm_pred": _round(by_id[obs.fc_id].fm_pred, 2) if obs.fc_id in by_id else None,
+                "pv_pred": _round(by_id[obs.fc_id].pv_pred, 1) if obs.fc_id in by_id else None,
+                "value_pred": _round(by_id[obs.fc_id].value_pred, 1) if obs.fc_id in by_id else None,
+                "predicted_rank": predicted_rank.get(obs.fc_id),
+            } for index, obs in enumerate(actual[:top_n], 1)],
+        }
+    return out
+
+
+def _print_auction(data: features.WindowData, view: dict, rules: tuple[str, ...]) -> None:
+    print(f"\n=== {data.window.label} · {data.platform}/{data.game} · "
+          f"{', '.join(rules[1:]) or 'baseline only'} ===")
+    for role, block in view.items():
+        misses = block["misses"]
+        print(f"\n  {role} - predicted top {TOP_N} (auction day) vs real top {TOP_N} "
+              f"(end of season) · hits {block['hits']}/{TOP_N} · "
+              f"VALUE captured {block['captured_value']:.0f} of {block['perfect_value']:.0f} "
+              f"({(block['captured_share'] or 0) * 100:.0f}%) · misses: {misses['near']} near, "
+              f"{misses['regime']} regime, {misses['unpriced']} never priced")
+        print(f"    {'#':>2}  {'PREDICTED':<20} {'Qt.I':>4} {'FMp':>5} {'Pvp':>5} {'VALp':>6} "
+              f"{'real':>6} {'#real':>6}   {'#':>2}  {'REAL':<20} {'FM':>5} {'Pv':>4} "
+              f"{'VAL':>6} {'#pred':>6}")
+        for left, right in zip(block["predicted"], block["actual"], strict=False):
+            got = "  -  " if left["value_act"] is None else f"{left['value_act']:6.0f}"
+            actual_rank = "   -" if left["actual_rank"] is None else f"{left['actual_rank']:4d}"
+            pred_rank = ("  n/p" if right["predicted_rank"] is None
+                         else f"{right['predicted_rank']:4d}")
+            print(f"    {left['rank']:2d}  {left['name'][:20]:<20} "
+                  f"{(left['price_initial'] or 0):4.0f} {left['fm_pred'] or 0:5.2f} "
+                  f"{left['pv_pred'] or 0:5.1f} {left['value_pred'] or 0:6.0f} {got} {actual_rank:>6}"
+                  f"   {right['rank']:2d}  {right['name'][:20]:<20} {right['fm_act'] or 0:5.2f} "
+                  f"{right['pv_act'] or 0:4d} {right['value_act'] or 0:6.0f} {pred_rank:>6}")
+
+
 # ---------------------------------------------------------------- entry point
 
 
 def run(ctx: Context, *, windows: list[str] | None = None, platforms: list[str] | None = None,
         games: list[str] | None = None, rules: str | None = None, cases: bool = False,
-        verify: bool = False, gate: bool = False, report: bool = True) -> dict:
+        verify: bool = False, gate: bool = False, auction: bool = False,
+        report: bool = True) -> dict:
     """Run the harness. Read-only on the DB: the only output is a report under data/reports/."""
     conn = ctx.require_conn()
     selected_rules = parse_rules(rules)
@@ -1429,7 +1522,11 @@ def run(ctx: Context, *, windows: list[str] | None = None, platforms: list[str] 
     platform_keys = platforms or ["euro", "default"]
     game_keys = games or ["classic", "mantra"]
 
-    print(f"[backtest] rules {', '.join(selected_rules)} · windows {', '.join(window_keys)} · "
+    # --gate and --auction choose their own rule sets (every candidate, and the adopted set), so
+    # echoing --rules there would describe a configuration that is not the one being run.
+    chosen = ("every candidate rule" if gate else "the adopted set per platform" if auction
+              else ", ".join(selected_rules))
+    print(f"[backtest] rules {chosen} · windows {', '.join(window_keys)} · "
           f"platforms {', '.join(platform_keys)} · games {', '.join(game_keys)}")
     output: dict = {"generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
                     "rules": list(selected_rules), "windows": []}
@@ -1443,6 +1540,21 @@ def run(ctx: Context, *, windows: list[str] | None = None, platforms: list[str] 
         for game in game_keys:
             # Mantra roles only exist on the euro listone; `default` is the classic Serie A game.
             if platform == "default" and game == "mantra":
+                continue
+            if auction:
+                # The auction simulation: the ADOPTED set, parameters fitted on the OTHER window, so
+                # nothing in the prediction comes from the season being predicted.
+                active = ("R0", *ADOPTED.get(platform, ()))
+                for key in window_keys:
+                    data = features.prepare(conn, features.WINDOWS[key], platform, game)
+                    other = next(name for name in features.WINDOWS if name != key)
+                    params = fit_params(features.prepare(
+                        conn, features.WINDOWS[other], platform, game), ("R0", *CANDIDATES))
+                    view = auction_view(data, predict_window(data, active, None, params))
+                    _print_auction(data, view, active)
+                    output.setdefault("auction", []).append({
+                        "window": key, "platform": platform, "game": game,
+                        "rules": list(active), "params_from": params.source, "by_role": view})
                 continue
             if gate:
                 # The gate owns its own windows: it needs both, to fit on one and score on the other.
