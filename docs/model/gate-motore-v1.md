@@ -2,7 +2,8 @@
 
 **Chiuso: 27 luglio 2026** · Documento autosufficiente: cosa è stato provato, con che protocollo, con
 che numeri, e cosa NON va riproposto.
-*Glossario: B0 = motore attuale (baseline) · T1/T2 = finestre 23/24→24/25 e 24/25→25/26 · cross-fit =
+*Glossario: B0 = motore attuale (baseline) · finestre **Tm7…T2**, dieci su Serie A (dal 15/16→16/17) e
+cinque su euro · T1/T2 = 23/24→24/25 e 24/25→25/26, le due su cui il gate è stato scritto · cross-fit =
 parametri stimati su una finestra e applicati all'altra · campione comune = i giocatori che entrambe le
 configurazioni prezzano · VALORE = FM × presenze.*
 
@@ -472,6 +473,54 @@ Su Serie A il set tiene su **tutte e 7** le finestre (media +8.9%, peggior fines
 passata conta: **SofaScore sulle stagioni 19/20-22/23**, perché senza i minuti storici le finestre
 vecchie sono cieche esattamente sulle regole che il motore usa — ed è per questo che R4, R7-euro e R10
 sono sopravvissute così a lungo.
+
+## 3-sexies. La passata eseguita (27 luglio 2026) — **10 finestre Serie A, 5 euro**
+
+Fatta la passata che l'audit indicava, nell'ordine costo/beneficio che indicava.
+
+| Passata | Costo reale | Cosa ha dato |
+|---|---|---|
+| voti euro **18/19** | ~27 download | euro guadagna **Tm4**: 566 righe stagionali, 564 con FM |
+| voti Serie A **17/18, 16/17, 15/16** | ~114 download | Serie A passa a **10 finestre** (Tm7…T2) |
+| **layer stagionale SofaScore 19/20-22/23** | ~6 richieste per lega-stagione, **20 minuti in tutto** | `external_stats` da 3 a **7 stagioni** (1161-1372 righe l'una): è ciò che serviva a R3 |
+| layer per-partita 19/20-22/23 | ore, in corso in background | serve solo a R3c (minuti sul calendario euro) e alle misure di inattività |
+| `arrivals`, `new_coach`, `matchday_map` | offline | 11 e 11 stagioni, `matchday_map` anche sul 18/19 |
+
+**Il layer stagionale costava venti minuti, non ore.** Era la voce marcata «priorità 1» e la stima di
+«~1300 richieste/stagione» era sbagliata di due ordini di grandezza: `download_season_stats` è paginata,
+sei richieste per lega-stagione. La lezione pratica: **misurare il costo di una passata prima di
+rimandarla** — questa è stata rinviata per una stima a occhio.
+
+### Esito su 10 finestre (Serie A)
+
+| Regola | finestre | esito | numeri |
+|---|---|---|---|
+| **ADOPTED** R3+R7+R13 | 10/10 | ✅ **tiene su tutte** | media **+7.4%**, peggior finestra **+2.5%**, top-10 mai peggiore |
+| **R7** portieri (coeff. in comune) | 10 | ✅ robusta, ✗ stretta | **nessuna finestra va contro**: −6.7 −7.1 −3.4 −10.7 −10.4 −0.0 −1.0 −14.5 −11.3 −18.1% · media +8.3% |
+| **R3** minuti | 6 (cieca su Tm7-Tm4) | ✅ **6/6** | media **+3.7%**, peggiore +0.8% — era misurata su 2 finestre, ora su 6 |
+| R10 nuovo allenatore | 10 | ❌ | 7/10, media +1.4%, peggiore **−6.3%** |
+| R4 età | 10 | ❌ **decisa** | **1/10**, media −5.0%, peggiore **−19.6%** |
+| R11 / R11b concorrenza | 10 | ❌ | 0/10 entrambe |
+| R12 / R12b mercato | 10 | ❌ | 4/10 e 5/10, media ≈ 0 |
+| R1b sconto adattamento | 10 | ❌ | 3/10, peggiore −14.2% |
+
+**R7 va guardata bene**: con dieci finestre e il coefficiente messo in comune, **nessuna finestra va
+contro la regola**. Il criterio stretto la boccia solo perché una finestra (Tm2) guadagna +0.1%, sotto la
+soglia dello 0.5% — non per un segno sbagliato. È il caso in cui i due verdetti si separano e la lettura
+corretta è quella robusta: la persistenza dedicata ai portieri è un effetto **stabilito**, non una
+scommessa. Su Serie A resta adottata.
+
+**R4 e R10 sono ora bocciate senza margine di dubbio** (1/10 e 7/10 con una finestra a −6.3%): due
+regole che a due finestre sembravano fra le migliori del motore.
+
+### Esito su 5 finestre (euro: Tm4, Tm3, T0, T1, T2)
+
+Adottate: **R0c + R3c**, e R3c è ancora cieca su Tm4/Tm3/T0 perché i minuti sul **calendario euro**
+richiedono il layer per-partita (in corso). Tutto il resto cade: R7 3/5 con una finestra a −6.0%,
+R10 4/5 con una a −5.4%, R3 2/4, R12/R12b/R11/R11b 0-1 su 5.
+
+**Il quadro dell'euro non cambia finché il layer per-partita non è completo**: è l'unica cosa che possa
+rendere R3c misurabile su più di due finestre, e con essa R8, R11, R13 e R14.
 
 ## 4. Ipotesi FALSIFICATE — non riproporre senza finestre nuove
 

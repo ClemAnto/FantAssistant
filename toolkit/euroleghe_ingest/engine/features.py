@@ -57,11 +57,15 @@ class Window:
 # question asked out loud rather than a silent rejection.
 # Which of these are usable depends on the PLATFORM, and `_window_is_usable` decides it from the data
 # rather than from a list kept by hand. Serie A has votes in every one of them; EuroLeghe is split in two
-# by a hole at 2021-22 (votes exist for 2020-21 and for 2022-23, not in between): on euro Tm3 is a valid
-# window, while Tm2 (whose target is the empty season) and Tm1 (whose input is) are not. Confirmed by the
-# ingest, not assumed: euro 2019-20 has 803 season rows all with a fantamedia, 2020-21 has 904 of 938,
-# 2021-22 has 954 rows and NOT ONE.
+# by a hole at 2021-22 (votes exist for 2020-21 and for 2022-23, not in between): on euro Tm2 (whose
+# target is the empty season) and Tm1 (whose input is) are not windows, and Tm5-Tm7 have no euro seasons
+# behind them at all. Confirmed by the ingest, not assumed: euro 2019-20 has 803 season rows all with a
+# fantamedia, 2020-21 has 904 of 938, 2021-22 has 954 rows and NOT ONE.
+# Serie A has votes in all eleven seasons from 2015-16, so it gets ten windows; euro gets five.
 WINDOWS: dict[str, Window] = {
+    "Tm7": Window("Tm7", "2015-16", "2016-17", "2016-08-15"),
+    "Tm6": Window("Tm6", "2016-17", "2017-18", "2017-08-15"),
+    "Tm5": Window("Tm5", "2017-18", "2018-19", "2018-08-15"),
     "Tm4": Window("Tm4", "2018-19", "2019-20", "2019-08-15"),
     "Tm3": Window("Tm3", "2019-20", "2020-21", "2020-09-15"),   # COVID: 20/21 kicked off in September
     "Tm2": Window("Tm2", "2020-21", "2021-22", "2021-08-15"),

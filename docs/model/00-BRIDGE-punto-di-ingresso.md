@@ -112,6 +112,18 @@ Documento dedicato, con tutti i numeri e le ipotesi falsificate: **`gate-motore-
   esce (3/4 ma solo +1.9-3.3%, sfora il non-danno, pareggio sulla metrica d'asta).
   Set adottati ora: **euro R0c+R3c+R10 · Serie A R3+R7+R13**. Il set Serie A migliora il MAE di VALORE
   su **tutte e sette** le finestre e non perde mai una posizione top-10 (91→96 nomi).
+- **PASSATA ESEGUITA (§3-sexies)**: voti euro 18/19 + Serie A 17/18-15/16 e **layer stagionale
+  SofaScore su 19/20-22/23**. Ora **10 finestre su Serie A e 5 su euro**. Il layer stagionale è costato
+  **20 minuti**, non ore: `download_season_stats` è paginata, 6 richieste per lega-stagione — la stima
+  «~1300 richieste/stagione» era sbagliata di due ordini di grandezza, e per quella stima la passata era
+  stata rinviata. Esito: **il set Serie A (R3+R7+R13) tiene su tutte e 10 le finestre** (media +7.4%,
+  peggiore +2.5%, top-10 mai peggiore) · **R3 passa 6/6** (era misurata su 2) · **R7 non ha una sola
+  finestra contro** su 10 (media +8.3%; il criterio stretto la boccia solo per una finestra a +0.1%,
+  sotto la soglia dello 0.5%) · **R4 bocciata 1/10** e **R10 7/10 con una finestra a −6.3%**: due regole
+  che a due finestre sembravano fra le migliori. Sull'euro restano R0c+R3c, e R3c è cieca su 3 finestre
+  su 5 finché il **layer per-partita** (in corso, ore) non copre le stagioni vecchie.
+  Backup: `scripts/backup-data.ps1` specchia `data/` fuori dal repo — la cache è in `.gitignore`
+  (e deve restarci: gli Excel vietano la ripubblicazione e questo repo è pubblico).
 - **AUDIT DEI DATI (§3-quinquies)**: lo strato voti è completo (15 coppie stagione-piattaforma,
   218.672 righe, `validate` a 5195 giocatori consistenti) e **non serve altro scraping per i voti**.
   Due input non mancavano, erano solo **non ricalcolati**: `flags.new_coach` (da `coaches`, che risale
