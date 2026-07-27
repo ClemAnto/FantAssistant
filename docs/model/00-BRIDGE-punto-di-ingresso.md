@@ -96,15 +96,19 @@ Documento dedicato, con tutti i numeri e le ipotesi falsificate: **`gate-motore-
   (nessun termine gol subiti → ora NULL) e il **prezzo era di fine stagione** (`Qt.A`): ora c'è
   `rosters.price_initial` = `Qt.I`, la quotazione d'asta, e i tier degli arrivi la usano.
 
+## LAYER PER-PARTITA COMPLETATO — FATTO (27 luglio 2026)
+`positions --layer complete` (merge incrementale sulla cache) ha portato il layer da 3.314 a **5.254
+partite su 5.256 = 100%** di tutte e 5 le leghe × 3 stagioni; `external_match_stats` a 110.597 righe.
+**Il bias di selezione è sparito**: 0 club con layer incompleto contro 12/12/11. L'FM-equivalente degli
+attaccanti dimezza il MAE (0.249 → 0.133) e passa dal 67% al **94%** entro 0.3 dalla fantamedia reale.
+Le feature di input del motore ora si aggregano dal layer per-partita (identità indipendente dalla
+stagione) e non dagli aggregati stagionali: **copertura euro dal 31% al 42-43%** del listone, **β_new
+raddoppia** (0.19 → 0.43), Ezzalzouli passa da fuori-classifica a VALORE 110. Set adottati invariati.
+Due verdetti corretti (R2 e R8: l'instabilità di segno era dei dati) e un effetto vero con l'etichetta
+sbagliata da ri-pre-registrare — tutto in `gate-motore-v1.md` §5-bis.
+
 ## PROSSIMO LAVORO
-1. **Completare il layer per-partita su TUTTI i club delle 5 leghe.** Oggi è scaricato seguendo le
-   partite del perimetro: i 9 club Serie A del perimetro hanno 38 giornate, **gli altri 11 esattamente
-   18** (le partite contro il perimetro). Chi è fuori perimetro è quindi misurato solo contro le
-   squadre forti, e il suo FM-equivalente è distorto al ribasso (**A −0.22 · P −0.16 · C −0.08 ·
-   D −0.05**, peggiori Douvikas −1.17). È l'input di R1, e sbloccherebbe anche le **presenze** dei nuovi
-   entrati (oggi Ezzalzouli riceve una FM ma nessuna presenza → resta fuori dal ranking). Ore di rete,
-   ripartibile.
-2. **Storico `injuries`**: l'unico input della Priorità 1 ancora assente (Transfermarkt, una richiesta
+1. **Storico `injuries`**: l'unico input della Priorità 1 ancora assente (Transfermarkt, una richiesta
    per giocatore). Metà dei buchi nelle top-10 dei difensori sono infortuni.
 3. **Terza finestra**: verificare quanto indietro va l'API Excel dei voti. Con T0 = 22/23→23/24 i
    parametri che oggi oscillano (età −0.006/−0.016, δ_cross −0.04/+0.16) diventerebbero identificabili.

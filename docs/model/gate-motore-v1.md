@@ -72,20 +72,22 @@ diventa +1.3%. Nessuna regola nuova va promossa su quel decimale.
 | **R7** persistenza dedicata alle presenze dei portieri | ✅ | ✅ | persistenza **0.70 / 0.80** (contro 0.50 condiviso) |
 | **R3c** minuti sulle **giornate del calendario euro** | ✅ | ✅¹ | minuti **0.291 / 0.352** |
 | **R10** nuovo allenatore (livello + interazione) | ✅ | ❌ | −0.014/−0.031 · **+0.051/+0.067** |
-| **R1** copertura nuovi entrati (FM-equivalente + minuti) | ✅ | ❌² | β_new 0.186 / 0.230 |
+| **R1** copertura nuovi entrati (FM-equivalente + minuti) | ✅ | ❌² | β_new 0.186 / 0.230 → **0.431 / 0.398** col layer completo |
 | **R4** curva d'età sulla FM oltre i 30 | ✅ | ❌ | −0.006 / −0.016 per anno |
-| **R3** minuti sulla stagione reale intera | ❌³ | ✅ | minuti 0.342 / 0.219 |
+| **R3** minuti sulla stagione reale intera | ❌³ → ✅⁴ | ✅ | minuti 0.342 / 0.219 → **0.326 / 0.256** |
 
 ¹ passa anche su Serie A ma perde una posizione top-10 in T2, dove R3 la tiene: lì la mappa copre 31
 delle 38 giornate e le due feature sono quasi la stessa cosa. ² i nuovi entrati in Serie A hanno un
 equivalente troppo rumoroso (oltre il +30%). ³ sull'euro i due regressori sono collineari e si
-scambiano peso fra finestre.
+scambiano peso fra finestre. ⁴ col layer per-partita completo R3 passa anche sull'euro, ma resta
+**ridondante** con R3c (misurano la stessa cosa su calendari diversi) e non viene adottata due volte:
+sull'euro vince la versione allineata al bersaglio.
 
 ### Risultati misurati (MAE di VALORE, campione comune, T1 / T2)
 
 | | P | D | C | A | totale | top-10 | copertura |
 |---|---|---|---|---|---|---|---|
-| **euro** | −0.5% / **−5.6%** | −1.9% / −2.0% | −1.3% / −1.2% | −2.0% / −0.6% | **−1.7% / −1.6%** | 6→8 · 12→14 | 475→532 · 489→548 |
+| **euro** | −0.5% / **−5.6%** | −1.6% / −1.7% | −1.6% / −1.5% | −1.9% / −0.3% | **−1.6% / −1.7%** | 6→8 · 12→14 | **475→644 · 489→628** |
 | **Serie A** | **−6.9% / −14.7%** | −5.4% / −3.1% | −3.8% / −1.5% | −2.1% / −0.4% | **−4.3% / −2.7%** | 11→13 · 14→15 | invariata |
 
 Presenze Serie A: 8.38 → 8.02 e 8.41 → 7.92 giornate di MAE. Portieri euro: 7.24 → 5.99 e 6.02 → 5.01
@@ -113,11 +115,11 @@ Presenze Serie A: 8.38 → 8.02 e 8.41 → 7.92 giornate di MAE. Portieri euro: 
 | Regola | Parametro (T1 / T2) | Perché cade |
 |---|---|---|
 | **R1b** sconto adattamento cross-lega | δ_cross **−0.036 / +0.156** | Segno opposto fra finestre, e δ_intra (0.09 / 0.33) è **maggiore** di δ_cross: il segnale non è l'adattamento alla nuova lega ma un generico cambio-squadra. Era il criterio di falsificazione scritto in pre-registrazione, ed è scattato. |
-| **R2** propensione per-90 (xG/xA) | γ **−0.003 / −0.014** | Segno sbagliato e magnitudo nulla. Il volume per-90 dell'anno di input **non aggiunge nulla** alla fantamedia precedente. Il caso Torres F. è vero ma non generalizza. |
+| **R2** propensione per-90 (xG/xA) | γ **−0.003 / −0.014** → poi **+0.028 / +0.021** | ⚠️ **verdetto corretto nel §5-bis**: col layer per-partita completo il segno diventa giusto e stabile. Non passa ancora il criterio sul MAE, ma la falsificazione originale era in parte un artefatto dell'input incompleto → **da ri-pre-registrare**, non archiviata. |
 | **R5** àncora forza-club da ClubElo | λ +0.023 / +0.073 | **Terza bocciatura della famiglia** (dopo forza-club interna ed Elo additivo movimento). Il segno è giusto su entrambe le finestre — l'intuizione Kane è corretta — ma il MAE di T1 peggiora ogni volta. |
 | **R6** rigoristi (forma ridotta su confidence) | λ **+0.332 / −0.222** | Segno opposto, e peggiora gli attaccanti (+1.8% / +2.7%). La forma ridotta comprime troppo (manca il tasso rigori per club e la conversione di carriera) e i rigoristi datati prima dell'asta sono 22 e 29. |
-| **R8** fuori-ruolo da heatmap | avanti +0.032 / **−0.070** | Il verso «più avanti» cambia segno. Il verso «più indietro» è coerente (−0.121 / −0.235) ma su n=10/13. |
-| **R11** concorrenza posizionale (pendenza) | λ **+0.008 / +0.010** | Migliora il Pv MAE del 3% su Serie A **con il segno contrario all'ipotesi**: più arrivi nel tuo ruolo, più presenze. Il guadagno è reale ma il meccanismo dichiarato è falso → è un proxy di qualcos'altro (churn di rosa? neopromosse?). |
+| **R8** fuori-ruolo da heatmap | avanti +0.032 / **−0.070** → poi **+0.121 / +0.041** | ⚠️ **anche qui l'instabilità era dei dati** (§5-bis): col layer completo entrambi i versi hanno segno stabile («più indietro» −0.22 / −0.327). Non passa, ma la ragione della bocciatura non è più «segno instabile». |
+| **R11 / R11b** concorrenza posizionale | λ **+0.008 / +0.010** e soglia **+0.044 / +0.055** | Migliora il Pv MAE del 3% su Serie A — l'effetto singolo più grande del gate — **con il segno contrario all'ipotesi**: più arrivi nel tuo ruolo, più presenze. Col layer completo i coefficienti sono anche *stabili*. Il guadagno è reale, il meccanismo dichiarato è falso → §5-bis, ri-pre-registrata come «sottostima da rifacimento rosa». |
 | **R11b** posizione affollata (soglia ≥2) | +0.012 / −0.001 | La soglia non è una coda: 620 giocatori su 1450 la superano. |
 | **R12** attesa di mercato (Qt.I nel ruolo) | λ −0.003 / +0.010 | L'attesa **assoluta** del mercato non aggiunge nulla alla fantamedia precedente: è costruita sulla stessa storia. |
 | **R12b** revisione dell'attesa (Qt.I anno su anno) | λ −0.040 / −0.076 | Segno stabile ma significato opposto: dice che chi è rivisto **al ribasso** rende *più* di B0, cioè approssima il ritorno alla media che B0 già fa. Fallisce su T1 e sul VALORE. |
@@ -135,7 +137,8 @@ Presenze Serie A: 8.38 → 8.02 e 8.41 → 7.92 giornate di MAE. Portieri euro: 
    25/26: Qt.I 20 → Qt.A 3). `Qt.I` era nello stesso file: ora in `rosters.price_initial`, e
    `arrivals._price_percentiles` lo usa (**i tier T1/T2/T3 erano assegnati da prezzi di fine stagione**;
    T1 51 → 76). Disponibili e non ancora salvati: `Qt.A M`, `Qt.I M`, `FVM`.
-3. ⚠️ **Bias di selezione nel layer per-partita.** È scaricato seguendo le partite dei club del
+3. ✅ **RISOLTO il 27/07 — Bias di selezione nel layer per-partita** (dettaglio e numeri nel §5-bis).
+   Era scaricato seguendo le partite dei club del
    perimetro: i 9 club Serie A del perimetro hanno tutte le 38 giornate, **gli altri 11 esattamente 18**
    — verificate una per una, sono le partite contro il perimetro, andata e ritorno. Quindi un giocatore
    fuori perimetro è misurato **solo contro le squadre più forti**. Isolato dal voto sintetico (FM reale
@@ -148,6 +151,53 @@ Presenze Serie A: 8.38 → 8.02 e 8.41 → 7.92 giornate di MAE. Portieri euro: 
 5. ⚠️ **`probable_starter` e `availability` esistono solo con data 2026-07** (snapshot corrente): usabili
    come input *live* per l'asta 26/27, **inutilizzabili nel gate retrospettivo**. Servono snapshot
    settimanali accumulati.
+
+## 5-bis. Layer per-partita COMPLETATO (27 luglio 2026) — e due verdetti da correggere
+
+Il difetto 3 è chiuso. `positions --layer complete` (merge incrementale: si rilegge la cache di ogni
+giornata, il listing dice quali partite finite mancano, si scaricano solo quelle) ha portato il layer
+a **5.254 partite su 5.256 = 100%** (le 2 mancanti non sono marcate `finished` dal provider), da 3.314.
+`external_match_stats` passa a **110.597 righe**. ~1.940 partite aggiunte in ~2h10 di rete.
+
+**Il bias di selezione è sparito per costruzione**: `synth --validate` riporta **0 club con layer
+incompleto** in tutte e tre le stagioni, contro 12/12/11 prima. Effetto sull'FM-equivalente misurato
+contro la fantamedia Serie A reale:
+
+| Stagione · ruolo | MAE prima → dopo | entro 0.3 dal reale, prima → dopo |
+|---|---|---|
+| 23/24 D · C · A | 0.135→**0.106** · 0.166→**0.111** · 0.227→**0.125** | 91→95% · 85→**98%** · 76→**93%** |
+| 24/25 D · C · A | 0.177→**0.108** · 0.172→**0.115** · 0.207→**0.136** | 80→**98%** · 86→97% · 74→**91%** |
+| 25/26 D · C · A | 0.159→**0.127** · 0.140→**0.105** · 0.249→**0.133** | 84→93% · 89→95% · 67→**94%** |
+
+Gli attaccanti quasi dimezzano il MAE e passano dal 67% al 94% entro 0.3. Il bias medio si avvicina a
+zero quasi in ogni cella (25/26 A: −0.143 → −0.049).
+
+**Effetti sul motore.** Le feature di input ora si aggregano dal layer per-partita e non dagli
+aggregati stagionali, che risolvono l'identità sul listone *di quella stagione* e quindi mancavano
+proprio i nuovi entrati (Ezzalzouli: 33 partite e 1995 minuti nel 24/25 nel layer per-partita, nessuna
+riga negli aggregati). Conseguenze:
+- **copertura euro dal 31.2%/33.7% al 42.3%/43.2%** del listone: i giocatori prezzati in più passano da
+  24/22 a **122/94** per finestra, con VALORE MAE 51.1/48.6 contro il 46.3/42.4 del baseline stesso;
+- **β_new più che raddoppia: 0.186/0.230 → 0.431/0.398.** L'FM-equivalente non è più una misura
+  rumorosa e distorta al ribasso, quindi il motore può appoggiarsi ad essa il doppio;
+- Ezzalzouli passa da «FM senza presenze, fuori classifica» a VALORE 110 (reale 204);
+- set adottati **invariati**, numeri sul campione comune invariati (−1.6%/−1.7%).
+
+**Due verdetti del §4 vanno corretti: erano in parte artefatti dell'input incompleto.**
+- **R2 (propensione per-90)**: γ passa da −0.003/−0.014 (segno sbagliato) a **+0.028/+0.021 — segno
+  giusto e stabile**. Non passa ancora il criterio sul MAE, ma «γ ≈ 0 di segno sbagliato» non è più
+  una descrizione onesta: l'ipotesi va ri-pre-registrata, non archiviata come falsificata.
+- **R8 (fuori-ruolo)**: il verso «più avanti» passa da +0.032/**−0.070** a **+0.121/+0.041** (segno ora
+  stabile) e «più indietro» resta coerente (−0.22/−0.327). L'instabilità di segno era dei dati.
+
+**Un effetto vero con l'etichetta sbagliata.** Su Serie A R11/R11b danno l'effetto singolo più grande
+di tutto il gate (**Pv −3.1%/−2.8%**, VALORE −2.9%/−1.6%, top-10 non peggiore) con coefficienti ora
+**stabili**: `competition_lam` +0.008/+0.010 e `crowded_lam` +0.044/+0.055. Sono positivi: club che
+comprano 2+ giocatori in un ruolo hanno giocatori che giocano **più** di quanto il baseline preveda. Non
+è concorrenza. La lettura plausibile è che il baseline, costruito sulla quota di presenze dell'anno
+prima, **sottostima chi cambia contesto** (neopromosse, rose rifatte). Non adottata: rinominare
+l'ipotesi dopo aver visto il segno è post-hoc. **Pre-registrata** come «sottostima da rifacimento
+rosa», con una misura di churn vera, per la finestra 26/27.
 
 ## 6. Validazione del voto sintetico (Serie A, dove esistono entrambi i set reali)
 

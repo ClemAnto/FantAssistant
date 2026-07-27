@@ -57,22 +57,28 @@ Python, SQLite, naming inglese, con **UI operatore** (Tkinter, python -m euroleg
   - **Propensione su stagione piena**: il calendario euro e' un sottoinsieme delle partite reali (un difensore puo' segnare fuori dal calendario euro). Target FM/Mv resta su euro; la propensione (gol/assist/xG per 90') si calcola su tutte le partite reali. Serie A dai voti default (gia' disponibile); altre 4 leghe da **FBref** (fatti) + **Sofascore** (rating + heatmap) con **voto sintetico CALIBRATO sulla sovrapposizione** (non a bucket), in external_stats taggato per fonte, mai nel target euro. Tutto passa dal gate.
   - **Mappa giornate euro<->reali PER LEGA** (matchday_map): una giornata euro = giornata reale diversa in ogni campionato. Verificata su Serie A 2023-24.
 
+## LAYER PER-PARTITA COMPLETATO (27/07) — il difetto n.1 dei dati e' chiuso
+Da 3.314 a **5.254 partite su 5.256 = 100%** (5 leghe x 3 stagioni), `external_match_stats` a 110.597
+righe, **0 club con layer incompleto** contro 12/12/11. FM-equivalente attaccanti: MAE 0.249 -> 0.133 e
+dal 67% al **94%** entro 0.3 dalla fantamedia reale. Le feature del motore ora si aggregano dal layer
+per-partita (identita' indipendente dalla stagione, quindi copre i nuovi entrati): **copertura euro dal
+31% al 42-43%**, **beta_new 0.19 -> 0.43**, Ezzalzouli da fuori-classifica a VALORE 110. Set adottati e
+numeri sul campione comune invariati. Dettaglio, verdetti corretti (R2, R8) e il nuovo effetto da
+ri-pre-registrare: `gate-motore-v1.md` §5-bis.
+
 ## Prossimo lavoro
-1. **Completare il layer per-partita su TUTTI i club delle 5 leghe.** Oggi lo scraping segue le partite
-   dei club del perimetro: i 9 club Serie A del perimetro hanno tutte le 38 giornate, **gli altri 11
-   esattamente 18** (verificate: sono le partite contro il perimetro, andata e ritorno). Chi sta fuori
-   perimetro e' quindi misurato **solo contro le squadre forti** e il suo FM-equivalente e' distorto al
-   ribasso (**A -0.22 · P -0.16 · C -0.08 · D -0.05**; peggiori Douvikas -1.17, Audero -0.78). E' l'input
-   di R1 e sbloccherebbe le **presenze** dei nuovi entrati (Ezzalzouli oggi riceve una FM ma nessuna
-   presenza, quindi resta fuori dal ranking). Ore di rete, ripartibile.
+1. ~~Completare il layer per-partita~~ **FATTO il 27/07** (sezione sopra): 100% delle partite, bias di
+   selezione chiuso, copertura del motore dal 31% al 42-43%.
 2. **Storico `injuries`** (Transfermarkt, una richiesta per giocatore): l'unico input della Priorita' 1
    ancora assente, e meta' dei buchi nelle top-10 dei difensori sono infortuni.
 3. **Terza finestra**: verificare quanto indietro va l'API Excel dei voti. Con T0 = 22/23->23/24 i
-   parametri che oggi oscillano (eta' -0.006/-0.016, delta_cross -0.04/+0.16) diventerebbero
-   identificabili, e il gate molto piu' severo.
-4. **Tarare i parametri provvisori** del 27/07 (decadimento/quarantena rigoristi, soglie tier T1/T3,
+   parametri che oggi oscillano diventerebbero identificabili e il gate molto piu' severo.
+4. **Ri-pre-registrare le due ipotesi che il layer completo ha cambiato** (`gate-motore-v1.md` §5-bis):
+   la propensione per-90 (ora con il segno giusto) e la sottostima da rifacimento rosa (effetto piu'
+   grande di tutto il gate su Serie A, ma con l'etichetta sbagliata).
+5. **Tarare i parametri provvisori** del 27/07 (decadimento/quarantena rigoristi, soglie tier T1/T3,
    U22): sono scelte di modello, non dati. Nota: i tier ora usano `Qt.I`, non `Qt.A`.
-5. **Ad agosto, quando esce il listone 26/27**: aggiungere `2026-27` alle costanti `SEASONS` (ratings,
+6. **Ad agosto, quando esce il listone 26/27**: aggiungere `2026-27` alle costanti `SEASONS` (ratings,
    positions, transfers), scaricare voti e Elo alla data d'asta 2026-08, salvare anche `Qt.A M`/`Qt.I M`/
    `FVM` -> **ALGORITMO COMPLETO asta 26/27**.
 
