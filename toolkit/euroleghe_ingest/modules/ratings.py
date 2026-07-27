@@ -232,8 +232,14 @@ def parse_listone(data: bytes, season: str) -> list[dict]:
     Reads both 'Tutti' (current squads) AND 'Ceduti' (players sold mid/pre-season who still played
     and are in the voti); both carry Id | R | RM | Nome | Squadra | Qt.A with the player's Serie A
     club, so the Ceduti sheet fills those left out of 'Tutti'. The per-role sheets are subsets of
-    'Tutti' and are skipped. Id=fc_id, R=Classic role, RM=Mantra roles, Qt.A=current auction price.
-    Rows above each header (the season title) and any non-integer Id are skipped."""
+    'Tutti' and are skipped. Id=fc_id, R=Classic role, RM=Mantra roles.
+    Rows above each header (the season title) and any non-integer Id are skipped.
+
+    BOTH prices are read, and they are not interchangeable. Qt.A is the CURRENT quotation, revised
+    all season: for a season already played it embeds the outcome (Milinkovic-Savic 25/26: Qt.I 4,
+    Qt.A 17), so it can describe a player but never predict him. Qt.I is the quotation set BEFORE the
+    auction - the market's expectation - and is the only one a backtest may use. The file also carries
+    Qt.A M / Qt.I M (Mantra quotations) and FVM: available, not stored yet."""
     wb = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
     try:
         sheets = [s for s in ("Tutti", "Ceduti") if s in wb.sheetnames] or [wb.sheetnames[0]]
@@ -261,6 +267,7 @@ def parse_listone(data: bytes, season: str) -> list[dict]:
                     "name": (str(cell("Nome")).strip() if cell("Nome") is not None else None),
                     "team": (str(cell("Squadra")).strip() if cell("Squadra") is not None else None),
                     "price": _num(cell("Qt.A")),
+                    "price_initial": _num(cell("Qt.I")),
                 })
         return out
     finally:
@@ -347,16 +354,19 @@ def upsert_listone(conn, season: str, records: list[dict], platform: str = DEFAU
         roles = ";".join(rec["roles"]) or None
         conn.execute(
             """
-            INSERT INTO rosters(fc_id, season, fc_club_id, roles, role_classic, league, price)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO rosters(fc_id, season, fc_club_id, roles, role_classic, league,
+                                price, price_initial)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(fc_id, season) DO UPDATE SET
-                roles        = COALESCE(excluded.roles, rosters.roles),
-                role_classic = COALESCE(excluded.role_classic, rosters.role_classic),
-                price        = COALESCE(excluded.price, rosters.price),
-                fc_club_id   = COALESCE(excluded.fc_club_id, rosters.fc_club_id),
-                league       = COALESCE(rosters.league, excluded.league)
+                roles         = COALESCE(excluded.roles, rosters.roles),
+                role_classic  = COALESCE(excluded.role_classic, rosters.role_classic),
+                price         = COALESCE(excluded.price, rosters.price),
+                price_initial = COALESCE(excluded.price_initial, rosters.price_initial),
+                fc_club_id    = COALESCE(excluded.fc_club_id, rosters.fc_club_id),
+                league        = COALESCE(rosters.league, excluded.league)
             """,
-            (rec["fc_id"], season, club_id, roles, rec["role_classic"], league, rec["price"]),
+            (rec["fc_id"], season, club_id, roles, rec["role_classic"], league,
+             rec["price"], rec.get("price_initial")),
         )
         n += 1
     return n

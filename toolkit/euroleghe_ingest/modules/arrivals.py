@@ -126,11 +126,16 @@ def classify_tier(price_percentile: float | None, history_matches: int, u22: boo
 
 
 def _price_percentiles(conn, season: str) -> dict[int, float]:
-    """Price percentile WITHIN the player's Classic role - a 20 is elite for a defender, mid for a striker."""
+    """Price percentile WITHIN the player's Classic role - a 20 is elite for a defender, mid for a striker.
+
+    Reads Qt.I, the PRE-AUCTION quotation, not Qt.A. Qt.A is revised all season long, so for a season
+    already played it embeds the outcome: tiers built on it would look prescient and be worthless
+    (Openda 25/26: Qt.I 20 before the auction, Qt.A 3 after 12 appearances).
+    """
     by_role: dict[str, list[tuple[float, int]]] = {}
     for fc_id, role, price in conn.execute(
-            "SELECT fc_id, role_classic, price FROM rosters WHERE season = ? AND price IS NOT NULL",
-            (season,)):
+            "SELECT fc_id, role_classic, price_initial FROM rosters "
+            "WHERE season = ? AND price_initial IS NOT NULL", (season,)):
         by_role.setdefault(role or "?", []).append((price, fc_id))
     out: dict[int, float] = {}
     for entries in by_role.values():

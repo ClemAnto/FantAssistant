@@ -59,6 +59,8 @@ class Observation:
     role_classic: str | None
     roles_mantra: tuple[str, ...]
     league: str | None
+    # Qt.A of the target season: revised all season long, so for a past season it already knows the
+    # outcome. Kept for description only - no rule may read it (`price_initial` is the usable one).
     price: float | None
     club_prev: str | None
     club_target: str | None
@@ -75,6 +77,10 @@ class Observation:
     xa_prev: float | None = None
     rating_prev: float | None = None
     minutes_share_euro_prev: float | None = None    # minutes on the euro calendar's own rounds
+    # Qt.I, the pre-auction quotation: the market's EXPECTATION for the target season, and the same
+    # quantity a year earlier - so the engine can read how the market REVISED him before the auction.
+    price_initial: float | None = None
+    price_initial_prev: float | None = None
     birth_year: int | None = None
     derived_role_prev: str | None = None
     off_role_prev: bool = False
@@ -270,7 +276,8 @@ def load(conn: sqlite3.Connection, window: Window, platform: str) -> list[Observ
     rows = conn.execute(
         f"""SELECT r.fc_id, p.canonical_name, r.role_classic, r.roles, r.league, r.price,
                    ct.canonical_name, cp.canonical_name, p.birth_year,
-                   sp.pv, sp.mv, sp.fm, st.pv, st.mv, st.fm
+                   sp.pv, sp.mv, sp.fm, st.pv, st.mv, st.fm,
+                   r.price_initial, rp.price_initial
             FROM rosters r
             JOIN players p ON p.fc_id = r.fc_id
             LEFT JOIN clubs ct ON ct.fc_club_id = r.fc_club_id
@@ -320,7 +327,8 @@ def load(conn: sqlite3.Connection, window: Window, platform: str) -> list[Observ
 
     observations: list[Observation] = []
     for (fc_id, name, role_classic, roles_raw, league, price, club_target, club_prev, birth_year,
-         pv_prev, mv_prev, fm_prev, pv_act, mv_act, fm_act) in rows:
+         pv_prev, mv_prev, fm_prev, pv_act, mv_act, fm_act,
+         price_initial, price_initial_prev) in rows:
         matches, starts, minutes, goals, assists, xg, xa, rating = external.get(fc_id, (None,) * 8)
         kind, tier, origin, equivalent = arrivals.get(fc_id, (None, None, None, None))
         rank, confidence = penalties.get(fc_id, (None, None))
@@ -332,6 +340,7 @@ def load(conn: sqlite3.Connection, window: Window, platform: str) -> list[Observ
             minutes_prev=minutes, starts_prev=starts, matches_prev=matches,
             goals_prev=goals, assists_prev=assists, xg_prev=xg, xa_prev=xa, rating_prev=rating,
             minutes_share_euro_prev=euro_minutes.get(fc_id),
+            price_initial=price_initial, price_initial_prev=price_initial_prev,
             birth_year=birth_year, derived_role_prev=derived.get(fc_id),
             off_role_prev=fc_id in off_role,
             arrival_type=kind, arrival_tier=tier, origin_league=origin,
@@ -354,6 +363,8 @@ FEATURE_CHECKS: tuple[tuple[str, str], ...] = (
     ("minutes_share_euro_prev", "minutes on the euro calendar's rounds - R3c"),
     ("xg_prev", "provider xG/xA - R2 per-90 propensity"),
     ("foreign_fm_equiv", "foreign FM-equivalent - R1 arrivals"),
+    ("price_initial", "pre-auction quotation Qt.I - R12 market expectation"),
+    ("price_initial_prev", "last season's Qt.I - R12b expectation revision"),
     ("birth_year", "birth year - R4 age curve"),
     ("elo_target", "destination club Elo - R5 (backlog)"),
     ("starter_prob", "probable starter at auction date - R7 goalkeepers"),

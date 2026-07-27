@@ -116,6 +116,11 @@ REGRESSION_CASES: tuple[str, ...] = (
     "Baumgartner C.",  # minutes/role regime change: predicted 126th, ended 4th
     "Dimarco",         # defender whose edge is bonus potential, not FM persistence
     "Kane",            # dominant-club environment: 8.21 predicted, 10.60 real
+    # Bought on expectation, delivered little: the market had priced them at 20/21/13 credits before
+    # the auction (Qt.I) and revised them to 3/8/10 by the end of the season.
+    "Openda",          # Leipzig -> Juventus: FM 7.05 -> 5.67 on 12 appearances
+    "David",           # Lille -> Juventus: FM 7.81 -> 6.04
+    "Vlahovic",        # stayed, quotation halved before the auction (30 -> 13), FM 7.74 -> 6.75
 )
 
 
@@ -222,6 +227,32 @@ def propensity_adjustment(gamma: float, z_propensity: float) -> float:
     return gamma * z_propensity
 
 
+def market_expectation_adjustment(price_z: float | None, lam: float) -> float:
+    """R12: what the market expected of him, over and above what his own history says.
+
+    The pre-auction quotation (Qt.I) is a second opinion built on things our data does not contain -
+    a transfer fee, a pre-season, a coach's public words. Standardised inside the role, so it is
+    "expensive FOR a striker", not "expensive". Sign is an open question and that is the point: a
+    positive lambda would mean the market knows something the fantamedia does not, a negative one
+    that expectation is systematically overpriced (the Openda / David pattern).
+    """
+    if price_z is None:
+        return 0.0
+    return lam * price_z
+
+
+def expectation_revision_adjustment(revision: float | None, lam: float) -> float:
+    """R12b: how the market revised him BEFORE the auction, year on year.
+
+    `revision` = (Qt.I this season - Qt.I last season) / Qt.I last season, both pre-auction figures,
+    so nothing here is hindsight. The archetype is Vlahovic 25/26: the quotation went 30 -> 13 before
+    a ball was kicked, and the engine - which only reads last season's fantamedia - saw none of it.
+    """
+    if revision is None:
+        return 0.0
+    return lam * revision
+
+
 def club_strength_adjustment(elo_z: float | None, lam: float) -> float:
     """R5: shift the role anchor by the destination club's standardised strength.
 
@@ -254,6 +285,24 @@ def coach_change_adjustment(new_coach: bool, share_prev: float, level: float,
 def competition_adjustment(same_role_arrivals: int, lam: float) -> float:
     """R11: new team-mates signed for the same role are minutes taken away from him."""
     return lam * same_role_arrivals
+
+
+# R11b: below this, arrivals in your role are squad churn; at or above it, the position is genuinely
+# crowded. Juventus 25/26 signed three forwards (Boga, David, Openda) on top of Vlahovic, and the
+# engine gave Openda 25.8 appearances against 12 real ones.
+CROWDED_POSITION = 2
+
+
+def crowded_position_adjustment(same_role_arrivals: int, lam: float) -> float:
+    """R11b: competition as a THRESHOLD, not a slope.
+
+    R11 measured the same regressor linearly and came out positive (more arrivals, more appearances):
+    for most clubs one signing is replacement, and clubs that buy are clubs whose players play. The
+    hypothesis here is that the effect only reverses in the tail. NOTE: this variant was generated
+    after seeing the 25/26 Juventus cases, so T2 is its hypothesis-generating window - a clean
+    confirmation needs the 26/27 one.
+    """
+    return lam if same_role_arrivals >= CROWDED_POSITION else 0.0
 
 
 def penalty_adjustment(confidence: float | None, lam: float) -> float:

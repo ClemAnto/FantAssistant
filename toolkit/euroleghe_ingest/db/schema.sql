@@ -47,7 +47,12 @@ CREATE TABLE IF NOT EXISTS rosters (
     roles      TEXT,                            -- Mantra roles, e.g. "dc;b"
     role_classic TEXT,                          -- P | D | C | A
     league     TEXT,                            -- per-player league from the listone (present even when club is unknown)
-    price      REAL,
+    -- TWO prices, and the difference between them matters. `price` is the listone's Qt.A (current
+    -- quotation): it is revised all season long, so for a past season it already knows how the
+    -- player did and is NOT usable as a predictor. `price_initial` is Qt.I, the quotation set before
+    -- the auction: that one is the market's EXPECTATION and the only price a backtest may read.
+    price          REAL,                        -- Qt.A, current quotation (hindsight for past seasons)
+    price_initial  REAL,                        -- Qt.I, pre-auction quotation (auction-safe)
     PRIMARY KEY (fc_id, season)
 );
 
