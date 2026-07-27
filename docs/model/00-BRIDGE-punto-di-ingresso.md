@@ -21,6 +21,77 @@ La knowledge base è ora nel repo git **`FantAssistant`**, cartella **`docs/mode
 proporre qualsiasi regola) → `spec-euroleghe-ingest-v9.md` → `nota-modello-set-pieces-v2.md` →
 `modello-previsionale-v3.8.md` → consolidati di dettaglio. Tutti in `docs/model/`.
 
+## STATO AL 28 LUGLIO 2026 — LEGGI QUESTO PRIMA DI TUTTO
+
+Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
+
+### Il gate gira su 10 finestre (Serie A) e 5 (euro)
+
+L'API dei voti autenticata serve stagioni che i dataset Drive non hanno mai coperto. Nel DB: **Serie A
+dal 15/16 al 25/26** (11 stagioni → 10 finestre, Tm7…T2) e **euro dal 18/19 al 25/26** (il 21/22 è
+**vuoto alla sorgente** — id risolto, 30 giornate scaricate, ogni cella `Voto` = `'-'` — e costa due
+finestre: 5 utilizzabili). Una finestra richiede voti su **entrambi** i lati, ingresso e bersaglio.
+
+### Set adottati: `euro → R0c + R3c` · `Serie A → R3 + R7 + R13`
+
+| | tiene su | media | peggior finestra |
+|---|---|---|---|
+| euro R0c+R3c | **4/4** misurabili | +2.4% | +1.0% |
+| Serie A R3+R7+R13 | **10/10** | +4.3% | +1.2% |
+
+- **R7** (persistenza portieri) e **R3** (minuti) non hanno **una sola finestra contro** su 10; il
+  criterio stretto le boccia solo per una finestra a +0.1%/+0.2%, sotto la soglia dello 0.5% → si leggono
+  con il verdetto **robusto**.
+- **R7 era uno stimatore sbagliato, non una scommessa**: la persistenza esce 0.505-0.798 su sette
+  finestre (sempre sopra lo 0.50 condiviso), ma valutare ogni finestra col coefficiente della *singola*
+  vicina — fittata su ~30 portieri — la faceva cadere. `POOLED_PARAMS` mette in comune le altre finestre
+  (leave-one-out): da 4/7 a **10/10**.
+- **R0c è il modello nullo dichiarato** (àncora di ruolo + quota media): porta la copertura euro dal 30%
+  al **100%** e nessuno stimatore sofisticato lo batte sui giocatori che aggiunge.
+
+### Cadute quando le finestre sono diventate dieci (non riproporre senza finestre NUOVE)
+
+**R4** età (1/10, peggiore −19.6%) · **R10** nuovo allenatore (4/10, peggiore −6.3%) · **R8** fuori-ruolo
+(1/6, peggiore −19.2%) · R4b (1/10, −56.6%) · R11/R11b (0/10) · R12/R12b (4-5/10, media ≈0) · R1b (3/10) ·
+R2 · R5 (quarta bocciatura della famiglia forza-club) · R6 · R13b · R14/R14b (sfora il non-danno) ·
+**R1** (non batte la risposta banale: 0.391 contro 0.373 della sola àncora).
+
+R4, R10 e R8 sembravano fra le migliori del motore a due finestre. **T1 e T2 sono le finestre di
+generazione delle ipotesi: passare lì è la prova più debole possibile.**
+
+### Cosa manca, in ordine
+
+1. **Prezzare l'asta che viene.** `rosters 2026-27` = 0 (il listone non è ancora uscito) *e* l'harness non
+   ha una modalità **live**: ogni percorso assume un esito (`_window_is_usable` pretende ≥50 `fm_act`, il
+   tab Auction elenca solo stagioni concluse, `auction_view` confronta due liste). Per un'asta serve **una
+   lista sola**. È il lavoro più importante e non è iniziato.
+2. **Il lato fantamedia non ha un solo miglioramento validato.** Delle cinque regole adottate quattro sono
+   presenze e una è copertura: la FM è ancora esattamente il core pubblicato (àncore + beta + M2e). Sei
+   famiglie di ipotesi sulla FM sono state provate e sono cadute.
+3. **Copertura Serie A**: 8 posti su 40 nelle top-10 reali irraggiungibili, **4 attaccanti su 10** — quel
+   ruolo è tappato a 6/10. R0c non passa lì (il core è a 0.281 e una stima di qualità-àncora sfora il +30%
+   di un punto): serve uno stimatore che batta l'àncora.
+4. **`injuries` = 0 righe**, nessuna fonte agganciata: è metà dei buchi nelle top-10 dei difensori.
+5. **Storia di `probable_starter`/`availability`**: esiste solo lo snapshot 2026-07-26, **impossibile a
+   posteriori** → va accumulata da adesso con un job settimanale. È la forma pre-registrata di R7.
+6. A rendimento calante: voti Serie A prima del 15/16 (non sondati), layer per-partita per 15/16-18/19
+   (servirebbe solo a ri-testare R8 e R14, già bocciate), `club_elo` oltre le 2 date (solo R5).
+7. **La conferma pulita resta la finestra 26/27, giugno 2027**: tutto l'adottato è stato generato
+   guardando gli esiti di T1/T2.
+
+### Dati e strumenti
+
+`validate`: **5759 giocatori Mv- e FM-consistenti, 0 FM-off**. 218k+ righe `match_ratings`, 2.28M bonus
+grezzi, `external_stats` su 11 stagioni, `external_match_stats` su 7 (109k righe dal layer per-partita
+completato), `matchday_map` per lega anche sulle stagioni vecchie, voto sintetico ricalibrato
+(MAE fuori campione **0.369**), FM-equivalente su 1482 arrivi.
+
+**141 test verdi, ruff pulito.** `python -m euroleghe_ingest backtest [--verify] [--gate] [--auction]
+[--cases] [--window Tm7..T2] [--platform euro|default] [--game classic|mantra]`. GUI: tre tab, il terzo è
+**Auction** (stagione/piattaforma/game, per ruolo i 10 di VALORE previsto più alto con l'FVM reale
+accanto, e i 10 reali col VALORE previsto). Backup: `scripts/backup-data.ps1` specchia `data/` fuori dal
+repo — la cache **deve** restare in `.gitignore` (gli Excel vietano la ripubblicazione, il repo è pubblico).
+
 ## STATO PRECEDENTE (primo giro toolkit, 26 luglio 2026)
 **Toolkit `euroleghe-ingest` — primo giro IMPLEMENTATO** (Python 3.13, venv in `toolkit/.venv`, SQLite `data/euroleghe.db`, GUI Tkinter `python -m euroleghe_ingest gui`):
 - **Operativi**: `rosters`, `stats`, `ratings` (scraping Excel autenticato **+ listone quotazioni**), `arrivals`, `elo`, `validate`, `rebuild` (idempotente, reset in-place). GUI: vista calciatori (pillole ruolo colorate, ordinamento persistente per ruolo, toggle Fantavoti a griglia, icona campetto).
@@ -77,7 +148,8 @@ in `app/prediction-engine`, quindi resta senza dipendenze ed esplicito.
 - L'**inventario input** stampato dice cosa manca al motore: su T2/euro `starter_prob` è **0/1453**
   (le probabili sono di oggi, non della stagione passata → servono snapshot settimanali).
 
-## GATE ESEGUITO — 7 REGOLE ADOTTATE SU 17 (27 luglio 2026, criteri irrigiditi la sera dello stesso giorno)
+## GATE — il registro di come ci si è arrivati (27 luglio 2026)
+*Lo stato corrente è nel blocco in cima; qui sotto la cronologia, che in punti è superata.*
 Documento dedicato, con tutti i numeri e le ipotesi falsificate: **`gate-motore-v1.md`**. In sintesi:
 - **Adottate per piattaforma**: **euro → R0c** (copri i non prezzati con l'àncora di ruolo e la quota
   media) **+ R3c** (minuti sulle giornate del calendario euro) **+ R4** (età sulla FM) **+ R7**

@@ -1,4 +1,10 @@
 # Modello previsionale calciatori — Documento di riferimento
+
+> ⚠️ **Verdetti superati**: questo documento descrive il modello, non l'esito del gate. I set
+> adottati e le regole cadute sono in `00-BRIDGE-punto-di-ingresso.md`, blocco «STATO AL 28
+> LUGLIO 2026» - fra le cadute ci sono la curva d'eta' (R4) e il fattore allenatore (R10),
+> che qui potrebbero comparire come promettenti.
+
 **Progetto:** App EuroLega Fantacalcio · **Versione modello:** v3.8 (validata) → v4 (progettata)
 **Ultimo aggiornamento:** 19 luglio 2026
 

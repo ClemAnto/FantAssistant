@@ -6,6 +6,9 @@ Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da q
 ## Cos'e'
 App per leghe EuroLeghe/fantacalcio.it (Classic+Mantra, 5 campionati) con motore previsionale. Metodo: ogni regola entra SOLO se batte il baseline fuori campione su finestre indipendenti (gate pre-registrato). Doc madre: modello-previsionale-v3.8.md.
 
+## ⚠️ Lo stato corrente è in `00-BRIDGE-punto-di-ingresso.md`, blocco «STATO AL 28 LUGLIO 2026»
+Questo documento è un registro cronologico: dove contraddice quel blocco, vince quello.
+
 ## Stato motore — TRE MODULI SU QUATTRO VALIDATI (invariato)
 1. **Core Mantra**: FM = ANCORA_M(rm) + 0.42*(FM_prec - ANCORA_M). Ancore frazionarie 3 stagioni (por 5.00 · dc 5.98 · b=dc · ds/dd 6.10 · e 6.25 · m 6.26 · c 6.35 · w 6.74 · t 6.77 · a 7.12 · pc 7.40). Cambi ruolo listone ASIMMETRICI. Non-inferiore a Classic (T1 -19.9% vs -17.4%).
 2. **Portieri M2e**: FM = Mv_pred - GsRate_pred + 0.055; Mv_pred = 6.15+0.40*(Mv_prec-6.15); GsRate = mix 50/50 persistenza + Elo asta. Gate -25%/-20%.
@@ -144,7 +147,15 @@ euro 18/19 (~5 min) e Serie A 17/18-15/16 (~20 min) = quattro finestre in piu'. 
 EuroLeghe 21/22 (file vuoti alla sorgente) e la storia di `probable_starter`/`availability`, che va
 accumulata da adesso. `injuries` resta senza fonte agganciata: e' una decisione, non una passata.
 
-## Prossimo lavoro
+## Prossimo lavoro (aggiornato al 28/07, in ordine)
+0. **Modalita' live**: prezzare l'asta 26/27. Serve il listone (non ancora uscito) e un percorso che non
+   pretenda un esito - oggi `_window_is_usable` vuole >=50 `fm_act`, il tab Auction mostra solo stagioni
+   concluse e `auction_view` confronta due liste. E' il lavoro piu' importante e non e' iniziato.
+0-bis. **Il lato fantamedia**: quattro delle cinque regole adottate sono presenze, una e' copertura. Sei
+   famiglie di ipotesi sulla FM provate e cadute - prima di riprovarci serve un input nuovo, non una
+   variante.
+
+## Prossimo lavoro (elenco precedente, in parte superato)
 1. ~~Completare il layer per-partita~~ **FATTO il 27/07** (sezione sopra): 100% delle partite, bias di
    selezione chiuso, copertura del motore dal 31% al 42-43% (e al 100% sull'euro con R0c).
 2. **Storico `injuries`** (Transfermarkt, una richiesta per giocatore): l'unico input della Priorita' 1

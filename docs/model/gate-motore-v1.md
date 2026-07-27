@@ -806,4 +806,11 @@ portieri · `c733096` R10 passa, R5 ri-bocciata, R11 falsificata · `2087519` qu
 tier corretti · `c1a645b` code review: i due criteri irrigiditi (copertura batte il banale,
 accuratezza sui giocatori spostati) + cache di `recent_form`, migrazione additiva dello schema, fit a
 due passate · `1c8a0ec` una sola standardizzazione, previsioni calcolate una volta ·
-`86e937e` `backtest --auction` e il VALORE catturato. **130 test verdi, ruff pulito.**
+`86e937e` `backtest --auction` e il VALORE catturato · `12841ea` due finestre indietro + cross-fit
+generalizzato · `2d9da9e` una finestra senza voti non e' una finestra · `b211dc3` R4 cade, R7 con riserva ·
+`1dc8231` finestre fino al 18/19 + verdetto robusto · `32c4e7a` tutto l'archivio: 7 finestre Serie A e
+R7 era uno stimatore sbagliato · `072542d` tab Auction · `cb23192` il Mantra si gioca anche in Serie A ·
+`bf2f68b` audit dei dati: due input erano solo non ricalcolati, R10 cade · `e50080a` la passata eseguita:
+10 finestre Serie A, 5 euro · `a7f0cfd` layer per-partita arrivato · `eecf11f` sigla squadra + spinner ·
+`2d2a5c7` tooltip sulle intestazioni · `d0d48ff` filtri bloccati durante il calcolo.
+**141 test verdi, ruff pulito.**

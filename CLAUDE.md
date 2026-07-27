@@ -26,8 +26,21 @@ is a mirror/archive). Before any work read, in order:
 Drive dataset IDs (xlsx/csv, not in git) are in [docs/DRIVE-MANIFEST.md](docs/DRIVE-MANIFEST.md).
 
 ## Golden rule (gate)
-No prediction rule enters the engine without winning the **pre-registered out-of-sample gate**
-on two independent windows (T1 23/24->24/25, T2 24/25->25/26). Overall MAE must never get worse.
+No prediction rule enters the engine without winning the **pre-registered out-of-sample gate**, with its
+parameters fitted on a window that does NOT judge it. Overall MAE must never get worse.
+
+**The gate now runs on 10 windows for Serie A (Tm7 = 15/16->16/17 ... T2 = 24/25->25/26) and 5 for euro**
+(the authenticated votes API turned out to serve seasons the Drive datasets never covered; EuroLeghe
+21/22 is empty at the source, which costs euro two windows). T1/T2 remain named because every published
+number refers to them - `features.PUBLISHED_WINDOWS` pins them - but they are also the windows the
+hypotheses were GENERATED on, so passing there is the weakest possible evidence. Rules that survived two
+windows and died on ten: R4 (age), R10 (new coach), R8 (off-role). Details and protocol in
+[docs/model/gate-motore-v1.md](docs/model/gate-motore-v1.md).
+
+Two verdicts are reported side by side and neither is allowed to hide the other: **strict** (improves on
+every window that measures it, 0.5% floor) and **robust** (majority of windows, mean gain above the
+floor, no window worse than -2%). With ten windows the strict AND rejects rules that win nine times and
+tie once; where they disagree, the report says so and the decision is taken in the open.
 
 ## Toolkit principles (spec v9)
 - `fc_id` (fantacalcio.it id) = **primary key**; the other sites live in `player_xref`/`club_xref`.
@@ -43,7 +56,19 @@ on two independent windows (T1 23/24->24/25, T2 24/25->25/26). Overall MAE must 
   is part of the PK of `match_ratings`, `match_rating_bonuses` and `season_stats`. `euro` = the
   fantamedia/**target**; `default` = the **full real-league season**.
 - **`gameType`** = `classic` | `mantra` = an **engine** dimension (roles + fantavoto modifiers); the base
-  voto is shared, so it is NOT stored in the raw ratings.
+  voto is shared, so it is NOT stored in the raw ratings. **Mantra is played on BOTH platforms**: the
+  classic Serie A listone carries the whole Mantra apparatus (`RM`, `Qt.A M`, `Qt.I M`, `FVM M`) and
+  `rosters.roles` holds 641-751 Serie A Mantra roles per season. An earlier claim that Mantra was
+  euro-only was wrong and was switching off a real combination.
+- **Prices are three pairs and only one is auction-safe.** `price_initial` (Qt.I) is the pre-auction
+  quotation - the market's expectation, and the ONLY price a rule may read. `price` (Qt.A) is revised all
+  season, so for a past season it embeds the outcome. `fvm` / `fvm_mantra` (fantavalore di mercato) are
+  end-of-season by the same argument, and `price_mantra` / `price_initial_mantra` are the same two
+  quotations in the Mantra currency. Everything but Qt.I is **reporting only**; the schema says so where
+  each column lives.
+- **Additive schema changes need a migration.** `CREATE TABLE IF NOT EXISTS` does nothing to an existing
+  table, so a new column without an entry in `db.database.ADDED_COLUMNS` fails with "no such column" and
+  the only cure would be a `rebuild` that drops everything.
 - **Full-season propensity**: the euro calendar is a *subset* of a player's real matches, so propensity
   (goals/assists/xG per 90) is computed over the FULL real season while the FM/Mv target stays on `euro`.
   Serie A: from `default`. Other 4 leagues: from **FBref** (facts) + **Sofascore** (rating + heatmaps),
