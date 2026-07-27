@@ -122,6 +122,13 @@ Documento dedicato, con tutti i numeri e le ipotesi falsificate: **`gate-motore-
   sotto la soglia dello 0.5%) · **R4 bocciata 1/10** e **R10 7/10 con una finestra a −6.3%**: due regole
   che a due finestre sembravano fra le migliori. Sull'euro restano R0c+R3c, e R3c è cieca su 3 finestre
   su 5 finché il **layer per-partita** (in corso, ore) non copre le stagioni vecchie.
+  **Layer per-partita COMPLETATO**: 734 round (la Ligue 1 19/20 finì al 28°, COVID), **109.126** righe
+  `external_match_stats`, `matchday_map` per lega anche sulle stagioni vecchie, voto sintetico
+  ricalibrato (MAE fuori campione 0.369) e FM-equivalente su 1482 arrivi invece di 267. Esito finale:
+  **euro R0c+R3c tiene 4/4** (media +2.4%) e **Serie A R3+R7+R13 tiene 10/10** (media +4.3%). R3c passa
+  4/4 dove è misurabile; **R3 e R7 non hanno una sola finestra contro** (robuste sì, strette no, per una
+  finestra a +0.1%); **R8 ora misurabile e bocciata 1/6** con la peggiore a −19.2%. Asta: Serie A
+  **136→149 nomi su 400** con VALORE catturato su 8 finestre su 10, euro 42→44 su 200.
   Backup: `scripts/backup-data.ps1` specchia `data/` fuori dal repo — la cache è in `.gitignore`
   (e deve restarci: gli Excel vietano la ripubblicazione e questo repo è pubblico).
 - **AUDIT DEI DATI (§3-quinquies)**: lo strato voti è completo (15 coppie stagione-piattaforma,

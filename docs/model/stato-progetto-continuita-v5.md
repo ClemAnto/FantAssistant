@@ -133,7 +133,11 @@ ora 8 e 7 stagioni invece di 3 e 2, **senza una richiesta di rete**. Col test es
 R3+R7+R13**. Verificato anche che il modello portieri M2e non usa `club_elo`, quindi le due sole date
 di Elo non degradano nulla.
 
-**La sola passata che conta**: SofaScore su 19/20-22/23 (aggregati stagionali ~1300 richieste/stagione,
+**FATTA il 27/07 sera, layer per-partita compreso**: 734 round, 109.126 righe, `matchday_map` per lega
+sulle stagioni vecchie, sintetico ricalibrato, FM-equivalente su 1482 arrivi. Set finali: **euro R0c+R3c
+(4/4, media +2.4%)** e **Serie A R3+R7+R13 (10/10, media +4.3%)**. R3 e R7 non hanno una sola finestra
+contro; R8 e R4 bocciate senza dubbio (1/6 e 1/10). Restava scritto qui sotto come «la sola passata che
+conta», e lo era: ~~SofaScore su 19/20-22/23~~ (aggregati stagionali ~1300 richieste/stagione,
 layer per-partita ore) - senza i minuti storici le finestre vecchie sono cieche sulle regole che il
 motore usa, ed e' per questo che R4, R7-euro e R10 sono sopravvissute cosi' a lungo. A costo quasi nullo:
 euro 18/19 (~5 min) e Serie A 17/18-15/16 (~20 min) = quattro finestre in piu'. Impossibili: voti

@@ -519,8 +519,51 @@ Adottate: **R0c + R3c**, e R3c è ancora cieca su Tm4/Tm3/T0 perché i minuti su
 richiedono il layer per-partita (in corso). Tutto il resto cade: R7 3/5 con una finestra a −6.0%,
 R10 4/5 con una a −5.4%, R3 2/4, R12/R12b/R11/R11b 0-1 su 5.
 
-**Il quadro dell'euro non cambia finché il layer per-partita non è completo**: è l'unica cosa che possa
-rendere R3c misurabile su più di due finestre, e con essa R8, R11, R13 e R14.
+### Il layer per-partita è arrivato — 734 round, 109.126 righe
+
+Completato: 734 round in cache su 4 stagioni × 5 leghe (la Ligue 1 2019-20 si è fermata al **28°** turno,
+il COVID, e il totale reale è 734 non 744), **109.126** righe `external_match_stats`. Poi, offline:
+`matchday_map` per lega sulle stagioni vecchie (19/20 da 27 a **104** righe, 20/21 a **134**, 22/23 a
+**129**), voto sintetico ricalibrato (out-of-sample MAE **0.369** contro 0.466 del baseline-media su
+15.184 partite) e FM-equivalente estera su **1482** arrivi invece di 267.
+
+**Cosa ha reso misurabile, e cosa dicono i verdetti finali:**
+
+| | euro (5 finestre) | Serie A (10 finestre) |
+|---|---|---|
+| **ADOPTED** | **R0c + R3c** · tiene **4/4**, media **+2.4%**, peggiore +1.0% | **R3 + R7 + R13** · tiene **10/10**, media **+4.3%**, peggiore +1.2% |
+| **R3c** minuti sul calendario euro | ✅ **4/4** (era misurabile su 2), media +1.5% | ✅ **4/4**, media +4.3% |
+| **R3** minuti stagione reale | robusta 4/5, **nessuna finestra contro** (peggiore +0.2%) | robusta **9/10**, nessuna contro (peggiore +0.2%), media +3.0% |
+| **R7** portieri | ❌ 3/5, peggiore **−6.0%** | robusta **9/10**, nessuna contro (peggiore +0.1%), media +8.3% |
+| R8 fuori-ruolo | ❌ 2/4, peggiore −20.3% | ❌ **1/6**, peggiore −19.2% — ora misurabile e **bocciata senza dubbio** |
+| R14 inattività | ❌ 0/4 | ❌ 4/6 ma sfora il non-danno |
+| R4 / R4b età | ❌ 3/5 e 1/5 | ❌ **1/10** e 1/10 (peggiore **−56.6%**) |
+| R10 nuovo allenatore | ❌ 4/5, peggiore −6.5% | ❌ 4/10, media +0.3% |
+| R11 / R11b / R12 / R12b / R1b | ❌ | ❌ 0/10, 0/10, 4/10, 5/10, 3/10 |
+
+**Tre regole stanno nella categoria «robusta sì, stretta no»** — R3 su entrambe le piattaforme e R7 su
+Serie A — e vale leggere il dettaglio: **nessuna finestra va contro di loro**. Il criterio stretto le
+boccia solo perché una finestra guadagna +0.1% / +0.2%, sotto la soglia dello 0.5%. È esattamente il caso
+per cui i due verdetti sono stati separati, e la lettura corretta è la robusta.
+
+### Simulazione d'asta, tutte le finestre (nomi B0 → adottato · VALORE catturato)
+
+| Serie A | Tm7 | Tm6 | Tm5 | Tm4 | Tm3 | Tm2 | Tm1 | T0 | T1 | T2 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| nomi | 16→16 | 15→15 | 14→**17** | 14→**15** | 15→15 | 11→**13** | 12→**14** | 14→**16** | 11→**13** | 14→**15** |
+| VALORE | 77→76% | 78→**82%** | 78→**84%** | 77→**84%** | 81→**83%** | 79→**81%** | 81→**83%** | 80→**83%** | 74→**71%** | 76→**81%** |
+
+**136 → 149 nomi su 400**, e il VALORE catturato migliora su 8 finestre su 10 (le eccezioni: T1 74→71% e
+Tm7 77→76%).
+
+| euro | Tm4 | Tm3 | T0 | T1 | T2 |
+|---|---|---|---|---|---|
+| nomi | 9→9 | 7→**8** | 8→8 | 6→6 | 12→**13** |
+| VALORE | 78→78% | 77→**79%** | 80→79% | 73→73% | 76→**78%** |
+
+Sull'euro il guadagno resta piccolo e onesto: **42 → 44 nomi su 200**, VALORE su tre finestre su cinque.
+La differenza con Serie A ha una causa che i dati ora mostrano: sull'euro il set adottato è **R0c + R3c**,
+cioè copertura più una regola, mentre su Serie A sono tre regole di cui una (R7) vale da sola +8.3% medio.
 
 ## 4. Ipotesi FALSIFICATE — non riproporre senza finestre nuove
 
