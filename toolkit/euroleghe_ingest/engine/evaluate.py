@@ -19,7 +19,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 
 from euroleghe_ingest.context import Context
@@ -105,14 +105,17 @@ CANDIDATES: tuple[str, ...] = ("R0c", "R1", "R1b", "R2", "R3", "R3c", "R4", "R4b
 # 4.5x across the three windows (-0.004 / -0.011 / -0.018) - monotone in time, which is what a parameter
 # that follows its estimation window looks like, not an age effect.
 #
-# R7 STAYS despite failing the all-windows criterion, and the reason is written down rather than waved
-# through (gate-motore-v1.md §3-ter): its premise - "the shared appearances model loses to pure
-# persistence on goalkeepers" - is measurable, true on three windows and false on the fourth, and it
-# CANNOT be evaluated on auction day because it depends on the season being predicted. So R7 is a bet
-# with three wins out of four, -12%..-20% when it wins and +1.2% when it loses. The all-windows AND
-# rejects it because it weighs no magnitudes; that is a limitation of the criterion.
+# R7 is no longer a bet. With seven Serie A windows and the POOLED keeper coefficient (see
+# POOLED_PARAMS) it improves keeper appearances on ALL SEVEN - -1.6% to -18.3%, mean -9.8% - and never
+# costs a top-10 place. Its earlier failures were the estimator's, not the rule's: one neighbour window's
+# coefficient, fitted on ~30 keepers, was sometimes almost the shared 0.50 and the rule then did nothing.
+#
+# On EURO it stays out. There the same pooled coefficient wins 3 of 4 windows but only by 1.9-3.3% (the
+# neighbour's higher coefficient was worth 17% on T1/T2 and nothing before), it trips the no-harm
+# guardrail on T1, and across the four windows it is a wash on the auction metric: -1 name on Tm3 and T0,
+# +1 on T1 and T2. Two platforms, two verdicts, which is what `platform` being a model dimension is for.
 ADOPTED: dict[str, tuple[str, ...]] = {
-    "euro": ("R0c", "R3c", "R7", "R10"),
+    "euro": ("R0c", "R3c", "R10"),
     "default": ("R3", "R7", "R13"),
 }
 # What the corrected criteria changed, and why the list is shorter than it was:
@@ -379,6 +382,39 @@ class Params:
 def _mv_term(obs: features.Observation) -> float:
     mv_prev = obs.mv_prev if obs.mv_prev is not None else 0.0
     return model.clip(mv_prev - model.MV_PIVOT, -model.MV_CLIP, model.MV_CLIP)
+
+
+# Rules whose parameters are POOLED over the other windows (leave-one-out) instead of taken from the
+# single adjacent one, with the fields that get pooled. A rule belongs here when its coefficient is
+# stable across windows but each window's estimate is noisy - which is a property to be demonstrated,
+# window by window, not assumed. R7: keeper persistence, 0.505-0.798 on seven windows, from ~30 keepers
+# each. See `docs/model/gate-motore-v1.md` §3-quater for the numbers that put it here.
+POOLED_PARAMS: dict[str, tuple[str, ...]] = {"R7": ("share_gk",)}
+
+
+def pool_params(fitted: dict[str, Params], exclude: str, base: Params) -> Params:
+    """`base` with every pooled field replaced by the mean over the OTHER windows' fits.
+
+    Out of sample is preserved by construction: `exclude` is the window being scored and its own fit is
+    the one value left out of every average.
+    """
+    others = [params for key, params in fitted.items() if key != exclude]
+    if not others:
+        return base
+    pooled = replace(base, source=f"{base.source}+pooled(-{exclude})")
+    for fields in POOLED_PARAMS.values():
+        for field_name in fields:
+            values = [getattr(params, field_name) for params in others
+                      if getattr(params, field_name) is not None]
+            if not values:
+                continue
+            if isinstance(values[0], tuple):
+                width = min(len(value) for value in values)
+                mean = tuple(sum(value[i] for value in values) / len(values) for i in range(width))
+            else:
+                mean = sum(values) / len(values)
+            setattr(pooled, field_name, mean)
+    return pooled
 
 
 # Rules that REPLACE the appearances share outright. A residual correction has to be fitted against
@@ -1065,19 +1101,24 @@ MIN_WITH_HISTORY = 50
 
 
 def _window_is_usable(data: features.WindowData, platform: str) -> bool:
-    """Does this window have an input season the model can actually read?
+    """BOTH seasons must have votes: one to predict from, one to be scored against.
 
-    EuroLeghe 2021-22 answers no: the votes Excel exists for all 30 matchdays and every cell is '-'.
-    Reported out loud, because a silently dropped window looks the same as a window that passed.
+    EuroLeghe's hole at 2021-22 needs both halves of this check. Its Tm1 fails on the input side (nothing
+    to predict from) and its Tm2 on the OUTCOME side - the input season is fine, so an input-only check
+    let Tm2 through, and it contributed rows scored on zero players to every rule in the gate. Reported
+    out loud either way: a silently dropped window looks exactly like a window that passed.
     """
-    with_history = sum(1 for obs in data.observations if obs.fm_prev is not None)
     if not data.observations:
         print(f"[gate] {data.window.label} {platform}: no observations - skipped")
         return False
-    if with_history < MIN_WITH_HISTORY:
-        print(f"[gate] {data.window.label} {platform}: only {with_history} players have a previous "
-              f"fantamedia - the input season has no votes, window skipped")
-        return False
+    with_history = sum(1 for obs in data.observations if obs.fm_prev is not None)
+    with_outcome = sum(1 for obs in data.observations if obs.fm_act is not None)
+    for count, side, season in ((with_history, "a previous fantamedia", data.window.input_season),
+                                (with_outcome, "an actual fantamedia", data.window.target_season)):
+        if count < MIN_WITH_HISTORY:
+            print(f"[gate] {data.window.label} {platform}: only {count} players have {side} - "
+                  f"{season} has no votes, window skipped")
+            return False
     return True
 
 
@@ -1108,12 +1149,15 @@ def compare(conn: sqlite3.Connection, candidates: tuple[str, ...], platform: str
     predictions: dict[str, dict[str, list[Prediction]]] = {}
     for key, data in prepared.items():
         other = features.cross_fit_source(key, tuple(prepared))
+        # the neighbour's fit for everything except the pooled rules, whose coefficients come from the
+        # mean over every window but this one
+        scoring = pool_params(fitted, key, fitted[other])
         predicted = {"R0": predict_window(data, ("R0",))}
         configurations = {"R0": evaluate_window(data, ("R0",), predictions=predicted["R0"])}
         for rule in (*candidates, "ALL", "ADOPTED"):
             active = {"ALL": everything, "ADOPTED": adopted}.get(rule, ("R0", rule))
-            predicted[rule] = predict_window(data, active, None, fitted[other])
-            configurations[rule] = evaluate_window(data, active, None, fitted[other],
+            predicted[rule] = predict_window(data, active, None, scoring)
+            configurations[rule] = evaluate_window(data, active, None, scoring,
                                                    predictions=predicted[rule])
         out["windows"][key] = configurations
         predictions[key] = predicted
@@ -1218,12 +1262,14 @@ def compare(conn: sqlite3.Connection, candidates: tuple[str, ...], platform: str
             verdict["robust_detail"] = {
                 "wins": wins, "of": len(gains),
                 "mean_gain": _round(sum(gains) / len(gains), 4),
-                "worst_loss": _round(-min(gains), 4),
+                # the worst window's own gain, so it reads on the same scale and sign as mean_gain:
+                # negative means that window went AGAINST the rule
+                "worst_window": _round(min(gains), 4),
             }
             verdict["robust"] = bool(
                 wins * 2 > len(gains)
                 and sum(gains) / len(gains) >= MIN_RELATIVE_GAIN
-                and -min(gains) <= MAX_WINDOW_LOSS
+                and min(gains) >= -MAX_WINDOW_LOSS
                 and no_harm)
         out["verdicts"][rule] = verdict
     return out
@@ -1467,8 +1513,8 @@ def _print_gate(result: dict) -> None:
             print(f"    robust verdict ({agreement}): "
                   f"{'holds' if verdict['robust'] else 'does not hold'} · "
                   f"wins {detail['wins']}/{detail['of']} windows · mean gain "
-                  f"{detail['mean_gain'] * 100:+.1f}% · worst single window "
-                  f"{detail['worst_loss'] * 100:+.1f}%")
+                  f"{detail['mean_gain'] * 100:+.1f}% · worst window "
+                  f"{detail['worst_window'] * 100:+.1f}% (negative = against the rule)")
         if verdict["kind"] == "coverage":
             # said differently for R0c: it does not beat the trivial answer, it IS the trivial answer
             beats = ("is the trivial answer, by construction" if rule == "R0c"
@@ -1640,11 +1686,21 @@ def run(ctx: Context, *, windows: list[str] | None = None, platforms: list[str] 
                 # The auction simulation: the ADOPTED set, parameters fitted on the OTHER window, so
                 # nothing in the prediction comes from the season being predicted.
                 active = ("R0", *ADOPTED.get(platform, ()))
+                usable = tuple(key for key in features.WINDOWS
+                               if _window_is_usable(features.prepare(
+                                   conn, features.WINDOWS[key], platform, game), platform))
+                # every usable window's fit, because the pooled rules average over all but the scored
+                # one - the same parameters the gate uses, or the deliverable would disagree with the
+                # verdicts that produced it
+                every = {key: fit_params(features.prepare(
+                    conn, features.WINDOWS[key], platform, game), ("R0", *CANDIDATES))
+                    for key in usable}
                 for key in window_keys:
+                    if key not in usable:
+                        continue
                     data = features.prepare(conn, features.WINDOWS[key], platform, game)
-                    other = features.cross_fit_source(key)
-                    params = fit_params(features.prepare(
-                        conn, features.WINDOWS[other], platform, game), ("R0", *CANDIDATES))
+                    other = features.cross_fit_source(key, usable)
+                    params = pool_params(every, key, every[other])
                     view = auction_view(data, predict_window(data, active, None, params))
                     _print_auction(data, view, active)
                     output.setdefault("auction", []).append({

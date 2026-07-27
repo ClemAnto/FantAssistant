@@ -101,7 +101,17 @@ Documento dedicato, con tutti i numeri e le ipotesi falsificate: **`gate-motore-
   criterio «migliora su ogni finestra» perché la sua *premessa* — il modello condiviso perde contro la
   persistenza pura sui portieri — è vera su tre finestre e **falsa sulla quarta**, e non è valutabile il
   giorno dell'asta. È una scommessa 3 su 4 che rende −12%…−20% e costa +1.2%.
-  Set adottati ora: **euro R0c+R3c+R7+R10 · Serie A R3+R7+R13**.
+- **TUTTO L'ARCHIVIO (§3-quater)**: i voti Serie A arrivano almeno al 2015-16 ed **euro 2020-21 ha i
+  voti** (il 21/22 è un buco di una stagione). Ingerite altre 5 coppie stagione-piattaforma →
+  **7 finestre su Serie A, 4 su euro**. E il risultato più importante di tutta la giornata:
+  **R7 non era una scommessa, era uno stimatore sbagliato.** La persistenza dei portieri esce
+  0.505-0.798 su sette finestre, sempre sopra lo 0.50 condiviso — il meccanismo è confermato ovunque —
+  ma ogni finestra veniva valutata col coefficiente della *singola* finestra vicina, fittato su ~30
+  portieri. Mettendo in comune le altre finestre (leave-one-out, `POOLED_PARAMS`): **da 4/7 a 7/7
+  finestre vinte, media +9.8%, peggior finestra +1.6%**. R7 su Serie A è adottata senza riserve; su euro
+  esce (3/4 ma solo +1.9-3.3%, sfora il non-danno, pareggio sulla metrica d'asta).
+  Set adottati ora: **euro R0c+R3c+R10 · Serie A R3+R7+R13**. Il set Serie A migliora il MAE di VALORE
+  su **tutte e sette** le finestre e non perde mai una posizione top-10 (91→96 nomi).
 - **Simulazione dell'asta 25/26** (`backtest --auction`, §3-bis del documento del gate): 15/40 nomi
   azzeccati, ma **80% (euro) e 81% (Serie A) del VALORE** che avrebbero reso le top 10 perfette. La
   metrica dei nomi tratta ogni errore allo stesso modo; quella dei punti dice che gli errori del motore

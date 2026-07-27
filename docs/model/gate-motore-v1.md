@@ -73,10 +73,12 @@ giocatori con una riga di stagione precedente contro i 750/754 pubblicati, su un
 giornate fantasma sui titolari), **non** il guadagno di MAE su T1, che con coefficienti cross-fitted
 diventa +1.3%. Nessuna regola nuova va promossa su quel decimale.
 
-## 3. Verdetti — 6 regole adottate su 17 provate
+## 3. Verdetti — 5 regole adottate su 17 provate
 
 **Adottate, per piattaforma** (`platform` è già una dimensione del modello dati):
-**euro → R0c + R3c + R7 + R10** · **Serie A → R3 + R7 + R13**
+**euro → R0c + R3c + R10** · **Serie A → R3 + R7 + R13**
+*(§3-ter e §3-quater hanno la storia: R4 esce con la terza finestra, R7 esce dall'euro e viene
+**confermata su tutte e 7 le finestre Serie A** quando il suo coefficiente è messo in comune.)*
 
 ⚠️ **Aggiornato la sera del 27/07 con due stagioni in più** (§3-ter): con una terza finestra euro
 (T0 = 22/23→23/24) e una quarta su Serie A (Tm1 = 21/22→22/23), **R4 esce** (contraddetta su T0,
@@ -321,6 +323,94 @@ viene valutata con parametri stimati su dati migliori. `verify_baseline` è anco
 **Ancora disponibile**: 2020-21 (id 103 / 15) e presumibilmente più indietro sulla Serie A. Ogni
 stagione in più costa ~40 minuti di scaricamento educato e rende il gate più severo — è la leva più
 economica che il progetto abbia per distinguere una regola vera da un parametro adattato.
+
+## 3-quater. Tutto l'archivio (27 luglio 2026) — **7 finestre su Serie A, 4 su euro**, e R7 diventa un risultato
+
+Sondato fino in fondo, una giornata scaricata per stagione: i voti Serie A ci sono **almeno fino al
+2015-16** (id 11 per il 16/17, 10 per il 15/16), con 258-281 giocatori votati ogni volta. E **EuroLeghe
+2020-21 ha i voti** (499 su 545): il 21/22 è un **buco di una stagione**, non il bordo dell'archivio.
+
+Ingerite 18/19, 19/20, 20/21 su Serie A e 19/20, 20/21 su euro (~173 download educati).
+
+| | finestre utilizzabili | perché |
+|---|---|---|
+| **Serie A** | **Tm4 · Tm3 · Tm2 · Tm1 · T0 · T1 · T2** (7) | voti in ogni stagione dal 18/19 |
+| **euro** | **Tm3 · T0 · T1 · T2** (4) | il buco del 21/22 uccide Tm2 (bersaglio vuoto) e Tm1 (ingresso vuoto) |
+
+Una finestra ha bisogno di voti **su entrambi i lati**, e il guard controllava solo l'ingresso: Tm2/euro
+passava il controllo e contribuiva righe valutate su **zero** giocatori a ogni regola del gate. Ora
+controlla ingresso *e* bersaglio, e dice quale dei due manca.
+
+**Tm3 e Tm4 attraversano il COVID** (19/20 sospeso a marzo e finito d'estate — per questo l'asta di Tm3
+è datata 15 settembre 2020, non agosto — e 20/21 a porte chiuse). Sono finestre legittime e sono calcio
+insolito: una regola che tiene anche lì è meglio testata; una che cade *solo* lì merita la domanda posta
+a voce, non una bocciatura silenziosa.
+
+### R7 non era una scommessa: era uno stimatore sbagliato
+
+Con sette finestre la persistenza delle presenze dei portieri esce **0.505 · 0.759 · 0.533 · 0.798 ·
+0.656 · 0.651 · 0.705** — sempre sopra lo **0.50** che il modello condiviso assume. Il *meccanismo* è
+confermato su tutte e sette. Eppure la regola cadeva su tre. La causa era il modo di stimarla: ogni
+finestra veniva valutata col coefficiente della **singola finestra adiacente**, e su Tm3 quel vicino
+aveva fittato 0.533, cioè quasi il valore condiviso — la regola non faceva nulla e perdeva lo 0.9%.
+**Trenta portieri a stagione non bastano a stimare un coefficiente di persistenza; cinque finestre di
+trenta sì.**
+
+`POOLED_PARAMS` mette in comune i coefficienti delle **altre** finestre (leave-one-out: il dato della
+finestra valutata non entra mai nel proprio parametro). Effetto su Serie A:
+
+| | vicino | **messo in comune** |
+|---|---|---|
+| finestre vinte | 4/7 | **7/7** |
+| guadagno medio | +8.4% | **+9.8%** |
+| peggior finestra | **−3.3%** | **+1.6%** |
+
+Per finestra: **−11.3% · −11.3% · −2.3% · −1.6% · −12.9% · −11.2% · −18.3%** di MAE sulle presenze dei
+portieri, e la top-10 dei portieri **non peggiora mai** (+1 su quattro finestre). È il risultato più
+solido che il gate abbia prodotto, ed è **R7 su Serie A: adottata senza riserve.**
+
+**Su euro R7 esce.** Lo stesso coefficiente messo in comune vince 3 finestre su 4 ma solo dell'1.9-3.3%
+(il coefficiente alto del vicino valeva 17% su T1/T2 e niente prima), sfora il non-danno su T1, e sulla
+metrica d'asta è un pareggio: −1 nome su Tm3 e T0, +1 su T1 e T2. Due piattaforme, due verdetti — è
+esattamente a questo che serve `platform` come dimensione del modello.
+
+⚠️ **Il pooling è applicato SOLO alle regole elencate in `POOLED_PARAMS`** (oggi: R7). Passare tutte le
+regole a parametri messi in comune riscriverebbe in silenzio ogni numero pubblicato. Le altre meritano
+lo stesso test, una alla volta, sui propri meriti — ed è la prima cosa da provare per ogni regola il cui
+coefficiente è **stabile di segno e instabile di magnitudo**.
+
+### Set adottati finali e la simulazione d'asta su ogni finestra
+
+**euro → R0c + R3c + R10** · **Serie A → R3 + R7 + R13**
+
+| Serie A (7 finestre) | Tm4 | Tm3 | Tm2 | Tm1 | T0 | T1 | T2 |
+|---|---|---|---|---|---|---|---|
+| nomi B0 → adottato | 14→14 | 15→15 | 11→**12** | 12→**13** | 14→14 | 11→**13** | 14→**15** |
+| VALORE catturato | 77→**78%** | 81→81% | 79→**81%** | 81→**84%** | 80→80% | 74→**71%** | 76→**81%** |
+| MAE di VALORE | −0.6% | −0.8% | −0.2% | −1.0% | −1.0% | −4.1% | −2.4% |
+
+**Il set Serie A migliora il MAE di VALORE su tutte e sette le finestre** e la top-10 non peggiora mai
+(91→96 nomi in totale). Il VALORE catturato sale su 6 su 7; l'eccezione è T1 (74%→71%), dove il set
+guadagna 2 nomi e ne compra di meno redditizi.
+
+| euro (4 finestre) | Tm3 | T0 | T1 | T2 |
+|---|---|---|---|---|
+| nomi B0 → adottato | 7→7 | 9→**8** | 6→**7** | 12→**14** |
+| VALORE catturato | 77→77% | 81→**78%** | 73→**74%** | 76→**79%** |
+| MAE di VALORE | −0.0% | −0.5% | −1.9% | −1.2% |
+
+Sull'euro il MAE di VALORE migliora su tutte e quattro le finestre e la copertura va **dal 30-34% al
+100%**, ma la metrica d'asta è piatta sulle due finestre vecchie (7→7, 9→8) e positiva sulle due recenti
+(6→7, 12→14). Onestamente: **il set euro è dimostrato sulle finestre su cui è stato costruito e neutro
+su quelle che non lo hanno visto nascere.** La differenza con Serie A ha una causa nota — su euro tre
+delle quattro regole (R3c, R10, e prima R13/R1) leggono input che partono dal 23/24, quindi sulle
+finestre vecchie il set è in pratica solo R0c.
+
+**Il prossimo passo più economico** resta lo stesso: 2017-18 e più indietro sulla Serie A (~7 minuti di
+scaricamento per stagione, una finestra ciascuna), e **19/20 e 18/19 su euro** per dare al lato euro
+finestre vecchie con più di R0c dentro. Ma il vero collo di bottiglia dell'euro non è il numero di
+finestre: sono gli **input** (`external_stats`, `arrivals`, `club_elo`, `new_coach`) che partono dal
+23/24 e rendono cieche le finestre vecchie sulle regole che contano.
 
 ## 4. Ipotesi FALSIFICATE — non riproporre senza finestre nuove
 

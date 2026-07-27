@@ -13,8 +13,9 @@ Invariata (storico 9 stagioni, endpoint Excel, fallback SofaScore, scala ricalib
 - [x] 2.5-lite backtest core (Mantra non-inferiore a Classic) -> backtest-mantra-fase2_5lite.md
 - [x] **2.5 pieno (con flag) — ESEGUITO il 27/07**: 17 ipotesi passate dal gate, **6 adottate**
   (euro R0c+R3c+R7+R10 · Serie A R3+R7+R13), 12 falsificate con motivo registrato. Rigirato la sera
-  stessa su **3 finestre (euro) e 4 (Serie A)** dopo aver scoperto che l'API dei voti serve 22/23 e
-  21/22: R4 esce, R7 resta con riserva scritta, R10 rafforzata (§3-ter). Esito completo,
+  stessa su **4 finestre (euro) e 7 (Serie A)** dopo aver scoperto che l'API dei voti arriva almeno al
+  2015-16: R4 esce, R10 rafforzata (§3-ter), e **R7 confermata 7/7 su Serie A** una volta messo in
+  comune il coefficiente fra le finestre invece di prenderlo dalla vicina (§3-quater). Esito completo,
   protocollo e numeri per ruolo in **`gate-motore-v1.md`**. Le ipotesi set-pieces pre-registrate:
   `penalty_ev` in forma ridotta **bocciata**, `set_piece_duty` **non misurabile**
   (`assists_set_piece` NULL su tutte le righe di voti).

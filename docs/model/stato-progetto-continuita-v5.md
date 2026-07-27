@@ -107,8 +107,23 @@ valutabile il giorno dell'asta. Set adottati: **euro R0c+R3c+R7+R10 · Serie A R
 Numeri completi, decomposizione della regressione su euro T0 e i tre difetti del gate che solo piu'
 finestre potevano rivelare: `gate-motore-v1.md` §3-ter.
 
-**Ancora disponibile**: 20/21 e presumibilmente piu' indietro sulla Serie A. E' la leva piu' economica
-per distinguere una regola vera da un parametro adattato alla finestra su cui e' stato stimato.
+**Poi spinto fino in fondo**: i voti Serie A ci sono almeno dal 2015-16 ed **euro 2020-21 ha i voti**
+(il 21/22 e' un buco di una stagione, non il bordo). Ingerite 18/19, 19/20, 20/21 su Serie A e 19/20,
+20/21 su euro: **7 finestre su Serie A, 4 su euro**.
+
+**E qui il risultato piu' importante della giornata: R7 non era una scommessa, era uno stimatore
+sbagliato.** La persistenza delle presenze dei portieri esce 0.505-0.798 su sette finestre, sempre sopra
+lo 0.50 che il modello condiviso assume - il meccanismo e' confermato ovunque - ma ogni finestra veniva
+valutata col coefficiente della SINGOLA finestra adiacente, fittato su ~30 portieri, che a volte era
+quasi 0.50. Mettendo in comune le altre finestre (`POOLED_PARAMS`, leave-one-out): **da 4/7 a 7/7
+finestre vinte, guadagno medio +9.8%, peggior finestra ancora +1.6%**. Su euro invece R7 esce.
+Set finali: **euro R0c+R3c+R10 · Serie A R3+R7+R13**. Il set Serie A migliora il MAE di VALORE su tutte
+e sette le finestre, non perde mai una posizione top-10, e porta i nomi azzeccati da 91 a 96 su 280.
+
+**Ancora disponibile**: 17/18 e piu' indietro sulla Serie A (~7 minuti per stagione), e 19/20 e 18/19 su
+euro. Ma il collo di bottiglia dell'euro non e' il numero di finestre: sono gli input
+(`external_stats`, `arrivals`, `club_elo`, `new_coach`) che partono dal 23/24 e rendono cieche le
+finestre vecchie sulle regole che contano.
 
 ## Prossimo lavoro
 1. ~~Completare il layer per-partita~~ **FATTO il 27/07** (sezione sopra): 100% delle partite, bias di
