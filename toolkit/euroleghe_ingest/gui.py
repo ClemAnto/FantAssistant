@@ -1034,6 +1034,9 @@ class AuctionView(ttk.Frame):
         # fitted or it does not. It is packed and unpacked rather than left in place, so a still bar
         # never sits there looking like a stalled one.
         self.spinner = ttk.Progressbar(top, mode="indeterminate", length=90)
+        # Every selector in one place: `_busy` disables the collection, so a selector added later is
+        # locked during a run without anyone having to remember it.
+        self._selectors = (self.platform_cb, self.game_cb, self.season_cb)
         self.status_var = tk.StringVar(value="")
         ttk.Label(top, textvariable=self.status_var, foreground="#555").pack(side="left", padx=8)
 
@@ -1135,8 +1138,16 @@ class AuctionView(ttk.Frame):
         finally:
             conn.close()
 
+    # A run owns the selection it was started with. Changing platform or game mid-run would leave a
+    # worker computing one thing while the panel claims another, and changing season would render from a
+    # cache entry the run is about to replace.
+    SELECTOR_STATE: ClassVar[dict[bool, str]] = {True: "disabled", False: "readonly"}
+
     def _busy(self, running: bool) -> None:
-        """Show/hide the spinner. Also called on the error path, or a failure would spin forever."""
+        """Spinner on, selectors off - and the reverse. Called on the error path too: a failure must not
+        leave the panel spinning with its controls locked."""
+        for selector in self._selectors:
+            selector.configure(state=self.SELECTOR_STATE[running])
         if running:
             self.spinner.pack(side="left", padx=(4, 0))
             self.spinner.start(12)

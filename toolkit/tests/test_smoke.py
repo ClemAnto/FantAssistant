@@ -211,3 +211,35 @@ def test_heading_tooltip_maps_the_identified_column_to_its_name():
     assert tip._column_under(event) is None
     tree.region = "cell"                    # over the body, not the header
     assert tip._column_under(event) is None
+
+
+def test_auction_selectors_are_locked_while_the_engine_runs():
+    """A run owns the selection it started with: changing platform or game mid-run would leave the
+    worker computing one thing while the panel claims another. Real widgets, because the invariant is
+    about widget state - skipped where Tk cannot open a display."""
+    import tkinter as tk
+
+    import pytest
+
+    from euroleghe_ingest import gui
+
+    try:
+        root = tk.Tk()
+    except tk.TclError as exc:                    # headless CI: nothing to assert about widgets
+        pytest.skip(f"no Tk display: {exc}")
+    try:
+        root.withdraw()
+        view = gui.AuctionView(root, Config())
+        assert view._selectors, "the selectors must be collected for _busy to lock them"
+        # str(): ttk returns a Tcl object from cget, which never equals a Python string
+        assert all(str(s.cget("state")) == "readonly" for s in view._selectors)
+
+        view._busy(True)
+        assert all(str(s.cget("state")) == "disabled" for s in view._selectors)
+        assert view.spinner.winfo_manager(), "the spinner should be visible while busy"
+
+        view._busy(False)
+        assert all(str(s.cget("state")) == "readonly" for s in view._selectors)
+        assert not view.spinner.winfo_manager(), "the spinner should be gone when idle"
+    finally:
+        root.destroy()
