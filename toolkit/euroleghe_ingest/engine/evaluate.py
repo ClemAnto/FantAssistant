@@ -1557,6 +1557,17 @@ def _print_cases(data: features.WindowData, predictions: list[Prediction]) -> No
         print(f"    {name:<16} FM {fm} Pv {pv} VALUE {value} | actual {actual}{delta}")
 
 
+def role_membership(data: features.WindowData) -> tuple[tuple[str, ...], object]:
+    """The roles the auction is run by, and how to tell whether a player holds one.
+
+    Classic has one role per player; Mantra has several, and a 'dc;b' defender competes for a slot in
+    BOTH lists - which is how a Mantra auction is actually run, one role slot at a time.
+    """
+    if data.game == "mantra":
+        return model.MANTRA_ROLES, (lambda obs, role: role in obs.roles_mantra)
+    return model.CLASSIC_ROLES, (lambda obs, role: obs.role_classic == role)
+
+
 def auction_view(data: features.WindowData, predictions: list[Prediction],
                  top_n: int = TOP_N) -> dict:
     """Per role: the predicted top N and the real top N, each annotated with the other's rank.
@@ -1566,10 +1577,11 @@ def auction_view(data: features.WindowData, predictions: list[Prediction],
     named comparison shows which.
     """
     out: dict[str, dict] = {}
-    for role in model.CLASSIC_ROLES:
-        observations = [obs for obs in data.observations if obs.role_classic == role]
+    roles, holds = role_membership(data)
+    for role in roles:
+        observations = [obs for obs in data.observations if holds(obs, role)]
         valued = [p for p in predictions
-                  if p.obs.role_classic == role and p.value_pred is not None]
+                  if holds(p.obs, role) and p.value_pred is not None]
         if not observations:
             continue
         ranked = sorted(valued, key=lambda p: -(p.value_pred or 0.0))
@@ -1583,6 +1595,10 @@ def auction_view(data: features.WindowData, predictions: list[Prediction],
         # Precision counts names and treats every miss alike; this counts points, so missing the tenth
         # defender costs what the tenth defender was worth. It is the closest thing the harness has to
         # the question the auction actually asks.
+        def market(obs, _game=data.game):
+            """The market's own end-of-season answer, in the game's own currency."""
+            return obs.fvm_mantra if _game == "mantra" else obs.fvm
+
         captured = sum(p.obs.value_act or 0.0 for p in ranked[:top_n])
         perfect = sum(obs.value_act or 0.0 for obs in actual[:top_n])
         out[role] = {
@@ -1607,14 +1623,14 @@ def auction_view(data: features.WindowData, predictions: list[Prediction],
                 "fm_pred": _round(p.fm_pred, 2), "pv_pred": _round(p.pv_pred, 1),
                 "value_pred": _round(p.value_pred, 1),
                 "fm_act": p.obs.fm_act, "pv_act": p.obs.pv_act,
-                "value_act": _round(p.obs.value_act, 1),
+                "value_act": _round(p.obs.value_act, 1), "fvm": market(p.obs),
                 "actual_rank": actual_rank.get(p.obs.fc_id),
             } for index, p in enumerate(ranked[:top_n], 1)],
             "actual": [{
                 "rank": index, "name": obs.name, "club": obs.club_target,
                 "price_initial": obs.price_initial,
                 "fm_act": obs.fm_act, "pv_act": obs.pv_act,
-                "value_act": _round(obs.value_act, 1),
+                "value_act": _round(obs.value_act, 1), "fvm": market(obs),
                 "fm_pred": _round(by_id[obs.fc_id].fm_pred, 2) if obs.fc_id in by_id else None,
                 "pv_pred": _round(by_id[obs.fc_id].pv_pred, 1) if obs.fc_id in by_id else None,
                 "value_pred": _round(by_id[obs.fc_id].value_pred, 1) if obs.fc_id in by_id else None,
@@ -1635,8 +1651,8 @@ def _print_auction(data: features.WindowData, view: dict, rules: tuple[str, ...]
               f"({(block['captured_share'] or 0) * 100:.0f}%) · misses: {misses['near']} near, "
               f"{misses['regime']} regime, {misses['unpriced']} never priced")
         print(f"    {'#':>2}  {'PREDICTED':<20} {'Qt.I':>4} {'FMp':>5} {'Pvp':>5} {'VALp':>6} "
-              f"{'real':>6} {'#real':>6}   {'#':>2}  {'REAL':<20} {'FM':>5} {'Pv':>4} "
-              f"{'VAL':>6} {'#pred':>6}")
+              f"{'real':>6} {'FVM':>5} {'#real':>6}   {'#':>2}  {'REAL':<20} {'FM':>5} {'Pv':>4} "
+              f"{'VAL':>6} {'FVM':>5} {'#pred':>6}")
         for left, right in zip(block["predicted"], block["actual"], strict=False):
             got = "  -  " if left["value_act"] is None else f"{left['value_act']:6.0f}"
             actual_rank = "   -" if left["actual_rank"] is None else f"{left['actual_rank']:4d}"
@@ -1644,9 +1660,11 @@ def _print_auction(data: features.WindowData, view: dict, rules: tuple[str, ...]
                          else f"{right['predicted_rank']:4d}")
             print(f"    {left['rank']:2d}  {left['name'][:20]:<20} "
                   f"{(left['price_initial'] or 0):4.0f} {left['fm_pred'] or 0:5.2f} "
-                  f"{left['pv_pred'] or 0:5.1f} {left['value_pred'] or 0:6.0f} {got} {actual_rank:>6}"
+                  f"{left['pv_pred'] or 0:5.1f} {left['value_pred'] or 0:6.0f} {got} "
+                  f"{left['fvm'] or 0:5.0f} {actual_rank:>6}"
                   f"   {right['rank']:2d}  {right['name'][:20]:<20} {right['fm_act'] or 0:5.2f} "
-                  f"{right['pv_act'] or 0:4d} {right['value_act'] or 0:6.0f} {pred_rank:>6}")
+                  f"{right['pv_act'] or 0:4d} {right['value_act'] or 0:6.0f} "
+                  f"{right['fvm'] or 0:5.0f} {pred_rank:>6}")
 
 
 # ---------------------------------------------------------------- entry point

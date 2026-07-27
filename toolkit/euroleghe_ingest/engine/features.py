@@ -127,6 +127,11 @@ class Observation:
     # quantity a year earlier - so the engine can read how the market REVISED him before the auction.
     price_initial: float | None = None
     price_initial_prev: float | None = None
+    # FVM of the target season, Classic and Mantra. Served in the listone's current state, so for a
+    # finished season it is the END-OF-SEASON market value: scoring and reporting only, like `price`.
+    # No rule may read it - it is on the wrong side of the auction date by construction.
+    fvm: float | None = None
+    fvm_mantra: float | None = None
     # `recent_form`: a small dated sample for players with no history at all. Ratings from a
     # competition the synthetic voto was never fitted on, so kept as its own thing.
     recent_matches: int = 0
@@ -448,7 +453,7 @@ def load(conn: sqlite3.Connection, window: Window, platform: str) -> list[Observ
         f"""SELECT r.fc_id, p.canonical_name, r.role_classic, r.roles, r.league, r.price,
                    ct.canonical_name, cp.canonical_name, p.birth_year,
                    sp.pv, sp.mv, sp.fm, st.pv, st.mv, st.fm,
-                   r.price_initial, rp.price_initial
+                   r.price_initial, rp.price_initial, r.fvm, r.fvm_mantra
             FROM rosters r
             JOIN players p ON p.fc_id = r.fc_id
             LEFT JOIN clubs ct ON ct.fc_club_id = r.fc_club_id
@@ -501,7 +506,7 @@ def load(conn: sqlite3.Connection, window: Window, platform: str) -> list[Observ
     observations: list[Observation] = []
     for (fc_id, name, role_classic, roles_raw, league, price, club_target, club_prev, birth_year,
          pv_prev, mv_prev, fm_prev, pv_act, mv_act, fm_act,
-         price_initial, price_initial_prev) in rows:
+         price_initial, price_initial_prev, fvm, fvm_mantra) in rows:
         matches, starts, minutes, goals, assists, xg, xa, rating = external.get(fc_id, (None,) * 8)
         kind, tier, origin, equivalent = arrivals.get(fc_id, (None, None, None, None))
         sample = recent.get(fc_id) or {}
@@ -516,6 +521,7 @@ def load(conn: sqlite3.Connection, window: Window, platform: str) -> list[Observ
             goals_prev=goals, assists_prev=assists, xg_prev=xg, xa_prev=xa, rating_prev=rating,
             minutes_share_euro_prev=euro_minutes.get(fc_id),
             price_initial=price_initial, price_initial_prev=price_initial_prev,
+            fvm=fvm, fvm_mantra=fvm_mantra,
             recent_matches=sample.get("matches", 0), recent_minutes=sample.get("minutes", 0),
             recent_goals=sample.get("goals", 0), recent_assists=sample.get("assists", 0),
             recent_rating=sample.get("rating"),
@@ -547,6 +553,7 @@ FEATURE_CHECKS: tuple[tuple[str, str], ...] = (
     ("foreign_fm_equiv", "foreign FM-equivalent - R1 arrivals"),
     ("recent_rating", "last matches elsewhere (recent_form) - R13 no-history players"),
     ("longest_gap_days", "longest spell without playing - R14 inactivity"),
+    ("fvm", "end-of-season market value - REPORTING ONLY, never an input"),
     ("price_initial", "pre-auction quotation Qt.I - R12 market expectation"),
     ("price_initial_prev", "last season's Qt.I - R12b expectation revision"),
     ("birth_year", "birth year - R4 age curve"),

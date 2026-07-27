@@ -1,10 +1,14 @@
 """Lightweight UI (Tkinter, stdlib) - the toolkit's operator panel.
 
-Two tabs:
+Three tabs:
   * Operations - launch pipeline operations (initdb, rebuild, fetch, single modules) with a live
     log, DB status, and a per-button state indicator (completed / to do / unavailable).
   * Players    - browse the players of a selected team, with cascading season/league/team selectors
     and a canvas table (role pills, sortable columns) or a per-matchday fantavoti grid (colored by status).
+  * Auction    - for a chosen season / platform / game, per role: the ten players the engine would
+    have valued highest at the auction, and the ten who actually finished highest, each list carrying
+    the other's rank plus the end-of-season FVM. Read-only, and it runs the same code path as
+    `backtest --auction`, so the panel and the gate can never drift apart.
 
 Operations run in a separate thread so the window doesn't freeze; module output is redirected into
 the log panel. No external dependencies: Tkinter ships with Python.
@@ -891,6 +895,237 @@ def make_app_icon() -> tk.PhotoImage:
     return img
 
 
+class AuctionView(ttk.Frame):
+    """Per role, side by side: who the engine would have bought and who actually paid off.
+
+    The two lists answer different questions and the panel shows both, because a single precision
+    number ("6/10") hides whether the misses were players the engine could not price at all, players it
+    priced in the third hundred, or noise between comparable names.
+    """
+
+    # Mantra is a EuroLeghe thing: the classic Serie A game has no Mantra roles, and offering the
+    # combination would compute a ranking for a game nobody plays. The CLI skips it for the same
+    # reason - `platform == "default" and game == "mantra"` never runs.
+    GAMES: ClassVar[dict[str, tuple[str, ...]]] = {
+        "euro": ("classic", "mantra"), "default": ("classic",)}
+
+    ROLE_LABELS: ClassVar[dict[str, str]] = {
+        "P": "Goalkeepers", "D": "Defenders", "C": "Midfielders", "A": "Forwards",
+        "por": "por", "dc": "dc", "dd": "dd", "ds": "ds", "b": "b", "e": "e",
+        "m": "m", "c": "c", "w": "w", "t": "t", "a": "a", "pc": "pc",
+    }
+
+    def __init__(self, parent: tk.Widget, config: Config) -> None:
+        super().__init__(parent, padding=10)
+        self.config = config
+        self._cache: dict[tuple[str, str], dict] = {}     # (platform, game) -> {season: view}
+        self._running = False
+        self._build()
+
+    # ---------- layout ----------
+    def _build(self) -> None:
+        top = ttk.Frame(self)
+        top.pack(fill="x")
+        self.platform_var = tk.StringVar(value="euro")
+        self.game_var = tk.StringVar(value="classic")
+        self.season_var = tk.StringVar()
+        self.platform_cb = self._selector(top, "Platform", self.platform_var,
+                                          ["euro", "default"], self._on_platform_change, width=10)
+        self.game_cb = self._selector(top, "Game", self.game_var,
+                                      list(self.GAMES["euro"]), self._on_config_change, width=10)
+        self.season_cb = self._selector(top, "Season", self.season_var, [], self._on_season_change)
+        self.status_var = tk.StringVar(value="")
+        ttk.Label(top, textvariable=self.status_var, foreground="#555").pack(side="left", padx=8)
+
+        hint = ("predicted VALUE = predicted fantamedia x predicted appearances, from the previous "
+                "season only · FVM = the listone's end-of-season market value")
+        ttk.Label(self, text=hint, foreground="#777").pack(fill="x", pady=(4, 0))
+
+        body = ttk.Frame(self)
+        body.pack(fill="both", expand=True, pady=(6, 0))
+        self.canvas = tk.Canvas(body, highlightthickness=0)
+        scroll = ttk.Scrollbar(body, orient="vertical", command=self.canvas.yview)
+        self.canvas.configure(yscrollcommand=scroll.set)
+        self.canvas.pack(side="left", fill="both", expand=True)
+        scroll.pack(side="right", fill="y")
+        self.inner = ttk.Frame(self.canvas)
+        self._window_id = self.canvas.create_window((0, 0), window=self.inner, anchor="nw")
+        self.inner.bind("<Configure>",
+                        lambda _e: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
+        self.canvas.bind("<Configure>",
+                         lambda e: self.canvas.itemconfigure(self._window_id, width=e.width))
+        self.canvas.bind_all("<MouseWheel>", self._on_wheel)
+
+    def _on_wheel(self, event) -> None:
+        # bind_all is global, so only scroll when this tab is the visible one
+        if self.winfo_ismapped():
+            self.canvas.yview_scroll(int(-event.delta / 120), "units")
+
+    def _selector(self, parent, label, var, values, callback, width: int = 14) -> ttk.Combobox:
+        ttk.Label(parent, text=label).pack(side="left", padx=(0, 4))
+        cb = ttk.Combobox(parent, textvariable=var, state="readonly", width=width, values=values)
+        cb.pack(side="left", padx=(0, 12))
+        cb.bind("<<ComboboxSelected>>", callback)
+        return cb
+
+    # ---------- data ----------
+    def reload(self) -> None:
+        """Called on startup and after an operation: recompute for the current selection."""
+        self._cache.clear()
+        self._on_config_change()
+
+    def _on_platform_change(self, _event=None) -> None:
+        games = self.GAMES.get(self.platform_var.get(), ("classic",))
+        self.game_cb.configure(values=list(games))
+        if self.game_var.get() not in games:
+            self.game_var.set(games[0])
+        self._on_config_change()
+
+    def _on_config_change(self, _event=None) -> None:
+        key = (self.platform_var.get(), self.game_var.get())
+        if key in self._cache:
+            self._refresh_seasons(self._cache[key])
+            return
+        if self._running:
+            return
+        if not self.config.db_path.exists():
+            self.status_var.set("no database yet - run initdb")
+            return
+        self._running = True
+        self.status_var.set("valuing the listone (the engine fits every window)...")
+        self._clear()
+        threading.Thread(target=self._compute, args=key, daemon=True).start()
+
+    def _compute(self, platform: str, game: str) -> None:
+        """Worker: run the engine for every usable window of this platform+game."""
+        try:
+            views = self._auction_views(platform, game)
+            error = None
+        except Exception as exc:                    # noqa: BLE001 - the panel reports, never crashes
+            views, error = {}, f"{type(exc).__name__}: {exc}"
+        self.after(0, lambda: self._done(platform, game, views, error))
+
+    def _auction_views(self, platform: str, game: str) -> dict[str, dict]:
+        """{target season: per-role view}. Imported here so the GUI starts without the engine."""
+        from euroleghe_ingest.engine import evaluate, features
+
+        conn = connect(self.config.db_path)
+        try:
+            usable, fits = {}, {}
+            for key, window in features.WINDOWS.items():
+                data = features.prepare(conn, window, platform, game)
+                if evaluate._window_is_usable(data, platform):
+                    usable[key] = data
+                    fits[key] = evaluate.fit_params(data, ("R0", *evaluate.CANDIDATES))
+            adopted = ("R0", *evaluate.ADOPTED.get(platform, ()))
+            out: dict[str, dict] = {}
+            for key, data in usable.items():
+                # the same parameters the gate scores this window with: the adjacent window's fit, with
+                # the pooled rules averaged over every window except this one
+                source = features.cross_fit_source(key, tuple(usable))
+                params = evaluate.pool_params(fits, key, fits[source])
+                out[data.window.target_season] = {
+                    "window": key, "params_from": params.source,
+                    "rules": ", ".join(adopted[1:]) or "baseline only",
+                    "by_role": evaluate.auction_view(
+                        data, evaluate.predict_window(data, adopted, None, params)),
+                }
+            return out
+        finally:
+            conn.close()
+
+    def _done(self, platform: str, game: str, views: dict, error: str | None) -> None:
+        self._running = False
+        if error:
+            self.status_var.set(error)
+            return
+        self._cache[(platform, game)] = views
+        if (platform, game) == (self.platform_var.get(), self.game_var.get()):
+            self._refresh_seasons(views)
+
+    def _refresh_seasons(self, views: dict) -> None:
+        seasons = sorted(views, reverse=True)
+        self.season_cb.configure(values=seasons)
+        if not seasons:
+            self.status_var.set("no window has votes on both sides for this platform")
+            self._clear()
+            return
+        if self.season_var.get() not in seasons:
+            self.season_var.set(seasons[0])
+        self._render(views[self.season_var.get()])
+
+    def _on_season_change(self, _event=None) -> None:
+        views = self._cache.get((self.platform_var.get(), self.game_var.get()))
+        if views and self.season_var.get() in views:
+            self._render(views[self.season_var.get()])
+
+    # ---------- rendering ----------
+    def _clear(self) -> None:
+        for child in self.inner.winfo_children():
+            child.destroy()
+
+    def _render(self, view: dict) -> None:
+        self._clear()
+        total_hits = sum(block["hits"] for block in view["by_role"].values())
+        captured = sum(block["captured_value"] or 0 for block in view["by_role"].values())
+        perfect = sum(block["perfect_value"] or 0 for block in view["by_role"].values())
+        roles = len(view["by_role"])
+        share = f"{captured / perfect * 100:.0f}%" if perfect else "n/a"
+        self.status_var.set(
+            f"window {view['window']} · rules {view['rules']} · parameters from "
+            f"{view['params_from']} · {total_hits}/{roles * 10} names · {share} of the perfect "
+            f"top-10 VALUE")
+        for role, block in view["by_role"].items():
+            self._render_role(role, block)
+
+    @staticmethod
+    def _num(value, digits: int = 0) -> str:
+        """One place for the column formats: %g would print 32.199999 next to 5.1 and 210.9."""
+        return "" if value is None else f"{float(value):.{digits}f}"
+
+    def _render_role(self, role: str, block: dict) -> None:
+        label = self.ROLE_LABELS.get(role, role)
+        misses = block["misses"]
+        head = (f"{label} — {block['hits']}/10 in common · VALUE captured "
+                f"{(block['captured_value'] or 0):.0f} of {(block['perfect_value'] or 0):.0f} · "
+                f"misses: {misses['near']} near, {misses['regime']} beyond rank 50, "
+                f"{misses['unpriced']} never priced")
+        box = ttk.LabelFrame(self.inner, text=head, padding=6)
+        box.pack(fill="x", expand=True, pady=(0, 10))
+        left = ttk.Frame(box)
+        right = ttk.Frame(box)
+        left.pack(side="left", fill="both", expand=True, padx=(0, 6))
+        right.pack(side="left", fill="both", expand=True)
+        self._table(left, "Predicted at the auction",
+                    ("#", "Player", "Qt.I", "FM", "Pv", "VALUE", "real VALUE", "FVM", "real #"),
+                    [(row["rank"], row["name"], self._num(row["price_initial"]),
+                      self._num(row["fm_pred"], 2), self._num(row["pv_pred"], 1),
+                      self._num(row["value_pred"]), self._num(row["value_act"]),
+                      self._num(row["fvm"]), row["actual_rank"] or "-")
+                     for row in block["predicted"]])
+        self._table(right, "Actual, end of season",
+                    ("#", "Player", "Qt.I", "FM", "Pv", "VALUE", "FVM", "pred. VALUE", "pred. #"),
+                    [(row["rank"], row["name"], self._num(row["price_initial"]),
+                      self._num(row["fm_act"], 2), self._num(row["pv_act"]),
+                      self._num(row["value_act"]), self._num(row["fvm"]),
+                      self._num(row["value_pred"]),
+                      row["predicted_rank"] or "not priced")
+                     for row in block["actual"]])
+
+    def _table(self, parent: tk.Widget, title: str, columns: tuple[str, ...],
+               rows: list[tuple]) -> None:
+        ttk.Label(parent, text=title, font=("Segoe UI", 9, "bold")).pack(anchor="w")
+        tree = ttk.Treeview(parent, columns=columns, show="headings", height=max(1, len(rows)))
+        for column in columns:
+            tree.heading(column, text=column)
+            width = 130 if column == "Player" else 46 if column == "#" else 68
+            tree.column(column, width=width, anchor="w" if column == "Player" else "e",
+                        stretch=column == "Player")
+        for row in rows:
+            tree.insert("", "end", values=row)
+        tree.pack(fill="x")
+
+
 class ToolkitGUI:
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
@@ -918,9 +1153,13 @@ class ToolkitGUI:
         self.players = PlayersView(notebook, self.config)
         notebook.add(self.players, text="Players")
 
+        self.auction = AuctionView(notebook, self.config)
+        notebook.add(self.auction, text="Auction")
+
         self.refresh_status()
         self.refresh_operation_states()
         self.players.reload()
+        self.auction.reload()
         self.root.after(100, self._drain_log)
 
     # ---------- operations tab layout ----------

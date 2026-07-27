@@ -268,6 +268,8 @@ def parse_listone(data: bytes, season: str) -> list[dict]:
                     "team": (str(cell("Squadra")).strip() if cell("Squadra") is not None else None),
                     "price": _num(cell("Qt.A")),
                     "price_initial": _num(cell("Qt.I")),
+                    "fvm": _num(cell("FVM")),
+                    "fvm_mantra": _num(cell("FVM M")),
                 })
         return out
     finally:
@@ -355,18 +357,20 @@ def upsert_listone(conn, season: str, records: list[dict], platform: str = DEFAU
         conn.execute(
             """
             INSERT INTO rosters(fc_id, season, fc_club_id, roles, role_classic, league,
-                                price, price_initial)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                                price, price_initial, fvm, fvm_mantra)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(fc_id, season) DO UPDATE SET
                 roles         = COALESCE(excluded.roles, rosters.roles),
                 role_classic  = COALESCE(excluded.role_classic, rosters.role_classic),
                 price         = COALESCE(excluded.price, rosters.price),
                 price_initial = COALESCE(excluded.price_initial, rosters.price_initial),
+                fvm           = COALESCE(excluded.fvm, rosters.fvm),
+                fvm_mantra    = COALESCE(excluded.fvm_mantra, rosters.fvm_mantra),
                 fc_club_id    = COALESCE(excluded.fc_club_id, rosters.fc_club_id),
                 league        = COALESCE(rosters.league, excluded.league)
             """,
             (rec["fc_id"], season, club_id, roles, rec["role_classic"], league,
-             rec["price"], rec.get("price_initial")),
+             rec["price"], rec.get("price_initial"), rec.get("fvm"), rec.get("fvm_mantra")),
         )
         n += 1
     return n
@@ -498,10 +502,16 @@ def reingest_listone_from_cache(ctx: Context) -> None:
             continue
         token, season = m.group(1), m.group(2)
         platform = _PLATFORM_ALIAS.get(token, token)
+        # A corrupt cache FILE must not abort the rebuild - but a database error is not per-file and
+        # must not be reported as one. Adding a column to the schema without a migration made all 15
+        # files print "skipping unreadable listone", which sent the diagnosis to the cache instead of
+        # to the one place it belonged.
         try:
-            total += upsert_listone(conn, season, parse_listone(path.read_bytes(), season), platform)
-        except Exception as exc:  # noqa: BLE001 - a corrupt cache file must not abort the rebuild
+            records = parse_listone(path.read_bytes(), season)
+        except (OSError, ValueError, KeyError) as exc:
             print(f"[ratings] skipping unreadable listone {path.name}: {exc}")
+            continue
+        total += upsert_listone(conn, season, records, platform)
     conn.commit()
     if files:
         print(f"[ratings] reingested {total} listone rows from {len(files)} cached files")

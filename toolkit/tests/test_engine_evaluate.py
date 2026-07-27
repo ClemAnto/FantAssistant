@@ -14,7 +14,7 @@ import pytest
 from euroleghe_ingest.config import Config
 from euroleghe_ingest.context import Context
 from euroleghe_ingest.db.database import init_db
-from euroleghe_ingest.engine import evaluate, features
+from euroleghe_ingest.engine import evaluate, features, model
 
 INPUT_SEASON, TARGET_SEASON = "2023-24", "2024-25"
 # Small, but long enough to clear both thresholds the model works with: MIN_PV_PREV (the beta's
@@ -369,3 +369,23 @@ def test_robust_verdict_needs_a_majority_a_mean_gain_and_a_bounded_worst_case():
     assert evaluate.MIN_WINDOWS_FOR_ROBUST >= 3        # no "majority" of two
     assert 0 < evaluate.MAX_WINDOW_LOSS <= 0.05        # a bounded, not an unlimited, single-window loss
     assert evaluate.MAX_WINDOW_LOSS > evaluate.MIN_RELATIVE_GAIN
+
+
+def test_auction_view_groups_by_the_game_s_own_roles(prepared):
+    """Classic asks for one role per player, Mantra for every role he holds: a 'dc;dd' defender must
+    appear in both Mantra lists and in exactly one Classic list."""
+    _cfg, conn, window, data = prepared
+    roles, holds = evaluate.role_membership(data)
+    assert roles == model.CLASSIC_ROLES
+    mantra_data = features.prepare(conn, window, "euro", "mantra")
+    mantra_roles, mantra_holds = evaluate.role_membership(mantra_data)
+    assert mantra_roles == model.MANTRA_ROLES
+
+    defender = next(obs for obs in mantra_data.observations if obs.name == "Defender3")
+    assert defender.roles_mantra == ("dd",)
+    assert mantra_holds(defender, "dd") and not mantra_holds(defender, "dc")
+    assert sum(1 for role in roles if holds(defender, role)) == 1
+
+    # and the view keys follow the game, so the panel's role headings are the game's own
+    view = evaluate.auction_view(mantra_data, evaluate.predict_window(mantra_data, ("R0",)))
+    assert set(view) <= set(model.MANTRA_ROLES)

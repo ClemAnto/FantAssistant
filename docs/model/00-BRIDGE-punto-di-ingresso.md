@@ -112,6 +112,11 @@ Documento dedicato, con tutti i numeri e le ipotesi falsificate: **`gate-motore-
   esce (3/4 ma solo +1.9-3.3%, sfora il non-danno, pareggio sulla metrica d'asta).
   Set adottati ora: **euro R0c+R3c+R10 · Serie A R3+R7+R13**. Il set Serie A migliora il MAE di VALORE
   su **tutte e sette** le finestre e non perde mai una posizione top-10 (91→96 nomi).
+- **Vista «Auction» nella GUI** (terzo tab, spec §Vista Auction): stagione / piattaforma / game
+  selezionabili e, per ogni ruolo, i 10 di VALORE previsto più alto con l'**FVM effettivo di fine
+  stagione** accanto, più i 10 realmente migliori con il **VALORE che il motore aveva previsto**.
+  Passa dalla stessa `evaluate.auction_view` del gate, quindi pannello e `backtest --auction` non
+  divergono. Nuove colonne `rosters.fvm` / `fvm_mantra` (rendicontazione, mai input).
 - **Simulazione dell'asta 25/26** (`backtest --auction`, §3-bis del documento del gate): 15/40 nomi
   azzeccati, ma **80% (euro) e 81% (Serie A) del VALORE** che avrebbero reso le top 10 perfette. La
   metrica dei nomi tratta ogni errore allo stesso modo; quella dei punti dice che gli errori del motore

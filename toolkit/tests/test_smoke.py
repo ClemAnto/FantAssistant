@@ -135,3 +135,23 @@ def test_operation_state_logic():
     # DB exists but empty: rosters still to do (output not produced yet).
     empty = {"players": 0, "rosters": 0, "season_stats": 0}
     assert operation_state("rosters", empty, True) == "todo"
+
+
+def test_auction_view_tab_exists_and_labels_every_role():
+    """The panel must be able to name every role either game can produce - a missing label would
+    render a bare 'w' or 'pc' where the user expects a heading."""
+    from euroleghe_ingest import gui
+    from euroleghe_ingest.engine import model
+
+    assert hasattr(gui, "AuctionView")
+    for role in (*model.CLASSIC_ROLES, *model.MANTRA_ROLES):
+        assert role in gui.AuctionView.ROLE_LABELS, role
+
+
+def test_auction_tab_offers_mantra_only_where_it_exists():
+    """Mantra is a EuroLeghe dimension: the classic Serie A game has no Mantra roles, and the CLI
+    already refuses that combination. The panel must not offer what the CLI will not run."""
+    from euroleghe_ingest import gui
+
+    assert gui.AuctionView.GAMES["default"] == ("classic",)
+    assert set(gui.AuctionView.GAMES["euro"]) == {"classic", "mantra"}

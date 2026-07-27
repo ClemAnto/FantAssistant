@@ -53,6 +53,12 @@ CREATE TABLE IF NOT EXISTS rosters (
     -- the auction: that one is the market's EXPECTATION and the only price a backtest may read.
     price          REAL,                        -- Qt.A, current quotation (hindsight for past seasons)
     price_initial  REAL,                        -- Qt.I, pre-auction quotation (auction-safe)
+    -- FVM = "fantavalore di mercato", the listone's market-value index (Classic and Mantra). Served in
+    -- the file's CURRENT state, so for a finished season it is the END-OF-SEASON value: a scoring
+    -- column, like Qt.A, never a model input. Kept because it is the market's own answer to the
+    -- question the engine answers with the predicted VALUE, and the two belong side by side.
+    fvm            REAL,
+    fvm_mantra     REAL,
     PRIMARY KEY (fc_id, season)
 );
 

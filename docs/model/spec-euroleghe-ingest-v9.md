@@ -210,3 +210,40 @@ TypeScript** in `app/prediction-engine`, quindi resta senza dipendenze ed esplic
 
 ## Whitelist
 `fantacalcio.it` e sottodomini · `api.clubelo.com` · `fbref.com` (403 Cloudflare) · `transfermarkt.com/.it` · `query.wikidata.org` · `sofascore.com` + `api.sofascore.com`. Client: `requests` per fantacalcio.it, `curl_cffi` (impersonate chrome) per SofaScore. Rate-limiting educato, cache grezzi, hash per aggiornamenti.
+
+## Vista «Auction» nella GUI (27 luglio 2026)
+
+Terzo tab del pannello operatore (`python -m euroleghe_ingest gui`), read-only sul DB. Selettori
+**stagione / piattaforma (`euro` | `default`) / game (`classic` | `mantra`)** e, **per ogni ruolo del
+game scelto** (4 Classic, 12 Mantra), due tabelle affiancate:
+
+- **Predicted at the auction** — i 10 con il VALORE previsto più alto a inizio stagione, con Qt.I,
+  FM e presenze previste, VALORE previsto, **VALORE realmente realizzato**, **FVM di fine stagione** e
+  la posizione reale a fine anno.
+- **Actual, end of season** — i 10 che hanno realmente reso di più, con FM/presenze/VALORE reali,
+  l'FVM, **il VALORE che il motore aveva previsto** e la sua posizione nella classifica prevista
+  («not priced» se il motore non lo prezzava affatto).
+
+L'intestazione di ogni ruolo riporta nomi in comune, VALORE catturato e la scomposizione degli errori
+(vicini / oltre il rango 50 / mai prezzati).
+
+Tre vincoli che la vista rispetta per costruzione:
+1. **Stessa strada del gate**: chiama `evaluate.auction_view` con il set adottato e i parametri
+   cross-fitted (compreso il pooling di `POOLED_PARAMS`), quindi pannello e `backtest --auction` non
+   possono divergere.
+2. **`mantra` solo su `euro`**: il game classico di Serie A non ha ruoli Mantra e il CLI già rifiuta
+   quella combinazione; il selettore non offre ciò che il CLI non esegue.
+3. **Solo le stagioni con una finestra utilizzabile**: servono voti su *entrambi* i lati (ingresso e
+   bersaglio). Serie A ne ha 7, euro 4 — il buco EuroLeghe del 21/22 ne toglie due.
+
+Il calcolo gira in un thread (il motore stima i parametri di ogni finestra) ed è messo in cache per
+piattaforma+game, che è l'unità in cui il costo si paga: cambiare stagione dopo è istantaneo.
+
+### Nuove colonne `rosters.fvm` / `rosters.fvm_mantra`
+
+L'Excel del listone porta **FVM** e **FVM M** accanto a `Qt.A`/`Qt.I` (già letti e scartati).
+Ora sono in `rosters`, con migrazione additiva (`ADDED_COLUMNS`) e riapplicati offline dalla cache.
+Come `Qt.A`, per una stagione conclusa l'FVM è il valore di **fine stagione**: colonna di
+**rendicontazione, mai un input del modello** — sta dalla parte sbagliata della data d'asta per
+costruzione, ed è per questo che `feature_availability` la elenca con quell'etichetta.
+Copertura: 641/1291/1383/1471/1459/1515/1467/1395 righe dal 18/19 al 25/26.

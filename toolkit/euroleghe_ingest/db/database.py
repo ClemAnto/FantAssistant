@@ -24,6 +24,8 @@ def connect(db_path: Path) -> sqlite3.Connection:
 # `rebuild`, which drops everything. Additive columns only: anything else needs a real migration.
 ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("rosters", "price_initial", "REAL"),
+    ("rosters", "fvm", "REAL"),
+    ("rosters", "fvm_mantra", "REAL"),
 )
 
 

@@ -31,8 +31,8 @@ ALLOWED_EMPTY: dict[str, set[str]] = {
     # actually tells us it changed (e.g. a manual override), which has not happened yet.
     "player_xref": {"valid_from", "valid_to"},
     "club_xref": {"valid_from", "valid_to"},
-    # both quotations come from the listone: a roster rebuilt from the votes alone has neither
-    "rosters": {"price", "price_initial"},
+    # quotations and FVM all come from the listone: a roster rebuilt from the votes alone has none
+    "rosters": {"price", "price_initial", "fvm", "fvm_mantra"},
     "season_stats": {"own_goals"},  # own goals only in the 25/26 Excel, not in the CSVs
     # future/enrichment fields + source-/season-dependent event columns that can be legitimately all
     # empty on a partial scrape (a raise here would abort an otherwise-good rebuild).
