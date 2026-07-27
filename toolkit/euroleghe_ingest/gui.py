@@ -191,18 +191,23 @@ def operation_state(command: str, counts: dict[str, int] | None, has_sources: bo
 class Tooltip:
     """Minimal hover tooltip for a Tk widget (stdlib only). `text` may be a str or a callable."""
 
-    def __init__(self, widget, text, delay: int = 450, wraplength: int = 320) -> None:
+    def __init__(self, widget, text, delay: int = 450, wraplength: int = 320,
+                 anchor: str = "widget", bind_events: bool = True) -> None:
         self.widget = widget
         self.text = text
         self.delay = delay
         self.wraplength = wraplength
+        # 'widget' parks the tip beside the widget; 'pointer' follows the cursor, which is what a
+        # per-column tooltip needs - a Treeview heading is part of the tree, not a widget of its own.
+        self.anchor = anchor
         self._after_id: str | None = None
         self._tip: tk.Toplevel | None = None
-        widget.bind("<Enter>", self._schedule, add="+")
-        widget.bind("<Leave>", self._hide, add="+")
-        widget.bind("<ButtonPress>", self._hide, add="+")
+        if bind_events:
+            widget.bind("<Enter>", self.schedule, add="+")
+            widget.bind("<Leave>", self.hide, add="+")
+            widget.bind("<ButtonPress>", self.hide, add="+")
 
-    def _schedule(self, _event=None) -> None:
+    def schedule(self, _event=None) -> None:
         self._unschedule()
         self._after_id = self.widget.after(self.delay, self._show)
 
@@ -215,8 +220,12 @@ class Tooltip:
         text = self.text() if callable(self.text) else self.text
         if self._tip is not None or not text:
             return
-        x = self.widget.winfo_rootx() + self.widget.winfo_width() + 8
-        y = self.widget.winfo_rooty()
+        if self.anchor == "pointer":
+            x = self.widget.winfo_pointerx() + 14
+            y = self.widget.winfo_pointery() + 18
+        else:
+            x = self.widget.winfo_rootx() + self.widget.winfo_width() + 8
+            y = self.widget.winfo_rooty()
         self._tip = tw = tk.Toplevel(self.widget)
         tw.wm_overrideredirect(True)
         tw.wm_geometry(f"+{x}+{y}")
@@ -225,11 +234,54 @@ class Tooltip:
             relief="solid", borderwidth=1, wraplength=self.wraplength, padx=8, pady=6,
         ).pack()
 
-    def _hide(self, _event=None) -> None:
+    def hide(self, _event=None) -> None:
         self._unschedule()
         if self._tip is not None:
             self._tip.destroy()
             self._tip = None
+
+
+class HeadingTooltip:
+    """Per-column hover help for a Treeview's header row.
+
+    Headings are drawn by the tree, not packed as widgets, so there is nothing to bind a Tooltip to.
+    This follows <Motion>, asks the tree what is under the cursor, and reschedules the tip whenever the
+    column changes - without that, sliding along the header would keep the first column's text up.
+    """
+
+    def __init__(self, tree, help_by_column: dict[str, str]) -> None:
+        self.tree = tree
+        self.help = help_by_column
+        self.current: str | None = None
+        self.tip = Tooltip(tree, self._text, delay=350, anchor="pointer", bind_events=False)
+        tree.bind("<Motion>", self._on_motion, add="+")
+        tree.bind("<Leave>", self._leave, add="+")
+
+    def _text(self) -> str:
+        return self.help.get(self.current or "", "")
+
+    def _column_under(self, event) -> str | None:
+        if self.tree.identify_region(event.x, event.y) != "heading":
+            return None
+        columns = self.tree.cget("columns")
+        try:
+            index = int(self.tree.identify_column(event.x).lstrip("#")) - 1
+        except ValueError:
+            return None
+        return columns[index] if 0 <= index < len(columns) else None
+
+    def _on_motion(self, event) -> None:
+        column = self._column_under(event)
+        if column == self.current:
+            return
+        self.current = column
+        self.tip.hide()
+        if column and self.help.get(column):
+            self.tip.schedule()
+
+    def _leave(self, _event=None) -> None:
+        self.current = None
+        self.tip.hide()
 
 
 # ============================== Players tab ==============================
@@ -910,6 +962,49 @@ class AuctionView(ttk.Frame):
     GAMES: ClassVar[dict[str, tuple[str, ...]]] = {
         "euro": ("classic", "mantra"), "default": ("classic", "mantra")}
 
+    # Shared by both tables. What differs between them - FM/Pv/VALUE are predicted on the left and
+    # actual on the right - is in PREDICTED_HELP / ACTUAL_HELP below.
+    COMMON_HELP: ClassVar[dict[str, str]] = {
+        "#": "Position in this list.",
+        "Player": "Name as it appears in the listone (fc_id is the primary key behind it).",
+        "Team": "Club at the auction, abbreviated: MUN = Manchester United, S04 = Schalke 04. "
+                "Empty when the club is unknown for that season.",
+        "Qt.I": "Qt.I, the quotation set BEFORE the auction - the market's expectation, and the only "
+                "price the engine is allowed to read. Qt.A is revised all season long, so for a season "
+                "already played it embeds the outcome. Under Mantra this is Qt.I M.",
+        "FVM": "Fantavalore di mercato from the listone, in its current state - so for a finished "
+               "season it is the END-OF-SEASON market value. The market's own answer to the question "
+               "the engine answers with VALUE. Reporting only: no rule may read it. Mantra: FVM M.",
+    }
+    PREDICTED_HELP: ClassVar[dict[str, str]] = {
+        "FM": "Predicted fantamedia: role anchor + beta x (last season's fantamedia - anchor). "
+              "Goalkeepers go through the decomposed M2e model instead, which never uses the anchor.",
+        "Pv": "Predicted appearances over the season's matchdays. This side of the product carries "
+              "3 to 11 times more of the VALUE error than the fantamedia does.",
+        "VALUE": "Predicted VALUE = predicted fantamedia x predicted appearances. The list is sorted "
+                 "by this, and it is what the engine would have paid for.",
+        "real VALUE": "What he actually returned: real fantamedia x real appearances. Blank when he "
+                      "never played.",
+        "real #": "Where he actually finished among this role's players. A dash means he ended the "
+                  "season with no real VALUE at all.",
+    }
+    ACTUAL_HELP: ClassVar[dict[str, str]] = {
+        "FM": "Fantamedia actually achieved over the season.",
+        "Pv": "Appearances actually made.",
+        "VALUE": "VALUE actually achieved = fantamedia x appearances. This list is sorted by it.",
+        "pred. VALUE": "What the engine predicted for him on auction day. Empty when it could not "
+                       "price him at all - no previous season to regress from.",
+        "pred. #": "His rank in the predicted list. 'not priced' means the engine had no prediction "
+                   "for him, so no ranking could contain him: an unreachable slot, not a bad guess.",
+    }
+
+    # Kept beside the help dictionaries on purpose: a test asserts that the two cover exactly the same
+    # columns, so a new column cannot ship without an explanation of what it means.
+    PREDICTED_COLUMNS: ClassVar[tuple[str, ...]] = (
+        "#", "Player", "Team", "Qt.I", "FM", "Pv", "VALUE", "real VALUE", "FVM", "real #")
+    ACTUAL_COLUMNS: ClassVar[tuple[str, ...]] = (
+        "#", "Player", "Team", "Qt.I", "FM", "Pv", "VALUE", "FVM", "pred. VALUE", "pred. #")
+
     ROLE_LABELS: ClassVar[dict[str, str]] = {
         "P": "Goalkeepers", "D": "Defenders", "C": "Midfielders", "A": "Forwards",
         "por": "por", "dc": "dc", "dd": "dd", "ds": "ds", "b": "b", "e": "e",
@@ -1112,27 +1207,29 @@ class AuctionView(ttk.Frame):
         right = ttk.Frame(box)
         left.pack(side="left", fill="both", expand=True, padx=(0, 6))
         right.pack(side="left", fill="both", expand=True)
-        self._table(left, "Predicted at the auction",
-                    ("#", "Player", "Team", "Qt.I", "FM", "Pv", "VALUE", "real VALUE", "FVM", "real #"),
+        self._table(left, "Predicted at the auction", self.PREDICTED_COLUMNS,
                     [(row["rank"], row["name"], club_abbreviation(row["club"]),
                       self._num(row["price_initial"]),
                       self._num(row["fm_pred"], 2), self._num(row["pv_pred"], 1),
                       self._num(row["value_pred"]), self._num(row["value_act"]),
                       self._num(row["fvm"]), row["actual_rank"] or "-")
-                     for row in block["predicted"]])
-        self._table(right, "Actual, end of season",
-                    ("#", "Player", "Team", "Qt.I", "FM", "Pv", "VALUE", "FVM", "pred. VALUE",
-                     "pred. #"),
+                     for row in block["predicted"]],
+                    {**self.COMMON_HELP, **self.PREDICTED_HELP})
+        self._table(right, "Actual, end of season", self.ACTUAL_COLUMNS,
                     [(row["rank"], row["name"], club_abbreviation(row["club"]),
                       self._num(row["price_initial"]),
                       self._num(row["fm_act"], 2), self._num(row["pv_act"]),
                       self._num(row["value_act"]), self._num(row["fvm"]),
                       self._num(row["value_pred"]),
                       row["predicted_rank"] or "not priced")
-                     for row in block["actual"]])
+                     for row in block["actual"]],
+                    {**self.COMMON_HELP, **self.ACTUAL_HELP})
 
     def _table(self, parent: tk.Widget, title: str, columns: tuple[str, ...],
-               rows: list[tuple]) -> None:
+               rows: list[tuple], help_by_column: dict[str, str]) -> None:
+        """`help_by_column` is REQUIRED, not defaulted: it went missing from one of the two tables when
+        it was optional, and a missing tooltip is invisible until someone hovers. Now forgetting it is a
+        TypeError at the call site."""
         ttk.Label(parent, text=title, font=("Segoe UI", 9, "bold")).pack(anchor="w")
         tree = ttk.Treeview(parent, columns=columns, show="headings", height=max(1, len(rows)))
         for column in columns:
@@ -1144,6 +1241,7 @@ class AuctionView(ttk.Frame):
                         stretch=column == "Player")
         for row in rows:
             tree.insert("", "end", values=row)
+        HeadingTooltip(tree, help_by_column)
         tree.pack(fill="x")
 
 

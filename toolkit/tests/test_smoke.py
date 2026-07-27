@@ -156,3 +156,58 @@ def test_auction_tab_offers_both_games_on_both_platforms():
 
     for platform in ("euro", "default"):
         assert set(gui.AuctionView.GAMES[platform]) == {"classic", "mantra"}
+
+
+def test_every_auction_column_is_explained_by_a_tooltip():
+    """The columns are the whole point of the view and several are easy to misread - Qt.I against Qt.A
+    is the look-ahead discipline, FVM is reporting-only, and FM/Pv/VALUE mean predicted on the left and
+    actual on the right. A new column must not ship without its explanation."""
+    from euroleghe_ingest import gui
+
+    view = gui.AuctionView
+    for columns, specific in ((view.PREDICTED_COLUMNS, view.PREDICTED_HELP),
+                              (view.ACTUAL_COLUMNS, view.ACTUAL_HELP)):
+        help_texts = {**view.COMMON_HELP, **specific}
+        missing = [column for column in columns if not help_texts.get(column)]
+        assert not missing, missing
+        unused = [key for key in help_texts if key not in columns]
+        assert not unused, unused
+    # the two tables disagree about FM/Pv/VALUE on purpose, and that must stay true
+    for column in ("FM", "Pv", "VALUE"):
+        assert view.PREDICTED_HELP[column] != view.ACTUAL_HELP[column], column
+
+
+def test_heading_tooltip_maps_the_identified_column_to_its_name():
+    """Tk reports the column under the cursor as '#3'; the tooltip has to turn that into a name, and
+    return nothing when the pointer is not over the header row at all."""
+    from euroleghe_ingest import gui
+
+    class FakeTree:
+        def __init__(self):
+            self.region, self.column = "heading", "#2"
+
+        def cget(self, _option):
+            return ("#", "Player", "Team")
+
+        def identify_region(self, _x, _y):
+            return self.region
+
+        def identify_column(self, _x):
+            return self.column
+
+        def bind(self, *_a, **_k):
+            return None
+
+        def after(self, *_a, **_k):
+            return None
+
+    tree = FakeTree()
+    tip = gui.HeadingTooltip(tree, {"Player": "the name"})
+    event = type("E", (), {"x": 0, "y": 0})()
+    assert tip._column_under(event) == "Player"
+    tree.column = "#3"
+    assert tip._column_under(event) == "Team"
+    tree.column = "#9"                      # past the end: no column, not a crash
+    assert tip._column_under(event) is None
+    tree.region = "cell"                    # over the body, not the header
+    assert tip._column_under(event) is None

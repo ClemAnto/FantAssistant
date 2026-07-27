@@ -239,6 +239,16 @@ i parametri di ogni finestra, sono decine di secondi, e prima l'unico segno di v
 — una passata lenta era indistinguibile da una finestra bloccata. Viene impacchettato e disimpacchettato
 invece di restare fermo sullo schermo, così una barra immobile non sembra mai una bloccata.
 
+Ogni **intestazione di colonna ha un tooltip** che spiega cosa significa, e sono le colonne che ne hanno
+più bisogno: `Qt.I` contro `Qt.A` è tutta la disciplina anti-look-ahead in due lettere, `FVM` è una
+colonna di sola rendicontazione che non va confusa con un input, e `FM`/`Pv`/`VALORE` compaiono in
+**entrambe** le tabelle con significato diverso (previsto a sinistra, reale a destra) — quindi l'aiuto è
+per tabella, non per nome di colonna. Le intestazioni di un `Treeview` non sono widget, quindi
+`HeadingTooltip` segue il movimento del puntatore, chiede all'albero quale regione e colonna sono sotto
+il cursore e riprogramma il tip quando la colonna cambia. Le tuple di colonne sono costanti accanto ai
+dizionari di aiuto e **un test verifica che i due coprano esattamente le stesse colonne**: una colonna
+nuova non può entrare senza la sua spiegazione.
+
 L'intestazione di ogni ruolo riporta nomi in comune, VALORE catturato e la scomposizione degli errori
 (vicini / oltre il rango 50 / mai prezzati).
 
