@@ -175,3 +175,59 @@ def expected_appearances(share: float, matchdays: int) -> float:
 def season_value(fm: float, appearances: float) -> float:
     """The auction metric: what a player is worth over a season, not per game."""
     return fm * appearances
+
+
+# ---------------------------------------------------------------- candidate rules
+#
+# Every parameter below is FITTED (cross-window) by `evaluate.fit_params`, never a constant: the
+# numbers are what the gate is deciding on. The functions are the shape of each hypothesis.
+
+# R4: where the ageing term starts biting. One knee, two slopes (FM and share) - two windows and
+# ~500 players do not support a curve with more knots.
+AGE_KNEE = 30
+
+
+def linear_share(coeffs: Sequence[float], featureset: Sequence[float]) -> float:
+    """Generic share model: intercept + dot(coeffs, features), clipped to [0, 1].
+
+    R3 (minutes), R7 (goalkeepers) and R1 (newcomers) are all this function with a different feature
+    vector, so the clipping and the bounds live in one place.
+    """
+    total = coeffs[0] + sum(c * x for c, x in zip(coeffs[1:], featureset, strict=True))
+    return clip(total, 0.0, 1.0)
+
+
+def predict_fm_arrival(anchor: float, fm_equivalent: float, beta_new: float) -> float:
+    """R1, players with no history in the game: regress the FOREIGN FM-equivalent to the anchor.
+
+    `arrivals.foreign_fm_equiv` is what the player's fantamedia would have been under EuroLeghe
+    scoring had his real season been played in the game - the only quantity that makes a Bundesliga
+    season comparable to a Serie A one. `beta_new` is fitted, and is expected to be lower than the
+    core beta: an equivalent is a noisier measurement than a real fantamedia.
+    """
+    return anchor + beta_new * (fm_equivalent - anchor)
+
+
+def adaptation_discount(fm: float, discount: float) -> float:
+    """R1, players who changed league: the adaptation cost the engine currently ignores entirely."""
+    return fm - discount
+
+
+def propensity_adjustment(gamma: float, z_propensity: float) -> float:
+    """R2: how much of last season's residual is corroborated by the underlying per-90 volume.
+
+    Positive z = more goals/assists (and xG/xA) per 90 than his role peers, so a high fantamedia was
+    earned rather than lucky; negative z = a career year to regress harder.
+    """
+    return gamma * z_propensity
+
+
+def age_adjustment(age: int | None, slope: float, knee: int = AGE_KNEE) -> float:
+    """R4: linear decline past the knee, nothing before it. Missing age -> no adjustment.
+
+    Deliberately one-sided: the young-player side of the curve is a different hypothesis (second-year
+    growth, U22 triggers) and is not being tested here.
+    """
+    if age is None:
+        return 0.0
+    return slope * max(0, age - knee)

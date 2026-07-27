@@ -44,6 +44,9 @@ def build_parser() -> argparse.ArgumentParser:
                             help="print the regression cases predicted vs actual")
     p_backtest.add_argument("--verify", action="store_true",
                             help="reproduce the published gate numbers before scoring anything")
+    p_backtest.add_argument("--gate", action="store_true",
+                            help="run the gate: every candidate rule vs the baseline, per role, "
+                                 "with parameters fitted on the other window")
     p_backtest.add_argument("--no-report", dest="report", action="store_false",
                             help="print only, do not write data/reports/engine_backtest.json")
 
@@ -111,7 +114,7 @@ def main(argv: list[str] | None = None) -> int:
             elif args.command == "backtest":
                 load("backtest").run(ctx, windows=args.window, platforms=args.platform,
                                      games=args.game, rules=args.rules, cases=args.cases,
-                                     verify=args.verify, report=args.report)
+                                     verify=args.verify, gate=args.gate, report=args.report)
             else:
                 load(args.command).run(ctx)
         except NotImplementedError as exc:

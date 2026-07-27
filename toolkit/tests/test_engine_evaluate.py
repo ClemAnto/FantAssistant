@@ -161,10 +161,84 @@ def test_share_fit_needs_a_window_where_the_regressors_actually_vary(prepared):
 def test_rules_registry_refuses_what_is_not_built_yet():
     assert evaluate.parse_rules(None) == ("R0",)
     assert evaluate.parse_rules("r0") == ("R0",)
+    assert evaluate.parse_rules("R0,R7") == ("R0", "R7")
     with pytest.raises(SystemExit, match="not implemented"):
-        evaluate.parse_rules("R0,R3")
+        evaluate.parse_rules("R0,R8")           # pre-registered, not built
     with pytest.raises(SystemExit, match="unknown rule"):
         evaluate.parse_rules("R42")
+
+
+def test_candidates_and_adopted_are_real_implemented_rules():
+    for key in evaluate.CANDIDATES:
+        assert evaluate.RULES_BY_KEY[key].implemented, f"{key} is compared but not implemented"
+    for platform, rules in evaluate.ADOPTED.items():
+        assert platform in ("euro", "default")
+        for key in rules:
+            assert key in evaluate.CANDIDATES, f"{key} adopted on {platform} but never gated"
+
+
+def test_a_coverage_rule_leaves_the_common_sample_untouched(prepared):
+    """R1 may only fire where the baseline said nothing - otherwise the gate is not comparing like
+    with like, and a rule could 'win' by pricing an easier population."""
+    _cfg, _conn, _window, data = prepared
+    params = evaluate.Params(source="test", beta_new=0.2, share_new=(0.1, 0.5))
+    baseline = evaluate.predict_window(data, ("R0",))
+    with_r1 = evaluate.predict_window(data, ("R0", "R1"), None, params)
+    before = {p.obs.fc_id: (p.fm_pred, p.pv_pred) for p in baseline}
+    after = {p.obs.fc_id: (p.fm_pred, p.pv_pred) for p in with_r1}
+    for fc_id, values in before.items():
+        assert after[fc_id] == values, f"R1 changed a player the baseline already priced ({fc_id})"
+
+
+def test_r7_only_touches_goalkeepers(prepared):
+    _cfg, _conn, _window, data = prepared
+    params = evaluate.Params(source="test", share_gk=(0.0, 0.9, 0.0))
+    baseline = {p.obs.name: p.pv_pred for p in evaluate.predict_window(data, ("R0",))}
+    with_r7 = {p.obs.name: p.pv_pred for p in
+               evaluate.predict_window(data, ("R0", "R7"), None, params)}
+    assert with_r7["Keeper"] != pytest.approx(baseline["Keeper"])
+    for name in ("Regular", "Fringe", "Filler1", "Filler2"):
+        assert with_r7[name] == pytest.approx(baseline[name])
+
+
+def test_new_goalkeepers_are_not_priced_off_the_outfield_equivalent(prepared):
+    """`foreign_fm_equiv` ignores goals conceded, so it is inflated by a grade for a keeper: R1 must
+    leave new keepers unpriced rather than invent a fantamedia for them."""
+    _cfg, conn, window, _data = prepared
+    conn.execute("INSERT INTO players(fc_id, canonical_name, birth_year) VALUES (9, 'NewKeeper', 1999)")
+    conn.execute("INSERT INTO rosters(fc_id, season, fc_club_id, roles, role_classic, league, price)"
+                 " VALUES (9, ?, 2, 'por', 'P', 'serie_a', 8.0)", (TARGET_SEASON,))
+    conn.execute("INSERT INTO season_stats(fc_id, season, platform, pv, mv, fm, goals_conceded) "
+                 "VALUES (9, ?, 'euro', 20, 6.1, 5.2, 22)", (TARGET_SEASON,))
+    conn.executemany("INSERT INTO arrivals(fc_id, season, type, tier, foreign_fm_equiv) "
+                     "VALUES (?, ?, 'new', 'T2', ?)", [(9, TARGET_SEASON, 7.4)])
+    conn.commit()
+    data = features.prepare(conn, window, "euro", "classic")
+    params = evaluate.Params(source="test", beta_new=0.3, share_new=(0.1, 0.5))
+    priced = {p.obs.name: p for p in evaluate.predict_window(data, ("R0", "R1"), None, params)}
+    assert priced.get("NewKeeper") is None or priced["NewKeeper"].fm_pred is None
+    # an outfield newcomer with the same equivalent IS priced (in a role that has an anchor at all):
+    # the exclusion is about keepers, not about newcomers
+    conn.execute("UPDATE rosters SET role_classic = 'D', roles = 'dc' WHERE fc_id = 9")
+    conn.commit()
+    outfield = features.prepare(conn, window, "euro", "classic")
+    priced = {p.obs.name: p for p in evaluate.predict_window(outfield, ("R0", "R1"), None, params)}
+    assert priced["NewKeeper"].fm_pred is not None
+
+
+def test_age_adjustment_is_neutral_without_a_birth_year(prepared):
+    _cfg, conn, window, _data = prepared
+    conn.execute("UPDATE players SET birth_year = NULL WHERE fc_id = 1")   # Regular: age unknown
+    conn.execute("UPDATE players SET birth_year = 1990 WHERE fc_id = 3")   # Keeper: 34 in the target
+    conn.commit()
+    data = features.prepare(conn, window, "euro", "classic")
+    params = evaluate.Params(source="test", age_fm=-0.05)
+    baseline = {p.obs.name: p.fm_pred for p in evaluate.predict_window(data, ("R0",))}
+    aged = {p.obs.name: p.fm_pred for p in
+            evaluate.predict_window(data, ("R0", "R4"), None, params)}
+    assert aged["Regular"] == pytest.approx(baseline["Regular"])     # no age -> no penalty
+    # a player with a known age past the knee does get one
+    assert aged["Keeper"] < baseline["Keeper"]
 
 
 def test_run_writes_a_report_and_leaves_the_db_alone(prepared):
