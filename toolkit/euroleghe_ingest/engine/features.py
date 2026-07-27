@@ -39,12 +39,42 @@ class Window:
         return f"{self.key} {self.input_season}->{self.target_season}"
 
 
-# T1/T2 are the two independent windows the project's gate is written against. A third window needs
-# seasons before 2023-24, which the raw sources do not cover yet (see the roadmap).
+# Chronological order, oldest first. T1/T2 are the two windows the project's gate was originally
+# written against; T0 and Tm1 were added on 27/07/2026 once the authenticated votes API turned out to
+# serve 2022-23 and 2021-22 (championship ids euro 105/104, Serie A 17/16) - the raw Drive datasets
+# still start at 2023-24, so those two seasons exist in the DB from the API alone.
+#
+# ⚠️ The older windows are NOT equally instrumented. `external_stats` (SofaScore minutes, xG),
+# `arrivals`, `club_elo` and the `new_coach` flag start at 2023-24, so on T0 and Tm1 the rules that
+# read them have no sample at all. The gate reports that as NOT MEASURABLE, never as a failure: a
+# window that cannot see a feature says nothing about the hypothesis.
 WINDOWS: dict[str, Window] = {
+    "Tm1": Window("Tm1", "2021-22", "2022-23", "2022-08-15"),
+    "T0": Window("T0", "2022-23", "2023-24", "2023-08-15"),
     "T1": Window("T1", "2023-24", "2024-25", "2024-08-15"),
     "T2": Window("T2", "2024-25", "2025-26", "2025-08-15"),
 }
+
+# The two windows the published gate numbers refer to. Kept as a name so `verify_baseline` and any
+# comparison against the documents stays pinned to them however many windows exist.
+PUBLISHED_WINDOWS: tuple[str, ...] = ("T1", "T2")
+
+
+def cross_fit_source(key: str, available: tuple[str, ...] | None = None) -> str:
+    """Which window's parameters score `key`. Never `key` itself - that is the whole point.
+
+    With exactly two windows this is "the other one", which is what the pre-registered protocol says
+    and what every published number was produced with. With more, it is the CHRONOLOGICALLY ADJACENT
+    window, preferring the later one: an older, thinly instrumented window is then scored with
+    parameters fitted on better data, and - crucially - T1/T2 keep pairing with each other, so adding
+    windows does not silently restate the published results.
+    """
+    order = [name for name in WINDOWS if available is None or name in available]
+    if key not in order:
+        raise KeyError(f"unknown window {key}")
+    index = order.index(key)
+    later, earlier = order[index + 1:], order[:index]
+    return later[0] if later else earlier[-1]
 
 
 # ---------------------------------------------------------------- observations

@@ -1044,15 +1044,19 @@ def _common_by_role(baseline: list[Prediction], candidate: list[Prediction],
 
 
 def compare(conn: sqlite3.Connection, candidates: tuple[str, ...], platform: str,
-            game: str) -> dict:
+            game: str, windows: tuple[str, ...] | None = None) -> dict:
     """Run B0 and B0+rule on both windows, with every parameter fitted on the OTHER window.
 
     This is the gate: a rule is only interesting if it improves the metric it targets on BOTH
     windows, on the common sample, without making FM or VALUE worse (the golden rule's guardrail)
     and without losing the top-10 precision the auction actually consumes.
     """
-    prepared = {key: features.prepare(conn, window, platform, game)
-                for key, window in features.WINDOWS.items()}
+    keys = tuple(windows or features.WINDOWS)
+    prepared = {key: features.prepare(conn, features.WINDOWS[key], platform, game) for key in keys}
+    prepared = {key: data for key, data in prepared.items() if data.observations}
+    if len(prepared) < 2:
+        raise RuntimeError("the gate needs at least two windows with observations, got "
+                           f"{list(prepared)}")
     everything = ("R0", *candidates)
     adopted = ("R0", *ADOPTED.get(platform, ()))
     fitted = {key: fit_params(data, everything) for key, data in prepared.items()}
@@ -1065,7 +1069,7 @@ def compare(conn: sqlite3.Connection, candidates: tuple[str, ...], platform: str
 
     predictions: dict[str, dict[str, list[Prediction]]] = {}
     for key, data in prepared.items():
-        other = next(name for name in prepared if name != key)
+        other = features.cross_fit_source(key, tuple(prepared))
         predicted = {"R0": predict_window(data, ("R0",))}
         configurations = {"R0": evaluate_window(data, ("R0",), predictions=predicted["R0"])}
         for rule in (*candidates, "ALL", "ADOPTED"):
@@ -1114,13 +1118,18 @@ def compare(conn: sqlite3.Connection, candidates: tuple[str, ...], platform: str
             return all(row[field_after] is not None and row[field_before] is not None
                        and row[field_after] <= row[field_before] * tolerance for row in rows_)
 
+        # A window where the rule moves NOBODY has not tested it - the inputs it needs do not exist
+        # that far back. Excluded from the verdict and named in the report, because scoring it as a
+        # failure would retire a rule for the sin of predating its own data.
+        measured = [row for row in rows if row["changed_n"]]
+        unmeasurable = [row["window"] for row in rows if not row["changed_n"]]
         # improvement is measured on the players the rule MOVES, and has to clear a floor: an
         # 0.04% gain on a coefficient whose sign contradicts its own hypothesis is not a rule.
-        improved = all(
+        improved = len(measured) >= 2 and all(
             row["changed_before"] is not None and row["changed_after"] is not None
             and row["changed_n"] > 0
             and row["changed_after"] <= row["changed_before"] * (1 - MIN_RELATIVE_GAIN)
-            for row in rows)
+            for row in measured)
         kind = RULES_BY_KEY[rule].kind if rule in RULES_BY_KEY else "accuracy"
         coverage_up = all((row["coverage_after"] or 0) > (row["coverage_before"] or 0)
                           for row in rows)
@@ -1137,7 +1146,8 @@ def compare(conn: sqlite3.Connection, candidates: tuple[str, ...], platform: str
         verdict = {
             "kind": kind, "metric": target, "rows": rows, "improved_both": improved,
             "coverage_up": coverage_up, "added_sane": added_sane,
-            "beats_naive": beats_naive,
+            "beats_naive": beats_naive, "unmeasurable": unmeasurable,
+            "n_measured": len(measured),
             "fm_not_worse": better(rows, "fm_before", "fm_after", 1.001),
             "value_not_worse": better(rows, "value_before", "value_after", 1.001),
             "top10_not_worse": all(row["top_after"] >= row["top_before"] for row in rows),
@@ -1197,9 +1207,10 @@ def verify_baseline(conn: sqlite3.Connection) -> list[Check]:
                             f"{cells - mismatched}/{cells} cells", mismatched == 0,
                             " · ".join(notes)))
 
-    # Prepared once: every remaining check reads the same windows.
-    prepared = {key: features.prepare(conn, window, "euro", "mantra")
-                for key, window in features.WINDOWS.items()}
+    # Prepared once: every remaining check reads the same windows - and only the two the published
+    # numbers refer to. A new window has no published counterpart to be verified against.
+    prepared = {key: features.prepare(conn, features.WINDOWS[key], "euro", "mantra")
+                for key in features.PUBLISHED_WINDOWS}
 
     # 3. the two independent Mantra beta estimates
     for key, data in prepared.items():
@@ -1387,7 +1398,11 @@ def _print_gate(result: dict) -> None:
             criterion = (f"coverage up on both windows: {verdict['coverage_up']} · "
                          f"what it adds is not noise: {verdict['added_sane']} · {beats}")
         else:
-            criterion = f"target improved on both windows: {verdict['improved_both']}"
+            criterion = (f"target improved on all {verdict['n_measured']} windows that measure it: "
+                         f"{verdict['improved_both']}")
+        if verdict["unmeasurable"]:
+            criterion += (" · NOT MEASURABLE on " + ", ".join(verdict["unmeasurable"])
+                          + " (inputs absent that far back)")
         print(f"    -> {mark} [{verdict['kind']}] · {criterion} · "
               f"FM not worse: {verdict['fm_not_worse']} · VALUE not worse: "
               f"{verdict['value_not_worse']} · top10 not worse: {verdict['top10_not_worse']}")
@@ -1549,7 +1564,7 @@ def run(ctx: Context, *, windows: list[str] | None = None, platforms: list[str] 
                 active = ("R0", *ADOPTED.get(platform, ()))
                 for key in window_keys:
                     data = features.prepare(conn, features.WINDOWS[key], platform, game)
-                    other = next(name for name in features.WINDOWS if name != key)
+                    other = features.cross_fit_source(key)
                     params = fit_params(features.prepare(
                         conn, features.WINDOWS[other], platform, game), ("R0", *CANDIDATES))
                     view = auction_view(data, predict_window(data, active, None, params))
@@ -1559,8 +1574,10 @@ def run(ctx: Context, *, windows: list[str] | None = None, platforms: list[str] 
                         "rules": list(active), "params_from": params.source, "by_role": view})
                 continue
             if gate:
-                # The gate owns its own windows: it needs both, to fit on one and score on the other.
-                result = compare(conn, CANDIDATES, platform, game)
+                # The gate needs at least two windows - one to fit on, one to score. It uses whatever
+                # --window selected (all of them by default): `--window T1 --window T2` reproduces the
+                # published two-window numbers exactly.
+                result = compare(conn, CANDIDATES, platform, game, tuple(window_keys))
                 _print_gate(result)
                 output.setdefault("gate", []).append(result)
                 if cases:
@@ -1568,7 +1585,7 @@ def run(ctx: Context, *, windows: list[str] | None = None, platforms: list[str] 
                     active = ("R0", *ADOPTED.get(platform, ()))
                     for key in features.WINDOWS:
                         data = features.prepare(conn, features.WINDOWS[key], platform, game)
-                        other = next(name for name in features.WINDOWS if name != key)
+                        other = features.cross_fit_source(key)
                         params = fit_params(features.prepare(
                             conn, features.WINDOWS[other], platform, game), ("R0", *CANDIDATES))
                         print(f"  with {', '.join(active[1:]) or 'the baseline only'}:")

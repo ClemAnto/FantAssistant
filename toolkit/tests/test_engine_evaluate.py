@@ -118,6 +118,23 @@ def test_metrics_separate_coverage_of_value_and_appearances(prepared):
     assert report["share_coeffs"][1] == pytest.approx(0.50)        # published coefficients by default
 
 
+def test_cross_fit_never_scores_a_window_with_its_own_parameters():
+    """The protocol's one inviolable rule, and the pairing the published numbers were made with."""
+    for key in features.WINDOWS:
+        assert features.cross_fit_source(key) != key
+    # with only the two published windows selected it is still "the other one", so restricting the
+    # gate to T1/T2 reproduces exactly what the documents record
+    assert features.cross_fit_source("T1", ("T1", "T2")) == "T2"
+    assert features.cross_fit_source("T2", ("T1", "T2")) == "T1"
+    # with all four, T1 and T2 keep pairing with each other: adding older windows does not silently
+    # restate the published results
+    assert features.cross_fit_source("T1") == "T2"
+    assert features.cross_fit_source("T2") == "T1"
+    # and an older window is scored from the better-instrumented season next to it
+    assert features.cross_fit_source("Tm1") == "T0"
+    assert features.cross_fit_source("T0") == "T1"
+
+
 def test_auction_view_lists_both_sides_and_agrees_with_the_score(prepared):
     """The named comparison must be the same fact as the "n/10" the gate prints."""
     _cfg, _conn, _window, data = prepared

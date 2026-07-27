@@ -8,6 +8,7 @@ from euroleghe_ingest import __version__
 from euroleghe_ingest.config import Config
 from euroleghe_ingest.context import Context
 from euroleghe_ingest.db.database import init_db
+from euroleghe_ingest.engine.features import WINDOWS
 from euroleghe_ingest.modules import ALL_MODULES, PIPELINE, load
 
 
@@ -32,8 +33,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     # Gate harness: read-only on the DB, writes only a report under data/reports/.
     p_backtest = sub.add_parser("backtest", help=load("backtest").DESCRIPTION)
-    p_backtest.add_argument("--window", action="append", choices=["T1", "T2"], metavar="T1|T2",
-                            help="prediction window (repeatable; default: both)")
+    p_backtest.add_argument("--window", action="append", choices=list(WINDOWS),
+                            metavar="|".join(WINDOWS),
+                            help="prediction window, oldest to newest (repeatable; default: all). "
+                                 "The published gate numbers are T1 and T2 alone.")
     p_backtest.add_argument("--platform", action="append", choices=["euro", "default"],
                             help="euro = EuroLeghe, default = classic Serie A (default: both)")
     p_backtest.add_argument("--game", action="append", choices=["classic", "mantra"],
