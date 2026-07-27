@@ -73,10 +73,16 @@ giocatori con una riga di stagione precedente contro i 750/754 pubblicati, su un
 giornate fantasma sui titolari), **non** il guadagno di MAE su T1, che con coefficienti cross-fitted
 diventa +1.3%. Nessuna regola nuova va promossa su quel decimale.
 
-## 3. Verdetti — 7 regole adottate su 17 provate
+## 3. Verdetti — 6 regole adottate su 17 provate
 
 **Adottate, per piattaforma** (`platform` è già una dimensione del modello dati):
-**euro → R0c + R3c + R4 + R7 + R10** · **Serie A → R3 + R7 + R13**
+**euro → R0c + R3c + R7 + R10** · **Serie A → R3 + R7 + R13**
+
+⚠️ **Aggiornato la sera del 27/07 con due stagioni in più** (§3-ter): con una terza finestra euro
+(T0 = 22/23→23/24) e una quarta su Serie A (Tm1 = 21/22→22/23), **R4 esce** (contraddetta su T0,
+coefficiente che varia di 4.5× fra le finestre) e **R7 resta con una riserva scritta** — non passa il
+criterio «migliora su ogni finestra», e il perché è misurabile: la sua premessa è falsa su una finestra
+su quattro. Le tabelle qui sotto restano quelle a due finestre; §3-ter ha i numeri a tre e quattro.
 
 ⚠️ **Cambiato il 27/07 con i criteri 5 e 6**: R1 (copertura nuovi entrati) e R13 sull'euro **non
 battono la risposta banale** e sono uscite; al loro posto entra **R0c**, che è la risposta banale
@@ -89,11 +95,11 @@ partite dicono davvero qualcosa).
 
 | Regola | euro | Serie A | Parametro (T1 / T2) |
 |---|---|---|---|
-| **R7** persistenza dedicata alle presenze dei portieri | ✅ | ✅ | persistenza **0.698 / 0.803** euro · 0.656 / 0.651 Serie A (contro 0.50 condiviso) |
+| **R7** persistenza dedicata alle presenze dei portieri | ⚠️³ᵗ | ⚠️³ᵗ | persistenza **0.698 / 0.803** euro · 0.656 / 0.651 Serie A (contro 0.50 condiviso) |
 | **R3c** minuti sulle **giornate del calendario euro** | ✅ | ✅¹ | minuti **0.235 / 0.249** (quota_prec 0.252 / 0.253) |
 | **R10** nuovo allenatore (livello + interazione) | ✅ | ❌ | livello −0.127 / −0.078 · interazione **+0.199 / +0.127** |
 | **R1** copertura nuovi entrati (FM-equivalente + minuti) | ❌⁵ | ❌² | β_new 0.186 / 0.230 → **0.431 / 0.398** col layer completo |
-| **R4** curva d'età sulla FM oltre i 30 | ✅ | ❌ | **−0.011 / −0.018** per anno |
+| **R4** curva d'età sulla FM oltre i 30 | ❌³ᵗ | ❌ | **−0.004 / −0.011 / −0.018** per anno (T0/T1/T2) |
 | **R3** minuti sulla stagione reale intera | ❌³ → ✅⁴ | ✅ | Serie A: minuti **0.146 / 0.384**, quota_prec 0.229 / **−0.024** ⁷ |
 | **R13** presenze dalle ultime partite in un campionato non coperto | ❌⁵ | ✅ | intensità **0.359 / 0.231** · disponibilità **+0.041 / +0.191** |
 | **R0c** copri i non prezzati con àncora di ruolo + quota media (modello nullo esplicito) | ✅ | ❌⁶ | nessun parametro fittato: quota media **0.498 / 0.497** |
@@ -121,6 +127,7 @@ sull'euro vince la versione allineata al bersaglio. ⁵ non battono la risposta 
 R1 0.391 contro 0.373 dell'àncora su T1, R13-euro peggio su entrambe. ⁶ su Serie A il core è così
 accurato (FM MAE **0.281**) che una stima di qualità-àncora (0.369) sfora il limite del +30% di un
 punto: la copertura resta al 42-47% e **8 dei 40 posti nelle top 10 reali sono inarrivabili** (§3-bis).
+³ᵗ verdetto rivisto in §3-ter con le finestre T0 e Tm1: R4 fuori, R7 dentro con riserva.
 
 ### Risultati misurati (MAE di VALORE, campione comune, T1 / T2)
 
@@ -198,6 +205,122 @@ copertura, non l'ordinamento.
 - I portieri sono il ruolo che funziona (6/10 e 7/10, 87-88% del VALORE): presenze molto persistenti +
   R7. I difensori sono il peggiore su entrambe (3/10, 70-77%): l'àncora li schiaccia su ~6.1 e il
   vertice si decide sui bonus, che il motore non modella (Dimarco 7.50 reale previsto 6.52).
+
+## 3-ter. Due stagioni in più (27 luglio 2026) — e due regole adottate che non sopravvivono
+
+Il prerequisito «stagioni precedenti al 23/24» era registrato come *da verificare*. **Verificato: l'API
+c'è.** La pagina pubblica dei voti risolve un `championshipId` per 2022-23 (euro **105**, Serie A **17**),
+2021-22 (**104** / **16**) e anche 2020-21 (**103** / **15**); l'endpoint Excel autenticato restituisce
+cartelle vere e il layout è **identico** a quello attuale (stessa riga d'intestazione, stesse 14
+colonne). I dataset Drive partono dal 23/24: queste due stagioni esistono nel DB **dalla sola API**.
+
+**Un limite trovato al primo controllo, non dedotto: EuroLeghe 2021-22 non ha voti.** L'id si risolve,
+le 30 giornate si scaricano, il listone è vero (1081 giocatori con entrambe le quotazioni) — e ogni
+cella `Voto` è la stringa `'-'` con tutte le statistiche a zero. Quindi:
+
+| | finestre utilizzabili | ingest |
+|---|---|---|
+| **euro** | T0 · T1 · T2 (**+1**) | 22/23: 16.755 righe, 15.340 voti, 29 giornate |
+| **Serie A** | Tm1 · T0 · T1 · T2 (**+2**) | 22/23 e 21/22: 38 giornate, ~11.500 voti ciascuna |
+
+`_window_is_usable` scarta una finestra quando meno di 50 giocatori hanno una fantamedia precedente, e
+**lo dice a voce**: una finestra scartata in silenzio è indistinguibile da una finestra superata.
+
+### La simulazione d'asta su ogni finestra (nomi · VALORE catturato)
+
+Set adottati dopo questo giro: **euro R0c+R3c+R7+R10** · **Serie A R3+R7+R13**.
+
+| | Tm1 | T0 | T1 | T2 |
+|---|---|---|---|---|
+| **euro** B0 → adottato | — (senza voti) | 9→**7**/40 · 81%→**78%** | 6→**8**/40 · 73%→**74%** | 12→**15**/40 · 76%→**81%** |
+| **Serie A** B0 → adottato | 12→**13**/40 · 81%→**84%** | 14→14/40 · 80%→80% | 11→**13**/40 · 74%→**71%** | 14→**15**/40 · 76%→**81%** |
+
+**Su euro T0 il set adottato peggiora**: −2 nomi e −3 punti di VALORE catturato, pur riducendo il MAE di
+VALORE dello 0.2%. Vale la pena sapere *quale* regola lo fa, e una sola passata lo dice — su T0, una
+regola alla volta:
+
+| configurazione | nomi | per ruolo | VALORE catturato |
+|---|---|---|---|
+| baseline | 9/40 | P2 D2 C1 A4 | 6478 (81%) |
+| +R0c | 9/40 | P2 D2 C1 A4 | 6478 (81%) |
+| +R7 | 9/40 | P2 D2 C1 A4 | 6489 (81%) |
+| +R4 | 9/40 | P2 D2 C1 A4 | 6478 (81%) |
+| **+R10** | **8/40** | P**3** D2 C**0** A**3** | **6235 (78%)** |
+| set adottato | 7/40 | P2 D2 C0 A3 | 6226 (78%) |
+
+È **R10** — cioè la regola che il gate conferma meglio di tutte (Pv MAE −5.2% / −3.5% / −4.9% su tutte
+e tre le finestre). Non è un paradosso e non è un errore: R10 sposta il vertice della classifica, e sul
+top-10 fa **+3 su T1** (D 1→2, C 2→4), **+1 su T2** e **−1 su T0**. Netto +3 su tre finestre: è il
+maggior contributore alle top-10 di tutto il set. Su T0 costa un nome.
+
+La lezione da tenere è più generale delle tre regole in ballo: **la metrica bersaglio del gate e la
+metrica d'asta non sono la stessa cosa, e su una finestra singola possono divergere.** Su Serie A T1
+succede lo stesso in senso opposto (+2 nomi, −3 punti di VALORE, attaccanti 74%→66%). Le due vanno
+riportate insieme sempre — mai una al posto dell'altra.
+
+### Il gate su tutte le finestre: **R7 e R4 non passano più**
+
+| Regola | misurata su | esito | numeri sul sottoinsieme spostato |
+|---|---|---|---|
+| **R10** nuovo allenatore | T0 · T1 · T2 | ✅ **rafforzata** | **−5.2% / −3.5% / −4.9%** (158/234/260 giocatori) |
+| **R0c** copertura col modello nullo | T0 · T1 · T2 | ✅ | copertura 30%→100%, aggiunti a MAE 0.475/0.386/0.409 |
+| **R3c** minuti sul calendario euro | T1 · T2 | ✅ (cieca su T0) | invariata |
+| **R3 / R13 / R14** (Serie A) | T1 · T2 | ✅ (cieche su Tm1, T0) | invariate |
+| **R7** persistenza portieri | T0 · T1 · T2 · (Tm1) | ❌ | euro **−0.4%** / −17.3% / −16.8% · Serie A **+1.2%** / −13.6% / −12.5% / −20.4% |
+| **R4** curva d'età | T0 · T1 · T2 | ❌ | **+0.9%** / −3.5% / −1.1% · coefficiente −0.004 / −0.011 / −0.018 |
+
+**R7 era l'effetto singolo più grande di tutto il gate** e la finestra più vecchia non lo conferma. Il
+perché è misurabile, non congetturale: la *premessa* di R7 è «il modello condiviso delle presenze perde
+contro la persistenza pura sui portieri», e questa è vera su tre finestre e **falsa sulla quarta**.
+
+| Serie A, presenze portieri | naive (ripeti l'anno prima) | baseline | con R7 | margine del baseline |
+|---|---|---|---|---|
+| **Tm1** 21/22→22/23 | **9.45** | **9.07** | 9.18 | **−0.38 (il baseline è già meglio)** |
+| T0 22/23→23/24 | 5.39 | 7.30 | 6.30 | +1.91 |
+| T1 23/24→24/25 | 7.61 | 9.29 | 8.12 | +1.68 |
+| T2 24/25→25/26 | 7.16 | 9.57 | 7.62 | +2.41 |
+
+Dove non c'è niente da correggere, spingere verso la persistenza fa danno — poco (+1.2%). E la premessa
+**non è valutabile il giorno dell'asta**: dipende da quanto saranno persistenti le presenze dei portieri
+*nella stagione che devi ancora prevedere*. Quindi R7 non può essere resa condizionale senza
+look-ahead: è una scommessa con **3 successi su 4**, vincita −12%…−20% e perdita +1.2%.
+
+**Raccomandazione, distinta dal verdetto meccanico del gate**:
+- **R7 resta**, con questo a verbale. Il criterio «migliora su OGNI finestra» è un AND che con quattro
+  finestre diventa severissimo e **non pesa le magnitudo**: boccia una scommessa che rende 15 volte
+  quanto costa. Il limite è del criterio, e va scritto qui piuttosto che aggirato caso per caso.
+- **R4 esce dall'euro.** Guadagno piccolo (−1% … −3.5%), coefficiente che varia di 4.5× fra le finestre
+  in modo monotono nel tempo (−0.004 → −0.018: l'effetto età è più forte nelle stagioni recenti, o le
+  àncore mono-stagione delle finestre vecchie lo assorbono), e ora contraddetto. Non è una curva d'età,
+  è un parametro che segue la finestra su cui lo stimi.
+- **R14 passa su Serie A** (−3.0% / −2.6%) ma con il segno che **contraddice la sua stessa ipotesi**:
+  chi è stato fuori rende *più* di quanto B0 preveda. Stesso caso di R11 — segnale vero, meccanismo
+  dichiarato falso → **non adottata**, ri-pre-registrata come «B0 sovra-penalizza il rientro».
+
+### Tre difetti del gate che solo più finestre potevano rivelare
+
+1. **«Non misurabile» non è «bocciata».** `external_stats`, `arrivals`, `club_elo` e `new_coach`
+   partono dal 23/24: sulle finestre vecchie le regole che li leggono non muovono nessuno. Senza la
+   distinzione il gate avrebbe ritirato R3c e R10 per la colpa di precedere i propri input.
+2. **I criteri di copertura si valutavano anche sulle finestre cieche.** `coverage_up` chiedeva
+   copertura in aumento su *tutte* le righe: dove `recent_form` non ha dati R13 non aggiunge nessuno,
+   quindi ogni regola di copertura falliva automaticamente appena esisteva una finestra che non poteva
+   vederla. Ora i criteri di copertura, come quelli di accuratezza, guardano solo le finestre che
+   misurano.
+3. **La misurabilità dipende dal tipo di regola.** Una regola di accuratezza è testata dove *sposta*
+   una previsione, una di copertura dove ne *aggiunge* una. Usare il sottoinsieme spostato per entrambe
+   etichettava ogni regola di copertura come non misurabile in ogni finestra — non muovere chi è già
+   prezzato è precisamente il suo compito.
+
+**Il cross-fit generalizzato**: `features.cross_fit_source` prende la finestra cronologicamente
+adiacente, preferendo la più recente. T1 e T2 continuano ad accoppiarsi fra loro, quindi aggiungere
+finestre **non riscrive in silenzio i numeri pubblicati**, e una finestra vecchia e poco strumentata
+viene valutata con parametri stimati su dati migliori. `verify_baseline` è ancorata a
+`PUBLISHED_WINDOWS = (T1, T2)`.
+
+**Ancora disponibile**: 2020-21 (id 103 / 15) e presumibilmente più indietro sulla Serie A. Ogni
+stagione in più costa ~40 minuti di scaricamento educato e rende il gate più severo — è la leva più
+economica che il progetto abbia per distinguere una regola vera da un parametro adattato.
 
 ## 4. Ipotesi FALSIFICATE — non riproporre senza finestre nuove
 

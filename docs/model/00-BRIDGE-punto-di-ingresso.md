@@ -91,6 +91,17 @@ Documento dedicato, con tutti i numeri e le ipotesi falsificate: **`gate-motore-
   ne esce bocciata.
 - **Risultato**: euro VALORE **−1.7% / −1.5%**, top-10 6→8 e 12→**15**, copertura **31%→100%** ·
   Serie A VALORE **−4.2% / −2.8%**, top-10 11→13 e 14→15. Portieri: presenze −17%.
+- **DUE STAGIONI IN PIÙ (sera del 27/07, §3-ter)**: l'API dei voti serve anche 22/23 e 21/22 (e 20/21),
+  con layout identico → **euro passa a 3 finestre** (T0 = 22/23→23/24) e **Serie A a 4**
+  (Tm1 = 21/22→22/23). *EuroLeghe 2021-22 non ha voti*: l'id si risolve e le 30 giornate si scaricano,
+  ma ogni cella `Voto` è `'-'` — quindi l'euro guadagna una finestra, non due.
+  **Cosa cambia nei verdetti**: **R10 confermata su tutte e tre** (Pv MAE −5.2%/−3.5%/−4.9%, ed è il
+  maggior contributore alle top-10: +3 su T1) · **R0c confermata** · **R4 ESCE** (contraddetta su T0,
+  coefficiente da −0.004 a −0.018 fra le finestre) · **R7 resta con riserva scritta**: non passa il
+  criterio «migliora su ogni finestra» perché la sua *premessa* — il modello condiviso perde contro la
+  persistenza pura sui portieri — è vera su tre finestre e **falsa sulla quarta**, e non è valutabile il
+  giorno dell'asta. È una scommessa 3 su 4 che rende −12%…−20% e costa +1.2%.
+  Set adottati ora: **euro R0c+R3c+R7+R10 · Serie A R3+R7+R13**.
 - **Simulazione dell'asta 25/26** (`backtest --auction`, §3-bis del documento del gate): 15/40 nomi
   azzeccati, ma **80% (euro) e 81% (Serie A) del VALORE** che avrebbero reso le top 10 perfette. La
   metrica dei nomi tratta ogni errore allo stesso modo; quella dei punti dice che gli errori del motore

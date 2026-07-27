@@ -100,8 +100,19 @@ CANDIDATES: tuple[str, ...] = ("R0c", "R1", "R1b", "R2", "R3", "R3c", "R4", "R4b
 # first-class dimension of the data model (different calendars, different perimeters), and the gate
 # says these rules behave differently across it - R3 only helps where the target calendar IS the real
 # calendar (Serie A), R1/R4 only where the perimeter is the 5-league top clubs (EuroLeghe).
+# ⚠️ R4 (the age curve) LEFT this set on 27/07/2026 when a third window became available: it improves
+# the players it moves by 1-3.5% on T1/T2 and makes them 0.9% worse on T0, and its coefficient varies
+# 4.5x across the three windows (-0.004 / -0.011 / -0.018) - monotone in time, which is what a parameter
+# that follows its estimation window looks like, not an age effect.
+#
+# R7 STAYS despite failing the all-windows criterion, and the reason is written down rather than waved
+# through (gate-motore-v1.md §3-ter): its premise - "the shared appearances model loses to pure
+# persistence on goalkeepers" - is measurable, true on three windows and false on the fourth, and it
+# CANNOT be evaluated on auction day because it depends on the season being predicted. So R7 is a bet
+# with three wins out of four, -12%..-20% when it wins and +1.2% when it loses. The all-windows AND
+# rejects it because it weighs no magnitudes; that is a limitation of the criterion.
 ADOPTED: dict[str, tuple[str, ...]] = {
-    "euro": ("R0c", "R3c", "R4", "R7", "R10"),
+    "euro": ("R0c", "R3c", "R7", "R10"),
     "default": ("R3", "R7", "R13"),
 }
 # What the corrected criteria changed, and why the list is shorter than it was:
@@ -1106,6 +1117,7 @@ def compare(conn: sqlite3.Connection, candidates: tuple[str, ...], platform: str
     for rule in (*candidates, "ALL", "ADOPTED"):
         # A mixed set moves both halves, so it is judged on the product - the auction metric.
         target = RULES_BY_KEY[rule].metric if rule in RULES_BY_KEY else "value"
+        kind = RULES_BY_KEY[rule].kind if rule in RULES_BY_KEY else "accuracy"
         rows = []
         for key, window_data in prepared.items():
             baseline = out["windows"][key]["R0"]["overall"]
@@ -1143,8 +1155,13 @@ def compare(conn: sqlite3.Connection, candidates: tuple[str, ...], platform: str
         # A window where the rule moves NOBODY has not tested it - the inputs it needs do not exist
         # that far back. Excluded from the verdict and named in the report, because scoring it as a
         # failure would retire a rule for the sin of predating its own data.
-        measured = [row for row in rows if row["changed_n"]]
-        unmeasurable = [row["window"] for row in rows if not row["changed_n"]]
+        # What counts as "this window tested the rule" depends on the kind: an accuracy rule is
+        # tested where it MOVES a prediction, a coverage rule where it ADDS one. Using the moved
+        # subset for both labelled every coverage rule unmeasurable everywhere, since not moving
+        # anyone already priced is precisely what a coverage rule is supposed to do.
+        counter = "added_n" if kind == "coverage" else "changed_n"
+        measured = [row for row in rows if row[counter]]
+        unmeasurable = [row["window"] for row in rows if not row[counter]]
         # improvement is measured on the players the rule MOVES, and has to clear a floor: an
         # 0.04% gain on a coefficient whose sign contradicts its own hypothesis is not a rule.
         improved = len(measured) >= 2 and all(
@@ -1153,18 +1170,22 @@ def compare(conn: sqlite3.Connection, candidates: tuple[str, ...], platform: str
             and row["changed_after"] <= row["changed_before"] * (1 - MIN_RELATIVE_GAIN)
             for row in measured)
         kind = RULES_BY_KEY[rule].kind if rule in RULES_BY_KEY else "accuracy"
-        coverage_up = all((row["coverage_after"] or 0) > (row["coverage_before"] or 0)
-                          for row in rows)
+        # On the windows that MEASURE the rule, like every other criterion. Adding older windows
+        # exposed the asymmetry: on a window where `recent_form` has no data R13 adds nobody, so
+        # "coverage up" was False and every coverage rule failed automatically the moment a window
+        # existed that could not see its input.
+        coverage_up = len(measured) >= 2 and all(
+            (row["coverage_after"] or 0) > (row["coverage_before"] or 0) for row in measured)
         # what a coverage rule adds must be in the same league as what already existed: 30% worse
         # than the baseline's own error is the line, beyond which "a prediction" is just noise
         added_sane = all(row["added_mae"] is not None and row["target_before"] is not None
-                         and row["added_mae"] <= row["target_before"] * 1.30 for row in rows)
+                         and row["added_mae"] <= row["target_before"] * 1.30 for row in measured)
         # ... and it must beat the trivial answer for those same players, or it is only spreading the
         # population mean over new names (finding 8: a near-constant prediction passed the old test).
         # R0c is exempt because it IS the trivial answer - the null model is not asked to beat itself.
         beats_naive = rule == "R0c" or all(
             row["added_mae"] is not None and row["added_mae_naive"] is not None
-            and row["added_mae"] < row["added_mae_naive"] for row in rows)
+            and row["added_mae"] < row["added_mae_naive"] for row in measured)
         verdict = {
             "kind": kind, "metric": target, "rows": rows, "improved_both": improved,
             "coverage_up": coverage_up, "added_sane": added_sane,

@@ -90,13 +90,34 @@ Portieri il ruolo migliore (6/10 e 7/10, 87-88% del VALORE), difensori il peggio
 l'ancora li schiaccia su ~6.1 e il vertice si decide sui bonus, che il motore non modella).
 Dettaglio per ruolo, nomi e classificazione dei 25 errori in `gate-motore-v1.md` §3-bis.
 
+## Due stagioni in piu' (sera del 27 luglio 2026) - il prerequisito piu' economico, sbloccato
+Il prerequisito «stagioni precedenti al 23/24» era registrato come da verificare. **L'API le serve**:
+la pagina pubblica dei voti risolve un championshipId per 22/23 (euro 105, Serie A 17), 21/22 (104/16) e
+20/21 (103/15), e le cartelle Excel autenticate hanno **layout identico** a quelle attuali. Ingerite
+22/23 e 21/22 su entrambe le piattaforme (~150 download educati, ~40 minuti l'una).
+
+**Un limite trovato guardando i file, non dedotto**: EuroLeghe 21/22 **non ha voti** (ogni cella `Voto`
+e' `'-'`, tutte le statistiche a zero, tutte le 30 giornate) mentre il listone e' vero. Quindi euro
+guadagna **una** finestra (T0 = 22/23->23/24), Serie A **due** (Tm1 = 21/22->22/23).
+
+Esito: **R10 confermata su tre finestre** (-5.2%/-3.5%/-4.9% di Pv MAE) e prima per contributo alle
+top-10 · **R0c confermata** · **R4 esce** (contraddetta su T0, coefficiente instabile di 4.5x) ·
+**R7 resta con riserva**: la sua premessa e' misurabile e falsa su una finestra su quattro, e non e'
+valutabile il giorno dell'asta. Set adottati: **euro R0c+R3c+R7+R10 · Serie A R3+R7+R13**.
+Numeri completi, decomposizione della regressione su euro T0 e i tre difetti del gate che solo piu'
+finestre potevano rivelare: `gate-motore-v1.md` §3-ter.
+
+**Ancora disponibile**: 20/21 e presumibilmente piu' indietro sulla Serie A. E' la leva piu' economica
+per distinguere una regola vera da un parametro adattato alla finestra su cui e' stato stimato.
+
 ## Prossimo lavoro
 1. ~~Completare il layer per-partita~~ **FATTO il 27/07** (sezione sopra): 100% delle partite, bias di
    selezione chiuso, copertura del motore dal 31% al 42-43% (e al 100% sull'euro con R0c).
 2. **Storico `injuries`** (Transfermarkt, una richiesta per giocatore): l'unico input della Priorita' 1
    ancora assente, e meta' dei buchi nelle top-10 dei difensori sono infortuni.
-3. **Terza finestra**: verificare quanto indietro va l'API Excel dei voti. Con T0 = 22/23->23/24 i
-   parametri che oggi oscillano diventerebbero identificabili e il gate molto piu' severo.
+3. ~~**Terza finestra**~~ **FATTA la sera del 27/07** (sezione sopra): euro a 3 finestre, Serie A a 4.
+   Ha subito fatto il suo lavoro - R4 fuori, R7 con riserva, R10 rafforzata. Il passo successivo e'
+   20/21 (id 103/15) e quanto ancora indietro la Serie A permetta.
 4. **Ri-pre-registrare le due ipotesi che il layer completo ha cambiato** (`gate-motore-v1.md` §5-bis):
    la propensione per-90 (ora con il segno giusto) e la sottostima da rifacimento rosa (effetto piu'
    grande di tutto il gate su Serie A, ma con l'etichetta sbagliata).
