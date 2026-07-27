@@ -1,5 +1,5 @@
 # Spec — Toolkit `euroleghe-ingest` v9 (task 1.0 della roadmap)
-**Aggiornata: 26 luglio 2026 (v9.1 — fase 1 implementata; v9 SOSTITUISCE la v8)** · Python · Output: SQLite `euroleghe.db` + CSV normalizzati
+**Aggiornata: 27 luglio 2026 (v9.2 — strato flag/arrivi; v9 SOSTITUISCE la v8)** · Python · Output: SQLite `euroleghe.db` + CSV normalizzati
 *Sigle: fc_id = identificativo fantacalcio.it · FM = fantamedia · Mv = media voto · Pv = partite a voto · xref = cross-reference id tra siti · xG/xA = expected goals/assists · manifest = lista file da recuperare.*
 **Convenzione: identificatori sempre in INGLESE** (tabelle, colonne, moduli, variabili); italiano solo nella documentazione.
 
@@ -62,6 +62,45 @@
     MAE 0.358 contro 0.460 della baseline «media». Coefficienti in `data/reports/mv_synth_calibration.json`.
     Resta un layer taggato: nessun uso nel motore senza passare dal gate fuori campione.
 
+## Novità v9.2 (strato flag/arrivi, 27 luglio 2026)
+1. **`fc_site` implementato** — tre stati volatili come serie datate. La pagina **probabili formazioni**
+   porta il **fc_id negli href** (`.../{slug}/{fc_id}/{season}`) → identità esatta, nessun matching:
+   442 probabilità su 20 squadre. **Indisponibili**: 151/152 risolti (infortunati→`availability`,
+   squalificati→`availability`, **diffidati→`flags(booking_risk)`**, che non è indisponibilità).
+   Ogni fetch è uno **snapshot datato** in `data/cache/fc_site_{page}_{date}.html`: quegli snapshot
+   *sono* la serie storica e `rebuild` li rigioca in ordine, perché il sito mostra solo "adesso".
+2. **Rigoristi: la pagina ufficiale dice ancora "Dati non ancora disponibili"** (preseason 26/27).
+   Implementata quindi la fonte che lo spec mette al primo posto — la **gerarchia RIVELATA** dai
+   nostri voti: 918 rigori su 140 club-stagione → 1463 righe datate, con peso che decade per recenza
+   (`DECAY`) e **quarantena dopo un errore** (`MISS_PENALTY`). ⚠️ Quei due parametri sono
+   **provvisori**: decidono quanto la gerarchia crede alla recenza, cioè una scelta di modello →
+   li possiede il gate `penalty_ev`. Non leggerli come stabiliti.
+3. **Ruolo reale a costo zero**: il layer per-partita ha `position` su **100%** delle 87k righe →
+   `positions.derived_role` per 3862 giocatore-stagione e **312 flag `off_role_usage`**
+   (222 promozioni, 90 retrocessioni) *offline*, invece di ~2400 richieste heatmap. La heatmap resta
+   utile solo per `avg_x/avg_y` (granularità Mantra dd vs dc), non fatta.
+4. **Date di nascita dalla cache**: le formazioni SofaScore portano `dateOfBirthTimestamp` →
+   `players.birth_year` per 1861/2528 (74%), che sblocca **U22** (479 flag) e in futuro le curve età.
+5. **`tournaments` via SofaScore, non Wikidata**: una lista di convocati dice chi è stato chiamato,
+   le formazioni dicono **chi ha giocato e quanto** — e l'effetto post-torneo riguarda i minuti.
+   Mondiale 2026: 104 partite, **344 giocatori del perimetro, 95 247 minuti** → `tournaments_squads`
+   + `flags(post_torneo)` sulla stagione **2026-27** (Premier 100, Serie A 72, Bundes 52, Liga 51,
+   Ligue1 36). I tornei di metà stagione (Africa/Asia Cup) usano la stagione in cui si giocano.
+6. **`transfers` (Transfermarkt)**: club id dalla tabella di ogni competizione (autorevole, non dalla
+   ricerca) → `club_xref`; storico allenatori → `coaches` e **flag `new_coach`** letto al 1° agosto
+   (un esonero a stagione in corso emerge sulla stagione DOPO, che è quando è prezzabile); pagina
+   trasferimenti per club-stagione → `transfers_history` con le cifre. La data del trasferimento è
+   **approssimata alla finestra** (la pagina non ne porta una) e `injuries`/`exit_risk` **non** sono
+   coperti: servirebbe una richiesta per giocatore e i dati di scadenza contratto.
+7. **`arrivals` completato**: **tier** T1=57 / T2=660 / T3=673 e **FM-equivalente estera** su 655
+   arrivi. L'equivalente è calcolato sulla **stagione reale piena** con voto reale euro dove c'è e
+   `mv_synth` altrove, sotto lo scoring euro; i cartellini sono l'unica approssimazione (il layer
+   per-partita non li ha → totali stagionali distribuiti). **Sanity check**: su 294 giocatori dove
+   conosciamo anche la FM euro reale la differenza media è **+0.035** (mediana +0.027).
+   Soglie di tier (`T1_PRICE_PCT`, `FULL_HISTORY_MATCHES`, `U22_AGE`) **provvisorie, del gate**.
+8. **Il matcher ora gestisce anche la NOSTRA convenzione** in ingresso ("Fofana Y."): le liste
+   editoriali di fantacalcio.it la usano, e senza questo 25 nomi su 152 restavano fuori.
+
 ## Principi
 1. File grezzi (Drive/cache) = fonte di verità; DB **sempre ricostruibile da zero** (`rebuild` idempotente).
 2. Il prediction-engine legge solo dai dati normalizzati.
@@ -94,7 +133,7 @@ T1 importanti → storia completa → FM-equivalente estera → club-a-club con 
 
 ## Moduli (ordine rebuild)
 `fetch` → `rosters` (SEMPRE primo) → `stats` → `ratings` (Excel autenticato, incrementale + backfill + resume + listone) → `matchdays` (calendario euro↔reale) → `fc_site` (rigoristi, probabili, indisponibili) → `transfers` → `fbref` (opzionale/bloccato) → `positions` (SofaScore: aggregati stagione + rating per-partita; heatmap→ruolo reale ancora da fare) → `synth` (voto sintetico calibrato) → `arrivals` → `tournaments` → `elo` → `validate`.
-Stato implementazione v9.1: **rosters, stats, ratings (+ listone), matchdays, positions, synth, arrivals, elo, validate, rebuild + GUI** operativi. Da fare: **heatmap SofaScore → `positions`/`derived_role`** (endpoint stagionale per giocatore, fattore 21), **scraping per-partita delle 4 leghe estere** (comando pronto, ~2 h di rete), **fbref** (bloccato da Cloudflare: serve browser headless o inbox manuale), `fc_site`, `transfers`, `tournaments`.
+Stato implementazione v9.2: **tutti i moduli operativi tranne `fbref`** — rosters, stats, ratings (+ listone), matchdays, fc_site, transfers, positions, synth, tournaments, arrivals, elo, validate, rebuild + GUI. Da fare: **heatmap SofaScore** per `avg_x/avg_y` (granularità Mantra), **`injuries` + flag `exit_risk`** (una richiesta per giocatore + scadenze contratto), **`fbref`** (bloccato da Cloudflare: serve browser headless o inbox manuale), e soprattutto l'**harness del gate** (vedi sotto).
 
 ## Comandi fase 1
 ```
@@ -119,8 +158,34 @@ Tutto è ripartibile (la cache grezza è la fonte di verità) e interrompibile; 
 5. ✅ **Vista calciatori**: la griglia fantavoti passa al **calendario reale** quando la mappa esiste e
    colora a parte (viola, corsivo) le giornate reali fuori dal calendario euro, il cui valore è il voto
    sintetico. Senza mappa resta sulle giornate euro come prima.
-6. ⏳ **Heatmap → `positions.derived_role`** (fattore 21): non fatta, serve l'endpoint heatmap stagionale
-   per giocatore (~1 richiesta per giocatore-stagione).
+6. ✅ **Ruolo reale + `off_role_usage`**: derivati offline dal layer per-partita (v9.2 §3). Resta da
+   fare solo `avg_x/avg_y` via heatmap, per la granularità Mantra.
+
+## `engine/` + `backtest` — l'harness del gate (27 luglio 2026)
+Non fa parte della pipeline di ingestione: **legge il DB e scrive solo report**. Esiste perché la
+regola d'oro non aveva forma eseguibile — il modello viveva nei documenti e in notebook usa-e-getta,
+quindi nulla poteva essere davvero gated. È anche il **riferimento da cui portare il motore
+TypeScript** in `app/prediction-engine`, quindi resta senza dipendenze ed esplicito.
+- `engine/model.py` formule pure + valori pubblicati come costanti di RIFERIMENTO (le ancore si
+  **ricalcolano** dal DB con sole stagioni ≤ input: le medie a 3 stagioni del motore includono la
+  stagione target, e usarle sarebbe look-ahead) · `fitting.py` minimi quadrati stdlib ·
+  `features.py` DB → osservazioni per finestra, con la disciplina anti-look-ahead in un solo punto ·
+  `evaluate.py` finestre, cross-fit, metriche, gate, report.
+- `backtest` è in **STANDALONE**, non in `PIPELINE` (non produce tabelle di ingestione).
+- `--verify` riproduce **15/18** numeri pubblicati; i 3 da rivedere sono tutti sul modulo presenze in
+  T1 (`pv_gain_vs_naive_T1`, `pv_bias_naive_starters_T1`, `pv_gain_crossfit_T1`); in T2 tornano.
+- L'inventario input stampato per finestra dice cosa manca al MOTORE (non al DB): `starter_prob`
+  0/1453 su T2/euro, perché le probabili sono uno stato di oggi e servono snapshot settimanali.
+
+## Quello che manca per l'asta 26/27
+- **Bloccato dal calendario**: listone/quotazioni 26/27 (esce ad agosto; aggiungere `2026-27` a
+  `SEASONS` in `ratings.py`/`positions.py`/`transfers.py`), voti 26/27, Elo alla data d'asta 2026-08.
+- **Lavoro vero**: `injuries` + `exit_risk`; heatmap per `avg_x/avg_y`; e il **collo di bottiglia**:
+  un **harness di backtest cross-fitted** sulle due finestre (T1 23/24→24/25, T2 24/25→25/26) per
+  eseguire il **gate 3.2** (club-a-club con ClubElo, il cui input — la FM-equivalente — ora esiste)
+  e il **2.5 pieno con i flag**. I gate precedenti sono stati eseguiti fuori dal codice: nel repo
+  non esiste ancora nulla che li riproduca, ed è ciò che serve prima di far entrare qualunque
+  parametro provvisorio di v9.2 nel motore.
 
 ## Whitelist
 `fantacalcio.it` e sottodomini · `api.clubelo.com` · `fbref.com` (403 Cloudflare) · `transfermarkt.com/.it` · `query.wikidata.org` · `sofascore.com` + `api.sofascore.com`. Client: `requests` per fantacalcio.it, `curl_cffi` (impersonate chrome) per SofaScore. Rate-limiting educato, cache grezzi, hash per aggiornamenti.

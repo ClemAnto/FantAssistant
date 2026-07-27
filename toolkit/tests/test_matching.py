@@ -22,7 +22,18 @@ def test_fold_strips_accents_and_special_letters():
 def test_split_initial_handles_one_and_two_letter_initials():
     assert split_initial("Zapata D.") == ("zapata", "d")
     assert split_initial("Pellegrini Lo.") == ("pellegrini", "lo")
+    assert split_initial("Esposito F.P.") == ("esposito", "fp")     # two given names abbreviated
     assert split_initial("De Ketelaere") == ("de ketelaere", None)
+
+
+def test_multiple_initials_match_given_names_in_any_order():
+    # our 'Esposito F.P.' (Francesco Pio) vs the provider's 'Pio Esposito'
+    pool = _pool("Esposito F.P.", "Esposito Se.")
+    _tier, candidates = match_in_pool("Pio Esposito", pool)
+    assert [name for _fc_id, name in candidates] == ["Esposito F.P."]
+    # a namesake with different initials must not be dragged in
+    _tier, candidates = match_in_pool("Sebastiano Esposito", pool)
+    assert [name for _fc_id, name in candidates] == ["Esposito Se."]
 
 
 def test_lossy_eq_accepts_runs_of_replacement_chars():

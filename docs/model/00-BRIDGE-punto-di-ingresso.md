@@ -1,5 +1,5 @@
 # 00 — BRIDGE · Punto d'ingresso del progetto (leggere per primo)
-**Aggiornato: 26 luglio 2026** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
+**Aggiornato: 27 luglio 2026** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
 
 ## Il progetto in breve
 Motore previsionale per fantacalcio **EuroLeghe** (fantacalcio.it): valutazione calciatori Classic e Mantra sui 5 grandi campionati europei (Serie A, Premier, Liga, Bundesliga, Ligue 1 — perimetro: i ~35 top club del gioco). Prevede fantamedia (FM), presenze attese e VALORE stagionale = FM × presenze. Metodo scientifico: **ogni regola entra nel motore solo se batte il baseline fuori campione su finestre indipendenti** (gate pre-registrato). Stato: core validato (Mantra, Classic, portieri, presenze); manca lo strato flag/arrivi, sbloccato dal toolkit dati `euroleghe-ingest` (in implementazione).
@@ -10,6 +10,7 @@ La knowledge base è ora nel repo git **`FantAssistant`**, cartella **`docs/mode
 | Sorgente | Ruolo | Affidabilità |
 |---|---|---|
 | **git `docs/model/`** | FONTE DI VERITÀ: documenti consolidati, decisioni, ipotesi respinte/pre-registrate | Permanente, versionata |
+| **GitHub `ClemAnto/FantAssistant`** | remote `origin` (repo **pubblico**), branch `master` | Copia remota della verità |
 | **Drive (cartella progetto)** | Archivio/mirror + dataset (xlsx/csv) | Non più aggiornato (solo su richiesta esplicita) |
 | **Memoria Claude del progetto** | Riassunto automatico per ripartire in fretta | Cache: comoda ma MAI fonte di verità |
 | **Credenziali fantacalcio.it** | Solo in `.env` locale | MAI su Drive/chat/repo/log |
@@ -44,14 +45,46 @@ Dettaglio tecnico e numeri in `spec-euroleghe-ingest-v9.md` → «Novità v9.1»
 - **Vista calciatori**: griglia sul calendario **reale** con le giornate fuori dal calendario euro colorate
   a parte (valore = voto sintetico). Test: 52 verdi. `rebuild` offline verde.
 
+## STRATO FLAG/ARRIVI — FATTO (27 luglio 2026)
+Dettaglio e numeri in `spec-euroleghe-ingest-v9.md` → «Novità v9.2». In sintesi, le tabelle che erano
+vuote ora ci sono: `penalty_hierarchy` 1463 · `probable_starter` 442 · `availability` 103 ·
+`positions` 3862 · `flags` 837 · `arrivals.tier` 1390 e `foreign_fm_equiv` 655 · `birth_year` 1861 ·
+`tournaments_squads` (Mondiale 2026: 344 giocatori del perimetro, 95 247 minuti) · `coaches` e
+`transfers_history` da Transfermarkt.
+- **Rigoristi**: la pagina ufficiale è ancora vuota (preseason) → implementata la **gerarchia
+  rivelata** dai nostri voti, che lo spec mette comunque al primo posto (918 rigori).
+- **Ruolo reale gratis**: il layer per-partita aveva già la posizione su 100% delle righe → 312 flag
+  `off_role_usage` senza una richiesta in più.
+- **FM-equivalente estera**: calcolata sulla stagione reale piena, **+0.035 di scarto medio** dalla
+  FM euro reale dove possiamo confrontarle. È l'input che mancava al gate 3.2.
+- ⚠️ **Parametri provvisori** (`DECAY`/`MISS_PENALTY` dei rigoristi, soglie di tier): sono scelte di
+  modello, le possiede il gate. Non usarli come stabiliti.
+
+## HARNESS DEL GATE — ESISTE (27 luglio 2026)
+Il collo di bottiglia storico è stato affrontato: la regola d'oro ora ha **forma eseguibile**.
+`toolkit/euroleghe_ingest/engine/` (model · fitting · features · evaluate) + comando
+`python -m euroleghe_ingest backtest`, **read-only** sul DB, scrive solo
+`data/reports/engine_backtest.json`. È anche il **riferimento da cui portare il motore TypeScript**
+in `app/prediction-engine`, quindi resta senza dipendenze ed esplicito.
+- `backtest --verify` **riproduce 15 numeri pubblicati su 18** (ancore Classic/Mantra, beta Mantra,
+  coefficienti Pv, portieri M2e su entrambe le finestre, bias titolari T2).
+- **3 da rivedere, tutti sul modulo presenze in T1**: `pv_gain_vs_naive_T1` (atteso −0.016, ottenuto
+  +0.018), `pv_bias_naive_starters_T1` (5.2 → 4.17), `pv_gain_crossfit_T1` (−0.016 → +0.013). In T2
+  tornano. **Finché non è chiarito, il guadagno del modulo presenze su T1 non è confermato.**
+- L'**inventario input** stampato dice cosa manca al motore: su T2/euro `starter_prob` è **0/1453**
+  (le probabili sono di oggi, non della stagione passata → servono snapshot settimanali).
+
 ## PROSSIMO LAVORO
-1. **Scraping per-partita delle 4 leghe estere** (+ Serie A 24/25 e 25/26): comando già pronto,
-   `positions --layer match`, ~2 h di rete, ripartibile. Poi ri-calibrare `synth` (avrà anche il controllo
-   fuori campione) e ri-derivare `matchdays` per le leghe estere.
-2. **Heatmap SofaScore → `positions.derived_role`** (fattore 21, off_role_usage): manca l'endpoint heatmap
-   stagionale per giocatore.
-3. Poi: `fc_site` (rigoristi/probabili/indisponibili) e `transfers` → arrivals+flag → gate 3.2 +
-   FM-equivalente estera + 2.5 pieno → algoritmo completo asta 26/27.
+1. **Chiarire i 3 numeri presenze/T1**: è l'unico punto dove harness e documenti non concordano.
+   Prima di questo, non aggiungere regole.
+2. **Eseguire i gate ora possibili**: 3.2 club-a-club con ClubElo (input pronto), 2.5 pieno con i
+   flag, e **tarare i parametri provvisori** del 27/07 (decadimento/quarantena rigoristi, soglie tier,
+   U22) — sono scelte di modello, non dati.
+3. **Dati ancora mancanti**: `injuries` + flag `exit_risk`; heatmap per `avg_x/avg_y`;
+   `starter_prob` storico; `fbref` (bloccato da Cloudflare).
+4. **Ad agosto, quando esce**: listone/quotazioni 26/27 → aggiungere `2026-27` alle costanti `SEASONS`
+   (`ratings.py`, `positions.py`, `transfers.py`), scaricare voti e Elo alla data d'asta 2026-08.
+5. Poi: algoritmo completo asta 26/27.
 
 ## Convenzioni operative
 git = casa canonica (Drive solo su richiesta esplicita) · risposte in chat in **italiano**, tutto il repo (codice, commenti, log, nomi file, .md) in **inglese**; i doc KB in `docs/model/` restano in italiano · `fc_id` chiave primaria · credenziali solo in `.env` · **quando l'utente scrive "chiudi"**: consolidare tutti gli .md di `docs/model/` (+ CLAUDE.md se serve) con stato/decisioni/commit/prossimi passi e committare.

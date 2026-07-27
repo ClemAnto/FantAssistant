@@ -93,8 +93,9 @@ TOOLTIPS: dict[str, str] = {
                  "which real matchdays the euro rounds cover, and which ones they skip.",
     "fc_site": "Read fantacalcio.it editorial lists (penalty takers, probable starters, unavailable "
                "players) into dated tables.",
-    "transfers": "Read transfers, coach history and injuries from Transfermarkt; derive the exit_risk and "
-                 "new_coach flags.",
+    "transfers": "Read the club identities, the coach history and the club transfer pages from "
+                 "Transfermarkt -> club_xref, coaches (hence the new_coach flag) and "
+                 "transfers_history with the fees. Injuries and exit_risk are not covered yet.",
     "fbref": "Import from FBref: foreign-league performance, career penalty conversion, set pieces, "
              "xG/xA and minutes.",
     "positions": "Import the FULL real season from SofaScore. Asks which layer: 'season' = the facts "
@@ -105,8 +106,9 @@ TOOLTIPS: dict[str, str] = {
              "base voto (mv_synth) for the matches EuroLeghe never voted.",
     "arrivals": "Detect new arrivals by diffing the roster lists and classify them by tier (T1/T2/T3) "
                 "for pricing.",
-    "tournaments": "Load international tournament squads from Wikidata (post-tournament effect, "
-                   "mid-season cups).",
+    "tournaments": "Load who actually PLAYED at an international tournament (SofaScore lineups, "
+                   "minutes included) -> tournaments_squads + the post_torneo signal: a summer "
+                   "tournament eats the next preseason, a mid-season one takes appearances away.",
     "elo": "Load club strength from ClubElo into club_elo at the auction dates (feeds the goalkeeper model).",
     "validate": "Run integrity checks on the database (e.g. no entirely-null column) and fail loudly if "
                 "something is wrong.",
@@ -133,8 +135,11 @@ OUTPUT_COUNTER: dict[str, str] = {
     "stats": "season_stats",
     "ratings": "match_ratings",
     "matchdays": "matchday_map",
+    "fc_site": "penalty_hierarchy",   # the revealed hierarchy is derived offline, so it always lands
     "positions": "external_stats",
     "synth": "external_match_stats.mv_synth",
+    "tournaments": "tournaments_squads",
+    "transfers": "coaches",
     "arrivals": "arrivals",
     "elo": "club_elo",
 }

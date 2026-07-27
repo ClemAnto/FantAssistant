@@ -42,6 +42,9 @@ ALLOWED_EMPTY: dict[str, set[str]] = {
     # missing on some competitions/seasons, mv_synth only exists after the calibration step).
     "external_stats": {"pen_scored", "pen_taken", "xg", "xa", "starts", "yellows", "reds"},
     "external_match_stats": {"xg", "xa", "yellows", "reds", "mv_synth", "started", "position"},
+    # derived_role comes free from the per-match layer; the average position needs the heatmap layer,
+    # and friendlies (factor 21) only exist once the preseason is scraped.
+    "positions": {"avg_x", "avg_y", "is_friendly"},
 }
 
 

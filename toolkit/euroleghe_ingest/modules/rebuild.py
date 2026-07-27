@@ -61,10 +61,12 @@ def run(ctx: Context, *, include_network: bool = False, **kwargs) -> None:
     load("rosters").backfill_rosters_from_ratings(ctx)   # Serie A + voti-only seasons
     load("ratings").reingest_listone_from_cache(ctx)     # Mantra roles + prices for ALL teams (listone)
     load("rosters").fix_club_leagues(ctx)                # correct clubs mislabeled by transferred players
-    load("positions").reingest_from_cache(ctx)           # SofaScore facts, offline (needs final rosters)
-    load("positions").reingest_match_layer(ctx)          # SofaScore per-match layer, offline
+    load("positions").reingest_all_from_cache(ctx)       # SofaScore facts + per-match layer + real role
     load("stats").derive_from_ratings(ctx)               # season aggregates for players without a listone
     load("matchdays").run(ctx)                           # euro<->real calendar map (needs both platforms)
+    load("fc_site").reingest_from_cache(ctx)             # dated states replayed + revealed penalties
+    load("tournaments").reingest_from_cache(ctx)         # who played which tournament, offline
+    load("transfers").reingest_from_cache(ctx)           # clubs, coaches (new_coach), transfers
     load("synth").run(ctx)                               # calibrated synthetic base voto (needs the map)
     load("arrivals").run(ctx)   # roster diff needs the backfilled clubs
     ctx.conn.commit()

@@ -4,8 +4,11 @@ Monorepo for the **EuroLeghe fantacalcio prediction engine**. Two parts:
 
 - `toolkit/` - **euroleghe-ingest** (Python/SQLite): the data pipeline that feeds the engine, with
   a **lightweight UI** (Tkinter, `python -m euroleghe_ingest gui`) as the operator panel. **Work in progress.**
+  Inside it, `euroleghe_ingest/engine/` is NOT part of the pipeline: it is the **reference model + the
+  out-of-sample GATE harness** (`python -m euroleghe_ingest backtest`), read-only on the DB, writing
+  only reports. It stays dependency-free because the shippable engine gets ported from it.
 - `app/` - **final assistant** (Electron + Angular, TypeScript) with the `prediction-engine`. **Placeholder**:
-  initialized after the toolkit (see roadmap).
+  initialized after the toolkit (see roadmap); it will be ported from `toolkit/euroleghe_ingest/engine/`.
 - `config/` - shared configuration (`scoring_config.json`, per-league scoring) read by both the toolkit and the engine.
 - `docs/` - manifest of the Drive documents (source of truth). `data/` - local datasets (rebuildable).
 
@@ -53,9 +56,17 @@ on two independent windows (T1 23/24->24/25, T2 24/25->25/26). Overall MAE must 
   HTML. Aggregation **option A**: canonical `match_ratings` columns + lossless `match_rating_bonuses`.
   Cached Excel = raw source of truth -> `rebuild` re-ingests offline so scraped ratings survive.
 
+## Provisional parameters
+Some constants exist only because a module needed a number to run: the revealed penalty hierarchy's
+decay/quarantine (`fc_site`), the arrival tier thresholds and the U22 age (`arrivals`). They are
+MODEL choices, so the gate owns them - they are marked provisional in the code and must be swept,
+never quoted as established. Same rule as any other candidate rule: no gate, no engine.
+
 ## Credentials & security
 fantacalcio.it credentials **only** in the local `.env` (see `.env.example`). NEVER on Drive, in chats,
 in the repository, or in logs. `.env` is in `.gitignore` and `.claudeignore`.
+**The GitHub repo is PUBLIC** (`origin` = github.com/ClemAnto/FantAssistant, branch `master`): every
+commit publishes `docs/model/` - the model knowledge base - so treat anything committed as public.
 
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);

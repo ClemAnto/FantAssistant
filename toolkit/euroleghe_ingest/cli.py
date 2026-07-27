@@ -30,6 +30,23 @@ def build_parser() -> argparse.ArgumentParser:
 
     sub.add_parser("rebuild", help="rebuild the whole DB from raw files (idempotent)")
 
+    # Gate harness: read-only on the DB, writes only a report under data/reports/.
+    p_backtest = sub.add_parser("backtest", help=load("backtest").DESCRIPTION)
+    p_backtest.add_argument("--window", action="append", choices=["T1", "T2"], metavar="T1|T2",
+                            help="prediction window (repeatable; default: both)")
+    p_backtest.add_argument("--platform", action="append", choices=["euro", "default"],
+                            help="euro = EuroLeghe, default = classic Serie A (default: both)")
+    p_backtest.add_argument("--game", action="append", choices=["classic", "mantra"],
+                            help="role system driving anchors and beta (default: both)")
+    p_backtest.add_argument("--rules", default="R0", metavar="R0[,R1,...]",
+                            help="candidate rules to switch on (default: R0 = current engine)")
+    p_backtest.add_argument("--cases", action="store_true",
+                            help="print the regression cases predicted vs actual")
+    p_backtest.add_argument("--verify", action="store_true",
+                            help="reproduce the published gate numbers before scoring anything")
+    p_backtest.add_argument("--no-report", dest="report", action="store_false",
+                            help="print only, do not write data/reports/engine_backtest.json")
+
     # One subcommand per pipeline module (single run).
     for name in PIPELINE:
         module = load(name)
@@ -91,6 +108,10 @@ def main(argv: list[str] | None = None) -> int:
             elif args.command == "positions":
                 load("positions").run(ctx, leagues=args.league, seasons=args.season,
                                       refresh=args.refresh, layer=args.layer)
+            elif args.command == "backtest":
+                load("backtest").run(ctx, windows=args.window, platforms=args.platform,
+                                     games=args.game, rules=args.rules, cases=args.cases,
+                                     verify=args.verify, report=args.report)
             else:
                 load(args.command).run(ctx)
         except NotImplementedError as exc:

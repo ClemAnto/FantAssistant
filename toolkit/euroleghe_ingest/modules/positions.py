@@ -335,6 +335,77 @@ def reingest_match_layer(ctx: Context, seasons=None) -> None:
               f"rounds ({unknown} lineup entries without a resolved identity)")
 
 
+# ---------- real role (offline, from the per-match layer) ----------
+# The provider tags every lineup entry with the slot the player actually filled, and we already have
+# that on 100% of external_match_stats - so the REAL role needs no extra request. The heatmap layer
+# (avg_x/avg_y) only refines it, e.g. left-back vs centre-back, which G/D/M/F cannot express.
+PROVIDER_TO_CLASSIC: dict[str, str] = {"G": "P", "D": "D", "M": "C", "F": "A"}
+# Defensive -> offensive. A player used BELOW their nominal role is a demotion, which is the
+# direction the validated asymmetric anchor change reacts to (full on demotion, zero on promotion).
+ROLE_ORDER: dict[str, int] = {"P": 0, "D": 1, "C": 2, "A": 3}
+MIN_OFF_ROLE_MATCHES = 5      # below this it is rotation, not usage
+MIN_OFF_ROLE_SHARE = 0.4      # and it has to be a real share of the player's appearances
+
+
+def derive_roles_from_match_layer(ctx: Context) -> tuple[int, int]:
+    """positions.derived_role from the modal provider slot + the off_role_usage flag.
+
+    Returns (positions rows, off_role_usage flags). Pure SQL + counting: no network.
+    """
+    conn = ctx.require_conn()
+    rows = conn.execute(
+        """
+        SELECT e.fc_id, e.season, e.position, COUNT(*) AS n
+        FROM external_match_stats e
+        WHERE e.source = 'sofascore' AND e.position IS NOT NULL AND COALESCE(e.minutes, 0) > 0
+        GROUP BY e.fc_id, e.season, e.position
+        """
+    ).fetchall()
+    played: dict[tuple[int, str], dict[str, int]] = {}
+    for fc_id, season, position, n in rows:
+        played.setdefault((fc_id, season), {})[position] = n
+
+    nominal = {(fc_id, season): role for fc_id, season, role in conn.execute(
+        "SELECT fc_id, season, role_classic FROM rosters WHERE role_classic IS NOT NULL")}
+
+    conn.execute("DELETE FROM positions WHERE source = 'sofascore'")
+    conn.execute("DELETE FROM flags WHERE flag = 'off_role_usage' AND source = 'sofascore'")
+    positions_written = flags_written = 0
+    for (fc_id, season), counts in played.items():
+        total = sum(counts.values())
+        provider_role = max(counts, key=lambda code: counts[code])
+        real_role = PROVIDER_TO_CLASSIC.get(provider_role)
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO positions(fc_id, season, source, derived_role, n_matches,
+                                             is_friendly)
+            VALUES (?, ?, 'sofascore', ?, ?, 0)
+            """,
+            (fc_id, season, real_role, total),
+        )
+        positions_written += 1
+
+        listed = nominal.get((fc_id, season))
+        if not listed or not real_role or listed == real_role:
+            continue
+        off_matches = counts[provider_role]
+        if off_matches < MIN_OFF_ROLE_MATCHES or off_matches / total < MIN_OFF_ROLE_SHARE:
+            continue
+        if listed not in ROLE_ORDER or real_role not in ROLE_ORDER:
+            continue
+        direction = "demotion" if ROLE_ORDER[real_role] < ROLE_ORDER[listed] else "promotion"
+        conn.execute(
+            "INSERT OR REPLACE INTO flags(fc_id, season, flag, value, source) "
+            "VALUES (?, ?, 'off_role_usage', ?, 'sofascore')",
+            (fc_id, season, f"{listed}->{real_role}:{direction}:{off_matches}/{total}"),
+        )
+        flags_written += 1
+    conn.commit()
+    print(f"[positions] real role from the per-match layer: {positions_written} player-seasons · "
+          f"{flags_written} off_role_usage flags")
+    return positions_written, flags_written
+
+
 # ---------- identity resolution ----------
 def _club_pools(conn, season: str):
     """Roster pools for a season, keyed for the three matcher passes.
@@ -654,6 +725,7 @@ def run(ctx: Context, *, leagues=None, seasons=None, refresh: bool = False,
     ctx.config.cache_dir.mkdir(parents=True, exist_ok=True)
     if layer == "match":
         fetch_match_layer(ctx, leagues, seasons, refresh)
+        derive_roles_from_match_layer(ctx)
         return
     session = _client()
     try:
@@ -740,3 +812,45 @@ def reingest_from_cache(ctx: Context, seasons=None) -> None:
         print(f"[positions] {season} perimeter coverage: {our_side_coverage(conn, season)}")
     print(f"[positions] {total} external_stats rows from {len(by_season)} cached seasons")
     _write_coverage_report(ctx.config, report)
+
+
+def derive_birth_years(ctx: Context) -> int:
+    """players.birth_year from the cached lineups - no source of ours carries a date of birth.
+
+    Every lineup entry ships the player's dateOfBirthTimestamp, so the age (needed by the U22
+    trigger and, later, the age curves) is already sitting in the round cache.
+    """
+    conn = ctx.require_conn()
+    xref = {source_id: fc_id for source_id, fc_id in conn.execute(
+        "SELECT source_id, fc_id FROM player_xref WHERE source = 'sofascore'")}
+    years: dict[int, int] = {}
+    for path in sorted(ctx.config.cache_dir.glob("sofascore_round_*.json")):
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except Exception as exc:   # noqa: BLE001 - a corrupt cache file must not abort the rebuild
+            print(f"[positions] skipping unreadable round cache {path.name}: {exc}")
+            continue
+        for sides in (payload.get("lineups") or {}).values():
+            for entries in sides.values():
+                for entry in entries or []:
+                    player = entry.get("player") or {}
+                    fc_id = xref.get(str(player.get("id") or ""))
+                    timestamp = player.get("dateOfBirthTimestamp")
+                    if fc_id is not None and timestamp:
+                        years[fc_id] = int(time.strftime("%Y", time.gmtime(timestamp)))
+    conn.executemany("UPDATE players SET birth_year = ? WHERE fc_id = ? AND birth_year IS NULL",
+                     [(year, fc_id) for fc_id, year in years.items()])
+    conn.commit()
+    filled = conn.execute("SELECT COUNT(birth_year) FROM players").fetchone()[0]
+    total = conn.execute("SELECT COUNT(*) FROM players").fetchone()[0]
+    print(f"[positions] birth years from the lineups: {filled}/{total} players "
+          f"({100 * filled / total:.0f}%)")
+    return filled
+
+
+def reingest_all_from_cache(ctx: Context) -> None:
+    """Everything this module rebuilds offline, in dependency order (used by `rebuild`)."""
+    reingest_from_cache(ctx)
+    reingest_match_layer(ctx)
+    derive_roles_from_match_layer(ctx)
+    derive_birth_years(ctx)
