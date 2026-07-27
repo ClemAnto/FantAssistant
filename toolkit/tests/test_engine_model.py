@@ -99,6 +99,24 @@ def test_off_role_adjustment_is_asymmetric_and_direction_aware():
     assert model.off_role_adjustment("D", "??", forward, backward) == pytest.approx(backward)
 
 
+def test_club_strength_and_competition_adjustments_are_linear_and_safe_when_unknown():
+    assert model.club_strength_adjustment(None, 0.5) == 0.0      # no Elo -> no shift, never a guess
+    assert model.club_strength_adjustment(2.0, 0.05) == pytest.approx(0.10)
+    assert model.club_strength_adjustment(-2.0, 0.05) == pytest.approx(-0.10)
+    assert model.competition_adjustment(0, -0.02) == 0.0
+    assert model.competition_adjustment(3, -0.02) == pytest.approx(-0.06)
+
+
+def test_coach_change_adjustment_only_fires_on_a_change():
+    assert model.coach_change_adjustment(False, 0.9, -0.02, 0.06) == 0.0
+    # level + interaction with the previous share: a starter and a fringe player move differently
+    assert model.coach_change_adjustment(True, 0.9, -0.02, 0.06) == pytest.approx(-0.02 + 0.054)
+    assert model.coach_change_adjustment(True, 0.1, -0.02, 0.06) == pytest.approx(-0.02 + 0.006)
+    starter = model.coach_change_adjustment(True, 0.9, -0.02, 0.06)
+    fringe = model.coach_change_adjustment(True, 0.1, -0.02, 0.06)
+    assert starter > fringe                       # positive interaction sharpens the hierarchy
+
+
 def test_role_advancement_covers_the_classic_vocabulary():
     assert set(model.ROLE_ADVANCEMENT) == set(model.CLASSIC_ROLES)
     order = [model.ROLE_ADVANCEMENT[role] for role in ("P", "D", "C", "A")]

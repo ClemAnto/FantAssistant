@@ -84,6 +84,8 @@ class Observation:
     origin_league: str | None = None
     foreign_fm_equiv: float | None = None
     elo_target: float | None = None
+    new_coach_target: bool = False        # derived at 1 August, so known on auction day
+    same_role_arrivals: int = 0           # new team-mates competing for the same Classic role
     starter_prob: float | None = None
     penalty_rank: int | None = None
     penalty_confidence: float | None = None
@@ -297,6 +299,24 @@ def load(conn: sqlite3.Connection, window: Window, platform: str) -> list[Observ
     starters = _probable_starters(conn, window.auction_date)
     penalties = _penalty_state(conn, window.auction_date)
     euro_minutes = euro_minutes_shares(conn, window.input_season)
+    # new_coach is a TARGET-season flag and still auction-safe: `transfers.derive_new_coach` compares
+    # who was in charge on 1 August with a year earlier, so a mid-season sacking only surfaces on the
+    # following season - which is when it becomes priceable anyway.
+    new_coach = {fc_id for (fc_id,) in conn.execute(
+        "SELECT fc_id FROM flags WHERE season = ? AND flag = 'new_coach'", (window.target_season,))}
+    # Positional competition, straight from the target listone: how many players are NEW at this club
+    # in this role. The listone is published before the auction, and `arrivals` is a roster diff.
+    competition: dict[tuple[str, str], int] = {}
+    arrived: set[int] = set()
+    for fc_id, club, role in conn.execute(
+            """SELECT a.fc_id, c.canonical_name, r.role_classic
+               FROM arrivals a
+               JOIN rosters r ON r.fc_id = a.fc_id AND r.season = a.season
+               LEFT JOIN clubs c ON c.fc_club_id = r.fc_club_id
+               WHERE a.season = ?""", (window.target_season,)):
+        if club and role:
+            competition[(club, role)] = competition.get((club, role), 0) + 1
+            arrived.add(fc_id)
 
     observations: list[Observation] = []
     for (fc_id, name, role_classic, roles_raw, league, price, club_target, club_prev, birth_year,
@@ -316,6 +336,10 @@ def load(conn: sqlite3.Connection, window: Window, platform: str) -> list[Observ
             off_role_prev=fc_id in off_role,
             arrival_type=kind, arrival_tier=tier, origin_league=origin,
             foreign_fm_equiv=equivalent, elo_target=elo.get(club_target or ""),
+            new_coach_target=fc_id in new_coach,
+            # a player who arrived himself is not his own competition
+            same_role_arrivals=max(0, competition.get((club_target or "", role_classic or ""), 0)
+                                   - (1 if fc_id in arrived else 0)),
             starter_prob=starters.get(fc_id), penalty_rank=rank, penalty_confidence=confidence,
             pv_act=pv_act, mv_act=mv_act, fm_act=fm_act))
     return observations

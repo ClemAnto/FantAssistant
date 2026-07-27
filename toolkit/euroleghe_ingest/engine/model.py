@@ -222,6 +222,40 @@ def propensity_adjustment(gamma: float, z_propensity: float) -> float:
     return gamma * z_propensity
 
 
+def club_strength_adjustment(elo_z: float | None, lam: float) -> float:
+    """R5: shift the role anchor by the destination club's standardised strength.
+
+    ⚠️ ADJACENT TO TWO HYPOTHESES THE GATE ALREADY REJECTED - "internal club strength" and "additive
+    Elo for movement" (see the rejected list in stato-progetto-continuita). It is retested because the
+    doc's own improvement list opens with it and because the biggest single FM error the engine makes
+    is a dominant-club one (Kane 8.29 predicted, 10.60 real): regressing him towards a league mean
+    ignores that he plays in a team that scores twice as much as the league. If it fails again, it
+    must be recorded as re-rejected, not quietly retried a third time.
+    """
+    if elo_z is None:
+        return 0.0
+    return lam * elo_z
+
+
+def coach_change_adjustment(new_coach: bool, share_prev: float, level: float,
+                            interaction: float) -> float:
+    """R10: a new coach changes his mind about who plays.
+
+    Two terms because the effect is not obviously a level shift: `level` is the average change in
+    playing share, `interaction` multiplies the previous share - the hypothesis being that a new coach
+    weakens the persistence of last season's hierarchy, which hurts the established starters more
+    than the fringe. Fitted, so the data decides whether either term is real.
+    """
+    if not new_coach:
+        return 0.0
+    return level + interaction * share_prev
+
+
+def competition_adjustment(same_role_arrivals: int, lam: float) -> float:
+    """R11: new team-mates signed for the same role are minutes taken away from him."""
+    return lam * same_role_arrivals
+
+
 def penalty_adjustment(confidence: float | None, lam: float) -> float:
     """R6: the designated taker's expected penalty income, in reduced form.
 

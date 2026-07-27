@@ -61,17 +61,23 @@ RULES: tuple[Rule, ...] = (
     Rule("R7", "goalkeeper appearances: dedicated persistence instead of the shared share model",
          True, metric="pv"),
     Rule("R9", "anchor recency weight (goal-environment drift)"),
+    Rule("R5", "club-strength anchor from club_elo (RETEST of a rejected family)", True),
+    Rule("R10", "new coach: level + interaction with last season's playing share", True,
+         metric="pv"),
+    Rule("R11", "positional competition: new team-mates signed for the same role", True,
+         metric="pv"),
 )
 
 # Rules that get fitted and compared one at a time by `compare`.
-CANDIDATES: tuple[str, ...] = ("R1", "R1b", "R2", "R3", "R3c", "R4", "R4b", "R6", "R7", "R8")
+CANDIDATES: tuple[str, ...] = ("R1", "R1b", "R2", "R3", "R3c", "R4", "R4b", "R5", "R6", "R7",
+                               "R8", "R10", "R11")
 
 # What survived the gate, PER PLATFORM. Keeping it per platform is not a hedge: `platform` is a
 # first-class dimension of the data model (different calendars, different perimeters), and the gate
 # says these rules behave differently across it - R3 only helps where the target calendar IS the real
 # calendar (Serie A), R1/R4 only where the perimeter is the 5-league top clubs (EuroLeghe).
 ADOPTED: dict[str, tuple[str, ...]] = {
-    "euro": ("R1", "R3c", "R4", "R7"),
+    "euro": ("R1", "R3c", "R4", "R7", "R10"),
     "default": ("R3", "R7"),
 }
 # Why R3c on euro and R3 on Serie A, when both pass on Serie A: there the euro map covers 31 of the
@@ -173,6 +179,23 @@ class Derived:
 
     minutes_share: dict[int, float]
     propensity_z: dict[int, float]
+    elo_z: dict[int, float] = field(default_factory=dict)
+
+
+def _elo_z_scores(data: features.WindowData) -> dict[int, float]:
+    """Standardise the destination club's Elo across the clubs in this window (R5)."""
+    values = {obs.club_target: obs.elo_target for obs in data.observations
+              if obs.club_target and obs.elo_target is not None}
+    if len(values) < 5:
+        return {}
+    elos = list(values.values())
+    mean = sum(elos) / len(elos)
+    variance = sum((elo - mean) ** 2 for elo in elos) / (len(elos) - 1)
+    if variance < 1e-9:
+        return {}
+    deviation = variance ** 0.5
+    return {obs.fc_id: model.clip((obs.elo_target - mean) / deviation, -3.0, 3.0)
+            for obs in data.observations if obs.elo_target is not None}
 
 
 def derive(data: features.WindowData) -> Derived:
@@ -213,7 +236,8 @@ def derive(data: features.WindowData) -> Derived:
         if value is not None and entry is not None:
             # clipped: one outlier per-90 rate must not swing a whole prediction
             propensity_z[obs.fc_id] = model.clip((value - entry[0]) / entry[1], -3.0, 3.0)
-    return Derived(minutes_share=minutes_share, propensity_z=propensity_z)
+    return Derived(minutes_share=minutes_share, propensity_z=propensity_z,
+                   elo_z=_elo_z_scores(data))
 
 
 # ---------------------------------------------------------------- cross-fitted parameters
@@ -231,6 +255,10 @@ class Params:
     share: tuple[float, ...] | None = None        # R3: share incl. minutes
     share_euro: tuple[float, ...] | None = None   # R3c: minutes on the euro rounds
     penalty_lam: float | None = None              # R6: penalty duty
+    elo_lam: float | None = None                  # R5: club-strength anchor shift
+    coach_level: float | None = None              # R10: new coach, average share change
+    coach_interaction: float | None = None         # R10: new coach x previous share
+    competition_lam: float | None = None           # R11: same-role arrivals at his club
     off_role_forward: float | None = None         # R8: used further forward than listed
     off_role_backward: float | None = None        # R8: used further back than listed
     share_gk: tuple[float, ...] | None = None     # R7: goalkeepers
@@ -312,10 +340,31 @@ def fit_params(data: features.WindowData, rules: tuple[str, ...]) -> Params:
                 setattr(params, key, sum(values) / len(values))
             params.notes[f"R1_{key}_n"] = len(values)
 
-    if {"R2", "R4", "R4b", "R6", "R8"} & set(rules):
+    if "R10" in rules or "R11" in rules:
+        coach, competition = [], []
+        for obs in data.observations:
+            baseline = _predict_pv(obs, data)
+            if baseline is None or obs.pv_act is None or not matchdays:
+                continue
+            residual_share = (obs.pv_act - baseline) / matchdays
+            if obs.new_coach_target:
+                coach.append(((1.0, obs.share_prev(data.matchdays_prev)), residual_share))
+            competition.append(((float(obs.same_role_arrivals),), residual_share))
+        if "R10" in rules:
+            fitted = fit_linear(coach, intercept=False)
+            if fitted:
+                params.coach_level, params.coach_interaction = fitted
+            params.notes["R10_n"] = len(coach)
+        if "R11" in rules:
+            fitted = fit_linear(competition, intercept=False)
+            params.competition_lam = fitted[0] if fitted else None
+            params.notes["R11_n"] = sum(1 for f, _r in competition if f[0] > 0)
+
+    if {"R2", "R4", "R4b", "R5", "R6", "R8"} & set(rules):
         propensity, ageing, ageing_share = [], [], []
         penalties: list[tuple[tuple[float, ...], float]] = []
         off_role: list[tuple[tuple[float, ...], float]] = []
+        elo_pairs: list[tuple[tuple[float, ...], float]] = []
         for obs in data.observations:
             baseline, _anchor = _predict_fm(obs, data)
             if baseline is not None and obs.fm_act is not None and (obs.pv_act or 0) >= MIN_PV_ACT:
@@ -328,6 +377,9 @@ def fit_params(data: features.WindowData, rules: tuple[str, ...]) -> Params:
                     ageing.append(((float(max(0, age - model.AGE_KNEE)),), residual))
                 if not _is_goalkeeper(obs) and obs.penalty_rank == 1:
                     penalties.append(((obs.penalty_confidence or 0.0,), residual))
+                z_elo = derived.elo_z.get(obs.fc_id)
+                if z_elo is not None and not _is_goalkeeper(obs):
+                    elo_pairs.append(((z_elo,), residual))
                 if not _is_goalkeeper(obs) and obs.derived_role_prev and obs.role_classic:
                     delta = (model.ROLE_ADVANCEMENT.get(obs.derived_role_prev, -1)
                              - model.ROLE_ADVANCEMENT.get(obs.role_classic, -1))
@@ -349,6 +401,10 @@ def fit_params(data: features.WindowData, rules: tuple[str, ...]) -> Params:
             params.age_share = fitted_share[0] if fitted_share else None
             params.notes["R4_n"] = len(ageing)
             params.notes["R4b_n"] = len(ageing_share)
+        if "R5" in rules:
+            fitted = fit_linear(elo_pairs, intercept=False)
+            params.elo_lam = fitted[0] if fitted else None
+            params.notes["R5_n"] = len(elo_pairs)
         if "R6" in rules:
             fitted = fit_linear(penalties, intercept=False)
             params.penalty_lam = fitted[0] if fitted else None
@@ -418,6 +474,10 @@ def _rule_fm(obs: features.Observation, data: features.WindowData, rules: tuple[
         if z is not None:
             fm_pred += model.propensity_adjustment(params.gamma, z)
 
+    # R5 - the destination club's strength, as an anchor shift (retest of a rejected family)
+    if "R5" in rules and params.elo_lam is not None and not _is_goalkeeper(obs):
+        fm_pred += model.club_strength_adjustment(derived.elo_z.get(obs.fc_id), params.elo_lam)
+
     # R6 - penalty duty as known on auction day
     if "R6" in rules and params.penalty_lam is not None and obs.penalty_rank == 1:
         fm_pred += model.penalty_adjustment(obs.penalty_confidence, params.penalty_lam)
@@ -465,9 +525,15 @@ def _rule_pv(obs: features.Observation, data: features.WindowData, rules: tuple[
         share = pv_pred / data.matchdays_target
 
     if "R4b" in rules and params.age_share is not None:
-        share = model.clip(share + model.age_adjustment(obs.age(data.window), params.age_share),
-                           0.0, 1.0)
-    return model.expected_appearances(share, data.matchdays_target)
+        share += model.age_adjustment(obs.age(data.window), params.age_share)
+    if ("R10" in rules and params.coach_level is not None
+            and params.coach_interaction is not None):
+        share += model.coach_change_adjustment(
+            obs.new_coach_target, obs.share_prev(data.matchdays_prev),
+            params.coach_level, params.coach_interaction)
+    if "R11" in rules and params.competition_lam is not None:
+        share += model.competition_adjustment(obs.same_role_arrivals, params.competition_lam)
+    return model.expected_appearances(model.clip(share, 0.0, 1.0), data.matchdays_target)
 
 
 def predict_one(obs: features.Observation, data: features.WindowData, rules: tuple[str, ...],

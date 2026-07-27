@@ -187,6 +187,35 @@ def test_r3c_falls_back_when_the_euro_minutes_are_unknown(prepared):
     assert with_r3c == pytest.approx(baseline)
 
 
+def test_positional_competition_does_not_count_the_player_himself(prepared):
+    """R11's regressor is "new team-mates in my role", so an arrival must not compete with himself."""
+    _cfg, conn, window, _data = prepared
+    # Newcomer (fc_id 4, role A at club 2) plus another new striker at the same club
+    conn.execute("INSERT INTO players(fc_id, canonical_name) VALUES (10, 'RivalStriker')")
+    conn.execute("INSERT INTO rosters(fc_id, season, fc_club_id, roles, role_classic, league, price)"
+                 " VALUES (10, ?, 2, 'pc', 'A', 'serie_a', 9.0)", (TARGET_SEASON,))
+    conn.executemany("INSERT INTO arrivals(fc_id, season, type) VALUES (?, ?, 'new')",
+                     [(4, TARGET_SEASON), (10, TARGET_SEASON)])
+    conn.commit()
+    by_id = {obs.fc_id: obs for obs in features.load(conn, window, "euro")}
+    assert by_id[4].same_role_arrivals == 1        # the other one, not himself
+    assert by_id[10].same_role_arrivals == 1
+    # a player who did not arrive sees every arrival in his role as competition
+    assert by_id[1].same_role_arrivals == 0        # different role and club
+
+
+def test_new_coach_reads_the_target_season_flag(prepared):
+    """Auction-safe by derivation: the flag compares 1 August with a year earlier, so it predates
+    the auction even though it is stamped on the target season."""
+    _cfg, conn, window, _data = prepared
+    conn.execute("INSERT INTO flags(fc_id, season, flag, value, source) "
+                 "VALUES (1, ?, 'new_coach', 'Someone', 'transfermarkt')", (TARGET_SEASON,))
+    conn.commit()
+    by_id = {obs.fc_id: obs for obs in features.load(conn, window, "euro")}
+    assert by_id[1].new_coach_target is True
+    assert by_id[2].new_coach_target is False
+
+
 def test_rules_registry_refuses_what_is_not_built_yet():
     assert evaluate.parse_rules(None) == ("R0",)
     assert evaluate.parse_rules("r0") == ("R0",)
