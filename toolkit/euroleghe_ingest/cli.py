@@ -61,6 +61,15 @@ def build_parser() -> argparse.ArgumentParser:
                            help="season to import, e.g. 2024-25 (repeatable; default: all)")
             p.add_argument("--refresh", action="store_true",
                            help="re-download matchdays even if already present")
+        if name == "recent_form":
+            p.add_argument("--season", action="append", metavar="YYYY-YY",
+                           help="target listone season (repeatable; default: all but the first)")
+            p.add_argument("--matches", type=int, default=10,
+                           help="how many recent club matches per player (default: 10)")
+            p.add_argument("--no-bonuses", dest="bonuses", action="store_false",
+                           help="skip the per-match goals/assists request (5x cheaper, no FM-equivalent)")
+            p.add_argument("--limit", type=int,
+                           help="only the N most expensive players (for a pilot run)")
         if name == "synth":
             p.add_argument("--validate", action="store_true",
                            help="only re-measure the synthetic layer against the Serie A real votes "
@@ -117,6 +126,9 @@ def main(argv: list[str] | None = None) -> int:
             elif args.command == "positions":
                 load("positions").run(ctx, leagues=args.league, seasons=args.season,
                                       refresh=args.refresh, layer=args.layer)
+            elif args.command == "recent_form":
+                load("recent_form").run(ctx, seasons=args.season, wanted=args.matches,
+                                        bonuses=args.bonuses, limit=args.limit)
             elif args.command == "synth":
                 load("synth").run(ctx, validate=args.validate)
             elif args.command == "backtest":

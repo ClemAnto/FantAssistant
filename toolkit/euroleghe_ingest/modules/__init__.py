@@ -20,6 +20,7 @@ PIPELINE: tuple[str, ...] = (
     "transfers",
     "fbref",
     "positions",
+    "recent_form",
     "synth",
     "arrivals",
     "tournaments",
@@ -36,7 +37,7 @@ ALL_MODULES: tuple[str, ...] = STANDALONE + PIPELINE
 # Modules whose run() is fully implemented (the rest are stubs raising NotImplementedError).
 # Single source of truth: add a name here when its module becomes real.
 IMPLEMENTED: frozenset[str] = frozenset(
-    {"rosters", "stats", "ratings", "matchdays", "fc_site", "transfers", "positions", "synth", "tournaments", "arrivals",
+    {"rosters", "stats", "ratings", "matchdays", "fc_site", "transfers", "positions", "recent_form", "synth", "tournaments", "arrivals",
      "elo",
      "validate"}
 )

@@ -53,7 +53,8 @@ class _QueueWriter:
 #   weekly  = as the season goes: new ratings, the round they map to, the external layer, the checks
 OPERATION_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Setup - once", ("initdb", "rebuild", "fetch:plan")),
-    ("Start of season", ("rosters", "stats", "elo", "transfers", "tournaments", "arrivals", "fbref")),
+    ("Start of season", ("rosters", "stats", "elo", "transfers", "tournaments", "arrivals", "recent_form",
+      "fbref")),
     ("During the season - every matchday",
      ("ratings", "matchdays", "positions", "synth", "fc_site", "validate")),
 )
@@ -102,6 +103,10 @@ TOOLTIPS: dict[str, str] = {
                  "(goals, assists, minutes, xG/xA) into external_stats; 'match' = the per-match "
                  "ratings of the perimeter clubs, which is what fills the SYNTHETIC matchdays "
                  "(long, resumable - matchdays and synth run right after it).",
+    "recent_form": "For the priced players the engine knows nothing about - they arrive from a league "
+                   "we do not scrape - fetch their last 10 club matches (rating, minutes, goals) so "
+                   "there is SOMETHING measured about them. Tagged apart from the 5-league layer: a "
+                   "Serie B rating is not a Serie A one.",
     "synth": "Fit the SofaScore rating onto the real base voto on the overlap and fill the synthetic "
              "base voto (mv_synth) for the matches EuroLeghe never voted.",
     "arrivals": "Detect new arrivals by diffing the roster lists and classify them by tier (T1/T2/T3) "
@@ -137,6 +142,7 @@ OUTPUT_COUNTER: dict[str, str] = {
     "matchdays": "matchday_map",
     "fc_site": "penalty_hierarchy",   # the revealed hierarchy is derived offline, so it always lands
     "positions": "external_stats",
+    "recent_form": "external_match_stats",
     "synth": "external_match_stats.mv_synth",
     "tournaments": "tournaments_squads",
     "transfers": "coaches",
