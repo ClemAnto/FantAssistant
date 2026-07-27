@@ -211,9 +211,16 @@ per-partita — Gyökeres, Cancelo, Tillman, Giménez, O'Riley, João Neves, Ner
 neopromosse. Il motore li prezzava sulla sola àncora di ruolo.
 
 Il modulo **`recent_form`** prende le loro ultime N partite di club con rating, minuti, gol e assist,
-**datate**. Stato: **113 giocatori, 1.094 partite**, identità risolte all'**89%**. Competizioni più
-frequenti: serie-b 116 · eredivisie 98 · pro-league 68 · championship 63 · liga-portugal 42 ·
-süper lig 34 · laliga-2 19.
+**datate**. Stato: **123 giocatori su ~127 (97%), 1.196 partite** — 65 giocatori e 617 partite
+utilizzabili nella finestra T1, 123 e 1.196 in T2 (T1 chiede di paginare due anni indietro, quindi è
+strutturalmente più magra). Competizioni più frequenti: serie-b · eredivisie · pro-league ·
+championship · liga-portugal · süper lig · laliga-2 · brasileirão.
+
+I **4 irrisolti** e il perché, che dice dove sono i limiti veri: Grønbæk (la ricerca del provider non
+trova la forma senza diacritici: non è il confronto a fallire, è il suo indice) · Jeong (senza anno di
+nascita e con follower 1655 contro 673 resta legittimamente ambiguo) · James J. e Marin M. (il
+giocatore giusto non è fra i primi 5 per follower, quindi il sondaggio sull'anno di nascita non lo
+raggiunge).
 
 Quattro decisioni di progetto, ognuna un punto dove si sbagliava facilmente:
 - **sopra la mediana, non «almeno»**: per i portieri la mediana è **1 credito**, quindi «almeno media»
@@ -233,18 +240,22 @@ copriamo, **quanto** gioca si trasferisce e **quanto bene** gioca no:
 - **R13 (presenze dai minuti al vecchio club, àncora di ruolo per il rendimento): ✅ passa su tutte e
   tre le piattaforme.** Adottata.
 - **R13b (fantamedia dal rating confrontato con gli altri nuovi): ❌** fallisce su Serie A e λ si
-  inverte (−0.454 / +0.05). Un rating confrontato fra competizioni diverse non è un livello.
+  inverte (−0.454 / +0.05, e col campione pieno −0.026 / +0.054: sempre di segno instabile e ora anche
+  di magnitudo nulla). Un rating confrontato fra competizioni diverse non è un livello. Il campione più
+  grande ha **confermato** la bocciatura invece di ribaltarla.
 
 **Effetto complessivo dei set adottati** (campione comune invariato: euro −1.6%/−1.7% di VALORE,
 Serie A −4.2%/−2.8%; top-10 6→8/9 e 12→14 · 11→13 e 14→15):
 
 | | copertura prima | dopo |
 |---|---|---|
-| euro T1 / T2 | 31.2% / 33.7% | **45.7% / 48.9%** |
-| Serie A T1 / T2 | 42.4% / 41.8% | 45.7% / 47.5% |
+| euro T1 / T2 | 31.2% / 33.7% | **46.3% / 49.1%** |
+| Serie A T1 / T2 | 42.4% / 41.8% | 46.1% / 47.8% |
 
-Sull'euro sono **156 e 137 giocatori** che il baseline non prezzava affatto, ora con un VALORE (errore
-49.7/48.9 contro il 46.3/42.4 del baseline sui suoi: più difficili, come è giusto, ma dentro il limite).
+Sull'euro sono **164 e 141 giocatori** che il baseline non prezzava affatto, ora con un VALORE (errore
+48.9/48.5 contro il 46.3/42.4 del baseline sui suoi: più difficili, come è giusto, ma dentro il limite).
+Sulle presenze dei soli aggiunti da R13, in T1 il MAE è **6.82 contro il 7.25 del baseline sui suoi**:
+i nuovi entrati sono previsti meglio della media di chi era già prezzato.
 
 **Limite noto**: un nome privato dei diacritici può restituire **zero** candidati dalla ricerca
 («Gronbaek» contro «Grønbæk»): lì non è il confronto a fallire ma l'indice del provider. La strada

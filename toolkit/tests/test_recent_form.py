@@ -223,17 +223,21 @@ class _Session:
         pass
 
 
-def test_the_listone_surname_is_not_the_initial():
-    """Listone names are written "Surname X.", so the last token is an initial. Taking it as the
-    surname made "James J." match every name containing a j - 14 candidates and no decision."""
-    assert recent_form.listone_surname("James J.") == "james"
-    assert recent_form.listone_surname("Marin M.") == "marin"
-    assert recent_form.listone_surname("Torres F.") == "torres"
-    assert recent_form.listone_surname("Milinkovic-Savic V.") == "milinkovic-savic"
-    # no initial: a two-word name keeps its last token
-    assert recent_form.listone_surname("Joao Neves") == "neves"
-    assert recent_form.listone_surname("Gyokeres") == "gyokeres"
-    assert recent_form.listone_surname("O'Riley") == "o'riley"
+def test_names_are_compared_folded_and_the_initial_discriminates():
+    """Two bugs in one test. The accent: a raw substring test never matched "Lucas Vazquez", which is
+    why four Vazquez went unresolved. The initial: our "Surname X." means the surname sits at the END
+    of the provider's "First Last", and the initial starts his first name."""
+    match = recent_form.candidate_matches
+    assert match("vazquez", None, "Lucas Vázquez")          # folded
+    assert match("gronbaek", None, "Oscar Grønbæk")          # o-slash and ae-ligature too
+    # "James J." = surname James, first name starting with J
+    assert match("james", "j", "Jaden James")
+    assert not match("james", "j", "James Justin")           # James is his FIRST name
+    assert not match("james", "j", "Reece James")            # right surname, wrong initial
+    # no initial to lean on: any position of the surname is accepted
+    assert match("james", None, "Reece James")
+    assert match("neves", None, "João Neves")
+    assert not match("neves", None, "Lucas Vázquez")
 
 
 def test_the_initial_bug_no_longer_swallows_the_shortlist(monkeypatch):
