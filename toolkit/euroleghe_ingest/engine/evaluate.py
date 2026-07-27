@@ -68,24 +68,30 @@ RULES: tuple[Rule, ...] = (
          metric="pv"),
     Rule("R12", "market expectation: pre-auction quotation Qt.I, standardised inside the role", True),
     Rule("R12b", "expectation revision: how Qt.I moved year on year, before the auction", True),
-    Rule("R13", "recent form elsewhere: price the no-history players off their last matches", True,
-         kind="coverage"),
+    Rule("R13", "recent form elsewhere: APPEARANCES from his minutes at the old club", True,
+         kind="coverage", metric="pv"),
+    Rule("R13b", "recent form elsewhere: FANTAMEDIA from how his rating compared to the other "
+                 "newcomers", True, kind="coverage"),
     Rule("R11b", "crowded position: 2+ same-role arrivals as a threshold, not a slope", True,
          metric="pv"),
 )
 
 # Rules that get fitted and compared one at a time by `compare`.
 CANDIDATES: tuple[str, ...] = ("R1", "R1b", "R2", "R3", "R3c", "R4", "R4b", "R5", "R6", "R7",
-                               "R8", "R10", "R11", "R11b", "R12", "R12b", "R13")
+                               "R8", "R10", "R11", "R11b", "R12", "R12b", "R13", "R13b")
 
 # What survived the gate, PER PLATFORM. Keeping it per platform is not a hedge: `platform` is a
 # first-class dimension of the data model (different calendars, different perimeters), and the gate
 # says these rules behave differently across it - R3 only helps where the target calendar IS the real
 # calendar (Serie A), R1/R4 only where the perimeter is the 5-league top clubs (EuroLeghe).
 ADOPTED: dict[str, tuple[str, ...]] = {
-    "euro": ("R1", "R3c", "R4", "R7", "R10"),
-    "default": ("R3", "R7"),
+    "euro": ("R1", "R3c", "R4", "R7", "R10", "R13"),
+    "default": ("R3", "R7", "R13"),
 }
+# R13 is in and R13b is out, and the split is the finding: from a player's last matches in a league
+# we do not cover, HOW MUCH he plays transfers (minutes -> appearances, passes on all three
+# platforms) and HOW WELL he plays does not (a rating compared across leagues: fails on Serie A and
+# its coefficient flips sign between windows, -0.45 / +0.05).
 # Why R3c on euro and R3 on Serie A, when both pass on Serie A: there the euro map covers 31 of the
 # 38 rounds, so the two features are nearly the same quantity and R3c wins on Pv MAE but drops a
 # top-10 slot in T2. On euro only the aligned version passes at all - the target is the 31-round
@@ -362,7 +368,7 @@ def fit_params(data: features.WindowData, rules: tuple[str, ...]) -> Params:
         params.share_gk = fit_linear(samples)
         params.notes["R7_n"] = len(samples)
 
-    if "R13" in rules:
+    if "R13" in rules or "R13b" in rules:
         deviations, shares = [], []
         for obs in data.observations:
             if not obs.recent_matches or obs.fm_prev is not None:
@@ -554,11 +560,15 @@ def _rule_fm(obs: features.Observation, data: features.WindowData, rules: tuple[
 
     # R13 - his only measured football is elsewhere: the role anchor plus how he compared to the
     # other newcomers we could measure. Only where the engine has nothing else.
-    if (fm_pred is None and "R13" in rules and anchor is not None and obs.recent_matches
+    if (fm_pred is None and "R13b" in rules and anchor is not None and obs.recent_matches
             and params.recent_lam is not None):
         deviation = derived.recent_deviation.get(obs.fc_id)
         if deviation is not None:
             fm_pred = model.predict_fm_from_recent(anchor, deviation, params.recent_lam)
+
+    if (fm_pred is None and "R13" in rules and anchor is not None and obs.recent_matches
+            and params.recent_share is not None):
+        fm_pred = anchor          # measured appearances, role anchor for the rate: no rating term
 
     if fm_pred is None:
         return None
@@ -627,7 +637,7 @@ def _rule_pv(obs: features.Observation, data: features.WindowData, rules: tuple[
     elif ("R1" in rules and params.share_new and obs.pv_prev is None
             and minutes_share is not None):
         share = model.linear_share(params.share_new, (minutes_share,))
-    elif ("R13" in rules and params.recent_share and obs.pv_prev is None
+    elif ({"R13", "R13b"} & set(rules) and params.recent_share and obs.pv_prev is None
             and obs.recent_matches):
         elsewhere = model.recent_minutes_share(obs.recent_minutes, obs.recent_matches)
         if elsewhere is not None:
