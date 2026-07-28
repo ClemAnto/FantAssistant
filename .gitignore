@@ -5,6 +5,11 @@
 
 # --- Dati: fonte di verità su Drive, DB ricostruibile ---
 /data/*.db
+# SQLite writes these beside the DB while a transaction is open; a background ingest run had one
+# tracked by an unrelated `git add -A`. They are transient database PAGES, never source.
+/data/*.db-journal
+/data/*.db-wal
+/data/*.db-shm
 /data/*.sqlite
 /data/raw/*
 !/data/raw/.gitkeep
