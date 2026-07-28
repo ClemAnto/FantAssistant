@@ -20,6 +20,7 @@ from __future__ import annotations
 import sqlite3
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
+from itertools import pairwise
 
 from euroleghe_ingest.engine.model import (
     ANCHOR_FALLBACK,
@@ -752,7 +753,7 @@ def availability_persistence(conn: sqlite3.Connection, platform: str, season: st
     out: dict[int, float] = {}
     for fc_id, days in played.items():
         after_played = after_missed = n_played = n_missed = 0
-        for previous, current in zip(matchdays, matchdays[1:], strict=False):
+        for previous, current in pairwise(matchdays):
             if previous in days:
                 n_played += 1
                 after_played += current in days

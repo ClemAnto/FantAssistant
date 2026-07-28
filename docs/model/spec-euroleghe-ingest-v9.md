@@ -116,6 +116,35 @@
 8. **Il matcher ora gestisce anche la NOSTRA convenzione** in ingresso ("Fofana Y."): le liste
    editoriali di fantacalcio.it la usano, e senza questo 25 nomi su 152 restavano fuori.
 
+## Novità v9.3 (uso rivelato del reparto, 28 luglio 2026 — tutto OFFLINE)
+
+Nessuna richiesta di rete: i dati erano già in cache e il parser li buttava.
+
+1. **Sei colonne di tiro su `external_match_stats`** (`shots`, `shots_on_target`,
+   `big_chances_created`, `big_chances_missed`, `key_passes`, `touches`): stavano nei blob dei round
+   SofaScore già scaricati e `parse_round` le scartava. `shots` è il segnale «chi è il riferimento
+   offensivo» dentro un reparto, e c'è sul 100% delle righe.
+2. **`club_match_lineups(season, source, match_id, club, competition, real_md, match_date, starters,
+   goalkeepers, defenders, midfielders, forwards)`** — conteggi di formazione a livello di CLUB.
+   ⚠️ Il motivo per cui è una tabella a sé è un difetto trovato **misurando, non rileggendo il
+   codice**: contare quanti attaccanti un club schiera non ha bisogno dell'identità, ma passare per
+   l'imbuto `matching.py` distorce esattamente i club i cui giocatori di frangia non sono quotati
+   (Serie A 24/25: 233 undici su 774 completamente risolti, e la **Juventus zero**). Le righe si
+   accumulano su TUTTE le voci di formazione, risolte o no; K = attaccanti per undici si legge solo
+   dagli undici completi (`starters = 11` e somma dei reparti `= 11`), con soglia ≥10 undici per club.
+3. **`probable_starter` tiene il record completo**: nuove colonne `team`, `formation` (il modulo
+   dichiarato: 3-5-2 = due attaccanti contro 4-3-3), `starter`, `role`, `status`, e **le righe di
+   panchina non si scartano più** (prima `probability IS NULL` = riga buttata: metà del segnale di
+   gerarchia). Vale da adesso in avanti — è la forma pre-registrata di uno storico che si accumula.
+4. **`positions --layer reparse`**: ri-parsa la cache e ricalcola i ruoli, senza toccare la rete
+   (`--layer match` ri-sonda gli slot mancanti). ⚠️ Trovato un bug qui: la costante `SEASONS`, che è
+   un default di *download*, limitava silenziosamente il reparse a 3 stagioni su 7.
+
+Le tre feature del motore che leggono questo strato (`club_forward_caps`, `forward_co_starts`, il
+cross-tab di vocabolario provider-`F` ↔ listone-`A`) stanno in `engine/features.py` e hanno prodotto
+un verdetto negativo (R17) e una valuta d'asta spenta: `gate-motore-v1.md` §4 e
+`metrica-asta-surplus-v1.md` §11. **I dati restano, e non erano costati niente.**
+
 ## Principi
 1. File grezzi (Drive/cache) = fonte di verità; DB **sempre ricostruibile da zero** (`rebuild` idempotente).
 2. Il prediction-engine legge solo dai dati normalizzati.
@@ -167,7 +196,7 @@ python -m euroleghe_ingest synth                          # calibra rating->Mv e
 Tutto è ripartibile (la cache grezza è la fonte di verità) e interrompibile; `rebuild` ri-ingerisce offline.
 
 ## Schema principale (v9)
-`players(fc_id PK, canonical_name, birth_year, nationality)` · `clubs(fc_club_id PK, canonical_name, league)` · `player_xref/club_xref(source, source_id, valid_from, valid_to)` · `rosters(fc_id, season, fc_club_id, roles, role_classic, league, price)` · **`season_stats(fc_id, season, platform, pv, mv, fm, goals, assists, …)`** · **`match_ratings(fc_id, season, matchday, platform, role, team, mv, goals, assists, …, fantavoto, status)`** · **`match_rating_bonuses(fc_id, season, matchday, platform, bonus_key, value)`** · **`external_stats(fc_id, season, source, competition, matches, starts, minutes, goals, assists, pen_scored, pen_taken, xg, xa, rating, yellows, reds)`** *(propensione stagione piena, PK con `source`+`competition`)* · **`external_match_stats(fc_id, season, source, match_id, competition, real_md, match_date, club, opponent, home, position, started, minutes, rating, goals, assists, xg, xa, mv_synth)`** *(layer per-partita + voto sintetico)* · **`matchday_map(season, euro_md, league, real_md, source, confidence)`** *(allineamento euro↔reale per lega)* · `positions` · `transfers_history` · `injuries` · `coaches` · `tournaments_squads` · `club_elo(fc_club_id, date, elo)` · `arrivals(fc_id, season, type, tier, origin_club, origin_league, foreign_fm_equiv)` · `penalty_hierarchy(...)` · `probable_starter` · `availability` · `flags(fc_id, season, flag, value, source)` · `manual_overrides(entity, fc_id, season, field, value, reason, created_at)` · `ingest_runs`.
+`players(fc_id PK, canonical_name, birth_year, nationality)` · `clubs(fc_club_id PK, canonical_name, league)` · `player_xref/club_xref(source, source_id, valid_from, valid_to)` · `rosters(fc_id, season, fc_club_id, roles, role_classic, league, price)` · **`season_stats(fc_id, season, platform, pv, mv, fm, goals, assists, …)`** · **`match_ratings(fc_id, season, matchday, platform, role, team, mv, goals, assists, …, fantavoto, status)`** · **`match_rating_bonuses(fc_id, season, matchday, platform, bonus_key, value)`** · **`external_stats(fc_id, season, source, competition, matches, starts, minutes, goals, assists, pen_scored, pen_taken, xg, xa, rating, yellows, reds)`** *(propensione stagione piena, PK con `source`+`competition`)* · **`external_match_stats(fc_id, season, source, match_id, competition, real_md, match_date, club, opponent, home, position, started, minutes, rating, goals, assists, xg, xa, shots, shots_on_target, big_chances_created, big_chances_missed, key_passes, touches, mv_synth)`** *(layer per-partita + voto sintetico; le sei colonne di tiro dalla v9.3)* · **`club_match_lineups(season, source, match_id, club, …, starters, goalkeepers, defenders, midfielders, forwards)`** *(conteggi di formazione a livello di club, fuori dall'imbuto dell'identità — v9.3)* · **`matchday_map(season, euro_md, league, real_md, source, confidence)`** *(allineamento euro↔reale per lega)* · `positions` · `transfers_history` · `injuries` · `coaches` · `tournaments_squads` · `club_elo(fc_club_id, date, elo)` · `arrivals(fc_id, season, type, tier, origin_club, origin_league, foreign_fm_equiv)` · `penalty_hierarchy(...)` · `probable_starter` · `availability` · `flags(fc_id, season, flag, value, source)` · `manual_overrides(entity, fc_id, season, field, value, reason, created_at)` · `ingest_runs`.
 
 ## Fase 1 — FATTA (con SofaScore al posto di FBref, vedi Novità v9.1)
 1. ✅ **Fatti stagione piena** → `external_stats(source='sofascore')` per 5 leghe × 3 stagioni, con

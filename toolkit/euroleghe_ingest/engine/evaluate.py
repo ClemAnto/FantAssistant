@@ -609,7 +609,7 @@ SHARE_REPLACING: frozenset[str] = frozenset({"R3", "R3c", "R7", "R13", "R0c", "R
 
 
 def _crowding_features(data: features.WindowData, baseline_rules: tuple[str, ...],
-                       params: "Params", derived: "Derived") -> dict[int, float]:
+                       params: Params, derived: Derived) -> dict[int, float]:
     """R17's regressor per fc_id: the share his team-mates claim above the club's capacity.
 
     Rules-dependent by construction - the overflow is computed from the shares the CONFIGURATION's
@@ -1572,7 +1572,7 @@ RULE_COEFFICIENT: dict[str, tuple[str, int | None]] = {
 }
 
 
-def coefficient_stability(fitted: dict[str, "Params"], rule: str) -> dict | None:
+def coefficient_stability(fitted: dict[str, Params], rule: str) -> dict | None:
     """Per-window coefficients of `rule`, and whether they agree. None when it has no single one."""
     where = RULE_COEFFICIENT.get(rule)
     if where is None:
@@ -2241,13 +2241,15 @@ def auction_view(data: features.WindowData, predictions: list[Prediction],
             if p.obs.club_target:
                 club_company.setdefault(p.obs.club_target, []).append(p)
 
-        def pair_note(p: Prediction) -> dict | None:
-            company = club_company.get(p.obs.club_target or "", [])
+        # The loop variables are bound as defaults (same idiom as `market`/`asked` above): the closure
+        # is consumed in this iteration only, and binding says so instead of relying on it.
+        def pair_note(p: Prediction, _company=club_company, _forward=forward_role) -> dict | None:
+            company = _company.get(p.obs.club_target or "", [])
             others = [q for q in company if q.obs.fc_id != p.obs.fc_id]
             if not others:
                 return None
             mate = others[0]                       # the best-ranked of the others
-            caps = data.forward_caps.get(p.obs.club_target) if forward_role else None
+            caps = data.forward_caps.get(p.obs.club_target) if _forward else None
             measurable = caps is not None and caps[2] >= model.FORWARD_MIN_XI
             pair_key = tuple(sorted((p.obs.fc_id, mate.obs.fc_id)))
             qti_own, qti_mate = asked(p.obs), asked(mate.obs)
@@ -2255,7 +2257,7 @@ def auction_view(data: features.WindowData, predictions: list[Prediction],
                 "with": [q.obs.name for q in others],
                 "k_mean": _round(caps[0], 2) if measurable else None,
                 "n_xi": caps[2] if caps else 0,
-                "co_starts": data.co_starts.get(pair_key) if forward_role else None,
+                "co_starts": data.co_starts.get(pair_key) if _forward else None,
                 "qti_gap": (_round(qti_own - qti_mate, 1)
                             if qti_own is not None and qti_mate is not None else None),
             }

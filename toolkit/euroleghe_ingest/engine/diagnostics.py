@@ -235,7 +235,7 @@ def run(ctx, *, windows: list[str] | None = None, platforms: list[str] | None = 
                       f"rules {', '.join(active)} · params {params.source} ==")
                 f_split = cross_tab["f_starters_by_listone_role"]
                 total_f = sum(f_split.values()) or 1
-                print(f"    F-starters by listone role: "
+                print("    F-starters by listone role: "
                       + " ".join(f"{role}={100 * n / total_f:.0f}%"
                                  for role, n in sorted(f_split.items())))
                 for pair in pairs:

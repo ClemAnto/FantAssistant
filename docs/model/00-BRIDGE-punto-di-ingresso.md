@@ -1,5 +1,5 @@
 # 00 — BRIDGE · Punto d'ingresso del progetto (leggere per primo)
-**Aggiornato: 28 luglio 2026 (chiusura sessione)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
+**Aggiornato: 28 luglio 2026 (seconda chiusura della giornata: coppie d'attacco)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
 
 ## Il progetto in breve
 Motore previsionale per fantacalcio **EuroLeghe** (fantacalcio.it): valutazione calciatori Classic e Mantra sui 5 grandi campionati europei (Serie A, Premier, Liga, Bundesliga, Ligue 1 — perimetro: i ~35 top club del gioco). Prevede fantamedia (FM), presenze attese e VALORE stagionale = FM × presenze. Metodo scientifico: **ogni regola entra nel motore solo se batte il baseline fuori campione su finestre indipendenti** (gate pre-registrato). Stato: core validato (Mantra, Classic, portieri, presenze); manca lo strato flag/arrivi, sbloccato dal toolkit dati `euroleghe-ingest` (in implementazione).
@@ -26,6 +26,45 @@ proporre qualsiasi regola) → **`metrica-asta-surplus-v1.md`** (con cosa il pan
 
 Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
 
+### ULTIMO IN ORDINE DI TEMPO — due attaccanti dello stesso club nelle top-10: chiuso in tre pezzi
+
+La domanda («è discutibile avere Kean+Piccoli o Marmoush+Haaland nei top 10: uno farà più bonus
+dell'altro») è stata attaccata direttamente, con dati nuovi presi **senza una richiesta di rete**, e ha
+prodotto **un verdetto negativo, una valuta spenta e una colonna che spedisce**. Doc:
+`attacco-affollato-r17-v1.md` (pre-registrazione + esito), `metrica-asta-surplus-v1.md` §11,
+`spec-euroleghe-ingest-v9.md` «Novità v9.3».
+
+1. **Dati (v9.3, offline)**: sei colonne di tiro su `external_match_stats` e la tabella nuova
+   **`club_match_lineups`** (quanti G/D/C/A schiera ogni club, per undici). Erano nei blob già in cache.
+   Da qui **K = attaccanti per undici** (Inter 24/25 = 2.05, Fiorentina = 1.71) e i **co-start**
+   (Lautaro+Thuram 23, Lautaro+Taremi 3). ⚠️ Difetto trovato **misurando**: contare i reparti passando
+   per l'imbuto dell'identità distruggeva il campione (Serie A 24/25: 233 undici su 774, Juventus
+   **zero**) — perciò i conteggi di club stanno fuori da quell'imbuto.
+2. **R17 (affollamento come regola d'errore): NON PASSA**, ed è la bocciatura più istruttiva del set.
+   Il coefficiente è **negativo e stabile ovunque** (Serie A −0.055…−0.097, dispersione 0.24, 6/6 ·
+   euro −0.047…−0.067, dispersione 0.15, 4/4): il meccanismo **c'è**. Ma i giocatori che sposta
+   **peggiorano su 9 combinazioni finestra×piattaforma su 10** (Serie A robusto 1/6, media −7.3%,
+   peggiore −14.9%). **Quinta** formulazione dell'affollamento a cadere sull'errore (R11, R11b, R16,
+   R16b, R17). E il diagnostico dice perché: su T1/T2 le coppie top-15 dello stesso club hanno reso
+   entrambe **23 volte su 23** (Kean 175 su 199 previsti + Piccoli 170 su 189; Marmoush 272 su 189 +
+   Haaland 204 su 188), e il «numero 2» che R17 avrebbe punito ha reso **1.04×** il previsto contro
+   1.07× di chi risparmiava. I flop veri (Lukaku, Dovbyk, Mosquera) stavano **fuori** dalle coppie.
+3. **Pressione di reparto (valuta d'asta, non gate): misurata e SPENTA.** Su richiesta esplicita
+   dell'utente — «il rischio di comprare quello scadente deve penalizzarne il valore, e il posto
+   garantito per carenza di concorrenza merita un premio» — con protocollo dichiarato prima:
+   VALORE catturato **−0.61%** (limite −2%: passa) ma **tasso di bust 10.1% → 10.1%, identico su ogni
+   singola finestra** (non passa). La spiegazione vale più del verdetto: **i flop dei reparti contesi
+   non stanno nelle top-10 predette** — Openda e David erano **imprezzabili** per il motore, quindi
+   nessuna lista li proponeva e nessuno sconto poteva salvare da un acquisto che il motore non
+   suggeriva. Il fattore resta nel motore (`surplus_pressure`, testato) e **non è offerto dal pannello**.
+4. **Quello che spedisce è la colonna `Pair`** nel tab Auction: per ogni nome in coppia, il compagno,
+   K, i co-start e il ΔQt.I — la stessa evidenza al decisore **senza riordinare niente**.
+
+⚠️ **Da qui la voce a leva più alta di tutto il progetto, che non era in cima all'elenco**: finché i
+**nuovi arrivi senza storico non sono prezzabili**, nessuna metrica d'asta li tocca — né in bene né in
+male. È il buco che ha reso inutile la pressione di reparto, e ha già una strada pre-registrata
+(R13c, ferma su un muro di campione, non di ipotesi).
+
 ### È cambiata la VALUTA dell'asta, non il motore: `metrica-asta-surplus-v1.md`
 
 Il pannello Auction ordina per **SURPLUS = (FM − rimpiazzo) × Pv × beccabilità**, con una soglia minima di
@@ -45,6 +84,8 @@ Esito: **23 nomi su 70 contro i 22 di VALORE** — non costa nomi — e Dimarco 
 Politano/L.Henrique/De Roon/Colombo/Lauriente/Piccoli fuori, Lukaku non classificato.
 
 ### Sei candidate provate il 28/07: **zero adottate**. I set adottati NON cambiano
+*(contando anche le tre registrate a parte — R13c, R5b, R3d — e **R17** della sera, la giornata chiude a
+**dieci provate, zero adottate**, e i set restano `euro R0c+R3c` · `Serie A R3+R7+R13`.)*
 
 Dettaglio e numeri in `gate-motore-v1.md` §5-quinquies. In sintesi: **R15** (persistenza disponibilità) è
 il quasi-passaggio più vicino di tutto il set e su euro ha un coefficiente **stabile** (+0.074…+0.096 su 5
@@ -98,6 +139,12 @@ il segno misurato va nell'altro verso. Separare forza-club da affollamento richi
 fit solo, che è in parte la quarta corsa a una famiglia bocciata tre volte: decisione da prendere ad alta
 voce, non rifinitura da infilare.
 
+**Aggiornato la sera del 28/07 (blocco in cima)**: la separazione è stata fatta, con l'uso rivelato
+(attaccanti schierati per undici) al posto della produzione. Il segno esce **giusto e stabile** — quindi
+l'affermazione «il segno va nell'altro verso» valeva per R16b, che misurava i gol, non per K. Ma R17 cade
+**sull'errore**, e il diagnostico ha ribaltato la premessa del caso: su T1/T2 Kean **e** Piccoli hanno
+reso entrambi, come 23 coppie su 23.
+
 ### Il gate gira su 10 finestre (Serie A) e 5 (euro)
 
 L'API dei voti autenticata serve stagioni che i dataset Drive non hanno mai coperto. Nel DB: **Serie A
@@ -134,6 +181,11 @@ generazione delle ipotesi: passare lì è la prova più debole possibile.**
 
 ### Cosa manca, in ordine
 
+0. **I nuovi arrivi senza storico non sono prezzabili** (salito in cima la sera del 28/07, vedi il blocco
+   ULTIMO IN ORDINE DI TEMPO): Openda e David non stavano in nessuna top-10 predetta, quindi nessuna
+   metrica d'asta — sconto, premio o riordino — può proteggere da loro. Sblocca insieme la copertura
+   Serie A (punto 3) e la pressione di reparto. Strada già pre-registrata: R13c, che è ferma per
+   **campione** (14-21 osservazioni valutabili per finestra), non per ipotesi → il 26/27 la sblocca da sé.
 1. **Prezzare l'asta che viene.** `rosters 2026-27` = 0 (il listone non è ancora uscito) *e* l'harness non
    ha una modalità **live**: ogni percorso assume un esito (`_window_is_usable` pretende ≥50 `fm_act`, il
    tab Auction elenca solo stagioni concluse, `auction_view` confronta due liste). Per un'asta serve **una
@@ -159,12 +211,17 @@ grezzi, `external_stats` su 11 stagioni, `external_match_stats` su 7 (109k righe
 completato), `matchday_map` per lega anche sulle stagioni vecchie, voto sintetico ricalibrato
 (MAE fuori campione **0.369**), FM-equivalente su 1482 arrivi.
 
-**158 test verdi, ruff pulito.** Toolkit **v0.2.0**. `recent_form` ha `--bonuses-only`
+Dalla v9.3: sei colonne di tiro su `external_match_stats` e **`club_match_lineups`** (conteggi di reparto
+per undici, fuori dall'imbuto dell'identità); `probable_starter` tiene modulo, squadra e panchine;
+`positions --layer reparse` ri-parsa la cache senza rete.
+
+**167 test verdi, ruff pulito.** Toolkit **v0.2.0**. `recent_form` ha `--bonuses-only`
 (arricchisce i bonus delle partite già salvate, una richiesta per partita, senza ri-risolvere l'identità):
 **1195/1196** partite arricchite, **122/123** giocatori completi. `python -m euroleghe_ingest backtest [--verify] [--gate] [--auction]
-[--cases] [--window Tm7..T2] [--platform euro|default] [--game classic|mantra]`. GUI: tre tab, il terzo è
+[--cases] [--pairs] [--window Tm7..T2] [--platform euro|default] [--game classic|mantra]`. GUI: tre tab, il terzo è
 **Auction** (stagione/piattaforma/game/**Rank by**, per ruolo i 10 migliori previsti con l'FVM reale
-accanto e i 10 reali col previsto — nella valuta scelta, SURPLUS per default). Backup: `scripts/backup-data.ps1` specchia `data/` fuori dal
+accanto e i 10 reali col previsto — nella valuta scelta, SURPLUS per default, più la colonna **Pair**
+per i compagni di reparto in classifica). Backup: `scripts/backup-data.ps1` specchia `data/` fuori dal
 repo — la cache **deve** restare in `.gitignore` (gli Excel vietano la ripubblicazione, il repo è pubblico).
 
 ## STATO PRECEDENTE (primo giro toolkit, 26 luglio 2026)

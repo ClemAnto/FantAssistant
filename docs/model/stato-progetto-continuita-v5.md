@@ -1,5 +1,5 @@
 # Stato progetto & continuità — v5
-**Aggiornato: 28 luglio 2026 (sera)**
+**Aggiornato: 28 luglio 2026 (seconda chiusura: coppie d'attacco)**
 Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da qui + i file della cartella "Modello Previsionale Fantacalcio".
 *Glossario: T1/T2 = finestre di test (23/24->24/25, 24/25->25/26) · MAE = errore medio assoluto · cross-fitted = parametri stimati su una finestra, testati sull'altra · M2e = modello portieri decomposto con ClubElo · Pv_att = presenze attese · fc_id = id fantacalcio.it · EV = valore atteso · scoring_config = punteggi configurabili per lega · xG/xA = expected goals/assists · 2.5 pieno = backtest motore completo con flag.*
 
@@ -8,6 +8,21 @@ App per leghe EuroLeghe/fantacalcio.it (Classic+Mantra, 5 campionati) con motore
 
 ## ⚠️ Lo stato corrente è in `00-BRIDGE-punto-di-ingresso.md`, blocco «STATO AL 28 LUGLIO 2026 (sera)»
 Questo documento è un registro cronologico: dove contraddice quel blocco, vince quello.
+
+### 28 luglio 2026 (notte), in una riga: le coppie d'attacco sono state misurate, e il meccanismo c'è ma non paga
+Domanda dell'utente: due attaccanti dello stesso club nelle top-10 (Kean+Piccoli, Marmoush+Haaland) sono
+sospetti, trovare come distinguerli. Fatto in tre pezzi, senza **una** richiesta di rete: **dati** (sei
+colonne di tiro + `club_match_lineups` → K = attaccanti schierati per undici, e i co-start), **regola**
+(R17: coefficiente negativo e **stabile ovunque**, quindi il meccanismo esiste — ma i giocatori che sposta
+peggiorano su 9 finestre×piattaforma su 10 → **quinta** formulazione dell'affollamento bocciata
+sull'errore), **valuta d'asta** (pressione di reparto, con lo sconto ai reparti contesi e il **premio** al
+posto garantito che l'utente ha chiesto: VALORE catturato −0.61%, entro il limite, ma **bust 10.1% →
+10.1% identico su ogni finestra** → nasce SPENTA). Spedisce invece la colonna **Pair** (compagno, K,
+co-start, ΔQt.I): stessa evidenza, zero riordino. Il diagnostico ha ribaltato la premessa del caso: su
+T1/T2 le coppie top-15 dello stesso club hanno reso **entrambe 23 volte su 23**, e i flop veri stavano
+fuori. **Voce nuova a leva più alta: i nuovi arrivi senza storico non sono prezzabili** — Openda e David
+non stavano in nessuna top-10 predetta, quindi nessuna metrica d'asta può proteggere da loro.
+Doc: `attacco-affollato-r17-v1.md`, `metrica-asta-surplus-v1.md` §11, spec «Novità v9.3». 167 test verdi.
 
 ### 28 luglio 2026 (sera), in una riga: è cambiata la valuta dell'asta, non il motore
 Il pannello ordina per **SURPLUS = (FM − rimpiazzo) × Pv × beccabilità** con una soglia di schierabilità
@@ -53,7 +68,12 @@ La regola d'oro non aveva forma eseguibile: il modello viveva nei documenti e in
   fantasma sui titolari), **non** il guadagno di MAE su T1. Nessuna regola va promossa su quel decimale.
 - **Inventario input** (dice cosa manca al motore, non al DB): su T2/euro `fm_prev` 812/1453 · `minutes_prev` e `xg_prev` 989 · `foreign_fm_equiv` 301 · `birth_year` 1366 · `elo_target` 1067 · `penalty_rank` 144 · **`starter_prob` 0** (le probabili sono di oggi, non della stagione passata: servono snapshot settimanali per averle come input storico).
 
-## TOOLKIT euroleghe-ingest — spec v9.2 — TUTTI I MODULI TRANNE fbref
+## TOOLKIT euroleghe-ingest — spec v9.3 — TUTTI I MODULI TRANNE fbref
+*(v9.3, 28/07 notte, tutto offline: sei colonne di tiro su `external_match_stats`, tabella
+**`club_match_lineups`** con i conteggi di reparto per undici — deliberatamente FUORI dall'imbuto
+dell'identità, che da sola distruggeva il campione: Serie A 24/25 233 undici su 774, Juventus zero —
+`probable_starter` con modulo/squadra/panchine, e `positions --layer reparse` che ri-parsa la cache senza
+rete. ⚠️ Bug trovato lì: `SEASONS`, che è un default di download, limitava il reparse a 3 stagioni su 7.)*
 Python, SQLite, naming inglese, con **UI operatore** (Tkinter, python -m euroleghe_ingest gui). Stato:
 - **Operativi**: rosters, stats, ratings (+ **listone**), matchdays, fc_site, transfers, positions, synth, tournaments, arrivals, elo, validate, rebuild idempotente + GUI. Unico non implementato: **fbref** (Cloudflare). Dettaglio e numeri: spec v9.1 (fase 1) e v9.2 (strato flag/arrivi).
 - **Correzione importante (26/07)**: nell'Excel dei voti `Rf` = rigori **fatti** e `Rs` = **sbagliati**, erano mappati al contrario → ai rigoristi il fantavoto applicava −3 invece di +3. **Il check FM e' passato da 234 giocatori fuori tolleranza a 0.** Nota: `Gf` esclude i rigori, il conteggio vero e' `goals + pen_scored`.
@@ -158,6 +178,11 @@ EuroLeghe 21/22 (file vuoti alla sorgente) e la storia di `probable_starter`/`av
 accumulata da adesso. `injuries` resta senza fonte agganciata: e' una decisione, non una passata.
 
 ## Prossimo lavoro (aggiornato al 28/07, in ordine)
+0-ter. **PREZZARE I NUOVI ARRIVI SENZA STORICO** (salita in cima la notte del 28/07): è il vincolo che ha
+   reso inutile la pressione di reparto — Openda e David non erano in nessuna top-10 predetta, quindi
+   nessuno sconto e nessun premio poteva proteggere da loro. Sblocca insieme la copertura Serie A (4
+   attaccanti su 10 irraggiungibili) e la valuta d'asta. **Non serve un'ipotesi nuova**: R13c è ferma per
+   campione (14-21 osservazioni valutabili per finestra) e il 26/27 la sblocca a costo zero.
 0. **Modalita' live**: prezzare l'asta 26/27. Serve il listone (non ancora uscito) e un percorso che non
    pretenda un esito - oggi `_window_is_usable` vuole >=50 `fm_act`, il tab Auction mostra solo stagioni
    concluse e `auction_view` confronta due liste. E' il lavoro piu' importante e non e' iniziato.
@@ -196,6 +221,15 @@ non incrementale. Riapribile solo con una misura **prospettica** e ortogonale al
 heatmap · concorrenza posizionale (migliora il MAE ma non abbastanza; ⚠️ il «segno contrario
 all'ipotesi» registrato qui era un artefatto della baseline pre-fit-a-due-passate — corretto il 28/07,
 `gate-motore-v1.md` §5-septies: il segno **conferma** l'ipotesi ed e' stabile su 10 finestre su 10) · attesa di mercato Qt.I e sua revisione · eta' sulle presenze.
+**Aggiunta il 28/07 notte** (dettaglio in `attacco-affollato-r17-v1.md` §9-10 e `gate-motore-v1.md` §4):
+**R17, affollamento dall'uso rivelato** — la quota dei compagni sopra i posti che il club schiera davvero
+(K da `club_match_lineups`), addebitata a chi il mercato mette dietro. È la **quinta** formulazione della
+famiglia a cadere, e la più scomoda: il coefficiente è negativo e **stabile su tutte le finestre di
+entrambe le piattaforme** (dispersione 0.24 e 0.15), cioè il meccanismo esiste dentro la stagione, ma i
+giocatori che sposta **peggiorano su 9 combinazioni su 10**. Sul lato d'asta la stessa idea come valuta di
+ordinamento (pressione di reparto, `metrica-asta-surplus-v1.md` §11) supera il vincolo sul VALORE
+catturato (−0.61%) e **non sposta di un caso il tasso di bust** → spenta. ⚠️ Non riproporre l'affollamento
+come regola d'errore: cinque forme, un solo esito.
 **Aggiunte il 28/07** (dettaglio in `gate-motore-v1.md` §5-quinquies): **affollamento del reparto**
 in due forme — con la sua quota (rumore: il segno salta) e con quella dei compagni, che ha coefficiente
 stabile ma **di segno opposto all'ipotesi**, cioè misura forza-club e non affollamento · **produzione
@@ -216,7 +250,10 @@ condizionale · ancora B · **penalty_ev** (⚠️ la forma ridotta e' stata pro
 versione strutturale richiede tasso rigori per club e conversione di carriera) · ~~**set_piece_duty**~~
 (⚠️ **NON MISURABILE**: `assists_set_piece` e' NULL su tutte le righe di voti di ogni stagione).
 **Aggiunte il 27/07**: concorrenza posizionale **pesata dalla Qt.I dei concorrenti** (nasce dai casi
-Openda/David/Vlahovic; calcolabile ora che `price_initial` e' nel DB) · fuori-ruolo solo nel verso
+Openda/David/Vlahovic; calcolabile ora che `price_initial` e' nel DB — ⚠️ **non** superata da R17, che è
+un'ipotesi diversa: R17 pesa i posti schierati, non la Qt.I dei concorrenti) · **premio ai reparti
+sguarniti per infortunio lungo** (l'inverso chiesto dall'utente il 28/07: un concorrente fuori a lungo
+non è un pretendente serio; serve `injuries`, oggi vuota — `metrica-asta-surplus-v1.md` §11) · fuori-ruolo solo nel verso
 «usato piu' indietro» quando il campione cresce oltre n~10 · ancora con peso di recenza (con due
 finestre lambda non e' identificabile) · disponibilita' da storico infortuni, quando `injuries` esiste.
 

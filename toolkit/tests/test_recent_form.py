@@ -63,8 +63,8 @@ def test_backfill_targets_exactly_the_matches_missing_their_bonuses(tmp_path):
         "goals) VALUES (?, '2024-25', 'sofascore_recent', ?, '2025-03-01', 90, ?)", rows)
     conn.commit()
 
-    pending = dict((fc_id, ids) for fc_id, _name, ids in
-                   recent_form.stored_without_bonuses(conn))
+    pending = {fc_id: ids for fc_id, _name, ids in
+               recent_form.stored_without_bonuses(conn)}
     assert sorted(pending) == [1, 3], "a player whose bonuses are all in must not be re-requested"
     assert sorted(pending[1]) == ["a1", "a2"]
     assert pending[3] == ["c2"], "an interrupted player resumes at the match he stopped on"
@@ -141,8 +141,6 @@ def test_resume_does_not_lock_in_a_player_whose_bonuses_were_skipped(tmp_path):
 
 import csv
 import time
-
-import pytest
 
 from euroleghe_ingest.config import Config
 from euroleghe_ingest.context import Context

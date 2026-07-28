@@ -74,6 +74,11 @@ tie once; where they disagree, the report says so and the decision is taken in t
 - **Additive schema changes need a migration.** `CREATE TABLE IF NOT EXISTS` does nothing to an existing
   table, so a new column without an entry in `db.database.ADDED_COLUMNS` fails with "no such column" and
   the only cure would be a `rebuild` that drops everything.
+- **A club-level fact must not pass through the identity funnel.** A per-player row needs an `fc_id`, but
+  counting how many forwards a club FIELDS does not — and requiring resolved identities biases exactly the
+  clubs whose fringe players are not quoted (Serie A 24/25: 233 of 774 elevens fully resolved, Juventus
+  **zero**). Hence `club_match_lineups`, populated over ALL lineup entries at parse time. Found by
+  measuring, not by review: if a derived table needs a complete unit, count the unit, not its members.
 - **Full-season propensity**: the euro calendar is a *subset* of a player's real matches, so propensity
   (goals/assists/xG per 90) is computed over the FULL real season while the FM/Mv target stays on `euro`.
   Serie A: from `default`. Other 4 leagues: from **FBref** (facts) + **Sofascore** (rating + heatmaps),

@@ -1,5 +1,5 @@
 # Todolist — Allineamento Mantra & EuroLeghe (v5)
-**Progetto:** App EuroLega Fantacalcio · **Rif.:** modello-previsionale v3.8 · **Aggiornata: 28 luglio 2026 (sera)**
+**Progetto:** App EuroLega Fantacalcio · **Rif.:** modello-previsionale v3.8 · **Aggiornata: 28 luglio 2026 (notte)**
 Convenzione: [ ] da fare · [x] fatto · [!] bloccato · *Sigle: fc_id = id fantacalcio.it · FM = fantamedia · T1/T2 = finestre di test 23/24->24/25 e 24/25->25/26 · 2.5 pieno = backtest motore completo con flag.*
 
 ## FASE 0 — Fattibilita' [x] (21/7)
@@ -13,7 +13,8 @@ Invariata (storico 9 stagioni, endpoint Excel, fallback SofaScore, scala ricalib
 - [x] 2.5-lite backtest core (Mantra non-inferiore a Classic) -> backtest-mantra-fase2_5lite.md
 > ⚠️ Stato corrente: `00-BRIDGE-punto-di-ingresso.md`, blocco «STATO AL 28 LUGLIO 2026 (sera)». Set
 > adottati **euro R0c+R3c · Serie A R3+R7+R13** su **10 finestre (Serie A) e 5 (euro)**; R4, R10 e R8 sono
-> cadute quando le finestre sono diventate dieci, e le sei candidate del 28/07 sono cadute tutte.
+> cadute quando le finestre sono diventate dieci, e **tutte le dieci candidate del 28/07** (R17 compresa)
+> sono cadute.
 
 - [x] **2.5 pieno (con flag) — ESEGUITO il 27/07**: 17 ipotesi passate dal gate, **6 adottate**
   (euro R0c+R3c+R7+R10 · Serie A R3+R7+R13), 12 falsificate con motivo registrato. Rigirato la sera
@@ -55,13 +56,42 @@ Invariata (storico 9 stagioni, endpoint Excel, fallback SofaScore, scala ricalib
 arrivo_intra_lega · regola U22 · Bundesliga+ · beta attacco alto/difesa bassa · ancora pc con recenza · correttivo elite condizionale · ancora B dedicata · **penalty_ev** · **set_piece_duty (solo upside)**
 
 ## RESPINTE dal gate (non riproporre senza nuove finestre)
-beta per gruppo di ruolo · baseline multi-stagione 62/38 · ancore per lega · **FAMIGLIA FORZA-CLUB: CHIUSA il 28/07/2026** (forza-club interna statica · Elo additivo movimento · R5 · R5b) — riapribile solo con una misura *prospettica*, non con nuove finestre: `gate-motore-v1.md` §5-nonies
+beta per gruppo di ruolo · baseline multi-stagione 62/38 · ancore per lega · **FAMIGLIA FORZA-CLUB: CHIUSA il 28/07/2026** (forza-club interna statica · Elo additivo movimento · R5 · R5b) — riapribile solo con una misura *prospettica*, non con nuove finestre: `gate-motore-v1.md` §5-nonies ·
+**AFFOLLAMENTO DEL REPARTO: cinque forme, cinque no** (R11 arrivi nello stesso ruolo · R11b · R16 con la propria quota · R16b con quella dei compagni · **R17 con i posti realmente schierati**, 28/07 notte). Il coefficiente esce col segno dell'ipotesi e stabile — il meccanismo esiste **dentro** la stagione e **non si trasferisce**. Sul lato d'asta la stessa idea è stata misurata come valuta di ordinamento e nasce spenta: `metrica-asta-surplus-v1.md` §11
 
 ## Percorso critico (aggiornato 28/07 sera)
 La parte dati e' fatta. Il percorso ora e': **chiarire i 3 numeri presenze/T1 -> gate 3.2 -> 2.5 pieno con i flag -> taratura dei parametri provvisori -> listone 26/27 ad agosto -> ALGORITMO COMPLETO asta 26/27.**
 Nota: **nessuna delle feature generate il 27/07 e' entrata nel motore**, e **nessuna delle sei candidate del 28/07** — esistono come dati, e il gate decide se e come usarle. Parametri esplicitamente provvisori: decadimento/quarantena rigoristi, soglie tier T1/T3, soglia U22.
 
+### Coppie d'attacco — CHIUSO il 28/07 notte (richiesta dell'utente, tre pezzi)
+- [x] **Dati (spec «Novità v9.3», zero rete)**: sei colonne di tiro su `external_match_stats` +
+  **`club_match_lineups`** (G/D/C/A schierati per undici) → **K** = attaccanti per undici e **co-start**.
+  ⚠️ Lezione di metodo: i conteggi di club stanno **fuori** dall'imbuto dell'identità, che da solo
+  distruggeva il campione (Serie A 24/25: 233 undici su 774 risolti, Juventus **zero**). Difetto trovato
+  misurando, non rileggendo il codice. `probable_starter` ora tiene modulo/squadra/panchine (accumula da
+  adesso) e `positions --layer reparse` ri-parsa la cache offline.
+- [x] **R17 (regola d'errore): BOCCIATA**, pre-registrata prima della corsa
+  (`attacco-affollato-r17-v1.md`). Coefficiente negativo e **stabile su tutte le finestre di entrambe le
+  piattaforme** → il meccanismo esiste; i giocatori che sposta **peggiorano su 9 su 10** → cade
+  sull'errore. **Quinta** forma dell'affollamento a cadere: R11, R11b, R16, R16b, R17. **Non riproporla.**
+- [x] **Pressione di reparto (valuta d'asta, non gate): misurata e SPENTA**
+  (`metrica-asta-surplus-v1.md` §11). Include il **premio** al posto garantito che l'utente ha chiesto.
+  VALORE catturato −0.61% (limite −2%: ok) ma **bust 10.1% → 10.1%, identico su ogni finestra**.
+  Riaccenderla è una decisione da prendere ad alta voce, sapendo che compra 0 bust in meno.
+- [x] **Colonna `Pair` nel tab Auction** (compagno, K, co-start, ΔQt.I): quello che spedisce davvero —
+  stessa evidenza al decisore, ordinamento intatto.
+- [ ] **Raffinamento dichiarato, bloccato**: compagni **lungodegenti** (un concorrente fuori a lungo non è
+  un pretendente serio → premio a chi resta). Serve `injuries`, oggi vuota. Per l'asta 26/27 può leggere
+  lo snapshot `availability` live.
+- [ ] **Altri ruoli** (l'utente: «vale anche per gli altri ruoli»): i conteggi G/D/M per undici ci sono
+  già; serve il cross-tab di vocabolario provider↔listone per D e C prima di estendere (per gli A è
+  misurato: 57-81% degli `F` del provider sono `A` di listone).
+
 ### Aperto dopo la passata del 28/07, in ordine di leva
+- [ ] **LEVA MASSIMA — prezzare i nuovi arrivi senza storico.** È il vincolo che ha reso inutile la
+  pressione di reparto: Openda e David non stavano in **nessuna** top-10 predetta, quindi nessuna metrica
+  d'asta può proteggere da loro. Non serve un'ipotesi nuova (R13c è ferma per campione, 14-21 osservazioni
+  per finestra): il 26/27 la sblocca a costo zero.
 - [x] **FATTO 28/07 sera — i criteri del gate ora distinguono «piccolo e stabile» da «rumoroso»**, come *classifica* e non come giudizio: `gate-motore-v1.md` §5-sexies. Pre-registrata prima di eseguirla, applicata a tutte le candidate, **non cambia nessun verdetto**. Esito scomodo e utile: R10 e R11/R11b hanno coefficiente coerente su **10 finestre su 10** in Serie A pur essendo respinte, e **R3 — che è ADOTTATA — esce instabile**. Da cui il limite trovato alla prima corsa: la dispersione ha due cause, assenza di effetto *e* collinearità fra regressori, e la misura non le distingue → affidabile per le regole a λ singolo, non per quelle che rifanno la regressione delle quote.
 - [ ] ~~I criteri del gate non distinguono «piccolo e stabile» da «rumoroso».~~ Sostituito dal punto sopra. Resta aperta la **decisione di prodotto**, che è diversa dalla misura: R15 su euro migliora tutte e cinque le finestre con un coefficiente stabile entro ±0.011 (+0.074…+0.096) ed e' esclusa da un pavimento sull'**ampiezza**; R15 su Serie A cambia segno quattro volte e viene giudicata con lo stesso metro. Aggiungere un criterio di **stabilita' del coefficiente** e' un miglioramento vero dell'harness — ma va specificato **prima** di ri-lanciare, altrimenti e' spostare i pali per una regola che ci piace.
 - [x] **FATTO 28/07 sera — audit dei coefficienti citati**: `gate-motore-v1.md` §5-octies. **5 su 12** si riproducono; due solo contro la baseline pre-due-passate. La deriva e' legittima (i dati sono migliorati molto il 27/07), la mancanza di provenienza no. Trovate anche **due interpretazioni scritte al singolare su una quantita' che dipende dalla piattaforma** (R2 vale su Serie A, R6 su euro). Convenzione adottata e messa in `CLAUDE.md`: un coefficiente senza piattaforma, baseline e data non e' un fatto.
