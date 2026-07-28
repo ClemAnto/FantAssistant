@@ -2048,6 +2048,56 @@ class SnapshotView(ttk.Frame):
             counts[counts.index(min(counts))] += 1
         return "-".join(str(value) for value in counts)
 
+    # Which DRAWN lane a granular role belongs to. Five, not four: the provider counts a trequartista
+    # among the forwards and a wing back among the midfielders, so its three lines cannot say 3-4-2-1 -
+    # and 3-4-2-1 is what a coach means. The LINE COUNTS still come from the club's measured elevens;
+    # this only decides which of them a man is drawn in, which is a question about him and not about
+    # the shape.
+    LANE_OF_ROLE: ClassVar[dict[str, str]] = {
+        "GK": "P",
+        "DL": "D", "DC": "D", "DR": "D",
+        "DM": "M", "ML": "M", "MC": "M", "MR": "M",
+        "AM": "T",
+        "LW": "A", "RW": "A", "ST": "A",
+    }
+    # Where each lane sits down the pitch, with and without a trequartisti line.
+    LANES_4: ClassVar[tuple[tuple[str, float], ...]] = (
+        ("P", 0.07), ("D", 0.31), ("M", 0.55), ("A", 0.77))
+    LANES_5: ClassVar[tuple[tuple[str, float], ...]] = (
+        ("P", 0.06), ("D", 0.27), ("M", 0.47), ("T", 0.65), ("A", 0.83))
+
+    def lanes_for(self, eleven: list) -> tuple[dict[str, list], tuple[tuple[str, float], ...], str]:
+        """(players per drawn lane, the lane geometry, the shape as drawn).
+
+        The eleven is chosen by LINE - keeper, defence, midfield, attack - and then redrawn by granular
+        ROLE: a listone forward whose real role is AM moves to the trequartisti lane, a listone
+        midfielder who is really ML stays in midfield. Napoli's measured shape is 3-4-3 and its eleven is
+        two trequartisti behind one striker, so the board says 3-4-2-1 while the line counts still say
+        3-4-3. Both are true and the caption carries both.
+        """
+        lanes: dict[str, list] = {}
+        for role, starter, rivals in eleven:
+            codes = self.real_roles(starter)
+            lane = self.LANE_OF_ROLE.get(codes[0] if codes else "", "M" if role == "C" else role)
+            lanes.setdefault(lane, []).append((starter, rivals))
+        geometry = self.LANES_5 if lanes.get("T") else self.LANES_4
+        drawn = "-".join(str(len(lanes.get(key, []))) for key, _y in geometry if key != "P")
+        return lanes, geometry, drawn
+
+    def slot_share(self, row: dict, rivals: list[dict]) -> float | None:
+        """How often HE is the one who takes this slot, against the men contesting it.
+
+        The raw start share answers a different question. Two keepers who split a season read ~50% each
+        of the CLUB's matches and a defender who played every game reads 95% - which is exactly the
+        vocabulary an auction uses ("Meret 50%, in ballottaggio with Milinkovic"). So where there IS a
+        contest the number is normalised over the slot: his starts against everyone drawn against him.
+
+        None when nobody in the slot has a measured start: an empty denominator is not a certainty.
+        """
+        mine = self.titolarita(row, "season")[1]
+        total = mine + sum(self.titolarita(rival, "season")[1] for rival in rivals)
+        return round(mine / total, 2) if total else None
+
     @staticmethod
     def titolarita(row: dict, horizon: str) -> tuple[float, float]:
         """(start share, minutes) - how often he STARTS, and how long he stays on.
@@ -2080,13 +2130,21 @@ class SnapshotView(ttk.Frame):
         would field the most valuable player rather than the one the coach plays.
         """
         squad = self.squad(club)
+        # Group by the line he REALLY plays in, not by the listone's role. A 3-4-3's midfield four is
+        # two centre mids and two wing backs, and the listone calls those wing backs defenders - so
+        # grouping by `role_classic` filled the middle with four central midfielders and left the flanks
+        # to nobody. The listone role is the fallback for a player with no granular code.
         by_role: dict[str, list[dict]] = {}
         for row in squad:
-            by_role.setdefault(row.get("role_classic") or "?", []).append(row)
+            codes = self.real_roles(row)
+            line = (self.LANE_OF_ROLE.get(codes[0], "") if codes else "") or                 (row.get("role_classic") or "?")
+            # the trequartisti compete for the attacking line: which of the two lanes they are DRAWN in
+            # is decided afterwards, by `lanes_for`, and only for the men actually chosen
+            by_role.setdefault("A" if line == "T" else "M" if line == "C" else line, []).append(row)
         defenders, midfielders, forwards = self.lines(formation)
         editorial = mode == "next" and any(row.get("desc_starter_prob") for row in squad)
         out: list[tuple[str, dict, list[dict]]] = []
-        for role, slots in (("P", 1), ("D", defenders), ("C", midfielders), ("A", forwards)):
+        for role, slots in (("P", 1), ("D", defenders), ("M", midfielders), ("A", forwards)):
             pool = list(by_role.get(role, []))
             if mode == "next":
                 # a man who is out cannot play the next match; for the schieramento tipo he can
@@ -2256,7 +2314,11 @@ class SnapshotView(ttk.Frame):
         # past their plates and off the pitch
         fits = max(5, int((room - 8) / 7.2))
         name = (starter.get("name") or "")[:fits]
-        share = self.titolarita(starter, "recent" if self.xi_mode.get() == "next" else "season")[0]
+        # with a rival for the shirt the number is the SLOT share - how often HE is the one who plays -
+        # and without one it is his own start share, which is the same question with one candidate
+        share = (self.slot_share(starter, rivals) or 0.0 if rivals
+                 else self.titolarita(starter, "recent" if self.xi_mode.get() == "next"
+                                      else "season")[0])
         rival_names = ", ".join((row.get("name") or "")[:9] for row in rivals)[:fits]
 
         radius = 12
@@ -2329,12 +2391,10 @@ class SnapshotView(ttk.Frame):
             canvas.create_text(width // 2, height // 2, fill=line, font=theme.FONTS["strong"],
                                text="no players in this club's sheet")
             return
-        lanes: dict[str, list] = {}
-        for role, starter, rivals in eleven:
-            lanes.setdefault(role, []).append((starter, rivals))
+        lanes, geometry, drawn = self.lanes_for(eleven)
         # top to bottom: keeper, defence, midfield, attack. The keeper sits high enough for his plate,
         # the attack low enough for theirs: a lane at 0.92 would draw the names off the pitch.
-        for role, fraction in (("P", 0.07), ("D", 0.31), ("C", 0.55), ("A", 0.77)):
+        for role, fraction in geometry:
             slots = self._lane(lanes.get(role, []))
             if not slots:
                 continue
@@ -2370,8 +2430,13 @@ class SnapshotView(ttk.Frame):
             criterion = "season starts (injuries ignored)"
         # Two short lines: one caption wide enough to say all of it ran off both touchlines. The
         # viewpoint stays in the column's tooltip, where there is room for the sentence.
+        shown = f"{drawn} · XI by {criterion}"
+        if drawn != formation:
+            # both are true and they answer different questions: the lines are what the club measured,
+            # the drawn shape is where these eleven men actually stand
+            shown = f"{drawn} (lines {formation}) · {criterion}"
         canvas.create_text(width // 2, height - 26, fill=line, font=theme.FONTS["small"],
-                           text=f"{formation} · XI by {criterion}"[:56])
+                           text=shown[:62])
         canvas.create_text(width // 2, height - 12, fill=line, font=theme.FONTS["small"],
                            text="attacking downwards: the team's LEFT is on your right")
 
