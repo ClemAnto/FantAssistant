@@ -1413,8 +1413,11 @@ class AuctionView(ttk.Frame):
         tree = ttk.Treeview(parent, columns=columns, show="headings", height=max(1, len(rows)))
         for column in columns:
             tree.heading(column, text=column)
+            # The widest header decides: "real SURPLUS" and "pred. SURPLUS" do not fit in 68 px with
+            # the theme's font, and a clipped column header reads as a different column.
             width = (130 if column == "Player" else 46 if column == "#"
-                     else 52 if column == "Team" else 170 if column == "Pair" else 68)
+                     else 52 if column == "Team" else 170 if column == "Pair"
+                     else 96 if "SURPLUS" in column else 68)
             tree.column(column, width=width,
                         anchor="w" if column in ("Player", "Team", "Pair") else "e",
                         stretch=column in ("Player", "Pair"))
