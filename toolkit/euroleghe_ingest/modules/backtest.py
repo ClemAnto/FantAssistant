@@ -18,4 +18,8 @@ NETWORK = False
 
 
 def run(ctx: Context, **kwargs) -> None:
+    if kwargs.pop("pairs", False):
+        from euroleghe_ingest.engine import diagnostics
+        diagnostics.run(ctx, **kwargs)
+        return
     evaluate.run(ctx, **kwargs)

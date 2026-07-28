@@ -119,12 +119,22 @@ RULES: tuple[Rule, ...] = (
     # rejected three times (R5, and twice before it), on the best measure of it available.
     Rule("R5b", "club attacking strength from its EXPECTED assists (4th run at a rejected family)",
          True),
+    # R17 is the Kean/Piccoli hypothesis stated in the units R16b could not reach: the team-mates'
+    # claim measured against the club's fielded-forward CAPACITY (per-club elevens, counted over ALL
+    # lineup entries so unquoted fringe players cannot bias it) instead of against its goals, which is
+    # a strength measure and flipped R16b's sign on 13 of 15 windows. Charged only to the players the
+    # market itself (Qt.I) ranks below the coach's capacity. Identification is WITHIN-club - the
+    # regressor differs between team-mates - so a between-club strength term cannot restate it, and
+    # neither input is derivable from the player's own history (the closed family's failure mode).
+    # Pre-registered in docs/model/attacco-affollato-r17-v1.md BEFORE any gate run.
+    Rule("R17", "forward crowding: team-mates' claimed share above the club's fielded-forward "
+                "capacity, charged to the market's lower-ranked claimants", True, metric="pv"),
 )
 
 # Rules that get fitted and compared one at a time by `compare`.
 CANDIDATES: tuple[str, ...] = ("R0c", "R1", "R1b", "R2", "R3", "R3c", "R4", "R4b", "R5", "R6", "R7",
                                "R8", "R10", "R11", "R11b", "R12", "R12b", "R13", "R13b",
-                               "R13c", "R14", "R14b", "R15", "R3d", "R16", "R16b", "R5b")
+                               "R13c", "R14", "R14b", "R15", "R3d", "R16", "R16b", "R5b", "R17")
 
 # What survived the gate, PER PLATFORM. Keeping it per platform is not a hedge: `platform` is a
 # first-class dimension of the data model (different calendars, different perimeters), and the gate
@@ -531,6 +541,7 @@ class Params:
     coach_interaction: float | None = None         # R10: new coach x previous share
     competition_lam: float | None = None           # R11: same-role arrivals at his club
     crowded_lam: float | None = None               # R11b: same, as a threshold
+    crowding_lam: float | None = None              # R17: teammates' claim above the fielded capacity
     off_role_forward: float | None = None         # R8: used further forward than listed
     off_role_backward: float | None = None        # R8: used further back than listed
     share_gk: tuple[float, ...] | None = None     # R7: goalkeepers
@@ -586,6 +597,54 @@ def pool_params(fitted: dict[str, Params], exclude: str, base: Params) -> Params
 # whichever of these is active, not against B0 - otherwise both absorb the same variance and the
 # combined configuration over-corrects (finding 7).
 SHARE_REPLACING: frozenset[str] = frozenset({"R3", "R3c", "R7", "R13", "R0c", "R15", "R3d"})
+
+
+def _crowding_features(data: features.WindowData, baseline_rules: tuple[str, ...],
+                       params: "Params", derived: "Derived") -> dict[int, float]:
+    """R17's regressor per fc_id: the share his team-mates claim above the club's capacity.
+
+    Rules-dependent by construction - the overflow is computed from the shares the CONFIGURATION's
+    own share-replacing rules produce, not from B0 - so it cannot live in the rule-independent
+    `derive()`. Memoised in `data.cache` keyed by BOTH the residual baseline and the params source:
+    the same window is scored under many configurations and with fits from different windows, and a
+    key missing either component would silently serve one configuration's overflow to another.
+    `baseline_rules` must never contain R17 itself (the caller filters to SHARE_REPLACING + R0),
+    which is what keeps this from recursing.
+    """
+    key = ("R17", baseline_rules, params.source)
+    cached = data.cache.get(key)
+    if cached is not None:
+        return cached
+    matchdays = data.matchdays_target or 1
+    groups: dict[str, list[features.Observation]] = {}
+    for obs in data.observations:
+        if obs.role_classic == "A" and obs.club_target:
+            groups.setdefault(obs.club_target, []).append(obs)
+    out: dict[int, float] = {}
+    for club, members in groups.items():
+        caps = data.forward_caps.get(club)
+        if caps is None or caps[2] < model.FORWARD_MIN_XI:
+            continue                     # shape not measurable: silent, never a guess
+        capacity = caps[0]               # mean forwards per eleven = the start budget per matchday
+        shares: dict[int, float] = {}
+        for obs in members:
+            value = (_rule_pv(obs, data, baseline_rules, params, derived)
+                     if baseline_rules != ("R0",) else None)
+            if value is None:
+                value = _predict_pv(obs, data)
+            if value is not None:
+                shares[obs.fc_id] = value / matchdays
+        order = model.forward_claimant_order(
+            [(obs.fc_id, obs.price_initial, obs.share_prev(data.matchdays_prev))
+             for obs in members])
+        total = sum(shares.values())
+        for rank, fc_id in enumerate(order, start=1):
+            if fc_id not in shares:
+                continue
+            overflow = max(0.0, total - shares[fc_id] - capacity)
+            out[fc_id] = overflow if rank > capacity else 0.0
+    data.cache[key] = out
+    return out
 
 
 def fit_params(data: features.WindowData, rules: tuple[str, ...]) -> Params:
@@ -786,6 +845,25 @@ def fit_params(data: features.WindowData, rules: tuple[str, ...]) -> Params:
             fitted = fit_linear(crowded, intercept=False)
             params.crowded_lam = fitted[0] if fitted else None
             params.notes["R11b_n"] = sum(1 for f, _r in crowded if f[0] > 0)
+
+    if "R17" in rules:
+        # Residual rule on the share side, so it is fitted against the two-pass baseline like
+        # R10/R11 - and its regressor is built from that same baseline's shares (see
+        # `_crowding_features`), which is what "one hypothesis, one fit" means here.
+        crowding_x = _crowding_features(data, residual_baseline, params, derived)
+        crowding_samples: list[tuple[tuple[float, ...], float]] = []
+        for obs in data.observations:
+            x = crowding_x.get(obs.fc_id)
+            if x is None or obs.pv_act is None or not matchdays:
+                continue
+            base = baseline_share(obs)
+            if base is None:
+                continue
+            crowding_samples.append(((x,), obs.pv_act / matchdays - base))
+        fitted = fit_linear(crowding_samples, intercept=False)
+        params.crowding_lam = fitted[0] if fitted else None
+        params.notes["R17_n"] = sum(1 for f, _r in crowding_samples if f[0] > 0)
+        params.notes["R17_domain"] = len(crowding_samples)
 
     # Every rule fitted from this loop MUST be listed: the gate always fits the whole
     # candidate set at once, so a missing name is invisible there and only shows up when
@@ -1078,6 +1156,12 @@ def _rule_pv(obs: features.Observation, data: features.WindowData, rules: tuple[
         share += model.competition_adjustment(obs.same_role_arrivals, params.competition_lam)
     if "R11b" in rules and params.crowded_lam is not None:
         share += model.crowded_position_adjustment(obs.same_role_arrivals, params.crowded_lam)
+    if "R17" in rules and params.crowding_lam is not None:
+        baseline_rules = tuple(rule for rule in rules if rule in SHARE_REPLACING or rule == "R0")
+        crowding_x = _crowding_features(data, baseline_rules, params, derived)
+        overflow = crowding_x.get(obs.fc_id)
+        if overflow:
+            share += model.forward_crowding_adjustment(overflow, params.crowding_lam)
     return model.expected_appearances(model.clip(share, 0.0, 1.0), data.matchdays_target)
 
 
@@ -1475,6 +1559,7 @@ RULE_COEFFICIENT: dict[str, tuple[str, int | None]] = {
     "R14b": ("idle_fm", None),
     "R16": ("budget_lam", None),
     "R16b": ("rivals_lam", None),
+    "R17": ("crowding_lam", None),
 }
 
 
@@ -2092,6 +2177,37 @@ def auction_view(data: features.WindowData, predictions: list[Prediction],
 
         captured = sum(score_act(p.obs) for p in ranked[:top_n])
         perfect = sum(score_act(obs) for obs in actual[:top_n])
+
+        # Same-club company inside the predicted top N, said out loud. Purely additive: the ranking,
+        # the captured VALUE and every other figure are untouched - this only annotates that two of
+        # the N names claim the same club's slots, with the season-start evidence that tells a
+        # two-striker system (Inter 24/25: K 2.05, 23 co-starts) from a hierarchy (Fiorentina: 1.71).
+        # K is a FORWARD capacity, so it is only attached on forward lists; co-starts likewise.
+        forward_role = role == "A" or role in model.MANTRA_BY_CLASSIC.get("A", ())
+        club_company: dict[str, list[Prediction]] = {}
+        for p in ranked[:top_n]:
+            if p.obs.club_target:
+                club_company.setdefault(p.obs.club_target, []).append(p)
+
+        def pair_note(p: Prediction) -> dict | None:
+            company = club_company.get(p.obs.club_target or "", [])
+            others = [q for q in company if q.obs.fc_id != p.obs.fc_id]
+            if not others:
+                return None
+            mate = others[0]                       # the best-ranked of the others
+            caps = data.forward_caps.get(p.obs.club_target) if forward_role else None
+            measurable = caps is not None and caps[2] >= model.FORWARD_MIN_XI
+            pair_key = tuple(sorted((p.obs.fc_id, mate.obs.fc_id)))
+            qti_own, qti_mate = asked(p.obs), asked(mate.obs)
+            return {
+                "with": [q.obs.name for q in others],
+                "k_mean": _round(caps[0], 2) if measurable else None,
+                "n_xi": caps[2] if caps else 0,
+                "co_starts": data.co_starts.get(pair_key) if forward_role else None,
+                "qti_gap": (_round(qti_own - qti_mate, 1)
+                            if qti_own is not None and qti_mate is not None else None),
+            }
+
         out[role] = {
             "n_actual": len(actual),
             "metric": metric,
@@ -2122,6 +2238,7 @@ def auction_view(data: features.WindowData, predictions: list[Prediction],
                 "surplus_act": _round(surplus_act(p.obs), 1),
                 "fvm": market(p.obs),
                 "actual_rank": actual_rank.get(p.obs.fc_id),
+                "pair": pair_note(p),
             } for index, p in enumerate(ranked[:top_n], 1)],
             "actual": [{
                 "rank": index, "name": obs.name, "club": obs.club_target,
@@ -2159,13 +2276,22 @@ def _print_auction(data: features.WindowData, view: dict, rules: tuple[str, ...]
             actual_rank = "   -" if left["actual_rank"] is None else f"{left['actual_rank']:4d}"
             pred_rank = ("  n/p" if right["predicted_rank"] is None
                          else f"{right['predicted_rank']:4d}")
-            print(f"    {left['rank']:2d}  {left['name'][:20]:<20} "
+            name = left["name"][:19] + "*" if left.get("pair") else left["name"][:20]
+            print(f"    {left['rank']:2d}  {name:<20} "
                   f"{(left['price_initial'] or 0):4.0f} {left['fm_pred'] or 0:5.2f} "
                   f"{left['pv_pred'] or 0:5.1f} {left['value_pred'] or 0:6.0f} {got} "
                   f"{left['fvm'] or 0:5.0f} {actual_rank:>6}"
                   f"   {right['rank']:2d}  {right['name'][:20]:<20} {right['fm_act'] or 0:5.2f} "
                   f"{right['pv_act'] or 0:4d} {right['value_act'] or 0:6.0f} "
                   f"{right['fvm'] or 0:5.0f} {pred_rank:>6}")
+        noted = [(row["name"], row["pair"]) for row in block["predicted"] if row.get("pair")]
+        for name, pair in noted:
+            k_text = f"K={pair['k_mean']:.2f}" if pair["k_mean"] is not None else "K n/m"
+            co = pair["co_starts"]
+            gap = pair["qti_gap"]
+            print(f"      * {name} with {', '.join(pair['with'])} - {k_text}"
+                  f" · co-starts {co if co is not None else '-'}"
+                  f" · ΔQt.I {gap if gap is not None else '-'}")
 
 
 # ---------------------------------------------------------------- entry point

@@ -1011,6 +1011,14 @@ class AuctionView(ttk.Frame):
                         "played.",
         "real #": "Where he actually finished among this role's players, in the currency being ranked "
                   "by. A dash means he ended the season with nothing at all.",
+        "Pair": "Another player of the SAME CLUB sits in this top list: the two claim the same "
+                "slots, so treat the pair as one auction decision, not two. The evidence, all "
+                "auction-legal: K = forwards the club actually fielded per eleven last season "
+                "(2.05 = a two-striker system that can feed both, 1.4 = one slot; n/m = not "
+                "measurable); co = elevens the two started TOGETHER last season (23 = a real "
+                "partnership, 0-3 = starter and backup, - = never, e.g. one just arrived); "
+                "ΔQt.I = his quotation minus the companion's - negative means the market itself "
+                "ranks him as the second choice.",
     }
     ACTUAL_HELP: ClassVar[dict[str, str]] = {
         "FM": "Fantamedia actually achieved over the season.",
@@ -1034,10 +1042,10 @@ class AuctionView(ttk.Frame):
     # metric has an explanation, so a new column cannot ship without one.
     COLUMNS: ClassVar[dict[str, tuple[tuple[str, ...], tuple[str, ...]]]] = {
         "value": (
-            ("#", "Player", "Team", "FM", "Pv", "VALUE", "real VALUE", "FVM", "real #"),
+            ("#", "Player", "Team", "FM", "Pv", "VALUE", "real VALUE", "FVM", "real #", "Pair"),
             ("#", "Player", "Team", "FM", "Pv", "VALUE", "FVM", "pred. VALUE", "pred. #")),
         SURPLUS: (
-            ("#", "Player", "Team", "FM", "Pv", "SURPLUS", "real SURPLUS", "FVM", "real #"),
+            ("#", "Player", "Team", "FM", "Pv", "SURPLUS", "real SURPLUS", "FVM", "real #", "Pair"),
             ("#", "Player", "Team", "FM", "Pv", "SURPLUS", "FVM", "pred. SURPLUS", "pred. #")),
     }
 
@@ -1267,6 +1275,20 @@ class AuctionView(ttk.Frame):
         """One place for the column formats: %g would print 32.199999 next to 5.1 and 210.9."""
         return "" if value is None else f"{float(value):.{digits}f}"
 
+    @staticmethod
+    def _pair_text(pair: dict | None) -> str:
+        """The same-club annotation, compact: 'w/ Piccoli · K 1.71 · co - · ΔQt.I -17'."""
+        if not pair:
+            return ""
+        mate = pair["with"][0] + (f" +{len(pair['with']) - 1}" if len(pair["with"]) > 1 else "")
+        k = pair.get("k_mean")
+        co = pair.get("co_starts")
+        gap = pair.get("qti_gap")
+        return " · ".join((f"w/ {mate}",
+                           f"K {k:.2f}" if k is not None else "K n/m",
+                           f"co {co}" if co is not None else "co -",
+                           f"ΔQt.I {gap:+.0f}" if gap is not None else "ΔQt.I -"))
+
     def _render_role(self, role: str, block: dict, metric: str = "value") -> None:
         label = self.ROLE_LABELS.get(role, role)
         misses = block["misses"]
@@ -1299,7 +1321,8 @@ class AuctionView(ttk.Frame):
                     [(row["rank"], row["name"], club_abbreviation(row["club"]),
                       self._num(row["fm_pred"], 2), self._num(row["pv_pred"], 1),
                       self._num(row[pred_key]), self._num(row[act_key]),
-                      self._num(row["fvm"]), row["actual_rank"] or "-")
+                      self._num(row["fvm"]), row["actual_rank"] or "-",
+                      self._pair_text(row.get("pair")))
                      for row in block["predicted"]],
                     {**self.COMMON_HELP, **self.PREDICTED_HELP})
         self._table(right, "Actual, end of season", actual_columns,
@@ -1321,10 +1344,10 @@ class AuctionView(ttk.Frame):
         for column in columns:
             tree.heading(column, text=column)
             width = (130 if column == "Player" else 46 if column == "#"
-                     else 52 if column == "Team" else 68)
+                     else 52 if column == "Team" else 170 if column == "Pair" else 68)
             tree.column(column, width=width,
-                        anchor="w" if column in ("Player", "Team") else "e",
-                        stretch=column == "Player")
+                        anchor="w" if column in ("Player", "Team", "Pair") else "e",
+                        stretch=column in ("Player", "Pair"))
         for row in rows:
             tree.insert("", "end", values=row)
         HeadingTooltip(tree, help_by_column)

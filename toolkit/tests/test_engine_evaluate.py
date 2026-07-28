@@ -566,3 +566,128 @@ def test_auction_view_groups_by_the_game_s_own_roles(prepared):
     # and the view keys follow the game, so the panel's role headings are the game's own
     view = evaluate.auction_view(mantra_data, evaluate.predict_window(mantra_data, ("R0",)))
     assert set(view) <= set(model.MANTRA_ROLES)
+
+
+# ---------------------------------------------------------------- R17: forward crowding
+
+
+@pytest.fixture
+def crowded(tmp_path):
+    """One club, three strikers, capacity ONE fielded forward: the Kean/Piccoli shape in miniature.
+
+    The defender exists to vote the provider club name onto the canonical one, and the lineup
+    counts live in club_match_lineups (built over ALL entries at ingest) - including one malformed
+    eleven that the slot-sum filter must drop.
+    """
+    cfg = Config(data_dir=tmp_path / "data", db_path=tmp_path / "data" / "euroleghe.db")
+    (tmp_path / "data").mkdir()
+    conn = init_db(cfg.db_path)
+    conn.execute("INSERT INTO clubs(fc_club_id, canonical_name, league) VALUES (1, 'Inter', 'serie_a')")
+    conn.executemany("INSERT INTO players(fc_id, canonical_name, birth_year) VALUES (?, ?, ?)",
+                     [(1, "Voter", 1996), (6, "First", 1997), (9, "Second", 1998), (10, "Third", 1999)])
+    rosters = []
+    for season in (INPUT_SEASON, TARGET_SEASON):
+        rosters.append((1, season, 1, "dc", "D", "serie_a", 5.0))
+        for fc_id, qti in ((6, 20.0), (9, 10.0), (10, 4.0)):
+            rosters.append((fc_id, season, 1, "pc", "A", "serie_a", qti))
+    conn.executemany("INSERT INTO rosters(fc_id, season, fc_club_id, roles, role_classic, league, "
+                     "price_initial) VALUES (?, ?, ?, ?, ?, ?, ?)", rosters)
+    conn.executemany("INSERT INTO match_ratings(fc_id, season, matchday, platform, mv) "
+                     "VALUES (1, ?, ?, 'euro', 6.0)",
+                     [(season, matchday) for season in (INPUT_SEASON, TARGET_SEASON)
+                      for matchday in range(1, MATCHDAYS + 1)])
+    conn.executemany(
+        "INSERT INTO season_stats(fc_id, season, platform, pv, mv, fm) VALUES (?, ?, 'euro', ?, ?, ?)",
+        [(1, INPUT_SEASON, 25, 6.30, 6.40), (1, TARGET_SEASON, 24, 6.30, 6.40),
+         (6, INPUT_SEASON, 23, 6.30, 7.40), (6, TARGET_SEASON, 24, 6.40, 7.60),
+         (9, INPUT_SEASON, 21, 6.20, 7.00), (9, TARGET_SEASON, 12, 6.20, 7.00),
+         (10, INPUT_SEASON, 20, 6.10, 6.80), (10, TARGET_SEASON, 6, 6.10, 6.80)])
+    # the defender's 30 starts vote "FC Internazionale" -> Inter; the two top strikers co-start 8 times
+    conn.executemany(
+        "INSERT INTO external_match_stats(fc_id, season, source, match_id, competition, club, "
+        "position, started, minutes) VALUES (?, ?, 'sofascore', ?, 'serie_a', 'FC Internazionale', "
+        "?, 1, 90)",
+        [(1, INPUT_SEASON, f"m{n}", "D") for n in range(1, 31)]
+        + [(fc_id, INPUT_SEASON, f"m{n}", "F") for n in range(1, 9) for fc_id in (6, 9)])
+    conn.executemany(
+        "INSERT INTO club_match_lineups(season, source, match_id, club, competition, starters, "
+        "goalkeepers, defenders, midfielders, forwards) "
+        "VALUES (?, 'sofascore', ?, 'FC Internazionale', 'serie_a', ?, ?, ?, ?, ?)",
+        [(INPUT_SEASON, f"m{n}", 11, 1, 4, 5, 1) for n in range(1, 31)]
+        + [(INPUT_SEASON, "malformed", 11, 1, 4, 4, 1)])   # slots sum 10: must be dropped
+    conn.commit()
+    window = features.Window("TEST", INPUT_SEASON, TARGET_SEASON, "2024-08-15")
+    return conn, features.prepare(conn, window, "euro", "classic")
+
+
+def test_forward_caps_and_co_starts_come_from_the_lineups(crowded):
+    _conn, data = crowded
+    assert data.forward_caps["Inter"] == (1.0, 1.0, 30)     # the malformed eleven is not counted
+    assert data.co_starts[(6, 9)] == 8
+    assert (6, 10) not in data.co_starts                    # never shared a pitch: absent, not zero
+
+
+def test_crowding_charges_only_the_market_s_lower_ranked_claimants(crowded):
+    _conn, data = crowded
+    derived = evaluate.derive(data)
+    params = evaluate.Params(source="W1")
+    x = evaluate._crowding_features(data, ("R0",), params, derived)
+    shares = {p.obs.fc_id: p.pv_pred / MATCHDAYS
+              for p in evaluate.predict_window(data, ("R0",)) if p.obs.role_classic == "A"}
+    assert x[6] == 0.0                                       # rank 1 <= capacity: never charged
+    assert x[9] == pytest.approx(max(0.0, shares[6] + shares[10] - 1.0))
+    assert x[10] == pytest.approx(max(0.0, shares[6] + shares[9] - 1.0))
+    assert x[9] > 0 and x[10] > x[9]                         # the weakest claimant is charged most
+    assert 1 not in x                                        # the defender is not a claimant
+
+
+def test_crowding_cache_key_isolates_configurations(crowded):
+    """The regressor depends on the configuration AND on whose fit produced the shares: a cache key
+    missing either would silently serve one configuration's overflow to another."""
+    _conn, data = crowded
+    derived = evaluate.derive(data)
+    evaluate._crowding_features(data, ("R0",), evaluate.Params(source="W1"), derived)
+    evaluate._crowding_features(data, ("R0",), evaluate.Params(source="W2"), derived)
+    evaluate._crowding_features(data, ("R0", "R3"), evaluate.Params(source="W1"), derived)
+    assert len([key for key in data.cache if key[0] == "R17"]) == 3
+
+
+def test_r17_fits_against_the_baseline_and_moves_only_the_charged(crowded):
+    _conn, data = crowded
+    params = evaluate.fit_params(data, ("R0", "R17"))
+    assert params.notes["residual_baseline"] == "R0"
+    assert params.notes["R17_n"] == 2                       # two strikers carry a positive regressor
+    assert params.crowding_lam is not None and params.crowding_lam < 0
+    base = {p.obs.fc_id: p.pv_pred for p in evaluate.predict_window(data, ("R0",))}
+    with_r17 = {p.obs.fc_id: p.pv_pred
+                for p in evaluate.predict_window(data, ("R0", "R17"), None, params)}
+    assert with_r17[6] == pytest.approx(base[6])            # the market's first choice is untouched
+    assert with_r17[9] < base[9] and with_r17[10] < base[10]
+
+
+def test_auction_view_annotates_same_club_company_without_touching_the_ranking(crowded):
+    _conn, data = crowded
+    predictions = evaluate.predict_window(data, ("R0",))
+    bare_order = [p.obs.fc_id for p in sorted(
+        (p for p in predictions if p.obs.role_classic == "A" and p.value_pred is not None),
+        key=lambda p: -p.value_pred)]
+    view = evaluate.auction_view(data, predictions, top_n=3)
+    rows = view["A"]["predicted"]
+    assert [row["name"] for row in rows] == [
+        {6: "First", 9: "Second", 10: "Third"}[fc_id] for fc_id in bare_order[:3]]
+    for row in rows:                                   # all three claim Inter's forward slots
+        assert row["pair"] is not None
+        assert row["pair"]["k_mean"] == pytest.approx(1.0)
+        assert row["pair"]["n_xi"] == 30
+    by_name = {row["name"]: row["pair"] for row in rows}
+    assert set(by_name["First"]["with"]) == {"Second", "Third"}
+    # co-starts read against the best-ranked companion: First+Second shared 8 elevens,
+    # Third never started with First - absent is reported as None, not zero
+    assert by_name["Second"]["co_starts"] == 8
+    assert by_name["Third"]["co_starts"] is None
+    assert by_name["First"]["qti_gap"] == pytest.approx(10.0)
+    assert by_name["Second"]["qti_gap"] == pytest.approx(-10.0)
+    # a lone name in its club gets no annotation at all
+    keeper_like = [row for role, block in view.items() if role != "A"
+                   for row in block["predicted"]]
+    assert all(row["pair"] is None for row in keeper_like)

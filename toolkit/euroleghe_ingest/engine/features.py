@@ -361,6 +361,103 @@ def simultaneous_caps(conn: sqlite3.Connection, platform: str, seasons: tuple[st
     return out
 
 
+def _club_name_map(conn: sqlite3.Connection, season: str,
+                   competitions: tuple[str, ...]) -> dict[str, str]:
+    """{provider club spelling: canonical club name}, by season-level majority vote.
+
+    The provider spells clubs its own way ("AC Milan", "SSC Napoli"); rather than import the
+    matching layer, every resolved starter of a provider club votes with his roster club, over the
+    whole season. A majority over hundreds of rows shrugs off January transfers, and a provider
+    club with no resolved starters at all (fully outside the listone perimeter) stays unmapped -
+    absent, not misassigned.
+    """
+    rows = conn.execute(
+        f"""SELECT e.club, c.canonical_name, COUNT(*)
+            FROM external_match_stats e
+            JOIN rosters r ON r.fc_id = e.fc_id AND r.season = e.season
+            JOIN clubs c ON c.fc_club_id = r.fc_club_id
+            WHERE e.started = 1 AND e.source = 'sofascore' AND e.season = ?
+              AND e.competition IN ({','.join('?' * len(competitions))})
+            GROUP BY e.club, c.canonical_name""",
+        (season, *competitions)).fetchall()
+    votes: dict[str, dict[str, int]] = {}
+    for provider, canonical, count in rows:
+        votes.setdefault(provider, {})[canonical] = count
+    out: dict[str, str] = {}
+    for provider, ballot in votes.items():
+        winner, count = max(ballot.items(), key=lambda item: item[1])
+        if count * 2 > sum(ballot.values()):
+            out[provider] = winner
+    return out
+
+
+def club_forward_caps(conn: sqlite3.Connection, platform: str,
+                      season: str) -> dict[str, tuple[float, float, int]]:
+    """Forwards each club actually FIELDS at once: {club: (mean, p90, elevens measured)}.
+
+    The club's revealed shape read off its own starting elevens - a 3-5-2 side hands two forward
+    slots to the listone's strikers, a 4-3-3 side one - like `simultaneous_caps` but PER CLUB and
+    on the provider slot ('F'), because the listone role cannot tell the two strikers of a
+    two-striker side apart (Inter 24/25 lists four 'pc'). The MEAN is the club's start-budget for
+    forwards per matchday - the quantity a group of predicted shares must not exceed; the p90 is
+    returned alongside for reporting only.
+
+    Counts come from `club_match_lineups`, which is built over EVERY lineup entry rather than the
+    identity-resolved ones: requiring 11 resolved starters left Juventus 24/25 with zero measurable
+    elevens, because it is exactly the clubs with unquoted fringe players that never resolve in
+    full. Only pre-match elevens with all 11 slot positions known are read.
+    """
+    competitions = PLATFORM_COMPETITIONS.get(platform, PLATFORM_COMPETITIONS["default"])
+    names = _club_name_map(conn, season, competitions)
+    marks = ",".join("?" * len(competitions))
+    rows = conn.execute(
+        f"""SELECT club, forwards
+            FROM club_match_lineups
+            WHERE source = 'sofascore' AND season = ? AND starters = ?
+              AND goalkeepers + defenders + midfielders + forwards = ?
+              AND competition IN ({marks})""",
+        (season, STARTERS, STARTERS, *competitions)).fetchall()
+    per_club: dict[str, list[int]] = {}
+    for provider, forwards in rows:
+        canonical = names.get(provider)
+        if canonical is not None:
+            per_club.setdefault(canonical, []).append(forwards)
+    out: dict[str, tuple[float, float, int]] = {}
+    for club, counts in per_club.items():
+        counts.sort()
+        p90 = float(counts[min(int(len(counts) * CAP_PERCENTILE), len(counts) - 1)])
+        out[club] = (sum(counts) / len(counts), p90, len(counts))
+    return out
+
+
+def forward_co_starts(conn: sqlite3.Connection, platform: str,
+                      season: str) -> dict[tuple[int, int], int]:
+    """XIs in which two resolved forwards started TOGETHER: {(fc_id, fc_id) sorted: matches}.
+
+    The pairwise companion of `club_forward_caps`: Lautaro+Thuram co-started 23 times in 24/25 (a
+    genuine two-striker system), Lautaro+Taremi 3 (a backup behind him). Incomplete XIs still
+    count - a missing defender says nothing about the two forwards who did start - and a pair that
+    never shared a pitch (e.g. one of them arrived this summer) is simply absent, not zero.
+    """
+    competitions = PLATFORM_COMPETITIONS.get(platform, PLATFORM_COMPETITIONS["default"])
+    rows = conn.execute(
+        f"""SELECT e.match_id, e.club, e.fc_id
+            FROM external_match_stats e
+            WHERE e.started = 1 AND e.position = 'F' AND e.source = 'sofascore' AND e.season = ?
+              AND e.competition IN ({','.join('?' * len(competitions))})""",
+        (season, *competitions)).fetchall()
+    forwards: dict[tuple, list[int]] = {}
+    for match_id, club, fc_id in rows:
+        forwards.setdefault((match_id, club), []).append(fc_id)
+    out: dict[tuple[int, int], int] = {}
+    for group in forwards.values():
+        group.sort()
+        for index, low in enumerate(group):
+            for high in group[index + 1:]:
+                out[(low, high)] = out.get((low, high), 0) + 1
+    return out
+
+
 def listings_per_player(conn: sqlite3.Connection, season: str,
                         roles: Sequence[str]) -> float:
     """Listings / distinct players over a set of Mantra roles: the multi-role inflation factor.
@@ -898,6 +995,12 @@ class WindowData:
     matchdays_prev: int = 0
     matchdays_target: int = 0
     rounds: dict[str, int] = field(default_factory=dict)
+    # Input-season lineup structure (auction-safe: the lineups are last season's). Per club the
+    # (mean, p90, complete-XI count) of simultaneously fielded forwards, and per sorted fc_id pair
+    # how many XIs the two forwards started together. A club/pair with no measurable lineups is
+    # ABSENT - None to the reader, never a fabricated zero.
+    forward_caps: dict[str, tuple[float, float, int]] = field(default_factory=dict)
+    co_starts: dict[tuple[int, int], int] = field(default_factory=dict)
     # Replacement level per role, from `replacement_levels`. EMPTY unless the caller supplied the
     # league setup: the engine core must not reach for a config file, and the pre-registered gate path
     # deliberately runs without it, so its VALUE = FM x Pv numbers stay exactly what was published.
@@ -976,6 +1079,8 @@ def prepare(conn: sqlite3.Connection, window: Window, platform: str, game: str, 
         matchdays_prev=matchday_count(conn, platform, window.input_season),
         matchdays_target=matchday_count(conn, platform, window.target_season),
         rounds=league_rounds(conn, window.input_season),
+        forward_caps=club_forward_caps(conn, platform, window.input_season),
+        co_starts=forward_co_starts(conn, platform, window.input_season),
         replacement=replacement,
         replacement_actual=replacement_actual,
         reliability=float((league or {}).get("reliability_exponent") or 0.0),

@@ -423,6 +423,39 @@ def competition_adjustment(same_role_arrivals: int, lam: float) -> float:
     return lam * same_role_arrivals
 
 
+# R17: a club's fielding capacity for forwards is measurable from this many elevens; below it the
+# shape is unknown and the rule stays SILENT for that club - not measurable, never a guess.
+FORWARD_MIN_XI = 10
+
+
+def forward_claimant_order(entries: Sequence[tuple[int, float | None, float]]) -> list[int]:
+    """R17: [(fc_id, price_initial, share_prev)] -> fc_ids by market rank inside the club's forwards.
+
+    Qt.I descending - the market's own hierarchy of the club's strikers, and the only price a rule
+    may read. A missing Qt.I ranks last (a forward the market does not price is not ranked above
+    anybody); ties break by last season's share and then fc_id, so the order is deterministic.
+    """
+    def key(entry: tuple[int, float | None, float]):
+        fc_id, price, share = entry
+        return (price is None, -(price or 0.0), -(share or 0.0), fc_id)
+    return [entry[0] for entry in sorted(entries, key=key)]
+
+
+def forward_crowding_adjustment(overflow: float, lam: float) -> float:
+    """R17: the share his team-mates claim ABOVE what the coach actually fields, charged to him.
+
+    `overflow` = max(0, sum of the OTHER listone forwards' predicted shares at his club minus the
+    club's measured forward capacity), and only for players the market ranks below that capacity:
+    Inter's K of 2.05 charges Taremi and never Thuram; Fiorentina's 1.71 charges Piccoli. Excluding
+    his own share removes the self-reference that sank R16 ("his share of the club's goals is
+    already inside his own fantamedia"), and measuring the claim against fielded SLOTS rather than
+    against goals removes the club-strength term that flipped R16b's sign on 13 of 15 windows. The
+    inputs are the coach's revealed shape and the market's ranking of OTHER players - neither is
+    derivable from the player's own history, which is the closed family's registered failure mode.
+    """
+    return lam * overflow
+
+
 # R11b: below this, arrivals in your role are squad churn; at or above it, the position is genuinely
 # crowded. Juventus 25/26 signed three forwards (Boga, David, Openda) on top of Vlahovic, and the
 # engine gave Openda 25.8 appearances against 12 real ones.
