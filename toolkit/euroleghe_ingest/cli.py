@@ -53,6 +53,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_backtest.add_argument("--gate", action="store_true",
                             help="run the gate: every candidate rule vs the baseline, per role, "
                                  "with parameters fitted on the other window")
+    p_backtest.add_argument("--pairs", action="store_true",
+                            help="forward-pairs diagnostic: same-club striker groups under the "
+                                 "adopted set (outcomes read on T1/T2 only, the burned windows)")
     p_backtest.add_argument("--no-report", dest="report", action="store_false",
                             help="print only, do not write data/reports/engine_backtest.json")
 
@@ -90,10 +93,11 @@ def build_parser() -> argparse.ArgumentParser:
                            help="season to import, e.g. 2024-25 (repeatable; default: all)")
             p.add_argument("--refresh", action="store_true",
                            help="re-download league-seasons even if already present")
-            p.add_argument("--layer", choices=["season", "match", "complete", "all"],
+            p.add_argument("--layer", choices=["season", "match", "complete", "all", "reparse"],
                            default="season",
                            help="season aggregates (fast), the per-match layer (hours), "
-                                "'complete' to add the matches the perimeter filter skipped, or both")
+                                "'complete' to add the matches the perimeter filter skipped, both, "
+                                "or 'reparse' to rebuild from the cache offline (zero requests)")
 
     return parser
 
@@ -145,7 +149,7 @@ def main(argv: list[str] | None = None) -> int:
                 load("backtest").run(ctx, windows=args.window, platforms=args.platform,
                                      games=args.game, rules=args.rules, cases=args.cases,
                                      verify=args.verify, gate=args.gate, auction=args.auction,
-                                     report=args.report)
+                                     pairs=args.pairs, report=args.report)
             else:
                 load(args.command).run(ctx)
         except NotImplementedError as exc:

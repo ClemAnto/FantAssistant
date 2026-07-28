@@ -118,21 +118,28 @@ def test_parse_round_uses_the_xref_and_keeps_the_real_matchday():
                       "substitute": False, "position": "F",
                       "statistics": {"rating": 7.4, "minutesPlayed": 88, "goals": 1,
                                      "goalAssist": 1, "expectedGoals": 0.7,
-                                     "expectedAssists": 0.2}},
+                                     "expectedAssists": 0.2, "totalShots": 5,
+                                     "onTargetScoringAttempt": 3, "bigChanceCreated": 1,
+                                     "bigChanceMissed": 2, "keyPass": 4, "touches": 41}},
                      {"player": {"id": 31, "name": "Unknown Guy"}, "substitute": True,
                       "statistics": {"rating": 6.0, "minutesPlayed": 2}},
                      {"player": {"id": 32, "name": "Never Played"}, "substitute": True,
                       "statistics": {}}],
             "away": []}},
     }
-    rows, unknown = positions.parse_round(payload, "2023-24", {"30": 1})
+    rows, club_rows, unknown = positions.parse_round(payload, "2023-24", {"30": 1})
     assert unknown == 2                       # 31 has no xref, 32 never came on
     assert len(rows) == 1
+    # the club-level count reads EVERY entry, identity or not: one starter, and he is a forward
+    assert club_rows == [("2023-24", "111", "Liverpool FC", "premier_league", 7, "2023-09-29",
+                          1, 0, 0, 0, 1)]
     (fc_id, season, match_id, competition, real_md, match_date, club, opponent, home, position,
-     started, minutes, rating, goals, assists, xg, xa) = rows[0]
+     started, minutes, rating, goals, assists, xg, xa,
+     shots, shots_on_target, bcc, bcm, key_passes, touches) = rows[0]
     assert (fc_id, season, match_id, competition, real_md) == (1, "2023-24", "111", "premier_league", 7)
     assert (club, opponent, home, started, minutes, rating) == ("Liverpool FC", "Arsenal", 1, 1, 88, 7.4)
     assert (goals, assists, xg, xa, position) == (1, 1, 0.7, 0.2, "F")
+    assert (shots, shots_on_target, bcc, bcm, key_passes, touches) == (5, 3, 1, 2, 4, 41)
     assert match_date == "2023-09-29"
 
 

@@ -207,14 +207,19 @@ def _iso_date(timestamp) -> str | None:
     return time.strftime("%Y-%m-%d", time.gmtime(timestamp))
 
 
-def parse_round(payload: dict, season: str, xref: dict[str, int]) -> tuple[list[tuple], int]:
-    """Cached round payload -> external_match_stats rows. Returns (rows, players_without_identity).
+def parse_round(payload: dict, season: str,
+                xref: dict[str, int]) -> tuple[list[tuple], list[tuple], int]:
+    """Cached round payload -> (external_match_stats rows, club_match_lineups rows, unresolved).
 
     Identity comes straight from player_xref (written by the season-aggregate step): a player the
-    aggregates could not resolve is skipped here too, so the two layers can never disagree.
+    aggregates could not resolve is skipped here too, so the two layers can never disagree. The
+    club-level counts are the exception on purpose - they are built over EVERY lineup entry,
+    resolved or not, because how many forwards a club fields is a fact about the club and the
+    identity funnel would bias it against the clubs whose fringe players are not quoted.
     """
     league = payload.get("league")
     rows: list[tuple] = []
+    club_rows: list[tuple] = []
     unknown = 0
     for event in payload.get("events", []):
         event_id = str(event.get("id"))
@@ -224,8 +229,15 @@ def parse_round(payload: dict, season: str, xref: dict[str, int]) -> tuple[list[
         for side in ("home", "away"):
             club = event.get(side)
             opponent = event.get("away" if side == "home" else "home")
+            slots = {"G": 0, "D": 0, "M": 0, "F": 0}
+            starters = 0
             for entry in sides.get(side) or []:
                 player = entry.get("player") or {}
+                if not entry.get("substitute"):
+                    starters += 1
+                    position = entry.get("position") or player.get("position")
+                    if position in slots:
+                        slots[position] += 1
                 fc_id = xref.get(str(player.get("id") or ""))
                 if fc_id is None:
                     unknown += 1
@@ -241,8 +253,14 @@ def parse_round(payload: dict, season: str, xref: dict[str, int]) -> tuple[list[
                     _int(stats.get("minutesPlayed")), stats.get("rating"),
                     _int(stats.get("goals")), _int(stats.get("goalAssist")),
                     stats.get("expectedGoals"), stats.get("expectedAssists"),
+                    _int(stats.get("totalShots")), _int(stats.get("onTargetScoringAttempt")),
+                    _int(stats.get("bigChanceCreated")), _int(stats.get("bigChanceMissed")),
+                    _int(stats.get("keyPass")), _int(stats.get("touches")),
                 ))
-    return rows, unknown
+            if starters:
+                club_rows.append((season, event_id, club, league, real_md, match_date, starters,
+                                  slots["G"], slots["D"], slots["M"], slots["F"]))
+    return rows, club_rows, unknown
 
 
 def _store_match_rows(conn, rows: list[tuple]) -> int:
@@ -250,12 +268,26 @@ def _store_match_rows(conn, rows: list[tuple]) -> int:
         """
         INSERT OR REPLACE INTO external_match_stats(
             fc_id, season, source, match_id, competition, real_md, match_date, club, opponent,
-            home, position, started, minutes, rating, goals, assists, xg, xa)
-        VALUES (?, ?, 'sofascore', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            home, position, started, minutes, rating, goals, assists, xg, xa,
+            shots, shots_on_target, big_chances_created, big_chances_missed, key_passes, touches)
+        VALUES (?, ?, 'sofascore', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         rows,
     )
     return len(rows)
+
+
+def _store_club_rows(conn, club_rows: list[tuple]) -> int:
+    conn.executemany(
+        """
+        INSERT OR REPLACE INTO club_match_lineups(
+            season, source, match_id, club, competition, real_md, match_date,
+            starters, goalkeepers, defenders, midfielders, forwards)
+        VALUES (?, 'sofascore', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        club_rows,
+    )
+    return len(club_rows)
 
 
 def fetch_match_layer(ctx: Context, leagues, seasons, refresh: bool = False) -> None:
@@ -417,7 +449,7 @@ def reingest_match_layer(ctx: Context, seasons=None) -> None:
             continue
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
-            rows, missing = parse_round(payload, season, xref)
+            rows, club_rows, missing = parse_round(payload, season, xref)
         except Exception as exc:   # noqa: BLE001 - a corrupt cache file must not abort the rebuild
             print(f"[positions] skipping unreadable round cache {path.name}: {exc}")
             continue
@@ -425,8 +457,11 @@ def reingest_match_layer(ctx: Context, seasons=None) -> None:
         if key not in touched:
             conn.execute("DELETE FROM external_match_stats WHERE source = 'sofascore' "
                          "AND competition = ? AND season = ?", (league, season))
+            conn.execute("DELETE FROM club_match_lineups WHERE source = 'sofascore' "
+                         "AND competition = ? AND season = ?", (league, season))
             touched[key] = 0
         touched[key] += _store_match_rows(conn, rows)
+        _store_club_rows(conn, club_rows)
         unknown += missing
     conn.commit()
     if touched:
@@ -805,7 +840,8 @@ def run(ctx: Context, *, leagues=None, seasons=None, refresh: bool = False,
 
     layer='season' (default, ~6 requests per league-season) fills external_stats; layer='match'
     walks the rounds and the perimeter clubs' lineups into external_match_stats (hours, resumable);
-    layer='all' does both.
+    layer='all' does both. layer='reparse' rebuilds external_match_stats from the cached round
+    payloads only - guaranteed offline, for when the parser learns to read a new field.
 
     Resumable: anything already cached is not downloaded again unless refresh=True.
     Interruptible via ctx.cancel_event / Ctrl-C - whatever was cached is kept and still ingested.
@@ -816,14 +852,21 @@ def run(ctx: Context, *, leagues=None, seasons=None, refresh: bool = False,
     if isinstance(seasons, str):
         seasons = [seasons]
     leagues = tuple(leagues) if leagues else tuple(TOURNAMENTS)
+    # SEASONS only bounds NEW downloads; the offline reparse covers the whole cache unless the
+    # caller names seasons explicitly (the cache spans further back than the download default).
+    requested_seasons = tuple(seasons) if seasons else None
     seasons = tuple(seasons) if seasons else SEASONS
     unknown = [league for league in leagues if league not in TOURNAMENTS]
     if unknown:
         raise RuntimeError(f"Unknown league(s) {unknown}; choose from {sorted(TOURNAMENTS)}")
-    if layer not in ("season", "match", "complete", "all"):
-        raise RuntimeError(f"Unknown layer {layer!r}; choose from season|match|complete|all")
+    if layer not in ("season", "match", "complete", "all", "reparse"):
+        raise RuntimeError(f"Unknown layer {layer!r}; choose from season|match|complete|all|reparse")
 
     ctx.config.cache_dir.mkdir(parents=True, exist_ok=True)
+    if layer == "reparse":
+        reingest_match_layer(ctx, seasons=requested_seasons)
+        derive_roles_from_match_layer(ctx)
+        return
     if layer == "complete":
         complete_match_layer(ctx, leagues, seasons)
         reingest_match_layer(ctx, seasons=seasons)

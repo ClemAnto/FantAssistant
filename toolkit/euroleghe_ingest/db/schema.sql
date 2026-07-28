@@ -179,10 +179,36 @@ CREATE TABLE IF NOT EXISTS external_match_stats (
     assists     INTEGER,
     xg          REAL,
     xa          REAL,
+    shots       INTEGER,                     -- totalShots: the "reference striker" usage signal
+    shots_on_target INTEGER,                 -- onTargetScoringAttempt
+    big_chances_created INTEGER,
+    big_chances_missed  INTEGER,
+    key_passes  INTEGER,
+    touches     INTEGER,
     yellows     INTEGER,
     reds        INTEGER,
     mv_synth    REAL,                        -- calibrated synthetic base voto, never the euro target
     PRIMARY KEY (fc_id, season, source, match_id)
+);
+
+-- Club-level lineup counts from the SAME cached rounds, over ALL entries - resolved or not. A
+-- per-player row needs an identity, but counting how many forwards a club FIELDS does not, and
+-- the identity funnel would bias exactly the clubs whose fringe players are not quoted (Serie A
+-- 24/25: half the XIs have 1-3 unresolved starters, Juventus had 0 fully-resolved elevens).
+CREATE TABLE IF NOT EXISTS club_match_lineups (
+    season      TEXT NOT NULL,
+    source      TEXT NOT NULL,               -- sofascore
+    match_id    TEXT NOT NULL,               -- provider event id
+    club        TEXT NOT NULL,               -- provider spelling ("AC Milan"), NOT canonical
+    competition TEXT,                        -- league key
+    real_md     INTEGER,
+    match_date  TEXT,
+    starters    INTEGER,                     -- lineup entries with substitute = false (11 pre-match)
+    goalkeepers INTEGER,                     -- of the starters, by provider position G/D/M/F
+    defenders   INTEGER,
+    midfielders INTEGER,
+    forwards    INTEGER,
+    PRIMARY KEY (season, source, match_id, club)
 );
 
 -- euro <-> real matchday alignment, PER LEAGUE: one euro round bundles a DIFFERENT real round in
@@ -280,8 +306,13 @@ CREATE TABLE IF NOT EXISTS penalty_hierarchy (
 CREATE TABLE IF NOT EXISTS probable_starter (
     fc_id      INTEGER NOT NULL REFERENCES players(fc_id),
     valid_from TEXT NOT NULL,
-    probability REAL,
+    probability REAL,                            -- NULL for bench/reserve rows (no % on the page)
     source     TEXT,
+    team       TEXT,                             -- as printed on the probabili page
+    formation  TEXT,                             -- declared module, e.g. 3-5-2 (2 strikers) vs 4-3-3
+    starter    INTEGER,                          -- 0/1: listed in the starting XI block
+    role       TEXT,                             -- the page's role letter for the slot
+    status     TEXT,                             -- e.g. injured/doubtful marker on the card
     PRIMARY KEY (fc_id, valid_from)
 );
 

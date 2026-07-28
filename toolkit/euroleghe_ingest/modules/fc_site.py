@@ -153,18 +153,21 @@ def is_published(html: str) -> bool:
 
 # ---------- persistence ----------
 def upsert_probable_starters(conn, records: list[dict], date: str) -> int:
+    # Bench/reserve rows carry no percentage but half the hierarchy signal (who sits behind whom,
+    # in which module), so a NULL probability is stored, not skipped. R7's lesson: the full record
+    # must accumulate from day one - a field discarded today cannot be backfilled for past windows.
     stored = 0
     for rec in records:
-        if rec["probability"] is None:
-            continue
         if not conn.execute("SELECT 1 FROM players WHERE fc_id = ?", (rec["fc_id"],)).fetchone():
             # a player we have never seen (a new signing): keep the foreign key honest
             conn.execute("INSERT INTO players(fc_id, canonical_name) VALUES (?, ?)",
                          (rec["fc_id"], str(rec["fc_id"])))
         conn.execute(
-            "INSERT OR REPLACE INTO probable_starter(fc_id, valid_from, probability, source) "
-            "VALUES (?, ?, ?, 'fc_site')",
-            (rec["fc_id"], date, rec["probability"]),
+            "INSERT OR REPLACE INTO probable_starter("
+            "    fc_id, valid_from, probability, source, team, formation, starter, role, status) "
+            "VALUES (?, ?, ?, 'fc_site', ?, ?, ?, ?, ?)",
+            (rec["fc_id"], date, rec["probability"], rec.get("team"), rec.get("formation"),
+             1 if rec.get("starter") else 0, rec.get("role"), rec.get("status")),
         )
         stored += 1
     return stored

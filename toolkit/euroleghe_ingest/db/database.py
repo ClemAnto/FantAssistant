@@ -28,6 +28,17 @@ ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("rosters", "fvm_mantra", "REAL"),
     ("rosters", "price_mantra", "REAL"),
     ("rosters", "price_initial_mantra", "REAL"),
+    ("external_match_stats", "shots", "INTEGER"),
+    ("external_match_stats", "shots_on_target", "INTEGER"),
+    ("external_match_stats", "big_chances_created", "INTEGER"),
+    ("external_match_stats", "big_chances_missed", "INTEGER"),
+    ("external_match_stats", "key_passes", "INTEGER"),
+    ("external_match_stats", "touches", "INTEGER"),
+    ("probable_starter", "team", "TEXT"),
+    ("probable_starter", "formation", "TEXT"),
+    ("probable_starter", "starter", "INTEGER"),
+    ("probable_starter", "role", "TEXT"),
+    ("probable_starter", "status", "TEXT"),
 )
 
 
