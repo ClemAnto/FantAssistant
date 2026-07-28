@@ -246,6 +246,9 @@ def apply_theme(root, mode: str = "light") -> ttk.Style:
                     padding=(6, 4), lightcolor=surface, darkcolor=surface)
     style.configure("TCheckbutton", background=bg, foreground=text)
     style.configure("Card.TCheckbutton", background=surface, foreground=text)
+    style.configure("Card.TRadiobutton", background=surface, foreground=text)
+    style.map("Card.TRadiobutton", background=[("active", surface)],
+              indicatorcolor=[("selected", accent)])
     style.configure("TRadiobutton", background=bg, foreground=text)
     style.configure("TProgressbar", background=accent, troughcolor=color("surface_sunken"),
                     bordercolor=border, lightcolor=accent, darkcolor=accent)

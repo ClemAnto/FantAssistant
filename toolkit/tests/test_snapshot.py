@@ -171,6 +171,10 @@ def test_the_last_ten_series_tells_bench_from_injured_from_unknown(tmp_path):
     assert tokens[0].startswith("p:7.4:90"), "oldest first, so the strip reads like a calendar"
     assert tokens[1].startswith("p:7.4:20")
     assert tokens[2] == "i", "an absence inside a recorded injury spell is not a bench appearance"
+    # a suspension is its own reason: same spell shape, different kind, different token
+    conn.execute("UPDATE injuries SET kind = 'suspension' WHERE fc_id = 1")
+    conn.commit()
+    assert snapshot.club_form(conn, "2025-08-15", [Obs()], {1: "Inter"})[1]["series"].split()[2] == "s"
     assert tokens[3] == "n", "a match with no player-level data is unknown, not a bench appearance"
     assert (form["played"], form["measured"], form["club_matches"]) == (2, 3, 4)
     assert form["unused"] == 1 and form["unknown"] == 1

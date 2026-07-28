@@ -333,7 +333,57 @@ def test_last_ten_dot_bands_and_fading():
     assert SnapshotView.band(4.5) == SnapshotView.BANDS[5][1]        # poor
     # a played match without a rating must not be coloured as a bad one
     assert SnapshotView.band(None) == SnapshotView.BANDS[3][1]
-    # the three absences are three different colours, and all of them faded
-    assert len(set(SnapshotView.ABSENT.values())) == 3
+    # the four absences are four different colours, and all of them faded: a choice, an injury, a
+    # suspension and no data at all are four different facts about a blank week
+    assert len(set(SnapshotView.ABSENT.values())) == 4
+    assert set(SnapshotView.ABSENT) == {"b", "i", "s", "n"}
     faded = _blend("#9e9e9e", "#ffffff", 0.3)
     assert faded != "#9e9e9e" and faded > "#c0c0c0", "an absence must read as lighter than a result"
+
+
+def test_the_eleven_is_chosen_by_titolarita_and_never_by_a_valuation():
+    """The regression that matters: a coach does not pick his side by fantacalcio value.
+
+    The first version ranked the pitch by predicted SURPLUS, which fields the most VALUABLE player
+    rather than the one who plays. Here the cheap regular must beat the expensive reserve, in both
+    modes - and the two modes must differ on exactly one thing: whether an absence counts.
+    """
+    from euroleghe_ingest.gui import SnapshotView
+
+    regular = {"name": "Regular", "role_classic": "A", "roles_mantra": "pc",
+               "desc_start_share": "0.90", "desc_season_starts": "27",
+               "desc_form_measured": "10", "desc_form_starts": "9", "desc_form_minutes": "800",
+               "engine_surplus": "1.0"}
+    expensive = {"name": "Expensive", "role_classic": "A", "roles_mantra": "pc",
+                 "desc_start_share": "0.10", "desc_season_starts": "3",
+                 "desc_form_measured": "10", "desc_form_starts": "1", "desc_form_minutes": "90",
+                 "engine_surplus": "99.0"}
+    injured = {"name": "Injured", "role_classic": "A", "roles_mantra": "pc",
+               "desc_start_share": "1.00", "desc_season_starts": "30",
+               "desc_form_measured": "10", "desc_form_starts": "10", "desc_form_minutes": "900",
+               "engine_surplus": "5.0", "desc_injury_open": "knee since 2026-07-01"}
+
+    view = SnapshotView.__new__(SnapshotView)          # no Tk needed for the selection logic
+    view.players = [regular, expensive, injured]
+    view.clubs = {}
+    view.rows = view.players
+    for row in view.players:
+        row["club"] = "Test"
+
+    assert view.titolarita(regular, "season")[0] > view.titolarita(expensive, "season")[0]
+
+    typical = [starter["name"] for _role, starter, _rivals in view.eleven("Test", "4-4-2", "typical")]
+    # only the two forward shirts can be filled: the squad is three strikers and nothing else
+    assert typical == ["Injured", "Regular"], "the schieramento tipo ignores who is out today"
+    assert "Expensive" not in typical, "value must not buy a shirt"
+
+    class Mode:
+        @staticmethod
+        def get():
+            return "next"
+
+    view.xi_mode = Mode()
+    nxt = [starter["name"] for _role, starter, _rivals in view.eleven("Test", "4-4-2", "next")]
+    assert nxt[0] == "Regular", "for the next match the injured man is out and the regular starts"
+    assert SnapshotView.lines("3-4-2-1") == (3, 6, 1), "every part of a module counts"
+    assert "Injured" not in nxt

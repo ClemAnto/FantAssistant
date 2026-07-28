@@ -57,6 +57,10 @@ FORM_MATCHES = 10
 BALLOTTAGGIO_MARGIN = 0.25
 # How many seasons of injuries the propensity looks back over, newest first, with these weights.
 INJURY_WEIGHTS: tuple[float, ...] = (1.0, 0.6, 0.35)
+# Above this share of its complete elevens, a club's modal shape is the coach's PREFERRED formation
+# rather than one of several he alternates. A reading threshold, stated in the sheet, not a coefficient.
+FORMATION_SETTLED = 0.60
+
 # How far back an appearance still says "he is in this squad". Fourteen months, so a full season plus a
 # transfer window fits and the season before it does not: with no bound at all a player's last
 # appearance EVER counted, which put two retired keepers in Inter's 2026 squad.
@@ -322,15 +326,25 @@ def _by_date(item: tuple):
 # One token per match of the club's last ten, oldest first, so the strip reads left to right like a
 # calendar. Deliberately compact: the sheet is a CSV a human also opens in Excel.
 #   p:<rating>:<minutes>  he played        b  in the layer, no minutes: bench or left out
-#   i                     inside a recorded injury spell on that date
+#   i                     inside a recorded INJURY spell on that date
+#   s                     inside a recorded SUSPENSION - a different reason from an injury, and from a
+#                         choice: the absence list carries it as its own kind
 #   n                     no player-level data for that match at all - unknown, which includes not
 #                         being in the squad. Never conflated with `b`.
-def injury_spells(conn, auction_date: str) -> dict[int, list[tuple[str, str]]]:
-    """(start, end) per player, end filled with the auction date when the spell is still open."""
-    out: dict[int, list[tuple[str, str]]] = {}
-    for fc_id, start, end in conn.execute(
-            "SELECT fc_id, start_date, end_date FROM injuries WHERE start_date <= ?", (auction_date,)):
-        out.setdefault(fc_id, []).append((start, end or auction_date))
+def absence_spells(conn, auction_date: str) -> dict[int, list[tuple[str, str, str]]]:
+    """(start, end, token) per player: 's' for a suspension, 'i' for anything else.
+
+    A suspension is not an injury and not a choice, and the absence list already tells them apart -
+    Transfermarkt lists "Squalifica" as its own kind, which `classify_injury` maps to `suspension`. The
+    end is filled with the auction date when the spell is still open. A suspension nobody recorded reads
+    as bench, which is the honest fallback: we do not know that he was banned.
+    """
+    out: dict[int, list[tuple[str, str, str]]] = {}
+    for fc_id, start, end, kind in conn.execute(
+            "SELECT fc_id, start_date, end_date, kind FROM injuries WHERE start_date <= ?",
+            (auction_date,)):
+        out.setdefault(fc_id, []).append(
+            (start, end or auction_date, "s" if kind == "suspension" else "i"))
     return out
 
 
@@ -356,7 +370,7 @@ def club_form(conn, auction_date: str, observations, squads: dict[int, str],
     """
     resolve = club_index(conn)
     fixtures = club_matches(conn, auction_date, resolve, limit)
-    spells = injury_spells(conn, auction_date)
+    spells = absence_spells(conn, auction_date)
     covered = {fc_id for (fc_id,) in conn.execute(
         "SELECT DISTINCT fc_id FROM external_match_stats")}
     # Which MATCHES we have player-level rows for at all. A club's last ten include cups and other
@@ -373,6 +387,16 @@ def club_form(conn, auction_date: str, observations, squads: dict[int, str],
                 (auction_date,)):
         appearances.setdefault(fc_id, {})[str(match_id)] = (
             club, competition, date, minutes, started, rating, goals, assists)
+    # Who the club played, per match: a fact about the FIXTURE, so it is available for the matches he did
+    # not play too - which is exactly where the strip needs it to become readable.
+    opponents: dict[tuple[str, str], tuple[str, int]] = {}
+    for match_id, club, opponent, home in conn.execute(
+            """SELECT match_id, club, opponent, home FROM external_match_stats
+               WHERE match_date IS NOT NULL AND match_date < ? AND opponent IS NOT NULL
+               GROUP BY match_id, club""", (auction_date,)):
+        key, _name = resolve(club)
+        if key:
+            opponents[(key, str(match_id))] = (opponent, home or 0)
 
     out: dict[int, dict] = {}
     for obs in observations:
@@ -434,7 +458,8 @@ def club_form(conn, auction_date: str, observations, squads: dict[int, str],
         assists: dict[str, int] = {}
         kinds: dict[str, int] = {}
         series: list[str] = []
-        for date, match_id, competition, _key in reversed(window):     # oldest first, for the strip
+        detail: list[str] = []
+        for date, match_id, competition, club_key in reversed(window):  # oldest first, for the strip
             kind = competition_class(competition)
             kinds[kind] = kinds.get(kind, 0) + 1
             known = str(match_id) in with_players
@@ -443,11 +468,20 @@ def club_form(conn, auction_date: str, observations, squads: dict[int, str],
             entry = mine.get(str(match_id))
             if entry:
                 rating = entry[5]
-                series.append(f"p:{rating if rating is not None else ''}:{entry[3]}")
-            elif any(start <= date <= end for start, end in spells.get(obs.fc_id, ())):
-                series.append("i")
+                token = f"p:{rating if rating is not None else ''}:{entry[3]}"
+            elif (reason := next((code for start, end, code in spells.get(obs.fc_id, ())
+                                  if start <= date <= end), None)):
+                token = reason
             else:
-                series.append("b" if known else "n")
+                token = "b" if known else "n"
+            series.append(token)
+            # One line per match for the popup: everything a dot cannot say. Same order as the strip.
+            opponent, home = opponents.get((club_key, str(match_id)), ("", 0))
+            detail.append("|".join(str(part) for part in (
+                date, competition or "", opponent, "H" if home else "A", token.split(":")[0],
+                entry[3] if entry else "", entry[5] if entry and entry[5] is not None else "",
+                entry[6] if entry else "", entry[7] if entry else "",
+                1 if entry and entry[4] else "")))
             if not entry:
                 continue
             _c, _comp, _d, match_minutes, started, rating, match_goals, match_assists = entry
@@ -481,6 +515,7 @@ def club_form(conn, auction_date: str, observations, squads: dict[int, str],
             "clubs": "; ".join(sorted(clubs.values())) if len(clubs) > 1 else None,
             "last_match": window[0][0] if window else None,
             "series": " ".join(series),
+            "detail": ";".join(detail),
             "source": "per-match layer",
         }
     return out
@@ -677,6 +712,61 @@ def typical_formation(conn, spellings: list[str], season: str
     return (f"{defenders}-{midfielders}-{forwards}", round(count / total, 2), total)
 
 
+# The positional heatmap says WHERE across the pitch a player stood, but not which touchline y=0 is on.
+# So the orientation is CALIBRATED from the players whose listone role names a side: right backs and left
+# backs cannot both be at the same end of the axis. Below this many of each, no side is claimed at all -
+# an uncalibrated axis would put half a defence on the wrong flank, which is worse than saying nothing.
+SIDE_CALIBRATION_MIN = 8
+
+
+def measured_sides(conn, season: str, notes: list[str]) -> dict[int, float]:
+    """fc_id -> where he really stood across the pitch, -1 the team's left ... +1 its right.
+
+    From `positions.avg_y` (the season heatmap), oriented by the calibration above. This is the precise
+    answer the listone's role only approximates: a nominal centre back who spent the year on the left of
+    a back three shows up as one, and a 'dc' really in the middle stays in the middle.
+    """
+    rows = conn.execute(
+        """SELECT p.fc_id, p.avg_y, r.roles FROM positions p
+           JOIN rosters r ON r.fc_id = p.fc_id AND r.season = p.season
+           WHERE p.season = ? AND p.source = 'sofascore' AND p.avg_y IS NOT NULL""",
+        (season,)).fetchall()
+    if not rows:
+        return {}
+    right = [avg_y for _fc, avg_y, roles in rows if "dd" in (roles or "").split(";")]
+    left = [avg_y for _fc, avg_y, roles in rows if "ds" in (roles or "").split(";")]
+    if min(len(right), len(left)) < SIDE_CALIBRATION_MIN:
+        notes.append(f"the heatmap axis could not be calibrated ({len(right)} right backs and "
+                     f"{len(left)} left backs with a heatmap, {SIDE_CALIBRATION_MIN} of each needed), "
+                     f"so no measured side is published: the sheet falls back to the listone's roles. "
+                     f"Run `positions --layer heatmap` to fill it.")
+        return {}
+    orientation = 1.0 if sum(right) / len(right) < sum(left) / len(left) else -1.0
+    notes.append(f"heatmap axis calibrated on {len(right)} right backs and {len(left)} left backs: "
+                 f"{'low' if orientation > 0 else 'high'} y is the team's right")
+    return {fc_id: round(max(-1.0, min(1.0, orientation * (50.0 - avg_y) / 50.0)), 3)
+            for fc_id, avg_y, _roles in rows}
+
+
+def titolarita(conn, season: str) -> dict[int, dict]:
+    """How often he STARTED over the full real season: (starts, matches, share).
+
+    This - not any valuation - is what says whether a coach fields him. Read over the whole season
+    because the "schieramento tipo" is a habit over a year; the last ten matches are a separate column
+    and answer the other question, which side the coach is picking now.
+    """
+    out: dict[int, dict] = {}
+    for fc_id, starts, matches in conn.execute(
+            """SELECT fc_id, SUM(COALESCE(starts, 0)), SUM(COALESCE(matches, 0))
+               FROM external_stats WHERE season = ? AND source = 'sofascore' GROUP BY fc_id""",
+            (season,)):
+        if not matches:
+            continue
+        out[fc_id] = {"starts": starts, "matches": matches,
+                      "share": round((starts or 0) / matches, 3)}
+    return out
+
+
 def club_context(conn, data: features.WindowData, starters_date: str | None,
                  clubs: list[str]) -> list[dict]:
     """One row per club OF THE SHEET: coach, formation, lines fielded, arrivals, Elo.
@@ -737,7 +827,13 @@ def club_context(conn, data: features.WindowData, starters_date: str | None,
             "formation_typical": typical,
             "formation_typical_share": share,
             "formation_typical_of": counted,
+            # "Absolutely preferred" is a measured thing: a shape used in most of the elevens is the
+            # coach's, one used in a third of them is a coach still choosing - and the two must not be
+            # presented the same way.
+            "formation_settled": ("yes" if (share or 0) >= FORMATION_SETTLED else "no") if share
+                                 else None,
             "formation_today": formations.get(club),
+            "probabili_date": starters_date,
             "lines_fielded_D": round(lines[0], 2) if lines and lines[0] is not None else None,
             "lines_fielded_M": round(lines[1], 2) if lines and lines[1] is not None else None,
             "lines_fielded_F": round(lines[2], 2) if lines and lines[2] is not None else None,
@@ -809,9 +905,13 @@ PLAYER_COLUMNS: tuple[str, ...] = (
     "desc_form_goals_league", "desc_form_assists_league",
     "desc_form_goals_other", "desc_form_assists_other",
     "desc_form_competitions", "desc_form_clubs", "desc_form_last_match", "desc_form_source",
-    "desc_form_series",
+    "desc_form_series", "desc_form_detail",
     "desc_squad_club", "desc_squad_source", "desc_real_role", "desc_avg_x", "desc_avg_y",
+    "desc_side_measured",
     "desc_starter_prob", "desc_starter_status", "desc_expected_minutes",
+    # Titolarità: how often he STARTS. Two horizons, because they answer different questions - the
+    # season's share is the coach's habit over a year, the recent one is the shape of the side now.
+    "desc_season_starts", "desc_season_matches", "desc_start_share",
     "desc_duel_rivals", "desc_duel_names",
     "desc_injury_matches_missed", "desc_injury_weighted", "desc_injury_spells",
     "desc_injury_worst_kind", "desc_injury_open", "desc_injury_source",
@@ -862,6 +962,7 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
         starter = layers["starters"].get(obs.fc_id, {})
         duel = layers["duels"].get(obs.fc_id, {})
         prop = layers["propensity"].get(obs.fc_id, {})
+        season_play = layers["titolarita"].get(obs.fc_id, {})
         card = layers["discipline"].get(obs.fc_id, {})
         state = layers["contract"].get(obs.fc_id, {})
         penalty = layers["penalties"].get(obs.fc_id)
@@ -893,6 +994,7 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             "desc_form_clubs": form.get("clubs"), "desc_form_last_match": form.get("last_match"),
             "desc_form_source": form.get("source"),
             "desc_form_series": form.get("series"),
+            "desc_form_detail": form.get("detail"),
             "desc_squad_club": layers["squads"].get(obs.fc_id),
             "desc_squad_source": layers["squad_sources"].get(obs.fc_id),
             # The role he was REALLY used in, from the provider's own slot per match (positions.
@@ -901,12 +1003,16 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             "desc_real_role": layers["real_roles"].get(obs.fc_id),
             "desc_avg_x": layers["positions"].get(obs.fc_id, (None, None))[0],
             "desc_avg_y": layers["positions"].get(obs.fc_id, (None, None))[1],
+            "desc_side_measured": layers["sides"].get(obs.fc_id),
             "desc_starter_prob": starter.get("probability"),
             "desc_starter_status": starter.get("status"),
             # Expected minutes = minutes per CLUB match recently x the appearances the engine
             # predicts. The recent share is what carries bench time; the season-long one is the
             # fallback for a player whose club we have no recent matches for.
             "desc_expected_minutes": _round(_expected_minutes(obs, form, pv_pred), 0),
+            "desc_season_starts": season_play.get("starts"),
+            "desc_season_matches": season_play.get("matches"),
+            "desc_start_share": season_play.get("share"),
             "desc_duel_rivals": duel.get("rivals"), "desc_duel_names": duel.get("names"),
             "desc_injury_matches_missed": injury.get("matches_missed"),
             "desc_injury_weighted": injury.get("weighted"),
@@ -1035,7 +1141,7 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
     seasons = [row[0] for row in conn.execute(
         "SELECT DISTINCT season FROM rosters WHERE season <= ? ORDER BY season",
         (window.target_season,))]
-    starters, starters_date = latest_starters(conn, window.auction_date)
+    starters, starters_date = latest_starters(conn, window.auction_date)   # notes is already open
     if not starters:
         notes.append("no probabili snapshot at or before the auction date: the starter and duel "
                      "columns are empty. This history only accumulates from the day the weekly job "
@@ -1048,6 +1154,7 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
         "starters": starters,
         "availability": availability_now(conn, window.auction_date),
         "propensity": propensity(conn, window.input_season),
+        "titolarita": titolarita(conn, window.input_season),
         "discipline": discipline(conn, window.input_season, platform),
         "contract": contract_state(conn, window.target_season),
         "penalties": penalty_duty(conn, window.auction_date),
@@ -1057,6 +1164,7 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
         "real_roles": {fc_id: role for fc_id, role in conn.execute(
             "SELECT fc_id, derived_role FROM positions WHERE season = ? AND source = 'sofascore' "
             "AND derived_role IS NOT NULL", (window.input_season,))},
+        "sides": measured_sides(conn, window.input_season, notes),
         "positions": {fc_id: (avg_x, avg_y) for fc_id, avg_x, avg_y in conn.execute(
             "SELECT fc_id, avg_x, avg_y FROM positions WHERE season = ? AND source = 'sofascore'",
             (window.input_season,))},

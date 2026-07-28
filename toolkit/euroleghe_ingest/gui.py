@@ -1466,6 +1466,32 @@ class SnapshotView(ttk.Frame):
     # Precedence matters: a role that NAMES a side wins over one that does not. Carlos Augusto is
     # 'b;ds;e' - braccetto, left-back, wing-back - and reading the first entry put a left-back in the
     # middle of the defence.
+    # The short code drawn inside the position marker. Italian, because that is the vocabulary of the
+    # game: Ts terzino sinistro, Td terzino destro, Dc difensore centrale, Br braccetto, Es/Ed esterno,
+    # M mediano, C centrocampista, T trequartista, As/Ad ala, Pc punta centrale, A attaccante.
+    # A side is only claimed when something states it: the Mantra role, or failing that where the player
+    # is actually drawn in his line. Otherwise the code stays neutral rather than inventing a flank.
+    BADGE: ClassVar[dict[str, tuple[str, str, str]]] = {
+        # role: (left form, centre/neutral form, right form)
+        "por": ("P", "P", "P"),
+        "ds": ("Ts", "Ts", "Ts"),
+        "dd": ("Td", "Td", "Td"),
+        "dc": ("Dc", "Dc", "Dc"),
+        "b": ("Bs", "Br", "Bd"),
+        "e": ("Es", "E", "Ed"),
+        "w": ("As", "Al", "Ad"),
+        "m": ("M", "M", "M"),
+        "c": ("Cs", "C", "Cd"),
+        "t": ("T", "T", "T"),
+        "a": ("As", "A", "Ad"),
+        "pc": ("Pc", "Pc", "Pc"),
+    }
+    # Fallback when the listone gives no Mantra role at all: the Classic role, with the side if known.
+    BADGE_CLASSIC: ClassVar[dict[str, tuple[str, str, str]]] = {
+        "P": ("P", "P", "P"), "D": ("Ts", "Dc", "Td"),
+        "C": ("Cs", "C", "Cd"), "A": ("As", "A", "Ad"),
+    }
+
     SIDE: ClassVar[dict[str, float]] = {"ds": -1.0, "dd": 1.0}
     # Wide, but the side is not stated: 'e' wing-back, 'w' winger, 'b' the wide man of a back three.
     WIDE: ClassVar[frozenset[str]] = frozenset({"e", "w", "b"})
@@ -1476,12 +1502,11 @@ class SnapshotView(ttk.Frame):
         # provider's own slot per match, with the sided Mantra role when there is one ("D dd").
         ("real", "real", 54, "center"),
         ("name", "Player", 126, "w"),
-        ("qti", "Qt.I", 46, "e"),
         ("surplus", "SUR", 56, "e"),
         ("fm", "FM", 50, "e"),
         ("pv", "Pv", 42, "e"),
         ("minutes", "min", 48, "e"),
-        ("form", "form", 54, "center"),
+        ("tit", "tit", 44, "e"),
         ("rating", "rat", 44, "e"),
         ("bonus", "g+a", 44, "e"),
         ("inj", "inj", 40, "e"),
@@ -1491,12 +1516,16 @@ class SnapshotView(ttk.Frame):
     # One line per column, because a sheet nobody can read is a sheet nobody should act on. The two
     # families are named in every entry: `engine_*` is gated, `desc_*` is not.
     COLUMN_HELP: ClassVar[dict[str, str]] = {
-        "#0": "The club's last 10 matches, oldest on the left. One dot per match: cyan exceptional, "
+        "#0": "TREND - the club's last 10 matches, oldest on the left. Click a row to read them one by "
+              "one (date, opponent, minutes, rating). One dot per match: cyan exceptional, "
               "light blue very good, green good, grey average, yellow weak, red poor - by the provider's "
               "rating, which is a DISPLAY threshold and not a model parameter. Faded dots are matches he "
-              "did not play: pale grey bench or left out, violet inside a recorded injury spell, dark "
-              "grey no player-level data at all (unknown, which includes not being in the squad). A "
-              "ring around the dot means he played at least 75 minutes.",
+              "did not play: pale grey bench or left out, violet inside a recorded injury spell, pale "
+              "red a suspension, dark grey no player-level data at all (unknown, which includes not "
+              "being in the squad). A suspension nobody recorded reads as bench - we do not know he "
+              "was banned. A ring around the dot means he played at least 75 minutes.",
+        "tit": "TITOLARITA: starts / matches over the full real season - how often the coach fields "
+               "him. This, and never a valuation, is what decides who is on the pitch above.",
         "role": "The LISTONE role - what you buy him as (P/D/C/A). Click to restore the auction order: "
              "by role, then by predicted SURPLUS.",
         "real": "Where he was REALLY used: the provider's own slot in the matches he played, plus his "
@@ -1504,8 +1533,6 @@ class SnapshotView(ttk.Frame):
                 "Measured translation provider -> listone: G->P 100%, D->D 97%, M->C 80%, F->A 80%.",
         "name": "Name as the listone spells it. fc_id is the key underneath, so the same man is the "
                   "same row in every view.",
-        "qti": "Qt.I, the PRE-AUCTION quotation: the market's expectation, and the only price a rule "
-                "may read. Empty when the listone for this season is not out yet.",
         "surplus": "GATED. Predicted SURPLUS = (predicted fantamedia - the role's replacement level) x "
                "predicted appearances: points over the man you would have fielded instead. This is the "
                "auction's own currency - an iron man on a replacement-level fantamedia scores ~0.",
@@ -1514,9 +1541,6 @@ class SnapshotView(ttk.Frame):
         "pv": "GATED. Predicted appearances, on the platform's own calendar.",
         "minutes": "Expected minutes = minutes per appearance x predicted appearances. The recent rate is "
                "used when he actually played lately (it carries bench time), else the season-long one.",
-        "form": "played / measured of his CLUB's last 10 matches. `measured` drops the matches we have "
-                "no player-level data for, so 0 means he did not play - not that we do not know. Empty "
-                "= he is not in the per-match layer at all.",
         "rating": "Average provider rating over those matches. Not a fantamedia: a 7.0 in Serie B is not "
                "a 7.0 in Serie A, which is why it is reported raw and never converted here.",
         "bonus": "Goals + assists per 90 over the FULL real season (all competitions we scrape), not the "
@@ -1554,6 +1578,7 @@ class SnapshotView(ttk.Frame):
             ttk.Button(bar, text="Build now", style="Accent.TButton",
                        command=self.on_build).pack(side="left", padx=(0, 6))
         ttk.Button(bar, text="Reload", command=self.reload).pack(side="left")
+        self.xi_mode = tk.StringVar(value="typical")
         self.note_var = tk.StringVar()
         ttk.Label(bar, textvariable=self.note_var, style="Muted.TLabel").pack(side="left", padx=10)
 
@@ -1589,6 +1614,13 @@ class SnapshotView(ttk.Frame):
         columns.pack(fill="both", expand=True, pady=(8, 0))
         pitch_card = ttk.Frame(columns, style="Card.TFrame", padding=(8, 8))
         pitch_card.pack(side="left", fill="both", expand=True)
+        toggle = ttk.Frame(pitch_card, style="Card.TFrame")
+        toggle.pack(fill="x", pady=(0, 6))
+        ttk.Label(toggle, text="XI", style="CardMuted.TLabel").pack(side="left", padx=(2, 8))
+        for label, value in (("schieramento tipo", "typical"), ("prossima giornata", "next")):
+            ttk.Radiobutton(toggle, text=label, value=value, variable=self.xi_mode,
+                            style="Card.TRadiobutton",
+                            command=self._show_club).pack(side="left", padx=(0, 10))
         self.pitch = tk.Canvas(pitch_card, width=430, highlightthickness=0,
                                background=theme.color("surface"))
         self.pitch.pack(fill="both", expand=True)
@@ -1600,7 +1632,7 @@ class SnapshotView(ttk.Frame):
         # one image per row - which is where the last-10 strip goes.
         self.player_tree = ttk.Treeview(table, columns=[c[0] for c in self.COLUMNS],
                                         show="tree headings", selectmode="browse")
-        self.player_tree.heading("#0", text="last 10")
+        self.player_tree.heading("#0", text="TREND")
         self.player_tree.column("#0", width=124, minwidth=124, stretch=False, anchor="w")
         for key, title, width, anchor in self.COLUMNS:
             self.player_tree.heading(key, text=title,
@@ -1612,6 +1644,16 @@ class SnapshotView(ttk.Frame):
         scroll.pack(side="right", fill="y")
         self.player_tree.pack(fill="both", expand=True)
         HeadingTooltip(self.player_tree, self.COLUMN_HELP)
+        # Click the strip to see what the dots stand for. Ten dots cannot carry a date, an opponent or a
+        # scoreline, and those are exactly what turns "a red dot" into a reason.
+        self.player_tree.bind("<Button-1>", self._on_click, add="+")
+
+    def restyle(self) -> None:
+        """Redraw everything whose colours were baked in: the dot strips and the pitch."""
+        self.pitch.configure(background=theme.color("surface"))
+        if self.rows:
+            self._fill_table()
+        self._draw_pitch()
 
     # ---------- data ----------
     def reload(self) -> None:
@@ -1663,6 +1705,72 @@ class SnapshotView(ttk.Frame):
         return rows
 
     # ---------- the last-10 strip ----------
+    # What each token of `desc_form_series` means, in the popup's own words.
+    TOKEN_LABEL: ClassVar[dict[str, str]] = {
+        "p": "played", "b": "bench / left out", "i": "injured", "s": "suspended",
+        "n": "no data for this match",
+    }
+
+    def _on_click(self, event) -> None:
+        """A click on the strip (the tree column) opens the match-by-match list for that row."""
+        if self.player_tree.identify_region(event.x, event.y) != "tree":
+            return
+        item = self.player_tree.identify_row(event.y)
+        if not item:
+            return
+        index = self.player_tree.index(item)
+        rows = self._sorted(self.rows)
+        if 0 <= index < len(rows):
+            self._match_popup(rows[index])
+
+    def _match_popup(self, row: dict) -> None:
+        """The club's last ten, one line each: what the dots are, in words.
+
+        Reads `desc_form_detail`, which the sheet carries for exactly this purpose - so the window and
+        the CSV can never tell different stories about the same match.
+        """
+        dialog = tk.Toplevel(self)
+        dialog.title(f"{row.get('name')} · last 10 matches of {row.get('club')}")
+        dialog.transient(self.winfo_toplevel())
+        dialog.resizable(False, False)
+        frame = ttk.Frame(dialog, padding=12)
+        frame.pack(fill="both", expand=True)
+        ttk.Label(frame, text=f"{row.get('name')}  ({row.get('role_classic') or '?'})",
+                  style="H2.TLabel").pack(anchor="w")
+        played = row.get("desc_form_played") or 0
+        measured = row.get("desc_form_measured") or 0
+        ttk.Label(frame, style="Muted.TLabel", justify="left", wraplength=520,
+                  text=f"played {played} of {measured} matches we have player data for, out of "
+                       f"{row.get('desc_form_club_matches') or 0} the club played. "
+                       f"{row.get('desc_form_unknown') or 0} of them we know nothing about."
+                  ).pack(anchor="w", pady=(2, 8))
+
+        columns = ("date", "comp", "opponent", "state", "min", "rating", "g", "a")
+        titles = ("date", "competition", "opponent", "what happened", "min", "rating", "G", "A")
+        widths = (82, 118, 130, 118, 44, 52, 30, 30)
+        tree = ttk.Treeview(frame, columns=columns, show="headings", height=11, selectmode="none")
+        for key, title, width in zip(columns, titles, widths, strict=True):
+            tree.heading(key, text=title)
+            tree.column(key, width=width, anchor="w" if key in ("comp", "opponent", "state") else "e")
+        tree.pack(fill="both", expand=True)
+        for line in (row.get("desc_form_detail") or "").split(";"):
+            if not line:
+                continue
+            parts = (line.split("|") + [""] * 10)[:10]
+            date, comp, opponent, side, token, minutes, rating, goals, assists, started = parts
+            state = self.TOKEN_LABEL.get(token, token)
+            if token == "p":
+                state = f"started, {state}" if started else f"came on, {state}"
+            tree.insert("", "end", values=(
+                date, comp, f"{'vs' if side == 'H' else '@'} {opponent}".strip(), state,
+                minutes, rating, goals or "", assists or ""))
+        ttk.Label(frame, style="Muted.TLabel", justify="left", wraplength=520,
+                  text="Oldest first, same order as the dots. The rating is the provider's, not a "
+                       "fantavoto: a 7.0 in another league is not a 7.0 here, which is why it is shown "
+                       "raw. 'no data' includes not being in the squad - it is not a bench appearance."
+                  ).pack(anchor="w", pady=(8, 0))
+        ttk.Button(frame, text="Close", command=dialog.destroy).pack(anchor="e", pady=(8, 0))
+
     # Performance bands, by the provider's rating. A DISPLAY threshold, not a model parameter: nothing
     # downstream fits on it, and the sheet says so in the column's own tooltip.
     BANDS: ClassVar[tuple[tuple[float, str], ...]] = (
@@ -1674,8 +1782,10 @@ class SnapshotView(ttk.Frame):
         (0.0, "#ef5350"),      # poor
     )
     # Matches he did not play, faded to 30% over the row background so a blank week never reads as a
-    # performance: bench or left out, a recorded injury spell, and no player-level data at all.
-    ABSENT: ClassVar[dict[str, str]] = {"b": "#9e9e9e", "i": "#9575cd", "n": "#37474f"}
+    # performance. Four reasons, four colours, because they are four different facts: a choice, an
+    # injury, a suspension (his own doing, and it ends on a known date), and no data at all.
+    ABSENT: ClassVar[dict[str, str]] = {"b": "#9e9e9e", "i": "#9575cd", "s": "#ef5350",
+                                        "n": "#37474f"}
     DOT = 10                                   # cell size per match, in pixels
 
     @classmethod
@@ -1744,9 +1854,9 @@ class SnapshotView(ttk.Frame):
     # (column id -> the CSV field it reads). The auction order is not a column: it is role first, then
     # predicted surplus, which is what the sheet opens on and what clicking "R" restores.
     SORT_FIELD: ClassVar[dict[str, str]] = {
-        "real": "desc_real_role", "name": "name", "qti": "price_initial",
+        "real": "desc_real_role", "name": "name",
         "surplus": "engine_surplus", "fm": "engine_fm_pred", "pv": "engine_pv_pred",
-        "minutes": "desc_expected_minutes", "form": "desc_form_played",
+        "minutes": "desc_expected_minutes", "tit": "desc_start_share",
         "rating": "desc_form_rating", "bonus": "desc_goals_p90", "inj": "desc_injury_weighted",
         "status": "desc_starter_prob",
     }
@@ -1802,13 +1912,16 @@ class SnapshotView(ttk.Frame):
             return
         info = self.clubs.get(club, {})
         self.club_title.set(club)
-        formation, source = self._formation(info)
+        formation, source = self._formation(info, self.xi_mode.get())
         # The lines come from the provider's slots, where a winger counts as a midfielder: a 4-3-3
         # with wingers reads 4-5-1. Said out loud, so nobody reads the shape as the coach's own words.
-        bits = [f"modulo tipo {formation} ({source}, provider lines)"]
-        today = info.get("formation_today")
-        if today and today != formation:
-            bits.append(f"probabili today: {today}")
+        label = "prossima giornata" if self.xi_mode.get() == "next" else "modulo tipo"
+        bits = [f"{label} {formation} ({source}, provider lines)"]
+        bits.append(f"probabili: {info['probabili_date']}" if info.get("probabili_date")
+                    else "probabili: NONE (no snapshot yet)")
+        typical = info.get("formation_typical")
+        if typical and typical != formation:
+            bits.append(f"modulo tipo: {typical}")
         if info.get("coach"):
             bits.append(f"coach {info['coach']} since {info.get('coach_since') or '?'}"
                         + (" · NEW" if info.get("new_coach") == "yes" else ""))
@@ -1839,8 +1952,6 @@ class SnapshotView(ttk.Frame):
                 if row.get("desc_duel_rivals") not in (None, "", "0") else "",
                 row.get("desc_arrival") or "",
             ) if part)
-            form = (f"{row.get('desc_form_played') or 0}/{row.get('desc_form_measured') or 0}"
-                    if row.get("desc_form_measured") else "-")
             bonus = _number(row.get("desc_goals_p90")) + _number(row.get("desc_assists_p90"))
             sided = next((part for part in (row.get("roles_mantra") or "").split(";")
                           if part.strip().lower() in self.SIDE), "")
@@ -1849,29 +1960,40 @@ class SnapshotView(ttk.Frame):
             self._sparks.append(spark)              # Tk drops an image nobody references
             self.player_tree.insert("", "end", image=spark, values=(
                 row.get("role_classic") or "?", real or "-", row.get("name"),
-                row.get("price_initial") or "", row.get("engine_surplus") or "",
+                row.get("engine_surplus") or "",
                 row.get("engine_fm_pred") or "", row.get("engine_pv_pred") or "",
-                row.get("desc_expected_minutes") or "", form,
+                row.get("desc_expected_minutes") or "",
+                f"{_number(row.get('desc_start_share')):.0%}"
+                if row.get("desc_start_share") not in (None, "") else "",
                 row.get("desc_form_rating") or "", f"{bonus:.2f}" if bonus else "",
                 row.get("desc_injury_weighted") or "", flags))
 
     @staticmethod
-    def _formation(info: dict) -> tuple[str, str]:
-        """(shape, where it comes from). The MODULO TIPO first: the shape the club actually lines up in.
+    def _formation(info: dict, mode: str = "typical") -> tuple[str, str]:
+        """(shape, where it comes from), for the mode being shown.
 
-        Order of authority: the modal formation of its complete elevens last season (a shape that was
-        really on the pitch, with a share saying how settled it is), then today's probabili (one match,
-        and it can be a rotation), then the rounded mean of its lines, which is only a last resort
-        because a mean of 3.5 defenders is not a formation.
+        `typical` - the shape the coach actually uses over a year: the MODE of his complete elevens,
+        with the share saying how settled it is. When that share is high the shape is his PREFERRED one
+        and nothing else overrides it, which is the point: a single matchday cannot outvote a season.
+
+        `next` - the next match: the probabili's own formation when there is a snapshot, because that is
+        the coach's declared choice for THAT game. Without a snapshot it falls back to the preferred
+        shape - and where the coach has no preferred shape (he alternates), the fallback says so.
         """
         typical = info.get("formation_typical")
+        share = _number(info.get("formation_typical_share"), None)
+        settled = info.get("formation_settled") == "yes"
+        today = info.get("formation_today")
+        if mode == "next" and today:
+            return today, "probabili of today"
         if typical:
-            share = info.get("formation_typical_share")
             of = info.get("formation_typical_of")
-            detail = f"{float(share):.0%} of {of} XIs" if share else "most used"
+            detail = (f"preferred - {share:.0%} of {of} XIs" if settled and share
+                      else f"most used, but not settled - {share:.0%} of {of} XIs" if share
+                      else "most used")
             return typical, detail
-        if info.get("formation_today"):
-            return info["formation_today"], "probabili of today"
+        if today:
+            return today, "probabili of today (no complete XI measured)"
         return SnapshotView._derived_formation(info), "rounded mean of the lines fielded"
 
     @staticmethod
@@ -1887,48 +2009,71 @@ class SnapshotView(ttk.Frame):
             counts[counts.index(min(counts))] += 1
         return "-".join(str(value) for value in counts)
 
-    def eleven(self, club: str, formation: str) -> list[tuple[str, dict, list[dict]]]:
-        """(role, starter, rivals) per shirt: the editorial eleven if there is one, else the engine's.
+    @staticmethod
+    def titolarita(row: dict, horizon: str) -> tuple[float, float]:
+        """(start share, minutes) - how often he STARTS, and how long he stays on.
 
-        The rivals ARE the ballottaggio. With a probabili snapshot they are what the editors say (the
-        duel column); without one they are the next men by predicted SURPLUS in the same role, which is
-        the honest substitute - and the pitch says which of the two it is showing.
+        The only criterion for who plays. It is deliberately not the predicted SURPLUS: surplus is a
+        fantacalcio valuation, it answers "is he worth buying", and a coach does not pick a side by it.
+        `season` is his share over the whole real season (the habit); `recent` is his share of the club's
+        last ten (the side as it stands now).
+        """
+        if horizon == "recent":
+            measured = _number(row.get("desc_form_measured"))
+            starts = _number(row.get("desc_form_starts"))
+            share = starts / measured if measured else 0.0
+            return share, _number(row.get("desc_form_minutes"))
+        return _number(row.get("desc_start_share")), _number(row.get("desc_season_starts"))
+
+    def eleven(self, club: str, formation: str,
+               mode: str = "typical") -> list[tuple[str, dict, list[dict]]]:
+        """(role, starter, rivals) per shirt. Two modes, two questions, and neither uses a valuation.
+
+        `typical` - the side he fields when everyone is available: ranked by the season's start share,
+        and injuries and suspensions are deliberately IGNORED. A man out today is still the first choice
+        of the shape, and pretending otherwise would make the "tipo" eleven a snapshot of this week.
+
+        `next` - the side for the coming match: the probabili's own starters when a snapshot exists,
+        ranked by the probability the editors give them; without a snapshot, ranked by who has been
+        starting lately. Either way the injured and the suspended are OUT.
+
+        SURPLUS is not consulted in either. It was, in the first version, and it was wrong: the sheet
+        would field the most valuable player rather than the one the coach plays.
         """
         squad = self.squad(club)
         by_role: dict[str, list[dict]] = {}
         for row in squad:
             by_role.setdefault(row.get("role_classic") or "?", []).append(row)
-        try:
-            defenders, midfielders, forwards = (int(part) for part in formation.split("-")[:3])
-        except (ValueError, TypeError):
-            defenders, midfielders, forwards = 4, 3, 3
-        editorial = any(row.get("desc_starter_prob") for row in squad)
+        defenders, midfielders, forwards = self.lines(formation)
+        editorial = mode == "next" and any(row.get("desc_starter_prob") for row in squad)
         out: list[tuple[str, dict, list[dict]]] = []
         for role, slots in (("P", 1), ("D", defenders), ("C", midfielders), ("A", forwards)):
-            pool = by_role.get(role, [])
-            # A man who is OUT cannot be in a probable eleven. The editorial path already reflects it
-            # (the editors drop him), the engine path did not: it ranked by predicted surplus alone and
-            # would field a player the same sheet marks injured two columns to the right.
-            pool = [row for row in pool
-                    if not row.get("desc_injury_open")
-                    and row.get("desc_availability_now") not in ("injured", "suspended")]
+            pool = list(by_role.get(role, []))
+            if mode == "next":
+                # a man who is out cannot play the next match; for the schieramento tipo he can
+                pool = [row for row in pool
+                        if not row.get("desc_injury_open")
+                        and row.get("desc_availability_now") not in ("injured", "suspended")]
             if editorial:
                 pool = sorted((row for row in pool if row.get("desc_starter_prob")),
-                              key=lambda row: -_number(row.get("desc_starter_prob")))
+                              key=lambda row: (-_number(row.get("desc_starter_prob")),
+                                               -self.titolarita(row, "recent")[0]))
+            else:
+                horizon = "recent" if mode == "next" else "season"
+                pool = sorted(pool, key=lambda row, h=horizon: (-self.titolarita(row, h)[0],
+                                                                -self.titolarita(row, h)[1]))
             chosen = pool[:slots]
             bench = pool[slots:]
-            # An alternative is someone who could TAKE the shirt, so it has to come from outside the
-            # eleven: a back three of near-equal starters otherwise lists its own members as each
-            # other's rivals, which says nothing about who is actually in a duel with whom.
+            # An alternative is someone who could TAKE the shirt, so it comes from outside the eleven: a
+            # back three of near-equal starters otherwise lists its own members as each other's rivals.
             starters = {row.get("name") for row in chosen}
             for index, starter in enumerate(chosen):
                 named = [name.strip() for name in (starter.get("desc_duel_names") or "").split(";")
                          if name.strip() and name.strip() not in starters]
-                if named:
+                if named and editorial:
                     rivals = [row for row in bench if row.get("name") in named][:2]
                 else:
-                    # no editorial duel left: only the LAST shirt of the line is contestable, by the
-                    # next man in the role - not every slot by everyone
+                    # only the LAST shirt of the line is contestable, by the next man in the role
                     rivals = bench[:2] if index == len(chosen) - 1 else []
                 out.append((role, starter, rivals))
         return out
@@ -1937,42 +2082,80 @@ class SnapshotView(ttk.Frame):
     def lateral(cls, row: dict) -> float | None:
         """Where this player stands across the pitch: -1 left ... +1 right, None = wide, side unknown.
 
-        Read off the Mantra roles, which say it explicitly ('dd' right-back, 'ds' left-back), and that
-        is why it works in a Classic auction too: the listone carries the Mantra roles regardless of the
-        game being played. `avg_y` from the positional heatmap is the refinement for the players whose
-        role does not state a side - it is exported in the sheet and used here as soon as it is filled.
+        Read off the Mantra roles, which say it explicitly ('dd' right back, 'ds' left back), and that is
+        why it works in a Classic auction too: the listone carries the Mantra roles regardless of the
+        game being played. Precedence matters - Carlos Augusto is 'b;ds;e' and reading the first entry
+        put a left back in the middle of the defence. `avg_y` from the positional heatmap is the
+        refinement for the roles that name no side, used as soon as it is filled.
         """
+        # MEASURED first: `desc_side_measured` is where he really stood, from the positional heatmap
+        # with its axis calibrated on the backs whose role names a side. It beats the listone's role,
+        # which is what he is sold as - a nominal 'dc' who played the left of a back three really was on
+        # the left, and that is the whole point of asking for a precise real role.
+        measured = row.get("desc_side_measured")
+        if measured not in (None, ""):
+            return _number(measured, None)
         roles = [part.strip().lower() for part in (row.get("roles_mantra") or "").split(";")
                  if part.strip()]
         sided = [cls.SIDE[role] for role in roles if role in cls.SIDE]
         if sided:
             return sided[0]
         if any(role in cls.WIDE for role in roles):
-            avg_y = row.get("desc_avg_y")
-            if avg_y not in (None, ""):
-                # the provider's y runs 0..100 across the pitch; centre it on the same -1..+1 scale
-                return max(-1.0, min(1.0, (_number(avg_y, 50.0) - 50.0) / 50.0))
             return None
         return 0.0
 
     def _lane(self, slots: list[tuple[dict, list[dict]]]) -> list[tuple[dict, list[dict]]]:
         """One line of the formation, ordered ACROSS the pitch: the team's left first.
 
-        Left first because the pitch is drawn attacking rightwards, and facing that way the left flank
-        is the top of the screen. Wide players whose role does not name a side take the outermost free
-        slots rather than being dropped in the middle, which is where an unordered lane would leave a
-        winger.
+        Wide players whose role does not name a side take the outermost free slots rather than being
+        dropped in the middle, which is where an unordered lane leaves a winger.
         """
         known = [(self.lateral(row), row, rivals) for row, rivals in slots]
         unknown = [entry for entry in known if entry[0] is None]
         placed = sorted((entry for entry in known if entry[0] is not None),
                         key=lambda entry: entry[0])
         for index, entry in enumerate(unknown):
-            # alternate: first one to the left edge, next to the right edge, then inwards
             placed.insert(0 if index % 2 == 0 else len(placed), entry)
         return [(row, rivals) for _side, row, rivals in placed]
 
-    def _shirt(self, x: float, y: float, starter: dict, rivals: list[dict]) -> None:
+    @staticmethod
+    def lines(formation: str) -> tuple[int, int, int]:
+        """'3-5-2' -> (3, 5, 2) · '3-4-2-1' -> (3, 6, 1). Every part counts.
+
+        A four-part module is read by taking the first as the defence, the LAST as the attack and summing
+        everything between: in the P/D/C/A vocabulary a 3-4-2-1 fields six midfielders. Reading only the
+        first three parts left ten men on the pitch, which is how this was found.
+        """
+        try:
+            parts = [int(part) for part in str(formation).split("-") if part.strip()]
+        except (ValueError, TypeError):
+            parts = []
+        if len(parts) < 2 or sum(parts) != 10:
+            return 4, 3, 3
+        return parts[0], sum(parts[1:-1]), parts[-1]
+
+    @classmethod
+    def badge(cls, row: dict, drawn_side: float | None = None) -> str:
+        """The role code for the marker: 'Ts', 'Td', 'Dc', 'Ed'...
+
+        Two inputs, in this order: the Mantra role (which often names the flank outright) and, when it
+        does not, WHERE the player is drawn in his line - so a winger the sheet places on the left reads
+        'Es' and not a shrug. Nothing is invented: with neither, the code stays neutral.
+        """
+        side = cls.lateral(row)
+        if side is None:
+            side = drawn_side
+        index = 1 if side is None or abs(side) < 0.34 else (0 if side < 0 else 2)
+        roles = [part.strip().lower() for part in (row.get("roles_mantra") or "").split(";")
+                 if part.strip()]
+        for role in roles:
+            if role in cls.BADGE:
+                return cls.BADGE[role][index]
+        classic = (row.get("role_classic") or "").upper()
+        return cls.BADGE_CLASSIC.get(classic, ("?", "?", "?"))[index]
+
+    def _shirt(self, x: float, y: float, starter: dict, rivals: list[dict],
+               drawn_side: float | None = None) -> None:
         """One shirt: a plate behind the text, because white on grass is unreadable at this size.
 
         Tkinter has no alpha on a canvas, so legibility comes from a solid dark plate rather than a
@@ -1981,16 +2164,22 @@ class SnapshotView(ttk.Frame):
         """
         canvas = self.pitch
         name = (starter.get("name") or "")[:13]
-        surplus = starter.get("engine_surplus")
-        headline = f"{name}  {surplus}" if surplus else name
+        share = self.titolarita(starter, "recent" if self.xi_mode.get() == "next" else "season")[0]
+        # the number on the plate is the one that EARNED the shirt (titolarità), not the valuation
+        headline = f"{name}  {share:.0%}" if share else name
         rival_names = ", ".join((row.get("name") or "")[:9] for row in rivals)
         chars = max(len(headline), len(rival_names) + 3 if rival_names else 0)
         wide = 10 + chars * 6.0
         high = 17 + (12 if rival_names else 0)
-        left, top = x - wide / 2, y - high / 2
+        # the marker is a labelled disc: the role code is the first thing to read on a formation
+        code = self.badge(starter, drawn_side)
+        radius = 11
+        canvas.create_oval(x - radius, y - radius, x + radius, y + radius,
+                           fill="#12351a", outline="#f4f6f5", width=2)
+        canvas.create_text(x, y, fill="#ffffff", font=theme.FONTS["pill"], text=code)
+        left, top = x + radius + 2, y - high / 2
         canvas.create_rectangle(left, top, left + wide, top + high,
                                 fill="#12351a", outline="#4c7a35", width=1)
-        canvas.create_oval(x - 4, top - 9, x + 4, top - 1, fill="#f4f6f5", outline="#12351a")
         canvas.create_text(left + 5, top + 9, anchor="w", fill="#ffffff", font=theme.FONTS["strong"],
                            text=headline)
         if rival_names:
@@ -2032,8 +2221,9 @@ class SnapshotView(ttk.Frame):
         if not club:
             return
         info = self.clubs.get(club, {})
-        formation, _source = self._formation(info)
-        eleven = self.eleven(club, formation)
+        mode = self.xi_mode.get()
+        formation, _source = self._formation(info, mode)
+        eleven = self.eleven(club, formation, mode)
         if not eleven:
             canvas.create_text(width // 2, height // 2, fill=line, font=theme.FONTS["strong"],
                                text="no players in this club's sheet")
@@ -2045,15 +2235,23 @@ class SnapshotView(ttk.Frame):
         for role, fraction in (("P", 0.08), ("D", 0.30), ("C", 0.54), ("A", 0.80)):
             slots = self._lane(lanes.get(role, []))
             for index, (starter, rivals) in enumerate(slots):
-                x = width * (index + 1) / (len(slots) + 1)
+                spread = (index + 1) / (len(slots) + 1)
+                x = width * (0.10 + 0.80 * spread)
                 # a five-man line cannot fit five plates across a column, so alternate shirts step
                 # forward - which is also how a 3-5-2 really lines up, wing-backs ahead of the middle
                 y = height * fraction + (0 if len(slots) < 4 or index % 2 == 0 else 26)
-                self._shirt(x, y, starter, rivals)
-        editorial = any(row.get("desc_starter_prob") for _role, row, _rivals in eleven)
+                # where he is DRAWN, on the same -1..+1 scale `lateral` uses: it is what names the flank
+                # for a role that does not (a winger placed left reads 'Es')
+                self._shirt(x, y, starter, rivals, drawn_side=(spread - 0.5) * 2)
+        editorial = mode == "next" and any(row.get("desc_starter_prob")
+                                           for _role, row, _rivals in eleven)
+        if mode == "next":
+            criterion = ("probabili" if editorial else
+                         "no probabili snapshot: who has been STARTING lately")
+        else:
+            criterion = "season start share, injuries ignored"
         canvas.create_text(width // 2, height - 14, fill=line, font=theme.FONTS["small"],
-                           text=f"{formation} · XI from "
-                                f"{'the probabili' if editorial else 'the engine (no probabili yet)'}"
+                           text=f"{formation} · XI by {criterion}"
                                 " · seen from the opposing goal: their left is your left")
 
 
@@ -2176,6 +2374,9 @@ class ToolkitGUI:
         with contextlib.suppress(Exception):
             self.players.reload()
             self.auction.reload()
+            # The TREND strips are IMAGES: their background was baked in when they were drawn, so a
+            # theme switch left white plates on a dark table until they are redrawn.
+            self.snapshot.restyle()
 
     # ---------- header ----------
     def _build_header(self, parent: tk.Widget) -> None:
