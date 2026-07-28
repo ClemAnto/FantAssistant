@@ -107,6 +107,11 @@ def build_parser() -> argparse.ArgumentParser:
                         help="role system the sheet is ranked in (default: classic)")
     p_snap.add_argument("--season", metavar="YYYY-YY",
                         help="the season being auctioned (default: the latest listone)")
+    p_snap.add_argument("--date", metavar="YYYY-MM-DD",
+                        help="stand the sheet on this DAY: the last 10 matches are the ten before it "
+                             "and every value is measured only up to it (default: today)")
+    p_snap.add_argument("--club", action="append", metavar="NAME",
+                        help="only these clubs, canonical names (repeatable; default: all)")
     p_snap.add_argument("--out", metavar="DIR", help="destination folder (default: data/reports/...)")
     p_snap.add_argument("--no-refresh", dest="refresh", action="store_false",
                         help="do not fetch today's probabili/indisponibili first (offline run)")
@@ -238,7 +243,8 @@ def main(argv: list[str] | None = None) -> int:
                                    verify=args.verify)
             elif args.command == "snapshot":
                 load("snapshot").run(ctx, season=args.season, platform=args.platform,
-                                     game=args.game, refresh=args.refresh, out=args.out)
+                                     game=args.game, refresh=args.refresh, out=args.out,
+                                     date=args.date, clubs=args.club)
             elif args.command == "backtest":
                 load("backtest").run(ctx, windows=args.window, platforms=args.platform,
                                      games=args.game, rules=args.rules, cases=args.cases,

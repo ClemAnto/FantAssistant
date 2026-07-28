@@ -40,6 +40,7 @@ import json
 import os
 from pathlib import Path
 
+from euroleghe_ingest import matching
 from euroleghe_ingest.context import Context
 from euroleghe_ingest.engine import evaluate, features
 from euroleghe_ingest.modules import positions
@@ -84,8 +85,8 @@ def season_of(date: str) -> str:
     return f"{start}-{(start + 1) % 100:02d}"
 
 
-def resolve_window(conn, season: str | None = None,
-                   today: str | None = None) -> tuple[features.Window, str | None]:
+def resolve_window(conn, season: str | None = None, today: str | None = None,
+                   as_of: str | None = None) -> tuple[features.Window, str | None]:
     """(window, note). The target is the season being AUCTIONED, listone or not.
 
     The default target is the season today belongs to - not the newest listone. That is the whole point
@@ -97,7 +98,10 @@ def resolve_window(conn, season: str | None = None,
         "SELECT DISTINCT season FROM rosters ORDER BY season")]
     if not seasons:
         raise RuntimeError("no rosters in the DB - run `bootstrap` (or at least `ratings`) first")
-    today = today or dt.datetime.now(tz=dt.UTC).date().isoformat()
+    # `as_of` IS the day the sheet stands on, so it is also the day that decides which season is being
+    # played: standing on 1 March 2026 the season in progress is 2025-26, and reading "today" from the
+    # clock instead would auction 2026-27 with March's squads - two different seasons in one sheet.
+    today = as_of or today or dt.datetime.now(tz=dt.UTC).date().isoformat()
     target = season or season_of(today)
     note = None
     if target not in seasons:
@@ -106,7 +110,10 @@ def resolve_window(conn, season: str | None = None,
                 f"show. Rerun it when the listone is out and the same command fills them in.")
     earlier = [value for value in seasons if value < target]
     input_season = earlier[-1] if earlier else target
-    auction = min(f"{target.split('-')[0]}-08-15", today)
+    # `as_of` is taken literally, 15 August is not imposed on it: the point of a back-dated snapshot is to
+    # stand on a DAY inside a season - "what did this squad look like on 1 March" - and clamping it to the
+    # pre-season would answer a different question. Without it, the auction is the usual mid-August one.
+    auction = as_of or min(f"{target.split('-')[0]}-08-15", today)
     return features.Window("SNAP", input_season, target, auction), note
 
 
@@ -656,14 +663,46 @@ def discipline(conn, season: str, platform: str) -> dict[int, dict]:
                 (season, platform))}
 
 
-def propensity(conn, season: str) -> dict[int, dict]:
-    """Bonus propensity per 90 over the FULL real season - the engine's own input, reported as-is."""
+def measured_season(conn, window) -> tuple[str, str | None]:
+    """(the season the descriptive layers measure, a note). Which season "so far" even means.
+
+    Standing on 1 March 2026 the interesting titolarità is THIS season's, up to that day - not last
+    season's total, which is what a pre-season snapshot has to use because nothing else exists yet. So
+    the target season is measured when it has really been played by then, and the previous one otherwise.
+    """
+    played = conn.execute(
+        """SELECT COUNT(DISTINCT match_id) FROM external_match_stats
+           WHERE season = ? AND source = 'sofascore' AND match_date IS NOT NULL AND match_date < ?""",
+        (window.target_season, window.auction_date)).fetchone()[0]
+    if played >= TO_DATE_MIN_MATCHES:
+        return window.target_season, (
+            f"measured on {window.target_season} up to {window.auction_date} ({played} matches in the "
+            f"per-match layer), not on the season total: everything after that date is ignored")
+    return window.input_season, None
+
+
+# Below this many club-matches in the season so far, "this season to date" is not a sample: the layers
+# fall back to the previous season's totals, which is what a pre-season snapshot uses anyway.
+TO_DATE_MIN_MATCHES = 20
+
+
+def propensity(conn, season: str, before: str | None = None) -> dict[int, dict]:
+    """Bonus propensity per 90 over the FULL real season - the engine's own input, reported as-is.
+
+    `before` switches the source from the season AGGREGATE to the per-match layer bounded by that date,
+    which is the only way to say "his rate so far" without reading matches that had not been played.
+    """
+    query = ("""SELECT fc_id, SUM(COALESCE(minutes, 0)), SUM(COALESCE(goals, 0)),
+                       SUM(COALESCE(assists, 0)), SUM(COALESCE(xg, 0)), SUM(COALESCE(xa, 0))
+                FROM external_match_stats
+                WHERE season = ? AND source = 'sofascore' AND match_date IS NOT NULL
+                  AND match_date < ? GROUP BY fc_id""" if before else
+             """SELECT fc_id, SUM(COALESCE(minutes, 0)), SUM(COALESCE(goals, 0)),
+                       SUM(COALESCE(assists, 0)), SUM(COALESCE(xg, 0)), SUM(COALESCE(xa, 0))
+                FROM external_stats WHERE season = ? AND source = 'sofascore' GROUP BY fc_id""")
     out: dict[int, dict] = {}
     for fc_id, minutes, goals, assists, xg, xa in conn.execute(
-            """SELECT fc_id, SUM(COALESCE(minutes, 0)), SUM(COALESCE(goals, 0)),
-                      SUM(COALESCE(assists, 0)), SUM(COALESCE(xg, 0)), SUM(COALESCE(xa, 0))
-               FROM external_stats WHERE season = ? AND source = 'sofascore' GROUP BY fc_id""",
-            (season,)):
+            query, (season, before) if before else (season,)):
         if not minutes:
             continue
         per90 = 90.0 / minutes
@@ -696,8 +735,8 @@ def lineup_spellings(conn, resolve) -> dict[str, list[str]]:
 PREVIOUS_COACH_WEIGHT = 0.25
 
 
-def typical_formation(conn, spellings: list[str], season: str, coach_since: str | None = None
-                      ) -> tuple[str | None, float | None, int, str]:
+def typical_formation(conn, spellings: list[str], season: str, coach_since: str | None = None,
+                      before: str | None = None) -> tuple[str | None, float | None, int, str]:
     """The club's MODAL formation over its complete elevens: (shape, share, elevens, basis).
 
     The mode, not the mean. A club that alternates 3-5-2 and 4-3-3 has a mean of 3.5 defenders, which is
@@ -715,8 +754,9 @@ def typical_formation(conn, spellings: list[str], season: str, coach_since: str 
     rows = conn.execute(
         f"""SELECT defenders, midfielders, forwards, match_date FROM club_match_lineups
             WHERE club IN ({placeholders}) AND season = ? AND starters = 11
-              AND goalkeepers + defenders + midfielders + forwards = 11""",
-        (*spellings, season)).fetchall()
+              AND goalkeepers + defenders + midfielders + forwards = 11
+              AND (? IS NULL OR (match_date IS NOT NULL AND match_date < ?))""",
+        (*spellings, season, before, before)).fetchall()
     if not rows:
         return None, None, 0, "no lineups"
     weights: dict[tuple[int, int, int], float] = {}
@@ -778,18 +818,25 @@ def measured_sides(conn, season: str, notes: list[str]) -> dict[int, float]:
             for fc_id, avg_y, _roles in rows}
 
 
-def titolarita(conn, season: str) -> dict[int, dict]:
+def titolarita(conn, season: str, before: str | None = None) -> dict[int, dict]:
     """How often he STARTED over the full real season: (starts, matches, share).
 
     This - not any valuation - is what says whether a coach fields him. Read over the whole season
     because the "schieramento tipo" is a habit over a year; the last ten matches are a separate column
     and answer the other question, which side the coach is picking now.
+
+    `before` reads the per-match layer up to that date instead of the season aggregate: on 1 March the
+    habit is the one measured through February, and the aggregate would carry the rest of the season -
+    matches that, from where the sheet is standing, have not been played.
     """
+    query = ("""SELECT fc_id, SUM(COALESCE(started, 0)), COUNT(*) FROM external_match_stats
+                WHERE season = ? AND source = 'sofascore' AND COALESCE(minutes, 0) > 0
+                  AND match_date IS NOT NULL AND match_date < ? GROUP BY fc_id""" if before else
+             """SELECT fc_id, SUM(COALESCE(starts, 0)), SUM(COALESCE(matches, 0))
+                FROM external_stats WHERE season = ? AND source = 'sofascore' GROUP BY fc_id""")
     out: dict[int, dict] = {}
     for fc_id, starts, matches in conn.execute(
-            """SELECT fc_id, SUM(COALESCE(starts, 0)), SUM(COALESCE(matches, 0))
-               FROM external_stats WHERE season = ? AND source = 'sofascore' GROUP BY fc_id""",
-            (season,)):
+            query, (season, before) if before else (season,)):
         if not matches:
             continue
         out[fc_id] = {"starts": starts, "matches": matches,
@@ -798,7 +845,8 @@ def titolarita(conn, season: str) -> dict[int, dict]:
 
 
 def club_context(conn, data: features.WindowData, starters_date: str | None,
-                 clubs: list[str]) -> list[dict]:
+                 clubs: list[str], measured: str | None = None,
+                 before: str | None = None) -> list[dict]:
     """One row per club OF THE SHEET: coach, formation, lines fielded, arrivals, Elo.
 
     The club list comes from the sheet's own rows, not from `rosters`: with no listone for the season
@@ -826,19 +874,21 @@ def club_context(conn, data: features.WindowData, starters_date: str | None,
                ORDER BY co.valid_from DESC LIMIT 1""", (club, window.auction_date)).fetchone()
         mine = spellings.get(resolve(club)[0], [])
         placeholders = ",".join("?" * len(mine)) or "NULL"
+        season = measured or window.input_season
         lines = conn.execute(
             f"""SELECT AVG(defenders), AVG(midfielders), AVG(forwards), COUNT(*)
                 FROM club_match_lineups
                 WHERE club IN ({placeholders}) AND season = ? AND starters = 11
-                  AND goalkeepers + defenders + midfielders + forwards = 11""",
-            (*mine, window.input_season)).fetchone()
+                  AND goalkeepers + defenders + midfielders + forwards = 11
+                  AND (? IS NULL OR (match_date IS NOT NULL AND match_date < ?))""",
+            (*mine, season, before, before)).fetchone()
         # The coach's own start date, and only when he arrived after the sample began: an unchanged
         # coach needs no reweighting, the whole season is his.
         coach_since = coach[1] if coach and coach[1] else None
-        if coach_since and coach_since <= f"{window.input_season.split('-')[0]}-07-01":
+        if coach_since and coach_since <= f"{season.split('-')[0]}-07-01":
             coach_since = None
         typical, share, counted, basis = typical_formation(
-            conn, mine, window.input_season, coach_since)
+            conn, mine, season, coach_since, before)
         arrivals = conn.execute(
             """SELECT COUNT(*) FROM arrivals a JOIN rosters r
                ON r.fc_id = a.fc_id AND r.season = a.season
@@ -1182,21 +1232,42 @@ def refresh_real_roles(ctx: Context, clubs, date: str) -> str | None:
 
 
 def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
-        game: str = "classic", refresh: bool = True, out: str | None = None, **kwargs) -> dict:
-    """Build today's auction snapshot. Read-only on the DB except for the editorial refresh."""
+        game: str = "classic", refresh: bool = True, out: str | None = None,
+        date: str | None = None, clubs=None, **kwargs) -> dict:
+    """Build the auction snapshot. Read-only on the DB except for the editorial refresh.
+
+    `date` stands the whole sheet on a chosen DAY: the last ten matches are the ten before it, the squads
+    and the availability are the ones known then, and the descriptive layers are measured on the season so
+    far instead of on its total (see `measured_season`). What it cannot back-date is the editorial
+    refresh - the probabili exist only from the day the weekly job recorded them - and the heatmap, which
+    is a season-long cloud and is therefore read from the season BEFORE, never from the one in progress.
+
+    `clubs` narrows the sheet to the clubs named. The engine's population is untouched: a replacement
+    level measured on one squad is not a replacement level, so the numbers are the same ones the full run
+    would print - only the rows are fewer.
+    """
     conn = ctx.require_conn()
     if platform not in ("euro", "default"):
         raise RuntimeError(f"Unknown platform {platform!r}; choose euro|default")
     if game not in ("classic", "mantra"):
         raise RuntimeError(f"Unknown game {game!r}; choose classic|mantra")
 
+    if isinstance(clubs, str):
+        clubs = [clubs]
     notes: list[str] = []
+    if date and refresh:
+        # Refusing would be worse than saying it: today's probabili describe today's team, and pasting
+        # them onto a March sheet is exactly the look-ahead this whole module is dated to avoid.
+        refresh = False
+        notes.append(f"as of {date}: the editorial refresh was skipped, because today's probabili are "
+                     f"not the probabili of that day. Whatever the weekly job recorded at or before "
+                     f"{date} is used instead - possibly nothing.")
     if refresh:
         failure = refresh_editorial(ctx)
         if failure:
             notes.append(failure)
 
-    window, note = resolve_window(conn, season)
+    window, note = resolve_window(conn, season, as_of=date)
     if note:
         notes.append(note)
     print(f"[snapshot] {platform}/{game} · auctioning {window.target_season} from "
@@ -1208,7 +1279,8 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
     # observed for the PERIMETER - the clubs this platform actually lets you buy from.
     if refresh:
         failure = refresh_real_roles(
-            ctx, perimeter_clubs(conn, platform, (window.input_season, window.target_season)),
+            ctx, clubs or perimeter_clubs(conn, platform,
+                                          (window.input_season, window.target_season)),
             window.auction_date)
         if failure:
             notes.append(failure)
@@ -1228,6 +1300,12 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
         raise RuntimeError(f"no players in the {window.target_season} listone for platform "
                            f"{platform} - nothing to snapshot")
 
+    # Which season the descriptive layers measure, and up to which day. `before` is None for the usual
+    # pre-season run: there the season total IS everything that happened.
+    measured, measured_note = measured_season(conn, window)
+    before = window.auction_date if measured == window.target_season else None
+    if measured_note:
+        notes.append(measured_note)
     seasons = [row[0] for row in conn.execute(
         "SELECT DISTINCT season FROM rosters WHERE season <= ? ORDER BY season",
         (window.target_season,))]
@@ -1243,8 +1321,11 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
         "injuries": injury_history(conn, window.auction_date, seasons),
         "starters": starters,
         "availability": availability_now(conn, window.auction_date),
-        "propensity": propensity(conn, window.input_season),
-        "titolarita": titolarita(conn, window.input_season),
+        "propensity": propensity(conn, measured, before),
+        "titolarita": titolarita(conn, measured, before),
+        # Cards stay on the season aggregate of the season BEFORE: the per-match layer does not store
+        # yellows and reds, so there is nothing to bound by a date - and last season's total is at least
+        # a fact that was known by then.
         "discipline": discipline(conn, window.input_season, platform),
         "contract": contract_state(conn, window.target_season),
         "penalties": penalty_duty(conn, window.auction_date),
@@ -1258,7 +1339,7 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
         # ML/MC/MR, AM, LW/RW, ST). It answers the question neither of the other two can - a left back
         # is not a centre back, and P/D/C/A and G/D/M/F both call them the same thing. Read as of the
         # auction date, because it is a dated observation and not a season fact.
-        "real_role_detail": positions.roles_as_of(conn, window.auction_date),
+        "real_role_detail": positions.roles_as_of(conn, window.auction_date, fallback=bool(date)),
         "sides": measured_sides(conn, window.input_season, notes),
         "positions": {fc_id: (avg_x, avg_y) for fc_id, avg_x, avg_y in conn.execute(
             "SELECT fc_id, avg_x, avg_y FROM positions WHERE season = ? AND source = 'sofascore'",
@@ -1266,6 +1347,15 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
     }
     layers["duels"] = duels(data.observations, starters)
     covered = sum(1 for obs in data.observations if obs.fc_id in layers["real_role_detail"])
+    if date:
+        borrowed = sum(1 for detail in layers["real_role_detail"].values()
+                       if (detail.get("observed") or "") > window.auction_date)
+        if borrowed:
+            notes.append(f"{borrowed} granular real roles were observed AFTER {window.auction_date} and "
+                         f"are used anyway: the provider ignores the season it is asked for, so no "
+                         f"role can be observed for a past date and the alternative is a sheet that "
+                         f"cannot place anybody. A role is the slowest-moving fact here - a left back "
+                         f"is still a left back - and desc_real_role_observed carries the real date.")
     if covered < len(data.observations):
         notes.append(f"{len(data.observations) - covered} of {len(data.observations)} players have no "
                      f"granular real role: the provider's squad pages did not list them, or their "
@@ -1286,15 +1376,30 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
         notes.append(f"{dropped} players were left out of the sheet: their club is not one this "
                      f"platform plays ({len(perimeter)} clubs are). They stay in the engine's "
                      f"population, so every number here is the one the harness would give")
-    clubs = club_context(conn, data, starters_date,
-                         sorted({row["club"] for row in rows if row.get("club")}))
+    if clubs:
+        wanted = {matching.club_key(name) for name in clubs}
+        kept = [row for row in rows if matching.club_key(row.get("club") or "") in wanted]
+        if not kept:
+            raise RuntimeError(f"no players for {', '.join(clubs)} in this sheet - the club names are "
+                               f"the canonical ones, e.g. 'Napoli', 'Inter'")
+        notes.append(f"narrowed to {', '.join(sorted({row['club'] for row in kept}))}: "
+                     f"{len(rows) - len(kept)} players of the other clubs were left out of the sheet, "
+                     f"and the engine's numbers are unchanged (its population is the whole platform)")
+        rows = kept
+    club_rows = club_context(conn, data, starters_date,
+                            sorted({row["club"] for row in rows if row.get("club")}),
+                            measured, before)
 
-    stamp = dt.datetime.now(tz=dt.UTC).date().isoformat()
-    folder = Path(out) if out else (ctx.config.data_dir / "reports" /
-                                    f"auction-snapshot-{window.target_season}-{platform}-{game}-{stamp}")
+    # The folder carries the day the sheet STANDS ON, plus the club when it is one club: a back-dated
+    # run must not overwrite today's, and two dates are two different sheets.
+    stamp = date or dt.datetime.now(tz=dt.UTC).date().isoformat()
+    only = f"-{matching.club_key(clubs[0]).replace(' ', '')}" if clubs and len(clubs) == 1 else ""
+    folder = Path(out) if out else (
+        ctx.config.data_dir / "reports" /
+        f"auction-snapshot-{window.target_season}-{platform}-{game}{only}-{stamp}")
     folder.mkdir(parents=True, exist_ok=True)
     _write_csv(folder / "players.csv", PLAYER_COLUMNS, rows)
-    _write_csv(folder / "clubs.csv", list(clubs[0]) if clubs else ["club"], clubs)
+    _write_csv(folder / "clubs.csv", list(club_rows[0]) if club_rows else ["club"], club_rows)
 
     filled = {column: sum(1 for row in rows if row.get(column) not in (None, ""))
               for column in PLAYER_COLUMNS}
@@ -1303,7 +1408,7 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
         "platform": platform, "game": game,
         "target_season": window.target_season, "input_season": window.input_season,
         "auction_date": window.auction_date,
-        "players": len(rows), "clubs": len(clubs),
+        "players": len(rows), "clubs": len(club_rows),
         "engine": {
             "rules": ["R0", *evaluate.ADOPTED.get(platform, ())],
             "params_from": params_source,
@@ -1360,7 +1465,7 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
     (folder / "manifest.json").write_text(
         json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8")
 
-    print(f"[snapshot] {len(rows)} players · {len(clubs)} clubs -> {folder}")
+    print(f"[snapshot] {len(rows)} players · {len(club_rows)} clubs -> {folder}")
     thin = [column for column, count in filled.items()
             if column.startswith(("engine_", "desc_")) and count < len(rows) * 0.2]
     if thin:

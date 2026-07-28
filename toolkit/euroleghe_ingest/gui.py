@@ -2250,6 +2250,19 @@ class SnapshotView(ttk.Frame):
         return lanes, geometry, drawn
 
     @classmethod
+    def sides_of(cls, row: dict) -> set[str]:
+        """Every side he can cover, from ALL his granular codes - not just the primary one.
+
+        A 'DC;DL' is a centre back who also plays left back, and that IS in his repertoire; a 'DC' alone
+        is not, and asking him to play wide is the thing a coach does last. With no codes at all this
+        falls back to the single side `side_of` derives from the Mantra role or the heatmap.
+        """
+        sides = {("L" if REAL_ROLE_SIDE[code] < -0.34 else
+                  "R" if REAL_ROLE_SIDE[code] > 0.34 else "C")
+                 for code in cls.real_roles(row) if code in REAL_ROLE_SIDE}
+        return sides or {cls.side_of(row)}
+
+    @classmethod
     def side_of(cls, row: dict) -> str:
         """L, C or R - which slot of his line he belongs to."""
         side = cls.lateral(row)
@@ -2332,11 +2345,21 @@ class SnapshotView(ttk.Frame):
         formation - and it is the real formation the pitch draws, not a list of fantacalcio roles:
 
         * A PUNTA CENTRALE plays in the middle of an attack and nowhere else. Without this the fallback
-          that fills an empty wing with whoever is left drew a centre-forward on the touchline.
+          that fills an empty wing with whoever is left drew a centre-forward on the touchline. An
+          empty flank goes to a player from the OTHER flank first - being inverted is a normal ask, and
+          the cost ranks it above a central and far above a striker.
         * A SIDE FIELDS ONE. A second centre-forward has to adapt - he is drawn as a seconda punta, see
           `_line_codes` - and a third is not a formation, so he costs more than any winger or mezzala.
         """
-        wrong_side = 0 if self.side_of(row) == side else (1 if "C" in (side, self.side_of(row)) else 2)
+        mine = self.sides_of(row)
+        if side in mine:
+            wrong_side = 0        # it is in his repertoire: one of his own codes plays there
+        elif side != "C" and mine != {"C"}:
+            wrong_side = 1        # a flank player asked to cover the other flank: a coach does this
+        elif side != "C":
+            wrong_side = 3        # a central onto a wing: hardly ever, unless it is in his codes
+        else:
+            wrong_side = 2        # a wide player asked to play in the middle
         if "ST" not in self.real_roles(row):
             return wrong_side, 0
         return wrong_side, (2 if lane == "A" and side != "C" else 0) + (4 if strikers >= 2 else 0)
@@ -2505,9 +2528,12 @@ class SnapshotView(ttk.Frame):
                 starter, *bench = picks
                 strikers += 1 if "ST" in self.real_roles(starter) else 0
                 # the ranked list spans the whole line, so the alternatives are narrowed back to the men
-                # who play WHERE HE PLAYS: a right back's rival is another right back, and listing the
-                # spare centre-back as his challenger also inflates the duel
-                bench = [row for row in bench if self.side_of(row) == self.side_of(starter)]
+                # who could really take THIS place (see `can_replace`)
+                # his own position first; the other flank only when nobody plays his - which is the
+                # order a coach solves it in, and it keeps a switched full back out of a duel that a
+                # proper one is already in
+                bench = ([row for row in bench if self.can_replace(starter, row)]
+                         or [row for row in bench if self.can_replace(starter, row, mirrored=True)])
                 taken.add(starter.get("name"))
                 # An alternative is whoever else can wear THIS shirt: same side, still unpicked. Two men
                 # of equal titolarità in one slot alternate, and `slot_share` then reads 50% - the
@@ -2547,9 +2573,40 @@ class SnapshotView(ttk.Frame):
                      if name.strip() and name.strip() not in names]
             rest = [row for row in listed
                     if row.get("name") not in names and self.lane_of(row) == lane]
-            rivals = [row for row in rest if row.get("name") in named][:2] or rest[:1]
+            # the editors' named duel is a stated fact and wins; otherwise only a man who could actually
+            # take the place counts, so a winger is not offered as the centre-forward's alternative
+            rivals = ([row for row in rest if row.get("name") in named][:2]
+                      or [row for row in rest if self.can_replace(starter, row)][:1])
             out.append((lane, starter, rivals))
         return out
+
+    # The same position on the OTHER flank. A coach who runs out of right backs plays a left back there
+    # and inverts him; he does not play a centre-forward there. So a mirrored flank is a real option and
+    # the two are never treated as one: it is the SECOND choice, both when a shirt is handed out
+    # (`slot_cost`) and when the alternatives are listed (`can_replace`).
+    MIRROR: ClassVar[dict[str, str]] = {"DL": "DR", "DR": "DL", "ML": "MR", "MR": "ML",
+                                        "LW": "RW", "RW": "LW"}
+
+    @classmethod
+    def can_replace(cls, starter: dict, row: dict, mirrored: bool = False) -> bool:
+        """Whether this man could really take that place - the same POSITION, not merely the same line.
+
+        A winger is not a centre-forward. Neres listed as Hojlund's ballottaggio was the listone's 'A'
+        talking, and a false duel is worse at an auction than no duel at all: it reads as a risk that is
+        not there, and it drags the percentage of a man who has nobody behind him.
+
+        Where both have granular codes they decide, and one shared code is enough - 'RW;AM' and 'AM' do
+        compete for the same shirt. Where either has none, the older test stands (same listone role, same
+        flank), because that is the whole of what is known about him.
+        """
+        mine, theirs = set(cls.real_roles(starter)), set(cls.real_roles(row))
+        if mirrored:
+            mine |= {cls.MIRROR[code] for code in mine if code in cls.MIRROR}
+        if mine and theirs:
+            return bool(mine & theirs)
+        return (row.get("role_classic") == starter.get("role_classic")
+                and (cls.side_of(row) == cls.side_of(starter) if not mirrored
+                     else cls.side_of(row) != "C" and cls.side_of(starter) != "C"))
 
     @classmethod
     def real_roles(cls, row: dict) -> list[str]:
@@ -3493,16 +3550,32 @@ class ToolkitGUI:
         season = tk.StringVar(value="latest")
         ttk.Combobox(frm, textvariable=season, state="readonly", width=22,
                      values=["latest", *SEASONS]).grid(row=2, column=1, pady=4)
+        # A DAY and a CLUB, both optional: this is what turns the sheet into "what did this squad look
+        # like on 1 March", which is the only way to look at a decision that has already been taken.
+        ttk.Label(frm, text="As of date:").grid(row=3, column=0, sticky="w", pady=4)
+        as_of = tk.StringVar(value="")
+        ttk.Entry(frm, textvariable=as_of, width=24).grid(row=3, column=1, pady=4)
+        ttk.Label(frm, text="Only club:").grid(row=4, column=0, sticky="w", pady=4)
+        only = tk.StringVar(value="")
+        clubs = sorted({name for (name,) in connect(self.config.db_path).execute(
+            "SELECT canonical_name FROM clubs WHERE canonical_name IS NOT NULL")}) \
+            if self.config.db_path.exists() else []
+        ttk.Combobox(frm, textvariable=only, width=22,
+                     values=["", *clubs]).grid(row=4, column=1, pady=4)
         refresh = tk.BooleanVar(value=True)
         ttk.Checkbutton(frm, text="Refresh today's probabili / indisponibili first (3 requests)",
-                        variable=refresh).grid(row=3, column=0, columnspan=2, sticky="w", pady=4)
+                        variable=refresh).grid(row=5, column=0, columnspan=2, sticky="w", pady=4)
 
         ttk.Label(frm, foreground=theme.color("text_muted"), wraplength=360, justify="left",
                   text="Writes players.csv + clubs.csv + manifest.json under data/reports/. The "
                        "`engine_*` columns are the gated valuation; every `desc_*` column is "
                        "descriptive and must not become a coefficient without a pre-registered gate "
-                       "run. Whatever no source states is reported as not measurable."
-                  ).grid(row=4, column=0, columnspan=2, sticky="w", pady=(6, 0))
+                       "run. Whatever no source states is reported as not measurable.\n\n"
+                       "AS OF a past date: the ten matches are the ten before it, the squads and the "
+                       "availability are the ones known then, and titolarita and the bonus rates are "
+                       "measured on that season UP TO that day. The probabili are not refetched - "
+                       "today's are not that day's - so the weekly XI falls back to who was playing."
+                  ).grid(row=6, column=0, columnspan=2, sticky="w", pady=(6, 0))
 
         out: dict = {}
 
@@ -3511,10 +3584,12 @@ class ToolkitGUI:
             out["game"] = game.get()
             out["season"] = None if season.get() == "latest" else season.get()
             out["refresh"] = refresh.get()
+            out["date"] = as_of.get().strip() or None
+            out["clubs"] = [only.get()] if only.get().strip() else None
             dlg.destroy()
 
         btns = ttk.Frame(frm)
-        btns.grid(row=5, column=0, columnspan=2, pady=(10, 0))
+        btns.grid(row=7, column=0, columnspan=2, pady=(10, 0))
         ttk.Button(btns, text="Run", style="Accent.TButton", command=confirm).pack(side="left", padx=4)
         ttk.Button(btns, text="Cancel", command=dlg.destroy).pack(side="left", padx=4)
         dlg.wait_window()

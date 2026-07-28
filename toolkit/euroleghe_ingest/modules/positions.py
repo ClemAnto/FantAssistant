@@ -1233,16 +1233,31 @@ def ingest_roles_from_cache(ctx: Context, date: str | None = None) -> int:
     return len(rows)
 
 
-def roles_as_of(conn, date: str) -> dict[int, dict]:
+def roles_as_of(conn, date: str, fallback: bool = False) -> dict[int, dict]:
     """The newest real-role observation per player at or before a date.
 
     Dated series read the way every other volatile state is read here: an auction dated last August
     must not see a role observed today, or the sheet is quietly reading the future.
+
+    `fallback` lets a player with NO observation by that date take his earliest one after it, and it
+    exists because of what the provider does: it accepts a `seasonId` and ignores it, so a role can only
+    ever be observed on the day it is read and a back-dated sheet would have none at all. A role is also
+    the slowest-moving thing in this database - a left back is still a left back a season later - so the
+    trade is a POSITION read late against a pitch that cannot place anybody. The caller says which it
+    wants, and the sheet reports `desc_real_role_observed`, which is the date it was really read on.
     """
     out: dict[int, dict] = {}
-    for fc_id, roles, primary, line, foot, observed in conn.execute(
+    rows = conn.execute(
+        "SELECT fc_id, roles, primary_role, line, foot, valid_from FROM player_roles "
+        "WHERE source = 'sofascore' AND valid_from <= ? ORDER BY valid_from", (date,)).fetchall()
+    if fallback:
+        # later observations FIRST, so the loop below overwrites them with anything that predates the
+        # date: an in-time reading always wins over a borrowed one
+        rows = conn.execute(
             "SELECT fc_id, roles, primary_role, line, foot, valid_from FROM player_roles "
-            "WHERE source = 'sofascore' AND valid_from <= ? ORDER BY valid_from", (date,)):
+            "WHERE source = 'sofascore' AND valid_from > ? ORDER BY valid_from DESC",
+            (date,)).fetchall() + rows
+    for fc_id, roles, primary, line, foot, observed in rows:
         out[fc_id] = {
             "roles": roles, "primary": primary, "line": line, "foot": foot, "observed": observed,
             # Where to DRAW him, from the primary code: depth up the pitch and flank, on the same
