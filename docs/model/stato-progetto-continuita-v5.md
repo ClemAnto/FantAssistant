@@ -7,6 +7,20 @@ Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da q
 App per leghe EuroLeghe/fantacalcio.it (Classic+Mantra, 5 campionati) con motore previsionale. Metodo: ogni regola entra SOLO se batte il baseline fuori campione su finestre indipendenti (gate pre-registrato). Doc madre: modello-previsionale-v3.8.md.
 
 ## ⚠️ Lo stato corrente è in `00-BRIDGE-punto-di-ingresso.md`, blocco «STATO AL 28 LUGLIO 2026 (sera)»
+
+### 28 luglio 2026 (notte, seconda parte), in una riga: il toolkit è completo, esporta e si ricostruisce da zero
+Quattro richieste in una sessione, tutte chiuse — e **nessuna regola è entrata nel motore**: sono dati,
+strumenti, infrastruttura. (1) I due buchi dichiarati: **`injuries`** (assenze datate con
+`matches_missed`) e la **heatmap** `avg_x/avg_y`; ⚠️ la scadenza contratto esiste **solo per oggi**,
+quindi `exit_risk` serve all'asta che viene e **non è gatabile sul passato**. (2) **`export`**: il
+bundle dell'app, 229 116 righe / 29 MB, contratto derivato da `engine/features.py`, manifest con
+provenienza, prezzi auction-safe, parametri provvisori e buchi noti, `--verify` che ri-apre quello che
+ha scritto. (3) **Da zero su un'altra macchina**: `bootstrap --plan` (15 passi, ~17 h, ripartibile),
+`elo` dall'API ClubElo (**76 righe/2 date → 921/10 date**), lega del club dalla cache provider,
+`fetch --plan/--inbox`, `.env.example`, `ingest_runs` scritta. (4) **UI rifatta** con tema light/dark,
+icone, metriche e log colorato. Misura utile arrivata di striscio: cross-tab dei ruoli
+**D→D 97% · M→C 80% · F→A 80% · G→P 100%**, che era il prerequisito per estendere i conteggi di reparto
+oltre gli attaccanti. **194 test verdi, ruff pulito.** Dettaglio: spec «Novità v9.4».
 Questo documento è un registro cronologico: dove contraddice quel blocco, vince quello.
 
 ### 28 luglio 2026 (notte), in una riga: le coppie d'attacco sono state misurate, e il meccanismo c'è ma non paga
@@ -177,7 +191,12 @@ euro 18/19 (~5 min) e Serie A 17/18-15/16 (~20 min) = quattro finestre in piu'. 
 EuroLeghe 21/22 (file vuoti alla sorgente) e la storia di `probable_starter`/`availability`, che va
 accumulata da adesso. `injuries` resta senza fonte agganciata: e' una decisione, non una passata.
 
-## Prossimo lavoro (aggiornato al 28/07, in ordine)
+## Prossimo lavoro (aggiornato al 28/07 notte, in ordine)
+0-quater. **Il toolkit non è più sul percorso critico** (v9.4): dati completi, bundle dell'app,
+   ricostruzione da zero, UI. Le tre voci sotto restano, e sono tutte **del motore**, non della
+   pipeline. Due cose però vanno FATTE SULLA MACCHINA, non nel codice: registrare il job settimanale
+   (`pwsh scripts/weekly-snapshot.ps1 -Register` — ogni settimana non registrata è una finestra che non
+   tornerà) e lasciar finire la camminata `injuries` (ore, ripartibile).
 0-ter. **PREZZARE I NUOVI ARRIVI SENZA STORICO** (salita in cima la notte del 28/07): è il vincolo che ha
    reso inutile la pressione di reparto — Openda e David non erano in nessuna top-10 predetta, quindi
    nessuno sconto e nessun premio poteva proteggere da loro. Sblocca insieme la copertura Serie A (4

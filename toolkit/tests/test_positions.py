@@ -229,3 +229,63 @@ def test_reingest_match_layer_is_idempotent(tmp_path):
     for _ in range(2):
         positions.reingest_match_layer(ctx)
         assert ctx.conn.execute("SELECT COUNT(*) FROM external_match_stats").fetchone()[0] == 1
+
+
+# ---------- heatmap layer (avg_x / avg_y) ----------
+def test_heatmap_centroid_is_weighted_by_touch_count():
+    payload = {"points": [{"x": 10, "y": 50, "count": 90}, {"x": 90, "y": 50, "count": 10}]}
+    assert positions.heatmap_centroid(payload) == (18.0, 50.0, 100)
+    # an unweighted mean would answer 50: one stray touch in the box must not move a full-back
+    assert positions.heatmap_centroid({"points": []}) is None
+    assert positions.heatmap_centroid(None) is None
+
+
+def test_heatmap_targets_pick_the_league_with_the_most_minutes(tmp_path):
+    ctx = _ctx(tmp_path)
+    conn = ctx.conn
+    _add_player(conn, 1, "Nunez", "Liverpool FC", "premier_league", season="2023-24")
+    conn.execute("INSERT INTO player_xref(fc_id, source, source_id) VALUES (1,'sofascore','30')")
+    for league, minutes in (("premier_league", 400), ("la_liga", 1200)):
+        conn.execute("INSERT INTO external_stats(fc_id, season, source, competition, minutes) "
+                     "VALUES (1, '2023-24', 'sofascore', ?, ?)", (league, minutes))
+    conn.commit()
+    assert positions.heatmap_targets(conn) == [("la_liga", "2023-24", "30", 1)]
+
+
+def test_ingest_heatmaps_from_cache_keeps_the_derived_role(tmp_path):
+    ctx = _ctx(tmp_path)
+    conn = ctx.conn
+    conn.execute("INSERT INTO players(fc_id, canonical_name) VALUES (1, 'Nunez')")
+    conn.execute("INSERT INTO player_xref(fc_id, source, source_id) VALUES (1,'sofascore','30')")
+    conn.execute("INSERT INTO positions(fc_id, season, source, derived_role, n_matches, is_friendly) "
+                 "VALUES (1, '2023-24', 'sofascore', 'A', 20, 0)")
+    conn.commit()
+    (ctx.config.cache_dir / "sofascore_heatmap_premier_league_2023-24_30.json").write_text(
+        json.dumps({"points": [{"x": 80, "y": 40, "count": 10}]}), encoding="utf-8")
+    for _ in range(2):
+        assert positions.ingest_heatmaps_from_cache(ctx) == 1
+        row = conn.execute("SELECT avg_x, avg_y, derived_role FROM positions").fetchone()
+        assert tuple(row) == (80.0, 40.0, "A"), "the coordinates must not wipe the role"
+
+
+def test_role_crosstab_counts_the_provider_vocabulary(tmp_path):
+    ctx = _ctx(tmp_path)
+    conn = ctx.conn
+    _add_player(conn, 1, "Bastoni", "Inter", "serie_a")
+    _add_player(conn, 2, "Thuram", "Inter", "serie_a")
+    conn.execute("UPDATE rosters SET role_classic = 'D', roles = 'Dc' WHERE fc_id = 1")
+    conn.execute("UPDATE rosters SET role_classic = 'A', roles = 'A;Pc' WHERE fc_id = 2")
+    for fc_id, position, matches in ((1, "D", 3), (2, "F", 2), (2, "M", 1)):
+        for index in range(matches):
+            conn.execute(
+                "INSERT INTO external_match_stats(fc_id, season, source, match_id, competition, "
+                "position, minutes) VALUES (?, '2023-24', 'sofascore', ?, 'serie_a', ?, 90)",
+                (fc_id, f"{fc_id}-{position}-{index}", position))
+    conn.commit()
+    table = positions.role_crosstab(ctx)
+    assert table["D"] == {"D": 3}
+    assert table["F"] == {"A": 2}
+    assert table["M"] == {"A": 1}, "a forward used in midfield is still a listone A"
+    report = (ctx.config.data_dir / "reports" / "role_crosstab.csv").read_text(encoding="utf-8")
+    assert "classic,D,D,3,1.0000" in report
+    assert "mantra,D,Dc,3,1.0000" in report

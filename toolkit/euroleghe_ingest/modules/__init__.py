@@ -18,6 +18,7 @@ PIPELINE: tuple[str, ...] = (
     "matchdays",
     "fc_site",
     "transfers",
+    "injuries",
     "fbref",
     "positions",
     "recent_form",
@@ -29,15 +30,17 @@ PIPELINE: tuple[str, ...] = (
 )
 
 # Modules callable individually from the CLI but outside the rebuild.
-# `backtest` is read-only (it scores the model, it produces no ingest table), hence not in PIPELINE.
-STANDALONE: tuple[str, ...] = ("fetch", "rebuild", "backtest")
+# `backtest` and `export` are read-only (one scores the model, the other writes the app's bundle);
+# neither produces an ingest table, hence neither is in PIPELINE.
+STANDALONE: tuple[str, ...] = ("fetch", "rebuild", "bootstrap", "backtest", "export")
 
 ALL_MODULES: tuple[str, ...] = STANDALONE + PIPELINE
 
 # Modules whose run() is fully implemented (the rest are stubs raising NotImplementedError).
 # Single source of truth: add a name here when its module becomes real.
 IMPLEMENTED: frozenset[str] = frozenset(
-    {"rosters", "stats", "ratings", "matchdays", "fc_site", "transfers", "positions", "recent_form", "synth", "tournaments", "arrivals",
+    {"rosters", "stats", "ratings", "matchdays", "fc_site", "transfers", "injuries", "positions",
+     "recent_form", "synth", "tournaments", "arrivals",
      "elo",
      "validate"}
 )

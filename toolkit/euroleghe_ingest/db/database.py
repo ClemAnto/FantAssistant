@@ -39,6 +39,9 @@ ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("probable_starter", "starter", "INTEGER"),
     ("probable_starter", "role", "TEXT"),
     ("probable_starter", "status", "TEXT"),
+    ("injuries", "matches_missed", "INTEGER"),
+    ("injuries", "detail", "TEXT"),
+    ("injuries", "source", "TEXT"),
 )
 
 
@@ -66,6 +69,23 @@ def apply_schema(conn: sqlite3.Connection) -> None:
     added = migrate(conn)
     if added:
         print(f"[db] migrated: added {', '.join(added)}")
+
+
+def record_run(conn: sqlite3.Connection, module: str, started_at: str, status: str,
+               detail: str | None = None) -> None:
+    """One line per module run into `ingest_runs` - the provenance the spec asks for.
+
+    Written by whoever OWNS the invocation (the CLI, the rebuild, the GUI), not by the modules: a
+    module that logged its own run would miss the runs that died before reaching the log, which are
+    exactly the ones worth knowing about. Never raises: a failed audit line must not fail an ingest.
+    """
+    try:
+        conn.execute(
+            "INSERT OR REPLACE INTO ingest_runs(module, started_at, status, detail) "
+            "VALUES (?, ?, ?, ?)", (module, started_at, status, detail))
+        conn.commit()
+    except sqlite3.Error:
+        pass
 
 
 def table_names(conn: sqlite3.Connection) -> list[str]:

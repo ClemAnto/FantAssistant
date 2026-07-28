@@ -25,6 +25,7 @@ import random
 import re
 import time
 
+from euroleghe_ingest.config import DEFAULT_SEASONS
 from euroleghe_ingest.context import Context
 from euroleghe_ingest.matching import (
     CLUB_ALIASES,
@@ -45,6 +46,9 @@ STATS_ENDPOINT = (BASE_URL + "/unique-tournament/{tid}/season/{sid}/statistics"
                   "?limit={limit}&offset={offset}&order=-rating&accumulation=total&fields={fields}")
 ROUND_ENDPOINT = BASE_URL + "/unique-tournament/{tid}/season/{sid}/events/round/{rnd}"
 LINEUPS_ENDPOINT = BASE_URL + "/event/{eid}/lineups"
+# The season heatmap: a weighted cloud of touch coordinates for one player in one league-season.
+# One request per player-season - the cheapest form of it (the per-match one costs 30x as much).
+HEATMAP_ENDPOINT = BASE_URL + "/player/{pid}/unique-tournament/{tid}/season/{sid}/heatmap/overall"
 
 # SofaScore unique-tournament ids for the 5 leagues in scope (verified against the API).
 TOURNAMENTS: dict[str, int] = {
@@ -54,7 +58,7 @@ TOURNAMENTS: dict[str, int] = {
     "bundesliga": 35,
     "ligue_1": 34,
 }
-SEASONS: tuple[str, ...] = ("2023-24", "2024-25", "2025-26")
+SEASONS: tuple[str, ...] = DEFAULT_SEASONS   # config.py owns the list (one edit per new season)
 
 # Fields requested from the season-statistics endpoint (the default `group` returns far fewer).
 STAT_FIELDS: tuple[str, ...] = (
@@ -70,6 +74,7 @@ REQUEST_DELAY = 2.0
 REQUEST_JITTER = 1.5
 _CACHE_NAME = re.compile(r"sofascore_stats_([a-z_0-9]+)_(\d{4}-\d{2})\.json$")
 _ROUND_CACHE_NAME = re.compile(r"sofascore_round_([a-z_0-9]+)_(\d{4}-\d{2})_r(\d+)\.json$")
+_HEATMAP_CACHE_NAME = re.compile(r"sofascore_heatmap_([a-z_0-9]+)_(\d{4}-\d{2})_(\d+)\.json$")
 
 
 # ---------- HTTP ----------
@@ -542,6 +547,270 @@ def derive_roles_from_match_layer(ctx: Context) -> tuple[int, int]:
     return positions_written, flags_written
 
 
+# ---------- heatmap layer (avg_x / avg_y) ----------
+# What this adds over `derived_role`: G/D/M/F cannot say WHERE inside the line a player is used, and
+# the Mantra vocabulary can (dd vs dc, e vs c). The heatmap is the cheapest fact that carries it.
+# Convention, verified on a goalkeeper (avg_x = 1.4): x runs from the player's OWN goal (0) to the
+# opponent's (100), y across the pitch (0-100), both normalized by the provider so a season's matches
+# are comparable regardless of which way the team kicked off.
+# NOTE the boundary: this module stores the COORDINATES. Turning them into a Mantra role is a model
+# choice and belongs to the engine, behind the gate - so nothing here derives a role from them.
+def heatmap_targets(conn, seasons: tuple[str, ...] | None = None) -> list[tuple[str, str, str, int]]:
+    """(league, season, provider_id, fc_id) per player-season, in the league he played most in.
+
+    A player who moved mid-season has rows in two competitions; the heatmap endpoint is per
+    unique-tournament, so the one with the most minutes is the one that describes his usage.
+    Ordered by pre-auction price (Qt.I) so an interrupted walk has done the players that matter.
+    """
+    rows = conn.execute(
+        """
+        SELECT e.season, e.competition, x.source_id, e.fc_id, COALESCE(e.minutes, 0),
+               MAX(COALESCE(r.price_initial, r.price, 0))
+        FROM external_stats e
+        JOIN player_xref x ON x.fc_id = e.fc_id AND x.source = 'sofascore'
+        LEFT JOIN rosters r ON r.fc_id = e.fc_id AND r.season = e.season
+        WHERE e.source = 'sofascore' AND COALESCE(e.minutes, 0) > 0
+        GROUP BY e.fc_id, e.season, e.competition
+        """
+    ).fetchall()
+    best: dict[tuple[int, str], tuple[int, float, str, str]] = {}
+    for season, league, provider_id, fc_id, minutes, price in rows:
+        if seasons and season not in seasons:
+            continue
+        key = (fc_id, season)
+        current = best.get(key)
+        if current is None or minutes > current[0]:
+            best[key] = (minutes, price or 0.0, league, provider_id)
+    ordered = sorted(best.items(), key=lambda item: -item[1][1])
+    return [(league, season, provider_id, fc_id)
+            for (fc_id, season), (_minutes, _price, league, provider_id) in ordered]
+
+
+def heatmap_centroid(payload) -> tuple[float, float, int] | None:
+    """The provider's weighted point cloud -> (avg_x, avg_y, touches). None when it is empty.
+
+    Weighted by `count`: an unweighted mean of distinct coordinates would count one stray touch in
+    the opponent's box as heavily as the hundred a full-back plays on his own flank.
+    """
+    points = (payload or {}).get("points") or []
+    total = sum(point.get("count") or 0 for point in points)
+    if not total:
+        return None
+    sum_x = sum((point.get("x") or 0) * (point.get("count") or 0) for point in points)
+    sum_y = sum((point.get("y") or 0) * (point.get("count") or 0) for point in points)
+    return round(sum_x / total, 2), round(sum_y / total, 2), int(total)
+
+
+def fetch_heatmaps(ctx: Context, leagues, seasons, refresh: bool = False,
+                   limit: int | None = None) -> None:
+    """One request per player-season, cached. Resumable and interruptible like every other layer."""
+    conn = ctx.require_conn()
+    targets = [target for target in heatmap_targets(conn, seasons) if target[0] in leagues]
+    if limit:
+        targets = targets[:limit]
+    todo = [t for t in targets
+            if refresh or not (ctx.config.cache_dir /
+                               f"sofascore_heatmap_{t[0]}_{t[1]}_{t[2]}.json").exists()]
+    print(f"[positions] heatmap: {len(targets)} player-seasons · {len(todo)} to fetch "
+          f"(~{len(todo) * (REQUEST_DELAY + REQUEST_JITTER / 2) / 60:.0f} min)")
+    session = _client()
+    season_ids: dict[tuple[str, str], int | None] = {}
+    done = 0
+    try:
+        for league, season, provider_id, _fc_id in todo:
+            if ctx.cancelled():
+                raise KeyboardInterrupt
+            if (league, season) not in season_ids:
+                _polite_sleep(ctx.cancel_event)
+                season_ids[(league, season)] = resolve_season_id(session, league, season)
+            season_id = season_ids[(league, season)]
+            if season_id is None:
+                continue
+            _polite_sleep(ctx.cancel_event)
+            payload = _get_json(session, HEATMAP_ENDPOINT.format(
+                pid=provider_id, tid=TOURNAMENTS[league], sid=season_id))
+            if payload is None:
+                continue
+            _atomic_write_text(
+                ctx.config.cache_dir / f"sofascore_heatmap_{league}_{season}_{provider_id}.json",
+                json.dumps(payload, ensure_ascii=False))
+            done += 1
+            if done % 50 == 0 or done == len(todo):
+                print(f"[positions] heatmap {done}/{len(todo)} player-seasons")
+    except KeyboardInterrupt:
+        print("[positions] interrupted - every fetched heatmap is cached, rerun to continue")
+    finally:
+        session.close()
+    ingest_heatmaps_from_cache(ctx)
+
+
+def ingest_heatmaps_from_cache(ctx: Context, seasons=None) -> int:
+    """positions.avg_x / avg_y from the cached heatmaps (offline).
+
+    Runs AFTER `derive_roles_from_match_layer`, never before: that function rewrites the whole
+    sofascore slice of `positions`, so coordinates written first would be silently dropped.
+    """
+    conn = ctx.require_conn()
+    xref = {source_id: fc_id for source_id, fc_id in conn.execute(
+        "SELECT source_id, fc_id FROM player_xref WHERE source = 'sofascore'")}
+    written = orphans = empty = 0
+    for path in sorted(ctx.config.cache_dir.glob("sofascore_heatmap_*.json")):
+        key = _HEATMAP_CACHE_NAME.search(path.name)
+        if not key:
+            continue
+        season, provider_id = key.group(2), key.group(3)
+        if seasons and season not in seasons:
+            continue
+        fc_id = xref.get(provider_id)
+        if fc_id is None:
+            orphans += 1
+            continue
+        try:
+            centroid = heatmap_centroid(json.loads(path.read_text(encoding="utf-8")))
+        except Exception as exc:   # noqa: BLE001 - a corrupt cache file must not abort the rebuild
+            print(f"[positions] skipping unreadable heatmap {path.name}: {exc}")
+            continue
+        if centroid is None:
+            empty += 1
+            continue
+        avg_x, avg_y, _touches = centroid
+        updated = conn.execute(
+            "UPDATE positions SET avg_x = ?, avg_y = ? "
+            "WHERE fc_id = ? AND season = ? AND source = 'sofascore'",
+            (avg_x, avg_y, fc_id, season)).rowcount
+        if not updated:
+            # a player-season with a heatmap but no per-match layer (older seasons): the coordinates
+            # are still a fact about him, so the row is created rather than thrown away.
+            conn.execute(
+                "INSERT OR REPLACE INTO positions(fc_id, season, source, avg_x, avg_y, is_friendly) "
+                "VALUES (?, ?, 'sofascore', ?, ?, 0)", (fc_id, season, avg_x, avg_y))
+        written += 1
+    conn.commit()
+    if written or orphans or empty:
+        print(f"[positions] heatmap: avg_x/avg_y on {written} player-seasons "
+              f"({empty} empty clouds, {orphans} without a resolved identity)")
+    return written
+
+
+# ---------- role vocabulary cross-tab (offline) ----------
+def role_crosstab(ctx: Context) -> dict[str, dict[str, int]]:
+    """provider slot (G/D/M/F) x listone role, per Classic role and per Mantra role -> report.
+
+    Why it exists: the forward-pairs work measured that 57-81% of the provider's `F` are listone `A`,
+    which is what let K (strikers fielded per eleven) be read as a fantacalcio fact. Extending the
+    same counting to defenders and midfielders needs the SAME translation measured for D and M -
+    otherwise `club_match_lineups.defenders` is a number about a vocabulary we have not checked.
+    Pure SQL + counting, zero requests.
+    """
+    conn = ctx.require_conn()
+    rows = conn.execute(
+        """
+        SELECT e.position, r.role_classic, r.roles, e.season, COUNT(*) AS n
+        FROM external_match_stats e
+        JOIN rosters r ON r.fc_id = e.fc_id AND r.season = e.season
+        WHERE e.source = 'sofascore' AND e.position IS NOT NULL AND COALESCE(e.minutes, 0) > 0
+          AND r.role_classic IS NOT NULL
+        GROUP BY e.position, r.role_classic, r.roles, e.season
+        """
+    ).fetchall()
+    classic: dict[str, dict[str, int]] = {}
+    mantra: dict[str, dict[str, int]] = {}
+    by_season: dict[str, dict[str, int]] = {}
+    for position, role_classic, roles, season, n in rows:
+        classic.setdefault(position, {})
+        classic[position][role_classic] = classic[position].get(role_classic, 0) + n
+        for role in (roles or "").replace("/", ";").split(";"):
+            role = role.strip()
+            if role:
+                mantra.setdefault(position, {})
+                mantra[position][role] = mantra[position].get(role, 0) + n
+        key = f"{season}|{position}"
+        by_season.setdefault(key, {})
+        by_season[key][role_classic] = by_season[key].get(role_classic, 0) + n
+
+    import csv
+    import io
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(["scope", "provider_position", "our_role", "appearances", "share_of_provider"])
+    for scope, table in (("classic", classic), ("mantra", mantra)):
+        for position, counts in sorted(table.items()):
+            total = sum(counts.values()) or 1
+            for role, n in sorted(counts.items(), key=lambda item: -item[1]):
+                writer.writerow([scope, position, role, n, f"{n / total:.4f}"])
+    for key, counts in sorted(by_season.items()):
+        season, position = key.split("|")
+        total = sum(counts.values()) or 1
+        for role, n in sorted(counts.items(), key=lambda item: -item[1]):
+            writer.writerow([season, position, role, n, f"{n / total:.4f}"])
+    path = ctx.config.data_dir / "reports" / "role_crosstab.csv"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    _atomic_write_text(path, buffer.getvalue())
+
+    for position in ("G", "D", "M", "F"):
+        counts = classic.get(position, {})
+        total = sum(counts.values())
+        if not total:
+            continue
+        detail = " ".join(f"{role} {100 * n / total:.0f}%"
+                          for role, n in sorted(counts.items(), key=lambda item: -item[1])[:3])
+        print(f"[positions] provider {position} ({total} appearances): {detail}")
+    print(f"[positions] role cross-tab -> {path}")
+    return classic
+
+
+# ---------- which league a club plays in (needed for a build from zero) ----------
+def derive_club_leagues(ctx: Context) -> tuple[int, int]:
+    """clubs.league (and then rosters.league) from the cached provider files, by team name.
+
+    Why this exists: on THIS machine the league of a euro club came from the Drive roster exports,
+    which carry a league column. A fresh clone has no Drive files - it builds the registry from the
+    authenticated listone, and the euro listone does NOT say which league a club plays in. Without
+    this, `clubs.league` would stay NULL for every foreign club and the matcher would lose its league
+    pass, `matchdays` its per-league map and the engine its league filters.
+
+    The provider cache already answers it: each `sofascore_stats_{league}_{season}.json` IS a league,
+    so every team name in it plays there. Fills NULLs only - a league we already know is never
+    overwritten by a name match. Offline.
+    """
+    conn = ctx.require_conn()
+    known: dict[str, str] = {}
+    for path in sorted(ctx.config.cache_dir.glob("sofascore_stats_*.json")):
+        match = _CACHE_NAME.search(path.name)
+        if not match:
+            continue
+        league = match.group(1)
+        if league not in TOURNAMENTS:
+            continue
+        try:
+            rows = json.loads(path.read_text(encoding="utf-8"))
+        except Exception as exc:   # noqa: BLE001 - a corrupt cache file must not abort the rebuild
+            print(f"[positions] skipping unreadable cache {path.name}: {exc}")
+            continue
+        for row in rows:
+            name = ((row.get("team") or {}).get("name") or "").strip()
+            if name:
+                known.setdefault(club_key(name), league)
+    if not known:
+        return 0, 0
+    clubs = 0
+    for club_id, name in conn.execute(
+            "SELECT fc_club_id, canonical_name FROM clubs WHERE league IS NULL").fetchall():
+        league = known.get(club_key(CLUB_ALIASES.get(name, name))) or known.get(club_key(name))
+        if league:
+            conn.execute("UPDATE clubs SET league = ? WHERE fc_club_id = ?", (league, club_id))
+            clubs += 1
+    rosters = conn.execute(
+        "UPDATE rosters SET league = (SELECT c.league FROM clubs c "
+        "WHERE c.fc_club_id = rosters.fc_club_id) "
+        "WHERE league IS NULL AND fc_club_id IS NOT NULL").rowcount
+    conn.commit()
+    if clubs or rosters:
+        print(f"[positions] league from the provider cache: {clubs} clubs, {rosters} roster rows")
+    return clubs, rosters
+
+
 # ---------- identity resolution ----------
 def _club_pools(conn, season: str):
     """Roster pools for a season, keyed for the three matcher passes.
@@ -859,22 +1128,32 @@ def run(ctx: Context, *, leagues=None, seasons=None, refresh: bool = False,
     unknown = [league for league in leagues if league not in TOURNAMENTS]
     if unknown:
         raise RuntimeError(f"Unknown league(s) {unknown}; choose from {sorted(TOURNAMENTS)}")
-    if layer not in ("season", "match", "complete", "all", "reparse"):
-        raise RuntimeError(f"Unknown layer {layer!r}; choose from season|match|complete|all|reparse")
+    if layer not in ("season", "match", "complete", "heatmap", "all", "reparse", "crosstab"):
+        raise RuntimeError(f"Unknown layer {layer!r}; choose from "
+                           "season|match|complete|heatmap|all|reparse|crosstab")
 
     ctx.config.cache_dir.mkdir(parents=True, exist_ok=True)
+    if layer == "crosstab":
+        role_crosstab(ctx)
+        return
     if layer == "reparse":
         reingest_match_layer(ctx, seasons=requested_seasons)
         derive_roles_from_match_layer(ctx)
+        ingest_heatmaps_from_cache(ctx, seasons=requested_seasons)
+        return
+    if layer == "heatmap":
+        fetch_heatmaps(ctx, leagues, seasons, refresh)
         return
     if layer == "complete":
         complete_match_layer(ctx, leagues, seasons)
         reingest_match_layer(ctx, seasons=seasons)
         derive_roles_from_match_layer(ctx)
+        ingest_heatmaps_from_cache(ctx, seasons=seasons)
         return
     if layer == "match":
         fetch_match_layer(ctx, leagues, seasons, refresh)
         derive_roles_from_match_layer(ctx)
+        ingest_heatmaps_from_cache(ctx, seasons=seasons)
         return
     session = _client()
     try:
@@ -1002,4 +1281,5 @@ def reingest_all_from_cache(ctx: Context) -> None:
     reingest_from_cache(ctx)
     reingest_match_layer(ctx)
     derive_roles_from_match_layer(ctx)
+    ingest_heatmaps_from_cache(ctx)     # after the roles: they rewrite the same `positions` slice
     derive_birth_years(ctx)

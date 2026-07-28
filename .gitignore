@@ -16,6 +16,10 @@
 /data/inbox/*
 !/data/inbox/.gitkeep
 /data/cache/
+# The app's data bundle: a pruned copy of the DB, so it carries the same paid fantacalcio.it content
+# the cache does ("NON PUO' ESSERE RIPRODOTTO NE' PUBBLICATO"). The repo is PUBLIC - it ships with
+# the app, never through git.
+/data/export/
 # report/modelli rigenerati dal toolkit (coverage, calibrazione voto sintetico)
 /data/reports/
 

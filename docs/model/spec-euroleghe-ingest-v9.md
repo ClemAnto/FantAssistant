@@ -145,6 +145,103 @@ cross-tab di vocabolario provider-`F` ↔ listone-`A`) stanno in `engine/feature
 un verdetto negativo (R17) e una valuta d'asta spenta: `gate-motore-v1.md` §4 e
 `metrica-asta-surplus-v1.md` §11. **I dati restano, e non erano costati niente.**
 
+## Novità v9.4 (28 luglio 2026, sera-notte — «completiamo il toolkit»)
+
+Quattro richieste dell'utente in una sessione: chiudere i buchi del toolkit, **esportare** tutto quello
+che serve all'app, **ricostruire da zero** su un'altra macchina, e **rifare la UI**. Tutto fatto.
+
+### 1. I due buchi dichiarati dalla v9.2 sono chiusi
+
+- **`injuries` (nuovo modulo, Transfermarkt)**: `verletzungen/spieler/{id}` → assenze datate con
+  `end_date`, `kind` normalizzato (16 categorie: knee/ankle/muscular/illness/...), `days_out`, e la
+  colonna che serve davvero al modulo presenze — **`matches_missed`**, perché i giorni diventano
+  partite solo passando per il calendario e la fonte quella traduzione l'ha già fatta. Più `detail`
+  (l'etichetta originale) e `source`. Una pagina per giocatore, 15 righe per pagina, `/page/{n}` per
+  il resto: **ore, ripartibile**. Gli id Transfermarkt arrivano dalle pagine `kader/verein/{id}/saison_id/{anno}`
+  e — gratis, offline — dalle pagine trasferimenti già in cache.
+- **⚠️ `exit_risk` è misurabile SOLO da adesso.** La pagina rosa di una stagione PASSATA non porta la
+  colonna «Contratto» (verificato sulla fonte): la scadenza esiste solo sulla rosa corrente. Quindi
+  `flags(contract_until)` (il fatto) e `flags(exit_risk)` (il giudizio, soglia **provvisoria** di 12
+  mesi) sono uno **snapshot di oggi**, utilizzabili per l'asta che viene e **non gatabili** su T1/T2.
+  Registrato nel manifest dell'export tra i `known_gaps`, non nascosto.
+- **Heatmap → `positions.avg_x/avg_y`** (`positions --layer heatmap`): endpoint di stagione
+  `player/{id}/unique-tournament/{t}/season/{s}/heatmap/overall`, **una richiesta per
+  giocatore-stagione** (la variante per-partita ne costerebbe 30 volte tanto). Il centroide è pesato
+  per `count`: una media non pesata conta un pallone toccato in area come i cento sulla fascia.
+  Convenzione verificata su un portiere (avg_x 1.4): x = distanza dalla PROPRIA porta, y = larghezza.
+  **Confine dichiarato**: il toolkit salva le coordinate, trasformarle in un ruolo Mantra (dd vs dc) è
+  una scelta di modello e sta dietro al gate.
+
+### 2. Cross-tab dei ruoli: la domanda aperta sui reparti D e C ha una risposta
+
+`positions --layer crosstab` (offline) → `data/reports/role_crosstab.csv`. Misurato su 149 585
+presenze: provider **G→P 100%**, **D→D 97%**, **M→C 80%** (11% D, 9% A), **F→A 80%** (20% C).
+Quindi estendere i conteggi di reparto ai **difensori è pulito** (97%), ai centrocampisti costa la
+stessa ambiguità già accettata per gli attaccanti. Era il prerequisito dichiarato in todolist.
+
+### 3. Riproducibilità da zero (richiesta dell'utente)
+
+- **`bootstrap` (nuovo)**: il piano di acquisizione ordinato, eseguibile e ripartibile —
+  `bootstrap --plan` stampa 15 passi, le opzioni e il costo (**~17 ore**, quasi tutte di attesa
+  educata). Rifiuta di partire senza credenziali invece di costruire mezzo DB. `--from/--to/--skip`
+  per riprendere un pezzo.
+- **`elo` non legge più un CSV fatto a mano**: `api.clubelo.com/YYYY-MM-DD` restituisce OGNI club
+  d'Europa a QUALSIASI data in una richiesta. Le date vengono da `engine.features.WINDOWS` (così la
+  data d'asta è definita in un solo posto, compreso il settembre 2020 del COVID). Effetto misurato:
+  `club_elo` da **76 righe su 2 date a 921 su 10 date, 99 club** — e riproducibile da zero. Servono 16
+  alias (ClubElo scrive «Bayern», «Man City», «Paris SG»: senza la mappa i club più forti di quattro
+  leghe restano senza Elo, cioè esattamente la popolazione del modulo portieri). Il seed CSV storico
+  resta letto con `INSERT OR IGNORE`, perché i numeri pubblicati sono stati prodotti con quello.
+- **La lega di un club si deriva dalla rete** (`positions.derive_club_leagues`): su questa macchina
+  `clubs.league` veniva dagli export Drive, che una macchina nuova non ha, e il listone euro **non
+  dice in che lega gioca un club**. La cache provider lo dice per costruzione (un file = una lega).
+  Riempie solo i NULL.
+- **`fetch` non è più uno stub**: `--plan` è il referto «cosa manca qui», tabella per tabella, con il
+  comando che colma ogni buco; `--inbox` importa gli export Drive da `data/inbox/` (unico passo
+  manuale del progetto, e **opzionale**: il listone crea registry+rose da solo).
+- **`.env.example` creato** (era citato da CLAUDE.md e non esisteva) e `config.SEASONS` è ora la
+  **fonte unica** delle stagioni: aprire il 2026-27 ad agosto è UNA modifica, non tre.
+- **`ingest_runs` finalmente scritta** (esisteva vuota): una riga per run — modulo, quando, esito,
+  opzioni — dalla CLI, dal rebuild e dalla GUI. La scrive chi POSSIEDE l'invocazione, non il modulo,
+  perché un modulo che si loggasse da solo perderebbe i run morti prima del log, che sono quelli che
+  interessano.
+
+### 4. `export` (nuovo): il bundle dell'app
+
+`export` scrive `data/export/<stagione>/`: `bundle.sqlite` (copia potata, **stesso schema**),
+`json/*.json.gz` (una tabella per file, per un runtime senza SQLite), `config/` e `manifest.json`.
+Misurato: **229 116 righe, 29 MB SQLite / 2,5 MB JSON gzip** su 21 tabelle.
+
+- Il **contratto è derivato da quello che `engine/features.py` interroga davvero**, tabella per
+  tabella, con il motivo scritto accanto: una regola futura che legga una tabella nuova va aggiunta
+  lì. Escluse *con motivazione registrata*: `match_rating_bonuses` (2,8M righe che il motore non
+  legge), `player_xref`/`club_xref` (l'app non ri-risolve identità), `ingest_runs`.
+- Le tabelle per-partita viaggiano **solo per le ultime `--history` stagioni** (default 2): il motore
+  le legge per la sola stagione di input, e questo è ciò che tiene il bundle a 29 MB invece di 284.
+- Il **manifest porta ciò che un bundle senza manifest fa sbagliare**: provenienza (commit, data,
+  versione), quali prezzi sono auction-safe (`price_initial`) e quali solo reporting (`price`, `fvm`),
+  i **parametri provvisori con i loro valori** letti dai moduli, il set adottato per piattaforma, e i
+  `known_gaps`.
+- `--verify` **ri-apre** il bundle scritto: integrità referenziale, `foreign_key_check`, presenza
+  della stagione di input per ogni piattaforma. Distingue **problema** (bundle rotto → l'export
+  fallisce) da **nota** (buco del mondo: euro non ha stagioni prima del 2018-19). Un bundle è l'unico
+  artefatto che nessuno rilegge prima di spedirlo.
+- ⚠️ `data/export/` è in `.gitignore`: il bundle porta lo stesso contenuto a pagamento della cache e
+  **il repo è pubblico**.
+
+### 5. UI rifatta (richiesta dell'utente)
+
+Nuovo `ui_theme.py`: palette semantica (`surface`, `border`, `text_muted`, `accent`, ...) in due
+varianti **light/dark**, scala tipografica, stili ttk (tema `clam`, l'unico che rispetti i colori su
+Windows) e una **glifo-icona per operazione**. Il codice di disegno legge i colori **al momento del
+disegno**, che è ciò che permette di cambiare tema senza riavviare; la preferenza è ricordata.
+Pannello Operations ricostruito: card per cadenza, riga = pallino di stato + icona + nome, **striscia
+di metriche** (tabelle popolate, giocatori, voti, righe per-partita), riga di dettaglio con le tabelle
+vuote in chiaro, **log colorato per severità** con copy/clear, status bar con l'ultimo run letto da
+`ingest_runs`. Aggiunti i pulsanti mancanti: **Bootstrap**, **What is missing?**, **Export app bundle**.
+Non tematizzati **di proposito**: pillole ruolo e celle-stato dei fantavoti — sono codifiche di dato,
+devono significare la stessa cosa nei due temi.
+
 ## Principi
 1. File grezzi (Drive/cache) = fonte di verità; DB **sempre ricostruibile da zero** (`rebuild` idempotente).
 2. Il prediction-engine legge solo dai dati normalizzati.
@@ -182,21 +279,32 @@ Tabella `penalty_hierarchy(fc_club_id, valid_from, fc_id, rank, confidence, sour
 T1 importanti → storia completa → FM-equivalente estera → club-a-club con Elo · T2 giovani → dati parziali → trigger U22 + NT-fallback · T3 marginali → àncora di ruolo scontata. Sotto soglia → tier inferiore + `coverage_report.csv`.
 
 ## Moduli (ordine rebuild)
-`fetch` → `rosters` (SEMPRE primo) → `stats` → `ratings` (Excel autenticato, incrementale + backfill + resume + listone) → `matchdays` (calendario euro↔reale) → `fc_site` (rigoristi, probabili, indisponibili) → `transfers` → `fbref` (opzionale/bloccato) → `positions` (SofaScore: aggregati stagione + rating per-partita; heatmap→ruolo reale ancora da fare) → `synth` (voto sintetico calibrato) → `arrivals` → `tournaments` → `elo` → `validate`.
-Stato implementazione v9.2: **tutti i moduli operativi tranne `fbref`** — rosters, stats, ratings (+ listone), matchdays, fc_site, transfers, positions, synth, tournaments, arrivals, elo, validate, rebuild + GUI. Da fare: **heatmap SofaScore** per `avg_x/avg_y` (granularità Mantra), **`injuries` + flag `exit_risk`** (una richiesta per giocatore + scadenze contratto), **`fbref`** (bloccato da Cloudflare: serve browser headless o inbox manuale), e soprattutto l'**harness del gate** (vedi sotto).
+`rosters` (SEMPRE primo) → `stats` → `ratings` (Excel autenticato, incrementale + backfill + resume + listone) → `matchdays` (calendario euro↔reale) → `fc_site` (rigoristi, probabili, indisponibili) → `transfers` → **`injuries`** → `fbref` (stub/bloccato) → `positions` (SofaScore: aggregati stagione + per-partita + heatmap) → `recent_form` → `synth` (voto sintetico calibrato) → `arrivals` → `tournaments` → `elo` (API ClubElo) → `validate`.
+Fuori dalla pipeline, perché non producono tabelle di ingestione: **`bootstrap`** (acquisizione da zero), `fetch` (referto + inbox), `rebuild`, `backtest` (harness del gate), **`export`** (bundle dell'app).
+Stato implementazione **v9.4**: **tutti i moduli operativi tranne `fbref`** (bloccato da Cloudflare: servirebbe un browser headless, oppure l'inbox manuale). Chiusi in v9.4: `injuries` + `contract_until`/`exit_risk`, heatmap `avg_x/avg_y`, `elo` via API, `ingest_runs`, `fetch --plan/--inbox`, `bootstrap`, `export`. **194 test verdi, ruff pulito.**
 
-## Comandi fase 1
+## Comandi
 ```
-python -m euroleghe_ingest positions                      # aggregati stagione, 5 leghe x 3 stagioni (~90 richieste)
-python -m euroleghe_ingest positions --layer match        # layer per-partita, solo club del perimetro (~2 h, ripartibile)
-python -m euroleghe_ingest positions --layer match --league premier_league --season 2024-25
-python -m euroleghe_ingest matchdays                      # mappa giornate euro<->reali + cross-check
-python -m euroleghe_ingest synth                          # calibra rating->Mv e riempie mv_synth
+python -m euroleghe_ingest bootstrap --plan                # NUOVA MACCHINA: piano, ordine, costo (~17 h)
+python -m euroleghe_ingest fetch --plan                    # cosa manca qui, e il comando che lo colma
+python -m euroleghe_ingest positions                       # aggregati stagione, 5 leghe (~90 richieste)
+python -m euroleghe_ingest positions --layer match         # layer per-partita, club del perimetro (ore)
+python -m euroleghe_ingest positions --layer complete      # le partite che il filtro perimetro salta
+python -m euroleghe_ingest positions --layer heatmap       # avg_x/avg_y, 1 richiesta per giocatore-stagione
+python -m euroleghe_ingest positions --layer crosstab      # ruolo provider vs listone (offline)
+python -m euroleghe_ingest injuries --layer ids            # id Transfermarkt + scadenze contratto
+python -m euroleghe_ingest injuries --layer injuries       # storico infortuni, 1 richiesta per giocatore
+python -m euroleghe_ingest elo                             # ClubElo: 1 richiesta per data d'asta
+python -m euroleghe_ingest matchdays                       # mappa giornate euro<->reali + cross-check
+python -m euroleghe_ingest synth                           # calibra rating->Mv e riempie mv_synth
+python -m euroleghe_ingest export                          # bundle dell'app + manifest (verifica compresa)
 ```
-Tutto è ripartibile (la cache grezza è la fonte di verità) e interrompibile; `rebuild` ri-ingerisce offline.
+Tutto è ripartibile (la cache grezza è la fonte di verità) e interrompibile; `rebuild` ri-ingerisce
+offline. Ogni run lascia una riga in `ingest_runs`. Settimanale e **non recuperabile a posteriori**:
+`pwsh scripts/weekly-snapshot.ps1 -Register` (le probabili sono uno stato di oggi).
 
 ## Schema principale (v9)
-`players(fc_id PK, canonical_name, birth_year, nationality)` · `clubs(fc_club_id PK, canonical_name, league)` · `player_xref/club_xref(source, source_id, valid_from, valid_to)` · `rosters(fc_id, season, fc_club_id, roles, role_classic, league, price)` · **`season_stats(fc_id, season, platform, pv, mv, fm, goals, assists, …)`** · **`match_ratings(fc_id, season, matchday, platform, role, team, mv, goals, assists, …, fantavoto, status)`** · **`match_rating_bonuses(fc_id, season, matchday, platform, bonus_key, value)`** · **`external_stats(fc_id, season, source, competition, matches, starts, minutes, goals, assists, pen_scored, pen_taken, xg, xa, rating, yellows, reds)`** *(propensione stagione piena, PK con `source`+`competition`)* · **`external_match_stats(fc_id, season, source, match_id, competition, real_md, match_date, club, opponent, home, position, started, minutes, rating, goals, assists, xg, xa, shots, shots_on_target, big_chances_created, big_chances_missed, key_passes, touches, mv_synth)`** *(layer per-partita + voto sintetico; le sei colonne di tiro dalla v9.3)* · **`club_match_lineups(season, source, match_id, club, …, starters, goalkeepers, defenders, midfielders, forwards)`** *(conteggi di formazione a livello di club, fuori dall'imbuto dell'identità — v9.3)* · **`matchday_map(season, euro_md, league, real_md, source, confidence)`** *(allineamento euro↔reale per lega)* · `positions` · `transfers_history` · `injuries` · `coaches` · `tournaments_squads` · `club_elo(fc_club_id, date, elo)` · `arrivals(fc_id, season, type, tier, origin_club, origin_league, foreign_fm_equiv)` · `penalty_hierarchy(...)` · `probable_starter` · `availability` · `flags(fc_id, season, flag, value, source)` · `manual_overrides(entity, fc_id, season, field, value, reason, created_at)` · `ingest_runs`.
+`players(fc_id PK, canonical_name, birth_year, nationality)` · `clubs(fc_club_id PK, canonical_name, league)` · `player_xref/club_xref(source, source_id, valid_from, valid_to)` · `rosters(fc_id, season, fc_club_id, roles, role_classic, league, price)` · **`season_stats(fc_id, season, platform, pv, mv, fm, goals, assists, …)`** · **`match_ratings(fc_id, season, matchday, platform, role, team, mv, goals, assists, …, fantavoto, status)`** · **`match_rating_bonuses(fc_id, season, matchday, platform, bonus_key, value)`** · **`external_stats(fc_id, season, source, competition, matches, starts, minutes, goals, assists, pen_scored, pen_taken, xg, xa, rating, yellows, reds)`** *(propensione stagione piena, PK con `source`+`competition`)* · **`external_match_stats(fc_id, season, source, match_id, competition, real_md, match_date, club, opponent, home, position, started, minutes, rating, goals, assists, xg, xa, shots, shots_on_target, big_chances_created, big_chances_missed, key_passes, touches, mv_synth)`** *(layer per-partita + voto sintetico; le sei colonne di tiro dalla v9.3)* · **`club_match_lineups(season, source, match_id, club, …, starters, goalkeepers, defenders, midfielders, forwards)`** *(conteggi di formazione a livello di club, fuori dall'imbuto dell'identità — v9.3)* · **`matchday_map(season, euro_md, league, real_md, source, confidence)`** *(allineamento euro↔reale per lega)* · **`positions(fc_id, season, source, avg_x, avg_y, derived_role, n_matches, is_friendly)`** *(avg_x/avg_y dalla heatmap di stagione — v9.4)* · `transfers_history` · **`injuries(fc_id, start_date, end_date, kind, days_out, matches_missed, detail, source)`** *(v9.4)* · `coaches` · `tournaments_squads` · `club_elo(fc_club_id, date, elo)` · `arrivals(fc_id, season, type, tier, origin_club, origin_league, foreign_fm_equiv)` · `penalty_hierarchy(...)` · `probable_starter` · `availability` · `flags(fc_id, season, flag, value, source)` · `manual_overrides(entity, fc_id, season, field, value, reason, created_at)` · `ingest_runs`.
 
 ## Fase 1 — FATTA (con SofaScore al posto di FBref, vedi Novità v9.1)
 1. ✅ **Fatti stagione piena** → `external_stats(source='sofascore')` per 5 leghe × 3 stagioni, con
@@ -227,15 +335,17 @@ TypeScript** in `app/prediction-engine`, quindi resta senza dipendenze ed esplic
 - L'inventario input stampato per finestra dice cosa manca al MOTORE (non al DB): `starter_prob`
   0/1453 su T2/euro, perché le probabili sono uno stato di oggi e servono snapshot settimanali.
 
-## Quello che manca per l'asta 26/27
-- **Bloccato dal calendario**: listone/quotazioni 26/27 (esce ad agosto; aggiungere `2026-27` a
-  `SEASONS` in `ratings.py`/`positions.py`/`transfers.py`), voti 26/27, Elo alla data d'asta 2026-08.
-- **Lavoro vero**: `injuries` + `exit_risk`; heatmap per `avg_x/avg_y`; e il **collo di bottiglia**:
-  un **harness di backtest cross-fitted** sulle due finestre (T1 23/24→24/25, T2 24/25→25/26) per
-  eseguire il **gate 3.2** (club-a-club con ClubElo, il cui input — la FM-equivalente — ora esiste)
-  e il **2.5 pieno con i flag**. I gate precedenti sono stati eseguiti fuori dal codice: nel repo
-  non esiste ancora nulla che li riproduca, ed è ciò che serve prima di far entrare qualunque
-  parametro provvisorio di v9.2 nel motore.
+## Quello che manca per l'asta 26/27 (aggiornato v9.4)
+- **Bloccato dal calendario**: listone/quotazioni 26/27 (esce ad agosto → aggiungere `2026-27` a
+  **`config.SEASONS`**, che dalla v9.4 è la fonte unica: una modifica, non tre), voti 26/27, Elo alla
+  data d'asta 2026-08 (una richiesta: `elo` la scarica da sola appena la stagione esiste in `rosters`).
+- ~~`injuries` + `exit_risk`~~ **FATTI in v9.4** · ~~heatmap `avg_x/avg_y`~~ **FATTA in v9.4** ·
+  ~~harness del gate~~ **FATTO il 27/07**.
+- **Lavoro vero che resta**, e non è più del toolkit: la **modalità LIVE** del motore. Il DB e il
+  bundle ora contengono tutto, ma ogni percorso del motore assume un esito — `_window_is_usable`
+  pretende ≥50 `fm_act`, il tab Auction elenca solo stagioni concluse, `auction_view` confronta due
+  liste. Per un'asta serve **una lista sola**. Più il **gate 3.2** (club-a-club con Elo, input pronto)
+  e la **taratura dei parametri provvisori**.
 
 ## Whitelist
 `fantacalcio.it` e sottodomini · `api.clubelo.com` · `fbref.com` (403 Cloudflare) · `transfermarkt.com/.it` · `query.wikidata.org` · `sofascore.com` + `api.sofascore.com`. Client: `requests` per fantacalcio.it, `curl_cffi` (impersonate chrome) per SofaScore. Rate-limiting educato, cache grezzi, hash per aggiornamenti.

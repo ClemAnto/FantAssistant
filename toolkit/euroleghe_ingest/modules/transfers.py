@@ -26,6 +26,7 @@ import time
 from bs4 import BeautifulSoup
 from curl_cffi import requests as curl_requests
 
+from euroleghe_ingest.config import DEFAULT_SEASONS
 from euroleghe_ingest.context import Context
 from euroleghe_ingest.matching import CLUB_ALIASES, build_pool_entry, club_key, match_in_pool
 
@@ -49,7 +50,7 @@ COMPETITIONS: dict[str, str] = {
     "bundesliga": "L1",
     "ligue_1": "FR1",
 }
-SEASONS: tuple[str, ...] = ("2023-24", "2024-25", "2025-26")
+SEASONS: tuple[str, ...] = DEFAULT_SEASONS   # config.py owns the list (one edit per new season)
 
 REQUEST_DELAY = 2.5
 REQUEST_JITTER = 1.5

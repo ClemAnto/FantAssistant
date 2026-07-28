@@ -36,6 +36,19 @@ LEAGUES: tuple[str, ...] = (
     "ligue_1",
 )
 
+# The seasons in scope, oldest first - SINGLE SOURCE OF TRUTH. It used to be a tuple repeated in
+# `ratings`, `positions` and `transfers`, which is three places to forget when a season opens: adding
+# "2026-27" here (August, when the listone comes out) is the whole change, and the engine's windows
+# then pick it up on their own. Anything older than the first entry is still reachable with
+# `--season`; the modules only use this to decide what a BARE run downloads.
+SEASONS: tuple[str, ...] = (
+    "2015-16", "2016-17", "2017-18", "2018-19", "2019-20", "2020-21",
+    "2021-22", "2022-23", "2023-24", "2024-25", "2025-26",
+)
+# What a run with no --season downloads: the three most recent seasons. The full history is already
+# in the cache, and re-walking eleven seasons of every source by default would be hours for nothing.
+DEFAULT_SEASONS: tuple[str, ...] = SEASONS[-3:]
+
 
 # NOTE: MANTRA_BY_CLASSIC lives in `sources`, next to CLASSIC_ROLES / MANTRA_ROLES, so the mapping
 # cannot drift away from the roles it partitions. It is imported lazily where needed: `sources` imports

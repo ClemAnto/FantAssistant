@@ -8,8 +8,10 @@ explicitly (or with include_network=True) - rebuild stays offline and fast.
 
 from __future__ import annotations
 
+import datetime as dt
+
 from euroleghe_ingest.context import Context
-from euroleghe_ingest.db.database import apply_schema, connect, table_names
+from euroleghe_ingest.db.database import apply_schema, connect, record_run, table_names
 from euroleghe_ingest.modules import PIPELINE, load
 
 NAME = "rebuild"
@@ -20,6 +22,7 @@ NETWORK = False
 
 
 def run(ctx: Context, *, include_network: bool = False, **kwargs) -> None:
+    started_at = dt.datetime.now(tz=dt.UTC).isoformat(timespec="seconds")
     # Rebuild "from scratch": reset in-place by dropping all tables (avoids a file-lock failure if
     # the GUI has the DB open, and applies any schema changes), then re-apply the schema.
     db = ctx.config.db_path
@@ -60,6 +63,7 @@ def run(ctx: Context, *, include_network: bool = False, **kwargs) -> None:
     load("rosters").backfill_clubs(ctx)
     load("rosters").backfill_rosters_from_ratings(ctx)   # Serie A + voti-only seasons
     load("ratings").reingest_listone_from_cache(ctx)     # Mantra roles + prices for ALL teams (listone)
+    load("positions").derive_club_leagues(ctx)           # league from the provider cache (build from zero)
     load("rosters").fix_club_leagues(ctx)                # correct clubs mislabeled by transferred players
     load("positions").reingest_all_from_cache(ctx)       # SofaScore facts + per-match layer + real role
     load("stats").derive_from_ratings(ctx)               # season aggregates for players without a listone
@@ -67,12 +71,16 @@ def run(ctx: Context, *, include_network: bool = False, **kwargs) -> None:
     load("fc_site").reingest_from_cache(ctx)             # dated states replayed + revealed penalties
     load("tournaments").reingest_from_cache(ctx)         # who played which tournament, offline
     load("transfers").reingest_from_cache(ctx)           # clubs, coaches (new_coach), transfers
+    load("injuries").reingest_from_cache(ctx)            # tm ids, dated absences, contract snapshot
+    load("elo").reingest_from_cache(ctx)                 # club strength at the auction dates
     load("synth").run(ctx)                               # calibrated synthetic base voto (needs the map)
     load("arrivals").run(ctx)   # roster diff needs the backfilled clubs
     ctx.conn.commit()
 
     load("validate").run(ctx)
     done.append("validate")
+    record_run(ctx.conn, "rebuild", started_at, "ok",
+               f"{len(done)} run · deferred: {','.join(deferred)} · todo: {','.join(todo)}")
     print(f"\n[rebuild] done - {len(done)} run, {len(deferred)} network-deferred, {len(todo)} to implement.")
     if deferred:
         print("           network (run explicitly): " + ", ".join(deferred))

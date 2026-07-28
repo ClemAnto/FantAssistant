@@ -258,9 +258,14 @@ CREATE TABLE IF NOT EXISTS transfers_history (
 CREATE TABLE IF NOT EXISTS injuries (
     fc_id      INTEGER NOT NULL REFERENCES players(fc_id),
     start_date TEXT NOT NULL,
-    end_date   TEXT,
-    kind       TEXT,                            -- muscular | traumatic | ...
+    end_date   TEXT,                            -- NULL = still out at the snapshot date
+    kind       TEXT,                            -- muscular | knee | ankle | illness | ...
     days_out   INTEGER,
+    -- matches_missed is the ONE the presences module can use directly: days out translate into
+    -- missed matches only through the calendar, and the source already did that translation.
+    matches_missed INTEGER,
+    detail     TEXT,                            -- the source's own label, kept verbatim
+    source     TEXT,
     PRIMARY KEY (fc_id, start_date)
 );
 

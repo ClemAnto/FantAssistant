@@ -26,7 +26,42 @@ proporre qualsiasi regola) → **`metrica-asta-surplus-v1.md`** (con cosa il pan
 
 Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
 
-### ULTIMO IN ORDINE DI TEMPO — due attaccanti dello stesso club nelle top-10: chiuso in tre pezzi
+### ULTIMO IN ORDINE DI TEMPO — il TOOLKIT è completo, esporta, si ricostruisce da zero, e ha una UI nuova
+
+Quattro richieste dell'utente in una sessione (28/07 sera-notte). Dettaglio tecnico:
+`spec-euroleghe-ingest-v9.md` «**Novità v9.4**» e `toolkit/README.md` (che ora è anche la guida
+d'installazione su una macchina nuova). **Nessun verdetto del gate cambia: qui non è entrata nessuna
+regola.** Sono dati, strumenti e infrastruttura.
+
+1. **I due buchi dichiarati sono chiusi.** `injuries` (nuovo modulo Transfermarkt: assenze datate con
+   **`matches_missed`**, non solo i giorni) e la **heatmap** → `positions.avg_x/avg_y`. ⚠️ Scoperta che
+   vincola il gate: la scadenza contratto **esiste solo sulla rosa di oggi** (la pagina di una stagione
+   passata non porta quella colonna), quindi `exit_risk` è utilizzabile per l'asta che viene e **non è
+   gatabile su T1/T2**. Registrato tra i `known_gaps` del bundle, non nascosto.
+2. **La domanda aperta sui reparti D e C ha una risposta misurata** (`positions --layer crosstab`, su
+   149 585 presenze): provider **G→P 100%**, **D→D 97%**, **M→C 80%**, **F→A 80%**. Estendere i
+   conteggi di reparto ai **difensori è pulito**; per i centrocampisti costa la stessa ambiguità già
+   accettata sugli attaccanti. Era il prerequisito dichiarato in todolist.
+3. **`export`: il bundle dell'app esiste.** 229 116 righe, **29 MB** SQLite + 2,5 MB JSON gzip, 21
+   tabelle. Il contratto è **derivato da quello che `engine/features.py` interroga davvero**, e il
+   `manifest.json` porta provenienza (commit + data), **quali prezzi sono auction-safe**, i parametri
+   provvisori **con i loro valori**, il set adottato e i buchi noti. `--verify` ri-apre il bundle e
+   distingue *bundle rotto* da *buco del mondo*. `data/export/` è gitignored: **il repo è pubblico**.
+4. **Ricostruibile da zero su un'altra macchina.** `bootstrap --plan` = 15 passi, ordine, opzioni e
+   costo (**~17 h**, ripartibile), e rifiuta di partire senza credenziali. Tre buchi reali chiusi per
+   arrivarci: `elo` non legge più un CSV fatto a mano ma l'**API ClubElo** (effetto: `club_elo` da 76
+   righe su 2 date a **921 su 10 date, 99 club**), la **lega di un club** si deriva dalla cache
+   provider (il listone euro non la dice, e gli export Drive una macchina nuova non li ha), e `fetch`
+   non è più uno stub (`--plan` = «cosa manca qui», `--inbox` = l'unico passo manuale, opzionale).
+   Aggiunti `.env.example` (era citato e non esisteva) e `config.SEASONS` come fonte unica.
+   **`ingest_runs` finalmente si scrive**: una riga per run, dalla CLI, dal rebuild e dalla GUI.
+5. **UI rifatta** (`ui_theme.py`): palette semantica light/**dark** con toggle ricordato, icone per
+   operazione, card per cadenza, striscia di metriche, log colorato per severità, status bar con
+   l'ultimo run. Aggiunti i pulsanti che mancavano: **Bootstrap**, **What is missing?**, **Export**.
+   Pillole ruolo e celle-stato dei fantavoti **non** sono tematizzate di proposito: sono codifiche di
+   dato. **194 test verdi, ruff pulito, nessun test tocca la rete.**
+
+### due attaccanti dello stesso club nelle top-10: chiuso in tre pezzi
 
 La domanda («è discutibile avere Kean+Piccoli o Marmoush+Haaland nei top 10: uno farà più bonus
 dell'altro») è stata attaccata direttamente, con dati nuovi presi **senza una richiesta di rete**, e ha
@@ -196,11 +231,18 @@ generazione delle ipotesi: passare lì è la prova più debole possibile.**
 3. **Copertura Serie A**: 8 posti su 40 nelle top-10 reali irraggiungibili, **4 attaccanti su 10** — quel
    ruolo è tappato a 6/10. R0c non passa lì (il core è a 0.281 e una stima di qualità-àncora sfora il +30%
    di un punto): serve uno stimatore che batta l'àncora.
-4. **`injuries` = 0 righe**, nessuna fonte agganciata: è metà dei buchi nelle top-10 dei difensori.
+4. ~~**`injuries` = 0 righe**~~ **modulo scritto il 28/07 notte** (Transfermarkt, assenze datate +
+   `matches_missed`): la fonte è agganciata e la camminata per-giocatore gira. Resta da **usarlo**, che
+   è una domanda da gate: `_inactivity` oggi stima le assenze dai buchi del layer per-partita
+   («l'injury proxy»), e sostituire una stima con un fatto è un'ipotesi nuova, da pre-registrare.
 5. **Storia di `probable_starter`/`availability`**: esiste solo lo snapshot 2026-07-26, **impossibile a
-   posteriori** → va accumulata da adesso con un job settimanale. È la forma pre-registrata di R7.
+   posteriori**. Il job settimanale ora c'è (`scripts/weekly-snapshot.ps1 -Register`) — **va registrato
+   sulla macchina**, ed è la forma pre-registrata di R7. Ogni settimana non registrata è una finestra
+   che non tornerà.
 6. A rendimento calante: voti Serie A prima del 15/16 (non sondati), layer per-partita per 15/16-18/19
-   (servirebbe solo a ri-testare R8 e R14, già bocciate), `club_elo` oltre le 2 date (solo R5).
+   (servirebbe solo a ri-testare R8 e R14, già bocciate). ~~`club_elo` oltre le 2 date~~ **risolto**:
+   l'API ClubElo dà tutte e 10 le date d'asta (921 righe, 99 club) — serve al modulo portieri, non a R5
+   (famiglia chiusa).
 7. **La conferma pulita resta la finestra 26/27, giugno 2027**: tutto l'adottato è stato generato
    guardando gli esiti di T1/T2.
 
@@ -215,7 +257,13 @@ Dalla v9.3: sei colonne di tiro su `external_match_stats` e **`club_match_lineup
 per undici, fuori dall'imbuto dell'identità); `probable_starter` tiene modulo, squadra e panchine;
 `positions --layer reparse` ri-parsa la cache senza rete.
 
-**167 test verdi, ruff pulito.** Toolkit **v0.2.0**. `recent_form` ha `--bonuses-only`
+Dalla **v9.4**: `injuries` (assenze datate + `matches_missed` + `contract_until`/`exit_risk`),
+`positions.avg_x/avg_y` dalla heatmap, `club_elo` **921 righe su 10 date** dall'API, `ingest_runs`
+scritta, `config.SEASONS` fonte unica, `bootstrap` (acquisizione da zero, ~17 h ripartibili),
+`fetch --plan/--inbox`, **`export`** (bundle app: 229k righe, 29 MB, manifest con provenienza e buchi
+noti), UI con tema light/dark. Cross-tab ruoli: **D→D 97%**, M→C 80%, F→A 80%, G→P 100%.
+
+**194 test verdi, ruff pulito** (nessuno tocca la rete). Toolkit **v0.2.0**. `recent_form` ha `--bonuses-only`
 (arricchisce i bonus delle partite già salvate, una richiesta per partita, senza ri-risolvere l'identità):
 **1195/1196** partite arricchite, **122/123** giocatori completi. `python -m euroleghe_ingest backtest [--verify] [--gate] [--auction]
 [--cases] [--pairs] [--window Tm7..T2] [--platform euro|default] [--game classic|mantra]`. GUI: tre tab, il terzo è

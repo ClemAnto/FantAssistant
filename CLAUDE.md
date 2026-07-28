@@ -9,6 +9,9 @@ Monorepo for the **EuroLeghe fantacalcio prediction engine**. Two parts:
   only reports. It stays dependency-free because the shippable engine gets ported from it.
 - `app/` - **final assistant** (Electron + Angular, TypeScript) with the `prediction-engine`. **Placeholder**:
   initialized after the toolkit (see roadmap); it will be ported from `toolkit/euroleghe_ingest/engine/`.
+  Its data contract already exists: `python -m euroleghe_ingest export` writes `data/export/<season>/`
+  (pruned SQLite + JSON tables + `manifest.json`), and the table list is DERIVED from what
+  `engine/features.py` queries - a rule that reads a new table must be added to `export.CONTRACT`.
 - `config/` - shared configuration read by both the toolkit and the engine: `scoring_config.json`
   (per-league scoring) and `league_config.json` (how many teams and squad slots a league has, which is
   what fixes the auction's REPLACEMENT LEVEL - see below).
@@ -96,6 +99,27 @@ Some constants exist only because a module needed a number to run: the revealed 
 decay/quarantine (`fc_site`), the arrival tier thresholds and the U22 age (`arrivals`). They are
 MODEL choices, so the gate owns them - they are marked provisional in the code and must be swept,
 never quoted as established. Same rule as any other candidate rule: no gate, no engine.
+
+## Rebuilding from nothing, and the app bundle
+Two commands own these, and both print a plan before doing anything:
+- **`bootstrap --plan`** = the ordered acquisition on a machine that has never seen the project (15
+  steps, ~17 h, resumable, refuses to start without credentials). `rebuild` stays OFFLINE by design -
+  it replays the cache - so on a fresh clone it is `bootstrap` that fills the cache first. Optional and
+  not on the public web: the Drive roster exports (`fetch --inbox` imports them from `data/inbox/`); the
+  authenticated listone creates `players`/`clubs`/`rosters` without them.
+- **`export`** = the app's bundle. `data/export/` is **gitignored**: it carries the same paid
+  fantacalcio.it content the cache does, and the repo is public.
+`fetch --plan` answers "what is missing here?" table by table, with the command that fills each gap.
+Every run leaves a line in `ingest_runs` (module, when, status, options), written by whoever owns the
+invocation - CLI, rebuild or GUI - never by the module itself.
+
+## Two facts that are snapshots and can never be backfilled
+- **Starting probability** (`probable_starter`): the site publishes only "now". The weekly job exists
+  (`scripts/weekly-snapshot.ps1 -Register`) and every week it does not run is a window that will never
+  exist. This is why the gate reports `starter_prob` 0/1453 on past windows.
+- **Contract expiry** (`flags.contract_until` / `exit_risk`): verified against the source - a PAST
+  season's squad page does not carry the column. So `exit_risk` is usable for the auction that is
+  coming and is **not gatable on T1/T2**. Both are listed in the export manifest's `known_gaps`.
 
 ## Credentials & security
 fantacalcio.it credentials **only** in the local `.env` (see `.env.example`). NEVER on Drive, in chats,

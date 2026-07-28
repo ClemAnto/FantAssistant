@@ -18,6 +18,9 @@ Launch: `python -m euroleghe_ingest gui`  (or with no arguments).
 
 from __future__ import annotations
 
+import contextlib
+import datetime as dt
+import json
 import queue
 import sqlite3
 import sys
@@ -27,9 +30,10 @@ from tkinter import scrolledtext, ttk
 from typing import ClassVar
 
 from euroleghe_ingest import __version__
+from euroleghe_ingest import ui_theme as theme
 from euroleghe_ingest.config import Config
 from euroleghe_ingest.context import Context
-from euroleghe_ingest.db.database import connect, init_db, table_names
+from euroleghe_ingest.db.database import connect, init_db, record_run, table_names
 from euroleghe_ingest.matching import club_abbreviation
 from euroleghe_ingest.modules import IMPLEMENTED, load
 from euroleghe_ingest.sources import _norm_roles, available_sources
@@ -57,18 +61,21 @@ class _QueueWriter:
 #   season  = when a new season opens: new squads, prices, arrivals, auction-time club strength
 #   weekly  = as the season goes: new ratings, the round they map to, the external layer, the checks
 OPERATION_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
-    ("Setup - once", ("initdb", "rebuild", "fetch:plan")),
-    ("Start of season", ("rosters", "stats", "elo", "transfers", "tournaments", "arrivals", "recent_form",
-      "fbref")),
+    ("Setup - once", ("initdb", "bootstrap", "rebuild", "fetch:plan")),
+    ("Start of season", ("rosters", "stats", "elo", "transfers", "injuries", "tournaments",
+      "arrivals", "recent_form", "fbref")),
     ("During the season - every matchday",
      ("ratings", "matchdays", "positions", "synth", "fc_site", "validate")),
+    ("Before an auction", ("export",)),
 )
 
 # Labels for the operations that are not pipeline modules (those just use their own name).
 OPERATION_LABELS: dict[str, str] = {
     "initdb": "Initialize DB",
     "rebuild": "Rebuild all",
-    "fetch:plan": "Plan fetch (--plan)",
+    "bootstrap": "Bootstrap (from zero)",
+    "fetch:plan": "What is missing?",
+    "export": "Export app bundle",
 }
 
 
@@ -119,16 +126,39 @@ TOOLTIPS: dict[str, str] = {
     "tournaments": "Load who actually PLAYED at an international tournament (SofaScore lineups, "
                    "minutes included) -> tournaments_squads + the post_torneo signal: a summer "
                    "tournament eats the next preseason, a mid-season one takes appearances away.",
+    "injuries": "Load the injury HISTORY per player from Transfermarkt -> injuries (dated absences "
+                "with the matches actually missed) plus the contract-expiry snapshot (exit_risk). "
+                "The per-player walk takes hours and is resumable; contract expiry exists only for "
+                "TODAY - a past season's page does not carry it.",
     "elo": "Load club strength from ClubElo into club_elo at the auction dates (feeds the goalkeeper model).",
     "validate": "Run integrity checks on the database (e.g. no entirely-null column) and fail loudly if "
                 "something is wrong.",
+    "bootstrap": "Build EVERYTHING from the network, in dependency order, on a machine that has "
+                 "nothing: listone + votes, the provider facts, transfers, Elo, injuries. About 17 "
+                 "hours, fully resumable - `bootstrap --plan` prints the order and the cost first. "
+                 "Needs the fantacalcio.it credentials in .env.",
+    "export": "Write the app's data bundle (data/export/<season>/): a pruned SQLite + JSON tables + "
+              "a manifest carrying provenance, which prices are auction-safe, the provisional "
+              "parameters and the known gaps. Read-only on the DB, and it verifies what it wrote.",
 }
 
-# Operation state -> (symbol, color) for the indicator dot.
+# Operation state -> (symbol, palette key) for the indicator dot. The colour is resolved at DRAW
+# time through the theme, so the same dot works in both modes.
+STATE_GLYPH: dict[str, tuple[str, str]] = {
+    "completed": ("✓", "ok"),
+    "todo": ("●", "warn"),
+    "unavailable": ("○", "idle"),
+}
+
+
+def state_style(state: str) -> tuple[str, str]:
+    glyph, key = STATE_GLYPH[state]
+    return glyph, theme.color(key)
+
+
+# Kept as a mapping for the callers that only want the glyph; the colour is theme-dependent now.
 STATE_STYLE: dict[str, tuple[str, str]] = {
-    "completed": ("✓", "#2e7d32"),
-    "todo": ("●", "#ed6c02"),
-    "unavailable": ("○", "#9e9e9e"),
+    state: (glyph, theme.LIGHT[key]) for state, (glyph, key) in STATE_GLYPH.items()
 }
 STATE_LABEL: dict[str, str] = {
     "completed": "Completed - no need to run.",
@@ -151,6 +181,7 @@ OUTPUT_COUNTER: dict[str, str] = {
     "synth": "external_match_stats.mv_synth",
     "tournaments": "tournaments_squads",
     "transfers": "coaches",
+    "injuries": "injuries",
     "arrivals": "arrivals",
     "elo": "club_elo",
 }
@@ -175,7 +206,15 @@ def operation_state(command: str, counts: dict[str, int] | None, has_sources: bo
             return "unavailable"
         return "completed" if rows("players") > 0 else "todo"
     if command == "fetch:plan":
-        return "unavailable"
+        return "todo"          # a report, so it is always worth running (and now implemented)
+    if command == "bootstrap":
+        # From-zero acquisition: done once the registry exists. Never "unavailable" - it is exactly
+        # what an empty machine needs, and it is the only button that works with nothing in place.
+        return "completed" if rows("players") > 0 else "todo"
+    if command == "export":
+        if not has_db or rows("rosters") == 0:
+            return "unavailable"
+        return "completed" if rows("_export_bundle") else "todo"
     if command not in IMPLEMENTED:
         return "unavailable"
     if command == "validate":
@@ -390,8 +429,17 @@ def half_step(value) -> float | None:
     return round(value * 2) / 2
 
 
+# The neutral cells (a plain vote, an empty one) are CHROME: they must follow the theme, or a dark
+# panel shows a white sheet. The coloured statuses (injured, suspended, bench...) are data encodings
+# and stay fixed - a defender's green means the same thing in both modes.
+_THEMED_RATING_STATUS = {"played": ("surface", "text"), "no_vote": ("surface_alt", "text_faint")}
+
+
 def rating_cell_style(status) -> tuple[str, str]:
-    return RATING_STATUS_STYLE.get(status, _DEFAULT_RATING_STYLE)
+    themed = _THEMED_RATING_STATUS.get(status)
+    if themed:
+        return theme.color(themed[0]), theme.color(themed[1])
+    return RATING_STATUS_STYLE.get(status, (theme.color("surface"), theme.color("text")))
 
 
 def rating_cell_text(fantavoto, status) -> str:
@@ -569,12 +617,14 @@ class PlayersView(ttk.Frame):
         ttk.Checkbutton(top, text="Fantavoti (per matchday)", variable=self.mode_var,
                         command=self._toggle_mode).pack(side="left", padx=(12, 0))
         self.info_var = tk.StringVar(value="")
-        ttk.Label(top, textvariable=self.info_var, foreground="#555").pack(side="right", padx=6)
+        ttk.Label(top, textvariable=self.info_var, style="Muted.TLabel").pack(side="right", padx=6)
 
         body = ttk.Frame(self)
         body.pack(fill="both", expand=True, pady=(8, 0))
-        self.header_canvas = tk.Canvas(body, height=HEADER_H, highlightthickness=0, background="#e9e9e9")
-        self.body_canvas = tk.Canvas(body, highlightthickness=0, background="#ffffff")
+        self.header_canvas = tk.Canvas(body, height=HEADER_H, highlightthickness=0,
+                                       background=theme.color("surface_alt"))
+        self.body_canvas = tk.Canvas(body, highlightthickness=0,
+                                     background=theme.color("surface"))
         vsb = ttk.Scrollbar(body, orient="vertical", command=self.body_canvas.yview)
         hsb = ttk.Scrollbar(body, orient="horizontal", command=self._xview_both)
         self.body_canvas.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
@@ -727,7 +777,8 @@ class PlayersView(ttk.Frame):
         self._col_layout = layout
 
         for col_id, header, kind, cx, w in layout:
-            hc.create_rectangle(cx, 0, cx + w, HEADER_H, fill="#e9e9e9", outline="#cfcfcf")
+            hc.create_rectangle(cx, 0, cx + w, HEADER_H, fill=theme.color("surface_alt"),
+                                outline=theme.color("border"))
             text = header
             if col_id == self._sort_col:
                 text += " ▼" if self._sort_desc.get(col_id) else " ▲"
@@ -740,7 +791,8 @@ class PlayersView(ttk.Frame):
         for i, row in enumerate(self._rows):
             y = i * ROW_H
             if i % 2:
-                bc.create_rectangle(0, y, total_w, y + ROW_H, fill="#f6f6f6", outline="")
+                bc.create_rectangle(0, y, total_w, y + ROW_H, fill=theme.color("surface_alt"),
+                                    outline="")
             for col_id, header, kind, cx, w in layout:
                 if kind == "pill":
                     self._draw_role_pills(bc, row[col_id], cx, y, w)
@@ -829,7 +881,8 @@ class PlayersView(ttk.Frame):
 
         total_w = left_w + len(days) * CELL_W
         for col_id, header, kind, cx, w in left:
-            hc.create_rectangle(cx, 0, cx + w, HEADER_H, fill="#e9e9e9", outline="#cfcfcf")
+            hc.create_rectangle(cx, 0, cx + w, HEADER_H, fill=theme.color("surface_alt"),
+                                outline=theme.color("border"))
             text = header
             if col_id == self._sort_col:
                 text += " ▼" if self._sort_desc.get(col_id) else " ▲"
@@ -838,16 +891,18 @@ class PlayersView(ttk.Frame):
             cx = left_w + j * CELL_W
             in_euro = md in euro_rounds
             hc.create_rectangle(cx, 0, cx + CELL_W, HEADER_H,
-                                fill="#e9e9e9" if in_euro else SYNTHETIC_HEADER, outline="#cfcfcf")
+                                fill=theme.color("surface_alt") if in_euro else SYNTHETIC_HEADER,
+                                outline=theme.color("border"))
             hc.create_text(cx + CELL_W // 2, HEADER_H // 2, text=str(md),
                            font=("Segoe UI", 8, "bold"),
-                           fill="#111111" if in_euro else SYNTHETIC_STYLE[1])
+                           fill=theme.color("text") if in_euro else SYNTHETIC_STYLE[1])
         hc.configure(scrollregion=(0, 0, total_w, HEADER_H))
 
         for i, pl in enumerate(players):
             y = i * ROW_H
             if i % 2:
-                bc.create_rectangle(0, y, total_w, y + ROW_H, fill="#f6f6f6", outline="")
+                bc.create_rectangle(0, y, total_w, y + ROW_H, fill=theme.color("surface_alt"),
+                                    outline="")
             for col_id, header, kind, cx, w in left:
                 if kind == "pill":
                     self._draw_role_pills(bc, pl[col_id], cx, y, w)
@@ -864,11 +919,13 @@ class PlayersView(ttk.Frame):
                     font = ("Segoe UI", 8)
                 else:
                     mv_synth, minutes = synth.get((pl["fc_id"], md), (None, None))
-                    bg, fg = (SYNTHETIC_STYLE if mv_synth is not None else ("#f4f4f4", "#bbbbbb"))
+                    bg, fg = (SYNTHETIC_STYLE if mv_synth is not None
+                              else (theme.color("surface_alt"), theme.color("text_faint")))
                     shown = half_step(mv_synth) if (minutes or 0) > 0 else None
                     txt = f"{shown:g}" if shown is not None else ""
                     font = ("Segoe UI", 8, "italic")
-                bc.create_rectangle(cx, y, cx + CELL_W, y + ROW_H, fill=bg, outline="#e6e6e6")
+                bc.create_rectangle(cx, y, cx + CELL_W, y + ROW_H, fill=bg,
+                                    outline=theme.color("border"))
                 if txt:
                     bc.create_text(cx + CELL_W // 2, y + ROW_H // 2, text=txt, fill=fg, font=font)
         bc.configure(scrollregion=(0, 0, total_w, max(len(players) * ROW_H, 1)))
@@ -1095,7 +1152,7 @@ class AuctionView(ttk.Frame):
         # locked during a run without anyone having to remember it.
         self._selectors = (self.platform_cb, self.game_cb, self.season_cb, self.metric_cb)
         self.status_var = tk.StringVar(value="")
-        ttk.Label(top, textvariable=self.status_var, foreground="#555").pack(side="left", padx=8)
+        ttk.Label(top, textvariable=self.status_var, style="Muted.TLabel").pack(side="left", padx=8)
 
         setup = self.config.load_league()
         gamma, floor = setup["reliability_exponent"], setup["min_availability"]
@@ -1375,37 +1432,119 @@ class ToolkitGUI:
         self.busy = False
         self._cancel_event = threading.Event()
 
-        root.title(f"euroleghe-ingest - operator panel v{__version__}")
-        root.geometry("1000x700")
-        root.minsize(820, 640)   # the three operation groups + legend need this much height
+        root.title(f"euroleghe-ingest · operator panel v{__version__}")
+        root.geometry("1180x780")
+        root.minsize(900, 660)   # the operation cards + the status bar need this much height
+        self._theme_mode = self._load_prefs().get("theme", "light")
+        theme.apply_theme(root, self._theme_mode)
         try:
             self._app_icon = make_app_icon()           # keep a reference (Tk needs it alive)
             root.iconphoto(True, self._app_icon)
         except tk.TclError:
             pass  # the icon is cosmetic; never block startup over it
 
-        notebook = ttk.Notebook(root)
-        notebook.pack(fill="both", expand=True)
+        shell = ttk.Frame(root, padding=(12, 10, 12, 0))
+        shell.pack(fill="both", expand=True)
+        self._build_header(shell)
+
+        notebook = self.notebook = ttk.Notebook(shell)
+        notebook.pack(fill="both", expand=True, pady=(10, 0))
 
         ops_tab = ttk.Frame(notebook)
-        notebook.add(ops_tab, text="Operations")
+        notebook.add(ops_tab, text="  Operations  ")
         self._build_operations_tab(ops_tab)
 
         self.players = PlayersView(notebook, self.config)
-        notebook.add(self.players, text="Players")
+        notebook.add(self.players, text="  Players  ")
 
         self.auction = AuctionView(notebook, self.config)
-        notebook.add(self.auction, text="Auction")
+        notebook.add(self.auction, text="  Auction  ")
 
+        self._build_status_bar(root)
         self.refresh_status()
         self.refresh_operation_states()
         self.players.reload()
         self.auction.reload()
         self.root.after(100, self._drain_log)
 
+    # ---------- preferences (theme only, so a restart looks like the last session) ----------
+    def _prefs_path(self):
+        return self.config.data_dir / "reports" / "ui-prefs.json"
+
+    def _load_prefs(self) -> dict:
+        try:
+            return json.loads(self._prefs_path().read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return {}
+
+    def _save_prefs(self, **values) -> None:
+        prefs = {**self._load_prefs(), **values}
+        with contextlib.suppress(OSError):
+            self._prefs_path().parent.mkdir(parents=True, exist_ok=True)
+            self._prefs_path().write_text(json.dumps(prefs, indent=2), encoding="utf-8")
+
+    def _toggle_theme(self) -> None:
+        """Light <-> dark. Re-styles in place and asks the canvas views to redraw themselves."""
+        self._theme_mode = "dark" if self._theme_mode == "light" else "light"
+        theme.apply_theme(self.root, self._theme_mode)
+        self._save_prefs(theme=self._theme_mode)
+        self.theme_button.configure(text="☾  Dark" if self._theme_mode == "light" else "☀  Light")
+        self._restyle_log()
+        self.refresh_operation_states()
+        with contextlib.suppress(Exception):
+            self.players.reload()
+            self.auction.reload()
+
+    # ---------- header ----------
+    def _build_header(self, parent: tk.Widget) -> None:
+        bar = ttk.Frame(parent, style="Card.TFrame", padding=(14, 10))
+        bar.pack(fill="x")
+        left = ttk.Frame(bar, style="Card.TFrame")
+        left.pack(side="left", fill="x", expand=True)
+        title = ttk.Frame(left, style="Card.TFrame")
+        title.pack(anchor="w")
+        ttk.Label(title, text="⚽", style="Icon.TLabel").pack(side="left", padx=(0, 8))
+        ttk.Label(title, text="euroleghe-ingest", style="H1.TLabel").pack(side="left")
+        ttk.Label(title, text=f"v{__version__}", style="CardMuted.TLabel").pack(side="left",
+                                                                               padx=(8, 0))
+        self.db_var = tk.StringVar()
+        ttk.Label(left, textvariable=self.db_var, style="CardMuted.TLabel").pack(anchor="w",
+                                                                                pady=(2, 0))
+
+        actions = ttk.Frame(bar, style="Card.TFrame")
+        actions.pack(side="right")
+        self.theme_button = ttk.Button(
+            actions, text="☾  Dark" if self._theme_mode == "light" else "☀  Light", width=10,
+            command=self._toggle_theme)
+        self.theme_button.pack(side="left", padx=(0, 6))
+        ttk.Button(actions, text="↻  Refresh", command=self._refresh_all).pack(side="left",
+                                                                              padx=(0, 6))
+        self.stop_button = ttk.Button(actions, text="■  Stop", style="Danger.TButton",
+                                      command=self._request_stop, state="disabled")
+        self.stop_button.pack(side="left")
+
+    # ---------- status bar ----------
+    def _build_status_bar(self, parent: tk.Widget) -> None:
+        bar = ttk.Frame(parent, style="Card.TFrame", padding=(14, 6))
+        bar.pack(fill="x", side="bottom")
+        self.activity_var = tk.StringVar(value="idle")
+        ttk.Label(bar, textvariable=self.activity_var, style="Card.TLabel").pack(side="left")
+        self.progress = ttk.Progressbar(bar, mode="indeterminate", length=180)
+        self.progress.pack(side="right")
+        self.last_run_var = tk.StringVar()
+        ttk.Label(bar, textvariable=self.last_run_var, style="CardMuted.TLabel").pack(
+            side="right", padx=(0, 14))
+
     # ---------- operations tab layout ----------
     def _build_operations_tab(self, parent: tk.Widget) -> None:
-        main = ttk.Frame(parent, padding=10)
+        """Two columns: the operations as cards on the left, what the DB contains on the right.
+
+        The cadence groups become cards because that is the question an operator actually asks -
+        "what do I run today?" - and a flat list of nineteen buttons never answered it. Each row
+        carries the state dot, the operation's glyph and its name, in that order: state first,
+        because a green row needs no reading at all.
+        """
+        main = ttk.Frame(parent, padding=(0, 12, 0, 0))
         main.pack(fill="both", expand=True)
 
         left = ttk.Frame(main)
@@ -1414,14 +1553,19 @@ class ToolkitGUI:
         self.dots: list[tk.Label] = []
         self.op_commands: list[str] = []
         for group, commands in OPERATION_GROUPS:
-            box = ttk.LabelFrame(left, text=group, padding=6)
-            box.pack(fill="x", pady=(0, 6))
+            card = ttk.Frame(left, style="Card.TFrame", padding=(10, 8))
+            card.pack(fill="x", pady=(0, 8))
+            head = ttk.Frame(card, style="Card.TFrame")
+            head.pack(fill="x", pady=(0, 4))
+            ttk.Label(head, text=group.upper(), style="CardMuted.TLabel").pack(side="left")
             for command in commands:
-                row = ttk.Frame(box)
-                row.pack(fill="x", pady=1)
-                dot = tk.Label(row, text="○", width=2, font=("Segoe UI", 11))
+                row = ttk.Frame(card, style="Card.TFrame")
+                row.pack(fill="x")
+                dot = tk.Label(row, text="○", width=2, font=theme.FONTS["body"],
+                               background=theme.color("surface"))
                 dot.pack(side="left")
-                btn = ttk.Button(row, text=operation_label(command), width=25,
+                btn = ttk.Button(row, style="Op.TButton", width=26,
+                                 text=f"{theme.icon(command)}   {operation_label(command)}",
                                  command=lambda c=command: self.run_operation(c))
                 btn.pack(side="left", fill="x", expand=True)
                 Tooltip(btn, lambda c=command: self._tooltip_for(c))
@@ -1430,32 +1574,76 @@ class ToolkitGUI:
                 self.op_commands.append(command)
 
         legend = ttk.Frame(left)
-        legend.pack(anchor="w")
+        legend.pack(anchor="w", pady=(2, 0))
+        self._legend_dots: list[tuple[tk.Label, str]] = []
         for state in ("completed", "todo", "unavailable"):
-            sym, color = STATE_STYLE[state]
-            tk.Label(legend, text=sym, foreground=color, font=("Segoe UI", 10)).pack(side="left")
-            tk.Label(legend, text=f" {state}   ", foreground="#555").pack(side="left")
+            glyph, colour = state_style(state)
+            mark = tk.Label(legend, text=glyph, foreground=colour, font=theme.FONTS["small"],
+                            background=theme.color("bg"))
+            mark.pack(side="left")
+            tk.Label(legend, text=f" {state}   ", foreground=theme.color("text_faint"),
+                     background=theme.color("bg"), font=theme.FONTS["small"]).pack(side="left")
+            self._legend_dots.append((mark, state))
 
         right = ttk.Frame(main)
-        right.pack(side="left", fill="both", expand=True, padx=(10, 0))
+        right.pack(side="left", fill="both", expand=True, padx=(12, 0))
 
-        status = ttk.LabelFrame(right, text="Status", padding=8)
-        status.pack(fill="x")
+        # Metric strip: how much of the database exists, in the four numbers that matter.
+        strip = ttk.Frame(right)
+        strip.pack(fill="x")
+        self.metrics: dict[str, tk.StringVar] = {}
+        for key, label in (("tables", "tables"), ("players", "players"), ("ratings", "votes"),
+                           ("matches", "match rows")):
+            cell = ttk.Frame(strip, style="Card.TFrame", padding=(12, 8))
+            cell.pack(side="left", fill="x", expand=True, padx=(0, 8))
+            var = tk.StringVar(value="—")
+            ttk.Label(cell, textvariable=var, style="Metric.TLabel").pack(anchor="w")
+            ttk.Label(cell, text=label, style="CardMuted.TLabel").pack(anchor="w")
+            self.metrics[key] = var
+
+        detail = ttk.Frame(right, style="Card.TFrame", padding=(12, 10))
+        detail.pack(fill="x", pady=(8, 0))
         self.status_var = tk.StringVar(value="...")
-        ttk.Label(status, textvariable=self.status_var, justify="left").pack(anchor="w")
-        buttons = ttk.Frame(status)
-        buttons.pack(anchor="e", pady=(6, 0))
-        self.stop_button = ttk.Button(buttons, text="Stop", command=self._request_stop, state="disabled")
-        self.stop_button.pack(side="left", padx=(0, 6))
-        ttk.Button(buttons, text="Refresh", command=self._refresh_all).pack(side="left")
+        ttk.Label(detail, textvariable=self.status_var, style="CardMuted.TLabel", justify="left",
+                  wraplength=620).pack(anchor="w")
 
-        log_frame = ttk.LabelFrame(right, text="Log", padding=8)
-        log_frame.pack(fill="both", expand=True, pady=(10, 0))
-        self.log = scrolledtext.ScrolledText(log_frame, height=16, state="disabled", wrap="word")
+        log_card = ttk.Frame(right, style="Card.TFrame", padding=(12, 10))
+        log_card.pack(fill="both", expand=True, pady=(8, 0))
+        log_head = ttk.Frame(log_card, style="Card.TFrame")
+        log_head.pack(fill="x", pady=(0, 6))
+        ttk.Label(log_head, text="LOG", style="CardMuted.TLabel").pack(side="left")
+        ttk.Button(log_head, text="copy", width=6,
+                   command=self._copy_log).pack(side="right", padx=(6, 0))
+        ttk.Button(log_head, text="clear", width=6, command=self._clear_log).pack(side="right")
+        self.log = scrolledtext.ScrolledText(log_card, height=16, state="disabled", wrap="word",
+                                             relief="flat", borderwidth=0)
         self.log.pack(fill="both", expand=True)
+        self._restyle_log()
 
-        self.progress = ttk.Progressbar(right, mode="indeterminate")
-        self.progress.pack(fill="x", pady=(8, 0))
+    # ---------- log ----------
+    def _restyle_log(self) -> None:
+        """Colours for the log, re-applied on a theme switch. Severity is read from what modules print."""
+        self.log.configure(background=theme.color("surface_sunken"), foreground=theme.color("text"),
+                           insertbackground=theme.color("text"), font=theme.FONTS["mono"],
+                           selectbackground=theme.color("selection"))
+        for tag, key, _needles in theme.LOG_TAGS:
+            self.log.tag_configure(tag, foreground=theme.color(key))
+        self.log.tag_configure("head", font=theme.FONTS["strong"])
+
+    def _line_tag(self, text: str) -> str | None:
+        for tag, _key, needles in theme.LOG_TAGS:
+            if any(needle in text for needle in needles):
+                return tag
+        return None
+
+    def _copy_log(self) -> None:
+        self.root.clipboard_clear()
+        self.root.clipboard_append(self.log.get("1.0", "end"))
+
+    def _clear_log(self) -> None:
+        self.log.configure(state="normal")
+        self.log.delete("1.0", "end")
+        self.log.configure(state="disabled")
 
     # ---------- operation state ----------
     def _db_counts(self) -> dict[str, int] | None:
@@ -1473,6 +1661,10 @@ class ToolkitGUI:
             for key, table, column in COLUMN_COUNTERS:
                 if table in tables:
                     (counts[key],) = conn.execute(f'SELECT COUNT("{column}") FROM {table}').fetchone()
+            # `export` writes files, not rows: count the bundles on disk under the same key space, so
+            # `operation_state` stays a pure function of one dict.
+            export_dir = self.config.data_dir / "export"
+            counts["_export_bundle"] = len(list(export_dir.glob("*/manifest.json")))                 if export_dir.exists() else 0
             return counts
         except Exception:  # noqa: BLE001 - a broken DB just means "no counts"
             return None
@@ -1487,27 +1679,64 @@ class ToolkitGUI:
             return
         counts = self._db_counts()
         has_sources = bool(available_sources(self.config))
-        for command, dot, btn in zip(self.op_commands, self.dots, self.buttons):
+        surface = theme.color("surface")
+        for command, dot, btn in zip(self.op_commands, self.dots, self.buttons, strict=False):
             state = operation_state(command, counts, has_sources)
-            sym, color = STATE_STYLE[state]
-            dot.configure(text=sym, foreground=color)
+            glyph, colour = state_style(state)
+            dot.configure(text=glyph, foreground=colour, background=surface)
             btn.configure(state="disabled" if state == "unavailable" else "normal")
+        for mark, state in getattr(self, "_legend_dots", []):
+            glyph, colour = state_style(state)
+            mark.configure(text=glyph, foreground=colour, background=theme.color("bg"))
 
     def _tooltip_for(self, command: str) -> str:
         desc = TOOLTIPS.get(command, command)
         return f"{desc}\n\n— {STATE_LABEL[self._current_status(command)]}"
 
     # ---------- DB status panel ----------
-    def refresh_status(self) -> None:
+    def _last_run(self) -> str:
+        """The provenance line: which module ran last, when, and how it ended (`ingest_runs`)."""
         db = self.config.db_path
         if not db.exists():
-            self.status_var.set(f"DB: {db}\n(not created yet - use 'Initialize DB' or 'Rebuild all')")
+            return ""
+        conn = connect(db)
+        try:
+            row = conn.execute("SELECT module, started_at, status FROM ingest_runs "
+                               "ORDER BY started_at DESC LIMIT 1").fetchone()
+        except sqlite3.Error:
+            return ""
+        finally:
+            conn.close()
+        if not row:
+            return "no run recorded yet"
+        module, started_at, status = row
+        return f"last run: {module} · {started_at.replace('T', ' ')[:16]} · {status}"
+
+    def refresh_status(self) -> None:
+        db = self.config.db_path
+        self.db_var.set(f"⛁  {db}")
+        if not db.exists():
+            self.status_var.set("The database does not exist yet. 'Initialize DB' creates it empty; "
+                                "'Bootstrap' builds everything from the network (see `bootstrap "
+                                "--plan` for the order and the cost).")
+            for var in self.metrics.values():
+                var.set("—")
+            self.last_run_var.set("")
             return
         counts = self._db_counts() or {}
-        tables = {name: n for name, n in counts.items() if "." not in name}   # drop column counters
-        populated = [f"{name}={n}" for name, n in sorted(tables.items()) if n]
-        rows = ", ".join(populated) if populated else "all empty"
-        self.status_var.set(f"DB: {db}\nTables: {len(tables)} · rows: {rows}")
+        # Drop the pseudo-keys: a column counter ("table.column") and the on-disk bundle count
+        # ("_export_bundle") are state for `operation_state`, not tables of the database.
+        tables = {name: n for name, n in counts.items()
+                  if "." not in name and not name.startswith("_")}
+        self.metrics["tables"].set(f"{sum(1 for n in tables.values() if n)}/{len(tables)}")
+        self.metrics["players"].set(f"{counts.get('players', 0):,}")
+        self.metrics["ratings"].set(f"{counts.get('match_ratings', 0):,}")
+        self.metrics["matches"].set(f"{counts.get('external_match_stats', 0):,}")
+        empty = sorted(name for name, n in tables.items() if not n)
+        populated = ", ".join(f"{name} {n:,}" for name, n in sorted(tables.items()) if n)
+        note = f"\n\nEmpty: {', '.join(empty)}" if empty else ""
+        self.status_var.set(f"{populated}{note}")
+        self.last_run_var.set(self._last_run())
 
     def _refresh_all(self) -> None:
         self.refresh_status()
@@ -1579,7 +1808,8 @@ class ToolkitGUI:
         ttk.Label(frm, text="Layer:").grid(row=0, column=0, sticky="w", pady=4)
         layer = tk.StringVar(value="season")
         ttk.Combobox(frm, textvariable=layer, state="readonly", width=24,
-                     values=["season", "match", "all"]).grid(row=0, column=1, pady=4)
+                     values=["season", "match", "complete", "heatmap", "all", "reparse",
+                             "crosstab"]).grid(row=0, column=1, pady=4)
         ttk.Label(frm, text="League:").grid(row=1, column=0, sticky="w", pady=4)
         league = tk.StringVar(value="all")
         ttk.Combobox(frm, textvariable=league, state="readonly", width=24,
@@ -1593,7 +1823,7 @@ class ToolkitGUI:
                         variable=refresh).grid(row=3, column=0, columnspan=2, sticky="w", pady=4)
 
         hint = tk.StringVar()
-        ttk.Label(frm, textvariable=hint, foreground="#555", wraplength=330,
+        ttk.Label(frm, textvariable=hint, style="Muted.TLabel", wraplength=330,
                   justify="left").grid(row=4, column=0, columnspan=2, sticky="w", pady=(6, 0))
 
         def describe(*_args) -> None:
@@ -1603,7 +1833,14 @@ class ToolkitGUI:
                 "match": "Per-match ratings of the perimeter clubs -> external_match_stats. This is "
                          "what fills the SYNTHETIC matchdays. Hours for everything; resumable, and "
                          "'Stop' keeps whatever landed. Run 'matchdays' and 'synth' afterwards.",
+                "complete": "Adds the matches the perimeter filter skipped (non-perimeter vs "
+                            "non-perimeter), which is what removes the 'hardest half' bias.",
+                "heatmap": "Average pitch position (avg_x/avg_y) -> positions. One request per "
+                           "player-season, roughly an hour per season; resumable.",
                 "all": "Both layers, one after the other.",
+                "reparse": "Offline: rebuilds everything from the cached JSON. Zero requests.",
+                "crosstab": "Offline report: provider slot (G/D/M/F) vs our listone role, so the "
+                            "lineup counts can be read as fantacalcio roles. Zero requests.",
             }[layer.get()])
 
         layer.trace_add("write", describe)
@@ -1625,9 +1862,74 @@ class ToolkitGUI:
         dlg.wait_window()
         return out or None
 
+    def _injuries_dialog(self) -> dict | None:
+        """Ask which layer of the Transfermarkt injury walk to run. Returns run() kwargs, or None.
+
+        Same reason the positions dialog exists: 'ids' is a few hundred requests, 'injuries' is one
+        per player and takes hours, so nothing here starts by accident.
+        """
+        from euroleghe_ingest.config import SEASONS
+
+        dlg = tk.Toplevel(self.root)
+        dlg.title("Import Transfermarkt injuries")
+        dlg.transient(self.root)
+        dlg.grab_set()
+        dlg.resizable(False, False)
+        frm = ttk.Frame(dlg, padding=12)
+        frm.pack(fill="both", expand=True)
+
+        ttk.Label(frm, text="Layer:").grid(row=0, column=0, sticky="w", pady=4)
+        layer = tk.StringVar(value="ids")
+        ttk.Combobox(frm, textvariable=layer, state="readonly", width=24,
+                     values=["ids", "injuries", "all", "reparse"]).grid(row=0, column=1, pady=4)
+        ttk.Label(frm, text="Season:").grid(row=1, column=0, sticky="w", pady=4)
+        season = tk.StringVar(value="all")
+        ttk.Combobox(frm, textvariable=season, state="readonly", width=24,
+                     values=["all", *SEASONS]).grid(row=1, column=1, pady=4)
+        ttk.Label(frm, text="Limit (players):").grid(row=2, column=0, sticky="w", pady=4)
+        limit = tk.StringVar(value="")
+        ttk.Entry(frm, textvariable=limit, width=26).grid(row=2, column=1, pady=4)
+        refresh = tk.BooleanVar(value=False)
+        ttk.Checkbutton(frm, text="Refresh (re-download what is already cached)",
+                        variable=refresh).grid(row=3, column=0, columnspan=2, sticky="w", pady=4)
+
+        hint = tk.StringVar()
+        ttk.Label(frm, textvariable=hint, style="Muted.TLabel", wraplength=330,
+                  justify="left").grid(row=4, column=0, columnspan=2, sticky="w", pady=(6, 0))
+
+        def describe(*_args) -> None:
+            hint.set({
+                "ids": "Squad pages: Transfermarkt player ids + the CONTRACT EXPIRY snapshot "
+                       "(exit_risk). One request per club-season plus one per club.",
+                "injuries": "The injury history, one request per player - hours. Resumable, and "
+                            "'Stop' keeps every player already fetched.",
+                "all": "Ids first, then the per-player walk.",
+                "reparse": "Offline: rebuilds injuries and the flags from the cache. Zero requests.",
+            }[layer.get()])
+
+        layer.trace_add("write", describe)
+        describe()
+
+        out: dict = {}
+
+        def confirm():
+            out["layer"] = layer.get()
+            out["seasons"] = None if season.get() == "all" else [season.get()]
+            out["limit"] = int(limit.get()) if limit.get().strip().isdigit() else None
+            out["refresh"] = refresh.get()
+            dlg.destroy()
+
+        btns = ttk.Frame(frm)
+        btns.grid(row=5, column=0, columnspan=2, pady=(10, 0))
+        ttk.Button(btns, text="Run", command=confirm).pack(side="left", padx=4)
+        ttk.Button(btns, text="Cancel", command=dlg.destroy).pack(side="left", padx=4)
+        dlg.wait_window()
+        return out or None
+
     # Operations that ask for options before running: command -> dialog method name.
     DIALOGS: ClassVar[dict[str, str]] = {"ratings": "_ratings_dialog",
-                                         "positions": "_positions_dialog"}
+                                         "positions": "_positions_dialog",
+                                         "injuries": "_injuries_dialog"}
 
     @staticmethod
     def _follow_ups(command: str, params: dict) -> tuple[str, ...]:
@@ -1653,13 +1955,15 @@ class ToolkitGUI:
             if params is None:
                 return   # user cancelled the dialog
         self._cancel_event.clear()
-        self._set_busy(True)
+        self._set_busy(True, command)
         self._append(f"\n> {command}\n")
         threading.Thread(target=self._worker, args=(command, params), daemon=True).start()
 
     def _worker(self, command: str, params: dict | None = None) -> None:
         old_out, old_err = sys.stdout, sys.stderr
         sys.stdout = sys.stderr = _QueueWriter(self.log_queue)
+        started_at = dt.datetime.now(tz=dt.UTC).isoformat(timespec="seconds")
+        status, detail = "ok", " ".join(f"{k}={v}" for k, v in sorted((params or {}).items()))
         try:
             ctx = Context(config=self.config, cancel_event=self._cancel_event)
             if command == "initdb":
@@ -1679,10 +1983,18 @@ class ToolkitGUI:
                     ctx.conn.commit()
             print(f"OK {command}: done")
         except NotImplementedError as exc:
+            status, detail = "skipped", str(exc)
             print(f".. {command}: to implement - {exc}")
         except Exception as exc:  # noqa: BLE001
+            status, detail = "error", f"{type(exc).__name__}: {exc}"
             print(f"XX {command}: error - {exc}")
         finally:
+            # Provenance: the panel is where most runs are launched from, so a run started here has
+            # to leave the same audit line the CLI leaves (its own connection - `ctx` may be gone).
+            with contextlib.suppress(Exception):
+                conn = connect(self.config.db_path)
+                record_run(conn, command, started_at, status, detail[:400])
+                conn.close()
             sys.stdout, sys.stderr = old_out, old_err
             self.log_queue.put("__DONE__")
 
@@ -1702,20 +2014,22 @@ class ToolkitGUI:
 
     def _append(self, text: str) -> None:
         self.log.configure(state="normal")
-        self.log.insert("end", text)
+        self.log.insert("end", text, self._line_tag(text) or ())
         self.log.see("end")
         self.log.configure(state="disabled")
 
-    def _set_busy(self, busy: bool) -> None:
+    def _set_busy(self, busy: bool, command: str | None = None) -> None:
         self.busy = busy
         if busy:
             for btn in self.buttons:
                 btn.configure(state="disabled")
             self.stop_button.configure(state="normal")
+            self.activity_var.set(f"⟳  running {command}" if command else "⟳  running")
             self.progress.start(12)
         else:
             self.progress.stop()
             self.stop_button.configure(state="disabled")
+            self.activity_var.set("idle")
             self.refresh_operation_states()
 
 

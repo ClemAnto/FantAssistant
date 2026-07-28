@@ -27,6 +27,7 @@ import requests
 from dotenv import load_dotenv
 from openpyxl import load_workbook
 
+from euroleghe_ingest.config import DEFAULT_SEASONS
 from euroleghe_ingest.context import Context
 from euroleghe_ingest.sources import _norm_roles
 
@@ -57,7 +58,7 @@ DEFAULT_PLATFORM = "euro"
 
 # Old cache files used the pre-rename tokens; map them to the platform values.
 _PLATFORM_ALIAS = {"euroleghe": "euro", "serie_a": "default"}
-SEASONS: tuple[str, ...] = ("2023-24", "2024-25", "2025-26")   # default when no season is selected
+SEASONS: tuple[str, ...] = DEFAULT_SEASONS   # default when no season is selected (see config.py)
 MAX_MATCHDAYS = 60
 
 # Polite rate limiting (seconds): base + uniform jitter between every request.

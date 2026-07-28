@@ -42,6 +42,23 @@ Invariata (storico 9 stagioni, endpoint Excel, fallback SofaScore, scala ricalib
 - [x] **code review (26/07)**: robustezza (utf-8-sig/BOM, scritture atomiche + try/except reingest, retry rete, indici DB) + consolidamenti (table_names, split ruoli, RAW_INPUTS). Ruff pulito, 25 test verdi.
 - [x] **schema**: `external_stats`, `external_match_stats`, `matchday_map` in schema.sql.
 - [!] **fbref**: BLOCCATO da Cloudflare (403 su ogni path, anche con impersonation TLS). Sostituito da SofaScore come fonte primaria dei fatti; resta arricchimento futuro (rigori di carriera, piazzati) via browser headless o inbox manuale.
+- [x] **v9.4 (28/07 sera-notte) — IL TOOLKIT È COMPLETO** (spec «Novità v9.4», `toolkit/README.md`):
+  `injuries` (Transfermarkt: assenze datate, `matches_missed`, `contract_until`/`exit_risk` — ⚠️ la
+  scadenza contratto esiste **solo per oggi**, quindi `exit_risk` non è gatabile sul passato) ·
+  **heatmap** → `positions.avg_x/avg_y` · **cross-tab ruoli** (D→D **97%**, M→C 80%, F→A 80%, G→P 100%:
+  estendere i conteggi ai difensori è pulito) · `ingest_runs` finalmente scritta · `config.SEASONS`
+  fonte unica · job settimanale `scripts/weekly-snapshot.ps1`.
+- [x] **v9.4 — `export`: il bundle dell'app**. 229 116 righe, 29 MB SQLite + 2,5 MB JSON, 21 tabelle,
+  contratto **derivato da `engine/features.py`**, manifest con provenienza / prezzi auction-safe /
+  parametri provvisori / buchi noti, e `--verify` che ri-apre quello che ha scritto.
+  `data/export/` è gitignored (repo pubblico).
+- [x] **v9.4 — ricostruibile da ZERO su un'altra macchina**: `bootstrap --plan` (15 passi, ~17 h,
+  ripartibile, rifiuta di partire senza credenziali) · `elo` dall'**API ClubElo** (76 righe/2 date →
+  **921/10 date, 99 club**) · lega del club derivata dalla cache provider · `fetch --plan` (cosa manca)
+  e `--inbox` · `.env.example`.
+- [x] **v9.4 — UI rifatta**: `ui_theme.py` (palette light/dark, icone, scala tipografica), card per
+  cadenza, metriche, log colorato, status bar con l'ultimo run; pulsanti Bootstrap / What is missing? /
+  Export. Pillole ruolo e celle-stato **non** tematizzate di proposito (sono codifiche di dato).
 - [x] **positions** (SofaScore): aggregati stagione + rating per-partita (87k righe, 5 leghe x 3 stagioni) + **ruolo reale dal layer per-partita** (100% di copertura, 312 flag off_role_usage) + date di nascita (1861 giocatori). Manca solo la heatmap per `avg_x/avg_y`.
 - [x] **voto sintetico calibrato** (`synth`): retta per ruolo sul Mv euro; MAE **0.370 fuori campione** vs 0.466 baseline, bias -0.065.
 - [x] **matchday_map** per lega (449 righe) + griglia sul calendario reale con le giornate sintetiche evidenziate. Cross-check: la mappa da SofaScore concorda **29/29** con quella dai nostri voti.
@@ -59,8 +76,11 @@ arrivo_intra_lega · regola U22 · Bundesliga+ · beta attacco alto/difesa bassa
 beta per gruppo di ruolo · baseline multi-stagione 62/38 · ancore per lega · **FAMIGLIA FORZA-CLUB: CHIUSA il 28/07/2026** (forza-club interna statica · Elo additivo movimento · R5 · R5b) — riapribile solo con una misura *prospettica*, non con nuove finestre: `gate-motore-v1.md` §5-nonies ·
 **AFFOLLAMENTO DEL REPARTO: cinque forme, cinque no** (R11 arrivi nello stesso ruolo · R11b · R16 con la propria quota · R16b con quella dei compagni · **R17 con i posti realmente schierati**, 28/07 notte). Il coefficiente esce col segno dell'ipotesi e stabile — il meccanismo esiste **dentro** la stagione e **non si trasferisce**. Sul lato d'asta la stessa idea è stata misurata come valuta di ordinamento e nasce spenta: `metrica-asta-surplus-v1.md` §11
 
-## Percorso critico (aggiornato 28/07 sera)
-La parte dati e' fatta. Il percorso ora e': **chiarire i 3 numeri presenze/T1 -> gate 3.2 -> 2.5 pieno con i flag -> taratura dei parametri provvisori -> listone 26/27 ad agosto -> ALGORITMO COMPLETO asta 26/27.**
+## Percorso critico (aggiornato 28/07 notte)
+La parte dati e' fatta **e ora è anche esportabile e ricostruibile da zero** (v9.4): il toolkit non è
+più sul percorso critico. Il percorso ora e': **modalità LIVE del motore (una lista sola, non due) ->
+chiarire i 3 numeri presenze/T1 -> gate 3.2 -> 2.5 pieno con i flag -> taratura dei parametri
+provvisori -> listone 26/27 ad agosto (una modifica: `config.SEASONS`) -> ALGORITMO COMPLETO asta 26/27.**
 Nota: **nessuna delle feature generate il 27/07 e' entrata nel motore**, e **nessuna delle sei candidate del 28/07** — esistono come dati, e il gate decide se e come usarle. Parametri esplicitamente provvisori: decadimento/quarantena rigoristi, soglie tier T1/T3, soglia U22.
 
 ### Coppie d'attacco — CHIUSO il 28/07 notte (richiesta dell'utente, tre pezzi)
@@ -80,12 +100,15 @@ Nota: **nessuna delle feature generate il 27/07 e' entrata nel motore**, e **nes
   Riaccenderla è una decisione da prendere ad alta voce, sapendo che compra 0 bust in meno.
 - [x] **Colonna `Pair` nel tab Auction** (compagno, K, co-start, ΔQt.I): quello che spedisce davvero —
   stessa evidenza al decisore, ordinamento intatto.
-- [ ] **Raffinamento dichiarato, bloccato**: compagni **lungodegenti** (un concorrente fuori a lungo non è
-  un pretendente serio → premio a chi resta). Serve `injuries`, oggi vuota. Per l'asta 26/27 può leggere
-  lo snapshot `availability` live.
-- [ ] **Altri ruoli** (l'utente: «vale anche per gli altri ruoli»): i conteggi G/D/M per undici ci sono
-  già; serve il cross-tab di vocabolario provider↔listone per D e C prima di estendere (per gli A è
-  misurato: 57-81% degli `F` del provider sono `A` di listone).
+- [ ] **Raffinamento dichiarato, SBLOCCATO il 28/07 notte**: compagni **lungodegenti** (un concorrente
+  fuori a lungo non è un pretendente serio → premio a chi resta). `injuries` non è più vuota: il modulo
+  c'è e la camminata per-giocatore gira. Resta da scriverne la forma e pre-registrarla.
+- [x] **Altri ruoli — cross-tab MISURATO il 28/07 notte** (`positions --layer crosstab`, 149 585
+  presenze): **G→P 100% · D→D 97% · M→C 80% · F→A 80%**. Il prerequisito è soddisfatto: estendere i
+  conteggi di reparto ai **difensori** è pulito, ai centrocampisti costa la stessa ambiguità già
+  accettata per gli attaccanti. Resta da **formulare l'ipotesi** e pre-registrarla — ma attenzione:
+  cinque forme di affollamento in attacco sono già cadute, e nulla dice che in difesa il meccanismo si
+  trasferisca meglio.
 
 ### Aperto dopo la passata del 28/07, in ordine di leva
 - [ ] **LEVA MASSIMA — prezzare i nuovi arrivi senza storico.** È il vincolo che ha reso inutile la

@@ -123,7 +123,9 @@ def test_elo_module(tmp_path):
         "squadra,elo24,elo25\nBayern Monaco,1900.0,1919.0\nInter,1964.7,1933.5\n",
         encoding="utf-8",
     )
-    load("elo").run(ctx)
+    # fetch=False: a unit test must not reach api.clubelo.com. The legacy seed path is exactly what
+    # this test covers - the API path is covered offline in test_elo_api.py.
+    load("elo").run(ctx, fetch=False)
     rows = ctx.conn.execute(
         "SELECT ce.date, ce.elo FROM club_elo ce JOIN clubs c ON c.fc_club_id = ce.fc_club_id "
         "WHERE c.canonical_name = 'Bayern Monaco' ORDER BY ce.date"

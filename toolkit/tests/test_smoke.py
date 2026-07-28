@@ -116,7 +116,16 @@ def test_operation_state_logic():
     assert operation_state("validate", None, True) == "unavailable"  # nothing to validate
     assert operation_state("fbref", None, True) == "unavailable"     # stub (not implemented)
     assert operation_state("elo", None, True) == "todo"              # elo is implemented
-    assert operation_state("fetch:plan", None, True) == "unavailable"
+    # `fetch --plan` is a status report and is now implemented, so it is always runnable - and on an
+    # empty machine it is the FIRST thing to run, because it says what to do next.
+    assert operation_state("fetch:plan", None, True) == "todo"
+    # `bootstrap` is the from-zero acquisition: available with nothing in place, by definition.
+    assert operation_state("bootstrap", None, True) == "todo"
+    assert operation_state("bootstrap", {"players": 10}, True) == "completed"
+    # `export` needs a listone to export, and turns green when a bundle exists on disk.
+    assert operation_state("export", None, True) == "unavailable"
+    assert operation_state("export", {"rosters": 10}, True) == "todo"
+    assert operation_state("export", {"rosters": 10, "_export_bundle": 1}, True) == "completed"
 
     # Populated DB: implemented outputs are completed; validate is available.
     counts = {"players": 1662, "rosters": 3199, "season_stats": 3199}
