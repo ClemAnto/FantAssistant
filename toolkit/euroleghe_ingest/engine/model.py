@@ -244,6 +244,33 @@ def inactivity_adjustment(longest_gap_days: int | None, lam: float) -> float:
     return lam * months_out(longest_gap_days)
 
 
+def production_per_90(goals: int | None, assists: int | None, minutes: int) -> float | None:
+    """Goals plus assists per 90 in the recent sample. None when it was never MEASURED.
+
+    `goals is None` means the per-match bonuses were never fetched, which is not the same as a goalless
+    spell and must never be read as one - 111 of the 123 players in this population used to arrive here
+    as "0 in 715 minutes" (see features._recent_form). A measured zero is a fact and passes through.
+    """
+    if goals is None or assists is None or minutes < MIN_MINUTES_FOR_PRODUCTION:
+        return None
+    return (goals + assists) / (minutes / 90.0)
+
+
+def predict_fm_from_production(anchor: float, production_z: float, lam: float) -> float:
+    """R13c: the role anchor plus how his measured PRODUCTION compared to the other newcomers.
+
+    R13b compared his RATING and lost to the trivial answer: a provider rating in the Portuguese league
+    is a different quantity from one in Serie A, and the comparison carried little. Goals and assists
+    are the same event everywhere, which is the reason to expect more of them - Gyokeres arrived with 12
+    goals in 10 matches (1.42 per 90) and the engine priced him at the bare 'pc' anchor with half a
+    season of appearances, 44th among the strikers, on his way to finishing 10th.
+
+    Standardised inside the COHORT and by role, not against the league: what travels across competitions
+    is "more productive than the other newcomers we could measure", never the absolute rate.
+    """
+    return anchor + lam * production_z
+
+
 def predict_fm_from_recent(anchor: float, rating_deviation: float, lam: float) -> float:
     """R13: price a player whose only measured football is `recent_form`, elsewhere.
 
@@ -257,6 +284,10 @@ def predict_fm_from_recent(anchor: float, rating_deviation: float, lam: float) -
 
 # Below this the match rate is an artefact of the window, not a property of the player.
 MIN_SPAN_DAYS = 21
+
+# R13c: five full matches, the same floor the season-long per-90 propensity uses. Under it a rate is
+# arithmetic on a rounding error - one goal in 120 minutes reads as 0.75 per 90.
+MIN_MINUTES_FOR_PRODUCTION = 450
 
 
 def recent_minutes_per_appearance(minutes: int, matches: int) -> float | None:

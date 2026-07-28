@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import sqlite3
 
+import pytest
+
 
 def test_unfetched_bonuses_are_missing_not_zero(tmp_path):
     """Lauriente' reached the engine as "0 goals, 0 assists in 715 minutes". He was a Serie B top
@@ -67,6 +69,20 @@ def test_backfill_targets_exactly_the_matches_missing_their_bonuses(tmp_path):
     assert sorted(pending[1]) == ["a1", "a2"]
     assert pending[3] == ["c2"], "an interrupted player resumes at the match he stopped on"
     assert 2 not in pending, "goals = 0 is a measurement and must not look like missing data"
+
+
+def test_production_per_90_refuses_what_was_never_measured():
+    """The whole reason R13c became testable. `goals is None` means the per-match bonuses were never
+    fetched, and reading it as a goalless spell is what made 111 players look like non-scorers - which
+    would have taught the fit exactly the wrong thing. A measured zero is a fact and passes through."""
+    from euroleghe_ingest.engine import model
+
+    assert model.production_per_90(None, None, 900) is None       # never fetched
+    assert model.production_per_90(0, 0, 900) == 0.0              # measured, and genuinely nothing
+    assert model.production_per_90(12, 2, 889) == pytest.approx(14 / (889 / 90))   # Gyokeres
+    # under five full matches a rate is arithmetic on a rounding error, so it is refused outright
+    assert model.production_per_90(1, 0, 120) is None
+    assert model.production_per_90(1, 0, model.MIN_MINUTES_FOR_PRODUCTION) is not None
 
 
 def test_a_resolved_identity_is_stored_not_thrown_away(tmp_path):

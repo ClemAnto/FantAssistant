@@ -85,6 +85,12 @@ RULES: tuple[Rule, ...] = (
          kind="coverage", metric="pv"),
     Rule("R13b", "recent form elsewhere: FANTAMEDIA from how his rating compared to the other "
                  "newcomers", True, kind="coverage"),
+    # R13c is what R13b should have been. A provider RATING in Portugal is not the same quantity as one
+    # in Serie A, which is why R13b lost to the trivial answer; goals and assists are the same event
+    # everywhere. It only became testable once the per-match bonuses were actually fetched: the sample
+    # went from 8 measured players to 78 on euro/T2 and 60 on T1.
+    Rule("R13c", "recent form elsewhere: FANTAMEDIA from his measured goals and assists per 90", True,
+         kind="coverage"),
     Rule("R14", "inactivity: what a spell out of 45+ days costs in APPEARANCES", True, metric="pv"),
     Rule("R14b", "inactivity: what a spell out of 45+ days costs in FANTAMEDIA", True),
     Rule("R11b", "crowded position: 2+ same-role arrivals as a threshold, not a slope", True,
@@ -106,7 +112,7 @@ RULES: tuple[Rule, ...] = (
 # Rules that get fitted and compared one at a time by `compare`.
 CANDIDATES: tuple[str, ...] = ("R0c", "R1", "R1b", "R2", "R3", "R3c", "R4", "R4b", "R5", "R6", "R7",
                                "R8", "R10", "R11", "R11b", "R12", "R12b", "R13", "R13b",
-                               "R14", "R14b", "R15", "R16", "R16b")
+                               "R13c", "R14", "R14b", "R15", "R16", "R16b")
 
 # What survived the gate, PER PLATFORM. Keeping it per platform is not a hedge: `platform` is a
 # first-class dimension of the data model (different calendars, different perimeters), and the gate
@@ -134,6 +140,25 @@ CANDIDATES: tuple[str, ...] = ("R0c", "R1", "R1b", "R2", "R3", "R3c", "R4", "R4b
 # worst window of -6.7%. On the auction metric it is the same story: +1 name on T1 and T2, -3 points of
 # captured VALUE on Tm3 and T0. It helps on the windows it was invented on and hurts on the ones it was
 # not. That is the pattern the gate exists to find, and it is the third time today it has found it.
+# ⚠️ R13c (fantamedia from the measured goals+assists per 90 of the recent sample) is NOT adopted, and
+# the reason is a sample-size wall rather than a failed hypothesis. Direction confirmed: where R13c and
+# its predecessor R13b differ, the PRODUCTION version wins - Serie A T2 0.387 against R13b's 0.407, euro
+# T2 0.320 against 0.324 - so "goals are the same event in any league, a provider rating is not" holds.
+# Against the trivial answer it wins one window and ties the other: Serie A T1 0.248 vs the anchor's
+# 0.325 (-24%), T2 0.387 vs 0.387. "Both windows" is the coverage criterion, so it stays out.
+#
+# The wall, measured, and it is NOT the one we just spent 1066 requests fixing:
+#   window        cohort  bonuses measured  >= 450 min  Pv_act >= 15 (scoreable)
+#   euro/T1           57                57          51                        19
+#   euro/T2           66                65          54                        14
+#   default/T1        24                24          23                        16
+#   default/T2        35                35          34                        21
+# The enrichment worked - coverage of the feature is now essentially total, and the minutes floor costs
+# little. The collapse is at the SCORING domain: about a quarter of these players reach 15 appearances in
+# the target season, because a priced newcomer with no history mostly stays fringe. Fourteen to twenty-one
+# observations per window cannot carry a coefficient, whatever their quality. So the next move is more
+# windows, not more scraping - and NOT a scoring domain widened to fit the rule, which would be choosing
+# the test after seeing the answer.
 # ⚠️ R16 / R16b (attack crowding on the club's goal budget) are BOTH REJECTED, and the pair is worth
 # keeping because the second explains the first. R16 measured the club's goals times HIS OWN share and
 # did nothing (3/10 windows, mean -1.2%, worst -14.9%): his share of last season's goals is already
@@ -276,6 +301,7 @@ class Derived:
     recent_deviation: dict[int, float] = field(default_factory=dict)
     budget_z: dict[int, float] = field(default_factory=dict)   # R16
     rivals_z: dict[int, float] = field(default_factory=dict)  # R16b
+    production_z: dict[int, float] = field(default_factory=dict)  # R13c
 
 
 def _scale(values: Sequence[float], min_n: int) -> tuple[float, float] | None:
@@ -374,6 +400,15 @@ def derive(data: features.WindowData) -> Derived:
                         for obs in data.observations
                         if mean_rating is not None and obs.recent_matches
                         and obs.recent_rating is not None}
+    # R13c: inside the COHORT and by role - "more productive than the other newcomers we could
+    # measure" crosses competitions in a way an absolute per-90 rate does not.
+    production_raw: dict[int, tuple[object, float]] = {}
+    for obs in data.observations:
+        if obs.fm_prev is not None or not obs.recent_matches:
+            continue
+        rate = model.production_per_90(obs.recent_goals, obs.recent_assists, obs.recent_minutes)
+        if rate is not None:
+            production_raw[obs.fc_id] = (obs.role_classic, rate)
     price_z, price_revision = _price_signals(data)
     # R16: standardised inside the role, so it reads "for a forward" and not "in general"
     budget_raw: dict[int, tuple[object, float]] = {}
@@ -389,7 +424,8 @@ def derive(data: features.WindowData) -> Derived:
                       propensity_z=propensity_z, elo_z=_elo_z_scores(data),
                       price_z=price_z, price_revision=price_revision,
                       budget_z=_z_scores(budget_raw, 5),
-                      rivals_z=_z_scores(rivals_raw, 5))
+                      rivals_z=_z_scores(rivals_raw, 5),
+                      production_z=_z_scores(production_raw, 5))
     data.cache["derived"] = derived
     return derived
 
@@ -414,6 +450,7 @@ class Params:
     elo_lam: float | None = None                  # R5: club-strength anchor shift
     budget_lam: float | None = None               # R16: club goal budget x his share
     rivals_lam: float | None = None               # R16b: the budget his team-mates claim
+    production_lam: float | None = None           # R13c: measured goals+assists per 90
     price_lam: float | None = None                # R12: market expectation
     revision_lam: float | None = None             # R12b: pre-auction expectation revision
     recent_lam: float | None = None               # R13: rating deviation of the recent-form sample
@@ -542,7 +579,7 @@ def fit_params(data: features.WindowData, rules: tuple[str, ...]) -> Params:
         params.share_gk = fit_linear(samples)
         params.notes["R7_n"] = len(samples)
 
-    if "R13" in rules or "R13b" in rules:
+    if {"R13", "R13b", "R13c"} & set(rules):
         deviations, shares = [], []
         for obs in data.observations:
             if not obs.recent_matches or obs.fm_prev is not None:
@@ -562,6 +599,22 @@ def fit_params(data: features.WindowData, rules: tuple[str, ...]) -> Params:
         params.recent_share = fit_linear(shares)
         params.notes["R13_fm_n"] = len(deviations)
         params.notes["R13_pv_n"] = len(shares)
+
+    if "R13c" in rules:
+        # the same domain R13b is fitted on - no history, a real outcome, inside the scoring window -
+        # so the two are directly comparable and the gate is choosing between them, not stacking them.
+        pairs = []
+        for obs in data.observations:
+            if obs.fm_prev is not None or not obs.recent_matches:
+                continue
+            anchor = _anchor_for(obs, data)
+            z_production = derived.production_z.get(obs.fc_id)
+            if (anchor is not None and z_production is not None and obs.fm_act is not None
+                    and (obs.pv_act or 0) >= MIN_PV_ACT):
+                pairs.append(((z_production,), obs.fm_act - anchor))
+        fitted = fit_linear(pairs, intercept=False)
+        params.production_lam = fitted[0] if fitted else None
+        params.notes["R13c_n"] = len(pairs)
 
     if "R1" in rules or "R1b" in rules:
         # appearances for players the game has never rated: minutes elsewhere are all we have
@@ -779,6 +832,13 @@ def _rule_fm(obs: features.Observation, data: features.WindowData, rules: tuple[
 
     # R13 - his only measured football is elsewhere: the role anchor plus how he compared to the
     # other newcomers we could measure. Only where the engine has nothing else.
+    # R13c - his measured production elsewhere, which is the same event in any league
+    if (fm_pred is None and "R13c" in rules and anchor is not None and obs.recent_matches
+            and params.production_lam is not None):
+        z_production = derived.production_z.get(obs.fc_id)
+        if z_production is not None:
+            fm_pred = model.predict_fm_from_production(anchor, z_production, params.production_lam)
+
     if (fm_pred is None and "R13b" in rules and anchor is not None and obs.recent_matches
             and params.recent_lam is not None):
         deviation = derived.recent_deviation.get(obs.fc_id)
@@ -872,7 +932,8 @@ def _rule_pv(obs: features.Observation, data: features.WindowData, rules: tuple[
     elif ("R1" in rules and params.share_new and obs.pv_prev is None
             and minutes_share is not None):
         share = model.linear_share(params.share_new, (minutes_share,))
-    elif ({"R13", "R13b"} & set(rules) and params.recent_share and obs.pv_prev is None
+    elif ({"R13", "R13b", "R13c"} & set(rules) and params.recent_share
+            and obs.pv_prev is None
             and obs.recent_matches):
         intensity = model.recent_minutes_per_appearance(obs.recent_minutes, obs.recent_matches)
         availability = model.recent_availability(obs.recent_matches, obs.recent_span_days)
