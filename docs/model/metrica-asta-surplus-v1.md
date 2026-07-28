@@ -225,3 +225,63 @@ segnale trasferito.
 
 E una nota che va detta: la curva di popolazione era stata scelta perché era l'unica disponibile, non perché
 fosse la migliore. Questa misura dice che **è anche la migliore delle due**, il che è fortuna, non merito.
+
+## 11. Pressione di reparto (dichiarata il 28/07/2026, PRIMA della misura)
+
+**La domanda dell'utente, dopo il verdetto di R17**: il gate ha stabilito che l'affollamento non è
+una regola d'errore (il meccanismo esiste dentro la stagione e non si trasferisce — cinque
+formulazioni respinte), ma all'asta il rischio resta: in un reparto dalla gerarchia dubbia
+(David/Openda/Vlahović, Zapata/Simeone, Morata/Douvikas) comprare quello sbagliato è probabile, e
+questo deve pesare CONTRO di loro rispetto a un attaccante più modesto ma dal posto garantito
+(Davis). E, per ragionamento inverso, il posto garantito per **carenza di concorrenza** merita un
+premio: gli errori vengono perdonati, le occasioni per ritrovare la forma tornano.
+
+È un cambio di funzione obiettivo, quindi passa da QUESTA porta (non dal gate), col protocollo del
+§10: forma e metrica dichiarate prima, misura dopo, verdetto a verbale qualunque sia.
+
+### Perché il segnale è il CONTEGGIO dei pretendenti seri, non la somma delle share
+
+Misurato su T2 default prima di congelare la forma: la somma delle share previste del reparto è
+gonfiata dalle riserve (il baseline dà 0.55 a Taremi, 0.57 a Kouamè), e i nuovi arrivi — proprio i
+casi pericolosi: Openda, David — possono essere INVISIBILI alle previsioni pur stando nel listone
+con una Qt.I pesante. Il conteggio li vede: Juventus 25/26 = 4 pretendenti seri su K=1.55;
+Como = 4 su 1.34 (i primi 3 di mercato tutti flop); Torino = 3 su 1.79 (Zapata, leader di Qt.I,
+battuto da Adams — per questo il fattore è **di gruppo, non rank-gated**); Inter = 2 su 2.05 →
+pressione 1, nessuno sconto, e infatti la coppia ha retto.
+
+### Forma congelata (costanti DICHIARATE, zero fit)
+
+```
+gruppo        = gli 'A' del club nel listone target
+serio         = share prevista ≥ 0.35  OPPURE  Qt.I ≥ max(6, ⅓ della Qt.I massima del gruppo)
+pressione     = n_seri / K_c              (K = media attaccanti per XI, ≥10 XI, da club_match_lineups)
+fattore       = clip(pressione^−0.5, 0.60, 1.15)
+```
+
+Applicato SOLO al punteggio di ordinamento (nuova valuta `SURPLUS × pressione` nel pannello); le
+previsioni, il gate e le altre due valute non si muovono di un decimale. K non misurabile → fattore
+1. Il premio (fino a +15%) scatta quando i seri sono meno dei posti schierati.
+
+### Contaminazione dichiarata e metrica di validazione (scritte prima della misura)
+
+Le soglie (0.35, ⅓, 6, esponente 0.5, clip 0.60/1.15) sono state scelte guardando **T2 default** —
+finestra già bruciata. La validazione gira su TUTTE le finestre usabili, entrambe le piattaforme e
+i giochi, con le finestre pulite riportate a parte, e confronta `SURPLUS × pressione` contro
+`SURPLUS` liscio a parità di tutto:
+
+1. **VALORE reale catturato** dalle top-10 predette (valuta surplus, stesso perfetto): la perdita
+   aggregata non può superare il **2%** (lo stesso limite elastico del non-danno).
+2. **Tasso di bust** nelle top-10 predette (reale < 40% del previsto, o mai sceso in campo): deve
+   **scendere** in aggregato.
+
+Se la (1) cade o la (2) non migliora, l'opzione nasce **SPENTA** nel pannello e il numero resta a
+verbale. Niente fallback a forme alternative dopo aver visto il dato.
+
+### Raffinamenti dichiarati per dopo (non in questa misura)
+
+- **Compagni lungodegenti** (l'altro caso dell'utente): un concorrente fuori a lungo NON è un
+  pretendente serio → premio a chi resta. Serve la tabella `injuries` (oggi vuota, input
+  Priority-1, Transfermarkt); per l'asta 26/27 può leggere lo snapshot `availability` live.
+- **Gli altri ruoli**: `club_match_lineups` ha già i conteggi G/D/M per XI; serve il cross-tab di
+  vocabolario per D e C prima di estendere (per gli A è misurato: 57-81%).
+- Integrazione con `probable_starter` settimanale quando avrà storia.
