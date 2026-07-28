@@ -569,10 +569,21 @@ def fit_params(data: features.WindowData, rules: tuple[str, ...]) -> Params:
     params = Params(source=data.window.key)
     matchdays = data.matchdays_target or 1
 
+    # ⚠️ EVERY coefficient fitted from the residual block below is measured against THIS baseline, and
+    # changes when it changes - not by a little. R11's competition lambda is +0.008/+0.010 against B0 and
+    # -0.010/-0.010 against the two-pass baseline; R10's two terms invert outright (+0.129/-0.136 becomes
+    # -0.134/+0.179). A coefficient quoted without saying which baseline produced it is not a fact, and
+    # the docs carried R11's B0-era sign for a day and a half together with an INTERPRETATION built on it
+    # ("more arrivals, more appearances - the declared mechanism is false") that the corrected sign
+    # reverses. So the baseline is recorded in `notes` on every fit: a stale quote is now detectable
+    # instead of having to be remembered.
+    residual_baseline = tuple(rule for rule in rules if rule in SHARE_REPLACING or rule == "R0")
+    params.notes["residual_baseline"] = ",".join(residual_baseline) or "B0"
+
     def baseline_share(obs: features.Observation) -> float | None:
         """The share the configuration's own replacing rules produce for this player."""
-        active = tuple(rule for rule in rules if rule in SHARE_REPLACING or rule == "R0")
-        value = _rule_pv(obs, data, active, params, derived) if active != ("R0",) else None
+        value = (_rule_pv(obs, data, residual_baseline, params, derived)
+                 if residual_baseline != ("R0",) else None)
         if value is None:
             value = _predict_pv(obs, data)
         return None if value is None else value / matchdays

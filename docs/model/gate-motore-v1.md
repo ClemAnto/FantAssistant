@@ -574,7 +574,7 @@ cioè copertura più una regola, mentre su Serie A sono tre regole di cui una (R
 | **R5** àncora forza-club da ClubElo | λ +0.023 / +0.073 | **Terza bocciatura della famiglia** (dopo forza-club interna ed Elo additivo movimento). Il segno è giusto su entrambe le finestre — l'intuizione Kane è corretta — ma il MAE di T1 peggiora ogni volta. |
 | **R6** rigoristi (forma ridotta su confidence) | λ **+0.332 / −0.222** | Segno opposto, e peggiora gli attaccanti (+1.8% / +2.7%). La forma ridotta comprime troppo (manca il tasso rigori per club e la conversione di carriera) e i rigoristi datati prima dell'asta sono 22 e 29. |
 | **R8** fuori-ruolo da heatmap | avanti +0.032 / **−0.070** → poi **+0.121 / +0.041** | ⚠️ **anche qui l'instabilità era dei dati** (§5-bis): col layer completo entrambi i versi hanno segno stabile («più indietro» −0.22 / −0.327). Non passa, ma la ragione della bocciatura non è più «segno instabile». |
-| **R11 / R11b** concorrenza posizionale | λ **+0.008 / +0.010** e soglia **+0.044 / +0.055** | Migliora il Pv MAE del 3% su Serie A — l'effetto singolo più grande del gate — **con il segno contrario all'ipotesi**: più arrivi nel tuo ruolo, più presenze. Col layer completo i coefficienti sono anche *stabili*. Il guadagno è reale, il meccanismo dichiarato è falso → §5-bis, ri-pre-registrata come «sottostima da rifacimento rosa». |
+| **R11 / R11b** concorrenza posizionale | ⚠️ **verdetto corretto il 28/07, vedi §5-septies**: λ **−0.010 / −0.010** e soglia **−0.072 / −0.066** contro la baseline giusta (i +0.008/+0.010 registrati qui erano fittati contro B0, prima del fit a due passate) | Migliora il Pv MAE del 3% su Serie A — l'effetto singolo più grande del gate. Il segno **conferma** l'ipotesi: più arrivi nel tuo ruolo, **meno** presenze. Coefficiente stabile su **10 finestre su 10** (dispersione 0.17). Cade sull'errore, non sul meccanismo. La ri-pre-registrazione come «sottostima da rifacimento rosa» nasceva dal segno sbagliato → **decaduta**. |
 | **R11b** posizione affollata (soglia ≥2) | +0.012 / −0.001 | La soglia non è una coda: 620 giocatori su 1450 la superano. |
 | **R12** attesa di mercato (Qt.I nel ruolo) | λ −0.003 / +0.010 | L'attesa **assoluta** del mercato non aggiunge nulla alla fantamedia precedente: è costruita sulla stessa storia. |
 | **R12b** revisione dell'attesa (Qt.I anno su anno) | λ −0.040 / −0.076 | Segno stabile ma significato opposto: dice che chi è rivisto **al ribasso** rende *più* di B0, cioè approssima il ritorno alla media che B0 già fa. Fallisce su T1 e sul VALORE. |
@@ -870,14 +870,46 @@ coefficiente non è *interpretabile*. La classifica è affidabile per le regole 
 | **R13b** rating fra campionati | 0.33 | 1.86 |
 
 R10 e R11/R11b sono il caso più netto: coefficiente **coerente su tutte e dieci** le finestre Serie A e
-respinte sull'errore. Per R11 il documento già dice che migliora il MAE **col segno contrario
-all'ipotesi** — la stabilità lo conferma: l'effetto è reale e l'etichetta è sbagliata.
+respinte sull'errore. Per R11 la stabilità ha portato a rileggere il coefficiente, e quella rilettura ha
+trovato che il «segno contrario all'ipotesi» registrato nel documento era un artefatto della baseline:
+vedi **§5-septies**. Il segno corretto **conferma** l'ipotesi.
 
 **Instabili**: R2 · R4 (7.89 su Serie A) · R4b · R5 · R6 · R12 · R12b · R14 · R14b · R16 · R16b. Per queste
 la bocciatura ha ora due motivi indipendenti, non uno.
 
 **R5b** è coerente col suo verdetto in entrambi i versi: stabile su Serie A (0.28) dove passa formalmente,
 instabile su euro (0.50, esattamente sulla soglia) dove fallisce.
+
+## 5-septies. Un coefficiente senza la sua baseline non è un fatto (28 luglio 2026)
+
+Trovato provando a riformulare R11 «con l'etichetta giusta»: il documento registrava λ **+0.008 / +0.010**
+e ne ricavava «più arrivi nel tuo ruolo, **più** presenze, quindi il meccanismo dichiarato è falso». La
+misura di oggi dà **−0.0104 / −0.0100**. Stessa magnitudine, segno opposto.
+
+**Causa, provata al decimale.** Il fit **a due passate** (commit `c1a645b`) ha cambiato la baseline contro
+cui si misurano i residui: prima era B0, ora è la quota che producono le regole share-replacing attive
+(R3/R3c/R7/R13/R0c). Rifittando R11 contro B0 oggi si ottiene **+0.0080 / +0.0096** — cioè esattamente i
+numeri del documento. Contro la baseline corretta: −0.0104 / −0.0100.
+
+Non riguarda solo R11. **R10 si inverte del tutto**: livello +0.129 → **−0.134**, interazione −0.136 →
+**+0.179**. Ogni coefficiente citato dal blocco dei residui (R10, R11, R11b, R4b, R14, R14b) è
+**dipendente dalla baseline**, e i valori registrati prima del fit a due passate sono vecchi.
+
+**Conseguenze:**
+1. **R11 conferma la propria ipotesi.** Segno negativo, stabile su 10 finestre su 10 (dispersione 0.17) e
+   su 5 su 5 in euro. Cade sull'errore, non sul meccanismo — che è una situazione diversa e più sana.
+2. La ri-pre-registrazione come «sottostima da rifacimento rosa» **decade**: nasceva dal segno sbagliato.
+3. Il tentativo di «riformulare R11 per quello che misura davvero» **non serve più**: misurava già quello
+   che diceva di misurare.
+
+**Presidio messo, non un promemoria**: `fit_params` scrive ora la baseline in `notes["residual_baseline"]`
+su ogni fit, quindi il report del gate porta con sé la provenienza e una citazione vecchia è
+*rilevabile* invece di dover essere ricordata. Regola: **un coefficiente citato senza dire contro quale
+baseline è stato fittato non è un fatto.**
+
+Nota di metodo: è la terza volta in due giorni che leggere il coefficiente cambia una conclusione (il segno
+di R16b, la stabilità di R15, questa). E questa è la più istruttiva, perché l'errore non era in una misura
+nuova: era in un numero che stava nel documento da un giorno e mezzo, con un'interpretazione sopra.
 
 ## 6. Validazione del voto sintetico (Serie A, dove esistono entrambi i set reali)
 

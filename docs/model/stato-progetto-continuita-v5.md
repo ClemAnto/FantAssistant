@@ -170,7 +170,8 @@ accumulata da adesso. `injuries` resta senza fonte agganciata: e' una decisione,
    Ha subito fatto il suo lavoro - R4 fuori, R7 con riserva, R10 rafforzata. Il passo successivo e'
    20/21 (id 103/15) e quanto ancora indietro la Serie A permetta.
 4. **Ri-pre-registrare le due ipotesi che il layer completo ha cambiato** (`gate-motore-v1.md` §5-bis):
-   la propensione per-90 (ora con il segno giusto) e la sottostima da rifacimento rosa (effetto piu'
+   la propensione per-90 (ora con il segno giusto) e la ~~sottostima da rifacimento rosa~~ (decaduta il
+   28/07: nasceva da un segno che era un artefatto della baseline, vedi §5-septies) (effetto piu'
    grande di tutto il gate su Serie A, ma con l'etichetta sbagliata).
 5. **Tarare i parametri provvisori** del 27/07 (decadimento/quarantena rigoristi, soglie tier T1/T3,
    U22): sono scelte di modello, non dati. Nota: i tier ora usano `Qt.I`, non `Qt.A`.
@@ -185,8 +186,9 @@ movimento. Bias elite-in-big NON strutturale -> correttivo condizionale in pre-r
 (segno opposto fra finestre, e il controllo intra-lega e' piu' grande) · propensione per-90 xG/xA
 (gamma ~ 0 di segno sbagliato) · **ancora forza-club da ClubElo: TERZA bocciatura della famiglia**
 (segno giusto, T1 sempre peggio) · rigoristi in forma ridotta (segno opposto, n=22/29) · fuori-ruolo da
-heatmap · concorrenza posizionale (migliora il MAE **col segno contrario all'ipotesi**: e' un proxy di
-altro) · attesa di mercato Qt.I e sua revisione · eta' sulle presenze.
+heatmap · concorrenza posizionale (migliora il MAE ma non abbastanza; ⚠️ il «segno contrario
+all'ipotesi» registrato qui era un artefatto della baseline pre-fit-a-due-passate — corretto il 28/07,
+`gate-motore-v1.md` §5-septies: il segno **conferma** l'ipotesi ed e' stabile su 10 finestre su 10) · attesa di mercato Qt.I e sua revisione · eta' sulle presenze.
 **Aggiunte il 28/07** (dettaglio in `gate-motore-v1.md` §5-quinquies): **affollamento del reparto**
 in due forme — con la sua quota (rumore: il segno salta) e con quella dei compagni, che ha coefficiente
 stabile ma **di segno opposto all'ipotesi**, cioè misura forza-club e non affollamento · **produzione

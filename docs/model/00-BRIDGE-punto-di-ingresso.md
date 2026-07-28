@@ -93,7 +93,7 @@ finestre: 5 utilizzabili). Una finestra richiede voti su **entrambi** i lati, in
 ### Cadute quando le finestre sono diventate dieci (non riproporre senza finestre NUOVE)
 
 **R4** età (1/10, peggiore −19.6%) · **R10** nuovo allenatore (4/10, peggiore −6.3%) · **R8** fuori-ruolo
-(1/6, peggiore −19.2%) · R4b (1/10, −56.6%) · R11/R11b (0/10) · R12/R12b (4-5/10, media ≈0) · R1b (3/10) ·
+(1/6, peggiore −19.2%) · R4b (1/10, −56.6%) · R11/R11b (0/10 — ma il coefficiente **conferma** l'ipotesi ed è stabile su 10/10: cadono sull'errore, non sul meccanismo, `gate-motore-v1.md` §5-septies) · R12/R12b (4-5/10, media ≈0) · R1b (3/10) ·
 R2 · R5 (**terza** bocciatura della famiglia forza-club — corretto il 28/07: `gate-motore-v1.md` §4 nomina le due precedenti, forza-club interna ed Elo additivo movimento) · R6 · R13b · R14/R14b (sfora il non-danno) ·
 **R1** (non batte la risposta banale: 0.391 contro 0.373 della sola àncora).
 
