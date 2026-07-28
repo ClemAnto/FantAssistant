@@ -2155,36 +2155,44 @@ class SnapshotView(ttk.Frame):
         return cls.BADGE_CLASSIC.get(classic, ("?", "?", "?"))[index]
 
     def _shirt(self, x: float, y: float, starter: dict, rivals: list[dict],
-               drawn_side: float | None = None) -> None:
-        """One shirt: a plate behind the text, because white on grass is unreadable at this size.
+               drawn_side: float | None = None, room: float = 100.0) -> None:
+        """One shirt: the role marker, and the name UNDER it.
 
-        Tkinter has no alpha on a canvas, so legibility comes from a solid dark plate rather than a
-        translucent one - and over mowing stripes a plate reads better than a drop shadow anyway. Name
-        and SURPLUS share a line to keep the plate narrow enough for five of them across a column.
+        Stacked rather than side by side, because a plate to the right of the disc needs the width of a
+        name for every player in the line - which a five-man midfield does not have on a column-shaped
+        pitch, and which is how the layout broke. `room` is the horizontal space this shirt owns; every
+        string is cut to it, so the drawing cannot overflow the pitch whatever the formation.
         """
         canvas = self.pitch
-        name = (starter.get("name") or "")[:13]
+        edge = canvas.winfo_width() if canvas.winfo_width() > 1 else (canvas.winfo_reqwidth() or 430)
+        # 7.2 px per character, measured on the theme's bold face - 6 was optimistic and the names ran
+        # past their plates and off the pitch
+        fits = max(5, int((room - 8) / 7.2))
+        name = (starter.get("name") or "")[:fits]
         share = self.titolarita(starter, "recent" if self.xi_mode.get() == "next" else "season")[0]
-        # the number on the plate is the one that EARNED the shirt (titolarità), not the valuation
-        headline = f"{name}  {share:.0%}" if share else name
-        rival_names = ", ".join((row.get("name") or "")[:9] for row in rivals)
-        chars = max(len(headline), len(rival_names) + 3 if rival_names else 0)
-        wide = 10 + chars * 6.0
-        high = 17 + (12 if rival_names else 0)
-        # the marker is a labelled disc: the role code is the first thing to read on a formation
+        rival_names = ", ".join((row.get("name") or "")[:9] for row in rivals)[:fits]
+
+        radius = 12
         code = self.badge(starter, drawn_side)
-        radius = 11
         canvas.create_oval(x - radius, y - radius, x + radius, y + radius,
                            fill="#12351a", outline="#f4f6f5", width=2)
         canvas.create_text(x, y, fill="#ffffff", font=theme.FONTS["pill"], text=code)
-        left, top = x + radius + 2, y - high / 2
-        canvas.create_rectangle(left, top, left + wide, top + high,
-                                fill="#12351a", outline="#4c7a35", width=1)
-        canvas.create_text(left + 5, top + 9, anchor="w", fill="#ffffff", font=theme.FONTS["strong"],
-                           text=headline)
+
+        lines = [(name, theme.FONTS["strong"], "#ffffff")]
+        if share:
+            lines.append((f"{share:.0%}", theme.FONTS["small"], "#dcedc8"))
         if rival_names:
-            canvas.create_text(left + 5, top + 22, anchor="w", fill="#ffe082",
-                               font=theme.FONTS["small"], text=f"vs {rival_names}")
+            lines.append((f"vs {rival_names}", theme.FONTS["small"], "#ffe082"))
+        widest = max(len(part) for part, _font, _fill in lines)
+        plate = min(room, 8 + widest * 7.2)
+        # a shirt near the touchline slides inwards rather than hanging over it
+        x = min(max(x, 4 + plate / 2), edge - 4 - plate / 2)
+        top = y + radius + 2
+        high = 4 + len(lines) * 12
+        canvas.create_rectangle(x - plate / 2, top, x + plate / 2, top + high,
+                                fill="#12351a", outline="#4c7a35", width=1)
+        for index, (part, font, fill) in enumerate(lines):
+            canvas.create_text(x, top + 8 + index * 12, fill=fill, font=font, text=part)
 
     def _draw_pitch(self) -> None:
         """The eleven on a VERTICAL pitch: keeper at the TOP, attack at the bottom.
@@ -2201,14 +2209,20 @@ class SnapshotView(ttk.Frame):
         canvas = self.pitch
         canvas.delete("all")
         canvas.configure(background=theme.color("surface"))
-        width = max(canvas.winfo_width(), 420)
-        height = max(canvas.winfo_height(), 430)
+        # The REAL size - drawing to an inflated height put the forwards' plates off the bottom edge.
+        # Before the widget is mapped `winfo_width` is 1, so the REQUESTED size answers instead: that is
+        # what the canvas was configured with, and it keeps the drawing consistent with the space it
+        # will get rather than with a constant.
+        width = canvas.winfo_width() if canvas.winfo_width() > 1 else (canvas.winfo_reqwidth() or 430)
+        height = (canvas.winfo_height() if canvas.winfo_height() > 1
+                  else (canvas.winfo_reqheight() or 470))
         line = "#e8f5e9"
         stripe = max(34, height // 10)
         canvas.create_rectangle(0, 0, width, height, fill="#2f7d32", outline="")
         for index in range(0, height, stripe):
             if (index // stripe) % 2 == 0:
-                canvas.create_rectangle(0, index, width, index + stripe, fill="#37913a", outline="")
+                canvas.create_rectangle(0, index, width, min(index + stripe, height),
+                                        fill="#37913a", outline="")
         canvas.create_rectangle(6, 6, width - 6, height - 6, outline=line, width=2)
         canvas.create_line(6, height // 2, width - 6, height // 2, fill=line, width=2)
         canvas.create_oval(width // 2 - 40, height // 2 - 40, width // 2 + 40, height // 2 + 40,
@@ -2231,28 +2245,36 @@ class SnapshotView(ttk.Frame):
         lanes: dict[str, list] = {}
         for role, starter, rivals in eleven:
             lanes.setdefault(role, []).append((starter, rivals))
-        # top to bottom: keeper, defence, midfield, attack
-        for role, fraction in (("P", 0.08), ("D", 0.30), ("C", 0.54), ("A", 0.80)):
+        # top to bottom: keeper, defence, midfield, attack. The keeper sits high enough for his plate,
+        # the attack low enough for theirs: a lane at 0.92 would draw the names off the pitch.
+        for role, fraction in (("P", 0.07), ("D", 0.31), ("C", 0.55), ("A", 0.77)):
             slots = self._lane(lanes.get(role, []))
+            if not slots:
+                continue
+            # the space one shirt owns, so nothing has to overflow: five across a column means five
+            # narrow shirts, not five clipped ones
+            room = min(150.0, (width - 24) / len(slots))
             for index, (starter, rivals) in enumerate(slots):
                 spread = (index + 1) / (len(slots) + 1)
-                x = width * (0.10 + 0.80 * spread)
-                # a five-man line cannot fit five plates across a column, so alternate shirts step
-                # forward - which is also how a 3-5-2 really lines up, wing-backs ahead of the middle
-                y = height * fraction + (0 if len(slots) < 4 or index % 2 == 0 else 26)
+                x = 12 + (width - 24) * spread
+                # a crowded line staggers: alternate shirts step forward, which is also how a 3-5-2
+                # really lines up, wing-backs ahead of the middle
+                y = height * fraction + (0 if len(slots) < 4 or index % 2 == 0 else 22)
                 # where he is DRAWN, on the same -1..+1 scale `lateral` uses: it is what names the flank
                 # for a role that does not (a winger placed left reads 'Es')
-                self._shirt(x, y, starter, rivals, drawn_side=(spread - 0.5) * 2)
+                self._shirt(x, y, starter, rivals, drawn_side=(spread - 0.5) * 2, room=room)
         editorial = mode == "next" and any(row.get("desc_starter_prob")
                                            for _role, row, _rivals in eleven)
         if mode == "next":
-            criterion = ("probabili" if editorial else
-                         "no probabili snapshot: who has been STARTING lately")
+            criterion = "probabili" if editorial else "recent starts (no probabili)"
         else:
-            criterion = "season start share, injuries ignored"
-        canvas.create_text(width // 2, height - 14, fill=line, font=theme.FONTS["small"],
-                           text=f"{formation} · XI by {criterion}"
-                                " · seen from the opposing goal: their left is your left")
+            criterion = "season starts (injuries ignored)"
+        # Two short lines: one caption wide enough to say all of it ran off both touchlines. The
+        # viewpoint stays in the column's tooltip, where there is room for the sentence.
+        canvas.create_text(width // 2, height - 26, fill=line, font=theme.FONTS["small"],
+                           text=f"{formation} · XI by {criterion}"[:56])
+        canvas.create_text(width // 2, height - 12, fill=line, font=theme.FONTS["small"],
+                           text="left of the pitch = the team's left")
 
 
 def _read_csv(path) -> list[dict]:

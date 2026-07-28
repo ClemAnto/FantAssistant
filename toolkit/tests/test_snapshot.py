@@ -178,3 +178,85 @@ def test_the_last_ten_series_tells_bench_from_injured_from_unknown(tmp_path):
     assert tokens[3] == "n", "a match with no player-level data is unknown, not a bench appearance"
     assert (form["played"], form["measured"], form["club_matches"]) == (2, 3, 4)
     assert form["unused"] == 1 and form["unknown"] == 1
+
+
+def _headless_root():
+    import tkinter as tk
+
+    try:
+        root = tk.Tk()
+    except tk.TclError:
+        import pytest
+        pytest.skip("no display available")
+    root.withdraw()
+    return root
+
+
+def test_the_pitch_never_draws_outside_itself(tmp_path):
+    """Every formation, on the canvas it actually has. This is the regression that cost three rounds.
+
+    The drawing broke three different ways - a name plate to the right of the marker on a five-man line,
+    a caption wider than the pitch, a mowing stripe past the touchline - and all three are invisible in
+    code and obvious in a bounding box. So the bounding box is the test.
+    """
+    import csv
+    import json
+
+    from euroleghe_ingest.gui import SnapshotView
+
+    folder = tmp_path / "data" / "reports" / "auction-snapshot-2026-27-euro-classic-2026-07-28"
+    folder.mkdir(parents=True)
+    roles = [("P", "por")] + [("D", "dc")] * 5 + [("C", "c")] * 6 + [("A", "pc")] * 4
+    with open(folder / "players.csv", "w", encoding="utf-8-sig", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(snapshot.PLAYER_COLUMNS))
+        writer.writeheader()
+        for index, (role, mantra) in enumerate(roles):
+            writer.writerow({"fc_id": index, "name": f"Verylongsurname{index}", "club": "Test",
+                             "role_classic": role, "roles_mantra": mantra,
+                             "engine_surplus": "10.0", "desc_start_share": "0.80",
+                             "desc_season_starts": "20", "desc_form_measured": "10",
+                             "desc_form_starts": "8", "desc_form_minutes": "700",
+                             "desc_form_series": "p:7.0:90 " * 10,
+                             "desc_duel_names": "Verylongsurname18; Verylongsurname17"})
+    with open(folder / "clubs.csv", "w", encoding="utf-8-sig", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=["club", "formation_typical",
+                                                   "formation_typical_share", "formation_typical_of",
+                                                   "formation_settled", "formation_today",
+                                                   "probabili_date"])
+        writer.writeheader()
+        writer.writerow({"club": "Test", "formation_typical": "3-5-2",
+                         "formation_typical_share": "0.9", "formation_typical_of": "38",
+                         "formation_settled": "yes", "formation_today": "3-4-2-1",
+                         "probabili_date": "2026-07-26"})
+    (folder / "manifest.json").write_text(json.dumps({"engine": {"rules": ["R0"]}}), encoding="utf-8")
+
+    root = _headless_root()
+    try:
+        root.geometry("1180x800")
+        view = SnapshotView(root, Config(data_dir=tmp_path / "data",
+                                         db_path=tmp_path / "data" / "euro.db"))
+        view.pack(fill="both", expand=True)
+        view.reload()
+        # a withdrawn root never resolves geometry, so the canvas is told its size explicitly: the
+        # drawing reads the requested size when it is not mapped, which is what makes this testable
+        view.pitch.configure(width=430, height=470)
+        root.update()
+        for formation in ("3-5-2", "4-3-3", "3-4-2-1", "4-2-3-1", "5-3-2"):
+            view.clubs["Test"]["formation_typical"] = formation
+            for mode in ("typical", "next"):
+                view.xi_mode.set(mode)
+                view._show_club()
+                root.update()
+                canvas = view.pitch
+                width = canvas.winfo_width() if canvas.winfo_width() > 1 else canvas.winfo_reqwidth()
+                height = (canvas.winfo_height() if canvas.winfo_height() > 1
+                          else canvas.winfo_reqheight())
+                box = canvas.bbox("all")
+                assert box, f"{formation}/{mode}: nothing drawn"
+                assert box[0] >= -2 and box[1] >= -2, f"{formation}/{mode} spills top/left: {box}"
+                assert box[2] <= width + 2, f"{formation}/{mode} spills right: {box} in {width}"
+                assert box[3] <= height + 2, f"{formation}/{mode} spills below: {box} in {height}"
+                # and every shirt is really on the pitch, not merely inside the bounding box
+                assert len(view.eleven("Test", formation, mode)) == 11
+    finally:
+        root.destroy()
