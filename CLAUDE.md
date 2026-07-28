@@ -146,6 +146,21 @@ fixed without provenance is not. The gate report carries all three (`platform`, 
 of the number. Two conclusions also turned out to be stated in the singular about a PLATFORM-dependent
 quantity, which `platform` being a first-class dimension should have prevented.
 
+## Comparing against the right null
+**A "does the event repeat?" statistic must be compared with the RESHUFFLED sequence, never with zero.**
+Found 29\07\2026 by making the mistake: a lagged autocorrelation inside a demeaned group carries a
+finite-sample bias of about −1/(n−1) (−0.044 over 24 matches), so the fantavoto's "hot hand" was reported as
+−0.035 = mean reversion when the reshuffled null is −0.041 and the true excess is **+0.012**, i.e. the sign
+is the opposite one. Same trap in every streak question (Miller-Sanjurjo). Conditioning on something that is
+NOT the lagged outcome is safe - the "worse fantavoto after a team win" result was re-tested the same way and
+holds (null −0.002 vs observed −0.048). Details: `gate-motore-v1.md` §5-duodecies point 4 and
+[turnover-atteso-v1.md](docs/model/turnover-atteso-v1.md) §4.
+
+Related and already learnt: the exploitable signal in these per-match questions sits on **who plays**, not on
+the voto - `Var(ln pv)` is 90% of `Var(ln` total fantapunti`)`. And a Serie A match RESULT is derivable
+offline from `match_ratings` (`platform='default'`): `goals` is net of penalties AND own goals, so
+goals-for = `SUM(goals) + SUM(pen_scored)` and goals-against comes from the `role='P'` rows.
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,

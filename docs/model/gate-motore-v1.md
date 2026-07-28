@@ -1233,3 +1233,7 @@ R7 era uno stimatore sbagliato · `072542d` tab Auction · `cb23192` il Mantra s
 `ae6b533` beccabilità per-giocatore archiviata sul prerequisito · `b65d532` **famiglia forza-club chiusa** ·
 `e63174c` R15 e R3d restano fuori, e il buco nei criteri · `2f80247` **non-danno elastico**.
 **158 test verdi, ruff pulito.** Toolkit a **v0.2.0**.
+
+⚠️ **La passata del 29/07 (§5-duodecies, [turnover-atteso-v1.md](turnover-atteso-v1.md)) è entrata in
+`b950afe`**, un commit il cui messaggio parla di GUI e snapshot: i doc ci sono, il messaggio non li nomina.
+Chi cerca «quattro credenze misurate» nella storia dei commit non la trova per titolo — cercarla per file.
