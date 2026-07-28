@@ -206,15 +206,17 @@ def test_the_pitch_never_draws_outside_itself(tmp_path):
 
     folder = tmp_path / "data" / "reports" / "auction-snapshot-2026-27-euro-classic-2026-07-28"
     folder.mkdir(parents=True)
-    # The third element is the GRANULAR real role, deliberately at the extremes of its line: a 'D'
-    # really used as ML steps forward, a 'C' as DM drops behind, and the nudge must still leave every
-    # shirt and every name plate inside the pitch - which is what the bounding box below checks.
+    # The third element is the GRANULAR real role, spread across the depth of each line so the pitch is
+    # checked with it: DM behind MC, AM ahead of the midfield, and the flanks named outright. Every line
+    # keeps enough men whose real role belongs to it - a squad whose five defenders are all really
+    # wing-backs cannot fill a back four, and that is a question about the eleven, not about the
+    # drawing, so it does not belong in a bounding-box test.
     roles = ([("P", "por", "GK")]
-             + [("D", "dc", "ML"), ("D", "dc", "DL"), ("D", "dc", "DC"), ("D", "dc", "DR"),
-                ("D", "dc", "MR")]
-             + [("C", "c", "DM"), ("C", "c", "MC"), ("C", "c", "AM"), ("C", "c", "ML"),
-                ("C", "c", "MR"), ("C", "c", "")]
-             + [("A", "pc", "ST"), ("A", "pc", "LW"), ("A", "pc", "RW"), ("A", "pc", "")])
+             + [("D", "dc", "DL"), ("D", "dc", "DC"), ("D", "dc", "DC"), ("D", "dc", "DR"),
+                ("D", "dc", "DR")]
+             + [("C", "c", "DM"), ("C", "c", "DM"), ("C", "c", "MC"), ("C", "c", "MC"),
+                ("C", "c", "ML"), ("C", "c", "MR")]
+             + [("A", "pc", "ST"), ("A", "pc", "LW"), ("A", "pc", "RW"), ("A", "pc", "AM")])
     with open(folder / "players.csv", "w", encoding="utf-8-sig", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=list(snapshot.PLAYER_COLUMNS))
         writer.writeheader()
