@@ -113,6 +113,15 @@ beta per gruppo di ruolo · baseline multi-stagione 62/38 · ancore per lega · 
   camminava su tutte le 77 squadre di `squad_snapshot` invece delle 38 comprabili; righe doppie in `clubs`
   si rubavano a vicenda il team id **in silenzio** (ora vince la riga con più rose, e le perdenti sono nel
   log). **Nessun verdetto del gate cambia.**
+- [x] **v9.7b — i dodici codici → il vocabolario MANTRA** (mappatura dell'utente, `desc_mantra_real`):
+  il Mantra **semplifica**, quindi `ML`/`MR` → **`e`** e `LW`/`RW` → **`w`** (fascia non nominata a
+  centrocampo, nominata in difesa: `DL`→`ds`, `DR`→`dd`), `DM`→`m`, `MC`→`c`, `ST`→`pc`, `GK`→`por`.
+  Due ruoli che **nessun codice singolo** produce: **`b` braccetto** = fascia difensiva **+** `DC`
+  (139 giocatori contro i 28 del listone — è una *capacità*, registrata e non tarata) e **`AM` → `t`|`a`**
+  dalla linea larga del provider (63 `M`, 19 `F`). ⚠️ Non sostituisce `rosters.roles`: esiste per quando
+  non esistono (26/27: **1343 su 1343** senza listone). Confronto dove ci sono entrambi: **48% identici,
+  44% condividono un ruolo, 8% disgiunti**, e le disgiunte sono quasi tutte `a` (listone) vs `w`
+  (provider) — la distinzione fra per cosa lo compri e dove gioca, non un errore della mappatura.
 
 ## Percorso critico (aggiornato 28/07 notte)
 La parte dati e' fatta **e ora è anche esportabile e ricostruibile da zero** (v9.4): il toolkit non è

@@ -771,6 +771,59 @@ REAL_ROLE_LABEL: dict[str, str] = {
 }
 
 
+# ---------- the twelve codes -> the Mantra vocabulary ----------
+# The Mantra roles as the listone spells them, verified against `rosters.roles` (2025-26: por 164,
+# dc 272, dd 146, ds 150, b 28, e 224, m 171, c 294, t 172, w 173, a 187, pc 144).
+MANTRA_ROLES: tuple[str, ...] = ("por", "dc", "dd", "ds", "b", "e", "m", "c", "t", "w", "a", "pc")
+# The user's own mapping. Mantra SIMPLIFIES: it does not care which flank a midfielder or a winger is
+# on ('e' and 'w' are sideless), so ML and MR collapse to one role and LW and RW to another. Going the
+# other way is therefore lossy on purpose - the granular code stays the thing that places a man, and
+# this only says what he would be called at a Mantra auction.
+REAL_TO_MANTRA: dict[str, str] = {
+    "GK": "por",
+    "DL": "ds", "DC": "dc", "DR": "dd",
+    "DM": "m",
+    "ML": "e", "MR": "e",          # esterno: Mantra does not name the flank
+    "MC": "c",
+    "LW": "w", "RW": "w",          # ala: same
+    "ST": "pc",
+    # AM is the one code that is not a single Mantra role - see `mantra_roles`.
+}
+# Two roles that no SINGLE code can produce, and both are read off the code LIST instead:
+# * 'b' (braccetto) = a full back who can also play central in a back three. That is a COMBINATION -
+#   a flank defensive code together with DC - which is exactly why having up to three codes per
+#   player is worth more than having one. Measured: 139 players carry it, where the 2025-26 listone
+#   assigns 'b' to 28. The listone is the more parsimonious of the two, and this is a capability
+#   ("può giocare centrale"), so the two numbers are not expected to agree; noted rather than tuned.
+# * 't' vs 'a' for AM = whether he is more midfielder or more forward. The provider's own broad line
+#   answers it and is already stored: of the AM players, 63 are line 'M' (-> t) and 19 line 'F' (-> a).
+_FLANK_DEFENDER: frozenset[str] = frozenset({"DL", "DR"})
+
+
+def mantra_roles(roles: str | None, line: str | None = None) -> str:
+    """The twelve provider codes -> the Mantra roles, in the provider's own order. 'DL;DC' -> 'ds;dc;b'.
+
+    DESCRIPTIVE and NOT gated, and it is NOT `rosters.roles`: that is what the listone sells him as and
+    stays the source of truth wherever it exists. This is what he would be called at a Mantra auction
+    whose listone does not exist yet - which is the normal case for the season being auctioned in July,
+    where 1343 of 1343 players in the sheet have no listone row at all.
+    """
+    codes = [code.strip() for code in (roles or "").upper().split(";")
+             if code.strip() in REAL_ROLES]
+    out: list[str] = []
+    for code in codes:
+        if code == "AM":
+            # more forward than midfielder -> 'a', else the trequartista 't'
+            mapped = "a" if (line or "").upper() == "F" else "t"
+        else:
+            mapped = REAL_TO_MANTRA.get(code)
+        if mapped and mapped not in out:
+            out.append(mapped)
+    if any(code in _FLANK_DEFENDER for code in codes) and "DC" in codes and "b" not in out:
+        out.append("b")
+    return ";".join(out)
+
+
 def derive_club_xref(ctx: Context) -> int:
     """club_xref(source='sofascore') from the cached season aggregates. Offline.
 
@@ -1062,6 +1115,10 @@ def roles_as_of(conn, date: str) -> dict[int, dict]:
             # him the same way the pitch view does, instead of each one inventing a mapping.
             "depth": REAL_ROLE_DEPTH.get(primary or ""),
             "side": REAL_ROLE_SIDE.get(primary or ""),
+            # What a Mantra auction would call him, derived from the same codes. Descriptive, and it
+            # never replaces the listone's own `rosters.roles` - it EXISTS for the case where those do
+            # not, which in July is every player in the sheet.
+            "mantra": mantra_roles(roles, line),
         }
     return out
 

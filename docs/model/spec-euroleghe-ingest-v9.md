@@ -445,8 +445,46 @@ Piede: 506 destro, 204 sinistro, 35 ambidestro. Verificato sui casi reali: Dimar
 `Es`, lato −0.62, profondità 0.60 (davanti alla difesa); Calhanoglu `C/m;c` → `DM;MC`, badge `M`,
 profondità 0.45 (dietro le mezzali).
 
-**Nessun verdetto del gate cambia**: è un fatto descrittivo e una scelta di layout. Tradurre i dodici
-codici (o le coordinate) in un ruolo Mantra resta dietro il gate.
+**Nessun verdetto del gate cambia**: è un fatto descrittivo e una scelta di layout.
+
+### 7. I dodici codici → il vocabolario MANTRA (mappatura dell'utente)
+
+Il Mantra **semplifica**, quindi la traduzione è lossy di proposito — il codice granulare resta la cosa
+che colloca un uomo in campo, questo dice solo come lo chiamerebbe un'asta Mantra
+(`positions.REAL_TO_MANTRA` + `mantra_roles()`, `desc_mantra_real` nel foglio):
+
+| provider | Mantra | nota |
+|---|---|---|
+| `GK` | `por` | |
+| `DL` / `DR` | `ds` / `dd` | in difesa la fascia il Mantra la nomina |
+| `DC` | `dc` | |
+| `DM` | `m` | |
+| `ML` / `MR` | **`e`** | esterno: il Mantra **non** nomina la fascia → i due collassano |
+| `MC` | `c` | |
+| `LW` / `RW` | **`w`** | ala: idem |
+| `AM` | **`t`** o **`a`** | trequartista se più centrocampista, attaccante se più avanti |
+| `ST` | `pc` | |
+
+Due ruoli che **nessun codice singolo** produce, e per questo avere fino a tre codici per giocatore vale
+più che averne uno:
+
+- **`b` (braccetto)** = un terzino che può giocare centrale in una difesa a tre. È una **combinazione**:
+  codice difensivo di fascia **insieme** a `DC`. Misurato: **139** giocatori, dove il listone 25/26
+  assegna `b` a **28**. Il listone è il più parsimonioso dei due e questo è una *capacità* («può giocare
+  centrale»), quindi non è atteso che i numeri coincidano: registrato, non tarato.
+- **`t` vs `a` per `AM`**: lo decide la **linea larga del provider**, già in `player_roles.line` — dei
+  giocatori `AM`, **63 sono linea `M` → `t`** e **19 linea `F` → `a`**.
+
+⚠️ Non sostituisce **mai** `rosters.roles`: quelli sono ciò per cui il listone lo vende e restano la
+fonte di verità dove esistono. `desc_mantra_real` **esiste per il caso in cui non esistano**, che a luglio
+è la norma: nel foglio 26/27 **1343 giocatori su 1343** non hanno una riga di listone.
+
+Confronto dove entrambi ci sono (727 giocatori): **48% insieme identico**, **44% condividono almeno un
+ruolo**, **8% disgiunti** — e le disgiunte sono quasi tutte `a` del listone contro `w` del provider (24 su
+57). Non è un errore della mappatura: è esattamente la distinzione che questa colonna serve a rendere
+visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**. Riscontri esatti:
+Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
+`e;dc;dd;b` contro `b;ds;e`.
 
 ## Novità v9.6 (28 luglio 2026, notte — precisazioni sullo snapshot, e la VISTA)
 

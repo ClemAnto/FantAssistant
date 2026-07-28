@@ -55,8 +55,18 @@ snapshot**, per sapere orientativamente dove collocarlo in campo.
    identità non risolte (la linea resta nota, manca la fascia). Dimarco `D/e` → `ML` badge `Es`, lato
    −0.62, profondità 0.60; Calhanoglu `C/m;c` → `DM;MC` badge `M`, profondità 0.45.
 
-**Nessun verdetto del gate cambia**: fatto descrittivo + layout. Tradurre i dodici codici in un ruolo
-Mantra resta dietro il gate.
+7. **I dodici codici → il vocabolario MANTRA** (mappatura dell'utente, `desc_mantra_real`): il Mantra
+   **semplifica**, quindi `ML`/`MR` collassano su **`e`** e `LW`/`RW` su **`w`** (non nomina la fascia a
+   centrocampo), mentre in difesa la nomina (`DL`→`ds`, `DR`→`dd`). Due ruoli che **nessun codice singolo**
+   dà — ed è per questo che avere fino a tre codici vale più che averne uno: **`b` braccetto** = codice di
+   fascia difensiva **insieme** a `DC` (139 giocatori, il listone ne segna 28: è una *capacità*, i due non
+   devono coincidere), e **`AM` → `t` o `a`** deciso dalla linea larga del provider (63 `M`→`t`, 19
+   `F`→`a`). ⚠️ Non sostituisce mai `rosters.roles`: **esiste per quando non esistono**, che a luglio è la
+   norma (26/27: 1343 su 1343 senza riga di listone). Dove entrambi ci sono: **48% identici, 44%
+   condividono un ruolo, 8% disgiunti** — e le disgiunte sono quasi tutte `a` del listone contro `w` del
+   provider, cioè la distinzione stessa fra **per cosa lo compri** e **dove gioca**.
+
+**Nessun verdetto del gate cambia**: fatto descrittivo + layout.
 
 ### lo snapshot lavora sulle ROSE REALI e ha una VISTA (spec «Novità v9.6»)
 

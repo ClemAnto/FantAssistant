@@ -428,3 +428,58 @@ def test_club_xref_folds_duplicate_club_rows_onto_one_provider_team(tmp_path):
     assert positions.role_targets(conn) == [("Newcastle United", "39")]
     # and a caller can narrow it to the clubs it actually needs
     assert positions.role_targets(conn, ["Arsenal"]) == []
+
+
+def test_the_twelve_codes_map_onto_the_mantra_vocabulary():
+    """Mantra SIMPLIFIES, so the mapping is lossy on purpose: 'e' and 'w' are sideless, AM is two
+    different roles depending on how far forward he plays, and 'b' comes from a COMBINATION."""
+    assert set(positions.REAL_TO_MANTRA.values()) <= set(positions.MANTRA_ROLES)
+    # every code has a Mantra role, AM excepted: it needs the line to decide
+    assert set(positions.REAL_ROLES) - set(positions.REAL_TO_MANTRA) == {"AM"}
+
+    # the direct ones
+    assert positions.mantra_roles("GK") == "por"
+    assert positions.mantra_roles("ST") == "pc"
+    assert positions.mantra_roles("DM") == "m"
+    assert positions.mantra_roles("MC") == "c"
+    # the flank is dropped, because Mantra does not name it - and the collapse is visible
+    assert positions.mantra_roles("ML") == positions.mantra_roles("MR") == "e"
+    assert positions.mantra_roles("LW") == positions.mantra_roles("RW") == "w"
+    assert positions.mantra_roles("ML;MR") == "e"          # collapsed, not duplicated
+    # the flank IS named for defenders, where Mantra keeps it
+    assert positions.mantra_roles("DL") == "ds"
+    assert positions.mantra_roles("DR") == "dd"
+
+    # AM: more midfielder -> trequartista, more forward -> attaccante. The provider's own line decides.
+    assert positions.mantra_roles("AM;MC", line="M") == "t;c"
+    assert positions.mantra_roles("AM;ST", line="F") == "a;pc"
+    assert positions.mantra_roles("AM") == "t"             # no line stated: the midfield reading
+
+    # 'b' (braccetto): a flank defender who also plays central in a back three. No single code says it.
+    assert positions.mantra_roles("DL;DC") == "ds;dc;b"
+    assert positions.mantra_roles("DC;DR") == "dc;dd;b"
+    assert positions.mantra_roles("DC") == "dc"            # central only: not a braccetto
+    assert positions.mantra_roles("DL") == "ds"            # flank only: not a braccetto either
+    assert positions.mantra_roles("ML;DC;DR") == "e;dc;dd;b"
+
+    # the provider's order is preserved, and nothing unknown gets through
+    assert positions.mantra_roles("RW;AM;MC", line="M") == "w;t;c"
+    assert positions.mantra_roles("SS;ST") == "pc"
+    assert positions.mantra_roles(None) == ""
+
+
+def test_derived_mantra_role_travels_with_the_observation(tmp_path):
+    ctx = _ctx(tmp_path)
+    conn = ctx.conn
+    _add_player(conn, 1, "Bastoni", "Inter", "serie_a")
+    conn.execute("INSERT INTO player_xref(fc_id, source, source_id) VALUES (1, 'sofascore', '385330')")
+    conn.commit()
+    (ctx.config.cache_dir / "sofascore_squad_2697_2026-07-28.json").write_text(
+        json.dumps(_squad_payload(
+            _provider_player(385330, "Alessandro Bastoni", ["DC", "DR"], "D", "Left"))),
+        encoding="utf-8")
+    positions.ingest_roles_from_cache(ctx)
+
+    entry = positions.roles_as_of(conn, "2026-07-28")[1]
+    # a centre back who also plays right back IS a braccetto, and that is only visible in the LIST
+    assert entry["mantra"] == "dc;dd;b"

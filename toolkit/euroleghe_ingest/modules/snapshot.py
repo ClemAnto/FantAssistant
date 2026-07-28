@@ -947,7 +947,7 @@ PLAYER_COLUMNS: tuple[str, ...] = (
     "desc_squad_club", "desc_squad_source", "desc_real_role",
     # The granular real role: where on the pitch he belongs, in the twelve-code vocabulary.
     "desc_real_roles", "desc_real_role_primary", "desc_real_role_line", "desc_real_role_depth",
-    "desc_real_role_side", "desc_foot", "desc_real_role_observed",
+    "desc_real_role_side", "desc_mantra_real", "desc_foot", "desc_real_role_observed",
     "desc_avg_x", "desc_avg_y", "desc_side_measured",
     "desc_starter_prob", "desc_starter_status", "desc_expected_minutes",
     # Titolarità: how often he STARTS. Two horizons, because they answer different questions - the
@@ -1054,6 +1054,12 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             "desc_real_role_line": role_detail.get("line"),
             "desc_real_role_depth": role_detail.get("depth"),
             "desc_real_role_side": role_detail.get("side"),
+            # What a MANTRA auction would call him, derived from the same codes: Mantra simplifies
+            # (ML/MR both 'e', LW/RW both 'w' - it does not name the flank), AM is 't' or 'a' by the
+            # provider's own line, and 'b' (braccetto) comes from the code COMBINATION, a flank
+            # defender who also plays DC. It never replaces `roles_mantra`, which is what the listone
+            # sells him as: this column exists for the July case, where no listone row exists at all.
+            "desc_mantra_real": role_detail.get("mantra"),
             "desc_foot": role_detail.get("foot"),
             "desc_real_role_observed": role_detail.get("observed"),
             "desc_avg_x": layers["positions"].get(obs.fc_id, (None, None))[0],
