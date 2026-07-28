@@ -23,8 +23,11 @@ and stay in Italian.
 The knowledge base now lives in **git** under [docs/model/](docs/model/) (Italian, source of truth; Drive
 is a mirror/archive). Before any work read, in order:
 [docs/model/00-BRIDGE-punto-di-ingresso.md](docs/model/00-BRIDGE-punto-di-ingresso.md) ->
-`stato-progetto-continuita-v5.md` -> `todolist-mantra-euroleghe-v5.md` -> `spec-euroleghe-ingest-v9.md` ->
-`nota-modello-set-pieces-v2.md` -> `modello-previsionale-v3.8.md` -> the consolidated notes in the same folder.
+`stato-progetto-continuita-v5.md` -> `todolist-mantra-euroleghe-v5.md` -> **`gate-motore-v1.md`** (the gate
+protocol, every verdict and every falsified hypothesis: read it before proposing any rule) ->
+**`metrica-asta-surplus-v1.md`** (what the Auction panel ranks by, and why it is not VALUE) ->
+`spec-euroleghe-ingest-v9.md` -> `nota-modello-set-pieces-v2.md` -> `modello-previsionale-v3.8.md` ->
+the consolidated notes in the same folder.
 Drive dataset IDs (xlsx/csv, not in git) are in [docs/DRIVE-MANIFEST.md](docs/DRIVE-MANIFEST.md).
 
 ## Golden rule (gate)
@@ -94,6 +97,16 @@ fantacalcio.it credentials **only** in the local `.env` (see `.env.example`). NE
 in the repository, or in logs. `.env` is in `.gitignore` and `.claudeignore`.
 **The GitHub repo is PUBLIC** (`origin` = github.com/ClemAnto/FantAssistant, branch `master`): every
 commit publishes `docs/model/` - the model knowledge base - so treat anything committed as public.
+
+## Citing a fitted number
+**A coefficient quoted without its platform, its residual baseline and its date is not a fact.** Audited
+28/07/2026: only 5 of the 12 lambdas the knowledge base quoted could still be reproduced, and two of the
+five only against the pre-two-pass baseline - one of those carried an INTERPRETATION that the corrected sign
+reverses (R11, `gate-motore-v1.md` §5-septies). Drift is legitimate, data improves; presenting a number as
+fixed without provenance is not. The gate report carries all three (`platform`, `generated_at`,
+`notes["residual_baseline"]` per fit), so either copy them alongside the number or cite the report instead
+of the number. Two conclusions also turned out to be stated in the singular about a PLATFORM-dependent
+quantity, which `platform` being a first-class dimension should have prevented.
 
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);

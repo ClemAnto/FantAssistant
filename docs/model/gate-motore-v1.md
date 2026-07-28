@@ -570,9 +570,9 @@ cioè copertura più una regola, mentre su Serie A sono tre regole di cui una (R
 | Regola | Parametro (T1 / T2) | Perché cade |
 |---|---|---|
 | **R1b** sconto adattamento cross-lega | δ_cross **−0.036 / +0.156** | Segno opposto fra finestre, e δ_intra (0.09 / 0.33) è **maggiore** di δ_cross: il segnale non è l'adattamento alla nuova lega ma un generico cambio-squadra. Era il criterio di falsificazione scritto in pre-registrazione, ed è scattato. |
-| **R2** propensione per-90 (xG/xA) | γ **−0.003 / −0.014** → poi **+0.028 / +0.021** | ⚠️ **verdetto corretto nel §5-bis**: col layer per-partita completo il segno diventa giusto e stabile. Non passa ancora il criterio sul MAE, ma la falsificazione originale era in parte un artefatto dell'input incompleto → **da ri-pre-registrare**, non archiviata. |
+| **R2** propensione per-90 (xG/xA) | γ **−0.003 / −0.014** → poi **+0.028 / +0.021** | ⚠️ **verdetto corretto nel §5-bis**: col layer per-partita completo il segno diventa giusto e stabile — ma ⚠️ **solo su Serie A** (+0.033 / +0.010); sull'euro oggi è +0.016 / −0.002, quindi ancora un cambio di segno (§5-octies). Non passa ancora il criterio sul MAE, ma la falsificazione originale era in parte un artefatto dell'input incompleto → **da ri-pre-registrare**, non archiviata. |
 | **R5** àncora forza-club da ClubElo | λ +0.023 / +0.073 | **Terza bocciatura della famiglia** (dopo forza-club interna ed Elo additivo movimento). Il segno è giusto su entrambe le finestre — l'intuizione Kane è corretta — ma il MAE di T1 peggiora ogni volta. |
-| **R6** rigoristi (forma ridotta su confidence) | λ **+0.332 / −0.222** | Segno opposto, e peggiora gli attaccanti (+1.8% / +2.7%). La forma ridotta comprime troppo (manca il tasso rigori per club e la conversione di carriera) e i rigoristi datati prima dell'asta sono 22 e 29. |
+| **R6** rigoristi (forma ridotta su confidence) | λ **+0.332 / −0.222** (⚠️ **euro**; su Serie A è −0.331 / −0.122, cioè segno **stabile e negativo** — §5-octies) | Segno opposto *sull'euro*, e peggiora gli attaccanti (+1.8% / +2.7%). La forma ridotta comprime troppo (manca il tasso rigori per club e la conversione di carriera) e i rigoristi datati prima dell'asta sono 22 e 29. |
 | **R8** fuori-ruolo da heatmap | avanti +0.032 / **−0.070** → poi **+0.121 / +0.041** | ⚠️ **anche qui l'instabilità era dei dati** (§5-bis): col layer completo entrambi i versi hanno segno stabile («più indietro» −0.22 / −0.327). Non passa, ma la ragione della bocciatura non è più «segno instabile». |
 | **R11 / R11b** concorrenza posizionale | ⚠️ **verdetto corretto il 28/07, vedi §5-septies**: λ **−0.010 / −0.010** e soglia **−0.072 / −0.066** contro la baseline giusta (i +0.008/+0.010 registrati qui erano fittati contro B0, prima del fit a due passate) | Migliora il Pv MAE del 3% su Serie A — l'effetto singolo più grande del gate. Il segno **conferma** l'ipotesi: più arrivi nel tuo ruolo, **meno** presenze. Coefficiente stabile su **10 finestre su 10** (dispersione 0.17). Cade sull'errore, non sul meccanismo. La ri-pre-registrazione come «sottostima da rifacimento rosa» nasceva dal segno sbagliato → **decaduta**. |
 | **R11b** posizione affollata (soglia ≥2) | +0.012 / −0.001 | La soglia non è una coda: 620 giocatori su 1450 la superano. |
@@ -910,6 +910,54 @@ baseline è stato fittato non è un fatto.**
 Nota di metodo: è la terza volta in due giorni che leggere il coefficiente cambia una conclusione (il segno
 di R16b, la stabilità di R15, questa). E questa è la più istruttiva, perché l'errore non era in una misura
 nuova: era in un numero che stava nel documento da un giorno e mezzo, con un'interpretazione sopra.
+
+## 5-octies. Audit di tutti i coefficienti citati (28 luglio 2026) — **5 su 12 si riproducono**
+
+Dopo R11 e R10 la domanda era quanti altri numeri del documento fossero vecchi. Metodo: per ogni
+coefficiente citato, provare a riprodurlo con **ogni** combinazione plausibile di piattaforma (euro /
+Serie A) e baseline dei residui (due passate / contro B0), tolleranza 0.006. Se una combinazione lo
+riproduce, si scopre anche *quale configurazione* l'ha prodotto — cosa che il documento in gran parte non
+dice. Se nessuna lo riproduce, il numero è vecchio.
+
+| citato | valore nel doc (T1/T2) | riprodotto da |
+|---|---|---|
+| **R5** | +0.023 / +0.073 | euro ✅ |
+| **R4b** | −0.014 / −0.014 | euro ✅ |
+| **R14** | +0.011 / +0.001 | euro ✅ |
+| **R11** | +0.008 / +0.010 | **solo Serie A contro B0** → pre-due-passate (§5-septies) |
+| **R11b** | +0.012 / −0.001 | **solo euro contro B0** → pre-due-passate |
+| R2 | −0.003 / −0.014 · poi +0.028 / +0.021 | nessuna · oggi euro +0.016/−0.002, Serie A +0.033/+0.010 |
+| R6 | +0.332 / −0.222 | nessuna · oggi euro +0.372/−0.186, Serie A −0.331/−0.122 |
+| R12 | −0.003 / +0.010 | nessuna · oggi euro +0.008/+0.016 |
+| R12b | −0.040 / −0.076 | nessuna (T2 combacia, T1 no) · oggi euro −0.029/−0.075 |
+| R13b | −0.454 / +0.05 | nessuna · oggi euro −0.063/−0.100 — **un ordine di grandezza** di differenza |
+| R14b | +0.044 / −0.044 | nessuna · oggi euro +0.056/−0.074 |
+
+### Come leggerlo: la deriva NON è un errore, la mancanza di provenienza sì
+
+I coefficienti **devono** cambiare quando i dati migliorano, e il 27/07 sono cambiati molto (layer
+per-partita completato, `arrivals` ricalcolati, Qt.I corretto al posto di Qt.A, gerarchia rigoristi da 22-29
+a 1463 righe). Un numero che deriva non è sbagliato: è vecchio. Il difetto è che il documento li presentava
+come **fatti fissi senza provenienza** — né piattaforma, né baseline, né data — e senza quella un numero non
+è verificabile.
+
+**Cosa l'audit ha cambiato davvero**, oltre ai numeri:
+1. **Due interpretazioni si scoprono dipendenti dalla piattaforma**, e il documento non diceva quale.
+   R2 «il segno ora è giusto e stabile» vale **su Serie A**, non su euro (dove ancora si inverte). R6
+   «segno opposto» vale **su euro**, non su Serie A (dove è stabile e negativo). Due conclusioni scritte al
+   singolare su una dimensione che il progetto tratta come di primo livello.
+2. **Il ragionamento di R1b regge**: δ_cross −0.057/+0.134 mantiene i segni opposti e δ_intra
+   (0.060/0.300) resta **più grande** di |δ_cross|, che era il criterio di falsificazione scritto in
+   pre-registrazione. Numeri derivati, conclusione intatta.
+3. **R13b perde un ordine di grandezza** (−0.454 → −0.063): la sua bocciatura regge (su Serie A il segno si
+   inverte ancora) ma il numero non è citabile.
+
+### Convenzione adottata
+
+> **Un coefficiente citato senza piattaforma, baseline dei residui e data non è un fatto.** Il report del
+> gate porta ora tutti e tre: `platform` nel risultato, `notes["residual_baseline"]` in ogni fit,
+> `generated_at` nel report. Chi cita un λ in un documento copia anche quelli, oppure scrive «vedi il
+> report» e non il numero.
 
 ## 6. Validazione del voto sintetico (Serie A, dove esistono entrambi i set reali)
 
