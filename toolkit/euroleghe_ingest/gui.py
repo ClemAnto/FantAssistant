@@ -323,7 +323,9 @@ class HeadingTooltip:
             index = int(self.tree.identify_column(event.x).lstrip("#")) - 1
         except ValueError:
             return None
-        return columns[index] if 0 <= index < len(columns) else None
+        if index < 0:
+            return "#0"          # the tree column, which a view may use for a drawing of its own
+        return columns[index] if index < len(columns) else None
 
     def _on_motion(self, event) -> None:
         column = self._column_under(event)
@@ -1489,39 +1491,46 @@ class SnapshotView(ttk.Frame):
     # One line per column, because a sheet nobody can read is a sheet nobody should act on. The two
     # families are named in every entry: `engine_*` is gated, `desc_*` is not.
     COLUMN_HELP: ClassVar[dict[str, str]] = {
-        "R": "The LISTONE role - what you buy him as (P/D/C/A). Click to restore the auction order: "
+        "#0": "The club's last 10 matches, oldest on the left. One dot per match: cyan exceptional, "
+              "light blue very good, green good, grey average, yellow weak, red poor - by the provider's "
+              "rating, which is a DISPLAY threshold and not a model parameter. Faded dots are matches he "
+              "did not play: pale grey bench or left out, violet inside a recorded injury spell, dark "
+              "grey no player-level data at all (unknown, which includes not being in the squad). A "
+              "ring around the dot means he played at least 75 minutes.",
+        "role": "The LISTONE role - what you buy him as (P/D/C/A). Click to restore the auction order: "
              "by role, then by predicted SURPLUS.",
         "real": "Where he was REALLY used: the provider's own slot in the matches he played, plus his "
                 "sided Mantra role when the listone states one (dd = right back, ds = left back). "
                 "Measured translation provider -> listone: G->P 100%, D->D 97%, M->C 80%, F->A 80%.",
-        "Player": "Name as the listone spells it. fc_id is the key underneath, so the same man is the "
+        "name": "Name as the listone spells it. fc_id is the key underneath, so the same man is the "
                   "same row in every view.",
-        "Qt.I": "Qt.I, the PRE-AUCTION quotation: the market's expectation, and the only price a rule "
+        "qti": "Qt.I, the PRE-AUCTION quotation: the market's expectation, and the only price a rule "
                 "may read. Empty when the listone for this season is not out yet.",
-        "SUR": "GATED. Predicted SURPLUS = (predicted fantamedia - the role's replacement level) x "
+        "surplus": "GATED. Predicted SURPLUS = (predicted fantamedia - the role's replacement level) x "
                "predicted appearances: points over the man you would have fielded instead. This is the "
                "auction's own currency - an iron man on a replacement-level fantamedia scores ~0.",
-        "FM": "GATED. Predicted fantamedia for the season being auctioned, from the adopted rule set "
+        "fm": "GATED. Predicted fantamedia for the season being auctioned, from the adopted rule set "
               "with parameters fitted on a window that is not this season.",
-        "Pv": "GATED. Predicted appearances, on the platform's own calendar.",
-        "min": "Expected minutes = minutes per appearance x predicted appearances. The recent rate is "
+        "pv": "GATED. Predicted appearances, on the platform's own calendar.",
+        "minutes": "Expected minutes = minutes per appearance x predicted appearances. The recent rate is "
                "used when he actually played lately (it carries bench time), else the season-long one.",
         "form": "played / measured of his CLUB's last 10 matches. `measured` drops the matches we have "
                 "no player-level data for, so 0 means he did not play - not that we do not know. Empty "
                 "= he is not in the per-match layer at all.",
-        "rat": "Average provider rating over those matches. Not a fantamedia: a 7.0 in Serie B is not "
+        "rating": "Average provider rating over those matches. Not a fantamedia: a 7.0 in Serie B is not "
                "a 7.0 in Serie A, which is why it is reported raw and never converted here.",
-        "g+a": "Goals + assists per 90 over the FULL real season (all competitions we scrape), not the "
+        "bonus": "Goals + assists per 90 over the FULL real season (all competitions we scrape), not the "
                "euro calendar's subset. The engine's own propensity input, shown as it is.",
         "inj": "Matches missed, weighted by recency (1.0 / 0.6 / 0.35 over three seasons). DESCRIPTIVE, "
                "not gated. Empty = no Transfermarkt id: unknown, and not zero.",
-        "flags": "Starting probability from today's probabili, an open injury, today's availability, an "
+        "status": "Starting probability from today's probabili, an open injury, today's availability, an "
                  "expiring contract, how many rivals for the shirt, and whether he is a new arrival.",
     }
 
     def __init__(self, parent, config: Config, on_build=None) -> None:
         super().__init__(parent)
         self.config = config
+        self._sparks: list = []
         self.on_build = on_build
         self.folders: list = []
         self.sort_by: str | None = None
@@ -1587,8 +1596,12 @@ class SnapshotView(ttk.Frame):
 
         table = ttk.Frame(columns, style="Card.TFrame", padding=(8, 8))
         table.pack(side="left", fill="both", expand=True, padx=(8, 0))
+        # `show="tree headings"`: a Treeview cell cannot hold a drawing, but the TREE column can hold
+        # one image per row - which is where the last-10 strip goes.
         self.player_tree = ttk.Treeview(table, columns=[c[0] for c in self.COLUMNS],
-                                        show="headings", selectmode="browse")
+                                        show="tree headings", selectmode="browse")
+        self.player_tree.heading("#0", text="last 10")
+        self.player_tree.column("#0", width=124, minwidth=124, stretch=False, anchor="w")
         for key, title, width, anchor in self.COLUMNS:
             self.player_tree.heading(key, text=title,
                                      command=lambda column=key: self._sort_by(column))
@@ -1648,6 +1661,84 @@ class SnapshotView(ttk.Frame):
         rows.sort(key=lambda row: (self.ROLE_ORDER.get(row.get("role_classic") or "", 9),
                                    -_number(row.get("engine_surplus"), -1e9)))
         return rows
+
+    # ---------- the last-10 strip ----------
+    # Performance bands, by the provider's rating. A DISPLAY threshold, not a model parameter: nothing
+    # downstream fits on it, and the sheet says so in the column's own tooltip.
+    BANDS: ClassVar[tuple[tuple[float, str], ...]] = (
+        (8.0, "#00e5ff"),      # exceptional
+        (7.3, "#4fc3f7"),      # very good
+        (6.8, "#66bb6a"),      # good
+        (6.3, "#9e9e9e"),      # average
+        (5.8, "#ffd54f"),      # weak
+        (0.0, "#ef5350"),      # poor
+    )
+    # Matches he did not play, faded to 30% over the row background so a blank week never reads as a
+    # performance: bench or left out, a recorded injury spell, and no player-level data at all.
+    ABSENT: ClassVar[dict[str, str]] = {"b": "#9e9e9e", "i": "#9575cd", "n": "#37474f"}
+    DOT = 10                                   # cell size per match, in pixels
+
+    @classmethod
+    def band(cls, rating: float | None) -> str:
+        if rating is None:
+            return "#9e9e9e"
+        for floor, colour in cls.BANDS:
+            if rating >= floor:
+                return colour
+        return cls.BANDS[-1][1]
+
+    def _sparkline(self, series: str | None):
+        """The last ten matches as dots. A PhotoImage, because a Treeview cell cannot draw."""
+        tokens = (series or "").split()
+        size = self.DOT
+        image = tk.PhotoImage(width=size * max(len(tokens), 1) + 2, height=size + 4)
+        background = theme.color("surface")
+        image.put(background, to=(0, 0, image.width(), image.height()))
+        for index, token in enumerate(tokens):
+            parts = token.split(":")
+            played = parts[0] == "p"
+            if played:
+                rating = _number(parts[1], None) if len(parts) > 1 and parts[1] else None
+                colour = self.band(rating)
+                minutes = _number(parts[2]) if len(parts) > 2 else 0.0
+            else:
+                colour = _blend(self.ABSENT.get(parts[0], "#9e9e9e"), background, 0.3)
+                minutes = 0.0
+            self._dot(image, index * size + 1, 2, colour,
+                      ring=theme.color("dot_ring") if (minutes or 0) >= 75 else None)
+        return image
+
+    @staticmethod
+    def _dot(image, x: int, y: int, colour: str, ring: str | None = None) -> None:
+        """An 8x8 dot, ringed when he played a full match (75 minutes or more).
+
+        The ring's colour comes from the theme rather than being white: on a light row a white ring is
+        not a ring at all, which is exactly how it shipped the first time and what the enlarged export
+        made obvious.
+        """
+        mask = ("  ####  ",
+                " ###### ",
+                "########",
+                "########",
+                "########",
+                "########",
+                " ###### ",
+                "  ####  ")
+        edge = ("  ####  ",
+                " #    # ",
+                "#      #",
+                "#      #",
+                "#      #",
+                "#      #",
+                " #    # ",
+                "  ####  ")
+        for row, line in enumerate(mask):
+            for column, pixel in enumerate(line):
+                if pixel != "#":
+                    continue
+                on_edge = ring and edge[row][column] == "#"
+                image.put(ring if on_edge else colour,
+                          to=(x + column, y + row, x + column + 1, y + row + 1))
 
     # ---------- sorting ----------
     # (column id -> the CSV field it reads). The auction order is not a column: it is role first, then
@@ -1737,6 +1828,7 @@ class SnapshotView(ttk.Frame):
     def _fill_table(self) -> None:
         self._heading_titles()
         self.player_tree.delete(*self.player_tree.get_children())
+        self._sparks = []
         for row in self._sorted(self.rows):
             flags = " ".join(part for part in (
                 f"start {row['desc_starter_prob']}" if row.get("desc_starter_prob") else "",
@@ -1753,7 +1845,9 @@ class SnapshotView(ttk.Frame):
             sided = next((part for part in (row.get("roles_mantra") or "").split(";")
                           if part.strip().lower() in self.SIDE), "")
             real = " ".join(part for part in (row.get("desc_real_role") or "", sided) if part)
-            self.player_tree.insert("", "end", values=(
+            spark = self._sparkline(row.get("desc_form_series"))
+            self._sparks.append(spark)              # Tk drops an image nobody references
+            self.player_tree.insert("", "end", image=spark, values=(
                 row.get("role_classic") or "?", real or "-", row.get("name"),
                 row.get("price_initial") or "", row.get("engine_surplus") or "",
                 row.get("engine_fm_pred") or "", row.get("engine_pv_pred") or "",
@@ -1980,6 +2074,18 @@ def _read_json(path) -> dict:
         return {}
 
 
+def _blend(colour: str, background: str, alpha: float) -> str:
+    """`colour` at `alpha` over `background`. Tk canvases and images have no alpha channel, so the
+    fading in the last-10 strip is done by mixing the two colours here."""
+    def parts(value: str) -> tuple[int, int, int]:
+        value = value.lstrip("#")
+        return int(value[0:2], 16), int(value[2:4], 16), int(value[4:6], 16)
+
+    front, back = parts(colour), parts(background)
+    mixed = [round(front[index] * alpha + back[index] * (1 - alpha)) for index in range(3)]
+    return "#" + "".join(f"{value:02x}" for value in mixed)
+
+
 def _is_number(value) -> bool:
     try:
         float(value)
@@ -1988,7 +2094,7 @@ def _is_number(value) -> bool:
     return True
 
 
-def _number(value, default: float = 0.0) -> float:
+def _number(value, default: float | None = 0.0) -> float | None:
     try:
         return float(value)
     except (TypeError, ValueError):

@@ -315,3 +315,25 @@ def test_auction_selectors_are_locked_while_the_engine_runs():
         assert not view.spinner.winfo_manager(), "the spinner should be gone when idle"
     finally:
         root.destroy()
+
+
+def test_last_ten_dot_bands_and_fading():
+    """The strip's colour rules, which are a DISPLAY choice and must stay one.
+
+    Nothing downstream fits on these thresholds - a test here is what keeps them from quietly becoming
+    a model parameter, and what documents the ring (a full match) against the fade (an absence).
+    """
+    from euroleghe_ingest.gui import SnapshotView, _blend
+
+    assert SnapshotView.band(9.1) == SnapshotView.BANDS[0][1]        # exceptional
+    assert SnapshotView.band(7.4) == SnapshotView.BANDS[1][1]        # very good
+    assert SnapshotView.band(6.9) == SnapshotView.BANDS[2][1]        # good
+    assert SnapshotView.band(6.4) == SnapshotView.BANDS[3][1]        # average
+    assert SnapshotView.band(6.0) == SnapshotView.BANDS[4][1]        # weak
+    assert SnapshotView.band(4.5) == SnapshotView.BANDS[5][1]        # poor
+    # a played match without a rating must not be coloured as a bad one
+    assert SnapshotView.band(None) == SnapshotView.BANDS[3][1]
+    # the three absences are three different colours, and all of them faded
+    assert len(set(SnapshotView.ABSENT.values())) == 3
+    faded = _blend("#9e9e9e", "#ffffff", 0.3)
+    assert faded != "#9e9e9e" and faded > "#c0c0c0", "an absence must read as lighter than a result"

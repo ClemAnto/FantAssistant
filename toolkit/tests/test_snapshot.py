@@ -130,3 +130,47 @@ def test_snapshot_writes_the_sheet_and_the_manifest(tmp_path):
     assert written["engine"]["rules"][0] == "R0"
     assert "NOT gated" in written["descriptive"]["_note"]
     assert written["auction_date"] == "2025-08-15"
+
+
+def test_the_last_ten_series_tells_bench_from_injured_from_unknown(tmp_path):
+    """The strip's four states are four different facts, and conflating them is the whole risk.
+
+    A dot that says "did not play" when we simply have no data for that match is the same mistake as an
+    injury table that reads zero for a player with no id: absence of evidence rendered as evidence.
+    """
+    ctx = _ctx(tmp_path)
+    conn = ctx.conn
+    _seed(conn)
+    # four matches of the club: played 90', played 20', a bench one, and one nobody has rows for
+    for match_id, date, minutes in (("m1", "2025-05-01", 90), ("m2", "2025-05-08", 20)):
+        conn.execute(
+            "INSERT INTO external_match_stats(fc_id, season, source, match_id, competition, "
+            "match_date, club, minutes, started, rating) "
+            "VALUES (1, '2024-25', 'sofascore', ?, 'serie_a', ?, 'Inter', ?, 1, 7.4)",
+            (match_id, date, minutes))
+    # m3: another player of the club has a row, so the match IS measured - our man simply did not play
+    conn.execute(
+        "INSERT INTO external_match_stats(fc_id, season, source, match_id, competition, match_date, "
+        "club, minutes, started, rating) "
+        "VALUES (2, '2024-25', 'sofascore', 'm3', 'serie_a', '2025-05-15', 'Inter', 90, 1, 6.5)")
+    # m4: only a club-level lineup row, no player rows at all -> unknown for everyone
+    conn.execute(
+        "INSERT INTO club_match_lineups(season, source, match_id, club, competition, match_date, "
+        "starters, goalkeepers, defenders, midfielders, forwards) "
+        "VALUES ('2024-25', 'sofascore', 'm4', 'Inter', 'serie_a', '2025-05-22', 11, 1, 4, 4, 2)")
+    # and an injury covering m3, so that match reads as an absence with a reason
+    conn.execute("INSERT INTO injuries(fc_id, start_date, end_date, kind, days_out, matches_missed, "
+                 "source) VALUES (1, '2025-05-12', '2025-05-18', 'muscular', 6, 1, 'transfermarkt')")
+    conn.commit()
+
+    class Obs:
+        fc_id, name, club_target, role_classic = 1, "Lautaro", "Inter", "A"
+
+    form = snapshot.club_form(conn, "2025-08-15", [Obs()], {1: "Inter"})[1]
+    tokens = form["series"].split()
+    assert tokens[0].startswith("p:7.4:90"), "oldest first, so the strip reads like a calendar"
+    assert tokens[1].startswith("p:7.4:20")
+    assert tokens[2] == "i", "an absence inside a recorded injury spell is not a bench appearance"
+    assert tokens[3] == "n", "a match with no player-level data is unknown, not a bench appearance"
+    assert (form["played"], form["measured"], form["club_matches"]) == (2, 3, 4)
+    assert form["unused"] == 1 and form["unknown"] == 1

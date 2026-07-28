@@ -319,6 +319,21 @@ def _by_date(item: tuple):
     return item[0]
 
 
+# One token per match of the club's last ten, oldest first, so the strip reads left to right like a
+# calendar. Deliberately compact: the sheet is a CSV a human also opens in Excel.
+#   p:<rating>:<minutes>  he played        b  in the layer, no minutes: bench or left out
+#   i                     inside a recorded injury spell on that date
+#   n                     no player-level data for that match at all - unknown, which includes not
+#                         being in the squad. Never conflated with `b`.
+def injury_spells(conn, auction_date: str) -> dict[int, list[tuple[str, str]]]:
+    """(start, end) per player, end filled with the auction date when the spell is still open."""
+    out: dict[int, list[tuple[str, str]]] = {}
+    for fc_id, start, end in conn.execute(
+            "SELECT fc_id, start_date, end_date FROM injuries WHERE start_date <= ?", (auction_date,)):
+        out.setdefault(fc_id, []).append((start, end or auction_date))
+    return out
+
+
 def club_form(conn, auction_date: str, observations, squads: dict[int, str],
               limit: int = FORM_MATCHES) -> dict[int, dict]:
     """Form measured over the last `limit` matches of the player's CLUB, not of the player.
@@ -341,6 +356,7 @@ def club_form(conn, auction_date: str, observations, squads: dict[int, str],
     """
     resolve = club_index(conn)
     fixtures = club_matches(conn, auction_date, resolve, limit)
+    spells = injury_spells(conn, auction_date)
     covered = {fc_id for (fc_id,) in conn.execute(
         "SELECT DISTINCT fc_id FROM external_match_stats")}
     # Which MATCHES we have player-level rows for at all. A club's last ten include cups and other
@@ -417,12 +433,21 @@ def club_form(conn, auction_date: str, observations, squads: dict[int, str],
         goals: dict[str, int] = {}
         assists: dict[str, int] = {}
         kinds: dict[str, int] = {}
-        for _date, match_id, competition, _key in window:
+        series: list[str] = []
+        for date, match_id, competition, _key in reversed(window):     # oldest first, for the strip
             kind = competition_class(competition)
             kinds[kind] = kinds.get(kind, 0) + 1
-            if str(match_id) in with_players:
+            known = str(match_id) in with_players
+            if known:
                 measured += 1
             entry = mine.get(str(match_id))
+            if entry:
+                rating = entry[5]
+                series.append(f"p:{rating if rating is not None else ''}:{entry[3]}")
+            elif any(start <= date <= end for start, end in spells.get(obs.fc_id, ())):
+                series.append("i")
+            else:
+                series.append("b" if known else "n")
             if not entry:
                 continue
             _c, _comp, _d, match_minutes, started, rating, match_goals, match_assists = entry
@@ -455,6 +480,7 @@ def club_form(conn, auction_date: str, observations, squads: dict[int, str],
             # 'FC Bayern München' and the listone's 'Bayern Monaco' are one club, not two
             "clubs": "; ".join(sorted(clubs.values())) if len(clubs) > 1 else None,
             "last_match": window[0][0] if window else None,
+            "series": " ".join(series),
             "source": "per-match layer",
         }
     return out
@@ -783,6 +809,7 @@ PLAYER_COLUMNS: tuple[str, ...] = (
     "desc_form_goals_league", "desc_form_assists_league",
     "desc_form_goals_other", "desc_form_assists_other",
     "desc_form_competitions", "desc_form_clubs", "desc_form_last_match", "desc_form_source",
+    "desc_form_series",
     "desc_squad_club", "desc_squad_source", "desc_real_role", "desc_avg_x", "desc_avg_y",
     "desc_starter_prob", "desc_starter_status", "desc_expected_minutes",
     "desc_duel_rivals", "desc_duel_names",
@@ -865,6 +892,7 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             "desc_form_competitions": form.get("competitions"),
             "desc_form_clubs": form.get("clubs"), "desc_form_last_match": form.get("last_match"),
             "desc_form_source": form.get("source"),
+            "desc_form_series": form.get("series"),
             "desc_squad_club": layers["squads"].get(obs.fc_id),
             "desc_squad_source": layers["squad_sources"].get(obs.fc_id),
             # The role he was REALLY used in, from the provider's own slot per match (positions.
