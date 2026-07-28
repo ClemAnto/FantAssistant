@@ -164,3 +164,35 @@ pensavamo (vedi `gate-motore-v1.md` §11, R16b).
 `engine/features.py` (`simultaneous_caps`, `derive_mantra_slots`, `replacement_levels`, `roster_depth`) ·
 `engine/evaluate.py` (`auction_view(metric=...)`, default `value` per non toccare il gate) ·
 `gui.py` (selettore **Rank by**, colonne che seguono la valuta). Commit `34aacd6`.
+
+---
+
+## 10. PRE-REGISTRAZIONE — beccabilità per-giocatore (scritta il 28 luglio 2026, prima di misurare)
+
+**Ipotesi.** Oggi il surplus pesa con la curva di beccabilità **della popolazione**: due giocatori entrambi
+al 50% di disponibilità prendono lo stesso peso anche se uno ha giocato 19 partite di fila e l'altro 19
+sparse. L'ipotesi è che usare la **sua** beccabilità faccia meglio.
+
+**Il prerequisito, e può uccidere l'idea da solo.** Sul lato *reale* la beccabilità si misura sulla stagione
+di cui è resoconto, quindi è sempre disponibile. Sul lato *previsto* no: alla data d'asta si può conoscere
+solo la persistenza della stagione di **input**. Quindi la versione per-giocatore è utilizzabile **solo se**
+la persistenza si trasferisce da una stagione all'altra. Questa è la claim falsificabile, ed è diversa da
+quella di R15: R15 chiedeva se la persistenza predice le **presenze**, questa chiede se predice la
+**beccabilità**.
+
+**Metrica dichiarata**, sulle liste d'asta, confrontando A = curva di popolazione (quella spedita) con
+B = beccabilità per-giocatore dalla persistenza di input:
+
+1. **Prerequisito**: la persistenza della stagione di input deve correlare **positivamente** con la
+   beccabilità della stagione bersaglio su **ogni** finestra che la misura. Se cade su una sola finestra,
+   B è archiviata e non si guarda nient'altro — perché senza trasferimento il lato previsto di B è un
+   numero inventato.
+2. **Non-danno**: B non deve perdere nomi contro A su più finestre di quante ne guadagni.
+
+**Criterio di falsificazione**: se il prerequisito cade, la risposta è no e ci si ferma lì. Non si passa a
+«allora usiamola solo sul lato reale», che sarebbe cambiare l'ipotesi dopo aver visto il dato — il lato
+reale è un resoconto e non è la parte che serve all'asta.
+
+**Contaminazione dichiarata**: la persistenza è già stata misurata sulla popolazione (0.29-0.36 su tutte e
+quattro le piattaforma-stagione) e la sua correlazione **fra stagioni** non è mai stata guardata. Quello
+che segue è quindi la prima misura di questa quantità.
