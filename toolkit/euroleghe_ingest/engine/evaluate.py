@@ -107,12 +107,17 @@ RULES: tuple[Rule, ...] = (
     # Fiorentina having only 57 goals to hand out.
     Rule("R16", "attack crowding: the club's goal budget times his share of it", True),
     Rule("R16b", "attack crowding: the budget his TEAM-MATES claim (control for R16)", True),
+    # Named for what it measures, not for what it was meant to measure. R16b's positive coefficient says
+    # club strength, so club strength is what gets tested - and this is openly the FOURTH run at a family
+    # rejected three times (R5, and twice before it), on the best measure of it available.
+    Rule("R5b", "club attacking strength from its EXPECTED assists (4th run at a rejected family)",
+         True),
 )
 
 # Rules that get fitted and compared one at a time by `compare`.
 CANDIDATES: tuple[str, ...] = ("R0c", "R1", "R1b", "R2", "R3", "R3c", "R4", "R4b", "R5", "R6", "R7",
                                "R8", "R10", "R11", "R11b", "R12", "R12b", "R13", "R13b",
-                               "R13c", "R14", "R14b", "R15", "R16", "R16b")
+                               "R13c", "R14", "R14b", "R15", "R16", "R16b", "R5b")
 
 # What survived the gate, PER PLATFORM. Keeping it per platform is not a hedge: `platform` is a
 # first-class dimension of the data model (different calendars, different perimeters), and the gate
@@ -140,6 +145,23 @@ CANDIDATES: tuple[str, ...] = ("R0c", "R1", "R1b", "R2", "R3", "R3c", "R4", "R4b
 # worst window of -6.7%. On the auction metric it is the same story: +1 name on T1 and T2, -3 points of
 # captured VALUE on Tm3 and T0. It helps on the windows it was invented on and hurts on the ones it was
 # not. That is the pattern the gate exists to find, and it is the third time today it has found it.
+# ⚠️ R5b (club attacking strength from its expected assists) is NOT adopted, and the reason was written
+# down BEFORE the run: xG/xA start at 2022-23, so it is measurable on T0/T1/T2 only - the same three
+# windows R16b worked on and the ones the hypothesis was read off - so a pass confirms nothing and only a
+# failure is informative. What came back:
+#   Serie A  PASSES formally: 3/3 windows, -1.8% / -2.8% / -0.7% of FM MAE on the players it moves,
+#            mean +1.8%, worst window +0.7%, and no harm to FM, VALUE or the top tens.
+#   euro     DOES NOT PASS: 1/3 windows, mean -0.5%, and T1 is 2.8% WORSE.
+# So the family's verdict is DEFERRED on Serie A and negative on euro, and neither is an adoption. Holding
+# to the pre-registration costs a rule that looks good, which is the only moment a pre-registration is
+# worth anything. An independent window arrives with 26/27.
+#
+# The reusable finding is the inconsistency, and it is worth more than the rule. At CLUB level, xA is much
+# the best read on next season's goals per appearance on euro (pooled 0.66 against goals' 0.59 and xG's
+# 0.50) and everything is weak and unstable on Serie A (goals 0.55 / 0.63 / 0.11, pooled 0.34). The rule
+# then fails on euro and passes on Serie A - the exact opposite ordering. So a club-level correlation with
+# club goals does NOT predict which measure helps a PLAYER's fantamedia: that proxy is not just weak, it
+# is anti-informative, and picking a regressor with it would have chosen wrong both times.
 # ⚠️ R13c (fantamedia from the measured goals+assists per 90 of the recent sample) is NOT adopted, and
 # the reason is a sample-size wall rather than a failed hypothesis. Direction confirmed: where R13c and
 # its predecessor R13b differ, the PRODUCTION version wins - Serie A T2 0.387 against R13b's 0.407, euro
@@ -313,6 +335,7 @@ class Derived:
     budget_z: dict[int, float] = field(default_factory=dict)   # R16
     rivals_z: dict[int, float] = field(default_factory=dict)  # R16b
     production_z: dict[int, float] = field(default_factory=dict)  # R13c
+    club_attack_z: dict[int, float] = field(default_factory=dict)  # R5b
 
 
 def _scale(values: Sequence[float], min_n: int) -> tuple[float, float] | None:
@@ -424,6 +447,7 @@ def derive(data: features.WindowData) -> Derived:
     # R16: standardised inside the role, so it reads "for a forward" and not "in general"
     budget_raw: dict[int, tuple[object, float]] = {}
     rivals_raw: dict[int, tuple[object, float]] = {}
+    attack_raw: dict[int, tuple[object, float]] = {}
     for obs in data.observations:
         volume = model.goal_budget(obs.club_goals_prev, obs.attack_share_target)
         if volume is not None:
@@ -431,12 +455,15 @@ def derive(data: features.WindowData) -> Derived:
         rivals = model.attack_rivals(obs.club_goals_prev, obs.attack_share_target)
         if rivals is not None:
             rivals_raw[obs.fc_id] = (obs.role_classic, rivals)
+        if obs.club_expected_assists_prev is not None:
+            attack_raw[obs.fc_id] = (obs.role_classic, obs.club_expected_assists_prev)
     derived = Derived(recent_deviation=recent_deviation, minutes_share=minutes_share,
                       propensity_z=propensity_z, elo_z=_elo_z_scores(data),
                       price_z=price_z, price_revision=price_revision,
                       budget_z=_z_scores(budget_raw, 5),
                       rivals_z=_z_scores(rivals_raw, 5),
-                      production_z=_z_scores(production_raw, 5))
+                      production_z=_z_scores(production_raw, 5),
+                      club_attack_z=_z_scores(attack_raw, 5))
     data.cache["derived"] = derived
     return derived
 
@@ -462,6 +489,7 @@ class Params:
     budget_lam: float | None = None               # R16: club goal budget x his share
     rivals_lam: float | None = None               # R16b: the budget his team-mates claim
     production_lam: float | None = None           # R13c: measured goals+assists per 90
+    club_attack_lam: float | None = None          # R5b: club expected assists
     price_lam: float | None = None                # R12: market expectation
     revision_lam: float | None = None             # R12b: pre-auction expectation revision
     recent_lam: float | None = None               # R13: rating deviation of the recent-form sample
@@ -711,7 +739,7 @@ def fit_params(data: features.WindowData, rules: tuple[str, ...]) -> Params:
     # someone fits a subset - which then silently gets no coefficient and a rule that
     # "does nothing". R16/R16b were added here after exactly that.
     if {"R2", "R4", "R4b", "R5", "R6", "R8", "R12", "R12b",
-            "R16", "R16b"} & set(rules):
+            "R16", "R16b", "R5b"} & set(rules):
         propensity, ageing, ageing_share = [], [], []
         penalties: list[tuple[tuple[float, ...], float]] = []
         off_role: list[tuple[tuple[float, ...], float]] = []
@@ -720,6 +748,7 @@ def fit_params(data: features.WindowData, rules: tuple[str, ...]) -> Params:
         revision_pairs: list[tuple[tuple[float, ...], float]] = []
         budget_pairs: list[tuple[tuple[float, ...], float]] = []
         rivals_pairs: list[tuple[tuple[float, ...], float]] = []
+        attack_pairs: list[tuple[tuple[float, ...], float]] = []
         for obs in data.observations:
             baseline, _anchor = _predict_fm(obs, data)
             if baseline is not None and obs.fm_act is not None and (obs.pv_act or 0) >= MIN_PV_ACT:
@@ -747,6 +776,9 @@ def fit_params(data: features.WindowData, rules: tuple[str, ...]) -> Params:
                 z_rivals = derived.rivals_z.get(obs.fc_id)
                 if z_rivals is not None:
                     rivals_pairs.append(((z_rivals,), residual))
+                z_attack = derived.club_attack_z.get(obs.fc_id)
+                if z_attack is not None:
+                    attack_pairs.append(((z_attack,), residual))
                 if not _is_goalkeeper(obs) and obs.derived_role_prev and obs.role_classic:
                     delta = (model.ROLE_ADVANCEMENT.get(obs.derived_role_prev, -1)
                              - model.ROLE_ADVANCEMENT.get(obs.role_classic, -1))
@@ -776,6 +808,10 @@ def fit_params(data: features.WindowData, rules: tuple[str, ...]) -> Params:
             fitted = fit_linear(budget_pairs, intercept=False)
             params.budget_lam = fitted[0] if fitted else None
             params.notes["R16_n"] = len(budget_pairs)
+        if "R5b" in rules:
+            fitted = fit_linear(attack_pairs, intercept=False)
+            params.club_attack_lam = fitted[0] if fitted else None
+            params.notes["R5b_n"] = len(attack_pairs)
         if "R16b" in rules:
             fitted = fit_linear(rivals_pairs, intercept=False)
             params.rivals_lam = fitted[0] if fitted else None
@@ -895,6 +931,10 @@ def _rule_fm(obs: features.Observation, data: features.WindowData, rules: tuple[
     if "R12b" in rules and params.revision_lam is not None:
         fm_pred += model.expectation_revision_adjustment(
             derived.price_revision.get(obs.fc_id), params.revision_lam)
+
+    if "R5b" in rules and params.club_attack_lam is not None and not _is_goalkeeper(obs):
+        fm_pred += model.club_attack_adjustment(derived.club_attack_z.get(obs.fc_id),
+                                                params.club_attack_lam)
 
     # R5 - the destination club's strength, as an anchor shift (retest of a rejected family)
     if "R5" in rules and params.elo_lam is not None and not _is_goalkeeper(obs):

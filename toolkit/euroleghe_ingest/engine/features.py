@@ -171,6 +171,10 @@ class Observation:
     # a mid-table side cannot both be priced as the sole claimant of a top side's goals.
     club_goals_prev: float | None = None
     attack_share_target: float | None = None
+    # R5b: the TARGET club's EXPECTED assists per eleven players' minutes last season. Measured, not
+    # assumed, to be the better read on a club's attack than what it actually scored - see the note on
+    # `club_strength_adjustment`. Only exists from 2022-23, when the provider's xG/xA start.
+    club_expected_assists_prev: float | None = None
     longest_gap_days: int | None = None
     days_since_last_match: int | None = None
     minutes_last_3: float | None = None
@@ -555,7 +559,8 @@ ATTACKING_ROLES: frozenset[str] = frozenset({"C", "A"})   # who competes for a c
 
 
 def _attack_budget(conn: sqlite3.Connection, window: Window,
-                   platform: str) -> tuple[dict[str, float], dict[int, float]]:
+                   platform: str) -> tuple[dict[str, float], dict[int, float],
+                                              dict[str, float]]:
     """R16: a club's goals are a BUDGET, and its attackers share it.
 
     Returns {club: goals per match last season} and {fc_id: his share of his TARGET club's attacking
@@ -568,6 +573,18 @@ def _attack_budget(conn: sqlite3.Connection, window: Window,
     Between them, with Solomon, they scored 12. The share is measured on goals PLUS assists, because a
     team-mate who sets up the goals is claiming the same budget from the other end.
     """
+    expected_per_match: dict[str, float] = {}
+    for club, xa, xg, minutes in conn.execute(
+            """SELECT c.canonical_name, SUM(e.xa), SUM(e.xg), SUM(COALESCE(e.minutes, 0))
+               FROM external_stats e
+               JOIN rosters r ON r.fc_id = e.fc_id AND r.season = e.season
+               JOIN clubs c ON c.fc_club_id = r.fc_club_id
+               WHERE e.season = ? AND e.xa IS NOT NULL
+               GROUP BY c.canonical_name""", (window.input_season,)):
+        if club and minutes:
+            # per eleven players' worth of minutes, so a club is comparable whatever its calendar
+            expected_per_match[club] = (xa or 0.0) * 11.0 * 90.0 / minutes
+
     goals_per_match: dict[str, float] = {}
     for club, goals, appearances in conn.execute(
             """SELECT c.canonical_name, SUM(COALESCE(ss.goals, 0)), SUM(COALESCE(ss.pv, 0))
@@ -602,7 +619,7 @@ def _attack_budget(conn: sqlite3.Connection, window: Window,
         total = by_club.get(club or "", 0.0)
         if fc_id in produced and total > 0 and in_club:
             shares[fc_id] = produced[fc_id] / total
-    return goals_per_match, shares
+    return goals_per_match, shares, expected_per_match
 
 
 # Below this, a played/missed sequence has no structure to measure - both conditional probabilities
@@ -789,7 +806,7 @@ def load(conn: sqlite3.Connection, window: Window, platform: str) -> list[Observ
             competition[(club, role)] = competition.get((club, role), 0) + 1
             arrived.add(fc_id)
 
-    goal_budget, attack_share = _attack_budget(conn, window, platform)
+    goal_budget, attack_share, club_expected = _attack_budget(conn, window, platform)
 
     observations: list[Observation] = []
     for (fc_id, name, role_classic, roles_raw, league, price, club_target, club_prev, birth_year,
@@ -819,6 +836,7 @@ def load(conn: sqlite3.Connection, window: Window, platform: str) -> list[Observ
             recent_span_days=_span_days(sample.get("first"), sample.get("last")),
             persistence_prev=persistence.get(fc_id),
             club_goals_prev=goal_budget.get(club_target or ""),
+            club_expected_assists_prev=club_expected.get(club_target or ""),
             attack_share_target=attack_share.get(fc_id),
             longest_gap_days=idle.get("longest_gap"),
             days_since_last_match=idle.get("days_since_last"),

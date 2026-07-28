@@ -360,6 +360,31 @@ def club_strength_adjustment(elo_z: float | None, lam: float) -> float:
     return lam * elo_z
 
 
+def club_attack_adjustment(expected_z: float | None, lam: float) -> float:
+    """R5b: the destination club's attacking strength, read off its EXPECTED assists.
+
+    ⚠️ THE FOURTH ATTEMPT AT A FAMILY THIS GATE HAS REJECTED THREE TIMES. It is named for what it is
+    rather than dressed as something else: R16b was built as a crowding rule and its fitted sign came out
+    positive on 13 of 15 windows, which is club strength and not crowding. So the honest move is to test
+    club strength directly, with the best measure of it we have, and to record a fourth rejection as a
+    fourth rejection if that is the answer.
+
+    Why xA rather than goals, measured at club level against the following season's goals per
+    appearance: on euro, xA pooled 0.66 against goals' 0.59 and xG's 0.50 - assists expected is the best
+    single read of the three. Two cautions kept in view. Its per-window values rise monotonically
+    (0.49 / 0.68 / 0.81), and on the earliest of the three it is WORSE than goals, so "xA is better" holds
+    on two windows and reverses on the third. And on Serie A nothing predicts well or stably (goals 0.55 /
+    0.63 / 0.11), which says that a Serie A club's attack simply does not persist season to season.
+
+    xG/xA start at 2022-23, so this is measurable on T0/T1/T2 only - and those are the same three windows
+    R16b worked on and the ones the hypothesis was read off. A pass here therefore CONFIRMS NOTHING; only
+    a failure would be informative.
+    """
+    if expected_z is None:
+        return 0.0
+    return lam * expected_z
+
+
 def coach_change_adjustment(new_coach: bool, share_prev: float, level: float,
                             interaction: float) -> float:
     """R10: a new coach changes his mind about who plays.
