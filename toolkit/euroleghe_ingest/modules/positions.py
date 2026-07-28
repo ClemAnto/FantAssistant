@@ -55,6 +55,11 @@ HEATMAP_ENDPOINT = BASE_URL + "/player/{pid}/unique-tournament/{tid}/season/{sid
 SQUAD_ENDPOINT = BASE_URL + "/team/{tid}/players"
 # The per-player fallback, for whoever no squad page covered. Same two fields, 1 request each.
 PLAYER_ENDPOINT = BASE_URL + "/player/{pid}"
+# A club's own recent fixtures, whatever competition they were in. The round scrape can only see what a
+# LEAGUE calendar contains, so in July the per-match layer stops at the last matchday of May and a whole
+# pre-season is invisible - which is precisely the window an August auction is prepared in.
+TEAM_EVENTS_ENDPOINT = BASE_URL + "/team/{tid}/events/last/{page}"
+EXTRA_WINDOW_DAYS = 150       # how far back a non-league match is still part of "the last ten"
 
 # SofaScore unique-tournament ids for the 5 leagues in scope (verified against the API).
 TOURNAMENTS: dict[str, int] = {
@@ -214,6 +219,14 @@ def download_round(session, league: str, season_id: int, rnd: int, perimeter: se
     return {"league": league, "round": rnd, "events": events, "lineups": lineups} if events else None
 
 
+def _season_of(date: str) -> str:
+    """'2026-07-18' -> '2026-27'. The football year turns in July, so a pre-season friendly belongs to
+    the season about to start: tagging it with the one that just ended would put it in the aggregates
+    of a completed season and in the roles derived from them."""
+    year = int(date[:4])
+    return f"{year}-{(year + 1) % 100:02d}" if date[5:7] >= "07" else f"{year - 1}-{year % 100:02d}"
+
+
 def _iso_date(timestamp) -> str | None:
     if not timestamp:
         return None
@@ -236,6 +249,14 @@ def parse_round(payload: dict, season: str,
     unknown = 0
     for event in payload.get("events", []):
         event_id = str(event.get("id"))
+        # A cached file normally holds one competition, so the payload names it; the extra layer holds a
+        # club's friendlies and cup ties together, so each event may carry its OWN slug. It has to be
+        # stored per row: `snapshot.competition_class` reads that slug to keep ten goals in friendlies
+        # from ever being counted as ten in a league.
+        competition = event.get("competition") or league
+        # and the same for the season: one file normally holds one, but a club's extra matches straddle
+        # the turn of the football year - a May cup tie and a July friendly are two different seasons.
+        event_season = event.get("season") or season
         sides = payload.get("lineups", {}).get(event_id) or {}
         real_md = event.get("round")
         match_date = _iso_date(event.get("startTimestamp"))
@@ -259,7 +280,7 @@ def parse_round(payload: dict, season: str,
                 if not stats:
                     continue          # named on the bench but never came on
                 rows.append((
-                    fc_id, season, event_id, league, real_md, match_date, club, opponent,
+                    fc_id, event_season, event_id, competition, real_md, match_date, club, opponent,
                     1 if side == "home" else 0,
                     entry.get("position") or player.get("position"),
                     0 if entry.get("substitute") else 1,
@@ -271,34 +292,45 @@ def parse_round(payload: dict, season: str,
                     _int(stats.get("keyPass")), _int(stats.get("touches")),
                 ))
             if starters:
-                club_rows.append((season, event_id, club, league, real_md, match_date, starters,
+                club_rows.append((event_season, event_id, club, competition, real_md, match_date,
+                                  starters,
                                   slots["G"], slots["D"], slots["M"], slots["F"]))
     return rows, club_rows, unknown
 
 
-def _store_match_rows(conn, rows: list[tuple]) -> int:
+# The per-match layer's two source tags, and the difference between them is the GATE. `sofascore` is
+# the five leagues we walk round by round: every fitted feature reads it. `sofascore_extra` is what no
+# league calendar contains - pre-season friendlies, cups, continental ties - and it is DESCRIPTIVE only:
+# the snapshot's last-ten window unions both (a July friendly is exactly what August has to judge), while
+# every engine query filters on the source, the platform's competition whitelist, or both. A friendly goal
+# must never be summed into a propensity that a coefficient was fitted on.
+LEAGUE_SOURCE = "sofascore"
+EXTRA_SOURCE = "sofascore_extra"
+
+
+def _store_match_rows(conn, rows: list[tuple], source: str = LEAGUE_SOURCE) -> int:
     conn.executemany(
         """
         INSERT OR REPLACE INTO external_match_stats(
             fc_id, season, source, match_id, competition, real_md, match_date, club, opponent,
             home, position, started, minutes, rating, goals, assists, xg, xa,
             shots, shots_on_target, big_chances_created, big_chances_missed, key_passes, touches)
-        VALUES (?, ?, 'sofascore', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        rows,
+        [(row[0], row[1], source, *row[2:]) for row in rows],
     )
     return len(rows)
 
 
-def _store_club_rows(conn, club_rows: list[tuple]) -> int:
+def _store_club_rows(conn, club_rows: list[tuple], source: str = LEAGUE_SOURCE) -> int:
     conn.executemany(
         """
         INSERT OR REPLACE INTO club_match_lineups(
             season, source, match_id, club, competition, real_md, match_date,
             starters, goalkeepers, defenders, midfielders, forwards)
-        VALUES (?, 'sofascore', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        club_rows,
+        [(row[0], source, *row[1:]) for row in club_rows],
     )
     return len(club_rows)
 
@@ -358,6 +390,103 @@ def _lineups_for(session, event_id) -> dict | None:
                for entry in (detail.get(side) or {}).get("players") or []]
         for side in ("home", "away")
     }
+
+
+def _slug_of(event: dict) -> str:
+    """The competition slug of one event, from the provider's own tournament names."""
+    tournament = event.get("tournament") or {}
+    unique = tournament.get("uniqueTournament") or {}
+    name = unique.get("slug") or tournament.get("slug") or tournament.get("name") or "other"
+    return str(name).lower()
+
+
+def download_extra(session, team_id: str, since: str, cancel_event=None) -> dict | None:
+    """One club's recent matches OUTSIDE our five leagues, in the round cache's own shape.
+
+    Kept: FINISHED events, no older than `since`, whose tournament is not one of the five we walk round
+    by round - so friendlies and pre-season trophies, but also the cups and the continental ties the
+    league calendar never listed. Each event keeps its own slug, because a friendly and a Coppa Italia
+    tie are not the same evidence and the sheet reports them apart.
+    """
+    data = _get_json(session, TEAM_EVENTS_ENDPOINT.format(tid=team_id, page=0))
+    if not data or not data.get("events"):
+        return None
+    known_tournaments = {str(tid) for tid in TOURNAMENTS.values()}
+    events, lineups = [], {}
+    for event in data["events"]:
+        if (event.get("status") or {}).get("type") != "finished":
+            continue
+        date = _iso_date(event.get("startTimestamp"))
+        if not date or date < since:
+            continue
+        unique = (event.get("tournament") or {}).get("uniqueTournament") or {}
+        if str(unique.get("id")) in known_tournaments:
+            continue                      # the round walk already has it, with its real matchday
+        events.append({
+            "id": event.get("id"),
+            "home": (event.get("homeTeam") or {}).get("name") or "",
+            "away": (event.get("awayTeam") or {}).get("name") or "",
+            "round": None,                # a friendly has no matchday, and inventing one would sort
+            "startTimestamp": event.get("startTimestamp"),
+            "competition": _slug_of(event),
+            "season": _season_of(date),
+        })
+        if cancel_event is not None and cancel_event.is_set():
+            break
+        _polite_sleep(cancel_event)
+        detail = _lineups_for(session, event.get("id"))
+        if detail:
+            lineups[str(event.get("id"))] = detail
+    return {"league": "extra", "round": 0, "events": events, "lineups": lineups} if events else None
+
+
+def fetch_extra_matches(ctx: Context, clubs=None, refresh: bool = False,
+                        days: int = EXTRA_WINDOW_DAYS) -> dict[str, int]:
+    """The extra layer for every club we have a provider id for: one listing + one lineup per match.
+
+    Cheap (one request per club plus one per match found) and cached per club, so it can be re-run
+    through August as the friendlies are played. The cache file is named like a round payload on
+    purpose - `reingest_match_layer` then picks it up with no special case, and the per-event slug is
+    what ends up in `external_match_stats.competition`.
+    """
+    conn = ctx.require_conn()
+    targets = role_targets(conn, clubs)
+    counts = {"clubs": 0, "matches": 0, "requests": 0}
+    if not targets:
+        print("[positions] no provider team id for any club - run `positions --layer roles` first")
+        return counts
+    since = time.strftime("%Y-%m-%d", time.gmtime(time.time() - days * 86400))
+    # the file's season is only its cache key and the reingest filter: each event carries its own
+    season = _season_of(time.strftime("%Y-%m-%d", time.gmtime()))
+    print(f"[positions] extra matches since {since}: {len(targets)} clubs")
+    session = _client()
+    try:
+        for name, team_id in targets:
+            if ctx.cancelled():
+                raise KeyboardInterrupt
+            cache = ctx.config.cache_dir / f"sofascore_round_extra_{team_id}_{season}_r0.json"
+            if cache.exists() and not refresh:
+                continue
+            _polite_sleep(ctx.cancel_event)
+            payload = download_extra(session, team_id, since, ctx.cancel_event)
+            counts["requests"] += 1
+            if payload is None:
+                # Written anyway, and empty: a club with no friendly in the window is a FACT, and
+                # without the marker every re-run pays for it again.
+                _atomic_write_text(cache, json.dumps({"league": "extra", "round": 0, "events": [],
+                                                      "lineups": {}}, ensure_ascii=False))
+                continue
+            _atomic_write_text(cache, json.dumps(payload, ensure_ascii=False))
+            counts["clubs"] += 1
+            counts["matches"] += len(payload["events"])
+            print(f"[positions] {name}: {len(payload['events'])} extra matches "
+                  f"({len(payload['lineups'])} with lineups)")
+    except KeyboardInterrupt:
+        print("[positions] interrupted - already-downloaded clubs are cached")
+    finally:
+        session.close()
+    reingest_match_layer(ctx, seasons=[season])
+    return counts
 
 
 def complete_match_layer(ctx: Context, leagues, seasons) -> dict[str, int]:
@@ -467,14 +596,20 @@ def reingest_match_layer(ctx: Context, seasons=None) -> None:
             print(f"[positions] skipping unreadable round cache {path.name}: {exc}")
             continue
         key = (league, season)
-        if key not in touched:
+        # An extra file holds one CLUB's friendlies and cup ties, in several competitions and possibly
+        # two seasons, so the league file's "delete this competition-season first" does not apply to it -
+        # and does not need to: the primary key is (fc_id, season, source, match_id), so re-reading the
+        # same cache twice replaces rather than duplicates.
+        extra = league.startswith("extra")
+        source = EXTRA_SOURCE if extra else LEAGUE_SOURCE
+        if key not in touched and not extra:
             conn.execute("DELETE FROM external_match_stats WHERE source = 'sofascore' "
                          "AND competition = ? AND season = ?", (league, season))
             conn.execute("DELETE FROM club_match_lineups WHERE source = 'sofascore' "
                          "AND competition = ? AND season = ?", (league, season))
-            touched[key] = 0
-        touched[key] += _store_match_rows(conn, rows)
-        _store_club_rows(conn, club_rows)
+        touched.setdefault(key, 0)
+        touched[key] += _store_match_rows(conn, rows, source)
+        _store_club_rows(conn, club_rows, source)
         unknown += missing
     conn.commit()
     if touched:
@@ -1541,7 +1676,9 @@ def run(ctx: Context, *, leagues=None, seasons=None, refresh: bool = False,
     layer='season' (default, ~6 requests per league-season) fills external_stats; layer='match'
     walks the rounds and the perimeter clubs' lineups into external_match_stats (hours, resumable);
     layer='all' does both. layer='reparse' rebuilds external_match_stats from the cached round
-    payloads only - guaranteed offline, for when the parser learns to read a new field.
+    payloads only - guaranteed offline, for when the parser learns to read a new field. layer='extra'
+    adds what no league calendar contains - pre-season friendlies, cups, continental ties - which is
+    what the last-ten window is made of in July.
 
     Resumable: anything already cached is not downloaded again unless refresh=True.
     Interruptible via ctx.cancel_event / Ctrl-C - whatever was cached is kept and still ingested.
@@ -1560,9 +1697,9 @@ def run(ctx: Context, *, leagues=None, seasons=None, refresh: bool = False,
     if unknown:
         raise RuntimeError(f"Unknown league(s) {unknown}; choose from {sorted(TOURNAMENTS)}")
     if layer not in ("season", "match", "complete", "heatmap", "roles", "all", "reparse",
-                     "crosstab"):
+                     "crosstab", "extra"):
         raise RuntimeError(f"Unknown layer {layer!r}; choose from "
-                           "season|match|complete|heatmap|roles|all|reparse|crosstab")
+                           "season|match|complete|heatmap|roles|all|reparse|crosstab|extra")
 
     ctx.config.cache_dir.mkdir(parents=True, exist_ok=True)
     if layer == "crosstab":
@@ -1579,6 +1716,13 @@ def run(ctx: Context, *, leagues=None, seasons=None, refresh: bool = False,
         derive_roles_from_match_layer(ctx)
         ingest_heatmaps_from_cache(ctx, seasons=requested_seasons)
         ingest_roles_from_cache(ctx)
+        return
+    if layer == "extra":
+        # Only if they are missing: deriving them is a WRITE, and this layer is the one most likely to
+        # run beside another job (it is re-run through August as the friendlies are played).
+        if not role_targets(ctx.require_conn()):
+            derive_club_xref(ctx)
+        fetch_extra_matches(ctx, clubs=kwargs.get("clubs"), refresh=refresh)
         return
     if layer == "heatmap":
         fetch_heatmaps(ctx, leagues, seasons, refresh)

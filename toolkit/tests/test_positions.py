@@ -483,3 +483,59 @@ def test_derived_mantra_role_travels_with_the_observation(tmp_path):
     entry = positions.roles_as_of(conn, "2026-07-28")[1]
     # a centre back who also plays right back IS a braccetto, and that is only visible in the LIST
     assert entry["mantra"] == "dc;dd;b"
+
+
+# ---------- the extra layer: what a league calendar cannot see ----------
+def test_the_extra_layer_keeps_each_match_in_its_own_competition_and_season(tmp_path):
+    """A club's friendlies and cup ties arrive in ONE cached file, so the competition and the season
+    cannot come from the file: a July friendly and a May cup tie are two seasons, and a friendly must
+    never be counted as a league match (`snapshot.competition_class` reads that slug)."""
+    from euroleghe_ingest.modules import positions, snapshot
+
+    payload = {
+        "league": "extra", "round": 0,
+        "events": [
+            {"id": 1, "home": "Napoli", "away": "Girona", "round": None,
+             "startTimestamp": 1_784_000_000, "competition": "club-friendly-games",
+             "season": "2026-27"},
+            {"id": 2, "home": "Napoli", "away": "Milan", "round": None,
+             "startTimestamp": 1_747_000_000, "competition": "coppa-italia", "season": "2024-25"},
+        ],
+        "lineups": {
+            "1": {"home": [{"player": {"id": "99", "name": "Tester", "position": "F"},
+                            "substitute": False, "position": "F",
+                            "statistics": {"minutesPlayed": 62, "rating": 7.1, "goals": 1}}],
+                  "away": []},
+            "2": {"home": [{"player": {"id": "99", "name": "Tester", "position": "F"},
+                            "substitute": False, "position": "F",
+                            "statistics": {"minutesPlayed": 90, "rating": 6.5}}],
+                  "away": []},
+        },
+    }
+    rows, club_rows, _unknown = positions.parse_round(payload, "2025-26", {"99": 7})
+    by_match = {row[2]: row for row in rows}
+    assert by_match["1"][1] == "2026-27" and by_match["1"][3] == "club-friendly-games"
+    assert by_match["2"][1] == "2024-25" and by_match["2"][3] == "coppa-italia"
+    # the club-level counts follow the same event, or the two layers would disagree about a match
+    assert {row[0] for row in club_rows} == {"2026-27", "2024-25"}
+    # and the sheet classes them apart: a friendly's goals are never league goals
+    assert snapshot.competition_class("club-friendly-games") == "friendly"
+    assert snapshot.competition_class("coppa-italia") == "cup"
+
+    # a payload with no per-event tags still reads as before: the file names both
+    plain = {"league": "serie_a", "round": 3,
+             "events": [{"id": 3, "home": "Napoli", "away": "Lazio", "round": 3,
+                         "startTimestamp": 1_747_000_000}],
+             "lineups": {"3": payload["lineups"]["2"]}}
+    (row,) = positions.parse_round(plain, "2024-25", {"99": 7})[0]
+    assert row[1] == "2024-25" and row[3] == "serie_a"
+
+
+def test_the_football_year_turns_in_july():
+    """Whether a pre-season friendly counts as next season is a one-line rule, and getting it wrong
+    files it in the aggregates of a season that is already over."""
+    from euroleghe_ingest.modules.positions import _season_of
+
+    assert _season_of("2026-07-18") == "2026-27"      # pre-season
+    assert _season_of("2026-06-30") == "2025-26"      # the season that just ended
+    assert _season_of("2027-05-24") == "2026-27"

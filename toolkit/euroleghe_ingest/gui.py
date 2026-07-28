@@ -311,15 +311,21 @@ class HeadingTooltip:
     column changes - without that, sliding along the header would keep the first column's text up.
     """
 
-    def __init__(self, tree, help_by_column: dict[str, str]) -> None:
+    def __init__(self, tree, help_by_column: dict[str, str], cell_text=None) -> None:
         self.tree = tree
         self.help = help_by_column
+        # Optional per-CELL text: `cell_text(row_id, column) -> str`. A column of icons needs it - the
+        # heading can say what the column is for, but only the row can say what its own icons mean.
+        self.cell_text = cell_text
         self.current: str | None = None
+        self.current_cell: tuple | None = None
         self.tip = Tooltip(tree, self._text, delay=350, anchor="pointer", bind_events=False)
         tree.bind("<Motion>", self._on_motion, add="+")
         tree.bind("<Leave>", self._leave, add="+")
 
     def _text(self) -> str:
+        if self.current_cell and self.cell_text:
+            return self.cell_text(*self.current_cell)
         return self.help.get(self.current or "", "")
 
     def _column_under(self, event) -> str | None:
@@ -334,17 +340,31 @@ class HeadingTooltip:
             return "#0"          # the tree column, which a view may use for a drawing of its own
         return columns[index] if index < len(columns) else None
 
+    def _cell_under(self, event) -> tuple | None:
+        if self.cell_text is None or self.tree.identify_region(event.x, event.y) != "cell":
+            return None
+        row = self.tree.identify_row(event.y)
+        columns = self.tree.cget("columns")
+        try:
+            index = int(self.tree.identify_column(event.x).lstrip("#")) - 1
+        except ValueError:
+            return None
+        if not row or index < 0 or index >= len(columns):
+            return None
+        return row, columns[index]
+
     def _on_motion(self, event) -> None:
         column = self._column_under(event)
-        if column == self.current:
+        cell = self._cell_under(event)
+        if column == self.current and cell == self.current_cell:
             return
-        self.current = column
+        self.current, self.current_cell = column, cell
         self.tip.hide()
-        if column and self.help.get(column):
+        if self._text():
             self.tip.schedule()
 
     def _leave(self, _event=None) -> None:
-        self.current = None
+        self.current = self.current_cell = None
         self.tip.hide()
 
 
@@ -1525,20 +1545,24 @@ class SnapshotView(ttk.Frame):
     WIDE: ClassVar[frozenset[str]] = frozenset({"e", "w", "b"})
     # (column id, header, width, anchor). SURPLUS leads the numbers: it is the auction's own currency.
     COLUMNS: ClassVar[tuple[tuple[str, str, int, str], ...]] = (
-        ("role", "R", 34, "center"),
-        # The listone role is what you BUY; the real one is where he was actually used, from the
-        # provider's own slot per match, with the sided Mantra role when there is one ("D dd").
-        ("real", "real", 54, "center"),
+        ("role", "R", 30, "center"),
+        # Three role columns, because they answer three questions: what you BUY (the listone role), what
+        # a Mantra module asks for (the sided roles), and where he was actually USED - the last one small
+        # on purpose, it is a two-code hint and not the thing an auction bids on.
+        ("mantra", "M", 58, "center"),
+        ("real", "real", 42, "center"),
         ("name", "Player", 126, "w"),
         ("surplus", "SUR", 56, "e"),
-        ("fm", "FM", 50, "e"),
-        ("pv", "Pv", 42, "e"),
-        ("minutes", "min", 48, "e"),
-        ("tit", "tit", 44, "e"),
-        ("rating", "rat", 44, "e"),
-        ("bonus", "g+a", 44, "e"),
-        ("inj", "inj", 40, "e"),
-        ("status", "flags", 130, "w"),
+        ("fm", "FM", 44, "e"),
+        # Everything to the right is PER MATCHDAY, which is the unit an auction thinks in: a season total
+        # answers "how good was he", a per-matchday share answers "what does he give me on Sunday".
+        ("pv", "Pv", 40, "e"),
+        ("minutes", "min", 42, "e"),
+        ("tit", "tit", 40, "e"),
+        ("rating", "rat", 40, "e"),
+        ("bonus", "g+a", 40, "e"),
+        ("inj", "inj", 38, "e"),
+        ("status", "flags", 84, "center"),
     )
 
     # One line per column, because a sheet nobody can read is a sheet nobody should act on. The two
@@ -1554,8 +1578,13 @@ class SnapshotView(ttk.Frame):
               "was banned. A FULL dot means he played at least 75 minutes, a hollow one that he was "
               "on for less. A black mark on the top-right corner is the bonus: the big one a goal, the "
               "small one an assist - and a match with both reads as a goal.",
-        "tit": "TITOLARITA: starts / matches over the full real season - how often the coach fields "
-               "him. This, and never a valuation, is what decides who is on the pitch above.",
+        "tit": "The share of the season's matchdays he is expected to GET A VOTO in: his appearances "
+               "over the matches he was available for, discounted by how much of a season a player with "
+               "his injury history misses. An appearance is taken as a voto - the season layer stores "
+               "totals, so it cannot tell a 10-minute cameo from a full match; the TREND strip can, and "
+               "a hollow dot is exactly that.",
+        "mantra": "The MANTRA roles, as the listone lists them (por, dd, dc, ds, e, m, c, t, w, a, "
+                  "pc) - the roles a Mantra module has slots for, and the only ones that name a flank.",
         "role": "The LISTONE role - what you buy him as (P/D/C/A). Click to restore the auction order: "
              "by role, then by predicted SURPLUS.",
         "real": "The REAL role, in the provider's twelve-code vocabulary: "
@@ -1573,17 +1602,23 @@ class SnapshotView(ttk.Frame):
                "auction's own currency - an iron man on a replacement-level fantamedia scores ~0.",
         "fm": "GATED. Predicted fantamedia for the season being auctioned, from the adopted rule set "
               "with parameters fitted on a window that is not this season.",
-        "pv": "GATED. Predicted appearances, on the platform's own calendar.",
-        "minutes": "Expected minutes = minutes per appearance x predicted appearances. The recent rate is "
-               "used when he actually played lately (it carries bench time), else the season-long one.",
+        "pv": "GATED. Predicted appearances as a SHARE of the season: the prediction over the "
+              "club's own number of matches (38 in Serie A), because 30 presences mean one thing in "
+              "Italy and another in a 34-match Bundesliga.",
+        "minutes": "Expected minutes PER MATCHDAY: the projected season minutes over the club's "
+               "matches - what he gives you on an average round, cameos and absences included. His own "
+               "measured average stands in where there is no projection.",
         "rating": "Average provider rating over those matches. Not a fantamedia: a 7.0 in Serie B is not "
                "a 7.0 in Serie A, which is why it is reported raw and never converted here.",
         "bonus": "Goals + assists per 90 over the FULL real season (all competitions we scrape), not the "
                "euro calendar's subset. The engine's own propensity input, shown as it is.",
-        "inj": "Matches missed, weighted by recency (1.0 / 0.6 / 0.35 over three seasons). DESCRIPTIVE, "
-               "not gated. Empty = no Transfermarkt id: unknown, and not zero.",
-        "status": "Starting probability from today's probabili, an open injury, today's availability, an "
-                 "expiring contract, how many rivals for the shirt, and whether he is a new arrival.",
+        "inj": "How much of a season a player with his history is expected to MISS, as a percentage - "
+               "100% would be all of it. From his matches missed over the last three seasons, weighted "
+               "by recency (1.0 / 0.6 / 0.35). DESCRIPTIVE, not gated. EMPTY is not zero: it means no "
+               "absence history was found for him at all, and the flags column says so with a '?'.",
+        "status": "Everything true about him that is not a number: the probabili's verdict, an open "
+                 "injury, a suspension, a ballottaggio, a summer arrival, an expiring contract, and "
+                 "whether we have any absence history for him at all. HOVER A ROW to read its icons.",
     }
 
     def __init__(self, parent, config: Config, on_build=None) -> None:
@@ -1682,7 +1717,7 @@ class SnapshotView(ttk.Frame):
         self.player_tree.configure(yscrollcommand=scroll.set)
         scroll.pack(side="right", fill="y")
         self.player_tree.pack(fill="both", expand=True)
-        HeadingTooltip(self.player_tree, self.COLUMN_HELP)
+        HeadingTooltip(self.player_tree, self.COLUMN_HELP, cell_text=self._cell_help)
         # Click the strip to see what the dots stand for. Ten dots cannot carry a date, an opponent or a
         # scoreline, and those are exactly what turns "a red dot" into a reason.
         self.player_tree.bind("<Button-1>", self._on_click, add="+")
@@ -1946,9 +1981,9 @@ class SnapshotView(ttk.Frame):
     # (column id -> the CSV field it reads). The auction order is not a column: it is role first, then
     # predicted surplus, which is what the sheet opens on and what clicking "R" restores.
     SORT_FIELD: ClassVar[dict[str, str]] = {
-        "real": "desc_real_role", "name": "name",
+        "real": "desc_real_role", "mantra": "roles_mantra", "name": "name",
         "surplus": "engine_surplus", "fm": "engine_fm_pred", "pv": "engine_pv_pred",
-        "minutes": "desc_expected_minutes", "tit": "desc_start_share",
+        "minutes": "desc_expected_minutes", "tit": "desc_season_matches",
         "rating": "desc_form_rating", "bonus": "desc_goals_p90", "inj": "desc_injury_weighted",
         "status": "desc_starter_prob",
     }
@@ -2030,21 +2065,81 @@ class SnapshotView(ttk.Frame):
         self._fill_table()
         self._draw_pitch()
 
+    # (icon, what it means) per condition, in the order they are drawn. Symbols from the BMP and never
+    # emoji: a colour emoji renders as a box in Tk on Windows, which is a flag nobody can read.
+    FLAG_ICONS: ClassVar[tuple[tuple[str, str], ...]] = (
+        ("\u25cf", "the probabili name him a starter"),
+        ("\u25d0", "the probabili have him doubtful"),
+        ("\u271a", "an injury spell is open right now"),
+        ("\u2716", "suspended"),
+        ("\u21c4", "in a ballottaggio for his place"),
+        ("\u2605", "he arrived this summer"),
+        ("\u231b", "his contract expires within a year"),
+        ("?", "no injury history at all was found for him - his inj column is unknown, not zero"),
+    )
+
+    def _flags(self, row: dict) -> tuple[str, str]:
+        """(the icons, the same thing in words). Two renderings of one list, so the cell can be narrow.
+
+        The words are not decoration: an icon column is unreadable without them, and the tooltip is
+        where a fact like "no absence history was found" can be stated instead of hinted at.
+        """
+        probability = _number(row.get("desc_starter_prob"), None)
+        state = row.get("desc_availability_now") or ""
+        present = (
+            probability is not None and probability >= 0.75,
+            probability is not None and probability < 0.75,
+            bool(row.get("desc_injury_open")) or state == "injured",
+            state == "suspended",
+            row.get("desc_duel_rivals") not in (None, "", "0"),
+            bool(row.get("desc_arrival")),
+            bool(row.get("desc_exit_risk")),
+            not row.get("desc_injury_source"),
+        )
+        icons = "".join(icon for (icon, _why), on in zip(self.FLAG_ICONS, present, strict=True) if on)
+        words = []
+        for (icon, why), on in zip(self.FLAG_ICONS, present, strict=True):
+            if not on:
+                continue
+            extra = ""
+            if icon == "\u25cf" or icon == "\u25d0":
+                extra = f" ({probability:.0%})"
+            elif icon == "\u271a" and row.get("desc_injury_open"):
+                extra = f" - {row['desc_injury_open']}"
+            elif icon == "\u2605":
+                extra = f" - {row.get('desc_arrival')} {row.get('desc_arrival_tier') or ''}".rstrip()
+            elif icon == "\u231b":
+                extra = f" - {row.get('desc_contract_until')}"
+            words.append(f"{icon}  {why}{extra}")
+        return icons, "\n".join(words)
+
+    def _cell_help(self, row_id: str, column: str) -> str:
+        """The flags column explains itself per row; every other cell says nothing extra."""
+        if column != "status":
+            return ""
+        index = self.player_tree.index(row_id)
+        rows = self._sorted(self.rows)
+        return self._flags(rows[index])[1] if index < len(rows) else ""
+
     def _fill_table(self) -> None:
         self._heading_titles()
         self.player_tree.delete(*self.player_tree.get_children())
         self._sparks = []
         for row in self._sorted(self.rows):
-            flags = " ".join(part for part in (
-                f"start {row['desc_starter_prob']}" if row.get("desc_starter_prob") else "",
-                "OUT" if row.get("desc_injury_open") else "",
-                row.get("desc_availability_now") or "",
-                f"exit {row['desc_contract_until']}" if row.get("desc_exit_risk") else "",
-                f"duel {row['desc_duel_rivals']}"
-                if row.get("desc_duel_rivals") not in (None, "", "0") else "",
-                row.get("desc_arrival") or "",
-            ) if part)
-            bonus = _number(row.get("desc_goals_p90")) + _number(row.get("desc_assists_p90"))
+            icons, _words = self._flags(row)
+            matches = self.club_matches(row.get("club"))
+            # g+a over the FULL real season, from the two per-90 rates and the minutes behind them: a
+            # count is what an operator reads, and the rates are what the sheet stores.
+            minutes_played = _number(row.get("desc_minutes_full_season"))
+            bonus = ((_number(row.get("desc_goals_p90")) + _number(row.get("desc_assists_p90")))
+                     * minutes_played / 90.0)
+            # expected minutes PER MATCHDAY: the projection where there is one, his own average where
+            # there is not - and nothing at all rather than a zero when neither exists
+            projected = _number(row.get("desc_expected_minutes"), None)
+            per_match = (projected / matches if projected
+                         else minutes_played / matches if minutes_played else None)
+            presences = _number(row.get("engine_pv_pred"), None)
+            fm = _number(row.get("engine_fm_pred"), None)
             # The GRANULAR real role when we have it ('DL/ML' - which line AND which flank), else the
             # old pair: the modal per-match slot plus a sided Mantra role. Strictly more informative,
             # so it takes the column rather than adding a second one to a sheet already 70 wide.
@@ -2058,14 +2153,16 @@ class SnapshotView(ttk.Frame):
             spark = self._sparkline(row.get("desc_form_series"), row.get("desc_form_detail"))
             self._sparks.append(spark)              # Tk drops an image nobody references
             self.player_tree.insert("", "end", image=spark, values=(
-                row.get("role_classic") or "?", real or "-", row.get("name"),
-                row.get("engine_surplus") or "",
-                row.get("engine_fm_pred") or "", row.get("engine_pv_pred") or "",
-                row.get("desc_expected_minutes") or "",
-                f"{_number(row.get('desc_start_share')):.0%}"
-                if row.get("desc_start_share") not in (None, "") else "",
-                row.get("desc_form_rating") or "", f"{bonus:.2f}" if bonus else "",
-                row.get("desc_injury_weighted") or "", flags))
+                row.get("role_classic") or "?",
+                (row.get("roles_mantra") or "").replace(";", "/") or "-", real or "-",
+                row.get("name"), row.get("engine_surplus") or "",
+                f"{fm:.1f}" if fm is not None else "",
+                f"{min(presences / matches, 1):.0%}" if presences is not None else "",
+                f"{per_match:.0f}" if per_match else "",
+                f"{self.voto_share(row):.0%}" if row.get("desc_season_matches") else "",
+                row.get("desc_form_rating") or "", f"{bonus:.0f}" if bonus >= 0.5 else "",
+                f"{1 - self.availability(row):.0%}" if row.get("desc_injury_source") else "",
+                icons))
 
     @staticmethod
     def _formation(info: dict, mode: str = "typical") -> tuple[str, str]:
@@ -2283,6 +2380,22 @@ class SnapshotView(ttk.Frame):
             return starts
         by_starts, by_minutes = self.STANDING_WEIGHTS
         return by_starts * starts + by_minutes * min(minutes / (contested * 90.0), 1.0)
+
+    def voto_share(self, row: dict) -> float:
+        """The share of the season's matchdays he is expected to get a VOTO in - not to START in.
+
+        The difference is what a fantacalcio squad is actually bought on: a substitute who comes on every
+        week scores every week, and `presence` deliberately does not count him. So this reads APPEARANCES
+        over the matches he was available for, discounted by `availability` exactly as `presence` is.
+
+        An appearance is taken as a voto, which is the honest limit of the layer: `external_stats` stores
+        season totals, so it cannot tell a ten-minute cameo from a full match. The TREND strip can - a
+        hollow dot is precisely that - and the two columns are meant to be read together.
+        """
+        available = max(self.club_matches(row.get("club"))
+                        - _number(row.get("desc_injury_weighted")) / sum(INJURY_WEIGHTS), 1.0)
+        appearances = min(_number(row.get("desc_season_matches")) / available, 1.0)
+        return min(appearances * self.availability(row), 1.0)
 
     def presence(self, row: dict, horizon: str = "season") -> float:
         """The share of the club's MATCHDAYS he is expected to start in. The one number a shirt carries.
@@ -3204,7 +3317,7 @@ class ToolkitGUI:
         layer = tk.StringVar(value="season")
         ttk.Combobox(frm, textvariable=layer, state="readonly", width=24,
                      values=["season", "match", "complete", "heatmap", "roles", "all", "reparse",
-                             "crosstab"]).grid(row=0, column=1, pady=4)
+                             "crosstab", "extra"]).grid(row=0, column=1, pady=4)
         ttk.Label(frm, text="League:").grid(row=1, column=0, sticky="w", pady=4)
         league = tk.StringVar(value="all")
         ttk.Combobox(frm, textvariable=league, state="readonly", width=24,
@@ -3239,6 +3352,11 @@ class ToolkitGUI:
                 "reparse": "Offline: rebuilds everything from the cached JSON. Zero requests.",
                 "crosstab": "Offline report: provider slot (G/D/M/F) vs our listone role, so the "
                             "lineup counts can be read as fantacalcio roles. Zero requests.",
+                "extra": "The matches no league calendar contains: PRE-SEASON FRIENDLIES, cups, "
+                         "continental ties. In July the per-match layer stops at the last matchday of "
+                         "May, which is exactly the window an August auction is prepared in. One "
+                         "request per club plus one per match found; each match keeps its own "
+                         "competition, so a friendly is never counted as a league match.",
             }[layer.get()])
 
         layer.trace_add("write", describe)

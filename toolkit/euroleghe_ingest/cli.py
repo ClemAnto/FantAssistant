@@ -147,15 +147,17 @@ def build_parser() -> argparse.ArgumentParser:
                            help="re-download league-seasons even if already present")
             p.add_argument("--layer",
                            choices=["season", "match", "complete", "heatmap", "roles", "all",
-                                    "reparse", "crosstab"],
+                                    "reparse", "crosstab", "extra"],
                            default="season",
                            help="season aggregates (fast), the per-match layer (hours), "
                                 "'complete' to add the matches the perimeter filter skipped, "
                                 "'heatmap' for avg_x/avg_y (one request per player-season), "
                                 "'roles' for the granular real role + foot (one request per CLUB), "
                                 "both, "
-                                "'reparse' to rebuild from the cache offline (zero requests), or "
-                                "'crosstab' for the provider-role vs listone-role report (offline)")
+                                "'reparse' to rebuild from the cache offline (zero requests), "
+                                "'crosstab' for the provider-role vs listone-role report (offline), or "
+                                "'extra' for the matches no league calendar has - pre-season "
+                                "friendlies, cups, continental ties (one request per club)")
         if name == "injuries":
             p.add_argument("--season", action="append", metavar="YYYY-YY",
                            help="seasons whose squads/players to walk (repeatable; default: all)")

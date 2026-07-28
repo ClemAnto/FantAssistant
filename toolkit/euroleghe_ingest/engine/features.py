@@ -791,10 +791,13 @@ def _inactivity(conn: sqlite3.Connection, window: Window) -> dict[int, dict]:
     import datetime
 
     floor = f"{window.input_season.split('-')[0]}-07-01"
+    # `source <> 'sofascore_extra'`: the friendlies and cup ties that layer brings in are descriptive,
+    # and a pre-season friendly inside a gap would erase exactly the gap this measures. `sofascore_recent`
+    # stays IN - a match in another championship is still a match he played.
     rows = conn.execute(
         """SELECT fc_id, match_date, COALESCE(minutes, 0) FROM external_match_stats
            WHERE match_date IS NOT NULL AND match_date >= ? AND match_date < ?
-             AND COALESCE(minutes, 0) > 0
+             AND COALESCE(minutes, 0) > 0 AND source <> 'sofascore_extra'
            ORDER BY fc_id, match_date""", (floor, window.auction_date)).fetchall()
     auction = datetime.date.fromisoformat(window.auction_date)
     played: dict[int, list] = {}
