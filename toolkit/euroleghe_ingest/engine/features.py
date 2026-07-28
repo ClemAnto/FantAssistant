@@ -850,25 +850,73 @@ def _penalty_state(conn: sqlite3.Connection, auction_date: str) -> dict[int, tup
     return out
 
 
-def load(conn: sqlite3.Connection, window: Window, platform: str) -> list[Observation]:
-    """All observations of a window. `platform='default'` is the Serie A game (Serie A players only)."""
+# The row set of a window is normally the TARGET LISTONE: a player is in it because he is quoted.
+# `squad_source='real'` swaps that for the REAL squads (`squad_snapshot`, observed at a date), which is
+# what an auction prepared BEFORE the listone comes out has to work from. Off by default, so every
+# published gate number keeps the population it was produced on - a test asserts it.
+_TARGET_FROM_LISTONE = """
+    SELECT r.fc_id, r.role_classic, r.roles, r.league, r.price, r.fc_club_id,
+           r.price_initial, r.fvm, r.fvm_mantra, r.price_mantra, r.price_initial_mantra
+    FROM rosters r WHERE r.season = :target
+"""
+# The real squad, with what the listone would have supplied taken from the player's LAST known listone
+# row (his role travels with him; his price does not - there is no quotation yet, and inventing one
+# would be the very look-ahead the whole project is built to avoid).
+_TARGET_FROM_SQUAD = """
+    SELECT s.fc_id,
+           (SELECT r2.role_classic FROM rosters r2 WHERE r2.fc_id = s.fc_id AND r2.role_classic IS NOT NULL
+             ORDER BY r2.season DESC LIMIT 1) AS role_classic,
+           (SELECT r3.roles FROM rosters r3 WHERE r3.fc_id = s.fc_id AND r3.roles IS NOT NULL
+             ORDER BY r3.season DESC LIMIT 1) AS roles,
+           (SELECT c2.league FROM clubs c2 WHERE c2.canonical_name = s.club) AS league,
+           NULL AS price,
+           (SELECT c3.fc_club_id FROM clubs c3 WHERE c3.canonical_name = s.club) AS fc_club_id,
+           NULL AS price_initial, NULL AS fvm, NULL AS fvm_mantra,
+           NULL AS price_mantra, NULL AS price_initial_mantra
+    FROM (SELECT fc_id, club, MAX(valid_from) FROM squad_snapshot
+          WHERE valid_from <= :auction GROUP BY fc_id) s
+    WHERE s.fc_id NOT IN (SELECT fc_id FROM rosters WHERE season = :target)
+      -- and only a club THIS PLATFORM plays: EuroLeghe carries the top clubs, so adding a Verona or a
+      -- Cagliari squad to a euro sheet lists players nobody in that league can buy. The platform's own
+      -- ratings are the definition of its perimeter.
+      AND s.club IN (SELECT DISTINCT team FROM match_ratings
+                     WHERE platform = :platform AND team IS NOT NULL)
+"""
+
+
+def load(conn: sqlite3.Connection, window: Window, platform: str,
+         squad_source: str = "listone") -> list[Observation]:
+    """All observations of a window. `platform='default'` is the Serie A game (Serie A players only).
+
+    `squad_source='real'` adds the players who are in a club's real squad but not (yet) in the target
+    listone: their role comes from their last listone row and their price is NULL, which is exactly
+    what R0c already handles. Used by the auction snapshot before a listone exists.
+    """
     league_filter = " AND r.league = 'serie_a'" if platform == "default" else ""
+    target = _TARGET_FROM_LISTONE
+    if squad_source == "real":
+        target = f"{_TARGET_FROM_LISTONE} UNION ALL {_TARGET_FROM_SQUAD}"
+    elif squad_source != "listone":
+        raise ValueError(f"unknown squad_source {squad_source!r}; choose listone|real")
     rows = conn.execute(
-        f"""SELECT r.fc_id, p.canonical_name, r.role_classic, r.roles, r.league, r.price,
+        f"""WITH r AS ({target})
+            SELECT r.fc_id, p.canonical_name, r.role_classic, r.roles, r.league, r.price,
                    ct.canonical_name, cp.canonical_name, p.birth_year,
                    sp.pv, sp.mv, sp.fm, st.pv, st.mv, st.fm,
                    r.price_initial, rp.price_initial, r.fvm, r.fvm_mantra,
                    r.price_mantra, r.price_initial_mantra
-            FROM rosters r
+            FROM r
             JOIN players p ON p.fc_id = r.fc_id
             LEFT JOIN clubs ct ON ct.fc_club_id = r.fc_club_id
-            LEFT JOIN rosters rp ON rp.fc_id = r.fc_id AND rp.season = ?
+            LEFT JOIN rosters rp ON rp.fc_id = r.fc_id AND rp.season = :input
             LEFT JOIN clubs cp ON cp.fc_club_id = rp.fc_club_id
-            LEFT JOIN season_stats sp ON sp.fc_id = r.fc_id AND sp.season = ? AND sp.platform = ?
-            LEFT JOIN season_stats st ON st.fc_id = r.fc_id AND st.season = ? AND st.platform = ?
-            WHERE r.season = ?{league_filter}""",
-        (window.input_season, window.input_season, platform,
-         window.target_season, platform, window.target_season)).fetchall()
+            LEFT JOIN season_stats sp ON sp.fc_id = r.fc_id AND sp.season = :input
+                                     AND sp.platform = :platform
+            LEFT JOIN season_stats st ON st.fc_id = r.fc_id AND st.season = :target
+                                     AND st.platform = :platform
+            WHERE 1 = 1{league_filter}""",
+        {"input": window.input_season, "target": window.target_season, "platform": platform,
+         "auction": window.auction_date}).fetchall()
 
     external = _external(conn, window.input_season)
     arrivals = {fc_id: (kind, tier, origin, equivalent) for fc_id, kind, tier, origin, equivalent
@@ -1056,13 +1104,16 @@ def roster_depth(conn: sqlite3.Connection, platform: str, seasons: tuple[str, ..
 
 
 def prepare(conn: sqlite3.Connection, window: Window, platform: str, game: str, *,
-            league: Mapping | None = None) -> WindowData:
+            league: Mapping | None = None, squad_source: str = "listone") -> WindowData:
     """Load a window and everything the model needs, using only seasons <= the input season.
 
     `league` is the league setup as `Config.load_league()` returns it - a plain mapping, so the engine
     still knows nothing about config files. Optional on purpose: without it the replacement levels stay
     empty and the window is exactly the one every published gate number was produced on. The Auction
     panel supplies it; the gate does not.
+
+    `squad_source='real'` widens the row set to the real squads (see `load`), for an auction prepared
+    before the listone exists. Default 'listone', so nothing in the gate moves.
     """
     seasons = tuple(season for (season,) in conn.execute(
         "SELECT DISTINCT season FROM season_stats ORDER BY season") if season <= window.input_season)
@@ -1079,7 +1130,7 @@ def prepare(conn: sqlite3.Connection, window: Window, platform: str, game: str, 
             conn, platform, (window.target_season,), game, depth, teams)
     return WindowData(
         window=window, platform=platform, game=game,
-        observations=load(conn, window, platform),
+        observations=load(conn, window, platform, squad_source),
         anchors=anchors(conn, platform, seasons, game),
         gk_rates=gk_rates, mu_rate=mu_rate,
         matchdays_prev=matchday_count(conn, platform, window.input_season),

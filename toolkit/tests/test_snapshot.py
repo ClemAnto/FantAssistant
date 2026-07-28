@@ -38,25 +38,37 @@ def _seed(conn) -> None:
                 "INSERT INTO season_stats(fc_id, season, platform, pv, mv, fm, goals, assists, "
                 "yellows, reds) VALUES (?, ?, 'euro', 30, 6.5, 7.5, 10, 5, 4, 0)",
                 (fc_id, season))
-        conn.execute("INSERT INTO match_ratings(fc_id, season, matchday, platform, mv) "
-                     "VALUES (?, '2024-25', 1, 'euro', 6.5)", (fc_id,))
-        conn.execute("INSERT INTO match_ratings(fc_id, season, matchday, platform, mv) "
-                     "VALUES (?, '2025-26', 1, 'euro', 6.5)", (fc_id,))
+        # `team` matters: it is what defines the platform's perimeter (who you can buy from)
+        conn.execute("INSERT INTO match_ratings(fc_id, season, matchday, platform, team, mv) "
+                     "VALUES (?, '2024-25', 1, 'euro', 'Inter', 6.5)", (fc_id,))
+        conn.execute("INSERT INTO match_ratings(fc_id, season, matchday, platform, team, mv) "
+                     "VALUES (?, '2025-26', 1, 'euro', 'Inter', 6.5)", (fc_id,))
     conn.commit()
 
 
-def test_auction_date_never_reads_past_the_season_it_prices(tmp_path):
+def test_the_target_is_the_season_being_auctioned_listone_or_not(tmp_path):
+    """The default target is the season TODAY belongs to, not the newest listone.
+
+    That is the point of the whole exercise: in July the auction being prepared is for a season whose
+    listone does not exist yet. Asking for the newest listone instead would silently prepare last
+    year's auction.
+    """
     ctx = _ctx(tmp_path)
     _seed(ctx.conn)
-    window, note = snapshot.resolve_window(ctx.conn)
-    assert window.target_season == "2025-26"
-    assert window.input_season == "2024-25"
-    # 2025-26 is already played, so the snapshot must stand on ITS auction day, not on today
+    assert snapshot.season_of("2026-07-28") == "2026-27"
+    assert snapshot.season_of("2026-06-30") == "2025-26"
+
+    window, note = snapshot.resolve_window(ctx.conn, today="2026-07-28")
+    assert window.target_season == "2026-27"      # no listone for it, and it is still the target
+    assert window.input_season == "2025-26"
+    assert window.auction_date == "2026-07-28"    # before 15 August, so: today
+    assert note and "no listone yet" in note and "REAL squads" in note
+
+    # a season already played is priced on ITS OWN auction day, never on today: a dry run must not
+    # read the future it is pretending not to know
+    window, note = snapshot.resolve_window(ctx.conn, "2025-26", today="2026-07-28")
     assert window.auction_date == "2025-08-15"
     assert note is None
-    # a season with no listone falls back and says so
-    _window, note = snapshot.resolve_window(ctx.conn, "2026-27")
-    assert note and "2026-27" in note and "listone" in note
 
 
 def test_columns_declare_which_half_is_gated():
@@ -103,7 +115,9 @@ def test_injury_absence_is_told_apart_from_absence_of_data(tmp_path):
 def test_snapshot_writes_the_sheet_and_the_manifest(tmp_path):
     ctx = _ctx(tmp_path)
     _seed(ctx.conn)
-    manifest = snapshot.run(ctx, platform="euro", game="classic", refresh=False)
+    # `season` pinned: the default target is the season today belongs to, which has no fixtures in this
+    # fixture DB - here we want the sheet for the season the seed actually describes.
+    manifest = snapshot.run(ctx, platform="euro", game="classic", refresh=False, season="2025-26")
     assert manifest["players"] == 3
     folder = next((ctx.config.data_dir / "reports").glob("auction-snapshot-2025-26-euro-classic-*"))
     rows = list(csv.DictReader(io.StringIO((folder / "players.csv").read_text(encoding="utf-8-sig"))))

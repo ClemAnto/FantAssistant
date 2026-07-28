@@ -321,6 +321,20 @@ CREATE TABLE IF NOT EXISTS probable_starter (
     PRIMARY KEY (fc_id, valid_from)
 );
 
+-- Who is REALLY in a club's squad on a given date, independent of the listone.
+-- Why it exists: an auction is prepared before the listone comes out, and the listone is the only
+-- thing `rosters` knows. This is the real squad instead - from the current Transfermarkt squad pages,
+-- from the probabili (which carry an exact fc_id in each href) and from who actually appeared in the
+-- club's recent matches. Dated, like every volatile state: a squad is a fact about a DAY.
+CREATE TABLE IF NOT EXISTS squad_snapshot (
+    fc_id      INTEGER NOT NULL REFERENCES players(fc_id),
+    valid_from TEXT NOT NULL,                    -- the date the squad was observed
+    club       TEXT,                             -- canonical club name
+    source     TEXT NOT NULL,                    -- transfermarkt | fc_site | appearances
+    role_hint  TEXT,                             -- Classic role where the source states one
+    PRIMARY KEY (fc_id, valid_from, source)
+);
+
 CREATE TABLE IF NOT EXISTS availability (
     fc_id      INTEGER NOT NULL REFERENCES players(fc_id),
     valid_from TEXT NOT NULL,

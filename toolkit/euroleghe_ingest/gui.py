@@ -1443,6 +1443,370 @@ class AuctionView(ttk.Frame):
         tree.pack(fill="x")
 
 
+
+class SnapshotView(ttk.Frame):
+    """The auction snapshot as a board: the clubs on the left, one club's plan on the right.
+
+    Reads the folder `snapshot` wrote - `players.csv`, `clubs.csv`, `manifest.json` - rather than
+    recomputing anything, so what is on screen is exactly the sheet that was produced and a run and a
+    reading can never disagree. "Build now" runs the module and reloads.
+
+    Right hand side, top to bottom: what is known about the club, the probable eleven on a pitch with
+    each starter's rivals for the shirt underneath him, and the squad ordered BY ROLE first and by
+    predicted SURPLUS second - the order an auction is actually prepared in.
+    """
+
+    ROLE_ORDER: ClassVar[dict[str, int]] = {"P": 0, "D": 1, "C": 2, "A": 3}
+    # (column id, header, width, anchor). SURPLUS leads the numbers: it is the auction's own currency.
+    COLUMNS: ClassVar[tuple[tuple[str, str, int, str], ...]] = (
+        ("role", "R", 40, "center"),
+        ("name", "Player", 150, "w"),
+        ("qti", "Qt.I", 52, "e"),
+        ("surplus", "SURPLUS", 78, "e"),
+        ("fm", "FM", 54, "e"),
+        ("pv", "Pv", 46, "e"),
+        ("minutes", "min", 52, "e"),
+        ("form", "form 10", 70, "center"),
+        ("rating", "rating", 58, "e"),
+        ("bonus", "g+a/90", 62, "e"),
+        ("inj", "inj", 46, "e"),
+        ("status", "flags", 160, "w"),
+    )
+
+    def __init__(self, parent, config: Config, on_build=None) -> None:
+        super().__init__(parent)
+        self.config = config
+        self.on_build = on_build
+        self.folders: list = []
+        self.players: list[dict] = []
+        self.clubs: dict[str, dict] = {}
+        self.manifest: dict = {}
+        self._build()
+
+    # ---------- layout ----------
+    def _build(self) -> None:
+        bar = ttk.Frame(self, padding=(0, 8))
+        bar.pack(fill="x")
+        ttk.Label(bar, text="Snapshot:").pack(side="left")
+        self.folder_var = tk.StringVar()
+        self.folder_cb = ttk.Combobox(bar, textvariable=self.folder_var, state="readonly", width=42)
+        self.folder_cb.pack(side="left", padx=6)
+        self.folder_cb.bind("<<ComboboxSelected>>", lambda _e: self.load_selected())
+        if self.on_build:
+            ttk.Button(bar, text="Build now", style="Accent.TButton",
+                       command=self.on_build).pack(side="left", padx=(0, 6))
+        ttk.Button(bar, text="Reload", command=self.reload).pack(side="left")
+        self.note_var = tk.StringVar()
+        ttk.Label(bar, textvariable=self.note_var, style="Muted.TLabel").pack(side="left", padx=10)
+
+        body = ttk.Frame(self)
+        body.pack(fill="both", expand=True)
+
+        left = ttk.Frame(body, style="Card.TFrame", padding=(8, 8))
+        left.pack(side="left", fill="y")
+        ttk.Label(left, text="CLUBS", style="CardMuted.TLabel").pack(anchor="w", pady=(0, 4))
+        self.club_tree = ttk.Treeview(left, columns=("club", "n"), show="headings", height=24,
+                                      selectmode="browse")
+        self.club_tree.heading("club", text="Club")
+        self.club_tree.heading("n", text="#")
+        self.club_tree.column("club", width=180, anchor="w")
+        self.club_tree.column("n", width=40, anchor="e")
+        self.club_tree.pack(fill="y", expand=True)
+        self.club_tree.bind("<<TreeviewSelect>>", lambda _e: self._show_club())
+
+        right = ttk.Frame(body)
+        right.pack(side="left", fill="both", expand=True, padx=(10, 0))
+
+        head = ttk.Frame(right, style="Card.TFrame", padding=(12, 10))
+        head.pack(fill="x")
+        self.club_title = tk.StringVar(value="select a club")
+        ttk.Label(head, textvariable=self.club_title, style="H1.TLabel").pack(anchor="w")
+        self.club_info = tk.StringVar()
+        ttk.Label(head, textvariable=self.club_info, style="CardMuted.TLabel", justify="left",
+                  wraplength=780).pack(anchor="w", pady=(2, 8))
+        self.pitch = tk.Canvas(head, height=290, highlightthickness=0,
+                               background=theme.color("surface"))
+        self.pitch.pack(fill="x")
+        self.pitch.bind("<Configure>", lambda _e: self._draw_pitch())
+
+        table = ttk.Frame(right, style="Card.TFrame", padding=(8, 8))
+        table.pack(fill="both", expand=True, pady=(8, 0))
+        self.player_tree = ttk.Treeview(table, columns=[c[0] for c in self.COLUMNS],
+                                        show="headings", selectmode="browse")
+        for key, title, width, anchor in self.COLUMNS:
+            self.player_tree.heading(key, text=title)
+            self.player_tree.column(key, width=width, anchor=anchor,
+                                    stretch=key in ("name", "status"))
+        scroll = ttk.Scrollbar(table, orient="vertical", command=self.player_tree.yview)
+        self.player_tree.configure(yscrollcommand=scroll.set)
+        scroll.pack(side="right", fill="y")
+        self.player_tree.pack(fill="both", expand=True)
+        HeadingTooltip(self.player_tree, {
+            "SURPLUS": "Predicted (fantamedia - the role's replacement level) x appearances: points "
+                       "over the man you would have fielded instead. The engine's GATED valuation.",
+            "form 10": "played / measured of the CLUB's last 10 matches. `measured` excludes the "
+                       "matches we have no player-level data for, so a 0 here means he did not play - "
+                       "not that we do not know.",
+            "inj": "matches missed, recency-weighted. Descriptive, not gated. Empty = no Transfermarkt "
+                   "id, which is unknown and not zero.",
+            "flags": "starting probability, open injury, contract expiry, duel, arrival.",
+        })
+
+    # ---------- data ----------
+    def reload(self) -> None:
+        reports = self.config.data_dir / "reports"
+        self.folders = sorted((path for path in reports.glob("auction-snapshot-*")
+                               if (path / "players.csv").exists()), reverse=True)
+        self.folder_cb.configure(values=[path.name.replace("auction-snapshot-", "")
+                                         for path in self.folders])
+        if not self.folders:
+            self.note_var.set("no snapshot yet - use 'Build now', or Operations > Auction snapshot")
+            return
+        if self.folder_var.get() not in self.folder_cb["values"]:
+            self.folder_var.set(self.folder_cb["values"][0])
+        self.load_selected()
+
+    def load_selected(self) -> None:
+        names = list(self.folder_cb["values"])
+        if not names or self.folder_var.get() not in names:
+            return
+        folder = self.folders[names.index(self.folder_var.get())]
+        self.players = _read_csv(folder / "players.csv")
+        self.clubs = {row["club"]: row for row in _read_csv(folder / "clubs.csv")}
+        self.manifest = _read_json(folder / "manifest.json")
+        engine = self.manifest.get("engine", {})
+        notes = self.manifest.get("notes", [])
+        self.note_var.set(f"{len(self.players)} players · rules {', '.join(engine.get('rules', []))} "
+                          f"· params {engine.get('params_from', '?')}"
+                          + (f" · {len(notes)} note(s) in the manifest" if notes else ""))
+        self.club_tree.delete(*self.club_tree.get_children())
+        counts: dict[str, int] = {}
+        for row in self.players:
+            club = row.get("club") or "(club unknown)"
+            counts[club] = counts.get(club, 0) + 1
+        for club in sorted(counts):
+            self.club_tree.insert("", "end", iid=club, values=(club, counts[club]))
+        children = self.club_tree.get_children()
+        if children:
+            self.club_tree.selection_set(children[0])
+
+    def _selected_club(self) -> str | None:
+        selection = self.club_tree.selection()
+        return selection[0] if selection else None
+
+    def squad(self, club: str) -> list[dict]:
+        """The club's players, BY ROLE then by predicted SURPLUS - how an auction is prepared."""
+        rows = [row for row in self.players if (row.get("club") or "(club unknown)") == club]
+        rows.sort(key=lambda row: (self.ROLE_ORDER.get(row.get("role_classic") or "", 9),
+                                   -_number(row.get("engine_surplus"), -1e9)))
+        return rows
+
+    # ---------- club detail ----------
+    def _show_club(self) -> None:
+        club = self._selected_club()
+        if not club:
+            return
+        info = self.clubs.get(club, {})
+        self.club_title.set(club)
+        formation, source = self._formation(info)
+        # The lines come from the provider's slots, where a winger counts as a midfielder: a 4-3-3
+        # with wingers reads 4-5-1. Said out loud, so nobody reads the shape as the coach's own words.
+        bits = [f"modulo tipo {formation} ({source}, provider lines)"]
+        today = info.get("formation_today")
+        if today and today != formation:
+            bits.append(f"probabili today: {today}")
+        if info.get("coach"):
+            bits.append(f"coach {info['coach']} since {info.get('coach_since') or '?'}"
+                        + (" · NEW" if info.get("new_coach") == "yes" else ""))
+        if info.get("elo"):
+            bits.append(f"Elo {info['elo']}")
+        if info.get("arrivals"):
+            bits.append(f"{info['arrivals']} arrivals")
+        if info.get("complete_XIs"):
+            bits.append(f"lines D{info.get('lines_fielded_D')}/M{info.get('lines_fielded_M')}/"
+                        f"F{info.get('lines_fielded_F')} over {info['complete_XIs']} XIs")
+        self.club_info.set(" · ".join(bits))
+
+        self.player_tree.delete(*self.player_tree.get_children())
+        for row in self.squad(club):
+            flags = " ".join(part for part in (
+                f"start {row['desc_starter_prob']}" if row.get("desc_starter_prob") else "",
+                "OUT" if row.get("desc_injury_open") else "",
+                row.get("desc_availability_now") or "",
+                f"exit {row['desc_contract_until']}" if row.get("desc_exit_risk") else "",
+                f"duel {row['desc_duel_rivals']}"
+                if row.get("desc_duel_rivals") not in (None, "", "0") else "",
+                row.get("desc_arrival") or "",
+            ) if part)
+            form = (f"{row.get('desc_form_played') or 0}/{row.get('desc_form_measured') or 0}"
+                    if row.get("desc_form_measured") else "-")
+            bonus = _number(row.get("desc_goals_p90")) + _number(row.get("desc_assists_p90"))
+            self.player_tree.insert("", "end", values=(
+                row.get("role_classic") or "?", row.get("name"),
+                row.get("price_initial") or "", row.get("engine_surplus") or "",
+                row.get("engine_fm_pred") or "", row.get("engine_pv_pred") or "",
+                row.get("desc_expected_minutes") or "", form,
+                row.get("desc_form_rating") or "", f"{bonus:.2f}" if bonus else "",
+                row.get("desc_injury_weighted") or "", flags))
+        self._draw_pitch()
+
+    @staticmethod
+    def _formation(info: dict) -> tuple[str, str]:
+        """(shape, where it comes from). The MODULO TIPO first: the shape the club actually lines up in.
+
+        Order of authority: the modal formation of its complete elevens last season (a shape that was
+        really on the pitch, with a share saying how settled it is), then today's probabili (one match,
+        and it can be a rotation), then the rounded mean of its lines, which is only a last resort
+        because a mean of 3.5 defenders is not a formation.
+        """
+        typical = info.get("formation_typical")
+        if typical:
+            share = info.get("formation_typical_share")
+            of = info.get("formation_typical_of")
+            detail = f"{float(share):.0%} of {of} XIs" if share else "most used"
+            return typical, detail
+        if info.get("formation_today"):
+            return info["formation_today"], "probabili of today"
+        return SnapshotView._derived_formation(info), "rounded mean of the lines fielded"
+
+    @staticmethod
+    def _derived_formation(info: dict) -> str:
+        """No probabili? Then the module the club ACTUALLY fielded, rounded from the lines it played."""
+        lines = [_number(info.get(f"lines_fielded_{key}")) for key in ("D", "M", "F")]
+        if not any(lines):
+            return "4-3-3"
+        counts = [max(1, round(value)) for value in lines]
+        while sum(counts) > 10:
+            counts[counts.index(max(counts))] -= 1
+        while sum(counts) < 10:
+            counts[counts.index(min(counts))] += 1
+        return "-".join(str(value) for value in counts)
+
+    def eleven(self, club: str, formation: str) -> list[tuple[str, dict, list[dict]]]:
+        """(role, starter, rivals) per shirt: the editorial eleven if there is one, else the engine's.
+
+        The rivals ARE the ballottaggio. With a probabili snapshot they are what the editors say (the
+        duel column); without one they are the next men by predicted SURPLUS in the same role, which is
+        the honest substitute - and the pitch says which of the two it is showing.
+        """
+        squad = self.squad(club)
+        by_role: dict[str, list[dict]] = {}
+        for row in squad:
+            by_role.setdefault(row.get("role_classic") or "?", []).append(row)
+        try:
+            defenders, midfielders, forwards = (int(part) for part in formation.split("-")[:3])
+        except (ValueError, TypeError):
+            defenders, midfielders, forwards = 4, 3, 3
+        editorial = any(row.get("desc_starter_prob") for row in squad)
+        out: list[tuple[str, dict, list[dict]]] = []
+        for role, slots in (("P", 1), ("D", defenders), ("C", midfielders), ("A", forwards)):
+            pool = by_role.get(role, [])
+            if editorial:
+                pool = sorted((row for row in pool if row.get("desc_starter_prob")),
+                              key=lambda row: -_number(row.get("desc_starter_prob")))
+            chosen = pool[:slots]
+            bench = pool[slots:]
+            # An alternative is someone who could TAKE the shirt, so it has to come from outside the
+            # eleven: a back three of near-equal starters otherwise lists its own members as each
+            # other's rivals, which says nothing about who is actually in a duel with whom.
+            starters = {row.get("name") for row in chosen}
+            for index, starter in enumerate(chosen):
+                named = [name.strip() for name in (starter.get("desc_duel_names") or "").split(";")
+                         if name.strip() and name.strip() not in starters]
+                if named:
+                    rivals = [row for row in bench if row.get("name") in named][:2]
+                else:
+                    # no editorial duel left: only the LAST shirt of the line is contestable, by the
+                    # next man in the role - not every slot by everyone
+                    rivals = bench[:2] if index == len(chosen) - 1 else []
+                out.append((role, starter, rivals))
+        return out
+
+    def _draw_pitch(self) -> None:
+        """The eleven on a pitch. Vector, so it follows the theme and the window width."""
+        canvas = self.pitch
+        canvas.delete("all")
+        canvas.configure(background=theme.color("surface"))
+        width = max(canvas.winfo_width(), 460)
+        height = int(canvas["height"])
+        line = "#e8f5e9"
+        stripe = max(40, width // 10)
+        canvas.create_rectangle(0, 0, width, height, fill="#2f7d32", outline="")
+        for index in range(0, width, stripe):
+            if (index // stripe) % 2 == 0:
+                canvas.create_rectangle(index, 0, index + stripe, height, fill="#37913a", outline="")
+        canvas.create_rectangle(6, 6, width - 6, height - 6, outline=line, width=2)
+        canvas.create_line(width // 2, 6, width // 2, height - 6, fill=line, width=2)
+        canvas.create_oval(width // 2 - 34, height // 2 - 34, width // 2 + 34, height // 2 + 34,
+                           outline=line, width=2)
+        canvas.create_rectangle(6, height // 2 - 52, 62, height // 2 + 52, outline=line, width=2)
+        canvas.create_rectangle(width - 62, height // 2 - 52, width - 6, height // 2 + 52,
+                                outline=line, width=2)
+        club = self._selected_club()
+        if not club:
+            return
+        info = self.clubs.get(club, {})
+        formation, _source = self._formation(info)
+        eleven = self.eleven(club, formation)
+        if not eleven:
+            canvas.create_text(width // 2, height // 2, fill=line, font=theme.FONTS["strong"],
+                               text="no players in this club's sheet")
+            return
+        lanes: dict[str, list] = {}
+        for role, starter, rivals in eleven:
+            lanes.setdefault(role, []).append((starter, rivals))
+        # left to right: keeper, defence, midfield, attack - the way a formation is read
+        for role, fraction in (("P", 0.01), ("D", 0.23), ("C", 0.45), ("A", 0.67)):
+            slots = lanes.get(role, [])
+            for index, (starter, rivals) in enumerate(slots):
+                # a five-man line has 34px of text in a 50px slot, so the odd shirts step forward -
+                # which is also how a real 3-5-2 is drawn, wingers ahead of the middle
+                x = width * fraction + 26 + (16 if len(slots) >= 5 and index % 2 else 0)
+                y = height * (index + 1) / (len(slots) + 1)
+                canvas.create_oval(x - 7, y - 7, x + 7, y + 7, fill=theme.color("surface"),
+                                   outline=line, width=2)
+                canvas.create_text(x + 12, y - 6, anchor="w", fill="#ffffff",
+                                   font=theme.FONTS["strong"],
+                                   text=(starter.get("name") or "")[:15])
+                surplus = starter.get("engine_surplus")
+                if surplus:
+                    canvas.create_text(x + 12, y + 7, anchor="w", fill="#dcedc8",
+                                       font=theme.FONTS["small"], text=f"SUR {surplus}")
+                if rivals:
+                    names = ", ".join((row.get("name") or "")[:11] for row in rivals)
+                    canvas.create_text(x + 12, y + 20, anchor="w", fill="#ffe082",
+                                       font=theme.FONTS["small"], text=f"vs {names}")
+        editorial = any(row.get("desc_starter_prob") for _role, row, _rivals in eleven)
+        canvas.create_text(width - 12, height - 12, anchor="e", fill=line,
+                           font=theme.FONTS["small"],
+                           text=f"{formation} · XI from "
+                                f"{'the probabili' if editorial else 'the engine (no probabili yet)'}")
+
+
+def _read_csv(path) -> list[dict]:
+    import csv
+
+    try:
+        with open(path, encoding="utf-8-sig", newline="") as handle:
+            return list(csv.DictReader(handle))
+    except OSError:
+        return []
+
+
+def _read_json(path) -> dict:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def _number(value, default: float = 0.0) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
 class ToolkitGUI:
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
@@ -1479,11 +1843,16 @@ class ToolkitGUI:
         self.auction = AuctionView(notebook, self.config)
         notebook.add(self.auction, text="  Auction  ")
 
+        self.snapshot = SnapshotView(notebook, self.config,
+                                     on_build=lambda: self.run_operation("snapshot"))
+        notebook.add(self.snapshot, text="  Snapshot  ")
+
         self._build_status_bar(root)
         self.refresh_status()
         self.refresh_operation_states()
         self.players.reload()
         self.auction.reload()
+        self.snapshot.reload()
         self.root.after(100, self._drain_log)
 
     # ---------- preferences (theme only, so a restart looks like the last session) ----------
@@ -1775,6 +2144,8 @@ class ToolkitGUI:
         self.refresh_status()
         self.refresh_operation_states()
         self.players.reload()
+        with contextlib.suppress(Exception):
+            self.snapshot.reload()
 
     # ---------- execution ----------
     def _request_stop(self) -> None:

@@ -57,65 +57,405 @@ FORM_MATCHES = 10
 BALLOTTAGGIO_MARGIN = 0.25
 # How many seasons of injuries the propensity looks back over, newest first, with these weights.
 INJURY_WEIGHTS: tuple[float, ...] = (1.0, 0.6, 0.35)
+# How far back an appearance still says "he is in this squad". Fourteen months, so a full season plus a
+# transfer window fits and the season before it does not: with no bound at all a player's last
+# appearance EVER counted, which put two retired keepers in Inter's 2026 squad.
+SQUAD_APPEARANCE_MONTHS = 14
+
+
+def _months_before(date: str, months: int) -> str:
+    year, month, day = (int(part) for part in date.split("-"))
+    month -= months
+    year += (month - 1) // 12
+    month = (month - 1) % 12 + 1
+    return f"{year:04d}-{month:02d}-{min(day, 28):02d}"
 
 
 # ---------------------------------------------------------------- window
-def resolve_window(conn, season: str | None = None) -> tuple[features.Window, str | None]:
-    """(window, note). The target is the season being auctioned; the input is the one behind it."""
+def season_of(date: str) -> str:
+    """The season a date belongs to: July onwards opens the new one ('2026-07-28' -> '2026-27')."""
+    year, month = int(date[:4]), int(date[5:7])
+    start = year if month >= 7 else year - 1
+    return f"{start}-{(start + 1) % 100:02d}"
+
+
+def resolve_window(conn, season: str | None = None,
+                   today: str | None = None) -> tuple[features.Window, str | None]:
+    """(window, note). The target is the season being AUCTIONED, listone or not.
+
+    The default target is the season today belongs to - not the newest listone. That is the whole point
+    of the exercise: in July the auction being prepared is for a season whose listone does not exist
+    yet, and the sheet has to work anyway, off the real squads. When the listone IS out it simply adds
+    the roles and the quotations on top.
+    """
     seasons = [row[0] for row in conn.execute(
         "SELECT DISTINCT season FROM rosters ORDER BY season")]
     if not seasons:
         raise RuntimeError("no rosters in the DB - run `bootstrap` (or at least `ratings`) first")
+    today = today or dt.datetime.now(tz=dt.UTC).date().isoformat()
+    target = season or season_of(today)
     note = None
-    target = season or seasons[-1]
     if target not in seasons:
-        note = (f"{target} has no listone yet (rosters = 0), so the snapshot was built for "
-                f"{seasons[-1]}. Rerun it when the {target} listone is out - that run is the real one.")
-        target = seasons[-1]
-    index = seasons.index(target)
-    input_season = seasons[index - 1] if index else target
-    today = dt.datetime.now(tz=dt.UTC).date().isoformat()
+        note = (f"{target} has no listone yet (rosters = 0): the sheet is built from the REAL squads, "
+                f"so roles come from each player's last listone row and there are no quotations to "
+                f"show. Rerun it when the listone is out and the same command fills them in.")
+    earlier = [value for value in seasons if value < target]
+    input_season = earlier[-1] if earlier else target
     auction = min(f"{target.split('-')[0]}-08-15", today)
     return features.Window("SNAP", input_season, target, auction), note
 
 
-# ---------------------------------------------------------------- descriptive layers
-def recent_form(conn, auction_date: str, since: str, limit: int = FORM_MATCHES) -> dict[int, dict]:
-    """The last `limit` matches STRICTLY before the auction date, per player.
+# ---------------------------------------------------------------- the real squad
+def club_index(conn):
+    """A function mapping ANY spelling of a club to one canonical key.
 
-    Both providers' rows count (the 5 leagues and the `recent_form` sample): what is being described
-    is "how has he been playing lately", and a match is a match. Ratings average over the matches that
-    have one - a cameo without a rating is not a zero.
+    Necessary, not tidy: the fixtures are keyed by the provider's name ('FC Bayern München'), the
+    listone says 'Bayern Monaco' and Transfermarkt says something else again. Keyed naively, the same
+    club becomes three, which reads as a transfer that never happened and as a squad whose matches
+    cannot be found.
+    """
+    from euroleghe_ingest.matching import CLUB_ALIASES, club_key
+
+    canonical: dict[str, str] = {}
+    for (name,) in conn.execute("SELECT canonical_name FROM clubs WHERE canonical_name IS NOT NULL"):
+        for spelling in (name, CLUB_ALIASES.get(name, name)):
+            canonical.setdefault(club_key(spelling), name)
+
+    def resolve(name: str | None) -> tuple[str, str] | tuple[None, None]:
+        """(key, our canonical name). The KEY is derived from the canonical name, not from the input:
+        keyed on the input, 'Bayern Monaco' and 'FC Bayern München' both map to the same club and still
+        land in two different buckets - which is what made half the squad look transferred."""
+        if not name:
+            return None, None
+        ours = canonical.get(club_key(name))
+        if ours is None:
+            return club_key(name), name
+        return club_key(ours), ours
+
+    return resolve
+
+
+def derive_squads(ctx: Context, date: str | None = None) -> dict[str, int]:
+    """Who is REALLY in each club's squad today -> `squad_snapshot`. Offline, from three sources.
+
+    An auction is prepared before the listone exists, so the sheet cannot be built from `rosters`.
+    These are, strongest first:
+
+      fc_site        the probabili page carries an exact fc_id in every href, so its 20 Serie A squads
+                     are certain - but it is Serie A only;
+      transfermarkt  the CURRENT squad page of each perimeter club (already cached by `injuries`),
+                     resolved through player_xref: all five leagues, ~1400 players;
+      appearances    whoever actually played for the club in its recent matches - the backstop, and the
+                     only source for a club neither page covers.
+
+    Dated on purpose: a squad is a fact about a DAY, and in August it changes weekly. Same discipline as
+    every other volatile state - the snapshot then reads "the squad as of the auction date".
+    """
+    conn = ctx.require_conn()
+    date = date or dt.datetime.now(tz=dt.UTC).date().isoformat()
+    counts = {"fc_site": 0, "transfermarkt": 0, "appearances": 0}
+    # Normalized ON WRITE: the three sources spell a club three ways, and a squad table keyed on the
+    # provider's spelling cannot be joined to `clubs` - which is how a real squad ends up with no
+    # league, no fixtures and no club in the sheet.
+    resolve = club_index(conn)
+
+    def canonical(name):
+        return resolve(name)[1]
+
+    # Each source is dated with ITS OWN date, never with the run's: writing today's probabili as if
+    # they had been known on an August 2025 auction day is look-ahead, and the whole point of dating
+    # these states is that a dry run cannot read the future it pretends not to know.
+    latest_probabili = conn.execute(
+        "SELECT MAX(valid_from) FROM probable_starter WHERE valid_from <= ?", (date,)).fetchone()[0]
+    if latest_probabili:
+        for fc_id, team, role in conn.execute(
+                "SELECT fc_id, team, role FROM probable_starter WHERE valid_from = ?",
+                (latest_probabili,)):
+            conn.execute(
+                "INSERT OR REPLACE INTO squad_snapshot(fc_id, valid_from, club, source, role_hint) "
+                "VALUES (?, ?, ?, 'fc_site', ?)",
+                (fc_id, latest_probabili, canonical(team), role))
+            counts["fc_site"] += 1
+
+    from euroleghe_ingest.modules.injuries import _SQUAD_CACHE, parse_squad
+
+    xref = {source_id: fc_id for source_id, fc_id in conn.execute(
+        "SELECT source_id, fc_id FROM player_xref WHERE source = 'transfermarkt'")}
+    clubs = {tm_id: club for club, tm_id in conn.execute(
+        "SELECT c.canonical_name, x.source_id FROM club_xref x JOIN clubs c USING(fc_club_id) "
+        "WHERE x.source = 'transfermarkt'")}
+    # The Transfermarkt pages already carry their own date in the file name, which is why a page
+    # fetched today does not inform an auction dated last August.
+    for path in sorted(ctx.config.cache_dir.glob("transfermarkt_squad_*.html")):
+        key = _SQUAD_CACHE.search(path.name)
+        club = clubs.get(key.group(1)) if key else None
+        if not club:
+            continue
+        try:
+            records = parse_squad(path.read_text(encoding="utf-8"))
+        except OSError:
+            continue
+        for rec in records:
+            fc_id = xref.get(rec["tm_id"])
+            if fc_id is None:
+                continue
+            conn.execute(
+                "INSERT OR REPLACE INTO squad_snapshot(fc_id, valid_from, club, source, role_hint) "
+                "VALUES (?, ?, ?, 'transfermarkt', NULL)", (fc_id, key.group(2), canonical(club)))
+            counts["transfermarkt"] += 1
+
+    # The backstop: whoever appeared for a club RECENTLY is in that club's squad. Two bounds, both
+    # learned from the sheet itself:
+    #   * only a club we KNOW - otherwise the sheet grows rows for Al-Qadsiah and Rosenborg, clubs
+    #     nobody in this league can buy from, arriving with no league and no fixtures;
+    #   * only the last `SQUAD_APPEARANCE_MONTHS` - his LAST appearance EVER put Handanovic and Cordaz
+    #     in Inter's 2026 squad, and made Lecce a 70-man club. A squad is who is there now.
+    known_clubs = {name for (name,) in conn.execute(
+        "SELECT canonical_name FROM clubs WHERE canonical_name IS NOT NULL")}
+    # A club whose CURRENT squad page we have needs no backstop, and taking one anyway is what made
+    # Bologna a 72-man club: everyone who appeared for it in fourteen months, including the men it sold
+    # in January. Where the page exists it IS the squad; the backstop is for the clubs without one.
+    with_page = {club for (club,) in conn.execute(
+        "SELECT DISTINCT club FROM squad_snapshot WHERE source IN ('transfermarkt', 'fc_site')")}
+    floor = _months_before(date, SQUAD_APPEARANCE_MONTHS)
+    for fc_id, club in conn.execute(
+            """SELECT e.fc_id, e.club FROM external_match_stats e
+               JOIN (SELECT fc_id, MAX(match_date) AS last FROM external_match_stats
+                     WHERE COALESCE(minutes, 0) > 0 AND match_date >= ? AND match_date < ?
+                     GROUP BY fc_id) last
+                 ON last.fc_id = e.fc_id AND last.last = e.match_date
+               WHERE e.club IS NOT NULL AND COALESCE(e.minutes, 0) > 0
+               GROUP BY e.fc_id""", (floor, date)):
+        name = canonical(club)
+        if name not in known_clubs or name in with_page:
+            continue
+        conn.execute(
+            "INSERT OR REPLACE INTO squad_snapshot(fc_id, valid_from, club, source, role_hint) "
+            "VALUES (?, ?, ?, 'appearances', NULL)", (fc_id, date, name))
+        counts["appearances"] += 1
+    conn.commit()
+    total = conn.execute("SELECT COUNT(DISTINCT fc_id) FROM squad_snapshot").fetchone()[0]
+    print(f"[snapshot] real squads: {total} players "
+          f"(fc_site {counts['fc_site']}, transfermarkt {counts['transfermarkt']}, "
+          f"appearances {counts['appearances']})")
+    return counts
+
+
+# ---------------------------------------------------------------- descriptive layers
+# What KIND of match a performance happened in. Ten goals in friendlies are worth something, and much
+# less than ten in a league - so the classes are reported side by side and never summed into one number.
+# The slugs are the provider's own (`external_match_stats.competition`).
+COMPETITION_CLASSES: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("friendly", ("friendly", "amichevo", "club-friendly", "pre-season", "trophy")),
+    ("continental", ("champions-league", "europa-league", "conference", "libertadores",
+                     "sudamericana", "club-world", "super-cup", "supercoppa", "supercup")),
+    ("national", ("world-cup", "euro-", "nations-league", "copa-america", "africa-cup", "asian-cup",
+                  "qualification", "friendlies-international")),
+    ("cup", ("coppa", "cup", "copa", "pokal", "dfb", "efl", "carabao", "fa-", "coupe")),
+    ("league", ()),        # the fallback: our own five leagues and every other domestic championship
+)
+
+
+def competition_class(slug: str | None) -> str:
+    lowered = (slug or "").lower()
+    for label, needles in COMPETITION_CLASSES:
+        if any(needle in lowered for needle in needles):
+            return label
+    return "league"
+
+
+def squad_as_of(conn, date: str) -> tuple[dict[int, str], dict[int, str]]:
+    """(club per player, source per player) from `squad_snapshot` as of a date.
+
+    Precedence where the sources disagree: fc_site (an exact fc_id in the page) beats Transfermarkt
+    (a resolved name) beats an appearance. Ties within a source go to the most recent observation.
+    """
+    order = {"fc_site": 0, "transfermarkt": 1, "appearances": 2}
+    best: dict[int, tuple] = {}
+    for fc_id, club, source, valid_from in conn.execute(
+            "SELECT fc_id, club, source, valid_from FROM squad_snapshot WHERE valid_from <= ? "
+            "ORDER BY valid_from", (date,)):
+        rank = (order.get(source, 9), )
+        current = best.get(fc_id)
+        if current is None or rank <= current[0]:
+            best[fc_id] = (rank, club, source, valid_from)
+    return ({fc_id: entry[1] for fc_id, entry in best.items()},
+            {fc_id: entry[2] for fc_id, entry in best.items()})
+
+
+def club_matches(conn, auction_date: str, resolve, limit: int = FORM_MATCHES) -> dict[str, list[tuple]]:
+    """Each club's last `limit` matches before the auction date: (date, match_id, competition).
+
+    Two sources, unioned: `club_match_lineups` (one row per club-match of the five leagues we scrape)
+    and the per-match rows themselves, which is what brings in the cups, the friendlies and the other
+    championships `recent_form` fetched. Keyed by the canonical club, so the provider's spelling and
+    the listone's agree. A match nobody appeared in and no lineup recorded does not exist for us, and
+    the count says so rather than pretending it was a rest.
     """
     rows = conn.execute(
         """
-        SELECT fc_id, match_date, COALESCE(minutes, 0), rating, COALESCE(goals, 0),
-               COALESCE(assists, 0), started
-        FROM external_match_stats
-        WHERE match_date IS NOT NULL AND match_date < ? AND match_date >= ?
-          AND COALESCE(minutes, 0) > 0
-        ORDER BY fc_id, match_date DESC
+        SELECT club, match_date, match_id, competition FROM club_match_lineups
+        WHERE match_date IS NOT NULL AND match_date < ?
+        UNION
+        SELECT club, match_date, match_id, competition FROM external_match_stats
+        WHERE match_date IS NOT NULL AND match_date < ? AND club IS NOT NULL
+        ORDER BY match_date DESC
         """,
-        (auction_date, since),
+        (auction_date, auction_date),
     ).fetchall()
-    by_player: dict[int, list] = {}
-    for fc_id, date, minutes, rating, goals, assists, started in rows:
-        bucket = by_player.setdefault(fc_id, [])
-        if len(bucket) < limit:
-            bucket.append((date, minutes, rating, goals, assists, started))
+    out: dict[str, list[tuple]] = {}
+    for club, date, match_id, competition in rows:
+        key, _name = resolve(club)
+        if key is None:
+            continue
+        bucket = out.setdefault(key, [])
+        if len(bucket) < limit and all(str(match_id) != str(known[1]) for known in bucket):
+            bucket.append((date, match_id, competition))
+    return out
+
+
+def _by_date(item: tuple):
+    """Sort key for a fixture tuple: its date. A named function, so no closure captures a loop name."""
+    return item[0]
+
+
+def club_form(conn, auction_date: str, observations, squads: dict[int, str],
+              limit: int = FORM_MATCHES) -> dict[int, dict]:
+    """Form measured over the last `limit` matches of the player's CLUB, not of the player.
+
+    The difference is the whole point. A player's own last ten appearances hide the weeks he sat on the
+    bench; his CLUB's last ten do not - a man who never came on reads `played 0 of 10`, which is the
+    fact an auction needs. Where he changed club inside the window the two clubs' matches are merged in
+    date order, so the sample follows the player and not a shirt.
+
+    Two honesty rules, both learned the hard way on this very sheet:
+
+    * a player with NO rows in the per-match layer (identity unresolved, or a league we do not scrape)
+      reads UNKNOWN, not `0 of 10`. 231 of the 2025-26 listone are in that state, and reporting them as
+      "never played" would be a lie about a fact we do not have. `desc_form_source` says which it is.
+    * "named on the bench" and "not in the squad" are indistinguishable here, because the layer only
+      stores a row for a player who got minutes. They are reported together as `unused`.
+
+    Goals and assists are split league / other and never summed: ten goals in friendlies are worth
+    something, and nothing like ten in a league.
+    """
+    resolve = club_index(conn)
+    fixtures = club_matches(conn, auction_date, resolve, limit)
+    covered = {fc_id for (fc_id,) in conn.execute(
+        "SELECT DISTINCT fc_id FROM external_match_stats")}
+    # Which MATCHES we have player-level rows for at all. A club's last ten include cups and other
+    # competitions we never scraped player-by-player: counting those as "he did not play" would turn a
+    # gap in our data into a statement about the player. They are counted apart.
+    with_players = {str(match_id) for (match_id,) in conn.execute(
+        "SELECT DISTINCT match_id FROM external_match_stats WHERE match_date IS NOT NULL")}
+    appearances: dict[int, dict[str, tuple]] = {}
+    for fc_id, match_id, club, competition, date, minutes, started, rating, goals, assists in             conn.execute(
+                """SELECT fc_id, match_id, club, competition, match_date, COALESCE(minutes, 0),
+                          started, rating, COALESCE(goals, 0), COALESCE(assists, 0)
+                   FROM external_match_stats
+                   WHERE match_date IS NOT NULL AND match_date < ? AND COALESCE(minutes, 0) > 0""",
+                (auction_date,)):
+        appearances.setdefault(fc_id, {})[str(match_id)] = (
+            club, competition, date, minutes, started, rating, goals, assists)
+
     out: dict[int, dict] = {}
-    for fc_id, sample in by_player.items():
-        ratings = [rating for _d, _m, rating, _g, _a, _s in sample if rating is not None]
-        minutes = sum(m for _d, m, _r, _g, _a, _s in sample)
-        out[fc_id] = {
-            "matches": len(sample),
+    for obs in observations:
+        if obs.fc_id not in covered:
+            out[obs.fc_id] = {"source": "not in the per-match layer (identity unresolved, or a "
+                                        "competition we do not scrape): UNKNOWN, not zero"}
+            continue
+        mine = appearances.get(obs.fc_id, {})
+
+        def build(clubs: dict[str, str], _mine=mine) -> list[tuple]:
+            pool: list[tuple] = []
+            for key in clubs:
+                pool += [(date, match_id, competition, key)
+                         for date, match_id, competition in fixtures.get(key, [])]
+            pool.sort(key=_by_date, reverse=True)
+            seen: set[str] = set()
+            window: list[tuple] = []
+            for date, match_id, competition, key in pool:
+                if str(match_id) in seen:
+                    continue
+                seen.add(str(match_id))
+                window.append((date, match_id, competition, key))
+                if len(window) >= limit:
+                    break
+            return window
+
+        # WHERE he is now, then which clubs that window actually spans. Two passes, because the two
+        # depend on each other: the window comes from his clubs, and which clubs count comes from the
+        # window's dates. A transfer inside the window is exactly the case this resolves - the sample
+        # becomes his old club's matches up to the move and his new club's after it - while a club he
+        # left three seasons ago stays out, which one pass over his whole career would not manage.
+        clubs: dict[str, str] = {}
+        for candidate in (squads.get(obs.fc_id), obs.club_target):
+            key, name = resolve(candidate)
+            if key:
+                clubs.setdefault(key, name)
+        recent = sorted(mine.values(), key=lambda entry: entry[2], reverse=True)
+        if recent and not clubs:
+            key, name = resolve(recent[0][0])
+            if key:
+                clubs[key] = name
+        window = build(clubs)
+        if window:
+            floor = min(item[0] for item in window)
+            for entry in mine.values():
+                if entry[2] >= floor:
+                    key, name = resolve(entry[0])
+                    if key:
+                        clubs.setdefault(key, name)
+            window = build(clubs)
+        if not window:
+            out[obs.fc_id] = {"source": f"no recent matches recorded for "
+                                        f"{', '.join(clubs.values()) or 'his club'}"}
+            continue
+
+        played = starts = minutes = measured = 0
+        ratings: list[float] = []
+        goals: dict[str, int] = {}
+        assists: dict[str, int] = {}
+        kinds: dict[str, int] = {}
+        for _date, match_id, competition, _key in window:
+            kind = competition_class(competition)
+            kinds[kind] = kinds.get(kind, 0) + 1
+            if str(match_id) in with_players:
+                measured += 1
+            entry = mine.get(str(match_id))
+            if not entry:
+                continue
+            _c, _comp, _d, match_minutes, started, rating, match_goals, match_assists = entry
+            played += 1
+            minutes += match_minutes
+            starts += 1 if started else 0
+            if rating is not None:
+                ratings.append(rating)
+            goals[kind] = goals.get(kind, 0) + match_goals
+            assists[kind] = assists.get(kind, 0) + match_assists
+        out[obs.fc_id] = {
+            "club_matches": len(window),
+            "measured": measured,
+            "played": played,
+            # bench or out of the squad - the layer cannot tell them apart - among the matches we DO
+            # have player rows for. The rest of the window is `club_matches - measured`: unknown.
+            "unused": measured - played,
+            "unknown": len(window) - measured,
+            "starts": starts,
             "minutes": minutes,
-            "minutes_per_match": round(minutes / len(sample), 1) if sample else None,
+            "minutes_per_club_match": round(minutes / measured, 1) if measured else None,
             "rating": round(sum(ratings) / len(ratings), 2) if ratings else None,
-            "goals": sum(g for _d, _m, _r, g, _a, _s in sample),
-            "assists": sum(a for _d, _m, _r, _g, a, _s in sample),
-            "starts": sum(1 for _d, _m, _r, _g, _a, s in sample if s),
-            "last_match": sample[0][0] if sample else None,
+            "goals_league": goals.get("league", 0),
+            "assists_league": assists.get("league", 0),
+            "goals_other": sum(count for kind, count in goals.items() if kind != "league"),
+            "assists_other": sum(count for kind, count in assists.items() if kind != "league"),
+            "competitions": " ".join(f"{kind}x{count}" for kind, count in
+                                     sorted(kinds.items(), key=lambda item: -item[1])),
+            # only a REAL transfer shows up here: the clubs are compared canonically, so the provider's
+            # 'FC Bayern München' and the listone's 'Bayern Monaco' are one club, not two
+            "clubs": "; ".join(sorted(clubs.values())) if len(clubs) > 1 else None,
+            "last_match": window[0][0] if window else None,
+            "source": "per-match layer",
         }
     return out
 
@@ -272,13 +612,56 @@ def propensity(conn, season: str) -> dict[int, dict]:
     return out
 
 
-def club_context(conn, data: features.WindowData, starters_date: str | None) -> list[dict]:
-    """One row per club of the target season: coach, formation, lines fielded, arrivals, Elo."""
+def lineup_spellings(conn, resolve) -> dict[str, list[str]]:
+    """canonical key -> every spelling `club_match_lineups` holds for that club.
+
+    Needed for the same reason the fixtures needed it: the lineup table is keyed by the PROVIDER's name
+    ('FC Barcelona'), and querying it with ours ('Barcellona') returned zero elevens for every club
+    outside Serie A - which is exactly the population whose formation nobody knows by heart.
+    """
+    out: dict[str, list[str]] = {}
+    for (club,) in conn.execute("SELECT DISTINCT club FROM club_match_lineups WHERE club IS NOT NULL"):
+        key, _name = resolve(club)
+        if key:
+            out.setdefault(key, []).append(club)
+    return out
+
+
+def typical_formation(conn, spellings: list[str], season: str
+                      ) -> tuple[str | None, float | None, int]:
+    """The club's MODAL formation over its complete elevens: (shape, share, elevens counted).
+
+    The mode, not the mean. A club that alternates 3-5-2 and 4-3-3 has a mean of 3.5 defenders, which is
+    not a formation anyone can field; its mode is one of the two, and the share says how settled it is -
+    97% of 38 elevens is Atalanta's habit, 63% is Arsenal choosing.
+    """
+    if not spellings:
+        return None, None, 0
+    placeholders = ",".join("?" * len(spellings))
+    rows = conn.execute(
+        f"""SELECT defenders, midfielders, forwards, COUNT(*) AS n FROM club_match_lineups
+            WHERE club IN ({placeholders}) AND season = ? AND starters = 11
+              AND goalkeepers + defenders + midfielders + forwards = 11
+            GROUP BY defenders, midfielders, forwards ORDER BY n DESC""",
+        (*spellings, season)).fetchall()
+    if not rows:
+        return None, None, 0
+    total = sum(row[3] for row in rows)
+    defenders, midfielders, forwards, count = rows[0]
+    return (f"{defenders}-{midfielders}-{forwards}", round(count / total, 2), total)
+
+
+def club_context(conn, data: features.WindowData, starters_date: str | None,
+                 clubs: list[str]) -> list[dict]:
+    """One row per club OF THE SHEET: coach, formation, lines fielded, arrivals, Elo.
+
+    The club list comes from the sheet's own rows, not from `rosters`: with no listone for the season
+    being auctioned there are no roster rows to enumerate, and the clubs are exactly the ones whose real
+    squads the sheet just described.
+    """
     window = data.window
-    clubs = [row[0] for row in conn.execute(
-        """SELECT DISTINCT c.canonical_name FROM rosters r JOIN clubs c USING(fc_club_id)
-           WHERE r.season = ? AND c.canonical_name IS NOT NULL ORDER BY c.canonical_name""",
-        (window.target_season,))]
+    resolve = club_index(conn)
+    spellings = lineup_spellings(conn, resolve)
     formations: dict[str, str] = {}
     if starters_date:
         formations = {team: formation for team, formation in conn.execute(
@@ -295,12 +678,15 @@ def club_context(conn, data: features.WindowData, starters_date: str | None) -> 
             """SELECT co.coach_name, co.valid_from FROM coaches co JOIN clubs c USING(fc_club_id)
                WHERE c.canonical_name = ? AND co.valid_from <= ?
                ORDER BY co.valid_from DESC LIMIT 1""", (club, window.auction_date)).fetchone()
+        mine = spellings.get(resolve(club)[0], [])
+        placeholders = ",".join("?" * len(mine)) or "NULL"
         lines = conn.execute(
-            """SELECT AVG(defenders), AVG(midfielders), AVG(forwards), COUNT(*)
-               FROM club_match_lineups
-               WHERE club = ? AND season = ? AND starters = 11
-                 AND goalkeepers + defenders + midfielders + forwards = 11""",
-            (club, window.input_season)).fetchone()
+            f"""SELECT AVG(defenders), AVG(midfielders), AVG(forwards), COUNT(*)
+                FROM club_match_lineups
+                WHERE club IN ({placeholders}) AND season = ? AND starters = 11
+                  AND goalkeepers + defenders + midfielders + forwards = 11""",
+            (*mine, window.input_season)).fetchone()
+        typical, share, counted = typical_formation(conn, mine, window.input_season)
         arrivals = conn.execute(
             """SELECT COUNT(*) FROM arrivals a JOIN rosters r
                ON r.fc_id = a.fc_id AND r.season = a.season
@@ -318,6 +704,13 @@ def club_context(conn, data: features.WindowData, starters_date: str | None) -> 
             "coach": coach[0] if coach else None,
             "coach_since": coach[1] if coach else None,
             "new_coach": "yes" if new_coach else "no",
+            # The MODULO TIPO: the shape this club actually lines up in most often, not the mean of its
+            # lines. The mean is an artefact - Arsenal's 4.0/3.74/2.26 rounds to 4-4-2, a formation they
+            # never played - while the mode is a formation that was on the pitch, and its share says how
+            # much of a habit it is.
+            "formation_typical": typical,
+            "formation_typical_share": share,
+            "formation_typical_of": counted,
             "formation_today": formations.get(club),
             "lines_fielded_D": round(lines[0], 2) if lines and lines[0] is not None else None,
             "lines_fielded_M": round(lines[1], 2) if lines and lines[1] is not None else None,
@@ -331,15 +724,28 @@ def club_context(conn, data: features.WindowData, starters_date: str | None) -> 
 
 # ---------------------------------------------------------------- the engine half
 def engine_predictions(conn, window: features.Window, platform: str, game: str,
-                       league) -> tuple[features.WindowData, list, str, list[str]]:
+                       league, squad_source: str = "real", prepared=None
+                       ) -> tuple[features.WindowData, list, str, list[str]]:
     """The validated valuation: ADOPTED rules, parameters fitted on a DIFFERENT window.
 
     Nothing here is new model code - it calls the same functions `backtest --auction` calls, which is
     what keeps the sheet and the gate from ever disagreeing.
     """
     notes: list[str] = []
-    data = features.prepare(conn, window, platform, game, league=league)
+    if prepared is None:
+        prepared = features.prepare(conn, window, platform, game, league=league,
+                                    squad_source=squad_source)
+    data = prepared
+    listone = sum(1 for obs in data.observations if obs.price_initial is not None)
+    if squad_source == "real" and listone < len(data.observations):
+        notes.append(f"{len(data.observations) - listone} of {len(data.observations)} players are in a "
+                     f"real squad but not in the {window.target_season} listone: no Qt.I exists for "
+                     f"them yet, so the engine prices them at the role anchor (R0c) and their "
+                     f"`price_initial` is empty by construction, not by omission")
     active = ("R0", *evaluate.ADOPTED.get(platform, ()))
+    # The FIT windows keep the listone population on purpose: they are the gate's own windows, and
+    # widening them would fit the coefficients on a different population than the one they were
+    # validated on. Only the window being PRICED reads the real squads.
     usable = tuple(key for key in features.WINDOWS
                    if evaluate._window_is_usable(
                        features.prepare(conn, features.WINDOWS[key], platform, game), platform))
@@ -371,8 +777,13 @@ PLAYER_COLUMNS: tuple[str, ...] = (
     "engine_fm_pred", "engine_pv_pred", "engine_value", "engine_surplus", "engine_role_rank",
     "engine_replacement_fm", "engine_anchor",
     # descriptive, NOT gated
-    "desc_form_rating", "desc_form_matches", "desc_form_minutes_per_match", "desc_form_goals",
-    "desc_form_assists", "desc_form_starts", "desc_form_last_match",
+    "desc_form_club_matches", "desc_form_measured", "desc_form_played", "desc_form_unused",
+    "desc_form_unknown", "desc_form_starts",
+    "desc_form_minutes", "desc_form_minutes_per_club_match", "desc_form_rating",
+    "desc_form_goals_league", "desc_form_assists_league",
+    "desc_form_goals_other", "desc_form_assists_other",
+    "desc_form_competitions", "desc_form_clubs", "desc_form_last_match", "desc_form_source",
+    "desc_squad_club", "desc_squad_source",
     "desc_starter_prob", "desc_starter_status", "desc_expected_minutes",
     "desc_duel_rivals", "desc_duel_names",
     "desc_injury_matches_missed", "desc_injury_weighted", "desc_injury_spells",
@@ -387,8 +798,24 @@ PLAYER_COLUMNS: tuple[str, ...] = (
 )
 
 
-def build_rows(conn, data: features.WindowData, predictions, layers: dict) -> list[dict]:
-    """One row per player of the target listone, engine columns first, descriptive after."""
+def perimeter_clubs(conn, platform: str, seasons: tuple[str, ...]) -> set[str]:
+    """The clubs THIS PLATFORM plays, from its own ratings: who you can actually buy from."""
+    placeholders = ",".join("?" * len(seasons)) or "NULL"
+    return {team for (team,) in conn.execute(
+        f"SELECT DISTINCT team FROM match_ratings WHERE platform = ? AND team IS NOT NULL "
+        f"AND season IN ({placeholders})", (platform, *seasons))}
+
+
+def build_rows(conn, data: features.WindowData, predictions, layers: dict,
+               perimeter: set[str] | None = None) -> list[dict]:
+    """One row per purchasable player, engine columns first, descriptive after.
+
+    `perimeter` filters the OUTPUT, never the model population. The engine's standardisations are
+    computed over the whole listone - that is the population its rules were fitted and validated on -
+    so trimming before predicting would quietly give a player a different number here than in the gate.
+    Trimming after keeps every figure identical and only stops the sheet from listing a Verona squad at
+    a EuroLeghe auction, where nobody can buy it.
+    """
     by_id = {p.obs.fc_id: p for p in predictions}
     ranks: dict[int, int] = {}
     for role in {obs.role_classic for obs in data.observations if obs.role_classic}:
@@ -400,6 +827,8 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict) -> li
 
     rows: list[dict] = []
     for obs in data.observations:
+        if perimeter is not None and (obs.club_target or "") not in perimeter:
+            continue
         prediction = by_id.get(obs.fc_id)
         form = layers["form"].get(obs.fc_id, {})
         injury = layers["injuries"].get(obs.fc_id, {})
@@ -422,16 +851,28 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict) -> li
             "engine_role_rank": ranks.get(obs.fc_id),
             "engine_replacement_fm": _round(data.replacement.get(obs.role_classic or ""), 3),
             "engine_anchor": _round(prediction.anchor if prediction else None, 3),
+            "desc_form_club_matches": form.get("club_matches"),
+            "desc_form_measured": form.get("measured"),
+            "desc_form_played": form.get("played"), "desc_form_unused": form.get("unused"),
+            "desc_form_unknown": form.get("unknown"),
+            "desc_form_starts": form.get("starts"), "desc_form_minutes": form.get("minutes"),
+            "desc_form_minutes_per_club_match": form.get("minutes_per_club_match"),
             "desc_form_rating": form.get("rating"),
-            "desc_form_matches": form.get("matches"),
-            "desc_form_minutes_per_match": form.get("minutes_per_match"),
-            "desc_form_goals": form.get("goals"), "desc_form_assists": form.get("assists"),
-            "desc_form_starts": form.get("starts"), "desc_form_last_match": form.get("last_match"),
+            "desc_form_goals_league": form.get("goals_league"),
+            "desc_form_assists_league": form.get("assists_league"),
+            "desc_form_goals_other": form.get("goals_other"),
+            "desc_form_assists_other": form.get("assists_other"),
+            "desc_form_competitions": form.get("competitions"),
+            "desc_form_clubs": form.get("clubs"), "desc_form_last_match": form.get("last_match"),
+            "desc_form_source": form.get("source"),
+            "desc_squad_club": layers["squads"].get(obs.fc_id),
+            "desc_squad_source": layers["squad_sources"].get(obs.fc_id),
             "desc_starter_prob": starter.get("probability"),
             "desc_starter_status": starter.get("status"),
-            "desc_expected_minutes": _round(
-                (obs.minutes_prev / obs.matches_prev * pv_pred)
-                if obs.minutes_prev and obs.matches_prev and pv_pred else None, 0),
+            # Expected minutes = minutes per CLUB match recently x the appearances the engine
+            # predicts. The recent share is what carries bench time; the season-long one is the
+            # fallback for a player whose club we have no recent matches for.
+            "desc_expected_minutes": _round(_expected_minutes(obs, form, pv_pred), 0),
             "desc_duel_rivals": duel.get("rivals"), "desc_duel_names": duel.get("names"),
             "desc_injury_matches_missed": injury.get("matches_missed"),
             "desc_injury_weighted": injury.get("weighted"),
@@ -458,6 +899,22 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict) -> li
         })
     rows.sort(key=lambda row: (row["role_classic"] or "Z", -(row["engine_surplus"] or -1e9)))
     return rows
+
+
+def _expected_minutes(obs, form: dict, pv_pred) -> float | None:
+    """Minutes per appearance x the appearances the engine predicts.
+
+    The recent share is preferred because it carries bench time - but only when he actually played in
+    the sample. A keeper who sat out his club's last ten has a recent share of zero, and answering
+    "0 minutes" for a man the engine expects to play twenty games is worse than answering with his
+    season-long share, which is what the fallback is for.
+    """
+    if not pv_pred:
+        return None
+    share = form.get("minutes_per_club_match") if form.get("played") else None
+    if share is None and obs.minutes_prev and obs.matches_prev:
+        share = obs.minutes_prev / obs.matches_prev
+    return share * pv_pred if share is not None else None
 
 
 def _round(value, digits=3):
@@ -523,15 +980,23 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
     print(f"[snapshot] {platform}/{game} · auctioning {window.target_season} from "
           f"{window.input_season} · as of {window.auction_date}")
 
+    # The real squads first: the row set of the sheet is who is in a club TODAY, listone or not.
+    derive_squads(ctx, window.auction_date)
+    data = features.prepare(conn, window, platform, game, league=ctx.config.load_league(),
+                            squad_source="real")
+    if not data.matchdays_target:
+        # Not a note only: appearances are predicted as a SHARE of the target calendar, and a calendar
+        # of zero rounds turns every prediction into zero. The season being auctioned has not been
+        # played, so its length is last season's until it exists.
+        data.matchdays_target = data.matchdays_prev
+        notes.append(f"{window.target_season} has no matchdays yet, so expected appearances are "
+                     f"scaled on {window.input_season}'s calendar ({data.matchdays_prev} rounds)")
     data, predictions, params_source, engine_notes = engine_predictions(
-        conn, window, platform, game, ctx.config.load_league())
+        conn, window, platform, game, ctx.config.load_league(), prepared=data)
     notes += engine_notes
     if not data.observations:
         raise RuntimeError(f"no players in the {window.target_season} listone for platform "
                            f"{platform} - nothing to snapshot")
-    if not data.matchdays_target:
-        notes.append(f"{window.target_season} has no matchdays yet, so expected appearances are "
-                     f"scaled on {window.input_season}'s calendar ({data.matchdays_prev} rounds)")
 
     seasons = [row[0] for row in conn.execute(
         "SELECT DISTINCT season FROM rosters WHERE season <= ? ORDER BY season",
@@ -541,8 +1006,10 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
         notes.append("no probabili snapshot at or before the auction date: the starter and duel "
                      "columns are empty. This history only accumulates from the day the weekly job "
                      "starts running - it cannot be backfilled.")
+    squads, squad_sources = squad_as_of(conn, window.auction_date)
     layers = {
-        "form": recent_form(conn, window.auction_date, f"{int(window.auction_date[:4]) - 1}-07-01"),
+        "form": club_form(conn, window.auction_date, data.observations, squads),
+        "squads": squads, "squad_sources": squad_sources,
         "injuries": injury_history(conn, window.auction_date, seasons),
         "starters": starters,
         "availability": availability_now(conn, window.auction_date),
@@ -553,8 +1020,20 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
     }
     layers["duels"] = duels(data.observations, starters)
 
-    rows = build_rows(conn, data, predictions, layers)
-    clubs = club_context(conn, data, starters_date)
+    perimeter = perimeter_clubs(conn, platform, (window.input_season, window.target_season))
+    if not perimeter:
+        # An unknown perimeter is not an empty one: filtering on nothing would blank the whole sheet.
+        notes.append(f"platform {platform} has no ratings for {window.input_season}/"
+                     f"{window.target_season}, so the perimeter is unknown and nothing was filtered")
+        perimeter = None
+    rows = build_rows(conn, data, predictions, layers, perimeter)
+    dropped = len(data.observations) - len(rows) if perimeter is not None else 0
+    if dropped:
+        notes.append(f"{dropped} players were left out of the sheet: their club is not one this "
+                     f"platform plays ({len(perimeter)} clubs are). They stay in the engine's "
+                     f"population, so every number here is the one the harness would give")
+    clubs = club_context(conn, data, starters_date,
+                         sorted({row["club"] for row in rows if row.get("club")}))
 
     stamp = dt.datetime.now(tz=dt.UTC).date().isoformat()
     folder = Path(out) if out else (ctx.config.data_dir / "reports" /
@@ -588,6 +1067,11 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
             "duel_margin": BALLOTTAGGIO_MARGIN,
             "injury_recency_weights": list(INJURY_WEIGHTS),
         },
+        "formation_note": ("The lines are counted in the PROVIDER's vocabulary, where a winger is a "
+                           "midfielder: a 4-3-3 with two wingers therefore reads 4-5-1. Measured "
+                           "translation, provider slot -> listone role: G->P 100%, D->D 97%, M->C 80%, "
+                           "F->A 80% (data/reports/role_crosstab.csv). Read the shape as who stands "
+                           "where, not as the coach's declared module."),
         "not_measurable": {
             "club_relationship": "no source in the whitelist states it. The proxies actually measured "
                                  "are desc_contract_until, desc_exit_risk, desc_arrival*, "
