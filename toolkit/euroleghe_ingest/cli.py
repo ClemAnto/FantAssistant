@@ -99,6 +99,18 @@ def build_parser() -> argparse.ArgumentParser:
     p_export.add_argument("--no-verify", dest="verify", action="store_false",
                           help="skip the integrity check on the written bundle (not advisable)")
 
+    # Today's auction snapshot: the sheet an initial auction is prepared from.
+    p_snap = sub.add_parser("snapshot", help=load("snapshot").DESCRIPTION)
+    p_snap.add_argument("--platform", choices=["euro", "default"], default="euro",
+                        help="euro = EuroLeghe, default = classic Serie A (default: euro)")
+    p_snap.add_argument("--game", choices=["classic", "mantra"], default="classic",
+                        help="role system the sheet is ranked in (default: classic)")
+    p_snap.add_argument("--season", metavar="YYYY-YY",
+                        help="the season being auctioned (default: the latest listone)")
+    p_snap.add_argument("--out", metavar="DIR", help="destination folder (default: data/reports/...)")
+    p_snap.add_argument("--no-refresh", dest="refresh", action="store_false",
+                        help="do not fetch today's probabili/indisponibili first (offline run)")
+
     # One subcommand per pipeline module (single run).
     for name in PIPELINE:
         module = load(name)
@@ -220,6 +232,9 @@ def main(argv: list[str] | None = None) -> int:
                                    else ("sqlite", "json"),
                                    history=args.history, compress=args.compress,
                                    verify=args.verify)
+            elif args.command == "snapshot":
+                load("snapshot").run(ctx, season=args.season, platform=args.platform,
+                                     game=args.game, refresh=args.refresh, out=args.out)
             elif args.command == "backtest":
                 load("backtest").run(ctx, windows=args.window, platforms=args.platform,
                                      games=args.game, rules=args.rules, cases=args.cases,

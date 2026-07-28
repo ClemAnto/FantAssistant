@@ -66,7 +66,7 @@ OPERATION_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
       "arrivals", "recent_form", "fbref")),
     ("During the season - every matchday",
      ("ratings", "matchdays", "positions", "synth", "fc_site", "validate")),
-    ("Before an auction", ("export",)),
+    ("Before an auction", ("snapshot", "export")),
 )
 
 # Labels for the operations that are not pipeline modules (those just use their own name).
@@ -76,6 +76,7 @@ OPERATION_LABELS: dict[str, str] = {
     "bootstrap": "Bootstrap (from zero)",
     "fetch:plan": "What is missing?",
     "export": "Export app bundle",
+    "snapshot": "Auction snapshot (today)",
 }
 
 
@@ -137,6 +138,15 @@ TOOLTIPS: dict[str, str] = {
                  "nothing: listone + votes, the provider facts, transfers, Elo, injuries. About 17 "
                  "hours, fully resumable - `bootstrap --plan` prints the order and the cost first. "
                  "Needs the fantacalcio.it credentials in .env.",
+    "snapshot": "TODAY'S AUCTION SHEET. Refreshes the probabili/indisponibili (a state that only "
+                "exists now and cannot be backfilled), then writes one row per player and one per "
+                "club under data/reports/. Two column families, and the header says which is which: "
+                "`engine_*` is the valuation the gate validated (predicted fantamedia, appearances, "
+                "VALUE, SURPLUS); `desc_*` is DESCRIPTIVE and NOT gated - form over the last 10 "
+                "matches, injury propensity, expected minutes, starting duels, bonus and penalty "
+                "duty, discipline, contract situation. What no source states (the player's "
+                "relationship with the club, the coach's ideas, set-piece duty beyond penalties) is "
+                "listed as not measurable instead of being invented.",
     "export": "Write the app's data bundle (data/export/<season>/): a pruned SQLite + JSON tables + "
               "a manifest carrying provenance, which prices are auction-safe, the provisional "
               "parameters and the known gaps. Read-only on the DB, and it verifies what it wrote.",
@@ -215,6 +225,12 @@ def operation_state(command: str, counts: dict[str, int] | None, has_sources: bo
         if not has_db or rows("rosters") == 0:
             return "unavailable"
         return "completed" if rows("_export_bundle") else "todo"
+    if command == "snapshot":
+        # A snapshot is about TODAY, so yesterday's does not count as done: it goes back to "to do"
+        # every day, which is the honest state for a sheet whose whole value is being current.
+        if not has_db or rows("rosters") == 0:
+            return "unavailable"
+        return "completed" if rows("_snapshot_today") else "todo"
     if command not in IMPLEMENTED:
         return "unavailable"
     if command == "validate":
@@ -1555,8 +1571,19 @@ class ToolkitGUI:
         self.buttons: list[ttk.Button] = []
         self.dots: list[tk.Label] = []
         self.op_commands: list[str] = []
-        for group, commands in OPERATION_GROUPS:
-            card = ttk.Frame(left, style="Card.TFrame", padding=(10, 8))
+        # TWO columns, balanced by row count. With four cadence groups and twenty-one operations one
+        # column no longer fits the window, and an operator panel whose buttons are below the fold is
+        # a panel that hides half of what it can do. Balanced rather than 2+2 so the columns end level.
+        columns = (ttk.Frame(left), ttk.Frame(left))
+        columns[0].pack(side="left", fill="y", padx=(0, 8))
+        columns[1].pack(side="left", fill="y")
+        rows_per_group = [1 + len(commands) for _group, commands in OPERATION_GROUPS]
+        half = sum(rows_per_group) / 2
+        running = 0
+        for index, (group, commands) in enumerate(OPERATION_GROUPS):
+            side = 0 if running < half else 1
+            running += rows_per_group[index]
+            card = ttk.Frame(columns[side], style="Card.TFrame", padding=(10, 8))
             card.pack(fill="x", pady=(0, 8))
             head = ttk.Frame(card, style="Card.TFrame")
             head.pack(fill="x", pady=(0, 4))
@@ -1576,7 +1603,7 @@ class ToolkitGUI:
                 self.dots.append(dot)
                 self.op_commands.append(command)
 
-        legend = ttk.Frame(left)
+        legend = ttk.Frame(columns[1])
         legend.pack(anchor="w", pady=(2, 0))
         self._legend_dots: list[tuple[tk.Label, str]] = []
         for state in ("completed", "todo", "unavailable"):
@@ -1668,6 +1695,9 @@ class ToolkitGUI:
             # `operation_state` stays a pure function of one dict.
             export_dir = self.config.data_dir / "export"
             counts["_export_bundle"] = len(list(export_dir.glob("*/manifest.json")))                 if export_dir.exists() else 0
+            today = dt.datetime.now(tz=dt.UTC).date().isoformat()
+            reports = self.config.data_dir / "reports"
+            counts["_snapshot_today"] = len(list(reports.glob(f"auction-snapshot-*-{today}/manifest.json")))                 if reports.exists() else 0
             return counts
         except Exception:  # noqa: BLE001 - a broken DB just means "no counts"
             return None
@@ -1929,10 +1959,67 @@ class ToolkitGUI:
         dlg.wait_window()
         return out or None
 
+    def _snapshot_dialog(self) -> dict | None:
+        """Platform / game / season for today's auction sheet, and whether to refresh first.
+
+        The two selectors are the question the sheet cannot answer for you: a Mantra auction is bought
+        with different roles and a different currency than a Classic one, and euro and default are
+        different competitions with different calendars.
+        """
+        from euroleghe_ingest.config import SEASONS
+
+        dlg = tk.Toplevel(self.root)
+        dlg.title("Auction snapshot")
+        dlg.transient(self.root)
+        dlg.grab_set()
+        dlg.resizable(False, False)
+        frm = ttk.Frame(dlg, padding=12)
+        frm.pack(fill="both", expand=True)
+
+        ttk.Label(frm, text="Platform:").grid(row=0, column=0, sticky="w", pady=4)
+        platform = tk.StringVar(value="euro")
+        ttk.Combobox(frm, textvariable=platform, state="readonly", width=22,
+                     values=["euro", "default"]).grid(row=0, column=1, pady=4)
+        ttk.Label(frm, text="Game:").grid(row=1, column=0, sticky="w", pady=4)
+        game = tk.StringVar(value="classic")
+        ttk.Combobox(frm, textvariable=game, state="readonly", width=22,
+                     values=["classic", "mantra"]).grid(row=1, column=1, pady=4)
+        ttk.Label(frm, text="Season:").grid(row=2, column=0, sticky="w", pady=4)
+        season = tk.StringVar(value="latest")
+        ttk.Combobox(frm, textvariable=season, state="readonly", width=22,
+                     values=["latest", *SEASONS]).grid(row=2, column=1, pady=4)
+        refresh = tk.BooleanVar(value=True)
+        ttk.Checkbutton(frm, text="Refresh today's probabili / indisponibili first (3 requests)",
+                        variable=refresh).grid(row=3, column=0, columnspan=2, sticky="w", pady=4)
+
+        ttk.Label(frm, foreground=theme.color("text_muted"), wraplength=360, justify="left",
+                  text="Writes players.csv + clubs.csv + manifest.json under data/reports/. The "
+                       "`engine_*` columns are the gated valuation; every `desc_*` column is "
+                       "descriptive and must not become a coefficient without a pre-registered gate "
+                       "run. Whatever no source states is reported as not measurable."
+                  ).grid(row=4, column=0, columnspan=2, sticky="w", pady=(6, 0))
+
+        out: dict = {}
+
+        def confirm():
+            out["platform"] = platform.get()
+            out["game"] = game.get()
+            out["season"] = None if season.get() == "latest" else season.get()
+            out["refresh"] = refresh.get()
+            dlg.destroy()
+
+        btns = ttk.Frame(frm)
+        btns.grid(row=5, column=0, columnspan=2, pady=(10, 0))
+        ttk.Button(btns, text="Run", style="Accent.TButton", command=confirm).pack(side="left", padx=4)
+        ttk.Button(btns, text="Cancel", command=dlg.destroy).pack(side="left", padx=4)
+        dlg.wait_window()
+        return out or None
+
     # Operations that ask for options before running: command -> dialog method name.
     DIALOGS: ClassVar[dict[str, str]] = {"ratings": "_ratings_dialog",
                                          "positions": "_positions_dialog",
-                                         "injuries": "_injuries_dialog"}
+                                         "injuries": "_injuries_dialog",
+                                         "snapshot": "_snapshot_dialog"}
 
     @staticmethod
     def _follow_ups(command: str, params: dict) -> tuple[str, ...]:

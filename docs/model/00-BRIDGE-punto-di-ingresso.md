@@ -26,7 +26,27 @@ proporre qualsiasi regola) → **`metrica-asta-surplus-v1.md`** (con cosa il pan
 
 Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
 
-### ULTIMO IN ORDINE DI TEMPO — il TOOLKIT è completo, esporta, si ricostruisce da zero, e ha una UI nuova
+### ULTIMO IN ORDINE DI TEMPO — lo SNAPSHOT D'ASTA: un tasto, e il foglio da cui si prepara un'asta
+
+`snapshot` (comando + tasto «Auction snapshot (today)» nel pannello): scelti **piattaforma** e **game**,
+aggiorna le probabili/indisponibili di oggi e scrive un foglio per giocatore e uno per club —
+**1453 giocatori, 46 club** al primo giro. Spec «Novità v9.5».
+
+**La cosa importante è come è diviso il foglio**, e si vede nell'header: `engine_*` è la valutazione che
+**ha passato il gate** (FM prevista, presenze, VALORE, SURPLUS, rank di ruolo), prodotta **chiamando
+`engine/`** col set adottato e parametri fittati su un'altra finestra; `desc_*` è **descrittivo e NON
+gatato** — forma sulle ultime 10, minutaggio presunto, ballottaggi, propensione infortuni, rigorista,
+propensione ai bonus, correttezza, contratto/exit risk. **Nessuna colonna `desc_` può diventare un
+coefficiente senza gate pre-registrato**: sei famiglie di ipotesi sulla FM sono già morte così.
+
+E quello che le fonti non dicono è **dichiarato**: «rapporto con la società» non è misurabile (esistono
+i proxy: contratto, exit risk, cifra, anni al club), i piazzati oltre i rigori non sono attribuibili
+(`assists_set_piece` è NULL alla fonte), le «idee dell'allenatore» non sono scritte da nessuna parte —
+misurati chi è, da quando, se è nuovo, il modulo di oggi e le linee realmente schierate. La data d'asta
+è `min(15 agosto della stagione, oggi)`, così una prova a vuoto non legge il futuro; e se i parametri
+sono fittati sulla stagione bersaglio il manifest scrive **DRY RUN**.
+
+### il TOOLKIT è completo, esporta, si ricostruisce da zero, e ha una UI nuova
 
 Quattro richieste dell'utente in una sessione (28/07 sera-notte). Dettaglio tecnico:
 `spec-euroleghe-ingest-v9.md` «**Novità v9.4**» e `toolkit/README.md` (che ora è anche la guida

@@ -32,7 +32,8 @@ PIPELINE: tuple[str, ...] = (
 # Modules callable individually from the CLI but outside the rebuild.
 # `backtest` and `export` are read-only (one scores the model, the other writes the app's bundle);
 # neither produces an ingest table, hence neither is in PIPELINE.
-STANDALONE: tuple[str, ...] = ("fetch", "rebuild", "bootstrap", "backtest", "export")
+STANDALONE: tuple[str, ...] = ("fetch", "rebuild", "bootstrap", "backtest", "export",
+                              "snapshot")
 
 ALL_MODULES: tuple[str, ...] = STANDALONE + PIPELINE
 

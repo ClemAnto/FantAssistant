@@ -78,6 +78,7 @@ OPERATION_ICONS: dict[str, str] = {
     "bootstrap": "⏻",
     "fetch:plan": "☰",
     "export": "⇪",
+    "snapshot": "◎",
     "rosters": "☰",
     "stats": "∑",
     "ratings": "★",
@@ -92,7 +93,9 @@ OPERATION_ICONS: dict[str, str] = {
     "arrivals": "→",
     "tournaments": "♛",
     "elo": "▲",
-    "validate": "✓",
+    # NOT a tick: the state dot to its left already uses one, and two ticks on the same row read
+    # as "done, done" instead of "the integrity check, to run".
+    "validate": "≟",
 }
 DEFAULT_ICON = "•"
 

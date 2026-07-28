@@ -124,6 +124,7 @@ python -m euroleghe_ingest fc_site                       # today's probabili/ind
 python -m euroleghe_ingest matchdays                     # euro <-> real calendar map (+ cross-check)
 python -m euroleghe_ingest synth                         # calibrate rating -> Mv, fill mv_synth
 
+python -m euroleghe_ingest snapshot --platform euro --game mantra   # today's auction sheet
 python -m euroleghe_ingest export                        # the app's data bundle + manifest
 python -m euroleghe_ingest backtest --gate               # the out-of-sample gate harness (read-only)
 ```
@@ -140,6 +141,33 @@ pwsh ../scripts/weekly-snapshot.ps1 -Register     # Friday 12:00, current user, 
 The probabili-formazioni page shows only "now" and has no archive, so a week nobody snapshotted is
 gone for good - which is why the gate reports `starter_prob` as 0/1453 on past windows. R7 is
 pre-registered in its weekly-snapshot form and can only be tested once enough weeks exist.
+
+## The auction sheet (`snapshot`)
+
+```bash
+python -m euroleghe_ingest snapshot --platform euro --game mantra
+python -m euroleghe_ingest snapshot --platform default --game classic --no-refresh
+```
+
+Run it on the day you prepare an auction. It refreshes the probabili/indisponibili (a state that only
+exists *now*), then writes `data/reports/auction-snapshot-<season>-<platform>-<game>-<date>/` with
+`players.csv`, `clubs.csv` and `manifest.json`.
+
+The header splits the sheet in two, on purpose:
+
+- **`engine_*`** - the valuation the gate validated: predicted fantamedia, expected appearances, VALUE,
+  SURPLUS, the role's replacement level, rank in role. Produced by calling `engine/` with the ADOPTED
+  rule set and parameters fitted on a window that is not the season being priced.
+- **`desc_*`** - DESCRIPTIVE and **not gated**: form over the last 10 matches, expected minutes,
+  starting duels, injury propensity (matches missed, recency-weighted), penalty duty, bonus propensity
+  per 90, cards per appearance, contract situation. For the human reading the sheet. Turning any of it
+  into a coefficient needs a pre-registered gate run.
+
+What no source states is reported as not measurable rather than invented: the player's relationship
+with the club (only proxies exist), set-piece duty beyond penalties (`assists_set_piece` is NULL at the
+source), the coach's ideas (what is measured is who he is, since when, whether he is new, today's
+formation and the lines the club actually fielded). The auction date is `min(the season's 15 August,
+today)`, so a dry run on a finished season cannot read the future it pretends not to know.
 
 ## The app's bundle (`export`)
 

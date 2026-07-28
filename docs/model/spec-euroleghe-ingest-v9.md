@@ -283,6 +283,53 @@ vuote in chiaro, **log colorato per severità** con copy/clear, status bar con l
 Non tematizzati **di proposito**: pillole ruolo e celle-stato dei fantavoti — sono codifiche di dato,
 devono significare la stessa cosa nei due temi.
 
+## Novità v9.5 (28 luglio 2026, notte — lo SNAPSHOT D'ASTA, richiesta dell'utente)
+
+Un tasto e un comando: `snapshot` prepara, **alla data di oggi**, tutto quello che serve per costruire
+il piano d'azione di un'asta iniziale. Dopo aver scelto **piattaforma** (euro|default) e **game**
+(classic|mantra), scrive `data/reports/auction-snapshot-{stagione}-{piattaforma}-{game}-{data}/` con
+`players.csv`, `clubs.csv` e `manifest.json`. Misurato al primo giro: **1453 giocatori, 46 club**.
+
+### La regola che questo modulo rispetta, ed è visibile nell'header del CSV
+
+- **`engine_*`** = la valutazione che **ha passato il gate**: FM prevista, presenze attese, VALORE,
+  **SURPLUS**, livello di sostituzione del ruolo, rank nel ruolo. Prodotta **chiamando `engine/`** —
+  mai riscritta qui — col set ADOTTATO della piattaforma e i parametri fittati su una finestra che non
+  è quella che si sta prezzando. È ciò che impedisce al foglio e al gate di divergere.
+- **`desc_*`** = colonne **DESCRITTIVE e NON gatate**, calcolate qui per l'umano che legge il foglio:
+  forma sulle ultime 10 partite (rating, minuti/partita, gol, assist, titolarità), probabilità di
+  titolarità dall'ultimo snapshot probabili, **minutaggio presunto**, **ballottaggi** (stesso club,
+  stesso ruolo, probabilità entro 0.25), **propensione infortuni** (partite perse pesate per recenza
+  1.0/0.6/0.35), infortunio aperto, disponibilità odierna, propensione ai bonus (gol/assist/xG/xA per
+  90 sulla stagione reale piena), **rigorista** (gerarchia rivelata: rango + confidenza), correttezza
+  (cartellini per presenza), contratto/exit risk/arrivo/cifra/anni al club/nuovo allenatore.
+  ⚠️ **Nessuna di queste può diventare un coefficiente senza una corsa di gate pre-registrata**: sei
+  famiglie di ipotesi sulla fantamedia sono già morte così.
+- Per club: allenatore e da quando, flag nuovo allenatore, **modulo** dall'ultimo snapshot probabili,
+  **linee realmente schierate** (media D/C/A per undici completo, con il numero di undici), arrivi, Elo.
+
+### Quello che le fonti NON dicono, dichiarato invece di essere inventato
+
+- **«rapporto con la società»**: nessuna fonte della whitelist lo afferma. Quello che è misurabile sono
+  i *proxy* (`contract_until`, `exit_risk`, arrivo/tier/cifra, anni al club, nuovo allenatore).
+- **piazzati oltre i rigori**: l'API dei voti non riempie mai `assists_set_piece`, quindi corner e
+  punizioni non sono attribuibili. I rigori sì, e dalla gerarchia **rivelata** dai nostri voti.
+- **«idee dell'allenatore»**: nemmeno quelle sono scritte da nessuna parte. Misurato: chi è, da quando,
+  se è nuovo, il modulo di oggi e quante maglie per linea il club ha davvero schierato.
+
+### Due date che rendono onesta una prova a vuoto
+
+La data d'asta è **`min(15 agosto della stagione bersaglio, oggi)`**: per la stagione che si sta
+comprando è oggi (quindi contano le probabili e gli infortuni di oggi); per una stagione **già giocata**
+è il suo 15 agosto, così una prova a vuoto non può leggere il futuro che finge di non sapere. E se la
+stagione bersaglio è la stessa su cui sono fittati i parametri, il manifest lo dice: **DRY RUN, non una
+affermazione fuori campione**.
+
+Colonne sottili sono elencate a fine corsa (`<20% riempite`), e il manifest porta la copertura di
+**ogni** colonna: un foglio dove «titolarità» è vuota per tutti va saputo prima di decidere, non dopo.
+Al primo giro sono vuote titolarità e ballottaggi — le probabili sono uno stato di **oggi** e la loro
+storia parte dal giorno in cui il job settimanale ha iniziato a girare.
+
 ## Principi
 1. File grezzi (Drive/cache) = fonte di verità; DB **sempre ricostruibile da zero** (`rebuild` idempotente).
 2. Il prediction-engine legge solo dai dati normalizzati.

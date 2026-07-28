@@ -76,6 +76,15 @@ arrivo_intra_lega · regola U22 · Bundesliga+ · beta attacco alto/difesa bassa
 beta per gruppo di ruolo · baseline multi-stagione 62/38 · ancore per lega · **FAMIGLIA FORZA-CLUB: CHIUSA il 28/07/2026** (forza-club interna statica · Elo additivo movimento · R5 · R5b) — riapribile solo con una misura *prospettica*, non con nuove finestre: `gate-motore-v1.md` §5-nonies ·
 **AFFOLLAMENTO DEL REPARTO: cinque forme, cinque no** (R11 arrivi nello stesso ruolo · R11b · R16 con la propria quota · R16b con quella dei compagni · **R17 con i posti realmente schierati**, 28/07 notte). Il coefficiente esce col segno dell'ipotesi e stabile — il meccanismo esiste **dentro** la stagione e **non si trasferisce**. Sul lato d'asta la stessa idea è stata misurata come valuta di ordinamento e nasce spenta: `metrica-asta-surplus-v1.md` §11
 
+- [x] **v9.5 (28/07 notte) — SNAPSHOT D'ASTA** (richiesta dell'utente): `snapshot` + tasto nel
+  pannello. Scelti piattaforma e game, aggiorna le probabili di oggi e scrive un foglio per giocatore
+  (1453) e uno per club (46). Header diviso: **`engine_*` gatato** (FM, presenze, VALORE, SURPLUS, rank)
+  chiamando `engine/`, **`desc_*` descrittivo e NON gatato** (forma ultime 10, minutaggio presunto,
+  ballottaggi, propensione infortuni, rigorista, bonus per 90, correttezza, contratto/exit risk).
+  Dichiarato non misurabile: rapporto con la società (solo proxy), piazzati oltre i rigori, idee
+  dell'allenatore. Data d'asta `min(15 agosto, oggi)`; se i parametri vengono dalla stagione bersaglio
+  il manifest scrive **DRY RUN**.
+
 ## Percorso critico (aggiornato 28/07 notte)
 La parte dati e' fatta **e ora è anche esportabile e ricostruibile da zero** (v9.4): il toolkit non è
 più sul percorso critico. Il percorso ora e': **modalità LIVE del motore (una lista sola, non due) ->
