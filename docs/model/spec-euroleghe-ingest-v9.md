@@ -206,6 +206,26 @@ stessa ambiguità già accettata per gli attaccanti. Era il prerequisito dichiar
   perché un modulo che si loggasse da solo perderebbe i run morti prima del log, che sono quelli che
   interessano.
 
+### 3-bis. Cinque club del perimetro non combaciavano con Transfermarkt (trovato misurando la copertura)
+
+`club_xref` aveva **46** club e la camminata infortuni copriva il **55%** del perimetro 2025-26, con
+squadre intere assenti: **Fiorentina, Genoa, Lilla, Rennes, Betis**. Causa: la tabella di competizione
+scrive il nome **ufficiale** («ACF Fiorentina», «LOSC Lilla», «Real Betis Balompié», «Stade Rennes FC»)
+e un listone mai, e `resolve_clubs` faceva una lookup secca.
+
+`matching.match_club` applica ora la stessa disciplina del matcher giocatori — passi ordinati, e **un
+passo vale solo se la risposta è unica**: chiave esatta → parole di forma societaria rimosse da
+**entrambi** i lati → fuzzy 0.88. Effetto: `club_xref` **46 → 51**, spell allenatori 2273 → **2316**,
+trasferimenti 1919 → **3038**. Serie A ora 20/20.
+
+⚠️ **Un passo per sottoinsieme di parole è stato scritto, misurato e CANCELLATO**: produceva due club
+sbagliati — «Paris FC» → Paris Saint-Germain (club diverso, stessa città) e «RCD Espanyol Barcellona» →
+Barcellona. Nessuno dei due è catturabile dall'unicità: nel perimetro non esistono né Paris FC né
+Espanyol, e **un pool a cui manca la risposta giusta non si salva col tie-break, solo rifiutando di
+tirare a indovinare**. Entrambi sono test negativi. Il **limite** del passo sopravvissuto è asserito,
+non nascosto: un nome di sola città si attacca al club che si riduce a quella città («Madrid» → Real
+Madrid), che è la stessa regola che fa trovare «Betis».
+
 ### 4. `export` (nuovo): il bundle dell'app
 
 `export` scrive `data/export/<stagione>/`: `bundle.sqlite` (copia potata, **stesso schema**),

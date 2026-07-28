@@ -64,6 +64,13 @@ regola.** Sono dati, strumenti e infrastruttura.
    non è più uno stub (`--plan` = «cosa manca qui», `--inbox` = l'unico passo manuale, opzionale).
    Aggiunti `.env.example` (era citato e non esisteva) e `config.SEASONS` come fonte unica.
    **`ingest_runs` finalmente si scrive**: una riga per run, dalla CLI, dal rebuild e dalla GUI.
+4-bis. **Cinque club del perimetro non combaciavano con Transfermarkt** — trovato misurando la
+   copertura degli infortuni (55% del perimetro, squadre intere assenti). La tabella di competizione
+   scrive il nome ufficiale («ACF Fiorentina», «LOSC Lilla», «Real Betis Balompié») e un listone mai.
+   `match_club` ora fa passi ordinati con unicità obbligatoria: **club_xref 46 → 51**, spell allenatori
+   2273 → 2316, **trasferimenti 1919 → 3038**. ⚠️ Un passo per sottoinsieme di parole è stato scritto,
+   misurato e **cancellato**: dava «Paris FC» → PSG e «Espanyol» → Barcellona. Lezione registrata: un
+   pool a cui manca la risposta giusta non si salva col tie-break, solo rifiutando di indovinare.
 5. **UI rifatta** (`ui_theme.py`): palette semantica light/**dark** con toggle ricordato, icone per
    operazione, card per cadenza, striscia di metriche, log colorato per severità, status bar con
    l'ultimo run. Aggiunti i pulsanti che mancavano: **Bootstrap**, **What is missing?**, **Export**.
