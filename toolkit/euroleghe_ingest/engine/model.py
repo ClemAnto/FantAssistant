@@ -404,6 +404,41 @@ def off_role_adjustment(listed: str | None, derived: str | None,
     return 0.0
 
 
+def goal_budget(club_goals: float | None, attack_share: float | None) -> float | None:
+    """R16: how many of his club's goals are plausibly HIS - the budget times his claim on it.
+
+    The engine regresses every forward to the same role anchor, so two forwards of the same mid-table
+    side are both priced as though the whole attack were theirs. Fiorentina scored 57 in 2024-25, sixth
+    in Serie A; Kean came out 1st among the forwards and Piccoli 4th, and between them (with Solomon)
+    they scored 12. Multiplying the club's goal level by his share of its attacking production is the
+    smallest quantity that cannot say that: a share is at most 1, and two team-mates cannot both hold it.
+    """
+    if club_goals is None or attack_share is None:
+        return None
+    return club_goals * attack_share
+
+
+def attack_rivals(club_goals: float | None, attack_share: float | None) -> float | None:
+    """R16b: the part of his club's goal budget his TEAM-MATES claim - budget x (1 - his share).
+
+    R16 measured budget x HIS OWN share and did nothing (3/10 windows, mean -1.2%), and in hindsight it
+    could not: his own share of last season's goals is already inside his own fantamedia, so the
+    regressor re-states what the baseline has and the fit finds nothing left to explain. What the
+    baseline cannot know is how much the OTHERS are going to take, which is the crowding hypothesis
+    stated properly. Expected sign is negative.
+    """
+    if club_goals is None or attack_share is None:
+        return None
+    return club_goals * (1.0 - attack_share)
+
+
+def goal_budget_adjustment(volume_z: float | None, lam: float) -> float:
+    """The fitted correction. Standardised inside the role, so it is "for a forward", not "in general"."""
+    if volume_z is None:
+        return 0.0
+    return lam * volume_z
+
+
 def age_adjustment(age: int | None, slope: float, knee: int = AGE_KNEE) -> float:
     """R4: linear decline past the knee, nothing before it. Missing age -> no adjustment.
 

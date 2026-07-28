@@ -7,6 +7,67 @@ and the date cutoff (a backtest must not see matches played after the auction).
 
 from __future__ import annotations
 
+import sqlite3
+
+
+def test_unfetched_bonuses_are_missing_not_zero(tmp_path):
+    """Lauriente' reached the engine as "0 goals, 0 assists in 715 minutes". He was a Serie B top
+    scorer: the bonuses cost one request per match, his were never fetched, and SUM(COALESCE(goals,0))
+    turned "not measured" into "measured nothing" - a fabricated observation, which is worse than a
+    missing one because a fit will happily learn from it. 111 of the 123 players in this population had
+    it. Now the totals are None unless something carries them, and `bonus_matches` says how much does."""
+    from euroleghe_ingest.db.database import init_db
+    from euroleghe_ingest.engine import features
+
+    conn = init_db(tmp_path / "euroleghe.db")
+    conn.execute("INSERT INTO players(fc_id, canonical_name) VALUES (1, 'Unfetched')")
+    conn.execute("INSERT INTO players(fc_id, canonical_name) VALUES (2, 'Fetched')")
+    rows = [(1, i, None, None) for i in range(1, 4)] + [(2, i, 1, 0) for i in range(1, 4)]
+    conn.executemany(
+        "INSERT INTO external_match_stats(fc_id, season, source, match_id, match_date, minutes, "
+        "goals, assists) VALUES (?, '2024-25', 'sofascore_recent', ?, ?, 90, ?, ?)",
+        [(fc_id, f"{fc_id}-{i}", f"2025-03-0{i}", goals, assists)
+         for fc_id, i, goals, assists in rows])
+    conn.commit()
+
+    window = features.Window("TEST", "2024-25", "2025-26", "2025-08-15")
+    sample = features._recent_form(conn, window)
+    assert sample[1]["goals"] is None and sample[1]["assists"] is None
+    assert sample[1]["bonus_matches"] == 0
+    assert sample[1]["matches"] == 3          # the appearances themselves are real and stay
+    assert sample[2]["goals"] == 3 and sample[2]["bonus_matches"] == 3
+    # a genuine zero must still read as a zero: that is the case the None must not swallow
+    conn.execute("UPDATE external_match_stats SET goals = 0, assists = 0 WHERE fc_id = 2")
+    conn.commit()
+    reread = features._recent_form(conn, window)
+    assert reread[2]["goals"] == 0 and reread[2]["bonus_matches"] == 3
+
+
+def test_resume_does_not_lock_in_a_player_whose_bonuses_were_skipped(tmp_path):
+    """The other half of the same bug: the resume check counted MATCHES, so a player stored by a
+    --no-bonuses run looked covered forever and could never be completed."""
+    from euroleghe_ingest.db.database import init_db
+    from euroleghe_ingest.modules import recent_form
+
+    conn = init_db(tmp_path / "euroleghe.db")
+    conn.execute("INSERT INTO players(fc_id, canonical_name) VALUES (1, 'Half stored')")
+    conn.executemany(
+        "INSERT INTO external_match_stats(fc_id, season, source, match_id, match_date, minutes) "
+        "VALUES (1, '2024-25', 'sofascore_recent', ?, ?, 90)",
+        [(f"m{i}", f"2025-03-{i:02d}") for i in range(1, 11)])
+    conn.commit()
+
+    def already(*, bonuses: bool) -> int:
+        clause = "AND goals IS NOT NULL" if bonuses else ""
+        return conn.execute(
+            f"SELECT COUNT(*) FROM external_match_stats WHERE fc_id = 1 AND source = ? "
+            f"AND match_date >= ? AND match_date < ? {clause}",
+            (recent_form.SOURCE, "2024-07-01", "2025-08-15")).fetchone()[0]
+
+    assert already(bonuses=False) == 10       # matches are there, so a bonus-free run is done
+    assert already(bonuses=True) == 0         # ... and a bonus run still has everything to do
+    assert isinstance(conn, sqlite3.Connection)
+
 import csv
 import time
 

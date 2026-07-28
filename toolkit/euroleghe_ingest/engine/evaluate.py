@@ -89,12 +89,24 @@ RULES: tuple[Rule, ...] = (
     Rule("R14b", "inactivity: what a spell out of 45+ days costs in FANTAMEDIA", True),
     Rule("R11b", "crowded position: 2+ same-role arrivals as a threshold, not a slope", True,
          metric="pv"),
+    # R15 is NOT R14 with another name. R14 measures how LONG he was out; this measures whether his
+    # availability had any STRUCTURE - the same Pv can be nineteen matches in a row (a settled starter
+    # who got hurt) or nineteen scattered over the season (a rotation player), and the two should not
+    # forecast alike. Share-replacing, because it is the B0 regression with one more regressor rather
+    # than a correction bolted on top. Sign is genuinely open, which is why it is worth a gate slot.
+    Rule("R15", "availability persistence inside expected appearances", True, metric="pv"),
+    # R16: a club's goals are a budget and its attackers share it. Adjacent to R11/R11b, which count
+    # ARRIVALS in the same role - this counts the goals actually on offer, which is what the Kean /
+    # Piccoli case is about: R11b would have fired on Piccoli as an arrival and said nothing about
+    # Fiorentina having only 57 goals to hand out.
+    Rule("R16", "attack crowding: the club's goal budget times his share of it", True),
+    Rule("R16b", "attack crowding: the budget his TEAM-MATES claim (control for R16)", True),
 )
 
 # Rules that get fitted and compared one at a time by `compare`.
 CANDIDATES: tuple[str, ...] = ("R0c", "R1", "R1b", "R2", "R3", "R3c", "R4", "R4b", "R5", "R6", "R7",
                                "R8", "R10", "R11", "R11b", "R12", "R12b", "R13", "R13b",
-                               "R14", "R14b")
+                               "R14", "R14b", "R15", "R16", "R16b")
 
 # What survived the gate, PER PLATFORM. Keeping it per platform is not a hedge: `platform` is a
 # first-class dimension of the data model (different calendars, different perimeters), and the gate
@@ -122,6 +134,27 @@ CANDIDATES: tuple[str, ...] = ("R0c", "R1", "R1b", "R2", "R3", "R3c", "R4", "R4b
 # worst window of -6.7%. On the auction metric it is the same story: +1 name on T1 and T2, -3 points of
 # captured VALUE on Tm3 and T0. It helps on the windows it was invented on and hurts on the ones it was
 # not. That is the pattern the gate exists to find, and it is the third time today it has found it.
+# ⚠️ R16 / R16b (attack crowding on the club's goal budget) are BOTH REJECTED, and the pair is worth
+# keeping because the second explains the first. R16 measured the club's goals times HIS OWN share and
+# did nothing (3/10 windows, mean -1.2%, worst -14.9%): his share of last season's goals is already
+# inside his own fantamedia, so the regressor restates what the baseline has. R16b measures what the
+# TEAM-MATES claim, which is the hypothesis stated properly - and it works on exactly the three most
+# recent windows (T0 -4.6%, T1 -4.2%, T2 -3.2% on the players it moves) and nowhere else, 4/10 overall.
+# No data-availability difference explains the split: goals AND assists are present in all eleven
+# seasons of season_stats. So it is either a real regime change or the windows the hypothesis was
+# generated on - Kean/Piccoli was read off T2 - and the gate answers the same either way. A clean
+# confirmation needs 26/27. What the Fiorentina case still lacks is therefore unsolved, not solved.
+# ⚠️ R15 (availability persistence) is the closest NEAR MISS in the whole candidate set and is NOT
+# adopted. Serie A: it improves appearances MAE on 8 of 10 windows by 1.4-6.8% on the players it moves,
+# mean +2.6%, and its two failures are +0.1% (Tm7) and +0.4% (Tm6) - the two oldest windows, i.e. noise
+# in the wrong direction rather than a contrary effect. EuroLeghe: it improves ALL FIVE windows, but by
+# 0.2-0.8% outside Tm4's 6.4%, so Tm3 sits under the 0.5% floor. It also costs top-10 names on Tm3/T2
+# (euro) and Tm2 (Serie A). "All windows" is the pre-registered criterion and it is not met on either
+# platform, so it stays out - the temptation to relax a criterion for a rule one likes is exactly what
+# the criterion is for. What it DOES establish is that the feature is real: availability carries
+# measurable memory (persistence 0.29-0.36 on every platform-season), and the natural next use is the
+# auction OBJECTIVE (a per-player catchability instead of the population curve), which is a different
+# metric and needs its own pre-registration - not a re-run of this one with softer thresholds.
 ADOPTED: dict[str, tuple[str, ...]] = {
     "euro": ("R0c", "R3c"),
     "default": ("R3", "R7", "R13"),
@@ -241,6 +274,8 @@ class Derived:
     price_z: dict[int, float] = field(default_factory=dict)
     price_revision: dict[int, float] = field(default_factory=dict)
     recent_deviation: dict[int, float] = field(default_factory=dict)
+    budget_z: dict[int, float] = field(default_factory=dict)   # R16
+    rivals_z: dict[int, float] = field(default_factory=dict)  # R16b
 
 
 def _scale(values: Sequence[float], min_n: int) -> tuple[float, float] | None:
@@ -340,9 +375,21 @@ def derive(data: features.WindowData) -> Derived:
                         if mean_rating is not None and obs.recent_matches
                         and obs.recent_rating is not None}
     price_z, price_revision = _price_signals(data)
+    # R16: standardised inside the role, so it reads "for a forward" and not "in general"
+    budget_raw: dict[int, tuple[object, float]] = {}
+    rivals_raw: dict[int, tuple[object, float]] = {}
+    for obs in data.observations:
+        volume = model.goal_budget(obs.club_goals_prev, obs.attack_share_target)
+        if volume is not None:
+            budget_raw[obs.fc_id] = (obs.role_classic, volume)
+        rivals = model.attack_rivals(obs.club_goals_prev, obs.attack_share_target)
+        if rivals is not None:
+            rivals_raw[obs.fc_id] = (obs.role_classic, rivals)
     derived = Derived(recent_deviation=recent_deviation, minutes_share=minutes_share,
                       propensity_z=propensity_z, elo_z=_elo_z_scores(data),
-                      price_z=price_z, price_revision=price_revision)
+                      price_z=price_z, price_revision=price_revision,
+                      budget_z=_z_scores(budget_raw, 5),
+                      rivals_z=_z_scores(rivals_raw, 5))
     data.cache["derived"] = derived
     return derived
 
@@ -362,8 +409,11 @@ class Params:
     mean_share: float | None = None               # R0c: the population's mean predicted share
     share: tuple[float, ...] | None = None        # R3: share incl. minutes
     share_euro: tuple[float, ...] | None = None   # R3c: minutes on the euro rounds
+    share_persistence: tuple[float, ...] | None = None   # R15: availability persistence
     penalty_lam: float | None = None              # R6: penalty duty
     elo_lam: float | None = None                  # R5: club-strength anchor shift
+    budget_lam: float | None = None               # R16: club goal budget x his share
+    rivals_lam: float | None = None               # R16b: the budget his team-mates claim
     price_lam: float | None = None                # R12: market expectation
     revision_lam: float | None = None             # R12b: pre-auction expectation revision
     recent_lam: float | None = None               # R13: rating deviation of the recent-form sample
@@ -428,7 +478,7 @@ def pool_params(fitted: dict[str, Params], exclude: str, base: Params) -> Params
 # Rules that REPLACE the appearances share outright. A residual correction has to be fitted against
 # whichever of these is active, not against B0 - otherwise both absorb the same variance and the
 # combined configuration over-corrects (finding 7).
-SHARE_REPLACING: frozenset[str] = frozenset({"R3", "R3c", "R7", "R13", "R0c"})
+SHARE_REPLACING: frozenset[str] = frozenset({"R3", "R3c", "R7", "R13", "R0c", "R15"})
 
 
 def fit_params(data: features.WindowData, rules: tuple[str, ...]) -> Params:
@@ -474,6 +524,15 @@ def fit_params(data: features.WindowData, rules: tuple[str, ...]) -> Params:
                    and obs.minutes_share_euro_prev is not None and obs.role_classic != "P"]
         params.share_euro = fit_linear(samples)
         params.notes["R3c_n"] = len(samples)
+
+    if "R15" in rules:
+        samples = [((obs.share_prev(data.matchdays_prev), obs.persistence_prev,
+                     _mv_term(obs), 1.0 if obs.club_change else 0.0), obs.pv_act / matchdays)
+                   for obs in data.observations
+                   if obs.pv_prev is not None and obs.pv_act is not None
+                   and obs.persistence_prev is not None and obs.role_classic != "P"]
+        params.share_persistence = fit_linear(samples)
+        params.notes["R15_n"] = len(samples)
 
     if "R7" in rules:
         samples = [((obs.share_prev(data.matchdays_prev), 1.0 if obs.club_change else 0.0),
@@ -590,6 +649,8 @@ def fit_params(data: features.WindowData, rules: tuple[str, ...]) -> Params:
         elo_pairs: list[tuple[tuple[float, ...], float]] = []
         price_pairs: list[tuple[tuple[float, ...], float]] = []
         revision_pairs: list[tuple[tuple[float, ...], float]] = []
+        budget_pairs: list[tuple[tuple[float, ...], float]] = []
+        rivals_pairs: list[tuple[tuple[float, ...], float]] = []
         for obs in data.observations:
             baseline, _anchor = _predict_fm(obs, data)
             if baseline is not None and obs.fm_act is not None and (obs.pv_act or 0) >= MIN_PV_ACT:
@@ -611,6 +672,12 @@ def fit_params(data: features.WindowData, rules: tuple[str, ...]) -> Params:
                 revision = derived.price_revision.get(obs.fc_id)
                 if revision is not None:
                     revision_pairs.append(((revision,), residual))
+                z_budget = derived.budget_z.get(obs.fc_id)
+                if z_budget is not None:
+                    budget_pairs.append(((z_budget,), residual))
+                z_rivals = derived.rivals_z.get(obs.fc_id)
+                if z_rivals is not None:
+                    rivals_pairs.append(((z_rivals,), residual))
                 if not _is_goalkeeper(obs) and obs.derived_role_prev and obs.role_classic:
                     delta = (model.ROLE_ADVANCEMENT.get(obs.derived_role_prev, -1)
                              - model.ROLE_ADVANCEMENT.get(obs.role_classic, -1))
@@ -636,6 +703,14 @@ def fit_params(data: features.WindowData, rules: tuple[str, ...]) -> Params:
             fitted = fit_linear(elo_pairs, intercept=False)
             params.elo_lam = fitted[0] if fitted else None
             params.notes["R5_n"] = len(elo_pairs)
+        if "R16" in rules:
+            fitted = fit_linear(budget_pairs, intercept=False)
+            params.budget_lam = fitted[0] if fitted else None
+            params.notes["R16_n"] = len(budget_pairs)
+        if "R16b" in rules:
+            fitted = fit_linear(rivals_pairs, intercept=False)
+            params.rivals_lam = fitted[0] if fitted else None
+            params.notes["R16b_n"] = len(rivals_pairs)
         if "R12" in rules:
             fitted = fit_linear(price_pairs, intercept=False)
             params.price_lam = fitted[0] if fitted else None
@@ -730,6 +805,13 @@ def _rule_fm(obs: features.Observation, data: features.WindowData, rules: tuple[
         if z is not None:
             fm_pred += model.propensity_adjustment(params.gamma, z)
 
+    # R16 - how many of his club's goals are plausibly his, rather than the whole attack's
+    if "R16" in rules and params.budget_lam is not None and not _is_goalkeeper(obs):
+        fm_pred += model.goal_budget_adjustment(derived.budget_z.get(obs.fc_id), params.budget_lam)
+
+    if "R16b" in rules and params.rivals_lam is not None and not _is_goalkeeper(obs):
+        fm_pred += model.goal_budget_adjustment(derived.rivals_z.get(obs.fc_id), params.rivals_lam)
+
     # R12 / R12b - what the market expected of him before the auction, and how it revised him
     if "R12" in rules and params.price_lam is not None:
         fm_pred += model.market_expectation_adjustment(
@@ -777,6 +859,11 @@ def _rule_pv(obs: features.Observation, data: features.WindowData, rules: tuple[
                                    (obs.share_prev(data.matchdays_prev),
                                     obs.minutes_share_euro_prev, _mv_term(obs),
                                     1.0 if obs.club_change else 0.0))
+    elif ("R15" in rules and params.share_persistence and obs.pv_prev is not None
+            and obs.persistence_prev is not None and not _is_goalkeeper(obs)):
+        share = model.linear_share(params.share_persistence,
+                                   (obs.share_prev(data.matchdays_prev), obs.persistence_prev,
+                                    _mv_term(obs), 1.0 if obs.club_change else 0.0))
     elif ("R3" in rules and params.share and obs.pv_prev is not None
             and minutes_share is not None and not _is_goalkeeper(obs)):
         share = model.linear_share(params.share, (obs.share_prev(data.matchdays_prev),

@@ -406,9 +406,14 @@ def _process(ctx: Context, session, conn, player: dict, target: str, cutoff: int
     # auction instead would let matches fetched for an earlier listone stand in as this window's
     # recent form - a player scraped for 24/25 would be skipped for 25/26 and priced on football he
     # played two seasons before.
+    # Counted WITH the bonuses when they were asked for. Counting matches alone made the resume check
+    # permanently self-satisfied: a player stored by a --no-bonuses run had his matches and no goals,
+    # was skipped by every later run, and reached the engine as "0 goals in 715 minutes" - which is what
+    # happened to 111 of the 123 players in this population, Lauriente' among them.
     already = conn.execute(
-        "SELECT COUNT(*) FROM external_match_stats WHERE fc_id = ? AND source = ? "
-        "AND match_date >= ? AND match_date < ?",
+        f"""SELECT COUNT(*) FROM external_match_stats
+            WHERE fc_id = ? AND source = ? AND match_date >= ? AND match_date < ?
+              {"AND goals IS NOT NULL" if bonuses else ""}""",
         (player["fc_id"], SOURCE, f"{int(target.split('-')[0]) - 1}-07-01",
          f"{target.split('-')[0]}{AUCTION_MONTH_DAY}")).fetchone()
     if already and already[0] >= wanted:

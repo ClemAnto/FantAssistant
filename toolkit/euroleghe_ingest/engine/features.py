@@ -151,13 +151,26 @@ class Observation:
     # competition the synthetic voto was never fitted on, so kept as its own thing.
     recent_matches: int = 0
     recent_minutes: int = 0
-    recent_goals: int = 0
-    recent_assists: int = 0
+    # None, not 0, when the sample's bonuses were never fetched - `recent_bonus_matches` says how many
+    # of the matches actually carry them. A rule must check it before reading either total.
+    recent_goals: int | None = None
+    recent_assists: int | None = None
+    recent_bonus_matches: int = 0
     recent_rating: float | None = None
     # how many days his sample spans: with the match count it says how OFTEN he played, which is a
     # different thing from how long he stayed on the pitch when he did (R13)
     recent_span_days: int | None = None
     # inactivity, from the dated per-match layer: the injury proxy while `injuries` stays empty
+    # R15: how much MEMORY his availability had last season - P(plays | played last matchday) minus
+    # P(plays | missed it), on the platform's own calendar. Two players can share a Pv and be different
+    # animals: nineteen appearances in a row is a settled starter who got hurt, nineteen scattered over
+    # the season is a rotation player. None when the sequence is too short to say.
+    persistence_prev: float | None = None
+    # R16: the TARGET club's goals per eleven appearances last season, and his share of that club's
+    # attacking production. Their product is what the goal budget hypothesis is about: two forwards of
+    # a mid-table side cannot both be priced as the sole claimant of a top side's goals.
+    club_goals_prev: float | None = None
+    attack_share_target: float | None = None
     longest_gap_days: int | None = None
     days_since_last_match: int | None = None
     minutes_last_3: float | None = None
@@ -513,17 +526,128 @@ def _recent_form(conn: sqlite3.Connection, window: Window) -> dict[int, dict]:
 
     The ceiling is what makes the rows legal in a backtest at all: the scraper is anchored to today,
     the engine only ever looks at what predated that window's auction.
+
+    Goals and assists are None when NOT ONE row of the sample carries them, never 0. The bonuses cost
+    one request per match and are stored separately from the match, so most of this population has rows
+    with NULL goals - and summing those with COALESCE(...,0) turned "we never measured it" into "he
+    scored nothing", which is a fabricated measurement, not a conservative one. Lauriente' came out with
+    0 goals and 0 assists in 715 minutes; he was a Serie B top scorer. `bonus_matches` says how much of
+    the sample is actually measured, and no rule may read the totals without checking it.
     """
     floor = f"{window.input_season.split('-')[0]}-07-01"
-    return {fc_id: {"matches": matches, "minutes": minutes, "goals": goals,
-                    "assists": assists, "rating": rating, "first": first, "last": last}
-            for fc_id, matches, minutes, goals, assists, rating, first, last in conn.execute(
+    return {fc_id: {"matches": matches, "minutes": minutes,
+                    "goals": goals if bonus_matches else None,
+                    "assists": assists if bonus_matches else None,
+                    "bonus_matches": bonus_matches,
+                    "rating": rating, "first": first, "last": last}
+            for (fc_id, matches, minutes, goals, assists, bonus_matches, rating, first,
+                 last) in conn.execute(
                 """SELECT fc_id, COUNT(*), SUM(COALESCE(minutes, 0)), SUM(COALESCE(goals, 0)),
-                          SUM(COALESCE(assists, 0)), AVG(rating), MIN(match_date), MAX(match_date)
+                          SUM(COALESCE(assists, 0)), SUM(goals IS NOT NULL),
+                          AVG(rating), MIN(match_date), MAX(match_date)
                    FROM external_match_stats
                    WHERE source = 'sofascore_recent' AND match_date >= ? AND match_date < ?
                      AND COALESCE(minutes, 0) > 0
                    GROUP BY fc_id""", (floor, window.auction_date))}
+
+
+ATTACKING_ROLES: frozenset[str] = frozenset({"C", "A"})   # who competes for a club's goal budget
+
+
+def _attack_budget(conn: sqlite3.Connection, window: Window,
+                   platform: str) -> tuple[dict[str, float], dict[int, float]]:
+    """R16: a club's goals are a BUDGET, and its attackers share it.
+
+    Returns {club: goals per match last season} and {fc_id: his share of his TARGET club's attacking
+    production}. Both legal on auction day: the goals are the input season's, the squad is the target
+    listone's, which is published before the auction.
+
+    The hole this addresses, in one case: Fiorentina scored 57 goals in 2024-25, sixth in Serie A and
+    level with Lazio and Milan. The engine had Kean 1st and Piccoli 4th among the forwards - both of
+    them, because it regresses each one to the role anchor as if they played for different clubs.
+    Between them, with Solomon, they scored 12. The share is measured on goals PLUS assists, because a
+    team-mate who sets up the goals is claiming the same budget from the other end.
+    """
+    goals_per_match: dict[str, float] = {}
+    for club, goals, appearances in conn.execute(
+            """SELECT c.canonical_name, SUM(COALESCE(ss.goals, 0)), SUM(COALESCE(ss.pv, 0))
+               FROM season_stats ss
+               JOIN rosters r ON r.fc_id = ss.fc_id AND r.season = ss.season
+               JOIN clubs c ON c.fc_club_id = r.fc_club_id
+               WHERE ss.season = ? AND ss.platform = ?
+               GROUP BY c.canonical_name""", (window.input_season, platform)):
+        if club and appearances:
+            # per ELEVEN outfield appearances, so a club is comparable whatever its calendar length
+            goals_per_match[club] = goals * 11.0 / appearances
+
+    produced: dict[int, float] = {}
+    by_club: dict[str, float] = {}
+    for fc_id, club, role, goals, assists in conn.execute(
+            """SELECT r.fc_id, c.canonical_name, r.role_classic,
+                      COALESCE(ss.goals, 0), COALESCE(ss.assists, 0)
+               FROM rosters r
+               JOIN clubs c ON c.fc_club_id = r.fc_club_id
+               LEFT JOIN season_stats ss ON ss.fc_id = r.fc_id AND ss.season = ?
+                    AND ss.platform = ?
+               WHERE r.season = ?""",
+            (window.input_season, platform, window.target_season)):
+        if club and role in ATTACKING_ROLES:
+            produced[fc_id] = goals + assists
+            by_club[club] = by_club.get(club, 0.0) + goals + assists
+    shares: dict[int, float] = {}
+    for fc_id, club, in_club in conn.execute(
+            """SELECT r.fc_id, c.canonical_name, 1 FROM rosters r
+               JOIN clubs c ON c.fc_club_id = r.fc_club_id WHERE r.season = ?""",
+            (window.target_season,)):
+        total = by_club.get(club or "", 0.0)
+        if fc_id in produced and total > 0 and in_club:
+            shares[fc_id] = produced[fc_id] / total
+    return goals_per_match, shares
+
+
+# Below this, a played/missed sequence has no structure to measure - both conditional probabilities
+# would rest on a couple of observations each.
+MIN_SEQUENCE = 8
+
+
+def availability_persistence(conn: sqlite3.Connection, platform: str, season: str,
+                             min_sequence: int = MIN_SEQUENCE) -> dict[int, float]:
+    """P(plays matchday k | played k-1) - P(plays k | missed k-1), per player, for one season.
+
+    The difference between HOW MUCH a player was available and how PREDICTABLE that availability was.
+    You set a lineup before knowing whether he plays, so what you collect is the appearances you could
+    see coming - and measured on the population it is a real effect: persistence averages 0.29-0.36 on
+    every platform-season, never near zero, and the share of his own appearances a naive "field him if
+    he played last week" rule catches runs from 0.40 in the under-20% band to 0.89 in the over-80% one.
+
+    Read on the platform's OWN calendar (`match_ratings`), inside a single season - the same discipline
+    `_inactivity` needs: pooling seasons would make the regressor's distribution depend on how many
+    seasons a window happens to have behind it. Players with both conditional probabilities defined
+    only, so a man who played every single matchday returns None rather than a fabricated 0.
+    """
+    matchdays = [md for (md,) in conn.execute(
+        "SELECT DISTINCT matchday FROM match_ratings WHERE season = ? AND platform = ? "
+        "ORDER BY matchday", (season, platform))]
+    if len(matchdays) < min_sequence:
+        return {}
+    played: dict[int, set[int]] = {}
+    for fc_id, matchday in conn.execute(
+            "SELECT fc_id, matchday FROM match_ratings WHERE season = ? AND platform = ? "
+            "AND mv IS NOT NULL", (season, platform)):
+        played.setdefault(fc_id, set()).add(matchday)
+    out: dict[int, float] = {}
+    for fc_id, days in played.items():
+        after_played = after_missed = n_played = n_missed = 0
+        for previous, current in zip(matchdays, matchdays[1:], strict=False):
+            if previous in days:
+                n_played += 1
+                after_played += current in days
+            else:
+                n_missed += 1
+                after_missed += current in days
+        if n_played and n_missed:
+            out[fc_id] = after_played / n_played - after_missed / n_missed
+    return out
 
 
 def _inactivity(conn: sqlite3.Connection, window: Window) -> dict[int, dict]:
@@ -642,6 +766,7 @@ def load(conn: sqlite3.Connection, window: Window, platform: str) -> list[Observ
         "SELECT fc_id, derived_role FROM positions WHERE season = ?", (window.input_season,))}
     recent = _recent_form(conn, window)
     inactivity = _inactivity(conn, window)
+    persistence = availability_persistence(conn, platform, window.input_season)
     starters = _probable_starters(conn, window.auction_date)
     penalties = _penalty_state(conn, window.auction_date)
     euro_minutes = euro_minutes_shares(conn, window.input_season)
@@ -663,6 +788,8 @@ def load(conn: sqlite3.Connection, window: Window, platform: str) -> list[Observ
         if club and role:
             competition[(club, role)] = competition.get((club, role), 0) + 1
             arrived.add(fc_id)
+
+    goal_budget, attack_share = _attack_budget(conn, window, platform)
 
     observations: list[Observation] = []
     for (fc_id, name, role_classic, roles_raw, league, price, club_target, club_prev, birth_year,
@@ -686,9 +813,13 @@ def load(conn: sqlite3.Connection, window: Window, platform: str) -> list[Observ
             fvm=fvm, fvm_mantra=fvm_mantra,
             price_mantra=price_mantra, price_initial_mantra=price_initial_mantra,
             recent_matches=sample.get("matches", 0), recent_minutes=sample.get("minutes", 0),
-            recent_goals=sample.get("goals", 0), recent_assists=sample.get("assists", 0),
+            recent_goals=sample.get("goals"), recent_assists=sample.get("assists"),
+            recent_bonus_matches=sample.get("bonus_matches", 0) or 0,
             recent_rating=sample.get("rating"),
             recent_span_days=_span_days(sample.get("first"), sample.get("last")),
+            persistence_prev=persistence.get(fc_id),
+            club_goals_prev=goal_budget.get(club_target or ""),
+            attack_share_target=attack_share.get(fc_id),
             longest_gap_days=idle.get("longest_gap"),
             days_since_last_match=idle.get("days_since_last"),
             minutes_last_3=idle.get("minutes_last_3"),
