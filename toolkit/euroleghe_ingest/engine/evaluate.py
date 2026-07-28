@@ -1334,6 +1334,111 @@ def _window_is_usable(data: features.WindowData, platform: str) -> bool:
     return True
 
 
+# ---------------------------------------------------------------- coefficient stability
+#
+# PRE-REGISTERED 28/07/2026, and written before it was run on anything.
+#
+# The gate judges a rule by its ERROR: improve the target on every window that measures it, by at least
+# 0.5% on the players moved, without harming FM, VALUE or the top tens. That cannot express a distinction
+# the day's six candidates made unavoidable: R15's coefficient is the same number on all five euro windows
+# (+0.074 to +0.096) and it misses the amplitude floor, while R16's flips sign window to window and happens
+# to improve the error anyway. Both are recorded as "does not pass" and they are not the same situation -
+# one is a real effect too small to be worth a parameter, the other is noise.
+#
+# What this measures, per rule with an identifiable single fitted coefficient:
+#   sign_consistent  the coefficient has the same sign on every window that measures it
+#   dispersion       sd / |mean| across those windows (coefficient of variation)
+#   stable           sign_consistent AND dispersion < STABILITY_MAX_DISPERSION
+#
+# The threshold is 0.5 because that is where |mean| = 2 x sd: the crudest sense in which a coefficient is
+# distinguishable from zero across windows. It was NOT chosen by looking at what any rule needs - and it
+# could not honestly be, because R15's coefficients had already been seen when this was written, which is
+# exactly why the next paragraph matters.
+#
+# ⚠️ THIS CHANGES NO VERDICT. The amplitude floor and the no-harm guardrails are untouched, and nothing
+# passes or fails because of it. It only CLASSIFIES the rejections, so the roadmap can tell "revisit when a
+# new window arrives" from "closed". Using it to admit a rule would be a different decision - whether a
+# real but tiny effect earns a parameter in the engine is a product judgement, not a statistical one, and
+# the 0.5% floor is the existing answer to it. Changing that answer is not this function's business.
+#
+# It is applied UNIFORMLY, to every candidate including the ones already rejected. A criterion that only
+# ran on the rule its author liked would be worthless, and if it classifies an unwelcome rule as stable
+# then that is the finding. It did, several times over - see the LIMITATION below, which the first run
+# found and which is the reason this measure is a classifier and not a gate.
+#
+# ⚠️ LIMITATION FOUND ON THE FIRST RUN, and it bounds what the number means. Dispersion has TWO causes and
+# this measure cannot tell them apart:
+#   1. there is no effect - the fit is chasing noise (R16: -0.101, +0.146, +0.098, +0.019, -0.006);
+#   2. the regressor is COLLINEAR with one already in the model, so the fit trades weight between them
+#      window to window while the prediction stays good.
+# Cause 2 is not a defect and the first run proved it matters: **R3 is ADOPTED on Serie A and comes out
+# unstable** (dispersion 0.88, +0.060 … +0.460 with Tm3 at -0.075), because its minutes regressor and
+# `share_prev` both measure how much he played. R3 wins 10/10 windows on the error. So an unstable
+# coefficient is NOT grounds for doubting a rule that works; it means the coefficient is not
+# INTERPRETABLE. Read the classification as trustworthy for the single-lambda adjustment rules, and as
+# "may be collinearity" for the share-replacing ones (R3, R3c, R15) whose fit has four regressors.
+STABILITY_MAX_DISPERSION = 0.5
+
+# Rule -> the fitted quantity that IS the rule, and where to find it. An index picks one slot out of a
+# fitted tuple: the rule's OWN new regressor, not the whole refit. `None` where the rule is a wholesale
+# replacement of the share regression (R7, R1, R13) and no single number represents it - reported as such
+# rather than given a misleading one.
+RULE_COEFFICIENT: dict[str, tuple[str, int | None]] = {
+    "R2": ("gamma", None),
+    "R3": ("share", 2),                    # minutes share
+    "R3c": ("share_euro", 2),              # minutes on the euro rounds
+    "R15": ("share_persistence", 2),       # availability persistence
+    "R4": ("age_fm", None),
+    "R4b": ("age_share", None),
+    "R5": ("elo_lam", None),
+    "R5b": ("club_attack_lam", None),
+    "R6": ("penalty_lam", None),
+    "R10": ("coach_interaction", None),
+    "R11": ("competition_lam", None),
+    "R11b": ("crowded_lam", None),
+    "R12": ("price_lam", None),
+    "R12b": ("revision_lam", None),
+    "R13b": ("recent_lam", None),
+    "R13c": ("production_lam", None),
+    "R14": ("idle_share", None),
+    "R14b": ("idle_fm", None),
+    "R16": ("budget_lam", None),
+    "R16b": ("rivals_lam", None),
+}
+
+
+def coefficient_stability(fitted: dict[str, "Params"], rule: str) -> dict | None:
+    """Per-window coefficients of `rule`, and whether they agree. None when it has no single one."""
+    where = RULE_COEFFICIENT.get(rule)
+    if where is None:
+        return None
+    field, index = where
+    values: dict[str, float] = {}
+    for key, params in fitted.items():
+        value = getattr(params, field, None)
+        if isinstance(value, tuple):
+            value = value[index] if index is not None and index < len(value) else None
+        if isinstance(value, int | float):
+            values[key] = float(value)
+    if len(values) < 2:
+        return {"coefficients": {k: _round(v, 4) for k, v in values.items()},
+                "sign_consistent": None, "dispersion": None, "stable": None,
+                "note": "fewer than two windows fit it"}
+    numbers = list(values.values())
+    signs = {1 if v > 1e-9 else -1 if v < -1e-9 else 0 for v in numbers}
+    sign_consistent = len(signs - {0}) <= 1 and 0 not in signs
+    mean = sum(numbers) / len(numbers)
+    variance = sum((v - mean) ** 2 for v in numbers) / (len(numbers) - 1)
+    dispersion = (variance ** 0.5) / abs(mean) if abs(mean) > 1e-12 else None
+    return {
+        "coefficients": {k: _round(v, 4) for k, v in values.items()},
+        "sign_consistent": sign_consistent,
+        "dispersion": _round(dispersion, 2),
+        "stable": bool(sign_consistent and dispersion is not None
+                       and dispersion < STABILITY_MAX_DISPERSION),
+    }
+
+
 def compare(conn: sqlite3.Connection, candidates: tuple[str, ...], platform: str,
             game: str, windows: tuple[str, ...] | None = None) -> dict:
     """Run B0 and B0+rule on both windows, with every parameter fitted on the OTHER window.
@@ -1374,6 +1479,7 @@ def compare(conn: sqlite3.Connection, candidates: tuple[str, ...], platform: str
         out["windows"][key] = configurations
         predictions[key] = predicted
     out["adopted"] = list(adopted[1:])
+    out["stability"] = {rule: coefficient_stability(fitted, rule) for rule in candidates}
 
     for rule in (*candidates, "ALL", "ADOPTED"):
         # A mixed set moves both halves, so it is judged on the product - the auction metric.
@@ -1672,6 +1778,13 @@ def _print_gate(result: dict) -> None:
         summary = RULES_BY_KEY[rule].summary if rule in RULES_BY_KEY else labels.get(rule, rule)
         target = verdict["metric"]
         print(f"\n  {rule} · {summary}  [target {target.upper()} MAE]")
+        stability = (result.get("stability") or {}).get(rule)
+        if stability and stability.get("stable") is not None:
+            verdict["coefficient_stable"] = stability["stable"]
+            print(f"    coefficient {stability['coefficients']} · same sign "
+                  f"{stability['sign_consistent']} · dispersion {stability['dispersion']} -> "
+                  f"{'STABLE' if stability['stable'] else 'UNSTABLE'}"
+                  f"  (classification only - changes no verdict)")
         # Per role, on the players BOTH configurations price, plus what the rule added on its own.
         header = f"    {'role':<5}"
         for window in windows:

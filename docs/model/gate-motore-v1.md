@@ -826,6 +826,59 @@ solo debole, è contro-informativa: sceglierci un regressore avrebbe fatto sbagl
   condizioni, così il listone pulito non poteva mai vincere. Una regola per tutti gli scrittori: un nome
   danneggiato non scalza mai uno intatto, uno intatto ripara sempre un danneggiato. 8 nomi riparati.
 
+## 5-sexies. Stabilità del coefficiente (pre-registrata 28/07/2026) — **classifica, non giudica**
+
+Il gate giudica una regola dall'**errore**. Non sa esprimere una distinzione che le sei candidate del 28/07
+hanno reso inevitabile: il coefficiente di R15 è lo stesso numero su tutte e cinque le finestre euro
+(+0.074…+0.096) e manca il pavimento d'ampiezza, mentre quello di R16 cambia segno e l'errore migliora per
+caso. Entrambe risultano «non passa» e non sono la stessa situazione.
+
+**Misura**, per ogni regola con un coefficiente singolo identificabile: `segno coerente` su tutte le
+finestre che la misurano · `dispersione` = sd/|media| · **stabile** = segno coerente e dispersione < 0.5.
+La soglia è 0.5 perché è dove |media| = 2·sd, il senso più grezzo in cui un coefficiente si distingue da
+zero fra finestre. **Non** è stata scelta guardando cosa serve a una regola — e non avrebbe potuto esserlo
+onestamente, perché i coefficienti di R15 erano già stati visti quando è stata scritta. Per questo:
+
+> ⚠️ **Non cambia nessun verdetto.** Pavimento e non-danno restano intatti. Serve a distinguere «da
+> riprendere quando arriva una finestra nuova» da «chiuso». Ammettere una regola per stabilità è una
+> decisione diversa: se un effetto reale ma minuscolo si merita un parametro nel motore è un giudizio di
+> prodotto, non statistico, e il pavimento dello 0.5% è la risposta che il progetto già si è dato.
+
+### ⚠️ Limite trovato alla prima corsa: la dispersione ha DUE cause
+
+1. **non c'è effetto** — il fit rincorre rumore (R16: −0.101, +0.146, +0.098, +0.019, −0.006);
+2. **il regressore è COLLINEARE** con uno già nel modello, quindi il fit si scambia peso fra i due di
+   finestra in finestra mentre la previsione resta buona.
+
+La seconda non è un difetto, e la prima corsa l'ha dimostrato: **R3 è ADOTTATA su Serie A ed esce
+instabile** (dispersione 0.88, da +0.060 a +0.460 con Tm3 a −0.075), perché il suo regressore sui minuti e
+`share_prec` misurano entrambi quanto ha giocato — e R3 vince **10 finestre su 10** sull'errore. Quindi un
+coefficiente instabile **non è motivo per dubitare di una regola che funziona**: vuol dire che il
+coefficiente non è *interpretabile*. La classifica è affidabile per le regole a λ singolo, e va letta come
+«può essere collinearità» per quelle che rifanno la regressione delle quote (R3, R3c, R15).
+
+### Esito, applicato a tutte le candidate
+
+**Stabili ma respinte** — quindi «effetto coerente che non riduce l'errore», da riprendere con finestre nuove:
+
+| | euro | Serie A |
+|---|---|---|
+| **R10** nuovo allenatore | 0.41, 5/5 positive | **0.33, 10/10 positive** |
+| **R11 / R11b** concorrenza posizionale | 0.48 / 0.47 | **0.17 / 0.17**, sempre negative |
+| **R13c** produzione misurata | **0.03** (la più stabile del set) | 4.23 |
+| **R15** persistenza | **0.11** | 2.21 |
+| **R13b** rating fra campionati | 0.33 | 1.86 |
+
+R10 e R11/R11b sono il caso più netto: coefficiente **coerente su tutte e dieci** le finestre Serie A e
+respinte sull'errore. Per R11 il documento già dice che migliora il MAE **col segno contrario
+all'ipotesi** — la stabilità lo conferma: l'effetto è reale e l'etichetta è sbagliata.
+
+**Instabili**: R2 · R4 (7.89 su Serie A) · R4b · R5 · R6 · R12 · R12b · R14 · R14b · R16 · R16b. Per queste
+la bocciatura ha ora due motivi indipendenti, non uno.
+
+**R5b** è coerente col suo verdetto in entrambi i versi: stabile su Serie A (0.28) dove passa formalmente,
+instabile su euro (0.50, esattamente sulla soglia) dove fallisce.
+
 ## 6. Validazione del voto sintetico (Serie A, dove esistono entrambi i set reali)
 
 **Per partita** (n=10.657): sintetico vs Mv euro (suo bersaglio) MAE **0.365** · vs Mv `default` **0.379**
