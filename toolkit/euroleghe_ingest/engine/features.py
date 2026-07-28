@@ -161,7 +161,9 @@ class Observation:
     # how many days his sample spans: with the match count it says how OFTEN he played, which is a
     # different thing from how long he stayed on the pitch when he did (R13)
     recent_span_days: int | None = None
-    # inactivity, from the dated per-match layer: the injury proxy while `injuries` stays empty
+    # inactivity, from the dated per-match layer: the injury PROXY. `injuries` is no longer empty
+    # (the module landed 28/07/2026), but swapping a proxy for the facts is a new hypothesis and
+    # has to be pre-registered like any other - so this stays until that gate is run.
     # R15: how much MEMORY his availability had last season - P(plays | played last matchday) minus
     # P(plays | missed it), on the platform's own calendar. Two players can share a Pv and be different
     # animals: nineteen appearances in a row is a settled starter who got hurt, nineteen scattered over
@@ -768,8 +770,11 @@ def availability_persistence(conn: sqlite3.Connection, platform: str, season: st
 def _inactivity(conn: sqlite3.Connection, window: Window) -> dict[int, dict]:
     """How long a player went without playing, from the dated per-match layer. The injury proxy.
 
-    `injuries` is empty and no source fills it yet, but the per-match layer already says when a player
-    did NOT appear: a gap of 90+ days inside a season is a spell out, whatever its cause. Measured on
+    The per-match layer already says when a player did NOT appear: a gap of 90+ days inside a season is
+    a spell out, whatever its cause. `injuries` now carries the real absences (dated, with the matches
+    actually missed), which makes "proxy vs fact" a testable question - and therefore a PRE-REGISTERED
+    one. Until that gate runs, this is what the adopted set uses, and it is what the published numbers
+    were produced with. Measured on
     both providers' rows (the 5 leagues and `recent_form`), always before the auction date.
 
     Restricted to the INPUT SEASON, not to everything before the auction: pooling seasons makes the
