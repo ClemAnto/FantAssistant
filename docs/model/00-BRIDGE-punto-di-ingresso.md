@@ -26,7 +26,39 @@ proporre qualsiasi regola) → **`metrica-asta-surplus-v1.md`** (con cosa il pan
 
 Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
 
-### ULTIMO IN ORDINE DI TEMPO — lo snapshot lavora sulle ROSE REALI e ha una VISTA (spec «Novità v9.6»)
+### ULTIMO IN ORDINE DI TEMPO — il RUOLO REALE granulare: 12 codici, e dove si collocano (spec «Novità v9.7»)
+
+Richiesta dell'utente: ogni calciatore deve avere il suo **ruolo reale**, recuperato **quando gira lo
+snapshot**, per sapere orientativamente dove collocarlo in campo.
+
+1. **Dodici codici, enumerati e non ricordati** — `GK` · `DL DC DR` · `DM` · `ML MC MR` · `AM` · `LW RW` ·
+   `ST`, da uno a tre per giocatore. 128 giocatori campionati non hanno restituito nient'altro; un
+   tredicesimo codice a monte finisce **nel log**, non assorbito. Italiano: `Ts` terzino sinistro, `Dc`
+   centrale, `Td` terzino destro, `M` mediano, `C` centrocampista, `T` trequartista, `Es/Ed` esterno,
+   `As/Ad` ala, `Pc` punta. **Nessuna colonna esistente lo sostituisce**: `role_classic` chiama `D` sia un
+   terzino sinistro sia un centrale, e `positions.derived_role` **li chiama `D` entrambi anche lui**.
+2. **È una griglia, quindi si posiziona**: lato (−1 sinistra … +1 destra) e profondità (0 porta propria …
+   1 porta avversaria, **lo stesso asse di `avg_x`**). `DM` → `MC` → `AM` sono tre posti in campo che per
+   il listone sono tutti e tre `C`. I numeri sono posizioni di **disegno**, non quantità fittate.
+3. **Una richiesta per CLUB**, non per giocatore: `/team/{id}/players` porta `positionsDetailed` +
+   `preferredFoot` per l'intera rosa → 35 club invece di ~1500 giocatori, ~2 minuti, e **zero** richieste
+   rieseguendo lo stesso giorno (cache datata). Nuovo `positions --layer roles`; i **team id** del provider
+   sono dedotti *offline* dalle cache già presenti (92 club) — nessuna fonte nostra ne portava uno.
+4. ⚠️ **TERZO fatto non backfillabile**, e va saputo: il provider serve solo «adesso» — `?seasonId=`
+   risponde **200 e lo IGNORA** (Dimarco torna `['ML']` sia per 25/26 sia per 23/24). Quindi
+   `player_roles` è **datata** e sta accanto a `probable_starter` e `contract_until`: ogni giorno non
+   osservato è un giorno che non esisterà. Storiche e intatte: `derived_role` e `avg_x/avg_y`.
+5. **Precedenza sul lato decisa misurando**: heatmap e codice concordano su **196/219** laterali (89%);
+   nei 23 restanti vince il codice, perché un `DL` non è un centrale — ma un codice **centrale** non è una
+   pretesa sulla fascia, e lì resta la misura (Bastoni `DC;DR` → −0.53, il sinistro di una difesa a tre).
+6. **Misurato**: 1372 osservazioni datate, **745/883 righe del foglio (84%)**, 221 mancanti su 1343 sono
+   identità non risolte (la linea resta nota, manca la fascia). Dimarco `D/e` → `ML` badge `Es`, lato
+   −0.62, profondità 0.60; Calhanoglu `C/m;c` → `DM;MC` badge `M`, profondità 0.45.
+
+**Nessun verdetto del gate cambia**: fatto descrittivo + layout. Tradurre i dodici codici in un ruolo
+Mantra resta dietro il gate.
+
+### lo snapshot lavora sulle ROSE REALI e ha una VISTA (spec «Novità v9.6»)
 
 1. **Rose reali, listone o non listone.** Nuova `squad_snapshot` (fc_site → transfermarkt → apparizioni,
    ognuna datata **con la propria data**) e `features.load(squad_source='real')`, default `'listone'`

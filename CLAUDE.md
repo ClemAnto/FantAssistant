@@ -113,13 +113,22 @@ Two commands own these, and both print a plan before doing anything:
 Every run leaves a line in `ingest_runs` (module, when, status, options), written by whoever owns the
 invocation - CLI, rebuild or GUI - never by the module itself.
 
-## Two facts that are snapshots and can never be backfilled
+## Three facts that are snapshots and can never be backfilled
 - **Starting probability** (`probable_starter`): the site publishes only "now". The weekly job exists
   (`scripts/weekly-snapshot.ps1 -Register`) and every week it does not run is a window that will never
   exist. This is why the gate reports `starter_prob` 0/1453 on past windows.
 - **Contract expiry** (`flags.contract_until` / `exit_risk`): verified against the source - a PAST
   season's squad page does not carry the column. So `exit_risk` is usable for the auction that is
-  coming and is **not gatable on T1/T2**. Both are listed in the export manifest's `known_gaps`.
+  coming and is **not gatable on T1/T2**.
+- **The granular real role** (`player_roles`, source `sofascore`): the twelve codes `GK | DL DC DR |
+  DM | ML MC MR | AM | LW RW | ST`, one to three per player, which is the ONLY thing that separates a
+  left back from a centre back - `rosters.role_classic` calls both `D` and `positions.derived_role`
+  calls both `D` too. The provider accepts a `seasonId` and **ignores** it (HTTP 200, today's codes for
+  a season three years old), so it is observed by `snapshot` on the day it runs and stored dated.
+  Historical instead, and unaffected: `positions.derived_role` (G/D/M/F per season, from the per-match
+  layer) and `positions.avg_x/avg_y` (the season heatmap).
+
+All three are listed in the export manifest's `known_gaps`.
 
 ## Credentials & security
 fantacalcio.it credentials **only** in the local `.env` (see `.env.example`). NEVER on Drive, in chats,

@@ -206,13 +206,22 @@ def test_the_pitch_never_draws_outside_itself(tmp_path):
 
     folder = tmp_path / "data" / "reports" / "auction-snapshot-2026-27-euro-classic-2026-07-28"
     folder.mkdir(parents=True)
-    roles = [("P", "por")] + [("D", "dc")] * 5 + [("C", "c")] * 6 + [("A", "pc")] * 4
+    # The third element is the GRANULAR real role, deliberately at the extremes of its line: a 'D'
+    # really used as ML steps forward, a 'C' as DM drops behind, and the nudge must still leave every
+    # shirt and every name plate inside the pitch - which is what the bounding box below checks.
+    roles = ([("P", "por", "GK")]
+             + [("D", "dc", "ML"), ("D", "dc", "DL"), ("D", "dc", "DC"), ("D", "dc", "DR"),
+                ("D", "dc", "MR")]
+             + [("C", "c", "DM"), ("C", "c", "MC"), ("C", "c", "AM"), ("C", "c", "ML"),
+                ("C", "c", "MR"), ("C", "c", "")]
+             + [("A", "pc", "ST"), ("A", "pc", "LW"), ("A", "pc", "RW"), ("A", "pc", "")])
     with open(folder / "players.csv", "w", encoding="utf-8-sig", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=list(snapshot.PLAYER_COLUMNS))
         writer.writeheader()
-        for index, (role, mantra) in enumerate(roles):
+        for index, (role, mantra, real) in enumerate(roles):
             writer.writerow({"fc_id": index, "name": f"Verylongsurname{index}", "club": "Test",
                              "role_classic": role, "roles_mantra": mantra,
+                             "desc_real_roles": real, "desc_real_role_primary": real,
                              "engine_surplus": "10.0", "desc_start_share": "0.80",
                              "desc_season_starts": "20", "desc_form_measured": "10",
                              "desc_form_starts": "8", "desc_form_minutes": "700",
@@ -260,3 +269,53 @@ def test_the_pitch_never_draws_outside_itself(tmp_path):
                 assert len(view.eleven("Test", formation, mode)) == 11
     finally:
         root.destroy()
+
+
+# ---------- placing the granular real role on the pitch ----------
+def test_granular_real_role_places_the_player():
+    """The twelve codes are a grid, and the pitch has to read both axes off them: the flank, which the
+    listone's 'e' and 'w' leave open, and the depth, which its single 'C' collapses entirely."""
+    from euroleghe_ingest.gui import SnapshotView as View
+
+    left_back = {"desc_real_roles": "DL", "role_classic": "D"}
+    assert View.lateral(left_back) == -1.0
+    assert View.badge(left_back) == "Ts"
+    assert View.lateral({"desc_real_roles": "RW;AM"}) == 1.0        # the PRIMARY code decides
+    assert View.lateral({"desc_real_roles": "MC"}) == 0.0
+
+    # the depth the listone cannot express: three 'C' at three different places on the pitch
+    assert (View.depth({"desc_real_roles": "DM"}) < View.depth({"desc_real_roles": "MC"})
+            < View.depth({"desc_real_roles": "AM"}))
+    assert [View.badge({"desc_real_roles": code}) for code in ("DM", "MC", "AM")] == ["M", "C", "T"]
+    # and with no granular role at all it stays exactly as it was: the Mantra role, then the drawn side
+    assert View.depth({"roles_mantra": "c"}) is None
+    assert View.lateral({"roles_mantra": "b;ds;e"}) == -1.0
+    assert View.lateral({"roles_mantra": "w"}) is None
+    assert View.badge({"roles_mantra": "w"}, drawn_side=-1.0) == "As"
+
+
+def test_granular_role_wins_over_a_measured_side_that_contradicts_it():
+    """`desc_side_measured` is a season centroid: it smears a man used on both flanks into the middle,
+    or onto the wrong one. Where the code plainly names a flank, the code decides."""
+    from euroleghe_ingest.gui import SnapshotView as View
+
+    # they agree -> keep the measured value, which also says how far out he stood
+    assert View.lateral({"desc_real_roles": "DL", "desc_side_measured": "-0.62"}) == -0.62
+    # it contradicts the code -> the code
+    assert View.lateral({"desc_real_roles": "DL", "desc_side_measured": "0.55"}) == -1.0
+    # it reads central for a man the provider calls a full back -> the code
+    assert View.lateral({"desc_real_roles": "DR", "desc_side_measured": "0.03"}) == 1.0
+    # a CENTRAL code claims nothing about the flank, so the measurement stands: a nominal centre back
+    # who spent the season on the left of a back three really was on the left
+    assert View.lateral({"desc_real_roles": "DC", "desc_side_measured": "-0.71"}) == -0.71
+    # an unknown code is not a placement: it falls through to the listone
+    assert View.lateral({"desc_real_roles": "SS", "roles_mantra": "dd"}) == 1.0
+
+
+def test_real_role_columns_reach_the_sheet():
+    """The drawing positions travel in the CSV, so a reader of the sheet places him the same way the
+    pitch does instead of inventing a mapping."""
+    for column in ("desc_real_roles", "desc_real_role_primary", "desc_real_role_line",
+                   "desc_real_role_depth", "desc_real_role_side", "desc_foot",
+                   "desc_real_role_observed"):
+        assert column in snapshot.PLAYER_COLUMNS

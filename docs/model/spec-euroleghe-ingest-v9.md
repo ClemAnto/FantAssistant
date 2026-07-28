@@ -330,6 +330,124 @@ Colonne sottili sono elencate a fine corsa (`<20% riempite`), e il manifest port
 Al primo giro sono vuote titolarità e ballottaggi — le probabili sono uno stato di **oggi** e la loro
 storia parte dal giorno in cui il job settimanale ha iniziato a girare.
 
+## Novità v9.7 (28 luglio 2026, notte tarda — il RUOLO REALE granulare: 12 codici, e dove si posiziona)
+
+Richiesta dell'utente: «ogni calciatore deve avere il proprio ruolo reale … per sapere orientativamente
+dove collocarlo in campo», recuperato **quando gira lo snapshot**.
+
+### 1. Il vocabolario: dodici codici, ENUMERATI e non ricordati
+
+`GK` · `DL DC DR` · `DM` · `ML MC MR` · `AM` · `LW RW` · `ST` — da uno a tre per giocatore, nell'ordine
+del provider (il primo è quello con cui viene disegnato). Etichette italiane (`positions.REAL_ROLE_LABEL`,
+italiano per lo stesso precedente dei badge del campetto: sono le parole con cui si prepara un'asta):
+
+| codice | italiano | badge | codice | italiano | badge |
+|---|---|---|---|---|---|
+| `GK` | portiere | `P` | `MC` | centrocampista centrale | `C` |
+| `DL` | terzino sinistro | `Ts` | `MR` | esterno di centrocampo destro | `Ed` |
+| `DC` | difensore centrale | `Dc` | `AM` | trequartista | `T` |
+| `DR` | terzino destro | `Td` | `LW` | ala sinistra | `As` |
+| `DM` | mediano davanti alla difesa | `M` | `RW` | ala destra | `Ad` |
+| `ML` | esterno di centrocampo sinistro | `Es` | `ST` | punta centrale | `Pc` |
+
+**Enumerati misurando**: 128 giocatori campionati sulle quattro linee non hanno restituito nient'altro, e
+tutti ne avevano almeno uno. Non esiste un codice «seconda punta»: torna come `AM` o `ST`. Un tredicesimo
+codice a monte viene **stampato nel log** (`unknown_role_codes`) invece di essere assorbito in silenzio.
+
+**Perché serve, e perché nessuna colonna esistente lo sostituisce**: `rosters.role_classic` chiama `D` sia
+un terzino sinistro sia un centrale, e **`positions.derived_role` li chiama `D` entrambi anche lui**. Il
+ruolo granulare è la sola cosa che li separa. Sullo stesso asse: `DM`/`MC`/`AM` sono tre posti diversi in
+campo e per il listone sono tutti e tre `C`.
+
+### 2. È una GRIGLIA: lato e profondità, quindi si posiziona
+
+`REAL_ROLE_SIDE` (−1 la sinistra della squadra … +1 la sua destra) e `REAL_ROLE_DEPTH` (0 = porta propria,
+1 = porta avversaria — **lo stesso asse su cui è misurato `positions.avg_x`**):
+
+```
+                    ST                      1.00
+          LW        AM        RW            0.80
+          ML        MC        MR            0.60
+                    DM                      0.45
+     DL         DC      DC         DR       0.25
+                    GK                      0.00
+   sinistra        centro         destra
+```
+
+A differenza del listone, **ognuno dei dodici o nomina una fascia o è centrale**: sono `e` (esterno) e `w`
+(ala) del Mantra a lasciare il lato aperto. I numeri sono posizioni di **DISEGNO** — una scelta di layout,
+non una quantità fittata: nulla di predittivo li legge, e `avg_x/avg_y` dalla heatmap è la versione
+misurata che vince dove è riempita.
+
+### 3. Precedenza sul lato, DECISA MISURANDO
+
+`desc_side_measured` (centroide heatmap, asse calibrato sui terzini) e il codice concordano su **196 dei
+219** laterali del foglio (**89%**). Regola adottata: dove il codice nomina una fascia si tiene il valore
+misurato — che dice anche *quanto* stava largo — **a meno che** contraddica il codice o legga centrale
+(|misura| < 0.1); là vince il codice, perché un `DL` non è un centrale. Un codice **centrale** invece non
+è una pretesa sulla fascia: un nominale `DC` che ha fatto il sinistro di una difesa a tre esce a sinistra
+dalla misura, ed è esattamente il caso che la heatmap prende bene. Verificato: Bastoni `DC;DR` → −0.53.
+
+### 4. Come si recupera: una richiesta per CLUB, non per giocatore
+
+**`/api/v1/team/{id}/players`** porta `positionsDetailed` + `preferredFoot` per l'INTERA rosa corrente in
+**una** richiesta: 35 club di perimetro invece di ~1500 giocatori, ~2 minuti al primo giro. Trovato
+sondando l'API: `positionsDetailed` sull'oggetto giocatore è identico a `characteristics.positions`
+(38/38 sul campione), quindi una sola richiesta basta per entrambi.
+
+- **`positions --layer roles`** (nuovo): `derive_club_xref` (i **team id** del provider dedotti *offline*
+  dalle cache `sofascore_stats_*.json` già presenti — nessuna fonte nostra ne portava uno: **92 club**) →
+  `fetch_roles` (passata per club, poi **top-up** per giocatore per chi nessuna pagina rosa copriva,
+  ordinato per Qt.I e limitato) → `ingest_roles_from_cache`.
+- Cache **datata** (`sofascore_squad_{team}_{data}.json`): rieseguire lo stesso giorno costa **zero**
+  richieste, e la corsa del mese prossimo è una nuova osservazione, non una sovrascrittura.
+- ⚠️ Il top-up è **legato agli stessi club** della passata per club. Senza quel vincolo camminava su tutte
+  le 77 squadre di `squad_snapshot` contro le 38 comprabili, spendendo una richiesta per giocatore su rose
+  la cui pagina di club, più economica, non era mai stata chiesta — per righe che il foglio poi filtrava.
+- ⚠️ `clubs` ha righe doppie per lo stesso club reale (`Eintracht` / `Eintracht Francoforte`) e la PK di
+  `club_xref` è `(source, source_id)`: entrambe reclamano lo stesso team id e l'ultima vinceva in
+  silenzio. Risolto in chiaro — vince la riga con più giocatori in rosa — e le perdenti finiscono **nel
+  log**, così un club che smette di avere la pagina rosa è una riga da leggere, non un buco da trovare.
+
+### 5. Dove finisce: `player_roles`, DATATA — il TERZO fatto non backfillabile
+
+`player_roles(fc_id, valid_from, source, roles, primary_role, line, foot)`. Datata **perché deve esserlo**:
+il provider serve solo «adesso» — `?seasonId=` risponde **200 e lo IGNORA**, restituendo i codici di oggi
+per una stagione di tre anni fa. Verificato: Dimarco torna `['ML']` sia per 25/26 sia per 23/24. Quindi si
+affianca a `probable_starter` e `flags.contract_until`: **ogni giorno in cui non viene osservato è un
+giorno che non esisterà mai**. Nei `known_gaps` del bundle e nel CONTRACT dell'export.
+
+Storiche e non toccate, invece: `positions.derived_role` (G/D/M/F per stagione, dal layer per-partita) e
+`positions.avg_x/avg_y` (heatmap di stagione).
+
+Identità **solo** via `player_xref`, come il layer per-partita: chi non è risolto viene contato e saltato,
+mai indovinato per nome — i fallback sul cognome sono ciò che ha fatto collassare dieci «Sanchez» in un
+giocatore, e su un foglio il cui compito è dire dove gioca un uomo **un ruolo sbagliato è peggio di un
+ruolo mancante**.
+
+### 6. Nello snapshot e nella vista
+
+`refresh_real_roles` gira a **ogni** snapshot, accanto alle probabili e per la stessa ragione. Sette
+colonne nuove: `desc_real_roles`, `desc_real_role_primary`, `desc_real_role_line`,
+**`desc_real_role_depth`**, **`desc_real_role_side`**, `desc_foot`, `desc_real_role_observed` — le
+posizioni di disegno viaggiano nel CSV, così **chi legge il foglio lo colloca come il campetto** invece di
+inventarsi una mappatura. Il piede arriva gratis nella stessa richiesta e distingue un `DL` mancino da uno
+adattato.
+
+Nella vista il codice granulare decide **fascia**, **profondità** (spostamento *dentro* la linea, limitato
+a ±18 px: colloca un uomo nella sua linea e non lo sposta in un'altra — quale linea sia viene dal modulo e
+dalla titolarità, e quella decisione non si riapre qui) e **badge**; la colonna `real` mostra `DL/ML`.
+Dove manca, tutto ricade esattamente su prima (slot modale + ruolo Mantra con fascia).
+
+**Misurato al 28/07**: 1372 osservazioni datate; **745/883 righe del foglio col ruolo granulare (84%)**;
+i 221 mancanti su 1343 sono identità non risolte a un id provider — la linea resta nota, manca la fascia.
+Piede: 506 destro, 204 sinistro, 35 ambidestro. Verificato sui casi reali: Dimarco `D/e` → `ML`, badge
+`Es`, lato −0.62, profondità 0.60 (davanti alla difesa); Calhanoglu `C/m;c` → `DM;MC`, badge `M`,
+profondità 0.45 (dietro le mezzali).
+
+**Nessun verdetto del gate cambia**: è un fatto descrittivo e una scelta di layout. Tradurre i dodici
+codici (o le coordinate) in un ruolo Mantra resta dietro il gate.
+
 ## Novità v9.6 (28 luglio 2026, notte — precisazioni sullo snapshot, e la VISTA)
 
 Precisazioni dell'utente, tutte con conseguenze sui dati e non solo sulla UI.

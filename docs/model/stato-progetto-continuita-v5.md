@@ -1,5 +1,5 @@
 # Stato progetto & continuità — v5
-**Aggiornato: 28 luglio 2026 (seconda chiusura: coppie d'attacco)**
+**Aggiornato: 28 luglio 2026 (terza chiusura: il ruolo reale granulare)**
 Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da qui + i file della cartella "Modello Previsionale Fantacalcio".
 *Glossario: T1/T2 = finestre di test (23/24->24/25, 24/25->25/26) · MAE = errore medio assoluto · cross-fitted = parametri stimati su una finestra, testati sull'altra · M2e = modello portieri decomposto con ClubElo · Pv_att = presenze attese · fc_id = id fantacalcio.it · EV = valore atteso · scoring_config = punteggi configurabili per lega · xG/xA = expected goals/assists · 2.5 pieno = backtest motore completo con flag.*
 
@@ -7,6 +7,26 @@ Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da q
 App per leghe EuroLeghe/fantacalcio.it (Classic+Mantra, 5 campionati) con motore previsionale. Metodo: ogni regola entra SOLO se batte il baseline fuori campione su finestre indipendenti (gate pre-registrato). Doc madre: modello-previsionale-v3.8.md.
 
 ## ⚠️ Lo stato corrente è in `00-BRIDGE-punto-di-ingresso.md`, blocco «STATO AL 28 LUGLIO 2026 (sera)»
+
+### 28 luglio 2026 (notte tarda), in una riga: ogni calciatore ha il suo RUOLO REALE, e si sa dove collocarlo
+Richiesta dell'utente: il ruolo reale di ogni giocatore, recuperato **quando gira lo snapshot**, per
+sapere orientativamente dove metterlo in campo. **Dodici codici** (`GK` · `DL DC DR` · `DM` · `ML MC MR` ·
+`AM` · `LW RW` · `ST`), **enumerati misurando** — 128 giocatori campionati non hanno restituito
+nient'altro — con etichetta italiana e badge (`Ts`, `Dc`, `Td`, `M`, `C`, `T`, `Es/Ed`, `As/Ad`, `Pc`), e
+sono una **griglia**: lato (−1…+1) e profondità (0 = porta propria … 1 = avversaria, lo stesso asse di
+`avg_x`), quindi si posizionano. Nessuna colonna esistente li sostituiva: `role_classic` chiama `D` sia un
+terzino sinistro sia un centrale, e **`positions.derived_role` li chiama `D` entrambi anche lui**; `DM`,
+`MC` e `AM` sono tre posti in campo che il listone chiama tutti `C`.
+Costo: **una richiesta per CLUB** (`/team/{id}/players` porta l'intera rosa) → 35 club invece di ~1500
+giocatori, ~2 minuti, **zero** rieseguendo lo stesso giorno. Nuovo `positions --layer roles`; i team id
+del provider dedotti *offline* dalle cache già presenti (92 club).
+⚠️ **TERZO fatto non backfillabile**: `?seasonId=` risponde **200 e lo ignora** (Dimarco → `['ML']` per
+ogni stagione), quindi `player_roles` è **datata** e sta accanto a `probable_starter` e `contract_until`.
+Storiche e intatte: `derived_role` e `avg_x/avg_y`.
+Precedenza sul lato **decisa misurando**: heatmap e codice concordano su **196/219** laterali (89%); nei 23
+restanti vince il codice, ma un codice **centrale** non è una pretesa sulla fascia e lì resta la misura
+(Bastoni `DC;DR` → −0.53). **1372 osservazioni datate, 745/883 righe del foglio (84%).**
+**Nessun verdetto del gate cambia**: fatto descrittivo + layout. Dettaglio: spec «Novità v9.7».
 
 ### 28 luglio 2026 (notte, seconda parte), in una riga: il toolkit è completo, esporta e si ricostruisce da zero
 Quattro richieste in una sessione, tutte chiuse — e **nessuna regola è entrata nel motore**: sono dati,

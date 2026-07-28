@@ -95,6 +95,25 @@ beta per gruppo di ruolo · baseline multi-stagione 62/38 · ancore per lega · 
   ridatate = look-ahead, perimetro euro non filtrato, anello bianco su riga bianca, tooltip muti
   (chiave sul testo invece che sull'id di colonna).
 
+- [x] **v9.7 (28/07 notte tarda) — il RUOLO REALE granulare, e dove si colloca in campo**: richiesta
+  dell'utente, recuperato **a ogni snapshot**. **Dodici codici** `GK` · `DL DC DR` · `DM` · `ML MC MR` ·
+  `AM` · `LW RW` · `ST` — **enumerati misurando** (128 giocatori campionati, nessun tredicesimo; un codice
+  nuovo a monte va **nel log**, non assorbito) — con etichetta italiana e badge, e sono una **griglia**:
+  lato (−1…+1) + profondità (0 porta propria … 1 avversaria, lo stesso asse di `avg_x`). Serviva perché
+  `role_classic` chiama `D` sia un terzino sinistro sia un centrale e **`derived_role` li chiama `D`
+  entrambi anche lui**; `DM`/`MC`/`AM` sono tre posti che il listone chiama tutti `C`.
+  Nuova `player_roles` **datata**, nuovo `positions --layer roles`, **una richiesta per CLUB**
+  (`/team/{id}/players`: 35 club invece di ~1500 giocatori, ~2 min, **zero** rieseguendo in giornata),
+  team id del provider dedotti *offline* dalle cache (92 club), sette colonne `desc_real_role*`/`desc_foot`
+  nel foglio, e nella vista fascia + profondità + badge (colonna `real` = `DL/ML`).
+  ⚠️ **TERZO fatto non backfillabile**: `?seasonId=` risponde 200 e lo **ignora**. Precedenza sul lato
+  decisa misurando: heatmap e codice concordano su **196/219** (89%), nei 23 restanti vince il codice — ma
+  un codice **centrale** non pretende nulla sulla fascia e lì resta la misura (Bastoni `DC;DR` → −0.53).
+  **1372 osservazioni, 745/883 righe (84%)**. Difetti trovati provandolo: il top-up per giocatore
+  camminava su tutte le 77 squadre di `squad_snapshot` invece delle 38 comprabili; righe doppie in `clubs`
+  si rubavano a vicenda il team id **in silenzio** (ora vince la riga con più rose, e le perdenti sono nel
+  log). **Nessun verdetto del gate cambia.**
+
 ## Percorso critico (aggiornato 28/07 notte)
 La parte dati e' fatta **e ora è anche esportabile e ricostruibile da zero** (v9.4): il toolkit non è
 più sul percorso critico. Il percorso ora e': **modalità LIVE del motore (una lista sola, non due) ->
