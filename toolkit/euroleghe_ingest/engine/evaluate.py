@@ -1213,10 +1213,15 @@ def _round(value: float | None, digits: int = 3) -> float | None:
 def role_metrics(observations: list[features.Observation], predictions: list[Prediction]) -> dict:
     """Everything we want to know about one role in one window."""
     valued = [p for p in predictions if p.value_pred is not None]
-    ranked = sorted(valued, key=lambda p: -(p.value_pred or 0.0))
+    # `fc_id` as the tie-break, here and in `auction_view`: a player with no history is priced at his
+    # role anchor, so DOZENS share the exact same predicted value and their order was decided by the
+    # order the rows came back from SQLite. Found by running this harness against the exported bundle:
+    # identical observations, identical metrics, and a keeper reported 35th on one file and 60th on the
+    # other. Nothing about the model changes - only that the same data now always answers the same way.
+    ranked = sorted(valued, key=lambda p: (-(p.value_pred or 0.0), p.obs.fc_id))
     predicted_rank = {prediction.obs.fc_id: index for index, prediction in enumerate(ranked, 1)}
     actual = sorted((obs for obs in observations if obs.value_act is not None),
-                    key=lambda obs: -(obs.value_act or 0.0))
+                    key=lambda obs: (-(obs.value_act or 0.0), obs.fc_id))
 
     top_predicted = ranked[:TOP_N]
     top_actual = actual[:TOP_N]
@@ -2207,12 +2212,14 @@ def auction_view(data: features.WindowData, predictions: list[Prediction],
                 return True
             return appearances / data.matchdays_target >= _floor
 
-        ranked = sorted((p for p in valued if fieldable(p.pv_pred)), key=lambda p: -score_pred(p))
+        # fc_id breaks the ties, so the list a decision is taken from is reproducible (see role_metrics)
+        ranked = sorted((p for p in valued if fieldable(p.pv_pred)),
+                        key=lambda p: (-score_pred(p), p.obs.fc_id))
         predicted_rank = {p.obs.fc_id: index for index, p in enumerate(ranked, 1)}
         by_id = {p.obs.fc_id: p for p in valued}
         actual = sorted((obs for obs in observations
                          if obs.value_act is not None and fieldable(obs.pv_act)),
-                        key=lambda obs: -score_act(obs))
+                        key=lambda obs: (-score_act(obs), obs.fc_id))
         actual_rank = {obs.fc_id: index for index, obs in enumerate(actual, 1)}
 
         # What buying the engine's ten would have RETURNED, against what the perfect ten returned.

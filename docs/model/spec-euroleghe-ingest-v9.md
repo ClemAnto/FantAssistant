@@ -229,6 +229,27 @@ Misurato: **229 116 righe, 29 MB SQLite / 2,5 MB JSON gzip** su 21 tabelle.
 - ⚠️ `data/export/` è in `.gitignore`: il bundle porta lo stesso contenuto a pagamento della cache e
   **il repo è pubblico**.
 
+**Verifica empirica del contratto** (l'unica che conta): l'harness del gate è stato eseguito puntando
+`EUROLEGHE_DB_PATH` **al bundle** invece che al DB. Output `backtest --window T2` **identico carattere
+per carattere**. Due difetti trovati così, che nessuna rilettura del contratto avrebbe visto:
+
+1. Le righe `sofascore_recent` (i giocatori senza storico) sono etichettate con la stagione del
+   **listone** per cui sono state scaricate, non con quella della partita: una finestra di due stagioni
+   ne buttava 570. Ora viaggiano sempre (`also` nella TableSpec).
+2. **`--history` deve coprire anche la finestra di CROSS-FIT, non solo la stagione di input.** Con due
+   stagioni le osservazioni erano identiche e **tutte le metriche del gate combaciavano**, e la lista
+   d'asta era comunque diversa: i coefficienti erano fittati su una finestra il cui layer per-partita
+   era assente. Default portato a **3**, con il motivo scritto nel manifest (`heavy_seasons_note`) e un
+   test di regressione. Costo: 39 MB invece di 29.
+
+**Effetto collaterale trovato inseguendo quella differenza — il ranking d'asta non era deterministico.**
+Un giocatore senza storico è prezzato all'àncora del ruolo, quindi decine condividono lo stesso VALORE
+previsto e l'ordine fra loro lo decideva l'ordine fisico delle righe di SQLite (un portiere: 35° su un
+file, 60° sull'altro). Ora il tie-break è `fc_id`. **Nessuna previsione cambia**, e `--verify` resta a
+**15/18** numeri pubblicati con gli stessi tre in revisione. Cambia UNA cosa: un portiere passa da miss
+«near» a «regime» — e la lezione è che per i giocatori prezzati all'àncora quell'etichetta era **già**
+arbitraria, perché sono tutti a pari merito.
+
 ### 5. UI rifatta (richiesta dell'utente)
 
 Nuovo `ui_theme.py`: palette semantica (`surface`, `border`, `text_muted`, `accent`, ...) in due

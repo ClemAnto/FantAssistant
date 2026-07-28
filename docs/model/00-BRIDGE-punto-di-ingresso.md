@@ -47,6 +47,15 @@ regola.** Sono dati, strumenti e infrastruttura.
    `manifest.json` porta provenienza (commit + data), **quali prezzi sono auction-safe**, i parametri
    provvisori **con i loro valori**, il set adottato e i buchi noti. `--verify` ri-apre il bundle e
    distingue *bundle rotto* da *buco del mondo*. `data/export/` è gitignored: **il repo è pubblico**.
+   ⚠️ **Verificato eseguendo il motore SUL bundle**: output identico al DB. Ha trovato due difetti che
+   rileggere il contratto non avrebbe visto — le righe `sofascore_recent` sono etichettate con la
+   stagione del listone (570 buttate) e **`--history` deve coprire la finestra di cross-fit**, perché i
+   coefficienti sono fittati là: con 2 stagioni le metriche del gate combaciavano tutte e **la lista
+   d'asta no**. Default 3, bundle 39 MB. E inseguendo quella differenza è saltato fuori che **il
+   ranking d'asta non era deterministico** (decine di giocatori prezzati all'àncora a pari VALORE,
+   ordinati dall'ordine fisico delle righe): tie-break su `fc_id`, nessuna previsione cambia, `--verify`
+   resta 15/18, e si sposta **un** portiere da miss «near» a «regime» — che per i prezzati all'àncora
+   era un'etichetta già arbitraria.
 4. **Ricostruibile da zero su un'altra macchina.** `bootstrap --plan` = 15 passi, ordine, opzioni e
    costo (**~17 h**, ripartibile), e rifiuta di partire senza credenziali. Tre buchi reali chiusi per
    arrivarci: `elo` non legge più un CSV fatto a mano ma l'**API ClubElo** (effetto: `club_elo` da 76

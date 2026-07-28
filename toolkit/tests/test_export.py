@@ -135,3 +135,30 @@ def test_absent_seasons_are_notes_not_problems(tmp_path):
                export.verify_bundle(ctx.config.data_dir / "export" / "2025-26" / "bundle.sqlite",
                                     ["2015-16", "2024-25", "2025-26"], "2025-26",
                                     ("euro", "default"))[1])
+
+
+def test_heavy_window_covers_the_cross_fit_window(tmp_path):
+    """The default must include the season the COEFFICIENTS are fitted on, not just the input season.
+
+    This is the regression test for the subtlest failure of the whole bundle: with two seasons of the
+    per-match tables the observations came out identical and every gate metric matched, and the auction
+    list still differed - the parameters had been fitted on a window whose per-match layer was missing.
+    Nothing but running the harness against the bundle could have surfaced it.
+    """
+    from euroleghe_ingest.engine import features
+
+    assert export.DEFAULT_HISTORY >= 3
+    ctx = _ctx(tmp_path)
+    _seed(ctx.conn)
+    for season in ("2022-23", "2023-24"):
+        ctx.conn.execute("INSERT INTO rosters(fc_id, season, fc_club_id, league) "
+                         "VALUES (1, ?, 10, 'serie_a')", (season,))
+    ctx.conn.commit()
+    manifest = export.run(ctx, formats=("json",), verify=False)
+    target = manifest["target_season"]
+    window = next(w for w in features.WINDOWS.values() if w.target_season == target)
+    source = features.cross_fit_source(
+        next(key for key, w in features.WINDOWS.items() if w.target_season == target))
+    # the input season of the window AND of the window its parameters come from must both be there
+    assert window.input_season in manifest["heavy_seasons"]
+    assert features.WINDOWS[source].input_season in manifest["heavy_seasons"]

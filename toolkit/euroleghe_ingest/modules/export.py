@@ -48,10 +48,14 @@ NETWORK = False
 # bundle whose schema_version it does not know, which is cheaper than debugging a silent mismatch.
 SCHEMA_VERSION = 1
 
-# How many seasons of the heavy per-match tables travel with the bundle. The engine reads them for
-# ONE season (the input one) - `_inactivity` and the propensity are both restricted to it on purpose -
-# so two is one more than needed, kept because a season boundary is exactly where an off-by-one hides.
-DEFAULT_HISTORY = 2
+# How many seasons of the heavy per-match tables travel with the bundle. THREE, and the number was
+# measured, not chosen: the engine reads them for the input season, but its COEFFICIENTS are fitted on
+# the chronologically ADJACENT window (`features.cross_fit_source`), whose own input season is one
+# further back. With two seasons the observations came out identical and the gate metrics matched
+# exactly - and the auction list still differed, because the parameters had been fitted on a window
+# whose per-match layer was missing. Caught by running the harness against the bundle instead of
+# trusting the contract: three seasons make the two bit-identical.
+DEFAULT_HISTORY = 3
 
 
 @dataclass(frozen=True)
@@ -62,6 +66,8 @@ class TableSpec:
       'full'    the table travels whole (small, and used across seasons)
       'season'  rows of every season up to and including the target
       'heavy'   rows of the last `history` seasons only - the per-match tables
+
+    Whatever `scope` says, `also` rows always travel: see `_where`.
     """
 
     name: str
@@ -69,6 +75,7 @@ class TableSpec:
     why: str
     season_column: str = "season"
     extra: str = ""            # additional SQL predicate, ANDed
+    also: str = ""             # rows to keep REGARDLESS of the season filter, ORed
 
 
 # Ordered parents-first: the bundle's own foreign keys have to resolve as it is written.
@@ -86,7 +93,8 @@ CONTRACT: tuple[TableSpec, ...] = (
               "full-real-season facts for the 4 foreign leagues: the propensity per 90"),
     TableSpec("external_match_stats", "heavy",
               "the per-match layer: propensity, the inactivity proxy, mv_synth, and the "
-              "`sofascore_recent` rows R13c/recent-form read before the auction"),
+              "`sofascore_recent` rows the no-history pricing reads before the auction",
+              also="source = 'sofascore_recent'"),
     TableSpec("club_match_lineups", "full",
               "how many players of each line a club actually FIELDS: the Mantra slot caps and the "
               "attack-capacity denominator (22k rows in total, so it travels whole)"),
@@ -230,6 +238,12 @@ def _where(spec: TableSpec, seasons: list[str], heavy: list[str]) -> tuple[str, 
         clause, params = f"{spec.season_column} IN ({placeholders})", list(wanted)
     if spec.extra:
         clause = f"({clause}) AND ({spec.extra})" if clause else spec.extra
+    # `also` survives the season filter. Measured need, not a nicety: the no-history pricing reads the
+    # `sofascore_recent` rows by MATCH DATE, and those rows are labelled with the season of the listone
+    # they were fetched for - so a two-season window silently dropped 570 of them and changed the
+    # predicted rank of exactly the players who have no history (a keeper moved from 35th to 60th).
+    if spec.also:
+        clause = f"({clause}) OR ({spec.also})" if clause else spec.also
     return (f" WHERE {clause}" if clause else ""), params
 
 
@@ -423,6 +437,10 @@ def run(ctx: Context, *, season: str | None = None, out: str | None = None,
         "input_season": seasons[-2] if len(seasons) > 1 else target,
         "history_seasons": seasons,
         "heavy_seasons": heavy,
+        "heavy_seasons_note": "The per-match tables travel for these seasons only. It must cover the "
+                              "input season AND the input season of the cross-fit window, because the "
+                              "coefficients are fitted there: trimming it changes the auction list "
+                              "while leaving every gate metric identical.",
         "platforms": list(platforms),
         "formats": list(formats),
         "tables": [{"name": spec.name, "scope": spec.scope, "rows": counts.get(spec.name, 0),
