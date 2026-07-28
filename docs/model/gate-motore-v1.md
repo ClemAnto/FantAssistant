@@ -1098,6 +1098,12 @@ le partite.**
 
 ## 7. Pre-registrazioni (giugno 2027, finestra 26/27)
 
+- **R17 — attacco affollato** (28/07/2026): la quota reclamata dai compagni SOPRA la capienza di
+  attaccanti che il club schiera davvero (K per club dalle XI della stagione di input, su TUTTE le
+  righe dei lineup), caricata solo a chi il mercato (Qt.I) ordina sotto quella capienza. Pre-registrata
+  in [attacco-affollato-r17-v1.md](attacco-affollato-r17-v1.md) PRIMA di ogni corsa; misurabile già ora
+  su 6 finestre Serie A e 4 euro, di cui Tm3/Tm2/Tm1/T0 (Serie A) e Tm3/T0 (euro) tenute PULITE dal
+  diagnostico (esiti letti solo su T1/T2). Non sostituisce la voce qui sotto: misura un'altra cosa.
 - **Concorrenza posizionale pesata dalla Qt.I dei concorrenti** — un rivale da 21 crediti non è un
   rincalzo da 3. Nasce dai casi Openda/David/Vlahović (la Juventus 25/26 ha preso tre attaccanti sopra
   a Vlahović) ed è la forma che due sole finestre non possono confermare senza autoinganno. Calcolabile
