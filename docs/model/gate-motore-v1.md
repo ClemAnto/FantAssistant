@@ -959,6 +959,50 @@ come **fatti fissi senza provenienza** — né piattaforma, né baseline, né da
 > `generated_at` nel report. Chi cita un λ in un documento copia anche quelli, oppure scrive «vedi il
 > report» e non il numero.
 
+## 5-nonies. FAMIGLIA FORZA-CLUB: CHIUSA (decisione del 28 luglio 2026)
+
+Decisione dell'utente, presa ad alta voce come richiedeva. R5 e R5b restano in `CANDIDATES` perché il gate
+deve poterle ri-valutare, **non** perché siano proposte vive. **Una quinta misura di «questo club è forte,
+quindi alza la sua fantamedia» non è un'ipotesi nuova.**
+
+### I quattro tentativi
+
+| | misura | esito |
+|---|---|---|
+| 1 | forza-club interna statica (residui FM retrospettivi) | respinta — «la cura non può essere retrospettiva» (`ancore-lega-forzaclub-fase3_1.md`) |
+| 2 | Elo additivo per il movimento | respinta (`clubelo-gate.md`) |
+| 3 | **R5** Elo del club alla data d'asta | respinta, λ +0.023 / +0.073 — segno giusto su entrambe, T1 peggiora sempre |
+| 4 | **R5b** forza offensiva dagli xA | non adottata: passa 3/3 su Serie A, fallisce su euro, e solo sulle tre finestre da cui l'ipotesi è stata letta |
+
+**Il segno è stato giusto tutte e quattro le volte.** L'intuizione Kane è corretta e non è questo il punto
+in discussione.
+
+### Perché cadono, ed è la stessa ragione di altre due famiglie
+
+**Il regressore non è incrementale.** La fm_prec di Kane, 9.34, **contiene già il Bayern**: un termine
+forza-club aggiunto sopra ricalcola ciò che il baseline porta già. È identico a R14 (uno stop è già dentro
+`share_prec`) e a R16 (la sua quota dei gol del club è già dentro la sua fantamedia). **Un'ipotesi il cui
+input è derivabile dalla storia del giocatore stesso va attesa come fallimentare, qualunque sia il
+meccanismo dichiarato.** Vale come predittore per le ipotesi future, non solo come autopsia.
+
+### Il costo che accettiamo, misurato
+
+Kane su T2: fm_prec **9.34** → àncora 7.47 → previsto **8.25** → **reale 10.60**. Errore **+2.35**, il più
+grande che il motore fa su un singolo giocatore, e resta senza spiegazione per questa via.
+
+Ma la **direzione** del residuo dice che la via era sbagliata: il motore l'ha regredito **in giù** (9.34 →
+8.25) e lui è andato **in su**. Il problema non è un termine club che manca, è che **beta comprime troppo**
+un giocatore il cui livello è genuinamente quello. Quello è un meccanismo **diverso** — beta non costante — e
+sta già fra le pre-registrazioni («beta attacco alto / difesa bassa»). La chiusura di questa famiglia non
+chiude il caso Kane: lo sposta sull'unica via che non ricalcola la sua stessa storia.
+
+### Cosa la riaprirebbe legittimamente
+
+Una misura di club **ortogonale alla storia del giocatore**: prospettica, e non derivabile dai risultati che
+hanno prodotto la sua fantamedia. Qualità dei colpi di mercato confermati · resa offensiva storica di un
+allenatore nuovo · quote di mercato pre-stagione. **Un'altra misura retrospettiva della forza passata del
+club non è un'ipotesi nuova, è la quinta corsa a questa.**
+
 ## 6. Validazione del voto sintetico (Serie A, dove esistono entrambi i set reali)
 
 **Per partita** (n=10.657): sintetico vs Mv euro (suo bersaglio) MAE **0.365** · vs Mv `default` **0.379**

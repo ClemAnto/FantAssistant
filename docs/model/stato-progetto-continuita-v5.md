@@ -180,8 +180,11 @@ accumulata da adesso. `injuries` resta senza fonte agganciata: e' una decisione,
    `FVM` -> **ALGORITMO COMPLETO asta 26/27**.
 
 ## Respinte dal gate (non riproporre senza nuove finestre)
-beta per ruolo · baseline multi-stagione 62/38 · ancore per lega · forza-club interna · Elo additivo
-movimento. Bias elite-in-big NON strutturale -> correttivo condizionale in pre-registrazione.
+beta per ruolo · baseline multi-stagione 62/38 · ancore per lega · **FAMIGLIA FORZA-CLUB CHIUSA il
+28/07/2026 dopo quattro tentativi** (forza-club interna · Elo additivo movimento · R5 Elo alla data d'asta ·
+R5b dagli xA): segno giusto tutte le volte, input derivabile dalla fantamedia del giocatore stesso, quindi
+non incrementale. Riapribile solo con una misura **prospettica** e ortogonale alla sua storia — vedi
+`gate-motore-v1.md` §5-nonies. Bias elite-in-big NON strutturale -> correttivo condizionale in pre-registrazione.
 **Aggiunte il 27/07** (dettaglio e numeri in `gate-motore-v1.md`): sconto adattamento cross-lega
 (segno opposto fra finestre, e il controllo intra-lega e' piu' grande) · propensione per-90 xG/xA
 (gamma ~ 0 di segno sbagliato) · **ancora forza-club da ClubElo: TERZA bocciatura della famiglia**

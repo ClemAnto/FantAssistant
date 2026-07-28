@@ -348,12 +348,31 @@ def expectation_revision_adjustment(revision: float | None, lam: float) -> float
 def club_strength_adjustment(elo_z: float | None, lam: float) -> float:
     """R5: shift the role anchor by the destination club's standardised strength.
 
-    ⚠️ ADJACENT TO TWO HYPOTHESES THE GATE ALREADY REJECTED - "internal club strength" and "additive
-    Elo for movement" (see the rejected list in stato-progetto-continuita). It is retested because the
-    doc's own improvement list opens with it and because the biggest single FM error the engine makes
-    is a dominant-club one (Kane 8.29 predicted, 10.60 real): regressing him towards a league mean
-    ignores that he plays in a team that scores twice as much as the league. If it fails again, it
-    must be recorded as re-rejected, not quietly retried a third time.
+    ⚠️⚠️ THE FAMILY IS CLOSED - decided 28/07/2026, on the fourth rejection. Kept in the code because the
+    gate must still be able to re-score it, NOT because it is a live candidate. Do not propose a fifth
+    measure of the same thing.
+
+    Four attempts, all measuring "this club is strong, so shift his fantamedia": internal static club
+    strength (retrospective FM residuals) · additive Elo for movement · R5, club Elo at the auction date
+    (lambda +0.023/+0.073) · R5b, club attacking strength from expected assists (passes 3/3 on Serie A and
+    fails on euro, and only on the three windows the hypothesis was read off). The SIGN was right every
+    single time - the Kane intuition is correct - and the error never improved where it mattered.
+
+    Why, and it is the same reason three unrelated families died: **the regressor is not incremental**.
+    Kane's own fm_prev of 9.34 already contains Bayern, so a club term added on top restates what the
+    baseline carries. R14 failed identically (a spell out is already inside `share_prev`) and so did R16
+    (his own share of the club's goals is already inside his own fantamedia). A hypothesis whose input is
+    derivable from the player's own history has to be expected to fail here, whatever its mechanism.
+
+    And the direction of the residual says what the real fix is. The engine regressed Kane DOWN, 9.34 ->
+    8.25, and he went UP to 10.60: the error is not a missing club term, it is that BETA over-shrinks a
+    player whose level is genuinely that high. That is a different mechanism - a non-constant beta - and it
+    is pre-registered separately.
+
+    What would legitimately reopen this: a club measure that is ORTHOGONAL to the player's own history -
+    forward-looking, and not derivable from the results that produced his fantamedia. Confirmed summer
+    signings' quality, a new coach's historical attacking output, pre-season market odds. Another
+    retrospective measure of past club strength is not a new hypothesis, it is a fifth run at this one.
     """
     if elo_z is None:
         return 0.0

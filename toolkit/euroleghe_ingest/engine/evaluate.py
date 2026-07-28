@@ -145,6 +145,14 @@ CANDIDATES: tuple[str, ...] = ("R0c", "R1", "R1b", "R2", "R3", "R3c", "R4", "R4b
 # worst window of -6.7%. On the auction metric it is the same story: +1 name on T1 and T2, -3 points of
 # captured VALUE on Tm3 and T0. It helps on the windows it was invented on and hurts on the ones it was
 # not. That is the pattern the gate exists to find, and it is the third time today it has found it.
+# ⚠️⚠️ THE CLUB-STRENGTH FAMILY IS CLOSED - decided 28/07/2026 after R5b, on the fourth rejection. R5 and
+# R5b stay in CANDIDATES so the gate can still re-score them; neither is a live proposal, and a fifth
+# measure of "this club is strong, shift his fantamedia" is not a new hypothesis. The diagnosis, the cost
+# we accept and the only thing that would legitimately reopen it are in `model.club_strength_adjustment`.
+# In one line: the sign was right all four times and the input is derivable from the player's own
+# fantamedia, which is the same reason R14 and R16 died - a regressor that restates the baseline cannot
+# improve it. Kane's residual points at a non-constant beta instead, which is a different mechanism.
+#
 # ⚠️ R5b (club attacking strength from its expected assists) is NOT adopted, and the reason was written
 # down BEFORE the run: xG/xA start at 2022-23, so it is measurable on T0/T1/T2 only - the same three
 # windows R16b worked on and the ones the hypothesis was read off - so a pass confirms nothing and only a
