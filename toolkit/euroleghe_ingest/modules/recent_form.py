@@ -417,6 +417,39 @@ def stored_without_bonuses(conn) -> list[tuple[int, str, list[str]]]:
     return [(fc_id, name, ids) for fc_id, (name, ids) in grouped.items()]
 
 
+def _provider_id(conn, session, fc_id: int, name: str, cancel_event=None) -> str | None:
+    """The stored sofascore id, resolved and STORED on the spot when it is missing.
+
+    Resolving needs the club and birth year the listone holds, so they are read here rather than
+    passed in: the backfill's unit of work is a stored match, not a listone row.
+    """
+    row = conn.execute(
+        "SELECT source_id FROM player_xref WHERE fc_id = ? AND source = 'sofascore'",
+        (fc_id,)).fetchone()
+    if row:
+        return row[0]
+    identity = conn.execute(
+        """SELECT p.canonical_name, p.birth_year, c.canonical_name, r.role_classic
+           FROM players p
+           LEFT JOIN rosters r ON r.fc_id = p.fc_id
+           LEFT JOIN clubs c ON c.fc_club_id = r.fc_club_id
+           WHERE p.fc_id = ? ORDER BY r.season DESC LIMIT 1""", (fc_id,)).fetchone()
+    if not identity:
+        return None
+    provider_id, tier = resolve(session, {"name": identity[0], "birth_year": identity[1],
+                                          "club": identity[2], "role": identity[3]}, cancel_event)
+    if not provider_id:
+        print(f"[recent_form]   {name[:22]:<22} unresolved - no bonuses possible")
+        return None
+    conn.execute(
+        """INSERT INTO player_xref(fc_id, source, source_id) VALUES (?, 'sofascore', ?)
+           ON CONFLICT(source, source_id) DO UPDATE SET fc_id = excluded.fc_id""",
+        (fc_id, str(provider_id)))
+    conn.commit()
+    print(f"[recent_form]   {name[:22]:<22} resolved {provider_id} ({tier})")
+    return str(provider_id)
+
+
 def backfill_bonuses(ctx: Context, limit: int | None = None) -> int:
     """Fetch the goals/assists/xG of matches already stored. Resumable and cheap to interrupt.
 
@@ -437,13 +470,8 @@ def backfill_bonuses(ctx: Context, limit: int | None = None) -> int:
         for fc_id, name, match_ids in pending:
             if ctx.cancelled():
                 raise KeyboardInterrupt
-            row = conn.execute(
-                "SELECT source_id FROM player_xref WHERE fc_id = ? AND source = 'sofascore'",
-                (fc_id,)).fetchone()
-            provider_id = row[0] if row else None
+            provider_id = _provider_id(conn, session, fc_id, name, ctx.cancel_event)
             if not provider_id:
-                print(f"[recent_form]   {name[:22]:<22} no stored provider id - skipped "
-                      f"(rerun the module itself to resolve him)")
                 continue
             got = 0
             for match_id in match_ids:
@@ -503,6 +531,16 @@ def _process(ctx: Context, session, conn, player: dict, target: str, cutoff: int
              "matches": 0, "competitions": "", "_stored": 0}
     if not provider_id:
         return entry
+    # Persist what the ladder just worked out. It used to be used and dropped, so the coverage CSV was
+    # the only record of it - and that file is overwritten by every run, which left 17 players with
+    # stored matches and no way to fetch their bonuses without resolving them all over again. The
+    # identity is the expensive half of this module (several search requests, and the fragile half),
+    # so it belongs in the DB the moment it is known.
+    conn.execute(
+        """INSERT INTO player_xref(fc_id, source, source_id) VALUES (?, 'sofascore', ?)
+           ON CONFLICT(source, source_id) DO UPDATE SET fc_id = excluded.fc_id""",
+        (player["fc_id"], str(provider_id)))
+    conn.commit()
 
     _polite_sleep(ctx.cancel_event)
     matches = recent_matches(session, provider_id, cutoff, wanted, ctx.cancel_event)

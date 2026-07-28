@@ -69,6 +69,35 @@ def test_backfill_targets_exactly_the_matches_missing_their_bonuses(tmp_path):
     assert 2 not in pending, "goals = 0 is a measurement and must not look like missing data"
 
 
+def test_a_resolved_identity_is_stored_not_thrown_away(tmp_path):
+    """Resolving is the expensive and fragile half of this module - several search requests and a
+    three-tier ladder that can refuse. It used to be used and dropped, so the only record was the
+    coverage CSV, which every run overwrites: 17 players ended up with stored matches and no way to
+    fetch their bonuses without resolving them all over again. The id now goes in player_xref."""
+    from euroleghe_ingest.db.database import init_db
+    from euroleghe_ingest.modules import recent_form
+
+    conn = init_db(tmp_path / "euroleghe.db")
+    conn.execute("INSERT INTO players(fc_id, canonical_name, birth_year) VALUES (7, 'Tizio', 1998)")
+    conn.commit()
+
+    calls: list[str] = []
+
+    def fake_resolve(_session, player, _cancel=None):
+        calls.append(player["name"])
+        return 4242, "tier1_club_confirmed"
+
+    original, recent_form.resolve = recent_form.resolve, fake_resolve
+    try:
+        first = recent_form._provider_id(conn, None, 7, "Tizio")
+        second = recent_form._provider_id(conn, None, 7, "Tizio")
+    finally:
+        recent_form.resolve = original
+
+    assert (first, second) == ("4242", "4242")
+    assert calls == ["Tizio"], "the second call must read the stored id, not resolve again"
+
+
 def test_resume_does_not_lock_in_a_player_whose_bonuses_were_skipped(tmp_path):
     """The other half of the same bug: the resume check counted MATCHES, so a player stored by a
     --no-bonuses run looked covered forever and could never be completed."""
