@@ -196,3 +196,32 @@ reale è un resoconto e non è la parte che serve all'asta.
 **Contaminazione dichiarata**: la persistenza è già stata misurata sulla popolazione (0.29-0.36 su tutte e
 quattro le piattaforma-stagione) e la sua correlazione **fra stagioni** non è mai stata guardata. Quello
 che segue è quindi la prima misura di questa quantità.
+
+### Esito: ARCHIVIATA. Il prerequisito cade, e la curva di popolazione ne esce confermata
+
+ρ fra la persistenza della stagione di **input** e la beccabilità della stagione **bersaglio**, sui
+giocatori presenti in entrambe:
+
+| | finestre | ρ per-giocatore | ρ della curva di popolazione `(quota_prec)^0.5` |
+|---|---|---|---|
+| euro | 5 | **+0.054 · −0.037 · +0.004 · −0.011 · +0.030** | +0.335 … +0.447, **tutte positive** |
+| Serie A | 10 | da **−0.029 a +0.099**, segno che salta | +0.291 … +0.468, **tutte positive** |
+
+**La persistenza di un giocatore non si trasferisce alla stagione successiva.** Il valore è
+indistinguibile da zero su 15 finestre su 15 e cambia segno. Nel frattempo la curva di popolazione — quella
+che è già spedita — predice la stessa beccabilità con ρ **0.29-0.47, positiva su tutte e quindici**: un
+ordine di grandezza meglio.
+
+Come pre-registrato, ci si ferma qui: **non** si passa a «usiamola solo sul lato reale». Il lato reale è un
+resoconto e non è la parte che serve all'asta, e cambiare l'ipotesi dopo aver visto il dato è precisamente
+ciò da cui la pre-registrazione protegge.
+
+**Il fatto sostanziale, che va oltre questa metrica**: la persistenza è reale **dentro** una stagione
+(0.29-0.36, mai vicina a zero) e **non persiste fra** stagioni. Quindi la costanza è una proprietà della
+stagione, non del giocatore. Il che spiega anche perché R15 è caduta sul lato presenze: stessa
+non-trasferibilità, misurata su un bersaglio diverso. **La famiglia «persistenza» si chiude sul lato
+previsionale**, non è sospesa in attesa di finestre — due bersagli indipendenti, quindici finestre, zero
+segnale trasferito.
+
+E una nota che va detta: la curva di popolazione era stata scelta perché era l'unica disponibile, non perché
+fosse la migliore. Questa misura dice che **è anche la migliore delle due**, il che è fortuna, non merito.

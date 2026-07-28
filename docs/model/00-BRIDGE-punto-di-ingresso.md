@@ -55,6 +55,11 @@ offensiva del club, non affollamento. **R13c** (produzione misurata) batte la su
 3/3 e non è adottata**, perché era pre-registrato che un passaggio sulle sole T0/T1/T2 — le finestre di
 generazione dell'ipotesi — non confermi nulla.
 
+⚠️ **Famiglia «persistenza» CHIUSA sul lato previsionale** (28/07 sera): la persistenza della
+disponibilità è reale **dentro** una stagione (0.29-0.36) e **non si trasferisce** a quella dopo — ρ
+indistinguibile da zero su 15 finestre su 15, contro 0.29-0.47 della curva di popolazione già spedita. La
+costanza è una proprietà della stagione, non del giocatore, e questo spiega anche la caduta di R15.
+
 ⚠️ **Da non rifare**: una correlazione a livello di **club** (misura di input ↔ gol del club l'anno dopo)
 **non predice** quale misura aiuti la fantamedia di un giocatore. È contro-informativa: xA sembrava la
 migliore su euro (0.66) e la regola là fallisce; su Serie A tutto sembrava debole e la regola là passa.
