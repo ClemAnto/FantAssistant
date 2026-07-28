@@ -66,7 +66,15 @@ snapshot**, per sapere orientativamente dove collocarlo in campo.
    condividono un ruolo, 8% disgiunti** — e le disgiunte sono quasi tutte `a` del listone contro `w` del
    provider, cioè la distinzione stessa fra **per cosa lo compri** e **dove gioca**.
 
-**Nessun verdetto del gate cambia**: fatto descrittivo + layout.
+8. ⚠️ **DA DECIDERE, e ogni settimana che passa costa**: il job settimanale (`scripts/weekly-snapshot.ps1`)
+   esegue **solo `fc_site`**, quindi `player_roles` si accumula **solo** quando qualcuno lancia `snapshot`.
+   Essendo un fatto non backfillabile, una settimana senza `snapshot` è una settimana che `player_roles`
+   non avrà mai. Basterebbe aggiungere `positions --layer roles` al job (~80 richieste, ~2 min, e gratis
+   se `snapshot` è già girato in giornata): lasciato come **decisione**, non fatto di nascosto dentro un
+   task pianificato.
+
+**Nessun verdetto del gate cambia**: fatto descrittivo + layout. Il vincolo è registrato in
+`gate-motore-v1.md` §5 punto 6, fra i fatti utilizzabili *live* e non nel gate retrospettivo.
 
 ### lo snapshot lavora sulle ROSE REALI e ha una VISTA (spec «Novità v9.6»)
 

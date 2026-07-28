@@ -26,7 +26,15 @@ Storiche e intatte: `derived_role` e `avg_x/avg_y`.
 Precedenza sul lato **decisa misurando**: heatmap e codice concordano su **196/219** laterali (89%); nei 23
 restanti vince il codice, ma un codice **centrale** non è una pretesa sulla fascia e lì resta la misura
 (Bastoni `DC;DR` → −0.53). **1372 osservazioni datate, 745/883 righe del foglio (84%).**
-**Nessun verdetto del gate cambia**: fatto descrittivo + layout. Dettaglio: spec «Novità v9.7».
+E i dodici codici diventano **ruoli Mantra** (`desc_mantra_real`): il Mantra semplifica — `ML`/`MR` → `e`,
+`LW`/`RW` → `w` — e due ruoli **nessun codice singolo** li produce, che è l'argomento per portarne fino a
+tre: **`b` braccetto** = fascia difensiva **+** `DC` (139 giocatori contro i 28 del listone: è una
+*capacità*, registrata e non tarata) e **`AM` → `t`|`a`** dalla linea larga del provider (63 `M`, 19 `F`).
+Non sostituisce `rosters.roles`: **esiste per quando non esistono**, e nel foglio 26/27 sono 1343 su 1343.
+Dove ci sono entrambi: **48% identici, 44% condividono un ruolo, 8% disgiunti**, e le disgiunte sono quasi
+tutte `a` (listone) contro `w` (provider) — cioè per cosa lo compri contro dove gioca.
+**Nessun verdetto del gate cambia**: fatti descrittivi + layout; il vincolo è registrato in
+`gate-motore-v1.md` §5 punto 6. Dettaglio: spec «Novità v9.7».
 
 ### 28 luglio 2026 (notte, seconda parte), in una riga: il toolkit è completo, esporta e si ricostruisce da zero
 Quattro richieste in una sessione, tutte chiuse — e **nessuna regola è entrata nel motore**: sono dati,

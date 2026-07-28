@@ -77,6 +77,23 @@ command that fills each gap.
 - **Prices: three pairs, one of them auction-safe.** `price_initial` (Qt.I) is the pre-auction quotation
   and the only price a rule may read; `price` (Qt.A) is revised all season and `fvm` is end-of-season, so
   for a past season both embed the outcome. The export manifest states this per column.
+- **Three answers to "what role is he?", and they are different questions.** `rosters.role_classic` /
+  `rosters.roles` = what the LISTONE sells him as (P/D/C/A and the Mantra roles). `positions.derived_role`
+  = which of the provider's four LINES he was actually used in, per season, from the modal per-match slot.
+  **`player_roles.roles`** = the granular real position, one to three of twelve codes
+  (`GK` · `DL DC DR` · `DM` · `ML MC MR` · `AM` · `LW RW` · `ST`) - the only one of the three that tells a
+  left back from a centre back, since the first two call both `D`. It is a **grid**: each code carries a
+  flank (-1..+1) and a depth (0 = his own goal .. 1 = the opponent's, the axis `positions.avg_x` is
+  measured on), which is what lets the sheet and the pitch view place him. `snapshot` also derives what a
+  **Mantra** auction would call him (`desc_mantra_real`): Mantra simplifies (ML/MR both `e`, LW/RW both
+  `w`), `AM` is `t` or `a` by the provider's broad line, and `b` (braccetto) comes from the code
+  COMBINATION - a flank defender who also plays `DC`. It never replaces `rosters.roles`; it exists for the
+  July case, where no listone row exists yet.
+- ⚠️ **`player_roles` is DATED and cannot be backfilled.** The provider serves only "now": `?seasonId=` is
+  accepted (HTTP 200) and ignored, returning today's codes for a season three years old. It is the third
+  snapshot-only fact, with `probable_starter` and `flags.contract_until` - see the export manifest's
+  `known_gaps`. `positions.derived_role` and `positions.avg_x/avg_y` ARE historical and are what a past
+  window must use instead.
 
 ## UI (operator panel)
 
@@ -115,6 +132,7 @@ python -m euroleghe_ingest positions                     # SofaScore season fact
 python -m euroleghe_ingest positions --layer match       # per-match ratings, perimeter clubs (hours)
 python -m euroleghe_ingest positions --layer complete    # the matches the perimeter filter skipped
 python -m euroleghe_ingest positions --layer heatmap     # avg_x/avg_y (one request per player-season)
+python -m euroleghe_ingest positions --layer roles       # the granular real role + foot (one per CLUB)
 python -m euroleghe_ingest positions --layer crosstab    # provider slot vs listone role (offline report)
 python -m euroleghe_ingest injuries --layer ids          # Transfermarkt ids + contract expiry
 python -m euroleghe_ingest injuries --layer injuries     # the injury history, one request per player
@@ -141,6 +159,14 @@ pwsh ../scripts/weekly-snapshot.ps1 -Register     # Friday 12:00, current user, 
 The probabili-formazioni page shows only "now" and has no archive, so a week nobody snapshotted is
 gone for good - which is why the gate reports `starter_prob` as 0/1453 on past windows. R7 is
 pre-registered in its weekly-snapshot form and can only be tested once enough weeks exist.
+
+⚠️ **The job runs `fc_site` only, so it does NOT accumulate the granular real role.** `player_roles` is
+the third fact of the same class - the provider serves only "now" - and today it is observed only when
+somebody runs `snapshot`. A week without a `snapshot` run is a week `player_roles` will not have, and no
+later command can recover it. Adding `positions --layer roles` to the weekly job (~80 requests, ~2
+minutes, and free if `snapshot` already ran that day because the cache is keyed by the observation date)
+is what would close it; it is deliberately left as a decision rather than done quietly inside a
+scheduled task.
 
 ## The auction sheet (`snapshot`)
 

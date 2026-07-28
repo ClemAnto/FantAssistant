@@ -611,6 +611,17 @@ cioè copertura più una regola, mentre su Serie A sono tre regole di cui una (R
 5. ⚠️ **`probable_starter` e `availability` esistono solo con data 2026-07** (snapshot corrente): usabili
    come input *live* per l'asta 26/27, **inutilizzabili nel gate retrospettivo**. Servono snapshot
    settimanali accumulati.
+6. ⚠️ **Il ruolo reale granulare (`player_roles`) è il TERZO fatto di questa classe** (28/07): i dodici
+   codici del provider (`GK` · `DL DC DR` · `DM` · `ML MC MR` · `AM` · `LW RW` · `ST`) sono serviti solo
+   per **adesso** — `?seasonId=` risponde **200 e lo IGNORA**, restituendo i codici di oggi per una
+   stagione di tre anni fa (verificato: Dimarco torna `['ML']` sia per 25/26 sia per 23/24). Quindi è
+   input *live* e **non gatabile sul passato**, come `probable_starter` e `flags.contract_until`.
+   **Storici e utilizzabili nel gate**, invece, e vanno usati al suo posto quando serve una posizione su
+   una finestra passata: `positions.derived_role` (G/D/M/F per stagione, dal layer per-partita, 100% di
+   copertura) e `positions.avg_x/avg_y` (heatmap di stagione). Nessuna regola legge oggi `player_roles`:
+   la colonna nel foglio è `desc_*`, descrittiva, e tradurre i codici in un ruolo Mantra
+   (`desc_mantra_real`) è **anch'essa** descrittiva — se un giorno uno di questi numeri deve diventare un
+   coefficiente, serve una pre-registrazione come per qualsiasi altra candidata.
 
 ## 5-bis. Layer per-partita COMPLETATO (27 luglio 2026) — e due verdetti da correggere
 
