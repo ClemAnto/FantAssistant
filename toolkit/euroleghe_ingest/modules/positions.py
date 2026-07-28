@@ -1240,6 +1240,11 @@ def reingest_from_cache(ctx: Context, seasons=None) -> None:
         print(f"[positions] {season} perimeter coverage: {our_side_coverage(conn, season)}")
     print(f"[positions] {total} external_stats rows from {len(by_season)} cached seasons")
     _write_coverage_report(ctx.config, report)
+    # Fill the league of every club we still do not know, from these same cached files. It runs HERE
+    # and not only in `rebuild` because of the order a build from zero has: `transfers` resolves clubs
+    # BY LEAGUE, and on a fresh machine the league is NULL until something derives it - which would
+    # leave club_xref empty, and with it the coach spells, the fees and the Transfermarkt ids.
+    derive_club_leagues(ctx)
 
 
 def derive_birth_years(ctx: Context) -> int:
@@ -1271,8 +1276,11 @@ def derive_birth_years(ctx: Context) -> int:
     conn.commit()
     filled = conn.execute("SELECT COUNT(birth_year) FROM players").fetchone()[0]
     total = conn.execute("SELECT COUNT(*) FROM players").fetchone()[0]
-    print(f"[positions] birth years from the lineups: {filled}/{total} players "
-          f"({100 * filled / total:.0f}%)")
+    # The share is only defined once there ARE players: on a fresh clone this ran before anything had
+    # been downloaded and took the whole `rebuild` down with a ZeroDivisionError - found by actually
+    # rebuilding an empty machine, which is the only way this class of bug ever shows up.
+    share = f" ({100 * filled / total:.0f}%)" if total else ""
+    print(f"[positions] birth years from the lineups: {filled}/{total} players{share}")
     return filled
 
 

@@ -289,3 +289,29 @@ def test_role_crosstab_counts_the_provider_vocabulary(tmp_path):
     report = (ctx.config.data_dir / "reports" / "role_crosstab.csv").read_text(encoding="utf-8")
     assert "classic,D,D,3,1.0000" in report
     assert "mantra,D,Dc,3,1.0000" in report
+
+
+def test_derive_club_leagues_fills_what_a_fresh_clone_cannot_know(tmp_path):
+    """On a machine with no Drive exports the euro listone gives no league: the cache must supply it.
+
+    Ordering matters more than the function: `transfers` resolves clubs BY LEAGUE, so a NULL league at
+    that point leaves club_xref empty - and with it the coach spells, the fees and the Transfermarkt
+    ids. Hence this runs inside the season-layer re-ingest, not only in `rebuild`.
+    """
+    ctx = _ctx(tmp_path)
+    conn = ctx.conn
+    conn.execute("INSERT INTO players(fc_id, canonical_name) VALUES (1, 'Wirtz')")
+    conn.execute("INSERT INTO clubs(fc_club_id, canonical_name, league) "
+                 "VALUES (5, 'Bayer Leverkusen', NULL)")
+    conn.execute("INSERT INTO clubs(fc_club_id, canonical_name, league) VALUES (6, 'Inter', 'serie_a')")
+    conn.execute("INSERT INTO rosters(fc_id, season, fc_club_id, league) VALUES (1, '2023-24', 5, NULL)")
+    conn.commit()
+    (ctx.config.cache_dir / "sofascore_stats_bundesliga_2023-24.json").write_text(
+        json.dumps([_provider_row(10, "Florian Wirtz", "Bayer 04 Leverkusen")]), encoding="utf-8")
+
+    clubs, rosters = positions.derive_club_leagues(ctx)
+    assert (clubs, rosters) == (1, 1)
+    assert conn.execute("SELECT league FROM clubs WHERE fc_club_id = 5").fetchone()[0] == "bundesliga"
+    assert conn.execute("SELECT league FROM rosters WHERE fc_id = 1").fetchone()[0] == "bundesliga"
+    # a league we already know is never overwritten by a name match
+    assert conn.execute("SELECT league FROM clubs WHERE fc_club_id = 6").fetchone()[0] == "serie_a"

@@ -12,7 +12,7 @@ import pytest
 from euroleghe_ingest.config import Config
 from euroleghe_ingest.context import Context
 from euroleghe_ingest.db.database import init_db
-from euroleghe_ingest.modules import ALL_MODULES, bootstrap, fetch
+from euroleghe_ingest.modules import ALL_MODULES, bootstrap, fetch, load
 
 
 def _ctx(tmp_path):
@@ -73,3 +73,21 @@ def test_fetch_inbox_imports_only_known_names(tmp_path, capsys):
     assert (ctx.config.raw_dir / "euroleghe-stats-2023-24.csv").exists()
     assert not (ctx.config.raw_dir / "random-notes.txt").exists()
     assert "left in the inbox" in capsys.readouterr().out
+
+
+def test_rebuild_survives_a_completely_empty_machine(tmp_path, capsys):
+    """The whole offline chain on a fresh clone: no raw files, no cache, no rows.
+
+    This is the test that was missing. Rebuilding an empty machine died on a ZeroDivisionError deep in
+    the birth-year step (a share of zero players), and nothing in the suite exercised the case because
+    every other test seeds data first. A build from zero is exactly the situation where every "there is
+    always at least one row" assumption is false.
+    """
+    ctx = _ctx(tmp_path)
+    load("rebuild").run(ctx)
+    printed = capsys.readouterr().out
+    assert "[rebuild] done" in printed
+    assert "network (run explicitly)" in printed, "the network modules must be deferred, not failed"
+    # and it stays idempotent: a second pass over nothing is still a clean pass
+    load("rebuild").run(ctx)
+    assert "[rebuild] done" in capsys.readouterr().out
