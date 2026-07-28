@@ -347,10 +347,8 @@ def test_the_shirt_shows_a_share_of_the_matchdays_discounted_by_the_injuries():
     # NO history is not a clean bill of health either way: it must not discount him
     assert view.availability({"club": "Test", "desc_season_starts": "30"}) == 1.0
 
-    # the tiers are what makes the spine visible without reading a number
-    assert view.tier(0.90)[0] == "fondamentale"
-    assert view.tier(0.60)[0] == "favourito"
-    assert view.tier(0.30)[0] == view.tier(None)[0] == "ballottaggio"
+    # and the share is the ONLY encoding of it: three tiers of disc colour on the marker said the same
+    # thing a second time, on a shirt that already prints the number under the name
 
 
 def test_a_real_attack_has_one_centre_forward_and_he_plays_in_the_middle():

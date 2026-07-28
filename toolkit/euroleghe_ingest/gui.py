@@ -2634,6 +2634,37 @@ class SnapshotView(ttk.Frame):
             placed.insert(0 if index % 2 == 0 else len(placed), entry)
         return [(row, rivals) for _side, row, rivals in placed]
 
+    # Where a line's shirts sit ACROSS the pitch, as fractions of the canvas width. A line is a set of
+    # POSITIONS and not an even spread: a midfield four with one wide man is three men in the middle and
+    # one on the flank, and spreading four evenly drew Lobotka - a mediano - on the touchline, which is a
+    # place he never plays. The bands are fixed, so an EMPTY flank stays empty: that a coach's four is
+    # lopsided is information, and filling the gap with a central player is a false winger.
+    # The team attacks downwards, so its RIGHT is the screen's left (see `_lane`).
+    BAND_RIGHT: ClassVar[tuple[float, float]] = (0.04, 0.26)
+    BAND_CENTRE: ClassVar[tuple[float, float]] = (0.28, 0.72)
+    BAND_LEFT: ClassVar[tuple[float, float]] = (0.74, 0.96)
+
+    def _placed(self, slots: list[tuple[dict, list[dict]]]) -> list[tuple[float, dict, list[dict]]]:
+        """[(fraction of the width, starter, rivals)] for one line, left to right on the screen."""
+        groups: dict[str, list] = {"R": [], "C": [], "L": []}
+        spare: list = []
+        for entry in slots:
+            # 'wide, flank unstated' - the Mantra 'e' (wing back) and 'w' (winger) - is not a central
+            # player: he fills a flank nobody has claimed, and only the middle when both are taken
+            if self.lateral(entry[0]) is None:
+                spare.append(entry)
+            else:
+                groups[self.side_of(entry[0])].append(entry)
+        for entry in spare:
+            groups[next((side for side in ("R", "L") if not groups[side]), "C")].append(entry)
+        bands = {"R": self.BAND_RIGHT, "C": self.BAND_CENTRE, "L": self.BAND_LEFT}
+        out: list[tuple[float, dict, list[dict]]] = []
+        for side, group in groups.items():
+            low, high = bands[side]
+            for index, (starter, rivals) in enumerate(group):
+                out.append((low + (high - low) * (index + 1) / (len(group) + 1), starter, rivals))
+        return sorted(out, key=lambda item: item[0])
+
     @staticmethod
     def lines(formation: str) -> tuple[int, int, int]:
         """'3-5-2' -> (3, 5, 2) · '3-4-2-1' -> (3, 6, 1). Every part counts.
@@ -2675,29 +2706,10 @@ class SnapshotView(ttk.Frame):
         classic = (row.get("role_classic") or "").upper()
         return cls.BADGE_CLASSIC.get(classic, ("?", "?", "?"))[index]
 
-    # How firmly a man owns his shirt, and what that looks like on the board. The schieramento tipo is
-    # meant to show the SPINE of a squad without reading a single number, so certainty is drawn, not
-    # written: a white disc is a player who IS the position, and grey is half a shirt.
-    #   >= 72%  fondamentale  white disc, dark code, thick ring - it jumps out of the pitch
-    #   >= 50%  favourito     the ordinary shirt: he usually plays, someone else sometimes does
-    #    < 50%  ballottaggio  dimmed and thin-ringed - two men share it, and buying one buys half
-    TIERS: ClassVar[tuple[tuple[float, str, str, str, str, int], ...]] = (
-        (0.72, "fondamentale", "#f4f6f5", "#11331a", "#ffffff", 3),
-        (0.50, "favourito", "#12351a", "#ffffff", "#ffffff", 2),
-        (0.0, "ballottaggio", "#12351a", "#c9d6cf", "#8fa39a", 1),
-    )
-
-    @classmethod
-    def tier(cls, share: float | None) -> tuple[str, str, str, str, int]:
-        """(label, disc fill, code colour, ring colour, ring width) for a slot share.
-
-        An unknown share reads as a ballottaggio: no evidence that he owns the shirt is not evidence
-        that he owns it.
-        """
-        for floor, *look in cls.TIERS:
-            if share is not None and share >= floor:
-                return tuple(look)
-        return tuple(cls.TIERS[-1][1:])
+    # Every marker looks the same on purpose. Three tiers of disc (white for a fondamentale, dimmed for a
+    # ballottaggio) shipped here for a while and were redundant: the percentage is written under the name
+    # on the same shirt, so the colour said a second time what the number already says - and two encodings
+    # of one quantity are two things to read instead of one.
 
     def _line_codes(self, slots: list[tuple[dict, list[dict]]]) -> list[str]:
         """The code on each marker of one line, with only ONE centre-forward among them.
@@ -2716,13 +2728,18 @@ class SnapshotView(ttk.Frame):
         return codes
 
     def _shirt(self, x: float, y: float, starter: dict, rivals: list[dict],
-               drawn_side: float | None = None, room: float = 100.0, code: str = "") -> None:
-        """One shirt: the role marker, and the name UNDER it.
+               drawn_side: float | None = None, room: float = 100.0, code: str = "",
+               above: bool = False) -> None:
+        """One shirt: the role marker, and the name under it - or ABOVE it, when the line is crowded.
 
         Stacked rather than side by side, because a plate to the right of the disc needs the width of a
         name for every player in the line - which a five-man midfield does not have on a column-shaped
         pitch, and which is how the layout broke. `room` is the horizontal space this shirt owns; every
         string is cut to it, so the drawing cannot overflow the pitch whatever the formation.
+
+        `above` alternates the plates of a crowded line. Three central midfielders stand ~45px apart and a
+        name needs twice that: staggered vertically they can each be twice as wide without colliding,
+        which is what lets a shirt keep its real position instead of being spread out for legibility.
         """
         canvas = self.pitch
         edge = canvas.winfo_width() if canvas.winfo_width() > 1 else (canvas.winfo_reqwidth() or 430)
@@ -2730,20 +2747,19 @@ class SnapshotView(ttk.Frame):
         # past their plates and off the pitch
         fits = max(5, int((room - 8) / 7.2))
         name = (starter.get("name") or "")[:fits]
-        # with a rival for the shirt the number is the SLOT share - how often HE is the one who plays -
-        # and without one it is his own start share, which is the same question with one candidate
+        # the share of the matchdays he plays: the whole statement about how firmly the shirt is his, in
+        # one number, under his name
         horizon = "recent" if self.xi_mode.get() == "next" else "season"
         share = self.presence(starter, horizon)
         rival_names = ", ".join((row.get("name") or "")[:9] for row in rivals)[:fits]
 
-        _label, fill, ink, ring, width = self.tier(share)
         radius = 12
         code = code or self.badge(starter, drawn_side)
         canvas.create_oval(x - radius, y - radius, x + radius, y + radius,
-                           fill=fill, outline=ring, width=width)
-        canvas.create_text(x, y, fill=ink, font=theme.FONTS["pill"], text=code)
+                           fill="#12351a", outline="#f4f6f5", width=2)
+        canvas.create_text(x, y, fill="#ffffff", font=theme.FONTS["pill"], text=code)
 
-        lines = [(name, theme.FONTS["strong"], ring)]
+        lines = [(name, theme.FONTS["strong"], "#ffffff")]
         if share:
             lines.append((f"{share:.0%}", theme.FONTS["small"], "#dcedc8"))
         if rival_names:
@@ -2752,8 +2768,8 @@ class SnapshotView(ttk.Frame):
         plate = min(room, 8 + widest * 7.2)
         # a shirt near the touchline slides inwards rather than hanging over it
         x = min(max(x, 4 + plate / 2), edge - 4 - plate / 2)
-        top = y + radius + 2
         high = 4 + len(lines) * 12
+        top = y - radius - 2 - high if above else y + radius + 2
         canvas.create_rectangle(x - plate / 2, top, x + plate / 2, top + high,
                                 fill="#12351a", outline="#4c7a35", width=1)
         for index, (part, font, fill) in enumerate(lines):
@@ -2814,13 +2830,20 @@ class SnapshotView(ttk.Frame):
             slots = self._lane(lanes.get(role, []))
             if not slots:
                 continue
-            # the space one shirt owns, so nothing has to overflow: five across a column means five
-            # narrow shirts, not five clipped ones
-            room = min(150.0, (width - 24) / len(slots))
+            placed = self._placed(slots)
+            slots = [(starter, rivals) for _spread, starter, rivals in placed]
             codes = self._line_codes(slots)
-            for index, (starter, rivals) in enumerate(slots):
-                spread = (index + 1) / (len(slots) + 1)
-                x = 12 + (width - 24) * spread
+            # How much width a shirt owns: the distance to its nearest neighbour, since the shirts are no
+            # longer evenly spaced. Three men crowded into the centre band leave ~45px each, which is not
+            # a name - so a crowded line ALTERNATES its plates above and below the marker, and each one
+            # may then be as wide as two gaps.
+            gaps = [min((abs(placed[here][0] - placed[other][0])
+                         for other in range(len(placed)) if other != here), default=1.0) * width
+                    for here in range(len(placed))]
+            crowded = min(gaps) < 92
+            for index, (spread, starter, rivals) in enumerate(placed):
+                x = width * spread
+                room = min(150.0, max(gaps[index] * (2 if crowded else 1) - 10, 40.0))
                 # WITHIN the line, how far up he stands. The granular real role answers it - a mediano
                 # (DM), a mezzala (MC) and a trequartista (AM) are three depths the listone calls 'C'
                 # and used to draw on top of each other - so where it is known the shirt is nudged by
@@ -2839,7 +2862,7 @@ class SnapshotView(ttk.Frame):
                 # it names the flank for a role that does not (a winger placed there reads 'Es' or 'Ed').
                 # Negated, because the screen is mirrored with respect to the team facing downwards.
                 self._shirt(x, y, starter, rivals, drawn_side=-(spread - 0.5) * 2, room=room,
-                            code=codes[index])
+                            code=codes[index], above=crowded and index % 2 == 1)
         editorial = mode == "next" and any(row.get("desc_starter_prob")
                                            for _role, row, _rivals in eleven)
         if mode == "next":
@@ -2855,12 +2878,11 @@ class SnapshotView(ttk.Frame):
             shown = f"{drawn} (lines {formation}) · {criterion}"
         canvas.create_text(width // 2, height - 26, fill=line, font=theme.FONTS["small"],
                            text=shown[:62])
-        # What the discs mean. It replaces the sentence about the viewpoint, which lives in the pitch's
-        # own tooltip: a caption long enough for both ran off the touchlines, and the drawing has to stay
-        # inside the canvas whatever the formation (see the pitch-bounds test).
+        # With the disc legend gone the line goes back to the viewpoint, which is the one thing about
+        # this drawing that cannot be guessed from it. Kept short: a caption wide enough to say more ran
+        # off both touchlines, and the drawing has to stay inside the canvas whatever the formation.
         canvas.create_text(width // 2, height - 12, fill=line, font=theme.FONTS["small"],
-                           text="white = starts · grey = doubt" if mode == "next"
-                           else "white = fondamentale · grey = ballottaggio")
+                           text="attacking downwards: the team's LEFT is on your right")
 
 
 def _read_csv(path) -> list[dict]:
