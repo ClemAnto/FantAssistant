@@ -2928,12 +2928,17 @@ class SnapshotView(ttk.Frame):
         if pills:
             # one pill per role, in a row centred on the slot: a Mantra player is two or three roles and
             # a single disc cannot say which, which is the whole reason the selector exists
-            widths = [max(18.0, 8 + len(label) * 7.5) for label, _fill, _ink in pills]
-            left = x - (sum(widths) + 2 * (len(pills) - 1)) / 2
-            for (label, fill, ink), pill in zip(pills, widths, strict=True):
-                canvas.create_rectangle(left, y - 9, left + pill, y + 9, fill=fill, outline="")
-                canvas.create_text(left + pill / 2, y, fill=ink, font=theme.FONTS["pill"], text=label)
-                left += pill + 2
+            # Round, white-ringed, and sized to the room this shirt owns: three roles side by side are
+            # wider than a crowded line has, so the third is dropped before the discs are shrunk to
+            # unreadable. The ring is what keeps a coloured disc legible on the grass.
+            shown = pills if room >= 74 else pills[:2]
+            size = max(15.0, min(22.0, (min(room, 76.0) - 3 * (len(shown) - 1)) / len(shown)))
+            left = x - (size * len(shown) + 3 * (len(shown) - 1)) / 2
+            for label, fill, ink in shown:
+                canvas.create_oval(left, y - size / 2, left + size, y + size / 2,
+                                   fill=fill, outline="#ffffff", width=2)
+                canvas.create_text(left + size / 2, y, fill=ink, font=theme.FONTS["pill"], text=label)
+                left += size + 3
         else:
             code = code or self.badge(starter, drawn_side)
             canvas.create_oval(x - radius, y - radius, x + radius, y + radius,
