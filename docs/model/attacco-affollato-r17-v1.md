@@ -168,6 +168,43 @@ instabile è l'esito più probabile alla luce di questo; se così sarà, il verd
 famiglia «affollamento per capienza» avrà la sua prima corsa onesta a verbale — che è comunque
 più di quanto R16b potesse dire.
 
-## 10. Verdetto
+## 10. Verdetto (28 luglio 2026, stesso giorno — corsa unica, nessun aggiustamento)
 
-_Da registrare dopo la corsa, qualunque sia, con rimando a `gate-motore-v1.md`._
+**NON PASSA su nessuna piattaforma** (strict e robust, identico su classic e mantra: la regola
+vive sul lato presenze), e con il coefficiente più pulito mai bocciato: λ negativo e **STABILE**
+su tutte le finestre misuranti (Serie A −0.055…−0.097, dispersione 0.24, stesso segno 6/6; euro
+−0.047…−0.067, dispersione 0.15, 4/4). Il meccanismo ESISTE nella stagione in cui lo misuri —
+ma applicare il λ della finestra adiacente PEGGIORA i giocatori mossi:
+
+- **Serie A** (6 finestre, 13-33 mossi l'una): Tm3 **+14.9%**, Tm2 **+10.9%**, Tm1 −2.0%,
+  T0 **+11.3%**, T1 +5.3%, T2 +3.3%. Robust: 1/6, media **−7.3%**, peggiore −14.9%.
+- **euro** (4 finestre, 43-68 mossi): Tm3 +3.2%, T0 +3.2%, T1 **−3.6%**, T2 +1.0%.
+  Robust: 1/4, media −0.9%. L'unica finestra a favore è T1 — **bruciata**, come il §9 aveva
+  messo a verbale prima della corsa.
+- Non-danno sul deliverable: nomi aggregati invariati (Serie A 77→77, euro 33→33); FM intatta.
+  Il danno è interamente sull'errore presenze dei mossi — la stessa faccia su cui la regola
+  prometteva il guadagno.
+- Le finestre **pulite** sono le più nette contro (Serie A Tm3/Tm2/T0; euro Tm3/T0): non è la
+  contaminazione a bocciarla, è il test onesto.
+
+**Controllo di configurazione nel set adottato: non si applica** — nessuna adozione da
+controllare (la lezione R15/R3d riguarda le candidate in odore di adozione).
+
+### Cosa insegna
+
+È la **quinta formulazione dell'affollamento respinta sull'errore** — R11 (arrivi, lineare),
+R11b (arrivi, soglia), R16 (budget gol × propria quota), R16b (budget gol dei compagni), R17
+(capienza schierata + rango di mercato) — ognuna con un meccanismo diverso, e le ultime due con
+il segno in-sample giusto. Il pattern è quello già visto con la beccabilità per-giocatore: il
+sottorendimento del pretendente sotto-capienza è una proprietà **della stagione che lo rivela**,
+non una tassa prevedibile — chi l'anno prossimo perderà la gerarchia non è identificabile
+dall'overflow di quest'anno (i caricati di T1/T2 hanno reso 1.04× il previsto, §9).
+
+**Cosa resta in mano all'utente**: l'annotazione «Pair» nel pannello Asta (K, co-start, ΔQt.I —
+descrittiva, nessun gate richiesto) e il dato del §9: quando il motore mette DUE attaccanti
+dello stesso club in top-15, su T1/T2 la coppia ha retto **23 volte su 23**, casi motivanti
+inclusi. Il problema percepito («due dello stesso club in top-10 è discutibile») è, sui dati,
+molto più raro di quanto sembri — i flop veri (Lukaku, Dovbyk) stavano FUORI dalle coppie
+top-15. La famiglia «affollamento come regola d'errore» va considerata esaurita nelle forme
+misurabili con gli input correnti; riaprirla richiede un input NUOVO (es. storico settimanale di
+`probable_starter`, che accumula da luglio 2026), non una sesta misura degli stessi aggregati.

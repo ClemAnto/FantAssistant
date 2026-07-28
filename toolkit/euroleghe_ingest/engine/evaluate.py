@@ -253,6 +253,15 @@ CANDIDATES: tuple[str, ...] = ("R0c", "R1", "R1b", "R2", "R3", "R3c", "R4", "R4b
 # and R15 shares the share-replacing branch with R3c, which wins by order. Inside the adopted set R15 fires
 # for 7 players of 657 on T2 and buys nothing on the recent windows while costing a top-10 name on T0.
 # A candidate's standalone gate row is not its value inside a set - the set has to be scored as a set.
+# ⚠️ R17 (28/07/2026) DOES NOT PASS on either platform - with the cleanest coefficient ever rejected:
+# lambda stable and negative on every measuring window (Serie A dispersion 0.24, 6/6 same sign; euro
+# 0.15, 4/4), yet the players it moves get WORSE on 9 of 10 window x platform combinations (Serie A
+# robust 1/6, mean -7.3%, worst -14.9%; euro 1/4, -0.9% - the one win is T1, a burned window, and the
+# CLEAN windows are the most decisive against). In-sample the below-capacity claimants of an
+# over-claimed club really do play less than the baseline says; the effect does not transfer across
+# seasons. Fifth crowding formulation to fail on error (R11, R11b, R16, R16b, R17), each with a
+# different mechanism - the pre-run diagnostic had already shown the charged players delivering 1.04x
+# their prediction on T1/T2. Autopsy: docs/model/attacco-affollato-r17-v1.md §10.
 ADOPTED: dict[str, tuple[str, ...]] = {
     "euro": ("R0c", "R3c"),
     "default": ("R3", "R7", "R13"),
