@@ -2248,10 +2248,11 @@ class SnapshotView(ttk.Frame):
         "LW": "A", "RW": "A", "ST": "A",
     }
     # Where each lane sits down the pitch, with and without a trequartisti line.
-    LANES_4: ClassVar[tuple[tuple[str, float], ...]] = (
-        ("P", 0.07), ("D", 0.31), ("M", 0.55), ("A", 0.77))
-    LANES_5: ClassVar[tuple[tuple[str, float], ...]] = (
-        ("P", 0.06), ("D", 0.27), ("M", 0.47), ("T", 0.65), ("A", 0.83))
+    # Where the rows sit down the pitch: as many as the drawn shape has lines, evenly spaced between
+    # the keeper and the attack. Fixed tables of fractions drifted from that as soon as a fifth lane
+    # appeared, and the request is exactly this - the vertical reads the module's line count.
+    LANE_TOP: ClassVar[float] = 0.07
+    LANE_BOTTOM: ClassVar[float] = 0.83
 
     @classmethod
     def lane_of(cls, row: dict) -> str:
@@ -2260,6 +2261,11 @@ class SnapshotView(ttk.Frame):
         lane = cls.LANE_OF_ROLE.get(codes[0], "") if codes else ""
         listone = row.get("role_classic") or "?"
         return lane or ("M" if listone == "C" else listone)
+
+    @classmethod
+    def geometry_for(cls, keys: list[str]) -> tuple[tuple[str, float], ...]:
+        return tuple((key, cls.LANE_TOP + (cls.LANE_BOTTOM - cls.LANE_TOP) * index / (len(keys) - 1))
+                     for index, key in enumerate(keys)) if len(keys) > 1 else ((keys[0], 0.5),)
 
     def lanes_for(self, eleven: list) -> tuple[dict[str, list], tuple[tuple[str, float], ...], str]:
         """(players per drawn lane, the lane geometry, the shape as drawn).
@@ -2275,7 +2281,8 @@ class SnapshotView(ttk.Frame):
             codes = self.real_roles(starter)
             lane = self.LANE_OF_ROLE.get(codes[0] if codes else "", "M" if role == "C" else role)
             lanes.setdefault(lane, []).append((starter, rivals))
-        geometry = self.LANES_5 if lanes.get("T") else self.LANES_4
+        geometry = self.geometry_for([key for key in ("P", "D", "M", "T", "A")
+                                      if lanes.get(key)])
         drawn = "-".join(str(len(lanes.get(key, []))) for key, _y in geometry if key != "P")
         return lanes, geometry, drawn
 
@@ -2290,7 +2297,10 @@ class SnapshotView(ttk.Frame):
         """
         codes = cls.real_roles(row)
         named = REAL_ROLE_SIDE.get(codes[0]) if codes else None
-        if named is not None and abs(named) > 0.34:
+        if named is not None:
+            # in BOTH directions: 'ST' names the middle of an attack as plainly as 'DL' names the left,
+            # and letting a +0.5 season centroid outrank it put the centre-forward on a wing and a
+            # second striker in the middle of a front three
             return named
         return cls.lateral(row) or 0.0
 
@@ -2315,45 +2325,53 @@ class SnapshotView(ttk.Frame):
             return "C"
         return "L" if side < 0 else "R"
 
-    def slot_template(self, candidates: list[dict], count: int) -> list[str]:
-        """How many of a line's `count` shirts are right, centre and left - measured, not assumed.
+    def slot_cost(self, row: dict, side: str, lane: str, strikers: int) -> tuple[int, int]:
+        """(does he belong on that side, does the role allow that slot) - lower fits better.
 
-        A line is not a number, it is a set of POSITIONS: the four of a 3-4-2-1 are a right wing back,
-        two centre mids and a left wing back, and filling it with "the best four" produced four centre
-        mids and two empty flanks. So the composition is read off how the club actually used the line -
-        each candidate's starts count toward his own side, and the shirts are shared out by those weights
-        (largest remainder). Napoli's midfield comes out R-C-C-L, which is what it plays.
-
-        A side with no candidate cannot be given a shirt: a position nobody can fill is not a position,
-        and handing it out anyway is exactly how an empty flank gets drawn.
+        A cost and never a veto: a slot has to be filled by somebody, and an adapted player is a truer
+        drawing than an empty flank. What it encodes are the things a coach does not do in a REAL
+        formation - a punta centrale plays in the middle of an attack, a side fields one of him, and a
+        flank is covered by a flank player (from the other flank if need be) long before a central one.
         """
-        weights = {"L": 0.0, "C": 0.0, "R": 0.0}
-        available = {"L": 0, "C": 0, "R": 0}
-        for row in candidates:
-            side = self.side_of(row)
-            weights[side] += max(self.titolarita(row, "season")[1], 0.5)   # side, not shirt: raw starts
-            available[side] += 1
-        total = sum(weights.values())
-        if not total:
-            return ["C"] * count
-        exact = {side: count * weight / total for side, weight in weights.items()}
-        slots = {side: min(int(value), available[side]) for side, value in exact.items()}
-        while sum(slots.values()) < count:
-            spare = [side for side in ("R", "C", "L") if slots[side] < available[side]]
-            if not spare:
-                slots["C"] += count - sum(slots.values())      # nobody left: the centre absorbs it
-                break
-            slots[max(spare, key=lambda side: exact[side] - slots[side])] += 1
-        while sum(slots.values()) > count:
-            slots[max((side for side in slots if slots[side]),
-                      key=lambda side: slots[side] - exact[side])] -= 1
-        # right to left: the drawn lane is mirrored later (the team attacks downwards), and keeping one
-        # order here means the template reads like a formation written out on paper
-        return ["R"] * slots["R"] + ["C"] * slots["C"] + ["L"] * slots["L"]
+        mine = self.sides_of(row)
+        if side in mine:
+            wrong_side = 0        # it is in his repertoire: one of his own codes plays there
+        elif side != "C" and mine != {"C"}:
+            wrong_side = 1        # a flank player asked to cover the other flank: a coach does this
+        elif side != "C":
+            wrong_side = 3        # a central onto a wing: hardly ever, unless it is in his codes
+        else:
+            wrong_side = 2        # a wide player asked to play in the middle
+        if "ST" not in self.real_roles(row):
+            return wrong_side, 0
+        return wrong_side, (2 if lane == "A" and side != "C" else 0) + (4 if strikers >= 2 else 0)
 
-    # A season is 38 matches when the club's own count is unknown, a man is never assumed to miss more
-    # than 60% of it (no history makes anyone a certainty NOT to play), and CLAIM_PRIOR is the handful of
-    # matches of "nobody" that keeps 2-starts-in-2 from reading as a first choice.
+    # What each slot of a line IS, in the module's own terms - the Mantra scheme vocabulary again. A
+    # back three is three CENTRE BACKS (a full back may adapt into one of the outer two, which is what
+    # `slot_cost` charges him one for); a midfield four is two wide men and two centrals; a front three
+    # is two wingers and a centre-forward. Measuring the composition from the candidates instead put a
+    # mediano on a flank whenever the squad had no winger, which is a squad fact and not a formation.
+    SLOT_SHAPE: ClassVar[dict[tuple[str, int], tuple[str, ...]]] = {
+        ("D", 3): ("C", "C", "C"),
+        ("D", 4): ("R", "C", "C", "L"),
+        ("D", 5): ("R", "C", "C", "C", "L"),
+        ("M", 3): ("C", "C", "C"),
+        ("M", 4): ("R", "C", "C", "L"),
+        ("M", 5): ("R", "C", "C", "C", "L"),
+        ("M", 6): ("R", "C", "C", "C", "C", "L"),
+        # one or two trequartisti are central by definition (a winger there costs 2 in `slot_cost`);
+        # three of them are a wide trio, so the outer two are wingers or wide midfielders
+        ("T", 3): ("R", "C", "L"),
+        ("A", 3): ("R", "C", "L"),
+        ("A", 4): ("R", "C", "C", "L"),
+    }
+
+    def slot_shape(self, lane: str, count: int) -> tuple[str, ...]:
+        """The sides of a line's slots, right to left. Anything not in the table is all central."""
+        return self.SLOT_SHAPE.get((lane, count), tuple("C" * count))
+
+    # A season is 38 matches when the club's own count is unknown, and a man is never assumed to miss
+    # more than 60% of it: a bad history is a discount, not a verdict that he will not play.
     SEASON_MATCHES: ClassVar[float] = 38.0
     AVAILABILITY_FLOOR: ClassVar[float] = 0.40
     # Standing: starts weigh more than minutes because the pitch draws who STARTS, and minutes are what
@@ -2381,33 +2399,6 @@ class SnapshotView(ttk.Frame):
         per_season = _number(row.get("desc_injury_weighted")) / sum(INJURY_WEIGHTS)
         matches = _number(row.get("desc_season_matches")) or cls.SEASON_MATCHES
         return max(1.0 - per_season / max(matches, 1.0), cls.AVAILABILITY_FLOOR)
-
-    def slot_cost(self, row: dict, side: str, lane: str, strikers: int) -> tuple[int, int]:
-        """(does he belong on that side, does the role allow that slot) - lower fits better.
-
-        A cost and never a veto: a slot has to be filled by somebody, and an adapted player is a truer
-        drawing than an empty flank. What it encodes are the two things a coach does not do in a REAL
-        formation - and it is the real formation the pitch draws, not a list of fantacalcio roles:
-
-        * A PUNTA CENTRALE plays in the middle of an attack and nowhere else. Without this the fallback
-          that fills an empty wing with whoever is left drew a centre-forward on the touchline. An
-          empty flank goes to a player from the OTHER flank first - being inverted is a normal ask, and
-          the cost ranks it above a central and far above a striker.
-        * A SIDE FIELDS ONE. A second centre-forward has to adapt - he is drawn as a seconda punta, see
-          `_line_codes` - and a third is not a formation, so he costs more than any winger or mezzala.
-        """
-        mine = self.sides_of(row)
-        if side in mine:
-            wrong_side = 0        # it is in his repertoire: one of his own codes plays there
-        elif side != "C" and mine != {"C"}:
-            wrong_side = 1        # a flank player asked to cover the other flank: a coach does this
-        elif side != "C":
-            wrong_side = 3        # a central onto a wing: hardly ever, unless it is in his codes
-        else:
-            wrong_side = 2        # a wide player asked to play in the middle
-        if "ST" not in self.real_roles(row):
-            return wrong_side, 0
-        return wrong_side, (2 if lane == "A" and side != "C" else 0) + (4 if strikers >= 2 else 0)
 
     def club_matches(self, club: str | None) -> float:
         """How many matches the club played in the measured season - the denominator of a presence.
@@ -2561,7 +2552,7 @@ class SnapshotView(ttk.Frame):
                                                                 -self.titolarita(row, h)[1]))
             # the line's composition, then ONE SHIRT AT A TIME: the best candidate for THAT side
             strikers = 0
-            for wanted in self.slot_template(pool[:max(3 * slots, slots)], slots):
+            for wanted in self.slot_shape(role, slots):
                 # `pool` is already in presence order and the sort is stable, so the slot's own cost
                 # (right side first, then whether the role can play there at all) only ever reorders men
                 # who are otherwise equal - the flank goes to a full back rather than to a striker, and
@@ -2742,19 +2733,11 @@ class SnapshotView(ttk.Frame):
     # place he never plays. The bands are fixed, so an EMPTY flank stays empty: that a coach's four is
     # lopsided is information, and filling the gap with a central player is a false winger.
     # The team attacks downwards, so its RIGHT is the screen's left (see `_lane`).
-    # How WIDE a line is drawn, as the distance from the touchline to its outermost slot - and it is a
-    # property of the module, not of the count alone, which is what the Mantra scheme sheets show: a back
-    # three is three central defenders and stays narrow, a back four reaches the flanks with its terzini;
-    # a midfield three (4-3-x) is a narrow triangle while the four of a 3-4-x has wing backs ON the
-    # touchline; two trequartisti sit inside, two strikers side by side in the middle.
-    LINE_WIDTH: ClassVar[dict[str, dict[int, float]]] = {
-        "P": {1: 0.50},
-        "D": {1: 0.50, 2: 0.30, 3: 0.25, 4: 0.12, 5: 0.07},
-        "M": {1: 0.50, 2: 0.30, 3: 0.24, 4: 0.10, 5: 0.07, 6: 0.06},
-        "T": {1: 0.50, 2: 0.32, 3: 0.22},
-        "A": {1: 0.50, 2: 0.30, 3: 0.14, 4: 0.10},
-    }
-    CENTRE_PULL: ClassVar[float] = 0.45      # how far inside a central player drifts from a wide slot
+    # A line is drawn on evenly spaced slots: same gap between every pair of men, the outermost pair
+    # `LINE_MARGIN` from the touchline. Modules-with-a-shape (a narrow back three, wing backs on the
+    # line) and pulling a central player inside his slot both moved men off that grid, and a grid that
+    # is not a grid reads as scatter - the flank ORDER already says who is wide.
+    LINE_MARGIN: ClassVar[float] = 0.11
 
     # What a marker says, and in which colour. Three readings of the same man, because an auction uses
     # three vocabularies: the MANTRA roles are what a Mantra module has slots for, the CLASSIC role is
@@ -2803,11 +2786,10 @@ class SnapshotView(ttk.Frame):
 
         entries = sorted(slots, key=order)
         count = len(entries)
-        margin = self.LINE_WIDTH.get(lane, {}).get(count, 0.12)
+        span = 1 - 2 * self.LINE_MARGIN
         out: list[tuple[float, dict, list[dict]]] = []
         for index, (starter, rivals) in enumerate(entries):
-            slot = margin + (1 - 2 * margin) * index / (count - 1) if count > 1 else 0.5
-            out.append((slot + (0.5 - slot) * self.CENTRE_PULL * (1 - abs(self.flank(starter))),
+            out.append((self.LINE_MARGIN + span * index / (count - 1) if count > 1 else 0.5,
                         starter, rivals))
         return out
 
@@ -2868,12 +2850,21 @@ class SnapshotView(ttk.Frame):
         """
         codes = [self.badge(starter, -(spread - 0.5) * 2) for spread, starter, _rivals in placed]
         centre = [index for index, code in enumerate(codes) if code == "Pc"]
+        if len(centre) > 1 and len(placed) > 2:
+            # A front three has no seconda punta: the man who is not the centre-forward is playing wide,
+            # so he reads as the wing he is drawn on. 'Sp' belongs to a two-man attack (4-4-2, 5-3-2).
+            keep = min(centre, key=lambda index: abs(placed[index][0] - 0.5))
+            for index in centre:
+                if index != keep:
+                    codes[index] = "As" if placed[index][0] > 0.5 else "Ad"
+            return codes
         if len(centre) > 1:
             # by ROLE, not by where he ended up drawn: with two strikers and three slots one of them has
             # to take a wide one, and it is the wider man who does - so reading the shirt off the drawn x
             # handed 'Pc' to the striker who plays off the flank and called the centre-forward the
             # seconda punta. The most central role keeps it, and among equals the man who plays most.
             keep = min(centre, key=lambda index: (abs(self.flank(placed[index][1])),
+                                                  abs(placed[index][0] - 0.5),
                                                   -self.presence(placed[index][1], "season")))
             for index in centre:
                 if index != keep:
@@ -3023,23 +3014,15 @@ class SnapshotView(ttk.Frame):
             crowded = min(gaps) < 92
             for index, (spread, starter, rivals) in enumerate(placed):
                 x = width * spread
-                room = min(150.0, max(gaps[index] * (2 if crowded else 1) - 10, 40.0))
-                # WITHIN the line, how far up he stands. The granular real role answers it - a mediano
-                # (DM), a mezzala (MC) and a trequartista (AM) are three depths the listone calls 'C'
-                # and used to draw on top of each other - so where it is known the shirt is nudged by
-                # it, centred on the line's own depth. Bounded to the lane's own band on purpose: this
-                # places a man inside his line, it does not move him to another one, and the line
-                # itself comes from the formation and the titolarità, which is a separate decision.
-                nudge = self.depth(starter)
-                if nudge is not None:
-                    offset = (nudge - self.LINE_DEPTH.get(role, 0.5)) * 44
-                    # bounded tighter than the 18px it used to be: the nudge moves a shirt inside its
-                    # line, and a line is ~90px from the next - 18px each way plus two plates collided
-                    y = height * fraction + max(-11.0, min(11.0, offset))
-                else:
-                    # no granular role: the old rule, a crowded line staggers so alternate shirts step
-                    # forward - which is also how a 3-5-2 really lines up, wing-backs ahead of the middle
-                    y = height * fraction + (0 if len(slots) < 4 or index % 2 == 0 else 14)
+                # and never wider than twice the distance to the nearest touchline: a plate that has to
+                # be clamped inwards eats the clearance of the shirt two slots away, which is how two
+                # same-parity plates of a five-man line came to overlap
+                room = min(150.0, max(gaps[index] * (2 if crowded else 1) - 10, 40.0),
+                           2 * min(x, width - x) - 8)
+                # One row per line, and every man of a line on it: the depth nudge that used to move
+                # a mediano forward and a trequartista back inside his own lane is what made the rows
+                # look ragged, and the lane a man is drawn in already says how far up he plays.
+                y = height * fraction
                 # the TEAM-relative side of where he is drawn, on the same -1..+1 scale `lateral` uses:
                 # it names the flank for a role that does not (a winger placed there reads 'Es' or 'Ed').
                 # Negated, because the screen is mirrored with respect to the team facing downwards.
