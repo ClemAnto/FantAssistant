@@ -2081,6 +2081,45 @@ def role_membership(data: features.WindowData) -> tuple[tuple[str, ...], object]
 
 
 SURPLUS = "surplus"     # rank by (FM - replacement) x Pv instead of FM x Pv
+# SURPLUS with the ranking score scaled by the forward group's slot pressure (metrica doc §11):
+# a contested hierarchy is discounted, an assured slot earns a capped premium. Ranking only -
+# predictions, the gate, and the other two currencies do not move by a decimal.
+SURPLUS_PRESSURE = "surplus_pressure"
+
+
+def _slot_pressure_factors(data: features.WindowData,
+                           predictions: list[Prediction]) -> dict[int, float]:
+    """{fc_id: pressure factor} for every listone forward at a club with a measurable K.
+
+    The serious-claimant count reads the whole LISTONE, not the predictions: the dangerous
+    claimants (Openda, David - fresh arrivals) can be unpredictable to the engine while carrying a
+    heavy Qt.I. Qt.I is read in the game's own currency, like everything else in this view.
+    """
+    matchdays = data.matchdays_target or 1
+    pv_by_id = {p.obs.fc_id: p.pv_pred for p in predictions if p.pv_pred is not None}
+
+    def qti(obs: features.Observation) -> float:
+        value = (obs.price_initial_mantra if data.game == "mantra" else obs.price_initial)
+        return value or 0.0
+
+    groups: dict[str, list[features.Observation]] = {}
+    for obs in data.observations:
+        if obs.role_classic == "A" and obs.club_target:
+            groups.setdefault(obs.club_target, []).append(obs)
+    out: dict[int, float] = {}
+    for club, members in groups.items():
+        caps = data.forward_caps.get(club)
+        if caps is None or caps[2] < model.FORWARD_MIN_XI:
+            continue                     # no measurable shape: factor 1 by absence
+        threshold = max(model.SERIOUS_QTI_MIN,
+                        max(qti(obs) for obs in members) * model.SERIOUS_QTI_FRACTION)
+        serious = sum(1 for obs in members
+                      if pv_by_id.get(obs.fc_id, 0.0) / matchdays >= model.SERIOUS_SHARE
+                      or qti(obs) >= threshold)
+        factor = model.slot_pressure_factor(serious, caps[0])
+        for obs in members:
+            out[obs.fc_id] = factor
+    return out
 
 
 def auction_view(data: features.WindowData, predictions: list[Prediction],
@@ -2107,6 +2146,10 @@ def auction_view(data: features.WindowData, predictions: list[Prediction],
     """
     out: dict[str, dict] = {}
     roles, holds = role_membership(data)
+    surplus_like = metric in (SURPLUS, SURPLUS_PRESSURE)
+    # Slot pressure scales the PREDICTED ranking score only: the actual side is a report on what
+    # happened and reports are not discounted for the risk they no longer carry.
+    pressure = _slot_pressure_factors(data, predictions) if metric == SURPLUS_PRESSURE else {}
     for role in roles:
         observations = [obs for obs in data.observations if holds(obs, role)]
         valued = [p for p in predictions
@@ -2116,12 +2159,12 @@ def auction_view(data: features.WindowData, predictions: list[Prediction],
         # The competitor for a role slot is the marginal player AT THAT ROLE, so each list uses its own
         # floor - not a multi-role player's average, which would price the same man differently in the
         # two lists he appears in.
-        floor = data.replacement.get(role) if metric == SURPLUS else None
+        floor = data.replacement.get(role) if surplus_like else None
         # What ACTUALLY happened is measured against the level of the season it happened in. The
         # predicted side never touches this - it may only know the input seasons - and that asymmetry is
         # the point: one is a forecast, the other is a report, and a report scored against a three-year
         # old baseline says a 28-match striker was worth less than a one-match one.
-        floor_act = (data.replacement_actual.get(role) or floor) if metric == SURPLUS else None
+        floor_act = (data.replacement_actual.get(role) or floor) if surplus_like else None
 
         def over_floor(fm, appearances, _floor=floor):
             """Points over the bench, optionally discounted for how little you can count on him.
@@ -2144,9 +2187,9 @@ def auction_view(data: features.WindowData, predictions: list[Prediction],
             return over_floor(obs.fm_act, obs.pv_act, _floor)
 
         def score_pred(p, _floor=floor):
-            if _floor is None:
-                return p.value_pred or 0.0
-            return over_floor(p.fm_pred, p.pv_pred) or 0.0
+            base = (p.value_pred or 0.0) if _floor is None else (
+                over_floor(p.fm_pred, p.pv_pred) or 0.0)
+            return base * pressure.get(p.obs.fc_id, 1.0)
 
         def score_act(obs, _floor=floor_act):
             if _floor is None:
@@ -2157,7 +2200,7 @@ def auction_view(data: features.WindowData, predictions: list[Prediction],
         # not a value of this kind: you could not have fielded him, so he does not belong in a ranking
         # of who to buy - at any discount, which is why this is a floor and not a steeper curve. Off
         # (0.0) unless the league asks for it, so the pre-registered VALUE lists are never filtered.
-        floor_share = data.min_availability if metric == SURPLUS else 0.0
+        floor_share = data.min_availability if surplus_like else 0.0
 
         def fieldable(appearances, _floor=floor_share):
             if not _floor or not data.matchdays_target or appearances is None:
@@ -2248,6 +2291,7 @@ def auction_view(data: features.WindowData, predictions: list[Prediction],
                 "fvm": market(p.obs),
                 "actual_rank": actual_rank.get(p.obs.fc_id),
                 "pair": pair_note(p),
+                "pressure": _round(pressure.get(p.obs.fc_id), 2) if pressure else None,
             } for index, p in enumerate(ranked[:top_n], 1)],
             "actual": [{
                 "rank": index, "name": obs.name, "club": obs.club_target,

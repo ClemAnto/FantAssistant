@@ -948,9 +948,11 @@ def make_app_icon() -> tk.PhotoImage:
     return img
 
 
-# Mirrors `evaluate.SURPLUS`, deliberately NOT imported: the panel must open on a machine where the
-# engine cannot be imported at all (see `_auction_views`). A test pins the two together.
+# Mirrors `evaluate.SURPLUS` / `evaluate.SURPLUS_PRESSURE`, deliberately NOT imported: the panel
+# must open on a machine where the engine cannot be imported at all (see `_auction_views`). A test
+# pins the constants together.
 SURPLUS = "surplus"
+SURPLUS_PRESSURE = "surplus_pressure"
 
 
 class AuctionView(ttk.Frame):
@@ -973,6 +975,12 @@ class AuctionView(ttk.Frame):
     # this panel) - it is kept because it is the only way to SEE why surplus reordered something. An
     # iron man on a replacement-level fantamedia is 9th by VALUE and 154th by SURPLUS, and the pair of
     # views is the explanation. Label -> the metric key `evaluate.auction_view` takes.
+    # SURPLUS_PRESSURE exists in the engine (slot-pressure scaled ranking) and is deliberately NOT
+    # offered here: its own declared validation (metrica-asta-surplus-v1.md §11) found the bust rate
+    # unchanged on all 30 window views while captured VALUE fell 0.61% - the contested-group flops
+    # either never reach the predicted top-10s (the engine could not price Openda or David at all)
+    # or are injuries no slot logic can foresee. The Pair column carries the same evidence without
+    # reordering anything. Re-offering it is a user decision to take out loud, not a default.
     METRICS: ClassVar[dict[str, str]] = {
         "SURPLUS ((FM - repl.) x Pv)": SURPLUS,
         "VALUE (FM x Pv)": "value",
@@ -1292,7 +1300,7 @@ class AuctionView(ttk.Frame):
     def _render_role(self, role: str, block: dict, metric: str = "value") -> None:
         label = self.ROLE_LABELS.get(role, role)
         misses = block["misses"]
-        surplus = metric == SURPLUS
+        surplus = metric in (SURPLUS, SURPLUS_PRESSURE)
         currency = "SURPLUS" if surplus else "VALUE"
         # The replacement level is the whole premise of the surplus ranking, so it is stated in the
         # header rather than hidden in a tooltip: without it "-33" on a row means nothing.
@@ -1317,13 +1325,18 @@ class AuctionView(ttk.Frame):
         predicted_columns, actual_columns = self.COLUMNS[metric]
         pred_key, act_key = (("surplus_pred", "surplus_act") if surplus
                              else ("value_pred", "value_act"))
+        def predicted_row(row: dict) -> tuple:
+            cells = [row["rank"], row["name"], club_abbreviation(row["club"]),
+                     self._num(row["fm_pred"], 2), self._num(row["pv_pred"], 1),
+                     self._num(row[pred_key]), self._num(row[act_key]),
+                     self._num(row["fvm"]), row["actual_rank"] or "-"]
+            if metric == SURPLUS_PRESSURE:
+                cells.append(self._num(row.get("pressure"), 2))
+            cells.append(self._pair_text(row.get("pair")))
+            return tuple(cells)
+
         self._table(left, "Predicted at the auction", predicted_columns,
-                    [(row["rank"], row["name"], club_abbreviation(row["club"]),
-                      self._num(row["fm_pred"], 2), self._num(row["pv_pred"], 1),
-                      self._num(row[pred_key]), self._num(row[act_key]),
-                      self._num(row["fvm"]), row["actual_rank"] or "-",
-                      self._pair_text(row.get("pair")))
-                     for row in block["predicted"]],
+                    [predicted_row(row) for row in block["predicted"]],
                     {**self.COMMON_HELP, **self.PREDICTED_HELP})
         self._table(right, "Actual, end of season", actual_columns,
                     [(row["rank"], row["name"], club_abbreviation(row["club"]),

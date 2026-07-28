@@ -691,3 +691,34 @@ def test_auction_view_annotates_same_club_company_without_touching_the_ranking(c
     keeper_like = [row for role, block in view.items() if role != "A"
                    for row in block["predicted"]]
     assert all(row["pair"] is None for row in keeper_like)
+
+
+def test_slot_pressure_factor_discounts_contested_and_rewards_assured_slots():
+    """Declared constants, no fit (metrica doc §11): the factor is bounded on both sides."""
+    assert model.slot_pressure_factor(4, 1.55) == pytest.approx((1.55 / 4) ** 0.5)   # Juventus 25/26
+    assert model.slot_pressure_factor(2, 2.05) == pytest.approx((2.05 / 2) ** 0.5)   # Inter: ~1.0
+    assert model.slot_pressure_factor(1, 2.0) == model.PRESSURE_CAP                  # assured slot
+    assert model.slot_pressure_factor(0, 2.0) == model.PRESSURE_CAP
+    assert model.slot_pressure_factor(9, 1.0) == model.PRESSURE_FLOOR                # bounded discount
+    assert model.slot_pressure_factor(3, 0.0) == 1.0                                 # no K, no opinion
+
+
+def test_slot_pressure_scales_the_ranking_only(crowded):
+    _conn, data = crowded
+    predictions = evaluate.predict_window(data, ("R0",))
+    plain = evaluate.auction_view(data, predictions, top_n=3, metric=evaluate.SURPLUS)["A"]
+    pressed = evaluate.auction_view(data, predictions, top_n=3,
+                                    metric=evaluate.SURPLUS_PRESSURE)["A"]
+    # three serious claimants (all shares are high) on a capacity of 1 -> floor discount for all
+    factor = model.slot_pressure_factor(3, 1.0)
+    assert factor == model.PRESSURE_FLOOR
+    for row in pressed["predicted"]:
+        assert row["pressure"] == pytest.approx(factor)
+    # the factor is uniform inside one club, so the order and every displayed figure match the
+    # plain view: predictions, VALUE, and the actual side are not discounted - only the sort key is
+    assert [row["name"] for row in pressed["predicted"]] == [
+        row["name"] for row in plain["predicted"]]
+    for pressed_row, plain_row in zip(pressed["predicted"], plain["predicted"]):
+        for field in ("fm_pred", "pv_pred", "value_pred", "value_act"):
+            assert pressed_row[field] == plain_row[field]
+    assert plain["predicted"][0].get("pressure") is None       # other currencies stay untouched

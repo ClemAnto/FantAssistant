@@ -285,3 +285,29 @@ verbale. Niente fallback a forme alternative dopo aver visto il dato.
 - **Gli altri ruoli**: `club_match_lineups` ha già i conteggi G/D/M per XI; serve il cross-tab di
   vocabolario per D e C prima di estendere (per gli A è misurato: 57-81%).
 - Integrazione con `probable_starter` settimanale quando avrà storia.
+
+### Esito (28/07/2026, stessa giornata — misura unica sulle 30 viste finestra×piattaforma×gioco)
+
+**L'opzione nasce SPENTA**, come la dichiarazione prevedeva per questo esito:
+
+1. VALORE reale catturato: **−0.61%** aggregato (−0.68% sulle sole finestre pulite) — entro il
+   limite del 2%. ✓
+2. Tasso di bust nelle top-10 predette: **10.1% → 10.1%, identico su ogni singola finestra**. ✗
+
+Il perché è più utile del verdetto. I flop dei reparti contesi **non stanno nelle top-10 predette**:
+Openda e David erano imprezzabili per il motore (nessuno storico), quindi nessuna lista li proponeva
+— lo sconto non può salvare da un acquisto che il motore non suggeriva. Dove la coppia contesa È in
+lista (Inter, Fiorentina), il fattore è di club e uniforme, quindi raramente scambia nomi FRA club;
+e i bust rimasti (Lukaku) sono infortuni, ciechi a qualunque logica di slot. Il costo del −0.61% è
+concentrato dove il fattore morde a torto (euro/classic T1: −15.4%, è lo sconto su Marmoush+Haaland
+che poi hanno reso entrambi).
+
+**Cosa resta in produzione**: la valuta `surplus_pressure` esiste nel motore, testata, non offerta
+dal pannello; la colonna **Pair** (K, co-start, ΔQt.I) porta la stessa evidenza al decisore SENZA
+riordinare nulla — che è la forma in cui questa informazione oggi si guadagna il posto. Riaccendere
+la valuta è una decisione da prendere ad alta voce, sapendo che compra 0 bust in meno.
+
+**Cosa la riaprirebbe legittimamente**: (a) la tabella `injuries` (il raffinamento lungodegenti
+dichiarato sopra: cambia CHI è serio, non la forma); (b) lo storico settimanale di
+`probable_starter`, che renderà misurabile la serietà per-pretendente invece del conteggio; (c) una
+copertura predittiva dei nuovi arrivi (finché Openda non è prezzabile, nessuna valuta lo tocca).

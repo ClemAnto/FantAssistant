@@ -223,6 +223,9 @@ def test_the_panel_s_surplus_key_is_the_one_the_engine_understands():
     from euroleghe_ingest.engine import evaluate
 
     assert gui.SURPLUS == evaluate.SURPLUS
+    assert gui.SURPLUS_PRESSURE == evaluate.SURPLUS_PRESSURE
+    # SURPLUS_PRESSURE is pinned but NOT offered: its declared validation failed on the bust rate
+    # (metrica doc §11 Esito) and the option ships OFF - re-offering it is an out-loud decision.
     assert set(gui.AuctionView.METRICS.values()) == {"value", evaluate.SURPLUS}
     # SURPLUS leads: the panel opens on the currency an auction actually asks about. VALUE stays
     # available because seeing both is how you understand why a name moved.

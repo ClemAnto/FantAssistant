@@ -456,6 +456,37 @@ def forward_crowding_adjustment(overflow: float, lam: float) -> float:
     return lam * overflow
 
 
+# ---------------- slot pressure (auction METRIC layer - metrica-asta-surplus-v1.md §11) ----------
+# NOT a prediction rule: R17 established that crowding does not transfer as an error correction, so
+# this lives in the ranking currency instead - a DECLARED preference with declared constants, zero
+# fits, validated by the metric doc's own protocol (captured VALUE >= -2% and bust rate down, or the
+# panel option ships OFF). The serious-claimant test is a COUNT on purpose: predicted-share sums are
+# inflated by the fringe (the baseline hands Taremi 0.55), and the dangerous claimants - Openda and
+# David arrived that summer - can be invisible to the predictions while sitting in the listone with
+# a heavy Qt.I. Group-level, not rank-gated: Zapata was Torino's Qt.I leader and lost the slot.
+SERIOUS_SHARE = 0.35        # a predicted share this high is a serious claim on the slot...
+SERIOUS_QTI_MIN = 6.0       # ...and so is real auction money, absolute...
+SERIOUS_QTI_FRACTION = 1 / 3  # ...or relative to the group's most expensive claimant
+PRESSURE_EXPONENT = 0.5     # each serious claimant beyond capacity does not erase value linearly
+PRESSURE_FLOOR = 0.60       # the discount is bounded...
+PRESSURE_CAP = 1.15         # ...and so is the assured-slot premium (the user's inverse reasoning)
+
+
+def slot_pressure_factor(serious: int, capacity: float) -> float:
+    """Ranking multiplier for a forward group: <1 contested hierarchy, >1 assured slot.
+
+    `serious` claimants against the club's measured fielded capacity K: Juventus 25/26 had four
+    serious forwards on K 1.55 (factor 0.62), Como four on 1.34 (0.62 - the market's top three all
+    flopped), Inter two on 2.05 (~1.0, and the pair held). Below capacity the slot is guaranteed by
+    LACK of competition and earns the capped premium: errors get forgiven, the chances come back.
+    """
+    if capacity <= 0:
+        return 1.0
+    if serious <= 0:
+        return PRESSURE_CAP
+    return clip((capacity / serious) ** PRESSURE_EXPONENT, PRESSURE_FLOOR, PRESSURE_CAP)
+
+
 # R11b: below this, arrivals in your role are squad churn; at or above it, the position is genuinely
 # crowded. Juventus 25/26 signed three forwards (Boga, David, Openda) on top of Vlahovic, and the
 # engine gave Openda 25.8 appearances against 12 real ones.
