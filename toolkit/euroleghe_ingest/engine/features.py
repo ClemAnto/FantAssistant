@@ -18,9 +18,16 @@ tagged:
 from __future__ import annotations
 
 import sqlite3
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 
-from euroleghe_ingest.engine.model import ANCHOR_FALLBACK, ANCHOR_MIN_PV, split_roles
+from euroleghe_ingest.engine.model import (
+    ANCHOR_FALLBACK,
+    ANCHOR_MIN_PV,
+    MANTRA_BY_CLASSIC,
+    MANTRA_ROLES,
+    split_roles,
+)
 
 # ---------------------------------------------------------------- windows
 
@@ -282,6 +289,151 @@ def anchors(conn: sqlite3.Connection, platform: str, seasons: tuple[str, ...], g
             if weight_total >= min_weight:
                 per_season.setdefault(key, []).append(weighted_sum / weight_total)
     out = {key: sum(values) / len(values) for key, values in per_season.items() if values}
+    for role, source in ANCHOR_FALLBACK.items():
+        if role not in out and source in out:
+            out[role] = out[source]
+    return out
+
+
+# Which competitions a platform's perimeter is played in - the lineups the fielding caps are measured
+# on. `euro` spans the 5 leagues, `default` is Serie A only.
+PLATFORM_COMPETITIONS: dict[str, tuple[str, ...]] = {
+    "euro": ("serie_a", "premier_league", "la_liga", "bundesliga", "ligue_1"),
+    "default": ("serie_a",),
+}
+STARTERS = 11               # a starting eleven, which is what a fielding cap is a cap on
+CAP_PERCENTILE = 0.9        # see `simultaneous_caps`: the median hides the roles used sparingly
+
+
+def simultaneous_caps(conn: sqlite3.Connection, platform: str, seasons: tuple[str, ...],
+                      percentile: float = CAP_PERCENTILE) -> dict[str, float]:
+    """How many players listed at each Mantra role a side actually FIELDS at once.
+
+    This is the constraint a Mantra module expresses - no scheme lets you field 3 'pc' or 4 'dc' - and
+    it is measured rather than taken from the official module table: reconstruct every complete starting
+    eleven from the stored lineups, and for each role count the starters whose listing includes it.
+
+    Two properties make the number usable. A multi-role starter counts in EVERY role he is listed with,
+    so a per-role figure is an upper bound - which is why the 90th percentile is read and not the max
+    (on Serie A the max says 5 'dc', the p90 says 3, and 3 is the real cap). And the median is too low
+    for the roles a league uses sparingly: 'b' has a median of 0 because most sides play a back four,
+    yet a squad that ever plays a back three does roster a braccetto. Floored at 1 for that reason.
+
+    Cross-checked against the game's own rules on the two roles they are usually quoted for: p90 gives
+    dc = 3 and pc = 2, which is exactly what the modules allow.
+    """
+    competitions = PLATFORM_COMPETITIONS.get(platform, PLATFORM_COMPETITIONS["default"])
+    rows = conn.execute(
+        f"""SELECT e.match_id, e.club, r.roles
+            FROM external_match_stats e
+            JOIN rosters r ON r.fc_id = e.fc_id AND r.season = e.season
+            WHERE e.started = 1 AND e.source = 'sofascore' AND r.roles IS NOT NULL
+              AND e.season IN ({','.join('?' * len(seasons))})
+              AND e.competition IN ({','.join('?' * len(competitions))})""",
+        (*seasons, *competitions)).fetchall()
+    lineups: dict[tuple, list[set[str]]] = {}
+    for match_id, club, roles_raw in rows:
+        lineups.setdefault((match_id, club), []).append(set(split_roles(roles_raw)))
+    complete = [xi for xi in lineups.values() if len(xi) == STARTERS]
+    if not complete:
+        return {}
+    out: dict[str, float] = {}
+    for role in MANTRA_ROLES:
+        counts = sorted(sum(1 for player in xi if role in player) for xi in complete)
+        out[role] = max(1.0, float(counts[min(int(len(counts) * percentile), len(counts) - 1)]))
+    return out
+
+
+def listings_per_player(conn: sqlite3.Connection, season: str,
+                        roles: Sequence[str]) -> float:
+    """Listings / distinct players over a set of Mantra roles: the multi-role inflation factor.
+
+    A squad rule counts PLAYERS ("eight defenders"), a role pool counts LISTINGS, and a defender listed
+    'dc;dd' is one of the eight but two of the listings. About 1.5 league-wide, and it has to be applied
+    per group: the attacking roles overlap much more than the goalkeeping one does.
+    """
+    listings = players = 0
+    for (roles_raw,) in conn.execute(
+            "SELECT roles FROM rosters WHERE season = ? AND roles IS NOT NULL", (season,)):
+        held = [role for role in split_roles(roles_raw) if role in roles]
+        if held:
+            players += 1
+            listings += len(held)
+    return listings / players if players else 1.0
+
+
+def derive_mantra_slots(conn: sqlite3.Connection, platform: str, seasons: tuple[str, ...],
+                        squad_slots: Mapping[str, int]) -> dict[str, float]:
+    """How deep a league rosters each Mantra role, from the league's rule and the measured caps.
+
+    Three inputs, no fitted coefficient:
+
+    * the Classic squad rule fixes each GROUP's total ("eight defenders") - that is the real rule the
+      league plays by, and it is the only thing that comes from configuration;
+    * the measured fielding caps fix the SHAPE inside the group, because the group's roles are not
+      interchangeable: 'dc' 3 against 'b' 1 says a defensive slot is far more likely to be a centre-back
+      than a braccetto, and no proportion-of-the-pool argument can know that;
+    * the group's listings-per-player converts the rule's PLAYERS into the pool's LISTINGS.
+
+    Returns fractional slots on purpose - rounding 1.5 to 2 for four attacking roles would invent a
+    quarter of a squad - and `replacement_levels` rounds once, at the rank.
+    """
+    caps = simultaneous_caps(conn, platform, seasons)
+    if not caps:
+        return {}
+    latest = max(seasons)
+    out: dict[str, float] = {}
+    for classic, roles in MANTRA_BY_CLASSIC.items():
+        total_cap = sum(caps.get(role, 0.0) for role in roles)
+        if not total_cap:
+            continue
+        budget = squad_slots.get(classic, 0) * listings_per_player(conn, latest, roles)
+        for role in roles:
+            out[role] = budget * caps.get(role, 0.0) / total_cap
+    return out
+
+
+def replacement_levels(conn: sqlite3.Connection, platform: str, seasons: tuple[str, ...],
+                       game: str, slots: Mapping[str, float], teams: int,
+                       min_pv: int = ANCHOR_MIN_PV) -> dict[str, float]:
+    """Fantamedia of the MARGINAL ROSTERED player at each role: the replacement level.
+
+    Rank `teams * slots[role]` in that role's own population, sorted by fantamedia - the man you would
+    have fielded instead of the one who did not play. Averaged over the same input seasons and read on
+    the same Pv >= 20 domain as `anchors`, so the two are commensurable and neither peeks at the target
+    season. A role whose pool is thinner than its rank uses its own last man rather than nothing.
+
+    This is NOT a fitted parameter: `teams` and `slots` are league configuration (config/league_config
+    .json). It is what turns "sum of a season's fantavoti" into "points over what the bench gives you".
+
+    Coming out ABOVE the role anchor is expected, not a bug: the anchor is the perimeter's mean, this is
+    the marginal ROSTERED player, and a league picking from 39 usable 'pc' rosters above-average
+    strikers. Where the pool is thinner than its own rank ('b', and Serie A keepers) the level is that
+    role's last regular - the honest answer when the league cannot roster that deep.
+    """
+    per_season: dict[str, list[float]] = {}
+    for season in seasons:
+        rows = conn.execute(
+            """SELECT r.role_classic, r.roles, ss.fm
+               FROM season_stats ss
+               JOIN rosters r ON r.fc_id = ss.fc_id AND r.season = ss.season
+               WHERE ss.season = ? AND ss.platform = ? AND ss.pv >= ? AND ss.fm IS NOT NULL""",
+            (season, platform, min_pv)).fetchall()
+        pools: dict[str, list[float]] = {}
+        for role_classic, roles_raw, fm in rows:
+            keys = [role_classic] if game == "classic" else split_roles(roles_raw)
+            for key in keys:
+                if key:
+                    pools.setdefault(key, []).append(fm)
+        for role, values in pools.items():
+            # rounded ONCE, here: the slots are fractional (1.5 attacking slots over four roles is a
+            # real number, 2 would invent a quarter of a squad) and the rank is the only integer needed.
+            rank = round(teams * slots.get(role, 0))
+            if rank < 1 or not values:
+                continue
+            values.sort(reverse=True)
+            per_season.setdefault(role, []).append(values[min(rank, len(values)) - 1])
+    out = {role: sum(values) / len(values) for role, values in per_season.items() if values}
     for role, source in ANCHOR_FALLBACK.items():
         if role not in out and source in out:
             out[role] = out[source]
@@ -597,6 +749,25 @@ class WindowData:
     matchdays_prev: int = 0
     matchdays_target: int = 0
     rounds: dict[str, int] = field(default_factory=dict)
+    # Replacement level per role, from `replacement_levels`. EMPTY unless the caller supplied the
+    # league setup: the engine core must not reach for a config file, and the pre-registered gate path
+    # deliberately runs without it, so its VALUE = FM x Pv numbers stay exactly what was published.
+    replacement: dict[str, float] = field(default_factory=dict)
+    # The same levels read on the TARGET season's own population, for scoring what actually happened.
+    # Not look-ahead and not optional: the predicted list is strictly input-season, but the actual list
+    # is a REPORT on target-season outcomes, and measuring 2025-26 fantamedie against a baseline built
+    # from 2023-24 is a level error, not conservatism. The euro 'pc' distribution fell half a fantavoto
+    # between the two (rank 13: 8.02 -> 7.80 -> 7.38), which on 28 appearances is 14 points - enough to
+    # rank a striker who played 28 matches below one who played a single match well.
+    replacement_actual: dict[str, float] = field(default_factory=dict)
+    # Reliability exponent: SURPLUS x (Pv / matchdays)^reliability. 0 = off, which is the mathematically
+    # pure setting. Above 0 it trades exact expected points for utility - a slot you cannot count on is
+    # worth less than its expectation. A user PREFERENCE carried through, never fitted here.
+    reliability: float = 0.0
+    # Below this share of the calendar a player is not RANKED in a surplus top ten. Not a discount: a
+    # discount can be out-earned by one spectacular match, and a man who played once was never someone
+    # you could have fielded. 0 = no floor, which is what the pre-registered VALUE lists always use.
+    min_availability: float = 0.0
     # scratch space for quantities derived from this window's own population (evaluate.derive).
     # Computing them is a full pass over ~1500 observations and the gate asks for the same window
     # dozens of times, so they are memoised here rather than recomputed per rule.
@@ -607,11 +778,47 @@ class WindowData:
         return self.rounds.get(league or "", 38) or 38
 
 
-def prepare(conn: sqlite3.Connection, window: Window, platform: str, game: str) -> WindowData:
-    """Load a window and everything the model needs, using only seasons <= the input season."""
+def roster_depth(conn: sqlite3.Connection, platform: str, seasons: tuple[str, ...], game: str,
+                 league: Mapping) -> dict[str, float]:
+    """The slot counts `replacement_levels` needs, in `game`'s own vocabulary.
+
+    Classic is the league's rule verbatim. Mantra is derived from the fielding caps unless the league
+    states its own `mantra_slots`, and falls back to an even split of each group only when there are no
+    lineups to measure the caps on.
+    """
+    squad_slots = league.get("squad_slots") or {}
+    if game == "classic":
+        return {role: float(count) for role, count in squad_slots.items()}
+    stated = league.get("mantra_slots") or {}
+    derived = derive_mantra_slots(conn, platform, seasons, squad_slots)
+    if not derived:
+        derived = {role: max(1.0, squad_slots.get(classic, 0) / len(roles))
+                   for classic, roles in MANTRA_BY_CLASSIC.items() for role in roles}
+    return {**derived, **{role: float(count) for role, count in stated.items() if role in derived}}
+
+
+def prepare(conn: sqlite3.Connection, window: Window, platform: str, game: str, *,
+            league: Mapping | None = None) -> WindowData:
+    """Load a window and everything the model needs, using only seasons <= the input season.
+
+    `league` is the league setup as `Config.load_league()` returns it - a plain mapping, so the engine
+    still knows nothing about config files. Optional on purpose: without it the replacement levels stay
+    empty and the window is exactly the one every published gate number was produced on. The Auction
+    panel supplies it; the gate does not.
+    """
     seasons = tuple(season for (season,) in conn.execute(
         "SELECT DISTINCT season FROM season_stats ORDER BY season") if season <= window.input_season)
     gk_rates, mu_rate = goalkeeper_club_rates(conn, platform, window.input_season)
+    replacement: dict[str, float] = {}
+    replacement_actual: dict[str, float] = {}
+    if league and league.get("teams"):
+        # ONE depth - how deep the league rosters is its rule, not a property of a season - read in two
+        # populations: the seasons the auction could know about, and the season being scored.
+        depth = roster_depth(conn, platform, seasons, game, league)
+        teams = int(league["teams"])
+        replacement = replacement_levels(conn, platform, seasons, game, depth, teams)
+        replacement_actual = replacement_levels(
+            conn, platform, (window.target_season,), game, depth, teams)
     return WindowData(
         window=window, platform=platform, game=game,
         observations=load(conn, window, platform),
@@ -620,4 +827,8 @@ def prepare(conn: sqlite3.Connection, window: Window, platform: str, game: str) 
         matchdays_prev=matchday_count(conn, platform, window.input_season),
         matchdays_target=matchday_count(conn, platform, window.target_season),
         rounds=league_rounds(conn, window.input_season),
+        replacement=replacement,
+        replacement_actual=replacement_actual,
+        reliability=float((league or {}).get("reliability_exponent") or 0.0),
+        min_availability=float((league or {}).get("min_availability") or 0.0),
     )

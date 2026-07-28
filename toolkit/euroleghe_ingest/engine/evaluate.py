@@ -1576,13 +1576,30 @@ def role_membership(data: features.WindowData) -> tuple[tuple[str, ...], object]
     return model.CLASSIC_ROLES, (lambda obs, role: obs.role_classic == role)
 
 
+SURPLUS = "surplus"     # rank by (FM - replacement) x Pv instead of FM x Pv
+
+
 def auction_view(data: features.WindowData, predictions: list[Prediction],
-                 top_n: int = TOP_N) -> dict:
+                 top_n: int = TOP_N, metric: str = "value") -> dict:
     """Per role: the predicted top N and the real top N, each annotated with the other's rank.
 
     Two lists rather than one score. A precision of 6/10 hides whether the four misses were injuries,
     players the engine could not price at all, or ranking noise between comparable names - and only the
     named comparison shows which.
+
+    `metric` chooses the CURRENCY both lists are ranked in, and every figure in the block follows it:
+
+    * 'value'   - VALUE = FM x Pv, the sum of a season's fantavoti. The pre-registered metric, and the
+                  DEFAULT, so the gate's published numbers are unaffected by any of this.
+    * 'surplus' - (FM - replacement) x Pv, points over the man you would have fielded instead. Needs
+                  `data.replacement` (league setup, see features.replacement_levels); a role without a
+                  replacement level silently keeps the VALUE ordering rather than inventing one.
+
+    The two answer different questions. VALUE ranks an iron-man on a below-average fantamedia into the
+    top ten - Politano was 9th among the euro/mantra 'w' on a predicted 6.58 against a role level of
+    6.65 - and it also puts him in the REAL top ten at the end of the season, which is not a bug: he
+    really did accumulate that many fantavoti. Surplus asks the other question, the one an auction is
+    actually about, and answers 'nothing, he IS the bench'.
     """
     out: dict[str, dict] = {}
     roles, holds = role_membership(data)
@@ -1592,11 +1609,63 @@ def auction_view(data: features.WindowData, predictions: list[Prediction],
                   if holds(p.obs, role) and p.value_pred is not None]
         if not observations:
             continue
-        ranked = sorted(valued, key=lambda p: -(p.value_pred or 0.0))
+        # The competitor for a role slot is the marginal player AT THAT ROLE, so each list uses its own
+        # floor - not a multi-role player's average, which would price the same man differently in the
+        # two lists he appears in.
+        floor = data.replacement.get(role) if metric == SURPLUS else None
+        # What ACTUALLY happened is measured against the level of the season it happened in. The
+        # predicted side never touches this - it may only know the input seasons - and that asymmetry is
+        # the point: one is a forecast, the other is a report, and a report scored against a three-year
+        # old baseline says a 28-match striker was worth less than a one-match one.
+        floor_act = (data.replacement_actual.get(role) or floor) if metric == SURPLUS else None
+
+        def over_floor(fm, appearances, _floor=floor):
+            """Points over the bench, optionally discounted for how little you can count on him.
+
+            The bare product is the EXACT expected surplus: on the days he does not play you field the
+            replacement and bank nothing, so a man with three good games is worth three good games. What
+            the reliability weight adds is the part expectation cannot see - a slot whose Pv forecast is
+            12 is also a high-variance slot, and transfers are limited. It makes the measure
+            super-linear in appearances, and it is a declared preference, not an accuracy claim.
+            """
+            if fm is None or appearances is None or _floor is None:
+                return None
+            surplus = (fm - _floor) * appearances
+            if not data.reliability or not data.matchdays_target:
+                return surplus
+            share = model.clip(appearances / data.matchdays_target, 0.0, 1.0)
+            return surplus * share ** data.reliability
+
+        def surplus_act(obs, _floor=floor_act):
+            return over_floor(obs.fm_act, obs.pv_act, _floor)
+
+        def score_pred(p, _floor=floor):
+            if _floor is None:
+                return p.value_pred or 0.0
+            return over_floor(p.fm_pred, p.pv_pred) or 0.0
+
+        def score_act(obs, _floor=floor_act):
+            if _floor is None:
+                return obs.value_act or 0.0
+            return surplus_act(obs) or 0.0
+
+        # Who is ELIGIBLE to be ranked at all. A one-appearance hat-trick is not a small value, it is
+        # not a value of this kind: you could not have fielded him, so he does not belong in a ranking
+        # of who to buy - at any discount, which is why this is a floor and not a steeper curve. Off
+        # (0.0) unless the league asks for it, so the pre-registered VALUE lists are never filtered.
+        floor_share = data.min_availability if metric == SURPLUS else 0.0
+
+        def fieldable(appearances, _floor=floor_share):
+            if not _floor or not data.matchdays_target or appearances is None:
+                return True
+            return appearances / data.matchdays_target >= _floor
+
+        ranked = sorted((p for p in valued if fieldable(p.pv_pred)), key=lambda p: -score_pred(p))
         predicted_rank = {p.obs.fc_id: index for index, p in enumerate(ranked, 1)}
         by_id = {p.obs.fc_id: p for p in valued}
-        actual = sorted((obs for obs in observations if obs.value_act is not None),
-                        key=lambda obs: -(obs.value_act or 0.0))
+        actual = sorted((obs for obs in observations
+                         if obs.value_act is not None and fieldable(obs.pv_act)),
+                        key=lambda obs: -score_act(obs))
         actual_rank = {obs.fc_id: index for index, obs in enumerate(actual, 1)}
 
         # What buying the engine's ten would have RETURNED, against what the perfect ten returned.
@@ -1611,10 +1680,13 @@ def auction_view(data: features.WindowData, predictions: list[Prediction],
             """What the market asked for him BEFORE the auction, in the same currency."""
             return obs.price_initial_mantra if _game == "mantra" else obs.price_initial
 
-        captured = sum(p.obs.value_act or 0.0 for p in ranked[:top_n])
-        perfect = sum(obs.value_act or 0.0 for obs in actual[:top_n])
+        captured = sum(score_act(p.obs) for p in ranked[:top_n])
+        perfect = sum(score_act(obs) for obs in actual[:top_n])
         out[role] = {
             "n_actual": len(actual),
+            "metric": metric,
+            "replacement": _round(floor, 2),
+            "replacement_actual": _round(floor_act, 2),
             "hits": len({p.obs.fc_id for p in ranked[:top_n]}
                         & {obs.fc_id for obs in actual[:top_n]}),
             "captured_value": _round(captured, 1),
@@ -1634,18 +1706,25 @@ def auction_view(data: features.WindowData, predictions: list[Prediction],
                 "price_initial": asked(p.obs),
                 "fm_pred": _round(p.fm_pred, 2), "pv_pred": _round(p.pv_pred, 1),
                 "value_pred": _round(p.value_pred, 1),
+                "surplus_pred": _round(over_floor(p.fm_pred, p.pv_pred), 1),
                 "fm_act": p.obs.fm_act, "pv_act": p.obs.pv_act,
-                "value_act": _round(p.obs.value_act, 1), "fvm": market(p.obs),
+                "value_act": _round(p.obs.value_act, 1),
+                "surplus_act": _round(surplus_act(p.obs), 1),
+                "fvm": market(p.obs),
                 "actual_rank": actual_rank.get(p.obs.fc_id),
             } for index, p in enumerate(ranked[:top_n], 1)],
             "actual": [{
                 "rank": index, "name": obs.name, "club": obs.club_target,
                 "price_initial": asked(obs),
                 "fm_act": obs.fm_act, "pv_act": obs.pv_act,
-                "value_act": _round(obs.value_act, 1), "fvm": market(obs),
+                "value_act": _round(obs.value_act, 1),
+                "surplus_act": _round(surplus_act(obs), 1), "fvm": market(obs),
                 "fm_pred": _round(by_id[obs.fc_id].fm_pred, 2) if obs.fc_id in by_id else None,
                 "pv_pred": _round(by_id[obs.fc_id].pv_pred, 1) if obs.fc_id in by_id else None,
                 "value_pred": _round(by_id[obs.fc_id].value_pred, 1) if obs.fc_id in by_id else None,
+                "surplus_pred": (_round(over_floor(by_id[obs.fc_id].fm_pred,
+                                                   by_id[obs.fc_id].pv_pred), 1)
+                                 if obs.fc_id in by_id else None),
                 "predicted_rank": predicted_rank.get(obs.fc_id),
             } for index, obs in enumerate(actual[:top_n], 1)],
         }

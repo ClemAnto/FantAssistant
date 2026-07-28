@@ -303,11 +303,14 @@ def compute_fantavoto(canon: dict, scoring: dict[str, float]) -> float | None:
 # ---------- persistence ----------
 def upsert_records(conn, records: list[dict], scoring: dict[str, float],
                    platform: str = DEFAULT_PLATFORM) -> int:
+    from euroleghe_ingest.modules.rosters import UPSERT_PLAYER
+
     for rec in records:
-        conn.execute(
-            "INSERT OR IGNORE INTO players(fc_id, canonical_name) VALUES (?, ?)",
-            (rec["fc_id"], rec["name"] or str(rec["fc_id"])),
-        )
+        # Not INSERT OR IGNORE: the Excel spelling is intact, and a name the Drive CSV destroyed
+        # ("Kon�� I.") must be repairable by a source that has it right. UPSERT_PLAYER only ever
+        # overwrites a damaged name, so this cannot clobber anything else.
+        conn.execute(UPSERT_PLAYER,
+                     (rec["fc_id"], rec["name"] or str(rec["fc_id"]), None, None))
         c = rec["canon"]
         mv = c.get("mv")
         if mv is not None and not (0 <= mv <= 10):   # guard against poisoned values
@@ -342,12 +345,14 @@ def upsert_listone(conn, season: str, records: list[dict], platform: str = DEFAU
     """Enrich rosters with the listone: Mantra roles (RM), Classic role, price and club. This fills
     the non-top Serie A players whose rosters came from the voti (Classic role only, no Mantra).
     The listone is authoritative for roles/role/price; the roster league is preserved when known."""
-    from euroleghe_ingest.modules.rosters import _get_or_create_club
+    from euroleghe_ingest.modules.rosters import UPSERT_PLAYER, _get_or_create_club
 
     n = 0
     for rec in records:
-        conn.execute("INSERT OR IGNORE INTO players(fc_id, canonical_name) VALUES (?, ?)",
-                     (rec["fc_id"], rec["name"] or str(rec["fc_id"])))
+        # The listone is authoritative for roles/role/price, and for the SPELLING too: it is the clean
+        # source that repairs the names the CSV exports lost (see UPSERT_PLAYER).
+        conn.execute(UPSERT_PLAYER,
+                     (rec["fc_id"], rec["name"] or str(rec["fc_id"]), None, None))
         if platform == "default":
             league = "serie_a"
         else:  # euro spans 5 leagues: take the club's known league if we have it, else leave unknown

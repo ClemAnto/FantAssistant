@@ -43,6 +43,15 @@ LEAGUE_MAP: dict[str, str] = {
 CLASSIC_ROLES: tuple[str, ...] = ("P", "D", "C", "A")
 MANTRA_ROLES: tuple[str, ...] = ("por", "dc", "dd", "ds", "b", "e", "m", "c", "w", "t", "a", "pc")
 
+# Which Mantra roles belong to each Classic role. A Mantra squad is still rostered by Classic role
+# (3/8/8/6 on fantacalcio.it), so this is what lets a Classic squad rule constrain Mantra role depth.
+MANTRA_BY_CLASSIC: dict[str, tuple[str, ...]] = {
+    "P": ("por",),
+    "D": ("dc", "dd", "ds", "b"),
+    "C": ("e", "m", "c"),
+    "A": ("w", "t", "a", "pc"),
+}
+
 
 @dataclass
 class Record:

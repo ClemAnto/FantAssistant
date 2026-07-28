@@ -215,6 +215,38 @@ def test_rerunning_rosters_keeps_what_the_pipeline_recovered(tmp_path):
     assert row["roles"] == "m"                      # the raw list IS authoritative where it speaks
 
 
+def test_a_name_the_csv_destroyed_is_repaired_by_the_listone_and_stays_repaired(tmp_path):
+    """"Konè I." (Sassuolo) reached the panel as "Kon�� I.": the Drive CSV exports arrive with the
+    accents ALREADY replaced by U+FFFD, and the CSV-fed `rosters` overwrote canonical_name
+    unconditionally, so the clean listone spelling could never win. One rule now covers every writer -
+    a damaged name never displaces an intact one, an intact one always repairs a damaged one - and it
+    has to hold in BOTH orders, because module run order is an operator's choice, not a guarantee."""
+    from euroleghe_ingest.modules import ratings
+
+    data_dir = tmp_path / "data"
+    (data_dir / "raw").mkdir(parents=True)
+    (data_dir / "raw" / "euroleghe-stats-2023-24.csv").write_text(
+        "id,nome,lega,squadra,r,rm,pv,mv,fm,gf,gs,rig_s,rig_t,rp,ass,amm,esp\n"
+        "6717,Kon�� I.,Serie A,Sassuolo,C,m;c,10,6.0,6.5,1,0,0,0,0,2,1,0\n", encoding="utf-8")
+    cfg = Config(data_dir=data_dir, db_path=data_dir / "euroleghe.db")
+    ctx = Context(config=cfg, conn=init_db(cfg.db_path))
+    conn = ctx.conn
+
+    load("rosters").run(ctx)
+    assert "�" in conn.execute(
+        "SELECT canonical_name FROM players WHERE fc_id = 6717").fetchone()[0]
+
+    listone = [{"fc_id": 6717, "name": "Konè I.", "team": "Sassuolo", "roles": ["m", "c"],
+                "role_classic": "C", "price": 17.0}]
+    ratings.upsert_listone(conn, "2023-24", listone, platform="default")
+    assert conn.execute(
+        "SELECT canonical_name FROM players WHERE fc_id = 6717").fetchone()[0] == "Konè I."
+
+    load("rosters").run(ctx)        # the raw CSV is still broken - it must not win a second time
+    assert conn.execute(
+        "SELECT canonical_name FROM players WHERE fc_id = 6717").fetchone()[0] == "Konè I."
+
+
 def test_synthetic_votes_are_shown_on_the_half_point_grid():
     from euroleghe_ingest.gui import half_step
 

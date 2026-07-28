@@ -159,22 +159,82 @@ def test_auction_tab_offers_both_games_on_both_platforms():
 
 
 def test_every_auction_column_is_explained_by_a_tooltip():
-    """The columns are the whole point of the view and several are easy to misread - Qt.I against Qt.A
-    is the look-ahead discipline, FVM is reporting-only, and FM/Pv/VALUE mean predicted on the left and
-    actual on the right. A new column must not ship without its explanation."""
+    """The columns are the whole point of the view and several are easy to misread - FVM is
+    reporting-only, and FM/Pv/VALUE mean predicted on the left and actual on the right. A new column
+    must not ship without its explanation."""
     from euroleghe_ingest import gui
 
     view = gui.AuctionView
-    for columns, specific in ((view.PREDICTED_COLUMNS, view.PREDICTED_HELP),
-                              (view.ACTUAL_COLUMNS, view.ACTUAL_HELP)):
-        help_texts = {**view.COMMON_HELP, **specific}
-        missing = [column for column in columns if not help_texts.get(column)]
-        assert not missing, missing
-        unused = [key for key in help_texts if key not in columns]
-        assert not unused, unused
-    # the two tables disagree about FM/Pv/VALUE on purpose, and that must stay true
-    for column in ("FM", "Pv", "VALUE"):
+    used: set[str] = set()
+    for metric, (predicted, actual) in view.COLUMNS.items():
+        assert metric in view.METRICS.values(), metric
+        for columns, specific in ((predicted, view.PREDICTED_HELP), (actual, view.ACTUAL_HELP)):
+            help_texts = {**view.COMMON_HELP, **specific}
+            missing = [column for column in columns if not help_texts.get(column)]
+            assert not missing, (metric, missing)
+            used.update(columns)
+    # ... and nothing explained that no metric actually shows
+    explained = set(view.COMMON_HELP) | set(view.PREDICTED_HELP) | set(view.ACTUAL_HELP)
+    assert not explained - used, explained - used
+    # the two tables disagree about FM/Pv/VALUE/SURPLUS on purpose, and that must stay true
+    for column in ("FM", "Pv", "VALUE", "SURPLUS"):
         assert view.PREDICTED_HELP[column] != view.ACTUAL_HELP[column], column
+
+
+def test_league_setup_has_usable_defaults_and_derives_the_mantra_slots():
+    """The replacement level needs to know how many players of each role a league rosters. The group
+    totals are league CONFIGURATION, not a fitted parameter, so they ship as a standard 8-team / 3-8-8-6
+    setup. What is checked here is the OFFLINE fallback shape; the shipped Mantra shape comes from the
+    measured fielding caps (see test_fielding_caps_reproduce_the_module_limits)."""
+    from euroleghe_ingest.config import Config
+    from euroleghe_ingest.sources import CLASSIC_ROLES, MANTRA_BY_CLASSIC, MANTRA_ROLES
+
+    setup = Config().load_league()
+    assert setup["teams"] == 8
+    assert setup["squad_slots"] == {"P": 3, "D": 8, "C": 8, "A": 6}
+    assert sum(setup["squad_slots"].values()) == 25          # the fantacalcio.it squad
+    assert set(MANTRA_BY_CLASSIC) == set(CLASSIC_ROLES)
+    assert sorted(role for roles in MANTRA_BY_CLASSIC.values() for role in roles) == sorted(
+        MANTRA_ROLES)                                        # every Mantra role belongs somewhere
+
+    assert Config().roster_slots("classic") == setup["squad_slots"]
+    mantra = Config().roster_slots("mantra")
+    assert set(mantra) == set(MANTRA_ROLES)
+    # 8 Classic slots over 4 defensive roles -> 2 each; 8 over 3 midfield roles -> 3 each (rounded up)
+    assert (mantra["por"], mantra["dc"], mantra["c"], mantra["pc"]) == (3, 2, 3, 2)
+    assert min(mantra.values()) >= 1                         # no role can be rostered zero deep
+
+
+def test_a_missing_league_config_still_yields_a_usable_setup(tmp_path):
+    """A panel that refuses to open because a config file is absent is worse than one using 8 teams."""
+    from euroleghe_ingest.config import Config
+
+    cfg = Config(league_config_path=tmp_path / "not-there.json")
+    assert cfg.load_league()["teams"] == 8
+    assert cfg.roster_slots("mantra")["pc"] == 2
+    (tmp_path / "broken.json").write_text("{not json", encoding="utf-8")
+    assert Config(league_config_path=tmp_path / "broken.json").load_league()["teams"] == 8
+
+
+def test_the_panel_s_surplus_key_is_the_one_the_engine_understands():
+    """The panel names the metric without importing the engine, so the two constants can drift apart
+    into a silently wrong sort key. They are pinned here instead."""
+    from euroleghe_ingest import gui
+    from euroleghe_ingest.engine import evaluate
+
+    assert gui.SURPLUS == evaluate.SURPLUS
+    assert set(gui.AuctionView.METRICS.values()) == {"value", evaluate.SURPLUS}
+    # SURPLUS leads: the panel opens on the currency an auction actually asks about. VALUE stays
+    # available because seeing both is how you understand why a name moved.
+    assert next(iter(gui.AuctionView.METRICS.values())) == evaluate.SURPLUS
+
+
+def test_the_reliability_discount_is_a_preference_the_league_states():
+    """It encodes risk aversion, not accuracy, so no backtest can pick it - but it must ship set to
+    something usable, and it must never come out negative (that would pay a bonus for absence)."""
+    from euroleghe_ingest.config import DEFAULT_RELIABILITY, Config
+
+    assert Config().load_league()["reliability_exponent"] == DEFAULT_RELIABILITY >= 0
 
 
 def test_heading_tooltip_maps_the_identified_column_to_its_name():

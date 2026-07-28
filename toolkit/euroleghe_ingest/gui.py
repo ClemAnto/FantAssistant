@@ -948,6 +948,11 @@ def make_app_icon() -> tk.PhotoImage:
     return img
 
 
+# Mirrors `evaluate.SURPLUS`, deliberately NOT imported: the panel must open on a machine where the
+# engine cannot be imported at all (see `_auction_views`). A test pins the two together.
+SURPLUS = "surplus"
+
+
 class AuctionView(ttk.Frame):
     """Per role, side by side: who the engine would have bought and who actually paid off.
 
@@ -962,6 +967,17 @@ class AuctionView(ttk.Frame):
     GAMES: ClassVar[dict[str, tuple[str, ...]]] = {
         "euro": ("classic", "mantra"), "default": ("classic", "mantra")}
 
+    # The two currencies a role slot can be ranked in, SURPLUS first because it is what an auction
+    # actually asks: what is he worth OVER the man who would have played instead. VALUE = FM x Pv is
+    # kept, not because it is the pre-registered gate metric (it is, but the gate reads the engine, not
+    # this panel) - it is kept because it is the only way to SEE why surplus reordered something. An
+    # iron man on a replacement-level fantamedia is 9th by VALUE and 154th by SURPLUS, and the pair of
+    # views is the explanation. Label -> the metric key `evaluate.auction_view` takes.
+    METRICS: ClassVar[dict[str, str]] = {
+        "SURPLUS ((FM - repl.) x Pv)": SURPLUS,
+        "VALUE (FM x Pv)": "value",
+    }
+
     # Shared by both tables. What differs between them - FM/Pv/VALUE are predicted on the left and
     # actual on the right - is in PREDICTED_HELP / ACTUAL_HELP below.
     COMMON_HELP: ClassVar[dict[str, str]] = {
@@ -969,10 +985,7 @@ class AuctionView(ttk.Frame):
         "Player": "Name as it appears in the listone (fc_id is the primary key behind it).",
         "Team": "Club at the auction, abbreviated: MUN = Manchester United, S04 = Schalke 04. "
                 "Empty when the club is unknown for that season.",
-        "Qt.I": "Qt.I, the quotation set BEFORE the auction - the market's expectation, and the only "
-                "price the engine is allowed to read. Qt.A is revised all season long, so for a season "
-                "already played it embeds the outcome. Under Mantra this is Qt.I M.",
-        "FVM": "Fantavalore di mercato from the listone, in its current state - so for a finished "
+        "FVM":"Fantavalore di mercato from the listone, in its current state - so for a finished "
                "season it is the END-OF-SEASON market value. The market's own answer to the question "
                "the engine answers with VALUE. Reporting only: no rule may read it. Mantra: FVM M.",
     }
@@ -981,29 +994,52 @@ class AuctionView(ttk.Frame):
               "Goalkeepers go through the decomposed M2e model instead, which never uses the anchor.",
         "Pv": "Predicted appearances over the season's matchdays. This side of the product carries "
               "3 to 11 times more of the VALUE error than the fantamedia does.",
-        "VALUE": "Predicted VALUE = predicted fantamedia x predicted appearances. The list is sorted "
-                 "by this, and it is what the engine would have paid for.",
+        "VALUE": "Predicted VALUE = predicted fantamedia x predicted appearances - the sum of the "
+                 "fantavoti he is expected to hand you. The list is sorted by this.",
         "real VALUE": "What he actually returned: real fantamedia x real appearances. Blank when he "
                       "never played.",
-        "real #": "Where he actually finished among this role's players. A dash means he ended the "
-                  "season with no real VALUE at all.",
+        "SURPLUS": "Predicted SURPLUS = (predicted fantamedia - the role's replacement level) x "
+                   "predicted appearances, then weighted by how much of the season he is expected to "
+                   "play: what he is worth OVER the player you would have fielded instead, discounted "
+                   "for not being able to count on him. Negative means worse than the bench. The list "
+                   "is sorted by this; the replacement level is in each role's header and the "
+                   "reliability weight is in the line above the tables.",
+        "real SURPLUS": "The same over-the-bench measure on what he actually did. The weight bites "
+                        "here too: 18 appearances of 38 keep 69% of the surplus. Below the minimum "
+                        "share of the season (see the line above the tables) a player is not ranked "
+                        "at all - he was never someone you could have fielded. Blank when he never "
+                        "played.",
+        "real #": "Where he actually finished among this role's players, in the currency being ranked "
+                  "by. A dash means he ended the season with nothing at all.",
     }
     ACTUAL_HELP: ClassVar[dict[str, str]] = {
         "FM": "Fantamedia actually achieved over the season.",
         "Pv": "Appearances actually made.",
-        "VALUE": "VALUE actually achieved = fantamedia x appearances. This list is sorted by it.",
+        "VALUE": "VALUE actually achieved = fantamedia x appearances. This list is sorted by it - "
+                 "which is why an iron man on a mediocre fantamedia legitimately appears here.",
+        "SURPLUS": "(fantamedia - the role's replacement level) x appearances, actually achieved, "
+                   "weighted by the share of the season he played. This list is sorted by it, so two "
+                   "kinds of player drop out: whoever only accumulated fantavoti without ever beating "
+                   "the bench, and whoever was excellent in too few matches to be counted on.",
         "pred. VALUE": "What the engine predicted for him on auction day. Empty when it could not "
                        "price him at all - no previous season to regress from.",
+        "pred. SURPLUS": "The same prediction in the over-the-bench currency. Empty when the engine "
+                         "could not price him at all.",
         "pred. #": "His rank in the predicted list. 'not priced' means the engine had no prediction "
                    "for him, so no ranking could contain him: an unreachable slot, not a bad guess.",
     }
 
-    # Kept beside the help dictionaries on purpose: a test asserts that the two cover exactly the same
-    # columns, so a new column cannot ship without an explanation of what it means.
-    PREDICTED_COLUMNS: ClassVar[tuple[str, ...]] = (
-        "#", "Player", "Team", "Qt.I", "FM", "Pv", "VALUE", "real VALUE", "FVM", "real #")
-    ACTUAL_COLUMNS: ClassVar[tuple[str, ...]] = (
-        "#", "Player", "Team", "Qt.I", "FM", "Pv", "VALUE", "FVM", "pred. VALUE", "pred. #")
+    # Columns follow the chosen currency rather than showing both: the panel had one column too many
+    # already. Kept beside the help dictionaries on purpose - a test asserts that every column of every
+    # metric has an explanation, so a new column cannot ship without one.
+    COLUMNS: ClassVar[dict[str, tuple[tuple[str, ...], tuple[str, ...]]]] = {
+        "value": (
+            ("#", "Player", "Team", "FM", "Pv", "VALUE", "real VALUE", "FVM", "real #"),
+            ("#", "Player", "Team", "FM", "Pv", "VALUE", "FVM", "pred. VALUE", "pred. #")),
+        SURPLUS: (
+            ("#", "Player", "Team", "FM", "Pv", "SURPLUS", "real SURPLUS", "FVM", "real #"),
+            ("#", "Player", "Team", "FM", "Pv", "SURPLUS", "FVM", "pred. SURPLUS", "pred. #")),
+    }
 
     ROLE_LABELS: ClassVar[dict[str, str]] = {
         "P": "Goalkeepers", "D": "Defenders", "C": "Midfielders", "A": "Forwards",
@@ -1014,7 +1050,9 @@ class AuctionView(ttk.Frame):
     def __init__(self, parent: tk.Widget, config: Config) -> None:
         super().__init__(parent, padding=10)
         self.config = config
-        self._cache: dict[tuple[str, str], dict] = {}     # (platform, game) -> {season: view}
+        # (platform, game, metric) -> {season: view}. The metric is part of the key because it changes
+        # the ORDER of both lists, so a cached view computed under the other one is a different answer.
+        self._cache: dict[tuple[str, str, str], dict] = {}
         self._running = False
         self._build()
 
@@ -1030,19 +1068,31 @@ class AuctionView(ttk.Frame):
         self.game_cb = self._selector(top, "Game", self.game_var,
                                       list(self.GAMES["euro"]), self._on_config_change, width=10)
         self.season_cb = self._selector(top, "Season", self.season_var, [], self._on_season_change)
+        self.metric_var = tk.StringVar(value=next(iter(self.METRICS)))
+        self.metric_cb = self._selector(top, "Rank by", self.metric_var, list(self.METRICS),
+                                        self._on_config_change, width=26)
         # Indeterminate, because the work has no progress to report: the engine either has the window
         # fitted or it does not. It is packed and unpacked rather than left in place, so a still bar
         # never sits there looking like a stalled one.
         self.spinner = ttk.Progressbar(top, mode="indeterminate", length=90)
         # Every selector in one place: `_busy` disables the collection, so a selector added later is
         # locked during a run without anyone having to remember it.
-        self._selectors = (self.platform_cb, self.game_cb, self.season_cb)
+        self._selectors = (self.platform_cb, self.game_cb, self.season_cb, self.metric_cb)
         self.status_var = tk.StringVar(value="")
         ttk.Label(top, textvariable=self.status_var, foreground="#555").pack(side="left", padx=8)
 
-        hint = ("predicted VALUE = predicted fantamedia x predicted appearances, from the previous "
-                "season only · FVM = the listone's end-of-season market value")
-        ttk.Label(self, text=hint, foreground="#777").pack(fill="x", pady=(4, 0))
+        setup = self.config.load_league()
+        gamma, floor = setup["reliability_exponent"], setup["min_availability"]
+        hint = (f"predicted from the previous season only · FVM = the listone's end-of-season market "
+                f"value · league: {setup['teams']} teams, squad "
+                + "/".join(f"{count}{role}" for role, count in setup["squad_slots"].items())
+                + (f", catchability weight (Pv/matchdays)^{gamma:g}" if gamma else
+                   ", catchability weight off")
+                + (f", ranked only above {floor:.0%} of the season" if floor else "")
+                + " (config/league_config.json) — sets the replacement level SURPLUS is measured "
+                  "against, and how much a player you cannot count on is worth")
+        ttk.Label(self, text=hint, foreground="#777", wraplength=1100,
+                  justify="left").pack(fill="x", pady=(4, 0))
 
         body = ttk.Frame(self)
         body.pack(fill="both", expand=True, pady=(6, 0))
@@ -1084,8 +1134,11 @@ class AuctionView(ttk.Frame):
             self.game_var.set(games[0])
         self._on_config_change()
 
+    def _metric(self) -> str:
+        return self.METRICS.get(self.metric_var.get(), "value")
+
     def _on_config_change(self, _event=None) -> None:
-        key = (self.platform_var.get(), self.game_var.get())
+        key = (self.platform_var.get(), self.game_var.get(), self._metric())
         if key in self._cache:
             self._refresh_seasons(self._cache[key])
             return
@@ -1100,24 +1153,28 @@ class AuctionView(ttk.Frame):
         self._clear()
         threading.Thread(target=self._compute, args=key, daemon=True).start()
 
-    def _compute(self, platform: str, game: str) -> None:
+    def _compute(self, platform: str, game: str, metric: str) -> None:
         """Worker: run the engine for every usable window of this platform+game."""
         try:
-            views = self._auction_views(platform, game)
+            views = self._auction_views(platform, game, metric)
             error = None
         except Exception as exc:                    # noqa: BLE001 - the panel reports, never crashes
             views, error = {}, f"{type(exc).__name__}: {exc}"
-        self.after(0, lambda: self._done(platform, game, views, error))
+        self.after(0, lambda: self._done(platform, game, metric, views, error))
 
-    def _auction_views(self, platform: str, game: str) -> dict[str, dict]:
+    def _auction_views(self, platform: str, game: str, metric: str) -> dict[str, dict]:
         """{target season: per-role view}. Imported here so the GUI starts without the engine."""
         from euroleghe_ingest.engine import evaluate, features
 
         conn = connect(self.config.db_path)
+        # The league setup is what makes SURPLUS computable at all: it fixes the rank of the marginal
+        # rostered player, whose fantamedia IS the replacement level. Under Mantra the engine turns it
+        # into per-role depth using the fielding caps it measures off real lineups.
+        setup = self.config.load_league()
         try:
             usable, fits = {}, {}
             for key, window in features.WINDOWS.items():
-                data = features.prepare(conn, window, platform, game)
+                data = features.prepare(conn, window, platform, game, league=setup)
                 if evaluate._window_is_usable(data, platform):
                     usable[key] = data
                     fits[key] = evaluate.fit_params(data, ("R0", *evaluate.CANDIDATES))
@@ -1129,10 +1186,11 @@ class AuctionView(ttk.Frame):
                 source = features.cross_fit_source(key, tuple(usable))
                 params = evaluate.pool_params(fits, key, fits[source])
                 out[data.window.target_season] = {
-                    "window": key, "params_from": params.source,
+                    "window": key, "params_from": params.source, "metric": metric,
                     "rules": ", ".join(adopted[1:]) or "baseline only",
                     "by_role": evaluate.auction_view(
-                        data, evaluate.predict_window(data, adopted, None, params)),
+                        data, evaluate.predict_window(data, adopted, None, params),
+                        metric=metric),
                 }
             return out
         finally:
@@ -1155,14 +1213,16 @@ class AuctionView(ttk.Frame):
             self.spinner.stop()
             self.spinner.pack_forget()
 
-    def _done(self, platform: str, game: str, views: dict, error: str | None) -> None:
+    def _done(self, platform: str, game: str, metric: str, views: dict,
+              error: str | None) -> None:
         self._running = False
         self._busy(False)
         if error:
             self.status_var.set(error)
             return
-        self._cache[(platform, game)] = views
-        if (platform, game) == (self.platform_var.get(), self.game_var.get()):
+        self._cache[(platform, game, metric)] = views
+        if (platform, game, metric) == (self.platform_var.get(), self.game_var.get(),
+                                        self._metric()):
             self._refresh_seasons(views)
 
     def _refresh_seasons(self, views: dict) -> None:
@@ -1177,7 +1237,7 @@ class AuctionView(ttk.Frame):
         self._render(views[self.season_var.get()])
 
     def _on_season_change(self, _event=None) -> None:
-        views = self._cache.get((self.platform_var.get(), self.game_var.get()))
+        views = self._cache.get((self.platform_var.get(), self.game_var.get(), self._metric()))
         if views and self.season_var.get() in views:
             self._render(views[self.season_var.get()])
 
@@ -1188,6 +1248,8 @@ class AuctionView(ttk.Frame):
 
     def _render(self, view: dict) -> None:
         self._clear()
+        metric = view.get("metric", "value")
+        currency = "SURPLUS" if metric == SURPLUS else "VALUE"
         total_hits = sum(block["hits"] for block in view["by_role"].values())
         captured = sum(block["captured_value"] or 0 for block in view["by_role"].values())
         perfect = sum(block["perfect_value"] or 0 for block in view["by_role"].values())
@@ -1196,21 +1258,33 @@ class AuctionView(ttk.Frame):
         self.status_var.set(
             f"window {view['window']} · rules {view['rules']} · parameters from "
             f"{view['params_from']} · {total_hits}/{roles * 10} names · {share} of the perfect "
-            f"top-10 VALUE")
+            f"top-10 {currency}")
         for role, block in view["by_role"].items():
-            self._render_role(role, block)
+            self._render_role(role, block, metric)
 
     @staticmethod
     def _num(value, digits: int = 0) -> str:
         """One place for the column formats: %g would print 32.199999 next to 5.1 and 210.9."""
         return "" if value is None else f"{float(value):.{digits}f}"
 
-    def _render_role(self, role: str, block: dict) -> None:
+    def _render_role(self, role: str, block: dict, metric: str = "value") -> None:
         label = self.ROLE_LABELS.get(role, role)
         misses = block["misses"]
-        head = (f"{label} — {block['hits']}/10 in common · VALUE captured "
-                f"{(block['captured_value'] or 0):.0f} of {(block['perfect_value'] or 0):.0f} · "
-                f"misses: {misses['near']} near, {misses['regime']} beyond rank 50, "
+        surplus = metric == SURPLUS
+        currency = "SURPLUS" if surplus else "VALUE"
+        # The replacement level is the whole premise of the surplus ranking, so it is stated in the
+        # header rather than hidden in a tooltip: without it "-33" on a row means nothing.
+        floor, floor_act = block.get("replacement"), block.get("replacement_actual")
+        floor_text = ""
+        if surplus and floor is not None:
+            floor_text = f" · replacement FM {floor:.2f}"
+            # Both, when the role's level moved: the predicted list is scored against what the auction
+            # could know, the actual list against the season it actually happened in.
+            if floor_act is not None and abs(floor_act - floor) >= 0.005:
+                floor_text += f" (predicted) / {floor_act:.2f} (this season)"
+        head = (f"{label} — {block['hits']}/10 in common · {currency} captured "
+                f"{(block['captured_value'] or 0):.0f} of {(block['perfect_value'] or 0):.0f}"
+                f"{floor_text} · misses: {misses['near']} near, {misses['regime']} beyond rank 50, "
                 f"{misses['unpriced']} never priced")
         box = ttk.LabelFrame(self.inner, text=head, padding=6)
         box.pack(fill="x", expand=True, pady=(0, 10))
@@ -1218,20 +1292,21 @@ class AuctionView(ttk.Frame):
         right = ttk.Frame(box)
         left.pack(side="left", fill="both", expand=True, padx=(0, 6))
         right.pack(side="left", fill="both", expand=True)
-        self._table(left, "Predicted at the auction", self.PREDICTED_COLUMNS,
+        predicted_columns, actual_columns = self.COLUMNS[metric]
+        pred_key, act_key = (("surplus_pred", "surplus_act") if surplus
+                             else ("value_pred", "value_act"))
+        self._table(left, "Predicted at the auction", predicted_columns,
                     [(row["rank"], row["name"], club_abbreviation(row["club"]),
-                      self._num(row["price_initial"]),
                       self._num(row["fm_pred"], 2), self._num(row["pv_pred"], 1),
-                      self._num(row["value_pred"]), self._num(row["value_act"]),
+                      self._num(row[pred_key]), self._num(row[act_key]),
                       self._num(row["fvm"]), row["actual_rank"] or "-")
                      for row in block["predicted"]],
                     {**self.COMMON_HELP, **self.PREDICTED_HELP})
-        self._table(right, "Actual, end of season", self.ACTUAL_COLUMNS,
+        self._table(right, "Actual, end of season", actual_columns,
                     [(row["rank"], row["name"], club_abbreviation(row["club"]),
-                      self._num(row["price_initial"]),
                       self._num(row["fm_act"], 2), self._num(row["pv_act"]),
-                      self._num(row["value_act"]), self._num(row["fvm"]),
-                      self._num(row["value_pred"]),
+                      self._num(row[act_key]), self._num(row["fvm"]),
+                      self._num(row[pred_key]),
                       row["predicted_rank"] or "not priced")
                      for row in block["actual"]],
                     {**self.COMMON_HELP, **self.ACTUAL_HELP})

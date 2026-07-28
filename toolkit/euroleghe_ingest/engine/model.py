@@ -21,10 +21,10 @@ from collections.abc import Mapping, Sequence
 # `sources` owns the canonical role vocabulary and the multi-role splitter (';' / '|' / '/');
 # reusing the private helper keeps one parser in the codebase instead of two that can drift.
 from euroleghe_ingest.engine.fitting import predict_linear
-from euroleghe_ingest.sources import CLASSIC_ROLES, MANTRA_ROLES
+from euroleghe_ingest.sources import CLASSIC_ROLES, MANTRA_BY_CLASSIC, MANTRA_ROLES
 from euroleghe_ingest.sources import _norm_roles as split_roles
 
-__all__ = ["CLASSIC_ROLES", "MANTRA_ROLES", "split_roles"]
+__all__ = ["CLASSIC_ROLES", "MANTRA_BY_CLASSIC", "MANTRA_ROLES", "split_roles"]
 
 # ---------------------------------------------------------------- parameters (validated)
 

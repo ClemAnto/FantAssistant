@@ -167,6 +167,183 @@ def test_auction_view_lists_both_sides_and_agrees_with_the_score(prepared):
             range(1, len(block["predicted"]) + 1))
 
 
+def test_replacement_level_is_the_marginal_rostered_player_at_that_role(prepared):
+    """Not the anchor (that is the role's MEAN) but the man at rank teams x slots: the one you would
+    have fielded instead. Pv >= 20 like the anchors, so the two are commensurable, and a pool thinner
+    than its own rank uses its last man rather than reporting nothing."""
+    _cfg, conn, _window, data = prepared
+    slots = {"P": 1, "D": 2, "C": 1, "A": 1}
+    levels = features.replacement_levels(conn, "euro", (INPUT_SEASON,), "classic", slots, teams=1)
+    assert features.roster_depth(conn, "euro", (INPUT_SEASON,), "classic",
+                                 {"squad_slots": slots}) == {k: float(v) for k, v in slots.items()}
+    # regular defenders with Pv >= 20 in the input season: 6.90, 6.50, 6.30 (the fringe one is out)
+    assert levels["D"] == pytest.approx(6.50)          # rank 1 x 2 = the second best
+    assert levels["D"] < data.anchors["D"]             # below the mean, which is the whole point
+    deep = features.replacement_levels(conn, "euro", (INPUT_SEASON,), "classic",
+                                       {"D": 99}, teams=1)
+    assert deep["D"] == pytest.approx(6.30)            # pool exhausted -> its last man
+
+
+def test_fielding_caps_reproduce_the_module_limits(prepared):
+    """A Mantra module caps how many of a role you can field - no scheme allows 3 'pc' or 4 'dc'. Rather
+    than transcribe the official module table, the cap is MEASURED off real starting elevens, and this
+    pins the two properties that make that measurement trustworthy:
+
+    * the 90th percentile is read, not the max, because a multi-role starter counts in every role he is
+      listed with - so one freak eleven must not raise the cap for the whole league;
+    * a role's cap is what a side fields, so 'por' comes out 1 whatever else happens.
+    """
+    _cfg, conn, _window, _data = prepared
+    # 22 players, roles chosen so a normal eleven is por + 3 dc + 2 e + 3 c + 2 pc
+    eleven = ["por"] + ["dc"] * 3 + ["e"] * 2 + ["c"] * 3 + ["pc"] * 2
+    conn.executemany("INSERT OR IGNORE INTO players(fc_id, canonical_name) VALUES (?, ?)",
+                     [(100 + i, f"XI{i}") for i in range(12)])
+    conn.executemany(
+        "INSERT OR REPLACE INTO rosters(fc_id, season, roles, role_classic, league) "
+        "VALUES (?, ?, ?, 'C', 'serie_a')",
+        [(100 + i, INPUT_SEASON, role) for i, role in enumerate(eleven)]
+        + [(111, INPUT_SEASON, "dc")])       # the 12th man, only used by the freak eleven
+    rows = []
+    for match in range(20):                  # twenty ordinary elevens
+        rows += [(100 + i, INPUT_SEASON, f"m{match}", 100 + i) for i in range(11)]
+    # ... and one that fields five players listed 'dc', by swapping in the spare and re-using an 'e'
+    rows += [(fc_id, INPUT_SEASON, "freak", fc_id)
+             for fc_id in [100, 101, 102, 103, 111, 105, 106, 107, 108, 109, 110]]
+    conn.executemany(
+        "INSERT OR REPLACE INTO external_match_stats(fc_id, season, source, match_id, competition, "
+        "club, started) VALUES (?, ?, 'sofascore', ?, 'serie_a', 'Inter', 1)",
+        [(r[0], r[1], r[2]) for r in rows])
+    conn.commit()
+
+    caps = features.simultaneous_caps(conn, "default", (INPUT_SEASON,))
+    assert caps["dc"] == 3, "one freak eleven must not lift the cap - that is why p90, not max"
+    assert caps["por"] == 1 and caps["pc"] == 2 and caps["c"] == 3
+    assert min(caps.values()) >= 1, "a role a league ever plays is rostered at least one deep"
+
+    # 'por' overlaps with nothing, so its depth must come back as the Classic rule verbatim
+    slots = features.derive_mantra_slots(conn, "default", (INPUT_SEASON,), {"P": 3, "D": 8, "C": 8,
+                                                                           "A": 6})
+    assert slots["por"] == pytest.approx(3.0)
+    # ... and inside a group the caps set the shape: 3 'dc' against 1 'b' cannot be equal depth
+    assert slots["dc"] > slots["b"]
+
+
+def test_surplus_ranks_the_better_fantamedia_over_the_iron_man(prepared):
+    """The Rice / De Roon case, in miniature. De Roon took the last euro/mantra 'c' slot from Rice by
+    1.9% of predicted VALUE, won entirely on half an appearance, and then finished 43rd to Rice's 4th.
+    VALUE = FM x Pv is the SUM of a season's fantavoti, so whoever plays every week outranks a better
+    player who plays slightly less; measured over what the bench would have given you, he does not.
+    Both orderings are correct answers - to different questions - so both must be available."""
+    _cfg, _conn, _window, data = prepared
+    defenders = [obs for obs in data.observations if obs.role_classic == "D"][:2]
+    iron, star = defenders[0], defenders[1]
+    predictions = [evaluate.Prediction(iron, 6.10, 30.0, None),
+                   evaluate.Prediction(star, 6.90, 26.0, None)]
+
+    by_value = evaluate.auction_view(data, predictions, top_n=2)["D"]
+    assert [row["name"] for row in by_value["predicted"]] == [iron.name, star.name]
+    assert by_value["replacement"] is None            # no league setup -> no surplus claimed
+    assert by_value["predicted"][0]["surplus_pred"] is None
+
+    data.replacement = {"D": 6.0}
+    by_surplus = evaluate.auction_view(data, predictions, top_n=2, metric=evaluate.SURPLUS)["D"]
+    assert [row["name"] for row in by_surplus["predicted"]] == [star.name, iron.name]
+    assert by_surplus["replacement"] == pytest.approx(6.0)
+    assert by_surplus["predicted"][0]["surplus_pred"] == pytest.approx((6.90 - 6.0) * 26.0, abs=0.1)
+
+
+def test_reliability_weight_demotes_the_man_who_played_too_little(prepared):
+    """Malen scored 51.8 of surplus in 18 Serie A matches of 38 and was 2nd among the forwards; Yildiz
+    scored 46.7 in 36. The bare product is the exact expected surplus and ranks Malen higher, which is
+    arithmetically right and practically wrong - you cannot field him, and transfers are limited. The
+    weight is a declared preference, so it must be OFF by default in the engine and do nothing at 0."""
+    _cfg, _conn, _window, data = prepared
+    by_name = {obs.name: obs for obs in data.observations if obs.role_classic == "D"}
+    part_timer, regular = by_name["Fringe"], by_name["Regular"]
+    data.replacement = {"D": 6.0}
+    # 2.60 over the floor in 45% of the season (35.1) against 1.00 in 95% of it (28.5)
+    predictions = [evaluate.Prediction(part_timer, 8.60, data.matchdays_target * 0.45, None),
+                   evaluate.Prediction(regular, 7.00, data.matchdays_target * 0.95, None)]
+
+    bare = evaluate.auction_view(data, predictions, top_n=2, metric=evaluate.SURPLUS)["D"]
+    assert data.reliability == 0.0, "a preference must not be on unless the league asks for it"
+    assert [row["name"] for row in bare["predicted"]] == [part_timer.name, regular.name]
+
+    data.reliability = 0.5
+    weighted = evaluate.auction_view(data, predictions, top_n=2, metric=evaluate.SURPLUS)["D"]
+    assert [row["name"] for row in weighted["predicted"]] == [regular.name, part_timer.name]
+    # ... and it is a discount, never a bonus: nobody gains from it, the near-full-season man least
+    for row_bare, row_weighted in zip(sorted(bare["predicted"], key=lambda r: r["name"]),
+                                      sorted(weighted["predicted"], key=lambda r: r["name"]),
+                                      strict=True):
+        assert row_weighted["surplus_pred"] <= row_bare["surplus_pred"]
+
+
+def test_the_two_sides_are_scored_against_their_own_seasons_level(prepared):
+    """A forecast may only know the input seasons. A REPORT on what happened must be measured against
+    the season it happened in - and getting that backwards is a level error big enough to invert the
+    list: the euro 'pc' replacement fell 8.02 -> 7.80 -> 7.38 over three seasons, and scoring 2025-26
+    fantamedie against the older baseline made a striker with 28 appearances worth less than one with a
+    single good match. So the asymmetry is deliberate and pinned here in both directions."""
+    _cfg, _conn, _window, data = prepared
+    defender = next(obs for obs in data.observations if obs.role_classic == "D")
+    data.replacement = {"D": 6.50}          # what the auction could know
+    data.replacement_actual = {"D": 6.00}   # what the season turned out to be
+    prediction = evaluate.Prediction(defender, 7.00, 20.0, None)
+
+    row = evaluate.auction_view(data, [prediction], top_n=1,
+                                metric=evaluate.SURPLUS)["D"]["predicted"][0]
+    assert row["surplus_pred"] == pytest.approx((7.00 - 6.50) * 20.0, abs=0.05)
+    assert row["surplus_act"] == pytest.approx(
+        (defender.fm_act - 6.00) * defender.pv_act, abs=0.05)
+    # and the block reports both, so a reader can see which baseline each column used
+    block = evaluate.auction_view(data, [prediction], top_n=1, metric=evaluate.SURPLUS)["D"]
+    assert (block["replacement"], block["replacement_actual"]) == (6.50, 6.00)
+
+
+def test_one_appearance_cannot_reach_a_surplus_top_ten(prepared):
+    """Lukaku played once in 2025-26, scored 9.5, and that single match was worth +1.6 of surplus - which
+    in a role whose scarcity is near zero was enough for 7th among the euro 'pc'. The catchability weight
+    cut it to 0.3 and he STILL placed 7th, because everyone around him was at 0.1-1.3 too: a discount can
+    always be out-earned by one spectacular match. He is excluded instead, because the claim is not that
+    he was worth little - it is that he was never someone you could have fielded.
+
+    The floor gates the RANKING only, and only under SURPLUS: the VALUE lists are the pre-registered
+    deliverable and stay unfiltered, one-match hat-tricks included."""
+    _cfg, _conn, _window, data = prepared
+    by_name = {obs.name: obs for obs in data.observations if obs.role_classic == "D"}
+    cameo, regular = by_name["Fringe"], by_name["Regular"]
+    object.__setattr__(cameo, "fm_act", 9.50)
+    object.__setattr__(cameo, "pv_act", 1)
+    data.replacement = {"D": 6.0}
+
+    unfiltered = evaluate.auction_view(data, [], top_n=4, metric=evaluate.SURPLUS)["D"]
+    assert cameo.name in {row["name"] for row in unfiltered["actual"]}
+
+    data.min_availability = 0.35
+    filtered = evaluate.auction_view(data, [], top_n=4, metric=evaluate.SURPLUS)["D"]
+    assert cameo.name not in {row["name"] for row in filtered["actual"]}
+    assert regular.name in {row["name"] for row in filtered["actual"]}
+    # ... and VALUE is untouched by it: the gate's list must not quietly change shape
+    assert cameo.name in {row["name"]
+                          for row in evaluate.auction_view(data, [], top_n=4)["D"]["actual"]}
+
+
+def test_a_role_without_a_replacement_level_keeps_the_value_ordering(prepared):
+    """Silently, and on purpose: inventing a floor for a role whose pool cannot support one would put
+    a made-up number in the column the panel sorts by."""
+    _cfg, _conn, _window, data = prepared
+    predictions = evaluate.predict_window(data, ("R0",))
+    data.replacement = {}
+    asked = evaluate.auction_view(data, predictions, top_n=3, metric=evaluate.SURPLUS)
+    plain = evaluate.auction_view(data, predictions, top_n=3)
+    for role, block in asked.items():
+        assert [row["rank"] for row in block["predicted"]] == [
+            row["rank"] for row in plain[role]["predicted"]]
+        assert [row["name"] for row in block["predicted"]] == [
+            row["name"] for row in plain[role]["predicted"]]
+
+
 def test_target_season_flags_and_late_states_are_invisible(prepared):
     """The look-ahead audit, pinned: only what predates the auction may reach an Observation."""
     _cfg, conn, window, _data = prepared

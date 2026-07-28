@@ -23,6 +23,25 @@ RAW_INPUTS: list[str] = [filename for _season, filename, _fmt in SEASON_SOURCES]
 NETWORK = False
 
 
+# "Konè I." arrives from the Drive CSV exports as "Kon�� I." (documented in `sources`): the
+# accent was destroyed BEFORE our decode, so no codec recovers it and only another source can supply
+# the spelling. Hence one rule, shared by every writer of canonical_name: a damaged name never
+# displaces an intact one, and an intact one always repairs a damaged one. char(65533) is U+FFFD, the
+# replacement character. Idempotent, so a `rebuild` - or a single listone re-ingest - heals the row on
+# its own, and re-running the CSV-backed modules can no longer break it again.
+UPSERT_PLAYER = """
+    INSERT INTO players(fc_id, canonical_name, birth_year, nationality)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(fc_id) DO UPDATE SET
+        canonical_name = CASE
+            WHEN instr(excluded.canonical_name, char(65533)) > 0
+                 AND instr(players.canonical_name, char(65533)) = 0
+            THEN players.canonical_name
+            ELSE excluded.canonical_name END,
+        nationality = COALESCE(players.nationality, excluded.nationality)
+"""
+
+
 def _get_or_create_club(conn: sqlite3.Connection, name: str | None, league: str | None) -> int | None:
     if not name:
         return None
@@ -41,16 +60,7 @@ def run(ctx: Context, **kwargs) -> None:
     conn = ctx.require_conn()
     seasons: set[str] = set()
     for rec in iter_records(ctx.config):
-        conn.execute(
-            """
-            INSERT INTO players(fc_id, canonical_name, birth_year, nationality)
-            VALUES (?, ?, ?, ?)
-            ON CONFLICT(fc_id) DO UPDATE SET
-                canonical_name = excluded.canonical_name,
-                nationality = COALESCE(players.nationality, excluded.nationality)
-            """,
-            (rec.fc_id, rec.name, None, rec.nationality),
-        )
+        conn.execute(UPSERT_PLAYER, (rec.fc_id, rec.name, None, rec.nationality))
         club_id = _get_or_create_club(conn, rec.club, rec.league)
         # UPSERT, not INSERT OR REPLACE: a field the source leaves empty must keep whatever the rest
         # of the pipeline learned. The 2024-25 roster list has NO club column, so a plain REPLACE
