@@ -456,7 +456,20 @@ def attack_rivals(club_goals: float | None, attack_share: float | None) -> float
     could not: his own share of last season's goals is already inside his own fantamedia, so the
     regressor re-states what the baseline has and the fit finds nothing left to explain. What the
     baseline cannot know is how much the OTHERS are going to take, which is the crowding hypothesis
-    stated properly. Expected sign is negative.
+    stated properly.
+
+    ⚠️ THE FITTED SIGN IS THE OPPOSITE OF THE HYPOTHESIS, and consistently so. Crowding predicts
+    negative - the more the others take, the less is left. Measured: 9 of 10 Serie A windows positive
+    (+0.033 to +0.165, the tenth -0.006) and 4 of 5 on euro. So this regressor does not measure crowding;
+    it measures CLUB ATTACKING STRENGTH, with the sign of a rising tide. Which is intuitive in hindsight
+    and is why the two are so hard to separate: a club whose attackers produced a lot last season is both
+    a strong attack AND a crowded one, and the strong half evidently dominates.
+
+    Consequence for the roadmap: the Kean / Piccoli hole is NOT closed by penalising shared attacks,
+    because the data does not support the penalty at all. Separating the two effects needs both terms in
+    one fit - strength and claimant count together - and that is partly a FOURTH attempt at the
+    club-strength family the gate has already rejected three times (see `club_strength_adjustment`), so
+    it is a decision to take out loud rather than a refinement to slip in here.
     """
     if club_goals is None or attack_share is None:
         return None

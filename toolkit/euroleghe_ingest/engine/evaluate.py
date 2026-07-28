@@ -165,10 +165,21 @@ CANDIDATES: tuple[str, ...] = ("R0c", "R1", "R1b", "R2", "R3", "R3c", "R4", "R4b
 # inside his own fantamedia, so the regressor restates what the baseline has. R16b measures what the
 # TEAM-MATES claim, which is the hypothesis stated properly - and it works on exactly the three most
 # recent windows (T0 -4.6%, T1 -4.2%, T2 -3.2% on the players it moves) and nowhere else, 4/10 overall.
-# No data-availability difference explains the split: goals AND assists are present in all eleven
-# seasons of season_stats. So it is either a real regime change or the windows the hypothesis was
-# generated on - Kean/Piccoli was read off T2 - and the gate answers the same either way. A clean
-# confirmation needs 26/27. What the Fiorentina case still lacks is therefore unsolved, not solved.
+# Two alternative explanations for the split were checked and BOTH ruled out: goals and assists are
+# present in all eleven seasons of season_stats, and the target-season club is known for 100% of every
+# season's listone, so neither window set is short of an input.
+#
+# What the FITTED COEFFICIENTS then showed is more interesting than the verdict. R16's lambda flips sign
+# window to window (+0.152, -0.047, -0.076, +0.142, ... on Serie A) - noise, as its collinearity implies.
+# R16b's is stable and POSITIVE: 9 of 10 Serie A windows between +0.033 and +0.165, the tenth -0.006, and
+# 4 of 5 on euro. Positive is the OPPOSITE of what crowding predicts. So R16b does not measure crowding
+# at all; it measures club attacking strength, and the two are entangled by construction - a club whose
+# attackers produced a lot is both strong and crowded, and the strong half wins.
+# So the Kean/Piccoli hole is not "still open pending a better estimator": the penalty it asks for is not
+# in the data. Separating strength from crowding needs both terms in one fit, which is partly a fourth
+# run at the club-strength family this gate has rejected three times, and therefore a decision to take
+# deliberately rather than a refinement to slip in. Building the xG variant first would only sharpen the
+# measurement of the effect we did NOT set out to measure.
 # ⚠️ R15 (availability persistence) is the closest NEAR MISS in the whole candidate set and is NOT
 # adopted. Serie A: it improves appearances MAE on 8 of 10 windows by 1.4-6.8% on the players it moves,
 # mean +2.6%, and its two failures are +0.1% (Tm7) and +0.4% (Tm6) - the two oldest windows, i.e. noise
@@ -695,7 +706,12 @@ def fit_params(data: features.WindowData, rules: tuple[str, ...]) -> Params:
             params.crowded_lam = fitted[0] if fitted else None
             params.notes["R11b_n"] = sum(1 for f, _r in crowded if f[0] > 0)
 
-    if {"R2", "R4", "R4b", "R5", "R6", "R8", "R12", "R12b"} & set(rules):
+    # Every rule fitted from this loop MUST be listed: the gate always fits the whole
+    # candidate set at once, so a missing name is invisible there and only shows up when
+    # someone fits a subset - which then silently gets no coefficient and a rule that
+    # "does nothing". R16/R16b were added here after exactly that.
+    if {"R2", "R4", "R4b", "R5", "R6", "R8", "R12", "R12b",
+            "R16", "R16b"} & set(rules):
         propensity, ageing, ageing_share = [], [], []
         penalties: list[tuple[tuple[float, ...], float]] = []
         off_role: list[tuple[tuple[float, ...], float]] = []
