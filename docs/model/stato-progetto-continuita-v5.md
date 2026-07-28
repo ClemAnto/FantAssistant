@@ -1,13 +1,19 @@
 # Stato progetto & continuità — v5
-**Aggiornato: 27 luglio 2026 (SOSTITUISCE la v4)**
+**Aggiornato: 28 luglio 2026 (sera)**
 Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da qui + i file della cartella "Modello Previsionale Fantacalcio".
 *Glossario: T1/T2 = finestre di test (23/24->24/25, 24/25->25/26) · MAE = errore medio assoluto · cross-fitted = parametri stimati su una finestra, testati sull'altra · M2e = modello portieri decomposto con ClubElo · Pv_att = presenze attese · fc_id = id fantacalcio.it · EV = valore atteso · scoring_config = punteggi configurabili per lega · xG/xA = expected goals/assists · 2.5 pieno = backtest motore completo con flag.*
 
 ## Cos'e'
 App per leghe EuroLeghe/fantacalcio.it (Classic+Mantra, 5 campionati) con motore previsionale. Metodo: ogni regola entra SOLO se batte il baseline fuori campione su finestre indipendenti (gate pre-registrato). Doc madre: modello-previsionale-v3.8.md.
 
-## ⚠️ Lo stato corrente è in `00-BRIDGE-punto-di-ingresso.md`, blocco «STATO AL 28 LUGLIO 2026»
+## ⚠️ Lo stato corrente è in `00-BRIDGE-punto-di-ingresso.md`, blocco «STATO AL 28 LUGLIO 2026 (sera)»
 Questo documento è un registro cronologico: dove contraddice quel blocco, vince quello.
+
+### 28 luglio 2026 (sera), in una riga: è cambiata la valuta dell'asta, non il motore
+Il pannello ordina per **SURPLUS = (FM − rimpiazzo) × Pv × beccabilità** con una soglia di schierabilità
+(`metrica-asta-surplus-v1.md`), perché misurato `VALORE = FM × Pv` era quasi solo presenze. Non passa dal
+gate — non tocca né FM né Pv — e i numeri pubblicati sono invariati al numero. **Sei candidate provate,
+zero adottate**; i set adottati non cambiano. Toolkit **v0.2.0**, 158 test verdi.
 
 ## Stato motore — TRE MODULI SU QUATTRO VALIDATI (invariato)
 1. **Core Mantra**: FM = ANCORA_M(rm) + 0.42*(FM_prec - ANCORA_M). Ancore frazionarie 3 stagioni (por 5.00 · dc 5.98 · b=dc · ds/dd 6.10 · e 6.25 · m 6.26 · c 6.35 · w 6.74 · t 6.77 · a 7.12 · pc 7.40). Cambi ruolo listone ASIMMETRICI. Non-inferiore a Classic (T1 -19.9% vs -17.4%).
@@ -181,6 +187,17 @@ movimento. Bias elite-in-big NON strutturale -> correttivo condizionale in pre-r
 (segno giusto, T1 sempre peggio) · rigoristi in forma ridotta (segno opposto, n=22/29) · fuori-ruolo da
 heatmap · concorrenza posizionale (migliora il MAE **col segno contrario all'ipotesi**: e' un proxy di
 altro) · attesa di mercato Qt.I e sua revisione · eta' sulle presenze.
+**Aggiunte il 28/07** (dettaglio in `gate-motore-v1.md` §5-quinquies): **affollamento del reparto**
+in due forme — con la sua quota (rumore: il segno salta) e con quella dei compagni, che ha coefficiente
+stabile ma **di segno opposto all'ipotesi**, cioè misura forza-club e non affollamento · **produzione
+misurata dei nuovi arrivi** (batte la predecessora sul rating, ma 14-21 osservazioni valutabili per
+finestra) · **persistenza della disponibilità** (quasi: 8/10 su Serie A, e su euro un coefficiente
+stabile sotto il pavimento d'ampiezza) · **forza-club dagli xA**, che passa formalmente 3/3 su Serie A e
+**non è adottata** perché era pre-registrato che un passaggio sulle sole finestre di generazione
+dell'ipotesi non confermi nulla.
+⚠️ **Proxy da non riusare**: una correlazione a livello di club (misura di input ↔ gol del club l'anno
+dopo) **non predice** quale misura aiuti la fantamedia di un giocatore — è contro-informativa.
+
 **Non misurabili con i dati attuali**: modello piazzati (`assists_set_piece` NULL su tutte le righe di
 voti di ogni stagione) e rigoristi difensori (n=7).
 

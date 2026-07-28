@@ -9,7 +9,9 @@ Monorepo for the **EuroLeghe fantacalcio prediction engine**. Two parts:
   only reports. It stays dependency-free because the shippable engine gets ported from it.
 - `app/` - **final assistant** (Electron + Angular, TypeScript) with the `prediction-engine`. **Placeholder**:
   initialized after the toolkit (see roadmap); it will be ported from `toolkit/euroleghe_ingest/engine/`.
-- `config/` - shared configuration (`scoring_config.json`, per-league scoring) read by both the toolkit and the engine.
+- `config/` - shared configuration read by both the toolkit and the engine: `scoring_config.json`
+  (per-league scoring) and `league_config.json` (how many teams and squad slots a league has, which is
+  what fixes the auction's REPLACEMENT LEVEL - see below).
 - `docs/` - manifest of the Drive documents (source of truth). `data/` - local datasets (rebuildable).
 
 ## Language convention

@@ -1,5 +1,5 @@
 # Todolist — Allineamento Mantra & EuroLeghe (v5)
-**Progetto:** App EuroLega Fantacalcio · **Rif.:** modello-previsionale v3.8 · **Aggiornata: 27 luglio 2026 (v5 — SOSTITUISCE la v4)**
+**Progetto:** App EuroLega Fantacalcio · **Rif.:** modello-previsionale v3.8 · **Aggiornata: 28 luglio 2026 (sera)**
 Convenzione: [ ] da fare · [x] fatto · [!] bloccato · *Sigle: fc_id = id fantacalcio.it · FM = fantamedia · T1/T2 = finestre di test 23/24->24/25 e 24/25->25/26 · 2.5 pieno = backtest motore completo con flag.*
 
 ## FASE 0 — Fattibilita' [x] (21/7)
@@ -11,9 +11,9 @@ Invariata (storico 9 stagioni, endpoint Excel, fallback SofaScore, scala ricalib
 - [x] 2.3 FM per ruolo posseduto + rank + flessibilita' (fuori FM) -> fm-per-ruolo-fase2_3-2_4.md
 - [x] 2.4 Cambi ruolo = cambi d'ancora ASIMMETRICI -> idem
 - [x] 2.5-lite backtest core (Mantra non-inferiore a Classic) -> backtest-mantra-fase2_5lite.md
-> ⚠️ Stato corrente: `00-BRIDGE-punto-di-ingresso.md`, blocco «STATO AL 28 LUGLIO 2026». Set adottati
-> **euro R0c+R3c · Serie A R3+R7+R13** su **10 finestre (Serie A) e 5 (euro)**; R4, R10 e R8 sono cadute
-> quando le finestre sono diventate dieci.
+> ⚠️ Stato corrente: `00-BRIDGE-punto-di-ingresso.md`, blocco «STATO AL 28 LUGLIO 2026 (sera)». Set
+> adottati **euro R0c+R3c · Serie A R3+R7+R13** su **10 finestre (Serie A) e 5 (euro)**; R4, R10 e R8 sono
+> cadute quando le finestre sono diventate dieci, e le sei candidate del 28/07 sono cadute tutte.
 
 - [x] **2.5 pieno (con flag) — ESEGUITO il 27/07**: 17 ipotesi passate dal gate, **6 adottate**
   (euro R0c+R3c+R7+R10 · Serie A R3+R7+R13), 12 falsificate con motivo registrato. Rigirato la sera
@@ -57,6 +57,13 @@ arrivo_intra_lega · regola U22 · Bundesliga+ · beta attacco alto/difesa bassa
 ## RESPINTE dal gate (non riproporre senza nuove finestre)
 beta per gruppo di ruolo · baseline multi-stagione 62/38 · ancore per lega · forza-club interna statica · Elo additivo movimento
 
-## Percorso critico (aggiornato 27/07)
+## Percorso critico (aggiornato 28/07 sera)
 La parte dati e' fatta. Il percorso ora e': **chiarire i 3 numeri presenze/T1 -> gate 3.2 -> 2.5 pieno con i flag -> taratura dei parametri provvisori -> listone 26/27 ad agosto -> ALGORITMO COMPLETO asta 26/27.**
-Nota: **nessuna delle feature generate il 27/07 e' entrata nel motore** — esistono come dati, e il gate decide se e come usarle. Parametri esplicitamente provvisori: decadimento/quarantena rigoristi, soglie tier T1/T3, soglia U22.
+Nota: **nessuna delle feature generate il 27/07 e' entrata nel motore**, e **nessuna delle sei candidate del 28/07** — esistono come dati, e il gate decide se e come usarle. Parametri esplicitamente provvisori: decadimento/quarantena rigoristi, soglie tier T1/T3, soglia U22.
+
+### Aperto dopo la passata del 28/07, in ordine di leva
+- [ ] **I criteri del gate non distinguono «piccolo e stabile» da «rumoroso».** R15 su euro migliora tutte e cinque le finestre con un coefficiente stabile entro ±0.011 (+0.074…+0.096) ed e' esclusa da un pavimento sull'**ampiezza**; R15 su Serie A cambia segno quattro volte e viene giudicata con lo stesso metro. Aggiungere un criterio di **stabilita' del coefficiente** e' un miglioramento vero dell'harness — ma va specificato **prima** di ri-lanciare, altrimenti e' spostare i pali per una regola che ci piace.
+- [ ] **Decisione da prendere ad alta voce: chiudere o sospendere la famiglia forza-club.** Tre bocciature su misure diverse (forza-club interna, Elo additivo movimento, R5) piu' il passaggio contaminato di R5b su Serie A. Contro la chiusura: R5b ha vinto 3/3 senza danni collaterali, e il caso Kane (8.21 previsto contro 10.60 reale) resta il singolo errore piu' grande del motore, che e' esattamente cio' che quella famiglia mira a spiegare.
+- [ ] **Persistenza per-giocatore nell'obiettivo d'asta** (non nella previsione): oggi la beccabilita' usa la curva della **popolazione**, quindi 19 partite di fila e 19 sparse pesano uguale. E' un cambio di obiettivo, quindi serve una metrica dichiarata **prima** di guardare.
+- [ ] **Non aggiungere ipotesi allo stesso campione.** Tre dei sei no del 28/07 sono per mancanza di finestre indipendenti, non di effetto: R13c ha 14-21 osservazioni valutabili, R5b tre finestre contaminate, R15 sta sotto il pavimento. Due si risolvono da soli col 26/27 a costo zero.
+- [ ] **euro non guadagna finestre a poco prezzo** (ri-verificato il 28/07): il 2021-22 e' vuoto **alla sorgente** — la colonna `Voto` del file in cache e' `-` per ogni giocatore mentre i fatti ci sono. Il voto sintetico potrebbe riempirlo, ma per Tm2 il 2021-22 **e' il target** e lo spec vieta al sintetico di contaminare il target euro; resterebbe solo Tm1 con input sintetici. Una finestra sola in cambio di un cambio di regola: non conviene.

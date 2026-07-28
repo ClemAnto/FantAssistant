@@ -1,5 +1,5 @@
 # 00 — BRIDGE · Punto d'ingresso del progetto (leggere per primo)
-**Aggiornato: 27 luglio 2026** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
+**Aggiornato: 28 luglio 2026 (sera)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
 
 ## Il progetto in breve
 Motore previsionale per fantacalcio **EuroLeghe** (fantacalcio.it): valutazione calciatori Classic e Mantra sui 5 grandi campionati europei (Serie A, Premier, Liga, Bundesliga, Ligue 1 — perimetro: i ~35 top club del gioco). Prevede fantamedia (FM), presenze attese e VALORE stagionale = FM × presenze. Metodo scientifico: **ogni regola entra nel motore solo se batte il baseline fuori campione su finestre indipendenti** (gate pre-registrato). Stato: core validato (Mantra, Classic, portieri, presenze); manca lo strato flag/arrivi, sbloccato dal toolkit dati `euroleghe-ingest` (in implementazione).
@@ -18,12 +18,53 @@ La knowledge base è ora nel repo git **`FantAssistant`**, cartella **`docs/mode
 ## Ordine di lettura per una nuova sessione
 `00-BRIDGE` (questo) → `stato-progetto-continuita-v5.md` → `todolist-mantra-euroleghe-v5.md` →
 **`gate-motore-v1.md`** (protocollo del gate, verdetti, ipotesi falsificate: leggerlo prima di
-proporre qualsiasi regola) → `spec-euroleghe-ingest-v9.md` → `nota-modello-set-pieces-v2.md` →
+proporre qualsiasi regola) → **`metrica-asta-surplus-v1.md`** (con cosa il pannello ordina, e perché non
+è VALORE) → `spec-euroleghe-ingest-v9.md` → `nota-modello-set-pieces-v2.md` →
 `modello-previsionale-v3.8.md` → consolidati di dettaglio. Tutti in `docs/model/`.
 
-## STATO AL 28 LUGLIO 2026 — LEGGI QUESTO PRIMA DI TUTTO
+## STATO AL 28 LUGLIO 2026 (sera) — LEGGI QUESTO PRIMA DI TUTTO
 
 Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
+
+### È cambiata la VALUTA dell'asta, non il motore: `metrica-asta-surplus-v1.md`
+
+Il pannello Auction ordina per **SURPLUS = (FM − rimpiazzo) × Pv × beccabilità**, con una soglia minima di
+schierabilità, e apre su quella. `VALORE = FM × Pv` resta disponibile e resta il deliverable
+pre-registrato: `auction_view` ha default `metric='value'` e `prepare()` non calcola alcun livello di
+rimpiazzo se non gli passi la configurazione di lega, che il gate non fa. **I numeri del gate sono
+invariati al numero.**
+
+Perché: misurato, `VALORE` era quasi solo presenze — CV(FM prevista) 0.012-0.032 contro CV(Pv previste)
+0.24-0.44, e ρ di rango con VALORE 0.19-0.44 contro 0.92-1.00. Nessun coefficiente fittato: la profondità
+di rosa viene dalla regola di lega (`config/league_config.json`, 8 squadre 3/8/8/6) più i **tetti di
+schieramento misurati** su 2903 undici titolari (p90: `dc` 3, `pc` 2 — esattamente i limiti dei moduli).
+L'esponente di beccabilità 0.5 **non è una preferenza**: riproduce la curva misurata della quota di
+presenze che un manager riesce a beccare (0.40 sotto il 20% di disponibilità → 0.89 sopra l'80%).
+
+Esito: **23 nomi su 70 contro i 22 di VALORE** — non costa nomi — e Dimarco 1°, Rice dentro, Haaland 5°,
+Politano/L.Henrique/De Roon/Colombo/Lauriente/Piccoli fuori, Lukaku non classificato.
+
+### Sei candidate provate il 28/07: **zero adottate**. I set adottati NON cambiano
+
+Dettaglio e numeri in `gate-motore-v1.md` §5-quinquies. In sintesi: **R15** (persistenza disponibilità) è
+il quasi-passaggio più vicino di tutto il set e su euro ha un coefficiente **stabile** (+0.074…+0.096 su 5
+finestre) — là il quasi-fallimento è l'**ampiezza**, non l'instabilità, e il gate oggi non sa distinguere
+i due casi. **R16/R16b** (affollamento) bocciate, e R16b ha il **segno opposto all'ipotesi**: misura forza
+offensiva del club, non affollamento. **R13c** (produzione misurata) batte la sua predecessora R13b ma ha
+14-21 osservazioni valutabili per finestra. **R5b** (forza-club dagli xA) **passa formalmente su Serie A
+3/3 e non è adottata**, perché era pre-registrato che un passaggio sulle sole T0/T1/T2 — le finestre di
+generazione dell'ipotesi — non confermi nulla.
+
+⚠️ **Da non rifare**: una correlazione a livello di **club** (misura di input ↔ gol del club l'anno dopo)
+**non predice** quale misura aiuti la fantamedia di un giocatore. È contro-informativa: xA sembrava la
+migliore su euro (0.66) e la regola là fallisce; su Serie A tutto sembrava debole e la regola là passa.
+
+### Il caso Kean + Piccoli è aperto in modo DIVERSO da come sembrava
+
+Non è «in attesa di uno stimatore migliore»: la penalizzazione per attacco condiviso **non è nei dati** —
+il segno misurato va nell'altro verso. Separare forza-club da affollamento richiede i due termini in un
+fit solo, che è in parte la quarta corsa a una famiglia bocciata tre volte: decisione da prendere ad alta
+voce, non rifinitura da infilare.
 
 ### Il gate gira su 10 finestre (Serie A) e 5 (euro)
 
@@ -53,7 +94,7 @@ finestre: 5 utilizzabili). Una finestra richiede voti su **entrambi** i lati, in
 
 **R4** età (1/10, peggiore −19.6%) · **R10** nuovo allenatore (4/10, peggiore −6.3%) · **R8** fuori-ruolo
 (1/6, peggiore −19.2%) · R4b (1/10, −56.6%) · R11/R11b (0/10) · R12/R12b (4-5/10, media ≈0) · R1b (3/10) ·
-R2 · R5 (quarta bocciatura della famiglia forza-club) · R6 · R13b · R14/R14b (sfora il non-danno) ·
+R2 · R5 (**terza** bocciatura della famiglia forza-club — corretto il 28/07: `gate-motore-v1.md` §4 nomina le due precedenti, forza-club interna ed Elo additivo movimento) · R6 · R13b · R14/R14b (sfora il non-danno) ·
 **R1** (non batte la risposta banale: 0.391 contro 0.373 della sola àncora).
 
 R4, R10 e R8 sembravano fra le migliori del motore a due finestre. **T1 e T2 sono le finestre di
@@ -86,10 +127,12 @@ grezzi, `external_stats` su 11 stagioni, `external_match_stats` su 7 (109k righe
 completato), `matchday_map` per lega anche sulle stagioni vecchie, voto sintetico ricalibrato
 (MAE fuori campione **0.369**), FM-equivalente su 1482 arrivi.
 
-**141 test verdi, ruff pulito.** `python -m euroleghe_ingest backtest [--verify] [--gate] [--auction]
+**158 test verdi, ruff pulito.** Toolkit **v0.2.0**. `recent_form` ha `--bonuses-only`
+(arricchisce i bonus delle partite già salvate, una richiesta per partita, senza ri-risolvere l'identità):
+**1195/1196** partite arricchite, **122/123** giocatori completi. `python -m euroleghe_ingest backtest [--verify] [--gate] [--auction]
 [--cases] [--window Tm7..T2] [--platform euro|default] [--game classic|mantra]`. GUI: tre tab, il terzo è
-**Auction** (stagione/piattaforma/game, per ruolo i 10 di VALORE previsto più alto con l'FVM reale
-accanto, e i 10 reali col VALORE previsto). Backup: `scripts/backup-data.ps1` specchia `data/` fuori dal
+**Auction** (stagione/piattaforma/game/**Rank by**, per ruolo i 10 migliori previsti con l'FVM reale
+accanto e i 10 reali col previsto — nella valuta scelta, SURPLUS per default). Backup: `scripts/backup-data.ps1` specchia `data/` fuori dal
 repo — la cache **deve** restare in `.gitignore` (gli Excel vietano la ripubblicazione, il repo è pubblico).
 
 ## STATO PRECEDENTE (primo giro toolkit, 26 luglio 2026)

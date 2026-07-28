@@ -754,6 +754,78 @@ sposta il numero. E se un giorno `injuries` porterà la **causa** (muscolare, cr
 **rientro** previsto, quella è informazione che il baseline non può avere — l'ipotesi va ri-provata
 allora, non ora.
 
+## 5-quinquies. Sei candidate del 28 luglio 2026 — **zero adottate**, e non tutti i no sono uguali
+
+Passata nata dai rilievi dell'utente sul pannello Auction. Nessuna entra nel motore. La cosa che è
+entrata in produzione quel giorno non è una regola ma la metrica d'asta: `metrica-asta-surplus-v1.md`.
+
+**Lezione di metodo, due volte nello stesso giorno**: leggere il **coefficiente** invece del solo verdetto
+ha cambiato la conclusione. Prima sul segno di R16b, poi su R15. Va fatto per primo, non per ultimo.
+
+| Regola | Coefficiente | Verdetto |
+|---|---|---|
+| **R15** persistenza della disponibilità nelle presenze attese | euro **+0.074 … +0.096** su 5 finestre · Serie A cambia segno 4 volte | **QUASI**, il più vicino di tutto il set. Serie A 8/10 finestre, −1.4% … −6.8% di Pv MAE sugli spostati, media +2.6%, e i due fallimenti sono +0.1% e +0.4% (le due più vecchie). Euro migliora **tutte e cinque** ma fuori da Tm4 (−6.4%) sta fra 0.2% e 0.8%, quindi Tm3 sfora il pavimento dello 0.5%. Costa nomi su tre finestre. Su euro il coefficiente è **notevolmente stabile**: là il quasi-fallimento è l'ampiezza, non l'instabilità — un caso diverso da R4, e il gate oggi non sa distinguerli. |
+| **R16** affollamento: budget gol del club × la **sua** quota | segno che salta (Serie A +0.152, −0.047, −0.076, +0.142, …) | **BOCCIATA**, 3/10, media −1.2%, peggiore −14.9%. Rumore, e in retrospettiva non poteva funzionare: la sua quota dei gol dell'anno prima **è già dentro la sua fm_prec**, quindi il regressore ripete ciò che il baseline ha già. |
+| **R16b** affollamento: il budget che rivendicano i **compagni** | **+0.033 … +0.165, 9 finestre su 10 positive** (la decima −0.006), euro 4/5 | **BOCCIATA, e il segno è l'opposto dell'ipotesi.** L'affollamento predice **negativo**. Quindi non misura affollamento: misura **forza offensiva del club**, col segno della marea che alza tutte le barche. Le due sono intrecciate per costruzione — una squadra i cui attaccanti hanno prodotto molto è insieme un attacco forte e un attacco affollato — e la metà «forte» domina. Escluse prima due spiegazioni alternative allo split di finestre: gol e assist ci sono in **tutte le 11 stagioni**, e il club di destinazione è noto per il **100%** di ogni listone. |
+| **R13c** fantamedia dai gol+assist per 90 **misurati** | — | **BOCCIATA per muro di campione, non per ipotesi sbagliata.** Direzione confermata: dove differisce da R13b vince la produzione (Serie A T2 0.387 contro 0.407, euro T2 0.320 contro 0.324) — «i gol sono lo stesso evento in ogni campionato, il rating di un provider no», che è ciò che aveva ucciso R13b. Contro la risposta banale vince una finestra e pareggia l'altra: Serie A T1 **0.248 contro 0.325 (−24%)**, T2 0.387 contro 0.387. |
+| **R5b** forza offensiva del club dagli **xA** | — | **NON ADOTTATA, verdetto pre-registrato prima della corsa.** Serie A **passa formalmente** 3/3 (−1.8% / −2.8% / −0.7%, media +1.8%, nessun danno collaterale); euro **non passa** 1/3, con T1 2.8% peggiore. Ma xG/xA partono dal 2022-23 → misurabile solo su T0/T1/T2, **le stesse tre finestre su cui funzionava R16b e quelle da cui l'ipotesi è stata letta**: era scritto in anticipo che un passaggio non conferma nulla e solo un fallimento è informativo. Verdetto **sospeso** su Serie A, negativo su euro. Sarebbe la **quarta** corsa alla famiglia forza-club (R5 è la terza — vedi §4). |
+
+### Il muro di R13c, misurato: non è quello che avevamo appena riparato
+
+Imbuto per finestra — coorte → bonus misurati → ≥450 minuti → `Pv_reale ≥ 15` (valutabili):
+
+| finestra | coorte | misurati | ≥450 min | **valutabili** |
+|---|---|---|---|---|
+| euro/T1 | 57 | 57 | 51 | **19** |
+| euro/T2 | 66 | 65 | 54 | **14** |
+| Serie A/T1 | 24 | 24 | 23 | **16** |
+| Serie A/T2 | 35 | 35 | 34 | **21** |
+
+L'arricchimento dei bonus ha funzionato (copertura della feature ~totale) e il pavimento dei minuti costa
+poco. Il crollo è al **dominio di scoring**: circa un quarto di questi giocatori arriva a 15 presenze,
+perché un nuovo arrivo prezzato e senza storico in gran parte **resta** marginale. Da 14 a 21 osservazioni
+non portano un coefficiente per pulite che siano → servono **più finestre, non più scraping**. E
+**esplicitamente non** un dominio di scoring allargato per far passare la regola: sarebbe scegliere il
+test dopo aver visto la risposta.
+
+### Un proxy da non riusare: la correlazione a livello di club è CONTRO-informativa
+
+Per scegliere la misura di forza offensiva ho correlato la misura di input (per presenza) coi gol della
+stagione successiva per presenza, a livello di club:
+
+| | goals | goals+assists | xG | **xA** | xG+xA |
+|---|---|---|---|---|---|
+| euro (pooled) | 0.59 | 0.60 | 0.50 | **0.66** | 0.60 |
+| Serie A (pooled) | 0.34 | 0.35 | 0.27 | 0.28 | 0.28 |
+
+Su euro xA è la migliore delle tre e su Serie A niente predice bene né stabilmente (gol 0.55 / 0.63 /
+**0.11**). Poi la regola **fallisce su euro e passa su Serie A**: ordinamento esattamente opposto. Quindi
+una correlazione club↔gol-del-club **non predice quale misura aiuta la fantamedia di un GIOCATORE**. Non è
+solo debole, è contro-informativa: sceglierci un regressore avrebbe fatto sbagliare in entrambi i versi.
+
+### Difetti di dati chiusi nella stessa passata
+
+- **`recent_form`, uno zero fabbricato**: `SUM(COALESCE(goals,0))` trasformava «bonus mai scaricati» in
+  «non ha segnato». Lauriente arrivava al motore con **0 gol e 0 assist in 715 minuti**; era capocannoniere
+  in Serie B. Riguardava **111 dei 123** giocatori della popolazione. Un'osservazione **fabbricata** è
+  peggio di una mancante, perché un fit ci impara sopra volentieri. Ora i totali sono `None` se nessuna
+  riga li porta e `recent_bonus_matches` dice quanto è misurato. *Stulic* passa da «0 gol» a **7 gol e 1
+  assist in 802 minuti**: senza la correzione avremmo imparato che Gyökeres (1.42 per 90) e Stulic (0.90)
+  sono lo stesso giocatore.
+- **Il resume si auto-assolveva**: contava le *partite*, non i bonus, quindi chi era stato salvato da una
+  corsa `--no-bonuses` risultava coperto per sempre.
+- **L'identità veniva buttata via**: `resolve()` non scriveva `player_xref`, e l'unica traccia era il CSV
+  di copertura, che ogni corsa **sovrascrive** → 17 giocatori irrecuperabili senza ri-risolverli.
+  Arricchite **1195/1196** partite, **122/123** giocatori completi (l'unico buco è una partita per cui il
+  provider non serve statistiche), `player_xref` da 3005 a 3021 id.
+- **`fit_params` aveva una guardia incompleta**: il blocco dei residui non elencava R16/R16b. Nel gate non
+  morde (fitta sempre tutto il set), ma fittare un **sottoinsieme** produceva silenziosamente nessun
+  coefficiente e una regola che «non fa niente». È così che me ne sono accorto.
+- **`Konè I.` (Sassuolo) arrivava al pannello come `Kon<?><?> I.`**: i CSV esportati da Drive hanno gli
+  accenti **già distrutti** alla fonte (58 nomi), e `rosters` sovrascriveva `canonical_name` senza
+  condizioni, così il listone pulito non poteva mai vincere. Una regola per tutti gli scrittori: un nome
+  danneggiato non scalza mai uno intatto, uno intatto ripara sempre un danneggiato. 8 nomi riparati.
+
 ## 6. Validazione del voto sintetico (Serie A, dove esistono entrambi i set reali)
 
 **Per partita** (n=10.657): sintetico vs Mv euro (suo bersaglio) MAE **0.365** · vs Mv `default` **0.379**
@@ -812,5 +884,10 @@ generalizzato · `2d9da9e` una finestra senza voti non e' una finestra · `b211d
 R7 era uno stimatore sbagliato · `072542d` tab Auction · `cb23192` il Mantra si gioca anche in Serie A ·
 `bf2f68b` audit dei dati: due input erano solo non ricalcolati, R10 cade · `e50080a` la passata eseguita:
 10 finestre Serie A, 5 euro · `a7f0cfd` layer per-partita arrivato · `eecf11f` sigla squadra + spinner ·
-`2d2a5c7` tooltip sulle intestazioni · `d0d48ff` filtri bloccati durante il calcolo.
-**141 test verdi, ruff pulito.**
+`2d2a5c7` tooltip sulle intestazioni · `d0d48ff` filtri bloccati durante il calcolo ·
+`34aacd6` **metrica SURPLUS** (+ livello di rimpiazzo dai tetti misurati, beccabilità, soglia) ·
+`7e8baab` R15 quasi / R16-R16b bocciate / lo zero fabbricato di `recent_form` ·
+`060ad02` `--bonuses-only` · `34afd86` journal SQLite fuori dal tracking ·
+`a20c84d` l'identità risolta si salva · `890531c` R13c · `4da22c7` il segno di R16b è forza-club ·
+`748ac30` R5b: passa su Serie A e **non** viene adottata.
+**158 test verdi, ruff pulito.** Toolkit a **v0.2.0**.
