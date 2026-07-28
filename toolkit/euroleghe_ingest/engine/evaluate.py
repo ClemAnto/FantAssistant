@@ -101,6 +101,13 @@ RULES: tuple[Rule, ...] = (
     # forecast alike. Share-replacing, because it is the B0 regression with one more regressor rather
     # than a correction bolted on top. Sign is genuinely open, which is why it is worth a gate slot.
     Rule("R15", "availability persistence inside expected appearances", True, metric="pv"),
+    # R3d exists because R15 and R3c compete for the same branch and R3c wins by order, so adding R15 to
+    # an adopted set that already has R3c is nearly inert: on T2 it would fire for 7 players of 657.
+    # The measured signal is real (persistence carries information R0's residual still holds, +0.077 to
+    # +0.097 on all five euro windows) and the only way to collect it ALONGSIDE the euro minutes is one
+    # regression with both regressors, rather than two rules taking turns.
+    Rule("R3d", "expected appearances with BOTH the euro-calendar minutes and the appearance pattern",
+         True, metric="pv"),
     # R16: a club's goals are a budget and its attackers share it. Adjacent to R11/R11b, which count
     # ARRIVALS in the same role - this counts the goals actually on offer, which is what the Kean /
     # Piccoli case is about: R11b would have fired on Piccoli as an arrival and said nothing about
@@ -117,7 +124,7 @@ RULES: tuple[Rule, ...] = (
 # Rules that get fitted and compared one at a time by `compare`.
 CANDIDATES: tuple[str, ...] = ("R0c", "R1", "R1b", "R2", "R3", "R3c", "R4", "R4b", "R5", "R6", "R7",
                                "R8", "R10", "R11", "R11b", "R12", "R12b", "R13", "R13b",
-                               "R13c", "R14", "R14b", "R15", "R16", "R16b", "R5b")
+                               "R13c", "R14", "R14b", "R15", "R3d", "R16", "R16b", "R5b")
 
 # What survived the gate, PER PLATFORM. Keeping it per platform is not a hedge: `platform` is a
 # first-class dimension of the data model (different calendars, different perimeters), and the gate
@@ -221,6 +228,21 @@ CANDIDATES: tuple[str, ...] = ("R0c", "R1", "R1b", "R2", "R3", "R3c", "R4", "R4b
 # measurable memory (persistence 0.29-0.36 on every platform-season), and the natural next use is the
 # auction OBJECTIVE (a per-player catchability instead of the population curve), which is a different
 # metric and needs its own pre-registration - not a re-run of this one with softer thresholds.
+# ⚠️ R3d PASSES THE ACCURACY GATE AND IS NOT ADOPTED, and it is the first rule to expose a gap in the
+# criteria rather than in itself. `passes` for an accuracy rule is "target improved on every measuring
+# window AND FM/VALUE MAE not worse"; the top-10 guardrail is binding only for COVERAGE rules. R3d clears
+# all of that - pv MAE -1.3% to -3.2% on the players it moves, on all four measurable windows, coefficient
+# stable (dispersion 0.31) - and it makes the AUCTION LISTS WORSE: over twelve Mantra roles the names in
+# common go 157 -> 151 across five windows, with T2 alone losing four (36 -> 32), and captured VALUE falls
+# on three windows of five. So a rule can pass the accuracy gate and degrade the deliverable the product
+# actually consumes. Recorded here rather than fixed silently, because widening `passes` to bind the
+# auction metric for accuracy rules would retroactively unseat rules already adopted - a decision to take
+# deliberately, on its own, not as a side effect of this one.
+#
+# ⚠️ R15 is NOT adopted either, for a different reason: its gate row was measured STANDALONE against B0,
+# and R15 shares the share-replacing branch with R3c, which wins by order. Inside the adopted set R15 fires
+# for 7 players of 657 on T2 and buys nothing on the recent windows while costing a top-10 name on T0.
+# A candidate's standalone gate row is not its value inside a set - the set has to be scored as a set.
 ADOPTED: dict[str, tuple[str, ...]] = {
     "euro": ("R0c", "R3c"),
     "default": ("R3", "R7", "R13"),
@@ -492,6 +514,7 @@ class Params:
     share: tuple[float, ...] | None = None        # R3: share incl. minutes
     share_euro: tuple[float, ...] | None = None   # R3c: minutes on the euro rounds
     share_persistence: tuple[float, ...] | None = None   # R15: availability persistence
+    share_both: tuple[float, ...] | None = None          # R3d: euro minutes + the pattern
     penalty_lam: float | None = None              # R6: penalty duty
     elo_lam: float | None = None                  # R5: club-strength anchor shift
     budget_lam: float | None = None               # R16: club goal budget x his share
@@ -562,7 +585,7 @@ def pool_params(fitted: dict[str, Params], exclude: str, base: Params) -> Params
 # Rules that REPLACE the appearances share outright. A residual correction has to be fitted against
 # whichever of these is active, not against B0 - otherwise both absorb the same variance and the
 # combined configuration over-corrects (finding 7).
-SHARE_REPLACING: frozenset[str] = frozenset({"R3", "R3c", "R7", "R13", "R0c", "R15"})
+SHARE_REPLACING: frozenset[str] = frozenset({"R3", "R3c", "R7", "R13", "R0c", "R15", "R3d"})
 
 
 def fit_params(data: features.WindowData, rules: tuple[str, ...]) -> Params:
@@ -619,6 +642,17 @@ def fit_params(data: features.WindowData, rules: tuple[str, ...]) -> Params:
                    and obs.minutes_share_euro_prev is not None and obs.role_classic != "P"]
         params.share_euro = fit_linear(samples)
         params.notes["R3c_n"] = len(samples)
+
+    if "R3d" in rules:
+        samples = [((obs.share_prev(data.matchdays_prev), obs.minutes_share_euro_prev,
+                     obs.persistence_prev, _mv_term(obs), 1.0 if obs.club_change else 0.0),
+                    obs.pv_act / matchdays)
+                   for obs in data.observations
+                   if obs.pv_prev is not None and obs.pv_act is not None
+                   and obs.minutes_share_euro_prev is not None and obs.persistence_prev is not None
+                   and obs.role_classic != "P"]
+        params.share_both = fit_linear(samples)
+        params.notes["R3d_n"] = len(samples)
 
     if "R15" in rules:
         samples = [((obs.share_prev(data.matchdays_prev), obs.persistence_prev,
@@ -988,6 +1022,13 @@ def _rule_pv(obs: features.Observation, data: features.WindowData, rules: tuple[
     if _is_goalkeeper(obs) and "R7" in rules and params.share_gk and obs.pv_prev is not None:
         share = model.linear_share(params.share_gk, (obs.share_prev(data.matchdays_prev),
                                                      1.0 if obs.club_change else 0.0))
+    elif ("R3d" in rules and params.share_both and obs.pv_prev is not None
+            and obs.minutes_share_euro_prev is not None and obs.persistence_prev is not None
+            and not _is_goalkeeper(obs)):
+        share = model.linear_share(params.share_both,
+                                   (obs.share_prev(data.matchdays_prev),
+                                    obs.minutes_share_euro_prev, obs.persistence_prev,
+                                    _mv_term(obs), 1.0 if obs.club_change else 0.0))
     elif ("R3c" in rules and params.share_euro and obs.pv_prev is not None
             and obs.minutes_share_euro_prev is not None and not _is_goalkeeper(obs)):
         share = model.linear_share(params.share_euro,
@@ -1407,6 +1448,7 @@ RULE_COEFFICIENT: dict[str, tuple[str, int | None]] = {
     "R3": ("share", 2),                    # minutes share
     "R3c": ("share_euro", 2),              # minutes on the euro rounds
     "R15": ("share_persistence", 2),       # availability persistence
+    "R3d": ("share_both", 3),              # the appearance pattern, alongside the euro minutes
     "R4": ("age_fm", None),
     "R4b": ("age_share", None),
     "R5": ("elo_lam", None),

@@ -1003,6 +1003,54 @@ hanno prodotto la sua fantamedia. Qualità dei colpi di mercato confermati · re
 allenatore nuovo · quote di mercato pre-stagione. **Un'altra misura retrospettiva della forza passata del
 club non è un'ipotesi nuova, è la quinta corsa a questa.**
 
+## 5-decies. R15 e R3d: due modi di NON entrare, e un buco nei criteri (28 luglio 2026)
+
+L'utente aveva autorizzato l'adozione di R15 su euro. **Non è stata adottata, e nemmeno R3d che l'ha
+sostituita.** Entrambe le volte la ragione è che avevo misurato una quantità *adiacente* alla decisione
+invece della decisione — due errori miei, non due scoperte.
+
+### R15: la riga del gate era da sola contro B0
+
+R15 e R3c occupano lo **stesso ramo** share-replacing e R3c viene valutata prima. Dentro il set adottato,
+R15 scatta per **7 giocatori su 657 su T2** — R3c ne copre 650. La configurazione `R0c+R3c+R15` non guadagna
+niente sulle finestre recenti e **costa un nome su T0**. I numeri che avevo citato (−0.7% su T2) erano di
+R15 **da sola contro B0**: il gate valuta una candidata alla volta, non sopra il set adottato.
+
+> **Regola**: la riga di gate di una candidata non è il suo valore dentro un set. Il set va valutato come set.
+
+### R3d: passa il gate di accuratezza e **peggiora le liste d'asta**
+
+Costruita come la via che il segnale meriterebbe: una regressione sola con **entrambi** i regressori
+(minuti sulle giornate euro *e* pattern di presenze), così i due segnali si sommano invece di darsi il turno.
+Il segnale c'era davvero — la persistenza porta informazione che il residuo di R0 ancora contiene, ρ da
+**+0.077 a +0.097 su tutte e cinque** le finestre euro, con `share_prec` che non cede peso (+0.02..+0.03,
+sempre nello stesso verso) e i due regressori **negativamente** correlati (−0.13..−0.34): la persistenza
+*suddivide* le classi di `share_prec` (titolare stabile / regolare di rotazione / titolare fermato / margini).
+
+E **passa**: pv MAE da −1.3% a −3.2% sui giocatori che muove, su tutte e quattro le finestre misurabili,
+coefficiente stabile (dispersione 0.31), FM e VALORE non peggiori.
+
+Ma sul **deliverable d'asta** (12 ruoli Mantra) i nomi in comune fanno **157 → 151** su cinque finestre, con
+**T2 che da solo perde quattro** (36 → 32), e il VALORE catturato scende su tre finestre su cinque.
+
+### Il buco nei criteri, che R3d è la prima a esporre
+
+`passes` per una regola di **accuratezza** è «bersaglio migliorato su ogni finestra che la misura **e** MAE su
+FM/VALORE non peggiori». Il non-danno sui **top-10 è vincolante solo per le regole di COPERTURA**. Quindi una
+regola può **passare il gate di accuratezza e degradare la lista che il prodotto consuma davvero**.
+
+Registrato, non corretto in silenzio: estendere il vincolo top-10 alle regole di accuratezza
+**ri-esaminerebbe regole già adottate** (R3, R7, R3c), quindi è una decisione da prendere per sé e non come
+effetto collaterale di questa. È la voce che resta aperta con la leva più alta.
+
+### Cosa resta vero
+
+Il **meccanismo** di R15/R3d è confermato e non era ovvio: la persistenza non serve perché «la costanza si
+ripete» — quello è falso, non si trasferisce fra stagioni (§ sul prerequisito in
+`metrica-asta-surplus-v1.md`) — serve perché **legge meglio la stagione di input**. A pari Pv distingue il
+titolare interrotto dal giocatore di rotazione. Il nome «persistenza» descrive un meccanismo che non è il suo:
+il nome giusto è **lettura del pattern di presenze**.
+
 ## 6. Validazione del voto sintetico (Serie A, dove esistono entrambi i set reali)
 
 **Per partita** (n=10.657): sintetico vs Mv euro (suo bersaglio) MAE **0.365** · vs Mv `default` **0.379**
