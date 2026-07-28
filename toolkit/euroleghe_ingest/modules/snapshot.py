@@ -670,20 +670,24 @@ def measured_season(conn, window) -> tuple[str, str | None]:
     season's total, which is what a pre-season snapshot has to use because nothing else exists yet. So
     the target season is measured when it has really been played by then, and the previous one otherwise.
     """
+    # ROUNDS, not matches. Counting matches made two pre-season friendlies (25 of them across the
+    # perimeter) look like a season under way, and it switched every rate onto a two-game sample. A
+    # matchday only exists for a league round, which is exactly the thing that says the season started.
     played = conn.execute(
-        """SELECT COUNT(DISTINCT match_id) FROM external_match_stats
-           WHERE season = ? AND source = 'sofascore' AND match_date IS NOT NULL AND match_date < ?""",
+        """SELECT COUNT(DISTINCT competition || ':' || real_md) FROM external_match_stats
+           WHERE season = ? AND source = 'sofascore' AND real_md IS NOT NULL
+             AND match_date IS NOT NULL AND match_date < ?""",
         (window.target_season, window.auction_date)).fetchone()[0]
-    if played >= TO_DATE_MIN_MATCHES:
+    if played >= TO_DATE_MIN_ROUNDS:
         return window.target_season, (
-            f"measured on {window.target_season} up to {window.auction_date} ({played} matches in the "
-            f"per-match layer), not on the season total: everything after that date is ignored")
+            f"measured on {window.target_season} up to {window.auction_date} ({played} league rounds in "
+            f"the per-match layer), not on the season total: everything after that date is ignored")
     return window.input_season, None
 
 
-# Below this many club-matches in the season so far, "this season to date" is not a sample: the layers
-# fall back to the previous season's totals, which is what a pre-season snapshot uses anyway.
-TO_DATE_MIN_MATCHES = 20
+# Below this many league rounds played, "this season to date" is not a sample: the layers fall back to
+# the previous season's totals, which is what a pre-season snapshot uses anyway. Five is one September.
+TO_DATE_MIN_ROUNDS = 5
 
 
 def propensity(conn, season: str, before: str | None = None) -> dict[int, dict]:

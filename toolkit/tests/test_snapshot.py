@@ -267,6 +267,18 @@ def test_the_pitch_never_draws_outside_itself(tmp_path):
                 assert box[0] >= -2 and box[1] >= -2, f"{formation}/{mode} spills top/left: {box}"
                 assert box[2] <= width + 2, f"{formation}/{mode} spills right: {box} in {width}"
                 assert box[3] <= height + 2, f"{formation}/{mode} spills below: {box} in {height}"
+                # No name plate on top of another. "The layout is broken" is exactly this - a plate
+                # above one marker meeting the plate below the marker in the line before it - and a
+                # bounding box cannot see it, because everything stays inside the canvas while
+                # overlapping. The plates are the rectangles the shirts draw (their own outline).
+                plates = [canvas.bbox(item) for item in canvas.find_all()
+                          if canvas.type(item) == "rectangle"
+                          and canvas.itemcget(item, "outline") == "#4c7a35"]
+                for first in range(len(plates)):
+                    for second in range(first + 1, len(plates)):
+                        one, two = plates[first], plates[second]
+                        assert not (one[0] < two[2] and two[0] < one[2]
+                                    and one[1] < two[3] and two[1] < one[3]),                             f"{formation}/{mode}: name plates overlap: {one} {two}"
                 # and every shirt is really on the pitch, not merely inside the bounding box
                 assert len(view.eleven("Test", formation, mode)) == 11
     finally:
@@ -365,9 +377,11 @@ def test_a_real_attack_has_one_centre_forward_and_he_plays_in_the_middle():
     assert view.slot_cost(striker, "C", "A", 0) < view.slot_cost(striker, "C", "A", 2)
 
     # two centre-forwards on the board: the central one keeps the shirt, the other reads seconda punta
-    codes = view._line_codes([(striker, []), (dict(striker, name="Nine bis"), [])])
-    assert sorted(codes) == ["Pc", "Sp"]
-    assert view._line_codes([(winger, []), (striker, [])]) == ["Ad", "Pc"]
+    # the fractions are the real drawn ones, so the CENTRAL striker keeps the shirt: read off an even
+    # spread instead, a second striker nearer the middle stole it from the true centre-forward
+    codes = view._line_codes([(0.30, dict(striker, name="Nine bis"), []), (0.50, striker, [])])
+    assert codes == ["Sp", "Pc"]
+    assert view._line_codes([(0.15, winger, []), (0.50, striker, [])]) == ["Ad", "Pc"]
 
 
 def test_the_trend_dot_is_full_only_for_a_full_match_and_carries_the_bonus():

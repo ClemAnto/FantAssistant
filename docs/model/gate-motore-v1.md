@@ -585,6 +585,14 @@ cioè copertura più una regola, mentre su Serie A sono tre regole di cui una (R
 | **R13b** fantamedia dal rating confrontato fra campionati | λ **−0.454 / +0.05** | Fallisce su Serie A (+40% di errore sugli aggiunti, oltre il limite) e il segno si inverte. Vedi §5-ter: **quanto** gioca si trasferisce, **quanto bene** no. |
 | **R17** attacco affollato: quota reclamata dai compagni sopra la capienza schierata, caricata a chi il mercato ordina sotto (28/07/2026, prima corsa su 6+4 finestre) | λ **stabile e negativo ovunque**: Serie A −0.055…−0.097 (disp. 0.24, 6/6), euro −0.047…−0.067 (disp. 0.15, 4/4) | **Il coefficiente più pulito mai bocciato.** Sui giocatori mossi il MAE peggiora su 9 combinazioni finestra×piattaforma su 10 (Serie A robust 1/6, media −7.3%, peggiore −14.9%; euro 1/4, −0.9% — l'unica a favore è T1, bruciata; le finestre PULITE sono le più nette contro). Il meccanismo esiste in-sample e **non si trasferisce fra stagioni** — quinta formulazione dell'affollamento respinta sull'errore (R11, R11b, R16, R16b, R17), e i caricati di T1/T2 avevano reso 1.04× il previsto già nel diagnostico pre-corsa. Autopsia completa e cosa resta (annotazione «Pair» nel pannello, 23/23 coppie top-15 rette): [attacco-affollato-r17-v1.md](attacco-affollato-r17-v1.md) §9-10. **Famiglia esaurita con gli input correnti**: si riapre solo con un input nuovo (es. lo storico settimanale di `probable_starter` che accumula da luglio 2026), non con una sesta misura degli stessi aggregati. |
 
+⚠️ **Da non confondere con questa tabella**: le quattro credenze misurate il 29/07 (riposo, «vincere aiuta
+a vincere», l'undici che si conferma, la sferzata del nuovo allenatore) **non sono giri di gate** e non
+stanno qui. Sono misure descrittive per-giornata, in §5-duodecies e in
+[turnover-atteso-v1.md](turnover-atteso-v1.md). Due di esse falsificano la credenza **sul rendimento**
+(fantavoto a segno rovesciato dopo una vittoria, verificato contro il suo null rimescolato; e il gol che
+**non** si raggruppa nel tempo in Serie A) senza che nessuna regola sia stata provata: una credenza
+smentita descrittivamente non è un'ipotesi bocciata dal gate, e va citata per quello che è.
+
 ## 5. Difetti dei dati trovati dal gate (due corretti, tre aperti)
 
 1. ✅ **FM-equivalente dei portieri: +1.117 / +1.076 / +1.064 sistematico, 0% entro 0.3.** Non ha il
@@ -1093,6 +1101,57 @@ R3c lo peggiora** (157 → 151): entrambe vere, misurano cose diverse. Finché i
 l'effetto **marginale sopra il set adottato**, ogni proposta di adozione richiede una verifica di
 configurazione a mano — che è precisamente il passo che era mancato.
 
+## 5-duodecies. Quattro credenze misurate (29 luglio 2026) — un solo canale, e non è il voto
+
+**Non è un giro di gate**: nessun verdetto cambia, nessuna regola entra. Sono misure **descrittive** su
+`platform='default'` (Serie A), 7 stagioni 2019-20→2025-26, **106.977 partite-giocatore**, esiti demeaned
+dentro (giocatore, stagione) con la giocatore-stagione come unità d'inferenza. Rapporto completo e limiti:
+[turnover-atteso-v1.md](turnover-atteso-v1.md).
+
+Le quattro domande dell'utente sono le credenze standard: riposo corto, «vincere aiuta a vincere»,
+l'undici che si conferma dopo una vittoria, la sferzata del nuovo allenatore. **Tutte e quattro hanno un
+effetto reale, e in tutte e quattro l'effetto è su CHI GIOCA:**
+
+| credenza | sul rendimento (fantavoto) | sulle scelte (titolarità / undici) |
+|---|---|---|
+| riposo ≤3 giorni dopo aver giocato ≥60' | **−0,014** (t −0,5); mv −0,001; segno instabile fra stagioni, 2 celle su 7 significative | **P(titolare) −9,8pp** (t −13,3) · **P(voto) −4,4pp** (t −7,8) · **negativo 7 stagioni su 7** |
+| dopo una vittoria vs dopo una sconfitta | **−0,046** (t −3,8), −0,032 corretto per l'avversario: segno **ROVESCIATO** rispetto alla credenza, negativo in 5 stagioni su 7 | **+5,0pp / −4,1pp** per chi era titolare, **specchiato** sui panchinari (−4,8 / +4,5); XI confermato **78,2% vs 71,0%**; **7 su 7** |
+| mano calda del singolo (⚠️ vedi il punto 4) | eccesso sul null rimescolato **+0,0124** su `default` (+3,4 sd) e **+0,0100** su `euro`: **positiva e minuscola**. Il grezzo (−0,029) è quasi tutto distorsione | un punto di fantavoto in t−1 = **+2,35pp** di titolarità in t |
+| raggruppamento nel tempo (permutazione, 300 rimescolamenti) | **gol: zero** su Serie A (1.260 giocatore-stagione, tutte e 4 le statistiche a t≤1,6); **quartile alto di fantavoto: raggruppato** su entrambe le piattaforme (t +2,7…+6,5) ma di taglia irrisoria — +0,014 su un tasso base di 0,408 | — |
+| nuovo allenatore (31 cambi in corsa) | rimbalzo grezzo +0,481 ppm, controlli appaiati +0,253 → **netto +0,227 (SE 0,118, t 1,9)**: **53% è ritorno alla media** | conferma **64,4%** dell'undici contro **75,1%** delle settimane normali (t −3,5) = **1,2 maglie** |
+
+Tre cose che questa passata lascia al gate, e valgono più dei singoli numeri:
+
+1. **Il canale è quantificato, non solo argomentato.** In fantapunti attesi per partita, un turno
+   infrasettimanale costa **−0,32 dalle presenze e −0,05 dal voto (88% / 12%, ~7×)**. E la cornice:
+   **Var(ln pv) è il 90,5% di Var(ln fantapunti totali)** su `default`, 89,9% su `euro`, contro ~2% di
+   Var(ln fm) — la stagione **sono** le presenze. Il che spiega a posteriori perché tutto ciò che è entrato
+   nel motore (R3, R3c, R7, R13) è una regola di presenze o minuti, e perché R10 cadeva **come regola**
+   pur avendo un fenomeno vero dietro: la parte solida era la ridistribuzione dei posti.
+2. **Il risultato di una partita di Serie A è derivabile OFFLINE** (difetto di dati chiuso senza rete):
+   `goals` è al netto di rigori **e** autogol — `goals + own_goals + pen_scored` pareggia i gol subiti dai
+   portieri su **386 giornate su 418** — quindi gol fatti = `SUM(goals)+SUM(pen_scored)`, gol subiti dalle
+   righe `role='P'`. Con lo screening severo (bilancio **e** vittorie == sconfitte) restano **278/418
+   (66,5%)**, 5.560 club-giornata. Le altre 4 leghe richiedono una richiesta per giornata.
+3. **Una sola famiglia, non quattro regole**, e serve un **gate per-giornata che non esiste**: il gate
+   attuale giudica un bersaglio stagionale all'asta, quindi niente di questo è adottabile così. Nota il
+   confine: «vincere aiuta a vincere» come regressore **d'asta** *è* la famiglia forza-club, CHIUSA in
+   §5-nonies sullo stesso difetto (input derivabile dalla fantamedia del giocatore).
+4. ⚠️ **Una correzione trovata dentro la stessa passata, e vale come regola di metodo.** La prima stesura
+   citava «mano calda `corr(fv t−1, fv t)` = −0,035» come prova di ritorno alla media: era la
+   **distorsione di campione finito** di una correlazione ritardata su serie demeaned (−1/(n−1) ≈ −0,044
+   con 24 partite), misurata rimescolando le sequenze — null −0,0413, osservato −0,0289. Col null giusto il
+   segno **si ribalta**: eccesso +0,0124 (+3,4 sd). **Un'autocorrelazione ritardata dentro un gruppo
+   demeaned va confrontata con la sequenza rimescolata, non con zero** — e lo stesso vale per ogni
+   statistica «l'evento si ripete?» (bias di Miller–Sanjurjo). Il risultato «dopo una vittoria il fantavoto
+   è peggiore» è stato passato allo stesso test e **regge**: null −0,002 contro osservato −0,048, contrasto
+   W−L −0,074 contro −0,002 (t −3,4) — lì si condiziona sul risultato **della squadra**, non sul voto suo.
+
+⚠️ Limiti dichiarati: **nessuna partita di coppa o europea nel DB**, quindi il riposo è misurato sul solo
+calendario di campionato — il bucket ≤4 giorni è pulito, quello 5+ è contaminato per le squadre europee, e
+il bias **sottostima**; l'undici misurato ha **10,3 titolari nominati su 11** (imbuto dell'identità), quindi
+il churn è un **limite inferiore**; 31 soli eventi allenatore; **una sola piattaforma**.
+
 ## 6. Validazione del voto sintetico (Serie A, dove esistono entrambi i set reali)
 
 **Per partita** (n=10.657): sintetico vs Mv euro (suo bersaglio) MAE **0.365** · vs Mv `default` **0.379**
@@ -1120,6 +1179,12 @@ le partite.**
   rincalzo da 3. Nasce dai casi Openda/David/Vlahović (la Juventus 25/26 ha preso tre attaccanti sopra
   a Vlahović) ed è la forma che due sole finestre non possono confermare senza autoinganno. Calcolabile
   ora che `price_initial` è nel DB.
+- **Famiglia TURNOVER ATTESO dell'undici** (misurata descrittivamente il 29/07/2026,
+  [turnover-atteso-v1.md](turnover-atteso-v1.md), §5-duodecies): **una** famiglia con tre input (risultato
+  precedente, giorni di riposo, impegni infrasettimanali), bersaglio `P(voto)` e minuti attesi — **mai la
+  fantamedia** — e identificazione **within-club**. Non pre-registrabile finché non esiste un **gate
+  per-giornata**: il gate attuale giudica un bersaglio stagionale all'asta. Prerequisito di dati: le
+  partite di coppa/europee, senza cui la congestione vera non è misurata.
 - **R8 solo nel verso «usato più indietro»**, quando il campione supera n≈10/13.
 - **R9 àncora con peso di recenza** (l'àncora attaccanti si muove: euro 7.28 → 7.34 → 7.16): con due
   finestre λ è quasi non identificabile.

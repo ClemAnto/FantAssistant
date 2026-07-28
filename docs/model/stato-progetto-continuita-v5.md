@@ -6,7 +6,37 @@ Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da q
 ## Cos'e'
 App per leghe EuroLeghe/fantacalcio.it (Classic+Mantra, 5 campionati) con motore previsionale. Metodo: ogni regola entra SOLO se batte il baseline fuori campione su finestre indipendenti (gate pre-registrato). Doc madre: modello-previsionale-v3.8.md.
 
-## ⚠️ Lo stato corrente è in `00-BRIDGE-punto-di-ingresso.md`, blocco «STATO AL 28 LUGLIO 2026 (sera)»
+## ⚠️ Lo stato corrente è in `00-BRIDGE-punto-di-ingresso.md`, blocco «STATO AL 29 LUGLIO 2026»
+
+### 29 luglio 2026, in una riga: quattro credenze del fantacalcio misurate, e l'effetto è sempre su CHI GIOCA
+Domande dell'utente: riposo corto, «vincere aiuta a vincere», l'undici che si conferma dopo una vittoria,
+la sferzata del nuovo allenatore. Misurate su `platform='default'` (Serie A), 7 stagioni,
+**106.977 partite-giocatore**, esiti demeaned dentro (giocatore, stagione), unità d'inferenza la
+giocatore-stagione. **DESCRITTIVO: nessun giro di gate, nessun verdetto cambia, nessuna regola entra.**
+Rapporto: [turnover-atteso-v1.md](turnover-atteso-v1.md) · sintesi: `gate-motore-v1.md` §5-duodecies.
+**Riposo ≤3 giorni** (per chi aveva giocato ≥60'): **P(titolare) −9,8pp**, **P(voto) −4,4pp**, negativo
+**7 stagioni su 7** — e **fantavoto −0,014 (t −0,5)**, segno instabile fra stagioni. **Dopo una vittoria
+contro dopo una sconfitta**: **+5,0 / −4,1pp** per chi era titolare, specchiato sui panchinari (−4,8 /
++4,5), **XI confermato 78,2% vs 71,0%** (≈2,4 maglie cambiate dopo una vittoria, 3,2 dopo una sconfitta),
+**7 su 7**. Le credenze sul **rendimento** cadono e una ha il **segno rovesciato**: fantavoto
+**−0,046** dopo una vittoria (−0,032 corretto per l'avversario), e regge al proprio **null rimescolato**
+(null −0,002; contrasto W−L −0,074 contro −0,002, t −3,4) — ma un punto di fantavoto in t−1 vale
+**+2,35pp** di titolarità in t, cioè l'informazione passa dalla **scelta dell'allenatore**.
+**«Ha segnato, si ripeterà?» (29/07, 300 rimescolamenti per sequenza)**: **il gol è senza memoria** — su
+Serie A tutte e quattro le statistiche di raggruppamento sono a zero su 1.260 giocatore-stagione — mentre
+**il livello di prestazione ha un filo di memoria** (quartile alto di fantavoto raggruppato su entrambe le
+piattaforme, t +2,7…+6,5, ma **+0,014 su un tasso base di 0,408**: 42% contro 40%). ⚠️ Da qui una
+**correzione**: la «mano calda a −0,035» della prima stesura era la **distorsione di campione finito**
+(−1/(n−1) ≈ −0,044 con 24 partite), non un effetto; col null giusto è **+0,012 (+3,4 sd del null)**. Regola
+di metodo: un'autocorrelazione ritardata dentro un gruppo demeaned si confronta con la sequenza
+rimescolata, non con zero. **Nuovo allenatore** (31 cambi in corsa): grezzo +0,481 ppm, controlli
+appaiati +0,253, **netto +0,227 (SE 0,118, t 1,9)** → **53% è ritorno alla media**; quello che fa davvero è
+cambiare **1,2 maglie** subito (conferma 64,4% contro 75,1%). Coerente con la caduta di R10.
+**La cornice**: **Var(ln pv) = 90,5%** di Var(ln fantapunti) su `default`, 89,9% su `euro`, contro ~2% di
+Var(ln fm) — il 90% di una stagione sono le presenze, che spiega perché tutto l'adottato (R3, R3c, R7, R13)
+è presenze o minuti. **Difetto di dati chiuso senza rete**: il risultato di una partita di Serie A è
+derivabile offline (`goals` è al netto di rigori **e** autogol; screening severo → **278 giornate su 418**).
+Manca, per farne una regola: un **gate per-giornata** e i dati di **coppa/Europa**.
 
 ### 28 luglio 2026 (notte tarda), in una riga: ogni calciatore ha il suo RUOLO REALE, e si sa dove collocarlo
 Richiesta dell'utente: il ruolo reale di ogni giocatore, recuperato **quando gira lo snapshot**, per

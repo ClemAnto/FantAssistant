@@ -22,11 +22,53 @@ proporre qualsiasi regola) → **`metrica-asta-surplus-v1.md`** (con cosa il pan
 è VALORE) → `spec-euroleghe-ingest-v9.md` → `nota-modello-set-pieces-v2.md` →
 `modello-previsionale-v3.8.md` → consolidati di dettaglio. Tutti in `docs/model/`.
 
-## STATO AL 28 LUGLIO 2026 (sera) — LEGGI QUESTO PRIMA DI TUTTO
+## STATO AL 29 LUGLIO 2026 — LEGGI QUESTO PRIMA DI TUTTO
 
 Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
 
-### ULTIMO IN ORDINE DI TEMPO — il RUOLO REALE granulare: 12 codici, e dove si collocano (spec «Novità v9.7»)
+### ULTIMO IN ORDINE DI TEMPO — quattro credenze del fantacalcio MISURATE: un solo canale, e non è il voto
+
+Domande dell'utente (29/07/2026): il riposo corto peggiora la resa? «vincere aiuta a vincere»? una
+vittoria fa confermare l'undici? il nuovo allenatore dà una sferzata? Misurate su
+`platform='default'` (Serie A), 7 stagioni, **106.977 partite-giocatore**, esiti demeaned dentro
+(giocatore, stagione). **Descrittivo: nessun giro di gate, nessun verdetto cambia, nessuna regola entra.**
+Rapporto completo: [turnover-atteso-v1.md](turnover-atteso-v1.md); sintesi nel gate §5-duodecies.
+
+1. **Tutte e quattro hanno un effetto reale, e in tutte e quattro è su CHI GIOCA.** Riposo ≤3 giorni:
+   **P(titolare) −9,8pp**, **P(voto) −4,4pp**, negativo **7 stagioni su 7** — e **fantavoto −0,014
+   (t −0,5)**, con segno instabile fra stagioni. Dopo una vittoria contro dopo una sconfitta: **+5,0 /
+   −4,1pp** per chi era titolare, specchiato sui panchinari, **XI confermato 78,2% vs 71,0%** (≈2,4 maglie
+   cambiate dopo una vittoria, 3,2 dopo una sconfitta), **7 su 7**.
+2. **Le credenze sul RENDIMENTO cadono, una col segno rovesciato.** Dopo una vittoria il fantavoto fa
+   **−0,046** (−0,032 corretto per l'avversario): ritorno alla media, non inerzia — e **regge al proprio
+   null rimescolato** (null −0,002, contrasto W−L −0,074 contro −0,002, t −3,4). Però un punto di fantavoto
+   in t−1 vale **+2,35pp** di titolarità in t: l'informazione viaggia **attraverso la scelta
+   dell'allenatore**, non le gambe.
+2-bis. **«Ha segnato, si ripeterà?» — misurato con 300 rimescolamenti per sequenza** (il test ingenuo è
+   distorto: `P(hit|hit)−P(hit|miss)` è negativa anche su dati casuali, bias di Miller–Sanjurjo). **Il gol
+   è senza memoria**: su Serie A tutte e quattro le statistiche di raggruppamento sono a zero (1.260
+   giocatore-stagione). **Il livello di prestazione ha un filo di memoria**: il quartile alto di fantavoto
+   si raggruppa su entrambe le piattaforme (t +2,7…+6,5) ma vale **+0,014 su un tasso base di 0,408**, cioè
+   42% contro 40% — solido e non scommettibile. ⚠️ E la correzione che ne è venuta: la «mano calda a
+   −0,035» della prima stesura era **la distorsione**, non un effetto; col null giusto è **+0,012 (+3,4 sd)**,
+   cioè positiva e minuscola. Regola di metodo: un'autocorrelazione ritardata dentro un gruppo demeaned si
+   confronta con la sequenza **rimescolata**, non con zero.
+3. **Nuovo allenatore: metà sferzata è aritmetica.** Grezzo +0,481 punti/partita; controlli appaiati con la
+   stessa forma di partenza +0,253 → **netto +0,227 (SE 0,118, t 1,9)**, cioè **53% ritorno alla media** e
+   il resto non risolvibile con 31 eventi. Quello che fa davvero: **conferma il 64,4% dell'undici** contro
+   il 75,1% delle settimane normali = **1,2 maglie subito**. Coerente con la caduta di R10.
+4. **La cornice, che spiega il resto del motore**: **Var(ln pv) = 90,5%** di Var(ln fantapunti) su
+   `default` (89,9% su `euro`) contro **~2%** di Var(ln fm). Il 90% di una stagione **sono** le presenze —
+   per questo tutto ciò che è entrato nel motore (R3, R3c, R7, R13) è una regola di presenze o minuti.
+5. **Difetto di dati chiuso senza rete**: il **risultato** di una partita di Serie A è derivabile offline.
+   `goals` è al netto di rigori **e** autogol (`goals+own_goals+pen_scored` pareggia i gol subiti dei
+   portieri su **386 giornate su 418**), quindi gol fatti = `SUM(goals)+SUM(pen_scored)`, gol subiti dalle
+   righe `role='P'`; screening severo (bilancio **e** vittorie == sconfitte) → **278/418 (66,5%)**.
+6. **Cosa manca per farne una regola**: un **gate per-giornata**, che non esiste — il gate attuale giudica
+   un bersaglio stagionale all'asta. E i **dati di coppa/Europa**, senza cui la congestione vera resta non
+   misurata (il bucket ≤4 giorni è pulito, quello 5+ è contaminato per le squadre europee → si **sottostima**).
+
+### il RUOLO REALE granulare: 12 codici, e dove si collocano (spec «Novità v9.7»)
 
 Richiesta dell'utente: ogni calciatore deve avere il suo **ruolo reale**, recuperato **quando gira lo
 snapshot**, per sapere orientativamente dove collocarlo in campo.

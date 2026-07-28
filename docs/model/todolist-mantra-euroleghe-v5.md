@@ -11,7 +11,7 @@ Invariata (storico 9 stagioni, endpoint Excel, fallback SofaScore, scala ricalib
 - [x] 2.3 FM per ruolo posseduto + rank + flessibilita' (fuori FM) -> fm-per-ruolo-fase2_3-2_4.md
 - [x] 2.4 Cambi ruolo = cambi d'ancora ASIMMETRICI -> idem
 - [x] 2.5-lite backtest core (Mantra non-inferiore a Classic) -> backtest-mantra-fase2_5lite.md
-> ⚠️ Stato corrente: `00-BRIDGE-punto-di-ingresso.md`, blocco «STATO AL 28 LUGLIO 2026 (sera)». Set
+> ⚠️ Stato corrente: `00-BRIDGE-punto-di-ingresso.md`, blocco «STATO AL 29 LUGLIO 2026». Set
 > adottati **euro R0c+R3c · Serie A R3+R7+R13** su **10 finestre (Serie A) e 5 (euro)**; R4, R10 e R8 sono
 > cadute quando le finestre sono diventate dieci, e **tutte le dieci candidate del 28/07** (R17 compresa)
 > sono cadute.
@@ -156,6 +156,36 @@ Nota: **nessuna delle feature generate il 27/07 e' entrata nel motore**, e **nes
   accettata per gli attaccanti. Resta da **formulare l'ipotesi** e pre-registrarla — ma attenzione:
   cinque forme di affollamento in attacco sono già cadute, e nulla dice che in difesa il meccanismo si
   trasferisca meglio.
+
+### Famiglia TURNOVER ATTESO — misurata il 29/07 (descrittiva), NON pre-registrabile ancora
+- [x] **FATTO 29/07 — quattro credenze misurate**: riposo corto, «vincere aiuta a vincere», l'undici che si
+  conferma, la sferzata del nuovo allenatore. [turnover-atteso-v1.md](turnover-atteso-v1.md) ·
+  `gate-motore-v1.md` §5-duodecies. **Tutte e quattro hanno un effetto reale e in tutte e quattro è su CHI
+  GIOCA**: riposo ≤3 giorni → P(titolare) −9,8pp e P(voto) −4,4pp (7 stagioni su 7) contro fantavoto −0,014
+  (t −0,5); dopo una vittoria vs una sconfitta → +5,0/−4,1pp e XI confermato 78,2% vs 71,0% (7 su 7) mentre
+  il fantavoto ha **segno rovesciato** (−0,046). Cornice: **Var(ln pv) = 90,5%** di Var(ln fantapunti).
+- [x] **FATTO 29/07 — «ha segnato, si ripeterà?» misurato per permutazione** (300 rimescolamenti per
+  sequenza, perché il test ingenuo è distorto: bias di Miller–Sanjurjo). **Il gol è senza memoria** (Serie A:
+  tutte e quattro le statistiche a zero su 1.260 giocatore-stagione); **il livello di prestazione ha un filo
+  di memoria** (quartile alto di fantavoto, t +2,7…+6,5 su entrambe le piattaforme, ma +0,014 su tasso base
+  0,408). ⚠️ **Correzione**: la «mano calda a −0,035» era la distorsione, col null giusto è **+0,012**.
+  Regola di metodo ora scritta nel gate §5-duodecies punto 4.
+- [x] **FATTO 29/07 senza rete — il risultato di una partita di Serie A è derivabile offline**: `goals` è al
+  netto di rigori **e** autogol, quindi gol fatti = `SUM(goals)+SUM(pen_scored)` e gol subiti dalle righe
+  `role='P'`; pareggia su 386 giornate su 418, screening severo → **278/418 (66,5%)**.
+- [ ] **BLOCCANTE per farne una regola: manca un GATE PER-GIORNATA.** Il gate attuale giudica un bersaglio
+  stagionale all'asta, quindi nulla di questo è adottabile. È il lavoro vero, non la regola. Forma
+  legittima: **una** famiglia (turnover atteso dell'undici), tre input (risultato precedente, riposo,
+  impegni), bersaglio `P(voto)` e minuti attesi — **mai la fantamedia** — identificazione **within-club**.
+- [ ] **Prerequisito di dati n.1: le partite di COPPA ed EUROPEE.** Senza di esse la congestione vera non è
+  misurata: il bucket ≤4 giorni è pulito, quello «riposo normale» è contaminato per le squadre europee, e il
+  bias **sottostima** l'effetto.
+- [ ] **Prerequisito di dati n.2: i punteggi delle altre 4 leghe** — una richiesta **per giornata** (non per
+  partita) sull'endpoint dei round, per uscire da una sola piattaforma. `positions.download_round` scarta
+  `homeScore`/`awayScore` al parse e `_get_json` non cachea il raw, quindi non è recuperabile offline.
+- [ ] **Attenzione al confine già battuto**: «vincere aiuta a vincere» come regressore **d'asta** *è* la
+  famiglia forza-club, **CHIUSA** (§5-nonies), sullo stesso difetto — input derivabile dalla fantamedia del
+  giocatore. Diventa un'ipotesi nuova **solo** con identificazione within-club.
 
 ### Aperto dopo la passata del 28/07, in ordine di leva
 - [ ] **LEVA MASSIMA — prezzare i nuovi arrivi senza storico.** È il vincolo che ha reso inutile la

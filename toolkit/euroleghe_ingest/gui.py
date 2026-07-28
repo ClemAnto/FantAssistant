@@ -2768,17 +2768,19 @@ class SnapshotView(ttk.Frame):
     # on the same shirt, so the colour said a second time what the number already says - and two encodings
     # of one quantity are two things to read instead of one.
 
-    def _line_codes(self, slots: list[tuple[dict, list[dict]]]) -> list[str]:
+    def _line_codes(self, placed: list[tuple[float, dict, list[dict]]]) -> list[str]:
         """The code on each marker of one line, with only ONE centre-forward among them.
 
         A real side fields one punta centrale; a second adapts as a seconda punta and reads 'Sp', which is
-        what he is actually asked to do. The shirt stays with the striker drawn most centrally.
+        what he is actually asked to do. The shirt stays with the striker drawn most centrally - and
+        "most centrally" is read off the REAL fractions `_placed` produced, not off an even spread: while
+        it was computed from the index, Hojlund at 0.61 read as less central than a second striker at
+        0.50 and the true centre-forward was labelled the seconda punta.
         """
-        codes = [self.badge(starter, -((index + 1) / (len(slots) + 1) - 0.5) * 2)
-                 for index, (starter, _rivals) in enumerate(slots)]
+        codes = [self.badge(starter, -(spread - 0.5) * 2) for spread, starter, _rivals in placed]
         centre = [index for index, code in enumerate(codes) if code == "Pc"]
         if len(centre) > 1:
-            keep = min(centre, key=lambda index: abs((index + 1) / (len(slots) + 1) - 0.5))
+            keep = min(centre, key=lambda index: abs(placed[index][0] - 0.5))
             for index in centre:
                 if index != keep:
                     codes[index] = "Sp"
@@ -2803,12 +2805,20 @@ class SnapshotView(ttk.Frame):
         # 7.2 px per character, measured on the theme's bold face - 6 was optimistic and the names ran
         # past their plates and off the pitch
         fits = max(5, int((room - 8) / 7.2))
-        name = (starter.get("name") or "")[:fits]
         # the share of the matchdays he plays: the whole statement about how firmly the shirt is his, in
         # one number, under his name
         horizon = "recent" if self.xi_mode.get() == "next" else "season"
         share = self.presence(starter, horizon)
-        rival_names = ", ".join((row.get("name") or "")[:9] for row in rivals)[:fits]
+        # TWO lines at most, and the percentage shares the first with the name. Three lines of plate
+        # (name, share, rivals) made a 40px block, and with a plate above one marker and below the one in
+        # the lane before it that is 108px of stack for 90px of pitch between two lines - which is what
+        # "the layout is broken" looked like. One rival is named, not two: the second is in the table.
+        share_text = f" {share:.0%}" if share else ""
+        name = (starter.get("name") or "")[:max(5, fits - len(share_text))]
+        lines = [(f"{name}{share_text}", theme.FONTS["strong"], "#ffffff")]
+        if rivals:
+            rival = (rivals[0].get("name") or "")[:max(4, fits - 3)]
+            lines.append((f"vs {rival}", theme.FONTS["small"], "#ffe082"))
 
         radius = 12
         code = code or self.badge(starter, drawn_side)
@@ -2816,21 +2826,16 @@ class SnapshotView(ttk.Frame):
                            fill="#12351a", outline="#f4f6f5", width=2)
         canvas.create_text(x, y, fill="#ffffff", font=theme.FONTS["pill"], text=code)
 
-        lines = [(name, theme.FONTS["strong"], "#ffffff")]
-        if share:
-            lines.append((f"{share:.0%}", theme.FONTS["small"], "#dcedc8"))
-        if rival_names:
-            lines.append((f"vs {rival_names}", theme.FONTS["small"], "#ffe082"))
         widest = max(len(part) for part, _font, _fill in lines)
         plate = min(room, 8 + widest * 7.2)
         # a shirt near the touchline slides inwards rather than hanging over it
         x = min(max(x, 4 + plate / 2), edge - 4 - plate / 2)
-        high = 4 + len(lines) * 12
-        top = y - radius - 2 - high if above else y + radius + 2
+        high = 3 + len(lines) * 13
+        top = y - radius - 3 - high if above else y + radius + 3
         canvas.create_rectangle(x - plate / 2, top, x + plate / 2, top + high,
                                 fill="#12351a", outline="#4c7a35", width=1)
         for index, (part, font, fill) in enumerate(lines):
-            canvas.create_text(x, top + 8 + index * 12, fill=fill, font=font, text=part)
+            canvas.create_text(x, top + 9 + index * 13, fill=fill, font=font, text=part)
 
     def _draw_pitch(self) -> None:
         """The eleven on a VERTICAL pitch: keeper at the TOP, attack at the bottom.
@@ -2888,8 +2893,7 @@ class SnapshotView(ttk.Frame):
             if not slots:
                 continue
             placed = self._placed(slots)
-            slots = [(starter, rivals) for _spread, starter, rivals in placed]
-            codes = self._line_codes(slots)
+            codes = self._line_codes(placed)
             # How much width a shirt owns: the distance to its nearest neighbour, since the shirts are no
             # longer evenly spaced. Three men crowded into the centre band leave ~45px each, which is not
             # a name - so a crowded line ALTERNATES its plates above and below the marker, and each one
@@ -2910,11 +2914,13 @@ class SnapshotView(ttk.Frame):
                 nudge = self.depth(starter)
                 if nudge is not None:
                     offset = (nudge - self.LINE_DEPTH.get(role, 0.5)) * 44
-                    y = height * fraction + max(-18.0, min(18.0, offset))
+                    # bounded tighter than the 18px it used to be: the nudge moves a shirt inside its
+                    # line, and a line is ~90px from the next - 18px each way plus two plates collided
+                    y = height * fraction + max(-11.0, min(11.0, offset))
                 else:
                     # no granular role: the old rule, a crowded line staggers so alternate shirts step
                     # forward - which is also how a 3-5-2 really lines up, wing-backs ahead of the middle
-                    y = height * fraction + (0 if len(slots) < 4 or index % 2 == 0 else 22)
+                    y = height * fraction + (0 if len(slots) < 4 or index % 2 == 0 else 14)
                 # the TEAM-relative side of where he is drawn, on the same -1..+1 scale `lateral` uses:
                 # it names the flank for a role that does not (a winger placed there reads 'Es' or 'Ed').
                 # Negated, because the screen is mirrored with respect to the team facing downwards.
