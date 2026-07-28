@@ -43,6 +43,32 @@ def test_unfetched_bonuses_are_missing_not_zero(tmp_path):
     assert reread[2]["goals"] == 0 and reread[2]["bonus_matches"] == 3
 
 
+def test_backfill_targets_exactly_the_matches_missing_their_bonuses(tmp_path):
+    """Re-running the module to fix 111 players would re-resolve every identity and re-download every
+    match list to arrive at the rows it already has. `stored_without_bonuses` is the work that is
+    actually missing: the stored matches with no goals, grouped by player, so each costs one request."""
+    from euroleghe_ingest.db.database import init_db
+    from euroleghe_ingest.modules import recent_form
+
+    conn = init_db(tmp_path / "euroleghe.db")
+    conn.executemany("INSERT INTO players(fc_id, canonical_name) VALUES (?, ?)",
+                     [(1, "Needs bonuses"), (2, "Already done"), (3, "Half done")])
+    rows = [(1, "a1", None), (1, "a2", None),          # nothing fetched
+            (2, "b1", 1), (2, "b2", 0),                # done, including a MEASURED zero
+            (3, "c1", 2), (3, "c2", None)]             # interrupted mid-player
+    conn.executemany(
+        "INSERT INTO external_match_stats(fc_id, season, source, match_id, match_date, minutes, "
+        "goals) VALUES (?, '2024-25', 'sofascore_recent', ?, '2025-03-01', 90, ?)", rows)
+    conn.commit()
+
+    pending = dict((fc_id, ids) for fc_id, _name, ids in
+                   recent_form.stored_without_bonuses(conn))
+    assert sorted(pending) == [1, 3], "a player whose bonuses are all in must not be re-requested"
+    assert sorted(pending[1]) == ["a1", "a2"]
+    assert pending[3] == ["c2"], "an interrupted player resumes at the match he stopped on"
+    assert 2 not in pending, "goals = 0 is a measurement and must not look like missing data"
+
+
 def test_resume_does_not_lock_in_a_player_whose_bonuses_were_skipped(tmp_path):
     """The other half of the same bug: the resume check counted MATCHES, so a player stored by a
     --no-bonuses run looked covered forever and could never be completed."""

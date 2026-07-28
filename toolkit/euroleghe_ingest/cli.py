@@ -74,6 +74,9 @@ def build_parser() -> argparse.ArgumentParser:
                            help="how many recent club matches per player (default: 10)")
             p.add_argument("--no-bonuses", dest="bonuses", action="store_false",
                            help="skip the per-match goals/assists request (5x cheaper, no FM-equivalent)")
+            p.add_argument("--bonuses-only", dest="bonuses_only", action="store_true",
+                           help="only fetch the goals/assists of matches ALREADY stored - one request "
+                                "per match, no identity resolving, no match list re-download")
             p.add_argument("--limit", type=int,
                            help="only the N most expensive players (for a pilot run)")
         if name == "synth":
@@ -134,7 +137,8 @@ def main(argv: list[str] | None = None) -> int:
                                       refresh=args.refresh, layer=args.layer)
             elif args.command == "recent_form":
                 load("recent_form").run(ctx, seasons=args.season, wanted=args.matches,
-                                        bonuses=args.bonuses, limit=args.limit)
+                                        bonuses=args.bonuses, limit=args.limit,
+                                        bonuses_only=args.bonuses_only)
             elif args.command == "synth":
                 load("synth").run(ctx, validate=args.validate)
             elif args.command == "backtest":

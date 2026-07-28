@@ -398,6 +398,82 @@ def store(conn, fc_id: int, matches: list[dict]) -> int:
     return len(rows)
 
 
+def stored_without_bonuses(conn) -> list[tuple[int, str, list[str]]]:
+    """(fc_id, name, event ids) for every stored player whose bonuses were never fetched.
+
+    The rows are already there and correct - what is missing is one request per match. Re-running the
+    whole module would re-resolve the identity and re-download the match list to arrive at the same
+    rows, so this exists to do only the part that is missing.
+    """
+    rows = conn.execute(
+        """SELECT e.fc_id, p.canonical_name, e.match_id
+           FROM external_match_stats e
+           JOIN players p USING(fc_id)
+           WHERE e.source = ? AND e.goals IS NULL
+           ORDER BY e.fc_id, e.match_date""", (SOURCE,)).fetchall()
+    grouped: dict[int, tuple[str, list[str]]] = {}
+    for fc_id, name, match_id in rows:
+        grouped.setdefault(fc_id, (name, []))[1].append(match_id)
+    return [(fc_id, name, ids) for fc_id, (name, ids) in grouped.items()]
+
+
+def backfill_bonuses(ctx: Context, limit: int | None = None) -> int:
+    """Fetch the goals/assists/xG of matches already stored. Resumable and cheap to interrupt.
+
+    The provider id comes from `player_xref` where the earlier run left it (95 of the 111 players that
+    need this), and is resolved only for the ones missing it. Each match is committed as it lands, so a
+    stop keeps everything fetched so far - this is ~10 requests per player with a polite sleep between
+    them, and it is not going to complete in one sitting if the network objects.
+    """
+    conn = ctx.require_conn()
+    session = _client()
+    pending = stored_without_bonuses(conn)
+    if limit:
+        pending = pending[:limit]
+    total = sum(len(ids) for _fc_id, _name, ids in pending)
+    print(f"[recent_form] backfill: {len(pending)} players, {total} matches without bonuses")
+    filled = 0
+    try:
+        for fc_id, name, match_ids in pending:
+            if ctx.cancelled():
+                raise KeyboardInterrupt
+            row = conn.execute(
+                "SELECT source_id FROM player_xref WHERE fc_id = ? AND source = 'sofascore'",
+                (fc_id,)).fetchone()
+            provider_id = row[0] if row else None
+            if not provider_id:
+                print(f"[recent_form]   {name[:22]:<22} no stored provider id - skipped "
+                      f"(rerun the module itself to resolve him)")
+                continue
+            got = 0
+            for match_id in match_ids:
+                if ctx.cancelled():
+                    raise KeyboardInterrupt
+                _polite_sleep(ctx.cancel_event)
+                data = _get_json(session, EVENT_STATS_ENDPOINT.format(eid=match_id,
+                                                                      pid=provider_id))
+                statistics = (data or {}).get("statistics") or {}
+                if not statistics:
+                    continue
+                conn.execute(
+                    """UPDATE external_match_stats
+                       SET goals = ?, assists = ?, xg = COALESCE(?, xg), xa = COALESCE(?, xa)
+                       WHERE fc_id = ? AND source = ? AND match_id = ?""",
+                    (statistics.get("goals") or 0, statistics.get("goalAssist") or 0,
+                     statistics.get("expectedGoals"), statistics.get("expectedAssists"),
+                     fc_id, SOURCE, match_id))
+                got += 1
+            conn.commit()
+            filled += got
+            print(f"[recent_form]   {name[:22]:<22} {got}/{len(match_ids)} matches enriched")
+    except KeyboardInterrupt:
+        print("[recent_form] interrupted - what is fetched is committed, rerun to continue")
+    finally:
+        session.close()
+    print(f"[recent_form] backfill done: {filled} matches enriched")
+    return filled
+
+
 def _process(ctx: Context, session, conn, player: dict, target: str, cutoff: int,
              wanted: int, bonuses: bool) -> dict | None:
     """One player: resolve, fetch, store. None = already covered, nothing to do."""
@@ -468,6 +544,9 @@ def run(ctx: Context, *, seasons=None, wanted: int = MATCHES_WANTED, bonuses: bo
     whatever happens - a crash two thirds of the way through used to leave nothing to look at.
     """
     conn = ctx.require_conn()
+    if kwargs.get("bonuses_only"):
+        backfill_bonuses(ctx, limit)
+        return
     all_seasons = [row[0] for row in conn.execute(
         "SELECT DISTINCT season FROM rosters ORDER BY season")]
     targets = list(seasons) if seasons else all_seasons[1:]      # the first season has no "previous"
