@@ -321,3 +321,80 @@ def test_real_role_columns_reach_the_sheet():
                    "desc_real_role_depth", "desc_real_role_side", "desc_foot",
                    "desc_real_role_observed"):
         assert column in snapshot.PLAYER_COLUMNS
+
+
+# ---------- the percentage on a shirt, and the two rules of a real attack ----------
+def test_the_shirt_shows_a_share_of_the_matchdays_discounted_by_the_injuries():
+    """The number an operator writes by hand ("Meret 50%, Di Lorenzo 95%") is a share of the season, not
+    of a duel: normalising over the rivals a slot happens to have left over made a 14-start midfielder
+    read 100%. And a man who misses stretches of every year is worth less of a shirt than a team-mate
+    who is available every week, even when the coach prefers him."""
+    from euroleghe_ingest.gui import SnapshotView as View
+
+    view = View.__new__(View)
+    view.clubs = {"Test": {"complete_XIs": "38"}}
+    view.players = []
+    fit = {"club": "Test", "desc_season_starts": "30", "desc_minutes_full_season": "2700",
+           "desc_injury_source": "transfermarkt (no absence recorded)", "desc_injury_weighted": "0"}
+    # 30 of 38 matchdays, 2700 of 3420 minutes: the same story twice, and no injury to discount
+    assert 0.75 < view.presence(fit) < 0.85
+    assert view.availability(fit) == 1.0
+
+    # the same starts and minutes, but he misses ~10 matches a season: below a healthy team-mate
+    fragile = dict(fit, desc_injury_weighted=str(10 * (1.0 + 0.6 + 0.35)))
+    assert view.availability(fragile) < 0.75
+    assert view.presence(fragile) < view.presence(fit)
+    # NO history is not a clean bill of health either way: it must not discount him
+    assert view.availability({"club": "Test", "desc_season_starts": "30"}) == 1.0
+
+    # the tiers are what makes the spine visible without reading a number
+    assert view.tier(0.90)[0] == "fondamentale"
+    assert view.tier(0.60)[0] == "favourito"
+    assert view.tier(0.30)[0] == view.tier(None)[0] == "ballottaggio"
+
+
+def test_a_real_attack_has_one_centre_forward_and_he_plays_in_the_middle():
+    """Two rules a coach does not break, and the drawing has to obey both: a punta centrale plays in the
+    middle of an attack, and a side fields ONE - the second adapts as a seconda punta."""
+    from euroleghe_ingest.gui import SnapshotView as View
+
+    view = View.__new__(View)
+    striker = {"name": "Nine", "desc_real_roles": "ST"}
+    winger = {"name": "Seven", "desc_real_roles": "RW"}
+    # for the wide slot the winger comes first, however the pool is ordered: a striker on the touchline
+    # is a compromise, and it only happens when the flank has nobody else
+    assert view.slot_cost(winger, "R", "A", 0) < view.slot_cost(striker, "R", "A", 0)
+    assert view.slot_cost(striker, "C", "A", 0) < view.slot_cost(striker, "C", "A", 2)
+
+    # two centre-forwards on the board: the central one keeps the shirt, the other reads seconda punta
+    codes = view._line_codes([(striker, []), (dict(striker, name="Nine bis"), [])])
+    assert sorted(codes) == ["Pc", "Sp"]
+    assert view._line_codes([(winger, []), (striker, [])]) == ["Ad", "Pc"]
+
+
+def test_the_trend_dot_is_full_only_for_a_full_match_and_carries_the_bonus():
+    """Colour says how he played, full-or-hollow whether he was really on the pitch, and the two pixel
+    rows around the dot carry a goal and an assist - three questions, three channels, no second colour."""
+    from euroleghe_ingest.gui import SnapshotView as View
+
+    class Fake:
+        def __init__(self):
+            self.pixels: dict[tuple[int, int], str] = {}
+
+        def put(self, colour, to):
+            for x in range(to[0], to[2]):
+                for y in range(to[1], to[3]):
+                    self.pixels[(x, y)] = colour
+
+    solid, hollow = Fake(), Fake()
+    View._dot(solid, 0, 0, "#66bb6a")
+    View._dot(hollow, 0, 0, "#66bb6a", hollow=True)
+    assert solid.pixels[(4, 4)] == "#66bb6a"          # the middle is filled in
+    assert (4, 4) not in hollow.pixels                # and hollow when he played less than 75'
+    assert hollow.pixels[(0, 3)] == "#66bb6a"         # same colour on the ring: it still means the band
+    assert (2, 3) not in hollow.pixels                # a two-pixel ring, not an outline
+
+    pips = Fake()
+    View._pips(pips, 0, 0, 2, "#ffa000")
+    assert pips.pixels[(0, 0)] == pips.pixels[(3, 1)] == "#ffa000"
+    assert (6, 0) not in pips.pixels                  # two goals, two pips

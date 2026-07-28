@@ -40,9 +40,6 @@ LIGHT: dict[str, str] = {
     "error": "#c62828",
     "idle": "#9aa3ad",
     "selection": "#dbeafe",
-    # The ring around a full match in the last-10 strip. WHITE on a dark row and near-black on a light
-    # one: its job is to be seen, and a white ring on a white row is not a ring.
-    "dot_ring": "#1b1f24",
 }
 
 DARK: dict[str, str] = {
@@ -63,7 +60,6 @@ DARK: dict[str, str] = {
     "error": "#f2777a",
     "idle": "#6b7480",
     "selection": "#264063",
-    "dot_ring": "#ffffff",
 }
 
 # The live palette. Mutated in place by `apply_theme`, so every module that did

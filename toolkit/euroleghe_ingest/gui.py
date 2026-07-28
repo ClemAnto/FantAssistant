@@ -42,6 +42,7 @@ from euroleghe_ingest.modules.positions import (
     REAL_ROLE_SIDE,
     REAL_ROLES,
 )
+from euroleghe_ingest.modules.snapshot import INJURY_WEIGHTS
 from euroleghe_ingest.sources import _norm_roles, available_sources
 
 
@@ -1550,7 +1551,8 @@ class SnapshotView(ttk.Frame):
               "did not play: pale grey bench or left out, violet inside a recorded injury spell, pale "
               "red a suspension, dark grey no player-level data at all (unknown, which includes not "
               "being in the squad). A suspension nobody recorded reads as bench - we do not know he "
-              "was banned. A ring around the dot means he played at least 75 minutes.",
+              "was banned. A FULL dot means he played at least 75 minutes, a hollow one that he was "
+              "on for less. An amber pip above the dot is a goal, a blue pip below it an assist.",
         "tit": "TITOLARITA: starts / matches over the full real season - how often the coach fields "
                "him. This, and never a valuation, is what decides who is on the pitch above.",
         "role": "The LISTONE role - what you buy him as (P/D/C/A). Click to restore the auction order: "
@@ -1819,6 +1821,12 @@ class SnapshotView(ttk.Frame):
     ABSENT: ClassVar[dict[str, str]] = {"b": "#9e9e9e", "i": "#9575cd", "s": "#ef5350",
                                         "n": "#37474f"}
     DOT = 10                                   # cell size per match, in pixels
+    FULL_MATCH = 75                            # minutes from which the dot is drawn SOLID
+    # A goal and an assist are facts about the match, not about the performance band, so they get their
+    # own two pixel rows - above the dot for goals, below it for assists - rather than a colour of the
+    # dot itself. Amber and blue because neither is a rating band: nothing on the strip means two things.
+    GOAL_PIP = "#ffa000"
+    ASSIST_PIP = "#1e88e5"
 
     @classmethod
     def band(cls, rating: float | None) -> str:
@@ -1829,9 +1837,21 @@ class SnapshotView(ttk.Frame):
                 return colour
         return cls.BANDS[-1][1]
 
-    def _sparkline(self, series: str | None):
-        """The last ten matches as dots. A PhotoImage, because a Treeview cell cannot draw."""
+    def _sparkline(self, series: str | None, detail: str | None = None):
+        """The last ten matches as dots, OLDEST on the left. A PhotoImage: a Treeview cell cannot draw.
+
+        Three things are readable at a glance and each is a different question. The COLOUR is how he
+        played (the rating band, or the faded reason he did not). SOLID or HOLLOW is whether he was really
+        on the pitch - 75 minutes or more fills the dot in. And the two pixel rows around it carry the
+        bonus: a pip above per goal, a pip below per assist, up to three each, read from `desc_form_detail`
+        because the series token only carries the rating and the minutes.
+        """
         tokens = (series or "").split()
+        bonus = [(0, 0)] * len(tokens)
+        for index, entry in enumerate((detail or "").split(";")[:len(tokens)]):
+            fields = entry.split("|")
+            if len(fields) >= 9:
+                bonus[index] = (int(_number(fields[7])), int(_number(fields[8])))
         size = self.DOT
         image = tk.PhotoImage(width=size * max(len(tokens), 1) + 2, height=size + 4)
         background = theme.color("surface")
@@ -1846,17 +1866,27 @@ class SnapshotView(ttk.Frame):
             else:
                 colour = _blend(self.ABSENT.get(parts[0], "#9e9e9e"), background, 0.3)
                 minutes = 0.0
-            self._dot(image, index * size + 1, 2, colour,
-                      ring=theme.color("dot_ring") if (minutes or 0) >= 75 else None)
+            x = index * size + 1
+            self._dot(image, x, 2, colour, hollow=minutes < self.FULL_MATCH)
+            goals, assists = bonus[index]
+            self._pips(image, x, 0, min(goals, 3), self.GOAL_PIP)
+            self._pips(image, x, size + 2, min(assists, 3), self.ASSIST_PIP)
         return image
 
     @staticmethod
-    def _dot(image, x: int, y: int, colour: str, ring: str | None = None) -> None:
-        """An 8x8 dot, ringed when he played a full match (75 minutes or more).
+    def _pips(image, x: int, y: int, count: int, colour: str) -> None:
+        """`count` 2x2 marks in a row, three at most - the width of a dot holds no more than three."""
+        for index in range(count):
+            image.put(colour, to=(x + index * 3, y, x + index * 3 + 2, y + 2))
 
-        The ring's colour comes from the theme rather than being white: on a light row a white ring is
-        not a ring at all, which is exactly how it shipped the first time and what the enlarged export
-        made obvious.
+    @staticmethod
+    def _dot(image, x: int, y: int, colour: str, hollow: bool = False) -> None:
+        """An 8x8 dot: SOLID when he played a full match, an empty circle of the same colour otherwise.
+
+        Filled against hollow, rather than an outline around the dot. The outline was a SECOND colour on
+        a strip of ten - it had to contrast with the row, so it changed with the theme, and what it read
+        as was a grid. Full and empty need no second colour and survive both themes, and the colour goes
+        on meaning only one thing: how he played.
         """
         mask = ("  ####  ",
                 " ###### ",
@@ -1866,21 +1896,21 @@ class SnapshotView(ttk.Frame):
                 "########",
                 " ###### ",
                 "  ####  ")
+        # the ring is two pixels thick and the hole four wide: a one-pixel ring around a six-wide hole
+        # read as an outline at this size, which is the opposite of what full-against-empty is for
         edge = ("  ####  ",
-                " #    # ",
-                "#      #",
-                "#      #",
-                "#      #",
-                "#      #",
-                " #    # ",
+                " ###### ",
+                "##    ##",
+                "##    ##",
+                "##    ##",
+                "##    ##",
+                " ###### ",
                 "  ####  ")
         for row, line in enumerate(mask):
             for column, pixel in enumerate(line):
-                if pixel != "#":
+                if pixel != "#" or (hollow and edge[row][column] != "#"):
                     continue
-                on_edge = ring and edge[row][column] == "#"
-                image.put(ring if on_edge else colour,
-                          to=(x + column, y + row, x + column + 1, y + row + 1))
+                image.put(colour, to=(x + column, y + row, x + column + 1, y + row + 1))
 
     # ---------- sorting ----------
     # (column id -> the CSV field it reads). The auction order is not a column: it is role first, then
@@ -1995,7 +2025,7 @@ class SnapshotView(ttk.Frame):
                 sided = next((part for part in (row.get("roles_mantra") or "").split(";")
                               if part.strip().lower() in self.SIDE), "")
                 real = " ".join(part for part in (row.get("desc_real_role") or "", sided) if part)
-            spark = self._sparkline(row.get("desc_form_series"))
+            spark = self._sparkline(row.get("desc_form_series"), row.get("desc_form_detail"))
             self._sparks.append(spark)              # Tk drops an image nobody references
             self.player_tree.insert("", "end", image=spark, values=(
                 row.get("role_classic") or "?", real or "-", row.get("name"),
@@ -2066,6 +2096,14 @@ class SnapshotView(ttk.Frame):
     LANES_5: ClassVar[tuple[tuple[str, float], ...]] = (
         ("P", 0.06), ("D", 0.27), ("M", 0.47), ("T", 0.65), ("A", 0.83))
 
+    @classmethod
+    def lane_of(cls, row: dict) -> str:
+        """His lane - P, D, M, T or A - from the granular role, with the listone role as the fallback."""
+        codes = cls.real_roles(row)
+        lane = cls.LANE_OF_ROLE.get(codes[0], "") if codes else ""
+        listone = row.get("role_classic") or "?"
+        return lane or ("M" if listone == "C" else listone)
+
     def lanes_for(self, eleven: list) -> tuple[dict[str, list], tuple[tuple[str, float], ...], str]:
         """(players per drawn lane, the lane geometry, the shape as drawn).
 
@@ -2084,19 +2122,165 @@ class SnapshotView(ttk.Frame):
         drawn = "-".join(str(len(lanes.get(key, []))) for key, _y in geometry if key != "P")
         return lanes, geometry, drawn
 
-    def slot_share(self, row: dict, rivals: list[dict]) -> float | None:
-        """How often HE is the one who takes this slot, against the men contesting it.
+    @classmethod
+    def side_of(cls, row: dict) -> str:
+        """L, C or R - which slot of his line he belongs to."""
+        side = cls.lateral(row)
+        if side is None or abs(side) < 0.34:
+            return "C"
+        return "L" if side < 0 else "R"
 
-        The raw start share answers a different question. Two keepers who split a season read ~50% each
-        of the CLUB's matches and a defender who played every game reads 95% - which is exactly the
-        vocabulary an auction uses ("Meret 50%, in ballottaggio with Milinkovic"). So where there IS a
-        contest the number is normalised over the slot: his starts against everyone drawn against him.
+    def slot_template(self, candidates: list[dict], count: int) -> list[str]:
+        """How many of a line's `count` shirts are right, centre and left - measured, not assumed.
 
-        None when nobody in the slot has a measured start: an empty denominator is not a certainty.
+        A line is not a number, it is a set of POSITIONS: the four of a 3-4-2-1 are a right wing back,
+        two centre mids and a left wing back, and filling it with "the best four" produced four centre
+        mids and two empty flanks. So the composition is read off how the club actually used the line -
+        each candidate's starts count toward his own side, and the shirts are shared out by those weights
+        (largest remainder). Napoli's midfield comes out R-C-C-L, which is what it plays.
+
+        A side with no candidate cannot be given a shirt: a position nobody can fill is not a position,
+        and handing it out anyway is exactly how an empty flank gets drawn.
         """
-        mine = self.titolarita(row, "season")[1]
-        total = mine + sum(self.titolarita(rival, "season")[1] for rival in rivals)
-        return round(mine / total, 2) if total else None
+        weights = {"L": 0.0, "C": 0.0, "R": 0.0}
+        available = {"L": 0, "C": 0, "R": 0}
+        for row in candidates:
+            side = self.side_of(row)
+            weights[side] += max(self.titolarita(row, "season")[1], 0.5)   # side, not shirt: raw starts
+            available[side] += 1
+        total = sum(weights.values())
+        if not total:
+            return ["C"] * count
+        exact = {side: count * weight / total for side, weight in weights.items()}
+        slots = {side: min(int(value), available[side]) for side, value in exact.items()}
+        while sum(slots.values()) < count:
+            spare = [side for side in ("R", "C", "L") if slots[side] < available[side]]
+            if not spare:
+                slots["C"] += count - sum(slots.values())      # nobody left: the centre absorbs it
+                break
+            slots[max(spare, key=lambda side: exact[side] - slots[side])] += 1
+        while sum(slots.values()) > count:
+            slots[max((side for side in slots if slots[side]),
+                      key=lambda side: slots[side] - exact[side])] -= 1
+        # right to left: the drawn lane is mirrored later (the team attacks downwards), and keeping one
+        # order here means the template reads like a formation written out on paper
+        return ["R"] * slots["R"] + ["C"] * slots["C"] + ["L"] * slots["L"]
+
+    # A season is 38 matches when the club's own count is unknown, a man is never assumed to miss more
+    # than 60% of it (no history makes anyone a certainty NOT to play), and CLAIM_PRIOR is the handful of
+    # matches of "nobody" that keeps 2-starts-in-2 from reading as a first choice.
+    SEASON_MATCHES: ClassVar[float] = 38.0
+    AVAILABILITY_FLOOR: ClassVar[float] = 0.40
+    # Standing: starts weigh more than minutes because the pitch draws who STARTS, and minutes are what
+    # tell a 90-minute fixture from a man who comes off at 60. Then, for the next matchday, form leads
+    # and standing is the ballast - with RECENT_PRIOR matches' worth of standing mixed into a ten-match
+    # window, which is what stops an empty or a dead-rubber window from deciding a side.
+    STANDING_WEIGHTS: ClassVar[tuple[float, float]] = (0.65, 0.35)
+    FORM_WEIGHT: ClassVar[float] = 0.60
+    RECENT_PRIOR: ClassVar[float] = 3.0
+
+    @classmethod
+    def availability(cls, row: dict) -> float:
+        """The share of a season a man like this one is fit for: 1.0 healthy, less for the injury-prone.
+
+        `desc_injury_weighted` is his matches missed over the last three seasons with snapshot.py's
+        recency weights applied, so dividing by their sum reads as "matches missed in a season".
+
+        NO history means 1.0, and that is a deliberate asymmetry: not knowing whether a man gets injured
+        is not knowing, and the unknown perimeter (a player with no Transfermarkt id) must not be
+        penalised for it. `desc_injury_source` is what separates the two - it says "no absence recorded"
+        for a player who was actually looked up.
+        """
+        if not row.get("desc_injury_source"):
+            return 1.0
+        per_season = _number(row.get("desc_injury_weighted")) / sum(INJURY_WEIGHTS)
+        matches = _number(row.get("desc_season_matches")) or cls.SEASON_MATCHES
+        return max(1.0 - per_season / max(matches, 1.0), cls.AVAILABILITY_FLOOR)
+
+    def slot_cost(self, row: dict, side: str, lane: str, strikers: int) -> tuple[int, int]:
+        """(does he belong on that side, does the role allow that slot) - lower fits better.
+
+        A cost and never a veto: a slot has to be filled by somebody, and an adapted player is a truer
+        drawing than an empty flank. What it encodes are the two things a coach does not do in a REAL
+        formation - and it is the real formation the pitch draws, not a list of fantacalcio roles:
+
+        * A PUNTA CENTRALE plays in the middle of an attack and nowhere else. Without this the fallback
+          that fills an empty wing with whoever is left drew a centre-forward on the touchline.
+        * A SIDE FIELDS ONE. A second centre-forward has to adapt - he is drawn as a seconda punta, see
+          `_line_codes` - and a third is not a formation, so he costs more than any winger or mezzala.
+        """
+        wrong_side = 0 if self.side_of(row) == side else (1 if "C" in (side, self.side_of(row)) else 2)
+        if "ST" not in self.real_roles(row):
+            return wrong_side, 0
+        return wrong_side, (2 if lane == "A" and side != "C" else 0) + (4 if strikers >= 2 else 0)
+
+    def club_matches(self, club: str | None) -> float:
+        """How many matches the club played in the measured season - the denominator of a presence.
+
+        Its own count of fielded elevens, floored by the starts of its busiest player: the two come from
+        different sources (parsed line-ups and the provider's season stats), and a denominator smaller
+        than its numerator would print a 120% titolare.
+        """
+        info = self.clubs.get(club or "", {})
+        busiest = max((_number(row.get("desc_season_starts")) for row in self.players
+                       if row.get("club") == club), default=0.0)
+        return max(_number(info.get("complete_XIs")), busiest, 1.0)
+
+    def standing(self, row: dict) -> float:
+        """His absolute standing in the side - the blasone - as a share of a season, 0..1.
+
+        The last ten matches certify FORM, not stature: they are ten matches, and a July window is half
+        friendlies and rested internationals. So the schieramento tipo is decided here, on a whole season,
+        by two measured facts about how much the coach actually used him:
+
+        * HIS START RATE, over the matches he was in CONTENTION for. Not over 38: a man who spent two
+          months injured has fewer starts, and dividing by the whole season would read his absence as the
+          coach preferring someone else. His expected absences go back into the denominator.
+        * HIS SHARE OF THE MINUTES of the full real season. `desc_minutes_full_season` is measured over
+          the club's whole real calendar rather than the euro subset, which is why it survives when the
+          last-ten window is empty - McTominay rested after the World Cup has no recent match at all and
+          2793 minutes behind him. A man who has none recorded is judged on his starts alone: no minutes
+          on file is not zero minutes played.
+
+        Neither is a fantacalcio quantity. Surplus, quotation and FVM answer "is he worth buying" and a
+        coach does not pick a side by them; minutes and starts are what he did.
+        """
+        contested = max(self.club_matches(row.get("club"))
+                        - _number(row.get("desc_injury_weighted")) / sum(INJURY_WEIGHTS), 1.0)
+        starts = min(self.titolarita(row, "season")[1] / contested, 1.0)
+        minutes = _number(row.get("desc_minutes_full_season"))
+        if not minutes:
+            return starts
+        by_starts, by_minutes = self.STANDING_WEIGHTS
+        return by_starts * starts + by_minutes * min(minutes / (contested * 90.0), 1.0)
+
+    def presence(self, row: dict, horizon: str = "season") -> float:
+        """The share of the club's MATCHDAYS he is expected to start in. The one number a shirt carries.
+
+        This is the sentence an operator writes by hand - "Meret 50% in ballottaggio with Milinkovic, Di
+        Lorenzo 95%, Anguissa 60%" - and it is a share of the season, not of a duel. The distinction
+        matters: normalising over the rivals a slot happens to have left over made Anguissa read 100% off
+        14 starts, because by then everyone else in midfield already had a shirt. A share of the matchdays
+        cannot do that. Perfect alternation lands both men near 50% with no rival bookkeeping at all, the
+        men who are always on the pitch are the only ones near 100% - which is what makes the spine of a
+        squad visible at a glance - and an injury-prone first choice lands below a team-mate who is
+        available every week, because `availability` discounts him.
+
+        `recent` (the next matchday) leads with FORM and keeps standing as the ballast: who has been
+        starting in the club's last ten, shrunk toward his standing by RECENT_PRIOR matches of it. That
+        shrinkage is what a July window needs - with nothing measured the number IS his standing, so a
+        rested international does not drop out of the eleven for having rested, and three benchings in a
+        dead rubber do not unseat a man who started every match that mattered.
+        """
+        if horizon != "recent":
+            return min(self.standing(row) * self.availability(row), 1.0)
+        if row.get("desc_starter_prob"):
+            # the editors have answered the question for this match; nothing measured beats it
+            return _number(row.get("desc_starter_prob"))
+        base = self.standing(row)
+        rate = ((_number(row.get("desc_form_starts")) + self.RECENT_PRIOR * base)
+                / (_number(row.get("desc_form_measured")) + self.RECENT_PRIOR))
+        return min(self.FORM_WEIGHT * rate + (1.0 - self.FORM_WEIGHT) * base, 1.0)
 
     @staticmethod
     def titolarita(row: dict, horizon: str) -> tuple[float, float]:
@@ -2130,6 +2314,8 @@ class SnapshotView(ttk.Frame):
         would field the most valuable player rather than the one the coach plays.
         """
         squad = self.squad(club)
+        if mode == "next" and any(row.get("desc_starter_prob") for row in squad):
+            return self._declared(squad)
         # Group by the line he REALLY plays in, not by the listone's role. A 3-4-3's midfield four is
         # two centre mids and two wing backs, and the listone calls those wing backs defenders - so
         # grouping by `role_classic` filled the middle with four central midfielders and left the flanks
@@ -2144,6 +2330,7 @@ class SnapshotView(ttk.Frame):
         defenders, midfielders, forwards = self.lines(formation)
         editorial = mode == "next" and any(row.get("desc_starter_prob") for row in squad)
         out: list[tuple[str, dict, list[dict]]] = []
+        taken: set[str] = set()          # one shirt per man, across every line
         for role, slots in (("P", 1), ("D", defenders), ("M", midfielders), ("A", forwards)):
             pool = list(by_role.get(role, []))
             if mode == "next":
@@ -2157,22 +2344,68 @@ class SnapshotView(ttk.Frame):
                                                -self.titolarita(row, "recent")[0]))
             else:
                 horizon = "recent" if mode == "next" else "season"
-                pool = sorted(pool, key=lambda row, h=horizon: (-self.titolarita(row, h)[0],
+                # by PRESENCE, the same number the shirt shows: ranking by anything else would draw a
+                # starter carrying a percentage below his own alternative's
+                pool = sorted(pool, key=lambda row, h=horizon: (-self.presence(row, h),
                                                                 -self.titolarita(row, h)[1]))
-            chosen = pool[:slots]
-            bench = pool[slots:]
-            # An alternative is someone who could TAKE the shirt, so it comes from outside the eleven: a
-            # back three of near-equal starters otherwise lists its own members as each other's rivals.
-            starters = {row.get("name") for row in chosen}
-            for index, starter in enumerate(chosen):
+            # the line's composition, then ONE SHIRT AT A TIME: the best candidate for THAT side
+            strikers = 0
+            for wanted in self.slot_template(pool[:max(3 * slots, slots)], slots):
+                # `pool` is already in presence order and the sort is stable, so the slot's own cost
+                # (right side first, then whether the role can play there at all) only ever reorders men
+                # who are otherwise equal - the flank goes to a full back rather than to a striker, and
+                # the best available man still gets the shirt.
+                picks = sorted((row for row in pool if row.get("name") not in taken),
+                               key=lambda row, w=wanted, s=strikers: self.slot_cost(row, w, role, s))
+                if not picks:
+                    continue
+                starter, *bench = picks
+                strikers += 1 if "ST" in self.real_roles(starter) else 0
+                # the ranked list spans the whole line, so the alternatives are narrowed back to the men
+                # who play WHERE HE PLAYS: a right back's rival is another right back, and listing the
+                # spare centre-back as his challenger also inflates the duel
+                bench = [row for row in bench if self.side_of(row) == self.side_of(starter)]
+                taken.add(starter.get("name"))
+                # An alternative is whoever else can wear THIS shirt: same side, still unpicked. Two men
+                # of equal titolarità in one slot alternate, and `slot_share` then reads 50% - the
+                # sentence an auction needs ("50%, in ballottaggio") instead of two 100%s.
                 named = [name.strip() for name in (starter.get("desc_duel_names") or "").split(";")
-                         if name.strip() and name.strip() not in starters]
-                if named and editorial:
-                    rivals = [row for row in bench if row.get("name") in named][:2]
-                else:
-                    # only the LAST shirt of the line is contestable, by the next man in the role
-                    rivals = bench[:2] if index == len(chosen) - 1 else []
+                         if name.strip() and name.strip() not in taken]
+                rivals = ([row for row in bench if row.get("name") in named][:2] if named
+                          else bench[:2])
                 out.append((role, starter, rivals))
+        # A rival is by definition NOT in the eleven. Rivals are collected while the shirts are still
+        # being handed out, so a man picked for a later slot could turn up as an earlier one's challenger
+        # - "Hojlund vs De Bruyne" with both starting - and that also inflates the slot share, by
+        # counting a team-mate's claim as competition for a place he is not competing for.
+        starters = {row.get("name") for _role, row, _rivals in out}
+        return [(role, starter, [rival for rival in rivals if rival.get("name") not in starters])
+                for role, starter, rivals in out]
+
+    def _declared(self, squad: list[dict]) -> list[tuple[str, dict, list[dict]]]:
+        """The probabili's own eleven: the men the editors name, in the lanes their real roles put them.
+
+        For the coming match this IS the answer - it is the coach's declared side, and no measurement
+        beats it. What it must NOT be made to do is fit a formation's line counts: the editors' 3-4-2-1
+        calls two full backs wing backs, so demanding six midfielders put a 35%-probability squad player
+        on the pitch while a 100% full back sat outside the eleven. The shape follows from the men (see
+        `lanes_for`), which is why a declared 3-4-2-1 can draw as 4-4-2 - and both readings are shown.
+        """
+        listed = sorted((row for row in squad if row.get("desc_starter_prob")),
+                        key=lambda row: -_number(row.get("desc_starter_prob")))
+        keepers = [row for row in listed if self.lane_of(row) == "P"]
+        chosen = keepers[:1] + [row for row in listed if self.lane_of(row) != "P"][:10]
+        names = {row.get("name") for row in chosen}
+        out: list[tuple[str, dict, list[dict]]] = []
+        for starter in chosen:
+            lane = self.lane_of(starter)
+            # the editors' own ballottaggio first, then whoever they rate next in the same lane
+            named = [name.strip() for name in (starter.get("desc_duel_names") or "").split(";")
+                     if name.strip() and name.strip() not in names]
+            rest = [row for row in listed
+                    if row.get("name") not in names and self.lane_of(row) == lane]
+            rivals = [row for row in rest if row.get("name") in named][:2] or rest[:1]
+            out.append((lane, starter, rivals))
         return out
 
     @classmethod
@@ -2299,8 +2532,48 @@ class SnapshotView(ttk.Frame):
         classic = (row.get("role_classic") or "").upper()
         return cls.BADGE_CLASSIC.get(classic, ("?", "?", "?"))[index]
 
+    # How firmly a man owns his shirt, and what that looks like on the board. The schieramento tipo is
+    # meant to show the SPINE of a squad without reading a single number, so certainty is drawn, not
+    # written: a white disc is a player who IS the position, and grey is half a shirt.
+    #   >= 72%  fondamentale  white disc, dark code, thick ring - it jumps out of the pitch
+    #   >= 50%  favourito     the ordinary shirt: he usually plays, someone else sometimes does
+    #    < 50%  ballottaggio  dimmed and thin-ringed - two men share it, and buying one buys half
+    TIERS: ClassVar[tuple[tuple[float, str, str, str, str, int], ...]] = (
+        (0.72, "fondamentale", "#f4f6f5", "#11331a", "#ffffff", 3),
+        (0.50, "favourito", "#12351a", "#ffffff", "#ffffff", 2),
+        (0.0, "ballottaggio", "#12351a", "#c9d6cf", "#8fa39a", 1),
+    )
+
+    @classmethod
+    def tier(cls, share: float | None) -> tuple[str, str, str, str, int]:
+        """(label, disc fill, code colour, ring colour, ring width) for a slot share.
+
+        An unknown share reads as a ballottaggio: no evidence that he owns the shirt is not evidence
+        that he owns it.
+        """
+        for floor, *look in cls.TIERS:
+            if share is not None and share >= floor:
+                return tuple(look)
+        return tuple(cls.TIERS[-1][1:])
+
+    def _line_codes(self, slots: list[tuple[dict, list[dict]]]) -> list[str]:
+        """The code on each marker of one line, with only ONE centre-forward among them.
+
+        A real side fields one punta centrale; a second adapts as a seconda punta and reads 'Sp', which is
+        what he is actually asked to do. The shirt stays with the striker drawn most centrally.
+        """
+        codes = [self.badge(starter, -((index + 1) / (len(slots) + 1) - 0.5) * 2)
+                 for index, (starter, _rivals) in enumerate(slots)]
+        centre = [index for index, code in enumerate(codes) if code == "Pc"]
+        if len(centre) > 1:
+            keep = min(centre, key=lambda index: abs((index + 1) / (len(slots) + 1) - 0.5))
+            for index in centre:
+                if index != keep:
+                    codes[index] = "Sp"
+        return codes
+
     def _shirt(self, x: float, y: float, starter: dict, rivals: list[dict],
-               drawn_side: float | None = None, room: float = 100.0) -> None:
+               drawn_side: float | None = None, room: float = 100.0, code: str = "") -> None:
         """One shirt: the role marker, and the name UNDER it.
 
         Stacked rather than side by side, because a plate to the right of the disc needs the width of a
@@ -2316,18 +2589,18 @@ class SnapshotView(ttk.Frame):
         name = (starter.get("name") or "")[:fits]
         # with a rival for the shirt the number is the SLOT share - how often HE is the one who plays -
         # and without one it is his own start share, which is the same question with one candidate
-        share = (self.slot_share(starter, rivals) or 0.0 if rivals
-                 else self.titolarita(starter, "recent" if self.xi_mode.get() == "next"
-                                      else "season")[0])
+        horizon = "recent" if self.xi_mode.get() == "next" else "season"
+        share = self.presence(starter, horizon)
         rival_names = ", ".join((row.get("name") or "")[:9] for row in rivals)[:fits]
 
+        _label, fill, ink, ring, width = self.tier(share)
         radius = 12
-        code = self.badge(starter, drawn_side)
+        code = code or self.badge(starter, drawn_side)
         canvas.create_oval(x - radius, y - radius, x + radius, y + radius,
-                           fill="#12351a", outline="#f4f6f5", width=2)
-        canvas.create_text(x, y, fill="#ffffff", font=theme.FONTS["pill"], text=code)
+                           fill=fill, outline=ring, width=width)
+        canvas.create_text(x, y, fill=ink, font=theme.FONTS["pill"], text=code)
 
-        lines = [(name, theme.FONTS["strong"], "#ffffff")]
+        lines = [(name, theme.FONTS["strong"], ring)]
         if share:
             lines.append((f"{share:.0%}", theme.FONTS["small"], "#dcedc8"))
         if rival_names:
@@ -2401,6 +2674,7 @@ class SnapshotView(ttk.Frame):
             # the space one shirt owns, so nothing has to overflow: five across a column means five
             # narrow shirts, not five clipped ones
             room = min(150.0, (width - 24) / len(slots))
+            codes = self._line_codes(slots)
             for index, (starter, rivals) in enumerate(slots):
                 spread = (index + 1) / (len(slots) + 1)
                 x = 12 + (width - 24) * spread
@@ -2421,13 +2695,14 @@ class SnapshotView(ttk.Frame):
                 # the TEAM-relative side of where he is drawn, on the same -1..+1 scale `lateral` uses:
                 # it names the flank for a role that does not (a winger placed there reads 'Es' or 'Ed').
                 # Negated, because the screen is mirrored with respect to the team facing downwards.
-                self._shirt(x, y, starter, rivals, drawn_side=-(spread - 0.5) * 2, room=room)
+                self._shirt(x, y, starter, rivals, drawn_side=-(spread - 0.5) * 2, room=room,
+                            code=codes[index])
         editorial = mode == "next" and any(row.get("desc_starter_prob")
                                            for _role, row, _rivals in eleven)
         if mode == "next":
             criterion = "probabili" if editorial else "recent starts (no probabili)"
         else:
-            criterion = "season starts (injuries ignored)"
+            criterion = "% matchdays started"
         # Two short lines: one caption wide enough to say all of it ran off both touchlines. The
         # viewpoint stays in the column's tooltip, where there is room for the sentence.
         shown = f"{drawn} · XI by {criterion}"
@@ -2437,8 +2712,12 @@ class SnapshotView(ttk.Frame):
             shown = f"{drawn} (lines {formation}) · {criterion}"
         canvas.create_text(width // 2, height - 26, fill=line, font=theme.FONTS["small"],
                            text=shown[:62])
+        # What the discs mean. It replaces the sentence about the viewpoint, which lives in the pitch's
+        # own tooltip: a caption long enough for both ran off the touchlines, and the drawing has to stay
+        # inside the canvas whatever the formation (see the pitch-bounds test).
         canvas.create_text(width // 2, height - 12, fill=line, font=theme.FONTS["small"],
-                           text="attacking downwards: the team's LEFT is on your right")
+                           text="white = starts · grey = doubt" if mode == "next"
+                           else "white = fondamentale · grey = ballottaggio")
 
 
 def _read_csv(path) -> list[dict]:
