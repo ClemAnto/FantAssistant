@@ -108,6 +108,10 @@ CONTRACT: tuple[TableSpec, ...] = (
               "off_role_usage, new_coach, u22_trigger, post_torneo, booking_risk, contract_until, "
               "exit_risk - every derived boolean the engine or the UI reads"),
     TableSpec("positions", "full", "real role from the provider slot + avg_x/avg_y (Mantra detail)"),
+    TableSpec("player_roles", "full",
+              "the granular real role: GK | DL DC DR | DM | ML MC MR | AM | LW RW | ST, dated. The "
+              "only thing that separates a left back from a centre back - the app draws the pitch "
+              "from it. THE HISTORY IS THIN BY CONSTRUCTION - see known_gaps"),
     TableSpec("probable_starter", "full",
               "dated starting probabilities. THE HISTORY IS THIN BY CONSTRUCTION - see known_gaps"),
     TableSpec("availability", "full", "dated injured/suspended states, for the live auction view"),
@@ -162,6 +166,10 @@ KNOWN_GAPS: tuple[str, ...] = (
      "snapshot job started running. Any rule reading starter_prob is untestable on past windows."),
     ("flags.exit_risk / contract_until: contract expiry exists only on the CURRENT squad page, so "
      "it is a snapshot of today and cannot be backfilled - unusable for a past-window gate."),
+    ("player_roles: the granular real role is served only for NOW. The provider accepts a seasonId "
+     "and ignores it (HTTP 200, today's codes for a season three years old), so the history starts "
+     "the day the first snapshot ran. What IS historical: positions.derived_role (G/D/M/F per "
+     "season, from the per-match layer) and positions.avg_x/avg_y (the season heatmap)."),
     ("euro 2021-22 is empty AT THE SOURCE (every Voto is '-'), which is why euro has five windows "
      "and Serie A ten."),
     "external_match_stats starts at 2019-20; older seasons have season aggregates only.",

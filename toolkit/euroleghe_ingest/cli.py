@@ -146,12 +146,14 @@ def build_parser() -> argparse.ArgumentParser:
             p.add_argument("--refresh", action="store_true",
                            help="re-download league-seasons even if already present")
             p.add_argument("--layer",
-                           choices=["season", "match", "complete", "heatmap", "all", "reparse",
-                                    "crosstab"],
+                           choices=["season", "match", "complete", "heatmap", "roles", "all",
+                                    "reparse", "crosstab"],
                            default="season",
                            help="season aggregates (fast), the per-match layer (hours), "
                                 "'complete' to add the matches the perimeter filter skipped, "
-                                "'heatmap' for avg_x/avg_y (one request per player-season), both, "
+                                "'heatmap' for avg_x/avg_y (one request per player-season), "
+                                "'roles' for the granular real role + foot (one request per CLUB), "
+                                "both, "
                                 "'reparse' to rebuild from the cache offline (zero requests), or "
                                 "'crosstab' for the provider-role vs listone-role report (offline)")
         if name == "injuries":

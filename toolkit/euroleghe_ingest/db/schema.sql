@@ -236,6 +236,27 @@ CREATE TABLE IF NOT EXISTS positions (
     PRIMARY KEY (fc_id, season, source)
 );
 
+-- The player's REAL position in the provider's own vocabulary: GK | DL DC DR | DM | ML MC MR | AM |
+-- LW RW | ST - twelve codes, one to three per player, saying roughly WHERE ON THE PITCH he belongs.
+-- It is not a fantacalcio role and not a valuation: the listone's P/D/C/A says what you buy him as,
+-- and `positions.derived_role` says which of four lines he was used in. Neither can tell a left back
+-- from a centre back, which is the question this answers.
+--
+-- DATED, and it has to be. The provider serves only "now": `?seasonId=` is accepted (HTTP 200) and
+-- IGNORED - the same player returns today's codes for a season three years old. So this is a third
+-- snapshot that can never be backfilled, alongside `probable_starter` and `flags.contract_until`, and
+-- every day the observation does not happen is a day that will not exist later.
+CREATE TABLE IF NOT EXISTS player_roles (
+    fc_id      INTEGER NOT NULL REFERENCES players(fc_id),
+    valid_from TEXT NOT NULL,                   -- the date the roles were observed
+    source     TEXT NOT NULL,                   -- sofascore
+    roles      TEXT,                            -- the provider's own order, e.g. "DL;ML"
+    primary_role TEXT,                          -- the first of them
+    line       TEXT,                            -- the provider's broad slot: G | D | M | F
+    foot       TEXT,                             -- Left | Right | Both: which flank a wide role really is
+    PRIMARY KEY (fc_id, valid_from, source)
+);
+
 CREATE TABLE IF NOT EXISTS club_elo (
     fc_club_id INTEGER NOT NULL REFERENCES clubs(fc_club_id),
     date       TEXT NOT NULL,                   -- ISO date (e.g. auction date)

@@ -42,6 +42,7 @@ from pathlib import Path
 
 from euroleghe_ingest.context import Context
 from euroleghe_ingest.engine import evaluate, features
+from euroleghe_ingest.modules import positions
 
 NAME = "snapshot"
 DESCRIPTION = "Today's auction snapshot: refresh the volatile state, then one row per player + per club"
@@ -688,28 +689,57 @@ def lineup_spellings(conn, resolve) -> dict[str, list[str]]:
     return out
 
 
-def typical_formation(conn, spellings: list[str], season: str
-                      ) -> tuple[str | None, float | None, int]:
-    """The club's MODAL formation over its complete elevens: (shape, share, elevens counted).
+# How much an eleven played by the PREVIOUS coach still counts when the coach has changed. Not zero:
+# with three matches under a new man his predecessor's habit is still the best evidence there is, and a
+# hard cut would answer "3-4-3, 100% of 3 elevens" from a pre-season friendly. Not one either - that is
+# the whole point of the request. A READING weight, stated in the sheet, and no rule fits on it.
+PREVIOUS_COACH_WEIGHT = 0.25
+
+
+def typical_formation(conn, spellings: list[str], season: str, coach_since: str | None = None
+                      ) -> tuple[str | None, float | None, int, str]:
+    """The club's MODAL formation over its complete elevens: (shape, share, elevens, basis).
 
     The mode, not the mean. A club that alternates 3-5-2 and 4-3-3 has a mean of 3.5 defenders, which is
     not a formation anyone can field; its mode is one of the two, and the share says how settled it is -
     97% of 38 elevens is Atalanta's habit, 63% is Arsenal choosing.
+
+    When `coach_since` says the man in charge arrived DURING the sample, his own elevens weigh four times
+    his predecessor's: a new coach's shape is the club's shape now, and the previous one is only evidence
+    about a side that no longer exists. The `basis` says which of the two happened, because "3-4-3" from
+    38 elevens and "3-4-3" from four are not the same statement.
     """
     if not spellings:
-        return None, None, 0
+        return None, None, 0, "no lineups"
     placeholders = ",".join("?" * len(spellings))
     rows = conn.execute(
-        f"""SELECT defenders, midfielders, forwards, COUNT(*) AS n FROM club_match_lineups
+        f"""SELECT defenders, midfielders, forwards, match_date FROM club_match_lineups
             WHERE club IN ({placeholders}) AND season = ? AND starters = 11
-              AND goalkeepers + defenders + midfielders + forwards = 11
-            GROUP BY defenders, midfielders, forwards ORDER BY n DESC""",
+              AND goalkeepers + defenders + midfielders + forwards = 11""",
         (*spellings, season)).fetchall()
     if not rows:
-        return None, None, 0
-    total = sum(row[3] for row in rows)
-    defenders, midfielders, forwards, count = rows[0]
-    return (f"{defenders}-{midfielders}-{forwards}", round(count / total, 2), total)
+        return None, None, 0, "no lineups"
+    weights: dict[tuple[int, int, int], float] = {}
+    under_coach = 0
+    for defenders, midfielders, forwards, date in rows:
+        his = bool(coach_since and date and date >= coach_since)
+        under_coach += his
+        weight = 1.0 if (his or not coach_since) else PREVIOUS_COACH_WEIGHT
+        shape = (defenders, midfielders, forwards)
+        weights[shape] = weights.get(shape, 0.0) + weight
+    total = sum(weights.values())
+    shape, weight = max(weights.items(), key=lambda item: item[1])
+    if coach_since and not under_coach:
+        # The reweighting cannot help here: with no eleven of his own, every match is the predecessor's
+        # and scaling them all by the same factor changes nothing. What CAN be done is say so - a 97%
+        # 3-4-3 that the current coach has never fielded describes a side that no longer exists, and at
+        # an auction that is the difference between a habit and a historical note.
+        basis = f"0 of {len(rows)} XIs under this coach - this is his PREDECESSOR's shape"
+    elif coach_since and under_coach < len(rows):
+        basis = f"{under_coach} of {len(rows)} XIs under this coach"
+    else:
+        basis = f"{len(rows)} XIs"
+    return ("-".join(str(part) for part in shape), round(weight / total, 2), len(rows), basis)
 
 
 # The positional heatmap says WHERE across the pitch a player stood, but not which touchline y=0 is on.
@@ -802,7 +832,13 @@ def club_context(conn, data: features.WindowData, starters_date: str | None,
                 WHERE club IN ({placeholders}) AND season = ? AND starters = 11
                   AND goalkeepers + defenders + midfielders + forwards = 11""",
             (*mine, window.input_season)).fetchone()
-        typical, share, counted = typical_formation(conn, mine, window.input_season)
+        # The coach's own start date, and only when he arrived after the sample began: an unchanged
+        # coach needs no reweighting, the whole season is his.
+        coach_since = coach[1] if coach and coach[1] else None
+        if coach_since and coach_since <= f"{window.input_season.split('-')[0]}-07-01":
+            coach_since = None
+        typical, share, counted, basis = typical_formation(
+            conn, mine, window.input_season, coach_since)
         arrivals = conn.execute(
             """SELECT COUNT(*) FROM arrivals a JOIN rosters r
                ON r.fc_id = a.fc_id AND r.season = a.season
@@ -827,11 +863,13 @@ def club_context(conn, data: features.WindowData, starters_date: str | None,
             "formation_typical": typical,
             "formation_typical_share": share,
             "formation_typical_of": counted,
+            "formation_typical_basis": basis,
             # "Absolutely preferred" is a measured thing: a shape used in most of the elevens is the
             # coach's, one used in a third of them is a coach still choosing - and the two must not be
             # presented the same way.
-            "formation_settled": ("yes" if (share or 0) >= FORMATION_SETTLED else "no") if share
-                                 else None,
+            "formation_settled": (("no" if "PREDECESSOR" in (basis or "")
+                                   else "yes" if (share or 0) >= FORMATION_SETTLED else "no")
+                                  if share else None),
             "formation_today": formations.get(club),
             "probabili_date": starters_date,
             "lines_fielded_D": round(lines[0], 2) if lines and lines[0] is not None else None,
@@ -906,8 +944,11 @@ PLAYER_COLUMNS: tuple[str, ...] = (
     "desc_form_goals_other", "desc_form_assists_other",
     "desc_form_competitions", "desc_form_clubs", "desc_form_last_match", "desc_form_source",
     "desc_form_series", "desc_form_detail",
-    "desc_squad_club", "desc_squad_source", "desc_real_role", "desc_avg_x", "desc_avg_y",
-    "desc_side_measured",
+    "desc_squad_club", "desc_squad_source", "desc_real_role",
+    # The granular real role: where on the pitch he belongs, in the twelve-code vocabulary.
+    "desc_real_roles", "desc_real_role_primary", "desc_real_role_line", "desc_real_role_depth",
+    "desc_real_role_side", "desc_foot", "desc_real_role_observed",
+    "desc_avg_x", "desc_avg_y", "desc_side_measured",
     "desc_starter_prob", "desc_starter_status", "desc_expected_minutes",
     # Titolarità: how often he STARTS. Two horizons, because they answer different questions - the
     # season's share is the coach's habit over a year, the recent one is the shape of the side now.
@@ -965,6 +1006,7 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
         season_play = layers["titolarita"].get(obs.fc_id, {})
         card = layers["discipline"].get(obs.fc_id, {})
         state = layers["contract"].get(obs.fc_id, {})
+        role_detail = layers["real_role_detail"].get(obs.fc_id, {})
         penalty = layers["penalties"].get(obs.fc_id)
         pv_pred = prediction.pv_pred if prediction else None
         rows.append({
@@ -1001,6 +1043,19 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             # derived_role). It answers a different question from the listone's: the listone says what
             # you buy him as, this says where the coach actually put him.
             "desc_real_role": layers["real_roles"].get(obs.fc_id),
+            # And WHERE inside that line: the provider's own granular position, one to three of the
+            # twelve codes, ordered with the most representative first. This is the only column that
+            # tells a left back from a centre back - `role_classic` calls both 'D' and
+            # `desc_real_role` calls both 'D' too. `depth`/`side` are where to DRAW him (0 = own goal
+            # to 1 = the opponent's; -1 the team's left to +1 its right), so every reader places him
+            # the same way. Observed on a DATE and not derivable for any other: see the manifest.
+            "desc_real_roles": role_detail.get("roles"),
+            "desc_real_role_primary": role_detail.get("primary"),
+            "desc_real_role_line": role_detail.get("line"),
+            "desc_real_role_depth": role_detail.get("depth"),
+            "desc_real_role_side": role_detail.get("side"),
+            "desc_foot": role_detail.get("foot"),
+            "desc_real_role_observed": role_detail.get("observed"),
             "desc_avg_x": layers["positions"].get(obs.fc_id, (None, None))[0],
             "desc_avg_y": layers["positions"].get(obs.fc_id, (None, None))[1],
             "desc_side_measured": layers["sides"].get(obs.fc_id),
@@ -1099,6 +1154,27 @@ def refresh_editorial(ctx: Context) -> str | None:
     return None
 
 
+def refresh_real_roles(ctx: Context, clubs, date: str) -> str | None:
+    """Today's granular real role for every player of the perimeter. One request per CLUB.
+
+    THE THIRD FACT THAT CANNOT BE BACKFILLED. The provider serves only "now": asking its player
+    endpoint for a season three years old returns today's codes (`?seasonId=` answers 200 and is
+    ignored), so a role not observed on a given day is a role that day will never have. Same reason
+    the probabili are refreshed here and not derived later.
+
+    Cheap enough to run every time: the squad endpoint answers for a whole club at once, so the
+    perimeter costs ~80 requests, and the cache is keyed by the observation date - a second run on the
+    same day is free. Never raises: a sheet without the roles is worse than no sheet, but only just.
+    """
+    try:
+        positions.derive_club_xref(ctx)
+        positions.fetch_roles(ctx, clubs=sorted(clubs) if clubs else None, date=date)
+    except Exception as exc:   # noqa: BLE001 - a snapshot must still be produced without the refresh
+        return (f"real-role refresh failed ({exc}) - the sheet uses the most recent stored "
+                f"observation, and there is no way to reconstruct today's")
+    return None
+
+
 def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
         game: str = "classic", refresh: bool = True, out: str | None = None, **kwargs) -> dict:
     """Build today's auction snapshot. Read-only on the DB except for the editorial refresh."""
@@ -1122,6 +1198,14 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
 
     # The real squads first: the row set of the sheet is who is in a club TODAY, listone or not.
     derive_squads(ctx, window.auction_date)
+    # Then the granular real role, which needs the squads (the per-player top-up walks them) and is
+    # observed for the PERIMETER - the clubs this platform actually lets you buy from.
+    if refresh:
+        failure = refresh_real_roles(
+            ctx, perimeter_clubs(conn, platform, (window.input_season, window.target_season)),
+            window.auction_date)
+        if failure:
+            notes.append(failure)
     data = features.prepare(conn, window, platform, game, league=ctx.config.load_league(),
                             squad_source="real")
     if not data.matchdays_target:
@@ -1164,12 +1248,25 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
         "real_roles": {fc_id: role for fc_id, role in conn.execute(
             "SELECT fc_id, derived_role FROM positions WHERE season = ? AND source = 'sofascore' "
             "AND derived_role IS NOT NULL", (window.input_season,))},
+        # The GRANULAR real role: one to three of the provider's twelve codes (GK, DL/DC/DR, DM,
+        # ML/MC/MR, AM, LW/RW, ST). It answers the question neither of the other two can - a left back
+        # is not a centre back, and P/D/C/A and G/D/M/F both call them the same thing. Read as of the
+        # auction date, because it is a dated observation and not a season fact.
+        "real_role_detail": positions.roles_as_of(conn, window.auction_date),
         "sides": measured_sides(conn, window.input_season, notes),
         "positions": {fc_id: (avg_x, avg_y) for fc_id, avg_x, avg_y in conn.execute(
             "SELECT fc_id, avg_x, avg_y FROM positions WHERE season = ? AND source = 'sofascore'",
             (window.input_season,))},
     }
     layers["duels"] = duels(data.observations, starters)
+    covered = sum(1 for obs in data.observations if obs.fc_id in layers["real_role_detail"])
+    if covered < len(data.observations):
+        notes.append(f"{len(data.observations) - covered} of {len(data.observations)} players have no "
+                     f"granular real role: the provider's squad pages did not list them, or their "
+                     f"identity is not resolved to a provider id. Their line is still known from "
+                     f"desc_real_role (G/D/M/F) - what is missing is the flank. "
+                     f"`positions --layer roles` retries, and only for TODAY: the codes cannot be "
+                     f"observed for a past date.")
 
     perimeter = perimeter_clubs(conn, platform, (window.input_season, window.target_season))
     if not perimeter:
@@ -1217,6 +1314,24 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
             "form_matches": FORM_MATCHES,
             "duel_margin": BALLOTTAGGIO_MARGIN,
             "injury_recency_weights": list(INJURY_WEIGHTS),
+        },
+        "real_role_note": {
+            "_note": "desc_real_roles is the player's REAL position in the provider's own twelve-code "
+                     "vocabulary, most representative first. It is the only column that separates a "
+                     "left back from a centre back: role_classic calls both D, and desc_real_role "
+                     "(the modal per-match slot) calls both D as well.",
+            "vocabulary": {code: positions.REAL_ROLE_LABEL[code] for code in positions.REAL_ROLES},
+            "drawing": "desc_real_role_depth 0 = his own goal, 1 = the opponent's (the axis avg_x is "
+                       "measured on); desc_real_role_side -1 = the team's left, +1 = its right. They "
+                       "are LAYOUT positions derived from the primary code, not measured and not "
+                       "fitted; avg_x/avg_y from the heatmap is the measured version and wins where "
+                       "it is filled.",
+            "cannot_be_backfilled": "The provider serves only NOW - `?seasonId=` is accepted (HTTP "
+                                    "200) and ignored, returning today's codes for any past season. "
+                                    "So this is the THIRD snapshot-only fact, with probable_starter "
+                                    "and flags.contract_until: every day it is not observed is a day "
+                                    "that will never exist. It is stored dated in `player_roles` and "
+                                    "read here as of the auction date.",
         },
         "formation_note": ("The lines are counted in the PROVIDER's vocabulary, where a winger is a "
                            "midfielder: a 4-3-3 with two wingers therefore reads 4-5-1. Measured "

@@ -36,6 +36,12 @@ from euroleghe_ingest.context import Context
 from euroleghe_ingest.db.database import connect, init_db, record_run, table_names
 from euroleghe_ingest.matching import club_abbreviation
 from euroleghe_ingest.modules import IMPLEMENTED, load
+from euroleghe_ingest.modules.positions import (
+    REAL_ROLE_DEPTH,
+    REAL_ROLE_LABEL,
+    REAL_ROLE_SIDE,
+    REAL_ROLES,
+)
 from euroleghe_ingest.sources import _norm_roles, available_sources
 
 
@@ -1486,11 +1492,32 @@ class SnapshotView(ttk.Frame):
         "a": ("As", "A", "Ad"),
         "pc": ("Pc", "Pc", "Pc"),
     }
+    # The granular REAL role, in the same Italian vocabulary. One entry per provider code, and no side
+    # variants are needed: every one of the twelve already names its flank, which is the whole reason it
+    # beats the Mantra role here. M mediano (davanti alla difesa), C centrocampista centrale,
+    # T trequartista - three places the listone calls 'C' and draws on top of each other.
+    BADGE_REAL: ClassVar[dict[str, str]] = {
+        "GK": "P",
+        "DL": "Ts", "DC": "Dc", "DR": "Td",
+        "DM": "M",
+        "ML": "Es", "MC": "C", "MR": "Ed",
+        "AM": "T",
+        "LW": "As", "RW": "Ad",
+        "ST": "Pc",
+    }
     # Fallback when the listone gives no Mantra role at all: the Classic role, with the side if known.
     BADGE_CLASSIC: ClassVar[dict[str, tuple[str, str, str]]] = {
         "P": ("P", "P", "P"), "D": ("Ts", "Dc", "Td"),
         "C": ("Cs", "C", "Cd"), "A": ("As", "A", "Ad"),
     }
+
+    # The reference depth of each drawn line, so the granular role's own depth becomes a NUDGE inside
+    # the line rather than a second, competing placement. A wing-back listed as 'D' but really used as
+    # ML (0.60 against the defence's 0.25) steps forward - which is what a 3-5-2 looks like - and a DM
+    # among the midfielders drops behind the mezzale. Clamped, because this places a man within his
+    # line and must never move him into the next one: which line he is in comes from the formation and
+    # the titolarità, and that decision is not this function's to reopen.
+    LINE_DEPTH: ClassVar[dict[str, float]] = {"P": 0.0, "D": 0.25, "C": 0.60, "A": 0.90}
 
     SIDE: ClassVar[dict[str, float]] = {"ds": -1.0, "dd": 1.0}
     # Wide, but the side is not stated: 'e' wing-back, 'w' winger, 'b' the wide man of a back three.
@@ -1528,9 +1555,14 @@ class SnapshotView(ttk.Frame):
                "him. This, and never a valuation, is what decides who is on the pitch above.",
         "role": "The LISTONE role - what you buy him as (P/D/C/A). Click to restore the auction order: "
              "by role, then by predicted SURPLUS.",
-        "real": "Where he was REALLY used: the provider's own slot in the matches he played, plus his "
-                "sided Mantra role when the listone states one (dd = right back, ds = left back). "
-                "Measured translation provider -> listone: G->P 100%, D->D 97%, M->C 80%, F->A 80%.",
+        "real": "The REAL role, in the provider's twelve-code vocabulary: "
+                + " · ".join(f"{code} {REAL_ROLE_LABEL[code]}" for code in REAL_ROLES)
+                + ". Up to two are shown, most representative first. This is the only column that "
+                  "separates a left back from a centre back - the listone role calls both D. It is a "
+                  "DATED observation of today and cannot be reconstructed for a past season, so what "
+                  "the weekly run does not record is lost. Where it is missing the column falls back "
+                  "to the modal per-match slot (G/D/M/F) plus a sided Mantra role, whose measured "
+                  "translation is G->P 100%, D->D 97%, M->C 80%, F->A 80%.",
         "name": "Name as the listone spells it. fc_id is the key underneath, so the same man is the "
                   "same row in every view.",
         "surplus": "GATED. Predicted SURPLUS = (predicted fantamedia - the role's replacement level) x "
@@ -1953,9 +1985,16 @@ class SnapshotView(ttk.Frame):
                 row.get("desc_arrival") or "",
             ) if part)
             bonus = _number(row.get("desc_goals_p90")) + _number(row.get("desc_assists_p90"))
-            sided = next((part for part in (row.get("roles_mantra") or "").split(";")
-                          if part.strip().lower() in self.SIDE), "")
-            real = " ".join(part for part in (row.get("desc_real_role") or "", sided) if part)
+            # The GRANULAR real role when we have it ('DL/ML' - which line AND which flank), else the
+            # old pair: the modal per-match slot plus a sided Mantra role. Strictly more informative,
+            # so it takes the column rather than adding a second one to a sheet already 70 wide.
+            granular = self.real_roles(row)
+            if granular:
+                real = "/".join(granular[:2])
+            else:
+                sided = next((part for part in (row.get("roles_mantra") or "").split(";")
+                              if part.strip().lower() in self.SIDE), "")
+                real = " ".join(part for part in (row.get("desc_real_role") or "", sided) if part)
             spark = self._sparkline(row.get("desc_form_series"))
             self._sparks.append(spark)              # Tk drops an image nobody references
             self.player_tree.insert("", "end", image=spark, values=(
@@ -1987,9 +2026,9 @@ class SnapshotView(ttk.Frame):
         if mode == "next" and today:
             return today, "probabili of today"
         if typical:
-            of = info.get("formation_typical_of")
-            detail = (f"preferred - {share:.0%} of {of} XIs" if settled and share
-                      else f"most used, but not settled - {share:.0%} of {of} XIs" if share
+            basis = info.get("formation_typical_basis") or f"{info.get('formation_typical_of')} XIs"
+            detail = (f"preferred - {share:.0%} of {basis}" if settled and share
+                      else f"most used, not settled - {share:.0%} of {basis}" if share
                       else "most used")
             return typical, detail
         if today:
@@ -2079,22 +2118,49 @@ class SnapshotView(ttk.Frame):
         return out
 
     @classmethod
+    def real_roles(cls, row: dict) -> list[str]:
+        """His granular real roles, in the provider's own order: ['DL', 'ML'].
+
+        Only codes from the enumerated vocabulary survive, so a new one upstream leaves the marker
+        neutral instead of placing a man by a code nothing here can read.
+        """
+        return [code.strip() for code in (row.get("desc_real_roles") or "").upper().split(";")
+                if code.strip() in REAL_ROLES]
+
+    @classmethod
     def lateral(cls, row: dict) -> float | None:
         """Where this player stands across the pitch: -1 left ... +1 right, None = wide, side unknown.
 
-        Read off the Mantra roles, which say it explicitly ('dd' right back, 'ds' left back), and that is
-        why it works in a Classic auction too: the listone carries the Mantra roles regardless of the
-        game being played. Precedence matters - Carlos Augusto is 'b;ds;e' and reading the first entry
-        put a left back in the middle of the defence. `avg_y` from the positional heatmap is the
-        refinement for the roles that name no side, used as soon as it is filled.
+        Three sources, strongest first, because they answer the question with decreasing precision:
+
+        1. `desc_side_measured` - where he REALLY stood, from the positional heatmap with its axis
+           calibrated on the backs whose role names a side. Measured, so it wins.
+        2. `desc_real_roles` - the provider's granular real role. Every one of its twelve codes either
+           names a flank (DL/ML/LW left, DR/MR/RW right) or is central, so unlike the listone it never
+           leaves the side open. Read from the PRIMARY code, since the provider's list is ordered.
+        3. the Mantra roles, which say it for defenders ('dd' right back, 'ds' left back) and not for
+           the rest - which is why 'e' and 'w' come back as None and go to the free flanks. Here the
+           first entry that NAMES a side wins, because a Mantra role list is an unordered set: Carlos
+           Augusto is 'b;ds;e' and reading the first entry put a left back in the middle.
         """
-        # MEASURED first: `desc_side_measured` is where he really stood, from the positional heatmap
-        # with its axis calibrated on the backs whose role names a side. It beats the listone's role,
-        # which is what he is sold as - a nominal 'dc' who played the left of a back three really was on
-        # the left, and that is the whole point of asking for a precise real role.
-        measured = row.get("desc_side_measured")
-        if measured not in (None, ""):
-            return _number(measured, None)
+        measured = _number(row.get("desc_side_measured"), None)
+        real = cls.real_roles(row)
+        stated = REAL_ROLE_SIDE.get(real[0]) if real else None
+        # `stated` is 0.0 for a CENTRAL code, and that is deliberately not treated as a claim about the
+        # flank: a nominal centre back who spent the season on the left of a back three is exactly the
+        # case the measured heatmap gets right and a categorical code cannot express.
+        if measured is not None and stated:
+            # Both, and the code names a flank: keep the measured value, which also says HOW far out he
+            # stood - unless it contradicts the code or reads central. The two agree on 196 of the 219
+            # sided players of this sheet (89%); in the other 23 a season centroid smeared a man who
+            # was used on both flanks, or in midfield too, into something the code plainly denies. A
+            # DL is not a centre back, so where they disagree the code wins.
+            same_side = (measured > 0) == (stated > 0)
+            return measured if abs(measured) >= 0.1 and same_side else stated
+        if measured is not None:
+            return measured
+        if stated is not None:
+            return stated
         roles = [part.strip().lower() for part in (row.get("roles_mantra") or "").split(";")
                  if part.strip()]
         sided = [cls.SIDE[role] for role in roles if role in cls.SIDE]
@@ -2104,16 +2170,32 @@ class SnapshotView(ttk.Frame):
             return None
         return 0.0
 
-    def _lane(self, slots: list[tuple[dict, list[dict]]]) -> list[tuple[dict, list[dict]]]:
-        """One line of the formation, ordered ACROSS the pitch: the team's left first.
+    @classmethod
+    def depth(cls, row: dict) -> float | None:
+        """How far up the pitch he stands: 0.0 his own goal ... 1.0 the opponent's. None = unknown.
 
-        Wide players whose role does not name a side take the outermost free slots rather than being
-        dropped in the middle, which is where an unordered lane leaves a winger.
+        This is the axis the listone's four roles cannot resolve at all: a mediano, a mezzala and a
+        trequartista are one letter, 'C', and they are three different places on the pitch. Only the
+        granular real role answers it, so there is no fallback - without it the line's own order
+        stands, which is what the pitch did before.
+        """
+        real = cls.real_roles(row)
+        return REAL_ROLE_DEPTH.get(real[0]) if real else None
+
+    def _lane(self, slots: list[tuple[dict, list[dict]]]) -> list[tuple[dict, list[dict]]]:
+        """One line of the formation, in SCREEN order (left to right on the canvas).
+
+        Left and right are the player's, judged facing the opponents' goal - and the pitch is drawn with
+        the keeper at the top, so the team attacks DOWNWARDS and its left flank is the viewer's RIGHT.
+        Hence the sort is descending: the team's right back is drawn first, at the screen's left. Getting
+        this backwards mirrors every full back on the board, which is worse than not placing them at all.
+
+        `lateral` stays team-relative everywhere else; the inversion belongs to the drawing alone.
         """
         known = [(self.lateral(row), row, rivals) for row, rivals in slots]
         unknown = [entry for entry in known if entry[0] is None]
         placed = sorted((entry for entry in known if entry[0] is not None),
-                        key=lambda entry: entry[0])
+                        key=lambda entry: -entry[0])
         for index, entry in enumerate(unknown):
             placed.insert(0 if index % 2 == 0 else len(placed), entry)
         return [(row, rivals) for _side, row, rivals in placed]
@@ -2138,14 +2220,19 @@ class SnapshotView(ttk.Frame):
     def badge(cls, row: dict, drawn_side: float | None = None) -> str:
         """The role code for the marker: 'Ts', 'Td', 'Dc', 'Ed'...
 
-        Two inputs, in this order: the Mantra role (which often names the flank outright) and, when it
-        does not, WHERE the player is drawn in his line - so a winger the sheet places on the left reads
-        'Es' and not a shrug. Nothing is invented: with neither, the code stays neutral.
+        Three inputs, in this order: the granular REAL role, which names both the line and the flank on
+        its own ('DL' is a terzino sinistro and nothing else); then the Mantra role, which often names
+        the flank; then, when neither does, WHERE the player is drawn in his line - so a winger the
+        sheet places on the left reads 'Es' and not a shrug. Nothing is invented: with none of them,
+        the code stays neutral.
         """
         side = cls.lateral(row)
         if side is None:
             side = drawn_side
         index = 1 if side is None or abs(side) < 0.34 else (0 if side < 0 else 2)
+        real = cls.real_roles(row)
+        if real:
+            return cls.BADGE_REAL[real[0]]
         roles = [part.strip().lower() for part in (row.get("roles_mantra") or "").split(";")
                  if part.strip()]
         for role in roles:
@@ -2257,12 +2344,24 @@ class SnapshotView(ttk.Frame):
             for index, (starter, rivals) in enumerate(slots):
                 spread = (index + 1) / (len(slots) + 1)
                 x = 12 + (width - 24) * spread
-                # a crowded line staggers: alternate shirts step forward, which is also how a 3-5-2
-                # really lines up, wing-backs ahead of the middle
-                y = height * fraction + (0 if len(slots) < 4 or index % 2 == 0 else 22)
-                # where he is DRAWN, on the same -1..+1 scale `lateral` uses: it is what names the flank
-                # for a role that does not (a winger placed left reads 'Es')
-                self._shirt(x, y, starter, rivals, drawn_side=(spread - 0.5) * 2, room=room)
+                # WITHIN the line, how far up he stands. The granular real role answers it - a mediano
+                # (DM), a mezzala (MC) and a trequartista (AM) are three depths the listone calls 'C'
+                # and used to draw on top of each other - so where it is known the shirt is nudged by
+                # it, centred on the line's own depth. Bounded to the lane's own band on purpose: this
+                # places a man inside his line, it does not move him to another one, and the line
+                # itself comes from the formation and the titolarità, which is a separate decision.
+                nudge = self.depth(starter)
+                if nudge is not None:
+                    offset = (nudge - self.LINE_DEPTH.get(role, 0.5)) * 44
+                    y = height * fraction + max(-18.0, min(18.0, offset))
+                else:
+                    # no granular role: the old rule, a crowded line staggers so alternate shirts step
+                    # forward - which is also how a 3-5-2 really lines up, wing-backs ahead of the middle
+                    y = height * fraction + (0 if len(slots) < 4 or index % 2 == 0 else 22)
+                # the TEAM-relative side of where he is drawn, on the same -1..+1 scale `lateral` uses:
+                # it names the flank for a role that does not (a winger placed there reads 'Es' or 'Ed').
+                # Negated, because the screen is mirrored with respect to the team facing downwards.
+                self._shirt(x, y, starter, rivals, drawn_side=-(spread - 0.5) * 2, room=room)
         editorial = mode == "next" and any(row.get("desc_starter_prob")
                                            for _role, row, _rivals in eleven)
         if mode == "next":
@@ -2274,7 +2373,7 @@ class SnapshotView(ttk.Frame):
         canvas.create_text(width // 2, height - 26, fill=line, font=theme.FONTS["small"],
                            text=f"{formation} · XI by {criterion}"[:56])
         canvas.create_text(width // 2, height - 12, fill=line, font=theme.FONTS["small"],
-                           text="left of the pitch = the team's left")
+                           text="attacking downwards: the team's LEFT is on your right")
 
 
 def _read_csv(path) -> list[dict]:
@@ -2729,7 +2828,7 @@ class ToolkitGUI:
         ttk.Label(frm, text="Layer:").grid(row=0, column=0, sticky="w", pady=4)
         layer = tk.StringVar(value="season")
         ttk.Combobox(frm, textvariable=layer, state="readonly", width=24,
-                     values=["season", "match", "complete", "heatmap", "all", "reparse",
+                     values=["season", "match", "complete", "heatmap", "roles", "all", "reparse",
                              "crosstab"]).grid(row=0, column=1, pady=4)
         ttk.Label(frm, text="League:").grid(row=1, column=0, sticky="w", pady=4)
         league = tk.StringVar(value="all")
@@ -2758,6 +2857,9 @@ class ToolkitGUI:
                             "non-perimeter), which is what removes the 'hardest half' bias.",
                 "heatmap": "Average pitch position (avg_x/avg_y) -> positions. One request per "
                            "player-season, roughly an hour per season; resumable.",
+                "roles": "The GRANULAR real role (DL/DC/DR, ML/MC/MR, LW/RW, ST...) and the preferred "
+                         "foot -> player_roles. One request per CLUB, so minutes not hours. Dated: the "
+                         "provider serves only today, and it cannot be backfilled.",
                 "all": "Both layers, one after the other.",
                 "reparse": "Offline: rebuilds everything from the cached JSON. Zero requests.",
                 "crosstab": "Offline report: provider slot (G/D/M/F) vs our listone role, so the "

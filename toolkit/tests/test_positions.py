@@ -315,3 +315,116 @@ def test_derive_club_leagues_fills_what_a_fresh_clone_cannot_know(tmp_path):
     assert conn.execute("SELECT league FROM rosters WHERE fc_id = 1").fetchone()[0] == "bundesliga"
     # a league we already know is never overwritten by a name match
     assert conn.execute("SELECT league FROM clubs WHERE fc_club_id = 6").fetchone()[0] == "serie_a"
+
+
+# ---------- the granular real role ----------
+def _squad_payload(*players) -> dict:
+    """A `/team/{id}/players` payload with the two fields the real role is read from."""
+    return {"players": [{"player": entry} for entry in players]}
+
+
+def _provider_player(provider_id, name, detailed, position=None, foot="Right") -> dict:
+    return {"id": provider_id, "name": name, "positionsDetailed": list(detailed),
+            "position": position, "preferredFoot": foot}
+
+
+def test_real_role_vocabulary_is_a_complete_grid():
+    """Every one of the twelve codes has a line, a flank, a depth and an Italian label - or a player
+    carrying it would be placed by a lookup that quietly returns None."""
+    assert len(positions.REAL_ROLES) == 12
+    for code in positions.REAL_ROLES:
+        assert code in positions.REAL_ROLE_LINE
+        assert code in positions.REAL_ROLE_SIDE
+        assert code in positions.REAL_ROLE_DEPTH
+        assert code in positions.REAL_ROLE_LABEL
+    # the flanks are symmetric and the middle is the middle
+    assert [positions.REAL_ROLE_SIDE[code] for code in ("DL", "ML", "LW")] == [-1.0, -1.0, -1.0]
+    assert [positions.REAL_ROLE_SIDE[code] for code in ("DR", "MR", "RW")] == [1.0, 1.0, 1.0]
+    assert set(positions.REAL_ROLE_LINE.values()) == {"G", "D", "M", "F"}
+    # depth runs from the player's own goal to the opponent's, and the lines do not cross
+    assert (positions.REAL_ROLE_DEPTH["GK"] < positions.REAL_ROLE_DEPTH["DC"]
+            < positions.REAL_ROLE_DEPTH["DM"] < positions.REAL_ROLE_DEPTH["MC"]
+            < positions.REAL_ROLE_DEPTH["AM"] < positions.REAL_ROLE_DEPTH["ST"])
+
+
+def test_roles_from_squad_pages_are_dated_and_ordered(tmp_path):
+    ctx = _ctx(tmp_path)
+    conn = ctx.conn
+    _add_player(conn, 1, "Dimarco", "Inter", "serie_a")
+    conn.execute("INSERT INTO player_xref(fc_id, source, source_id) VALUES (1, 'sofascore', '284361')")
+    conn.commit()
+    (ctx.config.cache_dir / "sofascore_squad_2697_2026-07-28.json").write_text(
+        json.dumps(_squad_payload(
+            _provider_player(284361, "Federico Dimarco", ["ML", "DL"], "M", "Left"),
+            # nobody resolved this one: counted and skipped, never guessed by name
+            _provider_player(999999, "Primavera Kid", ["DC"], "D"))), encoding="utf-8")
+
+    assert positions.ingest_roles_from_cache(ctx) == 1
+    roles, primary, line, foot = conn.execute(
+        "SELECT roles, primary_role, line, foot FROM player_roles WHERE fc_id = 1").fetchone()
+    # the provider's own order is preserved: the first code is the one he is drawn by
+    assert (roles, primary, line, foot) == ("ML;DL", "ML", "M", "Left")
+    assert conn.execute("SELECT valid_from FROM player_roles").fetchone()[0] == "2026-07-28"
+
+
+def test_roles_are_a_dated_series_and_read_as_of_a_date(tmp_path):
+    """A role observed today must not be visible to an auction dated before it - the same discipline
+    every other volatile state here follows."""
+    ctx = _ctx(tmp_path)
+    conn = ctx.conn
+    _add_player(conn, 1, "Zappacosta", "Atalanta", "serie_a")
+    conn.execute("INSERT INTO player_xref(fc_id, source, source_id) VALUES (1, 'sofascore', '77')")
+    conn.commit()
+    for date, codes in (("2025-08-15", ["DR"]), ("2026-07-28", ["MR", "ML"])):
+        (ctx.config.cache_dir / f"sofascore_squad_2686_{date}.json").write_text(
+            json.dumps(_squad_payload(_provider_player(77, "Davide Zappacosta", codes, "D"))),
+            encoding="utf-8")
+    positions.ingest_roles_from_cache(ctx)
+
+    assert conn.execute("SELECT COUNT(*) FROM player_roles").fetchone()[0] == 2
+    assert positions.roles_as_of(conn, "2025-12-01")[1]["roles"] == "DR"
+    newest = positions.roles_as_of(conn, "2026-07-28")[1]
+    assert newest["roles"] == "MR;ML"
+    # the drawing position travels with it, so every reader places him the same way
+    assert (newest["side"], newest["depth"]) == (1.0, 0.6)
+    assert positions.roles_as_of(conn, "2025-01-01") == {}
+
+
+def test_unknown_provider_code_is_reported_not_absorbed(tmp_path):
+    """A thirteenth code upstream must be visible. Dropping it silently would place the player by
+    whatever remained, or not at all, with nothing in the log to say why."""
+    ctx = _ctx(tmp_path)
+    conn = ctx.conn
+    _add_player(conn, 1, "Someone", "Inter", "serie_a")
+    conn.execute("INSERT INTO player_xref(fc_id, source, source_id) VALUES (1, 'sofascore', '5')")
+    conn.commit()
+    (ctx.config.cache_dir / "sofascore_squad_2697_2026-07-28.json").write_text(
+        json.dumps(_squad_payload(_provider_player(5, "Someone", ["SS", "ST"], "F"))),
+        encoding="utf-8")
+
+    assert positions.unknown_role_codes([_provider_player(5, "x", ["SS", "ST"])]) == {"SS": 1}
+    positions.ingest_roles_from_cache(ctx)
+    # the known code still lands; the unknown one is dropped from the stored list, not smuggled in
+    assert conn.execute("SELECT roles FROM player_roles WHERE fc_id = 1").fetchone()[0] == "ST"
+
+
+def test_club_xref_folds_duplicate_club_rows_onto_one_provider_team(tmp_path):
+    """Two `clubs` rows for the same real club both claim one provider team id, and the xref PK keeps
+    one: the live row (more roster players) must win, or a club silently loses its squad page."""
+    ctx = _ctx(tmp_path)
+    conn = ctx.conn
+    conn.execute("INSERT INTO clubs(fc_club_id, canonical_name) VALUES (1, 'Newcastle')")
+    conn.execute("INSERT INTO clubs(fc_club_id, canonical_name) VALUES (2, 'Newcastle United')")
+    conn.execute("INSERT INTO players(fc_id, canonical_name) VALUES (7, 'Isak')")
+    conn.execute("INSERT INTO rosters(fc_id, season, fc_club_id) VALUES (7, '2025-26', 2)")
+    conn.commit()
+    (ctx.config.cache_dir / "sofascore_stats_premier_league_2025-26.json").write_text(
+        json.dumps([{"player": {"id": 1, "name": "Alexander Isak"},
+                     "team": {"id": 39, "name": "Newcastle United"}}]), encoding="utf-8")
+
+    assert positions.derive_club_xref(ctx) == 1
+    assert conn.execute("SELECT fc_club_id FROM club_xref WHERE source = 'sofascore'"
+                        ).fetchone()[0] == 2
+    assert positions.role_targets(conn) == [("Newcastle United", "39")]
+    # and a caller can narrow it to the clubs it actually needs
+    assert positions.role_targets(conn, ["Arsenal"]) == []

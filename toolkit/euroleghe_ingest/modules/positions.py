@@ -49,6 +49,12 @@ LINEUPS_ENDPOINT = BASE_URL + "/event/{eid}/lineups"
 # The season heatmap: a weighted cloud of touch coordinates for one player in one league-season.
 # One request per player-season - the cheapest form of it (the per-match one costs 30x as much).
 HEATMAP_ENDPOINT = BASE_URL + "/player/{pid}/unique-tournament/{tid}/season/{sid}/heatmap/overall"
+# The CURRENT squad of a club, and the cheapest source of the granular real role: every entry carries
+# `positionsDetailed` (one to three of the twelve codes) and `preferredFoot`. One request per CLUB
+# instead of one per player - 77 requests for the whole perimeter instead of ~1500.
+SQUAD_ENDPOINT = BASE_URL + "/team/{tid}/players"
+# The per-player fallback, for whoever no squad page covered. Same two fields, 1 request each.
+PLAYER_ENDPOINT = BASE_URL + "/player/{pid}"
 
 # SofaScore unique-tournament ids for the 5 leagues in scope (verified against the API).
 TOURNAMENTS: dict[str, int] = {
@@ -75,6 +81,8 @@ REQUEST_JITTER = 1.5
 _CACHE_NAME = re.compile(r"sofascore_stats_([a-z_0-9]+)_(\d{4}-\d{2})\.json$")
 _ROUND_CACHE_NAME = re.compile(r"sofascore_round_([a-z_0-9]+)_(\d{4}-\d{2})_r(\d+)\.json$")
 _HEATMAP_CACHE_NAME = re.compile(r"sofascore_heatmap_([a-z_0-9]+)_(\d{4}-\d{2})_(\d+)\.json$")
+_SQUAD_CACHE_NAME = re.compile(r"sofascore_squad_(\d+)_(\d{4}-\d{2}-\d{2})\.json$")
+_PLAYER_CACHE_NAME = re.compile(r"sofascore_player_(\d+)_(\d{4}-\d{2}-\d{2})\.json$")
 
 
 # ---------- HTTP ----------
@@ -692,6 +700,372 @@ def ingest_heatmaps_from_cache(ctx: Context, seasons=None) -> int:
     return written
 
 
+# ---------- the granular REAL ROLE (twelve codes) ----------
+# The provider's whole position vocabulary. Twelve codes, verified by enumeration and not from memory:
+# 128 players sampled across the four lines returned nothing else, and every one of them had at least
+# one code. There is no second-striker code - a seconda punta comes back as AM or ST.
+REAL_ROLES: tuple[str, ...] = ("GK",
+                               "DL", "DC", "DR",
+                               "DM",
+                               "ML", "MC", "MR",
+                               "AM",
+                               "LW", "RW",
+                               "ST")
+# Which of the four lines each code belongs to, in the PROVIDER's vocabulary - where a winger is a
+# midfielder. It is the same convention `external_match_stats.position` already uses, so the granular
+# code and the modal per-match slot can be compared instead of quietly meaning different things.
+REAL_ROLE_LINE: dict[str, str] = {
+    "GK": "G",
+    "DL": "D", "DC": "D", "DR": "D",
+    "DM": "M", "ML": "M", "MC": "M", "MR": "M", "AM": "M", "LW": "M", "RW": "M",
+    "ST": "F",
+}
+# Which flank a code names: -1 the team's left, +1 its right, 0 the middle. A code that names no side
+# does not exist in this vocabulary - every one of the twelve is either central or on a stated flank,
+# which is exactly what the listone's 'e' (esterno) and 'w' (winger) leave open.
+REAL_ROLE_SIDE: dict[str, float] = {
+    "DL": -1.0, "ML": -1.0, "LW": -1.0,
+    "DR": 1.0, "MR": 1.0, "RW": 1.0,
+    "GK": 0.0, "DC": 0.0, "DM": 0.0, "MC": 0.0, "AM": 0.0, "ST": 0.0,
+}
+# How far up the pitch a code stands: 0.0 = the player's OWN goal, 1.0 = the opponent's. The SAME axis
+# `positions.avg_x` is measured on, so a drawn position and a measured one are comparable.
+#
+# With SIDE this makes the twelve codes a grid, which is the whole reason they are worth having:
+#
+#                        ST                      1.00
+#              LW        AM        RW            0.80
+#              ML        MC        MR            0.60
+#                        DM                      0.45
+#         DL         DC      DC         DR       0.25
+#                        GK                      0.00
+#
+# The two lines the listone's four roles cannot separate are the ones that decide a formation: DM
+# behind MC behind AM is a 4-3-3 or a 4-2-3-1, and all three are 'C'. The numbers are DRAWING
+# positions - a layout choice for the pitch view, not a fitted quantity, and nothing predictive reads
+# them. `avg_x`/`avg_y` from the heatmap is the measured version and beats them wherever it is filled.
+REAL_ROLE_DEPTH: dict[str, float] = {
+    "GK": 0.0,
+    "DL": 0.25, "DC": 0.25, "DR": 0.25,
+    "DM": 0.45,
+    "ML": 0.60, "MC": 0.60, "MR": 0.60,
+    "AM": 0.80, "LW": 0.80, "RW": 0.80,
+    "ST": 1.0,
+}
+# The game's own vocabulary for each code. Italian on purpose and by the same precedent the pitch
+# badges already set: these are the words an auction is prepared in, and "terzino sinistro" is not a
+# translation of DL, it is what DL is. Everything else in the repo stays English.
+REAL_ROLE_LABEL: dict[str, str] = {
+    "GK": "portiere",
+    "DL": "terzino sinistro",
+    "DC": "difensore centrale",
+    "DR": "terzino destro",
+    "DM": "mediano davanti alla difesa",
+    "ML": "esterno di centrocampo sinistro",
+    "MC": "centrocampista centrale",
+    "MR": "esterno di centrocampo destro",
+    "AM": "trequartista",
+    "LW": "ala sinistra",
+    "RW": "ala destra",
+    "ST": "punta centrale",
+}
+
+
+def derive_club_xref(ctx: Context) -> int:
+    """club_xref(source='sofascore') from the cached season aggregates. Offline.
+
+    The squad endpoint is keyed by the provider's TEAM id, and no source of ours carried one. The
+    cached `sofascore_stats_{league}_{season}.json` already do: every player row ships its team's id
+    and name, so the mapping is a group-by over files we have, not a scrape.
+    """
+    conn = ctx.require_conn()
+    by_key: dict[str, str] = {}
+    for path in sorted(ctx.config.cache_dir.glob("sofascore_stats_*.json")):
+        if not _CACHE_NAME.search(path.name):
+            continue
+        try:
+            rows = json.loads(path.read_text(encoding="utf-8"))
+        except Exception as exc:   # noqa: BLE001 - a corrupt cache file must not abort the rebuild
+            print(f"[positions] skipping unreadable cache {path.name}: {exc}")
+            continue
+        for row in rows:
+            team = row.get("team") or {}
+            name, team_id = (team.get("name") or "").strip(), team.get("id")
+            if name and team_id:
+                # Newest file wins on a tie: a club that changed name keeps the id its latest
+                # season used, which is the one the squad endpoint answers for today.
+                by_key[club_key(name)] = str(team_id)
+    if not by_key:
+        return 0
+    # `clubs` holds a few duplicate rows for the same real club ('Eintracht' and 'Eintracht
+    # Francoforte'), and the xref PK is (source, source_id): both would claim the same team id and the
+    # last one silently wins, leaving its twin with no squad page. Resolved openly instead - the row
+    # with the most roster players is the live one - and the losers are named in the log, so a club
+    # whose squad stops being fetched is a line you can read and not a gap you have to find.
+    claims: dict[str, list[tuple[int, int, str]]] = {}
+    for club_id, name in conn.execute(
+            "SELECT fc_club_id, canonical_name FROM clubs WHERE canonical_name IS NOT NULL"):
+        team_id = (by_key.get(club_key(CLUB_ALIASES.get(name, name)))
+                   or by_key.get(club_key(name)))
+        if not team_id:
+            continue
+        roster = conn.execute("SELECT COUNT(*) FROM rosters WHERE fc_club_id = ?",
+                              (club_id,)).fetchone()[0]
+        claims.setdefault(team_id, []).append((roster, club_id, name))
+    duplicates: list[str] = []
+    for team_id, group in claims.items():
+        group.sort(reverse=True)
+        conn.execute("INSERT OR REPLACE INTO club_xref(fc_club_id, source, source_id) "
+                     "VALUES (?, 'sofascore', ?)", (group[0][1], team_id))
+        duplicates += [f"{name} -> {group[0][2]}" for _n, _id, name in group[1:]]
+    conn.commit()
+    print(f"[positions] provider team ids: {len(claims)} clubs in club_xref")
+    if duplicates:
+        print(f"[positions] duplicate club rows folded onto one provider team: "
+              f"{', '.join(sorted(duplicates))}")
+    return len(claims)
+
+
+def role_targets(conn, clubs=None) -> list[tuple[str, str]]:
+    """(canonical club, provider team id) for the clubs whose squad is worth reading.
+
+    `clubs` narrows it to the ones a caller actually needs - the snapshot passes the clubs of its own
+    sheet, so an auction in one platform does not pay for the other four leagues' reserves.
+    """
+    rows = conn.execute(
+        "SELECT c.canonical_name, x.source_id FROM club_xref x JOIN clubs c USING(fc_club_id) "
+        "WHERE x.source = 'sofascore' AND c.canonical_name IS NOT NULL "
+        "ORDER BY c.canonical_name").fetchall()
+    if clubs is None:
+        return [(name, source_id) for name, source_id in rows]
+    wanted = {club_key(CLUB_ALIASES.get(name, name)) for name in clubs} | {
+        club_key(name) for name in clubs}
+    return [(name, source_id) for name, source_id in rows
+            if club_key(name) in wanted or club_key(CLUB_ALIASES.get(name, name)) in wanted]
+
+
+def _role_entry(player: dict) -> dict | None:
+    """One provider player object -> the fields `player_roles` stores. None when it says nothing.
+
+    Only codes from the enumerated vocabulary are kept: an unknown one would silently become a role
+    nothing downstream can place, and the count of them is printed so a new code is noticed rather
+    than absorbed.
+    """
+    provider_id = str(player.get("id") or "")
+    codes = [code for code in (player.get("positionsDetailed") or []) if code in REAL_ROLES]
+    if not provider_id or not codes:
+        return None
+    return {"provider_id": provider_id, "roles": ";".join(codes), "primary_role": codes[0],
+            # The provider's broad slot when it gives one, else the primary code's own line: the two
+            # agree by construction on every sample, and this way a payload missing `position` still
+            # lands in a line instead of a NULL.
+            "line": player.get("position") or REAL_ROLE_LINE.get(codes[0]),
+            "foot": player.get("preferredFoot")}
+
+
+def unknown_role_codes(payloads) -> dict[str, int]:
+    """Codes the provider returned that are NOT in the enumerated vocabulary, with their counts."""
+    seen: dict[str, int] = {}
+    for player in payloads:
+        for code in (player.get("positionsDetailed") or []):
+            if code not in REAL_ROLES:
+                seen[code] = seen.get(code, 0) + 1
+    return seen
+
+
+def _squad_players(payload) -> list[dict]:
+    """The provider objects of a cached squad page, whatever shape the file has."""
+    if isinstance(payload, dict) and "players" in payload:
+        return [entry.get("player") or {} for entry in payload.get("players") or []]
+    if isinstance(payload, dict) and "player" in payload:
+        return [payload.get("player") or {}]        # a single-player cache file
+    return []
+
+
+def fetch_roles(ctx: Context, clubs=None, date: str | None = None, refresh: bool = False,
+                top_up: int | None = 150) -> dict[str, int]:
+    """The granular real role of every player, into the cache. Dated, resumable, interruptible.
+
+    Two passes, cheapest first:
+      * one request per CLUB (`/team/{id}/players`), which answers for its whole current squad;
+      * then one request per PLAYER still missing, for whoever no squad page covered - a man whose
+        club we have no provider id for, or who the page does not list. Ordered by pre-auction price
+        (Qt.I) so an interrupted top-up has done the players that matter, and bounded by `top_up`.
+
+    The cache file names carry the OBSERVATION DATE, so rerunning on the same day costs nothing and
+    a run next month is a new snapshot rather than an overwrite of this one.
+    """
+    conn = ctx.require_conn()
+    date = date or time.strftime("%Y-%m-%d", time.gmtime())
+    targets = role_targets(conn, clubs)
+    counts = {"clubs": 0, "requests": 0, "players": 0}
+    if not targets:
+        print("[positions] no provider team id for any club - run `positions --layer roles` after the "
+              "season aggregates are cached (it derives them), or check clubs.canonical_name")
+        return counts
+    todo = [(name, team_id) for name, team_id in targets
+            if refresh or not (ctx.config.cache_dir /
+                               f"sofascore_squad_{team_id}_{date}.json").exists()]
+    print(f"[positions] real role: {len(targets)} clubs · {len(todo)} to fetch "
+          f"(~{len(todo) * (REQUEST_DELAY + REQUEST_JITTER / 2) / 60:.0f} min)")
+    session = _client()
+    try:
+        for name, team_id in todo:
+            if ctx.cancelled():
+                raise KeyboardInterrupt
+            _polite_sleep(ctx.cancel_event)
+            payload = _get_json(session, SQUAD_ENDPOINT.format(tid=team_id))
+            counts["requests"] += 1
+            if not payload:
+                print(f"[positions] {name}: squad page unavailable (team id {team_id})")
+                continue
+            _atomic_write_text(
+                ctx.config.cache_dir / f"sofascore_squad_{team_id}_{date}.json",
+                json.dumps(payload, ensure_ascii=False))
+            counts["clubs"] += 1
+            counts["players"] += len(payload.get("players") or [])
+    except KeyboardInterrupt:
+        print("[positions] interrupted - every fetched squad is cached, rerun to continue")
+    finally:
+        session.close()
+    ingest_roles_from_cache(ctx)
+    if top_up:
+        counts.update(_top_up_roles(ctx, date, top_up, [name for name, _id in targets]))
+        ingest_roles_from_cache(ctx)
+    return counts
+
+
+def _top_up_roles(ctx: Context, date: str, limit: int, clubs) -> dict[str, int]:
+    """One request per player for whoever the squad pages left without a role on `date`.
+
+    Bounded to the SAME clubs the club pass covered. Without that bound it walked every club in
+    `squad_snapshot` - 77 of them against the 38 a euro auction can buy from - and spent one request
+    per player on squads whose cheaper club page had never been asked for, for rows the sheet then
+    filtered out anyway.
+    """
+    conn = ctx.require_conn()
+    placeholders = ",".join("?" * len(clubs)) or "NULL"
+    missing = conn.execute(
+        f"""
+        SELECT x.source_id, MAX(COALESCE(r.price_initial, r.price, 0)) AS worth
+        FROM player_xref x
+        JOIN squad_snapshot s ON s.fc_id = x.fc_id
+        LEFT JOIN rosters r ON r.fc_id = x.fc_id
+        WHERE x.source = 'sofascore' AND s.club IN ({placeholders})
+          AND NOT EXISTS (SELECT 1 FROM player_roles p
+                          WHERE p.fc_id = x.fc_id AND p.valid_from = ? AND p.source = 'sofascore')
+        GROUP BY x.source_id ORDER BY worth DESC
+        """, (*clubs, date)).fetchall()
+    todo = [provider_id for provider_id, _worth in missing
+            if not (ctx.config.cache_dir /
+                    f"sofascore_player_{provider_id}_{date}.json").exists()][:limit]
+    if not todo:
+        return {"top_up": 0}
+    dropped = max(0, len(missing) - limit)
+    print(f"[positions] real role top-up: {len(todo)} players the squad pages did not cover"
+          + (f" ({dropped} more left out by the {limit} bound - raise it to go further)"
+             if dropped else ""))
+    session = _client()
+    done = 0
+    try:
+        for provider_id in todo:
+            if ctx.cancelled():
+                raise KeyboardInterrupt
+            _polite_sleep(ctx.cancel_event)
+            payload = _get_json(session, PLAYER_ENDPOINT.format(pid=provider_id))
+            if not payload:
+                continue
+            _atomic_write_text(
+                ctx.config.cache_dir / f"sofascore_player_{provider_id}_{date}.json",
+                json.dumps(payload, ensure_ascii=False))
+            done += 1
+    except KeyboardInterrupt:
+        print("[positions] interrupted - every fetched player is cached, rerun to continue")
+    finally:
+        session.close()
+    return {"top_up": done}
+
+
+def ingest_roles_from_cache(ctx: Context, date: str | None = None) -> int:
+    """player_roles from the cached squad and player pages (offline).
+
+    Identity through `player_xref` only, like the per-match layer: a provider row nobody resolved is
+    counted and skipped, never guessed by name - the surname fallbacks are what collapsed ten
+    different 'Sanchez' into one player, and a wrong role is worse than a missing one on a sheet whose
+    whole job is to say where a man plays.
+    """
+    conn = ctx.require_conn()
+    xref = {source_id: fc_id for source_id, fc_id in conn.execute(
+        "SELECT source_id, fc_id FROM player_xref WHERE source = 'sofascore'")}
+    files = [(path, _SQUAD_CACHE_NAME.search(path.name) or _PLAYER_CACHE_NAME.search(path.name))
+             for path in sorted(ctx.config.cache_dir.glob("sofascore_squad_*.json"))
+             + sorted(ctx.config.cache_dir.glob("sofascore_player_*.json"))]
+    rows: dict[tuple[int, str], tuple] = {}
+    unresolved: set[str] = set()
+    unknown: dict[str, int] = {}
+    for path, key in files:
+        if not key:
+            continue
+        observed = key.group(2)
+        if date and observed != date:
+            continue
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except Exception as exc:   # noqa: BLE001 - a corrupt cache file must not abort the rebuild
+            print(f"[positions] skipping unreadable squad cache {path.name}: {exc}")
+            continue
+        players = _squad_players(payload)
+        for code, n in unknown_role_codes(players).items():
+            unknown[code] = unknown.get(code, 0) + n
+        for player in players:
+            entry = _role_entry(player)
+            if entry is None:
+                continue
+            fc_id = xref.get(entry["provider_id"])
+            if fc_id is None:
+                unresolved.add(entry["provider_id"])
+                continue
+            # A player listed by two clubs on the same day (a transfer the pages disagree on) would
+            # otherwise write twice; the role is a fact about the man, so either row will do.
+            rows[(fc_id, observed)] = (fc_id, observed, entry["roles"], entry["primary_role"],
+                                       entry["line"], entry["foot"])
+    if not rows:
+        return 0
+    conn.executemany(
+        "INSERT OR REPLACE INTO player_roles(fc_id, valid_from, source, roles, primary_role, line, "
+        "foot) VALUES (?, ?, 'sofascore', ?, ?, ?, ?)", list(rows.values()))
+    conn.commit()
+    dates = sorted({observed for _fc, observed in rows})
+    print(f"[positions] real role: {len(rows)} player-observations over {len(dates)} date(s) "
+          f"[{dates[0]} .. {dates[-1]}] · {len(unresolved)} provider ids without a resolved identity")
+    if unknown:
+        print(f"[positions] NEW provider position codes, not in the enumerated vocabulary: "
+              f"{unknown} - add them to REAL_ROLES/REAL_ROLE_LINE/REAL_ROLE_SIDE before trusting "
+              f"a sheet that silently dropped them")
+    return len(rows)
+
+
+def roles_as_of(conn, date: str) -> dict[int, dict]:
+    """The newest real-role observation per player at or before a date.
+
+    Dated series read the way every other volatile state is read here: an auction dated last August
+    must not see a role observed today, or the sheet is quietly reading the future.
+    """
+    out: dict[int, dict] = {}
+    for fc_id, roles, primary, line, foot, observed in conn.execute(
+            "SELECT fc_id, roles, primary_role, line, foot, valid_from FROM player_roles "
+            "WHERE source = 'sofascore' AND valid_from <= ? ORDER BY valid_from", (date,)):
+        out[fc_id] = {
+            "roles": roles, "primary": primary, "line": line, "foot": foot, "observed": observed,
+            # Where to DRAW him, from the primary code: depth up the pitch and flank, on the same
+            # axes `avg_x`/`avg_y` measure. Carried in the sheet so every reader of the CSV places
+            # him the same way the pitch view does, instead of each one inventing a mapping.
+            "depth": REAL_ROLE_DEPTH.get(primary or ""),
+            "side": REAL_ROLE_SIDE.get(primary or ""),
+        }
+    return out
+
+
 # ---------- role vocabulary cross-tab (offline) ----------
 def role_crosstab(ctx: Context) -> dict[str, dict[str, int]]:
     """provider slot (G/D/M/F) x listone role, per Classic role and per Mantra role -> report.
@@ -1128,18 +1502,26 @@ def run(ctx: Context, *, leagues=None, seasons=None, refresh: bool = False,
     unknown = [league for league in leagues if league not in TOURNAMENTS]
     if unknown:
         raise RuntimeError(f"Unknown league(s) {unknown}; choose from {sorted(TOURNAMENTS)}")
-    if layer not in ("season", "match", "complete", "heatmap", "all", "reparse", "crosstab"):
+    if layer not in ("season", "match", "complete", "heatmap", "roles", "all", "reparse",
+                     "crosstab"):
         raise RuntimeError(f"Unknown layer {layer!r}; choose from "
-                           "season|match|complete|heatmap|all|reparse|crosstab")
+                           "season|match|complete|heatmap|roles|all|reparse|crosstab")
 
     ctx.config.cache_dir.mkdir(parents=True, exist_ok=True)
     if layer == "crosstab":
         role_crosstab(ctx)
         return
+    if layer == "roles":
+        # The team ids first: they come from the cached aggregates, and without them there is no
+        # squad page to ask. Cheap and offline, so it is not worth a separate command.
+        derive_club_xref(ctx)
+        fetch_roles(ctx, clubs=kwargs.get("clubs"), refresh=refresh)
+        return
     if layer == "reparse":
         reingest_match_layer(ctx, seasons=requested_seasons)
         derive_roles_from_match_layer(ctx)
         ingest_heatmaps_from_cache(ctx, seasons=requested_seasons)
+        ingest_roles_from_cache(ctx)
         return
     if layer == "heatmap":
         fetch_heatmaps(ctx, leagues, seasons, refresh)
@@ -1290,4 +1672,6 @@ def reingest_all_from_cache(ctx: Context) -> None:
     reingest_match_layer(ctx)
     derive_roles_from_match_layer(ctx)
     ingest_heatmaps_from_cache(ctx)     # after the roles: they rewrite the same `positions` slice
+    derive_club_xref(ctx)               # provider team ids, from the same cached aggregates
+    ingest_roles_from_cache(ctx)        # every dated real-role observation still on disk
     derive_birth_years(ctx)
