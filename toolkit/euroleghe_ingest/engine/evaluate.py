@@ -1297,6 +1297,16 @@ MIN_RELATIVE_GAIN = 0.005      # half a percent on the players it touches: below
 MAX_WINDOW_LOSS = 0.02
 # Below this many measuring windows there is no majority to speak of and only the strict verdict applies.
 MIN_WINDOWS_FOR_ROBUST = 3
+# How much of the auction deliverable a rule may cost before the no-harm guard blocks it. Decided
+# 28/07/2026: the guard used to tolerate NOTHING - a single name lost on a single window failed it - and
+# that is too rigid, because a small regression can be the right direction that pays off with a later
+# change. So it is elastic, and DELIBERATELY the same 2% the robust verdict already allows on the error
+# side rather than a new number invented for the occasion.
+#
+# Read on the AGGREGATE over measuring windows, not per window: the per-window counts run 26-36 names, so
+# a relative bound there would fail on one name (36 -> 35 is -2.8%) and would not be elastic at all. On the
+# aggregate (157 names on euro/mantra) 2% is about three names, which is the intended "small".
+TOP10_MAX_AGGREGATE_LOSS = MAX_WINDOW_LOSS
 
 
 def _changed_mae(baseline: list[Prediction], candidate: list[Prediction],
@@ -1548,6 +1558,7 @@ def compare(conn: sqlite3.Connection, candidates: tuple[str, ...], platform: str
         kind = RULES_BY_KEY[rule].kind if rule in RULES_BY_KEY else "accuracy"
         rows = []
         for key, window_data in prepared.items():
+            auction_before = auction_view(window_data, predictions[key]["R0"])
             baseline = out["windows"][key]["R0"]["overall"]
             candidate = out["windows"][key][rule]["overall"]
             before, after, shared, added_mae, added_n = _common_mae(
@@ -1572,6 +1583,14 @@ def compare(conn: sqlite3.Connection, candidates: tuple[str, ...], platform: str
                 "value_before": _round(value_before, 1), "value_after": _round(vla, 1),
                 "top_before": sum(m["top_n"]["hits"] for m in role_reports(out, key, "R0")),
                 "top_after": sum(m["top_n"]["hits"] for m in role_reports(out, key, rule)),
+                # ⚠️ The two above are over CLASSIC roles even when game='mantra', because
+                # `evaluate_window` iterates model.CLASSIC_ROLES unconditionally. The guard must protect
+                # the DELIVERABLE, which for mantra is twelve roles, so it reads `auction_view` instead -
+                # the same lists the panel shows. Getting this wrong is what made an earlier adoption look
+                # like +2 names when the deliverable was losing 6.
+                "auction_before": sum(b["hits"] for b in auction_before.values()),
+                "auction_after": sum(
+                    b["hits"] for b in auction_view(window_data, predictions[key][rule]).values()),
                 "coverage_before": baseline["coverage"], "coverage_after": candidate["coverage"],
             })
 
@@ -1621,12 +1640,21 @@ def compare(conn: sqlite3.Connection, candidates: tuple[str, ...], platform: str
             "n_measured": len(measured),
             "fm_not_worse": better(rows, "fm_before", "fm_after", 1.001),
             "value_not_worse": better(rows, "value_before", "value_after", 1.001),
+            # Both are reported: the strict form (not one name, anywhere) is what the guard used to be
+            # and is kept visible, and the elastic form is what now decides.
             "top10_not_worse": all(row["top_after"] >= row["top_before"] for row in rows),
+            "top10_before": sum(row["auction_before"] for row in measured),
+            "top10_after": sum(row["auction_after"] for row in measured),
         }
-        no_harm = verdict["fm_not_worse"] and verdict["value_not_worse"]
-        verdict["passes"] = (
-            (coverage_up and added_sane and beats_naive and no_harm and verdict["top10_not_worse"])
-            if kind == "coverage" else (improved and no_harm))
+        before_names = verdict["top10_before"]
+        verdict["top10_loss"] = _round(
+            (before_names - verdict["top10_after"]) / before_names, 4) if before_names else None
+        verdict["top10_not_harmed"] = (verdict["top10_loss"] is None
+                                       or verdict["top10_loss"] <= TOP10_MAX_AGGREGATE_LOSS)
+        no_harm = (verdict["fm_not_worse"] and verdict["value_not_worse"]
+                   and verdict["top10_not_harmed"])
+        verdict["passes"] = ((coverage_up and added_sane and beats_naive and no_harm)
+                             if kind == "coverage" else (improved and no_harm))
 
         # The robust verdict: majority of measuring windows, mean gain above the floor, and no single
         # window losing more than MAX_WINDOW_LOSS. Only for accuracy rules and only once there are
@@ -1892,6 +1920,10 @@ def _print_gate(result: dict) -> None:
                       f"{target} MAE {row['added_mae']} against {row['added_mae_naive']} "
                       f"from the role anchor and the mean share")
         mark = "PASSES" if verdict["passes"] else "DOES NOT PASS"
+        if verdict.get("top10_loss") is not None:
+            print(f"    auction names {verdict['top10_before']} -> {verdict['top10_after']} "
+                  f"({-verdict['top10_loss'] * 100:+.1f}%) · within the {TOP10_MAX_AGGREGATE_LOSS:.0%} "
+                  f"no-harm allowance: {verdict['top10_not_harmed']}")
         detail = verdict.get("robust_detail")
         if detail is not None:
             agreement = ("agrees" if verdict["robust"] == verdict["passes"]

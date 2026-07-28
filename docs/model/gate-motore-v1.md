@@ -1051,6 +1051,36 @@ ripete» — quello è falso, non si trasferisce fra stagioni (§ sul prerequisi
 titolare interrotto dal giocatore di rotazione. Il nome «persistenza» descrive un meccanismo che non è il suo:
 il nome giusto è **lettura del pattern di presenze**.
 
+## 5-undecies. Il non-danno diventa elastico (decisione del 28 luglio 2026)
+
+La guardia tollerava **zero**: un nome perso su una finestra sola la faceva fallire. Troppo rigido — un
+peggioramento piccolo può essere la direzione giusta che dà frutti con una modifica successiva. Ora:
+
+- si legge sull'**aggregato** delle finestre che misurano, non per finestra (i conteggi per finestra sono
+  26-36 nomi, quindi una percentuale là fallirebbe su un nome solo: 36 → 35 è −2.8%);
+- la soglia è **2%**, deliberatamente **lo stesso `MAX_WINDOW_LOSS`** che il verdetto robusto già tollera sul
+  lato errore, non un numero nuovo inventato per l'occasione;
+- ed è ora **vincolante anche per le regole di accuratezza**, non solo per quelle di copertura — che era il
+  buco esposto da R3d (§5-decies).
+
+**Nessuna regola adottata viene disarcionata**: euro `R0c+R3c` porta i nomi 121 → 127 (+5.0%), Serie A
+`R3+R7+R13` 136 → 149 (+9.6%). La guardia morde su R1 (−3.3%), R5 (−2.9%), R13c (−4.3%), tutte già respinte
+per altro.
+
+### Difetto trovato costruendola: il gate misurava i top-10 sui ruoli sbagliati
+
+`evaluate_window` costruisce `by_role` su **`CLASSIC_ROLES` sempre**, anche con `game='mantra'`. Quindi i
+conteggi top-10 del gate per mantra erano sui 4 ruoli Classic, mentre il deliverable (`auction_view`) usa i
+12 Mantra. La guardia ora legge **`auction_view`**, cioè le stesse liste che il pannello mostra. Le colonne
+`top_before`/`top_after` restano come erano per non riscrivere i numeri pubblicati, ma **non decidono più**.
+
+### Resta aperto, ed è la causa comune di due errori di adozione
+
+Il gate valuta ogni candidata **da sola contro B0**. R3d da sola migliora il deliverable (+3.3%) e **sopra
+R3c lo peggiora** (157 → 151): entrambe vere, misurano cose diverse. Finché il gate non riporta anche
+l'effetto **marginale sopra il set adottato**, ogni proposta di adozione richiede una verifica di
+configurazione a mano — che è precisamente il passo che era mancato.
+
 ## 6. Validazione del voto sintetico (Serie A, dove esistono entrambi i set reali)
 
 **Per partita** (n=10.657): sintetico vs Mv euro (suo bersaglio) MAE **0.365** · vs Mv `default` **0.379**
