@@ -1457,27 +1457,76 @@ class SnapshotView(ttk.Frame):
     """
 
     ROLE_ORDER: ClassVar[dict[str, int]] = {"P": 0, "D": 1, "C": 2, "A": 3}
+    # Where a player really stands across the pitch, from his MANTRA roles - which encode laterality
+    # even when the auction is played in Classic: 'dd' is a right-back, 'ds' a left-back, 'dc' a centre
+    # back. -1 = the team's left, +1 = its right, 0 = the middle. `None` = wide but the side is not
+    # stated ('e' wing-back, 'w' winger): those fill the flanks that are still free.
+    # Precedence matters: a role that NAMES a side wins over one that does not. Carlos Augusto is
+    # 'b;ds;e' - braccetto, left-back, wing-back - and reading the first entry put a left-back in the
+    # middle of the defence.
+    SIDE: ClassVar[dict[str, float]] = {"ds": -1.0, "dd": 1.0}
+    # Wide, but the side is not stated: 'e' wing-back, 'w' winger, 'b' the wide man of a back three.
+    WIDE: ClassVar[frozenset[str]] = frozenset({"e", "w", "b"})
     # (column id, header, width, anchor). SURPLUS leads the numbers: it is the auction's own currency.
     COLUMNS: ClassVar[tuple[tuple[str, str, int, str], ...]] = (
-        ("role", "R", 40, "center"),
-        ("name", "Player", 150, "w"),
-        ("qti", "Qt.I", 52, "e"),
-        ("surplus", "SURPLUS", 78, "e"),
-        ("fm", "FM", 54, "e"),
-        ("pv", "Pv", 46, "e"),
-        ("minutes", "min", 52, "e"),
-        ("form", "form 10", 70, "center"),
-        ("rating", "rating", 58, "e"),
-        ("bonus", "g+a/90", 62, "e"),
-        ("inj", "inj", 46, "e"),
-        ("status", "flags", 160, "w"),
+        ("role", "R", 34, "center"),
+        # The listone role is what you BUY; the real one is where he was actually used, from the
+        # provider's own slot per match, with the sided Mantra role when there is one ("D dd").
+        ("real", "real", 54, "center"),
+        ("name", "Player", 126, "w"),
+        ("qti", "Qt.I", 46, "e"),
+        ("surplus", "SUR", 56, "e"),
+        ("fm", "FM", 50, "e"),
+        ("pv", "Pv", 42, "e"),
+        ("minutes", "min", 48, "e"),
+        ("form", "form", 54, "center"),
+        ("rating", "rat", 44, "e"),
+        ("bonus", "g+a", 44, "e"),
+        ("inj", "inj", 40, "e"),
+        ("status", "flags", 130, "w"),
     )
+
+    # One line per column, because a sheet nobody can read is a sheet nobody should act on. The two
+    # families are named in every entry: `engine_*` is gated, `desc_*` is not.
+    COLUMN_HELP: ClassVar[dict[str, str]] = {
+        "R": "The LISTONE role - what you buy him as (P/D/C/A). Click to restore the auction order: "
+             "by role, then by predicted SURPLUS.",
+        "real": "Where he was REALLY used: the provider's own slot in the matches he played, plus his "
+                "sided Mantra role when the listone states one (dd = right back, ds = left back). "
+                "Measured translation provider -> listone: G->P 100%, D->D 97%, M->C 80%, F->A 80%.",
+        "Player": "Name as the listone spells it. fc_id is the key underneath, so the same man is the "
+                  "same row in every view.",
+        "Qt.I": "Qt.I, the PRE-AUCTION quotation: the market's expectation, and the only price a rule "
+                "may read. Empty when the listone for this season is not out yet.",
+        "SUR": "GATED. Predicted SURPLUS = (predicted fantamedia - the role's replacement level) x "
+               "predicted appearances: points over the man you would have fielded instead. This is the "
+               "auction's own currency - an iron man on a replacement-level fantamedia scores ~0.",
+        "FM": "GATED. Predicted fantamedia for the season being auctioned, from the adopted rule set "
+              "with parameters fitted on a window that is not this season.",
+        "Pv": "GATED. Predicted appearances, on the platform's own calendar.",
+        "min": "Expected minutes = minutes per appearance x predicted appearances. The recent rate is "
+               "used when he actually played lately (it carries bench time), else the season-long one.",
+        "form": "played / measured of his CLUB's last 10 matches. `measured` drops the matches we have "
+                "no player-level data for, so 0 means he did not play - not that we do not know. Empty "
+                "= he is not in the per-match layer at all.",
+        "rat": "Average provider rating over those matches. Not a fantamedia: a 7.0 in Serie B is not "
+               "a 7.0 in Serie A, which is why it is reported raw and never converted here.",
+        "g+a": "Goals + assists per 90 over the FULL real season (all competitions we scrape), not the "
+               "euro calendar's subset. The engine's own propensity input, shown as it is.",
+        "inj": "Matches missed, weighted by recency (1.0 / 0.6 / 0.35 over three seasons). DESCRIPTIVE, "
+               "not gated. Empty = no Transfermarkt id: unknown, and not zero.",
+        "flags": "Starting probability from today's probabili, an open injury, today's availability, an "
+                 "expiring contract, how many rivals for the shirt, and whether he is a new arrival.",
+    }
 
     def __init__(self, parent, config: Config, on_build=None) -> None:
         super().__init__(parent)
         self.config = config
         self.on_build = on_build
         self.folders: list = []
+        self.sort_by: str | None = None
+        self.sort_desc = True
+        self.rows: list[dict] = []
         self.players: list[dict] = []
         self.clubs: dict[str, dict] = {}
         self.manifest: dict = {}
@@ -1509,8 +1558,8 @@ class SnapshotView(ttk.Frame):
                                       selectmode="browse")
         self.club_tree.heading("club", text="Club")
         self.club_tree.heading("n", text="#")
-        self.club_tree.column("club", width=180, anchor="w")
-        self.club_tree.column("n", width=40, anchor="e")
+        self.club_tree.column("club", width=132, anchor="w")
+        self.club_tree.column("n", width=34, anchor="e")
         self.club_tree.pack(fill="y", expand=True)
         self.club_tree.bind("<<TreeviewSelect>>", lambda _e: self._show_club())
 
@@ -1523,34 +1572,33 @@ class SnapshotView(ttk.Frame):
         ttk.Label(head, textvariable=self.club_title, style="H1.TLabel").pack(anchor="w")
         self.club_info = tk.StringVar()
         ttk.Label(head, textvariable=self.club_info, style="CardMuted.TLabel", justify="left",
-                  wraplength=780).pack(anchor="w", pady=(2, 8))
-        self.pitch = tk.Canvas(head, height=290, highlightthickness=0,
+                  wraplength=900).pack(anchor="w", pady=(2, 0))
+
+        # Two columns: the eleven on the left, the squad on the right. Stacked, the pitch pushed the
+        # list below the fold on a laptop - and the two are read together, not one after the other.
+        columns = ttk.Frame(right)
+        columns.pack(fill="both", expand=True, pady=(8, 0))
+        pitch_card = ttk.Frame(columns, style="Card.TFrame", padding=(8, 8))
+        pitch_card.pack(side="left", fill="both", expand=True)
+        self.pitch = tk.Canvas(pitch_card, width=430, highlightthickness=0,
                                background=theme.color("surface"))
-        self.pitch.pack(fill="x")
+        self.pitch.pack(fill="both", expand=True)
         self.pitch.bind("<Configure>", lambda _e: self._draw_pitch())
 
-        table = ttk.Frame(right, style="Card.TFrame", padding=(8, 8))
-        table.pack(fill="both", expand=True, pady=(8, 0))
+        table = ttk.Frame(columns, style="Card.TFrame", padding=(8, 8))
+        table.pack(side="left", fill="both", expand=True, padx=(8, 0))
         self.player_tree = ttk.Treeview(table, columns=[c[0] for c in self.COLUMNS],
                                         show="headings", selectmode="browse")
         for key, title, width, anchor in self.COLUMNS:
-            self.player_tree.heading(key, text=title)
+            self.player_tree.heading(key, text=title,
+                                     command=lambda column=key: self._sort_by(column))
             self.player_tree.column(key, width=width, anchor=anchor,
                                     stretch=key in ("name", "status"))
         scroll = ttk.Scrollbar(table, orient="vertical", command=self.player_tree.yview)
         self.player_tree.configure(yscrollcommand=scroll.set)
         scroll.pack(side="right", fill="y")
         self.player_tree.pack(fill="both", expand=True)
-        HeadingTooltip(self.player_tree, {
-            "SURPLUS": "Predicted (fantamedia - the role's replacement level) x appearances: points "
-                       "over the man you would have fielded instead. The engine's GATED valuation.",
-            "form 10": "played / measured of the CLUB's last 10 matches. `measured` excludes the "
-                       "matches we have no player-level data for, so a 0 here means he did not play - "
-                       "not that we do not know.",
-            "inj": "matches missed, recency-weighted. Descriptive, not gated. Empty = no Transfermarkt "
-                   "id, which is unknown and not zero.",
-            "flags": "starting probability, open injury, contract expiry, duel, arrival.",
-        })
+        HeadingTooltip(self.player_tree, self.COLUMN_HELP)
 
     # ---------- data ----------
     def reload(self) -> None:
@@ -1601,6 +1649,61 @@ class SnapshotView(ttk.Frame):
                                    -_number(row.get("engine_surplus"), -1e9)))
         return rows
 
+    # ---------- sorting ----------
+    # (column id -> the CSV field it reads). The auction order is not a column: it is role first, then
+    # predicted surplus, which is what the sheet opens on and what clicking "R" restores.
+    SORT_FIELD: ClassVar[dict[str, str]] = {
+        "real": "desc_real_role", "name": "name", "qti": "price_initial",
+        "surplus": "engine_surplus", "fm": "engine_fm_pred", "pv": "engine_pv_pred",
+        "minutes": "desc_expected_minutes", "form": "desc_form_played",
+        "rating": "desc_form_rating", "bonus": "desc_goals_p90", "inj": "desc_injury_weighted",
+        "status": "desc_starter_prob",
+    }
+
+    def _sort_by(self, column: str) -> None:
+        """Click a heading to sort by it; click it again to reverse. "R" goes back to auction order.
+
+        Empty cells always sink to the bottom, whichever direction is chosen: a missing number is not a
+        small one, and floating it to the top of a ranking is how absent data gets mistaken for a result.
+        """
+        if column == "role":
+            self.sort_by, self.sort_desc = None, True
+        elif self.sort_by == column:
+            self.sort_desc = not self.sort_desc
+        else:
+            self.sort_by, self.sort_desc = column, True
+        self._fill_table()
+
+    def _sorted(self, rows: list[dict]) -> list[dict]:
+        if not self.sort_by:
+            return rows                                    # already in auction order
+        field = self.SORT_FIELD.get(self.sort_by, self.sort_by)
+        numeric = any(_is_number(row.get(field)) for row in rows)
+
+        def key(row: dict):
+            value = row.get(field)
+            missing = value in (None, "")
+            if numeric:
+                return (missing, -_number(value) if self.sort_desc else _number(value))
+            return (missing, str(value or "").lower())
+
+        rows = sorted(rows, key=key)
+        if not numeric and self.sort_desc:
+            present = [row for row in rows if row.get(field) not in (None, "")]
+            absent = [row for row in rows if row.get(field) in (None, "")]
+            rows = list(reversed(present)) + absent
+        return rows
+
+    def _heading_titles(self) -> None:
+        """An arrow on the column being sorted, so the order on screen is never a guess."""
+        for key, title, _width, _anchor in self.COLUMNS:
+            mark = ""
+            if key == self.sort_by:
+                mark = " v" if self.sort_desc else " ^"
+            elif key == "role" and not self.sort_by:
+                mark = " *"
+            self.player_tree.heading(key, text=f"{title}{mark}")
+
     # ---------- club detail ----------
     def _show_club(self) -> None:
         club = self._selected_club()
@@ -1627,8 +1730,14 @@ class SnapshotView(ttk.Frame):
                         f"F{info.get('lines_fielded_F')} over {info['complete_XIs']} XIs")
         self.club_info.set(" · ".join(bits))
 
+        self.rows = self.squad(club)
+        self._fill_table()
+        self._draw_pitch()
+
+    def _fill_table(self) -> None:
+        self._heading_titles()
         self.player_tree.delete(*self.player_tree.get_children())
-        for row in self.squad(club):
+        for row in self._sorted(self.rows):
             flags = " ".join(part for part in (
                 f"start {row['desc_starter_prob']}" if row.get("desc_starter_prob") else "",
                 "OUT" if row.get("desc_injury_open") else "",
@@ -1641,14 +1750,16 @@ class SnapshotView(ttk.Frame):
             form = (f"{row.get('desc_form_played') or 0}/{row.get('desc_form_measured') or 0}"
                     if row.get("desc_form_measured") else "-")
             bonus = _number(row.get("desc_goals_p90")) + _number(row.get("desc_assists_p90"))
+            sided = next((part for part in (row.get("roles_mantra") or "").split(";")
+                          if part.strip().lower() in self.SIDE), "")
+            real = " ".join(part for part in (row.get("desc_real_role") or "", sided) if part)
             self.player_tree.insert("", "end", values=(
-                row.get("role_classic") or "?", row.get("name"),
+                row.get("role_classic") or "?", real or "-", row.get("name"),
                 row.get("price_initial") or "", row.get("engine_surplus") or "",
                 row.get("engine_fm_pred") or "", row.get("engine_pv_pred") or "",
                 row.get("desc_expected_minutes") or "", form,
                 row.get("desc_form_rating") or "", f"{bonus:.2f}" if bonus else "",
                 row.get("desc_injury_weighted") or "", flags))
-        self._draw_pitch()
 
     @staticmethod
     def _formation(info: dict) -> tuple[str, str]:
@@ -1701,6 +1812,12 @@ class SnapshotView(ttk.Frame):
         out: list[tuple[str, dict, list[dict]]] = []
         for role, slots in (("P", 1), ("D", defenders), ("C", midfielders), ("A", forwards)):
             pool = by_role.get(role, [])
+            # A man who is OUT cannot be in a probable eleven. The editorial path already reflects it
+            # (the editors drop him), the engine path did not: it ranked by predicted surplus alone and
+            # would field a player the same sheet marks injured two columns to the right.
+            pool = [row for row in pool
+                    if not row.get("desc_injury_open")
+                    and row.get("desc_availability_now") not in ("injured", "suspended")]
             if editorial:
                 pool = sorted((row for row in pool if row.get("desc_starter_prob")),
                               key=lambda row: -_number(row.get("desc_starter_prob")))
@@ -1722,26 +1839,101 @@ class SnapshotView(ttk.Frame):
                 out.append((role, starter, rivals))
         return out
 
+    @classmethod
+    def lateral(cls, row: dict) -> float | None:
+        """Where this player stands across the pitch: -1 left ... +1 right, None = wide, side unknown.
+
+        Read off the Mantra roles, which say it explicitly ('dd' right-back, 'ds' left-back), and that
+        is why it works in a Classic auction too: the listone carries the Mantra roles regardless of the
+        game being played. `avg_y` from the positional heatmap is the refinement for the players whose
+        role does not state a side - it is exported in the sheet and used here as soon as it is filled.
+        """
+        roles = [part.strip().lower() for part in (row.get("roles_mantra") or "").split(";")
+                 if part.strip()]
+        sided = [cls.SIDE[role] for role in roles if role in cls.SIDE]
+        if sided:
+            return sided[0]
+        if any(role in cls.WIDE for role in roles):
+            avg_y = row.get("desc_avg_y")
+            if avg_y not in (None, ""):
+                # the provider's y runs 0..100 across the pitch; centre it on the same -1..+1 scale
+                return max(-1.0, min(1.0, (_number(avg_y, 50.0) - 50.0) / 50.0))
+            return None
+        return 0.0
+
+    def _lane(self, slots: list[tuple[dict, list[dict]]]) -> list[tuple[dict, list[dict]]]:
+        """One line of the formation, ordered ACROSS the pitch: the team's left first.
+
+        Left first because the pitch is drawn attacking rightwards, and facing that way the left flank
+        is the top of the screen. Wide players whose role does not name a side take the outermost free
+        slots rather than being dropped in the middle, which is where an unordered lane would leave a
+        winger.
+        """
+        known = [(self.lateral(row), row, rivals) for row, rivals in slots]
+        unknown = [entry for entry in known if entry[0] is None]
+        placed = sorted((entry for entry in known if entry[0] is not None),
+                        key=lambda entry: entry[0])
+        for index, entry in enumerate(unknown):
+            # alternate: first one to the left edge, next to the right edge, then inwards
+            placed.insert(0 if index % 2 == 0 else len(placed), entry)
+        return [(row, rivals) for _side, row, rivals in placed]
+
+    def _shirt(self, x: float, y: float, starter: dict, rivals: list[dict]) -> None:
+        """One shirt: a plate behind the text, because white on grass is unreadable at this size.
+
+        Tkinter has no alpha on a canvas, so legibility comes from a solid dark plate rather than a
+        translucent one - and over mowing stripes a plate reads better than a drop shadow anyway. Name
+        and SURPLUS share a line to keep the plate narrow enough for five of them across a column.
+        """
+        canvas = self.pitch
+        name = (starter.get("name") or "")[:13]
+        surplus = starter.get("engine_surplus")
+        headline = f"{name}  {surplus}" if surplus else name
+        rival_names = ", ".join((row.get("name") or "")[:9] for row in rivals)
+        chars = max(len(headline), len(rival_names) + 3 if rival_names else 0)
+        wide = 10 + chars * 6.0
+        high = 17 + (12 if rival_names else 0)
+        left, top = x - wide / 2, y - high / 2
+        canvas.create_rectangle(left, top, left + wide, top + high,
+                                fill="#12351a", outline="#4c7a35", width=1)
+        canvas.create_oval(x - 4, top - 9, x + 4, top - 1, fill="#f4f6f5", outline="#12351a")
+        canvas.create_text(left + 5, top + 9, anchor="w", fill="#ffffff", font=theme.FONTS["strong"],
+                           text=headline)
+        if rival_names:
+            canvas.create_text(left + 5, top + 22, anchor="w", fill="#ffe082",
+                               font=theme.FONTS["small"], text=f"vs {rival_names}")
+
     def _draw_pitch(self) -> None:
-        """The eleven on a pitch. Vector, so it follows the theme and the window width."""
+        """The eleven on a VERTICAL pitch: keeper at the TOP, attack at the bottom.
+
+        Vertical because the pitch shares the row with the squad list, and a tall column is the shape a
+        formation is normally drawn in. Across the width the players sit at their real lateral position,
+        so the left-backs are on the left even in a Classic auction (see `lateral`).
+
+        Which side is "left" is stated on the pitch itself rather than left to the reader: with the
+        keeper at the top the eleven is seen FROM THE OPPOSING GOAL, and in that view the team's left is
+        the viewer's left. Read the other way round - from behind your own goal - it would be mirrored,
+        and for choosing between two right-backs an unstated convention is worse than either choice.
+        """
         canvas = self.pitch
         canvas.delete("all")
         canvas.configure(background=theme.color("surface"))
-        width = max(canvas.winfo_width(), 460)
-        height = int(canvas["height"])
+        width = max(canvas.winfo_width(), 420)
+        height = max(canvas.winfo_height(), 430)
         line = "#e8f5e9"
-        stripe = max(40, width // 10)
+        stripe = max(34, height // 10)
         canvas.create_rectangle(0, 0, width, height, fill="#2f7d32", outline="")
-        for index in range(0, width, stripe):
+        for index in range(0, height, stripe):
             if (index // stripe) % 2 == 0:
-                canvas.create_rectangle(index, 0, index + stripe, height, fill="#37913a", outline="")
+                canvas.create_rectangle(0, index, width, index + stripe, fill="#37913a", outline="")
         canvas.create_rectangle(6, 6, width - 6, height - 6, outline=line, width=2)
-        canvas.create_line(width // 2, 6, width // 2, height - 6, fill=line, width=2)
-        canvas.create_oval(width // 2 - 34, height // 2 - 34, width // 2 + 34, height // 2 + 34,
+        canvas.create_line(6, height // 2, width - 6, height // 2, fill=line, width=2)
+        canvas.create_oval(width // 2 - 40, height // 2 - 40, width // 2 + 40, height // 2 + 40,
                            outline=line, width=2)
-        canvas.create_rectangle(6, height // 2 - 52, 62, height // 2 + 52, outline=line, width=2)
-        canvas.create_rectangle(width - 62, height // 2 - 52, width - 6, height // 2 + 52,
+        box = min(150, width // 3)
+        canvas.create_rectangle(width // 2 - box, height - 6, width // 2 + box, height - 60,
                                 outline=line, width=2)
+        canvas.create_rectangle(width // 2 - box, 6, width // 2 + box, 60, outline=line, width=2)
         club = self._selected_club()
         if not club:
             return
@@ -1755,32 +1947,20 @@ class SnapshotView(ttk.Frame):
         lanes: dict[str, list] = {}
         for role, starter, rivals in eleven:
             lanes.setdefault(role, []).append((starter, rivals))
-        # left to right: keeper, defence, midfield, attack - the way a formation is read
-        for role, fraction in (("P", 0.01), ("D", 0.23), ("C", 0.45), ("A", 0.67)):
-            slots = lanes.get(role, [])
+        # top to bottom: keeper, defence, midfield, attack
+        for role, fraction in (("P", 0.08), ("D", 0.30), ("C", 0.54), ("A", 0.80)):
+            slots = self._lane(lanes.get(role, []))
             for index, (starter, rivals) in enumerate(slots):
-                # a five-man line has 34px of text in a 50px slot, so the odd shirts step forward -
-                # which is also how a real 3-5-2 is drawn, wingers ahead of the middle
-                x = width * fraction + 26 + (16 if len(slots) >= 5 and index % 2 else 0)
-                y = height * (index + 1) / (len(slots) + 1)
-                canvas.create_oval(x - 7, y - 7, x + 7, y + 7, fill=theme.color("surface"),
-                                   outline=line, width=2)
-                canvas.create_text(x + 12, y - 6, anchor="w", fill="#ffffff",
-                                   font=theme.FONTS["strong"],
-                                   text=(starter.get("name") or "")[:15])
-                surplus = starter.get("engine_surplus")
-                if surplus:
-                    canvas.create_text(x + 12, y + 7, anchor="w", fill="#dcedc8",
-                                       font=theme.FONTS["small"], text=f"SUR {surplus}")
-                if rivals:
-                    names = ", ".join((row.get("name") or "")[:11] for row in rivals)
-                    canvas.create_text(x + 12, y + 20, anchor="w", fill="#ffe082",
-                                       font=theme.FONTS["small"], text=f"vs {names}")
+                x = width * (index + 1) / (len(slots) + 1)
+                # a five-man line cannot fit five plates across a column, so alternate shirts step
+                # forward - which is also how a 3-5-2 really lines up, wing-backs ahead of the middle
+                y = height * fraction + (0 if len(slots) < 4 or index % 2 == 0 else 26)
+                self._shirt(x, y, starter, rivals)
         editorial = any(row.get("desc_starter_prob") for _role, row, _rivals in eleven)
-        canvas.create_text(width - 12, height - 12, anchor="e", fill=line,
-                           font=theme.FONTS["small"],
+        canvas.create_text(width // 2, height - 14, fill=line, font=theme.FONTS["small"],
                            text=f"{formation} · XI from "
-                                f"{'the probabili' if editorial else 'the engine (no probabili yet)'}")
+                                f"{'the probabili' if editorial else 'the engine (no probabili yet)'}"
+                                " · seen from the opposing goal: their left is your left")
 
 
 def _read_csv(path) -> list[dict]:
@@ -1798,6 +1978,14 @@ def _read_json(path) -> dict:
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
+
+
+def _is_number(value) -> bool:
+    try:
+        float(value)
+    except (TypeError, ValueError):
+        return False
+    return True
 
 
 def _number(value, default: float = 0.0) -> float:

@@ -783,7 +783,7 @@ PLAYER_COLUMNS: tuple[str, ...] = (
     "desc_form_goals_league", "desc_form_assists_league",
     "desc_form_goals_other", "desc_form_assists_other",
     "desc_form_competitions", "desc_form_clubs", "desc_form_last_match", "desc_form_source",
-    "desc_squad_club", "desc_squad_source",
+    "desc_squad_club", "desc_squad_source", "desc_real_role", "desc_avg_x", "desc_avg_y",
     "desc_starter_prob", "desc_starter_status", "desc_expected_minutes",
     "desc_duel_rivals", "desc_duel_names",
     "desc_injury_matches_missed", "desc_injury_weighted", "desc_injury_spells",
@@ -867,6 +867,12 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             "desc_form_source": form.get("source"),
             "desc_squad_club": layers["squads"].get(obs.fc_id),
             "desc_squad_source": layers["squad_sources"].get(obs.fc_id),
+            # The role he was REALLY used in, from the provider's own slot per match (positions.
+            # derived_role). It answers a different question from the listone's: the listone says what
+            # you buy him as, this says where the coach actually put him.
+            "desc_real_role": layers["real_roles"].get(obs.fc_id),
+            "desc_avg_x": layers["positions"].get(obs.fc_id, (None, None))[0],
+            "desc_avg_y": layers["positions"].get(obs.fc_id, (None, None))[1],
             "desc_starter_prob": starter.get("probability"),
             "desc_starter_status": starter.get("status"),
             # Expected minutes = minutes per CLUB match recently x the appearances the engine
@@ -1017,6 +1023,15 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
         "discipline": discipline(conn, window.input_season, platform),
         "contract": contract_state(conn, window.target_season),
         "penalties": penalty_duty(conn, window.auction_date),
+        # Where he really stood on the pitch last season (the positional heatmap). Empty until
+        # `positions --layer heatmap` has run; the view falls back to the Mantra roles, which name a
+        # side for defenders but not for wingers.
+        "real_roles": {fc_id: role for fc_id, role in conn.execute(
+            "SELECT fc_id, derived_role FROM positions WHERE season = ? AND source = 'sofascore' "
+            "AND derived_role IS NOT NULL", (window.input_season,))},
+        "positions": {fc_id: (avg_x, avg_y) for fc_id, avg_x, avg_y in conn.execute(
+            "SELECT fc_id, avg_x, avg_y FROM positions WHERE season = ? AND source = 'sofascore'",
+            (window.input_season,))},
     }
     layers["duels"] = duels(data.observations, starters)
 

@@ -47,8 +47,8 @@ DARK: dict[str, str] = {
     "surface": "#1c2027",
     "surface_alt": "#22262e",
     "surface_sunken": "#0f1216",
-    "border": "#333a44",
-    "border_strong": "#4a525e",
+    "border": "#2a303a",          # only enough to separate two surfaces, never a visible line
+    "border_strong": "#3a424e",
     "text": "#e6e9ee",
     "text_muted": "#a7b0bc",
     "text_faint": "#7b8492",
@@ -161,8 +161,12 @@ def apply_theme(root, mode: str = "light") -> ttk.Style:
         with contextlib.suppress(Exception):
             tkfont.nametofont(name).configure(family=FAMILY, size=FONTS["body"][1])
 
+    # `lightcolor`/`darkcolor` are clam's 3D bevel, and they default to near-white: in dark mode every
+    # card, tab, table and combobox came out ringed in a bright line. Pinned to the surface itself, the
+    # bevel disappears and the only edge left is `bordercolor`, which the palette controls.
     style.configure(".", background=bg, foreground=text, fieldbackground=surface,
-                    bordercolor=border, focuscolor=accent, font=FONTS["body"])
+                    bordercolor=border, lightcolor=surface, darkcolor=surface,
+                    focuscolor=accent, font=FONTS["body"])
     style.configure("TFrame", background=bg)
     style.configure("Card.TFrame", background=surface, relief="flat")
     style.configure("Toolbar.TFrame", background=surface)
@@ -183,7 +187,8 @@ def apply_theme(root, mode: str = "light") -> ttk.Style:
                     font=FONTS["strong"])
 
     style.configure("TButton", background=color("surface_alt"), foreground=text,
-                    bordercolor=border, focusthickness=1, padding=(10, 5), relief="flat")
+                    bordercolor=border, focusthickness=1, padding=(10, 5), relief="flat",
+                    lightcolor=color("surface_alt"), darkcolor=color("surface_alt"))
     style.map("TButton",
               background=[("disabled", color("surface_alt")), ("pressed", color("accent_soft")),
                           ("active", color("accent_soft"))],
@@ -208,36 +213,41 @@ def apply_theme(root, mode: str = "light") -> ttk.Style:
               bordercolor=[("active", accent)],
               foreground=[("disabled", color("text_faint"))])
 
-    style.configure("TNotebook", background=bg, bordercolor=border, tabmargins=(8, 6, 8, 0))
+    style.configure("TNotebook", background=bg, bordercolor=border, tabmargins=(8, 6, 8, 0),
+                    lightcolor=bg, darkcolor=bg, borderwidth=0)
     style.configure("TNotebook.Tab", background=color("surface_alt"), foreground=muted,
-                    padding=(16, 8), font=FONTS["body"], bordercolor=border)
+                    padding=(16, 8), font=FONTS["body"], bordercolor=border,
+                    lightcolor=color("surface_alt"), darkcolor=color("surface_alt"))
     style.map("TNotebook.Tab",
               background=[("selected", surface)],
               foreground=[("selected", text)],
               expand=[("selected", (0, 0, 0, 1))])
 
     style.configure("Treeview", background=surface, fieldbackground=surface, foreground=text,
-                    bordercolor=border, rowheight=FONTS["body"][1] * 2 + 6, font=FONTS["body"])
+                    bordercolor=border, lightcolor=surface, darkcolor=surface, borderwidth=0,
+                    rowheight=FONTS["body"][1] * 2 + 6, font=FONTS["body"])
     style.configure("Treeview.Heading", background=color("surface_alt"), foreground=muted,
-                    font=FONTS["strong"], relief="flat", padding=(6, 5))
+                    font=FONTS["strong"], relief="flat", padding=(6, 5), borderwidth=0,
+                    lightcolor=color("surface_alt"), darkcolor=color("surface_alt"))
     style.map("Treeview.Heading", background=[("active", color("accent_soft"))])
     style.map("Treeview", background=[("selected", color("selection"))],
               foreground=[("selected", text)])
 
     style.configure("TCombobox", fieldbackground=surface, background=color("surface_alt"),
-                    foreground=text, arrowcolor=muted, bordercolor=border, padding=(6, 4))
+                    foreground=text, arrowcolor=muted, bordercolor=border, padding=(6, 4),
+                    lightcolor=surface, darkcolor=surface)
     style.map("TCombobox", fieldbackground=[("readonly", surface)],
               bordercolor=[("focus", accent)])
     style.configure("TEntry", fieldbackground=surface, foreground=text, bordercolor=border,
-                    padding=(6, 4))
+                    padding=(6, 4), lightcolor=surface, darkcolor=surface)
     style.configure("TCheckbutton", background=bg, foreground=text)
     style.configure("Card.TCheckbutton", background=surface, foreground=text)
     style.configure("TRadiobutton", background=bg, foreground=text)
     style.configure("TProgressbar", background=accent, troughcolor=color("surface_sunken"),
                     bordercolor=border, lightcolor=accent, darkcolor=accent)
     style.configure("TSeparator", background=border)
-    style.configure("Vertical.TScrollbar", background=color("surface_alt"), troughcolor=bg,
-                    bordercolor=border, arrowcolor=muted)
-    style.configure("Horizontal.TScrollbar", background=color("surface_alt"), troughcolor=bg,
-                    bordercolor=border, arrowcolor=muted)
+    for orientation in ("Vertical", "Horizontal"):
+        style.configure(f"{orientation}.TScrollbar", background=color("surface_alt"), troughcolor=bg,
+                        bordercolor=border, arrowcolor=muted, lightcolor=color("surface_alt"),
+                        darkcolor=color("surface_alt"), borderwidth=0)
     return style
