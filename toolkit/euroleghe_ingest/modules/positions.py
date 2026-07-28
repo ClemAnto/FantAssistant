@@ -233,8 +233,8 @@ def _iso_date(timestamp) -> str | None:
     return time.strftime("%Y-%m-%d", time.gmtime(timestamp))
 
 
-def parse_round(payload: dict, season: str,
-                xref: dict[str, int]) -> tuple[list[tuple], list[tuple], int]:
+def parse_round(payload: dict, season: str, xref: dict[str, int],
+                keep_unplayed: bool = False) -> tuple[list[tuple], list[tuple], int]:
     """Cached round payload -> (external_match_stats rows, club_match_lineups rows, unresolved).
 
     Identity comes straight from player_xref (written by the season-aggregate step): a player the
@@ -277,8 +277,13 @@ def parse_round(payload: dict, season: str,
                     unknown += 1
                     continue
                 stats = entry.get("statistics") or {}
-                if not stats:
+                if not stats and not keep_unplayed:
                     continue          # named on the bench but never came on
+                # `keep_unplayed` is the EXTRA layer's own case, and it is not the same fact: the
+                # provider publishes the eleven of a pre-season friendly and NO per-player statistics
+                # at all (measured: 0 of 11 entries carry any). Storing the row with a null minute is
+                # what lets the sheet say "he started that friendly" instead of "no data", and a null
+                # minute is what keeps him out of every rate - there is nothing to average.
                 rows.append((
                     fc_id, event_season, event_id, competition, real_md, match_date, club, opponent,
                     1 if side == "home" else 0,
@@ -591,7 +596,8 @@ def reingest_match_layer(ctx: Context, seasons=None) -> None:
             continue
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
-            rows, club_rows, missing = parse_round(payload, season, xref)
+            rows, club_rows, missing = parse_round(
+                payload, season, xref, keep_unplayed=path.name.startswith("sofascore_round_extra"))
         except Exception as exc:   # noqa: BLE001 - a corrupt cache file must not abort the rebuild
             print(f"[positions] skipping unreadable round cache {path.name}: {exc}")
             continue

@@ -42,7 +42,7 @@ from euroleghe_ingest.modules.positions import (
     REAL_ROLE_SIDE,
     REAL_ROLES,
 )
-from euroleghe_ingest.modules.snapshot import INJURY_WEIGHTS
+from euroleghe_ingest.modules.snapshot import INJURY_WEIGHTS, competition_class
 from euroleghe_ingest.sources import _norm_roles, available_sources
 
 
@@ -1577,7 +1577,9 @@ class SnapshotView(ttk.Frame):
               "being in the squad). A suspension nobody recorded reads as bench - we do not know he "
               "was banned. A FULL dot means he played at least 75 minutes, a hollow one that he was "
               "on for less. A black mark on the top-right corner is the bonus: the big one a goal, the "
-              "small one an assist - and a match with both reads as a goal.",
+              "small one an assist - and a match with both reads as a goal. A FRIENDLY is a small grey "
+              "dot, solid if he was in the eleven: the provider publishes those line-ups and no "
+              "per-player statistics at all, so there is no rating to colour it with.",
         "tit": "The share of the season's matchdays he is expected to GET A VOTO in: his appearances "
                "over the matches he was available for, discounted by how much of a season a player with "
                "his injury history misses. An appearance is taken as a voto - the season layer stores "
@@ -1695,6 +1697,12 @@ class SnapshotView(ttk.Frame):
             ttk.Radiobutton(toggle, text=label, value=value, variable=self.xi_mode,
                             style="Card.TRadiobutton",
                             command=self._show_club).pack(side="left", padx=(0, 10))
+        # Which vocabulary the markers speak. Three, because an auction uses three.
+        ttk.Label(toggle, text="ruoli", style="CardMuted.TLabel").pack(side="left", padx=(6, 4))
+        self.role_mode = tk.StringVar(value="real")
+        ttk.Combobox(toggle, textvariable=self.role_mode, state="readonly", width=8,
+                     values=["real", "mantra", "classic"]).pack(side="left")
+        self.role_mode.trace_add("write", lambda *_a: self._draw_pitch())
         self.pitch = tk.Canvas(pitch_card, width=430, highlightthickness=0,
                                background=theme.color("surface"))
         self.pitch.pack(fill="both", expand=True)
@@ -1802,6 +1810,7 @@ class SnapshotView(ttk.Frame):
     TOKEN_LABEL: ClassVar[dict[str, str]] = {
         "p": "played", "b": "bench / left out", "i": "injured", "s": "suspended",
         "n": "no data for this match",
+        "x": "in the eleven, no statistics published (friendly)",
     }
 
     def _on_click(self, event) -> None:
@@ -1879,6 +1888,10 @@ class SnapshotView(ttk.Frame):
     # injury, a suspension (his own doing, and it ends on a known date), and no data at all.
     ABSENT: ClassVar[dict[str, str]] = {"b": "#9e9e9e", "i": "#9575cd", "s": "#ef5350",
                                         "n": "#37474f"}
+    # A friendly is drawn SMALL and always GREY: the provider publishes its eleven and no per-player
+    # statistics, so there is no rating to colour the dot with and no minutes to fill it by. Solid = he
+    # was in the eleven, hollow = he was not. Size, not colour, says "this was not a competitive match".
+    FRIENDLY = "#9e9e9e"
     DOT = 10                                   # cell size per match, in pixels
     FULL_MATCH = 75                            # minutes from which the dot is drawn SOLID
 
@@ -1902,10 +1915,13 @@ class SnapshotView(ttk.Frame):
         """
         tokens = (series or "").split()
         bonus = [(0, 0)] * len(tokens)
+        friendly = [False] * len(tokens)
         for index, entry in enumerate((detail or "").split(";")[:len(tokens)]):
             fields = entry.split("|")
             if len(fields) >= 9:
                 bonus[index] = (int(_number(fields[7])), int(_number(fields[8])))
+            if fields and competition_class(fields[1] if len(fields) > 1 else "") == "friendly":
+                friendly[index] = True
         size = self.DOT
         image = tk.PhotoImage(width=size * max(len(tokens), 1) + 2, height=size + 4)
         background = theme.color("surface")
@@ -1921,6 +1937,12 @@ class SnapshotView(ttk.Frame):
                 colour = _blend(self.ABSENT.get(parts[0], "#9e9e9e"), background, 0.3)
                 minutes = 0.0
             x = index * size + 1
+            if friendly[index]:
+                # small, grey, and solid only if he was actually in the eleven
+                self._dot(image, x, 2, self.FRIENDLY if parts[0] in ("p", "x")
+                          else _blend(self.FRIENDLY, background, 0.3),
+                          hollow=parts[0] not in ("p", "x"), small=True)
+                continue
             self._dot(image, x, 2, colour, hollow=minutes < self.FULL_MATCH)
             goals, assists = bonus[index]
             if goals or assists:
@@ -1944,8 +1966,12 @@ class SnapshotView(ttk.Frame):
                     image.put("#000000",
                               to=(left + column, row, left + column + 1, row + 1))
 
+    # A friendly's dot: five pixels instead of eight, centred in the same cell.
+    SMALL_MASK: ClassVar[tuple[str, ...]] = (" ### ", "#####", "#####", "#####", " ### ")
+    SMALL_EDGE: ClassVar[tuple[str, ...]] = (" ### ", "#   #", "#   #", "#   #", " ### ")
+
     @staticmethod
-    def _dot(image, x: int, y: int, colour: str, hollow: bool = False) -> None:
+    def _dot(image, x: int, y: int, colour: str, hollow: bool = False, small: bool = False) -> None:
         """An 8x8 dot: SOLID when he played a full match, an empty circle of the same colour otherwise.
 
         Filled against hollow, rather than an outline around the dot. The outline was a SECOND colour on
@@ -1953,24 +1979,28 @@ class SnapshotView(ttk.Frame):
         as was a grid. Full and empty need no second colour and survive both themes, and the colour goes
         on meaning only one thing: how he played.
         """
-        mask = ("  ####  ",
-                " ###### ",
-                "########",
-                "########",
-                "########",
-                "########",
-                " ###### ",
-                "  ####  ")
+        if small:
+            x, y = x + 2, y + 2
+        mask = SnapshotView.SMALL_MASK if small else (
+               "  ####  ",
+               " ###### ",
+               "########",
+               "########",
+               "########",
+               "########",
+               " ###### ",
+               "  ####  ")
         # the ring is two pixels thick and the hole four wide: a one-pixel ring around a six-wide hole
         # read as an outline at this size, which is the opposite of what full-against-empty is for
-        edge = ("  ####  ",
-                " ###### ",
-                "##    ##",
-                "##    ##",
-                "##    ##",
-                "##    ##",
-                " ###### ",
-                "  ####  ")
+        edge = SnapshotView.SMALL_EDGE if small else (
+               "  ####  ",
+               " ###### ",
+               "##    ##",
+               "##    ##",
+               "##    ##",
+               "##    ##",
+               " ###### ",
+               "  ####  ")
         for row, line in enumerate(mask):
             for column, pixel in enumerate(line):
                 if pixel != "#" or (hollow and edge[row][column] != "#"):
@@ -2248,6 +2278,21 @@ class SnapshotView(ttk.Frame):
         geometry = self.LANES_5 if lanes.get("T") else self.LANES_4
         drawn = "-".join(str(len(lanes.get(key, []))) for key, _y in geometry if key != "P")
         return lanes, geometry, drawn
+
+    @classmethod
+    def flank(cls, row: dict) -> float:
+        """-1 the team's left ... +1 its right, with a code that NAMES a flank overriding the heatmap.
+
+        `lateral` keeps the measured centroid whenever it agrees in sign with the role, which is right
+        for how FAR out he stood and wrong for whether he is a full back: Gutierrez reads 'DL' and -0.23,
+        and a 0.34 threshold on the measurement alone drew a terzino sinistro in the middle of the
+        defence while his own marker said 'Ts'. Where the code names a flank, the code decides.
+        """
+        codes = cls.real_roles(row)
+        named = REAL_ROLE_SIDE.get(codes[0]) if codes else None
+        if named is not None and abs(named) > 0.34:
+            return named
+        return cls.lateral(row) or 0.0
 
     @classmethod
     def sides_of(cls, row: dict) -> set[str]:
@@ -2697,30 +2742,74 @@ class SnapshotView(ttk.Frame):
     # place he never plays. The bands are fixed, so an EMPTY flank stays empty: that a coach's four is
     # lopsided is information, and filling the gap with a central player is a false winger.
     # The team attacks downwards, so its RIGHT is the screen's left (see `_lane`).
-    BAND_RIGHT: ClassVar[tuple[float, float]] = (0.04, 0.26)
-    BAND_CENTRE: ClassVar[tuple[float, float]] = (0.28, 0.72)
-    BAND_LEFT: ClassVar[tuple[float, float]] = (0.74, 0.96)
+    # How WIDE a line is drawn, as the distance from the touchline to its outermost slot - and it is a
+    # property of the module, not of the count alone, which is what the Mantra scheme sheets show: a back
+    # three is three central defenders and stays narrow, a back four reaches the flanks with its terzini;
+    # a midfield three (4-3-x) is a narrow triangle while the four of a 3-4-x has wing backs ON the
+    # touchline; two trequartisti sit inside, two strikers side by side in the middle.
+    LINE_WIDTH: ClassVar[dict[str, dict[int, float]]] = {
+        "P": {1: 0.50},
+        "D": {1: 0.50, 2: 0.30, 3: 0.25, 4: 0.12, 5: 0.07},
+        "M": {1: 0.50, 2: 0.30, 3: 0.24, 4: 0.10, 5: 0.07, 6: 0.06},
+        "T": {1: 0.50, 2: 0.32, 3: 0.22},
+        "A": {1: 0.50, 2: 0.30, 3: 0.14, 4: 0.10},
+    }
+    CENTRE_PULL: ClassVar[float] = 0.45      # how far inside a central player drifts from a wide slot
 
-    def _placed(self, slots: list[tuple[dict, list[dict]]]) -> list[tuple[float, dict, list[dict]]]:
-        """[(fraction of the width, starter, rivals)] for one line, left to right on the screen."""
-        groups: dict[str, list] = {"R": [], "C": [], "L": []}
-        spare: list = []
-        for entry in slots:
-            # 'wide, flank unstated' - the Mantra 'e' (wing back) and 'w' (winger) - is not a central
-            # player: he fills a flank nobody has claimed, and only the middle when both are taken
-            if self.lateral(entry[0]) is None:
-                spare.append(entry)
-            else:
-                groups[self.side_of(entry[0])].append(entry)
-        for entry in spare:
-            groups[next((side for side in ("R", "L") if not groups[side]), "C")].append(entry)
-        bands = {"R": self.BAND_RIGHT, "C": self.BAND_CENTRE, "L": self.BAND_LEFT}
+    # What a marker says, and in which colour. Three readings of the same man, because an auction uses
+    # three vocabularies: the MANTRA roles are what a Mantra module has slots for, the CLASSIC role is
+    # what you buy him as, and the REAL position is where he actually stands. The families follow the
+    # listone's own convention - keeper orange, defence green, midfield blue, attack red - with the wide
+    # and creative roles set apart inside their line so a 'w' is not read as a 'pc'.
+    MANTRA_COLOUR: ClassVar[dict[str, tuple[str, str]]] = {
+        "por": ("#f2a93b", "#20160a"),
+        "dc": ("#2e9b52", "#ffffff"), "dd": ("#2e9b52", "#ffffff"), "ds": ("#2e9b52", "#ffffff"),
+        "b": ("#57b877", "#12280f"),
+        "e": ("#26a69a", "#ffffff"), "m": ("#1f6fb2", "#ffffff"), "c": ("#1f6fb2", "#ffffff"),
+        "w": ("#7e57c2", "#ffffff"), "t": ("#7e57c2", "#ffffff"),
+        "a": ("#d1443c", "#ffffff"), "pc": ("#d1443c", "#ffffff"),
+    }
+    CLASSIC_COLOUR: ClassVar[dict[str, tuple[str, str]]] = {
+        "P": ("#f2a93b", "#20160a"), "D": ("#2e9b52", "#ffffff"),
+        "C": ("#1f6fb2", "#ffffff"), "A": ("#d1443c", "#ffffff"),
+    }
+
+    def _placed(self, slots: list[tuple[dict, list[dict]]],
+                lane: str = "M") -> list[tuple[float, dict, list[dict]]]:
+        """[(fraction of the width, starter, rivals)] for one line, left to right on the screen.
+
+        THE MODULE FIRST. A line of N is drawn on the N evenly spaced slots a formation diagram uses, so
+        a 3-4-3 looks like a 3-4-3 - which three fixed side-bands did not: two left midfielders shared
+        0.22 of the width, 34px apart, while the right flank sat empty and the whole line read as a
+        crowd. Who gets which slot is decided by FLANK, the widest man to the outside (and among equals
+        the one who plays most, so a 3-man attack puts the first-choice striker in the middle).
+
+        Then each man is pulled toward the centre in proportion to how CENTRAL he really is: a right back
+        stays on the touchline, a mediano handed the outside slot of a lopsided line is drawn tucked
+        inside it. That is the compromise between the two true statements - the shape is the coach's, and
+        Lobotka does not play on the wing - and the empty flank still reads as a gap.
+        """
+        # Flank first, then the WIDEST man of a flank to the outside, then who plays most. Each of those
+        # three is a mistake this made: a marginally wide striker took the middle of a three-man attack
+        # off the centre-forward (who then read as the seconda punta), and a left back was drawn inside a
+        # left midfielder because he had fewer starts.
+        def order(entry):
+            side = self.flank(entry[0])
+            bucket = 1 if side > 0.34 else -1 if side < -0.34 else 0
+            # the widest man of a flank goes OUTSIDE, and outside is a different direction on each
+            # flank: the drawn order runs from the team's right to its left, so on the right the widest
+            # comes first and on the left it comes last
+            return -bucket, -abs(side) * bucket, -self.presence(entry[0], "season")
+
+        entries = sorted(slots, key=order)
+        count = len(entries)
+        margin = self.LINE_WIDTH.get(lane, {}).get(count, 0.12)
         out: list[tuple[float, dict, list[dict]]] = []
-        for side, group in groups.items():
-            low, high = bands[side]
-            for index, (starter, rivals) in enumerate(group):
-                out.append((low + (high - low) * (index + 1) / (len(group) + 1), starter, rivals))
-        return sorted(out, key=lambda item: item[0])
+        for index, (starter, rivals) in enumerate(entries):
+            slot = margin + (1 - 2 * margin) * index / (count - 1) if count > 1 else 0.5
+            out.append((slot + (0.5 - slot) * self.CENTRE_PULL * (1 - abs(self.flank(starter))),
+                        starter, rivals))
+        return out
 
     @staticmethod
     def lines(formation: str) -> tuple[int, int, int]:
@@ -2780,7 +2869,12 @@ class SnapshotView(ttk.Frame):
         codes = [self.badge(starter, -(spread - 0.5) * 2) for spread, starter, _rivals in placed]
         centre = [index for index, code in enumerate(codes) if code == "Pc"]
         if len(centre) > 1:
-            keep = min(centre, key=lambda index: abs(placed[index][0] - 0.5))
+            # by ROLE, not by where he ended up drawn: with two strikers and three slots one of them has
+            # to take a wide one, and it is the wider man who does - so reading the shirt off the drawn x
+            # handed 'Pc' to the striker who plays off the flank and called the centre-forward the
+            # seconda punta. The most central role keeps it, and among equals the man who plays most.
+            keep = min(centre, key=lambda index: (abs(self.flank(placed[index][1])),
+                                                  -self.presence(placed[index][1], "season")))
             for index in centre:
                 if index != keep:
                     codes[index] = "Sp"
@@ -2821,10 +2915,30 @@ class SnapshotView(ttk.Frame):
             lines.append((f"vs {rival}", theme.FONTS["small"], "#ffe082"))
 
         radius = 12
-        code = code or self.badge(starter, drawn_side)
-        canvas.create_oval(x - radius, y - radius, x + radius, y + radius,
-                           fill="#12351a", outline="#f4f6f5", width=2)
-        canvas.create_text(x, y, fill="#ffffff", font=theme.FONTS["pill"], text=code)
+        mode = self.role_mode.get()
+        if mode == "mantra":
+            pills = [(part.strip().upper(), *self.MANTRA_COLOUR.get(part.strip().lower(),
+                                                                    ("#546e7a", "#ffffff")))
+                     for part in (starter.get("roles_mantra") or "").split(";")[:3] if part.strip()]
+        elif mode == "classic":
+            role = (starter.get("role_classic") or "?").upper()
+            pills = [(role, *self.CLASSIC_COLOUR.get(role, ("#546e7a", "#ffffff")))]
+        else:
+            pills = []
+        if pills:
+            # one pill per role, in a row centred on the slot: a Mantra player is two or three roles and
+            # a single disc cannot say which, which is the whole reason the selector exists
+            widths = [max(18.0, 8 + len(label) * 7.5) for label, _fill, _ink in pills]
+            left = x - (sum(widths) + 2 * (len(pills) - 1)) / 2
+            for (label, fill, ink), pill in zip(pills, widths, strict=True):
+                canvas.create_rectangle(left, y - 9, left + pill, y + 9, fill=fill, outline="")
+                canvas.create_text(left + pill / 2, y, fill=ink, font=theme.FONTS["pill"], text=label)
+                left += pill + 2
+        else:
+            code = code or self.badge(starter, drawn_side)
+            canvas.create_oval(x - radius, y - radius, x + radius, y + radius,
+                               fill="#12351a", outline="#f4f6f5", width=2)
+            canvas.create_text(x, y, fill="#ffffff", font=theme.FONTS["pill"], text=code)
 
         widest = max(len(part) for part, _font, _fill in lines)
         plate = min(room, 8 + widest * 7.2)
@@ -2892,7 +3006,7 @@ class SnapshotView(ttk.Frame):
             slots = self._lane(lanes.get(role, []))
             if not slots:
                 continue
-            placed = self._placed(slots)
+            placed = self._placed(slots, role)
             codes = self._line_codes(placed)
             # How much width a shirt owns: the distance to its nearest neighbour, since the shirts are no
             # longer evenly spaced. Three men crowded into the centre band leave ~45px each, which is not

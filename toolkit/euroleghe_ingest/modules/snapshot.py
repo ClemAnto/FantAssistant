@@ -385,7 +385,17 @@ def club_form(conn, auction_date: str, observations, squads: dict[int, str],
     # competitions we never scraped player-by-player: counting those as "he did not play" would turn a
     # gap in our data into a statement about the player. They are counted apart.
     with_players = {str(match_id) for (match_id,) in conn.execute(
-        "SELECT DISTINCT match_id FROM external_match_stats WHERE match_date IS NOT NULL")}
+        "SELECT DISTINCT match_id FROM external_match_stats "
+        "WHERE match_date IS NOT NULL AND COALESCE(minutes, 0) > 0")}
+    # In the ELEVEN of a match nobody has statistics for - a pre-season friendly. It is neither a
+    # performance nor an absence, so it is counted as neither: it gets its own token, and the strip
+    # draws it small and grey because there is no rating to colour it with.
+    lineup_only: dict[int, set[str]] = {}
+    for fc_id, match_id in conn.execute(
+            """SELECT fc_id, match_id FROM external_match_stats
+               WHERE match_date IS NOT NULL AND match_date < ? AND started = 1
+                 AND COALESCE(minutes, 0) = 0""", (auction_date,)):
+        lineup_only.setdefault(fc_id, set()).add(str(match_id))
     appearances: dict[int, dict[str, tuple]] = {}
     for fc_id, match_id, club, competition, date, minutes, started, rating, goals, assists in             conn.execute(
                 """SELECT fc_id, match_id, club, competition, match_date, COALESCE(minutes, 0),
@@ -477,6 +487,8 @@ def club_form(conn, auction_date: str, observations, squads: dict[int, str],
             if entry:
                 rating = entry[5]
                 token = f"p:{rating if rating is not None else ''}:{entry[3]}"
+            elif str(match_id) in lineup_only.get(obs.fc_id, ()):
+                token = "x"
             elif (reason := next((code for start, end, code in spells.get(obs.fc_id, ())
                                   if start <= date <= end), None)):
                 token = reason

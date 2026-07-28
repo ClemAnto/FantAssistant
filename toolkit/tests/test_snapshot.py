@@ -379,8 +379,11 @@ def test_a_real_attack_has_one_centre_forward_and_he_plays_in_the_middle():
     # two centre-forwards on the board: the central one keeps the shirt, the other reads seconda punta
     # the fractions are the real drawn ones, so the CENTRAL striker keeps the shirt: read off an even
     # spread instead, a second striker nearer the middle stole it from the true centre-forward
-    codes = view._line_codes([(0.30, dict(striker, name="Nine bis"), []), (0.50, striker, [])])
-    assert codes == ["Sp", "Pc"]
+    view.players = []
+    view.clubs = {}
+    wide = dict(striker, name="Nine bis", desc_side_measured="0.6")
+    codes = view._line_codes([(0.30, wide, []), (0.50, striker, [])])
+    assert codes == ["Sp", "Pc"]      # the CENTRAL role keeps the shirt, wherever he is drawn
     assert view._line_codes([(0.15, winger, []), (0.50, striker, [])]) == ["Ad", "Pc"]
 
 
@@ -405,6 +408,13 @@ def test_the_trend_dot_is_full_only_for_a_full_match_and_carries_the_bonus():
     assert (4, 4) not in hollow.pixels                # and hollow when he played less than 75'
     assert hollow.pixels[(0, 3)] == "#66bb6a"         # same colour on the ring: it still means the band
     assert (2, 3) not in hollow.pixels                # a two-pixel ring, not an outline
+
+    # a friendly: five pixels instead of eight, centred in the same cell, and never a band colour
+    small = Fake()
+    View._dot(small, 0, 0, "#9e9e9e", small=True)
+    assert small.pixels[(4, 4)] == "#9e9e9e"
+    assert (0, 0) not in small.pixels and (7, 7) not in small.pixels
+    assert max(x for x, _y in small.pixels) == 6 and min(x for x, _y in small.pixels) == 2
 
     goal, assist = Fake(), Fake()
     View._bonus(goal, 0, scored=True)
