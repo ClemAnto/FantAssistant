@@ -373,8 +373,8 @@ def test_a_real_attack_has_one_centre_forward_and_he_plays_in_the_middle():
 
 
 def test_the_trend_dot_is_full_only_for_a_full_match_and_carries_the_bonus():
-    """Colour says how he played, full-or-hollow whether he was really on the pitch, and the two pixel
-    rows around the dot carry a goal and an assist - three questions, three channels, no second colour."""
+    """Colour says how he played, full-or-hollow whether he was really on the pitch, and a black mark on
+    the corner carries the bonus - three questions, three channels that cannot be confused."""
     from euroleghe_ingest.gui import SnapshotView as View
 
     class Fake:
@@ -394,7 +394,10 @@ def test_the_trend_dot_is_full_only_for_a_full_match_and_carries_the_bonus():
     assert hollow.pixels[(0, 3)] == "#66bb6a"         # same colour on the ring: it still means the band
     assert (2, 3) not in hollow.pixels                # a two-pixel ring, not an outline
 
-    pips = Fake()
-    View._pips(pips, 0, 0, 2, "#ffa000")
-    assert pips.pixels[(0, 0)] == pips.pixels[(3, 1)] == "#ffa000"
-    assert (6, 0) not in pips.pixels                  # two goals, two pips
+    goal, assist = Fake(), Fake()
+    View._bonus(goal, 0, scored=True)
+    View._bonus(assist, 0, scored=False)
+    # both marks are black and sit on the dot's top-right corner; the goal's is the bigger one
+    assert goal.pixels[(5, 2)] == assist.pixels[(6, 1)] == "#000000"
+    assert len(goal.pixels) > len(assist.pixels)
+    assert max(x for x, _y in goal.pixels) == max(x for x, _y in assist.pixels) == 7

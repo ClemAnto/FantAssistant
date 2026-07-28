@@ -1552,7 +1552,8 @@ class SnapshotView(ttk.Frame):
               "red a suspension, dark grey no player-level data at all (unknown, which includes not "
               "being in the squad). A suspension nobody recorded reads as bench - we do not know he "
               "was banned. A FULL dot means he played at least 75 minutes, a hollow one that he was "
-              "on for less. An amber pip above the dot is a goal, a blue pip below it an assist.",
+              "on for less. A black mark on the top-right corner is the bonus: the big one a goal, the "
+              "small one an assist - and a match with both reads as a goal.",
         "tit": "TITOLARITA: starts / matches over the full real season - how often the coach fields "
                "him. This, and never a valuation, is what decides who is on the pitch above.",
         "role": "The LISTONE role - what you buy him as (P/D/C/A). Click to restore the auction order: "
@@ -1612,6 +1613,10 @@ class SnapshotView(ttk.Frame):
             ttk.Button(bar, text="Build now", style="Accent.TButton",
                        command=self.on_build).pack(side="left", padx=(0, 6))
         ttk.Button(bar, text="Reload", command=self.reload).pack(side="left")
+        # A build takes minutes and its log lives on another tab, so the progress belongs here.
+        self.build_progress = ttk.Progressbar(bar, mode="indeterminate", length=120)
+        self.build_step = tk.StringVar()
+        self.build_label = ttk.Label(bar, textvariable=self.build_step, style="Muted.TLabel")
         self.xi_mode = tk.StringVar(value="typical")
         self.note_var = tk.StringVar()
         ttk.Label(bar, textvariable=self.note_var, style="Muted.TLabel").pack(side="left", padx=10)
@@ -1702,6 +1707,25 @@ class SnapshotView(ttk.Frame):
         if self.folder_var.get() not in self.folder_cb["values"]:
             self.folder_var.set(self.folder_cb["values"][0])
         self.load_selected()
+
+    def building(self, running: bool, step: str = "") -> None:
+        """Show the build's progress and the stage it has reached; hide it again when it is done.
+
+        Indeterminate on purpose. What the run costs is dominated by whatever the DB is missing - a
+        squad walk, the club form, the granular roles - so a percentage would be a number we made up,
+        and the honest signal is that it is still working and what it is working on. The stage text is
+        the module's own last line, which is also what the Operations log records.
+        """
+        self.build_step.set(step[:64])
+        if running:
+            if not self.build_progress.winfo_ismapped():
+                self.build_progress.pack(side="left", padx=(8, 4))
+                self.build_label.pack(side="left")
+                self.build_progress.start(12)
+        else:
+            self.build_progress.stop()
+            self.build_progress.pack_forget()
+            self.build_label.pack_forget()
 
     def load_selected(self) -> None:
         names = list(self.folder_cb["values"])
@@ -1809,7 +1833,7 @@ class SnapshotView(ttk.Frame):
     # downstream fits on it, and the sheet says so in the column's own tooltip.
     BANDS: ClassVar[tuple[tuple[float, str], ...]] = (
         (8.0, "#00e5ff"),      # exceptional
-        (7.3, "#4fc3f7"),      # very good
+        (7.3, "#2196f3"),      # very good - darker than the cyan above it, or the two read as one
         (6.8, "#66bb6a"),      # good
         (6.3, "#9e9e9e"),      # average
         (5.8, "#ffd54f"),      # weak
@@ -1822,11 +1846,6 @@ class SnapshotView(ttk.Frame):
                                         "n": "#37474f"}
     DOT = 10                                   # cell size per match, in pixels
     FULL_MATCH = 75                            # minutes from which the dot is drawn SOLID
-    # A goal and an assist are facts about the match, not about the performance band, so they get their
-    # own two pixel rows - above the dot for goals, below it for assists - rather than a colour of the
-    # dot itself. Amber and blue because neither is a rating band: nothing on the strip means two things.
-    GOAL_PIP = "#ffa000"
-    ASSIST_PIP = "#1e88e5"
 
     @classmethod
     def band(cls, rating: float | None) -> str:
@@ -1842,9 +1861,9 @@ class SnapshotView(ttk.Frame):
 
         Three things are readable at a glance and each is a different question. The COLOUR is how he
         played (the rating band, or the faded reason he did not). SOLID or HOLLOW is whether he was really
-        on the pitch - 75 minutes or more fills the dot in. And the two pixel rows around it carry the
-        bonus: a pip above per goal, a pip below per assist, up to three each, read from `desc_form_detail`
-        because the series token only carries the rating and the minutes.
+        on the pitch - 75 minutes or more fills the dot in. And a black mark on the dot's top-right corner
+        is the bonus: a big one for a goal, a small one for an assist, the goal winning when he did both.
+        It is read from `desc_form_detail`, because the series token carries only rating and minutes.
         """
         tokens = (series or "").split()
         bonus = [(0, 0)] * len(tokens)
@@ -1869,15 +1888,26 @@ class SnapshotView(ttk.Frame):
             x = index * size + 1
             self._dot(image, x, 2, colour, hollow=minutes < self.FULL_MATCH)
             goals, assists = bonus[index]
-            self._pips(image, x, 0, min(goals, 3), self.GOAL_PIP)
-            self._pips(image, x, size + 2, min(assists, 3), self.ASSIST_PIP)
+            if goals or assists:
+                self._bonus(image, x, bool(goals))
         return image
 
-    @staticmethod
-    def _pips(image, x: int, y: int, count: int, colour: str) -> None:
-        """`count` 2x2 marks in a row, three at most - the width of a dot holds no more than three."""
-        for index in range(count):
-            image.put(colour, to=(x + index * 3, y, x + index * 3 + 2, y + 2))
+    # The bonus mark: a 5x5 disc for a goal, a 3x3 one for an assist, black, on the dot's top-right
+    # corner. One mark per match and the GOAL WINS - a man who scored and assisted the same game reads
+    # as a scorer, because at ten pixels a cell that tries to say both says neither.
+    GOAL_MARK: ClassVar[tuple[str, ...]] = (" ### ", "#####", "#####", "#####", " ### ")
+    ASSIST_MARK: ClassVar[tuple[str, ...]] = (" # ", "###", " # ")
+
+    @classmethod
+    def _bonus(cls, image, x: int, scored: bool) -> None:
+        """The mark, right-aligned on the dot's top-right corner, over whatever the dot drew there."""
+        mark = cls.GOAL_MARK if scored else cls.ASSIST_MARK
+        left = x + 8 - len(mark[0])
+        for row, line in enumerate(mark):
+            for column, pixel in enumerate(line):
+                if pixel == "#":
+                    image.put("#000000",
+                              to=(left + column, row, left + column + 1, row + 1))
 
     @staticmethod
     def _dot(image, x: int, y: int, colour: str, hollow: bool = False) -> None:
@@ -2770,6 +2800,7 @@ class ToolkitGUI:
         self.config = Config()
         self.log_queue: queue.Queue = queue.Queue()
         self.busy = False
+        self._running: str | None = None
         self._cancel_event = threading.Event()
 
         root.title(f"euroleghe-ingest · operator panel v{__version__}")
@@ -2801,7 +2832,7 @@ class ToolkitGUI:
         notebook.add(self.auction, text="  Auction  ")
 
         self.snapshot = SnapshotView(notebook, self.config,
-                                     on_build=lambda: self.run_operation("snapshot"))
+                                     on_build=self._build_snapshot)
         notebook.add(self.snapshot, text="  Snapshot  ")
 
         self._build_status_bar(root)
@@ -3370,6 +3401,17 @@ class ToolkitGUI:
             return ("matchdays",)   # new matchdays to line up with the real calendar
         return ()
 
+    def _build_snapshot(self) -> None:
+        """The Snapshot tab's button: the same run as the Operations tab, with the progress in view.
+
+        It goes through `run_operation` rather than starting a thread of its own - one worker, one audit
+        line - and the bar only starts if the run really started: the snapshot asks for platform and
+        gameType first, and a cancelled dialog would otherwise leave it spinning forever.
+        """
+        self.run_operation("snapshot")
+        if self.busy:
+            self.snapshot.building(True, "starting")
+
     def run_operation(self, command: str) -> None:
         if self.busy:
             return
@@ -3430,8 +3472,11 @@ class ToolkitGUI:
                 if item == "__DONE__":
                     self._set_busy(False)
                     self._refresh_all()
+                    self.snapshot.building(False)
                 else:
                     self._append(item)
+                    if self._running == "snapshot" and item.strip():
+                        self.snapshot.building(True, item.strip().splitlines()[-1])
         except queue.Empty:
             pass
         self.root.after(100, self._drain_log)
@@ -3444,6 +3489,7 @@ class ToolkitGUI:
 
     def _set_busy(self, busy: bool, command: str | None = None) -> None:
         self.busy = busy
+        self._running = command if busy else None
         if busy:
             for btn in self.buttons:
                 btn.configure(state="disabled")
