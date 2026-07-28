@@ -85,6 +85,16 @@ beta per gruppo di ruolo · baseline multi-stagione 62/38 · ancore per lega · 
   dell'allenatore. Data d'asta `min(15 agosto, oggi)`; se i parametri vengono dalla stagione bersaglio
   il manifest scrive **DRY RUN**.
 
+- [x] **v9.6 (28/07 notte) — precisazioni sullo snapshot + VISTA**: `squad_snapshot` (rose reali, ogni
+  fonte datata con la propria data) e `features.load(squad_source='real')` → il foglio funziona **senza
+  listone** (26/27: 890 giocatori, 34 club, prezzi vuoti per costruzione); forma sulle **ultime 10 del
+  CLUB** con `played/measured/unused/unknown` e gol spezzati league/other; **striscia di 10 pallini**
+  (`b` panchina ≠ `n` nessun dato); vista `Snapshot` (club a sinistra, campetto + rosa ordinabile a
+  destra, colonna `real`); campetto = **modulo tipo** (moda degli undici, non media delle linee).
+  Difetti trovati provandolo: backstop apparizioni illimitato (Handanovic nell'Inter 2026), rose
+  ridatate = look-ahead, perimetro euro non filtrato, anello bianco su riga bianca, tooltip muti
+  (chiave sul testo invece che sull'id di colonna).
+
 ## Percorso critico (aggiornato 28/07 notte)
 La parte dati e' fatta **e ora è anche esportabile e ricostruibile da zero** (v9.4): il toolkit non è
 più sul percorso critico. Il percorso ora e': **modalità LIVE del motore (una lista sola, non due) ->

@@ -330,6 +330,86 @@ Colonne sottili sono elencate a fine corsa (`<20% riempite`), e il manifest port
 Al primo giro sono vuote titolarità e ballottaggi — le probabili sono uno stato di **oggi** e la loro
 storia parte dal giorno in cui il job settimanale ha iniziato a girare.
 
+## Novità v9.6 (28 luglio 2026, notte — precisazioni sullo snapshot, e la VISTA)
+
+Precisazioni dell'utente, tutte con conseguenze sui dati e non solo sulla UI.
+
+### 1. Lo snapshot lavora sulle ROSE REALI, listone o non listone
+
+Nuova tabella **`squad_snapshot(fc_id, valid_from, club, source, role_hint)`** — chi è davvero in rosa a
+una DATA, da tre fonti in ordine di forza: **fc_site** (le probabili portano un fc_id esatto nell'href:
+20 squadre di Serie A, certe), **transfermarkt** (la pagina rosa CORRENTE dei club del perimetro, già in
+cache), **apparizioni** (chi ha giocato per il club negli ultimi 14 mesi, **solo** per i club senza
+pagina rosa). Ogni fonte è datata **con la propria data**, non con quella della corsa.
+
+`features.load` ha ora `squad_source='listone'|'real'` (default listone → **nessun numero del gate si
+muove**). Con `'real'` il set di righe include chi è in rosa e **non** nel listone: il ruolo viene dalla
+sua ultima riga di listone, il prezzo resta NULL — il caso che R0c già gestisce (prezza all'àncora).
+Il target di default non è più «il listone più recente» ma **la stagione a cui appartiene oggi**: a
+luglio si prepara l'asta di una stagione il cui listone non esiste, ed è il senso dell'esercizio.
+Misurato: 26/27 = **890 giocatori, 34 club**, senza quotazioni, con FM/presenze/SURPLUS previsti.
+
+⚠️ Tre difetti trovati **provando** il foglio, non rileggendolo:
+- il backstop «apparizioni» senza limite temporale metteva **Handanovic e Cordaz nell'Inter 2026** e
+  faceva del Lecce un club da 70 giocatori → finestra di 14 mesi, e la **pagina rosa vince** dove c'è;
+- le rose venivano ridatate alla data d'asta: le probabili di luglio 2026 informavano un'asta di agosto
+  2025. **Look-ahead**, corretto;
+- il foglio euro elencava Verona, Genoa, Cagliari — in EuroLeghe non si comprano. Filtro sul **perimetro
+  della piattaforma** applicato **in uscita**, non al modello: le standardizzazioni del motore restano
+  sulla popolazione su cui le regole sono state validate, quindi ogni numero è quello dell'harness.
+
+### 2. La forma è sulle ultime 10 partite DEL CLUB, non del giocatore
+
+`desc_form_club_matches` (le ultime 10 del club: unione di `club_match_lineups` e del layer per-partita,
+quindi coppe e amichevoli comprese), `desc_form_measured` (quante hanno dati per-giocatore),
+`desc_form_played`, **`desc_form_unused`** (panchina o fuori rosa — il layer non distingue, e lo dice),
+`desc_form_unknown`. Chi ha cambiato club dentro la finestra ha le partite del **club di allora** + quelle
+del club di adesso (due passate: la finestra dipende dai club e i club rilevanti dalle date della
+finestra). Gol e assist **spezzati** `league`/`other` — dieci gol in amichevole valgono qualcosa, e non
+dieci in campionato. Chi non è nel layer per-partita legge **UNKNOWN, non zero** (233 su 1453 del
+listone 25/26).
+
+### 3. La striscia delle ultime 10
+
+Colonna `desc_form_series` nel foglio e **dieci pallini** nella vista (dal più vecchio a sinistra). Un
+token per partita: `p:<rating>:<minuti>` giocata · `b` panchina o fuori rosa · `i` dentro uno spell di
+infortunio registrato · `n` **nessun dato per-giocatore** su quella partita. ⚠️ `b` e `n` sono fatti
+diversi: il primo dice «non ha giocato», il secondo «non lo sappiamo» (e include il non convocato).
+Colori per fascia di rating (ciano ≥8.0, azzurro ≥7.3, verde ≥6.8, grigio ≥6.3, giallo ≥5.8, rosso
+sotto), assenze **sfumate al 30%** sul fondo riga (Tk non ha alpha: si miscela), **contorno** = almeno
+75 minuti giocati. Il contorno è **a contrasto col tema** e non bianco fisso: un anello bianco su riga
+bianca non è un anello — com'era uscito al primo giro, e come l'ingrandimento ha mostrato. Le soglie sono
+**presentazione**, non parametri di modello, e un test lo fissa.
+
+### 4. La vista `Snapshot` (quarto tab)
+
+Legge la cartella che `snapshot` ha scritto — non ricalcola nulla, quindi lettura e corsa non possono
+divergere. Club a sinistra; a destra il box del club, il **campetto** (portiere in alto, attacco in
+basso) con l'undici e i **ballottaggi** sotto ogni titolare, e la rosa ordinata **per ruolo e poi per
+SURPLUS previsto**, ordinabile su ogni colonna, con tooltip su tutte. Colonna **`real`** = il ruolo in
+cui è stato davvero usato (dal layer per-partita) accanto a quello di listone: Dimarco è comprato D e
+usato C. I giocatori stanno alla loro **posizione laterale reale**, che funziona anche in Classic perché
+la lateralità viene dai ruoli **Mantra** che il listone porta comunque (`ds` sinistra, `dd` destra); la
+precedenza costa un bug: Carlos Augusto è `b;ds;e` e leggere il primo ruolo metteva un terzino sinistro
+al centro della difesa.
+
+**Come si scelgono gli 11** (due regimi, mai mescolati): se esiste uno snapshot probabili alla data
+d'asta sono eleggibili **solo** i giocatori con una probabilità di titolarità, ordinati per quella;
+altrimenti la rosa ordinata per **SURPLUS previsto**. Il campetto scrive quale dei due sta mostrando.
+Chi ha un infortunio aperto o è indisponibile oggi **non entra** nell'undici del motore. Un'alternativa
+in ballottaggio è per definizione **fuori** dall'undici: una difesa a tre di titolari equivalenti si
+citava a vicenda, che non dice niente su chi è in ballottaggio con chi.
+
+### 5. Il campetto mostra il MODULO TIPO
+
+La **moda** degli undici completi realmente schierati, con la sua quota (Atalanta **3-4-3 al 97% di 38**,
+Arsenal **4-3-3 al 63%**, Bayern **4-5-1 al 97%**), non la media delle linee — Arsenal 4.0/3.74/2.26
+arrotonda a 4-4-2, un modulo mai giocato. Tutti e 34 i club ne hanno uno: prima metà erano vuoti perché
+`club_match_lineups` è indicizzata con la grafia del provider e la query usava la nostra.
+⚠️ Le linee sono contate nel **vocabolario del provider**, dove un'ala è un centrocampista: un 4-3-3 con
+due ali legge 4-5-1. Scritto nel manifest e nella UI, con la traduzione misurata (G→P 100%, D→D 97%,
+M→C 80%, F→A 80%).
+
 ## Principi
 1. File grezzi (Drive/cache) = fonte di verità; DB **sempre ricostruibile da zero** (`rebuild` idempotente).
 2. Il prediction-engine legge solo dai dati normalizzati.

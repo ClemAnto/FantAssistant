@@ -26,7 +26,26 @@ proporre qualsiasi regola) → **`metrica-asta-surplus-v1.md`** (con cosa il pan
 
 Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
 
-### ULTIMO IN ORDINE DI TEMPO — lo SNAPSHOT D'ASTA: un tasto, e il foglio da cui si prepara un'asta
+### ULTIMO IN ORDINE DI TEMPO — lo snapshot lavora sulle ROSE REALI e ha una VISTA (spec «Novità v9.6»)
+
+1. **Rose reali, listone o non listone.** Nuova `squad_snapshot` (fc_site → transfermarkt → apparizioni,
+   ognuna datata **con la propria data**) e `features.load(squad_source='real')`, default `'listone'`
+   così **nessun numero del gate si muove**. Il target di default è **la stagione a cui appartiene
+   oggi**: a luglio si prepara l'asta di una stagione il cui listone non esiste. Misurato: 26/27 = **890
+   giocatori, 34 club**, senza quotazioni, con SURPLUS. ⚠️ Tre difetti trovati **provando** il foglio:
+   il backstop apparizioni senza limite metteva Handanovic nell'Inter 2026; le rose venivano ridatate
+   alla data d'asta (**look-ahead**); il foglio euro elencava Verona e Cagliari → filtro di perimetro
+   **in uscita**, non nel modello, così ogni numero resta quello dell'harness.
+2. **Forma sulle ultime 10 del CLUB**, non del giocatore: `played/measured/unused/unknown`, gol spezzati
+   `league`/`other`, e chi non è nel layer legge **UNKNOWN, non zero**. Nella vista sono **dieci
+   pallini**: `b` (panchina) e `n` (nessun dato) sono colori diversi di proposito.
+3. **Vista `Snapshot`**: club a sinistra, box + **campetto** (portiere in alto) con undici e ballottaggi,
+   rosa ordinabile con tooltip su ogni colonna e colonna **`real`** (il ruolo in cui è stato davvero
+   usato). Gli 11: le probabili se ci sono, altrimenti il SURPLUS previsto — e il campetto dice quale.
+4. **Campetto = MODULO TIPO**: la **moda** degli undici realmente schierati (Atalanta 3-4-3 al 97%), non
+   la media delle linee, che arrotonda a moduli mai giocati.
+
+### lo SNAPSHOT D'ASTA: un tasto, e il foglio da cui si prepara un'asta
 
 `snapshot` (comando + tasto «Auction snapshot (today)» nel pannello): scelti **piattaforma** e **game**,
 aggiorna le probabili/indisponibili di oggi e scrive un foglio per giocatore e uno per club —
