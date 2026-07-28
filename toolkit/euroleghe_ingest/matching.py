@@ -176,6 +176,60 @@ def club_key(name: str | None) -> str:
     return " ".join(tokens) or fold(name)
 
 
+# Club-form words the OFFICIAL name spells out and a fantacalcio listone never does. Stripped from
+# BOTH sides, so the comparison stays symmetric, and only inside `match_club` - `club_key` itself must
+# stay conservative because it is what the exact pass and the caches are keyed on.
+# Measured need: without this, ten clubs of the euro perimeter - Fiorentina, Genoa, PSG, Lilla, Betis,
+# West Ham, Hoffenheim, ... - never matched Transfermarkt's competition table, which is what feeds
+# club_xref, and therefore lost their coach spells, their transfer fees and their injury ids.
+_CLUB_FORMS = {"acf", "cfc", "losc", "ogc", "rcd", "fsv", "sco", "aj", "ca", "bsc", "estac", "sad",
+               "stade", "real", "deportivo", "balompie", "olympique", "olympiakos", "athletic",
+               "hove", "albion", "borussia", "eintracht", "werder", "united"}
+
+
+def _strip_forms(key: str) -> str:
+    tokens = [token for token in key.split() if token not in _CLUB_FORMS]
+    return " ".join(tokens) or key
+
+
+def match_club(name: str | None, index: dict[str, int]) -> tuple[str, int] | None:
+    """Resolve a club name against `index` (club_key -> id). Returns (how, id), or None.
+
+    Same discipline as the player matcher: ordered passes from strongest to weakest, and **a pass
+    counts only if its answer is unique**. Two clubs answering the same weakened key is a namesake
+    risk, not a match - 'Deportivo A Coruna' and 'Deportivo Alaves' must both fail rather than one of
+    them win by iteration order.
+
+    Passes: exact key · form words stripped from both sides · fuzzy 0.88. `index` should already carry
+    the alias spellings.
+    """
+    key = club_key(name)
+    if not key:
+        return None
+    if key in index:
+        return "exact", index[key]
+
+    stripped: dict[str, list[int]] = {}
+    for candidate, club_id in index.items():
+        stripped.setdefault(_strip_forms(candidate), []).append(club_id)
+    mine = _strip_forms(key)
+
+    hits = stripped.get(mine, [])
+    if len(set(hits)) == 1:
+        return "forms", hits[0]
+
+    # NO subset pass, and the reason is worth keeping: it was written, measured against the real
+    # competition tables, and it produced two WRONG clubs. 'Paris FC' became Paris Saint-Germain (a
+    # different club sharing a city) and 'RCD Espanyol Barcellona' became Barcellona - because our
+    # perimeter has no Espanyol at all, and uniqueness cannot protect against a pool that is missing
+    # the right answer. Only strictness can. Word-containment is therefore not evidence about clubs.
+    close = {index[candidate] for candidate in index
+             if SequenceMatcher(None, mine, _strip_forms(candidate)).ratio() >= _FUZZY_MIN}
+    if len(close) == 1:
+        return "fuzzy", next(iter(close))
+    return None
+
+
 # The abbreviations the algorithm below cannot produce or cannot keep unique. Kept small and explicit:
 # five pairs of single-word names that share a three-letter prefix, plus the one club whose conventional
 # short form is not derivable from its words. A test asserts that no two clubs in the perimeter collide,

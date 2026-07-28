@@ -110,3 +110,48 @@ def test_club_abbreviation_reads_like_the_conventional_short_form():
     # a club we do not know about is still safe to display
     assert club_abbreviation(None) == ""
     assert club_abbreviation("   ") == ""
+
+
+# ---------- clubs: the official name vs the listone name ----------
+def test_match_club_strips_the_official_form_words():
+    """Transfermarkt writes the official name; a listone never does."""
+    from euroleghe_ingest.matching import club_key, match_club
+
+    ours = {club_key(name): index for index, name in enumerate(
+        ["Fiorentina", "Genoa", "Lilla", "Betis", "Rennes", "Milan", "Inter"], start=1)}
+    for official, expected in (("ACF Fiorentina", 1), ("Genoa CFC", 2), ("LOSC Lilla", 3),
+                               ("Real Betis Balompie", 4), ("Stade Rennes FC", 5),
+                               ("AC Milan", 6), ("Inter", 7)):
+        found = match_club(official, ours)
+        assert found is not None, f"{official} did not resolve"
+        assert found[1] == expected, f"{official} -> {found}"
+
+
+def test_match_club_refuses_a_different_club_that_shares_a_word():
+    """The two false positives a word-containment pass produced, kept as tests.
+
+    Both were measured against the real competition tables. 'Paris FC' is not Paris Saint-Germain, and
+    Espanyol is not Barcelona - and no uniqueness rule can catch either, because our perimeter has no
+    Paris FC and no Espanyol at all. A pool that is missing the right answer cannot be saved by
+    tie-breaking; only by refusing to guess.
+    """
+    from euroleghe_ingest.matching import club_key, match_club
+
+    ours = {club_key(name): index for index, name in enumerate(
+        ["Paris Saint-Germain", "Barcellona", "Real Madrid", "Atletico Madrid"], start=1)}
+    assert match_club("Paris FC", ours) is None
+    assert match_club("RCD Espanyol Barcellona", ours) is None
+    # The stated LIMIT of the forms pass, asserted rather than wished away: a city-only name attaches
+    # to whichever club reduces to that city, because 'Real' is stripped from both sides - which is the
+    # same rule that makes 'Real Betis Balompie' find our 'Betis'. No source in the perimeter writes a
+    # bare city, so the trade is worth it; if one ever does, this test is where it will be argued.
+    assert match_club("Madrid", ours)[1] == 3      # -> Real Madrid
+
+
+def test_match_club_keeps_two_deportivos_apart():
+    from euroleghe_ingest.matching import club_key, match_club
+
+    ours = {club_key(name): index for index, name in enumerate(
+        ["Deportivo A Coruna", "Alaves"], start=1)}
+    assert match_club("Deportivo Alaves", ours)[1] == 2
+    assert match_club("Deportivo A Coruna", ours)[1] == 1

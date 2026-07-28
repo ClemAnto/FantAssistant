@@ -28,7 +28,13 @@ from curl_cffi import requests as curl_requests
 
 from euroleghe_ingest.config import DEFAULT_SEASONS
 from euroleghe_ingest.context import Context
-from euroleghe_ingest.matching import CLUB_ALIASES, build_pool_entry, club_key, match_in_pool
+from euroleghe_ingest.matching import (
+    CLUB_ALIASES,
+    build_pool_entry,
+    club_key,
+    match_club,
+    match_in_pool,
+)
 
 NAME = "transfers"
 DESCRIPTION = "Transfermarkt -> club_xref, coaches (new_coach), transfers_history"
@@ -208,7 +214,11 @@ def resolve_clubs(conn, league: str, clubs: list[tuple[str, str]]) -> tuple[int,
     matched = 0
     misses: list[str] = []
     for name, tm_id in clubs:
-        club_id = ours.get(club_key(name))
+        # `match_club`, not a plain lookup: Transfermarkt writes the OFFICIAL name ("ACF Fiorentina",
+        # "LOSC Lilla", "TSG 1899 Hoffenheim") and a listone never does. An unmatched club here is not
+        # a cosmetic miss - it is a club with no coach spells, no fees and no injury ids.
+        resolved = match_club(name, ours)
+        club_id = resolved[1] if resolved else None
         if club_id is None:
             misses.append(name)
             continue
