@@ -1144,5 +1144,9 @@ R7 era uno stimatore sbagliato · `072542d` tab Auction · `cb23192` il Mantra s
 `7e8baab` R15 quasi / R16-R16b bocciate / lo zero fabbricato di `recent_form` ·
 `060ad02` `--bonuses-only` · `34afd86` journal SQLite fuori dal tracking ·
 `a20c84d` l'identità risolta si salva · `890531c` R13c · `4da22c7` il segno di R16b è forza-club ·
-`748ac30` R5b: passa su Serie A e **non** viene adottata.
+`748ac30` R5b: passa su Serie A e **non** viene adottata · `4fce6d1` consolidamento della KB ·
+`ec21450` stabilità del coefficiente · `c0ff3d0` un coefficiente senza baseline non è un fatto ·
+`fe3269f` audit dei coefficienti citati · `7d785c7` pre-registrazione beccabilità per-giocatore ·
+`ae6b533` beccabilità per-giocatore archiviata sul prerequisito · `b65d532` **famiglia forza-club chiusa** ·
+`e63174c` R15 e R3d restano fuori, e il buco nei criteri · `2f80247` **non-danno elastico**.
 **158 test verdi, ruff pulito.** Toolkit a **v0.2.0**.

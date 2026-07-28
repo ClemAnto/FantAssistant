@@ -13,7 +13,11 @@ Questo documento è un registro cronologico: dove contraddice quel blocco, vince
 Il pannello ordina per **SURPLUS = (FM − rimpiazzo) × Pv × beccabilità** con una soglia di schierabilità
 (`metrica-asta-surplus-v1.md`), perché misurato `VALORE = FM × Pv` era quasi solo presenze. Non passa dal
 gate — non tocca né FM né Pv — e i numeri pubblicati sono invariati al numero. **Sei candidate provate,
-zero adottate**; i set adottati non cambiano. Toolkit **v0.2.0**, 158 test verdi.
+zero adottate** (nove in tutta la giornata, contando R13c, R5b, R3d); i set adottati **non cambiano**.
+Chiuse due famiglie (forza-club, persistenza-previsionale), cambiati due criteri del gate (stabilità del
+coefficiente come classifica, non-danno elastico al 2%), e adottata la regola che un coefficiente senza
+provenienza non è un fatto — con l'audit che ne ha trovati 7 su 12 non riproducibili. Toolkit **v0.2.0**,
+158 test verdi. Dettaglio: `gate-motore-v1.md` §5-quinquies … §5-undecies e `metrica-asta-surplus-v1.md`.
 
 ## Stato motore — TRE MODULI SU QUATTRO VALIDATI (invariato)
 1. **Core Mantra**: FM = ANCORA_M(rm) + 0.42*(FM_prec - ANCORA_M). Ancore frazionarie 3 stagioni (por 5.00 · dc 5.98 · b=dc · ds/dd 6.10 · e 6.25 · m 6.26 · c 6.35 · w 6.74 · t 6.77 · a 7.12 · pc 7.40). Cambi ruolo listone ASIMMETRICI. Non-inferiore a Classic (T1 -19.9% vs -17.4%).

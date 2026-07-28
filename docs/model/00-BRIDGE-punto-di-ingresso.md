@@ -1,5 +1,5 @@
 # 00 — BRIDGE · Punto d'ingresso del progetto (leggere per primo)
-**Aggiornato: 28 luglio 2026 (sera)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
+**Aggiornato: 28 luglio 2026 (chiusura sessione)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
 
 ## Il progetto in breve
 Motore previsionale per fantacalcio **EuroLeghe** (fantacalcio.it): valutazione calciatori Classic e Mantra sui 5 grandi campionati europei (Serie A, Premier, Liga, Bundesliga, Ligue 1 — perimetro: i ~35 top club del gioco). Prevede fantamedia (FM), presenze attese e VALORE stagionale = FM × presenze. Metodo scientifico: **ogni regola entra nel motore solo se batte il baseline fuori campione su finestre indipendenti** (gate pre-registrato). Stato: core validato (Mantra, Classic, portieri, presenze); manca lo strato flag/arrivi, sbloccato dal toolkit dati `euroleghe-ingest` (in implementazione).
@@ -63,6 +63,33 @@ costanza è una proprietà della stagione, non del giocatore, e questo spiega an
 ⚠️ **Da non rifare**: una correlazione a livello di **club** (misura di input ↔ gol del club l'anno dopo)
 **non predice** quale misura aiuti la fantamedia di un giocatore. È contro-informativa: xA sembrava la
 migliore su euro (0.66) e la regola là fallisce; su Serie A tutto sembrava debole e la regola là passa.
+
+### Il gate ha cambiato criteri due volte, ed entrambe le volte prima di rilanciare
+
+1. **Stabilità del coefficiente** (§5-sexies): *classifica* e non giudica — separa «piccolo e stabile» da
+   «rumoroso» senza cambiare nessun verdetto. Ha subito trovato che **R3, che è adottata, ha il coefficiente
+   instabile** — che non è un difetto ma collinearità: il coefficiente non è *interpretabile*, la regola
+   funziona (10/10).
+2. **Non-danno elastico** (§5-undecies): prima tollerava zero, ora tollera un **2% sull'aggregato** — lo
+   stesso `MAX_WINDOW_LOSS` del verdetto robusto — ed è **vincolante anche per l'accuratezza**. Nessuna
+   adottata disarcionata (euro 121→127, Serie A 136→149).
+
+### Due famiglie CHIUSE, non sospese
+
+- **Forza-club** (§5-nonies), su decisione presa ad alta voce dopo la quarta bocciatura. Segno giusto tutte
+  e quattro le volte; l'input è derivabile dalla fantamedia del giocatore stesso, quindi **non
+  incrementale** — come R14 e R16. Costo accettato: Kane +2.35 di errore resta senza spiegazione per questa
+  via, e il residuo indica **beta non costante**, che è un meccanismo diverso e già pre-registrato.
+  Riapribile **solo** con una misura prospettica, non con finestre nuove.
+- **Persistenza sul lato previsionale**: la costanza è una proprietà della **stagione**, non del giocatore —
+  ρ indistinguibile da zero su 15 finestre su 15 fra persistenza di input e beccabilità bersaglio.
+
+### Regola nuova, applicata a tutto il documento
+
+**Un coefficiente senza piattaforma, baseline dei residui e data non è un fatto** (§5-septies, §5-octies).
+Audit: **5 su 12** dei λ citati si riproducono, due solo contro la baseline pre-due-passate — e uno di quelli
+portava un'interpretazione che il segno corretto **ribalta** (R11 *conferma* la sua ipotesi). Trovate anche
+due conclusioni scritte al singolare su una quantità che dipende dalla piattaforma (R2, R6).
 
 ### Il caso Kean + Piccoli è aperto in modo DIVERSO da come sembrava
 
