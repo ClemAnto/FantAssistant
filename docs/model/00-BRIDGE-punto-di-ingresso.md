@@ -410,7 +410,7 @@ scritta, `config.SEASONS` fonte unica, `bootstrap` (acquisizione da zero, ~17 h 
 `fetch --plan/--inbox`, **`export`** (bundle app: 229k righe, 29 MB, manifest con provenienza e buchi
 noti), UI con tema light/dark. Cross-tab ruoli: **D→D 97%**, M→C 80%, F→A 80%, G→P 100%.
 
-**231 test verdi, ruff pulito** (nessuno tocca la rete). Toolkit **v0.2.0**, spec **v9.9**. `recent_form` ha `--bonuses-only`
+**231 test verdi, ruff pulito** (nessuno tocca la rete). Toolkit **v0.3.0**, spec **v9.9**. `recent_form` ha `--bonuses-only`
 (arricchisce i bonus delle partite già salvate, una richiesta per partita, senza ri-risolvere l'identità):
 **1195/1196** partite arricchite, **122/123** giocatori completi. `python -m euroleghe_ingest backtest [--verify] [--gate] [--auction]
 [--cases] [--pairs] [--window Tm7..T2] [--platform euro|default] [--game classic|mantra]`. GUI: tre tab, il terzo è
