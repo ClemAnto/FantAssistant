@@ -77,6 +77,12 @@ tie once; where they disagree, the report says so and the decision is taken in t
 - **Additive schema changes need a migration.** `CREATE TABLE IF NOT EXISTS` does nothing to an existing
   table, so a new column without an entry in `db.database.ADDED_COLUMNS` fails with "no such column" and
   the only cure would be a `rebuild` that drops everything.
+- **An identity is not a season fact.** `player_xref` is written in ONE pass over every season a run reads
+  (`positions._store_identities`), strongest evidence first. Written inside the per-season loop it was
+  decided by whichever season happened to be processed last, and 827 `fc_id` ended up with their season
+  aggregates in the table and no provider id at all - invisible to the granular roles, the heatmap AND the
+  per-match layer at once, because all three join through it. Same shape as the rule below, one level up:
+  ask what the natural unit of a fact is before choosing the loop that writes it.
 - **A club-level fact must not pass through the identity funnel.** A per-player row needs an `fc_id`, but
   counting how many forwards a club FIELDS does not — and requiring resolved identities biases exactly the
   clubs whose fringe players are not quoted (Serie A 24/25: 233 of 774 elevens fully resolved, Juventus
@@ -96,7 +102,8 @@ tie once; where they disagree, the report says so and the decision is taken in t
 
 ## Provisional parameters
 Some constants exist only because a module needed a number to run: the revealed penalty hierarchy's
-decay/quarantine (`fc_site`), the arrival tier thresholds and the U22 age (`arrivals`). They are
+decay/quarantine (`fc_site`), the arrival tier thresholds and the U22 age (`arrivals`), and what a season
+measured at ANOTHER club is worth toward this club's shirt (`gui.SnapshotView.LOAN_DISCOUNT`). They are
 MODEL choices, so the gate owns them - they are marked provisional in the code and must be swept,
 never quoted as established. Same rule as any other candidate rule: no gate, no engine.
 

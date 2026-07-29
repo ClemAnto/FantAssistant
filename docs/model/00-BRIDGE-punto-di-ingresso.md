@@ -410,7 +410,7 @@ scritta, `config.SEASONS` fonte unica, `bootstrap` (acquisizione da zero, ~17 h 
 `fetch --plan/--inbox`, **`export`** (bundle app: 229k righe, 29 MB, manifest con provenienza e buchi
 noti), UI con tema light/dark. Cross-tab ruoli: **D→D 97%**, M→C 80%, F→A 80%, G→P 100%.
 
-**194 test verdi, ruff pulito** (nessuno tocca la rete). Toolkit **v0.2.0**. `recent_form` ha `--bonuses-only`
+**230 test verdi, ruff pulito** (nessuno tocca la rete). Toolkit **v0.2.0**, spec **v9.8**. `recent_form` ha `--bonuses-only`
 (arricchisce i bonus delle partite già salvate, una richiesta per partita, senza ri-risolvere l'identità):
 **1195/1196** partite arricchite, **122/123** giocatori completi. `python -m euroleghe_ingest backtest [--verify] [--gate] [--auction]
 [--cases] [--pairs] [--window Tm7..T2] [--platform euro|default] [--game classic|mantra]`. GUI: tre tab, il terzo è
@@ -607,5 +607,12 @@ git = casa canonica (Drive solo su richiesta esplicita) · risposte in chat in *
 **Ultima sessione (29/07/2026)**: lo snapshot d'asta e' ora un tavolo di lavoro - percentuale = quota di
 giornate (standing x availability), campetto a griglia che rispecchia il modulo, precampionato ingerito
 (`positions --layer extra`, tag `sofascore_extra`, descrittivo e mai gated), snapshot AS OF una data e per
-un singolo club. Il punto di ripresa, con le quattro decisioni prese e non implementate, e' la sezione di
-chiusura di [stato-progetto-continuita-v5.md](stato-progetto-continuita-v5.md).
+un singolo club. Poi, nella seconda passata dello stesso giorno: la stagione misurata arriva **spaccata fra
+il club attuale e altrove** e la standing pesa la seconda meta' a `LOAN_DISCOUNT = 0.60` (Marin R. 0.57 ->
+0.34); un **ballottaggio e' posizionale e parla solo il ruolo REALE** - un codice granulare condiviso, mai
+il ruolo Classic, che al Napoli metteva Politano in duello con un regista; e quel vincolo ha scoperto che
+**827 fc_id avevano gli aggregati sofascore e nessun id in `player_xref`** (Saka, Guirassy, Torres F.),
+quindi erano invisibili a ruoli granulari, heatmap e strato per-partita insieme. Causa: l'identita' era
+scritta dentro il giro per stagione, e la decideva l'ultima stagione processata. Recuperate **815
+identita'** offline; ora il foglio ha 32 giocatori senza codice invece di 152. Il punto di ripresa e' la
+sezione di chiusura di [stato-progetto-continuita-v5.md](stato-progetto-continuita-v5.md).

@@ -1,5 +1,5 @@
 # Spec — Toolkit `euroleghe-ingest` v9 (task 1.0 della roadmap)
-**Aggiornata: 27 luglio 2026 (v9.2 — strato flag/arrivi; v9 SOSTITUISCE la v8)** · Python · Output: SQLite `euroleghe.db` + CSV normalizzati
+**Aggiornata: 29 luglio 2026 (v9.8 — stagione spaccata club/altrove, ballottaggi sul ruolo REALE, identità sofascore; v9 SOSTITUISCE la v8)** · Python · Output: SQLite `euroleghe.db` + CSV normalizzati
 *Sigle: fc_id = identificativo fantacalcio.it · FM = fantamedia · Mv = media voto · Pv = partite a voto · xref = cross-reference id tra siti · xG/xA = expected goals/assists · manifest = lista file da recuperare.*
 **Convenzione: identificatori sempre in INGLESE** (tabelle, colonne, moduli, variabili); italiano solo nella documentazione.
 
@@ -48,6 +48,13 @@
    fra stagioni) — senza questo 10 «Sanchez» diversi collassavano sul nostro unico Sanchez sovrascrivendosi.
    `manual_overrides(entity='player_xref', field='sofascore', value=<id>)` ha precedenza assoluta.
    Non risolti → `data/reports/sofascore_coverage.csv`.
+   **Un'identità non è un fatto di stagione** (v9.8, 29/07/2026): `player_xref` si scrive in **un unico
+   passaggio** su tutte le stagioni del run (`positions._store_identities`), evidenza più forte e a pari
+   merito la stagione più recente. Scritta dentro il giro per stagione la decideva l'ultima stagione
+   processata, e 827 `fc_id` sono finiti con gli aggregati in tabella e **nessun** id — invisibili a ruoli
+   granulari, heatmap e layer per-partita insieme, perché passano tutti da lì. Corollario: un run limitato
+   a certe stagioni **non cancella** identità (non ha letto le stagioni che le stabiliscono), un run su
+   tutta la cache sì.
 8. **Validazione fatti (il gate di fase 1)**: gol SofaScore vs `default` sulla Serie A =
    **100% esatti** su tutte e 3 le stagioni (579/584/574 giocatori) usando `goals + pen_scored`.
    Assist 84–88% esatti, 99% entro 1 (attribuzione dell'assist diversa fra i due provider: per la Serie A
@@ -486,6 +493,59 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.8 (29 luglio 2026 — di chi era quella stagione, chi è in ballottaggio, e 815 identità)
+
+Tre cose, in cascata: la terza è emersa perché la seconda l'ha resa misurabile.
+
+### 1. La stagione misurata arriva SPACCATA fra il club attuale e altrove
+I totali dicono quanto un allenatore lo ha usato; non dicono **di quale** allenatore. Solo il layer
+per-partita ha un club per presenza, quindi `snapshot.at_current_club` scrive nel foglio le due metà:
+`desc_season_starts_club` / `desc_season_starts_elsewhere`, `desc_minutes_club` / `desc_minutes_elsewhere`.
+Sono metà di ciò che ha misurato **quel** layer — da leggere come quota, mai come conteggio da confrontare
+con l'aggregato di stagione (divergono di un paio di partite: il layer porta competizioni che l'aggregato
+non ha). Chi non ha righe per-partita resta **fuori** dal risultato: colonne vuote = ignoto.
+
+La vista non scegli un ramo, **pesa**: `SnapshotView.at_club_weight` = quota minuti al club attuale +
+**`LOAN_DISCOUNT = 0.60`** sul resto, applicato a `standing` **e** a `voto_share`. Chi non si è mosso è
+identico a prima, chi ha giocato tutto altrove vale 0.60, un trasferimento di gennaio sta in mezzo — quindi
+**lo sconto decresce da sé** con le partite al club, senza un secondo parametro. Marin R. 0.57 → **0.34**,
+dietro Rrahmani (0.81). Su euro: 145 scontati su 842 con lo split noto, 88 interamente altrove.
+`LOAN_DISCOUNT` è **provvisorio**, è una scelta di MODELLO → la possiede il gate. Aperto: prestito vs
+acquisto (un comprato non è stato bocciato da QUESTO club).
+
+### 2. Un ballottaggio è un duello fra RUOLI REALI, mai fra ruoli fanta
+Decisione dell'utente. Serve un **codice granulare condiviso** (uno basta: `RW;AM` e `AM` competono), e
+**nessun ripiego** sul ruolo Classic né sulla fascia che implica (senza codici `side_of` legge i ruoli
+Mantra, che è di nuovo il listone). Il ruolo Classic diceva che al Napoli Politano, Lobotka, Elmas,
+McTominay, Anguissa, De Bruyne, Vergara e Neres sono la stessa cosa — «Politano in ballottaggio con un
+regista». Vale in `snapshot.duels` e in `SnapshotView.can_replace`. Chi non ha codici osservati **esce dalle
+colonne**: vuoto = ignoto, mai «0 rivali».
+Corretti nello stesso passaggio due modi di perdere un'alternativa vera: la lista dei probabili ora
+**filtra** il bench posizionale invece di sostituirlo (quando non nominava nessuno di quella maglia,
+l'intersezione era vuota e le alternative sparivano), e le alternative si scelgono **a undici formati** (una
+maglia i cui due migliori sfidanti diventavano titolari restava senza nessuno). Nel modo *prossima
+giornata* vengono da **tutta la rosa** ordinata per `presence(recent)`, senza secchiello di linea (i
+trequartisti erano arenati in un undici che non ne schiera) e con un uomo offerto una volta sola.
+
+### 3. Un'identità non è un fatto di stagione — 815 id sofascore recuperati
+Il vincolo del ruolo reale ha reso visibile un buco preesistente: **827 `fc_id` avevano gli aggregati
+`external_stats` (source `sofascore`) e nessuna riga in `player_xref`** — e ruoli granulari, heatmap e layer
+per-partita passano tutti da lì, quindi erano invisibili a tutti e tre insieme (Saka, Guirassy, Torres F.,
+Sorloth, Mbeumo, Cunha). Causa: l'identità era scritta **dentro il giro per stagione**, che prima cancellava
+le xref dei provider id da ri-risolvere e poi riscriveva solo le claim sopravvissute di QUELLA stagione →
+la decideva l'ultima stagione processata. Fix: **`positions._store_identities`**, un passaggio unico su
+tutte le stagioni del run (evidenza più forte, a pari merito la stagione più recente), con `authoritative`
+che distingue «tutta la cache» (può cancellare: non rivendicato **è** un verdetto) da «alcune stagioni»
+(non cancella mai — non ha letto le stagioni che stabiliscono l'identità).
+
+Recupero **interamente offline** (`reingest_from_cache` su 11 stagioni, ~460 s, + `positions --layer
+reparse`): xref **3021 → 3836**, orfani **827 → 7**, `external_match_stats` **~270k → 334.795**, giocatori
+del foglio euro senza codice granulare **152 → 32**, split club/altrove noto **710/905 → 842/916**, maglie
+senza alternativa **228/680 → 129/685** con **843** alternative tutte su codice reale condiviso. I 7 residui
+sono omonimi vecchi il cui provider id ora appartiene a un altro `fc_id`: esito giusto, solo uno può averlo.
+
+**230 test verdi, ruff pulito.**
+
 ## Novità v9.6 (28 luglio 2026, notte — precisazioni sullo snapshot, e la VISTA)
 
 Precisazioni dell'utente, tutte con conseguenze sui dati e non solo sulla UI.
@@ -605,7 +665,7 @@ T1 importanti → storia completa → FM-equivalente estera → club-a-club con 
 ## Moduli (ordine rebuild)
 `rosters` (SEMPRE primo) → `stats` → `ratings` (Excel autenticato, incrementale + backfill + resume + listone) → `matchdays` (calendario euro↔reale) → `fc_site` (rigoristi, probabili, indisponibili) → `transfers` → **`injuries`** → `fbref` (stub/bloccato) → `positions` (SofaScore: aggregati stagione + per-partita + heatmap) → `recent_form` → `synth` (voto sintetico calibrato) → `arrivals` → `tournaments` → `elo` (API ClubElo) → `validate`.
 Fuori dalla pipeline, perché non producono tabelle di ingestione: **`bootstrap`** (acquisizione da zero), `fetch` (referto + inbox), `rebuild`, `backtest` (harness del gate), **`export`** (bundle dell'app).
-Stato implementazione **v9.4**: **tutti i moduli operativi tranne `fbref`** (bloccato da Cloudflare: servirebbe un browser headless, oppure l'inbox manuale). Chiusi in v9.4: `injuries` + `contract_until`/`exit_risk`, heatmap `avg_x/avg_y`, `elo` via API, `ingest_runs`, `fetch --plan/--inbox`, `bootstrap`, `export`. **194 test verdi, ruff pulito.**
+Stato implementazione **v9.8**: **tutti i moduli operativi tranne `fbref`** (bloccato da Cloudflare: servirebbe un browser headless, oppure l'inbox manuale). Chiusi in v9.4: `injuries` + `contract_until`/`exit_risk`, heatmap `avg_x/avg_y`, `elo` via API, `ingest_runs`, `fetch --plan/--inbox`, `bootstrap`, `export`. **230 test verdi, ruff pulito.**
 
 ## Comandi
 ```

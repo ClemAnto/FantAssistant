@@ -204,11 +204,51 @@ Nota: **nessuna delle feature generate il 27/07 e' entrata nel motore**, e **nes
 - [ ] **euro non guadagna finestre a poco prezzo** (ri-verificato il 28/07): il 2021-22 e' vuoto **alla sorgente** — la colonna `Voto` del file in cache e' `-` per ogni giocatore mentre i fatti ci sono. Il voto sintetico potrebbe riempirlo, ma per Tm2 il 2021-22 **e' il target** e lo spec vieta al sintetico di contaminare il target euro; resterebbe solo Tm1 con input sintetici. Una finestra sola in cambio di un cambio di regola: non conviene.
 
 ## Ripresa 29/07/2026 (dettaglio in `stato-progetto-continuita-v5.md`, sezione di chiusura)
-- [ ] **Standing sul club attuale + `LOAN_DISCOUNT`** (deciso: il prestito e' un giudizio della societa',
-      quindi si SCONTA la standing misurata altrove, non si azzera). Colonne club-ristrette in `snapshot`,
-      fallback in `SnapshotView.standing`, test sul caso Marin R. (21 presenze al Villarreal, 0 al Napoli).
-- [ ] Prestito vs acquisto: sconti diversi, e sconto decrescente con le partite al club attuale.
+- [x] **FATTO 29/07 — standing sul club attuale + `LOAN_DISCOUNT = 0.60`.** La stagione misurata arriva
+      nel foglio **spaccata in due**: `desc_minutes_club` / `desc_minutes_elsewhere` (e le stesse due per
+      le presenze da titolare), da `at_current_club`, l'unico strato che ha un club per presenza. La vista
+      non sceglie un ramo, **pesa**: `at_club_weight` = quota minuti al club attuale + `LOAN_DISCOUNT` per
+      il resto, applicato sia a `standing` sia a `voto_share` (leggere il `tit` a valore pieno mentre il
+      campetto lo scontava sarebbe una tabella che risponde due volte alla stessa domanda). Chi non si e'
+      mosso e' identico a prima, chi ha giocato altrove vale 0.60, un trasferimento di gennaio sta in
+      mezzo. Marin R. **0.57 -> 0.34**, dietro Rrahmani (0.81) come previsto. Su euro: 710 giocatori con
+      lo split noto, **118 scontati**, 69 interamente altrove. Split ignoto (nessuna riga nello strato
+      per-partita) = **nessuno sconto**: non sapere non e' sapere.
+- [x] **CHIUSA di conseguenza — «sconto decrescente con le partite al club attuale»**: la quota minuti lo
+      fa da se', una partita alla volta, senza un secondo parametro. Resta aperto solo **prestito vs
+      acquisto** (un comprato non e' stato bocciato da QUESTO club; `arrivals` conosce origine e cifra).
+      `LOAN_DISCOUNT` e' provvisorio e marcato tale: e' una scelta di MODELLO, quindi la possiede il gate.
 - [ ] `INJURY_WEIGHTS`: forma confermata (3 stagioni, l'ultima piu' pesante), valore aperto. Verificare le
       ricadute duplicate su Transfermarkt prima di ritarare `AVAILABILITY_FLOOR`.
 - [ ] Centrocampo a 5: distinguere il lato offensivo (ala/esterno) da quello difensivo (terzino).
 - [ ] Operativo: chiudere `injuries --layer all` sui 5 club nuovi, poi `Build now`.
+- [x] **FATTO 29/07 — recuperate 815 identita' sofascore.** Erano 827 fc_id con gli aggregati di stagione e
+      **nessuna** riga in `player_xref` (Saka, Guirassy, Torres F., Sorloth, Mbeumo, Cunha): invisibili a
+      ogni strato datato, che passa tutto da quella tabella. Causa: l'identita' era scritta **dentro il giro
+      per stagione**, quindi la decideva quale stagione veniva processata per ultima - chi era respinto
+      nella sua stagione piu' recente perdeva l'id stabilito da una precedente. Fix: `_store_identities`,
+      un passaggio unico su tutte le stagioni del run, con `authoritative` che distingue «tutta la cache»
+      (puo' cancellare: non rivendicato E' un verdetto) da «alcune stagioni» (non cancella mai). Recupero
+      offline: xref 3021 -> **3836**, orfani 827 -> **7**, per-partita ~270k -> **334.795** righe, giocatori
+      del foglio senza codice granulare **152 -> 32**, maglie senza alternativa **228 -> 129** su 685.
+      I 7 residui sono omonimi vecchi il cui provider id ora appartiene a un altro fc_id: esito giusto.
+- [x] **FATTO 29/07 — i ballottaggi mancanti** (Napoli: Vergara, Neres, Lukaku, De Bruyne, Anguissa fuori
+      anche dalle alternative). Tre cause, una sola radice — un ballottaggio non era **posizionale**:
+      1. `snapshot.duels` raggruppava per ruolo Classic, e al Napoli Politano, Lobotka, Elmas, McTominay,
+         Anguissa, De Bruyne, Vergara e Neres sono **tutti 'C'** → Politano «in ballottaggio» con un
+         regista. Ora serve **un codice reale condiviso**, e per decisione dell'utente **senza alcun
+         ripiego sul ruolo fanta** (ne' sul ruolo Classic ne' sulla fascia che implica): chi non ha codici
+         osservati non e' in nessun ballottaggio, e le colonne restano **vuote** = ignoto, mai «0 rivali».
+         Stessa regola in `SnapshotView.can_replace`. Prezzo misurato: le maglie senza alternativa passano
+         da 106 a 228 su 680, perche' 152 giocatori su 905 non hanno codici - e 151 di loro non hanno
+         nemmeno un id sofascore in `player_xref`, quindi il rimedio e' l'IDENTITA', non un run dei ruoli.
+      2. in `eleven` il ballottaggio dichiarato aveva **precedenza** sul bench posizionale: quando non
+         nominava nessuno di quella maglia l'intersezione era vuota e le alternative vere sparivano. Ora
+         **filtra**, mai sostituisce.
+      3. le alternative erano scelte **dentro** il giro degli slot e ripulite dopo (`un rivale non e' un
+         titolare`), quindi una maglia i cui due migliori sfidanti diventavano titolari restava **senza
+         nessuno** invece di prendere il successivo. Ora si scelgono a undici formati.
+      Piu' `_declared` (modo *prossima giornata*): le alternative vengono da **tutta la rosa** ordinata per
+      `presence(recent)` e non solo dai nominati dai probabili (Neres infortunato non e' nei probabili ed
+      e' comunque l'uomo che prende il posto di Politano), senza secchiello di linea (i trequartisti erano
+      arenati in un undici che non schiera trequartisti) e con un uomo offerto una volta sola.
