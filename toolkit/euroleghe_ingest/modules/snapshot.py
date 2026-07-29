@@ -604,29 +604,51 @@ def availability_now(conn, auction_date: str) -> dict[int, str]:
     return out
 
 
-def duels(observations, starters: dict[int, dict]) -> dict[int, dict]:
-    """Starting duels: same club, same Classic role, comparable starting probability.
+def duels(observations, starters: dict[int, dict],
+          roles: dict[int, dict] | None = None) -> dict[int, dict]:
+    """Starting duels: same club, same POSITION, comparable starting probability.
 
     Read off the probabili snapshot, which is the only source that says who the editors expect to
     start. Without a snapshot the column is empty rather than guessed from minutes - "who plays" and
     "who played" are different questions, and the second one already has its own column.
+
+    The position is the GRANULAR REAL ROLE, and one shared code is enough ('RW;AM' and 'AM' do compete
+    for a shirt). The Classic role is not a fallback and not a first pass: it says what you buy a man as,
+    not where a coach puts him, and at Napoli it calls Politano, Lobotka, Elmas, McTominay, Anguissa, De
+    Bruyne, Vergara and Neres all 'C' - so it declared a right winger in a duel with a regista thirty
+    metres away, and the sheet then handed his shirt's alternatives to men who cannot take it while the
+    real challenger went unnamed.
+
+    A player with no code is therefore left OUT of the result entirely - unknown, not "no rival":
+    reporting it as a zero would be the usual absence of evidence dressed as evidence. It is a gap in the
+    OBSERVED roles, and for most of them the missing piece is the provider identity rather than a run:
+    `positions --layer roles` can only observe a man it can identify. Same rule, same vocabulary, as
+    `SnapshotView.can_replace`, which is where a duel becomes a shirt.
     """
-    by_slot: dict[tuple[str, str], list] = {}
+    roles = roles or {}
+
+    def codes(fc_id: int) -> set[str]:
+        return {code.strip().upper()
+                for code in ((roles.get(fc_id) or {}).get("roles") or "").split(";") if code.strip()}
+
+    by_club: dict[str, list] = {}
     for obs in observations:
         entry = starters.get(obs.fc_id)
-        if not obs.club_target or not obs.role_classic or not entry:
+        if not obs.club_target or not entry or entry.get("probability") is None:
             continue
-        if entry.get("probability") is None:
+        if not codes(obs.fc_id):
             continue
-        by_slot.setdefault((obs.club_target, obs.role_classic), []).append(
+        by_club.setdefault(obs.club_target, []).append(
             (obs.fc_id, obs.name, float(entry["probability"])))
     out: dict[int, dict] = {}
-    for group in by_slot.values():
+    for group in by_club.values():
         group.sort(key=lambda item: -item[2])
         for fc_id, _name, probability in group:
+            mine = codes(fc_id)
             rivals = [name for other, name, other_probability in group
-                      if other != fc_id and abs(other_probability - probability)
-                      <= BALLOTTAGGIO_MARGIN]
+                      if other != fc_id
+                      and abs(other_probability - probability) <= BALLOTTAGGIO_MARGIN
+                      and mine & codes(other)]
             out[fc_id] = {"rivals": len(rivals), "names": "; ".join(rivals[:3])}
     return out
 
@@ -860,6 +882,50 @@ def titolarita(conn, season: str, before: str | None = None) -> dict[int, dict]:
     return out
 
 
+def at_current_club(conn, season: str, observations, squads: dict[int, str],
+                    before: str | None = None) -> dict[int, dict]:
+    """His measured season split in two: what he played AT THE CLUB HE IS AT NOW, and what ELSEWHERE.
+
+    The season totals say how much a coach used him; they do not say WHOSE coach. Marin R. is at Napoli
+    with 21 starts and 1980 minutes, and every one of them is Villarreal's - read as a Napoli standing
+    they put him ahead of Rrahmani. So the split travels in the sheet as two halves of one season and the
+    view discounts the half made elsewhere (`SnapshotView.LOAN_DISCOUNT`) instead of dropping it: being
+    sent on loan is the club's own judgement of a player, and zeroing it would delete every summer
+    signing from the eleven.
+
+    From the per-match layer, the only place that stores a club per appearance - so these are two halves
+    of what THAT layer measured, to be read as a share and never as a count to compare with the season
+    aggregate: the two disagree by a couple of matches, because the layer carries competitions the
+    aggregate does not. A player it has no row for is absent from the result, which leaves the columns
+    empty and his standing undiscounted: not knowing where he played is not knowing.
+    """
+    resolve = club_index(conn)
+    # The club whose shirt he is competing for in THIS sheet - the same one the pitch draws him at.
+    now: dict[int, str] = {}
+    for obs in observations:
+        key, _name = resolve(obs.club_target or squads.get(obs.fc_id))
+        if key:
+            now[obs.fc_id] = key
+    query = ("""SELECT fc_id, club, COALESCE(started, 0), COALESCE(minutes, 0)
+                FROM external_match_stats
+                WHERE season = ? AND source = 'sofascore' AND COALESCE(minutes, 0) > 0
+                  AND match_date IS NOT NULL AND match_date < ?""" if before else
+             """SELECT fc_id, club, COALESCE(started, 0), COALESCE(minutes, 0)
+                FROM external_match_stats
+                WHERE season = ? AND source = 'sofascore' AND COALESCE(minutes, 0) > 0""")
+    out: dict[int, dict] = {}
+    for fc_id, club, started, minutes in conn.execute(
+            query, (season, before) if before else (season,)):
+        if fc_id not in now:
+            continue
+        entry = out.setdefault(fc_id, {"starts": 0, "minutes": 0,
+                                       "starts_elsewhere": 0, "minutes_elsewhere": 0})
+        here = resolve(club)[0] == now[fc_id]
+        entry["starts" if here else "starts_elsewhere"] += 1 if started else 0
+        entry["minutes" if here else "minutes_elsewhere"] += minutes
+    return out
+
+
 def club_context(conn, data: features.WindowData, starters_date: str | None,
                  clubs: list[str], measured: str | None = None,
                  before: str | None = None) -> list[dict]:
@@ -1019,6 +1085,11 @@ PLAYER_COLUMNS: tuple[str, ...] = (
     # Titolarità: how often he STARTS. Two horizons, because they answer different questions - the
     # season's share is the coach's habit over a year, the recent one is the shape of the side now.
     "desc_season_starts", "desc_season_matches", "desc_start_share",
+    # ...and how much of that season was played at the club he is at NOW: the two halves of it, so that a
+    # reader can see that Marin R.'s 21 starts are Villarreal's and not Napoli's. The half made elsewhere
+    # is DISCOUNTED where a shirt is handed out, never dropped: `SnapshotView.LOAN_DISCOUNT`.
+    "desc_season_starts_club", "desc_season_starts_elsewhere",
+    "desc_minutes_club", "desc_minutes_elsewhere",
     "desc_duel_rivals", "desc_duel_names",
     "desc_injury_matches_missed", "desc_injury_weighted", "desc_injury_spells",
     "desc_injury_worst_kind", "desc_injury_open", "desc_injury_source",
@@ -1070,6 +1141,7 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
         duel = layers["duels"].get(obs.fc_id, {})
         prop = layers["propensity"].get(obs.fc_id, {})
         season_play = layers["titolarita"].get(obs.fc_id, {})
+        at_club = layers["at_club"].get(obs.fc_id, {})
         card = layers["discipline"].get(obs.fc_id, {})
         state = layers["contract"].get(obs.fc_id, {})
         role_detail = layers["real_role_detail"].get(obs.fc_id, {})
@@ -1140,6 +1212,12 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             "desc_season_starts": season_play.get("starts"),
             "desc_season_matches": season_play.get("matches"),
             "desc_start_share": season_play.get("share"),
+            # Whose season it was. Empty for a player the per-match layer has no row for: unknown, and
+            # an unknown split must not discount him.
+            "desc_season_starts_club": at_club.get("starts"),
+            "desc_season_starts_elsewhere": at_club.get("starts_elsewhere"),
+            "desc_minutes_club": at_club.get("minutes"),
+            "desc_minutes_elsewhere": at_club.get("minutes_elsewhere"),
             "desc_duel_rivals": duel.get("rivals"), "desc_duel_names": duel.get("names"),
             "desc_injury_matches_missed": injury.get("matches_missed"),
             "desc_injury_weighted": injury.get("weighted"),
@@ -1339,6 +1417,9 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
         "availability": availability_now(conn, window.auction_date),
         "propensity": propensity(conn, measured, before),
         "titolarita": titolarita(conn, measured, before),
+        # The same season, split by WHOSE it was: what he played at the club he is at now, and what
+        # somewhere else. The totals cannot say it - only the per-match layer stores a club.
+        "at_club": at_current_club(conn, measured, data.observations, squads, before),
         # Cards stay on the season aggregate of the season BEFORE: the per-match layer does not store
         # yellows and reds, so there is nothing to bound by a date - and last season's total is at least
         # a fact that was known by then.
@@ -1361,7 +1442,8 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
             "SELECT fc_id, avg_x, avg_y FROM positions WHERE season = ? AND source = 'sofascore'",
             (window.input_season,))},
     }
-    layers["duels"] = duels(data.observations, starters)
+    # after the layers, because a duel is POSITIONAL: it needs the granular real roles, not the P/D/C/A
+    layers["duels"] = duels(data.observations, starters, layers["real_role_detail"])
     covered = sum(1 for obs in data.observations if obs.fc_id in layers["real_role_detail"])
     if date:
         borrowed = sum(1 for detail in layers["real_role_detail"].values()
@@ -1378,7 +1460,12 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
                      f"identity is not resolved to a provider id. Their line is still known from "
                      f"desc_real_role (G/D/M/F) - what is missing is the flank. "
                      f"`positions --layer roles` retries, and only for TODAY: the codes cannot be "
-                     f"observed for a past date.")
+                     f"observed for a past date. It can only observe a player it can IDENTIFY, so where "
+                     f"the sofascore id is missing from player_xref the cure is the identity, not the "
+                     f"run. Consequence to read on purpose: a ballottaggio is a duel between REAL roles, "
+                     f"so desc_duel_rivals/desc_duel_names are EMPTY for these men - unknown, never "
+                     f"'no rival' - and the pitch offers them no alternative rather than one taken from "
+                     f"the listone role, which calls a winger and a regista the same thing.")
 
     perimeter = perimeter_clubs(conn, platform, (window.input_season, window.target_season))
     if not perimeter:

@@ -1582,9 +1582,11 @@ class SnapshotView(ttk.Frame):
               "per-player statistics at all, so there is no rating to colour it with.",
         "tit": "The share of the season's matchdays he is expected to GET A VOTO in: his appearances "
                "over the matches he was available for, discounted by how much of a season a player with "
-               "his injury history misses. An appearance is taken as a voto - the season layer stores "
-               "totals, so it cannot tell a 10-minute cameo from a full match; the TREND strip can, and "
-               "a hollow dot is exactly that.",
+               "his injury history misses, and by how much of that season he played in ANOTHER shirt "
+               "(a season measured elsewhere is evidence about this club too, and weaker evidence). An "
+               "appearance is taken as a voto - the season layer stores totals, so it cannot tell a "
+               "10-minute cameo from a full match; the TREND strip can, and a hollow dot is exactly "
+               "that.",
         "mantra": "The MANTRA roles, as the listone lists them (por, dd, dc, ds, e, m, c, t, w, a, "
                   "pc) - the roles a Mantra module has slots for, and the only ones that name a flank.",
         "role": "The LISTONE role - what you buy him as (P/D/C/A). Click to restore the auction order: "
@@ -2381,6 +2383,14 @@ class SnapshotView(ttk.Frame):
     STANDING_WEIGHTS: ClassVar[tuple[float, float]] = (0.65, 0.35)
     FORM_WEIGHT: ClassVar[float] = 0.60
     RECENT_PRIOR: ClassVar[float] = 3.0
+    # What a season measured AT ANOTHER CLUB is worth toward THIS club's shirt. Not one: being sent on
+    # loan is the club's own judgement of a player, and Marin R.'s 21 starts and 1980 minutes are
+    # Villarreal's - read as a Napoli standing they put him ahead of Rrahmani. Not zero either: that
+    # would delete every summer signing from the eleven, and a man who started 21 matches somewhere is
+    # still a man who starts. PROVISIONAL, and deliberately blind to two distinctions that are still
+    # open - a loan against a purchase (a signing was not rejected by THIS club), and a discount that
+    # should shrink as he accumulates matches here. A model choice, so the gate owns it.
+    LOAN_DISCOUNT: ClassVar[float] = 0.60
 
     @classmethod
     def availability(cls, row: dict) -> float:
@@ -2399,6 +2409,25 @@ class SnapshotView(ttk.Frame):
         per_season = _number(row.get("desc_injury_weighted")) / sum(INJURY_WEIGHTS)
         matches = _number(row.get("desc_season_matches")) or cls.SEASON_MATCHES
         return max(1.0 - per_season / max(matches, 1.0), cls.AVAILABILITY_FLOOR)
+
+    @classmethod
+    def at_club_weight(cls, row: dict) -> float:
+        """How much of his measured season counts toward THIS club's shirt: 1.0 all of it, 0.6 none of it.
+
+        The share of his minutes played where he is now, with the rest weighed at `LOAN_DISCOUNT`. So a
+        man who never moved is untouched, a man whose whole season was elsewhere is discounted once, and
+        a January transfer lands in between - which is also the answer to "the discount should shrink as
+        he accumulates matches here": it already does, one match at a time, with no second parameter.
+
+        Minutes rather than starts because they are the continuous measure: a substitute has a share too.
+        A player the per-match layer has no row for reads 1.0 - the columns are empty, and an unknown
+        split must not penalise him. Same asymmetry `availability` makes for an unknown injury history.
+        """
+        here = _number(row.get("desc_minutes_club"))
+        away = _number(row.get("desc_minutes_elsewhere"))
+        if not (here + away):
+            return 1.0
+        return (here + cls.LOAN_DISCOUNT * away) / (here + away)
 
     def club_matches(self, club: str | None) -> float:
         """How many matches the club played in the measured season - the denominator of a presence.
@@ -2428,17 +2457,21 @@ class SnapshotView(ttk.Frame):
           2793 minutes behind him. A man who has none recorded is judged on his starts alone: no minutes
           on file is not zero minutes played.
 
+        Both are then weighed by WHOSE season it was (`at_club_weight`): a standing built somewhere else
+        is evidence about this shirt too, and weaker evidence.
+
         Neither is a fantacalcio quantity. Surplus, quotation and FVM answer "is he worth buying" and a
         coach does not pick a side by them; minutes and starts are what he did.
         """
         contested = max(self.club_matches(row.get("club"))
                         - _number(row.get("desc_injury_weighted")) / sum(INJURY_WEIGHTS), 1.0)
-        starts = min(self.titolarita(row, "season")[1] / contested, 1.0)
+        weight = self.at_club_weight(row)
+        starts = min(self.titolarita(row, "season")[1] * weight / contested, 1.0)
         minutes = _number(row.get("desc_minutes_full_season"))
         if not minutes:
             return starts
         by_starts, by_minutes = self.STANDING_WEIGHTS
-        return by_starts * starts + by_minutes * min(minutes / (contested * 90.0), 1.0)
+        return by_starts * starts + by_minutes * min(minutes * weight / (contested * 90.0), 1.0)
 
     def voto_share(self, row: dict) -> float:
         """The share of the season's matchdays he is expected to get a VOTO in - not to START in.
@@ -2450,10 +2483,15 @@ class SnapshotView(ttk.Frame):
         An appearance is taken as a voto, which is the honest limit of the layer: `external_stats` stores
         season totals, so it cannot tell a ten-minute cameo from a full match. The TREND strip can - a
         hollow dot is precisely that - and the two columns are meant to be read together.
+
+        Discounted by `at_club_weight` for the same reason `standing` is: appearances made in another
+        shirt are weaker evidence about this one. Reading them at face value here while the pitch
+        discounted them would print two different answers to one question in the same table.
         """
         available = max(self.club_matches(row.get("club"))
                         - _number(row.get("desc_injury_weighted")) / sum(INJURY_WEIGHTS), 1.0)
-        appearances = min(_number(row.get("desc_season_matches")) / available, 1.0)
+        appearances = min(_number(row.get("desc_season_matches"))
+                          * self.at_club_weight(row) / available, 1.0)
         return min(appearances * self.availability(row), 1.0)
 
     def presence(self, row: dict, horizon: str = "season") -> float:
@@ -2563,29 +2601,38 @@ class SnapshotView(ttk.Frame):
                     continue
                 starter, *bench = picks
                 strikers += 1 if "ST" in self.real_roles(starter) else 0
-                # the ranked list spans the whole line, so the alternatives are narrowed back to the men
-                # who could really take THIS place (see `can_replace`)
-                # his own position first; the other flank only when nobody plays his - which is the
-                # order a coach solves it in, and it keeps a switched full back out of a duel that a
-                # proper one is already in
-                bench = ([row for row in bench if self.can_replace(starter, row)]
-                         or [row for row in bench if self.can_replace(starter, row, mirrored=True)])
                 taken.add(starter.get("name"))
-                # An alternative is whoever else can wear THIS shirt: same side, still unpicked. Two men
-                # of equal titolarità in one slot alternate, and `slot_share` then reads 50% - the
-                # sentence an auction needs ("50%, in ballottaggio") instead of two 100%s.
-                named = [name.strip() for name in (starter.get("desc_duel_names") or "").split(";")
-                         if name.strip() and name.strip() not in taken]
-                rivals = ([row for row in bench if row.get("name") in named][:2] if named
-                          else bench[:2])
-                out.append((role, starter, rivals))
-        # A rival is by definition NOT in the eleven. Rivals are collected while the shirts are still
-        # being handed out, so a man picked for a later slot could turn up as an earlier one's challenger
-        # - "Hojlund vs De Bruyne" with both starting - and that also inflates the slot share, by
-        # counting a team-mate's claim as competition for a place he is not competing for.
-        starters = {row.get("name") for _role, row, _rivals in out}
-        return [(role, starter, [rival for rival in rivals if rival.get("name") not in starters])
-                for role, starter, rivals in out]
+                out.append((role, starter, bench))
+        # A rival is by definition NOT in the eleven - "Hojlund vs De Bruyne" with both starting counts a
+        # team-mate's claim as competition for a place he is not competing for. Which men those are is
+        # only known once every shirt has been handed out, so the alternatives are chosen HERE and not
+        # inside the slot loop: filtered afterwards instead, a shirt whose two best challengers went on
+        # to win shirts of their own was left with no alternative at all rather than with the next man
+        # who can really take the place - McTominay, whose whole midfield starts, read as unchallenged.
+        starters = {row.get("name") for _role, row, _bench in out}
+        final: list[tuple[str, dict, list[dict]]] = []
+        for role, starter, bench in out:
+            # the ranked list spans the whole line, so the alternatives are narrowed back to the men who
+            # could really take THIS place (see `can_replace`): his own position first, the other flank
+            # only when nobody plays his - the order a coach solves it in, and it keeps a switched full
+            # back out of a duel that a proper one is already in
+            free = [row for row in bench if row.get("name") not in starters]
+            able = ([row for row in free if self.can_replace(starter, row)]
+                    or [row for row in free if self.can_replace(starter, row, mirrored=True)])
+            # An alternative is whoever else can wear THIS shirt. Two men of equal titolarità in one slot
+            # alternate, and the shirt then reads 50% - the sentence an auction needs ("50%, in
+            # ballottaggio") instead of two 100%s.
+            named = [name.strip() for name in (starter.get("desc_duel_names") or "").split(";")
+                     if name.strip() and name.strip() not in starters]
+            # The editors' own named ballottaggio comes first - it is a stated fact - but only as a
+            # FILTER on the men who can really wear this shirt, never as a replacement for them. Given
+            # precedence outright it erased the real alternatives whenever it named nobody who is in THIS
+            # duel: Politano, a 'C' in the listone, was declared in a ballottaggio with Lobotka and
+            # Elmas, neither of whom is in his line, so the intersection came out empty and Neres - who
+            # shares his RW - was reported as no alternative at all.
+            final.append((role, starter,
+                          [row for row in able if row.get("name") in named][:2] or able[:2]))
+        return final
 
     def _declared(self, squad: list[dict]) -> list[tuple[str, dict, list[dict]]]:
         """The probabili's own eleven: the men the editors name, in the lanes their real roles put them.
@@ -2595,25 +2642,39 @@ class SnapshotView(ttk.Frame):
         calls two full backs wing backs, so demanding six midfielders put a 35%-probability squad player
         on the pitch while a 100% full back sat outside the eleven. The shape follows from the men (see
         `lanes_for`), which is why a declared 3-4-2-1 can draw as 4-4-2 - and both readings are shown.
+
+        The eleven is theirs; the ALTERNATIVES are not. A probability answers "does he start on Sunday",
+        and its absence is not an answer about the shirt: Neres, injured on the day, is in no probabili
+        list and is still the man who takes Politano's place. So the rivals are drawn from the whole
+        squad, ranked by `presence(recent)` - which IS the editors' probability where they gave one, so a
+        listed man still comes first - and only whoever cannot play the coming match is left out.
         """
         listed = sorted((row for row in squad if row.get("desc_starter_prob")),
                         key=lambda row: -_number(row.get("desc_starter_prob")))
         keepers = [row for row in listed if self.lane_of(row) == "P"]
         chosen = keepers[:1] + [row for row in listed if self.lane_of(row) != "P"][:10]
         names = {row.get("name") for row in chosen}
+        rest = sorted((row for row in squad if row.get("name") not in names
+                       and not row.get("desc_injury_open")
+                       and row.get("desc_availability_now") not in ("injured", "suspended")),
+                      key=lambda row: -self.presence(row, "recent"))
         out: list[tuple[str, dict, list[dict]]] = []
+        offered: set[str] = set()
         for starter in chosen:
-            lane = self.lane_of(starter)
-            # the editors' own ballottaggio first, then whoever they rate next in the same lane
             named = [name.strip() for name in (starter.get("desc_duel_names") or "").split(";")
                      if name.strip() and name.strip() not in names]
-            rest = [row for row in listed
-                    if row.get("name") not in names and self.lane_of(row) == lane]
-            # the editors' named duel is a stated fact and wins; otherwise only a man who could actually
-            # take the place counts, so a winger is not offered as the centre-forward's alternative
-            rivals = ([row for row in rest if row.get("name") in named][:2]
-                      or [row for row in rest if self.can_replace(starter, row)][:1])
-            out.append((lane, starter, rivals))
+            # No lane bucket: `can_replace` is the positional test, and a bucket on top of it stranded
+            # every trequartista of a side that declares no trequartista - De Bruyne and Vergara sit in
+            # the 'T' lane, and Napoli's declared eleven has ten outfield men in D, M and A.
+            # And a man is offered ONCE: three midfield shirts all reporting the same first alternative
+            # said the same thing three times and hid the second and the third.
+            able = [row for row in rest if self.can_replace(starter, row)]
+            pool = [row for row in able if row.get("name") not in offered]
+            # ...and a shirt that would be left with nobody takes a man who is already challenging
+            # another: one alternative twice is a reading, no alternative at all is a wrong one.
+            rivals = ([row for row in pool if row.get("name") in named][:2] or pool[:1] or able[:1])
+            offered.update(row.get("name") for row in rivals)
+            out.append((self.lane_of(starter), starter, rivals))
         return out
 
     # The same position on the OTHER flank. A coach who runs out of right backs plays a left back there
@@ -2625,24 +2686,24 @@ class SnapshotView(ttk.Frame):
 
     @classmethod
     def can_replace(cls, starter: dict, row: dict, mirrored: bool = False) -> bool:
-        """Whether this man could really take that place - the same POSITION, not merely the same line.
+        """Whether this man could really take that place - the same POSITION, in the REAL vocabulary.
 
-        A winger is not a centre-forward. Neres listed as Hojlund's ballottaggio was the listone's 'A'
-        talking, and a false duel is worse at an auction than no duel at all: it reads as a risk that is
-        not there, and it drags the percentage of a man who has nobody behind him.
+        The granular codes decide, and one shared code is enough: 'RW;AM' and 'AM' do compete for the
+        same shirt. The listone role is NOT a fallback here, and that is the whole rule - it says what
+        you buy a man as, not where a coach puts him, and at Napoli it calls Politano, Lobotka, Elmas,
+        McTominay, Anguissa, De Bruyne, Vergara and Neres the same thing. Nor is the flank it implies any
+        better: with no codes, `side_of` reads the Mantra role, which is the same listone talking again.
 
-        Where both have granular codes they decide, and one shared code is enough - 'RW;AM' and 'AM' do
-        compete for the same shirt. Where either has none, the older test stands (same listone role, same
-        flank), because that is the whole of what is known about him.
+        So a man with no granular code is in NO duel. That is a gap in the OBSERVED roles, not a fact
+        about him, and it belongs where it can be seen and cured - the provider identity first, then
+        `positions --layer roles`, which observes the codes and only for TODAY - instead of being papered
+        over with a false duel. A false duel is the worse error at an auction: it reads as a risk that is
+        not there, and it drags down the percentage of a man who actually has nobody behind him.
         """
         mine, theirs = set(cls.real_roles(starter)), set(cls.real_roles(row))
         if mirrored:
             mine |= {cls.MIRROR[code] for code in mine if code in cls.MIRROR}
-        if mine and theirs:
-            return bool(mine & theirs)
-        return (row.get("role_classic") == starter.get("role_classic")
-                and (cls.side_of(row) == cls.side_of(starter) if not mirrored
-                     else cls.side_of(row) != "C" and cls.side_of(starter) != "C"))
+        return bool(mine & theirs)
 
     @classmethod
     def real_roles(cls, row: dict) -> list[str]:

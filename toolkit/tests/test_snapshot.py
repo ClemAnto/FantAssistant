@@ -90,11 +90,27 @@ def test_duels_need_a_probabili_snapshot_and_never_guess():
 
     observations = [Obs(1, "Lautaro", "Inter", "A"), Obs(2, "Thuram", "Inter", "A"),
                     Obs(3, "Taremi", "Inter", "A")]
-    assert snapshot.duels(observations, {}) == {}, "no snapshot -> no duel, not a guess from minutes"
+    roles = {1: {"roles": "ST"}, 2: {"roles": "ST;AM"}, 3: {"roles": "ST"}}
+    assert snapshot.duels(observations, {}, roles) == {}, "no snapshot -> no duel, never a guess"
     starters = {1: {"probability": 0.85}, 2: {"probability": 0.80}, 3: {"probability": 0.20}}
-    found = snapshot.duels(observations, starters)
+    found = snapshot.duels(observations, starters, roles)
     assert found[1]["rivals"] == 1 and "Thuram" in found[1]["names"]
     assert found[3]["rivals"] == 0, "a 20% third striker is not in a duel with an 85% starter"
+
+    # A duel is a REAL POSITION and never a listone role. At Napoli, Politano, Lobotka and Neres are all
+    # 'C' and all certain to start, and the Classic role declared a right winger in a ballottaggio with a
+    # regista thirty metres away - while the man who really shares his shirt went unnamed.
+    napoli = [Obs(1, "Politano", "Napoli", "C"), Obs(2, "Lobotka", "Napoli", "C"),
+              Obs(3, "Neres", "Napoli", "C")]
+    listed = {1: {"probability": 1.0}, 2: {"probability": 1.0}, 3: {"probability": 0.9}}
+    found = snapshot.duels(napoli, listed,
+                           {1: {"roles": "RW;MR"}, 2: {"roles": "MC;DM"}, 3: {"roles": "RW;LW"}})
+    assert found[1]["names"] == "Neres", "one shared code is a duel; the same 'C' is not"
+    assert found[2]["rivals"] == 0, "a regista is nobody's right wing ballottaggio"
+    # ...and a player with NO observed code is out of the column altogether: his position is unknown, and
+    # the listone role must not stand in for it - unknown is not "no rival"
+    assert 2 not in snapshot.duels(napoli, listed, {1: {"roles": "RW"}, 3: {"roles": "RW"}})
+    assert snapshot.duels(napoli, listed, {}) == {}
 
 
 def test_injury_absence_is_told_apart_from_absence_of_data(tmp_path):
@@ -363,6 +379,80 @@ def test_the_shirt_shows_a_share_of_the_matchdays_discounted_by_the_injuries():
     # thing a second time, on a shirt that already prints the number under the name
 
 
+def test_a_season_played_at_another_club_is_discounted_and_never_read_as_this_one():
+    """Marin R. arrives at Napoli with 21 starts and 1980 minutes, and every one of them is Villarreal's.
+
+    Read as a Napoli standing they put him ahead of Rrahmani (0.81 of standing, but available 41% of the
+    time). Dropped altogether they would delete every summer signing from the eleven. So they are
+    DISCOUNTED - being sent on loan is the club's own judgement of a player - and the discount comes out
+    of the split the sheet carries, not out of a flag.
+    """
+    import pytest
+
+    from euroleghe_ingest.gui import SnapshotView as View
+
+    view = View.__new__(View)
+    view.clubs = {"Napoli": {"complete_XIs": "36"}}
+    view.players = []
+    total = {"club": "Napoli", "desc_season_starts": "21", "desc_season_matches": "23",
+             "desc_minutes_full_season": "1980",
+             "desc_injury_source": "transfermarkt (no absence recorded)", "desc_injury_weighted": "0"}
+    home = dict(total, desc_season_starts_club="21", desc_season_starts_elsewhere="0",
+                desc_minutes_club="1980", desc_minutes_elsewhere="0")
+    loaned = dict(total, desc_season_starts_club="0", desc_season_starts_elsewhere="21",
+                  desc_minutes_club="0", desc_minutes_elsewhere="1980")
+    assert view.standing(loaned) == pytest.approx(view.standing(home) * View.LOAN_DISCOUNT)
+    assert view.voto_share(loaned) == pytest.approx(view.voto_share(home) * View.LOAN_DISCOUNT)
+    # the whole season at the club he is at now is the number as it always was: no discount, no drift
+    assert view.standing(home) == view.standing(total)
+    # and NO split at all is unknown, not a season played elsewhere: it must not discount him either
+    assert view.at_club_weight(total) == 1.0
+
+    # a January transfer sits in between, and the discount shrinks by itself as he plays here - which is
+    # what a second "seasons at the club" parameter would have been for
+    moved = dict(total, desc_season_starts_club="9", desc_season_starts_elsewhere="12",
+                 desc_minutes_club="880", desc_minutes_elsewhere="1100")
+    assert view.standing(loaned) < view.standing(moved) < view.standing(home)
+    settled = dict(moved, desc_minutes_club="1500", desc_minutes_elsewhere="480")
+    assert view.at_club_weight(moved) < view.at_club_weight(settled)
+
+
+def test_the_split_between_this_club_and_elsewhere_comes_from_the_per_match_layer(tmp_path):
+    """Only the per-match layer stores a club per appearance, so only it can say whose season it was.
+
+    A player it has nothing for stays OUT of the result: that is what leaves the columns empty and his
+    standing undiscounted, the same asymmetry the injury layer makes for a player with no id.
+    """
+    ctx = _ctx(tmp_path)
+    conn = ctx.conn
+    _seed(conn)
+    for club in ("Napoli", "Villarreal"):
+        conn.execute("INSERT INTO clubs(fc_club_id, canonical_name, league) VALUES (?, ?, 'serie_a')",
+                     (hash(club) % 1000, club))
+    conn.execute("INSERT INTO players(fc_id, canonical_name, birth_year) VALUES (9, 'Marin R.', 1997)")
+    for match_id, club, minutes, started in (("v1", "Villarreal", 90, 1), ("v2", "Villarreal", 75, 1),
+                                             ("n1", "Napoli", 20, 0)):
+        conn.execute(
+            "INSERT INTO external_match_stats(fc_id, season, source, match_id, competition, "
+            "match_date, club, minutes, started) "
+            "VALUES (9, '2025-26', 'sofascore', ?, 'serie_a', '2026-03-01', ?, ?, ?)",
+            (match_id, club, minutes, started))
+    conn.commit()
+
+    class Obs:
+        def __init__(self, fc_id, club):
+            self.fc_id, self.club_target = fc_id, club
+
+    split = snapshot.at_current_club(conn, "2025-26", [Obs(9, "Napoli"), Obs(1, "Inter")], {})
+    assert split[9] == {"starts": 0, "minutes": 20,
+                        "starts_elsewhere": 2, "minutes_elsewhere": 165}
+    assert 1 not in split, "no row in the per-match layer -> unknown, and the columns stay empty"
+    # and both halves reach the sheet, so a reader sees whose season it was
+    for column in ("desc_season_starts_club", "desc_season_starts_elsewhere",
+                   "desc_minutes_club", "desc_minutes_elsewhere"):
+        assert column in snapshot.PLAYER_COLUMNS
+
+
 def test_a_real_attack_has_one_centre_forward_and_he_plays_in_the_middle():
     """Two rules a coach does not break, and the drawing has to obey both: a punta centrale plays in the
     middle of an attack, and a side fields ONE - the second adapts as a seconda punta."""
@@ -385,6 +475,105 @@ def test_a_real_attack_has_one_centre_forward_and_he_plays_in_the_middle():
     codes = view._line_codes([(0.30, wide, []), (0.50, striker, [])])
     assert codes == ["Sp", "Pc"]      # the CENTRAL role keeps the shirt, wherever he is drawn
     assert view._line_codes([(0.15, winger, []), (0.50, striker, [])]) == ["Ad", "Pc"]
+
+
+def _view_of(rows: list[dict]):
+    from euroleghe_ingest.gui import SnapshotView as View
+
+    view = View.__new__(View)
+    view.players = rows
+    view.rows = rows
+    view.clubs = {"Test": {"complete_XIs": "38"}}
+    for row in rows:
+        row.setdefault("club", "Test")
+    return view
+
+
+def test_a_duel_is_spoken_in_real_roles_and_never_in_listone_ones():
+    """The listone says what you BUY a man as; a ballottaggio is about where a coach PUTS him.
+
+    Napoli is the whole argument: Politano, Lobotka, Neres and McTominay are all 'C'. So the granular
+    codes decide and nothing else does - not the Classic role, and not the flank it implies either, since
+    with no codes `side_of` reads the Mantra role, which is the same listone talking again.
+    """
+    from euroleghe_ingest.gui import SnapshotView as View
+
+    winger = {"name": "Politano", "role_classic": "C", "desc_real_roles": "RW;MR"}
+    regista = {"name": "Lobotka", "role_classic": "C", "desc_real_roles": "MC;DM"}
+    ala = {"name": "Neres", "role_classic": "C", "desc_real_roles": "RW;LW"}
+    unobserved = {"name": "McTominay", "role_classic": "C", "roles_mantra": "m;c"}
+    assert View.can_replace(winger, ala), "one shared code is enough"
+    assert not View.can_replace(winger, regista), "the same 'C' is not a duel"
+    # no observed code -> no duel, in either direction. A gap in the roles, not a fact about the man:
+    # `positions --layer roles` is the cure, and a false duel would hide the need for it.
+    assert not View.can_replace(winger, unobserved) and not View.can_replace(unobserved, winger)
+    assert not View.can_replace(unobserved, dict(unobserved, name="Anguissa"))
+    # the other flank is still the second option, and it is still spoken in codes
+    assert View.can_replace({"desc_real_roles": "DR"}, {"desc_real_roles": "DL"}, mirrored=True)
+    assert not View.can_replace({"desc_real_roles": "DR"}, {"desc_real_roles": "DL"})
+
+
+def test_an_alternative_is_the_next_man_who_can_take_the_place_never_nobody():
+    """Three ways the ballottaggi went silent at Napoli, and all three said "nobody" about a real duel.
+
+    A shirt is not unchallenged because its challengers won shirts of their own, and it is not
+    unchallenged because the editors named men who play somewhere else.
+    """
+    def mid(name, starts, **extra):
+        return dict(name=name, role_classic="C", desc_real_roles="MC",
+                    desc_season_starts=str(starts), desc_start_share=str(starts / 38), **extra)
+
+    # four central midfielders, three shirts: the fourth man is the alternative to all three
+    rows = [mid("Uno", 34), mid("Due", 30), mid("Tre", 26), mid("Quattro", 12)]
+    view = _view_of(rows)
+    rivals = {starter["name"]: [row["name"] for row in others]
+              for _role, starter, others in view.eleven("Test", "4-3-3", "typical")}
+    assert rivals == {"Uno": ["Quattro"], "Due": ["Quattro"], "Tre": ["Quattro"]}, (
+        "collected before the shirts are handed out and filtered after, a starter whose two best "
+        "challengers also start was left with no alternative at all")
+
+    # the editors name a man who is not in this duel: it FILTERS the real alternatives, never erases them
+    rows = [mid("Uno", 34, desc_duel_names="Portiere; Attaccante"), mid("Due", 30), mid("Tre", 26),
+            mid("Quattro", 12)]
+    assert [row["name"] for _r, starter, row_list in _view_of(rows).eleven("Test", "4-3-3", "typical")
+            for row in row_list if starter["name"] == "Uno"] == ["Quattro"]
+    # and where they name a man who IS, he comes first: a stated fact beats a measured ranking
+    rows = [mid("Uno", 34, desc_duel_names="Quattro"), mid("Due", 30), mid("Tre", 26), mid("Cinque", 20),
+            mid("Quattro", 12)]
+    picked = {starter["name"]: [row["name"] for row in others]
+              for _role, starter, others in _view_of(rows).eleven("Test", "4-3-3", "typical")}
+    assert picked["Uno"] == ["Quattro"] and picked["Due"] == ["Cinque", "Quattro"]
+
+
+def test_the_declared_eleven_takes_its_alternatives_from_the_whole_squad():
+    """The probabili decide who STARTS. They do not decide who the alternatives are.
+
+    A probability answers "does he play on Sunday", and its absence is not an answer about the shirt:
+    Neres, injured on the day, is in no probabili list and is still the man who takes Politano's place.
+    Nor may a lane bucket strand a whole line - De Bruyne and Vergara sit in the 'T' lane, and Napoli's
+    declared eleven has its ten outfield men in D, M and A.
+    """
+    def man(name, codes, role, prob=None, starts=20, **extra):
+        row = dict(name=name, role_classic=role, desc_real_roles=codes,
+                   desc_season_starts=str(starts), desc_start_share=str(starts / 38), **extra)
+        if prob is not None:
+            row["desc_starter_prob"] = str(prob)
+        return row
+
+    rows = [man("Portiere", "GK", "P", 1.0)]
+    rows += [man(f"Dif{i}", "DC", "D", 1.0) for i in range(1, 6)]
+    rows += [man(f"Cen{i}", "MC", "C", 1.0) for i in range(1, 6)]
+    # outside the declared eleven: a trequartista, a man the editors never listed, and an injured one
+    rows.append(man("Trequartista", "AM;MC", "C", 0.5))
+    rows.append(man("Ignorato", "MC", "C", starts=24))
+    rows.append(man("Infortunato", "MC", "C", 0.9, desc_availability_now="injured"))
+    view = _view_of(rows)
+    eleven = view.eleven("Test", "3-4-2-1", "next")
+    assert len(eleven) == 11 and "Trequartista" not in {row["name"] for _r, row, _o in eleven}
+    offered = {row["name"] for _role, _starter, others in eleven for row in others}
+    assert "Ignorato" in offered, "no probability is not an answer about the shirt"
+    assert "Trequartista" in offered, "a lane nobody starts in must not strand its whole bench"
+    assert "Infortunato" not in offered, "for the COMING match a man who is out is not an alternative"
 
 
 def test_the_trend_dot_is_full_only_for_a_full_match_and_carries_the_bonus():
