@@ -215,13 +215,30 @@ Nota: **nessuna delle feature generate il 27/07 e' entrata nel motore**, e **nes
       lo split noto, **118 scontati**, 69 interamente altrove. Split ignoto (nessuna riga nello strato
       per-partita) = **nessuno sconto**: non sapere non e' sapere.
 - [x] **CHIUSA di conseguenza — «sconto decrescente con le partite al club attuale»**: la quota minuti lo
-      fa da se', una partita alla volta, senza un secondo parametro. Resta aperto solo **prestito vs
-      acquisto** (un comprato non e' stato bocciato da QUESTO club; `arrivals` conosce origine e cifra).
-      `LOAN_DISCOUNT` e' provvisorio e marcato tale: e' una scelta di MODELLO, quindi la possiede il gate.
+      fa da se', una partita alla volta, senza un secondo parametro.
+- [x] **FATTO 29/07 sera — prestito contro acquisto, con la differenza MISURATA.** Nessuna fonte nostra
+      marca un prestito (`arrivals.type` non lo ha, `transfers_history.fee` e' NULL per gratuito e prestito
+      allo stesso modo e non copre la finestra 2026). Lo dice la storia delle rose:
+      `snapshot.previously_at_club` → `desc_at_club_before` = l'ultima stagione in cui il listone di QUESTO
+      club lo aveva. Quindi **`LOAN_DISCOUNT = 0.60`** (misurato altrove **e** mandato via da qui) e
+      **`ARRIVAL_DISCOUNT = 0.80`** (solo misurato altrove). Su euro: 145 scontati, **69 gia' stati qui**
+      (Rashford, Jackson, Nelson, Cheddira), **76 mai**. Entrambe provvisorie: le possiede il gate.
 - [ ] `INJURY_WEIGHTS`: forma confermata (3 stagioni, l'ultima piu' pesante), valore aperto. Verificare le
       ricadute duplicate su Transfermarkt prima di ritarare `AVAILABILITY_FLOOR`.
-- [ ] Centrocampo a 5: distinguere il lato offensivo (ala/esterno) da quello difensivo (terzino).
-- [ ] Operativo: chiudere `injuries --layer all` sui 5 club nuovi, poi `Build now`.
+- [x] **FATTO 29/07 sera — centrocampo a 5, e i due difetti sotto.** La richiesta (quale fascia all'ala,
+      quale al terzino) era impossibile prima di questi: (1) il **badge prendeva la fascia dal codice** e
+      non dallo slot disegnato — l'Inter leggeva `Es` due volte nel 3-5-2, con Carlos Augusto esterno
+      destro; ora quando lo slot contraddice il codice vince lo slot (`MIRROR`), il ruolo resta suo;
+      (2) una **linea senza uomini propri lasciava la maglia vuota** — il Bayern disegnava DIECI uomini
+      (4-4-1 invece di 4-5-1) con ali e trequartisti fuori; ora prende dal resto della rosa, ma una linea
+      presta **solo il surplus** e **dalla panchina, mai la prima scelta** (entrambe trovate rompendole);
+      (3) e allora `slot_cost`, che sapeva solo la fascia, ha messo un **centrale difensivo** quinto
+      centrocampista → terzo termine **`LANE_DEPTH`**, distanza fra la profondità della linea e quella del
+      codice, ultimo nella tupla: separa solo chi le regole di fascia lasciano pari. **0 undici incompleti**
+      su 68 (34 club x 2 modi).
+- [x] **VERIFICATO 29/07 — il top-up infortuni era già completo**: 3273 id Transfermarkt, 3273 pagine in
+      cache, **0 mai visitate**. I 94 di rosa senza righe sono «visitati e puliti» e il foglio lo dice
+      (`desc_injury_source`). Voce stantia, chiusa senza eseguire nulla.
 - [x] **FATTO 29/07 — recuperate 815 identita' sofascore.** Erano 827 fc_id con gli aggregati di stagione e
       **nessuna** riga in `player_xref` (Saka, Guirassy, Torres F., Sorloth, Mbeumo, Cunha): invisibili a
       ogni strato datato, che passa tutto da quella tabella. Causa: l'identita' era scritta **dentro il giro

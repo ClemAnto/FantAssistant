@@ -1,5 +1,5 @@
 # Spec — Toolkit `euroleghe-ingest` v9 (task 1.0 della roadmap)
-**Aggiornata: 29 luglio 2026 (v9.8 — stagione spaccata club/altrove, ballottaggi sul ruolo REALE, identità sofascore; v9 SOSTITUISCE la v8)** · Python · Output: SQLite `euroleghe.db` + CSV normalizzati
+**Aggiornata: 29 luglio 2026 (v9.9 — prestito vs acquisto, lo slot sa la sua linea; v9 SOSTITUISCE la v8)** · Python · Output: SQLite `euroleghe.db` + CSV normalizzati
 *Sigle: fc_id = identificativo fantacalcio.it · FM = fantamedia · Mv = media voto · Pv = partite a voto · xref = cross-reference id tra siti · xG/xA = expected goals/assists · manifest = lista file da recuperare.*
 **Convenzione: identificatori sempre in INGLESE** (tabelle, colonne, moduli, variabili); italiano solo nella documentazione.
 
@@ -493,6 +493,51 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.9 (29 luglio 2026, sera — prestito vs acquisto, e la linea che sapeva solo la fascia)
+
+I tre punti minori aperti, e due difetti che sono emersi misurandoli.
+
+### 1. Prestito contro acquisto: due sconti, e la differenza è MISURATA
+Nessuna fonte nostra marca un prestito: `arrivals.type` conosce solo new/transfer_cross_league/
+transfer_intra_league, `transfers_history.fee` è NULL per un transfer gratuito **e** per un prestito (1367
+righe su 2067) e non copre affatto la finestra che si sta prezzando (0 righe dopo il 2026-06-01). La storia
+delle rose invece lo dice: **`snapshot.previously_at_club`** = l'ultima stagione precedente in cui il
+listone di QUESTO club lo aveva già (`desc_at_club_before`). Marin R. era del Napoli nel 24/25 e del
+Villarreal nel 25/26 → il Napoli lo ha avuto e lo ha mandato via; Gila è stato della Lazio per quattro
+stagioni ed è del Milan adesso → il Milan non lo ha mai giudicato.
+Quindi due costanti, perché le ragioni per scontare sono due e non sempre valgono entrambe: **`LOAN_DISCOUNT
+= 0.60`** (misurato altrove **e** mandato via da qui) e **`ARRIVAL_DISCOUNT = 0.80`** (solo misurato
+altrove). Su euro: 145 scontati, **69 già stati qui** (Rashford, Jackson, Nelson, Cheddira) e **76 mai
+stati qui**. Entrambe provvisorie, entrambe scelte di modello → le possiede il gate.
+
+### 2. Uno slot sa la sua LINEA, non solo la sua fascia
+La richiesta era distinguere, in un centrocampo a 5, quale fascia è dell'ala e quale del terzino. Misurando
+sono venuti fuori due difetti che la rendevano impossibile:
+- **il badge prendeva la fascia dal codice del giocatore e non dallo slot in cui è disegnato**: l'Inter
+  leggeva `Es` **due volte** nel suo 3-5-2, perché Carlos Augusto è mancino di codice e gioca esterno
+  destro. Ora, quando lo slot contraddice il codice, la fascia è quella dello slot (`MIRROR`): il ruolo
+  resta suo, la fascia è della maglia. Un ruolo centrale non cambia mai.
+- **una linea senza uomini propri lasciava la maglia VUOTA**: il 4-5-1 del Bayern aveva quattro
+  centrocampisti in corsia M e disegnava **dieci** uomini chiamandolo 4-4-1, con ali e trequartisti fuori
+  dagli undici. Ora la maglia va al resto della rosa, e con due regole trovate rompendole: una linea presta
+  **solo il suo surplus** (servite in ordine, una difesa senza uomini si mangiava gli attaccanti e
+  l'attacco restava vuoto) e presta **dalla panchina, mai la prima scelta**.
+- e qui il punto vero: con il prestito fra linee attivo, `slot_cost` sapeva solo la fascia, quindi il
+  quinto centrocampista del Bayern è diventato un **centrale difensivo**. Aggiunto un terzo termine,
+  **`LANE_DEPTH`**, la distanza fra la profondità della LINEA e quella del suo codice sulla stessa griglia
+  0..1 di `REAL_ROLE_DEPTH`: ultimo nella tupla, quindi separa solo chi le regole di fascia lasciano pari —
+  fra due che possono fare quella fascia, il centrocampo prende quello la cui linea è più vicina (un'ala è
+  a un passo, un centrale difensivo a due). Esito: **0 undici incompleti** su 34 club x 2 modi (era il
+  Bayern a 10), e il Bayern si disegna 4-4-2 mentre i conteggi di linea dicono 4-5-1 — entrambi veri, e la
+  didascalia porta entrambi.
+
+### 3. Top-up infortuni: già completo
+Il punto operativo era stantio. **3273 id Transfermarkt, 3273 pagine in cache, 0 mai visitate**: il walk è
+finito. I 94 giocatori di rosa senza righe in `injuries` sono «visitati e puliti», e il foglio lo dice già
+(`desc_injury_source` = «transfermarkt (no absence recorded)»), che è diverso da «nessun id: ignoto».
+
+**231 test verdi, ruff pulito.**
+
 ## Novità v9.8 (29 luglio 2026 — di chi era quella stagione, chi è in ballottaggio, e 815 identità)
 
 Tre cose, in cascata: la terza è emersa perché la seconda l'ha resa misurabile.
@@ -665,7 +710,7 @@ T1 importanti → storia completa → FM-equivalente estera → club-a-club con 
 ## Moduli (ordine rebuild)
 `rosters` (SEMPRE primo) → `stats` → `ratings` (Excel autenticato, incrementale + backfill + resume + listone) → `matchdays` (calendario euro↔reale) → `fc_site` (rigoristi, probabili, indisponibili) → `transfers` → **`injuries`** → `fbref` (stub/bloccato) → `positions` (SofaScore: aggregati stagione + per-partita + heatmap) → `recent_form` → `synth` (voto sintetico calibrato) → `arrivals` → `tournaments` → `elo` (API ClubElo) → `validate`.
 Fuori dalla pipeline, perché non producono tabelle di ingestione: **`bootstrap`** (acquisizione da zero), `fetch` (referto + inbox), `rebuild`, `backtest` (harness del gate), **`export`** (bundle dell'app).
-Stato implementazione **v9.8**: **tutti i moduli operativi tranne `fbref`** (bloccato da Cloudflare: servirebbe un browser headless, oppure l'inbox manuale). Chiusi in v9.4: `injuries` + `contract_until`/`exit_risk`, heatmap `avg_x/avg_y`, `elo` via API, `ingest_runs`, `fetch --plan/--inbox`, `bootstrap`, `export`. **230 test verdi, ruff pulito.**
+Stato implementazione **v9.9**: **tutti i moduli operativi tranne `fbref`** (bloccato da Cloudflare: servirebbe un browser headless, oppure l'inbox manuale). Chiusi in v9.4: `injuries` + `contract_until`/`exit_risk`, heatmap `avg_x/avg_y`, `elo` via API, `ingest_runs`, `fetch --plan/--inbox`, `bootstrap`, `export`. **231 test verdi, ruff pulito.**
 
 ## Comandi
 ```

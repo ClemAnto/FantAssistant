@@ -410,7 +410,7 @@ scritta, `config.SEASONS` fonte unica, `bootstrap` (acquisizione da zero, ~17 h 
 `fetch --plan/--inbox`, **`export`** (bundle app: 229k righe, 29 MB, manifest con provenienza e buchi
 noti), UI con tema light/dark. Cross-tab ruoli: **D→D 97%**, M→C 80%, F→A 80%, G→P 100%.
 
-**230 test verdi, ruff pulito** (nessuno tocca la rete). Toolkit **v0.2.0**, spec **v9.8**. `recent_form` ha `--bonuses-only`
+**231 test verdi, ruff pulito** (nessuno tocca la rete). Toolkit **v0.2.0**, spec **v9.9**. `recent_form` ha `--bonuses-only`
 (arricchisce i bonus delle partite già salvate, una richiesta per partita, senza ri-risolvere l'identità):
 **1195/1196** partite arricchite, **122/123** giocatori completi. `python -m euroleghe_ingest backtest [--verify] [--gate] [--auction]
 [--cases] [--pairs] [--window Tm7..T2] [--platform euro|default] [--game classic|mantra]`. GUI: tre tab, il terzo è
@@ -614,5 +614,11 @@ il ruolo Classic, che al Napoli metteva Politano in duello con un regista; e que
 **827 fc_id avevano gli aggregati sofascore e nessun id in `player_xref`** (Saka, Guirassy, Torres F.),
 quindi erano invisibili a ruoli granulari, heatmap e strato per-partita insieme. Causa: l'identita' era
 scritta dentro il giro per stagione, e la decideva l'ultima stagione processata. Recuperate **815
-identita'** offline; ora il foglio ha 32 giocatori senza codice invece di 152. Il punto di ripresa e' la
-sezione di chiusura di [stato-progetto-continuita-v5.md](stato-progetto-continuita-v5.md).
+identita'** offline; ora il foglio ha 32 giocatori senza codice invece di 152. Terza passata: **prestito
+contro acquisto** con la differenza misurata dalla storia delle rose (`LOAN_DISCOUNT 0.60` se questo club lo
+aveva e lo ha mandato via, `ARRIVAL_DISCOUNT 0.80` se non lo ha mai giudicato), e **uno slot sa la sua
+linea** e non solo la fascia - la fascia sul badge e' quella della maglia, una linea a corto di uomini
+prende dal surplus di un'altra invece di lasciare la maglia vuota (il Bayern disegnava dieci uomini), e
+`LANE_DEPTH` impedisce che il quinto centrocampista sia un centrale difensivo. Il punto di ripresa, con
+«cosa resta in ordine di leva», e' la sezione di chiusura di
+[stato-progetto-continuita-v5.md](stato-progetto-continuita-v5.md).

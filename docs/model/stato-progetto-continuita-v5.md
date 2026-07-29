@@ -534,3 +534,63 @@ piu'**: ha reso il buco misurabile invece che mascherato, ed e' cosi' che si e' 
 Dopo il recupero degli id le maglie senza alternativa sono **129 su 685** e le alternative 843, tutte su
 codice reale. La nota del run e il manifest dicono adesso a chiare lettere che per chi non ha codici il
 ballottaggio e' **vuoto = ignoto**, mai «0 rivali».
+
+---
+
+## Sessione 29/07/2026 (3) - i tre punti minori, e i due difetti che nascondevano
+
+231 test verdi, ruff pulito, i tre fogli rigenerati. Dettaglio: spec «Novita' v9.9».
+
+### 1. Prestito contro acquisto: due sconti, e la differenza e' MISURATA
+**Nessuna fonte nostra marca un prestito** - verificato prima di progettare: `arrivals.type` conosce solo
+new/transfer_cross_league/transfer_intra_league, `transfers_history.fee` e' NULL per un gratuito **e** per
+un prestito (1367 righe su 2067) e non ha **nessuna** riga dopo il 2026-06-01, cioe' non copre la finestra
+che si sta prezzando. Lo dice invece la **storia delle rose**: `previously_at_club` →
+`desc_at_club_before` = l'ultima stagione precedente in cui il listone di QUESTO club lo aveva.
+Marin R. Napoli 24/25 → Villarreal 25/26 → il Napoli lo ha avuto e mandato via; Gila quattro stagioni alla
+Lazio e oggi al Milan → il Milan non lo ha mai giudicato.
+Quindi due costanti, perche' le ragioni per scontare sono due e non valgono sempre entrambe:
+**`LOAN_DISCOUNT = 0.60`** (misurato altrove **e** mandato via da qui) e **`ARRIVAL_DISCOUNT = 0.80`**
+(solo misurato altrove). Su euro: 145 scontati, **69 gia' stati qui** (Rashford, Jackson, Nelson,
+Cheddira), **76 mai**. Marin R. resta 0.34, Giovane passa da 0.38 a 0.48 (arrivato, non bocciato).
+Entrambe provvisorie, entrambe scelte di modello → le possiede il gate.
+
+### 2. Uno slot sa la sua LINEA, non solo la sua fascia
+La richiesta (in un centrocampo a 5, quale fascia all'ala e quale al terzino) era impossibile prima di due
+difetti che si sono visti solo misurando:
+- il **badge prendeva la fascia dal codice del giocatore**, non dallo slot in cui e' disegnato: l'Inter
+  leggeva `Es` **due volte** nel 3-5-2, perche' Carlos Augusto e' mancino di codice e gioca esterno destro.
+  Ora quando lo slot contraddice il codice vince lo slot (`MIRROR`): il ruolo resta suo, **la fascia e'
+  della maglia**. Un ruolo centrale non cambia mai.
+- una **linea senza uomini propri lasciava la maglia vuota**: il 4-5-1 del Bayern aveva quattro
+  centrocampisti in corsia M e disegnava **dieci** uomini chiamandolo 4-4-1, con ali e trequartisti fuori
+  dagli undici. Ora la maglia va al resto della rosa, con due regole trovate rompendole: una linea presta
+  **solo il suo surplus** (servite in ordine, una difesa senza uomini si mangiava gli attaccanti) e presta
+  **dalla panchina, mai la prima scelta**.
+- e allora il difetto vero: con il prestito fra linee attivo, `slot_cost` sapeva **solo la fascia**, e il
+  quinto centrocampista del Bayern e' diventato un centrale difensivo. Terzo termine **`LANE_DEPTH`**:
+  distanza fra la profondita' della LINEA e quella del codice, sulla stessa griglia 0..1 di
+  `REAL_ROLE_DEPTH`. Ultimo nella tupla, quindi separa **solo** chi le regole di fascia lasciano pari - fra
+  due che possono fare quella fascia, il centrocampo prende quello la cui linea e' piu' vicina (un'ala e' a
+  un passo, un centrale a due). **0 undici incompleti** su 68 (34 club x 2 modi), e il Bayern si disegna
+  4-4-2 mentre i conteggi di linea dicono 4-5-1: entrambi veri, la didascalia porta entrambi.
+
+### 3. Top-up infortuni: era gia' completo (voce stantia)
+**3273 id Transfermarkt, 3273 pagine in cache, 0 mai visitate.** I 94 giocatori di rosa senza righe in
+`injuries` sono «visitati e puliti», e il foglio lo dice gia' (`desc_injury_source` = «transfermarkt (no
+absence recorded)»), che e' diverso da «nessun id: ignoto». Chiusa senza eseguire nulla.
+
+### Cosa resta, in ordine di leva (dalla domanda «cosa manca al toolkit?»)
+`fetch --plan` dice **«every source is populated»**: 19 tabelle piene, niente da acquisire. Resta:
+1. **Il job settimanale**, che perde valore ogni giorno: `probable_starter` ha **2 date** (26 e 28/07),
+   `availability` 2, `player_roles` **1**. Ogni settimana non girata e' una finestra che non esistera' mai.
+2. **La modalita' LIVE del motore** - e non e' piu' del toolkit: `_window_is_usable` pretende voti su
+   ENTRAMBE le stagioni, il tab Auction elenca solo stagioni concluse, `auction_view` confronta due liste.
+   Per un'asta serve **una lista sola**. Piu' il gate 3.2 club-a-club (input pronto).
+3. **I parametri provvisori al gate**: decay/quarantena rigoristi, soglie tier arrivi + eta' U22,
+   `LOAN_DISCOUNT`/`ARRIVAL_DISCOUNT`, inclinazione `INJURY_WEIGHTS` + `AVAILABILITY_FLOOR`.
+4. **Bloccato dal calendario** (agosto): listone/quotazioni 26/27, voti 26/27, Elo alla data d'asta. La
+   modifica e' **una riga**: `"2026-27"` in `config.SEASONS`.
+5. Residui misurati: 32 giocatori su 916 senza codice granulare (28 senza nessuno strato datato), 27 fuori
+   dal layer per-partita, 7 orfani d'identita' (omonimi vecchi). `fbref` resta l'unico modulo non
+   operativo (Cloudflare) e non serve piu': SofaScore lo ha sostituito.
