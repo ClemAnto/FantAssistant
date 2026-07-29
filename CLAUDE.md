@@ -103,7 +103,8 @@ tie once; where they disagree, the report says so and the decision is taken in t
 ## Provisional parameters
 Some constants exist only because a module needed a number to run: the revealed penalty hierarchy's
 decay/quarantine (`fc_site`), the arrival tier thresholds and the U22 age (`arrivals`), and what a season
-measured at ANOTHER club is worth toward this club's shirt (`gui.SnapshotView.LOAN_DISCOUNT`). They are
+measured at ANOTHER club is worth toward this club's shirt - `gui.SnapshotView.LOAN_DISCOUNT` if it
+sent him away, `ARRIVAL_DISCOUNT` if it never had him. They are
 MODEL choices, so the gate owns them - they are marked provisional in the code and must be swept,
 never quoted as established. Same rule as any other candidate rule: no gate, no engine.
 

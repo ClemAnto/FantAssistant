@@ -229,7 +229,7 @@ on each other; that is why a rebuild is offline and still complete.
 ## Tests
 
 ```bash
-toolkit/.venv/Scripts/python -m pytest -q      # 231 tests
+toolkit/.venv/Scripts/python -m pytest -q      # 232 tests
 toolkit/.venv/Scripts/python -m ruff check .
 ```
 

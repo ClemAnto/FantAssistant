@@ -536,7 +536,7 @@ Il punto operativo era stantio. **3273 id Transfermarkt, 3273 pagine in cache, 0
 finito. I 94 giocatori di rosa senza righe in `injuries` sono «visitati e puliti», e il foglio lo dice già
 (`desc_injury_source` = «transfermarkt (no absence recorded)»), che è diverso da «nessun id: ignoto».
 
-**231 test verdi, ruff pulito.**
+**232 test verdi, ruff pulito.**
 
 ## Novità v9.8 (29 luglio 2026 — di chi era quella stagione, chi è in ballottaggio, e 815 identità)
 
@@ -710,7 +710,7 @@ T1 importanti → storia completa → FM-equivalente estera → club-a-club con 
 ## Moduli (ordine rebuild)
 `rosters` (SEMPRE primo) → `stats` → `ratings` (Excel autenticato, incrementale + backfill + resume + listone) → `matchdays` (calendario euro↔reale) → `fc_site` (rigoristi, probabili, indisponibili) → `transfers` → **`injuries`** → `fbref` (stub/bloccato) → `positions` (SofaScore: aggregati stagione + per-partita + heatmap) → `recent_form` → `synth` (voto sintetico calibrato) → `arrivals` → `tournaments` → `elo` (API ClubElo) → `validate`.
 Fuori dalla pipeline, perché non producono tabelle di ingestione: **`bootstrap`** (acquisizione da zero), `fetch` (referto + inbox), `rebuild`, `backtest` (harness del gate), **`export`** (bundle dell'app).
-Stato implementazione **v9.9**: **tutti i moduli operativi tranne `fbref`** (bloccato da Cloudflare: servirebbe un browser headless, oppure l'inbox manuale). Chiusi in v9.4: `injuries` + `contract_until`/`exit_risk`, heatmap `avg_x/avg_y`, `elo` via API, `ingest_runs`, `fetch --plan/--inbox`, `bootstrap`, `export`. **231 test verdi, ruff pulito.**
+Stato implementazione **v9.9**: **tutti i moduli operativi tranne `fbref`** (bloccato da Cloudflare: servirebbe un browser headless, oppure l'inbox manuale). Chiusi in v9.4: `injuries` + `contract_until`/`exit_risk`, heatmap `avg_x/avg_y`, `elo` via API, `ingest_runs`, `fetch --plan/--inbox`, `bootstrap`, `export`. **232 test verdi, ruff pulito.**
 
 ## Comandi
 ```

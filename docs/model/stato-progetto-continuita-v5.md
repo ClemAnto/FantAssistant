@@ -539,7 +539,7 @@ ballottaggio e' **vuoto = ignoto**, mai «0 rivali».
 
 ## Sessione 29/07/2026 (3) - i tre punti minori, e i due difetti che nascondevano
 
-231 test verdi, ruff pulito, i tre fogli rigenerati. Dettaglio: spec «Novita' v9.9».
+232 test verdi, ruff pulito, i tre fogli rigenerati. Dettaglio: spec «Novita' v9.9».
 
 ### 1. Prestito contro acquisto: due sconti, e la differenza e' MISURATA
 **Nessuna fonte nostra marca un prestito** - verificato prima di progettare: `arrivals.type` conosce solo
@@ -594,3 +594,23 @@ absence recorded)»), che e' diverso da «nessun id: ignoto». Chiusa senza eseg
 5. Residui misurati: 32 giocatori su 916 senza codice granulare (28 senza nessuno strato datato), 27 fuori
    dal layer per-partita, 7 orfani d'identita' (omonimi vecchi). `fbref` resta l'unico modulo non
    operativo (Cloudflare) e non serve piu': SofaScore lo ha sostituito.
+
+### Commit della sessione 29/07/2026 (le tre passate)
+`94ecd6e` fix(positions): un'identita' non e' un fatto di stagione — 827 giocatori l'avevano perduta ·
+`2477965` feat(snapshot,gui): di chi era quella stagione, e un ballottaggio nel vocabolario dei ruoli reali ·
+`94d4a5c` docs: v9.8 · `3659ade` feat(snapshot,gui): un prestito non e' un acquisto, e uno slot sa la sua
+linea · `3b06b9e` docs: v9.9 · `32cff56` chore: toolkit 0.2.0 -> 0.3.0 (la versione finisce nel manifest
+del bundle come `toolkit_version`, cioe' e' provenienza) · piu' il commit di chiusura.
+**Pushati su `origin/master`** (repo PUBBLICO: `docs/model/` e' online).
+
+### Dove NON toccare senza rileggere
+- **`snapshot.duels` e `SnapshotView.can_replace` devono restare d'accordo**: sono la stessa regola in due
+  posti (un codice reale condiviso). Se una delle due torna a ripiegare sul ruolo Classic, il Napoli torna
+  a mettere Politano in ballottaggio con un regista.
+- **`positions._store_identities` non va rimesso nel giro per stagione** — e' esattamente il bug che ha
+  mangiato 827 identita'. `authoritative=False` per un run limitato a certe stagioni non e' un dettaglio:
+  e' cio' che distingue «ri-risolvere» da «dimenticare».
+- **`at_club_weight` legge i minuti, non le presenze da titolare**, ed e' applicato sia a `standing` sia a
+  `voto_share`: separarli farebbe rispondere due volte alla stessa domanda nella stessa tabella.
+- Il **badge** prende la fascia dallo slot disegnato solo quando questo contraddice il codice; il ruolo
+  resta sempre del giocatore (un terzino non diventa ala perche' lo spostano).

@@ -26,7 +26,31 @@ proporre qualsiasi regola) → **`metrica-asta-surplus-v1.md`** (con cosa il pan
 
 Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
 
-### ULTIMO IN ORDINE DI TEMPO — quattro credenze del fantacalcio MISURATE: un solo canale, e non è il voto
+### ULTIMO IN ORDINE DI TEMPO — il foglio d'asta dice di CHI era la stagione, e chi compete davvero
+
+Sessione del 29/07/2026 (tre passate, spec «Novità v9.8» e «v9.9»; dettaglio e numeri in
+[stato-progetto-continuita-v5.md](stato-progetto-continuita-v5.md), sezioni «Sessione 29/07/2026 (2)» e
+«(3)»). Nessun giro di gate, nessun verdetto cambiato: è tutto sul **foglio d'asta** e sui **dati**.
+
+1. **La stagione misurata arriva spaccata fra il club attuale e altrove** (`desc_minutes_club` /
+   `_elsewhere`, dallo strato per-partita) e la standing **pesa** la metà fatta altrove: `LOAN_DISCOUNT
+   0.60` se questo club lo aveva e lo ha mandato via, `ARRIVAL_DISCOUNT 0.80` se non lo ha mai giudicato —
+   differenza **misurata** da `desc_at_club_before` (nessuna fonte nostra marca un prestito). Marin R.
+   0.57 → **0.34**, dietro Rrahmani. Entrambe provvisorie: gate §7-bis.
+2. **Un ballottaggio è un duello fra RUOLI REALI, mai fra ruoli fanta.** Serve un codice granulare
+   condiviso; chi non ha codici osservati **esce dalle colonne** (vuoto = ignoto, mai «0 rivali»).
+3. **E quel vincolo ha scoperto il buco più grosso della giornata**: 827 `fc_id` avevano gli aggregati
+   sofascore e **nessun id** in `player_xref` — invisibili a ruoli granulari, heatmap e strato per-partita
+   insieme. Causa: l'identità era scritta dentro il giro per stagione. **815 recuperate** offline; il
+   foglio passa da 152 a 32 giocatori senza codice, il layer per-partita da ~270k a **334.795** righe.
+4. **Uno slot sa la sua linea, non solo la fascia**: la fascia sul badge è quella della maglia, una linea
+   a corto di uomini prende dal **surplus** di un'altra (il Bayern disegnava dieci uomini) e `LANE_DEPTH`
+   impedisce che il quinto centrocampista sia un centrale difensivo. **0 undici incompleti su 68.**
+
+Toolkit **v0.3.0**, spec **v9.9**, 232 test verdi. `fetch --plan` dice «every source is populated»: quello
+che manca non è più dato — vedi «cosa resta, in ordine di leva» in fondo allo stato.
+
+### quattro credenze del fantacalcio MISURATE: un solo canale, e non è il voto
 
 Domande dell'utente (29/07/2026): il riposo corto peggiora la resa? «vincere aiuta a vincere»? una
 vittoria fa confermare l'undici? il nuovo allenatore dà una sferzata? Misurate su
@@ -410,7 +434,7 @@ scritta, `config.SEASONS` fonte unica, `bootstrap` (acquisizione da zero, ~17 h 
 `fetch --plan/--inbox`, **`export`** (bundle app: 229k righe, 29 MB, manifest con provenienza e buchi
 noti), UI con tema light/dark. Cross-tab ruoli: **D→D 97%**, M→C 80%, F→A 80%, G→P 100%.
 
-**231 test verdi, ruff pulito** (nessuno tocca la rete). Toolkit **v0.3.0**, spec **v9.9**. `recent_form` ha `--bonuses-only`
+**232 test verdi, ruff pulito** (nessuno tocca la rete). Toolkit **v0.3.0**, spec **v9.9**. `recent_form` ha `--bonuses-only`
 (arricchisce i bonus delle partite già salvate, una richiesta per partita, senza ri-risolvere l'identità):
 **1195/1196** partite arricchite, **122/123** giocatori completi. `python -m euroleghe_ingest backtest [--verify] [--gate] [--auction]
 [--cases] [--pairs] [--window Tm7..T2] [--platform euro|default] [--game classic|mantra]`. GUI: tre tab, il terzo è

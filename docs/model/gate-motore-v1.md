@@ -1192,6 +1192,32 @@ le partite.**
 - Regole del listone di gennaio e `attivita_mercato`: `transfers_history` ha **solo la finestra estiva**
   (una data per stagione), quindi il rischio-cessione invernale non è derivabile da quella fonte.
 
+## 7-bis. Parametri PROVVISORI che il gate deve spazzare (aggiornato 29/07/2026)
+
+Non sono regole candidate: sono **costanti che esistono perché un modulo aveva bisogno di un numero per
+girare**. Sono scelte di MODELLO, quindi valgono la stessa regola di qualunque candidata — nessun gate,
+nessun motore — e nel frattempo vanno citate come provvisorie e mai come stabilite. Sono marcate tali nel
+codice; questa è la lista, con dove vivono:
+
+| parametro | valore oggi | dove | cosa deciderebbe lo sweep |
+|---|---|---|---|
+| decay + quarantena della gerarchia rigoristi | vedi `fc_site` | `modules/fc_site.py` | quanto vale un rigore vecchio, e quanto dura la quarantena dopo un errore |
+| soglie dei tier d'arrivo + età U22 | T1/T2/T3, U22 | `modules/arrivals.py` | dove tagliare i tier, e a che età un arrivo è «giovane» |
+| `LOAN_DISCOUNT` | **0.60** | `gui.SnapshotView` | quanto vale una stagione misurata altrove **e** dopo essere stato mandato via da questo club |
+| `ARRIVAL_DISCOUNT` | **0.80** | `gui.SnapshotView` | idem per chi arriva da un club che non è questo (mai giudicato da qui) |
+| `INJURY_WEIGHTS` + `AVAILABILITY_FLOOR` | 1.0/0.6/0.35 · 0.40 | `modules/snapshot.py`, `gui` | l'inclinazione della recenza sugli infortuni, e il pavimento di disponibilità |
+
+Due note metodologiche che valgono per tutti e cinque:
+- **la forma è confermata, il valore no**: per `INJURY_WEIGHTS` le alternative già calcolate sono
+  (1.0, 0.75, 0.5) = 44/33/22% e (1.0, 0.45, 0.2) = 61/27/12% contro il 51/31/18% attuale;
+- prima di ritarare `AVAILABILITY_FLOOR` va **verificato che Transfermarkt non conti due volte una
+  ricaduta**: Rrahmani a 24,1 partite saltate per stagione è al pavimento, e se le spell sono duplicate
+  quel pavimento sta punendo i cronici due volte.
+
+I due sconti sono nati il 29/07/2026 con una differenza **misurata** e non presunta (`desc_at_club_before`,
+la storia delle rose): nessuna fonte nostra marca un prestito, quindi la separazione prestito/acquisto non
+dipende da un campo mancante. Dettaglio: spec «Novità v9.9».
+
 ## 8. Casi di regressione (in `model.REGRESSION_CASES`, stampati da `backtest --cases`)
 
 Lewandowski (età/minuti) · Wirtz (cambio lega) · Torres F. (propensione per-90) · Ezzalzouli (nuovo nel
