@@ -345,3 +345,86 @@ modello-previsionale-v3.8.md · **todolist-mantra-euroleghe-v5.md (roadmap)** ·
 
 ## Convenzioni
 Repo pubblico su GitHub: **github.com/ClemAnto/FantAssistant** (`origin`, branch master) · Drive SOLO su richiesta esplicita · README prima di chiedere dati · consolidati a fine sessione · versioning via git · identificatori di codice in inglese · risposte in chat in italiano, tutto il repo (codice, commenti, log, nomi file, .md) in inglese.
+
+---
+
+## Sessione 29/07/2026 - lo snapshot d'asta diventa un tavolo di lavoro
+
+Punto di ripresa per la prossima chat. Tutto quanto segue e' in git (`toolkit/`), 224 test verdi, ruff pulito.
+
+### Cosa e' entrato
+
+**La percentuale sulla maglia e' la quota di GIORNATE in cui parte titolare**, non un duello fra chi resta
+libero in uno slot (quella normalizzazione faceva leggere 100% a un centrocampista con 14 presenze). Si
+compone di due fattori misurati, mai di una valutazione fantacalcistica:
+`standing` (start rate sulle partite in cui era **disponibile**, 65%, + quota minuti della stagione reale
+completa, 35%) x `availability` (partite saltate per stagione, pesi di recency 1.0/0.6/0.35 = 51/31/18%).
+Lo **schieramento tipo** legge la stagione (blasone), la **prossima giornata** legge la forma con lo
+standing come zavorra (shrinkage di 3 partite): con la finestra vuota il numero E' lo standing, cosi' un
+McTominay rientrato tardi dal Mondiale non sparisce dagli undici. Dove esiste uno snapshot probabili, sono
+i probabili a scegliere gli undici (prima venivano schiacciati nelle linee del modulo: entrava un 35% e
+restava fuori un 100%).
+
+**Il campetto e' una griglia che rispecchia il modulo.** Uomini equidistanti in orizzontale, una riga per
+linea, e `SLOT_SHAPE` dice cosa E' ogni slot: difesa a 3 = tre centrali (un terzino puo' adattarsi in uno
+dei due esterni), difesa a 4/5 con i terzini in fascia, centrocampo <4 tutto centrale e centrato,
+centrocampo a 4 con due esterni veri, trequarti 1-2 centrale, trequarti a 3 con due ali, attacco a 3 = due
+ali + **sempre** una punta al centro (la `Sp` esiste solo nell'attacco a due). `slot_cost` completa: stessa
+fascia 0, esterno dirottato sull'altra fascia 1, ala dentro 2, centrale in fascia 3, punta larga +2, terza
+punta +4 - costi, mai veti. Un ballottaggio richiede un **codice reale condiviso** (fine di Hojlund-Neres).
+
+**Il precampionato esiste.** `positions --layer extra` legge i fixture del club e prende cio' che nessun
+calendario di campionato contiene: 330 partite, 25 amichevoli, coppe, Europa e le serie B/C di chi e'
+retrocesso. Taggate `source='sofascore_extra'`, quindi **descrittive**: il motore legge solo i cinque
+campionati (l'unica query che non filtrava - il regressore del gap piu' lungo - ora esclude il tag). Il
+provider pubblica le formazioni delle amichevoli e **zero statistiche per giocatore**: si salva chi era in
+campo (minuti nulli, cosi' non entra in nessuna media) e la striscia lo disegna come **pallino piccolo
+grigio**, pieno se era negli undici. 178 giocatori del foglio euro hanno una presenza di precampionato.
+
+**Snapshot AS OF una data e per un solo club**: `snapshot --date 2026-03-01 --club Napoli`. Ultime 10 = le
+dieci prima di quel giorno, titolarita' e bonus dal per-match layer troncato alla data, modulo tipo dalle
+formazioni precedenti (Napoli: 59% di 27 XI, non di 38). Non retrodatabili e dichiarati nel manifest: i
+probabili (refresh saltato), i ruoli granulari (il provider ignora il seasonId - se ne prende in prestito
+uno successivo e lo si scrive), i cartellini, la heatmap.
+
+Altro: colonne della tabella tutte **per giornata** (Pv %, min/giornata, `tit` = probabilita' di prendere
+**voto**, `inj` = % di giornate che saltera', g+a conteggio, flag a icone con tooltip, colonna Mantra);
+selettore ruoli sul campetto (real / mantra / classic, dischetti rotondi con anello bianco); progress bar
+sul Build now; TREND con pieno/vuoto a 75', gol 5x5 e assist 3x3 neri in alto a destra.
+
+### Numeri di questa sessione
+Infortuni: 30.945 assenze su 2.835 giocatori (walk completato). Heatmap: 2.241 player-season con avg_x/y.
+Extra layer: 330 partite / 5.629 righe. Tempi snapshot offline: euro 23,5 s (880 giocatori, 34 club),
+default 28,6 s (588, 20) - Serie A e' piu' lenta a calcolare (10 finestre di gate contro 5) e piu' veloce
+a scaricare (20 pagine squadra contro 34).
+
+### DA QUI SI RIPARTE - decisioni prese, non ancora implementate
+
+1. **Standing sul CLUB ATTUALE, con penalizzazione per il prestito.** Caso Marin R.: `desc_form_clubs =
+   "Napoli; Villarreal"`, le sue 21 presenze e 1980 minuti sono del Villarreal, e la standing 0.57 lo mette
+   davanti a Rrahmani (0.81 di standing ma 0.41 di availability). Decisione dell'utente: **essere mandati
+   in prestito e' un giudizio della societa'**, quindi la standing misurata altrove va **scontata**, non
+   azzerata (azzerarla farebbe sparire ogni acquisto estivo dall'undici). Ricetta:
+   - `snapshot.titolarita` / `propensity`: aggiungere le misure ristrette al club (la colonna `club` c'e'
+     gia' in `external_match_stats`, il club attuale lo da' `squad_as_of`), come colonne NUOVE accanto ai
+     totali - `desc_season_starts_club`, `desc_minutes_club` - e quindi in `PLAYER_COLUMNS`;
+   - `SnapshotView.standing`: usa le club-ristrette, e se vuote applica `LOAN_DISCOUNT` alle misure
+     esterne. Provvisorio suggerito 0.6 (Marin 0.57 -> 0.34, dietro Rrahmani);
+   - da decidere: prestito contro acquisto (un comprato non e' stato bocciato da QUESTO club: forse sconto
+     minore, o il tier di arrivo al suo posto - `arrivals` conosce origine e cifra), e uno sconto che
+     **decresce** man mano che accumula partite al club attuale;
+   - test: caso Marin, 21 presenze altrove e 0 al Napoli, la standing non deve leggere 0.57.
+2. **Inclinazione di `INJURY_WEIGHTS`** (oggi 1.0/0.6/0.35 = 51/31/18%): confermata come forma, aperta come
+   valore. Alternative gia' calcolate: (1.0, 0.75, 0.5) = 44/33/22, (1.0, 0.45, 0.2) = 61/27/12.
+   Da verificare anche che Transfermarkt non conti due volte una ricaduta: Rrahmani a 24,1 partite saltate
+   per stagione e' al pavimento di `AVAILABILITY_FLOOR` (0.40), e se le spell sono duplicate quel pavimento
+   sta punendo i cronici due volte.
+3. **Centrocampo a 5**: la forma mette gli esterni sulle fasce, ma non distingue quale lato tocca all'ala e
+   quale al terzino ("da un lato il piu' offensivo, dall'altro un terzino"). Non codificato.
+4. **Operativo**: finire il top-up `injuries --layer all` sui 5 club agganciati dopo il fix del matching, poi
+   un **Build now** per rigenerare il foglio con amichevoli e infortuni completi.
+
+Commit della sessione: `e7049fd` `997601d` `2bcb744` `9196ef1` `8940ac9` `b950afe` `502bc0c` `19e8a13`
+`73e9aa4` (+ il centraggio delle linee sotto i 4 elementi). Nota: `b950afe` ha inglobato per errore cinque
+file `docs/model/` di una sessione parallela (`turnover-atteso-v1.md` e gli aggiornamenti a bridge/gate/
+stato/todolist) - nulla e' perso, ma il commit mescola due lavori.

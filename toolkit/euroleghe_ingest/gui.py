@@ -2738,6 +2738,7 @@ class SnapshotView(ttk.Frame):
     # line) and pulling a central player inside his slot both moved men off that grid, and a grid that
     # is not a grid reads as scatter - the flank ORDER already says who is wide.
     LINE_MARGIN: ClassVar[float] = 0.11
+    CENTRAL_STEP: ClassVar[float] = 0.22     # the gap between two men of an all-central line
 
     # What a marker says, and in which colour. Three readings of the same man, because an auction uses
     # three vocabularies: the MANTRA roles are what a Mantra module has slots for, the CLASSIC role is
@@ -2786,11 +2787,16 @@ class SnapshotView(ttk.Frame):
 
         entries = sorted(slots, key=order)
         count = len(entries)
-        span = 1 - 2 * self.LINE_MARGIN
+        # Wide only if the line HAS flanks. A shape of all-central slots - a back three, a midfield
+        # three, one or two trequartisti - is drawn as a central cluster with the same gap between its
+        # men, because those men do not play on the touchline; a shape with an R or an L slot reaches
+        # for it. Same rule, one source: `slot_shape` already says which of the two a line is.
+        wide = set(self.slot_shape(lane, count)) & {"R", "L"}
+        margin = self.LINE_MARGIN if wide else max(0.5 - (count - 1) * self.CENTRAL_STEP / 2, 0.11)
+        span = 1 - 2 * margin
         out: list[tuple[float, dict, list[dict]]] = []
         for index, (starter, rivals) in enumerate(entries):
-            out.append((self.LINE_MARGIN + span * index / (count - 1) if count > 1 else 0.5,
-                        starter, rivals))
+            out.append((margin + span * index / (count - 1) if count > 1 else 0.5, starter, rivals))
         return out
 
     @staticmethod
