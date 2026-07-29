@@ -1,5 +1,5 @@
 # Spec — Toolkit `euroleghe-ingest` v9 (task 1.0 della roadmap)
-**Aggiornata: 29 luglio 2026 (v9.11 — il denominatore di una quota è il campionato; v9 SOSTITUISCE la v8)** · Python · Output: SQLite `euroleghe.db` + CSV normalizzati
+**Aggiornata: 29 luglio 2026 (v9.12 — `sweep`: i parametri provvisori davanti al gate; v9 SOSTITUISCE la v8)** · Python · Output: SQLite `euroleghe.db` + CSV normalizzati
 *Sigle: fc_id = identificativo fantacalcio.it · FM = fantamedia · Mv = media voto · Pv = partite a voto · xref = cross-reference id tra siti · xG/xA = expected goals/assists · manifest = lista file da recuperare.*
 **Convenzione: identificatori sempre in INGLESE** (tabelle, colonne, moduli, variabili); italiano solo nella documentazione.
 
@@ -494,6 +494,60 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.12 (29 luglio 2026 — `sweep`: i parametri provvisori davanti al gate)
+
+Punto **3** della lista «cosa manca». Il referto completo, con tutti i numeri e i verdetti, sta in
+[gate-motore-v1.md §7-ter](gate-motore-v1.md); qui c'è cosa è stato costruito.
+
+### 1. `engine/presence.py`: le formule fuori dalla vista Tk
+Le costanti della titolarità vivevano dentro `gui.SnapshotView`, e **un parametro che nessun harness può
+raggiungere è un parametro che nessuno può spazzare**. Ora le formule (`at_club_weight`, `availability`,
+`contested`, `standing`, `voto_share`, `presence`) stanno in `engine/presence.py` — senza dipendenze come
+tutto `engine/`, perché è da lì che il motore TypeScript verrà portato — con i parametri in una dataclass
+`Params`. Il pannello costruisce un `presence.Inputs` dalla riga del foglio e chiama le stesse funzioni che
+lo sweep giudica: pannello e gate non possono più divergere.
+Conseguenza sul foglio: `desc_injury_rounds_by_season` (le giornate saltate per stagione, più recente
+prima). Un totale già pesato **congelerebbe** i pesi con cui è stato scritto, e i pesi sono ciò che si sta
+spazzando.
+
+### 2. `python -m euroleghe_ingest sweep`
+STANDALONE come `backtest`, read-only, scrive `data/reports/sweep_presence.json`. Tre famiglie, ognuna col
+suo bersaglio, tutte con lo **stesso** protocollo del gate delle regole (griglie pre-registrate, un
+parametro alla volta, cross-fit leave-one-out, verdetti strict e robust affiancati):
+- **presenza** (i cinque parametri del foglio + la forma di `contested`): input ricostruiti al giorno d'asta
+  di finestre già giocate, bersagli le PRESENZE (`pv`, calendario della piattaforma) e le TITOLARITÀ (le
+  giornate del suo campionato in cui è partito, dal layer per-partita — i voti non portano `started`);
+- **rigoristi** (decay + quarantena): ogni rigore del DB rigiocato, «chi tira il PROSSIMO?», 1433 rigori
+  prevedibili su 7 stagioni;
+- **tier d'arrivo** (tre soglie + età U22): la fantamedia realizzata dell'arrivo contro la media del suo
+  tier fittata sulle ALTRE stagioni. Proxy dichiarato: un tier non prevede, instrada.
+
+Due cose che il referto separa e che è la ragione per cui esiste: **«confermato» non è «niente trovato»**
+(`confirmed` = la scelta fuori campione È il valore nel codice, su ogni fold), e ogni riga porta il
+**margine sul secondo classificato**, perché per un valore già adottato il guadagno è 0 per costruzione.
+
+### 3. Esito, in una riga per famiglia
+**Adottato**: `STANDING_WEIGHTS` → **(0, 1)**, solo i minuti — strict e robust su tutti e dieci i fold,
++1.55% euro e +1.32% default, fold peggiore +0.70%. Conseguenza misurata sul campetto: **38 giocatori su
+907** si muovono più di 5 punti e **10 club su 34** cambiano l'undici disegnato.
+**Confermati**: la forma nuova di `contested` (v9.11), `ARRIVAL_DISCOUNT` 0.80, il decay dei rigoristi 0.75.
+**Aperti**: `LOAN_DISCOUNT` (platform-dependent: euro tira a 0.2, default a 0.8), l'inclinazione di
+`INJURY_WEIGHTS` (la forma a tre stagioni è confermata), `AVAILABILITY_FLOOR` (l'intera griglia vale 0.6%),
+la quarantena, e le soglie dei tier — dove `t3_price` passa robust su euro e punta in direzione **opposta**
+su default, quindi non si adotta.
+
+### 4. Il bug che lo sweep ha trovato: un rigore di Serie A contato due volte
+`fc_site.penalty_events` leggeva `match_ratings` su **entrambe** le piattaforme, e un rigore di Serie A ha
+una riga in ciascuna — lo stesso calcio sotto due numerazioni di giornata che traducono alla stessa data.
+**387 tuple (stagione, club, data, rigorista) su 1675** comparivano più di una volta; 2089 eventi contro
+1745 reali. Con il peso del k-esimo rigore che decade come `DECAY**k`, la serie raddoppiata applicava il
+decay **due volte per rigore reale**: la memoria della gerarchia era **metà** per un club italiano che per
+uno estero. Alla prima passata lo sweep «bocciava» 0.75 preferendo 0.5 su tutti i fold (√0.5 = 0.707 ≈
+0.75); deduplicato per calcio, il minimo torna esattamente su 0.75. `penalty_hierarchy` è riscritta (1745
+rigori, 312 club-stagione, 3562 righe datate).
+
+**256 test verdi, ruff pulito.**
+
 ## Novità v9.11 (29 luglio 2026 — la quota di una stagione si conta sul CAMPIONATO)
 
 Il punto 2 della lista «cosa manca», che la v9.10 §8 lasciava aperto dichiarandolo tale: cambia ogni
@@ -970,8 +1024,8 @@ T1 importanti → storia completa → FM-equivalente estera → club-a-club con 
 
 ## Moduli (ordine rebuild)
 `rosters` (SEMPRE primo) → `stats` → `ratings` (Excel autenticato, incrementale + backfill + resume + listone) → `matchdays` (calendario euro↔reale) → `fc_site` (rigoristi, probabili, indisponibili) → `transfers` → **`injuries`** → `fbref` (stub/bloccato) → `positions` (SofaScore: aggregati stagione + per-partita + heatmap) → `recent_form` → `synth` (voto sintetico calibrato) → `arrivals` → `tournaments` → `elo` (API ClubElo) → `validate`.
-Fuori dalla pipeline, perché non producono tabelle di ingestione: **`bootstrap`** (acquisizione da zero), `fetch` (referto + inbox), `rebuild`, `backtest` (harness del gate), **`export`** (bundle dell'app).
-Stato implementazione **v9.11**: **tutti i moduli operativi tranne `fbref`** (bloccato da Cloudflare: servirebbe un browser headless, oppure l'inbox manuale). Chiusi in v9.4: `injuries` + `contract_until`/`exit_risk`, heatmap `avg_x/avg_y`, `elo` via API, `ingest_runs`, `fetch --plan/--inbox`, `bootstrap`, `export`. **251 test verdi, ruff pulito.**
+Fuori dalla pipeline, perché non producono tabelle di ingestione: **`bootstrap`** (acquisizione da zero), `fetch` (referto + inbox), `rebuild`, `backtest` (harness del gate sulle REGOLE), **`sweep`** (l'altra metà del gate: le COSTANTI provvisorie), **`export`** (bundle dell'app).
+Stato implementazione **v9.12**: **tutti i moduli operativi tranne `fbref`** (bloccato da Cloudflare: servirebbe un browser headless, oppure l'inbox manuale). Chiusi in v9.4: `injuries` + `contract_until`/`exit_risk`, heatmap `avg_x/avg_y`, `elo` via API, `ingest_runs`, `fetch --plan/--inbox`, `bootstrap`, `export`. **256 test verdi, ruff pulito.**
 
 ## Comandi
 ```
@@ -988,6 +1042,8 @@ python -m euroleghe_ingest elo                             # ClubElo: 1 richiest
 python -m euroleghe_ingest matchdays                       # mappa giornate euro<->reali + cross-check
 python -m euroleghe_ingest synth                           # calibra rating->Mv e riempie mv_synth
 python -m euroleghe_ingest export                          # bundle dell'app + manifest (verifica compresa)
+python -m euroleghe_ingest sweep                           # gate delle COSTANTI provvisorie (§7-ter)
+python -m euroleghe_ingest sweep --platform euro           # una piattaforma sola, o --window per una finestra
 ```
 Tutto è ripartibile (la cache grezza è la fonte di verità) e interrompibile; `rebuild` ri-ingerisce
 offline. Ogni run lascia una riga in `ingest_runs`. Settimanale e **non recuperabile a posteriori**:

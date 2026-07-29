@@ -223,13 +223,23 @@ Nota: **nessuna delle feature generate il 27/07 e' entrata nel motore**, e **nes
       club lo aveva. Quindi **`LOAN_DISCOUNT = 0.60`** (misurato altrove **e** mandato via da qui) e
       **`ARRIVAL_DISCOUNT = 0.80`** (solo misurato altrove). Su euro: 145 scontati, **69 gia' stati qui**
       (Rashford, Jackson, Nelson, Cheddira), **76 mai**. Entrambe provvisorie: le possiede il gate.
-- [ ] `INJURY_WEIGHTS`: forma confermata (3 stagioni, l'ultima piu' pesante), valore aperto. ~~Verificare
-      le ricadute duplicate su Transfermarkt prima di ritarare `AVAILABILITY_FLOOR`~~ **VERIFICATO 29/07
-      notte**: le assenze ora si CONTANO in giornate di campionato dentro l'UNIONE degli spell
-      (`snapshot.rounds_missed`), che non puo' contare due volte una ricaduta qualunque cosa elenchi la
-      fonte. E l'eccesso della fonte non e' duplicazione: 6489 partite TM contro 4485 giornate contate
-      (69%), e sugli italiani — dove il nostro elenco parsato COINCIDE col campionato — 74% ≈ 38/50, cioe'
-      le coppe e l'Europa che non parsiamo. Resta solo il VALORE da spazzare.
+- [x] **SPAZZATO 29/07 — `INJURY_WEIGHTS`**: la FORMA a tre stagioni e' confermata (le due degeneri, solo
+      ultima stagione e tutte uguali, sono peggiori su entrambe le piattaforme), l'inclinazione resta
+      aperta: fra 1/0.6/0.35, 1/0.75/0.5 e 1/0.45/0.2 ci sono 0.3% e le due piattaforme preferiscono
+      l'opposto. ~~Verificare le ricadute duplicate su Transfermarkt~~ **CHIUSA**: le assenze si CONTANO in
+      giornate dentro l'UNIONE degli spell (`snapshot.rounds_missed`), che non puo' contare due volte una
+      ricaduta; e l'eccesso della fonte non e' duplicazione (74% ≈ 38/50 sugli italiani = le coppe che non
+      parsiamo). `AVAILABILITY_FLOOR` resta aperto ma per un motivo misurato: l'intera griglia 0.0-0.6 vale
+      **0.6%**, sotto il pavimento del gate.
+- [x] **FATTO 29/07 notte — `sweep`, il gate delle COSTANTI** (punto 3 di «cosa manca»; gate §7-ter, spec
+      v9.12). Formule estratte in `engine/presence.py` (un parametro che nessun harness raggiunge non si
+      puo' spazzare), tre famiglie con lo stesso protocollo del gate delle regole. **Adottato**:
+      `STANDING_WEIGHTS` = (0, 1), la titolarita' si prevede dai MINUTI — strict e robust su tutti e dieci i
+      fold, +1.55% euro / +1.32% default, 10 club su 34 cambiano l'undici disegnato. **Confermati**: forma
+      di `contested`, `ARRIVAL_DISCOUNT` 0.80, decay rigoristi 0.75. **Aperti col motivo**: `LOAN_DISCOUNT`
+      (platform-dependent), inclinazione infortuni, pavimento, quarantena, soglie dei tier.
+      Difetto trovato per strada: **ogni rigore di Serie A era contato due volte** (una riga per
+      piattaforma), che dimezzava la memoria della gerarchia per i club italiani.
 - [x] **FATTO 29/07 notte — il denominatore di una quota e' il CAMPIONATO** (punto 2 di «cosa manca»; spec
       v9.11). I numeratori erano di campionato e il denominatore ogni undici parsato in qualsiasi
       competizione (Arsenal 58, Bayern 50, Napoli 38): quota di campionato **66%-100%** sui 45 club, quindi

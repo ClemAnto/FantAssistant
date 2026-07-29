@@ -36,6 +36,7 @@ from euroleghe_ingest import ui_theme as theme
 from euroleghe_ingest.config import Config
 from euroleghe_ingest.context import Context
 from euroleghe_ingest.db.database import connect, init_db, record_run, table_names
+from euroleghe_ingest.engine import presence
 from euroleghe_ingest.matching import club_abbreviation
 from euroleghe_ingest.modules import IMPLEMENTED, load
 from euroleghe_ingest.modules.positions import (
@@ -44,7 +45,7 @@ from euroleghe_ingest.modules.positions import (
     REAL_ROLE_SIDE,
     REAL_ROLES,
 )
-from euroleghe_ingest.modules.snapshot import INJURY_WEIGHTS, competition_class
+from euroleghe_ingest.modules.snapshot import competition_class
 from euroleghe_ingest.sources import _norm_roles, available_sources
 
 
@@ -1676,6 +1677,9 @@ class SnapshotView(ttk.Frame):
         self._shape_choice: dict[tuple[str, str], str] = {}
         self._top_cache: dict[tuple[str, str], list[str]] = {}
         self._surplus_cut: float | None = None
+        # club -> its championship calendar. `club_matches` floors it with the busiest player's starts,
+        # which is a pass over every row of the sheet, and every presence in the panel asks for it.
+        self._calendar: dict[str, float] = {}
         # The declared LEAGUES, cached from the config file. Not `_declared`: this class already has a
         # `_declared` METHOD (the editors' declared eleven), and an attribute of that name shadows it -
         # which silently broke the "prossima giornata" XI until a probe called it.
@@ -2192,6 +2196,7 @@ class SnapshotView(ttk.Frame):
         self._shape_choice.clear()      # another sheet is another squad: the judgement does not carry
         self._top_cache.clear()
         self._surplus_cut = None
+        self._calendar.clear()
         self.players = _read_csv(folder / "players.csv")
         self.clubs = {row["club"]: row for row in _read_csv(folder / "clubs.csv")}
         self.manifest = _read_json(folder / "manifest.json")
@@ -3094,83 +3099,61 @@ class SnapshotView(ttk.Frame):
     # A season is 38 matches when the club's own count is unknown, and a man is never assumed to miss
     # more than 60% of it: a bad history is a discount, not a verdict that he will not play.
     SEASON_MATCHES: ClassVar[float] = 38.0
-    AVAILABILITY_FLOOR: ClassVar[float] = 0.40
-    # Standing: starts weigh more than minutes because the pitch draws who STARTS, and minutes are what
-    # tell a 90-minute fixture from a man who comes off at 60. Then, for the next matchday, form leads
-    # and standing is the ballast - with RECENT_PRIOR matches' worth of standing mixed into a ten-match
-    # window, which is what stops an empty or a dead-rubber window from deciding a side.
-    STANDING_WEIGHTS: ClassVar[tuple[float, float]] = (0.65, 0.35)
+    # THE PRESENCE PARAMETERS, all provisional and all owned by the gate (7-bis): the two discounts for a
+    # season measured elsewhere, the recency of the injury history, the availability floor, how starts and
+    # minutes are weighed, and which absences come off the denominator of a start rate. They live in
+    # `engine.presence` with the formulas that read them, so `sweep` can score the same functions this
+    # panel draws - a constant no harness can reach is a constant nobody can sweep.
+    PRESENCE: ClassVar[presence.Params] = presence.DEFAULTS
+    AVAILABILITY_FLOOR: ClassVar[float] = PRESENCE.availability_floor
+    STANDING_WEIGHTS: ClassVar[tuple[float, float]] = PRESENCE.standing_weights
+    LOAN_DISCOUNT: ClassVar[float] = PRESENCE.loan_discount
+    ARRIVAL_DISCOUNT: ClassVar[float] = PRESENCE.arrival_discount
+    # For the NEXT matchday, form leads and standing is the ballast - with RECENT_PRIOR matches' worth of
+    # standing mixed into a ten-match window, which is what stops an empty or a dead-rubber window from
+    # deciding a side. These two stay here: they are about the panel's `recent` horizon, which is a
+    # reading of the last ten matches and not part of the season model the gate sweeps.
     FORM_WEIGHT: ClassVar[float] = 0.60
     RECENT_PRIOR: ClassVar[float] = 3.0
-    # What a season measured AT ANOTHER CLUB is worth toward THIS club's shirt, and it is two numbers
-    # because there are two reasons to discount it and they do not always both apply:
-    #   * it was earned in another side and another league - weaker evidence about this shirt, always;
-    #   * being sent away is the club's OWN judgement of him - only when the club had him to send.
-    # So a man this club already had (`desc_at_club_before`) and who spent the season elsewhere carries
-    # both: Marin R. was Napoli's in 2024-25, Villarreal's in 2025-26, and his 21 starts read as a Napoli
-    # standing put him ahead of Rrahmani. A man who arrives from a club that is not this one carries only
-    # the first: Gila has been Lazio's for four seasons and Milan has never judged him. Neither is zero -
-    # that would delete every summer signing from the eleven, and a man who started 21 matches somewhere
-    # is still a man who starts.
-    # Both PROVISIONAL: model choices, so the gate owns them. What no longer needs a parameter is the
-    # discount shrinking as he plays here - the minutes share does it one match at a time.
-    LOAN_DISCOUNT: ClassVar[float] = 0.60
-    ARRIVAL_DISCOUNT: ClassVar[float] = 0.80
+
+    def presence_inputs(self, row: dict) -> presence.Inputs:
+        """One row of the sheet, as `engine.presence` wants it: the numbers, with their units settled.
+
+        This is where the sheet's column names stop and the model starts. The formulas live in
+        `engine/presence.py` because the constants in them are MODEL choices the gate owns (7-bis), and a
+        parameter no harness can reach is a parameter nobody can sweep: `sweep` scores the very same
+        functions against what actually happened, so panel and gate cannot drift apart.
+        """
+        return presence.Inputs(
+            starts=_number(row.get("desc_season_starts")),
+            appearances=_number(row.get("desc_season_matches")),
+            minutes=_number(row.get("desc_minutes_full_season")),
+            league_matches=self.club_matches(row.get("club")),
+            fixtures=self.club_fixtures(row.get("club")) or self.SEASON_MATCHES,
+            # counted rounds where a calendar existed, and `rounds_seasons` = 0 says it did not
+            rounds_measured=(_number(row.get("desc_injury_rounds_measured"))
+                             if _number(row.get("desc_injury_rounds_seasons")) else None),
+            rounds_by_season=_rounds_by_season(row.get("desc_injury_rounds_by_season")),
+            weighted_all=_number(row.get("desc_injury_weighted")),
+            known_injuries=bool(row.get("desc_injury_source")),
+            minutes_here=_number(row.get("desc_minutes_club")),
+            minutes_elsewhere=_number(row.get("desc_minutes_elsewhere")),
+            was_here_before=bool(row.get("desc_at_club_before")),
+        )
 
     def availability(self, row: dict) -> float:
         """The share of a season a man like this one is fit for: 1.0 healthy, less for the injury-prone.
 
-        `desc_injury_weighted` is his matches missed over the last three seasons with snapshot.py's
-        recency weights applied, so dividing by their sum reads as "matches missed in a season".
-
-        A share, so both halves have to be counted over the SAME fixtures, and Transfermarkt counts a
-        spell over every competition the club played - so the denominator is the club's whole fixture
-        list. It used to be the player's own appearances, which shrink exactly when he is injured: 24.1
-        matches missed over Rrahmani's 21 appearances read as "1 - 115%" and only the floor stopped it,
-        and Saka's 31.85 over 31 did the same. Over Arsenal's 58 fixtures Saka is 0.45, which is a
-        discount rather than a verdict - and no player is at the floor for being measured badly.
-
         NO history means 1.0, and that is a deliberate asymmetry: not knowing whether a man gets injured
         is not knowing, and the unknown perimeter (a player with no Transfermarkt id) must not be
         penalised for it. `desc_injury_source` is what separates the two - it says "no absence recorded"
-        for a player who was actually looked up.
+        for a player who was actually looked up. Formula and parameters: `engine.presence`.
         """
-        if not row.get("desc_injury_source"):
-            return 1.0
-        if _number(row.get("desc_injury_rounds_seasons")):
-            # ROUNDS of his own championship, counted on his club's fixtures by date: the same unit as
-            # the calendar below, so nothing has to be converted and no club is treated differently.
-            per_season = _number(row.get("desc_injury_rounds_weighted")) / sum(INJURY_WEIGHTS)
-            return max(1.0 - per_season / max(self.club_matches(row.get("club")), 1.0),
-                       self.AVAILABILITY_FLOOR)
-        # No calendar to count on (a club outside the five leagues): the source's own number, over the
-        # fixture list it counted the absences against. Second best, and it says so here rather than
-        # pretending the rounds were measured.
-        per_season = _number(row.get("desc_injury_weighted")) / sum(INJURY_WEIGHTS)
-        fixtures = self.club_fixtures(row.get("club")) or self.SEASON_MATCHES
-        return max(1.0 - per_season / max(fixtures, 1.0), self.AVAILABILITY_FLOOR)
+        return presence.availability(self.presence_inputs(row), self.PRESENCE)
 
-    @classmethod
-    def at_club_weight(cls, row: dict) -> float:
-        """How much of his measured season counts toward THIS club's shirt: 1.0 all of it, 0.6 none of it.
-
-        The share of his minutes played where he is now, with the rest weighed at `LOAN_DISCOUNT` if this
-        club had already had him - it sent him away, and that is its own judgement - or at the milder
-        `ARRIVAL_DISCOUNT` if he arrives from a club that is not this one, which has never judged him.
-        So a man who never moved is untouched, a man whose whole season was elsewhere is discounted once,
-        and a January transfer lands in between - which is also the answer to "the discount should shrink
-        as he accumulates matches here": it already does, one match at a time, with no second parameter.
-
-        Minutes rather than starts because they are the continuous measure: a substitute has a share too.
-        A player the per-match layer has no row for reads 1.0 - the columns are empty, and an unknown
-        split must not penalise him. Same asymmetry `availability` makes for an unknown injury history.
-        """
-        here = _number(row.get("desc_minutes_club"))
-        away = _number(row.get("desc_minutes_elsewhere"))
-        if not (here + away):
-            return 1.0
-        discount = cls.LOAN_DISCOUNT if row.get("desc_at_club_before") else cls.ARRIVAL_DISCOUNT
-        return (here + discount * away) / (here + away)
+    def at_club_weight(self, row: dict) -> float:
+        """How much of his measured season counts toward THIS club's shirt (`engine.presence`)."""
+        return presence.at_club_weight(self.presence_inputs(row), self.PRESENCE)
 
     def platform_matchdays(self) -> float:
         """The PLATFORM's calendar for the season being auctioned - what `engine_pv_pred` is counted on.
@@ -3205,88 +3188,43 @@ class SnapshotView(ttk.Frame):
         and the provider's season stats), and a denominator smaller than its numerator would print a 120%
         titolare. `complete_XIs` is the fallback for a sheet built before `league_XIs` existed.
         """
+        known = getattr(self, "_calendar", None)
+        if known is not None and club in known:
+            return known[club]
         info = self.clubs.get(club or "", {})
         busiest = max((_number(row.get("desc_season_starts")) for row in self.players
                        if row.get("club") == club), default=0.0)
-        return max(_number(info.get("league_XIs")) or _number(info.get("complete_XIs")), busiest, 1.0)
+        answer = max(_number(info.get("league_XIs")) or _number(info.get("complete_XIs")), busiest, 1.0)
+        if known is not None:
+            known[club] = answer
+        return answer
 
     def contested(self, row: dict) -> float:
-        """The championship rounds he was in CONTENTION for: the calendar, less what he missed of it.
-
-        The denominator of every start rate in this panel. `desc_injury_missed_measured` is what he
-        actually missed inside the measured season, converted into league rounds, and not the three-season
-        forecast `availability` uses: the forecast subtracted here and multiplied back there cancels out
-        of `presence` almost exactly, so the injury history would have been decoration. A fact about the
-        sample for the rate, a forecast for what comes next.
-        """
-        league = self.club_matches(row.get("club"))
-        if _number(row.get("desc_injury_rounds_seasons")):
-            return max(league - _number(row.get("desc_injury_rounds_measured")), 1.0)
-        # No calendar to count his rounds on. Transfermarkt counted the absence over every competition, so
-        # it is scaled onto the league one before being taken off it: 6.8 of Bayern's 50 fixtures are 4.6
-        # of its 34 rounds. Approximate on purpose - the ratio is only as good as the fixtures we parsed,
-        # which for the Italian clubs is the championship alone - and that is why counting the rounds
-        # exists at all.
-        fixtures = self.club_fixtures(row.get("club"))
-        missed = _number(row.get("desc_injury_missed_measured")) * (league / fixtures if fixtures else 1.0)
-        return max(league - missed, 1.0)
+        """The championship rounds he was in CONTENTION for (`engine.presence`)."""
+        return presence.contested(self.presence_inputs(row), self.PRESENCE)
 
     def standing(self, row: dict) -> float:
         """His absolute standing in the side - the blasone - as a share of a season, 0..1.
 
         The last ten matches certify FORM, not stature: they are ten matches, and a July window is half
-        friendlies and rested internationals. So the schieramento tipo is decided here, on a whole season,
-        by two measured facts about how much the coach actually used him:
-
-        * HIS START RATE, over the rounds he was in CONTENTION for (`contested`): the championship's
-          calendar, less what he actually missed of it. Not over 38 flat - a man who spent two months
-          injured has fewer starts, and dividing by the whole season would read his absence as the coach
-          preferring someone else.
-        * HIS SHARE OF THE MINUTES of the full real season. `desc_minutes_full_season` is measured over
-          the club's whole CHAMPIONSHIP rather than the euro subset of it, which is why it survives when
-          the last-ten window is empty - McTominay rested after the World Cup has no recent match at all
-          and 2793 minutes behind him. A man who has none recorded is judged on his starts alone: no
-          minutes on file is not zero minutes played.
-
-        Both are counted over the same competitions as the calendar they are divided by. That is the whole
-        of the fix of 29/07: the numerators were always the championship's (the season aggregate has no
-        other kind of row) and the denominator was every fixture the club played, so a club's percentages
-        moved with how far it went in Europe and could not be read against another club's.
-
-        Both are then weighed by WHOSE season it was (`at_club_weight`): a standing built somewhere else
-        is evidence about this shirt too, and weaker evidence.
-
-        Neither is a fantacalcio quantity. Surplus, quotation and FVM answer "is he worth buying" and a
-        coach does not pick a side by them; minutes and starts are what he did.
+        friendlies and rested internationals. So the schieramento tipo is decided on a whole season, by two
+        measured facts about how much the coach actually used him - his start rate over the rounds he was
+        there for, and his share of the minutes - both weighed by WHOSE season it was. Neither is a
+        fantacalcio quantity: surplus and quotation answer "is he worth buying", and a coach does not pick
+        a side by them. The formulas and their parameters are in `engine.presence`.
         """
-        contested = self.contested(row)
-        weight = self.at_club_weight(row)
-        starts = min(self.titolarita(row, "season")[1] * weight / contested, 1.0)
-        minutes = _number(row.get("desc_minutes_full_season"))
-        if not minutes:
-            return starts
-        by_starts, by_minutes = self.STANDING_WEIGHTS
-        return by_starts * starts + by_minutes * min(minutes * weight / (contested * 90.0), 1.0)
+        return presence.standing(self.presence_inputs(row), self.PRESENCE)
 
     def voto_share(self, row: dict) -> float:
         """The share of the season's matchdays he is expected to get a VOTO in - not to START in.
 
         The difference is what a fantacalcio squad is actually bought on: a substitute who comes on every
-        week scores every week, and `presence` deliberately does not count him. So this reads APPEARANCES
-        over the matches he was available for, discounted by `availability` exactly as `presence` is.
-
-        An appearance is taken as a voto, which is the honest limit of the layer: `external_stats` stores
-        season totals, so it cannot tell a ten-minute cameo from a full match. The TREND strip can - a
-        hollow dot is precisely that - and the two columns are meant to be read together.
-
-        Discounted by `at_club_weight` for the same reason `standing` is: appearances made in another
-        shirt are weaker evidence about this one. Reading them at face value here while the pitch
-        discounted them would print two different answers to one question in the same table.
+        week scores every week, and `presence` deliberately does not count him. An appearance is taken as a
+        voto, which is the honest limit of the layer: the season aggregate cannot tell a ten-minute cameo
+        from a full match. The TREND strip can - a hollow dot is precisely that - and the two columns are
+        meant to be read together. Formula: `engine.presence`.
         """
-        available = self.contested(row)
-        appearances = min(_number(row.get("desc_season_matches"))
-                          * self.at_club_weight(row) / available, 1.0)
-        return min(appearances * self.availability(row), 1.0)
+        return presence.voto_share(self.presence_inputs(row), self.PRESENCE)
 
     def presence(self, row: dict, horizon: str = "season") -> float:
         """The share of the club's MATCHDAYS he is expected to start in. The one number a shirt carries.
@@ -4304,6 +4242,17 @@ def _number(value, default: float | None = 0.0) -> float | None:
         return float(value)
     except (TypeError, ValueError):
         return default
+
+
+def _rounds_by_season(value: str | None) -> tuple[float | None, ...]:
+    """`"7;;6"` -> (7.0, None, 6.0): league rounds missed per season, most recent first.
+
+    An empty entry is a season we had no calendar to count on - unknown, and it keeps its POSITION so the
+    recency weights still line up with the right seasons.
+    """
+    if not value:
+        return ()
+    return tuple(_number(part, None) for part in value.split(";"))
 
 
 class ToolkitGUI:

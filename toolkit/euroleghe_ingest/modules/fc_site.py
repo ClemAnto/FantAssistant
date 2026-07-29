@@ -249,7 +249,16 @@ def penalty_events(conn) -> list[tuple]:
         WHERE COALESCE(mr.pen_scored, 0) > 0 OR COALESCE(mr.pen_missed, 0) > 0
         """
     ).fetchall()
-    events = []
+    # ONE ENTRY PER REAL PENALTY, and it has to be said out loud because it was not: a Serie A penalty
+    # exists in `match_ratings` TWICE - once in the euro rows and once in the default ones, the same kick
+    # under two matchday numberings that both translate to the same date - so the series a Serie A club's
+    # hierarchy was built from was twice as long as its real one. The effect was not cosmetic: with the
+    # weight of the k-th penalty decaying as DECAY**k, a doubled series applies the decay twice per real
+    # penalty, so the memory was HALF as long for Serie A as for a foreign club (0.75 doubled behaves like
+    # 0.56). Measured: 387 of 1675 (season, club, date, taker) tuples appeared more than once.
+    # Keyed by the kick, with the max of the two platforms' counts: a genuine brace in one match is two
+    # penalties on both platforms and stays two, while one platform holding a partial row cannot lose one.
+    tally: dict[tuple, tuple[int, int]] = {}
     for season, platform, matchday, fc_id, scored, missed, club_id, league, mapped in rows:
         if club_id is None or league is None:
             continue
@@ -257,23 +266,33 @@ def penalty_events(conn) -> list[tuple]:
         date = dates.get((season, league, real_md)) if real_md else None
         if date is None:
             continue
-        events += [(season, club_id, date, fc_id, False)] * int(scored)
-        events += [(season, club_id, date, fc_id, True)] * int(missed)
+        key = (season, club_id, date, fc_id)
+        seen = tally.get(key, (0, 0))
+        tally[key] = (max(seen[0], int(scored)), max(seen[1], int(missed)))
+    events = []
+    for (season, club_id, date, fc_id), (scored, missed) in tally.items():
+        events += [(season, club_id, date, fc_id, False)] * scored
+        events += [(season, club_id, date, fc_id, True)] * missed
     events.sort(key=lambda event: (event[0], event[1], event[2]))
     return events
 
 
-def rank_takers(attempts: list[tuple[int, bool]]) -> list[tuple[int, float, str | None]]:
+def rank_takers(attempts: list[tuple[int, bool]], decay: float = DECAY,
+                miss_penalty: float = MISS_PENALTY) -> list[tuple[int, float, str | None]]:
     """Newest-first attempts [(fc_id, missed)] -> [(fc_id, confidence, trigger_event)] ranked.
 
     A taker's weight decays with how many penalties ago they took theirs, so the hierarchy follows
     the club's recent behaviour instead of the season total; a taker whose LAST attempt was missed
     is quarantined (the spec's trigger), which is what lets a number two overtake.
+
+    The two parameters are arguments and not just the module's constants because they are PROVISIONAL
+    (gate 7-bis) and `modules/sweep.py` scores them: it replays every penalty in the DB, predicting the
+    next taker from the ones before it. A constant no harness can vary is a constant nobody can sweep.
     """
     weights: dict[int, float] = {}
     last_missed: dict[int, bool] = {}
     for index, (fc_id, missed) in enumerate(attempts):
-        weights[fc_id] = weights.get(fc_id, 0.0) + DECAY ** index
+        weights[fc_id] = weights.get(fc_id, 0.0) + decay ** index
         last_missed.setdefault(fc_id, missed)
     total = sum(weights.values()) or 1.0
     ranked = []
@@ -281,7 +300,7 @@ def rank_takers(attempts: list[tuple[int, bool]]) -> list[tuple[int, float, str 
         confidence = weight / total
         trigger = None
         if last_missed.get(fc_id):
-            confidence *= MISS_PENALTY
+            confidence *= miss_penalty
             trigger = "pen_missed"
         ranked.append((fc_id, round(confidence, 4), trigger))
     ranked.sort(key=lambda item: -item[1])

@@ -82,6 +82,19 @@ def build_parser() -> argparse.ArgumentParser:
     p_backtest.add_argument("--no-report", dest="report", action="store_false",
                             help="print only, do not write data/reports/engine_backtest.json")
 
+    # The gate's other half: the PROVISIONAL constants of the presence model, swept out of sample.
+    p_sweep = sub.add_parser("sweep", help=load("sweep").DESCRIPTION)
+    p_sweep.add_argument("--window", action="append", choices=list(WINDOWS),
+                         metavar="|".join(WINDOWS),
+                         help="prediction window (repeatable; default: every window instrumented "
+                              "enough to build the inputs, i.e. input season from 2019-20)")
+    p_sweep.add_argument("--platform", action="append", choices=["euro", "default"],
+                         help="euro = EuroLeghe, default = classic Serie A (default: both)")
+    p_sweep.add_argument("--game", action="append", choices=["classic", "mantra"],
+                         help="role system (default: classic - none of these parameters reads a role)")
+    p_sweep.add_argument("--no-report", dest="report", action="store_false",
+                         help="print only, do not write data/reports/sweep_presence.json")
+
     # The app's data bundle: read-only on the DB, writes data/export/<season>/.
     p_export = sub.add_parser("export", help=load("export").DESCRIPTION)
     p_export.add_argument("--season", metavar="YYYY-YY",
@@ -257,6 +270,9 @@ def main(argv: list[str] | None = None) -> int:
                                      games=args.game, rules=args.rules, cases=args.cases,
                                      verify=args.verify, gate=args.gate, auction=args.auction,
                                      pairs=args.pairs, report=args.report)
+            elif args.command == "sweep":
+                load("sweep").run(ctx, windows=args.window, platforms=args.platform,
+                                  games=args.game, report=args.report)
             else:
                 load(args.command).run(ctx)
         except NotImplementedError as exc:

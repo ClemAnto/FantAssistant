@@ -700,11 +700,14 @@ def injury_history(conn, auction_date: str, seasons: list[str],
         entry["source"] = "transfermarkt"
         del entry["worst_days"]
         mine = rounds.get(fc_id, {})
-        # The same two numbers in ROUNDS of his own championship. A season we have no calendar for is
-        # absent from `mine` and therefore absent from both the sum and the weight: the average is over
-        # the seasons that were really measured, so a man with one missing season is not read as having
-        # been healthy in it.
+        # The same numbers in ROUNDS of his own championship. Per season and MOST RECENT FIRST, aligned
+        # with INJURY_WEIGHTS, because that is what keeps the weights sweepable: a pre-weighted total
+        # freezes them at the values it was written with, and they are provisional (gate 7-bis). A season
+        # with no calendar to count on is an empty entry - unknown, never a zero.
+        by_season = [mine.get(season) for season in sorted(weights, reverse=True)]
         counted = {season: weight for season, weight in weights.items() if season in mine}
+        entry["rounds_by_season"] = ";".join("" if value is None else str(value)
+                                            for value in by_season)
         entry["rounds_weighted"] = (
             round(sum(mine[season] * weight for season, weight in counted.items())
                   / sum(counted.values()) * sum(INJURY_WEIGHTS), 2) if counted else None)
@@ -713,6 +716,7 @@ def injury_history(conn, auction_date: str, seasons: list[str],
     for fc_id in known - set(out):
         out[fc_id] = {"spells": 0, "matches_missed": 0, "days_out": 0, "weighted": 0.0,
                       "missed_measured": 0, "rounds_weighted": 0.0, "rounds_measured": 0,
+                      "rounds_by_season": ";".join(["0"] * len(weights)),
                       "rounds_seasons": len(weights),
                       "worst_kind": None, "open": None, "last_start": None,
                       "source": "transfermarkt (no absence recorded)"}
@@ -1364,10 +1368,13 @@ PLAYER_COLUMNS: tuple[str, ...] = (
     # fact about this sample rather than a forecast: `desc_season_starts` are the starts he made while
     # absent for these, so it is what a start rate has to leave out of its denominator.
     "desc_injury_missed_measured",
-    # ...and the same two in ROUNDS of his own championship, counted on his club's fixtures by date
-    # instead of taken from a source that counts every competition. This is the unit the shares in this
-    # sheet are expressed in; `desc_injury_rounds_seasons` = 0 means unknown, never zero.
-    "desc_injury_rounds_weighted", "desc_injury_rounds_measured", "desc_injury_rounds_seasons",
+    # ...and the same in ROUNDS of his own championship, counted on his club's fixtures by date instead of
+    # taken from a source that counts every competition. This is the unit the shares in this sheet are
+    # expressed in; `desc_injury_rounds_seasons` = 0 means unknown, never zero. `..._by_season` is most
+    # recent first, aligned with the recency weights and with an empty entry for a season we could not
+    # count: the weights are PROVISIONAL, and a pre-weighted total would freeze them.
+    "desc_injury_rounds_weighted", "desc_injury_rounds_by_season", "desc_injury_rounds_measured",
+    "desc_injury_rounds_seasons",
     "desc_injury_worst_kind", "desc_injury_open", "desc_injury_source",
     "desc_availability_now",
     "desc_goals_p90", "desc_assists_p90", "desc_xg_p90", "desc_xa_p90", "desc_minutes_full_season",
@@ -1502,6 +1509,7 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             "desc_injury_weighted": injury.get("weighted"),
             "desc_injury_missed_measured": injury.get("missed_measured"),
             "desc_injury_rounds_weighted": injury.get("rounds_weighted"),
+            "desc_injury_rounds_by_season": injury.get("rounds_by_season"),
             "desc_injury_rounds_measured": injury.get("rounds_measured"),
             "desc_injury_rounds_seasons": injury.get("rounds_seasons"),
             "desc_injury_spells": injury.get("spells"),

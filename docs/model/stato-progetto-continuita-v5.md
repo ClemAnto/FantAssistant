@@ -676,3 +676,49 @@ risposta misurata: contare le giornate dentro l'UNIONE degli spell non può cont
 confronto dice che l'eccesso della fonte **non** è duplicazione: TM 6489 partite contro 4485 giornate
 contate (69%), e sui club il cui elenco parsato coincide col campionato — gli italiani, dove lo scaling
 sarebbe 100% — 1465 contro 1079 = **74% ≈ 38/50**, cioè le coppe e l'Europa che non parsiamo.
+
+---
+
+## Sessione 29/07/2026 (6) — lo sweep: i parametri provvisori davanti al gate
+
+Punto **3** della lista «cosa resta». Referto completo con tutti i numeri:
+[gate-motore-v1.md §7-ter](gate-motore-v1.md). Dettaglio implementativo: spec «Novità v9.12».
+**256 test verdi, ruff pulito.**
+
+### Cosa è stato costruito
+- **`engine/presence.py`**: le formule della titolarità estratte dalla vista Tk, con i parametri in una
+  dataclass. La ragione è una frase: *un parametro che nessun harness può raggiungere è un parametro che
+  nessuno può spazzare*. Il pannello ora costruisce un `presence.Inputs` dalla riga del foglio e chiama le
+  stesse funzioni che lo sweep giudica.
+- **`python -m euroleghe_ingest sweep`**: STANDALONE, read-only, scrive `data/reports/sweep_presence.json`.
+  Tre famiglie (presenza, rigoristi, tier d'arrivo), lo stesso protocollo del gate delle regole: griglie
+  pre-registrate, un parametro alla volta, **cross-fit leave-one-out**, strict e robust affiancati.
+- Due bersagli e non uno, perché i parametri non toccano lo stesso: le PRESENZE (`pv`, calendario della
+  piattaforma) e le TITOLARITÀ (giornate del suo campionato in cui è partito, dal layer per-partita — i voti
+  non portano `started`: la colonna è NULL in ogni stagione).
+
+### Gli esiti
+- **ADOTTATO — `STANDING_WEIGHTS` = (0, 1)**: la titolarità si prevede dai **minuti**, non dal tasso di
+  titolarità. Strict e robust su **tutti e dieci** i fold, +1.55% euro / +1.32% default, peggiore +0.70%,
+  curva monotona. Sul campetto: 38 giocatori su 907 si muovono oltre 5 punti, **10 club su 34** cambiano
+  l'undici disegnato.
+- **CONFERMATI**: la forma nuova di `contested` (v9.11), `ARRIVAL_DISCOUNT` 0.80 (a 0.0 l'errore cresce del
+  30%: il parametro conta), il decay dei rigoristi 0.75.
+- **APERTI, con il motivo**: `LOAN_DISCOUNT` è **platform-dependent** (euro tira a 0.2, default a 0.8, curva
+  piatta in mezzo); di `INJURY_WEIGHTS` è confermata la FORMA (le degeneri perdono) e resta aperta
+  l'inclinazione (0.3% fra le tre candidate, e le piattaforme preferiscono l'opposto); `AVAILABILITY_FLOOR`
+  vale 0.6% su tutta la griglia, sotto il pavimento del gate; le soglie dei tier non sono separabili da
+  questo criterio, e `t3_price` passa robust su euro puntando in direzione OPPOSTA su default — riportare il
+  solo euro sarebbe l'errore che questo progetto si è già fatto una volta.
+
+### Il difetto che lo sweep ha trovato (e che ha confermato il valore che sembrava smentito)
+`fc_site.penalty_events` restituiva **ogni rigore di Serie A due volte** (una riga per piattaforma, lo
+stesso calcio): 387 tuple su 1675, 2089 eventi contro 1745. Poiché il peso del k-esimo rigore decade come
+`DECAY**k`, una serie doppia applica il decay due volte per rigore reale → la memoria era **metà** per un
+club italiano. Alla prima passata lo sweep prendeva 0.5 su tutti i fold (+4.25%) e sembrava bocciare 0.75:
+√0.5 = 0.707 ≈ 0.75. Deduplicato, il minimo torna su **0.75**. `penalty_hierarchy` riscritta.
+
+### Una cosa che va detta e non lasciata intendere
+Il foglio **non** batte il motore sulle presenze: `voto_share` fa MAE 0.2247 su euro contro 0.2163 del
+modello presenze gatato, e vince solo sulle finestre default più vecchie. Coerente con quello che la spec
+dice delle colonne `desc_*` (aiuto alla lettura, non previsione adottata), e va scritto.

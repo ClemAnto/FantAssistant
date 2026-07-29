@@ -114,13 +114,19 @@ def foreign_fm_equivalent(conn, scoring: dict[str, float], season: str) -> dict[
     return out
 
 
-def classify_tier(price_percentile: float | None, history_matches: int, u22: bool) -> str:
-    """T1 full history · T2 important but thin (U22 trigger / national-team fallback) · T3 marginal."""
+def classify_tier(price_percentile: float | None, history_matches: int, u22: bool,
+                  t1_price: float = T1_PRICE_PCT, t3_price: float = T3_PRICE_PCT,
+                  full_history: int = FULL_HISTORY_MATCHES) -> str:
+    """T1 full history · T2 important but thin (U22 trigger / national-team fallback) · T3 marginal.
+
+    The three cuts are arguments as well as constants because they are PROVISIONAL (gate 7-bis) and
+    `modules/sweep.py` varies them: a threshold nobody can move is a threshold nobody can measure.
+    """
     if price_percentile is None:
         return "T3"
-    if price_percentile >= T1_PRICE_PCT and history_matches >= FULL_HISTORY_MATCHES and not u22:
+    if price_percentile >= t1_price and history_matches >= full_history and not u22:
         return "T1"
-    if price_percentile >= T3_PRICE_PCT:
+    if price_percentile >= t3_price:
         return "T2"
     return "T3"
 

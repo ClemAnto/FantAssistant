@@ -1022,11 +1022,11 @@ def test_the_start_rate_leaves_out_the_rounds_he_missed_and_not_the_forecast():
     row = {"name": "Rrahmani", "club": "Napoli", "desc_season_starts": "22",
            "desc_season_matches": "22", "desc_minutes_full_season": "1980",
            "desc_injury_source": "transfermarkt", "desc_injury_rounds_seasons": "3",
-           "desc_injury_rounds_measured": "16", "desc_injury_rounds_weighted": "17.55"}
+           "desc_injury_rounds_measured": "16", "desc_injury_rounds_by_season": "9;9;9"}
     view = _sheet_view({"Napoli": club}, [row])
     assert view.contested(row) == 22, "38 rounds less the 16 he was not there for"
     assert view.availability(row) == pytest.approx(1 - 9.0 / 38, abs=0.01), \
-        "the forecast is 17.55/1.95 = 9 rounds a season"
+        "nine rounds a season, whatever the recency weights make of the three"
     # a man who starts everything he is fit for, discounted only by how much he is expected to miss
     assert view.presence(row) == pytest.approx(view.availability(row), abs=0.02)
 
@@ -1038,7 +1038,7 @@ def test_availability_counts_rounds_where_it_can_and_scales_the_source_where_it_
     share of what we parsed, and `desc_injury_rounds_seasons` = 0 says which of the two it is."""
     club = {"complete_XIs": "50", "league_XIs": "34"}
     counted = {"name": "counted", "club": "Bayern Monaco", "desc_injury_source": "transfermarkt",
-               "desc_injury_rounds_seasons": "3", "desc_injury_rounds_weighted": "3.9",
+               "desc_injury_rounds_seasons": "3", "desc_injury_rounds_by_season": "2;2;2",
                "desc_injury_weighted": "9.75"}
     scaled = {"name": "scaled", "club": "Bayern Monaco", "desc_injury_source": "transfermarkt",
               "desc_injury_rounds_seasons": "0", "desc_injury_weighted": "9.75"}
@@ -1071,3 +1071,106 @@ def test_predicted_appearances_are_a_share_of_the_platform_calendar():
     assert view.platform_matchdays() == 31
     assert min(26.6 / view.platform_matchdays(), 1) > 0.85
     assert _sheet_view({}, [], {}).platform_matchdays() == 0, "an older sheet says nothing: fall back"
+
+
+# ----------------------------------------------------------------------------------------------------
+# The gate's other half: the provisional constants, and the harness that sweeps them
+# ----------------------------------------------------------------------------------------------------
+def test_every_swept_parameter_exists_and_is_scored_against_a_target():
+    """A new parameter must not be sweepable without saying WHICH outcome judges it: `standing_weights`
+    never enters `voto_share`, so scoring it on appearances would print a flat line and read as "no
+    effect" - a statement about the code, not about the parameter."""
+    from dataclasses import fields
+
+    from euroleghe_ingest.engine import presence
+    from euroleghe_ingest.modules import sweep
+
+    names = {field.name for field in fields(presence.Params)}
+    assert set(sweep.GRIDS) <= names, f"swept but not a parameter: {set(sweep.GRIDS) - names}"
+    assert set(sweep.GRIDS) == set(sweep.TARGETS), "every grid needs its target named"
+    assert set(sweep.TARGETS.values()) <= set(sweep.PREDICTORS)
+    for name, grid in sweep.GRIDS.items():
+        assert getattr(presence.DEFAULTS, name) in grid, f"{name}: the value in use is not in its own grid"
+
+
+def test_a_parameter_is_never_chosen_on_the_fold_that_scores_it():
+    """The whole protocol in one table: fold B's own best value is 'b', but B is scored with what A and C
+    chose. A harness that picked per fold would report a gain that cannot be had out of sample."""
+    from euroleghe_ingest.modules import sweep
+
+    table = {"A": {"a": 0.10, "b": 0.20}, "B": {"a": 0.30, "b": 0.10}, "C": {"a": 0.10, "b": 0.20}}
+    result = sweep._cross_fit(table, ["a", "b"], "a")
+    assert result["cross_fit_choice"]["B"] == "a",         "B's own best is 'b' by a mile, and B is scored with what A and C chose"
+    assert result["gain_vs_current"]["B"] == 0.0, "so B reports no gain, which is the honest answer"
+    assert not result["strict"] and not result["robust"], result
+    # ...and when the other folds really do prefer the alternative, it is chosen and the gain is measured
+    better = {"A": {"a": 0.20, "b": 0.10}, "B": {"a": 0.20, "b": 0.10}}
+    result = sweep._cross_fit(better, ["a", "b"], "a")
+    assert result["cross_fit_choice"] == {"A": "b", "B": "b"}
+    assert result["strict"] and result["robust"], result
+    assert result["mean_gain"] == 0.5
+
+
+def test_the_forecast_and_the_measured_absences_are_not_interchangeable():
+    """v9.11's shape change, as arithmetic: with the FORECAST on both sides of `presence` the injury
+    history cancels almost exactly, so a sweep of the weights or the floor would have been measuring
+    nothing. The gate ran it and kept `measured` on every fold, on both platforms."""
+    from euroleghe_ingest.engine import presence
+
+    # 20 starts in 38 rounds, 16 of which he missed; a man like him misses 9 a season
+    inputs = presence.Inputs(starts=20.0, appearances=20.0, minutes=1800.0, league_matches=38.0,
+                             fixtures=38.0, rounds_measured=16.0, rounds_by_season=(16.0, 4.0, 7.0),
+                             known_injuries=True)
+    measured = presence.presence(inputs, presence.DEFAULTS)
+    forecast = presence.presence(inputs, presence.DEFAULTS.with_value("contested_from", "forecast"))
+    assert measured > forecast, "the rate has to be read over the rounds he was actually there for"
+    # the cancellation: with the forecast subtracted AND multiplied back, the discount all but vanishes
+    healthy = presence.Inputs(**{**inputs.__dict__, "rounds_by_season": (), "known_injuries": False})
+    assert presence.presence(healthy, presence.DEFAULTS.with_value("contested_from", "forecast")) \
+        == pytest.approx(20.0 / 38, abs=0.001)
+
+
+def test_a_serie_a_penalty_is_one_penalty_and_not_two(tmp_path):
+    """It exists in `match_ratings` twice - once in the euro rows, once in the default ones, the same kick
+    under two matchday numberings - so the series a Serie A hierarchy was built from was twice as long as
+    the real one. With the weight decaying as DECAY**k that halves the MEMORY for Serie A against a
+    foreign club, and it is why the first sweep of DECAY appeared to want 0.5 (0.75 squared is 0.56)."""
+    from euroleghe_ingest.db.database import init_db
+    from euroleghe_ingest.modules import fc_site
+
+    conn = init_db(tmp_path / "euroleghe.db")
+    conn.execute("INSERT INTO players(fc_id, canonical_name) VALUES (7, 'Rigorista')")
+    conn.execute("INSERT INTO clubs(fc_club_id, canonical_name, league) VALUES (1, 'Napoli', 'serie_a')")
+    conn.execute("INSERT INTO rosters(fc_id, season, fc_club_id, league) VALUES (7, '2025-26', 1, "
+                 "'serie_a')")
+    conn.execute("INSERT INTO external_match_stats(fc_id, season, source, match_id, competition, "
+                 "real_md, match_date, minutes) VALUES (7, '2025-26', 'sofascore', 'm1', 'serie_a', "
+                 "5, '2025-09-20', 90)")
+    conn.execute("INSERT INTO matchday_map(season, euro_md, league, real_md) "
+                 "VALUES ('2025-26', 4, 'serie_a', 5)")
+    for platform, matchday in (("default", 5), ("euro", 4)):
+        conn.execute("INSERT INTO match_ratings(fc_id, season, matchday, platform, team, role, mv, "
+                     "pen_scored) VALUES (7, '2025-26', ?, ?, 'Napoli', 'A', 7.0, 1)",
+                     (matchday, platform))
+    conn.commit()
+    events = fc_site.penalty_events(conn)
+    assert len(events) == 1, f"the same kick counted {len(events)} times: {events}"
+
+    # ...and a real brace in one match is still two penalties
+    conn.execute("UPDATE match_ratings SET pen_scored = 2 WHERE season = '2025-26'")
+    conn.commit()
+    assert len(fc_site.penalty_events(conn)) == 2
+
+
+def test_the_penalty_hierarchy_answers_to_its_two_parameters():
+    """Both are provisional, so both are arguments: the decay says how fast an old penalty stops counting,
+    the miss penalty how much a miss quarantines its taker - which is what lets a number two overtake."""
+    from euroleghe_ingest.modules.fc_site import rank_takers
+
+    # newest first: the last taker MISSED his, the man before him scored
+    attempts = [(10, True), (20, False)]
+    assert rank_takers(attempts)[0][0] == 20, "a taker whose last attempt was missed loses the top spot"
+    assert rank_takers(attempts, miss_penalty=1.0)[0][0] == 10, "with no quarantine the last taker leads"
+    # a short memory reads only the most recent kick; a long one adds up the older ones
+    assert rank_takers([(10, False), (20, False), (20, False)], decay=0.05)[0][0] == 10
+    assert rank_takers([(10, False), (20, False), (20, False)], decay=1.0)[0][0] == 20

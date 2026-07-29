@@ -1192,21 +1192,24 @@ le partite.**
 - Regole del listone di gennaio e `attivita_mercato`: `transfers_history` ha **solo la finestra estiva**
   (una data per stagione), quindi il rischio-cessione invernale non è derivabile da quella fonte.
 
-## 7-bis. Parametri PROVVISORI che il gate deve spazzare (aggiornato 29/07/2026)
+## 7-bis. Parametri PROVVISORI che il gate deve spazzare (aggiornato 29/07/2026 — **lo sweep è stato eseguito: §7-ter**)
 
 Non sono regole candidate: sono **costanti che esistono perché un modulo aveva bisogno di un numero per
 girare**. Sono scelte di MODELLO, quindi valgono la stessa regola di qualunque candidata — nessun gate,
-nessun motore — e nel frattempo vanno citate come provvisorie e mai come stabilite. Sono marcate tali nel
-codice; questa è la lista, con dove vivono:
+nessun motore — e finché il gate non parla vanno citate come provvisorie e mai come stabilite. Questa è la
+lista, con dove vivono e **come è finita**; i numeri di ciascun verdetto stanno in §7-ter.
 
-| parametro | valore oggi | dove | cosa deciderebbe lo sweep |
+| parametro | valore oggi | dove | esito dello sweep |
 |---|---|---|---|
-| decay + quarantena della gerarchia rigoristi | vedi `fc_site` | `modules/fc_site.py` | quanto vale un rigore vecchio, e quanto dura la quarantena dopo un errore |
-| soglie dei tier d'arrivo + età U22 | T1/T2/T3, U22 | `modules/arrivals.py` | dove tagliare i tier, e a che età un arrivo è «giovane» |
-| `LOAN_DISCOUNT` | **0.60** | `gui.SnapshotView` | quanto vale una stagione misurata altrove **e** dopo essere stato mandato via da questo club |
-| `ARRIVAL_DISCOUNT` | **0.80** | `gui.SnapshotView` | idem per chi arriva da un club che non è questo (mai giudicato da qui) |
-| `INJURY_WEIGHTS` + `AVAILABILITY_FLOOR` | 1.0/0.6/0.35 · 0.40 | `modules/snapshot.py`, `gui` | l'inclinazione della recenza sugli infortuni, e il pavimento di disponibilità |
-| forma di `contested` | assenze **misurate** (v9.11) contro previste (fino alla v9.10) | `gui.SnapshotView` | se il tasso di titolarità va diviso per le giornate che ha davvero giocato o per quelle che un uomo come lui gioca |
+| decay della gerarchia rigoristi | **0.75** | `modules/fc_site.py` | **CONFERMATO**, dopo che lo sweep ha scoperto che ogni rigore di Serie A era contato due volte |
+| quarantena dopo un rigore sbagliato | 0.70 | `modules/fc_site.py` | aperto (rumore: la scelta fuori campione perde) |
+| soglie dei tier d'arrivo + età U22 | T1 0.80 / T3 0.40 / 15 partite / U22 | `modules/arrivals.py` | non separabili da questo criterio; `t3_price` è platform-dependent |
+| `LOAN_DISCOUNT` | **0.60** | `engine/presence.py` | **aperto e platform-dependent** (euro tira a 0.2, default a 0.8) |
+| `ARRIVAL_DISCOUNT` | **0.80** | `engine/presence.py` | **CONFERMATO** (curva ripida: a 0.0 l'errore cresce del 30%) |
+| `INJURY_WEIGHTS` | 1.0/0.6/0.35 | `modules/snapshot.py` | forma confermata (le degeneri perdono), inclinazione aperta |
+| `AVAILABILITY_FLOOR` | 0.40 | `engine/presence.py` | aperto: l'intera griglia vale 0.6%, sotto il pavimento del gate |
+| `STANDING_WEIGHTS` | ~~0.65/0.35~~ **(0, 1)** | `engine/presence.py` | **ADOTTATO**: solo i minuti, strict e robust su tutti e dieci i fold |
+| forma di `contested` | assenze **misurate** (v9.11) contro previste (fino alla v9.10) | `engine/presence.py` | **CONFERMATA** la forma nuova, su ogni fold di entrambe le piattaforme |
 
 Due note metodologiche che valgono per tutti e cinque:
 - **la forma è confermata, il valore no**: per `INJURY_WEIGHTS` le alternative già calcolate sono
@@ -1233,6 +1236,69 @@ campione per il tasso, **previsione** per lo sconto. Le due forme sono entrambe 
 I due sconti sono nati il 29/07/2026 con una differenza **misurata** e non presunta (`desc_at_club_before`,
 la storia delle rose): nessuna fonte nostra marca un prestito, quindi la separazione prestito/acquisto non
 dipende da un campo mancante. Dettaglio: spec «Novità v9.9».
+
+## 7-ter. LO SWEEP ESEGUITO (29/07/2026) — `python -m euroleghe_ingest sweep`
+
+Il §7-bis era una lista di debiti; questo è il referto. Il comando esiste, è **read-only sul DB** e scrive
+`data/reports/sweep_presence.json`; le formule spazzate vivono in **`engine/presence.py`**, estratte dalla
+vista Tk perché *un parametro che nessun harness può raggiungere è un parametro che nessuno può spazzare*.
+
+### Il protocollo, che è quello del gate delle regole
+- **Gli input sono ricostruiti al giorno d'asta di una finestra già giocata**: gli stessi strati che
+  `snapshot` scrive, da stagioni ≤ input e spell datati ≤ data d'asta. Niente qui può vedere la stagione che
+  sta prevedendo.
+- **Due bersagli, perché i parametri non toccano lo stesso**: le PRESENZE (`pv` sul calendario della
+  piattaforma, ciò che una rosa incassa) contro `voto_share`, e le TITOLARITÀ (le giornate del suo
+  campionato in cui è partito, dal layer per-partita) contro `presence`. `standing_weights` esiste solo nel
+  secondo: spazzarlo sul primo avrebbe stampato una riga piatta e si sarebbe letto «non conta», che è
+  un'affermazione sul codice e non sul parametro. Le titolarità reali non stanno nei voti: la colonna
+  `started` di `match_ratings` è NULL in ogni stagione, quindi il bersaglio viene da SofaScore.
+- **Griglie PRE-REGISTRATE**, un parametro alla volta, **cross-fit leave-one-out** (il valore è scelto sulle
+  ALTRE finestre e giudicato su quella tenuta fuori) e i **due verdetti** del gate, strict e robust,
+  riportati affiancati. Finestre: solo quelle con input dal **2019-20**, perché prima non esiste il layer
+  minuti/titolarità da cui questi input si costruiscono — euro 4, default 6.
+- **«Confermato» e «niente trovato» non sono la stessa frase** e il referto le separa: `confirmed` = la
+  scelta fuori campione È il valore che sta nel codice, su ogni fold. E poiché per un valore già adottato il
+  guadagno è 0 per costruzione, ogni riga porta anche il **margine sul secondo classificato**.
+
+### I verdetti
+| parametro | esito | numeri |
+|---|---|---|
+| `standing_weights` | **ADOTTATO → (0, 1)**, cioè solo i MINUTI | strict **e** robust su **tutti e dieci** i fold (euro 4 + default 6), scelta unanime, guadagno medio **+1.55%** su euro e **+1.32%** su default, fold peggiore **+0.70%**. Curva monotona su tutta la griglia. Non è più provvisorio |
+| forma di `contested` | **CONFERMATA** «misurate» (la v9.11) | scelta unanime su 10 fold; margine sul secondo **+1.06%** euro, **+1.24%** default |
+| `ARRIVAL_DISCOUNT` | **CONFERMATO 0.80** | unanime su default (margine +0.57%), su euro pareggia con 0.7 (0.22465 vs 0.22470). Curva ripida: a 0.0 l'errore cresce del **30%**, quindi il parametro conta e il valore è giusto |
+| decay dei rigoristi | **CONFERMATO 0.75** — dopo aver corretto un bug della fonte, vedi sotto | minimo della curva (0.48784), scelta 0.75 su 5 fold e 0.70 su 2 |
+| `LOAN_DISCOUNT` | **APERTO, e PLATFORM-DEPENDENT** | euro tira a 0.2, default a 0.8, con curva piatta in mezzo (euro 0.2235-0.2287 su tutto l'intervallo). 0.60 sta nel mezzo e resta provvisorio |
+| `INJURY_WEIGHTS` | **forma confermata, inclinazione aperta** | le due degeneri sono le peggiori su entrambe le piattaforme (solo-ultima-stagione è il valore peggiore in assoluto), quindi le tre stagioni servono; fra 1/0.6/0.35, 1/0.75/0.5 e 1/0.45/0.2 ci sono **0.3%**, e le due piattaforme preferiscono l'una l'opposto dell'altra |
+| `AVAILABILITY_FLOOR` | **APERTO** | monotono verso 0.6, ma l'intera griglia (0.0→0.6) vale **0.6%**: sotto il pavimento del gate. Il pavimento riguarda una manciata di cronici, non il foglio |
+| quarantena del rigore sbagliato | **APERTO** | 0.5 è marginalmente meglio in pooled (0.48565 vs 0.48784) ma il guadagno fuori campione è **negativo** (−0.65%): rumore |
+| soglie dei tier + U22 | **NON SEPARABILI da questo criterio** | `t1_price`, `full_history`, `u22_age` si muovono nella quarta cifra; `full_history` = 15 è il migliore in pooled su entrambe. `t3_price` passa **robust su euro** (0.2, +2.43%) e su default punta nella **direzione opposta** (0.6): quantità platform-dependent, quindi non adottata — riportare il solo passaggio euro sarebbe esattamente l'errore che questo documento si è già fatto una volta |
+
+⚠️ **Limite dichiarato del criterio sui tier**: un tier non prevede nulla da solo, instrada un arrivo verso
+un percorso di stima, e la regola che lo consuma (R13c) è ferma per campione. Qui si misura il proxy onesto:
+prevedere la fantamedia realizzata dell'arrivo con la **media del suo tier**, con le medie fittate sulle
+ALTRE stagioni. Una soglia che taglia dove l'esito cambia davvero vince; una che taglia una popolazione
+omogenea non può.
+
+### Il bug che lo sweep ha trovato, e che ha CONFERMATO il valore che sembrava smentito
+Alla prima passata `decay` prendeva **0.5** su tutti e sette i fold con guadagno medio +4.25%. Sembrava una
+smentita di 0.75, ed era un artefatto: **`fc_site.penalty_events` restituiva ogni rigore di Serie A DUE
+volte** — una dalle righe `platform='euro'` e una da quelle `default`, lo stesso calcio sotto due
+numerazioni di giornata che traducono alla stessa data. Misurato: **387 tuple (stagione, club, data,
+rigorista) su 1675 comparivano più di una volta**, 2089 eventi contro 1745 reali. Con il peso del k-esimo
+rigore che decade come `DECAY**k`, una serie raddoppiata applica il decay **due volte per rigore reale**: la
+memoria era **metà** per la Serie A che per un club estero, e 0.75 su serie doppia si comporta come 0.56.
+E infatti √0.5 = 0.707 ≈ 0.75. Deduplicato per calcio (con il massimo fra le due piattaforme, così una
+doppietta nella stessa partita resta doppia), il minimo della curva torna esattamente su **0.75**.
+Due cose da tenere: la gerarchia dei rigoristi in `penalty_hierarchy` era distorta per tutti i club
+italiani e ora è riscritta (1745 rigori, 312 club-stagione, 3562 righe datate); e uno sweep che *sembra*
+smentire una costante può essere il modo in cui un difetto dei dati si fa vedere.
+
+### Cosa questo sweep NON dice
+Il foglio non batte il motore sulle presenze: `voto_share` fa MAE 0.2247 su euro contro **0.2163** del
+modello presenze gatato (`model.expected_share`) su T2, e vince solo sulle finestre default più vecchie
+(Tm3: 0.1941 contro 0.2085). È coerente con quello che la spec dice delle colonne `desc_*` — sono un aiuto
+alla lettura, non una previsione adottata — e va detto invece di lasciarlo intendere al contrario.
 
 ## 8. Casi di regressione (in `model.REGRESSION_CASES`, stampati da `backtest --cases`)
 

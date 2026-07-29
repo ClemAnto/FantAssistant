@@ -105,13 +105,25 @@ tie once; where they disagree, the report says so and the decision is taken in t
   HTML. Aggregation **option A**: canonical `match_ratings` columns + lossless `match_rating_bonuses`.
   Cached Excel = raw source of truth -> `rebuild` re-ingests offline so scraped ratings survive.
 
-## Provisional parameters
-Some constants exist only because a module needed a number to run: the revealed penalty hierarchy's
-decay/quarantine (`fc_site`), the arrival tier thresholds and the U22 age (`arrivals`), and what a season
-measured at ANOTHER club is worth toward this club's shirt - `gui.SnapshotView.LOAN_DISCOUNT` if it
-sent him away, `ARRIVAL_DISCOUNT` if it never had him. They are
-MODEL choices, so the gate owns them - they are marked provisional in the code and must be swept,
-never quoted as established. Same rule as any other candidate rule: no gate, no engine.
+## Provisional parameters, and the sweep that judges them
+Some constants exist only because a module needed a number to run. They are MODEL choices, so the gate owns
+them: same rule as any candidate rule, no gate no engine. The presence formulas that read them live in
+**`engine/presence.py`** (dependency-free, `Params` dataclass) and NOT in the Tk view they came from -
+a parameter no harness can reach is a parameter nobody can sweep. **`python -m euroleghe_ingest sweep`** is
+the gate's other half (`backtest` judges rules, `sweep` judges constants): pre-registered grids, one
+parameter at a time, leave-one-out cross-fit, strict and robust side by side, report in
+`data/reports/sweep_presence.json`. Ran 29/07/2026 - details in `gate-motore-v1.md` §7-ter:
+- **measured**: `standing_weights` = (0, 1) - who starts next season is predicted by last season's MINUTES,
+  not by his start rate (strict AND robust on all ten window-platform folds).
+- **confirmed**: the v9.11 shape of `contested` (measured absences, not the forecast), `ARRIVAL_DISCOUNT`
+  0.80, the penalty hierarchy's decay 0.75.
+- **still provisional, each with its measured reason**: `LOAN_DISCOUNT` (platform-dependent - euro pulls to
+  0.2, default to 0.8), the tilt of `INJURY_WEIGHTS` (the three-season shape is confirmed, the tilt is worth
+  0.3%), `AVAILABILITY_FLOOR` (the whole grid is worth 0.6%), the miss quarantine, the arrival tiers.
+Two lessons the run itself taught, both worth keeping: a sweep that seems to REFUTE a constant can be how a
+data defect surfaces (every Serie A penalty was counted twice, which halved the hierarchy's memory for
+Italian clubs and made 0.5 look better than 0.75 - and 0.75 squared is 0.56); and "confirmed" is not
+"nothing found", so the report says which of the two happened and carries the margin over the runner-up.
 
 ## Rebuilding from nothing, and the app bundle
 Two commands own these, and both print a plan before doing anything:
