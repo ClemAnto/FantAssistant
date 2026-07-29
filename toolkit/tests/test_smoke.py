@@ -372,8 +372,11 @@ def test_the_eleven_is_chosen_by_titolarita_and_never_by_a_valuation():
 
     assert view.titolarita(regular, "season")[0] > view.titolarita(expensive, "season")[0]
 
-    typical = [starter["name"] for _role, starter, _rivals in view.eleven("Test", "4-4-2", "typical")]
-    # only the two forward shirts can be filled: the squad is three strikers and nothing else
+    # the ATTACK, which is the line these three belong to: a squad of three strikers also has to fill the
+    # other seven shirts of a 4-4-2, and it does (an adapted player beats an empty shirt - see
+    # `eleven`), so the question here is who gets the two forward ones
+    typical = [starter["name"] for role, starter, _rivals in view.eleven("Test", "4-4-2", "typical")
+               if role == "A"]
     assert typical == ["Injured", "Regular"], "the schieramento tipo ignores who is out today"
     assert "Expensive" not in typical, "value must not buy a shirt"
 
@@ -383,7 +386,8 @@ def test_the_eleven_is_chosen_by_titolarita_and_never_by_a_valuation():
             return "next"
 
     view.xi_mode = Mode()
-    nxt = [starter["name"] for _role, starter, _rivals in view.eleven("Test", "4-4-2", "next")]
+    nxt = [starter["name"] for role, starter, _rivals in view.eleven("Test", "4-4-2", "next")
+           if role == "A"]
     assert nxt[0] == "Regular", "for the next match the injured man is out and the regular starts"
     assert SnapshotView.lines("3-4-2-1") == (3, 6, 1), "every part of a module counts"
     assert "Injured" not in nxt

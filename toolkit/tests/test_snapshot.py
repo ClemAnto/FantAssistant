@@ -395,7 +395,7 @@ def test_a_season_played_at_another_club_is_discounted_and_never_read_as_this_on
     view.clubs = {"Napoli": {"complete_XIs": "36"}}
     view.players = []
     total = {"club": "Napoli", "desc_season_starts": "21", "desc_season_matches": "23",
-             "desc_minutes_full_season": "1980",
+             "desc_minutes_full_season": "1980", "desc_at_club_before": "2024-25",
              "desc_injury_source": "transfermarkt (no absence recorded)", "desc_injury_weighted": "0"}
     home = dict(total, desc_season_starts_club="21", desc_season_starts_elsewhere="0",
                 desc_minutes_club="1980", desc_minutes_elsewhere="0")
@@ -415,6 +415,14 @@ def test_a_season_played_at_another_club_is_discounted_and_never_read_as_this_on
     assert view.standing(loaned) < view.standing(moved) < view.standing(home)
     settled = dict(moved, desc_minutes_club="1500", desc_minutes_elsewhere="480")
     assert view.at_club_weight(moved) < view.at_club_weight(settled)
+
+    # A man this club has NEVER had is discounted less: it never sent him away, so only the first of the
+    # two reasons applies - the season was measured in another side. Gila, four years at Lazio, is Milan's
+    # now, and Milan has no judgement of him to read.
+    bought = {key: value for key, value in loaned.items() if key != "desc_at_club_before"}
+    assert view.at_club_weight(bought) == View.ARRIVAL_DISCOUNT
+    assert view.at_club_weight(loaned) == View.LOAN_DISCOUNT
+    assert view.standing(loaned) < view.standing(bought) < view.standing(home)
 
 
 def test_the_split_between_this_club_and_elsewhere_comes_from_the_per_match_layer(tmp_path):
@@ -489,6 +497,49 @@ def _view_of(rows: list[dict]):
     return view
 
 
+def test_the_flank_on_the_badge_is_the_one_he_is_drawn_on():
+    """A five-man midfield is a winger on one flank and a wing back on the other, and the marker has to
+    say which is which. Inter's 3-5-2 read 'Es' TWICE - Carlos Augusto is left-sided by code and plays
+    right wing back, so his own code labelled him on the wrong touchline. The role stays his; the flank
+    belongs to the shirt he was given."""
+    from euroleghe_ingest.gui import SnapshotView as View
+
+    left_sided = {"desc_real_roles": "ML;DC;DR"}
+    assert View.badge(left_sided, 1.0) == "Ed", "drawn on the right, he is the right-sided one"
+    assert View.badge(left_sided, -1.0) == "Es"
+    assert View.badge(left_sided) == "Es", "with no shirt to speak for him, his own code does"
+    # a full back does not become a winger by being moved: only the side mirrors
+    assert View.badge({"desc_real_roles": "DR;DC;DL"}, -1.0) == "Ts"
+    # and a central role claims no flank, so being drawn wide changes nothing about it
+    assert View.badge({"desc_real_roles": "ST"}, -1.0) == "Pc"
+    assert View.badge({"desc_real_roles": "MC"}, 1.0) == "C"
+
+
+def test_a_line_short_of_its_own_men_borrows_a_surplus_and_never_an_empty_shirt():
+    """Bayern's 4-5-1 had four midfielders in the M lane and drew TEN men, calling it 4-4-1.
+
+    Two rules make the borrowing safe, and both were found by breaking them: a line lends only what it
+    has OVER its own shirts (served in order, a defence with nobody of its own ate the strikers and the
+    attack was drawn empty), and it lends from its bench, never its first choice.
+    """
+    def man(name, codes, role, starts):
+        return {"name": name, "role_classic": role, "desc_real_roles": codes,
+                "desc_season_starts": str(starts), "desc_start_share": str(starts / 38)}
+
+    rows = ([man("Portiere", "GK", "P", 38)]
+            + [man(f"Dif{i}", "DC", "D", 34 - i) for i in range(1, 5)]
+            + [man(f"Cen{i}", "MC", "C", 30 - i) for i in range(1, 5)]      # four for five shirts
+            + [man("Punta", "ST", "A", 33), man("Ala", "LW", "A", 24), man("Ala2", "LW", "A", 12)])
+    view = _view_of(rows)
+    eleven = view.eleven("Test", "4-5-1", "typical")
+    assert len(eleven) == 11, "a line of the module is a line even when its own men have run out"
+    assert {row["name"] for _r, row, _o in eleven} >= {"Punta"}, "the attack keeps its first choice"
+    # the fifth midfield shirt goes to a WINGER and not to a centre back: the slot knows its line, not
+    # only its flank, and a winger is one step from a midfield where a defender is two
+    mids = [row["name"] for role, row, _o in eleven if role == "M"]
+    assert "Ala" in mids and not any(name.startswith("Dif") for name in mids)
+
+
 def test_a_duel_is_spoken_in_real_roles_and_never_in_listone_ones():
     """The listone says what you BUY a man as; a ballottaggio is about where a coach PUTS him.
 
@@ -519,29 +570,38 @@ def test_an_alternative_is_the_next_man_who_can_take_the_place_never_nobody():
     A shirt is not unchallenged because its challengers won shirts of their own, and it is not
     unchallenged because the editors named men who play somewhere else.
     """
-    def mid(name, starts, **extra):
-        return dict(name=name, role_classic="C", desc_real_roles="MC",
+    def man(name, codes, role, starts, **extra):
+        return dict(name=name, role_classic=role, desc_real_roles=codes,
                     desc_season_starts=str(starts), desc_start_share=str(starts / 38), **extra)
 
-    # four central midfielders, three shirts: the fourth man is the alternative to all three
-    rows = [mid("Uno", 34), mid("Due", 30), mid("Tre", 26), mid("Quattro", 12)]
+    def mid(name, starts, **extra):
+        return man(name, "MC", "C", starts, **extra)
+
+    # A squad that can fill a 4-3-3 without borrowing between the lines, so the midfield is the only
+    # question: four central midfielders for three shirts, and the fourth man is the alternative to all
+    # three of them.
+    others = ([man("Portiere", "GK", "P", 38)]
+              + [man(f"Dif{i}", "DC", "D", 30) for i in range(1, 5)]
+              + [man(f"Att{i}", "ST", "A", 30) for i in range(1, 4)])
+    rows = others + [mid("Uno", 34), mid("Due", 30), mid("Tre", 26), mid("Quattro", 12)]
     view = _view_of(rows)
-    rivals = {starter["name"]: [row["name"] for row in others]
-              for _role, starter, others in view.eleven("Test", "4-3-3", "typical")}
-    assert rivals == {"Uno": ["Quattro"], "Due": ["Quattro"], "Tre": ["Quattro"]}, (
+    rivals = {starter["name"]: [row["name"] for row in more]
+              for _role, starter, more in view.eleven("Test", "4-3-3", "typical")}
+    assert {name: rivals[name] for name in ("Uno", "Due", "Tre")} == {
+        "Uno": ["Quattro"], "Due": ["Quattro"], "Tre": ["Quattro"]}, (
         "collected before the shirts are handed out and filtered after, a starter whose two best "
         "challengers also start was left with no alternative at all")
 
     # the editors name a man who is not in this duel: it FILTERS the real alternatives, never erases them
-    rows = [mid("Uno", 34, desc_duel_names="Portiere; Attaccante"), mid("Due", 30), mid("Tre", 26),
-            mid("Quattro", 12)]
+    rows = others + [mid("Uno", 34, desc_duel_names="Portiere; Att1"), mid("Due", 30), mid("Tre", 26),
+                     mid("Quattro", 12)]
     assert [row["name"] for _r, starter, row_list in _view_of(rows).eleven("Test", "4-3-3", "typical")
             for row in row_list if starter["name"] == "Uno"] == ["Quattro"]
     # and where they name a man who IS, he comes first: a stated fact beats a measured ranking
-    rows = [mid("Uno", 34, desc_duel_names="Quattro"), mid("Due", 30), mid("Tre", 26), mid("Cinque", 20),
-            mid("Quattro", 12)]
-    picked = {starter["name"]: [row["name"] for row in others]
-              for _role, starter, others in _view_of(rows).eleven("Test", "4-3-3", "typical")}
+    rows = others + [mid("Uno", 34, desc_duel_names="Quattro"), mid("Due", 30), mid("Tre", 26),
+                     mid("Cinque", 20), mid("Quattro", 12)]
+    picked = {starter["name"]: [row["name"] for row in more]
+              for _role, starter, more in _view_of(rows).eleven("Test", "4-3-3", "typical")}
     assert picked["Uno"] == ["Quattro"] and picked["Due"] == ["Cinque", "Quattro"]
 
 

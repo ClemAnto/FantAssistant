@@ -882,6 +882,37 @@ def titolarita(conn, season: str, before: str | None = None) -> dict[int, dict]:
     return out
 
 
+def previously_at_club(conn, observations, squads: dict[int, str], season: str) -> dict[int, str]:
+    """fc_id -> the most recent EARLIER season in which THIS club's listone already had him.
+
+    The one thing that separates a man his club SENT AWAY from a man it has just taken on, and it is
+    measured rather than looked up: no source of ours marks a loan. `arrivals.type` knows only
+    new/transfer_cross_league/transfer_intra_league, `transfers_history.fee` is NULL for a free transfer
+    and for a loan alike (1367 of 2067 rows) and carries nothing at all for the window being auctioned.
+    A club's own roster history does carry it: Marin R. was in Napoli's listone in 2024-25 and in
+    Villarreal's in 2025-26, so Napoli had him and let him go; Gila has been Lazio's for four seasons and
+    is Milan's now, so Milan has never judged him.
+
+    Read against the club he is at NOW, not against the listone's - in July the listone does not exist.
+    Seasons at or after `season` (the measured one) are ignored: the question is about BEFORE.
+    """
+    resolve = club_index(conn)
+    now: dict[int, str] = {}
+    for obs in observations:
+        key, _name = resolve(obs.club_target or squads.get(obs.fc_id))
+        if key:
+            now[obs.fc_id] = key
+    out: dict[int, str] = {}
+    for fc_id, roster_season, club in conn.execute(
+            """SELECT r.fc_id, r.season, c.canonical_name FROM rosters r
+               LEFT JOIN clubs c ON c.fc_club_id = r.fc_club_id
+               WHERE r.season < ? AND c.canonical_name IS NOT NULL ORDER BY r.season""",
+            (season,)):
+        if fc_id in now and resolve(club)[0] == now[fc_id]:
+            out[fc_id] = roster_season          # ascending, so the last write is the most recent
+    return out
+
+
 def at_current_club(conn, season: str, observations, squads: dict[int, str],
                     before: str | None = None) -> dict[int, dict]:
     """His measured season split in two: what he played AT THE CLUB HE IS AT NOW, and what ELSEWHERE.
@@ -1089,7 +1120,7 @@ PLAYER_COLUMNS: tuple[str, ...] = (
     # reader can see that Marin R.'s 21 starts are Villarreal's and not Napoli's. The half made elsewhere
     # is DISCOUNTED where a shirt is handed out, never dropped: `SnapshotView.LOAN_DISCOUNT`.
     "desc_season_starts_club", "desc_season_starts_elsewhere",
-    "desc_minutes_club", "desc_minutes_elsewhere",
+    "desc_minutes_club", "desc_minutes_elsewhere", "desc_at_club_before",
     "desc_duel_rivals", "desc_duel_names",
     "desc_injury_matches_missed", "desc_injury_weighted", "desc_injury_spells",
     "desc_injury_worst_kind", "desc_injury_open", "desc_injury_source",
@@ -1218,6 +1249,9 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             "desc_season_starts_elsewhere": at_club.get("starts_elsewhere"),
             "desc_minutes_club": at_club.get("minutes"),
             "desc_minutes_elsewhere": at_club.get("minutes_elsewhere"),
+            # The last season THIS club's listone already had him. Empty = it never did, so it has not
+            # judged him: what a season measured elsewhere is worth toward the shirt depends on it.
+            "desc_at_club_before": layers["was_here"].get(obs.fc_id),
             "desc_duel_rivals": duel.get("rivals"), "desc_duel_names": duel.get("names"),
             "desc_injury_matches_missed": injury.get("matches_missed"),
             "desc_injury_weighted": injury.get("weighted"),
@@ -1420,6 +1454,9 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
         # The same season, split by WHOSE it was: what he played at the club he is at now, and what
         # somewhere else. The totals cannot say it - only the per-match layer stores a club.
         "at_club": at_current_club(conn, measured, data.observations, squads, before),
+        # ...and whether the club he is at now had already had him: the only measured difference between
+        # a man it sent away and a man it has just taken on (no source of ours marks a loan).
+        "was_here": previously_at_club(conn, data.observations, squads, measured),
         # Cards stay on the season aggregate of the season BEFORE: the per-match layer does not store
         # yellows and reds, so there is nothing to bound by a date - and last season's total is at least
         # a fact that was known by then.

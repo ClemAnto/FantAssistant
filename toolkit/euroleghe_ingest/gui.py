@@ -2327,13 +2327,24 @@ class SnapshotView(ttk.Frame):
             return "C"
         return "L" if side < 0 else "R"
 
-    def slot_cost(self, row: dict, side: str, lane: str, strikers: int) -> tuple[int, int]:
-        """(does he belong on that side, does the role allow that slot) - lower fits better.
+    # How far up the pitch each LINE of a module stands, on the same 0..1 axis as the twelve codes
+    # (`REAL_ROLE_DEPTH`: a full back 0.25, a central midfielder 0.60, a winger 0.80, a striker 1.0).
+    # It is what lets a slot say which LINE it belongs to and not only which flank: the sides alone made
+    # a centre back and a winger equally good candidates for the left of a MIDFIELD five, and once a line
+    # short of its own men could borrow, Bayern's fifth midfielder was a centre back.
+    LANE_DEPTH: ClassVar[dict[str, float]] = {"P": 0.0, "D": 0.25, "M": 0.60, "T": 0.80, "A": 0.90}
+
+    def slot_cost(self, row: dict, side: str, lane: str, strikers: int) -> tuple[int, int, int]:
+        """(the side, what the role allows, how far the LINE is from his own) - lower fits better.
 
         A cost and never a veto: a slot has to be filled by somebody, and an adapted player is a truer
         drawing than an empty flank. What it encodes are the things a coach does not do in a REAL
         formation - a punta centrale plays in the middle of an attack, a side fields one of him, and a
         flank is covered by a flank player (from the other flank if need be) long before a central one.
+
+        The line comes LAST, so it only ever separates men the flank rules leave equal: among two who can
+        both play that flank, the midfield takes the one whose own line is nearer to it. Graded and not
+        binary, because the codes are a grid - a winger is one step from a midfield, a centre back two.
         """
         mine = self.sides_of(row)
         if side in mine:
@@ -2344,9 +2355,14 @@ class SnapshotView(ttk.Frame):
             wrong_side = 3        # a central onto a wing: hardly ever, unless it is in his codes
         else:
             wrong_side = 2        # a wide player asked to play in the middle
-        if "ST" not in self.real_roles(row):
-            return wrong_side, 0
-        return wrong_side, (2 if lane == "A" and side != "C" else 0) + (4 if strikers >= 2 else 0)
+        codes = self.real_roles(row)
+        depth = (REAL_ROLE_DEPTH.get(codes[0]) if codes else None)
+        if depth is None:
+            depth = self.LANE_DEPTH.get(self.lane_of(row), 0.60)
+        gap = round(abs(depth - self.LANE_DEPTH.get(lane, 0.60)) * 20)
+        if "ST" not in codes:
+            return wrong_side, 0, gap
+        return (wrong_side, (2 if lane == "A" and side != "C" else 0) + (4 if strikers >= 2 else 0), gap)
 
     # What each slot of a line IS, in the module's own terms - the Mantra scheme vocabulary again. A
     # back three is three CENTRE BACKS (a full back may adapt into one of the outer two, which is what
@@ -2383,14 +2399,20 @@ class SnapshotView(ttk.Frame):
     STANDING_WEIGHTS: ClassVar[tuple[float, float]] = (0.65, 0.35)
     FORM_WEIGHT: ClassVar[float] = 0.60
     RECENT_PRIOR: ClassVar[float] = 3.0
-    # What a season measured AT ANOTHER CLUB is worth toward THIS club's shirt. Not one: being sent on
-    # loan is the club's own judgement of a player, and Marin R.'s 21 starts and 1980 minutes are
-    # Villarreal's - read as a Napoli standing they put him ahead of Rrahmani. Not zero either: that
-    # would delete every summer signing from the eleven, and a man who started 21 matches somewhere is
-    # still a man who starts. PROVISIONAL, and deliberately blind to two distinctions that are still
-    # open - a loan against a purchase (a signing was not rejected by THIS club), and a discount that
-    # should shrink as he accumulates matches here. A model choice, so the gate owns it.
+    # What a season measured AT ANOTHER CLUB is worth toward THIS club's shirt, and it is two numbers
+    # because there are two reasons to discount it and they do not always both apply:
+    #   * it was earned in another side and another league - weaker evidence about this shirt, always;
+    #   * being sent away is the club's OWN judgement of him - only when the club had him to send.
+    # So a man this club already had (`desc_at_club_before`) and who spent the season elsewhere carries
+    # both: Marin R. was Napoli's in 2024-25, Villarreal's in 2025-26, and his 21 starts read as a Napoli
+    # standing put him ahead of Rrahmani. A man who arrives from a club that is not this one carries only
+    # the first: Gila has been Lazio's for four seasons and Milan has never judged him. Neither is zero -
+    # that would delete every summer signing from the eleven, and a man who started 21 matches somewhere
+    # is still a man who starts.
+    # Both PROVISIONAL: model choices, so the gate owns them. What no longer needs a parameter is the
+    # discount shrinking as he plays here - the minutes share does it one match at a time.
     LOAN_DISCOUNT: ClassVar[float] = 0.60
+    ARRIVAL_DISCOUNT: ClassVar[float] = 0.80
 
     @classmethod
     def availability(cls, row: dict) -> float:
@@ -2414,10 +2436,12 @@ class SnapshotView(ttk.Frame):
     def at_club_weight(cls, row: dict) -> float:
         """How much of his measured season counts toward THIS club's shirt: 1.0 all of it, 0.6 none of it.
 
-        The share of his minutes played where he is now, with the rest weighed at `LOAN_DISCOUNT`. So a
-        man who never moved is untouched, a man whose whole season was elsewhere is discounted once, and
-        a January transfer lands in between - which is also the answer to "the discount should shrink as
-        he accumulates matches here": it already does, one match at a time, with no second parameter.
+        The share of his minutes played where he is now, with the rest weighed at `LOAN_DISCOUNT` if this
+        club had already had him - it sent him away, and that is its own judgement - or at the milder
+        `ARRIVAL_DISCOUNT` if he arrives from a club that is not this one, which has never judged him.
+        So a man who never moved is untouched, a man whose whole season was elsewhere is discounted once,
+        and a January transfer lands in between - which is also the answer to "the discount should shrink
+        as he accumulates matches here": it already does, one match at a time, with no second parameter.
 
         Minutes rather than starts because they are the continuous measure: a substitute has a share too.
         A player the per-match layer has no row for reads 1.0 - the columns are empty, and an unknown
@@ -2427,7 +2451,8 @@ class SnapshotView(ttk.Frame):
         away = _number(row.get("desc_minutes_elsewhere"))
         if not (here + away):
             return 1.0
-        return (here + cls.LOAN_DISCOUNT * away) / (here + away)
+        discount = cls.LOAN_DISCOUNT if row.get("desc_at_club_before") else cls.ARRIVAL_DISCOUNT
+        return (here + discount * away) / (here + away)
 
     def club_matches(self, club: str | None) -> float:
         """How many matches the club played in the measured season - the denominator of a presence.
@@ -2561,33 +2586,50 @@ class SnapshotView(ttk.Frame):
         # grouping by `role_classic` filled the middle with four central midfielders and left the flanks
         # to nobody. The listone role is the fallback for a player with no granular code.
         by_role: dict[str, list[dict]] = {}
+        bucket: dict[int, str] = {}
         for row in squad:
             codes = self.real_roles(row)
             line = (self.LANE_OF_ROLE.get(codes[0], "") if codes else "") or                 (row.get("role_classic") or "?")
             # the trequartisti compete for the attacking line: which of the two lanes they are DRAWN in
             # is decided afterwards, by `lanes_for`, and only for the men actually chosen
-            by_role.setdefault("A" if line == "T" else "M" if line == "C" else line, []).append(row)
+            key = "A" if line == "T" else "M" if line == "C" else line
+            by_role.setdefault(key, []).append(row)
+            bucket[id(row)] = key
         defenders, midfielders, forwards = self.lines(formation)
-        editorial = mode == "next" and any(row.get("desc_starter_prob") for row in squad)
+        horizon = "recent" if mode == "next" else "season"
+        # by PRESENCE, the same number the shirt shows: ranking by anything else would draw a starter
+        # carrying a percentage below his own alternative's
+        eligible = sorted(
+            (row for row in squad
+             if mode != "next"      # a man who is out cannot play the next match; the tipo eleven can
+             or (not row.get("desc_injury_open")
+                 and row.get("desc_availability_now") not in ("injured", "suspended"))),
+            key=lambda row: (-self.presence(row, horizon), -self.titolarita(row, horizon)[1]))
+        rank = {id(row): index for index, row in enumerate(eligible)}
         out: list[tuple[str, dict, list[dict]]] = []
         taken: set[str] = set()          # one shirt per man, across every line
+        left = {"P": 1, "D": defenders, "M": midfielders, "A": forwards}
+
+        def can_lend(row: dict, asking: str) -> bool:
+            """Whether his own line can spare him: he is BEYOND the men it still needs for itself.
+
+            Two mistakes this closes, both found by measuring. Borrowing without the check starved the
+            later lines - the lines are served in order, so a defence with nobody of its own helped
+            itself to the strikers and the attack was drawn empty. Borrowing the lending line's BEST man
+            was the same mistake one step down: its first choice went to somebody else's shirt. A line
+            lends from its bench, in presence order, and only what it has over.
+            """
+            lane = bucket.get(id(row), asking)
+            if lane == asking:
+                return True
+            free = sorted((other for other in by_role.get(lane, ())
+                           if id(other) in rank and other.get("name") not in taken),
+                          key=lambda other: rank[id(other)])
+            return id(row) in {id(other) for other in free[left.get(lane, 0):]}
+
         for role, slots in (("P", 1), ("D", defenders), ("M", midfielders), ("A", forwards)):
-            pool = list(by_role.get(role, []))
-            if mode == "next":
-                # a man who is out cannot play the next match; for the schieramento tipo he can
-                pool = [row for row in pool
-                        if not row.get("desc_injury_open")
-                        and row.get("desc_availability_now") not in ("injured", "suspended")]
-            if editorial:
-                pool = sorted((row for row in pool if row.get("desc_starter_prob")),
-                              key=lambda row: (-_number(row.get("desc_starter_prob")),
-                                               -self.titolarita(row, "recent")[0]))
-            else:
-                horizon = "recent" if mode == "next" else "season"
-                # by PRESENCE, the same number the shirt shows: ranking by anything else would draw a
-                # starter carrying a percentage below his own alternative's
-                pool = sorted(pool, key=lambda row, h=horizon: (-self.presence(row, h),
-                                                                -self.titolarita(row, h)[1]))
+            pool = sorted((row for row in by_role.get(role, []) if id(row) in rank),
+                          key=lambda row: rank[id(row)])
             # the line's composition, then ONE SHIRT AT A TIME: the best candidate for THAT side
             strikers = 0
             for wanted in self.slot_shape(role, slots):
@@ -2597,11 +2639,23 @@ class SnapshotView(ttk.Frame):
                 # the best available man still gets the shirt.
                 picks = sorted((row for row in pool if row.get("name") not in taken),
                                key=lambda row, w=wanted, s=strikers: self.slot_cost(row, w, role, s))
+                if not picks and role != "P":
+                    # ...in every line but the goal: nobody adapts between the posts, so an empty keeper's
+                    # shirt is the honest drawing of a squad with no keeper.
+                    # The line's own men have run out, and a line of the module is still a line: Bayern's
+                    # 4-5-1 had four midfielders in the M lane and drew TEN men, calling it 4-4-1, while
+                    # its wingers and trequartisti sat outside the eleven. So the shirt goes to the rest
+                    # of the squad, cost first - `slot_cost` is a cost and never a veto for exactly this
+                    # reason: an adapted player is a truer drawing than an empty shirt.
+                    picks = sorted((row for row in eligible
+                                    if row.get("name") not in taken and can_lend(row, role)),
+                                   key=lambda row, w=wanted, s=strikers: self.slot_cost(row, w, role, s))
                 if not picks:
                     continue
                 starter, *bench = picks
                 strikers += 1 if "ST" in self.real_roles(starter) else 0
                 taken.add(starter.get("name"))
+                left[role] -= 1
                 out.append((role, starter, bench))
         # A rival is by definition NOT in the eleven - "Hojlund vs De Bruyne" with both starting counts a
         # team-mate's claim as competition for a place he is not competing for. Which men those are is
@@ -2892,7 +2946,17 @@ class SnapshotView(ttk.Frame):
         index = 1 if side is None or abs(side) < 0.34 else (0 if side < 0 else 2)
         real = cls.real_roles(row)
         if real:
-            return cls.BADGE_REAL[real[0]]
+            code = real[0]
+            named = REAL_ROLE_SIDE.get(code, 0.0)
+            # Where the eleven DREW him wins over the flank his own code names, and only for the label:
+            # the shirt has already been handed out, `slot_cost` charged him for the switch, and a
+            # left-sided man adapted to the right must not read 'Es' while standing on the right - Inter's
+            # 3-5-2 did exactly that, two 'Es' on the two flanks with Carlos Augusto at right wing-back.
+            # The role stays his (a full back does not become a winger); the FLANK belongs to the shirt.
+            if (drawn_side is not None and abs(drawn_side) >= 0.34 and abs(named) >= 0.34
+                    and (drawn_side < 0) != (named < 0)):
+                code = cls.MIRROR.get(code, code)
+            return cls.BADGE_REAL[code]
         roles = [part.strip().lower() for part in (row.get("roles_mantra") or "").split(";")
                  if part.strip()]
         for role in roles:
