@@ -101,10 +101,17 @@ def build_parser() -> argparse.ArgumentParser:
 
     # Today's auction snapshot: the sheet an initial auction is prepared from.
     p_snap = sub.add_parser("snapshot", help=load("snapshot").DESCRIPTION)
+    p_snap.add_argument("--league", metavar="NAME",
+                        help="a league you play in, as declared in config/league_config.json: it "
+                             "states the platform and the game, so those two are taken from it and "
+                             "its squad size fixes the replacement level (default: none, read the two "
+                             "dimensions straight)")
     p_snap.add_argument("--platform", choices=["euro", "default"], default="euro",
-                        help="euro = EuroLeghe, default = classic Serie A (default: euro)")
+                        help="euro = EuroLeghe, default = classic Serie A (default: euro). Ignored "
+                             "when --league is given")
     p_snap.add_argument("--game", choices=["classic", "mantra"], default="classic",
-                        help="role system the sheet is ranked in (default: classic)")
+                        help="role system the sheet is ranked in (default: classic). Ignored when "
+                             "--league is given")
     p_snap.add_argument("--season", metavar="YYYY-YY",
                         help="the season being auctioned (default: the latest listone)")
     p_snap.add_argument("--date", metavar="YYYY-MM-DD",
@@ -244,7 +251,7 @@ def main(argv: list[str] | None = None) -> int:
             elif args.command == "snapshot":
                 load("snapshot").run(ctx, season=args.season, platform=args.platform,
                                      game=args.game, refresh=args.refresh, out=args.out,
-                                     date=args.date, clubs=args.club)
+                                     date=args.date, clubs=args.club, league=args.league)
             elif args.command == "backtest":
                 load("backtest").run(ctx, windows=args.window, platforms=args.platform,
                                      games=args.game, rules=args.rules, cases=args.cases,

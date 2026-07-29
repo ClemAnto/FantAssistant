@@ -13,8 +13,13 @@ Monorepo for the **EuroLeghe fantacalcio prediction engine**. Two parts:
   (pruned SQLite + JSON tables + `manifest.json`), and the table list is DERIVED from what
   `engine/features.py` queries - a rule that reads a new table must be added to `export.CONTRACT`.
 - `config/` - shared configuration read by both the toolkit and the engine: `scoring_config.json`
-  (per-league scoring) and `league_config.json` (how many teams and squad slots a league has, which is
-  what fixes the auction's REPLACEMENT LEVEL - see below).
+  (per-CHAMPIONSHIP scoring: its `leagues` are serie_a, premier_league, ... - what a PLAYER belongs to)
+  and `league_config.json`, whose `my_leagues` are the leagues the operator PLAYS IN: one entry each,
+  declaring its `platform`, its `game` and how many teams and squad slots it has - which is what fixes
+  the auction's REPLACEMENT LEVEL (see below). The two senses of "league" are different dimensions and
+  the names must not be mixed up. A sheet is built PER LEAGUE (`snapshot --league NAME`), its manifest
+  records which one, and the folder name carries it - two leagues on the same platform and game have
+  different replacement levels, so a surplus quoted without its league is not comparable.
 - `docs/` - manifest of the Drive documents (source of truth). `data/` - local datasets (rebuildable).
 
 ## Language convention
@@ -153,6 +158,19 @@ fixed without provenance is not. The gate report carries all three (`platform`, 
 `notes["residual_baseline"]` per fit), so either copy them alongside the number or cite the report instead
 of the number. Two conclusions also turned out to be stated in the singular about a PLATFORM-dependent
 quantity, which `platform` being a first-class dimension should have prevented.
+
+## A share of a season is a share of the CHAMPIONSHIP
+**Numerator and denominator must be counted over the same competitions, and the one that matters is the
+club's own league.** The season aggregate (`external_stats`) stores one row per championship and nothing
+else, so every per-player numerator is league-only; the denominator used to be every eleven we parsed in
+any competition - Arsenal 58, Bayern 50, Napoli 38 (Serie A alone) - which is 66%-100% of the calendar
+depending on the club, so a titolarità could not be compared with the one next to it (Kane: 49% off 25
+starts in 34 rounds). Fixed 29/07/2026: `clubs.csv` carries `league_XIs`, and the correlation between a
+club's league share and its players' mean titolarità went from **+0.796 to −0.172**. Two corollaries worth
+keeping: a count from an external source arrives in ITS units (Transfermarkt counts absences over every
+competition, so they are counted as league rounds inside the union of the spells, never scaled), and
+`engine_pv_pred` lives on the PLATFORM's calendar (31 euro rounds, 38 default - in the manifest), which is
+not the club's. Details: spec «Novità v9.11».
 
 ## Comparing against the right null
 **A "does the event repeat?" statistic must be compared with the RESHUFFLED sequence, never with zero.**

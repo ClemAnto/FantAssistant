@@ -39,8 +39,9 @@ import io
 import json
 import os
 from pathlib import Path
+from typing import NamedTuple
 
-from euroleghe_ingest import matching
+from euroleghe_ingest import config, matching
 from euroleghe_ingest.context import Context
 from euroleghe_ingest.engine import evaluate, features
 from euroleghe_ingest.modules import positions
@@ -266,6 +267,22 @@ COMPETITION_CLASSES: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("cup", ("coppa", "cup", "copa", "pokal", "dfb", "efl", "carabao", "fa-", "coupe")),
     ("league", ()),        # the fallback: our own five leagues and every other domestic championship
 )
+
+# THE COMPETITIONS THAT MAKE UP A PLATFORM'S CALENDAR, and therefore the only ones a "share of the
+# season" may be measured over. They are the five championships themselves (`config.LEAGUES`), which is
+# also the value `external_match_stats.competition` / `club_match_lineups.competition` carry for a league
+# match - the cups and the continental rounds arrive with the provider's own slug ('uefa-champions-
+# league', 'coppa-italia', ...), so the set is exact and not a prefix match.
+#
+# Why it is a filter and not a detail: the season AGGREGATE (`external_stats`) stores one row per
+# championship and nothing else, so every numerator in this sheet - starts, appearances, minutes - is
+# already league-only. The DENOMINATOR was the club's whole fixture list, and the competition mix is
+# different for every club (Arsenal 58 elevens = 38 + 14 + 6, Bayern 50, Napoli 38 = Serie A alone).
+# A percentage of one and a percentage of the other are not the same quantity, so the shirts read
+# titolarità that could not be compared across clubs: Kane 25 starts of 34 Bundesliga rounds printed
+# 50%, and a European campaign was indistinguishable from a bench.
+LEAGUE_COMPETITIONS: tuple[str, ...] = config.LEAGUES
+_LEAGUE_IN = ",".join("?" * len(LEAGUE_COMPETITIONS))
 
 
 def competition_class(slug: str | None) -> str:
@@ -541,17 +558,124 @@ def club_form(conn, auction_date: str, observations, squads: dict[int, str],
     return out
 
 
-def injury_history(conn, auction_date: str, seasons: list[str]) -> dict[int, dict]:
+def _merged_spells(dates: list[tuple[str, str]]) -> list[tuple[str, str]]:
+    """The UNION of a player's absence intervals, so an overlap is one absence and not two.
+
+    This is also the answer to "does Transfermarkt count a relapse twice": counting the ROUNDS inside the
+    union cannot, whatever the source lists, because a round is counted once or not at all.
+    """
+    out: list[tuple[str, str]] = []
+    for start, end in sorted(dates):
+        if out and start <= out[-1][1]:
+            out[-1] = (out[-1][0], max(out[-1][1], end))
+        else:
+            out.append((start, end))
+    return out
+
+
+def rounds_missed(conn, auction_date: str, seasons: list[str]) -> dict[int, dict[str, int]]:
+    """Absences counted in the LEAGUE ROUNDS of his own club: {fc_id: {season: rounds}}.
+
+    The unit is what makes it usable. Transfermarkt says how many of the club's GAMES a spell cost him,
+    over every competition it played, and that number cannot be taken off a championship calendar or
+    divided by one: Bayern play 50 fixtures and 34 of them are Bundesliga rounds, and for the Italian
+    clubs our own parsed fixture list is the championship alone (38), so scaling by what we parsed
+    corrects the German and leaves the Italian untouched - 8 players of the euro sheet ended up with more
+    absences than their season had rounds. Here the rounds are COUNTED: his club's league fixtures, by
+    date, inside the union of his spells. No scaling, no ratio, and comparable between two clubs by
+    construction.
+
+    Which club's calendar: the one he appeared for that season where the per-match layer knows (the modal
+    club by appearances), the listone's otherwise - which is the case that matters, because a man injured
+    from August to May has no appearances at all. A season whose calendar we do not have (a club outside
+    the five leagues) is left out rather than counted as zero, and `seasons` in the result says how many
+    were really measured.
+    """
+    resolve = club_index(conn)
+    wanted = set(seasons)
+    fixtures: dict[tuple[str, str], list[str]] = {}
+    for club, season, date in conn.execute(
+            f"""SELECT club, season, match_date FROM club_match_lineups
+                WHERE competition IN ({_LEAGUE_IN}) AND match_date IS NOT NULL""",
+            LEAGUE_COMPETITIONS):
+        if season not in wanted:
+            continue
+        key, _name = resolve(club)
+        if key:
+            fixtures.setdefault((key, season), []).append(date)
+    # Where he was, season by season: appearances first (they are the fact), the listone as the fallback.
+    where: dict[tuple[int, str], str] = {}
+    for fc_id, season, club in conn.execute(
+            """SELECT r.fc_id, r.season, c.canonical_name FROM rosters r
+               JOIN clubs c ON c.fc_club_id = r.fc_club_id
+               WHERE c.canonical_name IS NOT NULL"""):
+        if season in wanted:
+            key, _name = resolve(club)
+            if key:
+                where[(fc_id, season)] = key
+    counts: dict[tuple[int, str], dict[str, int]] = {}
+    for fc_id, season, club, appearances in conn.execute(
+            """SELECT fc_id, season, club, COUNT(*) FROM external_match_stats
+               WHERE source = 'sofascore' AND COALESCE(minutes, 0) > 0 AND club IS NOT NULL
+               GROUP BY fc_id, season, club""", ()):
+        if season not in wanted:
+            continue
+        key, _name = resolve(club)
+        if key:
+            counts.setdefault((fc_id, season), {})[key] = appearances
+    for (fc_id, season), by_club in counts.items():
+        where[(fc_id, season)] = max(by_club, key=lambda club: by_club[club])
+
+    spells: dict[int, list[tuple[str, str]]] = {}
+    for fc_id, start, end in conn.execute(
+            "SELECT fc_id, start_date, COALESCE(end_date, ?) FROM injuries WHERE start_date <= ?",
+            (auction_date, auction_date)):
+        spells.setdefault(fc_id, []).append((start, min(end, auction_date)))
+    out: dict[int, dict[str, int]] = {}
+    for fc_id, mine in spells.items():
+        merged = _merged_spells(mine)
+        for season in seasons:
+            dates = fixtures.get((where.get((fc_id, season)) or "", season))
+            if not dates:
+                continue
+            out.setdefault(fc_id, {})[season] = sum(
+                1 for date in dates if any(start <= date <= end for start, end in merged))
+    return out
+
+
+def injury_history(conn, auction_date: str, seasons: list[str],
+                   measured: str | None = None) -> dict[int, dict]:
     """Absences per player: matches missed, weighted by recency, plus whatever is open right now.
 
     `matches_missed` and not days: days become matches only through the calendar, and the source
     already did that translation. A player with no rows is NOT a player with zero absences - he may
     simply have no Transfermarkt id, which is why `desc_injury_source` says which of the two it is.
+
+    Two numbers, and they answer different questions - which is why the sheet now carries both:
+
+    * `weighted` over three seasons = how much a man LIKE THIS misses in a season. A FORECAST, and the
+      only one of the two that belongs in an availability discount.
+    * `missed_measured` = what he actually missed inside the season the other layers measure. That is a
+      fact about a sample, and it is what the denominator of a start RATE needs: a man injured for two
+      months started fewer matches, and dividing by the whole calendar reads his absence as the coach
+      preferring someone else. Putting the three-season forecast there instead - which is what this sheet
+      did until the units were checked - makes the discount cancel almost exactly out of `presence`,
+      because the same estimate is subtracted and then multiplied back in.
+
+    Both of them come in two units, and the sheet carries both because they are not equally good. The
+    source's own count is over every competition the club played (`matches_missed`, `weighted`); the
+    ROUNDS versions (`rounds_measured`, `rounds_weighted`) are counted on his club's league fixtures by
+    date (`rounds_missed`), which is the unit every share in this sheet is expressed in - and the only one
+    that can be compared between two clubs. `rounds_seasons` says how many of the three seasons had a
+    calendar to count on: zero means the rounds are unknown, not zero, and the view falls back to scaling
+    the source's number.
     """
     known = {fc_id for (fc_id,) in conn.execute(
         "SELECT DISTINCT fc_id FROM player_xref WHERE source = 'transfermarkt'")}
     weights = {season: INJURY_WEIGHTS[index] for index, season in
                enumerate(reversed(seasons[-len(INJURY_WEIGHTS):]))}
+    rounds = rounds_missed(conn, auction_date,
+                           sorted({*weights, *([measured] if measured else [])}))
     out: dict[int, dict] = {}
     for fc_id, start, end, kind, days, missed in conn.execute(
             """SELECT fc_id, start_date, end_date, kind, days_out, matches_missed FROM injuries
@@ -559,12 +683,14 @@ def injury_history(conn, auction_date: str, seasons: list[str]) -> dict[int, dic
         season = f"{int(start[:4]) - (0 if start[5:7] >= '07' else 1)}-" \
                  f"{(int(start[:4]) + (1 if start[5:7] >= '07' else 0)) % 100:02d}"
         entry = out.setdefault(fc_id, {"spells": 0, "matches_missed": 0, "days_out": 0,
-                                       "weighted": 0.0, "worst_kind": None, "open": None,
-                                       "last_start": start})
+                                       "weighted": 0.0, "missed_measured": 0, "worst_kind": None,
+                                       "open": None, "last_start": start})
         entry["spells"] += 1
         entry["matches_missed"] += missed or 0
         entry["days_out"] += days or 0
         entry["weighted"] += (missed or 0) * weights.get(season, 0.0)
+        if measured and season == measured:
+            entry["missed_measured"] += missed or 0
         if (end is None or end >= auction_date) and entry["open"] is None:
             entry["open"] = f"{kind} since {start}"
         if entry["worst_kind"] is None or (days or 0) >= (entry.get("worst_days") or 0):
@@ -573,8 +699,21 @@ def injury_history(conn, auction_date: str, seasons: list[str]) -> dict[int, dic
         entry["weighted"] = round(entry["weighted"], 2)
         entry["source"] = "transfermarkt"
         del entry["worst_days"]
+        mine = rounds.get(fc_id, {})
+        # The same two numbers in ROUNDS of his own championship. A season we have no calendar for is
+        # absent from `mine` and therefore absent from both the sum and the weight: the average is over
+        # the seasons that were really measured, so a man with one missing season is not read as having
+        # been healthy in it.
+        counted = {season: weight for season, weight in weights.items() if season in mine}
+        entry["rounds_weighted"] = (
+            round(sum(mine[season] * weight for season, weight in counted.items())
+                  / sum(counted.values()) * sum(INJURY_WEIGHTS), 2) if counted else None)
+        entry["rounds_measured"] = mine.get(measured) if measured in mine else None
+        entry["rounds_seasons"] = len(counted)
     for fc_id in known - set(out):
         out[fc_id] = {"spells": 0, "matches_missed": 0, "days_out": 0, "weighted": 0.0,
+                      "missed_measured": 0, "rounds_weighted": 0.0, "rounds_measured": 0,
+                      "rounds_seasons": len(weights),
                       "worst_kind": None, "open": None, "last_start": None,
                       "source": "transfermarkt (no absence recorded)"}
     return out
@@ -649,7 +788,11 @@ def duels(observations, starters: dict[int, dict],
                       if other != fc_id
                       and abs(other_probability - probability) <= BALLOTTAGGIO_MARGIN
                       and mine & codes(other)]
-            out[fc_id] = {"rivals": len(rivals), "names": "; ".join(rivals[:3])}
+            # ALL of them, not the first three: `rivals` is an exact count, so a truncated name list
+            # made the two columns of the same fact disagree - 6 men of the 2026-27 euro sheet read
+            # "4 rivals" next to three names, with nothing saying which one was missing. Capping how
+            # many can be DRAWN is the pitch's business (`SnapshotView.rival_text`), not the data's.
+            out[fc_id] = {"rivals": len(rivals), "names": "; ".join(rivals)}
     return out
 
 
@@ -729,18 +872,27 @@ def propensity(conn, season: str, before: str | None = None) -> dict[int, dict]:
 
     `before` switches the source from the season AGGREGATE to the per-match layer bounded by that date,
     which is the only way to say "his rate so far" without reading matches that had not been played.
+
+    "FULL real season" means his whole CHAMPIONSHIP - all 38 rounds against the euro calendar's subset -
+    and not every competition he appeared in. The aggregate has always read it that way (`external_stats`
+    is one row per championship); the dated path counted the cups, so the same rate was measured over two
+    different samples depending on the day the sheet was built, and `minutes` could not be divided by a
+    league calendar. `LEAGUE_COMPETITIONS` is now the sample in both.
     """
-    query = ("""SELECT fc_id, SUM(COALESCE(minutes, 0)), SUM(COALESCE(goals, 0)),
-                       SUM(COALESCE(assists, 0)), SUM(COALESCE(xg, 0)), SUM(COALESCE(xa, 0))
-                FROM external_match_stats
-                WHERE season = ? AND source = 'sofascore' AND match_date IS NOT NULL
-                  AND match_date < ? GROUP BY fc_id""" if before else
-             """SELECT fc_id, SUM(COALESCE(minutes, 0)), SUM(COALESCE(goals, 0)),
-                       SUM(COALESCE(assists, 0)), SUM(COALESCE(xg, 0)), SUM(COALESCE(xa, 0))
-                FROM external_stats WHERE season = ? AND source = 'sofascore' GROUP BY fc_id""")
+    query = (f"""SELECT fc_id, SUM(COALESCE(minutes, 0)), SUM(COALESCE(goals, 0)),
+                        SUM(COALESCE(assists, 0)), SUM(COALESCE(xg, 0)), SUM(COALESCE(xa, 0))
+                 FROM external_match_stats
+                 WHERE season = ? AND source = 'sofascore' AND match_date IS NOT NULL
+                   AND match_date < ? AND competition IN ({_LEAGUE_IN}) GROUP BY fc_id""" if before
+             else
+             f"""SELECT fc_id, SUM(COALESCE(minutes, 0)), SUM(COALESCE(goals, 0)),
+                        SUM(COALESCE(assists, 0)), SUM(COALESCE(xg, 0)), SUM(COALESCE(xa, 0))
+                 FROM external_stats WHERE season = ? AND source = 'sofascore'
+                   AND competition IN ({_LEAGUE_IN}) GROUP BY fc_id""")
     out: dict[int, dict] = {}
     for fc_id, minutes, goals, assists, xg, xa in conn.execute(
-            query, (season, before) if before else (season,)):
+            query, ((season, before, *LEAGUE_COMPETITIONS) if before
+                    else (season, *LEAGUE_COMPETITIONS))):
         if not minutes:
             continue
         per90 = 90.0 / minutes
@@ -773,9 +925,45 @@ def lineup_spellings(conn, resolve) -> dict[str, list[str]]:
 PREVIOUS_COACH_WEIGHT = 0.25
 
 
+def league_repertoire(conn, season: str, before: str | None = None) -> dict[str, int]:
+    """{shape: complete elevens that used it} over EVERY club of the season - football's own repertoire.
+
+    A club's history says what its coach does; this says what a formation IS. It exists because the two
+    questions are different: a coach can try a shape he has never used - a new man, a summer arrival, an
+    opponent - and the board must be able to draw it, while still refusing to invent one. Measured on
+    2025-26: 4812 elevens over 11 distinct shapes, of which SEVEN are above 1% (4-5-1 36%, 3-4-3 22%,
+    3-5-2 13%, 4-3-3 12%, 4-4-2 10%, 5-3-2 3.3%, 5-4-1 2.5%) and the remaining four are two elevens each
+    (2-6-2, 4-2-4, 4-6-0) or twelve (3-6-1) - parsing tails, not modules. Whoever reads this applies the
+    floor; storing the counts keeps the judgement in the open.
+    """
+    rows = conn.execute(
+        """SELECT defenders, midfielders, forwards, COUNT(*) FROM club_match_lineups
+           WHERE season = ? AND starters = 11
+             AND goalkeepers + defenders + midfielders + forwards = 11
+             AND (? IS NULL OR (match_date IS NOT NULL AND match_date < ?))
+           GROUP BY 1, 2, 3 ORDER BY 4 DESC""", (season, before, before)).fetchall()
+    return {f"{defenders}-{midfielders}-{forwards}": count
+            for defenders, midfielders, forwards, count in rows}
+
+
+class Typical(NamedTuple):
+    """What the club's complete elevens say about its shape."""
+
+    shape: str | None
+    share: float | None
+    counted: int
+    basis: str
+    under_coach: int
+    # Every shape it actually fielded, with how many times: "3-4-3:27;4-5-1:8;4-3-3:3". The MODE alone
+    # cannot answer "what else does this side line up in", and that is the question a board has to answer
+    # when the modal shape asks for a player the squad has not got. Raw counts, not the coach weighting:
+    # the counts are the fact, and whoever reads them can see for himself how much is the predecessor's.
+    shapes: str
+
+
 def typical_formation(conn, spellings: list[str], season: str, coach_since: str | None = None,
-                      before: str | None = None) -> tuple[str | None, float | None, int, str]:
-    """The club's MODAL formation over its complete elevens: (shape, share, elevens, basis).
+                      before: str | None = None) -> Typical:
+    """The club's MODAL formation over its complete elevens, and the whole distribution with it.
 
     The mode, not the mean. A club that alternates 3-5-2 and 4-3-3 has a mean of 3.5 defenders, which is
     not a formation anyone can field; its mode is one of the two, and the share says how settled it is -
@@ -787,7 +975,7 @@ def typical_formation(conn, spellings: list[str], season: str, coach_since: str 
     38 elevens and "3-4-3" from four are not the same statement.
     """
     if not spellings:
-        return None, None, 0, "no lineups"
+        return Typical(None, None, 0, "no lineups", 0, "")
     placeholders = ",".join("?" * len(spellings))
     rows = conn.execute(
         f"""SELECT defenders, midfielders, forwards, match_date FROM club_match_lineups
@@ -796,8 +984,9 @@ def typical_formation(conn, spellings: list[str], season: str, coach_since: str 
               AND (? IS NULL OR (match_date IS NOT NULL AND match_date < ?))""",
         (*spellings, season, before, before)).fetchall()
     if not rows:
-        return None, None, 0, "no lineups"
+        return Typical(None, None, 0, "no lineups", 0, "")
     weights: dict[tuple[int, int, int], float] = {}
+    counts: dict[tuple[int, int, int], int] = {}
     under_coach = 0
     for defenders, midfielders, forwards, date in rows:
         his = bool(coach_since and date and date >= coach_since)
@@ -805,6 +994,7 @@ def typical_formation(conn, spellings: list[str], season: str, coach_since: str 
         weight = 1.0 if (his or not coach_since) else PREVIOUS_COACH_WEIGHT
         shape = (defenders, midfielders, forwards)
         weights[shape] = weights.get(shape, 0.0) + weight
+        counts[shape] = counts.get(shape, 0) + 1
     total = sum(weights.values())
     shape, weight = max(weights.items(), key=lambda item: item[1])
     if coach_since and not under_coach:
@@ -817,7 +1007,17 @@ def typical_formation(conn, spellings: list[str], season: str, coach_since: str 
         basis = f"{under_coach} of {len(rows)} XIs under this coach"
     else:
         basis = f"{len(rows)} XIs"
-    return ("-".join(str(part) for part in shape), round(weight / total, 2), len(rows), basis)
+    # `under_coach` is returned as a NUMBER as well as inside the sentence: whoever has to decide how much
+    # to trust this shape needs a value it can compare, and the Auction board does exactly that - a modal
+    # shape resting on 0 elevens of the current coach is a historical note, not a habit, and the board is
+    # allowed to draw a different one. Parsing the sentence back out would be reading our own prose.
+    spread = ";".join(f"{'-'.join(str(part) for part in key)}:{count}"
+                      for key, count in sorted(counts.items(), key=lambda item: -item[1]))
+    # No `coach_since` inside the sample means the man in charge PREDATES it, so every eleven is his -
+    # counting the rows that fall after a date that does not exist returned 0 and read as "this is his
+    # predecessor's shape" for Arteta, who has been at Arsenal since 2019.
+    return Typical("-".join(str(part) for part in shape), round(weight / total, 2), len(rows), basis,
+                   len(rows) if not coach_since else under_coach, spread)
 
 
 # The positional heatmap says WHERE across the pitch a player stood, but not which touchline y=0 is on.
@@ -866,15 +1066,23 @@ def titolarita(conn, season: str, before: str | None = None) -> dict[int, dict]:
     `before` reads the per-match layer up to that date instead of the season aggregate: on 1 March the
     habit is the one measured through February, and the aggregate would carry the rest of the season -
     matches that, from where the sheet is standing, have not been played.
+
+    LEAGUE matches only, in both paths. The aggregate has no choice - `external_stats` stores one row per
+    championship - and the dated path used to count the cups too, so the same column meant two different
+    things depending on when the sheet was built, and neither could be divided by a club's league
+    calendar. `desc_season_starts` is therefore always "starts in his championship".
     """
-    query = ("""SELECT fc_id, SUM(COALESCE(started, 0)), COUNT(*) FROM external_match_stats
-                WHERE season = ? AND source = 'sofascore' AND COALESCE(minutes, 0) > 0
-                  AND match_date IS NOT NULL AND match_date < ? GROUP BY fc_id""" if before else
-             """SELECT fc_id, SUM(COALESCE(starts, 0)), SUM(COALESCE(matches, 0))
-                FROM external_stats WHERE season = ? AND source = 'sofascore' GROUP BY fc_id""")
+    query = (f"""SELECT fc_id, SUM(COALESCE(started, 0)), COUNT(*) FROM external_match_stats
+                 WHERE season = ? AND source = 'sofascore' AND COALESCE(minutes, 0) > 0
+                   AND match_date IS NOT NULL AND match_date < ?
+                   AND competition IN ({_LEAGUE_IN}) GROUP BY fc_id""" if before else
+             f"""SELECT fc_id, SUM(COALESCE(starts, 0)), SUM(COALESCE(matches, 0))
+                 FROM external_stats WHERE season = ? AND source = 'sofascore'
+                   AND competition IN ({_LEAGUE_IN}) GROUP BY fc_id""")
     out: dict[int, dict] = {}
     for fc_id, starts, matches in conn.execute(
-            query, (season, before) if before else (season,)):
+            query, ((season, before, *LEAGUE_COMPETITIONS) if before
+                    else (season, *LEAGUE_COMPETITIONS))):
         if not matches:
             continue
         out[fc_id] = {"starts": starts, "matches": matches,
@@ -924,11 +1132,13 @@ def at_current_club(conn, season: str, observations, squads: dict[int, str],
     sent on loan is the club's own judgement of a player, and zeroing it would delete every summer
     signing from the eleven.
 
-    From the per-match layer, the only place that stores a club per appearance - so these are two halves
-    of what THAT layer measured, to be read as a share and never as a count to compare with the season
-    aggregate: the two disagree by a couple of matches, because the layer carries competitions the
-    aggregate does not. A player it has no row for is absent from the result, which leaves the columns
-    empty and his standing undiscounted: not knowing where he played is not knowing.
+    From the per-match layer, the only place that stores a club per appearance, and over the CHAMPIONSHIP
+    rounds only - the same sample as `titolarita` and `propensity`, so the three halves of one season can
+    be read against each other. Counting the cups here made `desc_minutes_club` and
+    `desc_minutes_full_season` two different numbers for the same season in the same row (Kane 2994
+    against 2382), and the share was taken over a sample whose size depended on how far his club went in
+    Europe. A player the layer has no row for is absent from the result, which leaves the columns empty
+    and his standing undiscounted: not knowing where he played is not knowing.
     """
     resolve = club_index(conn)
     # The club whose shirt he is competing for in THIS sheet - the same one the pitch draws him at.
@@ -937,16 +1147,19 @@ def at_current_club(conn, season: str, observations, squads: dict[int, str],
         key, _name = resolve(obs.club_target or squads.get(obs.fc_id))
         if key:
             now[obs.fc_id] = key
-    query = ("""SELECT fc_id, club, COALESCE(started, 0), COALESCE(minutes, 0)
-                FROM external_match_stats
-                WHERE season = ? AND source = 'sofascore' AND COALESCE(minutes, 0) > 0
-                  AND match_date IS NOT NULL AND match_date < ?""" if before else
-             """SELECT fc_id, club, COALESCE(started, 0), COALESCE(minutes, 0)
-                FROM external_match_stats
-                WHERE season = ? AND source = 'sofascore' AND COALESCE(minutes, 0) > 0""")
+    query = (f"""SELECT fc_id, club, COALESCE(started, 0), COALESCE(minutes, 0)
+                 FROM external_match_stats
+                 WHERE season = ? AND source = 'sofascore' AND COALESCE(minutes, 0) > 0
+                   AND competition IN ({_LEAGUE_IN})
+                   AND match_date IS NOT NULL AND match_date < ?""" if before else
+             f"""SELECT fc_id, club, COALESCE(started, 0), COALESCE(minutes, 0)
+                 FROM external_match_stats
+                 WHERE season = ? AND source = 'sofascore' AND COALESCE(minutes, 0) > 0
+                   AND competition IN ({_LEAGUE_IN})""")
     out: dict[int, dict] = {}
     for fc_id, club, started, minutes in conn.execute(
-            query, (season, before) if before else (season,)):
+            query, ((season, *LEAGUE_COMPETITIONS, before) if before
+                    else (season, *LEAGUE_COMPETITIONS))):
         if fc_id not in now:
             continue
         entry = out.setdefault(fc_id, {"starts": 0, "minutes": 0,
@@ -979,6 +1192,9 @@ def club_context(conn, data: features.WindowData, starters_date: str | None,
     elo = dict(conn.execute(
         "SELECT c.canonical_name, e.elo FROM club_elo e JOIN clubs c USING(fc_club_id) "
         "WHERE e.date = ?", (elo_date,))) if elo_date else {}
+    # Which championship each club plays in - the calendar its share-of-the-season denominators count.
+    championships = dict(conn.execute(
+        "SELECT canonical_name, league FROM clubs WHERE canonical_name IS NOT NULL"))
     out = []
     for club in clubs:
         coach = conn.execute(
@@ -989,19 +1205,22 @@ def club_context(conn, data: features.WindowData, starters_date: str | None,
         placeholders = ",".join("?" * len(mine)) or "NULL"
         season = measured or window.input_season
         lines = conn.execute(
-            f"""SELECT AVG(defenders), AVG(midfielders), AVG(forwards), COUNT(*)
+            f"""SELECT AVG(defenders), AVG(midfielders), AVG(forwards), COUNT(*),
+                       SUM(competition IN ({_LEAGUE_IN}))
                 FROM club_match_lineups
                 WHERE club IN ({placeholders}) AND season = ? AND starters = 11
                   AND goalkeepers + defenders + midfielders + forwards = 11
                   AND (? IS NULL OR (match_date IS NOT NULL AND match_date < ?))""",
-            (*mine, season, before, before)).fetchone()
+            (*LEAGUE_COMPETITIONS, *mine, season, before, before)).fetchone()
         # The coach's own start date, and only when he arrived after the sample began: an unchanged
         # coach needs no reweighting, the whole season is his.
         coach_since = coach[1] if coach and coach[1] else None
         if coach_since and coach_since <= f"{season.split('-')[0]}-07-01":
             coach_since = None
-        typical, share, counted, basis = typical_formation(
-            conn, mine, season, coach_since, before)
+        # NOT `measured`: that name is this function's own parameter, the season the layers are measured
+        # on, and shadowing it fed a NamedTuple to the next query as a season.
+        shapes = typical_formation(conn, mine, season, coach_since, before)
+        typical, share, counted, basis = shapes.shape, shapes.share, shapes.counted, shapes.basis
         arrivals = conn.execute(
             """SELECT COUNT(*) FROM arrivals a JOIN rosters r
                ON r.fc_id = a.fc_id AND r.season = a.season
@@ -1027,6 +1246,14 @@ def club_context(conn, data: features.WindowData, starters_date: str | None,
             "formation_typical_share": share,
             "formation_typical_of": counted,
             "formation_typical_basis": basis,
+            # How many of those elevens are the CURRENT coach's. Zero means the modal shape belongs to a
+            # side that no longer exists, which is what lets a reader (and the Auction board) decide how
+            # much of a habit it is instead of taking a percentage at face value.
+            "formation_typical_under_coach": shapes.under_coach,
+            # And every shape it fielded, with counts. The board draws one of THESE when the modal shape
+            # asks for a player the squad has not got - a formation nobody lined up in is not an
+            # alternative, it is an invention.
+            "formation_shapes": shapes.shapes,
             # "Absolutely preferred" is a measured thing: a shape used in most of the elevens is the
             # coach's, one used in a third of them is a coach still choosing - and the two must not be
             # presented the same way.
@@ -1038,7 +1265,17 @@ def club_context(conn, data: features.WindowData, starters_date: str | None,
             "lines_fielded_D": round(lines[0], 2) if lines and lines[0] is not None else None,
             "lines_fielded_M": round(lines[1], 2) if lines and lines[1] is not None else None,
             "lines_fielded_F": round(lines[2], 2) if lines and lines[2] is not None else None,
+            # Every complete eleven we parsed, whatever the competition: the sample the lines above are
+            # averaged over, and the fixture list Transfermarkt counts a man's absences against.
             "complete_XIs": lines[3] if lines else 0,
+            # ...and how many of those are the CHAMPIONSHIP's. This is the denominator of a share of the
+            # season: the platform's calendar is made of league rounds, the numerators are league-only
+            # (`external_stats` stores nothing else), and the club-to-club spread of the other number is
+            # 66%-100% (Arsenal 38 of 58, Napoli 38 of 38). A titolarità divided by the whole fixture
+            # list is not comparable between two clubs, which is what made Kane read 49%.
+            "league_XIs": lines[4] if lines and lines[4] is not None else 0,
+            # The championship those rounds belong to, so the sheet says which calendar it counted.
+            "league": championships.get(club),
             "arrivals": arrivals,
             "elo": round(elo[club], 1) if club in elo else None,
         })
@@ -1123,6 +1360,14 @@ PLAYER_COLUMNS: tuple[str, ...] = (
     "desc_minutes_club", "desc_minutes_elsewhere", "desc_at_club_before",
     "desc_duel_rivals", "desc_duel_names",
     "desc_injury_matches_missed", "desc_injury_weighted", "desc_injury_spells",
+    # What he missed INSIDE the measured season, which is the only one of the injury numbers that is a
+    # fact about this sample rather than a forecast: `desc_season_starts` are the starts he made while
+    # absent for these, so it is what a start rate has to leave out of its denominator.
+    "desc_injury_missed_measured",
+    # ...and the same two in ROUNDS of his own championship, counted on his club's fixtures by date
+    # instead of taken from a source that counts every competition. This is the unit the shares in this
+    # sheet are expressed in; `desc_injury_rounds_seasons` = 0 means unknown, never zero.
+    "desc_injury_rounds_weighted", "desc_injury_rounds_measured", "desc_injury_rounds_seasons",
     "desc_injury_worst_kind", "desc_injury_open", "desc_injury_source",
     "desc_availability_now",
     "desc_goals_p90", "desc_assists_p90", "desc_xg_p90", "desc_xa_p90", "desc_minutes_full_season",
@@ -1255,6 +1500,10 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             "desc_duel_rivals": duel.get("rivals"), "desc_duel_names": duel.get("names"),
             "desc_injury_matches_missed": injury.get("matches_missed"),
             "desc_injury_weighted": injury.get("weighted"),
+            "desc_injury_missed_measured": injury.get("missed_measured"),
+            "desc_injury_rounds_weighted": injury.get("rounds_weighted"),
+            "desc_injury_rounds_measured": injury.get("rounds_measured"),
+            "desc_injury_rounds_seasons": injury.get("rounds_seasons"),
             "desc_injury_spells": injury.get("spells"),
             "desc_injury_worst_kind": injury.get("worst_kind"),
             "desc_injury_open": injury.get("open"),
@@ -1361,8 +1610,15 @@ def refresh_real_roles(ctx: Context, clubs, date: str) -> str | None:
 
 def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
         game: str = "classic", refresh: bool = True, out: str | None = None,
-        date: str | None = None, clubs=None, **kwargs) -> dict:
+        date: str | None = None, clubs=None, league: str | None = None, **kwargs) -> dict:
     """Build the auction snapshot. Read-only on the DB except for the editorial refresh.
+
+    `league` names one of the leagues declared in `config/league_config.json`, and it is the whole
+    parameterisation of a sheet: a played league STATES its platform and its game, so naming it fixes
+    both, and its squad size fixes the replacement level surplus is measured against. Given a league,
+    `platform` and `game` come from it and the arguments are ignored - one name cannot mean two sheets.
+    Without one, the two dimensions are read straight and the league setup is whatever the config file
+    states at top level, which is what this module did before leagues had names.
 
     `date` stands the whole sheet on a chosen DAY: the last ten matches are the ten before it, the squads
     and the availability are the ones known then, and the descriptive layers are measured on the season so
@@ -1375,6 +1631,13 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
     would print - only the rows are fewer.
     """
     conn = ctx.require_conn()
+    # The league is resolved FIRST, because it is what decides the other two. `load_league` raises on a
+    # name that is not declared: silently falling back would hand this sheet another league's
+    # replacement level, which is a wrong sort order with nothing on screen to show it.
+    setup = (ctx.config.load_league(league) if league
+             else ctx.config.load_league(platform=platform, game=game))
+    if league:
+        platform, game = setup["platform"], setup["game"]
     if platform not in ("euro", "default"):
         raise RuntimeError(f"Unknown platform {platform!r}; choose euro|default")
     if game not in ("classic", "mantra"):
@@ -1398,7 +1661,8 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
     window, note = resolve_window(conn, season, as_of=date)
     if note:
         notes.append(note)
-    print(f"[snapshot] {platform}/{game} · auctioning {window.target_season} from "
+    print(f"[snapshot] {setup['name'] or f'{platform}/{game}'} ({platform}/{game}, "
+          f"{setup['teams']} teams) · auctioning {window.target_season} from "
           f"{window.input_season} · as of {window.auction_date}")
 
     # The real squads first: the row set of the sheet is who is in a club TODAY, listone or not.
@@ -1412,7 +1676,7 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
             window.auction_date)
         if failure:
             notes.append(failure)
-    data = features.prepare(conn, window, platform, game, league=ctx.config.load_league(),
+    data = features.prepare(conn, window, platform, game, league=setup,
                             squad_source="real")
     if not data.matchdays_target:
         # Not a note only: appearances are predicted as a SHARE of the target calendar, and a calendar
@@ -1422,7 +1686,7 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
         notes.append(f"{window.target_season} has no matchdays yet, so expected appearances are "
                      f"scaled on {window.input_season}'s calendar ({data.matchdays_prev} rounds)")
     data, predictions, params_source, engine_notes = engine_predictions(
-        conn, window, platform, game, ctx.config.load_league(), prepared=data)
+        conn, window, platform, game, setup, prepared=data)
     notes += engine_notes
     if not data.observations:
         raise RuntimeError(f"no players in the {window.target_season} listone for platform "
@@ -1446,7 +1710,7 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
     layers = {
         "form": club_form(conn, window.auction_date, data.observations, squads),
         "squads": squads, "squad_sources": squad_sources,
-        "injuries": injury_history(conn, window.auction_date, seasons),
+        "injuries": injury_history(conn, window.auction_date, seasons, measured),
         "starters": starters,
         "availability": availability_now(conn, window.auction_date),
         "propensity": propensity(conn, measured, before),
@@ -1531,12 +1795,16 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
                             measured, before)
 
     # The folder carries the day the sheet STANDS ON, plus the club when it is one club: a back-dated
-    # run must not overwrite today's, and two dates are two different sheets.
+    # run must not overwrite today's, and two dates are two different sheets. And the LEAGUE, because two
+    # leagues can be played on the same platform and game with different squad sizes: without the name
+    # the second sheet would silently overwrite the first one, whose numbers are measured against another
+    # replacement level.
     stamp = date or dt.datetime.now(tz=dt.UTC).date().isoformat()
     only = f"-{matching.club_key(clubs[0]).replace(' ', '')}" if clubs and len(clubs) == 1 else ""
+    named = f"-{matching.club_key(setup['name']).replace(' ', '')}" if setup["name"] else ""
     folder = Path(out) if out else (
         ctx.config.data_dir / "reports" /
-        f"auction-snapshot-{window.target_season}-{platform}-{game}{only}-{stamp}")
+        f"auction-snapshot-{window.target_season}-{platform}-{game}{named}{only}-{stamp}")
     folder.mkdir(parents=True, exist_ok=True)
     _write_csv(folder / "players.csv", PLAYER_COLUMNS, rows)
     _write_csv(folder / "clubs.csv", list(club_rows[0]) if club_rows else ["club"], club_rows)
@@ -1549,6 +1817,34 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
         "target_season": window.target_season, "input_season": window.input_season,
         "auction_date": window.auction_date,
         "players": len(rows), "clubs": len(club_rows),
+        # WHICH LEAGUE this sheet is for. Without it a reader cannot know what the surplus column is
+        # measured against: the replacement level is the fantamedia of the marginal rostered player, so
+        # it changes with the squad size, and two leagues on the same platform and game produce two
+        # different sort orders from the same predictions. `declared: false` = not one of the operator's
+        # leagues, i.e. platform and game were read straight and these are the config file's top-level
+        # numbers.
+        "league": {
+            "name": setup["name"] or None,
+            "declared": setup.get("declared", True),
+            "teams": setup["teams"], "squad_slots": dict(setup["squad_slots"]),
+            "mantra_slots": dict(setup["mantra_slots"]) or None,
+            "reliability_exponent": setup["reliability_exponent"],
+            "min_availability": setup["min_availability"],
+            "_note": "The league the sheet was built for, from config/league_config.json. It fixes the "
+                     "REPLACEMENT LEVEL that engine_surplus is measured against - a number quoted "
+                     "without it is not comparable with another league's.",
+        },
+        # The two CALENDARS, because a share of a season needs to say which one, and they are not the
+        # same length: the platform's (31 euro rounds in 2025-26, 38 on default) is what engine_pv_pred
+        # counts appearances on, while the descriptive shares are a share of the CLUB's championship
+        # (clubs.csv `league_XIs`: 38 rounds in Serie A, 34 in the Bundesliga). Reading pv_pred against a
+        # club's fixture list printed 53% for a man expected in 26.6 of 31 rounds.
+        "matchdays": {
+            "platform_target": data.matchdays_target,
+            "platform_input": data.matchdays_prev,
+            "_note": "engine_pv_pred is expressed on platform_target. The desc_* shares are shares of "
+                     "the club's own championship calendar, which is clubs.csv `league_XIs`.",
+        },
         "engine": {
             "rules": ["R0", *evaluate.ADOPTED.get(platform, ())],
             "params_from": params_source,
@@ -1584,6 +1880,10 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
                                     "that will never exist. It is stored dated in `player_roles` and "
                                     "read here as of the auction date.",
         },
+        # What a formation IS, as opposed to what each coach does: every shape the season's complete
+        # elevens used, league-wide, with counts. The board offers a club a shape it has never fielded
+        # only if football plays it - a coach can try something new, and still not something invented.
+        "formation_repertoire": league_repertoire(conn, measured, before),
         "formation_note": ("The lines are counted in the PROVIDER's vocabulary, where a winger is a "
                            "midfielder: a 4-3-3 with two wingers therefore reads 4-5-1. Measured "
                            "translation, provider slot -> listone role: G->P 100%, D->D 97%, M->C 80%, "

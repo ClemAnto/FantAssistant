@@ -1,5 +1,5 @@
 # Spec — Toolkit `euroleghe-ingest` v9 (task 1.0 della roadmap)
-**Aggiornata: 29 luglio 2026 (v9.9 — prestito vs acquisto, lo slot sa la sua linea; v9 SOSTITUISCE la v8)** · Python · Output: SQLite `euroleghe.db` + CSV normalizzati
+**Aggiornata: 29 luglio 2026 (v9.11 — il denominatore di una quota è il campionato; v9 SOSTITUISCE la v8)** · Python · Output: SQLite `euroleghe.db` + CSV normalizzati
 *Sigle: fc_id = identificativo fantacalcio.it · FM = fantamedia · Mv = media voto · Pv = partite a voto · xref = cross-reference id tra siti · xG/xA = expected goals/assists · manifest = lista file da recuperare.*
 **Convenzione: identificatori sempre in INGLESE** (tabelle, colonne, moduli, variabili); italiano solo nella documentazione.
 
@@ -294,7 +294,8 @@ devono significare la stessa cosa nei due temi.
 
 Un tasto e un comando: `snapshot` prepara, **alla data di oggi**, tutto quello che serve per costruire
 il piano d'azione di un'asta iniziale. Dopo aver scelto **piattaforma** (euro|default) e **game**
-(classic|mantra), scrive `data/reports/auction-snapshot-{stagione}-{piattaforma}-{game}-{data}/` con
+(classic|mantra) — **da v9.10 li dichiara la LEGA e si sceglie quella** — scrive
+`data/reports/auction-snapshot-{stagione}-{piattaforma}-{game}[-{lega}][-{club}]-{data}/` con
 `players.csv`, `clubs.csv` e `manifest.json`. Misurato al primo giro: **1453 giocatori, 46 club**.
 
 ### La regola che questo modulo rispetta, ed è visibile nell'header del CSV
@@ -492,6 +493,266 @@ ruolo**, **8% disgiunti** — e le disgiunte sono quasi tutte `a` del listone co
 visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**. Riscontri esatti:
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
+
+## Novità v9.11 (29 luglio 2026 — la quota di una stagione si conta sul CAMPIONATO)
+
+Il punto 2 della lista «cosa manca», che la v9.10 §8 lasciava aperto dichiarandolo tale: cambia ogni
+percentuale su ogni maglia, quindi andava fatto di proposito e non dentro una feature di colore.
+
+### 1. Il difetto, e perché era invisibile sui club italiani
+I numeratori sono **sempre** di campionato: `external_stats` ha una riga per campionato e nient'altro
+(verificato su tutte e 11 le stagioni: solo `serie_a`, `premier_league`, `la_liga`, `bundesliga`,
+`ligue_1`). Il denominatore era `complete_XIs`, gli undici parsati in QUALSIASI competizione: Arsenal 58
+(38 + 14 Champions + 6 coppe), Bayern 50 (34 + 12 + 4), **Napoli 38 = solo Serie A**. Sui 45 club del
+perimetro la quota di campionato va da **66% a 100%**, quindi una titolarità non era confrontabile con
+quella accanto: Kane leggeva **49%** con 25 titolarità su 34 giornate di Bundesliga.
+Il bias, misurato: correlazione fra la quota di campionato di un club e la titolarità media dei suoi
+giocatori **+0.796 prima, −0.172 dopo**. Il residuo negativo non è l'artefatto che resta: le rose più
+profonde sono proprio quelle che giocano le coppe.
+
+### 2. Tre correzioni di unità, non una
+- `clubs.csv` porta **`league_XIs`** accanto a `complete_XIs`, più `league` (il campionato del club).
+  `club_matches()` usa il primo — le giornate del campionato; `complete_XIs` resta perché è il calendario
+  su cui una fonte esterna conta le assenze, e serve al fallback.
+- **`titolarita`, `propensity` e `at_current_club` filtrano le competizioni di lega in ENTRAMBI i
+  percorsi.** Il percorso datato (`--date` a stagione in corso) contava le coppe mentre l'aggregato no: la
+  stessa colonna significava due cose diverse a seconda del giorno in cui il foglio veniva costruito, e
+  nella stessa riga di Kane `desc_minutes_club` diceva 2994 e `desc_minutes_full_season` 2382.
+- La colonna **`%` delle presenze previste** va sul calendario della **piattaforma** (31 giornate euro nel
+  25/26, 38 su default), che è quello su cui `engine_pv_pred` è espresso; il manifest lo dichiara
+  (`matchdays.platform_target`). Letta contro le 50 partite del Bayern, una previsione di 26,6 presenze su
+  31 stampava 53%.
+
+### 3. Le assenze si CONTANO in giornate, non si convertono
+Transfermarkt conta le partite saltate su ogni competizione, e quel numero non si può né sottrarre da un
+calendario di campionato né dividere per esso. Scalarlo con la quota di lega di ciò che abbiamo parsato
+corregge i tedeschi e **lascia intatti gli italiani** (per loro il layer per-partita copre solo la Serie A,
+quindi 38/38 = nessuno sconto): 8 giocatori del foglio euro finivano con più assenze che giornate.
+Quindi **`rounds_missed()`**: le giornate di campionato del suo club, per data, dentro l'**unione** dei
+suoi spell. Nessuna scala, nessun rapporto, confrontabile fra due club per costruzione. Coperti **868 su
+907**; i 39 restanti sono stagioni in club fuori dai 5 campionati e `desc_injury_rounds_seasons = 0` dice
+«ignoto, non zero» (lì si ripiega sullo scaling, dichiarandolo).
+**E questo risponde alla domanda pre-registrata su Transfermarkt** (gate §7-bis, «verificare che una
+ricaduta non sia contata due volte»): contare le giornate dentro l'UNIONE non può contarne una due volte,
+qualunque cosa elenchi la fonte. Misura: TM 6489 partite contro **4485 giornate contate = 69%**, e sui club
+il cui elenco parsato COINCIDE col campionato — gli italiani, dove lo scaling sarebbe 100% — 1465 contro
+1079 = **74% ≈ 38/50**, cioè esattamente le coppe e l'Europa che non parsiamo. **Nessuna evidenza di
+duplicazione.**
+
+### 4. Il tasso e lo sconto erano lo stesso numero, e si annullavano
+`contested`, il denominatore del tasso di titolarità, usava la **previsione a tre stagioni** — la stessa
+che `availability` poi moltiplica. Sottrarre e rimoltiplicare la stessa stima **si annulla** quasi
+esattamente in `presence`: la storia infortuni era decorativa e funzionava solo attraverso i clamp. Ora
+sono due quantità diverse, come devono essere:
+- `contested` = giornate del campionato − **`desc_injury_rounds_measured`**, quello che ha davvero saltato
+  nella stagione misurata → un fatto sul CAMPIONE;
+- `availability` = 1 − (**`rounds_weighted`**/3 stagioni) ÷ giornate → una PREVISIONE.
+
+Esito: giocatori appiattiti sul pavimento `AVAILABILITY_FLOOR` **da 201 su 907 a 9**, `contested` che
+collassava alla guardia 1.0 da 14 a 2, **zero** presenze oltre il 100%. Il 201 era il difetto vero:
+`availability` divideva per le **presenze del giocatore stesso**, che si accorciano proprio quando è
+infortunato (Rrahmani 24,1 assenze su 21 presenze = «1 − 115%»), quindi un terzo del foglio veniva
+schiacciato sul pavimento da un denominatore sbagliato e non da una storia clinica.
+
+Casi: Kane 49→**75%**, Haaland 61→**82%**, Saka 28→**62%**, Rrahmani 33→**71%**, Lamine Yamal 41→**77%**,
+Van Dijk 76→**100%**. Chi scende è chi era tenuto in piedi dai clamp: Ouedraogo −13%, Teze −10%,
+Militao −8%.
+
+⚠️ La FORMA di `contested` (assenze misurate, non previste) è una scelta di **modello**: la possiede il
+gate, insieme a `INJURY_WEIGHTS` e `AVAILABILITY_FLOOR` — vedi §7-bis e lo sweep. Quello che è cambiato qui
+sono le **unità**, che non sono un'opinione.
+
+**251 test verdi, ruff pulito.** Tre fogli rigenerati.
+
+## Novità v9.10 (29 luglio 2026, notte — la LEGA come parametro del foglio, e la barra a due assi)
+
+Richiesta dell'utente: semplificare l'azione BUILD e la selezione dello snapshot. Chiedendo «servono altro
+che *quali squadre* e *quando*?» è venuto fuori che gli assi non erano quelli, e la misura lo dice.
+
+### 1. «Quali squadre» non è un asse: lo è «quali partite contano»
+euro e default condividono **9 club** (34 contro 20), e per i **265 giocatori** di quei 9 club **tutte** le
+colonne engine cambiano fra i due fogli dello stesso giorno: Dimarco è `fm 6.789 / pv 24.7 / surplus 19.8`
+su euro e `6.836 / 30.0 / 30.7` su default. Il perimetro di club è una *conseguenza* della piattaforma, non
+la sua definizione. E `game` non è una valuta di visualizzazione: su euro 2026-27, **904 surplus su 916** e
+**897 rank su 916** cambiano fra classic e mantra (ancora frazionaria sui ruoli Mantra, `roster_depth` nel
+vocabolario del game, `BETA[game]`). Due dimensioni vere, nessuna delle due eliminabile.
+
+### 2. Le tre cose che decidono i numeri sono ciò che una LEGA è
+`platform` + `game` + (`teams` x `squad_slots`) — la terza fissa il livello di sostituzione, cioè **lo zero
+del surplus**. Erano tre manopole libere del run, mentre sono proprietà della lega in cui si gioca. Quindi
+`config/league_config.json` ha ora **`my_leagues`**: una voce per lega giocata, che dichiara i suoi due assi
+ed **eredita** dai valori top-level tutto quello che non nomina (una lega che tessera come le altre scrive
+solo platform e game). Un file **senza** la chiave si legge come UNA lega chiamata `default`: la forma
+precedente continua a funzionare senza toccarla.
+⚠️ Attenzione al nome: le `leagues` di `scoring_config.json` sono i **campionati** (serie_a, premier_league,
+…), a cui appartiene un GIOCATORE e che hanno il loro bonus/malus. `my_leagues` sono le leghe dell'utente, e
+si costruisce **un foglio per lega**. Un foglio euro contiene giocatori di 5 campionati con 5 regolamenti
+diversi: è esattamente per questo che il punteggio sta per campionato e non può essere una scelta del foglio.
+Il buco che questo chiude: `snapshot` passava `load_league()` qualunque fosse il game, quindi un foglio
+euro/mantra poteva essere calcolato con le caselle di una lega di Serie A classic **senza che nulla lo
+dicesse** — un ordinamento sbagliato invisibile, perché le colonne si riempiono comunque.
+
+### 3. Provenienza: un foglio dice per quale lega è stato costruito
+`manifest.json` porta un blocco **`league`** (nome, `declared`, teams, squad_slots, mantra_slots, esponente,
+soglia) e la cartella porta lo **slug della lega**: `auction-snapshot-{stagione}-{piattaforma}-{game}
+[-{lega}][-{club}]-{data}`. Senza lo slug due leghe sullo stesso platform+game si sovrascriverebbero a
+vicenda pur avendo replacement level diversi. `declared: false` = combinazione che nessuno gioca (il gate
+spazza tutt'e quattro): leggibile, ma non spacciata per una lega.
+CLI: **`--league NOME`**, che è autorevole — dichiara platform e game, e i due argomenti vengono ignorati,
+perché un nome non può significare due fogli. `load_league(nome)` **solleva** su un nome non dichiarato: un
+typo che ripiegasse in silenzio darebbe a questo foglio il livello di sostituzione di un'altra lega.
+
+### 4. La barra dello Snapshot: due assi, e Build non chiede più niente
+`[Lega ▾] [Quando ▾] [Build] [...] [Delete] [Reload]`. **Build parte subito** con la lega della barra, oggi,
+con refresh — nessuna modale, che era la richiesta; `...` apre il dialogo di prima per i casi rari (data
+passata, un solo club, season forzata, refresh off) e vi mostra la precedenza invece di nasconderla: scelta
+una lega, i selettori platform/game si **disabilitano**. Altri difetti corretti perché li ha rivelati la
+riscrittura:
+- il combobox elencava i nomi grezzi delle cartelle **ordinati per nome**, quindi all'apertura selezionava
+  il massimo lessicografico (un foglio *mantra*) e non l'ultimo costruito. Ora l'etichetta è leggibile
+  (`29/07/2026 · 2026-27 (latest)`, `01/03/2026 · 2025-26 · Napoli only`) e si apre sull'ultimo **costruito**;
+  due fogli dello stesso giorno portano l'ora (`[built 06:59]`), altrimenti sarebbero indistinguibili.
+- la lista mostra gli ultimi 8 per lega con «show all», e i fogli **pre-manifest** (senza blocco `league`)
+  vengono archiviati sotto la lega giocata su quel platform+game — corretto, non indovinato: i loro numeri
+  vengono dalla stessa configurazione top-level che una lega dichiarata eredita. La nota lo dice comunque
+  («this sheet does not state its league»).
+- **Delete** cancella un foglio, solo a mano e con conferma che ne nomina cartella, peso e ora di
+  costruzione, con guard su `data/reports/` e sul prefisso (è una `rmtree`). Nessun auto-prune: un foglio è
+  il **verbale** di cosa diceva il motore quel giorno (`generated_at`, `rules`, `params_from`), e
+  ricostruire la stessa data dopo un rifit dà numeri diversi — legittimamente. Lo spazio non è comunque il
+  problema: **868 KB** un foglio euro, 516 default, 37 KB uno per singolo club.
+- la progressbar faceva `pack`/`pack_forget` e spostava tutto ciò che le stava a destra: ora vive in uno
+  slot a larghezza fissa, con la riga di stato a larghezza fissa in caratteri.
+- il pannello **Auction** leggeva `load_league()` (la prima lega) per qualunque platform/game: ora risolve
+  per platform+game e la didascalia **nomina** la lega di cui sta mostrando il livello di sostituzione.
+
+### 5. Gestione delle leghe dal pannello
+`Lega > Manage leagues...`: una riga per lega (nome, platform, game, teams, P/D/C/A), tutto visibile insieme
+— senza stato di selezione, così non si digita in un campo che poi appartiene alla riga da cui ti sei
+spostato. Salva riscrivendo **solo** `my_leagues`: i blocchi `_comment`/`_note` del file sono parte della
+knowledge base e restano dove sono, e un valore uguale al default del file resta **ereditato** invece di
+essere copiato in ogni voce. Il dialogo avverte che il file è tracciato da git e la repo è pubblica, quindi
+il nome di una lega si pubblica col commit successivo.
+
+### 6. Più di un ballottaggio sul campetto (richiesta dell'utente)
+Il dato portava già due rivali per maglia, **il disegno ne mostrava uno** («One rival is named, not two»).
+Misura su euro 2026-27, 34 club x 2 modi = 602 targhette: **317 maglie hanno più di un rivale** e prima
+nessuna lo diceva. Ora la targhetta mostra **tutti i nomi, tagliati alla stessa lunghezza** finché ne
+sopravvivono almeno 5 caratteri (`vs Calaf/Mosqu`, `vs Nwaneri · Dowman`), altrimenti il primo nome e il
+**conteggio** degli altri (`vs Nwane +1`): 176 targhette con tutti i nomi, 141 con nome+conteggio, **0 che
+nascondono un rivale**. Il vincolo è orizzontale e resta: una maglia possiede al massimo 150 px.
+- **Recuperato un quinto della larghezza**: il budget della riga rivali era calcolato con la costante del
+  font **grassetto** del nome (7.2 px/carattere) mentre quella riga usa il font piccolo. Ora la larghezza
+  del carattere è **misurata** (`char_width`, 6.67 px) invece che assunta → le targhette con tutti i nomi
+  passano da 81 a 176.
+- **Click sulla maglia = il ballottaggio completo** (stesso idioma della striscia TREND): ogni rivale con
+  la sua quota di giornate e i suoi ruoli reali, più il ballottaggio **dichiarato** dai probabili accanto a
+  quello **posizionale** che deduciamo noi — mai fusi. E soprattutto **rende conto dei nomi dichiarati che
+  la maglia non offre**, con il motivo verificabile: su tutte le maglie di tutti i club, **208** casi sono
+  «in the XI» (un rivale per definizione non è in campo: il terzo uomo di De Roon è titolare altrove) e 10
+  «drawn in <linea>». Zero casi senza spiegazione. Senza questo, «dichiarato con tre» sopra una tabella di
+  due righe si legge come una contraddizione.
+- **Due difetti trovati misurando, non rileggendo.** `duels()` scriveva `names: "; ".join(rivals[:3])`
+  mentre `rivals` è un conteggio esatto: 6 uomini del foglio euro leggevano «4 rivali» accanto a tre nomi,
+  senza che nulla dicesse quale mancava. Il tetto era del DATO e non ci va — quanti se ne possono DISEGNARE
+  è affare del campetto. E, introdotto da me in questa stessa sessione: l'attributo `self._declared` (le
+  leghe dichiarate) **oscurava il metodo** `_declared` (l'undici dichiarato), quindi ogni undici «prossima
+  giornata» sollevava `TypeError` mentre lo «schieramento tipo» continuava a funzionare. Rinominato
+  `_my_leagues`, con un test che chiama `eleven(..., 'next')` perché nessuno lo faceva.
+
+### 7. Ballottaggi impilati, e il modulo tipo che vira quando i ruoli non ci sono
+Richiesta dell'utente, con un'osservazione che era un difetto vero: «nel Napoli come esterno destro di
+centrocampo c'è solo Mazzocchi con una bassa %, è più probabile un 4-3-3». Riprodotto: col 3-4-3 misurato
+(che il foglio stesso dice essere **del predecessore**, 0 XI su 38 con Allegri) il centrocampo a quattro
+chiedeva un esterno destro e lo dava a **Mazzocchi al 5%**.
+
+- **La targhetta impila i rivali**, uno per riga, ordinati per titolarità decrescente e con la loro
+  percentuale accanto — un ballottaggio è una *classifica* e una classifica ha bisogno del numero. Massimo
+  due, e non per gusto: è un budget VERTICALE (una riga ~13px, una targhetta sta fra due linee distanti
+  ~94px, e una corsia affollata alterna le targhette sopra e sotto i marker). `plate_rivals_for` lo
+  **deriva** dalla geometria invece di tararlo sui dati di oggi; il resto è contato (`+1`) e nominato nel
+  **tooltip** della maglia. Verificato su 34 club x 2 modi: **0 sovrapposizioni, 0 targhette fuori dal
+  campo, 0 righe su 1687 che escono dalla propria targhetta**, e il margine verticale peggiore passa da
+  **1px a 9px** (banda delle linee allargata, più il clamp verticale che mancava).
+- **Larghezze misurate, non assunte**: la costante 7.2 px/carattere era del grassetto; il font piccolo
+  misura **6.67** e il grassetto **7.75**. Ogni riga ora chiede al font la sua larghezza (`char_width`).
+- **Il modulo tipo vira**: `board_shape` sceglie fra i moduli che il club **ha davvero schierato**
+  (`formation_shapes`, nuova colonna di `clubs.csv` — una formazione che nessuno ha messo in campo non è
+  un'alternativa, è un'invenzione) quello il cui undici somma più giornate, con un margine che dipende da
+  quanto vale il modale: `SHAPE_MARGIN_SETTLED` 0.60 per un'abitudine, 0.30 per un allenatore che sta
+  scegliendo, `SHAPE_MARGIN_PREDECESSOR` **0.15** quando gli XI del tecnico attuale sono **zero** (segnale
+  ora strutturato: `formation_typical_under_coach`, prima solo in prosa). Esito: **13 club su 34** virano,
+  Napoli 3-4-3 → 4-5-1, e la didascalia dice quale e perché. Inter (3-5-2, 42 XI su 44) non si muove.
+- **Tre difetti trovati misurando, tutti «ragiona coi ruoli reali»** — la regola era applicata a metà:
+  1. l'**eleggibilità** di linea leggeva solo il codice PRIMARIO: Spinazzola è `ML;DL`, competeva solo con
+     i mediani, perdeva al 54% e il terzino sinistro del Napoli diventava un uomo al 38%;
+  2. il terzo termine di **`slot_cost`** (distanza di linea) leggeva anch'esso solo il primario e gli
+     addebitava **7 passi** per uno slot difensivo, mentre il termine sulla fascia leggeva già tutti i
+     codici — due letture diverse della stessa cosa nella stessa funzione;
+  3. il **disegno** (`lanes_for`) e la **pillola** (`badge`) facevano lo stesso: scelto come terzino,
+     Spinazzola veniva disegnato fra i centrocampisti e marcato `Es`, mentre Gutierrez in mezzo leggeva
+     `Ts`. Ora la linea in cui è stato scelto decide quale dei suoi codici viene disegnato ed etichettato.
+  Effetto aggregato su 34 club: somma delle presenze degli undici da **189.3 a 193.0**, maglie sotto il
+  20% da 28 a 24, e il modulo disegnato coincide con quello scelto in 31 club su 34 (i 3 restanti sono la
+  corsia dei trequartisti che spezza una linea, che è voluto).
+- E `duels()` non tronca più i nomi a tre (`rivals[:3]`): 6 uomini leggevano «4 rivali» accanto a tre nomi.
+- **Il modulo si può SCEGLIERE, con la sua probabilità** (richiesta dell'utente, in due passi): seconda
+  riga sopra il campetto, `modulo [...]`, **un solo numero per forma** = quanto è probabile che quella
+  squadra si schieri così. Napoli: `4-5-1 40% · 3-4-3 26% · 3-5-2 12% · 4-3-3 11% · 4-4-2 8% → 4-5-1 ·
+  5-3-2 2% · 5-4-1 2%`. Inter: `3-5-2 92%`. Il caso che lo rende necessario non è il Napoli ma
+  l'**Arsenal**: 4-5-1 e 4-3-3 **28 XI ciascuno**, dove nessuna misura può decidere.
+  `shape_odds` mescola le tre cose che decidono, e nessuna basta da sola: quanto **quel club** schiera
+  quella forma; quanto la schiera **la lega** (perché un allenatore può provare un modulo nuovo per quella
+  squadra, e perché una storia che appartiene al PREDECESSORE descrive una squadra che non esiste più —
+  `SHAPE_TRUST_*` pesa le due, e il peso si muove con la quota di undici che sono del tecnico attuale); e
+  se la **rosa** riesce a coprirla, cioè quante giornate somma l'undici che ciascuna schiera
+  (`SHAPE_FIT_SCALE` = quante giornate di scarto dimezzano le probabilità). È una **stima di display**, non
+  gatata e non letta dal motore: serve a ordinare le forme fra cui un umano sta scegliendo. Con questo la
+  scala di margini (`SHAPE_MARGIN*`, tre costanti) **è stata rimossa**: la board disegna semplicemente
+  l'argmax, e il numero che decide è lo stesso che l'utente legge. Esito: 7 club su 34 hanno un modulo più
+  probabile diverso dal misurato (era 13 con i margini: la stima è più conservativa perché la frequenza
+  del club conta anche quando la rosa preferisce altro), e 7 club hanno una forma sopra l'80%.
+  `<1%` invece di `0%` per i moduli offerti ma remoti: sono in lista perché sono possibili.
+  La scelta manuale è per club, sopravvive alla navigazione, e la didascalia dice «your choice» con la sua
+  probabilità, così scegliere il modulo meno probabile resta visibile. **Bloccato al 100%** in «prossima
+  giornata» quando i probabili nominano un modulo: quella è la risposta dell'allenatore per quella partita.
+
+### 8. I top player, e un difetto che è saltato fuori misurandoli
+Richiesta dell'utente: evidenziare i top player di ogni squadra (massimo 3) **invertendo i colori** del
+cerchio col ruolo — titolarità alta, surplus alto, minutaggio alto, «tutti i valori più che positivi e
+ballottaggio quasi nullo». Fatto come **congiunzione** e non come punteggio: un surplus enorme non compra
+il posto a chi gioca metà delle partite, e una certezza che non vale niente non è un top player. Esito su
+euro 2026-27: **26 evidenziati su 34 club** (13 club nessuno, 16 uno, 5 due, 0 tre — il tetto è una
+sicurezza, non un obiettivo), e i nomi sono Kane, Haaland, Van Dijk, Vinicius, Bruno Fernandes, Maignan,
+Dimarco, McTominay+Hojlund, Raya, Svilar, Carnesecchi.
+
+**Il criterio non è la titolarità ma i MINUTI, per partita e sulle sole partite di lega** (correzione
+dell'utente: «piuttosto che la titolarità, è importante che un top giochi sempre un numero buono di minuti a
+partita»). Letto dal dettaglio per-partita (`desc_form_detail`, che porta la competizione): **≥70 minuti nel
+≥70% delle sue ultime partite di LEGA**, minimo 4 partite. Una media non basterebbe: 60 minuti di media sono
+lo stesso numero per chi finisce ogni partita al 70' e per chi alterna 90 e 20, e solo il primo è un top.
+Le coppe restano fuori perché non è lì che si segna la fantamedia. Le altre due condizioni: surplus ≥ **p90
+del foglio** (5.5 qui) — è l'unica soglia league-wide, ed è un percentile perché il surplus è misurato
+contro un replacement level che dipende dalla rosa di lega — e **primo rivale sotto il 60%** della sua
+titolarità (un rapporto fra due uomini dello STESSO club, quindi il denominatore si annulla).
+
+**Il difetto trovato per strada, e riguarda un numero che sta su OGNI maglia.** La prima versione usava
+soglie assolute su titolarità e minuti-per-partita-del-club, e non evidenziava nessuno a Bayern, City,
+Inter, Arsenal. Non era severità: Kane legge **49%** di titolarità e Haaland **61%** perché il denominatore
+di `presence` è `club_matches` = gli undici del club che abbiamo parsato, e il mix di competizioni **cambia
+da club a club**: Arsenal 58 = 38 di Premier + 14 di Champions + 6 di coppe, Bayern 50, City 52, Inter 44,
+**Napoli 38 = solo Serie A** (per le italiane il per-match layer copre il campionato). Quindi la titolarità
+mostrata sulle maglie **non è confrontabile fra club**: chi gioca più coppe legge meno. Passare ai minuti
+per partita di lega chiude il problema per questo criterio — è il motivo per cui la correzione dell'utente
+è anche la risposta tecnica giusta, non solo quella calcistica.
+⚠️ **Il difetto resta aperto**: `club_matches` va contato sulle partite della COMPETIZIONE che definisce il
+calendario della piattaforma (la lega), non su tutte quelle del club. È una correzione che cambia ogni
+percentuale su ogni maglia e la somma-giornate su cui poggiano le probabilità dei moduli, quindi va fatta
+di proposito e non dentro una feature di colore.
+
+**245 test verdi, ruff pulito.** Verifica A/B: con e senza `--league`, sui 904 giocatori condivisi
+`engine_fm_pred`, `engine_replacement_fm` e `engine_anchor` sono **identici** — la plumbing della lega non
+ha toccato la valutazione.
 
 ## Novità v9.9 (29 luglio 2026, sera — prestito vs acquisto, e la linea che sapeva solo la fascia)
 
@@ -710,7 +971,7 @@ T1 importanti → storia completa → FM-equivalente estera → club-a-club con 
 ## Moduli (ordine rebuild)
 `rosters` (SEMPRE primo) → `stats` → `ratings` (Excel autenticato, incrementale + backfill + resume + listone) → `matchdays` (calendario euro↔reale) → `fc_site` (rigoristi, probabili, indisponibili) → `transfers` → **`injuries`** → `fbref` (stub/bloccato) → `positions` (SofaScore: aggregati stagione + per-partita + heatmap) → `recent_form` → `synth` (voto sintetico calibrato) → `arrivals` → `tournaments` → `elo` (API ClubElo) → `validate`.
 Fuori dalla pipeline, perché non producono tabelle di ingestione: **`bootstrap`** (acquisizione da zero), `fetch` (referto + inbox), `rebuild`, `backtest` (harness del gate), **`export`** (bundle dell'app).
-Stato implementazione **v9.9**: **tutti i moduli operativi tranne `fbref`** (bloccato da Cloudflare: servirebbe un browser headless, oppure l'inbox manuale). Chiusi in v9.4: `injuries` + `contract_until`/`exit_risk`, heatmap `avg_x/avg_y`, `elo` via API, `ingest_runs`, `fetch --plan/--inbox`, `bootstrap`, `export`. **232 test verdi, ruff pulito.**
+Stato implementazione **v9.11**: **tutti i moduli operativi tranne `fbref`** (bloccato da Cloudflare: servirebbe un browser headless, oppure l'inbox manuale). Chiusi in v9.4: `injuries` + `contract_until`/`exit_risk`, heatmap `avg_x/avg_y`, `elo` via API, `ingest_runs`, `fetch --plan/--inbox`, `bootstrap`, `export`. **251 test verdi, ruff pulito.**
 
 ## Comandi
 ```

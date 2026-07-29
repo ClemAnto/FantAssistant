@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from euroleghe_ingest.cli import build_parser
 from euroleghe_ingest.config import Config
 from euroleghe_ingest.context import Context
@@ -225,6 +227,100 @@ def test_a_missing_league_config_still_yields_a_usable_setup(tmp_path):
     assert Config(league_config_path=tmp_path / "broken.json").load_league()["teams"] == 8
 
 
+def _league_file(path, payload: dict):
+    import json
+
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    from euroleghe_ingest.config import Config
+
+    return Config(league_config_path=path)
+
+
+def test_a_played_league_states_its_platform_its_game_and_its_squad(tmp_path):
+    """The three things that make a sheet computable belong to a named league, not to the run.
+
+    Platform decides which matches count, game the roles and the currency, teams x squad_slots the
+    replacement level - so a sheet built for the wrong one is a wrong sort order with nothing on screen
+    to show it. Hence: inheritance from the file's own defaults (a league that rosters like the others
+    only names its two dimensions), and a HARD failure on a name that is not declared.
+    """
+    import pytest
+
+    cfg = _league_file(tmp_path / "leagues.json", {
+        "teams": 8, "squad_slots": {"P": 3, "D": 8, "C": 8, "A": 6},
+        "my_leagues": {
+            "Amici": {"platform": "euro", "game": "mantra"},
+            "Ufficio": {"platform": "default", "game": "classic", "teams": 12,
+                        "squad_slots": {"D": 9}},
+            "_note": ["documentation, not a league"],
+        },
+    })
+    leagues = cfg.my_leagues()
+    assert list(leagues) == ["Amici", "Ufficio"]        # the `_note` key is not a league
+    assert (leagues["Amici"]["platform"], leagues["Amici"]["game"]) == ("euro", "mantra")
+    assert leagues["Amici"]["teams"] == 8               # inherited
+    assert leagues["Ufficio"]["teams"] == 12            # overridden
+    # A partial squad_slots override keeps the roles it does not mention, instead of defaulting them
+    assert leagues["Ufficio"]["squad_slots"] == {"P": 3, "D": 9, "C": 8, "A": 6}
+    assert cfg.roster_slots("classic", "Ufficio")["D"] == 9
+
+    assert cfg.load_league()["name"] == "Amici"         # no argument = the first declared
+    assert cfg.load_league("Ufficio")["teams"] == 12
+    assert cfg.load_league(platform="default", game="classic")["name"] == "Ufficio"
+    with pytest.raises(RuntimeError, match="unknown league"):
+        cfg.load_league("Ufficio ")                     # a typo must not silently pick another league
+
+    # A combination nobody plays is still readable - the gate sweeps all four - but it is not a league,
+    # and it says so rather than borrowing a name.
+    other = cfg.load_league(platform="euro", game="classic")
+    assert other["declared"] is False
+    assert other["name"] == ""
+
+
+def test_a_config_without_my_leagues_reads_as_one_league(tmp_path):
+    """The shape the file had before leagues had names has to keep working: one unnamed setup, which is
+    exactly one league. Nothing that used to run needs the new key."""
+    cfg = _league_file(tmp_path / "legacy.json", {"teams": 10, "squad_slots": {"A": 7}})
+
+    leagues = cfg.my_leagues()
+    assert list(leagues) == ["default"]
+    assert leagues["default"]["teams"] == 10
+    assert leagues["default"]["squad_slots"]["A"] == 7
+    assert cfg.load_league()["teams"] == 10
+
+
+def test_saving_leagues_keeps_the_comments_and_writes_only_the_overrides(tmp_path):
+    """league_config.json is a hand-edited document whose `_note` blocks are part of the knowledge base:
+    the editor replaces one key, it does not regenerate the file. And a value equal to the file's own
+    default stays inherited rather than being copied into every league."""
+    import json
+
+    path = tmp_path / "leagues.json"
+    cfg = _league_file(path, {
+        "_comment": ["why the replacement level is what it is"],
+        "teams": 8, "squad_slots": {"P": 3, "D": 8, "C": 8, "A": 6},
+        "reliability_exponent": 0.5,
+        "_mantra_note": ["measured, not transcribed"],
+        "my_leagues": {"Old": {"platform": "euro", "game": "classic"}},
+    })
+    cfg.save_leagues({
+        "Amici": {"platform": "euro", "game": "mantra", "teams": 8,
+                  "squad_slots": {"P": 3, "D": 8, "C": 8, "A": 6}},
+        "Ufficio": {"platform": "default", "game": "classic", "teams": 12,
+                    "squad_slots": {"P": 3, "D": 9, "C": 8, "A": 6}},
+    })
+
+    written = json.loads(path.read_text(encoding="utf-8"))
+    assert written["_comment"] == ["why the replacement level is what it is"]
+    assert written["_mantra_note"] == ["measured, not transcribed"]
+    assert written["teams"] == 8 and written["reliability_exponent"] == 0.5
+    assert written["my_leagues"]["Amici"] == {"platform": "euro", "game": "mantra"}
+    assert written["my_leagues"]["Ufficio"]["teams"] == 12
+    assert written["my_leagues"]["Ufficio"]["squad_slots"]["D"] == 9
+    assert "Old" not in written["my_leagues"]
+    assert cfg.load_league("Ufficio")["squad_slots"]["D"] == 9
+
+
 def test_the_panel_s_surplus_key_is_the_one_the_engine_understands():
     """The panel names the metric without importing the engine, so the two constants can drift apart
     into a silently wrong sort key. They are pinned here instead."""
@@ -317,6 +413,482 @@ def test_auction_selectors_are_locked_while_the_engine_runs():
         root.destroy()
 
 
+def _write_sheet(reports, name: str, manifest: dict, clubs=("Inter", "Milan")):
+    """A minimal snapshot folder on disk: the three files the panel reads."""
+    import csv
+    import json
+
+    from euroleghe_ingest.modules.snapshot import PLAYER_COLUMNS
+
+    folder = reports / name
+    folder.mkdir(parents=True)
+    with open(folder / "players.csv", "w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=PLAYER_COLUMNS)
+        writer.writeheader()
+        for index, club in enumerate(clubs):
+            writer.writerow({"fc_id": str(index + 1), "name": f"Player {index}", "club": club,
+                             "role_classic": "D"})
+    with open(folder / "clubs.csv", "w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=["club"])
+        writer.writeheader()
+        writer.writerows([{"club": club} for club in clubs])
+    (folder / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    return folder
+
+
+def test_the_snapshot_bar_groups_sheets_by_the_league_they_were_built_for(tmp_path):
+    """The bar has two axes and the first one is the LEAGUE, because that is what the surplus column is
+    measured against. Three cases in one panel: a sheet that records its league, one written before the
+    manifest carried one (filed under the league played on its platform and game - its numbers came from
+    the same setup, so this is correct rather than a guess), and a combination nobody plays, which stays
+    reachable and is labelled as not a league. Real widgets: the grouping IS the selector's contents."""
+    import tkinter as tk
+
+    import pytest
+
+    from euroleghe_ingest import gui
+
+    reports = tmp_path / "reports"
+    _write_sheet(reports, "auction-snapshot-2026-27-euro-classic-amici-2026-07-29",
+                 {"platform": "euro", "game": "classic", "target_season": "2026-27",
+                  "auction_date": "2026-07-29", "generated_at": "2026-07-29T10:00:00+00:00",
+                  "players": 2, "clubs": 2,
+                  "league": {"name": "Amici", "declared": True, "teams": 8,
+                             "squad_slots": {"P": 3, "D": 8, "C": 8, "A": 6}}})
+    _write_sheet(reports, "auction-snapshot-2026-27-euro-classic-2026-07-28",
+                 {"platform": "euro", "game": "classic", "target_season": "2026-27",
+                  "auction_date": "2026-07-28", "generated_at": "2026-07-28T10:00:00+00:00",
+                  "players": 2, "clubs": 2})
+    _write_sheet(reports, "auction-snapshot-2026-27-euro-mantra-2026-07-27",
+                 {"platform": "euro", "game": "mantra", "target_season": "2026-27",
+                  "auction_date": "2026-07-27", "generated_at": "2026-07-27T10:00:00+00:00",
+                  "players": 2, "clubs": 2})
+    cfg = _league_file(tmp_path / "leagues.json",
+                       {"teams": 8, "squad_slots": {"P": 3, "D": 8, "C": 8, "A": 6},
+                        "my_leagues": {"Amici": {"platform": "euro", "game": "classic"}}})
+    cfg = type(cfg)(data_dir=tmp_path, league_config_path=tmp_path / "leagues.json")
+
+    try:
+        root = tk.Tk()
+    except tk.TclError as exc:                    # headless CI: nothing to assert about widgets
+        pytest.skip(f"no Tk display: {exc}")
+    built: list = []
+    try:
+        root.withdraw()
+        view = gui.SnapshotView(root, cfg, on_build=built.append)
+        view.reload()
+
+        assert list(view.league_cb["values"]) == [
+            "Amici", "euro/mantra (not a league)", gui.SnapshotView.MANAGE]
+        # Two sheets under the league: the one that records it, and the pre-league one on the same
+        # platform and game. The undeclared combination is a group of its own.
+        view.league_var.set("Amici")
+        view._on_league_change()
+        assert len(view.when_cb["values"]) == 2
+        assert "(latest)" in view.when_var.get() and "29/07/2026" in view.when_var.get()
+        assert "does not state its league" not in view.note_var.get()
+        view.when_var.set(list(view.when_cb["values"])[1])
+        view._on_when_change()
+        assert "does not state its league" in view.note_var.get()
+
+        # Build takes the LEAGUE BY NAME, so the run cannot be handed another league's squad size...
+        view.league_var.set("Amici")
+        view._on_league_change()
+        view._build_now()
+        assert built == [{"league": "Amici", "refresh": True}]
+        # ...while an undeclared group has no name to pass and its two dimensions go straight through.
+        view.league_var.set("euro/mantra (not a league)")
+        view._on_league_change()
+        view._build_now()
+        assert built[-1] == {"platform": "euro", "game": "mantra", "refresh": True}
+    finally:
+        root.destroy()
+
+
+def test_deleting_a_sheet_refuses_anything_that_is_not_one(tmp_path, monkeypatch):
+    """Delete removes a TREE, so the target is checked against data/reports and the folder prefix
+    rather than trusted: a stale selection must never turn into an rmtree somewhere else."""
+    import tkinter as tk
+
+    import pytest
+
+    from euroleghe_ingest import gui
+
+    reports = tmp_path / "reports"
+    folder = _write_sheet(reports, "auction-snapshot-2026-27-euro-classic-2026-07-29",
+                          {"platform": "euro", "game": "classic", "auction_date": "2026-07-29",
+                           "generated_at": "2026-07-29T10:00:00+00:00", "players": 2, "clubs": 2})
+    elsewhere = tmp_path / "precious"
+    elsewhere.mkdir()
+    (elsewhere / "keep.txt").write_text("do not delete me", encoding="utf-8")
+    cfg = Config(data_dir=tmp_path, league_config_path=tmp_path / "none.json")
+
+    try:
+        root = tk.Tk()
+    except tk.TclError as exc:
+        pytest.skip(f"no Tk display: {exc}")
+    refusals: list = []
+    monkeypatch.setattr(gui.messagebox, "showerror",
+                        lambda title, message, **_k: refusals.append(message))
+    monkeypatch.setattr(gui.messagebox, "askyesno", lambda *_a, **_k: True)
+    try:
+        root.withdraw()
+        view = gui.SnapshotView(root, cfg)
+        view.reload()
+
+        # A sheet outside data/reports is refused, and nothing is removed
+        view.sheets[0]["path"] = view._when_paths[0] = elsewhere
+        view._delete_selected()
+        assert refusals, "deleting outside data/reports must be refused out loud"
+        assert elsewhere.exists() and (elsewhere / "keep.txt").exists()
+
+        # The real one goes, once confirmed
+        view.sheets[0]["path"] = view._when_paths[0] = folder
+        view._delete_selected()
+        assert not folder.exists()
+    finally:
+        root.destroy()
+
+
+def test_the_plate_stacks_its_rivals_by_titolarita_and_counts_the_rest(monkeypatch):
+    """One rival per LINE, likeliest first, each with his own percentage - a duel is read as a ranking,
+    and a ranking needs the number next to the name. Two at most, because the plate has to fit between
+    two drawn lines; whoever is left over is COUNTED (`+N`) and named in the shirt's tooltip, never
+    dropped in silence."""
+    from euroleghe_ingest import gui
+
+    view = gui.SnapshotView.__new__(gui.SnapshotView)
+    view.clubs, view.players = {}, []
+    monkeypatch.setattr(gui.SnapshotView, "presence",
+                        lambda _self, row, _horizon: row.get("share", 0.0))
+    view.xi_mode = type("V", (), {"get": staticmethod(lambda: "typical")})()
+    starter = {"name": "Saliba", "share": 0.45}
+    rivals = [{"name": "Mosquera", "share": 0.14}, {"name": "Calafiori", "share": 0.20},
+              {"name": "Lewis-Skelly", "share": 0.10}]
+
+    lines = view.plate_lines(starter, rivals, 18, 20)
+    # the likeliest rival first, not the order the eleven happened to build
+    assert lines == ["Saliba 45%", "vs Calafiori 20%", "   Mosquera 14% +1"]
+    # one rival, no count; none, no line at all
+    assert view.plate_lines(starter, rivals[:1], 18, 20) == ["Saliba 45%", "vs Mosquera 14%"]
+    assert view.plate_lines(starter, [], 18, 20) == ["Saliba 45%"]
+    # a lane with room for one rival only still says how many there are
+    assert view.plate_lines(starter, rivals, 18, 20, max_rivals=1) == [
+        "Saliba 45%", "vs Calafiori 20% +2"]
+    # On a narrow plate the count goes first and the NAME is cut, because the percentage is what makes
+    # the stack a ranking. Nothing is ever floored past the budget - that is how a line ends up drawn on
+    # the neighbouring shirt (measured: 0 of 1687 drawn lines overflow).
+    assert view.plate_lines(starter, rivals, 12, 12) == ["Saliba 45%", "vs Calaf 20%", "   Mosqu 14%"]
+    for budget in range(8, 30):
+        for line in view.plate_lines(starter, rivals, budget, budget):
+            assert len(line) <= budget, (budget, line)
+
+
+def _shape_view(monkeypatch, elevens: dict[str, float]):
+    """A view whose eleven for each shape is worth the given number of matchdays."""
+    from euroleghe_ingest import gui
+
+    view = gui.SnapshotView.__new__(gui.SnapshotView)
+    view._shape_cache, view._shape_choice, view.manifest = {}, {}, {}
+    monkeypatch.setattr(gui.SnapshotView, "eleven",
+                        lambda _s, _club, shape, _mode: [("M", {"share": elevens.get(shape, 0.0)}, [])])
+    monkeypatch.setattr(gui.SnapshotView, "presence",
+                        lambda _self, row, _horizon: row.get("share", 0.0))
+    return view
+
+
+def test_how_likely_each_shape_is_blends_the_club_the_league_and_the_squad(monkeypatch):
+    """One number per shape, and the three things it comes from have to pull in the right directions.
+
+    A settled habit whose squad mans it must come out near certain; a habit that belongs to the PREVIOUS
+    coach must not dominate, because it describes a side that no longer exists; a shape the club has never
+    played is possible - a coach can try one - but only as much as the league plays it; and a shape whose
+    slots force a 5% squad player onto the pitch loses whatever its history says.
+    """
+    repertoire = {"formation_repertoire": {"4-5-1": 1746, "3-4-3": 1054, "3-5-2": 631,
+                                           "4-3-3": 587, "4-4-2": 498, "3-6-1": 12, "4-2-4": 2}}
+
+    # Inter: 42 of 44 elevens, every one of them its coach's, and the squad fields it best
+    settled = {"formation_typical": "3-5-2", "formation_typical_of": "44",
+               "formation_typical_under_coach": "44", "formation_shapes": "3-5-2:42;3-4-3:2"}
+    view = _shape_view(monkeypatch, {"3-5-2": 6.10, "3-4-3": 5.60, "4-5-1": 6.00, "4-3-3": 5.40,
+                                     "4-4-2": 6.10})
+    view.manifest = repertoire
+    odds = view.shape_odds("Inter", settled, "typical")
+    assert next(iter(odds)) == "3-5-2" and odds["3-5-2"] > 0.85
+    assert abs(sum(odds.values()) - 1.0) < 1e-9
+    # a module nobody in the league plays is not even in the list: 2 elevens of 4812 is a parsing tail
+    assert "4-2-4" not in odds and "3-6-1" not in odds
+
+    # Napoli: the 3-4-3 is 27 of 38 elevens but NONE of them the current coach's, and it fields half a
+    # matchday less than the 4-5-1 - so the habit does not win, and it does not collapse either
+    predecessor = {"formation_typical": "3-4-3", "formation_typical_of": "38",
+                   "formation_typical_under_coach": "0",
+                   "formation_shapes": "3-4-3:27;4-5-1:8;4-3-3:3"}
+    view = _shape_view(monkeypatch, {"3-4-3": 6.41, "4-5-1": 6.86, "4-3-3": 6.72, "3-5-2": 6.86,
+                                     "4-4-2": 6.86, "5-3-2": 6.70, "5-4-1": 6.80})
+    view.manifest = repertoire
+    odds = view.shape_odds("Napoli", predecessor, "typical")
+    assert next(iter(odds)) == "4-5-1"
+    assert 0.20 < odds["3-4-3"] < 0.40, "the predecessor's habit is discounted, not deleted"
+    assert odds["4-4-2"] > 0.0, "never fielded here, but the league plays it: possible"
+    assert odds["4-4-2"] < odds["4-3-3"], "...and less likely than one this side has actually used"
+    assert view.board_shape("Napoli", predecessor, "typical")[0] == "4-5-1"
+
+    # the SQUAD has the last word: the same history with an eleven two matchdays weaker loses
+    view = _shape_view(monkeypatch, {"3-4-3": 4.00, "4-5-1": 6.86, "4-3-3": 6.72})
+    view.manifest = repertoire
+    assert view.shape_odds("Napoli", predecessor, "typical")["3-4-3"] < 0.05
+
+    # For the coming match the coach has DECLARED a shape: it is the answer, at 100%
+    view = _shape_view(monkeypatch, {"3-5-2": 1.0, "4-3-3": 9.0})
+    view.manifest = repertoire
+    assert view.shape_odds("Napoli", {**predecessor, "formation_today": "3-5-2"}, "next") == {"3-5-2": 1.0}
+
+    # ...and the OPERATOR outranks the board, with the odds of what he chose stated
+    view = _shape_view(monkeypatch, {"3-4-3": 6.41, "4-5-1": 6.86, "4-3-3": 6.72})
+    view.manifest = repertoire
+    view._shape_choice[("Napoli", "typical")] = "4-3-3"
+    shape, why = view.board_shape("Napoli", predecessor, "typical")
+    assert shape == "4-3-3" and "your choice" in why and "%" in why
+    # a shape nobody plays cannot be forced in through the back door
+    view._shape_choice[("Napoli", "typical")] = "4-2-4"
+    assert view.board_shape("Napoli", predecessor, "typical")[0] == "4-5-1"
+def test_the_shape_selector_offers_what_the_club_played_and_locks_on_a_declared_XI(tmp_path):
+    """Every module the club actually lined up in, with how many of its elevens used it and what the side
+    it fields adds up to - the numbers are the point, otherwise the choice is a guess between labels. And
+    it is LOCKED for the coming match when the probabili name a shape: that is the coach's own answer."""
+    import tkinter as tk
+
+    import pytest
+
+    from euroleghe_ingest import gui
+
+    try:
+        root = tk.Tk()
+    except tk.TclError as exc:
+        pytest.skip(f"no Tk display: {exc}")
+    try:
+        root.withdraw()
+        view = gui.SnapshotView(root, Config(data_dir=tmp_path,
+                                             league_config_path=tmp_path / "none.json"))
+        info = {"formation_typical": "3-4-3", "formation_shapes": "3-4-3:27;4-5-1:8;4-3-3:3",
+                "formation_typical_of": "38", "formation_typical_under_coach": "0"}
+        view.players = [{"name": "A", "club": "Napoli", "desc_real_roles": "GK", "role_classic": "P"}]
+        view.clubs = {"Napoli": info}
+
+        view._fill_shapes("Napoli", info, "4-5-1")
+        labels = list(view.shape_cb["values"])
+        assert [view._shape_labels[label] for label in labels] == ["3-4-3", "4-5-1", "4-3-3"]
+        # ONE number per shape: how likely this side is to line up in it (27 of 38 elevens here)
+        assert labels[0] == "3-4-3 · 71%"
+        assert view._shape_labels[view.shape_var.get()] == "4-5-1", "opens on what the board drew"
+        assert str(view.shape_cb.cget("state")) == "readonly"
+
+        view.xi_mode.set("next")
+        view._fill_shapes("Napoli", {**info, "formation_today": "3-5-2"}, "3-5-2")
+        assert str(view.shape_cb.cget("state")) == "disabled"
+        assert view.shape_var.get() == "3-5-2"
+    finally:
+        root.destroy()
+
+
+def test_a_line_considers_every_real_role_a_man_plays_not_just_his_first(monkeypatch):
+    """Spinazzola is 'ML;DL'. Bucketed by his first code alone he only ever competed with central
+    midfielders, lost to them at 54%, and Napoli's left back became a 38% man while the 54% one sat
+    outside the eleven - twice over, because the LINE-distance term of `slot_cost` also read the primary
+    code only and charged him seven steps for a defensive slot."""
+    from euroleghe_ingest import gui
+
+    view = gui.SnapshotView.__new__(gui.SnapshotView)
+    view.clubs, view.players = {}, []
+    squad = [
+        {"name": "Meret", "desc_real_roles": "GK", "role_classic": "P", "share": 0.68},
+        {"name": "Di Lorenzo", "desc_real_roles": "DR; DC", "role_classic": "D", "share": 0.62},
+        {"name": "Buongiorno", "desc_real_roles": "DC; DL", "role_classic": "D", "share": 0.70},
+        {"name": "Juan Jesus", "desc_real_roles": "DC", "role_classic": "D", "share": 0.47},
+        {"name": "Spinazzola", "desc_real_roles": "ML; DL", "role_classic": "D", "share": 0.54},
+        {"name": "Gutierrez", "desc_real_roles": "DL; ML", "role_classic": "D", "share": 0.38},
+        {"name": "McTominay", "desc_real_roles": "MC; AM", "role_classic": "C", "share": 0.79},
+        {"name": "Lobotka", "desc_real_roles": "MC; DM", "role_classic": "C", "share": 0.72},
+        {"name": "Elmas", "desc_real_roles": "MC; AM", "role_classic": "C", "share": 0.52},
+        {"name": "Politano", "desc_real_roles": "RW; MR", "role_classic": "C", "share": 0.66},
+        {"name": "Hojlund", "desc_real_roles": "ST", "role_classic": "A", "share": 0.80},
+        {"name": "Santos A.", "desc_real_roles": "LW", "role_classic": "C", "share": 0.24},
+    ]
+    monkeypatch.setattr(gui.SnapshotView, "squad", lambda _s, _club: squad)
+    monkeypatch.setattr(gui.SnapshotView, "presence",
+                        lambda _self, row, _horizon: row.get("share", 0.0))
+    monkeypatch.setattr(gui.SnapshotView, "titolarita",
+                        lambda _self, row, _horizon: (0.0, row.get("share", 0.0)))
+
+    eleven = view.eleven("Napoli", "4-3-3", "typical")
+    picked = {starter["name"] for _role, starter, _rivals in eleven}
+    assert "Spinazzola" in picked, "the 54% left back must be in the eleven"
+    assert "Gutierrez" not in picked, "not instead of him at 38%"
+    # and he is drawn where he was chosen, not where his first code says
+    lanes, _geometry, drawn = view.lanes_for(eleven)
+    assert "Spinazzola" in {row["name"] for row, _rivals in lanes["D"]}
+    assert drawn == "4-3-3"
+
+
+def test_a_top_player_has_to_pass_every_test_at_once(monkeypatch):
+    """At most three per club, and it is a CONJUNCTION: a huge surplus does not buy a place for a man who
+    is on the pitch twenty minutes, and a certainty worth nothing is not a top player either.
+
+    The minutes are read PER MATCH and only on LEAGUE matches, which is what makes them comparable: an
+    average of 60 minutes is the same number for a man who plays every match to the 70th and for one who
+    alternates 90 with 20. It was also the way round the OTHER defect this criterion uncovered - the
+    club's fixture list as the denominator of a titolarità, which had Kane at 49% for playing nearly
+    everything (25 of 34 Bundesliga rounds over Bayern's 50 fixtures). That one is fixed at the source
+    now: `club_matches` counts the championship. Both readings survive, and they answer different
+    questions - minutes per match is about how long he stays on.
+    """
+    from euroleghe_ingest import gui
+
+    view = gui.SnapshotView.__new__(gui.SnapshotView)
+    view._top_cache, view._surplus_cut, view._shape_cache, view._shape_choice = {}, None, {}, {}
+    view.clubs = {"Napoli": {}}
+
+    def detail(minutes, competition="serie_a"):
+        """A trend detail: date|competition|opponent|side|token|minutes|rating|goals|assists|started."""
+        return ";".join(f"2026-05-{index + 1:02d}|{competition}|X|H|p|{value}|6.5|0|0|1"
+                        for index, value in enumerate(minutes))
+
+    def player(name, share, surplus, minutes, **extra):
+        return {"name": name, "share": share, "engine_surplus": str(surplus),
+                "desc_form_detail": detail(minutes), **extra}
+
+    ace = player("McTominay", 0.79, 9.0, [90, 90, 90, 90, 90, 90])
+    striker = player("Hojlund", 0.80, 5.9, [90, 66, 90, 90, 90, 90])       # 5 of 6 whole: enough
+    cameos = player("Elmas", 0.52, 8.0, [11, 12, 45, 15, 90, 14])          # huge surplus, 20 minutes
+    cheap = player("Juan Jesus", 0.75, 1.0, [90, 90, 90, 90])              # whole matches, worth nothing
+    duelled = player("Buongiorno", 0.78, 7.0, [90, 90, 90, 90])            # a rival on his shoulder
+    hurt = player("Politano", 0.78, 7.0, [90, 90, 90, 90], desc_injury_open="knee")
+    # 90 minutes every time, but in the CUP: not what the fantamedia is scored on
+    cupped = player("Gilmour", 0.78, 7.0, [])
+    cupped["desc_form_detail"] = detail([90, 90, 90, 90, 90], competition="coppa-italia")
+    deputy = player("Beukema", 0.60, 4.0, [80, 80])
+    eleven = [("M", ace, []), ("A", striker, []), ("M", cameos, []), ("D", cheap, []),
+              ("D", duelled, [deputy]), ("A", hurt, []), ("M", cupped, [])]
+    view.players = [row for _role, row, _rivals in eleven]
+    monkeypatch.setattr(gui.SnapshotView, "presence",
+                        lambda _self, row, _horizon: row.get("share", 0.0))
+    monkeypatch.setattr(gui.SnapshotView, "board_shape",
+                        lambda _self, _club, _info, _mode: ("4-3-3", ""))
+    monkeypatch.setattr(gui.SnapshotView, "eleven",
+                        lambda _self, _club, _shape, _mode: eleven)
+    # the bar is the SHEET's own p90 of surplus - 5.5 on the 2026-27 euro sheet. Fixed here, because six
+    # players are not a distribution: what this test is about is the conjunction, not the percentile.
+    assert view._surplus_floor() == 9.0, "the percentile is read off the sheet it is given"
+    monkeypatch.setattr(gui.SnapshotView, "_surplus_floor", lambda _self: 5.5)
+
+    top = view.top_players("Napoli", "typical")
+    assert top == ["McTominay", "Hojlund"], top      # best surplus first
+    assert "Elmas" not in top, "eight points of surplus do not buy twenty minutes a match"
+    assert "Juan Jesus" not in top, "he plays them whole and is worth nothing"
+    assert "Buongiorno" not in top, "a challenger at 60% of his titolarita is a real duel"
+    assert "Politano" not in top, "an open injury is not one of the positive values"
+    assert "Gilmour" not in top, "90 minutes in the CUP is not what the fantamedia is scored on"
+    assert len(view.top_players("Napoli", "typical")) <= gui.SnapshotView.TOP_PLAYERS
+    # the criterion itself: per match, league only
+    assert view.full_match_share(ace) == (1.0, 6)
+    assert view.full_match_share(cameos)[0] < 0.2
+    assert view.full_match_share(cupped) == (0.0, 0), "no league match in the window at all"
+
+
+def test_how_many_rivals_a_plate_may_name_follows_from_the_room_between_the_lines():
+    """Derived from the plate's own geometry, not tuned to today's data: two plates may face each other
+    across the gap between two drawn lines, so each owns half of it. Measured consequence - a shape with
+    four lines names two rivals, one with five (a trequartisti lane) names one and counts the rest."""
+    from euroleghe_ingest.gui import SnapshotView as View
+
+    assert View.plate_rivals_for(140) == View.PLATE_RIVALS      # roomy: the full two
+    assert View.plate_rivals_for(125) == 2                      # a four-line shape on a 478px pitch
+    assert View.plate_rivals_for(94) == 1                       # a five-line one
+    assert View.plate_rivals_for(40) == 1                       # never zero: a challenger must show
+    # and the promise itself: a plate of 1 + n rivals fits in half the gap it was allowed for
+    for gap in range(40, 200):
+        lines = 1 + View.plate_rivals_for(gap)
+        high = View.PLATE_PAD_PX + lines * View.PLATE_LINE_PX
+        assert View.PLATE_OFFSET_PX + high <= gap / 2 or View.plate_rivals_for(gap) == 1
+
+
+def _descendants(widget):
+    """Every widget under this one, the parent included - for asserting on a dialog's contents."""
+    yield widget
+    for child in widget.winfo_children():
+        yield from _descendants(child)
+
+
+def test_clicking_a_shirt_accounts_for_every_declared_rival(tmp_path):
+    """The plate holds a few characters; the click holds the whole duel - and it must ACCOUNT for the
+    men the editors name but the pitch does not offer, or "declared with three" next to two rows reads
+    as a contradiction. The commonest reason is the rule itself: a rival is by definition not in the
+    eleven, so a third man who is starting his own shirt is not competing for this one."""
+    import tkinter as tk
+    from tkinter import ttk
+
+    import pytest
+
+    from euroleghe_ingest import gui
+
+    try:
+        root = tk.Tk()
+    except tk.TclError as exc:
+        pytest.skip(f"no Tk display: {exc}")
+    try:
+        root.withdraw()
+        view = gui.SnapshotView(root, Config(data_dir=tmp_path,
+                                             league_config_path=tmp_path / "none.json"))
+        deroon = {"name": "De Roon", "club": "Atalanta", "desc_real_roles": "MC; DM",
+                  "desc_duel_names": "Pasalic; Samardzic; Musah", "desc_duel_rivals": "3"}
+        pasalic = {"name": "Pasalic", "club": "Atalanta", "desc_real_roles": "MC; AM"}
+        musah = {"name": "Musah", "club": "Atalanta", "desc_real_roles": "MC; DM"}
+        samardzic = {"name": "Samardzic", "club": "Atalanta", "desc_real_roles": "AM; MC"}
+        lookman = {"name": "Lookman", "club": "Atalanta", "desc_real_roles": "LW"}
+        view.players = [deroon, pasalic, musah, samardzic, lookman]
+        view.clubs = {"Atalanta": {"club": "Atalanta"}}
+        # Samardzic is drawn in the eleven, so he is not competing for De Roon's shirt
+        view._hits = [(0.0, 0.0, deroon, [pasalic, musah]), (0.0, 0.0, samardzic, [])]
+
+        view._duel_popup(deroon, [pasalic, musah])
+        popup = [child for child in view.winfo_children() if isinstance(child, tk.Toplevel)][-1]
+        trees = [w for w in _descendants(popup) if isinstance(w, ttk.Treeview)]
+        rows = [tree.item(iid)["values"] for tree in trees for iid in tree.get_children()]
+        assert [row[0] for row in rows] == ["Pasalic", "Musah", "Samardzic"]
+        assert rows[0][3] == "yes" and rows[1][3] == "yes"      # both named and offered
+        assert rows[2][3] == "yes · in the XI"                  # named, not offered, and WHY
+        # every declared name is accounted for: nothing is dropped in silence
+        assert {row[0] for row in rows} >= set(deroon["desc_duel_names"].replace(";", " ").split())
+    finally:
+        root.destroy()
+
+
+def test_the_next_matchday_eleven_is_the_editors_own(monkeypatch):
+    """`eleven(..., 'next')` must reach `_declared`. Pinned because it was broken by a NAME COLLISION -
+    an attribute holding the declared LEAGUES shadowed the `_declared` METHOD, and every "prossima
+    giornata" XI raised TypeError while the "schieramento tipo" one kept working."""
+    from euroleghe_ingest import gui
+
+    view = gui.SnapshotView.__new__(gui.SnapshotView)      # no widgets: only the eleven logic is under test
+    view.clubs, view.players = {}, []                      # the presence denominator reads both
+    squad = [
+        {"name": "Meret", "desc_starter_prob": "0.9", "desc_real_roles": "GK", "role_classic": "P"},
+        {"name": "Politano", "desc_starter_prob": "0.6", "desc_real_roles": "RW", "role_classic": "C",
+         "desc_duel_names": "Neres; Lang"},
+        {"name": "Neres", "desc_real_roles": "RW", "role_classic": "C"},
+        {"name": "Lang", "desc_real_roles": "RW", "role_classic": "C"},
+    ]
+    monkeypatch.setattr(gui.SnapshotView, "squad", lambda _self, _club: squad)
+
+    eleven = view.eleven("Napoli", "4-3-3", "next")
+    by_name = {starter["name"]: rivals for _role, starter, rivals in eleven}
+    assert set(by_name) == {"Meret", "Politano"}            # only the men the editors listed
+    # BOTH named rivals are carried, not just the first: the drawing decides how many fit, not this
+    assert [row["name"] for row in by_name["Politano"]] == ["Neres", "Lang"]
+
+
 def test_last_ten_dot_bands_and_fading():
     """The strip's colour rules, which are a DISPLAY choice and must stay one.
 
@@ -391,3 +963,111 @@ def test_the_eleven_is_chosen_by_titolarita_and_never_by_a_valuation():
     assert nxt[0] == "Regular", "for the next match the injured man is out and the regular starts"
     assert SnapshotView.lines("3-4-2-1") == (3, 6, 1), "every part of a module counts"
     assert "Injured" not in nxt
+
+
+# ----------------------------------------------------------------------------------------------------
+# The denominators: every share in the Snapshot panel is a share of the CHAMPIONSHIP's calendar
+# ----------------------------------------------------------------------------------------------------
+def _sheet_view(clubs: dict, players: list, manifest: dict | None = None):
+    """A SnapshotView with a sheet in it and no widgets: only the arithmetic is under test."""
+    from euroleghe_ingest import gui
+
+    view = gui.SnapshotView.__new__(gui.SnapshotView)
+    view.clubs, view.players, view.rows = clubs, players, players
+    view.manifest = manifest or {}
+    return view
+
+
+def test_a_share_of_the_season_is_counted_on_the_championship_and_not_on_every_cup():
+    """The numerators are league-only (`external_stats` stores one row per championship and nothing
+    else) and the denominator used to be every fixture we parsed - so a club's percentages moved with how
+    far it went in Europe. Arsenal 58 elevens against 38 rounds, Bayern 50 against 34, Napoli 38 against
+    38: Kane read 49% off 25 starts in 34 Bundesliga rounds, and a European campaign was
+    indistinguishable from a bench."""
+    european = {"complete_XIs": "58", "league_XIs": "38", "league": "premier_league"}
+    domestic = {"complete_XIs": "38", "league_XIs": "38", "league": "serie_a"}
+
+    def man(club):
+        return {"name": f"man of {club}", "club": club, "desc_season_starts": "30",
+                "desc_season_matches": "34", "desc_minutes_full_season": "2700",
+                "desc_injury_source": "transfermarkt (no absence recorded)",
+                "desc_injury_rounds_seasons": "3", "desc_injury_rounds_weighted": "0",
+                "desc_injury_rounds_measured": "0"}
+
+    view = _sheet_view({"Arsenal": european, "Napoli": domestic},
+                       [man("Arsenal"), man("Napoli")])
+    assert view.club_matches("Arsenal") == 38, "the championship, not the fixture list"
+    assert view.club_fixtures("Arsenal") == 58, "the fixture list is still there: absences count on it"
+    arsenal, napoli = view.players
+    assert view.presence(arsenal) == view.presence(napoli), \
+        "the same season must read the same whatever the cup load"
+    assert view.presence(arsenal) > 0.75, "30 starts of 38 rounds is not a 49% man"
+
+
+def test_a_sheet_written_before_the_league_calendar_existed_still_reads():
+    """`league_XIs` is a new column. An older folder has only `complete_XIs`, and the panel must open it
+    with the numbers it has rather than dividing by one."""
+    view = _sheet_view({"Vecchio": {"complete_XIs": "44"}},
+                       [{"name": "x", "club": "Vecchio", "desc_season_starts": "20"}])
+    assert view.club_matches("Vecchio") == 44
+
+
+def test_the_start_rate_leaves_out_the_rounds_he_missed_and_not_the_forecast():
+    """Two different questions, and using one number for both makes the injury history decoration: the
+    three-season forecast subtracted from the calendar and then multiplied back in by `availability`
+    cancels out of `presence` almost exactly. So the rate's denominator is what he ACTUALLY missed inside
+    the measured season, and the forecast is only the discount."""
+    club = {"complete_XIs": "38", "league_XIs": "38"}
+    # 16 rounds missed of 38, and he started all 22 he was there for
+    row = {"name": "Rrahmani", "club": "Napoli", "desc_season_starts": "22",
+           "desc_season_matches": "22", "desc_minutes_full_season": "1980",
+           "desc_injury_source": "transfermarkt", "desc_injury_rounds_seasons": "3",
+           "desc_injury_rounds_measured": "16", "desc_injury_rounds_weighted": "17.55"}
+    view = _sheet_view({"Napoli": club}, [row])
+    assert view.contested(row) == 22, "38 rounds less the 16 he was not there for"
+    assert view.availability(row) == pytest.approx(1 - 9.0 / 38, abs=0.01), \
+        "the forecast is 17.55/1.95 = 9 rounds a season"
+    # a man who starts everything he is fit for, discounted only by how much he is expected to miss
+    assert view.presence(row) == pytest.approx(view.availability(row), abs=0.02)
+
+
+def test_availability_counts_rounds_where_it_can_and_scales_the_source_where_it_cannot():
+    """Transfermarkt counts a spell over every competition the club played, so its number cannot be
+    divided by a championship calendar. Where his club's fixtures are known the rounds are COUNTED;
+    where they are not (a club outside the five leagues) the source's number is scaled by the league
+    share of what we parsed, and `desc_injury_rounds_seasons` = 0 says which of the two it is."""
+    club = {"complete_XIs": "50", "league_XIs": "34"}
+    counted = {"name": "counted", "club": "Bayern Monaco", "desc_injury_source": "transfermarkt",
+               "desc_injury_rounds_seasons": "3", "desc_injury_rounds_weighted": "3.9",
+               "desc_injury_weighted": "9.75"}
+    scaled = {"name": "scaled", "club": "Bayern Monaco", "desc_injury_source": "transfermarkt",
+              "desc_injury_rounds_seasons": "0", "desc_injury_weighted": "9.75"}
+    unknown = {"name": "no id", "club": "Bayern Monaco"}
+    view = _sheet_view({"Bayern Monaco": club}, [counted, scaled, unknown])
+    assert view.availability(counted) == pytest.approx(1 - 2.0 / 34, abs=0.01)
+    assert view.availability(scaled) == pytest.approx(1 - 5.0 / 50, abs=0.01)
+    assert view.availability(unknown) == 1.0, "no history is not knowing, never a penalty"
+
+
+def test_two_overlapping_absences_cost_the_same_round_once():
+    """Which is also the answer to "does the source count a relapse twice": counting the ROUNDS inside
+    the UNION of the spells cannot double-count, whatever the source lists."""
+    from euroleghe_ingest.modules.snapshot import _merged_spells
+
+    assert _merged_spells([("2026-01-10", "2026-02-10"), ("2026-02-01", "2026-03-01")]) == \
+        [("2026-01-10", "2026-03-01")]
+    assert _merged_spells([("2026-01-10", "2026-01-20"), ("2026-03-01", "2026-03-10")]) == \
+        [("2026-01-10", "2026-01-20"), ("2026-03-01", "2026-03-10")]
+    assert _merged_spells([("2026-01-10", "2026-05-01"), ("2026-02-01", "2026-02-10")]) == \
+        [("2026-01-10", "2026-05-01")], "a spell inside another one adds nothing"
+
+
+def test_predicted_appearances_are_a_share_of_the_platform_calendar():
+    """`engine_pv_pred` is counted on the platform's own calendar - 31 euro rounds in 2025-26 against 38
+    in Serie A - so it is not a share of the club's championship. Read against Bayern's fixtures a man
+    expected in 26.6 of 31 rounds printed 53%."""
+    view = _sheet_view({"Bayern Monaco": {"complete_XIs": "50", "league_XIs": "34"}}, [],
+                       {"matchdays": {"platform_target": 31, "platform_input": 31}})
+    assert view.platform_matchdays() == 31
+    assert min(26.6 / view.platform_matchdays(), 1) > 0.85
+    assert _sheet_view({}, [], {}).platform_matchdays() == 0, "an older sheet says nothing: fall back"

@@ -39,6 +39,13 @@ Il **livello di rimpiazzo** è la fantamedia del giocatore marginale messo in ro
 nessun coefficiente fittato: serve sapere quanti giocatori di ogni ruolo una lega mette in rosa, che è
 **configurazione di lega**, non un parametro di modello. Sta in `config/league_config.json`.
 
+Da **v9.10** quel file dichiara le leghe giocate una per una (`my_leagues`: nome → platform, game, teams,
+squad_slots), perché il rimpiazzo è **lo zero del surplus** e cambia con la profondità di rosa: due leghe
+sullo stesso platform+game ordinano diversamente gli stessi giocatori. Conseguenza da tenere presente
+citando un numero: **un surplus senza la sua lega non è confrontabile con quello di un'altra lega**, ed è
+per questo che `manifest.json` porta il blocco `league` e `snapshot` accetta `--league`. Da non confondere
+con le `leagues` di `scoring_config.json`, che sono i **campionati** (serie_a, premier_league, …).
+
 ## 3. La profondità di rosa viene dai tetti di schieramento, misurati
 
 Default: **8 squadre, rosa 3P/8D/8C/6A** (lo standard fantacalcio.it, 25 giocatori). Per il Classic

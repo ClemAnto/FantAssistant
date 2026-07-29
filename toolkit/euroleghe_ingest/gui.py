@@ -21,12 +21,14 @@ from __future__ import annotations
 import contextlib
 import datetime as dt
 import json
+import math
 import queue
+import shutil
 import sqlite3
 import sys
 import threading
 import tkinter as tk
-from tkinter import scrolledtext, ttk
+from tkinter import messagebox, scrolledtext, ttk
 from typing import ClassVar
 
 from euroleghe_ingest import __version__
@@ -1199,18 +1201,13 @@ class AuctionView(ttk.Frame):
         self.status_var = tk.StringVar(value="")
         ttk.Label(top, textvariable=self.status_var, style="Muted.TLabel").pack(side="left", padx=8)
 
-        setup = self.config.load_league()
-        gamma, floor = setup["reliability_exponent"], setup["min_availability"]
-        hint = (f"predicted from the previous season only · FVM = the listone's end-of-season market "
-                f"value · league: {setup['teams']} teams, squad "
-                + "/".join(f"{count}{role}" for role, count in setup["squad_slots"].items())
-                + (f", catchability weight (Pv/matchdays)^{gamma:g}" if gamma else
-                   ", catchability weight off")
-                + (f", ranked only above {floor:.0%} of the season" if floor else "")
-                + " (config/league_config.json) — sets the replacement level SURPLUS is measured "
-                  "against, and how much a player you cannot count on is worth")
-        ttk.Label(self, text=hint, foreground="#777", wraplength=1100,
+        # The league is named, and it FOLLOWS the two selectors: platform and game identify which of the
+        # declared leagues is being looked at, and each can roster differently - so a line stating one
+        # league's squad size under another league's numbers would be describing the wrong zero.
+        self.league_hint = tk.StringVar()
+        ttk.Label(self, textvariable=self.league_hint, foreground="#777", wraplength=1100,
                   justify="left").pack(fill="x", pady=(4, 0))
+        self._describe_league()
 
         body = ttk.Frame(self)
         body.pack(fill="both", expand=True, pady=(6, 0))
@@ -1239,6 +1236,26 @@ class AuctionView(ttk.Frame):
         cb.bind("<<ComboboxSelected>>", callback)
         return cb
 
+    def _league(self) -> dict:
+        """The league played on the selected platform and game - whose squad size IS the zero."""
+        return self.config.load_league(platform=self.platform_var.get(), game=self.game_var.get())
+
+    def _describe_league(self) -> None:
+        """Say which league's replacement level the numbers on screen are measured against."""
+        setup = self._league()
+        gamma, floor = setup["reliability_exponent"], setup["min_availability"]
+        self.league_hint.set(
+            "predicted from the previous season only · FVM = the listone's end-of-season market value"
+            " · league: "
+            + (f"{setup['name']}, " if setup["name"] else "not one you declared, ")
+            + f"{setup['teams']} teams, squad "
+            + "/".join(f"{count}{role}" for role, count in setup["squad_slots"].items())
+            + (f", catchability weight (Pv/matchdays)^{gamma:g}" if gamma else
+               ", catchability weight off")
+            + (f", ranked only above {floor:.0%} of the season" if floor else "")
+            + " (config/league_config.json) — sets the replacement level SURPLUS is measured "
+              "against, and how much a player you cannot count on is worth")
+
     # ---------- data ----------
     def reload(self) -> None:
         """Called on startup and after an operation: recompute for the current selection."""
@@ -1256,6 +1273,7 @@ class AuctionView(ttk.Frame):
         return self.METRICS.get(self.metric_var.get(), "value")
 
     def _on_config_change(self, _event=None) -> None:
+        self._describe_league()
         key = (self.platform_var.get(), self.game_var.get(), self._metric())
         if key in self._cache:
             self._refresh_seasons(self._cache[key])
@@ -1287,8 +1305,9 @@ class AuctionView(ttk.Frame):
         conn = connect(self.config.db_path)
         # The league setup is what makes SURPLUS computable at all: it fixes the rank of the marginal
         # rostered player, whose fantamedia IS the replacement level. Under Mantra the engine turns it
-        # into per-role depth using the fielding caps it measures off real lineups.
-        setup = self.config.load_league()
+        # into per-role depth using the fielding caps it measures off real lineups. Read for THIS
+        # platform and game: two leagues can roster differently, and then one setup is not the other's.
+        setup = self.config.load_league(platform=platform, game=game)
         try:
             usable, fits = {}, {}
             for key, window in features.WINDOWS.items():
@@ -1478,7 +1497,8 @@ class SnapshotView(ttk.Frame):
 
     Reads the folder `snapshot` wrote - `players.csv`, `clubs.csv`, `manifest.json` - rather than
     recomputing anything, so what is on screen is exactly the sheet that was produced and a run and a
-    reading can never disagree. "Build now" runs the module and reloads.
+    reading can never disagree. The bar names the two axes a sheet HAS - which league it is for, which
+    day it stands on - and `Build` rebuilds exactly what the bar states, without a dialog.
 
     Right hand side, top to bottom: what is known about the club, the probable eleven on a pitch with
     each starter's rivals for the shirt underneath him, and the squad ordered BY ROLE first and by
@@ -1625,40 +1645,95 @@ class SnapshotView(ttk.Frame):
                  "whether we have any absence history for him at all. HOVER A ROW to read its icons.",
     }
 
+    # How many sheets of a league the "when" selector lists before it hides the rest. An auction week
+    # produces one a day and only the last two or three are ever opened again; the older ones are kept
+    # (a sheet is the record of what the engine said that day) but they do not have to be in the way.
+    RECENT_SHEETS = 8
+
     def __init__(self, parent, config: Config, on_build=None) -> None:
         super().__init__(parent)
         self.config = config
         self._sparks: list = []
         self.on_build = on_build
-        self.folders: list = []
+        # One entry per sheet on disk, newest first, as `_read_sheet` describes it.
+        self.sheets: list[dict] = []
         self.sort_by: str | None = None
         self.sort_desc = True
         self.rows: list[dict] = []
         self.players: list[dict] = []
         self.clubs: dict[str, dict] = {}
         self.manifest: dict = {}
+        self._show_all = False
+        self._when_paths: list = []
+        self._pending_path = None
+        self._last_league = ""
+        # (club, mode) -> the shape the board draws. Scoring the candidates means building an eleven per
+        # shape, and `_draw_pitch` runs on every <Configure>; the sheet is a file, so the answer cannot
+        # change until another one is loaded.
+        self._shape_cache: dict[tuple[str, str], tuple[str, str]] = {}
+        # ...and (club, mode) -> the shape the OPERATOR asked for, which outranks the board's own choice.
+        # Per club, because it is a judgement about that squad and not a preference about modules.
+        self._shape_choice: dict[tuple[str, str], str] = {}
+        self._top_cache: dict[tuple[str, str], list[str]] = {}
+        self._surplus_cut: float | None = None
+        # The declared LEAGUES, cached from the config file. Not `_declared`: this class already has a
+        # `_declared` METHOD (the editors' declared eleven), and an attribute of that name shadows it -
+        # which silently broke the "prossima giornata" XI until a probe called it.
+        self._my_leagues: dict = {}
         self._build()
 
     # ---------- layout ----------
     def _build(self) -> None:
+        """The bar states WHICH SHEET is on screen, and Build rebuilds exactly that.
+
+        Two selectors, because a sheet has exactly two axes an operator chooses between: the league it
+        is for - which carries the platform, the game and the squad size, i.e. everything that decides
+        the numbers - and the day it stands on. Everything else (a past date, one club, a forced season,
+        no refresh) is behind `...`: it is rare, and it is what the Operations dialog already asks.
+        """
         bar = ttk.Frame(self, padding=(0, 8))
         bar.pack(fill="x")
-        ttk.Label(bar, text="Snapshot:").pack(side="left")
-        self.folder_var = tk.StringVar()
-        self.folder_cb = ttk.Combobox(bar, textvariable=self.folder_var, state="readonly", width=42)
-        self.folder_cb.pack(side="left", padx=6)
-        self.folder_cb.bind("<<ComboboxSelected>>", lambda _e: self.load_selected())
+        ttk.Label(bar, text="League:").pack(side="left")
+        self.league_var = tk.StringVar()
+        self.league_cb = ttk.Combobox(bar, textvariable=self.league_var, state="readonly", width=26)
+        self.league_cb.pack(side="left", padx=(4, 12))
+        self.league_cb.bind("<<ComboboxSelected>>", lambda _e: self._on_league_change())
+        ttk.Label(bar, text="When:").pack(side="left")
+        self.when_var = tk.StringVar()
+        # Wide enough for the longest label the list can produce - a day, a season, a single club and the
+        # build time - because a truncated entry is exactly the ambiguity the build time was added to fix.
+        self.when_cb = ttk.Combobox(bar, textvariable=self.when_var, state="readonly", width=44)
+        self.when_cb.pack(side="left", padx=(4, 12))
+        self.when_cb.bind("<<ComboboxSelected>>", lambda _e: self._on_when_change())
         if self.on_build:
-            ttk.Button(bar, text="Build now", style="Accent.TButton",
-                       command=self.on_build).pack(side="left", padx=(0, 6))
+            # No dialog: the bar already says what to build. `...` is the same run with the rare options.
+            self.build_button = ttk.Button(bar, text="Build", style="Accent.TButton",
+                                           command=self._build_now)
+            self.build_button.pack(side="left", padx=(0, 4))
+            ttk.Button(bar, text="...", width=3, command=lambda: self.on_build(None)).pack(side="left")
+        ttk.Button(bar, text="Delete", command=self._delete_selected).pack(side="left", padx=(8, 4))
         ttk.Button(bar, text="Reload", command=self.reload).pack(side="left")
-        # A build takes minutes and its log lives on another tab, so the progress belongs here.
-        self.build_progress = ttk.Progressbar(bar, mode="indeterminate", length=120)
+        # A build takes minutes and its log lives on another tab, so the progress belongs here. It sits
+        # in a FIXED-WIDTH slot: packed and unpacked directly it moved everything to its right on every
+        # run, and a bar that is only there while it spins must not also rearrange the bar it is in.
+        self.build_slot = ttk.Frame(bar, width=120, height=20)
+        self.build_slot.pack(side="left", padx=(8, 4))
+        self.build_slot.pack_propagate(flag=False)
+        self.build_progress = ttk.Progressbar(self.build_slot, mode="indeterminate", length=110)
         self.build_step = tk.StringVar()
-        self.build_label = ttk.Label(bar, textvariable=self.build_step, style="Muted.TLabel")
+        # Fixed character width and always packed: the stage text changes on every line the module
+        # prints, and a label that grows with its content would jitter the whole bar for a minute.
+        self.build_label = ttk.Label(bar, textvariable=self.build_step, width=30,
+                                     style="Muted.TLabel")
+        self.build_label.pack(side="left")
         self.xi_mode = tk.StringVar(value="typical")
+        # Its own row, not the tail of the bar: it names the league, the rule set and the parameter
+        # source - the provenance of every number below it - and packed after four buttons and a
+        # progress slot it was being pushed off the right edge of the window, which is where a line
+        # nobody reads goes to die.
         self.note_var = tk.StringVar()
-        ttk.Label(bar, textvariable=self.note_var, style="Muted.TLabel").pack(side="left", padx=10)
+        ttk.Label(self, textvariable=self.note_var, style="Muted.TLabel", anchor="w",
+                  wraplength=1400).pack(fill="x", padx=2, pady=(0, 6))
 
         body = ttk.Frame(self)
         body.pack(fill="both", expand=True)
@@ -1693,22 +1768,54 @@ class SnapshotView(ttk.Frame):
         pitch_card = ttk.Frame(columns, style="Card.TFrame", padding=(8, 8))
         pitch_card.pack(side="left", fill="both", expand=True)
         toggle = ttk.Frame(pitch_card, style="Card.TFrame")
-        toggle.pack(fill="x", pady=(0, 6))
+        toggle.pack(fill="x", pady=(0, 2))
         ttk.Label(toggle, text="XI", style="CardMuted.TLabel").pack(side="left", padx=(2, 8))
         for label, value in (("schieramento tipo", "typical"), ("prossima giornata", "next")):
             ttk.Radiobutton(toggle, text=label, value=value, variable=self.xi_mode,
                             style="Card.TRadiobutton",
                             command=self._show_club).pack(side="left", padx=(0, 10))
+        # Second row, because the first one is full: what the markers speak, and WHICH SHAPE to draw.
+        options = ttk.Frame(pitch_card, style="Card.TFrame")
+        options.pack(fill="x", pady=(0, 6))
         # Which vocabulary the markers speak. Three, because an auction uses three.
-        ttk.Label(toggle, text="ruoli", style="CardMuted.TLabel").pack(side="left", padx=(6, 4))
+        ttk.Label(options, text="ruoli", style="CardMuted.TLabel").pack(side="left", padx=(2, 4))
         self.role_mode = tk.StringVar(value="real")
-        ttk.Combobox(toggle, textvariable=self.role_mode, state="readonly", width=8,
-                     values=["real", "mantra", "classic"]).pack(side="left")
+        ttk.Combobox(options, textvariable=self.role_mode, state="readonly", width=8,
+                     values=["real", "mantra", "classic"]).pack(side="left", padx=(0, 10))
         self.role_mode.trace_add("write", lambda *_a: self._draw_pitch())
+        # More than one shape is often plausible - Arsenal played 4-5-1 and 4-3-3 exactly 28 times each -
+        # and which one an auction should look at is a judgement, not a measurement. So the board picks
+        # one and says why, and this offers every shape the club actually fielded, each with what it is
+        # worth: how many of its elevens used it, and how many matchdays the side it fields adds up to.
+        ttk.Label(options, text="modulo", style="CardMuted.TLabel").pack(side="left", padx=(0, 4))
+        self.shape_var = tk.StringVar()
+        self.shape_cb = ttk.Combobox(options, textvariable=self.shape_var, state="readonly", width=26)
+        self.shape_cb.pack(side="left")
+        self.shape_cb.bind("<<ComboboxSelected>>", lambda _e: self._on_shape_change())
+        Tooltip(self.shape_cb,
+                "Which shape to DRAW, and how likely this side is to line up in it - one number, built "
+                "from three things: what THIS CLUB lines up in (its own elevens, the strongest signal), "
+                "what the LEAGUE lines up in (so a module new to this side is possible, and so a history "
+                "that belongs to the PREVIOUS coach counts for less), and whether the squad can man it - "
+                "the eleven each shape fields, in matchdays. A shape whose slots force a 5% squad player "
+                "onto the pitch is not one a coach picks, and that is what pushes its percentage down. "
+                "An ESTIMATE for choosing between the shapes, not a gated number, and not a prediction "
+                "the engine reads. A module nobody in the league plays is not offered at all: on 2025-26 "
+                "that is 2 elevens out of 4812, a parsing tail rather than a formation. Where the men "
+                "redraw a shape, the drawing is named after it: a 4-3-3 with a trequartista is drawn "
+                "4-3-1-2, and both readings are true.", delay=400)
         self.pitch = tk.Canvas(pitch_card, width=430, highlightthickness=0,
                                background=theme.color("surface"))
         self.pitch.pack(fill="both", expand=True)
         self.pitch.bind("<Configure>", lambda _e: self._draw_pitch())
+        # A plate names two rivals; a shirt can have more. HOVER lists all of them, CLICK opens the duel
+        # with the declared-versus-positional reading. Same idiom as the TREND strip in the table, for
+        # the same reason: a plate and ten dots are summaries, not the evidence.
+        self.pitch.bind("<Button-1>", self._on_pitch_click)
+        self.pitch.bind("<Motion>", self._on_pitch_motion, add="+")
+        self.pitch.bind("<Leave>", lambda _e: self.pitch_tip.hide(), add="+")
+        self.pitch_tip = Tooltip(self.pitch, self._pitch_tip_text, delay=320, wraplength=460,
+                                 anchor="pointer", bind_events=False)
 
         table = ttk.Frame(columns, style="Card.TFrame", padding=(8, 8))
         table.pack(side="left", fill="both", expand=True, padx=(8, 0))
@@ -1734,24 +1841,187 @@ class SnapshotView(ttk.Frame):
 
     def restyle(self) -> None:
         """Redraw everything whose colours were baked in: the dot strips and the pitch."""
+        self._char_widths = {}          # the theme may have changed the faces the plates are sized on
         self.pitch.configure(background=theme.color("surface"))
         if self.rows:
             self._fill_table()
         self._draw_pitch()
 
-    # ---------- data ----------
-    def reload(self) -> None:
+    # ---------- the sheets on disk ----------
+    # Shown in the league selector for a sheet whose league is not one of the declared ones: the gate
+    # sweeps all four platform/game combinations, so looking at one you do not play is legitimate - it
+    # just must not be mistaken for a league.
+    UNDECLARED = "{platform}/{game} (not a league)"
+    MANAGE = "Manage leagues..."
+
+    def _read_sheet(self, folder, declared: dict | None = None) -> dict:
+        """Describe one snapshot folder, from its MANIFEST - which is the only thing that knows.
+
+        The folder name carries the same fields, but reading them off it is guessing: a sheet says in
+        its manifest which league it was built for, and therefore what its surplus column is measured
+        against. The name is the fallback for sheets written before the manifest carried a league.
+        """
+        manifest = _read_json(folder / "manifest.json")
+        league = manifest.get("league") or {}
+        platform, game = manifest.get("platform"), manifest.get("game")
+        if not platform or not game:
+            # Pre-manifest or unreadable: `auction-snapshot-<season>-<platform>-<game>[-...]-<date>`.
+            parts = folder.name.replace("auction-snapshot-", "").split("-")
+            platform = next((p for p in parts if p in ("euro", "default")), "euro")
+            game = next((g for g in parts if g in ("classic", "mantra")), "classic")
+        name = league.get("name") if league.get("declared", True) else None
+        if not name and not league:
+            # A sheet built before the manifest carried a league. Its numbers came from the config
+            # file's top-level setup, which is exactly what a declared league inherits, so filing it
+            # under the league played on this platform and game is correct rather than a guess - when
+            # there is exactly one. The note line still says the sheet does not state it.
+            played = [key for key, setup in (declared or {}).items()
+                      if setup["platform"] == platform and setup["game"] == game]
+            name = played[0] if len(played) == 1 else None
+        return {
+            "path": folder,
+            "league": name,
+            "recorded": bool(league),
+            "group": name or self.UNDECLARED.format(platform=platform, game=game),
+            "platform": platform, "game": game,
+            "season": manifest.get("target_season") or "?",
+            "date": manifest.get("auction_date") or folder.name[-10:],
+            "generated_at": manifest.get("generated_at") or "",
+            "only": sorted({row["club"] for row in _read_csv(folder / "clubs.csv")})
+                    if manifest.get("clubs", 99) == 1 else [],
+            "players": manifest.get("players"),
+        }
+
+    def reload(self, *, select_newest: bool = False) -> None:
+        """Rescan the sheets and repopulate both selectors, keeping the current choice if it survives.
+
+        `select_newest` jumps to the most recently BUILT sheet: after a run the operator is looking at
+        the thing he just made, which is not necessarily what was selected before it (he may have been
+        reading a back-dated sheet) and not necessarily the newest DAY either (the run may itself have
+        been back-dated).
+        """
+        with contextlib.suppress(Exception):
+            self._my_leagues = self.config.my_leagues()
+        declared = self._my_leagues
         reports = self.config.data_dir / "reports"
-        self.folders = sorted((path for path in reports.glob("auction-snapshot-*")
-                               if (path / "players.csv").exists()), reverse=True)
-        self.folder_cb.configure(values=[path.name.replace("auction-snapshot-", "")
-                                         for path in self.folders])
-        if not self.folders:
-            self.note_var.set("no snapshot yet - use 'Build now', or Operations > Auction snapshot")
+        folders = sorted((path for path in reports.glob("auction-snapshot-*")
+                          if (path / "players.csv").exists()),
+                         key=lambda path: path.name, reverse=True)
+        self.sheets = [self._read_sheet(folder, declared) for folder in folders]
+        # Declared leagues first, in the file's own order, then any group found on disk that is not one
+        # of them: every sheet must stay reachable, including a combination nobody plays any more.
+        groups = list(dict.fromkeys([*declared, *(sheet["group"] for sheet in self.sheets)]))
+        self.league_cb.configure(values=[*groups, self.MANAGE])
+        newest_build = max(self.sheets, key=lambda sheet: sheet["generated_at"], default=None)
+        if select_newest and newest_build:
+            self.league_var.set(newest_build["group"])
+            self.when_var.set("")
+            self._pending_path = newest_build["path"]
+        if self.league_var.get() not in groups:
+            # Open on the league of the most recently BUILT sheet, not on whatever sorts first: the
+            # folder name starts with the season, so sorting by name once put a mantra sheet on screen
+            # for an operator who had just built a classic one.
+            self.league_var.set(newest_build["group"] if newest_build
+                                else (groups[0] if groups else ""))
+        self._last_league = self.league_var.get()
+        self._refresh_when()
+
+    def _group_sheets(self) -> list[dict]:
+        """The sheets of the selected league, newest day first."""
+        return sorted((sheet for sheet in self.sheets if sheet["group"] == self.league_var.get()),
+                      key=lambda sheet: (sheet["date"], sheet["generated_at"]), reverse=True)
+
+    def _refresh_when(self) -> None:
+        """Repopulate the day selector for the selected league, and load whatever it lands on."""
+        sheets = self._group_sheets()
+        pending = getattr(self, "_pending_path", None)
+        if pending and pending not in [sheet["path"] for sheet in sheets[:self.RECENT_SHEETS]]:
+            self._show_all = True     # a back-dated build lands outside the recent window
+        shown = sheets if self._show_all else sheets[:self.RECENT_SHEETS]
+        labels, self._when_paths = [], []
+        for index, sheet in enumerate(shown):
+            day = "/".join(reversed(sheet["date"].split("-"))) if "-" in sheet["date"] else sheet["date"]
+            label = f"{day} · {sheet['season']}"
+            if sheet["only"]:
+                label += f" · {sheet['only'][0]} only"
+            if index == 0 and not sheet["only"]:
+                label += "  (latest)"
+            # Two sheets of the same league standing on the same DAY - one rebuilt, or an older one that
+            # does not state its league and was filed here - would read as the same entry. What tells
+            # them apart is when each was run, so that is added to both rather than to the second.
+            if sum(1 for other in shown if other["date"] == sheet["date"]) > 1:
+                label += f"  [built {sheet['generated_at'][11:16] or '?'}]"
+            labels.append(label)
+            self._when_paths.append(sheet["path"])
+        hidden = len(sheets) - len(shown)
+        if hidden > 0:
+            labels.append(f"... show all ({len(sheets)})")
+            self._when_paths.append(None)
+        self.when_cb.configure(values=labels)
+        if not labels:
+            self.when_var.set("")
+            self._clear_sheet(f"no sheet for {self.league_var.get() or 'this league'} yet - "
+                             f"press Build")
             return
-        if self.folder_var.get() not in self.folder_cb["values"]:
-            self.folder_var.set(self.folder_cb["values"][0])
+        if pending in self._when_paths:
+            self.when_var.set(labels[self._when_paths.index(pending)])
+        elif self.when_var.get() not in labels:
+            self.when_var.set(labels[0])
+        self._pending_path = None
         self.load_selected()
+
+    def _on_league_change(self) -> None:
+        if self.league_var.get() == self.MANAGE:
+            self.league_var.set(getattr(self, "_last_league", ""))
+            self._manage_leagues()
+            return
+        self._last_league = self.league_var.get()
+        self._show_all = False
+        self.when_var.set("")
+        self._refresh_when()
+
+    def _on_when_change(self) -> None:
+        labels = list(self.when_cb["values"])
+        index = labels.index(self.when_var.get()) if self.when_var.get() in labels else -1
+        if 0 <= index < len(self._when_paths) and self._when_paths[index] is None:
+            self._show_all = True          # the "show all" entry, not a sheet
+            self.when_var.set("")
+            self._refresh_when()
+            return
+        self.load_selected()
+
+    def _selected_sheet(self) -> dict | None:
+        labels = list(self.when_cb["values"])
+        if self.when_var.get() not in labels:
+            return None
+        path = self._when_paths[labels.index(self.when_var.get())]
+        return next((sheet for sheet in self.sheets if sheet["path"] == path), None)
+
+    def _clear_sheet(self, message: str) -> None:
+        """No sheet to show: empty the board and say why, rather than leaving the last one on screen."""
+        self.players, self.clubs, self.manifest, self.rows = [], {}, {}, []
+        self.club_tree.delete(*self.club_tree.get_children())
+        self.player_tree.delete(*self.player_tree.get_children())
+        self.club_title.set("no snapshot")
+        self.club_info.set("")
+        self.note_var.set(message)
+        self._draw_pitch()
+
+    # ---------- building ----------
+    def _build_now(self) -> None:
+        """Build the sheet the bar describes: no dialog, because the bar already answered the question.
+
+        A declared league carries its own platform and game, so it is passed BY NAME - the run then
+        cannot be given a squad size that belongs to another league. An undeclared group has no name to
+        pass, so the two dimensions go straight through.
+        """
+        group = self.league_var.get()
+        if group in self._my_leagues:
+            self.on_build({"league": group, "refresh": True})
+            return
+        sheet = next((sheet for sheet in self.sheets if sheet["group"] == group), None)
+        self.on_build({"platform": sheet["platform"] if sheet else "euro",
+                       "game": sheet["game"] if sheet else "classic", "refresh": True})
 
     def building(self, running: bool, step: str = "") -> None:
         """Show the build's progress and the stage it has reached; hide it again when it is done.
@@ -1761,29 +2031,182 @@ class SnapshotView(ttk.Frame):
         and the honest signal is that it is still working and what it is working on. The stage text is
         the module's own last line, which is also what the Operations log records.
         """
-        self.build_step.set(step[:64])
+        self.build_step.set(step[:38])
+        if hasattr(self, "build_button"):
+            self.build_button.configure(state="disabled" if running else "normal")
         if running:
             if not self.build_progress.winfo_ismapped():
-                self.build_progress.pack(side="left", padx=(8, 4))
-                self.build_label.pack(side="left")
+                self.build_progress.pack(side="left")
                 self.build_progress.start(12)
         else:
             self.build_progress.stop()
             self.build_progress.pack_forget()
-            self.build_label.pack_forget()
+
+    # ---------- the leagues you play in ----------
+    def _manage_leagues(self) -> None:
+        """Declare the leagues you play in: one row each, everything visible at once.
+
+        No selection state and no "apply" step - with two or three leagues a form per row is simpler
+        than a list plus an editor, and nothing can be typed into a field that then quietly belongs to
+        the row you switched away from. Save rewrites only `my_leagues` in the config file; the comments
+        and the top-level defaults every league inherits from stay where they are.
+        """
+        from euroleghe_ingest.config import GAMES, PLATFORMS
+
+        dlg = tk.Toplevel(self)
+        dlg.title("Leagues you play in")
+        dlg.transient(self.winfo_toplevel())
+        dlg.grab_set()
+        frame = ttk.Frame(dlg, padding=12)
+        frame.pack(fill="both", expand=True)
+        ttk.Label(frame, style="Muted.TLabel", justify="left", wraplength=560,
+                  text="One row per league. `platform` decides which matches count toward the "
+                       "fantamedia, `game` the roles and the currency, teams x squad the REPLACEMENT "
+                       "LEVEL the surplus is measured against - three choices that change every number "
+                       "in the sheet. A blank field inherits the value at the top of "
+                       "config/league_config.json. That file is tracked by git and the repository is "
+                       "public, so a league name is published with the next commit."
+                  ).pack(anchor="w", pady=(0, 10))
+        grid = ttk.Frame(frame)
+        grid.pack(fill="both", expand=True)
+        for column, (title, width) in enumerate((("league", 22), ("platform", 9), ("game", 9),
+                                                 ("teams", 6), ("P", 4), ("D", 4), ("C", 4), ("A", 4))):
+            ttk.Label(grid, text=title, style="Muted.TLabel", width=width).grid(
+                row=0, column=column, sticky="w", padx=2)
+        rows: list[dict] = []
+
+        def add_row(name: str = "", setup: dict | None = None) -> None:
+            setup = setup or {}
+            slots = setup.get("squad_slots") or {}
+            index = len(rows) + 1
+            row = {
+                "name": tk.StringVar(value=name),
+                "platform": tk.StringVar(value=setup.get("platform", PLATFORMS[0])),
+                "game": tk.StringVar(value=setup.get("game", GAMES[0])),
+                "teams": tk.StringVar(value=str(setup["teams"]) if setup.get("teams") else ""),
+            }
+            for role in ("P", "D", "C", "A"):
+                row[role] = tk.StringVar(value=str(slots[role]) if slots.get(role) else "")
+            widgets = [ttk.Entry(grid, textvariable=row["name"], width=22),
+                       ttk.Combobox(grid, textvariable=row["platform"], state="readonly",
+                                    width=8, values=list(PLATFORMS)),
+                       ttk.Combobox(grid, textvariable=row["game"], state="readonly",
+                                    width=8, values=list(GAMES)),
+                       ttk.Entry(grid, textvariable=row["teams"], width=5),
+                       *(ttk.Entry(grid, textvariable=row[role], width=3)
+                         for role in ("P", "D", "C", "A"))]
+            for column, widget in enumerate(widgets):
+                widget.grid(row=index, column=column, sticky="w", padx=2, pady=2)
+            drop = ttk.Button(grid, text="x", width=2)
+            drop.grid(row=index, column=len(widgets), padx=(6, 0))
+            row["widgets"] = [*widgets, drop]
+            drop.configure(command=lambda r=row: forget(r))
+            rows.append(row)
+
+        def forget(row: dict) -> None:
+            for widget in row["widgets"]:
+                widget.destroy()
+            rows.remove(row)
+
+        for name, setup in self.config.my_leagues().items():
+            add_row(name, setup)
+
+        def save() -> None:
+            out: dict[str, dict] = {}
+            for row in rows:
+                name = row["name"].get().strip()
+                if not name:
+                    messagebox.showerror("Leagues", "A league needs a name.", parent=dlg)
+                    return
+                if name in out:
+                    messagebox.showerror("Leagues", f"Two leagues are both called {name!r}.",
+                                         parent=dlg)
+                    return
+                setup: dict = {"platform": row["platform"].get(), "game": row["game"].get()}
+                if row["teams"].get().strip():
+                    if not row["teams"].get().strip().isdigit() or int(row["teams"].get()) < 2:
+                        messagebox.showerror("Leagues", f"{name}: teams must be a number, 2 or more.",
+                                             parent=dlg)
+                        return
+                    setup["teams"] = int(row["teams"].get())
+                slots = {role: row[role].get().strip() for role in ("P", "D", "C", "A")}
+                if any(slots.values()):
+                    if not all(value.isdigit() and int(value) >= 1 for value in slots.values()):
+                        messagebox.showerror(
+                            "Leagues", f"{name}: give all four squad slots as numbers of 1 or more, or "
+                                       f"leave all four blank to inherit them.", parent=dlg)
+                        return
+                    setup["squad_slots"] = {role: int(value) for role, value in slots.items()}
+                out[name] = setup
+            self.config.save_leagues(out)
+            dlg.destroy()
+            self.league_var.set("")     # the groups changed: let reload pick a valid one
+            self.reload()
+
+        ttk.Button(frame, text="+ add league", command=add_row).pack(anchor="w", pady=(10, 0))
+        buttons = ttk.Frame(frame)
+        buttons.pack(anchor="e", pady=(12, 0))
+        ttk.Button(buttons, text="Save", style="Accent.TButton",
+                   command=save).pack(side="left", padx=4)
+        ttk.Button(buttons, text="Cancel", command=dlg.destroy).pack(side="left", padx=4)
+        dlg.wait_window()
+
+    def _delete_selected(self) -> None:
+        """Remove one sheet from disk, on confirmation.
+
+        Manual only, and never automatic. A sheet is not just data that can be recomputed: it is the
+        record of what the engine said on that day with those rules and those parameters (the manifest
+        carries `generated_at`, `rules`, `params_from`), and rebuilding the same date after adopting a
+        rule or refitting gives different numbers - legitimately. Pruning "the old ones" would delete
+        the sheet an auction was actually run from, silently. Hence a button, and a name to read first.
+        """
+        sheet = self._selected_sheet()
+        if not sheet:
+            return
+        folder = sheet["path"]
+        reports = (self.config.data_dir / "reports").resolve()
+        # Never outside data/reports, and never anything that is not a snapshot: this deletes a TREE.
+        if folder.resolve().parent != reports or not folder.name.startswith("auction-snapshot-"):
+            messagebox.showerror("Delete snapshot", f"{folder} is not a snapshot folder under "
+                                                    f"{reports} - refusing to delete it.")
+            return
+        size = sum(path.stat().st_size for path in folder.glob("*") if path.is_file())
+        if not messagebox.askyesno(
+                "Delete snapshot",
+                f"Delete this sheet?\n\n{folder.name}\n\n"
+                f"{sheet['players'] or '?'} players · {size / 1024:.0f} KB · built "
+                f"{sheet['generated_at'] or 'at an unknown time'}\n\n"
+                f"It is the record of what the engine said that day: rebuilding the same date later, "
+                f"after adopting a rule or refitting the parameters, gives different numbers."):
+            return
+        shutil.rmtree(folder, ignore_errors=True)
+        self.when_var.set("")
+        self.reload()
 
     def load_selected(self) -> None:
-        names = list(self.folder_cb["values"])
-        if not names or self.folder_var.get() not in names:
+        sheet = self._selected_sheet()
+        if not sheet:
             return
-        folder = self.folders[names.index(self.folder_var.get())]
+        folder = sheet["path"]
+        self._shape_cache.clear()
+        self._shape_choice.clear()      # another sheet is another squad: the judgement does not carry
+        self._top_cache.clear()
+        self._surplus_cut = None
         self.players = _read_csv(folder / "players.csv")
         self.clubs = {row["club"]: row for row in _read_csv(folder / "clubs.csv")}
         self.manifest = _read_json(folder / "manifest.json")
         engine = self.manifest.get("engine", {})
+        league = self.manifest.get("league") or {}
         notes = self.manifest.get("notes", [])
-        self.note_var.set(f"{len(self.players)} players · rules {', '.join(engine.get('rules', []))} "
-                          f"· params {engine.get('params_from', '?')}"
+        # The league is named on the bar because it is what the surplus column is measured against: the
+        # squad size fixes the replacement level, so the same prediction ranks differently in a league
+        # that rosters deeper.
+        squad = "/".join(f"{count}{role}" for role, count in (league.get("squad_slots") or {}).items())
+        self.note_var.set(f"{len(self.players)} players · {sheet['platform']}/{sheet['game']}"
+                          + (f" · {league['teams']} teams {squad}" if league.get("teams") else "")
+                          + ("" if sheet["recorded"] else " · this sheet does not state its league")
+                          + f" · rules {', '.join(engine.get('rules', []))}"
+                          + f" · params {engine.get('params_from', '?')}"
                           + (f" · {len(notes)} note(s) in the manifest" if notes else ""))
         self.club_tree.delete(*self.club_tree.get_children())
         counts: dict[str, int] = {}
@@ -2064,6 +2487,48 @@ class SnapshotView(ttk.Frame):
                 mark = " *"
             self.player_tree.heading(key, text=f"{title}{mark}")
 
+    # ---------- which shape to draw ----------
+    def _fill_shapes(self, club: str, info: dict, drawn: str) -> None:
+        """Offer every shape this club fielded, with what each is worth, and select the drawn one.
+
+        Locked for the coming match when the probabili name a shape: that is the coach's own choice for
+        that game, and offering alternatives to it would be offering to ignore him. Everywhere else the
+        list is a real question - Arsenal played 4-5-1 and 4-3-3 twenty-eight times each - so the board's
+        answer is only a default.
+        """
+        mode = self.xi_mode.get()
+        odds = self.shape_odds(club, info, mode)
+        declared = mode == "next" and bool(info.get("formation_today"))
+        if not odds or declared:
+            self._shape_labels = {}
+            self.shape_cb.configure(values=[drawn], state="disabled")
+            self.shape_var.set(drawn)
+            return
+        self._shape_labels = {}
+        for shape, probability in odds.items():
+            # ONE number per shape: how likely this side is to line up in it. Where the men redraw it,
+            # the drawing is named too - the counts are the PROVIDER's three lines, where a trequartista
+            # is a forward, so the familiar-but-slightly-different case (a 4-3-3 fielded as a 4-3-1-2) is
+            # the same line counts drawn differently, and that is a fact about the shape, not a number.
+            picture = self.lanes_for(self.eleven(club, shape, mode))[2]
+            # `<1%` rather than `0%`: it is offered, so it is possible - a shape a coach would only go to
+            # in a corner. Rounding that to zero would say the opposite of why it is in the list.
+            label = (f"{shape} · " + ("<1%" if probability < 0.005 else f"{probability:.0%}")
+                     + (f" → {picture}" if picture and picture != shape else ""))
+            self._shape_labels[label] = shape
+        self.shape_cb.configure(values=list(self._shape_labels), state="readonly")
+        self.shape_var.set(next((label for label, shape in self._shape_labels.items()
+                                 if shape == drawn), drawn))
+
+    def _on_shape_change(self) -> None:
+        """Draw the shape the operator asked for, and remember it for this club."""
+        club = self._selected_club()
+        shape = getattr(self, "_shape_labels", {}).get(self.shape_var.get())
+        if not club or not shape:
+            return
+        self._shape_choice[(club, self.xi_mode.get())] = shape
+        self._show_club()
+
     # ---------- club detail ----------
     def _show_club(self) -> None:
         club = self._selected_club()
@@ -2071,7 +2536,8 @@ class SnapshotView(ttk.Frame):
             return
         info = self.clubs.get(club, {})
         self.club_title.set(club)
-        formation, source = self._formation(info, self.xi_mode.get())
+        formation, source = self.board_shape(club, info, self.xi_mode.get())
+        self._fill_shapes(club, info, formation)
         # The lines come from the provider's slots, where a winger counts as a midfielder: a 4-3-3
         # with wingers reads 4-5-1. Said out loud, so nobody reads the shape as the coach's own words.
         label = "prossima giornata" if self.xi_mode.get() == "next" else "modulo tipo"
@@ -2171,6 +2637,7 @@ class SnapshotView(ttk.Frame):
             per_match = (projected / matches if projected
                          else minutes_played / matches if minutes_played else None)
             presences = _number(row.get("engine_pv_pred"), None)
+            calendar = self.platform_matchdays() or matches
             fm = _number(row.get("engine_fm_pred"), None)
             # The GRANULAR real role when we have it ('DL/ML' - which line AND which flank), else the
             # old pair: the modal per-match slot plus a sided Mantra role. Strictly more informative,
@@ -2189,7 +2656,7 @@ class SnapshotView(ttk.Frame):
                 (row.get("roles_mantra") or "").replace(";", "/") or "-", real or "-",
                 row.get("name"), row.get("engine_surplus") or "",
                 f"{fm:.1f}" if fm is not None else "",
-                f"{min(presences / matches, 1):.0%}" if presences is not None else "",
+                f"{min(presences / calendar, 1):.0%}" if presences is not None else "",
                 f"{per_match:.0f}" if per_match else "",
                 f"{self.voto_share(row):.0%}" if row.get("desc_season_matches") else "",
                 row.get("desc_form_rating") or "", f"{bonus:.0f}" if bonus >= 0.5 else "",
@@ -2224,6 +2691,226 @@ class SnapshotView(ttk.Frame):
             return today, "probabili of today (no complete XI measured)"
         return SnapshotView._derived_formation(info), "rounded mean of the lines fielded"
 
+    # How much stronger an eleven another shape has to field before the board stops drawing the club's
+    # own modal one, in SHARES OF A SEASON summed over the eleven (0.30 = one shirt going from a 20% man
+    # to a 50% one). The modal shape is evidence about the coach and is not overturned by noise; a shape
+    # that asks for a player the squad has not got is not evidence about anything.
+    # Three, because how much the mode is worth is itself measured: `formation_settled` = a habit,
+    # `under_coach = 0` = the shape of a side that no longer exists (a summer coach change), and in
+    # between a coach still choosing. DISPLAY parameters - the pitch is descriptive, nothing here reaches
+    # the engine - and they were set by measuring what each one changes across the 34 euro clubs.
+    # How much of the prior comes from THIS CLUB's own elevens rather than from the league's: 0.40 when
+    # none of the measured sample is the current coach's (the distribution is his predecessor's, so what
+    # the league does at large is the better guess), 0.90 when all of it is his. Between the two it moves
+    # with the share that is his.
+    SHAPE_TRUST_FLOOR: ClassVar[float] = 0.40
+    SHAPE_TRUST_RANGE: ClassVar[float] = 0.50
+    # How many matchdays weaker an eleven has to be for the shape to be half as likely: a coach does not
+    # field the module that forces a 5% squad player onto the pitch, but half a matchday is nothing.
+    SHAPE_FIT_SCALE: ClassVar[float] = 0.60
+    # Below this share of the league's own elevens a shape is not a formation. MEASURED, not chosen: on
+    # 2025-26's 4812 complete elevens it separates the seven real modules (5-4-1, the rarest, is at 2.5%)
+    # from four tails of two elevens each - 2-6-2, 4-2-4, 4-6-0 - which are parsing artefacts.
+    LEAGUE_SHAPE_FLOOR: ClassVar[float] = 0.01
+
+    @staticmethod
+    def observed_shapes(info: dict) -> dict[str, int]:
+        """{shape: how many times the club fielded it}, from `formation_shapes`."""
+        out: dict[str, int] = {}
+        for part in (info.get("formation_shapes") or "").split(";"):
+            shape, _, count = part.partition(":")
+            if shape.strip() and count.strip().isdigit():
+                out[shape.strip()] = int(count)
+        return out
+
+    def league_shapes(self) -> dict[str, float]:
+        """{shape: its share of the LEAGUE's complete elevens} - what counts as a formation at all.
+
+        The club's own history answers "what does this coach do"; this answers "is this a module".
+        Without it the board could only ever redraw a shape the club had already used, which is wrong for
+        exactly the case that matters at an auction: a side rebuilt over the summer, whose new coach will
+        line it up in something this squad has not played yet.
+        """
+        repertoire = self.manifest.get("formation_repertoire") or {}
+        total = sum(repertoire.values())
+        if not total:
+            return {}
+        return {shape: count / total for shape, count in repertoire.items()
+                if count / total >= self.LEAGUE_SHAPE_FLOOR}
+
+    def plausible_shapes(self, info: dict) -> dict[str, tuple[int, float]]:
+        """{shape: (elevens THIS club played it in, its share of the league's)}, the club's first.
+
+        Two kinds of plausible, and the difference is kept visible rather than merged into one list: a
+        shape with a count is a habit of this side, one with a count of zero is a module of the league
+        that this side has not used. Both can be drawn; only the first is drawn by default.
+        """
+        own = self.observed_shapes(info)
+        league = self.league_shapes()
+        out = {shape: (count, league.get(shape, 0.0))
+               for shape, count in sorted(own.items(), key=lambda item: -item[1])}
+        for shape, share in sorted(league.items(), key=lambda item: -item[1]):
+            if shape not in out:
+                out[shape] = (0, share)
+        return out
+
+    def shape_odds(self, club: str, info: dict, mode: str) -> dict[str, float]:
+        """{shape: how likely this side is to line up in it}, summing to 1. A DISPLAY estimate.
+
+        Three things decide it, and none of them is enough on its own:
+          * what THIS CLUB lines up in (`formation_shapes`) - a habit, and the strongest signal there is;
+          * what the LEAGUE lines up in (`formation_repertoire`) - because a coach can try a module new to
+            this side, and because the club's own history may be his PREDECESSOR's, in which case it
+            describes a team that no longer exists. `SHAPE_TRUST_*` is how much of the prior comes from
+            which, and it moves with the share of the sample that is the current coach's;
+          * whether the SQUAD can man it - the eleven each shape fields, in matchdays, on the same
+            percentages the shirts show. A shape whose slots force a 5% squad player onto the pitch is
+            not one a coach picks, and `SHAPE_FIT_SCALE` is how many matchdays halve its odds.
+        Not gated and not a prediction of anything the engine values: it orders the shapes a human is
+        choosing between, and it is shown as a percentage so that choice can be made with a number.
+        """
+        options = self.plausible_shapes(info)
+        if not options:
+            return {}
+        if mode == "next" and info.get("formation_today"):
+            return {info["formation_today"]: 1.0}      # the coach has declared it
+        own = self.observed_shapes(info)
+        played = sum(own.values())
+        under_coach = _number(info.get("formation_typical_under_coach"), 0.0)
+        his = (under_coach / played) if played else 0.0
+        trust = self.SHAPE_TRUST_FLOOR + self.SHAPE_TRUST_RANGE * min(1.0, max(0.0, his))
+        scores = {shape: self.shape_matchdays(club, shape, mode) for shape in options}
+        best = max(scores.values())
+        weights: dict[str, float] = {}
+        for shape, (count, league_share) in options.items():
+            prior = trust * (count / played if played else 0.0) + (1 - trust) * league_share
+            # exp(-gap / scale): smooth, so half a matchday is nothing and two are decisive
+            weights[shape] = prior * math.exp((scores[shape] - best) / self.SHAPE_FIT_SCALE)
+        total = sum(weights.values())
+        if not total:
+            return {}
+        return dict(sorted(((shape, weight / total) for shape, weight in weights.items()),
+                           key=lambda item: -item[1]))
+
+    def board_shape(self, club: str, info: dict, mode: str) -> tuple[str, str]:
+        """(the shape to DRAW, why). The likeliest one, unless the operator asked for another.
+
+        For the coming match the probabili's own shape beats every estimate and is not second-guessed.
+        Otherwise the board draws the top of `shape_odds` - which is the club's habit unless the squad
+        cannot man it, because that is exactly what the odds are built from.
+        """
+        odds = self.shape_odds(club, info, mode)
+        picked = self._shape_choice.get((club, mode))
+        if picked and picked in odds:
+            return picked, f"your choice · {odds[picked]:.0%} likely, of what this side plays"
+        if not odds:
+            return self._formation(info, mode)
+        cached = self._shape_cache.get((club, mode))
+        if cached:
+            return cached
+        best = next(iter(odds))
+        measured = info.get("formation_typical")
+        why = (f"{odds[best]:.0%} likely" if best == measured else
+               f"{odds[best]:.0%} likely against {odds.get(measured, 0):.0%} for the measured {measured}: "
+               f"with these men it fields "
+               f"{self.shape_matchdays(club, best, mode) - self.shape_matchdays(club, measured, mode):+.1f}"
+               f" matchdays")
+        self._shape_cache[(club, mode)] = (best, why)
+        return best, why
+
+    def shape_matchdays(self, club: str, shape: str, mode: str) -> float:
+        """What the eleven this shape fields adds up to: the shirts' own percentages, summed."""
+        horizon = "recent" if mode == "next" else "season"
+        return sum(self.presence(starter, horizon)
+                   for _role, starter, _rivals in self.eleven(club, shape, mode))
+
+    # ---------- the men whose marker is inverted ----------
+    # At most three per club, and every condition has to hold at once - a high surplus with a rival on
+    # his shoulder is not a certainty, and a certainty worth nothing is not a top player.
+    TOP_PLAYERS: ClassVar[int] = 3
+    # Where the bar is. The surplus is read as a PERCENTILE of the sheet, because it is measured against
+    # a replacement level that depends on the league's squad size - an absolute 5.0 would mean one thing
+    # in an 8-team league and another in a 12-team one. On the 2026-27 euro sheet p90 is 5.5 points.
+    TOP_SURPLUS_PERCENTILE: ClassVar[float] = 0.90
+    # What replaced titolarita, and it is the better question: does he ALWAYS play a real number of
+    # minutes? Read per match off the trend detail and only on LEAGUE matches - which is also what makes
+    # it comparable between clubs, where titolarita is not: titolarita's denominator is the club's own
+    # matches and we parse a different mix of competitions per club (Arsenal 58 = 38 league + 14
+    # European + 6 cup, Napoli 38 = league only), so Kane reads 49% for playing nearly everything.
+    # 70 minutes is "he finished the match" allowing for a late substitution; 70% of the league matches
+    # in the window is "always" allowing for one rest in three. A minimum of four league matches, because
+    # a share over two is not a share. Measured on euro 2026-27: 25 men over 34 clubs.
+    TOP_MINUTES_FULL: ClassVar[float] = 70.0
+    TOP_MINUTES_ALWAYS: ClassVar[float] = 0.70
+    TOP_MINUTES_MATCHES: ClassVar[int] = 4
+    # "Ballottaggio quasi nullo": his likeliest challenger is well under him, so the shirt is his.
+    TOP_DUEL_SHARE: ClassVar[float] = 0.60
+
+    @classmethod
+    def full_match_share(cls, row: dict) -> tuple[float, int]:
+        """(share of his club's recent LEAGUE matches he played nearly all of, how many there were).
+
+        Per match, not on average: an average of 60 minutes is the same number for a man who plays every
+        match to the 70th and for one who alternates 90 with 20, and only the first is a top player. The
+        cups are left out on purpose - they are not what the fantamedia is scored on, and counting a
+        rested man's cup rest against him is what made an absolute minutes bar reward the clubs that play
+        fewest matches.
+        """
+        played = total = 0
+        for entry in (row.get("desc_form_detail") or "").split(";"):
+            if not entry:
+                continue
+            fields = (entry.split("|") + [""] * 10)[:10]
+            if competition_class(fields[1]) != "league":
+                continue
+            total += 1
+            played += _number(fields[5]) >= cls.TOP_MINUTES_FULL
+        return (played / total if total else 0.0), total
+
+    def top_players(self, club: str, mode: str) -> list[str]:
+        """The (at most three) men of this club whose every number is good at once, best surplus first.
+
+        A conjunction and not a score: a top player has to play nearly every league match nearly whole,
+        AND be worth something, AND have nobody on his shoulder - averaging the three would let a huge
+        surplus carry a man who is on the pitch for twenty minutes. Nothing here is fitted (the surplus
+        bar is a percentile of the sheet, the rest are shares of matches) and nothing reaches the engine:
+        it decides which markers are drawn inverted.
+        """
+        cached = self._top_cache.get((club, mode))
+        if cached is not None:
+            return cached
+        horizon = "recent" if mode == "next" else "season"
+        shape, _why = self.board_shape(club, self.clubs.get(club, {}), mode)
+        eleven = self.eleven(club, shape, mode)
+        floor = self._surplus_floor()
+        picked: list[tuple[float, str]] = []
+        for _role, starter, rivals in eleven:
+            surplus = _number(starter.get("engine_surplus"))
+            always, matches = self.full_match_share(starter)
+            # the duel is a RATIO between two men of the same club, so the denominator that makes
+            # titolarita incomparable between clubs cancels out and it can be read straight
+            share = self.presence(starter, horizon)
+            challenger = max((self.presence(row, horizon) for row in rivals), default=0.0)
+            if (matches >= self.TOP_MINUTES_MATCHES and always >= self.TOP_MINUTES_ALWAYS
+                    and floor is not None and surplus >= floor
+                    and challenger <= self.TOP_DUEL_SHARE * share
+                    and not starter.get("desc_injury_open")
+                    and starter.get("desc_availability_now") not in ("injured", "suspended")):
+                picked.append((surplus, starter.get("name") or ""))
+        out = [name for _surplus, name in sorted(picked, reverse=True)[:self.TOP_PLAYERS]]
+        self._top_cache[(club, mode)] = out
+        return out
+
+    def _surplus_floor(self) -> float | None:
+        """The sheet's own `TOP_SURPLUS_PERCENTILE` of surplus - None when the sheet has no valuation."""
+        if self._surplus_cut is None:
+            values = sorted(_number(row.get("engine_surplus")) for row in self.players
+                            if row.get("engine_surplus") not in (None, ""))
+            self._surplus_cut = (values[min(len(values) - 1,
+                                            int(len(values) * self.TOP_SURPLUS_PERCENTILE))]
+                                 if values else None)
+        return self._surplus_cut
+
     @staticmethod
     def _derived_formation(info: dict) -> str:
         """No probabili? Then the module the club ACTUALLY fielded, rounded from the lines it played."""
@@ -2253,8 +2940,13 @@ class SnapshotView(ttk.Frame):
     # Where the rows sit down the pitch: as many as the drawn shape has lines, evenly spaced between
     # the keeper and the attack. Fixed tables of fractions drifted from that as soon as a fifth lane
     # appeared, and the request is exactly this - the vertical reads the module's line count.
-    LANE_TOP: ClassVar[float] = 0.07
-    LANE_BOTTOM: ClassVar[float] = 0.83
+    # The band the lines are spread over. Widened once the plates grew a rival line: below the attack
+    # sat 17% of the canvas that nothing used, and above the keeper 7% where only his marker goes (his
+    # plate is drawn BELOW him, and a lane of one man never staggers). Measured effect on a 493px pitch:
+    # a five-line shape's rows go from 94px apart to 102, i.e. from ~2px of clearance between two facing
+    # plates to ~14 - and the bottom plate still ends 15px inside the pitch.
+    LANE_TOP: ClassVar[float] = 0.05
+    LANE_BOTTOM: ClassVar[float] = 0.88
 
     @classmethod
     def lane_of(cls, row: dict) -> str:
@@ -2282,6 +2974,12 @@ class SnapshotView(ttk.Frame):
         for role, starter, rivals in eleven:
             codes = self.real_roles(starter)
             lane = self.LANE_OF_ROLE.get(codes[0] if codes else "", "M" if role == "C" else role)
+            # ...unless one of his OTHER codes is the line he was actually chosen for. The eleven picks a
+            # man for a line, and since it reads every code (Spinazzola is 'ML;DL' and can be its left
+            # back), drawing him by his first code alone contradicted the choice: he was picked as the
+            # left back and drawn among the midfielders, so the board said 3-4-3 for a back four.
+            if lane != role and role in {self.LANE_OF_ROLE.get(code) for code in codes}:
+                lane = role
             lanes.setdefault(lane, []).append((starter, rivals))
         geometry = self.geometry_for([key for key in ("P", "D", "M", "T", "A")
                                       if lanes.get(key)])
@@ -2356,10 +3054,15 @@ class SnapshotView(ttk.Frame):
         else:
             wrong_side = 2        # a wide player asked to play in the middle
         codes = self.real_roles(row)
-        depth = (REAL_ROLE_DEPTH.get(codes[0]) if codes else None)
-        if depth is None:
-            depth = self.LANE_DEPTH.get(self.lane_of(row), 0.60)
-        gap = round(abs(depth - self.LANE_DEPTH.get(lane, 0.60)) * 20)
+        # The NEAREST of his codes, not the first one. The side term above already reads them all
+        # (`sides_of`), and reading only the primary here punished a man for the order they are listed
+        # in: Spinazzola is 'ML;DL', so his own DL cost him seven steps for a defensive slot and Napoli's
+        # left back became a 38% man while the 54% one stayed out. A pure centre back still pays the two
+        # steps to a midfield line - what is gone is the penalty for a position he actually plays.
+        depths = [REAL_ROLE_DEPTH[code] for code in codes if code in REAL_ROLE_DEPTH]
+        if not depths:
+            depths = [self.LANE_DEPTH.get(self.lane_of(row), 0.60)]
+        gap = round(min(abs(depth - self.LANE_DEPTH.get(lane, 0.60)) for depth in depths) * 20)
         if "ST" not in codes:
             return wrong_side, 0, gap
         return (wrong_side, (2 if lane == "A" and side != "C" else 0) + (4 if strikers >= 2 else 0), gap)
@@ -2414,12 +3117,18 @@ class SnapshotView(ttk.Frame):
     LOAN_DISCOUNT: ClassVar[float] = 0.60
     ARRIVAL_DISCOUNT: ClassVar[float] = 0.80
 
-    @classmethod
-    def availability(cls, row: dict) -> float:
+    def availability(self, row: dict) -> float:
         """The share of a season a man like this one is fit for: 1.0 healthy, less for the injury-prone.
 
         `desc_injury_weighted` is his matches missed over the last three seasons with snapshot.py's
         recency weights applied, so dividing by their sum reads as "matches missed in a season".
+
+        A share, so both halves have to be counted over the SAME fixtures, and Transfermarkt counts a
+        spell over every competition the club played - so the denominator is the club's whole fixture
+        list. It used to be the player's own appearances, which shrink exactly when he is injured: 24.1
+        matches missed over Rrahmani's 21 appearances read as "1 - 115%" and only the floor stopped it,
+        and Saka's 31.85 over 31 did the same. Over Arsenal's 58 fixtures Saka is 0.45, which is a
+        discount rather than a verdict - and no player is at the floor for being measured badly.
 
         NO history means 1.0, and that is a deliberate asymmetry: not knowing whether a man gets injured
         is not knowing, and the unknown perimeter (a player with no Transfermarkt id) must not be
@@ -2428,9 +3137,18 @@ class SnapshotView(ttk.Frame):
         """
         if not row.get("desc_injury_source"):
             return 1.0
+        if _number(row.get("desc_injury_rounds_seasons")):
+            # ROUNDS of his own championship, counted on his club's fixtures by date: the same unit as
+            # the calendar below, so nothing has to be converted and no club is treated differently.
+            per_season = _number(row.get("desc_injury_rounds_weighted")) / sum(INJURY_WEIGHTS)
+            return max(1.0 - per_season / max(self.club_matches(row.get("club")), 1.0),
+                       self.AVAILABILITY_FLOOR)
+        # No calendar to count on (a club outside the five leagues): the source's own number, over the
+        # fixture list it counted the absences against. Second best, and it says so here rather than
+        # pretending the rounds were measured.
         per_season = _number(row.get("desc_injury_weighted")) / sum(INJURY_WEIGHTS)
-        matches = _number(row.get("desc_season_matches")) or cls.SEASON_MATCHES
-        return max(1.0 - per_season / max(matches, 1.0), cls.AVAILABILITY_FLOOR)
+        fixtures = self.club_fixtures(row.get("club")) or self.SEASON_MATCHES
+        return max(1.0 - per_season / max(fixtures, 1.0), self.AVAILABILITY_FLOOR)
 
     @classmethod
     def at_club_weight(cls, row: dict) -> float:
@@ -2454,17 +3172,64 @@ class SnapshotView(ttk.Frame):
         discount = cls.LOAN_DISCOUNT if row.get("desc_at_club_before") else cls.ARRIVAL_DISCOUNT
         return (here + discount * away) / (here + away)
 
-    def club_matches(self, club: str | None) -> float:
-        """How many matches the club played in the measured season - the denominator of a presence.
+    def platform_matchdays(self) -> float:
+        """The PLATFORM's calendar for the season being auctioned - what `engine_pv_pred` is counted on.
 
-        Its own count of fielded elevens, floored by the starts of its busiest player: the two come from
-        different sources (parsed line-ups and the provider's season stats), and a denominator smaller
-        than its numerator would print a 120% titolare.
+        Not the club's championship: euro bundles a subset of the real rounds (31 of them in 2025-26,
+        against 38 in Serie A and 34 in the Bundesliga), so a predicted 26.6 appearances is 86% of a euro
+        season and reading it against Bayern's fixtures printed 53%. Zero for a sheet written before the
+        manifest carried it, and the caller falls back to the club's calendar.
+        """
+        return _number((self.manifest.get("matchdays") or {}).get("platform_target"))
+
+    def club_fixtures(self, club: str | None) -> float:
+        """Every match of the club we parsed an eleven for, whatever the competition.
+
+        Not a calendar of matchdays: this is the fixture list a man's absences are counted against, which
+        is what Transfermarkt does (a spell says how many of the club's GAMES he missed, cups included).
+        """
+        return _number(self.clubs.get(club or "", {}).get("complete_XIs"))
+
+    def club_matches(self, club: str | None) -> float:
+        """The club's matches in ITS OWN CHAMPIONSHIP - the denominator of a share of the season.
+
+        The platform's calendar is made of league rounds (euro bundles a subset of them, default is Serie
+        A's 38), and every numerator here is league-only because the season aggregate is: `external_stats`
+        stores one row per championship and nothing else. Counting the cups in the denominator therefore
+        divided one competition set by another, and the mix is different for every club - Arsenal 58
+        elevens against 38 rounds, Bayern 50 against 34, Napoli 38 against 38 - so the titolarità on a
+        shirt could not be compared with the one next to it: Kane read 49% off 25 starts in 34 rounds, and
+        a European campaign was indistinguishable from a bench.
+
+        Floored by the starts of its busiest player: the two come from different sources (parsed line-ups
+        and the provider's season stats), and a denominator smaller than its numerator would print a 120%
+        titolare. `complete_XIs` is the fallback for a sheet built before `league_XIs` existed.
         """
         info = self.clubs.get(club or "", {})
         busiest = max((_number(row.get("desc_season_starts")) for row in self.players
                        if row.get("club") == club), default=0.0)
-        return max(_number(info.get("complete_XIs")), busiest, 1.0)
+        return max(_number(info.get("league_XIs")) or _number(info.get("complete_XIs")), busiest, 1.0)
+
+    def contested(self, row: dict) -> float:
+        """The championship rounds he was in CONTENTION for: the calendar, less what he missed of it.
+
+        The denominator of every start rate in this panel. `desc_injury_missed_measured` is what he
+        actually missed inside the measured season, converted into league rounds, and not the three-season
+        forecast `availability` uses: the forecast subtracted here and multiplied back there cancels out
+        of `presence` almost exactly, so the injury history would have been decoration. A fact about the
+        sample for the rate, a forecast for what comes next.
+        """
+        league = self.club_matches(row.get("club"))
+        if _number(row.get("desc_injury_rounds_seasons")):
+            return max(league - _number(row.get("desc_injury_rounds_measured")), 1.0)
+        # No calendar to count his rounds on. Transfermarkt counted the absence over every competition, so
+        # it is scaled onto the league one before being taken off it: 6.8 of Bayern's 50 fixtures are 4.6
+        # of its 34 rounds. Approximate on purpose - the ratio is only as good as the fixtures we parsed,
+        # which for the Italian clubs is the championship alone - and that is why counting the rounds
+        # exists at all.
+        fixtures = self.club_fixtures(row.get("club"))
+        missed = _number(row.get("desc_injury_missed_measured")) * (league / fixtures if fixtures else 1.0)
+        return max(league - missed, 1.0)
 
     def standing(self, row: dict) -> float:
         """His absolute standing in the side - the blasone - as a share of a season, 0..1.
@@ -2473,14 +3238,20 @@ class SnapshotView(ttk.Frame):
         friendlies and rested internationals. So the schieramento tipo is decided here, on a whole season,
         by two measured facts about how much the coach actually used him:
 
-        * HIS START RATE, over the matches he was in CONTENTION for. Not over 38: a man who spent two
-          months injured has fewer starts, and dividing by the whole season would read his absence as the
-          coach preferring someone else. His expected absences go back into the denominator.
+        * HIS START RATE, over the rounds he was in CONTENTION for (`contested`): the championship's
+          calendar, less what he actually missed of it. Not over 38 flat - a man who spent two months
+          injured has fewer starts, and dividing by the whole season would read his absence as the coach
+          preferring someone else.
         * HIS SHARE OF THE MINUTES of the full real season. `desc_minutes_full_season` is measured over
-          the club's whole real calendar rather than the euro subset, which is why it survives when the
-          last-ten window is empty - McTominay rested after the World Cup has no recent match at all and
-          2793 minutes behind him. A man who has none recorded is judged on his starts alone: no minutes
-          on file is not zero minutes played.
+          the club's whole CHAMPIONSHIP rather than the euro subset of it, which is why it survives when
+          the last-ten window is empty - McTominay rested after the World Cup has no recent match at all
+          and 2793 minutes behind him. A man who has none recorded is judged on his starts alone: no
+          minutes on file is not zero minutes played.
+
+        Both are counted over the same competitions as the calendar they are divided by. That is the whole
+        of the fix of 29/07: the numerators were always the championship's (the season aggregate has no
+        other kind of row) and the denominator was every fixture the club played, so a club's percentages
+        moved with how far it went in Europe and could not be read against another club's.
 
         Both are then weighed by WHOSE season it was (`at_club_weight`): a standing built somewhere else
         is evidence about this shirt too, and weaker evidence.
@@ -2488,8 +3259,7 @@ class SnapshotView(ttk.Frame):
         Neither is a fantacalcio quantity. Surplus, quotation and FVM answer "is he worth buying" and a
         coach does not pick a side by them; minutes and starts are what he did.
         """
-        contested = max(self.club_matches(row.get("club"))
-                        - _number(row.get("desc_injury_weighted")) / sum(INJURY_WEIGHTS), 1.0)
+        contested = self.contested(row)
         weight = self.at_club_weight(row)
         starts = min(self.titolarita(row, "season")[1] * weight / contested, 1.0)
         minutes = _number(row.get("desc_minutes_full_season"))
@@ -2513,8 +3283,7 @@ class SnapshotView(ttk.Frame):
         shirt are weaker evidence about this one. Reading them at face value here while the pitch
         discounted them would print two different answers to one question in the same table.
         """
-        available = max(self.club_matches(row.get("club"))
-                        - _number(row.get("desc_injury_weighted")) / sum(INJURY_WEIGHTS), 1.0)
+        available = self.contested(row)
         appearances = min(_number(row.get("desc_season_matches"))
                           * self.at_club_weight(row) / available, 1.0)
         return min(appearances * self.availability(row), 1.0)
@@ -2587,14 +3356,27 @@ class SnapshotView(ttk.Frame):
         # to nobody. The listone role is the fallback for a player with no granular code.
         by_role: dict[str, list[dict]] = {}
         bucket: dict[int, str] = {}
-        for row in squad:
-            codes = self.real_roles(row)
-            line = (self.LANE_OF_ROLE.get(codes[0], "") if codes else "") or                 (row.get("role_classic") or "?")
+
+        def line_key(code_line: str) -> str:
             # the trequartisti compete for the attacking line: which of the two lanes they are DRAWN in
             # is decided afterwards, by `lanes_for`, and only for the men actually chosen
-            key = "A" if line == "T" else "M" if line == "C" else line
-            by_role.setdefault(key, []).append(row)
-            bucket[id(row)] = key
+            return "A" if code_line == "T" else "M" if code_line == "C" else code_line
+
+        for row in squad:
+            codes = self.real_roles(row)
+            home = line_key((self.LANE_OF_ROLE.get(codes[0], "") if codes else "")
+                            or (row.get("role_classic") or "?"))
+            # EVERY line his codes play in, not just the primary one's. Spinazzola is 'ML;DL': bucketed
+            # by his first code alone he only ever competed with central midfielders, lost to them at
+            # 54%, and Napoli's left back became a 38% man while the 54% one sat outside the eleven. A
+            # second code is not a guess - it is where the provider has actually seen him play - and a
+            # line that can consider him is the difference between a real side and a tidy one.
+            # `bucket` stays the PRIMARY lane: it is what `can_lend` calls "his own line".
+            keys = {line_key(self.LANE_OF_ROLE.get(code, "")) for code in codes
+                    if self.LANE_OF_ROLE.get(code)} or {home}
+            for key in keys:
+                by_role.setdefault(key, []).append(row)
+            bucket[id(row)] = home
         defenders, midfielders, forwards = self.lines(formation)
         horizon = "recent" if mode == "next" else "season"
         # by PRESENCE, the same number the shirt shows: ranking by anything else would draw a starter
@@ -2684,8 +3466,11 @@ class SnapshotView(ttk.Frame):
             # duel: Politano, a 'C' in the listone, was declared in a ballottaggio with Lobotka and
             # Elmas, neither of whom is in his line, so the intersection came out empty and Neres - who
             # shares his RW - was reported as no alternative at all.
+            # Up to THREE, because a duel is not always a pair: the editors name three men for one
+            # midfield place often enough, and a shirt contested by three is a different risk from a
+            # shirt contested by one. The drawing fits what it can and counts the rest (`rival_text`).
             final.append((role, starter,
-                          [row for row in able if row.get("name") in named][:2] or able[:2]))
+                          [row for row in able if row.get("name") in named][:3] or able[:2]))
         return final
 
     def _declared(self, squad: list[dict]) -> list[tuple[str, dict, list[dict]]]:
@@ -2726,7 +3511,10 @@ class SnapshotView(ttk.Frame):
             pool = [row for row in able if row.get("name") not in offered]
             # ...and a shirt that would be left with nobody takes a man who is already challenging
             # another: one alternative twice is a reading, no alternative at all is a wrong one.
-            rivals = ([row for row in pool if row.get("name") in named][:2] or pool[:1] or able[:1])
+            # A NAMED ballottaggio is a stated fact and all of it is carried (up to three). The
+            # positional fallback stays at one on purpose: it is our inference, and `offered` spends a
+            # man per shirt - being greedy with guesses leaves the last shirts of a line with nobody.
+            rivals = ([row for row in pool if row.get("name") in named][:3] or pool[:1] or able[:1])
             offered.update(row.get("name") for row in rivals)
             out.append((self.lane_of(starter), starter, rivals))
         return out
@@ -2931,7 +3719,7 @@ class SnapshotView(ttk.Frame):
         return parts[0], sum(parts[1:-1]), parts[-1]
 
     @classmethod
-    def badge(cls, row: dict, drawn_side: float | None = None) -> str:
+    def badge(cls, row: dict, drawn_side: float | None = None, lane: str | None = None) -> str:
         """The role code for the marker: 'Ts', 'Td', 'Dc', 'Ed'...
 
         Three inputs, in this order: the granular REAL role, which names both the line and the flank on
@@ -2939,6 +3727,11 @@ class SnapshotView(ttk.Frame):
         the flank; then, when neither does, WHERE the player is drawn in his line - so a winger the
         sheet places on the left reads 'Es' and not a shrug. Nothing is invented: with none of them,
         the code stays neutral.
+
+        `lane` is the line he is DRAWN in, and it chooses WHICH of his codes is badged: Spinazzola is
+        'ML;DL' and the eleven can pick him as its left back, so badging his first code put 'Es' - a
+        midfielder - on the left of a back four while Gutierrez, drawn in midfield, read 'Ts'. The line
+        is a decision that has already been taken; the badge has to agree with it.
         """
         side = cls.lateral(row)
         if side is None:
@@ -2947,6 +3740,8 @@ class SnapshotView(ttk.Frame):
         real = cls.real_roles(row)
         if real:
             code = real[0]
+            if lane:
+                code = next((other for other in real if cls.LANE_OF_ROLE.get(other) == lane), code)
             named = REAL_ROLE_SIDE.get(code, 0.0)
             # Where the eleven DREW him wins over the flank his own code names, and only for the label:
             # the shirt has already been handed out, `slot_cost` charged him for the switch, and a
@@ -2970,7 +3765,8 @@ class SnapshotView(ttk.Frame):
     # on the same shirt, so the colour said a second time what the number already says - and two encodings
     # of one quantity are two things to read instead of one.
 
-    def _line_codes(self, placed: list[tuple[float, dict, list[dict]]]) -> list[str]:
+    def _line_codes(self, placed: list[tuple[float, dict, list[dict]]],
+                    lane: str | None = None) -> list[str]:
         """The code on each marker of one line, with only ONE centre-forward among them.
 
         A real side fields one punta centrale; a second adapts as a seconda punta and reads 'Sp', which is
@@ -2979,7 +3775,8 @@ class SnapshotView(ttk.Frame):
         it was computed from the index, Hojlund at 0.61 read as less central than a second striker at
         0.50 and the true centre-forward was labelled the seconda punta.
         """
-        codes = [self.badge(starter, -(spread - 0.5) * 2) for spread, starter, _rivals in placed]
+        codes = [self.badge(starter, -(spread - 0.5) * 2, lane)
+                 for spread, starter, _rivals in placed]
         centre = [index for index, code in enumerate(codes) if code == "Pc"]
         if len(centre) > 1 and len(placed) > 2:
             # A front three has no seconda punta: the man who is not the centre-forward is playing wide,
@@ -3002,10 +3799,264 @@ class SnapshotView(ttk.Frame):
                     codes[index] = "Sp"
         return codes
 
+    def char_width(self, key: str) -> float:
+        """Average character width of a theme font, in pixels - MEASURED, and cached.
+
+        The plate's own width constant (7.2) was measured on the bold face the NAME is drawn in. The
+        rival line is drawn one size smaller and not bold, so budgeting it at 7.2 threw away about a
+        fifth of the room - which is a whole surname on a crowded line, i.e. exactly the difference
+        between naming both men and counting one of them.
+        """
+        cache = getattr(self, "_char_widths", None)
+        if cache is None:
+            cache = self._char_widths = {}
+        if key not in cache:
+            from tkinter import font as tkfont
+            sample = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+            with contextlib.suppress(Exception):
+                cache[key] = tkfont.Font(font=theme.FONTS[key]).measure(sample) / len(sample)
+        return cache.get(key) or 7.2
+
+    def _shirt_under(self, event) -> tuple[dict, list[dict]] | None:
+        """The shirt nearest the pointer, or None if the pointer is on grass."""
+        nearest, best = None, 34.0 ** 2       # a shirt owns ~34px around its marker; beyond that, grass
+        for x, y, starter, rivals in getattr(self, "_hits", []):
+            distance = (event.x - x) ** 2 + (event.y - y) ** 2
+            if distance < best:
+                nearest, best = (starter, rivals), distance
+        return nearest
+
+    def _on_pitch_click(self, event) -> None:
+        """Open the duel of the shirt nearest the pointer, if the pointer is on a shirt at all."""
+        found = self._shirt_under(event)
+        if found:
+            self._duel_popup(*found)
+
+    def _on_pitch_motion(self, event) -> None:
+        """Follow the pointer from shirt to shirt, rescheduling the tip when it changes."""
+        found = self._shirt_under(event)
+        name = found[0].get("name") if found else None
+        if name == getattr(self, "_hovered", None):
+            return
+        self._hovered = name
+        self._tip_for = found
+        self.pitch_tip.hide()
+        if found:
+            self.pitch_tip.schedule()
+
+    def _pitch_tip_text(self) -> str:
+        """The hovered shirt's duel IN FULL - which is what the plate cannot hold.
+
+        Every rival with his own share, so a plate reading `+1` has somewhere to be resolved, plus the
+        editors' named ballottaggio when there is one. Two lines of ranking, not prose: the tooltip is
+        read while the pointer is moving.
+        """
+        found = getattr(self, "_tip_for", None)
+        if not found:
+            return ""
+        starter, rivals = found
+        horizon = "recent" if self.xi_mode.get() == "next" else "season"
+        share = self.presence(starter, horizon)
+        head = f"{starter.get('name')}  {', '.join(self.real_roles(starter)) or '?'}"
+        lines = [head + (f"  ·  {share:.0%} of the matchdays" if share else "")]
+        club = self._selected_club()
+        if club and starter.get("name") in self.top_players(club, self.xi_mode.get()):
+            always, matches = self.full_match_share(starter)
+            lines.append(f"TOP PLAYER (light disc): {self.TOP_MINUTES_FULL:.0f}+ minutes in "
+                         f"{always:.0%} of his last {matches} LEAGUE matches, in the top "
+                         f"{1 - self.TOP_SURPLUS_PERCENTILE:.0%} of the sheet by surplus, and with no "
+                         "real challenger for the shirt")
+        ranked = sorted(rivals, key=lambda row: -self.presence(row, horizon))
+        if ranked:
+            lines.append("")
+            lines.append(f"who else wears this shirt ({len(ranked)}):")
+            for rival in ranked:
+                rival_share = self.presence(rival, horizon)
+                lines.append(f"   {rival.get('name')}"
+                             + (f"  {rival_share:.0%}" if rival_share else "  -")
+                             + f"  {', '.join(self.real_roles(rival)) or '?'}")
+        else:
+            lines.append("nobody else in the squad plays his position")
+        stated = [name.strip() for name in (starter.get("desc_duel_names") or "").split(";")
+                  if name.strip()]
+        if stated:
+            lines.append("")
+            lines.append("probabili declare a ballottaggio with " + ", ".join(stated))
+        lines.append("")
+        lines.append("click for the whole duel, and why a declared name may not be here")
+        return "\n".join(lines)
+
+    def _duel_popup(self, starter: dict, rivals: list[dict]) -> None:
+        """Who else can wear this shirt: every rival, with his share of the matchdays and his real roles.
+
+        The pitch can only ever draw a few characters of this, and a ballottaggio is precisely the thing
+        an auction cannot read from a truncated name. Two facts are shown side by side and NOT merged:
+        the editors' own named ballottaggio (`desc_duel_names`, a stated fact about the coming match) and
+        the men who can positionally take the place (`can_replace`, our inference from the real roles).
+        Where the first is empty the second still answers; where they disagree, both are on screen.
+        """
+        horizon = "recent" if self.xi_mode.get() == "next" else "season"
+        dialog = tk.Toplevel(self)
+        dialog.title(f"{starter.get('name')} · who else wears this shirt")
+        dialog.transient(self.winfo_toplevel())
+        dialog.resizable(False, False)
+        frame = ttk.Frame(dialog, padding=12)
+        frame.pack(fill="both", expand=True)
+        share = self.presence(starter, horizon)
+        ttk.Label(frame, style="H2.TLabel",
+                  text=f"{starter.get('name')}  "
+                       f"{(', '.join(self.real_roles(starter)) or starter.get('role_classic') or '?')}"
+                       + (f"  ·  {share:.0%}" if share else "")).pack(anchor="w")
+        stated = [name.strip() for name in (starter.get("desc_duel_names") or "").split(";")
+                  if name.strip()]
+        count = _number(starter.get("desc_duel_rivals"))
+        ttk.Label(frame, style="Muted.TLabel", justify="left", wraplength=460,
+                  text=("the probabili declare a ballottaggio with " + ", ".join(stated)
+                        if stated else
+                        "the probabili declare no ballottaggio for him"
+                        + (" (and no starting probability is recorded, so they cannot)"
+                           if not starter.get("desc_starter_prob") else ""))
+                       + (f" · {count:.0f} rival(s) counted" if count else "")
+                  ).pack(anchor="w", pady=(2, 8))
+
+        columns = ("name", "share", "roles", "declared")
+        titles = ("who", "matchdays", "real roles", "declared duel")
+        tree = ttk.Treeview(frame, columns=columns, show="headings", height=max(3, len(rivals) + 1),
+                            selectmode="none")
+        for key, title, width in zip(columns, titles, (150, 74, 130, 96), strict=True):
+            tree.heading(key, text=title)
+            tree.column(key, width=width, anchor="w" if key in ("name", "roles") else "center")
+        tree.pack(fill="both", expand=True)
+        def line(row: dict, declared: str) -> tuple:
+            row_share = self.presence(row, horizon)
+            return (row.get("name"), f"{row_share:.0%}" if row_share else "-",
+                    ", ".join(self.real_roles(row)) or (row.get("role_classic") or "?"), declared)
+
+        for rival in rivals:
+            tree.insert("", "end",
+                        values=line(rival, "yes" if (rival.get("name") or "") in stated else "-"))
+        # A named ballottaggio the pitch does NOT offer, with the reason - otherwise the sentence above
+        # ("declared with three men") and a table of two rows read as a contradiction. The commonest
+        # reason is the one that is right: a rival is by definition not in the eleven, and De Roon's
+        # third man is starting a shirt of his own.
+        in_eleven = {row.get("name") for _x, _y, row, _rivals in getattr(self, "_hits", [])}
+        offered = {row.get("name") for row in rivals} | {starter.get("name")}
+        squad = {row.get("name"): row for row in self.squad(starter.get("club") or "")}
+        for name in stated:
+            if name in offered:
+                continue
+            row = squad.get(name) or {"name": name}
+            # In order of how much it explains, and every step is CHECKABLE rather than assumed: he is
+            # starting (a rival is by definition not in the eleven), his real roles do not overlap at
+            # all, or he is drawn in another line - the eleven is built lane by lane, so the
+            # alternatives for a shirt come from that lane's own bench.
+            why = ("in the XI" if name in in_eleven else
+                   "other position" if not self.can_replace(starter, row) else
+                   f"drawn in {self.lane_of(row)}" if self.lane_of(row) != self.lane_of(starter) else
+                   "not offered here")
+            tree.insert("", "end", values=line(row, f"yes · {why}"))
+        if not tree.get_children():
+            tree.insert("", "end", values=("nobody in the squad shares his position", "", "", ""))
+        ttk.Label(frame, style="Muted.TLabel", justify="left", wraplength=460,
+                  text="A duel is POSITIONAL: it is decided on the granular real roles, where one shared "
+                       "code is enough - the listone role is not used, because it calls a winger and a "
+                       "regista the same thing. A man with no observed role is therefore in NO duel: that "
+                       "is a gap in what was observed, not a statement that he has nobody behind him. "
+                       "'matchdays' is the share of the season he gets a voto in, on the same horizon the "
+                       "XI selector is set to."
+                  ).pack(anchor="w", pady=(8, 0))
+
+    # How many rivals a plate names. Two, and it is a VERTICAL budget, not a taste: a plate sits between
+    # two drawn lines ~90px apart, a line of text is ~14px, and a crowded lane staggers its plates above
+    # and below the markers - so four lines of plate on two neighbouring shirts is where they collide.
+    # Whoever is left over is named in the shirt's tooltip and counted on the plate.
+    PLATE_RIVALS: ClassVar[int] = 2
+
+    # The geometry a plate is built from, in pixels: one text line, the padding inside the plate, and
+    # what sits between a marker's centre and the top of its plate (the radius plus the gap). Named
+    # because the number of rivals a shirt can name is DERIVED from them and the room between two drawn
+    # lines - a constant would be right for a four-line shape and one pixel short of a collision for a
+    # five-line one, which is what measuring found (Roma, next XI: 1px).
+    PLATE_LINE_PX: ClassVar[int] = 13
+    PLATE_PAD_PX: ClassVar[int] = 3
+    PLATE_OFFSET_PX: ClassVar[int] = 15
+    PLATE_CLEARANCE_PX: ClassVar[int] = 6
+
+    @classmethod
+    def plate_rivals_for(cls, lane_gap: float) -> int:
+        """How many rivals a plate may name, given the px between this drawn line and its neighbour.
+
+        Half the gap, because the neighbouring line's plate may be staggered TOWARDS this one, and both
+        must fit in it. Never fewer than one - a shirt with a challenger has to say so - and never more
+        than `PLATE_RIVALS`. Measured consequence: a four-line shape names two rivals, a five-line one
+        (a trequartisti lane exists) names one and counts the rest.
+        """
+        # Derived, not tuned: a plate reaches OFFSET + PAD + n*LINE px from its marker's centre, two of
+        # them may face each other across the gap, so n*LINE <= half the gap minus the fixed parts. A
+        # formula fitted to "no overlap in today's data" would be a formula about today's data.
+        half = (lane_gap - cls.PLATE_CLEARANCE_PX) / 2
+        lines = int((half - cls.PLATE_OFFSET_PX - cls.PLATE_PAD_PX) // cls.PLATE_LINE_PX)
+        return max(1, min(cls.PLATE_RIVALS, lines - 1))
+
+    def plate_lines(self, starter: dict, rivals: list[dict], name_budget: int,
+                    rival_budget: int, max_rivals: int | None = None) -> list[str]:
+        """The text of a shirt's plate: the man and his share, then ONE RIVAL PER LINE, likeliest first.
+
+        Stacked rather than packed onto one line, because a duel is read as a RANKING - "who takes the
+        shirt if he does not" - and a ranking needs each man's own percentage next to him, which two
+        names sharing a line cannot carry. Sorted by the same number the shirt shows, so the order on
+        the plate is the order of the answer.
+
+        At most `PLATE_RIVALS`; the rest are announced as `+N` on the last line and named in the tooltip.
+        A shirt contested by three men is a different risk from one contested by one, so the count is
+        never dropped - but the pitch has ~90px between two lines and cannot draw them all.
+        """
+        horizon = "recent" if self.xi_mode.get() == "next" else "season"
+        cap = self.PLATE_RIVALS if max_rivals is None else max(1, max_rivals)
+        share = self.presence(starter, horizon)
+        share_text = f" {share:.0%}" if share else ""
+        name = starter.get("name") or ""
+        # his own line, by the same rule as the rivals': the share stays, the name is cut to what is
+        # left, and only a plate too narrow for four characters and a percentage loses the percentage
+        out = [name[:max(1, name_budget)]]
+        for tail in (share_text, ""):
+            if name_budget - len(tail) >= 4:
+                out = [name[:name_budget - len(tail)] + tail]
+                break
+        ranked = sorted((row for row in rivals if row.get("name")),
+                        key=lambda row: -self.presence(row, horizon))
+        for index, rival in enumerate(ranked[:cap]):
+            rival_share = self.presence(rival, horizon)
+            share_tail = f" {rival_share:.0%}" if rival_share else ""
+            extra = len(ranked) - cap
+            # the count rides on the LAST line drawn, where it reads as "and this many more"
+            count_tail = f" +{extra}" if extra > 0 and index == cap - 1 else ""
+            lead = "vs " if index == 0 else "   "
+            budget = max(4, rival_budget - len(lead))
+            name = rival.get("name") or ""
+            # What gives way, in order: the count of the others, then his percentage, and the name is cut
+            # to whatever is left with a floor of four characters. The percentage outranks the rest of
+            # the name because it is what makes the stack a RANKING - a cut surname next to 20% still
+            # answers "who takes the shirt", a whole surname with no number does not. Nothing is ever
+            # floored past the budget, which is how a line ends up on the neighbouring shirt; and the
+            # tooltip carries all three parts whatever the width.
+            for tail in (share_tail + count_tail, share_tail, ""):
+                if budget - len(tail) >= 4:
+                    out.append(f"{lead}{name[:budget - len(tail)]}{tail}")
+                    break
+            else:
+                out.append(f"{lead}{name[:budget]}")
+        return out
+
     def _shirt(self, x: float, y: float, starter: dict, rivals: list[dict],
                drawn_side: float | None = None, room: float = 100.0, code: str = "",
-               above: bool = False) -> None:
+               above: bool = False, max_rivals: int | None = None, highlight: bool = False) -> None:
         """One shirt: the role marker, and the name under it - or ABOVE it, when the line is crowded.
+
+        `highlight` INVERTS the marker - a light disc with the role in the dark colour - for the men whose
+        every number is good at once (`top_players`). Inverting rather than adding a mark keeps the
+        marker's own vocabulary intact: it still says the role, and the role still says the flank. Named
+        `highlight` and not `top`, because `top` is already this method's plate coordinate.
 
         Stacked rather than side by side, because a plate to the right of the disc needs the width of a
         name for every player in the line - which a five-man midfield does not have on a column-shaped
@@ -3018,23 +4069,20 @@ class SnapshotView(ttk.Frame):
         """
         canvas = self.pitch
         edge = canvas.winfo_width() if canvas.winfo_width() > 1 else (canvas.winfo_reqwidth() or 430)
-        # 7.2 px per character, measured on the theme's bold face - 6 was optimistic and the names ran
-        # past their plates and off the pitch
-        fits = max(5, int((room - 8) / 7.2))
-        # the share of the matchdays he plays: the whole statement about how firmly the shirt is his, in
-        # one number, under his name
-        horizon = "recent" if self.xi_mode.get() == "next" else "season"
-        share = self.presence(starter, horizon)
-        # TWO lines at most, and the percentage shares the first with the name. Three lines of plate
-        # (name, share, rivals) made a 40px block, and with a plate above one marker and below the one in
-        # the lane before it that is 108px of stack for 90px of pitch between two lines - which is what
-        # "the layout is broken" looked like. One rival is named, not two: the second is in the table.
-        share_text = f" {share:.0%}" if share else ""
-        name = (starter.get("name") or "")[:max(5, fits - len(share_text))]
-        lines = [(f"{name}{share_text}", theme.FONTS["strong"], "#ffffff")]
-        if rivals:
-            rival = (rivals[0].get("name") or "")[:max(4, fits - 3)]
-            lines.append((f"vs {rival}", theme.FONTS["small"], "#ffe082"))
+        # MEASURED per face, not one constant for both: 6 px was optimistic and the names ran past their
+        # plates, 7.2 was the bold face's own width and cut the small line by a fifth. `char_width` asks
+        # the font, so each line gets the room it actually needs on this theme and this display.
+        fits = max(5, int((room - 8) / self.char_width("strong")))
+        # The name and his own share on the first line, then ONE RIVAL PER LINE, the likeliest first: a
+        # duel is read as a ranking ("who takes the shirt if he does not"), and two names sharing a line
+        # cannot carry the percentage that makes it a ranking. At most two, because the plate is bounded
+        # by the 90px between two drawn lines - whatever is left over is named in the tooltip, and the
+        # count says how many there are so a third man is never invisible.
+        small = max(6, int((room - 8) / self.char_width("small")))
+        lines = [(text, theme.FONTS["strong" if index == 0 else "small"],
+                  "#ffffff" if index == 0 else "#ffe082")
+                 for index, text in enumerate(
+                     self.plate_lines(starter, rivals, fits, small, max_rivals))]
 
         radius = 12
         mode = self.role_mode.get()
@@ -3057,26 +4105,41 @@ class SnapshotView(ttk.Frame):
             size = max(15.0, min(22.0, (min(room, 76.0) - 3 * (len(shown) - 1)) / len(shown)))
             left = x - (size * len(shown) + 3 * (len(shown) - 1)) / 2
             for label, fill, ink in shown:
-                canvas.create_oval(left, y - size / 2, left + size, y + size / 2,
-                                   fill=fill, outline="#ffffff", width=2)
-                canvas.create_text(left + size / 2, y, fill=ink, font=theme.FONTS["pill"], text=label)
+                # a top player wears the same colours the other way round, and a dark ring so a light
+                # disc still has an edge against the grass
+                disc, letters = (ink, fill) if highlight else (fill, ink)
+                canvas.create_oval(left, y - size / 2, left + size, y + size / 2, fill=disc,
+                                   outline="#12351a" if highlight else "#ffffff", width=2)
+                canvas.create_text(left + size / 2, y, fill=letters, font=theme.FONTS["pill"],
+                                   text=label)
                 left += size + 3
         else:
             code = code or self.badge(starter, drawn_side)
+            disc, letters, ring = (("#f4f6f5", "#12351a", "#12351a") if highlight
+                                   else ("#12351a", "#ffffff", "#f4f6f5"))
             canvas.create_oval(x - radius, y - radius, x + radius, y + radius,
-                               fill="#12351a", outline="#f4f6f5", width=2)
-            canvas.create_text(x, y, fill="#ffffff", font=theme.FONTS["pill"], text=code)
+                               fill=disc, outline=ring, width=2)
+            canvas.create_text(x, y, fill=letters, font=theme.FONTS["pill"], text=code)
 
-        widest = max(len(part) for part, _font, _fill in lines)
-        plate = min(room, 8 + widest * 7.2)
+        # The plate is as wide as its WIDEST line really is, each measured on its own face: sizing every
+        # line with the bold width over-reserved for the small ones, which is harmless, and under-reserved
+        # for a long bold name, which is not.
+        plate = min(room, 8 + max(len(part) * self.char_width("strong" if index == 0 else "small")
+                                  for index, (part, _font, _fill) in enumerate(lines)))
         # a shirt near the touchline slides inwards rather than hanging over it
         x = min(max(x, 4 + plate / 2), edge - 4 - plate / 2)
-        high = 3 + len(lines) * 13
+        high = self.PLATE_PAD_PX + len(lines) * self.PLATE_LINE_PX
         top = y - radius - 3 - high if above else y + radius + 3
+        # ...and never past the top or bottom edge, the same way it never hangs over a touchline: the
+        # attack's plate grew by a line and ended 1px outside the canvas, which is a clamp missing rather
+        # than a lane fraction to re-tune - the fraction would have to be re-tuned for every plate height.
+        floor_y = (canvas.winfo_height() if canvas.winfo_height() > 1
+                   else (canvas.winfo_reqheight() or 470))
+        top = max(2.0, min(top, floor_y - high - 2))
         canvas.create_rectangle(x - plate / 2, top, x + plate / 2, top + high,
                                 fill="#12351a", outline="#4c7a35", width=1)
         for index, (part, font, fill) in enumerate(lines):
-            canvas.create_text(x, top + 9 + index * 13, fill=fill, font=font, text=part)
+            canvas.create_text(x, top + 9 + index * self.PLATE_LINE_PX, fill=fill, font=font, text=part)
 
     def _draw_pitch(self) -> None:
         """The eleven on a VERTICAL pitch: keeper at the TOP, attack at the bottom.
@@ -3093,6 +4156,7 @@ class SnapshotView(ttk.Frame):
         canvas = self.pitch
         canvas.delete("all")
         canvas.configure(background=theme.color("surface"))
+        self._hits: list[tuple[float, float, dict, list[dict]]] = []
         # The REAL size - drawing to an inflated height put the forwards' plates off the bottom edge.
         # Before the widget is mapped `winfo_width` is 1, so the REQUESTED size answers instead: that is
         # what the canvas was configured with, and it keeps the drawing consistent with the space it
@@ -3120,13 +4184,21 @@ class SnapshotView(ttk.Frame):
             return
         info = self.clubs.get(club, {})
         mode = self.xi_mode.get()
-        formation, _source = self._formation(info, mode)
+        formation, _source = self.board_shape(club, info, mode)
         eleven = self.eleven(club, formation, mode)
         if not eleven:
             canvas.create_text(width // 2, height // 2, fill=line, font=theme.FONTS["strong"],
                                text="no players in this club's sheet")
             return
         lanes, geometry, drawn = self.lanes_for(eleven)
+        highlighted = set(self.top_players(club, mode))
+        # How much room each drawn line has to its nearest neighbour, in pixels: it is what decides how
+        # many rivals a plate may NAME (`plate_rivals_for`). A shape with a trequartisti line packs five
+        # rows into the same canvas and its plates have to be shorter - measured, not assumed.
+        rows = [fraction * height for _role, fraction in geometry]
+        lane_gaps = {role: min((abs(rows[here] - rows[other]) for other in range(len(rows))
+                                if other != here), default=height)
+                     for here, (role, _fraction) in enumerate(geometry)}
         # top to bottom: keeper, defence, midfield, attack. The keeper sits high enough for his plate,
         # the attack low enough for theirs: a lane at 0.92 would draw the names off the pitch.
         for role, fraction in geometry:
@@ -3134,7 +4206,7 @@ class SnapshotView(ttk.Frame):
             if not slots:
                 continue
             placed = self._placed(slots, role)
-            codes = self._line_codes(placed)
+            codes = self._line_codes(placed, role)
             # How much width a shirt owns: the distance to its nearest neighbour, since the shirts are no
             # longer evenly spaced. Three men crowded into the centre band leave ~45px each, which is not
             # a name - so a crowded line ALTERNATES its plates above and below the marker, and each one
@@ -3158,7 +4230,12 @@ class SnapshotView(ttk.Frame):
                 # it names the flank for a role that does not (a winger placed there reads 'Es' or 'Ed').
                 # Negated, because the screen is mirrored with respect to the team facing downwards.
                 self._shirt(x, y, starter, rivals, drawn_side=-(spread - 0.5) * 2, room=room,
-                            code=codes[index], above=crowded and index % 2 == 1)
+                            code=codes[index], above=crowded and index % 2 == 1,
+                            max_rivals=self.plate_rivals_for(lane_gaps[role]),
+                            highlight=starter.get("name") in highlighted)
+                # Where each shirt ended up, so a click can find it. A plate can only ever hold a few
+                # characters of a duel; the whole of it is one click away (`_duel_popup`).
+                self._hits.append((x, y, starter, rivals))
         editorial = mode == "next" and any(row.get("desc_starter_prob")
                                            for _role, row, _rivals in eleven)
         if mode == "next":
@@ -3177,8 +4254,12 @@ class SnapshotView(ttk.Frame):
         # With the disc legend gone the line goes back to the viewpoint, which is the one thing about
         # this drawing that cannot be guessed from it. Kept short: a caption wide enough to say more ran
         # off both touchlines, and the drawing has to stay inside the canvas whatever the formation.
+        # ...plus, when there are any, what an inverted marker means. Only when there are: a legend for
+        # something not on the pitch is noise, and 13 of the 34 euro clubs have no such player at all.
+        viewpoint = "attacking downwards: the team's LEFT is on your right"
         canvas.create_text(width // 2, height - 12, fill=line, font=theme.FONTS["small"],
-                           text="attacking downwards: the team's LEFT is on your right")
+                           text=(f"{viewpoint} · light disc = top player"
+                                 if highlighted else viewpoint))
 
 
 def _read_csv(path) -> list[dict]:
@@ -3562,12 +4643,12 @@ class ToolkitGUI:
         self.status_var.set(f"{populated}{note}")
         self.last_run_var.set(self._last_run())
 
-    def _refresh_all(self) -> None:
+    def _refresh_all(self, *, built_snapshot: bool = False) -> None:
         self.refresh_status()
         self.refresh_operation_states()
         self.players.reload()
         with contextlib.suppress(Exception):
-            self.snapshot.reload()
+            self.snapshot.reload(select_newest=built_snapshot)
 
     # ---------- execution ----------
     def _request_stop(self) -> None:
@@ -3760,15 +4841,22 @@ class ToolkitGUI:
         dlg.wait_window()
         return out or None
 
+    # What the League selector offers when you want the two dimensions read straight, rather than taken
+    # from a league you play in. Named here because both the dialog and its confirm() test for it.
+    NO_LEAGUE = "(none - platform/game below)"
+
     def _snapshot_dialog(self) -> dict | None:
-        """Platform / game / season for today's auction sheet, and whether to refresh first.
+        """Which league (or which raw platform/game), which day, and whether to refresh first.
 
-        The two selectors are the question the sheet cannot answer for you: a Mantra auction is bought
-        with different roles and a different currency than a Classic one, and euro and default are
-        different competitions with different calendars.
+        Naming a LEAGUE answers three questions at once - the platform, the game and the squad size that
+        fixes the replacement level - which is why it comes first and why choosing one DISABLES the two
+        selectors below: a league states them, and a dialog that still showed them editable would be
+        offering a choice the run then ignores. Without a league the two are read straight, which is what
+        the gate does when it sweeps all four combinations.
         """
-        from euroleghe_ingest.config import SEASONS
+        from euroleghe_ingest.config import GAMES, PLATFORMS, SEASONS
 
+        leagues = self.config.my_leagues()
         dlg = tk.Toplevel(self.root)
         dlg.title("Auction snapshot")
         dlg.transient(self.root)
@@ -3777,33 +4865,52 @@ class ToolkitGUI:
         frm = ttk.Frame(dlg, padding=12)
         frm.pack(fill="both", expand=True)
 
-        ttk.Label(frm, text="Platform:").grid(row=0, column=0, sticky="w", pady=4)
+        ttk.Label(frm, text="League:").grid(row=0, column=0, sticky="w", pady=4)
+        league = tk.StringVar(value=next(iter(leagues), self.NO_LEAGUE))
+        ttk.Combobox(frm, textvariable=league, state="readonly", width=22,
+                     values=[*leagues, self.NO_LEAGUE]).grid(row=0, column=1, pady=4)
+        ttk.Label(frm, text="Platform:").grid(row=1, column=0, sticky="w", pady=4)
         platform = tk.StringVar(value="euro")
-        ttk.Combobox(frm, textvariable=platform, state="readonly", width=22,
-                     values=["euro", "default"]).grid(row=0, column=1, pady=4)
-        ttk.Label(frm, text="Game:").grid(row=1, column=0, sticky="w", pady=4)
+        platform_cb = ttk.Combobox(frm, textvariable=platform, state="readonly", width=22,
+                                   values=list(PLATFORMS))
+        platform_cb.grid(row=1, column=1, pady=4)
+        ttk.Label(frm, text="Game:").grid(row=2, column=0, sticky="w", pady=4)
         game = tk.StringVar(value="classic")
-        ttk.Combobox(frm, textvariable=game, state="readonly", width=22,
-                     values=["classic", "mantra"]).grid(row=1, column=1, pady=4)
-        ttk.Label(frm, text="Season:").grid(row=2, column=0, sticky="w", pady=4)
+        game_cb = ttk.Combobox(frm, textvariable=game, state="readonly", width=22,
+                               values=list(GAMES))
+        game_cb.grid(row=2, column=1, pady=4)
+
+        def on_league(*_args) -> None:
+            """Show what wins: a named league fills the two selectors and locks them."""
+            setup = leagues.get(league.get())
+            if setup:
+                platform.set(setup["platform"])
+                game.set(setup["game"])
+            state = "disabled" if setup else "readonly"
+            platform_cb.configure(state=state)
+            game_cb.configure(state=state)
+
+        league.trace_add("write", on_league)
+        on_league()
+        ttk.Label(frm, text="Season:").grid(row=3, column=0, sticky="w", pady=4)
         season = tk.StringVar(value="latest")
         ttk.Combobox(frm, textvariable=season, state="readonly", width=22,
-                     values=["latest", *SEASONS]).grid(row=2, column=1, pady=4)
+                     values=["latest", *SEASONS]).grid(row=3, column=1, pady=4)
         # A DAY and a CLUB, both optional: this is what turns the sheet into "what did this squad look
         # like on 1 March", which is the only way to look at a decision that has already been taken.
-        ttk.Label(frm, text="As of date:").grid(row=3, column=0, sticky="w", pady=4)
+        ttk.Label(frm, text="As of date:").grid(row=4, column=0, sticky="w", pady=4)
         as_of = tk.StringVar(value="")
-        ttk.Entry(frm, textvariable=as_of, width=24).grid(row=3, column=1, pady=4)
-        ttk.Label(frm, text="Only club:").grid(row=4, column=0, sticky="w", pady=4)
+        ttk.Entry(frm, textvariable=as_of, width=24).grid(row=4, column=1, pady=4)
+        ttk.Label(frm, text="Only club:").grid(row=5, column=0, sticky="w", pady=4)
         only = tk.StringVar(value="")
         clubs = sorted({name for (name,) in connect(self.config.db_path).execute(
             "SELECT canonical_name FROM clubs WHERE canonical_name IS NOT NULL")}) \
             if self.config.db_path.exists() else []
         ttk.Combobox(frm, textvariable=only, width=22,
-                     values=["", *clubs]).grid(row=4, column=1, pady=4)
+                     values=["", *clubs]).grid(row=5, column=1, pady=4)
         refresh = tk.BooleanVar(value=True)
         ttk.Checkbutton(frm, text="Refresh today's probabili / indisponibili first (3 requests)",
-                        variable=refresh).grid(row=5, column=0, columnspan=2, sticky="w", pady=4)
+                        variable=refresh).grid(row=6, column=0, columnspan=2, sticky="w", pady=4)
 
         ttk.Label(frm, foreground=theme.color("text_muted"), wraplength=360, justify="left",
                   text="Writes players.csv + clubs.csv + manifest.json under data/reports/. The "
@@ -3814,13 +4921,19 @@ class ToolkitGUI:
                        "availability are the ones known then, and titolarita and the bonus rates are "
                        "measured on that season UP TO that day. The probabili are not refetched - "
                        "today's are not that day's - so the weekly XI falls back to who was playing."
-                  ).grid(row=6, column=0, columnspan=2, sticky="w", pady=(6, 0))
+                  ).grid(row=7, column=0, columnspan=2, sticky="w", pady=(6, 0))
 
         out: dict = {}
 
         def confirm():
-            out["platform"] = platform.get()
-            out["game"] = game.get()
+            # A named league is passed BY NAME and the run reads its platform and game from the config
+            # file: sending the two values the dialog displays instead would freeze today's copy of a
+            # league that is edited elsewhere.
+            named = league.get() if league.get() in leagues else None
+            out["league"] = named
+            if not named:
+                out["platform"] = platform.get()
+                out["game"] = game.get()
             out["season"] = None if season.get() == "latest" else season.get()
             out["refresh"] = refresh.get()
             out["date"] = as_of.get().strip() or None
@@ -3828,7 +4941,7 @@ class ToolkitGUI:
             dlg.destroy()
 
         btns = ttk.Frame(frm)
-        btns.grid(row=7, column=0, columnspan=2, pady=(10, 0))
+        btns.grid(row=8, column=0, columnspan=2, pady=(10, 0))
         ttk.Button(btns, text="Run", style="Accent.TButton", command=confirm).pack(side="left", padx=4)
         ttk.Button(btns, text="Cancel", command=dlg.destroy).pack(side="left", padx=4)
         dlg.wait_window()
@@ -3855,25 +4968,29 @@ class ToolkitGUI:
             return ("matchdays",)   # new matchdays to line up with the real calendar
         return ()
 
-    def _build_snapshot(self) -> None:
+    def _build_snapshot(self, params: dict | None = None) -> None:
         """The Snapshot tab's button: the same run as the Operations tab, with the progress in view.
 
+        `params` is what the tab's own bar already states (which league, refreshed first) and the run
+        starts immediately; `None` means the operator asked for the rare options, so the dialog opens.
+
         It goes through `run_operation` rather than starting a thread of its own - one worker, one audit
-        line - and the bar only starts if the run really started: the snapshot asks for platform and
-        gameType first, and a cancelled dialog would otherwise leave it spinning forever.
+        line - and the bar only starts if the run really started: a cancelled dialog would otherwise
+        leave it spinning forever.
         """
-        self.run_operation("snapshot")
+        self.run_operation("snapshot", params=params)
         if self.busy:
             self.snapshot.building(True, "starting")
 
-    def run_operation(self, command: str) -> None:
+    def run_operation(self, command: str, params: dict | None = None) -> None:
+        """Run one operation in the worker thread. `params` given = the caller already knows them."""
         if self.busy:
             return
-        params: dict = {}
-        if command in self.DIALOGS:
+        if params is None and command in self.DIALOGS:
             params = getattr(self, self.DIALOGS[command])()
             if params is None:
                 return   # user cancelled the dialog
+        params = params or {}
         self._cancel_event.clear()
         self._set_busy(True, command)
         self._append(f"\n> {command}\n")
@@ -3924,8 +5041,9 @@ class ToolkitGUI:
             while True:
                 item = self.log_queue.get_nowait()
                 if item == "__DONE__":
+                    built_snapshot = self._running == "snapshot"
                     self._set_busy(False)
-                    self._refresh_all()
+                    self._refresh_all(built_snapshot=built_snapshot)
                     self.snapshot.building(False)
                 else:
                     self._append(item)

@@ -1206,13 +1206,29 @@ codice; questa è la lista, con dove vivono:
 | `LOAN_DISCOUNT` | **0.60** | `gui.SnapshotView` | quanto vale una stagione misurata altrove **e** dopo essere stato mandato via da questo club |
 | `ARRIVAL_DISCOUNT` | **0.80** | `gui.SnapshotView` | idem per chi arriva da un club che non è questo (mai giudicato da qui) |
 | `INJURY_WEIGHTS` + `AVAILABILITY_FLOOR` | 1.0/0.6/0.35 · 0.40 | `modules/snapshot.py`, `gui` | l'inclinazione della recenza sugli infortuni, e il pavimento di disponibilità |
+| forma di `contested` | assenze **misurate** (v9.11) contro previste (fino alla v9.10) | `gui.SnapshotView` | se il tasso di titolarità va diviso per le giornate che ha davvero giocato o per quelle che un uomo come lui gioca |
 
 Due note metodologiche che valgono per tutti e cinque:
 - **la forma è confermata, il valore no**: per `INJURY_WEIGHTS` le alternative già calcolate sono
   (1.0, 0.75, 0.5) = 44/33/22% e (1.0, 0.45, 0.2) = 61/27/12% contro il 51/31/18% attuale;
-- prima di ritarare `AVAILABILITY_FLOOR` va **verificato che Transfermarkt non conti due volte una
-  ricaduta**: Rrahmani a 24,1 partite saltate per stagione è al pavimento, e se le spell sono duplicate
-  quel pavimento sta punendo i cronici due volte.
+- ~~prima di ritarare `AVAILABILITY_FLOOR` va verificato che Transfermarkt non conti due volte una
+  ricaduta~~ **CHIUSA il 29/07/2026 (v9.11)**, e non con una rilettura della fonte ma cambiando l'unità: le
+  assenze si **contano** in giornate di campionato del suo club, per data, dentro l'**unione** degli spell
+  (`snapshot.rounds_missed`), e un'unione non può contare una giornata due volte qualunque cosa elenchi la
+  fonte. L'eccesso della fonte, misurato, **non è duplicazione**: 6489 partite TM contro 4485 giornate
+  contate (69%) e, sui club il cui elenco parsato coincide col campionato (gli italiani), 1465 contro 1079 =
+  **74% ≈ 38/50**, cioè le coppe e l'Europa che non parsiamo. Rrahmani non è più al pavimento (76%): al
+  pavimento lo teneva un denominatore sbagliato — `availability` divideva per le **presenze del giocatore
+  stesso**, che si accorciano proprio quando è infortunato — e con le unità giuste i giocatori appiattiti
+  sul pavimento passano da **201 su 907 a 9**.
+
+Una TERZA nota, aggiunta il 29/07/2026, che vale come pre-registrazione: la **forma** con cui la storia
+infortuni entra in `presence` è cambiata, e il cambio è una scelta di modello che questo sweep deve
+giudicare. `contested` (il denominatore del tasso di titolarità) usava la previsione a tre stagioni, la
+stessa che `availability` moltiplica: sottrarre e rimoltiplicare la stessa stima **si annulla** quasi
+esattamente, quindi lo sweep di `INJURY_WEIGHTS`/`AVAILABILITY_FLOOR` sulla forma vecchia avrebbe spazzato
+un parametro che non muove quasi nulla. Ora sono due quantità: assenze **misurate** nella stagione del
+campione per il tasso, **previsione** per lo sconto. Le due forme sono entrambe sul tavolo e il gate scelga.
 
 I due sconti sono nati il 29/07/2026 con una differenza **misurata** e non presunta (`desc_at_club_before`,
 la storia delle rose): nessuna fonte nostra marca un prestito, quindi la separazione prestito/acquisto non

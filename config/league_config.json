@@ -12,6 +12,26 @@
   ],
   "teams": 8,
   "squad_slots": {"P": 3, "D": 8, "C": 8, "A": 6},
+  "_my_leagues_note": [
+    "The leagues you actually PLAY IN, one entry each - not the championships. The `leagues` of",
+    "scoring_config.json are serie_a, premier_league, ...: a championship, with its own bonus/malus,",
+    "which a PLAYER belongs to. These are yours, and one SHEET is built per league.",
+    "Three fields make a sheet computable, and all three change every number in it:",
+    "  platform  euro = the EuroLeghe calendar (a subset of the real rounds, 5 leagues, top clubs);",
+    "            default = classic Serie A, all 20 teams and all 38 rounds. Measured: the 9 clubs both",
+    "            perimeters share get a different fantamedia, a different Pv and a different surplus.",
+    "  game      classic = P/D/C/A and Qt.I; mantra = the sided roles, the Mantra currency, and a",
+    "            FRACTIONAL anchor. Measured on 2026-27 euro: 904 of 916 surplus values differ.",
+    "  teams x squad_slots  the replacement level, i.e. the zero of the surplus.",
+    "Anything a league does not state is inherited from the top-level values above, so a league that",
+    "rosters like the others only names its platform and game. Remove the key entirely and the file",
+    "reads as one league called 'default' - the shape it had before leagues had names.",
+    "Edit by hand or from the Snapshot tab (Lega > Manage leagues...); the snapshot writes the league's",
+    "name and numbers into its manifest, so a sheet always says which replacement level it used."
+  ],
+  "my_leagues": {
+    "EuroLeghe": {"platform": "euro", "game": "classic"}
+  },
   "_reliability_note": [
     "SURPLUS x (Pv / matchdays)^exponent. You set the lineup BEFORE knowing whether he plays, so what",
     "you actually collect is not his appearances - it is the appearances you could see coming. That is a",

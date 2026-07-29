@@ -223,8 +223,22 @@ Nota: **nessuna delle feature generate il 27/07 e' entrata nel motore**, e **nes
       club lo aveva. Quindi **`LOAN_DISCOUNT = 0.60`** (misurato altrove **e** mandato via da qui) e
       **`ARRIVAL_DISCOUNT = 0.80`** (solo misurato altrove). Su euro: 145 scontati, **69 gia' stati qui**
       (Rashford, Jackson, Nelson, Cheddira), **76 mai**. Entrambe provvisorie: le possiede il gate.
-- [ ] `INJURY_WEIGHTS`: forma confermata (3 stagioni, l'ultima piu' pesante), valore aperto. Verificare le
-      ricadute duplicate su Transfermarkt prima di ritarare `AVAILABILITY_FLOOR`.
+- [ ] `INJURY_WEIGHTS`: forma confermata (3 stagioni, l'ultima piu' pesante), valore aperto. ~~Verificare
+      le ricadute duplicate su Transfermarkt prima di ritarare `AVAILABILITY_FLOOR`~~ **VERIFICATO 29/07
+      notte**: le assenze ora si CONTANO in giornate di campionato dentro l'UNIONE degli spell
+      (`snapshot.rounds_missed`), che non puo' contare due volte una ricaduta qualunque cosa elenchi la
+      fonte. E l'eccesso della fonte non e' duplicazione: 6489 partite TM contro 4485 giornate contate
+      (69%), e sugli italiani — dove il nostro elenco parsato COINCIDE col campionato — 74% ≈ 38/50, cioe'
+      le coppe e l'Europa che non parsiamo. Resta solo il VALORE da spazzare.
+- [x] **FATTO 29/07 notte — il denominatore di una quota e' il CAMPIONATO** (punto 2 di «cosa manca»; spec
+      v9.11). I numeratori erano di campionato e il denominatore ogni undici parsato in qualsiasi
+      competizione (Arsenal 58, Bayern 50, Napoli 38): quota di campionato **66%-100%** sui 45 club, quindi
+      Kane leggeva 49% con 25 titolarita' su 34 giornate. Correlazione fra quota del club e titolarita'
+      media **+0.796 → −0.172**. Con dentro tre difetti minori trovati misurando: il percorso datato di
+      `titolarita`/`propensity`/`at_current_club` contava le coppe mentre l'aggregato no; la `%` delle
+      presenze previste va sul calendario della PIATTAFORMA (31 euro, 38 default), ora nel manifest; e
+      `contested` usava la **previsione** a tre stagioni, la stessa che `availability` moltiplica, quindi si
+      annullavano (giocatori sul pavimento **da 201 a 9** una volta separati).
 - [x] **FATTO 29/07 sera — centrocampo a 5, e i due difetti sotto.** La richiesta (quale fascia all'ala,
       quale al terzino) era impossibile prima di questi: (1) il **badge prendeva la fascia dal codice** e
       non dallo slot disegnato — l'Inter leggeva `Es` due volte nel 3-5-2, con Carlos Augusto esterno

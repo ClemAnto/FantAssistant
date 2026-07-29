@@ -614,3 +614,65 @@ del bundle come `toolkit_version`, cioe' e' provenienza) · piu' il commit di ch
   `voto_share`: separarli farebbe rispondere due volte alla stessa domanda nella stessa tabella.
 - Il **badge** prende la fascia dallo slot disegnato solo quando questo contraddice il codice; il ruolo
   resta sempre del giocatore (un terzino non diventa ala perche' lo spostano).
+
+---
+
+## Sessione 29/07/2026 (4) — la LEGA come parametro del foglio (v9.10, riepilogo)
+
+Non consolidata in tempo: il dettaglio sta nella spec, «Novità v9.10» (otto punti). In breve, perché un
+chat nuovo non deve andarselo a cercare: `config/league_config.json` dichiara ora **`my_leagues`** (una voce
+per lega giocata, con platform, game e caselle) e si costruisce **un foglio per lega**, con lo slug nella
+cartella e il blocco `league` nel manifest — senza il quale due leghe sullo stesso platform+game si
+sovrascrivono pur avendo livelli di rimpiazzo diversi. Misurato per decidere gli assi: sui **265** giocatori
+dei 9 club che euro e default condividono, TUTTE le colonne engine cambiano fra i due fogli; e su euro
+2026-27 **904 surplus su 916** cambiano fra classic e mantra. La barra Snapshot è `[Lega] [Quando] [Build]`
+e Build non chiede più niente. Più: ballottaggi **impilati** con la loro percentuale (max 2 per targhetta,
+derivato dalla geometria), il **modulo scelto con la sua probabilità** (`shape_odds` = quanto lo schiera il
+club, quanto la lega, quanto la rosa lo copre; i tre `SHAPE_MARGIN*` sono stati rimossi), e i **top player**
+come congiunzione (minuti per partita di LEGA ≥70' nel ≥70% delle ultime, surplus ≥ p90 del foglio, primo
+rivale sotto il 60%): 26 evidenziati su 34 club.
+
+## Sessione 29/07/2026 (5) — il denominatore di una quota, e i due numeri che si annullavano
+
+Punto **2** della lista «cosa resta» (il difetto che la v9.10 §8 aveva dichiarato aperto). Dettaglio: spec
+«Novità v9.11». **251 test verdi, ruff pulito, tre fogli rigenerati.**
+
+### Cosa era rotto
+I numeratori di ogni quota del foglio sono **di campionato** — `external_stats` ha una riga per campionato
+e nient'altro, su tutte e 11 le stagioni — e il denominatore era ogni undici parsato in **qualsiasi**
+competizione: Arsenal 58, Bayern 50, Napoli 38 (solo Serie A). Sui 45 club del perimetro la quota di
+campionato va da **66% a 100%**, quindi la titolarità di una maglia non era confrontabile con quella
+accanto. Correlazione fra quota di campionato del club e titolarità media dei suoi giocatori: **+0.796**
+prima, **−0.172** dopo.
+
+### Le quattro correzioni
+1. `clubs.csv`: **`league_XIs`** (+ `league`) accanto a `complete_XIs`. `club_matches()` = le giornate del
+   campionato; `complete_XIs` resta perché è il calendario su cui una fonte conta le assenze.
+2. `titolarita` / `propensity` / `at_current_club` filtrano le competizioni di lega **in entrambi i
+   percorsi**: il percorso datato contava le coppe mentre l'aggregato no, quindi la stessa colonna
+   significava due cose diverse secondo il giorno del foglio (Kane: `desc_minutes_club` 2994 vs
+   `desc_minutes_full_season` 2382, nella stessa riga).
+3. La `%` delle presenze previste va sul **calendario della piattaforma** (31 giornate euro, 38 default),
+   dichiarato nel manifest: 26,6 presenze su 31 stampavano 53% perché divise per le 50 partite del Bayern.
+4. Le assenze si **contano in giornate** (`rounds_missed`): le partite di campionato del suo club, per
+   data, dentro l'**unione** degli spell. Niente scaling — che correggeva i tedeschi e lasciava intatti gli
+   italiani, con 8 giocatori del foglio euro sopra il proprio calendario. Coperti 868/907, e
+   `desc_injury_rounds_seasons = 0` dice «ignoto» per i 39 restanti.
+
+### I due numeri che erano lo stesso numero
+`contested` usava la **previsione a tre stagioni**, la stessa che `availability` moltiplica: sottrarla e
+rimoltiplicarla **si annulla** quasi esattamente in `presence`, quindi la storia infortuni contava solo
+attraverso i clamp. Ora `contested` usa quello che ha DAVVERO saltato nella stagione misurata (un fatto) e
+`availability` la previsione (uno sconto). Giocatori sul pavimento **da 201 a 9**; `contested` collassato
+alla guardia da 14 a 2; zero presenze oltre il 100%. Il 201 era il vero difetto: `availability` divideva
+per le **presenze del giocatore stesso**, che si accorciano proprio quando è infortunato.
+
+Kane 49→75%, Haaland 61→82%, Saka 28→62%, Rrahmani 33→71%, Yamal 41→77%, Van Dijk 76→100%. Scendono
+quelli che i clamp tenevano su: Ouedraogo −13%, Teze −10%, Militao −8%.
+
+### Un pezzo del punto 3 chiuso per strada
+La domanda pre-registrata su Transfermarkt (**§7-bis**: «una ricaduta è contata due volte?») ha una
+risposta misurata: contare le giornate dentro l'UNIONE degli spell non può contarne una due volte. E il
+confronto dice che l'eccesso della fonte **non** è duplicazione: TM 6489 partite contro 4485 giornate
+contate (69%), e sui club il cui elenco parsato coincide col campionato — gli italiani, dove lo scaling
+sarebbe 100% — 1465 contro 1079 = **74% ≈ 38/50**, cioè le coppe e l'Europa che non parsiamo.
