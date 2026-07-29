@@ -45,10 +45,45 @@ def test_season_stats_resolution_and_penalty_fields(tmp_path):
                           penaltiesTaken=11, expectedGoals=5.5)]
     claims, _report = positions.resolve_season(ctx.conn, "2023-24", {"serie_a": rows})
     positions._store_claims(ctx.conn, "2023-24", claims)
+    positions._store_identities(ctx.conn, {"2023-24": claims}, {"2023-24": {"serie_a": rows}})
     stored = ctx.conn.execute(
         "SELECT fc_id, goals, pen_scored, pen_taken, xg, competition FROM external_stats").fetchone()
     assert tuple(stored) == (1, 13, 10, 11, 5.5, "serie_a")
     assert ctx.conn.execute("SELECT source_id FROM player_xref WHERE fc_id = 1").fetchone()[0] == "10"
+
+
+def test_an_identity_is_not_a_season_fact(tmp_path):
+    """The Saka case: resolved in 2024-25, unresolved in 2025-26, and he must KEEP his provider id.
+
+    Written per season, the identity was decided by whichever season happened to be processed last: each
+    one dropped the xref rows of the provider ids it was about to re-resolve and then rewrote only its own
+    survivors. 91 players on the real cache ended up with their season aggregates in the table and no
+    identity at all - and every dated layer (granular roles, heatmap, per-match rows) joins through it, so
+    they were invisible to all three at once.
+    """
+    ctx = _ctx(tmp_path)
+    conn = ctx.conn
+    _add_player(conn, 1, "Saka", "Arsenal", "premier_league", season="2024-25")
+    conn.commit()
+    row = _provider_row(934235, "Bukayo Saka", "Arsenal")
+    identified, _r = positions.resolve_season(conn, "2024-25", {"premier_league": [row]})
+    assert [claim.provider_id for claim in identified] == ["934235"]
+    # the same provider row a season later, when nothing of ours matches it: no claim at all
+    unresolved, _r = positions.resolve_season(conn, "2025-26", {"premier_league": [row]})
+    assert unresolved == []
+
+    cache = {"2024-25": {"premier_league": [row]}, "2025-26": {"premier_league": [row]}}
+    positions._store_identities(conn, {"2024-25": identified, "2025-26": unresolved}, cache)
+    assert conn.execute("SELECT fc_id FROM player_xref WHERE source_id = '934235'").fetchone()[0] == 1
+
+    # ...and a run bounded to seasons may not FORGET: over a subset, "unclaimed" is not a verdict,
+    # because the season that identifies him was never read
+    positions._store_identities(conn, {"2025-26": unresolved}, {"2025-26": cache["2025-26"]},
+                               authoritative=False)
+    assert conn.execute("SELECT fc_id FROM player_xref WHERE source_id = '934235'").fetchone()[0] == 1
+    # over the WHOLE cache it is a verdict, and a stale mapping has to go
+    positions._store_identities(conn, {"2025-26": unresolved}, {"2025-26": cache["2025-26"]})
+    assert conn.execute("SELECT COUNT(*) FROM player_xref WHERE source_id = '934235'").fetchone()[0] == 0
 
 
 def test_namesakes_in_one_season_are_rejected_not_collapsed(tmp_path):

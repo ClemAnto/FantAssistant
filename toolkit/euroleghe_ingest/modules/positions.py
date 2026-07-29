@@ -1598,14 +1598,52 @@ def _int(value):
     return int(value) if isinstance(value, (int, float)) else None
 
 
+def _store_identities(conn, claims_by_season: dict[str, list[Claim]], rows_by_season: dict,
+                      authoritative: bool = True) -> int:
+    """provider id -> fc_id in `player_xref`, decided over EVERY season of this run at once.
+
+    Apart from the per-season rows because an identity is NOT a season fact, and writing it inside the
+    per-season loop made it one: each season first dropped the xref rows of the provider ids it was about
+    to re-resolve, then rewrote only its own surviving claims. So a player whose claim was rejected in his
+    most RECENT cached season lost the identity an earlier season had established - 91 of them on the real
+    cache, Saka, Guirassy, Ferran Torres, Sorloth, Mbeumo and Cunha among them, with their season
+    aggregates still in the table and every dated layer (granular roles, heatmap, per-match rows) blind to
+    them, because those layers all join through this table.
+
+    Strongest evidence wins and, on a tie, the most recent season - `enforce_one_identity` has already
+    made sure one provider id survives per fc_id, so this only picks WHICH claim of that id speaks.
+
+    `authoritative` says whether this run may DELETE: over the whole cache "not claimed" is a verdict, and
+    a stale mapping (a namesake collapse from an older run) has to go. Over a subset of the seasons it is
+    not a verdict at all - the seasons that would have identified him were not even read - so a partial
+    run only ever replaces what it can decide. That asymmetry is the whole difference between re-resolving
+    and forgetting.
+    """
+    if authoritative:
+        conn.executemany(
+            "DELETE FROM player_xref WHERE source = 'sofascore' AND source_id = ?",
+            [(str((row.get("player") or {}).get("id") or ""),)
+             for rows_by_league in rows_by_season.values()
+             for rows in rows_by_league.values() for row in rows],
+        )
+    best: dict[str, tuple] = {}
+    for season, claims in sorted(claims_by_season.items()):     # ascending: a tie goes to the newest
+        for claim in claims:
+            if not claim.provider_id:
+                continue
+            current = best.get(claim.provider_id)
+            if current is None or claim.evidence <= current[0]:
+                best[claim.provider_id] = (claim.evidence, season, claim.fc_id)
+    conn.executemany(
+        "INSERT OR REPLACE INTO player_xref(fc_id, source, source_id) VALUES (?, 'sofascore', ?)",
+        [(fc_id, provider_id) for provider_id, (_e, _s, fc_id) in best.items()],
+    )
+    return len(best)
+
+
 def _store_claims(conn, season: str, claims: list[Claim]) -> int:
     for claim in claims:
         row = claim.row
-        if claim.provider_id:
-            conn.execute(
-                "INSERT OR REPLACE INTO player_xref(fc_id, source, source_id) VALUES (?, ?, ?)",
-                (claim.fc_id, "sofascore", claim.provider_id),
-            )
         conn.execute(
             """
             INSERT OR REPLACE INTO external_stats(
@@ -1644,17 +1682,15 @@ def _write_coverage_report(config, report: list[dict]) -> None:
 
 
 def _clear_season(conn, season: str, rows_by_league: dict[str, list[dict]]) -> None:
-    """Wipe what we are about to rewrite, so re-resolving always converges to the same DB content."""
+    """Wipe what we are about to rewrite, so re-resolving always converges to the same DB content.
+
+    The season's rows only. The IDENTITIES are cleared and rewritten once for the whole run, by
+    `_store_identities`: a mapping rejected this time must not survive as a stale identity, and dropping
+    it per season lost the identities that only an OLDER season could establish.
+    """
     for league in rows_by_league:
         conn.execute("DELETE FROM external_stats WHERE source = 'sofascore' "
                      "AND season = ? AND competition = ?", (season, league))
-    # Also drop the xref rows of the provider ids being re-resolved: a mapping rejected this time
-    # (e.g. a namesake collapse from an older run) must not survive as a stale identity.
-    conn.executemany(
-        "DELETE FROM player_xref WHERE source = 'sofascore' AND source_id = ?",
-        [(str((row.get("player") or {}).get("id") or ""),)
-         for rows in rows_by_league.values() for row in rows],
-    )
 
 
 def _log_season(season: str, claims: list[Claim], rows_by_league, rejected: int) -> None:
@@ -1785,9 +1821,11 @@ def run(ctx: Context, *, leagues=None, seasons=None, refresh: bool = False,
         print("[positions] interrupted - already-downloaded league-seasons are cached")
     finally:
         session.close()
-    # Identity resolution always runs over the full cache: it is a whole-season decision (see
-    # enforce_injectivity), so a partial download must not leave a partially resolved season.
-    reingest_from_cache(ctx, seasons=seasons)
+    # Resolution runs over a WHOLE season at a time (see enforce_injectivity), so a partial download
+    # cannot leave a partially resolved season. It does not run over the whole CACHE unless the caller
+    # asked for every season: a run bounded to some seasons may not delete an identity that the seasons
+    # it never read are the ones establishing - see `_store_identities(authoritative=...)`.
+    reingest_from_cache(ctx, seasons=requested_seasons)
     if layer == "all":
         fetch_match_layer(ctx, leagues, seasons, refresh)
 
@@ -1835,6 +1873,7 @@ def reingest_from_cache(ctx: Context, seasons=None) -> None:
     report += identity_report
 
     total = 0
+    identities = _store_identities(conn, claims_by_season, by_season, authoritative=not seasons)
     for season, rows_by_league in sorted(by_season.items()):
         _clear_season(conn, season, rows_by_league)
         claims = claims_by_season[season]
@@ -1842,7 +1881,8 @@ def reingest_from_cache(ctx: Context, seasons=None) -> None:
         conn.commit()
         _log_season(season, claims, rows_by_league, rejected[season])
         print(f"[positions] {season} perimeter coverage: {our_side_coverage(conn, season)}")
-    print(f"[positions] {total} external_stats rows from {len(by_season)} cached seasons")
+    print(f"[positions] {total} external_stats rows and {identities} identities "
+          f"from {len(by_season)} cached seasons")
     _write_coverage_report(ctx.config, report)
     # Fill the league of every club we still do not know, from these same cached files. It runs HERE
     # and not only in `rebuild` because of the order a build from zero has: `transfers` resolves clubs
