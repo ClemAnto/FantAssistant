@@ -124,7 +124,10 @@ def _fonts(scale: float = 1.0) -> dict[str, tuple]:
         "body": (FAMILY, base),
         "small": (FAMILY, base - 1),
         "strong": (FAMILY, base, "bold"),
-        "h1": (FAMILY, base + 6, "bold"),
+        # base+3, not base+6: the two places an h1 appears are the app header and the club's name on the
+        # Snapshot board, and both sit ON TOP of the thing being read - the pitch and the squad. A 16pt
+        # line cost 6px of pitch in each of them and said nothing a 13pt bold line does not.
+        "h1": (FAMILY, base + 3, "bold"),
         "h2": (FAMILY, base + 2, "bold"),
         "icon": (FAMILY, base + 3),
         "mono": (MONO, base - 1),
@@ -213,10 +216,13 @@ def apply_theme(root, mode: str = "light") -> ttk.Style:
               bordercolor=[("active", accent)],
               foreground=[("disabled", color("text_faint"))])
 
-    style.configure("TNotebook", background=bg, bordercolor=border, tabmargins=(8, 6, 8, 0),
+    # The tab strip is chrome: it names four views and is read once per session, while the view under it
+    # is read all day. Vertical padding 4 instead of 8 and a 2px top margin instead of 6 keep the labels
+    # legible and give the strip 33px instead of 45 - twelve of which go straight to the Snapshot pitch.
+    style.configure("TNotebook", background=bg, bordercolor=border, tabmargins=(8, 2, 8, 0),
                     lightcolor=bg, darkcolor=bg, borderwidth=0)
     style.configure("TNotebook.Tab", background=color("surface_alt"), foreground=muted,
-                    padding=(16, 8), font=FONTS["body"], bordercolor=border,
+                    padding=(14, 4), font=FONTS["body"], bordercolor=border,
                     lightcolor=color("surface_alt"), darkcolor=color("surface_alt"))
     style.map("TNotebook.Tab",
               background=[("selected", surface)],

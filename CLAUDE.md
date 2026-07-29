@@ -223,6 +223,21 @@ the voto - `Var(ln pv)` is 90% of `Var(ln` total fantapunti`)`. And a Serie A ma
 offline from `match_ratings` (`platform='default'`): `goals` is net of penalties AND own goals, so
 goals-for = `SUM(goals) + SUM(pen_scored)` and goals-against comes from the `role='P'` rows.
 
+## A layout claim is a measurement too
+**Read the widget geometry before and after (`winfo_height` / `winfo_rooty`), and assert the invariant as a
+RATIO so the test survives another display's fonts.** The panel is 5,100 lines and no test looked at geometry,
+which is how a **status bar collapsed to 1x1 px** survived from the day it was written: created, filled and
+updated on every run, and invisible - the packer hands out `root`'s cavity in packing order, so an expanding
+widget packed before it leaves nothing behind. Measured on the Snapshot board 29/07/2026: the pitch went from
+388 to **493px at the same window size** not by shrinking one thing but because the app header, the tab strip
+and the club card were each sized as if it were the only one - and the club card said the shape the `modulo`
+selector and the pitch caption already said. Two more of the same shape: **276px of the squad table's columns
+were not narrow, they were ABSENT** (Tk clips what does not fit and offers no way to reach it - hence the
+horizontal scrollbar, shown only when `xview` says it is needed), and the forward's plate was drawn ON TOP of
+the pitch caption (fixed by reserving `CAPTION_BAND_PX`, which also bought the plates a second named rival).
+Guarded by `test_the_panel_spends_its_height_on_the_board_and_not_on_its_own_chrome`. Details: spec «Novità
+v9.15».
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,

@@ -494,6 +494,65 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.15 (29 luglio 2026, notte — il pannello: l'altezza si spende sul campetto, non sul suo bordo)
+
+Richiesta dell'utente: «l'altezza del campetto è troppo sacrificata, riduci i tab e l'header, più spazio per
+rosa e campetto — le altre informazioni sono di contorno». Tutto quello che segue è **misurato con una sonda
+sulle geometrie dei widget** (`winfo_height`/`winfo_rooty` a finestra reale), non stimato a occhio: è la
+ragione per cui sono venuti fuori anche due difetti che nessuno vedeva.
+
+### 1. Il chrome era dimensionato un pezzo per volta
+Sopra il campetto stanno l'header dell'app, la strip dei tab, la barra del foglio, la riga di provenienza e la
+card del club: ognuno ragionevole da solo, tutti insieme **metà dell'altezza della finestra**. A parità di
+finestra (1180x780): campetto **388 → 493px (+27%)**, tabella rosa **448 → 534px**, chrome del board
+**242 → 165px** (rapporto campetto/chrome **1.6 → 3.0**). Da dove vengono:
+- **header dell'app 75 → 43px**: una riga sola (icona, nome, versione, path del DB clippato con tooltip) e
+  `h1` da `base+6` a `base+3`, perché gli unici due h1 del pannello stanno *sopra* la cosa che si legge.
+- **strip dei tab 45 → 33px**: padding verticale 8→4, tabmargin superiore 6→2. Nomina quattro viste e si
+  legge una volta per sessione.
+- **card del club 94 → 31px**: nome e informazioni sulla **stessa riga**, e il modulo con il *perché* della
+  scelta passano nell'hover — erano già nel selettore `modulo` e nella didascalia del campetto, cioè lo
+  stesso fatto scritto **tre volte**. Il resto (probabili, allenatore, Elo, arrivi, linee) resta a vista.
+- barra del foglio e riga di provenienza: una riga ciascuna, il testo intero nel tooltip.
+
+### 2. La finestra: massimizzata, e poi la scelta dell'operatore
+Era **1180x780 fissi**. Ora si apre **massimizzata** e alla chiusura ricorda cosa ha scelto l'operatore in
+`ui-prefs.json` (`window`: `"zoomed"` o la geometria; una geometria che non entra più nello schermo — un
+portatile senza dock — viene ignorata e si torna a massimizzata). Massimizzata e **non** «schermo meno un
+margine di sicurezza» perché l'area di lavoro è un numero del window manager: la formula col margine, misurata,
+lasciava **49px inutilizzati**. Su 1536x864 logici il client è 1536x793 e il campetto **449x506**.
+
+### 3. La tabella rosa: 276px di colonne non erano strette, erano ASSENTI
+Le 14 colonne sommano **766px** e la card ne aveva **471**: Tk taglia quello che non entra e non offre alcun
+modo di raggiungerlo, quindi `inj` e `flags` semplicemente non c'erano. Tre correzioni:
+- **split 1/3 – 2/3** invece di 50/50, con **pavimento 446px** per la colonna del campetto (la sua larghezza
+  di disegno: sotto quella le targhette perdono lettere dei nomi) e un pavimento basso per la tabella, perché
+  due pavimenti che sommano più della finestra MINIMA spingono la scrollbar fuori dallo schermo.
+- **scrollbar orizzontale mostrata solo quando serve** (`_sync_hscroll`): interroga `xview` del tree, non la
+  somma delle larghezze, perché le due colonne elastiche assorbono l'avanzo. Massimizzato il foglio entra
+  tutto (tree 808px contro 766) e i 15px vanno alle righe.
+- **larghezze rimisurate** sul valore più largo che ogni colonna porta davvero, su tutti i club del foglio
+  (`dd/ds/e`, `MC/DM`, `Milinkovic-Savic V.`, `100%`) più il padding della cella, o sull'intestazione in
+  grassetto dove è lei la più larga. Sfoltirle a occhio ne aveva **tagliate sei**: `real` scriveva `DC/D`
+  al posto di `DC/DR`.
+
+### 4. Due difetti che solo la misura ha fatto vedere
+- **La status bar era invisibile da sempre.** Creata, riempita e aggiornata **a 1x1 pixel**: era packata
+  *dopo* uno shell con `expand=True`, e il packer distribuisce la cavità in ordine di packing — a chi viene
+  dopo non resta niente. Ora è packata prima (27px, padding verticale 3, perché quei pixel li paga ogni tab).
+  Su richiesta dell'utente: «rendila visibile».
+- **La targhetta dell'attaccante finiva SOPRA la didascalia.** `_shirt` la agganciava al fondo della canvas,
+  che è dove stanno le due righe di testo (verso d'attacco e modulo disegnato). Ora la canvas ha una
+  `CAPTION_BAND_PX = 34` e l'undici si dispone in `field = height − banda`: l'erba resta tutta, i giocatori
+  no. Effetto collaterale **misurato**: con le corsie più distanziate `plate_rivals_for` passa da **1 a 2
+  rivali nominati** per targhetta (il conteggio `+1` era un rivale non scritto).
+
+### 5. Il test che mancava
+`test_the_panel_spends_its_height_on_the_board_and_not_on_its_own_chrome`: la status bar deve avere altezza
+> 10px (cioè essere davvero mappata), e il campetto deve valere più di **2.5×** il chrome sopra di lui.
+Asserito in **rapporti e non in pixel**, così regge su un altro DPI. Nessun test guardava la geometria: è
+esattamente per questo che una barra alta un pixel è sopravvissuta per settimane.
+
 ## Novita' v9.14 (29 luglio 2026 - quanto il club ha investito su di lui, e l'unita' e' la PARTITA)
 
 ### 1. L'investimento del club: tre colonne, due canali, verdetto NEGATIVO

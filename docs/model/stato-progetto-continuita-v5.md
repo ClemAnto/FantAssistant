@@ -1,5 +1,5 @@
 # Stato progetto & continuità — v5
-**Aggiornato: 28 luglio 2026 (terza chiusura: il ruolo reale granulare)**
+**Aggiornato: 29 luglio 2026 (chiusura: il pannello spende l'altezza sul campetto)**
 Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da qui + i file della cartella "Modello Previsionale Fantacalcio".
 *Glossario: T1/T2 = finestre di test (23/24->24/25, 24/25->25/26) · MAE = errore medio assoluto · cross-fitted = parametri stimati su una finestra, testati sull'altra · M2e = modello portieri decomposto con ClubElo · Pv_att = presenze attese · fc_id = id fantacalcio.it · EV = valore atteso · scoring_config = punteggi configurabili per lega · xG/xA = expected goals/assists · 2.5 pieno = backtest motore completo con flag.*
 
@@ -827,6 +827,38 @@ re-ingest.
 
 ---
 
+## Sessione 29/07/2026 (9) — il pannello: l'altezza si spende sul campetto, non sul suo bordo
+
+Richiesta dell'utente sul layout del tab Snapshot, e nessun numero del motore cambia. Dettaglio in
+[spec «Novità v9.15»](spec-euroleghe-ingest-v9.md). Vale la pena ricordare **come** è stato fatto, perché è
+quello che ha prodotto il risultato: una **sonda sulle geometrie dei widget** (`winfo_height`/`winfo_rooty` su
+finestra reale) prima e dopo, invece di guardare lo schermo e aggiustare.
+
+### Cosa è cambiato, a parità di finestra (1180x780)
+Campetto **388 → 493px (+27%)**, tabella rosa **448 → 534px**, chrome sopra il campetto **242 → 165px**.
+L'header dell'app passa da 75 a 43px (una riga), la strip dei tab da 45 a 33, la card del club da 94 a 31 —
+quest'ultima perché nome e informazioni stanno sulla stessa riga e **il modulo con il suo perché era già
+scritto in altri due punti della stessa schermata**. La finestra ora si apre **massimizzata** (client
+1536x793 su questo schermo: campetto 449x506) e ricorda la scelta dell'operatore in `ui-prefs.json`.
+
+### I due difetti che solo la misura ha fatto vedere
+- **La status bar era invisibile da sempre**: packata *dopo* uno shell con `expand=True`, quindi il packer non
+  le lasciava cavità — creata, riempita e aggiornata a **1x1 pixel**. Ora è la prima packata (27px).
+- **La targhetta dell'attaccante veniva disegnata sopra la didascalia** del campetto: ora la canvas riserva
+  `CAPTION_BAND_PX = 34` e l'undici si dispone in `field = height − banda`. Effetto misurato: le targhette
+  nominano **2 rivali invece di 1** (`plate_rivals_for` dipende dalla distanza fra le corsie).
+- **276px di colonne della rosa non erano strette, erano assenti**: Tk taglia e non offre come raggiungere.
+  Split 1/3–2/3, scrollbar orizzontale **solo quando serve**, larghezze rimisurate sui valori veri (la
+  sfoltitura a occhio ne aveva tagliate sei: `real` scriveva `DC/D` per `DC/DR`).
+
+### La lezione da tenere
+**Una tesi sul layout va misurata come qualunque altra.** Il pannello ha 5.100 righe di codice e nessun test
+guardava la geometria: è per questo che una barra alta un pixel è sopravvissuta per settimane, mentre bastava
+una `winfo_height`. Ora c'è
+`test_the_panel_spends_its_height_on_the_board_and_not_on_its_own_chrome`, in **rapporti** e non in pixel.
+
+---
+
 ## CHIUSURA della sessione 29/07/2026 (sera-notte)
 
 ### I commit
@@ -834,14 +866,16 @@ re-ingest.
 provvisorie davanti al gate (v9.12, gate §7-ter) · `1fb0d40` il bridge punta alle passate del giorno ·
 `942e753` le probabili non si storicizzano — decisione dell'utente e cosa cambia · `ca23c35` un foglio
 retrodatato non prevede: legge l'undici **schierato** (v9.13) · `6781d95` l'investimento del club: misurato,
-pre-registrato, **bocciato** (v9.14, gate §7-quater) · più questo commit di chiusura.
+pre-registrato, **bocciato** (v9.14, gate §7-quater) · il layout del pannello: l'altezza va al campetto e
+alla rosa, e la status bar esiste (v9.15) · più questo commit di chiusura.
 **Non pushati**: la repo è pubblica, il push è una scelta dell'utente.
 
 ### Lo stato in una riga
 Il toolkit non ha più buchi di dati (`fetch --plan`: «every source is populated»); ha ora **due** comandi di
 gate (`backtest` sulle regole, `sweep` sulle costanti), un modulo `engine/presence.py` portabile, e il foglio
 d'asta ha **tre** classi di colonne (`engine_*` validate, `desc_*` descrittive, `actual_*` esiti dopo la data
-d'asta). **259 test verdi, ruff pulito, toolkit 0.5.0.**
+d'asta) — che ora si leggono su un board dove il campetto vale il 60% dell'altezza e nessuna colonna è fuori
+dallo schermo. **260 test verdi, ruff pulito, toolkit 0.5.0.**
 
 ### I prossimi passi, in ordine di leva
 1. **Ritestare l'investimento col valore di mercato Transfermarkt** — è il seguito naturale del §7-quater e
@@ -861,6 +895,9 @@ d'asta). **259 test verdi, ruff pulito, toolkit 0.5.0.**
    giornata (migrazione + re-ingest); i parametri che lo sweep ha lasciato aperti col loro motivo misurato.
 
 ### Dove NON toccare senza rileggere (aggiunte di oggi)
+- **L'ordine di packing dentro `root`**: la status bar va packata PRIMA dello shell che espande, altrimenti
+  torna a 1x1 pixel senza che nulla protesti. E il campetto ha un pavimento di larghezza (446px): sotto
+  quello le targhette perdono lettere dei nomi, che è la cosa per cui il campetto esiste.
 - **I denominatori**: ogni quota del foglio si conta sul **campionato** (`league_XIs`), le assenze in
   **giornate** dentro l'unione degli spell, e `engine_pv_pred` sul calendario della **piattaforma**. Mischiare
   le tre unità è il difetto che ha prodotto Kane al 49% e 201 giocatori sul pavimento.

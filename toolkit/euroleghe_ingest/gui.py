@@ -1565,25 +1565,31 @@ class SnapshotView(ttk.Frame):
     # Wide, but the side is not stated: 'e' wing-back, 'w' winger, 'b' the wide man of a back three.
     WIDE: ClassVar[frozenset[str]] = frozenset({"e", "w", "b"})
     # (column id, header, width, anchor). SURPLUS leads the numbers: it is the auction's own currency.
+    # Each width is MEASURED, not rounded up by eye: the widest value the column really holds over every
+    # club of a sheet ('dd/ds/e', 'MC/DM', 'Milinkovic-Savic V.', '100%'), rendered on this face, plus the
+    # cell's padding - or the bold heading where the heading is the wider of the two, which for a
+    # three-character number it usually is. It matters because the SUM decides what is on screen: the
+    # columns add up to more than a card that also holds a pitch, and 40px "saved" on one of them buys
+    # nothing while costing a role code its last letter (the trimmed guesses clipped six columns).
     COLUMNS: ClassVar[tuple[tuple[str, str, int, str], ...]] = (
-        ("role", "R", 30, "center"),
+        ("role", "R", 28, "center"),
         # Three role columns, because they answer three questions: what you BUY (the listone role), what
         # a Mantra module asks for (the sided roles), and where he was actually USED - the last one small
         # on purpose, it is a two-code hint and not the thing an auction bids on.
-        ("mantra", "M", 58, "center"),
-        ("real", "real", 42, "center"),
-        ("name", "Player", 126, "w"),
-        ("surplus", "SUR", 56, "e"),
-        ("fm", "FM", 44, "e"),
+        ("mantra", "M", 60, "center"),
+        ("real", "real", 58, "center"),
+        ("name", "Player", 118, "w"),
+        ("surplus", "SUR", 44, "e"),
+        ("fm", "FM", 38, "e"),
         # Everything to the right is PER MATCHDAY, which is the unit an auction thinks in: a season total
         # answers "how good was he", a per-matchday share answers "what does he give me on Sunday".
-        ("pv", "Pv", 40, "e"),
+        ("pv", "Pv", 38, "e"),
         ("minutes", "min", 42, "e"),
-        ("tit", "tit", 40, "e"),
-        ("rating", "rat", 40, "e"),
-        ("bonus", "g+a", 40, "e"),
+        ("tit", "tit", 44, "e"),
+        ("rating", "rat", 38, "e"),
+        ("bonus", "g+a", 42, "e"),
         ("inj", "inj", 38, "e"),
-        ("status", "flags", 84, "center"),
+        ("status", "flags", 66, "center"),
     )
 
     # One line per column, because a sheet nobody can read is a sheet nobody should act on. The two
@@ -1695,7 +1701,7 @@ class SnapshotView(ttk.Frame):
         the numbers - and the day it stands on. Everything else (a past date, one club, a forced season,
         no refresh) is behind `...`: it is rare, and it is what the Operations dialog already asks.
         """
-        bar = ttk.Frame(self, padding=(0, 8))
+        bar = ttk.Frame(self, padding=(0, 3))
         bar.pack(fill="x")
         ttk.Label(bar, text="League:").pack(side="left")
         self.league_var = tk.StringVar()
@@ -1736,8 +1742,11 @@ class SnapshotView(ttk.Frame):
         # progress slot it was being pushed off the right edge of the window, which is where a line
         # nobody reads goes to die.
         self.note_var = tk.StringVar()
-        ttk.Label(self, textvariable=self.note_var, style="Muted.TLabel", anchor="w",
-                  wraplength=1400).pack(fill="x", padx=2, pady=(0, 6))
+        # One line, clipped, with the whole of it on hover: it is provenance, read once per sheet, and a
+        # wraplength that turns it into two lines takes those pixels off the pitch on every club.
+        note = ttk.Label(self, textvariable=self.note_var, style="Muted.TLabel", anchor="w")
+        note.pack(fill="x", padx=2, pady=(0, 3))
+        Tooltip(note, lambda: self.note_var.get(), wraplength=520)
 
         body = ttk.Frame(self)
         body.pack(fill="both", expand=True)
@@ -1757,22 +1766,42 @@ class SnapshotView(ttk.Frame):
         right = ttk.Frame(body)
         right.pack(side="left", fill="both", expand=True, padx=(10, 0))
 
-        head = ttk.Frame(right, style="Card.TFrame", padding=(12, 10))
+        # The club's name and what is known about it on ONE row. Wrapped at 900px under the title the
+        # card was 94px tall - a quarter of the pitch under it - for a line read once per club. Clipped
+        # here, with everything the sheet says about the club (including the shape and WHY the board
+        # chose it) on hover, where there is room for the sentence.
+        head = ttk.Frame(right, style="Card.TFrame", padding=(12, 4))
         head.pack(fill="x")
         self.club_title = tk.StringVar(value="select a club")
-        ttk.Label(head, textvariable=self.club_title, style="H1.TLabel").pack(anchor="w")
+        ttk.Label(head, textvariable=self.club_title, style="H1.TLabel").pack(side="left")
         self.club_info = tk.StringVar()
-        ttk.Label(head, textvariable=self.club_info, style="CardMuted.TLabel", justify="left",
-                  wraplength=900).pack(anchor="w", pady=(2, 0))
+        self._club_detail = ""
+        info_label = ttk.Label(head, textvariable=self.club_info, style="CardMuted.TLabel",
+                               anchor="w")
+        info_label.pack(side="left", fill="x", expand=True, padx=(12, 0))
+        Tooltip(info_label, lambda: self._club_detail, wraplength=520)
 
         # Two columns: the eleven on the left, the squad on the right. Stacked, the pitch pushed the
         # list below the fold on a laptop - and the two are read together, not one after the other.
         columns = ttk.Frame(right)
-        columns.pack(fill="both", expand=True, pady=(8, 0))
-        pitch_card = ttk.Frame(columns, style="Card.TFrame", padding=(8, 8))
-        pitch_card.pack(side="left", fill="both", expand=True)
+        columns.pack(fill="both", expand=True, pady=(6, 0))
+        # NOT a 50/50 split: the pitch is drawn as a tall column and stops gaining from width once its
+        # plates fit, while the squad table is 13 columns wide and was losing its last five off the right
+        # edge with no horizontal scrollbar to reach them. One third / two thirds, with a floor under both
+        # so neither disappears at the minimum window size.
+        # 446 = the canvas's own 430 plus the card's padding: below that the pitch stops being drawn at
+        # its designed width and the plates start losing characters of names, which is a floor and not a
+        # preference. The squad table takes everything else and reaches the rest with its scrollbar.
+        columns.columnconfigure(0, weight=1, minsize=446)
+        # The table's floor is deliberately low: the two floors have to add up to less than the MINIMUM
+        # window (900px leaves the row 676), or grid honours them by pushing the table's own scrollbar off
+        # the right edge of the screen - a floor that hides the control that compensates for it.
+        columns.columnconfigure(1, weight=2, minsize=220)
+        columns.rowconfigure(0, weight=1)
+        pitch_card = ttk.Frame(columns, style="Card.TFrame", padding=(8, 5))
+        pitch_card.grid(row=0, column=0, sticky="nsew")
         toggle = ttk.Frame(pitch_card, style="Card.TFrame")
-        toggle.pack(fill="x", pady=(0, 2))
+        toggle.pack(fill="x", pady=(0, 1))
         ttk.Label(toggle, text="XI", style="CardMuted.TLabel").pack(side="left", padx=(2, 8))
         for label, value in (("schieramento tipo", "typical"), ("prossima giornata", "next")):
             ttk.Radiobutton(toggle, text=label, value=value, variable=self.xi_mode,
@@ -1780,7 +1809,7 @@ class SnapshotView(ttk.Frame):
                             command=self._show_club).pack(side="left", padx=(0, 10))
         # Second row, because the first one is full: what the markers speak, and WHICH SHAPE to draw.
         options = ttk.Frame(pitch_card, style="Card.TFrame")
-        options.pack(fill="x", pady=(0, 6))
+        options.pack(fill="x", pady=(0, 3))
         # Which vocabulary the markers speak. Three, because an auction uses three.
         ttk.Label(options, text="ruoli", style="CardMuted.TLabel").pack(side="left", padx=(2, 4))
         self.role_mode = tk.StringVar(value="real")
@@ -1821,14 +1850,16 @@ class SnapshotView(ttk.Frame):
         self.pitch_tip = Tooltip(self.pitch, self._pitch_tip_text, delay=320, wraplength=460,
                                  anchor="pointer", bind_events=False)
 
-        table = ttk.Frame(columns, style="Card.TFrame", padding=(8, 8))
-        table.pack(side="left", fill="both", expand=True, padx=(8, 0))
+        table = ttk.Frame(columns, style="Card.TFrame", padding=(8, 5))
+        table.grid(row=0, column=1, sticky="nsew", padx=(8, 0))
         # `show="tree headings"`: a Treeview cell cannot hold a drawing, but the TREE column can hold
         # one image per row - which is where the last-10 strip goes.
         self.player_tree = ttk.Treeview(table, columns=[c[0] for c in self.COLUMNS],
                                         show="tree headings", selectmode="browse")
         self.player_tree.heading("#0", text="TREND")
-        self.player_tree.column("#0", width=124, minwidth=124, stretch=False, anchor="w")
+        # 112 = the strip's own image (10 dots of DOT px, plus 2) and the cell's padding, and nothing more:
+        # the 124 it had was reserving room for a dot that does not exist.
+        self.player_tree.column("#0", width=112, minwidth=112, stretch=False, anchor="w")
         for key, title, width, anchor in self.COLUMNS:
             self.player_tree.heading(key, text=title,
                                      command=lambda column=key: self._sort_by(column))
@@ -1837,11 +1868,35 @@ class SnapshotView(ttk.Frame):
         scroll = ttk.Scrollbar(table, orient="vertical", command=self.player_tree.yview)
         self.player_tree.configure(yscrollcommand=scroll.set)
         scroll.pack(side="right", fill="y")
+        # ...and a HORIZONTAL one, because the columns add up to more than the card is wide as soon as the
+        # window is not maximised: without it the right-hand columns (inj, flags) were not narrow, they
+        # were absent - Tk clips what does not fit and offers no way to reach it. Shown only when it is
+        # needed, so the 15px it costs are spent on rows whenever the whole sheet already fits.
+        self.hscroll = ttk.Scrollbar(table, orient="horizontal", command=self.player_tree.xview)
+        self.player_tree.configure(xscrollcommand=self.hscroll.set)
+        self._hscroll_shown = False
         self.player_tree.pack(fill="both", expand=True)
+        self.player_tree.bind("<Configure>", lambda _e: self._sync_hscroll(), add="+")
         HeadingTooltip(self.player_tree, self.COLUMN_HELP, cell_text=self._cell_help)
         # Click the strip to see what the dots stand for. Ten dots cannot carry a date, an opponent or a
         # scoreline, and those are exactly what turns "a red dot" into a reason.
         self.player_tree.bind("<Button-1>", self._on_click, add="+")
+
+    def _sync_hscroll(self) -> None:
+        """Pack the horizontal scrollbar only while the columns really do not fit.
+
+        Asked of the tree itself (`xview` is (0, 1) exactly when everything is visible) rather than
+        computed from the column widths: the two stretching columns absorb whatever room is left over, so
+        the sum of the declared widths is not what decides it.
+        """
+        needed = self.player_tree.xview() != (0.0, 1.0)
+        if needed == self._hscroll_shown:
+            return                          # only act on a change: packing fires <Configure> again
+        self._hscroll_shown = needed
+        if needed:
+            self.hscroll.pack(side="bottom", fill="x", before=self.player_tree)
+        else:
+            self.hscroll.pack_forget()
 
     def restyle(self) -> None:
         """Redraw everything whose colours were baked in: the dot strips and the pitch."""
@@ -2543,10 +2598,14 @@ class SnapshotView(ttk.Frame):
         self.club_title.set(club)
         formation, source = self.board_shape(club, info, self.xi_mode.get())
         self._fill_shapes(club, info, formation)
+        # Two renderings of the same facts. What is SHOWN is what is short and is written nowhere else on
+        # the board; the shape and the reason for it lead the HOVER instead, because the `modulo` selector
+        # already names the shape with its percentage and the pitch's own caption repeats it - the same
+        # fact three times is what made this card 94px tall.
         # The lines come from the provider's slots, where a winger counts as a midfielder: a 4-3-3
         # with wingers reads 4-5-1. Said out loud, so nobody reads the shape as the coach's own words.
         label = "prossima giornata" if self.xi_mode.get() == "next" else "modulo tipo"
-        bits = [f"{label} {formation} ({source}, provider lines)"]
+        bits = []
         bits.append(f"probabili: {info['probabili_date']}" if info.get("probabili_date")
                     else "probabili: NONE (no snapshot yet)")
         typical = info.get("formation_typical")
@@ -2563,6 +2622,7 @@ class SnapshotView(ttk.Frame):
             bits.append(f"lines D{info.get('lines_fielded_D')}/M{info.get('lines_fielded_M')}/"
                         f"F{info.get('lines_fielded_F')} over {info['complete_XIs']} XIs")
         self.club_info.set(" · ".join(bits))
+        self._club_detail = "\n".join([f"{label} {formation} ({source}, provider lines)", *bits])
 
         self.rows = self.squad(club)
         self._fill_table()
@@ -2667,6 +2727,7 @@ class SnapshotView(ttk.Frame):
                 row.get("desc_form_rating") or "", f"{bonus:.0f}" if bonus >= 0.5 else "",
                 f"{1 - self.availability(row):.0%}" if row.get("desc_injury_source") else "",
                 icons))
+        self._sync_hscroll()
 
     @staticmethod
     def _formation(info: dict, mode: str = "typical") -> tuple[str, str]:
@@ -3960,6 +4021,10 @@ class SnapshotView(ttk.Frame):
     PLATE_PAD_PX: ClassVar[int] = 3
     PLATE_OFFSET_PX: ClassVar[int] = 15
     PLATE_CLEARANCE_PX: ClassVar[int] = 6
+    # The two caption lines at the bottom own the last band of the canvas, and the eleven is laid out in
+    # what is left. Without it the forward's plate was clamped to the bottom edge and drawn straight over
+    # the caption - both unreadable, and more of the plate the taller the pitch got.
+    CAPTION_BAND_PX: ClassVar[int] = 34
 
     @classmethod
     def plate_rivals_for(cls, lane_gap: float) -> int:
@@ -4112,8 +4177,10 @@ class SnapshotView(ttk.Frame):
         # ...and never past the top or bottom edge, the same way it never hangs over a touchline: the
         # attack's plate grew by a line and ended 1px outside the canvas, which is a clamp missing rather
         # than a lane fraction to re-tune - the fraction would have to be re-tuned for every plate height.
+        # ...and the floor is the PLAYING area, not the canvas: the caption band below it is not grass a
+        # plate may stand on.
         floor_y = (canvas.winfo_height() if canvas.winfo_height() > 1
-                   else (canvas.winfo_reqheight() or 470))
+                   else (canvas.winfo_reqheight() or 470)) - self.CAPTION_BAND_PX
         top = max(2.0, min(top, floor_y - high - 2))
         canvas.create_rectangle(x - plate / 2, top, x + plate / 2, top + high,
                                 fill="#12351a", outline="#4c7a35", width=1)
@@ -4143,6 +4210,9 @@ class SnapshotView(ttk.Frame):
         width = canvas.winfo_width() if canvas.winfo_width() > 1 else (canvas.winfo_reqwidth() or 430)
         height = (canvas.winfo_height() if canvas.winfo_height() > 1
                   else (canvas.winfo_reqheight() or 470))
+        # The grass is the whole canvas; the ELEVEN is laid out in `field`, above the caption band. Two
+        # different things, and the men are the ones that must not stand on the writing.
+        field = max(140, height - self.CAPTION_BAND_PX)
         line = "#e8f5e9"
         stripe = max(34, height // 10)
         canvas.create_rectangle(0, 0, width, height, fill="#2f7d32", outline="")
@@ -4174,9 +4244,9 @@ class SnapshotView(ttk.Frame):
         # How much room each drawn line has to its nearest neighbour, in pixels: it is what decides how
         # many rivals a plate may NAME (`plate_rivals_for`). A shape with a trequartisti line packs five
         # rows into the same canvas and its plates have to be shorter - measured, not assumed.
-        rows = [fraction * height for _role, fraction in geometry]
+        rows = [fraction * field for _role, fraction in geometry]
         lane_gaps = {role: min((abs(rows[here] - rows[other]) for other in range(len(rows))
-                                if other != here), default=height)
+                                if other != here), default=field)
                      for here, (role, _fraction) in enumerate(geometry)}
         # top to bottom: keeper, defence, midfield, attack. The keeper sits high enough for his plate,
         # the attack low enough for theirs: a lane at 0.92 would draw the names off the pitch.
@@ -4204,7 +4274,7 @@ class SnapshotView(ttk.Frame):
                 # One row per line, and every man of a line on it: the depth nudge that used to move
                 # a mediano forward and a trequartista back inside his own lane is what made the rows
                 # look ragged, and the lane a man is drawn in already says how far up he plays.
-                y = height * fraction
+                y = field * fraction
                 # the TEAM-relative side of where he is drawn, on the same -1..+1 scale `lateral` uses:
                 # it names the flank for a role that does not (a winger placed there reads 'Es' or 'Ed').
                 # Negated, because the screen is mirrored with respect to the team facing downwards.
@@ -4306,8 +4376,15 @@ class ToolkitGUI:
         self._cancel_event = threading.Event()
 
         root.title(f"euroleghe-ingest · operator panel v{__version__}")
-        root.geometry("1180x780")
         root.minsize(900, 660)   # the operation cards + the status bar need this much height
+        # MAXIMISED by default, and the operator's own choice remembered after that. The Snapshot board
+        # draws a pitch and a 13-column squad table side by side, so every pixel of the window is spent on
+        # something: at 1180x780 the table's last five columns were off the right edge and the pitch was
+        # half the height it can be. Maximised rather than a computed size because the work area is the
+        # window manager's own number - the taskbar's height and the title bar's are not ours to guess,
+        # and measuring showed a "screen minus a safe margin" formula leaving 49px unused.
+        self._restore_geometry()
+        root.protocol("WM_DELETE_WINDOW", self._on_close)
         self._theme_mode = self._load_prefs().get("theme", "light")
         theme.apply_theme(root, self._theme_mode)
         try:
@@ -4316,12 +4393,17 @@ class ToolkitGUI:
         except tk.TclError:
             pass  # the icon is cosmetic; never block startup over it
 
-        shell = ttk.Frame(root, padding=(12, 10, 12, 0))
+        # The status bar is packed FIRST, before the shell that expands. The packer hands out the cavity in
+        # packing order, so an expanding widget packed before it leaves nothing behind: the bar was being
+        # created, filled and updated at 1x1 pixels - present in the code and invisible on screen since it
+        # was written. It costs 27px of every tab, which is why it is as thin as its text allows.
+        self._build_status_bar(root)
+        shell = ttk.Frame(root, padding=(12, 6, 12, 0))
         shell.pack(fill="both", expand=True)
         self._build_header(shell)
 
         notebook = self.notebook = ttk.Notebook(shell)
-        notebook.pack(fill="both", expand=True, pady=(10, 0))
+        notebook.pack(fill="both", expand=True, pady=(6, 0))
 
         ops_tab = ttk.Frame(notebook)
         notebook.add(ops_tab, text="  Operations  ")
@@ -4337,7 +4419,6 @@ class ToolkitGUI:
                                      on_build=self._build_snapshot)
         notebook.add(self.snapshot, text="  Snapshot  ")
 
-        self._build_status_bar(root)
         self.refresh_status()
         self.refresh_operation_states()
         self.players.reload()
@@ -4345,7 +4426,33 @@ class ToolkitGUI:
         self.snapshot.reload()
         self.root.after(100, self._drain_log)
 
-    # ---------- preferences (theme only, so a restart looks like the last session) ----------
+    # ---------- preferences (theme and window, so a restart looks like the last session) ----------
+    def _restore_geometry(self) -> None:
+        """Maximised, or wherever the operator last left the window.
+
+        A size saved on one screen can be off another one entirely (a laptop after a docking station), so
+        it is only honoured while it still fits: otherwise the window manager's maximised state answers,
+        which is right on every screen by construction.
+        """
+        saved = self._load_prefs().get("window")
+        if isinstance(saved, str) and "x" in saved:
+            width, _, rest = saved.partition("x")
+            height = rest.split("+")[0].split("-")[0]
+            with contextlib.suppress(ValueError, tk.TclError):
+                if (int(width) <= self.root.winfo_screenwidth()
+                        and int(height) <= self.root.winfo_screenheight()):
+                    self.root.geometry(saved)
+                    return
+        with contextlib.suppress(tk.TclError):
+            self.root.state("zoomed")
+
+    def _on_close(self) -> None:
+        """Remember the window before closing: 'zoomed', or its own geometry if it was restored down."""
+        with contextlib.suppress(tk.TclError):
+            state = self.root.state()
+            self._save_prefs(window="zoomed" if state == "zoomed" else self.root.geometry())
+        self.root.destroy()
+
     def _prefs_path(self):
         return self.config.data_dir / "reports" / "ui-prefs.json"
 
@@ -4378,19 +4485,26 @@ class ToolkitGUI:
 
     # ---------- header ----------
     def _build_header(self, parent: tk.Widget) -> None:
-        bar = ttk.Frame(parent, style="Card.TFrame", padding=(14, 10))
+        """ONE row: the app's name, its version and which DB is open, then the global actions.
+
+        Stacked on two rows it was 75px of every tab - and on the Snapshot board those 75px come off the
+        pitch, which is the thing an auction is actually read on. The name and the DB line are read once
+        when the panel opens; nothing about them needs a row of its own.
+        """
+        bar = ttk.Frame(parent, style="Card.TFrame", padding=(14, 5))
         bar.pack(fill="x")
         left = ttk.Frame(bar, style="Card.TFrame")
         left.pack(side="left", fill="x", expand=True)
-        title = ttk.Frame(left, style="Card.TFrame")
-        title.pack(anchor="w")
-        ttk.Label(title, text="⚽", style="Icon.TLabel").pack(side="left", padx=(0, 8))
-        ttk.Label(title, text="euroleghe-ingest", style="H1.TLabel").pack(side="left")
-        ttk.Label(title, text=f"v{__version__}", style="CardMuted.TLabel").pack(side="left",
-                                                                               padx=(8, 0))
+        ttk.Label(left, text="⚽", style="Icon.TLabel").pack(side="left", padx=(0, 8))
+        ttk.Label(left, text="euroleghe-ingest", style="H1.TLabel").pack(side="left")
+        ttk.Label(left, text=f"v{__version__}", style="CardMuted.TLabel").pack(side="left",
+                                                                              padx=(8, 12))
         self.db_var = tk.StringVar()
-        ttk.Label(left, textvariable=self.db_var, style="CardMuted.TLabel").pack(anchor="w",
-                                                                                pady=(2, 0))
+        # Clipped rather than wrapped: a long path must never turn the header into two rows again, and
+        # the whole of it is one hover away.
+        db_label = ttk.Label(left, textvariable=self.db_var, style="CardMuted.TLabel", anchor="w")
+        db_label.pack(side="left", fill="x", expand=True)
+        Tooltip(db_label, lambda: self.db_var.get(), wraplength=420)
 
         actions = ttk.Frame(bar, style="Card.TFrame")
         actions.pack(side="right")
@@ -4406,7 +4520,13 @@ class ToolkitGUI:
 
     # ---------- status bar ----------
     def _build_status_bar(self, parent: tk.Widget) -> None:
-        bar = ttk.Frame(parent, style="Card.TFrame", padding=(14, 6))
+        """What is running, and when the last run was. One text line tall, and no taller.
+
+        Vertical padding 3: this strip is subtracted from every view above it, and the Snapshot board
+        spends its height on a pitch. The progressbar sets the row's height on its own (~19px), so
+        anything more than 3 is padding around a bar that is already tall enough.
+        """
+        bar = ttk.Frame(parent, style="Card.TFrame", padding=(14, 3))
         bar.pack(fill="x", side="bottom")
         self.activity_var = tk.StringVar(value="idle")
         ttk.Label(bar, textvariable=self.activity_var, style="Card.TLabel").pack(side="left")

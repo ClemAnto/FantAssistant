@@ -1,5 +1,5 @@
 # Todolist — Allineamento Mantra & EuroLeghe (v5)
-**Progetto:** App EuroLega Fantacalcio · **Rif.:** modello-previsionale v3.8 · **Aggiornata: 28 luglio 2026 (notte)**
+**Progetto:** App EuroLega Fantacalcio · **Rif.:** modello-previsionale v3.8 · **Aggiornata: 29 luglio 2026 (notte)**
 Convenzione: [ ] da fare · [x] fatto · [!] bloccato · *Sigle: fc_id = id fantacalcio.it · FM = fantamedia · T1/T2 = finestre di test 23/24->24/25 e 24/25->25/26 · 2.5 pieno = backtest motore completo con flag.*
 
 ## FASE 0 — Fattibilita' [x] (21/7)
@@ -306,6 +306,13 @@ Nota: **nessuna delle feature generate il 27/07 e' entrata nel motore**, e **nes
 - [x] **Ipotesi INVESTIMENTO del club: misurata e BOCCIATA** (gate §7-quater, spec v9.14). Due canali (quota
       della spesa del club, Qt.I percentile nel ruolo), due forme, bersaglio le titolarità: pesi a zero.
       Il meccanismo è già assorbito dai **minuti**.
+- [x] **Il pannello spende l'altezza sul CAMPETTO** (richiesta dell'utente sul layout, spec v9.15). A parità
+      di finestra campetto **388 → 493px**, rosa 448 → 534; la finestra si apre **massimizzata** (campetto
+      449x506) e ricorda la scelta dell'operatore. Misurando: la **status bar era invisibile da sempre**
+      (1x1 px, packata dopo uno shell che espande — ora visibile su richiesta), la targhetta
+      dell'attaccante era disegnata **sopra la didascalia**, e **276px di colonne della rosa erano assenti**
+      (Tk taglia e non offre come raggiungere). Nuovo test in **rapporti**, perché nessuno guardava la
+      geometria.
 - [ ] **PROSSIMO — ritestare l'investimento col VALORE DI MERCATO Transfermarkt.** Il proxy debole era il
       Qt.I (mercato del fantacalcio); il valore Transfermarkt è quello del calcio, sta **già nella cache**
       (561 pagine rosa, 51 club × 11 stagioni) e abilita la **quota del valore della rosa**, che è la

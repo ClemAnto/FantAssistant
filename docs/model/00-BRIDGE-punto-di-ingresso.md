@@ -1,5 +1,5 @@
 # 00 — BRIDGE · Punto d'ingresso del progetto (leggere per primo)
-**Aggiornato: 28 luglio 2026 (seconda chiusura della giornata: coppie d'attacco)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
+**Aggiornato: 29 luglio 2026 (chiusura: il pannello spende l'altezza sul campetto)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
 
 ## Il progetto in breve
 Motore previsionale per fantacalcio **EuroLeghe** (fantacalcio.it): valutazione calciatori Classic e Mantra sui 5 grandi campionati europei (Serie A, Premier, Liga, Bundesliga, Ligue 1 — perimetro: i ~35 top club del gioco). Prevede fantamedia (FM), presenze attese e VALORE stagionale = FM × presenze. Metodo scientifico: **ogni regola entra nel motore solo se batte il baseline fuori campione su finestre indipendenti** (gate pre-registrato). Stato: core validato (Mantra, Classic, portieri, presenze); manca lo strato flag/arrivi, sbloccato dal toolkit dati `euroleghe-ingest` (in implementazione).
@@ -60,6 +60,14 @@ verdetti in [gate-motore-v1.md](gate-motore-v1.md) **§7-ter** e **§7-quater**,
 5. **L'unità è la PARTITA, non la giornata**: (giocatore, giornata) non è unica — con un rinvio più un
    trasferimento un uomo gioca la stessa giornata per due club — e la **PK di `match_ratings` non può
    rappresentarlo**, quindi una presenza si perde. Decisione aperta: cambiare la PK = migrazione + re-ingest.
+6. **Il pannello: l'altezza si spende sul campetto, non sul suo bordo** (richiesta dell'utente sul layout;
+   spec «Novità v9.15», stato sezione «(9)»). Nessun numero del motore cambia. A parità di finestra il
+   campetto passa da **388 a 493px** e la rosa da 448 a 534; la finestra ora si apre **massimizzata**
+   (campetto 449x506) e ricorda la scelta dell'operatore. Misurando sono venuti fuori due difetti che
+   nessuno vedeva: la **status bar era invisibile da sempre** (packata dopo uno shell che espande: 1x1
+   pixel) e la **targhetta dell'attaccante veniva disegnata sopra la didascalia**; e **276px di colonne
+   della rosa non erano strette, erano assenti** — Tk taglia e non offre come raggiungere. Lezione, ora con
+   un test in rapporti: **una tesi sul layout va misurata** (`winfo_height`) come qualunque altra.
 
 ### La passata precedente — il denominatore di una quota, e lo sweep delle costanti
 

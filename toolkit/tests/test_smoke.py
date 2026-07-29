@@ -1278,3 +1278,47 @@ def test_a_fold_that_cannot_see_the_feature_is_not_a_failure():
     # and with no informative fold at all there is no verdict to give
     flat = sweep._cross_fit({"a": {"off": 0.3, "on": 0.3}}, ["off", "on"], "off")
     assert "strict" not in flat and flat["verdict"] == "not measurable on any fold"
+
+
+def test_the_panel_spends_its_height_on_the_board_and_not_on_its_own_chrome(tmp_path, monkeypatch):
+    """Two layout invariants nobody was measuring, and both were broken.
+
+    The STATUS BAR was packed after a shell that expands, so the packer had no cavity left for it: it was
+    created, filled and updated at one pixel tall - present in the code and invisible on screen. And on the
+    Snapshot board the pitch is the thing being read, while the app header, the tab strip, the sheet bar
+    and the club card sit on top of it; each of them was sized as if it were the only one.
+
+    Asserted as RATIOS, not pixel counts, so the test says the same thing on another display's fonts.
+    """
+    import tkinter as tk
+
+    from euroleghe_ingest import gui
+
+    try:
+        root = tk.Tk()
+    except tk.TclError as exc:                       # headless: there is no geometry to measure
+        pytest.skip(f"no Tk display: {exc}")
+    monkeypatch.setattr(gui, "Config",
+                        lambda: Config(data_dir=tmp_path,
+                                       league_config_path=tmp_path / "none.json"))
+    try:
+        app = gui.ToolkitGUI(root)
+        root.state("normal")                         # it opens maximised; measure a known size instead
+        root.geometry("1180x780")
+        root.update()
+        app.notebook.select(app.snapshot)
+        root.update()
+
+        status = root.pack_slaves()[0]
+        assert status.winfo_height() > 10, (
+            "the status bar must be packed BEFORE the expanding shell, or it gets no cavity at all")
+
+        # Everything above the pitch inside the board: the sheet bar, the provenance line, the club card
+        # and the two rows of pitch options. Measured at 1180x780 it was 242px against 388px of pitch
+        # (ratio 1.6); one row per fact instead of one row per widget makes it 165 against 493 (3.0).
+        board = app.snapshot
+        chrome = board.pitch.winfo_rooty() - board.winfo_rooty()
+        assert board.pitch.winfo_height() > 2.5 * chrome, (
+            f"pitch {board.pitch.winfo_height()}px against {chrome}px of chrome above it")
+    finally:
+        root.destroy()
