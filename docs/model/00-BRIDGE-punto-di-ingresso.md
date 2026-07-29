@@ -26,7 +26,28 @@ proporre qualsiasi regola) → **`metrica-asta-surplus-v1.md`** (con cosa il pan
 
 Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
 
-### ULTIMO IN ORDINE DI TEMPO — il foglio d'asta dice di CHI era la stagione, e chi compete davvero
+### ULTIMO IN ORDINE DI TEMPO — il denominatore di una quota, e lo sweep delle costanti
+
+Sessione del 29/07/2026, ultime due passate (spec «Novità v9.11» e «v9.12»; dettaglio in
+[stato-progetto-continuita-v5.md](stato-progetto-continuita-v5.md), sezioni «(5)» e «(6)», verdetti in
+[gate-motore-v1.md](gate-motore-v1.md) **§7-ter**). I due punti che «cosa manca al toolkit» dava per aperti:
+
+1. **Una quota di stagione si conta sul CAMPIONATO.** I numeratori erano sempre di campionato
+   (`external_stats` ha una riga per campionato) e il denominatore era ogni undici parsato in qualsiasi
+   competizione: Arsenal 58, Bayern 50, Napoli 38. Quota di campionato **66%-100%** sui 45 club, quindi Kane
+   leggeva **49%** con 25 titolarità su 34 giornate. Correlazione fra la quota del club e la titolarità media
+   dei suoi giocatori: **+0.796 → −0.172**. Dentro: le assenze si **contano** in giornate dentro l'unione
+   degli spell (niente più conversioni), e `contested` usa quello che ha davvero saltato e non la previsione
+   — che, sottratta e rimoltiplicata, si annullava. Giocatori appiattiti sul pavimento: **da 201 a 9**.
+2. **`python -m euroleghe_ingest sweep` — il gate delle COSTANTI.** Formule estratte in
+   `engine/presence.py` (un parametro che nessun harness raggiunge non si può spazzare). **Adottato**:
+   `STANDING_WEIGHTS = (0, 1)`, la titolarità si prevede dai **minuti** — strict e robust su tutti e dieci i
+   fold. **Confermati**: forma di `contested`, `ARRIVAL_DISCOUNT` 0.80, decay rigoristi 0.75. **Aperti col
+   motivo**: `LOAN_DISCOUNT` (platform-dependent), inclinazione infortuni, pavimento, quarantena, tier.
+   Trovato per strada: **ogni rigore di Serie A era contato due volte**, il che dimezzava la memoria della
+   gerarchia per i club italiani — ed è per questo che 0.5 sembrava battere 0.75 (0.75² = 0.56).
+
+### La passata precedente — il foglio d'asta dice di CHI era la stagione, e chi compete davvero
 
 Sessione del 29/07/2026 (tre passate, spec «Novità v9.8» e «v9.9»; dettaglio e numeri in
 [stato-progetto-continuita-v5.md](stato-progetto-continuita-v5.md), sezioni «Sessione 29/07/2026 (2)» e
