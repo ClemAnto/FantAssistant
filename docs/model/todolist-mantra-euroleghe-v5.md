@@ -202,3 +202,13 @@ Nota: **nessuna delle feature generate il 27/07 e' entrata nel motore**, e **nes
 - [ ] ~~il non-danno sui top-10 non vincola le regole di accuratezza~~ `passes` lo impone solo alle regole di COPERTURA, quindi una regola puo' passare il gate e **peggiorare la lista che il prodotto consuma**: R3d lo fa (passa, e porta i nomi da 157 a 151 su cinque finestre, con T2 da 36 a 32). Estendere il vincolo ri-esaminerebbe R3, R7 e R3c, gia' adottate → decisione da prendere per se'. `gate-motore-v1.md` §5-decies.
 - [ ] **Non aggiungere ipotesi allo stesso campione.** Tre dei sei no del 28/07 sono per mancanza di finestre indipendenti, non di effetto: R13c ha 14-21 osservazioni valutabili, R5b tre finestre contaminate, R15 sta sotto il pavimento. Due si risolvono da soli col 26/27 a costo zero.
 - [ ] **euro non guadagna finestre a poco prezzo** (ri-verificato il 28/07): il 2021-22 e' vuoto **alla sorgente** — la colonna `Voto` del file in cache e' `-` per ogni giocatore mentre i fatti ci sono. Il voto sintetico potrebbe riempirlo, ma per Tm2 il 2021-22 **e' il target** e lo spec vieta al sintetico di contaminare il target euro; resterebbe solo Tm1 con input sintetici. Una finestra sola in cambio di un cambio di regola: non conviene.
+
+## Ripresa 29/07/2026 (dettaglio in `stato-progetto-continuita-v5.md`, sezione di chiusura)
+- [ ] **Standing sul club attuale + `LOAN_DISCOUNT`** (deciso: il prestito e' un giudizio della societa',
+      quindi si SCONTA la standing misurata altrove, non si azzera). Colonne club-ristrette in `snapshot`,
+      fallback in `SnapshotView.standing`, test sul caso Marin R. (21 presenze al Villarreal, 0 al Napoli).
+- [ ] Prestito vs acquisto: sconti diversi, e sconto decrescente con le partite al club attuale.
+- [ ] `INJURY_WEIGHTS`: forma confermata (3 stagioni, l'ultima piu' pesante), valore aperto. Verificare le
+      ricadute duplicate su Transfermarkt prima di ritarare `AVAILABILITY_FLOOR`.
+- [ ] Centrocampo a 5: distinguere il lato offensivo (ala/esterno) da quello difensivo (terzino).
+- [ ] Operativo: chiudere `injuries --layer all` sui 5 club nuovi, poi `Build now`.

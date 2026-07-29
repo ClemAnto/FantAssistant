@@ -603,3 +603,9 @@ rating confrontato fra campionati: ❌, λ −0.45/+0.05). Copertura del motore 
 
 ## Convenzioni operative
 git = casa canonica (Drive solo su richiesta esplicita) · risposte in chat in **italiano**, tutto il repo (codice, commenti, log, nomi file, .md) in **inglese**; i doc KB in `docs/model/` restano in italiano · `fc_id` chiave primaria · credenziali solo in `.env` · **quando l'utente scrive "chiudi"**: consolidare tutti gli .md di `docs/model/` (+ CLAUDE.md se serve) con stato/decisioni/commit/prossimi passi e committare.
+
+**Ultima sessione (29/07/2026)**: lo snapshot d'asta e' ora un tavolo di lavoro - percentuale = quota di
+giornate (standing x availability), campetto a griglia che rispecchia il modulo, precampionato ingerito
+(`positions --layer extra`, tag `sofascore_extra`, descrittivo e mai gated), snapshot AS OF una data e per
+un singolo club. Il punto di ripresa, con le quattro decisioni prese e non implementate, e' la sezione di
+chiusura di [stato-progetto-continuita-v5.md](stato-progetto-continuita-v5.md).
