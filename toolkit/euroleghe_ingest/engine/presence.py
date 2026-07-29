@@ -62,6 +62,21 @@ class Params:
     # minutes on file - no minutes recorded is not zero minutes played.
     # Report: data/reports/sweep_presence.json (`generated_at` is the provenance, as always).
     standing_weights: tuple[float, float] = (0.0, 1.0)
+    # WHAT THE CLUB HAS PUT INTO HIM, and how much it should weigh on being selected. The hypothesis: a
+    # club that has spent wants to see the man play and the coach forgives him a bad match, at the expense
+    # of a youth-team player. Two channels because they catch different players - the fee catches Isak, the
+    # stature catches De Bruyne, who arrived for nothing - and BOTH START AT ZERO: the term is off until the
+    # sweep says otherwise, which is the only honest default for a hypothesis nobody has scored yet.
+    # Careful with what a verdict here would and would not mean: passing says investment predicts starts
+    # beyond what minutes already say. It does NOT separate "he plays because the club paid" from "the club
+    # paid because he is good" - that needs a design this data cannot give.
+    fee_weight: float = 0.0
+    stature_weight: float = 0.0
+    # Where it enters: "standing" adds to the standing itself; "arrival" instead closes part of the gap in
+    # `at_club_weight`, which is the sharper version of the claim - a season played elsewhere counts more
+    # toward this shirt when the club paid for him, and nothing changes for a man whose whole season is
+    # already here (his minutes have said it).
+    investment_shape: str = "standing"
     # WHICH absences come off the denominator of the start rate:
     #   "measured" - the rounds he actually missed inside the measured season. A fact about the sample.
     #   "forecast" - the three-season weighted estimate, which is what the panel used until v9.11. It is
@@ -105,6 +120,27 @@ class Inputs:
     minutes_here: float = 0.0
     minutes_elsewhere: float = 0.0
     was_here_before: bool = False
+    # what the club put into him: his fee as a share of what it spent that window (0 = no new spending,
+    # None = we have no fees for that club), and his Qt.I percentile within his role (None = unquoted)
+    fee_share: float | None = None
+    stature: float | None = None
+
+
+def investment_lift(inputs: Inputs, params: Params = DEFAULTS) -> float:
+    """How much the club's investment should move him, in shares of a season. 0.0 when the term is off.
+
+    The fee channel is one-sided (no spending is not evidence against a man), the stature channel is
+    CENTRED: above-median Qt.I lifts, below-median pushes down, because the claim has two sides and the
+    youngster losing his place to a signing is the same statement as the signing keeping it.
+
+    An unknown channel contributes nothing - not knowing what a club spent is not knowing.
+    """
+    lift = 0.0
+    if params.fee_weight and inputs.fee_share is not None:
+        lift += params.fee_weight * inputs.fee_share
+    if params.stature_weight and inputs.stature is not None:
+        lift += params.stature_weight * (inputs.stature - 0.5) * 2.0
+    return lift
 
 
 def at_club_weight(inputs: Inputs, params: Params = DEFAULTS) -> float:
@@ -124,7 +160,12 @@ def at_club_weight(inputs: Inputs, params: Params = DEFAULTS) -> float:
     if not total:
         return 1.0
     discount = params.loan_discount if inputs.was_here_before else params.arrival_discount
-    return (inputs.minutes_here + discount * inputs.minutes_elsewhere) / total
+    weight = (inputs.minutes_here + discount * inputs.minutes_elsewhere) / total
+    if params.investment_shape == "arrival":
+        # The investment closes part of what the discount took away, and only that part: a man whose whole
+        # season is already here is at 1.0 and cannot be lifted, which is right - his minutes have said it.
+        weight = min(weight + investment_lift(inputs, params) * (1.0 - weight), 1.0)
+    return max(weight, 0.0)
 
 
 def absences_per_season(inputs: Inputs, params: Params = DEFAULTS) -> float | None:
@@ -188,9 +229,14 @@ def standing(inputs: Inputs, params: Params = DEFAULTS) -> float:
     weight = at_club_weight(inputs, params)
     starts = min(inputs.starts * weight / rounds, 1.0)
     if not inputs.minutes:
-        return starts
-    by_starts, by_minutes = params.standing_weights
-    return by_starts * starts + by_minutes * min(inputs.minutes * weight / (rounds * 90.0), 1.0)
+        measured = starts
+    else:
+        by_starts, by_minutes = params.standing_weights
+        measured = (by_starts * starts
+                    + by_minutes * min(inputs.minutes * weight / (rounds * 90.0), 1.0))
+    if params.investment_shape == "standing":
+        return min(max(measured + investment_lift(inputs, params), 0.0), 1.0)
+    return measured
 
 
 def presence(inputs: Inputs, params: Params = DEFAULTS) -> float:

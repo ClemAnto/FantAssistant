@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
-from dataclasses import asdict
+from dataclasses import asdict, replace
 
 from euroleghe_ingest.context import Context
 from euroleghe_ingest.engine import evaluate, features, model, presence
@@ -67,6 +67,23 @@ GRIDS: dict[str, tuple] = {
                        (1.0, 0.0, 0.0), (1.0, 1.0, 1.0)),
     "standing_weights": ((1.0, 0.0), (0.8, 0.2), (0.65, 0.35), (0.5, 0.5), (0.35, 0.65), (0.0, 1.0)),
     "contested_from": ("measured", "forecast"),
+    # THE INVESTMENT HYPOTHESIS (pre-registered 29/07/2026, gate 7-quater). Both weights start at 0 = off,
+    # and the grid is one-sided upward for the fee (spending cannot make a coach play a man LESS) and
+    # includes a negative step for the stature, because a hypothesis that only allows the sign it expects is
+    # not being tested. 0.30 of a season is nine rounds: past that the term would be deciding the eleven on
+    # its own, which is not what anybody is claiming.
+    "fee_weight": (0.0, 0.05, 0.10, 0.15, 0.20, 0.30),
+    "stature_weight": (-0.10, 0.0, 0.05, 0.10, 0.15, 0.20, 0.30),
+    # ...and the same hypothesis in its SHARPER form, as a composite: the two weights alone are swept on the
+    # "standing" shape, where a lift is added to everybody, but the claim is really about the man whose
+    # season was played somewhere else - the signing the club has just paid for. `investment_shape="arrival"`
+    # is that version (the investment closes part of what the arrival discount took away, and does nothing
+    # to a man whose whole season is already here), and it cannot be tested by moving the shape alone,
+    # because with both weights at zero the two shapes ARE the same function. Hence the pairs.
+    "investment": (("standing", 0.0, 0.0),
+                   ("arrival", 0.1, 0.0), ("arrival", 0.2, 0.0), ("arrival", 0.3, 0.0),
+                   ("arrival", 0.5, 0.0), ("arrival", 0.0, 0.1), ("arrival", 0.0, 0.2),
+                   ("arrival", 0.2, 0.2)),
 }
 
 # Which target each parameter is judged on. `standing_weights` never enters `voto_share` - appearances are
@@ -79,6 +96,10 @@ TARGETS: dict[str, str] = {
     "injury_weights": "appearances",
     "contested_from": "appearances",
     "standing_weights": "starts",
+    # The claim is about SELECTION - who the coach puts on the pitch - so it is judged on starts.
+    "fee_weight": "starts",
+    "stature_weight": "starts",
+    "investment": "starts",
 }
 
 # The gate's own thresholds, quoted from gate-motore-v1.md so the two verdicts mean the same thing here.
@@ -136,6 +157,7 @@ def build_inputs(conn, data: features.WindowData) -> tuple[dict[int, presence.In
     # squads = {}: for a past window there is no squad snapshot to read, and the club that matters is the
     # one the TARGET listone puts him at - which is published before the auction, so it is legal here.
     at_club = snapshot.at_current_club(conn, season, data.observations, {})
+    spend = snapshot.investment(conn, window, data.observations, {})
     was_here = snapshot.previously_at_club(conn, data.observations, {}, season)
     seasons = [row[0] for row in conn.execute(
         "SELECT DISTINCT season FROM rosters WHERE season <= ? ORDER BY season", (season,))]
@@ -181,6 +203,8 @@ def build_inputs(conn, data: features.WindowData) -> tuple[dict[int, presence.In
             minutes_here=float(split.get("minutes") or 0),
             minutes_elsewhere=float(split.get("minutes_elsewhere") or 0),
             was_here_before=obs.fc_id in was_here,
+            fee_share=(spend.get(obs.fc_id) or {}).get("fee_share"),
+            stature=(spend.get(obs.fc_id) or {}).get("stature"),
         )
     note = {"players": len(out), "of_observations": len(data.observations),
             "clubs_under_90pct_parsed": thin}
@@ -280,7 +304,23 @@ def verdicts(gains: dict[str, float]) -> dict[str, bool | float]:
 
 
 def _label(value) -> str:
+    if isinstance(value, tuple) and value and isinstance(value[0], str):
+        return f"{value[0]}:{value[1]:g}/{value[2]:g}"        # the composite: shape, fee, stature
     return "/".join(f"{part:g}" for part in value) if isinstance(value, tuple) else f"{value}"
+
+
+def _params_for(name: str, value) -> presence.Params:
+    """The parameter set for one grid point. `investment` is a COMPOSITE (shape, fee, stature).
+
+    It has to be one grid point and not three, because the shape and the weights are not independent: with
+    the weights at zero the two shapes are the same function, so sweeping the shape on its own reports
+    "no effect" about a term that is switched off.
+    """
+    if name == "investment":
+        shape, fee, stature = value
+        return replace(presence.DEFAULTS, investment_shape=shape,
+                       fee_weight=fee, stature_weight=stature)
+    return presence.DEFAULTS.with_value(name, value)
 
 
 def sweep_platform(conn, platform: str, game: str, windows: list[str] | None) -> dict:
@@ -319,12 +359,15 @@ def sweep_platform(conn, platform: str, game: str, windows: list[str] | None) ->
 
     for name, grid in GRIDS.items():
         target = TARGETS[name]
-        current = getattr(presence.DEFAULTS, name)
+        # the composite has no field of its own: its "current" is the shape and the two weights in use
+        current = ((presence.DEFAULTS.investment_shape, presence.DEFAULTS.fee_weight,
+                    presence.DEFAULTS.stature_weight) if name == "investment"
+                   else getattr(presence.DEFAULTS, name))
         per_window: dict[str, dict[str, float]] = {}
         for key, (inputs, targets, _data) in facts.items():
             scores: dict[str, float] = {}
             for value in grid:
-                score, count = mae(inputs, targets, presence.DEFAULTS.with_value(name, value), target)
+                score, count = mae(inputs, targets, _params_for(name, value), target)
                 if count:
                     scores[_label(value)] = round(score, 5)
             if scores:
@@ -346,6 +389,16 @@ def _cross_fit(per_fold: dict[str, dict[str, float]], labels: list[str], current
     Shared by the three families so the verdict means the same thing in all of them, and so the one place
     that could get the leave-one-out wrong is one place.
     """
+    # A fold whose error does not move across the WHOLE grid contains no information about this parameter -
+    # the feature it reads is absent there (the transfer fees only exist from 2023, so an older window
+    # cannot see the investment term at all). The gate's own rule: such a window is reported as NOT
+    # MEASURABLE, never as a failure, and counting its flat 0.0 as "no gain" would fail every hypothesis
+    # mechanically on the strict verdict.
+    uninformative = [fold for fold, scores in per_fold.items() if len(set(scores.values())) <= 1]
+    per_fold = {fold: scores for fold, scores in per_fold.items() if fold not in uninformative}
+    if not per_fold:
+        return {"current": current, "grid": labels, "verdict": "not measurable on any fold",
+                "folds_without_the_feature": uninformative}
     chosen: dict[str, str] = {}
     gains: dict[str, float] = {}
     for fold, mine in per_fold.items():
@@ -369,6 +422,7 @@ def _cross_fit(per_fold: dict[str, dict[str, float]], labels: list[str], current
               if rivals and current in pooled and min(rivals) else 0.0)
     return {
         "margin_over_runner_up": round(margin, 5),
+        "folds_without_the_feature": uninformative,
         "current": current,
         "grid": labels,
         "error_per_fold": per_fold,
@@ -551,8 +605,12 @@ def run(ctx: Context, platforms: list[str] | None = None, games: list[str] | Non
             print(f"=== presence, {block['platform']}/{block['game']}: "
                   f"{len(block['windows'])} windows ({', '.join(block['windows'])})")
         for name, result in block.get("parameters", {}).items():
-            if "current" not in result:
-                print(f"  {name:20} {result.get('verdict')}")
+            if "strict" not in result:
+                # no verdict to print: the grid did not move a single fold's error, so no fold carries
+                # information about this parameter (the guard is `strict`, not `current` - a
+                # not-measurable result still says which value is in use)
+                print(f"  {name:20} current {result.get('current')!s:>12} · {result.get('verdict')}"
+                      f" ({len(result.get('folds_without_the_feature') or [])} folds without the feature)")
                 continue
             print(f"  {name:20} current {result['current']:>12} · "
                   f"best pooled {result['best_pooled']:>12} · "

@@ -1086,10 +1086,19 @@ def test_every_swept_parameter_exists_and_is_scored_against_a_target():
     from euroleghe_ingest.modules import sweep
 
     names = {field.name for field in fields(presence.Params)}
-    assert set(sweep.GRIDS) <= names, f"swept but not a parameter: {set(sweep.GRIDS) - names}"
+    # `investment` is the one COMPOSITE: a shape and its two weights move together, because with the
+    # weights at zero the two shapes are the same function and sweeping the shape alone would report
+    # "no effect" about a term that is switched off.
+    composite = {"investment"}
+    assert set(sweep.GRIDS) - composite <= names,         f"swept but not a parameter: {set(sweep.GRIDS) - composite - names}"
     assert set(sweep.GRIDS) == set(sweep.TARGETS), "every grid needs its target named"
     assert set(sweep.TARGETS.values()) <= set(sweep.PREDICTORS)
     for name, grid in sweep.GRIDS.items():
+        if name in composite:
+            # the composite's own grid must contain the state the code is actually in
+            assert (presence.DEFAULTS.investment_shape, presence.DEFAULTS.fee_weight,
+                    presence.DEFAULTS.stature_weight) in grid
+            continue
         assert getattr(presence.DEFAULTS, name) in grid, f"{name}: the value in use is not in its own grid"
 
 
@@ -1214,3 +1223,58 @@ def test_a_back_dated_sheet_draws_the_eleven_that_was_FIELDED():
         row["actual_next_started"] = None
     assert gui.SnapshotView._formation({"formation_today": "3-4-3", "formation_typical": "4-5-1"},
                                        "next") == ("3-4-3", "probabili of today")
+
+
+def test_what_the_club_put_into_him_has_two_channels_and_they_start_at_zero():
+    """The hypothesis is that a club plays the man it paid for, and forgives him a bad game at a
+    youngster's expense. Two channels, because they catch different players - and the measurement is the
+    reason both exist: Modric and De Bruyne arrived on FREE transfers, so a fee-only index says "no
+    investment" for exactly the two names the argument was built on, while their Qt.I sits at the 77th and
+    94th percentile of the midfielders.
+
+    Both weights are 0 by default: a hypothesis nobody has scored yet must not move a single number.
+    """
+    from euroleghe_ingest.engine import presence
+
+    base = presence.Inputs(starts=20.0, appearances=20.0, minutes=1800.0, league_matches=38.0,
+                           fixtures=38.0, minutes_here=0.0, minutes_elsewhere=1800.0,
+                           fee_share=0.43, stature=0.95)
+    assert presence.investment_lift(base) == 0.0, "off until the gate says otherwise"
+    assert presence.standing(base) == presence.standing(base, presence.DEFAULTS)
+
+    fee_on = presence.DEFAULTS.with_value("fee_weight", 0.2)
+    assert presence.investment_lift(base, fee_on) == pytest.approx(0.086)
+    # the fee is one-sided: spending nothing is not evidence AGAINST a man
+    assert presence.investment_lift(presence.Inputs(fee_share=0.0), fee_on) == 0.0
+    # the stature is centred, because the claim has two sides: the star gains, the cheap youngster pays
+    stature_on = presence.DEFAULTS.with_value("stature_weight", 0.2)
+    assert presence.investment_lift(presence.Inputs(stature=1.0), stature_on) == pytest.approx(0.2)
+    assert presence.investment_lift(presence.Inputs(stature=0.0), stature_on) == pytest.approx(-0.2)
+    assert presence.investment_lift(presence.Inputs(stature=0.5), stature_on) == 0.0
+    # an unknown channel contributes nothing: not knowing what a club spent is not knowing
+    assert presence.investment_lift(presence.Inputs(), fee_on) == 0.0
+
+    # the ARRIVAL shape only closes part of the gap a discount opened, so a man whose whole season is
+    # already at this club cannot be lifted by it - his minutes have said it
+    arrival = presence.Params(fee_weight=0.5, investment_shape="arrival")
+    here = presence.Inputs(minutes_here=1800.0, minutes_elsewhere=0.0, fee_share=1.0)
+    assert presence.at_club_weight(here, arrival) == 1.0
+    elsewhere = presence.Inputs(minutes_here=0.0, minutes_elsewhere=1800.0, fee_share=1.0)
+    assert presence.at_club_weight(elsewhere, arrival) > presence.at_club_weight(elsewhere)
+
+
+def test_a_fold_that_cannot_see_the_feature_is_not_a_failure():
+    """The gate's own rule, and it matters for any parameter whose input starts mid-history: the transfer
+    fees exist from 2023, so the older windows cannot move at all. Counted as "no gain" they would fail
+    every hypothesis mechanically on the strict verdict; they are reported as not measurable instead."""
+    from euroleghe_ingest.modules import sweep
+
+    table = {"old": {"off": 0.30, "on": 0.30},          # the feature does not exist in this fold
+             "T1": {"off": 0.30, "on": 0.20}, "T2": {"off": 0.30, "on": 0.20}}
+    result = sweep._cross_fit(table, ["off", "on"], "off")
+    assert result["folds_without_the_feature"] == ["old"]
+    assert set(result["gain_vs_current"]) == {"T1", "T2"}
+    assert result["strict"] and result["robust"], result
+    # and with no informative fold at all there is no verdict to give
+    flat = sweep._cross_fit({"a": {"off": 0.3, "on": 0.3}}, ["off", "on"], "off")
+    assert "strict" not in flat and flat["verdict"] == "not measurable on any fold"

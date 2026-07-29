@@ -793,3 +793,34 @@ servita per conservare una SERIE di probabili; se si vuole sempre la più recent
 comportamento corretto. Resta invece vera l'altra osservazione della (7): la precedenza assoluta di
 `desc_starter_prob` in `presence(recent)` è difendibile solo per una rilevazione vicina al calcio d'inizio —
 ora però non è più l'ultima parola, perché su un foglio passato la batte il fatto.
+
+---
+
+## Sessione 29/07/2026 (8) - l'investimento del club (ipotesi bocciata) e l'unita' PARTITA
+
+### L'ipotesi dell'utente, misurata e non adottata
+«Una societa' che ha speso vuole vedere il giocatore in campo, e l'allenatore gli perdona una brutta partita,
+a scapito dei giovani». Resa misurabile in due canali - cartellino come **quota della spesa del club** e
+**Qt.I percentile nel ruolo** - perche' la misura ha imposto il secondo: **Modric e De Bruyne sono arrivati a
+parametro zero**, quindi il solo cartellino avrebbe detto «nessun investimento» sui due nomi dell'ipotesi.
+Due forme pre-registrate (lift sulla standing di tutti; oppure chiusura di parte dello sconto d'arrivo) e
+bersaglio le **titolarita'**. Verdetto: **NON adottata**, pesi a zero. `fee_weight` peggiora monotonamente,
+`stature_weight` peggiora in **entrambe** le direzioni (+0.30 costa il 12.9%), la forma `arrival` e'
+indistinguibile da spento (quarta cifra) benche' i tre fold piu' recenti la preferiscano col segno previsto.
+Numeri completi: gate **7-quater**. Lettura: il meccanismo **e' gia' assorbito dai minuti** - e' lo stesso
+sweep che ha appena adottato «la titolarita' si prevede dai minuti» - e resta un segno solo dove i minuti non
+possono vederlo, cioe' l'arrivo appena comprato. Da tenere: il test e' **predittivo, non causale**; gli
+**ingaggi** (la misura giusta) non esistono in whitelist; il «perdono per una brutta partita» e' per GIORNATA
+e il gate per-giornata non c'e'; e il cartellino dell'estate 2026 manca (`transfers` da rilanciare).
+
+### L'unita' e' la PARTITA, non la giornata
+Osservazione dell'utente, verificata sui dati: **(giocatore, giornata) non e' una coppia unica** - con un
+rinvio piu' un trasferimento un uomo gioca la stessa giornata per due club (Serie A 23/24 g21: fc_id 49
+Udinese il 20/01 e Torino il 22/02; Dimarco 19/20 g17 Inter e Verona). E la **PK di `match_ratings`
+`(fc_id, season, matchday, platform)` non puo' rappresentarlo**: i voti hanno 1 riga dove il layer
+per-partita ne ha 2, quindi per quei casi una presenza si perde. Zero duplicati oggi nella tabella, che e'
+quello che mostrerebbe comunque una PK che li vieta.
+Il codice che cammina su un calendario cammina su **date**, e lo fa gia' (`club_form`, `rounds_missed`,
+`fielded_next`); `fielded_next` ora porta anche la **giornata** nell'etichetta, cosi' un recupero non si
+legge come la giornata successiva. La PK resta una **decisione aperta**: cambiarla e' migrazione piu'
+re-ingest.

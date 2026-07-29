@@ -1,5 +1,5 @@
 # Spec — Toolkit `euroleghe-ingest` v9 (task 1.0 della roadmap)
-**Aggiornata: 29 luglio 2026 (v9.13 — un foglio nel passato guarda l'undici schierato; v9 SOSTITUISCE la v8)** · Python · Output: SQLite `euroleghe.db` + CSV normalizzati
+**Aggiornata: 29 luglio 2026 (v9.14 — investimento del club e unita' PARTITA; v9 SOSTITUISCE la v8)** · Python · Output: SQLite `euroleghe.db` + CSV normalizzati
 *Sigle: fc_id = identificativo fantacalcio.it · FM = fantamedia · Mv = media voto · Pv = partite a voto · xref = cross-reference id tra siti · xG/xA = expected goals/assists · manifest = lista file da recuperare.*
 **Convenzione: identificatori sempre in INGLESE** (tabelle, colonne, moduli, variabili); italiano solo nella documentazione.
 
@@ -494,7 +494,39 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
-## Novità v9.13 (29 luglio 2026 — un foglio nel passato non prevede: guarda l'undici SCHIERATO)
+## Novita' v9.14 (29 luglio 2026 - quanto il club ha investito su di lui, e l'unita' e' la PARTITA)
+
+### 1. L'investimento del club: tre colonne, due canali, verdetto NEGATIVO
+Ipotesi dell'utente (societa' che ha speso -> vuole vederlo giocare -> l'allenatore perdona). Resa
+misurabile con `desc_investment_fee`, `desc_investment_fee_share` (il cartellino come **quota di quanto quel
+club ha speso** in quella finestra: Ndoye 42 M = **74%** della spesa del Bologna) e
+`desc_investment_stature` (il percentile di **Qt.I dentro il ruolo**). Due canali perche' la misura lo ha
+imposto: **Modric e De Bruyne sono arrivati a parametro zero**, quindi il solo cartellino dice «nessun
+investimento» esattamente sui due nomi da cui l'ipotesi nasce, mentre il loro Qt.I e' al 77 e al 94
+percentile. **Gli ingaggi non esistono in nessuna fonte in whitelist** e sono la misura migliore: e' un
+limite dichiarato.
+Il peso nella selezione e' un **parametro di `engine.presence`, a zero**, e lo sweep l'ha giudicato: **non
+adottato**, dettaglio e numeri in [gate 7-quater](gate-motore-v1.md). In breve: il meccanismo e' gia'
+assorbito dai **minuti** - lo stesso sweep ha adottato «i minuti sono il predittore della titolarita'» - e
+l'unico posto dove resta un segno del verso previsto e' l'arrivo appena comprato, in quarta cifra.
+
+### 2. L'unita' e' la PARTITA, non la giornata (osservazione dell'utente, verificata)
+Le partite si rinviano: una giornata puo' giocarsi settimane dopo quella che la segue, e una data puo'
+portare partite di una giornata piu' i recuperi di un'altra. Due conseguenze **misurate**:
+- **una coppia (giocatore, giornata) NON e' unica**: con un rinvio piu' un trasferimento un uomo gioca la
+  stessa giornata per due club diversi, in due date diverse. Serie A 23/24 giornata 21: fc_id 49 con
+  l'Udinese il 20/01 e col Torino il 22/02. Dimarco, 19/20 giornata 17: Inter, poi Hellas Verona.
+- **la PK di `match_ratings` `(fc_id, season, matchday, platform)` non puo' rappresentarlo**: per quei
+  giocatori una presenza si perde in ingestione (i voti hanno 1 riga dove il layer per-partita ne ha 2).
+  Oggi zero duplicati nella tabella - che e' esattamente cio' che mostrerebbe una PK che li vieta, quindi
+  «non osservati» non e' prova che non capitino. Raro (una manciata di giocatori per stagione) e ora scritto
+  invece che invisibile; la cura sarebbe una PK che porta la partita, cioe' migrazione + re-ingest: una
+  decisione, non una correzione da infilare.
+Quello che cammina su un calendario cammina su **date e match_id**: la finestra dei dieci di `club_form`,
+`rounds_missed`, e `fielded_next` - «la prima partita dopo la data d'asta» e' per data e **porta la
+giornata**, cosi' un recupero si vede (`2025-08-24 serie_a md1 vs Cagliari (A)`).
+
+## Novita' v9.13 (29 luglio 2026 - un foglio nel passato non prevede: guarda l'undici SCHIERATO)
 
 Decisione dell'utente, e cambia una classe di colonne. Le probabili pubblicate sono poco affidabili e
 ragionano con gli **stessi fattori che già misuriamo**; il valore aggiunto arriva **a ridosso del calcio
@@ -1067,7 +1099,7 @@ T1 importanti → storia completa → FM-equivalente estera → club-a-club con 
 ## Moduli (ordine rebuild)
 `rosters` (SEMPRE primo) → `stats` → `ratings` (Excel autenticato, incrementale + backfill + resume + listone) → `matchdays` (calendario euro↔reale) → `fc_site` (rigoristi, probabili, indisponibili) → `transfers` → **`injuries`** → `fbref` (stub/bloccato) → `positions` (SofaScore: aggregati stagione + per-partita + heatmap) → `recent_form` → `synth` (voto sintetico calibrato) → `arrivals` → `tournaments` → `elo` (API ClubElo) → `validate`.
 Fuori dalla pipeline, perché non producono tabelle di ingestione: **`bootstrap`** (acquisizione da zero), `fetch` (referto + inbox), `rebuild`, `backtest` (harness del gate sulle REGOLE), **`sweep`** (l'altra metà del gate: le COSTANTI provvisorie), **`export`** (bundle dell'app).
-Stato implementazione **v9.13**: **tutti i moduli operativi tranne `fbref`** (bloccato da Cloudflare: servirebbe un browser headless, oppure l'inbox manuale). Chiusi in v9.4: `injuries` + `contract_until`/`exit_risk`, heatmap `avg_x/avg_y`, `elo` via API, `ingest_runs`, `fetch --plan/--inbox`, `bootstrap`, `export`. **257 test verdi, ruff pulito.**
+Stato implementazione **v9.14**: **tutti i moduli operativi tranne `fbref`** (bloccato da Cloudflare: servirebbe un browser headless, oppure l'inbox manuale). Chiusi in v9.4: `injuries` + `contract_until`/`exit_risk`, heatmap `avg_x/avg_y`, `elo` via API, `ingest_runs`, `fetch --plan/--inbox`, `bootstrap`, `export`. **259 test verdi, ruff pulito.**
 
 ## Comandi
 ```

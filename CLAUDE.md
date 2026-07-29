@@ -191,6 +191,23 @@ competition, so they are counted as league rounds inside the union of the spells
 `engine_pv_pred` lives on the PLATFORM's calendar (31 euro rounds, 38 default - in the manifest), which is
 not the club's. Details: spec «Novità v9.11».
 
+## The unit is the MATCH, never the matchday
+Matches get postponed, so a round can be played weeks after the one that follows it, and a date can carry
+one round's fixtures plus another's catch-ups. Two consequences, both measured on 29/07/2026 rather than
+assumed:
+- **a (player, matchday) pair is NOT unique**: with a postponement and a transfer a man plays the same round
+  for two different clubs, on two different dates. Serie A 2023-24 round 21: fc_id 49 for Udinese on
+  2024-01-20 and for Torino on 2024-02-22. Dimarco, 2019-20 round 17: Inter, then Hellas Verona.
+- **`match_ratings`'s primary key `(fc_id, season, matchday, platform)` cannot represent it**, so for those
+  players one appearance is dropped at ingest - the votes hold 1 row where the per-match layer has 2. Zero
+  such duplicates exist in the table today, which is exactly what a PK that forbids them would show, so
+  "none observed" is not evidence of none happening. Rare (a handful of players per season) and now written
+  down instead of invisible; the cure would be a PK carrying the match, which is a migration plus a
+  re-ingest, so it is a decision and not a fix to slip in.
+So anything that walks a calendar walks DATES and match ids: `club_form`'s last-ten window, `rounds_missed`,
+`fielded_next` ("the first match after the auction date" is by date, and it carries the round so a catch-up
+is visible). Code that groups by matchday is making a claim it cannot support.
+
 ## Comparing against the right null
 **A "does the event repeat?" statistic must be compared with the RESHUFFLED sequence, never with zero.**
 Found 29\07\2026 by making the mistake: a lagged autocorrelation inside a demeaned group carries a

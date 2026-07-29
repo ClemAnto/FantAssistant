@@ -643,6 +643,84 @@ def rounds_missed(conn, auction_date: str, seasons: list[str]) -> dict[int, dict
     return out
 
 
+def investment(conn, window, observations, squads: dict[int, str]) -> dict[int, dict]:
+    """How much this club has PUT INTO him, in two channels that must not be merged.
+
+    The hypothesis (the user's, 29/07/2026): a club that has spent on a player wants to see him play, and
+    the coach is more forgiving with him than with a youth-team man - so investment should weigh on who is
+    selected, beyond what last season's minutes already say.
+
+    Two channels, because they catch different players, and MEASURED rather than assumed:
+
+    * `fee_share` - what he cost, as a share of everything this club spent in that window. Isak 145 M of
+      Liverpool's 336 M is 0.43; a man already at the club has no new spending and reads 0. A SHARE, so it
+      is the argument "relative to the club's cash" as far as our data can carry it: we have what the club
+      spent, never what it earns or pays in wages.
+    * `stature` - his Qt.I percentile WITHIN his role: the market's own statement about how important he is.
+      This is the channel that catches the celebrity, and the measurement is why both exist - **Modric and
+      De Bruyne arrived on FREE transfers**, so the fee says "no investment" for exactly the two names the
+      hypothesis was built on, while their Qt.I sits at the 77th and 94th percentile of the midfielders.
+      Centred and doubled to [-1, +1], because the claim has two sides: the expensive man is forgiven a bad
+      game AND the cheap youngster pays for it.
+
+    WAGES ARE NOT AVAILABLE and no whitelisted source carries them. They are the best single measure of a
+    club's standing commitment, and their absence is a limit of this layer, not a detail.
+
+    Legality: the fee is dated and read only before the auction date; Qt.I is the PRE-auction quotation (the
+    only price a rule may read), taken from the season being auctioned where the listone exists and from the
+    previous one where it does not yet - which is the case in July, when this sheet is built.
+    """
+    resolve = club_index(conn)
+    now: dict[int, str] = {}
+    for obs in observations:
+        key, _name = resolve(obs.club_target or squads.get(obs.fc_id))
+        if key:
+            now[obs.fc_id] = key
+    # The transfer window being priced: from the June before the target season to the auction day.
+    since = f"{int(window.target_season.split('-')[0]) - 1}-06-01" \
+        if window.auction_date[5:7] < "06" else f"{window.target_season.split('-')[0]}-06-01"
+    fees: dict[int, float] = {}
+    spent: dict[str, float] = {}
+    for fc_id, to_club, fee in conn.execute(
+            """SELECT fc_id, to_club, fee FROM transfers_history
+               WHERE fee IS NOT NULL AND date >= ? AND date <= ?""", (since, window.auction_date)):
+        key, _name = resolve(to_club)
+        if key is None:
+            continue
+        fees[fc_id] = max(fees.get(fc_id, 0.0), float(fee))
+        spent[key] = spent.get(key, 0.0) + float(fee)
+    # Qt.I percentile within the role, on the listone being auctioned - or the previous one while it does
+    # not exist. A percentile and not the price: a 20 is elite for a defender and mid-table for a striker.
+    prices: dict[int, tuple[float, str]] = {}
+    for season in (window.target_season, window.input_season):
+        for fc_id, price, role in conn.execute(
+                "SELECT fc_id, price_initial, role_classic FROM rosters "
+                "WHERE season = ? AND price_initial IS NOT NULL", (season,)):
+            prices.setdefault(fc_id, (float(price), role or "?"))
+        if prices:
+            break
+    by_role: dict[str, list[float]] = {}
+    for price, role in prices.values():
+        by_role.setdefault(role, []).append(price)
+    out: dict[int, dict] = {}
+    for obs in observations:
+        club = now.get(obs.fc_id)
+        fee = fees.get(obs.fc_id)
+        total = spent.get(club or "", 0.0)
+        entry: dict = {
+            "fee": fee,
+            # None, not 0, when the club spent nothing we know of: a share of an unknown total is unknown,
+            # and reporting it as 0 would say "he was free" about a club whose fees we simply do not have.
+            "fee_share": round(fee / total, 3) if fee and total else (0.0 if total else None),
+        }
+        if obs.fc_id in prices:
+            price, role = prices[obs.fc_id]
+            peers = by_role.get(role) or [price]
+            entry["stature"] = round(sum(1 for other in peers if other <= price) / len(peers), 3)
+        out[obs.fc_id] = entry
+    return out
+
+
 def fielded_next(conn, auction_date: str, observations, squads: dict[int, str]
                  ) -> tuple[dict[int, dict], dict[str, dict]]:
     """Who ACTUALLY started the club's first match AFTER the auction date. A fact, not a forecast.
@@ -663,21 +741,28 @@ def fielded_next(conn, auction_date: str, observations, squads: dict[int, str]
     resolve = club_index(conn)
     # The first fixture after the date, per club, with the line-up it fielded. `club_match_lineups` is the
     # right source: one row per club-match, so it exists even for a club whose players we cannot all resolve.
+    # By DATE, and that is the only unit that survives a postponement: a match can be played weeks after
+    # the round it belongs to, so "the next match" is a date and never a matchday number. The round is
+    # carried along so a catch-up is visible in the label instead of reading as the following round.
     first: dict[str, tuple] = {}
-    for club, match_id, date, competition, defenders, midfielders, forwards, starters in conn.execute(
-            """SELECT club, match_id, match_date, competition, defenders, midfielders, forwards, starters
-               FROM club_match_lineups
-               WHERE match_date IS NOT NULL AND match_date > ? ORDER BY match_date""", (auction_date,)):
+    for club, match_id, date, competition, real_md, defenders, midfielders, forwards, starters in \
+            conn.execute(
+                """SELECT club, match_id, match_date, competition, real_md,
+                          defenders, midfielders, forwards, starters
+                   FROM club_match_lineups
+                   WHERE match_date IS NOT NULL AND match_date > ? ORDER BY match_date""",
+                (auction_date,)):
         key, _name = resolve(club)
         if key and key not in first:
-            first[key] = (str(match_id), date, competition, defenders, midfielders, forwards, starters)
+            first[key] = (str(match_id), date, competition, real_md,
+                          defenders, midfielders, forwards, starters)
     clubs: dict[str, dict] = {}
     for obs in observations:
         key, name = resolve(obs.club_target or squads.get(obs.fc_id))
         if key in first and name not in clubs:
-            match_id, date, competition, defenders, midfielders, forwards, starters = first[key]
+            match_id, date, competition, real_md, defenders, midfielders, forwards, starters = first[key]
             clubs[name] = {
-                "match_id": match_id, "date": date, "competition": competition,
+                "match_id": match_id, "date": date, "competition": competition, "round": real_md,
                 # the shape as FIELDED, in the provider's vocabulary (a winger is a midfielder)
                 "shape": (f"{defenders}-{midfielders}-{forwards}"
                           if starters == 11 and None not in (defenders, midfielders, forwards)
@@ -714,6 +799,7 @@ def fielded_next(conn, auction_date: str, observations, squads: dict[int, str]
         out[obs.fc_id] = {
             "match": " ".join(part for part in (
                 entry["date"], entry["competition"] or "",
+                f"md{entry['round']}" if entry.get("round") else "",
                 f"vs {opponent}" if opponent else "",
                 "(H)" if home else "(A)" if home == 0 else "") if part),
             # 1 he started · 0 he came on or was not used · empty only when the layer has no rows at all
@@ -1468,6 +1554,12 @@ PLAYER_COLUMNS: tuple[str, ...] = (
     "desc_contract_until", "desc_exit_risk", "desc_arrival", "desc_arrival_tier",
     "desc_arrival_origin", "desc_transfer_fee", "desc_seasons_at_club", "desc_new_coach",
     "desc_u22",
+    # WHAT THE CLUB PUT INTO HIM: the fee, its share of everything the club spent that window, and his Qt.I
+    # percentile within his role. Two channels because they catch different players - the fee catches a big
+    # signing, the stature catches a celebrity who arrived for nothing (Modric and De Bruyne, free). Both
+    # are PRE-auction facts and legal to read; wages, which would be the best measure, do not exist in any
+    # whitelisted source. The weight they carry in the selection is a PARAMETER, off until the gate speaks.
+    "desc_investment_fee", "desc_investment_fee_share", "desc_investment_stature",
     # A THIRD class, and the prefix is the whole point: `actual_*` is measured strictly AFTER the auction
     # date. It exists because a BACK-DATED sheet does not need a forecast of who plays - the eleven that was
     # fielded that week exists, and a forecast is only interesting while the outcome is unknown. Reporting
@@ -1521,6 +1613,7 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
         role_detail = layers["real_role_detail"].get(obs.fc_id, {})
         penalty = layers["penalties"].get(obs.fc_id)
         fielded = layers["fielded_next"].get(obs.fc_id, {})
+        spend = layers["investment"].get(obs.fc_id, {})
         pv_pred = prediction.pv_pred if prediction else None
         rows.append({
             "fc_id": obs.fc_id, "name": obs.name, "club": obs.club_target, "league": obs.league,
@@ -1624,6 +1717,9 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             "desc_seasons_at_club": state.get("seasons_at_club"),
             "desc_new_coach": "yes" if state.get("new_coach") else None,
             "desc_u22": "yes" if state.get("u22_trigger") else None,
+            "desc_investment_fee": spend.get("fee"),
+            "desc_investment_fee_share": spend.get("fee_share"),
+            "desc_investment_stature": spend.get("stature"),
             # AFTER the auction date, reporting only (see PLAYER_COLUMNS): what really happened in the
             # club's first match of the week that followed.
             "actual_next_match": fielded.get("match"),
@@ -1830,6 +1926,9 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
         # The same season, split by WHOSE it was: what he played at the club he is at now, and what
         # somewhere else. The totals cannot say it - only the per-match layer stores a club.
         "at_club": at_current_club(conn, measured, data.observations, squads, before),
+        # What the club has PUT INTO him - fee share and stature. A pre-auction fact; whether it weighs on
+        # who is selected is a parameter of `engine.presence`, and it starts at zero.
+        "investment": investment(conn, window, data.observations, squads),
         # ...and whether the club he is at now had already had him: the only measured difference between
         # a man it sent away and a man it has just taken on (no source of ours marks a loan).
         "was_here": previously_at_club(conn, data.observations, squads, measured),

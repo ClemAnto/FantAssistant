@@ -1300,6 +1300,56 @@ modello presenze gatato (`model.expected_share`) su T2, e vince solo sulle fines
 (Tm3: 0.1941 contro 0.2085). È coerente con quello che la spec dice delle colonne `desc_*` — sono un aiuto
 alla lettura, non una previsione adottata — e va detto invece di lasciarlo intendere al contrario.
 
+## 7-quater. L'ipotesi INVESTIMENTO (pre-registrata ed ESEGUITA il 29/07/2026)
+
+Ipotesi dell'utente, nelle sue parole: una società che ha speso su un giocatore **vuole vederlo giocare**
+per valorizzare la spesa, e i campioni di richiamo (Modrić, De Bruyne) portano tifosi e blasone, quindi
+l'allenatore è incentivato a schierarli e a **perdonare loro qualche brutta partita** — a scapito dei
+giovani del vivaio.
+
+### Come è stata resa misurabile (e la misura che ha deciso la forma)
+Due canali, **mai fusi**, perché prendono giocatori diversi:
+- **`fee_share`** = il suo cartellino come quota di tutto quello che quel club ha speso in quella finestra
+  (Isak 145 M su 336 M del Liverpool = 0.43; chi era già lì legge 0). È «relativo alle casse» fin dove i
+  dati arrivano: abbiamo quanto un club **ha speso**, mai quanto incassa.
+- **`stature`** = il suo percentile di **Qt.I dentro il ruolo**, cioè quanto il mercato lo ritiene
+  importante. Esiste perché la misura lo ha imposto: **Modrić e De Bruyne sono arrivati a parametro zero**,
+  quindi un indice fatto col solo cartellino dice «nessun investimento» esattamente sui due nomi da cui
+  l'ipotesi nasce, mentre il loro Qt.I sta al **77°** e al **94°** percentile dei centrocampisti. Centrato
+  in [−1, +1], perché la tesi ha due lati: il big perdonato **e** il giovane che paga.
+- **Gli INGAGGI non esistono**: nessuna fonte in whitelist li porta. Sono la misura migliore
+  dell'impegno di una società e la loro assenza è un limite di questo test, non un dettaglio.
+
+Due forme pre-registrate: **`standing`** (il lift si somma alla standing di tutti) e **`arrival`** (chiude
+parte di ciò che lo sconto d'arrivo aveva tolto — la versione più affilata della tesi: un uomo la cui
+stagione è già tutta qui non si può alzare, perché i suoi minuti lo hanno già detto). Bersaglio: le
+**titolarità** (le giornate del suo campionato in cui è partito), perché la tesi parla di SELEZIONE.
+
+### Verdetto: NON ADOTTATA, e i pesi restano a zero
+| griglia | euro | default |
+|---|---|---|
+| `fee_weight` sulla standing | monotona **in peggio**: 0.20441 (off) → 0.20643 a 0.30 | 0.21297 → 0.21465 |
+| `stature_weight` sulla standing | 0 è il minimo, **entrambe** le direzioni peggiorano: +0.30 costa **12.9%** (0.2013 → 0.22718), −0.10 costa 0.9% | 0.20296 → 0.22229 a +0.30 |
+| composita, forma `arrival` | quarta cifra: `arrival:0/0.1` = 0.20134 contro **0.2013** spento | 0.20296 contro 0.20296 (pari) |
+
+Scelta fuori campione: **spento** su ogni fold informativo per i due pesi singoli; sulla composita i tre
+fold più recenti scelgono `arrival` con stature 0.1-0.2 (T2 su euro; T0/T1/T2 su default) e i più vecchi
+spento — ma il guadagno medio fuori campione è **negativo** (−0.03% euro, −0.07% default). Sotto il
+pavimento del gate in ogni caso.
+
+### Cosa questo significa, e cosa no
+Non dice che il meccanismo non esista: dice che **è già assorbito dai minuti**. Un club che ha speso fa
+giocare l'uomo, e i minuti della stagione passata lo registrano — ed è lo stesso sweep che ha appena
+adottato `standing_weights = (0, 1)`, cioè «i minuti sono il miglior predittore di chi parte titolare».
+L'investimento non aggiunge nulla **sopra** i minuti. L'unico posto dove ha ancora un segno del verso
+previsto è dove i minuti non possono vederlo — un arrivo appena comprato — e lì vale un decimo di quello
+che la tesi immagina.
+Tre cose da tenere per il futuro: (1) il test è **predittivo, non causale** — non separa «gioca perché lo
+hanno pagato» da «lo hanno pagato perché è bravo», e nessun dato che abbiamo lo separa; (2) la tesi del
+«perdono per una brutta partita» è per GIORNATA, e il gate per-giornata **non esiste** (§5-duodecies); (3)
+il cartellino esiste solo dal 2023 e **non c'è per l'estate 2026** (`transfers` va rilanciato), quindi la
+finestra 26/27 è la prima conferma indipendente disponibile.
+
 ## 8. Casi di regressione (in `model.REGRESSION_CASES`, stampati da `backtest --cases`)
 
 Lewandowski (età/minuti) · Wirtz (cambio lega) · Torres F. (propensione per-90) · Ezzalzouli (nuovo nel
