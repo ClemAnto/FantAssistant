@@ -1079,7 +1079,9 @@ TypeScript** in `app/prediction-engine`, quindi resta senza dipendenze ed esplic
 - `--verify` riproduce **15/18** numeri pubblicati; i 3 da rivedere sono tutti sul modulo presenze in
   T1 (`pv_gain_vs_naive_T1`, `pv_bias_naive_starters_T1`, `pv_gain_crossfit_T1`); in T2 tornano.
 - L'inventario input stampato per finestra dice cosa manca al MOTORE (non al DB): `starter_prob`
-  0/1453 su T2/euro, perché le probabili sono uno stato di oggi e servono snapshot settimanali.
+  0/1453 su T2/euro, perché le probabili sono uno stato di oggi. **Dal 29/07/2026 quella riga si legge come
+  "vuota per scelta"** e non come un buco da colmare: vedi la decisione sulle probabili in
+  `stato-progetto-continuita-v5.md`, sessione «(7)». Nessuna regola d'asta la sta aspettando.
 
 ## Quello che manca per l'asta 26/27 (aggiornato v9.4)
 - **Bloccato dal calendario**: listone/quotazioni 26/27 (esce ad agosto → aggiungere `2026-27` a

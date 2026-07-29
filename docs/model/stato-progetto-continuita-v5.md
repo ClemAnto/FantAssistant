@@ -722,3 +722,50 @@ club italiano. Alla prima passata lo sweep prendeva 0.5 su tutti i fold (+4.25%)
 Il foglio **non** batte il motore sulle presenze: `voto_share` fa MAE 0.2247 su euro contro 0.2163 del
 modello presenze gatato, e vince solo sulle finestre default più vecchie. Coerente con quello che la spec
 dice delle colonne `desc_*` (aiuto alla lettura, non previsione adottata), e va scritto.
+
+---
+
+## Sessione 29/07/2026 (7) — decisione dell'utente: le probabili non si storicizzano
+
+Correzione di priorità, non di codice, e va scritta perché contraddice quello che questi documenti
+dicevano fino a stamattina («il job settimanale è la leva 1, ogni settimana non girata è una finestra che
+non esisterà mai»).
+
+**Il ragionamento dell'utente**, che è di dominio e regge: le probabili pubblicate sono **poco affidabili** e
+ragionano con gli **stessi fattori che già misuriamo** (ultimi undici, infortuni, abitudini di modulo, ruoli
+reali). Il valore aggiunto vero arriva **a ridosso del calcio d'inizio**, quando si sono ascoltate le
+dichiarazioni dell'allenatore: quindi la lettura che serve è una **rilevazione pre-partita, usata subito**,
+non una serie storica.
+
+A questo si aggiunge un argomento che questi documenti avrebbero dovuto trarre da soli: il bersaglio del
+toolkit è l'**asta iniziale**, che si fa in agosto, quando la pagina delle probabili **non esiste ancora**
+(il sito la pubblica a stagione già avviata). Una storia settimanale servirebbe solo a gatare una regola
+della **giornata**, cioè un altro prodotto — e se il pronostico degli editori è ridondante con ciò che
+calcoliamo, quella regola non la si scriverebbe.
+
+### Cosa cambia
+- **Il cron settimanale non è più la leva 1**: non era comunque mai stato registrato, quindi non c'è nulla
+  da spegnere. `scripts/weekly-snapshot.ps1` resta lì per chi volesse una serie, senza esserne il piano.
+- **`starter_prob` 0/1453 nel gate = vuoto per scelta**, non un buco da colmare. Aggiornato in spec e in
+  CLAUDE.md, che dicevano il contrario.
+- **Il ruolo granulare resta datato e resta necessario**: il provider ignora `seasonId`, e quei codici
+  reggono ballottaggi e campetto, che sono fatti del giorno d'asta. Ma la cadenza giusta è quella dell'asta
+  (e un rinfresco occasionale), non settimanale.
+- **`availability`**: già derubricato nella sessione (5) — gli spell datati di Transfermarkt lo ricostruiscono
+  a posteriori, quindi non era nella lista dei tre.
+
+### L'unica cosa da IMPLEMENTARE se la rilevazione pre-partita deve valere
+`valid_from` e il nome del file di cache sono **per GIORNO** (`fc_site_probabili_2026-07-29.html`, PK
+`(fc_id, valid_from)`), quindi due rilevazioni nello stesso giorno **si sovrascrivono**: una giornata di
+Serie A si gioca su più fasce (15:00, 18:00, 20:45) e con la granularità di oggi il posticipo leggerebbe lo
+stato del pomeriggio. Serve l'**ora** nella serie datata, e attenzione ai confronti: ogni lettura fa
+`valid_from <= data_asta`, e `'2026-08-23T20:00' <= '2026-08-23'` è **falso** — quindi il cambio di formato
+tocca `latest_starters`, `availability_now`, `positions.roles_as_of` e chiunque altro confronti quella
+colonna con una data. Non è una riga: è una riga più i confronti.
+
+### E una cosa da non lasciare implicita nel codice
+`SnapshotView.presence(horizon="recent")` dà a `desc_starter_prob` **precedenza assoluta** su tutto ciò che
+è misurato («gli editori hanno risposto alla domanda; niente di misurato batte questo»). Con una rilevazione
+a un'ora dal via è difendibile — è la risposta dell'allenatore; con una probabile di tre giorni prima è
+esattamente l'assunzione che l'utente sta contestando. Quella precedenza va resa **condizionata a QUANDO**
+la foto è stata presa, ed è un altro motivo per cui l'ora serve.

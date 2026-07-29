@@ -139,9 +139,16 @@ Every run leaves a line in `ingest_runs` (module, when, status, options), writte
 invocation - CLI, rebuild or GUI - never by the module itself.
 
 ## Three facts that are snapshots and can never be backfilled
-- **Starting probability** (`probable_starter`): the site publishes only "now". The weekly job exists
-  (`scripts/weekly-snapshot.ps1 -Register`) and every week it does not run is a window that will never
-  exist. This is why the gate reports `starter_prob` 0/1453 on past windows.
+- **Starting probability** (`probable_starter`): the site publishes only "now", so a week not captured is
+  gone - and the operator's judgement, recorded 29/07/2026, is that **it is not worth a weekly cron**. The
+  editors' forecast reasons from the same facts this toolkit already measures (last line-ups, injuries,
+  formation habits); what it adds that we cannot compute arrives LATE, from the coach's own words, so the
+  reading worth having is one taken **just before kick-off** and used at once, not a history. It also does
+  not serve the toolkit's actual target: an initial auction happens in August, when the page does not exist
+  yet. Consequence to state rather than treat as a gap: `starter_prob` 0/1453 on past windows is **empty by
+  design**, and no auction rule is waiting for it. What this DOES require, if a pre-match reading is to be
+  taken seriously: `valid_from` and the cache file are per-DAY, so two captures on the same matchday
+  overwrite each other and a 20:45 kick-off would read the 15:00 state - the series needs an hour.
 - **Contract expiry** (`flags.contract_until` / `exit_risk`): verified against the source - a PAST
   season's squad page does not carry the column. So `exit_risk` is usable for the auction that is
   coming and is **not gatable on T1/T2**.
