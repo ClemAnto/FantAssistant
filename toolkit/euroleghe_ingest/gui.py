@@ -2676,14 +2676,19 @@ class SnapshotView(ttk.Frame):
         with the share saying how settled it is. When that share is high the shape is his PREFERRED one
         and nothing else overrides it, which is the point: a single matchday cannot outvote a season.
 
-        `next` - the next match: the probabili's own formation when there is a snapshot, because that is
-        the coach's declared choice for THAT game. Without a snapshot it falls back to the preferred
-        shape - and where the coach has no preferred shape (he alternates), the fallback says so.
+        `next` - the next match, from fact to forecast: the shape it actually FIELDED that week when the
+        sheet is back-dated (the outcome exists, so nothing guesses at it); then the probabili's own
+        formation when there is a snapshot, because that is the coach's declared choice for THAT game;
+        then the preferred shape - and where the coach has no preferred shape (he alternates), the
+        fallback says so.
         """
         typical = info.get("formation_typical")
         share = _number(info.get("formation_typical_share"), None)
         settled = info.get("formation_settled") == "yes"
         today = info.get("formation_today")
+        fielded, when = info.get("formation_next_fielded"), info.get("next_match_date")
+        if mode == "next" and fielded:
+            return fielded, f"FIELDED on {when} - a fact, not a forecast"
         if mode == "next" and today:
             return today, "probabili of today"
         if typical:
@@ -3278,14 +3283,19 @@ class SnapshotView(ttk.Frame):
         and injuries and suspensions are deliberately IGNORED. A man out today is still the first choice
         of the shape, and pretending otherwise would make the "tipo" eleven a snapshot of this week.
 
-        `next` - the side for the coming match: the probabili's own starters when a snapshot exists,
-        ranked by the probability the editors give them; without a snapshot, ranked by who has been
-        starting lately. Either way the injured and the suspended are OUT.
+        `next` - the side for the coming match, and there is an order of precedence to it, from fact to
+        forecast: the eleven the club actually FIELDED (`actual_*`, which only a back-dated sheet has - for
+        that day the outcome exists, and a forecast is only interesting while it does not); then the
+        probabili's own starters, which is what a sheet standing on TODAY refreshes, because the editors
+        carry the one thing we cannot compute, the coach's own words; then who has been starting lately.
+        Either way the injured and the suspended are OUT.
 
-        SURPLUS is not consulted in either. It was, in the first version, and it was wrong: the sheet
+        SURPLUS is not consulted in any of them. It was, in the first version, and it was wrong: the sheet
         would field the most valuable player rather than the one the coach plays.
         """
         squad = self.squad(club)
+        if mode == "next" and sum(1 for row in squad if row.get("actual_next_started") == "1") >= 11:
+            return self._fielded(squad)
         if mode == "next" and any(row.get("desc_starter_prob") for row in squad):
             return self._declared(squad)
         # Group by the line he REALLY plays in, not by the listone's role. A 3-4-3's midfield four is
@@ -3453,6 +3463,35 @@ class SnapshotView(ttk.Frame):
             # positional fallback stays at one on purpose: it is our inference, and `offered` spends a
             # man per shirt - being greedy with guesses leaves the last shirts of a line with nobody.
             rivals = ([row for row in pool if row.get("name") in named][:3] or pool[:1] or able[:1])
+            offered.update(row.get("name") for row in rivals)
+            out.append((self.lane_of(starter), starter, rivals))
+        return out
+
+    def _fielded(self, squad: list[dict]) -> list[tuple[str, dict, list[dict]]]:
+        """The eleven the club really FIELDED, from `actual_next_started`. A fact, and only on a past sheet.
+
+        It outranks every forecast for the obvious reason: the question "who plays on Sunday" has an answer
+        once Sunday has happened, and a back-dated sheet is standing after it. It is kept in its own column
+        family (`actual_*`) and drawn through its own method rather than being poured into
+        `desc_starter_prob`, because a sheet where a certainty and a guess share a column is a sheet where
+        nobody can tell which is which - and the board's caption says which one it is showing.
+
+        The ALTERNATIVES stay a reading: who else could have taken that shirt, ranked as everywhere else.
+        The bench of that match is not in the layer (it stores a row for a man who got minutes), so the
+        rivals are ours, not history's.
+        """
+        chosen = [row for row in squad if row.get("actual_next_started") == "1"]
+        keepers = [row for row in chosen if self.lane_of(row) == "P"]
+        eleven = keepers[:1] + [row for row in chosen if self.lane_of(row) != "P"][:10]
+        names = {row.get("name") for row in eleven}
+        rest = sorted((row for row in squad if row.get("name") not in names),
+                      key=lambda row: -self.presence(row, "recent"))
+        out: list[tuple[str, dict, list[dict]]] = []
+        offered: set[str] = set()
+        for starter in eleven:
+            able = [row for row in rest if self.can_replace(starter, row)]
+            pool = [row for row in able if row.get("name") not in offered]
+            rivals = pool[:1] or able[:1]
             offered.update(row.get("name") for row in rivals)
             out.append((self.lane_of(starter), starter, rivals))
         return out

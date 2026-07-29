@@ -769,3 +769,27 @@ colonna con una data. Non è una riga: è una riga più i confronti.
 a un'ora dal via è difendibile — è la risposta dell'allenatore; con una probabile di tre giorni prima è
 esattamente l'assunzione che l'utente sta contestando. Quella precedenza va resa **condizionata a QUANDO**
 la foto è stata presa, ed è un altro motivo per cui l'ora serve.
+
+### Seguito della (7): un foglio nel passato non prevede, guarda l'undici schierato
+
+Dalla decisione sulle probabili segue una cosa da implementare, e l'ho fatta (spec «Novità v9.13»):
+per un foglio **retrodatato** le probabili non servono perché **l'undici schierato esiste**. Quindi il
+foglio porta una **terza classe** di colonne, `actual_next_match` / `_started` / `_minutes` (+
+`formation_next_fielded` e `next_match_date` in `clubs.csv`): la prima partita del club DOPO la data d'asta.
+
+Il prefisso non è cosmetico: sono misurate **dopo** la data d'asta, quindi sola rendicontazione, e nessuna
+colonna `desc_*`/`engine_*` le legge. Versarle in `desc_starter_prob` — che era la scorciatoia — avrebbe
+reso un pronostico e una certezza indistinguibili nella stessa colonna. Il campetto in modalità «prossima
+giornata» ora ha una precedenza dal fatto al pronostico (schierato → probabili → chi gioca ultimamente) e la
+didascalia dice `FIELDED on <data> - a fact, not a forecast`.
+
+Due difetti trovati misurando: `match_id` porta **entrambe** le squadre, quindi senza il controllo sul club
+il Milan leggeva **dodici** titolari e l'avversario del Napoli era «SSC Napoli»; e su 21 club solo **10**
+hanno tutti e undici gli uomini fra le righe, perché il row set sono le rose di OGGI (l'undici dell'Inter è
+completo tranne Pavard, che ha cambiato club) — nella nota del run, non nascosto.
+
+E una conseguenza da tenere: la granularità per **giorno** di `valid_from` va bene così. L'ora sarebbe
+servita per conservare una SERIE di probabili; se si vuole sempre la più recente, sovrascrivere è il
+comportamento corretto. Resta invece vera l'altra osservazione della (7): la precedenza assoluta di
+`desc_starter_prob` in `presence(recent)` è difendibile solo per una rilevazione vicina al calcio d'inizio —
+ora però non è più l'ultima parola, perché su un foglio passato la batte il fatto.

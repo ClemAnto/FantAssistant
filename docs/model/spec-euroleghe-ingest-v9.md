@@ -1,5 +1,5 @@
 # Spec — Toolkit `euroleghe-ingest` v9 (task 1.0 della roadmap)
-**Aggiornata: 29 luglio 2026 (v9.12 — `sweep`: i parametri provvisori davanti al gate; v9 SOSTITUISCE la v8)** · Python · Output: SQLite `euroleghe.db` + CSV normalizzati
+**Aggiornata: 29 luglio 2026 (v9.13 — un foglio nel passato guarda l'undici schierato; v9 SOSTITUISCE la v8)** · Python · Output: SQLite `euroleghe.db` + CSV normalizzati
 *Sigle: fc_id = identificativo fantacalcio.it · FM = fantamedia · Mv = media voto · Pv = partite a voto · xref = cross-reference id tra siti · xG/xA = expected goals/assists · manifest = lista file da recuperare.*
 **Convenzione: identificatori sempre in INGLESE** (tabelle, colonne, moduli, variabili); italiano solo nella documentazione.
 
@@ -493,6 +493,48 @@ ruolo**, **8% disgiunti** — e le disgiunte sono quasi tutte `a` del listone co
 visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**. Riscontri esatti:
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
+
+## Novità v9.13 (29 luglio 2026 — un foglio nel passato non prevede: guarda l'undici SCHIERATO)
+
+Decisione dell'utente, e cambia una classe di colonne. Le probabili pubblicate sono poco affidabili e
+ragionano con gli **stessi fattori che già misuriamo**; il valore aggiunto arriva **a ridosso del calcio
+d'inizio**, con le dichiarazioni dell'allenatore. Quindi: **un foglio su OGGI** le rileva (è la cosa più
+recente che esiste, e `snapshot` già fa `refresh`); **un foglio nel PASSATO** non ne ha bisogno, perché per
+quel giorno **l'undici schierato esiste**. Un pronostico interessa solo finché l'esito è ignoto.
+
+### 1. Una TERZA classe di colonne, e il prefisso è la garanzia
+`actual_next_match` · `actual_next_started` · `actual_next_minutes` (+ `formation_next_fielded` e
+`next_match_date` in `clubs.csv`): la prima partita del club **dopo** la data d'asta, con chi è partito
+titolare e quanti minuti ha fatto. Sono **misurate DOPO la data d'asta**, quindi non sono `desc_*` e non
+sono `engine_*`: sono di **sola rendicontazione** e nessuna regola, nessuna previsione e nessuna colonna
+`desc_*` le legge. Il prefisso è ciò che impedisce l'errore vero — versarle in `desc_starter_prob` avrebbe
+reso un pronostico e una certezza indistinguibili nella stessa colonna. Vuote per costruzione sul foglio di
+oggi: la prossima partita non è stata giocata. Un test verifica che ogni colonna del CSV appartenga a una
+delle tre classi.
+
+### 2. Il campetto disegna il fatto, e lo dice
+`eleven(mode="next")` ha ora una precedenza dal fatto al pronostico: **undici schierato** (solo foglio
+retrodatato) → **probabili** (foglio su oggi) → chi ha giocato ultimamente. La didascalia del modulo dice
+`FIELDED on 2025-08-23 - a fact, not a forecast`. Le **alternative** restano nostre: la panchina di quella
+partita non è nel layer (che tiene una riga per chi ha giocato), e va detto invece di lasciarlo intendere.
+
+### 3. Due difetti trovati misurando, non rileggendo
+- `external_match_stats.match_id` porta **entrambe** le squadre: letto senza il club, un uomo che il listone
+  mette al Milan e che quel giorno ha giocato per l'avversario finiva fra i titolari del Milan (**dodici**),
+  e Lukaku leggeva «vs SSC Napoli» come avversario del Napoli. Ora la riga vale solo se il club risolto
+  coincide, e l'avversario viene dal FIXTURE del suo club.
+- Su 21 club, **10 hanno tutti e undici** gli uomini fra le righe del foglio. Il motivo non è il fatto ma il
+  **row set**: le rose sono quelle di OGGI (nemmeno la pagina rosa di un giorno passato si può rileggere),
+  quindi chi da allora ha cambiato club non c'è — l'undici dell'Inter del 24/08/2025 è completo tranne
+  Pavard. È nella nota del run, non nascosto.
+
+### 4. Cosa NON serve più
+Il **cron settimanale**: se la rilevazione utile è quella di adesso e il passato ha i fatti, storicizzare le
+probabili non serve. `starter_prob` 0/1453 nel gate si legge come «vuoto per scelta». E la granularità per
+GIORNO di `valid_from` va bene: quando si vuole sempre «la più recente», sovrascrivere è il comportamento
+giusto — l'ora servirebbe solo per tenere una serie, che è esattamente ciò che si è deciso di non tenere.
+
+**257 test verdi, ruff pulito.** Tre fogli rigenerati.
 
 ## Novità v9.12 (29 luglio 2026 — `sweep`: i parametri provvisori davanti al gate)
 
@@ -1025,7 +1067,7 @@ T1 importanti → storia completa → FM-equivalente estera → club-a-club con 
 ## Moduli (ordine rebuild)
 `rosters` (SEMPRE primo) → `stats` → `ratings` (Excel autenticato, incrementale + backfill + resume + listone) → `matchdays` (calendario euro↔reale) → `fc_site` (rigoristi, probabili, indisponibili) → `transfers` → **`injuries`** → `fbref` (stub/bloccato) → `positions` (SofaScore: aggregati stagione + per-partita + heatmap) → `recent_form` → `synth` (voto sintetico calibrato) → `arrivals` → `tournaments` → `elo` (API ClubElo) → `validate`.
 Fuori dalla pipeline, perché non producono tabelle di ingestione: **`bootstrap`** (acquisizione da zero), `fetch` (referto + inbox), `rebuild`, `backtest` (harness del gate sulle REGOLE), **`sweep`** (l'altra metà del gate: le COSTANTI provvisorie), **`export`** (bundle dell'app).
-Stato implementazione **v9.12**: **tutti i moduli operativi tranne `fbref`** (bloccato da Cloudflare: servirebbe un browser headless, oppure l'inbox manuale). Chiusi in v9.4: `injuries` + `contract_until`/`exit_risk`, heatmap `avg_x/avg_y`, `elo` via API, `ingest_runs`, `fetch --plan/--inbox`, `bootstrap`, `export`. **256 test verdi, ruff pulito.**
+Stato implementazione **v9.13**: **tutti i moduli operativi tranne `fbref`** (bloccato da Cloudflare: servirebbe un browser headless, oppure l'inbox manuale). Chiusi in v9.4: `injuries` + `contract_until`/`exit_risk`, heatmap `avg_x/avg_y`, `elo` via API, `ingest_runs`, `fetch --plan/--inbox`, `bootstrap`, `export`. **257 test verdi, ruff pulito.**
 
 ## Comandi
 ```

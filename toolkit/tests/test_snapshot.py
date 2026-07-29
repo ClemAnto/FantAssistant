@@ -74,11 +74,16 @@ def test_the_target_is_the_season_being_auctioned_listone_or_not(tmp_path):
 def test_columns_declare_which_half_is_gated():
     engine = [c for c in snapshot.PLAYER_COLUMNS if c.startswith("engine_")]
     desc = [c for c in snapshot.PLAYER_COLUMNS if c.startswith("desc_")]
-    assert engine and desc
-    # nothing may sit in between: every column is either identity/market, engine, or descriptive
+    # `actual_*` is the third class and the only one measured AFTER the auction date: what really happened
+    # in the club's first match of the following week. A back-dated sheet has no use for a forecast of who
+    # plays - the outcome exists - and the prefix is what keeps the two apart, so nobody can read a
+    # certainty as a guess. Reporting only: nothing in engine_* or desc_* may be derived from it.
+    actual = [c for c in snapshot.PLAYER_COLUMNS if c.startswith("actual_")]
+    assert engine and desc and actual
+    # nothing may sit in between: every column is identity/market, engine, descriptive, or an outcome
     known = {"fc_id", "name", "club", "league", "role_classic", "roles_mantra", "price_initial",
              "price_initial_mantra", "fvm_reporting_only"}
-    assert set(snapshot.PLAYER_COLUMNS) == known | set(engine) | set(desc)
+    assert set(snapshot.PLAYER_COLUMNS) == known | set(engine) | set(desc) | set(actual)
     # the price that may be read is the pre-auction one; the end-of-season value is labelled
     assert "price_initial" in known and "fvm_reporting_only" in known
 

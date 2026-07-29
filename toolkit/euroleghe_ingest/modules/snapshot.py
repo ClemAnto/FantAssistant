@@ -643,6 +643,86 @@ def rounds_missed(conn, auction_date: str, seasons: list[str]) -> dict[int, dict
     return out
 
 
+def fielded_next(conn, auction_date: str, observations, squads: dict[int, str]
+                 ) -> tuple[dict[int, dict], dict[str, dict]]:
+    """Who ACTUALLY started the club's first match AFTER the auction date. A fact, not a forecast.
+
+    Why it exists, and it is a decision worth reading before the code: a sheet standing on TODAY refreshes
+    the probabili, because the editors' list is the most recent thing there is and the coach's words are
+    already in it. A sheet standing on a PAST date cannot use them - and does not need to, because for that
+    date the eleven that was actually fielded EXISTS. A forecast is only interesting while the outcome is
+    unknown.
+
+    So these columns are neither `engine_*` nor `desc_*`: they are `actual_*`, measured strictly AFTER the
+    auction date, reporting only, and no rule and no prediction may read them. The prefix is the guard - the
+    board draws them, says out loud that they are the fielded eleven, and never pours them into
+    `desc_starter_prob`, because then nobody could tell a guess from an outcome.
+
+    Empty by construction for a sheet built today: the next match has not been played.
+    """
+    resolve = club_index(conn)
+    # The first fixture after the date, per club, with the line-up it fielded. `club_match_lineups` is the
+    # right source: one row per club-match, so it exists even for a club whose players we cannot all resolve.
+    first: dict[str, tuple] = {}
+    for club, match_id, date, competition, defenders, midfielders, forwards, starters in conn.execute(
+            """SELECT club, match_id, match_date, competition, defenders, midfielders, forwards, starters
+               FROM club_match_lineups
+               WHERE match_date IS NOT NULL AND match_date > ? ORDER BY match_date""", (auction_date,)):
+        key, _name = resolve(club)
+        if key and key not in first:
+            first[key] = (str(match_id), date, competition, defenders, midfielders, forwards, starters)
+    clubs: dict[str, dict] = {}
+    for obs in observations:
+        key, name = resolve(obs.club_target or squads.get(obs.fc_id))
+        if key in first and name not in clubs:
+            match_id, date, competition, defenders, midfielders, forwards, starters = first[key]
+            clubs[name] = {
+                "match_id": match_id, "date": date, "competition": competition,
+                # the shape as FIELDED, in the provider's vocabulary (a winger is a midfielder)
+                "shape": (f"{defenders}-{midfielders}-{forwards}"
+                          if starters == 11 and None not in (defenders, midfielders, forwards)
+                          and defenders + midfielders + forwards == 10 else None),
+            }
+    wanted = {entry["match_id"] for entry in clubs.values()}
+    # Keyed by the player AND by his club in that match, because a match_id carries BOTH teams: read
+    # without the club, a man the listone puts at Milan who actually played that day for the opponent was
+    # counted among Milan's starters (twelve of them), and the opponent field came out as the club itself.
+    played: dict[tuple[str, int], tuple] = {}
+    fixture: dict[tuple[str, str], tuple] = {}
+    if wanted:
+        placeholders = ",".join("?" * len(wanted))
+        for match_id, fc_id, club, started, minutes, opponent, home in conn.execute(
+                f"""SELECT match_id, fc_id, club, COALESCE(started, 0), COALESCE(minutes, 0),
+                           opponent, home
+                    FROM external_match_stats WHERE match_id IN ({placeholders})""", (*wanted,)):
+            key, _name = resolve(club)
+            if not key:
+                continue
+            played[(str(match_id), fc_id)] = (started, minutes, key)
+            if opponent:
+                fixture[(str(match_id), key)] = (opponent, home)
+    out: dict[int, dict] = {}
+    for obs in observations:
+        key, name = resolve(obs.club_target or squads.get(obs.fc_id))
+        entry = clubs.get(name or "")
+        if not entry:
+            continue
+        row = played.get((entry["match_id"], obs.fc_id))
+        if row and row[2] != key:
+            row = None          # he played that match for the other side: not this club's eleven
+        opponent, home = fixture.get((entry["match_id"], key or ""), (None, None))
+        out[obs.fc_id] = {
+            "match": " ".join(part for part in (
+                entry["date"], entry["competition"] or "",
+                f"vs {opponent}" if opponent else "",
+                "(H)" if home else "(A)" if home == 0 else "") if part),
+            # 1 he started · 0 he came on or was not used · empty only when the layer has no rows at all
+            "started": (1 if row and row[0] else 0) if played else None,
+            "minutes": row[1] if row else 0 if played else None,
+        }
+    return out, clubs
+
+
 def injury_history(conn, auction_date: str, seasons: list[str],
                    measured: str | None = None) -> dict[int, dict]:
     """Absences per player: matches missed, weighted by recency, plus whatever is open right now.
@@ -1176,7 +1256,7 @@ def at_current_club(conn, season: str, observations, squads: dict[int, str],
 
 def club_context(conn, data: features.WindowData, starters_date: str | None,
                  clubs: list[str], measured: str | None = None,
-                 before: str | None = None) -> list[dict]:
+                 before: str | None = None, fielded: dict[str, dict] | None = None) -> list[dict]:
     """One row per club OF THE SHEET: coach, formation, lines fielded, arrivals, Elo.
 
     The club list comes from the sheet's own rows, not from `rosters`: with no listone for the season
@@ -1265,6 +1345,11 @@ def club_context(conn, data: features.WindowData, starters_date: str | None,
                                    else "yes" if (share or 0) >= FORMATION_SETTLED else "no")
                                   if share else None),
             "formation_today": formations.get(club),
+            # What it ACTUALLY lined up in, in the first match after the auction date - a fact, and only on
+            # a back-dated sheet. The pair with `formation_today` is deliberate: one is the editors' guess
+            # for that week, the other is what happened, and they must never be read as the same column.
+            "formation_next_fielded": (fielded or {}).get(club, {}).get("shape"),
+            "next_match_date": (fielded or {}).get(club, {}).get("date"),
             "probabili_date": starters_date,
             "lines_fielded_D": round(lines[0], 2) if lines and lines[0] is not None else None,
             "lines_fielded_M": round(lines[1], 2) if lines and lines[1] is not None else None,
@@ -1383,6 +1468,12 @@ PLAYER_COLUMNS: tuple[str, ...] = (
     "desc_contract_until", "desc_exit_risk", "desc_arrival", "desc_arrival_tier",
     "desc_arrival_origin", "desc_transfer_fee", "desc_seasons_at_club", "desc_new_coach",
     "desc_u22",
+    # A THIRD class, and the prefix is the whole point: `actual_*` is measured strictly AFTER the auction
+    # date. It exists because a BACK-DATED sheet does not need a forecast of who plays - the eleven that was
+    # fielded that week exists, and a forecast is only interesting while the outcome is unknown. Reporting
+    # only: no rule, no prediction and no `desc_*` column may read them, which is why they are not called
+    # `desc_`. Empty by construction on a sheet built today (the next match has not been played).
+    "actual_next_match", "actual_next_started", "actual_next_minutes",
 )
 
 
@@ -1429,6 +1520,7 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
         state = layers["contract"].get(obs.fc_id, {})
         role_detail = layers["real_role_detail"].get(obs.fc_id, {})
         penalty = layers["penalties"].get(obs.fc_id)
+        fielded = layers["fielded_next"].get(obs.fc_id, {})
         pv_pred = prediction.pv_pred if prediction else None
         rows.append({
             "fc_id": obs.fc_id, "name": obs.name, "club": obs.club_target, "league": obs.league,
@@ -1532,6 +1624,11 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             "desc_seasons_at_club": state.get("seasons_at_club"),
             "desc_new_coach": "yes" if state.get("new_coach") else None,
             "desc_u22": "yes" if state.get("u22_trigger") else None,
+            # AFTER the auction date, reporting only (see PLAYER_COLUMNS): what really happened in the
+            # club's first match of the week that followed.
+            "actual_next_match": fielded.get("match"),
+            "actual_next_started": fielded.get("started"),
+            "actual_next_minutes": fielded.get("minutes"),
         })
     rows.sort(key=lambda row: (row["role_classic"] or "Z", -(row["engine_surplus"] or -1e9)))
     return rows
@@ -1711,9 +1808,16 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
         (window.target_season,))]
     starters, starters_date = latest_starters(conn, window.auction_date)   # notes is already open
     if not starters:
-        notes.append("no probabili snapshot at or before the auction date: the starter and duel "
-                     "columns are empty. This history only accumulates from the day the weekly job "
-                     "starts running - it cannot be backfilled.")
+        notes.append(
+            "no probabili snapshot at or before the auction date: the starter and duel columns are empty. "
+            + ("For a back-dated sheet this costs nothing and is not a gap to fill: a forecast of who "
+               "plays is only interesting while the outcome is unknown, and for that day the eleven that "
+               "was actually FIELDED exists - it is in the `actual_*` columns, and the pitch draws it. The "
+               "editors' probabilities are worth fetching only for a sheet standing on TODAY, where they "
+               "carry what we cannot compute: the coach's own words."
+               if date else
+               "They are a state of NOW and cannot be backfilled, so they exist only from the day a run "
+               "records them - which is why a sheet for today refreshes them."))
     squads, squad_sources = squad_as_of(conn, window.auction_date)
     layers = {
         "form": club_form(conn, window.auction_date, data.observations, squads),
@@ -1751,6 +1855,29 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
             "SELECT fc_id, avg_x, avg_y FROM positions WHERE season = ? AND source = 'sofascore'",
             (window.input_season,))},
     }
+    # The eleven the clubs actually FIELDED in the first match after the auction date. Empty for a sheet
+    # built today, and for a back-dated one it is what makes the probabili unnecessary: the outcome exists.
+    layers["fielded_next"], fielded_clubs = fielded_next(
+        conn, window.auction_date, data.observations, squads)
+    if fielded_clubs:
+        # How many of those elevens the SHEET can actually show: a starter who is not in its rows (a
+        # relegated club's man, an identity we cannot resolve, someone the listone never had) leaves a hole,
+        # and counting the complete ones is the honest way to say how far the fact goes.
+        started_per_club: dict[str, int] = {}
+        for obs in data.observations:
+            if (layers["fielded_next"].get(obs.fc_id) or {}).get("started"):
+                started_per_club[obs.club_target or ""] = started_per_club.get(obs.club_target or "", 0) + 1
+        complete = sum(1 for count in started_per_club.values() if count >= 11)
+        notes.append(f"{len(fielded_clubs)} clubs have the eleven they really fielded after "
+                     f"{window.auction_date} in the `actual_*` columns (first match: "
+                     f"{min(entry['date'] for entry in fielded_clubs.values())}), and {complete} of them "
+                     f"have all eleven men among the sheet's own rows. The others fielded somebody this "
+                     f"sheet does not carry, and the reason is the row set rather than the fact: the "
+                     f"squads are the ones of TODAY (a past day's squad page cannot be fetched either), so "
+                     f"a man who has since left his club is missing - Inter's eleven of 2025-08-24 is "
+                     f"complete except Pavard. Measured AFTER the auction date, so reporting ONLY: no "
+                     f"engine_* or desc_* column reads them, and the pitch labels them as fielded rather "
+                     f"than predicted.")
     # after the layers, because a duel is POSITIONAL: it needs the granular real roles, not the P/D/C/A
     layers["duels"] = duels(data.observations, starters, layers["real_role_detail"])
     covered = sum(1 for obs in data.observations if obs.fc_id in layers["real_role_detail"])
@@ -1800,7 +1927,7 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
         rows = kept
     club_rows = club_context(conn, data, starters_date,
                             sorted({row["club"] for row in rows if row.get("club")}),
-                            measured, before)
+                            measured, before, fielded_clubs)
 
     # The folder carries the day the sheet STANDS ON, plus the club when it is one club: a back-dated
     # run must not overwrite today's, and two dates are two different sheets. And the LEAGUE, because two
@@ -1860,6 +1987,16 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
                      "from a window that is not the season being auctioned. A coefficient quoted "
                      "without its platform, its residual baseline and its date is not a fact - the "
                      "numbers live in data/reports/engine_backtest.json.",
+        },
+        # The THIRD class of columns, and the only one that lives after the auction date.
+        "actual": {
+            "_note": "The `actual_*` columns are measured AFTER the auction date: the eleven the club "
+                     "really fielded in its first match of the following week. They exist because a "
+                     "BACK-DATED sheet has no use for a forecast of who plays - the outcome exists, and "
+                     "the probabili of that day cannot be fetched anyway. Reporting ONLY: no rule, no "
+                     "prediction and no desc_* column reads them, which is why they are not called "
+                     "desc_. Empty on a sheet built today: the next match has not been played.",
+            "clubs_with_a_fielded_eleven": len(fielded_clubs),
         },
         "descriptive": {
             "_note": "Every `desc_*` column is DESCRIPTIVE and NOT gated. It is there for the human "

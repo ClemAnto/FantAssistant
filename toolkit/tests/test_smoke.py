@@ -1174,3 +1174,43 @@ def test_the_penalty_hierarchy_answers_to_its_two_parameters():
     # a short memory reads only the most recent kick; a long one adds up the older ones
     assert rank_takers([(10, False), (20, False), (20, False)], decay=0.05)[0][0] == 10
     assert rank_takers([(10, False), (20, False), (20, False)], decay=1.0)[0][0] == 20
+
+
+def test_a_back_dated_sheet_draws_the_eleven_that_was_FIELDED():
+    """The precedence for "who plays": the outcome where it exists, the editors' forecast where it does
+    not. A forecast is only interesting while the answer is unknown, and a sheet standing on a past day is
+    standing after the match - so the probabili of that day are not worth fetching (and cannot be).
+
+    The two never share a column: `actual_*` is its own class, and the caption says which one is on screen.
+    """
+    from euroleghe_ingest import gui
+
+    def man(name, role, codes, started=None, probability=None):
+        return {"name": name, "club": "Napoli", "role_classic": role, "desc_real_roles": codes,
+                "actual_next_started": started, "desc_starter_prob": probability,
+                "desc_season_starts": "20", "desc_minutes_full_season": "1800"}
+
+    fielded = [man("Meret", "P", "GK", "1"), man("Di Lorenzo", "D", "DR", "1"),
+               man("Rrahmani", "D", "DC", "1"), man("Buongiorno", "D", "DC", "1"),
+               man("Spinazzola", "D", "DL; ML", "1"), man("Anguissa", "C", "MC", "1"),
+               man("Lobotka", "C", "MC; DM", "1"), man("McTominay", "C", "MC; AM", "1"),
+               man("Politano", "C", "RW; MR", "1"), man("Neres", "C", "LW", "1"),
+               man("Lukaku", "A", "ST", "1")]
+    # the editors had named a different eleven, and it must lose to what happened
+    bench = [man("Simeone", "A", "ST", "0", "0.9"), man("Olivera", "D", "DL", "0", "0.85")]
+    view = gui.SnapshotView.__new__(gui.SnapshotView)
+    view.clubs = {"Napoli": {"formation_next_fielded": "4-3-3", "next_match_date": "2025-08-23",
+                             "formation_typical": "4-5-1", "formation_today": "3-4-3"}}
+    view.players = view.rows = fielded + bench
+    view.manifest, view._calendar = {}, {}
+
+    picked = {starter["name"] for _role, starter, _rivals in view.eleven("Napoli", "4-3-3", "next")}
+    assert picked == {row["name"] for row in fielded}, "the fielded eleven, not the declared one"
+    assert "Simeone" not in picked, "a 90% probability does not beat having watched the match"
+    shape, why = gui.SnapshotView._formation(view.clubs["Napoli"], "next")
+    assert shape == "4-3-3" and "FIELDED" in why and "2025-08-23" in why
+    # ...and with no outcome recorded the editors' forecast is back in charge
+    for row in fielded:
+        row["actual_next_started"] = None
+    assert gui.SnapshotView._formation({"formation_today": "3-4-3", "formation_typical": "4-5-1"},
+                                       "next") == ("3-4-3", "probabili of today")
