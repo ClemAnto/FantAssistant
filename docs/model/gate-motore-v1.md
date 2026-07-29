@@ -1350,6 +1350,17 @@ hanno pagato» da «lo hanno pagato perché è bravo», e nessun dato che abbiam
 il cartellino esiste solo dal 2023 e **non c'è per l'estate 2026** (`transfers` va rilanciato), quindi la
 finestra 26/27 è la prima conferma indipendente disponibile.
 
+### Il seguito già pre-registrato: lo stesso test col VALORE DI MERCATO
+Il canale `stature` è stato misurato col percentile di **Qt.I**, che è il mercato del *fantacalcio*: prezza
+l'utilità fantacalcistica, non il blasone. Il proxy giusto è il **valore di mercato Transfermarkt** — il
+mercato del calcio — e sta **già nella cache** (561 pagine rosa, 51 club × 11 stagioni, il valore nell'HTML
+come `marktwertverlauf/spieler/<id>">35,00 mln €`), quindi il re-test è **offline**. Abilita anche la
+normalizzazione che l'ipotesi chiedeva davvero: il suo valore come **quota del valore della rosa**, cioè
+«quanto di questa squadra è lui», disponibile per tutti e non solo per chi è costato un cartellino — e su
+**11 stagioni** contro le 3 dei cartellini, quindi nessun fold resta cieco. Griglia e forme: le stesse di
+sopra, senza ritoccarle. Gli **ingaggi restano indisponibili**: verificato sulle pagine che scarichiamo,
+zero occorrenze di Gehalt/salary/stipendio; le fonti che li stimano sono fuori whitelist.
+
 ## 8. Casi di regressione (in `model.REGRESSION_CASES`, stampati da `backtest --cases`)
 
 Lewandowski (età/minuti) · Wirtz (cambio lega) · Torres F. (propensione per-90) · Ezzalzouli (nuovo nel

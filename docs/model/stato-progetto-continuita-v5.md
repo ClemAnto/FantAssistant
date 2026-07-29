@@ -824,3 +824,51 @@ Il codice che cammina su un calendario cammina su **date**, e lo fa gia' (`club_
 `fielded_next`); `fielded_next` ora porta anche la **giornata** nell'etichetta, cosi' un recupero non si
 legge come la giornata successiva. La PK resta una **decisione aperta**: cambiarla e' migrazione piu'
 re-ingest.
+
+---
+
+## CHIUSURA della sessione 29/07/2026 (sera-notte)
+
+### I commit
+`03179d9` una quota di stagione è una quota del CAMPIONATO (spec v9.11) · `b6b29c3` **`sweep`**: le costanti
+provvisorie davanti al gate (v9.12, gate §7-ter) · `1fb0d40` il bridge punta alle passate del giorno ·
+`942e753` le probabili non si storicizzano — decisione dell'utente e cosa cambia · `ca23c35` un foglio
+retrodatato non prevede: legge l'undici **schierato** (v9.13) · `6781d95` l'investimento del club: misurato,
+pre-registrato, **bocciato** (v9.14, gate §7-quater) · più questo commit di chiusura.
+**Non pushati**: la repo è pubblica, il push è una scelta dell'utente.
+
+### Lo stato in una riga
+Il toolkit non ha più buchi di dati (`fetch --plan`: «every source is populated»); ha ora **due** comandi di
+gate (`backtest` sulle regole, `sweep` sulle costanti), un modulo `engine/presence.py` portabile, e il foglio
+d'asta ha **tre** classi di colonne (`engine_*` validate, `desc_*` descrittive, `actual_*` esiti dopo la data
+d'asta). **259 test verdi, ruff pulito, toolkit 0.5.0.**
+
+### I prossimi passi, in ordine di leva
+1. **Ritestare l'investimento col valore di mercato Transfermarkt** — è il seguito naturale del §7-quater e
+   il lavoro è **offline**: 561 pagine rosa già in cache (51 club × 11 stagioni, ~30 valori per pagina), il
+   valore sta nell'HTML come `marktwertverlauf/spieler/<id>">35,00 mln €`. Serve un parser, una tabella
+   `player_market_value(fc_id, season, value, source)` con la sua migrazione, due colonne nel foglio (valore
+   e **quota del valore della rosa** — «quanto di questa squadra è lui», che è la normalizzazione che
+   l'utente ha chiesto) e lo stesso sweep rilanciato con `stature` = valore di mercato. Copre 11 stagioni
+   contro le 3 dei cartellini, quindi nessun fold resta cieco.
+2. **La modalità LIVE del motore** — non è del toolkit e resta il lavoro più importante: `_window_is_usable`
+   pretende voti su entrambe le stagioni, il tab Auction elenca solo stagioni concluse, `auction_view`
+   confronta due liste. Per un'asta serve **una lista sola**. Più il gate 3.2 club-a-club (input pronto).
+3. **Bloccato dal calendario (agosto)**: `"2026-27"` in `config.SEASONS` (una riga), listone/quotazioni,
+   voti, Elo alla data d'asta — e **`transfers` da rilanciare**, perché i cartellini dell'estate 2026 non ci
+   sono e senza quelli il canale `fee` è cieco sulla finestra che conta.
+4. **Decisioni aperte, non lavori**: la PK di `match_ratings` che non rappresenta due partite nella stessa
+   giornata (migrazione + re-ingest); i parametri che lo sweep ha lasciato aperti col loro motivo misurato.
+
+### Dove NON toccare senza rileggere (aggiunte di oggi)
+- **I denominatori**: ogni quota del foglio si conta sul **campionato** (`league_XIs`), le assenze in
+  **giornate** dentro l'unione degli spell, e `engine_pv_pred` sul calendario della **piattaforma**. Mischiare
+  le tre unità è il difetto che ha prodotto Kane al 49% e 201 giocatori sul pavimento.
+- **`contested` usa le assenze MISURATE, `availability` la previsione**: se tornano a essere lo stesso
+  numero si annullano e la storia infortuni diventa decorativa.
+- **`actual_*` non si versa in `desc_*`**: sono esiti posteriori alla data d'asta, e un foglio dove una
+  certezza e un pronostico condividono una colonna non si può più leggere.
+- **`fc_site.penalty_events` deduplica per calcio**: senza quello ogni rigore di Serie A vale due volte e il
+  decay si comporta come il suo quadrato.
+- **`_cross_fit` scarta i fold ciechi**: un fold la cui curva non si muove non è un fallimento, è un fold che
+  non vede la feature — contarlo come 0.0 boccia meccanicamente ogni ipotesi sullo strict.

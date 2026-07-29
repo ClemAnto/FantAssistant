@@ -1157,7 +1157,13 @@ TypeScript** in `app/prediction-engine`, quindi resta senza dipendenze ed esplic
   "vuota per scelta"** e non come un buco da colmare: vedi la decisione sulle probabili in
   `stato-progetto-continuita-v5.md`, sessione «(7)». Nessuna regola d'asta la sta aspettando.
 
-## Quello che manca per l'asta 26/27 (aggiornato v9.4)
+## Quello che manca per l'asta 26/27 (aggiornato v9.14)
+- **Offline, ed è il prossimo passo**: il **valore di mercato Transfermarkt** è già in cache (561 pagine
+  rosa, 51 club × 11 stagioni) e non è ancora parsato. È il proxy giusto per l'ipotesi investimento (gate
+  §7-quater) e abilita la quota del valore della rosa. Gli **ingaggi non esistono** in whitelist.
+- **Da rilanciare prima dell'asta**: `transfers` (i cartellini dell'estate 2026 non ci sono).
+
+## Quello che mancava per l'asta 26/27 (aggiornato v9.4)
 - **Bloccato dal calendario**: listone/quotazioni 26/27 (esce ad agosto → aggiungere `2026-27` a
   **`config.SEASONS`**, che dalla v9.4 è la fonte unica: una modifica, non tre), voti 26/27, Elo alla
   data d'asta 2026-08 (una richiesta: `elo` la scarica da sola appena la stagione esiste in `rosters`).

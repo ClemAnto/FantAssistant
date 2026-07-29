@@ -293,3 +293,27 @@ Nota: **nessuna delle feature generate il 27/07 e' entrata nel motore**, e **nes
       `presence(recent)` e non solo dai nominati dai probabili (Neres infortunato non e' nei probabili ed
       e' comunque l'uomo che prende il posto di Politano), senza secchiello di linea (i trequartisti erano
       arenati in un undici che non schiera trequartisti) e con un uomo offerto una volta sola.
+
+## Ripresa 29/07/2026 sera-notte (dettaglio: stato-progetto «(5)»→«(8)» e la chiusura)
+- [x] **Il denominatore di una quota è il CAMPIONATO** (spec v9.11): correlazione quota-club / titolarità
+      media **+0.796 → −0.172**, giocatori sul pavimento di disponibilità **da 201 a 9**.
+- [x] **`sweep`, il gate delle COSTANTI** (spec v9.12, gate §7-ter). Adottato `STANDING_WEIGHTS = (0, 1)`;
+      confermati la forma di `contested`, `ARRIVAL_DISCOUNT` 0.80 e il decay rigoristi 0.75; trovato che
+      **ogni rigore di Serie A era contato due volte**.
+- [x] **Le probabili non si storicizzano** (decisione dell'utente): rilevazione su oggi, e per un foglio
+      retrodatato l'undici **schierato** (`actual_*`, spec v9.13). Il cron settimanale non serve e
+      `starter_prob` 0/1453 è **vuoto per scelta**.
+- [x] **Ipotesi INVESTIMENTO del club: misurata e BOCCIATA** (gate §7-quater, spec v9.14). Due canali (quota
+      della spesa del club, Qt.I percentile nel ruolo), due forme, bersaglio le titolarità: pesi a zero.
+      Il meccanismo è già assorbito dai **minuti**.
+- [ ] **PROSSIMO — ritestare l'investimento col VALORE DI MERCATO Transfermarkt.** Il proxy debole era il
+      Qt.I (mercato del fantacalcio); il valore Transfermarkt è quello del calcio, sta **già nella cache**
+      (561 pagine rosa, 51 club × 11 stagioni) e abilita la **quota del valore della rosa**, che è la
+      normalizzazione «relativa alle casse» che l'ipotesi chiedeva. Tutto offline. Gli **ingaggi NON
+      esistono** in whitelist: verificato, zero occorrenze di Gehalt/salary/stipendio nelle pagine che
+      scarichiamo.
+- [ ] **Decisione aperta: la PK di `match_ratings`** `(fc_id, season, matchday, platform)` non può
+      rappresentare due partite della stessa giornata (rinvio + trasferimento), quindi per quei casi una
+      presenza si perde. Cura = PK che porta la partita: migrazione + re-ingest.
+- [ ] Rilanciare **`transfers`** prima dell'asta: i cartellini dell'estate 2026 non ci sono, quindi il canale
+      `fee` è cieco proprio sulla finestra che si sta prezzando.

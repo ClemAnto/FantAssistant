@@ -26,7 +26,42 @@ proporre qualsiasi regola) → **`metrica-asta-surplus-v1.md`** (con cosa il pan
 
 Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
 
-### ULTIMO IN ORDINE DI TEMPO — il denominatore di una quota, e lo sweep delle costanti
+### ULTIMO IN ORDINE DI TEMPO — quattro passate del 29/07/2026, in ordine di conseguenza
+
+Dettaglio in [stato-progetto-continuita-v5.md](stato-progetto-continuita-v5.md) sezioni «(5)» → «(8)»,
+verdetti in [gate-motore-v1.md](gate-motore-v1.md) **§7-ter** e **§7-quater**, spec «Novità v9.11»→«v9.14».
+
+1. **Una quota di stagione si conta sul CAMPIONATO.** I numeratori erano sempre di campionato
+   (`external_stats` ha una riga per campionato) e il denominatore era ogni undici parsato in qualsiasi
+   competizione: Arsenal 58, Bayern 50, Napoli 38. Kane leggeva **49%** con 25 titolarità su 34 giornate;
+   correlazione fra la quota di campionato del club e la titolarità media dei suoi **+0.796 → −0.172**. Le
+   assenze si **contano** in giornate dentro l'unione degli spell, e `contested` usa quello che ha davvero
+   saltato e non la previsione — che, sottratta e rimoltiplicata, si annullava: giocatori appiattiti sul
+   pavimento **da 201 a 9**.
+2. **`sweep` — il gate delle COSTANTI** (`python -m euroleghe_ingest sweep`). Formule estratte in
+   `engine/presence.py`: un parametro che nessun harness raggiunge non si può spazzare. **Adottato**:
+   `STANDING_WEIGHTS = (0, 1)` — la titolarità si prevede dai **minuti**, strict e robust su tutti e dieci i
+   fold. **Confermati**: forma di `contested`, `ARRIVAL_DISCOUNT` 0.80, decay rigoristi 0.75 (dopo aver
+   scoperto che **ogni rigore di Serie A era contato due volte**, che dimezzava la memoria della gerarchia
+   per i club italiani). **Aperti col motivo**: `LOAN_DISCOUNT` (platform-dependent), inclinazione
+   infortuni, pavimento, quarantena, soglie dei tier.
+3. **Le probabili non si storicizzano** (decisione dell'utente): sono poco affidabili e ragionano con i
+   nostri stessi fattori; il valore aggiunto arriva a ridosso del calcio d'inizio. Quindi rilevazione su
+   OGGI, e per un foglio **retrodatato** si guarda l'undici **schierato** — colonne `actual_*`, terza classe
+   del CSV, misurate DOPO la data d'asta e di sola rendicontazione. `starter_prob` 0/1453 nel gate =
+   **vuoto per scelta**, e il cron settimanale non serve.
+4. **L'investimento del club: ipotesi misurata e NON adottata.** Due canali (quota della spesa del club, e
+   Qt.I percentile nel ruolo — necessario perché **Modrić e De Bruyne sono arrivati a parametro zero**), due
+   forme pre-registrate, bersaglio le titolarità. `fee_weight` peggiora monotonamente, `stature_weight`
+   peggiora in entrambe le direzioni, la forma `arrival` è pari a spento in quarta cifra. Lettura: il
+   meccanismo **è già assorbito dai minuti**. ⚠️ **Da ritestare col proxy giusto**: il valore di mercato
+   Transfermarkt è **già nella cache** (561 pagine rosa, 51 club × 11 stagioni) e gli **ingaggi non
+   esistono** in nessuna fonte in whitelist (verificato: zero occorrenze di Gehalt/salary/stipendio).
+5. **L'unità è la PARTITA, non la giornata**: (giocatore, giornata) non è unica — con un rinvio più un
+   trasferimento un uomo gioca la stessa giornata per due club — e la **PK di `match_ratings` non può
+   rappresentarlo**, quindi una presenza si perde. Decisione aperta: cambiare la PK = migrazione + re-ingest.
+
+### La passata precedente — il denominatore di una quota, e lo sweep delle costanti
 
 Sessione del 29/07/2026, ultime due passate (spec «Novità v9.11» e «v9.12»; dettaglio in
 [stato-progetto-continuita-v5.md](stato-progetto-continuita-v5.md), sezioni «(5)» e «(6)», verdetti in
