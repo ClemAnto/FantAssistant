@@ -724,6 +724,43 @@ che non sia una linea con le fasce. Misurato sulla Juve: `Td` Kalulu · Dc Breme
 in mezzo `Ed` McKennie · M Locatelli · C Thuram · C Koopmeiners · `Es` Cambiaso — con il 3-4-3 dello stesso
 undici che continua a leggere tre `Dc`.
 
+### 10-quinquies. Perché un SURPLUS può essere vuoto, e perché lo dice ora
+Domanda dell'utente: «come mai Raspadori non ha un valore SURPLUS?». Due risposte, e nessuna delle due era
+un difetto:
+- sui fogli della **sua lega** (euro/classic EuroLeghe) il surplus **c'è** e vale **−3.7** (valore 102.7,
+  rimpiazzo 7.053): è negativo, non assente — e da oggi si legge rosso;
+- sul foglio **Serie A (`default`)** è vuoto, e la ragione è dichiarata nel motore: il suo 2025-26 su quella
+  piattaforma è di **13 voti**, sotto `model.MIN_PV_PREV = 15`. Le beta sono state fittate su Pv≥15 e le
+  àncore su Pv≥20; fuori da quel dominio il core non è mai stato validato e **l'harness si rifiuta di
+  fingere** (`evaluate._predict_fm`). Su **euro** il set adottato contiene **R0c**, l'àncora di ruolo, che lo
+  prezza comunque; su **default R0c non è adottata** (là non ha mai battuto l'àncora), quindi non c'è nulla su
+  cui ripiegare. È il buco di copertura Serie A che il gate porta da sempre, e su quel foglio riguarda
+  **253 righe su 598**.
+Aggiunto perché una cella vuota non si spieghi da sé: una **nota nel manifest** con il conteggio, il perché e
+cinque nomi d'esempio (Belotti, Balotelli, Milik, Pellegri, Lukaku) e una riga nel **tooltip della colonna
+SUR**. Le colonne `desc_*` non sono toccate: quelle sono misurate, non previste.
+
+### 10-sexies. Il modulo di un allenatore NUOVO: misurato, e non ancora usato
+Osservazioni dell'utente sull'Atalanta: «lo schema preferito di Sarri dovrebbe essere il 4-3-3»; poi «dalle
+amichevoli sembra che giochi 3-4-2-1, Raspadori sempre titolare». Il foglio dice che ha ragione, e mostra
+dove il board oggi guarda il dato sbagliato:
+- l'Atalanta ha **Sarri dal 15/06/2026** e `formation_typical_under_coach = **0**`: **nessuno** dei 46 undici
+  misurati è suo. Il 3-4-3 al 93% è l'Atalanta di prima;
+- il modulo di **Sarri** è misurabile dai NOSTRI dati — `coaches` (i suoi spell: Napoli 15-18, Chelsea 18-19,
+  Juventus 19-20, Lazio 21-24 e 25-26) incrociato con `club_match_lineups`: **4-3-3 in 162 undici su 188 =
+  86%**, 4-4-2 11%, tutto il resto sotto il 2%;
+- e le sue **due amichevoli** con l'Atalanta (18 e 26/07/2026) sono in cache e parsate: leggono 2-5-3 e 2-6-2
+  nel vocabolario del provider (che conta gli esterni come centrocampisti), cioè una difesa a tre con due
+  braccetti — coerente con il 3-4-2-1 dell'utente. **Raspadori è titolare in entrambe** (come Scamacca,
+  Djimsiti, Carnesecchi, Samardzic, Zalewski, Scalvini, Bernasconi).
+Cosa ne consegue, e non è fatto: **gli undici del nuovo allenatore — amichevoli comprese — sono l'unica prova
+di cosa fa lui**, sia per il modulo sia per chi gioca, e lo *schieramento tipo* li ignora per costruzione
+(misura l'abitudine della stagione scorsa). Il tab **prossima giornata** invece li vede già, ed è la conferma:
+là Raspadori è dentro, fra i due trequartisti del 3-4-2-1 dichiarato. Il lavoro da fare — con la testa fresca,
+non alle tre di notte — è far pesare il campione del nuovo allenatore nel prior del modulo (c'è già
+`SHAPE_TRUST_FLOOR` per questo, ma il campione dell'allenatore non entra da nessuna parte) e dire nel pannello
+che il tipo è l'abitudine di **un'altra squadra** quando `under_coach` è zero.
+
 ### 10-quater. Il claim scegli CHI gioca, la calzata solo DOVE — e il prezzo di una casella per linea
 Domande dell'utente sull'Atalanta: «come mai la formazione tipo passa dal 3-4-3 al 3-6-1? perché Raspadori e
 Scamacca non giocano titolari?». Due difetti veri, uno di modello e uno di dato.

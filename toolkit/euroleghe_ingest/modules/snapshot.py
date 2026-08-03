@@ -2141,6 +2141,23 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
         notes.append(f"{dropped} players were left out of the sheet: their club is not one this "
                      f"platform plays ({len(perimeter)} clubs are). They stay in the engine's "
                      f"population, so every number here is the one the harness would give")
+    # WHY a row can have no engine_* valuation at all, said out loud instead of leaving an empty cell to be
+    # read as a zero. The core refuses to predict outside the domain its coefficients were fitted on
+    # (`model.MIN_PV_PREV` = 15 votes in the input season), and what happens then depends on the PLATFORM:
+    # on euro the adopted set contains R0c, the role anchor, which prices him anyway; on default it does not
+    # (it never beat the anchor there), so there is nothing to fall back to. That is the Serie A coverage
+    # hole the gate has been carrying, and it is worth seeing on the sheet that shows it.
+    unpriced = [row for row in rows if not row.get("engine_fm_pred")]
+    if unpriced:
+        notes.append(
+            f"{len(unpriced)} of {len(rows)} players have NO engine_* valuation (no predicted fantamedia, "
+            f"so no VALUE and no SURPLUS): their {window.input_season} on platform {platform} is under "
+            f"{evaluate.model.MIN_PV_PREV} votes, which is outside the domain the core's coefficients were "
+            f"fitted on - the harness refuses to pretend otherwise. On euro the adopted set includes R0c "
+            f"(the role anchor) and prices them at it; on default R0c is not adopted, because it never beat "
+            f"the anchor there, so the cell is EMPTY and not a zero. `desc_*` columns are unaffected: they "
+            f"are measured, not predicted. Examples: "
+            f"{', '.join(row['name'] for row in unpriced[:5])}.")
     if clubs:
         wanted = {matching.club_key(name) for name in clubs}
         kept = [row for row in rows if matching.club_key(row.get("club") or "") in wanted]

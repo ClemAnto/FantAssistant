@@ -1684,7 +1684,12 @@ class SnapshotView(ttk.Frame):
                "missing more of a season than the average man is the bad news. "
                "GATED. Predicted SURPLUS = (predicted fantamedia - the role's replacement level) x "
                "predicted appearances: points over the man you would have fielded instead. This is the "
-               "auction's own currency - an iron man on a replacement-level fantamedia scores ~0.",
+               "auction's own currency - an iron man on a replacement-level fantamedia scores ~0. "
+               "EMPTY means the engine could not price him at all, and that is a statement rather than a "
+               "zero: his input season is under 15 votes, outside the domain the core's coefficients were "
+               "fitted on. On euro the adopted set falls back to the role anchor (R0c) and prices him; on "
+               "Serie A R0c is not adopted, so there is nothing to fall back to. The manifest says how "
+               "many rows that is.",
         "fm": "GATED. Predicted fantamedia for the season being auctioned, from the adopted rule set "
               "with parameters fitted on a window that is not this season.",
         "pv": "GATED. Predicted appearances as a SHARE of the season: the prediction over the "
