@@ -1,5 +1,5 @@
 # 00 — BRIDGE · Punto d'ingresso del progetto (leggere per primo)
-**Aggiornato: 29 luglio 2026 (chiusura: il pannello spende l'altezza sul campetto)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
+**Aggiornato: 4 agosto 2026 (chiusura: il board risponde a CHI gioca e DOVE, e la tabella lo dice a colori)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
 
 ## Il progetto in breve
 Motore previsionale per fantacalcio **EuroLeghe** (fantacalcio.it): valutazione calciatori Classic e Mantra sui 5 grandi campionati europei (Serie A, Premier, Liga, Bundesliga, Ligue 1 — perimetro: i ~35 top club del gioco). Prevede fantamedia (FM), presenze attese e VALORE stagionale = FM × presenze. Metodo scientifico: **ogni regola entra nel motore solo se batte il baseline fuori campione su finestre indipendenti** (gate pre-registrato). Stato: core validato (Mantra, Classic, portieri, presenze); manca lo strato flag/arrivi, sbloccato dal toolkit dati `euroleghe-ingest` (in implementazione).
@@ -22,11 +22,51 @@ proporre qualsiasi regola) → **`metrica-asta-surplus-v1.md`** (con cosa il pan
 è VALORE) → `spec-euroleghe-ingest-v9.md` → `nota-modello-set-pieces-v2.md` →
 `modello-previsionale-v3.8.md` → consolidati di dettaglio. Tutti in `docs/model/`.
 
-## STATO AL 29 LUGLIO 2026 — LEGGI QUESTO PRIMA DI TUTTO
+## STATO AL 4 AGOSTO 2026 — LEGGI QUESTO PRIMA DI TUTTO
 
 Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
 
-### ULTIMO IN ORDINE DI TEMPO — quattro passate del 29/07/2026, in ordine di conseguenza
+### ULTIMO IN ORDINE DI TEMPO — la sessione del 3-4/08/2026: quindici richieste sul PANNELLO
+
+Dettaglio in [stato-progetto-continuita-v5.md](stato-progetto-continuita-v5.md) sezione «Sessione
+03-04/08/2026», spec **«Novità v9.16»** (dieci punti), misure nuove nel gate **§5-terdecies**.
+**Nessun verdetto del gate cambia: qui non è entrata nessuna regola.** Toolkit **0.6.0**, 271 test verdi.
+
+1. **La build dello snapshot dice a che punto è.** `[snapshot] 46% · descriptive layers`, barra determinata
+   nel tab. I pesi sono **secondi misurati** (predict 37s, squads 14s, `roles` 293s dai timestamp della
+   cache di una refresh vera), ogni run stampa `[snapshot] stages:` per rimisurarli, e una fase che non
+   gira **esce dal denominatore**.
+2. **Lo schieramento TIPO non si sceglie con lo sconto infortuni** (`claim` ≠ `presence`). De Bruyne
+   standing 1.00 × disponibilità 0.53 perdeva il posto da Elmas 0.62 × 0.92. Il tipo è «la squadra con
+   tutti disponibili» e adesso lo è: `claim` = standing, `presence` resta la domanda d'asta.
+3. **Il claim scegli CHI gioca, la calzata solo DOVE**, e la disposizione si risolve **come un tutto**
+   (`_matching`, Hungarian in casa). Una greedy per casella deve fissare la priorità fra fascia e linea, e
+   **entrambi gli ordini sono sbagliati sullo stesso undici**; il prezzo di una casella è la distanza sulla
+   griglia dei codici con la fascia pesata **per linea** (`SIDE_WEIGHT` 8 su D/M, 3 su T/A), perché a
+   centrocampo l'esterno è un ruolo e in attacco i tre si scambiano. Riparazione **Pareto** (`_settle`,
+   `CLAIM_MARGIN` 0.05) e trasformazione del modulo **solo se obbligata** (`_reshape`).
+4. **Il badge dice la fascia della MAGLIA**: in una linea a quattro i due esterni sono `Ts`/`Td` anche se
+   sono centrali di ruolo (e in una difesa a **tre** restano `Dc`, che non ha fasce).
+5. **Il piede preferito, misurato prima di usarlo**: DL 96% sinistro, DR 96% destro, ma `LW` **86% destro** e
+   `RW` 69% sinistro (ali invertite), e i `DC` mancini stanno a sinistra nel **93%**. Entra come spareggio
+   dentro la linea, mai su chi gioca.
+6. **Il CORPO (altezza/peso) c'era già nella cache** e nessuno lo leggeva; ora è nel foglio e sul tooltip.
+   Ipotesi «si schiera la punta alta» **misurata e respinta**: la più usata di due punte è la più alta
+   **44 volte su 92 = 48%**, una monetina (gate §5-terdecies).
+7. **La tabella rosa è una canvas**: in Tk 8.6 un Treeview colora la riga e niente di più fine. Pillole di
+   ruolo nella palette del campetto, ogni numero **verde sopra la media del foglio e rosso sotto** (media su
+   tutti i giocatori di tutte le squadre, `inj` invertito), e un **check per calciatore** che rifà gli undici
+   senza di lui, modulo compreso.
+8. **Un SURPLUS vuoto è una dichiarazione**: sotto `MIN_PV_PREV = 15` voti il core non prevede, e su
+   `default` non c'è R0c su cui ripiegare — **253 righe su 598** in quel foglio. Ora lo dicono manifest e
+   tooltip.
+9. ⚠️ **Aperto e misurato**: su 340 undici restano **9 attacchi senza un attaccante** e **3 centrali su una
+   fascia** (la linea `T` è in pool con l'attacco, quindi un trequartista batte una punta sul claim); e **gli
+   undici di un allenatore NUOVO non pesano da nessuna parte** — l'Atalanta ha Sarri e
+   `formation_typical_under_coach = 0`, il suo 4-3-3 è misurabile (**162 undici su 188 = 86%**) e le sue due
+   amichevoli con Raspadori titolare sono in cache.
+
+### La sessione precedente — quattro passate del 29/07/2026, in ordine di conseguenza
 
 Dettaglio in [stato-progetto-continuita-v5.md](stato-progetto-continuita-v5.md) sezioni «(5)» → «(8)»,
 verdetti in [gate-motore-v1.md](gate-motore-v1.md) **§7-ter** e **§7-quater**, spec «Novità v9.11»→«v9.14».
@@ -449,7 +489,20 @@ R2 · R5 (**terza** bocciatura della famiglia forza-club, ora **CHIUSA** dopo la
 R4, R10 e R8 sembravano fra le migliori del motore a due finestre. **T1 e T2 sono le finestre di
 generazione delle ipotesi: passare lì è la prova più debole possibile.**
 
-### Cosa manca, in ordine
+### Cosa manca, in ordine (aggiornato 4/08/2026)
+
+0. **Due cose aperte sul BOARD, misurate e non tarate al buio** (spec «Novità v9.16» §10-quater/§10-sexies):
+   la linea `T` in pool con l'attacco (9 attacchi su 340 senza un attaccante, 3 centrali su una fascia) e il
+   campione del **nuovo allenatore** che non pesa da nessuna parte — Sarri all'Atalanta, `under_coach = 0`,
+   4-3-3 misurato su 188 undici, due amichevoli parsate con Raspadori titolare. La strada per la prima è
+   separare il pool `T` da quello `A` quando il modulo ha una linea di trequartisti; per la seconda, far
+   entrare gli undici dell'allenatore (amichevoli comprese) nel prior del modulo e nel claim.
+1. **Il valore di mercato è arrivato gratis**: `proposedMarketValue` sta nella stessa pagina rosa del
+   provider da cui vengono i dodici codici, il piede e ora altezza/peso. È il proxy che **§7-quater**
+   aspettava per ri-testare l'investimento del club, per GIOCATORE e non solo per chi è costato un
+   cartellino. Da parsare (una migrazione) e poi lo stesso sweep.
+
+### Cosa manca, il resto (invariato dal 29/07)
 
 0. **I nuovi arrivi senza storico non sono prezzabili** (salito in cima la sera del 28/07, vedi il blocco
    ULTIMO IN ORDINE DI TEMPO): Openda e David non stavano in nessuna top-10 predetta, quindi nessuna

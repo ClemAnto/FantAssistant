@@ -318,3 +318,16 @@ la valuta è una decisione da prendere ad alta voce, sapendo che compra 0 bust i
 dichiarato sopra: cambia CHI è serio, non la forma); (b) lo storico settimanale di
 `probable_starter`, che renderà misurabile la serietà per-pretendente invece del conteggio; (c) una
 copertura predittiva dei nuovi arrivi (finché Openda non è prezzabile, nessuna valuta lo tocca).
+
+
+## 12. Quando il SURPLUS è VUOTO (4 agosto 2026)
+Una cella vuota non è uno zero e non è un difetto: il core **rifiuta di prevedere** fuori dal dominio su cui è
+stato fittato — `model.MIN_PV_PREV = 15` voti nella stagione d'ingresso (le beta), `ANCHOR_MIN_PV = 20` (le
+àncore) — e senza fantamedia prevista non c'è VALORE e non c'è SURPLUS (`evaluate._predict_fm`).
+Cosa succede allora dipende dalla **piattaforma**: su **euro** il set adottato contiene **R0c**, l'àncora di
+ruolo, che prezza comunque chi non ha storico; su **default R0c non è adottata** (là non ha mai battuto
+l'àncora), quindi non c'è nulla su cui ripiegare. Sul foglio Serie A del 29/07 sono **253 righe su 598**.
+Esempio che l'ha fatto notare: **Raspadori** ha surplus **−3.7** sul foglio EuroLeghe (euro/classic) e
+**vuoto** su quello Serie A, perché il suo 2025-26 su `default` è di **13 voti**. Da oggi lo dicono il
+`manifest.json` (conteggio, motivo, cinque nomi) e il tooltip della colonna SUR; le colonne `desc_*` non sono
+toccate, perché sono misurate e non previste.

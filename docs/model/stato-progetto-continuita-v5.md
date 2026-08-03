@@ -6,7 +6,7 @@ Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da q
 ## Cos'e'
 App per leghe EuroLeghe/fantacalcio.it (Classic+Mantra, 5 campionati) con motore previsionale. Metodo: ogni regola entra SOLO se batte il baseline fuori campione su finestre indipendenti (gate pre-registrato). Doc madre: modello-previsionale-v3.8.md.
 
-## ⚠️ Lo stato corrente è in `00-BRIDGE-punto-di-ingresso.md`, blocco «STATO AL 29 LUGLIO 2026»
+## ⚠️ Lo stato corrente è in `00-BRIDGE-punto-di-ingresso.md`, blocco «STATO AL 4 AGOSTO 2026»
 
 ### 29 luglio 2026, in una riga: quattro credenze del fantacalcio misurate, e l'effetto è sempre su CHI GIOCA
 Domande dell'utente: riposo corto, «vincere aiuta a vincere», l'undici che si conferma dopo una vittoria,
@@ -909,3 +909,80 @@ dallo schermo. **260 test verdi, ruff pulito, toolkit 0.5.0.**
   decay si comporta come il suo quadrato.
 - **`_cross_fit` scarta i fold ciechi**: un fold la cui curva non si muove non è un fallimento, è un fold che
   non vede la feature — contarlo come 0.0 boccia meccanicamente ogni ipotesi sullo strict.
+
+
+---
+
+## Sessione 03-04/08/2026 — il board risponde a CHI gioca e DOVE, e la tabella lo dice a colori
+
+Quindici richieste dell'utente, tutte sul pannello Snapshot, più i difetti che quelle richieste hanno fatto
+emergere. **Nessun verdetto del gate cambia: qui non è entrata nessuna regola.** Dettaglio completo con tutti
+i numeri: spec **«Novità v9.16»** (§1→§10-sexies). Misura nuova nel gate: **§5-terdecies**.
+**Toolkit 0.5.0 → 0.6.0 · 271 test verdi · ruff pulito.**
+
+### Le cose che sono entrate
+1. **Percentuale della build** (`snapshot.Progress`): pesi in **secondi misurati**, riga `[snapshot] stages:`
+   per rimisurarli, fasi di rete fuori dal denominatore quando non girano, `tick(0,0)` = «niente da
+   scaricare».
+2. **`claim` ≠ `presence`**: il tipo è la squadra con tutti disponibili, quindi `standing` senza sconto
+   infortuni (De Bruyne 1.00×0.53 non deve perdere il posto da Elmas 0.62×0.92). `presence` resta la domanda
+   d'asta e sta nel tooltip accanto.
+3. **Assegnazione globale** (`_matching`, Hungarian scritto in casa) con il prezzo di una casella =
+   distanza sulla griglia dei codici, **fascia pesata per linea** (`SIDE_WEIGHT` 8 su D/M, 3 su T/A). Più
+   `_settle` (riparazione **Pareto**, `CLAIM_MARGIN` 0.05, scambio e presa-con-rimpiazzo) e `_reshape` (il
+   cambio di linea è un **passo obbligato**). Somma dei claim su 340 undici: **2708 → 2932**.
+4. **Badge**: in una linea a quattro gli esterni sono `Ts`/`Td`; in una difesa a tre restano `Dc`.
+5. **Piede** (misurato) come spareggio dentro la linea; **corpo** (altezza/peso, dalla stessa pagina) come
+   lettura e **non** come criterio: la punta più usata è la più alta 48% delle volte.
+6. **Tabella su canvas**: pillole di ruolo, numeri verdi/rossi **rispetto alla media del foglio**, check per
+   calciatore che rifà gli undici senza di lui.
+7. **Tooltip che non escono più dallo schermo** (misurati e ribaltati) e **un SURPLUS vuoto che si spiega**
+   (`MIN_PV_PREV` 15, R0c non adottata su default: 253 righe su 598).
+
+### Le tre lezioni di metodo, ognuna pagata due volte
+- **La selezione non è della calzata.** Dare le maglie una casella per volta al candidato che calza meglio ha
+  messo in campo un uomo a claim 0.00 (Touré) e, per rimediare, due terzini nell'attacco dell'Atalanta: il
+  3-4-3 usciva **3-6-1 con un attaccante**. Il claim scegli chi gioca, la calzata solo dove.
+- **Un ordine di priorità fisso fra fascia e linea non esiste**: con la fascia per prima un mediano diventa
+  esterno («Lobotka esterno»), con la linea per prima il centravanti va sulla trequarti («Hojlund non può mai
+  stare sulla trequarti»). Sono la stessa tupla letta in due modi: la risposta riguarda **l'undici intero**,
+  ed è per questo che si assegna come un tutto.
+- **Tarare un numero alla volta non converge.** Ogni ritocco del prezzo della fascia sistemava un club e ne
+  rompeva un altro, finché il modello non ha avuto il peso **per linea**. Quando è ricapitato (attaccanti in
+  testa al pool: sistema il Barcellona, rompe l'Atalanta) ho **annullato e scritto**, invece di tarare di
+  nuovo.
+
+### Commit della sessione
+`c93a29f` il board risponde a CHI gioca e DOVE, e la tabella lo dice a colori · `a6c7896` chore: toolkit
+0.5.0 → 0.6.0 · `8d5a4a7` una maglia può cambiare mano per il solo CLAIM, e un tooltip resta nello schermo ·
+`0d89b63` il corpo di un centravanti: misurato, mostrato, non un criterio · `6e9a85a` in una difesa a quattro
+gli esterni sono TERZINI, e il badge lo dice · `660231d` il claim scegli CHI gioca, la calzata solo DOVE — e
+una casella costa secondo la sua LINEA · `971e6fa` un SURPLUS vuoto si spiega, e cosa dicono gli undici di un
+allenatore nuovo · più questo commit di chiusura. **Non pushati**: la repo è pubblica, il push è una scelta
+dell'utente.
+
+### I prossimi passi, in ordine di leva
+1. **Le due cose aperte sul board**, misurate e non tarate: separare il pool `T` da quello `A` quando il
+   modulo ha una linea di trequartisti (9 attacchi su 340 senza un attaccante, 3 centrali su una fascia), e
+   far pesare gli undici del **nuovo allenatore** — amichevoli comprese — nel prior del modulo e nel claim
+   (Atalanta/Sarri: `under_coach = 0`, 4-3-3 su 188 undici misurati, due amichevoli con Raspadori titolare).
+2. **Il valore di mercato è arrivato gratis**: `proposedMarketValue` è nella stessa pagina rosa del provider.
+   È il proxy che §7-quater aspettava, per GIOCATORE. Migrazione + parse + lo stesso sweep.
+3. **La modalità LIVE del motore**, invariata e sempre la più importante: per un'asta serve **una lista sola**.
+4. **Bloccato dal calendario (agosto)**: `"2026-27"` in `config.SEASONS`, listone/quotazioni, voti, Elo alla
+   data d'asta, `transfers` da rilanciare.
+5. **Il job settimanale va registrato sulla macchina** (verificato il 3/08: nessuno scheduled task presente).
+
+### Dove NON toccare senza rileggere (aggiunte di questa sessione)
+- **`_slot_price` è UNA funzione di costo e la leggono tutti** (assegnazione e riparazione). Se tornano a
+  esistere due metri diversi, tornano i due difetti opposti: il mediano esterno e il centravanti trequartista.
+- **`SIDE_WEIGHT` è per linea per una ragione**: a centrocampo la fascia è un ruolo, in attacco i tre si
+  scambiano. Un peso unico non esiste — è stato provato.
+- **`_reshape` sposta solo chi è obbligato** (fascia che non gioca, linea che non gioca), e **la difesa è
+  esente** dalla regola della fascia: i braccetti sono centrali per mestiere.
+- **`_settle` è Pareto**: una mossa non peggiora mai la calzata, e a calzata invariata chiede
+  `CLAIM_MARGIN`. Senza quel margine due mosse da +0.01 svuotano un attacco.
+- **Il corpo e il piede non selezionano nessuno.** Il piede è uno spareggio dentro la linea; l'altezza è una
+  lettura, e la misura che lo dice sta nel gate §5-terdecies.
+- **La media dei colori della tabella è del FOGLIO**, su tutti i giocatori di tutte le squadre: cambiarla in
+  «media del club» cambia il senso di ogni cella.

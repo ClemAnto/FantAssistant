@@ -238,6 +238,33 @@ the pitch caption (fixed by reserving `CAPTION_BAND_PX`, which also bought the p
 Guarded by `test_the_panel_spends_its_height_on_the_board_and_not_on_its_own_chrome`. Details: spec «Novità
 v9.15».
 
+## Drawing an eleven: the claim picks WHO, the fit only WHERE
+**Two questions, two numbers, and mixing them is the defect that came back three times.** `claim` (standing:
+who starts when everyone is fit) selects the men, line by line; the FIT decides only which place each of them
+takes, and it is solved as ONE assignment over the shape's own places (`gui._matching`, a Hungarian written in
+house) because a greedy pass has to fix a priority between the flank and the line and **both orders are wrong
+on the same eleven** - flank first draws a mediano as a winger, line first sends the centre-forward to the
+trequarti. The price of a place is the distance on the grid the twelve codes already live on
+(`REAL_ROLE_DEPTH` x 20, one full line = 7) plus the side weighted **per line** (`SIDE_WEIGHT`: 8 on D/M
+where the flank IS a role, 3 on T/A where the three forwards interchange). A single side weight does not
+exist - it was tried, and every value broke one case to fix another.
+Around it: `_settle` repairs only in PARETO terms (never a worse fit, and at equal fit only for
+`CLAIM_MARGIN` = 0.05 of claim, because two moves worth +0.01 emptied an attack), and `_reshape` changes a
+line only when FORCED - the defence exempt, since braccetti are centre backs by trade. And when tuning one
+number starts fixing one club while breaking another, the answer is a wrong MODEL, not a wrong value: revert
+and write it down (`docs/model/spec-euroleghe-ingest-v9.md` «Novità v9.16»).
+
+## An empty cell is a statement, and a football prior is a hypothesis
+Two habits this project keeps, both paid for:
+- **Say why a number is missing.** A blank SURPLUS is not a zero: below `MIN_PV_PREV` = 15 votes the core
+  refuses to predict, and on `default` there is no R0c to fall back on - 253 rows out of 598 on that sheet.
+  The manifest and the column's tooltip carry the reason, so nobody reads the gap as a valuation.
+- **Measure a football belief before coding it.** «Coaches field the tall physical striker» - measured over 92
+  club-seasons, the more used of two strikers is the taller one **48%** of the time, a coin, so height and
+  weight are shown and select nobody (gate §5-terdecies). The preferred foot survived the same test and IS
+  used, but only as a tie-break inside a line: DL 96% left-footed and DR 96% right, while wingers are
+  INVERTED (LW 86% right-footed) - which is why one rule for both lines would have been backwards.
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,

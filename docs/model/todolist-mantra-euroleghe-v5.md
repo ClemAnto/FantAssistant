@@ -1,5 +1,5 @@
 # Todolist — Allineamento Mantra & EuroLeghe (v5)
-**Progetto:** App EuroLega Fantacalcio · **Rif.:** modello-previsionale v3.8 · **Aggiornata: 29 luglio 2026 (notte)**
+**Progetto:** App EuroLega Fantacalcio · **Rif.:** modello-previsionale v3.8 · **Aggiornata: 4 agosto 2026**
 Convenzione: [ ] da fare · [x] fatto · [!] bloccato · *Sigle: fc_id = id fantacalcio.it · FM = fantamedia · T1/T2 = finestre di test 23/24->24/25 e 24/25->25/26 · 2.5 pieno = backtest motore completo con flag.*
 
 ## FASE 0 — Fattibilita' [x] (21/7)
@@ -324,3 +324,24 @@ Nota: **nessuna delle feature generate il 27/07 e' entrata nel motore**, e **nes
       presenza si perde. Cura = PK che porta la partita: migrazione + re-ingest.
 - [ ] Rilanciare **`transfers`** prima dell'asta: i cartellini dell'estate 2026 non ci sono, quindi il canale
       `fee` è cieco proprio sulla finestra che si sta prezzando.
+
+
+## Aperto dopo la sessione del 03-04/08/2026 (pannello Snapshot, spec «Novità v9.16»)
+- [ ] **Separare il pool `T` da quello `A`** quando il modulo ha una linea di trequartisti. Misurato su 340
+      undici: **9 attacchi senza un attaccante** (il Barcellona schiera Olmo e Lopez con una punta a 0.79
+      fuori) e **3 centrali su una fascia**. Causa: `line_key` manda `AM` nel pool dell'attacco, quindi per
+      claim un trequartista batte una punta. ⚠️ **Provato e annullato**: mettere gli attaccanti in testa al
+      pool sistema il Barcellona e **rompe l'Atalanta** (torna il 3-6-1). Serve la separazione, non un ordine.
+- [ ] **Gli undici del NUOVO allenatore devono pesare** — amichevoli comprese — sia nel prior del modulo sia
+      nel claim. Atalanta: Sarri dal 15/06/2026, `formation_typical_under_coach = 0` (il 3-4-3 al 93% è
+      dell'allenatore di prima), il suo modulo è misurabile dai nostri dati (`coaches` × `club_match_lineups`:
+      **4-3-3 in 162 undici su 188 = 86%**) e le sue **due amichevoli** con l'Atalanta sono in cache e parsate
+      (Raspadori titolare in entrambe). `SHAPE_TRUST_FLOOR` esiste già per non fidarsi del campione vecchio,
+      ma il campione dell'allenatore non entra da nessuna parte.
+- [ ] **`proposedMarketValue`**: sta nella stessa pagina rosa del provider da cui vengono i dodici codici, il
+      piede e ora altezza/peso. È il proxy che **§7-quater** aspettava per ri-testare l'investimento del club,
+      per GIOCATORE e non solo per chi è costato un cartellino. Migrazione + parse (offline) + lo stesso sweep.
+- [x] **FATTO** — percentuale della build, `claim` ≠ `presence`, assegnazione globale col prezzo per linea,
+      badge dei terzini, piede, corpo (misurato e non usato), tabella su canvas con pillole/colori/check,
+      tooltip nello schermo, SURPLUS vuoto spiegato. Dettaglio: spec «Novità v9.16», stato «Sessione
+      03-04/08/2026».
