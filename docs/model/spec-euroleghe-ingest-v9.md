@@ -494,6 +494,235 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.16 (3 agosto 2026 — la percentuale di una build, il piede, e la tabella che colora le celle)
+
+Nove richieste dell'utente in una sessione, tutte sul pannello Snapshot, piu' un difetto che una di
+esse ha fatto emergere (§5). **Nessun numero del motore cambia**: sono avanzamento, disegno, colore e una
+domanda in piu' che il board sa rispondere. 268 test (8 nuovi), ruff pulito.
+
+### 1. La build dello snapshot dice a che punto è (percentuale, non spinner)
+Prima la barra era **indeterminata** con il commento «una percentuale sarebbe un numero inventato». Ora
+`snapshot.Progress` la produce, e la differenza è che i pesi sono **misurati**: `STAGES` porta i **secondi**
+di ogni fase, non delle quote, e la percentuale è la quota dei secondi già spesi. Misura del 03/08/2026
+(euro/mantra 2026-27, 910 righe, 34 club): `squads` 14s · `prepare` 5s · **`predict` 37s** · `form` 4.4s ·
+`layers` 4.3s · resto <1s, totale **65s** — dalla riga `[snapshot] stages:` che ogni run adesso stampa, che
+è anche il modo di **rimisurarli**. Le due fasi di rete vengono dai timestamp della cache di una refresh
+vera: 35 pagine club in **95s** più un top-up di 71 giocatori in **197s** = `roles` 293s (l'80% di una build
+completa è l'osservazione dei ruoli granulari), `refresh` 8s.
+Tre proprietà che i secondi comprano e le quote fisse no:
+- una build **senza refresh** non si ferma al 20%: le due fasi di rete escono dal denominatore;
+- `tick(0, 0)` = «niente da scaricare» (cache del giorno già piena) **toglie la fase** invece di accreditare
+  alla cache un lavoro che non ha fatto;
+- monotona per costruzione, e dentro `roles` interpola su un totale **contato** (`4/34 clubs`), non su un timer.
+Il canale è una riga di stdout — `[snapshot] 46% · descriptive layers` — quindi CLI, log Operations e barra
+del tab leggono lo stesso segnale; il pannello la parsa (`SnapshotView.PERCENT_LINE`) e passa la barra in
+modalità determinata. Quello che la percentuale **non** è: una stima dei secondi rimasti.
+
+### 2. Il campetto: chi sta a destra lo decide lo SLOT, non il suo codice
+Domanda dell'utente: «perché Hojlund (Pc) a destra e Neres (Ad) al centro?». Difetto reale, e la catena è
+istruttiva: `slot_cost` aveva già assegnato le tre maglie leggendo **tutti** i codici di ciascuno (Politano
+`RW;MR` → destra, **Hojlund `ST` → centro**, Neres `RW;LW` → sinistra), poi il disegno ricalcolava il lato
+dal **codice primario** — e Politano e Neres sono entrambi `RW`, quindi si prendevano le due fasce e il
+centravanti finiva sull'ala sinistra. La risposta della forma era già calcolata e **buttata**.
+Ora `across_bucket` legge lo slot vinto (`_slot_side`, scritto da `eleven`) e `_placed`/`_lane` ordinano su
+quello; dove nessuno slot è stato assegnato — undici **dichiarato** dalle probabili, undici **schierato** —
+resta la fascia del giocatore, come prima. Misurato sul foglio euro/mantra del 03/08: l'attacco del Napoli
+passa da `Politano · Neres · Hojlund` a **`Politano · Hojlund · Neres`**, e la difesa non si muove.
+
+### 3. Il PIEDE preferito: c'era già nel dato, non lo leggeva nessuno
+`player_roles.foot` e la colonna `desc_foot` esistono dalla v9.7 (il provider le dà nella stessa richiesta
+per club dei dodici codici) e **nessuna riga di pannello le usava**. Prima di usarle, misurato sul DB
+(`desc_foot` contro il lato dalla heatmap; 2025-26, ripetuto su 2024-25 con gli stessi segni):
+
+| dove | n | esito |
+|---|---|---|
+| `DL` | 103 | **96% sinistro** |
+| `DR` | 126 | **96% destro** |
+| `MR` / `ML` | 54 / 40 | 98% destro / 68% sinistro |
+| `LW` | 95 | **86% DESTRO** (ala invertita) |
+| `RW` | 90 | **69% SINISTRO** (ala invertita) |
+| `DC` senza codice di fascia, mancini | 29 | lato medio **−0.309**, **93%** a sinistra del centro |
+| `DC` senza codice di fascia, destri | 80 | lato medio +0.167, 69% a destra |
+
+Quindi: fasce di **difesa e centrocampo sul proprio piede**, **ali invertite**, e fra due centrali il mancino
+sta a sinistra — che è esattamente il caso dell'utente («nelle difese spesso si mettono difensori non tutti
+con lo stesso piede») e l'unico in cui **nessun codice dice niente**. `FOOT_SIDE` + `foot_side(row, lane)`
+codificano la tabella (lane `A` = invertita) e servono come **spareggio** dentro la linea, dopo lo slot e
+dopo il lato misurato: decidono chi dei due sta da che parte, **mai chi gioca** — la maglia resta di chi ha
+le presenze. Il piede è anche scritto sul tooltip della targhetta.
+⚠️ Fatto **descrittivo**: non entra in nessuna colonna `engine_*`. Se un giorno il piede dovesse pesare su
+una previsione, serve un giro di gate pre-registrato come per qualunque altra ipotesi.
+
+### 4. La tabella rosa diventa una CANVAS: ruoli e segni colorati
+Due richieste («colora i ruoli classic e mantra», «evidenzia i valori positivi e negativi») e un vincolo
+verificato empiricamente: in **Tk 8.6 un Treeview colora la RIGA e niente di più fine** — `tag cell` non
+esiste (`bad command "cell": must be add, bind, configure, has, names, or remove`). Quindi la tabella è ora
+due canvas (header + corpo) che scorrono insieme, con un `kind` per colonna:
+- `pill_classic` / `pill_mantra`: il ruolo come **pillola** nella stessa palette dei badge sul campetto
+  (`CLASSIC_COLOUR`, `MANTRA_COLOUR`), così tabella e board nominano un ruolo nella stessa lingua;
+- `num`: ogni numero **verde sopra la media del FOGLIO, rosso sotto** — e la media è su **tutti i
+  calciatori di tutte le squadre** che il foglio porta, non sul club a schermo (essere il migliore di una
+  rosa scarsa non è essere buono). Precisazione dell'utente, e cambia il senso: non è il segno del numero,
+  è il confronto con la popolazione, che è ciò che rende leggibile una colonna (6.3 di fantamedia prevista
+  non dice niente finché non sai che la media del foglio è 6.1). Le celle vuote **non entrano** nella media
+  (un numero che manca non è uno zero), e `inj` è **invertito** (`HIGHER_IS_WORSE`): saltare più stagione
+  della media è la cattiva notizia. Un foglio ristretto a un club è la propria popolazione — c'è solo lui
+  nel file — e il tooltip dell'intestazione lo dice invece di far finta che la media sia di una lega;
+- `real`: il testo nel colore della sua LINEA (le quattro famiglie del listone);
+- `trend`: la striscia delle ultime dieci resta la stessa `PhotoImage` (`_sparkline`), disegnata sulla
+  canvas — la logica dei pallini è misurata e testata, riscriverla sarebbe una seconda implementazione.
+Quello che un Treeview dava gratis è ora scritto: segno di ordinamento sull'header, righe alternate,
+tooltip per colonna e per cella (flags e trend), click sulla striscia, scrollbar orizzontale mostrata solo
+quando le colonne non entrano (`xview` della canvas, non la somma delle larghezze).
+
+### 5. Lo schieramento TIPO non si sceglie con lo sconto infortuni (`claim` ≠ `presence`)
+Domanda dell'utente: «tra Elmas, De Bruyne e Anguissa, Elmas farebbe sicuramente la panchina». Aveva
+ragione, e il difetto era una **contraddizione con la definizione stessa** del tab: il docstring diceva
+«the side he fields when everyone is available: injuries and suspensions are deliberately IGNORED» ma
+l'ordinamento usava `presence` = `standing × availability`, cioè lo sconto infortuni **dentro** il criterio.
+Misurato sul Napoli (foglio euro/classic del 03/08/2026):
+
+| | standing | availability | presence |
+|---|---|---|---|
+| McTominay | 1.00 | 0.88 | 0.88 |
+| **De Bruyne** | **1.00** | **0.53** | **0.53** ← fuori dagli undici |
+| Lobotka | 1.00 | 0.81 | 0.82 |
+| Zambo Anguissa | 0.87 | 0.70 | 0.61 |
+| **Elmas** | **0.62** | 0.92 | **0.57** ← dentro |
+
+Un centrocampo McTominay-Lobotka-Elmas non è la squadra che il Napoli schiera quando ci sono tutti: è la
+squadra pesata per chi tende a esserci, che è **un'altra frase** e che il foglio scrive già in
+`engine_pv_pred` e nella colonna `inj`. Nuovo metodo **`claim(row, horizon)`** = `standing` per la
+stagione (chi gioca quando è disponibile), `presence('recent')` per la prossima giornata — dove nulla
+cambia, perché là infortunati e squalificati sono **esclusi a monte** e la probabilità degli editori vince.
+Ordinamento degli undici, targhette, rivali, tooltip, scelta della forma e top player ora leggono `claim`;
+la didascalia dice **«XI by % started when available»** e il tooltip della targhetta porta *entrambi* i
+numeri («100% when available» + «expected to be there 53% of the season → 53% delle giornate»), perché la
+disponibilità resta un fatto d'asta e non deve sparire. Esito: **De Bruyne dentro, Elmas fuori** (primo
+alternativo sulle targhette insieme ad Anguissa).
+
+### 6. Il check per calciatore: togli la spunta e gli undici si rifanno senza di lui
+Richiesta dell'utente. Prima colonna della tabella, `☑`/`☐` cliccabile: la spunta è un **input**, non una
+lettura. Toglierla ricostruisce **tutti** gli undici senza quel giocatore (tipo, prossima giornata,
+dichiarato e schierato: l'operatore ha detto «disegnalo senza di lui»), **forma compresa** — la forma è
+scelta valutando l'undici che riesce a schierare, quindi una rosa senza il suo centravanti può preferirne
+un'altra, che è precisamente il senso della domanda. Chiave `fc_id`, quindi la scelta sopravvive
+all'ordinamento e al cambio di club, e si azzera quando si carica un altro foglio. Il giocatore **resta in
+tabella** e la didascalia del campetto conta quanti sono esclusi (`· without 2 unticked`): un undici
+disegnato senza qualcuno deve dirlo. Non tocca né il foglio né un numero del motore.
+
+### 7. Una linea può prendere il titolare di un'altra, se quel buco si richiude meglio (`_settle`)
+Aspettativa dell'utente sul 4-4-2 del Napoli: «se deseleziono Gutierrez, Spinazzola va al suo posto e
+Olivera gioca terzino». Non succedeva: le linee sono servite in ordine (P, D, M, A) e ognuna usa **i propri
+uomini**, prendendo da un'altra solo quando li ha finiti — quindi il centrocampo sinistro andava a
+**Mazzocchi (`MR;DR`, claim 0.13)** mentre Spinazzola (`ML;DL`, 0.78) restava terzino e Olivera (`DL;DC`,
+0.52) stava fuori. Peggiore su **entrambi** gli assi.
+Nuovo passaggio dopo la greedy: a ogni coppia di maglie si offre una mossa — dai alla maglia A l'uomo della
+maglia B, e richiudi B con chi non è negli undici — accettata solo se è **PARETO**, non un compromesso:
+1. la maglia che si aggiusta prende un uomo che la calza **strettamente meglio**;
+2. la maglia liberata si richiude **non peggio** di com'era;
+3. e gli undici **non perdono claim**.
+Due lezioni misurate mentre lo scrivevo, entrambe registrate perché sono errori che il disegno mostra e il
+codice no. **(a)** Una versione che pesava calzata e claim su una scala sola buttava fuori **Di Lorenzo**
+(terzino destro al 100%) per guadagnare un passo di calzata altrove: non è un disegno migliore, è un altro.
+**(b)** Il confronto **fra linee** va fatto con il **gap di linea per primo**, al contrario di dentro una
+linea: `DR` copre la fascia destra, quindi la tupla di `slot_cost` leggeva `(0, 0, 13)` contro `(1, 2, 2)` di
+un'ala e l'attacco dell'Atalanta si vedeva offrire **Scalvini, un difensore centrale**. Un centrale non è
+un'ala, qualunque fascia sappia coprire (`_fit_across`). Ed è anche la ragione per cui si prende la mossa
+**migliore** e non la prima trovata: il centrocampo sinistro del Napoli lo aggiusta anche Buongiorno
+(`DC;DL`, sette passi di linea), e la prima trovata metteva lui.
+Raggio d'azione **misurato** su 34 club × 3 moduli, con nessuno deselezionato: **8 undici su 102 cambiano**,
+tutti nello stesso modo — Barcellona (Eric Garcia sale a destra, Koundé terzino: claim 9.41→9.43), Dortmund
+(Sabitzer sale, Can in mezzo: 8.26→8.52), Chelsea (Reece James sale a destra, Fofana nei tre: 7.25→7.87).
+Napoli con Gutierrez dentro **non si muove**; con lui fuori dà la catena che l'utente si aspettava.
+
+### 8. Una linea raggiunge la fascia solo se ha un uomo che la gioca
+Osservazione dell'utente sull'undici **dichiarato** (probabili, 3-4-2-1) del Napoli senza Gutierrez:
+«risultano 4 centrocampisti centrali e Lobotka sembra giocare esterno — in un centrocampo a 4 due sono
+sempre esterni, e devono essere esterni di ruolo». Il modulo dice che un quattro è due esterni e due
+centrali, ma **la linea arrivava senza esterni** (`MC`, `MC;DM`, `MC;AM`, `MC;DM`) e la griglia veniva
+stesa alle fasce comunque: Lobotka finiva sulla linea laterale. Gli esterni non si possono **inventare** —
+in un undici dichiarato i nomi sono degli editori — quindi quello che il disegno deve fare è non
+**pretendere** una fascia che nessuno gioca. Tre casi, un margine per bordo:
+- **due o più uomini di fascia** (`sides_of` ha `R` o `L`): le linee laterali, come prima;
+- **uno solo**: linea **sbilanciata** — lui prende la SUA fascia e gli altri tengono il passo del blocco
+  (Aston Villa: Bailey a 0.11, gli altri tre a 0.31/0.52/0.72), che dice *sbilanciata* invece di dire
+  *esterno*;
+- **nessuno**: **blocco centrale**, e con un tetto nuovo (`CENTRAL_MARGIN_MIN` = 0.28) perché quattro
+  centrali col passo di prima occupavano 0.17-0.83, cioè due terzi del campo, che è una linea con le ali.
+  Napoli: il quattro ora sta a 0.28-0.72, nessuno sulla fascia. Una linea da tre o meno non si muove -
+  ed è la maggioranza (`("D", 3)`, `("M", 3)`, i trequartisti).
+Raggio d'azione **misurato**: su **703 linee disegnate** (34 club × 5 moduli), **48 non arrivano più alla
+linea laterale** — tutte centrocampi con zero o un uomo di fascia, cioè tutte e sole le ali finte.
+
+### 9. L'undici DICHIARATO va assegnato al modulo, e il modulo si trasforma se non lo regge
+Il blocco centrale (§8) non bastava: la regola dell'utente è più forte — «4 centrocampisti centrali non
+esistono, massimo 3; ai lati devono esserci due esterni (ali, terzini, esterni), mai centrali» — con il
+rimedio già indicato: «un 3-4-3 con quattro CC si deve trasformare: i due attaccanti esterni arretrano a
+coprire il centrocampo, e i quattro centrocampisti si dislocano un po' sulla tre quarti e sulla mediana».
+Il difetto era **a monte del disegno**: l'undici dichiarato veniva solo **raggruppato per ruolo** proprio
+(`lane_of`), non **assegnato** ai posti del modulo. Con i nomi degli editori — Politano `RW;MR` e Santos
+`LW` in rosa — il quattro **aveva** i suoi esterni: venivano disegnati come tridente mentre quattro
+centrali si dividevano la linea.
+Tre pezzi nuovi:
+- **`_assign`**: gli undici GIÀ SCELTI vengono distribuiti sui posti del modulo, usando le **linee proprie**
+  del modulo (`shape_lanes`: 3-4-2-1 = D3 M4 T2 A1, non il sei collassato di `lines()`). Con tanti posti
+  quanti uomini non può escludere né aggiungere nessuno: decide solo la disposizione — la differenza
+  rispetto al «riempire un modulo scegliendo per linea», che una volta mise in campo una riserva al 35% con
+  un terzino al 100% fuori.
+- **`_matching`**: e la disposizione si risolve **come un tutto** (Hungarian O(n³), scritto in casa, zero
+  dipendenze), non una maglia per volta. Questa è la lezione della giornata, sbagliata **tre volte** prima
+  di capirla: una passata greedy deve fissare un ordine di priorità fra la FASCIA e la LINEA, e **entrambi
+  gli ordini sono sbagliati sullo stesso undici**.
+  - fascia per prima → la sinistra di un centrocampo a quattro va a un centrale invece che a un'ala
+    («Lobotka sembra giocare esterno»);
+  - linea per prima → il posto del trequartista va al **centravanti** invece che all'ala che ci gioca
+    («Hojlund non può mai stare sulla trequarti»), e l'ala resta punta unica, che non è nemmeno lei.
+  Sono la stessa tupla letta in due modi — `(0, 3, 0)` contro `(4, 0, 0)` — e quello che le separa è che la
+  risposta giusta riguarda **l'undici intero**, non una maglia: Santos trequartista + Hojlund punta costa
+  **7**, il contrario **11**. Prezzo di una casella = `SIDE_PRICE[fascia sbagliata] + allows + gap`, dove il
+  gap è la distanza di linea sulla griglia `LANE_DEPTH`×20 (una linea piena = 7) e i tre gradini di fascia
+  hanno **ognuno il suo prezzo, ognuno deciso da un caso**:
+
+  | fascia sbagliata | prezzo | il caso che lo fissa |
+  |---|---|---|
+  | 1 · l'altra fascia (un terzino destro a sinistra) | **2** | meno di una linea: si invertono i terzini ogni settimana |
+  | 2 · un uomo di fascia in mezzo (un'ala trequartista) | **5** | tiene il **centravanti** fuori dalla trequarti (7 contro 11) |
+  | 3 · un centrale su una fascia | **8** | resta più economico che fare un mediano difensore centrale, altrimenti un 3-4-3 si disegna con due mediani nella difesa a tre e i terzini larghi a centrocampo (16 contro 28) |
+
+- **`_reshape`**: e il cambio di linea resta **un passo obbligato**, come chiesto. Chi resta su una fascia
+  senza giocarci, o in una linea in cui non gioca affatto, si sposta nella linea più vicina alla sua
+  profondità e la linea che lascia si disegna con un uomo in meno. La difesa è **esente** dalla regola
+  della fascia (i braccetti sono centrali per mestiere), e la scelta fra mediana e trequarti guarda il
+  codice **più avanzato** (i due `MC;AM` salgono, i due `MC;DM` restano): sul più vicino pareggiavano tutti
+  su `MC` e il quattro diventava un sei piatto.
+
+Esito sull'undici dichiarato del Napoli (3-4-2-1, il modulo degli editori stessi): **Di Lorenzo · Rrahmani ·
+Olivera** dietro; **Politano `Ed` · McTominay · Lobotka · Gutierrez `Es`** nel quattro (un'ala e un terzino
+sulle fasce, come chiesto); **Elmas + Santos** sulla trequarti; **Hojlund** punta. Chiedendo un 3-4-3 allo
+stesso undici si ottiene un 3-4-3 vero (le due ali larghe davanti) e non una trasformazione forzata: il
+cambio di linea avviene **solo** quando il modulo chiede un ruolo che l'undici non ha.
+
+Verifica **su tutto il perimetro**: 34 club × 5 moduli × 2 modalità = **340 undici**, e adesso **0 centrali
+su una fascia, 0 uomini a due linee da casa, 0 portieri fuori dai pali, 0 undici incompleti**. Le 12 punte
+disegnate a centrocampo hanno tutte un codice di centrocampo loro (Havertz `ST;MC`, Pepe `ST;MR;RW`).
+Trovato per strada e chiuso: con **una sola** probabilità registrata (Eintracht) il board disegnava **un
+uomo** su un campo vuoto — l'undici dichiarato ora richiede almeno 11 nomi, sotto quella soglia si torna
+alle presenze misurate.
+
+### 10. I test nuovi
+`test_the_shape_decides_where_a_man_is_drawn_and_not_his_own_code` (il caso Napoli, per nome),
+`test_the_preferred_foot_separates_two_centre_backs_and_is_inverted_in_attack`,
+`test_the_build_percentage_is_measured_monotone_and_drops_what_it_skips`,
+`test_the_table_colours_a_role_and_a_number_against_the_sheets_mean` (legge il `fill` degli item della
+canvas, media iniettata, e verifica l'inversione di `inj`),
+`test_unticking_a_player_rebuilds_the_eleven_without_him`,
+`test_a_line_may_take_another_lines_starter_if_the_hole_closes_better` (il caso Gutierrez, per nome),
+`test_a_line_only_reaches_the_touchline_where_it_has_a_man_who_plays_there` (i tre casi: due esterni, uno,
+nessuno), `test_a_declared_eleven_is_assigned_to_the_shape_and_never_moves_a_man_for_nothing` (le tre regole insieme:
+esterni sulle fasce del quattro, la punta punta e l'ala mai punta unica, e nessun cambio di linea non
+obbligato). **268 test verdi.**
+
 ## Novità v9.15 (29 luglio 2026, notte — il pannello: l'altezza si spende sul campetto, non sul suo bordo)
 
 Richiesta dell'utente: «l'altezza del campetto è troppo sacrificata, riduci i tab e l'header, più spazio per

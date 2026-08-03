@@ -11,10 +11,12 @@ from __future__ import annotations
 import csv
 import io
 import json
+import re
 
 from euroleghe_ingest.config import Config
 from euroleghe_ingest.context import Context
 from euroleghe_ingest.db.database import init_db
+from euroleghe_ingest.gui import _number
 from euroleghe_ingest.modules import snapshot
 
 
@@ -677,3 +679,347 @@ def test_the_trend_dot_is_full_only_for_a_full_match_and_carries_the_bonus():
     assert goal.pixels[(5, 2)] == assist.pixels[(6, 1)] == "#000000"
     assert len(goal.pixels) > len(assist.pixels)
     assert max(x for x, _y in goal.pixels) == max(x for x, _y in assist.pixels) == 7
+
+
+def test_the_shape_decides_where_a_man_is_drawn_and_not_his_own_code(monkeypatch):
+    """A front three is right, centre, left - and the shirts were handed out reading every code each man
+    has (`slot_cost`). Re-deciding the side at drawing time from the PRIMARY code alone threw that away:
+    Napoli's attack drew Politano - Neres - Hojlund because Politano and Neres are both 'RW', so the two
+    wingers took the outer slots between them and the CENTRE-FORWARD was pushed onto the left wing, with
+    the shape's own answer already computed and discarded."""
+    rows = [
+        {"name": "Keeper", "desc_real_roles": "GK", "role_classic": "P", "share": 0.9},
+        {"name": "Back R", "desc_real_roles": "DR", "role_classic": "D", "share": 0.8},
+        {"name": "Back C1", "desc_real_roles": "DC", "role_classic": "D", "share": 0.8},
+        {"name": "Back C2", "desc_real_roles": "DC", "role_classic": "D", "share": 0.8},
+        {"name": "Back L", "desc_real_roles": "DL", "role_classic": "D", "share": 0.8},
+        {"name": "Mid 1", "desc_real_roles": "MC", "role_classic": "C", "share": 0.8},
+        {"name": "Mid 2", "desc_real_roles": "MC", "role_classic": "C", "share": 0.7},
+        {"name": "Mid 3", "desc_real_roles": "DM", "role_classic": "C", "share": 0.6},
+        # the Napoli case: two men whose primary code is the RIGHT wing, one centre-forward
+        {"name": "Politano", "desc_real_roles": "RW;MR", "role_classic": "C", "share": 0.68,
+         "desc_side_measured": "0.72"},
+        {"name": "Neres", "desc_real_roles": "RW;LW", "role_classic": "C", "share": 0.35,
+         "desc_side_measured": "0.32"},
+        {"name": "Hojlund", "desc_real_roles": "ST", "role_classic": "A", "share": 0.78,
+         "desc_side_measured": "0.006"},
+    ]
+    view = _view_of(rows)
+    view._calendar = {}
+    from euroleghe_ingest.gui import SnapshotView as View
+
+    monkeypatch.setattr(View, "squad", lambda _self, _club: rows)
+    monkeypatch.setattr(View, "presence", lambda _self, row, _horizon: row.get("share", 0.0))
+    monkeypatch.setattr(View, "claim",
+                        lambda _self, row, _horizon="season": row.get("share", 0.0))
+    monkeypatch.setattr(View, "titolarita", lambda _self, row, _horizon: (0.0, row.get("share", 0.0)))
+    eleven = view.eleven("Test", "4-3-3", "typical")
+    lanes, _geometry, _drawn = view.lanes_for(eleven)
+    placed = view._placed(view._lane(lanes["A"], "A"), "A")
+    drawn = [row.get("name") for _x, row, _rivals in placed]
+    assert drawn == ["Politano", "Hojlund", "Neres"], (
+        "the centre-forward stands in the middle: the slots are R, C, L and he won the C")
+    # ...and the drawing is mirrored, so the man in the L slot is on the SCREEN's right
+    assert placed[0][0] < placed[1][0] < placed[2][0]
+    assert view._slot_side[id(rows[-1])] == "C"
+
+
+def test_the_preferred_foot_separates_two_centre_backs_and_is_inverted_in_attack(monkeypatch):
+    """MEASURED, not assumed (2025-26, repeated on 2024-25): a full back plays his own foot (DL 96%
+    left-footed, DR 96% right), a winger plays INVERTED (LW 86% right-footed, RW 69% left), and a nominal
+    centre back with no flank in his code still leans - left-footed DCs measured -0.309 mean side and 93%
+    of them left of centre. So the foot is the tie-break for men no code separates, and applying the
+    defence's rule to a wing would be backwards more often than not."""
+    from euroleghe_ingest.gui import SnapshotView as View
+
+    left_footed, right_footed = {"desc_foot": "Left"}, {"desc_foot": "Right"}
+    assert View.foot_side(left_footed, "D") < 0 < View.foot_side(right_footed, "D")
+    assert View.foot_side(left_footed, "A") > 0 > View.foot_side(right_footed, "A")
+    assert View.foot_side({"desc_foot": "Both"}, "D") == 0.0
+    assert View.foot_side({}, "M") == 0.0, "no observation is not a claim about his side"
+
+    # two centre backs of one pair: the left-footed one is drawn to the team's LEFT, which is the screen's
+    # right - and neither code says a word about the flank
+    view = View.__new__(View)
+    view.players, view.clubs, view._slot_side, view._calendar = [], {}, {}, {}
+    monkeypatch.setattr(View, "presence", lambda _self, _row, _horizon: 0.5)
+    monkeypatch.setattr(View, "claim", lambda _self, _row, _horizon="season": 0.5)
+    pair = [({"name": "Lefty", "desc_real_roles": "DC", "desc_foot": "Left"}, []),
+            ({"name": "Righty", "desc_real_roles": "DC", "desc_foot": "Right"}, [])]
+    placed = view._placed(view._lane(pair, "D"), "D")
+    assert [row["name"] for _x, row, _rivals in placed] == ["Righty", "Lefty"]
+
+
+_PERCENT = re.compile(r"^\[snapshot\]\s+(\d{1,3})%")
+
+
+def test_the_build_percentage_is_measured_monotone_and_drops_what_it_skips(capsys):
+    """The panel shows a number, so the number has to mean something: the stages carry MEASURED seconds
+    and the percentage is the share of them that is behind us. A build with no refresh must not stop at
+    20% - the two network stages leave the denominator - and a stage that finds nothing to fetch leaves
+    it too, rather than crediting the cache with work it did not do."""
+    from euroleghe_ingest.modules.snapshot import STAGES, Progress
+
+    keys = [key for key, _label, _seconds in STAGES]
+    progress = Progress()
+    seen = []
+    for key in keys:
+        progress.stage(key)
+    progress.finish()
+    for line in capsys.readouterr().out.splitlines():
+        if (found := _PERCENT.match(line)):
+            seen.append(int(found.group(1)))
+    assert seen == sorted(seen), f"the percentage must never go backwards: {seen}"
+    assert seen[0] == 0 and seen[-1] == 100
+
+    # no refresh: the two network stages are not in the denominator, so the offline ones fill the bar
+    offline = Progress(skip=("refresh", "roles"))
+    for key in keys:
+        offline.stage(key)
+    offline.finish()
+    reached = [int(found.group(1)) for found in
+               (_PERCENT.match(line) for line in capsys.readouterr().out.splitlines()) if found]
+    assert max(reached) == 100
+    assert len(reached) == len(keys) - 2 + 1, "a skipped stage announces nothing"
+
+    # a warm cache: `tick(0, 0)` means "nothing to fetch", and the stage leaves the denominator
+    warm = Progress()
+    warm.stage("refresh")
+    warm.stage("roles")
+    before = sum(warm.cost.values())
+    warm.tick(0, 0)
+    assert "roles" not in warm.cost and sum(warm.cost.values()) < before
+    assert "nothing to fetch" in capsys.readouterr().out
+
+
+def test_the_table_colours_a_role_and_a_number_against_the_sheets_mean(tmp_path):
+    """The squad table is a CANVAS because a Treeview in Tk 8.6 colours a row and nothing smaller (there is
+    no `tag cell`), and its cells carry two things plain text cannot say: a role belongs to its line's
+    colour - the same palette the pitch badges use, so board and table speak one language - and a number
+    is read against the SHEET'S MEAN, over every player of every club (green above it, red below), with
+    `inj` inverted because missing more of a season than the average man is the bad news."""
+    import tkinter as tk
+
+    from euroleghe_ingest.gui import SnapshotView as View
+
+    try:
+        root = tk.Tk()
+    except tk.TclError:
+        import pytest
+        pytest.skip("no display available")
+    root.withdraw()
+    try:
+        from euroleghe_ingest import ui_theme as theme
+
+        view = View.__new__(View)
+        view.table_body = tk.Canvas(root)
+        view.table_head = tk.Canvas(root)
+        view._sparks = []
+        # the reference is a measurement over the whole sheet; here it is given, so what is under test is
+        # the READING of it and not the arithmetic of a mean
+        view._means = {"surplus": 5.0, "inj": 0.20}
+        rows = [{"name": "Above", "role_classic": "A", "roles_mantra": "pc;a",
+                 "engine_surplus": "12.4", "desc_real_roles": "ST"},
+                {"name": "Below", "role_classic": "D", "roles_mantra": "dc",
+                 "engine_surplus": "3.1", "desc_real_roles": "DC"}]
+        for index, row in enumerate(rows):
+            view._draw_cell("surplus", "num", row["engine_surplus"], 0, index * View.ROW_H,
+                            44, "e", row, _number(row["engine_surplus"]))
+            view._draw_cell("role", "pill_classic", row["role_classic"], 50, index * View.ROW_H,
+                            30, "center", row)
+        # ...and the column where a HIGH number is the bad news reads the other way round
+        view._draw_cell("inj", "num", "35%", 100, 0, 38, "e", rows[0], 0.35)
+        view._draw_cell("inj", "num", "5%", 100, View.ROW_H, 38, "e", rows[1], 0.05)
+        by_text = {view.table_body.itemcget(item, "text"): view.table_body.itemcget(item, "fill")
+                   for item in view.table_body.find_all()
+                   if view.table_body.type(item) == "text"}
+        assert by_text["12.4"] == theme.color("ok"), "above the sheet's mean reads positive"
+        assert by_text["3.1"] == theme.color("error"), "below it, negative - even though it is > 0"
+        assert by_text["35%"] == theme.color("error"), "missing more than the average man is bad news"
+        assert by_text["5%"] == theme.color("ok")
+        # the pill is a filled shape in the LINE's colour, not text in the theme's foreground
+        pills = [item for item in view.table_body.find_all()
+                 if view.table_body.type(item) in ("polygon", "rectangle")]
+        assert len(pills) == 2
+        fills = {view.table_body.itemcget(item, "fill") for item in pills}
+        assert fills == {View.CLASSIC_COLOUR["A"][0], View.CLASSIC_COLOUR["D"][0]}
+    finally:
+        root.destroy()
+
+
+def test_unticking_a_player_rebuilds_the_eleven_without_him(monkeypatch):
+    """The tick is an INPUT: clear it and the board answers the question again without that man - which is
+    what an operator asks about a squad he does not own yet, and about a man who is out for two months. It
+    must not touch the sheet, and the pitch has to say how many are missing."""
+    from euroleghe_ingest.gui import SnapshotView as View
+
+    rows = [{"fc_id": str(index), "name": name, "desc_real_roles": codes, "role_classic": role,
+             "share": share}
+            for index, (name, codes, role, share) in enumerate((
+                ("Keeper", "GK", "P", 0.9), ("Back R", "DR", "D", 0.8), ("Back C1", "DC", "D", 0.8),
+                ("Back C2", "DC", "D", 0.8), ("Back L", "DL", "D", 0.8), ("Mid 1", "MC", "C", 0.9),
+                ("Mid 2", "MC", "C", 0.8), ("Mid 3", "DM", "C", 0.7), ("Wing R", "RW", "C", 0.7),
+                ("Wing L", "LW", "C", 0.6), ("Nine", "ST", "A", 0.9), ("Deputy nine", "ST", "A", 0.4)))]
+    view = _view_of(rows)
+    view._calendar, view._slot_side, view._excluded = {}, {}, set()
+    monkeypatch.setattr(View, "squad", lambda _self, _club: rows)
+    monkeypatch.setattr(View, "presence", lambda _self, row, _horizon: row.get("share", 0.0))
+    monkeypatch.setattr(View, "claim", lambda _self, row, _horizon="season": row.get("share", 0.0))
+    monkeypatch.setattr(View, "titolarita", lambda _self, row, _horizon: (0.0, row.get("share", 0.0)))
+
+    picked = {starter["name"] for _role, starter, _rivals in view.eleven("Test", "4-3-3", "typical")}
+    assert "Nine" in picked and "Deputy nine" not in picked
+
+    view._excluded.add("10")            # the centre-forward's fc_id
+    again = {starter["name"] for _role, starter, _rivals in view.eleven("Test", "4-3-3", "typical")}
+    assert "Nine" not in again, "unticked means the elevens are rebuilt without him"
+    assert "Deputy nine" in again, "and his deputy takes the shirt"
+    assert len(again) == 11
+    assert view.is_excluded(rows[10]) and not view.is_excluded(rows[11])
+    # the sheet is untouched: the man is still in the table, which is what the tick is drawn on
+    assert rows[10] in view.rows
+
+
+def test_a_line_may_take_another_lines_starter_if_the_hole_closes_better(monkeypatch):
+    """The user's case, by name. The lines are served in order and each used its OWN men first, so
+    unticking Gutierrez put a right back (`MR;DR`, 13%) on the left of Napoli's midfield while Spinazzola -
+    whose first code IS `ML` - stayed at left back and Olivera, a left back, sat out. The expectation is a
+    CHAIN: Spinazzola moves up, Olivera takes the shirt he leaves.
+
+    Accepted only when it improves BOTH axes (`_better_pair`): the fixed shirt fits strictly better, the
+    vacated one closes no worse, and the eleven loses no claim. And the LINE comes first in that
+    comparison, unlike inside a line - `DR` covers the right flank, but a centre back is not a right
+    winger, and reading the flank first offered Atalanta's front three a defender."""
+    rows = [{"fc_id": str(index), "name": name, "desc_real_roles": codes, "role_classic": role,
+             "share": share}
+            for index, (name, codes, role, share) in enumerate((
+                ("Keeper", "GK", "P", 0.9),
+                ("Right back", "DR;DC", "D", 1.0), ("Centre 1", "DC", "D", 1.0),
+                ("Centre 2", "DC;DL", "D", 0.97), ("Spinazzola", "ML;DL", "D", 0.78),
+                ("Olivera", "DL;DC", "D", 0.52), ("Mazzocchi", "MR;DR", "C", 0.13),
+                ("Right wing", "RW;MR", "C", 0.88), ("Mid 1", "MC;AM", "C", 1.0),
+                ("Mid 2", "MC;DM", "C", 1.0), ("Gutierrez", "DL;ML", "D", 0.59),
+                ("Nine", "ST", "A", 1.0), ("Ten", "AM;MC", "A", 1.0)))]
+    view = _view_of(rows)
+    view._calendar, view._slot_side, view._excluded = {}, {}, set()
+    from euroleghe_ingest.gui import SnapshotView as View
+
+    monkeypatch.setattr(View, "squad", lambda _self, _club: rows)
+    monkeypatch.setattr(View, "presence", lambda _self, row, _horizon: row.get("share", 0.0))
+    monkeypatch.setattr(View, "claim", lambda _self, row, _horizon="season": row.get("share", 0.0))
+    monkeypatch.setattr(View, "titolarita", lambda _self, row, _horizon: (0.0, row.get("share", 0.0)))
+
+    def drawn(shape="4-4-2"):
+        return {row["name"]: (role, view._slot_side.get(id(row)))
+                for role, row, _rivals in view.eleven("Test", shape, "typical")}
+
+    before = drawn()
+    assert before["Gutierrez"] == ("M", "L"), "the left of the midfield is his to begin with"
+    assert before["Spinazzola"] == ("D", "L")
+    assert "Olivera" not in before
+
+    view._excluded.add("10")                      # untick Gutierrez
+    after = drawn()
+    assert after["Spinazzola"] == ("M", "L"), "he moves up: his first code is ML"
+    assert after["Olivera"] == ("D", "L"), "and the left back's shirt goes to a left back"
+    assert "Mazzocchi" not in after, "a right back on the left of a midfield is not the answer"
+    assert len(after) == 11
+
+
+def test_a_line_only_reaches_the_touchline_where_it_has_a_man_who_plays_there(monkeypatch):
+    """The operator's rule: «in un centrocampo a 4, due sono sempre esterni, e devono essere esterni di
+    ruolo». The shape says a four is two wide men and two centrals, and where the men are not those men the
+    grid was stretched to the touchlines anyway - Napoli's declared four (`MC`, `MC;DM`, `MC;AM`, `MC;DM`)
+    drew Lobotka on the left wing. Wide men cannot be invented for a declared eleven, so what the drawing
+    owes is not to CLAIM a flank nobody plays: no wide man means a central block, ONE wide man means a
+    lopsided line - he takes his own touchline and the rest keep the block's spacing."""
+    from euroleghe_ingest.gui import SnapshotView as View
+
+    view = View.__new__(View)
+    view.players, view.clubs, view._slot_side, view._calendar = [], {}, {}, {}
+    monkeypatch.setattr(View, "presence", lambda _self, _row, _horizon: 0.5)
+
+    def line(*codes):
+        return [({"name": code, "desc_real_roles": code}, []) for code in codes]
+
+    central = view._placed(line("MC", "MC;DM", "MC;AM", "MC;DM"), "M")
+    spread = [round(x, 2) for x, _row, _rivals in central]
+    assert min(spread) >= View.CENTRAL_MARGIN_MIN, f"four centrals must stay a block: {spread}"
+    assert max(spread) <= 1 - View.CENTRAL_MARGIN_MIN
+
+    # two wide men: the touchlines, as before - this is the case the grid was built for
+    proper = view._placed(line("MR", "MC", "MC", "ML"), "M")
+    assert round(proper[0][0], 2) == View.LINE_MARGIN
+    assert round(proper[-1][0], 2) == round(1 - View.LINE_MARGIN, 2)
+
+    # one wide man: HIS touchline only, and the empty one stays empty
+    lopsided = view._placed(line("MR", "MC", "MC", "MC"), "M")
+    assert round(lopsided[0][0], 2) == View.LINE_MARGIN, "the right-sided man is on the screen's left"
+    assert lopsided[-1][0] <= 1 - View.CENTRAL_MARGIN_MIN + 1e-9, "and no central man on the far touchline"
+    mirrored = view._placed(line("MC", "MC", "MC", "ML"), "M")
+    assert round(mirrored[-1][0], 2) == round(1 - View.LINE_MARGIN, 2)
+    assert mirrored[0][0] >= View.CENTRAL_MARGIN_MIN - 1e-9
+
+
+def test_a_declared_eleven_is_assigned_to_the_shape_and_never_moves_a_man_for_nothing(monkeypatch):
+    """The operator's rules, all three, on the eleven the editors declared:
+
+    * «4 centrocampisti centrali non esistono, massimo 3 - ai lati devono esserci due esterni»: the four's
+      flanks go to the men who play there, and this eleven HAS them (Politano `RW;MR`, Santos `LW`) - they
+      were only being drawn as a front three while four centrals shared the line;
+    * «Hojlund (Pc) non può mai stare sulla trequarti e Santos non può giocare al centro»: the centre-forward
+      is the centre-forward and the winger is not a lone striker;
+    * «il cambio di linea deve essere un passo obbligato»: nobody leaves his own line unless the shape asked
+      for a role the eleven has not got.
+
+    The three cannot be satisfied by a greedy pass, whichever way it orders the flank and the line - the
+    numbers are in `_matching`, which is why the eleven is priced and assigned as a WHOLE.
+    """
+    from euroleghe_ingest.gui import SnapshotView as View
+
+    def man(name, codes, role, probability):
+        return {"name": name, "desc_real_roles": codes, "role_classic": role,
+                "desc_starter_prob": str(probability), "club": "Test"}
+
+    squad = [man("Meret", "GK", "P", 1.0),
+             man("Di Lorenzo", "DR;DC", "D", 1.0), man("Rrahmani", "DC", "D", 1.0),
+             man("Olivera", "DL;DC", "D", 1.0),
+             man("McTominay", "MC;AM;DM", "C", 1.0), man("Anguissa", "MC;DM", "C", 0.6),
+             man("Elmas", "MC;AM", "C", 1.0), man("Lobotka", "MC;DM", "C", 1.0),
+             man("Politano", "RW;MR", "C", 1.0), man("Santos", "LW", "C", 1.0),
+             man("Hojlund", "ST", "A", 1.0)]
+    view = _view_of(squad)
+    view._calendar, view._slot_side, view._excluded, view._lanes_final = {}, {}, set(), False
+    monkeypatch.setattr(View, "squad", lambda _self, _club: squad)
+    codes = {row["name"]: row["desc_real_roles"] for row in squad}
+
+    def drawn(shape):
+        eleven = view.eleven("Test", shape, "next")
+        assert len(eleven) == 11
+        where = {row["name"]: (lane, view._slot_side.get(id(row))) for lane, row, _rivals in eleven}
+        # NO central man on a flank, in any shape - and no keeper or defender out of his line either
+        assert not [name for name, (_lane, side) in where.items()
+                    if side in ("R", "L")
+                    and View.sides_of({"desc_real_roles": codes[name]}) == {"C"}
+                    and "ST" not in codes[name]]
+        # the centre-forward stays a centre-forward, and the winger never plays as one
+        assert where["Hojlund"][0] == "A" and where["Hojlund"][1] == "C", where
+        assert where["Santos"][1] != "C" or where["Santos"][0] != "A", where
+        # nobody is asked to play two lines from where he plays
+        for lane, row, _rivals in eleven:
+            assert lane == "P" or view._within_reach(row, lane), (lane, row["name"])
+        return where
+
+    # A declared 3-4-2-1 - the shape the editors themselves gave: the two wide forwards drop into the four
+    # («i due attaccanti esterni possono arretrare e coprire il centrocampo») and the four centrals split
+    # over the two central rows («dislocarsi un po' sulla tre quarti e sulla mediana»).
+    where = drawn("3-4-2-1")
+    assert where["Politano"] == ("M", "R") and where["Santos"] == ("M", "L"), where
+    assert where["McTominay"][0] == "T" and where["Elmas"][0] == "T", where
+    assert where["Lobotka"][0] == "M" and where["Anguissa"][0] == "M", where
+
+    # ...and a 3-4-3, which really does have three attacking places: there the wingers ARE the wide forwards
+    # and the centrals fill the middle. A line change has to be forced, and here it is not.
+    where = drawn("3-4-3")
+    assert where["Politano"] == ("A", "R") and where["Santos"] == ("A", "L"), where
+    assert {where[name][0] for name in ("Di Lorenzo", "Rrahmani", "Olivera")} == {"D"}, where

@@ -561,6 +561,8 @@ def test_the_plate_stacks_its_rivals_by_titolarita_and_counts_the_rest(monkeypat
     view.clubs, view.players = {}, []
     monkeypatch.setattr(gui.SnapshotView, "presence",
                         lambda _self, row, _horizon: row.get("share", 0.0))
+    monkeypatch.setattr(gui.SnapshotView, "claim",
+                        lambda _self, row, _horizon="season": row.get("share", 0.0))
     view.xi_mode = type("V", (), {"get": staticmethod(lambda: "typical")})()
     starter = {"name": "Saliba", "share": 0.45}
     rivals = [{"name": "Mosquera", "share": 0.14}, {"name": "Calafiori", "share": 0.20},
@@ -594,6 +596,8 @@ def _shape_view(monkeypatch, elevens: dict[str, float]):
                         lambda _s, _club, shape, _mode: [("M", {"share": elevens.get(shape, 0.0)}, [])])
     monkeypatch.setattr(gui.SnapshotView, "presence",
                         lambda _self, row, _horizon: row.get("share", 0.0))
+    monkeypatch.setattr(gui.SnapshotView, "claim",
+                        lambda _self, row, _horizon="season": row.get("share", 0.0))
     return view
 
 
@@ -719,6 +723,8 @@ def test_a_line_considers_every_real_role_a_man_plays_not_just_his_first(monkeyp
     monkeypatch.setattr(gui.SnapshotView, "squad", lambda _s, _club: squad)
     monkeypatch.setattr(gui.SnapshotView, "presence",
                         lambda _self, row, _horizon: row.get("share", 0.0))
+    monkeypatch.setattr(gui.SnapshotView, "claim",
+                        lambda _self, row, _horizon="season": row.get("share", 0.0))
     monkeypatch.setattr(gui.SnapshotView, "titolarita",
                         lambda _self, row, _horizon: (0.0, row.get("share", 0.0)))
 
@@ -774,6 +780,8 @@ def test_a_top_player_has_to_pass_every_test_at_once(monkeypatch):
     view.players = [row for _role, row, _rivals in eleven]
     monkeypatch.setattr(gui.SnapshotView, "presence",
                         lambda _self, row, _horizon: row.get("share", 0.0))
+    monkeypatch.setattr(gui.SnapshotView, "claim",
+                        lambda _self, row, _horizon="season": row.get("share", 0.0))
     monkeypatch.setattr(gui.SnapshotView, "board_shape",
                         lambda _self, _club, _info, _mode: ("4-3-3", ""))
     monkeypatch.setattr(gui.SnapshotView, "eleven",
@@ -873,10 +881,19 @@ def test_the_next_matchday_eleven_is_the_editors_own(monkeypatch):
 
     view = gui.SnapshotView.__new__(gui.SnapshotView)      # no widgets: only the eleven logic is under test
     view.clubs, view.players = {}, []                      # the presence denominator reads both
+    view._slot_side, view._excluded, view._lanes_final = {}, set(), False
+    # ELEVEN named men, because one name is not a declared side: the board draws the editors' eleven only
+    # where they have declared one (Eintracht had a single probability in the sheet and the pitch drew a
+    # single man), and below that it falls back to the measured answer.
     squad = [
         {"name": "Meret", "desc_starter_prob": "0.9", "desc_real_roles": "GK", "role_classic": "P"},
         {"name": "Politano", "desc_starter_prob": "0.6", "desc_real_roles": "RW", "role_classic": "C",
          "desc_duel_names": "Neres; Lang"},
+        *({"name": f"Titolare{index}", "desc_starter_prob": "0.8",
+           "desc_real_roles": codes, "role_classic": role}
+          for index, (codes, role) in enumerate((("DR", "D"), ("DC", "D"), ("DC", "D"), ("DL", "D"),
+                                                 ("MC", "C"), ("MC", "C"), ("ML", "C"), ("AM", "C"),
+                                                 ("ST", "A")))),
         {"name": "Neres", "desc_real_roles": "RW", "role_classic": "C"},
         {"name": "Lang", "desc_real_roles": "RW", "role_classic": "C"},
     ]
@@ -884,7 +901,9 @@ def test_the_next_matchday_eleven_is_the_editors_own(monkeypatch):
 
     eleven = view.eleven("Napoli", "4-3-3", "next")
     by_name = {starter["name"]: rivals for _role, starter, rivals in eleven}
-    assert set(by_name) == {"Meret", "Politano"}            # only the men the editors listed
+    assert "Meret" in by_name and "Politano" in by_name     # only the men the editors listed
+    assert not {"Neres", "Lang"} & set(by_name), "and nobody they did not"
+    assert len(by_name) == 11
     # BOTH named rivals are carried, not just the first: the drawing decides how many fit, not this
     assert [row["name"] for row in by_name["Politano"]] == ["Neres", "Lang"]
 

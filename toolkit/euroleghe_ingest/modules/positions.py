@@ -1077,7 +1077,7 @@ def _squad_players(payload) -> list[dict]:
 
 
 def fetch_roles(ctx: Context, clubs=None, date: str | None = None, refresh: bool = False,
-                top_up: int | None = 150) -> dict[str, int]:
+                top_up: int | None = 150, on_club=None) -> dict[str, int]:
     """The granular real role of every player, into the cache. Dated, resumable, interruptible.
 
     Two passes, cheapest first:
@@ -1088,6 +1088,10 @@ def fetch_roles(ctx: Context, clubs=None, date: str | None = None, refresh: bool
 
     The cache file names carry the OBSERVATION DATE, so rerunning on the same day costs nothing and
     a run next month is a new snapshot rather than an overwrite of this one.
+
+    `on_club(done, total)` is called after each club, and `total` is the list this run really has to
+    FETCH - not the perimeter: on a second run of the same day the cache answers everything and the
+    honest report is that there was nothing to do, not 34 instant clubs.
     """
     conn = ctx.require_conn()
     date = date or time.strftime("%Y-%m-%d", time.gmtime())
@@ -1102,11 +1106,17 @@ def fetch_roles(ctx: Context, clubs=None, date: str | None = None, refresh: bool
                                f"sofascore_squad_{team_id}_{date}.json").exists()]
     print(f"[positions] real role: {len(targets)} clubs · {len(todo)} to fetch "
           f"(~{len(todo) * (REQUEST_DELAY + REQUEST_JITTER / 2) / 60:.0f} min)")
+    if on_club:
+        # Said BEFORE the first request, and said even when there is nothing to fetch: a caller showing
+        # progress has to be able to tell "34 clubs to go" from "the cache already has today's".
+        on_club(0, len(todo))
     session = _client()
     try:
-        for name, team_id in todo:
+        for index, (name, team_id) in enumerate(todo, start=1):
             if ctx.cancelled():
                 raise KeyboardInterrupt
+            if on_club:
+                on_club(index - 1, len(todo))
             _polite_sleep(ctx.cancel_event)
             payload = _get_json(session, SQUAD_ENDPOINT.format(tid=team_id))
             counts["requests"] += 1

@@ -38,6 +38,7 @@ import datetime as dt
 import io
 import json
 import os
+import time
 from pathlib import Path
 from typing import NamedTuple
 
@@ -68,6 +69,107 @@ FORMATION_SETTLED = 0.60
 # transfer window fits and the season before it does not: with no bound at all a player's last
 # appearance EVER counted, which put two retired keepers in Inter's 2026 squad.
 SQUAD_APPEARANCE_MONTHS = 14
+
+# The stages a build walks, in order, each with the SECONDS it was measured to cost - which is the only
+# reason a percentage may be shown at all. Seconds and not shares, because the two stages that touch the
+# network dominate the total when they run and cost nothing when the cache already answers, so a fixed
+# share would be wrong in both directions.
+# Measured on 03/08/2026, euro/mantra 2026-27 (910 rows, 34 clubs): the offline stages from
+# `[snapshot] stages:`, the timing line every run now prints (65s in total, of which the engine fit is
+# 37); `roles` from the cache timestamps of a real refresh - 35 club pages in 95s plus a 71-player
+# top-up in 197s - and `refresh` from its two page fetches, the one stage small enough not to matter.
+# They are re-measurable the same way: read the timing line after any run.
+# What the percentage is NOT: an estimate of the seconds remaining. A build's cost is dominated by
+# whatever the DB is missing that day, so the honest reading is "this much of the WORK is behind us",
+# with the stage name beside it saying which work. The label is what the operator reads.
+STAGES: tuple[tuple[str, str, float], ...] = (
+    ("refresh", "today's probabili", 8.0),
+    ("squads", "real squads", 14.0),
+    ("roles", "granular real roles", 293.0),
+    ("prepare", "engine features", 5.0),
+    ("predict", "engine predictions", 37.0),
+    ("form", "the club's last ten", 4.4),
+    ("layers", "descriptive layers", 4.3),
+    ("fielded", "the eleven fielded next", 0.5),
+    ("rows", "the sheet's rows", 1.0),
+    ("write", "csv + manifest", 0.5),
+)
+
+
+class Progress:
+    """How much of a build is behind us, printed as a percentage the panel can read.
+
+    One line per stage, `[snapshot] 46% · descriptive layers`, on stdout with everything else the module
+    says - so the CLI log, the Operations log and the Snapshot tab's own bar all get the same signal from
+    the same place, and none of them has to model this module's phases. The panel parses the percentage
+    (`SnapshotView.building`) and falls back to the stage text on a line that carries no number.
+
+    The arithmetic is in SECONDS: each finished stage adds its measured cost, and the percentage is that
+    over the cost of the stages this run will really walk. Hence a build with no refresh is not a bar
+    that stops at 20% - the two network stages are dropped from the denominator - and a `tick(0, 0)`
+    means "this stage found nothing to do", which drops it too rather than jumping the bar over work that
+    never happened. Monotone by construction: a stage closes at its full cost, and dropping a stage only
+    ever shrinks the denominator.
+
+    Within a long stage `tick()` interpolates over a COUNTED total (clubs to observe, players to walk) -
+    a real fraction of a real denominator, never a spinner dressed up as a number.
+
+    It also records how long each stage really took and prints it at the end, which is what makes the
+    costs above a measurement instead of a guess: they were read off that line, and re-reading it is how
+    they get corrected when the module changes.
+    """
+
+    def __init__(self, skip: tuple[str, ...] | set[str] = ()) -> None:
+        self.cost = {key: seconds for key, _label, seconds in STAGES if key not in skip}
+        self.labels = {key: label for key, label, _seconds in STAGES}
+        self.spent = 0.0                    # the measured seconds the finished stages account for
+        self.current: str | None = None
+        self.timings: dict[str, float] = {}
+        self._started = time.monotonic()
+        self._stage_started = self._started
+
+    def _say(self, seconds: float, label: str) -> None:
+        share = seconds / (sum(self.cost.values()) or 1.0)
+        print(f"[snapshot] {min(round(share * 100), 99):2.0f}% · {label}", flush=True)
+
+    def stage(self, key: str, label: str | None = None) -> None:
+        """Start a stage: closes the one before it at its FULL cost and announces this one."""
+        now = time.monotonic()
+        if self.current:
+            self.timings[self.current] = now - self._stage_started
+            self.spent += self.cost.get(self.current, 0.0)
+        self._stage_started = now
+        self.current = key
+        if key in self.cost:
+            self._say(self.spent, label or self.labels.get(key, key))
+
+    def tick(self, count: int, total: int, label: str | None = None) -> None:
+        """Interpolate inside the current stage over a counted total (`4/34 clubs`).
+
+        `total == 0` is the answer "nothing to fetch": the stage is dropped from the denominator, which
+        is the difference between a bar that credits the cache and one that pretends 34 clubs were
+        observed in a second.
+        """
+        if not self.current:
+            return
+        if not total:
+            self.cost.pop(self.current, None)
+            self._say(self.spent, f"{self.labels.get(self.current, self.current)} - nothing to fetch")
+            return
+        share = self.spent + self.cost.get(self.current, 0.0) * min(count / total, 1.0)
+        self._say(share, f"{label or self.labels.get(self.current, self.current)} {count}/{total}")
+
+    def finish(self) -> None:
+        """100%, and the timing line the costs are re-measured from."""
+        if self.current:
+            self.timings[self.current] = time.monotonic() - self._stage_started
+            self.current = None
+        elapsed = time.monotonic() - self._started
+        print("[snapshot] 100% · done", flush=True)
+        if self.timings:
+            measured = " · ".join(f"{key} {value:.1f}s ({value / (elapsed or 1):.0%})"
+                                  for key, value in self.timings.items())
+            print(f"[snapshot] stages: {measured} · total {elapsed:.1f}s")
 
 
 def _months_before(date: str, months: int) -> str:
@@ -1788,7 +1890,7 @@ def refresh_editorial(ctx: Context) -> str | None:
     return None
 
 
-def refresh_real_roles(ctx: Context, clubs, date: str) -> str | None:
+def refresh_real_roles(ctx: Context, clubs, date: str, progress: Progress | None = None) -> str | None:
     """Today's granular real role for every player of the perimeter. One request per CLUB.
 
     THE THIRD FACT THAT CANNOT BE BACKFILLED. The provider serves only "now": asking its player
@@ -1802,7 +1904,9 @@ def refresh_real_roles(ctx: Context, clubs, date: str) -> str | None:
     """
     try:
         positions.derive_club_xref(ctx)
-        positions.fetch_roles(ctx, clubs=sorted(clubs) if clubs else None, date=date)
+        positions.fetch_roles(ctx, clubs=sorted(clubs) if clubs else None, date=date,
+                              on_club=(lambda done, total: progress.tick(done, total, "clubs observed"))
+                              if progress else None)
     except Exception as exc:   # noqa: BLE001 - a snapshot must still be produced without the refresh
         return (f"real-role refresh failed ({exc}) - the sheet uses the most recent stored "
                 f"observation, and there is no way to reconstruct today's")
@@ -1854,7 +1958,11 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
         notes.append(f"as of {date}: the editorial refresh was skipped, because today's probabili are "
                      f"not the probabili of that day. Whatever the weekly job recorded at or before "
                      f"{date} is used instead - possibly nothing.")
+    # The percentage the panel shows: the stages this run will actually walk, so a build with no network
+    # step does not stall the bar at the two stages it is skipping.
+    progress = Progress(skip=() if refresh else ("refresh", "roles"))
     if refresh:
+        progress.stage("refresh")
         failure = refresh_editorial(ctx)
         if failure:
             notes.append(failure)
@@ -1867,16 +1975,19 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
           f"{window.input_season} · as of {window.auction_date}")
 
     # The real squads first: the row set of the sheet is who is in a club TODAY, listone or not.
+    progress.stage("squads")
     derive_squads(ctx, window.auction_date)
     # Then the granular real role, which needs the squads (the per-player top-up walks them) and is
     # observed for the PERIMETER - the clubs this platform actually lets you buy from.
     if refresh:
+        progress.stage("roles")
         failure = refresh_real_roles(
             ctx, clubs or perimeter_clubs(conn, platform,
                                           (window.input_season, window.target_season)),
-            window.auction_date)
+            window.auction_date, progress=progress)
         if failure:
             notes.append(failure)
+    progress.stage("prepare")
     data = features.prepare(conn, window, platform, game, league=setup,
                             squad_source="real")
     if not data.matchdays_target:
@@ -1886,6 +1997,7 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
         data.matchdays_target = data.matchdays_prev
         notes.append(f"{window.target_season} has no matchdays yet, so expected appearances are "
                      f"scaled on {window.input_season}'s calendar ({data.matchdays_prev} rounds)")
+    progress.stage("predict")
     data, predictions, params_source, engine_notes = engine_predictions(
         conn, window, platform, game, setup, prepared=data)
     notes += engine_notes
@@ -1915,8 +2027,14 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
                "They are a state of NOW and cannot be backfilled, so they exist only from the day a run "
                "records them - which is why a sheet for today refreshes them."))
     squads, squad_sources = squad_as_of(conn, window.auction_date)
+    # The club's last ten has a stage of its own: it walks every observation against its club's fixture
+    # list and it is the single most expensive descriptive layer, so folding it in with the cheap lookups
+    # would make a quarter of the bar move in one step.
+    progress.stage("form")
+    form = club_form(conn, window.auction_date, data.observations, squads)
+    progress.stage("layers")
     layers = {
-        "form": club_form(conn, window.auction_date, data.observations, squads),
+        "form": form,
         "squads": squads, "squad_sources": squad_sources,
         "injuries": injury_history(conn, window.auction_date, seasons, measured),
         "starters": starters,
@@ -1956,6 +2074,7 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
     }
     # The eleven the clubs actually FIELDED in the first match after the auction date. Empty for a sheet
     # built today, and for a back-dated one it is what makes the probabili unnecessary: the outcome exists.
+    progress.stage("fielded")
     layers["fielded_next"], fielded_clubs = fielded_next(
         conn, window.auction_date, data.observations, squads)
     if fielded_clubs:
@@ -2008,6 +2127,7 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
         notes.append(f"platform {platform} has no ratings for {window.input_season}/"
                      f"{window.target_season}, so the perimeter is unknown and nothing was filtered")
         perimeter = None
+    progress.stage("rows")
     rows = build_rows(conn, data, predictions, layers, perimeter)
     dropped = len(data.observations) - len(rows) if perimeter is not None else 0
     if dropped:
@@ -2033,6 +2153,7 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
     # leagues can be played on the same platform and game with different squad sizes: without the name
     # the second sheet would silently overwrite the first one, whose numbers are measured against another
     # replacement level.
+    progress.stage("write")
     stamp = date or dt.datetime.now(tz=dt.UTC).date().isoformat()
     only = f"-{matching.club_key(clubs[0]).replace(' ', '')}" if clubs and len(clubs) == 1 else ""
     named = f"-{matching.club_key(setup['name']).replace(' ', '')}" if setup["name"] else ""
@@ -2149,6 +2270,7 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
     (folder / "manifest.json").write_text(
         json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8")
 
+    progress.finish()
     print(f"[snapshot] {len(rows)} players · {len(club_rows)} clubs -> {folder}")
     thin = [column for column, count in filled.items()
             if column.startswith(("engine_", "desc_")) and count < len(rows) * 0.2]
