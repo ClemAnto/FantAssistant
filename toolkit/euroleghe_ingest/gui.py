@@ -4395,6 +4395,16 @@ class SnapshotView(ttk.Frame):
     MIRROR: ClassVar[dict[str, str]] = {"DL": "DR", "DR": "DL", "ML": "MR", "MR": "ML",
                                         "LW": "RW", "RW": "LW"}
 
+    # The code that names a flank of each LINE - what the badge reads when the shape gave a central man a
+    # flank slot ('DC' at right back is a `Td`). The T row borrows the wings, because a wide trequartista
+    # is drawn where a winger would be.
+    FLANK_OF_LANE: ClassVar[dict[tuple[str, str], str]] = {
+        ("D", "R"): "DR", ("D", "L"): "DL",
+        ("M", "R"): "MR", ("M", "L"): "ML",
+        ("T", "R"): "RW", ("T", "L"): "LW",
+        ("A", "R"): "RW", ("A", "L"): "LW",
+    }
+
     @classmethod
     def can_replace(cls, starter: dict, row: dict, mirrored: bool = False) -> bool:
         """Whether this man could really take that place - the same POSITION, in the REAL vocabulary.
@@ -4631,7 +4641,8 @@ class SnapshotView(ttk.Frame):
         return parts[0], sum(parts[1:-1]), parts[-1]
 
     @classmethod
-    def badge(cls, row: dict, drawn_side: float | None = None, lane: str | None = None) -> str:
+    def badge(cls, row: dict, drawn_side: float | None = None, lane: str | None = None,
+              slot: str | None = None) -> str:
         """The role code for the marker: 'Ts', 'Td', 'Dc', 'Ed'...
 
         Three inputs, in this order: the granular REAL role, which names both the line and the flank on
@@ -4639,6 +4650,13 @@ class SnapshotView(ttk.Frame):
         the flank; then, when neither does, WHERE the player is drawn in his line - so a winger the
         sheet places on the left reads 'Es' and not a shrug. Nothing is invented: with none of them,
         the code stays neutral.
+
+        `slot` is the place the shape gave him ('R' / 'C' / 'L'), and where it names a FLANK it wins over
+        a central code: «in una linea a 4 di difensori, i due terzini esterni devi segnarli come Ts e Td e
+        non come Dc», and the same for a central midfielder holding the right of a five, who reads 'Ed'.
+        This is the mirror rule one step further - the role stays his, the FLANK belongs to the shirt -
+        and it is what the shape says: a back four HAS two full backs, whoever plays them, while a back
+        three has three centre backs and no flank slots at all, so its outer men keep 'Dc'.
 
         `lane` is the line he is DRAWN in, and it chooses WHICH of his codes is badged: Spinazzola is
         'ML;DL' and the eleven can pick him as its left back, so badging his first code put 'Es' - a
@@ -4663,6 +4681,12 @@ class SnapshotView(ttk.Frame):
             if (drawn_side is not None and abs(drawn_side) >= 0.34 and abs(named) >= 0.34
                     and (drawn_side < 0) != (named < 0)):
                 code = cls.MIRROR.get(code, code)
+            # ...and where the SHAPE gave him a flank and his code names none, the flank is the shirt's:
+            # a back four's outer men are full backs (Ts / Td) even when both are centre backs by code, and
+            # a central midfielder on the right of a five reads Ed. Only for a slot that IS a flank, so a
+            # back three - three central slots - is untouched.
+            if slot in ("R", "L") and not REAL_ROLE_SIDE.get(code):
+                code = cls.FLANK_OF_LANE.get((cls.LANE_OF_ROLE.get(code, lane or "M"), slot), code)
             return cls.BADGE_REAL[code]
         roles = [part.strip().lower() for part in (row.get("roles_mantra") or "").split(";")
                  if part.strip()]
@@ -4687,7 +4711,8 @@ class SnapshotView(ttk.Frame):
         it was computed from the index, Hojlund at 0.61 read as less central than a second striker at
         0.50 and the true centre-forward was labelled the seconda punta.
         """
-        codes = [self.badge(starter, -(spread - 0.5) * 2, lane)
+        codes = [self.badge(starter, -(spread - 0.5) * 2, lane,
+                            slot=self._slot_side.get(id(starter)))
                  for spread, starter, _rivals in placed]
         centre = [index for index, code in enumerate(codes) if code == "Pc"]
         if len(centre) > 1 and len(placed) > 2:

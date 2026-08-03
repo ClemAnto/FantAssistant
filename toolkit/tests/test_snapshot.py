@@ -1089,3 +1089,30 @@ def test_the_body_reaches_the_sheet_and_decides_nothing():
     tall = {"desc_real_roles": "ST", "desc_height": "191", "desc_weight": "84"}
     small = {"desc_real_roles": "ST", "desc_height": "172"}
     assert view._slot_price(tall, "C", "A") == view._slot_price(small, "C", "A")
+
+
+def test_the_outer_men_of_a_back_four_are_full_backs_on_the_badge():
+    """The operator's rule: «in una linea a 4 di difensori, i due terzini esterni devi segnarli come Ts e Td
+    e non come Dc», and the same for a central midfielder holding the right of a five, who reads 'Ed'.
+
+    It is the mirror rule one step further - the role stays his, the FLANK belongs to the shirt - and it is
+    what the shape says: a back four HAS two full backs, whoever plays them. A back THREE has three central
+    slots and no flanks at all, so its outer men keep 'Dc'."""
+    from euroleghe_ingest.gui import SnapshotView as View
+
+    # `drawn_side` is TEAM-relative: +1 is its right, which is the 'R' slot (the screen is mirrored, and
+    # that inversion belongs to `_line_codes`, not here).
+    centre_back = {"desc_real_roles": "DC"}
+    assert View.badge(centre_back, 1.0, "D", slot="R") == "Td"
+    assert View.badge(centre_back, -1.0, "D", slot="L") == "Ts"
+    assert View.badge(centre_back, 0.9, "D", slot="C") == "Dc", "a back three names no flank"
+    assert View.badge(centre_back, None, "D") == "Dc", "and neither does a slot nobody gave"
+
+    # a central midfielder on the right of a five is an esterno destro, not a 'C'
+    assert View.badge({"desc_real_roles": "MC;AM"}, 1.0, "M", slot="R") == "Ed"
+    assert View.badge({"desc_real_roles": "MC;AM"}, -1.0, "M", slot="L") == "Es"
+    # ...while a man whose own code NAMES a flank keeps his role and only mirrors it (unchanged rule)
+    assert View.badge({"desc_real_roles": "DL"}, 1.0, "D", slot="R") == "Td"
+    assert View.badge({"desc_real_roles": "DL"}, -1.0, "D", slot="L") == "Ts"
+    # and a striker put wide in a front three still reads as a forward, never as a full back
+    assert View.badge({"desc_real_roles": "ST"}, 1.0, "A", slot="R") == "Ad"

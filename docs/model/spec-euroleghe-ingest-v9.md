@@ -496,9 +496,9 @@ Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos
 
 ## Novità v9.16 (3 agosto 2026 — la percentuale di una build, il piede, e la tabella che colora le celle)
 
-Dodici richieste dell'utente in una sessione, tutte sul pannello Snapshot, piu' un difetto che una di
+Tredici richieste dell'utente in una sessione, tutte sul pannello Snapshot, piu' un difetto che una di
 esse ha fatto emergere (§5). **Nessun numero del motore cambia**: sono avanzamento, disegno, colore e una
-domanda in piu' che il board sa rispondere. 270 test (10 nuovi), ruff pulito.
+domanda in piu' che il board sa rispondere. 271 test (11 nuovi), ruff pulito.
 
 ### 1. La build dello snapshot dice a che punto è (percentuale, non spinner)
 Prima la barra era **indeterminata** con il commento «una percentuale sarebbe un numero inventato». Ora
@@ -710,6 +710,20 @@ Trovato per strada e chiuso: con **una sola** probabilità registrata (Eintracht
 uomo** su un campo vuoto — l'undici dichiarato ora richiede almeno 11 nomi, sotto quella soglia si torna
 alle presenze misurate.
 
+### 10-ter. In una linea a quattro i due esterni sono TERZINI, e il badge lo dice
+Richiesta dell'utente sulla Juve disegnata 4-5-1: «in una linea a 4 di difensori, i due terzini esterni devi
+segnarli come Ts e Td e non come Dc — lo stesso per McKennie, che in quella posizione deve essere segnato
+come Ed». Prima il badge mirrorava **solo un codice che nominava già una fascia** (`DL` disegnato a destra →
+`Td`), mentre un codice centrale non veniva toccato: quindi una difesa a quattro di quattro `DC` leggeva
+**Dc quattro volte**. È la stessa regola un passo più avanti — *il ruolo resta suo, la FASCIA è della
+maglia* — e la dice il modulo: una difesa a **quattro HA** due terzini, chiunque li giochi.
+`badge(..., slot=)` legge il posto che la forma ha dato (`_slot_side`) e, dove quel posto è una fascia e il
+codice non ne nomina nessuna, prende il codice di fascia di quella LINEA (`FLANK_OF_LANE`). Una difesa a
+**tre** ha tre posti centrali e nessuna fascia, quindi i braccetti restano `Dc`: la regola non tocca nulla
+che non sia una linea con le fasce. Misurato sulla Juve: `Td` Kalulu · Dc Bremer · Dc Gatti · `Ts` Kelly, e
+in mezzo `Ed` McKennie · M Locatelli · C Thuram · C Koopmeiners · `Es` Cambiaso — con il 3-4-3 dello stesso
+undici che continua a leggere tre `Dc`.
+
 ### 10-bis. Il CORPO: torre o punta di movimento (misurato, non usato per scegliere)
 Richiesta dell'utente: capire se l'allenatore preferisce una punta di movimento (L. Martinez, Boga) o una
 punta fisica da torre (Hojlund, Vlahovic). Il dato era **già nella cache**: la pagina rosa del provider —
@@ -760,7 +774,8 @@ nessuno), `test_a_declared_eleven_is_assigned_to_the_shape_and_never_moves_a_man
 esterni sulle fasce del quattro, la punta punta e l'ala mai punta unica, e nessun cambio di linea non
 obbligato), `test_a_tooltip_never_leaves_the_screen` (il puntatore nell'angolo in basso a destra),
 `test_the_body_reaches_the_sheet_and_decides_nothing` (altezza e peso arrivano, e il prezzo di una casella
-non li legge). **270 test verdi.**
+non li legge), `test_the_outer_men_of_a_back_four_are_full_backs_on_the_badge` (e una difesa a tre no).
+**271 test verdi.**
 
 ## Novità v9.15 (29 luglio 2026, notte — il pannello: l'altezza si spende sul campetto, non sul suo bordo)
 
