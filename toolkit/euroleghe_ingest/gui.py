@@ -3559,6 +3559,15 @@ class SnapshotView(ttk.Frame):
         if not depths:
             depths = [self.LANE_DEPTH.get(self.lane_of(row), 0.60)]
         gap = round(min(abs(depth - self.LANE_DEPTH.get(lane, 0.60)) for depth in depths) * 20)
+        # A FRONT LINE'S WIDE PLACES ARE PLAYED BY FORWARDS, and by any of them: the three rotate, a
+        # centre-forward takes a wing for a spell and the marker says so ('Ad' / 'As' / 'Sp' in
+        # `_line_codes`). Charging him a central-man-on-a-wing there is what let a midfielder outbid a
+        # striker for it - Atalanta's 3-4-3 lost Krstovic to a left wing back, and with him the last
+        # forward in the front three. So for a wide ATTACKING place a forward pays nothing, while a
+        # CENTRAL attacking place still tells them apart (a winger in the middle is not a centre-forward:
+        # «Santos non può giocare al centro»).
+        if lane == "A" and side != "C" and any(self.LANE_OF_ROLE.get(code) == "A" for code in codes):
+            return 0, 0, gap
         if "ST" not in codes:
             return wrong_side, 0, gap
         return (wrong_side, (2 if lane == "A" and side != "C" else 0) + (4 if strikers >= 2 else 0), gap)
@@ -3880,41 +3889,46 @@ class SnapshotView(ttk.Frame):
                           key=lambda other: rank[id(other)])
             return id(row) in {id(other) for other in free[left.get(lane, 0):]}
 
+        # WHO plays is the CLAIM's question, line by line - and only that. Handing the shirts out one slot
+        # at a time by fit let a 0% man take a place because he fitted its flank: Atalanta's 3-4-3 drew
+        # Touré (claim 0.00) on the left of its front three, which then made the repair pull two wing backs
+        # into the attack, and the drawing came out 3-6-1 with one forward in it. Fit decides WHERE each of
+        # the chosen men plays (`_assign`), never WHETHER he plays.
+        chosen: list[tuple[str, dict]] = []
         for role, slots in (("P", 1), ("D", defenders), ("M", midfielders), ("A", forwards)):
-            pool = sorted((row for row in by_role.get(role, []) if id(row) in rank),
-                          key=lambda row: rank[id(row)])
-            # the line's composition, then ONE SHIRT AT A TIME: the best candidate for THAT side
-            strikers = 0
-            for wanted in self.slot_shape(role, slots):
-                # `pool` is already in presence order and the sort is stable, so the slot's own cost
-                # (right side first, then whether the role can play there at all) only ever reorders men
-                # who are otherwise equal - the flank goes to a full back rather than to a striker, and
-                # the best available man still gets the shirt.
-                picks = sorted((row for row in pool if row.get("name") not in taken),
-                               key=lambda row, w=wanted, s=strikers: self.slot_cost(row, w, role, s))
-                if not picks and role != "P":
-                    # ...in every line but the goal: nobody adapts between the posts, so an empty keeper's
-                    # shirt is the honest drawing of a squad with no keeper.
-                    # The line's own men have run out, and a line of the module is still a line: Bayern's
-                    # 4-5-1 had four midfielders in the M lane and drew TEN men, calling it 4-4-1, while
-                    # its wingers and trequartisti sat outside the eleven. So the shirt goes to the rest
-                    # of the squad, cost first - `slot_cost` is a cost and never a veto for exactly this
-                    # reason: an adapted player is a truer drawing than an empty shirt.
-                    picks = sorted((row for row in eligible
-                                    if row.get("name") not in taken and can_lend(row, role)),
-                                   key=lambda row, w=wanted, s=strikers: self.slot_cost(row, w, role, s))
-                if not picks:
-                    continue
-                starter, *bench = picks
-                strikers += 1 if "ST" in self.real_roles(starter) else 0
-                taken.add(starter.get("name"))
+            pool = [row for row in eligible
+                    if id(row) in rank and row.get("name") not in taken
+                    and row in by_role.get(role, [])]
+            take = pool[:slots]
+            if role != "P":
+                # A line short of its own men borrows - a line of the module is still a line: Bayern's
+                # 4-5-1 had four midfielders in the M lane and drew TEN men, calling it 4-4-1, while its
+                # wingers and trequartisti sat outside the eleven. It borrows in CLAIM order and only what
+                # another line can spare (`can_lend`); in the goal nobody adapts, so an empty keeper's
+                # shirt is the honest drawing of a squad with no keeper.
+                for row in eligible:
+                    if len(take) >= slots:
+                        break
+                    if (row.get("name") not in taken and row not in take
+                            and can_lend(row, role)):
+                        take.append(row)
+            for row in take:
+                taken.add(row.get("name"))
                 left[role] -= 1
-                self._slot_side[id(starter)] = wanted
-                out.append((role, starter, bench))
-        out = self._settle(out, eligible)
-        # ...and the same transformation the declared eleven gets: a line the squad cannot fill with men
-        # who play there is redrawn around the men it has (`_reshape`), instead of showing a central
-        # midfielder on a touchline.
+            chosen += [(role, row) for row in take]
+        # ...and then WHERE: one assignment over the shape's own places, and the bench of each line for the
+        # alternatives (`_settle` may still bring in a better-fitting man from outside and refill).
+        benches = {row.get("name"): [other for other in eligible
+                                     if other.get("name") not in taken
+                                     and other in by_role.get(role, [])]
+                   for role, row in chosen}
+        out = [(lane, row, benches.get(row.get("name"), []))
+               for lane, row in self._assign([row for _role, row in chosen], formation,
+                                             order=lambda row: rank.get(id(row), 99),
+                                             home={id(row): role for role, row in chosen})]
+        out = self._settle(out, eligible, {id(row): role for role, row in chosen})
+        # A line the squad cannot fill with men who play there is redrawn around the men it has, instead of
+        # showing a central midfielder on a touchline.
         reshaped = {id(row): lane for lane, row in
                     self._reshape([(lane, row) for lane, row, _bench in out])}
         out = [(reshaped.get(id(row), lane), row, bench) for lane, row, bench in out]
@@ -3956,8 +3970,13 @@ class SnapshotView(ttk.Frame):
     # losing the other, so the loop terminates on its own; the cap is a backstop. Six, because a chain can
     # now be longer than two moves - an equal-fit move that only adds claim can open the next one.
     SETTLE_ROUNDS: ClassVar[int] = 6
+    # How much CLAIM an equal-fit move has to add to be worth making: 0.05 of a season is two matchdays out
+    # of 38, i.e. the smallest difference between two men that is not noise. A display parameter, like the
+    # rest of the board's - nothing gated reads it.
+    CLAIM_MARGIN: ClassVar[float] = 0.05
 
-    def _settle(self, out: list, eligible: list[dict]) -> list:
+    def _settle(self, out: list, eligible: list[dict],
+                home: dict[int, str] | None = None) -> list:
         """Let a line take a man from ANOTHER line's eleven, as long as the hole he leaves closes better.
 
         The lines are served in order (P, D, M, A) and each one used its OWN men first, borrowing only
@@ -3979,7 +3998,7 @@ class SnapshotView(ttk.Frame):
         keeps meaning the same thing here as it does there.
         """
         for _round in range(self.SETTLE_ROUNDS):
-            move = self._better_pair(out, eligible)
+            move = self._better_pair(out, eligible, home)
             if not move:
                 return out
             here, there, mover, refill = move
@@ -4000,7 +4019,8 @@ class SnapshotView(ttk.Frame):
             out = [entry for entry in out if entry]
         return out
 
-    def _better_pair(self, out: list, eligible: list[dict]):
+    def _better_pair(self, out: list, eligible: list[dict],
+                     home: dict[int, str] | None = None):
         """The BEST pair of shirts a move-with-refill improves: (slot to fill, slot to empty, who, who).
 
         A move is accepted only when it is an improvement on BOTH axes at once - PARETO, not a trade-off:
@@ -4034,23 +4054,32 @@ class SnapshotView(ttk.Frame):
             if role_here == "P":
                 continue                              # nobody adapts between the posts
             side_here = self._slot_side.get(id(holder), "C")
-            strikers_here = self._lane_strikers(out, role_here, holder)
-            fit_here = self.slot_cost(holder, side_here, role_here, strikers_here)
+            fit_here = self._slot_price(holder, side_here, role_here)
             for there, (role_there, mover, _other) in enumerate(out):
                 if there == here or role_there == "P":
                     continue
                 side_there = self._slot_side.get(id(mover), "C")
-                strikers_there = self._lane_strikers(out, role_there, mover)
                 if not self._within_reach(mover, role_here):
                     continue                          # more than one line from where he plays
-                moved = self.slot_cost(mover, side_here, role_here, strikers_here)
+                if home and home.get(id(mover)) not in (None, role_here):
+                    # A CROSS-LINE move, and a line fixes its own places first: only when nobody picked FOR
+                    # that line fits the shirt better than the man in it may another line be asked. It is
+                    # the difference between the two cases the operator brought - Napoli's midfield had no
+                    # left-sided man of its own, so Spinazzola came up from the defence and Olivera took his
+                    # shirt; Atalanta's attack had De Ketelaere for its left, so a left wing back had no
+                    # business being pulled into the front three (and with him the last forward left it).
+                    own = [row for _lane, row, _bench in out
+                           if home.get(id(row)) == role_here and row is not holder]
+                    if any(self._slot_price(row, side_here, role_here) < fit_here for row in own):
+                        continue
+                moved = self._slot_price(mover, side_here, role_here)
                 if moved > fit_here:
                     continue                          # a worse fit for this shirt: never
-                fit_there = self.slot_cost(mover, side_there, role_there, strikers_there)
+                fit_there = self._slot_price(mover, side_there, role_there)
                 # First the SWAP, which needs nobody from outside: the two men exchange shirts. It is what
                 # fixes an eleven that is already the right eleven and only badly arranged - a striker given
                 # a trequartista's place because that line was served first, with a mediano behind him.
-                swapped = self.slot_cost(holder, side_there, role_there, strikers_there)
+                swapped = self._slot_price(holder, side_there, role_there)
                 if (moved < fit_here and swapped <= fit_there
                         and self._within_reach(holder, role_there)):
                     # a SWAP moves the same men, so there is no claim to gain: it has to earn its place
@@ -4061,22 +4090,25 @@ class SnapshotView(ttk.Frame):
                 if not reachable:
                     continue
                 refill = min(reachable, key=lambda row: (
-                    self.slot_cost(row, side_there, role_there, strikers_there),
-                    -self.claim(row, "season")))
-                closed = self.slot_cost(refill, side_there, role_there, strikers_there)
+                    self._slot_price(row, side_there, role_there), -self.claim(row, "season")))
+                closed = self._slot_price(refill, side_there, role_there)
                 if closed > fit_there:
                     continue                          # the hole would close worse than it was
                 gain = (self.claim(mover, "season") + self.claim(refill, "season")
                         - self.claim(holder, "season") - self.claim(mover, "season"))
                 if gain < 0:
                     continue                          # ...and the eleven must not get weaker for it
-                if moved == fit_here and gain <= 0:
-                    # EQUAL fit is allowed, but then the move has to be worth something. This is the case
-                    # the operator found on Juventus: the front three was Conceicao - Yildiz - Gonzalez
+                if moved == fit_here and gain < self.CLAIM_MARGIN:
+                    # EQUAL fit is allowed, but then the move has to be worth SOMETHING REAL. This is the
+                    # case the operator found on Juventus: the front three was Conceicao - Yildiz - Gonzalez
                     # (0.75 + 0.90 + 0.36) with Vlahovic, a centre-forward at 0.57, outside it. Yildiz on
                     # his own left wing fits exactly as well as in the middle, so nothing was ever "badly
                     # fitted" and a rule that demanded a BETTER fit could not see it. Moving him left and
                     # giving the middle to Vlahovic keeps every fit identical and adds 0.21 of claim.
+                    # The margin is what stops the other half of it, found on Atalanta: two equal-fit moves
+                    # worth +0.01 and +0.02 chained, and a front three ended up with one forward in it
+                    # while a fourth wing back came off the bench. A hundredth of a share of the season is
+                    # not a reason to change a side.
                     continue
                 moves.append(((moved, -gain, closed), here, there, mover, refill))
         if not moves:
@@ -4129,23 +4161,45 @@ class SnapshotView(ttk.Frame):
         lanes.append(("A", parts[-1]))
         return (("P", 1), *[(lane, count) for lane, count in lanes if count])
 
-    # What each step of WRONG SIDE costs, in the unit `slot_cost` measures the line gap in (the `LANE_DEPTH`
-    # grid x20, where ONE FULL LINE is 7). Not a multiple: the three steps are three different things a
-    # coach does, and each price is the case that fixed it.
-    #   1  the other flank - a right back at left back. Cheaper than moving a line: coaches invert full
-    #      backs every week.
-    #   2  a wide man in the middle - a winger as a trequartista. Costs about a line, and it is what keeps
-    #      the CENTRE-FORWARD out of the trequarti: Santos there (5) plus Hojlund up front (2) is 7, against
-    #      11 the other way round. «Hojlund non può mai stare sulla trequarti».
-    #   3  a central man on a wing - and it must stay CHEAPER than making a midfielder a centre back, or a
-    #      3-4-3 gets drawn with two mediani in its back three and its full backs out on the wings of the
-    #      midfield: 16 for four centrals holding the four's flanks against 28 for that.
-    SIDE_PRICE: ClassVar[dict[int, int]] = {0: 0, 1: 2, 2: 5, 3: 8}
+    # THE PRICE OF A PLACE, and the whole model behind it in one table. A place is a point on the grid the
+    # twelve codes already live on - `REAL_ROLE_DEPTH` down the pitch, `REAL_ROLE_SIDE` across it - and the
+    # price is the distance from where the man plays to where the place is: `20 x depth` (so ONE FULL LINE
+    # is 7, a full back 0.25 to a central midfielder 0.60) plus the side, weighted PER LINE.
+    #
+    # Per line, because that is the football and it is the only thing that fits every case at once. On a
+    # midfield or a defensive line the flank IS a role: a wing back and a mediano are different jobs, so
+    # being one flank out has to cost MORE than coming up a whole line - it is why Gutierrez (a left back,
+    # one line away) is the four's left and a central midfielder is not. In the front line the three men
+    # INTERCHANGE: a centre-forward takes a wing for a spell and the marker says so, so the side has to
+    # cost LESS than a line - it is why Krstovic keeps the front three's left against a left wing back, and
+    # why the trequarti goes to a winger and not to the centre-forward.
+    # Every attempt to price the side with ONE number broke one of those: a low price drew Lobotka as a
+    # winger, a high one gave the trequartista's place to Hojlund and the front three's flank to a full
+    # back. Two numbers, one meaning each.
+    SIDE_WEIGHT: ClassVar[dict[str, int]] = {"P": 3, "D": 8, "M": 8, "T": 3, "A": 3}
 
     def _slot_price(self, row: dict, side: str, lane: str) -> int:
-        """`slot_cost` as ONE number, so a whole eleven can be priced instead of a shirt at a time."""
-        wrong_side, allows, gap = self.slot_cost(row, side, lane, 0)
-        return self.SIDE_PRICE.get(wrong_side, 8) + allows + gap
+        """What it costs to put this man in that place: the distance from where he really plays.
+
+        Read over ALL his codes and the nearest one wins - Spinazzola is `ML;DL` and either job may be the
+        one asked of him - and a man with no code at all is placed by his listone line, dead centre, which
+        is as much as it says.
+        """
+        wanted = {"R": 1.0, "L": -1.0}.get(side, 0.0)
+        depth = self.LANE_DEPTH.get(lane, 0.60)
+        weight = self.SIDE_WEIGHT.get(lane, 8)
+        prices = [round(20 * abs(REAL_ROLE_DEPTH[code] - depth)
+                        + weight * abs(REAL_ROLE_SIDE[code] - wanted))
+                  for code in self.real_roles(row)
+                  if code in REAL_ROLE_DEPTH and code in REAL_ROLE_SIDE]
+        if prices:
+            # A CENTRE-FORWARD prefers the middle of the attack. On the grid alone a trequartista and a
+            # striker are equidistant from a front-three place (both 2), so the two were interchangeable and
+            # a 3-4-3 drew McTominay as the centre-forward with Hojlund out on the right.
+            wide = 2 if lane == "A" and side != "C" and "ST" in self.real_roles(row) else 0
+            return min(prices) + wide
+        own = self.LANE_DEPTH.get(self.lane_of(row), 0.60)
+        return round(20 * abs(own - depth) + weight * abs(wanted))
 
     @staticmethod
     def _matching(cost: list[list[int]]) -> dict[int, int]:
@@ -4207,8 +4261,8 @@ class SnapshotView(ttk.Frame):
                 p[j0], j0 = p[j1], j1
         return {p[j] - 1: j - 1 for j in range(1, size + 1) if p[j]}
 
-    def _assign(self, chosen: list[dict], formation: str,
-                order=None) -> list[tuple[str, dict]]:
+    def _assign(self, chosen: list[dict], formation: str, order=None,
+                home: dict[int, str] | None = None) -> list[tuple[str, dict]]:
         """The eleven MEN are given; this decides WHICH SHIRT each of them wears.
 
         The operator's rule, and it is a rule about football and not about drawing: «4 centrocampisti
@@ -4235,7 +4289,17 @@ class SnapshotView(ttk.Frame):
             return [(self.lane_of(row), row) for row in chosen]
         ranked = sorted(range(len(chosen)), key=lambda index: order(chosen[index]))
         rank = {index: position for position, index in enumerate(ranked)}
-        cost = [[100 * self._slot_price(row, side, lane) + rank[index]
+        # Three terms, in descending weight, and the two small ones only ever decide a TIE:
+        #   the price of the place (what this is about);
+        #   whether he is drawn OUT of the line he was picked for, charged by how good he is - so when the
+        #     shape has more places than a line has men, the compromise falls on the weakest of them. A
+        #     squad of three strikers filling a 4-4-2 put the 10% man in the attack and the 90% one in
+        #     midfield, because the total was the same either way and nothing broke the tie;
+        #   his rank, so two men who are equal in every other respect are ordered by who plays more and the
+        #     board never depends on the order the rows happened to arrive in.
+        cost = [[1000 * self._slot_price(row, side, lane)
+                 + (10 * rank[index] if home and home.get(id(row)) not in (None, lane) else 0)
+                 + rank[index]
                  for lane, side in places]
                 for index, row in enumerate(chosen)]
         taken = self._matching(cost)
@@ -4250,7 +4314,7 @@ class SnapshotView(ttk.Frame):
             lane, side = places[place]
             self._slot_side[id(row)] = side
             out.append((lane, row))
-        return self._reshape(out)
+        return out
 
     def _reshape(self, placed: list[tuple[str, dict]]) -> list[tuple[str, dict]]:
         """A CENTRAL man in a flank slot does not stay there: the shape transforms around him.
@@ -4354,7 +4418,7 @@ class SnapshotView(ttk.Frame):
         # a man given the four's left flank is drawn there and not moved back to his own code's line.
         self._lanes_final = True
         return [(lane, row, alternatives.get(row.get("name"), []))
-                for lane, row in self._assign(chosen, formation)]
+                for lane, row in self._reshape(self._assign(chosen, formation))]
 
     def _fielded(self, squad: list[dict],
                  formation: str = "4-3-3") -> list[tuple[str, dict, list[dict]]]:
@@ -4386,7 +4450,7 @@ class SnapshotView(ttk.Frame):
             alternatives[starter.get("name")] = rivals
         self._lanes_final = True
         return [(lane, row, alternatives.get(row.get("name"), []))
-                for lane, row in self._assign(eleven, formation)]
+                for lane, row in self._reshape(self._assign(eleven, formation))]
 
     # The same position on the OTHER flank. A coach who runs out of right backs plays a left back there
     # and inverts him; he does not play a centre-forward there. So a mirrored flank is a real option and

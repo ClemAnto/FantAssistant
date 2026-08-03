@@ -476,10 +476,12 @@ def test_a_real_attack_has_one_centre_forward_and_he_plays_in_the_middle():
     view = View.__new__(View)
     striker = {"name": "Nine", "desc_real_roles": "ST"}
     winger = {"name": "Seven", "desc_real_roles": "RW"}
-    # for the wide slot the winger comes first, however the pool is ordered: a striker on the touchline
-    # is a compromise, and it only happens when the flank has nobody else
-    assert view.slot_cost(winger, "R", "A", 0) < view.slot_cost(striker, "R", "A", 0)
-    assert view.slot_cost(striker, "C", "A", 0) < view.slot_cost(striker, "C", "A", 2)
+    # the wide place of a front three goes to the winger, and the middle to the striker - priced, because
+    # that is what the assignment reads (`_slot_price`): a forward pays nothing for a wing in the attacking
+    # line (the three interchange, and the marker says so), while a striker still prefers the middle
+    assert view._slot_price(winger, "R", "A") < view._slot_price(striker, "R", "A")
+    assert view._slot_price(striker, "C", "A") < view._slot_price(striker, "R", "A")
+    assert view._slot_price(striker, "C", "A") < view._slot_price(winger, "C", "A")
 
     # two centre-forwards on the board: the central one keeps the shirt, the other reads seconda punta
     # the fractions are the real drawn ones, so the CENTRAL striker keeps the shirt: read off an even
@@ -1018,11 +1020,14 @@ def test_a_declared_eleven_is_assigned_to_the_shape_and_never_moves_a_man_for_no
     assert where["McTominay"][0] == "T" and where["Elmas"][0] == "T", where
     assert where["Lobotka"][0] == "M" and where["Anguissa"][0] == "M", where
 
-    # ...and a 3-4-3, which really does have three attacking places: there the wingers ARE the wide forwards
-    # and the centrals fill the middle. A line change has to be forced, and here it is not.
+    # ...and asking these same eleven men for a 3-4-3 TRANSFORMS it, which is the operator's own remedy:
+    # this squad has no full backs to spare for the four's flanks (its only wide defenders are its back
+    # three), so the wingers stay in the four and the four centrals split over the two central rows. What
+    # must hold in every case is the invariants above plus this: no midfielder in the back three.
     where = drawn("3-4-3")
-    assert where["Politano"] == ("A", "R") and where["Santos"] == ("A", "L"), where
     assert {where[name][0] for name in ("Di Lorenzo", "Rrahmani", "Olivera")} == {"D"}, where
+    assert {where["Politano"][1], where["Santos"][1]} == {"R", "L"}, where
+    assert where["Politano"][0] == where["Santos"][0], "the two wide men stand in the same line"
 
 
 def test_a_tooltip_never_leaves_the_screen():

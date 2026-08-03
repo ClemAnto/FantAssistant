@@ -496,7 +496,7 @@ Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos
 
 ## Novità v9.16 (3 agosto 2026 — la percentuale di una build, il piede, e la tabella che colora le celle)
 
-Tredici richieste dell'utente in una sessione, tutte sul pannello Snapshot, piu' un difetto che una di
+Quindici richieste dell'utente in una sessione, tutte sul pannello Snapshot, piu' un difetto che una di
 esse ha fatto emergere (§5). **Nessun numero del motore cambia**: sono avanzamento, disegno, colore e una
 domanda in piu' che il board sa rispondere. 271 test (11 nuovi), ruff pulito.
 
@@ -723,6 +723,52 @@ codice non ne nomina nessuna, prende il codice di fascia di quella LINEA (`FLANK
 che non sia una linea con le fasce. Misurato sulla Juve: `Td` Kalulu · Dc Bremer · Dc Gatti · `Ts` Kelly, e
 in mezzo `Ed` McKennie · M Locatelli · C Thuram · C Koopmeiners · `Es` Cambiaso — con il 3-4-3 dello stesso
 undici che continua a leggere tre `Dc`.
+
+### 10-quater. Il claim scegli CHI gioca, la calzata solo DOVE — e il prezzo di una casella per linea
+Domande dell'utente sull'Atalanta: «come mai la formazione tipo passa dal 3-4-3 al 3-6-1? perché Raspadori e
+Scamacca non giocano titolari?». Due difetti veri, uno di modello e uno di dato.
+
+**1. La selezione non doveva essere della calzata.** Le maglie venivano date una casella per volta al
+candidato che calzava meglio, quindi un uomo a **claim 0.00** (Touré) prendeva la sinistra del tridente
+perché nasceva ala sinistra — e la riparazione, per rimediare, tirava due **terzini** dentro l'attacco; poi
+`lanes_for` li ridisegnava dove giocano davvero e usciva il **3-6-1 con un attaccante**. Ora la selezione è
+per linea e **solo sul claim** (chi gioca), e la calzata decide **solo la disposizione** (`_assign`, la
+stessa assegnazione globale dell'undici dichiarato). Misurato su 340 undici: somma dei claim **2708 → 2932**,
+cioè elevens più forti a parità di tutto il resto.
+
+**2. Il prezzo di una casella dipende dalla LINEA.** Tarare un prezzo unico per la fascia rompeva un caso per
+ogni correzione, e la ragione è che le due linee non chiedono la stessa cosa:
+- a **centrocampo e in difesa la fascia è un ruolo** — un esterno e un mediano fanno due lavori — quindi
+  stare una fascia fuori posto deve costare **più** che salire di una linea intera: è perché Gutierrez
+  (terzino, una linea sotto) è l'esterno del quattro e un mediano no;
+- nel **reparto avanzato i tre si scambiano** — una punta va sull'ala per un tratto e la targhetta lo dice
+  (`Ad`/`As`/`Sp`) — quindi la fascia deve costare **meno** di una linea: è perché Krstovic tiene la sinistra
+  del tridente contro un terzino sinistro, e la trequarti va a un'ala e non al centravanti.
+Quindi `SIDE_WEIGHT` = **8** su D/M, **3** su T/A, con la distanza di linea sempre `20 x Δprofondità` (una
+linea piena = 7), più due dettagli che i casi hanno imposto: un **centravanti preferisce il centro**
+dell'attacco (sulla griglia un trequartista e una punta sono equidistanti, e senza quel termine un 3-4-3
+disegnava McTominay punta con Hojlund larga) e **una linea sistema le proprie caselle prima di chiedere a
+un'altra** (è la differenza fra Napoli — il centrocampo non ha un mancino suo, quindi Spinazzola sale e
+Olivera entra — e Atalanta, dove l'attacco ha De Ketelaere per la sua sinistra e un terzino non ci deve
+entrare). E una mossa a **calzata invariata** ora chiede `CLAIM_MARGIN = 0.05` (due giornate su 38): due
+mosse da +0.01 in catena erano bastate a lasciare l'attacco dell'Atalanta con un uomo.
+
+**Esito**: Atalanta 3-4-3 → disegnata **3-4-1-2** con De Ketelaere `Pc` e **Krstovic `As`** davanti;
+Juventus 3-4-3 → `Ad` Conceicao · `Pc` Vlahovic · `As` Yildiz; Napoli 4-4-2 → Hojlund + Neres. Su 340
+undici: **0 uomini a due linee da casa, 0 undici incompleti, 0 portieri fuori dai pali**.
+
+**E la risposta di DATO alla seconda domanda**: Raspadori e Scamacca non giocano perché l'Atalanta ruota le
+punte e il claim lo dice — Krstovic **0.54** (18 titolarità su 33 partite), Scamacca **0.49** (16 su 24, con
+disponibilità 0.56 per gli infortuni), Raspadori **0.25** (7 su 13). Nessuna delle tre tiene la maglia: la
+tipo prende la migliore e la seconda casella la vince un trequartista che gioca di più.
+
+⚠️ **Aperto, misurato e non risolto**: su 340 undici restano **9 attacchi senza un attaccante** (Barcellona
+schiera Olmo e Lopez davanti con una punta a 0.79 fuori) e **3 centrali su una fascia**. Vengono dallo stesso
+punto: la linea `T` (i trequartisti, codice `AM`) è in pool con l'attacco, quindi per claim un numero dieci
+batte una punta. Provato a mettere gli attaccanti in testa al pool per l'attacco: sistema Barcellona e
+**rompe l'Atalanta** (torna il 3-6-1). Lasciato come è, scritto qui, invece di tarare un altro numero al
+buio: la decisione giusta è probabilmente separare il pool `T` da quello `A` quando il modulo ha una linea
+di trequartisti, e va fatta con calma.
 
 ### 10-bis. Il CORPO: torre o punta di movimento (misurato, non usato per scegliere)
 Richiesta dell'utente: capire se l'allenatore preferisce una punta di movimento (L. Martinez, Boga) o una
