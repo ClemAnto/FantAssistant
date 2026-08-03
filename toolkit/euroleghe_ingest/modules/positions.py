@@ -1054,7 +1054,12 @@ def _role_entry(player: dict) -> dict | None:
             # agree by construction on every sample, and this way a payload missing `position` still
             # lands in a line instead of a NULL.
             "line": player.get("position") or REAL_ROLE_LINE.get(codes[0]),
-            "foot": player.get("preferredFoot")}
+            "foot": player.get("preferredFoot"),
+            # The BODY comes in the same payload, so it costs nothing: it is what tells a punta centrale
+            # who plays as a torre from one who plays on the move, which the twelve codes cannot say (both
+            # are `ST`). Descriptive - see `_role_entry`'s caller and the schema comment.
+            "height": player.get("height"),
+            "weight": player.get("weight")}
 
 
 def unknown_role_codes(payloads) -> dict[str, int]:
@@ -1232,12 +1237,12 @@ def ingest_roles_from_cache(ctx: Context, date: str | None = None) -> int:
             # A player listed by two clubs on the same day (a transfer the pages disagree on) would
             # otherwise write twice; the role is a fact about the man, so either row will do.
             rows[(fc_id, observed)] = (fc_id, observed, entry["roles"], entry["primary_role"],
-                                       entry["line"], entry["foot"])
+                                       entry["line"], entry["foot"], entry["height"], entry["weight"])
     if not rows:
         return 0
     conn.executemany(
         "INSERT OR REPLACE INTO player_roles(fc_id, valid_from, source, roles, primary_role, line, "
-        "foot) VALUES (?, ?, 'sofascore', ?, ?, ?, ?)", list(rows.values()))
+        "foot, height, weight) VALUES (?, ?, 'sofascore', ?, ?, ?, ?, ?, ?)", list(rows.values()))
     conn.commit()
     dates = sorted({observed for _fc, observed in rows})
     print(f"[positions] real role: {len(rows)} player-observations over {len(dates)} date(s) "
@@ -1264,18 +1269,19 @@ def roles_as_of(conn, date: str, fallback: bool = False) -> dict[int, dict]:
     """
     out: dict[int, dict] = {}
     rows = conn.execute(
-        "SELECT fc_id, roles, primary_role, line, foot, valid_from FROM player_roles "
+        "SELECT fc_id, roles, primary_role, line, foot, valid_from, height, weight FROM player_roles "
         "WHERE source = 'sofascore' AND valid_from <= ? ORDER BY valid_from", (date,)).fetchall()
     if fallback:
         # later observations FIRST, so the loop below overwrites them with anything that predates the
         # date: an in-time reading always wins over a borrowed one
         rows = conn.execute(
-            "SELECT fc_id, roles, primary_role, line, foot, valid_from FROM player_roles "
+            "SELECT fc_id, roles, primary_role, line, foot, valid_from, height, weight FROM player_roles "
             "WHERE source = 'sofascore' AND valid_from > ? ORDER BY valid_from DESC",
             (date,)).fetchall() + rows
-    for fc_id, roles, primary, line, foot, observed in rows:
+    for fc_id, roles, primary, line, foot, observed, height, weight in rows:
         out[fc_id] = {
             "roles": roles, "primary": primary, "line": line, "foot": foot, "observed": observed,
+            "height": height, "weight": weight,
             # Where to DRAW him, from the primary code: depth up the pitch and flank, on the same
             # axes `avg_x`/`avg_y` measure. Carried in the sheet so every reader of the CSV places
             # him the same way the pitch view does, instead of each one inventing a mapping.

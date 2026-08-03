@@ -496,9 +496,9 @@ Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos
 
 ## Novità v9.16 (3 agosto 2026 — la percentuale di una build, il piede, e la tabella che colora le celle)
 
-Undici richieste dell'utente in una sessione, tutte sul pannello Snapshot, piu' un difetto che una di
+Dodici richieste dell'utente in una sessione, tutte sul pannello Snapshot, piu' un difetto che una di
 esse ha fatto emergere (§5). **Nessun numero del motore cambia**: sono avanzamento, disegno, colore e una
-domanda in piu' che il board sa rispondere. 269 test (9 nuovi), ruff pulito.
+domanda in piu' che il board sa rispondere. 270 test (10 nuovi), ruff pulito.
 
 ### 1. La build dello snapshot dice a che punto è (percentuale, non spinner)
 Prima la barra era **indeterminata** con il commento «una percentuale sarebbe un numero inventato». Ora
@@ -710,6 +710,24 @@ Trovato per strada e chiuso: con **una sola** probabilità registrata (Eintracht
 uomo** su un campo vuoto — l'undici dichiarato ora richiede almeno 11 nomi, sotto quella soglia si torna
 alle presenze misurate.
 
+### 10-bis. Il CORPO: torre o punta di movimento (misurato, non usato per scegliere)
+Richiesta dell'utente: capire se l'allenatore preferisce una punta di movimento (L. Martinez, Boga) o una
+punta fisica da torre (Hojlund, Vlahovic). Il dato era **già nella cache**: la pagina rosa del provider —
+una richiesta per club, la stessa dei dodici codici e del piede — porta anche `height`, `weight`,
+`dateOfBirth` e `proposedMarketValue`. Quindi migrazione (`player_roles.height`/`weight`), re-ingest
+**offline**, e due colonne nuove nel foglio (`desc_height`, `desc_weight`): **953 altezze su 953**, 343 pesi
+(il peso alla fonte è più raro). Hojlund 191 · Vlahovic 190 · Yildiz 187 · David 180 · Openda 177 · Boga 172
+· Conceicao 166 — la distinzione si vede, ed è quella che il codice `ST` non dice.
+Poi la misura, **prima** di usarla: su 92 coppie (club, stagione) in cui due punte hanno almeno 5 partite da
+titolare ciascuna, la più usata è la **più alta 44 volte = 48%**, con le stagioni fra 14% e 69%. Una
+monetina. Quindi il corpo **non entra in nessuna scelta** — non nel prezzo di una casella, non come spareggio
+fra due punte, non in una colonna `engine_*` — e vive nel **tooltip** della targhetta e nella lista degli
+alternativi (`SnapshotView.build`), dove serve a chi legge. La ragione per cui la misura non chiude
+l'ipotesi è dichiarata: l'utente parla di **come gioca** una squadra (cross, duelli aerei, palle lunghe) e
+quei dati **non sono** nello strato per-partita, mentre il canale che vediamo — chi schiera — non ha segnale.
+Dettaglio e numeri: gate **§5-terdecies**. ⚠️ Nella stessa pagina c'è `proposedMarketValue`, cioè il proxy che
+§7-quater aspettava per ri-testare l'investimento del club: nota per il prossimo giro.
+
 ### 10. Due difetti che l'operatore ha visto guardando il campetto
 1. **«Yildiz perché è punta? non c'è altro di meglio?»** — sì: Vlahovic (claim **0.57**) e David (0.54)
    erano fuori dagli undici mentre il tridente leggeva Conceicao 0.75 · **Yildiz 0.90 al centro** · Gonzalez
@@ -740,8 +758,9 @@ canvas, media iniettata, e verifica l'inversione di `inj`),
 `test_a_line_only_reaches_the_touchline_where_it_has_a_man_who_plays_there` (i tre casi: due esterni, uno,
 nessuno), `test_a_declared_eleven_is_assigned_to_the_shape_and_never_moves_a_man_for_nothing` (le tre regole insieme:
 esterni sulle fasce del quattro, la punta punta e l'ala mai punta unica, e nessun cambio di linea non
-obbligato), `test_a_tooltip_never_leaves_the_screen` (il puntatore nell'angolo in basso a destra).
-**269 test verdi.**
+obbligato), `test_a_tooltip_never_leaves_the_screen` (il puntatore nell'angolo in basso a destra),
+`test_the_body_reaches_the_sheet_and_decides_nothing` (altezza e peso arrivano, e il prezzo di una casella
+non li legge). **270 test verdi.**
 
 ## Novità v9.15 (29 luglio 2026, notte — il pannello: l'altezza si spende sul campetto, non sul suo bordo)
 

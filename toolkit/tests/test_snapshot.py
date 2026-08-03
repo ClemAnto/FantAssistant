@@ -1059,3 +1059,33 @@ def test_a_tooltip_never_leaves_the_screen():
         tip.hide()
     finally:
         root.destroy()
+
+
+def test_the_body_reaches_the_sheet_and_decides_nothing():
+    """Height and weight come from the same provider payload as the granular codes, so they cost no extra
+    request - and they say the one thing `ST` cannot: a punta centrale who plays as a TORRE and one who
+    plays on the move are the same code (Hojlund 191 against Boga 172).
+
+    They are DESCRIPTIVE and that is measured, not assumed: over 92 club-seasons where two strikers each
+    started five league matches, the more used of the two is the taller one 44 times (48%) - a coin. So the
+    sheet carries them, the plate shows them, and nothing selects on them (gate §5-terdecies)."""
+    from euroleghe_ingest.gui import SnapshotView as View
+    from euroleghe_ingest.modules import positions
+
+    entry = positions._role_entry({"id": 7, "positionsDetailed": ["ST"], "position": "F",
+                                   "preferredFoot": "Right", "height": 191, "weight": 84})
+    assert entry["height"] == 191 and entry["weight"] == 84
+    # ...and a payload without them is not a payload with zeros
+    thin = positions._role_entry({"id": 8, "positionsDetailed": ["LW"], "position": "F"})
+    assert thin["height"] is None and thin["weight"] is None
+
+    assert "desc_height" in snapshot.PLAYER_COLUMNS and "desc_weight" in snapshot.PLAYER_COLUMNS
+    assert View.build({"desc_height": "191", "desc_weight": "84"}) == "191 cm · 84 kg"
+    assert View.build({"desc_height": "172"}) == "172 cm", "as much of it as the provider gave"
+    assert View.build({}) == ""
+
+    # the price of a place must not read the body: two strikers of the same code cost the same shirt
+    view = View.__new__(View)
+    tall = {"desc_real_roles": "ST", "desc_height": "191", "desc_weight": "84"}
+    small = {"desc_real_roles": "ST", "desc_height": "172"}
+    assert view._slot_price(tall, "C", "A") == view._slot_price(small, "C", "A")

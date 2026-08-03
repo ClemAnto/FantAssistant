@@ -39,6 +39,11 @@ ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("probable_starter", "starter", "INTEGER"),
     ("probable_starter", "role", "TEXT"),
     ("probable_starter", "status", "TEXT"),
+    # The BODY, from the same provider payload the granular roles come from (one request per club, so
+    # they cost nothing extra). Dated like the roles because that is the table they arrive in - though a
+    # grown man's height does not move, which is why it may be read for a past season and a role may not.
+    ("player_roles", "height", "INTEGER"),
+    ("player_roles", "weight", "INTEGER"),
     ("injuries", "matches_missed", "INTEGER"),
     ("injuries", "detail", "TEXT"),
     ("injuries", "source", "TEXT"),

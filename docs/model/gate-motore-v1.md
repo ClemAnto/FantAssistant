@@ -1361,6 +1361,51 @@ normalizzazione che l'ipotesi chiedeva davvero: il suo valore come **quota del v
 sopra, senza ritoccarle. Gli **ingaggi restano indisponibili**: verificato sulle pagine che scarichiamo,
 zero occorrenze di Gehalt/salary/stipendio; le fonti che li stimano sono fuori whitelist.
 
+## 5-terdecies. La punta torre e la punta di movimento (3 agosto 2026) — misurata, NON adottata
+
+Ipotesi dell'utente, con la sua stessa formulazione: «dovresti capire se l'allenatore predilige una punta
+centrale agile di movimento (L. Martinez, Boga) o una punta centrale classica forte fisicamente (Hojlund,
+Vlahovic) — nella maggior parte dei casi si opta per la punta alta e forte fisicamente che possa fare da
+torre o da boa». Descrittiva, nessun giro di gate: quello che segue è una **misura** e una **decisione di
+non usarla**.
+
+### Il dato c'era già, e non costa una richiesta
+La pagina rosa del provider — la stessa che porta i dodici codici e il piede, una richiesta per club —
+porta anche **`height`, `weight`, `dateOfBirth` e `proposedMarketValue`**. Quindi: due colonne nuove in
+`player_roles` (migrazione `height`/`weight`), riempite **offline** dalla cache già scaricata, e due colonne
+`desc_height`/`desc_weight` nel foglio. Copertura sull'osservazione del 03/08/2026: **953 altezze su 953
+righe**, **343 pesi** (il peso alla fonte è più raro). Hojlund 191, Vlahovic 190, Yildiz 187, David 180,
+Openda 177, Boga 172, Conceicao 166 — la distinzione dell'utente si vede a occhio, ed è quello che il codice
+`ST` non dice: torre e uomo di movimento sono la stessa lettera.
+⚠️ Nella stessa pagina c'è anche `proposedMarketValue`, cioè **il proxy che §7-quater aspettava** per
+ri-testare l'investimento del club: arriva per giocatore, non solo per chi è costato un cartellino. Nota per
+il prossimo giro, non fatto qui.
+
+### La misura: l'allenatore schiera la punta più alta?
+Bersaglio: **chi gioca**. Su ogni (club, stagione) dello strato per-partita in cui **due** punte (codice
+primario `ST`) hanno almeno **5 partite da titolare** ciascuna, la più usata delle due è la **più alta**:
+
+| | |
+|---|---|
+| coppie club-stagione | **92** (più 2 pari) |
+| la più usata è la più alta | **44 → 48%** |
+| per stagione | 19/20 60% · 20/21 **14%** · 21/22 57% · 22/23 50% · 23/24 69% · 24/25 52% · 25/26 **37%** |
+
+**Una monetina**, e instabile fra stagioni nell'ordine di 14%-69%. Anche la media di altezza dice poco: le
+punte stanno a **184.6 cm** contro **183.3** di tutti gli altri (n 109 / 775).
+
+### Verdetto e ragione
+**Non entra in nessuna scelta**: né nel prezzo di una casella (`_slot_price`), né come spareggio fra due
+punte, né in una colonna `engine_*`. Vive nel tooltip della targhetta e nella lista degli alternativi
+(`SnapshotView.build`), dove serve a **chi legge** — che è il posto giusto per un fatto vero e non
+predittivo.
+E la ragione per cui la misura non chiude l'ipotesi, che va detta: quello di cui l'utente parla è **come
+gioca** una squadra (cross, duelli aerei, palle lunghe), non **chi schiera**; il canale «chi gioca» è il solo
+che i nostri dati vedono, e là il segnale non c'è. I duelli aerei e i cross **non sono** nello strato
+per-partita (`external_match_stats` ha tiri, occasioni, key passes, tocchi), quindi l'ipotesi nella sua forma
+vera **non è testabile oggi** — ed è dichiarata così invece di essere approssimata con l'altezza del
+titolare.
+
 ## 8. Casi di regressione (in `model.REGRESSION_CASES`, stampati da `backtest --cases`)
 
 Lewandowski (età/minuti) · Wirtz (cambio lega) · Torres F. (propensione per-90) · Ezzalzouli (nuovo nel

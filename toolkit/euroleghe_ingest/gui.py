@@ -3452,6 +3452,28 @@ class SnapshotView(ttk.Frame):
     _excluded: ClassVar[set] = set()
     _means: ClassVar[dict[str, float] | None] = None
 
+    @staticmethod
+    def build(row: dict) -> str:
+        """His PHYSICAL profile: '191 cm · 78 kg', or as much of it as the provider gave.
+
+        It is on the plate because it is the one thing `ST` cannot say and an operator asks first: a punta
+        centrale who plays as a TORRE and one who plays on the move are the same code (Hojlund 191 and
+        Vlahovic 190 against David 180 and Boga 172). Weight is thinner than height at the source - 343 of
+        953 men - so the string carries what exists and nothing more.
+
+        DESCRIPTIVE, and deliberately not a criterion. The obvious use - «most coaches field the tall
+        physical one» - was MEASURED before being believed and it does not hold: over 92 club-seasons where
+        two strikers each started at least five league matches, the more used of the two is the TALLER one
+        44 times, 48%, with the seasons scattered from 14% to 69%. A coin. What the hypothesis is really
+        about is how a side PLAYS (crosses, aerial duels, long balls), and none of those are in the
+        per-match layer - so it stays a reading for the human, in the tooltip, and nothing selects on it.
+        Details: gate §5-terdecies.
+        """
+        parts = [f"{int(_number(row.get(key)))} {unit}"
+                 for key, unit in (("desc_height", "cm"), ("desc_weight", "kg"))
+                 if _number(row.get(key), None)]
+        return " · ".join(parts)
+
     @classmethod
     def foot_side(cls, row: dict, lane: str) -> float:
         """+1 his foot suggests the team's right .. -1 its left, 0.0 unknown or two-footed."""
@@ -4754,6 +4776,7 @@ class SnapshotView(ttk.Frame):
         foot = (starter.get("desc_foot") or "").strip().lower()
         head = f"{starter.get('name')}  {', '.join(self.real_roles(starter)) or '?'}"
         lines = [head + (f"  ·  {foot} foot" if foot else "")
+                 + (f"  ·  {self.build(starter)}" if self.build(starter) else "")
                  + (f"  ·  {share:.0%} when available" if share else "")]
         if horizon != "recent":
             # BOTH numbers, because they answer two questions and the plate can only carry one: the shirt
@@ -4780,7 +4803,8 @@ class SnapshotView(ttk.Frame):
                 rival_share = self.claim(rival, horizon)
                 lines.append(f"   {rival.get('name')}"
                              + (f"  {rival_share:.0%}" if rival_share else "  -")
-                             + f"  {', '.join(self.real_roles(rival)) or '?'}")
+                             + f"  {', '.join(self.real_roles(rival)) or '?'}"
+                             + (f"  {self.build(rival)}" if self.build(rival) else ""))
         else:
             lines.append("nobody else in the squad plays his position")
         stated = [name.strip() for name in (starter.get("desc_duel_names") or "").split(";")

@@ -254,6 +254,12 @@ CREATE TABLE IF NOT EXISTS player_roles (
     primary_role TEXT,                          -- the first of them
     line       TEXT,                            -- the provider's broad slot: G | D | M | F
     foot       TEXT,                             -- Left | Right | Both: which flank a wide role really is
+    height     INTEGER,                         -- cm, from the same payload as the roles
+    weight     INTEGER,                         -- kg, same. DESCRIPTIVE: the physical profile of a
+                                                -- centre-forward is visible to the operator and is NOT a
+                                                -- selection criterion - measured, the more used of a
+                                                -- club's two strikers is the taller one 44 times out of
+                                                -- 92 (48%), i.e. nothing (gate §5-terdecies)
     PRIMARY KEY (fc_id, valid_from, source)
 );
 
