@@ -1023,3 +1023,39 @@ def test_a_declared_eleven_is_assigned_to_the_shape_and_never_moves_a_man_for_no
     where = drawn("3-4-3")
     assert where["Politano"] == ("A", "R") and where["Santos"] == ("A", "L"), where
     assert {where[name][0] for name in ("Di Lorenzo", "Rrahmani", "Olivera")} == {"D"}, where
+
+
+def test_a_tooltip_never_leaves_the_screen():
+    """They did, and often: the tip's corner was pinned at the pointer, and the columns carrying the
+    longest help sit at the RIGHT of the table while the plates sit at the BOTTOM of the pitch - so the
+    text ran off both edges. Measured first, then flipped to the other side of the pointer (and only
+    clamped for a tip taller than the screen), because a tip pinned to the edge covers the very cell it
+    is describing."""
+    import tkinter as tk
+
+    from euroleghe_ingest import gui
+
+    try:
+        root = tk.Tk()
+    except tk.TclError:
+        import pytest
+        pytest.skip("no display available")
+    root.geometry("400x300+100+100")
+    try:
+        root.update()
+        screen_w, screen_h = root.winfo_screenwidth(), root.winfo_screenheight()
+        tip = gui.Tooltip(root, "A very long tooltip. " * 40, delay=1, wraplength=520,
+                          anchor="pointer", bind_events=False)
+        # the pointer in the bottom-right corner, which is where it used to go wrong
+        root.winfo_pointerx = lambda: screen_w - 12
+        root.winfo_pointery = lambda: screen_h - 12
+        tip._show()
+        root.update_idletasks()
+        window = tip._tip
+        left, top = window.winfo_x(), window.winfo_y()
+        assert left >= 0 and top >= 0
+        assert left + window.winfo_reqwidth() <= screen_w
+        assert top + window.winfo_reqheight() <= screen_h
+        tip.hide()
+    finally:
+        root.destroy()

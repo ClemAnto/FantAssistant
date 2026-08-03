@@ -255,7 +255,16 @@ def operation_state(command: str, counts: dict[str, int] | None, has_sources: bo
 
 
 class Tooltip:
-    """Minimal hover tooltip for a Tk widget (stdlib only). `text` may be a str or a callable."""
+    """Minimal hover tooltip for a Tk widget (stdlib only). `text` may be a str or a callable.
+
+    It never leaves the screen: the tip is measured before it is shown and flipped to the other side of
+    the pointer when it would overflow (`_show`).
+    """
+
+    MARGIN = 8          # how much of the screen edge stays clear
+
+
+
 
     def __init__(self, widget, text, delay: int = 450, wraplength: int = 320,
                  anchor: str = "widget", bind_events: bool = True) -> None:
@@ -294,11 +303,26 @@ class Tooltip:
             y = self.widget.winfo_rooty()
         self._tip = tw = tk.Toplevel(self.widget)
         tw.wm_overrideredirect(True)
-        tw.wm_geometry(f"+{x}+{y}")
+        # Placed OFF SCREEN first, so it is measured before it is seen: the size of a tip depends on its
+        # text and on the wraplength, and a tip whose corner is put at the pointer runs off the right edge
+        # and off the bottom - which on this panel is most of them, because the columns that carry the
+        # longest help sit at the right of the table and the plates at the bottom of the pitch.
+        tw.wm_geometry("+10000+10000")
         tk.Label(
             tw, text=text, justify="left", background="#ffffe0", foreground="#000000",
             relief="solid", borderwidth=1, wraplength=self.wraplength, padx=8, pady=6,
         ).pack()
+        tw.update_idletasks()
+        width, height = tw.winfo_reqwidth(), tw.winfo_reqheight()
+        screen_w, screen_h = tw.winfo_screenwidth(), tw.winfo_screenheight()
+        # FLIPPED rather than clamped where it does not fit: a tip pinned to the edge covers the very cell
+        # or plate it is describing, so it goes to the other side of the pointer instead - and only then
+        # clamped, for a tip taller than the screen.
+        if x + width + self.MARGIN > screen_w:
+            x = max(self.MARGIN, self.widget.winfo_pointerx() - width - 14)
+        if y + height + self.MARGIN > screen_h:
+            y = max(self.MARGIN, self.widget.winfo_pointery() - height - 8)
+        tw.wm_geometry(f"+{int(x)}+{int(y)}")
 
     def hide(self, _event=None) -> None:
         self._unschedule()
@@ -3906,10 +3930,10 @@ class SnapshotView(ttk.Frame):
                           [row for row in able if row.get("name") in named][:3] or able[:2]))
         return final
 
-    # How many rounds of repair `_settle` runs. Each accepted move strictly improves a pair of shirts, so
-    # the loop terminates on its own; the cap is a backstop, and three rounds is more than a chain of two
-    # moves ever needs on an eleven.
-    SETTLE_ROUNDS: ClassVar[int] = 3
+    # How many rounds of repair `_settle` runs. Every accepted move improves the pair on one axis without
+    # losing the other, so the loop terminates on its own; the cap is a backstop. Six, because a chain can
+    # now be longer than two moves - an equal-fit move that only adds claim can open the next one.
+    SETTLE_ROUNDS: ClassVar[int] = 6
 
     def _settle(self, out: list, eligible: list[dict]) -> list:
         """Let a line take a man from ANOTHER line's eleven, as long as the hole he leaves closes better.
@@ -3998,14 +4022,17 @@ class SnapshotView(ttk.Frame):
                 if not self._within_reach(mover, role_here):
                     continue                          # more than one line from where he plays
                 moved = self.slot_cost(mover, side_here, role_here, strikers_here)
-                if moved >= fit_here:
-                    continue                          # he does not fit the shirt any better: no move
+                if moved > fit_here:
+                    continue                          # a worse fit for this shirt: never
                 fit_there = self.slot_cost(mover, side_there, role_there, strikers_there)
                 # First the SWAP, which needs nobody from outside: the two men exchange shirts. It is what
                 # fixes an eleven that is already the right eleven and only badly arranged - a striker given
                 # a trequartista's place because that line was served first, with a mediano behind him.
                 swapped = self.slot_cost(holder, side_there, role_there, strikers_there)
-                if self._within_reach(holder, role_there) and swapped <= fit_there:
+                if (moved < fit_here and swapped <= fit_there
+                        and self._within_reach(holder, role_there)):
+                    # a SWAP moves the same men, so there is no claim to gain: it has to earn its place
+                    # on the fit alone, which is why this branch keeps the strict test.
                     moves.append(((moved, 0.0, swapped), here, there, mover, holder))
                     continue
                 reachable = [row for row in free if self._within_reach(row, role_there)]
@@ -4021,6 +4048,14 @@ class SnapshotView(ttk.Frame):
                         - self.claim(holder, "season") - self.claim(mover, "season"))
                 if gain < 0:
                     continue                          # ...and the eleven must not get weaker for it
+                if moved == fit_here and gain <= 0:
+                    # EQUAL fit is allowed, but then the move has to be worth something. This is the case
+                    # the operator found on Juventus: the front three was Conceicao - Yildiz - Gonzalez
+                    # (0.75 + 0.90 + 0.36) with Vlahovic, a centre-forward at 0.57, outside it. Yildiz on
+                    # his own left wing fits exactly as well as in the middle, so nothing was ever "badly
+                    # fitted" and a rule that demanded a BETTER fit could not see it. Moving him left and
+                    # giving the middle to Vlahovic keeps every fit identical and adds 0.21 of claim.
+                    continue
                 moves.append(((moved, -gain, closed), here, there, mover, refill))
         if not moves:
             return None

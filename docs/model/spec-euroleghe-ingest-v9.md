@@ -496,9 +496,9 @@ Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos
 
 ## Novità v9.16 (3 agosto 2026 — la percentuale di una build, il piede, e la tabella che colora le celle)
 
-Nove richieste dell'utente in una sessione, tutte sul pannello Snapshot, piu' un difetto che una di
+Undici richieste dell'utente in una sessione, tutte sul pannello Snapshot, piu' un difetto che una di
 esse ha fatto emergere (§5). **Nessun numero del motore cambia**: sono avanzamento, disegno, colore e una
-domanda in piu' che il board sa rispondere. 268 test (8 nuovi), ruff pulito.
+domanda in piu' che il board sa rispondere. 269 test (9 nuovi), ruff pulito.
 
 ### 1. La build dello snapshot dice a che punto è (percentuale, non spinner)
 Prima la barra era **indeterminata** con il commento «una percentuale sarebbe un numero inventato». Ora
@@ -710,6 +710,25 @@ Trovato per strada e chiuso: con **una sola** probabilità registrata (Eintracht
 uomo** su un campo vuoto — l'undici dichiarato ora richiede almeno 11 nomi, sotto quella soglia si torna
 alle presenze misurate.
 
+### 10. Due difetti che l'operatore ha visto guardando il campetto
+1. **«Yildiz perché è punta? non c'è altro di meglio?»** — sì: Vlahovic (claim **0.57**) e David (0.54)
+   erano fuori dagli undici mentre il tridente leggeva Conceicao 0.75 · **Yildiz 0.90 al centro** · Gonzalez
+   0.36. La greedy per casella non sbagliava la calzata — Yildiz al centro e Yildiz sull'ala sinistra
+   calzano **identico** — quindi la riparazione, che pretendeva una calzata *migliore*, non poteva vederlo.
+   Ora `_better_pair` accetta anche la mossa a **calzata invariata** se aggiunge claim: resta Pareto (la
+   calzata non peggiora mai, il claim migliora strettamente), e la Juve esce **Conceicao `Ad` · Vlahovic
+   `Pc` · Yildiz `As`** (+0.21 su quel tridente). Misurato su tutti i **340 undici**: somma dei claim
+   **2708.5 → 2819.5 (+111)**, con **0** difetti di posizione (nessun centrale su una fascia, nessuno a due
+   linee da casa, nessun portiere fuori dai pali, nessun undici incompleto). `SETTLE_ROUNDS` 3 → 6, perché
+   una mossa a parità di calzata può aprirne un'altra.
+2. **«spesso i tooltip escono fuori dalla schermata»** — e uscivano per costruzione: l'angolo del tip veniva
+   messo sul puntatore senza sapere quanto fosse grande. Ora `Tooltip._show` lo **misura prima di mostrarlo**
+   (piazzato fuori schermo, `update_idletasks`, `winfo_reqwidth/height`) e lo **ribalta** dall'altro lato del
+   puntatore quando sfonderebbe il bordo, clampando solo se è più alto dello schermo. Ribaltato e non
+   clampato perché un tip appoggiato al bordo copre esattamente la cella o la targhetta che sta spiegando.
+   È il caso peggiore proprio su questo pannello: le colonne con l'aiuto più lungo stanno a **destra** della
+   tabella e le targhette in **basso** nel campetto.
+
 ### 10. I test nuovi
 `test_the_shape_decides_where_a_man_is_drawn_and_not_his_own_code` (il caso Napoli, per nome),
 `test_the_preferred_foot_separates_two_centre_backs_and_is_inverted_in_attack`,
@@ -721,7 +740,8 @@ canvas, media iniettata, e verifica l'inversione di `inj`),
 `test_a_line_only_reaches_the_touchline_where_it_has_a_man_who_plays_there` (i tre casi: due esterni, uno,
 nessuno), `test_a_declared_eleven_is_assigned_to_the_shape_and_never_moves_a_man_for_nothing` (le tre regole insieme:
 esterni sulle fasce del quattro, la punta punta e l'ala mai punta unica, e nessun cambio di linea non
-obbligato). **268 test verdi.**
+obbligato), `test_a_tooltip_never_leaves_the_screen` (il puntatore nell'angolo in basso a destra).
+**269 test verdi.**
 
 ## Novità v9.15 (29 luglio 2026, notte — il pannello: l'altezza si spende sul campetto, non sul suo bordo)
 
