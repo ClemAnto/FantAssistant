@@ -114,21 +114,59 @@ def foreign_fm_equivalent(conn, scoring: dict[str, float], season: str) -> dict[
     return out
 
 
+# WHICH PERCENTILE ROUTES AN ARRIVAL, and it is the operator's rule: «utilizziamo la quotazione quando non
+# abbiamo altre risorse oggettive». The quotation is somebody's judgement - a good one, and still a judgement
+# - so it goes LAST, behind football that was actually played. What comes first is his FM-EQUIVALENT in the
+# league he came from (`foreign_fm_equivalent`): the same event we are predicting, measured, converted with
+# this league's own scoring. Where that does not exist the quotation decides, because then it is the only
+# statement about him that exists at all.
+# "price" keeps the old behaviour so the two can be scored head to head (`sweep`), which is the only way this
+# is a decision and not a preference.
+TIER_DRIVER = "measured_first"
+
+
 def classify_tier(price_percentile: float | None, history_matches: int, u22: bool,
                   t1_price: float = T1_PRICE_PCT, t3_price: float = T3_PRICE_PCT,
-                  full_history: int = FULL_HISTORY_MATCHES) -> str:
+                  full_history: int = FULL_HISTORY_MATCHES,
+                  measured_percentile: float | None = None,
+                  driver: str = TIER_DRIVER) -> str:
     """T1 full history · T2 important but thin (U22 trigger / national-team fallback) · T3 marginal.
 
     The three cuts are arguments as well as constants because they are PROVISIONAL (gate 7-bis) and
-    `modules/sweep.py` varies them: a threshold nobody can move is a threshold nobody can measure.
+    `modules/sweep.py` varies them: a threshold nobody can move is a threshold nobody can measure. The
+    DRIVER is the fourth of them, and the same rule applies to it.
     """
-    if price_percentile is None:
+    percentile = price_percentile
+    if driver == "measured_first" and measured_percentile is not None:
+        percentile = measured_percentile
+    if percentile is None:
         return "T3"
-    if price_percentile >= t1_price and history_matches >= full_history and not u22:
+    if percentile >= t1_price and history_matches >= full_history and not u22:
         return "T1"
-    if price_percentile >= t3_price:
+    if percentile >= t3_price:
         return "T2"
     return "T3"
+
+
+def measured_percentiles(conn, season: str, equivalents: dict[int, tuple]) -> dict[int, float]:
+    """fc_id -> the percentile of his FM-EQUIVALENT within his Classic role. Measured football only.
+
+    Built exactly like `_price_percentiles`, and for the same reason: a 6.2 is a different statement for a
+    defender than for a striker, so the comparison has to be inside the role. What it reads is the fantamedia
+    he really produced in the league he came from, converted with this league's scoring - the same event the
+    engine is predicting, only measured somewhere else.
+    """
+    roles = dict(conn.execute("SELECT fc_id, role_classic FROM rosters WHERE season = ?", (season,)))
+    by_role: dict[str, list[float]] = {}
+    mine: dict[int, tuple[str, float]] = {}
+    for fc_id, (equivalent, _matches) in equivalents.items():
+        role = roles.get(fc_id)
+        if equivalent is None or not role:
+            continue
+        mine[fc_id] = (role, equivalent)
+        by_role.setdefault(role, []).append(equivalent)
+    return {fc_id: round(sum(1 for other in by_role[role] if other <= value) / len(by_role[role]), 3)
+            for fc_id, (role, value) in mine.items()}
 
 
 def _price_percentiles(conn, season: str) -> dict[int, float]:
@@ -174,6 +212,7 @@ def enrich(ctx: Context) -> None:
         # the history that matters is the season BEFORE the arrival - that is what we can price on
         previous = conn.execute("SELECT MAX(season) FROM rosters WHERE season < ?", (season,)).fetchone()[0]
         equivalents = foreign_fm_equivalent(conn, scoring, previous) if previous else {}
+        measured = measured_percentiles(conn, season, equivalents)
         rows = conn.execute(
             "SELECT a.fc_id, p.birth_year FROM arrivals a JOIN players p USING(fc_id) "
             "WHERE a.season = ?", (season,)).fetchall()
@@ -181,7 +220,8 @@ def enrich(ctx: Context) -> None:
             fm_equiv, matches = equivalents.get(fc_id, (None, 0))
             season_start = int(season.split("-")[0])
             u22 = bool(birth_year) and (season_start - birth_year) <= U22_AGE
-            tier = classify_tier(percentiles.get(fc_id), matches, u22)
+            tier = classify_tier(percentiles.get(fc_id), matches, u22,
+                                 measured_percentile=measured.get(fc_id))
             conn.execute("UPDATE arrivals SET tier = ?, foreign_fm_equiv = ? "
                          "WHERE fc_id = ? AND season = ?", (tier, fm_equiv, fc_id, season))
             tiers[tier] = tiers.get(tier, 0) + 1

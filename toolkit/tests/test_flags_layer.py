@@ -161,6 +161,52 @@ def test_classify_tier():
     assert arrivals.classify_tier(None, 30, u22=False) == "T3"    # no price at all
 
 
+def test_the_measured_percentile_leads_and_the_quotation_is_the_fallback():
+    """The operator's rule: «utilizziamo la quotazione quando non abbiamo altre risorse oggettive».
+
+    A quotation is somebody's judgement - a good one, and still a judgement - so what routes an arrival is
+    first the football he actually played: his FM-EQUIVALENT in the league he came from, converted with this
+    league's own scoring, as a percentile inside his role. The quotation decides only where that does not
+    exist, which is exactly when it is the only statement about him there is.
+
+    Measured before being shipped, and the verdict is platform-dependent because the COVERAGE is: the
+    measured resource reaches 25-29% of euro's scored arrivals and 14-20% of Serie A's. On euro
+    `measured_first` wins all 7 held-out folds (margin +0.70%, CONFIRMED); on default the quotation would
+    gain +0.41% mean - below the 0.5% floor, so it does not overturn the shipped value. The limiting factor
+    is the coverage of the objective resource, not the choice between the two (gate 7-sexies).
+    """
+    # the quotation says T1, the measured football says marginal: the measurement decides
+    assert arrivals.classify_tier(0.95, 30, u22=False, measured_percentile=0.10) == "T3"
+    # ...and the other way round: cheap by quotation, excellent where he actually played
+    assert arrivals.classify_tier(0.10, 30, u22=False, measured_percentile=0.95) == "T1"
+    # no measured football -> the quotation, unchanged from before
+    assert arrivals.classify_tier(0.95, 30, u22=False, measured_percentile=None) == "T1"
+    assert arrivals.classify_tier(0.10, 30, u22=False) == "T3"
+    # neither -> T3, and never a number dressed up as a measurement
+    assert arrivals.classify_tier(None, 30, u22=False, measured_percentile=None) == "T3"
+    # the old behaviour stays reachable, because that is what makes this a decision and not a preference
+    assert arrivals.classify_tier(0.95, 30, u22=False, measured_percentile=0.10,
+                                  driver="price") == "T1"
+    assert arrivals.TIER_DRIVER == "measured_first"
+
+
+def test_measured_percentiles_compare_inside_the_role(tmp_path):
+    """A 6.2 is a different statement for a defender than for a striker, so the percentile is built inside
+    the role - the same construction as the price percentile it replaces."""
+    cfg = Config(data_dir=tmp_path / "data", db_path=tmp_path / "data" / "euro.db")
+    conn = init_db(cfg.db_path)
+    for fc_id, role in ((1, "D"), (2, "D"), (3, "A"), (4, "A")):
+        conn.execute("INSERT INTO players(fc_id, canonical_name) VALUES (?, ?)", (fc_id, f"P{fc_id}"))
+        conn.execute("INSERT INTO rosters(fc_id, season, role_classic) VALUES (?, '2025-26', ?)",
+                     (fc_id, role))
+    equivalents = {1: (6.5, 20), 2: (5.5, 20), 3: (6.5, 20), 4: (7.5, 20)}
+    got = arrivals.measured_percentiles(conn, "2025-26", equivalents)
+    assert got[1] == 1.0 and got[2] == 0.5, "the better defender tops the defenders"
+    assert got[3] == 0.5 and got[4] == 1.0, "...and 6.5 is only average among the forwards"
+    # a man with no equivalent, or no role, is simply absent - never a zero
+    assert arrivals.measured_percentiles(conn, "2025-26", {1: (None, 0)}) == {}
+
+
 def test_foreign_fm_equivalent_mixes_real_and_synthetic_votes(tmp_path):
     cfg = Config(data_dir=tmp_path / "data", db_path=tmp_path / "data" / "euro.db")
     conn = init_db(cfg.db_path)

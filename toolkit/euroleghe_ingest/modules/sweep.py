@@ -498,6 +498,11 @@ def sweep_penalties(conn) -> dict:
 
 
 TIER_GRIDS: dict[str, tuple] = {
+    # WHICH percentile routes an arrival: the FM-equivalent he really produced in the league he came from,
+    # or the pre-auction quotation. The operator's rule is «la quotazione quando non abbiamo altre risorse
+    # oggettive», so `measured_first` is the shipped value - and it is scored against `price`, the old
+    # behaviour, because a preference that no window has judged is not a decision.
+    "tier_driver": ("measured_first", "price"),
     "t1_price": (0.70, 0.75, 0.80, 0.85, 0.90),
     "t3_price": (0.20, 0.30, 0.40, 0.50, 0.60),
     "full_history": (5, 10, 15, 20, 25),
@@ -518,12 +523,13 @@ def sweep_arrival_tiers(conn, scoring: dict, platform: str) -> dict:
 
     seasons = [row[0] for row in conn.execute(
         "SELECT DISTINCT season FROM arrivals ORDER BY season")]
-    rows: list[tuple[str, float | None, int, bool, float]] = []
+    rows: list[tuple[str, float | None, int, bool, float, float | None]] = []
     for season in seasons:
         percentiles = arrivals._price_percentiles(conn, season)
         previous = conn.execute("SELECT MAX(season) FROM rosters WHERE season < ?",
                                 (season,)).fetchone()[0]
         equivalents = arrivals.foreign_fm_equivalent(conn, scoring, previous) if previous else {}
+        measured = arrivals.measured_percentiles(conn, season, equivalents)
         actual = dict(conn.execute(
             "SELECT fc_id, fm FROM season_stats WHERE season = ? AND platform = ? AND fm IS NOT NULL",
             (season, platform)))
@@ -534,7 +540,8 @@ def sweep_arrival_tiers(conn, scoring: dict, platform: str) -> dict:
                 continue            # no outcome on this platform: nothing to score him against
             _fm_equiv, matches = equivalents.get(fc_id, (None, 0))
             rows.append((season, percentiles.get(fc_id), matches,
-                         int(season.split("-")[0]) - (birth_year or 0), actual[fc_id]))
+                         int(season.split("-")[0]) - (birth_year or 0), actual[fc_id],
+                         measured.get(fc_id)))
     folds = sorted({season for season, *_rest in rows})
     if len(folds) < 2:
         return {"family": "arrival_tiers", "platform": platform, "verdict": "not enough seasons"}
@@ -542,19 +549,22 @@ def sweep_arrival_tiers(conn, scoring: dict, platform: str) -> dict:
                    "folds": folds, "parameters": {}}
     for name, grid in TIER_GRIDS.items():
         current = {"t1_price": arrivals.T1_PRICE_PCT, "t3_price": arrivals.T3_PRICE_PCT,
-                   "full_history": arrivals.FULL_HISTORY_MATCHES, "u22_age": arrivals.U22_AGE}[name]
+                   "full_history": arrivals.FULL_HISTORY_MATCHES, "u22_age": arrivals.U22_AGE,
+                   "tier_driver": arrivals.TIER_DRIVER}[name]
         per_fold: dict[str, dict[str, float]] = {}
         for value in grid:
             def tier_of(row, value=value, name=name) -> str:
-                _season, percentile, matches, age, _fm = row
+                _season, percentile, matches, age, _fm, measured_pct = row
                 u22_age = value if name == "u22_age" else arrivals.U22_AGE
                 cuts = {"t1_price": arrivals.T1_PRICE_PCT, "t3_price": arrivals.T3_PRICE_PCT,
                         "full_history": arrivals.FULL_HISTORY_MATCHES}
                 if name in cuts:
                     cuts[name] = value
-                return arrivals.classify_tier(percentile, matches, age <= u22_age,
-                                              cuts["t1_price"], cuts["t3_price"],
-                                              cuts["full_history"])
+                return arrivals.classify_tier(
+                    percentile, matches, age <= u22_age,
+                    cuts["t1_price"], cuts["t3_price"], cuts["full_history"],
+                    measured_percentile=measured_pct,
+                    driver=value if name == "tier_driver" else arrivals.TIER_DRIVER)
             grouped: dict[str, dict[str, list[float]]] = {}
             for row in rows:
                 grouped.setdefault(row[0], {}).setdefault(tier_of(row), []).append(row[4])

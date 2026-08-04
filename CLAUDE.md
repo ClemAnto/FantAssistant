@@ -168,6 +168,25 @@ in the repository, or in logs. `.env` is in `.gitignore` and `.claudeignore`.
 **The GitHub repo is PUBLIC** (`origin` = github.com/ClemAnto/FantAssistant, branch `master`): every
 commit publishes `docs/model/` - the model knowledge base - so treat anything committed as public.
 
+## The quotation is a judgement, so it goes LAST
+**Operator's rule, 04/08/2026: «utilizziamo la quotazione quando non abbiamo altre risorse oggettive».** A
+listone price is somebody's opinion - a good one, and still an opinion - so anything the engine decides must
+prefer football that was actually played. Where the project already stood: the ADOPTED sets never read a
+price (R12 «market expectation» and R12b «revision» are falsified, 4/10 and 5/10, λ≈0 - «the market's
+absolute expectation adds nothing to the previous fantamedia: it is built on the same history»), the
+REPLACEMENT LEVEL behind every surplus reads the marginal rostered player's fantamedia plus the league's own
+slots, and `stature` sits at weight zero. The one live use was the ARRIVAL TIERS - the branch that prices a
+man with no measured history - and it now leads with his **FM-equivalent in the league he came from**, as a
+percentile inside his role, with the quotation as the fallback (`arrivals.TIER_DRIVER`).
+Measured, and the verdict is about COVERAGE rather than the choice: on euro the objective resource reaches
+25-29% of the scored arrivals and `measured_first` wins all seven held-out folds (+0.70% margin); on Serie A
+it reaches 14-20%, the quotation would gain +0.41% mean on the touched subset - below the 0.5% floor - and for
+the other five arrivals in six the two arms are IDENTICAL because both fall back to the price. So the way to
+make the rule pay is to widen what is measured (Serie B and the leagues we do not parse), not to go back to
+the quotation. Two things stay irreducible and are not the same as trusting it: the listone ROLE (the game
+itself scores by role - the twelve measured codes already replaced it for *where he plays*), and the ASK price
+at the table, which is what a bid is made against. Details: gate §7-sexies.
+
 ## Citing a fitted number
 **A coefficient quoted without its platform, its residual baseline and its date is not a fact.** Audited
 28/07/2026: only 5 of the 12 lambdas the knowledge base quoted could still be reproduced, and two of the

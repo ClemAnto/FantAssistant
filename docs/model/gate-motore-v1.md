@@ -1431,6 +1431,59 @@ whitelist li porta, ed è la misura migliore dell'impegno di un club), oppure un
 dentro la stagione — che è un'altra domanda («il mercato ha cambiato idea su di lui»), non questa, e richiede
 la serie per data invece di una per stagione.
 
+## 7-sexies. La QUOTAZIONE come ultima risorsa (4 agosto 2026) — decisione dell'utente, misurata
+
+Regola dell'utente, e la sua formulazione: «**utilizziamo la quotazione quando non abbiamo altre risorse
+oggettive**, perché non sono affidabili: sono semplicemente il giudizio soggettivo di chi quota».
+
+### Dove la quotazione entrava ancora, verificato nel codice
+Poco, e va detto prima di cambiare qualcosa: **il motore adottato non la legge**. R12 (Qt.I nel ruolo) e R12b
+(la revisione anno su anno) sono **falsificate** — 4/10 e 5/10, λ≈0, «l'attesa assoluta del mercato non
+aggiunge nulla alla fantamedia precedente: è costruita sulla stessa storia» — e non stanno nei set adottati;
+R17 pure. Il **livello di rimpiazzo** (e quindi il SURPLUS) legge la **fantamedia** del rostered marginale più
+gli slot della lega: nessun prezzo. `stature` è a peso zero. `arrival_tier` arriva fino a
+`features.Observation` ma **nessuna regola lo legge**: lo legge la GUI.
+Restava **un** punto vivo: quale percentile **instrada un arrivo** ai tier T1/T2/T3, cioè il ramo che prezza
+chi non ha storia misurata.
+
+### Cosa è cambiato
+Il driver dei tier diventa **il calcio giocato**: la **FM-equivalente** nella lega da cui arriva
+(`foreign_fm_equivalent`, convertita con lo scoring di questa lega), come percentile **dentro il ruolo** —
+stessa costruzione del percentile di prezzo che sostituisce, perché un 6.2 è un'affermazione diversa per un
+difensore e per un attaccante. La quotazione decide **solo dove quella non esiste**, che è esattamente quando
+è l'unica affermazione disponibile su di lui. `TIER_DRIVER = "measured_first"`, e `"price"` resta
+raggiungibile perché è ciò che rende questa una decisione e non una preferenza.
+
+### Verdetto: dipende dalla COPERTURA, non dalla scelta
+Sweep sui tier, bersaglio «la media del tier separa gli esiti», medie fittate sulle **altre** stagioni:
+
+| piattaforma | migliore in pool | scelte dei fold | esito |
+|---|---|---|---|
+| **euro** (7 stagioni, 2963 arrivi) | **measured_first** | **7 su 7** measured_first | **CONFIRMED**, margine sul secondo **+0.70%** |
+| **default** (10 stagioni, 2842 arrivi) | price | 10 su 10 price | guadagno medio **+0.41%**, peggiore −0.30% → **sotto il pavimento dello 0.5%**, non ribalta |
+
+E la ragione della spaccatura è **misurata, non ipotizzata**: la risorsa oggettiva copre quote diverse.
+
+| stagione | arrivi con FM-equivalente, **euro** | **default** |
+|---|---|---|
+| 2023-24 | 25% | 14% |
+| 2024-25 | **29%** | 18% |
+| 2025-26 | 26% | 20% |
+
+Su euro la misura raggiunge quasi il **doppio** dei giocatori e vince all'unanimità; su Serie A ne tocca **1
+su 6**, e per gli altri 5 su 6 le due varianti sono **identiche** (entrambe ripiegano sulla quotazione).
+Quindi il verdetto «price» su default riguarda un sottoinsieme di ~50 giocatori per stagione, sta sotto il
+pavimento che il progetto usa per adottare un cambiamento, e non ribalta il default spedito.
+
+⚠️ **Il collo di bottiglia è la copertura della risorsa oggettiva, non la scelta fra le due.** La strada per
+far pagare la regola anche su Serie A è **allargare il misurato** — la Serie B e i campionati che non
+copriamo, da cui arriva la maggior parte degli acquisti di Serie A — non tornare alla quotazione. Ed è la
+regola dell'utente che funziona come previsto: là la quotazione resta perché **non c'è altro**.
+Nota di coerenza: il **ruolo del listone** è anch'esso il giudizio di chi quota, ed è già stato ridotto dove
+si poteva (i dodici codici misurati dicono *dove gioca*); ma per *come lo compri* è il gioco stesso a
+punteggiare per ruolo, quindi non è riducibile. Come non lo è il **prezzo richiesto** al tavolo: l'asta si
+gioca su quello, e vederlo accanto al valore predetto serve a misurare di quanto il mercato sbaglia.
+
 ## 5-terdecies. La punta torre e la punta di movimento (3 agosto 2026) — misurata, NON adottata
 
 Ipotesi dell'utente, con la sua stessa formulazione: «dovresti capire se l'allenatore predilige una punta

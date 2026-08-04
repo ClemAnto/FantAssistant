@@ -335,6 +335,14 @@ Nota: **nessuna delle feature generate il 27/07 e' entrata nel motore**, e **nes
 
 
 ## Aperto dopo la sessione del 04/08/2026 (pannello Snapshot, spec «Novità v9.17»)
+- [x] **FATTO il 04/08 — la QUOTAZIONE è l'ultima risorsa** (gate **§7-sexies**), decisione dell'utente. Il
+      motore adottato non la leggeva già (R12/R12b/R17 falsificate, livello di rimpiazzo dalla fantamedia,
+      `stature` a zero); l'unico punto vivo erano i **tier degli arrivi**, che ora sono guidati dalla
+      **FM-equivalente misurata** nella lega di provenienza (percentile nel ruolo) con la quotazione come
+      ripiego. Misurato: su **euro** vince 7 fold su 7 (**CONFIRMED**, +0.70%), su **default** la quotazione
+      guadagnerebbe +0.41% — sotto il pavimento — e la causa è la **copertura** del misurato (25-29% euro
+      contro 14-20% Serie A). ⚠️ Il seguito NON è tornare al prezzo: è **allargare il misurato** alla Serie B
+      e ai campionati non coperti, da cui arriva la maggior parte degli acquisti di Serie A.
 - [ ] **La regola 4a alla SELEZIONE**, che è il residuo dei «9 attacchi senza un attaccante». Dopo la
       sessione del 04/08 sono **4 su 394 board**, tutti lo stesso club e lo stesso uomo: Lilla, l'**unico**
       posto d'attacco di un 4-5-1 assegnato a Haraldsson (`AM`, claim **0.83**) invece che a Fernandez-Pardo
