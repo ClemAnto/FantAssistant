@@ -3542,6 +3542,13 @@ class SnapshotView(ttk.Frame):
         A 'DC;DL' is a centre back who also plays left back, and that IS in his repertoire; a 'DC' alone
         is not, and asking him to play wide is the thing a coach does last. With no codes at all this
         falls back to the single side `side_of` derives from the Mantra role or the heatmap.
+
+        It reads the CODES and not the heatmap, and the asymmetry is the operator's own model: a code is
+        what he CAN do, a measurement is what he DID, and eligibility is a question about the first one.
+        Adding the flank the heatmap saw him on was tried and swept (0.34 / 0.50 / 0.70 / 0.85) and changes
+        nothing at any threshold - because a code list ALREADY carries it: Zé Pedro reads `DC;DR` with 75%
+        of his touches in the right band, and the R is in his codes, just not first. What the primary code
+        alone missed, every code together has. See `HEATMAP_SIDE`'s note for the whole family of these.
         """
         sides = {("L" if REAL_ROLE_SIDE[code] < -0.34 else
                   "R" if REAL_ROLE_SIDE[code] > 0.34 else "C")
@@ -4272,6 +4279,18 @@ class SnapshotView(ttk.Frame):
     # code only as a guard against a contradiction. That is the one thing the twelve codes cannot express -
     # a nominal centre back who spent the year on the left of a back three - and the badge and
     # `across_bucket` are drawn from it. The measurement is in the board; it is in the right place.
+    #
+    # VALIDATED as a signal, on the 52 men whose flank the published elevens STATE (in those lists a line
+    # runs from the team's right to its left), as a prediction task with its coverage:
+    #     the primary code's flank   46/49 = 93.9%      the centroid   46/47 = 97.9%
+    #     the cloud's dominant band  45/46 = 97.8%
+    # So the measurement IS better than the code at naming a flank - and the bands are not better than the
+    # centroid, which is what `lateral` already uses. That is the fourth flat result in a row: reordering the
+    # codes by it (3 arms), weighing it per axis (12 grid points), deriving the side from the bands, and
+    # adding the flank it saw to `sides_of` (4 thresholds) all leave the drawn elevens where they were. The
+    # reason is the one `sides_of` states: what the PRIMARY code misses, the code LIST already carries. So
+    # the pipeline work the bands would need - a `positions` migration, an ingest column, a sheet column -
+    # is not justified by the drawing, and nothing here is waiting for it.
     HEATMAP_SIDE: ClassVar[float] = 0.0
     HEATMAP_DEPTH: ClassVar[float] = 0.0
 
