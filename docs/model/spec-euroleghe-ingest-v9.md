@@ -622,9 +622,19 @@ su 193 (172 → 171), e sta dentro i club col nuovo allenatore: è attesa, perch
 squadra del **predecessore**. Le due referenze parlano di stagioni diverse e vengono riportate separate.
 Invarianti: 394 board, **0 rotture** in entrambi i bracci.
 
-⚠️ **Resta aperta l'altra metà**: il **claim** (chi gioca). Le due amichevoli di Sarri con Raspadori titolare
-sono in cache e parsate, ma sono **due**, e «nuovo allenatore» come regola predittiva è già stata falsificata
-su dieci finestre (R10). Va misurata, non adottata.
+**L'altra metà — il CLAIM (chi gioca) — è stata misurata e NON adottata**, ed è esposta come lettura. Il
+foglio porta `desc_preseason_starts` / `desc_preseason_matches` (quante amichevoli della pre-season della
+stagione-bersaglio ha iniziato) e la targhetta lo dice: «PRE-SEASON: started 2 of 2 friendlies under Maurizio
+Sarri — a reading, not a criterion». Sul caso dell'utente sembra decisivo: le due amichevoli di Sarri le
+hanno iniziate **Gaetano, Samardzic, Scamacca e Raspadori** — i quattro che la previsione pubblicata schiera e
+che il nostro claim lascia fuori — mentre **De Roon, Ederson e Krstovic**, che il board schiera, non ne hanno
+iniziata **nessuna**. Cinque ragioni misurate per cui non decide niente: (1) le amichevoli per-giocatore
+esistono per **una sola** pre-season (1696 righe contro 37), quindi nessun fuori campione è costruibile; (2)
+il campione è **1-3 partite** e **Milan e Napoli non ne hanno nessuna**; (3) minuti e rating mancano in **1399
+righe su 1716**; (4) gli avversari dell'Atalanta sono la **sua U23** e l'Arezzo, dove un undici iniziale non è
+un'affermazione competitiva; (5) la fonte esterna che concorda **ha letto le stesse amichevoli**. È il
+trattamento del corpo (altezza/peso, gate §5-terdecies): un fatto vero, sulla targhetta, per chi rilancia — e
+la spunta per agire c'è già. **Pre-registrato** per giugno 2027, quando l'esito esisterà (gate §7).
 
 ### 7. La heatmap: validata come segnale, e già al suo posto
 Modello dell'utente, ed è quello giusto: un codice è una posizione che il giocatore **può** ricoprire (il

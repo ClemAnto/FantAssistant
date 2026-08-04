@@ -1292,6 +1292,37 @@ def typical_formation(conn, spellings: list[str], season: str, coach_since: str 
                    len(rows) if not coach_since else under_coach, spread)
 
 
+def preseason_starts(conn, season: str, coach_since: str | None = None) -> dict[int, tuple[int, int]]:
+    """fc_id -> (elevens he STARTED, friendlies he appeared in) in the TARGET season's pre-season.
+
+    A READING and never a criterion, and the reason is measured rather than assumed. For an August auction
+    the pre-season is the only football the new coach has played, and the operator's own case says how much
+    it can be worth: Atalanta's two friendlies under Sarri were started by Gaetano, Samardzic, Scamacca and
+    Raspadori - the four the published prediction fields and our claim does not - while De Roon, Ederson and
+    Krstovic, whom our board starts, started NEITHER.
+    That looks like a signal, and it is not usable as one:
+      * NO out-of-sample test is possible: per-player friendlies exist for exactly ONE pre-season (1696 rows
+        on 2026-27 against 37 on 2025-26), so nothing can be judged on a window that does not judge itself,
+        which is this project's own rule;
+      * the sample is 1-3 matches, and **two of the seven Serie A clubs with a new coach have none at all**;
+      * minutes and ratings are absent from 1399 of 1716 rows, so the only thing there is the `started` flag;
+      * and the fixtures are what they are: Atalanta's two are against **their own U23 side** and Arezzo,
+        where a coach fields whoever he wants. A starting eleven there is not a competitive statement;
+      * the one external source that agrees (the published 26/27 elevens) is NOT independent - it read the
+        same friendlies.
+    So it goes where a true, non-predictive fact goes on this board: the plate, for the human who is
+    bidding. Same treatment as the body (height/weight, gate §5-terdecies), for the same reason.
+    Pre-registered instead of guessed: in June 2027 this season's outcome exists, and the pre-season signal
+    becomes testable out of sample for the first time (gate §7).
+    """
+    rows = conn.execute(
+        """SELECT fc_id, SUM(COALESCE(started, 0)), COUNT(*) FROM external_match_stats
+           WHERE season = ? AND competition LIKE '%friendly%'
+             AND (? IS NULL OR (match_date IS NOT NULL AND match_date >= ?))
+           GROUP BY fc_id""", (season, coach_since, coach_since)).fetchall()
+    return {fc_id: (int(started or 0), int(matches or 0)) for fc_id, started, matches in rows}
+
+
 def coach_repertoire(conn, coach: str | None, before: str | None = None) -> tuple[str, int]:
     """({shape: count} as "4-3-3:162;4-4-2:20", how many elevens) — what THIS COACH lines up in, anywhere.
 
@@ -1671,6 +1702,7 @@ PLAYER_COLUMNS: tuple[str, ...] = (
     "desc_real_roles", "desc_real_role_primary", "desc_real_role_line", "desc_real_role_depth",
     "desc_real_role_side", "desc_mantra_real", "desc_foot", "desc_height", "desc_weight",
     "desc_real_role_observed",
+    "desc_preseason_starts", "desc_preseason_matches",
     "desc_avg_x", "desc_avg_y", "desc_side_measured",
     "desc_starter_prob", "desc_starter_status", "desc_expected_minutes",
     # Titolarità: how often he STARTS. Two horizons, because they answer different questions - the
@@ -1822,6 +1854,13 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             "desc_height": role_detail.get("height"),
             "desc_weight": role_detail.get("weight"),
             "desc_real_role_observed": role_detail.get("observed"),
+            # The TARGET season's PRE-SEASON, under the coach who is there now: started X of Y friendlies.
+            # A reading for whoever is bidding and nothing else - `preseason_starts` carries the five
+            # measured reasons why it cannot be a criterion (one pre-season only, so no out-of-sample test;
+            # 1-3 matches; two of seven new-coach clubs with none; no minutes; and fixtures against a U23
+            # side, where a starting eleven is not a competitive statement).
+            "desc_preseason_starts": layers["preseason"].get(obs.fc_id, (None, None))[0],
+            "desc_preseason_matches": layers["preseason"].get(obs.fc_id, (None, None))[1],
             "desc_avg_x": layers["positions"].get(obs.fc_id, (None, None))[0],
             "desc_avg_y": layers["positions"].get(obs.fc_id, (None, None))[1],
             "desc_side_measured": layers["sides"].get(obs.fc_id),
@@ -2123,6 +2162,10 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
         "positions": {fc_id: (avg_x, avg_y) for fc_id, avg_x, avg_y in conn.execute(
             "SELECT fc_id, avg_x, avg_y FROM positions WHERE season = ? AND source = 'sofascore'",
             (window.input_season,))},
+        # The TARGET season's pre-season: who the coach who is there NOW started in the friendlies. The
+        # only football a new man has played by auction day - and a reading, never a criterion, for the
+        # five measured reasons in `preseason_starts`.
+        "preseason": preseason_starts(conn, window.target_season),
     }
     # The eleven the clubs actually FIELDED in the first match after the auction date. Empty for a sheet
     # built today, and for a back-dated one it is what makes the probabili unnecessary: the outcome exists.

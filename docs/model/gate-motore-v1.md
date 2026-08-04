@@ -1185,6 +1185,22 @@ le partite.**
   fantamedia** — e identificazione **within-club**. Non pre-registrabile finché non esiste un **gate
   per-giornata**: il gate attuale giudica un bersaglio stagionale all'asta. Prerequisito di dati: le
   partite di coppa/europee, senza cui la congestione vera non è misurata.
+- **La PRE-SEASON del nuovo allenatore come segnale sulla titolarità** (4/08/2026 — misurata, esposta come
+  lettura, **non adottata**). Il dato è nel foglio da oggi (`desc_preseason_starts` / `..._matches`) e sul
+  caso che l'utente ha portato sembra decisivo: le due amichevoli di Sarri all'Atalanta le hanno iniziate
+  **Gaetano, Samardzic, Scamacca e Raspadori** — i quattro che la previsione pubblicata schiera e che il
+  nostro claim lascia fuori — mentre **De Roon, Ederson e Krstovic**, che il board schiera, non ne hanno
+  iniziata **nessuna**. Perché non entra, e sono cinque ragioni **misurate**: (1) le amichevoli per-giocatore
+  esistono per **una sola** pre-season (1696 righe su 26/27 contro 37 su 25/26), quindi **nessuna finestra
+  può giudicarne un'altra** — la regola d'oro di questo progetto; (2) il campione è **1-3 partite** e **due
+  dei sette** club di Serie A col coach nuovo non ne hanno nessuna (Milan e Napoli); (3) minuti e rating
+  mancano in **1399 righe su 1716**, quindi c'è solo il flag «titolare»; (4) gli avversari sono l'**U23 del
+  club stesso** e una squadra di Serie C, dove un undici iniziale non è un'affermazione competitiva; (5) la
+  sola fonte esterna che concorda **non è indipendente**, perché ha letto le stesse amichevoli.
+  **Pre-registrazione**: a giugno 2027 l'esito di questa stagione esiste, e per la prima volta il segnale
+  della pre-season diventa testabile **fuori campione** — bersaglio `P(titolare)` e minuti, mai la
+  fantamedia, identificazione within-club, e il confronto è con `standing` (i minuti della stagione prima),
+  che è il predittore che lo sweep ha già adottato. Se passa, il posto dove entra è `engine.presence`.
 - **R8 solo nel verso «usato più indietro»**, quando il campione supera n≈10/13.
 - **R9 àncora con peso di recenza** (l'àncora attaccanti si muove: euro 7.28 → 7.34 → 7.16): con due
   finestre λ è quasi non identificabile.

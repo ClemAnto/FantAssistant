@@ -3557,6 +3557,33 @@ class SnapshotView(ttk.Frame):
                  if _number(row.get(key), None)]
         return " · ".join(parts)
 
+    def preseason(self, row: dict) -> str:
+        """«PRE-SEASON: started 2 of 2 friendlies under Maurizio Sarri» — a reading, never a criterion.
+
+        For an August auction the pre-season is the only football a new coach has played, and on the case
+        the operator brought it looks decisive: Atalanta's two friendlies under Sarri were started by
+        Gaetano, Samardzic, Scamacca and Raspadori - the four men the published prediction fields and the
+        claim does not - while De Roon, Ederson and Krstovic, whom the board starts, started NEITHER.
+        It stays off every decision anyway, for five reasons that are measured and not guessed
+        (`snapshot.preseason_starts`): per-player friendlies exist for ONE pre-season, so no out-of-sample
+        test can be built; the sample is 1-3 matches and two of the seven Serie A clubs with a new coach
+        have none; minutes and ratings are missing from 1399 of 1716 rows; the fixtures are against a U23
+        side and a Serie C club, where a starting eleven is not a competitive statement; and the one
+        external source that agrees is not independent, because it read the same friendlies.
+        So the plate says it and the eleven ignores it - the same treatment as the body, and for the same
+        reason (gate §5-terdecies). Whoever is bidding can see «0 of 2» under a 90% shirt and decide; the
+        tick is already there for acting on it.
+        """
+        matches = _number(row.get("desc_preseason_matches"), 0.0)
+        if not matches:
+            return ""
+        started = int(_number(row.get("desc_preseason_starts"), 0.0))
+        coach = ((self.clubs.get(row.get("club") or "") or {}).get("coach") or "").strip()
+        return (f"PRE-SEASON: started {started} of {int(matches)} "
+                f"{'friendly' if matches == 1 else 'friendlies'}"
+                + (f" under {coach}" if coach else "")
+                + " — a reading, not a criterion: it decides nothing here")
+
     @classmethod
     def foot_side(cls, row: dict, lane: str) -> float:
         """+1 his foot suggests the team's right .. -1 its left, 0.0 unknown or two-footed."""
@@ -5340,6 +5367,8 @@ class SnapshotView(ttk.Frame):
         lines = [head + (f"  ·  {foot} foot" if foot else "")
                  + (f"  ·  {self.build(starter)}" if self.build(starter) else "")
                  + (f"  ·  {share:.0%} when available" if share else "")]
+        if self.preseason(starter):
+            lines.append(self.preseason(starter))
         if horizon != "recent":
             # BOTH numbers, because they answer two questions and the plate can only carry one: the shirt
             # is his when everyone is fit (above), and this is how much of the season he is expected to be

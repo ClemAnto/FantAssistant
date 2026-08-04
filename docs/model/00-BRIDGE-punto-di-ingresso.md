@@ -559,10 +559,14 @@ generazione delle ipotesi: passare lì è la prova più debole possibile.**
    (`COACH_SHAPE_MIN` 20, `FULL` 60) perché va da 188 undici a zero. Giudicato sulla previsione 26/27:
    **8/17 → 9/17**, Atalanta passa al **4-3-3 di Sarri** (difesa a quattro, 9 uomini su 11 come la fonte) e
    il Milan porta il 3-4-2-1 dal 13% al 41%.
-   ⚠️ **Resta l'altra metà: il CLAIM** (chi gioca). Le due amichevoli di Sarri con Raspadori titolare sono in
-   cache e parsate, ma sono **due**, e «nuovo allenatore» come regola predittiva è già **falsificata** su
-   dieci finestre (R10). Va misurata, non adottata — e il giudice non può essere il gate della fantamedia,
-   perché la domanda è «chi schiera», non «quanto rende».
+   ✅ **E l'altra metà, il CLAIM, è misurata e NON adottata**: il foglio porta `desc_preseason_starts` /
+   `..._matches` e la targhetta li dice, ma niente che scelga un undici li legge (test:
+   `test_the_preseason_is_a_reading_and_never_a_criterion`). Sembra decisivo — le due amichevoli di Sarri le
+   iniziano Gaetano, Samardzic, Scamacca e **Raspadori**, e De Roon/Ederson/Krstovic **nessuna** — e non è
+   usabile: **una sola** pre-season di dati per-giocatore (1696 righe contro 37), 1-3 partite, **Milan e
+   Napoli a zero**, minuti assenti in 1399 righe su 1716, avversari l'**U23 del club** e l'Arezzo, e la fonte
+   che concorda ha letto le stesse amichevoli. Pre-registrato per giugno 2027 (gate §7), quando per la prima
+   volta ci sarà un fuori campione.
 0-bis. **Il residuo del board, uno solo e capito** (4/08, dettaglio nel blocco ULTIMO IN ORDINE DI TEMPO
    §8): 4 attacchi su 394 senza un attaccante, tutti Lilla, un **pari merito di claim** (0.83) fra un
    trequartista e una punta per l'**unico** posto d'attacco di un 4-5-1. La strada è la regola 4a portata

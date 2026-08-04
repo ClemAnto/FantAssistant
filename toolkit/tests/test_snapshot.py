@@ -9,6 +9,7 @@ that make a dry run honest: the auction date must never be after the season it p
 from __future__ import annotations
 
 import csv
+import inspect
 import io
 import json
 import re
@@ -1488,3 +1489,45 @@ def test_the_measurement_and_the_code_are_two_things_and_the_weights_are_measure
         "measured on the LEFT, the right of an attack costs him more"
     assert view._slot_price({"desc_real_roles": "RW"}, "R", "A") == \
         view._slot_price({"desc_real_roles": "RW"}, "R", "A"), "and a man with no heatmap is untouched"
+
+
+def test_the_preseason_is_a_reading_and_never_a_criterion():
+    """«Gli undici del nuovo allenatore devono pesare» — the CLAIM half of it, and the answer is measured.
+
+    For an August auction the pre-season is the only football a new coach has played, and on the case the
+    operator brought it looks decisive: Atalanta's two friendlies under Sarri were started by Gaetano,
+    Samardzic, Scamacca and Raspadori - the four the published prediction fields and the claim does not -
+    while De Roon, Ederson and Krstovic, whom the board starts, started NEITHER. Five measured reasons why
+    it still cannot decide anything (`snapshot.preseason_starts`): per-player friendlies exist for exactly
+    ONE pre-season (1696 rows against 37), so no window can judge another; the sample is 1-3 matches and two
+    of seven Serie A clubs with a new coach have none; minutes are missing from 1399 of 1716 rows; the
+    fixtures are a U23 side and a Serie C club; and the one source that agrees read the same friendlies.
+
+    So this test asserts the SEPARATION, which is the decision: the plate says it, and nothing that picks a
+    side reads it. Same treatment as the body, for the same reason (gate §5-terdecies).
+    """
+    from euroleghe_ingest import gui
+    from euroleghe_ingest.gui import SnapshotView as View
+    from euroleghe_ingest.modules import snapshot
+
+    view = View.__new__(View)
+    view.clubs = {"Atalanta": {"coach": "Maurizio Sarri"}}
+    started = {"name": "Raspadori", "club": "Atalanta", "desc_real_roles": "ST;AM",
+               "desc_preseason_starts": "2", "desc_preseason_matches": "2"}
+    benched = {**started, "name": "De Roon", "desc_real_roles": "MC;DM",
+               "desc_preseason_starts": "0"}
+    assert "2 of 2 friendlies under Maurizio Sarri" in view.preseason(started)
+    assert "started 0 of 2" in view.preseason(benched)
+    assert "not a criterion" in view.preseason(started), "the plate has to say what it is"
+    assert view.preseason({"name": "x", "club": "Atalanta"}) == "", "no friendlies, no line"
+
+    # ...and NOTHING that chooses or places a man may read those columns
+    for name in ("claim", "presence", "standing", "titolarita", "_slot_price", "_off_the_front",
+                 "voto_share", "availability", "presence_inputs"):
+        source = inspect.getsource(getattr(View, name))
+        assert "preseason" not in source, f"{name} must not read the pre-season"
+    # it IS written by `build_rows` - that is the sheet column, and the point - and read by nothing that
+    # builds an eleven or transforms a module
+    assert "desc_preseason" in inspect.getsource(snapshot.build_rows)
+    assert "preseason" not in inspect.getsource(gui.SnapshotView.eleven)
+    assert "preseason" not in inspect.getsource(gui.SnapshotView._reshape)

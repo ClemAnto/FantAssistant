@@ -352,10 +352,13 @@ Nota: **nessuna delle feature generate il 27/07 e' entrata nel motore**, e **nes
       (4-3-3 86%) a Iraola 0. Giudizio sulla previsione 26/27: **8/17 → 9/17**, Atalanta al 4-3-3 con la
       difesa a quattro (9 uomini su 11 come la fonte), Milan col 3-4-2-1 dal 13% al 41%, nessun board
       peggiorato e 0 rotture di invariante su 394.
-- [ ] **...e resta il CLAIM del nuovo allenatore** (chi gioca), che è la metà delicata: le due amichevoli di
-      Sarri con Raspadori titolare sono in cache e parsate, ma sono **due**, e «nuovo allenatore» come regola
-      predittiva è già falsificata su dieci finestre (R10). Da MISURARE — e il giudice non è il gate della
-      fantamedia: la domanda è «chi schiera».
+- [x] **MISURATO E NON ADOTTATO il 04/08 — il CLAIM del nuovo allenatore**: la pre-season è nel foglio
+      (`desc_preseason_starts`/`..._matches`) e sulla targhetta, e non entra in niente che scelga un undici.
+      Sembra decisivo (le due amichevoli di Sarri le iniziano Gaetano, Samardzic, Scamacca e Raspadori; De
+      Roon, Ederson e Krstovic nessuna) e non è usabile: **una sola** pre-season per-giocatore, 1-3 partite,
+      Milan e Napoli a zero, minuti assenti in 1399 righe su 1716, avversari l'U23 del club stesso, e la
+      fonte che concorda ha letto le stesse amichevoli. **Pre-registrato per giugno 2027** (gate §7):
+      bersaglio `P(titolare)` e minuti, confronto con `standing`, e se passa entra in `engine.presence`.
 - [ ] **`proposedMarketValue`**: sta nella stessa pagina rosa del provider da cui vengono i dodici codici, il
       piede e ora altezza/peso. È il proxy che **§7-quater** aspettava per ri-testare l'investimento del club,
       per GIOCATORE e non solo per chi è costato un cartellino. Migrazione + parse (offline) + lo stesso sweep.
