@@ -29,7 +29,7 @@ Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo b
 ### ULTIMO IN ORDINE DI TEMPO — 4/08/2026: un modulo disegnato è un modulo VERO, e la heatmap al suo posto
 
 Spec **«Novità v9.17»**, misure nuove nel gate **§5-quaterdecies**. Commit `1108803` (le regole) e `51d069e`
-(le misure). **Nessun verdetto del gate cambia: nessuna regola del motore è entrata.** 278 test verdi.
+(le misure). **Nessun verdetto del gate cambia: nessuna regola del motore è entrata.** Toolkit **0.7.0**, 278 test verdi.
 
 1. **Il difetto era uno solo, e non era nelle regole: era un secondo parere non prezzato.** L'undici viene
    assegnato ai posti del modulo e ogni posto è prezzato (`_assign`), poi `lanes_for` rileggeva la corsia dal
