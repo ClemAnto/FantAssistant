@@ -283,3 +283,63 @@ def test_ratings_consistency_check(tmp_path):
     problems = check_ratings_consistency(conn)
     assert any("fc_id=200" in p for p in problems)
     assert not any("fc_id=100" in p for p in problems)
+
+def test_a_listone_says_which_season_it_is_and_a_new_one_is_found_before_the_first_matchday():
+    """Every August the listone is published weeks before a single vote exists, and the championship id
+    used to be readable only off the VOTI page - which for a season with no matchdays carries none. So the
+    quotazioni page answers instead (Serie A 2026-27 reads 21 there, 2025-26 read 20).
+
+    It is a fallback and it needs a guard, because those pages serve «the current list» whatever season is
+    asked of them: the euro one still reads 108 = 2025-26. The guard is the workbook's own title cell, so a
+    file that does not say the season being ingested is refused instead of filed under the wrong year.
+    """
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Tutti"
+    ws.append(["Quotazioni Fantacalcio Stagione 2026 27"])
+    ws.append(["Id", "R", "RM", "Nome", "Squadra", "Qt.A", "Qt.I", "Diff."])
+    ws.append([5841, "P", "Por", "Svilar", "Roma", 18, 18, 0])
+    buf = io.BytesIO()
+    wb.save(buf)
+    assert ratings.listone_season(buf.getvalue()) == "2026-27"
+
+    euro = Workbook()
+    sheet = euro.active
+    sheet.title = "Tutti"
+    sheet.append(["Quotazioni Fantacalcio EuroLeghe Stagione 2025 26"])
+    sheet.append(["Id", "R", "RM", "Nome", "Nazione", "Squadra", "Qt.A", "Qt.I"])
+    other = io.BytesIO()
+    euro.save(other)
+    assert ratings.listone_season(other.getvalue()) == "2025-26", "and it reads the euro title too"
+
+    empty = Workbook()
+    empty.active.append(["no title here"])
+    nothing = io.BytesIO()
+    empty.save(nothing)
+    assert ratings.listone_season(nothing.getvalue()) is None, "no claim is not a wrong claim"
+
+    # the id is read from the QUOTAZIONI page when the voti page has none, and from the voti page first
+    class Reply:
+        def __init__(self, text):
+            self.status_code, self.text = 200, text
+
+    pages = {}
+
+    class Session:
+        pass
+
+    def fake_http(_session, _method, url, **_kwargs):
+        return Reply(pages.get(url, ""))
+
+    original = ratings._http
+    ratings._http = fake_http
+    try:
+        pages = {ratings.PLATFORMS["default"].format(season="2025-26"):
+                 '<a href="/api/v1/Excel/votes/20/1">',
+                 ratings.PRICE_PAGES["default"].format(season="2026-27"):
+                 '<a href="/api/v1/Excel/prices/21/1">'}
+        assert ratings.resolve_championship_id(Session(), "default", "2025-26") == "20"
+        assert ratings.resolve_championship_id(Session(), "default", "2026-27") == "21"
+        assert ratings.resolve_championship_id(Session(), "default", "2027-28") is None
+    finally:
+        ratings._http = original

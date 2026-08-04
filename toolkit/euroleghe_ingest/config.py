@@ -55,7 +55,7 @@ DEFAULT_LEAGUE_NAME = "default"
 # `--season`; the modules only use this to decide what a BARE run downloads.
 SEASONS: tuple[str, ...] = (
     "2015-16", "2016-17", "2017-18", "2018-19", "2019-20", "2020-21",
-    "2021-22", "2022-23", "2023-24", "2024-25", "2025-26",
+    "2021-22", "2022-23", "2023-24", "2024-25", "2025-26", "2026-27",
 )
 # What a run with no --season downloads: the three most recent seasons. The full history is already
 # in the cache, and re-walking eleven seasons of every source by default would be hours for nothing.

@@ -56,6 +56,21 @@ PLATFORMS: dict[str, str] = {
     "default": BASE_URL + "/voti-fantacalcio-serie-a/{season}/1",
 }
 DEFAULT_PLATFORM = "euro"
+# Where the championship id can be read when the season has NO VOTES YET, which is the state of every
+# August: the listone goes up weeks before the first matchday, and the voti page carries the id only once
+# a matchday exists (`/api/v1/Excel/votes/{cid}/`). The QUOTAZIONI page carries
+# `/api/v1/Excel/prices/{cid}/1` from the day the list is published. Verified 04/08/2026: Serie A 2026-27
+# reads 21 there (2025-26 was 20) while its voti page has no id at all.
+# It is a FALLBACK and it is guarded, because these pages serve "the current list" whatever season is
+# asked of them - the euro page still reads 108 = 2025-26, so trusting it for 2026-27 would file last
+# season's quotazioni under this one. The guard is the workbook itself: it states its season in the first
+# cell («Quotazioni Fantacalcio Stagione 2026 27»), so a file that does not say the season being ingested
+# is refused (`listone_season`).
+PRICE_PAGES: dict[str, str] = {
+    "euro": BASE_URL + "/quotazioni-fantacalcio-euro-leghe/{season}",
+    "default": BASE_URL + "/quotazioni-fantacalcio/{season}",
+}
+_PRICES_HREF = re.compile(r"/api/v1/Excel/prices/(\d+)/")
 
 # Old cache files used the pre-rename tokens; map them to the platform values.
 _PLATFORM_ALIAS = {"euroleghe": "euro", "serie_a": "default"}
@@ -152,11 +167,41 @@ def login(session: requests.Session, username: str, password: str) -> None:
 
 
 def resolve_championship_id(session: requests.Session, platform: str, season: str) -> str | None:
+    """The championship id for that season: from the VOTI page, and from the QUOTAZIONI page before the
+    season has any votes (see `PRICE_PAGES` - the fallback is guarded by the workbook's own season)."""
     r = _http(session, "GET", PLATFORMS[platform].format(season=season), timeout=30)
+    if r.status_code == 200:
+        m = _EXCEL_HREF.search(r.text)
+        if m:
+            return m.group(1)
+    page = PRICE_PAGES.get(platform)
+    if not page:
+        return None
+    r = _http(session, "GET", page.format(season=season), timeout=30)
     if r.status_code != 200:
         return None
-    m = _EXCEL_HREF.search(r.text)
+    m = _PRICES_HREF.search(r.text)
     return m.group(1) if m else None
+
+
+def listone_season(data: bytes) -> str | None:
+    """The season a listone workbook says it is, as 'YYYY-YY', from its own title cell - or None.
+
+    «Quotazioni Fantacalcio Stagione 2026 27» / «... EuroLeghe Stagione 2025 26». It is the only thing in
+    the file that pins it to a season, and it is what makes the quotazioni-page fallback safe to use.
+    """
+    wb = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+    try:
+        ws = wb["Tutti"] if "Tutti" in wb.sheetnames else wb[wb.sheetnames[0]]
+        for row in ws.iter_rows(min_row=1, max_row=3, values_only=True):
+            for cell in row:
+                if isinstance(cell, str):
+                    m = re.search(r"Stagione\s+(\d{4})\s+(\d{2})", cell)
+                    if m:
+                        return f"{m.group(1)}-{m.group(2)}"
+        return None
+    finally:
+        wb.close()
 
 
 def download_matchday(session: requests.Session, cid: str, matchday: int) -> bytes | None:
@@ -448,6 +493,12 @@ def run(ctx: Context, *, platform: str = DEFAULT_PLATFORM, seasons=None,
             _polite_sleep(ctx.cancel_event)
             if not ctx.cancelled():
                 listone = download_listone(session, cid)
+                stated = listone_season(listone) if listone else None
+                if listone and stated and stated != season:
+                    # the page served "the current list" and it is not this season's: refusing it is the
+                    # whole point of reading the title (a 2025-26 listone filed as 2026-27 is invisible)
+                    print(f"[ratings] {season}: the listone at championship {cid} says {stated} - refused")
+                    listone = None
                 if listone:
                     _atomic_write(ctx.config.cache_dir / f"listone_{platform}_{season}.xlsx", listone)
                     n_lst = upsert_listone(conn, season, parse_listone(listone, season), platform)
