@@ -518,30 +518,44 @@ def sweep_arrival_tiers(conn, scoring: dict, platform: str) -> dict:
     here is the honest proxy: predict an arrival's realised fantamedia by the MEAN of his tier, with the
     means fitted on the OTHER seasons. A threshold that cuts where the outcome really changes wins; one
     that cuts a homogeneous population cannot.
+
+    ...and it is scored on THE POPULATION THE TIER ACTUALLY ROUTES: the arrivals the core cannot price, i.e.
+    no previous-season fantamedia on at least `MIN_PV_PREV` votes. That is the condition `predict_fm` itself
+    uses before it ever looks at the arrival path. Scoring every arrival instead - which is what this did -
+    let the verdict be decided by men whose tier is never consulted in production, and it showed: with the
+    fantavalore inserted as the second choice, the price-driven arm crossed the adoption floor on `default`
+    purely on intra-league movers, who have Serie A football behind them and are priced by the core.
     """
     from euroleghe_ingest.modules import arrivals
 
     seasons = [row[0] for row in conn.execute(
         "SELECT DISTINCT season FROM arrivals ORDER BY season")]
-    rows: list[tuple[str, float | None, int, bool, float, float | None]] = []
+    rows: list[tuple[str, float | None, int, bool, float, float | None, float | None]] = []
     for season in seasons:
         percentiles = arrivals._price_percentiles(conn, season)
         previous = conn.execute("SELECT MAX(season) FROM rosters WHERE season < ?",
                                 (season,)).fetchone()[0]
         equivalents = arrivals.foreign_fm_equivalent(conn, scoring, previous) if previous else {}
         measured = arrivals.measured_percentiles(conn, season, equivalents)
+        fvm = arrivals.fvm_percentiles(conn, previous)
         actual = dict(conn.execute(
             "SELECT fc_id, fm FROM season_stats WHERE season = ? AND platform = ? AND fm IS NOT NULL",
             (season, platform)))
+        # the men the core CAN price are not the tier's business: same condition as `evaluate.predict_fm`
+        priced = {fc_id for fc_id, in conn.execute(
+            "SELECT fc_id FROM season_stats WHERE season = ? AND platform = ? AND mv IS NOT NULL "
+            "AND COALESCE(pv, 0) >= ?", (previous, platform, model.MIN_PV_PREV))} if previous else set()
         for fc_id, birth_year in conn.execute(
                 "SELECT a.fc_id, p.birth_year FROM arrivals a JOIN players p USING(fc_id) "
                 "WHERE a.season = ?", (season,)):
             if fc_id not in actual:
                 continue            # no outcome on this platform: nothing to score him against
+            if fc_id in priced:
+                continue            # the core prices him: his tier is never consulted
             _fm_equiv, matches = equivalents.get(fc_id, (None, 0))
             rows.append((season, percentiles.get(fc_id), matches,
                          int(season.split("-")[0]) - (birth_year or 0), actual[fc_id],
-                         measured.get(fc_id)))
+                         measured.get(fc_id), fvm.get(fc_id)))
     folds = sorted({season for season, *_rest in rows})
     if len(folds) < 2:
         return {"family": "arrival_tiers", "platform": platform, "verdict": "not enough seasons"}
@@ -554,7 +568,7 @@ def sweep_arrival_tiers(conn, scoring: dict, platform: str) -> dict:
         per_fold: dict[str, dict[str, float]] = {}
         for value in grid:
             def tier_of(row, value=value, name=name) -> str:
-                _season, percentile, matches, age, _fm, measured_pct = row
+                _season, percentile, matches, age, _fm, measured_pct, fvm_pct = row
                 u22_age = value if name == "u22_age" else arrivals.U22_AGE
                 cuts = {"t1_price": arrivals.T1_PRICE_PCT, "t3_price": arrivals.T3_PRICE_PCT,
                         "full_history": arrivals.FULL_HISTORY_MATCHES}
@@ -563,7 +577,7 @@ def sweep_arrival_tiers(conn, scoring: dict, platform: str) -> dict:
                 return arrivals.classify_tier(
                     percentile, matches, age <= u22_age,
                     cuts["t1_price"], cuts["t3_price"], cuts["full_history"],
-                    measured_percentile=measured_pct,
+                    measured_percentile=measured_pct, fvm_percentile=fvm_pct,
                     driver=value if name == "tier_driver" else arrivals.TIER_DRIVER)
             grouped: dict[str, dict[str, list[float]]] = {}
             for row in rows:

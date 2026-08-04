@@ -190,6 +190,47 @@ def test_the_measured_percentile_leads_and_the_quotation_is_the_fallback():
     assert arrivals.TIER_DRIVER == "measured_first"
 
 
+def test_the_fantavalore_comes_before_the_quotation_and_after_the_football():
+    """Three levels, in the operator's own order: football that was played, then the FRESHER judgement, then
+    the fixed one. «L'FVM varia ogni settimana o quando ci sono eventi particolari - infortuni,
+    trasferimenti», so where both judgements exist it is the fantavalore that says where the player is NOW,
+    while Qt.I was set once before the season. Ten times finer, too: a striker's Qt.I spans 1-40, his FVM
+    1-430.
+
+    Measured on the population the tier actually ROUTES - the arrivals the core cannot price: on euro
+    `measured_first` wins all 7 folds (margin +0.89%, CONFIRMED); on default the quotation gains +0.42%,
+    below the 0.5% floor. Inserting the fantavalore is what took euro's margin from +0.70% to +0.89%
+    (gate §7-sexies).
+    """
+    # the measured football still wins over both judgements
+    assert arrivals.classify_tier(0.95, 30, u22=False, measured_percentile=0.10,
+                                  fvm_percentile=0.95) == "T3"
+    # no football played: the FANTAVALORE decides, not the quotation
+    assert arrivals.classify_tier(0.95, 30, u22=False, fvm_percentile=0.10) == "T3"
+    assert arrivals.classify_tier(0.10, 30, u22=False, fvm_percentile=0.95) == "T1"
+    # neither football nor fantavalore: then, and only then, the quotation
+    assert arrivals.classify_tier(0.95, 30, u22=False) == "T1"
+    # and the `price` arm ignores both, so the two can be scored head to head
+    assert arrivals.classify_tier(0.10, 30, u22=False, fvm_percentile=0.95, driver="price") == "T3"
+
+
+def test_fvm_percentiles_exclude_the_zeros_that_are_not_values(tmp_path):
+    """The source stores 0 - not NULL - for every season before 2022-23, so `count(fvm)` reads as full
+    coverage while the values are absent: 1395 of 1395 rows on 2025-26, and 0 of 1423 on 2020-21. A zero is
+    not a fantavalore, so it is excluded rather than ranked bottom."""
+    cfg = Config(data_dir=tmp_path / "data", db_path=tmp_path / "data" / "euro.db")
+    conn = init_db(cfg.db_path)
+    for fc_id, role, fvm in ((1, "A", 400.0), (2, "A", 40.0), (3, "A", 0.0), (4, "D", 90.0)):
+        conn.execute("INSERT INTO players(fc_id, canonical_name) VALUES (?, ?)", (fc_id, f"P{fc_id}"))
+        conn.execute("INSERT INTO rosters(fc_id, season, role_classic, fvm) VALUES (?, '2024-25', ?, ?)",
+                     (fc_id, role, fvm))
+    got = arrivals.fvm_percentiles(conn, "2024-25")
+    assert 3 not in got, "a zero is not a fantavalore"
+    assert got[1] == 1.0 and got[2] == 0.5, "and the ranking is inside the role"
+    assert got[4] == 1.0, "the only defender tops the defenders"
+    assert arrivals.fvm_percentiles(conn, None) == {}, "no season, nothing to rank"
+
+
 def test_measured_percentiles_compare_inside_the_role(tmp_path):
     """A 6.2 is a different statement for a defender than for a striker, so the percentile is built inside
     the role - the same construction as the price percentile it replaces."""

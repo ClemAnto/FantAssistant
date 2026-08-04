@@ -1475,6 +1475,39 @@ su 6**, e per gli altri 5 su 6 le due varianti sono **identiche** (entrambe ripi
 Quindi il verdetto «price» su default riguarda un sottoinsieme di ~50 giocatori per stagione, sta sotto il
 pavimento che il progetto usa per adottare un cambiamento, e non ribalta il default spedito.
 
+### Il FANTAVALORE come secondo posto, e il difetto dell'harness che ha fatto emergere (4/08, seconda passata)
+Osservazione dell'utente: «l'FVM varia ogni settimana o quando ci sono eventi particolari — infortuni,
+trasferimenti — utilizziamolo al posto della quotazione quando più opportuno». Due conseguenze, entrambe
+applicate.
+
+**È uno stato VOLATILE tenuto come campo statico**, che è contro la regola del progetto (rigoristi, probabili,
+infortuni sono serie datate). Stava in `rosters.fvm`, **sovrascritto a ogni scarico del listone**: ogni lettura
+di «dov'è adesso» veniva buttata e sostituita dalla successiva. Ora c'è `fvm_history(fc_id, season,
+observed_on, fvm, fvm_mantra)`, scritta a ogni ingest del listone. **Non è ricostruibile**: la fonte serve UN
+valore archiviato per stagione passata (verificato: si muove di stagione in stagione, Acerbi 17 → 50 → 10), non
+le sue settimane — quindi la serie **accumula da oggi**, come i tre fatti-istantanea. E prima del **2022-23**
+l'FVM è **0, non NULL**: la «copertura 1395 su 1395» era illusoria, e uno zero non è un fantavalore (escluso,
+non messo in fondo alla classifica).
+
+**Come secondo posto nell'ordine dei tier** (calcio giocato → fantavalore → quotazione) il margine su euro
+sale da **+0.70% a +0.89%**. Ma la prima corsa dava anche un `robust PASS` alla quotazione su `default`
+(+0.51%), e quel verdetto era **un artefatto dell'harness**: lo sweep giudicava i tier su **tutti** gli arrivi
+con un esito, mentre un tier instrada soltanto chi **il core non può prezzare** (`predict_fm` esce prima se
+esiste una fantamedia su ≥ `MIN_PV_PREV` voti). Corretto — lo sweep ora scora la popolazione che il tier
+instrada davvero (2573 euro / 2180 default invece di 2963 / 2842) — e il quadro torna coerente:
+
+| piattaforma | popolazione | migliore in pool | esito |
+|---|---|---|---|
+| **euro** | 2573 | **measured_first** | **CONFIRMED**, margine **+0.89%**, 7 fold su 7 |
+| **default** | 2180 | price | media **+0.42%** → **sotto il pavimento**, robust **no** |
+
+La lezione di metodo vale più del numero: **un parametro va giudicato sulla popolazione su cui agisce.** Il
+`robust PASS` della quotazione veniva da uomini il cui tier in produzione non viene mai consultato — quelli
+che si spostano dentro il campionato e che il core prezza dalla loro fantamedia. Effetto collaterale
+dichiarato: con la popolazione ristretta `t1_price` su euro diventa **non misurabile su nessun fold** (il tier
+T1 chiede storia piena *e* percentile alto, raro fra chi il core non prezza), e il report lo dice invece di
+tacerlo.
+
 ⚠️ **Il collo di bottiglia è la copertura della risorsa oggettiva, non la scelta fra le due.** La strada per
 far pagare la regola anche su Serie A è **allargare il misurato** — la Serie B e i campionati che non
 copriamo, da cui arriva la maggior parte degli acquisti di Serie A — non tornare alla quotazione. Ed è la

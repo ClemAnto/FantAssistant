@@ -290,6 +290,26 @@ CREATE TABLE IF NOT EXISTS transfers_history (
 -- It exists because the fee could not answer the question: `transfers_history.fee` is NULL for a free
 -- transfer, so the investment hypothesis was tested with a proxy that said "no investment" about
 -- Modric and De Bruyne, the two names it came from (gate 7-quater).
+-- The FANTAVALORE DI MERCATO as the DATED SERIES it actually is. The operator's own description: «varia
+-- ogni settimana o quando ci sono eventi particolari - infortuni, trasferimenti», which makes it a volatile
+-- state, and this project's rule for those is a dated time series and never a static field
+-- (`penalty_rank`, `probable_starter`, injuries). It was being kept in `rosters.fvm`, one value per season,
+-- OVERWRITTEN at every listone download - so every reading of "where the player is now" was thrown away and
+-- replaced by the next one.
+-- Not backfillable, exactly like the three snapshot facts: the endpoint serves one archived value per past
+-- season (verified: it moves season to season, Acerbi 17 -> 50 -> 10), so the WEEKLY history before today
+-- does not exist anywhere we can reach. It accumulates from now on, and `observed_on` is the whole point.
+-- ⚠️ It is a JUDGEMENT, finer and fresher than the quotation but still somebody's opinion, so it is read
+-- only where nothing measured exists - and NEVER for the target season, which would be reading the outcome.
+CREATE TABLE IF NOT EXISTS fvm_history (
+    fc_id       INTEGER NOT NULL REFERENCES players(fc_id),
+    season      TEXT NOT NULL,
+    observed_on TEXT NOT NULL,
+    fvm         REAL,
+    fvm_mantra  REAL,
+    PRIMARY KEY (fc_id, season, observed_on)
+);
+
 CREATE TABLE IF NOT EXISTS market_values (
     fc_id   INTEGER NOT NULL REFERENCES players(fc_id),
     season  TEXT NOT NULL,

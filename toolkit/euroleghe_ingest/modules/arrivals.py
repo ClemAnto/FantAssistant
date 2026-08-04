@@ -129,6 +129,7 @@ def classify_tier(price_percentile: float | None, history_matches: int, u22: boo
                   t1_price: float = T1_PRICE_PCT, t3_price: float = T3_PRICE_PCT,
                   full_history: int = FULL_HISTORY_MATCHES,
                   measured_percentile: float | None = None,
+                  fvm_percentile: float | None = None,
                   driver: str = TIER_DRIVER) -> str:
     """T1 full history · T2 important but thin (U22 trigger / national-team fallback) · T3 marginal.
 
@@ -136,9 +137,16 @@ def classify_tier(price_percentile: float | None, history_matches: int, u22: boo
     `modules/sweep.py` varies them: a threshold nobody can move is a threshold nobody can measure. The
     DRIVER is the fourth of them, and the same rule applies to it.
     """
+    # The order the operator asked for: football that was played, then the FRESHER judgement, then the
+    # fixed one. «L'FVM varia ogni settimana o quando ci sono eventi particolari - infortuni,
+    # trasferimenti», so where both judgements exist it is the FVM that describes where the player is NOW,
+    # while Qt.I was set once before the season and never moved. Both are opinions; one is current.
     percentile = price_percentile
-    if driver == "measured_first" and measured_percentile is not None:
-        percentile = measured_percentile
+    if driver == "measured_first":
+        if measured_percentile is not None:
+            percentile = measured_percentile
+        elif fvm_percentile is not None:
+            percentile = fvm_percentile
     if percentile is None:
         return "T3"
     if percentile >= t1_price and history_matches >= full_history and not u22:
@@ -146,6 +154,33 @@ def classify_tier(price_percentile: float | None, history_matches: int, u22: boo
     if percentile >= t3_price:
         return "T2"
     return "T3"
+
+
+def fvm_percentiles(conn, season: str | None) -> dict[int, float]:
+    """fc_id -> the percentile of his FANTAVALORE within his Classic role, on that season's listone.
+
+    The second choice, behind football actually played and ahead of the quotation, and the reason is the
+    operator's own: the fantavalore moves weekly and on events (injuries, transfers) while Qt.I is set once
+    before the season - so where both exist, the FVM is the one that says where the player is now. Ten times
+    finer, too: a striker's Qt.I spans 1-40 and his FVM 1-430.
+    Read on the season GIVEN, which callers pass as the one BEFORE the arrival: the fantavalore of the season
+    being played would know its outcome. Empty before 2022-23, where the source stores zeros and not values -
+    and a zero is not a fantavalore, so it is excluded rather than ranked.
+    """
+    if not season:
+        return {}
+    roles = dict(conn.execute("SELECT fc_id, role_classic FROM rosters WHERE season = ?", (season,)))
+    by_role: dict[str, list[float]] = {}
+    mine: dict[int, tuple[str, float]] = {}
+    for fc_id, value in conn.execute(
+            "SELECT fc_id, fvm FROM rosters WHERE season = ? AND fvm IS NOT NULL AND fvm > 0", (season,)):
+        role = roles.get(fc_id)
+        if not role:
+            continue
+        mine[fc_id] = (role, float(value))
+        by_role.setdefault(role, []).append(float(value))
+    return {fc_id: round(sum(1 for other in by_role[role] if other <= value) / len(by_role[role]), 3)
+            for fc_id, (role, value) in mine.items()}
 
 
 def measured_percentiles(conn, season: str, equivalents: dict[int, tuple]) -> dict[int, float]:
@@ -213,6 +248,7 @@ def enrich(ctx: Context) -> None:
         previous = conn.execute("SELECT MAX(season) FROM rosters WHERE season < ?", (season,)).fetchone()[0]
         equivalents = foreign_fm_equivalent(conn, scoring, previous) if previous else {}
         measured = measured_percentiles(conn, season, equivalents)
+        fvm = fvm_percentiles(conn, previous)
         rows = conn.execute(
             "SELECT a.fc_id, p.birth_year FROM arrivals a JOIN players p USING(fc_id) "
             "WHERE a.season = ?", (season,)).fetchall()
@@ -221,7 +257,8 @@ def enrich(ctx: Context) -> None:
             season_start = int(season.split("-")[0])
             u22 = bool(birth_year) and (season_start - birth_year) <= U22_AGE
             tier = classify_tier(percentiles.get(fc_id), matches, u22,
-                                 measured_percentile=measured.get(fc_id))
+                                 measured_percentile=measured.get(fc_id),
+                                 fvm_percentile=fvm.get(fc_id))
             conn.execute("UPDATE arrivals SET tier = ?, foreign_fm_equiv = ? "
                          "WHERE fc_id = ? AND season = ?", (tier, fm_equiv, fc_id, season))
             tiers[tier] = tiers.get(tier, 0) + 1

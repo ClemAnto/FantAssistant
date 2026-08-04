@@ -17,6 +17,7 @@ Polite scraping: a delay with jitter between requests to avoid tripping defenses
 
 from __future__ import annotations
 
+import datetime as dt
 import io
 import os
 import random
@@ -342,12 +343,17 @@ def upsert_records(conn, records: list[dict], scoring: dict[str, float],
     return len(records)
 
 
-def upsert_listone(conn, season: str, records: list[dict], platform: str = DEFAULT_PLATFORM) -> int:
+def upsert_listone(conn, season: str, records: list[dict], platform: str = DEFAULT_PLATFORM,
+                   observed_on: str | None = None) -> int:
     """Enrich rosters with the listone: Mantra roles (RM), Classic role, price and club. This fills
     the non-top Serie A players whose rosters came from the voti (Classic role only, no Mantra).
-    The listone is authoritative for roles/role/price; the roster league is preserved when known."""
+    The listone is authoritative for roles/role/price; the roster league is preserved when known.
+
+    `observed_on` dates the FVM reading (default: today). The fantavalore moves weekly and on events, so
+    `rosters.fvm` keeps the LATEST value while `fvm_history` keeps the series - one row per reading."""
     from euroleghe_ingest.modules.rosters import UPSERT_PLAYER, _get_or_create_club
 
+    observed_on = observed_on or dt.datetime.now(dt.UTC).date().isoformat()
     n = 0
     for rec in records:
         # The listone is authoritative for roles/role/price, and for the SPELLING too: it is the clean
@@ -385,6 +391,16 @@ def upsert_listone(conn, season: str, records: list[dict], platform: str = DEFAU
              rec["price"], rec.get("price_initial"), rec.get("fvm"), rec.get("fvm_mantra"),
              rec.get("price_mantra"), rec.get("price_initial_mantra")),
         )
+        # ...and the FVM also goes into its own DATED series, because that is what it is: it moves weekly and
+        # on events (injuries, transfers), so a single column per season keeps only the last reading and
+        # silently discards every earlier one. `rosters.fvm` stays as the latest value - the sheet and the
+        # reports read it - and `fvm_history` is the series that accumulates from today (it cannot be
+        # backfilled: the source serves one archived value per past season, not its weeks).
+        if rec.get("fvm") is not None or rec.get("fvm_mantra") is not None:
+            conn.execute(
+                "INSERT OR REPLACE INTO fvm_history(fc_id, season, observed_on, fvm, fvm_mantra) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (rec["fc_id"], season, observed_on, rec.get("fvm"), rec.get("fvm_mantra")))
         n += 1
     return n
 

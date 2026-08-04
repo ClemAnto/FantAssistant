@@ -185,7 +185,16 @@ the other five arrivals in six the two arms are IDENTICAL because both fall back
 make the rule pay is to widen what is measured (Serie B and the leagues we do not parse), not to go back to
 the quotation. Two things stay irreducible and are not the same as trusting it: the listone ROLE (the game
 itself scores by role - the twelve measured codes already replaced it for *where he plays*), and the ASK price
-at the table, which is what a bid is made against. Details: gate §7-sexies.
+at the table, which is what a bid is made against. The FANTAVALORE (`fvm`) sits between the two - «varia ogni settimana o quando ci sono eventi particolari»,
+so it is the fresher judgement and it goes ahead of Qt.I, which is set once before the season and never moves
+(and it is ten times finer: a striker's Qt.I spans 1-40, his FVM 1-430). Two things it forced: it is a
+VOLATILE state that was being kept as a static field, overwritten at every listone download, so it now also
+lands in `fvm_history(fc_id, season, observed_on, ...)` and accumulates from today - the weekly history before
+now exists nowhere we can reach, and before 2022-23 the source stores **0 and not NULL**, so `count(fvm)` read
+as full coverage while the values were absent. And a parameter must be judged ON THE POPULATION IT ACTS ON:
+the tier sweep was scoring every arrival, which handed the quotation a robust PASS on `default` off men whose
+tier is never consulted (the core prices them from their own fantamedia); scored on the arrivals the tier
+actually routes, that advantage falls below the floor and `measured_first` stands. Details: gate §7-sexies.
 
 ## Citing a fitted number
 **A coefficient quoted without its platform, its residual baseline and its date is not a fact.** Audited
