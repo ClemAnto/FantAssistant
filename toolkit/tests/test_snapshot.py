@@ -1075,28 +1075,41 @@ def test_a_transformed_shape_never_turns_a_winger_into_a_second_striker(monkeypa
         # the drawn shape is what the LANES say, so the caption and the pitch can never disagree
         assert picture == "-".join(str(len(lanes.get(key, []))) for key in ("D", "M", "T", "A")
                                    if lanes.get(key))
-        return picture, where
+        return picture, where, lanes
 
-    picture, where = drawn("3-4-3")
+    picture, where, lanes = drawn("3-4-3")
     assert picture == "3-4-2-1", where
     assert where["Hojlund"] == ("A", "C"), "the centre-forward is the centre-forward"
     assert where["Neres"][0] == "T", "the winger drops onto the trequarti, he is not a second striker"
-    assert where["Neres"][1] in ("R", "L"), "and he keeps his flank: an inside forward, not a trequartista"
+    # ...and NOT with a flank SLOT, because the row he lands on has none to give: a trequarti of two is two
+    # central places (`SLOT_SHAPE`), and a slot outliving the line that issued it is what had Sabitzer
+    # reading 'As' on a trequarti of ONE - «sta giocando sulla trequarti quindi il badge deve mostrare T».
+    # It is DROPPED and not made central, so the DRAWING still reads his own flank and puts him on his own
+    # side of the row - «Saka gioca come Ad, quindi anche sulla trequarti deve posizionarsi a destra».
+    assert where["Neres"][1] is None, "no flank slot outlives the row that issued it"
+    trequarti = view._placed(lanes["T"], "T")
+    assert view._line_codes(trequarti, "T") == ["T", "T"], "and the markers name no flank the row has not"
+    drawn_neres = next(x for x, row, _rivals in trequarti if row["name"] == "Neres")
+    assert drawn_neres < 0.5, "a right-sided man stands on the team's right, wherever the row is"
     assert where["Politano"] == ("M", "R"), "the wide forward drops back and COVERS the four's right"
     assert where["Spinazzola"] == ("M", "L")
     row = {name for name, (lane, _side) in where.items() if lane == "M"}
     assert row < {"Politano", "Spinazzola", "McTominay", "Lobotka", "De Bruyne"} and len(row) == 4, where
 
-    # ...and a module whose own attack is a TWO keeps both men up front: nothing was thinned, so there is
-    # nothing to transform, and the winger beside the striker is the seconda punta the coach asked for.
-    picture, where = drawn("3-4-1-2")
-    assert picture == "3-4-1-2", where
-    assert where["Hojlund"][0] == "A" and where["Neres"][0] == "A", where
+    # ...and a module whose own attack is a TWO does NOT keep him up front either, which reverses what this
+    # test asserted until the operator looked at the same board again: «Neres non è una Sp, è un esterno,
+    # non potrebbe mai giocare al centro ... al massimo sulla trequarti». A front two has two CENTRAL
+    # places, so a man who plays no central role holds neither of them (rule 6), and the trequarti is
+    # exactly where he does go. The previous reading - a winger beside the striker is the seconda punta the
+    # module asked for - was a statement about the SHAPE; this one is about the man, and the man wins.
+    picture, where, _lanes = drawn("3-4-1-2")
+    assert picture == "3-4-2-1", where
+    assert where["Hojlund"][0] == "A" and where["Neres"][0] == "T", where
 
     # A side whose only forwards are wingers is drawn WITH THEM up front: that is the truth about the
     # squad, and an empty front line would be a worse drawing than a narrow one.
     rows[9].update(name="Lang", desc_real_roles="LW;RW")
-    picture, where = drawn("3-4-3")
+    picture, where, _lanes = drawn("3-4-3")
     assert where["Lang"][0] == "A" and where["Neres"][0] == "A", where
 
 
@@ -1210,10 +1223,11 @@ def test_a_centre_forward_is_never_drawn_as_a_winger(monkeypatch):
                         view._line_codes(drawn, "A")))
 
     # a front three with two punte in it: one keeps the shirt, the other is the SECONDA PUNTA even though
-    # the shape gave him a WING - and with no Ad to pair it, the lone winger's As folds to Sp as well
-    # («se c'è un Ad ci deve essere anche una As e viceversa»: flank codes stand in pairs or not at all)
+    # the shape gave him a WING - while the man who really plays that wing keeps it, because on a row where
+    # the men interchange the PLACE is what pairs a flank code and not the name of the man on the other
+    # side («in un attacco a 3 non ci possono essere 2 SP»: the winger is the reason there is only one)
     three = badged(("ST", "C"), ("ST", "R"), ("LW", "L"))
-    assert three == {"ST@C": "Pc", "ST@R": "Sp", "LW@L": "Sp"}, three
+    assert three == {"ST@C": "Pc", "ST@R": "Sp", "LW@L": "As"}, three
     # ...where BOTH wings are really played, both stand: the pair is what makes them positions
     both = badged(("ST", "C"), ("ST;RW", "R"), ("LW", "L"))
     assert both == {"ST@C": "Pc", "ST;RW@R": "Ad", "LW@L": "As"}, both
@@ -1353,6 +1367,190 @@ def test_a_midfield_row_is_never_more_than_five(monkeypatch):
     assert [row["name"] for row, _rivals in lanes["T"]] == ["Trequartista"], "the most advanced man goes"
     assert {view._slot_side.get(id(row)) for row, _rivals in lanes["M"]} == {"R", "C", "L"}, \
         "and the row keeps its flanks: a wing back on the trequarti would empty the one he covers"
+
+
+def test_a_midfield_row_gets_two_flank_men_of_role_and_never_a_centre_back(monkeypatch):
+    """Two of the operator's rules on the same row, and they pull in opposite directions.
+
+    «Servono sempre due esterni di centrocampo di ruolo»: Lille's five came out as five centrali, because
+    the row held Correia (`LW;RW`) - who covers either touchline and can still only stand on one - so the
+    other flank went to a central man, rule 2 vacated it and rule 3 cannot cover it behind a lone striker.
+    The claim stops deciding there and the man who plays the flank takes it, up to `FLANK_OVERRIDE_GAP`.
+
+    «Non è realistico che un Dc sia schierato a centrocampo»: what may NOT take it is a centre back whose
+    second code happens to name a side. Manchester United gave the five's left to Martinez (`DC;DL`, 0.62)
+    over Dorgu (`ML;DL`, 0.60) - two hundredths of claim - and Stuttgart's to Jeltsch (`DC;DR`). The depth
+    gate cannot separate them (a centre back and a full back both stand at 0.25, exactly one line from a
+    midfield); the PRIMARY code can, and it is the only thing that does.
+    """
+    rows = [{"fc_id": str(index), "name": name, "desc_real_roles": codes, "role_classic": role,
+             "share": share}
+            for index, (name, codes, role, share) in enumerate((
+                ("Keeper", "GK", "P", 0.95),
+                ("Right back", "DR", "D", 0.79), ("Centre 1", "DC;DR", "D", 0.81),
+                ("Centre 2", "DC", "D", 0.68), ("Left back", "DL", "D", 0.76),
+                ("Regista", "MC;DM", "C", 0.86), ("Mezzala", "MC;DM", "C", 0.76),
+                ("Mediano", "MC;DM", "C", 0.53), ("Central", "MC", "C", 0.33),
+                ("Two-flank winger", "LW;RW", "C", 0.68),
+                ("Trequartista", "AM", "C", 0.83),
+                ("Right winger", "RW", "C", 0.12),          # nobody's first choice, and of ROLE
+                ("Centre back", "DC;DL", "D", 0.31)))]      # a flank in his codes, not in his trade
+    view = _view_of(rows)
+    view._calendar, view._slot_side, view._excluded, view._reshaped = {}, {}, set(), set()
+    from euroleghe_ingest.gui import SnapshotView as View
+
+    monkeypatch.setattr(View, "squad", lambda _self, _club: rows)
+    monkeypatch.setattr(View, "presence", lambda _self, row, _horizon: row.get("share", 0.0))
+    monkeypatch.setattr(View, "claim", lambda _self, row, _horizon="season": row.get("share", 0.0))
+    monkeypatch.setattr(View, "titolarita", lambda _self, row, _horizon: (0.0, row.get("share", 0.0)))
+
+    lanes, _geometry, _picture = view.lanes_for(view.eleven("Test", "4-5-1", "typical"))
+    row = {name: view._slot_side.get(id(next(entry[0] for entry in lanes["M"]
+                                             if entry[0]["name"] == name)))
+           for name in (man["name"] for man, _rivals in lanes["M"])}
+    assert sorted(side for side in row.values() if side in ("R", "L")) == ["L", "R"], row
+    assert "Right winger" in row, "the flank nobody covered goes to the man whose job it is"
+    assert "Centre back" not in row, "and a centre back is not that man, whatever his second code says"
+    # the man who can do either flank keeps one of them, and the override paid for the other
+    assert row["Two-flank winger"] in ("R", "L"), row
+    assert View.FLANK_OVERRIDE_GAP >= 0.33 - 0.12, "the ceiling has to admit the swap it was measured on"
+
+
+def test_the_mediano_stands_in_the_middle_of_his_row(monkeypatch):
+    """«Rodri è una M, le M vanno piazzate al centro della linea».
+
+    Which men of a row are WIDE is decided by the shape and the codes; among the central ones nothing said
+    who holds the middle, so it fell through to the foot and the claim - and Manchester City's five drew
+    Rodri (`DM`) second from the touchline with a mezzala in the middle of it. The row is filled from the
+    outside in, so what ends up in the middle is the man whose own first code is the deepest.
+    """
+    rows = [{"fc_id": str(index), "name": name, "desc_real_roles": codes, "role_classic": role,
+             "share": share}
+            for index, (name, codes, role, share) in enumerate((
+                ("Donnarumma", "GK", "P", 0.89),
+                ("Matheus", "DR", "D", 0.86), ("Guehi", "DC", "D", 0.84),
+                ("Ruben Dias", "DC", "D", 0.82), ("O'Reilly", "DL", "D", 0.80),
+                ("Semenyo", "LW;RW", "C", 0.85), ("Rodri", "DM;MC", "C", 0.84),
+                ("Nico Gonzalez", "MC;DM", "C", 0.50), ("Reijnders", "MC;DM;AM", "C", 0.48),
+                ("Gvardiol", "DL;DC", "D", 0.73), ("Haaland", "ST", "A", 0.89)))]
+    view = _view_of(rows)
+    view._calendar, view._slot_side, view._excluded, view._reshaped = {}, {}, set(), set()
+    from euroleghe_ingest.gui import SnapshotView as View
+
+    monkeypatch.setattr(View, "squad", lambda _self, _club: rows)
+    monkeypatch.setattr(View, "presence", lambda _self, row, _horizon: row.get("share", 0.0))
+    monkeypatch.setattr(View, "claim", lambda _self, row, _horizon="season": row.get("share", 0.0))
+    monkeypatch.setattr(View, "titolarita", lambda _self, row, _horizon: (0.0, row.get("share", 0.0)))
+
+    lanes, _geometry, picture = view.lanes_for(view.eleven("Test", "4-5-1", "typical"))
+    assert picture == "4-5-1", picture
+    drawn = view._placed(lanes["M"], "M")
+    order = [row["name"] for _x, row, _rivals in drawn]
+    assert order[len(order) // 2] == "Rodri", order
+    assert view._line_codes(drawn, "M")[len(order) // 2] == "M", "and the marker says what he is"
+
+
+def test_a_front_three_of_punte_recruits_the_wings_it_needs(monkeypatch):
+    """The operator, on Fiorentina: «in un attacco a 3 non ci possono essere 2 SP, servono 2 attaccanti
+    esterni o 2 ali».
+
+    Kean, Gudmundsson and Piccoli are three centre-forwards, so the shape's two WIDE places were held by
+    punte and the badge said Pc + Sp + Sp - which is not an attack. A row's flank is already a job the men
+    who do it compete for (`_flanked`), and here the CLAIM stops deciding: the wide places go to the wingers
+    even at 0.31 and 0.27 against 0.52 and 0.70, a cost the operator has taken in the open.
+
+    The trigger is TWO punte and no wide man in the line, and nothing looser, because the same override on
+    one uncovered flank cost two boards the operator had already ruled on: Atalanta lost Krstovic (0.52, its
+    only centre-forward) to a winger at 0.33 for a line the transformation then thinned to one man anyway,
+    and Roma went back to a front three after «dovrebbero giocare Dybala e Soulé come trequartisti». With
+    the trigger as it stands, Fiorentina is the only board of 108 that moves.
+    """
+    rows = [{"fc_id": str(index), "name": name, "desc_real_roles": codes, "role_classic": role,
+             "share": share}
+            for index, (name, codes, role, share) in enumerate((
+                ("De Gea", "GK", "P", 0.97),
+                ("Dodo", "DR;MR", "D", 0.94), ("Pongracic", "DC;DR", "D", 0.85),
+                ("Ranieri", "DC;DL", "D", 0.72), ("Gosens", "ML;DL", "D", 0.70),
+                ("Fagioli", "MC;DM", "C", 0.77), ("Mandragora", "MC;DM", "C", 0.75),
+                ("Ndour", "MC;DM", "C", 0.55),
+                ("Kean", "ST", "A", 0.84), ("Gudmundsson", "ST;AM", "C", 0.70),
+                ("Piccoli", "ST", "A", 0.52),
+                ("Solomon", "LW", "A", 0.31), ("Harrison", "RW;MR", "C", 0.27)))]
+    view = _view_of(rows)
+    view._calendar, view._slot_side, view._excluded, view._reshaped = {}, {}, set(), set()
+    from euroleghe_ingest.gui import SnapshotView as View
+
+    monkeypatch.setattr(View, "squad", lambda _self, _club: rows)
+    monkeypatch.setattr(View, "presence", lambda _self, row, _horizon: row.get("share", 0.0))
+    monkeypatch.setattr(View, "claim", lambda _self, row, _horizon="season": row.get("share", 0.0))
+    monkeypatch.setattr(View, "titolarita", lambda _self, row, _horizon: (0.0, row.get("share", 0.0)))
+
+    lanes, _geometry, _picture = view.lanes_for(view.eleven("Test", "4-3-3", "typical"))
+    front = view._placed(lanes["A"], "A")
+    drawn = dict(zip((row["name"] for _x, row, _r in front), view._line_codes(front, "A")))
+    assert drawn == {"Harrison": "Ad", "Kean": "Pc", "Solomon": "As"}, drawn
+
+    # ...and with ONE punta in the line the claim decides again, which is Atalanta's case: two trequartisti
+    # beside the centre-forward are not two wings left uncovered, and rule 4 is what has them. Krstovic
+    # (0.52) keeps the shirt the looser trigger handed to a winger at 0.33.
+    rows[8].update(name="De Ketelaere", desc_real_roles="AM;ST", share=0.78)
+    rows[9].update(name="Pasalic", desc_real_roles="MC;DM;AM", share=0.56)
+    rows[10].update(name="Krstovic", desc_real_roles="ST", share=0.52)
+    rows[11].update(share=0.10)                                   # Solomon, a winger nobody plays
+    lanes, _geometry, _picture = view.lanes_for(view.eleven("Test", "4-3-3", "typical"))
+    assert {row["name"] for row, _rivals in lanes["A"]} == {"Krstovic"}, "the punta keeps his shirt"
+    assert "Solomon" not in {row["name"] for men in lanes.values() for row, _r in men}, \
+        "and no wing is recruited for a line that is not holding two punte"
+
+
+def test_a_four_five_one_whose_five_plays_ahead_of_itself_is_a_four_two_three_one(monkeypatch):
+    """The operator, on Bayern and Barcelona at once: «spesso scambi il 4-2-3-1 con il 4-5-1».
+
+    The source cannot tell them apart - the provider publishes three lines per eleven, so 4-5-1 is the
+    commonest string in the whole repertoire (1746 of 4812 complete elevens) and every side with two mediani
+    behind three attacking men arrives as one. The twelve codes can, which is what the grid is for, so the
+    ROW is counted: Bayern's five is Olise (`RW`), Gnabry (`LW;AM`) and Luis Diaz (`LW`) around Kimmich and
+    Pavlovic, i.e. a majority that plays ahead of it, and the board must draw 4-2-3-1 with those three on
+    the trequarti - «Olise, Diaz e Gnabry sulla trequarti».
+
+    A MAJORITY, because one or two wide forwards in a midfield row is the operator's other rule and not a
+    mistake («i due attaccanti esterni possono arretrare e coprire il centrocampo»): with one of the three
+    replaced by a real wide midfielder the five stays a five.
+    """
+    rows = [{"fc_id": str(index), "name": name, "desc_real_roles": codes, "role_classic": role,
+             "share": share}
+            for index, (name, codes, role, share) in enumerate((
+                ("Neuer", "GK", "P", 0.79),
+                ("Laimer", "DR", "D", 0.74), ("Tah", "DC", "D", 0.66),
+                ("Upamecano", "DC", "D", 0.61), ("Stanisic", "DR;DC;DL", "D", 0.76),
+                ("Kimmich", "MC;DM", "C", 0.82), ("Pavlovic", "MC;DM", "C", 0.51),
+                ("Olise", "RW", "C", 0.76), ("Luis Diaz", "LW", "A", 0.80),
+                ("Gnabry", "LW;AM", "A", 0.55), ("Kane", "ST", "A", 0.83)))]
+    view = _view_of(rows)
+    view._calendar, view._slot_side, view._excluded, view._reshaped = {}, {}, set(), set()
+    from euroleghe_ingest.gui import SnapshotView as View
+
+    monkeypatch.setattr(View, "squad", lambda _self, _club: rows)
+    monkeypatch.setattr(View, "presence", lambda _self, row, _horizon: row.get("share", 0.0))
+    monkeypatch.setattr(View, "claim", lambda _self, row, _horizon="season": row.get("share", 0.0))
+    monkeypatch.setattr(View, "titolarita", lambda _self, row, _horizon: (0.0, row.get("share", 0.0)))
+
+    lanes, _geometry, picture = view.lanes_for(view.eleven("Test", "4-5-1", "typical"))
+    assert picture == "4-2-3-1", picture
+    assert {row["name"] for row, _rivals in lanes["M"]} == {"Kimmich", "Pavlovic"}, "the two mediani"
+    assert {row["name"] for row, _rivals in lanes["T"]} == {"Olise", "Gnabry", "Luis Diaz"}
+    assert [row["name"] for row, _rivals in lanes["A"]] == ["Kane"]
+    # the trequarti is a LINE and it is drawn as one: its two wide places are named, in pairs, and the row
+    # reaches both touchlines (`_paired`, and rule 2's exemption for a row whose men interchange)
+    front = view._placed(lanes["T"], "T")
+    assert dict(zip((row["name"] for _x, row, _r in front),
+                    view._line_codes(front, "T"))) == {"Olise": "Ad", "Gnabry": "T", "Luis Diaz": "As"}
+
+    # ...and TWO attacking men in the row is a cover, not a line: the five stays a five, which is the case
+    # `_reshape` rule 3 exists for.
+    rows[9].update(name="Kimmich II", desc_real_roles="MC;ML", role_classic="C")
+    _lanes, _geometry, picture = view.lanes_for(view.eleven("Test", "4-5-1", "typical"))
+    assert picture == "4-5-1", picture
 
 
 def test_a_tooltip_never_leaves_the_screen():

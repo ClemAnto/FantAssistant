@@ -3292,7 +3292,17 @@ class SnapshotView(ttk.Frame):
         return best, why
 
     def shape_matchdays(self, club: str, shape: str, mode: str) -> float:
-        """What the eleven this shape fields adds up to: the shirts' own percentages, summed."""
+        """What the eleven this shape fields adds up to: the shirts' own percentages, summed.
+
+        NOT what the shape's own places cost it, which was tried on Marseille («un centrocampo a 5 deve
+        avere 2 esterni»: its only right-sided man is its right BACK, so a 4-5-1 cannot man both flanks of
+        its five while a back three frees him for one) and REVERTED. Charging a shape for a place nobody in
+        the row plays moves 13 boards of 108 at 2 matchdays a place - Como onto a "3-3-1-3", Barcelona off
+        the 4-2-3-1 and Napoli back onto the 3-5-2, i.e. it un-fixed two boards the operator had just ruled
+        on to fix a third. That is the project's own signal that the MODEL is wrong and not the value, so it
+        is written down here instead of tuned: what a squad cannot man is repaired where the men are chosen
+        (`_flanked`, `_pointed`) and drawn (`_reshape`), never by re-ranking the modules a club plays.
+        """
         horizon = "recent" if mode == "next" else "season"
         return sum(self.claim(starter, horizon)
                    for _role, starter, _rivals in self.eleven(club, shape, mode))
@@ -3999,18 +4009,35 @@ class SnapshotView(ttk.Frame):
                 # wingers and trequartisti sat outside the eleven. It borrows in CLAIM order and only what
                 # another line can spare (`can_lend`); in the goal nobody adapts, so an empty keeper's
                 # shirt is the honest drawing of a squad with no keeper.
-                for row in eligible:
-                    if len(take) >= slots:
-                        break
-                    if (row.get("name") not in taken and row not in take
-                            and can_lend(row, role)):
+                # IN TWO PASSES, and the first one is «non è realistico che un Dc sia schierato a
+                # centrocampo»: a man who plays SOME line one step from the asking one comes before a man
+                # who plays none of it. The depth gate cannot say this on its own - a centre back and a full
+                # back both stand at 0.25, exactly `LINE_REACH` from a midfield - so the claim order alone
+                # gave Manchester United's midfield to Martinez (`DC;DL`, 0.62) over Mainoo (0.58) and
+                # Stuttgart's to Jeltsch (`DC`, 0.58) over Nartey (0.44). The second pass is the old
+                # behaviour and it stays: a line whose squad has nobody nearer is still drawn with eleven
+                # men, and Bayern's borrowed wingers are found by it exactly as before.
+                for near in (True, False):
+                    for row in eligible:
+                        if len(take) >= slots:
+                            break
+                        if (row.get("name") in taken or row in take
+                                or not can_lend(row, role)):
+                            continue
+                        if near and role not in {self.LANE_OF_ROLE.get(code)
+                                                 for code in self.real_roles(row)}:
+                            continue
                         take.append(row)
                 # ...and a row's FLANKS are a job of their own, contested by everybody who does it.
-                take = self._flanked(take, role, slots, horizon, [
+                pool = [
                     row for row in eligible
                     if row.get("name") not in taken and row not in take
                     and can_lend(row, role) and self._within_reach(row, role)
-                    and not (role == "A" and self._off_the_front(row, "A"))])
+                    and not (role == "A" and self._off_the_front(row, "A"))]
+                take = self._flanked(take, role, slots, horizon, pool)
+                # ...and so is the middle of a FRONT line, for the same reason and with the same ceiling
+                take = self._pointed(take, role, slots, horizon,
+                                     [row for row in pool if row not in take])
             for row in take:
                 taken.add(row.get("name"))
                 left[role] -= 1
@@ -4021,11 +4048,29 @@ class SnapshotView(ttk.Frame):
                                      if other.get("name") not in taken
                                      and other in by_role.get(role, [])]
                    for role, row in chosen}
+        men = [row for _role, row in chosen]
+        picked = {id(row): role for role, row in chosen}
+
+        def arranged(shape: str) -> list[tuple[str, dict]]:
+            return self._assign(men, shape, order=lambda row: rank.get(id(row), 99), home=picked)
+
+        placed = arranged(formation)
+        # How many ROWS the shape really has: a five whose majority plays AHEAD of it is a two and a three,
+        # which is the module the source cannot name. Read off the men the assignment PLACED in the row and
+        # not off the line they were picked for, because a line picks men for places it may not give them -
+        # Liverpool's five is picked with three attacking men in it and drawn with a real wide midfielder on
+        # its right, and splitting on the selection sent that right back onto the trequarti.
+        split = self._two_rows(placed, formation)
+        if split != formation:
+            formation, placed = split, arranged(split)
         out = [(lane, row, benches.get(row.get("name"), []))
-               for lane, row in self._assign([row for _role, row in chosen], formation,
-                                             order=lambda row: rank.get(id(row), 99),
-                                             home={id(row): role for role, row in chosen})]
-        out = self._settle(out, eligible, {id(row): role for role, row in chosen})
+               for lane, row in placed]
+        out = self._settle(out, eligible, picked)
+        # ...and the middle of the front line is checked AGAIN on the settled eleven, because `_settle`
+        # can create the very thing `_pointed` refused: Napoli's 4-4-2 is picked with Hojlund and De Bruyne
+        # up front (both central men) and the repair exchanges De Bruyne for Neres, so the second central
+        # place ends up on a winger and the badge says 'Sp' - «un attaccante esterno non può diventare Sp».
+        out = self._repointed(out, eligible)
         # A line the squad cannot fill with men who play there is redrawn around the men it has, instead of
         # showing a central midfielder on a touchline.
         reshaped = {id(row): lane for lane, row in
@@ -4065,6 +4110,50 @@ class SnapshotView(ttk.Frame):
                           [row for row in able if row.get("name") in named][:3] or able[:2]))
         return final
 
+    # What the drawing is willing to PAY, in shares of a season, to put a man who really plays a flank on
+    # it when nobody in the line does. MEASURED on the 108 boards of the two 2026-27 sheets, one board at a
+    # time: 0.30 admits Fiorentina's right (Harrison 0.27 for Piccoli 0.52) and Lille's (Perrin 0.12 for
+    # Mbappé 0.33) and refuses Fiorentina's left (Solomon 0.31 for Gudmundsson 0.70) - the operator asked
+    # for BOTH wings there; 0.40 admits all three and still refuses the case the ceiling exists for
+    # (Napoli's row of four regulars, a 0.87 gap). Above 0.50 nothing new is admitted on either sheet.
+    FLANK_OVERRIDE_GAP: ClassVar[float] = 0.40
+
+    def _covers(self, men: list[dict], sides: list[str]) -> int:
+        """How many of a row's flank places these men can hold AT ONCE - a matching, not a count.
+
+        One man answers for one touchline, so a `LW;RW` covers either and not both: the scarcer side is
+        served first and by the least flexible man who can, which is exact for the two flanks a row has.
+        """
+        used: set[int] = set()
+        held = 0
+        for side in sorted(sides, key=lambda side: sum(1 for row in men
+                                                       if side in self.sides_of(row))):
+            cover = min((row for row in men
+                         if side in self.sides_of(row) and id(row) not in used),
+                        key=lambda row: len(self.sides_of(row) & set(sides)), default=None)
+            if cover is not None:
+                used.add(id(cover))
+                held += 1
+        return held
+
+    @classmethod
+    def _flank_trade(cls, row: dict, role: str) -> bool:
+        """Whether a flank of THIS row is a job he really does: his FIRST code names a side, or the line is
+        his own line anyway.
+
+        «Non è realistico che un Dc sia schierato a centrocampo», twice over: Martinez (`DC;DL`) took
+        Manchester United's five on the left from Dorgu (`ML;DL`) by 0.02 of claim, and Jeltsch (`DC;DR`)
+        took Stuttgart's from Nartey - because ANY code of his is enough to cover a side, and the depth gate
+        cannot tell a centre back from a full back: both stand at 0.25, exactly `LINE_REACH` from a midfield.
+        The PRIMARY code can, and it is the reading the rest of this module uses - «il primo codice è il
+        mestiere». Every case the rival pool exists for survives it: Orsolini and Cambiaghi (`RW`, `LW`)
+        taking Bologna's five, Spinazzola (`ML;DL`) Napoli's left, Verdonk (`DL;DC`) Lille's, and a centre
+        back adapting into the outer place of his own BACK line, which is his line and so never filtered.
+        """
+        codes = cls.real_roles(row)
+        return bool(REAL_ROLE_SIDE.get(next(iter(codes), ""))) or role in {
+            cls.LANE_OF_ROLE.get(code) for code in codes}
+
     def _flanked(self, take: list[dict], role: str, slots: int, horizon: str,
                  rivals: list[dict]) -> list[dict]:
         """A ROW'S FLANK IS A JOB, and the men who do it are not only the ones its own line's pool holds.
@@ -4081,15 +4170,36 @@ class SnapshotView(ttk.Frame):
         WEAKER, only if his own line can spare him (`can_lend`, checked by the caller), and never if that
         would leave the other flank uncovered. And nothing is lent FORWARD into the attack - a place in the
         front line is a forward's (`_off_the_front`), which is why the caller filters that case out.
+
+        WITH ONE EXCEPTION, and it is the operator's own, on Fiorentina's front three: «in un attacco a 3
+        non ci possono essere 2 SP, servono 2 attaccanti esterni o 2 ali». Where NOBODY in the line covers
+        that flank at all, the claim stops deciding and the man who plays there takes the place - Kean,
+        Gudmundsson and Piccoli are three centre-forwards, so the shape's two wide places were held by two
+        punte and the badge said Pc + Sp + Sp, which is not an attack. The exception is the FRONT line's
+        only, because it is the only row nothing else can repair: a midfield or a defensive flank held by a
+        central man is vacated by `_reshape` rule 2 and covered from the front by rule 3, while a striker on
+        a wing is exempt from rule 2 by design («sono Pc e basta») and rule 4 only fires on a line the
+        transformation has already thinned. It costs claim and the operator has taken that decision in the
+        open: Solomon (0.31) and Harrison (0.27) for Piccoli (0.52) and Gudmundsson (0.70).
         """
         sides = [side for side in self.slot_shape(role, slots) if side in ("R", "L")]
         if not sides or len(take) < slots:
             return take                      # a row with no flanks, or one that has not even got its men
         for side in sides:
-            rival = max((row for row in rivals if side in self.sides_of(row)),
+            rival = max((row for row in rivals if side in self.sides_of(row)
+                         and self._flank_trade(row, role)),
                         key=lambda row: self.claim(row, horizon), default=None)
             if rival is None:
                 continue
+            # ...and whether the claim stops deciding for this place, which happens in two cases and both
+            # are the operator's words. In the MIDFIELD it is unconditional - «servono sempre due esterni di
+            # centrocampo di ruolo»: nobody in the row plays that flank, so a central man would be given it,
+            # rule 2 would vacate it and rule 3 cannot cover it behind a lone striker (Lille's five came out
+            # as five centrali). In the FRONT line it needs TWO PUNTE, because there the place is one a
+            # centre-forward would KEEP («sono Pc e basta», so rule 4 leaves him on it) - and looser than
+            # that it cost two boards the operator had already ruled on (Atalanta, Roma).
+            punte = [row for row in take if self.sides_of(row) == {"C"}
+                     and next(iter(self.real_roles(row)), "") == "ST"]
             others = [other for other in sides if other != side]
             weakest = min(
                 (row for row in take
@@ -4099,7 +4209,34 @@ class SnapshotView(ttk.Frame):
                             and not any(other in self.sides_of(kept) for kept in take if kept is not row)
                             for other in others)),
                 key=lambda row: self.claim(row, horizon), default=None)
-            if weakest is None or self.claim(rival, horizon) <= self.claim(weakest, horizon):
+            if weakest is None:
+                continue
+            # ...and what the override may sacrifice is a CENTRAL man and nobody else: reading the row's
+            # weakest instead had it swap one winger for a worse winger, because a row short of wide men is
+            # short of them whichever of them you take out.
+            central = min((row for row in take if not self.sides_of(row) & set(sides)),
+                          key=lambda row: self.claim(row, horizon), default=None)
+            # WHETHER THE ROW CAN MAN ITS FLANKS AT ALL is a MATCHING and not a count (`_covers`), and the
+            # override may only fire where the swap ADDS one: Lille's five holds Correia (`LW;RW`), who
+            # covers either touchline and can still only stand on one, so counting wide men said "covered"
+            # while a flank was going to a central man; and counting them short let a row with one left
+            # winger take a SECOND left winger, which adds no flank and cost the eleven its better one.
+            uncovered = ((role == "M" or (role == "A" and len(punte) >= 2))
+                         and central is not None
+                         and self._covers(take, sides) < len(sides)
+                         and self._covers([row for row in take if row is not central] + [rival], sides)
+                         > self._covers(take, sides)
+                         and self.claim(rival, horizon) > 0.0
+                         # ...and it is a COST, so it has a CEILING: past `FLANK_OVERRIDE_GAP` the man being
+                         # sacrificed is a regular starter and the "esterno" is somebody who does not play,
+                         # which is what a coach answers by adapting a central man instead. Without it the
+                         # override is the Touré mistake with the sign flipped: Napoli's row of four 100%
+                         # men handed a place to a 13% right back because nobody in it plays a wing.
+                         and self.claim(central, horizon) - self.claim(rival, horizon)
+                         <= self.FLANK_OVERRIDE_GAP)
+            if uncovered:
+                weakest = central
+            elif self.claim(rival, horizon) <= self.claim(weakest, horizon):
                 continue
             if side in self.sides_of(weakest) and not any(
                     side in self.sides_of(kept) for kept in take if kept is not weakest):
@@ -4107,6 +4244,70 @@ class SnapshotView(ttk.Frame):
             take = [row for row in take if row is not weakest] + [rival]
             rivals = [row for row in rivals if row is not rival]
         return take
+
+    def _pointed(self, take: list[dict], role: str, slots: int, horizon: str,
+                 rivals: list[dict]) -> list[dict]:
+        """A CENTRAL place of the FRONT LINE wants a man who can play centrally - the mirror of `_flanked`.
+
+        «Non è realistico che un attaccante esterno come Neres giochi al centro sulla trequarti ... un
+        attaccante esterno può adattarsi sulla trequarti solo se decentrato, ovvero in linea di trequarti con
+        almeno 2 calciatori», and on Napoli's 3-5-2 both ends of that are shut: a front two is two CENTRAL
+        places, so a winger holds one of them, and the trequarti behind it has room for one man, so rule 6
+        cannot send him there either. Nothing downstream can repair it, so the place is decided where the men
+        are: the club's best forward who plays centrally takes it. Lazio's front three is the same statement
+        with the shape's own arithmetic - one central place, three wingers, and «serve una punta di ruolo al
+        centro dell'attacco».
+
+        Same currency as the flank override and the same ceiling (`FLANK_OVERRIDE_GAP`): a place is a job,
+        and the claim decides inside what the job allows, never outside it.
+        """
+        if role != "A":
+            return take
+        wanted = sum(1 for place in self.slot_shape(role, slots) if place == "C")
+        if not wanted or len(take) < slots:
+            return take
+        while sum(1 for row in take if "C" in self.sides_of(row)) < wanted:
+            rival = max((row for row in rivals if "C" in self.sides_of(row)),
+                        key=lambda row: self.claim(row, horizon), default=None)
+            weakest = min((row for row in take if "C" not in self.sides_of(row)),
+                          key=lambda row: self.claim(row, horizon), default=None)
+            if (rival is None or weakest is None or self.claim(rival, horizon) <= 0.0
+                    or self.claim(weakest, horizon) - self.claim(rival, horizon)
+                    > self.FLANK_OVERRIDE_GAP):
+                return take
+            take = [row for row in take if row is not weakest] + [rival]
+            rivals = [row for row in rivals if row is not rival]
+        return take
+
+    def _repointed(self, out: list, eligible: list[dict]) -> list:
+        """`_pointed` on the SETTLED eleven: a CENTRAL place of the front line is a central man's shirt.
+
+        The selection can hand the front line two men who play centrally and `_settle` can then exchange one
+        of them for a better-fitting winger, which is a better PAIR of shirts and a worse attack: «un
+        attaccante esterno non può diventare Sp». So the place is checked once more where the eleven is
+        final, and it is filled the same way, from the men outside it and inside `FLANK_OVERRIDE_GAP`.
+
+        Nothing happens when the squad has nobody else - a front line of wingers is the truth about a side
+        with no centre-forward, and rule 6 of `_reshape` leaves it alone for the same reason.
+        """
+        inside = {row.get("name") for _role, row, _bench in out}
+        free = [row for row in eligible
+                if row.get("name") not in inside and not self.is_excluded(row)
+                and "C" in self.sides_of(row) and not self._off_the_front(row, "A")]
+        for index, (role, holder, bench) in enumerate(out):
+            if role != "A" or self._slot_side.get(id(holder), "C") != "C":
+                continue
+            if "C" in self.sides_of(holder):
+                continue
+            rival = max(free, key=lambda row: self.claim(row, "season"), default=None)
+            if rival is None or self.claim(rival, "season") <= 0.0 or (
+                    self.claim(holder, "season") - self.claim(rival, "season")
+                    > self.FLANK_OVERRIDE_GAP):
+                continue
+            self._slot_side[id(rival)] = "C"
+            out[index] = (role, rival, bench)
+            free = [row for row in free if row is not rival]
+        return out
 
     # How many rounds of repair `_settle` runs. Every accepted move improves the pair on one axis without
     # losing the other, so the loop terminates on its own; the cap is a backstop. Six, because a chain can
@@ -4301,6 +4502,51 @@ class SnapshotView(ttk.Frame):
             lanes.append(("T", sum(middle[1:])))
         lanes.append(("A", parts[-1]))
         return (("P", 1), *[(lane, count) for lane, count in lanes if count])
+
+    # How many men stand on the TREQUARTI of a split row - three, in front of two mediani, which is the one
+    # split the vocabulary needs. Everything else a five turns into is already drawn by the transformation
+    # (a 4-4-1-1, a 3-5-1-1) or is not a module: a row of four behind a lone striker with one man holding
+    # the middle is nobody's side, and `lanes_for` has the measured case of a 3-3-3-1 that is «no module».
+    TREQUARTI_ROW: ClassVar[int] = 3
+
+    def _two_rows(self, placed: list[tuple[str, dict]], formation: str) -> str:
+        """The shape to DRAW where a row of five is really a two and a three: «spesso scambi il 4-2-3-1 con
+        il 4-5-1».
+
+        The SOURCE cannot say 4-2-3-1 - the provider publishes three lines per eleven, so every side that
+        plays two mediani behind three attacking men arrives as a 4-5-1, which is why that string is the
+        commonest "shape" in the whole repertoire (1746 of 4812 complete elevens). The twelve codes can, and
+        telling those two lines apart is what the grid was built for: «DM behind MC behind AM is a 4-3-3 or
+        a 4-2-3-1, and all three are 'C'» (`REAL_ROLE_DEPTH`). So the row is counted, not the module's
+        number: a man whose own first code is a trequartista's or a forward's does not play in a midfield.
+
+        The test is a MAJORITY of the row, and that is what keeps rule 3 of `_reshape` intact - one or two
+        wide forwards dropping in is the operator's «i due attaccanti esterni possono arretrare e coprire il
+        centrocampo», Napoli's four with Politano on its right, and no split may undo it. Three of five is
+        not a cover, it is a line, and the four boards it moves are four sides that really do play 4-2-3-1:
+        Bayern (Olise, Gnabry, Luis Diaz behind Kane), Barcelona (Yamal, Olmo, Lopez behind Torres), Betis
+        (Antony, Lo Celso, Ezzalzouli), Manchester United. Measured on the 2026-27 sheets: 4 boards of 54
+        move, and the eleven rows that hold TWO attacking men stay exactly as they were.
+
+        Only a five in front of a front ONE, which is what «two mediani» means arithmetically: a 3-5-2 whose
+        five split would be a 3-2-3-2 and a 3-6-1's a 3-3-3-1, and neither is a side anybody lines up. No
+        board on either sheet reaches the majority in those shapes anyway - the deepest is Napoli's two.
+
+        And the men counted are the ones the ASSIGNMENT put in the row, never the ones the LINE was picked
+        with: a line picks men for places it may not end up giving them, so the two counts differ, and on
+        Liverpool's five the selection's is the wrong one - it holds three attacking men while the drawing
+        gives the row's right to a real wide midfielder (Frimpong, `MR;DR`). Split on the selection, that
+        right back was sent onto the trequarti and the guarded symmetry case broke.
+        """
+        lanes = dict(self.shape_lanes(formation))
+        if lanes.get("T") or lanes.get("M", 0) - self.TREQUARTI_ROW != 2 or lanes.get("A") != 1:
+            return formation
+        men = [row for lane, row in placed if lane == "M"]
+        ahead = [row for row in men
+                 if self.LANE_OF_ROLE.get(next(iter(self.real_roles(row)), "")) in ("T", "A")]
+        if len(ahead) * 2 <= len(men):
+            return formation
+        return f"{lanes.get('D', 4)}-2-{self.TREQUARTI_ROW}-1"
 
     # THE PRICE OF A PLACE, and the whole model behind it in one table. A place is a point on the grid the
     # twelve codes already live on - `REAL_ROLE_DEPTH` down the pitch, `REAL_ROLE_SIDE` across it - and the
@@ -4564,11 +4810,19 @@ class SnapshotView(ttk.Frame):
         #   whether he is drawn OUT of the line he was picked for, charged by how good he is - so when the
         #     shape has more places than a line has men, the compromise falls on the weakest of them. A
         #     squad of three strikers filling a 4-4-2 put the 10% man in the attack and the 90% one in
-        #     midfield, because the total was the same either way and nothing broke the tie;
+        #     midfield, because the total was the same either way and nothing broke the tie.
+        #     THE CHARGE IS `len - rank` AND NOT `rank`, which is what the sentence above always said and
+        #     the arithmetic did not: rank 0 is the BEST man, so charging `rank` made him the cheapest to
+        #     displace. Liverpool's guarded case was passing for another reason (a swap in `_flanked` kept
+        #     the weakest man out of the row), and the moment that swap stopped happening the compromise
+        #     landed on Gravenberch (0.90) instead of Jones (0.62). Corrected: 16 boards of 108 change and
+        #     all but one are two equal centre backs trading places; the real one is Dortmund keeping Can
+        #     (`MC;DC;DM`) out of its back three, which is the same sentence again;
         #   his rank, so two men who are equal in every other respect are ordered by who plays more and the
         #     board never depends on the order the rows happened to arrive in.
         cost = [[1000 * self._slot_price(row, side, lane)
-                 + (10 * rank[index] if home and home.get(id(row)) not in (None, lane) else 0)
+                 + (10 * (len(chosen) - rank[index])
+                    if home and home.get(id(row)) not in (None, lane) else 0)
                  + rank[index]
                  for lane, side in places]
                 for index, row in enumerate(chosen)]
@@ -4601,6 +4855,13 @@ class SnapshotView(ttk.Frame):
            all `MC` first and two of them also play the trequarti, which is the «dislocarsi un po' sulla
            tre quarti e sulla mediana». The DEFENCE is exempt: the outer men of a back line are braccetti,
            and moving them out drew Bayern's back four as a midfield. So is a striker: his case is rule 4.
+           And so is the TREQUARTI, for the reason `SIDE_WEIGHT` already prices: on that row the flank is
+           not a role - the three men interchange - so a central trequartista holding the left of a three
+           is a job a coach gives, exactly as a centre-forward takes a wing for a spell. Measured on
+           Barcelona's split 4-2-3-1: vacating it left Lamine Yamal the only flank of the row, and an
+           unpaired 'Ad' folds to a central code (`_paired`) - so the winger read 'T' while standing on
+           the touchline, «Yamal non può mai giocare come centrocampista centrale, è un'ala». With the row
+           exempt he reads 'Ad' and Lopez, on the place the fit gave him, 'As'. One board, two badges.
         3. A VACATED MIDFIELD WING IS COVERED FROM THE FRONT: «i due attaccanti esterni possono arretrare
            e coprire il centrocampo» - the wide forward whose side it is drops into the slot, as long as
            the attack keeps a man. Without this the row simply lost the wing and the module its symmetry.
@@ -4612,6 +4873,12 @@ class SnapshotView(ttk.Frame):
         5. A MIDFIELD ROW IS FIVE AT MOST («una linea di centrocampo a 5 è già il massimo»): the extra
            centrals dislocate onto the trequarti, most advanced first, weakest claim first among equals.
            The flank slots stay - a wing back on the trequarti would empty the wing he covers.
+        6. AND THE MIRROR OF RULE 2, IN THE ATTACK: a man who plays NO central role does not hold a CENTRAL
+           place of the front line - «Neres non è una Sp, è un esterno, non potrebbe mai giocare al centro,
+           al massimo sulla trequarti». Napoli's 3-5-2 gave the second central place beside Hojlund to a
+           winger and the badge called him the seconda punta; he drops to the row his own depth says, which
+           for a winger IS the trequarti. Never the last man, for the same reason as rule 4: a squad whose
+           only forward is a winger is drawn with him up front.
 
         Only a man who plays NO flank at all vacates one (`sides_of` exactly central): an inverted winger,
         a full back covering the other side, a `DC;DL` on the left are all things a coach does, and they
@@ -4622,12 +4889,34 @@ class SnapshotView(ttk.Frame):
         out: list[tuple[str, dict]] = []
         self._reshaped = set()
         vacated: list[str] = []       # sides of MIDFIELD flank slots a central man could not hold
+        forwards = sum(1 for lane, _row in placed if lane == "A")
         for lane, row in placed:
             side = self._slot_side.get(id(row))
-            wrong_flank = (lane in ("M", "T", "A") and side in ("R", "L")
+            # rule 2, with its three exemptions: the defence (braccetti), a striker (rule 4 is his), and
+            # the trequarti, where the flank is not a role and the three men interchange (`SIDE_WEIGHT`)
+            wrong_flank = (lane in ("M", "A") and side in ("R", "L")
                            and self.sides_of(row) == {"C"} and "ST" not in self.real_roles(row))
+            # rule 6, its mirror: a man who plays no central role at all does not hold a CENTRAL place of
+            # the front line - never the last man of the line, and only when SOMEBODY ELSE up there can
+            # hold the middle. A front line of nothing but wingers is the truth about a squad with no
+            # centre-forward (Lazio: Cancellieri, Isaksen, Zaccagni), and emptying its middle would be the
+            # drawing inventing a punta the side has not got.
+            # AND ONLY ONTO A ROW HE CAN STAND OFF-CENTRE IN: «un attaccante esterno può adattarsi sulla
+            # trequarti solo se decentrato, ovvero in linea di trequarti con almeno 2 calciatori». Napoli's
+            # 3-5-2 has one place behind the striker, so sending Neres there drew him dead centre on a row
+            # of one - a lone trequartista, which is the same mistake one line further back. Where the
+            # trequarti cannot hold him he stays up front, and what answers for it is the SELECTION: a
+            # central place of the front line wants a man who can play there (`_pointed`).
+            wrong_middle = (lane == "A" and side == "C" and forwards > 1
+                            and "C" not in self.sides_of(row)
+                            and any("C" in self.sides_of(other) for other_lane, other in placed
+                                    if other_lane == "A" and other is not row)
+                            and (sum(1 for other_lane, other in placed if other_lane == "T")
+                                 + sum(1 for other_lane, other in placed
+                                       if other_lane == "A" and other is not row
+                                       and "C" not in self.sides_of(other)) >= 1))
             wrong_line = lane != "P" and not self._within_reach(row, lane)         # rule 1
-            if lane == "P" or not (wrong_flank or wrong_line):
+            if lane == "P" or not (wrong_flank or wrong_middle or wrong_line):
                 out.append((lane, row))
                 continue
             depths = [REAL_ROLE_DEPTH[code] for code in self.real_roles(row)
@@ -4638,6 +4927,7 @@ class SnapshotView(ttk.Frame):
                                                for depth in depths))
                 self._slot_side[id(row)] = "C" if home != lane else side
                 self._reshaped.add(id(row))
+                forwards -= lane == "A" and home != "A"
                 out.append((home, row))
                 continue
             if lane == "M":                                                        # rule 2
@@ -4645,6 +4935,7 @@ class SnapshotView(ttk.Frame):
             home = self._dislocated(row, lane)
             self._slot_side[id(row)] = "C"
             self._reshaped.add(id(row))
+            forwards -= lane == "A" and home != "A"
             out.append((home, row))
         for side in vacated:                                                       # rule 3
             front = [(index, row) for index, (lane, row) in enumerate(out) if lane == "A"]
@@ -4658,7 +4949,25 @@ class SnapshotView(ttk.Frame):
             self._reshaped.add(id(row))
         # The cap comes LAST, because rule 4 can hand the row a man too: a `MC`-first forward dislocated
         # out of the attack lands in the midfield, and Genoa's next-match five became a six that way.
-        return self._capped(self._narrowed(out, formation))
+        out = self._capped(self._narrowed(out, formation))
+        # ...and then no SLOT may outlive the row that issued it. A flank is a place, so a row that has none
+        # cannot hand one out: Dortmund's 3-4-3 gave Sabitzer the front three's left, rule 4a sent him back
+        # to a trequarti of ONE, and the stale L had the badge read 'As' on a row whose only place is the
+        # middle - «Sabitzer sta giocando sulla trequarti quindi il badge deve mostrare T».
+        # DROPPED and not set to "C", because the slot is read by two different things and only one of them
+        # is wrong here: the badge must stop naming a flank the row has not got, while the DRAWING must
+        # still put a right-sided man on the right - «Saka gioca come Ad, quindi anche sulla trequarti deve
+        # posizionarsi a destra». With no slot, `across_bucket` falls back to the man's own flank, which is
+        # exactly what that asks for; the badge is told about the row instead (`_line_codes`).
+        for lane in ("D", "M", "T", "A"):
+            men = [row for other, row in out if other == lane]
+            if men and not set(self.slot_shape(lane, len(men))) & {"R", "L"}:
+                for row in men:
+                    # only a FLANK slot is stale: a central one is the shape's own answer and the drawing
+                    # reads it (a back three is three central places, and its braccetti are spread by foot)
+                    if self._slot_side.get(id(row)) in ("R", "L"):
+                        del self._slot_side[id(row)]
+        return out
 
     def _dislocated(self, row: dict, lane: str) -> str:
         """Which central row a man joins when the place he was given is not his job: `M` or `T`.
@@ -4851,6 +5160,9 @@ class SnapshotView(ttk.Frame):
         ("T", "R"): "RW", ("T", "L"): "LW",
         ("A", "R"): "RW", ("A", "L"): "LW",
     }
+    # ...and its mirror: the code a CENTRAL place of each line names. No entry for the attack, whose
+    # vocabulary `_line_codes` owns («Krstovic e Scamacca sono Pc e basta», wherever they are drawn).
+    CENTRE_CODE_OF_LANE: ClassVar[dict[str, str]] = {"D": "DC", "M": "MC", "T": "AM"}
 
     @classmethod
     def can_replace(cls, starter: dict, row: dict, mirrored: bool = False) -> bool:
@@ -5064,6 +5376,41 @@ class SnapshotView(ttk.Frame):
         "C": ("#1f6fb2", "#ffffff"), "A": ("#d1443c", "#ffffff"),
     }
 
+    def _centred(self, entries: list[tuple[dict, list[dict]]],
+                 lane: str) -> list[tuple[dict, list[dict]]]:
+        """The MEDIANO stands in the MIDDLE of his row: «Rodri è una M, le M vanno piazzate al centro».
+
+        Which men are wide is decided (`across_bucket`); among the CENTRAL ones nothing said who holds the
+        middle, so the order fell through to the foot and the claim - and Manchester City's five drew Rodri
+        (`DM`, the deepest man of the row) off-centre with a mezzala in the middle of it. So the central run
+        is filled FROM THE OUTSIDE IN, shallowest first: what ends up in the middle is the man whose own job
+        is the deepest, which is what a mediano davanti alla difesa is.
+
+        By his PRIMARY code, the provider's order of evidence and the same reading the rest of this module
+        uses: `DM` is a mediano, `MC;DM` is a central midfielder who can also sit deeper. Rows of two are
+        left alone - two central places are symmetric, so there is no middle to hold.
+        """
+        places = [index for index, (row, _rivals) in enumerate(entries)
+                  if self.across_bucket(row, lane) == 0]
+        if len(places) < 3:
+            return entries
+        shallow_first = sorted(
+            (entries[index] for index in places),
+            key=lambda entry: -REAL_ROLE_DEPTH.get(
+                next(iter(self.real_roles(entry[0])), ""), self.LANE_DEPTH.get(lane, 0.60)))
+        arranged: list[tuple[dict, list[dict]] | None] = [None] * len(places)
+        low, high = 0, len(places) - 1
+        for step, entry in enumerate(shallow_first):
+            if step % 2:
+                arranged[high], high = entry, high - 1
+            else:
+                arranged[low], low = entry, low + 1
+        out = list(entries)
+        for index, entry in zip(places, arranged):
+            if entry is not None:
+                out[index] = entry
+        return out
+
     def _placed(self, slots: list[tuple[dict, list[dict]]],
                 lane: str = "M") -> list[tuple[float, dict, list[dict]]]:
         """[(fraction of the width, starter, rivals)] for one line, left to right on the screen.
@@ -5093,7 +5440,7 @@ class SnapshotView(ttk.Frame):
             return (-bucket, -abs(side) * bucket, -self.foot_side(entry[0], lane),
                     -self.claim(entry[0], "season"))
 
-        entries = sorted(slots, key=order)
+        entries = self._centred(sorted(slots, key=order), lane)
         count = len(entries)
         # Wide only if the line has flanks AND MEN WHO PLAY THEM. The shape says a midfield four is two
         # wide men and two centrals, and where the men are the shape's own the two readings agree - but a
@@ -5208,6 +5555,28 @@ class SnapshotView(ttk.Frame):
             if slot in ("R", "L") and code != "ST" and (
                     not REAL_ROLE_SIDE.get(code) or cls.LANE_OF_ROLE.get(code) != lane):
                 code = cls.FLANK_OF_LANE.get((lane or cls.LANE_OF_ROLE.get(code, "M"), slot), code)
+            # ...AND THE SAME SENTENCE FROM THE OTHER SIDE, which is the operator's: «Martin G. sta giocando
+            # al centro, quindi il badge deve mostrare Dc». Where the shape gave him a CENTRAL place and his
+            # code names a flank, the middle is the shirt's too - Barcelona's back four read 'Ts' twice, one
+            # of them on its second centre-back place, and Cremonese's five had two 'Es' with only one man on
+            # the touchline. It is the same asymmetry as above and it stops at the same line: the ATTACK is
+            # `_line_codes`'s business, where a centre-forward is a centre-forward wherever he is drawn.
+            # A back THREE is three central places and so three 'Dc', which is what `SLOT_SHAPE` says a back
+            # three is - a full back adapting into one of the outer two is a braccetto, priced as such.
+            # It rewrites the FLANK and never the line, which is the same asymmetry the mirror rule keeps:
+            # a mediano drawn at centre back still reads 'C', because that is the compromise the drawing
+            # made and the operator has to see it (Liverpool's Mac Allister), while a left back drawn in the
+            # middle of a back four is a centre back for the afternoon. On the TREQUARTI the row itself is
+            # the job, so a man drawn there whose codes play no attacking-midfield reads 'T' all the same.
+            elif slot == "C" and (
+                    (lane in ("D", "M") and REAL_ROLE_SIDE.get(code)
+                     and cls.LANE_OF_ROLE.get(code) == lane)
+                    or (lane == "T" and cls.LANE_OF_ROLE.get(code) != lane)):
+                # ...and on the TREQUARTI the row itself is the job, so a man drawn there who plays no
+                # attacking-midfield code still reads 'T': «Sabitzer sta giocando sulla trequarti quindi il
+                # badge deve mostrare T» - his codes are `MC;DM;LW` and he was reading the wing of a row
+                # that has none.
+                code = cls.CENTRE_CODE_OF_LANE[lane]
             return cls.BADGE_REAL[code]
         roles = [part.strip().lower() for part in (row.get("roles_mantra") or "").split(";")
                  if part.strip()]
@@ -5232,9 +5601,14 @@ class SnapshotView(ttk.Frame):
         it was computed from the index, Hojlund at 0.61 read as less central than a second striker at
         0.50 and the true centre-forward was labelled the seconda punta.
         """
-        codes = [self.badge(starter, -(spread - 0.5) * 2, lane,
-                            slot=self._slot_side.get(id(starter)))
-                 for spread, starter, _rivals in placed]
+        sides = [self._slot_side.get(id(starter), "C") for _spread, starter, _rivals in placed]
+        if not {"R", "L"} & set(self.slot_shape(lane or "", len(placed))):
+            # a row with no flank PLACES names no flank on any of its markers, whoever stands where: it is
+            # the same statement `_paired` makes about a lone forward, read off the shape instead of off the
+            # other men's codes, and it is what tells a trequarti of one or two from a trequarti of three.
+            sides = ["C"] * len(placed)
+        codes = [self.badge(starter, -(spread - 0.5) * 2, lane, slot=sides[index])
+                 for index, (spread, starter, _rivals) in enumerate(placed)]
         centre = [index for index, code in enumerate(codes) if code == "Pc"]
         if len(centre) > 1 and len(placed) > 2:
             # A line with WIDE places is drawn as one, so the shirt stays with the man drawn in the middle
@@ -5248,7 +5622,7 @@ class SnapshotView(ttk.Frame):
                     continue
                 wide = {"LW", "RW"} & set(self.real_roles(placed[index][1]))
                 codes[index] = ("As" if placed[index][0] > 0.5 else "Ad") if wide else "Sp"
-            return self._paired(codes, lane)
+            return self._paired(codes, lane, sides)
         if len(centre) > 1:
             # A line of two has two CENTRAL places, so this is only about which of them is the point of
             # the attack - and it is decided by ROLE, not by where he ended up drawn: reading the shirt off
@@ -5263,7 +5637,7 @@ class SnapshotView(ttk.Frame):
             for index in centre:
                 if index != keep:
                     codes[index] = "Sp"
-        return self._paired(codes, lane)
+        return self._paired(codes, lane, sides)
 
     # A line's two flanks are ONE PAIR OF JOBS, and the code each side gets is the other's mirror.
     FLANK_PAIRS: ClassVar[dict[str, str]] = {"Td": "Ts", "Ts": "Td", "Ed": "Es", "Es": "Ed",
@@ -5271,7 +5645,14 @@ class SnapshotView(ttk.Frame):
     # ...and what a man in that line is when it has no flanks to give: its own CENTRAL job.
     CENTRE_OF_LANE: ClassVar[dict[str, str]] = {"D": "Dc", "M": "C", "T": "T", "A": "Pc"}
 
-    def _paired(self, codes: list[str], lane: str | None) -> list[str]:
+    # The rows where a flank is not a ROLE but a place the men INTERCHANGE. The same distinction three
+    # times over now, and it is the operator's: `SIDE_WEIGHT` prices the side at 3 there against 8 on a
+    # line where a wing back and a mediano are different jobs, `_reshape` rule 2 exempts them, and here a
+    # flank code needs the shape's own PLACE rather than a partner to stand on.
+    INTERCHANGE: ClassVar[tuple[str, ...]] = ("T", "A")
+
+    def _paired(self, codes: list[str], lane: str | None,
+                sides: list[str] | None = None) -> list[str]:
         """A flank code only stands where the line names the OTHER flank too, and otherwise reads central.
 
         The operator's rule, three times over: «se c'è un Ed ci deve essere anche una Es e viceversa, se
@@ -5284,10 +5665,21 @@ class SnapshotView(ttk.Frame):
         The fallback is the line's own central job (a 'C' in midfield, a 'Dc' in defence, a 'T' on the
         trequarti), and in the ATTACK it is the centre-forward - or the SECONDA PUNTA where the punta is
         already somebody else's shirt, since a side fields one.
+
+        NOT on a man the shape put ON a flank of a row that HAS one, where the men interchange
+        (`INTERCHANGE`): there the place is the pair, and folding it renamed real wingers after the man
+        standing on the other side. Both cases are the operator's own words, from the two ends: Fiorentina's
+        declared front three is Harrison (`RW;MR`), Gudmundsson and Piccoli, so the right winger read 'Sp'
+        because the left of the three is a punta - «in un attacco a 3 non ci possono essere 2 SP»; and on
+        the trequarti it is «Yamal non può mai giocare come centrocampista centrale, è un'ala». What the
+        pairing is for is the row with no flank PLACES, and that case is untouched.
         """
         present = set(codes)
         for index, code in enumerate(codes):
             if code in self.FLANK_PAIRS and self.FLANK_PAIRS[code] not in present:
+                if (lane in self.INTERCHANGE and sides
+                        and sides[index] in ("R", "L")):
+                    continue
                 fallback = self.CENTRE_OF_LANE.get(lane or "", code)
                 codes[index] = "Sp" if fallback == "Pc" and "Pc" in present else fallback
         return codes
