@@ -102,9 +102,14 @@ def test_option_dialogs_and_follow_ups_point_at_real_things():
         assert callable(getattr(ToolkitGUI, method))
 
     # the per-match layer is useless until the map and the calibration are recomputed
-    assert ToolkitGUI._follow_ups("positions", {"layer": "match"}) == ("matchdays", "synth")
+    # ...and `arrivals` closes the chain: the per-match layer feeds the FM-equivalent, which is the only
+    # thing an arrival with no history is priced from - it went stale exactly there (§7-septies-bis).
+    assert ToolkitGUI._follow_ups("positions", {"layer": "match"}) == (
+        "matchdays", "synth", "arrivals")
+    assert ToolkitGUI._follow_ups("recent_form", {}) == ("synth", "arrivals"),         "matches nobody converts and nobody reads are matches fetched for nothing"
     assert ToolkitGUI._follow_ups("positions", {"layer": "season"}) == ()
-    assert ToolkitGUI._follow_ups("ratings", {}) == ("matchdays",)
+    # a new listone is a new PERIMETER, so who counts as an arrival changes with it
+    assert ToolkitGUI._follow_ups("ratings", {}) == ("matchdays", "arrivals")
     assert ToolkitGUI._follow_ups("elo", {}) == ()
     for follow_ups in (ToolkitGUI._follow_ups("positions", {"layer": "all"}),
                        ToolkitGUI._follow_ups("ratings", {})):

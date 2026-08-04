@@ -61,7 +61,12 @@ def _classify(prev: tuple, cur: tuple) -> tuple[str, str | None, str | None] | N
 
 
 def foreign_fm_equivalent(conn, scoring: dict[str, float], season: str) -> dict[int, tuple]:
-    """{fc_id: (fm_equiv, matches)} for `season`, from the FULL real season under euro scoring.
+    """{fc_id: (fm_equiv, matches)} for `season`, from the real matches we have under euro scoring.
+
+    The gate is the CONVERTED base voto and no longer the source tag (`synth.calibrated_competitions`): a
+    man whose only football is the ten matches `recent_form` recovered gets an equivalent over those ten,
+    and the MATCH COUNT travels with it so nobody reads a window as a season - the tier's own
+    `full_history` threshold (15, swept) is what decides whether it is treated as one.
 
     Per match the base voto is the real euro one when the euro calendar covered that round, and the
     calibrated synthetic voto otherwise - which is the whole point of the synthetic layer: a foreign
@@ -89,7 +94,7 @@ def foreign_fm_equivalent(conn, scoring: dict[str, float], season: str) -> dict[
         LEFT JOIN match_ratings mr ON mr.fc_id = e.fc_id AND mr.season = e.season
                                   AND mr.platform = 'euro' AND mr.matchday = m.euro_md
         LEFT JOIN rosters r ON r.fc_id = e.fc_id AND r.season = e.season
-        WHERE e.season = ? AND e.source = 'sofascore' AND COALESCE(e.minutes, 0) > 0
+        WHERE e.season = ? AND COALESCE(e.minutes, 0) > 0
           AND COALESCE(mr.mv, e.mv_synth) IS NOT NULL
           AND COALESCE(r.role_classic, '') != 'P' AND COALESCE(e.position, '') != 'G'
         """,

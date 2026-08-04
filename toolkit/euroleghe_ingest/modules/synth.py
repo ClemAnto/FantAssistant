@@ -38,6 +38,29 @@ MV_RANGE = (3.0, 10.0)        # the fantacalcio base voto never leaves this band
 CALIBRATION_FILE = "mv_synth_calibration.json"
 
 
+def calibrated_competitions(conn) -> set[str]:
+    """The competitions the fit's OVERLAP actually covers - the only ones the line may be applied to.
+
+    Read from the data and not listed by hand, so it cannot drift from the fit: the overlap exists where a
+    provider rating and a real euro Mv describe the same match, which is the five championships the euro
+    calendar covers. Everything else - Serie B, the cups, a South American league - has no pair to fit on
+    and therefore no line to apply: «un 7.0 in Serie B non è un 7.0 in Serie A».
+
+    It replaces the SOURCE as the gate, and that is a correction in both directions. Alajbegovic's ten
+    matches are `sofascore_recent` and BUNDESLIGA - the tag excluded them from a line fitted on exactly that
+    league - while 1300 Serie B rows and every cup row under `source='sofascore'` were being converted by a
+    line that had never seen them. The eligibility belongs to the competition; the tag stays what it is, the
+    provenance.
+    """
+    return {row[0] for row in conn.execute(
+        """SELECT DISTINCT e.competition FROM external_match_stats e
+           JOIN matchday_map m ON m.season = e.season AND m.league = e.competition
+                              AND m.real_md = e.real_md
+           JOIN match_ratings mr ON mr.fc_id = e.fc_id AND mr.season = e.season
+                                AND mr.platform = 'euro' AND mr.matchday = m.euro_md
+           WHERE e.rating IS NOT NULL AND mr.mv IS NOT NULL AND COALESCE(e.minutes, 0) > 0""")}
+
+
 def overlap_pairs(conn, holdout_season: str | None = None):
     """(role, provider rating, euro Mv) for every match where we know both.
 
@@ -276,22 +299,30 @@ def run(ctx: Context, *, holdout_season: str = "2025-26", validate: bool = False
 
     # Apply to every provider match row. The role comes from the roster (Classic role) because the
     # provider's own position code is a different vocabulary (G/D/M/F) and unknown for our purposes.
+    # Applied where the line was CALIBRATED and nowhere else, whatever the row is tagged
+    # (`calibrated_competitions`): the same rule in both directions, so a Bundesliga match recovered by
+    # `recent_form` is converted and a Serie B match is not, however it arrived.
+    eligible = calibrated_competitions(conn)
     rows = conn.execute(
         """
-        SELECT e.fc_id, e.season, e.match_id, e.rating, r.role_classic
+        SELECT e.fc_id, e.season, e.match_id, e.rating, r.role_classic, e.competition, e.source
         FROM external_match_stats e
         LEFT JOIN rosters r ON r.fc_id = e.fc_id AND r.season = e.season
-        WHERE e.source = 'sofascore' AND e.rating IS NOT NULL
+        WHERE e.rating IS NOT NULL
         """
     ).fetchall()
-    updates = [(apply_model(model, role, rating), fc_id, season, match_id)
-               for fc_id, season, match_id, rating, role in rows]
+    updates = [((apply_model(model, role, rating) if competition in eligible else None),
+                fc_id, season, source, match_id)
+               for fc_id, season, match_id, rating, role, competition, source in rows]
     conn.executemany(
         "UPDATE external_match_stats SET mv_synth = ? "
-        "WHERE fc_id = ? AND season = ? AND source = 'sofascore' AND match_id = ?",
+        "WHERE fc_id = ? AND season = ? AND source = ? AND match_id = ?",
         updates,
     )
     conn.commit()
+    converted = sum(1 for value, *_rest in updates if value is not None)
+    print(f"[synth] calibrated competitions: {len(eligible)} · converted {converted} of "
+          f"{len(updates)} rated matches (the rest have no line to be converted with)")
 
     path = ctx.config.data_dir / "reports" / CALIBRATION_FILE
     path.parent.mkdir(parents=True, exist_ok=True)

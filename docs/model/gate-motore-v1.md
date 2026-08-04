@@ -1638,6 +1638,65 @@ tentazione più vicina: sotto Gattuso, **Ratkov ha giocato 1 delle 2 amichevoli*
 Vale per la pre-season tutto quello che `snapshot.preseason_starts` ha già scritto, e la prima misura fuori
 campione possibile resta giugno 2027.
 
+## 7-octies. Il GIOVANE SENZA STORICO: R1 ri-misurata con copertura tripla (5 agosto 2026)
+
+Richiesta dell'utente, sul caso che l'ha generata: «Alajbegovic è un giovane talento che i quotidiani danno
+titolare nella Juve. Ho bisogno che calciatori come questi, che non hanno uno storico in Serie A, abbiano
+comunque una valutazione attendibile, e non rimanere in attesa che giochi.»
+
+### Tre difetti trovati prima di misurare, e sono di manutenzione
+1. **La conversione seguiva il TAG e non la calibrazione.** `synth` fitta la sua retta sull'overlap - le
+   cinque leghe che il calendario euro copre - e la applicava a ogni riga `source='sofascore'`: quindi 3756
+   righe di **Serie B**, 570 di Championship e 458 di Coppa Italia ricevevano un voto sintetico da una retta
+   che non le ha mai viste, mentre le 10 partite di **Bundesliga** recuperate da `recent_form` restavano
+   escluse dal tag. Ora l'idoneità è della COMPETIZIONE (`synth.calibrated_competitions`, letta dai dati e
+   non elencata a mano): 241.913 partite convertite su 250.678, e le altre restano NULL come il docstring
+   del modulo diceva da sempre.
+2. **`mv_synth` era fermo.** Nessuno aveva rilanciato `synth` dopo gli ultimi `positions`, quindi l'FM-
+   equivalente degli arrivi girava su un input pieno per un terzo: **707 arrivi** con equivalente prima,
+   **2045** dopo (T1 da 72 a 271). Il layer arrivi stava lavorando su due terzi di niente.
+3. **La catena che lo ha fatto invecchiare è chiusa**: `recent_form` → `synth` → `arrivals` e `ratings` →
+   `arrivals` (un listone nuovo è un perimetro nuovo, quindi cambia chi è un arrivo).
+
+### R1 ri-misurata: NON PASSA, e ora su sei finestre
+`backtest --gate --platform default`, con l'FM-equivalente triplicato. La copertura sale su ogni finestra
+misurabile (T2 0.418 → 0.490, T1 0.424 → 0.502, +33 e +31 giocatori prezzati), e sui giocatori che AGGIUNGE:
+
+| finestra | R1 | àncora di ruolo | verso |
+|---|---|---|---|
+| Tm3 | 0.337 | **0.333** | peggio |
+| Tm2 | 0.336 | **0.320** | peggio |
+| Tm1 | **0.370** | 0.419 | meglio |
+| T0 | 0.342 | **0.337** | peggio |
+| T1 | 0.377 | **0.374** | peggio |
+| T2 | 0.486 | **0.432** | peggio |
+
+Verdetto: `coverage up: True · what it adds is not noise: False · beats the trivial answer: False`. È la
+stessa conclusione del 27/07 (allora su due finestre e con un terzo dei dati): **la fantamedia di un nuovo
+entrato non si predice dal suo FM-equivalente estero meglio di quanto la predica l'àncora di ruolo**. Il
+coefficiente era raddoppiato col layer completo (0.186 → 0.431) e non è bastato: la taglia del segnale non
+sta nel coefficiente, sta nell'errore sui giocatori che tocca.
+
+### Dove il criterio dell'utente È soddisfatto, e da una regola già adottata
+La domanda «quanto vale» si divide in due, e il gate risponde in modo opposto alle due metà:
+- **fantamedia**: nessun candidato batte l'àncora. R13c (produzione misurata per 90) vince su una finestra
+  (**0.248 contro 0.325** su 9 giocatori) e pareggia sull'altra - il muro di campione già dichiarato;
+- **presenze**: **R13 è adottata su Serie A** e prezza esattamente questa popolazione dai suoi minuti
+  recenti. Alajbegovic passa da nessuna riga a `engine_fm_pred` **6.245** (l'àncora, dichiarata come tale),
+  `engine_pv_pred` **20.2** e `engine_surplus` **4.1** - e la differenza non è una regola nuova, è che le sue
+  dieci partite ADESSO esistono nel DB.
+
+### E sul tabellone: `window_standing`, pre-registrato qui
+Il pannello leggeva `standing` da una STAGIONE e per lui trovava zero - non basso, assente - mentre il motore
+gli prevedeva 20 presenze. Due risposte alla stessa domanda, e quella a schermo la più sbagliata. Ora la
+finestra ha il suo denominatore: 693 minuti su 10 partite = 77% del calcio che gli era disponibile, per lo
+sconto d'arrivo 0.80 = **0.616**, che concorre per una maglia e non finge una stagione giocata qui.
+**Spento nel motore** (`presence.DEFAULTS.window_standing = 0.0`: ogni numero gatato è calcolato così) e
+**acceso nel pannello**, dichiarato come scelta di visualizzazione in compagnia di `FORM_WEIGHT` e
+`RECENT_PRIOR`. Pre-registrazione per farlo diventare un input del modello: stessa griglia dello sweep delle
+presenze, bersaglio `starts`, giudizio **sulla popolazione che tocca** (gli uomini con finestra e senza
+stagione), criterio di falsificazione = non batte lo zero attuale su una maggioranza di fold.
+
 ## 5-terdecies. La punta torre e la punta di movimento (3 agosto 2026) — misurata, NON adottata
 
 Ipotesi dell'utente, con la sua stessa formulazione: «dovresti capire se l'allenatore predilige una punta

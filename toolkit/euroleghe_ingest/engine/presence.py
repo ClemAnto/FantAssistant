@@ -78,6 +78,15 @@ class Params:
     # value exists for every player the source has ever priced. Historical and dated, so a window reads the
     # input season and never the target one. Starts at ZERO like the other two.
     value_weight: float = 0.0
+    # HOW MUCH A MEASURED WINDOW COUNTS when there is no season at all: 0.0 = not at all, which is what
+    # the ENGINE keeps (its answer for that man is R13, already adopted on Serie A - presences from his
+    # recent matches at the old club) and what every gate number was measured with. The PANEL turns it on
+    # (`SnapshotView.PRESENCE`), because a board that draws nobody where the engine predicts somebody is
+    # two answers to one question: Alajbegovic has 693 minutes over ten Bundesliga matches, the engine
+    # prices his presences off exactly those, and the eleven had him at a standing of ZERO - not "low",
+    # absent. Pre-registered as a model input in gate §7-octies; until that runs it is a DISPLAY choice and
+    # says so, in the company of `FORM_WEIGHT` and `RECENT_PRIOR`.
+    window_standing: float = 0.0
     # THE NULL for the conditional form, and it is not a channel: a lift of the SAME SHAPE with no
     # investment in it at all - `shrink_weight * (1 - measured)`. It exists because «a statistic must be
     # compared with the right null»: `unplayed` closes part of the gap between what a man played and a full
@@ -120,6 +129,12 @@ class Inputs:
 
     # the measured season, LEAGUE ONLY (his championship, not the cups)
     starts: float = 0.0
+    # ...and the WINDOW, for a man who has no season here at all: the matches we could measure elsewhere
+    # and the minutes in them. Its own denominator is the point - ten matches at 69 minutes is 77% of the
+    # football that was available to him, and reading those minutes against a 38-round season would call
+    # the same man a 20% player.
+    window_matches: float = 0.0
+    window_minutes: float = 0.0
     appearances: float = 0.0
     minutes: float = 0.0
     # his club's calendar: the championship's rounds, and every fixture we know it played
@@ -253,6 +268,20 @@ def standing(inputs: Inputs, params: Params = DEFAULTS) -> float:
     """
     rounds = contested(inputs, params)
     weight = at_club_weight(inputs, params)
+    if (params.window_standing and inputs.window_matches
+            and not inputs.starts and not inputs.appearances and not inputs.minutes):
+        # NOTHING measured here, and a window measured elsewhere: his share of the minutes he could have
+        # played in it, discounted by whose football it was (`at_club_weight` - the arrival discount) and
+        # by how much of a window it is (`window_standing`). Ten matches are not a season and the number
+        # must not pretend otherwise; zero is not the alternative, it is the other error.
+        share = min(inputs.window_minutes / (inputs.window_matches * 90.0), 1.0)
+        # ...and the discount is taken EXPLICITLY, not through `at_club_weight`: that one splits his
+        # minutes between here and elsewhere, and a man whose whole window is elsewhere has no minutes
+        # here to split, so it reads 1.0 - «an unknown split must not penalise him», which is right for a
+        # missing split and wrong for a known one. This window was played somewhere else by construction
+        # (it is what `recent_form` fetches), so the arrival discount applies to all of it.
+        discount = (params.loan_discount if inputs.was_here_before else params.arrival_discount)
+        return min(max(params.window_standing * share * discount, 0.0), 1.0)
     starts = min(inputs.starts * weight / rounds, 1.0)
     if not inputs.minutes:
         measured = starts

@@ -1808,3 +1808,52 @@ def test_any_module_percentage_drives_the_bar_and_it_never_goes_backwards():
     assert percents == [0, 45, 99], percents
     assert len(said) == 3, "a total of zero prints nothing: there is no honest fraction of no work"
 
+def test_a_man_measured_only_elsewhere_competes_for_a_shirt_and_pays_for_being_elsewhere():
+    """«Un calciatore come Alajbegovic, con i dati recuperati, dovrebbe almeno concorrere per un posto da
+    titolare.»
+
+    He had 693 minutes over ten Bundesliga matches and a standing of ZERO - not low, absent - because
+    `standing` reads a SEASON and he has none. The window has its own denominator: ten matches at 69 minutes
+    is 77% of the football that was available to him, and reading those minutes against a 38-round season
+    calls the same man a 20% player.
+
+    It costs him the arrival discount, taken explicitly and not through `at_club_weight`: that one splits his
+    minutes between here and elsewhere, and a man with no minutes here at all reads 1.0 there - right for an
+    unknown split, wrong for a known one. 0.77 x 0.80 = 0.62, which competes with a real eleven and does not
+    pretend to be a season played here.
+
+    OFF in the engine (`presence.DEFAULTS`) and ON in the panel, which is the honest state until gate
+    §7-octies runs: every gated number is computed with the default.
+    """
+    from dataclasses import replace
+
+    from euroleghe_ingest.engine import presence
+
+    window = presence.Inputs(window_matches=10, window_minutes=693, league_matches=38)
+    assert presence.standing(window, presence.DEFAULTS) == 0.0, "the engine's answer for him is R13"
+    panel = replace(presence.DEFAULTS, window_standing=1.0)
+    assert round(presence.standing(window, panel), 3) == 0.616, presence.standing(window, panel)
+    # ...and a club that already had him discounts him harder: it sent him away, which is its own judgement
+    returning = replace(window, was_here_before=True)
+    assert presence.standing(returning, panel) < presence.standing(window, panel)
+    # a season measured HERE is untouched by any of this
+    season = presence.Inputs(starts=30, appearances=34, minutes=2700, league_matches=38,
+                             window_matches=10, window_minutes=693)
+    assert presence.standing(season, panel) == presence.standing(season, presence.DEFAULTS)
+
+
+def test_one_man_per_flank_in_a_row():
+    """Juventus drew Yildiz and Alajbegovic BOTH as the left-sided forward: two 'As' on one row, which is
+    the unpaired-flank defect seen from the other side - a row has one left and one right.
+
+    The man the shape put on that side keeps it; the other reads the line's own central job, exactly as if
+    he had no pair at all.
+    """
+    from euroleghe_ingest.gui import SnapshotView as View
+
+    view = View.__new__(View)
+    assert view._paired(["As", "As", "Ad"], "A", ["C", "L", "R"]) == ["Pc", "As", "Ad"]
+    assert view._paired(["Es", "Es", "Ed"], "M", ["L", "C", "R"]) == ["Es", "C", "Ed"]
+    # ...and a row that names one flank once is untouched
+    assert view._paired(["Ad", "T", "As"], "T", ["R", "C", "L"]) == ["Ad", "T", "As"]
+

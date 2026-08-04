@@ -1311,6 +1311,31 @@ def typical_formation(conn, spellings: list[str], season: str, coach_since: str 
                    len(rows) if not coach_since else under_coach, spread)
 
 
+def measured_elsewhere(conn, window) -> dict[int, dict]:
+    """{fc_id: matches, minutes, where} - the window of football a man with no season here DID play.
+
+    It is `features._recent_form`'s own sample, read through the same bounds (the input season's July to the
+    auction date) and reduced to what a sheet column can hold. Written so the panel can stand on the fact
+    the ENGINE already stands on: R13 - adopted on Serie A - predicts this man's presences from exactly
+    these matches, and the board was drawing him at a standing of zero.
+
+    `where` is the competitions, most matches first, because ten matches somewhere are not a season here and
+    the plate has to say where they were played.
+    """
+    out: dict[int, dict] = {}
+    floor = f"{window.input_season.split('-')[0]}-07-01"
+    for fc_id, matches, minutes, competitions in conn.execute(
+            """SELECT fc_id, COUNT(*), SUM(COALESCE(minutes, 0)),
+                      GROUP_CONCAT(DISTINCT competition)
+               FROM external_match_stats
+               WHERE source = 'sofascore_recent' AND match_date >= ? AND match_date < ?
+                 AND COALESCE(minutes, 0) > 0
+               GROUP BY fc_id""", (floor, window.auction_date)):
+        out[fc_id] = {"matches": matches, "minutes": minutes,
+                      "where": (competitions or "").replace(",", " ")[:40] or None}
+    return out
+
+
 def preseason_starts(conn, season: str, coach_since: str | None = None) -> dict[int, tuple[int, int]]:
     """fc_id -> (elevens he STARTED, friendlies he appeared in) in the TARGET season's pre-season.
 
@@ -1732,6 +1757,7 @@ PLAYER_COLUMNS: tuple[str, ...] = (
     # is DISCOUNTED where a shirt is handed out, never dropped: `SnapshotView.LOAN_DISCOUNT`.
     "desc_season_starts_club", "desc_season_starts_elsewhere",
     "desc_minutes_club", "desc_minutes_elsewhere", "desc_at_club_before",
+    "desc_elsewhere_matches", "desc_elsewhere_minutes", "desc_elsewhere_where",
     "desc_duel_rivals", "desc_duel_names",
     "desc_injury_matches_missed", "desc_injury_weighted", "desc_injury_spells",
     # What he missed INSIDE the measured season, which is the only one of the injury numbers that is a
@@ -1811,6 +1837,7 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
         card = layers["discipline"].get(obs.fc_id, {})
         state = layers["contract"].get(obs.fc_id, {})
         role_detail = layers["real_role_detail"].get(obs.fc_id, {})
+        recent = layers["elsewhere"].get(obs.fc_id, {})
         penalty = layers["penalties"].get(obs.fc_id)
         fielded = layers["fielded_next"].get(obs.fc_id, {})
         spend = layers["investment"].get(obs.fc_id, {})
@@ -1902,6 +1929,14 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             # The last season THIS club's listone already had him. Empty = it never did, so it has not
             # judged him: what a season measured elsewhere is worth toward the shirt depends on it.
             "desc_at_club_before": layers["was_here"].get(obs.fc_id),
+            # THE WINDOW MEASURED ELSEWHERE, for a man with no season here at all: it is the engine's own
+            # R13 sample (`features._recent_form`, adopted on Serie A), written into the sheet so the board
+            # can stand on the same fact - a standing of zero for a man the engine predicts will play is the
+            # panel disagreeing with the engine about the same player. The competition travels with it,
+            # because ten matches somewhere are not a season here and the plate has to say where.
+            "desc_elsewhere_matches": (recent.get("matches") or None) if recent else None,
+            "desc_elsewhere_minutes": (recent.get("minutes") or None) if recent else None,
+            "desc_elsewhere_where": recent.get("where") if recent else None,
             "desc_duel_rivals": duel.get("rivals"), "desc_duel_names": duel.get("names"),
             "desc_injury_matches_missed": injury.get("matches_missed"),
             "desc_injury_weighted": injury.get("weighted"),
@@ -2159,6 +2194,8 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
         # The same season, split by WHOSE it was: what he played at the club he is at now, and what
         # somewhere else. The totals cannot say it - only the per-match layer stores a club.
         "at_club": at_current_club(conn, measured, data.observations, squads, before),
+        # The engine's OWN recent sample (R13's input), so the sheet and the engine stand on one fact
+        "elsewhere": measured_elsewhere(conn, window),
         # What the club has PUT INTO him - fee share and stature. A pre-auction fact; whether it weighs on
         # who is selected is a parameter of `engine.presence`, and it starts at zero.
         "investment": investment(conn, window, data.observations, squads),

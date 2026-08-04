@@ -30,6 +30,7 @@ import sys
 import threading
 import tkinter as tk
 from tkinter import messagebox, scrolledtext, ttk
+from dataclasses import replace
 from typing import ClassVar
 
 from euroleghe_ingest import __version__
@@ -3754,7 +3755,13 @@ class SnapshotView(ttk.Frame):
     # minutes are weighed, and which absences come off the denominator of a start rate. They live in
     # `engine.presence` with the formulas that read them, so `sweep` can score the same functions this
     # panel draws - a constant no harness can reach is a constant nobody can sweep.
-    PRESENCE: ClassVar[presence.Params] = presence.DEFAULTS
+    # The panel's parameters are the engine's, with ONE addition it declares: a window measured elsewhere
+    # counts toward the standing (`window_standing`), because otherwise the board draws a standing of ZERO
+    # for a man whose presences the engine predicts from exactly those matches (R13, adopted on Serie A) -
+    # two answers to one question, and the one on screen the more wrong of the two. It is a DISPLAY choice
+    # until gate §7-octies runs, like `FORM_WEIGHT` and `RECENT_PRIOR`, and every gated number is computed
+    # with `presence.DEFAULTS`, where it is off.
+    PRESENCE: ClassVar[presence.Params] = replace(presence.DEFAULTS, window_standing=1.0)
     AVAILABILITY_FLOOR: ClassVar[float] = PRESENCE.availability_floor
     STANDING_WEIGHTS: ClassVar[tuple[float, float]] = PRESENCE.standing_weights
     LOAN_DISCOUNT: ClassVar[float] = PRESENCE.loan_discount
@@ -3786,6 +3793,8 @@ class SnapshotView(ttk.Frame):
             rounds_by_season=_rounds_by_season(row.get("desc_injury_rounds_by_season")),
             weighted_all=_number(row.get("desc_injury_weighted")),
             known_injuries=bool(row.get("desc_injury_source")),
+            window_matches=_number(row.get("desc_elsewhere_matches")),
+            window_minutes=_number(row.get("desc_elsewhere_minutes")),
             minutes_here=_number(row.get("desc_minutes_club")),
             minutes_elsewhere=_number(row.get("desc_minutes_elsewhere")),
             was_here_before=bool(row.get("desc_at_club_before")),
@@ -5723,6 +5732,20 @@ class SnapshotView(ttk.Frame):
         the trequarti it is «Yamal non può mai giocare come centrocampista centrale, è un'ala». What the
         pairing is for is the row with no flank PLACES, and that case is untouched.
         """
+        # ONE MAN PER FLANK, first: a row has one right and one left, so two markers reading 'As' is the
+        # same defect as an unpaired one seen from the other side - Juventus drew Yildiz and Alajbegovic both
+        # as the left-sided forward. The man the shape actually put on that side keeps it (`sides`), and
+        # where the shape says nothing the one drawn furthest that way does; the other reads the line's
+        # central job, exactly as if he had no pair.
+        for side, flank in (("R", ("Td", "Ed", "Ad")), ("L", ("Ts", "Es", "As"))):
+            for name in flank:
+                holders = [index for index, code in enumerate(codes) if code == name]
+                if len(holders) < 2:
+                    continue
+                keep = next((index for index in holders if sides and sides[index] == side), holders[0])
+                for index in holders:
+                    if index != keep:
+                        codes[index] = self.CENTRE_OF_LANE.get(lane or "", codes[index])
         present = set(codes)
         for index, code in enumerate(codes):
             if code in self.FLANK_PAIRS and self.FLANK_PAIRS[code] not in present:
@@ -7003,9 +7026,15 @@ class ToolkitGUI:
         the log names every step, so nothing runs invisibly.
         """
         if command == "positions" and params.get("layer") in ("match", "all"):
-            return ("matchdays", "synth")
+            return ("matchdays", "synth", "arrivals")
         if command == "ratings":
-            return ("matchdays",)   # new matchdays to line up with the real calendar
+            # a new listone is a new PERIMETER: who counts as an arrival changes with it
+            return ("matchdays", "arrivals")
+        if command == "recent_form":
+            # ...and the matches it recovers are worth nothing until they are CONVERTED and read: without
+            # this the scrape lands rows nobody looks at, which is how Alajbegovic kept an empty valuation
+            # after his ten Bundesliga matches were already in the table.
+            return ("synth", "arrivals")
         return ()
 
     def _build_snapshot(self, params: dict | None = None) -> None:
