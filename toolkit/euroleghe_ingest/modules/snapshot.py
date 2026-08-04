@@ -1292,6 +1292,43 @@ def typical_formation(conn, spellings: list[str], season: str, coach_since: str 
                    len(rows) if not coach_since else under_coach, spread)
 
 
+def coach_repertoire(conn, coach: str | None, before: str | None = None) -> tuple[str, int]:
+    """({shape: count} as "4-3-3:162;4-4-2:20", how many elevens) — what THIS COACH lines up in, anywhere.
+
+    The third source of a shape, and the one that was missing. A club's own history answers «what does this
+    side do», the league's repertoire «what is a formation»; neither answers «what does the man who is here
+    NOW do», and for a new coach that is the only question that matters. Measured on the 26/27 sheets: 12 of
+    34 euro clubs (7 of 20 Serie A) have a coach with **zero** elevens at this club, so what the board drew
+    was his predecessor's shape.
+
+    His OWN elevens, from every spell in `coaches` and every competition we parsed - a coach's habit travels
+    with him, so restricting it to this club would answer nothing, and restricting it to the league would
+    throw away the seasons that make the sample big enough to mean something.
+
+    The sample is what decides whether it may be used, and it is wildly uneven, which is why the count is
+    returned with it: Sarri 188 elevens (4-3-3 at 86%), Maresca 57 (4-5-1 98%), Amorim 47 (3-4-3 96%),
+    Allegri 112 (3-5-2, only 53% - a coach who is genuinely shape-fluid) against Tedesco 3, Gattuso 2,
+    Mourinho 1, and Iraola / Filipe Luís / Carles Martínez at **zero**, because their careers were spent
+    outside the five leagues we cover. A floor is not optional: with n = 2 the mode is noise, and it would
+    replace a club habit that is already right.
+    """
+    if not coach:
+        return "", 0
+    rows = conn.execute(
+        """SELECT l.defenders, l.midfielders, l.forwards, COUNT(*)
+           FROM club_match_lineups l
+           JOIN clubs c ON c.canonical_name = l.club
+           JOIN coaches h ON h.fc_club_id = c.fc_club_id AND h.coach_name = ?
+           WHERE l.starters = 11 AND l.match_date IS NOT NULL
+             AND l.goalkeepers + l.defenders + l.midfielders + l.forwards = 11
+             AND l.match_date >= COALESCE(h.valid_from, '0000')
+             AND l.match_date <= COALESCE(h.valid_to, '9999')
+             AND (? IS NULL OR l.match_date < ?)
+           GROUP BY 1, 2, 3 ORDER BY 4 DESC""", (coach, before, before)).fetchall()
+    total = sum(count for *_shape, count in rows)
+    return (";".join(f"{d}-{m}-{f}:{count}" for d, m, f, count in rows), total)
+
+
 # The positional heatmap says WHERE across the pitch a player stood, but not which touchline y=0 is on.
 # So the orientation is CALIBRATED from the players whose listone role names a side: right backs and left
 # backs cannot both be at the same end of the axis. Below this many of each, no side is claimed at all -
@@ -1493,6 +1530,7 @@ def club_context(conn, data: features.WindowData, starters_date: str | None,
         # on, and shadowing it fed a NamedTuple to the next query as a season.
         shapes = typical_formation(conn, mine, season, coach_since, before)
         typical, share, counted, basis = shapes.shape, shapes.share, shapes.counted, shapes.basis
+        coach_shapes, coach_shapes_of = coach_repertoire(conn, coach[0] if coach else None, before)
         arrivals = conn.execute(
             """SELECT COUNT(*) FROM arrivals a JOIN rosters r
                ON r.fc_id = a.fc_id AND r.season = a.season
@@ -1526,6 +1564,13 @@ def club_context(conn, data: features.WindowData, starters_date: str | None,
             # asks for a player the squad has not got - a formation nobody lined up in is not an
             # alternative, it is an invention.
             "formation_shapes": shapes.shapes,
+            # ...and every shape THE COACH fielded, anywhere, with how many elevens it rests on
+            # (`coach_repertoire`). It is the answer to «what does the man who is here NOW do», which
+            # neither of the two above can give, and the board weighs it by its own sample size - Sarri
+            # arrives at Atalanta with 188 elevens and a 4-3-3 at 86% while the club's own habit is his
+            # predecessor's 3-4-3, and Iraola arrives at Liverpool with none at all.
+            "coach_shapes": coach_shapes,
+            "coach_shapes_of": coach_shapes_of,
             # "Absolutely preferred" is a measured thing: a shape used in most of the elevens is the
             # coach's, one used in a third of them is a coach still choosing - and the two must not be
             # presented the same way.

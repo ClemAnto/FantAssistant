@@ -585,7 +585,48 @@ item disegnati: Roma `Dc 0.28 | Dc 0.50 | Dc 0.72` / `Ed 0.11 | C 0.37 | C 0.63 
 Quattro test nuovi, uno per regola-famiglia (simmetria, coppie di fascia, tetto a 5, fasce contese) più i due
 sui casi Napoli/Atalanta/Roma: **278 in totale**.
 
-### 6. La heatmap: validata come segnale, e già al suo posto
+### 6. L'allenatore NUOVO adesso pesa, e pesa quanto il suo campione (`coach_shapes`)
+
+Punto aperto da due giri, chiuso qui per la metà che riguarda **quale forma disegnare**. Il problema, misurato:
+**12 club su 34 in euro (7 su 20 in Serie A) hanno un allenatore con ZERO undici in quel club**, quindi il
+board disegnava la forma del **predecessore** — e `formation_typical_basis` lo diceva a parole senza che
+niente lo usasse.
+
+**La terza fonte.** `snapshot.coach_repertoire` conta le forme che **quell'allenatore** ha schierato, in ogni
+sua panchina e in ogni competizione che abbiamo parsato (`coaches` × `club_match_lineups`), e le scrive nel
+foglio come `coach_shapes` / `coach_shapes_of`. Una passata SQL, offline. Il club risponde «cosa fa questa
+squadra», la lega «cos'è un modulo»; nessuna delle due risponde «cosa fa l'uomo che c'è **adesso**», che per
+un cambio estivo è l'unica domanda che conta.
+
+**Entra al posto della LEGA, non del club** (`shape_odds`, quarta fonte): il repertorio di lega è la risposta
+generica a «cosa farebbe una squadra qui», e 188 undici di un allenatore sono la risposta specifica alla
+stessa domanda. Dove il campione del club **è** del suo allenatore, `SHAPE_TRUST_*` gli dà già 0.90 e questo
+non si vede.
+
+**Pesato dal proprio campione, con soglia e rampa** (`COACH_SHAPE_MIN` 20, `COACH_SHAPE_FULL` 60), perché il
+campione è disomogeneo in modo estremo: Sarri arriva con **188** undici (4-3-3 all'**86%**), Maresca 57
+(4-5-1 98%), Amorim 47 (3-4-3 96%), Allegri 112 (3-5-2 solo 53% — un allenatore davvero mutevole) contro
+Tedesco 3, Gattuso 2, Mourinho 1, e **Iraola, Filipe Luís, Carles Martínez a zero**, perché le loro carriere
+stanno fuori dai cinque campionati che copriamo. La soglia non è un dettaglio: con n = 2 la moda è rumore e
+sovrascriverebbe un'abitudine di club **già giusta** (Lazio: il club dice 4-3-3, che è ciò che le fonti
+prevedono, e i due undici di Gattuso dicono 3-3-4).
+
+**Giudizio, e le due referenze non si mescolano.** La domanda «in che modulo si schiererà» riguarda la
+stagione che si asta, quindi il giudice è la **previsione 26/27** (pazzidifanta, 03/08). Su 17 club di Serie A:
+**8/17 → 9/17**. Cambiano due board e nessuno peggiora nel punteggio: **Atalanta 3-4-3 → 4-3-3** (53% contro
+37%, come la fonte, che scrive «Sarri stravolgerà lo storico assetto a tre proponendo la difesa a quattro» —
+e l'undici disegnato coincide in 9 uomini su 11), e **Napoli 3-4-3 → 3-5-2** (la fonte dice 4-3-3: sbagliato
+prima e sbagliato adesso). Il **Milan** non cambia forma ma porta il 3-4-3 — cioè il 3-4-2-1 della fonte — dal
+**13% al 41%**, a due punti dalla testa. Sulla referenza di **metà 25/26** (SOS Fanta) si perde **una** linea
+su 193 (172 → 171), e sta dentro i club col nuovo allenatore: è attesa, perché quella fonte descrive la
+squadra del **predecessore**. Le due referenze parlano di stagioni diverse e vengono riportate separate.
+Invarianti: 394 board, **0 rotture** in entrambi i bracci.
+
+⚠️ **Resta aperta l'altra metà**: il **claim** (chi gioca). Le due amichevoli di Sarri con Raspadori titolare
+sono in cache e parsate, ma sono **due**, e «nuovo allenatore» come regola predittiva è già stata falsificata
+su dieci finestre (R10). Va misurata, non adottata.
+
+### 7. La heatmap: validata come segnale, e già al suo posto
 Modello dell'utente, ed è quello giusto: un codice è una posizione che il giocatore **può** ricoprire (il
 provider elenca quello che ha coperto o potrebbe coprire, e legge **oggi**), la heatmap è dove **ha
 giocato**. Validata come compito di previsione sui **52 uomini di cui le formazioni pubblicate dichiarano la

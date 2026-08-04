@@ -3130,6 +3130,20 @@ class SnapshotView(ttk.Frame):
     # with the share that is his.
     SHAPE_TRUST_FLOOR: ClassVar[float] = 0.40
     SHAPE_TRUST_RANGE: ClassVar[float] = 0.50
+    # ...and the third source: what the man in charge NOW lines up in, wherever he has been
+    # (`coach_shapes`). It takes the place of the LEAGUE's share of the prior, not the club's, and that is
+    # the whole argument - the league repertoire is the generic guess for «what would a side do here», and
+    # a coach's own 188 elevens are a specific answer to it. The club's habit is untouched: where the
+    # sample IS his, `SHAPE_TRUST_*` already gives it 0.90 and this barely shows.
+    # WEIGHED BY ITS OWN SAMPLE, because the sample is wildly uneven and a floor is not optional: Sarri
+    # arrives with 188 elevens (4-3-3 at 86%), Amorim 47 (3-4-3 96%), Maresca 57 (4-5-1 98%) - and Tedesco
+    # with 3, Gattuso with 2, Mourinho with 1, Iraola and Filipe Luís with NONE, because their careers
+    # were spent outside the five leagues we parse. With n = 2 the mode is noise and it would overwrite a
+    # club habit that is already right (Lazio: the club says 4-3-3, which is what the sources predict, and
+    # Gattuso's two elevens say 3-3-4).
+    # Ramped and not a cliff, so nothing turns on one eleven either side of the line.
+    COACH_SHAPE_MIN: ClassVar[int] = 20
+    COACH_SHAPE_FULL: ClassVar[int] = 60
     # How many matchdays weaker an eleven has to be for the shape to be half as likely: a coach does not
     # field the module that forces a 5% squad player onto the pitch, but half a matchday is nothing.
     SHAPE_FIT_SCALE: ClassVar[float] = 0.60
@@ -3163,12 +3177,31 @@ class SnapshotView(ttk.Frame):
         return {shape: count / total for shape, count in repertoire.items()
                 if count / total >= self.LEAGUE_SHAPE_FLOOR}
 
+    def coach_shapes(self, info: dict) -> tuple[dict[str, float], int]:
+        """({shape: his share of them}, how many elevens they are) — what the man in charge NOW lines up in.
+
+        The third source, from `coach_shapes` in the sheet: his own elevens, every spell and every
+        competition (`snapshot.coach_repertoire`). It answers the question neither of the other two can -
+        the club's history says what THIS SIDE does, the league's repertoire says what a formation IS -
+        and for a summer coach change it is the only one that is about the side that will take the field.
+        The count comes back with it because the sample decides how much it may be worth.
+        """
+        out: dict[str, float] = {}
+        for part in (info.get("coach_shapes") or "").split(";"):
+            shape, _, count = part.partition(":")
+            if shape.strip() and count.strip().isdigit():
+                out[shape.strip()] = float(count)
+        total = _number(info.get("coach_shapes_of"), 0.0) or sum(out.values())
+        return ({shape: count / total for shape, count in out.items()} if total else {}), int(total)
+
     def plausible_shapes(self, info: dict) -> dict[str, tuple[int, float]]:
         """{shape: (elevens THIS club played it in, its share of the league's)}, the club's first.
 
         Two kinds of plausible, and the difference is kept visible rather than merged into one list: a
         shape with a count is a habit of this side, one with a count of zero is a module of the league
         that this side has not used. Both can be drawn; only the first is drawn by default.
+        A shape the COACH lines up in is plausible too, even where neither the club nor the league floor
+        offers it: Sarri's 4-3-3 has to be reachable at a club that spent the year in a back three.
         """
         own = self.observed_shapes(info)
         league = self.league_shapes()
@@ -3177,17 +3210,26 @@ class SnapshotView(ttk.Frame):
         for shape, share in sorted(league.items(), key=lambda item: -item[1]):
             if shape not in out:
                 out[shape] = (0, share)
+        his, sample = self.coach_shapes(info)
+        if sample >= self.COACH_SHAPE_MIN:
+            for shape, share in sorted(his.items(), key=lambda item: -item[1]):
+                if shape not in out and share >= self.LEAGUE_SHAPE_FLOOR:
+                    out[shape] = (0, 0.0)
         return out
 
     def shape_odds(self, club: str, info: dict, mode: str) -> dict[str, float]:
         """{shape: how likely this side is to line up in it}, summing to 1. A DISPLAY estimate.
 
-        Three things decide it, and none of them is enough on its own:
+        FOUR things decide it, and none of them is enough on its own:
           * what THIS CLUB lines up in (`formation_shapes`) - a habit, and the strongest signal there is;
-          * what the LEAGUE lines up in (`formation_repertoire`) - because a coach can try a module new to
-            this side, and because the club's own history may be his PREDECESSOR's, in which case it
-            describes a team that no longer exists. `SHAPE_TRUST_*` is how much of the prior comes from
-            which, and it moves with the share of the sample that is the current coach's;
+          * what the COACH lines up in, wherever he has been (`coach_shapes`) - because the club's history
+            may be his PREDECESSOR's, and then it describes a side that no longer exists while he is the
+            side that will take the field. Weighed by ITS OWN sample (`COACH_SHAPE_MIN/FULL`), because it
+            runs from 188 elevens to none at all;
+          * what the LEAGUE lines up in (`formation_repertoire`) - the generic answer to «what would a side
+            do here», which is what the coach's own history replaces when we have it. `SHAPE_TRUST_*` is
+            how much of the prior comes from the club, and it moves with the share of the sample that is
+            the current coach's;
           * whether the SQUAD can man it - the eleven each shape fields, in matchdays, on the same
             percentages the shirts show. A shape whose slots force a 5% squad player onto the pitch is
             not one a coach picks, and `SHAPE_FIT_SCALE` is how many matchdays halve its odds.
@@ -3204,11 +3246,17 @@ class SnapshotView(ttk.Frame):
         under_coach = _number(info.get("formation_typical_under_coach"), 0.0)
         his = (under_coach / played) if played else 0.0
         trust = self.SHAPE_TRUST_FLOOR + self.SHAPE_TRUST_RANGE * min(1.0, max(0.0, his))
+        # ...and how much of what is LEFT is his own history rather than the league's, ramped on his sample
+        coach_share, sample = self.coach_shapes(info)
+        span = self.COACH_SHAPE_FULL - self.COACH_SHAPE_MIN
+        mine = (0.0 if sample < self.COACH_SHAPE_MIN
+                else min(1.0, (sample - self.COACH_SHAPE_MIN) / span) if span > 0 else 1.0)
         scores = {shape: self.shape_matchdays(club, shape, mode) for shape in options}
         best = max(scores.values())
         weights: dict[str, float] = {}
         for shape, (count, league_share) in options.items():
-            prior = trust * (count / played if played else 0.0) + (1 - trust) * league_share
+            generic = mine * coach_share.get(shape, 0.0) + (1 - mine) * league_share
+            prior = trust * (count / played if played else 0.0) + (1 - trust) * generic
             # exp(-gap / scale): smooth, so half a matchday is nothing and two are decisive
             weights[shape] = prior * math.exp((scores[shape] - best) / self.SHAPE_FIT_SCALE)
         total = sum(weights.values())

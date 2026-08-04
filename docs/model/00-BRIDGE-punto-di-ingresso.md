@@ -553,11 +553,16 @@ generazione delle ipotesi: passare lì è la prova più debole possibile.**
 
 ### Cosa manca, in ordine (aggiornato 4/08/2026)
 
-0. **Il nuovo allenatore non pesa da nessuna parte** — Sarri all'Atalanta, `formation_typical_under_coach =
-   0`, il suo 4-3-3 è misurabile (**162 undici su 188 = 86%**) e le sue due amichevoli con Raspadori titolare
-   sono in cache. Strada: far entrare gli undici dell'allenatore (amichevoli comprese) nel prior del modulo e
-   nel claim. ⚠️ Da fare con il gate in mano: «nuovo allenatore» come regola predittiva è già stata
-   **falsificata** su dieci finestre (R10), quindi qui si parla di **quale forma disegnare**, non di prevedere.
+0. ✅ **Il nuovo allenatore pesa, per la FORMA** (fatto il 4/08, spec «Novità v9.17» §6): `coach_shapes` /
+   `coach_shapes_of` nel foglio contano le forme che quell'allenatore ha schierato in ogni sua panchina, ed
+   entrano in `shape_odds` **al posto della lega**, pesate da soglia e rampa sul proprio campione
+   (`COACH_SHAPE_MIN` 20, `FULL` 60) perché va da 188 undici a zero. Giudicato sulla previsione 26/27:
+   **8/17 → 9/17**, Atalanta passa al **4-3-3 di Sarri** (difesa a quattro, 9 uomini su 11 come la fonte) e
+   il Milan porta il 3-4-2-1 dal 13% al 41%.
+   ⚠️ **Resta l'altra metà: il CLAIM** (chi gioca). Le due amichevoli di Sarri con Raspadori titolare sono in
+   cache e parsate, ma sono **due**, e «nuovo allenatore» come regola predittiva è già **falsificata** su
+   dieci finestre (R10). Va misurata, non adottata — e il giudice non può essere il gate della fantamedia,
+   perché la domanda è «chi schiera», non «quanto rende».
 0-bis. **Il residuo del board, uno solo e capito** (4/08, dettaglio nel blocco ULTIMO IN ORDINE DI TEMPO
    §8): 4 attacchi su 394 senza un attaccante, tutti Lilla, un **pari merito di claim** (0.83) fra un
    trequartista e una punta per l'**unico** posto d'attacco di un 4-5-1. La strada è la regola 4a portata

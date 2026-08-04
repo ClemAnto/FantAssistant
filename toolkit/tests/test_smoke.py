@@ -644,6 +644,39 @@ def test_how_likely_each_shape_is_blends_the_club_the_league_and_the_squad(monke
     view.manifest = repertoire
     assert view.shape_odds("Napoli", predecessor, "typical")["3-4-3"] < 0.05
 
+    # ...and the COACH's own history is the fourth source, in the LEAGUE's place and not the club's.
+    # Measured on Atalanta: the club's 3-4-3 rests on 46 elevens, none of them Sarri's, while Sarri arrives
+    # with 188 of his own and a 4-3-3 in 86% of them - and the sources' prediction for the new season is a
+    # 4-3-3. What must NOT happen is the same thing off two elevens: Gattuso's 3-3-4 (n=2) cannot overturn
+    # a club habit that the sources agree with, which is why the sample has a floor and a ramp.
+    view = _shape_view(monkeypatch, {"3-4-3": 6.41, "4-5-1": 6.60, "4-3-3": 6.50, "3-5-2": 6.40,
+                                     "4-4-2": 6.40})
+    view.manifest = repertoire
+    sarri = {**predecessor, "formation_typical_of": "46", "formation_shapes": "3-4-3:43;4-4-2:2;4-3-3:1",
+             "coach_shapes": "4-3-3:162;4-4-2:20;4-5-1:4", "coach_shapes_of": "188"}
+    odds = view.shape_odds("Atalanta", sarri, "typical")
+    assert next(iter(odds)) == "4-3-3", odds
+    assert odds["3-4-3"] > 0.20, "the club's habit is discounted by the man, not deleted"
+    assert view.board_shape("Atalanta", sarri, "typical")[0] == "4-3-3"
+    # his own history also makes a shape REACHABLE that neither the club nor the league floor offers
+    narrow = {**sarri, "coach_shapes": "5-3-2:180;4-3-3:8", "coach_shapes_of": "188"}
+    assert "5-3-2" in view.shape_odds("Atalanta", narrow, "typical")
+    # below the floor it says nothing at all: two elevens are not a habit
+    noise = {**predecessor, "coach_shapes": "3-3-4:1;4-3-3:1", "coach_shapes_of": "2"}
+    assert view.shape_odds("Napoli", noise, "typical") == view.shape_odds("Napoli", predecessor, "typical")
+    # and between floor and full the pull is partial, never a cliff. The SAME shares over a growing
+    # sample, so what moves is only how much the sample is worth.
+    def his(sample):
+        info = {**predecessor,
+                "coach_shapes": f"4-3-3:{round(sample * 0.86)};4-4-2:{round(sample * 0.11)}",
+                "coach_shapes_of": str(sample)}
+        return view.shape_odds("Atalanta", info, "typical")["4-3-3"]
+
+    floor, full = type(view).COACH_SHAPE_MIN, type(view).COACH_SHAPE_FULL
+    ramp = [his(floor - 1), his((floor + full) // 2), his(full), his(full * 3)]
+    assert ramp[0] < ramp[1] < ramp[2], f"the pull has to grow with the sample: {ramp}"
+    assert abs(ramp[2] - ramp[3]) < 0.005, "...and stop growing once the sample is full"
+
     # For the coming match the coach has DECLARED a shape: it is the answer, at 100%
     view = _shape_view(monkeypatch, {"3-5-2": 1.0, "4-3-3": 9.0})
     view.manifest = repertoire

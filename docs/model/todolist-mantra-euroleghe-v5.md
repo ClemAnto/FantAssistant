@@ -345,12 +345,17 @@ Nota: **nessuna delle feature generate il 27/07 e' entrata nel motore**, e **nes
       `positions` + colonna d'ingest (il payload è già in cache e già parsato per il centroide) + colonna nel
       foglio. ⚠️ Non riaprirla come «diamo più peso alla heatmap»: quattro famiglie di pesi sono già state
       swippate e sono piatte o negative.
-- [ ] **Gli undici del NUOVO allenatore devono pesare** — amichevoli comprese — sia nel prior del modulo sia
-      nel claim. Atalanta: Sarri dal 15/06/2026, `formation_typical_under_coach = 0` (il 3-4-3 al 93% è
-      dell'allenatore di prima), il suo modulo è misurabile dai nostri dati (`coaches` × `club_match_lineups`:
-      **4-3-3 in 162 undici su 188 = 86%**) e le sue **due amichevoli** con l'Atalanta sono in cache e parsate
-      (Raspadori titolare in entrambe). `SHAPE_TRUST_FLOOR` esiste già per non fidarsi del campione vecchio,
-      ma il campione dell'allenatore non entra da nessuna parte.
+- [x] **FATTO per la FORMA il 04/08** (spec «Novità v9.17» §6): `coach_repertoire` conta le forme di
+      quell'allenatore in ogni sua panchina (`coaches` × `club_match_lineups`, una passata SQL offline), il
+      foglio le porta in `coach_shapes`/`coach_shapes_of` e `shape_odds` le usa **al posto della lega**,
+      pesate da `COACH_SHAPE_MIN` 20 / `COACH_SHAPE_FULL` 60 sul proprio campione — che va da Sarri 188
+      (4-3-3 86%) a Iraola 0. Giudizio sulla previsione 26/27: **8/17 → 9/17**, Atalanta al 4-3-3 con la
+      difesa a quattro (9 uomini su 11 come la fonte), Milan col 3-4-2-1 dal 13% al 41%, nessun board
+      peggiorato e 0 rotture di invariante su 394.
+- [ ] **...e resta il CLAIM del nuovo allenatore** (chi gioca), che è la metà delicata: le due amichevoli di
+      Sarri con Raspadori titolare sono in cache e parsate, ma sono **due**, e «nuovo allenatore» come regola
+      predittiva è già falsificata su dieci finestre (R10). Da MISURARE — e il giudice non è il gate della
+      fantamedia: la domanda è «chi schiera».
 - [ ] **`proposedMarketValue`**: sta nella stessa pagina rosa del provider da cui vengono i dodici codici, il
       piede e ora altezza/peso. È il proxy che **§7-quater** aspettava per ri-testare l'investimento del club,
       per GIOCATORE e non solo per chi è costato un cartellino. Migrazione + parse (offline) + lo stesso sweep.
