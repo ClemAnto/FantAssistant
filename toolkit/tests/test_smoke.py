@@ -1140,18 +1140,22 @@ def test_every_swept_parameter_exists_and_is_scored_against_a_target():
     from euroleghe_ingest.modules import sweep
 
     names = {field.name for field in fields(presence.Params)}
-    # `investment` is the one COMPOSITE: a shape and its two weights move together, because with the
-    # weights at zero the two shapes are the same function and sweeping the shape alone would report
-    # "no effect" about a term that is switched off.
-    composite = {"investment"}
+    # The investment arms are COMPOSITES: a shape and its weights move together, because with the weights
+    # at zero every shape is the same function and sweeping the shape alone would report "no effect" about
+    # a term that is switched off. One per form - the main effect (§7-quater) and the two conditional arms
+    # of §7-septies, kept apart because their COVERAGE differs (11 seasons of market values against 2 of
+    # transfer fees) and a verdict that hides that is not a verdict.
+    composite = {name for name in sweep.GRIDS if name.startswith("investment")}
     assert set(sweep.GRIDS) - composite <= names,         f"swept but not a parameter: {set(sweep.GRIDS) - composite - names}"
     assert set(sweep.GRIDS) == set(sweep.TARGETS), "every grid needs its target named"
     assert set(sweep.TARGETS.values()) <= set(sweep.PREDICTORS)
     for name, grid in sweep.GRIDS.items():
         if name in composite:
-            # the composite's own grid must contain the state the code is actually in
-            assert (presence.DEFAULTS.investment_shape, presence.DEFAULTS.fee_weight,
-                    presence.DEFAULTS.stature_weight) in grid
+            # the composite's own grid must contain the state the code is actually in - every term off
+            off = (presence.DEFAULTS.investment_shape, presence.DEFAULTS.fee_weight,
+                   presence.DEFAULTS.stature_weight, presence.DEFAULTS.value_weight,
+                   presence.DEFAULTS.shrink_weight)
+            assert any(off[:size] in grid for size in (3, 4, 5)),                 f"{name}: the state in use is not in its own grid"
             continue
         assert getattr(presence.DEFAULTS, name) in grid, f"{name}: the value in use is not in its own grid"
 

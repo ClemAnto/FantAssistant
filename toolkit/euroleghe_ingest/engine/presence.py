@@ -78,10 +78,22 @@ class Params:
     # value exists for every player the source has ever priced. Historical and dated, so a window reads the
     # input season and never the target one. Starts at ZERO like the other two.
     value_weight: float = 0.0
+    # THE NULL for the conditional form, and it is not a channel: a lift of the SAME SHAPE with no
+    # investment in it at all - `shrink_weight * (1 - measured)`. It exists because «a statistic must be
+    # compared with the right null»: `unplayed` closes part of the gap between what a man played and a full
+    # season, and a man who played little tends to play more next year whoever he is (mean reversion). If the
+    # constant does what the market value does, then what passed the gate is the SHAPE and not the money.
+    # Swept beside the two arms (§7-septies), never adopted: it is a measuring stick.
+    shrink_weight: float = 0.0
     # Where it enters: "standing" adds to the standing itself; "arrival" instead closes part of the gap in
     # `at_club_weight`, which is the sharper version of the claim - a season played elsewhere counts more
     # toward this shirt when the club paid for him, and nothing changes for a man whose whole season is
     # already here (his minutes have said it).
+    # ...and "unplayed", the THIRD form, pre-registered 05/08/2026 (gate §7-septies): the lift closes part of
+    # the gap between what he PLAYED and a full season, so it is null by construction on a man who starts and
+    # largest on the man the coach did not use. It exists because of what killed the other two: «the mechanism
+    # is already absorbed by the minutes» - and where the minutes are not informative, nothing absorbs it.
+    # The case it was written for is a striker the club paid 13M for and the outgoing coach refused to field.
     investment_shape: str = "standing"
     # WHICH absences come off the denominator of the start rate:
     #   "measured" - the rounds he actually missed inside the measured season. A fact about the sample.
@@ -152,6 +164,8 @@ def investment_lift(inputs: Inputs, params: Params = DEFAULTS) -> float:
     # starter is by construction - reads about 0.09.
     if params.value_weight and inputs.value_share is not None:
         lift += params.value_weight * inputs.value_share
+    # ...and the null, which reads nothing about him at all
+    lift += params.shrink_weight
     return lift
 
 
@@ -248,6 +262,10 @@ def standing(inputs: Inputs, params: Params = DEFAULTS) -> float:
                     + by_minutes * min(inputs.minutes * weight / (rounds * 90.0), 1.0))
     if params.investment_shape == "standing":
         return min(max(measured + investment_lift(inputs, params), 0.0), 1.0)
+    if params.investment_shape == "unplayed":
+        # ...and the CONDITIONAL form: what the minutes could not see, and only that. A man at 1.0 cannot be
+        # lifted at all, which is the whole point - his minutes have already said he plays.
+        return min(max(measured + investment_lift(inputs, params) * (1.0 - measured), 0.0), 1.0)
     return measured
 
 

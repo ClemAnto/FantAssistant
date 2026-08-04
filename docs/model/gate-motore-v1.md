@@ -1588,6 +1588,50 @@ presenze da titolare del 25/26, l'allenatore nuovo dal 23/06/2026 e il fatto che
 **l'unico 'pc'** della Lazio (Dia e Noslin sono 'a'). Nessuno di questi numeri entra in una previsione
 finché il gate non lo dice.
 
+### ESEGUITA il 5 agosto 2026 — verdetti (`data/reports/sweep_presence.json`, `generated_at` 2026-08-04T22:24:38+00:00)
+
+| braccio | piattaforma | migliore in pool | guadagno medio | fold peggiore | strict | robust |
+|---|---|---|---|---|---|---|
+| **A** valore/rosa | **default** (6 fold) | `unplayed` a **0.5** | **+0.79%** | −0.09% | no | **PASS** |
+| **A** valore/rosa | euro (4 fold) | `unplayed` a 0.5 | +0.38% | +0.06% | no | no |
+| **B** cartellino | default (3 fold) | **spento** | −0.03% | −0.09% | no | no |
+| **B** cartellino | euro (3 fold) | **spento** | +0.00% | +0.00% | no | no |
+| **NULL** costante | default (6 fold) | 0.05 | +0.37% | −0.26% | no | no |
+| **NULL** costante | euro (4 fold) | 0.03 | +0.30% | −0.17% | no | no |
+
+**Il braccio B è morto** e la sua copertura è nel report invece che in una nota a piè di pagina: i fold
+`Tm3/Tm2/Tm1` sono marcati `folds_without_the_feature` su default, cioè il cartellino non esiste lì. Su euro
+il migliore in pool è lo SPENTO con `CONFIRMED`. Come pre-registrato, questo braccio non poteva confermare
+nulla e ha fatto l'unica cosa informativa che poteva fare: cadere.
+
+**Il braccio A passa robust su Serie A e non su euro** — e va detto al plurale, come la pre-registrazione
+imponeva: 5 fold su 6 positivi (+1.46% e +1.25% i migliori, T0 a −0.09% l'unico negativo), guadagno medio
++0.79% sopra il pavimento. Su euro il segno è lo stesso ma la taglia è metà del pavimento.
+
+### Il NULL è la parte che conta, e cambia la lettura
+La forma `unplayed` chiude parte del divario fra quanto un uomo ha giocato e una stagione piena — e **un uomo
+che ha giocato poco tende a giocare più l'anno dopo chiunque sia**: è ritorno alla media, non investimento.
+Quindi il braccio A è stato misurato **contro un lift della stessa forma senza investimento dentro**
+(`shrink_weight`, una costante), che è l'unico modo di sapere che cosa ha passato il gate:
+- su **Serie A** il valore batte il proprio null di **+0.42 punti percentuali** (+0.79% contro +0.37%), e il
+  null **da solo non supera il pavimento**. Quindi lì c'è del segnale che la costante non spiega;
+- su **euro** i due sono quasi identici (+0.38% contro +0.30%): quel poco che c'è **è** ritorno alla media,
+  che è la stessa conclusione di §7-quinquies («il canale è piatto su euro») con lo strumento giusto.
+
+### NON ADOTTATA, e il motivo non è il verdetto
+`value_weight` resta **0.0** e la forma resta `standing`, nonostante il PASS robust su Serie A, per una
+ragione che è nel report e non in un'opinione: **ogni fold sceglie il bordo della griglia** (0.5 su 0.5, la
+curva è monotona fin lì). Un termine il cui optimum sta *fuori* dalla griglia misurata non si adotta al
+valore del bordo — sarebbe scegliere un peso che i dati non hanno mai valutato. E la griglia non si allarga
+adesso: ritoccarla dopo aver visto la curva è l'altro modo di fittare, ed è esattamente ciò che la
+pre-registrazione vietava.
+
+**Follow-up pre-registrato qui, da eseguire come corsa separata**: (1) griglia estesa oltre 0.5 sul solo
+braccio A, dichiarata prima; (2) il canale valore misurato **al netto del null** (la costante accesa al suo
+migliore, e il peso del valore sweepato sopra), così quello che si misura è il contributo marginale e non la
+somma; (3) e la conferma indipendente resta la finestra **26/27**, l'unica che non ha partecipato a niente.
+Nel frattempo, sul tabellone, la lettura per l'asta di agosto (§7-septies, decisione dell'utente).
+
 Nota su ciò che le AMICHEVOLI dicono di questo caso, misurata il 5/08/2026 e riportata qui perché è la
 tentazione più vicina: sotto Gattuso, **Ratkov ha giocato 1 delle 2 amichevoli** — e così **Dia (1 su 2)** e
 **Noslin (1 su 2)**. Il segnale esiste e **non discrimina**: dice «è nella rotazione», non «è il titolare».

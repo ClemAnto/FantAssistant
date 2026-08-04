@@ -84,6 +84,26 @@ GRIDS: dict[str, tuple] = {
     # is that version (the investment closes part of what the arrival discount took away, and does nothing
     # to a man whose whole season is already here), and it cannot be tested by moving the shape alone,
     # because with both weights at zero the two shapes ARE the same function. Hence the pairs.
+    # THE CONDITIONAL FORM (pre-registered 05/08/2026, gate §7-septies): the lift only where the MINUTES are
+    # not informative - `investment_shape="unplayed"` closes part of the gap between what he played and a
+    # full season. Two arms, never summed and reported separately because their COVERAGE differs by five
+    # times: the market value exists on 11 seasons, the transfer fee only from 2023. Each keeps its own
+    # channel's grid from §7-quater / §7-quinquies, untouched - re-tuning a grid after seeing the curve is
+    # the other way of fitting.
+    "investment_unplayed_value": (("standing", 0.0, 0.0, 0.0),
+                                  ("unplayed", 0.0, 0.0, 0.05), ("unplayed", 0.0, 0.0, 0.10),
+                                  ("unplayed", 0.0, 0.0, 0.15), ("unplayed", 0.0, 0.0, 0.20),
+                                  ("unplayed", 0.0, 0.0, 0.30), ("unplayed", 0.0, 0.0, 0.50)),
+    # ...and the NULL of the same shape, on the scale the value channel works at (a starter is an eleventh
+    # of his squad's value, so `value_weight` x 0.09 is what a 0.5 weight really adds: hence 0.005 - 0.05).
+    "investment_unplayed_null": (("standing", 0.0, 0.0, 0.0, 0.0),
+                                 ("unplayed", 0.0, 0.0, 0.0, 0.005), ("unplayed", 0.0, 0.0, 0.0, 0.01),
+                                 ("unplayed", 0.0, 0.0, 0.0, 0.02), ("unplayed", 0.0, 0.0, 0.0, 0.03),
+                                 ("unplayed", 0.0, 0.0, 0.0, 0.05)),
+    "investment_unplayed_fee": (("standing", 0.0, 0.0, 0.0),
+                                ("unplayed", 0.05, 0.0, 0.0), ("unplayed", 0.10, 0.0, 0.0),
+                                ("unplayed", 0.15, 0.0, 0.0), ("unplayed", 0.20, 0.0, 0.0),
+                                ("unplayed", 0.30, 0.0, 0.0)),
     "investment": (("standing", 0.0, 0.0),
                    ("arrival", 0.1, 0.0), ("arrival", 0.2, 0.0), ("arrival", 0.3, 0.0),
                    ("arrival", 0.5, 0.0), ("arrival", 0.0, 0.1), ("arrival", 0.0, 0.2),
@@ -105,6 +125,10 @@ TARGETS: dict[str, str] = {
     "value_weight": "starts",
     "stature_weight": "starts",
     "investment": "starts",
+    # the conditional form asks the same question - who the coach PUTS on the pitch
+    "investment_unplayed_value": "starts",
+    "investment_unplayed_fee": "starts",
+    "investment_unplayed_null": "starts",
 }
 
 # The gate's own thresholds, quoted from gate-motore-v1.md so the two verdicts mean the same thing here.
@@ -311,7 +335,9 @@ def verdicts(gains: dict[str, float]) -> dict[str, bool | float]:
 
 def _label(value) -> str:
     if isinstance(value, tuple) and value and isinstance(value[0], str):
-        return f"{value[0]}:{value[1]:g}/{value[2]:g}"        # the composite: shape, fee, stature
+        # the composite: shape, fee, stature, and the market value where the arm carries one
+        weights = "/".join(f"{part:g}" for part in value[1:])
+        return f"{value[0]}:{weights}"
     return "/".join(f"{part:g}" for part in value) if isinstance(value, tuple) else f"{value}"
 
 
@@ -322,10 +348,12 @@ def _params_for(name: str, value) -> presence.Params:
     the weights at zero the two shapes are the same function, so sweeping the shape on its own reports
     "no effect" about a term that is switched off.
     """
-    if name == "investment":
-        shape, fee, stature = value
-        return replace(presence.DEFAULTS, investment_shape=shape,
-                       fee_weight=fee, stature_weight=stature)
+    if name.startswith("investment"):
+        shape, fee, stature, *rest = value
+        return replace(presence.DEFAULTS, investment_shape=shape, fee_weight=fee,
+                       stature_weight=stature,
+                       value_weight=rest[0] if rest else 0.0,
+                       shrink_weight=rest[1] if len(rest) > 1 else 0.0)
     return presence.DEFAULTS.with_value(name, value)
 
 
@@ -366,9 +394,12 @@ def sweep_platform(conn, platform: str, game: str, windows: list[str] | None) ->
     for name, grid in GRIDS.items():
         target = TARGETS[name]
         # the composite has no field of its own: its "current" is the shape and the two weights in use
-        current = ((presence.DEFAULTS.investment_shape, presence.DEFAULTS.fee_weight,
-                    presence.DEFAULTS.stature_weight) if name == "investment"
-                   else getattr(presence.DEFAULTS, name))
+        off = (presence.DEFAULTS.investment_shape, presence.DEFAULTS.fee_weight,
+               presence.DEFAULTS.stature_weight)
+        wide = (*off, presence.DEFAULTS.value_weight, presence.DEFAULTS.shrink_weight)
+        current = ((off if name == "investment"
+                    else wide if name.endswith("null") else wide[:4])
+                   if name.startswith("investment") else getattr(presence.DEFAULTS, name))
         per_window: dict[str, dict[str, float]] = {}
         for key, (inputs, targets, _data) in facts.items():
             scores: dict[str, float] = {}
