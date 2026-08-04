@@ -804,6 +804,21 @@ def investment(conn, window, observations, squads: dict[int, str]) -> dict[int, 
     by_role: dict[str, list[float]] = {}
     for price, role in prices.values():
         by_role.setdefault(role, []).append(price)
+    # THE THIRD CHANNEL, and the one the other two were missing: his MARKET VALUE as a share of the value
+    # of the squad he is in, both read on the INPUT season (`market_values`, from the source's own squad
+    # page of that season - a season fact, never today's). It is the same argument as `fee_share` - how big
+    # a part of this club's commitment is he - and unlike the fee it exists for a man who arrived FREE,
+    # which is exactly where the fee proxy failed: Modric and De Bruyne read "no investment" (gate
+    # 7-quater). Read on the input season and never on the target one: the target season's value would
+    # know the outcome.
+    values = {fc_id: float(value) for fc_id, value in conn.execute(
+        "SELECT fc_id, value FROM market_values WHERE season = ? AND value IS NOT NULL",
+        (window.input_season,))}
+    squad_value: dict[str, float] = {}
+    for fc_id, value in values.items():
+        club = now.get(fc_id)
+        if club:
+            squad_value[club] = squad_value.get(club, 0.0) + value
     out: dict[int, dict] = {}
     for obs in observations:
         club = now.get(obs.fc_id)
@@ -814,6 +829,10 @@ def investment(conn, window, observations, squads: dict[int, str]) -> dict[int, 
             # None, not 0, when the club spent nothing we know of: a share of an unknown total is unknown,
             # and reporting it as 0 would say "he was free" about a club whose fees we simply do not have.
             "fee_share": round(fee / total, 3) if fee and total else (0.0 if total else None),
+            "value": values.get(obs.fc_id),
+            # ...and the same rule for the share: unknown squad total, unknown share.
+            "value_share": (round(values[obs.fc_id] / squad_value[club], 4)
+                            if obs.fc_id in values and squad_value.get(club) else None),
         }
         if obs.fc_id in prices:
             price, role = prices[obs.fc_id]
@@ -1740,6 +1759,7 @@ PLAYER_COLUMNS: tuple[str, ...] = (
     # are PRE-auction facts and legal to read; wages, which would be the best measure, do not exist in any
     # whitelisted source. The weight they carry in the selection is a PARAMETER, off until the gate speaks.
     "desc_investment_fee", "desc_investment_fee_share", "desc_investment_stature",
+    "desc_market_value", "desc_investment_value_share",
     # A THIRD class, and the prefix is the whole point: `actual_*` is measured strictly AFTER the auction
     # date. It exists because a BACK-DATED sheet does not need a forecast of who plays - the eleven that was
     # fielded that week exists, and a forecast is only interesting while the outcome is unknown. Reporting
@@ -1912,6 +1932,10 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             "desc_u22": "yes" if state.get("u22_trigger") else None,
             "desc_investment_fee": spend.get("fee"),
             "desc_investment_fee_share": spend.get("fee_share"),
+            # The MARKET VALUE of the input season, and his share of his squad's: the third channel of the
+            # investment hypothesis, and the only one that exists for a man who arrived free.
+            "desc_market_value": spend.get("value"),
+            "desc_investment_value_share": spend.get("value_share"),
             "desc_investment_stature": spend.get("stature"),
             # AFTER the auction date, reporting only (see PLAYER_COLUMNS): what really happened in the
             # club's first match of the week that followed.

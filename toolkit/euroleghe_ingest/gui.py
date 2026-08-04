@@ -3732,6 +3732,7 @@ class SnapshotView(ttk.Frame):
             was_here_before=bool(row.get("desc_at_club_before")),
             fee_share=_number(row.get("desc_investment_fee_share"), None),
             stature=_number(row.get("desc_investment_stature"), None),
+            value_share=_number(row.get("desc_investment_value_share"), None),
         )
 
     def availability(self, row: dict) -> float:

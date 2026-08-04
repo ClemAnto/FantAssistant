@@ -282,6 +282,22 @@ CREATE TABLE IF NOT EXISTS transfers_history (
     PRIMARY KEY (fc_id, date)
 );
 
+-- The player's MARKET VALUE, by season, from the source's own squad page of that season.
+-- A SEASON fact and not a snapshot of today: the squad page of a past season carries that season's
+-- value (verified on eleven seasons of one club - the same player reads 225 / 175 / 150 / 100 / 200
+-- mila across them), which is what lets a window read the INPUT season's value to predict the target
+-- one. Reading the target season's value would be reading the outcome.
+-- It exists because the fee could not answer the question: `transfers_history.fee` is NULL for a free
+-- transfer, so the investment hypothesis was tested with a proxy that said "no investment" about
+-- Modric and De Bruyne, the two names it came from (gate 7-quater).
+CREATE TABLE IF NOT EXISTS market_values (
+    fc_id   INTEGER NOT NULL REFERENCES players(fc_id),
+    season  TEXT NOT NULL,
+    source  TEXT NOT NULL,
+    value   REAL,
+    PRIMARY KEY (fc_id, season, source)
+);
+
 CREATE TABLE IF NOT EXISTS injuries (
     fc_id      INTEGER NOT NULL REFERENCES players(fc_id),
     start_date TEXT NOT NULL,

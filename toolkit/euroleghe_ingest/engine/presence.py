@@ -72,6 +72,12 @@ class Params:
     # paid because he is good" - that needs a design this data cannot give.
     fee_weight: float = 0.0
     stature_weight: float = 0.0
+    # ...and the third channel, which is what §7-quater was waiting for: his MARKET VALUE as a share of
+    # the value of his squad, read on the INPUT season. The fee is NULL for a free transfer, so it said
+    # "no investment" about Modric and De Bruyne - the two names the hypothesis came from - while a market
+    # value exists for every player the source has ever priced. Historical and dated, so a window reads the
+    # input season and never the target one. Starts at ZERO like the other two.
+    value_weight: float = 0.0
     # Where it enters: "standing" adds to the standing itself; "arrival" instead closes part of the gap in
     # `at_club_weight`, which is the sharper version of the claim - a season played elsewhere counts more
     # toward this shirt when the club paid for him, and nothing changes for a man whose whole season is
@@ -124,6 +130,7 @@ class Inputs:
     # None = we have no fees for that club), and his Qt.I percentile within his role (None = unquoted)
     fee_share: float | None = None
     stature: float | None = None
+    value_share: float | None = None
 
 
 def investment_lift(inputs: Inputs, params: Params = DEFAULTS) -> float:
@@ -140,6 +147,11 @@ def investment_lift(inputs: Inputs, params: Params = DEFAULTS) -> float:
         lift += params.fee_weight * inputs.fee_share
     if params.stature_weight and inputs.stature is not None:
         lift += params.stature_weight * (inputs.stature - 0.5) * 2.0
+    # The value channel is ONE-SIDED like the fee, and for the same reason: being a small part of a rich
+    # squad is not evidence against a man. It is also scaled to the squad, so an eleventh of it - what a
+    # starter is by construction - reads about 0.09.
+    if params.value_weight and inputs.value_share is not None:
+        lift += params.value_weight * inputs.value_share
     return lift
 
 

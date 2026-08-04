@@ -73,6 +73,10 @@ GRIDS: dict[str, tuple] = {
     # not being tested. 0.30 of a season is nine rounds: past that the term would be deciding the eleven on
     # its own, which is not what anybody is claiming.
     "fee_weight": (0.0, 0.05, 0.10, 0.15, 0.20, 0.30),
+    # the market-value channel, on the same grid as the fee: it is the same claim with a proxy that exists
+    # for a free arrival too, and a share of the squad's value is on the same 0..1 scale as a share of its
+    # spending. Pre-registered in gate §7-quater's follow-up.
+    "value_weight": (0.0, 0.05, 0.10, 0.15, 0.20, 0.30, 0.50),
     "stature_weight": (-0.10, 0.0, 0.05, 0.10, 0.15, 0.20, 0.30),
     # ...and the same hypothesis in its SHARPER form, as a composite: the two weights alone are swept on the
     # "standing" shape, where a lift is added to everybody, but the claim is really about the man whose
@@ -98,6 +102,7 @@ TARGETS: dict[str, str] = {
     "standing_weights": "starts",
     # The claim is about SELECTION - who the coach puts on the pitch - so it is judged on starts.
     "fee_weight": "starts",
+    "value_weight": "starts",
     "stature_weight": "starts",
     "investment": "starts",
 }
@@ -205,6 +210,7 @@ def build_inputs(conn, data: features.WindowData) -> tuple[dict[int, presence.In
             was_here_before=obs.fc_id in was_here,
             fee_share=(spend.get(obs.fc_id) or {}).get("fee_share"),
             stature=(spend.get(obs.fc_id) or {}).get("stature"),
+            value_share=(spend.get(obs.fc_id) or {}).get("value_share"),
         )
     note = {"players": len(out), "of_observations": len(data.observations),
             "clubs_under_90pct_parsed": thin}

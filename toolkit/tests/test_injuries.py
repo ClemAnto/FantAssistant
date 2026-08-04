@@ -94,9 +94,28 @@ def test_parse_max_page_reads_the_pager():
 
 def test_parse_squad_aligns_the_contract_column_despite_the_nested_card():
     rows = injuries.parse_squad(_SQUAD_HTML)
-    assert rows == [{"tm_id": "300716", "name": "Moise Kean", "contract_until": "2029-06-30"}]
+    assert rows == [{"tm_id": "300716", "name": "Moise Kean", "contract_until": "2029-06-30",
+                     "market_value": 25_000_000.0}]
     # the birth date is also a dd/mm/yyyy in the same row: it must not be mistaken for the contract
     assert rows[0]["contract_until"] != "2000-02-28"
+
+
+def test_parse_squad_reads_the_market_value_of_that_season():
+    """The third channel of the investment hypothesis, and the reason it exists: a FEE is NULL for a free
+    transfer, so it said «no investment» about Modric and De Bruyne - the two names the hypothesis came
+    from (gate §7-quater). A market value exists for everyone the source has priced, and the squad page of
+    a PAST season carries THAT season's value, not today's: verified on eleven seasons of one club, where
+    the same player reads 225 / 175 / 150 / 100 / 200 mila across them. That is what makes it usable - a
+    window reads the input season's value to predict the target one, never the other way round.
+    """
+    assert injuries.parse_squad(_SQUAD_HTML)[0]["market_value"] == 25_000_000.0
+    # ...and the value column of a past season is there even where the contract one is not
+    old = injuries.parse_squad(_OLD_SQUAD_HTML)[0]
+    assert old["contract_until"] is None and old["market_value"] == 25_000_000.0
+    # a squad page without the column says nothing rather than zero
+    assert injuries.parse_squad(
+        _SQUAD_HTML.replace("<th>Valore di mercato</th>", "").replace("<td>25,00 mln</td>", "")
+    )[0]["market_value"] is None
 
 
 def test_parse_squad_on_a_past_season_has_no_contract():

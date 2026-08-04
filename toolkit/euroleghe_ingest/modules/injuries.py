@@ -46,6 +46,7 @@ from curl_cffi import requests as curl_requests
 
 from euroleghe_ingest.context import Context
 from euroleghe_ingest.matching import build_pool_entry, match_in_pool
+from euroleghe_ingest.modules import transfers
 
 NAME = "injuries"
 DESCRIPTION = "Transfermarkt -> injuries (+ contract_until / exit_risk flags)"
@@ -205,11 +206,17 @@ def parse_max_page(html: str) -> int:
 
 
 def parse_squad(html: str) -> list[dict]:
-    """A squad page -> [{tm_id, name, contract_until}].
+    """A squad page -> [{tm_id, name, contract_until, market_value}].
 
     Alignment note: `row.select('td')` returns the tds of the NESTED player card too, so the cells
     stop matching the header. `find_all(recursive=False)` keeps the direct children only, which does
     line up with the header - and that is what makes reading a column BY NAME safe here.
+
+    The MARKET VALUE comes off the same page, and its date is the thing that makes it usable: the
+    squad page of a past season carries that season's value, not today's (verified on a club with
+    eleven seasons in cache - the same player reads 225 / 175 / 150 / 100 / 200 mila across them). So
+    it is a SEASON fact and it is stored as one, which is what lets the gate read the value of the
+    input season to predict the target one and never the other way round.
     """
     soup = BeautifulSoup(html, "lxml")
     table = soup.select_one("table.items")
@@ -217,6 +224,7 @@ def parse_squad(html: str) -> list[dict]:
         return []
     headers = [th.get_text(" ", strip=True).lower() for th in table.select("thead th")]
     contract_at = headers.index("contratto") if "contratto" in headers else None
+    value_at = next((index for index, head in enumerate(headers) if "valore di mercato" in head), None)
     out: list[dict] = []
     for row in table.select("tbody > tr"):
         link = row.select_one('a[href*="/profil/spieler/"]')
@@ -233,6 +241,8 @@ def parse_squad(html: str) -> list[dict]:
             "tm_id": tm_id,
             "name": link.get_text(strip=True) or (link.get("title") or "").strip(),
             "contract_until": contract,
+            "market_value": (transfers.parse_fee(cells[value_at])
+                             if value_at is not None and value_at < len(cells) else None),
         })
     return out
 
@@ -272,6 +282,16 @@ def resolve_squad(conn, fc_club_id: int, season: str, records: list[dict],
         conn.execute(
             "INSERT OR REPLACE INTO player_xref(fc_id, source, source_id) "
             "VALUES (?, 'transfermarkt', ?)", (candidates[0][0], rec["tm_id"]))
+        # ...and the MARKET VALUE of that season, which travels on the same row and costs nothing here.
+        # Stored per season because that is what it is (see `market_values` in the schema): the value on
+        # a past season's squad page is that season's, so a window can read the INPUT season's value to
+        # predict the target one. It is what §7-quater was missing - `transfers_history.fee` is NULL for
+        # a free transfer, so the fee proxy said "no investment" about Modric and De Bruyne.
+        if rec.get("market_value") is not None:
+            conn.execute(
+                "INSERT OR REPLACE INTO market_values(fc_id, season, source, value) "
+                "VALUES (?, ?, 'transfermarkt', ?)",
+                (candidates[0][0], season, rec["market_value"]))
         matched += 1
     return matched, unresolved
 

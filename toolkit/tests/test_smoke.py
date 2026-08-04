@@ -1306,6 +1306,22 @@ def test_what_the_club_put_into_him_has_two_channels_and_they_start_at_zero():
     # an unknown channel contributes nothing: not knowing what a club spent is not knowing
     assert presence.investment_lift(presence.Inputs(), fee_on) == 0.0
 
+    # THE THIRD CHANNEL - the market value as a share of his squad's - and the reason it exists: a fee is
+    # NULL for a free transfer, so `fee_share` said «no investment» about Modric and De Bruyne, the two
+    # names the hypothesis came from. A value exists for everyone the source has priced, and it is dated by
+    # SEASON, so a window reads the input season's and never the target one's.
+    value_on = presence.DEFAULTS.with_value("value_weight", 0.30)
+    # a starter is an eleventh of his squad by construction, so that is the scale this term works on
+    assert presence.investment_lift(presence.Inputs(value_share=1 / 11), value_on) == pytest.approx(0.027,
+                                                                                                    abs=1e-3)
+    assert presence.investment_lift(presence.Inputs(value_share=0.30), value_on) == pytest.approx(0.09)
+    # one-sided like the fee: being a small part of a rich squad is not evidence against a man
+    assert presence.investment_lift(presence.Inputs(value_share=0.0), value_on) == 0.0
+    assert presence.investment_lift(presence.Inputs(), value_on) == 0.0, "no value on file, no lift"
+    # and OFF by default, like the other two: 20 042 values in the DB must not move a single number
+    assert presence.DEFAULTS.value_weight == 0.0
+    assert presence.investment_lift(presence.Inputs(value_share=0.9)) == 0.0
+
     # the ARRIVAL shape only closes part of the gap a discount opened, so a man whose whole season is
     # already at this club cannot be lifted by it - his minutes have said it
     arrival = presence.Params(fee_weight=0.5, investment_shape="arrival")

@@ -359,9 +359,15 @@ Nota: **nessuna delle feature generate il 27/07 e' entrata nel motore**, e **nes
       Milan e Napoli a zero, minuti assenti in 1399 righe su 1716, avversari l'U23 del club stesso, e la
       fonte che concorda ha letto le stesse amichevoli. **Pre-registrato per giugno 2027** (gate §7):
       bersaglio `P(titolare)` e minuti, confronto con `standing`, e se passa entra in `engine.presence`.
-- [ ] **`proposedMarketValue`**: sta nella stessa pagina rosa del provider da cui vengono i dodici codici, il
-      piede e ora altezza/peso. È il proxy che **§7-quater** aspettava per ri-testare l'investimento del club,
-      per GIOCATORE e non solo per chi è costato un cartellino. Migrazione + parse (offline) + lo stesso sweep.
+- [x] **FATTO E MISURATO il 04/08 — il VALORE DI MERCATO, terzo canale dell'investimento** (gate
+      **§7-quinquies**): sta nella pagina rosa di Transfermarkt che già parsiamo (zero richieste nuove) ed è
+      **storico** — la pagina di una stagione passata porta il valore di quella stagione. Tabella
+      `market_values`, **9388 valori · 3180 giocatori · 11 stagioni**, nel contratto d'export; forma
+      misurata = valore come **quota del valore della rosa**, sulla stagione di input. **Non adottato**:
+      su euro il migliore in pool è **zero**; su Serie A tutti e sei i fold scelgono 0.10-0.20 ma il
+      guadagno medio è **+0.08%** contro un pavimento di 0.5%. Il proxy migliore ha comprato **il verso e
+      non la taglia** — il cartellino non aveva nemmeno il verso. Da NON riproporre così: servirebbero gli
+      ingaggi (nessuna fonte) o la variazione del valore dentro la stagione (altra domanda, serie per data).
 - [x] **FATTO il 03-04/08** — percentuale della build, `claim` ≠ `presence`, assegnazione globale col prezzo
       per linea, badge dei terzini, piede, corpo (misurato e non usato), tabella su canvas con
       pillole/colori/check, tooltip nello schermo, SURPLUS vuoto spiegato. Dettaglio: spec «Novità v9.16».

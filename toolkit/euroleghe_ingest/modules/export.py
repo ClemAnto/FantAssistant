@@ -121,6 +121,10 @@ CONTRACT: tuple[TableSpec, ...] = (
     TableSpec("penalty_hierarchy", "full", "who takes the penalties, dated, revealed from our votes"),
     TableSpec("coaches", "full", "who is in charge and since when (the new_coach flag's provenance)"),
     TableSpec("transfers_history", "full", "where an arrival came from and for how much"),
+    TableSpec("market_values", "season",
+              "the market value per SEASON, from the source's own squad page of that season: the third "
+              "channel of the investment hypothesis, and the only one that exists for a man who arrived "
+              "free (a fee is NULL for a free transfer). Dated, so a window reads the input season"),
     TableSpec("tournaments_squads", "full", "who actually played at a tournament, minutes included"),
     TableSpec("manual_overrides", "full", "the highest-precedence layer; empty is the normal state"),
 )

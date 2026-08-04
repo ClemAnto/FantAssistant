@@ -578,10 +578,21 @@ generazione delle ipotesi: passare lì è la prova più debole possibile.**
    **modulo** non spostano nulla, misurato. Se si riaprono, la domanda è un'altra — «copre davvero l'altra
    fascia?», cioè i **ballottaggi** — e va definita prima la metrica, perché le fonti li pubblicano a
    singhiozzo. Costo: migrazione di `positions` + colonna d'ingest + colonna nel foglio.
-1. **Il valore di mercato è arrivato gratis**: `proposedMarketValue` sta nella stessa pagina rosa del
-   provider da cui vengono i dodici codici, il piede e ora altezza/peso. È il proxy che **§7-quater**
-   aspettava per ri-testare l'investimento del club, per GIOCATORE e non solo per chi è costato un
-   cartellino. Da parsare (una migrazione) e poi lo stesso sweep.
+1. ✅ **Il valore di mercato: FATTO e MISURATO il 4/08 — non adottato** (gate **§7-quinquies**). Sta nella
+   pagina rosa di Transfermarkt che già scarichiamo e parsiamo, quindi **zero richieste nuove**, ed è
+   **storico**: la pagina di una stagione passata porta il valore di QUELLA stagione (verificato su undici
+   stagioni di un club: 225 / 175 / 150 / 100 / 200 mila per lo stesso uomo). Tabella nuova
+   `market_values(fc_id, season, source, value)`, **9388 valori · 3180 giocatori · 11 stagioni**, nel
+   contratto d'export. Forma misurata: il valore come **quota del valore della rosa**, sulla stagione di
+   input — lo stesso argomento del cartellino con un proxy che esiste anche per chi arriva **gratis**, che
+   era il buco per cui §7-quater aveva fallito su Modric e De Bruyne.
+   **Verdetto: `value_weight` resta 0.0**, e il risultato è **dipendente dalla piattaforma**: su **euro** il
+   migliore in pool è **zero** (piatto); su **Serie A** tutti e **sei** i fold scelgono un peso non nullo
+   (0.10-0.20) e la curva in pool è una U pulita, ma il guadagno medio è **+0.08%** contro un pavimento di
+   **0.5%**, con due fold negativi. Il proxy migliore ha comprato **il verso, non la taglia** — e il
+   cartellino non aveva nemmeno quello. Conferma la lettura di §7-quater: **il meccanismo è già nei minuti**.
+   ⚠️ Non riproporre nella stessa forma: la riaprirebbero gli **ingaggi** (nessuna fonte li porta) o la
+   **variazione** del valore dentro la stagione, che è un'altra domanda e serve la serie per data.
 
 ### Cosa manca, il resto (invariato dal 29/07)
 

@@ -1377,6 +1377,60 @@ normalizzazione che l'ipotesi chiedeva davvero: il suo valore come **quota del v
 sopra, senza ritoccarle. Gli **ingaggi restano indisponibili**: verificato sulle pagine che scarichiamo,
 zero occorrenze di Gehalt/salary/stipendio; le fonti che li stimano sono fuori whitelist.
 
+## 7-quinquies. L'INVESTIMENTO, terzo canale: il VALORE DI MERCATO (4 agosto 2026) — misurato, NON adottato
+
+Il seguito che §7-quater aveva pre-registrato, e il motivo per cui esisteva: il proxy era il **cartellino**, e
+`transfers_history.fee` è NULL per un trasferimento gratuito — quindi diceva «nessun investimento» esattamente
+su **Modric e De Bruyne**, i due nomi da cui l'ipotesi dell'utente nasce. Il valore di mercato non ha quel
+buco.
+
+### Il dato: storico, datato, e già in cache
+Sta nella pagina rosa di Transfermarkt che **già scarichiamo e già parsiamo** (`injuries.parse_squad`, una
+colonna in più letta per nome dall'intestazione: «Valore di mercato»), quindi **zero richieste nuove**.
+La cosa che lo rende usabile è la **data**: la pagina di una stagione passata porta il valore **di quella
+stagione**, non quello di oggi — verificato su undici stagioni di un club, dove lo stesso giocatore legge
+225 / 175 / 150 / 100 / 200 mila. Quindi è un fatto di STAGIONE e sta in una tabella nuova,
+`market_values(fc_id, season, source, value)`: una finestra legge il valore della stagione **di input** per
+prevedere quella **bersaglio**, e leggere quello della bersaglio sarebbe leggere l'esito.
+Ingerito offline: **9388 valori, 3180 giocatori, 11 stagioni** (2015-16 → 2025-26; 1248 su 23/24, 1133 su
+24/25, 1074 su 25/26, cioè il 75-80% del listone). Nel contratto d'export come tabella `season`.
+
+### La forma misurata
+`value_share` = il suo valore **come quota del valore della rosa in cui sta**, entrambi sulla stagione di
+input. È lo stesso argomento di `fee_share` — quanto di questo club è lui — con un proxy che esiste anche per
+chi è arrivato gratis. **A una sola coda**, come il cartellino: essere una piccola parte di una rosa ricca non
+è una prova *contro* un giocatore. Un titolare è per costruzione un undicesimo della sua rosa, quindi la scala
+di lavoro è ~0.09.
+
+### Verdetto: NON ADOTTATO, `value_weight` resta 0.0
+Sweep pre-registrato del 4/08/2026 (`data/reports/sweep_presence.json`, `generated_at`
+2026-08-04T14:43:56+00:00, bersaglio `starts`, griglia 0 → 0.5, leave-one-out cross-fit):
+
+| piattaforma | migliore in pool | scelte per fold | guadagno medio | fold peggiore | strict | robust |
+|---|---|---|---|---|---|---|
+| **euro** (4 finestre) | **0.0** | 0.0 · 0.0 · 0.0 · 0.05 | −0.02% | −0.07% | no | no |
+| **default** (6 finestre) | **0.15** | 0.2 · 0.15 · 0.1 · 0.2 · 0.15 · 0.15 | **+0.08%** | **−0.25%** | no | no |
+
+Va letto per quello che è, e sono due cose diverse a seconda della piattaforma — che è esattamente il tipo di
+affermazione che questo progetto vuole non sia data al singolare:
+- su **euro** il canale è **piatto**: il migliore in pool è zero, e la curva sale monotona da lì. Niente.
+- su **Serie A** c'è un **verso, e unanime**: tutti e sei i fold scelgono un peso **non nullo** (0.10-0.20), la
+  curva in pool è una U pulita (0.20296 a zero → **0.20271** a 0.15 → 0.20357 a 0.5) e il fold migliore
+  guadagna **+0.49%**. Ma la **taglia** non c'è: guadagno medio **+0.08%**, un ordine di grandezza sotto il
+  pavimento dello 0.5%, con due fold negativi (−0.25%, −0.15%).
+
+**Questo è un risultato diverso da quello del cartellino, e la differenza è informativa**: il cartellino
+usciva `best pooled 0.0` su entrambe le piattaforme, cioè nemmeno un verso; il valore di mercato ha il verso
+e non la taglia. Il proxy migliore ha comprato **il segno**, non l'adozione — ed è la conferma più netta che
+si potesse avere della lettura di §7-quater: **il meccanismo è già assorbito dai minuti** (lo stesso sweep
+riconferma `standing_weights = (0, 1)`, «chi gioca l'anno prossimo lo dicono i MINUTI»). Un club spende su chi
+poi fa giocare, e i minuti dell'anno prima lo hanno già scritto.
+
+**Da non riproporre** nella stessa forma. Cosa la riaprirebbe, dichiarato: gli **ingaggi** (nessuna fonte in
+whitelist li porta, ed è la misura migliore dell'impegno di un club), oppure una **variazione** del valore
+dentro la stagione — che è un'altra domanda («il mercato ha cambiato idea su di lui»), non questa, e richiede
+la serie per data invece di una per stagione.
+
 ## 5-terdecies. La punta torre e la punta di movimento (3 agosto 2026) — misurata, NON adottata
 
 Ipotesi dell'utente, con la sua stessa formulazione: «dovresti capire se l'allenatore predilige una punta
