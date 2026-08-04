@@ -1773,6 +1773,17 @@ def test_a_player_the_toolkit_can_still_measure_says_so_and_says_when_it_is_bein
     assert "⟳" in icons and "⧖" not in icons, icons
     assert "right now" in words, words
 
+    # ...and once the window is IN, the mark says what the valuation stands on: these men are priced on the
+    # presences it buys them with the role anchor for the rate, so their surplus ranks them by "he will
+    # play" - a column that stops saying «waiting» and then says nothing is the worse of the two.
+    view._recovering = ""
+    filled = {**rows[0], "desc_elsewhere_matches": "10", "desc_elsewhere_minutes": "693",
+              "desc_elsewhere_where": "bundesliga"}
+    icons, words = view._flags(filled)
+    assert "→" in icons and "10 matches, 693 minutes in bundesliga" in words, (icons, words)
+    assert "⧖" not in icons, "the gap is closed: it is no longer waiting for anything"
+    assert "→" not in view._flags({**filled, "desc_season_matches": "34"})[0],         "a man with a season HERE is not priced off a window"
+
     # the panel's rule IS the module's rule, called with the same arguments
     assert recent_form.awaiting_data("C", 12.0, measured=False, medians={"C": 5.0})
     assert not recent_form.awaiting_data("C", 12.0, measured=True, medians={"C": 5.0})

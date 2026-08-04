@@ -2851,6 +2851,7 @@ class SnapshotView(ttk.Frame):
         ("?", "no injury history at all was found for him - his inj column is unknown, not zero"),
         ("⧖", "nothing measured about him yet, and the toolkit can still fetch it (recent_form)"),
         ("⟳", "the toolkit is fetching his data right now"),
+        ("→", "priced from a WINDOW measured elsewhere, not from a season here"),
     )
 
     # Whether a data-recovery run is in flight, so the mark says «being fetched» instead of «missing».
@@ -2913,6 +2914,11 @@ class SnapshotView(ttk.Frame):
             # the module's own (`recent_form.awaiting_data`), so the mark and the population are one thing.
             self.awaiting_data(row) and not self._recovering,
             self.awaiting_data(row) and self._recovering,
+            # ...and once the gap is CLOSED, the mark says what closed it. These men are priced on the
+            # presences the window buys them (R13) with the role anchor for the rate, so their surplus ranks
+            # them by "he will play" and not by how well: Daffara reads 17.0 off ten Serie B matches. A
+            # column that stops saying "waiting" and then says nothing is the worse of the two.
+            bool(row.get("desc_elsewhere_matches")) and not row.get("desc_season_matches"),
         )
         icons = "".join(icon for (icon, _why), on in zip(self.FLAG_ICONS, present, strict=True) if on)
         words = []
@@ -2928,6 +2934,10 @@ class SnapshotView(ttk.Frame):
                 extra = f" - {row.get('desc_arrival')} {row.get('desc_arrival_tier') or ''}".rstrip()
             elif icon == "\u231b":
                 extra = f" - {row.get('desc_contract_until')}"
+            elif icon == "→":
+                extra = (f" - {row.get('desc_elsewhere_matches')} matches, "
+                         f"{row.get('desc_elsewhere_minutes')} minutes in "
+                         f"{row.get('desc_elsewhere_where') or 'another league'}")
             words.append(f"{icon}  {why}{extra}")
         return icons, "\n".join(words)
 
