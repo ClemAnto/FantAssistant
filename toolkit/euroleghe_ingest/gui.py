@@ -2865,7 +2865,12 @@ class SnapshotView(ttk.Frame):
         is the same emptiness the module tests in the DB - and it is what makes the mark self-clearing, since
         the very rows the scrape fills stop qualifying on the next build.
         """
-        measured = bool(row.get("desc_season_matches") or row.get("desc_form_measured"))
+        # WHAT COUNTS AS MEASURED for the panel: a season here, a recent window here, or the window the
+        # toolkit went and fetched elsewhere. The last one is the point of the whole exercise - a man whose
+        # ten matches are now in the sheet is not waiting for anything, and leaving the ⧖ on him would have
+        # the board ask for a run that has already happened.
+        measured = bool(row.get("desc_season_matches") or row.get("desc_form_measured")
+                        or row.get("desc_elsewhere_matches"))
         return recent_form.awaiting_data(row.get("role_classic") or "",
                                          _number(row.get("price_initial"), None),
                                          measured, self._price_medians())
