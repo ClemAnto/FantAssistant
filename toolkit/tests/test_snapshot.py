@@ -8,6 +8,7 @@ that make a dry run honest: the auction date must never be after the season it p
 
 from __future__ import annotations
 
+import contextlib
 import csv
 import inspect
 import io
@@ -1729,3 +1730,81 @@ def test_the_preseason_is_a_reading_and_never_a_criterion():
     assert "desc_preseason" in inspect.getsource(snapshot.build_rows)
     assert "preseason" not in inspect.getsource(gui.SnapshotView.eleven)
     assert "preseason" not in inspect.getsource(gui.SnapshotView._reshape)
+
+def test_a_player_the_toolkit_can_still_measure_says_so_and_says_when_it_is_being_fetched():
+    """«Deve essere evidente per questi calciatori che mancano ancora dei dati che il toolkit sta
+    recuperando», and an empty cell cannot say it: below `MIN_PV_PREV` the core refuses to predict, so the
+    surplus of a man with nothing measured is blank - and blank is what a zero looks like too.
+
+    So he carries a MARK, on the same per-player list every other state lives on, and the rule behind it is
+    the fetching module's own (`recent_form.awaiting_data`): priced above his role's median with nothing
+    measured. One definition, two readers - the module selects whom to fetch over the DB, the panel marks
+    whom the operator is waiting for over the sheet - because two copies of that rule would be two
+    populations and the mark would stop meaning «this is what is being fetched».
+
+    While a recovery run is in flight the same men read «being fetched» instead of «missing», which is the
+    other half of the request: the gap closes where it was seen to open.
+    """
+    from euroleghe_ingest.gui import SnapshotView as View
+    from euroleghe_ingest.modules import recent_form
+
+    rows = [{"name": name, "role_classic": role, "price_initial": price,
+             "desc_season_matches": played}
+            for name, role, price, played in (
+                ("Alajbegovic", "C", "12", ""),       # priced above the median, nothing measured
+                ("Regular", "C", "20", "34"),         # priced high AND measured: no mark
+                ("Fourth choice", "C", "1", ""),      # nothing measured, and nobody is waiting for him
+                ("Median man", "C", "5", ""),         # AT the median, which is not above it
+                ("Mid", "C", "5", "20"), ("Mid2", "C", "6", "30"), ("Mid3", "C", "4", "12"))]
+    view = View.__new__(View)
+    view.players, view._medians = rows, None
+
+    waiting = [row["name"] for row in rows if view.awaiting_data(row)]
+    assert waiting == ["Alajbegovic"], waiting
+    assert view._price_medians()["C"] == 5.0, view._price_medians()
+    # the mark is on the flags, and its words say what it is and what closes it
+    icons, words = view._flags(rows[0])
+    assert "⧖" in icons and "recent_form" in words, (icons, words)
+    assert "⧖" not in view._flags(rows[1])[0], "a measured man carries no gap"
+
+    # ...and it changes while the toolkit is fetching, without a rebuild of the sheet
+    view._recovering = "recent_form"
+    icons, words = view._flags(rows[0])
+    assert "⟳" in icons and "⧖" not in icons, icons
+    assert "right now" in words, words
+
+    # the panel's rule IS the module's rule, called with the same arguments
+    assert recent_form.awaiting_data("C", 12.0, measured=False, medians={"C": 5.0})
+    assert not recent_form.awaiting_data("C", 12.0, measured=True, medians={"C": 5.0})
+
+
+def test_any_module_percentage_drives_the_bar_and_it_never_goes_backwards():
+    """«Poi deve essere visibile una progress bar animata durante il recupero dei dati (con % di
+    completamento)»: the widget and the protocol already existed for a snapshot build - a module prints
+    `[name] NN% · label` (`Context.progress`) and the bar goes determinate on it - and what was missing is
+    that the parser only accepted the snapshot's own lines.
+
+    Monotone by construction, for the reason the build's bar states: a bar that retreats reads as a failure
+    even when nothing failed.
+    """
+    import re
+
+    from euroleghe_ingest.context import Context
+    from euroleghe_ingest.gui import SnapshotView as View
+
+    assert View.PERCENT_LINE.match("[recent_form] 34% · 2026-27 · Alajbegovic")
+    assert View.PERCENT_LINE.match("[snapshot] 12% · clubs 4/34"), "the build's own lines still parse"
+    assert not View.PERCENT_LINE.match("[recent_form]   Alajbegovic  Qt.I 12  tier1 10 matches")
+
+    said: list[str] = []
+    ctx = Context.__new__(Context)
+    with contextlib.redirect_stdout(io.StringIO()) as out:
+        ctx.progress("recent_form", 0, 11, "starting")
+        ctx.progress("recent_form", 5, 11, "half")
+        ctx.progress("recent_form", 11, 11, "done")
+        ctx.progress("recent_form", 3, 0, "nothing to fetch")     # no total, no claim
+    said = [line for line in out.getvalue().splitlines() if line]
+    percents = [int(re.match(r"\[recent_form\]\s+(\d+)%", line).group(1)) for line in said]
+    assert percents == [0, 45, 99], percents
+    assert len(said) == 3, "a total of zero prints nothing: there is no honest fraction of no work"
+

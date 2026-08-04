@@ -75,6 +75,36 @@ AUCTION_MONTH_DAY = "-08-15"
 
 # ---------- who needs this ----------
 
+def awaiting_data(role: str, price: float | None, measured: bool,
+                  medians: dict[str, float]) -> bool:
+    """Whether the toolkit can still go and MEASURE this man: priced above his role's median, nothing
+    measured yet.
+
+    ONE definition, and it is called from two sides: this module selects whom to fetch (over the DB) and
+    the panel marks whom the operator is waiting for (over the sheet). Two copies of this rule would be
+    two populations, and the mark would stop meaning "this is what is being fetched".
+
+    Above the median and not at it: for goalkeepers the median quotation is 1 credit, so "at least average"
+    would drag in every third-choice keeper (56 of them in 25/26 against 8 above the median).
+    """
+    return not measured and price is not None and price > medians.get(role, 0.0)
+
+
+def role_medians(prices: list[tuple[str, float | None]]) -> dict[str, float]:
+    """The median quotation per role over a whole listone - the population `awaiting_data` compares to."""
+    by_role: dict[str, list[float]] = {}
+    for role, price in prices:
+        if role and price is not None:
+            by_role.setdefault(role, []).append(price)
+    out: dict[str, float] = {}
+    for role, values in by_role.items():
+        ordered = sorted(values)
+        middle = len(ordered) // 2
+        out[role] = (ordered[middle] if len(ordered) % 2
+                     else (ordered[middle - 1] + ordered[middle]) / 2)
+    return out
+
+
 def priced_without_history(conn, target_season: str, input_season: str) -> list[dict]:
     """Listone players priced ABOVE their role's median with no data at all for `input_season`.
 
@@ -90,19 +120,11 @@ def priced_without_history(conn, target_season: str, input_season: str) -> list[
         LEFT JOIN clubs c ON c.fc_club_id = r.fc_club_id
         WHERE r.season = ? AND r.price_initial IS NOT NULL AND r.role_classic IS NOT NULL
         """, (target_season,)).fetchall()
-    by_role: dict[str, list[float]] = {}
-    for _fc_id, _name, role, price, _club, _league, _born in rows:
-        by_role.setdefault(role, []).append(price)
-    median = {}
-    for role, prices in by_role.items():
-        ordered = sorted(prices)
-        middle = len(ordered) // 2
-        median[role] = (ordered[middle] if len(ordered) % 2
-                        else (ordered[middle - 1] + ordered[middle]) / 2)
+    median = role_medians([(role, price) for _fc, _name, role, price, *_rest in rows])
 
     out: list[dict] = []
     for fc_id, name, role, price, club, league, born in rows:
-        if price <= median.get(role, 0):
+        if not awaiting_data(role, price, measured=False, medians=median):
             continue
         has_stats = conn.execute(
             "SELECT 1 FROM season_stats WHERE fc_id = ? AND season = ? AND pv > 0 LIMIT 1",
@@ -602,9 +624,13 @@ def run(ctx: Context, *, seasons=None, wanted: int = MATCHES_WANTED, bonuses: bo
             if limit:
                 players = players[:limit]
             print(f"[recent_form] {target}: {len(players)} priced players with no {previous} data")
-            for player in players:
+            for done, player in enumerate(players):
                 if ctx.cancelled():
                     raise KeyboardInterrupt
+                # the panel's bar reads this line (`Context.progress`): one request per player and a
+                # counted total, so the percentage is a real fraction of real work
+                ctx.progress("recent_form", done, len(players),
+                             f"{target} · {player['name'][:18]}")
                 try:
                     entry = _process(ctx, session, conn, player, target, cutoff, wanted, bonuses)
                 except KeyboardInterrupt:

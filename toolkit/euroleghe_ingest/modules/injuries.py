@@ -480,6 +480,7 @@ def fetch_injury_pages(ctx: Context, seasons: tuple[str, ...], limit: int | None
             done += 1
             if done % 25 == 0 or done == len(todo):
                 print(f"[injuries] {done}/{len(todo)} players fetched")
+                ctx.progress("injuries", done, len(todo), "players fetched")
     except KeyboardInterrupt:
         print("[injuries] interrupted - every fetched player is cached, rerun to continue")
     finally:

@@ -46,6 +46,7 @@ from euroleghe_ingest.modules.positions import (
     REAL_ROLE_SIDE,
     REAL_ROLES,
 )
+from euroleghe_ingest.modules import recent_form
 from euroleghe_ingest.modules.snapshot import competition_class
 from euroleghe_ingest.sources import _norm_roles, available_sources
 
@@ -2197,7 +2198,10 @@ class SnapshotView(ttk.Frame):
     # The percentage in a `[snapshot] 46% · descriptive layers` line. The module owns the number - its
     # stages carry MEASURED weights (`snapshot.STAGES`) - and the panel only reads it, so the two cannot
     # drift: a stage added there shows up here without a line of change.
-    PERCENT_LINE: ClassVar[re.Pattern] = re.compile(r"^\[snapshot\]\s+(\d{1,3})%\s*·?\s*(.*)$")
+    # ANY module's progress line, not only the snapshot's: `Context.progress` prints the same shape, so
+    # a scrape that recovers what a player is missing drives the same determinate bar as a build.
+    PERCENT_LINE: ClassVar[re.Pattern] = re.compile(
+        r"^\[[a-z_]+\]\s+(\d{1,3})%\s*·?\s*(.*)$")
 
     def building(self, running: bool, step: str = "") -> None:
         """Show how much of the build is done and the stage it is on; hide it again when it ends.
@@ -2844,7 +2848,46 @@ class SnapshotView(ttk.Frame):
         ("\u2605", "he arrived this summer"),
         ("\u231b", "his contract expires within a year"),
         ("?", "no injury history at all was found for him - his inj column is unknown, not zero"),
+        ("⧖", "nothing measured about him yet, and the toolkit can still fetch it (recent_form)"),
+        ("⟳", "the toolkit is fetching his data right now"),
     )
+
+    # Whether a data-recovery run is in flight, so the mark says «being fetched» instead of «missing».
+    # Class-level default: a headless view can read a row before any run has ever been launched.
+    _recovering: ClassVar[str] = ""
+
+    def awaiting_data(self, row: dict) -> bool:
+        """Whether this row is one the toolkit can still go and measure (`recent_form.awaiting_data`).
+
+        Read off the SHEET: nothing measured means no season behind him and no recent matches either, which
+        is the same emptiness the module tests in the DB - and it is what makes the mark self-clearing, since
+        the very rows the scrape fills stop qualifying on the next build.
+        """
+        measured = bool(row.get("desc_season_matches") or row.get("desc_form_measured"))
+        return recent_form.awaiting_data(row.get("role_classic") or "",
+                                         _number(row.get("price_initial"), None),
+                                         measured, self._price_medians())
+
+    def _price_medians(self) -> dict[str, float]:
+        """The sheet's own median quotation per role - computed once, like the column means."""
+        if getattr(self, "_medians", None) is None:
+            self._medians = recent_form.role_medians(
+                [((row.get("role_classic") or ""), _number(row.get("price_initial"), None))
+                 for row in self.players])
+        return self._medians
+
+    def recovering(self, running: bool, step: str = "", command: str = "") -> None:
+        """A data-recovery run, on the sheet's own bar: same widget and same percentage as a build.
+
+        It belongs here and not only in the log because the men being fetched are the men this table marks
+        as waiting - so the operator watches the gap close where he saw it open. Redrawing the table on the
+        way in and out is what flips their mark between «missing» and «being fetched».
+        """
+        was, self._recovering = self._recovering, (command or "recent_form") if running else ""
+        self.building(running, f"{command or 'recovering'} {step}" if running else "")
+        if bool(was) != bool(self._recovering):
+            with contextlib.suppress(Exception):
+                self._fill_table()
 
     def _flags(self, row: dict) -> tuple[str, str]:
         """(the icons, the same thing in words). Two renderings of one list, so the cell can be narrow.
@@ -2863,6 +2906,12 @@ class SnapshotView(ttk.Frame):
             bool(row.get("desc_arrival")),
             bool(row.get("desc_exit_risk")),
             not row.get("desc_injury_source"),
+            # A GAP THE TOOLKIT CAN STILL CLOSE, and it has to be visible: a man priced above his role's
+            # median with nothing measured at all is why his surplus cell is empty - «below MIN_PV_PREV the
+            # core refuses to predict» - and he is exactly whom `recent_form` goes and fetches. The rule is
+            # the module's own (`recent_form.awaiting_data`), so the mark and the population are one thing.
+            self.awaiting_data(row) and not self._recovering,
+            self.awaiting_data(row) and self._recovering,
         )
         icons = "".join(icon for (icon, _why), on in zip(self.FLAG_ICONS, present, strict=True) if on)
         words = []
@@ -7036,10 +7085,19 @@ class ToolkitGUI:
                     self._set_busy(False)
                     self._refresh_all(built_snapshot=built_snapshot)
                     self.snapshot.building(False)
+                    self.snapshot.recovering(False)
                 else:
                     self._append(item)
-                    if self._running == "snapshot" and item.strip():
-                        self.snapshot.building(True, item.strip().splitlines()[-1])
+                    line = item.strip().splitlines()[-1] if item.strip() else ""
+                    if self._running == "snapshot" and line:
+                        self.snapshot.building(True, line)
+                    # A RECOVERY run belongs on the sheet's own bar too: the men it is fetching are the
+                    # ones the table marks as waiting, so the operator watches the gap close where he saw
+                    # it open. Same widget, same percentage, same parser.
+                    elif self._running in self.RECOVERS_DATA and line:
+                        self.snapshot.recovering(True, line, self._running)
+                    if line:
+                        self._show_percent(line)
         except queue.Empty:
             pass
         self.root.after(100, self._drain_log)
@@ -7050,17 +7108,45 @@ class ToolkitGUI:
         self.log.see("end")
         self.log.configure(state="disabled")
 
+    # The operations that go and MEASURE what a player is missing - the ones the sheet's "waiting for
+    # data" mark is about. Named here because two views need the same list: the status bar drives its bar
+    # from them, and the Snapshot table says «in recupero» while one of them runs.
+    RECOVERS_DATA: ClassVar[frozenset[str]] = frozenset({
+        "recent_form", "positions", "injuries", "fbref", "transfers", "stats"})
+
+    def _show_percent(self, line: str) -> None:
+        """Drive the status bar off any module's `NN% ·` line: determinate, with the number in words.
+
+        Indeterminate until a module says a number, because a bar that fills at a guessed rate is a lie
+        told smoothly - and never backwards for the same run, for the reason `building` states.
+        """
+        match = SnapshotView.PERCENT_LINE.match(line)
+        if not match:
+            return
+        percent, label = int(match.group(1)), (match.group(2) or "").strip()
+        if self._percent is None:
+            self.progress.stop()
+            self.progress.configure(mode="determinate", maximum=100)
+        self._percent = max(self._percent or 0, percent)
+        self.progress.configure(value=self._percent)
+        running = f" {self._running}" if self._running else ""
+        self.activity_var.set(f"⟳  running{running} · {self._percent}%"
+                              + (f" · {label[:40]}" if label else ""))
+
     def _set_busy(self, busy: bool, command: str | None = None) -> None:
         self.busy = busy
         self._running = command if busy else None
+        self._percent = None
         if busy:
             for btn in self.buttons:
                 btn.configure(state="disabled")
             self.stop_button.configure(state="normal")
             self.activity_var.set(f"⟳  running {command}" if command else "⟳  running")
+            self.progress.configure(mode="indeterminate")
             self.progress.start(12)
         else:
             self.progress.stop()
+            self.progress.configure(mode="determinate", value=0)
             self.stop_button.configure(state="disabled")
             self.activity_var.set("idle")
             self.refresh_operation_states()

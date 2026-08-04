@@ -786,6 +786,7 @@ def fetch_heatmaps(ctx: Context, leagues, seasons, refresh: bool = False,
             done += 1
             if done % 50 == 0 or done == len(todo):
                 print(f"[positions] heatmap {done}/{len(todo)} player-seasons")
+                ctx.progress("positions", done, len(todo), "heatmaps")
     except KeyboardInterrupt:
         print("[positions] interrupted - every fetched heatmap is cached, rerun to continue")
     finally:
