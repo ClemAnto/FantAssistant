@@ -494,6 +494,71 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.18 (4 agosto 2026, pomeriggio — due tabelle nuove, e la quotazione scende all'ultimo posto)
+
+Seguito della v9.17 nello stesso giorno, ma su un altro strato: **dati e gate**, non disegno. Commit
+`4d979c3` · `c9b7b47` · `78be957` · `8d13b18` · `6682c3d` · `d163184`. Toolkit **0.7.0**, 285 test verdi,
+`backtest --verify` **22/22**.
+
+### 1. Tabelle nuove: `market_values` e `fvm_history`
+- **`market_values(fc_id, season, source, value)`** — il valore di mercato **per stagione**, dalla pagina rosa
+  di Transfermarkt che già scarichiamo (`injuries.parse_squad`, una colonna in più letta per nome
+  dall'intestazione): **zero richieste nuove**. È **storico** — la pagina di una stagione passata porta il
+  valore di quella stagione, verificato su undici stagioni di un club (225 / 175 / 150 / 100 / 200 mila per lo
+  stesso uomo) — quindi una finestra legge la stagione di **input** per prevedere la **bersaglio**. Ingerito
+  offline: **9388 valori · 3180 giocatori · 11 stagioni**, 75-80% dei listoni recenti. Nel contratto d'export.
+- **`fvm_history(fc_id, season, observed_on, fvm, fvm_mantra)`** — il fantavalore come la **serie datata** che
+  è: «varia ogni settimana o quando ci sono eventi particolari, infortuni e trasferimenti» (l'operatore). Era
+  in `rosters.fvm`, **sovrascritto a ogni scarico del listone**, cioè uno stato volatile tenuto come campo
+  statico — contro la regola del progetto. `rosters.fvm` resta l'ultimo valore (lo legge il foglio); la serie
+  **accumula da oggi** e non è ricostruibile, perché la fonte serve un valore archiviato per stagione e non le
+  sue settimane. ⚠️ Prima del **2022-23** l'FVM è **0 e non NULL**: `count(fvm)` leggeva copertura piena su
+  valori assenti, e uno zero non è un fantavalore.
+
+### 2. Colonne nuove nel foglio
+`coach_shapes` / `coach_shapes_of` (le forme di **quell'allenatore**, ogni sua panchina, `coaches` ×
+`club_match_lineups`) · `desc_preseason_starts` / `desc_preseason_matches` (le amichevoli della stagione
+bersaglio iniziate sotto l'allenatore di adesso) · `desc_market_value` /
+`desc_investment_value_share`.
+
+### 3. Tre verdetti, e nessuno cambia il motore
+- **la forma dell'allenatore nuovo ENTRA** (`shape_odds`, al posto della lega, pesata da soglia e rampa sul
+  proprio campione): 12 club su 34 disegnavano il modulo del predecessore. Giudizio sulla previsione 26/27:
+  **8/17 → 9/17** — Atalanta al **4-3-3 di Sarri**, difesa a quattro, 9 uomini su 11 come la fonte.
+  Dettaglio: v9.17 §6.
+- **la PRE-SEASON resta una LETTURA** (targhetta, mai un criterio): sembra decisiva — le due amichevoli di
+  Sarri le iniziano Gaetano, Samardzic, Scamacca e Raspadori, e De Roon/Ederson/Krstovic nessuna — ed è
+  inutilizzabile per cinque ragioni misurate (una sola pre-season di dati, 1-3 partite, due club su sette a
+  zero, minuti assenti in 1399 righe su 1716, avversari l'U23 del club stesso). Pre-registrata per giugno
+  2027: gate §7.
+- **il VALORE DI MERCATO non entra** (gate **§7-quinquies**): su euro il migliore in pool è zero, su Serie A
+  tutti e sei i fold scelgono 0.10-0.20 ma il guadagno medio è **+0.08%** contro un pavimento di 0.5%. Il
+  proxy migliore ha comprato **il verso e non la taglia** — il cartellino non aveva nemmeno il verso — e
+  conferma che il meccanismo è già assorbito dai **minuti**.
+
+### 4. La QUOTAZIONE scende all'ultimo posto (gate §7-sexies)
+Decisione dell'operatore: «utilizziamo la quotazione quando non abbiamo altre risorse oggettive». Verificato
+che il **motore adottato non la leggeva già** (R12/R12b/R17 falsificate e fuori dai set, il livello di
+rimpiazzo dalla fantamedia del rostered marginale, `stature` a zero, `arrival_tier` letto solo dalla GUI).
+L'unico punto vivo — quale percentile instrada un arrivo — ora ha **tre livelli**: calcio giocato
+(FM-equivalente nella lega di provenienza, percentile nel ruolo) → **fantavalore** (il giudizio più fresco) →
+quotazione. Su euro `measured_first` vince **7 fold su 7** (CONFIRMED, margine **+0.89%**); su Serie A la
+quotazione guadagnerebbe +0.42%, **sotto il pavimento**, e la causa è la **copertura** del misurato (25-29%
+euro contro 14-20% Serie A).
+**Difetto dell'harness trovato dal numero**: lo sweep giudicava i tier su **tutti** gli arrivi, e questo dava
+alla quotazione un `robust PASS` falso su `default`; un tier instrada solo chi il **core non può prezzare**.
+Corretto (2573 euro / 2180 default invece di 2963 / 2842). Lezione in CLAUDE.md: **un parametro va giudicato
+sulla popolazione su cui agisce**.
+
+### 5. L'harness riproduce 22 numeri su 22 (era 15/18)
+I tre che mancavano erano tutti del modulo presenze su T1, e la causa era la **data**:
+`presenze-attese-v1.md` è del 22 luglio e `platform` è entrata il 25-26, quindi erano misurati su un dataset
+che mescolava i calendari. La conclusione era anche data al **singolare** su una quantità dipendente dalla
+piattaforma. I check sul Pv sono ora **controlli di regressione** e non test sul segno, con `REFERENCE_GATE`
+che porta la misura di oggi **con la sua piattaforma** e i numeri di luglio come superati; **aggiunto** il MAE
+del segmento **titolari**, che il documento citava e nessuno verificava. Blocco «RIMISURATO» in
+`presenze-attese-v1.md`.
+
 ## Novità v9.17 (4 agosto 2026 — un modulo disegnato è un modulo VERO: cinque regole, e la heatmap al suo posto)
 
 Sessione interamente sul pannello Snapshot, guidata da sei osservazioni dell'utente sui board di Napoli,

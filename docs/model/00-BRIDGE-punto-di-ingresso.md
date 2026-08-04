@@ -88,6 +88,29 @@ Spec **«Novità v9.17»**, misure nuove nel gate **§5-quaterdecies**. Commit `
    posto e il modulo esce 4-4-1-1 — la stessa forma di `_flanked`, ma sulla profondità invece che sulla
    fascia.
 
+### ...e il POMERIGGIO del 4/08: la quotazione all'ultimo posto (spec «Novità v9.18»)
+
+9. **La QUOTAZIONE è l'ultima risorsa** (gate **§7-sexies**), decisione dell'operatore: «è il giudizio
+   soggettivo di chi quota». Il motore adottato **non la leggeva già** — R12/R12b/R17 falsificate e fuori dai
+   set, il livello di rimpiazzo dalla fantamedia del rostered marginale, `stature` a zero, `arrival_tier`
+   letto solo dalla GUI. L'unico punto vivo era quale percentile instrada un arrivo, e ora ha **tre livelli**:
+   **calcio giocato** (FM-equivalente nella lega di provenienza, percentile nel ruolo) → **fantavalore** (il
+   giudizio più fresco: «varia ogni settimana o quando ci sono eventi particolari») → **quotazione**. Su euro
+   `measured_first` vince **7 fold su 7** (CONFIRMED, +0.89%); su Serie A la quotazione guadagnerebbe +0.42%,
+   sotto il pavimento, e la causa è la **copertura** del misurato (25-29% contro 14-20%). ⚠️ Il seguito NON è
+   tornare al prezzo: è **allargare il misurato** alla Serie B e ai campionati non coperti.
+10. **`fvm_history`**: il fantavalore era uno **stato volatile tenuto come campo statico**, sovrascritto a
+   ogni scarico del listone. Ora è una serie datata che **accumula da oggi** — la storia settimanale
+   precedente non esiste in nessun posto raggiungibile. E prima del **2022-23** è **0 e non NULL**, quindi la
+   «copertura 1395 su 1395» era illusoria.
+11. **Regola di metodo nuova, e l'ha trovata un numero**: inserendo il fantavalore la quotazione otteneva un
+   `robust PASS` su `default`, che era **falso** — lo sweep giudicava i tier su tutti gli arrivi mentre un
+   tier instrada solo chi il **core non può prezzare**. **Un parametro va giudicato sulla popolazione su cui
+   agisce** (in CLAUDE.md).
+12. **`market_values`** (9388 valori · 3180 giocatori · 11 stagioni, gratis dalla pagina rosa già scaricata) e
+   il verdetto §7-quinquies: **non adottato**, e la sfumatura è il risultato — il proxy migliore ha comprato
+   **il verso e non la taglia**.
+
 ### La sessione precedente — la sessione del 3-4/08/2026: quindici richieste sul PANNELLO
 
 Dettaglio in [stato-progetto-continuita-v5.md](stato-progetto-continuita-v5.md) sezione «Sessione

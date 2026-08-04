@@ -72,6 +72,61 @@ del giro precedente: i **centrali su una fascia** sono **3 → 0**, e gli **atta
 4/394**, tutti Lilla e tutti lo stesso pari merito di claim (0.83) fra un trequartista e una punta per
 l'**unico** posto d'attacco di un 4-5-1 — capito, non ancora chiuso.
 
+### 4 agosto 2026 (pomeriggio), in una riga: la quotazione scende all'ultimo posto, e un numero ha scoperto un difetto dell'harness
+
+Stesso giorno, altro strato: **dati e gate**, non disegno. Spec **«Novità v9.18»**, gate **§7-quinquies** e
+**§7-sexies**. Toolkit **0.7.0**, **285 test verdi**, `backtest --verify` **22/22**.
+
+**L'allenatore nuovo pesa, per la FORMA.** 12 club su 34 (7 su 20 in Serie A) hanno un allenatore con **zero
+undici in quel club**, quindi il board disegnava il modulo del **predecessore**. `coach_shapes` /
+`coach_shapes_of` contano le forme di *quell'allenatore* in ogni sua panchina (`coaches` ×
+`club_match_lineups`, una passata SQL offline) ed entrano in `shape_odds` **al posto della lega** — il
+repertorio di lega è la risposta generica a «cosa farebbe una squadra qui», 188 undici di un allenatore sono
+la risposta specifica — pesate da soglia e rampa sul **proprio campione**, che va da Sarri 188 a Iraola 0.
+Giudizio sulla previsione 26/27: **8/17 → 9/17**; l'Atalanta passa al **4-3-3 di Sarri** con la difesa a
+quattro e 9 uomini su 11 come la fonte. La soglia non è un dettaglio: con n=2 la moda è rumore e
+sovrascriverebbe un'abitudine di club già giusta (Lazio).
+
+**La PRE-SEASON è una lettura, non un criterio.** Sul caso dell'utente sembra decisiva — le due amichevoli di
+Sarri le iniziano **Gaetano, Samardzic, Scamacca e Raspadori** e De Roon/Ederson/Krstovic **nessuna** — e non
+è usabile, per cinque ragioni misurate: una sola pre-season di dati per-giocatore (1696 righe contro 37), 1-3
+partite, **Milan e Napoli a zero**, minuti assenti in 1399 righe su 1716, e avversari l'**U23 del club stesso**
+e l'Arezzo. Va sulla targhetta (`desc_preseason_*`) e su nulla che scelga un undici; pre-registrata per giugno
+2027, quando esisterà un fuori campione.
+
+**Il VALORE DI MERCATO storico esiste, ed è gratis.** Nella pagina rosa di Transfermarkt che già scarichiamo:
+**9388 valori · 3180 giocatori · 11 stagioni**, e la pagina di una stagione passata porta il valore **di quella
+stagione** (verificato). Tabella `market_values`, nel contratto d'export. Chiude §7-quater col proxy giusto —
+il cartellino era NULL per chi arriva gratis, cioè diceva «nessun investimento» su Modric e De Bruyne. Esito:
+**non adottato**, e la sfumatura è il risultato — su euro il migliore in pool è **zero**, su Serie A **tutti e
+sei** i fold scelgono un peso non nullo ma il guadagno medio è **+0.08%** contro un pavimento di 0.5%. Il
+proxy migliore ha comprato **il verso, non la taglia**; il cartellino non aveva nemmeno il verso.
+
+**La QUOTAZIONE all'ultimo posto**, decisione dell'operatore («è il giudizio soggettivo di chi quota»).
+Verificato che il motore adottato **non la leggeva già**; l'unico punto vivo era quale percentile instrada un
+arrivo, e ora ha tre livelli: **calcio giocato → fantavalore → quotazione**. Su euro `measured_first` vince
+**7 fold su 7** (CONFIRMED, +0.89%); su Serie A la quotazione guadagnerebbe +0.42%, **sotto il pavimento**, e
+la causa è la **copertura** del misurato (25-29% contro 14-20%). Il seguito non è tornare al prezzo: è
+allargare il misurato alla Serie B e ai campionati non coperti.
+
+**Il fantavalore è uno stato volatile tenuto come campo statico**, ed è stato corretto: `fvm_history(fc_id,
+season, observed_on, ...)` accumula da oggi (la storia settimanale non esiste da nessuna parte), e prima del
+2022-23 l'FVM è **0 e non NULL** — la «copertura piena» era illusoria.
+
+**E un numero ha scoperto un difetto dell'harness.** Inserendo il fantavalore, la quotazione otteneva un
+`robust PASS` su `default`: falso, perché lo sweep giudicava i tier su **tutti** gli arrivi mentre un tier
+instrada solo chi il **core non può prezzare**. Scorato sulla popolazione giusta (2573 / 2180 invece di 2963 /
+2842) il PASS spariva. **Un parametro va giudicato sulla popolazione su cui agisce** — regola nuova in
+CLAUDE.md.
+
+**L'harness riproduce 22 numeri su 22** (era 15/18). I tre che mancavano erano tutti del modulo presenze su
+T1 e la causa era la **data**: quel documento è del 22 luglio, `platform` è entrata il 25-26, quindi erano
+misurati su un dataset che mescolava i calendari — e la conclusione era data al **singolare** su una quantità
+dipendente dalla piattaforma (su `default` il modulo batte il naive su entrambe le finestre, su `euro` solo su
+T2; il **bias**, cioè il criterio di adozione, si riproduce su tutto). I check sul Pv sono ora controlli di
+**regressione** e non test sul **segno**, ed è stato aggiunto il MAE dei **titolari**, citato dal documento e
+verificato da nessuno.
+
 ### 29 luglio 2026, in una riga: quattro credenze del fantacalcio misurate, e l'effetto è sempre su CHI GIOCA
 Domande dell'utente: riposo corto, «vincere aiuta a vincere», l'undici che si conferma dopo una vittoria,
 la sferzata del nuovo allenatore. Misurate su `platform='default'` (Serie A), 7 stagioni,

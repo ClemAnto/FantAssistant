@@ -335,6 +335,17 @@ Nota: **nessuna delle feature generate il 27/07 e' entrata nel motore**, e **nes
 
 
 ## Aperto dopo la sessione del 04/08/2026 (pannello Snapshot, spec «Novità v9.17»)
+- [ ] **ALLARGARE il misurato ai campionati non coperti** — è il seguito vero della regola sulla quotazione,
+      e la misura dice perché: `foreign_fm_equivalent` copre il **25-29%** degli arrivi su euro e il **14-20%**
+      su Serie A, perché legge solo i cinque campionati che parsiamo. La maggior parte degli acquisti di Serie
+      A viene da **Serie B** e da leghe fuori perimetro, e là la quotazione resta l'unica affermazione
+      esistente. Ampliare la copertura è ciò che farebbe pagare la regola anche su `default`, dove oggi la
+      quotazione guadagna +0.42% (sotto il pavimento). ⚠️ NON riproporre «torniamo al prezzo»: è già misurato.
+- [ ] **La SERIE del fantavalore, quando sarà una serie** — `fvm_history` accumula da oggi (4/08/2026) e una
+      riga non è una serie. Quando ce ne saranno abbastanza, la domanda misurabile è: «il mercato ha cambiato
+      idea su di lui» dice qualcosa che i **minuti** non dicono? Bersaglio `P(titolare)`, mai la fantamedia,
+      e il confronto è con `standing` — il predittore che lo sweep ha già adottato. ⚠️ Da non confondere col
+      LIVELLO del fantavalore, che è §7-quinquies e ha comprato solo il verso.
 - [x] **FATTO il 04/08 — la QUOTAZIONE è l'ultima risorsa** (gate **§7-sexies**), decisione dell'utente. Il
       motore adottato non la leggeva già (R12/R12b/R17 falsificate, livello di rimpiazzo dalla fantamedia,
       `stature` a zero); l'unico punto vivo erano i **tier degli arrivi**, che ora sono guidati dalla
