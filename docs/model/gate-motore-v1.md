@@ -1517,6 +1517,83 @@ si poteva (i dodici codici misurati dicono *dove gioca*); ma per *come lo compri
 punteggiare per ruolo, quindi non è riducibile. Come non lo è il **prezzo richiesto** al tavolo: l'asta si
 gioca su quello, e vederlo accanto al valore predetto serve a misurare di quanto il mercato sbaglia.
 
+## 7-septies. L'INVESTIMENTO in forma CONDIZIONALE (pre-registrata il 5 agosto 2026, non ancora eseguita)
+
+Ipotesi dell'utente, nata su un caso con nome e cognome: «Ratkov è un attaccante su cui la società ha
+investito molto, l'ha pagato tanto l'anno scorso. Ma il suo vecchio allenatore (Sarri) ha dichiarato che non
+lo avrebbe schierato — questo ha determinato un basso surplus. L'allenatore è cambiato, quindi è molto
+probabile che gli dia una nuova chance, anche perché in quel ruolo non ci sono concorrenti.»
+
+### Perché è una TERZA forma e non la riproposizione di §7-quinquies
+§7-quater e §7-quinquies hanno misurato l'investimento come **effetto principale**: un lift sommato alla
+standing di tutti (`standing`) e un lift che chiude parte dello sconto d'arrivo (`arrival`). Verdetto: niente
+su euro, e su Serie A **il verso senza la taglia** (tutti e sei i fold scelgono un peso non nullo, guadagno
+medio +0.08% contro un pavimento di 0.5%). La lettura scritta allora è la chiave di questa: «il meccanismo è
+**già assorbito dai minuti**». §7-quinquies chiude con «da non riproporre nella stessa forma» e dichiara cosa
+la riaprirebbe: gli ingaggi, o una variazione infra-stagionale del valore. **Questa non è nessuna delle due**,
+ed è una forma che non è stata misurata: il lift **solo dove i minuti non sono informativi**. Se i minuti
+assorbono l'investimento, allora dove i minuti non ci sono l'investimento è l'unica cosa che resta.
+
+### La forma, dichiarata prima della corsa
+`investment_shape = "unplayed"`: il lift chiude parte del divario fra quanto ha giocato e una stagione piena,
+
+    standing = misurato + lift × (1 − misurato)
+
+quindi su un titolare non può agire **per costruzione** (a `misurato` = 1 il termine è nullo), ed è massimo
+su chi non ha giocato. È la stessa algebra della forma `arrival`, applicata al divario dei MINUTI invece che
+a quello della squadra di provenienza.
+
+### DUE BRACCI, mai sommati, con la copertura dichiarata
+| braccio | proxy | griglia | fold giudicabili |
+|---|---|---|---|
+| **A** | `value_share` = valore Transfermarkt / valore della rosa, stagione di input | 0 → 0.5, quella di §7-quinquies **non ritoccata** | 4 euro + 6 default |
+| **B** | `fee_share` = cartellino / quanto quel club ha speso in quella finestra | 0 → 0.30, quella di §7-quater **non ritoccata** | **2 su default** (`transfers_history.fee` esiste dal 2023) |
+
+Bersaglio: **`starts`** (le giornate del suo campionato in cui è partito titolare la stagione dopo), perché
+la tesi parla di SELEZIONE. Cross-fit leave-one-out, strict e robust affiancati, pavimento 0.5%.
+
+### Quello che è già misurato e va scritto ADESSO, non dopo
+Ho guardato i dati prima di scrivere questa sezione, quindi la pre-registrazione serve a impedire che la
+forma venga ritagliata su ciò che ho visto. I numeri già in mano:
+- la popolazione «investimento alto + pochi minuti, **stesso club**, su 10 finestre»: **7 uomini** con il
+  cambio allenatore (guadagno medio **+0.229** di titolarità) contro **27** senza (**+0.292**). Il cambio
+  allenatore **non separa** i vincenti dai perdenti, e sui cartellini si vede in faccia: Castro 5%→71%,
+  Cajuste 29%→66%, Natan 29%→61% *con* allenatore nuovo, ma anche Cabal 16%→5%, Salah-Eddine 5%→0%,
+  Martinez Jo. 13%→13% *con* allenatore nuovo, e Douvikas 16%→66%, Engelhardt 29%→76% *senza*;
+- quindi la condizione «allenatore cambiato» **NON entra nella forma**: sarebbe stata la mia tentazione dopo
+  aver visto i +0.229, ed è la ragione per cui questa riga è qui. R10 (allenatore nuovo) è già falsificata
+  come effetto principale su dieci finestre;
+- la condizione «nessun concorrente nel ruolo» **non entra** nemmeno: restringe la popolazione da 34 uomini a
+  una manciata, e sotto quella taglia nessun pavimento è raggiungibile. Resta una LETTURA per il tabellone;
+- la popolazione che resta (investimento alto + minuti bassi, con o senza allenatore nuovo) è di **34 uomini**
+  con mediana **+0.26** di una stagione di titolarità, che è la taglia che questa forma va a cercare.
+
+### I criteri di falsificazione, dichiarati
+1. **segno che cambia fra i fold** → non adottata (è il criterio che ha ucciso R1b, e ha funzionato);
+2. **guadagno medio sotto il pavimento** dello 0.5% → non adottata, peso a **0.0**, come `fee_weight`,
+   `stature_weight` e `value_weight` oggi;
+3. giudizio **sulla popolazione su cui il termine agisce** (gli uomini il cui lift è diverso da zero) e non
+   su tutti: è la lezione di §7-sexies, dove il tier prendeva un PASS grazie a uomini che non tocca mai;
+4. **il braccio B non conferma nulla anche se passa.** Due finestre sono la prova più debole che questo gate
+   accetti, ed è lo scenario che ha ucciso R4, R10 e R8 (vive su due, morte su dieci): un PASS su B è
+   «sospeso», esattamente come il PASS formale di R5b su Serie A, che **non** è stato adottato;
+5. e se A passa su una piattaforma sola, il verdetto si scrive **al plurale** (è la regola di §«citare un
+   numero fittato»: una conclusione dipendente dalla piattaforma non si dice al singolare).
+
+### Cosa succede in ogni caso — decisione dell'utente, presa il 5/08/2026
+Se muore, **nessun `engine_*` si muove** e il fatto resta sul tabellone come lettura che non decide niente,
+nello stesso trattamento del corpo (§5-terdecies) e della pre-season (`snapshot.preseason_starts`): per
+Ratkov sono il cartellino (13.0M€ dal Salisburgo, 1/07/2025) contro il valore di mercato (9.0M€), le 2
+presenze da titolare del 25/26, l'allenatore nuovo dal 23/06/2026 e il fatto che nel listone 26/27 è
+**l'unico 'pc'** della Lazio (Dia e Noslin sono 'a'). Nessuno di questi numeri entra in una previsione
+finché il gate non lo dice.
+
+Nota su ciò che le AMICHEVOLI dicono di questo caso, misurata il 5/08/2026 e riportata qui perché è la
+tentazione più vicina: sotto Gattuso, **Ratkov ha giocato 1 delle 2 amichevoli** — e così **Dia (1 su 2)** e
+**Noslin (1 su 2)**. Il segnale esiste e **non discrimina**: dice «è nella rotazione», non «è il titolare».
+Vale per la pre-season tutto quello che `snapshot.preseason_starts` ha già scritto, e la prima misura fuori
+campione possibile resta giugno 2027.
+
 ## 5-terdecies. La punta torre e la punta di movimento (3 agosto 2026) — misurata, NON adottata
 
 Ipotesi dell'utente, con la sua stessa formulazione: «dovresti capire se l'allenatore predilige una punta
