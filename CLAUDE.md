@@ -223,6 +223,42 @@ the voto - `Var(ln pv)` is 90% of `Var(ln` total fantapunti`)`. And a Serie A ma
 offline from `match_ratings` (`platform='default'`): `goals` is net of penalties AND own goals, so
 goals-for = `SUM(goals) + SUM(pen_scored)` and goals-against comes from the `role='P'` rows.
 
+## A drawn module is a real module, and a SECOND opinion must not undo a priced one
+**Where a decision is already priced, do not re-derive it somewhere else.** The eleven is assigned to the
+module's own places and every place is priced as a whole (`_assign`/`_slot_price`, Hungarian); `lanes_for`
+then re-read each man's lane from his FIRST code and threw that away, which is how Liverpool's 4-5-1 came out
+with a back THREE, five men squeezed into one half with the far touchline empty, and an attack of two
+left-sided men - the fit had given Gakpo (`LW`) the five's left flank and a mediano the four's second centre,
+both correctly. Same shape of defect twice more: two pricers that could disagree (`slot_cost` said a front
+line's wide place belongs to a forward and `_slot_price` did not, so a wing back outbid Fiorentina's third
+striker and pushed him out of the eleven - one pricer now, `_off_the_front` states the rule where the price
+is decided), and a stale slot outliving the line that issued it (a `ST` kept the front three's left after the
+transformation had thinned the line to two central places, and the badge read it as 'As').
+The operator's rules now live in ONE transformation, five in cascade (`_reshape`): nobody plays two lines from
+home; a flank is covered by a flank player and the central man dislocates to the row his most ADVANCED code
+says (the defence is exempt - braccetti); **a vacated midfield wing is covered from the front** («i due
+attaccanti esterni possono arretrare e coprire il centrocampo»); a place in the front line is a FORWARD's
+job, and a thinned front line keeps its centre-forwards; a midfield ROW is five at most. Plus the vocabulary,
+because a marker is a claim too: **flank codes come in pairs** («se c'è un Ed ci deve essere anche una Es»,
+idem Ad/As, Td/Ts) and an unpaired one falls back to the line's central job; a **centre-forward is never
+renamed into an ala** by a place («Krstovic e Scamacca sono Pc e basta»); and a row reaches **both touchlines
+or neither**. Guarded by 394 boards (every club x every shape of its repertoire x both modes x both sheets):
+0 rows over the maximum, 0 unpaired flank codes, 0 lopsided rows. Details: spec «Novità v9.17».
+
+## Judge a drawing against somebody else's eleven
+**A board has an external judge available, so use it instead of arguing.** The published typical elevens of
+the same window (SOS Fanta) give, per man, the LINE somebody else draws him in - 193 comparable men over 20
+clubs, plus 52 whose FLANK is stated (in those lists a line runs from the team's right to its left). The
+board scores 83% of the men and 16/20 line counts, and every hypothesis about positions gets tested there
+rather than adopted: the heatmap-vs-code question was settled that way (gate §5-quaterdecies) - the
+measurement BEATS the code at naming a flank (97.9% vs 93.9%) and is already read where that pays (`lateral`),
+while four ways of using it elsewhere are flat or negative, and any weight on the measured DEPTH costs,
+because that axis saturates up front (median avg_x: full back 47, mediano 51, then winger 61, CENTRE-FORWARD
+62, winger 63 - touches gather where a man receives the ball). Two corollaries worth keeping: a mean cannot
+tell a two-flank winger from a central man while the cloud's three bands can (Malen 0.37/0.50/0.14 against
+Pulisic 0.46/0.30/0.24, centroids -0.149 and -0.163); and what a man's PRIMARY code misses, his code LIST
+usually already carries (Zé Pedro reads `DC;DR` with 75% of his touches in the right band).
+
 ## A layout claim is a measurement too
 **Read the widget geometry before and after (`winfo_height` / `winfo_rooty`), and assert the invariant as a
 RATIO so the test survives another display's fonts.** The panel is 5,100 lines and no test looked at geometry,

@@ -326,12 +326,25 @@ Nota: **nessuna delle feature generate il 27/07 e' entrata nel motore**, e **nes
       `fee` è cieco proprio sulla finestra che si sta prezzando.
 
 
-## Aperto dopo la sessione del 03-04/08/2026 (pannello Snapshot, spec «Novità v9.16»)
-- [ ] **Separare il pool `T` da quello `A`** quando il modulo ha una linea di trequartisti. Misurato su 340
-      undici: **9 attacchi senza un attaccante** (il Barcellona schiera Olmo e Lopez con una punta a 0.79
-      fuori) e **3 centrali su una fascia**. Causa: `line_key` manda `AM` nel pool dell'attacco, quindi per
-      claim un trequartista batte una punta. ⚠️ **Provato e annullato**: mettere gli attaccanti in testa al
-      pool sistema il Barcellona e **rompe l'Atalanta** (torna il 3-6-1). Serve la separazione, non un ordine.
+## Aperto dopo la sessione del 04/08/2026 (pannello Snapshot, spec «Novità v9.17»)
+- [ ] **La regola 4a alla SELEZIONE**, che è il residuo dei «9 attacchi senza un attaccante». Dopo la
+      sessione del 04/08 sono **4 su 394 board**, tutti lo stesso club e lo stesso uomo: Lilla, l'**unico**
+      posto d'attacco di un 4-5-1 assegnato a Haraldsson (`AM`, claim **0.83**) invece che a Fernandez-Pardo
+      (`ST`, **0.83**) — pari merito rotto sui **minuti**, e poi la guardia «mai l'ultimo uomo dell'attacco»
+      lo tiene là davanti (giusto: una squadra i cui unici attaccanti sono trequartisti va disegnata con
+      loro). La strada: se l'unico posto d'attacco andrebbe a un trequartista, la **riga di centrocampo cede
+      un posto** e il modulo esce 4-4-1-1 — stessa forma di `_flanked` (la composizione della riga informa la
+      selezione), ma sulla **profondità** invece che sulla fascia. ✅ I **centrali su una fascia** sono
+      chiusi: **3 → 0**.
+- [ ] **Le bande della heatmap, SE si riapre la domanda giusta** (gate §5-quaterdecies). Validate come
+      segnale — separano chi gioca su **entrambe** le fasce da chi gioca al **centro**, che una media non può
+      (Malen 0.37/**0.50**/0.14 contro Pulisic 0.46/0.30/0.24, centroidi −0.149 e −0.163) — e **misurate come
+      inutili sul modulo** (0 forme cambiate su 162 board, 2 targhette su 1782 e in peggio). La domanda per
+      cui valgono è «copre **davvero** l'altra fascia?», cioè `sides_of` → i **ballottaggi** e la riga dei
+      rivali: metrica da definire prima (le fonti pubblicano i ballottaggi a singhiozzo). Costo: migrazione
+      `positions` + colonna d'ingest (il payload è già in cache e già parsato per il centroide) + colonna nel
+      foglio. ⚠️ Non riaprirla come «diamo più peso alla heatmap»: quattro famiglie di pesi sono già state
+      swippate e sono piatte o negative.
 - [ ] **Gli undici del NUOVO allenatore devono pesare** — amichevoli comprese — sia nel prior del modulo sia
       nel claim. Atalanta: Sarri dal 15/06/2026, `formation_typical_under_coach = 0` (il 3-4-3 al 93% è
       dell'allenatore di prima), il suo modulo è misurabile dai nostri dati (`coaches` × `club_match_lineups`:
@@ -341,7 +354,21 @@ Nota: **nessuna delle feature generate il 27/07 e' entrata nel motore**, e **nes
 - [ ] **`proposedMarketValue`**: sta nella stessa pagina rosa del provider da cui vengono i dodici codici, il
       piede e ora altezza/peso. È il proxy che **§7-quater** aspettava per ri-testare l'investimento del club,
       per GIOCATORE e non solo per chi è costato un cartellino. Migrazione + parse (offline) + lo stesso sweep.
-- [x] **FATTO** — percentuale della build, `claim` ≠ `presence`, assegnazione globale col prezzo per linea,
-      badge dei terzini, piede, corpo (misurato e non usato), tabella su canvas con pillole/colori/check,
-      tooltip nello schermo, SURPLUS vuoto spiegato. Dettaglio: spec «Novità v9.16», stato «Sessione
-      03-04/08/2026».
+- [x] **FATTO il 03-04/08** — percentuale della build, `claim` ≠ `presence`, assegnazione globale col prezzo
+      per linea, badge dei terzini, piede, corpo (misurato e non usato), tabella su canvas con
+      pillole/colori/check, tooltip nello schermo, SURPLUS vuoto spiegato. Dettaglio: spec «Novità v9.16».
+- [x] **FATTO il 04/08 — il modulo disegnato è un modulo VERO** (spec «Novità v9.17», commit `1108803`): le
+      cinque regole di `_reshape` in cascata (nessuno a due linee da casa · la fascia la copre un esterno · la
+      fascia svuotata la copre l'attaccante che arretra · un posto in attacco è di un attaccante, e
+      l'attacco assottigliato tiene le punte · la riga di centrocampo è cinque al massimo); le **fasce in
+      coppia** sulla targhetta e la punta che non diventa mai un'ala; **entrambe le touchline o nessuna**; un
+      **solo listino** (`slot_cost` eliminato, `_off_the_front` al suo posto, griglia raddoppiata per lo
+      spareggio sul primo codice); `_flanked`, cioè le fasce di una riga contese da chi le gioca. Verifica:
+      **394 board** con 0 righe oltre il massimo, 0 codici spaiati, 0 righe asimmetriche; **83% degli uomini**
+      e **16/20** conteggi di linea contro le formazioni tipo pubblicate; 278 test.
+- [x] **MISURATO E NON ADOTTATO il 04/08 — «posizione effettiva» contro «in potenza»** (gate
+      §5-quaterdecies, commit `51d069e`): la heatmap **batte** il codice nel nominare una fascia (97.9% contro
+      93.9% su 52 uomini di cui le fonti dichiarano il lato) ed è **già** letta dove serve (`lateral`).
+      Quattro modi di usarla altrove, tutti piatti o negativi; ogni peso sulla **profondità** peggiora, perché
+      quell'asse **satura** (punta 62, ali 61-63, terzino 47, centrale 34). Pesi a **zero**, bracci
+      raggiungibili, numeri nei commenti.

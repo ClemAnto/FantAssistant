@@ -26,7 +26,69 @@ proporre qualsiasi regola) → **`metrica-asta-surplus-v1.md`** (con cosa il pan
 
 Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
 
-### ULTIMO IN ORDINE DI TEMPO — la sessione del 3-4/08/2026: quindici richieste sul PANNELLO
+### ULTIMO IN ORDINE DI TEMPO — 4/08/2026: un modulo disegnato è un modulo VERO, e la heatmap al suo posto
+
+Spec **«Novità v9.17»**, misure nuove nel gate **§5-quaterdecies**. Commit `1108803` (le regole) e `51d069e`
+(le misure). **Nessun verdetto del gate cambia: nessuna regola del motore è entrata.** 278 test verdi.
+
+1. **Il difetto era uno solo, e non era nelle regole: era un secondo parere non prezzato.** L'undici viene
+   assegnato ai posti del modulo e ogni posto è prezzato (`_assign`), poi `lanes_for` rileggeva la corsia dal
+   **primo codice** di ciascuno e disfaceva la decisione. Liverpool 4-5-1, misurato: il fit aveva dato a Gakpo
+   (`LW`) la fascia **sinistra dei cinque** e a Gravenberch (`MC;DM`) il **secondo centrale della difesa a
+   quattro**, e la rilettura li spediva in attacco e a centrocampo → **difesa a tre**, cinque schiacciati
+   nella metà destra con la touchline sinistra vuota, attacco di due mancini. «Il modulo non può perdere la
+   simmetria». Ora quella rilettura fa **solo** la mossa per cui esiste: un **centrale** una riga avanti,
+   sulla trequarti (il 4-5-1 che è un 4-4-1-1). Le altre tre direzioni erano tutte sbagliate e tutte
+   misurate: attraverso le linee (Liverpool), fuori da una fascia (Bayer, usciva 3-3-3-1), indietro sulla
+   riga (Verona 3-5-1-1 → sei in fila e trequarti vuota).
+2. **`_reshape` è LA trasformazione: cinque regole, nell'ordine in cui le verifica un allenatore**, ognuna
+   con le parole dell'utente come definizione. (1) nessuno a due linee da casa; (2) una fascia la copre un
+   esterno, il centrale si disloca sul codice **più avanzato** (difesa esente: i braccetti); (3) **la fascia
+   svuotata la copre l'attaccante esterno che arretra** — era la metà mancante della frase; (4a) **un posto
+   in attacco è il lavoro di un attaccante** (Roma: «Malen ha giocato solo come Pc, Dybala e Soulé sono
+   trequartisti» → il 3-4-3 esce **3-4-2-1**, la forma che le sue probabili dichiarano) e (4b) l'attacco
+   assottigliato tiene le punte («3-4-3 non può diventare 3-4-1-2», «Sp + Pc non può avere un esterno
+   d'attacco»); (5) **la riga di centrocampo è cinque al massimo**, e il tetto è l'ultimo passo perché la
+   regola 4 può consegnarle un uomo.
+3. **Le fasce vanno in coppia, e una punta non diventa un'ala.** «Se c'è un Ed ci deve essere anche una Es»
+   (idem Ad/As, Td/Ts): un codice di fascia **spaiato** ripiega sul mestiere centrale della linea. «Krstovic e
+   Scamacca non possono trasformarsi in As, sono Pc e basta»: `ST` è l'eccezione alla regola «la fascia
+   appartiene alla maglia», e chi non è il centravanti legge `Ad`/`As` **solo se gioca lì**, altrimenti `Sp`.
+   E **entrambe le touchline o nessuna**: la riga sbilenca (uno sulla vernice, la touchline opposta vuota)
+   era difesa come informazione e l'utente l'ha superata.
+4. **Un solo listino.** `slot_cost` **eliminato**: restava usato solo il suo terzo termine (ora `_line_gap`),
+   era un secondo listino accanto a `_slot_price` e i due **discordavano** — ed è così che Gosens (`ML;DL`, 6)
+   ha scalzato Piccoli (`ST`, 7) sulla fascia del tridente della Fiorentina e **la terza punta è uscita dagli
+   undici**. La regola sta dove si decide il prezzo (`_off_the_front`). La griglia è **raddoppiata** perché
+   mezzo passo faccia da spareggio sul **primo** codice (Olivera `DL;DC` a sinistra), spareggio tenuto fuori
+   dai confronti di `_settle`.
+5. **`_flanked`: le fasce di una riga le contende chi le gioca**, non solo il pool della sua linea — la
+   regola 3 un passo prima, alla **selezione**. Bologna: i cinque prendevano un `MR` a 0.44 e **un centrale di
+   difesa** per le ali mentre Orsolini (`RW`, 0.64) e Cambiaghi (`LW`, 0.53) non concorrevano. Resta la
+   domanda del claim: si prende la maglia solo a chi ha claim più basso.
+6. **La heatmap: modello dell'utente («posizione effettiva» contro «in potenza», con pesi diversi),
+   validato e già al suo posto.** Sui 52 uomini di cui le fonti dichiarano la fascia: primo codice **93.9%**,
+   **centroide 97.9%**, banda dominante del cloud 97.8%. La misura batte il codice, il cloud **non** batte il
+   centroide — che è già ciò che `lateral` legge per primo. Quattro tentativi di usarla altrove, **tutti
+   piatti**: riordino dei codici (3 bracci), pesi per asse (12 punti di griglia, e ogni peso sulla
+   **profondità** costa perché quell'asse **satura** — punta 62, ali 61-63), fascia dalle bande (0 forme, 2
+   targhette su 1782 e in peggio), fascia misurata in `sides_of` (4 soglie). La ragione, che chiude la
+   famiglia: **quello che il codice PRIMARIO perde, la LISTA dei codici ce l'ha già** (Zé Pedro `DC;DR`, 75%
+   dei tocchi a destra). Gate §5-quaterdecies.
+7. **Verifica**: **394 board** (ogni club × ogni forma del repertorio × 2 modalità × 2 fogli) con **0 righe
+   oltre il massimo, 0 codici spaiati, 0 righe asimmetriche**, ogni forma disegnata è un modulo reale. Contro
+   le formazioni tipo pubblicate della stessa finestra: **83% degli uomini** e **16/20** conteggi di linea
+   (era 15). Verificato anche **sul canvas vero** leggendo gli item disegnati.
+8. ✅ **Chiuso uno dei due punti aperti del blocco precedente**: i **centrali su una fascia** sono **3 → 0**.
+   ⚠️ **Ridotto e capito il secondo**: gli **attacchi senza un attaccante** sono **9/340 → 4/394**, e i
+   quattro sono lo stesso club e lo stesso uomo — Lilla, con l'unico posto d'attacco di un 4-5-1 assegnato a
+   Haraldsson (`AM`, claim **0.83**) invece che a Fernandez-Pardo (`ST`, **0.83**): un **pari merito** rotto
+   sui minuti, e poi la guardia «mai l'ultimo uomo dell'attacco» lo tiene là davanti. Il seguito naturale è
+   la regola 4a alla **selezione**: se l'unico posto d'attacco andrebbe a un trequartista, la riga cede un
+   posto e il modulo esce 4-4-1-1 — la stessa forma di `_flanked`, ma sulla profondità invece che sulla
+   fascia.
+
+### La sessione precedente — la sessione del 3-4/08/2026: quindici richieste sul PANNELLO
 
 Dettaglio in [stato-progetto-continuita-v5.md](stato-progetto-continuita-v5.md) sezione «Sessione
 03-04/08/2026», spec **«Novità v9.16»** (dieci punti), misure nuove nel gate **§5-terdecies**.
@@ -491,12 +553,22 @@ generazione delle ipotesi: passare lì è la prova più debole possibile.**
 
 ### Cosa manca, in ordine (aggiornato 4/08/2026)
 
-0. **Due cose aperte sul BOARD, misurate e non tarate al buio** (spec «Novità v9.16» §10-quater/§10-sexies):
-   la linea `T` in pool con l'attacco (9 attacchi su 340 senza un attaccante, 3 centrali su una fascia) e il
-   campione del **nuovo allenatore** che non pesa da nessuna parte — Sarri all'Atalanta, `under_coach = 0`,
-   4-3-3 misurato su 188 undici, due amichevoli parsate con Raspadori titolare. La strada per la prima è
-   separare il pool `T` da quello `A` quando il modulo ha una linea di trequartisti; per la seconda, far
-   entrare gli undici dell'allenatore (amichevoli comprese) nel prior del modulo e nel claim.
+0. **Il nuovo allenatore non pesa da nessuna parte** — Sarri all'Atalanta, `formation_typical_under_coach =
+   0`, il suo 4-3-3 è misurabile (**162 undici su 188 = 86%**) e le sue due amichevoli con Raspadori titolare
+   sono in cache. Strada: far entrare gli undici dell'allenatore (amichevoli comprese) nel prior del modulo e
+   nel claim. ⚠️ Da fare con il gate in mano: «nuovo allenatore» come regola predittiva è già stata
+   **falsificata** su dieci finestre (R10), quindi qui si parla di **quale forma disegnare**, non di prevedere.
+0-bis. **Il residuo del board, uno solo e capito** (4/08, dettaglio nel blocco ULTIMO IN ORDINE DI TEMPO
+   §8): 4 attacchi su 394 senza un attaccante, tutti Lilla, un **pari merito di claim** (0.83) fra un
+   trequartista e una punta per l'**unico** posto d'attacco di un 4-5-1. La strada è la regola 4a portata
+   alla selezione: se quel posto andrebbe a un trequartista, la riga di centrocampo cede un posto e il modulo
+   esce 4-4-1-1. I centrali su una fascia sono **chiusi** (3 → 0).
+0-ter. **Le bande della heatmap, validate e NON in pipeline** (gate §5-quaterdecies): separano chi gioca su
+   **entrambe** le fasce da chi gioca al **centro** (Malen 0.37/**0.50**/0.14 contro Pulisic 0.46/0.30/0.24,
+   centroidi quasi identici), il payload è già in cache e l'ingest già lo parsa per il centroide. Sul
+   **modulo** non spostano nulla, misurato. Se si riaprono, la domanda è un'altra — «copre davvero l'altra
+   fascia?», cioè i **ballottaggi** — e va definita prima la metrica, perché le fonti li pubblicano a
+   singhiozzo. Costo: migrazione di `positions` + colonna d'ingest + colonna nel foglio.
 1. **Il valore di mercato è arrivato gratis**: `proposedMarketValue` sta nella stessa pagina rosa del
    provider da cui vengono i dodici codici, il piede e ora altezza/peso. È il proxy che **§7-quater**
    aspettava per ri-testare l'investimento del club, per GIOCATORE e non solo per chi è costato un

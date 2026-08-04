@@ -1,5 +1,5 @@
 # Spec — Toolkit `euroleghe-ingest` v9 (task 1.0 della roadmap)
-**Aggiornata: 29 luglio 2026 (v9.14 — investimento del club e unita' PARTITA; v9 SOSTITUISCE la v8)** · Python · Output: SQLite `euroleghe.db` + CSV normalizzati
+**Aggiornata: 4 agosto 2026 (v9.17 — un modulo disegnato e' un modulo VERO; v9 SOSTITUISCE la v8)** · Python · Output: SQLite `euroleghe.db` + CSV normalizzati
 *Sigle: fc_id = identificativo fantacalcio.it · FM = fantamedia · Mv = media voto · Pv = partite a voto · xref = cross-reference id tra siti · xG/xA = expected goals/assists · manifest = lista file da recuperare.*
 **Convenzione: identificatori sempre in INGLESE** (tabelle, colonne, moduli, variabili); italiano solo nella documentazione.
 
@@ -493,6 +493,111 @@ ruolo**, **8% disgiunti** — e le disgiunte sono quasi tutte `a` del listone co
 visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**. Riscontri esatti:
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
+
+## Novità v9.17 (4 agosto 2026 — un modulo disegnato è un modulo VERO: cinque regole, e la heatmap al suo posto)
+
+Sessione interamente sul pannello Snapshot, guidata da sei osservazioni dell'utente sui board di Napoli,
+Atalanta, Liverpool, Fiorentina e Roma. **Nessun numero del motore cambia**: cambiano quale maglia veste
+ciascuno degli undici, come la linea è disegnata e cosa dice la targhetta. Commit `1108803` e `51d069e`.
+
+### 1. Il difetto comune: un secondo parere non prezzato che disfaceva una decisione prezzata
+L'undici viene **assegnato** ai posti del modulo e ogni posto è **prezzato** (`_assign` + `_slot_price`, una
+sola assegnazione risolta come un tutto). Poi `lanes_for` **rileggeva la corsia dal primo codice di ciascuno**
+e buttava via la decisione. Sul 4-5-1 del Liverpool, misurato: il fit aveva dato a Gakpo (`LW`) la **fascia
+sinistra dei cinque** e a Gravenberch (`MC;DM`) il **secondo centrale della difesa a quattro** — un mediano
+che scala costa 4, un terzino destro che cambia fascia 8 — e la rilettura spediva il primo in attacco e il
+secondo a centrocampo. Risultato disegnato: **difesa a tre**, cinque schiacciati nella metà destra con la
+fascia sinistra **vuota**, e un attacco di due mancini. «Il modulo non può perdere la simmetria».
+Ora quella rilettura fa **solo la mossa per cui esiste**: un centrocampista **centrale** una riga avanti,
+sulla trequarti (il 4-5-1 che in realtà è un 4-4-1-1). Ogni altra direzione svuota un posto che il modulo ha
+assegnato, e tutte e tre le direzioni sbagliate sono state misurate: attraverso le **linee** (Liverpool),
+fuori da una **fascia** (Bayer Leverkusen: Tella teneva la destra dei quattro e ha primo codice `AM`, usciva
+un 3-3-3-1 con i quattro senza fascia destra), e **indietro** sulla riga (Verona 3-5-1-1: il modulo *nomina*
+un trequartista, il fit vi metteva un `MC`, la rilettura lo riportava in linea → sei in fila **e** trequarti
+vuota).
+
+### 2. `_reshape`: la trasformazione, cinque regole nell'ordine in cui le verifica un allenatore
+Ognuna con le parole dell'utente come definizione:
+1. **nessuno gioca a due linee da casa** (`LINE_REACH`);
+2. **una fascia la copre un esterno**: il centrale la lascia e si disloca nella riga centrale che il suo
+   codice **più avanzato** indica («4 centrocampisti centrali non esistono... ai lati devono esserci due
+   esterni, mai centrali»). La **difesa è esente**: i braccetti;
+3. **una fascia di centrocampo svuotata la copre l'attaccante esterno che arretra** («i due attaccanti
+   esterni possono arretrare e coprire il centrocampo») — era la metà mancante della frase, e senza di essa
+   la riga perdeva semplicemente la fascia;
+4. **la linea d'attacco è per gli attaccanti** (4a) e, una volta assottigliata, **tiene le punte centrali**
+   (4b). 4a: chi ha come primo codice un posto che non è d'attacco è un trequartista che può anche salire —
+   Roma («Malen ha giocato solo come Pc, dovrebbero giocare Dybala e Soulé come trequartisti»): il 3-4-3 esce
+   **3-4-2-1** con la punta sola, che è la forma che le sue stesse probabili dichiarano. 4b: «3-4-3 non può
+   diventare 3-4-1-2», «Sp + Pc non può avere un esterno d'attacco»;
+5. **la riga di centrocampo è cinque al massimo** («una linea di centrocampo a 5 è già il massimo»): gli
+   eccedenti **centrali** si dislocano sulla trequarti, i più avanzati per primi. Il tetto è l'**ultimo**
+   passo, perché la regola 4 può consegnare alla riga un uomo (Genoa usciva 3-6-1 così).
+
+### 3. Il vocabolario: una targhetta è un'affermazione, e le fasce vanno in coppia
+- **le fasce sono una coppia di mestieri**: «se c'è un Ed ci deve essere anche una Es e viceversa», idem
+  Ad/As e Td/Ts. Un codice di fascia **spaiato** ripiega sul mestiere centrale della sua linea (`_paired`).
+  Ha corretto anche un caso vecchio: una difesa a **tre** con un `DR` come braccetto leggeva `Td` senza `Ts`,
+  e ora legge `Dc Dc Dc` — che è la regola già scritta («una difesa a tre ha tre centrali e nessuna fascia»);
+- **una punta centrale non diventa un'ala per il posto che le danno**: «Krstovic e Scamacca non possono
+  trasformarsi in As, sono Pc e basta». `ST` è l'eccezione alla regola «la fascia appartiene alla maglia»
+  (un terzino è un mestiere che si assegna, una punta è definita **dall'essere centrale**); chi non è il
+  centravanti della linea legge `Ad`/`As` **solo se gioca davvero lì**, altrimenti `Sp`. In una coppia la
+  maglia va alla punta **più pura** (`ST` da solo batte `AM;ST`: Krstovic davanti a De Ketelaere);
+- **entrambe le touchline o nessuna**: una riga con meno di due uomini che giocano una fascia è un **blocco
+  centrale**, simmetrico. La riga sbilenca — uno sulla riga di fondo, la touchline opposta vuota — era stata
+  difesa come informazione («lopsided is information») e l'utente l'ha superata: non è una posizione che un
+  modulo abbia. La Fiorentina lo diceva nel modo più chiaro (una seconda punta a 0.28, la punta a 0.58 e un
+  esterno basso sulla vernice sinistra).
+
+### 4. Un solo listino, e la selezione che considera chi gioca su quella fascia
+- **`slot_cost` eliminato** (−45 righe). Restava usato solo il suo terzo termine, la distanza di linea, ora
+  `_line_gap`: era un **secondo listino** accanto a `_slot_price` e i due **discordavano**. Diceva «un posto
+  larghe della linea d'attacco è di un attaccante» e `_slot_price` no: è esattamente così che Gosens
+  (`ML;DL`, 6) ha **scalzato Piccoli** (`ST`, 7) sulla fascia del tridente della Fiorentina, `_better_pair`
+  ha rimesso Parisi a sinistra e **la terza punta è uscita dagli undici**, disegnata come `Sp + Pc + Es`. La
+  regola ora sta dove si decide il prezzo (`_off_the_front`: chi non gioca nessuna linea d'attacco paga una
+  linea intera per un posto là davanti — un costo, mai un veto);
+- **la griglia è raddoppiata** così mezzo passo può fare da spareggio: a pari prezzo vince il **primo**
+  codice, perché la maglia del terzino sinistro va all'uomo di cui è il primo mestiere (Olivera `DL;DC` a
+  sinistra, il `DC;DL` dentro). Lo spareggio è tenuto **fuori** dai confronti «mai un fit peggiore» di
+  `_settle`, dove faceva sparire una riparazione vera (Cagliari: Gaetano trequartista disegnato terzo
+  centrale, e Zé Pedro a pari claim fuori);
+- **`_flanked`**: le fasce di una riga sono contese da **tutti quelli che le giocano**, non solo dal pool
+  della sua linea. È la stessa frase della regola 3 un passo prima, alla **selezione**. Bologna, misurato: i
+  cinque prendevano un `MR` a 0.44 e **un centrale di difesa** per le ali, mentre Orsolini (`RW`, 0.64) e
+  Cambiaghi (`LW`, 0.53) non concorrevano nemmeno, perché i codici di un'ala lo mettono solo nel pool
+  d'attacco. Resta la domanda del **claim**: un rivale prende la maglia solo a chi ha claim più basso, solo
+  se la sua linea può cederlo (`can_lend`) e mai lasciando scoperta l'altra fascia — è ciò che tiene fuori il
+  Touré a 0.00 da cui questa famiglia di regole è nata.
+
+### 5. Verifica: 394 board, e il confronto con le formazioni tipo pubblicate
+Ogni club × ogni forma del suo repertorio × entrambe le modalità × i due fogli: **0 righe oltre il massimo,
+0 codici di fascia spaiati, 0 righe asimmetriche**, e ogni forma disegnata è un modulo reale (prima uscivano
+2-5-3, 4-2-4, 2-6-2, 3-3-3-1, 3-6-1). Contro le formazioni tipo pubblicate della **stessa finestra** (SOS
+Fanta, metà 25/26): **183/220 = 83% degli uomini** e **16 su 20** con gli stessi conteggi di linea (era 15).
+Sassuolo 11/11; Inter, Milan, Bologna, Como, Lecce, Roma, Torino, Udinese, Juventus 10/11. Le divergenze
+residue sono leggibili: Cagliari e Juventus hanno **moduli** diversi perché il nostro viene dalle forme
+*misurate* nella finestra e il loro da una previsione sulla stagione nuova; Napoli e Roma hanno gli stessi
+9-10 uomini disegnati una riga più avanti. Verificato anche **sul canvas vero** del pannello, leggendo gli
+item disegnati: Roma `Dc 0.28 | Dc 0.50 | Dc 0.72` / `Ed 0.11 | C 0.37 | C 0.63 | Es 0.89` / `T 0.39 | T
+0.61` / `Pc 0.50`, punto medio di ogni riga a 0.50.
+Quattro test nuovi, uno per regola-famiglia (simmetria, coppie di fascia, tetto a 5, fasce contese) più i due
+sui casi Napoli/Atalanta/Roma: **278 in totale**.
+
+### 6. La heatmap: validata come segnale, e già al suo posto
+Modello dell'utente, ed è quello giusto: un codice è una posizione che il giocatore **può** ricoprire (il
+provider elenca quello che ha coperto o potrebbe coprire, e legge **oggi**), la heatmap è dove **ha
+giocato**. Validata come compito di previsione sui **52 uomini di cui le formazioni pubblicate dichiarano la
+fascia**: primo codice **93.9%** (46/49), **centroide 97.9%** (46/47), banda dominante del cloud 97.8%
+(45/46). La misura batte il codice — e il **cloud non batte il centroide**, che è già quello che `lateral`
+legge **per primo**, tenendo il codice solo come guardia contro una contraddizione. Dettaglio, e i quattro
+tentativi di usarla altrove che sono risultati **piatti**, in [gate §5-quaterdecies](gate-motore-v1.md).
+Nota di dato, riusabile: il payload della heatmap in cache è una griglia `points: [{x, y, count}]`, e le tre
+**bande** (terzo sinistro/centrale/destro, orientate con la stessa calibrazione di `measured_sides`)
+separano ciò che una media non può — chi gioca **su entrambe le fasce** da chi gioca **al centro**: Malen
+0.37/**0.50**/0.14 contro Pulisic 0.46/0.30/0.24, centroidi −0.149 e −0.163. Non è in pipeline: costerebbe
+una migrazione di `positions`, una colonna d'ingest e una nel foglio, e il disegno non la usa.
 
 ## Novità v9.16 (3 agosto 2026 — la percentuale di una build, il piede, e la tabella che colora le celle)
 

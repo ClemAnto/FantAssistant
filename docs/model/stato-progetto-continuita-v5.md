@@ -1,5 +1,5 @@
 # Stato progetto & continuità — v5
-**Aggiornato: 29 luglio 2026 (chiusura: il pannello spende l'altezza sul campetto)**
+**Aggiornato: 4 agosto 2026 (chiusura: un modulo disegnato e' un modulo VERO)**
 Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da qui + i file della cartella "Modello Previsionale Fantacalcio".
 *Glossario: T1/T2 = finestre di test (23/24->24/25, 24/25->25/26) · MAE = errore medio assoluto · cross-fitted = parametri stimati su una finestra, testati sull'altra · M2e = modello portieri decomposto con ClubElo · Pv_att = presenze attese · fc_id = id fantacalcio.it · EV = valore atteso · scoring_config = punteggi configurabili per lega · xG/xA = expected goals/assists · 2.5 pieno = backtest motore completo con flag.*
 
@@ -7,6 +7,70 @@ Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da q
 App per leghe EuroLeghe/fantacalcio.it (Classic+Mantra, 5 campionati) con motore previsionale. Metodo: ogni regola entra SOLO se batte il baseline fuori campione su finestre indipendenti (gate pre-registrato). Doc madre: modello-previsionale-v3.8.md.
 
 ## ⚠️ Lo stato corrente è in `00-BRIDGE-punto-di-ingresso.md`, blocco «STATO AL 4 AGOSTO 2026»
+
+### 4 agosto 2026, in una riga: un modulo disegnato è un modulo VERO, e un secondo parere non prezzato disfaceva una decisione prezzata
+
+Sessione interamente sul pannello Snapshot, guidata da sei osservazioni dell'utente sui board di Napoli,
+Atalanta, Liverpool, Fiorentina e Roma. **Nessuna regola del motore è entrata, nessun verdetto del gate
+cambia.** Dettaglio: spec **«Novità v9.17»**, misure nel gate **§5-quaterdecies**. Commit `1108803` (le
+regole) e `51d069e` (le misure). 278 test verdi.
+
+**La causa era una sola.** L'undici viene assegnato ai posti del modulo e ogni posto è **prezzato**
+(`_assign` + `_slot_price`, una sola assegnazione risolta come un tutto); poi `lanes_for` rileggeva la corsia
+dal **primo codice** di ciascuno e buttava via la decisione. Liverpool 4-5-1, misurato: il fit aveva dato a
+Gakpo (`LW`) la fascia sinistra dei cinque e a Gravenberch (`MC;DM`) il secondo centrale della difesa a
+quattro — un mediano che scala costa 4, un terzino destro che cambia fascia 8 — e la rilettura li spediva in
+attacco e a centrocampo. Uscivano una **difesa a tre**, cinque schiacciati nella metà destra con la touchline
+sinistra vuota e un attacco di due mancini: «il modulo non può perdere la simmetria». Ora quella rilettura fa
+**solo** la mossa per cui esiste — un **centrale** una riga avanti, sulla trequarti — e le altre tre
+direzioni, tutte misurate, erano tutte sbagliate: attraverso le linee (Liverpool), fuori da una fascia
+(Bayer, usciva un 3-3-3-1), indietro sulla riga (Verona 3-5-1-1: sei in fila **e** trequarti vuota).
+
+**Le regole, in cascata, ognuna con le parole dell'utente come definizione** (`_reshape`): nessuno gioca a
+due linee da casa · una fascia la copre un esterno, il centrale si disloca sul codice più avanzato (difesa
+esente: i braccetti) · **la fascia di centrocampo svuotata la copre l'attaccante esterno che arretra**, che
+era la metà mancante della frase · **un posto in attacco è il lavoro di un attaccante** (Roma: il 3-4-3 esce
+3-4-2-1 con Dybala e Soulé trequartisti e **Malen `Pc` al centro**, la forma che le sue probabili dichiarano)
+e l'attacco assottigliato **tiene le punte** · la riga di centrocampo è **cinque al massimo**, e il tetto è
+l'ultimo passo perché la regola 4 può consegnarle un uomo (Genoa usciva 3-6-1 così).
+
+**Il vocabolario**: le fasce sono una **coppia di mestieri** («se c'è un Ed ci deve essere anche una Es»,
+idem Ad/As e Td/Ts) e un codice spaiato ripiega sul mestiere centrale della linea — questo ha corretto anche
+una difesa a **tre** che leggeva `Td` senza `Ts`; una **punta centrale non diventa un'ala** per il posto che
+le danno («Krstovic e Scamacca sono Pc e basta»), quindi `ST` è l'eccezione alla regola «la fascia appartiene
+alla maglia» e chi non è il centravanti legge `Ad`/`As` solo se gioca lì, altrimenti `Sp`; e **entrambe le
+touchline o nessuna** — la riga sbilenca era stata difesa come informazione e l'utente l'ha superata.
+
+**Un solo listino**: `slot_cost` **eliminato** (restava usato solo il suo terzo termine, ora `_line_gap`).
+Era un secondo listino accanto a `_slot_price` e i due **discordavano** — diceva «un posto largo della linea
+d'attacco è di un attaccante» e `_slot_price` no — ed è esattamente così che Gosens (`ML;DL`, 6) ha scalzato
+Piccoli (`ST`, 7) sulla fascia del tridente della Fiorentina e **la terza punta è uscita dagli undici**.
+Adesso la regola sta dove si decide il prezzo (`_off_the_front`), e la griglia è **raddoppiata** perché mezzo
+passo faccia da spareggio sul **primo** codice (Olivera `DL;DC` a sinistra, il `DC;DL` dentro) — spareggio
+tenuto **fuori** dai confronti «mai un fit peggiore» di `_settle`, dove faceva sparire riparazioni vere
+(Cagliari, Udinese). E `_flanked`: **le fasce di una riga le contende chi le gioca**, non solo il pool della
+sua linea (Bologna prendeva un `MR` a 0.44 e un **centrale di difesa** per le ali, con Orsolini `RW` 0.64
+fuori) — sempre con la domanda del claim, che è ciò che tiene fuori il Touré a 0.00 da cui la famiglia nasce.
+
+**La heatmap, modello dell'utente e sua formulazione**: «l'heatmap è un dato effettivo che certifica in che
+parte del campo gioca; le posizioni di Sofascore sono indicative — in passato o in potenza. Due elementi che
+si completano, con pesi diversi». Validata: sui 52 uomini di cui le fonti dichiarano la fascia, primo codice
+**93.9%**, **centroide 97.9%**, banda dominante del cloud 97.8%. **La misura batte il codice** e il cloud
+**non** batte il centroide — che è già quello che `lateral` legge per primo. Quattro tentativi di usarla
+altrove, **tutti piatti o negativi** (riordino dei codici, pesi per asse, fascia dalle bande, fascia in
+`sides_of`), e la ragione che chiude la famiglia: **quello che il codice primario perde, la lista dei codici
+ce l'ha già** (Zé Pedro `DC;DR`, 75% dei tocchi a destra). Ogni peso sulla **profondità** peggiora perché
+quell'asse **satura**: punta 62, ali 61-63, terzino 47, centrale 34 — i tocchi si accumulano dove uno riceve
+il pallone, quindi lassù punta e ala sono indistinguibili. Pesi a zero, bracci raggiungibili, numeri accanto.
+
+**Verifica**: **394 board** (ogni club × ogni forma del repertorio × 2 modalità × 2 fogli) con **0 righe
+oltre il massimo, 0 codici di fascia spaiati, 0 righe asimmetriche**, e ogni forma disegnata è un modulo
+reale (prima uscivano 2-5-3, 4-2-4, 2-6-2, 3-3-3-1, 3-6-1). Contro le formazioni tipo pubblicate della
+**stessa finestra** (SOS Fanta, metà 25/26): **183/220 = 83% degli uomini** e **16 su 20** conteggi di linea
+(era 15). Verificato anche **sul canvas vero** del pannello leggendo gli item disegnati. Dei due punti aperti
+del giro precedente: i **centrali su una fascia** sono **3 → 0**, e gli **attacchi senza attaccante 9/340 →
+4/394**, tutti Lilla e tutti lo stesso pari merito di claim (0.83) fra un trequartista e una punta per
+l'**unico** posto d'attacco di un 4-5-1 — capito, non ancora chiuso.
 
 ### 29 luglio 2026, in una riga: quattro credenze del fantacalcio misurate, e l'effetto è sempre su CHI GIOCA
 Domande dell'utente: riposo corto, «vincere aiuta a vincere», l'undici che si conferma dopo una vittoria,

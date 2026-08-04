@@ -1406,6 +1406,86 @@ per-partita (`external_match_stats` ha tiri, occasioni, key passes, tocchi), qui
 vera **non è testabile oggi** — ed è dichiarata così invece di essere approssimata con l'altezza del
 titolare.
 
+## 5-quaterdecies. Posizione EFFETTIVA contro posizione IN POTENZA (4 agosto 2026) — quattro misure piatte
+
+Ipotesi dell'utente, e la formulazione è sua: «l'heatmap è un dato effettivo che certifica in che parte del
+campo gioca il calciatore; le posizioni indicate da Sofascore sono indicative, perché magari in passato ha
+ricoperto quel ruolo o perché in potenza può ricoprirlo. Due elementi che si completano, da considerare
+entrambi con **pesi diversi**». Modello corretto, e questa sezione è la misura di quei pesi. Non è una regola
+del motore (nessun `engine_*` cambia): decide **come il pannello dispone l'undici**, quindi il gate delle
+finestre non c'entra e il giudice è un **riferimento esterno**.
+
+### Il giudice, e perché non è «uomini in comune»
+Le 20 formazioni tipo pubblicate della **stessa finestra dei dati** (SOS Fanta, metà 25/26). Due metriche:
+- **linee** — per ogni uomo presente sia nel nostro undici tipo sia in quello pubblicato, la fonte lo disegna
+  nella **stessa linea**? (193 giudicati). È la domanda affilata: punta o ala, mediana o trequarti;
+- **fasce** — nelle liste pubblicate una linea corre dalla **destra alla sinistra** della squadra (verificato
+  su Dumfries…Dimarco e Zortea…Miranda), quindi per ogni linea da quattro in su il primo nome è la fascia
+  destra e l'ultimo la sinistra: **52 uomini di cui il lato è dichiarato da altri**.
+Più l'invariante che non deve mai rompersi: 0 codici di fascia spaiati, 0 righe sbilenche, 0 righe oltre il
+massimo, su tutti i **394 board**.
+
+### Il segnale è VALIDO, ed è già estratto
+Compito di previsione sui 52 uomini, una risposta per fonte, con la copertura perché chi risponde meno spesso
+non è migliore per aver ragione quando risponde:
+
+| fonte | corrette | copertura |
+|---|---|---|
+| la fascia del **primo codice** | 46/49 = **93.9%** | 49/52 |
+| il **centroide** (`desc_side_measured`) | 46/47 = **97.9%** | 47/52 |
+| la **banda dominante** del cloud | 45/46 = 97.8% | 46/52 |
+
+Quindi: **la misura batte il codice** nel nominare una fascia, e il **cloud non batte il centroide**. Che è
+esattamente quello che `lateral` fa da sempre — legge la misura **per prima** e tiene il codice solo come
+guardia contro una contraddizione — su cui poggiano la targhetta e `across_bucket`. La heatmap è nel
+tabellone, ed è nel punto in cui ha informazione che i dodici codici non possono esprimere: un centrale di
+nome che ha passato l'anno sulla sinistra di una difesa a tre.
+
+### I quattro tentativi di usarla altrove, tutti piatti o negativi
+1. **riordinare i codici** con la misura (l'ordine è portante: il primo codice è il mestiere). Tre bracci:
+   ordine del provider **172/193 = 89.1%**; misura che ordina *tutti* i codici 174/194 (+2, −1 a Pisa);
+   misura che *declassa* solo una fascia smentita **172/193 (+0)**. Il +2 del braccio ampio non è separabile
+   da un artefatto documentato: promuove il codice **centrale** di un'ala usata su **entrambe** le fasce
+   (Pulisic `RW;LW;AM;ST` → `AM;ST;LW;RW`), lo smearing del baricentro di cui `lateral` avverte già, ed è
+   tutto sulla Juventus mentre rompe Pisa. Due club su venti.
+2. **pesare misura e codice per asse** (`HEATMAP_SIDE`, `HEATMAP_DEPTH`), ciascun codice **tirato** verso il
+   punto misurato invece di sostituito. Griglia pre-registrata, 12 punti:
+
+   | fascia | prof. | linee | | fascia | prof. | linee |
+   |---|---|---|---|---|---|---|
+   | 0.00 | 0.00 | **172/193 = 89.1%** | | 0.00 | 0.25 | 169 (−3) |
+   | 0.25–0.75 | 0.00 | 172 (**+0**) | | 0.25–0.50 | 0.25 | 168 (−4) |
+   | 1.00 | 0.00 | 170 (−2) | | 1.00 | 1.00 | **159 (−13)** |
+
+   **Zero su entrambi gli assi**, per due ragioni diverse da tenere separate. La **profondità** non certifica
+   ciò che le si chiede: mediana `avg_x` 10 per un portiere, 34 per un centrale, 47 per un terzino, 51 per un
+   mediano — e poi **61 ala destra, 62 PUNTA CENTRALE, 63 ala sinistra**. I tocchi si accumulano dove uno
+   *riceve* il pallone, quindi lassù punta e ala sono indistinguibili mentre terzino e centrale distano 13; il
+   fit lineare su `LANE_DEPTH` lascia **0.33 di residuo, una linea intera**. Non è un segnale debole, è il
+   segnale sbagliato. La **fascia** è piatta da 0 a 0.75 perché per gli uomini che vincono la maglia i codici
+   dicono già quello che dice la heatmap.
+3. **derivare la fascia dalle bande** (il peso come *concentrazione* del cloud, la statistica che separa
+   l'ala bimodale dal centrale): 172/193 a 0.25 e 0.50, 173/194 a 0.75, 170 a 1.00. Sul disegno: riordina **2
+   uomini su 246**, **0 forme cambiate** su 162 board, e **2 targhette su 1782** — e quelle due sono un
+   peggioramento (Dybala e Soulé leggevano `As`/`Ad` invece di `T`/`T`).
+4. **aggiungere a `sides_of` la fascia che la heatmap ha VISTO** (soglie 0.34/0.50/0.70/0.85): **piatto a ogni
+   soglia**, 26/38 fasce e 172/193 linee. E qui c'è la spiegazione di tutta la famiglia: **quello che il
+   codice PRIMARIO perde, la LISTA dei codici ce l'ha già**. Zé Pedro legge `DC;DR` con il 75% dei tocchi
+   nella banda destra — la R **è** nei suoi codici, solo non per prima.
+
+### Verdetto
+**Pesi a zero su entrambi gli assi**, e la pipeline che le bande richiederebbero — migrazione di `positions`,
+colonna d'ingest, colonna nel foglio — **non è giustificata dal disegno**. Nessun invariante si rompe a
+nessun peso (0 rotture su 394 board a ogni punto della griglia): il disegno è **robusto al parametro**, e
+quell'insensibilità è una proprietà da tenere, non una lacuna — nasce dal fatto che la regola 4a legge la
+**linea** di un codice e non la sua fascia, e che `_paired` sistema il vocabolario a valle.
+Le bracce restano raggiungibili (`HEATMAP_SIDE`, `HEATMAP_DEPTH`, `HEATMAP_FIRST` con i suoi tre valori) e i
+numeri stanno nei commenti accanto a loro: un parametro che nessun harness raggiunge è un parametro che
+nessuno può ri-misurare. Da rifare quando cambia il **dato**, non quando torna il dubbio.
+E una cosa che questa misura **non** dice: che le bande siano inutili. Dicono che non spostano il **modulo**.
+La domanda per cui erano nate — «copre davvero l'altra fascia?», cioè i ballottaggi e la riga dei rivali — ha
+una metrica diversa e più debole (le fonti pubblicano i ballottaggi a singhiozzo) e non è stata aperta.
+
 ## 8. Casi di regressione (in `model.REGRESSION_CASES`, stampati da `backtest --cases`)
 
 Lewandowski (età/minuti) · Wirtz (cambio lega) · Torres F. (propensione per-90) · Ezzalzouli (nuovo nel
