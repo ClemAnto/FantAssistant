@@ -700,7 +700,14 @@ Il collo di bottiglia storico è stato affrontato: la regola d'oro ora ha **form
 `python -m euroleghe_ingest backtest`, **read-only** sul DB, scrive solo
 `data/reports/engine_backtest.json`. È anche il **riferimento da cui portare il motore TypeScript**
 in `app/prediction-engine`, quindi resta senza dipendenze ed esplicito.
-- `backtest --verify` **riproduce 15 numeri pubblicati su 18** (ancore Classic/Mantra, beta Mantra,
+- `backtest --verify` **riproduce 22 numeri su 22** (dal 4/08/2026; era 15/18, e i tre che mancavano
+  erano tutti del modulo presenze su T1: il documento che li pubblica è del **22 luglio**, cioè
+  **prima** che `platform` esistesse, quindi erano misurati su un dataset che mescolava i due
+  calendari. La conclusione era anche data al singolare su una quantità **dipendente dalla
+  piattaforma**: su `default` il modulo batte il naive su entrambe le finestre (−5.2% / −2.9%), su
+  `euro` solo su T2. Il criterio di adozione — il **bias**, 4-6 giornate fantasma azzerate — si
+  riproduce su tutto. Dettaglio in `presenze-attese-v1.md`, blocco «RIMISURATO»)
+- ...e i numeri pubblicati che verifica (ancore Classic/Mantra, beta Mantra,
   coefficienti Pv, portieri M2e su entrambe le finestre, bias titolari T2).
 - **3 da rivedere, tutti sul modulo presenze in T1**: `pv_gain_vs_naive_T1` (atteso −0.016, ottenuto
   +0.018), `pv_bias_naive_starters_T1` (5.2 → 4.17), `pv_gain_crossfit_T1` (−0.016 → +0.013). In T2

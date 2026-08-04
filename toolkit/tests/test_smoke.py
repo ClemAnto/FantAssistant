@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import inspect
+
 import pytest
 
 from euroleghe_ingest.cli import build_parser
@@ -1390,3 +1392,28 @@ def test_the_panel_spends_its_height_on_the_board_and_not_on_its_own_chrome(tmp_
             f"pitch {board.pitch.winfo_height()}px against {chrome}px of chrome above it")
     finally:
         root.destroy()
+
+
+def test_the_appearance_segments_carry_the_mae_the_document_quotes():
+    """`presenze-attese-v1.md` quotes the starters' MAE («6.84→6.51 e 6.71→6.27») and nothing was checking
+    it: the segment table only carried the bias. The starters are the segment an auction is decided on, so a
+    silent drift there is the one that costs - and it is exactly where the three unreproducible T1 numbers
+    turned out to live.
+
+    Guarded here as a SHAPE check (the segments carry four numbers, not two) because the values themselves
+    are in `REFERENCE_GATE` and `backtest --verify` compares them against a real window.
+    """
+    from euroleghe_ingest.engine import evaluate, model
+
+    for key in ("T1", "T2"):
+        for name in ("pv_mae_starters_model", "pv_mae_starters_naive", "pv_gain_crossfit",
+                     "pv_gain_vs_naive", "pv_bias_naive_starters", "pv_bias_model_starters"):
+            assert key in model.REFERENCE_GATE[name], f"{name} must carry {key}"
+    # the naive promises the average starter 4-6 phantom matchdays on every window and platform measured:
+    # that is the criterion the module was adopted on, and it is what must never quietly go to zero
+    for key in ("T1", "T2"):
+        assert 4.0 <= model.REFERENCE_GATE["pv_bias_naive_starters"][key] <= 6.5
+        assert abs(model.REFERENCE_GATE["pv_bias_model_starters"][key]) < 1.0
+    source = inspect.getsource(evaluate.appearance_segments)
+    for field in ("bias_model", "bias_naive", "mae_model", "mae_naive"):
+        assert f'"{field}"' in source, f"the segment must report {field}"

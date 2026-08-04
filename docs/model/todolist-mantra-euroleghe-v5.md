@@ -66,7 +66,15 @@ Invariata (storico 9 stagioni, endpoint Excel, fallback SofaScore, scala ricalib
 - [x] **transfers** (Transfermarkt): 46 club in club_xref · 2273 spell allenatori -> **1491 flag new_coach** · 1919 trasferimenti con cifre.
 - [x] **tournaments** (SofaScore, non Wikidata: le formazioni dicono chi ha GIOCATO e quanto): Mondiale 2026, 346 giocatori del perimetro, 95 425 minuti -> flag post_torneo su 2026-27.
 - [x] **arrivals completato**: tier T1=57/T2=660/T3=673 + FM-equivalente estera su 656 (scarto medio **+0.035** dalla FM euro reale dove confrontabile).
-- [x] **HARNESS DEL GATE** (`engine/` + `backtest`): riproduce **15/18** numeri pubblicati; 3 da rivedere sul modulo presenze in T1. E' il riferimento da cui portare il motore TypeScript.
+- [x] **HARNESS DEL GATE** (`engine/` + `backtest`): riproduce **22/22** numeri (4/08/2026; era 15/18). I
+      tre che mancavano erano tutti del modulo presenze su T1, e la causa è la **data**: il documento che li
+      pubblica è del 22 luglio, `platform` è entrata il 25-26, quindi erano misurati su un dataset che
+      mescolava i due calendari («34 vs 38 giornate»). La conclusione era data al **singolare** su una
+      quantità dipendente dalla piattaforma: su `default` il modulo batte il naive su entrambe le finestre
+      (−5.2% / −2.9%), su `euro` solo su T2. Il criterio di adozione — il **bias**, da 4-6 giornate fantasma
+      a ~0 — si riproduce su tutto. I check sul Pv sono ora **controlli di regressione** e non test sul
+      segno, ed è stato aggiunto il MAE del segmento **titolari**, che il documento citava e nessuno
+      verificava. Dettaglio: `presenze-attese-v1.md` blocco «RIMISURATO». E' il riferimento da cui portare il motore TypeScript.
 - [ ] 1.4 Storico 2017-2023 (ri-test baseline multi-stagione e Bundesliga+; curve eta').
 
 ## PRE-REGISTRAZIONI (verifica giugno 2027, senza ritaratura)

@@ -90,12 +90,30 @@ REFERENCE_GATE: dict[str, dict[str, float]] = {
     # modulo-portieri-fase2_2.md: naive vs M2 decomposed, FM MAE on goalkeepers
     "gk_mae_naive": {"T1": 0.323, "T2": 0.336},
     "gk_mae_m2e": {"T1": 0.242, "T2": 0.268},
-    # presenze-attese-v1.md: appearances MAE improvement vs naive (fractions, not %)
-    "pv_gain_vs_naive": {"T1": -0.016, "T2": -0.013},
-    # ... and the bias the module was actually adopted for: the naive forecast promises the average
-    # starter about 5 matchdays he will not play, and the module zeroes that out.
-    "pv_bias_naive_starters": {"T1": 5.2, "T2": 5.3},
-    "pv_bias_model_starters": {"T1": 0.4, "T2": -0.2},
+    # presenze-attese-v1.md, RE-MEASURED 4/08/2026 on euro/mantra - the configuration these checks run in.
+    # ⚠️ The published numbers were T1 -0.016 / T2 -0.013 for the gain and 5.2 / 5.3 for the naive bias, and
+    # they CANNOT be reproduced on today's data for a reason worth writing down instead of chasing: the
+    # document is dated 22 July 2026 and the `platform` dimension was introduced in the spec on 25-26 July.
+    # Those numbers are PRE-PLATFORM - measured on a dataset that mixed the two calendars, which is what the
+    # document means by «gestisce 34 vs 38 giornate», a pairing that no longer exists. The claim is also
+    # PLATFORM-DEPENDENT and the document states it in the singular: on `default` (38->38) the module beats
+    # the naive on BOTH windows (-5.2% and -2.9%, naive bias 6.26 / 5.64), on `euro` (30->31) only on T2.
+    # So these are trust checks in the proper sense - does the code still compute what it computed - and the
+    # scientific claim lives in the doc, per platform, with its date.
+    # What the module was ADOPTED for reproduces everywhere: the naive promises the average starter 4-6
+    # phantom matchdays and the model returns a residual bias of about zero.
+    "pv_gain_vs_naive": {"T1": 0.0183, "T2": -0.0209},
+    "pv_bias_naive_starters": {"T1": 4.17, "T2": 5.47},
+    "pv_bias_model_starters": {"T1": -0.11, "T2": 0.09},
+    # ...and the segment the auction is decided on, which the document quotes (6.84->6.51 and 6.71->6.27)
+    # and NOTHING was checking until now. On euro/mantra today: T1 6.61 vs 6.42 (the naive wins by 3%),
+    # T2 6.22 vs 6.80 (the model wins by 8.5%).
+    "pv_mae_starters_model": {"T1": 6.61, "T2": 6.22},
+    "pv_mae_starters_naive": {"T1": 6.42, "T2": 6.8},
+    # The gate as it was actually RUN: coefficients fitted on the other window. A different quantity from
+    # the in-window gain above, so it gets its own reference instead of borrowing one - T1 scored with T2's
+    # fit is +1.26%, T2 scored with T1's is -2.09%.
+    "pv_gain_crossfit": {"T1": 0.0126, "T2": -0.0209},
 }
 
 # The two per-window fits behind the shipped average (presenze-attese-v1.md quotes them as

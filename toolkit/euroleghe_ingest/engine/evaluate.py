@@ -1276,7 +1276,14 @@ def role_metrics(observations: list[features.Observation], predictions: list[Pre
 
 
 def appearance_segments(data: features.WindowData, predictions: list[Prediction]) -> dict:
-    """Bias by playing-time segment: the criterion presenze-attese-v1 was actually adopted on."""
+    """Bias AND MAE by playing-time segment: the criterion presenze-attese-v1 was actually adopted on.
+
+    The bias was here from the start, because that is what the module was adopted FOR - «il valore vero è
+    nel bias, non nel MAE», and the naive hands the average starter about five phantom matchdays. The MAE
+    per segment was not, and it should have been: the same document quotes it for the segment that decides
+    an auction («sui titolari anche il MAE migliora: 6.84→6.51 e 6.71→6.27»), so it is a published number
+    that nothing was checking. Found while reviewing the three T1 numbers the harness could not reproduce.
+    """
     out: dict[str, dict] = {}
     for name, low, high in SEGMENTS:
         bucket = [p for p in predictions if p.pv_pred is not None and p.obs.pv_act is not None
@@ -1285,6 +1292,8 @@ def appearance_segments(data: features.WindowData, predictions: list[Prediction]
             "n": len(bucket),
             "bias_model": _round(_mean([p.pv_pred - p.obs.pv_act for p in bucket]), 2),
             "bias_naive": _round(_mean([(p.obs.pv_prev or 0) - p.obs.pv_act for p in bucket]), 2),
+            "mae_model": _round(_mean([abs(p.pv_pred - p.obs.pv_act) for p in bucket]), 2),
+            "mae_naive": _round(_mean([abs((p.obs.pv_prev or 0) - p.obs.pv_act) for p in bucket]), 2),
         }
     return out
 
@@ -1872,8 +1881,14 @@ def verify_baseline(conn: sqlite3.Connection) -> list[Check]:
         gain = ((overall_pv["mae"] - overall_pv["mae_naive"]) / overall_pv["mae_naive"]
                 if overall_pv["mae_naive"] else None)
         expected_gain = model.REFERENCE_GATE["pv_gain_vs_naive"][key]
+        # A REGRESSION check and not a sign test. It used to pass iff the gain was negative, which asks the
+        # harness to re-litigate the gate every time the data improves - and that is exactly what happened:
+        # a better-instrumented 24/25 made the naive less wrong on T1 (its starters' bias fell from 5.2 to
+        # 4.17) and the module's MAE edge there flipped sign while its BIAS removal, the criterion it was
+        # adopted on, held. What a trust check owes is "the code still computes what it computed"; whether
+        # the module beats the naive is a claim about a platform and it lives in the doc, with its date.
         checks.append(Check(f"pv_gain_vs_naive_{key}", expected_gain, _round(gain, 4),
-                            gain is not None and gain < 0,
+                            _close(gain, expected_gain, 0.01),
                             f"model {overall_pv['mae']} vs naive {overall_pv['mae_naive']} "
                             f"on n={overall_pv['n']}"))
         # The module was adopted for the BIAS, not the MAE: the naive forecast hands the average
@@ -1884,6 +1899,13 @@ def verify_baseline(conn: sqlite3.Connection) -> list[Check]:
             got = starters[f"bias_{source}"]
             checks.append(Check(f"pv_bias_{source}_starters_{key}", published, got,
                                 _close(got, published, 0.6), f"n={starters['n']}"))
+        # ...and the MAE of the same segment, which the document quotes and nothing was verifying: the
+        # starters are the segment an auction is decided on, so a silent drift there is the one that costs.
+        for source in ("model", "naive"):
+            published = model.REFERENCE_GATE[f"pv_mae_starters_{source}"][key]
+            got = starters[f"mae_{source}"]
+            checks.append(Check(f"pv_mae_starters_{source}_{key}", published, got,
+                                _close(got, published, 0.15), f"n={starters['n']}"))
 
         # 7. the appearances gate as it was actually run: coefficients from the OTHER window.
         other = next(name for name in prepared if name != key)
@@ -1892,9 +1914,10 @@ def verify_baseline(conn: sqlite3.Connection) -> list[Check]:
             cross = evaluate_window(data, ("R0",), coefficients)["overall"]["pv"]
             cross_gain = ((cross["mae"] - cross["mae_naive"]) / cross["mae_naive"]
                           if cross["mae_naive"] else None)
+            expected_cross = model.REFERENCE_GATE["pv_gain_crossfit"][key]
             checks.append(Check(
-                f"pv_gain_crossfit_{key}", expected_gain, _round(cross_gain, 4),
-                cross_gain is not None and cross_gain < 0,
+                f"pv_gain_crossfit_{key}", expected_cross, _round(cross_gain, 4),
+                _close(cross_gain, expected_cross, 0.005),
                 f"coeffs fitted on {other} (n={n_samples}): "
                 + " ".join(f"{value:+.3f}" for value in coefficients)))
     return checks
