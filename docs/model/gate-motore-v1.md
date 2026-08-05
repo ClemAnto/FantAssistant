@@ -1697,6 +1697,57 @@ sconto d'arrivo 0.80 = **0.616**, che concorre per una maglia e non finge una st
 presenze, bersaglio `starts`, giudizio **sulla popolazione che tocca** (gli uomini con finestra e senza
 stagione), criterio di falsificazione = non batte lo zero attuale su una maggioranza di fold.
 
+## 7-nonies. UNA RETTA PER LE COMPETIZIONI NON CALIBRATE (pre-registrata il 5 agosto 2026)
+
+Richiesta dell'utente, nata dal caso di Daffara: dieci partite di **Serie B** con rating 7.05 e 900 minuti
+che **non diventano un voto**, perché la retta di `synth` è fittata sulla sovrapposizione (rating del provider
++ voto reale) e quella sovrapposizione, per la Serie B, è **zero righe**: il gioco non copre la Serie B, quindi
+nessuno ha mai pubblicato un voto per quelle partite. La sua fantamedia resta l'àncora dei portieri e il suo
+surplus 17.0 viene dalle presenze, non da come para.
+
+### DUE BRACCI, e uno solo dei due è identificato
+La misura fatta prima di scrivere questa sezione (5/08/2026) dice dove ciascuna strada è percorribile,
+contando gli uomini con almeno 5 partite là e 5 voti reali qui:
+
+| braccio | identificazione | uomini |
+|---|---|---|
+| **A — dentro la stagione** | stesso giocatore, **stessa stagione**: stessa età, stessa squadra, stesso momento di carriera. Cambia solo la competizione. | Champions **98**, Europa League 44, FA Cup 24, Coppa Italia 17, Conference 14 |
+| **B — fra stagioni** | stesso giocatore, stagioni diverse: fra le due è anche cresciuto, ha cambiato squadra e ruolo | Serie B **18**, Eredivisie 15, Pro League 10, Liga Portugal 9, Championship 6 |
+
+Il braccio A è quello ben identificato e **non risolve Daffara**: la Serie B dentro la stagione ha 5 uomini,
+troppo pochi. Il braccio B risolve Daffara e porta due distorsioni che non si possono togliere e che quindi
+vanno scritte: nel campione entrano **solo i giocatori che qualcuno ha comprato** (sopravvivenza: i riusciti,
+quindi lo scostamento stimato è inclinato verso «i voti di quella lega si traducono bene»), e fra le due
+stagioni il giocatore **è cambiato** (età, squadra, ruolo), quindi parte di ciò che misuriamo non è la lega.
+Con 18 uomini nessuna delle due è testabile: il braccio B è una stima con un'assunzione dichiarata, non una
+calibrazione come quella delle cinque leghe.
+
+### La forma, fissata prima
+La retta delle cinque leghe **non si ri-fitta**: resta `a_ruolo + b_ruolo × rating` come è. Il solo parametro
+nuovo è uno **scostamento per competizione**,
+
+    δ_L = media, sugli uomini eleggibili, di ( suo Mv reale medio QUI − ( a_ruolo + b_ruolo × suo rating medio LÀ ) )
+
+un parametro per competizione e non per ruolo, perché con 18 uomini quattro parametri sono un fit su niente.
+Applicato come `mv_synth = a_ruolo + b_ruolo × rating + δ_L` alle sole righe di L, e **solo** dove δ_L è stato
+stimato su almeno `MIN_MEN` uomini; le altre competizioni restano NULL come oggi.
+
+### Validazione e criteri di falsificazione, dichiarati
+Leave-one-out **sugli uomini**: per ciascuno, δ_L stimato sugli altri e usato per predire il suo Mv qui. Si
+riportano tre errori sulla stessa popolazione — con lo scostamento, con la retta **nuda** (quello che
+succederebbe applicandola senza correzione) e con l'**àncora di ruolo** (la risposta banale) — e lo
+scostamento entra solo se batte **entrambi** sulla maggioranza degli uomini. Se non batte la retta nuda, la
+competizione resta non convertita: significherebbe che lo scostamento sta misurando rumore.
+Dichiarato in anticipo anche questo: un braccio B che passa **non conferma il meccanismo**, conferma che su
+quei 18 uomini lo scostamento ha ridotto l'errore — e la differenza fra le due cose è la sopravvivenza.
+
+### Cosa resta fuori comunque
+I **portieri**: anche con un voto convertito, l'FM-equivalente li esclude perché somma gol e assist e non
+sottrae mai i gol presi (misurato: +1.06 / +1.08 / +1.12 sopra la fantamedia reale). Quindi Daffara ottiene
+un voto base convertito e **non** un FM-equivalente: per lui serve un equivalente calcolato col punteggio dei
+portieri, che è un lavoro in `arrivals` e non qui. Va detto adesso perché è il caso che ha generato la
+richiesta.
+
 ## 5-terdecies. La punta torre e la punta di movimento (3 agosto 2026) — misurata, NON adottata
 
 Ipotesi dell'utente, con la sua stessa formulazione: «dovresti capire se l'allenatore predilige una punta
