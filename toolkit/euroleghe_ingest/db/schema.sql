@@ -154,6 +154,14 @@ CREATE TABLE IF NOT EXISTS external_stats (
     rating      REAL,                        -- provider's average rating (SofaScore scale)
     yellows     INTEGER,
     reds        INTEGER,
+    -- The KEEPER's half of the fantavoto. Measured on 16,017 of our own keeper rows, the identity is
+    -- exact: fantavoto = mv - goals_conceded + 3*pen_saved - cards, and there is NO clean-sheet bonus.
+    -- So goals conceded is the ONE number an FM-equivalent for a keeper needs (gate §7-decies). Both
+    -- fields have been requested from the provider since the first run and were dropped at parse time.
+    -- Note: goals_conceded is filled for outfielders too (goals the team conceded while he was on the
+    -- pitch); it is only the keeper's fantavoto that reads it.
+    goals_conceded INTEGER,
+    saves       INTEGER,
     PRIMARY KEY (fc_id, season, source, competition)
 );
 

@@ -1665,8 +1665,8 @@ def _store_claims(conn, season: str, claims: list[Claim]) -> int:
             """
             INSERT OR REPLACE INTO external_stats(
                 fc_id, season, source, competition, matches, starts, minutes, goals, assists,
-                pen_scored, pen_taken, xg, xa, rating, yellows, reds)
-            VALUES (?, ?, 'sofascore', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                pen_scored, pen_taken, xg, xa, rating, yellows, reds, goals_conceded, saves)
+            VALUES (?, ?, 'sofascore', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 claim.fc_id, season, claim.league, _int(row.get("appearances")),
@@ -1675,6 +1675,10 @@ def _store_claims(conn, season: str, claims: list[Claim]) -> int:
                 _int(row.get("penaltiesTaken")), row.get("expectedGoals"),
                 row.get("expectedAssists"), row.get("rating"), _int(row.get("yellowCards")),
                 _int(row.get("redCards")),
+                # ...and the keeper's half of the fantavoto, asked for since the first run and dropped
+                # here until now (gate §7-decies). `goalsConceded` is the goals the team conceded while
+                # he was on the pitch, which for a keeper IS the malus.
+                _int(row.get("goalsConceded")), _int(row.get("saves")),
             ),
         )
     return len(claims)

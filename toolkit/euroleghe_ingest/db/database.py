@@ -44,6 +44,9 @@ ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     # grown man's height does not move, which is why it may be read for a past season and a role may not.
     ("player_roles", "height", "INTEGER"),
     ("player_roles", "weight", "INTEGER"),
+    # The keeper's half of the fantavoto, from a payload we already cache (gate §7-decies).
+    ("external_stats", "goals_conceded", "INTEGER"),
+    ("external_stats", "saves", "INTEGER"),
     ("injuries", "matches_missed", "INTEGER"),
     ("injuries", "detail", "TEXT"),
     ("injuries", "source", "TEXT"),

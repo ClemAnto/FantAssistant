@@ -1,5 +1,5 @@
 # 00 — BRIDGE · Punto d'ingresso del progetto (leggere per primo)
-**Aggiornato: 5 agosto 2026 (chiusura: la LISTA con cui si va all'asta — una sola, e senza l'altro lato)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
+**Aggiornato: 5 agosto 2026 (chiusura: la lista dell'asta, e il portiere che ora ha un FM-equivalente)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
 
 ## Il progetto in breve
 Motore previsionale per fantacalcio **EuroLeghe** (fantacalcio.it): valutazione calciatori Classic e Mantra sui 5 grandi campionati europei (Serie A, Premier, Liga, Bundesliga, Ligue 1 — perimetro: i ~35 top club del gioco). Prevede fantamedia (FM), presenze attese e VALORE stagionale = FM × presenze. Metodo scientifico: **ogni regola entra nel motore solo se batte il baseline fuori campione su finestre indipendenti** (gate pre-registrato). Stato: core validato (Mantra, Classic, portieri, presenze); manca lo strato flag/arrivi, sbloccato dal toolkit dati `euroleghe-ingest` (in implementazione).
@@ -26,7 +26,32 @@ proporre qualsiasi regola) → **`metrica-asta-surplus-v1.md`** (con cosa il pan
 
 Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
 
-### ULTIMO IN ORDINE DI TEMPO — 5/08/2026 pomeriggio: esiste UNA lista con cui andare all'asta
+### ULTIMO IN ORDINE DI TEMPO — 5/08/2026 sera: il portiere ha un FM-equivalente, e serviva un numero solo
+
+Gate **§7-decies**, spec **«Novità v9.21»**. **ADOTTATO** — non è una regola del motore, è il layer che
+instrada i tier degli arrivi — e `backtest --verify` resta **22/22**.
+
+1. **Il fantavoto di un portiere è un'IDENTITÀ, non una stima**: su **16.017** righe con entrambi i voti, su
+   entrambe le piattaforme, `mv − gol_presi + 3·rigori_parati − cartellini` ha residuo **0.000 nel 100% dei
+   casi**. E il **bonus imbattibilità non esiste** (residuo 0.000 anche sulle 4.872 partite chiuse a zero),
+   mentre `config/scoring_config.json` lo dichiara 1.0: `ratings._fantavoto` già lo escludeva, e ora il
+   commento del config porta la misura. Quindi mancava **un numero solo**: i gol presi.
+2. **Erano già in cache.** `goalsConceded` e `saves` sono chiesti al provider dal primo giorno e **buttati al
+   parse**, perché `external_stats` non aveva le colonne. Migrazione + parse + re-ingest **offline**: 11.725
+   righe su 11.732.
+3. **Verdetto, col criterio scritto prima**: PASSA su **201** portieri-stagione (euro) e 51 (default) — bias
+   **−0.00…−0.18**, MAE **0.084-0.191** contro **0.214-0.336** dell'àncora, **89-100% entro 0.3** contro lo
+   **0%** della formula dei movimenti (che sugli stessi uomini rifà +0.82…+1.22: escluderli era giusto).
+4. **Il guadagno è piccolo e la sezione lo aveva dichiarato prima**: arrivi che guadagnano un equivalente
+   **1/15/19/8** per stagione, totale **2045 → 2128**, e parte di quei portieri il core li prezza già.
+5. ⚠️ **Daffara resta NULL**, e ora si sa esattamente perché: i gol presi esistono solo come aggregato di
+   stagione delle 5 leghe, la Serie B non ne ha uno, e **per partita lo score non c'è più** — le cache di
+   giornata e di giocatore sono **distillate**. Non è un parse, è una richiesta di rete. Follow-up dichiarato:
+   **conservare lo score quando lo si riceve**; non è retroattivo.
+6. **La catena, di nuovo**: `positions --layer reparse` azzera `mv_synth`, e gli arrivi con equivalente sono
+   crollati a **716** finché `synth` non è stato rilanciato. Chi rifà `positions` rifà `synth` e poi `arrivals`.
+
+### 5/08/2026 pomeriggio: esiste UNA lista con cui andare all'asta
 
 Spec **«Novità v9.20»**. Toolkit **0.9.0**, **297 test verdi**. **Nessun verdetto del gate cambia e nessun
 numero del motore si muove**: stesso prezzatore, stessi parametri fittati su un'altra finestra. Chiude la voce

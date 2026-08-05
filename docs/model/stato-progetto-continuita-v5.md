@@ -1,5 +1,5 @@
 # Stato progetto & continuità — v5
-**Aggiornato: 5 agosto 2026 (chiusura: la LISTA con cui si va all'asta - una sola, e senza l'altro lato)**
+**Aggiornato: 5 agosto 2026 (chiusura: la lista dell'asta, e il portiere che ora ha un FM-equivalente)**
 Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da qui + i file della cartella "Modello Previsionale Fantacalcio".
 *Glossario: T1/T2 = finestre di test (23/24->24/25, 24/25->25/26) · MAE = errore medio assoluto · cross-fitted = parametri stimati su una finestra, testati sull'altra · M2e = modello portieri decomposto con ClubElo · Pv_att = presenze attese · fc_id = id fantacalcio.it · EV = valore atteso · scoring_config = punteggi configurabili per lega · xG/xA = expected goals/assists · 2.5 pieno = backtest motore completo con flag.*
 
@@ -1258,3 +1258,40 @@ Malen 45.
 - **La lista LIVE non ha un esito**: qualunque colonna o riga che parli di «reale» va tenuta fuori, e
   `hits`/`captured_value` su un blocco live sono zeri e non misure.
 - **`db_path` non discende da `data_dir`**: un test che vuole stare lontano dal DB reale deve dirlo.
+
+
+## Sessione 05/08/2026 (sera) — il portiere ha un FM-equivalente, e serviva un numero solo
+
+Gate **§7-decies**, spec **«Novità v9.21»**. **ADOTTATO** (non è una regola del motore: è il layer che
+instrada i tier degli arrivi), `backtest --verify` **22/22**, 298 test, ruff pulito.
+
+### Cosa mancava, e non era un modello
+Il fantavoto di un portiere è un'**identità**: misurato su **16.017** righe con entrambi i voti, su entrambe le
+piattaforme, `mv − gol_presi + 3·rigori_parati − cartellini` ha residuo **0.000 nel 100% dei casi** — e il
+**bonus imbattibilità non esiste** (residuo 0.000 anche sulle 4.872 partite a zero, mentre `scoring_config` lo
+dichiara 1.0; `ratings` già lo escludeva, ora il config porta la misura). Quindi serviva **un numero solo**, i
+gol presi. Erano **già in cache**: `goalsConceded` e `saves` sono chiesti al provider dal primo giorno e
+buttati al parse perché `external_stats` non aveva le colonne. Migrazione + parse + re-ingest offline: 11.725
+righe su 11.732.
+
+### Il verdetto, col criterio scritto prima
+Su **201** portieri-stagione (euro) e **51** (default): bias **−0.00…−0.18** (sempre negativo, come previsto:
+manca il +3 dei rigori parati, che la fonte non pubblica), MAE **0.084-0.191** contro **0.214-0.336**
+dell'àncora di ruolo, **89-100% entro 0.3** contro lo **0%** della formula dei movimenti — che sugli stessi
+uomini riproduce +0.82…+1.22 e conferma su sei stagioni che escluderli era giusto.
+**E il guadagno è piccolo, come la pre-registrazione aveva dichiarato**: gli arrivi che guadagnano un
+equivalente sono **1/15/19/8** per stagione, il totale passa da 2045 a **2128**, e parte di quei portieri il
+core li prezza già. Donnarumma 5.162, Milinkovic-Savic 5.132, Hradecky 4.638.
+
+### ⚠️ Daffara resta NULL, e adesso si sa esattamente perché
+I gol presi esistono solo come **aggregato di stagione delle 5 leghe**; la Serie B non ne ha uno, e per partita
+lo **score non c'è più** — la cache delle giornate e quella per giocatore sono **distillate** e lo score è
+stato scartato al momento di scriverle. Non è un parse: è una richiesta di rete. Follow-up dichiarato nel gate:
+**conservare lo score quando lo si riceve** (`positions` sulle giornate, `recent_form` sui giocatori), e da
+allora l'equivalente diventa calcolabile per gli uomini che il toolkit va a misurare. Non è retroattivo.
+
+### La catena, di nuovo
+`positions --layer reparse` riscrive `external_match_stats` e quindi **azzera `mv_synth`**: gli arrivi con
+equivalente sono crollati a **716** finché `synth` non è stato rilanciato. Stessa catena di §7-octies, questa
+volta vista come regressione invece che come strato invecchiato in silenzio. Chi rifà `positions` rifà `synth`
+e poi `arrivals`.

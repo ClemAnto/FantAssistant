@@ -435,10 +435,21 @@ Nota: **nessuna delle feature generate il 27/07 e' entrata nel motore**, e **nes
       la **modalità LIVE** del motore — per sedersi a un'asta serve **una lista sola**. ⚠️ Il listone **euro**
       26/27 non è pubblicato: la pagina serve 25/26 e la guardia della stagione lo **rifiuta**, che è il
       comportamento giusto. Va riprovato, mai forzato.
-- [ ] **I PORTIERI, che il caso Daffara ha lasciato aperti** (gate §7-nonies, ultima sezione): l'FM-equivalente
-      somma gol e assist e non sottrae mai i gol presi (misurato: **+1.06 / +1.08 / +1.12** sopra la fantamedia
-      reale), quindi un portiere ottiene al massimo un **voto base convertito** e non un equivalente. Serve un
-      equivalente calcolato col **punteggio dei portieri**: lavoro in `arrivals`, non in `synth`.
+- [x] **FATTO E ADOTTATO il 05/08 (sera) — I PORTIERI hanno un FM-equivalente** (gate **§7-decies**, spec
+      «Novità v9.21»): il fantavoto di un portiere è un'**identità** (`mv − gol_presi + 3·rigori_parati −
+      cartellini`, residuo 0.000 su **16.017** righe e su entrambe le piattaforme) e il **bonus imbattibilità
+      non esiste** — quindi mancava **un numero solo**, i gol presi, che erano **già in cache** e venivano
+      buttati al parse (`goalsConceded`/`saves` → due colonne nuove su `external_stats`, re-ingest offline,
+      11.725 righe su 11.732). `arrivals.keeper_fm_equivalent` **PASSA** il criterio pre-registrato su 201
+      portieri-stagione (euro) e 51 (default): bias −0.00…−0.18, MAE 0.084-0.191 contro 0.214-0.336
+      dell'àncora, 89-100% entro 0.3 contro lo **0%** della formula dei movimenti. Copertura nuova 1/15/19/8
+      per stagione, totale con equivalente **2045 → 2128**, `backtest --verify` 22/22.
+- [ ] **CONSERVARE LO SCORE quando lo si riceve** — è il follow-up dichiarato di §7-decies, ed è la strada che
+      chiuderebbe il caso **Daffara**: i gol presi per partita non sono ricostruibili perché le cache di
+      giornata (`positions`) e di giocatore (`recent_form`) sono **distillate** e lo score è stato scartato al
+      momento di scriverle. Conservarlo è un campo che passa già dalle nostre mani; da allora l'equivalente
+      diventa calcolabile per i portieri fuori dalle 5 leghe (Serie B compresa), per gli uomini che il toolkit
+      va a misurare. ⚠️ **Non è retroattivo** e non è un parse: la cache non ce l'ha.
 - [ ] **DECISIONE DELL'OPERATORE — `APPLY_OFFSETS`**: la Champions (98 uomini, δ +0.123) **passa** il criterio
       pre-registrato (maggioranza dei suoi uomini) **e** ha una MAE media **peggiore** dell'àncora (0.2103
       contro 0.1938): vince spesso di poco e perde raramente di molto. Raccomandazione: **lasciarlo spento**,

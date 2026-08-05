@@ -1,5 +1,5 @@
 # Spec — Toolkit `euroleghe-ingest` v9 (task 1.0 della roadmap)
-**Aggiornata: 5 agosto 2026 (v9.20 — la lista con cui si va all'asta: una sola, e senza l'altro lato; v9 SOSTITUISCE la v8)** · Python · Output: SQLite `euroleghe.db` + CSV normalizzati
+**Aggiornata: 5 agosto 2026 (v9.21 — il portiere ha un FM-equivalente, e serviva un numero solo; v9 SOSTITUISCE la v8)** · Python · Output: SQLite `euroleghe.db` + CSV normalizzati
 *Sigle: fc_id = identificativo fantacalcio.it · FM = fantamedia · Mv = media voto · Pv = partite a voto · xref = cross-reference id tra siti · xG/xA = expected goals/assists · manifest = lista file da recuperare.*
 **Convenzione: identificatori sempre in INGLESE** (tabelle, colonne, moduli, variabili); italiano solo nella documentazione.
 
@@ -493,6 +493,47 @@ ruolo**, **8% disgiunti** — e le disgiunte sono quasi tutte `a` del listone co
 visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**. Riscontri esatti:
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
+
+## Novità v9.21 (5 agosto 2026 — il portiere ha un FM-equivalente, e serviva un numero solo)
+
+Gate **§7-decies**. Toolkit **0.9.0**, **298 test**, ruff pulito, `backtest --verify` **22/22**.
+
+### 1. Due colonne che erano già in cache: `external_stats.goals_conceded` e `.saves`
+Chieste al provider dal primo giorno (`positions.STAT_FIELDS`) e **buttate al parse**, perché la tabella non
+le aveva. Migrazione in `db.database.ADDED_COLUMNS` + parse in `_store_claims`, re-ingest **offline**
+(`positions.reingest_from_cache`, zero richieste): **11.725 righe su 11.732** hanno i gol presi, ~100-110
+portieri per stagione sulle 5 leghe. Nota che vale per chi le leggerà: `goalsConceded` è popolato **anche per i
+movimenti** (sono i gol presi dalla squadra mentre era in campo) — è solo il fantavoto del PORTIERE che li
+legge come malus.
+
+### 2. Il fantavoto di un portiere è un'identità, e il bonus imbattibilità non esiste
+Misurato su **16.017** righe di `match_ratings` con entrambi i voti, su entrambe le piattaforme:
+`fantavoto = mv − gol_presi + 3·rigori_parati − 0.5·gialli − rossi − 2·autogol + 3·gol + assist`, residuo
+**0.000 nel 100% dei casi**, e residuo 0.000 anche sulle **4.872** partite chiuse a zero. `scoring_config`
+dichiara `clean_sheet_bonus_gk: 1.0` che la fonte **non applica**: `ratings._fantavoto` lo escludeva già con
+la sua nota di riconciliazione, e ora il commento del config porta la misura, perché un termine dichiarato e
+non applicato è una trappola per il prossimo lettore.
+
+### 3. `arrivals.keeper_fm_equivalent`
+    fm = media(voto base sulle partite di CAMPIONATO) − malus × gol_presi/presenze − cartellini/presenze
+Il voto base è lo stesso degli altri (Mv euro reale dove il calendario copriva la giornata, altrimenti il
+`mv_synth` calibrato), e i gol presi vengono dall'aggregato **della stessa competizione** che dà le presenze —
+una coppa non entra né al numeratore né al denominatore. Un portiere con due aggregati in una stagione (mercato
+di gennaio fra due delle cinque leghe) tiene quello in cui ha giocato più partite: mediare due spell non
+descriverebbe nessuno dei due. Il conteggio partite viaggia con l'equivalente, quindi il tier resta libero di
+non trattare una finestra come una stagione.
+**Verdetto (§7-decies): PASSA** su 201 portieri-stagione (euro) e 51 (default) — bias −0.00…−0.18, MAE
+0.084-0.191 contro 0.214-0.336 dell'àncora, **89-100% entro 0.3** contro lo **0%** della formula dei
+movimenti. Copertura nuova: **1 / 15 / 19 / 8** arrivi per stagione, totale con equivalente **2045 → 2128**.
+⚠️ **Daffara resta NULL**: la Serie B non ha aggregato di stagione, e per partita lo score non c'è più (le
+cache di giornata e di giocatore sono distillate). Il follow-up è **conservare lo score quando lo si riceve**,
+e non è retroattivo.
+
+### 4. La catena, di nuovo, e stavolta l'ha detta un numero
+Rifare `positions --layer reparse` **azzera `mv_synth`** (vive in `external_match_stats`), quindi gli arrivi
+con equivalente sono crollati a **716** finché `synth` non è stato rilanciato — poi 2128. È la stessa catena
+di §7-octies (`positions` → `synth` → `arrivals`), e ora si è manifestata come regressione visibile invece che
+come strato invecchiato in silenzio.
 
 ## Novità v9.20 (5 agosto 2026 — la LISTA con cui si va all'asta: una sola, e senza l'altro lato)
 

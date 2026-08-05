@@ -1795,7 +1795,95 @@ I **portieri**: anche con un voto convertito, l'FM-equivalente li esclude perch�
 sottrae mai i gol presi (misurato: +1.06 / +1.08 / +1.12 sopra la fantamedia reale). Quindi Daffara ottiene
 un voto base convertito e **non** un FM-equivalente: per lui serve un equivalente calcolato col punteggio dei
 portieri, che è un lavoro in `arrivals` e non qui. Va detto adesso perché è il caso che ha generato la
-richiesta.
+richiesta. → **§7-decies**.
+
+## 7-decies. L'FM-EQUIVALENTE DEI PORTIERI (pre-registrata il 5 agosto 2026)
+
+Seguito dichiarato di §7-nonies. Due misure fatte **prima** di scrivere questa sezione, perché decidono la
+forma e lo scopo:
+
+1. **Il fantavoto di un portiere è un'identità, non una stima.** Su **16.017** righe di `match_ratings` con
+   entrambi i voti, su **entrambe** le piattaforme, `fantavoto = mv − gol_presi + 3·rigori_parati −
+   0.5·gialli − rossi − 2·autogol + 3·gol + assist` ha residuo **0.000 nel 100% dei casi**. E il **bonus
+   imbattibilità NON esiste**: residuo 0.000 anche sulle **4.872** partite chiuse a zero, mentre
+   `config/scoring_config.json` dichiara `clean_sheet_bonus_gk: 1.0` (che `ratings._fantavoto` già
+   esclude, con la sua nota di riconciliazione). Conseguenza per la forma: **serve un numero solo**, i gol
+   presi — e non serve stimare i clean sheet, che era il pezzo che sembrava mancare.
+2. **Dove quel numero esiste, e dove no.** I payload di statistica stagionale **già in cache** (5 leghe × 11
+   stagioni) portano `goalsConceded` e `saves`: sono chiesti dal primo giorno (`positions.STAT_FIELDS`) e
+   **buttati al parse**, perché `external_stats` non ha le colonne. Non esistono invece **per partita**: la
+   cache delle giornate e quella di `recent_form` sono **distillate** e lo score è stato scartato, quindi i
+   gol presi di una singola partita non sono ricostruibili offline. E non esistono **fuori dalle 5 leghe**:
+   la Serie B non ha aggregato di stagione. ⚠️ **Quindi Daffara NON è coperto da questa sezione**: quello
+   che gli manca sono i gol presi, non il voto, e riaverli è una richiesta di rete (lo score che oggi
+   scartiamo), non un parse.
+
+### La popolazione su cui agisce, dichiarata prima del verdetto
+Perché «un parametro va giudicato sulla popolazione su cui agisce» (§7-sexies) e qui quella popolazione è
+piccola: portieri in arrivo per stagione **17 / 60 / 85 / 69** (26/27 · 25/26 · 24/25 · 23/24), di cui con un
+aggregato in una delle 5 leghe nella stagione di input **1 / 15 / 19 / 9**, e di questi una parte ha già una
+fantamedia qui, quindi **il core li prezza e il tier non viene consultato** (1 / 8 / 12 / 5). Il residuo che
+l'equivalente instrada davvero è dell'ordine di **4-7 uomini per stagione**. Un PASS qui non è un guadagno
+grande: è un NULL in meno su pochi uomini, e va riportato così.
+
+### La forma, fissata prima
+    fm_gk_equiv = media(voto base sulle sue partite) − malus × (gol_presi / presenze) + 3 × (rigori_parati / presenze)
+Il voto base è lo stesso degli altri (Mv euro reale dove il calendario euro copriva quella giornata,
+altrimenti il `mv_synth` calibrato); i **gol presi e le presenze vengono dall'aggregato di CAMPIONATO**, cioè
+numeratore e denominatore sulla stessa competizione («una quota di stagione è una quota del campionato»). I
+rigori parati fuori dalle nostre leghe non sono nella fonte: il termine resta 0 dove manca, e la sua omissione
+spinge l'equivalente verso il **basso** (≈0.005-0.02 di fantavoto), che è la direzione prudente.
+
+### Validazione e criteri di falsificazione, dichiarati
+Popolazione di prova: i portieri-stagione per cui l'equivalente è calcolabile **e** esiste una fantamedia
+reale della stessa stagione — la stessa prova che ha bocciato la formula dei movimenti. Si riportano **bias**,
+**MAE** e **quota entro 0.3**, contro due nulli: la formula dei movimenti (che oggi per un portiere è NULL, e
+misurata dava +1.06/+1.08/+1.12 con **0%** entro 0.3) e l'**àncora di ruolo** (la risposta banale: la
+fantamedia media dei portieri di quella stagione).
+Entra al posto del NULL **solo se**: |bias| ≤ **0.20** su ogni stagione misurata · **MAE migliore
+dell'àncora** sulla maggioranza delle stagioni · quota entro 0.3 ≥ **40%**. Altrimenti i portieri restano
+NULL e il motivo viene scritto qui.
+
+### ESEGUITA il 5 agosto 2026 — PASSA su entrambe le piattaforme, e di larga misura
+
+`platform='euro'`, **201 portieri-stagione** misurabili:
+
+| stagione | n | bias | MAE | entro 0.3 | formula movimenti: bias | MAE | entro 0.3 | àncora MAE |
+|---|---|---|---|---|---|---|---|---|
+| 2019-20 | 27 | −0.179 | 0.191 | **89%** | +0.950 | 0.950 | 0% | 0.214 |
+| 2020-21 | 34 | −0.041 | 0.104 | **100%** | +1.085 | 1.085 | 0% | 0.235 |
+| 2022-23 | 33 | −0.000 | 0.105 | **97%** | +1.101 | 1.101 | 0% | 0.294 |
+| 2023-24 | 36 | −0.013 | 0.084 | **100%** | +1.216 | 1.216 | 0% | 0.319 |
+| 2024-25 | 35 | −0.061 | 0.100 | **97%** | +1.099 | 1.099 | 0% | 0.280 |
+| 2025-26 | 36 | −0.057 | 0.095 | **100%** | +1.090 | 1.090 | 0% | 0.336 |
+
+`platform='default'` (51 portieri-stagione, 8-9 per stagione): bias da **−0.018 a −0.121**, MAE **0.106-0.166**
+contro l'àncora **0.278-0.346**, quota entro 0.3 **88-100%**. Tutti e tre i criteri soddisfatti su tutte le
+stagioni di entrambe le piattaforme: |bias| ≤ 0.20 sempre, MAE migliore dell'àncora **6/6** su euro e **6/6**
+su default, quota ≥ 40% sempre. **ADOTTATO**: `arrivals.keeper_fm_equivalent`, e i portieri non sono più
+esclusi dall'FM-equivalente.
+
+Tre letture che valgono più del PASS:
+- **il bias è sempre NEGATIVO**, come la pre-registrazione prevedeva: manca il +3 dei rigori parati, che la
+  fonte non pubblica. È la direzione prudente e la sua taglia (0.00-0.18) è coerente con 0-2 rigori parati in
+  una stagione;
+- **la formula dei movimenti riprodotta sugli stessi uomini dà +0.82…+1.22 con 0% entro 0.3**, cioè conferma
+  su sei stagioni (e su una popolazione tripla) la misura che aveva escluso i portieri. Escluderli era giusto;
+  quello che mancava era un numero, non un modello;
+- **il guadagno vero è piccolo**, e va detto perché la sezione stessa lo ha dichiarato prima: gli arrivi che
+  guadagnano un equivalente sono **1 / 15 / 19 / 8** (26/27 · 25/26 · 24/25 · 23/24) su 6550 righe di
+  `arrivals`, il totale con equivalente passa da **2045 a 2128**, e di quei portieri una parte ha già una
+  fantamedia qui, quindi il tier non li instrada. Donnarumma 5.162, Milinkovic-Savic V. 5.132, Hradecky 4.638:
+  la scala è quella giusta, e la sostanza è che dove prima c'era un buco ora c'è calcio misurato.
+
+⚠️ **Daffara resta NULL, e la ragione non cambia**: i gol presi esistono solo come aggregato di stagione
+delle 5 leghe, e la Serie B non ne ha uno. La cache delle giornate e quella per giocatore sono **distillate**
+(lo score è stato scartato al momento di scrivere), quindi non è un parse: riaverli è una richiesta di rete.
+**Follow-up dichiarato qui**: conservare lo score quando lo si riceve (`positions` sulle giornate e
+`recent_form` sui giocatori) — è un campo che passa già dalle nostre mani — e da quel momento l'equivalente
+diventa calcolabile per gli uomini che il toolkit va a misurare. Non è retroattivo: la cache non ce l'ha.
+
+**Numeri pubblicati invariati**: `backtest --verify` **22/22** dopo l'adozione.
 
 ## 5-terdecies. La punta torre e la punta di movimento (3 agosto 2026) — misurata, NON adottata
 

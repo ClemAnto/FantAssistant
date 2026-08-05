@@ -76,12 +76,12 @@ def foreign_fm_equivalent(conn, scoring: dict[str, float], season: str) -> dict[
     external_stats are spread evenly over the appearances. That biases the equivalent slightly
     upward for players who are booked in bursts, never by more than the card malus itself.
 
-    GOALKEEPERS ARE EXCLUDED, and that is not a shortcut. Their fantavoto is dominated by the goals
-    conceded malus, which the external per-match layer does not carry (the provider gives goals
-    SCORED, and no match score), so an equivalent built this way is missing the whole negative side.
-    Measured on Serie A, where both vote sets exist: it came out +1.06 / +1.08 / +1.12 above the real
-    fantamedia on the three seasons, with 0% of keepers inside 0.3. A NULL says "we cannot price
-    him"; a number inflated by a goal a game says something false with a straight face.
+    GOALKEEPERS ARE EXCLUDED FROM THIS FORMULA, and that is not a shortcut: their fantavoto is dominated
+    by the goals-conceded malus, which this sum has no term for. Measured on the men it can be measured
+    on, this formula reads +0.82 to +1.22 above their real fantamedia with **0%** inside 0.3. They get
+    their own arithmetic instead - `keeper_fm_equivalent`, gate §7-decies - and where that is not
+    computable either they stay NULL, because a NULL says "we cannot price him" while a number inflated
+    by a goal a game says something false with a straight face.
     """
     rows = conn.execute(
         """
@@ -116,6 +116,73 @@ def foreign_fm_equivalent(conn, scoring: dict[str, float], season: str) -> dict[
             per_match_cards = (scoring["yellow_card_malus"] * yellows
                                + scoring["red_card_malus"] * reds) / aggregate_matches
         out[fc_id] = (round(total / matches - per_match_cards, 3), matches)
+    out.update(keeper_fm_equivalent(conn, scoring, season))
+    return out
+
+
+def keeper_fm_equivalent(conn, scoring: dict[str, float], season: str) -> dict[int, tuple]:
+    """{fc_id: (fm_equiv, matches)} for the GOALKEEPERS of `season`. Gate §7-decies.
+
+    A keeper's fantavoto is an identity, not an estimate: measured on 16,017 of our own keeper rows on
+    both platforms, `fantavoto = mv - goals_conceded + 3*pen_saved - cards` is exact in 100% of them, and
+    there is NO clean-sheet bonus (residual 0.000 on the 4,872 matches closed at zero, while
+    `scoring_config` declares one - `ratings._fantavoto` already excludes it for the same measured
+    reason). So one number was missing and it was the goals conceded.
+
+    Where it comes from: `external_stats.goals_conceded`, the provider's own season aggregate - goals the
+    team conceded WHILE HE WAS ON THE PITCH, which for a keeper is the malus. It is a per-SEASON number,
+    so the malus is his season rate, and numerator and denominator are read on the same COMPETITION (his
+    league), never on "every eleven we parsed": that rule is why titolarità was wrong before v9.11.
+
+    Two things this cannot do, both declared rather than approximated:
+    * `pen_saved` does not exist in the provider aggregate, so the +3 term is absent. It biases the
+      equivalent DOWNWARD by about 0.005-0.02 of a fantavoto, which is the prudent direction, and the
+      measurement carries it (bias -0.00 to -0.18 across seasons);
+    * a competition with no season aggregate has no goals conceded anywhere in our sources - the round
+      and player caches are distilled and the match SCORE was dropped - so a keeper whose only football
+      is Serie B (the case that opened §7-nonies) still gets NULL. What is missing for him is not the
+      voto: it is the goals conceded.
+    """
+    per_match = conn.execute(
+        """
+        SELECT e.fc_id, e.competition,
+               SUM(COALESCE(mr.mv, e.mv_synth)), COUNT(*)
+        FROM external_match_stats e
+        LEFT JOIN matchday_map m ON m.season = e.season AND m.league = e.competition
+                                AND m.real_md = e.real_md
+        LEFT JOIN match_ratings mr ON mr.fc_id = e.fc_id AND mr.season = e.season
+                                  AND mr.platform = 'euro' AND mr.matchday = m.euro_md
+        WHERE e.season = ? AND COALESCE(e.minutes, 0) > 0 AND e.position = 'G'
+          AND COALESCE(mr.mv, e.mv_synth) IS NOT NULL
+        GROUP BY 1, 2
+        """,
+        (season,),
+    ).fetchall()
+    base = {(fc_id, competition): (total, matches) for fc_id, competition, total, matches in per_match}
+    out: dict[int, tuple] = {}
+    for fc_id, competition, matches, conceded, yellows, reds in conn.execute(
+        """
+        SELECT fc_id, competition, matches, goals_conceded, COALESCE(yellows, 0), COALESCE(reds, 0)
+        FROM external_stats
+        WHERE season = ? AND source = 'sofascore' AND competition <> ''
+          AND COALESCE(saves, 0) > 0 AND COALESCE(matches, 0) > 0 AND goals_conceded IS NOT NULL
+        """,
+        (season,),
+    ):
+        counted = base.get((fc_id, competition))
+        if not counted:
+            continue
+        total, played = counted
+        equivalent = (total / played
+                      - scoring["goal_conceded_malus_gk"] * conceded / matches
+                      - (scoring["yellow_card_malus"] * yellows
+                         + scoring["red_card_malus"] * reds) / matches)
+        # A keeper with two league aggregates in one season (a mid-season transfer between two of the
+        # five leagues) keeps the one he played most: the equivalent describes a season of football, and
+        # averaging two spells would describe neither.
+        if fc_id in out and out[fc_id][1] >= played:
+            continue
+        out[fc_id] = (round(equivalent, 3), played)
     return out
 
 
