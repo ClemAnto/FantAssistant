@@ -1,5 +1,5 @@
 # Stato progetto & continuità — v5
-**Aggiornato: 5 agosto 2026 (chiusura: la lista dell'asta, e il portiere che ora ha un FM-equivalente)**
+**Aggiornato: 5 agosto 2026 (chiusura: la lista d'asta, il portiere, l'investimento e l'ultimo attacco senza attaccante)**
 Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da qui + i file della cartella "Modello Previsionale Fantacalcio".
 *Glossario: T1/T2 = finestre di test (23/24->24/25, 24/25->25/26) · MAE = errore medio assoluto · cross-fitted = parametri stimati su una finestra, testati sull'altra · M2e = modello portieri decomposto con ClubElo · Pv_att = presenze attese · fc_id = id fantacalcio.it · EV = valore atteso · scoring_config = punteggi configurabili per lega · xG/xA = expected goals/assists · 2.5 pieno = backtest motore completo con flag.*
 
@@ -1341,3 +1341,34 @@ investimento: `value_weight` e `shrink_weight` restano **0.0**. 297 test, ruff p
 Non un'altra griglia: due corse coprono 0.005 → 3.0. Servirebbe un proxy dell'investimento che **non sia già
 nei minuti** — gli **ingaggi**, che nessuna fonte in whitelist pubblica — o la **variazione** del valore dentro
 la stagione, che è un'altra domanda e richiede una serie per data. La conferma indipendente resta 26/27.
+
+
+## Sessione 05/08/2026 (notte, 2) — un posto in attacco è il lavoro di un attaccante, alla SELEZIONE
+
+Spec **«Novità v9.22»**. Chiude l'ultimo caso della famiglia «attacchi senza un attaccante». 299 test.
+
+### La misura ha ridefinito il numero prima di scrivere la regola
+La conta delle sessioni precedenti («4 board su 394») mescolava due cose: in modalità **`next`**, dove le
+fonti dichiarano almeno 11 titolari, il board **è l'undici dichiarato** e chi occupa un posto non è una scelta
+del modello. Separati: **516 board che il modello seleziona** contro **150 che la fonte dichiara**. Sui primi:
+**6 attacchi senza attaccante**, tutti il **Lilla** e lo stesso uomo, e **1 centrale su una fascia** (Manchester
+United, ma sulla fascia della **trequarti**, che `_flanked` non copre — aperto e scritto).
+⚠️ Lezione da tenere: attribuire al modello un board dichiarato dalle fonti gli attribuisce scelte degli
+editor — l'Atalanta `next` esce col portiere Sportiello (0.03) e Carnesecchi (0.82) fuori, ed è la **probabile**,
+non il modulo.
+
+### `_fronted`, e perché non è la strada che la todolist proponeva
+La todolist diceva «la riga di centrocampo cede un posto e il modulo esce 4-4-1-1». Implementato invece un
+**override di selezione**: il MESTIERE decide chi è eleggibile per il posto d'attacco (`_off_the_front`, la
+definizione già esistente, che copre anche chi non ha codici) e il claim decide fra i candidati, col tetto dei
+due override che c'erano già. Perché: cedere un posto **cambia la forma**, e la forma ha già un unico
+proprietario (`_reshape`, che trasforma solo se obbligata); e restare nella stessa valuta evita un terzo metro.
+Il Lilla esce **4-5-1 con Fernandez-Pardo davanti**, cioè la squadra schiera la sua punta.
+
+### Cosa è costato, misurato disegnando ogni board due volte
+**67 board su 666 cambiati**, costo medio in claim **−0.108**, peggiore −0.480 (due scambi al tetto). Lilla:
+Haraldsson (`AM` 0.83) → **Fernandez-Pardo** (`ST` 0.83, pari claim). Atalanta 3-4-3: Pasalic (`MC;DM;AM` 0.56)
+→ **Scamacca** (`ST` 0.47). Lazio 3-3-4: Dele-Bashiru → **Cancellieri** (`RW` 0.62). Attacchi senza attaccante
+**6 → 0**; nessun non-attaccante entra in una linea d'attacco (il pool lo esclude per costruzione); e le
+asserzioni dei board **già giudicati dall'operatore** (Napoli, Atalanta, Roma, Fiorentina, Liverpool, Bologna)
+restano tutte verdi — è quella la guardia vera, non il conteggio.

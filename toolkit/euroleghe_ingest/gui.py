@@ -4204,6 +4204,9 @@ class SnapshotView(ttk.Frame):
                     and can_lend(row, role) and self._within_reach(row, role)
                     and not (role == "A" and self._off_the_front(row, "A"))]
                 take = self._flanked(take, role, slots, horizon, pool)
+                # ...a place in the FRONT line is a forward's job, which is rule 4a one step earlier...
+                take = self._fronted(take, role, slots, horizon,
+                                     [row for row in pool if row not in take])
                 # ...and so is the middle of a FRONT line, for the same reason and with the same ceiling
                 take = self._pointed(take, role, slots, horizon,
                                      [row for row in pool if row not in take])
@@ -4413,6 +4416,43 @@ class SnapshotView(ttk.Frame):
             take = [row for row in take if row is not weakest] + [rival]
             rivals = [row for row in rivals if row is not rival]
         return take
+
+    def _fronted(self, take: list[dict], role: str, slots: int, horizon: str,
+                 rivals: list[dict]) -> list[dict]:
+        """A PLACE IN THE FRONT LINE IS A FORWARD'S JOB - `_reshape` rule 4a, one step earlier.
+
+        The rule already exists twice: `_reshape` says it about a line already drawn, and `_off_the_front`
+        prices it where a place is priced. Neither can do anything when the SELECTION never offered the line
+        a forward at all - the trequartisti compete for the attacking line (`line_key`), so on a shape with a
+        single front place a man who plays on the trequarti outbids a centre-forward on claim, and then the
+        guard «never the last man of the attack» rightly keeps him there. Measured: Lille's 4-5-1 was the last
+        case of this family left on the 516 boards the model selects, and it had Haraldsson (`AM`, claim
+        0.86) on the only front place while Fernandez-Pardo (`ST`, 0.82) sat outside the eleven.
+
+        Same currency and same ceiling as the other two overrides (`FLANK_OVERRIDE_GAP`): the JOB decides who
+        is eligible for the place, the claim decides between them, and never outside it. Nothing happens where
+        the squad has no forward to offer - «una squadra i cui unici attaccanti sono trequartisti va disegnata
+        con loro», which is why Roma is untouched: Malen reads `RW;ST` and holds the place by right.
+
+        `_off_the_front` is the ONE definition of "not his job" (it also covers a man with no observed codes,
+        placed by his listone line): a second opinion on the same question is how the module lost its
+        symmetry once already.
+        """
+        if role != "A" or len(take) < slots:
+            return take
+        while True:
+            weakest = min((row for row in take if self._off_the_front(row, "A")),
+                          key=lambda row: self.claim(row, horizon), default=None)
+            if weakest is None:
+                return take                  # every place is held by a man who plays up there
+            rival = max((row for row in rivals if not self._off_the_front(row, "A")),
+                        key=lambda row: self.claim(row, horizon), default=None)
+            if (rival is None or self.claim(rival, horizon) <= 0.0
+                    or self.claim(weakest, horizon) - self.claim(rival, horizon)
+                    > self.FLANK_OVERRIDE_GAP):
+                return take
+            take = [row for row in take if row is not weakest] + [rival]
+            rivals = [row for row in rivals if row is not rival]
 
     def _pointed(self, take: list[dict], role: str, slots: int, horizon: str,
                  rivals: list[dict]) -> list[dict]:

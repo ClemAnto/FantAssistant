@@ -1,5 +1,5 @@
 # Spec — Toolkit `euroleghe-ingest` v9 (task 1.0 della roadmap)
-**Aggiornata: 5 agosto 2026 (v9.21 — il portiere ha un FM-equivalente, e serviva un numero solo; v9 SOSTITUISCE la v8)** · Python · Output: SQLite `euroleghe.db` + CSV normalizzati
+**Aggiornata: 5 agosto 2026 (v9.22 — un posto in attacco è il lavoro di un attaccante, alla selezione; v9 SOSTITUISCE la v8)** · Python · Output: SQLite `euroleghe.db` + CSV normalizzati
 *Sigle: fc_id = identificativo fantacalcio.it · FM = fantamedia · Mv = media voto · Pv = partite a voto · xref = cross-reference id tra siti · xG/xA = expected goals/assists · manifest = lista file da recuperare.*
 **Convenzione: identificatori sempre in INGLESE** (tabelle, colonne, moduli, variabili); italiano solo nella documentazione.
 
@@ -493,6 +493,40 @@ ruolo**, **8% disgiunti** — e le disgiunte sono quasi tutte `a` del listone co
 visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**. Riscontri esatti:
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
+
+## Novità v9.22 (5 agosto 2026 — un posto in attacco è il lavoro di un attaccante, alla SELEZIONE)
+
+Chiude l'ultimo caso della famiglia «attacchi senza un attaccante». 299 test, ruff pulito.
+
+### 1. La misura prima della regola, e ha ridefinito il numero
+La verifica delle sessioni precedenti contava «4 board su 394». Rimisurando sui fogli più recenti è venuto
+fuori che la conta mescolava due cose diverse: in modalità **`next`**, dove le fonti dichiarano almeno 11
+titolari, il board **È l'undici dichiarato** (`_declared`) e chi occupa un posto non è una scelta del modello.
+Separati: **516 board che il modello seleziona** + **150 che la fonte dichiara**. Sui primi gli invarianti
+erano **6 attacchi senza attaccante** — tutti il **Lilla**, lo stesso uomo — e **1 centrale su una fascia**
+(Manchester United, fascia della **trequarti**: `_flanked` copre M e A, non T — resta aperto e scritto).
+⚠️ Da tenere: contare un board dichiarato dalle fonti come se fosse un disegno del modello attribuisce al
+modello scelte degli editor (Atalanta `next`: portiere Sportiello 0.03 con Carnesecchi 0.82 fuori — è la
+probabile, non il modulo).
+
+### 2. `_fronted`: la regola 4a un passo prima
+`_reshape` la dice su una linea già disegnata e `_off_the_front` la prezza dove si prezza un posto; nessuna
+delle due può fare niente se la **selezione** non ha mai offerto un attaccante alla linea — i trequartisti
+concorrono per la linea d'attacco (`line_key`), quindi con un solo posto davanti un trequartista batte una
+punta sul claim e poi la guardia «mai l'ultimo uomo dell'attacco» lo tiene là, giustamente. Ora il **mestiere**
+decide chi è eleggibile e il claim decide fra loro, con il tetto degli altri due override
+(`FLANK_OVERRIDE_GAP` 0.40) e la definizione **unica** di «non è il suo lavoro» (`_off_the_front`, che copre
+anche chi non ha codici osservati). Dove la rosa non ha attaccanti non succede niente — «una squadra i cui
+unici attaccanti sono trequartisti va disegnata con loro» (Roma: Malen legge `RW;ST` e il posto è suo).
+
+### 3. Misurato dopo: **6 → 0**, e cosa è costato
+Ogni board disegnato **due volte**, con la regola accesa e spenta: **67 board su 666 cambiati**, costo medio
+in claim **−0.108**, peggiore **−0.480** (due scambi al tetto). I casi: Lilla `4-5-1` Haraldsson (`AM` 0.83)
+→ **Fernandez-Pardo** (`ST` 0.83, pari claim); Atalanta `3-4-3` Pasalic (`MC;DM;AM` 0.56) → **Scamacca**
+(`ST` 0.47); Lazio `3-3-4` Dele-Bashiru → **Cancellieri** (`RW` 0.62). Nessun uomo NON-attaccante entra in
+una linea d'attacco (il pool lo esclude per costruzione), 0 righe oltre il massimo, e **le 298 asserzioni dei
+board già giudicati dall'operatore** (Napoli, Atalanta, Roma, Fiorentina, Liverpool, Bologna) restano verdi:
+è quella la guardia vera.
 
 ## Novità v9.21 (5 agosto 2026 — il portiere ha un FM-equivalente, e serviva un numero solo)
 

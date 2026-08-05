@@ -358,15 +358,24 @@ Nota: **nessuna delle feature generate il 27/07 e' entrata nel motore**, e **nes
       guadagnerebbe +0.41% — sotto il pavimento — e la causa è la **copertura** del misurato (25-29% euro
       contro 14-20% Serie A). ⚠️ Il seguito NON è tornare al prezzo: è **allargare il misurato** alla Serie B
       e ai campionati non coperti, da cui arriva la maggior parte degli acquisti di Serie A.
-- [ ] **La regola 4a alla SELEZIONE**, che è il residuo dei «9 attacchi senza un attaccante». Dopo la
-      sessione del 04/08 sono **4 su 394 board**, tutti lo stesso club e lo stesso uomo: Lilla, l'**unico**
-      posto d'attacco di un 4-5-1 assegnato a Haraldsson (`AM`, claim **0.83**) invece che a Fernandez-Pardo
-      (`ST`, **0.83**) — pari merito rotto sui **minuti**, e poi la guardia «mai l'ultimo uomo dell'attacco»
-      lo tiene là davanti (giusto: una squadra i cui unici attaccanti sono trequartisti va disegnata con
-      loro). La strada: se l'unico posto d'attacco andrebbe a un trequartista, la **riga di centrocampo cede
-      un posto** e il modulo esce 4-4-1-1 — stessa forma di `_flanked` (la composizione della riga informa la
-      selezione), ma sulla **profondità** invece che sulla fascia. ✅ I **centrali su una fascia** sono
-      chiusi: **3 → 0**.
+- [x] **FATTO il 05/08 (notte) — la regola 4a alla SELEZIONE** (`_fronted`, spec «Novità v9.22»): il mestiere
+      decide chi è eleggibile per un posto d'attacco e il claim decide fra loro, col tetto degli altri due
+      override e la definizione unica di `_off_the_front`. Misurato: **6 → 0** attacchi senza attaccante sui
+      **516 board che il modello seleziona** (il Lilla era l'unico caso rimasto), 67 board su 666 cambiati,
+      costo medio in claim −0.108. ⚠️ **La misura ha ridefinito il numero**: la conta precedente («4 su 394»)
+      mescolava i board che il MODELLO seleziona con i **150** che la **fonte dichiara** (modalità `next` con
+      almeno 11 probabili) — in quelli chi occupa un posto è una scelta degli editor, non del modulo. Resta
+      aperto e scritto: **1 centrale su una fascia della TREQUARTI** (Manchester United), perché `_flanked`
+      copre M e A e non T.
+> ⚠️ **La strada dichiarata NON è quella presa, e vale scriverlo**: la todolist proponeva «se l'unico posto
+> d'attacco andrebbe a un trequartista, la **riga di centrocampo cede un posto** e il modulo esce 4-4-1-1».
+> Implementata invece la stessa regola come **override di selezione** (chi è eleggibile per quel posto), per
+> due ragioni misurabili: cedere un posto **cambia la forma**, e la forma ha già il suo unico proprietario
+> (`_reshape`, che la trasforma solo quando è obbligata); e l'override sta nella **stessa valuta e col
+> tetto** dei due che esistevano già, quindi non introduce un terzo metro. Effetto sui board: il Lilla esce
+> 4-5-1 con **Fernandez-Pardo** davanti, non 4-4-1-1 con Haraldsson dietro — cioè la squadra schiera la sua
+> punta, che è la frase dell'operatore.
+
 - [ ] **Le bande della heatmap, SE si riapre la domanda giusta** (gate §5-quaterdecies). Validate come
       segnale — separano chi gioca su **entrambe** le fasce da chi gioca al **centro**, che una media non può
       (Malen 0.37/**0.50**/0.14 contro Pulisic 0.46/0.30/0.24, centroidi −0.149 e −0.163) — e **misurate come

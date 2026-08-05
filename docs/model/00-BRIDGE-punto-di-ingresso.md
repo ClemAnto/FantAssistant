@@ -1,5 +1,5 @@
 # 00 — BRIDGE · Punto d'ingresso del progetto (leggere per primo)
-**Aggiornato: 5 agosto 2026 (chiusura: la lista dell'asta, il portiere, e l'investimento chiuso in due metà)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
+**Aggiornato: 5 agosto 2026 (chiusura: la lista d'asta, il portiere, l'investimento, e l'ultimo attacco senza attaccante)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
 
 ## Il progetto in breve
 Motore previsionale per fantacalcio **EuroLeghe** (fantacalcio.it): valutazione calciatori Classic e Mantra sui 5 grandi campionati europei (Serie A, Premier, Liga, Bundesliga, Ligue 1 — perimetro: i ~35 top club del gioco). Prevede fantamedia (FM), presenze attese e VALORE stagionale = FM × presenze. Metodo scientifico: **ogni regola entra nel motore solo se batte il baseline fuori campione su finestre indipendenti** (gate pre-registrato). Stato: core validato (Mantra, Classic, portieri, presenze); manca lo strato flag/arrivi, sbloccato dal toolkit dati `euroleghe-ingest` (in implementazione).
@@ -26,7 +26,27 @@ proporre qualsiasi regola) → **`metrica-asta-surplus-v1.md`** (con cosa il pan
 
 Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
 
-### ULTIMO IN ORDINE DI TEMPO — 5/08/2026 notte: l'investimento erano due metà, e nessuna arriva al pavimento
+### ULTIMO IN ORDINE DI TEMPO — 5/08/2026 notte (2): un posto in attacco è il lavoro di un attaccante
+
+Spec **«Novità v9.22»**. Chiude l'ultimo caso della famiglia «attacchi senza un attaccante».
+
+1. **La misura ha ridefinito il numero prima della regola.** «4 board su 394» mescolava i board che il MODELLO
+   seleziona con quelli che la **fonte dichiara**: in `next`, con almeno 11 probabili, il board **è l'undici
+   degli editor**. Separati: **516 del modello** contro **150 dichiarati**, e sui primi gli offender erano
+   **6 attacchi senza attaccante** (tutti il **Lilla**, lo stesso uomo) e **1 centrale su una fascia** della
+   trequarti (Manchester United — `_flanked` copre M e A, non T: aperto e scritto). ⚠️ Attribuire al modello un
+   board dichiarato gli attribuisce scelte degli editor: l'Atalanta `next` schiera Sportiello (0.03) con
+   Carnesecchi (0.82) fuori, ed è la probabile.
+2. **`_fronted`**: il MESTIERE decide chi è eleggibile per un posto d'attacco (`_off_the_front`, la definizione
+   che già esisteva) e il claim decide fra i candidati, col tetto dei due override esistenti. ⚠️ **Non** è la
+   strada che la todolist proponeva («la riga di centrocampo cede un posto, il modulo esce 4-4-1-1»): cedere un
+   posto cambia la FORMA, che ha già un unico proprietario (`_reshape`), e restare nella stessa valuta evita un
+   terzo metro. Il Lilla esce 4-5-1 con **Fernandez-Pardo** davanti.
+3. **Costo, misurato disegnando ogni board due volte**: **67 su 666 cambiati**, claim medio **−0.108**, peggiore
+   −0.480. Attacchi senza attaccante **6 → 0**, e le asserzioni dei board già giudicati dall'operatore restano
+   verdi — quella è la guardia, non il conteggio.
+
+### 5/08/2026 notte: l'investimento erano due metà, e nessuna arriva al pavimento
 
 Gate **§7-septies**, follow-up pre-registrato ed eseguito. **NON ADOTTATA, famiglia CHIUSA**: `value_weight` e
 `shrink_weight` restano **0.0**.

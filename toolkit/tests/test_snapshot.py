@@ -1946,3 +1946,52 @@ def test_the_live_auction_list_is_one_table_and_claims_no_score():
             assert "in common" not in head and "captured" not in head, head
     finally:
         root.destroy()
+
+
+def test_a_front_place_goes_to_a_forward_even_when_a_trequartista_claims_more(monkeypatch):
+    """Rule 4a at SELECTION (`_fronted`), and it was the last case of its family left on the board.
+
+    The trequartisti compete for the attacking line (`line_key`), so on a shape with a SINGLE front place a
+    man who plays on the trequarti outbids a centre-forward on claim - and then the guard «never the last man
+    of the attack» rightly keeps him there, so nothing downstream can repair it. Measured on Lille's 4-5-1,
+    the only offender left on the 516 boards the model selects: Haraldsson (`AM`, 0.86) held the place while
+    Fernandez-Pardo (`ST`, 0.82) sat outside the eleven.
+
+    The job decides who is ELIGIBLE, the claim decides between them, and the ceiling is the one the other two
+    overrides use. And where the squad has no forward to offer, nothing happens: «una squadra i cui unici
+    attaccanti sono trequartisti va disegnata con loro».
+    """
+    from euroleghe_ingest.gui import SnapshotView as View
+
+    def squad_of(extra):
+        rows = [{"fc_id": str(index), "name": name, "desc_real_roles": codes, "role_classic": role,
+                 "share": share}
+                for index, (name, codes, role, share) in enumerate((
+                    ("Chevalier", "GK", "P", 1.00),
+                    ("Meunier", "DR", "D", 0.90), ("Diakite", "DC", "D", 0.88),
+                    ("Mandi", "DC", "D", 0.86), ("Perraud", "DL", "D", 0.84),
+                    ("Bouaddi", "MC;DM", "C", 0.82), ("Andre", "DM;MC", "C", 0.80),
+                    ("Bentaleb", "MC", "C", 0.78), ("Correia", "LW;RW", "C", 0.61),
+                    ("Mukau", "MC;DM", "C", 0.70),
+                    ("Haraldsson", "AM", "C", 0.86)) + extra)]
+        return rows
+
+    def front_of(rows):
+        view = _view_of(rows)
+        view._calendar, view._slot_side, view._excluded, view._reshaped = {}, {}, set(), set()
+        monkeypatch.setattr(View, "squad", lambda _self, _club: rows)
+        monkeypatch.setattr(View, "presence", lambda _self, row, _h: row.get("share", 0.0))
+        monkeypatch.setattr(View, "claim", lambda _self, row, _h="season": row.get("share", 0.0))
+        monkeypatch.setattr(View, "titolarita", lambda _self, row, _h: (0.0, row.get("share", 0.0)))
+        eleven = view.eleven("Lille", "4-5-1", "typical")
+        assert len(eleven) == 11
+        return [row["name"] for lane, row, _rivals in eleven if lane == "A"]
+
+    # The striker claims LESS and still takes the place: the front line is his job, and 0.04 of claim is
+    # well inside the ceiling the other overrides pay.
+    assert front_of(squad_of((("Fernandez-Pardo", "ST", "A", 0.82),))) == ["Fernandez-Pardo"]
+    # ...but not at any price: past `FLANK_OVERRIDE_GAP` the forward is a man who does not play, and then
+    # the drawing keeps the side the coach actually fields.
+    assert front_of(squad_of((("Fernandez-Pardo", "ST", "A", 0.20),))) == ["Haraldsson"]
+    # ...and with no forward in the squad at all, the trequartista keeps the place - the Roma case.
+    assert front_of(squad_of((("Ngoy", "MC", "C", 0.55),))) == ["Haraldsson"]
