@@ -33,7 +33,7 @@ PIPELINE: tuple[str, ...] = (
 # `backtest`, `sweep` and `export` are read-only (two score the model, the third writes the app's bundle);
 # none produces an ingest table, hence none is in PIPELINE. `sweep` is the gate's other half: `backtest`
 # judges candidate RULES, `sweep` judges the provisional CONSTANTS (gate-motore-v1.md 7-bis).
-STANDALONE: tuple[str, ...] = ("fetch", "rebuild", "bootstrap", "backtest", "sweep", "export",
+STANDALONE: tuple[str, ...] = ("fetch", "rebuild", "bootstrap", "backtest", "sweep", "estimates", "export",
                               "snapshot")
 
 ALL_MODULES: tuple[str, ...] = STANDALONE + PIPELINE

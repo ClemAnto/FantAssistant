@@ -95,6 +95,19 @@ def build_parser() -> argparse.ArgumentParser:
     p_sweep.add_argument("--no-report", dest="report", action="store_false",
                          help="print only, do not write data/reports/sweep_presence.json")
 
+    # The third question, next to the two gates: does the FALLBACK valuation make the auction list better
+    # or worse? It is not a rule and cannot pass a rule's gate - it gives a number where there was none - but
+    # since it now RANKS, on a finished window we know whether the men it lets in delivered (gate §7-undecies).
+    p_estimates = sub.add_parser("estimates", help=load("estimates").DESCRIPTION)
+    p_estimates.add_argument("--platform", action="append", choices=["euro", "default"],
+                             help="euro = EuroLeghe, default = classic Serie A (default: both)")
+    p_estimates.add_argument("--game", choices=["classic", "mantra"],
+                             help="role system the list is ranked in (default: classic)")
+    p_estimates.add_argument("--metric", choices=["value", "surplus"],
+                             help="the currency the top tens are ranked in (default: surplus)")
+    p_estimates.add_argument("--no-report", dest="report", action="store_false",
+                             help="print only, do not write data/reports/estimates_check.json")
+
     # The app's data bundle: read-only on the DB, writes data/export/<season>/.
     p_export = sub.add_parser("export", help=load("export").DESCRIPTION)
     p_export.add_argument("--season", metavar="YYYY-YY",
@@ -273,6 +286,9 @@ def main(argv: list[str] | None = None) -> int:
             elif args.command == "sweep":
                 load("sweep").run(ctx, windows=args.window, platforms=args.platform,
                                   games=args.game, report=args.report)
+            elif args.command == "estimates":
+                load("estimates").run(ctx, platform=args.platform, game=args.game,
+                                      metric=args.metric, no_report=not args.report)
             else:
                 load(args.command).run(ctx)
         except NotImplementedError as exc:

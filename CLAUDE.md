@@ -342,6 +342,21 @@ the case that asked the question: its 28/07 payload had 46 Napoli players and **
   possible at all: `(fc_id, date)` could not hold a loan return and a permanent signing dated the same 1 July,
   so it kept whichever was parsed last and read Hojlund as LEAVING the club that had just bought him.
 
+## A displayed list whose metrics describe a different list is worse than no metric
+**Found and paid for within one hour, 05/08/2026.** The estimates were merged into the rows the auction panel
+DISPLAYS while `captured`/`hits`/`predicted_rank` stayed on the gated list alone: the screen showed an estimated
+man in 4th place and the statistics behaved as if he were not there, so the harness measuring the change printed
+**+0.00% on ten windows out of ten**. It looked measured. The rule that follows: one chosen list per role, and
+every figure of the block computed from it.
+And then the real measurement, which **reversed a design decision made an hour earlier** (gate §7-undecies,
+`python -m euroleghe_ingest estimates`): ranking the estimated men lowered the captured SURPLUS on **10 windows
+of 10**, mean **−12.4%**, worst −30.3%, with the names in common falling too. So a reconstruction may not
+DISPLACE a man somebody measured - the estimates are OFFERED apart, under the ten, and every row still has its
+number. Two corollaries worth keeping: a platform where the core prices everybody (euro, R0c) returns 0
+estimable and a +0.00% that is **not a PASS** - a window without a population confirms nothing; and the failure
+mode is variance, not bias - Douglas Luiz predicted +28.6 and returned **−3.2**, Rugani never played, while
+McTominay predicted +16.0 and returned **+50.2**.
+
 ## Every player must have a number, and the number must say what it is worth
 **Operator's rule, 05/08/2026: «ogni calciatore DEVE avere il suo SURPLUS altrimenti è impossibile valutarli
 oggettivamente ... penalizziamo il SURPLUS (l'indeterminazione è comunque una nota negativa) ma dobbiamo cmq

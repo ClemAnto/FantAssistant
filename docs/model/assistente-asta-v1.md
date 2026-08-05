@@ -1371,3 +1371,107 @@ Perché va scritto e non solo corretto:
   generale, da applicare senza pensarci: **un'entità si unisce attraverso la sua chiave canonica** —
   `club_key`/`CLUB_ALIASES` per i club, `fc_id`/`player_xref` per le persone — **mai attraverso la stringa che
   una fonte usa per chiamarla.**
+
+---
+
+## 22. «% di partite facili» nello snapshot: la definizione decide se informa (5 agosto 2026)
+
+**Richiesta dell'operatore**: nello snapshot, per ogni squadra indicare una percentuale di partite facili sul
+totale. Implementabile — ma la misura dice *quale* percentuale, e dice che oggi non si può ancora riempire.
+
+### 22.1 La definizione RELATIVA è l'Elo travestito da percentuale
+
+Due candidate, misurate su Serie A 2025-26 (facile = avversario sotto l'Elo mediano del campionato, contro
+facile = almeno 50 punti Elo sotto **il mio** club):
+
+| definizione | correlazione con l'Elo del club STESSO | sd fra club | range |
+|---|---|---|---|
+| **relativa** (differenza col mio Elo) | **+0.987** | 29.6 pp | 100 pp |
+| **assoluta** (sotto la mediana di lega) | +0.405 | 4.3 pp | 16 pp |
+| **Δ euro − reale** (assoluta) | **−0.145** | 4.1 pp | 15 pp |
+
+La relativa dà Inter **100%** e Cremonese **0%**: non è una colonna sul calendario, è **l'Elo ristampato in
+percentuale** (0.987). E sarebbe la peggiore da mettere in un foglio d'asta, perché infilerebbe di nascosto
+esattamente il predittore che il gate ha respinto **tre volte** (forza-club interna, Elo additivo movimento, R5).
+
+L'assoluta è onesta ma quasi costante sul calendario reale (sd **2.6 pp**, range 5.3): è il girone all'italiana,
+tutti incontrano più o meno gli stessi deboli. Sul calendario **euro** la dispersione raddoppia (4.3 pp), com'era
+prevedibile dal §21.5.
+
+> **Sulla STAGIONE INTERA la colonna che porta informazione è il Δ fra il calendario euro e quello reale**:
+> correlazione **−0.145** con la forza del club, cioè praticamente **indipendente** da ciò che il foglio già
+> dice, e range di 15 punti percentuali. È l'unica delle tre che aggiunge un fatto: *quanto il calendario euro
+> rende questo club più facile o più difficile di quanto la sua stagione reale suggerisca.*
+
+⚠️ **E questo vale solo sulla stagione intera.** Su una finestra corta la conclusione si rovescia e la `% facili`
+liscia diventa *più* pulita del Δ: vedi §22.4, che è la forma decisa.
+
+Verona **+7.5**, Inter e Atalanta +5.4, Udinese e Parma +4.2 · contro Lazio **−7.5**, Como e Cagliari −5.4,
+Napoli/Roma/Juventus −4.2. E concorda col §21.5 misurato in punti Elo, che è un controllo interno superato.
+
+### 22.2 Ma NON si può mostrare prima di conoscere il calendario della stagione: persistenza +0.058
+
+La domanda che decide se la colonna può essere riempita oggi: il Δ è un **attributo del club** o del
+**sorteggio di quell'anno**? Correlazione del Δ per club fra 2024-25 e 2025-26, 17 club presenti in entrambe:
+
+> **+0.058.** Indistinguibile da zero. Como passa da **+7.5 a −5.4**, Inter da **−4.2 a +5.4**.
+
+Quindi il Δ è una proprietà del **calendario di quella stagione**, non della squadra: calcolarlo sull'anno
+scorso e mostrarlo per il draft di quest'anno sarebbe esibire un numero **senza contenuto predittivo**. Stessa
+forma del verdetto sulla persistenza per-giocatore (`metrica-asta-surplus-v1.md` §10): domanda di trasferimento,
+risposta zero, famiglia chiusa sul lato previsionale.
+
+**Conseguenza operativa**: la colonna **nasce vuota, con la ragione dichiarata**, e si riempie quando il
+**calendario della stagione** è ingerito (§21.4). Non si riempie con l'anno prima.
+
+### 22.3 Come va fatta, quando si farà
+
+- **Due numeri affiancati**: `% facili (euro)` e `Δ vs reale`, con la soglia scritta. Una percentuale senza la
+  sua soglia non è un fatto, quindi soglia, data dell'Elo e finestra vanno nel `manifest.json` e nel tooltip.
+- **Numeratore e denominatore sullo stesso calendario.** È la lezione di `league_XIs`: contare i facili su euro e
+  il totale sul reale è lo stesso errore che portò la correlazione titolarità-club da +0.796 a −0.172.
+- **La cella dichiara la sua copertura.** Fuori dalla Serie A solo ~metà degli avversari ha un Elo (§21.6), e una
+  percentuale su metà delle partite è un'altra quantità: o porta il conteggio delle partite classificate, o resta
+  vuota.
+- **È un fatto di CLUB su una riga di GIOCATORE**, come la colonna Pair: si unisce attraverso `club_key`, mai per
+  nome (§21.7).
+- **Finestra = dalla data dello snapshot alla fine**, non la stagione intera: è quella la domanda dell'asta, ed è
+  anche dove il numero è più grande (§21.5).
+
+### 22.4 Decisione: si mostra **«% facili» e basta** — ed è la finestra corta che la rende pulita
+
+**Decisione dell'operatura, 5/08/2026**: si mostra la `% facili` e nient'altro; la ragione è che «*se faccio
+un'asta di riparazione (non euro) a 8 giornate dalla fine il valore può essere rilevante*».
+
+Misurato esattamente su quello scenario — Serie A, `platform='default'`, **ultime 8 giornate reali**:
+
+| finestra | sd fra club | range | **corr. con l'Elo del club stesso** |
+|---|---|---|---|
+| **ultime 8** (24-25) | **16.3 pp** | **12% – 75%** | **−0.017** |
+| **ultime 8** (25-26) | **12.5 pp** | **25% – 75%** | **−0.063** |
+| ultime 12 | 9.1 / 9.9 pp | 25% – 75% | −0.026 / +0.130 |
+| stagione intera | 2.6 pp | 47% – 53% | **+0.881** |
+
+Tre cose, e tutte e tre danno ragione alla semplificazione:
+
+1. **Su 8 giornate la dispersione è 5-6 volte quella della stagione intera** (16.3 e 12.5 contro 2.6 pp), da
+   **1 partita facile su 8** (Roma 12%) a **6 su 8** (Como, Napoli, Torino: 75%). Un fattore sei fra club: a otto
+   giornate dalla fine la `% facili` è un fatto di primo ordine, non una rifinitura.
+2. **E la mia obiezione del §22.1 cade proprio là.** La correlazione con la forza del club è **+0.881 sulla
+   stagione intera** — dove la colonna sarebbe quasi solo un altro modo di dire l'Elo — e **−0.017 / −0.063 sulle
+   ultime otto**: sulla finestra corta la `% facili` liscia è **più ortogonale** di quanto fosse il Δ (−0.145) e
+   non serve più nessuna seconda colonna. La semplificazione non è un compromesso: sulla finestra che conta è la
+   forma migliore.
+3. **Il blocco del §22.2 non si applica a una riparazione.** Là il calendario residuo non è un sorteggio da
+   prevedere, è **pubblicato**: a metà stagione le partite che restano si sanno, e otto giornate sono ~80
+   incontri, un'ingestione minima. Resta invece vero per il draft di agosto, dove l'orizzonte lungo rende la
+   colonna quasi costante *e* il calendario non è ancora noto — cioè le due ragioni cadono insieme.
+
+Da cui una lettura che vale la pena tenere: **il contenuto informativo della colonna e la sua calcolabilità si
+muovono insieme.** Finestra lunga → quasi costante e calendario ignoto; finestra corta → molto variabile e
+calendario già pubblicato. `% facili` è quindi propriamente una **colonna da asta di riparazione**, e nel foglio
+di agosto starà vuota per costruzione (§8: e lo dirà).
+
+**Una nota di forma, dalla misura stessa**: su 8 partite la percentuale si muove a scatti di 12.5 punti e assume
+solo i valori `k/8`. Mostrare **«6/8 (75%)»** è più onesto di «75%», perché dice anche su quante partite il
+numero è calcolato — che è la stessa informazione che il §22.3 chiede alla cella di dichiarare.

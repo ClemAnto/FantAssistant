@@ -27,7 +27,23 @@ regole di UI che sono requisiti) → `spec-euroleghe-ingest-v9.md` → `nota-mod
 
 Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
 
-### ULTIMO IN ORDINE DI TEMPO — 5/08/2026: la LISTA d'asta ordina anche gli stimati
+### ULTIMO IN ORDINE DI TEMPO — 5/08/2026: la stima messa alla prova — OFFERTA, non classificata
+
+Nuovo comando **`estimates`**, gate **§7-undecies**, e un verdetto che ha cambiato il disegno fatto un'ora prima.
+
+1. **La misura**: la vista d'asta due volte su ogni finestra, con e senza stime. Su Serie A il SURPLUS catturato
+   **peggiora su 10 finestre su 10**, media **−12.40%**, peggiore **−30.34%**, e i nomi in comune scendono
+   (Tm4 17 → 12). Il criterio scritto prima non è soddisfatto: gli stimati **scalzano** uomini misurati. Su euro
+   **0 stimabili** su ogni finestra, quindi quel +0.00% **non è un PASS** — R0c prezza già tutti.
+2. **Applicato**: gli stimati escono dalla classifica e sono **offerti a parte**, sotto i dieci, con `~`, base e
+   penalità. Ogni riga continua ad avere un numero (foglio e tabella rosa): quello che la misura ha rifiutato è
+   che un numero ricostruito prenda il posto di un uomo misurato. Casi: Douglas Luiz +28.6 → **−3.2 reale**,
+   Rugani → **non ha mai giocato**, contro McTominay +16.0 → **+50.2**. Media negativa, varianza enorme.
+3. ⚠️ **Lezione, e ha morso nella stessa ora**: la prima implementazione univa gli stimati alle righe MOSTRATE
+   lasciando `captured`/`hits` sulla lista gatata, e la misura stampava **+0.00% su 10 su 10**. Una lista
+   mostrata le cui metriche descrivono un'altra lista è peggio di nessuna metrica: *sembra* misurata.
+
+### 5/08/2026: la LISTA d'asta ordina anche gli stimati (superato dal blocco sopra)
 
 Spec **«Novità v9.27»**. Completa «ogni calciatore DEVE avere il suo SURPLUS» **dove si decide**: il foglio
 dava 629 numeri su 629 e la lista d'asta ne ordinava **346**.

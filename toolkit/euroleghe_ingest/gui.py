@@ -1512,7 +1512,11 @@ class AuctionView(ttk.Frame):
             self.status_var.set(
                 f"LIVE · {view['window']} · rules {view['rules']} · parameters from "
                 f"{view['params_from']} · {view['priced']} of {view['rows']} players priced, "
-                f"{view.get('estimated', 0)} ESTIMATED (marked ~, penalised) · "
+                # No PERCENTAGE in this line, and a test pins that: a figure with a % on a season nobody
+                # has played reads as a hit rate. The measurement that put the estimates apart is in the
+                # gate (§7-undecies) and in the column help, where it can carry its numbers.
+                f"{view.get('estimated', 0)} offered on an ESTIMATE (~, penalised, listed APART because "
+                f"ranking them lost captured surplus on every window measured) · "
                 f"no season to compare against: this is the list you bid from")
         else:
             total_hits = sum(block["hits"] for block in view["by_role"].values())

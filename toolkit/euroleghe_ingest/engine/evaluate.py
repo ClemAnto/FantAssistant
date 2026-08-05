@@ -2150,23 +2150,6 @@ def _slot_pressure_factors(data: features.WindowData,
     return out
 
 
-def _predicted_rows(ranked, estimated, top_n: int, score_pred, gated, guessed) -> list[dict]:
-    """The top N of one role, gated men and estimated men in ONE order - which is the whole point.
-
-    Two builders because the two carry different evidence, one list because a ranking that keeps them apart
-    is two rankings and cannot answer "who do I bid on". The order is the score's, the tie-break is `fc_id`
-    (reproducible, same as everywhere), and every row says whether it is an estimate.
-    """
-    entries = [(score_pred(p), p.obs.fc_id, "gated", p, None) for p in ranked]
-    entries += [(score, obs.fc_id, "est", obs, guess) for score, obs, guess in estimated]
-    entries.sort(key=lambda entry: (-entry[0], entry[1]))
-    rows = []
-    for index, (_score, _fc_id, kind, subject, guess) in enumerate(entries[:top_n], 1):
-        row = gated(subject) if kind == "gated" else guessed(subject, guess)
-        rows.append({"rank": index, **row})
-    return rows
-
-
 def auction_view(data: features.WindowData, predictions: list[Prediction],
                  top_n: int = TOP_N, metric: str = "value",
                  estimates: dict[int, dict] | None = None) -> dict:
@@ -2265,7 +2248,7 @@ def auction_view(data: features.WindowData, predictions: list[Prediction],
         ranked = sorted((p for p in valued if fieldable(p.pv_pred)),
                         key=lambda p: (-score_pred(p), p.obs.fc_id))
         # ...and the men the core could not price at all, on their penalised estimate. Only when a caller
-        # asks for them: the gate does not, so `ranked` above is exactly what it has always been.
+        # asks for them - the gate does not, so without `estimates` everything below is what it always was.
         priced_ids = {p.obs.fc_id for p in valued}
         estimated: list[tuple[float, features.Observation, dict]] = []
         if estimates:
@@ -2277,7 +2260,16 @@ def auction_view(data: features.WindowData, predictions: list[Prediction],
                 if score is None or not fieldable(guess.get("pv")):
                     continue
                 estimated.append((score, obs, guess))
+        # THE ESTIMATES DO NOT ENTER THE RANKING, and that is a MEASURED decision, not a preference.
+        # `estimates --platform default` ran the deliverable twice on all ten windows (gate §7-undecies):
+        # merging them lowered the captured SURPLUS on 10 of 10, mean -12.4%, worst -30.3%, and the names in
+        # common fell with it (Tm4 17 -> 12). They displace measured men, so the pre-registered criterion -
+        # majority not worse, no window below -2% - refuses them. They are returned SEPARATELY instead, which
+        # keeps the operator's rule («ogni calciatore DEVE avere il suo SURPLUS») without letting a
+        # reconstruction outrank a man somebody actually measured.
+        chosen_obs = [p.obs for p in ranked[:top_n]]
         predicted_rank = {p.obs.fc_id: index for index, p in enumerate(ranked, 1)}
+        estimated.sort(key=lambda entry: (-entry[0], entry[1].fc_id))
         by_id = {p.obs.fc_id: p for p in valued}
         actual = sorted((obs for obs in observations
                          if obs.value_act is not None and fieldable(obs.pv_act)),
@@ -2296,8 +2288,40 @@ def auction_view(data: features.WindowData, predictions: list[Prediction],
             """What the market asked for him BEFORE the auction, in the same currency."""
             return obs.price_initial_mantra if _game == "mantra" else obs.price_initial
 
-        captured = sum(score_act(p.obs) for p in ranked[:top_n])
+        captured = sum(score_act(obs) for obs in chosen_obs)
         perfect = sum(score_act(obs) for obs in actual[:top_n])
+
+        def gated_row(p, _ranks=actual_rank) -> dict:
+            """One measured man as the panel shows him."""
+            return {
+                "name": p.obs.name, "club": p.obs.club_target, "price_initial": asked(p.obs),
+                "fm_pred": _round(p.fm_pred, 2), "pv_pred": _round(p.pv_pred, 1),
+                "value_pred": _round(p.value_pred, 1),
+                "surplus_pred": _round(over_floor(p.fm_pred, p.pv_pred), 1),
+                "fm_act": p.obs.fm_act, "pv_act": p.obs.pv_act,
+                "value_act": _round(p.obs.value_act, 1),
+                "surplus_act": _round(surplus_act(p.obs), 1),
+                "fvm": market(p.obs), "actual_rank": _ranks.get(p.obs.fc_id),
+                "pair": pair_note(p),
+                "pressure": _round(pressure.get(p.obs.fc_id), 2) if pressure else None,
+                "estimated": False, "est_basis": None, "est_confidence": None, "est_note": None,
+            }
+
+        def guessed_row(obs, guess, _ranks=actual_rank) -> dict:
+            """One RECONSTRUCTED man, in the same columns and saying so - see `engine.estimate`."""
+            return {
+                "name": obs.name, "club": obs.club_target, "price_initial": asked(obs),
+                "fm_pred": _round(guess.get("fm"), 2), "pv_pred": _round(guess.get("pv"), 1),
+                "value_pred": _round(guess.get("value"), 1),
+                "surplus_pred": _round(guess.get("surplus"), 1),
+                "fm_act": obs.fm_act, "pv_act": obs.pv_act,
+                "value_act": _round(obs.value_act, 1),
+                "surplus_act": _round(surplus_act(obs), 1),
+                "fvm": market(obs), "actual_rank": _ranks.get(obs.fc_id),
+                "pair": None, "pressure": None,
+                "estimated": True, "est_basis": guess.get("basis"),
+                "est_confidence": guess.get("confidence"), "est_note": guess.get("note"),
+            }
 
         # Same-club company inside the predicted top N, said out loud. Purely additive: the ranking,
         # the captured VALUE and every other figure are untouched - this only annotates that two of
@@ -2344,7 +2368,7 @@ def auction_view(data: features.WindowData, predictions: list[Prediction],
             "metric": metric,
             "replacement": _round(floor, 2),
             "replacement_actual": _round(floor_act, 2),
-            "hits": len({p.obs.fc_id for p in ranked[:top_n]}
+            "hits": len({obs.fc_id for obs in chosen_obs}
                         & {obs.fc_id for obs in actual[:top_n]}),
             "captured_value": _round(captured, 1),
             "perfect_value": _round(perfect, 1),
@@ -2358,37 +2382,11 @@ def auction_view(data: features.WindowData, predictions: list[Prediction],
                               and predicted_rank[obs.fc_id] > REGIME_RANK),
                 "unpriced": sum(1 for obs in actual[:top_n] if obs.fc_id not in predicted_rank),
             },
-            "predicted": _predicted_rows(
-                ranked, estimated, top_n, score_pred,
-                gated=lambda p, _ranks=actual_rank: {
-                    "name": p.obs.name, "club": p.obs.club_target,
-                    "price_initial": asked(p.obs),
-                    "fm_pred": _round(p.fm_pred, 2), "pv_pred": _round(p.pv_pred, 1),
-                    "value_pred": _round(p.value_pred, 1),
-                    "surplus_pred": _round(over_floor(p.fm_pred, p.pv_pred), 1),
-                    "fm_act": p.obs.fm_act, "pv_act": p.obs.pv_act,
-                    "value_act": _round(p.obs.value_act, 1),
-                    "surplus_act": _round(surplus_act(p.obs), 1),
-                    "fvm": market(p.obs),
-                    "actual_rank": _ranks.get(p.obs.fc_id),
-                    "pair": pair_note(p),
-                    "pressure": _round(pressure.get(p.obs.fc_id), 2) if pressure else None,
-                    "estimated": False, "est_basis": None, "est_confidence": None, "est_note": None,
-                },
-                guessed=lambda obs, guess, _ranks=actual_rank: {
-                    "name": obs.name, "club": obs.club_target, "price_initial": asked(obs),
-                    "fm_pred": _round(guess.get("fm"), 2), "pv_pred": _round(guess.get("pv"), 1),
-                    "value_pred": _round(guess.get("value"), 1),
-                    "surplus_pred": _round(guess.get("surplus"), 1),
-                    "fm_act": obs.fm_act, "pv_act": obs.pv_act,
-                    "value_act": _round(obs.value_act, 1),
-                    "surplus_act": _round(surplus_act(obs), 1),
-                    "fvm": market(obs),
-                    "actual_rank": _ranks.get(obs.fc_id),
-                    "pair": None, "pressure": None,
-                    "estimated": True, "est_basis": guess.get("basis"),
-                    "est_confidence": guess.get("confidence"), "est_note": guess.get("note"),
-                }),
+            # ...and the estimated men as their own list, in their own order, never mixed into the ten above
+            "estimated": [{"rank": index, **guessed_row(obs, guess)}
+                          for index, (_score, obs, guess) in enumerate(estimated[:top_n], 1)],
+            "predicted": [{"rank": index, **gated_row(p)}
+                          for index, p in enumerate(ranked[:top_n], 1)],
             "actual": [{
                 "rank": index, "name": obs.name, "club": obs.club_target,
                 "price_initial": asked(obs),

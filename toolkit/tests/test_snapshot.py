@@ -2172,15 +2172,19 @@ def test_absence_from_the_live_squad_is_read_only_for_a_man_the_provider_knows()
         "Bayer 04 Leverkusen", "2026-07-01")
 
 
-def test_the_auction_list_ranks_the_estimated_men_and_marks_them():
-    """«Ogni calciatore DEVE avere il suo SURPLUS» applies to the LIST YOU BID FROM, not only to the sheet.
+def test_the_estimates_are_offered_apart_and_never_displace_a_measured_man():
+    """Measured, and it changed the design: gate §7-undecies.
 
-    `auction_view` ranked men with a gated prediction and nothing else, so the 283 rows the sheet had just
-    learned to price were still absent from the one place the operator actually decides in. The estimates now
-    enter the same ranking on their penalised score - and every row says which it is, because a list that
-    mixes a measured man with a reconstruction without marking them is worse than one that hides half.
+    The first version merged the estimated men into each role's top ten - «ogni calciatore DEVE avere il suo
+    SURPLUS» taken all the way to the ranking. Then `estimates --platform default` ran the deliverable twice on
+    all ten windows and the answer was flat: the captured SURPLUS fell on **10 windows of 10**, mean -12.4%,
+    worst -30.3%, and the names in common fell with it (Tm4 17 -> 12). A penalised reconstruction displaces a
+    man somebody actually measured, so the pre-registered criterion refuses it.
 
-    The gate never passes `estimates`, and this pins that too: without them the view is byte-identical.
+    What survives is the operator's requirement without the damage: every player still HAS a number (the sheet
+    and the squad table show it, marked `~`), and the auction list offers the estimates as their OWN list, in
+    their own order, next to the ten. This pins both halves: the ten are untouched by the presence of
+    estimates, and the estimates are still there to be read.
     """
     import pytest
 
@@ -2208,6 +2212,7 @@ def test_the_auction_list_ranks_the_estimated_men_and_marks_them():
         matchdays_target = 38
         reliability = 0.0
         min_availability = 0.0
+
         def __init__(self, observations):
             self.observations = observations
             self.replacement = {"A": 6.0}
@@ -2221,24 +2226,21 @@ def test_the_auction_list_ranks_the_estimated_men_and_marks_them():
     predictions = [Pred(strong, 7.0, 30.0), Pred(weak, 6.2, 30.0), Pred(unpriced, None, None)]
 
     bare = evaluate.auction_view(data, predictions, top_n=5, metric=evaluate.SURPLUS)
-    assert [row["name"] for row in bare["A"]["predicted"]] == ["Strong", "Weak"]
-    assert not any(row["estimated"] for row in bare["A"]["predicted"])
-
-    # an estimate worth more than `Weak` slots in between, marked, with its basis and its penalty
+    # an estimate that would have outranked `Weak` - and does not get to
     estimates = {3: {"fm": 6.8, "pv": 28.0, "basis": "other_platform", "confidence": 0.95,
                      "note": "his season on the other platform", "value": 180.0, "surplus": 21.0}}
     with_est = evaluate.auction_view(data, predictions, top_n=5, metric=evaluate.SURPLUS,
                                      estimates=estimates)
-    rows = with_est["A"]["predicted"]
-    assert [row["name"] for row in rows] == ["Strong", "Unpriced", "Weak"], rows
-    guessed = next(row for row in rows if row["name"] == "Unpriced")
-    assert guessed["estimated"] and guessed["est_basis"] == "other_platform"
-    assert guessed["est_confidence"] == pytest.approx(0.95) and guessed["est_note"]
-    assert guessed["surplus_pred"] == pytest.approx(21.0), "the penalised score is what ranks and what shows"
-    assert with_est["A"]["n_estimated"] == 1 and bare["A"]["n_estimated"] == 0
-    # ...and the men who were already priced are untouched by the presence of estimates
-    for name in ("Strong", "Weak"):
-        before = next(r for r in bare["A"]["predicted"] if r["name"] == name)
-        after = next(r for r in rows if r["name"] == name)
-        assert {k: v for k, v in before.items() if k != "rank"} == {
-            k: v for k, v in after.items() if k != "rank"}
+
+    assert [row["name"] for row in with_est["A"]["predicted"]] == ["Strong", "Weak"]
+    assert bare["A"]["predicted"] == with_est["A"]["predicted"], (
+        "the measured ten must not move because an estimate exists")
+    for key in ("captured_value", "perfect_value", "hits", "misses"):
+        assert bare["A"][key] == with_est["A"][key], key
+
+    offered = with_est["A"]["estimated"]
+    assert [row["name"] for row in offered] == ["Unpriced"]
+    assert offered[0]["estimated"] and offered[0]["est_basis"] == "other_platform"
+    assert offered[0]["est_confidence"] == pytest.approx(0.95) and offered[0]["est_note"]
+    assert offered[0]["surplus_pred"] == pytest.approx(21.0)
+    assert not bare["A"]["estimated"], "no estimates asked for, none offered"

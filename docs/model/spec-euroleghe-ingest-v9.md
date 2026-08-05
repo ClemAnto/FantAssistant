@@ -1,5 +1,5 @@
 # Spec — Toolkit `euroleghe-ingest` v9 (task 1.0 della roadmap)
-**Aggiornata: 5 agosto 2026 (v9.27 — la lista d'asta ordina anche gli stimati; v9 SOSTITUISCE la v8)** · Python · Output: SQLite `euroleghe.db` + CSV normalizzati
+**Aggiornata: 5 agosto 2026 (v9.28 — la stima messa alla prova: offerta, non classificata; v9 SOSTITUISCE la v8)** · Python · Output: SQLite `euroleghe.db` + CSV normalizzati
 *Sigle: fc_id = identificativo fantacalcio.it · FM = fantamedia · Mv = media voto · Pv = partite a voto · xref = cross-reference id tra siti · xG/xA = expected goals/assists · manifest = lista file da recuperare.*
 **Convenzione: identificatori sempre in INGLESE** (tabelle, colonne, moduli, variabili); italiano solo nella documentazione.
 
@@ -494,7 +494,34 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
-## Novità v9.27 (5 agosto 2026 — la LISTA d'asta ordina anche gli stimati, marcati e penalizzati)
+## Novità v9.28 (5 agosto 2026 — la stima messa alla prova: OFFERTA, non classificata)
+
+Nuovo comando **`estimates`** (read-only, `data/reports/estimates_check.json`) e un verdetto che ha **cambiato
+il disegno** fatto un'ora prima. Gate **§7-undecies**. 304 test, `backtest --verify` 22/22.
+
+### 1. La misura
+La stessa vista d'asta due volte su ogni finestra usabile — senza stime e con stime — e il SURPLUS catturato dai
+dieci nomi contro quello dei dieci migliori realmente. Su Serie A: **peggiora su 10 finestre su 10**, media
+**−12.40%**, peggiore **−30.34%** (Tm2), e i nomi in comune scendono con esso (Tm4 17 → 12). Il criterio
+pre-registrato («non peggiora sulla maggioranza, nessuna finestra sotto −2%») non è soddisfatto in nessuna delle
+due metà. Su **euro 0 stimabili su ogni finestra**, quindi il +0.00% là **non è un PASS**: R0c prezza già tutti.
+
+### 2. Il verdetto applicato
+Gli stimati **escono dalla classifica** e vengono **offerti a parte**: nel blocco del ruolo, sotto i dieci
+misurati, con la loro tabella («Estimated — offered, not ranked with the ten above»), il `~`, la base e la
+penalità. La regola dell'operatore resta soddisfatta dove serve — **ogni riga ha un numero** — e quello che la
+misura ha rifiutato non è il numero, è che un numero **ricostruito scalzi** un uomo misurato. I casi lo dicono
+uno per uno: Douglas Luiz previsto +28.6 → **−3.2 reale**, Rugani +13.3 → **non ha mai giocato**, contro
+McTominay +16.0 → **+50.2**. Media negativa e varianza enorme: il profilo peggiore per le prime dieci.
+
+### 3. ⚠️ La lezione, che ha morso nella stessa ora
+La prima implementazione univa gli stimati alle righe **mostrate** e lasciava `captured`/`hits` sulla lista
+gatata: lo schermo metteva un uomo stimato al 4° posto mentre le statistiche si comportavano come se non ci
+fosse, e la prima corsa della misura stampava **+0.00% su dieci finestre su dieci**. Una lista mostrata le cui
+metriche descrivono un'altra lista è **peggio di nessuna metrica**, perché sembra misurata. Ora la lista scelta
+è una e ogni numero del blocco viene da lei.
+
+## Novità v9.27 (5 agosto 2026 — la LISTA d'asta ordina anche gli stimati — SUPERATA dalla v9.28, che li ha rimessi a parte dopo la misura)
 
 Completa la regola «ogni calciatore DEVE avere il suo SURPLUS» **dove si decide**: il foglio dava 629 numeri
 su 629, ma la lista d'asta ne ordinava **346**, cioè lo stesso buco nel posto che conta di più. 305 test,

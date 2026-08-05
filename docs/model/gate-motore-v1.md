@@ -1882,6 +1882,82 @@ un voto base convertito e **non** un FM-equivalente: per lui serve un equivalent
 portieri, che è un lavoro in `arrivals` e non qui. Va detto adesso perché è il caso che ha generato la
 richiesta. → **§7-decies**.
 
+## 7-undecies. LA STIMA DI RIPIEGO MESSA ALLA PROVA (pre-registrata il 5 agosto 2026, sera)
+
+La cascata di `engine/estimate.py` esiste per una regola di prodotto («ogni calciatore DEVE avere il suo
+SURPLUS»), non ha passato nessun gate e **non può passarne uno come una regola**: non predice meglio, dà un
+numero dove non ce n'era. Ma da stasera **ordina la lista d'asta**, e quello sì è misurabile sul passato: su
+una finestra conclusa si sa chi ha reso.
+
+### La domanda, e perché è sul DELIVERABLE e non sulla fantamedia
+Sulla fantamedia la risposta è già nota e negativa: R1 e R13c hanno provato a prezzare chi non ha storico e
+hanno perso contro l'àncora (§7-octies). Qui la domanda è un'altra: **la lista top-10 per ruolo migliora o
+peggiora** quando gli stimati concorrono? È la stessa metrica con cui è stata giudicata la pressione di
+reparto (`metrica-asta-surplus-v1.md` §11): il **VALORE catturato** dai dieci nomi predetti contro quello dei
+dieci migliori realmente, più i nomi in comune.
+
+### Il protocollo, fissato prima
+Per ogni finestra usabile e per entrambe le piattaforme, la stessa vista **due volte** — `auction_view` senza
+stime e con stime — e si riportano, per ruolo e in aggregato: `captured` (SURPLUS e VALORE), `hits`, quanti
+stimati entrano nella top-10 e **come hanno reso** (il loro surplus reale, che per una finestra passata
+esiste). Le stime sono costruite dallo stesso layer che usa il pannello, con i parametri della finestra: la
+cascata non vede il futuro perché legge solo stagioni ≤ input e l'aggregato dell'altra piattaforma della
+STESSA stagione di input.
+
+### I criteri, dichiarati adesso
+1. **Non-danno, che è la condizione vera**: gli stimati restano nella classifica solo se il VALORE catturato
+   **non peggiora** sulla maggioranza delle finestre e **nessuna** finestra perde più del **2%** — lo stesso
+   `MAX_WINDOW_LOSS` del verdetto robusto. Se peggiora, la conclusione è che stanno **scalzando** uomini
+   migliori e la lista torna a ordinare solo i prezzati, con le stime come colonna di riferimento.
+2. **Guadagno, se c'è**: si riporta di quanto migliora, senza pavimento, perché qui non si adotta un
+   coefficiente — si decide se mostrare o nascondere righe che esistono comunque.
+3. **La scala delle penalità è giudicata dallo stesso numero**: se la confidenza fosse tarata male, gli
+   stimati entrerebbero troppo (danno) o mai (inutile), e il conteggio di quanti entrano lo dice.
+⚠️ Dichiarato anche il limite: una finestra passata ha il listone completo, quindi la popolazione «il core non
+lo prezza» è **più piccola** che in agosto (283 su 629 sul foglio di oggi). La misura è quindi un **pavimento**
+di quanto la cosa conta all'asta vera, non la sua taglia.
+
+### ESEGUITA il 5 agosto 2026 — le stime NON entrano in classifica (`data/reports/estimates_check.json`)
+
+`python -m euroleghe_ingest estimates` (comando nuovo, read-only). La stessa vista due volte su ogni finestra:
+
+| finestra | stimabili | SURPLUS catturato senza → con | Δ | stimati nella top-10 | nomi in comune |
+|---|---|---|---|---|---|
+| Tm7 | 390 | 1312 → 1298 | **−1.02%** | 4 | 17 → 17 |
+| Tm6 | 382 | 1141 → 1115 | −2.32% | 3 | 19 → 18 |
+| Tm5 | 437 | 788 → 756 | −4.07% | 6 | 12 → 11 |
+| Tm4 | 516 | 1054 → 775 | **−26.48%** | 20 | 17 → 12 |
+| Tm3 | 478 | 1142 → 1004 | −12.11% | 10 | 20 → 18 |
+| Tm2 | 520 | 917 → 639 | **−30.34%** | 16 | 14 → 9 |
+| Tm1 | 456 | 663 → 563 | −15.03% | 9 | 15 → 13 |
+| T0 | 394 | 910 → 789 | −13.37% | 12 | 19 → 14 |
+| T1 | 367 | 646 → 581 | −10.07% | 14 | 14 → 12 |
+| T2 | 354 | 755 → 685 | −9.25% | 11 | 16 → 14 |
+
+**Peggiora su 10 finestre su 10**, media **−12.40%**, peggiore **−30.34%**, e i nomi in comune scendono con
+esso. Il criterio 1, scritto prima, era «non peggiora sulla maggioranza e nessuna finestra sotto −2%»: **non
+soddisfatto in nessuna delle due metà**. Verdetto: **gli stimati escono dalla classifica**.
+
+Su **euro** la stessa corsa dà **0 stimabili su ogni finestra** e quindi un +0.00% che **non è un PASS**: là R0c
+è adottata e il core prezza tutti, quindi non c'era niente da misurare. Vale come promemoria: una finestra senza
+popolazione non conferma niente, e il report lo dice invece di stampare una spunta.
+
+### Cosa resta, e perché non è una marcia indietro
+La regola dell'operatore («ogni calciatore DEVE avere il suo SURPLUS») è soddisfatta dove serve: **ogni riga ha
+un numero** (foglio e tabella rosa, marcato `~`), e la lista d'asta **offre** gli stimati come lista propria,
+sotto i dieci misurati. Quello che la misura ha rifiutato non è l'esistenza del numero: è che un numero
+ricostruito **scalzi** un uomo che qualcuno ha misurato. E i casi lo mostrano uno per uno — Douglas Luiz
+previsto +28.6 → **−3.2 reale**, Walker +13.6 → −0.4, De Silvestri +13.8 → +0.9, Rugani +13.3 → **non ha mai
+giocato**; e non tutti sbagliati, perché McTominay +16.0 → **+50.2** e De Gea +35.0 → +32.6. Media negativa,
+varianza enorme: esattamente ciò che una lista d'asta non vuole nelle prime dieci.
+
+### Lezione di metodo, e ha morso subito
+La prima implementazione univa gli stimati alle righe **mostrate** e lasciava `captured`/`hits` sulla lista
+gatata: lo schermo metteva un uomo stimato al 4° posto e le statistiche si comportavano come se non ci fosse,
+producendo **+0.00% su dieci finestre su dieci**. Una lista mostrata le cui metriche descrivono un'altra lista è
+peggio di nessuna metrica, perché *sembra* misurata. Ora la lista scelta è una e ogni numero del blocco viene da
+lei.
+
 ## 7-decies. L'FM-EQUIVALENTE DEI PORTIERI (pre-registrata il 5 agosto 2026)
 
 Seguito dichiarato di §7-nonies. Due misure fatte **prima** di scrivere questa sezione, perché decidono la
