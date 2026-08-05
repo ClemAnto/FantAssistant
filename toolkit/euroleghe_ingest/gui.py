@@ -2617,9 +2617,11 @@ class SnapshotView(ttk.Frame):
     def _table_tip_text(self) -> str:
         """What the hovered CELL says beyond its own characters.
 
-        Two cases only, because a tooltip on every cell is a tooltip nobody reads: the flags, which are
-        icons and have to be spelled out per row, and the strip, whose ten dots are a summary of matches
-        the popup lists in full.
+        Three cases only, because a tooltip on every cell is a tooltip nobody reads: the flags, which are
+        icons and have to be spelled out per row; the strip, whose ten dots are a summary of matches the
+        popup lists in full; and a SURPLUS that carries a `~`, because a penalised number has to say what
+        it is built from and what the penalty was - «se il surplus è penalizzato aggiungere una nota a
+        riguardo». On a gated surplus there is nothing to add and the tooltip stays silent.
         """
         if not self._hover:
             return ""
@@ -2631,7 +2633,22 @@ class SnapshotView(ttk.Frame):
             return self._flags(rows[index])[1]
         if key == "trend":
             return f"{rows[index].get('name')} · click for the ten matches, one by one"
+        if key == "surplus":
+            return self._surplus_note(rows[index])
         return ""
+
+    @staticmethod
+    def _surplus_note(row: dict) -> str:
+        """Why this surplus is an ESTIMATE and what the indeterminacy cost it - empty when it is gated."""
+        if row.get("engine_surplus") or not row.get("est_surplus"):
+            return ""
+        confidence = _number(row.get("est_confidence"), None)
+        penalty = f" · penalised x{confidence:.2f}" if confidence is not None else ""
+        note = row.get("est_note") or "estimated"
+        return (f"~{row.get('est_surplus')} is an ESTIMATE, not the gated valuation: {note}{penalty}. "
+                f"The engine could not price him ({row.get('engine_unpriced_reason') or 'no prediction'}), "
+                f"and a missing number cannot be compared with anything - so the sheet gives one and says "
+                f"how much it is worth. Basis: {row.get('est_basis') or '?'}.")
 
     def _head_tip_text(self) -> str:
         return self.COLUMN_HELP.get(self._hover_column or "", "")
@@ -3088,7 +3105,15 @@ class SnapshotView(ttk.Frame):
             sided = next((part for part in (row.get("roles_mantra") or "").split(";")
                           if part.strip().lower() in self.SIDE), "")
             real = " ".join(part for part in (row.get("desc_real_role") or "", sided) if part)
-        surplus = _number(row.get("engine_surplus"), None)
+        # THE SURPLUS CELL: the gated number where it exists, the ESTIMATE where it does not - «ogni
+        # calciatore DEVE avere il suo SURPLUS altrimenti è impossibile valutarli oggettivamente». An
+        # estimated one is marked with `~` and its own tooltip says what it is built from and what the
+        # indeterminacy cost (`est_note`, `est_confidence`); the two are the same arithmetic, so one column
+        # can rank the whole squad, which is the point.
+        estimated = not row.get("engine_surplus") and row.get("est_surplus")
+        surplus = _number(row.get("est_surplus" if estimated else "engine_surplus"), None)
+        surplus_text = (f"~{row.get('est_surplus')}" if estimated
+                        else (row.get("engine_surplus") or ""))
         share = min(presences / calendar, 1) if presences is not None else None
         started = self.voto_share(row) if row.get("desc_season_matches") else None
         rating = _number(row.get("desc_form_rating"), None)
@@ -3098,7 +3123,7 @@ class SnapshotView(ttk.Frame):
             "mantra": ((row.get("roles_mantra") or "").replace(";", "/") or "-", None),
             "real": (real or "-", None),
             "name": (row.get("name") or "", None),
-            "surplus": (row.get("engine_surplus") or "", surplus),
+            "surplus": (surplus_text, surplus),
             "fm": (f"{fm:.1f}" if fm is not None else "", fm),
             "pv": (f"{share:.0%}" if share is not None else "", share),
             "minutes": (f"{per_match:.0f}" if per_match else "", per_match),

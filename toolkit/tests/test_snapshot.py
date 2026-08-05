@@ -83,11 +83,20 @@ def test_columns_declare_which_half_is_gated():
     # plays - the outcome exists - and the prefix is what keeps the two apart, so nobody can read a
     # certainty as a guess. Reporting only: nothing in engine_* or desc_* may be derived from it.
     actual = [c for c in snapshot.PLAYER_COLUMNS if c.startswith("actual_")]
-    assert engine and desc and actual
+    # `est_*` is the FOURTH class and the only one that is neither gated nor measured: the fallback
+    # valuation, which exists because «ogni calciatore DEVE avere il suo SURPLUS» and which carries its own
+    # basis and its own penalty per row (engine/estimate.py). It must stay a separate prefix: an estimate
+    # filed under `engine_` would read as something that passed the gate, and under `desc_` as something
+    # somebody measured.
+    estimated = [c for c in snapshot.PLAYER_COLUMNS if c.startswith("est_")]
+    assert engine and desc and actual and estimated
+    assert {"est_surplus", "est_basis", "est_confidence", "est_note"} <= set(estimated), (
+        "an estimate that does not say what it is built from and what it cost is not usable")
     # nothing may sit in between: every column is identity/market, engine, descriptive, or an outcome
     known = {"fc_id", "name", "club", "league", "role_classic", "roles_mantra", "price_initial",
              "price_initial_mantra", "fvm_reporting_only"}
-    assert set(snapshot.PLAYER_COLUMNS) == known | set(engine) | set(desc) | set(actual)
+    assert set(snapshot.PLAYER_COLUMNS) == (known | set(engine) | set(desc) | set(actual)
+                                            | set(estimated))
     # the price that may be read is the pre-auction one; the end-of-season value is labelled
     assert "price_initial" in known and "fvm_reporting_only" in known
 
@@ -2036,3 +2045,46 @@ def test_a_sheet_says_how_old_its_squad_and_transfer_evidence_is(tmp_path):
     conn.commit()
     facts, notes = snapshot.evidence_age(conn, window)
     assert facts["transfers_in_window"] == 1 and not notes, notes
+
+
+def test_every_player_gets_a_surplus_and_it_says_what_it_cost():
+    """«Ogni calciatore DEVE avere il suo SURPLUS altrimenti è impossibile valutarli oggettivamente ... se non
+    ci sono tutti i requisiti, penalizziamo il SURPLUS ma dobbiamo comunque avere un valore di riferimento.»
+
+    The ladder is in `engine/estimate.py` and each rung carries the measurement that put it there. What this
+    pins is the two properties the operator's rule needs: a core row comes out at EXACTLY its gated surplus
+    (or the column could not rank the two together), and everything else is penalised monotonically in how
+    little is known - with the club's own level standing in for a man nobody has measured, which is the
+    «attaccante della Juve» against the «attaccante del Verona».
+    """
+    import pytest
+
+    from euroleghe_ingest.engine import estimate as est
+
+    # a core row is untouched: confidence 1.00 and the same arithmetic
+    assert est.surplus(7.0, 30.0, 6.0, est.CONFIDENCE["core"]) == pytest.approx((7.0 - 6.0) * 30.0)
+    # ...and the penalty multiplies the surplus, never the fantamedia
+    assert est.surplus(7.0, 30.0, 6.0, 0.5) == pytest.approx(15.0)
+    # no replacement level: falls back to VALUE, exactly as the sheet's own helper does
+    assert est.surplus(7.0, 30.0, None, 1.0) == pytest.approx(210.0)
+
+    # SHRINKING a thin season: the operator's «pad the missing votes with the role average», as arithmetic.
+    # 3 votes of 15 keeps a fifth of his own mean and four fifths of the anchor...
+    value, confidence = est.shrink(8.0, 3, 6.0)
+    assert value == pytest.approx(6.4) and confidence == pytest.approx(0.6)
+    # ...and 15 votes would be the core itself, which is why the rung stops there
+    assert est.shrink(8.0, 15, 6.0) == (pytest.approx(8.0), pytest.approx(1.0))
+    # monotone in the evidence: more votes, more of his own mean and more confidence
+    thin, thin_conf = est.shrink(8.0, 2, 6.0)
+    thick, thick_conf = est.shrink(8.0, 12, 6.0)
+    assert thin < thick and thin_conf < thick_conf
+
+    # THE CLUB moves the anchor, and by how much of the club we measured
+    assert est.club_anchor(6.5, None, 0) == pytest.approx(6.5)          # nothing known: the role's own
+    juve = est.club_anchor(6.5, 7.4, 6)                                 # six measured forwards at 7.4
+    verona = est.club_anchor(6.5, 6.0, 6)
+    assert juve > 6.5 > verona, (juve, verona)
+    assert est.club_anchor(6.5, 7.4, 1) < est.club_anchor(6.5, 7.4, 6), "one man is not a club's level"
+
+    # an older season is worth less the further back it is, and never less than the anchor it replaces
+    assert est.older_confidence(2) > est.older_confidence(4) >= est.CONFIDENCE["anchor"]

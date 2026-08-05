@@ -321,6 +321,28 @@ line only when FORCED - the defence exempt, since braccetti are centre backs by 
 number starts fixing one club while breaking another, the answer is a wrong MODEL, not a wrong value: revert
 and write it down (`docs/model/spec-euroleghe-ingest-v9.md` «Novità v9.16»).
 
+## Every player must have a number, and the number must say what it is worth
+**Operator's rule, 05/08/2026: «ogni calciatore DEVE avere il suo SURPLUS altrimenti è impossibile valutarli
+oggettivamente ... penalizziamo il SURPLUS (l'indeterminazione è comunque una nota negativa) ma dobbiamo cmq
+avere un valore di riferimento».** A blank is still a statement (below), but a blank cannot be COMPARED, and
+an auction is nothing but comparison. So the sheet carries a fourth class of column beside `engine_*` (gated),
+`desc_*` (measured) and `actual_*` (after the fact): **`est_*`**, the fallback valuation — `engine/estimate.py`,
+a declared cascade where every rung carries the measurement that put it there (the other platform's same
+season: mean difference **+0.001**, 92% within 0.3 over 870 player-seasons · an older season: MAE 0.396 at t-2
+against 0.368 at t-1 · a thin season blended with the club's own level for that role, whose measured spread is
+1.36 of fantamedia between the best and worst Serie A club's forwards and 0.25 between their keepers). Three
+rules hold it together: the estimate uses **the same arithmetic** as `engine_surplus` times a confidence, so
+one column ranks the whole sheet (weighting one side only moved Hojlund 28.4 → 24.6 with nothing about him
+changed); the penalty multiplies the **surplus** and never the fantamedia, because indeterminacy is a fact
+about the number, not about the player; and every estimated row says its basis, its penalty and its reason in
+words (`est_basis` / `est_confidence` / `est_note`, and a `~` in the panel with the note on the tooltip).
+`engine_*` does not move a decimal — `backtest --verify` stays 22/22 — and the foreign FM-equivalent is
+deliberately NOT a rung, because R1 measured it as worse than the role anchor on five windows of six. And when
+a fallback needs a number nobody measured, MEASURE it rather than choose it: "half a calendar" for an unknown
+man made an unknown keeper outrank his club's third keeper, while the data says 0.289 of the calendar for a man
+with no previous season and 0.421 for one with a thin one — the thin man plays more, and the ordering should
+come from that.
+
 ## An empty cell is a statement, and a football prior is a hypothesis
 Two habits this project keeps, both paid for:
 - **Say why a number is missing.** A blank SURPLUS is not a zero: below `MIN_PV_PREV` = 15 votes the core

@@ -1,5 +1,5 @@
 # Spec — Toolkit `euroleghe-ingest` v9 (task 1.0 della roadmap)
-**Aggiornata: 5 agosto 2026 (v9.23 — il nome del foglio, l'età dell'evidenza, e il perché di una cella vuota; v9 SOSTITUISCE la v8)** · Python · Output: SQLite `euroleghe.db` + CSV normalizzati
+**Aggiornata: 5 agosto 2026 (v9.24 — ogni calciatore ha un SURPLUS, penalizzato e dichiarato; v9 SOSTITUISCE la v8)** · Python · Output: SQLite `euroleghe.db` + CSV normalizzati
 *Sigle: fc_id = identificativo fantacalcio.it · FM = fantamedia · Mv = media voto · Pv = partite a voto · xref = cross-reference id tra siti · xG/xA = expected goals/assists · manifest = lista file da recuperare.*
 **Convenzione: identificatori sempre in INGLESE** (tabelle, colonne, moduli, variabili); italiano solo nella documentazione.
 
@@ -493,6 +493,54 @@ ruolo**, **8% disgiunti** — e le disgiunte sono quasi tutte `a` del listone co
 visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**. Riscontri esatti:
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
+
+## Novità v9.24 (5 agosto 2026 — OGNI calciatore ha un SURPLUS, penalizzato e con la nota che dice perché)
+
+Regola dell'operatore: «Ogni calciatore DEVE avere il suo SURPLUS altrimenti è impossibile valutarli
+oggettivamente … se mancano dei valori, ricaviamoli/ricostruiamoli approssimativamente (ma razionalmente) …
+se non ci sono tutti i requisiti, penalizziamo il SURPLUS (l'indeterminazione è comunque una nota negativa)
+ma dobbiamo cmq avere un valore di riferimento (un attaccante titolare della Juve anche se sconosciuto è
+sempre meglio di un attaccante sconosciuto del Verona)». 301 test, `backtest --verify` **22/22**.
+
+### 1. Cosa NON è: `engine_*` non si muove di un decimale
+Nuovo modulo **`engine/estimate.py`** e una **quarta** classe di colonne, `est_*` — stimate, né gatate
+(`engine_*`) né misurate (`desc_*`), e il test che partiziona le colonne ora lo pretende. `engine_surplus`
+resta esattamente quello che ha passato il gate, celle vuote comprese, e `backtest --verify` resta 22/22.
+
+### 2. La cascata, e ogni gradino porta la misura che lo ha messo lì
+| gradino | su cosa si appoggia | misura (5/08/2026, sul nostro DB) | conf |
+|---|---|---|---|
+| `core` | la sua stagione qui, ≥15 voti | è il motore, intatto | 1.00 |
+| `other_platform` | la **stessa** stagione sull'altra piattaforma | su **870** stagioni-giocatore con ≥15 voti su entrambe: differenza media **+0.001**, sd 0.185, **92%** entro 0.3 (per ruolo entro 0.03). Non è una previsione: è la stessa stagione vista dall'altro calendario | 0.95 |
+| `older` | la sua ultima stagione più indietro | usare una fantamedia vecchia come previsione dà MAE **0.396** a t-2 e 0.434 a t-3, contro **0.368** a t-1 (ρ 0.712 / 0.649 / 0.741) | 0.85 / 0.75 |
+| `shrunk` | una stagione con 1-14 voti | la sua media **mescolata** con l'àncora del club in proporzione ai voti che ha: è la ricetta dell'operatore («aggiungiamo i voti che mancano come la media del ruolo») scritta come aritmetica | 0.50 + 0.50·w |
+| `anchor` | niente di misurato | l'àncora di ruolo spostata verso il livello del **suo club** per quel ruolo: spread misurato fra il migliore e il peggiore club di Serie A 25/26 **1.36** sugli attaccanti (Inter 7.38, Pisa 6.02), 1.10 centrocampisti, 0.75 difensori, **0.25** portieri — cioè il punto Juve-contro-Verona, quantificato, ed è per questo che l'aggiustamento è **per ruolo** | 0.50 |
+
+⚠️ **L'FM-equivalente estero NON è un gradino**, e la ragione è un verdetto: R1 lo ha messo contro l'àncora di
+ruolo su sei finestre e ha perso su cinque (§7-octies). La scala è ordinata da quello che i numeri dicono, non
+da quello che *sembra* più informativo.
+
+### 3. La penalizzazione, e la nota che la dichiara
+`est_surplus` = **la stessa aritmetica** di `engine_surplus` × la confidenza, quindi una riga `core` esce
+esattamente al suo surplus gatato (verificato: 0 righe discordanti) e una stimata è confrontabile con essa —
+la prima versione pesava anche la beccabilità e Hojlund passava da 28.4 a 24.6 senza che nulla di lui fosse
+cambiato. Per riga: `est_basis`, `est_confidence`, `est_note` («solo 13 voti qui, quindi la sua media è
+mescolata col livello degli A della Juventus (6.76)»), e nel pannello la cella porta **`~`** con il tooltip
+che dice base, nota e penalità — «se il surplus è penalizzato aggiungere una nota a riguardo».
+
+### 4. Un numero inventato trovato dalla prova, e sostituito con una misura
+La prima versione dava a un uomo senza nulla di misurato **mezzo calendario** di presenze, e così un portiere
+**ignoto** (est 9.3) valeva più del terzo portiere del suo club che aveva giocato una volta (4.4) — l'opposto
+di quello che il foglio deve dire. Misurato su tre finestre: chi non ha stagione precedente su quella
+piattaforma gioca una quota mediana di **0.289** (default, n=719) e 0.194 (euro, n=1174); chi ha una stagione
+sottile **0.421** / 0.290. Il sottile gioca **più** dell'ignoto, e ora l'ordine viene dai dati (Rossi F. 5.4,
+Sportiello 4.4, Carnesecchi 35.1).
+
+### 5. Effetto sul foglio Serie A
+Le righe con un surplus passano da **346 su 629** a **629 su 629**: 346 gatate + **283 stimate** (146
+`shrunk` · 100 `anchor` · 28 `older` · 9 `other_platform`), confidenza fino a 0.48. Sul foglio **euro** tutte
+924 righe sono `core`, perché là R0c è adottata e il motore prezza già tutti — la cascata non serve e non
+tocca niente.
 
 ## Novità v9.23 (5 agosto 2026 — tre richieste dell'operatore sul foglio: il nome, l'età dell'evidenza, e il perché di una cella vuota)
 

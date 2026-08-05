@@ -44,6 +44,7 @@ from typing import NamedTuple
 
 from euroleghe_ingest import config, matching
 from euroleghe_ingest.context import Context
+from euroleghe_ingest.engine import estimate as est
 from euroleghe_ingest.engine import evaluate, features
 from euroleghe_ingest.modules import positions
 
@@ -1194,6 +1195,116 @@ def _unpriced_reason(prediction, obs) -> str | None:
     return "no prediction"
 
 
+def estimation_layer(conn, window: features.Window, platform: str,
+                     observations) -> dict[int, dict]:
+    """Everything the fallback valuation needs, gathered once: {fc_id: {...}} - see `engine.estimate`.
+
+    Three reads, and each one is a rung of the ladder that module declares:
+      * the same input season on the OTHER platform (its fantamedia stands in with mean +0.001 and 92%
+        inside 0.3 - measured on 870 player-seasons, and its presences scale by the calendar, median 1.269
+        against the 38/31 = 1.226 the two calendars imply);
+      * the most recent season FURTHER BACK, any platform, with a full set of votes;
+      * each CLUB's own mean fantamedia per role on the input season, which is what moves the anchor for a
+        man nobody has measured («un attaccante della Juve ... è sempre meglio di un attaccante del Verona»).
+    Read-only, one query each, no per-player round trips.
+    """
+    ids = tuple({obs.fc_id for obs in observations})
+    if not ids:
+        return {}
+    marks = ",".join("?" * len(ids))
+    other = "euro" if platform == "default" else "default"
+    layer: dict[int, dict] = {fc_id: {} for fc_id in ids}
+    for fc_id, pv, fm in conn.execute(
+            f"SELECT fc_id, pv, fm FROM season_stats WHERE season = ? AND platform = ? "
+            f"AND fm IS NOT NULL AND fc_id IN ({marks})",
+            (window.input_season, other, *ids)):
+        layer[fc_id]["other"] = {"pv": pv, "fm": fm, "platform": other}
+    # The newest season BEFORE the input one, whichever platform measured it best (most votes wins, then
+    # the newest): an older season is a weaker rung, and `engine.estimate` prices that by how far back it is.
+    for fc_id, season, plat, pv, fm in conn.execute(
+            f"SELECT fc_id, season, platform, pv, fm FROM season_stats "
+            f"WHERE season < ? AND fm IS NOT NULL AND pv >= ? AND fc_id IN ({marks}) "
+            f"ORDER BY season ASC, pv ASC",
+            (window.input_season, est.FULL_SEASON_VOTES, *ids)):
+        layer[fc_id]["older"] = {"season": season, "platform": plat, "pv": pv, "fm": fm}
+    club_level: dict[tuple[str, str], tuple[float, int]] = {}
+    for club, role, mean_fm, count in conn.execute(
+            """
+            SELECT cl.canonical_name, r.role_classic, AVG(s.fm), COUNT(*)
+            FROM season_stats s
+            JOIN rosters r ON r.fc_id = s.fc_id AND r.season = s.season
+            JOIN clubs cl ON cl.fc_club_id = r.fc_club_id
+            WHERE s.season = ? AND s.platform = ? AND s.pv >= ? AND s.fm IS NOT NULL
+            GROUP BY 1, 2
+            """,
+            (window.input_season, platform, est.FULL_SEASON_VOTES)):
+        if club and role:
+            club_level[(club, role)] = (mean_fm, count)
+    return {"players": layer, "club_level": club_level}
+
+
+def estimate_for(obs, prediction, layer: dict, anchors: dict, data,
+                 window: features.Window, platform: str = "euro") -> est.Estimate:
+    """One player's fallback valuation, down the ladder `engine.estimate` declares. Never returns None.
+
+    The order is the measured one and NOT "his own football first": R1 put a foreign FM-equivalent against
+    the role anchor on six windows and lost on five, so an equivalent is not a rung at all - what a man did
+    in a league the calendar does not cover is descriptive, and the anchor beats it at predicting here.
+    """
+    role = obs.role_classic or ""
+    anchor = est.club_anchor(
+        anchors.get(role) or (prediction.anchor if prediction else None) or 6.0,
+        *(layer.get("club_level", {}).get((obs.club_target or "", role)) or (None, 0)))
+    mine = layer.get("players", {}).get(obs.fc_id, {})
+    calendar = data.matchdays_target or 0
+    if prediction is not None and prediction.fm_pred is not None:
+        return est.Estimate(prediction.fm_pred, prediction.pv_pred, "core", est.CONFIDENCE["core"], "")
+    other, older = mine.get("other"), mine.get("older")
+    pv_pred = prediction.pv_pred if prediction else None
+
+    def presences(source_pv, source_calendar_ratio=1.0):
+        """His presences, if the engine has none: the other calendar's, scaled by the two calendars."""
+        if pv_pred is not None:
+            return pv_pred
+        if source_pv is None:
+            return None
+        return round(source_pv * source_calendar_ratio, 1)
+
+    if other and (other["pv"] or 0) >= est.FULL_SEASON_VOTES:
+        ratio = (calendar / 31.0) if calendar else 1.0
+        return est.Estimate(
+            other["fm"], presences(other["pv"], ratio), "other_platform",
+            est.CONFIDENCE["other_platform"],
+            f"his {window.input_season} on {other['platform']} ({other['pv']} votes) stands in for "
+            f"a season this platform has not got")
+    level = f"the level of {obs.club_target or 'the club'}'s {role or 'players'} ({anchor:.2f})"
+    if obs.pv_prev and obs.fm_prev is not None:
+        value, confidence = est.shrink(obs.fm_prev, obs.pv_prev, anchor)
+        return est.Estimate(value, presences(obs.pv_prev), "shrunk", confidence,
+                            f"only {_votes(obs.pv_prev)} here, so his mean is blended with {level}")
+    if other and other["fm"] is not None and (other["pv"] or 0) >= 1:
+        value, confidence = est.shrink(other["fm"], other["pv"], anchor)
+        ratio = (calendar / 31.0) if calendar else 1.0
+        return est.Estimate(value, presences(other["pv"], ratio), "shrunk", confidence * 0.9,
+                            f"only {_votes(other['pv'])} on {other['platform']} and none here, blended "
+                            f"with {level}")
+    if older:
+        # how many seasons back it is, from the season the sheet predicts FROM: 2 by construction, since
+        # anything at t-1 would have been caught by the rungs above.
+        back = int(window.input_season[:4]) - int(older["season"][:4]) + 1
+        return est.Estimate(older["fm"], presences(older["pv"]), "older", est.older_confidence(back),
+                            f"his last measured season is {older['season']} on {older['platform']} "
+                            f"({older['pv']} votes), {back} seasons back")
+    return est.Estimate(anchor,
+                        presences(None) or est.default_presences(calendar, platform, "unmeasured"),
+                        "anchor", est.CONFIDENCE["anchor"], f"nothing measured anywhere: {level}")
+
+
+def _votes(count: int) -> str:
+    """«1 vote», not «1 votes»: a note the operator reads has to read like a sentence."""
+    return f"{count} vote" if count == 1 else f"{count} votes"
+
+
 def measured_season(conn, window) -> tuple[str, str | None]:
     """(the season the descriptive layers measure, a note). Which season "so far" even means.
 
@@ -1814,6 +1925,9 @@ PLAYER_COLUMNS: tuple[str, ...] = (
     # the gated engine valuation
     "engine_fm_pred", "engine_pv_pred", "engine_value", "engine_surplus", "engine_role_rank",
     "engine_replacement_fm", "engine_anchor", "engine_unpriced_reason",
+    # ESTIMATED, a third class next to engine_ (gated) and desc_ (measured): every player gets a surplus,
+    # penalised for what we do not know about him, with the basis and the penalty on the row (engine/estimate.py)
+    "est_fm", "est_pv", "est_surplus", "est_basis", "est_confidence", "est_note",
     # descriptive, NOT gated
     "desc_form_club_matches", "desc_form_measured", "desc_form_played", "desc_form_unused",
     "desc_form_unknown", "desc_form_starts",
@@ -1885,7 +1999,8 @@ def perimeter_clubs(conn, platform: str, seasons: tuple[str, ...]) -> set[str]:
 
 
 def build_rows(conn, data: features.WindowData, predictions, layers: dict,
-               perimeter: set[str] | None = None) -> list[dict]:
+               perimeter: set[str] | None = None, window: features.Window | None = None,
+               platform: str = "euro") -> list[dict]:
     """One row per purchasable player, engine columns first, descriptive after.
 
     `perimeter` filters the OUTPUT, never the model population. The engine's standardisations are
@@ -1895,6 +2010,11 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
     a EuroLeghe auction, where nobody can buy it.
     """
     by_id = {p.obs.fc_id: p for p in predictions}
+    # The fallback valuation's inputs, gathered once for the whole sheet (`estimation_layer`): every player
+    # must end up with a surplus, and the ones the core cannot price need the other platform, an older
+    # season and their club's own level to get one.
+    window = window or data.window
+    estimation = estimation_layer(conn, window, platform, data.observations)
     ranks: dict[int, int] = {}
     for role in {obs.role_classic for obs in data.observations if obs.role_classic}:
         ranked = sorted(
@@ -1923,6 +2043,10 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
         fielded = layers["fielded_next"].get(obs.fc_id, {})
         spend = layers["investment"].get(obs.fc_id, {})
         pv_pred = prediction.pv_pred if prediction else None
+        guess = estimate_for(obs, prediction, estimation, data.anchors, data, window,
+                             platform)
+        guess_surplus = est.surplus(guess.fm, guess.pv,
+                                    data.replacement.get(obs.role_classic or ""), guess.confidence)
         rows.append({
             "fc_id": obs.fc_id, "name": obs.name, "club": obs.club_target, "league": obs.league,
             "role_classic": obs.role_classic, "roles_mantra": ";".join(obs.roles_mantra),
@@ -1941,6 +2065,12 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             # because his season was played on the other calendar (Kolo Muani 23 euro votes and no Serie A,
             # Stones 3). An empty cell is a statement; this is which statement.
             "engine_unpriced_reason": _unpriced_reason(prediction, obs),
+            "est_fm": _round(guess.fm, 3),
+            "est_pv": _round(guess.pv, 1),
+            "est_surplus": _round(guess_surplus, 1),
+            "est_basis": guess.basis,
+            "est_confidence": _round(guess.confidence, 2),
+            "est_note": guess.note,
             "desc_form_club_matches": form.get("club_matches"),
             "desc_form_measured": form.get("measured"),
             "desc_form_played": form.get("played"), "desc_form_unused": form.get("unused"),
@@ -2371,7 +2501,7 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
                      f"{window.target_season}, so the perimeter is unknown and nothing was filtered")
         perimeter = None
     progress.stage("rows")
-    rows = build_rows(conn, data, predictions, layers, perimeter)
+    rows = build_rows(conn, data, predictions, layers, perimeter, window, platform)
     dropped = len(data.observations) - len(rows) if perimeter is not None else 0
     if dropped:
         notes.append(f"{dropped} players were left out of the sheet: their club is not one this "
@@ -2401,6 +2531,24 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
             key = (row.get("engine_unpriced_reason") or "no prediction").split(" votes")[0]
             key = "too few votes" if key.startswith("only") else key
             by_reason[key] = by_reason.get(key, 0) + 1
+        # ...and what the sheet DOES give them instead, because «ogni calciatore DEVE avere il suo SURPLUS»:
+        # the fallback valuation, penalised and labelled per row.
+        estimated = [row for row in rows if row.get("est_basis") and row["est_basis"] != "core"]
+        if estimated:
+            by_basis: dict[str, int] = {}
+            for row in estimated:
+                by_basis[row["est_basis"]] = by_basis.get(row["est_basis"], 0) + 1
+            worst = min((row.get("est_confidence") or 1.0) for row in estimated)
+            notes.append(
+                f"...and all of them DO have an `est_surplus`: {len(rows) - len(estimated)} rows carry the "
+                f"gated valuation and {len(estimated)} carry an ESTIMATE, penalised by how little is known "
+                f"(confidence down to {worst:g}). By basis: "
+                + " · ".join(f"{count} {basis}" for basis, count in sorted(
+                    by_basis.items(), key=lambda item: -item[1]))
+                + ". Same arithmetic as `engine_surplus` times that confidence, so one column ranks the "
+                  "whole sheet; `est_note` says per row what it is built from. NOT gated and not measured: "
+                  "it is the third prefix, and the ladder is in `engine/estimate.py` with the measurement "
+                  "behind each rung.")
         notes.append("...and WHY, per row (`engine_unpriced_reason`): "
                      + " · ".join(f"{count} {reason}" for reason, count in sorted(
                          by_reason.items(), key=lambda item: -item[1]))

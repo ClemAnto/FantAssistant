@@ -1,5 +1,5 @@
 # 00 — BRIDGE · Punto d'ingresso del progetto (leggere per primo)
-**Aggiornato: 5 agosto 2026 (chiusura: la lista d'asta, il portiere, l'investimento, e l'ultimo attacco senza attaccante)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
+**Aggiornato: 5 agosto 2026 (chiusura: ogni calciatore ha un SURPLUS, e le rose vanno verificate)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
 
 ## Il progetto in breve
 Motore previsionale per fantacalcio **EuroLeghe** (fantacalcio.it): valutazione calciatori Classic e Mantra sui 5 grandi campionati europei (Serie A, Premier, Liga, Bundesliga, Ligue 1 — perimetro: i ~35 top club del gioco). Prevede fantamedia (FM), presenze attese e VALORE stagionale = FM × presenze. Metodo scientifico: **ogni regola entra nel motore solo se batte il baseline fuori campione su finestre indipendenti** (gate pre-registrato). Stato: core validato (Mantra, Classic, portieri, presenze); manca lo strato flag/arrivi, sbloccato dal toolkit dati `euroleghe-ingest` (in implementazione).
@@ -26,7 +26,26 @@ proporre qualsiasi regola) → **`metrica-asta-surplus-v1.md`** (con cosa il pan
 
 Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
 
-### ULTIMO IN ORDINE DI TEMPO — 5/08/2026 sera-notte: tre segnalazioni dell'operatore sul foglio
+### ULTIMO IN ORDINE DI TEMPO — 5/08/2026 notte: OGNI calciatore ha un SURPLUS, penalizzato e dichiarato
+
+Regola dell'operatore, spec **«Novità v9.24»**. `engine_*` non si muove di un decimale (`backtest --verify`
+22/22): la stima è una **quarta** classe di colonne, `est_*`, in `engine/estimate.py`.
+
+1. **Cinque gradini, ognuno con la sua misura**: l'altra piattaforma (differenza media **+0.001**, 92% entro
+   0.3 su 870 stagioni-giocatore) · una stagione più vecchia (MAE 0.396 a t-2 contro 0.368 a t-1) · la
+   stagione sottile **mescolata** col livello del club per quel ruolo (spread 1.36 sugli attaccanti, 0.25 sui
+   portieri: Juve-contro-Verona, quantificato) · l'àncora di club come pavimento. ⚠️ L'FM-equivalente estero
+   **non** è un gradino: R1 ha perso contro l'àncora su cinque finestre su sei.
+2. **Stessa aritmetica del motore × la confidenza**, quindi una riga gatata esce identica e una stimata è
+   confrontabile; la penalità moltiplica il **surplus** e non la fantamedia; e ogni riga stimata porta base,
+   penalità e **nota in parole** (nel pannello: `~` più tooltip).
+3. **Un numero inventato sostituito da una misura**: mezzo calendario di presenze per un ignoto faceva valere
+   un portiere sconosciuto più del terzo portiere del suo club. Misurato: **0.289** del calendario (default) per
+   chi non ha stagione precedente, **0.421** per chi ne ha una sottile — il sottile gioca più dell'ignoto.
+4. **Effetto**: Serie A da **346 su 629** righe con un surplus a **629 su 629**; euro tutte `core`, perché là
+   R0c prezza già tutti.
+
+### 5/08/2026 sera-notte: tre segnalazioni dell'operatore sul foglio
 
 Spec **«Novità v9.23»**. Una ha trovato un buco vero.
 

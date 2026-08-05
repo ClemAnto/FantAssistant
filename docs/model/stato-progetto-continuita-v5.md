@@ -1,5 +1,5 @@
 # Stato progetto & continuità — v5
-**Aggiornato: 5 agosto 2026 (chiusura: la lista d'asta, il portiere, l'investimento e l'ultimo attacco senza attaccante)**
+**Aggiornato: 5 agosto 2026 (chiusura: ogni calciatore ha un SURPLUS, e le rose vanno verificate)**
 Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da qui + i file della cartella "Modello Previsionale Fantacalcio".
 *Glossario: T1/T2 = finestre di test (23/24->24/25, 24/25->25/26) · MAE = errore medio assoluto · cross-fitted = parametri stimati su una finestra, testati sull'altra · M2e = modello portieri decomposto con ClubElo · Pv_att = presenze attese · fc_id = id fantacalcio.it · EV = valore atteso · scoring_config = punteggi configurabili per lega · xG/xA = expected goals/assists · 2.5 pieno = backtest motore completo con flag.*
 
@@ -1393,3 +1393,37 @@ Spec **«Novità v9.23»**. 299 test, ruff pulito.
 ### La lezione, che è la stessa di tre volte oggi
 Un foglio che è **giusto su quello che ha** e non dice **quanto vecchio** sia quello che ha, invita a fidarsi di
 un fatto che nessuno ha ricontrollato. Vale per le rose come per un coefficiente: la data è parte del numero.
+
+
+## Sessione 05/08/2026 (notte, 3) — OGNI calciatore ha un SURPLUS, penalizzato e dichiarato
+
+Spec **«Novità v9.24»**, regola dell'operatore. 301 test, `backtest --verify` **22/22**: `engine_*` non si
+muove di un decimale.
+
+### La forma della soluzione
+Nuovo `engine/estimate.py` e una **quarta** classe di colonne, `est_*` (stimate: né gatate né misurate). La
+cascata ha cinque gradini e ognuno porta la misura che lo ha messo lì — l'altra piattaforma (differenza media
+**+0.001**, 92% entro 0.3 su 870 stagioni-giocatore), una stagione più vecchia (MAE 0.396 a t-2 contro 0.368 a
+t-1), la sua stagione sottile **mescolata** col livello del club per quel ruolo (spread misurato 1.36 sugli
+attaccanti, 0.25 sui portieri: il punto Juve-contro-Verona quantificato), e l'àncora di club come pavimento.
+⚠️ L'**FM-equivalente estero non è un gradino**: R1 lo ha messo contro l'àncora su sei finestre e ha perso su
+cinque.
+
+### Le tre proprietà che la tengono onesta
+1. **stessa aritmetica** di `engine_surplus` × la confidenza — una riga `core` esce esattamente al suo surplus
+   gatato (0 discordanti). La prima versione pesava anche la beccabilità e Hojlund passava 28.4 → 24.6 senza
+   che nulla di lui fosse cambiato;
+2. la **penalità moltiplica il surplus**, mai la fantamedia: l'indeterminazione è un fatto sul numero;
+3. ogni riga stimata **dice perché** (`est_basis`, `est_confidence`, `est_note`) e nel pannello la cella porta
+   `~` col tooltip che riporta base, nota e penalità.
+
+### Un numero inventato, trovato provando e sostituito da una misura
+Mezzo calendario di presenze per un uomo senza nulla di misurato faceva valere un portiere **ignoto** più del
+terzo portiere del suo club che aveva giocato una volta. Misurato su tre finestre: chi non ha stagione
+precedente gioca una quota mediana di **0.289** (default) e 0.194 (euro); chi ha una stagione sottile **0.421**
+/ 0.290. Ora Rossi F. 5.4, Sportiello 4.4, Carnesecchi 35.1.
+
+### Effetto
+Foglio Serie A: righe con un surplus da **346 su 629** a **629 su 629** (346 gatate + 283 stimate: 146
+`shrunk`, 100 `anchor`, 28 `older`, 9 `other_platform`). Foglio euro: tutte `core`, perché là R0c prezza già
+tutti.
