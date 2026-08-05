@@ -1122,6 +1122,16 @@ class AuctionView(ttk.Frame):
         "VALUE (FM x Pv)": "value",
     }
 
+    # WHO is in the list, the operator's choice of 05/08/2026: measured and estimated together, with a filter
+    # to see either side alone. ⚠️ The cost of "together" is measured and the panel keeps saying it (gate
+    # §7-undecies): ranking them mixed lowered the captured surplus on ten windows of ten. The filter is what
+    # makes the decision reversible per look instead of per build.
+    INCLUDES: ClassVar[dict[str, str]] = {
+        "measured + estimated": "all",
+        "measured only": "measured",
+        "estimated only (~)": "estimated",
+    }
+
     # Shared by both tables. What differs between them - FM/Pv/VALUE are predicted on the left and
     # actual on the right - is in PREDICTED_HELP / ACTUAL_HELP below.
     COMMON_HELP: ClassVar[dict[str, str]] = {
@@ -1236,13 +1246,19 @@ class AuctionView(ttk.Frame):
         self.metric_var = tk.StringVar(value=next(iter(self.METRICS)))
         self.metric_cb = self._selector(top, "Rank by", self.metric_var, list(self.METRICS),
                                         self._on_config_change, width=26)
+        self.include_var = tk.StringVar(value=next(iter(self.INCLUDES)))
+        # Re-renders from the cache instead of recomputing: the three lists are built in the same pass
+        # (`auction_view` is arithmetic over data already prepared), so the filter is instant.
+        self.include_cb = self._selector(top, "Include", self.include_var, list(self.INCLUDES),
+                                         self._on_include_change, width=20)
         # Indeterminate, because the work has no progress to report: the engine either has the window
         # fitted or it does not. It is packed and unpacked rather than left in place, so a still bar
         # never sits there looking like a stalled one.
         self.spinner = ttk.Progressbar(top, mode="indeterminate", length=90)
         # Every selector in one place: `_busy` disables the collection, so a selector added later is
         # locked during a run without anyone having to remember it.
-        self._selectors = (self.platform_cb, self.game_cb, self.season_cb, self.metric_cb)
+        self._selectors = (self.platform_cb, self.game_cb, self.season_cb, self.metric_cb,
+                           self.include_cb)
         self.status_var = tk.StringVar(value="")
         ttk.Label(top, textvariable=self.status_var, style="Muted.TLabel").pack(side="left", padx=8)
 
@@ -1409,7 +1425,7 @@ class AuctionView(ttk.Frame):
         # blank in the place it matters most. Built by the sheet's own layer, so the two agree by
         # construction, and passed as an argument the gate never passes.
         estimates = self._estimates(conn, data, predictions, window, platform)
-        return self.LIVE_LABEL.format(season=window.target_season), {
+        shared = {
             "window": f"{window.key} {window.input_season}->{window.target_season}",
             "params_from": params_from, "metric": metric, "live": True,
             "rules": ", ".join(adopted[1:]) or "baseline only",
@@ -1417,7 +1433,15 @@ class AuctionView(ttk.Frame):
             "priced": sum(1 for p in predictions if p.fm_pred is not None),
             "estimated": len(estimates),
             "notes": ([squad_note] if squad_note else []) + notes,
-            "by_role": evaluate.auction_view(data, predictions, metric=metric, estimates=estimates),
+        }
+        # THE THREE LISTS IN ONE PASS: `auction_view` is arithmetic over data already prepared, so building
+        # all of them costs a fraction of the fits above - and that is what makes the Include filter instant
+        # instead of a twenty-second rebuild. Whichever is on screen, its own figures were computed from it.
+        return self.LIVE_LABEL.format(season=window.target_season), {
+            include: {**shared, "include": include,
+                      "by_role": evaluate.auction_view(data, predictions, metric=metric,
+                                                       estimates=estimates, include=include)}
+            for include in self.INCLUDES.values()
         }
 
     @staticmethod
@@ -1488,12 +1512,34 @@ class AuctionView(ttk.Frame):
             return
         if self.season_var.get() not in seasons:
             self.season_var.set(seasons[0])
-        self._render(views[self.season_var.get()])
+        self._render(self._variant(views[self.season_var.get()]))
 
     def _on_season_change(self, _event=None) -> None:
         views = self._cache.get((self.platform_var.get(), self.game_var.get(), self._metric()))
         if views and self.season_var.get() in views:
-            self._render(views[self.season_var.get()])
+            self._render(self._variant(views[self.season_var.get()]))
+
+    def _on_include_change(self, _event=None) -> None:
+        """The filter changes WHICH candidates the list ranks - and it re-renders, never recomputes.
+
+        All three lists come out of the same pass (`auction_view` is arithmetic over data already prepared),
+        so switching between them costs nothing. Whichever is on screen, its own figures were computed from
+        it: that is the rule the +0.00%-on-ten-windows defect taught, an hour before this filter existed.
+        """
+        self._on_season_change()
+
+    def _include(self) -> str:
+        return self.INCLUDES.get(self.include_var.get(), "all")
+
+    def _variant(self, stored: dict) -> dict:
+        """The stored entry for a season is {include: view} for a LIVE season and a plain view otherwise.
+
+        A finished season has nothing to estimate - the listone is complete and the core prices whoever it
+        can - so only the live list is built three ways, and the filter falls back to what exists.
+        """
+        if "by_role" in stored:
+            return stored
+        return stored.get(self._include()) or next(iter(stored.values()))
 
     # ---------- rendering ----------
     def _clear(self) -> None:
@@ -1513,10 +1559,10 @@ class AuctionView(ttk.Frame):
                 f"LIVE · {view['window']} · rules {view['rules']} · parameters from "
                 f"{view['params_from']} · {view['priced']} of {view['rows']} players priced, "
                 # No PERCENTAGE in this line, and a test pins that: a figure with a % on a season nobody
-                # has played reads as a hit rate. The measurement that put the estimates apart is in the
-                # gate (§7-undecies) and in the column help, where it can carry its numbers.
-                f"{view.get('estimated', 0)} offered on an ESTIMATE (~, penalised, listed APART because "
-                f"ranking them lost captured surplus on every window measured) · "
+                # has played reads as a hit rate. The measured cost of ranking the estimates together is in
+                # the gate (§7-undecies) and in the column help, where it can carry its numbers.
+                f"{view.get('estimated', 0)} on an ESTIMATE (~, penalised) · showing "
+                f"{view.get('include', 'all')} · "
                 f"no season to compare against: this is the list you bid from")
         else:
             total_hits = sum(block["hits"] for block in view["by_role"].values())
@@ -1578,9 +1624,11 @@ class AuctionView(ttk.Frame):
             # about an outcome, and there isn't one. What the header can honestly carry is how deep the
             # list goes and the level it is measured against.
             guessed = block.get("n_estimated") or 0
+            marked = sum(1 for row in block["predicted"] if row.get("estimated"))
             head = (f"{label} — top {len(block['predicted'])} to bid on, of "
-                    f"{block.get('n_ranked', len(block['predicted']))} the engine could price"
-                    + (f" + {guessed} estimated (~)" if guessed else "")
+                    f"{block.get('n_ranked', len(block['predicted']))} priced"
+                    + (f" + {guessed} estimated" if guessed else "")
+                    + (f", {marked} of them in the ten (~)" if marked else "")
                     + floor_text)
         else:
             head = (f"{label} — {block['hits']}/10 in common · {currency} captured "

@@ -2150,9 +2150,17 @@ def _slot_pressure_factors(data: features.WindowData,
     return out
 
 
+# Which candidates a view ranks. The operator's choice, 05/08/2026: measured and estimated men go in ONE
+# list, with a filter to see either side on its own. `INCLUDE_ALL` is what the panel opens on.
+INCLUDE_ALL = "all"
+INCLUDE_MEASURED = "measured"
+INCLUDE_ESTIMATED = "estimated"
+
+
 def auction_view(data: features.WindowData, predictions: list[Prediction],
                  top_n: int = TOP_N, metric: str = "value",
-                 estimates: dict[int, dict] | None = None) -> dict:
+                 estimates: dict[int, dict] | None = None,
+                 include: str = INCLUDE_ALL) -> dict:
     """Per role: the predicted top N and the real top N, each annotated with the other's rank.
 
     Two lists rather than one score. A precision of 6/10 hides whether the four misses were injuries,
@@ -2260,16 +2268,24 @@ def auction_view(data: features.WindowData, predictions: list[Prediction],
                 if score is None or not fieldable(guess.get("pv")):
                     continue
                 estimated.append((score, obs, guess))
-        # THE ESTIMATES DO NOT ENTER THE RANKING, and that is a MEASURED decision, not a preference.
-        # `estimates --platform default` ran the deliverable twice on all ten windows (gate §7-undecies):
-        # merging them lowered the captured SURPLUS on 10 of 10, mean -12.4%, worst -30.3%, and the names in
-        # common fell with it (Tm4 17 -> 12). They displace measured men, so the pre-registered criterion -
-        # majority not worse, no window below -2% - refuses them. They are returned SEPARATELY instead, which
-        # keeps the operator's rule («ogni calciatore DEVE avere il suo SURPLUS») without letting a
-        # reconstruction outrank a man somebody actually measured.
-        chosen_obs = [p.obs for p in ranked[:top_n]]
-        predicted_rank = {p.obs.fc_id: index for index, p in enumerate(ranked, 1)}
-        estimated.sort(key=lambda entry: (-entry[0], entry[1].fc_id))
+        # ONE list, and `include` says which candidates are in it - the operator's decision of 05/08/2026:
+        # «stimati e misurati vanno insieme ma aggiungiamo la possibilità di filtrare gli uni e gli altri».
+        # ⚠️ The cost is measured and stays on the record (gate §7-undecies): ranking them together lowered
+        # the captured SURPLUS on 10 windows of 10, mean -12.4%, worst -30.3%, because a reconstruction can
+        # displace a man somebody measured - the failure mode is variance, not bias (Douglas Luiz predicted
+        # +28.6 and returned -3.2; McTominay +16.0 and returned +50.2). The operator has taken that decision
+        # with the number in front of him, and the panel keeps saying it.
+        # Whatever the filter, every figure of the block is computed from the list the filter produced: a
+        # displayed list whose metrics describe a different list is worse than no metric.
+        entries: list[tuple[float, int, str, object, dict | None]] = []
+        if include in (INCLUDE_ALL, INCLUDE_MEASURED):
+            entries += [(score_pred(p), p.obs.fc_id, "gated", p, None) for p in ranked]
+        if include in (INCLUDE_ALL, INCLUDE_ESTIMATED):
+            entries += [(score, obs.fc_id, "est", obs, guess) for score, obs, guess in estimated]
+        entries.sort(key=lambda entry: (-entry[0], entry[1]))
+        chosen = [(kind, subject, guess) for _s, _id, kind, subject, guess in entries[:top_n]]
+        chosen_obs = [subject.obs if kind == "gated" else subject for kind, subject, _g in chosen]
+        predicted_rank = {fc_id: index for index, (_s, fc_id, _k, _subj, _g) in enumerate(entries, 1)}
         by_id = {p.obs.fc_id: p for p in valued}
         actual = sorted((obs for obs in observations
                          if obs.value_act is not None and fieldable(obs.pv_act)),
@@ -2382,11 +2398,10 @@ def auction_view(data: features.WindowData, predictions: list[Prediction],
                               and predicted_rank[obs.fc_id] > REGIME_RANK),
                 "unpriced": sum(1 for obs in actual[:top_n] if obs.fc_id not in predicted_rank),
             },
-            # ...and the estimated men as their own list, in their own order, never mixed into the ten above
-            "estimated": [{"rank": index, **guessed_row(obs, guess)}
-                          for index, (_score, obs, guess) in enumerate(estimated[:top_n], 1)],
-            "predicted": [{"rank": index, **gated_row(p)}
-                          for index, p in enumerate(ranked[:top_n], 1)],
+            "include": include,
+            "predicted": [{"rank": index,
+                           **(gated_row(subject) if kind == "gated" else guessed_row(subject, guess))}
+                          for index, (kind, subject, guess) in enumerate(chosen, 1)],
             "actual": [{
                 "rank": index, "name": obs.name, "club": obs.club_target,
                 "price_initial": asked(obs),

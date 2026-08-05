@@ -94,6 +94,13 @@ tie once; where they disagree, the report says so and the decision is taken in t
   clubs whose fringe players are not quoted (Serie A 24/25: 233 of 774 elevens fully resolved, Juventus
   **zero**). Hence `club_match_lineups`, populated over ALL lineup entries at parse time. Found by
   measuring, not by review: if a derived table needs a complete unit, count the unit, not its members.
+- **An entity joins through its CANONICAL KEY, never through the string a source uses to name it.**
+  `club_key`/`CLUB_ALIASES` (`matching.py`) for clubs, `fc_id`/`player_xref` for people. Third instance of the
+  same shape, and the cheapest to get wrong because a name join *works* on most rows: an ad-hoc measurement
+  joined opponents by name and silently lost **AC Milan, AS Roma, SSC Napoli** (`clubs.canonical_name` says
+  `Milan`) — i.e. it dropped the three STRONGEST teams from every club's schedule, unevenly. What survived a
+  16/20 join were the aggregate ratios; what did not were the per-club rankings, which changed names entirely.
+  Lesson beyond the join: in a partial measurement trust an order of magnitude, never a league table.
 - **Full-season propensity**: the euro calendar is a *subset* of a player's real matches, so propensity
   (goals/assists/xG per 90) is computed over the FULL real season while the FM/Mv target stays on `euro`.
   Serie A: from `default`. Other 4 leagues: from **FBref** (facts) + **Sofascore** (rating + heatmaps),
@@ -350,9 +357,11 @@ man in 4th place and the statistics behaved as if he were not there, so the harn
 every figure of the block computed from it.
 And then the real measurement, which **reversed a design decision made an hour earlier** (gate §7-undecies,
 `python -m euroleghe_ingest estimates`): ranking the estimated men lowered the captured SURPLUS on **10 windows
-of 10**, mean **−12.4%**, worst −30.3%, with the names in common falling too. So a reconstruction may not
-DISPLACE a man somebody measured - the estimates are OFFERED apart, under the ten, and every row still has its
-number. Two corollaries worth keeping: a platform where the core prices everybody (euro, R0c) returns 0
+of 10**, mean **−12.4%**, worst −30.3%, with the names in common falling too. The operator then decided, with that number in front of him, that
+**measured and estimated go in ONE list with a filter** (`include` = all | measured | estimated): the cost is
+his to accept, and the filter makes it reversible at every look instead of at every build. What stays
+non-negotiable is the discipline around it - every figure of a block is computed from the list the filter
+produced, and the gate never passes `estimates` at all. Two corollaries worth keeping: a platform where the core prices everybody (euro, R0c) returns 0
 estimable and a +0.00% that is **not a PASS** - a window without a population confirms nothing; and the failure
 mode is variance, not bias - Douglas Luiz predicted +28.6 and returned **−3.2**, Rugani never played, while
 McTominay predicted +16.0 and returned **+50.2**.

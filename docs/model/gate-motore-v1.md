@@ -1951,6 +1951,16 @@ previsto +28.6 → **−3.2 reale**, Walker +13.6 → −0.4, De Silvestri +13.8
 giocato**; e non tutti sbagliati, perché McTominay +16.0 → **+50.2** e De Gea +35.0 → +32.6. Media negativa,
 varianza enorme: esattamente ciò che una lista d'asta non vuole nelle prime dieci.
 
+### DECISIONE DELL'OPERATORE, presa col numero davanti (5 agosto 2026)
+«Stimati e misurati vanno insieme ma aggiungiamo la possibilità di **filtrare** gli uni e gli altri.» La misura
+sopra resta quella che è e non viene nascosta: mettere gli stimati nella stessa classifica **costa** — 10
+finestre su 10, media −12.40%. L'operatore ha scelto di vederli insieme sapendolo, e il filtro è ciò che rende
+la scelta **reversibile a ogni sguardo** invece che a ogni build: `auction_view(..., include=)` con
+`all` | `measured` | `estimated`, tre liste costruite nella stessa passata (è aritmetica su dati già
+preparati, quindi il filtro è istantaneo). Due vincoli restano non negoziabili e sono nel codice: **ogni cifra
+del blocco è calcolata dalla lista che il filtro produce** (è la lezione qui sotto), e il **gate non passa mai**
+`estimates`, quindi nessun numero pubblicato si muove — `backtest --verify` 22/22.
+
 ### Lezione di metodo, e ha morso subito
 La prima implementazione univa gli stimati alle righe **mostrate** e lasciava `captured`/`hits` sulla lista
 gatata: lo schermo metteva un uomo stimato al 4° posto e le statistiche si comportavano come se non ci fosse,

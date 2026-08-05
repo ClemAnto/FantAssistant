@@ -27,7 +27,84 @@ regole di UI che sono requisiti) → `spec-euroleghe-ingest-v9.md` → `nota-mod
 
 Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
 
-### ULTIMO IN ORDINE DI TEMPO — 5/08/2026: la stima messa alla prova — OFFERTA, non classificata
+### ULTIMO IN ORDINE DI TEMPO — 5/08/2026 sera: l'ASSISTENTE D'ASTA, progettato prima di scrivere codice
+
+Sessione interamente di ragionamento e misura, **zero codice di prodotto**. Tutto in
+**[assistente-asta-v1.md](assistente-asta-v1.md)** (23 sezioni — il documento da leggere prima di toccare l'app)
+più il nuovo **`config/mantra_modules.json`**.
+
+**La lega dell'operatore, dichiarata**: 12 partecipanti · **euro/mantra** · rosa di **25 = 2 «porte» + 23** senza
+quote per ruolo · **R-Factor** (quindi D-Factor spento) · **draft** con ordine per FVM di rosa crescente, barriera
+di giro, parità risolta sul singolo più caro e poi sull'ordine del primo giro · si scegli fino a completare la
+rosa, e l'app **impedisce** la scelta che la renderebbe non chiudibile.
+
+**Tre conclusioni di modello, in ordine di peso:**
+1. **Una rosa non vale la somma dei suoi giocatori**: vale la somma sulle giornate del **miglior undici LEGALE
+   schierabile** (massimo sui moduli × massimo sulle assegnazioni). Una definizione che assorbe rimpiazzo
+   personale, scarsità di ruolo, flessibilità e il caso «5 Pc».
+2. **Il regolamento Mantra è configurazione, non misura** — undici moduli, caselle **tipate** e ibride, matrice
+   delle sostituzioni; trascrizione **verificata 11/11** contro la regola ufficiale 5+5 e contro i nomi dei moduli.
+   Da qui, senza fittare niente: un **`Pc` sta in massimo 2 caselle** (in 7 moduli su 11 in una sola) contro le 3
+   di un `A`; la **difesa scegli una FAMIGLIA** (5 moduli a tre dietro, 6 a quattro) e **5 difensori le tengono
+   vive entrambe**; `Dc` è l'unico difensore con un posto in ogni schema.
+3. **In un draft il prezzo è pubblico e fisso** (l'FVM), quindi cadono tetto di rilancio e modello di prezzo di
+   mercato — e il draft, a differenza dell'asta a rilanci, **è simulabile, quindi pre-registrabile**.
+
+**Misure nuove** (cautele nel documento): vantaggio campo Serie A **29 punti Elo** su 1140 partite — non i 60-100
+di convenzione, ed è una **costante, non una serie annuale** · difficoltà del calendario **6.7 contro 147** su una
+stagione (morta per ordinare il draft) ma **113 dentro una singola giornata** (viva per la scelta settimanale della
+porta), e il calendario euro **raddoppia** lo spread saltando 7 giornate su 38 · vantaggio di campione **1.64×**
+(24.5 presenze contro 18.4) · numerosità dei ruoli che varia ~10% a stagione, e **`b` non esisteva prima del
+2024-25** · 24 porte su 46 club = **52% del pool**, e il formato è **impossibile su Serie A** (24 > 20).
+
+**Due difetti trovati, entrambi silenziosi**: `Config._league_setup` **cancella** la dimensione «senza quote»
+(fonde sempre `DEFAULT_SQUAD_SLOTS`, quindi la rosa da 25 con 2 porte verrebbe letta 3P/8D/8C/6A → livelli di
+rimpiazzo verosimili e **sbagliati**; per questo la lega **non è ancora in `my_leagues`**); e un **join per NOME**
+in una mia misura aveva perso Milan, Roma e Napoli (`AC Milan` ≠ `Milan`) — le medie aggregate hanno tenuto, la
+graduatoria per club no. Lezione promossa in `CLAUDE.md`.
+
+**Prossimo passo definito** (§16.4): tre modifiche piccole e insieme — `config.py` (`squad_size`, quote opzionali,
+blocco `keeper`, `factor`, blocco `auction`), `features.roster_depth` che **rifiuta** invece di inventare, poi la
+lega dichiarabile. Dopo: il refactor dell'assegnamento fuori da `gui.py` e il simulatore di draft.
+
+**Acquisizioni che bloccano numeri veri**: listone **euro 26/27** · **calendario** della stagione · **ClubElo
+giornaliero + club fuori perimetro** (fuori dalla Serie A l'avversario ha un Elo in ~metà dei casi) · la **scala
+dell'R-Factor** dalle impostazioni di lega · lo **storico FVM** dal dettaglio calciatore.
+
+### 5/08/2026 sera: UNA lista sola, filtrabile — la decisione presa col numero davanti
+
+Spec **«Novità v9.29»**, gate §7-undecies. Rovescia il punto 2 del blocco sotto, e lo rovescia **l'operatore, non
+una misura**: «*stimati e misurati vanno insieme ma aggiungiamo la possibilità di filtrare gli uni e gli altri*».
+`auction_view(..., include=...)` con `all` (come apre il pannello) · `measured` · `estimated`; il selettore
+**Include** **ri-disegna e non ricalcola** (l'aritmetica gira su dati già preparati), quindi il filtro è
+istantaneo e la scelta torna reversibile *a ogni sguardo* invece che a ogni build. Il **gate non passa mai**
+`estimates` né `include`: i suoi percorsi restano quelli di sempre.
+
+- **Il costo resta a verbale e il pannello continua a dirlo**: ordinarli insieme abbassava il SURPLUS catturato
+  su **10 finestre su 10**, media **−12.40%**, peggiore **−30.34%** (gate §7-undecies). La decisione è stata
+  presa con quel numero davanti, che è esattamente il modo in cui questo progetto vuole che si decida.
+- **Il modo in cui falliscono è VARIANZA, non bias**: Douglas Luiz previsto +28.6 e reso **−3.2**, contro
+  McTominay +16.0 e reso **+50.2**. Media negativa, dispersione enorme — quindi un filtro serve più di un
+  divieto.
+- **Invariante che sopravvive al filtro**: qualunque sia `include`, **ogni cifra del blocco è calcolata sulla
+  lista che il filtro ha prodotto**. È la lezione del punto 3 sotto, che aveva già morso una volta: una lista
+  mostrata le cui metriche descrivono un'altra lista *sembra* misurata, ed è peggio di nessuna metrica.
+
+### 5/08/2026: stimati e misurati INSIEME, con un filtro (decisione dell'operatore)
+
+«Stimati e misurati vanno insieme ma aggiungiamo la possibilità di filtrare gli uni e gli altri» — spec
+**«Novità v9.29»**. Presa **col numero davanti**: la misura di §7-undecies (insieme costa −12.40% di SURPLUS
+catturato su 10 finestre su 10) resta scritta accanto alla scelta, non cancellata.
+
+1. **`auction_view(..., include=)`**: `all` (default) · `measured` · `estimated`. Il filtro decide chi entra in
+   classifica, e **ogni cifra del blocco è calcolata dalla lista che il filtro produce** — il vincolo che la
+   sezione qui sotto ha imparato a caro prezzo.
+2. **Tre liste in una passata**, quindi il selettore **Include** ri-disegna e non ricalcola: istantaneo.
+3. **La scelta è visibile mentre la si usa**: la riga di stato dice quale filtro è attivo, l'intestazione del
+   ruolo quanti dei dieci sono stimati (`~`).
+4. **Il gate non passa mai** `estimates` né `include`: `backtest --verify` 22/22.
+
+### 5/08/2026: la stima messa alla prova (la parte «non classificata» è superata dal blocco sopra) *(punto 2 superato dal blocco sopra)*
 
 Nuovo comando **`estimates`**, gate **§7-undecies**, e un verdetto che ha cambiato il disegno fatto un'ora prima.
 

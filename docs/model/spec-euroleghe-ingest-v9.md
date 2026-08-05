@@ -1,5 +1,5 @@
 # Spec — Toolkit `euroleghe-ingest` v9 (task 1.0 della roadmap)
-**Aggiornata: 5 agosto 2026 (v9.28 — la stima messa alla prova: offerta, non classificata; v9 SOSTITUISCE la v8)** · Python · Output: SQLite `euroleghe.db` + CSV normalizzati
+**Aggiornata: 5 agosto 2026 (v9.29 — stimati e misurati insieme, con un filtro; v9 SOSTITUISCE la v8)** · Python · Output: SQLite `euroleghe.db` + CSV normalizzati
 *Sigle: fc_id = identificativo fantacalcio.it · FM = fantamedia · Mv = media voto · Pv = partite a voto · xref = cross-reference id tra siti · xG/xA = expected goals/assists · manifest = lista file da recuperare.*
 **Convenzione: identificatori sempre in INGLESE** (tabelle, colonne, moduli, variabili); italiano solo nella documentazione.
 
@@ -494,7 +494,24 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
-## Novità v9.28 (5 agosto 2026 — la stima messa alla prova: OFFERTA, non classificata)
+## Novità v9.29 (5 agosto 2026 — insieme, con un FILTRO: `include` = all | measured | estimated)
+
+Decisione dell'operatore presa **col numero davanti**: «stimati e misurati vanno insieme ma aggiungiamo la
+possibilità di filtrare gli uni e gli altri». 304 test, `backtest --verify` 22/22.
+
+- **`auction_view(..., include=)`** con `all` (default) · `measured` · `estimated`: il filtro decide **chi entra
+  nella classifica**, e ogni cifra del blocco — `captured`, `hits`, `misses`, i ranghi — è calcolata **dalla
+  lista che il filtro produce**. Questo è il vincolo che la v9.28 ha imparato a caro prezzo e che non si
+  negozia: una lista mostrata le cui metriche descrivono un'altra lista *sembra* misurata.
+- **Tre liste in una passata**: il pannello le costruisce tutte quando calcola la finestra LIVE, perché
+  `auction_view` è aritmetica su dati già preparati. Il selettore **Include** quindi ri-disegna e non
+  ricalcola: filtro istantaneo, nessun rebuild da venti secondi.
+- **Il costo resta scritto accanto alla scelta** (gate §7-undecies): insieme, il SURPLUS catturato peggiora su
+  10 finestre su 10, media −12.40%. La riga di stato dice quale filtro è attivo e l'intestazione del ruolo
+  quanti dei dieci sono stimati (`~`), così la scelta è visibile mentre la si usa.
+- Il **gate non passa mai** `estimates` né `include`: i suoi percorsi restano quelli di sempre.
+
+## Novità v9.28 (5 agosto 2026 — la stima messa alla prova (la parte «non classificata» è superata dalla v9.29))
 
 Nuovo comando **`estimates`** (read-only, `data/reports/estimates_check.json`) e un verdetto che ha **cambiato
 il disegno** fatto un'ora prima. Gate **§7-undecies**. 304 test, `backtest --verify` 22/22.

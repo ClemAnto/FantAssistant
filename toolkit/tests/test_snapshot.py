@@ -1951,7 +1951,7 @@ def test_the_live_auction_list_is_one_table_and_claims_no_score():
             box = view.inner.winfo_children()[1]
             assert isinstance(box, ttk.LabelFrame)
             head = str(box.cget("text"))
-            assert "of 143 the engine could price" in head, head
+            assert "of 143 priced" in head, head
             assert "in common" not in head and "captured" not in head, head
     finally:
         root.destroy()
@@ -2172,19 +2172,19 @@ def test_absence_from_the_live_squad_is_read_only_for_a_man_the_provider_knows()
         "Bayer 04 Leverkusen", "2026-07-01")
 
 
-def test_the_estimates_are_offered_apart_and_never_displace_a_measured_man():
-    """Measured, and it changed the design: gate §7-undecies.
+def test_measured_and_estimated_go_together_and_either_side_can_be_filtered():
+    """The operator's decision of 05/08/2026, taken with the measurement in front of him:
+    «stimati e misurati vanno insieme ma aggiungiamo la possibilità di filtrare gli uni e gli altri».
 
-    The first version merged the estimated men into each role's top ten - «ogni calciatore DEVE avere il suo
-    SURPLUS» taken all the way to the ranking. Then `estimates --platform default` ran the deliverable twice on
-    all ten windows and the answer was flat: the captured SURPLUS fell on **10 windows of 10**, mean -12.4%,
-    worst -30.3%, and the names in common fell with it (Tm4 17 -> 12). A penalised reconstruction displaces a
-    man somebody actually measured, so the pre-registered criterion refuses it.
+    ⚠️ What it costs is on the record and is not hidden by this test: ranking them together lowered the
+    captured SURPLUS on 10 windows of 10, mean -12.4%, worst -30.3% (gate §7-undecies, `estimates`). The
+    failure mode is variance - Douglas Luiz predicted +28.6 and returned -3.2, McTominay +16.0 and returned
+    +50.2 - and the operator has chosen to see both kinds in one list with a filter, which is a decision the
+    number informs rather than one it makes.
 
-    What survives is the operator's requirement without the damage: every player still HAS a number (the sheet
-    and the squad table show it, marked `~`), and the auction list offers the estimates as their OWN list, in
-    their own order, next to the ten. This pins both halves: the ten are untouched by the presence of
-    estimates, and the estimates are still there to be read.
+    What must hold, and is pinned here: `include` decides who is in the list; every figure of the block is
+    computed from THAT list (the +0.00%-on-ten-windows defect came from a screen and a metric describing
+    different lists); the gate's own path passes no estimates and is untouched.
     """
     import pytest
 
@@ -2224,23 +2224,34 @@ def test_the_estimates_are_offered_apart_and_never_displace_a_measured_man():
     strong, weak, unpriced = Obs(1, "Strong", 7.0), Obs(2, "Weak", 6.2), Obs(3, "Unpriced", None)
     data = Data([strong, weak, unpriced])
     predictions = [Pred(strong, 7.0, 30.0), Pred(weak, 6.2, 30.0), Pred(unpriced, None, None)]
-
-    bare = evaluate.auction_view(data, predictions, top_n=5, metric=evaluate.SURPLUS)
-    # an estimate that would have outranked `Weak` - and does not get to
     estimates = {3: {"fm": 6.8, "pv": 28.0, "basis": "other_platform", "confidence": 0.95,
                      "note": "his season on the other platform", "value": 180.0, "surplus": 21.0}}
-    with_est = evaluate.auction_view(data, predictions, top_n=5, metric=evaluate.SURPLUS,
-                                     estimates=estimates)
 
-    assert [row["name"] for row in with_est["A"]["predicted"]] == ["Strong", "Weak"]
-    assert bare["A"]["predicted"] == with_est["A"]["predicted"], (
-        "the measured ten must not move because an estimate exists")
-    for key in ("captured_value", "perfect_value", "hits", "misses"):
-        assert bare["A"][key] == with_est["A"][key], key
+    def names(include):
+        view = evaluate.auction_view(data, predictions, top_n=5, metric=evaluate.SURPLUS,
+                                     estimates=estimates, include=include)
+        return [row["name"] for row in view["A"]["predicted"]], view["A"]
 
-    offered = with_est["A"]["estimated"]
-    assert [row["name"] for row in offered] == ["Unpriced"]
-    assert offered[0]["estimated"] and offered[0]["est_basis"] == "other_platform"
-    assert offered[0]["est_confidence"] == pytest.approx(0.95) and offered[0]["est_note"]
-    assert offered[0]["surplus_pred"] == pytest.approx(21.0)
-    assert not bare["A"]["estimated"], "no estimates asked for, none offered"
+    # TOGETHER: the estimate sits where its penalised score puts it, between the two measured men
+    together, block = names(evaluate.INCLUDE_ALL)
+    assert together == ["Strong", "Unpriced", "Weak"], together
+    guessed = next(row for row in block["predicted"] if row["name"] == "Unpriced")
+    assert guessed["estimated"] and guessed["est_basis"] == "other_platform"
+    assert guessed["est_confidence"] == pytest.approx(0.95) and guessed["est_note"]
+    assert block["include"] == evaluate.INCLUDE_ALL
+
+    # ...and either side alone
+    assert names(evaluate.INCLUDE_MEASURED)[0] == ["Strong", "Weak"]
+    assert names(evaluate.INCLUDE_ESTIMATED)[0] == ["Unpriced"]
+
+    # the block's own numbers follow the filter, never the other list
+    _, measured_only = names(evaluate.INCLUDE_MEASURED)
+    _, estimated_only = names(evaluate.INCLUDE_ESTIMATED)
+    assert measured_only["n_estimated"] == 1, "the count of what EXISTS does not depend on the filter"
+    assert all(not row["estimated"] for row in measured_only["predicted"])
+    assert all(row["estimated"] for row in estimated_only["predicted"])
+
+    # and the gate's path - no estimates at all - ranks the measured men and nothing else
+    bare = evaluate.auction_view(data, predictions, top_n=5, metric=evaluate.SURPLUS)
+    assert [row["name"] for row in bare["A"]["predicted"]] == ["Strong", "Weak"]
+    assert bare["A"]["n_estimated"] == 0

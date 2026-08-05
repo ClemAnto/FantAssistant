@@ -1053,7 +1053,12 @@ avversari scegleranno su *FVM*, *conoscenza personale* e *calciatori che hanno o
 Non è un dettaglio di calendario: cambia il bersaglio, il vantaggio e — soprattutto — crea **una cosa che va
 fatta adesso o è perduta**.
 
-### 19.1 Una misura che non si può recuperare dopo: il ΔFVM
+### 19.1 Una misura che credevo non recuperabile: il ΔFVM
+
+⚠️ **Superato lo stesso giorno dal §20.1: lo storico FVM è PUBBLICO** (dal dettaglio calciatore, §20.4), quindi
+non è una cattura da rincorrere ma una fonte da ingerire — e diventa perfino backtestabile su una stagione. Il
+resto di questa sezione resta valido come descrizione di *cosa* misura il ΔFVM e di com'era lo stato di
+`fvm_history` il 5/08/2026; l'urgenza no.
 
 L'FVM «varia ogni settimana o quando ci sono eventi particolari», ed è per questo che esiste
 `fvm_history(fc_id, season, observed_on, …)`, che **accumula da oggi** e non ha passato. Se il draft avviene
@@ -1217,47 +1222,50 @@ finestre — l'intuizione Kane è corretta — ma il MAE di T1 peggiora ogni vol
 stagionale di *dove gioca*. L'idea dell'operatore è un'altra quantità: **chi affronterà**, aggregato su una
 finestra specifica. Trattarla come già risolta sarebbe sbagliato.
 
-### 21.2 Ma muore per aritmetica, prima di qualunque gate: 8.6 contro 148.3
+### 21.2 Ma muore per aritmetica, prima di qualunque gate: 6.7 contro 147.0
 
 Misurato sul calendario Serie A 2025-26 (coppie giornata-club-avversario dal layer per partita, forza =
-ClubElo). Spread **fra club** dell'Elo medio degli avversari, per orizzonte:
+ClubElo). Spread **fra club** dell'Elo medio degli avversari, per orizzonte — *numeri rimisurati dopo il difetto
+di join del §21.7, su 20 club e 38 partite ciascuno*:
 
 | orizzonte | sd | min | max | range |
 |---|---|---|---|---|
-| prossime **3** giornate | **79.8** | 1564 | 1845 | **281** |
-| prossime **5** | **49.5** | 1595 | 1760 | 165 |
-| prossime **10** | 32.2 | 1632 | 1740 | 108 |
-| **residuo 34** (dalla 5ª alla fine) | **8.6** | 1665 | 1699 | **34** |
-| stagione intera | 6.7 | 1666 | 1693 | 27 |
-| *(riferimento)* Elo **dei club stessi** | **148.3** | | | |
+| prossime **3** giornate | **63.6** | 1573 | 1801 | **228** |
+| prossime **5** | **39.6** | 1626 | 1765 | 139 |
+| prossime **10** | 28.0 | 1653 | 1758 | 105 |
+| **residuo 34** (dalla 5ª alla fine) | **6.7** | 1683 | 1714 | **31** |
+| stagione intera | 6.0 | 1686 | 1707 | 21 |
+| *(riferimento)* Elo **dei club stessi** | **147.0** | | | |
 
-> Sul **residuo di 34 giornate** la differenza di calendario fra club vale **8.6 punti Elo di sd contro i 148.3
-> della forza dei club: un fattore 17.** Il girone all'italiana ri-bilancia quasi perfettamente — tutti giocano
+> Sul **residuo di 34 giornate** la differenza di calendario fra club vale **6.7 punti Elo di sd contro i 147.0
+> della forza dei club: un fattore 22.** Il girone all'italiana ri-bilancia quasi perfettamente — tutti giocano
 > con tutti — quindi «che partite gli restano da qui alla fine» è **praticamente lo stesso per tutti**.
 
-E si vede anche il confondente che aveva sporcato i test precedenti: i club **più forti** hanno il calendario
-residuo **più facile** (Inter 1665, Juventus 1668, contro Cremonese 1699), perché non giocano contro se stessi.
-Forza propria e difficoltà del calendario sono **anti-correlate per costruzione**: un termine additivo sulla
-prima porta dentro un pezzo della seconda, ed è una ragione in più per non impilarle.
+E si vede anche il confondente che aveva sporcato i test precedenti: fra i calendari residui più **facili** ci
+sono Inter (1688) e Bologna (1692), fra i più **duri** Cremonese (1714) e Verona (1706) — perché nessuno gioca
+contro se stesso, quindi essere forte *alleggerisce* il proprio calendario. Forza propria e difficoltà del
+calendario sono **anti-correlate per costruzione**: un termine additivo sulla prima porta dentro un pezzo della
+seconda, ed è una ragione in più per non impilarle.
 
 ### 21.3 Dove invece vive, e questa lega ne ha bisogno per forza
 
-Lo spread decade come la media di n estrazioni, quindi **il segnale è tutto sull'orizzonte breve** — 79.8 su
-tre giornate, con un range di **281 punti Elo** fra il calendario più duro e il più morbido, che è come la
+Lo spread decade come la media di n estrazioni, quindi **il segnale è tutto sull'orizzonte breve** — 63.6 su
+tre giornate, con un range di **228 punti Elo** fra il calendario più duro e il più morbido, che è come la
 distanza fra una squadra di metà classifica e una da titolo. E dentro **una singola giornata** lo spread
-dell'Elo avversario è **111.7**, cioè il **75%** della dispersione della forza dei club.
+dell'Elo avversario è **113.2**, cioè il **77%** della dispersione della forza dei club.
 
 Quindi la difficoltà del calendario è una quantità **settimanale**, non stagionale. E la lega dell'operatore ne
 crea un uso settimanale obbligato:
 
 > **la scelta di quale delle due PORTE schierare ogni giornata** (§14.1) è governata quasi interamente dalla
-> difficoltà del turno — spread 111.7 dentro la giornata, più il fattore campo che il layer per partita già
-> porta (`home`). È lì che il valore d'opzione della coppia di porte si realizza, ed è anche l'unico posto dove
-> la forza-squadra è **già passata dal gate**: il modulo portieri **M2e adotta l'Elo** (tasso gol subiti = mix
-> 50/50 persistenza + Elo, «mai peggio, meglio dove conta»).
+> difficoltà del turno — spread 113.2 dentro la giornata, più il **vantaggio campo misurato in 29 punti Elo**
+> (§23.1), che il layer per partita sa applicare perché porta il flag `home`. È lì che il valore d'opzione della
+> coppia di porte si realizza, ed è anche l'unico posto dove la forza-squadra è **già passata dal gate**: il
+> modulo portieri **M2e adotta l'Elo** (tasso gol subiti = mix 50/50 persistenza + Elo, «mai peggio, meglio dove
+> conta»).
 
-Il che chiude il cerchio in modo pulito: **per ordinare il draft la difficoltà del calendario non serve** (8.6
-su 148.3), **per scegliere la porta ogni settimana è il meccanismo principale**, e per i portieri la forza
+Il che chiude il cerchio in modo pulito: **per ordinare il draft la difficoltà del calendario non serve** (6.7
+su 147.0), **per scegliere la porta ogni settimana è il meccanismo principale**, e per i portieri la forza
 avversaria è l'unica versione della famiglia che il gate abbia mai adottato.
 
 ### 21.4 Cosa manca per farlo, e due cautele sulla misura
@@ -1270,8 +1278,10 @@ avversaria è l'unica versione della famiglia che il gate abbia mai adottato.
 - **Cautele su questo numero**: è misurato su **Serie A 2025-26** con un unico scatto Elo di pre-stagione, e
   misura la **geometria del calendario** — non è una previsione, ed è esattamente ciò che la domanda richiede.
   Su euro il calendario è un sottoinsieme (31 giornate su 38) e mescola cinque campionati, quindi il
-  ri-bilanciamento potrebbe essere **meno** perfetto: vale rifarlo su `platform='euro'` prima di dare l'8.6 per
-  buono là. Il rapporto 17× però è così largo che servirebbe un difetto enorme per rovesciarlo.
+  ri-bilanciamento potrebbe essere **meno** perfetto: vale rifarlo sul calendario euro prima di dare il 6.7 per
+  buono là. ✅ **Controllo eseguito lo stesso giorno, §21.5: il ri-bilanciamento è effettivamente meno perfetto e
+  lo spread raddoppia** (6.0 → 11.8 sulla stagione intera). Il rapporto con la forza dei club resta però di un
+  ordine di grandezza, quindi la conclusione per il draft non si muove.
 
 ### 21.5 Rifatto sul calendario EURO: il controllo del §21.4 era necessario, e RADDOPPIA il numero
 
@@ -1475,3 +1485,91 @@ di agosto starà vuota per costruzione (§8: e lo dirà).
 **Una nota di forma, dalla misura stessa**: su 8 partite la percentuale si muove a scatti di 12.5 punti e assume
 solo i valori `k/8`. Mostrare **«6/8 (75%)»** è più onesto di «75%», perché dice anche su quante partite il
 numero è calcolato — che è la stessa informazione che il §22.3 chiede alla cella di dichiarare.
+
+---
+
+## 23. «Facile» = sono molto più forte, col bonus casa — misurato (5 agosto 2026)
+
+**Definizione dell'operatore**: facile significa che *il mio* Elo è molto superiore a quello dell'avversario, e
+giocando in casa il mio Elo prende un bonus. Formato deciso: **`6/8 (75%)`**.
+
+### 23.1 Il vantaggio campo misurato: 29 punti Elo, non i 60-100 di convenzione
+
+Misurato su **2657 partite di Serie A ricostruite offline** (7 stagioni, risultato derivato da `match_ratings`
+`platform='default'`: gol netti + rigori segnati, incrociato col flag casa/trasferta del layer per partita).
+Quota di punteggio della squadra di casa **0.5359** → vantaggio campo **25 punti Elo**; gol medi 1.42 contro 1.23.
+
+| stagione | 19-20 | 20-21 | 21-22 | 22-23 | 23-24 | 24-25 | 25-26 |
+|---|---|---|---|---|---|---|---|
+| Elo casa | 22 | 22 | 12 | 33 | 44 | 27 | 15 |
+
+Ultime tre stagioni insieme (1140 partite): **29 punti**. Due letture da tenere:
+
+- **è molto meno del 60-100 che la letteratura sul calcio cita di solito**, quindi la convenzione era la scelta
+  sbagliata e valeva misurarlo;
+- **non va fittato per stagione**: 380 partite danno un errore standard di circa **±18 punti Elo** sulla quota,
+  quindi l'oscillazione 12→44 è rumore, non un vantaggio campo che cambia. Si spedisce il valore aggregato (29
+  sulle ultime tre, 25 su sette) come **costante misurata con la sua data**, non una serie.
+
+Conseguenza aritmetica da non ignorare: 29 punti contro una dispersione di forza fra club di **147** sono 0.2
+deviazioni standard, quindi il bonus casa **ribalta solo le partite già vicine alla soglia**. È giusto includerlo
+— è la definizione dell'operatore ed è misurato — ma non aspettarsi che muova molte celle.
+
+### 23.2 La colonna come sarà, e la soglia
+
+`facile ⇔ (mio Elo + 29 se in casa) − Elo avversario > soglia`. Sulle ultime 8 giornate di Serie A:
+
+| soglia | punteggio atteso | sd fra club | range | corr. con l'Elo proprio | club **saturi** (0/8 o 8/8) |
+|---|---|---|---|---|---|
+| **0** («sono favorito») | 0.50 | 31.7 | 0-100% | +0.79 / +0.91 | **4/20** |
+| +50 | 0.57 | 34.0 | 0-100% | +0.91 / +0.92 | 6/20 |
+| **+100** («molto più forte») | 0.64 | 30.7 | 0-100% | +0.91 / +0.93 | 7-9/20 |
+| +150 | 0.70 | 28.3 | 0-88% | +0.84 / +0.93 | 11-12/20 |
+| +200 | 0.76 | 21.6 | 0-75% | +0.79 / +0.87 | 12/20 |
+
+Con soglia +100, 2025-26: Inter **8/8** · Napoli 6/8 · Milan 5/8 · Lazio/Torino/Juventus 4/8 … Verona, Cagliari,
+Lecce, Cremonese, Pisa, Sassuolo **0/8**.
+
+### 23.3 Due cose da sapere su questa colonna, e nessuna la squalifica
+
+1. **Correla +0.92 con la forza del club stesso**, quindi va letta per quello che è: *«quanto è favorevole il
+   finale di stagione di questo club»*, **non** «chi ha avuto fortuna col calendario» (quella è la deviazione, cioè
+   il Δ del §22.1). Per una decisione d'acquisto è l'input giusto — un giocatore del Verona ha partite difficili
+   davanti, e il motivo per cui le ha non cambia il suo rendimento atteso. ⚠️ Ma proprio perché ricalca la forza
+   del club, **resta una colonna da MOSTRARE e non un ingrediente di previsione**: la famiglia forza-club è stata
+   respinta dal gate tre volte (§21.1), e farla rientrare per la porta di servizio di una percentuale sarebbe lo
+   stesso errore con un altro nome. Come la colonna Pair: porta l'evidenza al decisore senza riordinare nulla.
+2. **Satura.** A +100 fra 7 e 9 club su 20 stanno a 0/8 o 8/8, e per loro la colonna non porta **nessuna**
+   informazione di calendario: il Cagliari legge 0/8 sia con un finale morbido sia con uno brutale. La soglia che
+   satura meno è **0** («sono favorito»): 4 club su 20, e non richiede di scegliere quanto valga «molto». Se si
+   preferisce restare aderenti a «molto superiore», **+100** è il punto naturale (punteggio atteso 0.64) al prezzo
+   di un terzo del campionato appiattito.
+
+### 23.4 Forma congelata (scelta dell'operatore, 5 agosto 2026)
+
+**Soglia = +100.** Costanti dichiarate, zero fit:
+
+```
+facile(partita)  ⇔  (elo_club + HOME_ADVANTAGE·[gioca in casa]) − elo_avversario > EASY_MARGIN
+
+EASY_MARGIN     = 100     punteggio atteso 0.64 — scelta dell'operatore, 05/08/2026
+HOME_ADVANTAGE  = 29      MISURATO: 1140 partite di Serie A 23-24…25-26, quota casa 0.5412
+                          (25 su 2657 partite e sette stagioni; errore standard per stagione ±18,
+                           quindi è una costante e NON una serie annuale)
+finestra        = dalla data dello snapshot alla fine del calendario della piattaforma
+formato         = "k/n (p%)"   — il conteggio prima della percentuale, perché su 8 partite
+                                 la percentuale si muove a scatti di 12.5 punti
+```
+
+**Quanto conta il bonus casa a questa soglia, misurato invece di supposto**: su **320** coppie (club, partita)
+delle ultime 8 giornate di due stagioni, il bonus di 29 punti **cambia 11 classificazioni** — **3.4%** del totale
+e **6.9%** delle gare in casa, cioè la banda decisiva è la differenza Elo fra 71 e 100 (Fiorentina-Genoa +93,
+Atalanta-Bologna +91, Torino-Verona +80, Parma-Pisa +72…). Piccolo e reale, com'era l'aritmetica del §23.1: in una
+finestra di 8 partite riclassifica circa un club su quattro, per una partita.
+
+**Il manifest deve portare tutti e cinque** — soglia, bonus casa con la sua data di misura, data dello scatto Elo,
+finestra, e conteggio delle partite classificate — perché una percentuale senza di essi non è un fatto (§22.3). E
+la colonna resta **display-only**: mai un ingrediente di previsione senza gate (§23.3 punto 1).
+
+**Stato**: definizione congelata, **non ancora calcolabile** — aspetta l'ingestione del calendario (§21.4) e, fuori
+dalla Serie A, l'Elo degli avversari non-perimetro (§21.6). Fino ad allora la cella è vuota e lo dice.
