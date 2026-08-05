@@ -27,7 +27,18 @@ regole di UI che sono requisiti) → `spec-euroleghe-ingest-v9.md` → `nota-mod
 
 Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
 
-### ULTIMO IN ORDINE DI TEMPO — 5/08/2026 notte: la fonte «in tempo reale» sulle rose era già in cache
+### ULTIMO IN ORDINE DI TEMPO — 5/08/2026: NESSUN job settimanale, e la richiesta è chiusa
+
+Decisione dell'operatore: «il job ogni settimana non serve, elimina questa richiesta». È la logica del 29/07
+sulle probabili portata a conclusione: un'asta iniziale è in **agosto**, quando la pagina non esiste ancora, e
+quello che gli editor aggiungono arriva **tardi** (le parole dell'allenatore) — quindi la lettura che vale è
+quella presa **subito prima** della sessione. `starter_prob` 0/1453 sul gate è **vuoto per scelta**.
+Applicato: `scripts/weekly-snapshot.ps1` → **`scripts/refresh-editorial.ps1`** (rilancio a mano, via la
+macchina dello scheduled task), e `bootstrap`/README non chiedono più di registrare niente. Quello che
+sostituisce il job è **dichiarare l'età** dell'evidenza (`evidence_age`) e leggere la **rosa viva** del
+provider: una rosa vecchia si vede come una data invece di essere creduta.
+
+### 5/08/2026 notte: la fonte «in tempo reale» sulle rose era già in cache
 
 Richiesta dell'operatore («troviamo un ente affidabile e aggiornato in tempo reale»), spec **«Novità v9.26»**.
 
@@ -246,8 +257,8 @@ nel motore**: i set adottati restano `euro R0c+R3c` · `Serie A R3+R7+R13`.
    **NULL** è la parte che conta: su Serie A il valore batte la costante di **+0.42 punti**, su euro i due sono
    identici — quel poco che c'è è **ritorno alla media**. Il braccio **cartellino** è morto su entrambe.
 7. **Due decisioni dell'operatore in sospeso**: `APPLY_OFFSETS` (la Champions passa il criterio pre-registrato
-   **e** ha MAE media peggiore dell'àncora: raccomandazione, spento) e la **registrazione del job settimanale**,
-   che ogni settimana costa `player_roles` non backfillabili. E i **portieri** restano fuori dall'FM-equivalente
+   **e** ha MAE media peggiore dell'àncora: raccomandazione, spento). ⚠️ Il **job settimanale** non è più
+   una voce aperta: l'operatore ha deciso il 05/08 che **non serve** (vedi il blocco in cima). E i **portieri** restano fuori dall'FM-equivalente
    comunque (+1.06/+1.08/+1.12 sopra la fantamedia reale, perché non sottrae i gol presi): lavoro in `arrivals`.
 8. ⚠️ **Trovato chiudendo la sessione, e va rimisurato**: **§7-sexies** (i tier degli arrivi) ha girato su un
    `mv_synth` **fermo**, quindi la copertura del misurato che quel verdetto dà come collo di bottiglia era un
@@ -550,12 +561,12 @@ snapshot**, per sapere orientativamente dove collocarlo in campo.
    condividono un ruolo, 8% disgiunti** — e le disgiunte sono quasi tutte `a` del listone contro `w` del
    provider, cioè la distinzione stessa fra **per cosa lo compri** e **dove gioca**.
 
-8. ⚠️ **DA DECIDERE, e ogni settimana che passa costa**: il job settimanale (`scripts/weekly-snapshot.ps1`)
-   esegue **solo `fc_site`**, quindi `player_roles` si accumula **solo** quando qualcuno lancia `snapshot`.
-   Essendo un fatto non backfillabile, una settimana senza `snapshot` è una settimana che `player_roles`
-   non avrà mai. Basterebbe aggiungere `positions --layer roles` al job (~80 richieste, ~2 min, e gratis
-   se `snapshot` è già girato in giornata): lasciato come **decisione**, non fatto di nascosto dentro un
-   task pianificato.
+8. ✅ **DECISO il 05/08/2026: nessun job settimanale.** La voce diceva «ogni settimana che passa costa» e
+   l'operatore ha chiuso la richiesta: «il job ogni settimana non serve». Un'asta iniziale è in agosto, quando
+   la pagina delle probabili non esiste, e il valore aggiunto degli editor arriva a ridosso del calcio
+   d'inizio — quindi si legge **subito prima** della sessione. `player_roles` continua ad accumularsi quando
+   gira `snapshot`, che è il momento in cui serve; e ciò che protegge da una rosa vecchia non è un job ma la
+   **data dichiarata** (`evidence_age`) più la rosa viva del provider come fonte.
 
 **Nessun verdetto del gate cambia**: fatto descrittivo + layout. Il vincolo è registrato in
 `gate-motore-v1.md` §5 punto 6, fra i fatti utilizzabili *live* e non nel gate retrospettivo.
@@ -869,7 +880,7 @@ generazione delle ipotesi: passare lì è la prova più debole possibile.**
    («l'injury proxy»), e sostituire una stima con un fatto è un'ipotesi nuova, da pre-registrare.
 5. **Storia di `probable_starter`/`availability`**: esiste solo lo snapshot 2026-07-26, **impossibile a
    posteriori**. Il job settimanale ora c'è (`scripts/weekly-snapshot.ps1 -Register`) — **va registrato
-   sulla macchina**, ed è la forma pre-registrata di R7. Ogni settimana non registrata è una finestra
+   sulla macchina**, ed è la forma pre-registrata di R7. Ogni settimana non registrata è una finestra ⛔ **SUPERATO il 05/08/2026**: nessun job, decisione dell'operatore (vedi il blocco in cima).
    che non tornerà.
 6. A rendimento calante: voti Serie A prima del 15/16 (non sondati), layer per-partita per 15/16-18/19
    (servirebbe solo a ri-testare R8 e R14, già bocciate). ~~`club_elo` oltre le 2 date~~ **risolto**:

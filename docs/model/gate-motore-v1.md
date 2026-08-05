@@ -466,7 +466,7 @@ Su Serie A il set tiene su **tutte e 7** le finestre (media +8.9%, peggior fines
 | Serie A **17/18, 16/17, 15/16** | tre finestre in più (10 in totale) | ~114 download, ~20 minuti | 2 - banale |
 | `club_elo` alle date d'asta vecchie | **solo** R5, famiglia già bocciata tre volte. Non serve ai portieri | 5 richieste all'API ClubElo (oggi il modulo legge un CSV seed) | 4 - basso valore |
 | **`injuries`** | metà dei buchi nelle top-10 dei difensori | nessuna fonte agganciata (piano: Transfermarkt) | 3 - serve una decisione, non una passata |
-| storia di `probable_starter`/`availability` | la forma pre-registrata di R7 | **impossibile a posteriori** (esiste solo lo snapshot 2026-07): va accumulata da adesso | 3 - avviare un job settimanale |
+| storia di `probable_starter`/`availability` | la forma pre-registrata di R7 | **impossibile a posteriori** (esiste solo lo snapshot 2026-07) | — **nessun job**, decisione dell'operatore 05/08/2026: si legge subito prima della sessione, e quella forma di R7 resta non testabile |
 | voti EuroLeghe 21/22 | chiuderebbe il buco euro | **impossibile**: i file della sorgente sono vuoti | - |
 
 **La risposta breve**: per lo strato voti no, non serve altro scraping. Per il *gate*, sì, e una sola

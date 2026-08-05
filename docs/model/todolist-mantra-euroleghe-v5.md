@@ -466,26 +466,16 @@ Nota: **nessuna delle feature generate il 27/07 e' entrata nel motore**, e **nes
       stagione è una quota del CAMPIONATO» dice di tenere fuori. Cosa lo riaprirebbe, dichiarato: più uomini
       nel braccio dentro-la-stagione, oppure un criterio più severo scritto prima («batte l'àncora anche in
       media»), che oggi nessuna competizione supererebbe.
-- [ ] **DECISIONE DELL'OPERATORE — il job settimanale sulla macchina**: verificato il 3/08, nessuno scheduled
-      task registrato. `player_roles` è **non backfillabile** e si accumula solo quando gira `snapshot`, quindi
-      ogni settimana senza registrarlo è una settimana che non esisterà. Basta aggiungere `positions --layer
-      roles` al job (~80 richieste, ~2 min, gratis se `snapshot` è già girato in giornata).
-- [x] **FATTO il 05/08 (sera) — §7-sexies RIMISURATA** sulla popolazione nuova (707 → **2128** arrivi con
-      equivalente): su **euro** `measured_first` resta CONFIRMED col margine **cresciuto** (+0.89% → +1.00%,
-      7 fold su 7); su **default** la quotazione scende da **+0.42% a +0.32%**, sempre sotto il pavimento e con
-      margine negativo sul secondo. È la prima verifica quantitativa di «il collo di bottiglia è la copertura»:
-      più calcio misurato, meno vantaggio alla quotazione, senza ritoccare niente. Nella stessa corsa e **non
-      adottato**: `t3_price` robust PASS a 0.20 su euro (bordo, margine negativo) contro 0.60 su default, cioè
-      i due estremi della stessa griglia.
-- [x] **FATTO il 05/08 (notte) — il FOLLOW-UP di §7-septies, e la famiglia SI CHIUDE**: griglia estesa (la
-      curva **gira dentro** il misurato: migliore 0.75 su `default` con robust PASS, 0.50 su euro; a 3.0 il
-      termine costa più che essere spento) **e** il canale misurato al netto del null, che è la parte che
-      decide: il valore aggiunge **+0.41%** su `default` e **+0.045%** su euro, entrambi **sotto il pavimento**.
-      I conti tornano — null +0.37% + valore +0.41% = il +0.78% che la forma grezza otteneva in PASS: **era la
-      somma di due effetti entrambi sotto il pavimento**. `value_weight` e `shrink_weight` restano 0.0. Nuovo
-      in `sweep`: `BASELINES`, il baseline dichiarato per famiglia (il marginale si misura per fold contro il
-      punto solo-null). ⚠️ Registrato anche un mio errore di pre-registrazione: «margine sul secondo positivo»
-      non era esprimibile con le metriche del report.
+- [x] **DECISO il 05/08 — NESSUN job settimanale, e la richiesta è chiusa**: «il job ogni settimana non
+      serve». Coerente con la decisione del 29/07 sulle probabili, e ora completa: un'asta iniziale è in
+      agosto, quando la pagina delle probabili non esiste ancora, e quello che gli editor aggiungono arriva
+      **tardi**, dalle parole dell'allenatore — quindi la lettura che vale è quella presa **subito prima**
+      della sessione e usata subito. `starter_prob` 0/1453 sulle finestre del gate è **vuoto per scelta** e
+      nessuna regola d'asta lo aspetta. Conseguenze applicate: `scripts/weekly-snapshot.ps1` diventa
+      `scripts/refresh-editorial.ps1` (rilancio **a mano**, senza la parte di pianificazione), `bootstrap` e
+      il README non chiedono più di registrare niente. Quello che sostituisce il job è **dichiarare l'età**:
+      ogni foglio riporta per fonte quando è stata osservata la rosa (`evidence_age`), quindi un board
+      disegnato su rose della settimana scorsa si vede come una data invece di essere creduto.
 - [ ] **Di quel follow-up resta solo la (3): la conferma indipendente sulla finestra 26/27**, l'unica che non
       ha partecipato a niente — e arriva a **giugno 2027**. I punti (1) griglia estesa e (2) canale al netto del
       null sono stati eseguiti il 05/08 notte (riga sopra) e hanno chiuso la famiglia.

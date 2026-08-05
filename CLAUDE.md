@@ -141,7 +141,7 @@ invocation - CLI, rebuild or GUI - never by the module itself.
 
 ## Three facts that are snapshots and can never be backfilled
 - **Starting probability** (`probable_starter`): the site publishes only "now", so a week not captured is
-  gone - and the operator's judgement, recorded 29/07/2026, is that **it is not worth a weekly cron**. The
+  gone - and the operator's judgement, recorded 29/07/2026 and made final on 05/08/2026 («il job ogni settimana non serve»), is that **there is no scheduled job at all**: `scripts/refresh-editorial.ps1` is a manual run for the day of a session. The
   editors' forecast reasons from the same facts this toolkit already measures (last line-ups, injuries,
   formation habits); what it adds that we cannot compute arrives LATE, from the coach's own words, so the
   reading worth having is one taken **just before kick-off** and used at once, not a history. It also does

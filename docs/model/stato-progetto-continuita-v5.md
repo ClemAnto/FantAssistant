@@ -386,7 +386,7 @@ accumulata da adesso. `injuries` resta senza fonte agganciata: e' una decisione,
    ricostruzione da zero, UI. Le tre voci sotto restano, e sono tutte **del motore**, non della
    pipeline. Due cose però vanno FATTE SULLA MACCHINA, non nel codice: registrare il job settimanale
    (`pwsh scripts/weekly-snapshot.ps1 -Register` — ogni settimana non registrata è una finestra che non
-   tornerà) e lasciar finire la camminata `injuries` (ore, ripartibile).
+   tornerà) e lasciar finire la camminata `injuries` (ore, ripartibile). ⛔ **SUPERATO il 05/08/2026**: nessun job, decisione dell'operatore (vedi il blocco in cima).
 0-ter. **PREZZARE I NUOVI ARRIVI SENZA STORICO** (salita in cima la notte del 28/07): è il vincolo che ha
    reso inutile la pressione di reparto — Openda e David non erano in nessuna top-10 predetta, quindi
    nessuno sconto e nessun premio poteva proteggere da loro. Sblocca insieme la copertura Serie A (4
@@ -714,7 +714,7 @@ absence recorded)»), che e' diverso da «nessun id: ignoto». Chiusa senza eseg
 
 ### Cosa resta, in ordine di leva (dalla domanda «cosa manca al toolkit?»)
 `fetch --plan` dice **«every source is populated»**: 19 tabelle piene, niente da acquisire. Resta:
-1. **Il job settimanale**, che perde valore ogni giorno: `probable_starter` ha **2 date** (26 e 28/07),
+1. **Il job settimanale**, che perde valore ogni giorno: `probable_starter` ha **2 date** (26 e 28/07), ⛔ **SUPERATO il 05/08/2026**: nessun job, decisione dell'operatore (vedi il blocco in cima).
    `availability` 2, `player_roles` **1**. Ogni settimana non girata e' una finestra che non esistera' mai.
 2. **La modalita' LIVE del motore** - e non e' piu' del toolkit: `_window_is_usable` pretende voti su
    ENTRAMBE le stagioni, il tab Auction elenca solo stagioni concluse, `auction_view` confronta due liste.
@@ -1103,7 +1103,8 @@ dell'utente.
 3. **La modalità LIVE del motore**, invariata e sempre la più importante: per un'asta serve **una lista sola**.
 4. **Bloccato dal calendario (agosto)**: `"2026-27"` in `config.SEASONS`, listone/quotazioni, voti, Elo alla
    data d'asta, `transfers` da rilanciare.
-5. **Il job settimanale va registrato sulla macchina** (verificato il 3/08: nessuno scheduled task presente).
+5. ~~Il job settimanale va registrato sulla macchina~~ — **DECISO il 05/08: non serve**, e la richiesta è
+   chiusa (vedi la sezione «nessun job settimanale» in fondo).
 
 ### Dove NON toccare senza rileggere (aggiunte di questa sessione)
 - **`_slot_price` è UNA funzione di costo e la leggono tutti** (assegnazione e riparazione). Se tornano a
@@ -1188,8 +1189,8 @@ repo è pubblica, il push è una scelta dell'utente.
    mai i gol presi (+1.06 / +1.08 / +1.12 sopra la fantamedia reale), quindi un portiere ottiene un voto base
    convertito e **non** un equivalente. Serve un equivalente col punteggio dei portieri: lavoro in `arrivals`.
 3. **Due decisioni dell'operatore in sospeso**: `APPLY_OFFSETS` (la Champions passa il criterio e peggiora la
-   MAE media — raccomandazione: lasciarlo spento) e la **registrazione del job settimanale** sulla macchina,
-   che ogni settimana senza `snapshot` costa `player_roles` non backfillabili.
+   MAE media — raccomandazione: lasciarlo spento). ⚠️ Il job settimanale **non è più una voce aperta**:
+   l'operatore ha deciso il 05/08 che non serve.
 4. **Il follow-up pre-registrato di §7-septies**, come corsa separata: griglia estesa oltre 0.5 sul solo
    braccio A, il canale valore misurato **al netto** del null, e la conferma sulla finestra 26/27 — l'unica che
    non ha partecipato a niente.
@@ -1250,7 +1251,8 @@ Malen 45.
    Serie A che cresce a scaglioni: la lista LIVE migliora da sé a ogni rilancio di `ratings` → `arrivals`.
 2. **I portieri** (caso Daffara): equivalente col punteggio dei portieri, in `arrivals`.
 3. **Rimisurare §7-sexies** sulla popolazione nuova, e il **follow-up di §7-septies**.
-4. Le due **decisioni dell'operatore**: `APPLY_OFFSETS` e il job settimanale sulla macchina.
+4. La **decisione dell'operatore** che resta: `APPLY_OFFSETS`. Il job settimanale è stato **chiuso** il
+   05/08 («non serve»).
 
 ### Dove NON toccare senza rileggere
 - **Il ripiego del calendario sta in `engine_predictions`**, non nei chiamanti. Rimetterlo in `build`
@@ -1445,3 +1447,24 @@ Spec **«Novità v9.25»**, dalla segnalazione «Gutierrez non è più nel Napol
   offline: **2949 → 4383** trasferimenti. Stessa forma del difetto documentato per `match_ratings`.
 - **Il foglio dichiara e non sposta**: `desc_left_for`/`desc_left_on`, nota di foglio, marchio ⇥ nel pannello.
   Il listone è l'autorità del gioco su chi è in una rosa; dove due fonti discordano si dice, non si indovina.
+
+
+## Decisione 05/08/2026 — NESSUN job settimanale, e la richiesta è chiusa
+
+«Il job ogni settimana non serve, elimina questa richiesta.» È la stessa logica del 29/07 sulle probabili,
+portata a conclusione, e vale scriverla perché il progetto la chiedeva da tre sessioni.
+
+**Perché è la scelta giusta e non una rinuncia**: un'asta iniziale si prepara in **agosto**, quando la pagina
+delle probabili non esiste ancora; e quello che gli editor aggiungono che non sappiamo calcolare arriva
+**tardi**, dalle parole dell'allenatore — quindi la lettura che vale è quella presa **subito prima** della
+sessione e usata subito, non una serie storica. `starter_prob` 0/1453 sulle finestre del gate è **vuoto per
+scelta**, e nessuna regola adottata lo aspetta.
+
+**Cosa è stato applicato**: `scripts/weekly-snapshot.ps1` → `scripts/refresh-editorial.ps1`, che fa una cosa
+sola su richiesta (le probabili/indisponibili di oggi) senza più la macchina di registrazione dello scheduled
+task; `bootstrap` e `toolkit/README.md` non chiedono più di programmare niente.
+
+**Cosa lo sostituisce, ed è meglio**: il foglio **dichiara l'età** della sua evidenza per fonte
+(`evidence_age`, v9.23) e la rosa viva del provider è letta come quarta fonte (v9.26). Un board disegnato su
+rose vecchie si vede come una **data**, invece di essere creduto — che è esattamente ciò che un job avrebbe
+dovuto evitare, ottenuto senza un job.

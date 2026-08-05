@@ -150,23 +150,26 @@ python -m euroleghe_ingest backtest --gate               # the out-of-sample gat
 Every network module is resumable (the raw cache is the source of truth) and interruptible; `rebuild`
 re-ingests everything offline. Every run leaves a line in `ingest_runs` (module, when, status, options).
 
-## Weekly, and it cannot be caught up later
+## Before a session, not on a schedule
 
 ```bash
-pwsh ../scripts/weekly-snapshot.ps1 -Register     # Friday 12:00, current user, no admin needed
+pwsh ../scripts/refresh-editorial.ps1            # today's probabili + indisponibili, on demand
+python -m euroleghe_ingest snapshot --league EuroLeghe   # refreshes the volatile layers itself
 ```
 
-The probabili-formazioni page shows only "now" and has no archive, so a week nobody snapshotted is
-gone for good - which is why the gate reports `starter_prob` as 0/1453 on past windows. R7 is
-pre-registered in its weekly-snapshot form and can only be tested once enough weeks exist.
+Three facts serve only "now" and cannot be backfilled: the probabili (`probable_starter`), the granular
+real role (`player_roles`) and the contract expiry. **There is deliberately NO scheduled job** - the
+operator's decision, 05/08/2026: «il job ogni settimana non serve». The reason is not laziness about
+cron, it is what the history would be worth: an initial auction happens in August, when the probabili
+page does not exist yet, and what the editors add that we cannot compute arrives late, from the coach's
+own words - so the reading worth having is one taken just before the session and used at once.
+`starter_prob` 0/1453 on the gate's past windows is therefore **empty by design**, and no auction rule
+waits for it.
 
-⚠️ **The job runs `fc_site` only, so it does NOT accumulate the granular real role.** `player_roles` is
-the third fact of the same class - the provider serves only "now" - and today it is observed only when
-somebody runs `snapshot`. A week without a `snapshot` run is a week `player_roles` will not have, and no
-later command can recover it. Adding `positions --layer roles` to the weekly job (~80 requests, ~2
-minutes, and free if `snapshot` already ran that day because the cache is keyed by the observation date)
-is what would close it; it is deliberately left as a decision rather than done quietly inside a
-scheduled task.
+What this puts on the operator instead, and the sheet now says it out loud: run `snapshot` (or the script
+above) the day you sit down. Every sheet reports the AGE of its squad and transfer evidence per source
+(`evidence_age` in the manifest), so a board drawn on last week's rosters is visible as a date rather
+than silently trusted.
 
 ## The auction sheet (`snapshot`)
 

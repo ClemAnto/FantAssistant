@@ -88,9 +88,9 @@ def plan(seasons: tuple[str, ...] | None = None) -> tuple[Step, ...]:
         Step("elo", "elo", minutes=1,
              why="ClubElo: one request per auction date, every club in Europe"),
         Step("fc_site", "fc_site", minutes=1,
-             why="today's probabili/indisponibili snapshot + the revealed penalty hierarchy. "
-                 "The HISTORY of this one can only accumulate from now on: schedule "
-                 "scripts/weekly-snapshot.ps1"),
+             why="today's probabili/indisponibili snapshot + the revealed penalty hierarchy. Its HISTORY "
+                 "cannot be backfilled and is deliberately NOT scheduled (operator, 05/08/2026): re-run it "
+                 "on the day you prepare an auction (scripts/refresh-editorial.ps1)"),
         Step("tournaments", "tournaments", minutes=10,
              why="who actually played at the tournament -> the post-tournament flag"),
         Step("positions:match", "positions", minutes=420,
@@ -137,8 +137,8 @@ def print_plan(steps: tuple[Step, ...]) -> None:
         print(f"      {step.why}")
     print(f"\n  {len(steps) + 1:2}. {FINAL_STEP:20} ~   5 min  offline: raw cache -> the database, "
           "then validate")
-    print("\n[bootstrap] then, before an auction: `export` for the app bundle, and schedule "
-          "scripts/weekly-snapshot.ps1 (the probabili history cannot be backfilled).")
+    print("\n[bootstrap] then, before an auction: `export` for the app bundle, and re-run `snapshot` on "
+          "the day itself - the volatile states serve only 'now' and are deliberately not scheduled.")
 
 
 def run(ctx: Context, *, steps_from: str | None = None, steps_to: str | None = None,

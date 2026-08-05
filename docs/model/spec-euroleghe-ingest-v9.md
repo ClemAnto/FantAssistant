@@ -336,7 +336,7 @@ affermazione fuori campione**.
 Colonne sottili sono elencate a fine corsa (`<20% riempite`), e il manifest porta la copertura di
 **ogni** colonna: un foglio dove «titolarità» è vuota per tutti va saputo prima di decidere, non dopo.
 Al primo giro sono vuote titolarità e ballottaggi — le probabili sono uno stato di **oggi** e la loro
-storia parte dal giorno in cui il job settimanale ha iniziato a girare.
+storia parte dal giorno in cui il job settimanale ha iniziato a girare. ⛔ **Superato: nessun job — si legge il giorno della sessione (05/08/2026).**
 
 ## Novità v9.7 (28 luglio 2026, notte tarda — il RUOLO REALE granulare: 12 codici, e dove si posiziona)
 
@@ -2149,7 +2149,7 @@ python -m euroleghe_ingest sweep --platform euro           # una piattaforma sol
 ```
 Tutto è ripartibile (la cache grezza è la fonte di verità) e interrompibile; `rebuild` ri-ingerisce
 offline. Ogni run lascia una riga in `ingest_runs`. Settimanale e **non recuperabile a posteriori**:
-`pwsh scripts/weekly-snapshot.ps1 -Register` (le probabili sono uno stato di oggi).
+`pwsh scripts/weekly-snapshot.ps1 -Register` (le probabili sono uno stato di oggi). ⛔ **SUPERATO il 05/08/2026**: nessun job, decisione dell'operatore (vedi il blocco in cima).
 
 ## Schema principale (v9)
 `players(fc_id PK, canonical_name, birth_year, nationality)` · `clubs(fc_club_id PK, canonical_name, league)` · `player_xref/club_xref(source, source_id, valid_from, valid_to)` · `rosters(fc_id, season, fc_club_id, roles, role_classic, league, price)` · **`season_stats(fc_id, season, platform, pv, mv, fm, goals, assists, …)`** · **`match_ratings(fc_id, season, matchday, platform, role, team, mv, goals, assists, …, fantavoto, status)`** · **`match_rating_bonuses(fc_id, season, matchday, platform, bonus_key, value)`** · **`external_stats(fc_id, season, source, competition, matches, starts, minutes, goals, assists, pen_scored, pen_taken, xg, xa, rating, yellows, reds)`** *(propensione stagione piena, PK con `source`+`competition`)* · **`external_match_stats(fc_id, season, source, match_id, competition, real_md, match_date, club, opponent, home, position, started, minutes, rating, goals, assists, xg, xa, shots, shots_on_target, big_chances_created, big_chances_missed, key_passes, touches, mv_synth)`** *(layer per-partita + voto sintetico; le sei colonne di tiro dalla v9.3)* · **`club_match_lineups(season, source, match_id, club, …, starters, goalkeepers, defenders, midfielders, forwards)`** *(conteggi di formazione a livello di club, fuori dall'imbuto dell'identità — v9.3)* · **`matchday_map(season, euro_md, league, real_md, source, confidence)`** *(allineamento euro↔reale per lega)* · **`positions(fc_id, season, source, avg_x, avg_y, derived_role, n_matches, is_friendly)`** *(avg_x/avg_y dalla heatmap di stagione — v9.4)* · `transfers_history` · **`injuries(fc_id, start_date, end_date, kind, days_out, matches_missed, detail, source)`** *(v9.4)* · `coaches` · `tournaments_squads` · `club_elo(fc_club_id, date, elo)` · `arrivals(fc_id, season, type, tier, origin_club, origin_league, foreign_fm_equiv)` · `penalty_hierarchy(...)` · `probable_starter` · `availability` · `flags(fc_id, season, flag, value, source)` · `manual_overrides(entity, fc_id, season, field, value, reason, created_at)` · `ingest_runs`.
