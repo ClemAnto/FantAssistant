@@ -1517,6 +1517,15 @@ si poteva (i dodici codici misurati dicono *dove gioca*); ma per *come lo compri
 punteggiare per ruolo, quindi non è riducibile. Come non lo è il **prezzo richiesto** al tavolo: l'asta si
 gioca su quello, e vederlo accanto al valore predetto serve a misurare di quanto il mercato sbaglia.
 
+⚠️ **DA RIMISURARE, e la ragione è del giorno dopo** (registrato il 5/08/2026, chiusura di sessione): questa
+corsa ha girato su un `mv_synth` **fermo** — il difetto trovato in §7-octies, dove nessuno rilanciava `synth`
+dopo `positions`. Gli arrivi con un FM-equivalente sono passati da **707 a 2045** (T1 da 72 a 271), quindi la
+**copertura** citata qui sopra (25-29% euro, 14-20% default) è un **pavimento** e non la misura di oggi — ed è
+esattamente la quantità che il verdetto su `default` dà come collo di bottiglia. Il verso della conclusione non
+cambia (su euro `measured_first` vinceva già 7 fold su 7), ma **il numero di `default` non è più quello**: la
+corsa va rifatta sulla popolazione nuova prima di citare +0.42% come attuale. Vale come promemoria della regola
+di citazione: un coefficiente porta la sua data perché **l'input sotto si muove**.
+
 ## 7-septies. L'INVESTIMENTO in forma CONDIZIONALE (pre-registrata il 5 agosto 2026, non ancora eseguita)
 
 Ipotesi dell'utente, nata su un caso con nome e cognome: «Ratkov è un attaccante su cui la società ha

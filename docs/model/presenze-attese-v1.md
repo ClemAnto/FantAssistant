@@ -1,8 +1,8 @@
 # Modulo presenze attese (Pv_att) — v1 ✅ GATE SUPERATO
 
 > ⚠️ **Verdetti superati**: questo documento descrive il modello, non l'esito del gate. I set
-> adottati e le regole cadute sono in `00-BRIDGE-punto-di-ingresso.md`, blocco «STATO AL 28
-> LUGLIO 2026» - fra le cadute ci sono la curva d'eta' (R4) e il fattore allenatore (R10),
+> adottati e le regole cadute sono in `00-BRIDGE-punto-di-ingresso.md`, blocco «STATO AL 5
+> AGOSTO 2026» - fra le cadute ci sono la curva d'eta' (R4) e il fattore allenatore (R10),
 > che qui potrebbero comparire come promettenti.
 
 **Chiuso:** 22 luglio 2026 · Gate cross-fitted su due finestre (750/754 giocatori, tutto il listone)

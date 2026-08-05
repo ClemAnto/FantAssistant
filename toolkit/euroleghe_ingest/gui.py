@@ -29,8 +29,8 @@ import sqlite3
 import sys
 import threading
 import tkinter as tk
-from tkinter import messagebox, scrolledtext, ttk
 from dataclasses import replace
+from tkinter import messagebox, scrolledtext, ttk
 from typing import ClassVar
 
 from euroleghe_ingest import __version__
@@ -40,14 +40,13 @@ from euroleghe_ingest.context import Context
 from euroleghe_ingest.db.database import connect, init_db, record_run, table_names
 from euroleghe_ingest.engine import presence
 from euroleghe_ingest.matching import club_abbreviation
-from euroleghe_ingest.modules import IMPLEMENTED, load
+from euroleghe_ingest.modules import IMPLEMENTED, load, recent_form
 from euroleghe_ingest.modules.positions import (
     REAL_ROLE_DEPTH,
     REAL_ROLE_LABEL,
     REAL_ROLE_SIDE,
     REAL_ROLES,
 )
-from euroleghe_ingest.modules import recent_form
 from euroleghe_ingest.modules.snapshot import competition_class
 from euroleghe_ingest.sources import _norm_roles, available_sources
 

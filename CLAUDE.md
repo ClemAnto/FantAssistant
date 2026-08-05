@@ -329,6 +329,31 @@ Two habits this project keeps, both paid for:
   used, but only as a tie-break inside a line: DL 96% left-footed and DR 96% right, while wingers are
   INVERTED (LW 86% right-footed) - which is why one rule for both lines would have been backwards.
 
+## A fitted transform belongs to the population it was fitted on
+**Where a number may be applied is a claim about calibration, and it must be read from the data — never from a
+tag and never from a hand-written list.** `synth` fits its line on the OVERLAP (provider rating + real vote for
+the same match), and it was applied to every row carrying `source='sofascore'`: two different statements, and
+the second was false for 4784 rows — 3756 of **Serie B**, 570 Championship, 458 Coppa Italia got a synthetic
+vote from a line that never saw their competition, while ten **Bundesliga** matches recovered by another module
+were left out because of the same tag. Eligibility is now the COMPETITION's (`synth.calibrated_competitions`,
+derived from the overlap itself): 241,913 matches of 250,678 convert, the rest stay NULL. Two corollaries the
+same day paid for: **a per-competition offset can be real and still not be worth applying** — the Serie B shift
+is −0.181 and cuts leave-one-out error 20% against the naked line, and it loses to the role ANCHOR, so nothing
+converts (`APPLY_OFFSETS = False`, gate §7-nonies); and **a chain that feeds a chain must be re-run as a
+chain** — `mv_synth` was stale, so the arrivals layer had been working on a third of its input (707 arrivals
+with an FM-equivalent, 2045 after).
+
+Two more of the same family, both from the same session:
+- **A rule that selects a population has ONE definition, read from both sides.** The panel's ⧖ mark and the
+  module's fetch queue are the same question (`recent_form.awaiting_data`, one function whose `measured`
+  parameter says which side is asking). Two copies would be two populations, and the mark would stop meaning
+  "this is what is being fetched" — including the case that matters, a man whose window was already fetched
+  ELSEWHERE, whom a second definition would keep marking as waiting.
+- **A parameter is never adopted at the edge of its grid.** The conditional-investment channel passes robust on
+  Serie A (+0.79%, 5 folds of 6) and stays at zero because every fold picks 0.5 out of 0.5: the curve was never
+  evaluated beyond. Widening the grid after seeing the curve is the other way of fitting — it goes in the
+  pre-registered follow-up, not in the same run.
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,

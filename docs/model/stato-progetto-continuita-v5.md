@@ -1,12 +1,18 @@
 # Stato progetto & continuità — v5
-**Aggiornato: 4 agosto 2026 (chiusura: un modulo disegnato e' un modulo VERO)**
+**Aggiornato: 5 agosto 2026 (chiusura: il listone di agosto, il buco che si vede, e tre muri identici)**
 Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da qui + i file della cartella "Modello Previsionale Fantacalcio".
 *Glossario: T1/T2 = finestre di test (23/24->24/25, 24/25->25/26) · MAE = errore medio assoluto · cross-fitted = parametri stimati su una finestra, testati sull'altra · M2e = modello portieri decomposto con ClubElo · Pv_att = presenze attese · fc_id = id fantacalcio.it · EV = valore atteso · scoring_config = punteggi configurabili per lega · xG/xA = expected goals/assists · 2.5 pieno = backtest motore completo con flag.*
 
 ## Cos'e'
 App per leghe EuroLeghe/fantacalcio.it (Classic+Mantra, 5 campionati) con motore previsionale. Metodo: ogni regola entra SOLO se batte il baseline fuori campione su finestre indipendenti (gate pre-registrato). Doc madre: modello-previsionale-v3.8.md.
 
-## ⚠️ Lo stato corrente è in `00-BRIDGE-punto-di-ingresso.md`, blocco «STATO AL 4 AGOSTO 2026»
+## ⚠️ Lo stato corrente è in `00-BRIDGE-punto-di-ingresso.md`, blocco «STATO AL 5 AGOSTO 2026»
+
+### 5 agosto 2026, in una riga: il listone di agosto entra, chi non ha storico si prezza sulle PRESENZE, e la fantamedia resta l'àncora
+
+Ultima sessione in fondo al documento, sezione «Sessione 05/08/2026». Tre strumenti diversi, la stessa risposta
+(R1 su sei finestre, R13c sul campione, lo scostamento della Serie B): la fantamedia di chi non ha storico qui
+non si prevede, le sue presenze sì. **Nessuna regola nuova nel motore.**
 
 ### 4 agosto 2026, in una riga: un modulo disegnato è un modulo VERO, e un secondo parere non prezzato disfaceva una decisione prezzata
 
@@ -1105,3 +1111,99 @@ dell'utente.
   lettura, e la misura che lo dice sta nel gate §5-terdecies.
 - **La media dei colori della tabella è del FOGLIO**, su tutti i giocatori di tutte le squadre: cambiarla in
   «media del club» cambia il senso di ogni cella.
+
+## Sessione 05/08/2026 (notte-mattina) — il listone di agosto, il buco che si vede, e tre muri identici
+
+Dettaglio tecnico: spec **«Novità v9.19»**. Verdetti nuovi nel gate: **§7-septies**, **§7-octies**,
+**§7-nonies**. **Nessuna regola è entrata nel motore**, e i set adottati restano `euro R0c+R3c` ·
+`Serie A R3+R7+R13`. **Toolkit 0.7.0 → 0.8.0 · 295 test (294 verdi + 1 skip senza display) · ruff pulito.**
+
+### Le cose che sono entrate
+1. **Il listone Serie A 2026-27**: 494 giocatori, 20 club, 154 arrivi riclassificati. Il blocco era che l'**id
+   campionato** si leggeva solo dalla pagina dei **voti**, che ad agosto non esiste; ora c'è il fallback sulle
+   **quotazioni** (Serie A 26/27 = 21) con la **guardia della stagione dichiarata nel file**, perché quelle
+   pagine servono «la lista corrente» qualunque stagione chiedi (la pagina euro risponde ancora 108 = 25/26).
+2. **Il tabellone distingue un 4-5-1 da un 4-2-3-1** (`_two_rows`): la fonte pubblica tre linee, quindi 4-5-1 è
+   1746 stringhe su 4812 e ci finisce dentro chiunque abbia due mediani e tre trequartisti. Più `_flanked`
+   esteso al tridente, `_pointed` (il centro dell'attacco vuole un attaccante), la regola 6 e la **targhetta
+   che legge il posto** dove il posto decide. 17 disegni cambiati su 108 board e **tutti** gli invarianti a
+   zero (erano 4 + 7 + 4).
+3. **Il marchio ⧖ / ⟳ / →**: chi il core non può prezzare e il toolkit può ancora **misurare** si vede, si vede
+   riempirsi e poi porta la freccia con il tooltip di **cosa** ha chiuso il buco. Una definizione sola
+   (`recent_form.awaiting_data`), letta dal modulo sul DB e dal pannello sul foglio. Più la **barra
+   determinata** da qualunque modulo (`Context.progress`, totali contati, zero non stampa).
+4. **`window_standing`**: un uomo senza stagione qui ma con una finestra misurata altrove **concorre** al claim
+   (693 minuti su 10 partite = 77%, sconto d'arrivo 0.80 → 0.616). Spento nel motore, acceso nel pannello,
+   pre-registrato.
+5. **`synth` converte solo dove è calibrato** (`calibrated_competitions`, dai dati): 241.913 partite su 250.678,
+   e le 3756 righe di Serie B che prendevano un voto da una retta che non le ha viste ora restano NULL.
+   `mv_synth` rilanciato: gli arrivi con FM-equivalente passano da **707 a 2045**.
+
+### I tre muri, che sono lo stesso muro
+Nello stesso giorno, con tre strumenti diversi e la stessa risposta: **R1** ri-misurata con la copertura tripla
+non passa su **sei** finestre (peggio dell'àncora su cinque), **R13c** resta ferma sul campione, e lo
+**scostamento della Serie B** — che esiste, vale −0.181 e riduce del 20% l'errore contro la retta nuda — perde
+contro l'àncora di ruolo. La fantamedia di chi non ha storico qui **non si prevede**; le sue **presenze** sì,
+ed è R13, che è già adottata: Alajbegovic passa da nessuna riga a FM 6.245 (l'àncora, dichiarata tale), PV 20.2,
+surplus 4.1 — non una regola nuova, è che le sue dieci partite adesso **esistono** nel DB.
+
+### Le lezioni di metodo di questa sessione
+- **Una trasformazione calibrata si applica solo dove è stata calibrata**, e l'idoneità si legge **dai dati**,
+  non da un tag né da un elenco a mano. Il tag `source='sofascore'` diceva «questa riga viene dal provider», e
+  veniva usato per dire «questa riga è convertibile»: due affermazioni diverse, e la seconda era falsa per
+  4784 righe.
+- **Una regola che seleziona una popolazione ha UNA definizione.** Il marchio del pannello e la coda del
+  modulo sono la stessa domanda vista da due lati: due copie sarebbero due popolazioni, e il marchio
+  smetterebbe di significare quello che dice.
+- **Un parametro non si adotta al bordo della griglia.** L'investimento condizionale passa robust su Serie A e
+  resta a zero perché tutti i fold scelgono 0.5 su 0.5: la curva non è mai stata valutata oltre. E allargare
+  la griglia dopo aver visto la curva è l'altro modo di fittare.
+- **Un criterio scritto prima si onora anche quando il secondo numero lo contraddice**: la Champions passa la
+  maggioranza dei suoi 98 uomini **e** ha MAE media peggiore dell'àncora. Entrambi nel report, decisione
+  all'operatore, `APPLY_OFFSETS` spento.
+
+### Commit della sessione
+`5123413` pre-registrazione §7-septies · `fc6bbd4` un 4-5-1 con tre uomini d'attacco è un 4-2-3-1 · `709bde7`
+il listone esce prima dei voti · `69f644d` l'investimento condizionale passa robust su Serie A, e il NULL dice
+quanto · `1538dc1` un buco che il toolkit può ancora chiudere si vede · `fe26c39` il giovane senza storico ha
+una valutazione e concorre · `62040e9` quando il buco si chiude, il marchio dice con che cosa · `1cf75f8` un
+uomo la cui finestra è arrivata non è più in attesa · `62dbaf2` pre-registrazione §7-nonies · `38e5210` lo
+scostamento della Serie B esiste, vale −0.181 e non basta · più il commit di chiusura. **Non pushati**: la
+repo è pubblica, il push è una scelta dell'utente.
+
+### I prossimi passi, in ordine di leva
+1. **L'asta è adesso.** Il listone 26/27 esce a scaglioni (494 su ~1450) e `fvm_history` ha **una** rilevazione:
+   serve la **cadenza** di rilancio (listone → `arrivals`, `recent_form` → `synth` → `arrivals`) e poi la
+   **modalità LIVE**, che resta la voce più importante di tutto il progetto — per un'asta serve **una lista
+   sola**. Il listone **euro** 26/27 non è ancora pubblicato (la pagina serve 25/26 e la guardia lo rifiuta):
+   va riprovato, non forzato.
+2. **I portieri, che il caso Daffara ha lasciato aperti**: l'FM-equivalente somma gol e assist e non sottrae
+   mai i gol presi (+1.06 / +1.08 / +1.12 sopra la fantamedia reale), quindi un portiere ottiene un voto base
+   convertito e **non** un equivalente. Serve un equivalente col punteggio dei portieri: lavoro in `arrivals`.
+3. **Due decisioni dell'operatore in sospeso**: `APPLY_OFFSETS` (la Champions passa il criterio e peggiora la
+   MAE media — raccomandazione: lasciarlo spento) e la **registrazione del job settimanale** sulla macchina,
+   che ogni settimana senza `snapshot` costa `player_roles` non backfillabili.
+4. **Il follow-up pre-registrato di §7-septies**, come corsa separata: griglia estesa oltre 0.5 sul solo
+   braccio A, il canale valore misurato **al netto** del null, e la conferma sulla finestra 26/27 — l'unica che
+   non ha partecipato a niente.
+5. **§7-sexies va rimisurata**, e la ragione l'ha trovata la chiusura di questa sessione: quella corsa ha
+   girato su un `mv_synth` **fermo**, quindi la copertura del misurato (25-29% euro, 14-20% default) è un
+   **pavimento** e il +0.42% della quotazione su `default` non è più il numero di oggi. Il verso non cambia
+   (euro vinceva 7 fold su 7); la corsa sì. Nota aggiunta in fondo a §7-sexies.
+6. **La regola 4a alla selezione** (4 board su 394, tutti il Lilla) e **allargare il misurato** alla Serie B e
+   ai campionati fuori perimetro, che è il seguito vero della regola sulla quotazione.
+
+### Dove NON toccare senza rileggere (aggiunte di questa sessione)
+- **`synth` converte per COMPETIZIONE, non per fonte.** `calibrated_competitions` si legge dai dati: se
+  qualcuno rimette il tag al suo posto, la Serie B ricomincia a ricevere un voto da una retta che non l'ha
+  vista.
+- **`APPLY_OFFSETS` è spento per decisione, non per dimenticanza**, e gli offset sono comunque nel report.
+- **`awaiting_data` è UNA funzione con un parametro `measured`**, ed è il parametro a dire da quale lato la si
+  guarda. «Misurato» per il pannello include la finestra recuperata **altrove**: senza quello il tabellone
+  chiede una corsa già fatta.
+- **`window_standing` è 0.0 nei `DEFAULTS` del motore e 1.0 solo nel pannello.** Accenderlo nel motore è un
+  giro di gate, non un default.
+- **Il fallback dell'id campionato non è una scorciatoia sulla stagione**: la guardia è il file che dichiara la
+  sua stagione. Togliendola, un agosto qualunque archivia il listone dell'anno prima sotto l'anno nuovo.
+- **`_two_rows` spezza la riga sulla MAGGIORANZA**, non su «almeno uno»: con «almeno uno» due esterni che
+  arretrano (regola 3) fanno esplodere Napoli, Bologna, Chelsea e Liverpool.

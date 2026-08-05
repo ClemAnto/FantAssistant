@@ -1,5 +1,5 @@
 # Todolist — Allineamento Mantra & EuroLeghe (v5)
-**Progetto:** App EuroLega Fantacalcio · **Rif.:** modello-previsionale v3.8 · **Aggiornata: 4 agosto 2026**
+**Progetto:** App EuroLega Fantacalcio · **Rif.:** modello-previsionale v3.8 · **Aggiornata: 5 agosto 2026**
 Convenzione: [ ] da fare · [x] fatto · [!] bloccato · *Sigle: fc_id = id fantacalcio.it · FM = fantamedia · T1/T2 = finestre di test 23/24->24/25 e 24/25->25/26 · 2.5 pieno = backtest motore completo con flag.*
 
 ## FASE 0 — Fattibilita' [x] (21/7)
@@ -11,7 +11,7 @@ Invariata (storico 9 stagioni, endpoint Excel, fallback SofaScore, scala ricalib
 - [x] 2.3 FM per ruolo posseduto + rank + flessibilita' (fuori FM) -> fm-per-ruolo-fase2_3-2_4.md
 - [x] 2.4 Cambi ruolo = cambi d'ancora ASIMMETRICI -> idem
 - [x] 2.5-lite backtest core (Mantra non-inferiore a Classic) -> backtest-mantra-fase2_5lite.md
-> ⚠️ Stato corrente: `00-BRIDGE-punto-di-ingresso.md`, blocco «STATO AL 29 LUGLIO 2026». Set
+> ⚠️ Stato corrente: `00-BRIDGE-punto-di-ingresso.md`, blocco «STATO AL 5 AGOSTO 2026». Set
 > adottati **euro R0c+R3c · Serie A R3+R7+R13** su **10 finestre (Serie A) e 5 (euro)**; R4, R10 e R8 sono
 > cadute quando le finestre sono diventate dieci, e **tutte le dieci candidate del 28/07** (R17 compresa)
 > sono cadute.
@@ -341,6 +341,10 @@ Nota: **nessuna delle feature generate il 27/07 e' entrata nel motore**, e **nes
       A viene da **Serie B** e da leghe fuori perimetro, e là la quotazione resta l'unica affermazione
       esistente. Ampliare la copertura è ciò che farebbe pagare la regola anche su `default`, dove oggi la
       quotazione guadagna +0.42% (sotto il pavimento). ⚠️ NON riproporre «torniamo al prezzo»: è già misurato.
+      ⚠️ **Aggiornato il 05/08**: una strada per allargarlo è stata provata e chiusa — **convertire il voto**
+      delle competizioni non calibrate (gate §7-nonies). Lo scostamento della Serie B **esiste** (−0.181,
+      −20% di errore contro la retta nuda) e **perde contro l'àncora di ruolo**, quindi non converte niente.
+      Quello che resta da allargare è il **calcio misurato** (parsare altre leghe), non la conversione.
 - [ ] **La SERIE del fantavalore, quando sarà una serie** — `fvm_history` accumula da oggi (4/08/2026) e una
       riga non è una serie. Quando ce ne saranno abbastanza, la domanda misurabile è: «il mercato ha cambiato
       idea su di lui» dice qualcosa che i **minuti** non dicono? Bersaglio `P(titolare)`, mai la fantamedia,
@@ -413,3 +417,70 @@ Nota: **nessuna delle feature generate il 27/07 e' entrata nel motore**, e **nes
       Quattro modi di usarla altrove, tutti piatti o negativi; ogni peso sulla **profondità** peggiora, perché
       quell'asse **satura** (punta 62, ali 61-63, terzino 47, centrale 34). Pesi a **zero**, bracci
       raggiungibili, numeri nei commenti.
+
+## Aperto dopo la sessione del 05/08/2026 (spec «Novità v9.19», gate §7-septies/octies/nonies)
+- [ ] **L'ASTA È ADESSO, ed è la voce a leva più alta.** Il listone Serie A 26/27 esce a **scaglioni** (494 su
+      ~1450 il 05/08) e `fvm_history` ha **una** rilevazione: serve una **cadenza** dichiarata di rilancio
+      (`ratings` → `arrivals`, e `recent_form` → `synth` → `arrivals`, la catena che il 05/08 ha chiuso) e poi
+      la **modalità LIVE** del motore — per sedersi a un'asta serve **una lista sola**. ⚠️ Il listone **euro**
+      26/27 non è pubblicato: la pagina serve 25/26 e la guardia della stagione lo **rifiuta**, che è il
+      comportamento giusto. Va riprovato, mai forzato.
+- [ ] **I PORTIERI, che il caso Daffara ha lasciato aperti** (gate §7-nonies, ultima sezione): l'FM-equivalente
+      somma gol e assist e non sottrae mai i gol presi (misurato: **+1.06 / +1.08 / +1.12** sopra la fantamedia
+      reale), quindi un portiere ottiene al massimo un **voto base convertito** e non un equivalente. Serve un
+      equivalente calcolato col **punteggio dei portieri**: lavoro in `arrivals`, non in `synth`.
+- [ ] **DECISIONE DELL'OPERATORE — `APPLY_OFFSETS`**: la Champions (98 uomini, δ +0.123) **passa** il criterio
+      pre-registrato (maggioranza dei suoi uomini) **e** ha una MAE media **peggiore** dell'àncora (0.2103
+      contro 0.1938): vince spesso di poco e perde raramente di molto. Raccomandazione: **lasciarlo spento**,
+      anche perché convertire le coppe farebbe entrare partite di coppa nell'FM-equivalente, che «una quota di
+      stagione è una quota del CAMPIONATO» dice di tenere fuori. Cosa lo riaprirebbe, dichiarato: più uomini
+      nel braccio dentro-la-stagione, oppure un criterio più severo scritto prima («batte l'àncora anche in
+      media»), che oggi nessuna competizione supererebbe.
+- [ ] **DECISIONE DELL'OPERATORE — il job settimanale sulla macchina**: verificato il 3/08, nessuno scheduled
+      task registrato. `player_roles` è **non backfillabile** e si accumula solo quando gira `snapshot`, quindi
+      ogni settimana senza registrarlo è una settimana che non esisterà. Basta aggiungere `positions --layer
+      roles` al job (~80 richieste, ~2 min, gratis se `snapshot` è già girato in giornata).
+- [ ] **RIMISURARE §7-sexies** (i tier degli arrivi) sulla popolazione nuova: quella corsa ha girato su un
+      `mv_synth` **fermo**, quindi la copertura del misurato — che è il collo di bottiglia dichiarato del
+      verdetto su `default` — era un **pavimento** (707 arrivi con equivalente contro 2045 di oggi). Il verso
+      non cambia (euro `measured_first` vinceva 7 fold su 7), il **+0.42% della quotazione su `default` non è
+      più il numero di oggi**. Nota in fondo a §7-sexies.
+- [ ] **Il FOLLOW-UP pre-registrato di §7-septies, come corsa separata**: (1) griglia estesa oltre 0.5 sul solo
+      braccio A — tutti i fold scelgono il **bordo**, quindi l'optimum sta fuori da ciò che è stato misurato;
+      (2) il canale valore misurato **al netto del null** (`shrink_weight` accesa al suo migliore e il peso del
+      valore spazzato sopra), così si misura il contributo marginale e non la somma; (3) conferma indipendente
+      sulla finestra **26/27**, l'unica che non ha partecipato a niente. ⚠️ La griglia **non** si allarga come
+      ritocco dentro la stessa corsa: sarebbe fittare dopo aver visto la curva.
+- [x] **FATTO il 05/08 — il listone di AGOSTO entra** (spec v9.19 §1, commit `709bde7`): l'id campionato ha il
+      fallback sulla pagina delle **quotazioni** (Serie A 26/27 = 21), con la guardia del **workbook che
+      dichiara la sua stagione** perché quelle pagine servono «la lista corrente» qualunque stagione chiedi.
+      Dentro: 494 giocatori, 20 club, 154 arrivi riclassificati. `SEASONS` accoglie `"2026-27"`.
+- [x] **FATTO il 05/08 — un buco che il toolkit può ancora chiudere si vede, e si vede riempirsi** (spec v9.19
+      §3, commit `1538dc1` · `62040e9` · `1cf75f8`): marchi **⧖ → ⟳ → →** sulla stessa lista di stati
+      per-giocatore, con la **regola del modulo** che va a prenderli (`recent_form.awaiting_data`, una
+      definizione letta da due lati) e il tooltip che dice **con cosa** il buco si è chiuso. Più la barra
+      **determinata** da qualunque modulo (`Context.progress`, totali contati). Misurato: 6 righe su 629, e la
+      corsa che le chiude ha risolto 11/11 identità con 110 partite salvate.
+- [x] **MISURATO E NON ADOTTATO il 05/08 — R1 con la copertura tripla** (gate **§7-octies**, commit `fe26c39`):
+      `synth` converte per **COMPETIZIONE** e non per fonte (241.913 su 250.678; le 3756 righe di Serie B
+      restano NULL), `mv_synth` rilanciato porta gli arrivi con FM-equivalente da **707 a 2045** — e R1 **non
+      passa** su sei finestre, peggio dell'àncora di ruolo su cinque. Dove il criterio dell'utente **è**
+      soddisfatto: le **presenze**, da R13 che è già adottata (Alajbegovic FM 6.245 = l'àncora, PV 20.2,
+      surplus 4.1). Sul tabellone entra `window_standing`, spento nel motore e pre-registrato.
+- [x] **MISURATO E NON ADOTTATO il 05/08 — l'investimento condizionale** (gate **§7-septies**, commit
+      `5123413` · `69f644d`): `investment_shape="unplayed"`, braccio **cartellino morto** su entrambe le
+      piattaforme, braccio **valore/rosa** robust **PASS** su Serie A (+0.79%, 5/6, peggiore −0.09%) e sotto il
+      pavimento su euro. Il **NULL** dice quanto: su Serie A il valore batte la costante di +0.42 punti, su euro
+      i due sono identici (ritorno alla media). `value_weight` resta **0.0** perché ogni fold scegli il **bordo**
+      della griglia.
+- [x] **MISURATO E NON APPLICATO il 05/08 — una retta per le competizioni non calibrate** (gate **§7-nonies**,
+      commit `62dbaf2` · `38e5210`): scostamento per competizione, `MIN_MEN_PER_OFFSET` 10, leave-one-out sugli
+      uomini contro **due** nulli. **Serie B δ = −0.181**, e la correzione non è rumore (0.1631 contro 0.2039
+      della retta nuda) ma perde contro l'**àncora** (0.1786). `APPLY_OFFSETS = False`, offset comunque nel
+      report. Terzo muro identico in un giorno.
+- [x] **FATTO il 05/08 — il tabellone distingue un 4-5-1 da un 4-2-3-1** (spec v9.19 §2, commit `fc6bbd4`):
+      `_two_rows` spezza la riga quando la **maggioranza** di essa gioca più avanti (la fonte pubblica tre linee,
+      quindi 4-5-1 è 1746 stringhe su 4812); `_flanked` esteso al tridente e `_pointed` per il centro
+      dell'attacco (tetto `FLANK_OVERRIDE_GAP` 0.40); la targhetta legge il **posto** dove il posto decide. 17
+      disegni cambiati su 108 board, invarianti **4+7+4 → 0**. ⚠️ **Revocato**: far pagare al modulo i posti che
+      la rosa non copre (disfaceva Barcellona e Napoli per aggiustare il Marsiglia).

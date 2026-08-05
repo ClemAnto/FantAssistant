@@ -1,5 +1,5 @@
 # Spec — Toolkit `euroleghe-ingest` v9 (task 1.0 della roadmap)
-**Aggiornata: 4 agosto 2026 (v9.17 — un modulo disegnato e' un modulo VERO; v9 SOSTITUISCE la v8)** · Python · Output: SQLite `euroleghe.db` + CSV normalizzati
+**Aggiornata: 5 agosto 2026 (v9.19 — il listone di agosto, il buco che si vede, le competizioni non calibrate; v9 SOSTITUISCE la v8)** · Python · Output: SQLite `euroleghe.db` + CSV normalizzati
 *Sigle: fc_id = identificativo fantacalcio.it · FM = fantamedia · Mv = media voto · Pv = partite a voto · xref = cross-reference id tra siti · xG/xA = expected goals/assists · manifest = lista file da recuperare.*
 **Convenzione: identificatori sempre in INGLESE** (tabelle, colonne, moduli, variabili); italiano solo nella documentazione.
 
@@ -493,6 +493,114 @@ ruolo**, **8% disgiunti** — e le disgiunte sono quasi tutte `a` del listone co
 visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**. Riscontri esatti:
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
+
+## Novità v9.19 (5 agosto 2026, notte-mattina — il listone di AGOSTO, il buco che si vede, e le competizioni non calibrate)
+
+Commit `5123413` · `fc6bbd4` · `709bde7` · `69f644d` · `1538dc1` · `fe26c39` · `62040e9` · `1cf75f8` ·
+`62dbaf2` · `38e5210`. Toolkit **0.7.0 → 0.8.0**, **295 test** (294 verdi + 1 skip: quello che chiede un display), ruff pulito.
+**Nessuna regola nuova nel motore**: due sweep e una calibrazione misurate e non adottate (gate §7-septies,
+§7-octies, §7-nonies), il resto è dati, tabellone e strumenti.
+
+### 1. Il listone 26/27 entra, e il blocco era l'ID CAMPIONATO
+Serie A 2026-27 dentro: **494 giocatori, 20 club**, Qt.A/Qt.I/FVM e ruoli Mantra, **154 arrivi**
+riclassificati nei tier. Il blocco non era il file ma il suo id: l'id campionato si leggeva **solo** dalla
+pagina dei voti, che per una stagione senza giornate non ne ha nessuno — cioè **ogni agosto**. Ora c'è il
+fallback sulla pagina delle **quotazioni** (Serie A 2026-27 = **21**, 2025-26 era 20).
+⚠️ **Con una guardia, perché quelle pagine servono «la lista corrente» qualunque stagione chiedi**: la pagina
+euro risponde ancora **108 = 2025-26**. La guardia è il workbook stesso, che dichiara la sua stagione nella
+prima cella, e uno che non dichiara la stagione richiesta viene **RIFIUTATO** invece di finire archiviato
+sotto l'anno sbagliato (verificato: `ratings --platform euro --season 2026-27` non trova nulla, ed è giusto).
+`config.SEASONS` accoglie `"2026-27"` — che il commento del file dichiarava essere l'unica modifica
+necessaria, ed era vero.
+
+### 2. Il tabellone: un 4-5-1 con TRE uomini d'attacco è un 4-2-3-1
+Sette segnalazioni dell'operatore, e sotto ce n'era **una sola**: la fonte pubblica **tre linee** per undici,
+quindi `4-5-1` è la stringa più comune del repertorio (**1746 su 4812**) e ogni squadra con due mediani dietro
+tre trequartisti arriva così. I dodici codici sanno distinguerli (`_two_rows`): se la **MAGGIORANZA** della
+riga schierata gioca più avanti, è un due più un tre. **Maggioranza e non «almeno uno»**, perché due esterni
+che arretrano sono la regola 3 di `_reshape` e devono restare: Napoli, Bologna, Chelsea e Liverpool
+intoccati; si muovono Bayern, Barcellona, Betis e Manchester United.
+E **un POSTO è un MESTIERE, in entrambi i versi**: le fasce di un tridente e di una riga di centrocampo vanno
+a chi le gioca anche **sotto il claim** (`_flanked`, tetto `FLANK_OVERRIDE_GAP` **0.40** di stagione), il
+centro della linea d'attacco vuole un uomo che possa giocarci (`_pointed`, e di nuovo sull'undici **settled**,
+perché `_settle` lo disfaceva), un esterno **non tiene un posto centrale** (regola 6) e sulla trequarti ci va
+solo se c'è posto per due. Una fascia la prende chi ce l'ha nel **primo** codice: la profondità non distingue
+un centrale da un terzino (entrambi 0.25). Il mediano sta al centro della riga. E la **targhetta legge il
+posto** dove il posto decide (D/M/T), mai la linea: un mediano schierato centrale in difesa resta `C`.
+**Difetto vero trovato per strada**: il termine di `_assign` che doveva far cadere il compromesso sul più
+**debole** lo faceva cadere sul **migliore** (rank 0 è il primo) — il caso Liverpool passava per un altro
+motivo.
+⚠️ **Revocato e scritto**: far pagare al MODULO i posti che la rosa non copre. A 2 giornate per posto muove
+13-19 board su 108, mette il Como su un «3-3-1-3» e **disfa Barcellona e Napoli per aggiustare il Marsiglia**.
+Quando un numero aggiusta un club e ne rompe un altro il modello è sbagliato — terza volta, stessa risposta.
+**Misura**: 108 board (54 club × 2 modalità), **17 disegni cambiati**, e gli invarianti passano da 4 tridenti
+con due `Sp` + 7 codici di fascia su posti centrali + 4 righe con tre codici di fascia a **ZERO**.
+
+### 3. Un buco che il toolkit può ancora chiudere si VEDE, e si vede riempirsi
+Richiesta dell'operatore. Una cella vuota non lo può dire: sotto `MIN_PV_PREV` il core rifiuta di prevedere,
+quindi il surplus di chi non ha niente di misurato è vuoto — e vuoto è anche come si vede uno zero. Perciò
+quell'uomo porta un **marchio**, sulla stessa lista di stati per-giocatore dove vivono già infortunio,
+ballottaggio e arrivo: **⧖** «niente misurato, il toolkit lo può ancora prendere» → **⟳** «lo sta prendendo
+adesso» → **→** «prezzato da una finestra misurata altrove, non da una stagione qui», col tooltip che dice su
+cosa sta («10 partite, 693 minuti in bundesliga»).
+**La regola dietro il marchio è quella del modulo che va a prenderli** (`recent_form.awaiting_data`: prezzato
+**sopra la mediana del suo ruolo** e niente di misurato): **una definizione sola, letta da due lati** — il
+modulo scegli chi scaricare sul DB, il pannello segna chi si sta aspettando sul foglio. Due copie sarebbero
+due popolazioni e il marchio smetterebbe di significare «questo è ciò che sto scaricando». Si **autocancella**:
+le righe che lo scraping riempie non qualificano più al build successivo, e «misurato» per il pannello include
+la finestra recuperata **altrove** (senza quello il tabellone avrebbe chiesto una corsa già fatta).
+**Barra determinata da qualunque modulo**: `Context.progress` stampa la stessa forma che il pannello già
+parsa (`[modulo] NN% · etichetta`), `recent_form`/`positions`/`injuries` la riportano sui loro totali
+**contati**, e **totale zero non stampa niente** — di nessun lavoro non esiste una frazione onesta.
+**Misurato sul foglio vero**: **6 righe su 629** portano il marchio (Alajbegovic, Oulai, Koulierakis, Kaiki,
+Viery, Daffara), e la corsa che le chiude ha risolto **11/11** identità a livello 1 con **110 partite** salvate.
+
+### 4. Il giovane senza storico ha una valutazione e CONCORRE (gate §7-octies)
+Tre difetti di manutenzione, trovati **prima** di misurare:
+- **la conversione seguiva il TAG e non la calibrazione**: `synth` fitta la retta sull'overlap (le cinque leghe
+  che il calendario euro copre) e la applicava a ogni riga `source='sofascore'`, quindi **3756 righe di Serie
+  B**, 570 di Championship e 458 di Coppa Italia ricevevano un voto sintetico da una retta che non le ha mai
+  viste, mentre le 10 partite di **Bundesliga** recuperate da `recent_form` ne restavano fuori per il tag. Ora
+  l'idoneità è della **COMPETIZIONE** (`synth.calibrated_competitions`, letta dai dati e non elencata a mano):
+  **241.913 partite convertite su 250.678**, le altre NULL come il docstring diceva da sempre;
+- **`mv_synth` era fermo**: nessuno rilanciava `synth` dopo `positions`, quindi l'FM-equivalente degli arrivi
+  girava su un input pieno per un terzo — **707 arrivi** con equivalente prima, **2045** dopo (T1 da 72 a 271);
+- **la catena è chiusa**: `recent_form` → `synth` → `arrivals`, e `ratings` → `arrivals` (un listone nuovo è un
+  perimetro nuovo, quindi cambia chi è un arrivo).
+Sul tabellone: `presence.window_standing` — il claim leggeva una **stagione** e per lui trovava **zero** (non
+basso: assente) mentre il motore gli prevedeva 20 presenze. Ora la finestra ha il suo **denominatore** (693
+minuti su 10 partite = 77% del calcio disponibile) per lo sconto d'arrivo 0.80 → **0.616**, e concorre.
+**Spento nel motore** (`window_standing = 0.0` nei `DEFAULTS`), **acceso nel pannello** (`SnapshotView.PRESENCE`
+a 1.0) e pre-registrato in §7-octies. Colonne nuove nel foglio: `desc_elsewhere_matches` /
+`desc_elsewhere_minutes` / `desc_elsewhere_where`.
+Due difetti veri li ha trovati il criterio di accettazione: lo sconto d'arrivo **non si applicava**
+(`at_club_weight` legge uno split di minuti che lui non ha) e la Juve disegnava **due `As`** (ora un solo uomo
+per fascia: chi ce l'ha dalla forma la tiene, l'altro legge il mestiere centrale).
+
+### 5. Le competizioni NON calibrate: lo scostamento è misurato e non applicato (gate §7-nonies)
+Il caso di Daffara — dieci partite di Serie B con rating 7.05 che non diventano un voto, perché la
+sovrapposizione (rating del provider + voto reale) per la Serie B è **zero righe**. Un parametro nuovo solo,
+lo **scostamento per competizione** (`synth`, `MIN_MEN_PER_OFFSET` = 10), con la retta delle cinque leghe
+tenuta fissa; misurato leave-one-out sugli uomini contro **due** nulli (retta nuda e àncora di ruolo) e
+riportato in `data/reports/mv_synth_calibration.json` → `offsets_measured`.
+**`APPLY_OFFSETS = False`**: la Serie B ha δ **−0.181** e la correzione **non è rumore** (LOO 0.1631 contro
+0.2039 della retta nuda, −20%: la prima volta che «un 7.0 in Serie B non è un 7.0 in Serie A» è un numero), ma
+perde contro l'**àncora di ruolo** (0.1786 e sulla maggioranza degli uomini). La Champions (98 uomini, δ
++0.123) **passa il criterio pre-registrato** e ha una MAE media **peggiore** dell'àncora: accenderla è una
+decisione dell'operatore, e la seconda ragione sul tavolo è che convertire le coppe farebbe entrare partite di
+coppa nell'FM-equivalente. **Bug trovato dal test**: un offset non stimabile (δ `None`) mandava in **errore**
+la conversione invece di rifiutarla.
+
+### 6. L'investimento condizionale: robust PASS su Serie A e non adottato (gate §7-septies)
+`presence.investment_shape = "unplayed"` — il lift che chiude parte del divario fra quanto un uomo ha giocato e
+una stagione piena, nullo per costruzione su un titolare. Due bracci **mai sommati**: il **cartellino** è morto
+su entrambe le piattaforme (i fold senza il dato marcati `folds_without_the_feature` nel report), il
+**valore/rosa** passa **robust su Serie A** (+0.79% medio, 5 fold su 6, peggiore −0.09%) e sta sotto il
+pavimento su euro (+0.38%). Il pezzo che conta è il **NULL** (`shrink_weight`, la stessa forma senza
+investimento dentro): su Serie A il valore lo batte di **+0.42 punti**, su euro i due sono identici — quel poco
+che c'è è **ritorno alla media**. **`value_weight` resta 0.0** perché ogni fold scegli il **bordo** della
+griglia (0.5 su 0.5): un termine il cui optimum sta fuori dalla griglia misurata non si adotta al valore del
+bordo, e la griglia non si allarga dopo aver visto la curva.
 
 ## Novità v9.18 (4 agosto 2026, pomeriggio — due tabelle nuove, e la quotazione scende all'ultimo posto)
 

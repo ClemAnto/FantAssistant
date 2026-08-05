@@ -1,5 +1,5 @@
 # 00 — BRIDGE · Punto d'ingresso del progetto (leggere per primo)
-**Aggiornato: 4 agosto 2026 (chiusura: il board risponde a CHI gioca e DOVE, e la tabella lo dice a colori)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
+**Aggiornato: 5 agosto 2026 (chiusura: il listone di agosto, il buco che si vede, e tre muri identici)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
 
 ## Il progetto in breve
 Motore previsionale per fantacalcio **EuroLeghe** (fantacalcio.it): valutazione calciatori Classic e Mantra sui 5 grandi campionati europei (Serie A, Premier, Liga, Bundesliga, Ligue 1 — perimetro: i ~35 top club del gioco). Prevede fantamedia (FM), presenze attese e VALORE stagionale = FM × presenze. Metodo scientifico: **ogni regola entra nel motore solo se batte il baseline fuori campione su finestre indipendenti** (gate pre-registrato). Stato: core validato (Mantra, Classic, portieri, presenze); manca lo strato flag/arrivi, sbloccato dal toolkit dati `euroleghe-ingest` (in implementazione).
@@ -22,11 +22,61 @@ proporre qualsiasi regola) → **`metrica-asta-surplus-v1.md`** (con cosa il pan
 è VALORE) → `spec-euroleghe-ingest-v9.md` → `nota-modello-set-pieces-v2.md` →
 `modello-previsionale-v3.8.md` → consolidati di dettaglio. Tutti in `docs/model/`.
 
-## STATO AL 4 AGOSTO 2026 — LEGGI QUESTO PRIMA DI TUTTO
+## STATO AL 5 AGOSTO 2026 — LEGGI QUESTO PRIMA DI TUTTO
 
 Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
 
-### ULTIMO IN ORDINE DI TEMPO — 4/08/2026: un modulo disegnato è un modulo VERO, e la heatmap al suo posto
+### ULTIMO IN ORDINE DI TEMPO — 5/08/2026: il listone di AGOSTO, il buco che si vede, e tre muri identici
+
+Spec **«Novità v9.19»**, verdetti nuovi nel gate **§7-septies**, **§7-octies**, **§7-nonies**. Commit
+`5123413` → `38e5210` (dieci). Toolkit **0.8.0**, **295 test verdi** (1 skip: chiede un display), ruff pulito. **Nessuna regola è entrata
+nel motore**: i set adottati restano `euro R0c+R3c` · `Serie A R3+R7+R13`.
+
+1. **Il listone Serie A 2026-27 è dentro** — 494 giocatori, 20 club, 154 arrivi riclassificati — e il blocco
+   non era il file: l'**id campionato** si leggeva **solo** dalla pagina dei voti, che per una stagione senza
+   giornate non ne ha nessuno, cioè **ogni agosto**. Fallback sulla pagina delle **quotazioni** (Serie A 26/27
+   = 21), con la **guardia** che serve perché quelle pagine servono «la lista corrente» qualunque stagione
+   chiedi: il workbook dichiara la sua stagione nella prima cella e uno che non dichiara quella richiesta viene
+   **rifiutato**. ⚠️ Il listone **euro** 26/27 non è ancora pubblicato (la pagina risponde 108 = 25/26 e la
+   guardia lo rifiuta, correttamente): va riprovato, non forzato.
+2. **TRE MURI IDENTICI IN UN GIORNO, e sono lo stesso muro.** **R1** ri-misurata con la copertura **tripla**
+   (`mv_synth` era fermo: gli arrivi con FM-equivalente passano da **707 a 2045**) **non passa** su **sei**
+   finestre, peggio dell'àncora di ruolo su cinque; **R13c** resta ferma sul campione; lo **scostamento della
+   Serie B** esiste, vale **−0.181**, riduce del **20%** l'errore contro la retta nuda — ed è la prima volta che
+   «un 7.0 in Serie B non è un 7.0 in Serie A» è un numero — e **perde contro l'àncora** (0.1631 vs 0.1786).
+   Lettura: **la fantamedia di chi non ha storico qui non si prevede; le sue PRESENZE sì**, ed è R13, già
+   adottata. Alajbegovic passa da nessuna riga a FM **6.245** (l'àncora, dichiarata tale), PV **20.2**, surplus
+   **4.1** — non una regola nuova: le sue dieci partite adesso **esistono** nel DB.
+3. **`synth` converte solo dove è CALIBRATO.** La conversione seguiva il **tag** (`source='sofascore'`) e non la
+   calibrazione, quindi 3756 righe di Serie B, 570 di Championship e 458 di Coppa Italia prendevano un voto da
+   una retta che non le ha mai viste, mentre 10 partite di **Bundesliga** ne restavano fuori. Ora l'idoneità è
+   della **competizione** (`calibrated_competitions`, letta dai dati): **241.913 su 250.678** convertite, le
+   altre NULL. `APPLY_OFFSETS = False` e gli offset misurati restano **nel report**.
+4. **Un buco che il toolkit può ancora chiudere si VEDE**: marchi **⧖** → **⟳** → **→** sulla stessa lista di
+   stati per-giocatore, con il tooltip che dice **con cosa** il buco si è chiuso («10 partite, 693 minuti in
+   bundesliga»). La regola è quella del modulo che va a prenderli (`recent_form.awaiting_data`): **una
+   definizione, letta da due lati**, e si autocancella. Più la barra **determinata** da qualunque modulo
+   (`Context.progress`). Misurato: **6 righe su 629**, corsa che le chiude 11/11 identità e 110 partite.
+5. **Il tabellone: un 4-5-1 con tre uomini d'attacco è un 4-2-3-1** (`_two_rows`, sulla **maggioranza** della
+   riga e non su «almeno uno»: la fonte pubblica tre linee, quindi 4-5-1 è 1746 stringhe su 4812). Più
+   `_flanked` esteso al tridente, `_pointed` sul centro dell'attacco, la targhetta che legge il **posto**. **17
+   disegni cambiati su 108 board**, invarianti **4+7+4 → 0**. ⚠️ **Revocato e scritto**: far pagare al modulo i
+   posti che la rosa non copre — disfaceva Barcellona e Napoli per aggiustare il Marsiglia.
+6. **L'investimento condizionale passa robust su Serie A e NON è adottato** (§7-septies): +0.79% medio, 5 fold
+   su 6, e `value_weight` resta **0.0** perché **ogni fold scegli il bordo della griglia** (0.5 su 0.5). Il
+   **NULL** è la parte che conta: su Serie A il valore batte la costante di **+0.42 punti**, su euro i due sono
+   identici — quel poco che c'è è **ritorno alla media**. Il braccio **cartellino** è morto su entrambe.
+7. **Due decisioni dell'operatore in sospeso**: `APPLY_OFFSETS` (la Champions passa il criterio pre-registrato
+   **e** ha MAE media peggiore dell'àncora: raccomandazione, spento) e la **registrazione del job settimanale**,
+   che ogni settimana costa `player_roles` non backfillabili. E i **portieri** restano fuori dall'FM-equivalente
+   comunque (+1.06/+1.08/+1.12 sopra la fantamedia reale, perché non sottrae i gol presi): lavoro in `arrivals`.
+8. ⚠️ **Trovato chiudendo la sessione, e va rimisurato**: **§7-sexies** (i tier degli arrivi) ha girato su un
+   `mv_synth` **fermo**, quindi la copertura del misurato che quel verdetto dà come collo di bottiglia era un
+   **pavimento** — 707 arrivi con equivalente contro 2045 di oggi. Il verso non cambia, il **+0.42% della
+   quotazione su `default` non è il numero di oggi**. Un coefficiente porta la sua data perché l'input sotto si
+   muove.
+
+### 4/08/2026: un modulo disegnato è un modulo VERO, e la heatmap al suo posto
 
 Spec **«Novità v9.17»**, misure nuove nel gate **§5-quaterdecies**. Commit `1108803` (le regole) e `51d069e`
 (le misure). **Nessun verdetto del gate cambia: nessuna regola del motore è entrata.** Toolkit **0.7.0**, 278 test verdi.
