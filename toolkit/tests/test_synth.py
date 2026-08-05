@@ -78,3 +78,40 @@ def test_run_writes_mv_synth(tmp_path):
     assert all(value is not None for value in values)
     assert values == sorted(values)                     # monotone in the rating
     assert (cfg.data_dir / "reports" / synth.CALIBRATION_FILE).exists()
+
+def test_a_competition_the_line_never_saw_needs_an_offset_and_the_offset_needs_two_nulls():
+    """Gate §7-nonies, and the case that asked for it: ten Serie B matches that do not become a voto.
+
+    The line is fitted on the OVERLAP - a rating and a real vote for the same match - and for Serie B that
+    overlap is zero rows, because the game does not cover Serie B. So a competition outside the five gets a
+    number only through an OFFSET, and the offset is validated against two nulls: the naked line (converting
+    with no correction at all) and the role anchor (the trivial answer). It is kept only if it beats both on
+    the majority of the men, which is what was written down before it was fitted.
+
+    Measured: Serie B's offset is real (-0.181, leave-one-out 0.163 against 0.204 for the naked line) and
+    still loses to the anchor - so nothing is converted, and `APPLY_OFFSETS` stays off.
+    """
+    from euroleghe_ingest.modules import synth
+
+    model = {"global": (1.0, 0.7), "roles": {}, "calibrated": ["serie_a", "bundesliga"]}
+    # a calibrated competition needs no offset and never asks for one
+    assert synth.apply_model(model, "C", 7.0, "bundesliga") == 5.9
+    # ...one outside it returns NOTHING without an offset: no line covers it
+    assert synth.apply_model(model, "C", 7.0, "serie-b") is None
+    with_offset = {**model, "offsets": {"serie-b": {"delta": -0.2}}}
+    assert synth.apply_model(with_offset, "C", 7.0, "serie-b") == 5.7
+    # and a competition below the floor of men is reported, never guessed
+    thin = {**model, "offsets": {"serie-b": {"delta": None}}}
+    assert synth.apply_model(thin, "C", 7.0, "serie-b") is None
+
+    # the estimator: delta is the mean gap over MEN, and the leave-one-out says whether it is worth having
+    men = {"lega-x": [{"fc_id": index, "season": "2024-25", "rating": 7.0, "mv": 6.0,
+                       "role": "C", "same_season": True, "matches_there": 10}
+                      for index in range(12)]}
+    fitted = synth.fit_offsets(model, men)["lega-x"]
+    assert fitted["men"] == 12 and fitted["arm"] == "same_season"
+    assert round(fitted["delta"], 2) == round(6.0 - 5.9, 2), fitted
+    # a sample smaller than the floor is answered with "not estimable" and not with a number
+    few = {"lega-y": men["lega-x"][:4]}
+    assert synth.fit_offsets(model, few)["lega-y"]["delta"] is None
+

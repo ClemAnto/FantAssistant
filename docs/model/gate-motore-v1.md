@@ -1741,6 +1741,46 @@ competizione resta non convertita: significherebbe che lo scostamento sta misura
 Dichiarato in anticipo anche questo: un braccio B che passa **non conferma il meccanismo**, conferma che su
 quei 18 uomini lo scostamento ha ridotto l'errore — e la differenza fra le due cose è la sopravvivenza.
 
+### ESEGUITA il 5 agosto 2026 — MISURATA, NON APPLICATA (`APPLY_OFFSETS = False`)
+
+`data/reports/mv_synth_calibration.json`, campo `offsets_measured`. Leave-one-out sugli uomini, contro i due
+nulli pre-registrati:
+
+| competizione | uomini | braccio | δ | LOO con δ | retta nuda | àncora | criterio |
+|---|---|---|---|---|---|---|---|
+| **Champions League** | 98 | dentro la stagione | **+0.123** | 0.2103 | 0.2420 | 0.1938 | **passa** |
+| Europa League | 44 | dentro la stagione | +0.026 | 0.2256 | 0.2193 | 0.1480 | no |
+| **Serie B** | 25 | fra stagioni | **−0.181** | **0.1631** | 0.2039 | 0.1786 | no |
+| FA Cup | 24 | dentro la stagione | −0.084 | 0.2663 | 0.2493 | 0.2234 | no |
+| Coppa Italia | 17 | dentro la stagione | +0.087 | 0.2452 | 0.2552 | 0.1090 | no |
+| Eredivisie | 15 | fra stagioni | −0.304 | 0.2409 | 0.3229 | 0.1603 | no |
+| Conference | 14 | dentro la stagione | +0.033 | 0.1796 | 0.1729 | 0.0764 | no |
+| Championship | 11 | fra stagioni | −0.212 | 0.3535 | 0.3844 | 0.1504 | no |
+| Pro League 9 · Liga Portugal 8 · Süper Lig 5 · LaLiga2 4 | — | — | — | — | — | — | sotto il minimo di uomini |
+
+**Lo scostamento della Serie B esiste e ha il verso giusto**: δ = **−0.181**, cioè un rating di Serie B vale
+circa un quinto di voto in meno di quanto la retta delle cinque leghe dice — ed è la prima volta che
+«un 7.0 in Serie B non è un 7.0 in Serie A» è un numero invece di una frase. Con lo scostamento l'errore
+leave-one-out scende da 0.2039 a **0.1631**, un 20% in meno: la correzione non è rumore.
+
+**E non basta comunque**, perché il secondo null è quello che conta: **0.1631 contro 0.1786 dell'àncora di
+ruolo** per MAE, e sulla maggioranza degli uomini l'àncora vince. Sapere il suo rating in Serie B, corretto,
+predice la sua fantamedia in Serie A **peggio** che dire «la media degli uomini come lui». È il terzo muro
+identico in un giorno: R1 su sei finestre (§7-octies), R13c sul campione, e ora questo. Il meccanismo che
+regge non è «convertiamo il suo voto»: è **quante partite giocherà** (R13, adottata).
+
+⚠️ **Champions passa il criterio pre-registrato e non viene accesa, e i due numeri vanno letti insieme**:
+vince sulla maggioranza dei suoi 98 uomini (che è il criterio che ho scritto prima di misurare, e va
+onorato) e ha una MAE media **peggiore dell'àncora** (0.2103 contro 0.1938) — quindi vince spesso di poco e
+perde raramente di molto, che è esattamente ciò che «quello che aggiunge non è rumore» esiste per fermare.
+Nessuno dei due verdetti nasconde l'altro, e la decisione di accendere `APPLY_OFFSETS` resta all'operatore,
+con una seconda ragione da mettere sul tavolo: convertire le coppe farebbe entrare partite di coppa
+nell'FM-equivalente, che «una quota di stagione è una quota del CAMPIONATO» dice di tenere fuori.
+
+Cosa lo riaprirebbe, dichiarato: più uomini (il braccio dentro-la-stagione cresce da sé ogni anno che
+parsiamo), oppure un criterio più severo scritto prima — «batte l'àncora anche in MEDIA» — che oggi
+nessuna competizione supererebbe.
+
 ### Cosa resta fuori comunque
 I **portieri**: anche con un voto convertito, l'FM-equivalente li esclude perché somma gol e assist e non
 sottrae mai i gol presi (misurato: +1.06 / +1.08 / +1.12 sopra la fantamedia reale). Quindi Daffara ottiene

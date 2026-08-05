@@ -115,12 +115,128 @@ def fit_model(pairs) -> dict:
     return model
 
 
-def apply_model(model: dict, role: str | None, rating: float | None) -> float | None:
+def apply_model(model: dict, role: str | None, rating: float | None,
+                competition: str | None = None) -> float | None:
+    """The base voto a rating implies, plus the competition's own OFFSET where one was estimated.
+
+    The line is the five leagues' (`fit_model`, never re-fitted); the offset is one number per competition
+    (`fit_offsets`, gate §7-nonies) and it is what lets a match the line never saw be converted at all -
+    «un 7.0 in Serie B non è un 7.0 in Serie A» is exactly a statement about a shift. A competition with no
+    estimated offset returns None here: no line covers it, and inventing one is the thing this refuses.
+    """
     if rating is None or not model.get("global"):
         return None
     intercept, slope = model["roles"].get(role) or model["global"]
     value = intercept + slope * rating
+    if competition is not None and competition not in (model.get("calibrated") or ()):
+        offset = (model.get("offsets") or {}).get(competition) or {}
+        # an offset that was not estimable (too few men) or that did not beat its two nulls converts
+        # NOTHING: the dict is there so the report can say why, not so the number can be used anyway
+        if offset.get("delta") is None or not offset.get("kept", True):
+            return None
+        value += offset["delta"]
     return round(min(max(value, MV_RANGE[0]), MV_RANGE[1]), 2)
+
+
+# How many MEN an offset needs before it is allowed to convert anything. Ten, and the reason is the
+# pre-registration's own: with a handful the mean is one man's season, and the two biases the cross-season
+# arm carries (survivorship, development) are not testable at any size - so the floor is about the estimate
+# being an estimate at all, not about the biases going away.
+MIN_MEN_PER_OFFSET: int = 10
+# Whether a competition's offset may CONVERT its matches. Off, and it is a verdict and not a default: see
+# the note in `run` and gate §7-nonies. Turning it on is a decision about a number the operator reads.
+APPLY_OFFSETS: bool = False
+
+
+def offset_samples(conn, calibrated: set[str]) -> dict[str, list[dict]]:
+    """{competition: [{fc_id, season, rating, mv, role, same_season}]} - one row per MAN, both arms.
+
+    Arm A (`same_season` True) is the identified one: the same player in the same season, so his age, his
+    club and his moment are held fixed and only the competition differs. Arm B is the cross-season fallback
+    for a competition where arm A has too few men - Serie B has 5 inside the season and 18 across - and it
+    carries the two biases §7-nonies declares.
+
+    A man contributes his MEANS (rating there, Mv here), not his matches: the question is what a competition
+    shifts, and weighing a man by how many matches he happened to play would let one long season answer it.
+    """
+    rows = conn.execute(
+        """SELECT e.competition, e.fc_id, e.season, AVG(e.rating), COUNT(*)
+           FROM external_match_stats e
+           WHERE e.rating IS NOT NULL AND COALESCE(e.minutes, 0) > 0
+           GROUP BY e.competition, e.fc_id, e.season""").fetchall()
+    votes = {}
+    for fc_id, season, role, mv, count in conn.execute(
+            """SELECT fc_id, season, role, AVG(mv), COUNT(*) FROM match_ratings
+               WHERE mv IS NOT NULL AND role IN ('P','D','C','A')
+               GROUP BY fc_id, season, role"""):
+        votes[(fc_id, season)] = {"role": role, "mv": mv, "count": count}
+    out: dict[str, list[dict]] = {}
+    for competition, fc_id, season, rating, there in rows:
+        if competition in calibrated or there < MIN_MATCHES_THERE:
+            continue
+        here = votes.get((fc_id, season))
+        same_season = here is not None and here["count"] >= MIN_VOTES_HERE
+        if not same_season:
+            # arm B: the nearest LATER season in which he was voted here
+            later = [(key[1], value) for key, value in votes.items()
+                     if key[0] == fc_id and key[1] > season and value["count"] >= MIN_VOTES_HERE]
+            here = min(later, key=lambda entry: entry[0])[1] if later else None
+        if here is None:
+            continue
+        out.setdefault(competition, []).append(
+            {"fc_id": fc_id, "season": season, "rating": rating, "mv": here["mv"],
+             "role": here["role"], "same_season": same_season, "matches_there": there})
+    return out
+
+
+MIN_MATCHES_THERE: int = 5      # below five matches there, his mean rating is one afternoon
+MIN_VOTES_HERE: int = 5         # ...and below five votes here, so is his fantamedia
+
+
+def fit_offsets(model: dict, samples: dict[str, list[dict]]) -> dict[str, dict]:
+    """{competition: {delta, men, arm, loo_*}} - the offset per competition, leave-one-out validated.
+
+    δ is the mean over MEN of (his real Mv here − what the five-league line says his rating there is worth).
+    Validated exactly as §7-nonies pre-registered it: for each man, δ re-estimated on the others and used to
+    predict him, against TWO nulls - the naked line (converting without any offset) and the role anchor (the
+    mean Mv of the men in the sample). It is kept only where it beats both on a majority of the men.
+    """
+    out: dict[str, dict] = {}
+    for competition, men in samples.items():
+        inside = [man for man in men if man["same_season"]]
+        arm, chosen = ("same_season", inside) if len(inside) >= MIN_MEN_PER_OFFSET else (
+            "cross_season", men)
+        if len(chosen) < MIN_MEN_PER_OFFSET:
+            out[competition] = {"men": len(chosen), "arm": arm, "delta": None,
+                                "why": "fewer men than MIN_MEN_PER_OFFSET"}
+            continue
+        naked = {id(man): apply_model(model, man["role"], man["rating"]) for man in chosen}
+        gaps = [man["mv"] - naked[id(man)] for man in chosen]
+        delta = sum(gaps) / len(gaps)
+        anchor = sum(man["mv"] for man in chosen) / len(chosen)
+        wins_line = wins_anchor = 0
+        errors = {"offset": [], "naked": [], "anchor": []}
+        for index, man in enumerate(chosen):
+            others = [gap for position, gap in enumerate(gaps) if position != index]
+            held_out = sum(others) / len(others)
+            with_offset = abs(man["mv"] - (naked[id(man)] + held_out))
+            without = abs(man["mv"] - naked[id(man)])
+            trivial = abs(man["mv"] - anchor)
+            errors["offset"].append(with_offset)
+            errors["naked"].append(without)
+            errors["anchor"].append(trivial)
+            wins_line += with_offset < without
+            wins_anchor += with_offset < trivial
+        half = len(chosen) / 2
+        out[competition] = {
+            "men": len(chosen), "arm": arm, "delta": round(delta, 3),
+            "loo_mae_offset": round(sum(errors["offset"]) / len(chosen), 4),
+            "loo_mae_naked": round(sum(errors["naked"]) / len(chosen), 4),
+            "loo_mae_anchor": round(sum(errors["anchor"]) / len(chosen), 4),
+            "beats_the_line": wins_line > half, "beats_the_anchor": wins_anchor > half,
+            "kept": wins_line > half and wins_anchor > half,
+        }
+    return out
 
 
 def evaluate(model: dict, pairs) -> dict:
@@ -303,6 +419,23 @@ def run(ctx: Context, *, holdout_season: str = "2025-26", validate: bool = False
     # (`calibrated_competitions`): the same rule in both directions, so a Bundesliga match recovered by
     # `recent_form` is converted and a Serie B match is not, however it arrived.
     eligible = calibrated_competitions(conn)
+    # THE OFFSETS (gate §7-nonies): estimated and REPORTED on every competition the line does not cover,
+    # and applied to none of them - `APPLY_OFFSETS` is off. The measurement is why: the Serie B shift is
+    # real (leave-one-out MAE 0.163 against 0.204 for the naked line, so a Serie B rating is worth about
+    # 0.18 of a voto less) and it still does NOT beat the role anchor, which is the same wall R1 hit twice
+    # today. The one competition that passes the pre-registered criterion (Champions, on the majority of
+    # its 98 men) has a mean LOO error WORSE than the anchor's, so the two readings disagree and neither
+    # is allowed to hide the other: the numbers go in the report and the switch stays with the operator.
+    model["calibrated"] = sorted(eligible)
+    offsets = fit_offsets(model, offset_samples(conn, eligible))
+    model["offsets"] = offsets if APPLY_OFFSETS else {}
+    for competition, info in sorted(offsets.items(), key=lambda kv: -(kv[1].get("men") or 0))[:8]:
+        if info.get("delta") is None:
+            continue
+        print(f"[synth]   {competition:<26} delta {info['delta']:+.3f} on {info['men']:>3} men "
+              f"({info['arm']}) - LOO {info['loo_mae_offset']:.4f} vs line {info['loo_mae_naked']:.4f} "
+              f"vs anchor {info['loo_mae_anchor']:.4f} - "
+              f"{'passes the criterion' if info['kept'] else 'not kept'}")
     rows = conn.execute(
         """
         SELECT e.fc_id, e.season, e.match_id, e.rating, r.role_classic, e.competition, e.source
@@ -311,8 +444,7 @@ def run(ctx: Context, *, holdout_season: str = "2025-26", validate: bool = False
         WHERE e.rating IS NOT NULL
         """
     ).fetchall()
-    updates = [((apply_model(model, role, rating) if competition in eligible else None),
-                fc_id, season, source, match_id)
+    updates = [(apply_model(model, role, rating, competition), fc_id, season, source, match_id)
                for fc_id, season, match_id, rating, role, competition, source in rows]
     conn.executemany(
         "UPDATE external_match_stats SET mv_synth = ? "
@@ -327,6 +459,7 @@ def run(ctx: Context, *, holdout_season: str = "2025-26", validate: bool = False
     path = ctx.config.data_dir / "reports" / CALIBRATION_FILE
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps({"model": model, "in_sample": in_sample,
-                                "out_of_sample": out_sample, "holdout_season": holdout_season},
+                                "out_of_sample": out_sample, "holdout_season": holdout_season,
+                                "offsets_measured": offsets, "offsets_applied": APPLY_OFFSETS},
                                indent=2), encoding="utf-8")
     print(f"[synth] mv_synth written for {len(updates)} provider matches · model -> {path}")
