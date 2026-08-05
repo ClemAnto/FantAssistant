@@ -26,7 +26,26 @@ proporre qualsiasi regola) → **`metrica-asta-surplus-v1.md`** (con cosa il pan
 
 Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
 
-### ULTIMO IN ORDINE DI TEMPO — 5/08/2026 notte (2): un posto in attacco è il lavoro di un attaccante
+### ULTIMO IN ORDINE DI TEMPO — 5/08/2026 sera-notte: tre segnalazioni dell'operatore sul foglio
+
+Spec **«Novità v9.23»**. Una ha trovato un buco vero.
+
+1. **Il nome del foglio dice piattaforma e game** (`29/07 · 2026-27 · euro/classic`): una lega dichiarata fissa
+   entrambe, quindi il selettore League non ne mostrava nessuna. Combobox da 44 a 58: Tk taglia.
+2. ⚠️ **`evidence_age` — e il buco**: «Gutierrez non è più nel Napoli». Il foglio aveva ragione su quello che
+   AVEVA (entrambe le fonti dicevano Napoli: `fc_site` 04/08, `transfermarkt` **29/07**) e nessuno diceva che
+   quell'evidenza era vecchia. Peggio: **`transfers_history` non aveva un solo movimento datato 2026** — il più
+   recente è **2025-07-01** — quindi l'intero mercato estivo che ha costruito queste rose non era nel DB, e con
+   esso origine e cifra di ogni arrivo. Ora il manifest e le note dicono l'età dell'evidenza **per fonte** e se
+   il layer trasferimenti ha almeno un movimento nella finestra. `transfers` è stato rilanciato.
+3. **`engine_unpriced_reason` — una cella vuota dice QUALE affermazione è**: «molti giocatori senza Surplus (es:
+   Boga, Kolo Muani) … oppure Stones, Pavard». Sono **due** fatti diversi: «only N votes of 15» (misurato qui e
+   troppo poco: Boga 13, Pavard **1**) e «no season on this platform» (il suo calcio è sull'altro calendario:
+   Kolo Muani **23 voti euro** e zero Serie A, Stones 3). Sul foglio Serie A: **283 righe su 629 = 157 + 126**.
+   Su euro non si vede perché **R0c** li prezza all'àncora; su default R0c non è adottata. Convertire il secondo
+   caso è **R1**, respinta due volte dal gate.
+
+### 5/08/2026 notte (2): un posto in attacco è il lavoro di un attaccante
 
 Spec **«Novità v9.22»**. Chiude l'ultimo caso della famiglia «attacchi senza un attaccante».
 

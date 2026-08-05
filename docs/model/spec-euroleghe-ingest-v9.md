@@ -1,5 +1,5 @@
 # Spec — Toolkit `euroleghe-ingest` v9 (task 1.0 della roadmap)
-**Aggiornata: 5 agosto 2026 (v9.22 — un posto in attacco è il lavoro di un attaccante, alla selezione; v9 SOSTITUISCE la v8)** · Python · Output: SQLite `euroleghe.db` + CSV normalizzati
+**Aggiornata: 5 agosto 2026 (v9.23 — il nome del foglio, l'età dell'evidenza, e il perché di una cella vuota; v9 SOSTITUISCE la v8)** · Python · Output: SQLite `euroleghe.db` + CSV normalizzati
 *Sigle: fc_id = identificativo fantacalcio.it · FM = fantamedia · Mv = media voto · Pv = partite a voto · xref = cross-reference id tra siti · xG/xA = expected goals/assists · manifest = lista file da recuperare.*
 **Convenzione: identificatori sempre in INGLESE** (tabelle, colonne, moduli, variabili); italiano solo nella documentazione.
 
@@ -493,6 +493,39 @@ ruolo**, **8% disgiunti** — e le disgiunte sono quasi tutte `a` del listone co
 visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**. Riscontri esatti:
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
+
+## Novità v9.23 (5 agosto 2026 — tre richieste dell'operatore sul foglio: il nome, l'età dell'evidenza, e il perché di una cella vuota)
+
+Tutte e tre nate da segnalazioni, e la seconda ha trovato un buco vero. 299 test, ruff pulito.
+
+### 1. Il nome del foglio dice PIATTAFORMA e GAME
+«Nel nome dello snapshot selezionabile deve essere indicata anche se euro o default, mantra o classic». Una
+lega dichiarata **fissa** entrambe, quindi il selettore League non ne mostrava nessuna: `29/07 · 2026-27 ·
+euro/classic  (latest)`. Il combobox passa da 44 a **58** caratteri perché Tk **taglia** quello che non entra,
+e un nome di foglio troncato è lo stesso difetto «non stretta, assente» già pagato dalla tabella rosa.
+
+### 2. `evidence_age`: un foglio dice quanto è vecchia la sua evidenza su rose e trasferimenti
+«Quando esegui uno snapshot verifica bene le rose delle squadre ed i trasferimenti: Gutierrez ad esempio non è
+più nel Napoli». Misurato: il foglio aveva ragione su quello che **aveva** — entrambe le fonti di rosa dicevano
+Napoli (`fc_site` osservata il 04/08, `transfermarkt` il **29/07**) — e nessuno diceva che quell'evidenza era
+di giorni prima. ⚠️ E c'era di peggio, trovato guardando: **`transfers_history` non conteneva un solo movimento
+datato 2026** (il più recente è del **2025-07-01**), cioè l'intero mercato estivo che ha costruito queste rose
+non era nel DB, e con esso l'origine e la cifra di ogni arrivo. Ora ogni foglio riporta, nel manifest
+(`evidence_age`) e nelle note: la data dell'ultima osservazione **per fonte** (una fresca non dice niente sulle
+altre) e se il layer trasferimenti ha **almeno un movimento** nella finestra che ha costruito quelle rose.
+
+### 3. `engine_unpriced_reason`: una cella vuota dice QUALE affermazione è
+«Vedo molti giocatori senza il Surplus valorizzato (es: Boga, Kolo Muani) … oppure Stones, Pavard». La nota di
+foglio esisteva e poteva dire **una** cosa sola, mentre la cella ne nascondeva due, che sono fatti diversi:
+- **«only N votes of 15»** — misurato qui e troppo poco: Boga **13**, Dovbyk 12, Pavard **1**. Sotto
+  `MIN_PV_PREV` il core rifiuta di prevedere, ed è il suo dominio, non un capriccio;
+- **«no season on this platform»** — il suo calcio è stato giocato sull'altro calendario o fuori perimetro:
+  Kolo Muani ha **23 voti euro** e nessuna stagione di Serie A (era al Tottenham), Stones **3**. Convertirlo in
+  una previsione è **R1**, che il gate ha respinto due volte (§7-octies).
+Misurato sul foglio Serie A: **283 righe su 629** senza valutazione = **157 + 126**, e la nota le riporta
+divise. Su `euro` non si vede perché **R0c è adottata** e li prezza all'àncora di ruolo (Boga: fm 7.284 =
+l'àncora, dichiarata come tale); su `default` R0c non è adottata, quindi non c'è niente su cui ripiegare.
+Il tooltip della colonna porta gli stessi due casi con i nomi.
 
 ## Novità v9.22 (5 agosto 2026 — un posto in attacco è il lavoro di un attaccante, alla SELEZIONE)
 

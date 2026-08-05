@@ -1372,3 +1372,24 @@ Haraldsson (`AM` 0.83) → **Fernandez-Pardo** (`ST` 0.83, pari claim). Atalanta
 **6 → 0**; nessun non-attaccante entra in una linea d'attacco (il pool lo esclude per costruzione); e le
 asserzioni dei board **già giudicati dall'operatore** (Napoli, Atalanta, Roma, Fiorentina, Liverpool, Bologna)
 restano tutte verdi — è quella la guardia vera, non il conteggio.
+
+
+## Sessione 05/08/2026 (sera-notte) — tre segnalazioni dell'operatore sul foglio, e un buco trovato
+
+Spec **«Novità v9.23»**. 299 test, ruff pulito.
+
+1. **Il nome del foglio selezionabile porta piattaforma e game** — una lega dichiarata li fissa, quindi il
+   selettore League non ne mostrava nessuno e due fogli della stessa lega su calendari diversi leggevano uguale.
+2. ⚠️ **`evidence_age`, e il buco vero**: «Gutierrez non è più nel Napoli». Il foglio aveva ragione su quello che
+   aveva (entrambe le fonti dicevano Napoli: `fc_site` 04/08, `transfermarkt` 29/07) e non diceva quanto fosse
+   vecchio. E **`transfers_history` non conteneva un solo movimento datato 2026** — il più recente 2025-07-01 —
+   cioè il mercato che ha costruito queste rose non era nel DB. Ora ogni foglio dichiara l'età dell'evidenza per
+   fonte e se il layer trasferimenti copre la finestra; `transfers` rilanciato.
+3. **`engine_unpriced_reason`**: la cella vuota del SURPLUS ora dice quale delle due affermazioni è — «only N
+   votes of 15» (Boga 13, Dovbyk 12, Pavard 1) o «no season on this platform» (Kolo Muani, 23 voti euro e zero
+   Serie A; Stones 3). Sul foglio Serie A **283 su 629 = 157 + 126**. Su euro non si vede perché R0c prezza
+   all'àncora; convertire il secondo caso è R1, respinta due volte.
+
+### La lezione, che è la stessa di tre volte oggi
+Un foglio che è **giusto su quello che ha** e non dice **quanto vecchio** sia quello che ha, invita a fidarsi di
+un fatto che nessuno ha ricontrollato. Vale per le rose come per un coefficiente: la data è parte del numero.

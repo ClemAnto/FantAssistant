@@ -500,6 +500,10 @@ def test_the_snapshot_bar_groups_sheets_by_the_league_they_were_built_for(tmp_pa
         view._on_league_change()
         assert len(view.when_cb["values"]) == 2
         assert "(latest)" in view.when_var.get() and "29/07/2026" in view.when_var.get()
+        # ...and the sheet's own name states its PLATFORM and GAME (the operator's request): a declared
+        # league fixes both, so the League selector shows neither, and the same league's name over a
+        # euro/classic sheet and a euro/mantra one would read as the same thing.
+        assert "euro/classic" in view.when_var.get(), view.when_var.get()
         assert "does not state its league" not in view.note_var.get()
         view.when_var.set(list(view.when_cb["values"])[1])
         view._on_when_change()

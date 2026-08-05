@@ -1010,6 +1010,50 @@ def injury_history(conn, auction_date: str, seasons: list[str],
     return out
 
 
+def evidence_age(conn, window: features.Window) -> tuple[dict, list[str]]:
+    """How old the SQUAD and TRANSFER evidence behind this sheet is. Returns (facts, notes).
+
+    Asked for by the operator, on a case: «Gutierrez non è più nel Napoli». The sheet was right about what
+    it had - both squad sources said Napoli - and what it had was days old, while `transfers_history` did
+    not carry a single move dated 2026: the whole summer market was missing and nothing said so. A squad is
+    a VOLATILE state, so its age is part of the answer, and an auction sheet that cannot say how old its
+    rosters are is inviting the operator to trust a fact nobody has re-checked.
+
+    Two things are reported and neither is inferred from the other: the newest observation PER SOURCE
+    (`squad_snapshot` is written by `fc_site`, `transfers`/Transfermarkt and the appearances backstop, and
+    one being fresh says nothing about the others), and whether the transfer layer has any move at all in
+    the window that feeds this sheet - the summer before the target season, which is exactly the market an
+    August auction is about.
+    """
+    facts: dict = {"squad_sources": {}, "transfers_latest": None, "transfers_in_window": 0}
+    notes: list[str] = []
+    today = window.auction_date
+    for source, latest in conn.execute(
+            "SELECT source, MAX(valid_from) FROM squad_snapshot GROUP BY source"):
+        facts["squad_sources"][source] = latest
+    facts["transfers_latest"] = conn.execute(
+        "SELECT MAX(date) FROM transfers_history").fetchone()[0]
+    # The window: moves from the January of the target season's own year onwards, i.e. the market that
+    # built the squads this sheet prices.
+    since = f"{window.target_season.split('-')[0]}-01-01"
+    facts["transfers_in_window"] = conn.execute(
+        "SELECT COUNT(*) FROM transfers_history WHERE date >= ?", (since,)).fetchone()[0]
+    stale = {source: latest for source, latest in facts["squad_sources"].items()
+             if not latest or latest < today}
+    if stale:
+        notes.append("SQUAD EVIDENCE is older than the sheet's own date (" + today + "): "
+                     + " · ".join(f"{source} last observed {latest or 'never'}"
+                                  for source, latest in sorted(stale.items()))
+                     + ". A squad is a volatile state: a man transferred since then is still drawn where "
+                       "he was. Re-run `fc_site` and `transfers` to move these dates.")
+    if not facts["transfers_in_window"]:
+        notes.append(f"TRANSFER LAYER has no move dated {since} or later (newest: "
+                     f"{facts['transfers_latest'] or 'none'}), so the market that built these squads is "
+                     f"not in the DB at all: an arrival's origin club and fee are blind, and any check of "
+                     f"a roster against the transfers cannot fire. `transfers` fills it.")
+    return facts, notes
+
+
 def latest_starters(conn, auction_date: str) -> tuple[dict[int, dict], str | None]:
     """The most recent probabili snapshot at or before the auction date, per player."""
     date = conn.execute("SELECT MAX(valid_from) FROM probable_starter WHERE valid_from <= ?",
@@ -1129,6 +1173,25 @@ def discipline(conn, season: str, platform: str) -> dict[int, dict]:
             for fc_id, yellows, reds, pv in conn.execute(
                 "SELECT fc_id, yellows, reds, pv FROM season_stats WHERE season = ? AND platform = ?",
                 (season, platform))}
+
+
+def _unpriced_reason(prediction, obs) -> str | None:
+    """Why a row has no predicted fantamedia - `''` when it has one.
+
+    The core refuses to predict outside the domain its coefficients were fitted on (`MIN_PV_PREV` votes in
+    the input season), and where that leaves the cell empty depends on the platform: euro has R0c adopted
+    and prices him at the role anchor, default does not. Both cases read the same in the cell and are not
+    the same fact, so the row carries which one it is - with the number, because "13 of 15" and "1 of 15"
+    are different distances from a prediction.
+    """
+    if prediction is not None and prediction.fm_pred is not None:
+        return None
+    if obs.pv_prev is None:
+        return "no season on this platform"
+    if obs.pv_prev < evaluate.model.MIN_PV_PREV:
+        vote = "vote" if obs.pv_prev == 1 else "votes"
+        return f"only {obs.pv_prev} {vote} of {evaluate.model.MIN_PV_PREV}"
+    return "no prediction"
 
 
 def measured_season(conn, window) -> tuple[str, str | None]:
@@ -1750,7 +1813,7 @@ PLAYER_COLUMNS: tuple[str, ...] = (
     "price_initial", "price_initial_mantra", "fvm_reporting_only",
     # the gated engine valuation
     "engine_fm_pred", "engine_pv_pred", "engine_value", "engine_surplus", "engine_role_rank",
-    "engine_replacement_fm", "engine_anchor",
+    "engine_replacement_fm", "engine_anchor", "engine_unpriced_reason",
     # descriptive, NOT gated
     "desc_form_club_matches", "desc_form_measured", "desc_form_played", "desc_form_unused",
     "desc_form_unknown", "desc_form_starts",
@@ -1872,6 +1935,12 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             "engine_role_rank": ranks.get(obs.fc_id),
             "engine_replacement_fm": _round(data.replacement.get(obs.role_classic or ""), 3),
             "engine_anchor": _round(prediction.anchor if prediction else None, 3),
+            # WHY this row has no valuation, per player. The note at the end says it for the sheet, and it
+            # could only say ONE thing, while the cell hides three different ones: measured here and too
+            # little of it (Boga 13 votes of 15, Pavard 1), or nothing measured on THIS platform at all
+            # because his season was played on the other calendar (Kolo Muani 23 euro votes and no Serie A,
+            # Stones 3). An empty cell is a statement; this is which statement.
+            "engine_unpriced_reason": _unpriced_reason(prediction, obs),
             "desc_form_club_matches": form.get("club_matches"),
             "desc_form_measured": form.get("measured"),
             "desc_form_played": form.get("played"), "desc_form_unused": form.get("unused"),
@@ -2170,6 +2239,11 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
 
     # Which season the descriptive layers measure, and up to which day. `before` is None for the usual
     # pre-season run: there the season total IS everything that happened.
+    # HOW OLD the squad and transfer evidence is, said out loud before anything reads it (see
+    # `evidence_age`): the operator's case was a sheet that was right about what it had, and what it had
+    # was days old with the whole summer market missing.
+    evidence, evidence_notes = evidence_age(conn, window)
+    notes += evidence_notes
     measured, measured_note = measured_season(conn, window)
     before = window.auction_date if measured == window.target_season else None
     if measured_note:
@@ -2320,6 +2394,19 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
             f"the anchor there, so the cell is EMPTY and not a zero. `desc_*` columns are unaffected: they "
             f"are measured, not predicted. Examples: "
             f"{', '.join(row['name'] for row in unpriced[:5])}.")
+        # ...and the same count SPLIT by reason, because the sentence above can only say one of them and
+        # the cell hides three. Per row it is in `engine_unpriced_reason`.
+        by_reason: dict[str, int] = {}
+        for row in unpriced:
+            key = (row.get("engine_unpriced_reason") or "no prediction").split(" votes")[0]
+            key = "too few votes" if key.startswith("only") else key
+            by_reason[key] = by_reason.get(key, 0) + 1
+        notes.append("...and WHY, per row (`engine_unpriced_reason`): "
+                     + " · ".join(f"{count} {reason}" for reason, count in sorted(
+                         by_reason.items(), key=lambda item: -item[1]))
+                     + ". A man with no season on this platform played his football on the other calendar "
+                       "(or outside the perimeter): his measured history exists and is not a Serie A one, "
+                       "and converting it is R1, which the gate has refused twice (§7-octies).")
     if clubs:
         wanted = {matching.club_key(name) for name in clubs}
         kept = [row for row in rows if matching.club_key(row.get("club") or "") in wanted]
@@ -2451,6 +2538,7 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
                            "players per line the club actually fielded last season.",
         },
         "column_coverage": filled,
+        "evidence_age": evidence,
         "notes": notes,
     }
     (folder / "manifest.json").write_text(

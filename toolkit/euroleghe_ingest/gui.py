@@ -1784,10 +1784,14 @@ class SnapshotView(ttk.Frame):
                "predicted appearances: points over the man you would have fielded instead. This is the "
                "auction's own currency - an iron man on a replacement-level fantamedia scores ~0. "
                "EMPTY means the engine could not price him at all, and that is a statement rather than a "
-               "zero: his input season is under 15 votes, outside the domain the core's coefficients were "
-               "fitted on. On euro the adopted set falls back to the role anchor (R0c) and prices him; on "
-               "Serie A R0c is not adopted, so there is nothing to fall back to. The manifest says how "
-               "many rows that is.",
+               "zero - the sheet says WHICH statement, per row, in `engine_unpriced_reason`, and there are "
+               "two: 'only N votes of 15' (measured here and too little of it: Boga 13, Pavard 1 - outside "
+               "the domain the core's coefficients were fitted on) and 'no season on this platform' (his "
+               "football was played on the other calendar or outside the perimeter: Kolo Muani has 23 euro "
+               "votes and no Serie A season, Stones 3). Converting the second into a prediction is R1, "
+               "which the gate has refused twice. On euro the adopted set falls back to the role anchor "
+               "(R0c) and prices him anyway; on Serie A R0c is not adopted, so there is nothing to fall "
+               "back to - measured on this sheet: 283 of 629 rows, 157 + 126.",
         "fm": "GATED. Predicted fantamedia for the season being auctioned, from the adopted rule set "
               "with parameters fitted on a window that is not this season.",
         "pv": "GATED. Predicted appearances as a SHARE of the season: the prediction over the "
@@ -1885,7 +1889,9 @@ class SnapshotView(ttk.Frame):
         self.when_var = tk.StringVar()
         # Wide enough for the longest label the list can produce - a day, a season, a single club and the
         # build time - because a truncated entry is exactly the ambiguity the build time was added to fix.
-        self.when_cb = ttk.Combobox(bar, textvariable=self.when_var, state="readonly", width=44)
+        # 58, not 44: the label now carries the platform and the game too, and Tk CLIPS what does not fit -
+        # a truncated sheet name is the same "not narrow, absent" defect the squad table already paid for.
+        self.when_cb = ttk.Combobox(bar, textvariable=self.when_var, state="readonly", width=58)
         self.when_cb.pack(side="left", padx=(4, 12))
         self.when_cb.bind("<<ComboboxSelected>>", lambda _e: self._on_when_change())
         if self.on_build:
@@ -2207,7 +2213,11 @@ class SnapshotView(ttk.Frame):
         labels, self._when_paths = [], []
         for index, sheet in enumerate(shown):
             day = "/".join(reversed(sheet["date"].split("-"))) if "-" in sheet["date"] else sheet["date"]
-            label = f"{day} · {sheet['season']}"
+            # PLATFORM and GAME in the sheet's own name, at the operator's request. A declared league fixes
+            # both, so the League selector shows neither - and the same league's name over a euro/mantra
+            # sheet and a default/classic one would read as the same thing while every number in them
+            # differs (measured: 904 of 916 surplus values change between the two games alone).
+            label = f"{day} · {sheet['season']} · {sheet['platform']}/{sheet['game']}"
             if sheet["only"]:
                 label += f" · {sheet['only'][0]} only"
             if index == 0 and not sheet["only"]:

@@ -1995,3 +1995,44 @@ def test_a_front_place_goes_to_a_forward_even_when_a_trequartista_claims_more(mo
     assert front_of(squad_of((("Fernandez-Pardo", "ST", "A", 0.20),))) == ["Haraldsson"]
     # ...and with no forward in the squad at all, the trequartista keeps the place - the Roma case.
     assert front_of(squad_of((("Ngoy", "MC", "C", 0.55),))) == ["Haraldsson"]
+
+
+def test_a_sheet_says_how_old_its_squad_and_transfer_evidence_is(tmp_path):
+    """The operator's case: «Gutierrez non è più nel Napoli». The sheet was RIGHT about what it had - both
+    squad sources said Napoli - and what it had was days old, while `transfers_history` did not carry a
+    single move dated 2026: the whole summer market was missing and nothing said so.
+
+    A squad is a volatile state, so its AGE is part of the answer. Per source, because one being fresh says
+    nothing about the others; and the transfer window separately, because an empty market is a different
+    defect from a stale roster - it blinds an arrival's origin and fee rather than misplacing a man.
+    """
+    from euroleghe_ingest.config import Config
+    from euroleghe_ingest.db.database import init_db
+    from euroleghe_ingest.engine import features
+    from euroleghe_ingest.modules import snapshot
+
+    cfg = Config(data_dir=tmp_path / "data", db_path=tmp_path / "data" / "euroleghe.db")
+    (tmp_path / "data").mkdir()
+    conn = init_db(cfg.db_path)
+    window = features.Window("SNAP", "2025-26", "2026-27", "2026-08-05")
+    conn.execute("INSERT INTO players(fc_id, canonical_name) VALUES (1, 'Gutierrez')")
+    conn.executemany("INSERT INTO squad_snapshot(fc_id, valid_from, club, source) VALUES (1, ?, 'Napoli', ?)",
+                     [("2026-08-04", "fc_site"), ("2026-07-29", "transfermarkt")])
+    conn.execute("INSERT INTO transfers_history(fc_id, date, from_club, to_club, fee) "
+                 "VALUES (1, '2025-07-01', 'Girona FC', 'Napoli', 18000000)")
+    conn.commit()
+
+    facts, notes = snapshot.evidence_age(conn, window)
+    assert facts["squad_sources"] == {"fc_site": "2026-08-04", "transfermarkt": "2026-07-29"}
+    assert facts["transfers_latest"] == "2025-07-01" and facts["transfers_in_window"] == 0
+    assert any("SQUAD EVIDENCE is older" in note and "transfermarkt last observed 2026-07-29" in note
+               for note in notes), notes
+    assert any("TRANSFER LAYER has no move dated 2026-01-01" in note for note in notes), notes
+
+    # ...and neither note fires once the evidence is of the sheet's own day and the market is in the DB
+    conn.execute("UPDATE squad_snapshot SET valid_from = '2026-08-05'")
+    conn.execute("INSERT INTO transfers_history(fc_id, date, from_club, to_club) "
+                 "VALUES (1, '2026-07-20', 'Napoli', 'Girona FC')")
+    conn.commit()
+    facts, notes = snapshot.evidence_age(conn, window)
+    assert facts["transfers_in_window"] == 1 and not notes, notes
