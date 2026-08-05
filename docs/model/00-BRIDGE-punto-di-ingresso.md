@@ -1,5 +1,5 @@
 # 00 — BRIDGE · Punto d'ingresso del progetto (leggere per primo)
-**Aggiornato: 5 agosto 2026 (chiusura: ogni calciatore ha un SURPLUS, e le rose vanno verificate)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
+**Aggiornato: 5 agosto 2026 (chiusura della sessione: l'asta ha una lista, ogni calciatore un numero con la sua nota, e le rose si verificano da sole)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
 
 ## Il progetto in breve
 Motore previsionale per fantacalcio **EuroLeghe** (fantacalcio.it): valutazione calciatori Classic e Mantra sui 5 grandi campionati europei (Serie A, Premier, Liga, Bundesliga, Ligue 1 — perimetro: i ~35 top club del gioco). Prevede fantamedia (FM), presenze attese e VALORE stagionale = FM × presenze. Metodo scientifico: **ogni regola entra nel motore solo se batte il baseline fuori campione su finestre indipendenti** (gate pre-registrato). Stato: core validato (Mantra, Classic, portieri, presenze); manca lo strato flag/arrivi, sbloccato dal toolkit dati `euroleghe-ingest` (in implementazione).
@@ -23,7 +23,7 @@ proporre qualsiasi regola) → **`metrica-asta-surplus-v1.md`** (con cosa il pan
 regole di UI che sono requisiti) → `spec-euroleghe-ingest-v9.md` → `nota-modello-set-pieces-v2.md` →
 `modello-previsionale-v3.8.md` → consolidati di dettaglio. Tutti in `docs/model/`.
 
-## STATO AL 5 AGOSTO 2026 — LEGGI QUESTO PRIMA DI TUTTO
+## STATO AL 5 AGOSTO 2026 (fine sessione) — LEGGI QUESTO PRIMA DI TUTTO
 
 Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
 

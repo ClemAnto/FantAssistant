@@ -1,5 +1,5 @@
 # Stato progetto & continuità — v5
-**Aggiornato: 5 agosto 2026 (chiusura: ogni calciatore ha un SURPLUS, e le rose vanno verificate)**
+**Aggiornato: 5 agosto 2026 (chiusura della sessione: undici passate — l'asta ha una lista, ogni calciatore un numero, e tre muri identici)**
 Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da qui + i file della cartella "Modello Previsionale Fantacalcio".
 *Glossario: T1/T2 = finestre di test (23/24->24/25, 24/25->25/26) · MAE = errore medio assoluto · cross-fitted = parametri stimati su una finestra, testati sull'altra · M2e = modello portieri decomposto con ClubElo · Pv_att = presenze attese · fc_id = id fantacalcio.it · EV = valore atteso · scoring_config = punteggi configurabili per lega · xG/xA = expected goals/assists · 2.5 pieno = backtest motore completo con flag.*
 
@@ -1468,3 +1468,89 @@ task; `bootstrap` e `toolkit/README.md` non chiedono più di programmare niente.
 (`evidence_age`, v9.23) e la rosa viva del provider è letta come quarta fonte (v9.26). Un board disegnato su
 rose vecchie si vede come una **data**, invece di essere creduto — che è esattamente ciò che un job avrebbe
 dovuto evitare, ottenuto senza un job.
+
+## CHIUSURA della sessione 05/08/2026 — undici passate, e la più istruttiva è quella che si è ribaltata
+
+Sessione lunga: dal listone di agosto alla lista con cui si va al tavolo, passando per tre muri identici e una
+decisione dell'operatore che ha rovesciato una scelta di un'ora prima. **Nessuna regola nuova è entrata nel
+motore** — i set adottati restano `euro R0c+R3c` · `Serie A R3+R7+R13` e `backtest --verify` resta **22/22** —
+e tutto quello che è cambiato è dati, strumenti, tabellone e un layer di ripiego dichiarato come tale.
+
+### Quello che ora esiste e prima no
+1. **Il listone di agosto entra** (l'id campionato dalle quotazioni, con la guardia della stagione dichiarata
+   nel file) e **`transfers` è stato rilanciato**: 2949 → **4383** movimenti, 523 datati 2026.
+2. **La lista LIVE d'asta**: `2026-27 · LIVE` come prima voce, prezzata dalla stessa funzione del foglio. Il
+   blocco era il **calendario** di una stagione mai giocata, e il suo ripiego viveva in un chiamante.
+3. **Ogni calciatore ha un SURPLUS** (`est_*`, quarta classe di colonne): cascata dichiarata, ogni rung con la
+   misura che l'ha messo lì, penalità sul surplus e **nota per riga**. 628 → 629 righe su 629 prezzate.
+4. **`estimates`**, comando nuovo: misura sul passato se mescolare stime e misure conviene. Dice **no**
+   (−12.40% su 10 finestre su 10); l'operatore ha scelto di mescolarle comunque, e il **filtro** `include`
+   (all | measured | estimated) rende la scelta reversibile a ogni sguardo.
+5. **I portieri hanno un FM-equivalente** (§7-decies, adottato): il loro fantavoto è un'identità esatta su
+   16.017 righe, mancava un numero solo — i gol presi — e **era già in cache**.
+6. **La rosa viva del provider** è la quarta fonte di `squad_snapshot`: sa di una partenza **una settimana
+   prima** del listone e delle pagine rosa, e la sua forza è l'**assenza**, che nessun'altra fonte esprime.
+7. **Il tabellone**: `_two_rows` (un 4-5-1 con tre uomini d'attacco è un 4-2-3-1), `_fronted` (un posto in
+   attacco è il lavoro di un attaccante, **alla selezione**), il marchio ⧖/⟳/→ e l'età dell'evidenza dichiarata.
+
+### I verdetti del gate, tutti negativi e tutti utili
+- **R1** ri-misurata con copertura tripla: **non passa** su sei finestre. **R13c**: muro di campione. Lo
+  **scostamento Serie B**: reale (−0.181, −20% sull'errore) e battuto dall'àncora. Tre muri identici in un
+  giorno, e la lettura è una: **la fantamedia di chi non ha storico qui non si predice; le presenze sì**.
+- **L'investimento**: la griglia estesa mostra che l'optimum era dentro (0.75), e il **marginale sul null**
+  vale +0.41% su Serie A e +0.045% su euro — sotto il pavimento. Il PASS robust era la **somma di due effetti
+  entrambi sotto il pavimento**. Famiglia chiusa.
+- **§7-sexies rimisurata** sulla popolazione nuova: il margine del misurato **cresce** su euro (+1.00%) e il
+  vantaggio della quotazione su Serie A **scende** (+0.32%) — prima verifica quantitativa di «il collo di
+  bottiglia è la copertura».
+- **Champions** passa il criterio di §7-nonies e resta spenta: decisione dell'operatore, con la MAE media
+  peggiore dell'àncora sul tavolo.
+
+### Le lezioni di metodo, e ognuna è costata qualcosa
+- **Una lista mostrata le cui metriche descrivono un'altra lista è peggio di nessuna metrica**: il primo
+  merge delle stime lasciava `captured`/`hits` sulla lista gatata e l'harness stampava **+0.00% su 10 su 10**.
+- **Una trasformazione calibrata vale solo dove è stata calibrata**, e l'idoneità si legge dai dati (4784
+  righe convertite da una retta che non le aveva viste).
+- **Un parametro non si adotta al bordo della griglia**, e **un criterio va scritto prima E verificato che sia
+  esprimibile** con le metriche del report (il mio «margine sul secondo positivo» non lo era).
+- **Una rosa è un fatto giornaliero**, e solo una lettura intera può dire che qualcuno è andato — con la
+  guardia «vuoto = ignoto, mai zero».
+- **Quando un fallback ha bisogno di un numero che nessuno ha misurato, misuralo**: «mezzo calendario» per un
+  ignoto faceva valere un portiere sconosciuto più del terzo portiere del suo club (0.289 e 0.421 le quote vere).
+
+### Commit della sessione (24, in ordine)
+`5123413` pre-registrazione §7-septies · `fc6bbd4` un 4-5-1 con tre uomini d'attacco è un 4-2-3-1 · `709bde7`
+il listone esce prima dei voti · `69f644d` l'investimento condizionale e il NULL · `1538dc1` un buco che si
+vede · `fe26c39` il giovane senza storico concorre · `62040e9` il marchio dice con che cosa · `1cf75f8` chi è
+arrivato non è più in attesa · `62dbaf2` pre-registrazione §7-nonies · `38e5210` lo scostamento Serie B ·
+`d198fb8` chiusura della passata notturna · `100329c` esiste UNA lista per l'asta · `f7c2d77` l'FM-equivalente
+dei portieri · `14fe7ed` §7-sexies rimisurata · `f4c164b` l'investimento erano due metà · `3cd960c` un posto
+in attacco è di un attaccante · `f2b9e7c` il nome del foglio, l'età dell'evidenza, il perché di una cella
+vuota · `63dc447` ogni calciatore ha un SURPLUS · `3e0023f` un OUT non è una partenza, e la PK · `41138f3`
+l'ente affidabile era già in cache · `24ddd80` nessun job settimanale · `f379daf` la lista ordina anche gli
+stimati · `447d86f` la stima messa alla prova · `817e99e` l'assistente d'asta progettato prima del codice
+(+ questo di chiusura). **Non pushati**: la repo è pubblica, il push è una scelta dell'utente.
+
+### I prossimi passi, in ordine di leva
+1. **La lega dell'operatore non è ancora dichiarabile**, e questo blocca numeri veri: `Config._league_setup`
+   cancella la dimensione «rosa senza quote» (12 partecipanti, euro/mantra, 25 = 2 porte + 23), quindi i
+   livelli di rimpiazzo — e ogni surplus di quella lega — sono verosimili e sbagliati. Tre modifiche piccole e
+   insieme: `assistente-asta-v1.md` §16.4.
+2. **Acquisizioni che bloccano numeri veri**: listone **euro 26/27** (oggi la pagina serve 25/26 e la guardia
+   lo rifiuta), calendario della stagione, ClubElo giornaliero e club fuori perimetro, la scala dell'R-Factor.
+3. **Il refactor dell'assegnamento fuori da `gui.py`** e il **simulatore di draft** — in un draft il prezzo è
+   pubblico e fisso, quindi è simulabile e **pre-registrabile**.
+4. **Allargare il misurato** ai campionati fuori perimetro: è il seguito vero della regola sulla quotazione.
+5. Restano una decisione (`APPLY_OFFSETS`, raccomandazione: spento) e due voci minori: un centrale sulla fascia
+   della **trequarti** (1 board su 516) e la **PK di `match_ratings`** (due partite nella stessa giornata).
+
+### Dove NON toccare senza rileggere (aggiunte di questa sessione)
+- **`est_*` non è `engine_*`**: la cascata non è gatata e non deve entrare in nessuna colonna che lo sia. Il
+  gate non passa mai `estimates` né `include`, ed è così che `backtest --verify` resta 22/22.
+- **Ogni cifra di un blocco d'asta viene dalla lista che il filtro produce.** Se tornano a essere due liste,
+  torna il `+0.00% su dieci finestre`.
+- **Le confidenze della cascata non si ritarano sulle dieci finestre della misura**: sarebbe fittare sul
+  deliverable. Sono dichiarate, e ogni riga porta la sua.
+- **Il ripiego del calendario sta in `engine_predictions`**, non nei chiamanti.
+- **L'assenza dalla rosa viva è evidenza solo per chi il provider sa identificare**, e il flag porta sempre la
+  data dell'osservazione.

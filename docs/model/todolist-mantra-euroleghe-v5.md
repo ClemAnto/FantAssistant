@@ -330,8 +330,10 @@ Nota: **nessuna delle feature generate il 27/07 e' entrata nel motore**, e **nes
 - [ ] **Decisione aperta: la PK di `match_ratings`** `(fc_id, season, matchday, platform)` non può
       rappresentare due partite della stessa giornata (rinvio + trasferimento), quindi per quei casi una
       presenza si perde. Cura = PK che porta la partita: migrazione + re-ingest.
-- [ ] Rilanciare **`transfers`** prima dell'asta: i cartellini dell'estate 2026 non ci sono, quindi il canale
-      `fee` è cieco proprio sulla finestra che si sta prezzando.
+- [x] **FATTO il 05/08 — `transfers` rilanciato**: +399 movimenti datati 2026 al primo giro, poi la PK allargata
+      (il controparte entra nella chiave) e un re-ingest offline ha portato la tabella da **2949 a 4383** righe,
+      523 datate 2026. Senza quel rilancio il canale `fee` era cieco sulla finestra che si sta prezzando — e
+      soprattutto le rose non avevano modo di sapere chi era partito.
 
 
 ## Aperto dopo la sessione del 04/08/2026 (pannello Snapshot, spec «Novità v9.17»)
@@ -438,6 +440,18 @@ Nota: **nessuna delle feature generate il 27/07 e' entrata nel motore**, e **nes
       21 · Malen 45; profondità prezzabile 26 · 132 · 135 · 64. Trovati misurando: tre allocazioni di
       larghezza (una taglia il ΔQt.I) e quattro test che aprivano il **DB reale** perché `Config(data_dir=)`
       non sposta `db_path`.
+## Aperto dopo la sessione del 05/08/2026 (asta, stima, rose)
+- [ ] **PRIMO, e blocca numeri veri sulla lega dell'operatore**: `Config._league_setup` **cancella** la
+      dimensione «rosa senza quote per ruolo» (fonde sempre 3/8/8/6), quindi per la lega dichiarata — 12
+      partecipanti, euro/mantra, **25 = 2 porte + 23** — i livelli di rimpiazzo sono verosimili e **sbagliati**,
+      e con essi ogni surplus. È il primo dei tre passi di `assistente-asta-v1.md` §16.4 (config con
+      `squad_size`/quote opzionali/`keeper`/`factor`/`auction`, `features.roster_depth` che **rifiuta** invece di
+      inventare, poi la lega dichiarabile in `my_leagues`).
+- [ ] **La stima è viva e non è gatabile come regola**: `est_*` esiste per una regola di prodotto e la sua scala
+      di confidenza è **dichiarata**, non fittata. Quello che si può rifare quando le finestre crescono è la
+      misura del deliverable (`python -m euroleghe_ingest estimates`): oggi dice che mescolarla costa −12.40% di
+      SURPLUS catturato su 10 finestre su 10, e l'operatore ha scelto di vederla comunque, col filtro.
+      ⚠️ Da NON fare: ritarare le confidenze su quelle stesse dieci finestre — sarebbe fittare sul deliverable.
 - [ ] **L'ASTA È ADESSO, ed è la voce a leva più alta.** Il listone Serie A 26/27 esce a **scaglioni** (494 su
       ~1450 il 05/08) e `fvm_history` ha **una** rilevazione: serve una **cadenza** dichiarata di rilancio
       (`ratings` → `arrivals`, e `recent_form` → `synth` → `arrivals`, la catena che il 05/08 ha chiuso) e poi
