@@ -444,12 +444,12 @@ Nota: **nessuna delle feature generate il 27/07 e' entrata nel motore**, e **nes
       portieri-stagione (euro) e 51 (default): bias −0.00…−0.18, MAE 0.084-0.191 contro 0.214-0.336
       dell'àncora, 89-100% entro 0.3 contro lo **0%** della formula dei movimenti. Copertura nuova 1/15/19/8
       per stagione, totale con equivalente **2045 → 2128**, `backtest --verify` 22/22.
-- [ ] **CONSERVARE LO SCORE quando lo si riceve** — è il follow-up dichiarato di §7-decies, ed è la strada che
-      chiuderebbe il caso **Daffara**: i gol presi per partita non sono ricostruibili perché le cache di
-      giornata (`positions`) e di giocatore (`recent_form`) sono **distillate** e lo score è stato scartato al
-      momento di scriverle. Conservarlo è un campo che passa già dalle nostre mani; da allora l'equivalente
-      diventa calcolabile per i portieri fuori dalle 5 leghe (Serie B compresa), per gli uomini che il toolkit
-      va a misurare. ⚠️ **Non è retroattivo** e non è un parse: la cache non ce l'ha.
+- [ ] **CONSERVARE LO SCORE quando lo si riceve** — follow-up di §7-decies, e ⚠️ **da solo NON chiude
+      Daffara**: per un portiere fuori dalle 5 leghe servono **due** cose, i gol presi *e* un voto base
+      convertibile, e il secondo per la Serie B il gate lo ha **rifiutato** (§7-nonies). Lo score serve dove le
+      due si incontrano — le **coppe** — e resta comunque la cosa giusta da fare, perché è un campo che passa
+      già dalle nostre mani e viene scartato: le cache di giornata (`positions`) e di giocatore
+      (`recent_form`) sono distillate. Non è retroattivo e non è un parse: la cache non ce l'ha.
 - [ ] **DECISIONE DELL'OPERATORE — `APPLY_OFFSETS`**: la Champions (98 uomini, δ +0.123) **passa** il criterio
       pre-registrato (maggioranza dei suoi uomini) **e** ha una MAE media **peggiore** dell'àncora (0.2103
       contro 0.1938): vince spesso di poco e perde raramente di molto. Raccomandazione: **lasciarlo spento**,
@@ -461,11 +461,13 @@ Nota: **nessuna delle feature generate il 27/07 e' entrata nel motore**, e **nes
       task registrato. `player_roles` è **non backfillabile** e si accumula solo quando gira `snapshot`, quindi
       ogni settimana senza registrarlo è una settimana che non esisterà. Basta aggiungere `positions --layer
       roles` al job (~80 richieste, ~2 min, gratis se `snapshot` è già girato in giornata).
-- [ ] **RIMISURARE §7-sexies** (i tier degli arrivi) sulla popolazione nuova: quella corsa ha girato su un
-      `mv_synth` **fermo**, quindi la copertura del misurato — che è il collo di bottiglia dichiarato del
-      verdetto su `default` — era un **pavimento** (707 arrivi con equivalente contro 2045 di oggi). Il verso
-      non cambia (euro `measured_first` vinceva 7 fold su 7), il **+0.42% della quotazione su `default` non è
-      più il numero di oggi**. Nota in fondo a §7-sexies.
+- [x] **FATTO il 05/08 (sera) — §7-sexies RIMISURATA** sulla popolazione nuova (707 → **2128** arrivi con
+      equivalente): su **euro** `measured_first` resta CONFIRMED col margine **cresciuto** (+0.89% → +1.00%,
+      7 fold su 7); su **default** la quotazione scende da **+0.42% a +0.32%**, sempre sotto il pavimento e con
+      margine negativo sul secondo. È la prima verifica quantitativa di «il collo di bottiglia è la copertura»:
+      più calcio misurato, meno vantaggio alla quotazione, senza ritoccare niente. Nella stessa corsa e **non
+      adottato**: `t3_price` robust PASS a 0.20 su euro (bordo, margine negativo) contro 0.60 su default, cioè
+      i due estremi della stessa griglia.
 - [ ] **Il FOLLOW-UP pre-registrato di §7-septies, come corsa separata**: (1) griglia estesa oltre 0.5 sul solo
       braccio A — tutti i fold scelgono il **bordo**, quindi l'optimum sta fuori da ciò che è stato misurato;
       (2) il canale valore misurato **al netto del null** (`shrink_weight` accesa al suo migliore e il peso del

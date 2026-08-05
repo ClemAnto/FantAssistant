@@ -178,12 +178,15 @@ REPLACEMENT LEVEL behind every surplus reads the marginal rostered player's fant
 slots, and `stature` sits at weight zero. The one live use was the ARRIVAL TIERS - the branch that prices a
 man with no measured history - and it now leads with his **FM-equivalent in the league he came from**, as a
 percentile inside his role, with the quotation as the fallback (`arrivals.TIER_DRIVER`).
-Measured, and the verdict is about COVERAGE rather than the choice: on euro the objective resource reaches
-25-29% of the scored arrivals and `measured_first` wins all seven held-out folds (+0.70% margin); on Serie A
-it reaches 14-20%, the quotation would gain +0.41% mean on the touched subset - below the 0.5% floor - and for
-the other five arrivals in six the two arms are IDENTICAL because both fall back to the price. So the way to
-make the rule pay is to widen what is measured (Serie B and the leagues we do not parse), not to go back to
-the quotation. Two things stay irreducible and are not the same as trusting it: the listone ROLE (the game
+Measured, and the verdict is about COVERAGE rather than the choice: `measured_first` wins every held-out fold
+on euro, while on Serie A the quotation gains a little on the subset it touches and stays below the 0.5% floor,
+because there the measured resource is thin — for most arrivals both arms are IDENTICAL, both falling back to
+the price. So the way to make the rule pay is to widen what is measured, not to go back to the quotation. And
+that claim has now been tested twice on different coverage (gate §7-sexies, re-measured 05/08/2026 after the
+FM-equivalent layer went from 707 to 2128 arrivals): the euro margin grew (+0.89% → **+1.00%**) and the
+quotation's Serie A advantage FELL (+0.42% → **+0.32%**), which is the direction «the bottleneck is coverage»
+predicts, with nobody touching a parameter. Cite those numbers from the report, never from here: this file
+carries the shape of the conclusion, the gate carries its date. Two things stay irreducible and are not the same as trusting it: the listone ROLE (the game
 itself scores by role - the twelve measured codes already replaced it for *where he plays*), and the ASK price
 at the table, which is what a bid is made against. The FANTAVALORE (`fvm`) sits between the two - «varia ogni settimana o quando ci sono eventi particolari»,
 so it is the fresher judgement and it goes ahead of Qt.I, which is set once before the season and never moves

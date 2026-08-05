@@ -1283,12 +1283,23 @@ uomini riproduce +0.82…+1.22 e conferma su sei stagioni che escluderli era giu
 equivalente sono **1/15/19/8** per stagione, il totale passa da 2045 a **2128**, e parte di quei portieri il
 core li prezza già. Donnarumma 5.162, Milinkovic-Savic 5.132, Hradecky 4.638.
 
-### ⚠️ Daffara resta NULL, e adesso si sa esattamente perché
-I gol presi esistono solo come **aggregato di stagione delle 5 leghe**; la Serie B non ne ha uno, e per partita
-lo **score non c'è più** — la cache delle giornate e quella per giocatore sono **distillate** e lo score è
-stato scartato al momento di scriverle. Non è un parse: è una richiesta di rete. Follow-up dichiarato nel gate:
-**conservare lo score quando lo si riceve** (`positions` sulle giornate, `recent_form` sui giocatori), e da
-allora l'equivalente diventa calcolabile per gli uomini che il toolkit va a misurare. Non è retroattivo.
+### ⚠️ Daffara resta NULL, e servono DUE cose — corretto la sera del 05/08
+La prima stesura di questa sezione diceva che conservare lo **score** avrebbe reso calcolabile l'equivalente
+«Serie B compresa». È **falso**, e vale più della promessa: servono **due** cose, i gol presi *e* un voto base
+convertibile. I gol presi esistono solo come aggregato di stagione delle 5 leghe (la Serie B non ne ha uno) e
+per partita non esistono più, perché le cache di giornata e di giocatore sono **distillate**; il voto base
+della Serie B, invece, il gate lo ha **rifiutato** (§7-nonies: δ = −0.181, reale e battuto dall'àncora). Quindi
+un portiere di Serie B resta senza equivalente **per due decisioni misurate**, non per un pezzo di codice
+mancante. Dove le due si incontrano sono le coppe e le 5 leghe — dove però l'aggregato di stagione già copre.
+
+### §7-sexies rimisurata sulla popolazione nuova, ed è la prima verifica di «il collo di bottiglia è la copertura»
+Con l'FM-equivalente passato da 707 a **2128** arrivi: su **euro** `measured_first` resta CONFIRMED e il suo
+margine **cresce** (+0.89% → **+1.00%**, 7 fold su 7); su **default** la quotazione resta la migliore in pool
+ma il suo guadagno **scende** (+0.42% → **+0.32%**), sempre sotto il pavimento e con margine negativo sul
+secondo. Più calcio misurato, meno vantaggio alla quotazione: la direzione prevista, senza che nessuno abbia
+ritoccato un parametro. Trovato nella stessa corsa e **non adottato**: `t3_price` prende un robust PASS a 0.20
+su euro (bordo della griglia, margine negativo sul secondo) mentre su `default` il migliore è 0.60, il bordo
+opposto — due estremi della stessa griglia è come si presenta un parametro senza segnale.
 
 ### La catena, di nuovo
 `positions --layer reparse` riscrive `external_match_stats` e quindi **azzera `mv_synth`**: gli arrivi con

@@ -44,11 +44,21 @@ instrada i tier degli arrivi — e `backtest --verify` resta **22/22**.
    **0%** della formula dei movimenti (che sugli stessi uomini rifà +0.82…+1.22: escluderli era giusto).
 4. **Il guadagno è piccolo e la sezione lo aveva dichiarato prima**: arrivi che guadagnano un equivalente
    **1/15/19/8** per stagione, totale **2045 → 2128**, e parte di quei portieri il core li prezza già.
-5. ⚠️ **Daffara resta NULL**, e ora si sa esattamente perché: i gol presi esistono solo come aggregato di
-   stagione delle 5 leghe, la Serie B non ne ha uno, e **per partita lo score non c'è più** — le cache di
-   giornata e di giocatore sono **distillate**. Non è un parse, è una richiesta di rete. Follow-up dichiarato:
-   **conservare lo score quando lo si riceve**; non è retroattivo.
-6. **La catena, di nuovo**: `positions --layer reparse` azzera `mv_synth`, e gli arrivi con equivalente sono
+5. ⚠️ **Daffara resta NULL, e servono DUE cose** (corretto la sera stessa: la prima stesura ne dichiarava una
+   e sarebbe stata una promessa falsa). I **gol presi**, che esistono solo come aggregato di stagione delle 5
+   leghe e per partita non più — le cache di giornata e di giocatore sono **distillate**, lo score è stato
+   scartato; **e** un **voto base convertibile**, che per la Serie B il gate ha **rifiutato** (§7-nonies, δ
+   −0.181 battuto dall'àncora). Quindi un portiere fuori perimetro resta NULL per **due decisioni misurate**,
+   non per codice mancante. Conservare lo score resta giusto e serve dove le due si incontrano: le **coppe**.
+6. **§7-sexies rimisurata** sulla popolazione nuova (707 → 2128 arrivi con equivalente), ed è la prima verifica
+   quantitativa di «il collo di bottiglia è la copertura»: su **euro** `measured_first` resta CONFIRMED col
+   margine **cresciuto** (+0.89% → **+1.00%**, 7 fold su 7), su **default** la quotazione scende da +0.42% a
+   **+0.32%** — sempre sotto il pavimento, margine negativo sul secondo. Più calcio misurato, meno vantaggio
+   alla quotazione, senza che nessuno abbia ritoccato un parametro. Non adottato nella stessa corsa:
+   `t3_price` prende un robust PASS a **0.20** su euro (bordo della griglia, margine negativo sul secondo)
+   mentre su `default` il migliore è **0.60**, il bordo opposto — i due estremi della stessa griglia sono come
+   si presenta un parametro senza segnale.
+7. **La catena, di nuovo**: `positions --layer reparse` azzera `mv_synth`, e gli arrivi con equivalente sono
    crollati a **716** finché `synth` non è stato rilanciato. Chi rifà `positions` rifà `synth` e poi `arrivals`.
 
 ### 5/08/2026 pomeriggio: esiste UNA lista con cui andare all'asta

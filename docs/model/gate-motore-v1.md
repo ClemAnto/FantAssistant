@@ -1517,14 +1517,28 @@ si poteva (i dodici codici misurati dicono *dove gioca*); ma per *come lo compri
 punteggiare per ruolo, quindi non è riducibile. Come non lo è il **prezzo richiesto** al tavolo: l'asta si
 gioca su quello, e vederlo accanto al valore predetto serve a misurare di quanto il mercato sbaglia.
 
-⚠️ **DA RIMISURARE, e la ragione è del giorno dopo** (registrato il 5/08/2026, chiusura di sessione): questa
-corsa ha girato su un `mv_synth` **fermo** — il difetto trovato in §7-octies, dove nessuno rilanciava `synth`
-dopo `positions`. Gli arrivi con un FM-equivalente sono passati da **707 a 2045** (T1 da 72 a 271), quindi la
-**copertura** citata qui sopra (25-29% euro, 14-20% default) è un **pavimento** e non la misura di oggi — ed è
-esattamente la quantità che il verdetto su `default` dà come collo di bottiglia. Il verso della conclusione non
-cambia (su euro `measured_first` vinceva già 7 fold su 7), ma **il numero di `default` non è più quello**: la
-corsa va rifatta sulla popolazione nuova prima di citare +0.42% come attuale. Vale come promemoria della regola
-di citazione: un coefficiente porta la sua data perché **l'input sotto si muove**.
+⚠️ **RIMISURATA il 5/08/2026 sera** (`sweep_presence.json`, `generated_at` 2026-08-05T15:38:52+00:00). La
+corsa del 4/08 aveva girato su un `mv_synth` **fermo** (il difetto di §7-octies): gli arrivi con FM-equivalente
+sono poi passati da 707 a **2128** (2045 + i portieri di §7-decies), quindi la copertura citata sopra era un
+**pavimento**. Rifatta sulla popolazione nuova, la decisione **non cambia e il verso è quello che la copertura
+prometteva**:
+
+| piattaforma | arrivi instradati | migliore in pool | esito |
+|---|---|---|---|
+| **euro** | 2573 · 7 stagioni | **measured_first** | **CONFIRMED**, margine **+1.00%** (era +0.89%), 7 fold su 7 |
+| **default** | 2180 · 10 stagioni | price | media **+0.32%** (era +0.42%) → **sotto il pavimento**, robust **no**, margine sul secondo **−0.31%** |
+
+Cioè: **più calcio misurato, meno vantaggio alla quotazione** — su Serie A il suo guadagno è scivolato da
++0.42% a +0.32%, sempre sotto il pavimento di 0.5%, e su euro il margine del misurato è cresciuto. È la prima
+verifica quantitativa della frase «il collo di bottiglia è la copertura»: la copertura è triplicata e il
+divario si è mosso nella direzione prevista, senza che nessuno ritoccasse un parametro.
+
+**Trovato nella stessa corsa, e va scritto perché è un PASS che non si adotta**: `t3_price` su euro prende un
+`robust PASS` a **0.20** (media +1.09%, peggior fold −1.05%) — ma 0.20 è il **bordo** della griglia
+(0.20…0.60), il margine sul secondo è **negativo** (−0.76%), e su `default` il migliore è **0.60**, cioè il
+bordo **opposto**. Due piattaforme che scelgono i due estremi della stessa griglia è come si presenta un
+parametro senza segnale, non un parametro da adottare: resta **0.40**, con la stessa regola di §7-septies (un
+optimum sul bordo non si adotta al valore del bordo).
 
 ## 7-septies. L'INVESTIMENTO in forma CONDIZIONALE (pre-registrata il 5 agosto 2026, non ancora eseguita)
 
@@ -1876,12 +1890,18 @@ Tre letture che valgono più del PASS:
   fantamedia qui, quindi il tier non li instrada. Donnarumma 5.162, Milinkovic-Savic V. 5.132, Hradecky 4.638:
   la scala è quella giusta, e la sostanza è che dove prima c'era un buco ora c'è calcio misurato.
 
-⚠️ **Daffara resta NULL, e la ragione non cambia**: i gol presi esistono solo come aggregato di stagione
-delle 5 leghe, e la Serie B non ne ha uno. La cache delle giornate e quella per giocatore sono **distillate**
-(lo score è stato scartato al momento di scrivere), quindi non è un parse: riaverli è una richiesta di rete.
-**Follow-up dichiarato qui**: conservare lo score quando lo si riceve (`positions` sulle giornate e
-`recent_form` sui giocatori) — è un campo che passa già dalle nostre mani — e da quel momento l'equivalente
-diventa calcolabile per gli uomini che il toolkit va a misurare. Non è retroattivo: la cache non ce l'ha.
+⚠️ **Daffara resta NULL, e servono DUE cose, non una** — corretto il 5/08 sera, perché la prima stesura di
+questa sezione ne dichiarava una sola e sarebbe stata una promessa falsa:
+1. **i gol presi**, che esistono solo come aggregato di stagione delle 5 leghe (la Serie B non ne ha uno) e per
+   partita non esistono più, perché la cache delle giornate e quella per giocatore sono **distillate** e lo
+   score è stato scartato al momento di scriverle. Conservarlo quando lo si riceve è un campo che passa già
+   dalle nostre mani, e non è retroattivo;
+2. **un voto base convertibile**, che per la Serie B **il gate ha rifiutato** (§7-nonies: δ = −0.181, reale e
+   battuto dall'àncora di ruolo, quindi `APPLY_OFFSETS = False`).
+Quindi anche con lo score, un portiere di Serie B resta senza equivalente: la prima cosa da sola non basta, e
+dirlo è il punto. Dove le due si incontrano è nelle **coppe** (Champions ha 98 uomini e uno scostamento che
+passa il criterio) e nelle 5 leghe, dove però l'aggregato di stagione già copre il caso. Conclusione onesta:
+i portieri fuori perimetro restano NULL **per due decisioni misurate**, non per un pezzo di codice mancante.
 
 **Numeri pubblicati invariati**: `backtest --verify` **22/22** dopo l'adozione.
 
