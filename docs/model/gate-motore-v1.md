@@ -1653,6 +1653,77 @@ pre-registrazione vietava.
 braccio A, dichiarata prima; (2) il canale valore misurato **al netto del null** (la costante accesa al suo
 migliore, e il peso del valore sweepato sopra), così quello che si misura è il contributo marginale e non la
 somma; (3) e la conferma indipendente resta la finestra **26/27**, l'unica che non ha partecipato a niente.
+
+### Le due griglie del follow-up, scritte il 5 agosto 2026 (sera) PRIMA della corsa
+`sweep.GRIDS`, due famiglie nuove e un `BASELINES` che dichiara contro cosa si misura una famiglia:
+- **`investment_unplayed_value_wide`** = lo stesso braccio A verso l'alto: **0.50 · 0.75 · 1.00 · 1.50 · 2.00 ·
+  3.00**, più lo SPENTO come primo punto. Il tetto ha la stessa ragione del tetto 0.30 del cartellino: un
+  titolare vale circa **0.09** del valore della sua rosa, quindi peso 3.0 aggiunge 0.27 di stagione, e oltre
+  quello il termine deciderebbe l'undici da solo, che non è la tesi di nessuno. Il braccio cartellino **non**
+  si estende: è morto.
+- **`investment_unplayed_marginal`** = il canale valore **al netto del suo null**: `shrink_weight` tenuta a
+  **0.05** (il miglior null pooled della prima corsa su `default`; euro sceglieva 0.03, che sta dentro un
+  passo) e `value_weight` spazzato sopra su **0 · 0.10 · 0.20 · 0.50 · 1.00 · 2.00**. I guadagni di questa
+  famiglia si misurano **contro il punto SOLO-NULL** e non contro lo spento, per fold: sottrarre le medie
+  pooled di due famiglie darebbe un altro numero, perché i fold non pesano uguale.
+
+**Criteri di falsificazione, dichiarati adesso**:
+1. il braccio esteso entra solo se il migliore pooled è **DENTRO** la griglia (non 3.00), con robust PASS e
+   margine sul secondo **positivo**. Se il migliore è di nuovo il **bordo**, il canale in questa forma è
+   dichiarato non misurabile e la famiglia **si chiude**: due griglie di fila che scelgono il proprio estremo
+   sono una curva monotona, cioè un termine che assorbe qualcosa che non è l'investimento;
+2. il marginale entra solo se il guadagno **sul null** supera il pavimento **0.5%** sulla maggioranza dei fold
+   senza fold peggiore di **−2%**. Se sta sotto il pavimento, la lettura è che ciò che passava era il **null**,
+   e va scritta così.
+
+### ESEGUITO il 5 agosto 2026 sera — la FAMIGLIA SI CHIUDE: erano due metà, e nessuna arriva al pavimento
+`sweep_presence.json`, `generated_at` 2026-08-05T15:56:25+00:00.
+
+**(1) La griglia estesa risolve l'obiezione del bordo**: l'optimum ora è **DENTRO** il misurato e la curva
+gira, su entrambe le piattaforme.
+
+| piattaforma | migliore pooled | la curva pooled | media | peggior fold | robust |
+|---|---|---|---|---|---|
+| euro (4 fold) | **0.50** | 0.20053 → 0.20059 (0.75) → 0.20091 (1.0) → 0.20498 (3.0) | +0.34% | +0.06% | no |
+| **default** (6 fold) | **0.75** | 0.20136 (0.5) → **0.20126** → 0.2015 (1.0) → 0.20617 (3.0) | +0.56% | −0.34% | **PASS** |
+
+Cioè il termine non era monotono fino al bordo: era monotono fino a **0.5-0.75**, e oltre peggiora — a 3.0
+costa più che essere spento. La prima corsa non poteva saperlo perché la griglia finiva dove la curva gira.
+
+**(2) E il marginale dice che quel PASS non è l'investimento.** Con il null accesa al suo migliore (0.05) e il
+peso del valore spazzato sopra, misurato **per fold contro il punto solo-null**:
+
+| piattaforma | migliore | guadagno marginale sul null | peggior fold | verdetto |
+|---|---|---|---|---|
+| euro | 0.20 | **+0.045%** | −0.06% | sotto il pavimento (0.5%) |
+| default | 0.50 | **+0.41%** | −0.46% | sotto il pavimento |
+
+E i conti tornano, che è la parte che rende la lettura solida invece che comoda: su `default` il **null da
+solo** vale +0.37%, il **valore sopra il null** +0.41%, e la loro somma (+0.78%) è esattamente il +0.79% che la
+forma grezza aveva ottenuto in robust PASS. **Il PASS era la somma di due effetti entrambi sotto il pavimento**,
+e il pavimento esiste per rifiutare esattamente questo. Su euro la stessa decomposizione dà +0.30% di null e
++0.045% di valore: là il canale non c'è affatto.
+
+**NON ADOTTATA e FAMIGLIA CHIUSA sul lato investimento**: `value_weight` resta **0.0**, `shrink_weight` resta
+**0.0**. Il criterio 2, che la pre-registrazione chiamava «la parte che conta», non è soddisfatto su nessuna
+delle due piattaforme. Quello che resta vero e già scritto altrove: **il meccanismo è assorbito dai minuti**
+(§7-quater, §7-quinquies), e quel poco che si vede sopra i minuti è **ritorno alla media**, non «la società ha
+investito su di lui».
+
+⚠️ **Un errore mio nella pre-registrazione, e va detto invece che aggirato**: fra i criteri avevo scritto
+«margine sul secondo positivo». Quel numero, nel report, è definito come quanto il valore **in uso** batte il
+miglior rivale — e per una famiglia il cui valore in uso è **spento**, un margine positivo significherebbe «il
+termine non fa niente», cioè la condizione era impossibile da soddisfare per costruzione e non misurava ciò che
+volevo. La decisione è stata presa sulle due condizioni che portano informazione (optimum interno, e il
+marginale sopra il pavimento): la prima è soddisfatta, la seconda no. Lezione, che vale oltre questa corsa:
+**un criterio si scrive prima, ma va anche verificato che sia esprimibile con le metriche che il report
+produce** — altrimenti è una frase, non un criterio.
+
+**Cosa lo riaprirebbe, dichiarato**: non un'altra griglia (due corse hanno ormai coperto 0.005 → 3.0). Servirebbe
+un proxy dell'investimento che **non sia già nei minuti** — gli **ingaggi**, che nessuna fonte in whitelist
+pubblica (verificato: zero occorrenze di Gehalt/salary/stipendio) — oppure la **variazione** del valore dentro la
+stagione, che è un'altra domanda e richiede una serie per data. La finestra **26/27** resta l'unica conferma
+indipendente possibile, e arriva a giugno 2027.
 Nel frattempo, sul tabellone, la lettura per l'asta di agosto (§7-septies, decisione dell'utente).
 
 Nota su ciò che le AMICHEVOLI dicono di questo caso, misurata il 5/08/2026 e riportata qui perché è la

@@ -108,6 +108,37 @@ GRIDS: dict[str, tuple] = {
                    ("arrival", 0.1, 0.0), ("arrival", 0.2, 0.0), ("arrival", 0.3, 0.0),
                    ("arrival", 0.5, 0.0), ("arrival", 0.0, 0.1), ("arrival", 0.0, 0.2),
                    ("arrival", 0.2, 0.2)),
+    # THE FOLLOW-UP OF §7-septies, pre-registered 05/08/2026 and written here BEFORE the run. The first run
+    # passed robust on Serie A and was NOT adopted for one reason: every fold picked the EDGE of the grid
+    # (0.50 of 0.50), so the optimum sits outside what was ever measured, and a term is not adopted at a
+    # boundary. Two arms, and only arm A (the market value) is extended - the fee arm is dead.
+    # (1) the same channel, upward, stopping where the term would be deciding the eleven on its own: a
+    # typical starter is about 0.09 of his squad's value, so weight 3.0 adds 0.27 of a season, which is the
+    # same ceiling argument the fee grid used at 0.30.
+    "investment_unplayed_value_wide": (("standing", 0.0, 0.0, 0.0),
+                                       ("unplayed", 0.0, 0.0, 0.50), ("unplayed", 0.0, 0.0, 0.75),
+                                       ("unplayed", 0.0, 0.0, 1.00), ("unplayed", 0.0, 0.0, 1.50),
+                                       ("unplayed", 0.0, 0.0, 2.00), ("unplayed", 0.0, 0.0, 3.00)),
+    # (2) the same channel measured NET OF ITS NULL, which is the part the first run could not separate: the
+    # shape rewards whoever played little, and whoever played little plays more next year whoever he is.
+    # `shrink_weight` is held at 0.05 - the best pooled null of the first run on `default`, with euro's 0.03
+    # inside one step of it - and the value weight is swept on top. The gains of this family are measured
+    # against the NULL-ONLY point (see `BASELINES`), so what comes out is the MARGINAL contribution of
+    # knowing what the club paid, never the sum of the two.
+    "investment_unplayed_marginal": (("unplayed", 0.0, 0.0, 0.0, 0.05),
+                                     ("unplayed", 0.0, 0.0, 0.10, 0.05),
+                                     ("unplayed", 0.0, 0.0, 0.20, 0.05),
+                                     ("unplayed", 0.0, 0.0, 0.50, 0.05),
+                                     ("unplayed", 0.0, 0.0, 1.00, 0.05),
+                                     ("unplayed", 0.0, 0.0, 2.00, 0.05)),
+}
+
+# WHICH GRID POINT a family's gains are measured against. The default is the value in the code, which is
+# what "would this change help?" means. One family needs something else: the marginal contribution of the
+# value channel over its own null is a per-fold comparison with the NULL POINT, and subtracting two
+# families' pooled means would not be the same number - the folds are not the same weight.
+BASELINES: dict[str, tuple] = {
+    "investment_unplayed_marginal": ("unplayed", 0.0, 0.0, 0.0, 0.05),
 }
 
 # Which target each parameter is judged on. `standing_weights` never enters `voto_share` - appearances are
@@ -129,6 +160,8 @@ TARGETS: dict[str, str] = {
     "investment_unplayed_value": "starts",
     "investment_unplayed_fee": "starts",
     "investment_unplayed_null": "starts",
+    "investment_unplayed_value_wide": "starts",
+    "investment_unplayed_marginal": "starts",
 }
 
 # The gate's own thresholds, quoted from gate-motore-v1.md so the two verdicts mean the same thing here.
@@ -398,8 +431,9 @@ def sweep_platform(conn, platform: str, game: str, windows: list[str] | None) ->
                presence.DEFAULTS.stature_weight)
         wide = (*off, presence.DEFAULTS.value_weight, presence.DEFAULTS.shrink_weight)
         current = ((off if name == "investment"
-                    else wide if name.endswith("null") else wide[:4])
+                    else wide if name.endswith(("null", "marginal")) else wide[:4])
                    if name.startswith("investment") else getattr(presence.DEFAULTS, name))
+        current = BASELINES.get(name, current)
         per_window: dict[str, dict[str, float]] = {}
         for key, (inputs, targets, _data) in facts.items():
             scores: dict[str, float] = {}

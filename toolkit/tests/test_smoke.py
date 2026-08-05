@@ -1162,8 +1162,19 @@ def test_every_swept_parameter_exists_and_is_scored_against_a_target():
     assert set(sweep.GRIDS) - composite <= names,         f"swept but not a parameter: {set(sweep.GRIDS) - composite - names}"
     assert set(sweep.GRIDS) == set(sweep.TARGETS), "every grid needs its target named"
     assert set(sweep.TARGETS.values()) <= set(sweep.PREDICTORS)
+    # A family's BASELINE - the point every gain is measured against - must be a point the sweep actually
+    # scored, or the reported gain is a comparison with something no fold ever evaluated. Normally that
+    # baseline is the state in use (every term off); a family may declare another one in `BASELINES` when the
+    # question is a MARGINAL contribution (the value channel over its own null, gate §7-septies), and then it
+    # is the declared baseline that has to be in the grid.
+    for name in sweep.BASELINES:
+        assert name in sweep.GRIDS, f"{name}: a baseline for a family that does not exist"
+        assert sweep.BASELINES[name] in sweep.GRIDS[name], (
+            f"{name}: its declared baseline is not one of the points it scores")
     for name, grid in sweep.GRIDS.items():
         if name in composite:
+            if name in sweep.BASELINES:
+                continue                    # checked above, against its own declared baseline
             # the composite's own grid must contain the state the code is actually in - every term off
             off = (presence.DEFAULTS.investment_shape, presence.DEFAULTS.fee_weight,
                    presence.DEFAULTS.stature_weight, presence.DEFAULTS.value_weight,

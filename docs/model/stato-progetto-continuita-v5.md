@@ -1306,3 +1306,38 @@ opposto — due estremi della stessa griglia è come si presenta un parametro se
 equivalente sono crollati a **716** finché `synth` non è stato rilanciato. Stessa catena di §7-octies, questa
 volta vista come regressione invece che come strato invecchiato in silenzio. Chi rifà `positions` rifà `synth`
 e poi `arrivals`.
+
+
+## Sessione 05/08/2026 (notte) — l'investimento: erano due metà, e nessuna arriva al pavimento
+
+Gate **§7-septies**, follow-up pre-registrato ed eseguito. **NON ADOTTATA, famiglia CHIUSA** sul lato
+investimento: `value_weight` e `shrink_weight` restano **0.0**. 297 test, ruff pulito.
+
+### Le due domande che la prima corsa aveva lasciato aperte, entrambe risposte
+1. **Il bordo**: la prima corsa vedeva ogni fold scegliere 0.50 su una griglia che finiva a 0.50, quindi
+   l'optimum stava fuori dal misurato. Con la griglia estesa (0.50 → 3.00, tetto motivato: un titolare è ~0.09
+   del valore della sua rosa, quindi 3.0 aggiunge 0.27 di stagione) la curva **gira dentro**: migliore **0.75**
+   su `default` (robust PASS, media +0.56%) e **0.50** su euro (media +0.34%, sotto il pavimento). A 3.0 il
+   termine costa più che essere spento. Non era monotono: era monotono fino a dove la griglia finiva.
+2. **Il null**, che la pre-registrazione chiamava «la parte che conta». Con `shrink_weight` accesa al suo
+   migliore e il peso del valore spazzato sopra, misurato **per fold contro il punto solo-null**: il valore
+   aggiunge **+0.41%** su `default` e **+0.045%** su euro, entrambi **sotto il pavimento** di 0.5%.
+   E i conti tornano: su `default` il null da solo vale +0.37%, il valore sopra +0.41%, somma +0.78% = il
+   +0.79% che la forma grezza otteneva in robust PASS. **Il PASS era la somma di due effetti entrambi sotto il
+   pavimento**, ed è esattamente ciò che il pavimento esiste per rifiutare.
+
+### Due cose di metodo che questa corsa ha prodotto
+- **Un baseline dichiarato per famiglia** (`sweep.BASELINES`): il contributo marginale si misura contro il
+  punto solo-null **per fold**, non sottraendo le medie pooled di due famiglie — i fold non pesano uguale. Il
+  test che pretendeva «lo stato in uso sta nella sua griglia» ora pretende, per quelle famiglie, che sia il
+  **baseline dichiarato** a starci: un punto di confronto che nessun fold ha valutato non è un confronto.
+- ⚠️ **Un errore mio nella pre-registrazione**, scritto invece che aggirato: fra i criteri avevo messo
+  «margine sul secondo positivo», ma quel numero è definito come quanto il valore **in uso** batte il miglior
+  rivale — e per una famiglia il cui valore in uso è **spento** un margine positivo significherebbe «il termine
+  non fa niente». La condizione era impossibile per costruzione. Lezione: un criterio si scrive prima, **e va
+  verificato che sia esprimibile con le metriche che il report produce**.
+
+### Cosa riaprirebbe la famiglia, dichiarato
+Non un'altra griglia: due corse coprono 0.005 → 3.0. Servirebbe un proxy dell'investimento che **non sia già
+nei minuti** — gli **ingaggi**, che nessuna fonte in whitelist pubblica — o la **variazione** del valore dentro
+la stagione, che è un'altra domanda e richiede una serie per data. La conferma indipendente resta 26/27.

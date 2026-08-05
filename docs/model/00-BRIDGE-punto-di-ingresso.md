@@ -1,5 +1,5 @@
 # 00 — BRIDGE · Punto d'ingresso del progetto (leggere per primo)
-**Aggiornato: 5 agosto 2026 (chiusura: la lista dell'asta, e il portiere che ora ha un FM-equivalente)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
+**Aggiornato: 5 agosto 2026 (chiusura: la lista dell'asta, il portiere, e l'investimento chiuso in due metà)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
 
 ## Il progetto in breve
 Motore previsionale per fantacalcio **EuroLeghe** (fantacalcio.it): valutazione calciatori Classic e Mantra sui 5 grandi campionati europei (Serie A, Premier, Liga, Bundesliga, Ligue 1 — perimetro: i ~35 top club del gioco). Prevede fantamedia (FM), presenze attese e VALORE stagionale = FM × presenze. Metodo scientifico: **ogni regola entra nel motore solo se batte il baseline fuori campione su finestre indipendenti** (gate pre-registrato). Stato: core validato (Mantra, Classic, portieri, presenze); manca lo strato flag/arrivi, sbloccato dal toolkit dati `euroleghe-ingest` (in implementazione).
@@ -26,7 +26,30 @@ proporre qualsiasi regola) → **`metrica-asta-surplus-v1.md`** (con cosa il pan
 
 Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
 
-### ULTIMO IN ORDINE DI TEMPO — 5/08/2026 sera: il portiere ha un FM-equivalente, e serviva un numero solo
+### ULTIMO IN ORDINE DI TEMPO — 5/08/2026 notte: l'investimento erano due metà, e nessuna arriva al pavimento
+
+Gate **§7-septies**, follow-up pre-registrato ed eseguito. **NON ADOTTATA, famiglia CHIUSA**: `value_weight` e
+`shrink_weight` restano **0.0**.
+
+1. **Il bordo era la griglia, non la curva.** Estesa a 0.50 → 3.00 (tetto motivato: un titolare è ~0.09 del
+   valore della sua rosa, quindi 3.0 aggiunge 0.27 di stagione), la curva **gira dentro** il misurato: migliore
+   **0.75** su `default` (robust PASS, +0.56%) e **0.50** su euro (+0.34%, sotto il pavimento). A 3.0 il termine
+   costa più che essere spento.
+2. **E il marginale dice che quel PASS non è l'investimento.** Col null accesa al suo migliore e il valore
+   spazzato sopra, misurato **per fold contro il punto solo-null**: **+0.41%** su `default`, **+0.045%** su
+   euro, entrambi **sotto il pavimento** di 0.5%. I conti tornano: null +0.37% + valore +0.41% = il +0.78% che
+   la forma grezza otteneva in robust PASS — **era la somma di due effetti entrambi sotto il pavimento**, che è
+   esattamente ciò che il pavimento esiste per rifiutare. Quel poco che si vede sopra i minuti è **ritorno alla
+   media**.
+3. **Due cose di metodo**: `sweep.BASELINES` — una famiglia può dichiarare contro quale punto si misura, e il
+   marginale si misura **per fold** contro il solo-null (sottrarre due medie pooled darebbe un altro numero); e
+   ⚠️ **un errore mio nella pre-registrazione**, scritto invece che aggirato — «margine sul secondo positivo»
+   non era esprimibile con le metriche del report, perché quel margine confronta il valore **in uso** (spento)
+   col miglior rivale. Un criterio va scritto prima **e** va verificato che sia esprimibile.
+4. **Cosa la riaprirebbe**: non un'altra griglia (due corse coprono 0.005 → 3.0), ma un proxy che **non sia già
+   nei minuti** — gli ingaggi, che nessuna fonte pubblica — o la **variazione** del valore dentro la stagione.
+
+### 5/08/2026 sera: il portiere ha un FM-equivalente, e serviva un numero solo
 
 Gate **§7-decies**, spec **«Novità v9.21»**. **ADOTTATO** — non è una regola del motore, è il layer che
 instrada i tier degli arrivi — e `backtest --verify` resta **22/22**.

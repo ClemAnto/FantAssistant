@@ -468,12 +468,18 @@ Nota: **nessuna delle feature generate il 27/07 e' entrata nel motore**, e **nes
       più calcio misurato, meno vantaggio alla quotazione, senza ritoccare niente. Nella stessa corsa e **non
       adottato**: `t3_price` robust PASS a 0.20 su euro (bordo, margine negativo) contro 0.60 su default, cioè
       i due estremi della stessa griglia.
-- [ ] **Il FOLLOW-UP pre-registrato di §7-septies, come corsa separata**: (1) griglia estesa oltre 0.5 sul solo
-      braccio A — tutti i fold scelgono il **bordo**, quindi l'optimum sta fuori da ciò che è stato misurato;
-      (2) il canale valore misurato **al netto del null** (`shrink_weight` accesa al suo migliore e il peso del
-      valore spazzato sopra), così si misura il contributo marginale e non la somma; (3) conferma indipendente
-      sulla finestra **26/27**, l'unica che non ha partecipato a niente. ⚠️ La griglia **non** si allarga come
-      ritocco dentro la stessa corsa: sarebbe fittare dopo aver visto la curva.
+- [x] **FATTO il 05/08 (notte) — il FOLLOW-UP di §7-septies, e la famiglia SI CHIUDE**: griglia estesa (la
+      curva **gira dentro** il misurato: migliore 0.75 su `default` con robust PASS, 0.50 su euro; a 3.0 il
+      termine costa più che essere spento) **e** il canale misurato al netto del null, che è la parte che
+      decide: il valore aggiunge **+0.41%** su `default` e **+0.045%** su euro, entrambi **sotto il pavimento**.
+      I conti tornano — null +0.37% + valore +0.41% = il +0.78% che la forma grezza otteneva in PASS: **era la
+      somma di due effetti entrambi sotto il pavimento**. `value_weight` e `shrink_weight` restano 0.0. Nuovo
+      in `sweep`: `BASELINES`, il baseline dichiarato per famiglia (il marginale si misura per fold contro il
+      punto solo-null). ⚠️ Registrato anche un mio errore di pre-registrazione: «margine sul secondo positivo»
+      non era esprimibile con le metriche del report.
+- [ ] **Di quel follow-up resta solo la (3): la conferma indipendente sulla finestra 26/27**, l'unica che non
+      ha partecipato a niente — e arriva a **giugno 2027**. I punti (1) griglia estesa e (2) canale al netto del
+      null sono stati eseguiti il 05/08 notte (riga sopra) e hanno chiuso la famiglia.
 - [x] **FATTO il 05/08 — il listone di AGOSTO entra** (spec v9.19 §1, commit `709bde7`): l'id campionato ha il
       fallback sulla pagina delle **quotazioni** (Serie A 26/27 = 21), con la guardia del **workbook che
       dichiara la sua stagione** perché quelle pagine servono «la lista corrente» qualunque stagione chiedi.
