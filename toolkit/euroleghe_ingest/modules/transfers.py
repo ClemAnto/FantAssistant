@@ -167,6 +167,19 @@ def parse_coach_history(html: str) -> list[dict]:
     return out
 
 
+def _counterpart(club_link) -> str | None:
+    """The other club's name, un-doubled: the page's own `title` for a man leaving for NO club reads
+    "svincolatosvincolato" (id 515, and the nested img says it once), which then travelled all the way to
+    the sheet. An exactly repeated string is collapsed; anything else is taken as it is."""
+    if not club_link:
+        return None
+    name = (club_link.get("title") or "").strip()
+    half = len(name) // 2
+    if name and len(name) % 2 == 0 and name[:half] == name[half:]:
+        return name[:half]
+    return name or None
+
+
 def parse_club_transfers(html: str) -> list[dict]:
     """The club-transfers page -> [{direction, name, counterpart, fee}].
 
@@ -192,7 +205,7 @@ def parse_club_transfers(html: str) -> list[dict]:
             out.append({
                 "direction": direction,
                 "name": player_link.get_text(strip=True),
-                "counterpart": (club_link.get("title") or "").strip() if club_link else None,
+                "counterpart": _counterpart(club_link),
                 "fee": parse_fee(cells[-1] if cells else None),
             })
     return out

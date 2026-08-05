@@ -34,7 +34,8 @@ is a mirror/archive). Before any work read, in order:
 `stato-progetto-continuita-v5.md` -> `todolist-mantra-euroleghe-v5.md` -> **`gate-motore-v1.md`** (the gate
 protocol, every verdict and every falsified hypothesis: read it before proposing any rule) ->
 **`metrica-asta-surplus-v1.md`** (what the Auction panel ranks by, and why it is not VALUE) ->
-`spec-euroleghe-ingest-v9.md` -> `nota-modello-set-pieces-v2.md` -> `modello-previsionale-v3.8.md` ->
+**`assistente-asta-v1.md`** (what the assistant does with it at the table: three questions, three
+numbers, and the UI rules that are requirements) -> `spec-euroleghe-ingest-v9.md` -> `nota-modello-set-pieces-v2.md` -> `modello-previsionale-v3.8.md` ->
 the consolidated notes in the same folder.
 Drive dataset IDs (xlsx/csv, not in git) are in [docs/DRIVE-MANIFEST.md](docs/DRIVE-MANIFEST.md).
 

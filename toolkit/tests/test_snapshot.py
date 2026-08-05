@@ -2088,3 +2088,49 @@ def test_every_player_gets_a_surplus_and_it_says_what_it_cost():
 
     # an older season is worth less the further back it is, and never less than the anchor it replaces
     assert est.older_confidence(2) > est.older_confidence(4) >= est.CONFIDENCE["anchor"]
+
+
+def test_an_out_is_not_a_departure_when_an_arrival_brings_him_back(tmp_path):
+    """«Verifica bene le rose delle squadre ed i trasferimenti: Gutierrez ad esempio non è più nel Napoli.»
+
+    Every source the sheet had said Napoli - the 26/27 listone lists him there and the squad pages were days
+    behind - and the transfer knew: Napoli -> Bayer 04 Leverkusen, 01/07/2026. But reading an OUT on its own
+    reported 82 departures, most of them false: a club's page carries the same man TWICE on the same 1 July
+    when a loan returns him and the club then signs him permanently (Hojlund is in Napoli's OUT to Manchester
+    United AND in its IN from Manchester United, 44M). So a man has left only when the window holds an OUT
+    from his club and NO arrival back at it - and `transfers_history` had to be re-keyed for both rows to
+    exist at all (`db.database.widen_transfers_pk`).
+    """
+    from euroleghe_ingest.modules import snapshot
+
+    class Obs:
+        def __init__(self, club):
+            self.club_target = club
+
+    moves = {
+        # Gutierrez: one OUT, nothing back
+        1: {"at": set(), "out": [(snapshot._club_key("Napoli"), "Bayer 04 Leverkusen", "2026-07-01", 26e6)]},
+        # Hojlund: the loan return AND the permanent signing, same club, same day
+        2: {"at": {snapshot._club_key("Napoli")},
+            "out": [(snapshot._club_key("Napoli"), "Manchester United", "2026-07-01", None)]},
+    }
+    assert snapshot.left_his_club(Obs("Napoli"), moves[1]) == ("Bayer 04 Leverkusen", "2026-07-01")
+    assert snapshot.left_his_club(Obs("Napoli"), moves[2]) == (None, None)
+    assert snapshot.left_his_club(Obs("Napoli"), None) == (None, None)
+    # a spelling difference is not a transfer: «LOSC Lilla» and «Lille» are one club
+    same = {"at": set(), "out": [(snapshot._club_key("LOSC Lilla"), "Lille", "2026-07-01", None)]}
+    assert snapshot.left_his_club(Obs("Lille"), same) == (None, None)
+
+    # ...and the parse no longer hands the sheet the page's own doubled label for "no club"
+    from euroleghe_ingest.modules import transfers
+
+    class Link:
+        def __init__(self, title):
+            self._title = title
+
+        def get(self, _key):
+            return self._title
+
+    assert transfers._counterpart(Link("svincolatosvincolato")) == "svincolato"
+    assert transfers._counterpart(Link("Bayer 04 Leverkusen")) == "Bayer 04 Leverkusen"
+    assert transfers._counterpart(None) is None

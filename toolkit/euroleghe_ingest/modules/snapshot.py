@@ -1047,6 +1047,8 @@ def evidence_age(conn, window: features.Window) -> tuple[dict, list[str]]:
                                   for source, latest in sorted(stale.items()))
                      + ". A squad is a volatile state: a man transferred since then is still drawn where "
                        "he was. Re-run `fc_site` and `transfers` to move these dates.")
+    if facts["transfers_in_window"]:
+        pass                                   # counted per row instead; the note is written with the rows
     if not facts["transfers_in_window"]:
         notes.append(f"TRANSFER LAYER has no move dated {since} or later (newest: "
                      f"{facts['transfers_latest'] or 'none'}), so the market that built these squads is "
@@ -1195,6 +1197,53 @@ def _unpriced_reason(prediction, obs) -> str | None:
     return "no prediction"
 
 
+def departures(conn, window: features.Window, date: str) -> dict[int, dict]:
+    """{fc_id: {"at": {club keys he ARRIVED at}, "out": [(from key, destination, date)]}} in this window.
+
+    The operator's case: «Gutierrez ad esempio non è più nel Napoli» - and every source the sheet had said
+    Napoli, because the 26/27 listone lists him there and the squad pages had not caught up (fc_site 04/08,
+    transfermarkt 29/07). What DID know is the transfer: Napoli -> Bayer 04 Leverkusen, 01/07/2026, 26M.
+
+    ⚠️ AN OUT IS NOT A DEPARTURE ON ITS OWN, and finding that out is why this reads both directions. A club's
+    page carries the same man twice on the same 1 July when a loan RETURNS him and the club then signs him
+    permanently: Hojlund is in Napoli's OUT (to Manchester United, no fee) and in its IN (from Manchester
+    United, 44M). Reading the OUT alone reported him as leaving the club that had just bought him - and 82
+    rows of the first version were exactly that. So a man counts as gone only when the window holds an OUT
+    from his club and NO arrival back at it.
+
+    Only transfers dated at or before the sheet's own date: a back-dated sheet must not read a move that had
+    not happened yet. `transfers_history` had to be re-keyed for this to be possible at all - see
+    `db.database.widen_transfers_pk`.
+    """
+    floor = f"{int(window.target_season.split('-')[0])}-01-01"
+    out: dict[int, dict] = {}
+    for fc_id, moved_on, from_club, to_club, fee in conn.execute(
+            """
+            SELECT fc_id, date, from_club, to_club, fee FROM transfers_history
+            WHERE date >= ? AND date <= ? ORDER BY date
+            """,
+            (floor, date)):
+        mine = out.setdefault(fc_id, {"at": set(), "out": []})
+        if to_club:
+            mine["at"].add(_club_key(to_club))
+        if from_club:
+            mine["out"].append((_club_key(from_club), to_club, moved_on, fee))
+    return out
+
+
+def left_his_club(obs, moves: dict | None) -> tuple[str | None, str | None]:
+    """(destination, date) if a transfer took him away from the club this row shows - else (None, None)."""
+    if not moves:
+        return None, None
+    here = _club_key(obs.club_target)
+    if not here or here in moves["at"]:
+        return None, None                      # he arrived AT this club in the same window: he is here
+    for from_key, to_club, moved_on, _fee in reversed(moves["out"]):
+        if from_key == here and _club_key(to_club) != here:
+            return to_club, moved_on
+    return None, None
+
+
 def estimation_layer(conn, window: features.Window, platform: str,
                      observations) -> dict[int, dict]:
     """Everything the fallback valuation needs, gathered once: {fc_id: {...}} - see `engine.estimate`.
@@ -1298,6 +1347,13 @@ def estimate_for(obs, prediction, layer: dict, anchors: dict, data,
     return est.Estimate(anchor,
                         presences(None) or est.default_presences(calendar, platform, "unmeasured"),
                         "anchor", est.CONFIDENCE["anchor"], f"nothing measured anywhere: {level}")
+
+
+def _club_key(name: str | None) -> str:
+    """Two spellings of one club must not read as two clubs: «LOSC Lilla» and «Lille» are the same side, and
+    a naive comparison would report a departure for every man on the sheet whose provider spells it its own
+    way. Same normalisation `matching.club_key` uses, which is what `club_xref` was built with."""
+    return matching.club_key(name or "") if name else ""
 
 
 def _votes(count: int) -> str:
@@ -1928,6 +1984,8 @@ PLAYER_COLUMNS: tuple[str, ...] = (
     # ESTIMATED, a third class next to engine_ (gated) and desc_ (measured): every player gets a surplus,
     # penalised for what we do not know about him, with the basis and the penalty on the row (engine/estimate.py)
     "est_fm", "est_pv", "est_surplus", "est_basis", "est_confidence", "est_note",
+    # a TRANSFER says he has left the club this row shows him at (see `departures`): reported, never applied
+    "desc_left_for", "desc_left_on",
     # descriptive, NOT gated
     "desc_form_club_matches", "desc_form_measured", "desc_form_played", "desc_form_unused",
     "desc_form_unknown", "desc_form_starts",
@@ -2015,6 +2073,7 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
     # season and their club's own level to get one.
     window = window or data.window
     estimation = estimation_layer(conn, window, platform, data.observations)
+    left = departures(conn, window, window.auction_date)
     ranks: dict[int, int] = {}
     for role in {obs.role_classic for obs in data.observations if obs.role_classic}:
         ranked = sorted(
@@ -2045,6 +2104,7 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
         pv_pred = prediction.pv_pred if prediction else None
         guess = estimate_for(obs, prediction, estimation, data.anchors, data, window,
                              platform)
+        gone_to, gone_on = left_his_club(obs, left.get(obs.fc_id))
         guess_surplus = est.surplus(guess.fm, guess.pv,
                                     data.replacement.get(obs.role_classic or ""), guess.confidence)
         rows.append({
@@ -2071,6 +2131,11 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             "est_basis": guess.basis,
             "est_confidence": _round(guess.confidence, 2),
             "est_note": guess.note,
+            # A transfer dated in this window took him somewhere else, and no arrival brought him back:
+            # the listone and the squad pages can be weeks behind in August, and this is the one source
+            # that carries the event (`left_his_club` - an OUT alone is not a departure).
+            "desc_left_for": gone_to,
+            "desc_left_on": gone_on,
             "desc_form_club_matches": form.get("club_matches"),
             "desc_form_measured": form.get("measured"),
             "desc_form_played": form.get("played"), "desc_form_unused": form.get("unused"),
@@ -2555,6 +2620,17 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
                      + ". A man with no season on this platform played his football on the other calendar "
                        "(or outside the perimeter): his measured history exists and is not a Serie A one, "
                        "and converting it is R1, which the gate has refused twice (§7-octies).")
+    gone = [row for row in rows if row.get("desc_left_for")]
+    if gone:
+        notes.append(
+            f"⚑ {len(gone)} players are still listed at a club a TRANSFER says they have LEFT, and the row "
+            f"keeps its club on purpose - the listone is the game's own authority on who is in a squad, so "
+            f"the sheet reports the contradiction instead of overruling it. In August the listone and the "
+            f"squad pages run days behind the market: "
+            + " · ".join(f"{row['name']} -> {row['desc_left_for']} ({row['desc_left_on']})"
+                         for row in gone[:6])
+            + (f" · and {len(gone) - 6} more" if len(gone) > 6 else "")
+            + ". `desc_left_for` / `desc_left_on` carry it per row.")
     if clubs:
         wanted = {matching.club_key(name) for name in clubs}
         kept = [row for row in rows if matching.club_key(row.get("club") or "") in wanted]

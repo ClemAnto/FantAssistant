@@ -287,7 +287,13 @@ CREATE TABLE IF NOT EXISTS transfers_history (
     from_league TEXT,
     to_league   TEXT,
     fee         REAL,
-    PRIMARY KEY (fc_id, date)
+    -- THE COUNTERPART IS PART OF THE KEY, not decoration. Transfermarkt dates every summer move
+    -- YYYY-07-01 and a club's page can legitimately carry the SAME player twice on that date - the loan
+    -- return (OUT to the owner) and the permanent signing (IN from the owner). Keyed on (fc_id, date)
+    -- the two collapsed and whichever was parsed last won, which made Hojlund read as leaving Napoli for
+    -- Manchester United in the very summer Napoli bought him. Same shape as the `match_ratings` note: a
+    -- key that cannot represent two real events silently drops one.
+    PRIMARY KEY (fc_id, date, from_club, to_club)
 );
 
 -- The player's MARKET VALUE, by season, from the source's own squad page of that season.

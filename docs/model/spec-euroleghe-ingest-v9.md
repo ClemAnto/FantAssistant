@@ -1,5 +1,5 @@
 # Spec — Toolkit `euroleghe-ingest` v9 (task 1.0 della roadmap)
-**Aggiornata: 5 agosto 2026 (v9.24 — ogni calciatore ha un SURPLUS, penalizzato e dichiarato; v9 SOSTITUISCE la v8)** · Python · Output: SQLite `euroleghe.db` + CSV normalizzati
+**Aggiornata: 5 agosto 2026 (v9.25 — le rose contro i trasferimenti, e una PK che non rappresentava due eventi; v9 SOSTITUISCE la v8)** · Python · Output: SQLite `euroleghe.db` + CSV normalizzati
 *Sigle: fc_id = identificativo fantacalcio.it · FM = fantamedia · Mv = media voto · Pv = partite a voto · xref = cross-reference id tra siti · xG/xA = expected goals/assists · manifest = lista file da recuperare.*
 **Convenzione: identificatori sempre in INGLESE** (tabelle, colonne, moduli, variabili); italiano solo nella documentazione.
 
@@ -493,6 +493,42 @@ ruolo**, **8% disgiunti** — e le disgiunte sono quasi tutte `a` del listone co
 visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**. Riscontri esatti:
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
+
+## Novità v9.25 (5 agosto 2026 — le rose contro i trasferimenti: una PK che non rappresentava due eventi)
+
+Nasce dalla segnalazione «Gutierrez non è più nel Napoli» e finisce su una chiave primaria. 302 test,
+`backtest --verify` **22/22**.
+
+### 1. Il caso, e cosa sapeva ciascuna fonte
+Il foglio aveva ragione su quello che aveva: il listone 26/27 lo elenca al Napoli e le due fonti di rosa
+dicevano Napoli (`fc_site` 04/08, `transfermarkt` 29/07). A sapere era il **trasferimento**: Napoli → Bayer
+04 Leverkusen, 01/07/2026, 26M — che però **non era nel DB**, perché `transfers` non era mai stato rilanciato
+per l'estate 2026 (v9.23 §2). Rilanciato: **+399** movimenti datati 2026.
+
+### 2. ⚠️ Un OUT non è una partenza, e la prima versione ne ha inventate 82
+Leggendo il solo OUT il foglio segnalava **82** partenze, fra cui **Hojlund** («Napoli → Manchester United»)
+e **Malen** («Roma → Aston Villa») — l'opposto della realtà. Causa: la pagina di un club porta lo **stesso
+uomo due volte** con la stessa data del 1 luglio, il **rientro dal prestito** (OUT verso il proprietario) e
+l'**acquisto definitivo** (IN dallo stesso club). Regola corretta: uno è partito solo se la finestra ha un OUT
+dal suo club **e nessun arrivo che lo riporta lì** (`left_his_club`). Risultato: **51** righe, Hojlund e Malen
+fuori, Gutierrez dentro.
+
+### 3. La causa vera era la PRIMARY KEY, e la migrazione la sistema
+`transfers_history` era chiave `(fc_id, date)`, e Transfermarkt data **ogni** movimento estivo `YYYY-07-01`:
+le due righe si schiacciavano e sopravviveva quella scritta per ultima (l'OUT, perché la tabella delle
+partenze è parsata dopo). Ora la chiave porta anche il **controparte** — `(fc_id, date, from_club, to_club)`
+— con una migrazione esplicita (`db.database.widen_transfers_pk`: crea, copia, droppa, rinomina, idempotente).
+Effetto sul re-ingest **offline** dalla stessa cache: **2949 → 4383** trasferimenti, **399 → 523** datati 2026.
+È la stessa forma del difetto già scritto per `match_ratings`: una chiave che non può rappresentare due eventi
+veri ne perde uno in silenzio.
+
+### 4. Come lo si vede, e cosa il foglio NON fa
+Colonne `desc_left_for` / `desc_left_on`, una nota di foglio con i nomi, e nel pannello il marchio **⇥** col
+tooltip («to Bayer 04 Leverkusen on 2026-07-01. He is still listed here, so treat the row as a question and
+not as a squad»). Il foglio **non lo sposta**: il listone è l'autorità del gioco su chi è in una rosa, e dove
+due fonti discordano la risposta è dirlo, non indovinare. Corretto anche un artefatto della fonte: il `title`
+della pagina per «nessun club» legge `svincolatosvincolato`, e una stringa esattamente raddoppiata ora viene
+richiusa a metà.
 
 ## Novità v9.24 (5 agosto 2026 — OGNI calciatore ha un SURPLUS, penalizzato e con la nota che dice perché)
 

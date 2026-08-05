@@ -19,14 +19,34 @@ La knowledge base è ora nel repo git **`FantAssistant`**, cartella **`docs/mode
 `00-BRIDGE` (questo) → `stato-progetto-continuita-v5.md` → `todolist-mantra-euroleghe-v5.md` →
 **`gate-motore-v1.md`** (protocollo del gate, verdetti, ipotesi falsificate: leggerlo prima di
 proporre qualsiasi regola) → **`metrica-asta-surplus-v1.md`** (con cosa il pannello ordina, e perché non
-è VALORE) → `spec-euroleghe-ingest-v9.md` → `nota-modello-set-pieces-v2.md` →
+è VALORE) → **`assistente-asta-v1.md`** (cosa l'assistente fa al tavolo: tre domande, tre numeri, e le
+regole di UI che sono requisiti) → `spec-euroleghe-ingest-v9.md` → `nota-modello-set-pieces-v2.md` →
 `modello-previsionale-v3.8.md` → consolidati di dettaglio. Tutti in `docs/model/`.
 
 ## STATO AL 5 AGOSTO 2026 — LEGGI QUESTO PRIMA DI TUTTO
 
 Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
 
-### ULTIMO IN ORDINE DI TEMPO — 5/08/2026 notte: OGNI calciatore ha un SURPLUS, penalizzato e dichiarato
+### ULTIMO IN ORDINE DI TEMPO — 5/08/2026 notte: le rose contro i trasferimenti, e una PK che perdeva un evento
+
+Spec **«Novità v9.25»**, nata da «Gutierrez non è più nel Napoli». `backtest --verify` 22/22.
+
+1. **Ogni fonte diceva Napoli** (listone 26/27, `fc_site` 04/08, `transfermarkt` 29/07) e a sapere era il
+   **trasferimento** — Napoli → Bayer 04 Leverkusen, 01/07/2026, 26M — che non era nel DB perché `transfers`
+   non era stato rilanciato per l'estate 2026. Rilanciato.
+2. ⚠️ **Un OUT non è una partenza**: leggendo il solo OUT il foglio inventava **82** partenze, fra cui Hojlund
+   («Napoli → Manchester United») e Malen, perché la pagina di un club porta lo **stesso uomo due volte** con
+   la data del 1 luglio — rientro dal prestito (OUT) e acquisto definitivo (IN). Regola corretta: OUT dal suo
+   club **e nessun arrivo che lo riporta lì** → **51** righe, Hojlund e Malen fuori, Gutierrez dentro.
+3. **La causa era la PRIMARY KEY**: `(fc_id, date)` con tutti i movimenti estivi datati `YYYY-07-01` schiacciava
+   le due righe e teneva l'ultima scritta. Ora la chiave porta il **controparte**, con migrazione esplicita
+   (`widen_transfers_pk`); re-ingest offline dalla stessa cache: **2949 → 4383** trasferimenti, **399 → 523**
+   datati 2026. Stessa forma del difetto già scritto per `match_ratings`.
+4. **Come si vede**: `desc_left_for` / `desc_left_on`, una nota di foglio, e il marchio **⇥** nel pannello. Il
+   foglio **non sposta** il giocatore: il listone è l'autorità del gioco su chi è in rosa, e dove due fonti
+   discordano si dichiara, non si indovina.
+
+### 5/08/2026 notte: OGNI calciatore ha un SURPLUS, penalizzato e dichiarato
 
 Regola dell'operatore, spec **«Novità v9.24»**. `engine_*` non si muove di un decimale (`backtest --verify`
 22/22): la stima è una **quarta** classe di colonne, `est_*`, in `engine/estimate.py`.

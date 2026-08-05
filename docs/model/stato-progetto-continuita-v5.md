@@ -1427,3 +1427,21 @@ precedente gioca una quota mediana di **0.289** (default) e 0.194 (euro); chi ha
 Foglio Serie A: righe con un surplus da **346 su 629** a **629 su 629** (346 gatate + 283 stimate: 146
 `shrunk`, 100 `anchor`, 28 `older`, 9 `other_platform`). Foglio euro: tutte `core`, perché là R0c prezza già
 tutti.
+
+
+## Sessione 05/08/2026 (notte, 4) — le rose contro i trasferimenti, e una PK che perdeva un evento
+
+Spec **«Novità v9.25»**, dalla segnalazione «Gutierrez non è più nel Napoli». 302 test, `backtest --verify`
+22/22.
+
+- **Il caso**: ogni fonte del foglio diceva Napoli (listone 26/27, `fc_site` 04/08, `transfermarkt` 29/07); a
+  sapere era il trasferimento (Napoli → Bayer 04 Leverkusen, 01/07/2026, 26M), che non era nel DB perché
+  `transfers` non era stato rilanciato per l'estate 2026.
+- ⚠️ **Un OUT non è una partenza**: la prima versione del controllo segnalava **82** partenze, fra cui Hojlund
+  e Malen, perché la pagina di un club porta lo stesso uomo due volte con la data del 1 luglio — rientro dal
+  prestito e acquisto definitivo. Corretto: OUT dal suo club **e** nessun arrivo che lo riporta lì → 51 righe.
+- **La causa era la PK** `(fc_id, date)`: tutti i movimenti estivi sono datati `YYYY-07-01`, quindi le due
+  righe si schiacciavano e vinceva l'ultima scritta. Migrazione esplicita (`widen_transfers_pk`) e re-ingest
+  offline: **2949 → 4383** trasferimenti. Stessa forma del difetto documentato per `match_ratings`.
+- **Il foglio dichiara e non sposta**: `desc_left_for`/`desc_left_on`, nota di foglio, marchio ⇥ nel pannello.
+  Il listone è l'autorità del gioco su chi è in una rosa; dove due fonti discordano si dice, non si indovina.

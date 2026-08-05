@@ -70,6 +70,41 @@ def migrate(conn: sqlite3.Connection) -> list[str]:
     return applied
 
 
+def widen_transfers_pk(conn: sqlite3.Connection) -> bool:
+    """Rebuild `transfers_history` with the COUNTERPART in its primary key, if it still has the old one.
+
+    `CREATE TABLE IF NOT EXISTS` cannot change a key and SQLite cannot alter one, so an existing DB needs
+    this: create, copy, drop, rename. It is worth the migration because the old key could not represent two
+    real events - a loan return and a permanent signing, both dated 1 July, both on the club's own page -
+    and silently kept whichever was written last (Hojlund read as LEAVING Napoli for Manchester United in
+    the summer Napoli signed him permanently). Idempotent: it looks at the key it finds.
+    """
+    sql = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='transfers_history'").fetchone()
+    if not sql or "PRIMARY KEY (fc_id, date, from_club, to_club)" in sql[0]:
+        return False
+    conn.executescript(
+        """
+        CREATE TABLE transfers_history__new (
+            fc_id       INTEGER NOT NULL REFERENCES players(fc_id),
+            date        TEXT NOT NULL,
+            from_club   TEXT,
+            to_club     TEXT,
+            from_league TEXT,
+            to_league   TEXT,
+            fee         REAL,
+            PRIMARY KEY (fc_id, date, from_club, to_club)
+        );
+        INSERT OR REPLACE INTO transfers_history__new
+            SELECT fc_id, date, from_club, to_club, from_league, to_league, fee FROM transfers_history;
+        DROP TABLE transfers_history;
+        ALTER TABLE transfers_history__new RENAME TO transfers_history;
+        """
+    )
+    conn.commit()
+    return True
+
+
 def apply_schema(conn: sqlite3.Connection) -> None:
     """Apply schema.sql (idempotent: CREATE TABLE IF NOT EXISTS) and migrate an older DB."""
     conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
@@ -77,6 +112,9 @@ def apply_schema(conn: sqlite3.Connection) -> None:
     added = migrate(conn)
     if added:
         print(f"[db] migrated: added {', '.join(added)}")
+    if widen_transfers_pk(conn):
+        print("[db] migrated: transfers_history now keys on the COUNTERPART too - re-run `transfers` "
+              "(or its offline reingest) to recover the rows the old key dropped")
 
 
 def record_run(conn: sqlite3.Connection, module: str, started_at: str, status: str,

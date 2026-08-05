@@ -2975,6 +2975,7 @@ class SnapshotView(ttk.Frame):
         ("⧖", "nothing measured about him yet, and the toolkit can still fetch it (recent_form)"),
         ("⟳", "the toolkit is fetching his data right now"),
         ("→", "priced from a WINDOW measured elsewhere, not from a season here"),
+        ("⇥", "a TRANSFER says he has left this club - the listone and the squad pages can be days behind"),
     )
 
     # Whether a data-recovery run is in flight, so the mark says «being fetched» instead of «missing».
@@ -3047,6 +3048,11 @@ class SnapshotView(ttk.Frame):
             # them by "he will play" and not by how well: Daffara reads 17.0 off ten Serie B matches. A
             # column that stops saying "waiting" and then says nothing is the worse of the two.
             bool(row.get("desc_elsewhere_matches")) and not row.get("desc_season_matches"),
+            # ...and a man a TRANSFER says has left the club he is listed at. The row keeps its club - the
+            # listone is the game's own authority on who is in a squad - so the flag is how the operator sees
+            # the contradiction at all («verifica bene le rose ed i trasferimenti»: Gutierrez was still drawn
+            # at Napoli while the transfer had him at Leverkusen since 1 July).
+            bool(row.get("desc_left_for")),
         )
         icons = "".join(icon for (icon, _why), on in zip(self.FLAG_ICONS, present, strict=True) if on)
         words = []
@@ -3066,6 +3072,9 @@ class SnapshotView(ttk.Frame):
                 extra = (f" - {row.get('desc_elsewhere_matches')} matches, "
                          f"{row.get('desc_elsewhere_minutes')} minutes in "
                          f"{row.get('desc_elsewhere_where') or 'another league'}")
+            elif icon == "⇥":
+                extra = (f" - to {row.get('desc_left_for')} on {row.get('desc_left_on')}. He is still "
+                         f"listed here, so treat the row as a question and not as a squad")
             words.append(f"{icon}  {why}{extra}")
         return icons, "\n".join(words)
 
