@@ -27,7 +27,24 @@ regole di UI che sono requisiti) → `spec-euroleghe-ingest-v9.md` → `nota-mod
 
 Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
 
-### ULTIMO IN ORDINE DI TEMPO — 5/08/2026 notte: le rose contro i trasferimenti, e una PK che perdeva un evento
+### ULTIMO IN ORDINE DI TEMPO — 5/08/2026 notte: la fonte «in tempo reale» sulle rose era già in cache
+
+Richiesta dell'operatore («troviamo un ente affidabile e aggiornato in tempo reale»), spec **«Novità v9.26»**.
+
+1. **L'ente esisteva**: `/team/{id}/players` del provider, **una richiesta per club**, scaricata **ogni giorno**
+   per i ruoli granulari e **datata**. Il payload del **28/07** per il Napoli ha 46 giocatori e **non**
+   Gutierrez, mentre `fc_site` lo elencava il **04/08** e la pagina Transfermarkt il **29/07**: sapeva della
+   partenza una settimana prima. Ora è la **quarta fonte** di `squad_snapshot` (1546 righe), letta dallo stesso
+   parser dei ruoli — zero richieste nuove.
+2. **Il suo potere è l'ASSENZA**, che nessun'altra fonte nostra sa esprimere: una pagina rosa dice chi c'è, un
+   trasferimento dice un evento, solo una rosa intera dice «non c'è più». Due segnali indipendenti: **46** dal
+   trasferimento + **47** dall'assenza; il foglio passa da 629 a **651** righe.
+3. ⚠️ **La guardia**: chi non ha identità del provider manca da ogni payload per costruzione, quindi l'assenza
+   è evidenza solo per chi il provider sa identificare — «vuoto = ignoto, mai zero». E un acquisto fatto dopo
+   la data del payload legge come assente finché non lo si rilegge: per questo il flag porta **la data**.
+4. **Il foglio dichiara e non sposta**: il listone resta l'autorità del gioco su chi è in rosa.
+
+### 5/08/2026 notte: le rose contro i trasferimenti, e una PK che perdeva un evento
 
 Spec **«Novità v9.25»**, nata da «Gutierrez non è più nel Napoli». `backtest --verify` 22/22.
 

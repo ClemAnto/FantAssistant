@@ -2134,3 +2134,39 @@ def test_an_out_is_not_a_departure_when_an_arrival_brings_him_back(tmp_path):
     assert transfers._counterpart(Link("svincolatosvincolato")) == "svincolato"
     assert transfers._counterpart(Link("Bayer 04 Leverkusen")) == "Bayer 04 Leverkusen"
     assert transfers._counterpart(None) is None
+
+
+def test_absence_from_the_live_squad_is_read_only_for_a_man_the_provider_knows():
+    """«Il listone può non essere aggiornato al minuto, troviamo un ente affidabile e aggiornato in tempo reale
+    che ci dia certezza sui trasferimenti e sulle rose effettive.»
+
+    It already existed and nothing read it as a squad: the provider's own team page, one request per club,
+    downloaded every day for the granular roles. Measured on the case that asked the question - on 28/07 its
+    Napoli payload had 46 players and NOT Gutierrez, while `fc_site` still listed him on 04/08 and the
+    Transfermarkt squad page on 29/07. Its power is ABSENCE, which no other source of ours can express.
+
+    And absence has a twin that means the opposite, which is what this pins: a man with no provider identity is
+    missing from every payload by construction, so reading him as "gone" would flag the unresolved half of the
+    league. «Vuoto = ignoto, mai zero.»
+    """
+    from euroleghe_ingest.modules import snapshot
+
+    class Obs:
+        def __init__(self, fc_id, club):
+            self.fc_id, self.club_target = fc_id, club
+
+    live = {"Napoli": {"on": "2026-08-05", "ids": {1, 2}}}
+    known = {1, 2, 3}
+    # 3 is known to the provider and not in the payload: he is not in that squad any more
+    where, when = snapshot.left_his_club(Obs(3, "Napoli"), None, live, known)
+    assert where == "not in the club's live squad" and when == "2026-08-05"
+    # 1 is in it: nothing to say
+    assert snapshot.left_his_club(Obs(1, "Napoli"), None, live, known) == (None, None)
+    # 9 has no provider identity: absence is UNKNOWN, never a departure
+    assert snapshot.left_his_club(Obs(9, "Napoli"), None, live, known) == (None, None)
+    # a club nobody has read live: silence, not a departure
+    assert snapshot.left_his_club(Obs(3, "Lecce"), None, live, known) == (None, None)
+    # ...and the transfer wins when it exists, because it says WHERE he went
+    moves = {"at": set(), "out": [(snapshot._club_key("Napoli"), "Bayer 04 Leverkusen", "2026-07-01", 1.0)]}
+    assert snapshot.left_his_club(Obs(3, "Napoli"), moves, live, known) == (
+        "Bayer 04 Leverkusen", "2026-07-01")

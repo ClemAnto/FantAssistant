@@ -1,5 +1,5 @@
 # Spec — Toolkit `euroleghe-ingest` v9 (task 1.0 della roadmap)
-**Aggiornata: 5 agosto 2026 (v9.25 — le rose contro i trasferimenti, e una PK che non rappresentava due eventi; v9 SOSTITUISCE la v8)** · Python · Output: SQLite `euroleghe.db` + CSV normalizzati
+**Aggiornata: 5 agosto 2026 (v9.26 — la fonte in tempo reale sulle rose era già in cache; v9 SOSTITUISCE la v8)** · Python · Output: SQLite `euroleghe.db` + CSV normalizzati
 *Sigle: fc_id = identificativo fantacalcio.it · FM = fantamedia · Mv = media voto · Pv = partite a voto · xref = cross-reference id tra siti · xG/xA = expected goals/assists · manifest = lista file da recuperare.*
 **Convenzione: identificatori sempre in INGLESE** (tabelle, colonne, moduli, variabili); italiano solo nella documentazione.
 
@@ -493,6 +493,39 @@ ruolo**, **8% disgiunti** — e le disgiunte sono quasi tutte `a` del listone co
 visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**. Riscontri esatti:
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
+
+## Novità v9.26 (5 agosto 2026 — la fonte «in tempo reale» sulle rose c'era già, e nessuno la leggeva come rosa)
+
+Richiesta dell'operatore: «il listone può non essere aggiornato al minuto, troviamo un ente affidabile e
+aggiornato in tempo reale che ci dia certezza sui trasferimenti e sulle rose effettive». 303 test, ruff pulito.
+
+### 1. L'ente esisteva, ed era in cache
+`/team/{id}/players` del provider — **una richiesta per club**, che lo snapshot scarica **ogni giorno** per i
+ruoli granulari e che è **datata**. Misurato sul caso che ha generato la domanda: il payload del **28/07** per
+il Napoli ha **46 giocatori e NON contiene Gutierrez**, mentre `fc_site` lo elencava ancora il **04/08** e la
+pagina rosa Transfermarkt il **29/07**. Il provider sapeva della partenza **una settimana prima** di entrambe
+le fonti che il foglio stava usando. Ora è una **quarta fonte** di `squad_snapshot` (`source='sofascore'`,
+1546 righe alla prima passata), letta dallo **stesso parser** dei ruoli — zero richieste nuove, zero secondo
+parser.
+
+### 2. Il suo potere è l'ASSENZA, che nessun'altra nostra fonte sa esprimere
+Una pagina rosa dice **chi c'è**, un trasferimento dice **un evento**; solo la lettura di una rosa **intera**
+può dire «non c'è più». Quindi il flag ha ora **due segnali indipendenti**, il più forte prima: il trasferimento
+che nomina la destinazione, e l'assenza dalla rosa viva. Sul foglio Serie A: **46 dal trasferimento + 47
+dall'assenza**, e le righe del foglio passano da 629 a **651**, perché la fonte live porta uomini che le altre
+non avevano.
+
+### 3. ⚠️ La guardia, senza la quale il segnale si legge al rovescio
+Un uomo **senza identità del provider** manca da ogni payload per costruzione: leggerlo come «andato via»
+segnalerebbe metà campionato. Quindi l'assenza è evidenza **solo** per chi il provider sa identificare
+(`observed_players`) — è la regola «vuoto = ignoto, mai zero» già pagata due volte. E resta dichiarato il
+limite opposto: un acquisto fatto **dopo** la data del payload leggerà come assente finché non lo si rilegge,
+ed è per questo che il flag riporta sempre **la data dell'osservazione**.
+
+### 4. Cosa il foglio continua a NON fare
+Non sposta il giocatore. Il listone è l'autorità del gioco su chi è in una rosa — è da lì che si compra — e
+dove due fonti discordano il foglio **dichiara**: `desc_left_for` / `desc_left_on`, la nota di foglio, e il
+marchio **⇥** col tooltip nel pannello.
 
 ## Novità v9.25 (5 agosto 2026 — le rose contro i trasferimenti: una PK che non rappresentava due eventi)
 

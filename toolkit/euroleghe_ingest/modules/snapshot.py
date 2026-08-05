@@ -269,7 +269,7 @@ def derive_squads(ctx: Context, date: str | None = None) -> dict[str, int]:
     """
     conn = ctx.require_conn()
     date = date or dt.datetime.now(tz=dt.UTC).date().isoformat()
-    counts = {"fc_site": 0, "transfermarkt": 0, "appearances": 0}
+    counts = {"fc_site": 0, "sofascore": 0, "transfermarkt": 0, "appearances": 0}
     # Normalized ON WRITE: the three sources spell a club three ways, and a squad table keyed on the
     # provider's spelling cannot be joined to `clubs` - which is how a real squad ends up with no
     # league, no fixtures and no club in the sheet.
@@ -292,6 +292,42 @@ def derive_squads(ctx: Context, date: str | None = None) -> dict[str, int]:
                 "VALUES (?, ?, ?, 'fc_site', ?)",
                 (fc_id, latest_probabili, canonical(team), role))
             counts["fc_site"] += 1
+
+    # THE LIVE SQUAD, and it is the freshest thing we have: `/team/{id}/players` is one request per club,
+    # already downloaded every day for the granular roles, and dated. Measured on the case that asked for a
+    # reliable source: on 28/07 its Napoli payload had 46 players and NOT Gutierrez, while `fc_site` still
+    # listed him on 04/08 and the Transfermarkt squad page on 29/07 - the provider had the departure a week
+    # before either of them. Read from the same cache the roles layer reads (`positions._squad_players`), so
+    # there is one parser and no new request.
+    from euroleghe_ingest.modules.positions import _SQUAD_CACHE_NAME, _squad_players
+
+    by_provider = {source_id: club for source_id, club in conn.execute(
+        "SELECT x.source_id, cl.canonical_name FROM club_xref x JOIN clubs cl "
+        "ON cl.fc_club_id = x.fc_club_id WHERE x.source = 'sofascore'")}
+    player_ids = {source_id: fc_id for source_id, fc_id in conn.execute(
+        "SELECT source_id, fc_id FROM player_xref WHERE source = 'sofascore'")}
+    newest: dict[str, tuple[str, Path]] = {}
+    for path in sorted(ctx.config.cache_dir.glob("sofascore_squad_*.json")):
+        key = _SQUAD_CACHE_NAME.search(path.name)
+        if not key or key.group(2) > date:
+            continue                          # a payload observed after the sheet's day is the future
+        club = by_provider.get(key.group(1))
+        if club and (club not in newest or key.group(2) > newest[club][0]):
+            newest[club] = (key.group(2), path)
+    for club, (observed, path) in newest.items():
+        try:
+            players = _squad_players(json.loads(path.read_text(encoding="utf-8")))
+        except Exception as exc:   # noqa: BLE001 - a corrupt cache file must not abort a snapshot
+            print(f"[snapshot] skipping unreadable squad cache {path.name}: {exc}")
+            continue
+        for player in players:
+            fc_id = player_ids.get(str(player.get("id") or ""))
+            if fc_id is None:
+                continue
+            conn.execute(
+                "INSERT OR REPLACE INTO squad_snapshot(fc_id, valid_from, club, source, role_hint) "
+                "VALUES (?, ?, ?, 'sofascore', NULL)", (fc_id, observed, club))
+            counts["sofascore"] = counts.get("sofascore", 0) + 1
 
     from euroleghe_ingest.modules.injuries import _SQUAD_CACHE, parse_squad
 
@@ -352,8 +388,8 @@ def derive_squads(ctx: Context, date: str | None = None) -> dict[str, int]:
     conn.commit()
     total = conn.execute("SELECT COUNT(DISTINCT fc_id) FROM squad_snapshot").fetchone()[0]
     print(f"[snapshot] real squads: {total} players "
-          f"(fc_site {counts['fc_site']}, transfermarkt {counts['transfermarkt']}, "
-          f"appearances {counts['appearances']})")
+          f"(fc_site {counts['fc_site']}, sofascore {counts['sofascore']}, "
+          f"transfermarkt {counts['transfermarkt']}, appearances {counts['appearances']})")
     return counts
 
 
@@ -1231,16 +1267,61 @@ def departures(conn, window: features.Window, date: str) -> dict[int, dict]:
     return out
 
 
-def left_his_club(obs, moves: dict | None) -> tuple[str | None, str | None]:
-    """(destination, date) if a transfer took him away from the club this row shows - else (None, None)."""
-    if not moves:
-        return None, None
+def live_squads(conn, date: str) -> dict[str, dict]:
+    """{club: {"on": date, "ids": {fc_id, ...}}} - each club's LIVE squad, newest observation at or before `date`.
+
+    The reliable, near-real-time source the operator asked for, and it was already in the cache: the provider's
+    `/team/{id}/players` is one request per club, downloaded every day for the granular roles, and it had
+    Gutierrez out of Napoli on 28/07 while the listone and both squad pages still had him days later.
+
+    Its power is ABSENCE, which no other source of ours can express: a squad page lists who is in, a transfer
+    lists an event, and only a full squad read can say "he is not in it". Hence the second half of this layer -
+    and hence the guard below, because absence has a twin that means the opposite.
+    """
+    out: dict[str, dict] = {}
+    for club, observed in conn.execute(
+            "SELECT club, MAX(valid_from) FROM squad_snapshot WHERE source = 'sofascore' "
+            "AND valid_from <= ? GROUP BY club", (date,)):
+        out[club] = {"on": observed, "ids": set()}
+    for club, entry in out.items():
+        entry["ids"] = {fc_id for (fc_id,) in conn.execute(
+            "SELECT fc_id FROM squad_snapshot WHERE source = 'sofascore' AND club = ? AND valid_from = ?",
+            (club, entry["on"]))}
+    return out
+
+
+def observed_players(conn) -> set[int]:
+    """Whoever the provider can be asked about at all: an fc_id with a sofascore identity.
+
+    ⚠️ THE GUARD, and without it the live squad reads backwards. A man missing from a squad payload is either
+    gone or never identified - 1352 provider ids have no resolved identity, and the same is true the other way
+    round - and «vuoto = ignoto, mai zero rivali» is the rule this project already paid for twice. So absence
+    is only evidence about a man the provider KNOWS.
+    """
+    return {fc_id for (fc_id,) in conn.execute(
+        "SELECT fc_id FROM player_xref WHERE source = 'sofascore'")}
+
+
+def left_his_club(obs, moves: dict | None, live: dict | None = None,
+                  known: set[int] | None = None) -> tuple[str | None, str | None]:
+    """(where he is now / how we know, date) if he is no longer in the squad this row shows him at.
+
+    Two independent signals, strongest first: a TRANSFER that names the destination, and the LIVE SQUAD that
+    simply does not contain him. The second exists because a listone is a weekly publication and a squad is a
+    daily fact - it caught Gutierrez a week before anything else - and it is only read for a man the provider
+    can identify (`observed_players`), because otherwise "not in the payload" means "we never matched him".
+    """
     here = _club_key(obs.club_target)
-    if not here or here in moves["at"]:
-        return None, None                      # he arrived AT this club in the same window: he is here
-    for from_key, to_club, moved_on, _fee in reversed(moves["out"]):
-        if from_key == here and _club_key(to_club) != here:
-            return to_club, moved_on
+    if not here:
+        return None, None
+    if moves and here not in moves["at"]:
+        for from_key, to_club, moved_on, _fee in reversed(moves["out"]):
+            if from_key == here and _club_key(to_club) != here:
+                return to_club, moved_on
+    if live and known is not None and obs.fc_id in known:
+        squad = live.get(obs.club_target or "")
+        if squad and squad["ids"] and obs.fc_id not in squad["ids"]:
+            return "not in the club's live squad", squad["on"]
     return None, None
 
 
@@ -2074,6 +2155,8 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
     window = window or data.window
     estimation = estimation_layer(conn, window, platform, data.observations)
     left = departures(conn, window, window.auction_date)
+    live_squad = live_squads(conn, window.auction_date)
+    provider_known = observed_players(conn)
     ranks: dict[int, int] = {}
     for role in {obs.role_classic for obs in data.observations if obs.role_classic}:
         ranked = sorted(
@@ -2104,7 +2187,7 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
         pv_pred = prediction.pv_pred if prediction else None
         guess = estimate_for(obs, prediction, estimation, data.anchors, data, window,
                              platform)
-        gone_to, gone_on = left_his_club(obs, left.get(obs.fc_id))
+        gone_to, gone_on = left_his_club(obs, left.get(obs.fc_id), live_squad, provider_known)
         guess_surplus = est.surplus(guess.fm, guess.pv,
                                     data.replacement.get(obs.role_classic or ""), guess.confidence)
         rows.append({
@@ -2623,10 +2706,14 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
     gone = [row for row in rows if row.get("desc_left_for")]
     if gone:
         notes.append(
-            f"⚑ {len(gone)} players are still listed at a club a TRANSFER says they have LEFT, and the row "
-            f"keeps its club on purpose - the listone is the game's own authority on who is in a squad, so "
-            f"the sheet reports the contradiction instead of overruling it. In August the listone and the "
-            f"squad pages run days behind the market: "
+            f"⚑ {len(gone)} players are still listed at a club they are no longer in, by one of TWO "
+            f"independent signals - a transfer that names where they went, or the club's LIVE SQUAD not "
+            f"containing them (the provider's own team page, one request per club, re-read every day: it had "
+            f"Gutierrez out of Napoli on 28/07 while the listone and both squad pages still had him days "
+            f"later). The row keeps its club on purpose: the listone is the game's own authority on who is in "
+            f"a squad, so the sheet reports the contradiction instead of overruling it. Absence is only read "
+            f"for a man the provider can identify - otherwise 'not in the payload' would mean 'never matched' "
+            f"- and a signing made after the payload's date will read as absent until it is re-read: "
             + " · ".join(f"{row['name']} -> {row['desc_left_for']} ({row['desc_left_on']})"
                          for row in gone[:6])
             + (f" · and {len(gone) - 6} more" if len(gone) > 6 else "")

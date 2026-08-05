@@ -322,6 +322,26 @@ line only when FORCED - the defence exempt, since braccetti are centre backs by 
 number starts fixing one club while breaking another, the answer is a wrong MODEL, not a wrong value: revert
 and write it down (`docs/model/spec-euroleghe-ingest-v9.md` «Novità v9.16»).
 
+## A squad is a DAILY fact, and only a full read can say somebody is gone
+**Operator's rule, 05/08/2026: «il listone può non essere aggiornato al minuto, troviamo un ente affidabile e
+aggiornato in tempo reale».** The reliable source already existed and nothing read it as a squad: the provider's
+`/team/{id}/players` — one request per club, downloaded every day for the granular roles, and dated. Measured on
+the case that asked the question: its 28/07 payload had 46 Napoli players and **not** Gutierrez, while
+`fc_site` still listed him on 04/08 and the Transfermarkt squad page on 29/07. Three rules come out of it:
+- **only a whole-squad read can express ABSENCE.** A squad page says who is in, a transfer says an event
+  happened; neither can say "he is not there any more". That is why the departure flag has two independent
+  signals (the transfer, which names the destination, and the live squad, which simply lacks him) and why
+  `squad_snapshot` now carries the provider as a fourth source.
+- **absence has a twin that means the opposite**: a man with no provider identity is missing from every payload
+  by construction, so absence is only evidence about a man the provider can identify — «vuoto = ignoto, mai
+  zero», the same rule the duel columns are built on. And a signing made after the payload's date reads as
+  absent until it is re-read, so the flag always carries the OBSERVATION DATE.
+- **the sheet declares and does not overrule.** The listone is the game's own authority on who is in a squad -
+  it is what you buy from - so a contradiction is reported (`desc_left_for` / `desc_left_on`, a sheet note, a
+  `⇥` in the panel), never silently applied. The transfers layer needed its primary key widened to make this
+  possible at all: `(fc_id, date)` could not hold a loan return and a permanent signing dated the same 1 July,
+  so it kept whichever was parsed last and read Hojlund as LEAVING the club that had just bought him.
+
 ## Every player must have a number, and the number must say what it is worth
 **Operator's rule, 05/08/2026: «ogni calciatore DEVE avere il suo SURPLUS altrimenti è impossibile valutarli
 oggettivamente ... penalizziamo il SURPLUS (l'indeterminazione è comunque una nota negativa) ma dobbiamo cmq
