@@ -1403,15 +1403,52 @@ class AuctionView(ttk.Frame):
         if not data.observations:
             return None
         adopted = ("R0", *evaluate.ADOPTED.get(platform, ()))
+        # ...and the men the core cannot price, on their penalised estimate: «ogni calciatore DEVE avere il
+        # suo SURPLUS altrimenti è impossibile valutarli oggettivamente». The sheet already gave them a
+        # number; without this the LIST YOU BID FROM still ranked only the priced ones, which is the same
+        # blank in the place it matters most. Built by the sheet's own layer, so the two agree by
+        # construction, and passed as an argument the gate never passes.
+        estimates = self._estimates(conn, data, predictions, window, platform)
         return self.LIVE_LABEL.format(season=window.target_season), {
             "window": f"{window.key} {window.input_season}->{window.target_season}",
             "params_from": params_from, "metric": metric, "live": True,
             "rules": ", ".join(adopted[1:]) or "baseline only",
             "rows": len(data.observations),
             "priced": sum(1 for p in predictions if p.fm_pred is not None),
+            "estimated": len(estimates),
             "notes": ([squad_note] if squad_note else []) + notes,
-            "by_role": evaluate.auction_view(data, predictions, metric=metric),
+            "by_role": evaluate.auction_view(data, predictions, metric=metric, estimates=estimates),
         }
+
+    @staticmethod
+    def _estimates(conn, data, predictions, window, platform: str) -> dict[int, dict]:
+        """{fc_id: the fallback valuation} for the men the core could not price - the SHEET's own layer.
+
+        Imported here rather than reimplemented: the cascade, its measured rungs and its penalties live in
+        `engine/estimate.py` with `snapshot` gathering their inputs, and a second copy of that ladder would be
+        a second answer to the same question. Only the unpriced men are estimated - a priced one keeps his
+        gated number, which is what makes the two comparable in one list.
+        """
+        from euroleghe_ingest.engine import estimate as est
+        from euroleghe_ingest.modules import snapshot
+
+        priced = {p.obs.fc_id for p in predictions if p.value_pred is not None}
+        by_id = {p.obs.fc_id: p for p in predictions}
+        layer = snapshot.estimation_layer(conn, window, platform, data.observations)
+        out: dict[int, dict] = {}
+        for obs in data.observations:
+            if obs.fc_id in priced:
+                continue
+            guess = snapshot.estimate_for(obs, by_id.get(obs.fc_id), layer, data.anchors, data,
+                                          window, platform)
+            level = data.replacement.get(obs.role_classic or "")
+            out[obs.fc_id] = {
+                "fm": guess.fm, "pv": guess.pv, "basis": guess.basis,
+                "confidence": guess.confidence, "note": guess.note,
+                "value": est.surplus(guess.fm, guess.pv, None, guess.confidence),
+                "surplus": est.surplus(guess.fm, guess.pv, level, guess.confidence),
+            }
+        return out
 
     # A run owns the selection it was started with. Changing platform or game mid-run would leave a
     # worker computing one thing while the panel claims another, and changing season would render from a
@@ -1474,7 +1511,8 @@ class AuctionView(ttk.Frame):
             # can price at all - the rest is the empty-cell-is-a-statement rule, on a whole list.
             self.status_var.set(
                 f"LIVE · {view['window']} · rules {view['rules']} · parameters from "
-                f"{view['params_from']} · {view['priced']} of {view['rows']} players priced · "
+                f"{view['params_from']} · {view['priced']} of {view['rows']} players priced, "
+                f"{view.get('estimated', 0)} ESTIMATED (marked ~, penalised) · "
                 f"no season to compare against: this is the list you bid from")
         else:
             total_hits = sum(block["hits"] for block in view["by_role"].values())
@@ -1535,9 +1573,11 @@ class AuctionView(ttk.Frame):
             # No "in common", no captured-of-perfect and no miss breakdown: all three are statements
             # about an outcome, and there isn't one. What the header can honestly carry is how deep the
             # list goes and the level it is measured against.
+            guessed = block.get("n_estimated") or 0
             head = (f"{label} — top {len(block['predicted'])} to bid on, of "
                     f"{block.get('n_ranked', len(block['predicted']))} the engine could price"
-                    f"{floor_text}")
+                    + (f" + {guessed} estimated (~)" if guessed else "")
+                    + floor_text)
         else:
             head = (f"{label} — {block['hits']}/10 in common · {currency} captured "
                     f"{(block['captured_value'] or 0):.0f} of {(block['perfect_value'] or 0):.0f}"
@@ -1554,9 +1594,14 @@ class AuctionView(ttk.Frame):
         pred_key, act_key = (("surplus_pred", "surplus_act") if surplus
                              else ("value_pred", "value_act"))
         def predicted_row(row: dict) -> tuple:
+            # An ESTIMATED row is marked where the number is, exactly as the squad table marks it: same
+            # arithmetic, penalised, so it belongs in the same order - and a reader has to be able to see
+            # which of two adjacent names is measured and which is a reconstruction.
+            figure = self._num(row[pred_key])
+            if row.get("estimated") and figure:
+                figure = f"~{figure}"
             cells = [row["rank"], row["name"], club_abbreviation(row["club"]),
-                     self._num(row["fm_pred"], 2), self._num(row["pv_pred"], 1),
-                     self._num(row[pred_key])]
+                     self._num(row["fm_pred"], 2), self._num(row["pv_pred"], 1), figure]
             if not live:                        # the other side's figures, which a live list has not got
                 cells += [self._num(row[act_key])]
             cells.append(self._num(row["fvm"]))

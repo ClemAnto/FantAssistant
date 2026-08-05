@@ -1,5 +1,5 @@
 # Spec — Toolkit `euroleghe-ingest` v9 (task 1.0 della roadmap)
-**Aggiornata: 5 agosto 2026 (v9.26 — la fonte in tempo reale sulle rose era già in cache; v9 SOSTITUISCE la v8)** · Python · Output: SQLite `euroleghe.db` + CSV normalizzati
+**Aggiornata: 5 agosto 2026 (v9.27 — la lista d'asta ordina anche gli stimati; v9 SOSTITUISCE la v8)** · Python · Output: SQLite `euroleghe.db` + CSV normalizzati
 *Sigle: fc_id = identificativo fantacalcio.it · FM = fantamedia · Mv = media voto · Pv = partite a voto · xref = cross-reference id tra siti · xG/xA = expected goals/assists · manifest = lista file da recuperare.*
 **Convenzione: identificatori sempre in INGLESE** (tabelle, colonne, moduli, variabili); italiano solo nella documentazione.
 
@@ -493,6 +493,33 @@ ruolo**, **8% disgiunti** — e le disgiunte sono quasi tutte `a` del listone co
 visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**. Riscontri esatti:
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
+
+## Novità v9.27 (5 agosto 2026 — la LISTA d'asta ordina anche gli stimati, marcati e penalizzati)
+
+Completa la regola «ogni calciatore DEVE avere il suo SURPLUS» **dove si decide**: il foglio dava 629 numeri
+su 629, ma la lista d'asta ne ordinava **346**, cioè lo stesso buco nel posto che conta di più. 305 test,
+`backtest --verify` **22/22**.
+
+### 1. Un solo ranker, con un argomento che il gate non passa mai
+`evaluate.auction_view(..., estimates=None)`: quando un chiamante le fornisce, gli uomini che il core non
+prezza entrano **nella stessa classifica** sul loro punteggio già penalizzato. Il gate non le passa su nessun
+percorso, quindi nessun numero pubblicato si muove (verificato: 22/22, e un test pretende che senza `estimates`
+la vista sia identica riga per riga, campo per campo, sui uomini già prezzati). Le stime le costruisce il
+**layer del foglio** (`engine/estimate.py` + `snapshot.estimation_layer`), non una seconda cascata: una
+seconda copia di quella scala sarebbe una seconda risposta alla stessa domanda.
+
+### 2. Cosa si vede
+Ogni riga dice se è una stima (`estimated`, `est_basis`, `est_confidence`, `est_note`), la cella porta **`~`**
+davanti al numero e l'intestazione del ruolo dichiara i due insiemi: «top 10 to bid on, of 134 the engine could
+price **+ 109 estimated (~)**». La riga di stato conta entrambi: `361 of 849 players priced, 488 ESTIMATED
+(marked ~, penalised)`.
+
+### 3. Misurato: chi entra davvero
+Su Serie A/classic ordinato per SURPLUS, gli stimati che raggiungono una top ten sono **quattro**, e ognuno
+porta la sua base: **Martinez Quarta** #5 fra i difensori (`older`, conf 0.75), **Berisha M.** #4 e **Kostic**
+#7 a centrocampo (`shrunk`, 0.93 e 0.87), **Santos A.** #7 in attacco (`shrunk`, 0.97). Gli altri 484 restano
+sotto: la penalità li ordina dove la loro incertezza li mette, che è esattamente il suo compito - «se non ci
+sono tutti i requisiti, penalizziamo il SURPLUS ... ma dobbiamo cmq avere un valore di riferimento».
 
 ## Novità v9.26 (5 agosto 2026 — la fonte «in tempo reale» sulle rose c'era già, e nessuno la leggeva come rosa)
 

@@ -2170,3 +2170,75 @@ def test_absence_from_the_live_squad_is_read_only_for_a_man_the_provider_knows()
     moves = {"at": set(), "out": [(snapshot._club_key("Napoli"), "Bayer 04 Leverkusen", "2026-07-01", 1.0)]}
     assert snapshot.left_his_club(Obs(3, "Napoli"), moves, live, known) == (
         "Bayer 04 Leverkusen", "2026-07-01")
+
+
+def test_the_auction_list_ranks_the_estimated_men_and_marks_them():
+    """«Ogni calciatore DEVE avere il suo SURPLUS» applies to the LIST YOU BID FROM, not only to the sheet.
+
+    `auction_view` ranked men with a gated prediction and nothing else, so the 283 rows the sheet had just
+    learned to price were still absent from the one place the operator actually decides in. The estimates now
+    enter the same ranking on their penalised score - and every row says which it is, because a list that
+    mixes a measured man with a reconstruction without marking them is worse than one that hides half.
+
+    The gate never passes `estimates`, and this pins that too: without them the view is byte-identical.
+    """
+    import pytest
+
+    from euroleghe_ingest.engine import evaluate
+
+    class Obs:
+        def __init__(self, fc_id, name, fm_prev):
+            self.fc_id, self.name, self.fm_prev = fc_id, name, fm_prev
+            self.role_classic, self.club_target = "A", "Test"
+            self.roles_mantra = ("pc",)
+            self.pv_prev = 30
+            self.fm_act = self.pv_act = self.value_act = None
+            self.price_initial = self.price_initial_mantra = 10.0
+            self.fvm = self.fvm_mantra = 100.0
+
+    class Pred:
+        def __init__(self, obs, fm, pv):
+            self.obs, self.fm_pred, self.pv_pred = obs, fm, pv
+            self.value_pred = None if fm is None else fm * pv
+            self.anchor = 6.0
+
+    class Data:
+        game = "classic"
+        platform = "default"
+        matchdays_target = 38
+        reliability = 0.0
+        min_availability = 0.0
+        def __init__(self, observations):
+            self.observations = observations
+            self.replacement = {"A": 6.0}
+            self.replacement_actual: dict = {}
+            self.anchors = {"A": 6.0}
+            self.forward_caps: dict = {}
+            self.co_starts: dict = {}
+
+    strong, weak, unpriced = Obs(1, "Strong", 7.0), Obs(2, "Weak", 6.2), Obs(3, "Unpriced", None)
+    data = Data([strong, weak, unpriced])
+    predictions = [Pred(strong, 7.0, 30.0), Pred(weak, 6.2, 30.0), Pred(unpriced, None, None)]
+
+    bare = evaluate.auction_view(data, predictions, top_n=5, metric=evaluate.SURPLUS)
+    assert [row["name"] for row in bare["A"]["predicted"]] == ["Strong", "Weak"]
+    assert not any(row["estimated"] for row in bare["A"]["predicted"])
+
+    # an estimate worth more than `Weak` slots in between, marked, with its basis and its penalty
+    estimates = {3: {"fm": 6.8, "pv": 28.0, "basis": "other_platform", "confidence": 0.95,
+                     "note": "his season on the other platform", "value": 180.0, "surplus": 21.0}}
+    with_est = evaluate.auction_view(data, predictions, top_n=5, metric=evaluate.SURPLUS,
+                                     estimates=estimates)
+    rows = with_est["A"]["predicted"]
+    assert [row["name"] for row in rows] == ["Strong", "Unpriced", "Weak"], rows
+    guessed = next(row for row in rows if row["name"] == "Unpriced")
+    assert guessed["estimated"] and guessed["est_basis"] == "other_platform"
+    assert guessed["est_confidence"] == pytest.approx(0.95) and guessed["est_note"]
+    assert guessed["surplus_pred"] == pytest.approx(21.0), "the penalised score is what ranks and what shows"
+    assert with_est["A"]["n_estimated"] == 1 and bare["A"]["n_estimated"] == 0
+    # ...and the men who were already priced are untouched by the presence of estimates
+    for name in ("Strong", "Weak"):
+        before = next(r for r in bare["A"]["predicted"] if r["name"] == name)
+        after = next(r for r in rows if r["name"] == name)
+        assert {k: v for k, v in before.items() if k != "rank"} == {
+            k: v for k, v in after.items() if k != "rank"}

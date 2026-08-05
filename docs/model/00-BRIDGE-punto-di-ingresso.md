@@ -27,7 +27,21 @@ regole di UI che sono requisiti) → `spec-euroleghe-ingest-v9.md` → `nota-mod
 
 Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
 
-### ULTIMO IN ORDINE DI TEMPO — 5/08/2026: NESSUN job settimanale, e la richiesta è chiusa
+### ULTIMO IN ORDINE DI TEMPO — 5/08/2026: la LISTA d'asta ordina anche gli stimati
+
+Spec **«Novità v9.27»**. Completa «ogni calciatore DEVE avere il suo SURPLUS» **dove si decide**: il foglio
+dava 629 numeri su 629 e la lista d'asta ne ordinava **346**.
+
+1. **Un solo ranker**: `auction_view(..., estimates=None)`, e il gate non le passa mai — `backtest --verify`
+   22/22, più un test che pretende la vista **identica** senza stime. Le costruisce il layer del foglio, non
+   una seconda cascata.
+2. **Marcate**: `~` davanti al numero, l'intestazione dichiara i due insiemi («of 134 the engine could price
+   **+ 109 estimated (~)**») e la riga di stato conta entrambi (361 prezzati, **488 stimati**).
+3. **Misurato**: gli stimati che entrano in una top ten sono **quattro** — Martinez Quarta #5 (`older`),
+   Berisha #4 e Kostic #7 (`shrunk`), Santos A. #7 (`shrunk`). Gli altri restano sotto: la penalità li ordina
+   dove la loro incertezza li mette.
+
+### 5/08/2026: NESSUN job settimanale, e la richiesta è chiusa
 
 Decisione dell'operatore: «il job ogni settimana non serve, elimina questa richiesta». È la logica del 29/07
 sulle probabili portata a conclusione: un'asta iniziale è in **agosto**, quando la pagina non esiste ancora, e

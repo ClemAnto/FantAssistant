@@ -10,6 +10,10 @@ verdetto a verbale qualunque sia.
 Fratello di `metrica-asta-surplus-v1.md`: quello dice **con che valuta si ordina**, questo dice **cosa
 l'assistente ne fa al tavolo**.
 
+⚠️ **Il primo step è SOLO il DRAFT** (decisione dell'operatore, 5/08/2026). I §1-§10 sono scritti per
+l'asta a rilanci e restano validi come destinazione; **il §11 dice cosa cambia, e soprattutto cosa NON
+serve costruire adesso** — dove i due si contraddicono, per il primo step vince il §11.
+
 ---
 
 ## 1. Il flusso: cinque momenti, e i primi tre stanno PRIMA
@@ -32,8 +36,9 @@ numero mostrato, quindi va chiesto prima di mostrare qualsiasi numero — e un s
 partecipanti è il **monte crediti** della lega, che è ciò che converte un surplus in euro spendibili.
 
 **Default, per non rallentare le prove**: la lega dichiarata in `league_config.json` (oggi *EuroLeghe*,
-euro/classic), 8 squadre, 3P/8D/8C/6A, asta a rilanci, budget da confermare col regolamento della lega.
-Tutti modificabili, nessuno da riempire per vedere il primo suggerimento.
+euro/classic), 8 squadre, 3P/8D/8C/6A, **draft** con le regole d'ordine del §11 (per il primo step è
+l'unica modalità; l'asta a rilanci col suo budget arriva dopo). Tutti modificabili, nessuno da riempire per
+vedere il primo suggerimento.
 
 ## 2. Le «strategie» non sono strategie: sono un obiettivo più dei vincoli
 
@@ -259,7 +264,1110 @@ Non «da fare»: **da fare quando la ragione qui sotto decade.**
   quindi prima si misura quanto ne resta.
 - **Ordine di chiamata** → leva a costo zero dove la lega lascia chiamare, ma richiede il modello di prezzo
   di mercato (§4.3) per sapere chi gli altri non hanno ancora valutato.
-- **Modalità draft** → la domanda cambia da «quanto vale» a «quando lo chiamo»: stesso surplus marginale,
-  nessun λ.
+- ~~**Modalità draft**~~ → **promossa a primo step il 5/08/2026, §11.** Ciò che resta parcheggiato è
+  l'**asta a rilanci**: budget in crediti, λ da stimare, modello di prezzo di mercato. Il draft chiede la
+  stessa contabilità marginale (§4.1) e non chiede nessuna delle due stime.
 - **Riaprire `surplus_pressure`** → resta spenta finché non arrivano `injuries` o lo storico settimanale di
   `probable_starter`; comprava 0 bust in meno (`metrica-asta-surplus-v1.md` §11).
+
+---
+
+## 11. Primo step: SOLO draft (5 agosto 2026)
+
+Decisione dell'operatore: si costruisce **prima il draft**, con le regole d'ordine della sua lega. Non è un
+sottoinsieme dell'asta a rilanci: è un gioco diverso, e sotto c'è la ragione per cui è anche il passo giusto
+da fare per primo.
+
+### 11.1 Le regole d'ordine, come dettate
+
+1. **Primo giro: ordine custom** — lo decide la lega, l'app lo prende come input.
+2. **Dal secondo giro** si calcola il **valore rosa** di ogni squadra (somma degli FVM dei giocatori presi)
+   e sceglie primo **il più basso**. Il giro è una **barriera**: tutti scelgono prima che il giro successivo
+   cominci.
+3. **Parità di valore rosa** → sceglie **dopo** chi possiede il singolo calciatore dal valore più alto.
+4. **Ulteriore parità** → si adotta **l'ordine del primo giro**.
+
+Tre letture che il codice deve rispettare, e che non sono ovvie:
+
+- **Il primo giro non è solo il primo giro: è il tie-break permanente.** Va registrato esattamente, per
+  tutte le squadre, e non è un dettaglio di avvio.
+- **La regola 3 non morde al secondo giro** — con un solo giocatore a testa, il valore rosa *è* il valore
+  del giocatore più alto, quindi due squadre in parità restano in parità e decide la 4. Comincia a contare
+  **dal terzo giro**, dove {200, 50} e {150, 100} valgono entrambe 250 ma la prima sceglie dopo.
+- **Quindi la regola 3 è un meccanismo anti-concentrazione**, e tassa la strategia «top+scartine» una
+  seconda volta oltre al valore rosa. In questo formato la scelta fra concentrare e spalmare è in parte
+  decisa **dal regolamento**, non solo dalla curva del surplus (§4.4).
+
+### 11.2 Non è «un'asta senza soldi»: è un'asta col prezzo PUBBLICO e FISSO
+
+**La valuta è l'FVM, e non si contratta: si paga il prezzo di listino, in ritardo di scelta.** Prendere un
+uomo da FVM alto alza il valore rosa e mi sposta indietro nei giri seguenti; prendere a poco mi tiene
+davanti. Conseguenze, e sono tutte semplificazioni:
+
+- **Il §4.2 (tetto di rilancio) e il §4.3 (modello di prezzo di mercato) non servono.** Il prezzo non va
+  stimato: è scritto sul listone, uguale per tutti, noto in anticipo. Quindi **il buco dichiarato al §7 —
+  nessun prezzo d'asta storico nel database — non morde qui**, ed è la ragione tecnica per cui il draft è
+  il primo step giusto: è la modalità in cui l'app non deve indovinare niente sui prezzi.
+- **Il budget esiste, è implicito, e la regola lo EQUALIZZA**: ordinare per valore rosa crescente spinge
+  tutte le squadre verso lo stesso totale FVM. Stima a priori: `FVM totale dei giocatori che verranno presi
+  / numero di squadre`, raffinabile a ogni giro. Nessuno lo dichiara e tutti ce l'hanno.
+- **λ resta, e non va stimato in diretta**: diventa **surplus marginale per unità di FVM**, calcolabile sul
+  pool residuo con prezzi certi.
+- **Un vincolo di fattibilità c'è ancora** (§5), ma non è di crediti: è di **slot per reparto**. La rosa
+  deve chiudere legale, quindi negli ultimi giri i ruoli scoperti diventano obbligatori e il consiglio deve
+  dirlo prima che sia tardi, non quando è tardi.
+
+### 11.3 La tesi del progetto, in una riga
+
+L'FVM è il giudizio di qualcuno, il surplus è calcio misurato. A prezzi fissi e uguali per tutti, **il draft
+premia esattamente i punti in cui i due sono in disaccordo**: la valuta operativa è il **surplus marginale
+per FVM**, e «approfittare degli affari» significa prendere gli uomini che il listone prezza sotto quello che
+il calciatore ha reso, lasciando che gli altri paghino posizione per i nomi. È la forma più pulita in cui la
+regola dell'operatore («la quotazione quando non abbiamo altre risorse oggettive») diventa un vantaggio
+competitivo invece di una precauzione.
+
+**Prima misura da fare, e si può fare oggi senza simulare nulla**: il surplus per unità di prezzo **per
+decile di prezzo**. Dice dove il mercato paga troppo — se l'inefficienza sta sui big, la strategia è il
+centro del listino; se sta in fondo, è l'opposto. Va misurata su **Qt.I**, che è l'unico prezzo auction-safe:
+l'`fvm` archiviato è di fine stagione e conoscerebbe l'esito. Che la conclusione si trasferisca dalla Qt.I
+all'FVM è un'assunzione da dichiarare (correlati ma la Qt.I è dieci volte più grossolana), non un dato.
+
+### 11.4 La domanda cambia: non «quanto», ma QUANDO
+
+Senza rilanci non esiste un tetto. Esiste la **sopravvivenza**: la probabilità che un uomo arrivi al mio
+prossimo turno. La decisione è *prenderlo ora* contro *prenderne un altro ora e lui più tardi*, e i pezzi
+sono tre:
+
+- **quante scelte mancano al mio prossimo turno.** Grazie alla barriera di giro è un numero esatto e non una
+  stima: le squadre che scelgono dopo di me in questo giro, più quelle che mi precedono nel prossimo — e
+  l'ordine del prossimo giro dipende dagli acquisti in corso, quindi si ricalcola **a ogni pick** (§9: il
+  ricalcolo va incrementale).
+- **chi sparirà nel frattempo**, che richiede un'ipotesi sul comportamento degli avversari — l'unica cosa
+  che va assunta in questo formato, ed è dichiarabile (prende il miglior FVM disponibile, il miglior surplus,
+  copre il ruolo scoperto).
+- **il dislivello di reparto fra i sopravvissuti**: se restano cinque difensori equivalenti posso aspettare,
+  se resta un solo portiere che stacca no. È lo stesso conto del §4.1 (rimpiazzo personale) applicato al
+  pool residuo invece che alla mia rosa.
+
+### 11.5 Il costo che non è FVM: la posizione
+
+Il prezzo di listino non è tutto il prezzo. Prendere un uomo caro mi manda indietro, e stare davanti ha
+**valore di opzione**: più scelte precoci vogliono dire accesso ai migliori rimasti. Quindi un uomo
+sottoprezzato vale un po' più del suo rapporto surplus/FVM, perché conserva anche la priorità. Se valga la
+pena modellarlo esplicitamente **è una domanda misurabile**, e va misurata prima di codificarla — non è
+un'intuizione da mettere in una formula.
+
+### 11.6 Un draft è SIMULABILE, e questo ribalta la validazione
+
+Prezzi pubblici e fissi + regola d'ordine deterministica = **il draft si può rigiocare offline dall'inizio
+alla fine**, contro politiche avversarie dichiarate, e le rose che ne escono si valutano coi **fantapunti
+veri** di quella stagione. Cioè: a differenza dell'asta a rilanci, qui una politica di scelta si può
+**pre-registrare e misurare fuori campione**, con lo stesso protocollo del gate. È il secondo motivo per cui
+il draft è il primo step giusto.
+
+I limiti vanno dichiarati adesso, non dopo il primo risultato:
+
+- **il prezzo storico non c'è nella forma giusta.** L'ordine ha bisogno dell'FVM **alla data del draft**;
+  `fvm_history` accumula solo da oggi, e prima del 2022-23 la sorgente scrive **0 e non NULL**. L'`fvm`
+  archiviato è di fine stagione, quindi **conosce l'esito**.
+- **la direzione del bias è però conservativa**, e va detto perché rende la simulazione comunque utile: con
+  prezzi che conoscono l'esito il mercato è più accurato del vero, quindi il vantaggio «surplus per FVM»
+  risulta **sottostimato**. Una politica che vince con prezzi post-esito dovrebbe vincere di più con quelli
+  reali. Il confronto fra politiche resta interno e onesto perché tutte pagano gli stessi prezzi.
+- **le politiche avversarie sono un'assunzione**: si varia e si riporta il risultato per politica, mai un
+  numero unico.
+
+### 11.7 Cosa cambia nella UI, e una regola del §9 si INVERTE
+
+- **«a quanto» sparisce**: il prezzo è l'FVM del listone, non c'è niente da digitare. Un campo in meno.
+- **«a chi» diventa obbligatorio.** Nell'asta a rilanci era opzionale (§9); qui la squadra che prende
+  determina il valore rosa e quindi **l'ordine dei giri successivi**, cioè il numero da cui dipende ogni
+  consiglio. Netto: restano due click, ma sono due click diversi.
+- **Lo schermo mostra tre cose**: il mio turno fra N scelte, il consiglio con una riga di motivo, e per i
+  primi nomi la **probabilità di arrivare al mio prossimo turno**.
+- **L'ordine del giro successivo è sempre visibile e già calcolato**, con il mio posto dentro — è
+  l'informazione che il regolamento rende prevedibile e che al tavolo nessuno tiene a mente.
+- Il resto del §9 vale identico: tutto reversibile, log di eventi, ricalcolo istantaneo, geometria misurata.
+
+### 11.8 Aperto, e cambia il codice: da chiedere all'operatore
+
+1. **Quale FVM, e congelato quando?** `fvm` o `fvm_mantra` secondo il game — e soprattutto: il valore rosa
+   si ricalcola col listone del giorno (l'FVM è uno **stato volatile**, riscritto a ogni download: per questo
+   esiste `fvm_history`) o si **congela alla data del draft**? Se non si congela, l'ordine di domani cambia
+   per giocatori presi ieri.
+2. **Quanti giri e con che vincoli**: 25 giri (uno per slot)? Si può prendere qualunque ruolo a qualunque
+   turno purché la rosa chiuda legale, o i reparti hanno un ordine?
+3. **Cosa fa l'app quando una scelta rende la rosa non chiudibile** — avvisa o impedisce.
+4. La dettatura delle regole si chiudeva con un «3)» troncato: verificare che non manchi una regola.
+
+---
+
+## 12. In Mantra il valore di una rosa non è la somma dei suoi giocatori (5 agosto 2026)
+
+**Osservazione dell'operatore**: «avere 5 PC eccezionali e poterne schierare al massimo due significa aver
+perso l'opportunità di prendere calciatori forti in altri ruoli». Non è un vincolo da aggiungere a margine:
+**cambia la funzione obiettivo**, e la cambia nel punto in cui tutto il resto del documento si appoggia.
+
+### 12.1 L'obiettivo giusto: l'undici schierabile, per tutta la stagione
+
+Il gioco assegna punti all'**undici che schieri**, non ai 25 che possiedi. Quindi:
+
+> **valore di una rosa = somma sulle giornate del valore atteso del MIGLIOR UNDICI LEGALE schierabile** —
+> massimo sui moduli ammessi, massimo sulle assegnazioni dei disponibili alle caselle del modulo.
+>
+> **valore marginale di un candidato = valore della rosa con lui − valore della rosa senza lui.**
+
+Questa definizione **assorbe tutto** ciò che nel documento era trattato a pezzi, ed è il motivo per cui vale
+la pena adottarla invece di sommare correzioni:
+
+- **il caso dei 5 PC** cade da sé: il terzo PC non alza il massimo, perché nessun modulo ha una terza casella
+  da centravanti. Non vale zero — vale l'**assicurazione**, cioè quanto copre le due caselle nelle giornate in
+  cui i primi due non ci sono, che è esattamente la quantità che la beccabilità già misura;
+- **il rimpiazzo personale del §4.1 diventa esatto** invece di approssimato per conteggio: non «ho già tre
+  centrocampisti», ma «questa casella è già coperta in quasi tutti gli stati di disponibilità»;
+- **la flessibilità acquista un prezzo**: un uomo listato `Dc;Dd` copre due tipi di casella, quindi alza il
+  massimo in più stati di un uomo pari-fantamedia listato su un solo ruolo (listature per giocatore ≈1.5 in
+  media — già misurato per la profondità di rosa, qui diventa una leva strategica);
+- **la scarsità di ruolo diventa un numero e non un'impressione**: una casella scoperta ha un marginale
+  enorme, e lo perde appena è coperta;
+- **concentrare o spalmare** (§4.4) continua a emergere invece di essere scelto.
+
+### 12.2 Nel draft lo spreco costa DUE volte, e la flessibilità è il vantaggio
+
+Il §11.2 dice che la regola d'ordine **equalizza** il valore rosa in FVM: tutti spendono lo stesso. Allora la
+partita è tutta su **quanto undici schierabile ricavi dallo stesso FVM** — e un uomo che non puoi schierare
+non è solo surplus buttato: l'FVM che è costato ti ha anche **spostato indietro** nei giri seguenti. Il terzo
+PC si paga due volte.
+
+Conseguenza forte per il primo step: **in un draft Mantra la flessibilità di ruolo è LA fonte di vantaggio**,
+perché è ciò che converte lo stesso prezzo in più undici legali. La valuta operativa del §11.3 va corretta di
+conseguenza — non «surplus per FVM» ma **valore marginale di rosa per FVM** — e gli uomini multi-ruolo salgono
+da soli, senza nessun bonus inventato.
+
+### 12.3 Il vincolo è il MODULO, e i tetti per ruolo non bastano a esprimerlo
+
+Qui c'è un buco vero, trovato guardando il repo: **non esiste una tabella dei moduli Mantra legali.** Ciò che
+esiste è di natura diversa e non la sostituisce:
+
+- gli schemi che il pannello disegna sono **osservati** dagli undici reali dei club (Arsenal 4-5-1 e 4-3-3
+  ventotto volte ciascuno), cioè *cosa fa un allenatore*, non *cosa il gioco mi permette di schierare*;
+- `features.simultaneous_caps` misura i tetti per ruolo al p90 (`dc` 3, `pc` 2, …) e quella misura ha superato
+  un controllo indipendente **contro le regole del gioco** — il che dice proprio che le regole erano la verità
+  di riferimento anche allora.
+
+E un tetto per ruolo **non può esprimere il vincolo**, perché il vincolo è congiunto: «3 `dc` **oppure** una
+certa configurazione di `e`, non entrambe» non è scrivibile come limite indipendente per ruolo. Quindi:
+
+> **la lista dei moduli ammessi entra come CONFIGURAZIONE, non come misura.** È un artefatto di
+> *regolamento* — dato, pubblico, piccolo — e misurarlo sarebbe stimare una cosa che è scritta.
+
+**Colmato lo stesso giorno: §13**, `config/mantra_modules.json`.
+
+È la stessa distinzione che il progetto fa già altrove: si misura ciò che il calcio fa, si legge ciò che il
+gioco impone.
+
+### 12.4 Due vocabolari che non vanno mescolati
+
+Il progetto ha già pagato per confusioni di questo tipo (lega/campionato, platform/gameType), quindi va detto
+prima di scrivere codice:
+
+- i **dodici codici misurati** (`GK | DL DC DR | DM | ML MC MR | AM | LW RW | ST`, fonte `sofascore`) dicono
+  **dove un uomo gioca davvero**, e servono a *prevedere* e a *disegnare* un undici reale;
+- i **ruoli Mantra del listone** (`Por Dd Dc Ds B E M C W T A Pc`) dicono **come il gioco mi permette di
+  schierarlo**, e sono l'unica cosa che decide la legalità della mia rosa. Sono anche una delle due
+  irriducibili: il gioco assegna punti per ruolo.
+
+Quindi la legalità si decide sui ruoli del listone. I codici misurati restano dove già pagano (la fantamedia
+prevista, la titolarità, il fianco), e non entrano nel vincolo.
+
+### 12.5 L'algoritmo esiste già, ma nel posto sbagliato
+
+L'assegnazione «uomini → caselle di un modulo» è risolta come **un solo problema di assegnamento**
+(`gui._matching`, un Hungarian scritto in casa) perché un passaggio greedy deve fissare una priorità e
+**tutti gli ordini sono sbagliati su qualche undici**. Quel pezzo serve identico al draft — e sta dentro
+`gui.py`, 5.100 righe di vista Tk.
+
+Il progetto ha già imparato questa lezione una volta, con `engine/presence.py`: **un parametro che nessun
+harness può raggiungere è un parametro che nessuno può sweeppare.** Vale uguale qui, e con più forza, perché
+il draft ha bisogno di chiamare l'assegnamento **migliaia di volte per scelta** e il simulatore del §11.6 ne
+ha bisogno offline. Quindi il primo pezzo di codice del primo step è un **refactor**: l'assegnamento va
+nell'engine, dependency-free, con la vista Tk come *uno* dei chiamanti. Ha già la sua garanzia — i 394 board
+di regressione, che devono uscire identici prima e dopo.
+
+Attenzione a cosa si trasferisce: **l'algoritmo sì, la griglia no.** `REAL_ROLE_DEPTH`, `SIDE_WEIGHT`,
+`_reshape` sono la geometria dei dodici codici, cioè il problema del *disegno*. La legalità Mantra ha bisogno
+di una **relazione di compatibilità fra ruolo del listone e casella del modulo**, che viene dal regolamento
+(§12.3) e non da una distanza sul campo.
+
+### 12.6 Il costo di calcolo, e l'approssimazione va dichiarata
+
+Il valore esatto somma su stati di disponibilità × moduli × assegnamenti, e il §9 chiede un ricalcolo
+istantaneo a ogni evento. I pezzi per una versione praticabile esistono: l'Hungarian (§12.5), i tetti
+misurati come pre-filtro, la beccabilità come peso per uomo. La strada probabile è **Monte Carlo su qualche
+centinaio di stati di disponibilità**, con caching per candidato.
+
+La disciplina, però, è la solita: **l'approssimazione è una scelta di modello**, quindi si dichiara e si
+misura che ordini come la versione esatta — e il simulatore del §11.6 è il posto dove misurarlo, offline,
+prima che serva al tavolo.
+
+### 12.7 Cosa aggiunge alla UI
+
+- la **forma** verso cui la mia rosa sta andando (quali moduli restano raggiungibili), non i conteggi per
+  ruolo;
+- l'avviso sul caso dell'operatore, prima della scelta e non dopo: *«sarebbe il tuo terzo Pc e nessun modulo
+  ne schiera tre»*;
+- e negli ultimi giri, i **ruoli che devono essere coperti** perché la rosa chiuda legale (§11.2), detti
+  prima che sia tardi.
+
+### 12.8 Aperto, da chiedere
+
+1. **Quale lista di moduli ammette la lega** — quella ufficiale Mantra o un sottoinsieme? È l'artefatto del
+   §12.3 e senza di esso il vincolo non è scrivibile.
+2. **La rosa deve poter schierare un modulo legale in ogni momento**, o basta a fine draft?
+3. **Il fantavoto Mantra dipende dalla casella** in cui schiero l'uomo (modificatori di reparto)? Se sì,
+   l'obiettivo dell'assegnamento non è la somma delle fantamedie ma la somma **valutata per casella**, e
+   `scoring_config` è già parametrico per gestirlo.
+
+*Risposte dell'operatore, 5/08/2026: (1) solo le formazioni ufficiali Mantra; (2) l'undici legale si valuta a
+rosa completa; (3) letto dal regolamento — §13. E sul draft: il draft si fa in una giornata, quindi vale
+**l'FVM di quel momento** (congelato di fatto); si scegli fino a completare la rosa e la rosa deve restare
+**sempre legale**; l'app **impedisce** la scelta che la renderebbe non chiudibile. Le due risposte «sempre
+legale» e «a fine draft» rispondono a domande diverse e sono coerenti: l'**invariante** a ogni scelta è che la
+rosa resti completabile in modo legale, mentre **schierare** un modulo si valuta a rosa completa.*
+
+---
+
+## 13. Il regolamento Mantra, letto e codificato (5 agosto 2026)
+
+Il buco del §12.3 è colmato: la tabella ufficiale **edizione 2026/2027** è ora in
+**`config/mantra_modules.json`**, con la provenienza dentro il file. È il regolamento *pubblico* (pagina
+aperta, non il contenuto a pagamento come listone e voti), quindi sta nel repo — che è pubblico — senza
+problemi di licenza; il PDF e le immagini di origine no, restano fuori.
+
+### 13.1 Trascrizione verificata, non asserita
+
+Il regolamento dichiara che ogni schema impiega **5 uomini di stampo difensivo** (Dd, Ds, Dc, B, E, M) e **5
+di stampo offensivo** (C, T, W, A, Pc). Contato sulle caselle trascritte: **5 e 5 su tutti gli undici
+moduli**, con le caselle ibride sempre sul lato offensivo. E i conteggi di linea riproducono **il nome di ogni
+modulo**. Due controlli indipendenti, 0 anomalie: la tabella non è stata letta male.
+
+### 13.2 Le caselle sono TIPATE, e molte accettano una scelta
+
+Diciotto tipi di casella: `P · DD · DS · DC · DC/B · E · M · C · W · T · M/C · E/W · C/T · W/T · W/A · T/A ·
+A/PC · T/A/PC`. Il vincolo è tutto qui, e la cosa che conta è **cosa manca**: non esiste **nessuna casella
+pura `A` e nessuna pura `Pc`** in tutto il gioco. Ogni posto d'attacco è `A/PC` (o `T/A/PC`), per questo un A
+e un Pc sono interscambiabili là — mentre una casella `W/A` prende un A e **non** un Pc.
+
+### 13.3 L'osservazione dell'operatore, ora quantificata dal regolamento
+
+Quante caselle può occupare ciascun ruolo, modulo per modulo (calcolato sul file, portiere escluso perché è
+fuori dalle quattro linee):
+
+| ruolo | 3-4-3 | 3-4-1-2 | 3-4-2-1 | 3-5-2 | 3-5-1-1 | 4-3-3 | 4-3-1-2 | 4-4-2 | 4-1-4-1 | 4-4-1-1 | 4-2-3-1 |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| **Pc** | 1 | 2 | 1 | 2 | 1 | 1 | 2 | 2 | 1 | 1 | 1 |
+| **A** | **3** | 2 | 2 | 2 | 2 | **3** | 2 | 2 | 1 | 2 | 2 |
+| **Dc** | 3 | 3 | 3 | 3 | 3 | 2 | 2 | 2 | 2 | 2 | 2 |
+| **B** | 1 | 1 | 1 | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
+| **Dd / Ds** | 0 | 0 | 0 | 0 | 0 | 1 | 1 | 1 | 1 | 1 | 1 |
+| **E** | 2 | 2 | 2 | 2 | 2 | 0 | 0 | 2 | 1 | 2 | 0 |
+| **M** | 1 | 1 | 2 | 2 | 2 | 2 | 2 | 1 | 1 | 1 | 2 |
+| **C** | 2 | 2 | 1 | 2 | 1 | 2 | 2 | 2 | 1 | 1 | 1 |
+| **W** | 2 | 0 | 1 | 1 | 2 | 2 | 0 | 1 | 2 | 2 | 2 |
+| **T** | 0 | 1 | 2 | 0 | 1 | 0 | 2 | 0 | 2 | 1 | 2 |
+
+Cinque fatti che da qui escono **senza fittare niente**:
+
+1. **Un `Pc` sta in al massimo DUE caselle, e in SETTE moduli su undici in una sola.** L'osservazione
+   dell'operatore era esatta e ora è un numero: il terzo Pc non è «meno utile», è **inschierabile** in
+   qualunque schema, e il secondo è già condizionato alla scelta del modulo.
+2. **Un `A` arriva a tre** (3-4-3, 4-3-3) e non è mai a zero: 23 caselle totali contro le 15 di un Pc. Quindi
+   **a pari fantamedia un `A` vale più di un `Pc`, per regolamento** — non per una preferenza di modello.
+3. **La difesa è dove una rosa si IMPEGNA, e l'impegno è quasi binario**: `B` esiste solo nei cinque moduli
+   a tre, `Dd`/`Ds` solo nei sei a quattro. Comprare un Dd e un B significa che **uno dei due è morto**, e
+   questa è la decisione di forma più pesante di un draft Mantra — conoscibile prima di qualunque previsione.
+4. **`Dc` è l'unico difensore con un posto in ogni schema** (3 dietro a tre, 2 dietro a quattro): è la valuta
+   difensiva flessibile, gli altri tre ruoli sono specifici di famiglia.
+5. **Alcuni ruoli sono a mezzo campionato**: `T` è a zero in quattro moduli, `E` in tre, `W` in due. Solo
+   `Dc`, `M`, `C`, `A`, `Pc` hanno sempre almeno un posto.
+
+Ed è la forma generale del §12.1: una rosa vale l'undici che riesce a schierare, e queste sono le regole con
+cui quell'undici si compone. La conclusione del §12.2 — **la flessibilità di ruolo è il vantaggio** — smette di
+essere un'intuizione e diventa un conto.
+
+### 13.4 Il valore della panchina è governato da una tabella, non dalla mia scelta
+
+La **matrice delle sostituzioni** è nel file, e va letta come non è ovvio: la **riga è il ruolo di chi esce**
+(cioè quale casella si apre) e la **colonna è il ruolo di chi entra**. Non è simmetrica, e le due asimmetrie
+verificano la lettura: `Pc` fuori / `A` dentro è **OK** sempre (ogni casella da Pc è `A/PC`, che accetta già un
+A), mentre `A` fuori / `Pc` dentro è **condizionato**, perché quell'A poteva stare in una `W/A`, che un Pc non
+può occupare. Idem per B e Dc: la casella `DC/B` è aperta a un Dc, una `DC` pura prende un B solo a malus.
+
+Tre valori: **OK** senza penalità, **−1** ammesso col malus di fuori ruolo, **NO** vietato. E la sostituzione
+segue una **gerarchia ordinata** — *ottimale* (schema invariato), *efficiente* (schema cambiato), *adattata*
+(malus pagato). Conseguenza per il §12.1: **la copertura di una rosa non è una scelta libera fra i panchinari,
+è ciò che quella gerarchia riesce a raggiungere**, e il valore-assicurazione del terzo Pc va calcolato lì.
+Nota che il fatto che lo schema possa **cambiare in sostituzione** conferma la funzione obiettivo del §12.1:
+massimizzare sull'insieme degli undici moduli, giornata per giornata, è ciò che il gioco stesso fa.
+
+### 13.5 Il fantavoto dipende dalla casella in un solo modo, e i modificatori classici sono RIFIUTATI
+
+Risposta alla domanda §12.8.3, e viene dal regolamento con la sua ragione: «*l'incompatibilità tra il sistema
+Mantra e i modificatori classici è concettuale e non tecnica*» — gli schemi sono già bilanciati, quindi un
+modificatore di difesa prezzerebbe un equilibrio che il modulo già impone. Restano opzionali e dichiarati
+**R-Factor** e **D-Factor** (quest'ultimo sui 5 difensivi migliori, o 5+1 col portiere).
+
+Quindi l'unico modo in cui il voto dipende dal posto è il **malus di fuori ruolo, −1**. Basta però a cambiare
+l'obiettivo dell'assegnamento: **somma valutata per casella**, non somma di fantamedie. E un corollario per il
+§10: senza modificatore di difesa **non c'è ragione di accumulare difensori dello stesso club**.
+
+### 13.6 Due insiemi di vincoli per due momenti diversi
+
+Il regolamento vieta certi adattamenti **solo in fase di inserimento formazione** («per scoraggiare un uso poco
+consono dello strumento»): un `B`, un `Dd` o un `Ds` non si schierano in una casella `Dc`; un `Dd` non gioca
+`Ds` e viceversa; una `E` non prende una `M` pura (la `M/C` resta aperta); una `M` non prende una `E` pura (la
+`E/W` resta aperta); una `W` non prende una `T` pura (la `T/A` resta aperta). In **sostituzione** gli stessi
+movimenti diventano possibili col malus.
+
+Quindi il codice ha bisogno di **due** relazioni di compatibilità e non una: quella di **formazione**, che
+decide se la rosa è legale (e quindi l'invariante del draft), e quella di **sostituzione**, che decide quanto
+vale la panchina. Confonderle sovrastimerebbe la legalità e sottostimerebbe la copertura.
+
+### 13.7 Resta aperto, e sono numeri di lega, non di regolamento
+
+1. **Quanti giocatori compone la rosa, e con quali quote?** Il regolamento ufficiale parla di **11 titolari +
+   12 di panchina = 23**; `config/league_config.json` oggi dichiara 25 (3P/8D/8C/6A, che è la regola Classic);
+   una lega Mantra vista in giro chiede 26 (3 portieri + 23). Sono tre numeri diversi e servono al draft due
+   volte: fissano **quanti giri** e fissano il **livello di rimpiazzo**. Serve il regolamento della lega.
+2. **Le quote sono per macro-ruolo (P/D/C/A) o libere?** Cambia completamente cosa significa «rosa legale»
+   durante il draft, e quindi cosa l'app deve impedire.
+3. **Su quale piattaforma e game gira questa lega**: `euro/mantra` o `default/mantra`? È una lega nuova da
+   dichiarare in `my_leagues` — misurato, 904 valori di surplus su 916 cambiano fra classic e mantra, e le due
+   piattaforme danno fantamedia, presenze e surplus diversi anche sui club in comune.
+4. **R-Factor e D-Factor sono attivi?** Se sì, entrano in `scoring_config` e cambiano il valore di un reparto.
+
+*Risposte dell'operatore, 5/08/2026 → §14: rosa di **25** con **2 «porte»** (non portieri: la porta è un CLUB,
+tutti i suoi portieri) e **nessun'altra restrizione**; si usa l'**R-Factor**.*
+
+---
+
+## 14. Le regole di QUESTA lega, e le due che cambiano il modello (5 agosto 2026)
+
+### 14.1 La porta non è un giocatore: è un club
+
+La rosa ha **2 porte**, e una porta è **tutti i portieri del club scelto**; ognuna occupa uno slot `Por`. Ogni
+modulo ha esattamente **una** casella `P`, quindi ogni giornata se ne schiera una delle due. Da qui, quattro
+conseguenze, e la prima cancella il rischio dominante del progetto:
+
+1. **Una porta non salta praticamente mai.** Chiunque il club schieri in porta conta, quindi il rischio di
+   presenza — che su un giocatore è il termine dominante (`Var(ln pv)` è il 90% di `Var(ln fantapunti)`) —
+   **sparisce**. La beccabilità `(Pv/giornate)^0.5` va a ≈1: la porta è l'unico asset della rosa il cui valore
+   è fantamedia quasi pura. Tutto ciò che il progetto ha imparato sul rischio presenze **non si applica qui**.
+2. **Cambia l'unità di previsione**: non la fantamedia di un portiere ma quella della **porta di un club**,
+   cioè l'aggregato sui portieri che quel club ha schierato. È derivabile da ciò che c'è già — il layer per
+   partita porta le righe `role='P'` per club e giornata — ed è **più facile** della versione per giocatore:
+   niente logica di riserva, niente arrivi, niente `probable_starter`.
+3. **È la terza volta che questo progetto incontra la stessa forma di errore**, e vale scriverlo: un fatto di
+   CLUB non deve passare per l'imbuto dell'identità del giocatore (già visto con `player_xref` e con
+   `club_match_lineups`). Il modulo portieri esistente (`modulo-portieri-fase2_2.md`) prevede un *portiere*:
+   non è sbagliato, è l'**unità sbagliata** per questa lega.
+4. **La seconda porta non è un'assicurazione: è un'OPZIONE.** Non c'è nulla da assicurare (la prima non salta),
+   quindi il valore della coppia non è il migliore dei due ma il **massimo atteso giornata per giornata** —
+   E[max] > max(E) — cioè si schiera la porta col turno migliore. Il che rovescia come si prezzano: conviene
+   una coppia di club **complementari** (calendari e profili diversi), non i due migliori in assoluto. È
+   quantificabile, e dipende dallo spread e dalla correlazione fra le due.
+
+E una scarsità che va detta subito: **le porte pescano da un pool di CLUB**, non di giocatori. Con 8
+partecipanti servono 16 porte: su `default` (Serie A, 20 club) il rimpiazzo è la 17ª porta su 20 — quasi
+inelastico; su `euro` (~35 top club) è la 17ª su 35, molto meno stretto. È la risorsa più rigida del draft su
+Serie A, e la differenza è tutta di piattaforma.
+
+### 14.2 L'R-Factor prezza la COSTANZA, e prezza il voto BASE
+
+Quotato dal regolamento: l'R-Factor «*premia (o penalizza) la qualità complessiva espressa dalla fantasquadra
+in campo misurando il numero di calciatori con **voto di base** almeno sufficiente*». I due fattori si
+**escludono a vicenda**, quindi usando l'R-Factor il D-Factor è spento — e con esso ogni ragione di accumulare
+difensori dello stesso club (§13.5).
+
+Due conseguenze, e la seconda è il vero cambio di funzione obiettivo:
+
+- **Il voto BASE, non il fantavoto.** Un attaccante da 5,5 + gol porta 7,5 di fantavoto e un voto base
+  *insufficiente*: **non alimenta l'R-Factor**. Quindi il fattore sposta valore dai giocatori che vivono di
+  bonus a quelli con voto alto — difensori e centrocampisti solidi da 6/6,5, e le porte, che stanno
+  strutturalmente intorno alla sufficienza.
+- **Per la prima volta in questo progetto la VARIANZA è prezzata, e nella direzione della costanza.** Due
+  uomini con la stessa fantamedia non sono più equivalenti: vale più quello con più 6 e meno picchi. La
+  quantità che serve è la **quota di partite con voto base ≥ 6**, ed è già calcolabile — l'aggregazione
+  «opzione A» tiene le colonne canoniche di `match_ratings` separate dai bonus in `match_rating_bonuses`,
+  quindi il voto base è un dato e non una sottrazione da stimare.
+
+**Ciò che manca è il quanto**: la scala numerica dell'R-Factor **non è sulla pagina pubblica del
+regolamento**, quindi il segno è certo e la magnitudine no. Fino a quando la scala non è letta dalle
+impostazioni della lega, nessun numero va calcolato con l'R-Factor dentro — e quando arriverà, è un **cambio di
+funzione obiettivo**, quindi passa dalla porta del §10 di `metrica-asta-surplus-v1.md`: forma dichiarata prima,
+misura dopo.
+
+### 14.3 Rosa di 25 senza quote: cosa resta come vincolo
+
+25 = **2 porte + 23 di movimento**, quindi **25 giri** e nessuna quota per macro-ruolo. Il vincolo di legalità
+non svanisce, si concentra: dei 23 di movimento **solo 10 scendono in campo**, e l'invariante «rosa sempre
+completabile» si riduce a poter coprire le dieci caselle di *almeno uno* degli undici moduli.
+
+**Il pavimento duro, ricavato dalla tabella e non da un'opinione: almeno 2 `Dc`.** Ogni difesa è `DC DC DC/B`
+(a tre) o `DD DC DC DS` (a quattro), quindi due caselle `DC` **pure** in tutti gli undici moduli — e il
+regolamento vieta di schierare `B`, `Dd` o `Ds` in una casella `Dc` (§13.6). È l'unico ruolo con una
+molteplicità inevitabile: tutti gli altri hanno alternative, e per loro la legalità è un problema di
+accoppiamento, non di conteggio. Quindi ciò che l'app deve garantire con «impedisce» è esattamente: **2 porte,
+2 Dc, e un modulo copribile**.
+
+E un numero che cambia la strategia: **13 dei 23 di movimento non giocano mai da titolari**. Con la porta che
+non salta e le sostituzioni regolate da tabella, il valore marginale crolla dopo l'undicesimo-dodicesimo uomo.
+Nel draft questo spinge a **concentrare** l'FVM sui titolari e a prendere gratis in fondo — mentre il
+tie-break della regola 3 spinge nella direzione opposta (§11.1). Le due forze esistono entrambe e **quale
+domina è una domanda per il simulatore** (§11.6), non da decidere adesso.
+
+### 14.4 Resta aperto, e ora sono tre numeri
+
+1. **Quanti partecipanti?** Fissa il monte FVM, il livello di rimpiazzo e la scarsità delle porte (16 su 20
+   club è un altro gioco rispetto a 16 su 35).
+2. **`euro/mantra` o `default/mantra`?** È una lega nuova da dichiarare in `my_leagues`, e cambia ogni numero.
+   Sulle porte cambia perfino la natura del vincolo (vedi §14.1).
+3. **Quanto vale una porta in FVM?** Il listone quota **portieri**, non porte, e la regola d'ordine del draft
+   somma gli FVM dei presi (§11.1). Quindi serve la definizione della lega: l'FVM del primo portiere, la somma
+   dei portieri del club, il massimo? Senza questo **l'ordine dei giri non è calcolabile**, ed è la domanda più
+   urgente delle tre.
+4. **La scala dell'R-Factor** (§14.2), dalle impostazioni della lega.
+
+*Risposte dell'operatore, 5/08/2026 → §15: la porta vale **come il primo portiere**; **12** partecipanti;
+**euro/mantra**.*
+
+---
+
+## 15. I numeri di questa lega, misurati (5 agosto 2026)
+
+**12 partecipanti · euro/mantra · 25 giocatori (2 porte + 23) · draft in una giornata · R-Factor.**
+Da cui: **25 giri, 300 scelte, 24 porte, 276 uomini di movimento, 120 titolari.**
+
+### 15.1 Il formato è possibile SOLO su euro, e non è una preferenza
+
+12 squadre × 2 porte = **24 porte**, e la Serie A ha **20 club**. Quindi un formato a due porte con dodici
+partecipanti **non può esistere su `default`**: la risposta «euro/mantra» era forzata dall'aritmetica, non
+scelta. Sul perimetro euro invece il pool è il numero di club del listone, e va misurato.
+
+### 15.2 Il pool, misurato sul DB — e il listone che serve non c'è ancora
+
+- il listone **2026-27 in DB è solo Serie A**: 494 righe, 20 club, 60 portieri. **Il listone euro 26/27 non è
+  ancora stato ingerito**, ed è il presupposto di ogni numero di questo draft;
+- l'ultimo listone euro completo (2025-26) porta **1453 giocatori su 46 club** — serie_a 20, premier_league 10,
+  bundesliga 6, la_liga 6, ligue_1 5. Non i «~35» che la knowledge base cita a memoria: 46, contati.
+
+Con quella forma: **300 scelte su ~1453 = il 21% del pool**, e **24 porte su 46 = il 52% delle porte
+esistenti**. Il rimpiazzo di una porta è quindi ≈ la **25ª miglior porta su 46**: scarsità reale ma non
+inelastica — mentre su Serie A lo stesso formato sarebbe impossibile (§15.1).
+
+### 15.3 «La porta vale come il primo portiere»: computabile, e con un difetto già visibile
+
+Operativamente: FVM della porta = **il massimo `fvm_mantra` fra i portieri del club** (il primo portiere è
+quello quotato di più; dove due portieri sono quotati uguale c'è un ballottaggio vero, ed è l'unico caso in cui
+«massimo» e «titolare» divergono).
+
+Misurato sul listone Serie A 2026-27, funziona su **19 club su 20**. Fallisce sul **Torino**: tutti e tre i
+portieri (Mascardi, Paleari, Siviero) a **FVM 1 e Qt.I 1**, mentre Paleari nel 2025-26 stava a 9 — la porta del
+Torino non è quotata in questo listone. E la conseguenza non è cosmetica: **l'FVM della porta ora guida
+l'ORDINE dei giri** (§11.1), quindi un club non quotato non è una porta «economica», è un **dato mancante che
+falsa l'ordine di tutto il draft**. L'app deve dichiararlo, non prezzarlo: una porta senza quotazione va
+marcata, come una cella di surplus vuota (§8).
+
+### 15.4 Senza quote per ruolo, lo ZERO del surplus non è più configurazione
+
+Verificato nel codice, non supposto: `features.roster_depth` per il Mantra deriva la profondità per ruolo dai
+**totali per macro-ruolo** (`derive_mantra_slots` su `squad_slots` P/D/C/A). Una lega «25 senza altre
+restrizioni» non ha quei totali — e un `squad_slots` parziale non solleverebbe un errore: `squad_slots.get(
+classic, 0)` restituirebbe **zeri in silenzio**, cioè livelli di rimpiazzo sbagliati senza nessun sintomo.
+
+Per questo la lega **non è ancora stata aggiunta a `my_leagues`**: scriverla adesso significherebbe spedire un
+numero muto. La strada, ed è il primo vero compito di modello del primo step: la domanda di ruolo non viene
+più da una quota ma **dalla tabella dei moduli** — 12 squadre × 10 caselle, con la distribuzione degli schemi
+che le squadre giocheranno. Il pavimento è già noto e duro (2 `Dc` per squadra, §14.3, quindi ≥24 in lega), il
+resto è un punto fisso: si assume una forma, si simula il draft, si ri-deriva la forma. Ed è misurabile nel
+simulatore del §11.6, che è esattamente il posto giusto.
+
+### 15.5 La porta non è architettura nuova
+
+`features.goalkeeper_club_rates` **già aggrega i portieri per CLUB** (gol subiti per partita, sommando le
+presenze di tutti i portieri del club — è l'input di M2e). Quindi l'unità «porta» esiste già nel motore per una
+quantità diversa: serve la stessa aggregazione applicata alla **fantamedia** invece che ai gol subiti. È
+un'estensione di un pattern presente, non un modulo nuovo — che è anche la ragione per cui il §14.1 chiama la
+cosa un errore di *unità* e non di modello.
+
+---
+
+## 16. La superficie dei parametri: questa lega come ISTANZA (5 agosto 2026)
+
+**Decisione dell'operatore**: si costruisce sulle impostazioni della sua lega, ma ogni combinazione deve
+restare esprimibile. È la disciplina che il progetto applica già a `scoring_config` («per-league parametric:
+no hard-coded +3/-3/+1») estesa al formato d'asta, e la regola operativa è una:
+
+> **una dimensione per regola, letta dalla configurazione. Il regolamento del gioco sta in
+> `config/mantra_modules.json`, le scelte della lega in `config/league_config.json`, e il motore non
+> ramifica mai su «la mia lega».**
+
+Con il freno contro la generalità prematura: **una dimensione è reale solo se si sa nominare una seconda lega
+che ci differisce.** Per tutte quelle sotto la seconda lega esiste già — `EuroLeghe` classic, dichiarata nello
+stesso file. Non si costruisce invece un sistema a plugin per formati d'asta arbitrari: «modalità» è un campo
+con due valori, non un'architettura.
+
+### 16.1 Le dimensioni, il valore di questa lega, e dove oggi sono ASSUNTE
+
+| dimensione | questa lega | altro legale | stato oggi |
+|---|---|---|---|
+| `platform` | `euro` | `default` | **parametrico** (parte della PK di mezzo DB) |
+| `game` | `mantra` | `classic` | **parametrico** |
+| `teams` | 12 | qualunque | **parametrico** |
+| **dimensione rosa** | **25** | 23 (ufficiale), 26… | **non esprimibile**: esistono solo le quote |
+| **quote per macro-ruolo** | **nessuna** | 3/8/8/6, … | **normalizzata via** — vedi §16.2 |
+| **unità del portiere** | **porta = club**, 2 slot, prezzo = primo portiere | portiere-giocatore, N slot | **assunta giocatore** |
+| **fattore** | **R-Factor** | D-Factor, nessuno (si escludono) | **assente** da `scoring_config` |
+| **modalità d'asta** | **draft** | rilanci | **nessun concetto** nel codice |
+| **regole d'ordine** | giro 1 custom · poi FVM rosa crescente · parità → chi ha il singolo più alto sceglie dopo · parità → ordine giro 1 · barriera di giro | qualunque | da esprimere come **lista ordinata di chiavi**, non come codice |
+| **valuta dell'ordine** | `fvm_mantra`, congelato alla data del draft | Qt.I, fvm classic | il campo esiste, il congelamento no |
+| **legalità** | **impedisce**; invariante di completabilità + undici a rosa completa | avvisa; solo a fine draft | da costruire |
+| `reliability_exponent` · `min_availability` | 0.5 · 0.35 | qualunque | **parametrici** — ma vedi sotto |
+| scoring per campionato | 5 campionati (euro) | 1 (default) | **parametrico**, e questa lega lo esercita davvero |
+
+Una sfumatura che la tabella non contiene e che il §14.1 impone: la **beccabilità non è una proprietà della
+lega ma della CLASSE DI ASSET**. Su una porta vale ≈1 per costruzione, quindi `reliability_exponent` non deve
+toccarla: applicarlo anche là sconterebbe un rischio che non esiste. Non è un parametro nuovo, è il perimetro
+di uno che c'è.
+
+### 16.2 Il difetto che questa richiesta ha fatto emergere: la configurazione CANCELLA la dimensione
+
+Non è un'assenza, è una normalizzazione, e produce numeri plausibili invece di un errore. Dimostrato
+eseguendo il codice:
+
+```
+Config._league_setup('X', {'platform':'euro','game':'mantra','teams':12, 'squad_slots': {}})
+  -> squad_slots = {'P': 3, 'D': 8, 'C': 8, 'A': 6}
+```
+
+`_league_setup` fonde sempre `DEFAULT_SQUAD_SLOTS` e poi impone la presenza di tutti e quattro i ruoli
+(`config.py:128,137`), quindi **una lega non può dichiarare «senza quote»**: la nostra rosa da 25 con 2 porte
+verrebbe letta come 3 portieri + 8/8/6. E a valle `derive_mantra_slots` deriva la profondità Mantra proprio da
+quei totali, così il livello di rimpiazzo — **lo zero del surplus** — sarebbe calcolato per una rosa che questa
+lega non ha.
+
+Due gradini di gravità, e il secondo è quello che conta:
+
+1. con `squad_slots` davvero vuoto la profondità diventa **zero su ogni ruolo** (`budget = 0 × listature`), e
+   il fallback «divisione equa» non scatta perché il dizionario non è vuoto, è pieno di zeri;
+2. con la normalizzazione attuale non si vede nemmeno lo zero: si ottengono **livelli di rimpiazzo
+   verosimili e sbagliati**. È il caso peggiore dei due, ed è la ragione per cui la lega **non è ancora in
+   `my_leagues`**: dichiararla oggi significherebbe spedire un numero muto (§8: una cella vuota è
+   un'affermazione, un numero inventato non lo è).
+
+### 16.3 Generalizzare qui costa MENO che specializzare
+
+Vale la pena dirlo perché è controintuitivo: la forma generale del livello di rimpiazzo è anche **l'unica
+corretta per questa lega**. La domanda di ruolo non viene da una quota ma dalla **tabella dei moduli** — 12
+squadre × 10 caselle, con la distribuzione degli schemi giocati — e una lega *con* quote è semplicemente lo
+stesso conto con un vincolo in più. Quindi non c'è un caso semplice da spedire prima e un caso generale da
+rimandare: c'è un conto solo, e la quota è un dettaglio del più generale.
+
+### 16.4 Il primo passo di codice, che ora è definito
+
+Tre modifiche piccole e una sola per file, da fare insieme perché separate lasciano il numero muto:
+
+1. **`config.py`** — `squad_size`, quote **opzionali** (assenti = libere), blocco `keeper`
+   (`unit: player | club_goal`, `slots`, `price`), `factor`, blocco `auction` (`mode` + le chiavi d'ordine).
+   Additivo: le leghe già dichiarate leggono esattamente come oggi.
+2. **`features.roster_depth`** — una lega Mantra senza quote **rifiuta** di derivare la profondità invece di
+   inventarla: `{}` in uscita, che il percorso «niente lega → niente rimpiazzo» già gestisce dicendolo.
+3. **`league_config.json`** — la lega dichiarata con i suoi valori, che dopo (1) sono esprimibili.
+
+Poi, e solo poi, il refactor dell'assegnamento fuori da `gui.py` (§12.5) e il simulatore (§11.6).
+
+---
+
+## 17. Il modulo come direzione, e le tre strisce (5 agosto 2026)
+
+Due richieste dell'operatore: **indirizzare le scelte verso il modulo più adatto a chi si è già preso, senza
+escludere gli altri**; e vedere **tre strisce da cinque giocatori** — la scelta di adesso più le quattro
+successive suggerite, coi turni contati e le scelte altrui simulate.
+
+### 17.1 Il modulo non si scegli e non si ignora: è una POSTERIORE, e c'è già
+
+La prima richiesta non ha bisogno di uno strato di strategia nuovo, perché **l'obiettivo del §12.1 la contiene
+già**: se una rosa vale il *massimo sui moduli* dell'undici schierabile, allora una rosa buona in tre moduli
+vale più di una chiusa in uno — non per prudenza, ma perché infortuni e turnover cambiano ogni settimana quale
+modulo è schierabile, e la tabella delle sostituzioni permette esplicitamente di **cambiare schema** (§13.4).
+Quindi «non escludere completamente gli altri moduli» non è un vincolo da aggiungere: è ciò che l'obiettivo
+fa, se lo si calcola bene. Ciò che va costruito è il modo di **mostrarlo**: non un modulo scelto ma un
+punteggio per ognuno degli undici, che è la posteriore di dove la rosa sta andando.
+
+Con due avvertenze che vengono dalla cultura del progetto:
+
+- **finché non è informativa va detto che non lo è.** Alle prime scelte ogni modulo è ancora raggiungibile e
+  la posteriore è piatta: mostrare un favorito lì sarebbe inventare una direzione. Stessa regola della cella
+  vuota (§8).
+- **si calcola sui ruoli del LISTONE**, non sui dodici codici misurati (§12.4): qui la domanda è la legalità.
+
+### 17.2 La direzione è quasi un BIT solo, e sta in difesa
+
+Struttura ricavata dalla tabella, e semplifica tutto: gli undici moduli si dividono in **5 a tre dietro** e
+**6 a quattro**, e dentro ciascuna famiglia il requisito difensivo è **identico** (`DC DC DC/B` contro
+`DD DC DC DS`). Quindi:
+
+> **la difesa non scegli un modulo, scegli una FAMIGLIA — e dentro la famiglia è libera.** Quale dei cinque
+> (o dei sei) si giocherà lo decidono centrocampo e attacco.
+
+E il prezzo dell'opzionalità diventa un numero invece di un'impressione: **2 `Dc` + 1 `B` + 1 `Dd` + 1 `Ds` =
+5 difensori tengono in vita entrambe le famiglie**; quattro comprano solo la difesa a quattro, tre solo quella
+a tre (i 2 `Dc` sono condivisi). Un difensore multi-ruolo abbassa ancora il conto. Davanti invece la libertà è
+quasi totale — la casella `A/PC` esiste in tutti gli undici moduli — mentre i ruoli da tenere d'occhio sono
+`T` (assente in quattro moduli) e `W` (in due).
+
+Da qui la forma generale della quantità che serve: **il costo dell'opzionalità** = valore della miglior rosa
+che tiene vive almeno K famiglie/moduli, meno il valore della miglior rosa senza vincoli. Se è vicino a zero
+si resta aperti, se è alto si decide — e non è una preferenza dell'operatore, è misurabile nel simulatore
+(§11.6).
+
+### 17.3 Le tre strisce: un beam search, e vanno scelte per DIVERGENZA
+
+La seconda richiesta è, tecnicamente, una **ricerca a fascio di ampiezza 3 e profondità 5** sull'albero del
+draft, con le scelte avversarie simulate nel mezzo. I pezzi:
+
+- **il conteggio dei turni è esatto** entro il giro (barriera + ordine noto), e va **ricalcolato a ogni giro**
+  perché l'ordine dipende dall'FVM di rosa, che dipende dalle scelte simulate. Deterministico, quindi
+  calcolabile: non è una stima.
+- **conseguenza dell'ordine che le strisce faranno vedere da sole**: la regola «FVM di rosa crescente» rende il
+  draft quasi un serpente, ma **endogeno** — prendere l'uomo caro ti manda in fondo al giro dopo, prendere a
+  poco ti tiene davanti. Quindi la distanza fra due mie scelte non è un pattern fisso, è **una variabile di
+  decisione**, ed è esattamente il valore di opzione del §11.5 reso visibile.
+- **la politica avversaria è l'unica assunzione**, quindi va scritta nella UI accanto alle strisce e non
+  nascosta («assumendo che gli altri prendano il miglior FVM disponibile»). Meglio: la sopravvivenza di un
+  nome mostrata sotto due o tre politiche, così l'operatore vede quando il piano è robusto e quando dipende
+  da come giocano gli altri.
+
+**E la decisione di design che conta: le tre strisce non sono le prime tre della stessa classifica.** Tre
+scelte quasi equivalenti darebbero tre strisce quasi identiche — tre attaccanti, nessuna informazione. La
+richiesta stessa dice cosa serve: «*che mi faccia comprendere in che direzione andrebbe la rosa*». Quindi le
+tre strisce si selezionano per **divergenza di direzione**, e l'asse naturale è quello del §17.2 — per esempio
+difesa a tre, difesa a quattro, e la variante che tiene vive entrambe — ognuna col suo numero in testa
+(valore di rosa proiettato) e col suo costo di opzionalità. Si confrontano direzioni, non nomi.
+
+### 17.4 Onestà delle strisce, e un regalo che si portano dietro
+
+- **Le scelte 2-5 sono previsioni condizionate, non impegni**, e la loro affidabilità decade lungo la striscia:
+  vanno mostrate con la probabilità di sopravvivenza e con un'evidenza grafica calante. La quinta non può avere
+  l'aria della prima.
+- **Il costo di calcolo va diviso in due**, e la divisione è una scelta di modello da dichiarare: il *lookahead*
+  gira sui valori attesi (assegnamento Hungarian, che è piccolo e veloce), il Monte Carlo sugli stati di
+  disponibilità (§12.6) si spende solo sulla **scelta immediata**, dove decide davvero. Con caching per
+  candidato, e da misurare che non riordini le strisce.
+- **Il regalo**: una striscia è una previsione registrata. Il log eventi (§9) permette di confrontare, in
+  diretta, i nomi che l'app diceva sopravvissuti con quelli che sono davvero arrivati al turno — **calibrazione
+  misurata durante l'asta**, con la stessa logica con cui il §14.2 chiede la scala dell'R-Factor prima di
+  usarla. È gratis e nessun'altra parte del sistema può misurarsi così.
+
+---
+
+## 18. Calibrare gli avversari, e la scarsità che cambia ogni stagione (5 agosto 2026)
+
+### 18.1 La politica avversaria non si assume: si impara, e metà è già deterministica
+
+Il §17.3 dichiarava la politica avversaria come l'unica assunzione. La richiesta dell'operatore la trasforma:
+**si parte da un prior dichiarato e si aggiorna con le scelte osservate**. Con 12 squadre e 25 giri sono **300
+scelte**, quindi entro il quinto giro ne sono state viste ~55: campione reale, non aneddoto.
+
+La forma naturale è un **modello di scelta discreta**: ogni pick è una scelta da un insieme disponibile *noto*,
+quindi `P(prende x | disponibili)` cresce con le caratteristiche di x — rango di FVM, ruolo che gli manca,
+scarsità, club. E la cosa che rende questo problema più facile del solito:
+
+> **metà della previsione non è statistica, è deterministica.** Le rose avversarie sono osservabili e le regole
+> sono le stesse per tutti, quindi i loro vincoli si calcolano esattamente con la macchina del §12: il loro
+> pavimento di 2 `Dc`, le loro 2 porte, quali famiglie di moduli hanno ancora aperte. Sappiamo di loro ciò che
+> sanno loro.
+
+Tre discipline, tutte già pagate altrove in questo progetto:
+
+- **confrontare col null giusto.** Una politica appresa vale solo se batte «prende il miglior FVM
+  disponibile», misurato in diretta. Una calibrazione confrontata con zero non è una calibrazione.
+- **misurarla sulla quantità per cui la si usa.** Non l'accuratezza su tutte e 300 le scelte, ma la
+  **sopravvivenza dei nomi della mia lista**: è il numero che entra nelle strisce, ed è molto più facile da
+  azzeccare.
+- **per-avversario solo con evidenza.** Al quinto giro ci sono ~4 scelte per squadra: si tiene una politica
+  comune più una deviazione per squadra che si accende quando i dati la reggono, e finché non la reggono lo si
+  dice.
+
+E la separazione onesta fra due affermazioni diverse: il simulatore (§11.6) valida **l'apprenditore** contro
+avversari sintetici; non può validarlo contro esseri umani. Quello lo dirà solo il draft, in diretta.
+
+### 18.2 La numerosità dei ruoli cambia davvero, e di quanto — misurato
+
+L'intuizione dell'operatore («in certe stagioni ci sono poche M, in altre pochi Dc, in altre poche E») è
+verificata sul listone euro. Listature per ruolo Mantra (un `dc;dd` conta in due — 1.523 listature per
+giocatore nel 2025-26), contro la domanda dei titolari di 12 squadre, che la tabella dei moduli fissa come
+intervallo fra il modulo che ne usa meno e quello che ne usa più:
+
+| ruolo | domanda 12 sq. | 2022-23 | 2023-24 | 2024-25 | 2025-26 |
+|---|---|---|---|---|---|
+| por | 12 | 169 | 169 | 179 | 164 |
+| dd | 0-12 | 157 | 153 | 170 | 146 |
+| **dc** | **24-36** | 295 | 299 | 271 | 272 |
+| ds | 0-12 | 163 | 157 | 159 | 150 |
+| **b** | 0-12 | **0** | **0** | **43** | **28** |
+| **e** | 0-24 | 253 | 241 | 249 | **224** |
+| **m** | 12-24 | 185 | 185 | 192 | **171** |
+| c | 12-24 | 290 | 328 | 325 | 294 |
+| w | 0-24 | 144 | 172 | 167 | 173 |
+| t | 0-24 | 174 | 185 | 161 | 172 |
+| a | 12-36 | 198 | 183 | 193 | 187 |
+| pc | 12-24 | 141 | 159 | 140 | 144 |
+
+Quattro letture:
+
+1. **La variazione è reale e vale circa il 10%**: `m` −11% e `e` −11% nel 2025-26, `dc` −9% nel 2024-25. Una
+   scarsità presa dall'anno prima sbaglia di quell'ordine, quindi **va ricalcolata sul listone corrente** — che
+   è un'altra ragione per cui il listone euro 26/27 va ingerito prima di ogni numero (§15.2).
+2. **`b` non esisteva prima del 2024-25**: zero listature su due stagioni, poi 43, poi 28. È un cambio di
+   **vocabolario del listone**, non un cambio di calcio — da confermare alla fonte, e da sapere prima di
+   confrontare braccetti fra stagioni: chi lo facesse concluderebbe una cosa falsa. Conseguenza pratica:
+   qualunque affermazione sui braccetti ha **due stagioni** di storia, non dieci.
+3. **La scarsità è concentrata in due punti soli, e sono i due che il formato crea o il listone nega**: la
+   domanda massima consuma il 13-17% del pool per quasi ogni ruolo, ma **il 43% dei `b`** (12 su 28) e **il 52%
+   delle porte** (24 club su 46, §15.2). Tutto il resto è abbondante.
+4. **E il `b` scarso non è vincolante**, perché la casella è `DC/B` e un `Dc` la copre: la scarsità morde solo
+   se si vuole *quel* profilo. Al contrario delle porte, dove non esiste alternativa.
+
+Due precisazioni perché i numeri non vengano usati male: la **domanda è fissa** (la fissano le regole e il
+numero di squadre) mentre la **supply varia**, quindi l'indice di scarsità è interamente guidato dal listone; e
+questi sono conteggi **grezzi**, che includono i fuori-rosa — la versione che conta userà il filtro di
+utilizzabilità già in uso per le àncore (`Pv ≥ 20`), e sarà più stretta di così.
+
+---
+
+## 19. Il draft è A CAMPIONATO INIZIATO, e questo è il vantaggio (5 agosto 2026)
+
+**Informazione dell'operatore**: quando si farà il draft ci saranno già **3-4 giornate giocate**, e gli
+avversari scegleranno su *FVM*, *conoscenza personale* e *calciatori che hanno overperformato all'inizio*.
+Non è un dettaglio di calendario: cambia il bersaglio, il vantaggio e — soprattutto — crea **una cosa che va
+fatta adesso o è perduta**.
+
+### 19.1 Una misura che non si può recuperare dopo: il ΔFVM
+
+L'FVM «varia ogni settimana o quando ci sono eventi particolari», ed è per questo che esiste
+`fvm_history(fc_id, season, observed_on, …)`, che **accumula da oggi** e non ha passato. Se il draft avviene
+dopo 3-4 giornate, allora:
+
+> **la differenza fra l'FVM di pre-campionato e quello del giorno del draft È la misura di quanto il mercato
+> ha ri-prezzato le prime giornate** — cioè la misura diretta del bias che l'operatore si aspetta dagli
+> avversari.
+
+Osservabile solo se la si cattura. Stato al 5/08/2026, verificato: `fvm_history` ha **988 righe su due date**
+(04 e 05 agosto), **494 giocatori ciascuna — il solo listone Serie A**; il listone euro non è mai entrato nella
+storia. Quindi l'azione con una scadenza, e non è codice: **catturare il listone euro con regolarità da ora
+fino al draft**. Ogni settimana non catturata è un pezzo di quella misura che non esiste più. (Da controllare
+anche perché gli ultimi quattro run di `snapshot` risultano in `error`: una cattura che non gira è una cattura
+che non c'è.)
+
+### 19.2 L'asimmetria che rende il bias sfruttabile, e non è un'opinione
+
+Le prime 3-4 giornate sono **sotto il dominio su cui il core è fittato** (`MIN_PV_PREV` = 15 voti): il motore
+là non prevede, per costruzione. Ma il progetto ha già misurato *cosa* contengono quelle partite, e la risposta
+è asimmetrica:
+
+- **sul voto: quasi nulla.** L'eccesso di autocorrelazione del fantavoto contro il null rimescolato è **+0.012**
+  (`gate-motore-v1.md` §5-duodecies punto 4): l'«ha la mano calda» non si trasferisce. Quattro gol in quattro
+  giornate sono in larghissima parte rumore.
+- **sulle presenze: molto.** `Var(ln pv)` è il **90%** di `Var(ln fantapunti)`, e chi ha giocato 4 partite su 4
+  essendo una riserva l'anno prima è un'informazione che il listone di pre-campionato **non aveva**: un ruolo
+  cambiato, un trasferimento atterrato, una gerarchia risolta.
+
+Da cui la regola operativa, e è l'esatto opposto di come si comporta un avversario che «segue chi ha
+overperformato»: **leggere le prime giornate per i MINUTI, scontarle per il VOTO.** È l'arbitraggio di questo
+draft, e non è una scommessa sul comportamento altrui: è una misura contro un rumore.
+
+### 19.3 E il formato tassa il bias da solo
+
+Il pezzo elegante: dopo 3-4 giornate l'FVM di chi ha iniziato forte **è già salito**. Quindi un avversario che
+lo prende alza il proprio valore rosa più del dovuto e **scivola indietro nell'ordine dei giri** (§11.1). Il
+formato **punisce automaticamente** l'inseguimento della forma, e chi non inseguisse incassa la posizione senza
+fare niente di astuto. Corollario per la ricerca del valore: non sta nei nomi caldi — sta in quelli il cui
+**FVM non si è mosso** mentre la loro titolarità sì. Ed è esattamente ciò che il ΔFVM del §19.1 rende visibile,
+incrociato coi minuti delle prime giornate.
+
+### 19.4 Cosa deve essere pronto prima, e cosa NON va costruito
+
+Serve, come pipeline: i **voti della stagione corrente** fino alla giornata del draft (modulo `ratings`, API
+Excel autenticata — è il caso per cui è stato scritto), `recent_form` aggiornato, e l'**età dell'evidenza per
+fonte** già introdotta in v9.23, perché un draft in corsa vive di dati freschi e va detto quanto sono freschi.
+
+Non va costruita, invece, una **regola di forma iniziale** adottata perché «è ovvio che conta»: sarebbe una
+regola previsionale nuova, quindi passa dal gate, e il prior dalle misure di cui sopra è **presenze sì, voto
+no**. Va pre-registrata in quella forma — separando i due bersagli — e non riformulata dopo aver visto il dato.
+
+### 19.5 Due conseguenze minori da non sbagliare
+
+- **L'orizzonte si accorcia**: il calendario euro è di 31 giornate, quindi un draft dopo la 3ª-4ª lascia ~27-28
+  giornate. Il fattore è quasi uniforme, quindi tocca poco l'*ordinamento*, ma ogni numero **assoluto** (valore
+  di rosa, valore di una porta, proiezione di una striscia) va calcolato sul calendario **residuo** — e
+  l'orizzonte diventa un parametro, dove oggi è implicitamente la stagione intera.
+- **La «conoscenza personale» è il residuo irriducibile**: è ciò che la deviazione per-avversario del §18.1
+  assorbe se i dati la reggono, e nient'altro. Non si inventano feature per rappresentarla; si dice che quella
+  parte non è predetta.
+
+---
+
+## 20. Lo storico FVM è pubblico, e il vantaggio ha un numero (5 agosto 2026)
+
+### 20.1 Correzione al §19.1: è una fonte da ingerire, non una scadenza — e la buona notizia è limitata
+
+L'operatore segnala che **lo storico degli FVM è pubblico su fantacalcio.it**, e la fonte lo conferma: dal
+2025-26 il sito ha introdotto la **storicizzazione del dato stagionale** — «*nella scheda del calciatore un
+grafico e, se si vuole, una tabella con tutte le variazioni dell'FVM*», con la nota che l'FVM, a differenza
+delle quotazioni, «*può variare in qualsiasi momento e non su scala di giornate*». Quindi il ΔFVM non va
+rincorso in tempo reale: si ingerisce. E in più diventa **backtestabile**, non solo osservabile: si può
+misurare *prima* del draft quanto il mercato ha ri-prezzato le prime giornate di una stagione passata.
+
+Due limiti che vanno detti subito, perché la notizia è buona ma non illimitata:
+
+- **la storicizzazione parte dal 2025-26**, quindi c'è **una** stagione di storia. Per gli standard di questo
+  progetto una finestra è l'evidenza più debole possibile (§gate: T1/T2 sono nominate proprio perché sono le
+  finestre su cui le ipotesi sono nate). Una misura di overreaction su una stagione è un indizio, non un
+  verdetto — e va dichiarata come tale.
+- **la superficie esatta va indicata dall'operatore.** Il pattern della scheda è
+  `fantacalcio.it/euroleghe/squadre/{club}/{giocatore}/{fc_id}/{stagione}` (l'id nell'URL sembra proprio il
+  nostro `fc_id`, quindi le pagine sono costruibili dal DB), e quella pagina porta le medie e la **tabella per
+  giornata con titolare/subentrato** — ma il grafico delle variazioni FVM non è raggiungibile con un fetch
+  semplice: o è reso lato client, o vive su un'altra superficie. Chiedere il puntatore costa un minuto e vale
+  più di qualunque tentativo a indovinare.
+
+`fvm_history(fc_id, season, observed_on, fvm, fvm_mantra)` è già la forma giusta per accoglierlo, il che è una
+conferma indiretta: la tabella è nata perché si era notato che l'FVM era uno stato volatile tenuto come campo
+statico, e la fonte dice la stessa cosa con le sue parole.
+
+### 20.2 «Tutte le partite giocate, non solo quelle di EuroLeghe»: 1.64× di campione
+
+L'operatore indica il vantaggio strutturale del progetto: le statistiche sono costruite su **tutte** le partite
+di un giocatore, non sul solo calendario EuroLeghe. Misurato sul 2025-26, sui 907 giocatori che hanno entrambe
+le misure:
+
+| | presenze medie |
+|---|---|
+| calendario **euro** | **18.36** |
+| **tutte** le competizioni (minuti > 0) | **24.50** |
+| rapporto | **1.64 medio · 1.30 mediano** |
+
+Il layer per partita copre i 5 campionati **più** Champions, Europa League, coppe nazionali, Serie B,
+Championship. E il punto non è la media annuale: è **dove** il vantaggio si applica.
+
+> Al draft gli avversari ragioneranno su 3-4 presenze EuroLeghe. Noi ne avremo **il 30-60% in più**, e proprio
+> nel momento in cui il campione è così piccolo che il rumore domina: 4 partite contro 6 è un campione del 50%
+> più grande esattamente dove serve.
+
+E le partite in più non sono partite qualsiasi: sono in buona parte **gli infrasettimanali europei**, che sono
+la misura più diretta della **politica di rotazione** — di chi l'allenatore si fida, chi gioca la coppa, chi
+viene risparmiato. Cioè il segnale presenze (§19.2), su una superficie che chi guarda le statistiche EuroLeghe
+non vede affatto.
+
+Il vantaggio poi non è solo di *quantità* ma di *tipo*: propensione e xG per 90 da FBref, rating e **heatmap**
+da Sofascore, i **dodici codici di ruolo misurati** (che battono il codice del listone nel nominare un fianco,
+97.9% contro 93.9%) e `club_match_lineups`, completa su **tutte** le formazioni perché non passa dall'imbuto
+dell'identità. Per un draft Mantra quest'ultimo blocco pesa il doppio: dice *dove un uomo gioca davvero*, che è
+la domanda da cui dipende se terrà il posto.
+
+### 20.3 La disciplina che accompagna il vantaggio: i FATTI viaggiano, i VOTI no
+
+Il vantaggio va usato per ciò per cui è calibrato. `synth` fitta la sua retta sull'**overlap** e l'eleggibilità
+è **della competizione** (`synth.calibrated_competitions`, derivata dall'overlap stesso): il progetto ha già
+pagato per aver applicato quella retta a 4784 righe di Serie B, Championship e Coppa Italia che non aveva mai
+visto. Quindi:
+
+> **minuti, gol, assist, xG e posizione viaggiano da qualunque competizione; il VOTO solo dove la calibrazione
+> esiste.** «Tutte le partite» non significa «tutte le partite producono una fantamedia».
+
+Ed è una convergenza che vale registrare: il §19.2 conclude «leggere le prime giornate per i minuti, scontarle
+per il voto» partendo da una misura sull'autocorrelazione; il §20.3 arriva alla stessa regola partendo dalla
+calibrazione delle fonti. **Due strade indipendenti, una conclusione** — che è il tipo di accordo che rende una
+regola meno probabilmente un artefatto.
+
+### 20.4 Lo storico FVM si prende dal DETTAGLIO CALCIATORE
+
+Confermato dall'operatore. Bersaglio d'ingestione fissato: la scheda del giocatore,
+`fantacalcio.it/euroleghe/squadre/{club}/{giocatore}/{fc_id}/{stagione}` — una pagina per calciatore
+(~1453 su euro), costruibile dal DB perché l'id nell'URL è il nostro `fc_id`. Il grafico delle variazioni non
+compare in un fetch semplice, quindi è reso lato client: l'implementazione dovrà leggere la sorgente che lo
+alimenta, non l'HTML. Stessa disciplina del resto del progetto: la pagina scaricata va in **cache come sorgente
+di verità**, così `rebuild` la ri-ingerisce offline, e la destinazione è `fvm_history`, che esiste già con la
+forma giusta.
+
+---
+
+## 21. Le partite facili: misurato, e l'aritmetica del calendario la uccide (dove non serve) — 5 agosto 2026
+
+**Idea dell'operatore**: valutare quali partite facili ha un giocatore dall'asta a fine campionato — «un
+giocatore forte che giocherà solo contro squadre forti non rende come un giocatore medio che giocherà solo
+contro squadre scarse».
+
+### 21.1 Prima: NON è la famiglia già bocciata tre volte, e la distinzione conta
+
+Il gate ha respinto tre volte la **forza del club DI APPARTENENZA**: forza-club interna, Elo additivo per il
+movimento (T1 +1.1%, T2 −1.0%), e **R5** àncora forza-club da ClubElo — «*il segno è giusto su entrambe le
+finestre — l'intuizione Kane è corretta — ma il MAE di T1 peggiora ogni volta*». Quella è una proprietà
+stagionale di *dove gioca*. L'idea dell'operatore è un'altra quantità: **chi affronterà**, aggregato su una
+finestra specifica. Trattarla come già risolta sarebbe sbagliato.
+
+### 21.2 Ma muore per aritmetica, prima di qualunque gate: 8.6 contro 148.3
+
+Misurato sul calendario Serie A 2025-26 (coppie giornata-club-avversario dal layer per partita, forza =
+ClubElo). Spread **fra club** dell'Elo medio degli avversari, per orizzonte:
+
+| orizzonte | sd | min | max | range |
+|---|---|---|---|---|
+| prossime **3** giornate | **79.8** | 1564 | 1845 | **281** |
+| prossime **5** | **49.5** | 1595 | 1760 | 165 |
+| prossime **10** | 32.2 | 1632 | 1740 | 108 |
+| **residuo 34** (dalla 5ª alla fine) | **8.6** | 1665 | 1699 | **34** |
+| stagione intera | 6.7 | 1666 | 1693 | 27 |
+| *(riferimento)* Elo **dei club stessi** | **148.3** | | | |
+
+> Sul **residuo di 34 giornate** la differenza di calendario fra club vale **8.6 punti Elo di sd contro i 148.3
+> della forza dei club: un fattore 17.** Il girone all'italiana ri-bilancia quasi perfettamente — tutti giocano
+> con tutti — quindi «che partite gli restano da qui alla fine» è **praticamente lo stesso per tutti**.
+
+E si vede anche il confondente che aveva sporcato i test precedenti: i club **più forti** hanno il calendario
+residuo **più facile** (Inter 1665, Juventus 1668, contro Cremonese 1699), perché non giocano contro se stessi.
+Forza propria e difficoltà del calendario sono **anti-correlate per costruzione**: un termine additivo sulla
+prima porta dentro un pezzo della seconda, ed è una ragione in più per non impilarle.
+
+### 21.3 Dove invece vive, e questa lega ne ha bisogno per forza
+
+Lo spread decade come la media di n estrazioni, quindi **il segnale è tutto sull'orizzonte breve** — 79.8 su
+tre giornate, con un range di **281 punti Elo** fra il calendario più duro e il più morbido, che è come la
+distanza fra una squadra di metà classifica e una da titolo. E dentro **una singola giornata** lo spread
+dell'Elo avversario è **111.7**, cioè il **75%** della dispersione della forza dei club.
+
+Quindi la difficoltà del calendario è una quantità **settimanale**, non stagionale. E la lega dell'operatore ne
+crea un uso settimanale obbligato:
+
+> **la scelta di quale delle due PORTE schierare ogni giornata** (§14.1) è governata quasi interamente dalla
+> difficoltà del turno — spread 111.7 dentro la giornata, più il fattore campo che il layer per partita già
+> porta (`home`). È lì che il valore d'opzione della coppia di porte si realizza, ed è anche l'unico posto dove
+> la forza-squadra è **già passata dal gate**: il modulo portieri **M2e adotta l'Elo** (tasso gol subiti = mix
+> 50/50 persistenza + Elo, «mai peggio, meglio dove conta»).
+
+Il che chiude il cerchio in modo pulito: **per ordinare il draft la difficoltà del calendario non serve** (8.6
+su 148.3), **per scegliere la porta ogni settimana è il meccanismo principale**, e per i portieri la forza
+avversaria è l'unica versione della famiglia che il gate abbia mai adottato.
+
+### 21.4 Cosa manca per farlo, e due cautele sulla misura
+
+- **Nel DB non esiste il calendario FUTURO.** `external_match_stats` contiene le partite *giocate*, quindi le
+  coppie fixture si ricavano solo a posteriori; e `club_elo` ha **921 righe su 99 club con un solo scatto per
+  anno** (15 agosto, dal 2016 al 2025). Per usare la difficoltà del turno servono due ingestioni nuove: il
+  **calendario** della stagione e un **Elo più fresco** dello scatto annuale (l'API ClubElo è gratuita e
+  giornaliera — il `clubelo-gate` chiedeva già di aggiungere il dominio ai consentiti).
+- **Cautele su questo numero**: è misurato su **Serie A 2025-26** con un unico scatto Elo di pre-stagione, e
+  misura la **geometria del calendario** — non è una previsione, ed è esattamente ciò che la domanda richiede.
+  Su euro il calendario è un sottoinsieme (31 giornate su 38) e mescola cinque campionati, quindi il
+  ri-bilanciamento potrebbe essere **meno** perfetto: vale rifarlo su `platform='euro'` prima di dare l'8.6 per
+  buono là. Il rapporto 17× però è così largo che servirebbe un difetto enorme per rovesciarlo.
+
+### 21.5 Rifatto sul calendario EURO: il controllo del §21.4 era necessario, e RADDOPPIA il numero
+
+**Osservazione dell'operatore**: la difficoltà futura conta molto più per la **riparazione di febbraio** e per
+le **competizioni di poche giornate**, e in particolare su euro, «*dove alcune giornate vengono saltate e magari
+vengono saltate partite molto facili o molto difficili che cambiano nettamente l'appeal di un calciatore*».
+
+Misurato con `matchday_map` (2025-26 Serie A: il calendario euro mappa **31 giornate reali su 38**, quindi ne
+salta **sette**), spread fra club dell'Elo medio degli avversari **sulle sole giornate euro**:
+
+*(numeri corretti il 5/08/2026 dopo il difetto di join del §21.7 — copertura 20/20, 38 gare reali e 31 euro per
+club. Le conclusioni aggregate non si muovono, i nomi per club sì.)*
+
+| finestra | giornate euro residue | sd | range |
+|---|---|---|---|
+| calendario **reale** intero *(rif. §21.2)* | 38 reali | **6.0** | 21 |
+| **stagione euro intera** | 31 | **11.8** | 47 |
+| **dal draft** (≈ 4ª-5ª euro) | ~26 | **12.5** | 51 |
+| metà stagione | 21 → 16 | 12.9 → 13.5 | 59 → 53 |
+| **riparazione di febbraio** | 11 | **19.6** | **89** |
+| **coda / mini-competizione** | 6 | **33.8** | **111** |
+| una singola giornata *(rif. §21.3)* | 1 | 113.2 | — |
+| *(riferimento)* forza **dei club** | | **147.0** | |
+
+**L'operatore ha ragione su entrambi i punti, e ognuno ha la sua misura:**
+
+1. **Le giornate saltate NON si cancellano fra loro**: restringersi al calendario euro porta lo spread da
+   **6.0 a 11.8**, cioè lo **raddoppia**. Il girone all'italiana ri-bilancia solo se lo si guarda intero; il
+   sottoinsieme euro no.
+2. **Sulle finestre corte diventa di primo ordine**: 19.6 con 11 giornate (febbraio), **33.8 con 6** — e a quel
+   punto il range di **111 punti Elo** è dello stesso ordine dello spread dentro una singola giornata (113.2) e
+   si avvicina alla dispersione della forza dei club (147.0). Su una competizione di poche giornate il
+   calendario **è** il fattore.
+
+E l'effetto ha nomi. Differenza fra l'Elo medio degli avversari *visibili su euro* e quello del calendario
+reale, per club (sd **10.5**, range **36** punti):
+
+| il calendario euro mostra le partite più DIFFICILI | | il calendario euro mostra le più FACILI | |
+|---|---|---|---|
+| Lazio | **+22.0** | Verona | **−14.4** |
+| Cagliari | +17.1 | Lecce | −13.5 |
+| Como | +16.0 | Inter | −12.7 |
+| Juventus | +12.9 | Parma | −12.1 |
+
+Cioè esattamente il meccanismo descritto: un giocatore del Verona è **più appetibile su euro** di quanto il suo
+calendario reale suggerisca, perché il calendario euro gli salta le partite difficili; uno della Lazio il
+contrario. Ed è una distorsione **invisibile** a chi guarda la stagione reale, e altrettanto invisibile a chi
+guarda solo le medie euro senza sapere quali giornate sono state saltate. ⚠️ Questa è anche la tabella che il
+difetto del §21.7 aveva sbagliato di più: **Fiorentina e Atalanta erano artefatti** e sono uscite dalla lista,
+Verona e Parma sono entrate. Le medie aggregate tolleravano il buco, i singoli club no.
+
+**Conseguenza per il primo step, che resta invariata**: al draft l'orizzonte è ~26 giornate euro, quindi 12.5
+contro 147.0 — un dodicesimo, ancora secondario per *ordinare* i giocatori. Ciò che cambia è dove il lavoro va
+speso appena il draft è chiuso: **la scelta settimanale della porta** (§21.3) e, se un giorno si gioca una
+riparazione o una competizione breve, **là il calendario va prezzato**.
+
+### 21.6 Il buco che questa misura ha scoperto: fuori dalla Serie A l'avversario non ha un Elo
+
+Copertura dell'Elo **degli avversari**, 2025-26, contata sulle squadre effettivamente affrontate:
+
+| campionato | avversari distinti | con Elo | *(prima del fix §21.7)* |
+|---|---|---|---|
+| serie_a | 20 | **20** | 16 |
+| premier_league | 20 | **15** | 10 |
+| la_liga | 20 | **10** | 5 |
+| bundesliga | 24 | **10** | 1 |
+| ligue_1 | 18 | **9** | 2 |
+
+**Metà del buco era mio e metà è reale.** Il pezzo reale è strutturale: `clubs` contiene il **perimetro** (i top
+club del gioco) e `club_elo` mappa quelli, ma gli avversari di un club del perimetro sono in buona parte
+**fuori** dal perimetro — quindi fuori dalla Serie A la difficoltà del calendario resta calcolabile solo per
+metà delle partite, che è precisamente dove l'operatore dice che conta di più. ClubElo copre tutte quelle
+squadre (Elo europeo completo, API gratuita), quindi è **ingestione + mappatura**, non un limite della fonte, e
+va accanto alle due acquisizioni del §21.4 (calendario futuro, Elo giornaliero).
+
+### 21.7 Il difetto: un fatto di CLUB non si unisce per NOME
+
+Domanda dell'operatore: «immagino che l'Elo mancante sia solo delle squadre più scarse, o sbaglio?». **Sbagliava
+la misura, non l'intuizione — e nel modo peggiore.** I quattro avversari di Serie A senza Elo erano **AC Milan,
+AS Roma, SSC Napoli e Hellas Verona**: tre dei più forti del campionato più uno debole. E non era Elo mancante:
+il provider scrive `AC Milan`, `clubs.canonical_name` dice `Milan`, e il join era **per nome grezzo**.
+
+Il progetto ha già lo strumento — `matching.CLUB_ALIASES` + `matching.club_key()`, usati in tutto
+`positions.py` — e la misura lo aveva scavalcato. Con il fix: **20/20 avversari, 38 gare reali e 31 euro per
+club**, cioè il calendario completo.
+
+Perché va scritto e non solo corretto:
+
+- **la direzione del bias era la peggiore possibile.** Non rumore: sparivano dalla media di *ogni* club le
+  partite contro le tre squadre più forti, e sparivano in modo **disuguale** — a seconda di se i confronti con
+  Milan, Roma e Napoli cadessero dentro o fuori il calendario euro, che è esattamente la quantità misurata.
+- **le medie aggregate hanno tenuto, i singoli club no** (Fiorentina e Atalanta erano artefatti). È una lezione
+  su cosa fidarsi in una misura parziale: un rapporto fra ordini di grandezza sopravvive, una graduatoria di
+  nomi no.
+- **è la terza volta che questo progetto incontra la stessa forma**: `player_xref` scritto dentro il ciclo per
+  stagione, i fatti di club fatti passare per l'imbuto dell'identità, e ora un join per nome. La regola
+  generale, da applicare senza pensarci: **un'entità si unisce attraverso la sua chiave canonica** —
+  `club_key`/`CLUB_ALIASES` per i club, `fc_id`/`player_xref` per le persone — **mai attraverso la stringa che
+  una fonte usa per chiamarla.**

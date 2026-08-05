@@ -2150,8 +2150,26 @@ def _slot_pressure_factors(data: features.WindowData,
     return out
 
 
+def _predicted_rows(ranked, estimated, top_n: int, score_pred, gated, guessed) -> list[dict]:
+    """The top N of one role, gated men and estimated men in ONE order - which is the whole point.
+
+    Two builders because the two carry different evidence, one list because a ranking that keeps them apart
+    is two rankings and cannot answer "who do I bid on". The order is the score's, the tie-break is `fc_id`
+    (reproducible, same as everywhere), and every row says whether it is an estimate.
+    """
+    entries = [(score_pred(p), p.obs.fc_id, "gated", p, None) for p in ranked]
+    entries += [(score, obs.fc_id, "est", obs, guess) for score, obs, guess in estimated]
+    entries.sort(key=lambda entry: (-entry[0], entry[1]))
+    rows = []
+    for index, (_score, _fc_id, kind, subject, guess) in enumerate(entries[:top_n], 1):
+        row = gated(subject) if kind == "gated" else guessed(subject, guess)
+        rows.append({"rank": index, **row})
+    return rows
+
+
 def auction_view(data: features.WindowData, predictions: list[Prediction],
-                 top_n: int = TOP_N, metric: str = "value") -> dict:
+                 top_n: int = TOP_N, metric: str = "value",
+                 estimates: dict[int, dict] | None = None) -> dict:
     """Per role: the predicted top N and the real top N, each annotated with the other's rank.
 
     Two lists rather than one score. A precision of 6/10 hides whether the four misses were injuries,
@@ -2165,6 +2183,14 @@ def auction_view(data: features.WindowData, predictions: list[Prediction],
     * 'surplus' - (FM - replacement) x Pv, points over the man you would have fielded instead. Needs
                   `data.replacement` (league setup, see features.replacement_levels); a role without a
                   replacement level silently keeps the VALUE ordering rather than inventing one.
+
+    `estimates` = {fc_id: {"value", "surplus", "fm", "pv", "basis", "confidence", "note"}} lets a man the core
+    CANNOT price enter the ranking on his fallback valuation (`engine.estimate`, penalised for what is not
+    known about him). It exists because «ogni calciatore DEVE avere il suo SURPLUS altrimenti è impossibile
+    valutarli oggettivamente»: a blank cannot be compared, and an auction is nothing but comparison. The gate
+    NEVER passes it - it is None on every harness path - so no published number moves; and the rows it adds
+    say so (`estimated`, `est_basis`, `est_confidence`, `est_note`), because a ranking that mixes measured and
+    estimated men without marking which is which is worse than one that hides half of them.
 
     The two answer different questions. VALUE ranks an iron-man on a below-average fantamedia into the
     top ten - Politano was 9th among the euro/mantra 'w' on a predicted 6.58 against a role level of
@@ -2238,6 +2264,19 @@ def auction_view(data: features.WindowData, predictions: list[Prediction],
         # fc_id breaks the ties, so the list a decision is taken from is reproducible (see role_metrics)
         ranked = sorted((p for p in valued if fieldable(p.pv_pred)),
                         key=lambda p: (-score_pred(p), p.obs.fc_id))
+        # ...and the men the core could not price at all, on their penalised estimate. Only when a caller
+        # asks for them: the gate does not, so `ranked` above is exactly what it has always been.
+        priced_ids = {p.obs.fc_id for p in valued}
+        estimated: list[tuple[float, features.Observation, dict]] = []
+        if estimates:
+            for obs in observations:
+                if obs.fc_id in priced_ids:
+                    continue
+                guess = estimates.get(obs.fc_id) or {}
+                score = guess.get("surplus" if surplus_like else "value")
+                if score is None or not fieldable(guess.get("pv")):
+                    continue
+                estimated.append((score, obs, guess))
         predicted_rank = {p.obs.fc_id: index for index, p in enumerate(ranked, 1)}
         by_id = {p.obs.fc_id: p for p in valued}
         actual = sorted((obs for obs in observations
@@ -2297,6 +2336,10 @@ def auction_view(data: features.WindowData, predictions: list[Prediction],
             # LIVE list, where the top ten is all there is to see and "of how many" is the only thing
             # that says whether the role was thin or the engine could price nobody.
             "n_ranked": len(ranked),
+            # how many of the role's men are in the list on an ESTIMATE rather than a gated prediction:
+            # the header says both, because "of 134 the engine could price" stops being the whole truth
+            # once a penalised reconstruction can outrank a measured man.
+            "n_estimated": len(estimated),
             "n_actual": len(actual),
             "metric": metric,
             "replacement": _round(floor, 2),
@@ -2315,20 +2358,37 @@ def auction_view(data: features.WindowData, predictions: list[Prediction],
                               and predicted_rank[obs.fc_id] > REGIME_RANK),
                 "unpriced": sum(1 for obs in actual[:top_n] if obs.fc_id not in predicted_rank),
             },
-            "predicted": [{
-                "rank": index, "name": p.obs.name, "club": p.obs.club_target,
-                "price_initial": asked(p.obs),
-                "fm_pred": _round(p.fm_pred, 2), "pv_pred": _round(p.pv_pred, 1),
-                "value_pred": _round(p.value_pred, 1),
-                "surplus_pred": _round(over_floor(p.fm_pred, p.pv_pred), 1),
-                "fm_act": p.obs.fm_act, "pv_act": p.obs.pv_act,
-                "value_act": _round(p.obs.value_act, 1),
-                "surplus_act": _round(surplus_act(p.obs), 1),
-                "fvm": market(p.obs),
-                "actual_rank": actual_rank.get(p.obs.fc_id),
-                "pair": pair_note(p),
-                "pressure": _round(pressure.get(p.obs.fc_id), 2) if pressure else None,
-            } for index, p in enumerate(ranked[:top_n], 1)],
+            "predicted": _predicted_rows(
+                ranked, estimated, top_n, score_pred,
+                gated=lambda p, _ranks=actual_rank: {
+                    "name": p.obs.name, "club": p.obs.club_target,
+                    "price_initial": asked(p.obs),
+                    "fm_pred": _round(p.fm_pred, 2), "pv_pred": _round(p.pv_pred, 1),
+                    "value_pred": _round(p.value_pred, 1),
+                    "surplus_pred": _round(over_floor(p.fm_pred, p.pv_pred), 1),
+                    "fm_act": p.obs.fm_act, "pv_act": p.obs.pv_act,
+                    "value_act": _round(p.obs.value_act, 1),
+                    "surplus_act": _round(surplus_act(p.obs), 1),
+                    "fvm": market(p.obs),
+                    "actual_rank": _ranks.get(p.obs.fc_id),
+                    "pair": pair_note(p),
+                    "pressure": _round(pressure.get(p.obs.fc_id), 2) if pressure else None,
+                    "estimated": False, "est_basis": None, "est_confidence": None, "est_note": None,
+                },
+                guessed=lambda obs, guess, _ranks=actual_rank: {
+                    "name": obs.name, "club": obs.club_target, "price_initial": asked(obs),
+                    "fm_pred": _round(guess.get("fm"), 2), "pv_pred": _round(guess.get("pv"), 1),
+                    "value_pred": _round(guess.get("value"), 1),
+                    "surplus_pred": _round(guess.get("surplus"), 1),
+                    "fm_act": obs.fm_act, "pv_act": obs.pv_act,
+                    "value_act": _round(obs.value_act, 1),
+                    "surplus_act": _round(surplus_act(obs), 1),
+                    "fvm": market(obs),
+                    "actual_rank": _ranks.get(obs.fc_id),
+                    "pair": None, "pressure": None,
+                    "estimated": True, "est_basis": guess.get("basis"),
+                    "est_confidence": guess.get("confidence"), "est_note": guess.get("note"),
+                }),
             "actual": [{
                 "rank": index, "name": obs.name, "club": obs.club_target,
                 "price_initial": asked(obs),
