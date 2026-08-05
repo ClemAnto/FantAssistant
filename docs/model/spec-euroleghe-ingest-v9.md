@@ -1,5 +1,5 @@
 # Spec — Toolkit `euroleghe-ingest` v9 (task 1.0 della roadmap)
-**Aggiornata: 5 agosto 2026 (v9.19 — il listone di agosto, il buco che si vede, le competizioni non calibrate; v9 SOSTITUISCE la v8)** · Python · Output: SQLite `euroleghe.db` + CSV normalizzati
+**Aggiornata: 5 agosto 2026 (v9.20 — la lista con cui si va all'asta: una sola, e senza l'altro lato; v9 SOSTITUISCE la v8)** · Python · Output: SQLite `euroleghe.db` + CSV normalizzati
 *Sigle: fc_id = identificativo fantacalcio.it · FM = fantamedia · Mv = media voto · Pv = partite a voto · xref = cross-reference id tra siti · xG/xA = expected goals/assists · manifest = lista file da recuperare.*
 **Convenzione: identificatori sempre in INGLESE** (tabelle, colonne, moduli, variabili); italiano solo nella documentazione.
 
@@ -493,6 +493,55 @@ ruolo**, **8% disgiunti** — e le disgiunte sono quasi tutte `a` del listone co
 visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**. Riscontri esatti:
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
+
+## Novità v9.20 (5 agosto 2026 — la LISTA con cui si va all'asta: una sola, e senza l'altro lato)
+
+La voce che il documento chiamava «modalità LIVE del motore» da tre sessioni, e che era la più importante:
+**per un'asta serve una lista sola**. Toolkit **0.8.0 → 0.9.0**, **297 test verdi**, ruff pulito.
+**Nessun numero del motore cambia**: è lo stesso prezzatore, con gli stessi parametri fittati su un'altra
+finestra — quello che mancava era che si potesse *chiedere* la stagione che si sta comprando.
+
+### 1. Il blocco non era il modello, era il CALENDARIO — e stava nel chiamante
+`features.prepare` legge `matchdays_target` dai voti della stagione bersaglio, e per una stagione mai
+giocata sono **zero**. Le presenze sono previste come **quota** del calendario, quindi un calendario di zero
+prezza tutti a **zero presenze** → VALORE e SURPLUS zero → la lista è ordinata da niente (misurato prima
+della correzione: Svilar `pv 0.0`, tutti i surplus a 0.0, ordine per `fc_id`). Il ripiego «il calendario è
+quello dell'anno scorso» **esisteva**, ma viveva in `snapshot.build`, cioè in **un chiamante**: il secondo
+chiamante — il tab Auction — si prendeva un listone intero a zero. Ora sta in
+`snapshot.engine_predictions`, **dove si decide il prezzo**, e la sua nota arriva con quelle del motore.
+Stessa forma di difetto già pagata tre volte in questo progetto: la correzione va dove la decisione è presa.
+
+### 2. La lista LIVE nel tab Auction
+Prima voce del selettore Season, **`2026-27 · LIVE`** (mai una stagione nuda: accanto alle concluse
+leggerebbe come una di loro). Prezzata da **`snapshot.engine_predictions`**, la stessa funzione del foglio,
+con i **fit iniettati** (`fits=`) perché il pannello ha già preparato le undici finestre e prepararle due
+volte sarebbe un minuto per niente — ma la **scelta** di quale fit prezza un bersaglio live resta dentro
+`engine_predictions`, in un posto solo. `squad_source='real'`, perché ad agosto il listone è **parziale**
+(494 di ~1450 il 5/08) e una lista dei soli quotati non è la lista del tavolo.
+Cosa NON dice, e non per omissione: **nessun conteggio di nomi in comune e nessuna quota del top-10
+perfetto**, perché nessuno ha ancora giocato e i due sarebbero zeri travestiti da punteggio. Cosa dice:
+`357 of 806 players priced`, le **note del motore a schermo** (il calendario preso in prestito, i 312 senza
+Qt.I prezzati all'àncora, l'eventuale DRY RUN) e per ruolo la **profondità** («top 10 to bid on, of 132 the
+engine could price») con il livello di rimpiazzo. Le colonne dell'esito sono **assenti**, non vuote — una
+cella vuota si legge come uno zero, ed è la stessa regola del surplus vuoto.
+Misurato su Serie A/classic ordinato per SURPLUS: **P** Svilar 32 · Carnesecchi 32 · Maignan 31; **D**
+Dimarco 27 · Pavlovic 14; **C** Paz N. 21 · Calhanoglu 17; **A** Malen 45 · Martinez L. 34 · Thuram 27.
+Profondità prezzabile: 26 · 132 · 135 · 64.
+
+### 3. Tre misure di layout, e due direzioni scartate
+Una tabella sola in un box a piena larghezza ha ~800 px in più, e ogni modo di darli è stato **misurato**:
+entrambe le colonne elastiche lascia a `Player` **300 px vuoti** accanto a nomi di nove lettere; **nessuna**
+elastica **taglia** il testo di `Pair` a 170 px (spariva il ΔQt.I) — cioè «non era stretta, era assente», il
+difetto già pagato dalla tabella rosa; `Pair` da sola prende 913 px ed è la giusta, **una volta** che
+l'intestazione è allineata alle sue celle (prima, centrata, titolava mezzo schermo lontano dai valori).
+Le tre misure sono nel test, non nel ricordo.
+
+### 4. Difetto nei TEST trovato da un crash, e vale la pena saperlo
+`Config(data_dir=tmp_path)` **non sposta `db_path`**: sono due campi indipendenti, ognuno col suo default
+(`EUROLEGHE_DB_PATH` o `repo/data/euroleghe.db`). Quindi il test di geometria costruiva `ToolkitGUI` sul
+**DB reale da 313 MB** e, poiché il tab Auction ricarica in un **thread**, quel thread sopravviveva al test e
+moriva nel garbage collector (`Windows fatal exception 0x80000003`). Non si vedeva prima perché il thread
+faceva meno lavoro. Quattro punti reindirizzati: un test di geometria non legge un database.
 
 ## Novità v9.19 (5 agosto 2026, notte-mattina — il listone di AGOSTO, il buco che si vede, e le competizioni non calibrate)
 

@@ -1681,18 +1681,33 @@ def club_context(conn, data: features.WindowData, starters_date: str | None,
 
 # ---------------------------------------------------------------- the engine half
 def engine_predictions(conn, window: features.Window, platform: str, game: str,
-                       league, squad_source: str = "real", prepared=None
+                       league, squad_source: str = "real", prepared=None, fits=None
                        ) -> tuple[features.WindowData, list, str, list[str]]:
     """The validated valuation: ADOPTED rules, parameters fitted on a DIFFERENT window.
 
     Nothing here is new model code - it calls the same functions `backtest --auction` calls, which is
     what keeps the sheet and the gate from ever disagreeing.
+
+    `fits` = `{window key: Params}` over the windows the caller has ALREADY fitted, in `WINDOWS` order.
+    It exists for the Auction panel, which fits every window to cross-score them and would otherwise
+    pay for eleven `prepare` calls twice over; the CHOICE of which fit prices a live target stays here,
+    in one place, because a second copy of that choice is how the sheet and the panel start disagreeing.
     """
     notes: list[str] = []
     if prepared is None:
         prepared = features.prepare(conn, window, platform, game, league=league,
                                     squad_source=squad_source)
     data = prepared
+    if not data.matchdays_target:
+        # THE CALENDAR OF A SEASON NOT YET PLAYED, and it lives here rather than in whoever calls this:
+        # appearances are predicted as a SHARE of the target calendar, so a calendar of zero rounds turns
+        # every prediction into zero - and then VALUE and SURPLUS are zero too and the ranking is sorted
+        # by nothing. It used to sit in `snapshot.build`, which is the caller: the Auction panel asking
+        # the same question got a whole listone priced at zero appearances. Same shape as every other
+        # defect this project has paid for - the fix belongs where the price is decided.
+        data.matchdays_target = data.matchdays_prev
+        notes.append(f"{window.target_season} has no matchdays yet, so expected appearances are "
+                     f"scaled on {window.input_season}'s calendar ({data.matchdays_prev} rounds)")
     listone = sum(1 for obs in data.observations if obs.price_initial is not None)
     if squad_source == "real" and listone < len(data.observations):
         notes.append(f"{len(data.observations) - listone} of {len(data.observations)} players are in a "
@@ -1700,17 +1715,20 @@ def engine_predictions(conn, window: features.Window, platform: str, game: str,
                      f"them yet, so the engine prices them at the role anchor (R0c) and their "
                      f"`price_initial` is empty by construction, not by omission")
     active = ("R0", *evaluate.ADOPTED.get(platform, ()))
-    # The FIT windows keep the listone population on purpose: they are the gate's own windows, and
-    # widening them would fit the coefficients on a different population than the one they were
-    # validated on. Only the window being PRICED reads the real squads.
-    usable = tuple(key for key in features.WINDOWS
-                   if evaluate._window_is_usable(
-                       features.prepare(conn, features.WINDOWS[key], platform, game), platform))
+    if fits is not None:
+        usable = tuple(key for key in features.WINDOWS if key in fits)
+    else:
+        # The FIT windows keep the listone population on purpose: they are the gate's own windows, and
+        # widening them would fit the coefficients on a different population than the one they were
+        # validated on. Only the window being PRICED reads the real squads.
+        usable = tuple(key for key in features.WINDOWS
+                       if evaluate._window_is_usable(
+                           features.prepare(conn, features.WINDOWS[key], platform, game), platform))
     if not usable:
         notes.append("no window has both a previous and an actual fantamedia, so no parameters could "
                      "be fitted: the engine columns fall back to the R0 core alone")
         return data, evaluate.predict_window(data, ("R0",)), "R0-core", notes
-    fitted = {key: evaluate.fit_params(
+    fitted = dict(fits) if fits is not None else {key: evaluate.fit_params(
         features.prepare(conn, features.WINDOWS[key], platform, game),
         ("R0", *evaluate.CANDIDATES)) for key in usable}
     # The most recent usable window fits the parameters, and the pooled rules average over the others -
@@ -2140,13 +2158,8 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
     progress.stage("prepare")
     data = features.prepare(conn, window, platform, game, league=setup,
                             squad_source="real")
-    if not data.matchdays_target:
-        # Not a note only: appearances are predicted as a SHARE of the target calendar, and a calendar
-        # of zero rounds turns every prediction into zero. The season being auctioned has not been
-        # played, so its length is last season's until it exists.
-        data.matchdays_target = data.matchdays_prev
-        notes.append(f"{window.target_season} has no matchdays yet, so expected appearances are "
-                     f"scaled on {window.input_season}'s calendar ({data.matchdays_prev} rounds)")
+    # The empty target calendar is patched inside `engine_predictions` - where the price is decided, so
+    # every caller gets it - and its note arrives with the engine's own.
     progress.stage("predict")
     data, predictions, params_source, engine_notes = engine_predictions(
         conn, window, platform, game, setup, prepared=data)

@@ -3,4 +3,4 @@
 See spec v8 on Drive. Code identifiers are in English; Italian only in the Drive documents.
 """
 
-__version__ = "0.8.0"
+__version__ = "0.9.0"

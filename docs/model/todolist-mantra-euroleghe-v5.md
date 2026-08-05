@@ -419,6 +419,16 @@ Nota: **nessuna delle feature generate il 27/07 e' entrata nel motore**, e **nes
       raggiungibili, numeri nei commenti.
 
 ## Aperto dopo la sessione del 05/08/2026 (spec «Novità v9.19», gate §7-septies/octies/nonies)
+- [x] **FATTO il 05/08 (pomeriggio) — LA LISTA CON CUI SI VA ALL'ASTA** (spec «Novità v9.20»): il tab
+      Auction offre **`2026-27 · LIVE`** come prima voce, una tabella sola per ruolo, prezzata da
+      `snapshot.engine_predictions` - la stessa funzione del foglio, con i fit iniettati e la scelta del fit
+      lasciata là dentro - su rose reali, senza conteggio di nomi in comune né quota del top-10 perfetto
+      (nessuno ha giocato) e con le colonne dell'esito **assenti** invece che vuote. Il blocco era il
+      **calendario**: `matchdays_target = 0` prezzava tutti a zero presenze, e il ripiego viveva in
+      `snapshot.build`, cioè in UN chiamante. Serie A/classic per SURPLUS: Svilar 32 · Dimarco 27 · Paz N.
+      21 · Malen 45; profondità prezzabile 26 · 132 · 135 · 64. Trovati misurando: tre allocazioni di
+      larghezza (una taglia il ΔQt.I) e quattro test che aprivano il **DB reale** perché `Config(data_dir=)`
+      non sposta `db_path`.
 - [ ] **L'ASTA È ADESSO, ed è la voce a leva più alta.** Il listone Serie A 26/27 esce a **scaglioni** (494 su
       ~1450 il 05/08) e `fvm_history` ha **una** rilevazione: serve una **cadenza** dichiarata di rilancio
       (`ratings` → `arrivals`, e `recent_form` → `synth` → `arrivals`, la catena che il 05/08 ha chiuso) e poi

@@ -1868,3 +1868,81 @@ def test_one_man_per_flank_in_a_row():
     # ...and a row that names one flank once is untouched
     assert view._paired(["Ad", "T", "As"], "T", ["R", "C", "L"]) == ["Ad", "T", "As"]
 
+
+
+def test_the_live_auction_list_is_one_table_and_claims_no_score():
+    """The season being auctioned has no other side, and the panel must not pretend it has one.
+
+    Every other entry in that tab is a rehearsal on a finished season, where '6/10 in common' and '78% of
+    the perfect top-10' are real measurements. On the live list they would be zeros dressed as a score,
+    and the columns that report the outcome would be empty cells - which is exactly how a blank reads as a
+    zero. So: one table, the outcome columns ABSENT, and a status line that says what it cannot say.
+    """
+    import tkinter as tk
+    from tkinter import ttk
+
+    from euroleghe_ingest.gui import SURPLUS, AuctionView
+
+    try:
+        root = tk.Tk()
+    except tk.TclError:
+        import pytest
+        pytest.skip("no display available")
+    root.withdraw()
+
+    def descendants(widget):
+        for child in widget.winfo_children():
+            yield child
+            yield from descendants(child)
+
+    try:
+        for metric in ("value", SURPLUS):
+            view = AuctionView.__new__(AuctionView)
+            view.inner = ttk.Frame(root)
+            view.status_var = tk.StringVar()
+            view.season_var = tk.StringVar(value="2026-27 · LIVE")
+            row = {"rank": 1, "name": "Malen", "club": "Roma", "fm_pred": 7.92, "pv_pred": 28.6,
+                   "surplus_pred": 44.8, "surplus_act": None, "value_pred": 226.2,
+                   "value_act": None, "fvm": 210, "actual_rank": None, "pair": None}
+            view._render({
+                "window": "SNAP 2025-26->2026-27", "params_from": "T2+pooled(-)", "metric": metric,
+                "live": True, "rules": "R3, R7, R13", "rows": 806, "priced": 357,
+                "notes": [("2026-27 has no matchdays yet, so expected appearances are scaled on "
+                           "2025-26's calendar (38 rounds)")],
+                "by_role": {"A": {"n_ranked": 143, "replacement": 6.11, "replacement_actual": None,
+                                  "hits": 0, "captured_value": 0.0, "perfect_value": 0.0,
+                                  "predicted": [row], "actual": []}},
+            })
+            status = view.status_var.get()
+            assert "LIVE" in status and "no season to compare against" in status
+            assert "357 of 806 players priced" in status, "what IS honest: how much it can price"
+            for claim in ("of the perfect", "names", "%"):
+                assert claim not in status, (metric, claim, status)
+            trees = [w for w in descendants(view.inner) if isinstance(w, ttk.Treeview)]
+            assert len(trees) == 1, f"{metric}: a live role is ONE table, got {len(trees)}"
+            columns = tuple(trees[0]["columns"])
+            assert columns == AuctionView.LIVE_COLUMNS[metric]
+            assert not [c for c in columns if "real" in c], columns
+            # the cells must match the columns: dropping a column and forgetting its cell is how a
+            # table starts printing the FVM under the header of the outcome it does not have
+            values = trees[0].item(trees[0].get_children()[0], "values")
+            assert len(values) == len(columns), (metric, values, columns)
+            assert values[1] == "Malen"
+            # The spare width of a single table goes to `Pair` and NOT to `Player`, measured three ways
+            # (300 empty pixels beside short names / a clipped ΔQt.I at 170 px / this). And a heading is
+            # aligned with its cells, or a 900 px column titles itself half a screen from its values.
+            assert trees[0].column("Pair", "stretch") and not trees[0].column("Player", "stretch")
+            for column in columns:
+                assert trees[0].heading(column, "anchor") == trees[0].column(column, "anchor"), column
+            # and the engine's caveat is on screen, not only in the manifest
+            notes = [w for w in descendants(view.inner) if isinstance(w, ttk.Label)
+                     and str(w.cget("text")).startswith("⚠")]
+            assert len(notes) == 1 and "no matchdays yet" in str(notes[0].cget("text"))
+            # the role header states the depth and the level, and claims nothing about hits
+            box = view.inner.winfo_children()[1]
+            assert isinstance(box, ttk.LabelFrame)
+            head = str(box.cget("text"))
+            assert "of 143 the engine could price" in head, head
+            assert "in common" not in head and "captured" not in head, head
+    finally:
+        root.destroy()

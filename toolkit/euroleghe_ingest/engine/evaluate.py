@@ -2293,6 +2293,10 @@ def auction_view(data: features.WindowData, predictions: list[Prediction],
             }
 
         out[role] = {
+            # How deep each side goes, before the top-N truncation below. `n_ranked` matters most for a
+            # LIVE list, where the top ten is all there is to see and "of how many" is the only thing
+            # that says whether the role was thin or the engine could price nobody.
+            "n_ranked": len(ranked),
             "n_actual": len(actual),
             "metric": metric,
             "replacement": _round(floor, 2),

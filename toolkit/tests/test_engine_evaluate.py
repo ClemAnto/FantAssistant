@@ -722,3 +722,25 @@ def test_slot_pressure_scales_the_ranking_only(crowded):
         for field in ("fm_pred", "pv_pred", "value_pred", "value_act"):
             assert pressed_row[field] == plain_row[field]
     assert plain["predicted"][0].get("pressure") is None       # other currencies stay untouched
+
+
+def test_a_season_not_yet_played_is_priced_on_last_seasons_calendar(prepared):
+    """The season being AUCTIONED has no matchdays, and appearances are a SHARE of the target calendar -
+    so a calendar of zero prices every player at zero appearances, which makes VALUE and SURPLUS zero and
+    leaves the auction list sorted by nothing at all.
+
+    The fallback used to live in `snapshot.build`, i.e. in one CALLER, and the Auction panel asking the
+    same question got a whole listone at zero. It now lives in `engine_predictions`, where the price is
+    decided, which is the only place that reaches every caller.
+    """
+    from euroleghe_ingest.modules import snapshot
+
+    _cfg, conn, window, data = prepared
+    data.matchdays_target = 0                     # what August looks like: a season with no votes yet
+    out, predictions, source, notes = snapshot.engine_predictions(
+        conn, window, "euro", "classic", None, prepared=data, fits={})
+    assert out.matchdays_target == MATCHDAYS, "the target calendar falls back to the input season's"
+    assert any("no matchdays yet" in note for note in notes), notes
+    assert source == "R0-core"                    # no fits given, so the honest fallback says so
+    priced = [p for p in predictions if p.pv_pred is not None]
+    assert priced and all(p.pv_pred > 0 for p in priced), "a zero calendar prices everyone at zero"

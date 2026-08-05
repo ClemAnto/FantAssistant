@@ -1092,6 +1092,11 @@ class AuctionView(ttk.Frame):
     The two lists answer different questions and the panel shows both, because a single precision
     number ("6/10") hides whether the misses were players the engine could not price at all, players it
     priced in the third hundred, or noise between comparable names.
+
+    ...and, first in the Season selector, the ONE list an auction is actually held on: the season being
+    played next, which has no other side at all. Every other entry here is a rehearsal on a season whose
+    answer is known; that one is the exercise. It is priced by the same function the Snapshot sheet calls
+    (`snapshot.engine_predictions`), never by a second computation of its own.
     """
 
     # Both games on both platforms. Mantra is played on the classic Serie A game as well, and its
@@ -1187,6 +1192,19 @@ class AuctionView(ttk.Frame):
             ("#", "Player", "Team", "FM", "Pv", "SURPLUS", "real SURPLUS", "FVM", "real #", "Pair"),
             ("#", "Player", "Team", "FM", "Pv", "SURPLUS", "FVM", "pred. SURPLUS", "pred. #")),
     }
+
+    # The LIVE list is one table, so the columns that report the other side are ABSENT and not empty:
+    # an empty "real SURPLUS" reads as a zero, which is the same defect a blank surplus needed a stated
+    # reason for. A subset of the predicted columns, so every one of them is already explained.
+    LIVE_COLUMNS: ClassVar[dict[str, tuple[str, ...]]] = {
+        "value": ("#", "Player", "Team", "FM", "Pv", "VALUE", "FVM", "Pair"),
+        SURPLUS: ("#", "Player", "Team", "FM", "Pv", "SURPLUS", "FVM", "Pair"),
+    }
+
+    # How the season being auctioned is named in the Season selector. Never a bare season string: next
+    # to the concluded ones it would read as one of them, and the whole difference is that this one has
+    # no outcome. The suffix also sorts it first, which is where it belongs in August.
+    LIVE_LABEL: ClassVar[str] = "{season} · LIVE"
 
     ROLE_LABELS: ClassVar[dict[str, str]] = {
         "P": "Goalkeepers", "D": "Defenders", "C": "Midfielders", "A": "Forwards",
@@ -1356,9 +1374,44 @@ class AuctionView(ttk.Frame):
                         data, evaluate.predict_window(data, adopted, None, params),
                         metric=metric),
                 }
+            live = self._live_view(conn, platform, game, metric, setup, fits)
+            if live is not None:
+                label, view = live
+                out[label] = view
             return out
         finally:
             conn.close()
+
+    def _live_view(self, conn, platform: str, game: str, metric: str, setup: dict,
+                   fits: dict) -> tuple[str, dict] | None:
+        """The season being AUCTIONED: one list, no other side. None when there is nothing to price.
+
+        The same pricer the Snapshot sheet uses, with the fits this panel has already computed injected
+        so eleven windows are not prepared twice - the CHOICE of which fit prices a live target stays in
+        `snapshot.engine_predictions`. A second computation here would be a second opinion on a decision
+        that is already priced, and that is the defect this project has paid for three times.
+        """
+        from euroleghe_ingest.engine import evaluate
+        from euroleghe_ingest.modules import snapshot
+
+        window, squad_note = snapshot.resolve_window(conn)
+        # `squad_source='real'` because in August the listone is PARTIAL - 494 of the ~1450 Serie A
+        # players on 5/08/2026 - and a list that shows only the quoted ones is not the table's list.
+        # Whoever has no Qt.I is priced at the role anchor, which `engine_predictions` states in a note.
+        data, predictions, params_from, notes = snapshot.engine_predictions(
+            conn, window, platform, game, setup, squad_source="real", fits=fits)
+        if not data.observations:
+            return None
+        adopted = ("R0", *evaluate.ADOPTED.get(platform, ()))
+        return self.LIVE_LABEL.format(season=window.target_season), {
+            "window": f"{window.key} {window.input_season}->{window.target_season}",
+            "params_from": params_from, "metric": metric, "live": True,
+            "rules": ", ".join(adopted[1:]) or "baseline only",
+            "rows": len(data.observations),
+            "priced": sum(1 for p in predictions if p.fm_pred is not None),
+            "notes": ([squad_note] if squad_note else []) + notes,
+            "by_role": evaluate.auction_view(data, predictions, metric=metric),
+        }
 
     # A run owns the selection it was started with. Changing platform or game mid-run would leave a
     # worker computing one thing while the panel claims another, and changing season would render from a
@@ -1414,17 +1467,33 @@ class AuctionView(ttk.Frame):
         self._clear()
         metric = view.get("metric", "value")
         currency = "SURPLUS" if metric == SURPLUS else "VALUE"
-        total_hits = sum(block["hits"] for block in view["by_role"].values())
-        captured = sum(block["captured_value"] or 0 for block in view["by_role"].values())
-        perfect = sum(block["perfect_value"] or 0 for block in view["by_role"].values())
-        roles = len(view["by_role"])
-        share = f"{captured / perfect * 100:.0f}%" if perfect else "n/a"
-        self.status_var.set(
-            f"window {view['window']} · rules {view['rules']} · parameters from "
-            f"{view['params_from']} · {total_hits}/{roles * 10} names · {share} of the perfect "
-            f"top-10 {currency}")
+        live = bool(view.get("live"))
+        if live:
+            # No hit count and no share of a perfect top-10: nobody has played, so both would be a
+            # zero pretending to be a score. What IS honest here is how much of the table the engine
+            # can price at all - the rest is the empty-cell-is-a-statement rule, on a whole list.
+            self.status_var.set(
+                f"LIVE · {view['window']} · rules {view['rules']} · parameters from "
+                f"{view['params_from']} · {view['priced']} of {view['rows']} players priced · "
+                f"no season to compare against: this is the list you bid from")
+        else:
+            total_hits = sum(block["hits"] for block in view["by_role"].values())
+            captured = sum(block["captured_value"] or 0 for block in view["by_role"].values())
+            perfect = sum(block["perfect_value"] or 0 for block in view["by_role"].values())
+            roles = len(view["by_role"])
+            share = f"{captured / perfect * 100:.0f}%" if perfect else "n/a"
+            self.status_var.set(
+                f"window {view['window']} · rules {view['rules']} · parameters from "
+                f"{view['params_from']} · {total_hits}/{roles * 10} names · {share} of the perfect "
+                f"top-10 {currency}")
+        # The engine's own caveats about THIS list (a calendar borrowed from last season, players with
+        # no quotation yet, a DRY RUN): on screen, because a note that only reaches the manifest is a
+        # note the operator reads after the auction.
+        for note in view.get("notes") or ():
+            ttk.Label(self.inner, text=f"⚠  {note}", style="Muted.TLabel",
+                      wraplength=1100, justify="left").pack(fill="x", pady=(0, 4))
         for role, block in view["by_role"].items():
-            self._render_role(role, block, metric)
+            self._render_role(role, block, metric, live=live)
 
     @staticmethod
     def _num(value, digits: int = 0) -> str:
@@ -1445,9 +1514,11 @@ class AuctionView(ttk.Frame):
                            f"co {co}" if co is not None else "co -",
                            f"ΔQt.I {gap:+.0f}" if gap is not None else "ΔQt.I -"))
 
-    def _render_role(self, role: str, block: dict, metric: str = "value") -> None:
+    def _render_role(self, role: str, block: dict, metric: str = "value",
+                     live: bool = False) -> None:
         label = self.ROLE_LABELS.get(role, role)
-        misses = block["misses"]
+        # A live block has no outcome, so it has no miss breakdown either: read it only where it exists.
+        misses = block.get("misses") or {"near": 0, "regime": 0, "unpriced": 0}
         surplus = metric in (SURPLUS, SURPLUS_PRESSURE)
         currency = "SURPLUS" if surplus else "VALUE"
         # The replacement level is the whole premise of the surplus ranking, so it is stated in the
@@ -1460,29 +1531,52 @@ class AuctionView(ttk.Frame):
             # could know, the actual list against the season it actually happened in.
             if floor_act is not None and abs(floor_act - floor) >= 0.005:
                 floor_text += f" (predicted) / {floor_act:.2f} (this season)"
-        head = (f"{label} — {block['hits']}/10 in common · {currency} captured "
-                f"{(block['captured_value'] or 0):.0f} of {(block['perfect_value'] or 0):.0f}"
-                f"{floor_text} · misses: {misses['near']} near, {misses['regime']} beyond rank 50, "
-                f"{misses['unpriced']} never priced")
+        if live:
+            # No "in common", no captured-of-perfect and no miss breakdown: all three are statements
+            # about an outcome, and there isn't one. What the header can honestly carry is how deep the
+            # list goes and the level it is measured against.
+            head = (f"{label} — top {len(block['predicted'])} to bid on, of "
+                    f"{block.get('n_ranked', len(block['predicted']))} the engine could price"
+                    f"{floor_text}")
+        else:
+            head = (f"{label} — {block['hits']}/10 in common · {currency} captured "
+                    f"{(block['captured_value'] or 0):.0f} of {(block['perfect_value'] or 0):.0f}"
+                    f"{floor_text} · misses: {misses['near']} near, {misses['regime']} beyond rank 50, "
+                    f"{misses['unpriced']} never priced")
         box = ttk.LabelFrame(self.inner, text=head, padding=6)
         box.pack(fill="x", expand=True, pady=(0, 10))
         left = ttk.Frame(box)
-        right = ttk.Frame(box)
         left.pack(side="left", fill="both", expand=True, padx=(0, 6))
-        right.pack(side="left", fill="both", expand=True)
+        if not live:
+            right = ttk.Frame(box)
+            right.pack(side="left", fill="both", expand=True)
         predicted_columns, actual_columns = self.COLUMNS[metric]
         pred_key, act_key = (("surplus_pred", "surplus_act") if surplus
                              else ("value_pred", "value_act"))
         def predicted_row(row: dict) -> tuple:
             cells = [row["rank"], row["name"], club_abbreviation(row["club"]),
                      self._num(row["fm_pred"], 2), self._num(row["pv_pred"], 1),
-                     self._num(row[pred_key]), self._num(row[act_key]),
-                     self._num(row["fvm"]), row["actual_rank"] or "-"]
+                     self._num(row[pred_key])]
+            if not live:                        # the other side's figures, which a live list has not got
+                cells += [self._num(row[act_key])]
+            cells.append(self._num(row["fvm"]))
+            if not live:
+                cells.append(row["actual_rank"] or "-")
             if metric == SURPLUS_PRESSURE:
                 cells.append(self._num(row.get("pressure"), 2))
             cells.append(self._pair_text(row.get("pair")))
             return tuple(cells)
 
+        if live:
+            # One table in a full-width box has ~800 spare pixels and they go to `Pair`, measured three
+            # ways: both columns stretchy leaves `Player` 300 empty pixels next to nine-letter names;
+            # nothing stretchy CLIPS the pair text at 170 px, losing the ΔQt.I - the same "not narrow,
+            # absent" defect the squad table already paid for; `Pair` alone fits it, now that a heading
+            # is aligned with its cells.
+            self._table(left, f"To bid on — {self.season_var.get()}", self.LIVE_COLUMNS[metric],
+                        [predicted_row(row) for row in block["predicted"]],
+                        {**self.COMMON_HELP, **self.PREDICTED_HELP}, stretch=("Pair",))
+            return
         self._table(left, "Predicted at the auction", predicted_columns,
                     [predicted_row(row) for row in block["predicted"]],
                     {**self.COMMON_HELP, **self.PREDICTED_HELP})
@@ -1496,22 +1590,25 @@ class AuctionView(ttk.Frame):
                     {**self.COMMON_HELP, **self.ACTUAL_HELP})
 
     def _table(self, parent: tk.Widget, title: str, columns: tuple[str, ...],
-               rows: list[tuple], help_by_column: dict[str, str]) -> None:
+               rows: list[tuple], help_by_column: dict[str, str],
+               stretch: tuple[str, ...] = ("Player", "Pair")) -> None:
         """`help_by_column` is REQUIRED, not defaulted: it went missing from one of the two tables when
         it was optional, and a missing tooltip is invisible until someone hovers. Now forgetting it is a
         TypeError at the call site."""
         ttk.Label(parent, text=title, font=("Segoe UI", 9, "bold")).pack(anchor="w")
         tree = ttk.Treeview(parent, columns=columns, show="headings", height=max(1, len(rows)))
         for column in columns:
-            tree.heading(column, text=column)
+            anchor = "w" if column in ("Player", "Team", "Pair") else "e"
+            # The heading follows its CELLS. Left as the default centre, a column wide enough for its
+            # text (`Pair` on the live list, which stretches into 900 px) puts its title half a screen
+            # from the values it names.
+            tree.heading(column, text=column, anchor=anchor)
             # The widest header decides: "real SURPLUS" and "pred. SURPLUS" do not fit in 68 px with
             # the theme's font, and a clipped column header reads as a different column.
             width = (130 if column == "Player" else 46 if column == "#"
                      else 52 if column == "Team" else 170 if column == "Pair"
                      else 96 if "SURPLUS" in column else 68)
-            tree.column(column, width=width,
-                        anchor="w" if column in ("Player", "Team", "Pair") else "e",
-                        stretch=column in ("Player", "Pair"))
+            tree.column(column, width=width, anchor=anchor, stretch=column in stretch)
         for row in rows:
             tree.insert("", "end", values=row)
         HeadingTooltip(tree, help_by_column)

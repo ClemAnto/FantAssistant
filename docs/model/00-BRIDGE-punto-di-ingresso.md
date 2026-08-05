@@ -1,5 +1,5 @@
 # 00 — BRIDGE · Punto d'ingresso del progetto (leggere per primo)
-**Aggiornato: 5 agosto 2026 (chiusura: il listone di agosto, il buco che si vede, e tre muri identici)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
+**Aggiornato: 5 agosto 2026 (chiusura: la LISTA con cui si va all'asta — una sola, e senza l'altro lato)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
 
 ## Il progetto in breve
 Motore previsionale per fantacalcio **EuroLeghe** (fantacalcio.it): valutazione calciatori Classic e Mantra sui 5 grandi campionati europei (Serie A, Premier, Liga, Bundesliga, Ligue 1 — perimetro: i ~35 top club del gioco). Prevede fantamedia (FM), presenze attese e VALORE stagionale = FM × presenze. Metodo scientifico: **ogni regola entra nel motore solo se batte il baseline fuori campione su finestre indipendenti** (gate pre-registrato). Stato: core validato (Mantra, Classic, portieri, presenze); manca lo strato flag/arrivi, sbloccato dal toolkit dati `euroleghe-ingest` (in implementazione).
@@ -26,7 +26,33 @@ proporre qualsiasi regola) → **`metrica-asta-surplus-v1.md`** (con cosa il pan
 
 Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
 
-### ULTIMO IN ORDINE DI TEMPO — 5/08/2026: il listone di AGOSTO, il buco che si vede, e tre muri identici
+### ULTIMO IN ORDINE DI TEMPO — 5/08/2026 pomeriggio: esiste UNA lista con cui andare all'asta
+
+Spec **«Novità v9.20»**. Toolkit **0.9.0**, **297 test verdi**. **Nessun verdetto del gate cambia e nessun
+numero del motore si muove**: stesso prezzatore, stessi parametri fittati su un'altra finestra. Chiude la voce
+che questo file portava aperta da tre sessioni come «la più importante».
+
+1. **Il blocco non era il modello, era il CALENDARIO — e stava nel chiamante.** Le presenze sono una **quota**
+   del calendario bersaglio e una stagione mai giocata ha `matchdays_target = 0`: ogni `pv_pred` era 0, quindi
+   VALORE e SURPLUS erano 0 e la lista era **ordinata da niente** (misurato: Svilar `pv 0.0`, ordine per
+   `fc_id`). Il ripiego «il calendario è quello dell'anno scorso» esisteva già, ma viveva in `snapshot.build`,
+   cioè in **UN** chiamante — e il secondo chiamante, il tab Auction, si prendeva un listone intero a zero. Ora
+   sta in `snapshot.engine_predictions`, **dove si decide il prezzo**. Dopo: Svilar `pv 32.1`.
+2. **La lista LIVE**: prima voce del selettore Season, **`2026-27 · LIVE`**, una tabella sola per ruolo,
+   prezzata dalla **stessa funzione del foglio Snapshot** (fit iniettati per non preparare due volte le undici
+   finestre; la **scelta** del fit resta là dentro) su **rose reali**, perché il listone di agosto è parziale.
+   Non dichiara nomi in comune né quota del top-10 perfetto — nessuno ha giocato, sarebbero zeri travestiti da
+   punteggio — e dichiara invece `357 of 806 players priced`, le note del motore **a schermo** e la profondità
+   prezzabile per ruolo. Le colonne dell'esito sono **assenti**, non vuote. Serie A/classic per SURPLUS: Svilar
+   32 · Dimarco 27 · Paz N. 21 · **Malen 45**.
+3. **Tre misure di layout, due direzioni scartate**: entrambe le colonne elastiche lascia 300 px vuoti a
+   `Player`; nessuna elastica **taglia** `Pair` a 170 px (via il ΔQt.I) — «non stretta, assente», difetto già
+   pagato; `Pair` elastica è la giusta, una volta allineata l'intestazione alle sue celle.
+4. ⚠️ **Difetto nei TEST trovato da un crash**: `Config(data_dir=tmp_path)` **non sposta `db_path`** (campi
+   indipendenti), quindi un test di geometria apriva il **DB reale da 313 MB** e il thread del tab Auction
+   sopravviveva al test morendo nel garbage collector. Quattro punti reindirizzati.
+
+### 5/08/2026 notte: il listone di AGOSTO, il buco che si vede, e tre muri identici
 
 Spec **«Novità v9.19»**, verdetti nuovi nel gate **§7-septies**, **§7-octies**, **§7-nonies**. Commit
 `5123413` → `38e5210` (dieci). Toolkit **0.8.0**, **295 test verdi** (1 skip: chiede un display), ruff pulito. **Nessuna regola è entrata

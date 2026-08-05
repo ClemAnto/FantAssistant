@@ -191,6 +191,13 @@ def test_every_auction_column_is_explained_by_a_tooltip():
             missing = [column for column in columns if not help_texts.get(column)]
             assert not missing, (metric, missing)
             used.update(columns)
+    # The LIVE list's columns are a SUBSET of the predicted ones - which is what keeps every one of them
+    # explained, and what stops an outcome column from appearing on a list that has no outcome.
+    for metric, columns in view.LIVE_COLUMNS.items():
+        assert metric in view.METRICS.values(), metric
+        extra = set(columns) - set(view.COLUMNS[metric][0])
+        assert not extra, (metric, extra)
+        assert not [column for column in columns if "real" in column], (metric, columns)
     # ... and nothing explained that no metric actually shows
     explained = set(view.COMMON_HELP) | set(view.PREDICTED_HELP) | set(view.ACTUAL_HELP)
     assert not explained - used, explained - used
@@ -528,7 +535,8 @@ def test_deleting_a_sheet_refuses_anything_that_is_not_one(tmp_path, monkeypatch
     elsewhere = tmp_path / "precious"
     elsewhere.mkdir()
     (elsewhere / "keep.txt").write_text("do not delete me", encoding="utf-8")
-    cfg = Config(data_dir=tmp_path, league_config_path=tmp_path / "none.json")
+    cfg = Config(data_dir=tmp_path, db_path=tmp_path / "none.db",
+                 league_config_path=tmp_path / "none.json")
 
     try:
         root = tk.Tk()
@@ -714,7 +722,7 @@ def test_the_shape_selector_offers_what_the_club_played_and_locks_on_a_declared_
         pytest.skip(f"no Tk display: {exc}")
     try:
         root.withdraw()
-        view = gui.SnapshotView(root, Config(data_dir=tmp_path,
+        view = gui.SnapshotView(root, Config(data_dir=tmp_path, db_path=tmp_path / "none.db",
                                              league_config_path=tmp_path / "none.json"))
         info = {"formation_typical": "3-4-3", "formation_shapes": "3-4-3:27;4-5-1:8;4-3-3:3",
                 "formation_typical_of": "38", "formation_typical_under_coach": "0"}
@@ -887,7 +895,7 @@ def test_clicking_a_shirt_accounts_for_every_declared_rival(tmp_path):
         pytest.skip(f"no Tk display: {exc}")
     try:
         root.withdraw()
-        view = gui.SnapshotView(root, Config(data_dir=tmp_path,
+        view = gui.SnapshotView(root, Config(data_dir=tmp_path, db_path=tmp_path / "none.db",
                                              league_config_path=tmp_path / "none.json"))
         deroon = {"name": "De Roon", "club": "Atalanta", "desc_real_roles": "MC; DM",
                   "desc_duel_names": "Pasalic; Samardzic; Musah", "desc_duel_rivals": "3"}
@@ -1377,8 +1385,13 @@ def test_the_panel_spends_its_height_on_the_board_and_not_on_its_own_chrome(tmp_
         root = tk.Tk()
     except tk.TclError as exc:                       # headless: there is no geometry to measure
         pytest.skip(f"no Tk display: {exc}")
+    # `db_path` is an INDEPENDENT field, not derived from `data_dir`, so redirecting the data dir alone
+    # left this test opening the operator's real 313 MB database - and the Auction tab does it in a
+    # BACKGROUND thread (`ToolkitGUI` reloads every tab), which then outlived the test and died in the
+    # garbage collector. A geometry test must not read a database at all: point it at one that isn't
+    # there, and the panel says "no database yet" instead of starting the engine.
     monkeypatch.setattr(gui, "Config",
-                        lambda: Config(data_dir=tmp_path,
+                        lambda: Config(data_dir=tmp_path, db_path=tmp_path / "none.db",
                                        league_config_path=tmp_path / "none.json"))
     try:
         app = gui.ToolkitGUI(root)

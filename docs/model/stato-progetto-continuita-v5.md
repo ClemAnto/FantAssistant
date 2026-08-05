@@ -1,5 +1,5 @@
 # Stato progetto & continuità — v5
-**Aggiornato: 5 agosto 2026 (chiusura: il listone di agosto, il buco che si vede, e tre muri identici)**
+**Aggiornato: 5 agosto 2026 (chiusura: la LISTA con cui si va all'asta - una sola, e senza l'altro lato)**
 Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da qui + i file della cartella "Modello Previsionale Fantacalcio".
 *Glossario: T1/T2 = finestre di test (23/24->24/25, 24/25->25/26) · MAE = errore medio assoluto · cross-fitted = parametri stimati su una finestra, testati sull'altra · M2e = modello portieri decomposto con ClubElo · Pv_att = presenze attese · fc_id = id fantacalcio.it · EV = valore atteso · scoring_config = punteggi configurabili per lega · xG/xA = expected goals/assists · 2.5 pieno = backtest motore completo con flag.*
 
@@ -8,7 +8,14 @@ App per leghe EuroLeghe/fantacalcio.it (Classic+Mantra, 5 campionati) con motore
 
 ## ⚠️ Lo stato corrente è in `00-BRIDGE-punto-di-ingresso.md`, blocco «STATO AL 5 AGOSTO 2026»
 
-### 5 agosto 2026, in una riga: il listone di agosto entra, chi non ha storico si prezza sulle PRESENZE, e la fantamedia resta l'àncora
+### 5 agosto 2026, in una riga: esiste UNA lista con cui andare all'asta, e il listone di agosto entra
+
+Due passate. Il pomeriggio ha chiuso la «modalità LIVE»: il tab Auction offre `2026-27 · LIVE`, una tabella
+sola per ruolo, prezzata dalla stessa funzione del foglio - il blocco era il **calendario** di una stagione
+mai giocata, e il suo ripiego viveva in un chiamante invece che dove si decide il prezzo (spec «Novità
+v9.20», sezione in fondo al documento).
+
+### 5 agosto 2026, notte, in una riga: chi non ha storico si prezza sulle PRESENZE, e la fantamedia resta l'àncora
 
 Ultima sessione in fondo al documento, sezione «Sessione 05/08/2026». Tre strumenti diversi, la stessa risposta
 (R1 su sei finestre, R13c sul campione, lo scostamento della Serie B): la fantamedia di chi non ha storico qui
@@ -1207,3 +1214,47 @@ repo è pubblica, il push è una scelta dell'utente.
   sua stagione. Togliendola, un agosto qualunque archivia il listone dell'anno prima sotto l'anno nuovo.
 - **`_two_rows` spezza la riga sulla MAGGIORANZA**, non su «almeno uno»: con «almeno uno» due esterni che
   arretrano (regola 3) fanno esplodere Napoli, Bologna, Chelsea e Liverpool.
+
+## Sessione 05/08/2026 (pomeriggio) — la LISTA con cui si va all'asta
+
+Dettaglio: spec **«Novità v9.20»**. **Nessun verdetto del gate cambia e nessun numero del motore si muove**:
+stesso prezzatore, stessi parametri fittati su un'altra finestra. Toolkit **0.8.0 → 0.9.0 · 297 test verdi ·
+ruff pulito.** Chiude la voce che il documento portava aperta da tre sessioni come «la più importante».
+
+### Il blocco era il calendario, e stava nel chiamante
+Le presenze sono una **quota** del calendario bersaglio, e una stagione mai giocata ha `matchdays_target = 0`:
+quindi ogni `pv_pred` era 0, VALORE e SURPLUS erano 0 e la lista era ordinata da **niente** (misurato: Svilar
+`pv 0.0`, ordine per `fc_id`). Il ripiego «il calendario è quello dell'anno scorso» esisteva già ma viveva in
+`snapshot.build`, cioè in **un** chiamante — e il secondo chiamante, il tab Auction, si prendeva un listone
+intero a zero. Ora sta in `snapshot.engine_predictions`, dove il prezzo è deciso. Dopo: Svilar `pv 32.1`.
+
+### Cosa c'è adesso nel tab Auction
+Prima voce del selettore, **`2026-27 · LIVE`**: una tabella sola per ruolo, prezzata dalla **stessa funzione
+del foglio Snapshot** (fit iniettati per non preparare due volte le undici finestre, ma la scelta del fit
+resta là dentro), su **rose reali** perché il listone di agosto è parziale. Non dichiara nomi in comune né
+quota del top-10 perfetto — nessuno ha giocato, sarebbero zeri travestiti da punteggio — e dichiara invece
+`357 of 806 players priced`, le note del motore **a schermo** e la profondità prezzabile per ruolo. Le colonne
+dell'esito sono **assenti**, non vuote. Serie A/classic per SURPLUS: Svilar 32 · Dimarco 27 · Paz N. 21 ·
+Malen 45.
+
+### Due difetti trovati misurando, non rileggendo
+- **Layout**: gli ~800 px in più di una tabella sola sono stati provati in tre modi — entrambe le colonne
+  elastiche lascia 300 px vuoti a `Player`; nessuna elastica **taglia** `Pair` a 170 px (via il ΔQt.I), che è
+  «non stretta, assente»; `Pair` elastica è la giusta, una volta allineata l'intestazione alle sue celle.
+- **Test che leggevano il DB reale**: `Config(data_dir=tmp_path)` **non sposta `db_path`** (campi
+  indipendenti), quindi il test di geometria apriva il DB da 313 MB e il thread del tab Auction sopravviveva
+  al test morendo nel GC (`Windows fatal exception`). Quattro punti reindirizzati.
+
+### I prossimi passi, in ordine di leva
+1. **Il listone euro 26/27 quando esce** (oggi la pagina serve 25/26 e la guardia lo rifiuta), e il listone
+   Serie A che cresce a scaglioni: la lista LIVE migliora da sé a ogni rilancio di `ratings` → `arrivals`.
+2. **I portieri** (caso Daffara): equivalente col punteggio dei portieri, in `arrivals`.
+3. **Rimisurare §7-sexies** sulla popolazione nuova, e il **follow-up di §7-septies**.
+4. Le due **decisioni dell'operatore**: `APPLY_OFFSETS` e il job settimanale sulla macchina.
+
+### Dove NON toccare senza rileggere
+- **Il ripiego del calendario sta in `engine_predictions`**, non nei chiamanti. Rimetterlo in `build`
+  riporta il tab Auction a zero presenze senza che nessun test del foglio se ne accorga.
+- **La lista LIVE non ha un esito**: qualunque colonna o riga che parli di «reale» va tenuta fuori, e
+  `hits`/`captured_value` su un blocco live sono zeri e non misure.
+- **`db_path` non discende da `data_dir`**: un test che vuole stare lontano dal DB reale deve dirlo.
