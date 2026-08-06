@@ -167,6 +167,22 @@ def predict_fm(anchor: float, fm_prev: float, beta: float) -> float:
     return anchor + beta * (fm_prev - anchor)
 
 
+def predict_fm_from_history(anchor: float, fm_prev: float, fm_history: float,
+                            lams: tuple[float, float]) -> float:
+    """R18 - the core's shrinkage, told about more than one season.
+
+    `predict_fm` reads LAST season and shrinks it toward the role anchor. A career is not one season, and
+    the operator asked the question the right way round: «valutiamo anche una FM negli ultimi 5 anni come
+    qualita' base del calciatore». Measured on 3470 player-seasons before the grid was written - MAE of
+    the naive last-season figure 0.3921, of the role anchor 0.3981, of the raw five-year mean 0.3668, of
+    the core's own shape 0.3458, and of the two terms together **0.3401** at 0.25 / 0.35.
+
+    Both terms are deviations from the same anchor, so with the second at zero this IS `predict_fm` and
+    the incumbent is inside the parameter space - which is what lets the gate refuse it cleanly.
+    """
+    return anchor + lams[0] * (fm_prev - anchor) + lams[1] * (fm_history - anchor)
+
+
 def predict_fm_goalkeeper(mv_prev: float, club_rate_prev: float | None, mu_rate: float) -> float:
     """M2e: predict ability (Mv) and the club's conceded rate separately, then recombine.
 
