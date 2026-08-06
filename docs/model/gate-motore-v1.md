@@ -1882,6 +1882,102 @@ un voto base convertito e **non** un FM-equivalente: per lui serve un equivalent
 portieri, che è un lavoro in `arrivals` e non qui. Va detto adesso perché è il caso che ha generato la
 richiesta. → **§7-decies**.
 
+## 7-septdecies. R19 — IL LIVELLO DENTRO LE PRESENZE (pre-registrata il 6 agosto 2026, PRIMA di eseguirla)
+
+Richiesta dell'operatore: «l'esperienza dovrebbe aumentare anche il SURPLUS». Non è alzare un peso: il canale
+`level_weight` vive in `presence.py`, che è il modello del PANNELLO, mentre il surplus si costruisce su
+`engine_pv_pred`, che viene da `model.expected_share` nel motore. `evaluate.py` non importa `presence`. Quindi
+farla arrivare al surplus vuol dire una regola del motore sul lato presenze, con la sua lambda e il suo gate.
+
+- **Forma**: `share += λ × z(Elo del club di provenienza)`, come aggiustamento sopra la share che le regole
+  già adottate producono — quindi λ misura ciò che il livello AGGIUNGE, non una seconda copia dei minuti.
+  Nessuna intercetta: con λ = 0 questa è esattamente la catena attuale, e l'incumbent è dentro lo spazio.
+- **Popolazione**: solo chi ha **cambiato club** (`_level_z_scores`). Per chi resta, Elo di provenienza e di
+  destinazione sono lo stesso numero e il termine diventerebbe R5 sotto un altro nome.
+- **Attesa scritta prima**: guadagno sulla MAE delle presenze **fra 0.3% e 1% su default**, **nullo o
+  negativo su euro**. E la ragione del pessimismo, dichiarata: lo stesso segnale è già stato misurato
+  out-of-sample dallo sweep contro le titolarità realizzate (§7-terdecies, robust su Serie A) — ma su un
+  ALTRO stimatore, `presence.standing`. Trasferire una misura da uno stimatore all'altro è esattamente ciò
+  che è fallito oggi col canale qualità (§7-duodecies: r parziale +0.100 dentro la stagione, falsificato fra
+  stagioni). Se passa, il segnale è robusto alla scelta dello stimatore; se non passa, non è una sorpresa.
+- **Sovrapposizione da tenere d'occhio**: R5 legge l'Elo del club di DESTINAZIONE, e le due correlano. Se R19
+  passa, va guardato cosa succede a R5 nello stesso giro, perché una delle due potrebbe essere l'altra.
+- **E il verdetto va letto sotto i criteri nuovi** (§7-sexdecies), il che è a suo favore: la
+  ri-pre-registrazione è successiva alla modifica dei criteri, quindi qui non c'è la contaminazione che
+  R18 si porta dietro.
+
+### ESITO (eseguito il 6 agosto 2026) — robust su Serie A, **non passa**, non si adotta
+
+| piattaforma | vince | guadagno medio | peggiore | robust | strict | esito |
+|---|---:|---:|---:|---|---|---|
+| euro (entrambi i giochi) | **0/5** | **−1.1%** | −2.9% | no | no | non passa |
+| default (entrambi) | 6/10 | **+1.7%** | −1.5% | **SÌ** | no (T1 +1.5%) | non passa |
+
+**La previsione pre-registrata era giusta**, e per la prima volta in questa sessione: avevo scritto «fra 0.3%
+e 1% su default, nullo o negativo su euro». Reale: **+1.7%** su default (sopra la mia forchetta) e **−1.1%**
+su euro. Direzione corretta su entrambe le piattaforme.
+
+**E il trasferimento fra stimatori è RIUSCITO**, che era il rischio dichiarato. Lo stesso segnale è ora
+misurato due volte, out-of-sample, su due stimatori diversi — `presence.standing` con lo sweep
+(§7-terdecies) e `model.expected_share` col gate — e dà **lo stesso quadro**: robust su Serie A, negativo su
+euro. È l'opposto di quel che è successo al canale qualità (§7-duodecies), e rende il segnale molto più
+credibile della singola misura che l'aveva suggerito.
+
+**Non si adotta lo stesso**, e le ragioni sono tre: euro è chiaramente contro (0 finestre su 5), T1 costa
++1.5% su Serie A, e `passes` resta la barra. Il verdetto robust è agli atti accanto a quello strict — la
+decisione è presa in chiaro, come vuole il protocollo, ed è **no**.
+
+**La sovrapposizione con R5 non c'è**: aggiungere R19 non muove **nessuno** dei 116 verdetti, e R5 (Elo del
+club di DESTINAZIONE) resta bocciata su tutte e quattro le combinazioni prima e dopo. Le due leggono davvero
+due cose diverse - dove giocava e dove va - ed è la stessa conclusione a cui era arrivato §7-terdecies
+misurando la competizione contro il club.
+
+## 7-sexdecies. I CRITERI DEL GATE, ricalibrati — e una contaminazione da dichiarare (6 agosto 2026)
+
+Richiesta dell'operatore dopo aver chiesto una visione d'insieme: «sistema come dici tu». Due criteri
+cambiati, e va detto subito che **uno dei due è nato guardando una regola bocciata**, il che è il difetto
+metodologico che questo documento chiama l'altro modo di fittare. È dichiarato sotto, non sepolto.
+
+### A. Lo strict: la soglia sulla MEDIA, non su ogni finestra
+
+Era «migliora su OGNI finestra di almeno `MIN_RELATIVE_GAIN`». È un requisito di **ampiezza su ogni singolo
+campione**, non di consistenza: `standing_prior_rounds` ha vinto tutti e sei i fold di Serie A e ha mancato
+lo strict perché il più debole dava +0.36% invece di +0.50%. Ora: migliora **ovunque** (nessuna finestra
+peggiora) **e** la media supera la soglia, che è dove una domanda di ampiezza appartiene.
+
+**Prova indipendente che la vecchia forma era scalibrata**: la modifica riporta a PASSES **R3, R7 e R3c**,
+che sono regole **già adottate e in produzione**. Un gate che boccia ciò che il motore usa non sta essendo
+severo, sta misurando male. Questo si vede senza guardare nessuna regola nuova.
+
+### B. FM e VALUE: aggregati, alla tolleranza che avevano già
+
+`fm_not_worse` e `value_not_worse` erano letti **per finestra** a 1.001, mentre il guardrail d'asta è
+**aggregato** al 2% dal 28/07. Due unità diverse per la stessa domanda, e non per una decisione: per due date.
+Corretta l'**unità**, lasciata l'ampiezza a 0.1% (`NO_HARM_ALLOWANCE`).
+
+Il 2% è stato provato e **rimesso indietro**: misurato, spostava **una** bandiera su 116 verdetti, quindi non
+comprava nulla di reale e in cambio rendeva queste due guardie venti volte più deboli su una regola futura
+che le stressi davvero. Un allentamento senza beneficio dimostrato non è una correzione, è una licenza.
+
+### ⚠️ LA CONTAMINAZIONE, e cosa ne consegue per R18
+
+Il punto B è nato da R18: FM migliore su tutte e cinque le finestre di euro/classic, caduta su **+0.24% di
+VALUE su una sola**. Ho giudicato sbagliato il criterio e l'ho cambiato — e con i criteri nuovi **R18 passa
+da 1/4 a 2/4 combinazioni**, e la combinazione che si gira è esattamente quella. La sequenza è: vedo la
+bocciatura, cambio la regola, la bocciatura sparisce.
+
+**Conseguenza: il verdetto di R18 non è utilizzabile per adottarla.** I criteri restano (sono giusti per
+ragioni che non dipendono da lei, vedi A), il suo verdetto no. Se R18 va giudicata, va **ri-pre-registrata**
+sotto i criteri nuovi, con l'aspettativa riscritta prima, e sapendo che questa contaminazione è agli atti.
+
+### Portata complessiva, misurata e non stimata
+
+**14 verdetti su 116 cambiano, tutti nella direzione NO → PASSES**, nessuno in quella opposta: nessuna regola
+adottata viene sfrattata. Le nuove promosse sono R3, R7, R3c (già adottate), R14, R15 e **R3d** — quest'ultima
+è quella che §sopra documenta come «passa l'accuratezza e peggiora le liste d'asta». **Passare non è essere
+adottati**: `ADOPTED` resta scritto a mano e non è stato toccato. Ma un criterio che, cambiato, ammette soltanto
+e non esclude mai, va guardato per quello che è: sul netto, un allentamento.
+
 ## 7-quindecies. IL NUOVO ACQUISTO GIOCA DI PIÙ? (6 agosto 2026) — falsificata, con un pezzo dentro
 
 Ipotesi dell'operatore: «un calciatore acquistato quest'anno ha più possibilità di giocare titolare o
@@ -2082,9 +2178,32 @@ la giudica, come ogni altra.
   due attaccanti: quello che risolve Kolo Muani è il canale LIVELLO e la qualità di carriera in selezione,
   non questo.
 - **Se non passa non entra**, e la MAE complessiva non deve peggiorare su nessuna finestra: è la regola d'oro.
-- **Stato: da implementare.** Servono l'input `fm_5y` in `features.Observation`, la funzione in `model`, la
-  voce in `Rule`/`CANDIDATES` e il fit di due lambda invece di una — è l'unica regola del motore con due
-  coefficienti, e per questo il fit va scritto con attenzione, non di fretta.
+- **Implementata ed ESEGUITA il 6 agosto 2026.** Il fit di due coefficienti non era il problema che temevo:
+  `share` di R3 è già una tupla e `fit_linear` regge più regressori, quindi la macchina c'era.
+
+#### ESITO — passa su UNA combinazione su quattro, e non si adotta
+
+| combinazione | robust | vince | guadagno medio | peggiore | esito |
+|---|---|---|---:|---:|---|
+| euro / classic | no | **5/5** | **+3.6%** | +1.9% | **NON PASSA**: il VALUE peggiora su T2 (42.4 → 42.5) |
+| euro / mantra | **sì** | 5/5 | +2.2% | +0.7% | **passa** l'accuratezza, ma il top-10 peggiora |
+| default / classic | no | 8/9 | +2.0% | **−5.6%** | non passa |
+| default / mantra | no | 6/9 | +1.2% | −5.3% | non passa |
+
+Su euro la FM migliora su **tutte** le finestre in entrambi i giochi, e sui giocatori che la regola MUOVE il
+guadagno arriva a −5.1% (T0) e −5.0% (T1). Su Serie A c'è una finestra a −5.6% e il quadro non tiene. Dove
+l'accuratezza passa cede il top-10, che è ciò che un'asta legge davvero: la regola d'oro dice che nulla deve
+peggiorare, e qui qualcosa peggiora in tre casi su quattro.
+
+**La previsione pre-registrata era sbagliata in due modi**, e vale la pena registrarli entrambi. Avevo scritto
+«+0.5-1.5%, concentrato su P e D»: il guadagno su euro è **il doppio** dell'estremo alto, e la distribuzione
+per ruolo è rovesciata — **A** e **C** guadagnano (fino a −7.8% su C in T0 e −7.5% su A in T1), **D** poco,
+**P esattamente zero**. E lo zero sui portieri non è un risultato: è una **mia scelta di implementazione**.
+I portieri sono predetti da M2e (`predict_fm_goalkeeper`), non dalla forma àncora+beta, quindi li ho esclusi
+per costruzione — cioè ho tolto proprio lo strato che in-sample rendeva di più (+2.8%). Un termine di storia
+per i portieri esiste come domanda aperta e ha bisogno della SUA forma, non di questa.
+
+**`backtest --verify` resta 22/22**: R18 non è in `ADOPTED`, quindi nessun numero pubblicato si muove.
 
 ### L'ESPERIENZA RIFLESSA (misurata il 6 agosto 2026) — non aggiunge, e non si adotta
 
