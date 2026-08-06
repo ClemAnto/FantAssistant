@@ -2664,8 +2664,16 @@ class SnapshotView(ttk.Frame):
         return selection[0] if selection else None
 
     def squad(self, club: str) -> list[dict]:
-        """The club's players, BY ROLE then by predicted SURPLUS - how an auction is prepared."""
-        rows = [row for row in self.players if (row.get("club") or "(club unknown)") == club]
+        """The club's players, BY ROLE then by predicted SURPLUS - how an auction is prepared.
+
+        A man a transfer or the live squad says has LEFT is not in it. The listone keeps declaring him
+        here and the AUCTION LIST keeps showing him with his ⇥ - it is what you bid against, and hiding
+        him there would hide a row you can still be offered. But a club's SQUAD is a claim about who is at
+        the club, and answering it with somebody who plays elsewhere is simply wrong: «perché si vede
+        ancora Gutierrez nel Napoli?», asked twice, and the second time is an answer.
+        """
+        rows = [row for row in self.players
+                if (row.get("club") or "(club unknown)") == club and not row.get("desc_left_for")]
         rows.sort(key=lambda row: (self.ROLE_ORDER.get(row.get("role_classic") or "", 9),
                                    -_number(row.get("engine_surplus"), -1e9)))
         return rows
@@ -4105,11 +4113,30 @@ class SnapshotView(ttk.Frame):
             # could turn on and a view that cannot see it is how a parameter ends up adopted and blind,
             # which happened twice in one session (`level_z`, `standing_prior`).
             fm_z=self.fm_z(row),
+            career_z=self._career_z(row),
             cross_league=(row.get("desc_arrival") == "transfer_cross_league"),
         )
         # ...and the prior LAST, from the inputs just built: computing it from the row would rebuild them
         # and call back into here. One cycle, found by the tests.
         return _replace_params(base, standing_prior=self._band_prior(base))
+
+    def _career_z(self, row: dict) -> float | None:
+        """His career fantamedia in sd over the FORWARDS of this sheet - see `presence.Inputs.career_z`."""
+        value = _number(row.get("desc_career_fm"), None)
+        if value is None:
+            return None
+        stats = getattr(self, "_career_stats", None)
+        if stats is None:
+            pool = [v for v in (_number(other.get("desc_career_fm"), None)
+                                for other in (getattr(self, "rows", None) or ())) if v is not None]
+            if len(pool) > 1:
+                mean = sum(pool) / len(pool)
+                sd = (sum((v - mean) ** 2 for v in pool) / len(pool)) ** 0.5
+                stats = (mean, sd)
+            else:
+                stats = (0.0, 0.0)
+            self._career_stats = stats
+        return (value - stats[0]) / stats[1] if stats[1] else None
 
     def fm_z(self, row: dict) -> float | None:
         """His fantamedia relative to his ROLE on this sheet, in standard deviations. None if unmeasured.

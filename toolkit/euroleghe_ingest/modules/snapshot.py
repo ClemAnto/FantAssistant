@@ -2225,7 +2225,7 @@ PLAYER_COLUMNS: tuple[str, ...] = (
     # are PRE-auction facts and legal to read; wages, which would be the best measure, do not exist in any
     # whitelisted source. The weight they carry in the selection is a PARAMETER, off until the gate speaks.
     "desc_investment_fee", "desc_investment_fee_share", "desc_investment_stature",
-    "desc_market_value", "desc_investment_value_share", "desc_level_elo",
+    "desc_market_value", "desc_investment_value_share", "desc_level_elo", "desc_career_fm",
     # A THIRD class, and the prefix is the whole point: `actual_*` is measured strictly AFTER the auction
     # date. It exists because a BACK-DATED sheet does not need a forecast of who plays - the eleven that was
     # fielded that week exists, and a forecast is only interesting while the outcome is unknown. Reporting
@@ -2448,6 +2448,9 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             # column the adopted channel is switched on and blind: the panel builds its `Inputs` from the
             # sheet, so a parameter whose input never reaches the row does nothing at all.
             "desc_level_elo": (obs.elo_prev if obs.club_change else None),
+            # What he had shown BEFORE last season - the career channel's input, forwards only because
+            # that is the population it was measured on (`presence.career_lift`).
+            "desc_career_fm": (obs.fm_career if obs.role_classic == "A" else None),
             "desc_investment_stature": spend.get("stature"),
             # AFTER the auction date, reporting only (see PLAYER_COLUMNS): what really happened in the
             # club's first match of the week that followed.

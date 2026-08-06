@@ -100,6 +100,11 @@ GRIDS: dict[str, tuple] = {
     # and one negative step, because a hypothesis that only allows the sign it expects is not being tested.
     # 0 is in the grid and is the incumbent.
     "level_weight": (-0.02, 0.0, 0.02, 0.04, 0.06, 0.08, 0.12),
+    # THE CAREER HYPOTHESIS (pre-registered 06/08/2026, gate §7-vicies). Centred on the measured effect -
+    # +0.034 of start share per sd of role-relative career fantamedia, on 264 forwards - with 0.10 as the
+    # ceiling and one negative step. Applied to FORWARDS ONLY, which is where it was measured: over
+    # everybody it is +0.010, on midfielders +0.020, on defenders **−0.054**. 0 is the incumbent.
+    "career_weight": (-0.02, 0.0, 0.02, 0.034, 0.05, 0.07, 0.10),
     # THE SAMPLE-SIZE SHRINKAGE (pre-registered 06/08/2026, gate §7-quaterdecies). In ROUNDS: K is how many
     # rounds of the population's mean it takes to outweigh his own. One-sided by construction - K < 0 is not
     # a weaker shrinkage, it is nonsense - and 0 is the incumbent. The top of the grid, 25, would make a
@@ -195,6 +200,7 @@ TARGETS: dict[str, str] = {
     "quality_weight": "starts",
     # same question again: who the coach PUTS on the pitch, given something the minutes could not see.
     "level_weight": "starts",
+    "career_weight": "starts",
     "standing_prior_rounds": "starts",
     "arrival_split": "starts",
 }
@@ -293,6 +299,18 @@ def build_inputs(conn, data: features.WindowData) -> tuple[dict[int, presence.In
                 if obs.elo_prev is not None and obs.club_change:
                     level_z[obs.fc_id] = (obs.elo_prev - mean_elo) / sd_elo
 
+    # ...and the CAREER, only for forwards: the population the coefficient was measured on (§7-vicies).
+    careers = [obs.fm_career for obs in data.observations
+               if obs.fm_career is not None and obs.role_classic == "A"]
+    career_z: dict[int, float] = {}
+    if len(careers) > 1:
+        mean_c = sum(careers) / len(careers)
+        sd_c = (sum((x - mean_c) ** 2 for x in careers) / len(careers)) ** 0.5
+        if sd_c > 0:
+            for obs in data.observations:
+                if obs.fm_career is not None and obs.role_classic == "A":
+                    career_z[obs.fc_id] = (obs.fm_career - mean_c) / sd_c
+
     fm_z: dict[int, float] = {}
     for obs in data.observations:
         pool = by_role.get(obs.role_classic or "")
@@ -363,6 +381,7 @@ def build_inputs(conn, data: features.WindowData) -> tuple[dict[int, presence.In
             was_here_before=obs.fc_id in was_here,
             fm_z=fm_z.get(obs.fc_id),
             level_z=level_z.get(obs.fc_id),
+            career_z=career_z.get(obs.fc_id),
             standing_prior=prior,
             cross_league=_cross(obs),
             fee_share=(spend.get(obs.fc_id) or {}).get("fee_share"),

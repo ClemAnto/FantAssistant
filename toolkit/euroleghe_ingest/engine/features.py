@@ -202,6 +202,9 @@ class Observation:
     fm_5y_seasons: int = 0
     # ...and the same over the MEDIA VOTO, which is what M2e shrinks for a keeper (R18-GK).
     mv_5y: float | None = None
+    # The mean fantamedia of the seasons STRICTLY BEFORE the input one - what a coach had already seen of
+    # him before last year. Distinct from `fm_5y`, which includes the input season and is R18's term.
+    fm_career: float | None = None
     new_coach_target: bool = False        # derived at 1 August, so known on auction day
     same_role_arrivals: int = 0           # new team-mates competing for the same Classic role
     starter_prob: float | None = None
@@ -983,12 +986,15 @@ def load(conn: sqlite3.Connection, window: Window, platform: str,
             "WHERE fm IS NOT NULL AND pv >= ? AND season <= ?",
             (MIN_PV_PREV, window.input_season)):
         history.setdefault(fc_id, []).append((season, pv, fm, mv))
-    fm_history: dict[int, tuple[float, int]] = {}
+    fm_history: dict[int, tuple[float, int, float | None]] = {}
+    career: dict[int, float | None] = {}
     for fc_id, seen in history.items():
         best: dict[str, tuple[int, float, float | None]] = {}
         for season, pv, fm, mv in seen:
             if season not in best or pv > best[season][0]:
                 best[season] = (pv, fm, mv)
+        earlier = [best[s][1] for s in sorted(best) if s < window.input_season][-5:]
+        career[fc_id] = (sum(earlier) / len(earlier)) if earlier else None
         chosen = sorted(best)[-5:]
         recent_five = [best[season][1] for season in chosen]
         votes = [best[season][2] for season in chosen if best[season][2] is not None]
@@ -1014,6 +1020,7 @@ def load(conn: sqlite3.Connection, window: Window, platform: str,
             fm_5y=(fm_history.get(fc_id) or (None, 0, None))[0],
             fm_5y_seasons=(fm_history.get(fc_id) or (None, 0, None))[1],
             mv_5y=(fm_history.get(fc_id) or (None, 0, None))[2],
+            fm_career=career.get(fc_id),
             minutes_prev=minutes, starts_prev=starts, matches_prev=matches,
             goals_prev=goals, assists_prev=assists, xg_prev=xg, xa_prev=xa, rating_prev=rating,
             minutes_share_euro_prev=euro_minutes.get(fc_id),

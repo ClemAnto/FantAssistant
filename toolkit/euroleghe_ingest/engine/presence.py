@@ -122,6 +122,12 @@ class Params:
     # five votes, controlling for the minutes he already played: partial r = +0.100, and the effect is
     # +1.5 minutes per round per standard deviation (forwards +2.9, r = +0.196; midfield and defence +1.3).
     # Real, and small: 1.5 of 90 is 0.017 of a season, while a real ballottaggio is a gap ten times that.
+    # THE CAREER CHANNEL, off until the sweep says otherwise. Measured 06/08/2026: the mean fantamedia of
+    # the seasons BEFORE the input one predicts next season's start share beyond the minutes already
+    # played - but only for FORWARDS. Partial r +0.135 (n=264, +0.034 of start share per sd) against +0.010
+    # over everybody, +0.020 on midfielders and **−0.054** on defenders. A single global weight would be
+    # describing four different things at once, so the input is None outside the role it was fitted on.
+    career_weight: float = 0.0
     quality_weight: float = 0.0
     # THE LEVEL CHANNEL, off until the sweep says otherwise. «Livello più alto puoi intenderlo anche con
     # Premier > Serie A» - the operator, 06/08/2026, and the data agrees: mean ClubElo is 1807 in the Premier
@@ -227,6 +233,9 @@ class Inputs:
     # 06/08/2026 over 2324 player-seasons - the two are not the same event and the model had one discount
     # for both (gate §7-quindecies).
     cross_league: bool = False
+    # What he had already SHOWN before last season, relative to his role, in standard deviations - and only
+    # for FORWARDS, which is the population it was measured on (gate §7-vicies). None everywhere else.
+    career_z: float | None = None
 
 
 def investment_lift(inputs: Inputs, params: Params = DEFAULTS) -> float:
@@ -251,6 +260,17 @@ def investment_lift(inputs: Inputs, params: Params = DEFAULTS) -> float:
     # ...and the null, which reads nothing about him at all
     lift += params.shrink_weight
     return lift
+
+
+def career_lift(inputs: Inputs, params: Params = DEFAULTS) -> float:
+    """What he had shown BEFORE last season, in shares of a season. 0.0 when off or outside its role.
+
+    Centred like the others. Distinct from `quality_lift`, which reads the INPUT season and was falsified
+    (§7-duodecies): this reads the seasons before it, which the standing has never seen at all.
+    """
+    if not params.career_weight or inputs.career_z is None:
+        return 0.0
+    return params.career_weight * inputs.career_z
 
 
 def quality_lift(inputs: Inputs, params: Params = DEFAULTS) -> float:
@@ -393,7 +413,7 @@ def standing(inputs: Inputs, params: Params = DEFAULTS) -> float:
     # not see should move the standing - and differ only in what they read: what the club paid, and what
     # the man showed.
     lift = (investment_lift(inputs, params) + quality_lift(inputs, params)
-            + level_lift(inputs, params))
+            + level_lift(inputs, params) + career_lift(inputs, params))
     # ...and how much of a season is BEHIND that number. Twelve rounds and thirty-eight say the same thing
     # with very different confidence, and the standing said them identically.
     if params.standing_prior_rounds and inputs.standing_prior is not None:
@@ -409,7 +429,7 @@ def standing(inputs: Inputs, params: Params = DEFAULTS) -> float:
     # Any other shape ("arrival") applies the INVESTMENT lift of its own, elsewhere - so only the quality
     # term is added here, and adding `lift` would have double-counted the other one.
     return min(max(measured + quality_lift(inputs, params)
-                   + level_lift(inputs, params), 0.0), 1.0)
+                   + level_lift(inputs, params) + career_lift(inputs, params), 0.0), 1.0)
 
 
 def presence(inputs: Inputs, params: Params = DEFAULTS) -> float:

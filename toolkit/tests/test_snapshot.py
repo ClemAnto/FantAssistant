@@ -2453,3 +2453,21 @@ def test_a_man_who_has_left_has_no_claim_on_the_shirt():
     assert view.claim(row, "season") == 0.0
     assert view.claim(row, "recent") == 0.0, "and the next-match horizon says the same"
     assert view._cell_values(row)["claim"] == ("0%", 0.0)
+
+
+def test_a_club_squad_does_not_contain_a_man_who_has_left():
+    """«Perché si vede ancora Gutierrez nel Napoli?» - chiesto due volte, e la seconda è una risposta.
+
+    The two questions are different and now answered differently. The AUCTION LIST keeps him, with his ⇥:
+    the listone is what you bid against, and a row you can still be offered must not vanish. A club's
+    SQUAD is a claim about who is at the club, and answering it with a man who plays elsewhere is wrong -
+    which is also why the eleven and the claim already refused him.
+    """
+    rows = [{"name": "Gutierrez", "club": "Napoli", "role_classic": "D",
+             "desc_left_for": "Bayer 04 Leverkusen", "desc_left_on": "2026-07-01"},
+            {"name": "Buongiorno", "club": "Napoli", "role_classic": "D"},
+            {"name": "Rrahmani", "club": "Napoli", "role_classic": "D"}]
+    view = _view_of(rows)
+    view.players = rows
+    assert [r["name"] for r in view.squad("Napoli")] == ["Buongiorno", "Rrahmani"]
+    assert any(r["name"] == "Gutierrez" for r in view.players), "resta nella lista d'asta"

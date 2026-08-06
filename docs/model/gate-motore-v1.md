@@ -1882,6 +1882,34 @@ un voto base convertito e **non** un FM-equivalente: per lui serve un equivalent
 portieri, che è un lavoro in `arrivals` e non qui. Va detto adesso perché è il caso che ha generato la
 richiesta. → **§7-decies**.
 
+## 7-vicies. LA QUALITÀ DI CARRIERA IN SELEZIONE (6 agosto 2026) — falsificata, ma non rumore
+
+L'ultimo candidato rimasto dalla misura di §7-terdecies, e quello che avrebbe toccato Kolo Muani: la
+fantamedia media delle stagioni PRECEDENTI a quella di input predice la titolarità dell'anno dopo, oltre ai
+minuti già giocati. Distinta dal canale qualità falsificato in §7-duodecies, che leggeva la stagione di input:
+questa legge quello che lo standing non ha mai visto.
+
+**Applicata ai SOLI ATTACCANTI**, che è la popolazione su cui è stata misurata: r parziale **+0.135** (n=264,
++0.034 di titolarità per sd) contro +0.010 su tutti, +0.020 sui centrocampisti e **−0.054** sui difensori. Un
+peso globale descriverebbe quattro cose diverse con un numero solo.
+
+**ESITO**:
+
+| | vincitore | scelta dei fold | media | peggiore |
+|---|---|---|---:|---:|
+| euro | **0.02** | 4 su 4 scelgono 0.02 o 0.034 | **+0.04%** | −0.14% |
+| default | **0.0** | 6 su 6 scelgono zero | +0.00% | — |
+
+**Non è rumore e non basta**, ed è una distinzione che vale la pena tenere: su euro tutti e quattro i fold
+scelgono un valore positivo e la curva ha un minimo interno (0.19474 a zero, 0.19459 a 0.02, poi risale) —
+il segno è consistente. Ma +0.04% è dieci volte sotto la soglia dello 0.5%, e su Serie A lo zero è confermato
+da tutti e sei i fold. L'aritmetica lo spiegava già: 0.034 di standing per deviazione standard, su circa il
+15% della popolazione, non muove un aggregato.
+
+`career_weight` resta **0.0**. E la conclusione sul caso che ha aperto la giornata va detta per intero: per
+Kolo Muani non esiste, nei nostri dati, un canale che lo porti dove l'operatore lo vede. Il livello lo alza di
+poco (il Tottenham vale quanto il Milan), la carriera non passa, e il resto è già dentro.
+
 ## 7-novodecies. IL GATE VINCOLA ANCHE IL SURPLUS CATTURATO (6 agosto 2026)
 
 Chiude il buco più vecchio di questo documento, quello che R3d aveva esposto: «una regola può passare il gate
