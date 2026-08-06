@@ -1,5 +1,5 @@
 # Spec — Toolkit `euroleghe-ingest` v9 (task 1.0 della roadmap)
-**Aggiornata: 5 agosto 2026 (v9.29 — stimati e misurati insieme, con un filtro; v9 SOSTITUISCE la v8)** · Python · Output: SQLite `euroleghe.db` + CSV normalizzati
+**Aggiornata: 5 agosto 2026 (v9.30 — la rosa live come autorità, e l'audit documenti↔codice; v9 SOSTITUISCE la v8)** · Python · Output: SQLite `euroleghe.db` + CSV normalizzati
 *Sigle: fc_id = identificativo fantacalcio.it · FM = fantamedia · Mv = media voto · Pv = partite a voto · xref = cross-reference id tra siti · xG/xA = expected goals/assists · manifest = lista file da recuperare.*
 **Convenzione: identificatori sempre in INGLESE** (tabelle, colonne, moduli, variabili); italiano solo nella documentazione.
 
@@ -493,6 +493,179 @@ ruolo**, **8% disgiunti** — e le disgiunte sono quasi tutte `a` del listone co
 visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**. Riscontri esatti:
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
+
+## Novità v9.30 (5-6 agosto 2026 — la rosa live come AUTORITÀ, un club è UN club, e un audit documenti↔codice)
+
+Quattro richieste dell'operatore nella stessa sessione, e tre delle quattro hanno trovato un difetto:
+«avevamo detto di utilizzare sofascore come verità sulle rose» · «verifica che nel codice siano correttamente
+implementati tutti i ragionamenti e le conclusioni» · «nella colonna FM se non ci sono abbastanza valori,
+mostra la FM stimata con il simbolino "circa" davanti» · «mi sembra troppo basso il SURPLUS di Kolo Muani».
+**308 test**, `backtest --verify` **22/22** (ri-eseguito, non citato). Nessuna regola del motore è entrata.
+
+### 1. Il caso che ha aperto tutto: Gutierrez risultava ancora al Napoli
+
+E **doveva** risultarci, per la regola della v9.26 («il listone dichiara e non si sovrascrive»): la riga tiene
+il suo club e la contraddizione si segnala con `⇥`. Quello che invece non funzionava è tutto il resto.
+
+### 2. La rosa live parlava a metà, e in due modi opposti
+
+- **Non si agganciava.** `live_squads` indicizzava i payload con la STRINGA del club e `left_his_club` li
+  cercava con la stringa del foglio. Ora la chiave è `_club_key` da entrambe le parti — terza istanza della
+  regola «un'entità si aggancia con la sua CHIAVE CANONICA», e la più facile da non vedere perché funziona su
+  quasi tutti i club.
+- **Parlava troppo dove non poteva sapere.** `/team/{id}/players` è la rosa di PRIMA SQUADRA e quanta ne
+  pubblichi varia: West Ham 18 uomini contro 29 identificati, e **nessuna** delle sue 14 «partenze»
+  corroborata da un trasferimento; Bologna a 24 su 28 era invece 6 su 6. Nuovo guardiano **`complete_squads`**
+  con `SQUAD_COMPLETENESS` = **0.90** — MISURATA, curva completa nel commento della costante (172 assenze):
+
+  | soglia | assenze tenute | corroborate | precisione | claim di sola assenza |
+  |-------:|---------------:|------------:|-----------:|----------------------:|
+  |  0.00  | 172 | 99 | 57.6% | 73 |
+  |  0.80  | 130 | 94 | 72.3% | 36 |
+  |  0.85  |  94 | 77 | 81.9% | 17 |
+  | **0.90** | **59** | **49** | **83.1%** | **10** |
+  |  0.95  |  27 | 24 | 88.9% |  3 |
+
+  0.85 è il rivale più vicino (−1.2 punti di precisione, +7 claim) e la scelta è per PRECISIONE, per
+  asimmetria di costo: una partenza falsa nasconde un uomo che c'è, una mancata lascia in piedi la
+  dichiarazione del listone. La precisione qui è un **limite inferiore**: «corroborata» significa che i
+  trasferimenti la confermano, e il provider aveva ragione su Gutierrez una settimana prima di loro.
+- **Effetto misurato end-to-end** sul foglio Serie A: righe marcate **93 → 48**, **zero** nuove, e le 45
+  cadute sono tutte claim di sola assenza da payload sotto soglia (Verona 15, Genoa 8, Pisa 6, Cremonese 6…).
+  Sopravvivono due sole asserzioni di sola assenza (Frangella, Pagano) più tutte quelle da trasferimento.
+- **Il costo, scritto perché si vede**: Openda perde il marchio (Juventus a 0.88, appena sotto). Il suo caso è
+  anche il seguito della v9.25: **quattro** movimenti tutti datati 1 luglio 2026 (Juventus→Lione,
+  Juventus→Lipsia, Lipsia→Juventus 42.75M), che la PK allargata sa CONSERVARE ma non sa ORDINARE. Una data non
+  è una sequenza.
+
+### 3. L'undici non schiera più chi è partito
+
+`SnapshotView.eleven` filtrava solo infortunati e squalificati, quindi un partito restava titolare
+disegnabile. Ora `eligible` esclude chi ha `desc_left_for` in **entrambi** i modi — l'undici tipo è «la
+squadra con tutti disponibili» e chi gioca altrove non ci sta a nessuna condizione. La RIGA resta al suo club
+col suo `⇥`: il listone è ciò da cui si compra, il campetto è il giorno. Ordine obbligato: senza il guardiano
+del punto 2 questa modifica avrebbe messo in panchina dodici giocatori del West Ham che ci sono davvero.
+
+### 4. Identità gemelle in `clubs` — TROVATE, MISURATE e FUSE
+
+`fc_club_id` **non è l'id di fantacalcio**: è un surrogato che `rosters._get_or_create_club` conia con
+`MAX+1` quando non trova la STRINGA esatta. Quindi due grafie dello stesso club diventavano due club:
+
+| club | id | stagioni in `rosters` | `club_xref` | `club_elo` | `coaches` | `penalty_hierarchy` |
+|---|---:|---|---|---:|---:|---:|
+| Newcastle | 12 | 24-25, 25-26 | transfermarkt | 10 | 46 | 19 |
+| Newcastle United | 60 | 18-19 → 23-24 | sofascore | 0 | 0 | 20 |
+| Eintracht | 22 | 24-25, 25-26 | *nessuno* | 2 | **0** | 20 |
+| Eintracht Francoforte | 59 | 18-19 → 23-24 | transfermarkt, sofascore | 10 | 70 | 14 |
+| Paris Saint Germain | 4 | *nessuna* | transfermarkt | 10 | 37 | 0 |
+| Paris Saint-Germain | 37 | 18-19 → 25-26 | sofascore | 2 | 0 | 62 |
+
+Non è una questione di grafie e nessun join la risolve: `club_key` riconcilia PSG e `AC Milan`/`Milan`, mai
+`Newcastle`/`Newcastle United`. Tre pezzi, tutti necessari:
+
+- **`matching.club_identity`** = `club_key(CLUB_ALIASES.get(name, name))`. La tabella alias sapeva GIÀ che le
+  due grafie indicano lo stesso club del provider; bastava passarci attraverso. `club_key` resta com'è —
+  è la chiave delle cache — e i quasi-omonimi restano separati (AS Monaco ≠ Bayern Monaco, Eintracht
+  Braunschweig ≠ Eintracht Frankfurt), asserito nei test.
+- **Prevenzione**: `_get_or_create_club` risolve per identità prima di coniare.
+- **`db.database.merge_twin_clubs`**, idempotente, nel percorso di `apply_schema`, **derivata dai dati** e non
+  da una lista di nomi: le righe si raggruppano per `club_identity` e sopravvive quella con la stagione di
+  rosters più recente, perché è dove atterrerà il prossimo listone. Applicata: **109 → 106 club**, e le uniche
+  righe perse sono **4 di `club_elo`** (stesso club, stessa data), contate e stampate invece che silenziose.
+  Dopo: Eintracht passa da **0 a 70** spell di allenatore, ogni gemella ha entrambi gli xref, e la gerarchia
+  rigoristi torna intera (19+20, 20+14).
+- **E il rovescio, che poteva far danno**: `Eintracht Francoforte` era il nome di una riga di `clubs` e ora è
+  solo una chiave alias, mentre **1210 righe** di `match_ratings.team` e 27 trasferimenti la scrivono ancora
+  così. Una stringa della fonte è EVIDENZA e non si riscrive per farla combaciare con una tabella, quindi è
+  `club_index` a indicizzare anche le chiavi alias. Senza, la fusione avrebbe scambiato tre club spezzati per
+  tre grafie illeggibili.
+
+### 5. La stima `other_platform` applicata fuori dalla sua popolazione (trovata dall'operatore)
+
+«Mi sembra troppo basso il SURPLUS di Kolo Muani» → −9.9. Il gradino `other_platform` sostituisce la stagione
+sull'ALTRA piattaforma, e vale mean **+0.001** / 92% entro 0.3 — misurato su 870 player-season con ≥15 voti su
+**entrambe**, cioè giocatori di Serie A, per cui euro e default sono *la stessa stagione vista da due
+calendari*. La stagione euro 2025-26 di Kolo Muani è il **Tottenham**. Sostituirla in un foglio di Serie A non
+è quel gradino: è una fantamedia STRANIERA, cioè R1, che il gate ha rifiutato su cinque finestre di sei.
+
+Eleggibilità ora letta dai dati (`league` del roster; su un foglio euro l'altra piattaforma È la Serie A e
+qualifica sempre) — stessa regola di `synth.calibrated_competitions`. **13 righe su 651 cambiano**, 7 erano
+`other_platform` e 6 erano `shrunk` su una stagione euro sottile e non italiana (Stones: **3 voti di Premier**
+mescolati col livello dei difensori dell'Inter). Sbagliava in ENTRAMBE le direzioni:
+
+| | prima | dopo |
+|---|---|---|
+| Kolo Muani | `other_platform` 5.74 → **−9.9** | `older` 6.98 → **+17.8** |
+| Gonzalez N. | `other_platform` 6.95 → **+17.8** | `shrunk` 6.71 → **+7.2** |
+| Ramos G. | `other_platform` 6.23 → +3.7 | `older` 7.50 → **+22.5** |
+| Stones | `shrunk` (3 voti) 6.19 → +0.8 | `older` 6.06 → +2.6 |
+
+**E il gradino sotto aveva lo stesso difetto**, trovato dall'operatore con una domanda di tre parole: «dove
+gioca Ramos?». Gonçalo Ramos in Serie A non ha **mai** giocato (PSG 2023→2026): `other_platform` glielo
+rifiutava correttamente e poi `older` gli consegnava la sua **Ligue 1** 2024-25 (19 voti, 7.50) come «la sua
+ultima stagione misurata» — 7.50 di FM e **+22.5** di surplus su un foglio di Serie A. Stessa fantamedia
+straniera, stesso R1, un gradino più in basso. Ora entrambi i gradini portano lo stesso test di competizione,
+e chi qui non ha mai giocato finisce all'**àncora**, che è precisamente ciò che il gate ha preferito a R1 su
+cinque finestre di sei: Ramos G. → `anchor` 6.52, surplus **2.3**.
+
+### 6. Una vecchia fantamedia va RISTRETTA prima di diventare una previsione
+
+Domanda dell'operatore: «un calciatore che torna in Serie A dopo un anno, la sua FM è confrontabile con chi
+gioca due anni consecutivi?». Misurato sulle nostre stagioni di Serie A, prevedendo t da t−2, àncora
+**fuori campione** (media di ruolo a t−1):
+
+| gruppo | n | FM(t−2) grezza | àncora di ruolo | àncora + β(FM−àncora) |
+|---|---:|---:|---:|---:|
+| rientranti (niente Serie A a t−1) | 203 | 0.407 | 0.369 | **0.326** (β 0.40) |
+| continui (Serie A anche a t−1) | 1264 | 0.395 | 0.376 | **0.336** (β 0.45) |
+
+Due risposte in una tabella. Quella chiesta: **sì, è confrontabile** — l'anno di mezzo costa 0.012 di MAE e il
+β migliore è lo stesso. Quella non chiesta e più importante: presa **grezza** perde contro l'àncora nuda su
+entrambi i gruppi, ed è **distorta verso l'alto** per i rientranti (+0.079, +0.144 sugli attaccanti). Quindi
+il gradino `older` passa la sua stagione alla **stessa trasformazione che il core applica a `fm_prev`**
+(`est.regress`, `OLDER_BETA` = 0.40, con 0.45 come rivale; il β del motore è 0.397/0.446). Tira in entrambe
+le direzioni, che è il punto: Ramos 7.50→6.91, Kolo Muani 6.98→6.85, ma Vasquez D. 4.61→**4.88** e il suo
+surplus da 13.2 a **20.4**. Uno sconto che abbassa e basta non è una previsione.
+Il caso esatto in archivio è raro (n=5) e punta uguale: Gosens 6.24→6.52 reale, Rabiot 6.55→6.84, Sanchez
+6.82→6.81, Malinovskyi 6.80→6.44, Bakayoko 6.13→6.15 — la vecchia FM italiana sbaglia 0.19 in media, la
+stagione estera 0.39.
+**Resta aperto** (misurabile, non deciso qui): `older` sceglie «più voti vince», e per chi ha cambiato
+campionato a stagione in corso quella è la riga euro MISTA — Kolo Muani prende il 2024-25 euro (24 voti: 14
+Juventus + 9 PSG, 6.98) invece del 2024-25 default puro (16 voti, 7.62).
+
+### 7. Quando un vecchio foglio è da rifare: `sheet_revision`
+
+`generated_at` dice quando una cartella è stata scritta, non se il codice che l'ha scritta calcola ancora gli
+stessi numeri — e «dimmi quando i vecchi snapshot sono da rifare» non era rispondibile dalla cartella stessa.
+Il manifest porta ora **`sheet_revision`** (`snapshot.SHEET_REVISION`), da incrementare quando cambia un
+valore che il foglio TRASPORTA e da lasciare stare per il cosmetico. Revisione **2** oggi; le dodici cartelle
+esistenti non hanno il campo, quindi sono revisione 0 e vanno tutte rifatte.
+
+### 8. L'audit documenti↔codice
+
+1083 nomi di codice citati dai .md verificati contro l'albero dei sorgenti, più 30 conclusioni in prosa
+controllate una per una. Riprodotte tutte le costanti pubblicate (`standing_weights` (0,1), `arrival_discount`
+0.80, `fc_site.DECAY` 0.75, `INJURY_WEIGHTS` (1.0, 0.6, 0.35), `MIN_PV_PREV` 15, `TIER_DRIVER`
+`measured_first`, `APPLY_OFFSETS` False, `SIDE_WEIGHT` {D:8, M:8, T:3, A:3}, `CLAIM_MARGIN` 0.05,
+`CAPTION_BAND_PX` 34, `PUBLISHED_WINDOWS` (T1, T2)). Corretto ciò che era andato alla deriva:
+
+- **`squad_size` non esiste**: la chiave è `squad_slots` (`config/league_config.json`, letta da
+  `config.py`), e il «prossimo passo» che la citava è **già fatto** — 00-BRIDGE, assistente-asta, todolist.
+- **`match_votes`** era rimasta nella nota set-pieces: la tabella è `match_ratings` dalla v9 punto 1.
+- **`SIDE_PRICE`** e **`_fit_across`** sono nomi del pricer GREEDY che la v9.16 ha sostituito con
+  l'assegnazione ungherese: oggi sono `SIDE_WEIGHT` + `_slot_price`, e la portata è `_within_reach` /
+  `_off_the_front`. I passaggi restano come storia, con detto che lo sono.
+- **`EASY_MARGIN` / `HOME_ADVANTAGE = 29`** (assistente-asta §calendario) sono **progetto, non codice**: zero
+  occorrenze nei sorgenti. Marcati come da costruire, così nessuno li cita come comportamento.
+- Il README diceva 232 test: sono **308**.
+
+### 9. La colonna FM mostra la stima, col `~` davanti
+
+Stessa regola della cella SURPLUS e per lo stesso motivo: sotto `MIN_PV_PREV` il core si rifiuta di prevedere
+e la cella restava vuota, cioè l'unico numero con cui si legge un giocatore mancava proprio per gli uomini che
+si conoscono meno (Mazzocchi, 11 voti su 15, nessuna FM mentre la sua stima — 5.885, mescolata col livello dei
+difensori del Napoli — stava in un'altra colonna). Ora la cella mostra `~5.9`, **e la chiave di ordinamento è
+la stima**: una colonna che mostra una lista e ne ordina un'altra è il difetto che la v9.28 ha pagato.
 
 ## Novità v9.29 (5 agosto 2026 — insieme, con un FILTRO: `include` = all | measured | estimated)
 
@@ -1302,7 +1475,7 @@ codice no. **(a)** Una versione che pesava calzata e claim su una scala sola but
 **(b)** Il confronto **fra linee** va fatto con il **gap di linea per primo**, al contrario di dentro una
 linea: `DR` copre la fascia destra, quindi la tupla di `slot_cost` leggeva `(0, 0, 13)` contro `(1, 2, 2)` di
 un'ala e l'attacco dell'Atalanta si vedeva offrire **Scalvini, un difensore centrale**. Un centrale non è
-un'ala, qualunque fascia sappia coprire (`_fit_across`). Ed è anche la ragione per cui si prende la mossa
+un'ala, qualunque fascia sappia coprire (allora `_fit_across`; oggi la portata è `_within_reach`, e per la linea d'attacco `_off_the_front` — vedi la nota di stato a fine sezione). Ed è anche la ragione per cui si prende la mossa
 **migliore** e non la prima trovata: il centrocampo sinistro del Napoli lo aggiusta anche Buongiorno
 (`DC;DL`, sette passi di linea), e la prima trovata metteva lui.
 Raggio d'azione **misurato** su 34 club × 3 moduli, con nessuno deselezionato: **8 undici su 102 cambiano**,
@@ -1354,7 +1527,7 @@ Tre pezzi nuovi:
     («Hojlund non può mai stare sulla trequarti»), e l'ala resta punta unica, che non è nemmeno lei.
   Sono la stessa tupla letta in due modi — `(0, 3, 0)` contro `(4, 0, 0)` — e quello che le separa è che la
   risposta giusta riguarda **l'undici intero**, non una maglia: Santos trequartista + Hojlund punta costa
-  **7**, il contrario **11**. Prezzo di una casella = `SIDE_PRICE[fascia sbagliata] + allows + gap`, dove il
+  **7**, il contrario **11**. Prezzo di una casella = `SIDE_PRICE[fascia sbagliata] + allows + gap` (nomi di allora), dove il
   gap è la distanza di linea sulla griglia `LANE_DEPTH`×20 (una linea piena = 7) e i tre gradini di fascia
   hanno **ognuno il suo prezzo, ognuno deciso da un caso**:
 
@@ -1533,6 +1706,12 @@ obbligato), `test_a_tooltip_never_leaves_the_screen` (il puntatore nell'angolo i
 `test_the_body_reaches_the_sheet_and_decides_nothing` (altezza e peso arrivano, e il prezzo di una casella
 non li legge), `test_the_outer_men_of_a_back_four_are_full_backs_on_the_badge` (e una difesa a tre no).
 **271 test verdi.**
+
+> **Nota di stato (audit 05/08/2026).** Questa sezione racconta il pricer GREEDY, e i suoi nomi non esistono
+> più: `SIDE_PRICE` è oggi `SIDE_WEIGHT` (per LINEA: 8 su D/M, 3 su T/A), `slot_cost` è stato eliminato in
+> favore di un solo `_slot_price` dentro l'assegnazione ungherese, e `_fit_across` è diventato
+> `_within_reach` (+ `_off_the_front` per la linea d'attacco). Sopravvivono con lo stesso nome `LANE_DEPTH` e
+> `REAL_ROLE_DEPTH`. Il racconto resta perché i CASI che hanno deciso i prezzi valgono ancora; i nomi no.
 
 ## Novità v9.15 (29 luglio 2026, notte — il pannello: l'altezza si spende sul campetto, non sul suo bordo)
 

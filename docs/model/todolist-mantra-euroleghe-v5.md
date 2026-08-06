@@ -445,7 +445,7 @@ Nota: **nessuna delle feature generate il 27/07 e' entrata nel motore**, e **nes
       dimensione «rosa senza quote per ruolo» (fonde sempre 3/8/8/6), quindi per la lega dichiarata — 12
       partecipanti, euro/mantra, **25 = 2 porte + 23** — i livelli di rimpiazzo sono verosimili e **sbagliati**,
       e con essi ogni surplus. È il primo dei tre passi di `assistente-asta-v1.md` §16.4 (config con
-      `squad_size`/quote opzionali/`keeper`/`factor`/`auction`, `features.roster_depth` che **rifiuta** invece di
+      `squad_slots` (FATTO)/quote opzionali/`keeper`/`factor`/`auction`, `features.roster_depth` che **rifiuta** invece di
       inventare, poi la lega dichiarabile in `my_leagues`).
 - [ ] **La stima è viva e non è gatabile come regola**: `est_*` esiste per una regola di prodotto e la sua scala
       di confidenza è **dichiarata**, non fittata. Quello che si può rifare quando le finestre crescono è la

@@ -877,7 +877,7 @@ rimandare: c'è un conto solo, e la quota è un dettaglio del più generale.
 
 Tre modifiche piccole e una sola per file, da fare insieme perché separate lasciano il numero muto:
 
-1. **`config.py`** — `squad_size`, quote **opzionali** (assenti = libere), blocco `keeper`
+1. **`config.py`** — `squad_slots` (FATTO: la chiave esiste e `config.py` la legge), quote **opzionali** (assenti = libere), blocco `keeper`
    (`unit: player | club_goal`, `slots`, `price`), `factor`, blocco `auction` (`mode` + le chiavi d'ordine).
    Additivo: le leghe già dichiarate leggono esattamente come oggi.
 2. **`features.roster_depth`** — una lega Mantra senza quote **rifiuta** di derivare la profondità invece di
@@ -1546,6 +1546,10 @@ Lecce, Cremonese, Pisa, Sassuolo **0/8**.
    di un terzo del campionato appiattito.
 
 ### 23.4 Forma congelata (scelta dell'operatore, 5 agosto 2026)
+
+> **STATO: progetto, non codice** (audit del 05/08/2026). `EASY_MARGIN` e `HOME_ADVANTAGE` non compaiono nei
+> sorgenti: nessun foglio calcola oggi la quota di partite facili. La costante `HOME_ADVANTAGE = 29` è
+> misurata e resta valida come specifica; va citata come «da costruire», mai come comportamento.
 
 **Soglia = +100.** Costanti dichiarate, zero fit:
 

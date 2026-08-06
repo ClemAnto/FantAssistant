@@ -1882,6 +1882,331 @@ un voto base convertito e **non** un FM-equivalente: per lui serve un equivalent
 portieri, che è un lavoro in `arrivals` e non qui. Va detto adesso perché è il caso che ha generato la
 richiesta. → **§7-decies**.
 
+## 7-quindecies. IL NUOVO ACQUISTO GIOCA DI PIÙ? (6 agosto 2026) — falsificata, con un pezzo dentro
+
+Ipotesi dell'operatore: «un calciatore acquistato quest'anno ha più possibilità di giocare titolare o
+giocare più minuti; se è così dobbiamo dare un bonus ai nuovi acquisti sul claim».
+
+**Misurata su 2324 (giocatore, stagione)**, residuo della titolarità dell'anno dopo al netto della quota di
+minuti precedente (NON scontata, altrimenti si misurerebbe il discount invece dell'ipotesi):
+
+| | n | residuo | err. std |
+|---|---:|---:|---:|
+| è RIMASTO | 1619 | **+0.0204** | 0.0059 |
+| è stato ACQUISTATO | 705 | **−0.0468** | 0.0114 |
+
+Sei punti e mezzo di divario con errori standard di mezzo punto: cinque sigma, e vale per ogni ruolo
+(P −0.117, D −0.029, C −0.048, A −0.050). **Un nuovo acquisto gioca MENO** di quanto i suoi minuti facciano
+prevedere, non di più: `ARRIVAL_DISCOUNT` a 0.80 non è solo confermato, è prudente. Nessun bonus.
+
+**Il pezzo dentro, e il suo esito.** Separando i due tipi di arrivo: intra-campionato **−0.0570** (n=543),
+cross-campionato **−0.0128** (n=162, entro mezzo sigma da zero). Il modello aveva **un solo** discount per
+entrambi, quindi lo sdoppiamento è stato pre-registrato come coppia `(intra, cross)` — coppia e non due
+parametri, perché con i due valori uguali sono la stessa funzione. Griglia: `(0.8,0.8)` incumbent · `(0.8,0.7)`
+il passo contrario · `(0.8,0.9)` `(0.8,1.0)` `(0.7,0.9)` `(0.7,1.0)` `(0.9,1.0)`.
+
+**ESITO: non adottato.** Tutti e dieci i fold scelgono **`0.8/0.7`** — cioè il cross andrebbe scontato di
+PIÙ, l'opposto della misura che ha motivato la griglia. Guadagni +0.25% (euro, peggior fold −0.20%) e +0.23%
+(default, peggior fold +0.06%): **sotto la soglia dello 0.5%**, quindi né strict né robust. E 0.7 è il
+**bordo** della griglia: allargarla dopo aver visto la curva è l'altro modo di fittare.
+
+**Ipotesi sul rovesciamento, dichiarata come ipotesi**: il canale LIVELLO è stato adottato un'ora prima
+(§7-terdecies), e un arrivo cross-league da un club forte riceve già +0.06 per deviazione standard di Elo. Lo
+spazio per un discount più mite è stato consumato lì. Due leve che si sovrappongono, e la seconda è arrivata
+dopo la misura che la motivava — che è una lezione sull'ORDINE in cui si misurano i canali, non su questo
+canale: una misura fatta a modello fermo non descrive più il modello dopo che un altro canale è entrato.
+
+## 7-quaterdecies. I DUE PEZZI CHE MANCANO ALLO STANDING (pre-registrati il 6 agosto 2026)
+
+Richiesta dell'operatore: «per esperienza Ramos dovrebbe avere un claim del 55% almeno, e Gimenez 45%;
+troviamo i pezzi che mancano». **Il bersaglio non è raggiungibile alzando il canale livello**, e va detto in
+aritmetica prima di cercare altro: con `level_weight` 0.06 Ramos passa da 31% a **43%**, e per portarlo a 55%
+servirebbe 0.122 — il tetto della griglia, oltre il punto in cui la curva dello sweep **risale** (0.12 è
+peggio di 0.08 su entrambe le piattaforme). Gimenez non ha cambiato club, quindi quel canale **non lo tocca a
+nessun peso**. Servono pezzi diversi, e sono due.
+
+### A. Lo standing non sa su QUANTA stagione è stato misurato — MISURATO, da pre-registrare
+
+Un'alta quota di minuti costruita su mezza stagione non si mantiene come la stessa quota costruita su una
+stagione intera. Su 2195 (giocatore, stagione), errore = titolarità reale dell'anno dopo meno lo standing:
+
+| giornate dietro lo standing | n | standing | titolarità reale | errore |
+|---|---:|---:|---:|---:|
+| 3-10 | 66 | 0.134 | 0.207 | **+0.073** |
+| 11-19 | 226 | 0.363 | 0.411 | +0.048 |
+| 20-28 | 315 | 0.484 | 0.463 | −0.021 |
+| 29-34 | 705 | 0.598 | 0.571 | −0.027 |
+| 35+ | 883 | 0.583 | 0.574 | −0.008 |
+
+E isolando i casi come quello che ha sollevato la domanda — standing **> 0.55**: su 3-19 giornate l'errore è
+**−0.190** (n=63), su 20+ è −0.092 (n=1075). L'ottimismo raddoppia. La tabella completa mostra la stessa cosa
+dai due lati: campione corto e standing basso **sotto**stima (+0.073), campione corto e standing alto
+**sovra**stima. È regressione verso la media, e lo standing non ne tiene conto.
+
+**Forma proposta**: `standing_shrunk = m × r/(r+K) + prior × K/(r+K)`, con `r` = le giornate misurate, `K` il
+parametro sweepabile e `prior` la media di popolazione del ruolo, passata come input (né la vista né lo sweep
+possono inventarsela dentro `presence.py`, che è dependency-free). `K = 0` è l'incumbent ed è dentro lo spazio.
+**Non implementato**: richiede un input nuovo in `Inputs` e la media di popolazione calcolata da entrambi i
+chiamanti; è la stessa ragione per cui R18 è ferma — non si scrive di fretta. Effetto atteso sul caso: Gimenez
+≈ 49% (16 giornate), Ramos invariato a 43% (30 giornate), divario da 28 punti a 6.
+
+### B. L'esperienza dovrebbe alzare anche il SURPLUS — e oggi non può, per costruzione
+
+Richiesta dell'operatore, e la risposta è architetturale prima che statistica: il canale livello vive in
+`presence.py`, che è il modello delle presenze del **pannello**; il surplus si costruisce su
+`engine_pv_pred`, che viene da `model.expected_share` nel motore **gated**. `evaluate.py` non importa
+`presence`. Quindi far entrare l'esperienza nel surplus **non è alzare un peso**: è una regola nuova sul lato
+presenze del motore, con la sua lambda, e la giudica `backtest --gate` e non lo sweep.
+
+**Pre-registrata come R19**: `share_pred` corretta da `λ × z(Elo del club dove ha giocato)`, solo per chi ha
+cambiato club, λ fittata su una finestra che non la giudica. L'evidenza a favore c'è già ed è out-of-sample —
+lo sweep di §7-terdecies ha misurato lo stesso segnale contro le titolarità realizzate, robust PASS su Serie A
+— ma è stato misurato su un ALTRO stimatore, e questo è precisamente il tipo di trasferimento che stasera è
+già fallito una volta (§7-duodecies). Attesa dichiarata: guadagno sulla MAE delle presenze fra 0.3% e 1% su
+default, nullo o negativo su euro.
+
+## 7-terdecies. IL LIVELLO DEL CALCIO GIOCATO, e cosa NON ne fa parte (esplorazione del 6 agosto 2026)
+
+Nata da un'osservazione dell'operatore su due acquisti che nessun undici tipo schiera: «Kolo Muani come
+G. Ramos sono stati acquistati per essere prime scelte ... hanno esperienze internazionali di caratura
+superiore a Gimenez». Quattro misure, **nessuna adottata**: sono candidate, e la pre-registrazione viene dopo.
+
+**1. La forza del club dove ha giocato i minuti — IL CANDIDATO PIÙ FORTE.** Su 700 trasferimenti, l'Elo del
+club di provenienza predice la quota di titolarità nel club nuovo *a parità di minuti giocati*: r parziale
+**+0.150** (attaccanti **+0.312**). Al netto **anche** della fantamedia — cioè escludendo che sia qualità
+travestita da livello — resta **+0.137** (attaccanti **+0.235**), +0.040 di titolarità per +1 sd di Elo
+(1 sd = 127 punti). La premessa dell'operatore ha il suo numero: Elo medio Premier **1807**, Serie A **1610**.
+Corollario che ridimensiona il caso di partenza: il Tottenham (1774) vale quanto il Milan (1787), quindi il
+canale premia Ramos (PSG 1970, +1.44 sd) e **non dice nulla su Kolo Muani** (−0.10 sd).
+
+**2. La qualità di CARRIERA** (le stagioni precedenti a quella di input): piatta sul totale — r +0.010 sul
+miglior FM, +0.030 sulla media — e reale **solo sugli attaccanti**, r **+0.135**, +0.034 di titolarità per sd.
+Sui difensori è negativa (−0.054). È la seconda gamba del caso Kolo Muani (4 stagioni top-5, miglior FM 7.93,
+contro le 2 di Gimenez, miglior FM 6.77) ed è l'unica che lo tocca.
+
+**3. La FM su CINQUE ANNI come qualità base** (richiesta dell'operatore), misurata sul mestiere del core —
+prevedere la fantamedia della stagione seguente, n=3470:
+
+| predittore | MAE |
+|---|---:|
+| FM di t−1 grezza (il naive) | 0.3921 |
+| àncora di ruolo | 0.3981 |
+| media 5 anni, grezza | 0.3668 |
+| àncora + 0.50×(t−1 − àncora) — **la forma del core oggi** | 0.3458 |
+| àncora + 0.60×(media 5 anni − àncora) | 0.3434 |
+| **àncora + 0.25×(t−1) + 0.35×(media 5 anni)** | **0.3401** |
+
+**−1.6%** sulla forma attuale, concentrato dove la storia è di 2-3 stagioni (+3.5% con due) e sui ruoli
+arretrati (P +2.8%, D +1.5%, C +0.1%, A +0.4%). Fit **in-sample**: il gate rifitta su una finestra e giudica
+sull'altra, quindi il guadagno atteso è minore. Questo candidato tocca `fm_pred`, quindi è materia di
+`backtest --gate` e non di `sweep`.
+
+**4. L'ESPERIENZA DA PANCHINA — falsificata prima di scriverla.** «L'esperienza si accumula anche solo
+partecipando come panchinaro, in maniera ridotta». È misurabile, perché il payload porta l'intera lista dei
+convocati (20-23 per squadra a partita): 58.161 titolari, 23.275 subentrati, **35.896 panchinari inutilizzati**
+in Serie A, e il non convocato è l'assenza di riga — «vuoto = ignoto». Costruito l'indice
+`(minuti/90 + w × panchine) × Elo`, la correlazione parziale è **massima esattamente a w = 0** e scende in
+modo monotòno: +0.132 · +0.120 (w 0.1) · +0.098 (0.2) · +0.053 (0.5) · +0.026 (1.0). Il termine panchina
+isolato vale **−0.005** (D +0.049, C −0.008, A −0.021). Sedersi in panchina in un club forte non dice nulla su
+quanto giocherai dopo, e mescolarlo **peggiora** il segnale dei minuti.
+
+### PRE-REGISTRAZIONE (6 agosto 2026, scritta PRIMA di eseguire) — il canale LIVELLO
+
+Decisione dell'operatore: «adottiamo entrambi: esperienza pesata sull'Elo e FM su 5 anni nel core». Con
+l'avvertenza dichiarata: le misure sopra sono **in-sample**, la regola d'oro è il gate fuori campione, e
+stasera un candidato a r parziale +0.100 è già stato falsificato (§7-duodecies). Quindi si implementano e si
+mandano a giudizio; restano accesi solo se passano.
+
+- **Dove vive**: `presence.level_lift`, canale dello standing con `Params.level_weight` (default **0.0**),
+  input `Inputs.level_z` = Elo del club dove ha giocato i minuti, standardizzato.
+- **Su chi agisce**: SOLO chi ha cambiato club (`Observation.club_change`). È la popolazione su cui il
+  coefficiente è stato misurato; per chi resta il termine diventerebbe «il suo club è forte», che è un'altra
+  affermazione e nessuno l'ha misurata.
+- **Griglia pre-registrata**, centrata sul valore misurato (+0.040), tetto a tre volte, un passo negativo:
+
+```
+level_weight ∈ (−0.02, 0.0, 0.02, 0.04, 0.06, 0.08, 0.12)     bersaglio: starts
+```
+
+- **Previsione scritta prima**: passa robust su almeno una piattaforma con guadagno fra 0.3% e 1%, e il
+  vincitore cade fra 0.02 e 0.06. Se vince un estremo **non si adotta**.
+- **Rischio noto**, lo stesso di §7-duodecies: la misura è su un ORIZZONTE (trasferimento → stagione
+  seguente) che coincide col compito dello sweep, il che la rende più solida del canale qualità — ma resta
+  una correlazione parziale su 456-700 casi, non un verdetto.
+
+#### ESITO (eseguito il 6 agosto 2026) — **ADOTTATO a 0.06**
+
+| piattaforma | finestre | strict | robust | vincitore pooled | guadagno medio | peggiore |
+|---|---:|---|---|---|---:|---:|
+| euro | 4 | no | no (sotto la soglia) | **0.06** | **+0.46%** | **+0.05%** |
+| default | 6 | no | **PASS** | **0.08** | **+0.93%** | −1.12% |
+
+Su Serie A passa robust e il cross-fit sceglie 0.08 in **5 fold su 6**. Su euro il guadagno è positivo su
+**tutte e quattro** le finestre — peggiore +0.05% — e manca il robust solo perché la media, +0.46%, sta 4
+centesimi sotto la soglia dello 0.5%. Nessuna delle due è strict (su default T1 costa −1.12%, dentro la
+tolleranza del −2%).
+
+**E per la prima volta oggi la condizione che mancava è soddisfatta: il minimo è INTERNO su entrambe le
+curve pooled.** euro: 0.20120 (a 0) → 0.20023 (0.06) → 0.20026 (0.08) → 0.20071 (0.12). default: 0.20296 →
+0.20084 (0.08) → 0.20102 (0.12). La curva risale, quindi non stiamo adottando il bordo della griglia.
+
+**Valore adottato 0.06, uno solo.** È l'ottimo di euro e cattura il 90% del guadagno di Serie A (0.20106
+contro 0.20084 al suo 0.08). La previsione pre-registrata era «robust su almeno una piattaforma, guadagno fra
+0.3% e 1%, vincitore fra 0.02 e 0.06»: giusta, col vincitore di Serie A un gradino più in alto.
+
+**Portata dell'adozione, da non gonfiare**: `presence.py` è il modello delle presenze del PANNELLO —
+`evaluate.py` non lo importa, e `engine_pv_pred` continua a venire da `model.expected_share`. Quindi questo
+cambia **chi il campetto disegna** e le presenze mostrate, e **non tocca un decimale di `engine_*`**:
+`backtest --verify` resta 22/22 per costruzione. Effetto sul caso che ha aperto tutto: Ramos (PSG, +1.97 sd)
+riceve **+0.118** di standing, Kolo Muani (Tottenham, +0.43 sd) **+0.026**, Gimenez zero perché non ha
+cambiato club. Il divario Ramos-Gimenez era 0.277: se ne chiude poco meno della metà, e quello di Kolo Muani
+quasi nulla — il suo caso resta appeso alla qualità di carriera, che è misurata (+0.135 sugli attaccanti) e
+NON adottata.
+
+### PRE-REGISTRAZIONE (6 agosto 2026) — **R18: la FM su cinque anni come qualità base**
+
+Il secondo dei due che l'operatore ha chiesto di adottare. Tocca `fm_pred`, quindi **non** è materia di
+`sweep`: è una regola del motore e la giudica `backtest --gate`, con le beta fittate su una finestra che non
+la giudica, come ogni altra.
+
+- **Forma**: `fm_pred = àncora + b1 × (fm_prev − àncora) + b2 × (fm_5y − àncora)`, dove `fm_5y` è la media
+  delle fantamedie delle ultime cinque stagioni con ≥15 voti, qualunque piattaforma, **escluse** quelle
+  successive alla stagione di input (nessun look-ahead). Il caso b2 = 0 è esattamente il predittore di oggi,
+  quindi l'incumbent è dentro lo spazio dei parametri.
+- **Popolazione**: chi ha almeno una stagione oltre a quella di input. Con una sola stagione `fm_5y` = `fm_prev`
+  e la regola è l'identità — ed è anche l'unico strato dove, in-sample, la media PERDE (−1.0%): va escluso
+  dichiarandolo, non scoperto dopo.
+- **Attesa scritta prima**, dai numeri in-sample sopra: guadagno di MAE **fra 0.5% e 1.5%** sulla forma
+  attuale, concentrato sui ruoli arretrati (P +2.8%, D +1.5%) e su chi ha 2-3 stagioni di storia (+3.5% con
+  due). Sugli attaccanti l'attesa è **quasi nulla** (+0.4%) — che è ironico, visto che la richiesta nasce da
+  due attaccanti: quello che risolve Kolo Muani è il canale LIVELLO e la qualità di carriera in selezione,
+  non questo.
+- **Se non passa non entra**, e la MAE complessiva non deve peggiorare su nessuna finestra: è la regola d'oro.
+- **Stato: da implementare.** Servono l'input `fm_5y` in `features.Observation`, la funzione in `model`, la
+  voce in `Rule`/`CANDIDATES` e il fit di due lambda invece di una — è l'unica regola del motore con due
+  coefficienti, e per questo il fit va scritto con attenzione, non di fretta.
+
+### L'ESPERIENZA RIFLESSA (misurata il 6 agosto 2026) — non aggiunge, e non si adotta
+
+Raffinamento dell'operatore: «l'esperienza va valutata considerando sia l'Elo della squadra dove si è giocato
+(diretta) sia il campionato dove si è partecipato (riflessa, appresa dagli avversari)» — e poi, correggendo la
+prima operazionalizzazione: «non bisogna valutare i singoli avversari, è l'Elo della competizione che già
+riflette la caratura delle squadre che si incontrano». La correzione ha **migliorato la misura**: l'Elo della
+competizione (media dei club di quel campionato in quell'anno) non ha il buco di risoluzione né il rumore di
+calendario, e da solo vale più della media degli avversari (+0.104 contro +0.078).
+
+**La versione buona, Elo della COMPETIZIONE** (699 trasferimenti, nessun buco: il campionato è un attributo del
+club). Elo medio pluriennale: La Liga 1770 · Premier 1758 · Bundesliga 1700 · Ligue 1 1658 · Serie A 1609.
+
+| candidato | r parziale |
+|---|---:|
+| Elo del CLUB (adottato), al netto dei minuti | **+0.153** |
+| Elo della COMPETIZIONE, al netto dei minuti | +0.104 |
+| COMPETIZIONE, al netto dei minuti **e del club** | **+0.027** |
+| CLUB, al netto dei minuti **e della competizione** | **+0.116** |
+
+Correlano +0.550. La competizione collassa a +0.027 e il club tiene — ma il club **perde un quarto** del suo
+segnale (0.153 → 0.116) quando si toglie la competizione, che è l'argomento dell'operatore letto al contrario:
+la caratura del campionato è **già dentro** l'Elo del club, e un secondo termine la duplicherebbe invece di
+aggiungerla. Per ruolo la competizione dà D +0.032, C −0.015, A +0.053; il club tiene D +0.118, C +0.073,
+A **+0.247**. Un canale solo, quello adottato.
+
+**La prima operazionalizzazione, tenuta come nota di metodo**: l'Elo medio degli avversari effettivamente
+affrontati, per-partita da `external_match_stats.opponent`.
+
+Trappola evitata per prima, perché è quella che questo documento già registra: gli avversari sono agganciati
+con `club_index` e non col nome — una misura ad hoc precedente aveva perso Milan, Roma e Napoli così. Tasso
+di risoluzione **77.0%** (250.630 su 325.418), che è il limite dichiarato di questa misura.
+
+Le due quantità sono davvero distinte (correlano **+0.424**), ma su 693 trasferimenti:
+
+| candidato | r parziale |
+|---|---:|
+| Elo del proprio club, al netto dei minuti | **+0.155** |
+| Elo degli avversari, al netto dei minuti | +0.078 |
+| Elo degli avversari, al netto dei minuti **e del proprio Elo** | **+0.015** |
+| Elo del proprio club, al netto dei minuti **e degli avversari** | **+0.135** |
+
+Messe insieme, la diretta sopravvive quasi intatta e la riflessa collassa a zero. Per ruolo i segni non
+tengono (D +0.070, C **−0.104**, A +0.088): rumore. Il livello degli avversari è in gran parte già contenuto
+nella forza del club per cui giochi, quindi il canale resta **uno solo**, quello adottato.
+
+**Cosa NON abbiamo, e non è una formula ma un'acquisizione**: le coppe europee sono troppo sottili per pesarle
+(Champions **2007 righe su 2 stagioni**, Europa League 990) e delle **nazionali non c'è nulla** — zero righe,
+nessuna competizione per nazioni nel database. Un indice di esperienza che le comprenda va prima *scaricato*.
+
+## 7-duodecies. LA VISIBILITÀ GUADAGNATA COL RENDIMENTO (pre-registrata il 6 agosto 2026, PRIMA di eseguirla)
+
+**Ipotesi dell'operatore, testuale**: «un giocatore con SURPLUS maggiore, nell'arco dell'anno, acquisirà più
+visibilità agli occhi dell'allenatore e quindi minutaggio ... dobbiamo convertire quindi il SURPLUS in un
+bonus sul claim».
+
+**Cosa si sweepa, e perché NON il surplus.** Il surplus è `(FM − rimpiazzo) × Pv_pred`, e `Pv_pred` nasce dallo
+`standing`, cioè dal claim stesso: sommarlo al claim rimetterebbe le presenze dentro le presenze. La parte non
+circolare è la **qualità**, quindi il canale legge la **fantamedia relativa al ruolo**, in deviazioni standard
+(`presence.Inputs.fm_z`), e la somma allo standing con peso `quality_weight`. È **centrato** come il canale
+`stature`: chi ha reso sopra la media sale, chi ha reso sotto scende — «un'ipotesi che ammette solo il segno
+che si aspetta non è sotto esame».
+
+**La misura fatta PRIMA di scrivere la griglia** (06/08/2026, sulle nostre stagioni di Serie A): 1758
+(giocatore, stagione), andata contro ritorno, stesso club nelle due metà, ≥5 voti all'andata, al netto dei
+minuti già giocati.
+
+| | n | r(minuti andata→ritorno) | r parziale con la FM | effetto |
+|---|---:|---:|---:|---|
+| tutti | 1758 | +0.612 | **+0.100** | **+1.5** min/giornata per +1 sd |
+| A | 364 | +0.652 | **+0.196** | **+2.9** |
+| C | 675 | +0.600 | +0.082 | +1.3 |
+| D | 604 | +0.438 | +0.086 | +1.3 |
+| P | 115 | +0.177 | +0.129 | +1.5 |
+
+Il meccanismo **esiste** — non è la monetina del centravanti alto (§5-terdecies) — ed è **piccolo**: 1.5 minuti
+su 90 valgono 0.017 di standing, mentre un ballottaggio vero si gioca su divari dieci volte tanto.
+
+**GRIGLIA PRE-REGISTRATA** (`sweep.GRIDS["quality_weight"]`), centrata sul valore misurato sopra, con 0.05 =
+tre volte quel valore come tetto e **un solo passo negativo**; 0 è nella griglia ed è l'incumbent:
+
+```
+quality_weight ∈ (−0.01, 0.0, 0.01, 0.017, 0.025, 0.035, 0.05)
+```
+
+**Prima previsione, scritta prima di eseguire**: che il canale passi *robust* su una piattaforma e non
+*strict*, con un guadagno sotto la soglia dello 0.5% — perché sposta 0.017 di standing su una quantità la cui
+deviazione tipica è dieci volte maggiore. Se invece vincesse un estremo della griglia, **non si adotta**: la
+regola «un parametro non si adotta al bordo della griglia» è già costata una volta (§7-septies), e allargarla
+dopo aver visto la curva è l'altro modo di fittare.
+
+**Nota di applicabilità**: la misura è INFRA-stagionale (andata → ritorno) mentre lo sweep giudica il canale
+FRA stagioni (input → target). Sono due affermazioni diverse e la seconda è più debole: fra una stagione e
+l'altra cambiano allenatore, rosa e ruolo. È esattamente ciò che lo sweep deve dire.
+
+### ESITO (eseguito il 6 agosto 2026, `data/reports/sweep_presence.json`) — **FALSIFICATA**
+
+| piattaforma | finestre | strict | robust | vincitore pooled | guadagno medio | peggiore |
+|---|---:|---|---|---|---:|---:|
+| euro | 4 | **no** | **no** | **0.0** (l'incumbent) | 0.00% | 0.00% |
+| default | 6 | **no** | **no** | **−0.01** | **−0.096%** | −0.291% |
+
+**Nessuna finestra sceglie un peso positivo.** Su euro tutti e quattro i fold cross-fittano a 0.0 e lo zero
+esce **confermato** con un margine di 0.00094 sul secondo (confermare non è «non ho trovato niente»). Su
+default quattro fold su sei scelgono il passo **negativo** e due lo zero. La curva pooled sale in modo
+monotòno col peso su entrambe le piattaforme — euro 0.2012 → 0.2054, default 0.20296 → 0.20732 da 0 a 0.05 —
+cioè il bonus di qualità **peggiora** la previsione delle titolarità, e peggiora tanto più quanto è grande.
+
+**La previsione pre-registrata era sbagliata**, e nella direzione prudente: avevo scritto «robust su una
+piattaforma, sotto la soglia dello 0.5%», e invece non passa da nessuna parte. Vale la pena tenerlo scritto:
+un effetto INFRA-stagionale reale (r parziale +0.100) **non si trasferisce** fra stagioni, che è precisamente
+il rischio che la nota di applicabilità aveva dichiarato prima di eseguire. Fra giugno e agosto cambiano
+allenatore, modulo e concorrenti: quello che l'allenatore ha imparato guardandolo non sopravvive all'estate.
+
+**Non si adotta nulla, in nessuna delle due direzioni.** Il vincitore su default è −0.01, che è il **bordo**
+della griglia: la regola «un parametro non si adotta al bordo» vale anche quando il segno è quello che non ci
+aspettavamo, e allargare la griglia adesso sarebbe fittare dopo aver visto la curva. Se qualcuno vuole
+inseguire la reversione fra stagioni, è una pre-registrazione nuova.
+
+`quality_weight` resta **0.0** nel codice: il canale rimane, spento e raggiungibile dall'harness, come ogni
+ipotesi falsificata di questo progetto (R4, R10, R8).
+
 ## 7-undecies. LA STIMA DI RIPIEGO MESSA ALLA PROVA (pre-registrata il 5 agosto 2026, sera)
 
 La cascata di `engine/estimate.py` esiste per una regola di prodotto («ogni calciatore DEVE avere il suo

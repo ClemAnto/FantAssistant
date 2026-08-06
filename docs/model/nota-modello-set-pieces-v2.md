@@ -28,7 +28,7 @@ Le leghe usano valori NON standard per rigori segnati/sbagliati e assist da ferm
 scoring_config: { goal_bonus, penalty_scored_bonus, penalty_missed_malus,
                   assist_bonus, assist_set_piece_bonus, ... }   # default fantacalcio.it, override per lega
 ```
-Il prediction-engine calcola gli EV con i valori della lega dell'utente; nessun +3/−3/+1 cablato. Il modulo `votes` del toolkit decompone gli assist standard dagli **assist da fermo** in `match_votes` (la piattaforma li distingue), così l'EV usa la categoria giusta.
+Il prediction-engine calcola gli EV con i valori della lega dell'utente; nessun +3/−3/+1 cablato. Il modulo `ratings` del toolkit decompone gli assist standard dagli **assist da fermo** in `match_ratings` (la piattaforma li distingue), così l'EV usa la categoria giusta.
 
 ## 1. Rigoristi — da flag binario a valore atteso (SOSTITUISCE il flag v3.8)
 **Evidenza (21-22/7):** conversione media di lega 77.4%/79.0% (199 e 181 rigori). Con punteggi standard (+3/−3): 90% → +2.40 per rigore · 78% → +1.68 · 60% → +0.60 · 50% → 0. Il flag binario mescola giocatori che valgono il triplo l'uno dell'altro.
@@ -51,7 +51,7 @@ i ∈ {freekicks, corners}     # penalties: formula dedicata sopra, con downside
 Tassi P(goal|i), P(assist|i) dai dati storici FBref (FK shots/goals, pass types, assist da piazzato); `taker_share` dalla gerarchia rivelata per tipo.
 
 ## Dati richiesti (tutti in spec v8)
-Rc/R+/R− stagionali (nostri file dal 24/25) + carriera FBref · FK shots/goals e pass types FBref · assist da fermo distinti in match_votes (modulo votes) · gerarchie rivelate per tipo (FBref eventi + fc_site probabili + positions amichevoli) · scoring_config per lega.
+Rc/R+/R− stagionali (nostri file dal 24/25) + carriera FBref · FK shots/goals e pass types FBref · assist da fermo distinti in match_ratings (modulo ratings) · gerarchie rivelate per tipo (FBref eventi + fc_site probabili + positions amichevoli) · scoring_config per lega.
 
 ## Gate
 Adozione SOLO se, fuori campione sulle due finestre, ciascun termine batte il motore che ne è privo — e per i rigoristi anche il vecchio flag binario a bonus fisso (baseline dichiarato).

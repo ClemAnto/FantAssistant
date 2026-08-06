@@ -1,5 +1,5 @@
 # 00 — BRIDGE · Punto d'ingresso del progetto (leggere per primo)
-**Aggiornato: 5 agosto 2026 (chiusura della sessione: l'asta ha una lista, ogni calciatore un numero con la sua nota, e le rose si verificano da sole)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
+**Aggiornato: 6 agosto 2026 (la rosa live è autorità sulle rose, le identità gemelle dei club sono fuse, e un audit documenti↔codice)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
 
 ## Il progetto in breve
 Motore previsionale per fantacalcio **EuroLeghe** (fantacalcio.it): valutazione calciatori Classic e Mantra sui 5 grandi campionati europei (Serie A, Premier, Liga, Bundesliga, Ligue 1 — perimetro: i ~35 top club del gioco). Prevede fantamedia (FM), presenze attese e VALORE stagionale = FM × presenze. Metodo scientifico: **ogni regola entra nel motore solo se batte il baseline fuori campione su finestre indipendenti** (gate pre-registrato). Stato: core validato (Mantra, Classic, portieri, presenze); manca lo strato flag/arrivi, sbloccato dal toolkit dati `euroleghe-ingest` (in implementazione).
@@ -26,6 +26,25 @@ regole di UI che sono requisiti) → `spec-euroleghe-ingest-v9.md` → `nota-mod
 ## STATO AL 5 AGOSTO 2026 (fine sessione) — LEGGI QUESTO PRIMA DI TUTTO
 
 Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
+
+### ULTIMO IN ORDINE DI TEMPO — 5/08/2026 sera (2): la rosa LIVE decide chi è in rosa, e un audit dei .md contro il codice
+
+Dettaglio in spec **«Novità v9.30»**. 306 test, `backtest --verify` **22/22**. **Nessuna regola del motore
+tocca, nessun verdetto del gate cambia** — è tutto strato descrittivo, pannello e documentazione.
+
+1. **La rosa live del provider è la fonte sulle rose, con due guardiani.** Si aggancia con `_club_key` (prima
+   con la stringa) e parla solo se il payload copre `SQUAD_COMPLETENESS` = **0.90** della rosa identificata:
+   misurata su 172 assenze, precisione 57.6% → 83.1%. Righe marcate 93 → 48, zero nuove.
+2. **L'undici non schiera un partito** (`eligible`), in entrambi i modi; la riga resta al suo club col `⇥`.
+3. **Identità gemelle in `clubs`: FUSE** (Newcastle 12/60, Eintracht 22/59, PSG 4/37). `fc_club_id` era un
+   surrogato coniato sulla stringa esatta; ora `matching.club_identity` + `merge_twin_clubs` in
+   `apply_schema`. 109 → 106 club, 4 righe `club_elo` duplicate perse e contate, Eintracht da 0 a 70 spell.
+5. **La colonna FM mostra la stima col `~`** quando il core non può prevedere, ordinamento incluso.
+6. **`other_platform` applicata fuori popolazione** (Kolo Muani, euro 25-26 = Tottenham): eleggibilità ora
+   dal campionato del roster, 13 righe su 651, errori in entrambe le direzioni.
+4. **Audit**: 1083 nomi di codice citati dai .md verificati + 30 conclusioni; tutte le costanti pubblicate
+   riprodotte; corretti `squad_size`→`squad_slots`, `match_votes`→`match_ratings`, i nomi del pricer greedy
+   (`SIDE_PRICE`/`_fit_across`), README 232→306; il calendario facile marcato **progetto e non codice**.
 
 ### ULTIMO IN ORDINE DI TEMPO — 5/08/2026 sera: l'ASSISTENTE D'ASTA, progettato prima di scrivere codice
 
@@ -63,7 +82,7 @@ rimpiazzo verosimili e **sbagliati**; per questo la lega **non è ancora in `my_
 in una mia misura aveva perso Milan, Roma e Napoli (`AC Milan` ≠ `Milan`) — le medie aggregate hanno tenuto, la
 graduatoria per club no. Lezione promossa in `CLAUDE.md`.
 
-**Prossimo passo definito** (§16.4): tre modifiche piccole e insieme — `config.py` (`squad_size`, quote opzionali,
+**Prossimo passo definito** (§16.4): tre modifiche piccole e insieme — `config.py` (`squad_slots` — FATTO, quote opzionali,
 blocco `keeper`, `factor`, blocco `auction`), `features.roster_depth` che **rifiuta** invece di inventare, poi la
 lega dichiarabile. Dopo: il refactor dell'assegnamento fuori da `gui.py` e il simulatore di draft.
 

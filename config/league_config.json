@@ -11,7 +11,12 @@
     "sort key changes. The Auction panel therefore offers it as a second ranking, defaulting to VALUE."
   ],
   "teams": 8,
-  "squad_slots": {"P": 3, "D": 8, "C": 8, "A": 6},
+  "squad_slots": {
+    "P": 3,
+    "D": 8,
+    "C": 8,
+    "A": 6
+  },
   "_my_leagues_note": [
     "The leagues you actually PLAY IN, one entry each - not the championships. The `leagues` of",
     "scoring_config.json are serie_a, premier_league, ...: a championship, with its own bonus/malus,",
@@ -30,7 +35,16 @@
     "name and numbers into its manifest, so a sheet always says which replacement level it used."
   ],
   "my_leagues": {
-    "EuroLeghe": {"platform": "euro", "game": "classic"}
+    "EuroLeghe": {
+      "platform": "euro",
+      "game": "mantra",
+      "teams": 12
+    },
+    "Leghe": {
+      "platform": "default",
+      "game": "classic",
+      "teams": 10
+    }
   },
   "_reliability_note": [
     "SURPLUS x (Pv / matchdays)^exponent. You set the lineup BEFORE knowing whether he plays, so what",

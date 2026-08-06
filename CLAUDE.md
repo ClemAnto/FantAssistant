@@ -101,6 +101,21 @@ tie once; where they disagree, the report says so and the decision is taken in t
   `Milan`) — i.e. it dropped the three STRONGEST teams from every club's schedule, unevenly. What survived a
   16/20 join were the aggregate ratios; what did not were the per-club rankings, which changed names entirely.
   Lesson beyond the join: in a partial measurement trust an order of magnitude, never a league table.
+  **And one level deeper, found and fixed 05/08/2026: the canonical key is only as good as the IDENTITY
+  behind it.** `fc_club_id` is not fantacalcio's id, it is a surrogate `rosters._get_or_create_club` minted
+  whenever the exact STRING was new — so `clubs` held two rows for one club (Newcastle 12/60, Eintracht 22/59,
+  Paris Saint Germain 4/37) with the listone's seasons on one twin and the provider's `club_xref` on the
+  other. `club_key` cannot cure it: it reconciles `AC Milan`/`Milan` and PSG's hyphen, never
+  `Newcastle`/`Newcastle United`. What it switched off was one club-level channel at a time — Eintracht with
+  ZERO coach spells, the live squad dark on two clubs, `penalty_hierarchy` split 19/20 and 20/14, the same
+  halving that once made a decay of 0.5 look better than 0.75. Cured by `matching.club_identity` (route
+  through `CLUB_ALIASES`, which already knew) plus `db.database.merge_twin_clubs`, derived from the data and
+  not from a list of names, survivor = the id with the most recent roster season: 109 → 106 clubs, four
+  duplicate `club_elo` rows dropped and counted, Eintracht from 0 to 70 coach spells. Two corollaries: a
+  merge that quietly eats history is worse than the split it cures, so the migration REPORTS what collided;
+  and a name that stops being a `clubs` row does not stop being what a source SAID (`Eintracht Francoforte`
+  is still in 1210 `match_ratings.team` rows), so `club_index` indexes the alias keys too — otherwise the
+  cure trades three split clubs for three unreadable spellings.
 - **Full-season propensity**: the euro calendar is a *subset* of a player's real matches, so propensity
   (goals/assists/xG per 90) is computed over the FULL real season while the FM/Mv target stays on `euro`.
   Serie A: from `default`. Other 4 leagues: from **FBref** (facts) + **Sofascore** (rating + heatmaps),
@@ -339,10 +354,21 @@ the case that asked the question: its 28/07 payload had 46 Napoli players and **
   happened; neither can say "he is not there any more". That is why the departure flag has two independent
   signals (the transfer, which names the destination, and the live squad, which simply lacks him) and why
   `squad_snapshot` now carries the provider as a fourth source.
-- **absence has a twin that means the opposite**: a man with no provider identity is missing from every payload
-  by construction, so absence is only evidence about a man the provider can identify — «vuoto = ignoto, mai
-  zero», the same rule the duel columns are built on. And a signing made after the payload's date reads as
-  absent until it is re-read, so the flag always carries the OBSERVATION DATE.
+- **absence has TWO twins that mean the opposite**, and each needs its own guard. A man with no provider
+  identity is missing from every payload by construction, so absence is only evidence about a man the provider
+  can identify — «vuoto = ignoto, mai zero», the same rule the duel columns are built on. And a payload is the
+  FIRST TEAM as the provider chose to publish it, so how complete it is varies by club: West Ham reads 18 men
+  against 29 identified and not one of its fourteen "departures" is corroborated, while Bologna at 24 of 28 is
+  6 for 6. Hence `complete_squads` and `SQUAD_COMPLETENESS` = 0.90, MEASURED over 172 absences (precision
+  57.6% ungated → 83.1% at the gate, runner-up 0.85 at 81.9%; the choice is precision-first because a false
+  departure hides a man who is really there while a missed one only leaves the listone's claim standing).
+  Effect: 93 flagged rows → 48, zero new. And a signing made after the payload's date reads as absent until it
+  is re-read, so the flag always carries the OBSERVATION DATE.
+- **the row declares, the BOARD obeys.** Two different questions: the sheet keeps him at his listone club with
+  a `⇥` (that is what you buy from), while `eleven()` excludes him outright in both modes — the typical eleven
+  is «the side with everybody fit» and a man who plays elsewhere is not in it at any fitness. The order is
+  forced: without the completeness guard, this same change benches twelve West Ham players who are really
+  there.
 - **the sheet declares and does not overrule.** The listone is the game's own authority on who is in a squad -
   it is what you buy from - so a contradiction is reported (`desc_left_for` / `desc_left_on`, a sheet note, a
   `⇥` in the panel), never silently applied. The transfers layer needed its primary key widened to make this
@@ -413,6 +439,79 @@ converts (`APPLY_OFFSETS = False`, gate §7-nonies); and **a chain that feeds a 
 chain** — `mv_synth` was stale, so the arrivals layer had been working on a third of its input (707 arrivals
 with an FM-equivalent, 2045 after).
 
+**The LEVEL of the football behind a man's minutes — adopted 06/08/2026, and the first candidate of that
+session to earn it.** «Livello più alto puoi intenderlo anche con Premier > Serie A», and the data agrees:
+mean ClubElo 1807 against 1610. Measured on 700 transfers controlling for the minutes AND the fantamedia — so
+it is level, not quality in disguise — partial r +0.137, forwards +0.235. Swept on a pre-registered grid:
+Serie A robust PASS (+0.93%, cross-fit picks 0.08 on 5 folds of 6), euro positive on all four windows (worst
++0.05%) and short of robust only because its mean, +0.46%, sits under the 0.5% floor. **Both pooled curves
+have an INTERIOR minimum** — the condition every other candidate that week failed — so `level_weight` = 0.06,
+euro's own optimum and 90% of Serie A's gain. Two things to keep with it: it applies only to men who CHANGED
+club, because that is the population it was measured on; and `presence.py` is the PANEL's model, not the
+engine's (`evaluate.py` does not import it), so this moves who the board draws and not one decimal of
+`engine_*`. What it does NOT do is rescue the case it came from: Ramos gains +0.118 of standing, Kolo Muani
++0.026, and Gimenez nothing at all because he did not move.
+
+**Two refinements of the same idea, both refused by measurement rather than by argument.** «L'esperienza si
+accumula anche solo partecipando come panchinaro»: the bench IS in the data (the payload carries the whole
+matchday squad — 58,161 starters, 23,275 substitutes who came on, 35,896 unused, and a man not called up has
+no row at all, which is the «vuoto = ignoto» this needed), and the index `(minutes/90 + w × bench) × Elo`
+peaks at exactly **w = 0** and decays monotonically — the bench term alone is −0.005. And «la qualità di
+carriera»: flat overall (r +0.010), real only for forwards (+0.135), so it stays measured and unadopted. What
+is missing is not a formula but an acquisition: European cups are too thin to weigh (Champions 2007 rows over
+two seasons) and of national teams we have **nothing**.
+
+**A within-season effect is not a between-season effect** (gate §7-duodecies, 06/08/2026). «Un giocatore con
+SURPLUS maggiore acquisirà più visibilità agli occhi dell'allenatore e quindi minutaggio» — measured first, and
+the mechanism is REAL inside a season: over 1758 (player, season) of Serie A, first half against second, same
+club, controlling for the minutes he already played, the partial correlation with his fantamedia is **+0.100**
+and the effect **+1.5 minutes per round per sd** (forwards +2.9, r +0.196). Swept between seasons on a
+pre-registered grid it is **falsified on both platforms**: euro confirms 0.0 on all four folds, Serie A picks
+the NEGATIVE step on four of six, mean −0.096%, and the pooled error climbs monotonically with the weight. The
+applicability note written before the run is what happened — between June and August the coach, the shape and
+the rivals all change, and what he learned watching does not survive the summer. Also: state it on the
+FANTAMEDIA, never on the surplus, or the presences re-enter the standing that produced them.
+
+**Third instance, found by the operator on a number that looked wrong (06/08/2026).** «Mi sembra troppo basso
+il SURPLUS di Kolo Muani» — −9.9. The `other_platform` rung of `engine/estimate.py` substitutes the same
+season from the other platform, worth mean +0.001 and 92% within 0.3 — measured on 870 player-seasons with a
+full season on BOTH, i.e. Serie A men, for whom euro and default are one season seen from two calendars. Kolo
+Muani's euro 2025-26 is TOTTENHAM. Substituting it into a Serie A sheet is not that rung: it is a foreign
+fantamedia, which is R1, refused by the gate on five windows of six. Eligibility is now the roster's own
+league, read from the data (on a euro sheet the other platform IS Serie A and always qualifies). 13 rows of
+651 move, and the defect erred BOTH ways: Kolo Muani −9.9 → +17.8, Gonzalez N. +17.8 → +7.2. Six of the
+thirteen were the same defect one rung down — `shrunk` blending a THIN foreign season with an Italian club's
+level (Stones: 3 Premier votes against Inter's defenders). Lesson worth the repetition: the population a
+transform was fitted on is part of the transform, and «he has a season on the other platform» and «he played
+the same football» are two different sentences.
+**And the first fix was incomplete, which three words exposed: «dove gioca Ramos?»** Gonçalo Ramos has never
+played in Serie A (PSG 2023→2026), so `other_platform` refused him and `older` then handed over his LIGUE 1
+season as «his last measured season» — 7.50 and +22.5 of surplus on a Serie A sheet. Same foreign fantamedia,
+one rung lower. Both rungs now carry the same competition test, and a man who never played here lands on the
+ANCHOR, which is what the gate preferred to R1 on five windows of six (Ramos → 6.52, surplus 2.3). When you
+find a rule applied outside its population, check the rung below it: a cascade fails in the same way twice.
+
+**A measured fantamedia is not a prediction, and the estimate has to say so too** (06/08/2026). Asked whether
+a returner's old FM is comparable to a man who never left, measured on Serie A seasons predicting t from t−2
+with an out-of-sample anchor: returners MAE 0.407 (n=203) against 0.395 (n=1264), same best β — so YES, the
+year away costs 0.012 and an old fantamedia is as good a reference for one as for the other. The same table
+answers a question nobody asked: RAW it loses to the plain role anchor (0.369 / 0.376) and both lose to
+anchor + β(FM − anchor) at 0.326 / 0.336, β 0.40, the shape the core already uses on `fm_prev` (its own
+`beta_mantra` is 0.397 / 0.446). It is also biased UPWARD for exactly the men the rung serves: +0.079, +0.144
+for forwards. Hence `estimate.regress`. It pulls BOTH ways and that is the point — Ramos 7.50→6.91 down,
+Vasquez D. 4.61→4.88 up and his surplus 13.2→20.4; a shrinkage that only ever lowered would be a haircut.
+
+**A sheet cannot say whether it is stale, so make it say it.** `generated_at` records when a folder was
+written, never whether the code that wrote it still computes the same numbers. `manifest.sheet_revision`
+(`snapshot.SHEET_REVISION`) is bumped whenever a change moves a value the sheet CARRIES and left alone for
+anything cosmetic; a folder below the current revision is to be rebuilt, and one without the field at all is
+revision 0.
+
+**A test whose fixture is a user-editable file is testing the user.** The smoke test read the repository's own
+`league_config.json` and asserted 8 teams — so it broke the moment the operator declared his league from the
+panel (12 teams, euro/mantra), which is a supported thing to do. It now points `Config` at a path that does
+not exist, which is what «the built-in fallback» actually means.
+
 Two more of the same family, both from the same session:
 - **A rule that selects a population has ONE definition, read from both sides.** The panel's ⧖ mark and the
   module's fetch queue are the same question (`recent_form.awaiting_data`, one function whose `measured`
@@ -420,9 +519,17 @@ Two more of the same family, both from the same session:
   "this is what is being fetched" — including the case that matters, a man whose window was already fetched
   ELSEWHERE, whom a second definition would keep marking as waiting.
 - **A parameter is never adopted at the edge of its grid.** The conditional-investment channel passes robust on
-  Serie A (+0.79%, 5 folds of 6) and stays at zero because every fold picks 0.5 out of 0.5: the curve was never
-  evaluated beyond. Widening the grid after seeing the curve is the other way of fitting — it goes in the
-  pre-registered follow-up, not in the same run.
+  Serie A (+0.79%) and stayed at zero because every fold picked 0.5 out of 0.5. **The follow-up has since been
+  run** (05/08/2026, `investment_unplayed_value_wide`, grid to 3.0): on Serie A the winner is **0.75 —
+  interior — still robust, mean +0.56%**, while euro does not pass (+0.34%). So the procedural reason for the
+  zero is gone and what remains is a platform-dependent decision; cite the report, not this line. Widening a
+  grid after seeing the curve is still the other way of fitting: it goes in the pre-registered follow-up.
+  Corollary found 06/08/2026 while asking why two big signings are in no typical eleven: **the arm that passes
+  is blind on the men it exists for.** It reads the INPUT season's market value, and Gonçalo Ramos has none at
+  all (196 of 975 euro rows lack `value_share`, 17 of them arrivals), while Kolo Muani's reads 20M against
+  Gimenez's 18M — equals, in the summer one of them cost 41.2M. The signal that would see them is the FEE
+  (54% and 27% of what their clubs spent) and the new quotation (percentiles 0.95 and 0.94), and the fee arm
+  has only three windows because fees exist from 2023. Fix the input before tuning the weight.
 
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);

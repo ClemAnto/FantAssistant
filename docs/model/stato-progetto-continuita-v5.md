@@ -1,5 +1,5 @@
 # Stato progetto & continuità — v5
-**Aggiornato: 5 agosto 2026 (chiusura della sessione: undici passate — l'asta ha una lista, ogni calciatore un numero, e tre muri identici)**
+**Aggiornato: 6 agosto 2026 (dodicesima passata: la rosa live diventa autorità, un club è UN club, e un audit documenti↔codice)**
 Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da qui + i file della cartella "Modello Previsionale Fantacalcio".
 *Glossario: T1/T2 = finestre di test (23/24->24/25, 24/25->25/26) · MAE = errore medio assoluto · cross-fitted = parametri stimati su una finestra, testati sull'altra · M2e = modello portieri decomposto con ClubElo · Pv_att = presenze attese · fc_id = id fantacalcio.it · EV = valore atteso · scoring_config = punteggi configurabili per lega · xG/xA = expected goals/assists · 2.5 pieno = backtest motore completo con flag.*
 
@@ -7,6 +7,40 @@ Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da q
 App per leghe EuroLeghe/fantacalcio.it (Classic+Mantra, 5 campionati) con motore previsionale. Metodo: ogni regola entra SOLO se batte il baseline fuori campione su finestre indipendenti (gate pre-registrato). Doc madre: modello-previsionale-v3.8.md.
 
 ## ⚠️ Lo stato corrente è in `00-BRIDGE-punto-di-ingresso.md`, blocco «STATO AL 5 AGOSTO 2026»
+
+### 5 agosto 2026, sera, in una riga: la rosa live decide chi è in rosa, ma solo dove è abbastanza completa
+
+Partiti da una domanda dell'operatore («perché risulta ancora Gutierrez nel Napoli?») e finiti su un audit di
+tutta la base di conoscenza contro il codice. Dettaglio: spec **«Novità v9.30»**. 306 test verdi,
+`backtest --verify` **22/22** ri-eseguito. **Nessuna regola del motore è entrata, nessun verdetto cambia.**
+
+- Gutierrez risultava al Napoli **per progetto** (il listone dichiara e non si sovrascrive) — ma la rosa live
+  si agganciava per STRINGA e non per `_club_key`, e parlava anche dove il payload era mezzo vuoto.
+- Nuovo guardiano `complete_squads` con `SQUAD_COMPLETENESS` = **0.90**, misurata su 172 assenze (precisione
+  57.6% → 83.1%). Righe marcate 93 → **48**, zero nuove; sopravvivono due sole asserzioni di sola assenza.
+- L'undici non schiera più chi è partito (`eligible`), in entrambi i modi. Ordine obbligato: senza il
+  guardiano avrebbe messo in panchina dodici giocatori del West Ham che ci sono davvero.
+- **Identità gemelle dei club: FUSE.** `fc_club_id` era un surrogato coniato sulla stringa esatta, quindi
+  Newcastle 12/60, Eintracht 22/59 e PSG 4/37 erano lo stesso club due volte, con `rosters`, `club_xref`,
+  `club_elo`, `coaches` e `penalty_hierarchy` divisi a metà. `matching.club_identity` + `merge_twin_clubs`
+  (idempotente, derivata dai dati, nel percorso di `apply_schema`): **109 → 106 club**, perse solo 4 righe
+  `club_elo` duplicate e contate, l'Eintracht passa da **0 a 70** spell di allenatore.
+- **La FM stimata entra nella colonna FM col `~`** e con la propria chiave di ordinamento (Mazzocchi, 11 voti
+  su 15, prima cella vuota, ora `~5.9`).
+- **La cascata delle stime applicata fuori popolazione**, trovata dall'operatore due volte: Kolo Muani
+  (−9.9, la sua stagione euro 25-26 è il Tottenham) e Ramos G. (+22.5, che in Serie A non ha **mai** giocato
+  e prendeva la sua Ligue 1). Ora `other_platform` **e** `older` portano lo stesso test di competizione.
+- **Una vecchia FM va ristretta prima di diventare previsione** (`est.regress`, β 0.40 misurato): rientranti
+  MAE 0.407 vs continui 0.395 → sì, è confrontabile; ma grezza perde contro l'àncora (0.369) e il
+  restringimento batte entrambe (0.326). **42 righe su 651** cambiano rispetto a stamattina: Ramos 22.5 →
+  **2.3** (àncora), Kolo Muani −9.9 → **15.1**, Vasquez D. 13.2 → **20.4** (la sua vecchia FM era *sotto*
+  l'àncora). Resta aperto: `older` sceglie «più voti vince» e può prendere una stagione euro MISTA.
+- **`manifest.sheet_revision`** (oggi **2**): un foglio non sapeva dire se era scaduto. Le dodici cartelle
+  esistenti non hanno il campo → revisione 0, tutte da rifare.
+- L'audit: 1083 nomi di codice citati dai .md verificati, 30 conclusioni controllate una per una. Tutte le
+  costanti pubblicate riprodotte; corretti `squad_size`→`squad_slots`, `match_votes`→`match_ratings`,
+  `SIDE_PRICE`/`_fit_across` (nomi del pricer greedy sostituito), README 232→306 test; marcata come
+  **progetto e non codice** la regola del calendario facile (`EASY_MARGIN`/`HOME_ADVANTAGE`).
 
 ### 5 agosto 2026, in una riga: esiste UNA lista con cui andare all'asta, e il listone di agosto entra
 
