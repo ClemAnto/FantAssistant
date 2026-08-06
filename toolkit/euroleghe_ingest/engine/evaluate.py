@@ -269,7 +269,18 @@ CANDIDATES: tuple[str, ...] = ("R0c", "R1", "R1b", "R2", "R3", "R3c", "R4", "R4b
 # their prediction on T1/T2. Autopsy: docs/model/attacco-affollato-r17-v1.md §10.
 ADOPTED: dict[str, tuple[str, ...]] = {
     "euro": ("R0c", "R3c"),
-    "default": ("R3", "R7", "R13"),
+    # R19 is the FIRST rule here adopted on the ROBUST verdict alone, and it is written down as such.
+    # Decision taken in the open on 06/08/2026, which is what the protocol asks for when the two verdicts
+    # disagree. What it rests on: 9 of the 10 Serie A windows improve (the tenth costs 1.5%, inside the 2%
+    # tolerance), mean +1.7%, FM/VALUE/top-10 all unharmed, and the auction lists get LONGER - 136 -> 142
+    # names on classic, 432 -> 438 on mantra. `passes` is False only because it demands improvement on
+    # EVERY window, which is the shape CLAUDE.md already calls out ("the strict AND rejects rules that win
+    # nine times and tie once"). The criterion was NOT changed to let it in - that mistake was made once
+    # today with R18 and is not repeated here.
+    # NOT on euro, and that is not caution but measurement: 0 windows of 5, mean -1.1%, and on mantra the
+    # auction names fall 152 -> 145, outside the no-harm allowance. Adoption is per platform because the
+    # evidence is.
+    "default": ("R3", "R7", "R13", "R19"),
 }
 # What the corrected criteria changed, and why the list is shorter than it was:
 # * accuracy rules are judged on the players they MOVE, with a 0.5% floor. That made R4 and R10 much

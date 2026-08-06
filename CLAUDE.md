@@ -52,9 +52,19 @@ windows and died on ten: R4 (age), R10 (new coach), R8 (off-role). Details and p
 [docs/model/gate-motore-v1.md](docs/model/gate-motore-v1.md).
 
 Two verdicts are reported side by side and neither is allowed to hide the other: **strict** (improves on
-every window that measures it, 0.5% floor) and **robust** (majority of windows, mean gain above the
-floor, no window worse than -2%). With ten windows the strict AND rejects rules that win nine times and
-tie once; where they disagree, the report says so and the decision is taken in the open.
+every window that measures it, with the 0.5% floor on the MEAN since 06/08/2026 - on each window it was a
+demand for amplitude per sample, and it was rejecting three rules the engine actually runs) and **robust**
+(majority of windows, mean gain above the floor, no window worse than -2%). With ten windows the strict AND
+rejects rules that win nine times and tie once; where they disagree, the report says so and the decision is
+taken in the open - and on 06/08/2026 it was taken for the first time: **R19 is adopted on `default` on the
+robust verdict alone** (9 of 10 windows improve, mean +1.7%, auction lists longer), and NOT on euro, where it
+is against on all five. An adoption without `passes` is more fragile than one with it: if the next gate finds
+it worse, it comes out without argument.
+**And a criterion is never widened because a rule failed it.** That mistake was made once, on 06/08/2026, and
+is recorded rather than buried: FM/VALUE were read per window and R18 died on +0.24% on one of five - the
+criterion WAS miscalibrated (the unit, not the tolerance), but it was looked at because R18 fell on it, and
+with it fixed R18 passes one combination more. The fix stands on evidence that does not depend on R18; R18's
+own verdict does not, and cannot be used to adopt it.
 
 ## Toolkit principles (spec v9)
 - `fc_id` (fantacalcio.it id) = **primary key**; the other sites live in `player_xref`/`club_xref`.

@@ -1923,9 +1923,34 @@ misurato due volte, out-of-sample, su due stimatori diversi — `presence.standi
 euro. È l'opposto di quel che è successo al canale qualità (§7-duodecies), e rende il segnale molto più
 credibile della singola misura che l'aveva suggerito.
 
-**Non si adotta lo stesso**, e le ragioni sono tre: euro è chiaramente contro (0 finestre su 5), T1 costa
-+1.5% su Serie A, e `passes` resta la barra. Il verdetto robust è agli atti accanto a quello strict — la
-decisione è presa in chiaro, come vuole il protocollo, ed è **no**.
+### ADOTTATA su `default`, il 6 agosto 2026 — e la prima sul solo verdetto ROBUST
+
+Rilettura chiesta dall'operatore: «se ha effetti positivi per la Serie A e nulli per l'euro, perché non
+adottarla?». La premessa su euro è **falsa e va corretta** — lì non è nulla, è contro: 0 finestre su 5, media
+−1.1%, e su mantra i nomi d'asta scendono 152 → 145, fuori dalla tolleranza. Il resto del ragionamento invece
+regge, e meglio di come il primo esito l'aveva presentato:
+
+- **l'adozione è già per piattaforma**: `ADOPTED` è un dizionario, R7 e R13 stanno solo su `default`, R3c solo
+  su `euro`. Prenderla dove aiuta non è una forzatura, è la forma che il progetto usa;
+- **il conteggio «6/10» era fuorviante**, ed è colpa di come l'avevo riportato: quelle sono le finestre che
+  superano la SOGLIA. Le finestre che **migliorano** sono **9 su 10** — solo T1 va contro, di 1.5%, dentro la
+  tolleranza del 2%;
+- **e su default migliora anche il deliverable**: nomi d'asta 136 → 142 (+4.4%) su classic, 432 → 438 su
+  mantra. Non solo la MAE delle presenze: le liste.
+
+`passes` resta False perché pretende il miglioramento su OGNI finestra — la forma che questo documento già
+chiama in causa («lo strict AND rifiuta regole che vincono nove volte e pareggiano una»). **Il criterio non è
+stato cambiato per farla entrare**: quell'errore è stato commesso una volta oggi con R18 (§7-sexdecies) e non
+si ripete. La strada usata è l'altra, ed è prevista: i due verdetti stanno affiancati e la decisione si prende
+in chiaro. Il robust tiene, e la decisione è **sì su default, no su euro**.
+
+**Effetto misurato sul foglio**, A/B a parità di giorno e di codice: **39 righe su 645**, di cui **29 arrivi**,
+e in entrambe le direzioni — Esposito Se. 26.8 → 28.3 presenze (surplus 33.8 → 35.7), Audero 25.0 → 23.3
+(25.5 → 23.8). Chi viene da un club forte sale, chi viene da uno debole scende.
+
+**Da tenere d'occhio**, dichiarato ora e non dopo: è la prima regola adottata senza `passes`. Se il prossimo
+giro di gate la trova peggiorata, va tolta senza discutere — un'adozione sul robust è più fragile di una sul
+passa, e chi la difende deve saperlo.
 
 **La sovrapposizione con R5 non c'è**: aggiungere R19 non muove **nessuno** dei 116 verdetti, e R5 (Elo del
 club di DESTINAZIONE) resta bocciata su tutte e quattro le combinazioni prima e dopo. Le due leggono davvero
