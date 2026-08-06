@@ -268,7 +268,12 @@ CANDIDATES: tuple[str, ...] = ("R0c", "R1", "R1b", "R2", "R3", "R3c", "R4", "R4b
 # different mechanism - the pre-run diagnostic had already shown the charged players delivering 1.04x
 # their prediction on T1/T2. Autopsy: docs/model/attacco-affollato-r17-v1.md §10.
 ADOPTED: dict[str, tuple[str, ...]] = {
-    "euro": ("R0c", "R3c"),
+    # R18 adottata il 06/08/2026 su EURO, e la ragione per cui la contaminazione non morde qui: euro/mantra
+    # PASSAVA GIA' coi criteri vecchi e senza i portieri, cioe' prima di entrambe le cose che ho toccato
+    # guardandola (§7-sexdecies, §7-octodecies). euro/classic passa solo coi criteri nuovi - concordante ma
+    # contaminato, e vale come conferma, non come prova. Su `default` non passa in nessuna versione: 8/9
+    # finestre ma una a -5.6%, quindi resta fuori di la'.
+    "euro": ("R0c", "R3c", "R18"),
     # R19 is the FIRST rule here adopted on the ROBUST verdict alone, and it is written down as such.
     # Decision taken in the open on 06/08/2026, which is what the protocol asks for when the two verdicts
     # disagree. What it rests on: 9 of the 10 Serie A windows improve (the tenth costs 1.5%, inside the 2%

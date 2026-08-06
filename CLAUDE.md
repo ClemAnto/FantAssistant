@@ -60,6 +60,13 @@ taken in the open - and on 06/08/2026 it was taken for the first time: **R19 is 
 robust verdict alone** (9 of 10 windows improve, mean +1.7%, auction lists longer), and NOT on euro, where it
 is against on all five. An adoption without `passes` is more fragile than one with it: if the next gate finds
 it worse, it comes out without argument.
+**A contaminated verdict can still have a clean corner, and it is worth looking for.** R18 was adopted on
+`euro` on 06/08/2026 not despite the contamination but around it: **euro/mantra passed under the OLD criteria
+and without the goalkeepers**, i.e. before both things I touched after seeing the rule fail. That corner
+depends on nothing I changed. euro/classic passes only under the new criteria - concordant, so it counts as
+confirmation and not as proof - and `default` fails under every version. When you have tainted a judgement,
+do not argue it away: find the part of the evidence that predates the taint, and if there is none, say so.
+
 **And a criterion is never widened because a rule failed it.** That mistake was made once, on 06/08/2026, and
 is recorded rather than buried: FM/VALUE were read per window and R18 died on +0.24% on one of five - the
 criterion WAS miscalibrated (the unit, not the tolerance), but it was looked at because R18 fell on it, and

@@ -2259,7 +2259,19 @@ la giudica, come ogni altra.
 - **Implementata ed ESEGUITA il 6 agosto 2026.** Il fit di due coefficienti non era il problema che temevo:
   `share` di R3 è già una tupla e `fit_linear` regge più regressori, quindi la macchina c'era.
 
-#### ESITO — passa su UNA combinazione su quattro, e non si adotta
+#### ADOTTATA su `euro` il 6 agosto 2026 — e la contaminazione non morde, per un motivo verificabile
+
+**euro/mantra passava GIA' coi criteri vecchi e senza i portieri**, cioè prima di entrambe le cose che ho
+toccato guardando R18 (§7-sexdecies i criteri, §7-octodecies i portieri). Quel PASSA non dipende da nulla che
+io abbia cambiato dopo averla vista cadere, ed è il gioco su cui l'operatore gioca. euro/classic passa solo
+coi criteri nuovi: concordante, quindi vale come conferma e non come prova. Su `default` non passa in nessuna
+versione — 8/9 finestre ma una a −5.6% — e resta fuori di là. Adozione per piattaforma, come sempre.
+
+Effetto sul foglio EuroLeghe: **420 righe su 979**, e nella direzione che un termine di carriera deve dare —
+Kane 8.758 → **9.215** (surplus 232.6 → 244.8), Haaland 7.968 → 8.445, Mbappé 7.998 → 8.593, mentre chi ha
+avuto una stagione sola scende (Dallinga 6.956 → 6.672, Bonny 7.229 → 6.955).
+
+#### ESITO del primo giro — passava su UNA combinazione su quattro
 
 | combinazione | robust | vince | guadagno medio | peggiore | esito |
 |---|---|---|---:|---:|---|
