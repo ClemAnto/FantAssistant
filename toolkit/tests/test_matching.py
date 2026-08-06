@@ -155,3 +155,77 @@ def test_match_club_keeps_two_deportivos_apart():
         ["Deportivo A Coruna", "Alaves"], start=1)}
     assert match_club("Deportivo Alaves", ours)[1] == 2
     assert match_club("Deportivo A Coruna", ours)[1] == 1
+
+
+def test_two_spellings_of_our_own_club_are_one_identity():
+    """`club_key` is the CACHE key and stays conservative; `club_identity` is the one that says «same club».
+
+    The distinction is not academic - it cost three clubs. `_get_or_create_club` matched on the exact
+    string and minted a surrogate id otherwise, so `Newcastle` and `Newcastle United` became two rows of
+    `clubs` with the listone's seasons on one and the provider's xref on the other. Namesakes must still
+    stay apart: AS Monaco is not Bayern Monaco, and Eintracht Braunschweig is not Eintracht Frankfurt.
+    """
+    from euroleghe_ingest.matching import club_identity, club_key
+
+    for one, other in (("Newcastle", "Newcastle United"),
+                       ("Eintracht", "Eintracht Francoforte"),
+                       ("Paris Saint Germain", "Paris Saint-Germain"),
+                       ("Milan", "AC Milan")):
+        assert club_identity(one) == club_identity(other), f"{one} and {other} are one club"
+    assert club_key("Newcastle") != club_key("Newcastle United"), "and club_key must NOT be changed"
+    assert club_identity("Monaco") != club_identity("Bayern Monaco")
+    assert club_identity("Eintracht") != club_identity("Eintracht Braunschweig")
+
+
+def test_merging_twin_clubs_keeps_every_row_and_says_what_it_dropped():
+    """The migration behind `club_identity`: one club, one id, and the histories that were split rejoin.
+
+    Measured on the real database (05/08/2026): today's Eintracht had ZERO coach spells because all 70
+    sat on its twin, and `penalty_hierarchy` was halved across the pair - the same shape of defect that
+    once made a decay of 0.5 look better than 0.75. The survivor is the id carrying the most recent
+    roster season, because that is where the next listone lands.
+    """
+    import sqlite3
+
+    from euroleghe_ingest.db.database import merge_twin_clubs
+
+    conn = sqlite3.connect(":memory:")
+    conn.executescript(
+        """
+        CREATE TABLE clubs (fc_club_id INTEGER PRIMARY KEY, canonical_name TEXT, league TEXT);
+        CREATE TABLE rosters (fc_id INTEGER, season TEXT, fc_club_id INTEGER,
+                              PRIMARY KEY (fc_id, season));
+        CREATE TABLE club_xref (fc_club_id INTEGER, source TEXT, source_id TEXT,
+                                PRIMARY KEY (source, source_id));
+        CREATE TABLE club_elo (fc_club_id INTEGER, date TEXT, elo REAL, PRIMARY KEY (fc_club_id, date));
+        CREATE TABLE coaches (fc_club_id INTEGER, coach_name TEXT, valid_from TEXT,
+                              PRIMARY KEY (fc_club_id, valid_from));
+        CREATE TABLE penalty_hierarchy (fc_club_id INTEGER, valid_from TEXT, fc_id INTEGER,
+                                        PRIMARY KEY (fc_club_id, valid_from, fc_id));
+        CREATE TABLE squad_snapshot (fc_id INTEGER, club TEXT);
+        CREATE TABLE arrivals (fc_id INTEGER, origin_club TEXT);
+
+        INSERT INTO clubs VALUES (12, 'Newcastle', 'premier_league'), (60, 'Newcastle United', 'premier_league');
+        INSERT INTO rosters VALUES (1, '2025-26', 12), (2, '2022-23', 60);
+        INSERT INTO club_xref VALUES (12, 'transfermarkt', '762'), (60, 'sofascore', '39');
+        INSERT INTO club_elo VALUES (12, '2026-08-01', 1800), (60, '2026-08-01', 1801), (60, '2025-08-01', 1790);
+        INSERT INTO coaches VALUES (60, 'Howe', '2021-11-08');
+        INSERT INTO penalty_hierarchy VALUES (12, '2026-01-01', 7), (60, '2025-01-01', 9);
+        INSERT INTO squad_snapshot VALUES (1, 'Newcastle'), (2, 'Newcastle United');
+        INSERT INTO arrivals VALUES (3, 'Newcastle United');
+        """
+    )
+    merged = merge_twin_clubs(conn)
+    assert len(merged) == 1 and "Newcastle United (60) -> Newcastle (12)" in merged[0]
+    assert "1 club_elo" in merged[0], "the one colliding row is REPORTED, never dropped in silence"
+
+    assert conn.execute("SELECT COUNT(*) FROM clubs").fetchone()[0] == 1
+    assert conn.execute("SELECT COUNT(*) FROM rosters WHERE fc_club_id = 12").fetchone()[0] == 2
+    assert {s for (s,) in conn.execute("SELECT source FROM club_xref WHERE fc_club_id = 12")} == {
+        "transfermarkt", "sofascore"}, "both providers now answer for the same club"
+    assert conn.execute("SELECT COUNT(*) FROM coaches WHERE fc_club_id = 12").fetchone()[0] == 1
+    assert conn.execute("SELECT COUNT(*) FROM penalty_hierarchy WHERE fc_club_id = 12").fetchone()[0] == 2
+    assert conn.execute("SELECT COUNT(*) FROM club_elo").fetchone()[0] == 2, "same club same day = one row"
+    assert {c for (c,) in conn.execute("SELECT DISTINCT club FROM squad_snapshot")} == {"Newcastle"}
+    assert conn.execute("SELECT origin_club FROM arrivals").fetchone()[0] == "Newcastle"
+    assert merge_twin_clubs(conn) == [], "idempotent: nothing left to merge"

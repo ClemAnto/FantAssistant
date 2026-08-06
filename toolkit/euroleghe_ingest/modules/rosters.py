@@ -13,6 +13,7 @@ from __future__ import annotations
 import sqlite3
 
 from euroleghe_ingest.context import Context
+from euroleghe_ingest.matching import club_identity
 from euroleghe_ingest.sources import SEASON_SOURCES, iter_records
 
 NAME = "rosters"
@@ -43,11 +44,25 @@ UPSERT_PLAYER = """
 
 
 def _get_or_create_club(conn: sqlite3.Connection, name: str | None, league: str | None) -> int | None:
+    """The club id for this name, minting one only when it is really a club we have never seen.
+
+    `fc_club_id` is NOT fantacalcio's id - it is a surrogate this function hands out - so matching on the
+    exact STRING is what created twin identities for one club: `Newcastle` and `Newcastle United`,
+    `Eintracht` and `Eintracht Francoforte`, `Paris Saint Germain` and `Paris Saint-Germain`, each pair
+    splitting rosters, xref, elo, coaches and the penalty hierarchy down the middle. Resolve on
+    `club_identity` instead, which routes through the alias table that already knows they are one club
+    (`db.database.merge_twin_clubs` cleans up the three that exist).
+    """
     if not name:
         return None
     row = conn.execute("SELECT fc_club_id FROM clubs WHERE canonical_name = ?", (name,)).fetchone()
     if row:
         return row[0]
+    mine = club_identity(name)
+    for club_id, existing in conn.execute(
+            "SELECT fc_club_id, canonical_name FROM clubs WHERE canonical_name IS NOT NULL"):
+        if club_identity(existing) == mine:
+            return club_id
     new_id = conn.execute("SELECT COALESCE(MAX(fc_club_id), 0) + 1 FROM clubs").fetchone()[0]
     conn.execute(
         "INSERT INTO clubs(fc_club_id, canonical_name, league) VALUES (?, ?, ?)",

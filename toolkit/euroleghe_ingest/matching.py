@@ -176,6 +176,23 @@ def club_key(name: str | None) -> str:
     return " ".join(tokens) or fold(name)
 
 
+def club_identity(name: str | None) -> str:
+    """The ONE key two of our own spellings of a club must share. `club_key` is not enough for that.
+
+    `club_key` is deliberately conservative - it is what the exact pass and the caches are keyed on - so
+    it reads `Newcastle` and `Newcastle United` as two clubs, and `Eintracht` and `Eintracht Francoforte`
+    as two more. That is exactly how `clubs` ended up with twin rows for one club (found 05/08/2026): the
+    listone's seasons on one, the provider's `club_xref` on the other, and every club-level channel split
+    between them - today's Eintracht with zero coach spells, `penalty_hierarchy` halved, the live squad
+    dark on both.
+
+    The fix needs no new table: `CLUB_ALIASES` already states that both spellings mean one provider club,
+    so routing through it before taking the key collapses them. Use this wherever a club NAME becomes an
+    identity (creating a club row, grouping club rows); keep `club_key` where a key is just a key.
+    """
+    return club_key(CLUB_ALIASES.get(name or "", name or ""))
+
+
 # Club-form words the OFFICIAL name spells out and a fantacalcio listone never does. Stripped from
 # BOTH sides, so the comparison stays symmetric, and only inside `match_club` - `club_key` itself must
 # stay conservative because it is what the exact pass and the caches are keyed on.
