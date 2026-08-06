@@ -1882,6 +1882,25 @@ un voto base convertito e **non** un FM-equivalente: per lui serve un equivalent
 portieri, che è un lavoro in `arrivals` e non qui. Va detto adesso perché è il caso che ha generato la
 richiesta. → **§7-decies**.
 
+## 7-novodecies. IL GATE VINCOLA ANCHE IL SURPLUS CATTURATO (6 agosto 2026)
+
+Chiude il buco più vecchio di questo documento, quello che R3d aveva esposto: «una regola può passare il gate
+di accuratezza e peggiorare il deliverable che il prodotto consuma davvero» — 157 → 151 nomi in comune, e il
+surplus catturato in calo su tre finestre di cinque. Era stato **registrato invece che risolto**, con una
+ragione onesta: allargare `passes` avrebbe potuto sfrattare regole già adottate.
+
+Il gate guardava già i NOMI (`top10_not_harmed`, aggregato, tolleranza 2%). Non guardava quanto quelle liste
+**valgono**, che `auction_view` calcola già come `captured_value`. Ora c'è `captured_not_harmed`, stessa
+forma e stessa tolleranza: nessun numero nuovo, la stessa domanda posta al valore invece che al conteggio.
+
+**LA PAURA ERA INFONDATA, ed è la parte che valeva la pena misurare**: **0 verdetti su 120 cambiano**. Tutte
+le regole adottate continuano a passare — R3, R7, R13 su default, R0c, R3c e R18 su euro. L'unica riga
+negativa è R19, che però non passava nemmeno prima ed è adottata sul solo verdetto robust, cosa già scritta
+dove vive.
+
+Quindi il costo dell'aver aspettato è stato zero e il beneficio è permanente: da oggi una regola che
+impoverisce le liste non entra, e non serve che qualcuno se ne accorga leggendo un report.
+
 ## 7-octodecies. R18-GK — la carriera per i PORTIERI (pre-registrata il 6 agosto 2026, prima di eseguirla)
 
 Chiude un buco che ho creato io: R18 esclude i portieri per costruzione, perché sono predetti da M2e

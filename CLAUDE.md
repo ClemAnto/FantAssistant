@@ -60,6 +60,14 @@ taken in the open - and on 06/08/2026 it was taken for the first time: **R19 is 
 robust verdict alone** (9 of 10 windows improve, mean +1.7%, auction lists longer), and NOT on euro, where it
 is against on all five. An adoption without `passes` is more fragile than one with it: if the next gate finds
 it worse, it comes out without argument.
+**The gate binds the DELIVERABLE, not just the error** (06/08/2026). It always checked how many of the right
+names a rule keeps in the auction lists; it now also checks what those lists are WORTH (`captured_not_harmed`,
+the same aggregate 2% as the names guard, reading `auction_view`'s own `captured_value`). This closes the gap
+R3d exposed and the project had recorded rather than fixed - a rule could pass on error and make the lists
+poorer. The reason it stayed open was that widening `passes` might unseat something already adopted: measured
+before switching it on, **0 verdicts of 120 change** and every adopted rule still passes. The fear was worth
+having and worth checking; checking it cost one gate run.
+
 **A contaminated verdict can still have a clean corner, and it is worth looking for.** R18 was adopted on
 `euro` on 06/08/2026 not despite the contamination but around it: **euro/mantra passed under the OLD criteria
 and without the goalkeepers**, i.e. before both things I touched after seeing the rule fail. That corner

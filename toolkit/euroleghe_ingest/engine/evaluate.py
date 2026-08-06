@@ -1786,6 +1786,7 @@ def compare(conn: sqlite3.Connection, candidates: tuple[str, ...], platform: str
         rows = []
         for key, window_data in prepared.items():
             auction_before = auction_view(window_data, predictions[key]["R0"])
+            auction_after = auction_view(window_data, predictions[key][rule])
             baseline = out["windows"][key]["R0"]["overall"]
             candidate = out["windows"][key][rule]["overall"]
             before, after, shared, added_mae, added_n = _common_mae(
@@ -1816,8 +1817,13 @@ def compare(conn: sqlite3.Connection, candidates: tuple[str, ...], platform: str
                 # the same lists the panel shows. Getting this wrong is what made an earlier adoption look
                 # like +2 names when the deliverable was losing 6.
                 "auction_before": sum(b["hits"] for b in auction_before.values()),
-                "auction_after": sum(
-                    b["hits"] for b in auction_view(window_data, predictions[key][rule]).values()),
+                "auction_after": sum(b["hits"] for b in auction_after.values()),
+                # ...and what those lists actually EARN. Names are how many of the right men you find;
+                # captured VALUE is what they are worth, and the two can move apart - R3d lost six names
+                # AND captured value on three windows of five, passed the accuracy gate anyway, and the
+                # gap was recorded instead of closed (see the note on R3d above). This closes it.
+                "captured_before": sum(b.get("captured_value") or 0 for b in auction_before.values()),
+                "captured_after": sum(b.get("captured_value") or 0 for b in auction_after.values()),
                 "coverage_before": baseline["coverage"], "coverage_after": candidate["coverage"],
             })
 
@@ -1911,8 +1917,20 @@ def compare(conn: sqlite3.Connection, candidates: tuple[str, ...], platform: str
             (before_names - verdict["top10_after"]) / before_names, 4) if before_names else None
         verdict["top10_not_harmed"] = (verdict["top10_loss"] is None
                                        or verdict["top10_loss"] <= TOP10_MAX_AGGREGATE_LOSS)
+        # THE DELIVERABLE'S OWN MONEY, bound from 06/08/2026. Same shape and same allowance as the names
+        # guard - aggregate over the measuring windows, 2% - because it is the same question asked of what
+        # the list is WORTH instead of how many of it is right. Until today the accuracy gate could pass a
+        # rule that made the auction lists poorer, and the project had recorded that (R3d) rather than fix
+        # it, for a reason that was honest and is now settled: it might unseat something already adopted.
+        # Measured before switching it on, so it is a decision and not a surprise.
+        captured_before = sum(row["captured_before"] for row in measured)
+        captured_after = sum(row["captured_after"] for row in measured)
+        verdict["captured_loss"] = _round(
+            (captured_before - captured_after) / captured_before, 4) if captured_before else None
+        verdict["captured_not_harmed"] = (verdict["captured_loss"] is None
+                                          or verdict["captured_loss"] <= TOP10_MAX_AGGREGATE_LOSS)
         no_harm = (verdict["fm_not_worse"] and verdict["value_not_worse"]
-                   and verdict["top10_not_harmed"])
+                   and verdict["top10_not_harmed"] and verdict["captured_not_harmed"])
         verdict["passes"] = ((coverage_up and added_sane and beats_naive and no_harm)
                              if kind == "coverage" else (improved and no_harm))
 
