@@ -2379,6 +2379,61 @@ T1 importanti → storia completa → FM-equivalente estera → club-a-club con 
 Fuori dalla pipeline, perché non producono tabelle di ingestione: **`bootstrap`** (acquisizione da zero), `fetch` (referto + inbox), `rebuild`, `backtest` (harness del gate sulle REGOLE), **`sweep`** (l'altra metà del gate: le COSTANTI provvisorie), **`export`** (bundle dell'app).
 Stato implementazione **v9.14**: **tutti i moduli operativi tranne `fbref`** (bloccato da Cloudflare: servirebbe un browser headless, oppure l'inbox manuale). Chiusi in v9.4: `injuries` + `contract_until`/`exit_risk`, heatmap `avg_x/avg_y`, `elo` via API, `ingest_runs`, `fetch --plan/--inbox`, `bootstrap`, `export`. **259 test verdi, ruff pulito.**
 
+## Dipendenze e ri-derivazioni — COSA RIFARE QUANDO CAMBIA COSA
+
+Scritta il 6 agosto 2026 dopo aver pagato la sua assenza: la fusione delle identità gemelle dei club aveva
+lasciato **trasferimenti fantasma** — `arrivals` è un diff fra rose, e un giocatore rimasto fermo che passa da
+un id gemello all'altro viene letto come arrivo. Newcastle 2024-25: **26 arrivi**, contro 6 l'anno prima e 7
+l'anno dopo. Eintracht: **28**. Non è cosmetico: `arrivals` alimenta `desc_arrival`, i tier, l'FM-equivalente
+e lo sconto d'arrivo, quindi i fantasmi erano nei fogli d'asta. Ricalcolato: 26→3, 28→12, 39 righe su 6550.
+
+La lezione, che vale più del caso: **una migrazione dichiara cosa cambia e non cosa va ri-derivato dopo.** Il
+messaggio della fusione diceva quante righe fondeva e quante ne perdeva, non che `arrivals` andava rifatto. È
+la stessa forma di «vuoto = ignoto»: un effetto collaterale che non si dichiara è uno che si scopre all'asta.
+
+### Il grafo, estratto dai moduli (`DEPENDS_ON` / `NETWORK`)
+
+| modulo | rete | dipende da | scrive |
+|---|---|---|---|
+| `rosters` | no | — | `clubs`, `players`, `rosters` |
+| `ratings` | sì | rosters | `match_ratings`, `match_rating_bonuses`, `fvm_history`, `rosters` |
+| `stats` | no | rosters | `season_stats`, `players` |
+| `matchdays` | no | ratings | `matchday_map` |
+| `positions` | sì | rosters | `external_stats`, `external_match_stats`, `club_match_lineups`, `clubs`, `club_xref`, `flags` |
+| `synth` | no | positions, matchdays | `external_match_stats` (il Mv sintetico) |
+| `recent_form` | sì | rosters, ratings | `external_match_stats`, `player_xref` |
+| `transfers` | sì | rosters | `transfers_history`, `coaches`, `club_xref`, `flags` |
+| `injuries` | sì | rosters, transfers | `injuries`, `market_values`, `player_xref`, `flags` |
+| `fc_site` | sì | rosters | `probable_starter`, `availability`, `penalty_hierarchy`, `players`, `flags` |
+| `elo` | sì | rosters | `club_elo` |
+| `tournaments` | sì | rosters, positions | `tournaments_squads`, `flags` |
+| **`arrivals`** | **no** | **rosters** | **`arrivals`, `flags`** |
+| `snapshot` | sì | rosters | `squad_snapshot` + i FOGLI |
+| `backtest` / `sweep` / `estimates` | no | rosters, stats, ratings, … | solo report |
+| `export` | no | rosters | il bundle dell'app |
+
+Le sei tabelle chiavate su **`fc_club_id`**, cioè quelle che una fusione di club tocca:
+`clubs`, `club_xref`, `rosters`, `club_elo`, `coaches`, `penalty_hierarchy`.
+
+### La tabella pratica: se cambia X, rifai Y — in quest'ordine
+
+| se cambia… | rifai, in ordine | perché |
+|---|---|---|
+| **le identità dei club** (fusione, alias, `club_key`) | **`arrivals`** → i FOGLI → `estimates` → `backtest --gate` → `export` | `arrivals` è un diff fra rose: un id che cambia è un trasferimento finto. Considera anche `fc_site` (ri-deriva `penalty_hierarchy` sull'unione) ed `elo` |
+| **il listone** (`rosters`, un nuovo download) | `arrivals` → `stats` → i FOGLI → `estimates` → `export` | tutto pende da `rosters`, che è sempre il primo |
+| **i voti** (`ratings`) | `stats` → `matchdays` → `synth` → i FOGLI → `backtest` | `synth` è una catena su una catena: va rifatta *come catena*, o lavora su un input vecchio |
+| **`positions`** (ruoli, heatmap, per-partita) | `synth` → i FOGLI | il Mv sintetico si calibra sulla sovrapposizione, che cambia |
+| **un parametro adottato in `presence`** (`level_weight`, `standing_prior_rounds`, gli sconti) | **solo i FOGLI** | `evaluate` non importa `presence`: il gate non si muove, `backtest --verify` resta 22/22 |
+| **una regola del motore o `ADOPTED`** | `backtest --gate` → i FOGLI → `export` | qui `engine_*` cambia davvero |
+| **la cascata delle stime** (`engine/estimate.py`, l'eleggibilità) | `estimates` → i FOGLI | `est_*` non è gated, ma il suo report sì che scade |
+| **qualunque cosa qui sopra** | **incrementa `snapshot.SHEET_REVISION`** e rifai `export` | un foglio a revisione vecchia non sa di esserlo |
+
+### Cosa NON va rifatto
+
+I layer grezzi coperti dalla cache non si ri-scaricano: `rebuild` li **re-ingerisce offline** (Excel dei voti,
+payload del provider, pagine Transfermarkt). E i tre fatti non backfillabili — probabili, scadenza contratto,
+ruoli granulari — non si ricalcolano affatto: sono osservazioni datate, e rifarle oggi scrive OGGI, non ieri.
+
 ## Comandi
 ```
 python -m euroleghe_ingest bootstrap --plan                # NUOVA MACCHINA: piano, ordine, costo (~17 h)

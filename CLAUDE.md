@@ -232,6 +232,21 @@ the tier sweep was scoring every arrival, which handed the quotation a robust PA
 tier is never consulted (the core prices them from their own fantamedia); scored on the arrivals the tier
 actually routes, that advantage falls below the floor and `measured_first` stands. Details: gate §7-sexies.
 
+## A change declares what it CHANGED, not what it invalidated
+**Operator's request, 06/08/2026, after the bill arrived.** The club-identity migration printed what it
+merged and how many duplicate rows it dropped, and said nothing about `arrivals` — which is a DIFF BETWEEN
+ROSTERS, so a player who never moved but whose club id did reads as a transfer. Newcastle 2024-25 came out
+with **26 arrivals** against 6 the year before and 7 the year after; Eintracht with 28. Those fed
+`desc_arrival`, the arrival tiers, the FM-equivalent and the arrival discount, so the phantoms were in the
+auction sheets until somebody went looking. Re-derived: 26→3, 28→12, 39 rows of 6550.
+Two things came out of it, and the second is the durable one: the full dependency map now lives in the spec
+(«Dipendenze e ri-derivazioni — cosa rifare quando cambia cosa»), derived from the modules' own `DEPENDS_ON`
+rather than from memory; and the migration itself now PRINTS what to re-derive. Same family as «vuoto =
+ignoto»: a side effect nobody declares is one that surfaces at the table. The one asymmetry worth memorising
+because it saves a re-run: a parameter adopted in `presence.py` moves only the SHEETS — `evaluate` does not
+import it, so `backtest --verify` stays 22/22 — while a rule or an `ADOPTED` change moves `engine_*` and needs
+the gate, the sheets and the bundle.
+
 ## Citing a fitted number
 **A coefficient quoted without its platform, its residual baseline and its date is not a fact.** Audited
 28/07/2026: only 5 of the 12 lambdas the knowledge base quoted could still be reproduced, and two of the

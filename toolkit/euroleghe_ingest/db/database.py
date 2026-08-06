@@ -187,6 +187,13 @@ def apply_schema(conn: sqlite3.Connection) -> None:
     if twins:
         print(f"[db] migrated: {len(twins)} twin club identities merged - the club-level histories they "
               f"had split are now whole. {' · '.join(twins)}")
+        # ...and WHAT TO RE-DERIVE, because a migration that says what it changed and not what that
+        # invalidates is how a side effect gets found at an auction. `arrivals` is a diff between rosters,
+        # so a player who never moved but whose club id did reads as a transfer: the merge of 06/08/2026
+        # left 26 phantom arrivals at Newcastle and 28 at Eintracht, and they were in the sheets.
+        print("[db] -> RE-DERIVE, in this order: `arrivals` (a roster diff: a changed club id reads as a "
+              "transfer), then the snapshot sheets, `estimates` and `export`. See the spec, «Dipendenze e "
+              "ri-derivazioni».")
 
 
 def record_run(conn: sqlite3.Connection, module: str, started_at: str, status: str,
