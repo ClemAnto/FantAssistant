@@ -2064,6 +2064,22 @@ E isolando i casi come quello che ha sollevato la domanda — standing **> 0.55*
 dai due lati: campione corto e standing basso **sotto**stima (+0.073), campione corto e standing alto
 **sovra**stima. È regressione verso la media, e lo standing non ne tiene conto.
 
+#### Seguito (6 agosto 2026): il prior va CONDIZIONATO alle giornate, e non migliora la previsione
+
+Il rovescio dello shrinkage era visibile sul campetto: Milik, **8 giornate** misurate, usciva al **26%** di
+claim. La causa non è la forza dello shrinkage ma il bersaglio: tirava verso la media di TUTTI (0.53), mentre
+un uomo misurato su 3-10 giornate gioca davvero **0.207** della stagione dopo. Non è un membro medio della
+popolazione, è un uomo di margine, e le giornate lo dicono già.
+
+Il prior è ora **per banda di giornate**, calcolato dal chiamante sulla sua popolazione (bande della tabella
+sopra). Sul foglio euro escono 0.149 / 0.408 / 0.465 / 0.483 / 0.391. Effetto: **Milik 26% → 10%**,
+Chukwueze 10% → 9%.
+
+**E non migliora la metrica dello sweep**, che va detto: curva pooled praticamente identica (euro 0.19474
+contro 0.19454 col prior unico, default invariato), K resta a 10 su entrambe le piattaforme. Quindi è un
+cambio motivato dalla LETTURA e non dalla previsione, e costa 0.10% su euro. Registrato come tale: chi lo
+cita non lo chiami un miglioramento del modello.
+
 **Forma proposta**: `standing_shrunk = m × r/(r+K) + prior × K/(r+K)`, con `r` = le giornate misurate, `K` il
 parametro sweepabile e `prior` la media di popolazione del ruolo, passata come input (né la vista né lo sweep
 possono inventarsela dentro `presence.py`, che è dependency-free). `K = 0` è l'incumbent ed è dentro lo spazio.

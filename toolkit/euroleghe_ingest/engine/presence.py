@@ -214,9 +214,14 @@ class Inputs:
     # purpose - it is the population the coefficient was measured on, and for a man who stayed the term
     # would silently become "his own club is strong", which is a different claim nobody has measured.
     level_z: float | None = None
-    # The population's mean standing, which is what a SHORT sample is shrunk toward. Supplied by the caller
-    # (the panel from its sheet, the sweep from its window) because `presence` is dependency-free and an
-    # average is a property of a population, not of a player. None = no prior, no shrinkage.
+    # What a SHORT sample is shrunk toward. Supplied by the caller (the panel from its sheet, the sweep from
+    # its window) because `presence` is dependency-free and an average is a property of a population.
+    # CONDITIONAL ON THE ROUNDS OBSERVED since 06/08/2026, and that is the whole point: the mean of everybody
+    # is 0.53, but a man measured over 3-10 rounds actually plays **0.207** of the next season, not 0.53 -
+    # he is not a random member of the population, he is a fringe player, and the rounds say so. Shrinking
+    # him toward everybody's mean was pulling him UP (Milik, two rounds, came out at 26% of claim). The
+    # bands are the ones already published in gate §7-quaterdecies: 0.207 / 0.411 / 0.463 / 0.571 / 0.574.
+    # None = no prior, no shrinkage.
     standing_prior: float | None = None
     # ...and WHAT KIND of arrival he is: True when the club he left plays in another championship. Measured
     # 06/08/2026 over 2324 player-seasons - the two are not the same event and the model had one discount

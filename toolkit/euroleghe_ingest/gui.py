@@ -1713,6 +1713,23 @@ class AuctionView(ttk.Frame):
 
 
 
+def _replace_params(params, **changes):
+    from dataclasses import replace
+    return replace(params, **changes)
+
+
+# The rounds bands the shrinkage's prior is conditioned on - the same edges the sweep uses, published in
+# gate §7-quaterdecies. Two copies would be two populations, which is the defect this project keeps finding.
+_ROUNDS_BANDS = ((0, 10), (11, 19), (20, 28), (29, 34), (35, 10_000))
+
+
+def _rounds_band(rounds: float) -> tuple[int, int]:
+    for band in _ROUNDS_BANDS:
+        if band[0] <= rounds <= band[1]:
+            return band
+    return _ROUNDS_BANDS[-1]
+
+
 class SnapshotView(ttk.Frame):
     """The auction snapshot as a board: the clubs on the left, one club's plan on the right.
 
@@ -4061,7 +4078,7 @@ class SnapshotView(ttk.Frame):
         parameter no harness can reach is a parameter nobody can sweep: `sweep` scores the very same
         functions against what actually happened, so panel and gate cannot drift apart.
         """
-        return presence.Inputs(
+        base = presence.Inputs(
             starts=_number(row.get("desc_season_starts")),
             appearances=_number(row.get("desc_season_matches")),
             minutes=_number(row.get("desc_minutes_full_season")),
@@ -4082,7 +4099,7 @@ class SnapshotView(ttk.Frame):
             stature=_number(row.get("desc_investment_stature"), None),
             value_share=_number(row.get("desc_investment_value_share"), None),
             level_z=self.level_z(row),
-            standing_prior=self.standing_prior(),
+            standing_prior=None,
             # ...and the two the panel used to leave empty. `fm_z` feeds a channel the gate FALSIFIED, so
             # it changes nothing today - and that is exactly why it has to be here: a weight the sweep
             # could turn on and a view that cannot see it is how a parameter ends up adopted and blind,
@@ -4090,6 +4107,9 @@ class SnapshotView(ttk.Frame):
             fm_z=self.fm_z(row),
             cross_league=(row.get("desc_arrival") == "transfer_cross_league"),
         )
+        # ...and the prior LAST, from the inputs just built: computing it from the row would rebuild them
+        # and call back into here. One cycle, found by the tests.
+        return _replace_params(base, standing_prior=self._band_prior(base))
 
     def fm_z(self, row: dict) -> float | None:
         """His fantamedia relative to his ROLE on this sheet, in standard deviations. None if unmeasured.
@@ -4134,13 +4154,30 @@ class SnapshotView(ttk.Frame):
         cached = getattr(self, "_standing_prior", "unset")
         if cached != "unset":
             return cached
-        from dataclasses import replace as _replace
         self._standing_prior = None                      # breaks the recursion while the pass runs
-        unshrunk = _replace(self.PRESENCE, standing_prior_rounds=0.0)
+        unshrunk = _replace_params(self.PRESENCE, standing_prior_rounds=0.0)
         population = getattr(self, "rows", None) or ()
-        levels = [presence.standing(self.presence_inputs(row), unshrunk) for row in population]
-        self._standing_prior = (sum(levels) / len(levels)) if levels else None
+        bands: dict[tuple[int, int], list[float]] = {}
+        for other in population:
+            other_inputs = self.presence_inputs(other)
+            band = _rounds_band(presence.contested(other_inputs, unshrunk))
+            bands.setdefault(band, []).append(presence.standing(other_inputs, unshrunk))
+        if not bands:
+            self._standing_prior = None
+            return None
+        self._prior_by_band = {band: sum(v) / len(v) for band, v in bands.items()}
+        self._standing_prior = (sum(sum(v) for v in bands.values())
+                                / sum(len(v) for v in bands.values()))
         return self._standing_prior
+
+    def _band_prior(self, inputs: presence.Inputs) -> float | None:
+        """The prior for HIS band of rounds - see `presence.Inputs.standing_prior`."""
+        overall = self.standing_prior()
+        if overall is None:
+            return None
+        unshrunk = _replace_params(self.PRESENCE, standing_prior_rounds=0.0)
+        band = _rounds_band(presence.contested(inputs, unshrunk))
+        return getattr(self, "_prior_by_band", {}).get(band, overall)
 
     def level_z(self, row: dict) -> float | None:
         """His origin club's Elo in standard deviations, over the movers of THIS sheet. None if he stayed.

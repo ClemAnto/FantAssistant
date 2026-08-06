@@ -239,6 +239,18 @@ def _calendars(conn, season: str) -> tuple[dict[str, float], dict[str, float], d
     return calendar, fixtures, parsed_league
 
 
+# The rounds bands the prior is conditioned on - the ones measured and published in gate §7-quaterdecies.
+# Edges and not a fitted curve, because a fitted prior would be a second model inside a shrinkage.
+_ROUNDS_BANDS = ((0, 10), (11, 19), (20, 28), (29, 34), (35, 10_000))
+
+
+def _rounds_band(rounds: float) -> tuple[int, int]:
+    for band in _ROUNDS_BANDS:
+        if band[0] <= rounds <= band[1]:
+            return band
+    return _ROUNDS_BANDS[-1]
+
+
 def build_inputs(conn, data: features.WindowData) -> tuple[dict[int, presence.Inputs], dict]:
     """{fc_id: Inputs} for one window, plus a note on how well the window is instrumented.
 
@@ -362,9 +374,18 @@ def build_inputs(conn, data: features.WindowData) -> tuple[dict[int, presence.In
     # the two-pass shape is the honest way to say that a prior belongs to a population and not to a player.
     if out:
         unshrunk = replace(presence.DEFAULTS, standing_prior_rounds=0.0)
-        levels = [presence.standing(inp, unshrunk) for inp in out.values()]
-        prior = sum(levels) / len(levels)
-        out = {fc_id: replace(inp, standing_prior=prior) for fc_id, inp in out.items()}
+        # ...and BY BAND of rounds observed, not one mean for everybody: a man measured over a handful of
+        # rounds is a fringe player and regresses toward the fringe, not toward the league.
+        bands: dict[tuple[int, int], list[float]] = {}
+        for inp in out.values():
+            band = _rounds_band(presence.contested(inp, unshrunk))
+            bands.setdefault(band, []).append(presence.standing(inp, unshrunk))
+        by_band = {band: sum(v) / len(v) for band, v in bands.items() if v}
+        overall = sum(sum(v) for v in bands.values()) / sum(len(v) for v in bands.values())
+        prior = round(overall, 4)
+        out = {fc_id: replace(inp, standing_prior=by_band.get(
+                   _rounds_band(presence.contested(inp, unshrunk)), overall))
+               for fc_id, inp in out.items()}
 
     note = {"players": len(out), "of_observations": len(data.observations),
             "clubs_under_90pct_parsed": thin, "standing_prior": round(prior, 4) if prior else None}
