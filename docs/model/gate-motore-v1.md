@@ -1882,6 +1882,43 @@ un voto base convertito e **non** un FM-equivalente: per lui serve un equivalent
 portieri, che è un lavoro in `arrivals` e non qui. Va detto adesso perché è il caso che ha generato la
 richiesta. → **§7-decies**.
 
+## 7-octodecies. R18-GK — la carriera per i PORTIERI (pre-registrata il 6 agosto 2026, prima di eseguirla)
+
+Chiude un buco che ho creato io: R18 esclude i portieri per costruzione, perché sono predetti da M2e
+(`predict_fm_goalkeeper`) e non dalla forma àncora+beta — e i portieri erano lo strato che in-sample rendeva
+di più. Escluderli è stato corretto come implementazione e sbagliato come conclusione: lo «+0.0% su P» che il
+gate stampa non è un risultato, è un filtro.
+
+- **Forma**: M2e prevede l'abilità come `GK_MV_ANCHOR + GK_MV_BETA × (mv_prev − àncora)`, quindi il termine di
+  carriera è lo stesso, sulla MEDIA VOTO: `àncora + b1 × (mv_prev − àncora) + b2 × (mv_5y − àncora)`, con
+  `mv_5y` la media di al più cinque stagioni fino a quella di input. Il resto di M2e — il tasso di gol subiti
+  del club di destinazione, i rigori parati — non si tocca. b2 = 0 è l'incumbent.
+- **Popolazione**: portieri con almeno due stagioni misurate.
+- **Misurato prima**, n=163: solo `mv_prev` MAE **0.1037** (beta 0.20, la forma attuale) · solo la media 5 anni
+  **0.1018** (beta 0.35) · entrambi **0.1017** con b1 **0.05** e b2 **0.30**, cioè **+2.0%**, e il peso va
+  quasi tutto sulla storia.
+- **Attesa scritta prima, ed è pessimista**: n=163 su tutte le stagioni significa **15-25 portieri per
+  finestra**, quindi mi aspetto un verdetto RUMOROSO — segno giusto sulla maggioranza delle finestre, ampiezza
+  ballerina, e strict quasi certamente mancato. Se passasse robust su una piattaforma sarebbe già più di
+  quanto il campione promette; se il segno oscilla, il campione ha vinto e si scrive così.
+
+### ESITO (6 agosto 2026) — il campione ha vinto, ed era l'esito previsto
+
+Portieri, per finestra su euro: **−0.8% · +1.7% · −6.6% · −3.3% · +4.1%**. Il segno oscilla e l'ampiezza è
+enorme in entrambi i versi. Aggiungerli rende R18 **leggermente PEGGIORE**, non migliore:
+
+| | portieri esclusi | con R18-GK |
+|---|---|---|
+| euro/classic | 5/5, **+3.6%** | 5/5, +3.4% |
+| euro/mantra | 5/5, +2.2% | 5/5, +2.2% |
+| default/classic | 8/9, +2.0% | 8/9, +1.9% |
+| default/mantra | **6/9**, +1.2% | **5/9**, +1.1% |
+
+Il +2.0% in-sample su n=163 non sopravvive a 15-27 portieri per finestra. **Il ramo resta nel codice**: R18
+non è adottata e quindi è inerte, e con i portieri dentro la regola è COMPLETA — il suo verdetto è onesto
+invece che parziale, che era il difetto da chiudere. Lo «+0.0% su P» che il gate stampava non era un
+risultato, era un filtro; adesso è un numero.
+
 ## 7-septdecies. R19 — IL LIVELLO DENTRO LE PRESENZE (pre-registrata il 6 agosto 2026, PRIMA di eseguirla)
 
 Richiesta dell'operatore: «l'esperienza dovrebbe aumentare anche il SURPLUS». Non è alzare un peso: il canale

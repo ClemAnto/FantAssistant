@@ -588,7 +588,8 @@ class Params:
     crowded_lam: float | None = None               # R11b: same, as a threshold
     crowding_lam: float | None = None              # R17: teammates' claim above the fielded capacity
     level_lam: float | None = None                # R19: the origin club's Elo, on the share
-    history_lam: tuple[float, ...] | None = None  # R18: last season AND the five-year mean, together
+    history_lam: tuple[float, ...] | None = None  # R18
+    history_lam_gk: tuple[float, ...] | None = None  # R18-GK: the same, on the keeper's Mv: last season AND the five-year mean, together
     off_role_forward: float | None = None         # R8: used further forward than listed
     off_role_backward: float | None = None        # R8: used further back than listed
     share_gk: tuple[float, ...] | None = None     # R7: goalkeepers
@@ -881,6 +882,21 @@ def fit_params(data: features.WindowData, rules: tuple[str, ...]) -> Params:
         params.history_lam = fitted if fitted else None
         params.notes["R18_n"] = len(pairs)
 
+        # ...and the KEEPERS separately, because M2e shrinks their Mv and not their fantamedia: fitting
+        # them together would ask one coefficient to describe two different quantities. Deviations from
+        # the GK anchor, no intercept, so lams[1] = 0 is M2e with its own beta.
+        gk_pairs = []
+        for obs in data.observations:
+            if (not _is_goalkeeper(obs) or obs.mv_prev is None or obs.mv_5y is None
+                    or obs.fm_5y_seasons < 2 or obs.mv_act is None
+                    or (obs.pv_prev or 0) < model.MIN_PV_PREV or (obs.pv_act or 0) < MIN_PV_ACT):
+                continue
+            gk_pairs.append(((obs.mv_prev - model.GK_MV_ANCHOR, obs.mv_5y - model.GK_MV_ANCHOR),
+                             obs.mv_act - model.GK_MV_ANCHOR))
+        fitted_gk = fit_linear(gk_pairs, intercept=False)
+        params.history_lam_gk = fitted_gk if fitted_gk else None
+        params.notes["R18_gk_n"] = len(gk_pairs)
+
     if {"R14", "R14b"} & set(rules):
         idle_share, idle_fm = [], []
         for obs in data.observations:
@@ -1086,7 +1102,13 @@ def _rule_fm(obs: features.Observation, data: features.WindowData, rules: tuple[
     # season AND the mean of up to five, both shrunk toward the same anchor. It fires only where the
     # baseline itself fired (a man the core can price) and only with two measured seasons or more, which
     # is the population its lambdas were fitted on.
-    if ("R18" in rules and params.history_lam is not None and baseline is not None
+    if (_is_goalkeeper(obs) and "R18" in rules and params.history_lam_gk is not None
+            and baseline is not None and obs.mv_prev is not None and obs.mv_5y is not None
+            and obs.fm_5y_seasons >= 2):
+        fm_pred = model.predict_fm_goalkeeper_history(
+            obs.mv_prev, obs.mv_5y, data.gk_rates.get(obs.club_target or ""), data.mu_rate,
+            (params.history_lam_gk[0], params.history_lam_gk[1]))
+    elif ("R18" in rules and params.history_lam is not None and baseline is not None
             and anchor is not None and obs.fm_prev is not None and obs.fm_5y is not None
             and obs.fm_5y_seasons >= 2 and not _is_goalkeeper(obs)):
         fm_pred = model.predict_fm_from_history(anchor, obs.fm_prev, obs.fm_5y,

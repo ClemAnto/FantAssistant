@@ -200,6 +200,8 @@ class Observation:
     # outcome wearing a feature's name.
     fm_5y: float | None = None
     fm_5y_seasons: int = 0
+    # ...and the same over the MEDIA VOTO, which is what M2e shrinks for a keeper (R18-GK).
+    mv_5y: float | None = None
     new_coach_target: bool = False        # derived at 1 August, so known on auction day
     same_role_arrivals: int = 0           # new team-mates competing for the same Classic role
     starter_prob: float | None = None
@@ -976,20 +978,23 @@ def load(conn: sqlite3.Connection, window: Window, platform: str,
     # with a full set of votes, whichever platform measured it best. Bounded at the input season on purpose
     # - a season after it is the outcome, and a feature that reads the outcome is not a feature.
     history: dict[int, list[tuple[str, int, float]]] = {}
-    for fc_id, season, pv, fm in conn.execute(
-            "SELECT fc_id, season, pv, fm FROM season_stats "
+    for fc_id, season, pv, fm, mv in conn.execute(
+            "SELECT fc_id, season, pv, fm, mv FROM season_stats "
             "WHERE fm IS NOT NULL AND pv >= ? AND season <= ?",
             (MIN_PV_PREV, window.input_season)):
-        history.setdefault(fc_id, []).append((season, pv, fm))
+        history.setdefault(fc_id, []).append((season, pv, fm, mv))
     fm_history: dict[int, tuple[float, int]] = {}
     for fc_id, seen in history.items():
-        best: dict[str, tuple[int, float]] = {}
-        for season, pv, fm in seen:
+        best: dict[str, tuple[int, float, float | None]] = {}
+        for season, pv, fm, mv in seen:
             if season not in best or pv > best[season][0]:
-                best[season] = (pv, fm)
-        recent_five = [best[season][1] for season in sorted(best)[-5:]]
+                best[season] = (pv, fm, mv)
+        chosen = sorted(best)[-5:]
+        recent_five = [best[season][1] for season in chosen]
+        votes = [best[season][2] for season in chosen if best[season][2] is not None]
         if recent_five:
-            fm_history[fc_id] = (sum(recent_five) / len(recent_five), len(recent_five))
+            fm_history[fc_id] = (sum(recent_five) / len(recent_five), len(recent_five),
+                                 (sum(votes) / len(votes)) if votes else None)
 
     observations: list[Observation] = []
     for (fc_id, name, role_classic, roles_raw, league, price, club_target, club_prev, birth_year,
@@ -1006,8 +1011,9 @@ def load(conn: sqlite3.Connection, window: Window, platform: str,
             roles_mantra=tuple(split_roles(roles_raw)), league=league, price=price,
             club_prev=club_prev, club_target=club_target,
             pv_prev=pv_prev, mv_prev=mv_prev, fm_prev=fm_prev,
-            fm_5y=(fm_history.get(fc_id) or (None, 0))[0],
-            fm_5y_seasons=(fm_history.get(fc_id) or (None, 0))[1],
+            fm_5y=(fm_history.get(fc_id) or (None, 0, None))[0],
+            fm_5y_seasons=(fm_history.get(fc_id) or (None, 0, None))[1],
+            mv_5y=(fm_history.get(fc_id) or (None, 0, None))[2],
             minutes_prev=minutes, starts_prev=starts, matches_prev=matches,
             goals_prev=goals, assists_prev=assists, xg_prev=xg, xa_prev=xa, rating_prev=rating,
             minutes_share_euro_prev=euro_minutes.get(fc_id),

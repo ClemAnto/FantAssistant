@@ -183,6 +183,21 @@ def predict_fm_from_history(anchor: float, fm_prev: float, fm_history: float,
     return anchor + lams[0] * (fm_prev - anchor) + lams[1] * (fm_history - anchor)
 
 
+def predict_fm_goalkeeper_history(mv_prev: float, mv_history: float, club_rate_prev: float | None,
+                                  mu_rate: float, lams: tuple[float, float]) -> float:
+    """R18-GK: M2e with the ABILITY term told about more than one season.
+
+    Only the ability half changes - the conceded-rate half and the penalties saved are M2e's and stay put.
+    With `lams[1]` at zero this is `predict_fm_goalkeeper` with its own beta, so the incumbent is inside
+    the parameter space. Measured before the grid, n=163: 0.1037 on last season alone, 0.1017 with both,
+    and the weight goes almost entirely to the history (0.05 / 0.30).
+    """
+    mv_pred = (GK_MV_ANCHOR + lams[0] * (mv_prev - GK_MV_ANCHOR)
+               + lams[1] * (mv_history - GK_MV_ANCHOR))
+    rate = mu_rate if club_rate_prev is None else club_rate_prev
+    return mv_pred - (mu_rate + GK_RATE_BETA * (rate - mu_rate)) + GK_PEN_SAVED
+
+
 def predict_fm_goalkeeper(mv_prev: float, club_rate_prev: float | None, mu_rate: float) -> float:
     """M2e: predict ability (Mv) and the club's conceded rate separately, then recombine.
 
