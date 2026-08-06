@@ -206,7 +206,7 @@ def test_every_auction_column_is_explained_by_a_tooltip():
         assert view.PREDICTED_HELP[column] != view.ACTUAL_HELP[column], column
 
 
-def test_league_setup_has_usable_defaults_and_derives_the_mantra_slots():
+def test_league_setup_has_usable_defaults_and_derives_the_mantra_slots(tmp_path):
     """The replacement level needs to know how many players of each role a league rosters. The group
     totals are league CONFIGURATION, not a fitted parameter, so they ship as a standard 8-team / 3-8-8-6
     setup. What is checked here is the OFFLINE fallback shape; the shipped Mantra shape comes from the
@@ -214,7 +214,11 @@ def test_league_setup_has_usable_defaults_and_derives_the_mantra_slots():
     from euroleghe_ingest.config import Config
     from euroleghe_ingest.sources import CLASSIC_ROLES, MANTRA_BY_CLASSIC, MANTRA_ROLES
 
-    setup = Config().load_league()
+    # Pointed at a path that does not exist ON PURPOSE: this asserts the built-in FALLBACK, and reading
+    # the repository's own `league_config.json` made it assert the OPERATOR'S league instead - so it broke
+    # the moment he declared his (12 teams, euro/mantra) from the panel, which is a supported thing to do.
+    # A test whose fixture is a user-editable file is testing the user.
+    setup = Config(league_config_path=tmp_path / "absent.json").load_league()
     assert setup["teams"] == 8
     assert setup["squad_slots"] == {"P": 3, "D": 8, "C": 8, "A": 6}
     assert sum(setup["squad_slots"].values()) == 25          # the fantacalcio.it squad
@@ -222,7 +226,7 @@ def test_league_setup_has_usable_defaults_and_derives_the_mantra_slots():
     assert sorted(role for roles in MANTRA_BY_CLASSIC.values() for role in roles) == sorted(
         MANTRA_ROLES)                                        # every Mantra role belongs somewhere
 
-    assert Config().roster_slots("classic") == setup["squad_slots"]
+    assert Config(league_config_path=tmp_path / "absent.json").roster_slots("classic")         == setup["squad_slots"]
     mantra = Config().roster_slots("mantra")
     assert set(mantra) == set(MANTRA_ROLES)
     # 8 Classic slots over 4 defensive roles -> 2 each; 8 over 3 midfield roles -> 3 each (rounded up)
@@ -1162,7 +1166,7 @@ def test_every_swept_parameter_exists_and_is_scored_against_a_target():
     # a term that is switched off. One per form - the main effect (§7-quater) and the two conditional arms
     # of §7-septies, kept apart because their COVERAGE differs (11 seasons of market values against 2 of
     # transfer fees) and a verdict that hides that is not a verdict.
-    composite = {name for name in sweep.GRIDS if name.startswith("investment")}
+    composite = {name for name in sweep.GRIDS if name.startswith("investment")} | {"arrival_split"}
     assert set(sweep.GRIDS) - composite <= names,         f"swept but not a parameter: {set(sweep.GRIDS) - composite - names}"
     assert set(sweep.GRIDS) == set(sweep.TARGETS), "every grid needs its target named"
     assert set(sweep.TARGETS.values()) <= set(sweep.PREDICTORS)
@@ -1179,11 +1183,12 @@ def test_every_swept_parameter_exists_and_is_scored_against_a_target():
         if name in composite:
             if name in sweep.BASELINES:
                 continue                    # checked above, against its own declared baseline
-            # the composite's own grid must contain the state the code is actually in - every term off
-            off = (presence.DEFAULTS.investment_shape, presence.DEFAULTS.fee_weight,
-                   presence.DEFAULTS.stature_weight, presence.DEFAULTS.value_weight,
-                   presence.DEFAULTS.shrink_weight)
-            assert any(off[:size] in grid for size in (3, 4, 5)),                 f"{name}: the state in use is not in its own grid"
+            # the composite's own grid must contain the state the code is actually in. Each composite says
+            # what "in use" means for it: the investment arms are every term off, the arrival split is the
+            # single discount applied to both kinds of arrival.
+            # ...asked of the SWEEP itself, so the test and the run can no longer disagree about what
+            # "the state in use" is - they did, and the disagreement only surfaced as a crash mid-run.
+            assert sweep._current(name) in grid, f"{name}: the state in use is not in its own grid"
             continue
         assert getattr(presence.DEFAULTS, name) in grid, f"{name}: the value in use is not in its own grid"
 
@@ -1454,3 +1459,48 @@ def test_the_appearance_segments_carry_the_mae_the_document_quotes():
     source = inspect.getsource(evaluate.appearance_segments)
     for field in ("bias_model", "bias_naive", "mae_model", "mae_naive"):
         assert f'"{field}"' in source, f"the segment must report {field}"
+
+
+def test_every_presence_input_is_populated_by_every_caller():
+    """A parameter whose INPUT never reaches a caller is switched on and blind, which is worse than off.
+
+    Found twice in one session, both times only because somebody looked: `level_weight` was adopted by the
+    sweep and the panel never set `level_z`, so the board showed pre-adoption claims; and `standing_prior`
+    had the same shape. The mirror case is just as bad and is also here - `window_matches`/`window_minutes`
+    are set by the panel and NOT by the sweep, which is why `window_standing` has never been scorable and
+    gate §7-octies is blocked by an omission rather than by a decision.
+
+    So: every field of `Inputs` must be named by every constructor of it. A field genuinely out of reach for
+    one caller goes in `KNOWN_GAPS` with the reason, and the list is expected to shrink.
+    """
+    import re
+    from dataclasses import fields
+    from pathlib import Path
+
+    from euroleghe_ingest.engine import presence
+
+    KNOWN_GAPS = {
+        # the sweep cannot see the recent-form window: `recent_form` fetches it for TODAY's sheet, and a
+        # window played years ago would need the same measurement rebuilt from `external_match_stats`.
+        # Until it is, `window_standing` (gate §7-octies) cannot be scored - stated, not hidden.
+        ("modules/sweep.py", "window_matches"),
+        ("modules/sweep.py", "window_minutes"),
+    }
+    names = {f.name for f in fields(presence.Inputs)}
+    root = Path(__file__).resolve().parents[1] / "euroleghe_ingest"
+    missing = set()
+    for rel in ("gui.py", "modules/sweep.py"):
+        text = (root / rel).read_text(encoding="utf-8")
+        start = text.index("presence.Inputs(")
+        depth, end = 0, start
+        for index in range(start + len("presence.Inputs"), len(text)):
+            depth += (text[index] == "(") - (text[index] == ")")
+            if depth == 0:
+                end = index
+                break
+        block = text[start:end]
+        given = {m.group(1) for m in re.finditer(r"[\s(]\s*(\w+)=", block)}
+        for gap in names - given:
+            if (rel, gap) not in KNOWN_GAPS:
+                missing.add(f"{rel} never sets Inputs.{gap}")
+    assert not missing, "an input nobody feeds: " + " · ".join(sorted(missing))

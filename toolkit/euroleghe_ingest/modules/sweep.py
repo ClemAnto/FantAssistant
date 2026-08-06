@@ -62,6 +62,13 @@ NETWORK = False
 GRIDS: dict[str, tuple] = {
     "loan_discount": (0.0, 0.2, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0),
     "arrival_discount": (0.0, 0.2, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0),
+    # THE ARRIVAL SPLIT (pre-registered 06/08/2026, gate §7-quindecies), as PAIRS (intra, cross) because
+    # with the cross value equal to the intra one the two are the same function and sweeping one alone
+    # would report "no effect" about a term that is switched off. The first entry is the incumbent - one
+    # discount for both. The measured residuals say cross-league arrivals are nearly unbiased (−0.013)
+    # while intra-league ones pay (−0.057), so the grid moves the CROSS value up toward 1.0 (less discount)
+    # and keeps one entry the other way, because a hypothesis that only allows its own sign is not a test.
+    "arrival_split": ((0.8, 0.8), (0.8, 0.7), (0.8, 0.9), (0.8, 1.0), (0.7, 0.9), (0.7, 1.0), (0.9, 1.0)),
     "availability_floor": (0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6),
     "injury_weights": ((1.0, 0.6, 0.35), (1.0, 0.75, 0.5), (1.0, 0.45, 0.2),
                        (1.0, 0.0, 0.0), (1.0, 1.0, 1.0)),
@@ -78,6 +85,27 @@ GRIDS: dict[str, tuple] = {
     # spending. Pre-registered in gate §7-quater's follow-up.
     "value_weight": (0.0, 0.05, 0.10, 0.15, 0.20, 0.30, 0.50),
     "stature_weight": (-0.10, 0.0, 0.05, 0.10, 0.15, 0.20, 0.30),
+    # THE QUALITY HYPOTHESIS (pre-registered 06/08/2026, gate §7-duodecies). «Un giocatore con SURPLUS
+    # maggiore, nell'arco dell'anno, acquisirà più visibilità agli occhi dell'allenatore e quindi
+    # minutaggio». Swept on the FANTAMEDIA and not on the surplus, because the surplus already contains the
+    # presences this very standing produces. Centred on what was measured before the grid was written -
+    # +1.5 minutes per round per sd of role-relative FM, i.e. 0.017 of a season - with 0.05 (three times
+    # it) as the upper bound and ONE negative step, because a hypothesis that only allows the sign it
+    # expects is not being tested. 0 is in the grid and is the incumbent.
+    "quality_weight": (-0.01, 0.0, 0.01, 0.017, 0.025, 0.035, 0.05),
+    # THE LEVEL HYPOTHESIS (pre-registered 06/08/2026, gate §7-terdecies). «Livello più alto puoi intenderlo
+    # anche con Premier > Serie A», and the data agrees: mean ClubElo 1807 against 1610. Centred on what was
+    # measured BEFORE the grid was written - +0.040 of start share per sd of the origin club's Elo, on 700
+    # transfers, controlling for the minutes AND the fantamedia - with 0.12 (three times it) as the ceiling
+    # and one negative step, because a hypothesis that only allows the sign it expects is not being tested.
+    # 0 is in the grid and is the incumbent.
+    "level_weight": (-0.02, 0.0, 0.02, 0.04, 0.06, 0.08, 0.12),
+    # THE SAMPLE-SIZE SHRINKAGE (pre-registered 06/08/2026, gate §7-quaterdecies). In ROUNDS: K is how many
+    # rounds of the population's mean it takes to outweigh his own. One-sided by construction - K < 0 is not
+    # a weaker shrinkage, it is nonsense - and 0 is the incumbent. The top of the grid, 25, would make a
+    # 13-round sample count for a third of itself; past that the parameter would be replacing the player
+    # with the average, which is not what anybody is claiming.
+    "standing_prior_rounds": (0.0, 3.0, 6.0, 10.0, 15.0, 25.0),
     # ...and the same hypothesis in its SHARPER form, as a composite: the two weights alone are swept on the
     # "standing" shape, where a lift is added to everybody, but the claim is really about the man whose
     # season was played somewhere else - the signing the club has just paid for. `investment_shape="arrival"`
@@ -162,6 +190,13 @@ TARGETS: dict[str, str] = {
     "investment_unplayed_null": "starts",
     "investment_unplayed_value_wide": "starts",
     "investment_unplayed_marginal": "starts",
+    # ...and the quality channel asks the same question as the investment one - who the coach PUTS on the
+    # pitch, given something the minutes could not see - so it is judged on the same outcome.
+    "quality_weight": "starts",
+    # same question again: who the coach PUTS on the pitch, given something the minutes could not see.
+    "level_weight": "starts",
+    "standing_prior_rounds": "starts",
+    "arrival_split": "starts",
 }
 
 # The gate's own thresholds, quoted from gate-motore-v1.md so the two verdicts mean the same thing here.
@@ -225,6 +260,55 @@ def build_inputs(conn, data: features.WindowData) -> tuple[dict[int, presence.In
         "SELECT DISTINCT season FROM rosters WHERE season <= ? ORDER BY season", (season,))]
     injuries = snapshot.injury_history(conn, window.auction_date, seasons, season)
 
+    # What he SHOWED, per role, in standard deviations - the quality channel's only input. Standardised
+    # WITHIN the role because a 6.6 from a defender and a 6.6 from a forward are not the same season, and
+    # computed over the men the core would price (a fantamedia off three votes is not a fantamedia).
+    by_role: dict[str, list[float]] = {}
+    for obs in data.observations:
+        if obs.fm_prev is not None and (obs.pv_prev or 0) >= model.MIN_PV_PREV and obs.role_classic:
+            by_role.setdefault(obs.role_classic, []).append(obs.fm_prev)
+    # THE LEVEL of the football behind his minutes: the Elo of the club he played them for, standardised,
+    # and ONLY for a man who has changed club - the population the coefficient was measured on. For a man
+    # who stayed the term would quietly become «his own club is strong», a claim nobody has scored.
+    elos = [obs.elo_prev for obs in data.observations
+            if obs.elo_prev is not None and obs.club_change]
+    level_z: dict[int, float] = {}
+    if len(elos) > 1:
+        mean_elo = sum(elos) / len(elos)
+        sd_elo = (sum((x - mean_elo) ** 2 for x in elos) / len(elos)) ** 0.5
+        if sd_elo > 0:
+            for obs in data.observations:
+                if obs.elo_prev is not None and obs.club_change:
+                    level_z[obs.fc_id] = (obs.elo_prev - mean_elo) / sd_elo
+
+    fm_z: dict[int, float] = {}
+    for obs in data.observations:
+        pool = by_role.get(obs.role_classic or "")
+        if obs.fm_prev is None or not pool or len(pool) < 2:
+            continue
+        mean = sum(pool) / len(pool)
+        var = sum((x - mean) ** 2 for x in pool) / len(pool)
+        if var > 0:
+            fm_z[obs.fc_id] = (obs.fm_prev - mean) / (var ** 0.5)
+
+    # The population's mean standing for this window, computed with the shrinkage OFF - it is the prior the
+    # shrinkage pulls toward, so reading it from an already-shrunk population would be circular.
+    prior: float | None = None
+
+    # Which championship each club plays in, so an arrival can be told apart from a move down the road.
+    # Resolved through the canonical index like everything else that joins on a club.
+    club_league: dict[str, str] = {}
+    for name, league in conn.execute(
+            "SELECT canonical_name, league FROM clubs WHERE canonical_name IS NOT NULL AND league IS NOT NULL"):
+        club_league[resolve(name)[0]] = league
+
+    def _cross(obs) -> bool:
+        if not obs.club_change or not obs.club_prev or not obs.club_target:
+            return False
+        before = club_league.get(resolve(obs.club_prev)[0])
+        after = club_league.get(resolve(obs.club_target)[0])
+        return bool(before and after and before != after)
+
     out: dict[int, presence.Inputs] = {}
     thin = 0
     for obs in data.observations:
@@ -265,12 +349,25 @@ def build_inputs(conn, data: features.WindowData) -> tuple[dict[int, presence.In
             minutes_here=float(split.get("minutes") or 0),
             minutes_elsewhere=float(split.get("minutes_elsewhere") or 0),
             was_here_before=obs.fc_id in was_here,
+            fm_z=fm_z.get(obs.fc_id),
+            level_z=level_z.get(obs.fc_id),
+            standing_prior=prior,
+            cross_league=_cross(obs),
             fee_share=(spend.get(obs.fc_id) or {}).get("fee_share"),
             stature=(spend.get(obs.fc_id) or {}).get("stature"),
             value_share=(spend.get(obs.fc_id) or {}).get("value_share"),
         )
+    # ...and NOW the prior, because it could not be known before the inputs existed: the population's mean
+    # standing with the shrinkage OFF. Reading it from an already-shrunk population would be circular, and
+    # the two-pass shape is the honest way to say that a prior belongs to a population and not to a player.
+    if out:
+        unshrunk = replace(presence.DEFAULTS, standing_prior_rounds=0.0)
+        levels = [presence.standing(inp, unshrunk) for inp in out.values()]
+        prior = sum(levels) / len(levels)
+        out = {fc_id: replace(inp, standing_prior=prior) for fc_id, inp in out.items()}
+
     note = {"players": len(out), "of_observations": len(data.observations),
-            "clubs_under_90pct_parsed": thin}
+            "clubs_under_90pct_parsed": thin, "standing_prior": round(prior, 4) if prior else None}
     return out, note
 
 
@@ -374,6 +471,25 @@ def _label(value) -> str:
     return "/".join(f"{part:g}" for part in value) if isinstance(value, tuple) else f"{value}"
 
 
+def _current(name: str):
+    """The grid point the code is IN for this family - which a composite has no single field for.
+
+    One place, because there were two and they disagreed: the smoke test learned about `arrival_split` and
+    the sweep did not, so the run died on `getattr(Params, "arrival_split")`. A composite is defined by the
+    tuple of fields it moves together, so that is what this returns.
+    """
+    if name.startswith("investment"):
+        off = (presence.DEFAULTS.investment_shape, presence.DEFAULTS.fee_weight,
+               presence.DEFAULTS.stature_weight)
+        wide = (*off, presence.DEFAULTS.value_weight, presence.DEFAULTS.shrink_weight)
+        if name == "investment":
+            return off
+        return wide if name.endswith(("null", "marginal")) else wide[:4]
+    if name == "arrival_split":
+        return (presence.DEFAULTS.arrival_discount, presence.DEFAULTS.arrival_discount_cross)
+    return getattr(presence.DEFAULTS, name)
+
+
 def _params_for(name: str, value) -> presence.Params:
     """The parameter set for one grid point. `investment` is a COMPOSITE (shape, fee, stature).
 
@@ -387,6 +503,12 @@ def _params_for(name: str, value) -> presence.Params:
                        stature_weight=stature,
                        value_weight=rest[0] if rest else 0.0,
                        shrink_weight=rest[1] if len(rest) > 1 else 0.0)
+    if name == "arrival_split":
+        # the two discounts move TOGETHER for the same reason: with the cross value equal to the intra one
+        # they are the same function, and sweeping one alone would report "no effect" about a split that
+        # is not in force.
+        intra, cross = value
+        return replace(presence.DEFAULTS, arrival_discount=intra, arrival_discount_cross=cross)
     return presence.DEFAULTS.with_value(name, value)
 
 
@@ -426,14 +548,7 @@ def sweep_platform(conn, platform: str, game: str, windows: list[str] | None) ->
 
     for name, grid in GRIDS.items():
         target = TARGETS[name]
-        # the composite has no field of its own: its "current" is the shape and the two weights in use
-        off = (presence.DEFAULTS.investment_shape, presence.DEFAULTS.fee_weight,
-               presence.DEFAULTS.stature_weight)
-        wide = (*off, presence.DEFAULTS.value_weight, presence.DEFAULTS.shrink_weight)
-        current = ((off if name == "investment"
-                    else wide if name.endswith(("null", "marginal")) else wide[:4])
-                   if name.startswith("investment") else getattr(presence.DEFAULTS, name))
-        current = BASELINES.get(name, current)
+        current = BASELINES.get(name, _current(name))
         per_window: dict[str, dict[str, float]] = {}
         for key, (inputs, targets, _data) in facts.items():
             scores: dict[str, float] = {}

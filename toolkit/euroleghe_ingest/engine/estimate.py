@@ -137,6 +137,36 @@ def older_confidence(seasons_back: int) -> float:
     return max(CONFIDENCE["anchor"], CONFIDENCE["older"] - OLDER_DECAY * max(0, seasons_back - 2))
 
 
+# How much of an OLD fantamedia survives as a prediction. MEASURED 06/08/2026 on our own Serie A seasons,
+# after the operator asked the right question - «un calciatore che torna in serie A dopo un anno, la sua FM
+# è confrontabile con chi gioca due anni consecutivi?». Predicting season t from t-2, anchor out of sample:
+#
+#                              n     raw FM(t-2)   role anchor   anchor + b(FM-anchor)
+#   returners (no Serie A t-1)   203      0.407         0.369      0.326   (b 0.40)
+#   continuous (Serie A at t-1) 1264      0.395         0.376      0.336   (b 0.45)
+#
+# Two answers in one table. The one he asked for: YES, comparable - the year away costs 0.012 of MAE and the
+# best b is the same, so an old Serie A fantamedia is as good a reference for a returner as for anybody.
+# The one he did not ask for and that matters more: taken RAW it loses to the plain role anchor on both
+# groups, and it is biased UPWARD for returners (+0.079 overall, +0.144 for forwards) - a man who was good
+# enough two years ago and left tends to come back worse than his old number. So the rung hands its season
+# to the same transform the core uses on `fm_prev` instead of passing it through; 0.40 is the returners'
+# own value and 0.45 the runner-up, and both sit inside a grid swept at 0.05 from 0 to 1.
+OLDER_BETA: float = 0.40
+
+
+def regress(fm: float, anchor: float, beta: float = OLDER_BETA) -> float:
+    """A measured fantamedia turned into a PREDICTED one, the way the core turns `fm_prev` into `fm_pred`.
+
+    The core never predicts last season's number: it shrinks it toward the role's anchor (`beta_mantra`
+    0.397 and 0.446 on the two published windows), and that is most of why it beats the naive baseline the
+    backtest prints beside it. An estimate that hands over a raw fantamedia is that naive baseline wearing
+    the sheet's third prefix - which is exactly what made Kolo Muani, a striker whose Serie A season is two
+    years old, come out at 6.98 with +17.8 of surplus.
+    """
+    return anchor + beta * (fm - anchor)
+
+
 def surplus(fm: float | None, pv: float | None, replacement: float | None,
             confidence: float) -> float | None:
     """(fm - replacement) x pv, THEN penalized - the SAME arithmetic as the sheet's `engine_surplus`.

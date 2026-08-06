@@ -2155,7 +2155,7 @@ def test_absence_from_the_live_squad_is_read_only_for_a_man_the_provider_knows()
         def __init__(self, fc_id, club):
             self.fc_id, self.club_target = fc_id, club
 
-    live = {"Napoli": {"on": "2026-08-05", "ids": {1, 2}}}
+    live = {snapshot._club_key("Napoli"): {"on": "2026-08-05", "ids": {1, 2}}}
     known = {1, 2, 3}
     # 3 is known to the provider and not in the payload: he is not in that squad any more
     where, when = snapshot.left_his_club(Obs(3, "Napoli"), None, live, known)
@@ -2170,6 +2170,102 @@ def test_absence_from_the_live_squad_is_read_only_for_a_man_the_provider_knows()
     moves = {"at": set(), "out": [(snapshot._club_key("Napoli"), "Bayer 04 Leverkusen", "2026-07-01", 1.0)]}
     assert snapshot.left_his_club(Obs(3, "Napoli"), moves, live, known) == (
         "Bayer 04 Leverkusen", "2026-07-01")
+
+
+def test_a_live_squad_joins_by_club_key_and_only_speaks_when_it_is_complete():
+    """Two guards the same measurement asked for, 05/08/2026, both of them silent failures without a test.
+
+    THE JOIN. The sheet spells a club one way and the provider another - `Paris Saint Germain` against
+    `Paris Saint-Germain`, `AC Milan` against `Milan`. A raw-string lookup answers "no payload", which reads
+    as "no evidence" and switches the whole signal off for that club without saying so. Third instance of «an
+    entity joins through its CANONICAL KEY, never through the string a source uses to name it», and the
+    cheapest to miss because it works on every other club.
+
+    What `club_key` does NOT fix, and no join can: `Newcastle`/`Newcastle United` and
+    `Eintracht`/`Eintracht Francoforte` are not two spellings, they are two ROWS of `clubs` for one club, with
+    the listone's players on one and the provider's xref on the other. That is a data defect (see the spec's
+    twin-identity note), not a lookup, and those two clubs stay dark until the identities are merged.
+
+    THE COMPLETENESS. `/team/{id}/players` is the FIRST TEAM as the provider publishes it, and how much of it
+    arrives varies: West Ham reads 18 men against 29 identified and not one of its fourteen "departures" is
+    corroborated by a transfer, while Bologna at 24 of 28 is 6 for 6. So a payload speaks only above
+    `SQUAD_COMPLETENESS` of the squad the sheet shows - measured curve in the constant's own comment.
+    """
+    from euroleghe_ingest.modules import snapshot
+
+    class Obs:
+        def __init__(self, fc_id, club):
+            self.fc_id, self.club_target = fc_id, club
+
+    def payload():
+        return {snapshot._club_key("Paris Saint-Germain"):
+                {"on": "2026-08-04", "club": "Paris Saint-Germain", "ids": set(range(1, 10))}}
+
+    # the provider's spelling on one side, the listone's on the other
+    live = snapshot.complete_squads(payload(), [Obs(n, "Paris Saint Germain") for n in range(1, 11)],
+                                    set(range(1, 11)))
+    assert snapshot.left_his_club(Obs(10, "Paris Saint Germain"), None, live, set(range(1, 11))) == (
+        "not in the club's live squad", "2026-08-04"), "9 of 10 is a squad, and 10 is not in it"
+
+    # ...the same payload against a squad it covers barely two thirds of says NOTHING
+    thin = snapshot.complete_squads(payload(), [Obs(n, "Paris Saint Germain") for n in range(1, 15)],
+                                    set(range(1, 15)))
+    assert snapshot.left_his_club(Obs(14, "Paris Saint Germain"), None, thin, set(range(1, 15))) == (
+        None, None)
+    assert thin[snapshot._club_key("Paris Saint Germain")]["thin"] == (9, 14), "and it says how thin"
+
+
+def test_the_fm_cell_shows_the_estimate_with_a_tilde_when_the_core_cannot_predict():
+    """«Nella colonna FM se non ci sono abbastanza valori, mostra la FM stimata con il simbolino "circa"
+    davanti» - the same rule the SURPLUS cell already follows, for the same reason.
+
+    Under `MIN_PV_PREV` the core refuses to predict, so the one number an operator reads a player by was
+    blank exactly for the men he knows least: Mazzocchi, 11 votes of 15, no FM at all while his estimate
+    (5.885, blended with the level of Napoli's defenders) sat unread in another column. And the SORT KEY
+    has to be the estimate too - a column that shows one list and orders by another is the defect the
+    v9.28 measurement caught, and it looked measured.
+    """
+    view = _view_of([])
+    view.manifest = {}
+    gated = view._cell_values({"name": "Gated", "engine_fm_pred": "6.42", "est_fm": "5.9"})
+    assert gated["fm"] == ("6.4", 6.42), "a gated prediction is shown plain, and never overwritten"
+
+    guessed = view._cell_values({"name": "Mazzocchi", "engine_fm_pred": "", "est_fm": "5.885",
+                           "engine_unpriced_reason": "only 11 votes of 15"})
+    text, value = guessed["fm"]
+    assert text == "~5.9", "the estimate, marked as one"
+    assert value == 5.885, "and the number behind the cell is the one shown, so the sort agrees with it"
+
+    unknown = view._cell_values({"name": "Nobody", "engine_fm_pred": "", "est_fm": ""})
+    assert unknown["fm"] == ("", None), "nothing measured and nothing estimated stays a blank, not a zero"
+
+
+def test_the_board_does_not_field_a_man_who_has_left_the_club():
+    """«Avevamo detto di utilizzare sofascore come verità sulle rose» - and the eleven is where a squad is a
+    squad. The row keeps its club (the listone is what you buy from, and it is reported with a ⇥), but the
+    typical eleven is «the side with everybody fit» and a man who plays elsewhere is not in it at any fitness.
+    Before this, `eligible` filtered injuries and suspensions only, so a departed starter was still drawn.
+    """
+    def man(name, codes, role, starts=30, **extra):
+        return dict(name=name, role_classic=role, desc_real_roles=codes,
+                    desc_season_starts=str(starts), desc_start_share=str(starts / 38), **extra)
+
+    rows = [man("Portiere", "GK", "P")]
+    rows += [man(f"Dif{i}", "DC", "D") for i in range(1, 4)]
+    rows += [man(f"Cen{i}", "MC", "C") for i in range(1, 5)]
+    rows += [man(f"Att{i}", "ST", "A") for i in range(1, 3)]
+    # the strongest defender of the lot, and a transfer says he plays elsewhere now
+    rows.append(man("Partito", "DC", "D", starts=38, desc_left_for="Bayer 04 Leverkusen",
+                    desc_left_on="2026-07-01"))
+    rows.append(man("Riserva", "DC", "D", starts=4))
+    view = _view_of(rows)
+    for mode in ("typical", "next"):
+        eleven = view.eleven("Test", "4-4-2", mode)
+        drawn = {row["name"] for _r, row, _o in eleven}
+        offered = {row["name"] for _r, _s, others in eleven for row in others}
+        assert "Partito" not in drawn, f"{mode}: a man who has left is not in the side"
+        assert "Partito" not in offered, f"{mode}: nor is he one of its alternatives"
+        assert "Riserva" in drawn, f"{mode}: and his place goes to somebody who is actually there"
 
 
 def test_measured_and_estimated_go_together_and_either_side_can_be_filtered():
@@ -2255,3 +2351,105 @@ def test_measured_and_estimated_go_together_and_either_side_can_be_filtered():
     bare = evaluate.auction_view(data, predictions, top_n=5, metric=evaluate.SURPLUS)
     assert [row["name"] for row in bare["A"]["predicted"]] == ["Strong", "Weak"]
     assert bare["A"]["n_estimated"] == 0
+
+
+def test_the_other_platform_rung_is_only_for_the_same_football():
+    """«Kolo Muani ha già giocato nella Juventus qualche anno fa, forse non sarebbe più corretto prendere
+    quella fantamedia come riferimento?» - yes, and the reason is a population, not a preference.
+
+    The `other_platform` rung stands in with mean +0.001 and 92% inside 0.3, MEASURED on players with a
+    full season on BOTH platforms: Serie A men, whose euro and default rows are one season seen from two
+    calendars. Kolo Muani's euro 2025-26 is TOTTENHAM. Substituting it into a Serie A sheet is not that
+    rung at all, it is a FOREIGN fantamedia - which is R1, refused by the gate on five windows of six - and
+    it priced him 5.74 with a surplus of −9.9 while his own Juventus season sat one rung below, unread.
+    It erred both ways: Gonzalez N. was lifted to +17.8 off a Liga season against his measured 6.41 here.
+
+    Same rule as `synth.calibrated_competitions`: a fitted transform belongs to the population it was
+    fitted on, and eligibility is read from the data. `default` covers Serie A alone, so the test is the
+    roster's own league; on a euro sheet the other platform IS Serie A and always qualifies.
+    """
+    import sqlite3
+
+    from euroleghe_ingest.engine import features
+    from euroleghe_ingest.modules import snapshot
+
+    class Obs:
+        def __init__(self, fc_id):
+            self.fc_id = fc_id
+
+    conn = sqlite3.connect(":memory:")
+    conn.executescript(
+        """
+        CREATE TABLE season_stats (fc_id INTEGER, season TEXT, platform TEXT, pv INTEGER, fm REAL);
+        CREATE TABLE rosters (fc_id INTEGER, season TEXT, fc_club_id INTEGER, role_classic TEXT, league TEXT);
+        CREATE TABLE clubs (fc_club_id INTEGER, canonical_name TEXT);
+        INSERT INTO clubs VALUES (1, 'Juventus');
+        -- 5951 played 2025-26 in the Premier League; 7 played it in Serie A
+        INSERT INTO rosters VALUES (5951, '2025-26', 1, 'A', 'premier_league'), (7, '2025-26', 1, 'A', 'serie_a'),
+                                   (5951, '2024-25', 1, 'A', 'serie_a');   -- his Juventus year
+        INSERT INTO season_stats VALUES
+            (5951, '2025-26', 'euro', 23, 5.74), (5951, '2024-25', 'default', 16, 7.62),
+            (7,    '2025-26', 'euro', 30, 6.90);
+        """
+    )
+    conn.executescript(
+        """
+        -- 6397 is Gonçalo Ramos: PSG for every season he has, and never a Serie A one
+        INSERT INTO rosters VALUES (6397, '2025-26', 1, 'A', 'ligue_1'), (6397, '2024-25', 1, 'A', 'ligue_1');
+        INSERT INTO season_stats VALUES (6397, '2025-26', 'euro', 26, 6.23), (6397, '2024-25', 'euro', 19, 7.50);
+        """
+    )
+    window = features.Window("W", "2025-26", "2026-27", "2026-08-06")
+    layer = snapshot.estimation_layer(conn, window, "default",
+                                      [Obs(5951), Obs(7), Obs(6397)])["players"]
+    assert "other" not in layer[5951], "a Premier season is not a Serie A season on the other calendar"
+    assert layer[5951]["older"]["fm"] == 7.62, "...so the rung below answers: his own Serie A season"
+    assert layer[7]["other"]["fm"] == 6.90, "a man who really played Serie A keeps the rung"
+    # ...and the rung below is bound by the same test, which the first version of the filter forgot:
+    # a Ligue 1 season is not «his last measured season» on a Serie A sheet, at either rung.
+    assert "other" not in layer[6397] and "older" not in layer[6397],         "a man who has never played here belongs at the anchor, not at a foreign fantamedia"
+
+    # ...and on a euro sheet the other platform is Serie A by construction, so nothing is filtered
+    euro = snapshot.estimation_layer(conn, window, "euro", [Obs(5951)])["players"]
+    assert euro[5951].get("other") is None, "no default row exists for him in 2025-26"
+
+
+def test_an_old_fantamedia_is_regressed_before_it_becomes_a_prediction():
+    """«Un calciatore che torna in Serie A dopo un anno: la sua FM è confrontabile?» - measured, and it is.
+
+    Predicting season t from t-2 on our own Serie A seasons, anchor out of sample: returners (no Serie A at
+    t-1) MAE 0.407 against 0.395 for men who never left, and the same best beta - the year away costs 0.012.
+    What the same table also says is that RAW it loses to the plain role anchor (0.369 / 0.376) and that
+    anchor + 0.40 x (FM - anchor) beats both (0.326 / 0.336), the shape the core already uses on `fm_prev`.
+    It is biased UPWARD for the men this rung serves: +0.079, +0.144 for forwards.
+
+    The direction matters as much as the size, so this pins both: a season above the anchor comes DOWN
+    (Kolo Muani 6.98 -> 6.85, Ramos G. 7.50 -> 6.91) and one below it comes UP (Vasquez D. 4.61 -> 4.88,
+    whose surplus went from 13.2 to 20.4). A shrinkage that only ever lowered would be a haircut, not a
+    prediction.
+    """
+    from euroleghe_ingest.engine import estimate as est
+
+    anchor = 6.30
+    assert est.regress(7.50, anchor) < 7.50, "above the anchor it comes down..."
+    assert est.regress(4.61, anchor) > 4.61, "...and below it, up"
+    assert est.regress(anchor, anchor) == anchor, "at the anchor it does nothing"
+    # the size is the measured beta, not a taste
+    assert abs(est.regress(7.30, anchor) - (anchor + 0.40 * 1.0)) < 1e-9
+    assert 0 < est.OLDER_BETA < 1
+
+
+def test_a_man_who_has_left_has_no_claim_on_the_shirt():
+    """«Vlahovic -> partito -> claim = 0». The board already refuses to field him; a row showing 54% beside
+    a ⇥ was the panel contradicting itself in two columns. Zero and not "low": the claim asks whether this
+    coach fields him, and the answer for a man at another club is no, at any fitness. What he measured last
+    season stays in `tit` and `min`, which are facts about last season and not claims on this shirt."""
+    view = _view_of([])
+    view.manifest = {}
+    row = {"name": "Vlahovic", "role_classic": "A", "desc_season_starts": "30",
+           "desc_season_matches": "34", "desc_minutes_full_season": "2400", "club": "Test"}
+    assert view.claim(row, "season") > 0.3, "with no departure he keeps the standing his minutes earned"
+    row["desc_left_for"] = "svincolato"
+    assert view.claim(row, "season") == 0.0
+    assert view.claim(row, "recent") == 0.0, "and the next-match horizon says the same"
+    assert view._cell_values(row)["claim"] == ("0%", 0.0)

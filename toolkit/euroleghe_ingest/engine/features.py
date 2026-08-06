@@ -190,6 +190,10 @@ class Observation:
     origin_league: str | None = None
     foreign_fm_equiv: float | None = None
     elo_target: float | None = None
+    # ...and where he PLAYED it. `elo_target` says how strong the side he joins is; this says how
+    # strong the football behind his minutes was, which is a different sentence and the one the
+    # level channel reads (`presence.level_lift`).
+    elo_prev: float | None = None
     new_coach_target: bool = False        # derived at 1 August, so known on auction day
     same_role_arrivals: int = 0           # new team-mates competing for the same Classic role
     starter_prob: float | None = None
@@ -999,6 +1003,7 @@ def load(conn: sqlite3.Connection, window: Window, platform: str,
             off_role_prev=fc_id in off_role,
             arrival_type=kind, arrival_tier=tier, origin_league=origin,
             foreign_fm_equiv=equivalent, elo_target=elo.get(club_target or ""),
+            elo_prev=elo.get(club_prev or ""),
             new_coach_target=fc_id in new_coach,
             # a player who arrived himself is not his own competition
             same_role_arrivals=max(0, competition.get((club_target or "", role_classic or ""), 0)

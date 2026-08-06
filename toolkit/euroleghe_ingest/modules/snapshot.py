@@ -71,6 +71,37 @@ FORMATION_SETTLED = 0.60
 # appearance EVER counted, which put two retired keepers in Inter's 2026 squad.
 SQUAD_APPEARANCE_MONTHS = 14
 
+# WHEN AN OLD SHEET IS STALE. `generated_at` says when a folder was written; it cannot say whether the code
+# that wrote it still computes the same numbers, and «rifare gli snapshot» was a question nobody could answer
+# from the folder itself (06/08/2026). Bump this whenever a change moves a value a sheet CARRIES - a rule, a
+# constant, a layer, an identity in the DB - and leave it alone for anything cosmetic. A folder whose
+# `sheet_revision` is lower than this one was built by a different model and is to be rebuilt.
+#   1  everything up to 05/08/2026 (folders with no `sheet_revision` at all are revision 0 by definition)
+#   2  06/08/2026 - the live squad's completeness guard (93 marked rows -> 48); the twin club identities
+#      merged (109 -> 106 clubs, so coaches / elo / penalty hierarchy / the live-squad join all move);
+#      `other_platform` restricted to the same competition (13 rows); the `older` rung regressed toward the
+#      anchor (38 rows).
+SHEET_REVISION = 2
+
+# How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
+# squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
+# Serie A sheets, 172 absences, precision = the share a transfer corroborates - a LOWER bound, since the
+# provider caught Gutierrez a week before the transfers layer did):
+#
+#   gate   absences kept   corroborated   precision   absence-only claims kept
+#   0.00        172              99          57.6%              73
+#   0.80        130              94          72.3%              36
+#   0.85         94              77          81.9%              17
+#   0.90         59              49          83.1%              10      <- the plateau starts here
+#   0.95         27              24          88.9%               3      <- and the signal all but vanishes
+#
+# `/team/{id}/players` is the FIRST TEAM, and how much of it the provider publishes varies: West Ham reads
+# 18 men against 29 identified, and every one of its 14 "departures" was uncorroborated - while Bologna at
+# 0.86 was 6/6 right. Below the gate a silence is under-reading, not a departure. Precision is what this
+# guard buys and recall is what it costs, and the asymmetry decides: a false departure hides a man who is
+# really there, a missed one only leaves the listone's own claim standing.
+SQUAD_COMPLETENESS = 0.90
+
 # The stages a build walks, in order, each with the SECONDS it was measured to cost - which is the only
 # reason a percentage may be shown at all. Seconds and not shares, because the two stages that touch the
 # network dominate the total when they run and cost nothing when the cache already answers, so a fixed
@@ -236,6 +267,15 @@ def club_index(conn):
     for (name,) in conn.execute("SELECT canonical_name FROM clubs WHERE canonical_name IS NOT NULL"):
         for spelling in (name, CLUB_ALIASES.get(name, name)):
             canonical.setdefault(club_key(spelling), name)
+    # ...and every OTHER spelling of ours that the alias table sends to the same provider club. Needed
+    # since the twin identities were merged (`db.database.merge_twin_clubs`): `Eintracht Francoforte` was
+    # a row of `clubs` and is now only an alias key, while 1210 rows of `match_ratings.team` and 27
+    # transfers still spell it that way - and a source string is EVIDENCE, never rewritten to match a
+    # table. Without this the merge would have traded three split clubs for three unreadable spellings.
+    for ours, theirs in CLUB_ALIASES.items():
+        known = canonical.get(club_key(theirs))
+        if known is not None:
+            canonical.setdefault(club_key(ours), known)
 
     def resolve(name: str | None) -> tuple[str, str] | tuple[None, None]:
         """(key, our canonical name). The KEY is derived from the canonical name, not from the input:
@@ -1268,7 +1308,7 @@ def departures(conn, window: features.Window, date: str) -> dict[int, dict]:
 
 
 def live_squads(conn, date: str) -> dict[str, dict]:
-    """{club: {"on": date, "ids": {fc_id, ...}}} - each club's LIVE squad, newest observation at or before `date`.
+    """{club key: {"on": date, "club": name, "ids": {fc_id, ...}}} - each club's LIVE squad at or before `date`.
 
     The reliable, near-real-time source the operator asked for, and it was already in the cache: the provider's
     `/team/{id}/players` is one request per club, downloaded every day for the granular roles, and it had
@@ -1276,17 +1316,52 @@ def live_squads(conn, date: str) -> dict[str, dict]:
 
     Its power is ABSENCE, which no other source of ours can express: a squad page lists who is in, a transfer
     lists an event, and only a full squad read can say "he is not in it". Hence the second half of this layer -
-    and hence the guard below, because absence has a twin that means the opposite.
+    and hence the two guards, because absence has two twins that mean the opposite: a man the provider cannot
+    identify (`observed_players`), and a payload too thin to be a squad at all (`complete_squads`).
+
+    Keyed on `_club_key` and NOT on the spelling: the sheet says `Newcastle` where the provider says
+    `Newcastle United`, and a raw-string lookup silently answers "no payload" - which reads as "no evidence"
+    and switches the whole signal off for that club without saying so.
     """
     out: dict[str, dict] = {}
     for club, observed in conn.execute(
             "SELECT club, MAX(valid_from) FROM squad_snapshot WHERE source = 'sofascore' "
             "AND valid_from <= ? GROUP BY club", (date,)):
-        out[club] = {"on": observed, "ids": set()}
-    for club, entry in out.items():
+        key = _club_key(club)
+        if key not in out or observed > out[key]["on"]:
+            out[key] = {"on": observed, "club": club, "ids": set()}
+    for entry in out.values():
         entry["ids"] = {fc_id for (fc_id,) in conn.execute(
             "SELECT fc_id FROM squad_snapshot WHERE source = 'sofascore' AND club = ? AND valid_from = ?",
-            (club, entry["on"]))}
+            (entry["club"], entry["on"]))}
+    return out
+
+
+def complete_squads(live: dict[str, dict], observations, known: set[int],
+                    completeness: float = SQUAD_COMPLETENESS) -> dict[str, dict]:
+    """The payloads whose SILENCE is evidence: those covering `completeness` of the squad the sheet shows.
+
+    A payload is the club's FIRST TEAM as the provider publishes it, and how much of it arrives varies by
+    club - so "he is not in it" means one thing at Bologna (24 men against 28 identified, 6 departures and
+    6 of them corroborated by a transfer) and another at West Ham (18 against 29, fourteen "departures" and
+    NOT ONE corroborated). The denominator is the identified squad on this very sheet, because that is the
+    population the absence is being read against; see `SQUAD_COMPLETENESS` for the measured curve.
+
+    Dropped payloads keep their entry with an empty `ids` - `left_his_club` already reads that as "this
+    source has nothing to say", which is exactly true, rather than as "the squad is empty".
+    """
+    rostered: dict[str, int] = {}
+    for obs in observations:
+        if obs.fc_id in known:
+            key = _club_key(obs.club_target)
+            if key:
+                rostered[key] = rostered.get(key, 0) + 1
+    out: dict[str, dict] = {}
+    for key, entry in live.items():
+        size = len(entry["ids"])
+        enough = size >= completeness * rostered.get(key, 0) if rostered.get(key) else False
+        out[key] = dict(entry, ids=entry["ids"] if enough else set(),
+                        thin=None if enough else (size, rostered.get(key, 0)))
     return out
 
 
@@ -1308,8 +1383,10 @@ def left_his_club(obs, moves: dict | None, live: dict | None = None,
 
     Two independent signals, strongest first: a TRANSFER that names the destination, and the LIVE SQUAD that
     simply does not contain him. The second exists because a listone is a weekly publication and a squad is a
-    daily fact - it caught Gutierrez a week before anything else - and it is only read for a man the provider
-    can identify (`observed_players`), because otherwise "not in the payload" means "we never matched him".
+    daily fact - it caught Gutierrez a week before anything else - and it is read only where absence can mean
+    absence: for a man the provider can identify (`observed_players`), out of a payload complete enough to be
+    a squad (`complete_squads`). Otherwise "not in the payload" means "we never matched him", or "the provider
+    published eighteen of them".
     """
     here = _club_key(obs.club_target)
     if not here:
@@ -1319,7 +1396,7 @@ def left_his_club(obs, moves: dict | None, live: dict | None = None,
             if from_key == here and _club_key(to_club) != here:
                 return to_club, moved_on
     if live and known is not None and obs.fc_id in known:
-        squad = live.get(obs.club_target or "")
+        squad = live.get(here)
         if squad and squad["ids"] and obs.fc_id not in squad["ids"]:
             return "not in the club's live squad", squad["on"]
     return None, None
@@ -1344,17 +1421,41 @@ def estimation_layer(conn, window: features.Window, platform: str,
     marks = ",".join("?" * len(ids))
     other = "euro" if platform == "default" else "default"
     layer: dict[int, dict] = {fc_id: {} for fc_id in ids}
+    # ⚠️ ONLY WHERE IT IS THE SAME FOOTBALL. The +0.001 was measured on players with a full season on BOTH
+    # platforms - Serie A men, whose euro and default rows are one season seen from two calendars. For a
+    # `default` sheet, a euro row belonging to another league is not that at all: it is a FOREIGN
+    # fantamedia, which is R1, refused by the gate on five windows of six. Found by the operator on Kolo
+    # Muani, whose euro 2025-26 is TOTTENHAM: it priced him at 5.74 and −9.9 of surplus while his own
+    # Serie A season (Juventus 2024-25, 16 votes, 7.62) sat one rung below, unread. Seven of the nine
+    # `other_platform` estimates on that sheet were foreign, and they erred BOTH ways - Gonzalez N. was
+    # lifted to +17.8 off a Liga season against his measured 6.41 here. `default` covers Serie A alone, so
+    # the test is the roster's own league; on a euro sheet the other platform IS Serie A and always
+    # qualifies. Same rule as `synth.calibrated_competitions`: a fitted transform belongs to the
+    # population it was fitted on, and eligibility is read from the data, never from a tag.
+    eligible_other = {fc_id for (fc_id,) in conn.execute(
+        f"SELECT fc_id FROM rosters WHERE season = ? AND league = 'serie_a' AND fc_id IN ({marks})",
+        (window.input_season, *ids))} if platform == "default" else set(ids)
     for fc_id, pv, fm in conn.execute(
             f"SELECT fc_id, pv, fm FROM season_stats WHERE season = ? AND platform = ? "
             f"AND fm IS NOT NULL AND fc_id IN ({marks})",
             (window.input_season, other, *ids)):
-        layer[fc_id]["other"] = {"pv": pv, "fm": fm, "platform": other}
+        if fc_id in eligible_other:
+            layer[fc_id]["other"] = {"pv": pv, "fm": fm, "platform": other}
     # The newest season BEFORE the input one, whichever platform measured it best (most votes wins, then
     # the newest): an older season is a weaker rung, and `engine.estimate` prices that by how far back it is.
+    # ...and it is bound by the SAME competition test as the rung above, which the first version of this
+    # filter forgot - caught by the operator with one question, «dove gioca Ramos?». Gonçalo Ramos has never
+    # played in Serie A (PSG 2023→2026), so `other_platform` was correctly refused and then `older` handed
+    # over his LIGUE 1 2024-25 (19 votes, 7.50) as «his last measured season», priced him 7.50 and gave him
+    # +22.5 of surplus on a Serie A sheet. Same foreign fantamedia, same R1, one rung lower. A man with no
+    # season in this competition at all belongs at the ANCHOR, which is exactly what the gate measured R1
+    # against and what it preferred on five windows of six.
+    older_join = (" JOIN rosters r ON r.fc_id = s.fc_id AND r.season = s.season "
+                  "AND r.league = 'serie_a' ") if platform == "default" else ""
     for fc_id, season, plat, pv, fm in conn.execute(
-            f"SELECT fc_id, season, platform, pv, fm FROM season_stats "
-            f"WHERE season < ? AND fm IS NOT NULL AND pv >= ? AND fc_id IN ({marks}) "
-            f"ORDER BY season ASC, pv ASC",
+            f"SELECT s.fc_id, s.season, s.platform, s.pv, s.fm FROM season_stats s{older_join} "
+            f"WHERE s.season < ? AND s.fm IS NOT NULL AND s.pv >= ? AND s.fc_id IN ({marks}) "
+            f"ORDER BY s.season ASC, s.pv ASC",
             (window.input_season, est.FULL_SEASON_VOTES, *ids)):
         layer[fc_id]["older"] = {"season": season, "platform": plat, "pv": pv, "fm": fm}
     club_level: dict[tuple[str, str], tuple[float, int]] = {}
@@ -1422,9 +1523,14 @@ def estimate_for(obs, prediction, layer: dict, anchors: dict, data,
         # how many seasons back it is, from the season the sheet predicts FROM: 2 by construction, since
         # anything at t-1 would have been caught by the rungs above.
         back = int(window.input_season[:4]) - int(older["season"][:4]) + 1
-        return est.Estimate(older["fm"], presences(older["pv"]), "older", est.older_confidence(back),
+        # ...and it is REGRESSED toward the anchor, not handed over raw: an old fantamedia used as a
+        # prediction is the naive baseline the core beats, and it is biased upward for exactly the men
+        # this rung serves (`est.OLDER_BETA` carries the measurement).
+        value = est.regress(older["fm"], anchor)
+        return est.Estimate(value, presences(older["pv"]), "older", est.older_confidence(back),
                             f"his last measured season is {older['season']} on {older['platform']} "
-                            f"({older['pv']} votes), {back} seasons back")
+                            f"({older['pv']} votes, {older['fm']:.2f}), {back} seasons back - pulled "
+                            f"{int((1 - est.OLDER_BETA) * 100)}% toward {level}")
     return est.Estimate(anchor,
                         presences(None) or est.default_presences(calendar, platform, "unmeasured"),
                         "anchor", est.CONFIDENCE["anchor"], f"nothing measured anywhere: {level}")
@@ -2119,7 +2225,7 @@ PLAYER_COLUMNS: tuple[str, ...] = (
     # are PRE-auction facts and legal to read; wages, which would be the best measure, do not exist in any
     # whitelisted source. The weight they carry in the selection is a PARAMETER, off until the gate speaks.
     "desc_investment_fee", "desc_investment_fee_share", "desc_investment_stature",
-    "desc_market_value", "desc_investment_value_share",
+    "desc_market_value", "desc_investment_value_share", "desc_level_elo",
     # A THIRD class, and the prefix is the whole point: `actual_*` is measured strictly AFTER the auction
     # date. It exists because a BACK-DATED sheet does not need a forecast of who plays - the eleven that was
     # fielded that week exists, and a forecast is only interesting while the outcome is unknown. Reporting
@@ -2155,8 +2261,9 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
     window = window or data.window
     estimation = estimation_layer(conn, window, platform, data.observations)
     left = departures(conn, window, window.auction_date)
-    live_squad = live_squads(conn, window.auction_date)
     provider_known = observed_players(conn)
+    live_squad = complete_squads(live_squads(conn, window.auction_date),
+                                 data.observations, provider_known)
     ranks: dict[int, int] = {}
     for role in {obs.role_classic for obs in data.observations if obs.role_classic}:
         ranked = sorted(
@@ -2336,6 +2443,11 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             # investment hypothesis, and the only one that exists for a man who arrived free.
             "desc_market_value": spend.get("value"),
             "desc_investment_value_share": spend.get("value_share"),
+            # THE LEVEL of the football behind his minutes: the Elo of the club he played them for, and only
+            # for a man who CHANGED club - the population `presence.level_lift` was measured on. Without this
+            # column the adopted channel is switched on and blind: the panel builds its `Inputs` from the
+            # sheet, so a parameter whose input never reaches the row does nothing at all.
+            "desc_level_elo": (obs.elo_prev if obs.club_change else None),
             "desc_investment_stature": spend.get("stature"),
             # AFTER the auction date, reporting only (see PLAYER_COLUMNS): what really happened in the
             # club's first match of the week that followed.
@@ -2752,6 +2864,7 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
               for column in PLAYER_COLUMNS}
     manifest = {
         "generated_at": dt.datetime.now(tz=dt.UTC).isoformat(timespec="seconds"),
+        "sheet_revision": SHEET_REVISION,
         "platform": platform, "game": game,
         "target_season": window.target_season, "input_season": window.input_season,
         "auction_date": window.auction_date,

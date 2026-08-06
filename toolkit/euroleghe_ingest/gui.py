@@ -1816,6 +1816,10 @@ class SnapshotView(ttk.Frame):
         ("mantra", "M", 72, "w", "pill_mantra"),
         ("real", "real", 58, "center", "text"),
         ("name", "Player", 118, "w", "text"),
+        # WHO PLAYS, immediately left of WHAT HE IS WORTH: the two questions the sheet answers, and the
+        # pair an operator has to read together. «Gimenez ha 80 di surplus, Ramos 129 - perché Gimenez è in
+        # campo e Ramos no?» stops being a puzzle when 59% and 31% sit right beside those numbers.
+        ("claim", "claim", 44, "e", "num"),
         ("surplus", "SUR", 44, "e", "num"),
         ("fm", "FM", 38, "e", "num"),
         # Everything to the right is PER MATCHDAY, which is the unit an auction thinks in: a season total
@@ -1890,13 +1894,22 @@ class SnapshotView(ttk.Frame):
                "(R0c) and prices him anyway; on Serie A R0c is not adopted, so there is nothing to fall "
                "back to - measured on this sheet: 283 of 629 rows, 157 + 126.",
         "fm": "GATED. Predicted fantamedia for the season being auctioned, from the adopted rule set "
-              "with parameters fitted on a window that is not this season.",
+              "with parameters fitted on a window that is not this season. A `~` in front means the "
+              "core could not predict him (too few votes here) and the cell shows the ESTIMATE instead, "
+              "penalised by how little is known - the row's tooltip says what it is built from.",
         "pv": "GATED. Predicted appearances as a SHARE of the season: the prediction over the "
               "club's own number of matches (38 in Serie A), because 30 presences mean one thing in "
               "Italy and another in a 34-match Bundesliga.",
         "minutes": "Expected minutes PER MATCHDAY: the projected season minutes over the club's "
                "matches - what he gives you on an average round, cameos and absences included. His own "
                "measured average stands in where there is no projection.",
+        "claim": "WHO THE COACH FIELDS when everyone is fit - his standing, as a share of a season, and "
+                 "the number the schieramento tipo picks by. Minutes over the rounds he was there for "
+                 "(`standing_weights` = minutes, not start rate - measured), weighted by whose season it "
+                 "was: minutes played at another club are evidence about this shirt too, and weaker "
+                 "(ARRIVAL_DISCOUNT). It is deliberately NOT the surplus. Surplus answers «is he worth "
+                 "buying» over a season - it multiplies by expected appearances - and a coach does not "
+                 "pick a side by it, which is why a new signing can be second in SUR and twelfth here.",
         "rating": "Average provider rating over those matches. Not a fantamedia: a 7.0 in Serie B is not "
                "a 7.0 in Serie A, which is why it is reported raw and never converted here.",
         "bonus": "Goals + assists per 90 over the FULL real season (all competitions we scrape), not the "
@@ -3200,7 +3213,16 @@ class SnapshotView(ttk.Frame):
                      else minutes_played / matches if minutes_played else None)
         presences = _number(row.get("engine_pv_pred"), None)
         calendar = self.platform_matchdays() or matches
-        fm = _number(row.get("engine_fm_pred"), None)
+        # THE FM CELL, by the same rule as the surplus below and for the same reason: «se non ci sono
+        # abbastanza valori, mostra la FM stimata con il simbolino "circa" davanti». Under `MIN_PV_PREV`
+        # the core refuses to predict and the cell was empty, so the one number an operator reads a player
+        # by was missing exactly for the men he knows least - and a blank cannot be compared. The estimate
+        # is shown with a `~`, and the SORT KEY is the estimate too: a column that displays one list and
+        # orders by another is the v9.28 defect, and it looked measured.
+        fm_estimated = (row.get("engine_fm_pred") in (None, "")
+                        and row.get("est_fm") not in (None, ""))
+        fm = _number(row.get("est_fm" if fm_estimated else "engine_fm_pred"), None)
+        fm_text = "" if fm is None else (f"~{fm:.1f}" if fm_estimated else f"{fm:.1f}")
         # The GRANULAR real role when we have it ('DL/ML' - which line AND which flank), else the
         # old pair: the modal per-match slot plus a sided Mantra role. Strictly more informative,
         # so it takes the column rather than adding a second one to a sheet already 70 wide.
@@ -3223,6 +3245,7 @@ class SnapshotView(ttk.Frame):
         share = min(presences / calendar, 1) if presences is not None else None
         started = self.voto_share(row) if row.get("desc_season_matches") else None
         rating = _number(row.get("desc_form_rating"), None)
+        claim = self.claim(row, "season")
         missed = 1 - self.availability(row) if row.get("desc_injury_source") else None
         return {
             "role": (row.get("role_classic") or "?", None),
@@ -3230,10 +3253,15 @@ class SnapshotView(ttk.Frame):
             "real": (real or "-", None),
             "name": (row.get("name") or "", None),
             "surplus": (surplus_text, surplus),
-            "fm": (f"{fm:.1f}" if fm is not None else "", fm),
+            "fm": (fm_text, fm),
             "pv": (f"{share:.0%}" if share is not None else "", share),
             "minutes": (f"{per_match:.0f}" if per_match else "", per_match),
             "tit": (f"{started:.0%}" if started is not None else "", started),
+            # THE NUMBER THAT PICKS THE ELEVEN, on the SEASON horizon - the schieramento tipo's own
+            # question, «chi schiera il tecnico quando stanno tutti bene». The next-match board asks a
+            # different one and answers it with `presence('recent')`; showing two claims in one column
+            # would be showing neither.
+            "claim": (f"{claim:.0%}", claim),
             "rating": (row.get("desc_form_rating") or "", rating),
             "bonus": (f"{bonus:.0f}" if bonus >= 0.5 else "", bonus),
             "inj": (f"{missed:.0%}" if missed is not None else "", missed),
@@ -4053,7 +4081,92 @@ class SnapshotView(ttk.Frame):
             fee_share=_number(row.get("desc_investment_fee_share"), None),
             stature=_number(row.get("desc_investment_stature"), None),
             value_share=_number(row.get("desc_investment_value_share"), None),
+            level_z=self.level_z(row),
+            standing_prior=self.standing_prior(),
+            # ...and the two the panel used to leave empty. `fm_z` feeds a channel the gate FALSIFIED, so
+            # it changes nothing today - and that is exactly why it has to be here: a weight the sweep
+            # could turn on and a view that cannot see it is how a parameter ends up adopted and blind,
+            # which happened twice in one session (`level_z`, `standing_prior`).
+            fm_z=self.fm_z(row),
+            cross_league=(row.get("desc_arrival") == "transfer_cross_league"),
         )
+
+    def fm_z(self, row: dict) -> float | None:
+        """His fantamedia relative to his ROLE on this sheet, in standard deviations. None if unmeasured.
+
+        Standardised within the role because a 6.6 from a defender and a 6.6 from a forward are not the
+        same season - the same convention the sweep uses on the window.
+        """
+        fm = _number(row.get("engine_fm_pred"), None)
+        if fm is None:
+            fm = _number(row.get("est_fm"), None)
+        role = row.get("role_classic") or ""
+        if fm is None or not role:
+            return None
+        cache = getattr(self, "_fm_stats", None)
+        if cache is None:
+            cache = {}
+            pools: dict[str, list[float]] = {}
+            for other in (getattr(self, "rows", None) or ()):
+                value = _number(other.get("engine_fm_pred"), None)
+                if value is None:
+                    value = _number(other.get("est_fm"), None)
+                key = other.get("role_classic") or ""
+                if value is not None and key:
+                    pools.setdefault(key, []).append(value)
+            for key, values in pools.items():
+                if len(values) > 1:
+                    mean = sum(values) / len(values)
+                    sd = (sum((v - mean) ** 2 for v in values) / len(values)) ** 0.5
+                    cache[key] = (mean, sd)
+            self._fm_stats = cache
+        stats = cache.get(role)
+        if not stats or not stats[1]:
+            return None
+        return (fm - stats[0]) / stats[1]
+
+    def standing_prior(self) -> float | None:
+        """The sheet's own mean standing, computed with the shrinkage OFF - what a short sample is pulled to.
+
+        Two passes for the same reason the sweep needs them: the prior is a property of the population, and
+        taking it from an already-shrunk one would be circular. Cached per sheet.
+        """
+        cached = getattr(self, "_standing_prior", "unset")
+        if cached != "unset":
+            return cached
+        from dataclasses import replace as _replace
+        self._standing_prior = None                      # breaks the recursion while the pass runs
+        unshrunk = _replace(self.PRESENCE, standing_prior_rounds=0.0)
+        population = getattr(self, "rows", None) or ()
+        levels = [presence.standing(self.presence_inputs(row), unshrunk) for row in population]
+        self._standing_prior = (sum(levels) / len(levels)) if levels else None
+        return self._standing_prior
+
+    def level_z(self, row: dict) -> float | None:
+        """His origin club's Elo in standard deviations, over the movers of THIS sheet. None if he stayed.
+
+        Standardised over the sheet's own population for the same reason the sweep standardises over the
+        window's: the channel's coefficient is in sd, and an sd is a property of a population, not of a
+        number. Cached because it is read once per row and the population does not change while a sheet is
+        open.
+        """
+        elo = _number(row.get("desc_level_elo"), None)
+        if elo is None:
+            return None
+        stats = getattr(self, "_level_stats", None)
+        if stats is None:
+            population = getattr(self, "rows", None) or ()
+            values = [v for v in (_number(other.get("desc_level_elo"), None) for other in population)
+                      if v is not None]
+            if len(values) > 1:
+                mean = sum(values) / len(values)
+                sd = (sum((v - mean) ** 2 for v in values) / len(values)) ** 0.5
+                stats = (mean, sd) if sd > 0 else (mean, 0.0)
+            else:
+                stats = (0.0, 0.0)
+            self._level_stats = stats
+        mean, sd = stats
+        return (elo - mean) / sd if sd else None
 
     def availability(self, row: dict) -> float:
         """The share of a season a man like this one is fit for: 1.0 healthy, less for the injury-prone.
@@ -4187,6 +4300,12 @@ class SnapshotView(ttk.Frame):
         For the NEXT match nothing changes: there the injured and the suspended are excluded outright
         (`eleven`), the editors' probability wins where it exists, and form leads.
         """
+        # ...and a man who has LEFT has no claim to this shirt at all. Zero, not "low": the board already
+        # refuses to field him (`eleven`), and a row that shows 54% next to a ⇥ is the panel contradicting
+        # itself in two columns. The measured history stays in `tit` and `min`, where it is a fact about
+        # last season rather than a claim on this one.
+        if row.get("desc_left_for"):
+            return 0.0
         return self.presence(row, "recent") if horizon == "recent" else self.standing(row)
 
     @staticmethod
@@ -4274,11 +4393,18 @@ class SnapshotView(ttk.Frame):
         horizon = "recent" if mode == "next" else "season"
         # by PRESENCE, the same number the shirt shows: ranking by anything else would draw a starter
         # carrying a percentage below his own alternative's
+        # ...and a man who has LEFT is out of both elevens, which is not the same question as availability:
+        # the typical eleven is «the side with everybody fit», and somebody who plays elsewhere is not in it
+        # at any fitness. The row itself stays at his listone club with its ⇥ - the listone is the game's own
+        # authority on who is in a squad and it is what you buy from - but a squad is a fact about a DAY and
+        # the board draws the day. Safe only because the signal is guarded twice (`snapshot.left_his_club`):
+        # ungated, a thin payload would have benched twelve West Ham players who are really there.
         eligible = sorted(
             (row for row in squad
-             if mode != "next"      # a man who is out cannot play the next match; the tipo eleven can
-             or (not row.get("desc_injury_open")
-                 and row.get("desc_availability_now") not in ("injured", "suspended"))),
+             if not row.get("desc_left_for")
+             and (mode != "next"    # a man who is out cannot play the next match; the tipo eleven can
+                  or (not row.get("desc_injury_open")
+                      and row.get("desc_availability_now") not in ("injured", "suspended")))),
             key=lambda row: (-self.claim(row, horizon), -self.titolarita(row, horizon)[1]))
         rank = {id(row): index for index, row in enumerate(eligible)}
         out: list[tuple[str, dict, list[dict]]] = []

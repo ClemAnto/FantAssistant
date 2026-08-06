@@ -47,6 +47,16 @@ class Params:
     # (always), and being sent away is this club's own judgement of him (only if it had him to send).
     loan_discount: float = 0.60
     arrival_discount: float = 0.80
+    # ...and the same discount for a man arriving from ANOTHER championship, which the data says is a
+    # different event. Residual of next season's start share against his previous minutes, over 2324
+    # player-seasons: stayed **+0.020** (n=1619, se 0.006), bought **−0.047** (n=705, se 0.011) - so the
+    # discount is right and if anything mild. But split by kind: **intra-league −0.057** (n=543) against
+    # **cross-league −0.013** (n=162, within half a sigma of zero). The man bought from abroad is nearly
+    # unbiased; the one bought down the road is the one who pays. Defaults to the SAME value as
+    # `arrival_discount`, so the incumbent is one discount for both and is literally a point of the grid -
+    # a "None means fall back" would have been the same function and not the same object, which is how an
+    # incumbent ends up unrepresentable in its own sweep.
+    arrival_discount_cross: float = 0.80
     # Recency of the injury history: this season, the one before, the one before that.
     injury_weights: tuple[float, ...] = (1.0, 0.6, 0.35)
     # A man is never assumed to miss more than this much of a season: a bad history is a discount, not a
@@ -103,6 +113,43 @@ class Params:
     # largest on the man the coach did not use. It exists because of what killed the other two: «the mechanism
     # is already absorbed by the minutes» - and where the minutes are not informative, nothing absorbs it.
     # The case it was written for is a striker the club paid 13M for and the outgoing coach refused to field.
+    # THE QUALITY CHANNEL, off until the sweep says otherwise. «Un giocatore con SURPLUS maggiore,
+    # nell'arco dell'anno, acquisirà più visibilità agli occhi dell'allenatore e quindi minutaggio» -
+    # the operator, 06/08/2026. Stated on the SURPLUS it would be circular (surplus = FM x predicted
+    # presences, and the presences come from this very standing), so what is swept is the part that is
+    # not: role-relative FANTAMEDIA, in standard deviations, added to the standing.
+    # Measured first, on 1758 (player, season) of Serie A - first half against second, same club, at least
+    # five votes, controlling for the minutes he already played: partial r = +0.100, and the effect is
+    # +1.5 minutes per round per standard deviation (forwards +2.9, r = +0.196; midfield and defence +1.3).
+    # Real, and small: 1.5 of 90 is 0.017 of a season, while a real ballottaggio is a gap ten times that.
+    quality_weight: float = 0.0
+    # THE LEVEL CHANNEL, off until the sweep says otherwise. «Livello più alto puoi intenderlo anche con
+    # Premier > Serie A» - the operator, 06/08/2026, and the data agrees: mean ClubElo is 1807 in the Premier
+    # against 1610 in Serie A. Measured on 700 transfers, controlling for the minutes he played AND for his
+    # fantamedia (so it is LEVEL and not quality in disguise): partial r +0.137 overall, +0.235 for forwards,
+    # +0.040 of start share per +1 sd of Elo (1 sd = 127 points). Gate §7-terdecies.
+    # ADOTTATO 06/08/2026 al valore 0.06 - lo sweep, non una scelta. Serie A: robust PASS, guadagno medio
+    # +0.93% su 6 finestre, il cross-fit sceglie 0.08 in 5 fold su 6. euro: positivo su TUTTE e 4 le
+    # finestre (peggiore +0.05%) e non robust solo perché la media, +0.46%, sta sotto la soglia dello 0.5%.
+    # Entrambe le curve pooled hanno un minimo INTERNO - euro a 0.06, Serie A a 0.08, e risalgono a 0.12 -
+    # che è la condizione che mancava a ogni altro candidato di oggi. 0.06 è l'ottimo di euro e cattura il
+    # 90% del guadagno di Serie A (0.20106 contro 0.20084 al suo 0.08): un valore solo, quasi ottimo su
+    # entrambe, invece di una costante che sarebbe giusta su una piattaforma e sbagliata sull'altra.
+    level_weight: float = 0.06
+    # HOW MUCH OF A SEASON the standing was measured on, as a shrinkage: `m x r/(r+K) + prior x K/(r+K)`,
+    # with r the rounds he was there for. K = 0 is the incumbent (no shrinkage) and there is no meaningful
+    # negative direction - the null IS zero, which is why this grid is one-sided and says so.
+    # MEASURED first (gate §7-quaterdecies, 2195 player-seasons): a standing built on few rounds does not
+    # hold. Error = next season's real start share minus the standing - 3-10 rounds **+0.073**, 11-19
+    # +0.048, 20-28 −0.021, 29-34 −0.027, 35+ −0.008; and isolating the high standings (> 0.55), a short
+    # sample overshoots by **−0.190** against −0.092 for a full one. It cuts both ways, which is why a
+    # shrinkage toward the mean is the right shape rather than a one-sided discount.
+    # ADOTTATO 06/08/2026 a 10 giornate, ed è il verdetto più netto di tutta la sessione: euro **strict E
+    # robust** (guadagno medio +2.82%, peggior fold +1.97%, tutti e quattro scelgono 10), default robust
+    # (+1.96%, ogni fold positivo, cross-fit 10 su tre e 6 su tre). Minimo INTERNO su entrambe le curve, che
+    # risalgono a 15 e 25: euro 0.20023 (K=0) -> 0.19454 (10) -> 0.19907 (25). Un ordine di grandezza sopra
+    # ogni altro canale misurato oggi. Il prior di popolazione esce ~0.46-0.51, cioè mezza stagione.
+    standing_prior_rounds: float = 10.0
     investment_shape: str = "standing"
     # WHICH absences come off the denominator of the start rate:
     #   "measured" - the rounds he actually missed inside the measured season. A fact about the sample.
@@ -158,6 +205,23 @@ class Inputs:
     fee_share: float | None = None
     stature: float | None = None
     value_share: float | None = None
+    # ...and what he SHOWED with the minutes he had: his measured fantamedia relative to his role, in
+    # standard deviations (None = no season to read). Not a valuation and not a forecast - the operator's
+    # hypothesis is that a coach watches, so the thing that has to be in here is what a coach saw.
+    fm_z: float | None = None
+    # ...and the LEVEL of the football those minutes were played at: the Elo of the club he played them for,
+    # in standard deviations, and ONLY for a man who has changed club (None otherwise). Restricted on
+    # purpose - it is the population the coefficient was measured on, and for a man who stayed the term
+    # would silently become "his own club is strong", which is a different claim nobody has measured.
+    level_z: float | None = None
+    # The population's mean standing, which is what a SHORT sample is shrunk toward. Supplied by the caller
+    # (the panel from its sheet, the sweep from its window) because `presence` is dependency-free and an
+    # average is a property of a population, not of a player. None = no prior, no shrinkage.
+    standing_prior: float | None = None
+    # ...and WHAT KIND of arrival he is: True when the club he left plays in another championship. Measured
+    # 06/08/2026 over 2324 player-seasons - the two are not the same event and the model had one discount
+    # for both (gate §7-quindecies).
+    cross_league: bool = False
 
 
 def investment_lift(inputs: Inputs, params: Params = DEFAULTS) -> float:
@@ -184,6 +248,32 @@ def investment_lift(inputs: Inputs, params: Params = DEFAULTS) -> float:
     return lift
 
 
+def quality_lift(inputs: Inputs, params: Params = DEFAULTS) -> float:
+    """How much what he SHOWED should move his standing, in shares of a season. 0.0 when the term is off.
+
+    CENTRED, like the stature channel and for the same reason: the claim has two sides, and «he played
+    well and earned minutes» is the same sentence as «he played badly and lost them». A one-sided version
+    would be a hypothesis that only allows the sign it expects.
+
+    Unknown is not zero: a man with no season to read contributes nothing rather than an average.
+    """
+    if not params.quality_weight or inputs.fm_z is None:
+        return 0.0
+    return params.quality_weight * inputs.fm_z
+
+
+def level_lift(inputs: Inputs, params: Params = DEFAULTS) -> float:
+    """How much the LEVEL of the football behind his minutes should move his standing. 0.0 when off.
+
+    Centred, like the other two: coming from a stronger side lifts, coming from a weaker one pushes down.
+    The same minutes are not the same evidence - a starter at PSG (Elo 1970) and a starter at a mid-table
+    Serie A club (1610) are two different men, and the standing reads them identically today.
+    """
+    if not params.level_weight or inputs.level_z is None:
+        return 0.0
+    return params.level_weight * inputs.level_z
+
+
 def at_club_weight(inputs: Inputs, params: Params = DEFAULTS) -> float:
     """How much of his measured season counts toward THIS club's shirt: 1.0 all of it, less if elsewhere.
 
@@ -200,7 +290,12 @@ def at_club_weight(inputs: Inputs, params: Params = DEFAULTS) -> float:
     total = inputs.minutes_here + inputs.minutes_elsewhere
     if not total:
         return 1.0
-    discount = params.loan_discount if inputs.was_here_before else params.arrival_discount
+    if inputs.was_here_before:
+        discount = params.loan_discount
+    elif inputs.cross_league:
+        discount = params.arrival_discount_cross
+    else:
+        discount = params.arrival_discount
     weight = (inputs.minutes_here + discount * inputs.minutes_elsewhere) / total
     if params.investment_shape == "arrival":
         # The investment closes part of what the discount took away, and only that part: a man whose whole
@@ -289,13 +384,27 @@ def standing(inputs: Inputs, params: Params = DEFAULTS) -> float:
         by_starts, by_minutes = params.standing_weights
         measured = (by_starts * starts
                     + by_minutes * min(inputs.minutes * weight / (rounds * 90.0), 1.0))
+    # The two lifts share the shape because they make the same KIND of claim - something the minutes did
+    # not see should move the standing - and differ only in what they read: what the club paid, and what
+    # the man showed.
+    lift = (investment_lift(inputs, params) + quality_lift(inputs, params)
+            + level_lift(inputs, params))
+    # ...and how much of a season is BEHIND that number. Twelve rounds and thirty-eight say the same thing
+    # with very different confidence, and the standing said them identically.
+    if params.standing_prior_rounds and inputs.standing_prior is not None:
+        share = rounds / (rounds + params.standing_prior_rounds)
+        measured = share * measured + (1.0 - share) * inputs.standing_prior
+
     if params.investment_shape == "standing":
-        return min(max(measured + investment_lift(inputs, params), 0.0), 1.0)
+        return min(max(measured + lift, 0.0), 1.0)
     if params.investment_shape == "unplayed":
         # ...and the CONDITIONAL form: what the minutes could not see, and only that. A man at 1.0 cannot be
         # lifted at all, which is the whole point - his minutes have already said he plays.
-        return min(max(measured + investment_lift(inputs, params) * (1.0 - measured), 0.0), 1.0)
-    return measured
+        return min(max(measured + lift * (1.0 - measured), 0.0), 1.0)
+    # Any other shape ("arrival") applies the INVESTMENT lift of its own, elsewhere - so only the quality
+    # term is added here, and adding `lift` would have double-counted the other one.
+    return min(max(measured + quality_lift(inputs, params)
+                   + level_lift(inputs, params), 0.0), 1.0)
 
 
 def presence(inputs: Inputs, params: Params = DEFAULTS) -> float:
