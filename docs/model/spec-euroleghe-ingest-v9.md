@@ -525,6 +525,25 @@ Dal 15 in poi torna la data pre-registrata e si aggiunge alla serie. La fetch è
 `api.clubelo.com` non risponde (timeout, anche fuori sandbox, mentre altri host rispondono) e il modulo
 salta correttamente senza scrivere nulla: basta rilanciare `elo`.
 
+### 3. Chi legge `club_elo`, verificato sul codice invece che copiato in avanti
+
+Scrivere «cioè ciò su cui poggia…» ha richiesto di sapere chi quella tabella la legga davvero, e la risposta
+ha falsificato una frase che il repository ripeteva da settimane. **Il modulo portieri non legge l'Elo**:
+`predict_fm_goalkeeper` prende il tasso gol subiti da `features.goalkeeper_club_rates`, cioè
+`season_stats.goals_conceded` misurati, e il mix 50/50 persistenza+Elo che `clubelo-gate.md` adottò in Colab
+(M2 → M2e) **non è mai stato portato** — è viaggiato il nome, non la metà Elo. Era già registrato in
+[gate-motore-v1.md](gate-motore-v1.md) §3-quinquies (a) il 27/07/2026, ed è rimasto scritto al contrario nel
+docstring di `elo.py`, nel commento di `ELO_ALIASES`, in `model.py`, nel contratto di `export` e nei test
+fino ad oggi. Nemmeno il coefficiente club-a-club degli arrivi (task 3.2) è implementato: `arrivals.py` non
+nomina l'Elo, e `clubelo-gate.md` stesso archivia 3.2 come non testabile per ora.
+
+Gli usi reali sono **due**: R19 (l'Elo del club di PROVENIENZA, `Observation.elo_prev`, adottata su
+`default` e nel pannello via `presence.level_lift`) e la scheda club. R5/R5b restano ri-punteggiabili dal
+gate, ma la famiglia è chiusa da quattro bocciature. `elo.py` si apre ora con questo elenco, verificato:
+**una tabella deve dire chi la legge**, perché un uso che nessuno controlla è un uso che nessuno può
+correggere. E portare la metà Elo del modulo portieri è una **proposta per il gate** — dieci finestre e due
+piattaforme, non le due del run Colab — non una svista da chiudere in silenzio.
+
 ### Cosa la verifica ha invece confermato sano
 
 - **`probable_starter` vuoto è corretto**: dal 05/08 la pagina probabili non contiene **nessun href** di

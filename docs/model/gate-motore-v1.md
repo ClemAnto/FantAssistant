@@ -430,6 +430,16 @@ Verificato anche un sospetto: il modello portieri M2e **non usa `club_elo`** —
 Elo *non* degradano il baseline dei portieri sulle finestre vecchie. Il commento in `elo.py` che parla
 di un mix 50/50 con l'Elo descrive un'altra implementazione, non quella dell'harness.
 
+> **Chiuso il 07/08/2026, e il ritardo è la lezione.** Il difetto era *diagnosticato* qui da undici giorni
+> e il codice continuava a dichiarare il contrario: il docstring di `elo.py` elencava i portieri fra gli
+> usi **validati** dell'Elo, e con loro il coefficiente club-a-club degli arrivi (task 3.2), che
+> `arrivals.py` non ha mai implementato. Due affermazioni false in testa al modulo che le smentisce.
+> Corretti `elo.py`, `model.py` (il nome M2e resta, con scritto perché), il tooltip della GUI, la
+> `TableSpec` dell'export, il test, la spec, i due README, `stato-progetto-continuita`, la todolist,
+> `clubelo-gate.md` e §21.5 di `assistente-asta-v1.md`. La regola generale: **una verifica che smentisce
+> un commento non è finita finché il commento non lo dice** — scriverlo solo nel gate lascia in giro la
+> versione sbagliata proprio dove la leggerà chi tocca il modulo.
+
 ### (b) Due input non mancavano: non erano stati ricalcolati — e R10 cade
 
 `flags.new_coach` esisteva solo dal 23/24 e `arrivals` solo dal 24/25. **Nessuno dei due richiede una

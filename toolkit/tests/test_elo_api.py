@@ -2,8 +2,10 @@
 
 The alias table is the part worth testing: ClubElo writes 'Bayern', 'Man City', 'Paris SG', and
 without the mapping the API silently leaves the strongest clubs of four leagues without an Elo -
-which is exactly the population the goalkeeper model is about. A miss here is not a crash, it is a
-quietly emptier table, so it gets an assertion.
+which is exactly the population the LEVEL channel exists for, since a man arriving from one of them
+is the case R19 prices (this used to say "the goalkeeper model", which reads measured goals conceded
+and no Elo at all - see the audited reader list at the top of `elo.py`). A miss here is not a crash,
+it is a quietly emptier table, so it gets an assertion.
 """
 
 from __future__ import annotations
