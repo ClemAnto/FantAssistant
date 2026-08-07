@@ -88,7 +88,11 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      Serie A listone's Qt.I and FVM and the EuroLeghe sheet its own, where before both showed whichever
 #      was downloaded last (249 rows, 202 prices and 226 fantavalori apart - Svilar 18/65 against 15/56).
 #      The arrival TIER moves with it, since it is a percentile inside a listone: 82 arrivals of 330 sit
-#      in a different band on the two platforms, and that reaches `engine_pv_pred` through the discount.
+#      in a different band on the two platforms. Where that lands, checked rather than assumed: the
+#      `desc_arrival_tier` column and the sweep's tier arm, and NOWHERE else - `presence`'s arrival
+#      discount keys on whether he crossed a championship, not on the tier, and `evaluate` never reads it.
+#      So `engine_*` is untouched by the tier and moves only where a rule reads a price, i.e. nowhere
+#      adopted (R12/R12b are falsified). What the operator SEES change is the quotation and the tier.
 #   4  07/08/2026 - the probabili are read only for the season being AUCTIONED
 #      (`probable_starter.season`): until now the freshest reading was the last 2025-26 round, so 428 of
 #      648 Serie A rows carried a starting probability of 1.0 taken from line-ups already played, 415

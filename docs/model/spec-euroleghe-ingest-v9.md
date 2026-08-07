@@ -513,7 +513,10 @@ regola adottata legge il prezzo), `SHEET_REVISION` **4 → 5**.
   (5162 righe) — attribuirla adesso sarebbe inventare la provenienza; un tier è **derivato**, quindi le 6687
   righe si buttano e la migrazione **dice cosa ri-derivare**.
 - Il tier è per piattaforma perché è un **percentile dentro un listone**: 82 arrivi su 330 del 2026-27
-  stanno in una fascia diversa sulle due piattaforme.
+  stanno in una fascia diversa sulle due piattaforme. **Dove finisce, verificato e non supposto**: la colonna
+  `desc_arrival_tier` e il braccio tier dello sweep, e da nessun'altra parte — lo sconto d'arrivo di
+  `presence` si basa sull'aver cambiato campionato, non sul tier, e `evaluate` non lo legge affatto. Quindi
+  la migrazione muove ciò che l'operatore VEDE (quotazione e tier) e non `engine_*`.
 
 ### Il backfill: tutta la storia, offline
 
