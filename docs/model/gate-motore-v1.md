@@ -1998,6 +1998,27 @@ sarebbe potuto vedere.
 destinazione è quello del 2025-08-15, perché ClubElo è morto — **il ripiego va lanciato prima di credere a
 questo canale sul foglio di oggi**.
 
+### E come `level_weight` prima di lui, NON salva il caso da cui è nato
+
+Simulato a 0.06 sul foglio del 07/08. Ramos scende di **183 punti Elo** (PSG 1970 → Milan 1787), z **+1.25**,
+e il suo claim va **0.444 → 0.519**: supera Gimenez (0.514) e resta dietro a Pulisic 0.548, Leão 0.615 e
+Rabiot 0.761. In un 3-4-2-1 i posti avanzati sono tre. **Ramos non entra nell'undici.** È esattamente ciò che
+era già successo il 06/08 col canale livello («Ramos guadagna +0.118 di standing... quello che NON fa è
+salvare il caso da cui è nato»), e va scritto due volte perché la tentazione di misurare un canale sul caso
+che lo ha suggerito è quello che il gate esiste per impedire.
+
+Su tutta la Serie A l'effetto è **chirurgico: 2 club su 20, 3 uomini** — coerente con un +0.77%. L'unico
+cambio sul Milan è in difesa ed è **una monetina**: Gila arriva dalla Lazio (1770.6, salto **−17**, z −0.21),
+perde **0.012** e scende a 0.660 contro i 0.662 di Tomori. **Due millesimi.** Non è il modello che afferma
+qualcosa: è il ballottaggio su cui anche le fonti pubbliche si dividono (DAZN e FantaMaster dicono Gabbia,
+Lottomatica dice Tomori, e il foglio euro dice Tomori pure lui). Un cambio deciso da due millesimi va letto
+come rumore, e sapere QUALI cambi sono di quel tipo è metà del valore di una simulazione.
+
+E la conclusione utile per l'auction: **per mettere Ramos titolare servirebbe un segnale che dica «lo hanno
+comprato per fare il centravanti»**, e i due che lo direbbero sono quello escluso dall'operatore (il Qt.I) e
+quello falsificato (la fee). Il salto dice un'altra cosa — «scende di livello» — che è vera, misurata, e vale
++0.075.
+
 ### E una direzione dei documenti che questa misura FALSIFICA
 `CLAUDE.md` proponeva che il segnale che avrebbe visto Ramos e Kolo Muani fosse **il FEE**. Misurato oggi
 sulla popolazione, **non separa**: nella fascia di minuti di Ramos, fee mediana 6.5 M → residuo +0.074, fee
