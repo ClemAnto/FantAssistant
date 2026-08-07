@@ -1,6 +1,6 @@
 # Todolist — Allineamento Mantra & EuroLeghe (v5)
 
-## Aperti alla chiusura del 7 agosto 2026 (notte, 4) — nessuno con scadenza
+## Aperti alla chiusura dell'8 agosto 2026 — nessuno con scadenza
 
 Ordinati per COSTO, non per importanza: prima ciò che non dipende da noi, poi il lavoro misurato, poi le
 decisioni. I quattro difetti del pomeriggio sono chiusi (spec «Novità v9.32» e «v9.33») e i due della notte
@@ -147,15 +147,34 @@ pure (spec «Novità v9.34»): il SURPLUS mantra che era il VALORE, e `club_elo`
    `league_matches` separati. Resta una colonna del foglio esportato che un umano legge sbagliata. Correggere
    il denominatore **o togliere la colonna**: muove un valore che il foglio PORTA, quindi vuole un
    `SHEET_REVISION` e una rigenerazione, e non muove niente di calcolato.
-7. ⭐ **IL PROSSIMO LAVORO CON LA LEVA PIÙ ALTA — il modulo del tabellone è quello del PREDECESSORE, su
-   8 club di 20.** Misurato il 07/08 ricalcolando tutte e venti le formazioni tipo: **Atalanta** (Sarri),
-   **Bologna** (Tedesco), **Fiorentina** (Grosso), **Lazio** (Gattuso), **Milan** (Amorim), **Napoli**
-   (Allegri), **Sassuolo** (Aquilani), **Torino** (Abate). Il 40% del campionato è disegnato con la forma di
-   un allenatore che non c'è più. Il dato per correggerlo **è già nel foglio**: `coach_shapes` porta i 45
-   undici in 3-4-3 di Amorim, e `formation_typical_basis` dice da solo «0 of 38 XIs under this coach» —
-   `_shape_for` ritorna comunque `formation_typical` e lo dichiara in didascalia invece di usarlo. Attenzione
-   a una cosa sola: `SHAPE_TRUST_*` mescola già club e allenatore per il PRIOR delle presenze, quindi la
-   regola qui deve essere quella e non una seconda scritta a mano.
+7. ~~⭐ **IL PROSSIMO LAVORO CON LA LEVA PIÙ ALTA — il modulo del tabellone è quello del PREDECESSORE, su
+   8 club di 20**~~ — **LA DIAGNOSI ERA FALSA, e il difetto sotto è stato trovato e chiuso l'08/08.**
+   La misura del 07/08 leggeva la COLONNA `formation_typical` del foglio, non quello che il board disegna:
+   `_shape_for` **non esiste nel codice**, e `board_shape` → `shape_odds` mescola già quattro sorgenti
+   compresa `coach_shapes` dal **04/08** (commit `4d979c3`, con verdetto misurato 8/17 → 9/17 sulle
+   previsioni della stagione che si asta). Ricontrollato sulla funzione vera: dei presunti 8, **tre erano
+   già corretti** — Atalanta disegna il 4-3-3 di Sarri (52% contro 37%), Milan il 3-4-3 di Amorim, Napoli
+   il 3-5-2 di Allegri — e i restanti cinque tenevano l'abitudine del club **per progetto**, perché il
+   campione del nuovo allenatore era 1-3 undici. *Lezione, ed è la stessa che è costata due volte in due
+   giorni: si verifica la FUNZIONE, non la colonna che le somiglia.*
+   **Ma cercando la conferma è saltato fuori il difetto vero, un livello sotto**: `coach_repertoire`
+   joinava `club_match_lineups.club` — la stringa scritta dal parser, «AC Milan», «RB Leipzig», «SSC
+   Napoli» — a `clubs.canonical_name` con `=`. **13.830 undici completi su 24.042 stanno sotto una stringa
+   che non è un nome canonico**, e il costo cadeva dove il canale decide: **Gattuso 2 → 79** undici,
+   **Tedesco 3 → 28**, **Spalletti 31 → 107**, e Simeone, Flick, Kompany, Pellegrini, Hütter, Genesio,
+   Mourinho da **zero o uno** a carriere intere. Tre allenatori stavano sotto `COACH_SHAPE_MIN` col
+   campione vero molto sopra. Quarta istanza di «un'entità si joina per CHIAVE CANONICA, mai per la
+   stringa con cui una fonte la nomina», e la più a buon mercato da evitare: `club_context` aveva già
+   `lineup_spellings` in mano per le forme del club e non lo passava di là.
+   **Effetto misurato**: Serie A **0 board su 20** (i cinque casi restano sotto soglia o concordano),
+   **euro 3 su 35** — Chelsea 4-5-1 → **3-4-3** (Xabi Alonso, 20 → 114 undici), Eintracht 4-5-1 →
+   **3-4-3** (Hütter, 0 → 119), Real Madrid 4-4-2 → **4-5-1** (Mourinho, 1 → 155). `SHEET_REVISION` 8.
+   ⚠️ Cade anche una frase del commento: «Iraola a zero perché la sua carriera sta fuori dai cinque
+   campionati» era il join, non la carriera — il Bournemouth è in Premier e sono 115 undici. Restano
+   davvero fuori solo Filipe Luís, Carles Martínez, Demichelis e Davide Ancelotti (2 ciascuno).
+   ⚠️ `COACH_SHAPE_MIN`/`FULL` (20/60) sono stati tarati sui campioni SBAGLIATI: la ragione della soglia
+   regge (con n = 2 la moda è rumore), i numeri vanno rivisti al prossimo giro con la referenza esterna,
+   che però non è nel repo.
 8. **Il POSTO LASCIATO LIBERO — mai misurato, ed è l'unica strada rimasta con contenuto** per marcare gli
    acquisti da titolare: il club ha venduto o perso il titolare di quel ruolo? È un **fatto**, non un
    giudizio, quindi vince per la regola del 04/08 su qualunque segnale di prezzo. Dopo che il Qt.I è stato

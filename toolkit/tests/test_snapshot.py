@@ -1898,6 +1898,48 @@ def test_a_man_measured_only_elsewhere_competes_for_a_shirt_and_pays_for_being_e
     assert presence.standing(season, panel) == presence.standing(season, presence.DEFAULTS)
 
 
+def test_a_coach_keeps_the_elevens_his_club_is_spelled_differently_in(tmp_path):
+    """A coach's repertoire joined the line-ups on a club NAME, and lost 26% of every career.
+
+    `club_match_lineups.club` is what the parser wrote ('AC Milan', 'RB Leipzig', 'SSC Napoli'), and
+    `clubs.canonical_name` is ours ('Milan') - so `=` silently dropped every eleven of every club whose two
+    spellings differ. Measured on 08/08/2026: **13.830 complete elevens of 24.042 sat under a string that
+    is not a canonical name**, and it cost the repertoires where they decide - Gattuso came back with 2
+    elevens and has 79, Tedesco 3 of 28, Spalletti 31 of 107, and Simeone, Flick, Kompany, Pellegrini,
+    Hütter, Genesio and Mourinho read ZERO or ONE against full careers. Three coaches under
+    `COACH_SHAPE_MIN` whose real sample is far above it means the board drew the PREDECESSOR's shape at
+    exactly the clubs `coach_shapes` exists to fix (euro: 3 boards moved once resolved).
+
+    Fourth instance of «an entity joins through its CANONICAL KEY, never through the string a source uses
+    to name it», and the cheapest to have avoided: `club_context` was already holding `lineup_spellings`
+    for the club's own shapes.
+    """
+    ctx = _ctx(tmp_path)
+    conn = ctx.conn
+    conn.execute("INSERT INTO clubs(fc_club_id, canonical_name, league) VALUES (10, 'Milan', 'serie_a')")
+    conn.execute("INSERT INTO coaches(fc_club_id, coach_name, valid_from, valid_to) "
+                 "VALUES (10, 'Allegri', '2024-07-01', NULL)")
+    for match_id, date, club, lines in (("m1", "2025-05-01", "AC Milan", (1, 3, 4, 3)),
+                                        ("m2", "2025-05-08", "AC Milan", (1, 3, 4, 3)),
+                                        ("m3", "2025-05-15", "Milan", (1, 3, 5, 2))):
+        conn.execute(
+            "INSERT INTO club_match_lineups(season, source, match_id, club, competition, match_date, "
+            "starters, goalkeepers, defenders, midfielders, forwards) "
+            "VALUES ('2024-25', 'sofascore', ?, ?, 'serie_a', ?, 11, ?, ?, ?, ?)",
+            (match_id, club, date, *lines))
+    conn.commit()
+
+    text, total = snapshot.coach_repertoire(conn, "Allegri")
+    assert total == 3, f"the provider's spelling is the same club: {text}"
+    assert text.startswith("3-4-3:2"), text
+    # ...and the cut-off date still bounds it, so a back-dated sheet cannot read tomorrow's eleven
+    assert snapshot.coach_repertoire(conn, "Allegri", "2025-05-10")[1] == 2
+    # a spell that does not cover the match contributes nothing - the window is not decoration
+    conn.execute("UPDATE coaches SET valid_to = '2025-05-02'")
+    conn.commit()
+    assert snapshot.coach_repertoire(conn, "Allegri")[1] == 1
+
+
 def test_a_ten_match_window_is_shrunk_on_its_ten_matches_like_any_other_short_sample():
     """The shortest sample the panel ever builds a standing from was the only one exempt from the shrinkage.
 

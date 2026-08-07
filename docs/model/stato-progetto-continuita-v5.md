@@ -1,5 +1,5 @@
 # Stato progetto & continuità — v5
-**Aggiornato: 7 agosto 2026 (notte, 4 — l'ELO personale falsificato anche ristretto; due denominatori corretti fanno entrare Ramos e Atta negli undici)**
+**Aggiornato: 8 agosto 2026 (il repertorio dell'allenatore joinava per NOME: 13.830 undici su 24.042 non arrivavano)**
 Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da qui + i file della cartella "Modello Previsionale Fantacalcio".
 *Glossario: T1/T2 = finestre di test (23/24->24/25, 24/25->25/26) · MAE = errore medio assoluto · cross-fitted = parametri stimati su una finestra, testati sull'altra · M2e = modello portieri decomposto (abilità + tasso gol subiti del club; la metà Elo del nome non è nel motore) · Pv_att = presenze attese · fc_id = id fantacalcio.it · EV = valore atteso · scoring_config = punteggi configurabili per lega · xG/xA = expected goals/assists · 2.5 pieno = backtest motore completo con flag.*
 
@@ -7,6 +7,23 @@ Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da q
 App per leghe EuroLeghe/fantacalcio.it (Classic+Mantra, 5 campionati) con motore previsionale. Metodo: ogni regola entra SOLO se batte il baseline fuori campione su finestre indipendenti (gate pre-registrato). Doc madre: modello-previsionale-v3.8.md.
 
 ## ⚠️ Lo stato corrente è in `00-BRIDGE-punto-di-ingresso.md`, blocco «STATO AL 5 AGOSTO 2026»
+
+### 8 agosto 2026, in una riga: «applica coach_shapes» — era già applicato, e sotto c'era un join per NOME
+
+Dettaglio nella spec **«Novità v9.38»**. **329 test**, `SHEET_REVISION` **8**, fogli e bundle rigenerati.
+
+La diagnosi del giorno prima («8 club su 20 disegnati col modulo del predecessore») era **falsa**: leggeva la
+colonna `formation_typical` invece di `board_shape`, e `coach_shapes` entra in `shape_odds` dal 04/08. Tre
+degli otto erano già corretti, cinque tenevano l'abitudine del club per progetto (campione del nuovo
+allenatore: 1-3 undici). **Si verifica la FUNZIONE, non la colonna che le somiglia** — seconda volta in due
+giorni, dopo il `claim` calcolato contro il calendario sbagliato.
+
+Il difetto vero stava sotto: `coach_repertoire` joinava `club_match_lineups.club` (la stringa del parser) a
+`clubs.canonical_name` con `=`. **13.830 undici su 24.042** stanno sotto una stringa non canonica, e il costo
+cadeva dove il canale decide: **Gattuso 2 → 79**, **Tedesco 3 → 28**, **Spalletti 31 → 107**, e Simeone,
+Flick, Kompany, Pellegrini, Hütter, Genesio, Mourinho da zero o uno a carriere intere. Quarta istanza della
+stessa regola. **Effetto**: Serie A 0 board su 20, **euro 3 su 35** (Chelsea e Eintracht → 3-4-3, Real
+Madrid → 4-5-1).
 
 ### 7 agosto 2026 (notte, 4), in una riga: l'ELO personale NON fa entrare gli acquisti negli undici — due denominatori sbagliati sì
 

@@ -495,6 +495,50 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.38 (8 agosto 2026 — il repertorio dell'allenatore joinava per NOME, e perdeva il 26% degli undici)
+
+Richiesta dell'operatore: «applica `coach_shapes`». **Era già applicato** — entra in `shape_odds` dal 04/08
+(v9.18) — e la diagnosi che lo diceva mancante leggeva la colonna `formation_typical` del foglio invece di
+`board_shape`, che è la funzione che decide cosa si disegna. Dei presunti «8 club col modulo del
+predecessore», tre erano già corretti (Atalanta il 4-3-3 di Sarri, Milan il 3-4-3 di Amorim, Napoli il 3-5-2
+di Allegri) e cinque tenevano l'abitudine del club per progetto, con il campione del nuovo allenatore a 1-3
+undici. **Si verifica la FUNZIONE, non la colonna che le somiglia.**
+
+**Il difetto vero stava un livello sotto.** `coach_repertoire` joinava `club_match_lineups.club` — la
+stringa che il parser ha scritto, «AC Milan», «RB Leipzig», «SSC Napoli» — a `clubs.canonical_name` con `=`.
+Misurato: **13.830 undici completi su 24.042** stanno sotto una stringa che non è un nome canonico, e il
+costo cadeva dove il canale decide:
+
+| allenatore | undici prima | dopo | moda |
+|---|---:|---:|---|
+| Gattuso (Lazio) | **2** | **79** | 4-5-1 37 / 4-3-3 35 |
+| Tedesco (Bologna) | 3 | 28 | 3-4-3 18 |
+| Spalletti (Juventus) | 31 | 107 | 4-3-3 48 |
+| Allegri (Napoli) | 112 | 152 | 3-5-2 94 |
+| Mourinho (Real) | 1 | 155 | 4-5-1 |
+| Simeone, Flick, Kompany, Pellegrini, Hütter, Genesio | **0** | 85-282 | — |
+
+Tre allenatori stavano sotto `COACH_SHAPE_MIN` = 20 con il campione vero molto sopra, cioè il board
+disegnava il predecessore **proprio ai club per cui `coach_shapes` esiste**. Quarta istanza di «un'entità si
+joina per CHIAVE CANONICA, mai per la stringa con cui una fonte la nomina», e la più a buon mercato da
+evitare: `club_context` aveva già `lineup_spellings` in mano per le forme del CLUB e non lo passava di là.
+
+Curato in `coach_repertoires` — **una passata sola** per tutti gli allenatori, il club risolto da
+`club_index` su entrambi i lati, la mappa calcolata dal chiamante che il ciclo ce l'ha già (niente cache
+tenuta su `id(conn)`: uno stato che nessuno vede, e un test che deve svuotarlo è l'avvertimento che ci
+arriva insieme). Un undici è contato **una volta** anche dove due spell si sovrappongono; il vecchio join
+lo contava per spell.
+
+**Effetto misurato**: Serie A **0 board su 20** — i cinque casi restanti restano sotto soglia o concordano
+con l'abitudine del club — **euro 3 su 35**: Chelsea 4-5-1 → **3-4-3** (Xabi Alonso, 20 → 114 undici),
+Eintracht 4-5-1 → **3-4-3** (Hütter, 0 → 119), Real Madrid 4-4-2 → **4-5-1** (Mourinho, 1 → 155).
+`SHEET_REVISION` **8**. Cade anche una frase del commento di v9.18: «Iraola a zero perché la sua carriera
+sta fuori dai cinque campionati» era il join e non la carriera (Bournemouth è in Premier, 115 undici).
+Restano davvero fuori solo Filipe Luís, Carles Martínez, Demichelis e Davide Ancelotti, 2 undici a testa.
+⚠️ `COACH_SHAPE_MIN`/`COACH_SHAPE_FULL` = 20/60 sono stati tarati sui campioni sbagliati: la ragione della
+soglia regge (con n = 2 la moda è rumore), i valori vanno rimisurati quando ci sarà di nuovo una referenza
+esterna sulla stagione che si asta.
+
 ## Novità v9.37 (7 agosto 2026, notte — due difetti tenevano fuori dagli undici gli acquisti, e non era il livello)
 
 Richiesta dell'operatore: **«utilizziamo il nuovo parametro ELO PERSONALE per valutare i nuovi acquisti in

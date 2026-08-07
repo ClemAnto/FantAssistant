@@ -156,6 +156,26 @@ own verdict does not, and cannot be used to adopt it.
   and a name that stops being a `clubs` row does not stop being what a source SAID (`Eintracht Francoforte`
   is still in 1210 `match_ratings.team` rows), so `club_index` indexes the alias keys too — otherwise the
   cure trades three split clubs for three unreadable spellings.
+  **Fourth instance, 08/08/2026, and the cheapest to have avoided.** `coach_repertoire` joined
+  `club_match_lineups.club` — the string the parser wrote, `AC Milan`, `RB Leipzig`, `SSC Napoli` — to
+  `clubs.canonical_name` with `=`: **13,830 complete elevens of 24,042** sit under a string that is not a
+  canonical name. It cost the coaches' repertoires where the channel decides — Gattuso came back with **2**
+  elevens and has **79**, Tedesco 3 of 28, Spalletti 31 of 107, and Simeone, Flick, Kompany, Pellegrini,
+  Hütter, Genesio, Mourinho read zero or one against full careers — so three coaches sat under
+  `COACH_SHAPE_MIN` while their real sample was far above it, and the board drew the PREDECESSOR's shape at
+  exactly the clubs `coach_shapes` exists for (euro: 3 boards of 35 move once resolved; Serie A: 0 of 20).
+  The enclosing function was already holding the resolver (`lineup_spellings`) for the club's own shapes.
+  Two things travel with it: a claim like «Iraola has zero elevens because his career is outside our five
+  leagues» was the join and not the career (Bournemouth is in the Premier: 115), so **a defect explains
+  itself with a plausible story if you let it**; and the threshold calibrated on the broken samples
+  (`COACH_SHAPE_MIN`/`FULL`) is now quoting numbers nobody has re-measured, which is stated rather than
+  quietly kept.
+- **Verify the FUNCTION, not the column that looks like it** (08/08/2026, twice in two days). «8 clubs of 20
+  are drawn with the predecessor's module» was measured on the sheet's `formation_typical` column while the
+  board draws `board_shape`, which had been blending `coach_shapes` for three days — three of the eight were
+  already right, and the audit named a function (`_shape_for`) that does not exist. Same shape as the claim
+  that a man «is simply not a starter», measured on a `claim` computed against the wrong calendar. Both cost
+  an afternoon and both would have been caught by calling the function once.
 - **Full-season propensity**: the euro calendar is a *subset* of a player's real matches, so propensity
   (goals/assists/xG per 90) is computed over the FULL real season while the FM/Mv target stays on `euro`.
   Serie A: from `default`. Other 4 leagues: from **FBref** (facts) + **Sofascore** (rating + heatmaps),

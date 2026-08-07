@@ -1,5 +1,5 @@
 # 00 — BRIDGE · Punto d'ingresso del progetto (leggere per primo)
-**Aggiornato: 7 agosto 2026 (notte, 4 — l'ELO personale non fa entrare gli acquisti negli undici: due denominatori sbagliati sì)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
+**Aggiornato: 8 agosto 2026 (`coach_shapes` era gia' applicato: sotto c'era un join per NOME che toglieva il 26% degli undici a ogni allenatore)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
 
 ## Il progetto in breve
 Motore previsionale per fantacalcio **EuroLeghe** (fantacalcio.it): valutazione calciatori Classic e Mantra sui 5 grandi campionati europei (Serie A, Premier, Liga, Bundesliga, Ligue 1 — perimetro: i ~35 top club del gioco). Prevede fantamedia (FM), presenze attese e VALORE stagionale = FM × presenze. Metodo scientifico: **ogni regola entra nel motore solo se batte il baseline fuori campione su finestre indipendenti** (gate pre-registrato). Stato: core validato (Mantra, Classic, portieri, presenze); manca lo strato flag/arrivi, sbloccato dal toolkit dati `euroleghe-ingest` (in implementazione).
@@ -29,7 +29,33 @@ la pagina delle probabili non basta e quali vincoli valgono già oggi.
 
 Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
 
-### ULTIMO IN ORDINE DI TEMPO — 7/08/2026 (notte, 4): l'ELO personale non li fa entrare negli undici, DUE DIFETTI sì
+### ULTIMO IN ORDINE DI TEMPO — 8/08/2026: «applica coach_shapes» — era già applicato, e sotto c'era un join sbagliato
+
+Richiesta dell'operatore dopo aver visto le formazioni tipo. **Verificato prima di eseguire, e la diagnosi
+del giorno prima era FALSA**: `coach_shapes` entra in `shape_odds` dal **04/08** (commit `4d979c3`, verdetto
+misurato 8/17 → 9/17), `_shape_for` **non esiste nel codice**, e la misura che accusava gli «8 club col
+modulo del predecessore» leggeva la COLONNA `formation_typical` invece della funzione che disegna. Dei
+presunti 8, **tre erano già corretti** (Atalanta il 4-3-3 di Sarri, Milan il 3-4-3 di Amorim, Napoli il 3-5-2
+di Allegri) e cinque tenevano l'abitudine del club **per progetto**, col campione del nuovo allenatore a 1-3
+undici. **Si verifica la FUNZIONE, non la colonna che le somiglia** — seconda volta in due giorni.
+
+**MA cercando la conferma è saltato fuori il difetto vero, un livello sotto**: `coach_repertoire` joinava
+`club_match_lineups.club` — la stringa del parser, «AC Milan», «RB Leipzig», «SSC Napoli» — a
+`clubs.canonical_name` con `=`. **13.830 undici completi su 24.042** stanno sotto una stringa che non è un
+nome canonico, e il costo cadeva esattamente dove il canale decide: **Gattuso 2 → 79** undici, **Tedesco
+3 → 28**, **Spalletti 31 → 107**, e Simeone, Flick, Kompany, Pellegrini, Hütter, Genesio, Mourinho da zero
+o uno a carriere intere. Tre allenatori sotto `COACH_SHAPE_MIN` col campione vero molto sopra. **Quarta
+istanza** di «un'entità si joina per CHIAVE CANONICA, mai per la stringa con cui una fonte la nomina», e la
+più a buon mercato da evitare: `club_context` aveva già `lineup_spellings` in mano per le forme del club.
+
+**Effetto**: Serie A **0 board su 20**, **euro 3 su 35** — Chelsea 4-5-1 → 3-4-3 (Xabi Alonso 20 → 114
+undici), Eintracht 4-5-1 → 3-4-3 (Hütter 0 → 119), Real Madrid 4-4-2 → 4-5-1 (Mourinho 1 → 155).
+`SHEET_REVISION` **8**, entrambi i fogli e il bundle rigenerati, 329 test. Cade anche una riga di commento:
+«Iraola a zero perché la sua carriera sta fuori dai cinque campionati» era il join e non la carriera (il
+Bournemouth è in Premier: 115 undici). ⚠️ `COACH_SHAPE_MIN`/`FULL` = 20/60 sono stati tarati sui campioni
+sbagliati: la ragione della soglia regge, i numeri vanno rivisti quando ci sarà di nuovo una referenza esterna.
+
+### 7/08/2026 (notte, 4): l'ELO personale non li fa entrare negli undici, DUE DIFETTI sì
 
 Richiesta dell'operatore: **usare l'ELO personale per valutare i nuovi acquisti, così che Ramos, Kolo Muani e
 Atta rientrino negli 11**. Portato allo sweep una seconda volta — **ristretto agli acquisti**, che è la

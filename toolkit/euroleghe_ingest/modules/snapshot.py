@@ -117,7 +117,12 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      CHAMPIONSHIP» (v9.11) broken for exactly the men it was written for, and it kept him out of the
 #      typical eleven by 0.013 of claim. No `engine_*` column moves - the engine's presences are R13's,
 #      not `presence`'s - but the CLAIM the board ranks by does, on 2 clubs of 20.
-SHEET_REVISION = 7
+#   8  08/08/2026 - `coach_shapes` joined the line-ups to `clubs` ON A NAME, so a coach's own repertoire
+#      was missing 26% of his elevens and missing them where it decides: Gattuso came back with 2 elevens
+#      and has 79, Tedesco 3 of 28, Spalletti 31 of 107. Three coaches sat under `COACH_SHAPE_MIN` while
+#      their real sample was well over it, which is the board drawing the PREDECESSOR's shape at exactly
+#      the clubs `coach_shapes` exists for. Resolved through `club_index` like every other club join.
+SHEET_REVISION = 8
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
@@ -1847,7 +1852,8 @@ def preseason_starts(conn, season: str, coach_since: str | None = None) -> dict[
     return {fc_id: (int(started or 0), int(matches or 0)) for fc_id, started, matches in rows}
 
 
-def coach_repertoire(conn, coach: str | None, before: str | None = None) -> tuple[str, int]:
+def coach_repertoire(conn, coach: str | None, before: str | None = None,
+                     repertoires: dict[str, dict[str, int]] | None = None) -> tuple[str, int]:
     """({shape: count} as "4-3-3:162;4-4-2:20", how many elevens) — what THIS COACH lines up in, anywhere.
 
     The third source of a shape, and the one that was missing. A club's own history answers «what does this
@@ -1861,27 +1867,66 @@ def coach_repertoire(conn, coach: str | None, before: str | None = None) -> tupl
     throw away the seasons that make the sample big enough to mean something.
 
     The sample is what decides whether it may be used, and it is wildly uneven, which is why the count is
-    returned with it: Sarri 188 elevens (4-3-3 at 86%), Maresca 57 (4-5-1 98%), Amorim 47 (3-4-3 96%),
-    Allegri 112 (3-5-2, only 53% - a coach who is genuinely shape-fluid) against Tedesco 3, Gattuso 2,
-    Mourinho 1, and Iraola / Filipe Luís / Carles Martínez at **zero**, because their careers were spent
-    outside the five leagues we cover. A floor is not optional: with n = 2 the mode is noise, and it would
-    replace a club habit that is already right.
+    returned with it: Gasperini 271 elevens, Sarri 188 (4-3-3 at 86%), Allegri 152 (3-5-2 at 62% - a coach
+    who is genuinely shape-fluid), Spalletti 107, against Aquilani 1 and Abate 2, and Iraola / Filipe Luís /
+    Carles Martínez at **zero**, because their careers were spent outside the five leagues we cover. A floor
+    is not optional: with n = 2 the mode is noise, and it would replace a club habit that is already right.
+
+    THE CLUB IS RESOLVED THROUGH THE CANONICAL INDEX, and it was not (fixed 08/08/2026). This joined
+    `club_match_lineups.club` - a string the parser wrote, 'AC Milan', 'RB Leipzig', 'SSC Napoli' - to
+    `clubs.canonical_name` with `=`, which is the join this project has now paid for four times («an entity
+    joins through its CANONICAL KEY, never through the string a source uses to name it»). It cost the
+    repertoires 26% of their elevens and it cost them WHERE IT DECIDES: Gattuso came back with **2** elevens
+    and has **79**, Tedesco with 3 of 28, Spalletti with 31 of 107 - i.e. three coaches sat under
+    `COACH_SHAPE_MIN` or read the wrong mode while their real sample was well over it, so the board kept
+    drawing the predecessor's shape for the very clubs this function exists for. The irony worth recording:
+    `club_context` had `lineup_spellings` in its hand for the club's OWN shapes and did not pass it here.
+
+    One pass over the line-ups for EVERY coach (`coach_repertoires`) rather than one query each, because
+    resolving a name is Python's job and 24k elevens scanned 35 times is not. `repertoires` is that pass,
+    handed in by a caller with a loop over clubs; without it this computes its own, which is what a single
+    call wants. An eleven is counted ONCE even where two spells overlap - the old SQL join counted it per
+    matching spell.
     """
     if not coach:
         return "", 0
-    rows = conn.execute(
-        """SELECT l.defenders, l.midfielders, l.forwards, COUNT(*)
-           FROM club_match_lineups l
-           JOIN clubs c ON c.canonical_name = l.club
-           JOIN coaches h ON h.fc_club_id = c.fc_club_id AND h.coach_name = ?
-           WHERE l.starters = 11 AND l.match_date IS NOT NULL
-             AND l.goalkeepers + l.defenders + l.midfielders + l.forwards = 11
-             AND l.match_date >= COALESCE(h.valid_from, '0000')
-             AND l.match_date <= COALESCE(h.valid_to, '9999')
-             AND (? IS NULL OR l.match_date < ?)
-           GROUP BY 1, 2, 3 ORDER BY 4 DESC""", (coach, before, before)).fetchall()
-    total = sum(count for *_shape, count in rows)
-    return (";".join(f"{d}-{m}-{f}:{count}" for d, m, f, count in rows), total)
+    table = repertoires if repertoires is not None else coach_repertoires(conn, before)
+    shapes = table.get(coach) or {}
+    rows = sorted(shapes.items(), key=lambda item: -item[1])
+    return (";".join(f"{shape}:{count}" for shape, count in rows), sum(shapes.values()))
+
+
+def coach_repertoires(conn, before: str | None = None) -> dict[str, dict[str, int]]:
+    """{coach: {shape: how many elevens}} for every coach we have a spell for. ONE pass, no hidden state.
+
+    The club is resolved through `club_index` on both sides - the coach's spells name it our way, the
+    line-ups name it the provider's. Computed once by whoever loops over clubs and passed down, rather than
+    memoised here: a cache keyed on a connection is state nobody can see, and a test that has to clear it is
+    the warning that comes with it.
+    """
+    resolve = club_index(conn)
+    spells: dict[str, list[tuple[str, str, str]]] = {}
+    for coach, name, valid_from, valid_to in conn.execute(
+            """SELECT h.coach_name, c.canonical_name, h.valid_from, h.valid_to FROM coaches h
+               JOIN clubs c USING(fc_club_id) WHERE c.canonical_name IS NOT NULL"""):
+        key, _name = resolve(name)
+        if key and coach:
+            spells.setdefault(key, []).append((coach, valid_from or "0000", valid_to or "9999"))
+    out: dict[str, dict[str, int]] = {}
+    for club, defenders, midfielders, forwards, date in conn.execute(
+            """SELECT club, defenders, midfielders, forwards, match_date FROM club_match_lineups
+               WHERE starters = 11 AND match_date IS NOT NULL
+                 AND goalkeepers + defenders + midfielders + forwards = 11"""):
+        if before and date >= before:
+            continue
+        key, _name = resolve(club or "")
+        for coach, valid_from, valid_to in spells.get(key or "", ()):
+            if valid_from <= date <= valid_to:
+                shape = f"{defenders}-{midfielders}-{forwards}"
+                shapes = out.setdefault(coach, {})
+                shapes[shape] = shapes.get(shape, 0) + 1
+                break
+    return out
 
 
 # The positional heatmap says WHERE across the pitch a player stood, but not which touchline y=0 is on.
@@ -2047,6 +2092,9 @@ def club_context(conn, data: features.WindowData, starters_date: str | None,
     window = data.window
     resolve = club_index(conn)
     spellings = lineup_spellings(conn, resolve)
+    # Every coach's own repertoire, in ONE pass - the club resolved by key, never by spelling. Computed
+    # here because the loop below asks for it once per club and the answer is the same table every time.
+    repertoires = coach_repertoires(conn, before)
     formations: dict[str, str] = {}
     if starters_date:
         formations = {team: formation for team, formation in conn.execute(
@@ -2086,7 +2134,8 @@ def club_context(conn, data: features.WindowData, starters_date: str | None,
         # on, and shadowing it fed a NamedTuple to the next query as a season.
         shapes = typical_formation(conn, mine, season, coach_since, before)
         typical, share, counted, basis = shapes.shape, shapes.share, shapes.counted, shapes.basis
-        coach_shapes, coach_shapes_of = coach_repertoire(conn, coach[0] if coach else None, before)
+        coach_shapes, coach_shapes_of = coach_repertoire(
+            conn, coach[0] if coach else None, before, repertoires)
         arrivals = conn.execute(
             """SELECT COUNT(*) FROM arrivals a JOIN rosters r
                ON r.fc_id = a.fc_id AND r.season = a.season
