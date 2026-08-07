@@ -1,5 +1,5 @@
 # 00 — BRIDGE · Punto d'ingresso del progetto (leggere per primo)
-**Aggiornato: 7 agosto 2026 (quattro difetti trovati aggiornando i dati, tutti e quattro chiusi: l'ultimo con la migrazione della quotazione per piattaforma)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
+**Aggiornato: 7 agosto 2026 (notte, 4 — l'ELO personale non fa entrare gli acquisti negli undici: due denominatori sbagliati sì)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
 
 ## Il progetto in breve
 Motore previsionale per fantacalcio **EuroLeghe** (fantacalcio.it): valutazione calciatori Classic e Mantra sui 5 grandi campionati europei (Serie A, Premier, Liga, Bundesliga, Ligue 1 — perimetro: i ~35 top club del gioco). Prevede fantamedia (FM), presenze attese e VALORE stagionale = FM × presenze. Metodo scientifico: **ogni regola entra nel motore solo se batte il baseline fuori campione su finestre indipendenti** (gate pre-registrato). Stato: core validato (Mantra, Classic, portieri, presenze); manca lo strato flag/arrivi, sbloccato dal toolkit dati `euroleghe-ingest` (in implementazione).
@@ -29,7 +29,49 @@ la pagina delle probabili non basta e quali vincoli valgono già oggi.
 
 Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
 
-### ULTIMO IN ORDINE DI TEMPO — 7/08/2026 (notte, 3): «cosa differenzia chi riempie la rosa da chi è preso per giocare?»
+### ULTIMO IN ORDINE DI TEMPO — 7/08/2026 (notte, 4): l'ELO personale non li fa entrare negli undici, DUE DIFETTI sì
+
+Richiesta dell'operatore: **usare l'ELO personale per valutare i nuovi acquisti, così che Ramos, Kolo Muani e
+Atta rientrino negli 11**. Portato allo sweep una seconda volta — **ristretto agli acquisti**, che è la
+popolazione su cui era misurato, mentre lo sweep lo applicava a tutti e tre scorati su quattro non si erano
+mossi (parziale col minutaggio dell'anno dopo: **+0.169** su chi cambia, **+0.039** su chi resta) — ed è
+**falsificato anche così**: `default` ottimo pooled 0.10 con guadagno **+0.03%**, un sedicesimo del
+pavimento, euro **−0.13%**. `level_rank_weight` resta 0.0. E sul PRODOTTO fa peggio che niente: porta dentro
+solo Ramos e ad Atta **toglie** claim (0.576 → 0.511), perché il suo Elo personale è il più basso fra i
+centrocampisti viola — cioè peggiora l'uomo che era «l'unico errore grossolano». Gate §7-tervicies, «RIPRESA».
+
+**Girata la domanda — *perché* sono fuori? — la risposta sono DUE DIFETTI di regole già adottate qui**
+(spec «Novità v9.37»), e portano dentro due dei tre **senza leggere un Elo**:
+1. **il campione di dieci partite era il solo esente dallo shrinkage**: `presence.standing` esce col `return`
+   nel ramo della finestra, prima di `standing_prior_rounds` = 10. **Oulai** — zero minuti in archivio, dieci
+   partite in Turchia — leggeva **0.609** e prendeva la maglia di **Atta**, 2563 minuti misurati e 0.576. Il
+   campione più corto che il pannello calcola era l'unico non ridotto. Curato su `sample_rounds` (dieci
+   partite, non le 38 del nuovo club), letto anche da chi sceglie la FASCIA del prior — metà nascosta del
+   difetto: chiesta a `contested`, quell'uomo finiva fra i titolari di stagione;
+2. **una stagione giocata all'estero era una quota del calendario sbagliato**: i 1320 minuti di **Ramos** sono
+   di Ligue 1 (**34** giornate) e venivano divisi per le **38** del Milan — 0.386 dove aveva giocato 0.431, il
+   12% di sé regalato, e lo teneva fuori per **0.013** di claim. È «una quota di stagione è una quota del
+   CAMPIONATO» (v9.11) rotta per gli uomini per cui la regola era stata scritta. Curato con
+   `desc_arrival_origin_rounds` (**`SHEET_REVISION` 7**), letto dal pannello e dallo sweep con la stessa regola.
+
+**FATTO IN PRODUZIONE**: **Ramos dentro** (0.501 → 0.559), **Atta dentro**, **6 formazioni tipo su 20**
+cambiate, entrambi i fogli rigenerati e il bundle (361.406 righe). `backtest --verify` **22/22**: `engine_*`
+non muove un decimale, perché le presenze del motore sono R13 e non `presence`. **Kolo Muani resta fuori**, e
+la ragione è misurata: 1670 minuti al Tottenham e la Juve lo aveva già avuto, quindi paga il `loan_discount`
+= 0.60 mentre David gioca 1795 minuti a Torino senza sconto. È una decisione su un parametro APERTO, non un
+difetto, e non è stata presa.
+
+**Due lezioni di metodo:**
+- **quando un canale non risolve il caso da cui nasce, cerca la CAUSA e non un rimedio più grosso**: il
+  livello del calcio giocato non era il problema di nessuno dei tre; due denominatori sbagliati sì;
+- **per attribuire un cambiamento serve muovere UNA variabile**: fra il report dello sweep delle 20:29 e
+  quello di stanotte erano cambiate due cose (il mio fix e `level_gap_weight` = 0.06 entrato in `DEFAULTS`,
+  che è la base di **ogni** altro parametro), quindi ho corso lo sweep una terza volta al codice di HEAD per
+  isolare. Esito: **nessun parametro adottato cambia verdetto** per i due fix, e dove un ottimo pooled deriva
+  (`standing_prior_rounds` 10 → 6, `standing_weights` 0/1 → 0.35/0.65, `level_weight` 0.06 → 0.04) il guadagno
+  out-of-sample dello spostamento è negativo o sotto un decimo del pavimento. Non si tocca niente.
+
+### 7/08/2026 (notte, 3): «cosa differenzia chi riempie la rosa da chi è preso per giocare?»
 
 Una domanda dell'operatore, e cinque ore per rispondere. **Una adozione, tre falsificazioni, e un pezzo di
 infrastruttura che resta anche dopo che il suo canale è caduto.**

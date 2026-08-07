@@ -1898,6 +1898,66 @@ def test_a_man_measured_only_elsewhere_competes_for_a_shirt_and_pays_for_being_e
     assert presence.standing(season, panel) == presence.standing(season, presence.DEFAULTS)
 
 
+def test_a_ten_match_window_is_shrunk_on_its_ten_matches_like_any_other_short_sample():
+    """The shortest sample the panel ever builds a standing from was the only one exempt from the shrinkage.
+
+    `standing_prior_rounds` = 10 was adopted (gate §7-quaterdecies, euro strict AND robust) because «a
+    standing built on few rounds does not hold» - and the window branch RETURNED before it. What that
+    decided: Oulai, no season on file and ten matches in Turkey, read 0.609 and took Fiorentina's third
+    midfield shirt off Atta, who had played 2563 measured minutes at 0.576. A ten-match window outranking a
+    season is the defect stated as a sentence.
+
+    Two things are pinned. The sample behind the number is the WINDOW's ten matches and not his new club's
+    38 rounds - `sample_rounds`, which is also what the caller has to bucket a prior BAND by, or a man with
+    ten matches is filed among the season-long starters and shrunk toward the highest prior there is. And
+    the direction: with a prior below him he comes DOWN, with a prior above him he goes up, because a
+    shrinkage that only ever lowered would be a haircut.
+    """
+    from dataclasses import replace
+
+    from euroleghe_ingest.engine import presence
+
+    panel = replace(presence.DEFAULTS, window_standing=1.0)
+    window = presence.Inputs(window_matches=10, window_minutes=693, league_matches=38)
+    assert presence.sample_rounds(window, panel) == 10, "his sample is the window, not the calendar"
+    assert presence.window_only(window, panel) is True
+    # ...half his own number and half the population's, because ten matches are ten matches
+    fringe = replace(window, standing_prior=0.207)
+    assert abs(presence.standing(fringe, panel) - (0.5 * 0.616 + 0.5 * 0.207)) < 1e-9
+    # it pulls BOTH ways
+    assert presence.standing(replace(window, standing_prior=0.9), panel) > 0.616
+    # and the case it was found on: a measured season now outranks a ten-match window
+    starter = presence.Inputs(starts=29, appearances=32, minutes=2563, league_matches=38,
+                              minutes_elsewhere=2563, standing_prior=0.571)
+    assert presence.sample_rounds(starter, panel) == 38
+    assert presence.standing(starter, panel) > presence.standing(fringe, panel)
+
+
+def test_a_season_played_abroad_is_a_share_of_ITS_OWN_calendar():
+    """1320 minutes in Ligue 1's 34 rounds are not 1320 minutes in Serie A's 38.
+
+    «Numerator and denominator must be counted over the same competitions» (spec «Novità v9.11»), and for a
+    man bought from abroad every numerator on the row is his OLD championship's while the denominator was
+    his NEW club's. Gonçalo Ramos read 0.386 of a season where he had played 0.431 - 12% of himself given
+    away - and it kept him out of Milan's typical eleven by 0.013 of claim.
+
+    Only where the WHOLE measured season was played elsewhere: a January transfer has minutes on two
+    calendars and no single denominator is right for him, so he keeps his club's. An origin we cannot name
+    keeps it too - «vuoto = ignoto».
+    """
+    abroad = {"club": "Test", "desc_arrival_origin": "ligue_1", "desc_arrival_origin_rounds": "34",
+              "desc_minutes_elsewhere": "1320", "desc_minutes_club": "0"}
+    view = _view_of([abroad])
+    assert view.season_calendar(abroad) == 34.0
+    # a man whose season is split keeps his club's calendar, and so does one with no origin on file
+    assert view.season_calendar({**abroad, "desc_minutes_club": "400"}) == 38.0
+    assert view.season_calendar({**abroad, "desc_arrival_origin_rounds": ""}) == 38.0
+    # ...and the share he is credited with is the bigger, honest one
+    with_origin = view.presence_inputs(abroad)
+    assert with_origin.league_matches == 34.0
+    assert round(1320 / (34 * 90), 3) > round(1320 / (38 * 90), 3)
+
+
 def test_one_man_per_flank_in_a_row():
     """Juventus drew Yildiz and Alajbegovic BOTH as the left-sided forward: two 'As' on one row, which is
     the unpaired-flank defect seen from the other side - a row has one left and one right.

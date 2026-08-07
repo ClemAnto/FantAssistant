@@ -436,6 +436,46 @@ def contested(inputs: Inputs, params: Params = DEFAULTS) -> float:
     return max(inputs.league_matches - missed, 1.0)
 
 
+def window_only(inputs: Inputs, params: Params = DEFAULTS) -> bool:
+    """True when his whole standing comes from a measured WINDOW: nothing on file here at all.
+
+    One definition, because three places ask it - `standing` (which formula to use), `sample_rounds` (how
+    much of a season is behind the answer) and the callers that bucket a population by that sample. Two
+    copies would be two populations, which is how the shortest sample in the panel ended up the only one
+    nobody shrank.
+    """
+    return bool(params.window_standing and inputs.window_matches
+                and not inputs.starts and not inputs.appearances and not inputs.minutes)
+
+
+def sample_rounds(inputs: Inputs, params: Params = DEFAULTS) -> float:
+    """How many rounds the standing is MEASURED over - what the shrinkage, and its prior, are about.
+
+    `contested` for a man with a season here. For a man who has none, the WINDOW's own matches: ten
+    matches somewhere else are his whole sample, and reading his new club's 38 rounds instead would say
+    his standing rests on a season when it rests on ten games. The distinction is the entire point of
+    `standing_prior_rounds` (gate §7-quaterdecies, adopted on euro strict AND robust), so the caller that
+    picks a prior BAND has to ask this and not `contested`.
+    """
+    return inputs.window_matches if window_only(inputs, params) else contested(inputs, params)
+
+
+def _shrunk(measured: float, inputs: Inputs, params: Params) -> float:
+    """`measured` pulled toward the population's prior by how little of a season is behind it.
+
+    «Twelve rounds and thirty-eight say the same thing with very different confidence, and the standing
+    said them identically» - so this is applied to EVERY shape of standing, including the window one. It
+    used to sit inline after the window branch had already returned, which exempted exactly the men the
+    shrinkage was adopted for: Oulai, ten matches in Turkey and no season on file, read 0.609 and outranked
+    a midfielder with 2563 measured minutes.
+    """
+    if not params.standing_prior_rounds or inputs.standing_prior is None:
+        return measured
+    rounds = sample_rounds(inputs, params)
+    share = rounds / (rounds + params.standing_prior_rounds)
+    return share * measured + (1.0 - share) * inputs.standing_prior
+
+
 def standing(inputs: Inputs, params: Params = DEFAULTS) -> float:
     """His absolute standing in the side - the blasone - as a share of a season, 0..1.
 
@@ -449,8 +489,7 @@ def standing(inputs: Inputs, params: Params = DEFAULTS) -> float:
     """
     rounds = contested(inputs, params)
     weight = at_club_weight(inputs, params)
-    if (params.window_standing and inputs.window_matches
-            and not inputs.starts and not inputs.appearances and not inputs.minutes):
+    if window_only(inputs, params):
         # NOTHING measured here, and a window measured elsewhere: his share of the minutes he could have
         # played in it, discounted by whose football it was (`at_club_weight` - the arrival discount) and
         # by how much of a window it is (`window_standing`). Ten matches are not a season and the number
@@ -462,7 +501,13 @@ def standing(inputs: Inputs, params: Params = DEFAULTS) -> float:
         # missing split and wrong for a known one. This window was played somewhere else by construction
         # (it is what `recent_form` fetches), so the arrival discount applies to all of it.
         discount = (params.loan_discount if inputs.was_here_before else params.arrival_discount)
-        return min(max(params.window_standing * share * discount, 0.0), 1.0)
+        measured = min(max(params.window_standing * share * discount, 0.0), 1.0)
+        # ...and SHRUNK like any other standing, on the window's own ten matches. This branch used to
+        # return here, which made the shortest sample the panel ever reads the only one exempt from the
+        # parameter adopted because short samples do not hold - and it decided elevens: a ten-match window
+        # read 0.609 and displaced a 2563-minute starter. No lift is added, deliberately: the three lifts
+        # are claims about a man whose minutes have been seen, and this one's have not.
+        return _shrunk(measured, inputs, params)
     starts = min(inputs.starts * weight / rounds, 1.0)
     if not inputs.minutes:
         measured = starts
@@ -478,9 +523,7 @@ def standing(inputs: Inputs, params: Params = DEFAULTS) -> float:
             + career_lift(inputs, params))
     # ...and how much of a season is BEHIND that number. Twelve rounds and thirty-eight say the same thing
     # with very different confidence, and the standing said them identically.
-    if params.standing_prior_rounds and inputs.standing_prior is not None:
-        share = rounds / (rounds + params.standing_prior_rounds)
-        measured = share * measured + (1.0 - share) * inputs.standing_prior
+    measured = _shrunk(measured, inputs, params)
     # ...and WHERE HE STANDS in the department he joins, blended in - the shape that was measured, and
     # not an additive lift like the three above. The difference matters: a lift moves everybody by the
     # same amount for the same evidence, while a blend lets the minutes keep most of the say and pulls

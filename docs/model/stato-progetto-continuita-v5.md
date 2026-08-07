@@ -1,5 +1,5 @@
 # Stato progetto & continuità — v5
-**Aggiornato: 7 agosto 2026 (aggiornamento dati: quattro difetti trovati aggiornando, tre chiusi — dettaglio nel 00-BRIDGE)**
+**Aggiornato: 7 agosto 2026 (notte, 4 — l'ELO personale falsificato anche ristretto; due denominatori corretti fanno entrare Ramos e Atta negli undici)**
 Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da qui + i file della cartella "Modello Previsionale Fantacalcio".
 *Glossario: T1/T2 = finestre di test (23/24->24/25, 24/25->25/26) · MAE = errore medio assoluto · cross-fitted = parametri stimati su una finestra, testati sull'altra · M2e = modello portieri decomposto (abilità + tasso gol subiti del club; la metà Elo del nome non è nel motore) · Pv_att = presenze attese · fc_id = id fantacalcio.it · EV = valore atteso · scoring_config = punteggi configurabili per lega · xG/xA = expected goals/assists · 2.5 pieno = backtest motore completo con flag.*
 
@@ -7,6 +7,40 @@ Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da q
 App per leghe EuroLeghe/fantacalcio.it (Classic+Mantra, 5 campionati) con motore previsionale. Metodo: ogni regola entra SOLO se batte il baseline fuori campione su finestre indipendenti (gate pre-registrato). Doc madre: modello-previsionale-v3.8.md.
 
 ## ⚠️ Lo stato corrente è in `00-BRIDGE-punto-di-ingresso.md`, blocco «STATO AL 5 AGOSTO 2026»
+
+### 7 agosto 2026 (notte, 4), in una riga: l'ELO personale NON fa entrare gli acquisti negli undici — due denominatori sbagliati sì
+
+Stato completo nel **00-BRIDGE**, blocco in testa; dettaglio nella spec **«Novità v9.37»** e in gate
+**§7-tervicies** («RIPRESA»). **328 test**, `backtest --verify` **22/22**, `SHEET_REVISION` **6 → 7**,
+entrambi i fogli e il bundle rigenerati.
+
+**Il canale è falsificato due volte, e la seconda con l'arm giusto.** Lo sweep applicava il rango a TUTTI
+mentre era misurato sugli ACQUISTI (parziale col minutaggio dell'anno dopo: **+0.169** su chi cambia,
+**+0.039** su chi resta, e tre scorati su quattro non si erano mossi). Ristretto: `default` ottimo pooled
+0.10 con **+0.03%** — un sedicesimo del pavimento — ed `euro` **−0.13%**. **La restrizione era giusta e
+insufficiente**, che è un esito diverso da «avevo sbagliato la misura».
+
+**Il prodotto lo dice più chiaro del MAE**: il rango porta dentro solo Ramos e ad **Atta toglie** claim
+(0.576 → 0.511), perché il suo Elo personale è il più basso fra i centrocampisti viola. Peggiora l'uomo che
+era «l'unico errore grossolano».
+
+**Girata la domanda — perché sono fuori? — due difetti di regole GIÀ ADOTTATE qui:**
+1. **il campione di dieci partite era il solo esente dallo shrinkage** (`presence.standing` usciva col
+   `return` prima di `standing_prior_rounds` = 10): Oulai, zero minuti in archivio, leggeva **0.609** e
+   prendeva la maglia di Atta, che di minuti misurati ha **2563** (0.576). Curato su `sample_rounds`, letto
+   anche da chi sceglie la FASCIA del prior;
+2. **una stagione all'estero era una quota del calendario sbagliato**: i 1320 minuti di Ramos sono di Ligue 1
+   (34 giornate), divisi per le 38 del Milan — 0.386 dove aveva giocato 0.431, e lo teneva fuori per **0.013**
+   di claim. Curato con `desc_arrival_origin_rounds`, letto dal pannello e dallo sweep con la stessa regola.
+
+**Esito**: Ramos dentro (0.559), Atta dentro, **6 formazioni tipo su 20** cambiate, `engine_*` immobile.
+**Kolo Muani resta fuori**: 1670 minuti al Tottenham e la Juve lo aveva già avuto, quindi paga
+`loan_discount` = 0.60 mentre David gioca 1795 minuti a Torino senza sconto. Parametro APERTO, decisione
+dell'operatore, non presa.
+
+**Verifica di non-regressione fatta come si deve**: terza corsa dello sweep al codice di HEAD, perché fra il
+report precedente e questo erano cambiate DUE cose (il fix e `level_gap_weight` = 0.06 entrato in `DEFAULTS`,
+base di ogni altro parametro). **Nessun parametro adottato cambia verdetto.**
 
 ### 7 agosto 2026, in una riga: un aggiornamento di routine trova quattro difetti, e li chiude tutti — l'ultimo è il PREZZO
 

@@ -1,6 +1,6 @@
 # Todolist — Allineamento Mantra & EuroLeghe (v5)
 
-## Aperti alla chiusura del 7 agosto 2026 (notte) — nessuno con scadenza
+## Aperti alla chiusura del 7 agosto 2026 (notte, 4) — nessuno con scadenza
 
 Ordinati per COSTO, non per importanza: prima ciò che non dipende da noi, poi il lavoro misurato, poi le
 decisioni. I quattro difetti del pomeriggio sono chiusi (spec «Novità v9.32» e «v9.33») e i due della notte
@@ -63,7 +63,9 @@ pure (spec «Novità v9.34»): il SURPLUS mantra che era il VALORE, e `club_elo`
 1. **`window_standing` non è scoreabile**: lo sweep non ricostruisce la finestra di forma per una stagione
    passata, quindi il gate §7-octies è fermo per un'OMISSIONE dichiarata (`KNOWN_GAPS` nel test degli
    allineamenti) e non per una decisione. Sbloccarlo vuol dire ricostruire quella finestra da
-   `external_match_stats`.
+   `external_match_stats`. ⚠️ **Da leggere insieme al punto 6-septies (A)**: proprio perché nessuna piega lo
+   vede, il suo ramo era anche l'unico esente dallo shrinkage, e nessun harness poteva accorgersene. Un
+   parametro che il gate non raggiunge non è solo non misurato: è dove i difetti sopravvivono.
 2. **Transfermarkt non serve più le pagine rosa, e in silenzio**: `injuries.fetch_squads` scrive dentro un
    `if html:`, quindi una richiesta respinta non lascia né file né messaggio. La data resta al 29/07 mentre
    sofascore e appearances sono al 06/08. Va fatto parlare. **Diagnosi del 07/08**: non è un 403, è un
@@ -85,6 +87,11 @@ pure (spec «Novità v9.34»): il SURPLUS mantra che era il VALORE, e `club_elo`
    Ramos è fuori perché `claim` 0.444 contro Leão 0.615 e Gimenez 0.513, con i suoi 1320 minuti tutti
    `minutes_elsewhere` — il modello fa quello per cui è stato misurato, e può darsi che la risposta giusta
    sia che non è titolare. **Costo: un pomeriggio e zero corse di sweep.**
+   ⚠️ **Correzione del 07/08 notte**: la falsificazione regge (sostituire `desc_start_share` cambia 0 uomini),
+   ma la frase «può darsi che non sia titolare» era sbagliata, e per un motivo vicino: quel `claim` era
+   calcolato **contro il calendario del club di arrivo** invece che contro Ligue 1. Corretto il denominatore
+   giusto — che non è quello che il punto 6 aveva provato — Ramos **entra** (punto 6-septies). La lezione non
+   cambia, si affina: il denominatore contava, ma era un altro.
 6-quinquies. **ADOTTATO il 07/08 — `level_gap_weight` = 0.06** (gate §7-duovicies), sul verdetto robust di
    Serie A: media **+0.77%**, **peggior fold positivo** (+0.13%), 0.06 scelto da tutte e sei le pieghe;
    euro positivo (+0.35%) e sotto il pavimento. `backtest --verify` **22/22, zero fallimenti**. Muove
@@ -96,6 +103,28 @@ pure (spec «Novità v9.34»): il SURPLUS mantra che era il VALORE, e `club_elo`
    §7-tervicies): il cross-fit sceglie **zero** su entrambe le piattaforme, su euro all'unanimità. Resta
    però **l'ELO personale come infrastruttura** (spec «Novità v9.36»): 2.796 giocatori, 99% dei minuti,
    squadra risolta **per id** — falsificato usarlo per le presenze, non averlo.
+   **E FALSIFICATO UNA SECONDA VOLTA, con l'arm corretto** (07/08 notte, gate §7-tervicies «RIPRESA»): lo
+   sweep lo applicava a TUTTI mentre era misurato sugli ACQUISTI — tre scorati su quattro non si erano mossi,
+   e la parziale col minutaggio dell'anno dopo vale **+0.169** su chi cambia contro **+0.039** su chi resta.
+   Ristretto: `default` ottimo pooled 0.10 con **+0.03%** (un sedicesimo del pavimento), `euro` **−0.13%**.
+   **La restrizione era giusta e insufficiente.** Sul PRODOTTO fa peggio che niente: porta dentro solo Ramos
+   e ad **Atta toglie** claim (0.576 → 0.511), perché il suo Elo personale è il più basso fra i centrocampisti
+   viola. Non riproporlo senza un input nuovo: dominato dai due fix del punto 6-septies.
+6-septies. ✅ **FATTO il 07/08 (notte) — i due difetti che tenevano fuori gli acquisti dagli undici**
+   (spec «Novità v9.37»), trovati cercando la CAUSA invece di un rimedio più grosso:
+   **(A)** il campione di dieci partite era il solo esente dallo shrinkage — `presence.standing` usciva col
+   `return` prima di `standing_prior_rounds` = 10, quindi **Oulai** (zero minuti in archivio, dieci partite in
+   Turchia) leggeva **0.609** e prendeva la maglia di **Atta**, 2563 minuti misurati a 0.576. Curato su
+   `presence.sample_rounds`, letto anche da `_band_prior`: chiesta a `contested`, la fascia del prior
+   archiviava quell'uomo fra i titolari di stagione.
+   **(B)** una stagione all'estero era una quota del calendario sbagliato — i 1320 minuti di **Ramos** sono di
+   Ligue 1 (**34** giornate) divisi per le **38** del Milan, cioè 0.386 dove aveva giocato 0.431.
+   `desc_arrival_origin_rounds`, **`SHEET_REVISION` 7**, letto dal pannello e dallo sweep con la stessa regola.
+   **Esito**: Ramos dentro (0.501 → 0.559), Atta dentro, **6 formazioni tipo su 20**, `engine_*` immobile
+   (`backtest --verify` 22/22), entrambi i fogli e il bundle rigenerati. **Kolo Muani resta fuori** e la
+   ragione è misurata: 1670 minuti al Tottenham più `loan_discount` = 0.60 (la Juve lo aveva già avuto) contro
+   i 1795 di David a Torino senza sconto. Con 0.8 — dove lo sweep tira su `default`, parametro **APERTO** —
+   arriva a 0.506 e resta dietro ai tre davanti: decisione dell'operatore, non presa.
 6-ter. ~~**PRE-REGISTRATA il 07/08 e DA ESEGUIRE — il SALTO di livello**~~ — **fatto, vedi 6-quinquies**
    (gate **§7-duovicies**). Risposta alla
    domanda dell'operatore «cosa differenzia chi riempie la rosa da chi è preso per giocare», col Qt.I tenuto
@@ -130,7 +159,17 @@ pure (spec «Novità v9.34»): il SURPLUS mantra che era il VALORE, e `club_elo`
 8. **Il POSTO LASCIATO LIBERO — mai misurato, ed è l'unica strada rimasta con contenuto** per marcare gli
    acquisti da titolare: il club ha venduto o perso il titolare di quel ruolo? È un **fatto**, non un
    giudizio, quindi vince per la regola del 04/08 su qualunque segnale di prezzo. Dopo che il Qt.I è stato
-   escluso, il fee falsificato e il rango per ELO personale bocciato, resta questa.
+   escluso, il fee falsificato e il rango per ELO personale bocciato **due volte**, resta questa. ⚠️ E la
+   sessione del 07/08 notte suggerisce di guardarci prima con un'altra lente: **su tre casi che sembravano
+   chiedere un canale nuovo, due erano denominatori sbagliati** (punto 6-septies). Prima di misurare un
+   segnale, chiedersi se l'uomo è tenuto fuori da un difetto costa un pomeriggio e ne ha risolti due.
+9. **APERTO — `loan_discount` = 0.60 è il numero che tiene Kolo Muani fuori, ed è un parametro dichiarato
+   APERTO** (platform-dependent: euro tira a 0.2, `default` a 0.8, e la curva è piatta fra i due). Il caso lo
+   rende concreto: 1670 minuti al Tottenham scontati al 60% perché la Juve lo aveva già avuto in prestito,
+   contro i 1795 di David senza sconto. Due cose da sapere prima di toccarlo: **con 0.8 resta comunque fuori**
+   dai tre davanti (claim 0.506), quindi non è il rimedio che sembra; e la motivazione dello sconto è «il club
+   lo ha mandato via, ed è un suo giudizio» — un uomo che era in PRESTITO e non è stato riscattato è un caso
+   diverso, ma nessuna fonte nostra marca il prestito, quindi oggi non è distinguibile.
 
 **Progetto:** App EuroLega Fantacalcio · **Rif.:** modello-previsionale v3.8 · **Aggiornata: 5 agosto 2026**
 Convenzione: [ ] da fare · [x] fatto · [!] bloccato · *Sigle: fc_id = id fantacalcio.it · FM = fantamedia · T1/T2 = finestre di test 23/24->24/25 e 24/25->25/26 · 2.5 pieno = backtest motore completo con flag.*

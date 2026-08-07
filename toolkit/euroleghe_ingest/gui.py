@@ -4094,7 +4094,7 @@ class SnapshotView(ttk.Frame):
             starts=_number(row.get("desc_season_starts")),
             appearances=_number(row.get("desc_season_matches")),
             minutes=_number(row.get("desc_minutes_full_season")),
-            league_matches=self.club_matches(row.get("club")),
+            league_matches=self.season_calendar(row),
             fixtures=self.club_fixtures(row.get("club")) or self.SEASON_MATCHES,
             # counted rounds where a calendar existed, and `rounds_seasons` = 0 says it did not
             rounds_measured=(_number(row.get("desc_injury_rounds_measured"))
@@ -4192,7 +4192,7 @@ class SnapshotView(ttk.Frame):
         bands: dict[tuple[int, int], list[float]] = {}
         for other in population:
             other_inputs = self.presence_inputs(other)
-            band = _rounds_band(presence.contested(other_inputs, unshrunk))
+            band = _rounds_band(presence.sample_rounds(other_inputs, unshrunk))
             bands.setdefault(band, []).append(presence.standing(other_inputs, unshrunk))
         if not bands:
             self._standing_prior = None
@@ -4203,12 +4203,18 @@ class SnapshotView(ttk.Frame):
         return self._standing_prior
 
     def _band_prior(self, inputs: presence.Inputs) -> float | None:
-        """The prior for HIS band of rounds - see `presence.Inputs.standing_prior`."""
+        """The prior for HIS band of rounds - see `presence.Inputs.standing_prior`.
+
+        `sample_rounds` and not `contested`: for a man whose standing comes from a ten-match window the
+        rounds behind the number are those ten, while `contested` would hand back his new club's 38 and
+        file him among the season-long starters - the band whose prior is highest, which is the opposite
+        of what a ten-match sample deserves.
+        """
         overall = self.standing_prior()
         if overall is None:
             return None
         unshrunk = _replace_params(self.PRESENCE, standing_prior_rounds=0.0)
-        band = _rounds_band(presence.contested(inputs, unshrunk))
+        band = _rounds_band(presence.sample_rounds(inputs, unshrunk))
         return getattr(self, "_prior_by_band", {}).get(band, overall)
 
     def level_z(self, row: dict) -> float | None:
@@ -4303,6 +4309,26 @@ class SnapshotView(ttk.Frame):
         is what Transfermarkt does (a spell says how many of the club's GAMES he missed, cups included).
         """
         return _number(self.clubs.get(club or "", {}).get("complete_XIs"))
+
+    def season_calendar(self, row: dict) -> float:
+        """The calendar his MEASURED season is a share of - not always the calendar of the club he is at.
+
+        «Numerator and denominator must be counted over the same competitions» (spec «Novità v9.11»), and
+        for a man bought from abroad the numerator is his OLD championship's: Gonçalo Ramos played 1320
+        minutes in Ligue 1's 34 rounds, and dividing them by Milan's 38 read 0.386 of a season where he
+        played 0.431 - 12% of himself given away, and it kept him out of the eleven by 0.013 of claim. The
+        rounds each championship played are on the row (`desc_arrival_origin_rounds`, from the per-match
+        layer of the input season), so nothing here is a constant that a league changing size would break.
+
+        Only for a man whose whole measured season was played elsewhere. A January transfer has minutes on
+        both calendars and there is no single right denominator for him, so he keeps his club's - stated
+        rather than silently averaged. An unknown origin is «vuoto = ignoto» and keeps it too.
+        """
+        origin = _number(row.get("desc_arrival_origin_rounds"), None)
+        if origin and _number(row.get("desc_minutes_elsewhere")) and not _number(
+                row.get("desc_minutes_club")):
+            return origin
+        return self.club_matches(row.get("club"))
 
     def club_matches(self, club: str | None) -> float:
         """The club's matches in ITS OWN CHAMPIONSHIP - the denominator of a share of the season.

@@ -110,7 +110,14 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      layer the common fallback had been hiding: a man the listone does not carry has NO mantra code,
 #      so he had no level either and his `est_surplus` stayed a VALUE in a column of surpluses - 11 of
 #      the sheet's top 12 rows. He is levelled on his classic group's mean (`auction_level`).
-SHEET_REVISION = 6
+#   7  07/08/2026 - `desc_arrival_origin_rounds`, the calendar a man's MEASURED season belongs to. Every
+#      numerator on the row is his old championship's when he was bought from abroad, and the denominator
+#      was his new club's: Gonçalo Ramos's 1320 Ligue 1 minutes read against Milan's 38 rounds instead of
+#      34, i.e. 0.386 of a season where he played 0.431. It is «a share of a season is a share of the
+#      CHAMPIONSHIP» (v9.11) broken for exactly the men it was written for, and it kept him out of the
+#      typical eleven by 0.013 of claim. No `engine_*` column moves - the engine's presences are R13's,
+#      not `presence`'s - but the CLAIM the board ranks by does, on 2 clubs of 20.
+SHEET_REVISION = 7
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
@@ -2276,8 +2283,8 @@ PLAYER_COLUMNS: tuple[str, ...] = (
     "desc_penalty_rank", "desc_penalty_confidence", "desc_set_piece_duty",
     "desc_cards_per_match", "desc_yellows", "desc_reds",
     "desc_contract_until", "desc_exit_risk", "desc_arrival", "desc_arrival_tier",
-    "desc_arrival_origin", "desc_transfer_fee", "desc_seasons_at_club", "desc_new_coach",
-    "desc_u22",
+    "desc_arrival_origin", "desc_arrival_origin_rounds", "desc_transfer_fee", "desc_seasons_at_club",
+    "desc_new_coach", "desc_u22",
     # WHAT THE CLUB PUT INTO HIM: the fee, its share of everything the club spent that window, and his Qt.I
     # percentile within his role. Two channels because they catch different players - the fee catches a big
     # signing, the stature catches a celebrity who arrived for nothing (Modric and De Bruyne, free). Both
@@ -2507,6 +2514,10 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             "desc_exit_risk": "yes" if state.get("exit_risk") else None,
             "desc_arrival": state.get("arrival"), "desc_arrival_tier": state.get("tier"),
             "desc_arrival_origin": state.get("origin"), "desc_transfer_fee": state.get("fee"),
+            # ...and the CALENDAR that championship played, which is the denominator his measured season
+            # has to be read against (`presence_inputs`). Empty for a man with no arrival on file, which
+            # is the incumbent's own calendar and not a missing number.
+            "desc_arrival_origin_rounds": (layers.get("league_rounds") or {}).get(state.get("origin")),
             "desc_seasons_at_club": state.get("seasons_at_club"),
             "desc_new_coach": "yes" if state.get("new_coach") else None,
             "desc_u22": "yes" if state.get("u22_trigger") else None,
@@ -2827,6 +2838,13 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
         # auction date, because it is a dated observation and not a season fact.
         "real_role_detail": positions.roles_as_of(conn, window.auction_date, fallback=bool(date)),
         "sides": measured_sides(conn, window.input_season, notes),
+        # How many rounds each CHAMPIONSHIP played in the input season (34 in the Bundesliga and Ligue 1,
+        # 38 elsewhere). It travels with an arrival because his measured season belongs to the calendar he
+        # played it on: dividing 1320 Ligue 1 minutes by his new club's 38 rounds instead of Ligue 1's 34
+        # reads 12% less of a season than he played, which is «a share of a season is a share of the
+        # CHAMPIONSHIP» broken for exactly the men it was written for. From the per-match layer, per
+        # season, so a league that changes size is not a constant anybody has to remember.
+        "league_rounds": features.league_rounds(conn, window.input_season),
         "positions": {fc_id: (avg_x, avg_y) for fc_id, avg_x, avg_y in conn.execute(
             "SELECT fc_id, avg_x, avg_y FROM positions WHERE season = ? AND source = 'sofascore'",
             (window.input_season,))},

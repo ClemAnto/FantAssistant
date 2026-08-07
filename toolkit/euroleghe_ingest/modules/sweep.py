@@ -339,6 +339,13 @@ def build_inputs(conn, data: features.WindowData, ctx: Context | None = None) ->
     # HIS ROLE in the squad he is joining. Ranked inside the club because the question is comparative -
     # «lo hanno comprato davanti a chi c'era gia'?» - and a department of fewer than three men cannot
     # answer it, so those stay None rather than 0.5.
+    # AND ONLY FOR A MAN WHO HAS MOVED, like the two channels above and for a sharper reason: the question
+    # is «did they buy him ahead of the men already there», which a man who never left cannot be asked. The
+    # first run of §7-tervicies ranked EVERYBODY - three of four scored players had not moved, and the
+    # channel is worth +0.169 on the movers against +0.039 on the stayers (partial r with next season's
+    # start share, controlling for the minutes the standing already reads). A transform belongs to the
+    # population it was measured on: 601-644 ARRIVALS, never the whole listone. The DEPARTMENT is still
+    # built over everybody, which is the point - the men he is ranked against are the incumbents.
     from euroleghe_ingest.modules import elo as elo_module
 
     personal = elo_module.personal_levels(conn, ctx, season) if ctx else {}
@@ -354,7 +361,7 @@ def build_inputs(conn, data: features.WindowData, ctx: Context | None = None) ->
         key, _name = resolve(obs.club_target or "")
         peers = by_department.get((key or "", obs.role_classic or ""), ())
         others = [v for v in peers if v != value]
-        if value is not None and len(others) >= 2:
+        if value is not None and obs.club_change and len(others) >= 2:
             level_rank[obs.fc_id] = sum(1 for v in others if v < value) / len(others)
 
     # ...and the CAREER, only for forwards: the population the coefficient was measured on (§7-vicies).
@@ -397,6 +404,19 @@ def build_inputs(conn, data: features.WindowData, ctx: Context | None = None) ->
         after = club_league.get(resolve(obs.club_target)[0])
         return bool(before and after and before != after)
 
+    # ...and how many rounds each championship played, so a man's measured season can be read against the
+    # calendar he played it ON. The same rule the panel applies (`SnapshotView.season_calendar`), here so
+    # the two cannot drift: a Ligue 1 season is 34 rounds and reading it against Serie A's 38 gives away
+    # 12% of him. Only where his WHOLE measured season was elsewhere - a January transfer has minutes on
+    # two calendars and no single denominator is right for him.
+    league_calendar = features.league_rounds(conn, season)
+
+    def _season_rounds(obs, split: dict, fallback: float) -> float:
+        if not obs.club_prev or (split.get("minutes") or 0) or not (split.get("minutes_elsewhere") or 0):
+            return fallback
+        origin = club_league.get(resolve(obs.club_prev)[0])
+        return float(league_calendar.get(origin or "") or fallback)
+
     out: dict[int, presence.Inputs] = {}
     thin = 0
     for obs in data.observations:
@@ -415,21 +435,24 @@ def build_inputs(conn, data: features.WindowData, ctx: Context | None = None) ->
         # The counted rounds are scaled up by what we did not parse of that calendar: a spell over a
         # stretch we have half the fixtures for costs him half the rounds it really did.
         lift = 1.0 / coverage if coverage else 1.0
+        split = at_club.get(obs.fc_id, {})
+        # The calendar his measured season belongs to - his old championship's when all of it was played
+        # there. It bounds the counted absences too: a 34-round season cannot cost him 36 rounds.
+        season_rounds = _season_rounds(obs, split, rounds)
         by_season: list[float | None] = []
         for part in (injury.get("rounds_by_season") or "").split(";"):
             try:
-                by_season.append(min(float(part) * lift, rounds))
+                by_season.append(min(float(part) * lift, season_rounds))
             except ValueError:
                 by_season.append(None)
         measured_rounds = injury.get("rounds_measured")
-        split = at_club.get(obs.fc_id, {})
         out[obs.fc_id] = presence.Inputs(
             starts=float(mine.get("starts") or 0),
             appearances=float(mine.get("matches") or 0),
             minutes=float((rates.get(obs.fc_id) or {}).get("minutes") or 0),
-            league_matches=rounds,
+            league_matches=season_rounds,
             fixtures=fixtures.get(key or "", 0.0),
-            rounds_measured=(min(measured_rounds * lift, rounds)
+            rounds_measured=(min(measured_rounds * lift, season_rounds)
                              if measured_rounds is not None else None),
             rounds_by_season=tuple(by_season),
             weighted_all=injury.get("weighted"),
@@ -457,13 +480,13 @@ def build_inputs(conn, data: features.WindowData, ctx: Context | None = None) ->
         # rounds is a fringe player and regresses toward the fringe, not toward the league.
         bands: dict[tuple[int, int], list[float]] = {}
         for inp in out.values():
-            band = _rounds_band(presence.contested(inp, unshrunk))
+            band = _rounds_band(presence.sample_rounds(inp, unshrunk))
             bands.setdefault(band, []).append(presence.standing(inp, unshrunk))
         by_band = {band: sum(v) / len(v) for band, v in bands.items() if v}
         overall = sum(sum(v) for v in bands.values()) / sum(len(v) for v in bands.values())
         prior = round(overall, 4)
         out = {fc_id: replace(inp, standing_prior=by_band.get(
-                   _rounds_band(presence.contested(inp, unshrunk)), overall))
+                   _rounds_band(presence.sample_rounds(inp, unshrunk)), overall))
                for fc_id, inp in out.items()}
 
     note = {"players": len(out), "of_observations": len(data.observations),

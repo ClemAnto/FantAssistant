@@ -2069,6 +2069,141 @@ presenze**, non averlo.
    vanno in `ELO_ALIASES` con la loro misura accanto, non in uno script.
 3. **Non è ancora un braccio dello sweep**: è misurato in-sample, come il salto lo era prima di §7-duovicies.
 
+### RIPRESA — il rango ristretto agli ACQUISTI (pre-registrata il 7 agosto 2026 a tarda notte, PRIMA di eseguirla)
+
+Richiesta dell'operatore: **usare l'ELO personale per giudicare i nuovi acquisti**, così che Ramos, Kolo
+Muani e Atta rientrino negli undici titolari. Il canale era stato falsificato poche ore prima, quindi questa
+corsa **è una modifica fatta dopo un fallimento** e va dichiarata come tale: la regola di questo progetto è
+che *un criterio non si allarga perché una regola l'ha mancato*. Non è quello che accade qui — il criterio,
+la griglia e il pavimento restano identici — ma il braccio era **sbagliato**, e lo era per una ragione che il
+codice accanto già scriveva.
+
+**Il difetto**: `sweep.build_inputs` calcolava `level_rank` per **ogni** osservazione, chi ha cambiato squadra
+e chi no, mentre §7-tervicies l'aveva misurato su **601-644 ACQUISTI**. I due canali gemelli hanno la
+restrizione da sempre — `level_z` e `level_gap_z` sono entrambi condizionati a `obs.club_change`, con la
+ragione scritta nel codice: «for a man who stayed the term would quietly become *his own club is strong*, a
+claim nobody has scored». Per il rango è ancora più netto: per chi non si è mosso «il reparto in cui ENTRA» è
+il reparto in cui era già, e la domanda «lo hanno comprato davanti a chi c'era?» non ha senso. È la stessa
+famiglia di §7-novies e di `estimate.other_platform`: **una trasformazione appartiene alla popolazione su cui
+è stata misurata**.
+
+**La diluizione, misurata prima della corsa** (parziale con la quota di partenze della stagione DOPO,
+controllando per la quota di minuti che lo `standing` legge — l'esito, non il residuo):
+
+| popolazione | n | r(rango, esito) | r(minuti, esito) | **parziale r(rango, esito \| minuti)** |
+|---|---:|---:|---:|---:|
+| `default`, chi CAMBIA | 709 | +0.069 | +0.267 | **+0.169** |
+| `default`, chi RESTA | 1683 | +0.042 | +0.568 | **+0.039** |
+| `euro`, chi CAMBIA | 783 | +0.009 | +0.287 | **+0.113** |
+| `euro`, chi RESTA | 2600 | +0.026 | +0.532 | **+0.025** |
+
+**Tre giocatori su quattro della popolazione swippata non si erano mossi**, e su di loro il canale vale +0.03,
+cioè rumore. La corsa che l'ha bocciato mescolava le due cose.
+
+**Cosa è pre-registrato**, e niente di più:
+1. **la griglia non si tocca**: `(0.0, 0.10, 0.18, 0.25, 0.32, 0.45)`, 0.0 incumbent, massimo interno atteso
+   a 0.25 come la misura indicava;
+2. **una sola modifica al braccio**: `level_rank` solo dove `obs.club_change`, esattamente come i due gemelli;
+3. **`level_gap_weight` è il CONTROLLO**: non legge l'ELO personale, quindi se si muove da +0.77% / +0.35%
+   la corsa non è confrontabile con la precedente e il verdetto è nullo;
+4. **dichiarato in anticipo**: il canale agisce ora su ~25% della popolazione scorata, quindi il guadagno
+   sulla finestra intera è diluito di quattro volte. Il pavimento dello 0.5% si applica **invariato** — è lo
+   stesso che `level_gap_weight` ha superato agendo sulla stessa popolazione, quindi il confronto è alla pari;
+5. **cosa un PASS non autorizzerebbe**: applicarlo a chi è rimasto. La restrizione è parte della regola.
+
+### ESITO — **falsificato anche ristretto**, e la diluizione non era la ragione
+
+Due corse, perché fra loro è cambiata **una** cosa sola e quindi l'attribuzione si può fare (a differenza
+del caso raccontato sopra): la seconda ha il fix del CALENDARIO D'ORIGINE (difetto B, qui sotto), che agisce
+proprio sugli acquisti, cioè sulla popolazione del rango.
+
+| corsa | piattaforma | ottimo pooled | guadagno medio | peggior fold | pieghe che scelgono 0.10 |
+|---|---|---:|---:|---:|---:|
+| rango ristretto | `default` (6) | 0.0 | −0.03% | −0.13% | 3 su 6 |
+| rango ristretto | `euro` (4) | 0.0 | −0.12% | −0.48% | 1 su 4 |
+| **+ calendario corretto** | `default` (6) | **0.10** | **+0.03%** | −0.13% | **6 su 6** |
+| **+ calendario corretto** | `euro` (4) | 0.0 | −0.13% | −0.50% | 1 su 4 |
+
+**Non passa in nessuna delle due.** La seconda è quella da citare (è lo stato del codice) ed è anche la più
+istruttiva: con l'attribuzione del calendario corretta il cross-fit sceglie 0.10 **all'unanimità su Serie A**
+e il guadagno è **+0.03%**, un sedicesimo del pavimento — «la pieghetta lo preferisce» e «vale la pena
+adottarlo» sono due frasi diverse, e questa è la dimostrazione. Su euro va nella direzione opposta
+(−0.13%, peggior fold −0.50%). La curva pooled di `default` è piatta fra 0.0 e 0.10 e poi sale monotona
+(0.18 → 0.19624, 0.25 → 0.19775, 0.45 → 0.20562): **nessun minimo interno**, l'ottimo è al bordo.
+**Controllo passato**: `level_gap_weight` non si muove — ottimo 0.06 su entrambe le piattaforme, CONFIRMED,
+margine sul secondo +0.09% / +0.03% — quindi la corsa è sana e il verdetto è del canale.
+
+E la verifica che il fix non sposta nient'altro, fatta come si deve (**terza corsa**, allo stesso codice di
+HEAD, perché fra il report delle 20:29 e questo erano cambiate DUE cose: il mio fix e `level_gap_weight` =
+0.06 entrato in `DEFAULTS`, che è la base su cui OGNI altro parametro viene swippato): dei 56
+parametro-blocchi, **12 cambiano qualche dettaglio e nessun parametro ADOTTATO cambia verdetto** — e i
+cambiamenti sono in maggioranza conferme dell'incumbent a zero (`investment`, `fee_weight`,
+`investment_unplayed_value_wide`: `confirmed` da False a True). Un fatto che invece appartiene all'adozione
+del salto e non a questo fix, e va scritto perché nessuno lo scopra dopo: con 0.06 in `DEFAULTS` l'ottimo
+pooled di tre parametri adottati si sposta (`standing_prior_rounds` 10 → 6, `standing_weights` 0/1 →
+0.35/0.65, `level_weight` 0.06 → 0.04) e **in tutti e tre il guadagno out-of-sample dello spostamento è
+negativo o sotto un decimo del pavimento** (−0.10%, −0.08%, +0.06%), quindi non si tocca niente. Un ottimo
+pooled che deriva non è un parametro da cambiare: è un parametro da guardare al giro dopo.
+
+Quindi la restrizione era **giusta e insufficiente**: il +0.169 di correlazione parziale sugli acquisti è
+reale e non si traduce in MAE out-of-sample. La spiegazione più semplice è che quel poco che aggiunge lo
+stanno già dicendo due cose adottate — lo **shrinkage** (`standing_prior_rounds` = 10) toglie fiducia
+proprio ai campioni corti su cui il rango parlerebbe, e il **salto** (`level_gap_weight`) legge lo stesso
+Elo da un'altra parte. `level_rank_weight` resta **0.0** e l'ELO personale resta un dato senza un uso.
+
+### E LA VERIFICA SUL PRODOTTO, che è quella che l'operatore aveva chiesto
+La richiesta era «che Ramos, Kolo Muani e Atta rientrino negli 11». Misurata sul foglio 2026-27 di Serie A,
+ridisegnando tutte e venti le formazioni tipo:
+
+| arm | Ramos | Kolo Muani | Atta | undici cambiati |
+|---|---|---|---|---:|
+| incumbent | fuori (claim 0.501) | fuori (0.414) | fuori (0.576) | — |
+| rango 0.10 | **DENTRO** (0.571) | fuori (0.426) | fuori (**0.511**) | 4 di 20 |
+| rango 0.25 | **DENTRO** (0.674) | fuori (0.443) | fuori (**0.413**) | 5 di 20 |
+
+**Il canale porta dentro solo Ramos, e su Atta va nella direzione opposta**: il suo ELO personale è 1.635,
+il PIÙ BASSO fra i centrocampisti della Fiorentina (viene dall'Udinese), quindi la miscela gli TOGLIE
+claim — 0.576 → 0.511 → 0.413. È lo stesso uomo che l'operatore aveva indicato come «l'unico errore
+grossolano» del canale, e sul prodotto il canale lo peggiora invece di correggerlo. Kolo Muani non si muove
+in nessun arm: rango 0.5, mediano fra gli attaccanti della Juventus.
+
+### PERCHÉ ERANO FUORI, che non è il livello — due difetti, e li porta dentro senza l'ELO
+Cercando la causa invece del rimedio, i due uomini che il canale non risolveva erano tenuti fuori da altro:
+
+**A. IL CAMPIONE DI DIECI PARTITE ERA IL SOLO ESENTE DALLO SHRINKAGE.** `presence.standing` esce col
+`return` nel ramo della finestra, PRIMA dello shrinkage che §7-quaterdecies ha adottato (euro strict E
+robust) proprio perché «uno standing costruito su poche giornate non tiene». Risultato: **Oulai** — zero
+minuti in archivio, dieci partite in Turchia — legge **0.609** e si prende la terza maglia di centrocampo
+della Fiorentina davanti ad **Atta**, che di minuti misurati ne ha **2563** e legge 0.576. Il ramo più corto
+che il pannello calcola era l'unico non ridotto. Curato applicando il parametro già adottato **sul campione
+della finestra** (dieci partite, non le 38 giornate del suo nuovo club): serve una definizione sola, quindi
+`presence.sample_rounds`, letta anche da chi sceglie la FASCIA del prior (`_band_prior`) — altrimenti un uomo con dieci
+partite viene archiviato fra i titolari di stagione e tirato verso il prior più alto che c'è.
+
+**B. UNA STAGIONE GIOCATA ALL'ESTERO ERA UNA QUOTA DEL CALENDARIO SBAGLIATO.** I 1320 minuti di Gonçalo
+Ramos sono di **Ligue 1, 34 giornate**, e venivano divisi per le **38** del Milan: 0.386 di stagione dove ne
+aveva giocata **0.431**, il 12% di se stesso regalato. È «una quota di stagione è una quota del CAMPIONATO»
+(v9.11) rotta per esattamente gli uomini per cui era stata scritta, e lo teneva fuori dagli undici per
+**0.013** di claim. Curato con `desc_arrival_origin_rounds` (dal layer per-partita, per stagione, quindi non
+è una costante che un campionato che cambia taglia romperebbe) letto da `SnapshotView.season_calendar` e
+dallo sweep con la stessa regola. Solo per chi ha giocato TUTTA la stagione misurata altrove: chi si muove a
+gennaio ha minuti su due calendari e nessun denominatore è giusto per lui.
+
+Misurati sul prodotto, e la tabella è il motivo per cui il rango non entra:
+
+| arm | Ramos | Kolo Muani | Atta | undici cambiati |
+|---|---|---|---|---:|
+| **A + B** | **DENTRO** (0.530) | fuori (0.414) | **DENTRO** (0.576) | 6 di 20 |
+| A + B + rango 0.10 | DENTRO (0.596) | fuori (0.426) | **fuori** (0.511) | 8 di 20 |
+
+Due uomini su tre, senza leggere un Elo personale — e **il rango sopra i due fix ributta fuori Atta**. Il
+canale è dominato: non aggiunge nessuno che i due difetti non portino già dentro, e costa l'uomo che era il
+caso più netto. **Kolo Muani resta fuori** e la ragione è misurata: i suoi 1670 minuti sono del Tottenham e
+la Juve lo aveva già avuto, quindi paga il `loan_discount` = 0.60 mentre David gioca 1795 minuti a Torino
+senza sconto. Con `loan_discount` = 0.8 — che è dove lo sweep tira su `default`, ma è un parametro
+dichiarato APERTO e piatto fra 0.2 e 0.8 — il suo claim va a 0.506 e resta comunque fuori dai tre davanti.
+È una decisione su un parametro, non un difetto, e non è stata presa.
+
 ## 7-duovicies. CHI SCENDE DI LIVELLO SALE DI RUOLO — il SALTO di Elo (pre-registrata il 7 agosto 2026, PRIMA di eseguirla)
 
 Domanda dell'operatore, ed è quella giusta: **«cosa differenzia un giocatore acquistato per riempire la rosa

@@ -495,6 +495,58 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.37 (7 agosto 2026, notte — due difetti tenevano fuori dagli undici gli acquisti, e non era il livello)
+
+Richiesta dell'operatore: **«utilizziamo il nuovo parametro ELO PERSONALE per valutare i nuovi acquisti in
+modo che gente come G. Ramos e Kolo Muani (ma anche Atta) rientrino negli 11 titolari»**. Il canale è stato
+portato allo sweep una seconda volta, ristretto agli acquisti (la popolazione su cui era misurato), ed è
+**falsificato** anche così — dettagli e numeri in [gate §7-tervicies](gate-motore-v1.md), «RIPRESA». Poi la
+domanda è stata girata: *perché* quei tre sono fuori. La risposta sono due difetti, entrambi di regole che
+questo progetto aveva già scritto e adottato, e portano dentro due dei tre uomini **senza leggere un Elo**.
+
+### A. Il campione di dieci partite era il solo esente dallo shrinkage
+`presence.standing` esce con un `return` nel ramo della finestra (l'uomo che qui non ha giocato niente e ha
+dieci partite altrove), **prima** dello shrinkage `standing_prior_rounds` = 10 — adottato in gate
+§7-quaterdecies su euro strict E robust, con la motivazione «uno standing costruito su poche giornate non
+tiene». Quindi il campione più corto che il pannello calcola era l'unico non ridotto, e decideva formazioni:
+**Oulai**, zero minuti in archivio e dieci partite in Turchia, leggeva **0.609** e si prendeva la terza
+maglia di centrocampo della Fiorentina davanti ad **Atta**, che di minuti misurati ne ha **2563** (0.576).
+Idem alla Juventus, dove **Alajbegovic** (dieci partite, 693 minuti) stava nel tridente.
+
+Curato applicando il parametro **sul campione della finestra**: dieci partite, non le 38 giornate del club
+in cui arriva. Serve una definizione sola perché la domanda la fanno in tre posti — quale formula usare,
+quanto vale il campione, e quale **fascia** di prior tocca a quell'uomo — quindi `presence.window_only` e
+`presence.sample_rounds`, letti da `standing`, da `SnapshotView._band_prior` e dallo sweep. La fascia era la
+metà nascosta del difetto: chiesta a `contested`, un uomo con dieci partite veniva archiviato fra i titolari
+di stagione e tirato verso il prior **più alto** che esiste.
+
+### B. Una stagione giocata all'estero era una quota del calendario sbagliato
+I 1320 minuti di **Gonçalo Ramos** sono di **Ligue 1, 34 giornate**, e venivano divisi per le **38** del
+Milan: **0.386** di stagione dove ne aveva giocata **0.431**, il 12% di sé regalato. È «una quota di stagione
+è una quota del CAMPIONATO» (v9.11) rotta per esattamente gli uomini per cui la regola era stata scritta, e
+lo teneva fuori dagli undici per **0.013** di claim.
+
+Curato con **`desc_arrival_origin_rounds`** (`SHEET_REVISION` 7): le giornate del campionato di provenienza,
+dal layer per-partita e per stagione — non una costante che un campionato cambiando taglia romperebbe. Letto
+da `SnapshotView.season_calendar` e, con la stessa regola, da `sweep.build_inputs`, così pannello e gate non
+possono divergere; e bounda anche le assenze contate, perché una stagione da 34 giornate non può costargliene
+36. **Solo per chi ha giocato TUTTA la stagione misurata altrove**: chi si muove a gennaio ha minuti su due
+calendari e nessun denominatore è giusto per lui, quindi tiene quello del suo club — dichiarato invece che
+mediato in silenzio. Origine ignota, stessa cosa: «vuoto = ignoto».
+
+### Esito sul prodotto, e cosa NON è entrato
+Sul foglio 2026-27 di Serie A rigenerato: **Ramos dentro** (claim 0.501 → 0.559), **Atta dentro** (0.576, con
+Oulai fuori), **6 formazioni tipo su 20** cambiate, e alla Juventus il tridente passa da Alajbegovic a David.
+`engine_*` non muove un decimale (`backtest --verify` 22/22): le presenze del motore sono R13, non
+`presence`. **Kolo Muani resta fuori** e la ragione è misurata: i suoi 1670 minuti sono del Tottenham e la
+Juve lo aveva già avuto, quindi paga il `loan_discount` = 0.60 mentre David gioca 1795 minuti a Torino senza
+sconto. Con 0.8 — dove lo sweep tira su `default`, ma è un parametro dichiarato APERTO — il claim va a 0.506
+e resta comunque dietro ai tre davanti. È una decisione su un parametro, non un difetto, e non è stata presa.
+
+E il rango per ELO personale, sopra i due fix, **ributta fuori Atta** (0.576 → 0.511): il suo Elo personale è
+il più basso fra i centrocampisti viola. Il canale è dominato — non porta dentro nessuno che i due difetti
+non portino già, e costa l'uomo che era il caso più netto.
+
 ## Novità v9.36 (7 agosto 2026, notte — l'ELO PERSONALE, e la squadra si risale solo da un ID)
 
 Decisione dell'operatore: «implementiamo l'elo personale per calciatore, ci potrebbe servire in altri casi

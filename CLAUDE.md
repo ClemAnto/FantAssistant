@@ -188,6 +188,27 @@ data defect surfaces (every Serie A penalty was counted twice, which halved the 
 Italian clubs and made 0.5 look better than 0.75 - and 0.75 squared is 0.56); and "confirmed" is not
 "nothing found", so the report says which of the two happened and carries the margin over the runner-up.
 
+**A branch no fold can see is where a defect survives, and the sweep cannot find it for you** (07/08/2026).
+`window_standing` is declared unscorable - the sweep does not rebuild a recent-form window for a season played
+years ago, and it says so in `KNOWN_GAPS` - and that same branch turned out to be the ONLY one exempt from
+`standing_prior_rounds` = 10, because `standing` returned before the shrinkage. So the shortest sample the
+panel ever builds a standing from was the one nobody shrank: Oulai, no season on file and ten matches in
+Turkey, read **0.609** and took Fiorentina's third midfield shirt off Atta, who had 2563 measured minutes at
+0.576. Two habits come out of it. **The sample a shrinkage is about is the sample, not the calendar** - one
+definition (`presence.sample_rounds`), read by `standing` AND by whoever buckets a prior BAND, or a man with
+ten matches is filed among the season-long starters and pulled toward the highest prior there is. And **when a
+new channel fails to rescue the case it was born from, look for the cause instead of a bigger remedy**: the
+personal-Elo rank was refused twice, and of the three men it was supposed to deliver, two were held out by
+wrong denominators (this and the origin calendar below) and the third by a parameter nobody had decided.
+
+**And to attribute a change you must move ONE variable - including in the harness itself.** The sweep report
+before and after these fixes differed in 21 of 56 parameter-blocks, and it was not the fixes: `level_gap_weight`
+= 0.06 had entered `presence.DEFAULTS` between the two runs, and DEFAULTS is the base every OTHER parameter is
+swept on top of. Isolated with a third run at HEAD: **no adopted parameter changes verdict**, and where a
+pooled optimum has drifted (`standing_prior_rounds` 10 → 6, `standing_weights` 0/1 → 0.35/0.65, `level_weight`
+0.06 → 0.04) the held-out gain of moving is negative or under a tenth of the floor. A drifted pooled optimum is
+not a parameter to change; it is one to look at next time.
+
 ## Rebuilding from nothing, and the app bundle
 Two commands own these, and both print a plan before doing anything:
 - **`bootstrap --plan`** = the ordered acquisition on a machine that has never seen the project (15
@@ -311,6 +332,15 @@ keeping: a count from an external source arrives in ITS units (Transfermarkt cou
 competition, so they are counted as league rounds inside the union of the spells, never scaled), and
 `engine_pv_pred` lives on the PLATFORM's calendar (31 euro rounds, 38 default - in the manifest), which is
 not the club's. Details: spec «Novità v9.11».
+**And "the club's own league" means the club he PLAYED FOR, which for an arrival is not the club he is at**
+(07/08/2026). Gonçalo Ramos's 1320 minutes are Ligue 1's 34 rounds and were divided by Milan's 38: 0.386 of a
+season where he had played 0.431, 12% of himself given away - the same rule broken for exactly the men it was
+written for, and it kept him out of the typical eleven by 0.013 of claim. Cured with
+`desc_arrival_origin_rounds` (the origin championship's rounds, from the per-match layer and per SEASON, so a
+league changing size is not a constant anybody has to remember), read by `SnapshotView.season_calendar` and by
+the sweep under the same rule. Two limits stated rather than averaged away: only for a man whose WHOLE
+measured season was elsewhere - a January transfer has minutes on two calendars and no denominator is right
+for him - and an origin we cannot name keeps his club's, «vuoto = ignoto». Details: spec «Novità v9.37».
 
 ## The unit is the MATCH, never the matchday
 Matches get postponed, so a round can be played weeks after the one that follows it, and a date can carry
