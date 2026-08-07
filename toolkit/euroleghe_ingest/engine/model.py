@@ -43,6 +43,13 @@ ANCHOR_MIN_PV = 20
 ANCHOR_FALLBACK: dict[str, str] = {"b": "dc"}
 
 # Goalkeepers, module M2e (modulo-portieri-fase2_2.md): FM = Mv_pred - GsRate_pred + 0.055
+# ⚠️ The name carries an 'e' this implementation has never earned, and it is kept only because every
+# published number and every doc says M2e. `clubelo-gate.md` adopted M2 -> M2e in Colab by mixing the
+# conceded rate 50/50 with the club's Elo; what got ported is the PERSISTENCE half alone, which is the
+# formula modulo-portieri-fase2_2.md itself prints. So no goalkeeper number here reads `club_elo`
+# (verified 27/07/2026, gate §3-quinquies (a); the comments that claimed otherwise were corrected
+# 07/08/2026). Porting the Elo half is a candidate for the gate - on ten windows and both platforms,
+# not on the two the Colab run had - and not a bug to quietly close.
 GK_MV_ANCHOR = 6.15
 GK_MV_BETA = 0.40
 GK_RATE_BETA = 0.40

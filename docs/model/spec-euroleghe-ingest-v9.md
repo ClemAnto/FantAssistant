@@ -197,7 +197,8 @@ stessa ambiguità già accettata per gli attaccanti. Era il prerequisito dichiar
   data d'asta è definita in un solo posto, compreso il settembre 2020 del COVID). Effetto misurato:
   `club_elo` da **76 righe su 2 date a 921 su 10 date, 99 club** — e riproducibile da zero. Servono 16
   alias (ClubElo scrive «Bayern», «Man City», «Paris SG»: senza la mappa i club più forti di quattro
-  leghe restano senza Elo, cioè esattamente la popolazione del modulo portieri). Il seed CSV storico
+  leghe restano senza Elo, cioè esattamente la popolazione del canale livello — chi arriva DA una di
+  quelle squadre è il caso che R19 prezza). Il seed CSV storico
   resta letto con `INSERT OR IGNORE`, perché i numeri pubblicati sono stati prodotti con quello.
 - **La lega di un club si deriva dalla rete** (`positions.derive_club_leagues`): su questa macchina
   `clubs.league` veniva dagli export Drive, che una macchina nuova non ha, e il listone euro **non
@@ -518,7 +519,7 @@ uomini stimati con un VALORE in una colonna di surplus. `SHEET_REVISION` **5 →
 `elo.auction_dates` offriva, per la stagione più recente, solo il 15 agosto convenzionale — che durante la
 **preseason non è ancora successo**. Risultato: l'ultimo snapshot era `2025-08-15` e tutta la finestra
 2026-27 leggeva quello, cioè la forza dei club di una stagione e un mercato fa, che è ciò su cui poggiano
-`desc_level_elo` (R19, adottata il 06/08) e il modello dei portieri. Ora, finché quel giorno è nel futuro,
+`desc_level_elo` (R19, adottata il 06/08) e la scheda club. Ora, finché quel giorno è nel futuro,
 si prende lo snapshot di **oggi**: datato quando è stato osservato, mai sotto una data che non è arrivata.
 Dal 15 in poi torna la data pre-registrata e si aggiunge alla serie. La fetch è rimasta da fare —
 `api.clubelo.com` non risponde (timeout, anche fuori sandbox, mentre altri host rispondono) e il modulo

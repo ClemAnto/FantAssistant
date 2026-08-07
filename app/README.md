@@ -6,7 +6,8 @@ This is where the **auction assistant app** will live (Electron + Angular, TypeS
 ## What it will contain (from the parent doc §7 and §2-bis)
 
 - `prediction-engine/` - the TypeScript engine: Mantra formula + per-league parameter configuration,
-  goalkeeper M2e module, expected appearances, flag/arrivals layer. A **port of
+  goalkeeper M2e module (ability + the club's measured conceded rate - it does not read `club_elo`),
+  expected appearances, flag/arrivals layer. A **port of
   `toolkit/euroleghe_ingest/engine/`**, which is kept dependency-free and explicit for exactly that
   reason (`engine/__init__` says so).
 - **Explainability layer**: every rule is a triplet *condition -> delta -> text template*; output

@@ -25,7 +25,8 @@ FantAssistant/
 ## Project status (July 2026)
 
 The engine core is **validated** on 3 of 4 modules: Mantra core (fractional anchors + BETA 0.42),
-goalkeepers M2e (decomposed + ClubElo), expected appearances. The **flag/arrivals layer** is missing and
+goalkeepers M2e (decomposed: ability + the club's measured conceded rate), expected appearances. The
+**flag/arrivals layer** is missing and
 will be fed by this toolkit. Full detail on Drive (see [docs/DRIVE-MANIFEST.md](docs/DRIVE-MANIFEST.md)).
 
 ## Prerequisites

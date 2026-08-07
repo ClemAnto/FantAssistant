@@ -80,7 +80,9 @@ Invariata (storico 9 stagioni, endpoint Excel, fallback SofaScore, scala ricalib
 
 ## FASE 2 — Mantra core [x] salvo 2.5 pieno (21/7)
 - [x] 2.1 Ancore Mantra frazionarie + BETA 0.42 -> ancore-mantra-fase2_1.md
-- [x] 2.2 Portieri M2e (decomposto + ClubElo; gate -25%/-20%) -> modulo-portieri-fase2_2.md, clubelo-gate.md
+- [x] 2.2 Portieri M2e (decomposto; gate -25%/-20%) -> modulo-portieri-fase2_2.md, clubelo-gate.md
+      ⚠️ la metà **ClubElo** del mix 50/50 è rimasta in Colab: il motore porta solo la persistenza
+      (`predict_fm_goalkeeper` legge `season_stats.goals_conceded`). Vedi clubelo-gate.md §Test 2.
 - [x] 2.3 FM per ruolo posseduto + rank + flessibilita' (fuori FM) -> fm-per-ruolo-fase2_3-2_4.md
 - [x] 2.4 Cambi ruolo = cambi d'ancora ASIMMETRICI -> idem
 - [x] 2.5-lite backtest core (Mantra non-inferiore a Classic) -> backtest-mantra-fase2_5lite.md

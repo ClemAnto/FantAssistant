@@ -1261,8 +1261,11 @@ crea un uso settimanale obbligato:
 > difficoltà del turno — spread 113.2 dentro la giornata, più il **vantaggio campo misurato in 29 punti Elo**
 > (§23.1), che il layer per partita sa applicare perché porta il flag `home`. È lì che il valore d'opzione della
 > coppia di porte si realizza, ed è anche l'unico posto dove la forza-squadra è **già passata dal gate**: il
-> modulo portieri **M2e adotta l'Elo** (tasso gol subiti = mix 50/50 persistenza + Elo, «mai peggio, meglio dove
-> conta»).
+> modulo portieri **M2e prezza la difesa del club** (`GsRate_pred = mu + 0.40·(tasso gol subiti del club − mu)`).
+> ⚠️ **Precisazione del 07/08/2026**: la quantità che il motore usa lì sono i **gol subiti misurati**, non
+> l'Elo. Il mix 50/50 persistenza+Elo di `clubelo-gate.md` ha vinto il gate Colab e **non è mai stato
+> portato** in `engine/model.py`. Resta vero che per i portieri la forza-squadra è l'unica versione della
+> famiglia mai adottata; falso che sia adottata *nella forma Elo*.
 
 Il che chiude il cerchio in modo pulito: **per ordinare il draft la difficoltà del calendario non serve** (6.7
 su 147.0), **per scegliere la porta ogni settimana è il meccanismo principale**, e per i portieri la forza

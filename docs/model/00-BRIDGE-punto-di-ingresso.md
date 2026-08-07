@@ -56,8 +56,17 @@ deliverable**, visibili solo confrontando i due fogli fra loro. Dettaglio: spec 
 - **CHIUSO — `club_elo` fermo a un anno prima dell'asta**: `elo.auction_dates` offriva per la stagione più
   recente solo il 15 agosto convenzionale, che **in preseason non è ancora successo**, quindi tutta la
   finestra 2026-27 leggeva `2025-08-15` — la forza dei club di una stagione e un mercato fa, cioè ciò su cui
-  poggiano `desc_level_elo` (R19, adottata il 06/08) e il modello dei portieri. Ora, finché quel giorno è nel
+  poggiano `desc_level_elo` (R19, adottata il 06/08) e la scheda club. Ora, finché quel giorno è nel
   futuro, si prende lo snapshot di **oggi**: mai una lettura sotto una data che non è arrivata.
+- **CHIUSO — chi legge davvero `club_elo`**: chiederselo per scrivere la riga qui sopra ha falsificato una
+  frase ripetuta per settimane. **Il modulo portieri NON legge l'Elo**: `predict_fm_goalkeeper` prende il
+  tasso gol subiti da `season_stats.goals_conceded` misurati, e il mix 50/50 persistenza+Elo che
+  `clubelo-gate.md` adottò in Colab (M2 → M2e) **non è mai stato portato** — è viaggiato il nome, non la metà
+  Elo (già registrato in `gate-motore-v1.md` §3-quinquies (a) il 27/07, e rimasto in quattro commenti e nel
+  contratto di `export` fino ad oggi). Nemmeno il coefficiente club-a-club degli arrivi (task 3.2) esiste:
+  `arrivals.py` non nomina l'Elo. Gli usi veri sono **due**: R19 e la scheda club. `elo.py` si apre ora con
+  l'elenco verificato dei suoi lettori; portare la metà Elo è una **proposta per il gate**, non una svista da
+  chiudere in silenzio.
 
 `SHEET_REVISION` **5 → 6**, **320 test** (319 passati, 1 skipped), `backtest --verify` **22/22**, e il foglio
 `default/classic` non muove un decimale — là i due vocabolari sono lo stesso.

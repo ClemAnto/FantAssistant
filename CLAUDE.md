@@ -601,8 +601,14 @@ Two more of the same family, both from the same session:
 - **A dated reading is never filed under a date that has not arrived.** `elo.auction_dates` offered the
   conventional 15 August for the newest season, which during the PRESEASON has not happened, so the whole
   2026-27 window read the 2025-08-15 snapshot — a club's strength a season and a transfer window ago, which is
-  what `desc_level_elo` (R19) and the goalkeeper model are built on. Until that day is past, today's own date
-  goes in instead. Same family as «vuoto = ignoto»: the fact was not missing, it was silently the wrong one.
+  what `desc_level_elo` (R19) and the club card are built on. Until that day is past, today's own date goes in
+  instead. Same family as «vuoto = ignoto»: the fact was not missing, it was silently the wrong one.
+  **And asking who reads a table is how a claim repeated for weeks turned out to be false**: the goalkeeper
+  module does NOT read `club_elo`. `predict_fm_goalkeeper` takes the conceded rate from measured
+  `season_stats.goals_conceded`; the 50/50 persistence+Elo mix that `clubelo-gate.md` adopted in Colab (M2 →
+  M2e) was never ported — the NAME travelled and the Elo half did not, recorded in gate §3-quinquies (a) on
+  27/07/2026 and left standing in four comments, the export contract and this file until 07/08/2026. A use
+  nobody checks is a use nobody can correct: `elo.py` now opens with the audited list of its readers.
 - **A parameter is never adopted at the edge of its grid.** The conditional-investment channel passes robust on
   Serie A (+0.79%) and stayed at zero because every fold picked 0.5 out of 0.5. **The follow-up has since been
   run** (05/08/2026, `investment_unplayed_value_wide`, grid to 3.0): on Serie A the winner is **0.75 —
