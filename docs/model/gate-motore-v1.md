@@ -1993,6 +1993,46 @@ out-of-sample sull'obiettivo vero, con cross-fit. È esattamente la differenza f
 rende visibile. L'ELO personale allo sweep non c'è mai arrivato — e alla luce di questa tabella non c'è
 motivo di portarcelo.
 
+### CORREZIONE del 7 agosto (sera) — la verifica di sopra era uno strumento troppo debole
+
+L'operatore ha giudicato le classificazioni sui suoi acquisti e le ha trovate buone salvo una: **«Atta è
+l'unico errore grossolano, reduce da una grandissima stagione e sarà titolare sicuro»**. Rimisurato come si
+deve — **correlazione parziale col minutaggio dell'anno DOPO, controllando per quello dell'anno prima**, su
+**601 acquisti di Serie A** invece di 113 di una stagione sola — il canale vale **+0.218**, non il +0.067 che
+avevo riportato. Il quartile-split su una fetta annuale con minuti grezzi era un test rumoroso, e la
+falsificazione della sezione precedente **va letta con questo davanti**: il difetto di metodo (giudicare
+contro il residuo) resta vero e importante, la conclusione «non discrimina niente» era troppo forte.
+
+### Quattro correzioni provate all'indice, quattro fallite — scritte perché nessuno le riprovi
+| tentativo | esito (Serie A) |
+|---|---|
+| termine di RENDIMENTO (rating z per ruolo) | **peggiora**: +0.189 contro +0.218 |
+| shrinkage verso un prior fisso (1700) | peggiora: +0.173 contro +0.202 |
+| shrinkage verso l'Elo del club che compra | piatta: +0.205 → +0.208, rumore |
+| togliere la tendenza per ETÀ | piatta/peggio: +0.191 → +0.183 (la retta è +2.01 Elo per anno, cioè niente) |
+
+### E il miglioramento c'è, ma NON è nell'indice: è nella regola che lo legge
+Atta ha giocato il **75%** dei minuti — il modello lo sa già, il suo `claim` è 0.59, il più alto del gruppo
+che l'indice bocciava. L'indice serve dove i minuti NON dicono niente; leggerlo da solo è chiedergli di
+rispondere anche dove la risposta c'è già. Misurato:
+
+| segnale (Serie A, 644 acquisti) | r col minutaggio dell'anno dopo |
+|---|---:|
+| minuti dell'anno prima, da soli | +0.286 |
+| rango ELO, da solo | +0.109 |
+| **0.75 × minuti + 0.25 × rango** | **+0.346** |
+
+**Massimo INTERNO** (+0.329 a 0.15 · **+0.346** a 0.25 · +0.339 a 0.35 · +0.283 a 0.50) — la condizione che
+questo progetto pretende. Come classificatore: il rango da solo separa 40% contro 34% (sei punti), la regola
+combinata **42% contro 27%** (quindici).
+E sistema esattamente i casi che erano sbagliati in entrambe le direzioni: **Atta risale al 10° posto su 48**,
+mentre **Valdepenas** (2% di minuti al Real) scende da 100% a 0.27, **Stones** da 100% a 0.39, **Adzic**,
+**Venturino** e **Rugani** da 100% a ~0.29. Ramos resta alto (0.55) e Camarda resta ultimo.
+
+Il canale, quindi, **non è un classificatore ma un secondo termine**, ed è la stessa forma di ogni altro
+segnale adottato qui: un peso piccolo sopra ciò che i minuti già dicono. In quella forma va allo sweep —
+non in quella con cui l'avevo bocciato.
+
 ### Cosa servirebbe prima di poterlo riprendere, dichiarato
 1. **Il layer per-partita comincia nel 2019-20**, quindi sulle finestre vecchie la memoria di 5 stagioni è
    più corta e il canale è più debole per costruzione: va misurato nello sweep, dove le pieghe lo vedono.
