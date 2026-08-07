@@ -85,6 +85,19 @@ pure (spec «Novità v9.34»): il SURPLUS mantra che era il VALORE, e `club_elo`
    Ramos è fuori perché `claim` 0.444 contro Leão 0.615 e Gimenez 0.513, con i suoi 1320 minuti tutti
    `minutes_elsewhere` — il modello fa quello per cui è stato misurato, e può darsi che la risposta giusta
    sia che non è titolare. **Costo: un pomeriggio e zero corse di sweep.**
+6-ter. **PRE-REGISTRATA il 07/08 e DA ESEGUIRE — il SALTO di livello** (gate **§7-duovicies**). Risposta alla
+   domanda dell'operatore «cosa differenzia chi riempie la rosa da chi è preso per giocare», col Qt.I tenuto
+   **fuori** per sua decisione (è opinione sulla titolarità, quindi circolare). Il segnale oggettivo è
+   `Elo(club di provenienza) − Elo(club che lo compra)`: **r = +0.220** sul residuo a parità di minuti,
+   contro +0.117 del livello assoluto. **Chi scende di livello sale di ruolo.** Forma
+   `standing += ω × z(salto)`, griglia ω ∈ {0, 0.02, 0.04, 0.06, 0.09, 0.12}, **`level_weight` spazzato
+   insieme** perché condividono `elo_prev`. Muove il pannello e non `engine_*`. ⚠️ **Prerequisito**: sul
+   foglio vivo l'Elo di destinazione è del 2025-08-15 perché ClubElo è morto — se passa, va lanciato prima
+   il ripiego (punto A).
+6-quater. **FALSIFICATO il 07/08 — il FEE non separa.** `CLAUDE.md` indicava la cifra spesa come il segnale
+   che avrebbe visto Ramos e Kolo Muani. Misurato: fee mediana 6.5 M → residuo +0.074, 30 M → +0.058, esito
+   reale 0.385 contro 0.402, e la fee esiste su **98 casi di 766**. «Fix the input before tuning the weight»
+   resta giusto, l'input indicato no.
 6-bis. **DECISIONE APERTA — `desc_start_share` ha il denominatore sbagliato e non la legge nessuno.**
    `snapshot.titolarita` divide per le **sue presenze** e non per le giornate del campionato: scarto medio
    **+0.216**, e **51 righe su 516** (72 su 851 sull'euro) leggono **1.000** senza aver giocato il 90% del

@@ -1900,6 +1900,81 @@ un voto base convertito e **non** un FM-equivalente: per lui serve un equivalent
 portieri, che è un lavoro in `arrivals` e non qui. Va detto adesso perché è il caso che ha generato la
 richiesta. → **§7-decies**.
 
+## 7-duovicies. CHI SCENDE DI LIVELLO SALE DI RUOLO — il SALTO di Elo (pre-registrata il 7 agosto 2026, PRIMA di eseguirla)
+
+Domanda dell'operatore, ed è quella giusta: **«cosa differenzia un giocatore acquistato per riempire la rosa
+da uno preso per giocare titolare?»** — dopo aver bocciato il candidato ovvio con un argomento che regge:
+**il Qt.I non è un valore oggettivo, ingloba già l'opinione dell'autore sulla sua titolarità**, quindi usarlo
+per predire la titolarità è in parte circolare. Serve un valore assoluto, da confrontare coi compagni di
+reparto. **La quotazione è tenuta fuori da questa pre-registrazione per decisione dell'operatore**, e i numeri
+che la riguardano stanno qui sotto solo perché sono stati misurati nello stesso giro e nasconderli sarebbe
+peggio che dichiararli.
+
+### La misura che ha prodotto l'ipotesi (in-sample, dichiarata come tale)
+Il difetto di partenza è **la regressione verso la media, non abbastanza forte**, e non è un problema degli
+acquisti: con `presence.standing` vero, il bias per fascia di minuti dell'anno prima è monotono per tutti —
+chi RESTA va da **+0.098** (fascia 0-20%) a **−0.037** (80-100%), chi CAMBIA da **+0.179** a **−0.064**.
+L'ampiezza è quasi **doppia per chi cambia club** (0.243 contro 0.135): cambiare squadra rende i minuti
+passati meno informativi, ed è lì che serve un secondo segnale.
+
+Il secondo segnale, cercato **a parità di minuti** perché il primo tentativo era stato divorato dal
+confondente (l'indice `minuti × Elo` correla +0.769 coi minuti stessi: non è informazione nuova, è la
+regressione riscritta):
+
+| segnale | r col residuo | natura |
+|---|---:|---|
+| **salto di livello** — Elo(club di provenienza) − Elo(club che lo compra) | **+0.220** | oggettivo |
+| livello assoluto — Elo del club di provenienza | +0.117 | oggettivo |
+| *(percentile Qt.I nel reparto — misurato e messo da parte)* | *+0.227* | *opinione* |
+
+n = 1487 acquisti con entrambi gli Elo, medie pesate su quattro fasce di minuti.
+
+**Il segno è la risposta alla domanda**: salto POSITIVO — viene da un club più forte di quello che lo compra —
+significa che il modello lo **sottostima**. *Chi scende di livello sale di ruolo*: era dietro a gente migliore
+e adesso non lo è più. E il caso simmetrico, più frequente, è il titolare fisso che SALE di livello e viene
+sovrastimato — giocava tutto in un club piccolo e nel club grande siede in panchina. **Il salto batte il
+livello assoluto di due volte** (+0.220 contro +0.117): non conta il prestigio di dove veniva, conta la
+differenza con dove va — ed è anche il motivo per cui non è R5 sotto mentite spoglie, che leggeva l'Elo di
+DESTINAZIONE da solo ed è stata bocciata quattro volte.
+
+### Forma, popolazione, griglia
+- **Forma**: `standing += ω × z(elo_prev − elo_dest)`, sopra la catena attuale. Con **ω = 0 è l'incumbent**,
+  quindi dentro lo spazio.
+- **Popolazione**: chi ha **cambiato club** e ha **entrambi** gli Elo. È la stessa di `level_lift`, e per la
+  stessa ragione: per chi resta il salto è zero per costruzione.
+- **Griglia**: ω ∈ {0, 0.02, 0.04, 0.06, 0.09, 0.12}, cross-fit leave-one-out, **vincitore interno**.
+- **E `level_weight` va spazzato INSIEME**, non tenuto fermo: i due termini condividono `elo_prev`, quindi il
+  rischio è contarlo due volte. Se ω vince e `level_weight` scende verso 0, **il salto SOSTITUISCE il
+  livello** ed è il risultato più pulito; se restano entrambi positivi, misurano cose diverse e lo si dice.
+  Questo è l'unico modo di rimettere in discussione un parametro già adottato senza toglierlo di soppiatto.
+
+### Attesa scritta prima, e il criterio che la uccide
+- Guadagno sulla MAE delle presenze fra **0.8% e 2.5%**, ottimo interno fra **0.06 e 0.12**, positivo su
+  entrambe le piattaforme. La forchetta è ancorata: `level_weight` = 0.06 valeva +0.93% su Serie A con un r
+  parziale di +0.137, e qui il parziale è **1.6 volte** quello.
+- **Falsificata se** il cross-fit sceglie ω = 0 sulla maggioranza delle pieghe di una piattaforma, o se la
+  media resta sotto il pavimento dello 0.5%. E se vince al **bordo** (0.12) la griglia va riaperta in un
+  follow-up pre-registrato, non allargata dopo aver visto la curva.
+
+### Tre cose dichiarate prima, perché non diventino scoperte comode
+1. **Ho guardato i dati prima di scegliere la forma.** Le tabelle qui sopra sono in-sample su tutte le
+   finestre, con un predittore semplificato (38 giornate fisse, prior unico a 0.33, niente infortuni): la
+   FORMA è quello che si porta via, le grandezze no. Lo sweep deve rifarle cross-fit.
+2. **Sul foglio VIVO il segnale è azzoppato e non è colpa del modello**: ClubElo è morto, quindi l'Elo di
+   destinazione della finestra 2026-27 è quello del **2025-08-15** — una stagione e un mercato fa — o al più
+   il 2026-01-14 del mirror. Il gate non ne soffre (usa date storiche, tutte in cache); il tabellone sì. Se
+   la regola passa, **il ripiego ClubElo va lanciato prima di crederci sul foglio di oggi.**
+3. **Muove il PANNELLO e non il motore**: `presence.py` non è importato da `evaluate`, quindi
+   `backtest --verify` resta 22/22. Farla arrivare a `engine_pv_pred` è una regola separata con un gate suo,
+   esattamente come è stato per R19.
+
+### E una direzione dei documenti che questa misura FALSIFICA
+`CLAUDE.md` proponeva che il segnale che avrebbe visto Ramos e Kolo Muani fosse **il FEE**. Misurato oggi
+sulla popolazione, **non separa**: nella fascia di minuti di Ramos, fee mediana 6.5 M → residuo +0.074, fee
+mediana 30 M → +0.058, con esito reale 0.385 contro 0.402. Diciassette millesimi di quota per quattro volte
+il prezzo — e la fee esiste solo su **98 casi di 766**. La riga «fix the input before tuning the weight»
+resta giusta; l'input che indicava no.
+
 ## 7-unvicies. LA QUOTA DI PARTENZE DI CHI HA CAMBIATO CAMPIONATO (pre-registrata il 7 agosto 2026, PRIMA di eseguirla)
 
 Nata da un confronto, non da un'intuizione: l'undici tipo del Milan calcolato dal foglio del 07/08 contro
