@@ -85,7 +85,19 @@ pure (spec «Novità v9.34»): il SURPLUS mantra che era il VALORE, e `club_elo`
    Ramos è fuori perché `claim` 0.444 contro Leão 0.615 e Gimenez 0.513, con i suoi 1320 minuti tutti
    `minutes_elsewhere` — il modello fa quello per cui è stato misurato, e può darsi che la risposta giusta
    sia che non è titolare. **Costo: un pomeriggio e zero corse di sweep.**
-6-ter. **PRE-REGISTRATA il 07/08 e DA ESEGUIRE — il SALTO di livello** (gate **§7-duovicies**). Risposta alla
+6-quinquies. **ADOTTATO il 07/08 — `level_gap_weight` = 0.06** (gate §7-duovicies), sul verdetto robust di
+   Serie A: media **+0.77%**, **peggior fold positivo** (+0.13%), 0.06 scelto da tutte e sei le pieghe;
+   euro positivo (+0.35%) e sotto il pavimento. `backtest --verify` **22/22, zero fallimenti**. Muove
+   **107 righe su 649** (Serie A) e **77 su 1031** (euro), in entrambe le direzioni.
+   ⚠️ **Due cose da fare perché si veda**: rigenerare i fogli e il bundle, e **lanciare `elo` prima** — sul
+   foglio vivo l'Elo di destinazione è del 2025-08-15 e il canale poggia proprio su quello.
+   ⚠️ Adozione senza `passes`: se il prossimo sweep la trova peggiorata, esce senza discutere.
+6-sexies. **FALSIFICATO il 07/08 — il rango nel reparto per ELO personale** (`level_rank_weight`, gate
+   §7-tervicies): il cross-fit sceglie **zero** su entrambe le piattaforme, su euro all'unanimità. Resta
+   però **l'ELO personale come infrastruttura** (spec «Novità v9.36»): 2.796 giocatori, 99% dei minuti,
+   squadra risolta **per id** — falsificato usarlo per le presenze, non averlo.
+6-ter. ~~**PRE-REGISTRATA il 07/08 e DA ESEGUIRE — il SALTO di livello**~~ — **fatto, vedi 6-quinquies**
+   (gate **§7-duovicies**). Risposta alla
    domanda dell'operatore «cosa differenzia chi riempie la rosa da chi è preso per giocare», col Qt.I tenuto
    **fuori** per sua decisione (è opinione sulla titolarità, quindi circolare). Il segnale oggettivo è
    `Elo(club di provenienza) − Elo(club che lo compra)`: **r = +0.220** sul residuo a parità di minuti,

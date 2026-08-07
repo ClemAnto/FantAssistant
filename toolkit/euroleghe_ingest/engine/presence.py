@@ -155,8 +155,19 @@ class Params:
     # behind better players and now he is not. The symmetric case is the commoner one, the regular starter
     # who steps UP a level and is over-predicted. And the gap beats the absolute level TWICE OVER, which is
     # also why this is not R5 in disguise: R5 read the destination Elo alone and was rejected four times.
-    # 0.0 until the sweep says otherwise - no gate, no engine.
-    level_gap_weight: float = 0.0
+    # ADOTTATO 07/08/2026 a 0.06, sul verdetto ROBUST di `default` (gate §7-duovicies). Serie A:
+    # media +0.77%, **peggior fold +0.13%** - nessuna finestra peggiora - e il cross-fit sceglie 0.06 su
+    # tutte e sei le pieghe, all'unanimita'. euro: media +0.35%, peggior fold -0.07%, cioe' positivo ma
+    # sotto il pavimento dello 0.5%. L'ottimo e' INTERNO su una griglia che arriva a 0.12 ed e' lo
+    # STESSO 0.06 sulle due piattaforme, quindi il valore unico non e' un compromesso fra due ottimi
+    # diversi: e' l'ottimo di entrambe, il che rende questa adozione meno delicata di quella di R19
+    # (che su euro era CONTRO, 0 finestre su 5).
+    # DA TENERE D'OCCHIO, dichiarato adesso e non dopo: e' un'adozione senza `passes`, quindi piu'
+    # fragile di una sullo strict. Se il prossimo giro di sweep la trova peggiorata, esce senza
+    # discutere - e chi la difende deve saperlo.
+    # E il canale gemello NON e' entrato: `level_rank_weight` (il rango nel reparto) e' stato misurato
+    # nello stesso giro e il cross-fit lo azzera su entrambe le piattaforme.
+    level_gap_weight: float = 0.06
     # ...and the third of the family: WHERE HE STANDS IN THE DEPARTMENT HE JOINS, by the level of the
     # football he has played (`elo.personal_levels`, five seasons, minutes-weighted). The operator's
     # question was «cosa differenzia un giocatore acquistato per riempire la rosa da uno preso per

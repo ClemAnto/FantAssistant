@@ -519,6 +519,30 @@ engine's (`evaluate.py` does not import it), so this moves who the board draws a
 `engine_*`. What it does NOT do is rescue the case it came from: Ramos gains +0.118 of standing, Kolo Muani
 +0.026, and Gimenez nothing at all because he did not move.
 
+**And a day later the same family gave a better answer: CHI SCENDE DI LIVELLO SALE DI RUOLO** —
+`level_gap_weight` = 0.06, adopted 07/08/2026 (gate §7-duovicies). Born from the operator's question, «cosa
+differenzia un giocatore acquistato per riempire la rosa da uno preso per giocare titolare?», with the
+obvious candidate refused on an argument that holds: **the listone's Qt.I is not an objective value, it
+already contains its author's opinion about the man's titolarità**, so predicting titolarità with it is
+circular. The objective answer is not the level but the STEP — `Elo(club he left) − Elo(club buying him)`,
+partial r **+0.220** at equal minutes against **+0.117** for the absolute level, i.e. what matters is not
+the prestige of where he came from but the difference with where he goes. That is also why it is not R5 in
+disguise: R5 read the destination Elo alone and was rejected four times. Serie A robust PASS, mean **+0.77%**
+with the **worst fold POSITIVE** (+0.13%) and 0.06 chosen unanimously by all six folds; euro positive
+(+0.35%) and under the floor. Second adoption without `passes` after R19, and less delicate than that one:
+R19 was AGAINST on euro, this is merely small, and 0.06 is the optimum on both platforms rather than a
+compromise. Both directions move — Esposito Se. +0.135 stepping down from Inter to Cagliari, Cheddira −0.117
+stepping up to Napoli — which is what stops a shrinkage from being a haircut.
+Three things that came with it and are worth more than the parameter. **A signal is judged against the
+OUTCOME, controlling for what is already known — never against the RESIDUAL of a model that contains that
+knowledge**: a rank correlating +0.204 with the residual turned out to be reproducing the model's own
+regression to the mean, and the same idea scored +0.067 against next season's minutes while the minutes
+already in hand scored +0.322. **An ambiguous name match is worse than a missing one**: stripping corporate
+noise made «Paris FC» a subset of «Paris Saint-Germain» and priced three of Gonçalo Ramos's seasons at a
+Ligue 2 club — hence `club_levels_xref`, where the club is resolved ONCE at ingest and every read joins by
+the provider's team id (`external_stats.club_id`). And **a channel that passes need not rescue the case that
+suggested it**: this one lifts Ramos by 0.075 and leaves him fourth, exactly as `level_weight` did.
+
 **Two refinements of the same idea, both refused by measurement rather than by argument.** «L'esperienza si
 accumula anche solo partecipando come panchinaro»: the bench IS in the data (the payload carries the whole
 matchday squad — 58,161 starters, 23,275 substitutes who came on, 35,896 unused, and a man not called up has

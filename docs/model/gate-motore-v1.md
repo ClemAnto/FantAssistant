@@ -2188,6 +2188,39 @@ comprato per fare il centravanti»**, e i due che lo direbbero sono quello esclu
 quello falsificato (la fee). Il salto dice un'altra cosa — «scende di livello» — che è vera, misurata, e vale
 +0.075.
 
+### ADOTTATO il 7 agosto 2026 a **0.06**, sul verdetto ROBUST
+
+Decisione dell'operatore, presa in chiaro come il protocollo prevede. È la **seconda adozione senza
+`passes`** dopo R19, e va detto in cosa è meno delicata di quella: R19 su euro era **contro** (0 finestre su
+5, media −1.1%), questo su euro è **positivo** (media +0.35%, peggior fold −0.07%) e semplicemente sotto il
+pavimento; e l'ottimo 0.06 è **lo stesso sulle due piattaforme**, quindi il valore unico non è un compromesso
+fra due ottimi diversi. Su Serie A **nessuna finestra peggiora** — il peggior fold è **+0.13%** — e tutte e
+sei le pieghe scelgono 0.06.
+
+**`engine_*` non si muove**: `evaluate` non importa `presence`, e `backtest --verify` resta **22/22 su 22
+controlli, zero fallimenti** (verificato dopo il cambio, non prima).
+
+**Effetto misurato sui fogli**, A/B a parità di giorno e di codice:
+
+| foglio | righe che si muovono | di cui arrivi | in su | in giù |
+|---|---:|---:|---:|---:|
+| Serie A (classic) | **107 su 649** | 47 | 33 (media +0.043) | 74 (media −0.018) |
+| EuroLeghe (mantra) | **77 su 1031** | 64 | 42 (media +0.042) | 35 (media −0.045) |
+
+E il meccanismo si legge sui nomi, **in entrambe le direzioni**, che è la prova che non è una sforbiciata:
+**Esposito Se.** 0.773 → 0.908 (dall'Inter, 1933, al Cagliari: scende di livello e gioca di più),
+**Coppola D.** +0.096 e **Romano** +0.091 per la stessa ragione; contro **Cheddira** 0.163 → 0.046 (verso il
+Napoli), **Floriani Mussolini** −0.105 (dalla Cremonese alla Lazio) e **Nwaneri** −0.097 (verso l'Arsenal) —
+chi sale di livello scende di ruolo.
+
+⚠️ **Un prerequisito operativo che l'adozione non risolve**: sul foglio VIVO l'Elo di destinazione è quello
+del **2025-08-15**, perché ClubElo è morto. Il canale è calibrato su date storiche tutte in cache, quindi il
+verdetto è sano; ma i numeri che il pannello mostra oggi poggiano su una forza dei club vecchia di una
+stagione e un mercato. **Il ripiego va lanciato prima di credere a questa colonna sul foglio di oggi.**
+
+⚠️ **E da tenere d'occhio, dichiarato adesso**: un'adozione sul solo robust è più fragile di una sullo
+strict. Se il prossimo sweep la trova peggiorata, esce senza discutere.
+
 ### E una direzione dei documenti che questa misura FALSIFICA
 `CLAUDE.md` proponeva che il segnale che avrebbe visto Ramos e Kolo Muani fosse **il FEE**. Misurato oggi
 sulla popolazione, **non separa**: nella fascia di minuti di Ramos, fee mediana 6.5 M → residuo +0.074, fee
