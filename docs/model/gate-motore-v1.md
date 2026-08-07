@@ -474,7 +474,7 @@ Su Serie A il set tiene su **tutte e 7** le finestre (media +8.9%, peggior fines
 | **`external_stats` + layer per-partita per 19/20-22/23** | R3c è l'unica regola euro non banale rimasta e è **cieca prima del 23/24**; con essa anche R2, R8, R11, R13 tornano testabili sulle vecchie finestre | SofaScore: ~1300 richieste/stagione per gli aggregati, ore per il layer per-partita | **1 - è LA passata che serve** |
 | euro **2018-19** voti | darebbe all'euro una quinta finestra (Tm4) | ~30 download, ~5 minuti | 2 - banale |
 | Serie A **17/18, 16/17, 15/16** | tre finestre in più (10 in totale) | ~114 download, ~20 minuti | 2 - banale |
-| `club_elo` alle date d'asta vecchie | **solo** R5, famiglia già bocciata tre volte. Non serve ai portieri | 5 richieste all'API ClubElo (oggi il modulo legge un CSV seed) | 4 - basso valore |
+| `club_elo` alle date d'asta vecchie | **solo** R5, famiglia già bocciata tre volte. Non serve ai portieri ⚠️ *valutazione del 27/07: il 06/08 nasce **R19**, che legge questa tabella ed è adottata su `default` — la priorità 4 non vale più* | 5 richieste all'API ClubElo (oggi il modulo legge un CSV seed) | 4 - basso valore |
 | **`injuries`** | metà dei buchi nelle top-10 dei difensori | nessuna fonte agganciata (piano: Transfermarkt) | 3 - serve una decisione, non una passata |
 | storia di `probable_starter`/`availability` | la forma pre-registrata di R7 | **impossibile a posteriori** (esiste solo lo snapshot 2026-07) | — **nessun job**, decisione dell'operatore 05/08/2026: si legge subito prima della sessione, e quella forma di R7 resta non testabile |
 | voti EuroLeghe 21/22 | chiuderebbe il buco euro | **impossibile**: i file della sorgente sono vuoti | - |

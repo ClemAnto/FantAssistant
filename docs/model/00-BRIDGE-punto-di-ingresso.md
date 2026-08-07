@@ -1196,8 +1196,10 @@ generazione delle ipotesi: passare lì è la prova più debole possibile.**
    che non tornerà.
 6. A rendimento calante: voti Serie A prima del 15/16 (non sondati), layer per-partita per 15/16-18/19
    (servirebbe solo a ri-testare R8 e R14, già bocciate). ~~`club_elo` oltre le 2 date~~ **risolto**:
-   l'API ClubElo dà tutte e 10 le date d'asta (921 righe, 99 club) — serve al modulo portieri, non a R5
-   (famiglia chiusa).
+   l'API ClubElo dà tutte e 10 le date d'asta (921 righe, 99 club). **A chi serve, corretto il
+   07/08/2026**: a **R19**, il canale livello (l'Elo del club di PROVENIENZA muove le presenze di chi ha
+   cambiato squadra, adottato su `default` il 06/08) e alla scheda club. **Non ai portieri** — M2e legge i
+   gol subiti misurati, mai `club_elo` — e non a R5, famiglia chiusa.
 7. **La conferma pulita resta la finestra 26/27, giugno 2027**: tutto l'adottato è stato generato
    guardando gli esiti di T1/T2.
 
