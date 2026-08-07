@@ -1271,6 +1271,15 @@ Il che chiude il cerchio in modo pulito: **per ordinare il draft la difficoltà 
 su 147.0), **per scegliere la porta ogni settimana è il meccanismo principale**, e per i portieri la forza
 avversaria è l'unica versione della famiglia che il gate abbia mai adottato.
 
+> ⚠️ **Precisazione del 07/08/2026, e cambia il verbo.** Quell'adozione è avvenuta **in Colab**, non in questo
+> motore: `predict_fm_goalkeeper` calcola il tasso gol subiti dalla sola persistenza dei
+> `season_stats.goals_conceded` misurati, e la metà Elo del mix M2e **non è mai stata portata** — è viaggiato
+> il nome (registrato in [gate-motore-v1.md](gate-motore-v1.md) §3-quinquies (a) il 27/07/2026, e rimasto
+> scritto al contrario in mezzo repository fino all'audit dei lettori di `club_elo`). Quindi la frase corretta
+> è: la forza-squadra per i portieri è l'unica versione della famiglia **che abbia mai passato un gate**, e
+> resta **da portare**. Non cambia il ragionamento sulla scelta settimanale della porta — cambia da cosa
+> partirebbe l'implementazione, che è una proposta per il gate su dieci finestre e non un travaso.
+
 ### 21.4 Cosa manca per farlo, e due cautele sulla misura
 
 - **Nel DB non esiste il calendario FUTURO.** `external_match_stats` contiene le partite *giocate*, quindi le
