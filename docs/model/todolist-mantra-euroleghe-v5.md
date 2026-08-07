@@ -1,6 +1,31 @@
 # Todolist — Allineamento Mantra & EuroLeghe (v5)
 
-## Aperti al 7 agosto 2026 — nessuno con scadenza
+## Aperti alla chiusura del 7 agosto 2026 — nessuno con scadenza
+
+Ordinati per COSTO, non per importanza: prima ciò che non dipende da noi, poi il lavoro misurato, poi le
+decisioni. I quattro difetti trovati oggi sono tutti chiusi (spec «Novità v9.32» e «v9.33»).
+
+**A. Fonti giù, e va riprovato prima di ogni sessione**
+- **Transfermarkt: timeout totale** (curl 28, 0 byte, riprodotto a mano fuori dal modulo) → `contract_until`,
+  `market_values` e gli infortuni sono fermi al **29/07**, e il walk per giocatore non riparte. Vedi il
+  punto 2 sotto: il modulo deve anche DIRLO.
+- **ClubElo: read timeout** → la data d'asta **2026-08-15** non esiste in `club_elo`. Nulla è rotto oggi
+  (`elo_prev` legge la data della stagione di input, che c'è), ma la riga del target manca.
+- **FBref: 403** anche impersonando. Fuori dalla catena di oggi.
+
+**B. Coda di lavoro, misurata il 07/08 — è tutto ripartibile**
+- **`recent_form`: 803 giocatori** su tutte le stagioni (2018-19 ne ha 256 da solo; il 2026-27 ne ha 31, e
+  sono NUOVI perché la coda ora calcola le mediane per listone e ne fa l'unione). ~2 minuti a testa: è una
+  notte. Un solo match senza bonus.
+- **`positions --layer season`** non rigirato il 07/08 (~90 richieste, aggregati che si muovono poco).
+- **`sweep_presence.json` è scaduto in UN blocco**: il braccio **tier** legge i pool di percentili, che con
+  la v9.33 sono per piattaforma. Le costanti no.
+- **`backtest --gate`** non rigirato dopo la v9.33: le adottate non leggono il prezzo (`--verify` 22/22 lo
+  conferma), ma R12/R12b — falsificate — avrebbero cifre diverse.
+
+**C. Il pezzo grosso che non è iniziato**
+- **`app/` è un README e ZERO file TypeScript.** Il contratto dati è pronto e verificato (bundle 24 tabelle,
+  361.320 righe, `sheet_revision` 5): manca il porting del motore da `engine/`.
 
 0. ~~**LA QUOTAZIONE NON HA UNA PIATTAFORMA**~~ — **FATTO il 07/08/2026** (spec «Novità v9.33»):
    `listone_quotes` con `platform` nella chiave, `fvm_history` e `arrivals` allargati, backfill di tutta la

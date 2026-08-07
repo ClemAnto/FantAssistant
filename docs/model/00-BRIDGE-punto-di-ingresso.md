@@ -53,6 +53,26 @@ v9.32» e «Novità v9.33».
 - **Fonti giù quel giorno**: Transfermarkt irraggiungibile (nessuna pagina rosa dal 29/07 → contratti,
   valori di mercato e infortuni fermi lì) e ClubElo in timeout. fantacalcio.it e il provider funzionano.
 
+**Tre commit, tutti su `master` e pushati**: `dd5d675` (i tre difetti + le pagine euro), `010af4a` (la
+migrazione della quotazione per piattaforma), `8ed81e8` (una correzione: dove finisce il tier).
+**318 test**, `backtest --verify` **22/22**, `validate` pulito. Dati aggiornati nella catena giusta: listone
+(entrambe le piattaforme), `arrivals`, `stats`, `matchdays`, `synth`, `transfers` (+145 righe risolte dal
+listone nuovo), `recent_form` sul 2026-27 (25/25 identità, 250 righe), i due fogli (**1031 EuroLeghe / 649
+Leghe**, revision 5) e il bundle (24 tabelle, 361.320 righe, `sheet_revision` dentro).
+
+**UNA CORREZIONE DA PORTARSI DIETRO**, perché era mia e cambia una misura: avevo detto che il tier d'arrivo
+arriva al surplus attraverso lo sconto di `presence`. Non è vero — lo sconto si basa sull'aver cambiato
+CAMPIONATO e `evaluate` non legge `arrival_tier` affatto. Gli 82 arrivi che cambiano fascia fra le
+piattaforme finiscono nella colonna `desc_arrival_tier` e nel braccio tier dello sweep, e lì si fermano.
+Quindi la v9.33 muove **ciò che l'operatore vede** (quotazione e fascia), non `engine_*`.
+
+**COSA MANCA, in ordine di costo** (dettaglio nella todolist, sezione «Aperti alla chiusura del 7 agosto»):
+fonti giù (Transfermarkt, ClubElo) che vanno riprovate a ogni sessione · **803 giocatori** in coda per
+`recent_form`, che è una notte · il blocco **tier** dello sweep scaduto (i pool sono cambiati) · le probabili
+vuote finché la stagione non parte · e il pezzo grosso: **`app/` è un README e zero file TypeScript**, mentre
+il contratto dati è pronto e verificato. Se conta il prodotto all'asta, la cosa da fare è l'assistente
+(`assistente-asta-v1.md`); se contano i dati, è la notte di `recent_form`.
+
 ### 6/08/2026: quattro adozioni, sei falsificazioni, e il gate che ora vincola il prodotto
 
 Dodici commit, tutti su `master` e **pushati**. **313 test**, `backtest --verify` **22/22**.

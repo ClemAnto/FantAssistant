@@ -10,12 +10,26 @@ App per leghe EuroLeghe/fantacalcio.it (Classic+Mantra, 5 campionati) con motore
 
 ### 7 agosto 2026, in una riga: un aggiornamento di routine trova quattro difetti, e li chiude tutti — l'ultimo è il PREZZO
 
-Stato completo nel **00-BRIDGE**, blocco «STATO AL 7 AGOSTO 2026»; dettaglio nella spec **«Novità v9.32»**.
-317 test, `backtest --verify` **22/22**, nessuna regola entrata, `SHEET_REVISION` **4**. Aperto e da decidere:
-`rosters` tiene UNA quotazione per (fc_id, season) mentre i due listoni ne danno due diverse (202 Qt.I e 226
-FVM in disaccordo) — oggi aggirato costruendo ogni foglio col suo listone letto per ultimo. Chiusi: la rosa
-live letta prima del run che la scarica, le probabili di una stagione già giocata usate come previsione
-(428 righe su 648), e le pagine editoriali EuroLeghe che nessuno leggeva.
+Stato completo nel **00-BRIDGE**, blocco «STATO AL 7 AGOSTO 2026»; dettaglio nella spec **«Novità v9.32»** e
+**«v9.33»**. **318 test**, `backtest --verify` **22/22**, nessuna regola entrata nel motore,
+`SHEET_REVISION` **2 → 5**, `validate` pulito. Tre commit pushati: `dd5d675`, `010af4a`, `8ed81e8`.
+
+**Tutti e quattro i difetti chiusi**: la rosa live letta PRIMA del run che la scarica (ogni foglio portava
+quella del giorno prima) · le probabili di una stagione già GIOCATA usate come previsione (428 righe su 648,
+415 duelli) · le pagine editoriali EuroLeghe che nessuno leggeva · e **la quotazione come fatto di
+piattaforma** — `listone_quotes` con `platform` nella chiave, più `fvm_history` e `arrivals` allargati, più il
+backfill di tutta la storia dalla cache (16.375 righe, 12 stagioni Serie A e 9 EuroLeghe, zero richieste).
+Il rituale «rileggi il listone giusto prima di costruire» è morto: `rosters` porta 15/56 per Svilar e il
+foglio Serie A stampa 18/65.
+
+**Una correzione da portarsi dietro**: il tier d'arrivo NON arriva a `engine_*`. Lo sconto di `presence` si
+basa sull'aver cambiato campionato e `evaluate` non legge `arrival_tier`; gli 82 arrivi che cambiano fascia
+fra le piattaforme finiscono nella colonna e nel braccio tier dello sweep.
+
+**Cosa manca, in ordine di costo**: Transfermarkt e ClubElo giù (contratti e valori di mercato fermi al
+29/07) · **803 giocatori** in coda per `recent_form` · il blocco **tier** dello sweep scaduto perché i pool
+sono cambiati · le probabili vuote finché la stagione non parte · e il pezzo grosso, **`app/`: un README e
+zero file TypeScript**, col contratto dati già pronto e verificato.
 
 ### 6 agosto 2026, in una riga: quattro regole entrano da un harness, sei ipotesi cadono, e il gate impara a difendere il prodotto
 
