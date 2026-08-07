@@ -495,6 +495,45 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.35 (7 agosto 2026, notte — ClubElo è morto: un ripiego sulla STESSA scala)
+
+`api.clubelo.com` non risponde più (ECONNREFUSED sull'API **e** su `clubelo.com`, da due reti diverse), e
+`bootstrap` su un clone nuovo si fermerebbe lì. Prima di cercare un'alternativa, il perimetro del problema:
+**le dieci finestre del gate sono già in cache** (`clubelo_2016-08-15.csv` … `2025-08-15`, 87-94 club l'una),
+`rebuild` le rilegge offline e nessun numero pubblicato è a rischio. Manca **una fotografia sola**, quella
+dell'asta 2026-27, e i suoi lettori sono `desc_level_elo` (il pannello, via `presence.level_lift`) e la scheda
+club — non `evaluate`, che per le finestre passate legge le date in cache.
+
+**Perché un MIRROR e non un altro fornitore.** `level_weight` 0.06 è stato spazzolato sulla distribuzione di
+ClubElo. `evaluate._origin_elo_z` standardizza dentro la finestra, quindi una scala estranea non romperebbe
+l'aritmetica di per sé — ma sostituire fornitore su **una finestra di dieci** è esattamente «una trasformata
+appartiene alla popolazione su cui è stata fittata». `tonyelhabr/club-rankings` ripubblica il CSV giornaliero
+di ClubElo con le sue colonne intatte (`Rank,Club,Country,Level,Elo,From,To` + `date`), quindi
+`parse_snapshot` lo legge **senza modifiche** e nessun numero cambia significato. Le alternative vere
+(elofootball, soccer-rating — che è derivata dalle quote, cioè un'opinione di mercato — Opta) sono tutte scale
+nuove: sono una ri-misura, non un ripiego.
+
+Due proprietà che il ripiego deve avere, ed è per questo che non è un download:
+- **archivia la data OSSERVATA, mai quella richiesta.** Il mirror si ferma al **14/01/2026**, quindi una
+  richiesta per oggi è servita da quello snapshot e depositata **come 2026-01-14** — che i lettori trovano
+  comunque (`MAX(date) <= auction_date`) e che non dichiara di essere ciò che non è. Archiviarlo sotto la data
+  richiesta sarebbe lo stesso difetto appena corretto in `auction_dates`, un passo più avanti. Comunque cinque
+  mesi più vicini del `2025-08-15` che il foglio legge oggi.
+- **quello che scrive è la forma che l'API avrebbe restituito**, sotto il nome di cache abituale, così
+  `rebuild` non distingue — con accanto un `clubelo_{data}.origin.txt` che dice da dove viene, perché
+  `club_elo` non ha una colonna sorgente e una riga che non sa dichiarare la propria provenienza non è
+  verificabile da nessuno.
+
+Un file solo da 49 MB tiene tutte le date, quindi si **scorre una volta e si filtra** per tutte le date
+mancanti insieme (`pick_from_mirror`, pura e testabile offline: prende un iterabile di righe, così la rete e i
+test esercitano lo stesso codice). Una data che il mirror non raggiunge — comincia il 16/04/2023 — **non c'è
+nel risultato**, non viene approssimata con la cosa più vicina: «vuoto = ignoto» applicato a una data. E se le
+colonne del mirror cambiassero, è un errore e non un ritorno vuoto, che sembrerebbe «non aveva niente da
+aggiungere». Verificato end-to-end contro il file vero: 3.3 s, `clubelo_2026-01-14.csv` di 34 KB (stessa
+taglia degli snapshot dell'API), 630 club di cui **96 in prima divisione delle cinque leghe**, 14 nomi
+risolti da `ELO_ALIASES` (Arsenal 2052.4, Bayern 1996.3, Man City 1982.9), e la richiesta per il 2016
+correttamente rifiutata. **323 test**.
+
 ## Novità v9.34 (7 agosto 2026, notte — «verifica che ci siano tutti i dati»: le fonti c'erano, il livello di rimpiazzo no)
 
 Verifica di completezza del toolkit. `fetch --plan` dice *every source is populated* su 19 tabelle,

@@ -95,3 +95,51 @@ def test_the_newest_snapshot_is_dated_when_it_was_taken_and_never_in_the_future(
     assert "2026-08-07" in early and "2026-08-15" not in early
     # ...and on the day itself the pre-registered date is the one taken, joining the series
     assert "2026-08-15" in elo.auction_dates(ctx.conn, today="2026-08-20")
+
+
+# The mirror republishes ClubElo's own daily CSV with two columns appended, so the fallback has to
+# pick a date out of one big file rather than ask for one. Same seven columns in the same order.
+_MIRROR = (
+    "Rank,Club,Country,Level,Elo,From,To,date,updated_at\n"
+    "1,Inter,ITA,1,1900.0,2023-04-01,2023-04-20,2023-04-16,2023-04-16 18:17:58\n"
+    "1,Inter,ITA,1,1910.0,2025-12-20,2026-01-20,2026-01-13,2026-01-13 10:20:15\n"
+    "2,Bayern,GER,1,1990.0,2025-12-20,2026-01-20,2026-01-13,2026-01-13 10:20:15\n"
+    "1,Inter,ITA,1,1925.0,2026-01-01,2026-02-08,2026-01-14,2026-01-14 10:20:15\n"
+    "2,Bayern,GER,1,1996.3,2026-01-01,2026-02-08,2026-01-14,2026-01-14 10:20:15\n"
+)
+
+
+def test_the_mirror_serves_the_latest_reading_that_is_not_after_the_date_asked_for():
+    """The fallback's whole risk is filing a reading under a date it does not belong to.
+
+    A request for today is answered with the most recent snapshot the mirror HAS, returned together
+    with the day it was observed so the caller stores that and not the request - and never with a
+    later one, since a snapshot taken after an auction knows things the auction did not.
+    """
+    picked = elo.pick_from_mirror(_MIRROR.splitlines(), ["2026-08-07", "2026-01-13"])
+
+    observed, payload = picked["2026-08-07"]
+    assert observed == "2026-01-14", "the freshest reading at or before the request"
+    # ...and what comes out is exactly what the API would have returned, parser untouched
+    assert payload.splitlines()[0] == "Rank,Club,Country,Level,Elo,From,To"
+    assert {rec["club"]: rec["elo"] for rec in elo.parse_snapshot(payload)} == {
+        "Inter": 1925.0, "Bayern": 1996.3}
+
+    assert picked["2026-01-13"][0] == "2026-01-13", "an earlier request is not served the newer day"
+    assert elo.parse_snapshot(picked["2026-01-13"][1])[0]["elo"] == 1910.0
+
+
+def test_a_date_the_mirror_cannot_reach_is_absent_and_not_approximated():
+    """The mirror starts in 2023 and the ten gate windows are cached in full, so the honest answer
+    for an older date is nothing at all - «vuoto = ignoto» applied to a date. Filling it with the
+    closest thing available would put a 2023 reading inside a 2016 window."""
+    assert elo.pick_from_mirror(_MIRROR.splitlines(), ["2016-08-15"]) == {}
+
+
+def test_the_mirror_changing_shape_is_an_error_and_not_a_silent_empty():
+    """If the columns move, every date would come back empty and `club_elo` would just stay as it
+    was - a fallback that fails looking like a fallback that had nothing to add."""
+    import pytest
+
+    with pytest.raises(ValueError, match="columns"):
+        elo.pick_from_mirror(["Team,Rating,day\n", "Inter,1900,2026-01-14\n"], ["2026-08-07"])

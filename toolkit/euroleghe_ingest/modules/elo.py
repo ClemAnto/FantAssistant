@@ -31,11 +31,32 @@ The dates come from `engine.features.WINDOWS`, not from a local guess: the engin
 Each response is cached under data/cache/clubelo_{date}.csv, so `rebuild` re-ingests it offline like
 every other source. The legacy seed is still honoured when present - it is how the published numbers
 were produced - but it never overwrites a fetched snapshot.
+
+WHEN THE HOST IS DOWN (07/08/2026: ECONNREFUSED on the API *and* on clubelo.com, from two different
+networks), there is a fallback, and it is deliberately a MIRROR OF THE SAME SERIES rather than another
+provider. The reason is calibration, not convenience: `level_weight` 0.06 was swept on ClubElo's own
+distribution, and while `evaluate._origin_elo_z` standardises inside each window - so a foreign scale
+would not corrupt the arithmetic outright - substituting a different provider on ONE window of ten is
+exactly «a fitted transform belongs to the population it was fitted on». `tonyelhabr/club-rankings`
+republishes ClubElo's daily CSV with its own columns untouched (Rank,Club,Country,Level,Elo,From,To
+plus `date`), so `parse_snapshot` reads it unchanged and no number changes meaning.
+
+Two properties the fallback must keep, and they are why it is not a plain download:
+* it stores the OBSERVED date, never the requested one. The mirror's coverage ends 2026-01-14, so a
+  request for today is served by the 14 January snapshot filed AS 2026-01-14 - which the readers find
+  anyway (`MAX(date) <= auction_date`) and which no longer claims to be something it is not. Filing it
+  under today would be the same defect `auction_dates` was just fixed for, one step further along.
+* the extracted file is byte-for-byte the shape the API would have returned, cached under the usual
+  name, so `rebuild` cannot tell the difference - with a `clubelo_{date}.origin.txt` sidecar next to it
+  saying where it came from, because a row that cannot say its provenance is a row nobody can audit.
+The mirror covers 2023-04-16 -> 2026-01-14 only. The ten gate windows are already cached in full, so
+this exists for the CURRENT reading and for `bootstrap` on a fresh clone, not to rebuild history.
 """
 
 from __future__ import annotations
 
 import csv
+import io
 import os
 import time
 import urllib.error
@@ -52,6 +73,15 @@ NETWORK = True
 
 ENDPOINT = "http://api.clubelo.com/{date}"
 REQUEST_DELAY = 1.5          # a static file server, but polite is still polite
+
+# The fallback: ClubElo's own daily CSV, republished. One 49 MB file holding every date, so it is
+# streamed once and filtered rather than downloaded per date. Verified 07/08/2026: same seven columns
+# in the same order plus `date`/`updated_at`, ClubElo's own short spellings (`Paris SG`, `Man City` -
+# the ones ELO_ALIASES already maps), and the last snapshot it carries, 2026-01-14, has 630 clubs of
+# which 96 in the top division of our five leagues (Arsenal 2052.4, Bayern 1996.3).
+MIRROR_URL = ("https://github.com/tonyelhabr/club-rankings/releases/download/club-rankings/"
+              "clubelo-club-rankings.csv")
+MIRROR_COLUMNS = ("Rank", "Club", "Country", "Level", "Elo", "From", "To")
 # Countries -> our league keys. Used only to REPORT coverage, never to filter a match: a club that
 # dropped out of its top division still has an Elo, and the older windows need exactly those.
 COUNTRY_LEAGUE: dict[str, str] = {
@@ -117,6 +147,7 @@ def fetch_snapshots(ctx: Context, dates: list[str], refresh: bool = False) -> in
     """One request per date, cached. Nothing else in the toolkit is this cheap."""
     ctx.config.cache_dir.mkdir(parents=True, exist_ok=True)
     fetched = 0
+    missing: list[str] = []
     for date in dates:
         if ctx.cancelled():
             break
@@ -127,7 +158,8 @@ def fetch_snapshots(ctx: Context, dates: list[str], refresh: bool = False) -> in
             with urllib.request.urlopen(ENDPOINT.format(date=date), timeout=30) as response:
                 payload = response.read()
         except (urllib.error.URLError, TimeoutError, OSError) as exc:
-            print(f"[elo] {date}: fetch failed ({exc}) - skipping")
+            print(f"[elo] {date}: fetch failed ({exc}) - will try the mirror")
+            missing.append(date)
             continue
         tmp = path.with_suffix(path.suffix + ".tmp")
         tmp.write_bytes(payload)
@@ -135,7 +167,50 @@ def fetch_snapshots(ctx: Context, dates: list[str], refresh: bool = False) -> in
         fetched += 1
         print(f"[elo] {date}: snapshot cached ({len(payload) // 1024} KB)")
         time.sleep(REQUEST_DELAY)
+    if missing and not ctx.cancelled():
+        fetched += fetch_from_mirror(ctx, missing)
     return fetched
+
+
+def fetch_from_mirror(ctx: Context, wanted: list[str]) -> int:
+    """The API is down: serve what we can from the republished ClubElo series (see module docstring).
+
+    Streamed and filtered in one pass - the mirror is one 49 MB file holding every date, and pulling
+    it once for N dates beats pulling it N times. Everything it produces is a normal cache file at the
+    date it was actually OBSERVED, so `reingest_from_cache` needs no knowledge of any of this.
+    """
+    print(f"[elo] falling back to the mirror for {len(wanted)} date(s): {MIRROR_URL}")
+    try:
+        with urllib.request.urlopen(MIRROR_URL, timeout=180) as response:
+            lines = (raw.decode("utf-8", errors="replace") for raw in response)
+            picked = pick_from_mirror(lines, wanted)
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        print(f"[elo] the mirror failed too ({exc}) - club_elo keeps whatever it already had")
+        return 0
+
+    written = 0
+    for date in wanted:
+        chosen = picked.get(date)
+        if chosen is None:
+            print(f"[elo] {date}: the mirror has nothing at or before this date - skipping")
+            continue
+        observed, payload = chosen
+        path = _cache_path(ctx.config, observed)
+        if path.exists():
+            print(f"[elo] {date}: the mirror offers {observed}, already cached - left alone")
+            continue
+        tmp = path.with_suffix(path.suffix + ".tmp")
+        tmp.write_text(payload, encoding="utf-8")
+        os.replace(tmp, path)
+        # Provenance next to the file, because `club_elo` has no source column and a number that
+        # cannot say where it came from is one nobody can audit later.
+        path.with_suffix(".origin.txt").write_text(
+            f"{MIRROR_URL}\nrequested={date}\nobserved={observed}\n", encoding="utf-8")
+        written += 1
+        stale = " (the API's own date, so nothing is approximated)" if observed == date else \
+                f" - filed as {observed}, which is when it was OBSERVED, not {date}"
+        print(f"[elo] {date}: mirror snapshot cached{stale}")
+    return written
 
 
 # ---------- parsing (pure, offline-testable) ----------
@@ -152,6 +227,57 @@ def parse_snapshot(text: str) -> list[dict]:
             continue
         out.append({"club": club, "country": (row.get("Country") or "").strip(),
                     "level": (row.get("Level") or "").strip(), "elo": elo})
+    return out
+
+
+def pick_from_mirror(lines, wanted: list[str]) -> dict[str, tuple[str, str]]:
+    """{requested date: (the date actually observed, the CSV the API would have returned)}.
+
+    Takes any iterable of lines so the network path and the tests exercise the SAME code: the caller
+    passes a streamed response, a test passes a string's `.splitlines()`.
+
+    For each requested date it keeps the most recent mirror date that is not AFTER it - never a later
+    one, because a snapshot taken after the auction knows things the auction did not. A request the
+    mirror cannot reach (it starts 2023-04-16, and the older windows are cached anyway) is absent from
+    the result rather than filled with the closest thing available: that is the «vuoto = ignoto» rule
+    applied to a date.
+    """
+    rows = iter(lines)
+    try:
+        header = next(csv.reader([next(rows)]))
+    except StopIteration:
+        return {}
+    try:
+        at = {name: header.index(name) for name in (*MIRROR_COLUMNS, "date")}
+    except ValueError as exc:                       # the mirror changed shape: say so, do not guess
+        raise ValueError(f"the mirror's columns are not the ones we parse: {header}") from exc
+
+    horizon = max(wanted)
+    best: dict[str, str] = {}
+    buffered: dict[str, list[list[str]]] = {}
+    for row in csv.reader(rows):
+        if len(row) <= at["date"]:
+            continue
+        observed = row[at["date"]]
+        if observed > horizon:
+            break                                   # date-ascending file, verified: nothing left to gain
+        for date in wanted:
+            if observed > date:
+                continue
+            if best.get(date, "") < observed:
+                best[date], buffered[date] = observed, []
+            if best[date] == observed:
+                buffered[date].append([row[at[name]] for name in MIRROR_COLUMNS])
+
+    out: dict[str, tuple[str, str]] = {}
+    for date, records in buffered.items():
+        if not records:
+            continue
+        buffer = io.StringIO(newline="")
+        writer = csv.writer(buffer, lineterminator="\n")
+        writer.writerow(MIRROR_COLUMNS)
+        writer.writerows(records)
+        out[date] = (best[date], buffer.getvalue())
     return out
 
 

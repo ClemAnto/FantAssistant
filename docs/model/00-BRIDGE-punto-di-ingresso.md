@@ -71,6 +71,19 @@ deliverable**, visibili solo confrontando i due fogli fra loro. Dettaglio: spec 
 `SHEET_REVISION` **5 → 6**, **320 test** (319 passati, 1 skipped), `backtest --verify` **22/22**, e il foglio
 `default/classic` non muove un decimale — là i due vocabolari sono lo stesso.
 
+**Poi ClubElo è risultato MORTO e non lento** (`ECONNREFUSED` sull'API *e* sul sito, da due reti diverse), e
+ha un **ripiego cablato** — spec «Novità v9.35», **323 test**. Il perimetro prima della cura: le dieci
+finestre del gate sono **già in cache**, `rebuild` le rilegge offline, e ciò che manca è **una fotografia
+sola**, quella dell'asta 2026-27, letta dal pannello e non da `evaluate`. Il ripiego è deliberatamente un
+**mirror della stessa serie** (`tonyelhabr/club-rankings`, colonne di ClubElo intatte, `parse_snapshot`
+invariato) e non un altro fornitore: `level_weight` 0.06 è stato spazzolato sulla distribuzione di ClubElo, e
+cambiare scala su una finestra di dieci è «una trasformata appartiene alla popolazione su cui è stata
+fittata». Archivia la data **osservata** (14/01/2026, non «oggi»), scrive la forma che l'API avrebbe
+restituito più un `.origin.txt` accanto, e una data che il mirror non raggiunge **non c'è** invece di essere
+approssimata. Verificato contro il file vero: 3.3 s, 630 club, 96 in prima divisione delle cinque leghe.
+**Da decidere, non da eseguire**: lanciare `elo` muove `desc_level_elo` sul pannello e vuole fogli e bundle
+rigenerati.
+
 **La verifica ha invece confermato sano**: `probable_starter` vuoto è corretto (dal 05/08 la pagina non
 contiene **nessun href** di giocatore — non «dati non disponibili»: proprio zero), e le 5.162 righe di
 `fvm_history` con `platform='unknown'` sono la migrazione che dichiara ciò che non può attribuire, non uno

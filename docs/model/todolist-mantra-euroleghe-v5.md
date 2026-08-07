@@ -10,12 +10,17 @@ pure (spec «Novità v9.34»): il SURPLUS mantra che era il VALORE, e `club_elo`
 - **Transfermarkt: timeout totale** (curl 28, 0 byte, riprodotto a mano fuori dal modulo) → `contract_until`,
   `market_values` e gli infortuni sono fermi al **29/07**, e il walk per giocatore non riparte. Vedi il
   punto 2 sotto: il modulo deve anche DIRLO.
-- **ClubElo: read timeout, riprovato alla chiusura del 07/08 e ancora giù** (25 s, zero byte). La *causa* per
-  cui la finestra 2026-27 leggeva uno snapshot vecchio di una stagione è però risolta nel codice
-  (`elo.auction_dates` non chiede più una data futura): appena l'host risponde basta rilanciare **`elo`** e la
-  serie si allinea da sola. Finché non risponde, `desc_level_elo` (R19) e la scheda club leggono
-  `2025-08-15`, e questo va detto a chi guarda il foglio. **Non** il modulo portieri, che non ha mai letto
-  `club_elo`: vedi l'elenco verificato dei lettori in testa a `elo.py`.
+- **ClubElo: l'host è MORTO, non lento** — `ECONNREFUSED` sull'API *e* su `clubelo.com`, da due reti diverse.
+  Non è più un «riprova alla prossima sessione»: c'è un **ripiego cablato** (spec «Novità v9.35»), il mirror
+  `tonyelhabr/club-rankings` che ripubblica la serie di ClubElo **sulla stessa scala** — quindi zero
+  ri-taratura e nessun gate da rilanciare — coperto fino al **14/01/2026**, comunque cinque mesi più vicino
+  del `2025-08-15` che il foglio legge adesso. La *causa* per cui la finestra 2026-27 leggeva uno snapshot
+  vecchio di una stagione era già risolta a monte (`elo.auction_dates` non chiede più una data futura).
+  **Resta una scelta, non del codice**: lanciare `elo` deposita `clubelo_2026-01-14.csv` e muove
+  `desc_level_elo` (R19) e la scheda club sul **pannello**, non `engine_*`, quindi vuole i fogli e il bundle
+  rigenerati — decisione dell'operatore, non esecuzione automatica. Le dieci finestre del gate sono in cache
+  e non dipendono da niente di tutto questo. **Non** il modulo portieri, che non ha mai letto `club_elo`:
+  vedi l'elenco verificato dei lettori in testa a `elo.py`.
 - **FBref: 403** anche impersonando. Fuori dalla catena di oggi.
 
 **B. Coda di lavoro, misurata il 07/08 — è tutto ripartibile**
