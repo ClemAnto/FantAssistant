@@ -57,6 +57,7 @@ from __future__ import annotations
 
 import csv
 import io
+import json
 import os
 import time
 import urllib.error
@@ -337,6 +338,200 @@ def ingest_seed_csv(ctx: Context) -> int:
     return rows
 
 
+# ---------- the LEVEL of every club, not just ours (gate §7-tervicies) ----------
+# `club_elo` holds 97 clubs, because `store_snapshot` keeps only what resolves to an `fc_club_id` - i.e.
+# whoever has been in a listone. The cached CSVs hold 631 PER YEAR, and a player's career runs through
+# clubs no fantacalcio roster ever had (Benfica, Ajax, Porto). Reading them straight, and taking the club
+# from the PER-MATCH layer rather than from the listone, lifts the coverage of our own match rows from
+# 76.7% to 92.5%.
+NAME_NOISE = frozenset({
+    "fc", "ac", "cf", "sc", "ssc", "as", "afc", "cd", "ud", "rc", "rcd", "sv", "tsg", "vfl", "vfb",
+    "sd", "cp", "ca", "club", "calcio", "de", "di", "the", "bsc", "fsv", "sk", "ss", "us", "acf",
+    "1899", "04", "05", "09", "96", "98", "1900", "1904", "1907", "1909", "1913"})
+# Residues the rules below cannot reach, each with the match rows it fixes. A hand-written list is the
+# remedy this project prefers to avoid, so it is short and it is declared.
+NAME_EXTRA: dict[str, str] = {
+    "Bayer 04 Leverkusen": "Leverkusen", "Brighton & Hove Albion": "Brighton",   # 4715 · 3864
+    "Athletic Club": "Bilbao", "Stade Rennais": "Rennes",                        # 3739 · 3264
+    "Wolverhampton": "Wolves", "Borussia M'gladbach": "Gladbach",                # 2874 · 2520
+    "Deportivo Alavés": "Alaves", "1. FC Köln": "Koeln",                         # 1036 ·  725
+}
+
+
+def _name_tokens(name: str) -> list[str]:
+    import re
+    import unicodedata
+
+    text = unicodedata.normalize("NFKD", name.lower())
+    text = "".join(ch for ch in text if not unicodedata.combining(ch))
+    return [t for t in re.sub(r"[^a-z0-9 ]+", " ", text).split() if t]
+
+
+def _name_core(name: str) -> frozenset[str]:
+    full = _name_tokens(name)
+    return frozenset([t for t in full if t not in NAME_NOISE] or full)
+
+
+def _is_acronym(short: str, ours: list[str]) -> bool:
+    """ClubElo writes «Paris SG»: `sg` is not a prefix of anything, it is Saint-Germain's initials."""
+    if not 2 <= len(short) <= 4:
+        return False
+    return any(short == "".join(t[0] for t in ours[i:i + len(short)]) for i in range(len(ours)))
+
+
+def match_club_names(elo_names, ours, seed: dict | None = None) -> dict[str, str]:
+    """our spelling -> ClubElo's. Only UNIQUE matches, and two guards paid for by a wrong number.
+
+    The first version of this gave Gonçalo Ramos an Elo of 1472 - lower than every Milan forward, for a
+    man who had played PSG and Benfica. Stripping the corporate noise reduced «Paris FC» to the single
+    token `paris`, which is a subset of «Paris Saint-Germain», and the match came out UNIQUE, so three
+    seasons at PSG were priced at a Ligue 2 club (1405-1538 instead of 1970). Hence:
+
+    * a name reduced to ONE generic token cannot cover one made of three - kills Paris FC, keeps
+      «Milan» = «AC Milan» and «Bayern» = «FC Bayern München»;
+    * initials count as a name, so «Paris SG» matches on its own merits and the pair would be
+      ambiguous rather than silently wrong even without the first guard.
+
+    An ambiguous match is worse than a missing one: a missing Elo leaves a man unknown, a wrong one
+    gives him another club's strength. So ambiguity is dropped, and `validate_club_index` exists to be
+    run against clubs whose level is already known.
+    """
+    table = {name: _name_core(name) for name in elo_names}
+    out = dict(seed or {})
+    for target in ours:
+        if target in out:
+            continue
+        mine, mine_full = _name_core(target), _name_tokens(target)
+        if not mine:
+            continue
+        exact = [n for n, t in table.items() if t == mine]
+        if len(exact) == 1:
+            out[target] = exact[0]
+            continue
+        if exact:
+            continue                                  # ambiguous: leave it unknown
+        def covers(theirs: frozenset[str], mine=mine, mine_full=mine_full) -> bool:
+            if len(theirs) == 1 and len(mine) >= 3:
+                return False                          # the Paris FC guard
+            return bool(theirs) and all(
+                any(o.startswith(e) or e.startswith(o) for o in mine) or _is_acronym(e, mine_full)
+                for e in theirs)
+        candidates = [n for n, t in table.items() if covers(t)]
+        if len(candidates) == 1:
+            out[target] = candidates[0]
+    return out
+
+
+def load_cached_levels(ctx: Context) -> dict[str, dict[str, float]]:
+    """{year: {ClubElo name: Elo}} from every snapshot on disk - all 631 clubs, not just ours."""
+    out: dict[str, dict[str, float]] = {}
+    for path in sorted(ctx.config.cache_dir.glob("clubelo_*.csv")):
+        year = path.stem.replace("clubelo_", "")[:4]
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        for record in parse_snapshot(text):
+            out.setdefault(year, {})[record["club"]] = record["elo"]
+    return out
+
+
+def derive_elo_xref(conn, ctx: Context) -> tuple[int, list[str]]:
+    """club_xref(source='clubelo') keyed on the PROVIDER'S TEAM ID. Resolved once, stored, auditable.
+
+    This is the only place a club name is ever compared, and it happens at INGEST. Everything
+    downstream joins `external_stats.club_id` -> this table -> the level, so no read path can pick the
+    wrong club by spelling. `club_xref`'s own key is `(source, source_id)`, which is what makes the
+    provider's id the natural anchor: it is unique, it is stable across seasons, and it exists for
+    every club the per-season aggregates cover - including the ones no listone ever had.
+
+    `fc_club_id` is filled where we have one and left at 0 otherwise: a club outside every listone is
+    still a real club with a real strength, and refusing it would put us back to knowing Europe's top
+    97 only. Returns (rows written, the ambiguous names it REFUSED to resolve).
+    """
+    levels = load_cached_levels(ctx)
+    if not levels:
+        return 0, []
+    # provider id -> the name the provider uses, from the same cached files the ids come from and NOT
+    # from the DB: the mapping must be derivable on a fresh clone, before anything is backfilled.
+    # Newest file last, so a club that changed name keeps its latest spelling.
+    named: dict[str, str] = {}
+    for path in sorted(ctx.config.cache_dir.glob("sofascore_stats_*.json")):
+        try:
+            rows = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        for row in rows if isinstance(rows, list) else ():
+            team = row.get("team") or {}
+            if team.get("id") and (team.get("name") or "").strip():
+                named[str(team["id"])] = team["name"].strip()
+    spellings = sorted(set(named.values()))
+    seed = {ours: theirs for theirs, ours in ELO_ALIASES.items() if ours in spellings}
+    seed.update({o: t for o, t in NAME_EXTRA.items()
+                 if any(t in year for year in levels.values())})
+    index = match_club_names(sorted({n for year in levels.values() for n in year}), spellings, seed)
+
+    ours = {club_key(name): club_id for club_id, name in conn.execute(
+        "SELECT fc_club_id, canonical_name FROM clubs WHERE canonical_name IS NOT NULL")}
+    written, refused = 0, []
+    for provider_id, name in named.items():
+        target = index.get(name)
+        if target is None:
+            refused.append(name)
+            continue
+        conn.execute(
+            """INSERT OR REPLACE INTO club_levels_xref(
+                   provider_club_id, elo_name, provider_name, fc_club_id, resolved_by)
+               VALUES (?, ?, ?, ?, ?)""",
+            (provider_id, target, name, ours.get(club_key(name)),
+             "alias" if name in seed else "tokens"))
+        written += 1
+    return written, sorted(set(refused))
+
+
+def elo_by_provider_club(conn, ctx: Context) -> dict[str, dict[str, float]]:
+    """{provider team id: {year: Elo}} - read through the stored mapping, never through a name."""
+    levels = load_cached_levels(ctx)
+    out: dict[str, dict[str, float]] = {}
+    for provider_id, name in conn.execute(
+            "SELECT provider_club_id, elo_name FROM club_levels_xref"):
+        found = {year: table[name] for year, table in levels.items() if name in table}
+        if found:
+            out[provider_id] = found
+    return out
+
+
+def personal_levels(conn, ctx: Context, season: str, window: int = 5) -> dict[int, float]:
+    """{fc_id: the mean Elo of the football he played}, weighted by MINUTES, over `window` seasons.
+
+    The MEAN and not the sum: `sum(Elo x minutes)` measures how MUCH high-level football he played,
+    which is volume - and volume is age plus playing time, the confound that ate the first version of
+    this idea (r +0.769 with the minutes themselves). The mean answers the other question, at what
+    level, which is the one that says whether a club bought him to play.
+    """
+    by_club = elo_by_provider_club(conn, ctx)
+    if not by_club:
+        return {}
+    seasons = [row[0] for row in conn.execute(
+        "SELECT DISTINCT season FROM external_stats WHERE season <= ? ORDER BY season DESC LIMIT ?",
+        (season, window))]
+    if not seasons:
+        return {}
+    placeholders = ",".join("?" for _ in seasons)
+    weighted: dict[int, list[float]] = {}
+    for fc_id, played, club_id, minutes in conn.execute(
+            f"""SELECT fc_id, season, club_id, SUM(COALESCE(minutes, 0)) FROM external_stats
+                WHERE source = 'sofascore' AND competition <> '' AND club_id IS NOT NULL
+                  AND season IN ({placeholders}) GROUP BY fc_id, season, club_id""", seasons):
+        value = (by_club.get(str(club_id)) or {}).get(played.split("-")[0])
+        if value is None or not minutes:
+            continue                                   # unknown club: unknown level, never a zero
+        total = weighted.setdefault(fc_id, [0.0, 0.0])
+        total[0] += value * minutes
+        total[1] += minutes
+    return {fc_id: pair[0] / pair[1] for fc_id, pair in weighted.items() if pair[1]}
+
+
 def reingest_from_cache(ctx: Context) -> None:
     """Rebuild club_elo offline from the cached snapshots (+ the legacy seed, if it is there)."""
     conn = ctx.require_conn()
@@ -372,3 +567,10 @@ def run(ctx: Context, *, refresh: bool = False, fetch: bool = True, **kwargs) ->
     fetched = fetch_snapshots(ctx, dates, refresh) if fetch else 0
     print(f"[elo] {len(dates)} auction dates, {fetched} newly fetched")
     reingest_from_cache(ctx)
+    # ...and the identity layer: which ClubElo row belongs to which PROVIDER TEAM ID, resolved once
+    # here so that no read path ever compares a club name (§7-tervicies).
+    written, refused = derive_elo_xref(conn, ctx)
+    conn.commit()
+    print(f"[elo] club_xref(clubelo): {written} provider clubs mapped"
+          + (f" · {len(refused)} names left unresolved (ambiguous or absent): "
+             + ", ".join(refused[:6]) if refused else ""))

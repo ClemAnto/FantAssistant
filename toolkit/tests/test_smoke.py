@@ -1501,6 +1501,11 @@ def test_every_presence_input_is_populated_by_every_caller():
         # Until it is, `window_standing` (gate §7-octies) cannot be scored - stated, not hidden.
         ("modules/sweep.py", "window_matches"),
         ("modules/sweep.py", "window_minutes"),
+        # ...and the other way round: the SHEET does not carry the per-player level yet, so the panel
+        # cannot rank a man inside his department. Filling it means a `desc_` column and a
+        # SHEET_REVISION, and there is no reason to pay that before the gate has spoken on
+        # `level_rank_weight` (§7-tervicies). Declared, and to be closed by whoever adopts the channel.
+        ("gui.py", "level_rank"),
     }
     names = {f.name for f in fields(presence.Inputs)}
     root = Path(__file__).resolve().parents[1] / "euroleghe_ingest"

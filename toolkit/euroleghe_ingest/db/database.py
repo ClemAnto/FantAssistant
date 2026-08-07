@@ -28,6 +28,12 @@ ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("rosters", "fvm_mantra", "REAL"),
     ("rosters", "price_mantra", "REAL"),
     ("rosters", "price_initial_mantra", "REAL"),
+    # THE PROVIDER'S TEAM ID per (player, season, competition). The payload has carried it since the
+    # first run (`sofascore_stats_*.json` -> `team.id`) and the parser dropped it, exactly as it dropped
+    # `goalsConceded` until gate §7-decies. Without it a club can only be joined by the STRING a source
+    # uses to name it, which is the join this project forbids - and the one that priced Gonçalo Ramos's
+    # PSG seasons at Paris FC. Backfilled offline from the same cache, zero requests.
+    ("external_stats", "club_id", "TEXT"),
     ("external_match_stats", "shots", "INTEGER"),
     ("external_match_stats", "shots_on_target", "INTEGER"),
     ("external_match_stats", "big_chances_created", "INTEGER"),

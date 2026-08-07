@@ -966,6 +966,44 @@ def mantra_roles(roles: str | None, line: str | None = None) -> str:
     return ";".join(out)
 
 
+def backfill_club_ids(ctx: Context) -> int:
+    """external_stats.club_id from the cached season aggregates. Offline, zero requests.
+
+    The column was added after the rows were written, and every value it needs is in the cache the
+    rows came from - the same shape as the `goalsConceded` recovery of gate §7-decies. Joined through
+    `player_xref`, because the payload speaks the provider's player id and this table speaks `fc_id`.
+    """
+    conn = ctx.require_conn()
+    known = {str(source_id): fc_id for fc_id, source_id in conn.execute(
+        "SELECT fc_id, source_id FROM player_xref WHERE source = 'sofascore'")}
+    updates: list[tuple[str, int, str, str]] = []
+    for path in sorted(ctx.config.cache_dir.glob("sofascore_stats_*.json")):
+        found = _CACHE_NAME.search(path.name)
+        if not found:
+            continue
+        league, season = found.group(1), found.group(2)
+        try:
+            rows = json.loads(path.read_text(encoding="utf-8"))
+        except Exception as exc:   # noqa: BLE001 - a corrupt cache file must not abort the rebuild
+            print(f"[positions] skipping unreadable cache {path.name}: {exc}")
+            continue
+        for row in rows if isinstance(rows, list) else ():
+            team_id = (row.get("team") or {}).get("id")
+            fc_id = known.get(str((row.get("player") or {}).get("id") or ""))
+            if team_id and fc_id:
+                updates.append((str(team_id), fc_id, season, league))
+    conn.executemany(
+        """UPDATE external_stats SET club_id = ?
+           WHERE fc_id = ? AND season = ? AND competition = ? AND source = 'sofascore'""", updates)
+    conn.commit()
+    filled = conn.execute(
+        "SELECT COUNT(*) FROM external_stats WHERE club_id IS NOT NULL").fetchone()[0]
+    total = conn.execute("SELECT COUNT(*) FROM external_stats").fetchone()[0]
+    print(f"[positions] club_id backfilled: {filled:,} of {total:,} external_stats rows "
+          f"({filled / total:.1%}) from {len(updates):,} cached claims")
+    return filled
+
+
 def derive_club_xref(ctx: Context) -> int:
     """club_xref(source='sofascore') from the cached season aggregates. Offline.
 
@@ -1668,8 +1706,9 @@ def _store_claims(conn, season: str, claims: list[Claim]) -> int:
             """
             INSERT OR REPLACE INTO external_stats(
                 fc_id, season, source, competition, matches, starts, minutes, goals, assists,
-                pen_scored, pen_taken, xg, xa, rating, yellows, reds, goals_conceded, saves)
-            VALUES (?, ?, 'sofascore', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                pen_scored, pen_taken, xg, xa, rating, yellows, reds, goals_conceded, saves,
+                club_id)
+            VALUES (?, ?, 'sofascore', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 claim.fc_id, season, claim.league, _int(row.get("appearances")),
@@ -1682,6 +1721,10 @@ def _store_claims(conn, season: str, claims: list[Claim]) -> int:
                 # here until now (gate §7-decies). `goalsConceded` is the goals the team conceded while
                 # he was on the pitch, which for a keeper IS the malus.
                 _int(row.get("goalsConceded")), _int(row.get("saves")),
+                # WHICH CLUB he played them for, by the provider's own id and never by its name. The
+                # payload has always carried it; storing it is what lets anything downstream join a
+                # club through a key instead of a spelling (`elo.personal_levels`).
+                str((row.get("team") or {}).get("id") or "") or None,
             ),
         )
     return len(claims)

@@ -191,6 +191,16 @@ CREATE TABLE IF NOT EXISTS external_stats (
     -- pitch); it is only the keeper's fantavoto that reads it.
     goals_conceded INTEGER,
     saves       INTEGER,
+    -- WHICH CLUB he played them for, by the PROVIDER'S OWN ID and never by its name. The rule this
+    -- project keeps - «an entity joins through its canonical key, never through the string a source
+    -- uses to name it» - had no way of being obeyed here: nothing in the per-season or per-match layer
+    -- carried a club identifier, so a level computed per club had to match spellings, and that is
+    -- exactly how three PSG seasons came out priced at Paris FC. The payload has always shipped
+    -- `team.id`; it is stored now. One caveat that comes with the grain rather than with the column:
+    -- the PK holds ONE row per (player, season, competition), so a man who moved in January is
+    -- attributed to whichever club the aggregate names - the per-match layer keeps the split, and only
+    -- as a string.
+    club_id     TEXT,
     PRIMARY KEY (fc_id, season, source, competition)
 );
 
@@ -298,6 +308,22 @@ CREATE TABLE IF NOT EXISTS player_roles (
                                                 -- club's two strikers is the taller one 44 times out of
                                                 -- 92 (48%), i.e. nothing (gate §5-terdecies)
     PRIMARY KEY (fc_id, valid_from, source)
+);
+
+-- WHICH ClubElo row belongs to which PROVIDER TEAM, resolved once at ingest and stored so that no
+-- read path ever compares a club name. Deliberately NOT `club_xref`: that table's key is one of OUR
+-- clubs (`fc_club_id NOT NULL`), and most of the clubs a career runs through have never been in a
+-- listone - Benfica, Ajax, Porto. Forcing them in there would mean minting 250 rows into `clubs` and
+-- paying the twin-club risk again; this maps the provider's id to ClubElo's row and leaves `clubs`
+-- alone, with `fc_club_id` filled only where one exists.
+-- `resolved_by` says HOW the pairing was made (alias table, exact tokens, abbreviation), because a
+-- name comparison is a judgement and a judgement that cannot be audited is one nobody can correct.
+CREATE TABLE IF NOT EXISTS club_levels_xref (
+    provider_club_id TEXT PRIMARY KEY,          -- Sofascore's team id, from external_stats.club_id
+    elo_name    TEXT NOT NULL,                  -- the ClubElo spelling this club is priced under
+    provider_name TEXT,                         -- what the provider called it, for the audit
+    fc_club_id  INTEGER,                        -- our own id where the club is in a listone; NULL else
+    resolved_by TEXT
 );
 
 CREATE TABLE IF NOT EXISTS club_elo (

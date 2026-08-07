@@ -157,6 +157,20 @@ class Params:
     # also why this is not R5 in disguise: R5 read the destination Elo alone and was rejected four times.
     # 0.0 until the sweep says otherwise - no gate, no engine.
     level_gap_weight: float = 0.0
+    # ...and the third of the family: WHERE HE STANDS IN THE DEPARTMENT HE JOINS, by the level of the
+    # football he has played (`elo.personal_levels`, five seasons, minutes-weighted). The operator's
+    # question was «cosa differenzia un giocatore acquistato per riempire la rosa da uno preso per
+    # giocare titolare», and this is the answer that reads no quotation at all.
+    # A BLEND and not a lift, and that is the whole lesson of gate §7-tervicies: as a CLASSIFIER the
+    # rank is weak (it separates 40% from 34% of the next season's minutes), because for a man whose
+    # minutes already say he plays it is answering a question that has an answer. Read as a second
+    # term over the minutes it is the best thing measured on this population - r +0.286 for the
+    # minutes alone, +0.109 for the rank alone, **+0.346 for 0.75 x minutes + 0.25 x rank**, with an
+    # INTERIOR maximum (0.15 -> +0.329, 0.25 -> +0.346, 0.35 -> +0.339, 0.50 -> +0.283).
+    # It fixes both directions: Atta, 75% of the minutes at Udinese, was last by rank and comes back
+    # 10th of 48; Valdepenas, 2% of a season at Real Madrid, was FIRST and falls to 0.27.
+    # 0.0 until the sweep says otherwise.
+    level_rank_weight: float = 0.0
     # HOW MUCH OF A SEASON the standing was measured on, as a shrinkage: `m x r/(r+K) + prior x K/(r+K)`,
     # with r the rounds he was there for. K = 0 is the incumbent (no shrinkage) and there is no meaningful
     # negative direction - the null IS zero, which is why this grid is one-sided and says so.
@@ -239,6 +253,10 @@ class Inputs:
     # (positive) or UP (negative) by moving. None for a man who stayed - his gap is zero by construction -
     # and None when either Elo is missing, which is «vuoto = ignoto» and not a gap of zero.
     level_gap_z: float | None = None
+    # ...and his place in the department he JOINS, 0..1, by the level of the football he has played -
+    # 0 the lowest of his role in the new squad, 1 the highest. None where it cannot be computed (no
+    # matched club, or a department too thin to rank in), which is «vuoto = ignoto» and NOT a 0.5.
+    level_rank: float | None = None
     # What a SHORT sample is shrunk toward. Supplied by the caller (the panel from its sheet, the sweep from
     # its window) because `presence` is dependency-free and an average is a property of a population.
     # CONDITIONAL ON THE ROUNDS OBSERVED since 06/08/2026, and that is the whole point: the mean of everybody
@@ -452,6 +470,13 @@ def standing(inputs: Inputs, params: Params = DEFAULTS) -> float:
     if params.standing_prior_rounds and inputs.standing_prior is not None:
         share = rounds / (rounds + params.standing_prior_rounds)
         measured = share * measured + (1.0 - share) * inputs.standing_prior
+    # ...and WHERE HE STANDS in the department he joins, blended in - the shape that was measured, and
+    # not an additive lift like the three above. The difference matters: a lift moves everybody by the
+    # same amount for the same evidence, while a blend lets the minutes keep most of the say and pulls
+    # only toward the level of the men he will compete with. See `Params.level_rank_weight`.
+    if params.level_rank_weight and inputs.level_rank is not None:
+        measured = ((1.0 - params.level_rank_weight) * measured
+                    + params.level_rank_weight * inputs.level_rank)
 
     if params.investment_shape == "standing":
         return min(max(measured + lift, 0.0), 1.0)

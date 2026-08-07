@@ -111,6 +111,13 @@ GRIDS: dict[str, tuple] = {
     # falls to zero says the gap SUBSUMES the level, and a run where both hold says they read different
     # things. Deciding it by hand was the alternative, and it is not one.
     "level_gap_weight": (-0.02, 0.0, 0.02, 0.04, 0.06, 0.09, 0.12),
+    # IL RANGO NEL REPARTO (pre-registrato 07/08/2026, gate §7-tervicies). Non un lift ma una MISCELA,
+    # perche' e' la forma misurata: 0.75 x minuti + 0.25 x rango dava r +0.346 contro +0.286 dei soli
+    # minuti e +0.109 del solo rango, con massimo INTERNO sulla griglia esplorata (0.15/0.25/0.35/0.50).
+    # La griglia qui e' centrata su quel 0.25 e arriva a 0.45, cosi' l'ottimo puo' restare interno anche
+    # se si sposta; 0.0 e' l'incumbent ed e' dentro. Nessuno step negativo: mescolare al CONTRARIO del
+    # rango non e' un'ipotesi che qualcuno abbia formulato, e la griglia dichiara cosa si sta testando.
+    "level_rank_weight": (0.0, 0.10, 0.18, 0.25, 0.32, 0.45),
     # THE CAREER HYPOTHESIS (pre-registered 06/08/2026, gate §7-vicies). Centred on the measured effect -
     # +0.034 of start share per sd of role-relative career fantamedia, on 264 forwards - with 0.10 as the
     # ceiling and one negative step. Applied to FORWARDS ONLY, which is where it was measured: over
@@ -212,6 +219,7 @@ TARGETS: dict[str, str] = {
     # same question again: who the coach PUTS on the pitch, given something the minutes could not see.
     "level_weight": "starts",
     "level_gap_weight": "starts",
+    "level_rank_weight": "starts",
     "career_weight": "starts",
     "standing_prior_rounds": "starts",
     "arrival_split": "starts",
@@ -269,7 +277,7 @@ def _rounds_band(rounds: float) -> tuple[int, int]:
     return _ROUNDS_BANDS[-1]
 
 
-def build_inputs(conn, data: features.WindowData) -> tuple[dict[int, presence.Inputs], dict]:
+def build_inputs(conn, data: features.WindowData, ctx: Context | None = None) -> tuple[dict[int, presence.Inputs], dict]:
     """{fc_id: Inputs} for one window, plus a note on how well the window is instrumented.
 
     Everything is measured on the INPUT season and on spells dated before the auction: this is what the
@@ -324,6 +332,30 @@ def build_inputs(conn, data: features.WindowData) -> tuple[dict[int, presence.In
             for obs in data.observations:
                 if obs.elo_prev is not None and obs.elo_target is not None and obs.club_change:
                     level_gap_z[obs.fc_id] = (obs.elo_prev - obs.elo_target - mean_gap) / sd_gap
+
+    # ...and WHERE HE STANDS in the department he joins (§7-tervicies). Two steps, and the second is the
+    # one that carries the meaning: the LEVEL of the football each man has played (five seasons,
+    # minutes-weighted, every club in Europe and not just ours), then his percentile among the men of
+    # HIS ROLE in the squad he is joining. Ranked inside the club because the question is comparative -
+    # «lo hanno comprato davanti a chi c'era gia'?» - and a department of fewer than three men cannot
+    # answer it, so those stay None rather than 0.5.
+    from euroleghe_ingest.modules import elo as elo_module
+
+    personal = elo_module.personal_levels(conn, ctx, season) if ctx else {}
+    by_department: dict[tuple[str, str], list[float]] = {}
+    for obs in data.observations:
+        value = personal.get(obs.fc_id)
+        key, _name = resolve(obs.club_target or "")
+        if value is not None and key and obs.role_classic:
+            by_department.setdefault((key, obs.role_classic), []).append(value)
+    level_rank: dict[int, float] = {}
+    for obs in data.observations:
+        value = personal.get(obs.fc_id)
+        key, _name = resolve(obs.club_target or "")
+        peers = by_department.get((key or "", obs.role_classic or ""), ())
+        others = [v for v in peers if v != value]
+        if value is not None and len(others) >= 2:
+            level_rank[obs.fc_id] = sum(1 for v in others if v < value) / len(others)
 
     # ...and the CAREER, only for forwards: the population the coefficient was measured on (§7-vicies).
     careers = [obs.fm_career for obs in data.observations
@@ -408,6 +440,7 @@ def build_inputs(conn, data: features.WindowData) -> tuple[dict[int, presence.In
             fm_z=fm_z.get(obs.fc_id),
             level_z=level_z.get(obs.fc_id),
             level_gap_z=level_gap_z.get(obs.fc_id),
+            level_rank=level_rank.get(obs.fc_id),
             career_z=career_z.get(obs.fc_id),
             standing_prior=prior,
             cross_league=_cross(obs),
@@ -579,7 +612,8 @@ def _params_for(name: str, value) -> presence.Params:
     return presence.DEFAULTS.with_value(name, value)
 
 
-def sweep_platform(conn, platform: str, game: str, windows: list[str] | None) -> dict:
+def sweep_platform(conn, platform: str, game: str, windows: list[str] | None,
+                   ctx: Context | None = None) -> dict:
     """Every parameter, every window, on one platform. Returns the report block."""
     prepared: dict[str, features.WindowData] = {}
     for key, window in features.WINDOWS.items():
@@ -594,7 +628,7 @@ def sweep_platform(conn, platform: str, game: str, windows: list[str] | None) ->
     block: dict = {"platform": platform, "game": game, "windows": {}, "parameters": {}}
     facts: dict[str, tuple] = {}
     for key, data in prepared.items():
-        inputs, note = build_inputs(conn, data)
+        inputs, note = build_inputs(conn, data, ctx)
         targets = build_targets(conn, data)
         facts[key] = (inputs, targets, data)
         base, base_n = baseline_mae(data, targets, inputs)
@@ -864,7 +898,7 @@ def run(ctx: Context, platforms: list[str] | None = None, games: list[str] | Non
            "blocks": []}
     for platform in (platforms or ["euro", "default"]):
         for game in (games or ["classic"]):
-            out["blocks"].append(sweep_platform(conn, platform, game, windows))
+            out["blocks"].append(sweep_platform(conn, platform, game, windows, ctx))
     # The other two families of 7-bis. Neither has windows: the penalty hierarchy is replayed penalty by
     # penalty and the tiers are judged season by season, so their folds are seasons.
     out["blocks"].append(sweep_penalties(conn))

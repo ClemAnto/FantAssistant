@@ -136,6 +136,57 @@ def test_a_date_the_mirror_cannot_reach_is_absent_and_not_approximated():
     assert elo.pick_from_mirror(_MIRROR.splitlines(), ["2016-08-15"]) == {}
 
 
+def test_paris_fc_is_not_paris_saint_germain():
+    """The guard that cost a wrong number to find, and the reason this matcher exists at all.
+
+    Stripping the corporate noise reduced «Paris FC» to the single token `paris`, a subset of «Paris
+    Saint-Germain», and the match came out UNIQUE - so Gonçalo Ramos's three PSG seasons were priced
+    at a Ligue 2 club and he read 1472, below every Milan forward. An ambiguous match is worse than a
+    missing one: a missing Elo leaves a man unknown, a wrong one hands him another club's strength.
+    """
+    theirs = ["Paris FC", "Paris SG", "Milan", "Bayern", "Man City", "Leverkusen"]
+    index = elo.match_club_names(theirs, ["Paris Saint-Germain", "AC Milan", "FC Bayern München",
+                                          "Manchester City", "Paris FC"])
+
+    assert index.get("Paris Saint-Germain") == "Paris SG", "the initials are a name: sg = saint germain"
+    assert index.get("Paris FC") == "Paris FC", "and the real Paris FC still finds itself"
+    # ...while the one-generic-token guard does not cost the abbreviations that are legitimate
+    assert index["AC Milan"] == "Milan"
+    assert index["FC Bayern München"] == "Bayern"
+    assert index["Manchester City"] == "Man City"
+
+
+def test_the_level_of_a_club_is_read_by_ID_and_never_by_name(tmp_path):
+    """The operator's rule, and this project's own: «risalire alla squadra solo da un id squadra unico».
+
+    The name comparison happens ONCE, at ingest, and what it leaves behind is a row keyed on the
+    PROVIDER'S TEAM ID. Every read then goes through that id, so a spelling can no longer put a man at
+    the wrong club - which is what «Paris FC» did to three of Gonçalo Ramos's seasons.
+    """
+    ctx = _ctx(tmp_path)
+    (ctx.config.cache_dir / "clubelo_2025-08-15.csv").write_text(
+        "Rank,Club,Country,Level,Elo,From,To\n"
+        "1,Paris SG,FRA,1,1970.0,2025-06-01,2025-08-21\n"
+        "2,Paris FC,FRA,2,1405.0,2025-06-01,2025-08-21\n", encoding="utf-8")
+    (ctx.config.cache_dir / "sofascore_stats_ligue_1_2025-26.json").write_text(
+        '[{"player": {"id": 1, "name": "X"}, "team": {"id": 1644, "name": "Paris Saint-Germain"}},'
+        ' {"player": {"id": 2, "name": "Y"}, "team": {"id": 1641, "name": "Paris FC"}}]',
+        encoding="utf-8")
+
+    written, refused = elo.derive_elo_xref(ctx.conn, ctx)
+    assert written == 2 and not refused
+
+    levels = elo.elo_by_provider_club(ctx.conn, ctx)
+    assert levels["1644"]["2025"] == 1970.0, "PSG's id must reach PSG's level"
+    assert levels["1641"]["2025"] == 1405.0, "...and Paris FC's its own, which is the whole point"
+
+
+def test_an_ambiguous_club_name_is_left_unknown_rather_than_guessed():
+    """Two candidates and no way to choose is «vuoto = ignoto», not a coin toss."""
+    index = elo.match_club_names(["Lech", "Lechia"], ["Lech Poznan"])
+    assert "Lech Poznan" not in index
+
+
 def test_the_mirror_changing_shape_is_an_error_and_not_a_silent_empty():
     """If the columns move, every date would come back empty and `club_elo` would just stay as it
     was - a fallback that fails looking like a fallback that had nothing to add."""
