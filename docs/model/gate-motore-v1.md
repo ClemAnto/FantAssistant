@@ -1957,7 +1957,43 @@ Con l'Elo di tutte le squadre è **primo fra gli attaccanti del Milan: 1.884**, 
 1.809, Nkunku 1.805. Il segnale dice quello che l'operatore cercava — «lo hanno preso da titolare» — e lo
 dice **senza leggere una quotazione**.
 
-### Cosa serve prima di poterlo adottare, dichiarato
+### LA VERIFICA SU 20 ACQUISTI VERI LO FALSIFICA — e con essa il metodo che lo aveva promosso
+
+Richiesta dell'operatore: provarlo su venti acquisti veri di Serie A. Sugli acquisti **2025-26**, dove
+l'esito si conosce, il canale usato come classificatore dà questo:
+
+| gruppo | n | età media | minuti PRIMA | **minuti DOPO** |
+|---|---:|---:|---:|---:|
+| dati TITOLARI (rango ≥ 75%) | 33 | 27.8 | 33% | **39%** |
+| dati RIEMPI-ROSA (rango < 25%) | 39 | 24.9 | 56% | **38%** |
+
+**Un punto percentuale.** Non discrimina niente. E i casi singoli dicono perché: fra i «titolari» ci sono
+**De Bruyne 34%, Belotti 7%, Cuadrado 15%, Morata 27%, Tsimikas 19%**; fra i «riempi-rosa» **Ellertsson 81%,
+Marcandalli 76%, Colombo 69%**. Il canale ha trovato *i veterani scesi da grandi club a fine carriera*, non
+i titolari.
+
+Misurato invece di intuito: **r(rango, età) = +0.340**, **r(rango, minuti dell'anno dopo) = +0.067** — mentre
+il predittore che il modello già usa, i minuti dell'anno prima, fa **+0.322**. Il canale legge l'anagrafe, e
+il segnale che dovrebbe aggiungere vale un quinto di quello che c'è già.
+
+### E il difetto di METODO, che è la parte da portarsi via
+Il +0.204 non era falso, era **mal costruito**: correlare col RESIDUO di `standing` — un modello il cui input
+principale sono i minuti — usando un segnale che correla coi minuti **riproduce la regressione verso la media
+del modello stesso**. Il gruppo ad alto Elo aveva giocato **33%** e ha fatto 39% (residuo positivo); quello a
+basso Elo aveva giocato **56%** e ha fatto 38% (residuo negativo). La correlazione col residuo è reale ed è
+un artefatto. È la stessa trappola del primo tentativo (`minuti × Elo`, r +0.769 coi minuti) tornata
+travestita, e le quattro fasce di minuti non bastavano a toglierla.
+**La regola che ne esce: un segnale si giudica contro l'ESITO, controllando per ciò che già si sa — non
+contro il residuo di un modello che quel «già si sa» lo contiene.** Il residuo va bene per capire dove il
+modello sbaglia, non per scegliere chi lo corregge.
+
+**Il SALTO (§7-duovicies) non è toccato da questa critica**, e va detto perché la simmetria conta: lì la
+r sul residuo è servita solo a *proporre* il canale, e il verdetto viene dallo **sweep**, che misura la MAE
+out-of-sample sull'obiettivo vero, con cross-fit. È esattamente la differenza fra i due, e questa verifica la
+rende visibile. L'ELO personale allo sweep non c'è mai arrivato — e alla luce di questa tabella non c'è
+motivo di portarcelo.
+
+### Cosa servirebbe prima di poterlo riprendere, dichiarato
 1. **Il layer per-partita comincia nel 2019-20**, quindi sulle finestre vecchie la memoria di 5 stagioni è
    più corta e il canale è più debole per costruzione: va misurato nello sweep, dove le pieghe lo vedono.
 2. **Otto alias scritti a mano** restano nel matcher (Leverkusen, Brighton, Bilbao, Rennes, Wolves,
