@@ -81,7 +81,14 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      merged (109 -> 106 clubs, so coaches / elo / penalty hierarchy / the live-squad join all move);
 #      `other_platform` restricted to the same competition (13 rows); the `older` rung regressed toward the
 #      anchor (38 rows).
-SHEET_REVISION = 2
+#   3  07/08/2026 - the live squad is derived AGAIN after the roles step, which is what downloads the
+#      payload it reads: every sheet before this one carried the PREVIOUS day's live squad, so the
+#      departures (⇥) and the eleven were one reading behind.
+#   4  07/08/2026 - the probabili are read only for the season being AUCTIONED
+#      (`probable_starter.season`): until now the freshest reading was the last 2025-26 round, so 428 of
+#      648 Serie A rows carried a starting probability of 1.0 taken from line-ups already played, 415
+#      duels were built on it, and its 442 players asserted a 2026-27 squad. Now empty by design.
+SHEET_REVISION = 4
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
@@ -291,14 +298,17 @@ def club_index(conn):
     return resolve
 
 
-def derive_squads(ctx: Context, date: str | None = None) -> dict[str, int]:
+def derive_squads(ctx: Context, date: str | None = None,
+                  season: str | None = None) -> dict[str, int]:
     """Who is REALLY in each club's squad today -> `squad_snapshot`. Offline, from three sources.
 
     An auction is prepared before the listone exists, so the sheet cannot be built from `rosters`.
     These are, strongest first:
 
       fc_site        the probabili page carries an exact fc_id in every href, so its 20 Serie A squads
-                     are certain - but it is Serie A only;
+                     are certain - but it is Serie A only, AND only for the season the page is about:
+                     `season` keeps the last round of the season that ended from asserting a squad for
+                     the one being auctioned (07/08/2026: 442 rows a day, all of 2025-26);
       transfermarkt  the CURRENT squad page of each perimeter club (already cached by `injuries`),
                      resolved through player_xref: all five leagues, ~1400 players;
       appearances    whoever actually played for the club in its recent matches - the backstop, and the
@@ -322,11 +332,14 @@ def derive_squads(ctx: Context, date: str | None = None) -> dict[str, int]:
     # they had been known on an August 2025 auction day is look-ahead, and the whole point of dating
     # these states is that a dry run cannot read the future it pretends not to know.
     latest_probabili = conn.execute(
-        "SELECT MAX(valid_from) FROM probable_starter WHERE valid_from <= ?", (date,)).fetchone()[0]
+        "SELECT MAX(valid_from) FROM probable_starter WHERE valid_from <= ?"
+        + (" AND season = ?" if season else ""),
+        (date, season) if season else (date,)).fetchone()[0]
     if latest_probabili:
         for fc_id, team, role in conn.execute(
-                "SELECT fc_id, team, role FROM probable_starter WHERE valid_from = ?",
-                (latest_probabili,)):
+                "SELECT fc_id, team, role FROM probable_starter WHERE valid_from = ?"
+                + (" AND season = ?" if season else ""),
+                (latest_probabili, season) if season else (latest_probabili,)):
             conn.execute(
                 "INSERT OR REPLACE INTO squad_snapshot(fc_id, valid_from, club, source, role_hint) "
                 "VALUES (?, ?, ?, 'fc_site', ?)",
@@ -1133,17 +1146,29 @@ def evidence_age(conn, window: features.Window) -> tuple[dict, list[str]]:
     return facts, notes
 
 
-def latest_starters(conn, auction_date: str) -> tuple[dict[int, dict], str | None]:
-    """The most recent probabili snapshot at or before the auction date, per player."""
-    date = conn.execute("SELECT MAX(valid_from) FROM probable_starter WHERE valid_from <= ?",
-                        (auction_date,)).fetchone()[0]
+def latest_starters(conn, auction_date: str, season: str | None = None
+                    ) -> tuple[dict[int, dict], str | None]:
+    """The most recent probabili snapshot at or before the auction date, per player.
+
+    Of the season being AUCTIONED, which is not the same question as "the freshest reading". The page
+    keeps serving the last round of the season that ended until the new one starts, so in August the
+    newest snapshot describes 2025-26 with probabilities of 1.0 - line-ups that were FIELDED, not
+    forecast. Those are a fact about a season nobody is buying any more, and the sheet says «no probabili
+    snapshot» instead, which is what it is (`probable_starter.season`).
+    """
+    date = conn.execute(
+        "SELECT MAX(valid_from) FROM probable_starter WHERE valid_from <= ?"
+        + (" AND season = ?" if season else ""),
+        (auction_date, season) if season else (auction_date,)).fetchone()[0]
     if not date:
         return {}, None
     out = {fc_id: {"probability": probability, "starter": bool(starter), "status": status,
                    "team": team, "formation": formation, "role": role}
            for fc_id, probability, starter, status, team, formation, role in conn.execute(
                "SELECT fc_id, probability, starter, status, team, formation, role "
-               "FROM probable_starter WHERE valid_from = ?", (date,))}
+               "FROM probable_starter WHERE valid_from = ?"
+               + (" AND season = ?" if season else ""),
+               (date, season) if season else (date,))}
     return out, date
 
 
@@ -2606,7 +2631,7 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
 
     # The real squads first: the row set of the sheet is who is in a club TODAY, listone or not.
     progress.stage("squads")
-    derive_squads(ctx, window.auction_date)
+    derive_squads(ctx, window.auction_date, window.target_season)
     # Then the granular real role, which needs the squads (the per-player top-up walks them) and is
     # observed for the PERIMETER - the clubs this platform actually lets you buy from.
     if refresh:
@@ -2617,6 +2642,14 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
             window.auction_date, progress=progress)
         if failure:
             notes.append(failure)
+        # ...and then the squads AGAIN, because the roles step is what DOWNLOADS `/team/{id}/players`,
+        # and that payload IS the live squad. Derived only before it, `squad_snapshot` read the newest
+        # cache file on disk - yesterday's - on every single run: measured 07/08/2026, the 35 payloads
+        # were written at 14:24 by a sheet whose squads had been derived at 14:22, so the ⇥ of a
+        # departure and `eleven()`'s exclusion were always one day stale (the sheet's own evidence note
+        # said `sofascore last observed` the day before, which is how it was found). The first pass
+        # stays: the per-player roles top-up walks the squads to know whom to ask about.
+        derive_squads(ctx, window.auction_date, window.target_season)
     progress.stage("prepare")
     data = features.prepare(conn, window, platform, game, league=setup,
                             squad_source="real")
@@ -2644,7 +2677,8 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
     seasons = [row[0] for row in conn.execute(
         "SELECT DISTINCT season FROM rosters WHERE season <= ? ORDER BY season",
         (window.target_season,))]
-    starters, starters_date = latest_starters(conn, window.auction_date)   # notes is already open
+    starters, starters_date = latest_starters(conn, window.auction_date,   # notes is already open
+                                              window.target_season)
     if not starters:
         notes.append(
             "no probabili snapshot at or before the auction date: the starter and duel columns are empty. "

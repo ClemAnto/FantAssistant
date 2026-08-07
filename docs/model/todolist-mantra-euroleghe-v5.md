@@ -1,14 +1,31 @@
 # Todolist — Allineamento Mantra & EuroLeghe (v5)
 
-## Aperti al 6 agosto 2026 (chiusura sessione) — nessuno con scadenza
+## Aperti al 7 agosto 2026 — nessuno con scadenza
 
+0. **LA QUOTAZIONE NON HA UNA PIATTAFORMA, e ne servono due** (nuovo, 07/08, spec «Novità v9.32»).
+   `rosters` ha PK `(fc_id, season)` e una sola coppia di prezzi; i due listoni discordano su **202 Qt.I e
+   226 FVM** per i ~249 italiani quotati in entrambi (Svilar 18/65 Serie A contro 15/56 EuroLeghe) e vince
+   l'ultimo che scrive. Tocca ciò contro cui si offre al tavolo, i tier d'arrivo che leggono il prezzo come
+   fallback, la serie `fvm_history` e il bundle. Oggi aggirato costruendo ogni foglio col SUO listone letto
+   per ultimo. Rimedio: `platform` nella chiave (come `match_ratings` e `season_stats`) + `fvm_history` +
+   lettori + ri-derivare `arrivals` e i fogli. **Migrazione: è una decisione, non una pezza.**
+0-bis. **Le probabili EuroLeghe esistono ma sono vuote** (07/08): `probabili_euro` / `indisponibili_euro`
+   sono ora catturate ogni giorno e oggi rispondono 200 con zero link giocatore. Quando si riempiranno va
+   verificato che il markup sia lo stesso (il parser è condiviso) — e ricordare il giudizio dell'operatore:
+   sono **poco affidabili**, quindi restano `desc_*`. Per la formazione settimanale la sua indicazione è
+   un'altra: ricerca giocatore per giocatore su stampa locale/nazionale, vicina al calcio d'inizio, salvata
+   datata **con l'ora** (due letture nello stesso giorno si sovrascrivono) e con la fonte per affermazione.
 1. **`window_standing` non è scoreabile**: lo sweep non ricostruisce la finestra di forma per una stagione
    passata, quindi il gate §7-octies è fermo per un'OMISSIONE dichiarata (`KNOWN_GAPS` nel test degli
    allineamenti) e non per una decisione. Sbloccarlo vuol dire ricostruire quella finestra da
    `external_match_stats`.
 2. **Transfermarkt non serve più le pagine rosa, e in silenzio**: `injuries.fetch_squads` scrive dentro un
    `if html:`, quindi una richiesta respinta non lascia né file né messaggio. La data resta al 29/07 mentre
-   sofascore e appearances sono al 06/08. Va fatto parlare.
+   sofascore e appearances sono al 06/08. Va fatto parlare. **Diagnosi del 07/08**: non è un 403, è un
+   **timeout totale** (curl 28, 0 byte ricevuti, riprodotto a mano fuori dal modulo), e nella stessa
+   condizione **ClubElo** non risponde — quindi la data d'asta 2026-08-15 non esiste in `club_elo`. Il run
+   `injuries --layer ids --refresh` di ieri è registrato `ok` avendo scaricato **zero** pagine: un modulo di
+   rete che non scarica niente deve dirlo e finire diversamente da uno che ha lavorato.
 3. **R18 non è su `default`, R19 non è su `euro`**: le piattaforme si comportano diversamente e ogni
    conclusione su questi due canali va detta al plurale.
 4. **L'assistente d'asta è progetto e non codice** (`assistente-asta-v1.md`), calendario facile incluso

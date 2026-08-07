@@ -9,7 +9,7 @@ from __future__ import annotations
 from euroleghe_ingest.config import Config
 from euroleghe_ingest.context import Context
 from euroleghe_ingest.db.database import init_db
-from euroleghe_ingest.modules import fc_site
+from euroleghe_ingest.modules import fc_site, snapshot
 
 _PROBABILI_HTML = """
 <html><body>
@@ -62,3 +62,24 @@ def test_probabili_upsert_stores_bench_rows_and_the_full_record(tmp_path):
         (5000, 0.85, "Fiorentina", "3-5-2", 1, "A", "ok"),
         (5001, None, "Fiorentina", "3-5-2", 0, "A", "doubt"),
     ]
+
+
+def test_a_reading_says_which_season_it_is_about_and_not_only_when_it_was_taken(tmp_path):
+    """The page keeps serving the last round of the season that ENDED until the new one starts, and the
+    day of the reading cannot tell the two apart: on 07/08/2026 the probabili fetched that morning were
+    810 hrefs of `2025-26` at probability 1.0 - line-ups already played - and they were the freshest
+    thing a 2026-27 sheet could find (428 of 648 Serie A rows). The season is in every href, so it is
+    stored and the readers filter on it.
+    """
+    ctx = _ctx(tmp_path)
+    old = _PROBABILI_HTML.replace("2026-27", "2025-26")
+    fc_site.upsert_probable_starters(ctx.conn, fc_site.parse_probable_starters(old), "2026-08-04")
+    fc_site.upsert_probable_starters(
+        ctx.conn, fc_site.parse_probable_starters(_PROBABILI_HTML), "2026-08-07")
+    assert {row[0] for row in ctx.conn.execute(
+        "SELECT season FROM probable_starter")} == {"2025-26", "2026-27"}
+    seen, day = snapshot.latest_starters(ctx.conn, "2026-08-07", "2026-27")
+    assert day == "2026-08-07" and set(seen) == {5000, 5001}
+    # and the trap: asked for a season the page never described, it answers nothing at all
+    assert snapshot.latest_starters(ctx.conn, "2026-08-04", "2026-27") == ({}, None), (
+        "the last round of the season that ended is not a forecast for the next one")

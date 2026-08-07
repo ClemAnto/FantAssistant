@@ -29,6 +29,22 @@ def test_cli_parser_builds():
     assert parser.prog == "euroleghe-ingest"
 
 
+def test_a_summary_symbol_does_not_fail_a_run_on_a_narrow_console(capsys, monkeypatch):
+    """The ⚑ of the departures line cost two snapshot runs their `ok` on 06/08/2026: the sheets were
+    written, the console was cp1252, and `ingest_runs` recorded UnicodeEncodeError. Reproduced on the
+    stream, not on the print: a cp1252 writer must degrade the symbol, never raise."""
+    import io
+
+    from euroleghe_ingest.cli import _console_takes_unicode
+
+    narrow = io.TextIOWrapper(io.BytesIO(), encoding="cp1252", write_through=True)
+    monkeypatch.setattr("sys.stdout", narrow)
+    with pytest.raises(UnicodeEncodeError):
+        narrow.write("⚑ gone")            # what the operator's console did
+    _console_takes_unicode()
+    narrow.write("⚑ gone")                # ...and does not do any more
+
+
 def test_validate_passes_on_empty_db(tmp_path):
     cfg = Config(db_path=tmp_path / "euroleghe.db")
     ctx = Context(config=cfg, conn=init_db(cfg.db_path))

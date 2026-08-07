@@ -1,5 +1,5 @@
 # Stato progetto & continuità — v5
-**Aggiornato: 6 agosto 2026 (chiusura: quattro adozioni, sei falsificazioni, il gate vincola il prodotto — dettaglio nel 00-BRIDGE)**
+**Aggiornato: 7 agosto 2026 (aggiornamento dati: quattro difetti trovati aggiornando, tre chiusi — dettaglio nel 00-BRIDGE)**
 Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da qui + i file della cartella "Modello Previsionale Fantacalcio".
 *Glossario: T1/T2 = finestre di test (23/24->24/25, 24/25->25/26) · MAE = errore medio assoluto · cross-fitted = parametri stimati su una finestra, testati sull'altra · M2e = modello portieri decomposto con ClubElo · Pv_att = presenze attese · fc_id = id fantacalcio.it · EV = valore atteso · scoring_config = punteggi configurabili per lega · xG/xA = expected goals/assists · 2.5 pieno = backtest motore completo con flag.*
 
@@ -7,6 +7,15 @@ Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da q
 App per leghe EuroLeghe/fantacalcio.it (Classic+Mantra, 5 campionati) con motore previsionale. Metodo: ogni regola entra SOLO se batte il baseline fuori campione su finestre indipendenti (gate pre-registrato). Doc madre: modello-previsionale-v3.8.md.
 
 ## ⚠️ Lo stato corrente è in `00-BRIDGE-punto-di-ingresso.md`, blocco «STATO AL 5 AGOSTO 2026»
+
+### 7 agosto 2026, in una riga: un aggiornamento di routine trova quattro difetti, e il più vecchio riguarda il PREZZO
+
+Stato completo nel **00-BRIDGE**, blocco «STATO AL 7 AGOSTO 2026»; dettaglio nella spec **«Novità v9.32»**.
+317 test, `backtest --verify` **22/22**, nessuna regola entrata, `SHEET_REVISION` **4**. Aperto e da decidere:
+`rosters` tiene UNA quotazione per (fc_id, season) mentre i due listoni ne danno due diverse (202 Qt.I e 226
+FVM in disaccordo) — oggi aggirato costruendo ogni foglio col suo listone letto per ultimo. Chiusi: la rosa
+live letta prima del run che la scarica, le probabili di una stagione già giocata usate come previsione
+(428 righe su 648), e le pagine editoriali EuroLeghe che nessuno leggeva.
 
 ### 6 agosto 2026, in una riga: quattro regole entrano da un harness, sei ipotesi cadono, e il gate impara a difendere il prodotto
 

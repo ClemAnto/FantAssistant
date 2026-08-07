@@ -849,12 +849,20 @@ def _span_days(first: str | None, last: str | None) -> int | None:
     return (datetime.date.fromisoformat(last) - datetime.date.fromisoformat(first)).days
 
 
-def _probable_starters(conn: sqlite3.Connection, auction_date: str) -> dict[int, float]:
-    """Auction-day view of a dated series: the last row with valid_from <= the auction date."""
+def _probable_starters(conn: sqlite3.Connection, auction_date: str,
+                       season: str | None = None) -> dict[int, float]:
+    """Auction-day view of a dated series: the last row with valid_from <= the auction date.
+
+    `season` is the season being predicted, and it is a FILTER and not a label: the page states which
+    season its line-ups belong to, and a reading taken today can describe the one that just ended (see
+    `probable_starter.season`). A row that does not say which season it is about is not read at all -
+    same rule as every other unknown here.
+    """
     out: dict[int, float] = {}
     for fc_id, probability in conn.execute(
             "SELECT fc_id, probability FROM probable_starter WHERE valid_from <= ? "
-            "ORDER BY valid_from", (auction_date,)):
+            + ("AND season = ? " if season else "")
+            + "ORDER BY valid_from", (auction_date, season) if season else (auction_date,)):
         out[fc_id] = probability
     return out
 
@@ -953,7 +961,7 @@ def load(conn: sqlite3.Connection, window: Window, platform: str,
     recent = _recent_form(conn, window)
     inactivity = _inactivity(conn, window)
     persistence = availability_persistence(conn, platform, window.input_season)
-    starters = _probable_starters(conn, window.auction_date)
+    starters = _probable_starters(conn, window.auction_date, window.target_season)
     penalties = _penalty_state(conn, window.auction_date)
     euro_minutes = euro_minutes_shares(conn, window.input_season)
     # new_coach is a TARGET-season flag and still auction-safe: `transfers.derive_new_coach` compares

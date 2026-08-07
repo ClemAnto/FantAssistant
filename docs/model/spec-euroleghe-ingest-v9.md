@@ -494,6 +494,73 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.32 (7 agosto 2026 — «anche la lista euro dovrebbe essere aggiornata»: quattro difetti trovati aggiornando)
+
+Sessione nata da una domanda di controllo — il foglio euro era davvero aggiornato? Sì, lo era; e cercando
+di dimostrarlo sono venuti fuori quattro difetti, tre chiusi e uno lasciato come decisione. Nessuna regola
+del motore è entrata: `backtest --verify` **22/22**, **317 test**, `SHEET_REVISION` **2 → 4**.
+
+### 1. La quotazione è un fatto di PIATTAFORMA, e `rosters` non lo sa — APERTO
+
+`rosters` ha PK `(fc_id, season)` e una sola coppia di prezzi, ma i due listoni sono due giochi diversi: sui
+~249 italiani quotati in entrambi discordano su **202 Qt.I e 226 FVM**, e vince **l'ultimo che scrive**.
+Svilar 18 / 65 sul listone Serie A contro **15 / 56** su quello EuroLeghe; Carnesecchi 16/52 vs 11/34;
+Hojlund 28/271 vs 21/168. Conseguenze oltre la visualizzazione: `price_initial` è l'unico prezzo che una
+regola può leggere ed è ciò contro cui si fa un'offerta al tavolo, i **tier d'arrivo** lo leggono come
+fallback, `fvm_history` accumula una serie che mescola le due piattaforme giorno per giorno, e il bundle ne
+porta una delle due.
+
+Aggirato oggi costruendo ogni foglio col **suo** listone letto per ultimo (verificato riga per riga: sulla
+euro Svilar legge 15, sulla Serie A 18). È un ordine di esecuzione, non uno schema. Il rimedio ha la forma
+che la spec già usa per `match_ratings` e `season_stats` — `platform` nella chiave, più `fvm_history`, più i
+lettori, più ri-derivare `arrivals` e i fogli — quindi è una **migrazione e una decisione**, non una pezza.
+
+### 2. La rosa live veniva letta PRIMA del run che la scarica — CHIUSO
+
+`derive_squads` legge i payload `/team/{id}/players` dalla cache; a scaricarli è lo step **roles**, che
+girava **dopo**. Misurato: 35 payload scritti alle 14:24 da un foglio le cui rose erano state derivate alle
+14:22 — quindi *ogni* foglio mai prodotto portava la rosa live del **giorno prima**, e con essa il `⇥` delle
+partenze e l'esclusione dall'undici. Il difetto si dichiarava da sé nella nota del foglio
+(«sofascore last observed» col giorno precedente), che è come è stato trovato. Ora le rose si derivano una
+seconda volta dopo i roles; il primo passaggio resta, perché il top-up per giocatore cammina sulle rose.
+
+### 3. Una lettura dice di QUALE STAGIONE parla, non solo quando è stata presa — CHIUSO
+
+Le probabili non si storicizzano, ma «una lettura di oggi» non vuol dire «una lettura sulla stagione di
+oggi»: fino al 04/08 la pagina Serie A serviva l'ultima giornata del **2025-26** — 810 href, tutti
+`2025-26`, con probabilità **1.0**, cioè formazioni già GIOCATE — e la 2026-27 è ancora vuota. Quelle righe
+erano la cosa più fresca che un foglio 2026-27 potesse trovare: **428 righe su 648** con `desc_starter_prob`
+di un anno prima, **415 duelli** costruiti sopra, e i loro 442 giocatori usati come rosa 2026-27 dalla fonte
+più forte delle tre (`fc_site`). La stagione è in ogni href e il parser la leggeva già: ora la **memorizza**
+(`probable_starter.season`, migrazione) e i tre lettori filtrano su di essa. Effetto: `starter_prob` 428 → 0,
+duelli 415 → 0, rose da `fc_site` 442 → 0, e il foglio lo **dichiara** invece di mostrarlo.
+
+### 4. Le pagine editoriali EuroLeghe esistono e nessuno le leggeva — CHIUSO
+
+Segnalate dall'operatore: `fc_site.PAGES` conteneva solo Serie A, quindi **quattro leghe su cinque** senza
+alcun segnale editoriale. L'URL è `-euro-leghe`, la stessa grafia del listone. Aggiunte `probabili_euro` e
+`indisponibili_euro`: oggi rispondono 200 con zero link giocatore (la indisponibili euro dice da sé «dati
+non ancora disponibili»), e proprio per questo vanno **catturate da subito** — è uno dei tre fatti non
+backfillabili. Con esse, la regola: un parser per KIND e non per pagina (`page.startswith`), o aggiungere
+una piattaforma ingerisce silenziosamente nulla.
+
+### Più due cose che il run stesso ha insegnato
+
+- **Un simbolo del riepilogo faceva registrare `error` a un run riuscito.** I due snapshot del 06/08 sono in
+  `ingest_runs` come `error` (`UnicodeEncodeError: '⚑'`, il `⚑` delle partenze) **con i fogli già
+  scritti**: console cp1252. Un print non è il posto dove si decide cosa un marcatore può essere — ora lo
+  stream degrada il carattere. Costava anche l'interruzione di una catena (foglio → `export`).
+- **Il bundle portava la data e non la revisione.** `manifest.sheet_revision` c'è anche nel bundle: era
+  l'unico artefatto che non sapeva dire con quale modello era stato scritto.
+
+### Stato delle fonti quel giorno, perché un «aggiornato» senza questo non è vero
+
+Transfermarkt **irraggiungibile** (curl timeout, 0 byte): nessuna pagina rosa dal 29/07, quindi
+`contract_until`, `market_value` e infortuni sono fermi lì — e il run di ieri `injuries --layer ids
+--refresh` è registrato `ok` **avendo scaricato zero pagine**, che è il «fallisce in silenzio» già aperto,
+ora con una data. ClubElo **timeout**: la data d'asta 2026-08-15 non esiste, `elo_prev` resta 2025-08-15.
+fantacalcio.it e il provider dei ruoli/rose funzionano.
+
 ## Novità v9.31 (6 agosto 2026 — la seconda metà della sessione: il motore e il gate)
 
 La v9.30 sotto racconta la prima metà (rose, identità dei club, stime, audit). Questa è il resto, e per il

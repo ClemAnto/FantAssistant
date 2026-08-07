@@ -90,6 +90,10 @@ def test_manifest_carries_the_discipline_the_app_must_not_guess(tmp_path):
     assert manifest["provisional_parameters"]["injuries.EXIT_RISK_MONTHS"] == 12
     assert manifest["adopted_rules"]["by_platform"]["euro"][0] == "R0"
     assert manifest["known_gaps"], "a bundle without its known gaps invites a wrong reading"
+    # ...and WHICH MODEL wrote it: a date cannot say whether the code still computes the same numbers,
+    # which is why the sheets carry a revision - and the bundle used to carry only the date.
+    from euroleghe_ingest.modules.snapshot import SHEET_REVISION
+    assert manifest["sheet_revision"] == SHEET_REVISION
     assert "match_rating_bonuses" in manifest["excluded"]
     # every contract table is accounted for, with a row count
     assert {entry["name"] for entry in manifest["tables"]} == {spec.name for spec in export.CONTRACT}

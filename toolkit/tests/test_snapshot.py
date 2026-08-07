@@ -166,6 +166,42 @@ def test_snapshot_writes_the_sheet_and_the_manifest(tmp_path):
     assert written["auction_date"] == "2025-08-15"
 
 
+def test_the_live_squad_is_read_after_the_run_that_downloads_it(tmp_path, monkeypatch):
+    """The payload the live squad reads is downloaded by the ROLES step, which used to run after the
+    squads were already derived - so `squad_snapshot` held the newest file on disk, i.e. the PREVIOUS
+    day's reading, and a departure spotted today reached the sheet tomorrow. Measured on 07/08/2026:
+    35 payloads written at 14:24 by a run whose squads were built at 14:22. Here the roles step writes
+    one payload that omits a seeded player, and the sheet has to see it in the same run.
+    """
+    ctx = _ctx(tmp_path)
+    _seed(ctx.conn)
+    ctx.conn.execute("INSERT INTO club_xref(source, source_id, fc_club_id) "
+                     "VALUES ('sofascore', '2697', 10)")
+    for fc_id in (1, 2, 3):
+        ctx.conn.execute("INSERT INTO player_xref(source, source_id, fc_id) VALUES ('sofascore', ?, ?)",
+                         (f"90{fc_id}", fc_id))
+    ctx.conn.commit()
+
+    def fake_roles(context, clubs, date, progress=None):
+        """What the real roles step does to the disk: one dated payload per club - Thuram is gone."""
+        payload = {"players": [{"player": {"id": 901, "name": "Lautaro"}},
+                               {"player": {"id": 903, "name": "Sommer"}}]}
+        path = context.config.cache_dir / f"sofascore_squad_2697_{date}.json"
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        return None
+
+    monkeypatch.setattr(snapshot, "refresh_real_roles", fake_roles)
+    monkeypatch.setattr(snapshot, "refresh_editorial", lambda context: None)
+    snapshot.run(ctx, platform="euro", game="classic", refresh=True, season="2025-26")
+
+    live = {(row[0], row[1]) for row in ctx.conn.execute(
+        "SELECT fc_id, valid_from FROM squad_snapshot WHERE source = 'sofascore'")}
+    assert live, "the payload written during the run never reached `squad_snapshot`"
+    day = next(iter(live))[1]
+    assert {fc_id for fc_id, _ in live} == {1, 3}, "the live squad is the payload, absences included"
+    assert day == "2025-08-15", "a live squad is dated with the payload's own day, not the run's"
+
+
 def test_the_last_ten_series_tells_bench_from_injured_from_unknown(tmp_path):
     """The strip's four states are four different facts, and conflating them is the whole risk.
 

@@ -43,10 +43,18 @@ PAGES: dict[str, str] = {
     "probabili": BASE_URL + "/probabili-formazioni-serie-a",
     "indisponibili": BASE_URL + "/indisponibili-serie-a",
     "rigoristi": BASE_URL + "/rigoristi-serie-a",
+    # ...and the same lists for the OTHER platform, which the operator had to point out (07/08/2026):
+    # EuroLeghe has its own editorial pages - `-euro-leghe`, the same spelling the listone URL uses -
+    # and nothing here read them, so four leagues of five had no editorial signal at all. Both answer
+    # 200 today with the page shell and ZERO player links (the 2026-27 lineups are not out), which is a
+    # reason to start CAPTURING them daily rather than to leave them out: a probabili page is one of the
+    # three facts that cannot be backfilled, so a day not taken is a day lost.
+    "probabili_euro": BASE_URL + "/probabili-formazioni-euro-leghe",
+    "indisponibili_euro": BASE_URL + "/indisponibili-euro-leghe",
 }
 # The site publishes the editorial pages a few weeks into the preseason; until then it says so.
 NOT_PUBLISHED = "dati non ancora disponibili"
-_SNAPSHOT = re.compile(r"fc_site_([a-z]+)_(\d{4}-\d{2}-\d{2})\.html$")
+_SNAPSHOT = re.compile(r"fc_site_([a-z_]+)_(\d{4}-\d{2}-\d{2})\.html$")
 _PLAYER_HREF = re.compile(r"/squadre/[^/]+/[^/]+/(\d+)/(\d{4}-\d{2})")
 _PERCENT = re.compile(r"(\d+)\s*%")
 
@@ -164,10 +172,14 @@ def upsert_probable_starters(conn, records: list[dict], date: str) -> int:
                          (rec["fc_id"], str(rec["fc_id"])))
         conn.execute(
             "INSERT OR REPLACE INTO probable_starter("
-            "    fc_id, valid_from, probability, source, team, formation, starter, role, status) "
-            "VALUES (?, ?, ?, 'fc_site', ?, ?, ?, ?, ?)",
+            "    fc_id, valid_from, probability, source, team, formation, starter, role, status, "
+            "    season) "
+            "VALUES (?, ?, ?, 'fc_site', ?, ?, ?, ?, ?, ?)",
             (rec["fc_id"], date, rec["probability"], rec.get("team"), rec.get("formation"),
-             1 if rec.get("starter") else 0, rec.get("role"), rec.get("status")),
+             1 if rec.get("starter") else 0, rec.get("role"), rec.get("status"),
+             # The parser has always read it out of the href and it was thrown away here: the page states
+             # which season it is talking about, and the day of the reading does not.
+             rec.get("season")),
         )
         stored += 1
     return stored
@@ -345,23 +357,30 @@ def ingest_snapshot(ctx: Context, page: str, html: str, date: str, season: str) 
     if not is_published(html):
         print(f"[fc_site] {page}: the site says '{NOT_PUBLISHED}' - nothing to ingest yet")
         return
-    if page == "probabili":
+    # The euro pages are the same lists for the other platform, so they take the same parsers: one page
+    # key per URL, one parser per KIND. `page.startswith` and not equality, or adding a platform would
+    # silently ingest nothing at all.
+    if page.startswith("probabili"):
         records = parse_probable_starters(html)
         stored = upsert_probable_starters(conn, records, date)
         teams = len({rec["team"] for rec in records if rec["team"]})
-        print(f"[fc_site] probabili {date}: {stored} probabilities over {teams} teams")
-    elif page == "indisponibili":
+        seasons = sorted({rec["season"] for rec in records if rec.get("season")})
+        # WHICH SEASON the page was about, printed because it is the difference between a forecast and a
+        # record of a match already played: in August this list reads ['2025-26'] on a page fetched today.
+        print(f"[fc_site] {page} {date}: {stored} probabilities over {teams} teams"
+              + (f" · season {', '.join(seasons)}" if seasons else " · no player links yet"))
+    elif page.startswith("indisponibili"):
         records = parse_unavailable(html)
         stored, unresolved = upsert_availability(conn, records, season, date)
         kinds: dict[str, int] = {}
         for rec in records:
             kinds[rec["status"]] = kinds.get(rec["status"], 0) + 1
         detail = " ".join(f"{key}={value}" for key, value in sorted(kinds.items()))
-        print(f"[fc_site] indisponibili {date}: {stored}/{len(records)} resolved [{detail}]")
+        print(f"[fc_site] {page} {date}: {stored}/{len(records)} resolved [{detail}]")
         if unresolved:
             names = ", ".join(sorted(unresolved)[:8]).encode("ascii", "replace").decode()
             print(f"[fc_site] {len(unresolved)} names not matched: {names}")
-    elif page == "rigoristi":
+    elif page.startswith("rigoristi"):
         # Deliberately not parsed: the page has answered "not available yet" every time since this
         # module was written, so a parser would be guesswork. The revealed hierarchy covers the need.
         print(f"[fc_site] rigoristi {date}: published now - parser not implemented "

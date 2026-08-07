@@ -395,6 +395,13 @@ CREATE TABLE IF NOT EXISTS probable_starter (
     starter    INTEGER,                          -- 0/1: listed in the starting XI block
     role       TEXT,                             -- the page's role letter for the slot
     status     TEXT,                             -- e.g. injured/doubtful marker on the card
+    -- WHICH SEASON THE PAGE WAS TALKING ABOUT, from the season segment of every player href. A reading is
+    -- dated by the day it was TAKEN, and in August that day says nothing about the season it describes:
+    -- measured 07/08/2026, the probabili page served the last 2025-26 round until 04/08 (810 hrefs, all
+    -- `2025-26`, probabilities 1.0 - confirmed line-ups of a match already played) and the 2026-27 page is
+    -- still empty. Without this column those rows were the freshest "starting probability" a 2026-27 sheet
+    -- could find: 428 of 648 Serie A rows and 415 duels built on last season's elevens.
+    season     TEXT,
     PRIMARY KEY (fc_id, valid_from)
 );
 

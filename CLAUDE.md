@@ -105,6 +105,14 @@ own verdict does not, and cannot be used to adopt it.
   end-of-season by the same argument, and `price_mantra` / `price_initial_mantra` are the same two
   quotations in the Mantra currency. Everything but Qt.I is **reporting only**; the schema says so where
   each column lives.
+- **...and a quotation is a fact about a PLATFORM, which `rosters` cannot yet say** (open, 07/08/2026). Its
+  PK is `(fc_id, season)` and holds ONE pair, while the two listoni are two different games: on the ~249
+  Italians quoted in both they disagree on **202 Qt.I and 226 FVM** (Svilar 18/65 on the Serie A listone
+  against 15/56 on the EuroLeghe one), so the LAST read wins for both sheets. Today each sheet is built with
+  its own listone read last - an execution order, not a schema - and the cure is the one `match_ratings` and
+  `season_stats` already use: `platform` in the key, plus `fvm_history`, plus the readers, plus re-deriving
+  `arrivals` (the tiers read the price as a fallback) and the sheets. Until then, a price quoted without
+  saying WHICH listone wrote it last is not comparable, exactly like a surplus without its league.
 - **Additive schema changes need a migration.** `CREATE TABLE IF NOT EXISTS` does nothing to an existing
   table, so a new column without an entry in `db.database.ADDED_COLUMNS` fails with "no such column" and
   the only cure would be a `rebuild` that drops everything.
@@ -197,6 +205,18 @@ invocation - CLI, rebuild or GUI - never by the module itself.
   design**, and no auction rule is waiting for it. What this DOES require, if a pre-match reading is to be
   taken seriously: `valid_from` and the cache file are per-DAY, so two captures on the same matchday
   overwrite each other and a 20:45 kick-off would read the 15:00 state - the series needs an hour.
+  **And the day of a reading does not say which SEASON it is about** (07/08/2026): the page keeps serving the
+  last round of the season that ended until the new one starts, so until 04/08 it carried 810 hrefs of
+  `2025-26` at probability **1.0** - line-ups that were FIELDED, not forecast - and those were the freshest
+  rows a 2026-27 sheet could find: 428 of 648 Serie A `desc_starter_prob`, 415 duels built on them, and their
+  442 players asserting a 2026-27 squad through the strongest of the three squad sources. The season is in
+  every href and the parser already read it; it is now STORED (`probable_starter.season`) and the readers
+  filter on it, so the columns are empty and say so. Two habits behind the fix: a dated fact needs the date
+  of the OBSERVATION and the identity of what it observes, and a row that cannot say which season it belongs
+  to is unknown - not current. **Also: the euro pages exist** (`-euro-leghe`, the listone's own spelling) and
+  nothing read them, so four leagues of five had no editorial signal; they are captured daily now, and by the
+  operator's judgement (07/08/2026) they stay **poco affidabili** - for the weekly line-up the reading worth
+  having is a per-player search of the press near kick-off, not this page.
 - **Contract expiry** (`flags.contract_until` / `exit_risk`): verified against the source - a PAST
   season's squad page does not carry the column. So `exit_risk` is usable for the auction that is
   coming and is **not gatable on T1/T2**.

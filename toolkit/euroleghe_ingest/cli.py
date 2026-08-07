@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import datetime as dt
+import sys
 
 from euroleghe_ingest import __version__
 from euroleghe_ingest.config import Config
@@ -211,7 +213,22 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _console_takes_unicode() -> None:
+    """A run must not be recorded as FAILED because its summary carried a symbol the console lacks.
+
+    Measured, twice, on 06/08/2026: the two snapshot runs that produced the sheets are in `ingest_runs`
+    with `status='error'` and `UnicodeEncodeError: '\\u2691'` - the ⚑ of the departures line. The CSVs were
+    already written, so the sheets were fine and the log said the opposite; and a chained run (sheet then
+    `export`) would have stopped there. Windows hands a cp1252 stdout to a non-UTF-8 console, and a print
+    is not the place to decide what a marker may be: replace what cannot be encoded, never raise.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        with contextlib.suppress(Exception):        # a redirected/wrapped stream may not reconfigure
+            stream.reconfigure(errors="replace")
+
+
 def main(argv: list[str] | None = None) -> int:
+    _console_takes_unicode()
     args = build_parser().parse_args(argv)
     cfg = Config()
     ctx = Context(config=cfg)

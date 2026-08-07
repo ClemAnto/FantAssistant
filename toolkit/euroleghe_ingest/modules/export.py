@@ -440,11 +440,18 @@ def run(ctx: Context, *, season: str | None = None, out: str | None = None,
         if not problems:
             print("[export] verify: referential integrity ok, the input season is complete")
 
+    from euroleghe_ingest.modules.snapshot import SHEET_REVISION
+
     manifest = {
         "schema_version": SCHEMA_VERSION,
         "generated_at": dt.datetime.now(tz=dt.UTC).isoformat(timespec="seconds"),
         "toolkit_version": __version__,
         "git_commit": _git_commit(ctx.config.repo_root),
+        # WHICH MODEL wrote it, not only when. `generated_at` cannot say whether the code still computes
+        # the same numbers - that is the whole reason `sheet_revision` exists for a sheet folder - and the
+        # bundle was the one artefact that carried the date and not the revision, so an app could not tell
+        # a stale bundle from a fresh one. Same number as the sheets: bumped when a value MOVES.
+        "sheet_revision": SHEET_REVISION,
         "target_season": target,
         "input_season": seasons[-2] if len(seasons) > 1 else target,
         "history_seasons": seasons,

@@ -349,18 +349,23 @@ def test_target_season_flags_and_late_states_are_invisible(prepared):
     _cfg, conn, window, _data = prepared
     conn.executemany("INSERT INTO flags(fc_id, season, flag, value, source) VALUES (?, ?, ?, ?, ?)",
                      [(1, TARGET_SEASON, "off_role_usage", "1", "sofascore")])
-    conn.execute("INSERT INTO probable_starter(fc_id, valid_from, probability, source) "
-                 "VALUES (1, '2025-01-31', 0.9, 'fc_site')")          # after the auction
+    conn.execute("INSERT INTO probable_starter(fc_id, valid_from, probability, source, season) "
+                 "VALUES (1, '2025-01-31', 0.9, 'fc_site', ?)", (TARGET_SEASON,))  # after the auction
+    # ...and the trap that cost 428 rows of a real sheet: a reading taken BEFORE the auction that is
+    # about the season already finished. The date makes it legal, the season makes it meaningless.
+    conn.execute("INSERT INTO probable_starter(fc_id, valid_from, probability, source, season) "
+                 "VALUES (1, '2024-07-30', 1.0, 'fc_site', ?)", (INPUT_SEASON,))
     conn.commit()
     by_id = {obs.fc_id: obs for obs in features.load(conn, window, "euro")}
     assert by_id[1].off_role_prev is False, "a target-season flag leaked into the inputs"
-    assert by_id[1].starter_prob is None, "a state dated after the auction leaked into the inputs"
+    assert by_id[1].starter_prob is None, ("a state dated after the auction, or one about the season "
+                                           "that has already been played, leaked into the inputs")
 
     # the same facts, dated before the auction, must be picked up
     conn.execute("INSERT INTO flags(fc_id, season, flag, value, source) "
                  "VALUES (1, ?, 'off_role_usage', '1', 'sofascore')", (INPUT_SEASON,))
-    conn.execute("INSERT INTO probable_starter(fc_id, valid_from, probability, source) "
-                 "VALUES (1, '2024-08-01', 0.8, 'fc_site')")
+    conn.execute("INSERT INTO probable_starter(fc_id, valid_from, probability, source, season) "
+                 "VALUES (1, '2024-08-01', 0.8, 'fc_site', ?)", (TARGET_SEASON,))
     conn.commit()
     reloaded = {obs.fc_id: obs for obs in features.load(conn, window, "euro")}
     assert reloaded[1].off_role_prev is True

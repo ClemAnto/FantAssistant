@@ -1,5 +1,5 @@
 # 00 — BRIDGE · Punto d'ingresso del progetto (leggere per primo)
-**Aggiornato: 6 agosto 2026 (chiusura: quattro adozioni, sei falsificazioni, e il gate che ora vincola il prodotto)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
+**Aggiornato: 7 agosto 2026 (aggiornamento dati: quattro difetti trovati mentre si aggiornava, tre chiusi)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
 
 ## Il progetto in breve
 Motore previsionale per fantacalcio **EuroLeghe** (fantacalcio.it): valutazione calciatori Classic e Mantra sui 5 grandi campionati europei (Serie A, Premier, Liga, Bundesliga, Ligue 1 — perimetro: i ~35 top club del gioco). Prevede fantamedia (FM), presenze attese e VALORE stagionale = FM × presenze. Metodo scientifico: **ogni regola entra nel motore solo se batte il baseline fuori campione su finestre indipendenti** (gate pre-registrato). Stato: core validato (Mantra, Classic, portieri, presenze); manca lo strato flag/arrivi, sbloccato dal toolkit dati `euroleghe-ingest` (in implementazione).
@@ -22,12 +22,35 @@ proporre qualsiasi regola) → **`metrica-asta-surplus-v1.md`** (con cosa il pan
 è VALORE) → **`assistente-asta-v1.md`** (cosa l'assistente fa al tavolo: tre domande, tre numeri, e le
 regole di UI che sono requisiti) → `spec-euroleghe-ingest-v9.md` → `nota-modello-set-pieces-v2.md` →
 `modello-previsionale-v3.8.md` → consolidati di dettaglio. Tutti in `docs/model/`.
+L'altra fase, quella settimanale, è **`formazione-settimanale-v1.md`** (progetto): chi gioca domenica, perché
+la pagina delle probabili non basta e quali vincoli valgono già oggi.
 
-## STATO AL 6 AGOSTO 2026 (fine sessione) — LEGGI QUESTO PRIMA DI TUTTO
+## STATO AL 7 AGOSTO 2026 — LEGGI QUESTO PRIMA DI TUTTO
 
 Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
 
-### ULTIMO IN ORDINE DI TEMPO — 6/08/2026: quattro adozioni, sei falsificazioni, e il gate che ora vincola il prodotto
+### ULTIMO IN ORDINE DI TEMPO — 7/08/2026: «anche la lista euro dovrebbe essere aggiornata»
+
+Sessione di aggiornamento dati, nata da una domanda di controllo. Il foglio euro **era** aggiornato; provando
+a dimostrarlo sono venuti fuori **quattro difetti**, tre chiusi e uno lasciato come decisione. Nessuna regola
+nel motore: `backtest --verify` **22/22**, **317 test**, `SHEET_REVISION` **2 → 4**. Dettaglio: spec «Novità
+v9.32».
+
+- **APERTO, ed è una decisione tua**: la **quotazione è un fatto di PIATTAFORMA** e `rosters` ha PK
+  `(fc_id, season)`. I due listoni discordano su **202 Qt.I e 226 FVM** per i ~249 italiani quotati in
+  entrambi (Svilar 18/65 Serie A contro 15/56 EuroLeghe) e vince l'ultimo che scrive. Aggirato costruendo
+  ogni foglio col SUO listone letto per ultimo; il rimedio è `platform` nella chiave, cioè una migrazione.
+- **CHIUSO**: la **rosa live** veniva letta prima del run che la scarica → ogni foglio portava quella del
+  giorno prima (35 payload alle 14:24, rose derivate alle 14:22).
+- **CHIUSO**: una lettura ora dice **di quale stagione parla** (`probable_starter.season`). La pagina
+  probabili serviva l'ultima giornata del 2025-26 a probabilità 1.0, e quelle righe erano 428 su 648 di
+  `desc_starter_prob` su un foglio 2026-27, più 415 duelli e 442 asserzioni di rosa. Ora 0 e dichiarato.
+- **CHIUSO**: le pagine editoriali **EuroLeghe** (`-euro-leghe`) esistono e nessuno le leggeva — quattro
+  leghe su cinque senza segnale editoriale. Ora catturate ogni giorno (oggi ancora vuote: 0 link giocatore).
+- **Fonti giù quel giorno**: Transfermarkt irraggiungibile (nessuna pagina rosa dal 29/07 → contratti,
+  valori di mercato e infortuni fermi lì) e ClubElo in timeout. fantacalcio.it e il provider funzionano.
+
+### 6/08/2026: quattro adozioni, sei falsificazioni, e il gate che ora vincola il prodotto
 
 Dodici commit, tutti su `master` e **pushati**. **313 test**, `backtest --verify` **22/22**.
 Dettaglio: spec «Novità v9.30», gate §7-duodecies → §7-vicies (ogni sezione ha la griglia scritta PRIMA e il

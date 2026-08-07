@@ -39,6 +39,9 @@ ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("probable_starter", "starter", "INTEGER"),
     ("probable_starter", "role", "TEXT"),
     ("probable_starter", "status", "TEXT"),
+    # The season the probabili page was about (see schema.sql): a row whose season is unknown cannot be
+    # read as today's forecast - «vuoto = ignoto», and here the empty ones are measurably last season's.
+    ("probable_starter", "season", "TEXT"),
     # The BODY, from the same provider payload the granular roles come from (one request per club, so
     # they cost nothing extra). Dated like the roles because that is the table they arrive in - though a
     # grown man's height does not move, which is why it may be read for a past season and a role may not.
