@@ -1900,6 +1900,81 @@ un voto base convertito e **non** un FM-equivalente: per lui serve un equivalent
 portieri, che è un lavoro in `arrivals` e non qui. Va detto adesso perché è il caso che ha generato la
 richiesta. → **§7-decies**.
 
+## 7-unvicies. LA QUOTA DI PARTENZE DI CHI HA CAMBIATO CAMPIONATO (pre-registrata il 7 agosto 2026, PRIMA di eseguirla)
+
+Nata da un confronto, non da un'intuizione: l'undici tipo del Milan calcolato dal foglio del 07/08 contro
+quello che quattro fonti indipendenti pubblicavano lo stesso giorno. **Dieci uomini su undici coincidono**;
+l'unico assente è **Gonçalo Ramos**, comprato per 74 M per fare il centravanti titolare. E il motivo non è che
+manchi il dato: la sua `desc_start_share` è **0.433**, che è la sua quota di partenze **al PSG**, dove ruotava.
+`eleven()` ordina per quel numero grezzo, e 0.433 perde contro Leão 0.793 e Gimenez 0.688.
+
+**L'ipotesi**: per chi ha cambiato CAMPIONATO, la quota di partenze della stagione precedente misura *un altro
+mestiere in un'altra squadra*, quindi è un predittore peggiore della sua quota futura di quanto lo sia per chi
+è rimasto — e ristringerla verso l'àncora del suo ruolo migliora la previsione. La forma è la stessa che
+`estimate.regress` ha già adottato per la fantamedia, e per la stessa ragione: **deve tirare da entrambe le
+parti**, perché il caso simmetrico esiste ed è più frequente di quello che ha generato la domanda — il
+titolare fisso di un club piccolo che arriva in un club grande porta una quota ALTA e non giocherà.
+
+### Cosa ho guardato prima di scrivere, e cosa no
+Ho visto **le righe di un solo club**: Ramos 0.433 con `engine_unpriced_reason = "no season on this platform"`
+ed `est_surplus` 5.0 sull'àncora, Leão 0.793, Gimenez 0.688, Nkunku 0.469, più l'undici disegnato. **Non** ho
+guardato nessuna distribuzione storica, nessuna correlazione, nessuna finestra. La pre-registrazione serve a
+impedire che la forma della regola venga scelta dopo aver visto quanto rende.
+
+### Forma, popolazione, griglia
+- **Forma**: `share_ref = (1 − ω) × share_prev + ω × ancora(ruolo)`, dove l'àncora è la quota media di
+  partenze dei giocatori dello stesso `role_classic` nella stagione di destinazione. Con **ω = 0 questa è
+  esattamente la catena attuale**, quindi l'incumbent è dentro lo spazio.
+- **Popolazione**: **solo chi ha cambiato campionato** (`desc_arrival = transfer_cross_league`). Chi resta
+  nella stessa lega tiene il suo denominatore e gran parte del contesto; è una pre-registrazione diversa e non
+  si mescola. Questo è anche il punto su cui §7-sexies è già inciampato una volta: **un parametro va giudicato
+  sulla popolazione su cui agisce**, e scorare su tutti diluirebbe fino a un +0.00% che non è un PASS.
+- **Griglia**: ω ∈ {0.0, 0.15, 0.30, 0.45, 0.60, 0.75}, cross-fit leave-one-out, **e il vincitore deve essere
+  INTERNO** — se vince 0.75 la griglia va riaperta in un follow-up pre-registrato e non allargata dopo aver
+  visto la curva.
+- **Armonica**: `sweep`, non `backtest`. La quantità è una quota di partenze, non la MAE del motore, ed è la
+  stessa forma delle pieghe che lo sweep già giudica.
+
+### Il denominatore, da verificare PRIMA di lanciare
+Una quota di stagione è una quota del CAMPIONATO, e qui i due campionati sono **diversi per costruzione**: la
+Ligue 1 di Ramos ha un calendario suo. Se `desc_start_share` a t−1 non è già normalizzata sulle giornate della
+lega di ALLORA, la misura confronta due unità e il risultato è aria. Va controllato prima, e se è rotto si
+sistema quello — non si interpreta il numero.
+
+### Attesa scritta prima, e il criterio che la uccide
+- Guadagno sulla MAE della quota di partenze, **sulla sola popolazione cross-lega**, fra **0.5% e 2%**, con
+  l'ottimo cross-fit fra **0.30 e 0.45**. Positivo su **entrambe** le piattaforme: il meccanismo — il numero
+  descrive un altro mestiere — non dipende dal calendario, quindi qui non mi aspetto la divergenza
+  euro/default che R19 e R18 hanno mostrato. Se invece diverge, il meccanismo che ho scritto non è quello
+  vero e va detto.
+- **Falsificata se** il cross-fit sceglie ω = 0.0 sulla maggioranza delle pieghe di una piattaforma, oppure se
+  il guadagno medio resta sotto il pavimento dello 0.5%. In quel caso la conclusione è che **Ramos è un caso
+  singolo che il tabellone sbaglia per un'altra ragione** — magari nessuna: può darsi che fosse davvero una
+  riserva e che non sia titolare — e il caso Ramos **non può essere usato per aggirare il verdetto**. È
+  precisamente l'errore commesso una volta il 06/08 con R18 e i criteri, e non si ripete.
+
+### Cosa muove e cosa no
+Muove **il TABELLONE e basta**: `eleven()` sta in `gui.py`, `evaluate.py` non lo importa, quindi `engine_*`
+non cambia di un decimale e `backtest --verify` resta **22/22**. Nota che `presence.standing` **non** è
+coinvolto: lo sweep del 29/07 ha già misurato `standing_weights` = (0, 1), cioè che chi parte l'anno dopo è
+predetto dai MINUTI e non dal tasso di partenze — quindi il modello delle presenze questo numero non lo legge
+già oggi, e l'unico consumatore della quota grezza è il disegno dell'undici.
+
+### La guardia sul deliverable, e il suo limite dichiarato
+Il gate vincola il prodotto (§7-novodecies), ma qui il prodotto è un tabellone, non una lista d'asta: la
+guardia è il **giudice esterno** di §5-quaterdecies — gli undici tipo pubblicati da SOS Fanta, 193 uomini
+confrontabili su 20 club, dove il tabellone oggi prende **83% degli uomini e 16/20 conteggi di linea**.
+Criterio: **nessuno dei due numeri può scendere**. Il limite, detto ora: quel giudice è **una finestra sola e
+della stagione corrente**, quindi può confermare e non può dimostrare — e per il caso che ha generato la
+domanda è per costruzione muto, perché a inizio agosto un undici tipo pubblicato è una previsione quanto il
+nostro.
+
+### Un secondo effetto, dichiarato ora perché non diventi una scoperta comoda
+Se ω > 0 entra, il modulo di default resta comunque quello del PREDECESSORE: `formation_typical` del Milan è
+**3-5-2 al 92% di 38 undici**, con la sua stessa colonna che dice «0 of 38 XIs under this coach», mentre
+`coach_shapes` porta i **45 undici in 3-4-3 di Amorim**. Sono due difetti indipendenti sullo stesso tabellone
+e vanno misurati separati: se si toccano insieme non si saprà quale dei due ha pagato.
+
 ## 7-vicies. LA QUALITÀ DI CARRIERA IN SELEZIONE (6 agosto 2026) — falsificata, ma non rumore
 
 L'ultimo candidato rimasto dalla misura di §7-terdecies, e quello che avrebbe toccato Kolo Muani: la

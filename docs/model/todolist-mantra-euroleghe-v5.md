@@ -77,6 +77,20 @@ pure (spec «Novità v9.34»): il SURPLUS mantra che era il VALORE, e `club_elo`
    (`EASY_MARGIN` / `HOME_ADVANTAGE`, zero occorrenze nei sorgenti).
 5. **Cinque cartelle di snapshot sono sparite** durante la sessione del 06/08 e nel toolkit non c'è nulla
    che cancelli cartelle. Se non è stato l'operatore dal pannello, va capito.
+6. **PRE-REGISTRATA il 07/08 e da eseguire — la quota di partenze di chi ha cambiato campionato**
+   (gate **§7-unvicies**). Nata dal confronto fra il nostro undici tipo del Milan e quattro fonti pubblicate
+   lo stesso giorno: **10 uomini su 11 coincidono**, l'unico assente è **Gonçalo Ramos**, e non perché manchi
+   il dato — la sua `desc_start_share` è **0.433**, che è la quota **al PSG**. Ipotesi: per chi cambia
+   campionato quel numero misura un altro mestiere, e ristringerlo verso l'àncora del ruolo predice meglio.
+   Armonica `sweep`, griglia ω ∈ {0, 0.15, 0.30, 0.45, 0.60, 0.75}, vincitore che deve essere **interno**,
+   scorata **solo sulla popolazione cross-lega**. Muove il TABELLONE e non `engine_*`. Da controllare prima
+   di lanciare: che `desc_start_share` a t−1 sia normalizzata sulle giornate della lega di ALLORA, altrimenti
+   confronta due unità.
+7. **Il modulo di default del tabellone è quello del PREDECESSORE**, ed è un difetto indipendente dal punto 6
+   (vanno misurati separati). Milan: `formation_typical` **3-5-2 al 92% di 38 undici**, con la sua stessa
+   colonna che dice «0 of 38 XIs under this coach», mentre `coach_shapes` porta i **45 undici in 3-4-3 di
+   Amorim**. `_shape_for` ritorna comunque `formation_typical` e lo dichiara in didascalia invece di usarlo:
+   il dato per scegliere meglio è già nel foglio.
 
 **Progetto:** App EuroLega Fantacalcio · **Rif.:** modello-previsionale v3.8 · **Aggiornata: 5 agosto 2026**
 Convenzione: [ ] da fare · [x] fatto · [!] bloccato · *Sigle: fc_id = id fantacalcio.it · FM = fantamedia · T1/T2 = finestre di test 23/24->24/25 e 24/25->25/26 · 2.5 pieno = backtest motore completo con flag.*
