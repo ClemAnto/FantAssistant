@@ -495,6 +495,42 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.36 (7 agosto 2026, notte — l'ELO PERSONALE, e la squadra si risale solo da un ID)
+
+Decisione dell'operatore: «implementiamo l'elo personale per calciatore, ci potrebbe servire in altri casi
+comunque», con un vincolo che era anche una correzione: **«attenzione a non sbagliare squadra... risalire
+alla squadra solo da un id squadra unico»**. La prima versione univa ClubElo al layer per-partita **per
+NOME** — il join che questo progetto vieta da sempre, e quello che aveva prezzato tre stagioni di Gonçalo
+Ramos a **Paris FC** (1.405 invece di 1.970).
+
+**Il difetto era più a monte**: un id squadra non esisteva da nessuna parte. `external_stats` e
+`external_match_stats` tengono il club come stringa, e i payload di giornata in cache scrivono
+`"home": "Parma"`. Ma i payload di **stagione** l'id l'hanno sempre avuto (`sofascore_stats_*.json` →
+`team.id`) e il parser lo buttava via — la stessa forma del `goalsConceded` recuperato in §7-decies. Quindi
+si recupera **offline, zero richieste**.
+
+- **`external_stats.club_id`** (migrazione + schema): l'id squadra del provider per (giocatore, stagione,
+  competizione). Backfill da cache: **11.713 righe su 11.732, 99.8%**.
+- **`club_levels_xref`**: quale riga di ClubElo appartiene a quale team id, risolto **una volta**
+  all'ingest e memorizzato con `resolved_by` (alias o token) — un confronto fra nomi è un giudizio, e un
+  giudizio non verificabile non lo può correggere nessuno. Deliberatamente **non** `club_xref`: quella ha
+  `fc_club_id NOT NULL` e la maggior parte dei club di una carriera non è mai stata in un listone;
+  infilarceli vorrebbe dire coniare ~250 righe in `clubs` e ripagare il rischio dei club gemelli.
+- **`elo.match_club_names`** con le due guardie pagate da un numero sbagliato (un token generico solo non
+  copre un nome di tre; le iniziali sono un nome, `sg` = saint-germain) e **`personal_levels`**, che legge
+  `club_id → xref → Elo` e non tocca un nome.
+
+**Misurato**: 159 club del provider mappati (15 per alias, 144 per token), **6 non risolti e nominati**,
+**99.0% dei minuti** raggiunge un livello, **2.796 giocatori** hanno un ELO personale. Validazione su 14
+club di forza nota: **14 su 14** — e l'unico «sospetto» della prima corsa era una chiave sbagliata nella
+lista di controllo, non nella mappa. Copertura per finestra del gate: **464-535 giocatori rangabili** su
+673-766 osservazioni, quindi il canale non è muto su nessuna.
+
+**Due limiti dichiarati invece che scoperti dopo**: `external_stats` copre le **cinque leghe**, quindi una
+carriera in Portogallo o in Olanda non entra nel livello — gli anni di Ramos al Benfica non sono contati; e
+il PK tiene una riga per (giocatore, stagione, competizione), quindi chi si è mosso a gennaio è attribuito
+al club che l'aggregato nomina.
+
 ## Novità v9.35 (7 agosto 2026, notte — ClubElo è morto: un ripiego sulla STESSA scala)
 
 `api.clubelo.com` non risponde più (ECONNREFUSED sull'API **e** su `clubelo.com`, da due reti diverse), e

@@ -2033,6 +2033,34 @@ Il canale, quindi, **non è un classificatore ma un secondo termine**, ed è la 
 segnale adottato qui: un peso piccolo sopra ciò che i minuti già dicono. In quella forma va allo sweep —
 non in quella con cui l'avevo bocciato.
 
+### ESITO DELLO SWEEP (7 agosto 2026, notte) — **il canale è falsificato**, e l'ELO personale resta
+
+Portato allo sweep nella forma che la misura aveva indicato (una MISCELA, `level_rank_weight`), con
+l'attribuzione del club fatta **per id** come l'operatore ha preteso:
+
+| piattaforma | ottimo pooled | guadagno medio | peggior fold | pieghe che scelgono 0 | verdetto |
+|---|---:|---:|---:|---:|---|
+| `euro` (4 fold) | **0.0** | +0.00% | +0.00% | **4 su 4** | CONFIRMED (l'incumbent) |
+| `default` (6 fold) | **0.0** | **−0.30%** | −1.10% | 4 su 6 | non passa |
+
+Il cross-fit sceglie **zero**, su euro all'unanimità. `level_rank_weight` resta **0.0**.
+
+**Una corsa precedente dava +0.41% su `default` con ottimo 0.10, e NON si può dire che sia stato il fix
+degli id a togliere il segnale**: fra le due corse sono cambiate DUE cose — l'attribuzione (per nome,
+dimostrabilmente sbagliata: Paris FC) e la GRANA (per-partita contro per-stagione, cioè cinque leghe e una
+riga per competizione). Con due variabili mosse insieme il confronto non attribuisce niente a nessuna delle
+due, e dirlo è meno comodo che raccontare che gli id hanno smascherato un artefatto.
+
+**Controprova che la corsa è sana**: `level_gap_weight` non legge l'ELO personale e infatti non si muove di
+un decimale fra le due corse — +0.77% robust PASS su `default`, +0.35% su euro. Se fosse cambiato anche lui,
+il problema sarebbe stato nell'armonica e non nel canale.
+
+**E l'ELO personale RESTA**, per decisione dell'operatore presa prima del verdetto e indipendente da esso
+(«ci potrebbe servire in altri casi comunque»): `external_stats.club_id`, `club_levels_xref`,
+`elo.personal_levels`, 2.796 giocatori, 99% dei minuti coperti, 464-535 giocatori rangabili per finestra —
+quindi il canale non è stato bocciato per fame di dati. Quello che è falsificato è **usarlo per predire le
+presenze**, non averlo.
+
 ### Cosa servirebbe prima di poterlo riprendere, dichiarato
 1. **Il layer per-partita comincia nel 2019-20**, quindi sulle finestre vecchie la memoria di 5 stagioni è
    più corta e il canale è più debole per costruzione: va misurato nello sweep, dove le pieghe lo vedono.
