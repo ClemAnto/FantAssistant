@@ -1968,6 +1968,36 @@ DESTINAZIONE da solo ed è stata bocciata quattro volte.
    `backtest --verify` resta 22/22. Farla arrivare a `engine_pv_pred` è una regola separata con un gate suo,
    esattamente come è stato per R19.
 
+### ESITO (eseguito il 7 agosto 2026) — **robust PASS su `default`**, sotto il pavimento su `euro`
+
+| piattaforma | ottimo pooled | guadagno medio | peggior fold | strict | robust |
+|---|---:|---:|---:|---|---|
+| `default` (Serie A, 6 fold) | **0.06** | **+0.77%** | **+0.13%** | no | **PASS** |
+| `euro` (4 fold) | **0.06** | +0.35% | −0.07% | no | no (sotto lo 0.5%) |
+
+**Nessun fold peggiora su `default`** — il peggiore è +0.13%, cioè il canale non fa mai danno — e il
+cross-fit sceglie **0.06 su tutte e sei le pieghe**, unanime. Su `euro` è positivo in media e il peggior
+fold vale −0.07%: non è contro, è piccolo. **L'ottimo è INTERNO** (griglia fino a 0.12) e, cosa che non
+era scontata, **è lo stesso 0.06 su entrambe le piattaforme** — quindi un valore unico non è un compromesso
+fra due ottimi diversi, è l'ottimo di tutti e due.
+
+**La previsione pre-registrata era giusta sulla forma e ottimista sulla grandezza**, e va detto: avevo
+scritto «fra 0.8% e 2.5%, ottimo interno fra 0.06 e 0.12, positivo su entrambe le piattaforme». Reale:
+ottimo **0.06** (dentro), positivo su entrambe (giusto), ma **+0.77%**, cioè appena SOTTO la forchetta che
+avevo dichiarato. Avevo scalato il guadagno sul rapporto fra i due r parziali (1.6×) e il rapporto non si
+trasferisce così.
+
+**E la domanda che il disegno esisteva per rispondere ha una risposta netta: il salto NON assorbe il
+livello.** Spazzati insieme, `level_weight` resta al suo **0.06 su euro** e sceglie **0.08 su default** —
+non scende a zero. I due termini leggono cose diverse: *da che livello viene* e *quanto scende arrivando
+qui*. Se avessi collassato i due in un parametro solo — che era l'alternativa comoda — questo non si
+sarebbe potuto vedere.
+
+**Cosa muove**: solo il pannello. `evaluate` non importa `presence`, quindi `engine_*` non cambia e
+`backtest --verify` resta 22/22. E il prerequisito dichiarato prima resta in piedi: sul foglio VIVO l'Elo di
+destinazione è quello del 2025-08-15, perché ClubElo è morto — **il ripiego va lanciato prima di credere a
+questo canale sul foglio di oggi**.
+
 ### E una direzione dei documenti che questa misura FALSIFICA
 `CLAUDE.md` proponeva che il segnale che avrebbe visto Ramos e Kolo Muani fosse **il FEE**. Misurato oggi
 sulla popolazione, **non separa**: nella fascia di minuti di Ramos, fee mediana 6.5 M → residuo +0.074, fee

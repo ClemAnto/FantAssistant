@@ -100,6 +100,17 @@ GRIDS: dict[str, tuple] = {
     # and one negative step, because a hypothesis that only allows the sign it expects is not being tested.
     # 0 is in the grid and is the incumbent.
     "level_weight": (-0.02, 0.0, 0.02, 0.04, 0.06, 0.08, 0.12),
+    # THE SALTO (pre-registered 07/08/2026, gate §7-duovicies), from the operator's question about what
+    # separates a squad filler from a designated starter - with the listone's Qt.I ruled OUT by him, because
+    # it already contains its author's opinion about the man's titolarità and predicting titolarità with it
+    # is circular. `elo_prev - elo_target`, standardised: how far he steps DOWN by moving. Measured at equal
+    # minutes, r = +0.220 against the residual, against +0.117 for the absolute origin level. The grid is the
+    # level channel's own, so the two are directly comparable, plus one negative step because a hypothesis
+    # that only allows the sign it expects is not being tested. 0 is the incumbent.
+    # SWEPT TOGETHER WITH `level_weight` on purpose: they share `elo_prev`, so a run where this wins and that
+    # falls to zero says the gap SUBSUMES the level, and a run where both hold says they read different
+    # things. Deciding it by hand was the alternative, and it is not one.
+    "level_gap_weight": (-0.02, 0.0, 0.02, 0.04, 0.06, 0.09, 0.12),
     # THE CAREER HYPOTHESIS (pre-registered 06/08/2026, gate §7-vicies). Centred on the measured effect -
     # +0.034 of start share per sd of role-relative career fantamedia, on 264 forwards - with 0.10 as the
     # ceiling and one negative step. Applied to FORWARDS ONLY, which is where it was measured: over
@@ -200,6 +211,7 @@ TARGETS: dict[str, str] = {
     "quality_weight": "starts",
     # same question again: who the coach PUTS on the pitch, given something the minutes could not see.
     "level_weight": "starts",
+    "level_gap_weight": "starts",
     "career_weight": "starts",
     "standing_prior_rounds": "starts",
     "arrival_split": "starts",
@@ -299,6 +311,20 @@ def build_inputs(conn, data: features.WindowData) -> tuple[dict[int, presence.In
                 if obs.elo_prev is not None and obs.club_change:
                     level_z[obs.fc_id] = (obs.elo_prev - mean_elo) / sd_elo
 
+    # ...and the SALTO he takes by moving: how far the club he played for stands above the one that just
+    # bought him (gate §7-duovicies). Standardised over the same population and NOT over the origin Elos:
+    # the quantity is a difference, and its spread is not the spread of the levels.
+    gaps = [obs.elo_prev - obs.elo_target for obs in data.observations
+            if obs.elo_prev is not None and obs.elo_target is not None and obs.club_change]
+    level_gap_z: dict[int, float] = {}
+    if len(gaps) > 1:
+        mean_gap = sum(gaps) / len(gaps)
+        sd_gap = (sum((x - mean_gap) ** 2 for x in gaps) / len(gaps)) ** 0.5
+        if sd_gap > 0:
+            for obs in data.observations:
+                if obs.elo_prev is not None and obs.elo_target is not None and obs.club_change:
+                    level_gap_z[obs.fc_id] = (obs.elo_prev - obs.elo_target - mean_gap) / sd_gap
+
     # ...and the CAREER, only for forwards: the population the coefficient was measured on (§7-vicies).
     careers = [obs.fm_career for obs in data.observations
                if obs.fm_career is not None and obs.role_classic == "A"]
@@ -381,6 +407,7 @@ def build_inputs(conn, data: features.WindowData) -> tuple[dict[int, presence.In
             was_here_before=obs.fc_id in was_here,
             fm_z=fm_z.get(obs.fc_id),
             level_z=level_z.get(obs.fc_id),
+            level_gap_z=level_gap_z.get(obs.fc_id),
             career_z=career_z.get(obs.fc_id),
             standing_prior=prior,
             cross_league=_cross(obs),

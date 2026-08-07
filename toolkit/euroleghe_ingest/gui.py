@@ -4111,6 +4111,7 @@ class SnapshotView(ttk.Frame):
             stature=_number(row.get("desc_investment_stature"), None),
             value_share=_number(row.get("desc_investment_value_share"), None),
             level_z=self.level_z(row),
+            level_gap_z=self.level_gap_z(row),
             standing_prior=None,
             # ...and the two the panel used to leave empty. `fm_z` feeds a channel the gate FALSIFIED, so
             # it changes nothing today - and that is exactly why it has to be here: a weight the sweep
@@ -4235,6 +4236,41 @@ class SnapshotView(ttk.Frame):
             self._level_stats = stats
         mean, sd = stats
         return (elo - mean) / sd if sd else None
+
+    def level_gap_z(self, row: dict) -> float | None:
+        """The SALTO he takes by moving, in sd over this sheet's movers: origin Elo minus the club's own.
+
+        Same two numbers the sweep uses (`elo_prev - elo_target`), read from where the sheet keeps them:
+        `desc_level_elo` is the origin, and the destination is the club card's own Elo. Standardised over
+        the DIFFERENCES and not over the levels - the spread of a gap is not the spread of what it is made
+        of. None where either side is missing, because «vuoto = ignoto» and a missing Elo is not a gap of
+        zero. Gate §7-duovicies.
+        """
+        origin = _number(row.get("desc_level_elo"), None)
+        if origin is None:
+            return None
+
+        def gap_of(other: dict) -> float | None:
+            was = _number(other.get("desc_level_elo"), None)
+            now = _number((self.clubs.get(other.get("club") or "") or {}).get("elo"), None)
+            return None if was is None or now is None else was - now
+
+        mine = gap_of(row)
+        if mine is None:
+            return None
+        stats = getattr(self, "_level_gap_stats", None)
+        if stats is None:
+            values = [v for v in (gap_of(other) for other in (getattr(self, "rows", None) or ()))
+                      if v is not None]
+            if len(values) > 1:
+                mean = sum(values) / len(values)
+                sd = (sum((v - mean) ** 2 for v in values) / len(values)) ** 0.5
+                stats = (mean, sd if sd > 0 else 0.0)
+            else:
+                stats = (0.0, 0.0)
+            self._level_gap_stats = stats
+        mean, sd = stats
+        return (mine - mean) / sd if sd else None
 
     def availability(self, row: dict) -> float:
         """The share of a season a man like this one is fit for: 1.0 healthy, less for the injury-prone.

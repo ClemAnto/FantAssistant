@@ -142,6 +142,21 @@ class Params:
     # 90% del guadagno di Serie A (0.20106 contro 0.20084 al suo 0.08): un valore solo, quasi ottimo su
     # entrambe, invece di una costante che sarebbe giusta su una piattaforma e sbagliata sull'altra.
     level_weight: float = 0.06
+    # ...and the SALTO: Elo(the club he played for) - Elo(the club that just bought him), standardised.
+    # Pre-registered 07/08/2026 (gate §7-duovicies) from the operator's question - «cosa differenzia un
+    # giocatore acquistato per riempire la rosa da uno preso per giocare titolare?» - after he refused the
+    # obvious candidate on an argument that holds: the listone's Qt.I is not an objective value, it already
+    # contains its author's opinion about the man's titolarità, so predicting titolarità with it is partly
+    # circular. Measured at EQUAL MINUTES (the confound that ate the first attempt: the index `minutes x
+    # Elo` correlates +0.769 with the minutes themselves, so it is the regression rewritten and not new
+    # information): the gap scores r = +0.220 against the residual, the absolute origin level +0.117.
+    # WHAT THE SIGN SAYS is the answer to the question: a POSITIVE gap - he comes from a stronger club than
+    # the one buying him - means the model UNDER-predicts him. Chi scende di livello sale di ruolo: he was
+    # behind better players and now he is not. The symmetric case is the commoner one, the regular starter
+    # who steps UP a level and is over-predicted. And the gap beats the absolute level TWICE OVER, which is
+    # also why this is not R5 in disguise: R5 read the destination Elo alone and was rejected four times.
+    # 0.0 until the sweep says otherwise - no gate, no engine.
+    level_gap_weight: float = 0.0
     # HOW MUCH OF A SEASON the standing was measured on, as a shrinkage: `m x r/(r+K) + prior x K/(r+K)`,
     # with r the rounds he was there for. K = 0 is the incumbent (no shrinkage) and there is no meaningful
     # negative direction - the null IS zero, which is why this grid is one-sided and says so.
@@ -220,6 +235,10 @@ class Inputs:
     # purpose - it is the population the coefficient was measured on, and for a man who stayed the term
     # would silently become "his own club is strong", which is a different claim nobody has measured.
     level_z: float | None = None
+    # ...and the SALTO between the two levels, standardised over the same population: how far he steps DOWN
+    # (positive) or UP (negative) by moving. None for a man who stayed - his gap is zero by construction -
+    # and None when either Elo is missing, which is «vuoto = ignoto» and not a gap of zero.
+    level_gap_z: float | None = None
     # What a SHORT sample is shrunk toward. Supplied by the caller (the panel from its sheet, the sweep from
     # its window) because `presence` is dependency-free and an average is a property of a population.
     # CONDITIONAL ON THE ROUNDS OBSERVED since 06/08/2026, and that is the whole point: the mean of everybody
@@ -297,6 +316,19 @@ def level_lift(inputs: Inputs, params: Params = DEFAULTS) -> float:
     if not params.level_weight or inputs.level_z is None:
         return 0.0
     return params.level_weight * inputs.level_z
+
+
+def level_gap_lift(inputs: Inputs, params: Params = DEFAULTS) -> float:
+    """How much the STEP between the two levels should move him. 0.0 when off. See `Params.level_gap_weight`.
+
+    Deliberately a separate term from `level_lift` and not a replacement for it, because the two share
+    `elo_prev` and the sweep has to be able to tell them apart: with both on the grid, a run where this one
+    wins and `level_weight` falls to zero says the gap SUBSUMES the level, and a run where both stay
+    positive says they read different things. Collapsing them here would have decided that by hand.
+    """
+    if not params.level_gap_weight or inputs.level_gap_z is None:
+        return 0.0
+    return params.level_gap_weight * inputs.level_gap_z
 
 
 def at_club_weight(inputs: Inputs, params: Params = DEFAULTS) -> float:
@@ -413,7 +445,8 @@ def standing(inputs: Inputs, params: Params = DEFAULTS) -> float:
     # not see should move the standing - and differ only in what they read: what the club paid, and what
     # the man showed.
     lift = (investment_lift(inputs, params) + quality_lift(inputs, params)
-            + level_lift(inputs, params) + career_lift(inputs, params))
+            + level_lift(inputs, params) + level_gap_lift(inputs, params)
+            + career_lift(inputs, params))
     # ...and how much of a season is BEHIND that number. Twelve rounds and thirty-eight say the same thing
     # with very different confidence, and the standing said them identically.
     if params.standing_prior_rounds and inputs.standing_prior is not None:
@@ -428,8 +461,8 @@ def standing(inputs: Inputs, params: Params = DEFAULTS) -> float:
         return min(max(measured + lift * (1.0 - measured), 0.0), 1.0)
     # Any other shape ("arrival") applies the INVESTMENT lift of its own, elsewhere - so only the quality
     # term is added here, and adding `lift` would have double-counted the other one.
-    return min(max(measured + quality_lift(inputs, params)
-                   + level_lift(inputs, params) + career_lift(inputs, params), 0.0), 1.0)
+    return min(max(measured + quality_lift(inputs, params) + level_lift(inputs, params)
+                   + level_gap_lift(inputs, params) + career_lift(inputs, params), 0.0), 1.0)
 
 
 def presence(inputs: Inputs, params: Params = DEFAULTS) -> float:
