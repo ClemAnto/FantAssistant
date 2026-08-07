@@ -1975,6 +1975,59 @@ Se ω > 0 entra, il modulo di default resta comunque quello del PREDECESSORE: `f
 `coach_shapes` porta i **45 undici in 3-4-3 di Amorim**. Sono due difetti indipendenti sullo stesso tabellone
 e vanno misurati separati: se si toccano insieme non si saprà quale dei due ha pagato.
 
+### ESITO (7 agosto 2026) — **FALSIFICATA AL CONTROLLO PRE-REGISTRATO, prima dello sweep**
+
+Il controllo sul denominatore era il primo passo scritto, ed è servito esattamente a quello per cui era
+scritto: **la premessa della regola è falsa**. `eleven()` non ordina per `desc_start_share`. Ordina per
+`claim` → `standing` (`gui.py`, la chiave è `(-claim, -titolarita[1])`), e `standing` costruisce i suoi
+input da `desc_season_starts`, `desc_season_matches`, `desc_minutes_full_season` e **`club_matches`, cioè le
+giornate di campionato del club** — il denominatore corretto, quello che la correzione del 29/07 ha già
+messo a posto. Sopra c'è lo sweep del 29/07 che ha misurato `standing_weights` = **(0, 1)**: il tasso di
+partenze pesa **zero**, contano i minuti. La quota che volevo ristringere non entra in nessuna decisione.
+
+**Da dove viene l'errore, e vale più della regola**: l'ho letto nel docstring di `eleven()`, che diceva
+«ranked by the season's start share», e in quello di `titolarita()`, «The only criterion for who plays».
+Nessuna delle due frasi era vera. È **la terza volta in un giorno** che un commento dichiara un uso che il
+codice non fa — le prime due sono i portieri e l'Elo (§3-quinquies (a)) — e la prima in cui il commento
+sbagliato ha prodotto un'ipotesi di gate invece di una semplice affermazione sbagliata in un documento.
+Corretti entrambi.
+
+**Misurato invece di dedotto, e in due modi:**
+
+1. **A/B sul tabellone vero.** Ricalcolato l'undici di **55 club** sui due fogli, stesso giorno e stesso
+   codice, sostituendo il denominatore con le giornate di campionato: **0 uomini cambiano**, su nessun club.
+   Non «pochi»: zero. È la prova diretta che la colonna non tocca il disegno.
+2. **Perché Ramos è fuori davvero**: `claim` **0.444**, contro Leão 0.615, Pulisic 0.548, Gimenez 0.513 —
+   quarto fra gli attaccanti, sopra Nkunku 0.413. I suoi 1320 minuti sono **tutti `minutes_elsewhere`**
+   (PSG), quindi ci passa sopra lo sconto d'arrivo, e il canale livello lo sta già alzando: `level_z`
+   **2.178**, il più alto della rosa. Non è una colonna rotta: è il modello che fa quello per cui è stato
+   misurato. **Può darsi che la risposta giusta sia che non è titolare** — era scritto nella
+   pre-registrazione come esito possibile, e resta in piedi.
+
+### Quello che il controllo ha trovato per davvero: una colonna che nessuno legge, con il denominatore sbagliato
+
+`snapshot.titolarita` calcola `share = starts / matches`, dove `matches` sono **le sue presenze** e non le
+giornate del campionato. Contro la regola che il progetto ha già scritto per sé («una quota di stagione è una
+quota del CAMPIONATO»), e con effetti vistosi sul numero: scarto medio **+0.216** sul foglio Serie A (mediana
++0.154, massimo +0.974), e **51 uomini su 516 leggono 1.000** pur non avendo giocato il 90% del campionato —
+Sportiello **1 partenza su 1 presenza = 1.000** contro lo 0.026 vero, e con lui una fila di portieri di
+riserva. Sull'euro: 72 su 851.
+
+Solo che **nessuno la consuma**. `View.titolarita(...)[0]` non è chiamato in nessun punto del codice di
+produzione (di quella tupla si usa solo `[1]`, che sono le partenze, come spareggio); il pannello mostra
+`voto_share`, che viene da `presence`; e **lo sweep passa `starts`, `appearances` e `league_matches` come
+campi separati** e la `share` non la guarda. Resta una colonna del foglio esportato, che un umano che apre
+`players.csv` legge — e legge sbagliato. I test, per inciso, la costruiscono come `starts / 38`: la semantica
+voluta era quella del campionato, e l'implementazione è andata da un'altra parte.
+
+**Decisione**: non è stata toccata in questa passata. Muove un valore che il foglio PORTA, quindi vuole un
+`SHEET_REVISION` e una rigenerazione, e non muove un decimale di nulla che venga calcolato — quindi è una
+scelta dell'operatore fra correggere il denominatore e togliere la colonna, non un'urgenza.
+
+**Costo della falsificazione: un pomeriggio e zero corse di sweep.** È il caso migliore per cui il controllo
+pre-registrato esiste, e va detto anche quando fa fare la figura di chi aveva torto: la griglia, le pieghe e
+il giudice esterno erano già scritti, e se il controllo fosse stato messo DOPO sarebbero stati spesi.
+
 ## 7-vicies. LA QUALITÀ DI CARRIERA IN SELEZIONE (6 agosto 2026) — falsificata, ma non rumore
 
 L'ultimo candidato rimasto dalla misura di §7-terdecies, e quello che avrebbe toccato Kolo Muani: la

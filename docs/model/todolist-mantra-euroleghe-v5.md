@@ -77,15 +77,22 @@ pure (spec «Novità v9.34»): il SURPLUS mantra che era il VALORE, e `club_elo`
    (`EASY_MARGIN` / `HOME_ADVANTAGE`, zero occorrenze nei sorgenti).
 5. **Cinque cartelle di snapshot sono sparite** durante la sessione del 06/08 e nel toolkit non c'è nulla
    che cancelli cartelle. Se non è stato l'operatore dal pannello, va capito.
-6. **PRE-REGISTRATA il 07/08 e da eseguire — la quota di partenze di chi ha cambiato campionato**
-   (gate **§7-unvicies**). Nata dal confronto fra il nostro undici tipo del Milan e quattro fonti pubblicate
-   lo stesso giorno: **10 uomini su 11 coincidono**, l'unico assente è **Gonçalo Ramos**, e non perché manchi
-   il dato — la sua `desc_start_share` è **0.433**, che è la quota **al PSG**. Ipotesi: per chi cambia
-   campionato quel numero misura un altro mestiere, e ristringerlo verso l'àncora del ruolo predice meglio.
-   Armonica `sweep`, griglia ω ∈ {0, 0.15, 0.30, 0.45, 0.60, 0.75}, vincitore che deve essere **interno**,
-   scorata **solo sulla popolazione cross-lega**. Muove il TABELLONE e non `engine_*`. Da controllare prima
-   di lanciare: che `desc_start_share` a t−1 sia normalizzata sulle giornate della lega di ALLORA, altrimenti
-   confronta due unità.
+6. ~~**la quota di partenze di chi ha cambiato campionato**~~ — **FALSIFICATA il 07/08 al controllo
+   pre-registrato, prima dello sweep** (gate **§7-unvicies**). La premessa era falsa: `eleven()` **non**
+   ordina per `desc_start_share`, ordina per `claim` → `standing`, che usa già le giornate di campionato del
+   club — e dentro `standing` lo sweep del 29/07 ha misurato `standing_weights` = **(0, 1)**, cioè che il
+   tasso di partenze pesa **zero**. A/B su **55 club**: sostituendo il denominatore cambiano **0 uomini**.
+   Ramos è fuori perché `claim` 0.444 contro Leão 0.615 e Gimenez 0.513, con i suoi 1320 minuti tutti
+   `minutes_elsewhere` — il modello fa quello per cui è stato misurato, e può darsi che la risposta giusta
+   sia che non è titolare. **Costo: un pomeriggio e zero corse di sweep.**
+6-bis. **DECISIONE APERTA — `desc_start_share` ha il denominatore sbagliato e non la legge nessuno.**
+   `snapshot.titolarita` divide per le **sue presenze** e non per le giornate del campionato: scarto medio
+   **+0.216**, e **51 righe su 516** (72 su 851 sull'euro) leggono **1.000** senza aver giocato il 90% del
+   campionato — Sportiello 1 partenza su 1 presenza. Ma `View.titolarita(...)[0]` non è chiamato da nessuna
+   parte, il pannello mostra `voto_share` (che viene da `presence`), e lo sweep passa `starts`/`appearances`/
+   `league_matches` separati. Resta una colonna del foglio esportato che un umano legge sbagliata. Correggere
+   il denominatore **o togliere la colonna**: muove un valore che il foglio PORTA, quindi vuole un
+   `SHEET_REVISION` e una rigenerazione, e non muove niente di calcolato.
 7. **Il modulo di default del tabellone è quello del PREDECESSORE**, ed è un difetto indipendente dal punto 6
    (vanno misurati separati). Milan: `formation_typical` **3-5-2 al 92% di 38 undici**, con la sua stessa
    colonna che dice «0 of 38 XIs under this coach», mentre `coach_shapes` porta i **45 undici in 3-4-3 di

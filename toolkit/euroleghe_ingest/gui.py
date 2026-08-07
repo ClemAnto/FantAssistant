@@ -4378,12 +4378,17 @@ class SnapshotView(ttk.Frame):
 
     @staticmethod
     def titolarita(row: dict, horizon: str) -> tuple[float, float]:
-        """(start share, minutes) - how often he STARTS, and how long he stays on.
+        """(start share, minutes) - how often he STARTS, and how long he stays on. DISPLAY, not selection.
 
-        The only criterion for who plays. It is deliberately not the predicted SURPLUS: surplus is a
-        fantacalcio valuation, it answers "is he worth buying", and a coach does not pick a side by it.
-        `season` is his share over the whole real season (the habit); `recent` is his share of the club's
-        last ten (the side as it stands now).
+        It used to say «the only criterion for who plays», and that is `claim` - this is read by `eleven`
+        for its SECOND element alone, as the tie-break between two equal claims. The `season` share itself
+        (`desc_start_share`) is consumed nowhere in the code, and its denominator is his own APPEARANCES
+        rather than the club's league rounds, which is against this project's own rule and inflates it by
+        +0.216 on average (51 of 516 Serie A rows read 1.000 - Sportiello starts his single appearance).
+        Measured on 07/08/2026 (gate §7-unvicies) while falsifying a rule built on the sentence that used to
+        be here: substituting the right denominator changes the drawn eleven of **0 clubs out of 55**.
+        Correcting it - or dropping the column - moves a value the sheet CARRIES, so it wants a
+        `SHEET_REVISION`, and it is a decision rather than a fix to slip in.
         """
         if horizon == "recent":
             measured = _number(row.get("desc_form_measured"))
@@ -4396,9 +4401,15 @@ class SnapshotView(ttk.Frame):
                mode: str = "typical") -> list[tuple[str, dict, list[dict]]]:
         """(role, starter, rivals) per shirt. Two modes, two questions, and neither uses a valuation.
 
-        `typical` - the side he fields when everyone is available: ranked by the season's start share,
-        and injuries and suspensions are deliberately IGNORED. A man out today is still the first choice
-        of the shape, and pretending otherwise would make the "tipo" eleven a snapshot of this week.
+        `typical` - the side he fields when everyone is available, ranked by `claim` (= `standing`, with
+        `titolarita`'s STARTS as the tie-break and nothing else). Injuries and suspensions are deliberately
+        IGNORED: a man out today is still the first choice of the shape, and pretending otherwise would make
+        the "tipo" eleven a snapshot of this week.
+        This used to say «ranked by the season's start share», which is false twice over and cost a gate
+        pre-registration on 07/08/2026 (§7-unvicies): the ranking is `standing`, which reads starts,
+        appearances, minutes AND the club's league rounds, and inside it the sweep of 29/07 measured
+        `standing_weights` = (0, 1) - the start RATE weighs zero and the minutes carry it. `desc_start_share`
+        reaches no decision at all.
 
         `next` - the side for the coming match, and there is an order of precedence to it, from fact to
         forecast: the eleven the club actually FIELDED (`actual_*`, which only a back-dated sheet has - for
