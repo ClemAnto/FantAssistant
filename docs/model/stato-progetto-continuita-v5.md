@@ -1674,3 +1674,67 @@ vincolo di licenza e le due condizioni per riaprirlo: BRIDGE «7/08/2026 notte, 
   è così che ogni numero pubblicato resta quello che era.
 - **Una data d'asta nel futuro non si chiede a una fonte datata.** Vale oltre l'Elo: qualunque snapshot
   archiviato sotto una data non ancora arrivata è una lettura che mente sul proprio quando.
+
+## CHIUSURA della sessione 07/08/2026 (notte) — una domanda dell'operatore, una adozione e tre falsificazioni
+
+Nata da tre parole: **«cosa differenzia un giocatore acquistato per riempire la rosa da uno preso per giocare
+titolare?»**. Cinque ore, e la risposta onesta alla domanda è **ancora no** — non sappiamo marcare gli
+acquisti da titolare in modo dimostrato. Quello che è entrato è meno di così e più solido.
+
+### Quello che ora esiste e prima no
+- **`level_gap_weight` = 0.06, ADOTTATO** (gate §7-duovicies): il SALTO, `Elo(provenienza) − Elo(destinazione)`.
+  *Chi scende di livello sale di ruolo*, e il simmetrico. Serie A robust PASS, +0.77%, **peggior fold
+  positivo**, 0.06 unanime su sei pieghe; euro +0.35% sotto il pavimento. Ottimo INTERNO e **identico sulle
+  due piattaforme**, il che rende il valore unico non un compromesso ma l'ottimo di entrambe.
+- **L'ELO PERSONALE del calciatore** (spec «Novità v9.36»), tenuto per decisione dell'operatore presa PRIMA
+  del verdetto che ne ha bocciato il canale: 2.796 giocatori, 99% dei minuti coperti. E con lui
+  **l'identità di club per ID**: `external_stats.club_id` (l'id del provider, che il payload portava da
+  sempre e il parser buttava via — backfill offline 99.8%) e `club_levels_xref`, dove ClubElo è appaiato UNA
+  volta all'ingest con `resolved_by` accanto. Nessun percorso di lettura confronta più un nome.
+- **Il ripiego ClubElo in produzione**: l'host è morto, il mirror è entrato, snapshot **2026-01-14**
+  archiviato sotto la sua data osservata. Milan 1787.2 → 1816.5. Fogli e bundle rigenerati.
+
+### Le falsificazioni, che sono la parte più densa
+1. **Il Qt.I**, escluso dall'operatore: *è già l'opinione dell'autore sulla titolarità*.
+2. **§7-unvicies**, morta al controllo pre-registrato PRIMA dello sweep — `eleven()` non legge
+   `desc_start_share`. Costo: un pomeriggio e zero corse.
+3. **§7-tervicies**, il rango per ELO personale: cross-fit a zero su entrambe le piattaforme.
+4. **Il FEE non separa**: 6.5 M contro 30 M, stesso esito. La riga di `CLAUDE.md` che lo indicava cade.
+
+### Il difetto più grosso che la sessione ha trovato, e non è un canale
+Ricalcolate tutte e venti le formazioni tipo: **8 club su 20 sono disegnati col modulo del PREDECESSORE**
+(Atalanta, Bologna, Fiorentina, Lazio, Milan, Napoli, Sassuolo, Torino). Il dato per correggerlo è già nel
+foglio — `coach_shapes` porta i 45 undici in 3-4-3 di Amorim — e `_shape_for` lo dichiara in didascalia
+invece di usarlo. **È il prossimo lavoro con la leva più alta.**
+
+### Tre lezioni di metodo, e la prima è costata una pre-registrazione
+- **Un segnale si giudica contro l'ESITO, controllando per ciò che già si sa — mai contro il RESIDUO** di un
+  modello che quel «già si sa» lo contiene. Una r di +0.204 sul residuo era la regressione verso la media del
+  modello, riscritta.
+- **Un appaiamento di nomi ambiguo è peggio di uno mancante**: «Paris FC» ha prezzato tre stagioni di Ramos a
+  una squadra di Ligue 2. Trovato perché il numero era impossibile, non perché il codice fosse sospetto —
+  quindi la difesa è **guardare un numero che si sa già**, ed è per questo che il matcher ha una validazione.
+- **Una verifica troppo debole può falsificare una cosa vera.** Ho bocciato l'ELO personale su un
+  quartile-split di 113 righe (39% contro 38%) e la parziale su 601 acquisti diceva +0.218. Corretto a
+  verbale invece che riscritto.
+
+### Dove NON toccare senza rileggere (aggiunte di questa sessione)
+- **`level_gap_weight` è un'adozione senza `passes`**: se il prossimo sweep la trova peggiorata, esce senza
+  discutere. Chi la difende deve saperlo.
+- **`presence.py` non è importato da `snapshot.py`**: adottare un parametro delle presenze NON richiede un
+  `SHEET_REVISION` né una rigenerazione. Il foglio si rigenera per i dati che PORTA (l'Elo), non per il
+  modello che il pannello applica a video.
+- **La squadra si risale solo da `external_stats.club_id`**, mai dalla stringa. Il matcher dei nomi esiste
+  per essere eseguito UNA volta all'ingest, e ha due guardie e una validazione che vanno tenute.
+- **L'ELO personale copre le cinque leghe soltanto**, e una riga per (giocatore, stagione, competizione): gli
+  anni di Ramos al Benfica non ci sono, e chi si muove a gennaio è attribuito a un club solo.
+
+### I prossimi passi, in ordine di leva
+1. **Il modulo del predecessore**, 8 club su 20, col dato già in casa.
+2. **Il posto lasciato libero** — il club ha venduto il titolare di quel ruolo? È l'unica strada rimasta con
+   contenuto per marcare gli acquisti da titolare, ed è un FATTO e non un giudizio. Mai misurata.
+3. **`tier_driver` su `default` ora sceglie `price`** con robust PASS contro il `measured_first` adottato: è
+   il blocco dello sweep che era scaduto dalla v9.33, e ribalta una conclusione documentata. Vale una
+   sessione a sé.
+4. **`stature_weight`** passa robust su default (+0.55%) partendo da 0.0.
+5. Fonti giù: ClubElo (host morto, ripiego cablato), Transfermarkt (contratti e valori fermi al 29/07).

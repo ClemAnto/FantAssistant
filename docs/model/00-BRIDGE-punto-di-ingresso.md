@@ -29,7 +29,58 @@ la pagina delle probabili non basta e quali vincoli valgono già oggi.
 
 Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
 
-### ULTIMO IN ORDINE DI TEMPO — 7/08/2026 (notte): sul foglio mantra il SURPLUS era il VALORE
+### ULTIMO IN ORDINE DI TEMPO — 7/08/2026 (notte, 3): «cosa differenzia chi riempie la rosa da chi è preso per giocare?»
+
+Una domanda dell'operatore, e cinque ore per rispondere. **Una adozione, tre falsificazioni, e un pezzo di
+infrastruttura che resta anche dopo che il suo canale è caduto.**
+
+**ADOTTATO — `level_gap_weight` = 0.06, il SALTO** (gate §7-duovicies). `Elo(club da cui viene) − Elo(club che
+lo compra)`: **chi scende di livello sale di ruolo**, e il simmetrico — il titolare di un club piccolo che
+sale non gioca. Serie A robust PASS, media **+0.77%** con il **peggior fold POSITIVO** (+0.13%) e 0.06
+scelto da tutte e sei le pieghe; euro positivo (+0.35%) e sotto il pavimento. `backtest --verify` **22/22,
+zero fallimenti**. Muove 107 righe su 649 (Serie A) e 77 su 1031 (euro), in entrambe le direzioni. Seconda
+adozione senza `passes` dopo R19, **meno delicata di quella** — R19 su euro era contro, questa è solo
+piccola, e 0.06 è l'ottimo di entrambe le piattaforme.
+
+**FALSIFICATE — tre, e ognuna con un numero:**
+1. **il Qt.I come segnale di titolarità**: escluso dall'operatore con un argomento che regge — *è già
+   l'opinione dell'autore sulla titolarità*, quindi predirla con quello è circolare;
+2. **la quota di partenze di chi cambia campionato** (§7-unvicies), morta **al controllo pre-registrato,
+   prima dello sweep**: `eleven()` non legge `desc_start_share`, legge `claim` → `standing`, che il
+   denominatore giusto ce l'ha già;
+3. **il rango nel reparto per ELO personale** (§7-tervicies): il cross-fit lo azzera su entrambe le
+   piattaforme, su euro all'unanimità.
+E una direzione dei documenti cade con loro: **il FEE non separa** (6.5 M contro 30 M danno lo stesso esito).
+
+**RESTA L'ELO PERSONALE, per decisione presa prima del verdetto** (spec «Novità v9.36»): 2.796 giocatori,
+**99% dei minuti**, e soprattutto la **squadra risolta per ID e non per nome** — `external_stats.club_id`
+(backfill offline, 99.8%) più `club_levels_xref`, dove ClubElo è appaiato UNA VOLTA all'ingest. È falsificato
+usarlo per le presenze, non averlo.
+
+**FATTO IN PRODUZIONE**: `elo` con il ripiego (il mirror è entrato, snapshot **2026-01-14** archiviato sotto
+la sua data osservata — Milan 1787.2 → **1816.5**), **entrambi i fogli rigenerati** e il bundle (361.406
+righe, 24 tabelle). Nessun `SHEET_REVISION`: `snapshot.py` non importa `presence`, quindi il foglio non porta
+nessun valore che l'adozione muova — si è rigenerato per l'Elo, non per il parametro.
+
+**E LA COSA PIÙ GRANDE CHE QUESTA SESSIONE HA TROVATO NON È UN CANALE**: ricalcolate tutte e venti le
+formazioni tipo, **8 club su 20 sono disegnati col modulo del PREDECESSORE** — Atalanta (Sarri), Bologna
+(Tedesco), Fiorentina (Grosso), Lazio (Gattuso), Milan (Amorim), Napoli (Allegri), Sassuolo (Aquilani),
+Torino (Abate). Il 40% del campionato ha la forma di un allenatore che non c'è più, e il dato per correggerlo
+(`coach_shapes`: i 45 undici in 3-4-3 di Amorim) **è già nel foglio**, solo che `_shape_for` ritorna
+`formation_typical` e lo dichiara in didascalia invece di usarlo. **È il prossimo lavoro con la leva più
+alta.**
+
+**Tre lezioni di metodo, e la prima è costata una pre-registrazione:**
+- **un segnale si giudica contro l'ESITO, controllando per ciò che già si sa — mai contro il RESIDUO** di un
+  modello che quel «già si sa» lo contiene: una r di +0.204 sul residuo era la regressione verso la media del
+  modello stesso, riscritta;
+- **un appaiamento di nomi ambiguo è peggio di uno mancante**: «Paris FC» ridotto al token `paris` è
+  sottoinsieme di «Paris Saint-Germain», e tre stagioni di Ramos sono state prezzate a una squadra di Ligue 2
+  (1.405 invece di 1.970). Trovato perché il numero era impossibile, non perché il codice fosse sospetto;
+- **una verifica troppo debole può falsificare una cosa vera**: il quartile-split su 113 righe di una stagione
+  dava 39% contro 38%, la parziale su 601 acquisti dava +0.218. Ho bocciato e poi corretto, ed è a verbale.
+
+### 7/08/2026 (notte): sul foglio mantra il SURPLUS era il VALORE
 
 Nata da «verifica che ci siano tutti i dati». Le fonti c'erano — `fetch --plan` dice *every source is
 populated* su 19 tabelle, `listone_quotes` copre 12 stagioni Serie A e 9 EuroLeghe con **zero roster 2026-27

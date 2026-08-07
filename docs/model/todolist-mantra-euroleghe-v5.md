@@ -118,11 +118,19 @@ pure (spec «Novità v9.34»): il SURPLUS mantra che era il VALORE, e `club_elo`
    `league_matches` separati. Resta una colonna del foglio esportato che un umano legge sbagliata. Correggere
    il denominatore **o togliere la colonna**: muove un valore che il foglio PORTA, quindi vuole un
    `SHEET_REVISION` e una rigenerazione, e non muove niente di calcolato.
-7. **Il modulo di default del tabellone è quello del PREDECESSORE**, ed è un difetto indipendente dal punto 6
-   (vanno misurati separati). Milan: `formation_typical` **3-5-2 al 92% di 38 undici**, con la sua stessa
-   colonna che dice «0 of 38 XIs under this coach», mentre `coach_shapes` porta i **45 undici in 3-4-3 di
-   Amorim**. `_shape_for` ritorna comunque `formation_typical` e lo dichiara in didascalia invece di usarlo:
-   il dato per scegliere meglio è già nel foglio.
+7. ⭐ **IL PROSSIMO LAVORO CON LA LEVA PIÙ ALTA — il modulo del tabellone è quello del PREDECESSORE, su
+   8 club di 20.** Misurato il 07/08 ricalcolando tutte e venti le formazioni tipo: **Atalanta** (Sarri),
+   **Bologna** (Tedesco), **Fiorentina** (Grosso), **Lazio** (Gattuso), **Milan** (Amorim), **Napoli**
+   (Allegri), **Sassuolo** (Aquilani), **Torino** (Abate). Il 40% del campionato è disegnato con la forma di
+   un allenatore che non c'è più. Il dato per correggerlo **è già nel foglio**: `coach_shapes` porta i 45
+   undici in 3-4-3 di Amorim, e `formation_typical_basis` dice da solo «0 of 38 XIs under this coach» —
+   `_shape_for` ritorna comunque `formation_typical` e lo dichiara in didascalia invece di usarlo. Attenzione
+   a una cosa sola: `SHAPE_TRUST_*` mescola già club e allenatore per il PRIOR delle presenze, quindi la
+   regola qui deve essere quella e non una seconda scritta a mano.
+8. **Il POSTO LASCIATO LIBERO — mai misurato, ed è l'unica strada rimasta con contenuto** per marcare gli
+   acquisti da titolare: il club ha venduto o perso il titolare di quel ruolo? È un **fatto**, non un
+   giudizio, quindi vince per la regola del 04/08 su qualunque segnale di prezzo. Dopo che il Qt.I è stato
+   escluso, il fee falsificato e il rango per ELO personale bocciato, resta questa.
 
 **Progetto:** App EuroLega Fantacalcio · **Rif.:** modello-previsionale v3.8 · **Aggiornata: 5 agosto 2026**
 Convenzione: [ ] da fare · [x] fatto · [!] bloccato · *Sigle: fc_id = id fantacalcio.it · FM = fantamedia · T1/T2 = finestre di test 23/24->24/25 e 24/25->25/26 · 2.5 pieno = backtest motore completo con flag.*
