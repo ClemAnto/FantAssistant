@@ -1,4 +1,21 @@
 # Todolist — Allineamento Mantra & EuroLeghe (v5)
+
+## Aperti al 6 agosto 2026 (chiusura sessione) — nessuno con scadenza
+
+1. **`window_standing` non è scoreabile**: lo sweep non ricostruisce la finestra di forma per una stagione
+   passata, quindi il gate §7-octies è fermo per un'OMISSIONE dichiarata (`KNOWN_GAPS` nel test degli
+   allineamenti) e non per una decisione. Sbloccarlo vuol dire ricostruire quella finestra da
+   `external_match_stats`.
+2. **Transfermarkt non serve più le pagine rosa, e in silenzio**: `injuries.fetch_squads` scrive dentro un
+   `if html:`, quindi una richiesta respinta non lascia né file né messaggio. La data resta al 29/07 mentre
+   sofascore e appearances sono al 06/08. Va fatto parlare.
+3. **R18 non è su `default`, R19 non è su `euro`**: le piattaforme si comportano diversamente e ogni
+   conclusione su questi due canali va detta al plurale.
+4. **L'assistente d'asta è progetto e non codice** (`assistente-asta-v1.md`), calendario facile incluso
+   (`EASY_MARGIN` / `HOME_ADVANTAGE`, zero occorrenze nei sorgenti).
+5. **Cinque cartelle di snapshot sono sparite** durante la sessione del 06/08 e nel toolkit non c'è nulla
+   che cancelli cartelle. Se non è stato l'operatore dal pannello, va capito.
+
 **Progetto:** App EuroLega Fantacalcio · **Rif.:** modello-previsionale v3.8 · **Aggiornata: 5 agosto 2026**
 Convenzione: [ ] da fare · [x] fatto · [!] bloccato · *Sigle: fc_id = id fantacalcio.it · FM = fantamedia · T1/T2 = finestre di test 23/24->24/25 e 24/25->25/26 · 2.5 pieno = backtest motore completo con flag.*
 

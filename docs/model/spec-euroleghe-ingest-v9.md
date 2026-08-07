@@ -1,5 +1,5 @@
 # Spec — Toolkit `euroleghe-ingest` v9 (task 1.0 della roadmap)
-**Aggiornata: 5 agosto 2026 (v9.30 — la rosa live come autorità, e l'audit documenti↔codice; v9 SOSTITUISCE la v8)** · Python · Output: SQLite `euroleghe.db` + CSV normalizzati
+**Aggiornata: 6 agosto 2026 (v9.31 — quattro adozioni, sei falsificazioni, il gate vincola il prodotto; v9 SOSTITUISCE la v8)** · Python · Output: SQLite `euroleghe.db` + CSV normalizzati
 *Sigle: fc_id = identificativo fantacalcio.it · FM = fantamedia · Mv = media voto · Pv = partite a voto · xref = cross-reference id tra siti · xG/xA = expected goals/assists · manifest = lista file da recuperare.*
 **Convenzione: identificatori sempre in INGLESE** (tabelle, colonne, moduli, variabili); italiano solo nella documentazione.
 
@@ -493,6 +493,27 @@ ruolo**, **8% disgiunti** — e le disgiunte sono quasi tutte `a` del listone co
 visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**. Riscontri esatti:
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
+
+## Novità v9.31 (6 agosto 2026 — la seconda metà della sessione: il motore e il gate)
+
+La v9.30 sotto racconta la prima metà (rose, identità dei club, stime, audit). Questa è il resto, e per il
+DETTAGLIO di ogni verdetto il posto è il gate: **§7-duodecies → §7-vicies**, ognuna con la griglia scritta
+prima e l'esito dopo. Qui solo ciò che il toolkit deve sapere.
+
+- **Quattro parametri/regole in più nel modello**: `presence.level_weight` 0.06 e
+  `presence.standing_prior_rounds` 10 (con prior CONDIZIONATO alle giornate) muovono **solo i fogli** —
+  `evaluate` non importa `presence`; **R19** su `default` e **R18** su `euro` muovono `engine_*` e quindi
+  vogliono gate, fogli e bundle. È l'asimmetria scritta in CLAUDE.md e nella tabella delle ri-derivazioni.
+- **Il gate ha criteri nuovi**: strict con la soglia sulla media, FM/VALUE sull'aggregato, e
+  `captured_not_harmed` che vincola **quanto valgono** le liste. Un verdetto stampato prima del 06/08 non è
+  confrontabile con uno stampato dopo senza dirlo.
+- **`Inputs` ha quattro campi nuovi** (`fm_z`, `level_z`, `standing_prior`, `career_z`, `cross_league`) e un
+  test — `test_every_presence_input_is_populated_by_every_caller` — che rompe la suite se un chiamante ne
+  dimentica uno. Nasce da due parametri adottati e CIECHI nello stesso giorno.
+- **Le rose di un club non contengono più chi è partito** (`SnapshotView.squad`): la lista d'asta sì, col
+  suo `⇥`, perché è contro il listone che si offre.
+- **`arrivals` va ri-derivato dopo ogni fusione di club** — vedi «Dipendenze e ri-derivazioni», che è la
+  sezione nata proprio da questo.
 
 ## Novità v9.30 (5-6 agosto 2026 — la rosa live come AUTORITÀ, un club è UN club, e un audit documenti↔codice)
 

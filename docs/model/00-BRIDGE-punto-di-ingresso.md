@@ -1,5 +1,5 @@
 # 00 — BRIDGE · Punto d'ingresso del progetto (leggere per primo)
-**Aggiornato: 6 agosto 2026 (la rosa live è autorità sulle rose, le identità gemelle dei club sono fuse, e un audit documenti↔codice)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
+**Aggiornato: 6 agosto 2026 (chiusura: quattro adozioni, sei falsificazioni, e il gate che ora vincola il prodotto)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
 
 ## Il progetto in breve
 Motore previsionale per fantacalcio **EuroLeghe** (fantacalcio.it): valutazione calciatori Classic e Mantra sui 5 grandi campionati europei (Serie A, Premier, Liga, Bundesliga, Ligue 1 — perimetro: i ~35 top club del gioco). Prevede fantamedia (FM), presenze attese e VALORE stagionale = FM × presenze. Metodo scientifico: **ogni regola entra nel motore solo se batte il baseline fuori campione su finestre indipendenti** (gate pre-registrato). Stato: core validato (Mantra, Classic, portieri, presenze); manca lo strato flag/arrivi, sbloccato dal toolkit dati `euroleghe-ingest` (in implementazione).
@@ -22,6 +22,62 @@ proporre qualsiasi regola) → **`metrica-asta-surplus-v1.md`** (con cosa il pan
 è VALORE) → **`assistente-asta-v1.md`** (cosa l'assistente fa al tavolo: tre domande, tre numeri, e le
 regole di UI che sono requisiti) → `spec-euroleghe-ingest-v9.md` → `nota-modello-set-pieces-v2.md` →
 `modello-previsionale-v3.8.md` → consolidati di dettaglio. Tutti in `docs/model/`.
+
+## STATO AL 6 AGOSTO 2026 (fine sessione) — LEGGI QUESTO PRIMA DI TUTTO
+
+Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
+
+### ULTIMO IN ORDINE DI TEMPO — 6/08/2026: quattro adozioni, sei falsificazioni, e il gate che ora vincola il prodotto
+
+Dodici commit, tutti su `master` e **pushati**. **313 test**, `backtest --verify` **22/22**.
+Dettaglio: spec «Novità v9.30», gate §7-duodecies → §7-vicies (ogni sezione ha la griglia scritta PRIMA e il
+verdetto DOPO).
+
+**ADOTTATE — quattro, tutte da un harness e mai a mano:**
+1. `presence.level_weight` = **0.06** — l'Elo del club dove ha giocato i minuti, solo per chi ha cambiato
+   club. Serie A robust (+0.93%), euro positivo su tutte e 4 le finestre. Minimo interno su entrambe.
+2. `presence.standing_prior_rounds` = **10** — lo standing non sapeva su quante giornate era misurato.
+   euro **strict E robust** (+2.82%), Serie A robust. Il risultato più forte della giornata. Col prior
+   **condizionato alle giornate**, che corregge la lettura (Milik 26% → 10%) senza migliorare la previsione.
+3. **R19** su `default` — il livello dentro `engine_pv_pred`, cioè la strada perché l'esperienza arrivi al
+   SURPLUS. **Prima regola adottata sul solo verdetto ROBUST**: 9 finestre su 10 migliorano, media +1.7%,
+   liste d'asta più lunghe. Su euro è contro e resta fuori. Da riguardare a ogni gate: se peggiora, esce.
+4. **R18** su `euro` — la carriera nella fantamedia prevista (`fm_prev` + media 5 anni, entrambe ristrette
+   verso l'àncora). 420 righe su 979 si muovono: Kane 8.758 → 9.215, Haaland +0.48, e chi ha avuto una
+   stagione sola scende. Adottata perché **euro/mantra passava già coi criteri vecchi e senza i portieri**.
+
+**FALSIFICATE e scritte — sei**: il bonus qualità fra stagioni · l'esperienza da panchina · l'Elo della
+competizione · il bonus ai nuovi acquisti (a cinque sigma, il contrario dell'ipotesi) · lo sdoppiamento del
+discount cross/intra · la qualità di carriera in selezione. E tre delle mie previsioni pre-registrate erano
+sbagliate, lasciate agli atti.
+
+**IL GATE È CAMBIATO, e va saputo prima di leggere qualunque verdetto vecchio:**
+- lo **strict** ha la soglia sulla MEDIA e non su ogni finestra (prima bocciava R3, R7 e R3c, che sono in
+  produzione);
+- **FM e VALUE** sono letti sull'aggregato, alla tolleranza che avevano già;
+- **`captured_not_harmed`**: il gate ora vincola anche **quanto valgono** le liste, non solo quanti nomi.
+  Chiude il buco che R3d aveva esposto. Misurato prima di accenderlo: **0 verdetti su 120 cambiano**.
+- ⚠️ **Una contaminazione dichiarata**: il criterio su FM/VALUE è nato guardando R18 bocciata. I criteri
+  restano (giusti per ragioni indipendenti); il verdetto di R18 su euro/classic no — è per questo che
+  l'adozione poggia su euro/mantra, che passava prima.
+
+**DATI E ROSE**: identità gemelle dei club **fuse** (109 → 106), con i trasferimenti fantasma che ne
+derivavano **ri-derivati** (Newcastle 26 → 3 arrivi, Eintracht 28 → 12). La rosa live del provider è
+l'autorità, con due guardiani (`_club_key` e `SQUAD_COMPLETENESS` 0.90). **Chi è partito non è più nella rosa
+del suo club** né nell'undici né nel claim — resta solo nella lista d'asta col `⇥`, perché è contro il listone
+che si offre.
+
+**FOGLI PRONTI**: `auction-snapshot-2026-27-euro-mantra-euroleghe-2026-08-06` (979) e
+`...default-classic-leghe-2026-08-06` (645), revisione **2**, con indisponibili e rose live al 06/08.
+
+**COSA RESTA APERTO** (nessuno con scadenza):
+- `window_standing` non è scoreabile: lo sweep non ricostruisce la finestra di forma per una stagione
+  passata (`KNOWN_GAPS`, gate §7-octies ferma per un'omissione dichiarata).
+- Transfermarkt non serve più le pagine rosa e lo fa **in silenzio** (`if html:` inghiotte il fallimento):
+  la data resta al 29/07 mentre le altre due fonti sono al 06/08.
+- R18 non è adottata su `default` e R19 non lo è su `euro`: le due piattaforme si comportano diversamente
+  e ogni conclusione va detta al plurale.
+- L'assistente d'asta (`assistente-asta-v1.md`) resta **progetto e non codice**, calendario facile incluso.
 
 ## STATO AL 5 AGOSTO 2026 (fine sessione) — LEGGI QUESTO PRIMA DI TUTTO
 

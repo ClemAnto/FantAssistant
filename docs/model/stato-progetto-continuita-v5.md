@@ -1,5 +1,5 @@
 # Stato progetto & continuità — v5
-**Aggiornato: 6 agosto 2026 (dodicesima passata: la rosa live diventa autorità, un club è UN club, e un audit documenti↔codice)**
+**Aggiornato: 6 agosto 2026 (chiusura: quattro adozioni, sei falsificazioni, il gate vincola il prodotto — dettaglio nel 00-BRIDGE)**
 Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da qui + i file della cartella "Modello Previsionale Fantacalcio".
 *Glossario: T1/T2 = finestre di test (23/24->24/25, 24/25->25/26) · MAE = errore medio assoluto · cross-fitted = parametri stimati su una finestra, testati sull'altra · M2e = modello portieri decomposto con ClubElo · Pv_att = presenze attese · fc_id = id fantacalcio.it · EV = valore atteso · scoring_config = punteggi configurabili per lega · xG/xA = expected goals/assists · 2.5 pieno = backtest motore completo con flag.*
 
@@ -7,6 +7,13 @@ Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da q
 App per leghe EuroLeghe/fantacalcio.it (Classic+Mantra, 5 campionati) con motore previsionale. Metodo: ogni regola entra SOLO se batte il baseline fuori campione su finestre indipendenti (gate pre-registrato). Doc madre: modello-previsionale-v3.8.md.
 
 ## ⚠️ Lo stato corrente è in `00-BRIDGE-punto-di-ingresso.md`, blocco «STATO AL 5 AGOSTO 2026»
+
+### 6 agosto 2026, in una riga: quattro regole entrano da un harness, sei ipotesi cadono, e il gate impara a difendere il prodotto
+
+Stato completo nel **00-BRIDGE**, blocco «STATO AL 6 AGOSTO 2026». Dodici commit pushati, 313 test,
+`backtest --verify` 22/22. Adottate: `level_weight` 0.06, `standing_prior_rounds` 10, R19 su default (la
+prima sul solo robust), R18 su euro. Falsificate e scritte: sei. Il gate ora vincola anche il SURPLUS
+CATTURATO, e i suoi criteri sono cambiati — ogni verdetto anteriore al 06/08 va riletto con quella nota.
 
 ### 5 agosto 2026, sera, in una riga: la rosa live decide chi è in rosa, ma solo dove è abbastanza completa
 
