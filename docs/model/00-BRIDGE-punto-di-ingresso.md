@@ -1,5 +1,5 @@
 # 00 — BRIDGE · Punto d'ingresso del progetto (leggere per primo)
-**Aggiornato: 7 agosto 2026 (aggiornamento dati: quattro difetti trovati mentre si aggiornava, tre chiusi)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
+**Aggiornato: 7 agosto 2026 (quattro difetti trovati aggiornando i dati, tutti e quattro chiusi: l'ultimo con la migrazione della quotazione per piattaforma)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
 
 ## Il progetto in breve
 Motore previsionale per fantacalcio **EuroLeghe** (fantacalcio.it): valutazione calciatori Classic e Mantra sui 5 grandi campionati europei (Serie A, Premier, Liga, Bundesliga, Ligue 1 — perimetro: i ~35 top club del gioco). Prevede fantamedia (FM), presenze attese e VALORE stagionale = FM × presenze. Metodo scientifico: **ogni regola entra nel motore solo se batte il baseline fuori campione su finestre indipendenti** (gate pre-registrato). Stato: core validato (Mantra, Classic, portieri, presenze); manca lo strato flag/arrivi, sbloccato dal toolkit dati `euroleghe-ingest` (in implementazione).
@@ -33,13 +33,16 @@ Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo b
 
 Sessione di aggiornamento dati, nata da una domanda di controllo. Il foglio euro **era** aggiornato; provando
 a dimostrarlo sono venuti fuori **quattro difetti**, tre chiusi e uno lasciato come decisione. Nessuna regola
-nel motore: `backtest --verify` **22/22**, **317 test**, `SHEET_REVISION` **2 → 4**. Dettaglio: spec «Novità
-v9.32».
+nel motore: `backtest --verify` **22/22**, **318 test**, `SHEET_REVISION` **2 → 5**. Dettaglio: spec «Novità
+v9.32» e «Novità v9.33».
 
-- **APERTO, ed è una decisione tua**: la **quotazione è un fatto di PIATTAFORMA** e `rosters` ha PK
-  `(fc_id, season)`. I due listoni discordano su **202 Qt.I e 226 FVM** per i ~249 italiani quotati in
-  entrambi (Svilar 18/65 Serie A contro 15/56 EuroLeghe) e vince l'ultimo che scrive. Aggirato costruendo
-  ogni foglio col SUO listone letto per ultimo; il rimedio è `platform` nella chiave, cioè una migrazione.
+- **CHIUSO la sera stessa, con la migrazione completa** (spec «Novità v9.33»): la **quotazione è un fatto di
+  PIATTAFORMA** — i due listoni discordano su **202 Qt.I e 226 FVM** per i ~249 italiani quotati in entrambi
+  (Svilar 18/65 Serie A contro 15/56 EuroLeghe) e vinceva l'ultimo che scriveva. Ora `listone_quotes` con
+  `platform` nella chiave, più `fvm_history` e **`arrivals`** allargati (un tier è un percentile dentro un
+  listone: 82 arrivi su 330 cambiano fascia fra le piattaforme), e il backfill di **tutta la storia** dalla
+  cache — 16.375 righe, 12 stagioni Serie A e 9 EuroLeghe, zero richieste. Il rituale «rileggi il listone
+  giusto prima di costruire» è morto: `rosters` porta 15/56 e il foglio Serie A stampa 18/65.
 - **CHIUSO**: la **rosa live** veniva letta prima del run che la scarica → ogni foglio portava quella del
   giorno prima (35 payload alle 14:24, rose derivate alle 14:22).
 - **CHIUSO**: una lettura ora dice **di quale stagione parla** (`probable_starter.season`). La pagina

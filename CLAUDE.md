@@ -105,14 +105,21 @@ own verdict does not, and cannot be used to adopt it.
   end-of-season by the same argument, and `price_mantra` / `price_initial_mantra` are the same two
   quotations in the Mantra currency. Everything but Qt.I is **reporting only**; the schema says so where
   each column lives.
-- **...and a quotation is a fact about a PLATFORM, which `rosters` cannot yet say** (open, 07/08/2026). Its
-  PK is `(fc_id, season)` and holds ONE pair, while the two listoni are two different games: on the ~249
-  Italians quoted in both they disagree on **202 Qt.I and 226 FVM** (Svilar 18/65 on the Serie A listone
-  against 15/56 on the EuroLeghe one), so the LAST read wins for both sheets. Today each sheet is built with
-  its own listone read last - an execution order, not a schema - and the cure is the one `match_ratings` and
-  `season_stats` already use: `platform` in the key, plus `fvm_history`, plus the readers, plus re-deriving
-  `arrivals` (the tiers read the price as a fallback) and the sheets. Until then, a price quoted without
-  saying WHICH listone wrote it last is not comparable, exactly like a surplus without its league.
+- **...and a quotation is a fact about a PLATFORM: `listone_quotes`** (07/08/2026). `rosters` has PK
+  `(fc_id, season)` and holds ONE pair, while the two listoni are two different games: on the ~249 Italians
+  quoted in both they disagree on **202 Qt.I and 226 FVM** (Svilar 18/65 on the Serie A listone against
+  15/56 on the EuroLeghe one), so the LAST read decided what BOTH sheets showed - including the ask price a
+  bid is made against. Cured the way `match_ratings` and `season_stats` already were, `platform` in the key:
+  a table of its own (`rosters` keeps the last read because everything joins it, and its comment says the
+  columns cannot be decided on), `fvm_history` and **`arrivals`** widened too - a tier is a percentile
+  INSIDE a listone, and 82 arrivals of 330 sit in a different band on the two platforms. Backfilled for the
+  whole history offline (`ratings --quotes-from-cache`, 16,375 rows over 12 Serie A and 9 EuroLeghe
+  seasons): the cache holds one file per platform and season, so unlike the three snapshot facts this one
+  CAN be attributed backwards. Two things worth keeping: the pool of a percentile is part of the
+  measurement - pooling the two lists ranked an Italian forward against quotations reaching 49 where his own
+  list stops at 28, and the distributions are not proportional (defenders are the other way round, 28
+  against 20) - and where a fallback would look harmless («no quote on this platform? take the roster
+  row»), it is the defect itself, so a man his own listone never quoted has NO price here.
 - **Additive schema changes need a migration.** `CREATE TABLE IF NOT EXISTS` does nothing to an existing
   table, so a new column without an entry in `db.database.ADDED_COLUMNS` fails with "no such column" and
   the only cure would be a `rebuild` that drops everything.

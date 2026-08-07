@@ -224,11 +224,16 @@ def test_fvm_percentiles_exclude_the_zeros_that_are_not_values(tmp_path):
         conn.execute("INSERT INTO players(fc_id, canonical_name) VALUES (?, ?)", (fc_id, f"P{fc_id}"))
         conn.execute("INSERT INTO rosters(fc_id, season, role_classic, fvm) VALUES (?, '2024-25', ?, ?)",
                      (fc_id, role, fvm))
-    got = arrivals.fvm_percentiles(conn, "2024-25")
+        # the FANTAVALORE is read per platform, because the two listoni quote in two currencies
+        conn.execute("INSERT INTO listone_quotes(fc_id, season, platform, fvm) "
+                     "VALUES (?, '2024-25', 'default', ?)", (fc_id, fvm))
+    got = arrivals.fvm_percentiles(conn, "2024-25", "default")
     assert 3 not in got, "a zero is not a fantavalore"
     assert got[1] == 1.0 and got[2] == 0.5, "and the ranking is inside the role"
     assert got[4] == 1.0, "the only defender tops the defenders"
     assert arrivals.fvm_percentiles(conn, None) == {}, "no season, nothing to rank"
+    assert arrivals.fvm_percentiles(conn, "2024-25", "euro") == {}, (
+        "a listone we never downloaded ranks nobody - it does not borrow the other one's currency")
 
 
 def test_measured_percentiles_compare_inside_the_role(tmp_path):

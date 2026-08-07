@@ -102,7 +102,13 @@ CONTRACT: tuple[TableSpec, ...] = (
               "the platform's own calendar: matchday counts, euro minute shares, the "
               "availability-persistence regressor"),
     TableSpec("matchday_map", "full", "euro <-> real matchday alignment, per league"),
-    TableSpec("arrivals", "full", "who is new, from where, at which tier, with the FM-equivalent"),
+    TableSpec("arrivals", "full",
+              "who is new, from where, at which tier PER PLATFORM (a tier is a percentile inside a "
+              "listone), with the FM-equivalent"),
+    TableSpec("listone_quotes", "full",
+              "THE QUOTATION PER PLATFORM: Qt.I/Qt.A/FVM as each listone states them. `rosters` keeps "
+              "only the last download, and the two lists disagree on 202 Qt.I and 226 FVM for the "
+              "players quoted in both - this is the table anything platform-specific must read"),
     TableSpec("club_elo", "full", "club strength at the auction dates (the goalkeeper module)"),
     TableSpec("flags", "full",
               "off_role_usage, new_coach, u22_trigger, post_torneo, booking_risk, contract_until, "
@@ -142,8 +148,13 @@ EXCLUDED: dict[str, str] = {
 # Prices: which ones a rule may read, and which are reporting-only. This is not advice, it is the
 # reason three of the columns exist at all (spec v9: everything but Qt.I embeds the outcome).
 PRICE_DISCIPLINE: dict[str, list[str]] = {
-    "auction_safe": ["rosters.price_initial", "rosters.price_initial_mantra"],
-    "reporting_only": ["rosters.price", "rosters.price_mantra", "rosters.fvm", "rosters.fvm_mantra"],
+    "auction_safe": ["listone_quotes.price_initial", "listone_quotes.price_initial_mantra"],
+    "reporting_only": ["listone_quotes.price", "listone_quotes.price_mantra",
+                       "listone_quotes.fvm", "listone_quotes.fvm_mantra"],
+    # ...and WHERE TO READ THEM. `rosters` carries the same six columns and cannot say which listone
+    # wrote them: for a player quoted in both, the last download wins. A price is a fact about a
+    # platform, so the app reads `listone_quotes` and filters on the platform it is playing.
+    "platform_note": ["rosters.* quotations are the last read, unattributed - do not decide on them"],
 }
 
 

@@ -494,6 +494,59 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.33 (7 agosto 2026, sera — la quotazione ha una PIATTAFORMA: `listone_quotes`)
+
+Il quarto difetto della v9.32 era stato lasciato come decisione, con una misura davanti: sul motore vale 10
+arrivi su 330, sul tavolo vale 226 righe col prezzo dell'altro gioco. L'operatore ha scelto **la soluzione
+completa**, e questa è. **318 test**, `backtest --verify` **22/22** (il motore non muove un decimale: nessuna
+regola adottata legge il prezzo), `SHEET_REVISION` **4 → 5**.
+
+### Cosa è cambiato nello schema
+
+- **`listone_quotes(fc_id, season, platform, price, price_initial, fvm, fvm_mantra, price_mantra,
+  price_initial_mantra)`** — la quotazione come fatto di piattaforma, esattamente la forma che
+  `match_ratings` e `season_stats` hanno già. `rosters` conserva le sue sei colonne perché tutto il codice ci
+  fa join, e il commento nello schema dice che sono **l'ultima lettura, non attribuibile**: chi decide per
+  piattaforma legge la tabella nuova.
+- **`fvm_history`** e **`arrivals`** allargano la chiave con `platform`. Le due migrazioni sono
+  deliberatamente diverse: una lettura di fantavalore è **accaduta**, quindi si conserva marcata `unknown`
+  (5162 righe) — attribuirla adesso sarebbe inventare la provenienza; un tier è **derivato**, quindi le 6687
+  righe si buttano e la migrazione **dice cosa ri-derivare**.
+- Il tier è per piattaforma perché è un **percentile dentro un listone**: 82 arrivi su 330 del 2026-27
+  stanno in una fascia diversa sulle due piattaforme.
+
+### Il backfill: tutta la storia, offline
+
+La cache tiene un listone **per piattaforma e per stagione** (12 Serie A, 9 EuroLeghe), e ogni file dichiara
+di che stagione è. Quindi `ratings --quotes-from-cache` riempie `listone_quotes` per l'intera storia senza
+una richiesta: **16.375 righe**, 249 giocatori quotati in entrambi i listoni nel 2026-27 e **202 Qt.I in
+disaccordo** — lo stesso numero misurato prima della migrazione, che è il controllo che il backfill sia
+fedele. Differenza dai tre fatti-snapshot: questo si può attribuire a posteriori, quelli no.
+
+### Cosa legge cosa, adesso
+
+`features` (il prezzo dell'`Observation` e il Qt.I dell'anno prima per R12b), `arrivals` (i due pool di
+percentili), lo `sweep` del tier, il canale investimento del foglio, il conteggio arrivi per club: tutti per
+piattaforma. Due scelte spiegate dove vivono: la coda di `recent_form` calcola le mediane **per listone** e
+poi fa l'**unione** (un uomo caro su una delle due liste vale una richiesta, e la sua forma è la stessa);
+l'ordinamento delle richieste in `positions` resta su `rosters`, perché è una **priorità** e non una
+valutazione, e filtrarlo per piattaforma butterebbe via i giocatori quotati solo sull'altra.
+
+### La prova che il rituale è morto
+
+Prima i fogli erano giusti solo se si rileggeva il listone della piattaforma **prima** di costruire. Ora:
+`rosters` porta 15/56 per Svilar (euro, ultima lettura) e il foglio **Serie A stampa 18/65** senza che nessun
+listone sia stato riletto. Verificato riga per riga su cinque nomi (Carnesecchi 11/34 contro 16/52, Hojlund
+21/168 contro 28/271, Yildiz 16/135 contro 23/200).
+
+### Due cose imparate, che valgono più del caso
+
+- **Il POOL di un percentile fa parte della misura.** Mettere insieme i due listoni classificava un attaccante
+  italiano contro quotazioni che arrivano a 49 dove la sua lista si ferma a 28 — e le distribuzioni non sono
+  proporzionali (i difensori vanno al contrario, 28 contro 20), quindi non era aggiustabile con un fattore.
+- **Un fallback «se non c'è quota su questa piattaforma prendi quella di `rosters`» è il difetto stesso**, non
+  la sua cura. Chi il suo listone non ha quotato qui **non ha prezzo**, e il foglio lo dice.
+
 ## Novità v9.32 (7 agosto 2026 — «anche la lista euro dovrebbe essere aggiornata»: quattro difetti trovati aggiornando)
 
 Sessione nata da una domanda di controllo — il foglio euro era davvero aggiornato? Sì, lo era; e cercando
@@ -2484,7 +2537,7 @@ la stessa forma di «vuoto = ignoto»: un effetto collaterale che non si dichiar
 | modulo | rete | dipende da | scrive |
 |---|---|---|---|
 | `rosters` | no | — | `clubs`, `players`, `rosters` |
-| `ratings` | sì | rosters | `match_ratings`, `match_rating_bonuses`, `fvm_history`, `rosters` |
+| `ratings` | sì | rosters | `match_ratings`, `match_rating_bonuses`, **`listone_quotes`**, `fvm_history`, `rosters` |
 | `stats` | no | rosters | `season_stats`, `players` |
 | `matchdays` | no | ratings | `matchday_map` |
 | `positions` | sì | rosters | `external_stats`, `external_match_stats`, `club_match_lineups`, `clubs`, `club_xref`, `flags` |
@@ -2495,7 +2548,7 @@ la stessa forma di «vuoto = ignoto»: un effetto collaterale che non si dichiar
 | `fc_site` | sì | rosters | `probable_starter`, `availability`, `penalty_hierarchy`, `players`, `flags` |
 | `elo` | sì | rosters | `club_elo` |
 | `tournaments` | sì | rosters, positions | `tournaments_squads`, `flags` |
-| **`arrivals`** | **no** | **rosters** | **`arrivals`, `flags`** |
+| **`arrivals`** | **no** | **rosters**, `listone_quotes` | **`arrivals` (una riga per piattaforma), `flags`** |
 | `snapshot` | sì | rosters | `squad_snapshot` + i FOGLI |
 | `backtest` / `sweep` / `estimates` | no | rosters, stats, ratings, … | solo report |
 | `export` | no | rosters | il bundle dell'app |
@@ -2508,7 +2561,8 @@ Le sei tabelle chiavate su **`fc_club_id`**, cioè quelle che una fusione di clu
 | se cambia… | rifai, in ordine | perché |
 |---|---|---|
 | **le identità dei club** (fusione, alias, `club_key`) | **`arrivals`** → i FOGLI → `estimates` → `backtest --gate` → `export` | `arrivals` è un diff fra rose: un id che cambia è un trasferimento finto. Considera anche `fc_site` (ri-deriva `penalty_hierarchy` sull'unione) ed `elo` |
-| **il listone** (`rosters`, un nuovo download) | `arrivals` → `stats` → i FOGLI → `estimates` → `export` | tutto pende da `rosters`, che è sempre il primo |
+| **il listone** (`rosters` + `listone_quotes`, un nuovo download) | `arrivals` → `stats` → i FOGLI → `estimates` → `export` | tutto pende da `rosters`, che è sempre il primo. L'ORDINE dei due listoni non conta più (v9.33): ogni lettore prende la quotazione della SUA piattaforma |
+| **le quotazioni per piattaforma** (una migrazione, o una cache di listoni cambiata) | **`ratings --quotes-from-cache`** → `arrivals` → i FOGLI → `export` | `listone_quotes` è la fonte di ogni prezzo che decide qualcosa; il tier è un percentile dentro un listone, quindi si ri-deriva con essa |
 | **i voti** (`ratings`) | `stats` → `matchdays` → `synth` → i FOGLI → `backtest` | `synth` è una catena su una catena: va rifatta *come catena*, o lavora su un input vecchio |
 | **`positions`** (ruoli, heatmap, per-partita) | `synth` → i FOGLI | il Mv sintetico si calibra sulla sovrapposizione, che cambia |
 | **un parametro adottato in `presence`** (`level_weight`, `standing_prior_rounds`, gli sconti) | **solo i FOGLI** | `evaluate` non importa `presence`: il gate non si muove, `backtest --verify` resta 22/22 |

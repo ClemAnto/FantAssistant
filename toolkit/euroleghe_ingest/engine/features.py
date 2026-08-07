@@ -880,10 +880,17 @@ def _penalty_state(conn: sqlite3.Connection, auction_date: str) -> dict[int, tup
 # `squad_source='real'` swaps that for the REAL squads (`squad_snapshot`, observed at a date), which is
 # what an auction prepared BEFORE the listone comes out has to work from. Off by default, so every
 # published gate number keeps the population it was produced on - a test asserts it.
+# The QUOTATIONS come from `listone_quotes` and not from `rosters`: there are two listoni, they disagree
+# on 202 Qt.I and 226 FVM for the players quoted in both, and `rosters` keeps whichever was downloaded
+# last (schema.sql). The row SET still comes from `rosters` - who is quoted at all - so no published gate
+# number changes population; what changes is that the price on a euro window is the EuroLeghe price.
 _TARGET_FROM_LISTONE = """
-    SELECT r.fc_id, r.role_classic, r.roles, r.league, r.price, r.fc_club_id,
-           r.price_initial, r.fvm, r.fvm_mantra, r.price_mantra, r.price_initial_mantra
-    FROM rosters r WHERE r.season = :target
+    SELECT r.fc_id, r.role_classic, r.roles, r.league, q.price, r.fc_club_id,
+           q.price_initial, q.fvm, q.fvm_mantra, q.price_mantra, q.price_initial_mantra
+    FROM rosters r
+    LEFT JOIN listone_quotes q ON q.fc_id = r.fc_id AND q.season = r.season
+                             AND q.platform = :platform
+    WHERE r.season = :target
 """
 # The real squad, with what the listone would have supplied taken from the player's LAST known listone
 # row (his role travels with him; his price does not - there is no quotation yet, and inventing one
@@ -929,12 +936,16 @@ def load(conn: sqlite3.Connection, window: Window, platform: str,
             SELECT r.fc_id, p.canonical_name, r.role_classic, r.roles, r.league, r.price,
                    ct.canonical_name, cp.canonical_name, p.birth_year,
                    sp.pv, sp.mv, sp.fm, st.pv, st.mv, st.fm,
-                   r.price_initial, rp.price_initial, r.fvm, r.fvm_mantra,
+                   r.price_initial, qp.price_initial, r.fvm, r.fvm_mantra,
                    r.price_mantra, r.price_initial_mantra
             FROM r
             JOIN players p ON p.fc_id = r.fc_id
             LEFT JOIN clubs ct ON ct.fc_club_id = r.fc_club_id
             LEFT JOIN rosters rp ON rp.fc_id = r.fc_id AND rp.season = :input
+            -- last season's Qt.I (R12b, the expectation REVISION) from the same platform's listone: a
+            -- revision measured between two currencies would be an exchange rate, not a revision
+            LEFT JOIN listone_quotes qp ON qp.fc_id = r.fc_id AND qp.season = :input
+                                       AND qp.platform = :platform
             LEFT JOIN clubs cp ON cp.fc_club_id = rp.fc_club_id
             LEFT JOIN season_stats sp ON sp.fc_id = r.fc_id AND sp.season = :input
                                      AND sp.platform = :platform
@@ -945,9 +956,11 @@ def load(conn: sqlite3.Connection, window: Window, platform: str,
          "auction": window.auction_date}).fetchall()
 
     external = _external(conn, window.input_season)
+    # ...of THIS platform: the tier is a percentile inside a listone (schema.sql, `arrivals`).
     arrivals = {fc_id: (kind, tier, origin, equivalent) for fc_id, kind, tier, origin, equivalent
                 in conn.execute("SELECT fc_id, type, tier, origin_league, foreign_fm_equiv "
-                                "FROM arrivals WHERE season = ?", (window.target_season,))}
+                                "FROM arrivals WHERE season = ? AND platform = ?",
+                                (window.target_season, platform))}
     elo_date = conn.execute("SELECT MAX(date) FROM club_elo WHERE date <= ?",
                             (window.auction_date,)).fetchone()[0]
     elo = {club: value for club, value in conn.execute(
@@ -978,7 +991,7 @@ def load(conn: sqlite3.Connection, window: Window, platform: str,
                FROM arrivals a
                JOIN rosters r ON r.fc_id = a.fc_id AND r.season = a.season
                LEFT JOIN clubs c ON c.fc_club_id = r.fc_club_id
-               WHERE a.season = ?""", (window.target_season,)):
+               WHERE a.season = ? AND a.platform = ?""", (window.target_season, platform)):
         if club and role:
             competition[(club, role)] = competition.get((club, role), 0) + 1
             arrived.add(fc_id)

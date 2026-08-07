@@ -1157,6 +1157,9 @@ def _top_up_roles(ctx: Context, date: str, limit: int, clubs) -> dict[str, int]:
     placeholders = ",".join("?" * len(clubs)) or "NULL"
     missing = conn.execute(
         f"""
+        -- `rosters` and not `listone_quotes` ON PURPOSE: this is a request ORDER, not a valuation. Both
+        -- listoni rank importance the same way, so which one wrote the number cannot change who is asked
+        -- about first - and a platform filter here would drop the players quoted only on the other one.
         SELECT x.source_id, MAX(COALESCE(r.price_initial, r.price, 0)) AS worth
         FROM player_xref x
         JOIN squad_snapshot s ON s.fc_id = x.fc_id

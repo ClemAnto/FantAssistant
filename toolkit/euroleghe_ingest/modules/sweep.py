@@ -752,12 +752,13 @@ def sweep_arrival_tiers(conn, scoring: dict, platform: str) -> dict:
         "SELECT DISTINCT season FROM arrivals ORDER BY season")]
     rows: list[tuple[str, float | None, int, bool, float, float | None, float | None]] = []
     for season in seasons:
-        percentiles = arrivals._price_percentiles(conn, season)
+        # ...on THIS platform's listone, which is the pool the production tier is computed in
+        percentiles = arrivals._price_percentiles(conn, season, platform)
         previous = conn.execute("SELECT MAX(season) FROM rosters WHERE season < ?",
                                 (season,)).fetchone()[0]
         equivalents = arrivals.foreign_fm_equivalent(conn, scoring, previous) if previous else {}
         measured = arrivals.measured_percentiles(conn, season, equivalents)
-        fvm = arrivals.fvm_percentiles(conn, previous)
+        fvm = arrivals.fvm_percentiles(conn, previous, platform)
         actual = dict(conn.execute(
             "SELECT fc_id, fm FROM season_stats WHERE season = ? AND platform = ? AND fm IS NOT NULL",
             (season, platform)))
@@ -766,8 +767,8 @@ def sweep_arrival_tiers(conn, scoring: dict, platform: str) -> dict:
             "SELECT fc_id FROM season_stats WHERE season = ? AND platform = ? AND mv IS NOT NULL "
             "AND COALESCE(pv, 0) >= ?", (previous, platform, model.MIN_PV_PREV))} if previous else set()
         for fc_id, birth_year in conn.execute(
-                "SELECT a.fc_id, p.birth_year FROM arrivals a JOIN players p USING(fc_id) "
-                "WHERE a.season = ?", (season,)):
+                "SELECT DISTINCT a.fc_id, p.birth_year FROM arrivals a JOIN players p USING(fc_id) "
+                "WHERE a.season = ? AND a.platform = ?", (season, platform)):
             if fc_id not in actual:
                 continue            # no outcome on this platform: nothing to score him against
             if fc_id in priced:

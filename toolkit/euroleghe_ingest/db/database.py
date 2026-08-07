@@ -176,6 +176,70 @@ def merge_twin_clubs(conn: sqlite3.Connection) -> list[str]:
     return merged
 
 
+def widen_quotation_pks(conn: sqlite3.Connection) -> list[str]:
+    """Put `platform` in the key of `fvm_history` and `arrivals`, if it is not there yet.
+
+    The quotation is a fact about a PLATFORM (see `listone_quotes` in schema.sql) and both of these were
+    keyed as if it were not: `fvm_history` mixed the two listoni's fantavalori day by day, and `arrivals`
+    held ONE tier, i.e. one percentile inside whichever listone had been read last. `CREATE TABLE IF NOT
+    EXISTS` cannot change a key, so: create, copy, drop, rename - idempotent, it looks at the key it finds.
+
+    The two are copied differently ON PURPOSE. A fantavalore reading really happened, so it is KEPT and
+    marked `unknown`: attributing it now would be inventing provenance, and «vuoto = ignoto». An arrival
+    tier is DERIVED and cheap to redo, so the rows are dropped rather than duplicated into a platform they
+    were never computed for - and the caller is told to re-derive.
+    """
+    done: list[str] = []
+    fvm = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='fvm_history'").fetchone()
+    if fvm and "observed_on, platform" not in fvm[0]:
+        conn.executescript(
+            """
+            CREATE TABLE fvm_history__new (
+                fc_id       INTEGER NOT NULL REFERENCES players(fc_id),
+                season      TEXT NOT NULL,
+                observed_on TEXT NOT NULL,
+                platform    TEXT NOT NULL DEFAULT 'unknown',
+                fvm         REAL,
+                fvm_mantra  REAL,
+                PRIMARY KEY (fc_id, season, observed_on, platform)
+            );
+            INSERT OR REPLACE INTO fvm_history__new(fc_id, season, observed_on, platform, fvm, fvm_mantra)
+                SELECT fc_id, season, observed_on, 'unknown', fvm, fvm_mantra FROM fvm_history;
+            DROP TABLE fvm_history;
+            ALTER TABLE fvm_history__new RENAME TO fvm_history;
+            """
+        )
+        kept = conn.execute("SELECT COUNT(*) FROM fvm_history").fetchone()[0]
+        done.append(f"fvm_history keys on the platform too ({kept} earlier readings kept as 'unknown': "
+                    f"which listone wrote them cannot be recovered)")
+    arrivals = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='arrivals'").fetchone()
+    if arrivals and "season, platform" not in arrivals[0]:
+        dropped = conn.execute("SELECT COUNT(*) FROM arrivals").fetchone()[0]
+        conn.executescript(
+            """
+            DROP TABLE arrivals;
+            CREATE TABLE arrivals (
+                fc_id           INTEGER NOT NULL REFERENCES players(fc_id),
+                season          TEXT NOT NULL,
+                platform        TEXT NOT NULL DEFAULT 'default',
+                type            TEXT,
+                tier            TEXT,
+                origin_club     TEXT,
+                origin_league   TEXT,
+                foreign_fm_equiv REAL,
+                PRIMARY KEY (fc_id, season, platform)
+            );
+            """
+        )
+        done.append(f"arrivals keys on the platform too - {dropped} rows dropped because their tier was "
+                    f"a percentile inside an unknown listone")
+    if done:
+        conn.commit()
+    return done
+
+
 def apply_schema(conn: sqlite3.Connection) -> None:
     """Apply schema.sql (idempotent: CREATE TABLE IF NOT EXISTS) and migrate an older DB."""
     conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
@@ -186,6 +250,13 @@ def apply_schema(conn: sqlite3.Connection) -> None:
     if widen_transfers_pk(conn):
         print("[db] migrated: transfers_history now keys on the COUNTERPART too - re-run `transfers` "
               "(or its offline reingest) to recover the rows the old key dropped")
+    quotations = widen_quotation_pks(conn)
+    for change in quotations:
+        print(f"[db] migrated: {change}")
+    if quotations:
+        print("[db] -> RE-DERIVE, in this order: `ratings --quotes-from-cache` (fills `listone_quotes` "
+              "per platform from the cached listoni, offline), then `arrivals`, then the snapshot sheets "
+              "and `export`. See the spec, «Dipendenze e ri-derivazioni».")
     twins = merge_twin_clubs(conn)
     if twins:
         print(f"[db] migrated: {len(twins)} twin club identities merged - the club-level histories they "

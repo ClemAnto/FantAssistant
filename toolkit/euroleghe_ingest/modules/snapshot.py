@@ -84,11 +84,16 @@ SQUAD_APPEARANCE_MONTHS = 14
 #   3  07/08/2026 - the live squad is derived AGAIN after the roles step, which is what downloads the
 #      payload it reads: every sheet before this one carried the PREVIOUS day's live squad, so the
 #      departures (⇥) and the eleven were one reading behind.
+#   5  07/08/2026 - THE QUOTATION IS READ PER PLATFORM (`listone_quotes`): the Serie A sheet shows the
+#      Serie A listone's Qt.I and FVM and the EuroLeghe sheet its own, where before both showed whichever
+#      was downloaded last (249 rows, 202 prices and 226 fantavalori apart - Svilar 18/65 against 15/56).
+#      The arrival TIER moves with it, since it is a percentile inside a listone: 82 arrivals of 330 sit
+#      in a different band on the two platforms, and that reaches `engine_pv_pred` through the discount.
 #   4  07/08/2026 - the probabili are read only for the season being AUCTIONED
 #      (`probable_starter.season`): until now the freshest reading was the last 2025-26 round, so 428 of
 #      648 Serie A rows carried a starting probability of 1.0 taken from line-ups already played, 415
 #      duels were built on it, and its 442 players asserted a 2026-27 squad. Now empty by design.
-SHEET_REVISION = 4
+SHEET_REVISION = 5
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
@@ -835,7 +840,8 @@ def rounds_missed(conn, auction_date: str, seasons: list[str]) -> dict[int, dict
     return out
 
 
-def investment(conn, window, observations, squads: dict[int, str]) -> dict[int, dict]:
+def investment(conn, window, observations, squads: dict[int, str],
+               platform: str = "default") -> dict[int, dict]:
     """How much this club has PUT INTO him, in two channels that must not be merged.
 
     The hypothesis (the user's, 29/07/2026): a club that has spent on a player wants to see him play, and
@@ -886,8 +892,12 @@ def investment(conn, window, observations, squads: dict[int, str]) -> dict[int, 
     prices: dict[int, tuple[float, str]] = {}
     for season in (window.target_season, window.input_season):
         for fc_id, price, role in conn.execute(
-                "SELECT fc_id, price_initial, role_classic FROM rosters "
-                "WHERE season = ? AND price_initial IS NOT NULL", (season,)):
+                # THIS platform's listone: a percentile is a comparison, and the two lists are two
+                # currencies (schema.sql, `listone_quotes`).
+                "SELECT q.fc_id, q.price_initial, r.role_classic FROM listone_quotes q "
+                "JOIN rosters r ON r.fc_id = q.fc_id AND r.season = q.season "
+                "WHERE q.season = ? AND q.platform = ? AND q.price_initial IS NOT NULL",
+                (season, platform)):
             prices.setdefault(fc_id, (float(price), role or "?"))
         if prices:
             break
@@ -1245,16 +1255,20 @@ def penalty_duty(conn, auction_date: str) -> dict[int, tuple[int, float]]:
     return out
 
 
-def contract_state(conn, season: str) -> dict[int, dict]:
-    """The club-relationship PROXIES: contract expiry, exit risk, arrival, seasons at the club."""
+def contract_state(conn, season: str, platform: str = "default") -> dict[int, dict]:
+    """The club-relationship PROXIES: contract expiry, exit risk, arrival, seasons at the club.
+
+    `platform` reaches the ARRIVAL TIER only, which is a percentile inside a listone and therefore has one
+    (schema.sql, `arrivals`): the arrival itself, the contract and the seasons at the club do not.
+    """
     out: dict[int, dict] = {}
     for fc_id, flag, value in conn.execute(
             "SELECT fc_id, flag, value FROM flags WHERE flag IN "
             "('contract_until', 'exit_risk', 'new_coach', 'u22_trigger') AND season = ?", (season,)):
         out.setdefault(fc_id, {})[flag] = value
     for fc_id, kind, tier, origin, equivalent in conn.execute(
-            "SELECT fc_id, type, tier, origin_league, foreign_fm_equiv FROM arrivals WHERE season = ?",
-            (season,)):
+            "SELECT fc_id, type, tier, origin_league, foreign_fm_equiv FROM arrivals "
+            "WHERE season = ? AND platform = ?", (season, platform)):
         out.setdefault(fc_id, {}).update(
             {"arrival": kind, "tier": tier, "origin": origin, "equiv": equivalent})
     for fc_id, seasons in conn.execute(
@@ -1998,7 +2012,8 @@ def at_current_club(conn, season: str, observations, squads: dict[int, str],
 
 def club_context(conn, data: features.WindowData, starters_date: str | None,
                  clubs: list[str], measured: str | None = None,
-                 before: str | None = None, fielded: dict[str, dict] | None = None) -> list[dict]:
+                 before: str | None = None, fielded: dict[str, dict] | None = None,
+                 platform: str = "default") -> list[dict]:
     """One row per club OF THE SHEET: coach, formation, lines fielded, arrivals, Elo.
 
     The club list comes from the sheet's own rows, not from `rosters`: with no listone for the season
@@ -2052,8 +2067,8 @@ def club_context(conn, data: features.WindowData, starters_date: str | None,
             """SELECT COUNT(*) FROM arrivals a JOIN rosters r
                ON r.fc_id = a.fc_id AND r.season = a.season
                JOIN clubs c ON c.fc_club_id = r.fc_club_id
-               WHERE a.season = ? AND c.canonical_name = ?""",
-            (window.target_season, club)).fetchone()[0]
+               WHERE a.season = ? AND a.platform = ? AND c.canonical_name = ?""",
+            (window.target_season, platform, club)).fetchone()[0]
         new_coach = conn.execute(
             """SELECT COUNT(*) FROM flags f JOIN rosters r
                ON r.fc_id = f.fc_id AND r.season = f.season
@@ -2712,7 +2727,7 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
         "elsewhere": measured_elsewhere(conn, window),
         # What the club has PUT INTO him - fee share and stature. A pre-auction fact; whether it weighs on
         # who is selected is a parameter of `engine.presence`, and it starts at zero.
-        "investment": investment(conn, window, data.observations, squads),
+        "investment": investment(conn, window, data.observations, squads, platform),
         # ...and whether the club he is at now had already had him: the only measured difference between
         # a man it sent away and a man it has just taken on (no source of ours marks a loan).
         "was_here": previously_at_club(conn, data.observations, squads, measured),
@@ -2720,7 +2735,7 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
         # yellows and reds, so there is nothing to bound by a date - and last season's total is at least
         # a fact that was known by then.
         "discipline": discipline(conn, window.input_season, platform),
-        "contract": contract_state(conn, window.target_season),
+        "contract": contract_state(conn, window.target_season, platform),
         "penalties": penalty_duty(conn, window.auction_date),
         # Where he really stood on the pitch last season (the positional heatmap). Empty until
         # `positions --layer heatmap` has run; the view falls back to the Mantra roles, which name a
@@ -2879,7 +2894,7 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
         rows = kept
     club_rows = club_context(conn, data, starters_date,
                             sorted({row["club"] for row in rows if row.get("club")}),
-                            measured, before, fielded_clubs)
+                            measured, before, fielded_clubs, platform)
 
     # The folder carries the day the sheet STANDS ON, plus the club when it is one club: a back-dated
     # run must not overwrite today's, and two dates are two different sheets. And the LEAGUE, because two

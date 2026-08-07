@@ -40,6 +40,12 @@ ALLOWED_EMPTY: dict[str, set[str]] = {
     "match_ratings": {"assists_set_piece", "player_of_the_match", "started", "minutes",
                       "own_goals", "pen_scored", "pen_missed", "pen_saved", "goals_conceded"},
     "arrivals": {"tier", "foreign_fm_equiv"},  # need fbref/transfers, not computed yet
+    # a listone may quote in one currency only (Mantra columns are absent from the oldest files), and a
+    # platform whose list was never downloaded has no rows at all rather than empty ones
+    "listone_quotes": {"price", "price_mantra", "price_initial_mantra", "fvm", "fvm_mantra"},
+    # the season a probabili page was ABOUT: stored from 07/08/2026 on, so every row captured before then
+    # is legitimately NULL - and a NULL one is never read as a forecast (that is the point of the column)
+    "probable_starter": {"season"},
     # external layer: each provider fills a different subset (SofaScore has no penalty split, xG is
     # missing on some competitions/seasons, mv_synth only exists after the calibration step).
     "external_stats": {"pen_scored", "pen_taken", "xg", "xa", "starts", "yellows", "reds"},

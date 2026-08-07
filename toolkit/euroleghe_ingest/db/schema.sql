@@ -64,9 +64,38 @@ CREATE TABLE IF NOT EXISTS rosters (
     -- an auction is bought in the currency of its own game. `price_mantra` is hindsight for a past
     -- season, `price_initial_mantra` is pre-auction and would be the honest input for a Mantra
     -- market-expectation rule; today both are reporting columns and no rule reads them.
+    -- ⚠️ THESE SIX COLUMNS ARE THE LAST LISTONE READ AND DO NOT KNOW WHICH ONE. A quotation is a fact
+    -- about a PLATFORM (see `listone_quotes` below) and this PK cannot hold two, so for a player quoted
+    -- in both listoni the last download wins. Kept because a roster row without a price is useless to
+    -- read at a glance, and because the whole codebase joins this table - but anything that DECIDES
+    -- something per platform must read `listone_quotes`, never these.
     price_mantra         REAL,
     price_initial_mantra REAL,
     PRIMARY KEY (fc_id, season)
+);
+
+-- THE QUOTATION, PER PLATFORM - because that is what it is, and `rosters` above cannot say it.
+-- Measured 07/08/2026: the two listoni disagree on 202 Qt.I and 226 FVM for the ~249 Italians quoted in
+-- both (Svilar Qt.I 18 / FVM 65 on the Serie A listone against 15 / 56 on the EuroLeghe one), so with one
+-- pair of columns per player-season the LAST download decided what both sheets showed - including the ask
+-- price you bid against at the table. It also made every percentile a mixed-currency ranking: a Serie A
+-- forward was ranked against a pool whose foreign quotations reach 49 where the Italian ones stop at 28,
+-- and the two distributions are not proportional (defenders are the other way round, 28 against 20).
+-- Same shape and same cure as `match_ratings` and `season_stats`: `platform` in the key.
+-- Backfillable, unlike the three snapshot facts: the cache holds one listone file per platform and season
+-- (`listone_{platform}_{season}.xlsx`), so `ratings.reingest_quotes_from_cache` fills the whole history
+-- offline - the raw file is the source of truth, exactly as `rebuild` assumes.
+CREATE TABLE IF NOT EXISTS listone_quotes (
+    fc_id      INTEGER NOT NULL REFERENCES players(fc_id),
+    season     TEXT NOT NULL,
+    platform   TEXT NOT NULL,                   -- euro | default: WHICH listone said this
+    price          REAL,                        -- Qt.A, current quotation (hindsight for past seasons)
+    price_initial  REAL,                        -- Qt.I, pre-auction quotation (the only auction-safe one)
+    fvm            REAL,
+    fvm_mantra     REAL,
+    price_mantra         REAL,
+    price_initial_mantra REAL,
+    PRIMARY KEY (fc_id, season, platform)
 );
 
 -- Season aggregates PER PLATFORM: 'euro' = the EuroLeghe calendar (fantamedia/target, from the
@@ -315,13 +344,18 @@ CREATE TABLE IF NOT EXISTS transfers_history (
 -- does not exist anywhere we can reach. It accumulates from now on, and `observed_on` is the whole point.
 -- ⚠️ It is a JUDGEMENT, finer and fresher than the quotation but still somebody's opinion, so it is read
 -- only where nothing measured exists - and NEVER for the target season, which would be reading the outcome.
+-- PER PLATFORM too, for the reason `listone_quotes` states: the two listoni give a player two different
+-- fantavalori, so a series keyed only on the day mixed them - and which one a day held depended on the
+-- order of that day's downloads. Rows written before 07/08/2026 carry platform 'unknown', which is what
+-- they are: attributing them now would be inventing provenance.
 CREATE TABLE IF NOT EXISTS fvm_history (
     fc_id       INTEGER NOT NULL REFERENCES players(fc_id),
     season      TEXT NOT NULL,
     observed_on TEXT NOT NULL,
+    platform    TEXT NOT NULL DEFAULT 'unknown',
     fvm         REAL,
     fvm_mantra  REAL,
-    PRIMARY KEY (fc_id, season, observed_on)
+    PRIMARY KEY (fc_id, season, observed_on, platform)
 );
 
 CREATE TABLE IF NOT EXISTS market_values (
@@ -362,15 +396,21 @@ CREATE TABLE IF NOT EXISTS tournaments_squads (
     PRIMARY KEY (fc_id, tournament)
 );
 
+-- The arrival EVENT is platform-independent (a roster diff: one club per player-season), but its TIER is
+-- not: it is a percentile inside a listone, and the two listoni are two currencies (see `listone_quotes`).
+-- Hence `platform` in the key - one row per platform, identical except where the quotation decides. 84
+-- players of 1175 cross a T1/T2/T3 band depending on which listone was read last, and 10 of the 330
+-- arrivals of 2026-27 are routed by that number.
 CREATE TABLE IF NOT EXISTS arrivals (
     fc_id           INTEGER NOT NULL REFERENCES players(fc_id),
     season          TEXT NOT NULL,
+    platform        TEXT NOT NULL DEFAULT 'default',
     type            TEXT,                        -- intra_league | cross_league | promoted | ...
-    tier            TEXT,                        -- T1 | T2 | T3
+    tier            TEXT,                        -- T1 | T2 | T3, inside THIS platform's listone
     origin_club     TEXT,
     origin_league   TEXT,
     foreign_fm_equiv REAL,                       -- foreign FM-equivalent (tier T1)
-    PRIMARY KEY (fc_id, season)
+    PRIMARY KEY (fc_id, season, platform)
 );
 
 -- ---------- Volatile states (TIME SERIES, spec v8) ----------

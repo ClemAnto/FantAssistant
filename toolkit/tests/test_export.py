@@ -84,9 +84,12 @@ def test_manifest_carries_the_discipline_the_app_must_not_guess(tmp_path):
     ctx = _ctx(tmp_path)
     _seed(ctx.conn)
     manifest = export.run(ctx, history=1)
-    assert manifest["price_discipline"]["auction_safe"] == ["rosters.price_initial",
-                                                           "rosters.price_initial_mantra"]
-    assert "rosters.fvm" in manifest["price_discipline"]["reporting_only"]
+    # ...and it names `listone_quotes`, not `rosters`: the same six columns live in both, and only one
+    # of the two can say WHICH listone wrote them (schema.sql).
+    assert manifest["price_discipline"]["auction_safe"] == ["listone_quotes.price_initial",
+                                                           "listone_quotes.price_initial_mantra"]
+    assert "listone_quotes.fvm" in manifest["price_discipline"]["reporting_only"]
+    assert any("unattributed" in note for note in manifest["price_discipline"]["platform_note"])
     assert manifest["provisional_parameters"]["injuries.EXIT_RISK_MONTHS"] == 12
     assert manifest["adopted_rules"]["by_platform"]["euro"][0] == "R0"
     assert manifest["known_gaps"], "a bundle without its known gaps invites a wrong reading"

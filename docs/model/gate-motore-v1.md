@@ -1436,6 +1436,14 @@ la serie per data invece di una per stagione.
 Regola dell'utente, e la sua formulazione: «**utilizziamo la quotazione quando non abbiamo altre risorse
 oggettive**, perché non sono affidabili: sono semplicemente il giudizio soggettivo di chi quota».
 
+> ⚠️ **PROVENIENZA, aggiunta il 07/08/2026.** Ogni cifra di questa sezione è stata misurata quando il
+> percentile di prezzo si calcolava su un pool che **mescolava i due listoni** — una quotazione EuroLeghe e
+> una Serie A nella stessa distribuzione, e le due non sono proporzionali (attaccanti fino a 49 contro 28, i
+> difensori al contrario). Dalla v9.33 il pool è quello della piattaforma, e **82 arrivi su 330 del 2026-27
+> stanno in una fascia diversa** fra le due: un ri-run darebbe numeri diversi. La CONCLUSIONE non dipende dal
+> pool («la strada per far rendere la regola è allargare ciò che è misurato, non tornare alla quotazione»,
+> confermata due volte su coperture diverse), le cifre sì. Chi le cita, le citi con questa nota.
+
 ### Dove la quotazione entrava ancora, verificato nel codice
 Poco, e va detto prima di cambiare qualcosa: **il motore adottato non la legge**. R12 (Qt.I nel ruolo) e R12b
 (la revisione anno su anno) sono **falsificate** — 4/10 e 5/10, λ≈0, «l'attesa assoluta del mercato non

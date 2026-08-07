@@ -111,21 +111,32 @@ def priced_without_history(conn, target_season: str, input_season: str) -> list[
     Above the median and not at it: for goalkeepers the median quotation is 1 credit, so "at least
     average" would drag in every third-choice keeper (56 of them in 25/26 against 8 above the median).
     """
+    # PER LISTONE, then the UNION: the queue asks "is he worth a request", and the two lists are two
+    # currencies with two medians (a keeper's median is 1 credit on both, a forward's is 7 against 9), so a
+    # pooled median would answer for a distribution neither auction uses. A man expensive on EITHER platform
+    # is worth fetching once - his form is the same football - so the arms are unioned, not intersected.
     rows = conn.execute(
         """
-        SELECT r.fc_id, p.canonical_name, r.role_classic, r.price_initial, c.canonical_name,
+        SELECT q.platform, q.fc_id, p.canonical_name, r.role_classic, q.price_initial, c.canonical_name,
                r.league, p.birth_year
-        FROM rosters r
-        JOIN players p ON p.fc_id = r.fc_id
+        FROM listone_quotes q
+        JOIN rosters r ON r.fc_id = q.fc_id AND r.season = q.season
+        JOIN players p ON p.fc_id = q.fc_id
         LEFT JOIN clubs c ON c.fc_club_id = r.fc_club_id
-        WHERE r.season = ? AND r.price_initial IS NOT NULL AND r.role_classic IS NOT NULL
+        WHERE q.season = ? AND q.price_initial IS NOT NULL AND r.role_classic IS NOT NULL
         """, (target_season,)).fetchall()
-    median = role_medians([(role, price) for _fc, _name, role, price, *_rest in rows])
+    medians = {platform: role_medians([(role, price)
+                                       for pf, _fc, _name, role, price, *_rest in rows if pf == platform])
+               for platform in {row[0] for row in rows}}
 
     out: list[dict] = []
-    for fc_id, name, role, price, club, league, born in rows:
-        if not awaiting_data(role, price, measured=False, medians=median):
+    seen: set[int] = set()
+    for platform, fc_id, name, role, price, club, league, born in rows:
+        if fc_id in seen:
             continue
+        if not awaiting_data(role, price, measured=False, medians=medians[platform]):
+            continue
+        seen.add(fc_id)
         has_stats = conn.execute(
             "SELECT 1 FROM season_stats WHERE fc_id = ? AND season = ? AND pv > 0 LIMIT 1",
             (fc_id, input_season)).fetchone()

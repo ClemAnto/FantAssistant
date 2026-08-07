@@ -22,6 +22,22 @@ INPUT_SEASON, TARGET_SEASON = "2023-24", "2024-25"
 MATCHDAYS = 30
 
 
+def _publish_quotes(conn, platform: str = "euro") -> None:
+    """What a listone ingest does: the quotation into `rosters` AND into `listone_quotes`, per platform.
+
+    `features` reads the price from the second one, because there are two listoni and they disagree on
+    202 Qt.I for the players quoted in both (schema.sql, `listone_quotes`). A fixture that writes only
+    `rosters` describes a DB that `ratings` cannot produce, and the engine would see no price at all.
+    """
+    conn.execute(
+        "INSERT OR REPLACE INTO listone_quotes(fc_id, season, platform, price, price_initial, fvm, "
+        "fvm_mantra, price_mantra, price_initial_mantra) "
+        "SELECT fc_id, season, ?, price, price_initial, fvm, fvm_mantra, price_mantra, "
+        "price_initial_mantra FROM rosters", (platform,))
+    conn.commit()
+
+
+
 @pytest.fixture
 def prepared(tmp_path):
     """A small 2-season DB: three regular defenders (enough to carry a 'D' anchor), a fringe
@@ -44,6 +60,7 @@ def prepared(tmp_path):
     rosters.append((4, TARGET_SEASON, 2, "a", "A", "serie_a", 12.0))   # only in the target listone
     conn.executemany("INSERT INTO rosters(fc_id, season, fc_club_id, roles, role_classic, league, "
                      "price) VALUES (?, ?, ?, ?, ?, ?, ?)", rosters)
+    _publish_quotes(conn)
     # the calendar: what matchday_count reads
     conn.executemany("INSERT INTO match_ratings(fc_id, season, matchday, platform, mv) "
                      "VALUES (1, ?, ?, 'euro', 6.0)",
@@ -344,6 +361,32 @@ def test_a_role_without_a_replacement_level_keeps_the_value_ordering(prepared):
             row["name"] for row in plain[role]["predicted"]]
 
 
+def test_the_price_a_window_reads_is_its_own_platforms(prepared):
+    """A QUOTATION IS A FACT ABOUT A PLATFORM, and `rosters` can hold only one.
+
+    Measured 07/08/2026: the two listoni disagree on 202 Qt.I and 226 FVM for the 249 Italians quoted in
+    both - Svilar 18 credits on the Serie A list against 15 on the EuroLeghe one - and whichever was
+    downloaded last decided what BOTH sheets showed, including the ask price at the table. So the engine
+    reads `listone_quotes` and filters on its own platform; the fallback that would look harmless here -
+    "take the roster row if this platform has no quote" - is the defect itself.
+    """
+    _cfg, conn, window, _data = prepared
+    conn.executemany(
+        "INSERT OR REPLACE INTO listone_quotes(fc_id, season, platform, price_initial, fvm) "
+        "VALUES (1, ?, ?, ?, ?)",
+        [(window.target_season, "euro", 15.0, 56.0), (window.target_season, "default", 18.0, 65.0)])
+    conn.commit()
+
+    euro = {obs.fc_id: obs for obs in features.load(conn, window, "euro")}
+    serie_a = {obs.fc_id: obs for obs in features.load(conn, window, "default")}
+    assert (euro[1].price_initial, euro[1].fvm) == (15.0, 56.0)
+    assert (serie_a[1].price_initial, serie_a[1].fvm) == (18.0, 65.0)
+    # and a player nobody quoted on this platform has NO price here - not the other list's
+    conn.execute("DELETE FROM listone_quotes WHERE fc_id = 1 AND platform = 'euro'")
+    conn.commit()
+    assert {obs.fc_id: obs for obs in features.load(conn, window, "euro")}[1].price_initial is None
+
+
 def test_target_season_flags_and_late_states_are_invisible(prepared):
     """The look-ahead audit, pinned: only what predates the auction may reach an Observation."""
     _cfg, conn, window, _data = prepared
@@ -425,7 +468,10 @@ def test_positional_competition_does_not_count_the_player_himself(prepared):
     conn.execute("INSERT INTO players(fc_id, canonical_name) VALUES (10, 'RivalStriker')")
     conn.execute("INSERT INTO rosters(fc_id, season, fc_club_id, roles, role_classic, league, price)"
                  " VALUES (10, ?, 2, 'pc', 'A', 'serie_a', 9.0)", (TARGET_SEASON,))
-    conn.executemany("INSERT INTO arrivals(fc_id, season, type) VALUES (?, ?, 'new')",
+    _publish_quotes(conn)
+    # `arrivals` is keyed on the platform too - the tier is a percentile inside a listone - so a row
+    # written for the wrong one is invisible to `features.load(conn, window, "euro")`.
+    conn.executemany("INSERT INTO arrivals(fc_id, season, platform, type) VALUES (?, ?, 'euro', 'new')",
                      [(4, TARGET_SEASON), (10, TARGET_SEASON)])
     conn.commit()
     by_id = {obs.fc_id: obs for obs in features.load(conn, window, "euro")}
@@ -499,8 +545,8 @@ def test_new_goalkeepers_are_not_priced_off_the_outfield_equivalent(prepared):
                  " VALUES (9, ?, 2, 'por', 'P', 'serie_a', 8.0)", (TARGET_SEASON,))
     conn.execute("INSERT INTO season_stats(fc_id, season, platform, pv, mv, fm, goals_conceded) "
                  "VALUES (9, ?, 'euro', 20, 6.1, 5.2, 22)", (TARGET_SEASON,))
-    conn.executemany("INSERT INTO arrivals(fc_id, season, type, tier, foreign_fm_equiv) "
-                     "VALUES (?, ?, 'new', 'T2', ?)", [(9, TARGET_SEASON, 7.4)])
+    conn.executemany("INSERT INTO arrivals(fc_id, season, platform, type, tier, foreign_fm_equiv) "
+                     "VALUES (?, ?, 'euro', 'new', 'T2', ?)", [(9, TARGET_SEASON, 7.4)])
     conn.commit()
     data = features.prepare(conn, window, "euro", "classic")
     params = evaluate.Params(source="test", beta_new=0.3, share_new=(0.1, 0.5))
@@ -597,6 +643,7 @@ def crowded(tmp_path):
             rosters.append((fc_id, season, 1, "pc", "A", "serie_a", qti))
     conn.executemany("INSERT INTO rosters(fc_id, season, fc_club_id, roles, role_classic, league, "
                      "price_initial) VALUES (?, ?, ?, ?, ?, ?, ?)", rosters)
+    _publish_quotes(conn)
     conn.executemany("INSERT INTO match_ratings(fc_id, season, matchday, platform, mv) "
                      "VALUES (1, ?, ?, 'euro', 6.0)",
                      [(season, matchday) for season in (INPUT_SEASON, TARGET_SEASON)

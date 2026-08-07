@@ -436,6 +436,26 @@ def upsert_listone(conn, season: str, records: list[dict], platform: str = DEFAU
              rec["price"], rec.get("price_initial"), rec.get("fvm"), rec.get("fvm_mantra"),
              rec.get("price_mantra"), rec.get("price_initial_mantra")),
         )
+        # ...and the QUOTATION, whole, into the table that knows which listone said it. `rosters` above keeps
+        # the last read because everything joins it, but a decision per platform reads this one: the two
+        # listoni are two currencies and one pair of columns cannot hold both (schema.sql, `listone_quotes`).
+        conn.execute(
+            """
+            INSERT INTO listone_quotes(fc_id, season, platform, price, price_initial, fvm, fvm_mantra,
+                                       price_mantra, price_initial_mantra)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(fc_id, season, platform) DO UPDATE SET
+                price                = COALESCE(excluded.price, listone_quotes.price),
+                price_initial        = COALESCE(excluded.price_initial, listone_quotes.price_initial),
+                fvm                  = COALESCE(excluded.fvm, listone_quotes.fvm),
+                fvm_mantra           = COALESCE(excluded.fvm_mantra, listone_quotes.fvm_mantra),
+                price_mantra         = COALESCE(excluded.price_mantra, listone_quotes.price_mantra),
+                price_initial_mantra = COALESCE(excluded.price_initial_mantra,
+                                                listone_quotes.price_initial_mantra)
+            """,
+            (rec["fc_id"], season, platform, rec["price"], rec.get("price_initial"), rec.get("fvm"),
+             rec.get("fvm_mantra"), rec.get("price_mantra"), rec.get("price_initial_mantra")),
+        )
         # ...and the FVM also goes into its own DATED series, because that is what it is: it moves weekly and
         # on events (injuries, transfers), so a single column per season keeps only the last reading and
         # silently discards every earlier one. `rosters.fvm` stays as the latest value - the sheet and the
@@ -443,9 +463,9 @@ def upsert_listone(conn, season: str, records: list[dict], platform: str = DEFAU
         # backfilled: the source serves one archived value per past season, not its weeks).
         if rec.get("fvm") is not None or rec.get("fvm_mantra") is not None:
             conn.execute(
-                "INSERT OR REPLACE INTO fvm_history(fc_id, season, observed_on, fvm, fvm_mantra) "
-                "VALUES (?, ?, ?, ?, ?)",
-                (rec["fc_id"], season, observed_on, rec.get("fvm"), rec.get("fvm_mantra")))
+                "INSERT OR REPLACE INTO fvm_history(fc_id, season, observed_on, platform, fvm, fvm_mantra) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (rec["fc_id"], season, observed_on, platform, rec.get("fvm"), rec.get("fvm_mantra")))
         n += 1
     return n
 
@@ -572,7 +592,13 @@ def reingest_from_cache(ctx: Context) -> None:
 
 def reingest_listone_from_cache(ctx: Context) -> None:
     """Re-apply the cached listone files to rosters offline (rebuild path), so the Mantra roles +
-    prices survive a rebuild without re-downloading."""
+    prices survive a rebuild without re-downloading.
+
+    It is also how `listone_quotes` is FILLED FOR THE WHOLE HISTORY: the cache holds one file per platform
+    and season (12 Serie A, 9 EuroLeghe as of 07/08/2026), each one stating which listone it is, so the
+    quotation can be attributed backwards - unlike the three snapshot facts, which nothing can recover.
+    `ratings --quotes-from-cache` is this function on its own, and it costs zero requests.
+    """
     conn = ctx.require_conn()
     files = sorted(ctx.config.cache_dir.glob("listone_*.xlsx"))
     total = 0

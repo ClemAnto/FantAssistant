@@ -26,6 +26,10 @@ DEPENDS_ON: list[str] = ["rosters"]
 RAW_INPUTS: list[str] = []
 NETWORK = False
 
+# The tier is a percentile INSIDE a listone, so it has a platform - one row per platform per arrival
+# (schema.sql, `arrivals`). Kept here and not imported from `ratings` to leave this module dependency-free.
+PLATFORMS: tuple[str, ...] = ("euro", "default")
+
 # PROVISIONAL thresholds (the gate owns them - do not read them as established).
 # The price is the market's own statement about how important a player is, so it decides whether an
 # arrival is worth the full treatment; the amount of history decides whether that treatment is even
@@ -228,8 +232,8 @@ def classify_tier(price_percentile: float | None, history_matches: int, u22: boo
     return "T3"
 
 
-def fvm_percentiles(conn, season: str | None) -> dict[int, float]:
-    """fc_id -> the percentile of his FANTAVALORE within his Classic role, on that season's listone.
+def fvm_percentiles(conn, season: str | None, platform: str = "default") -> dict[int, float]:
+    """fc_id -> the percentile of his FANTAVALORE within his Classic role, ON THAT PLATFORM'S listone.
 
     The second choice, behind football actually played and ahead of the quotation, and the reason is the
     operator's own: the fantavalore moves weekly and on events (injuries, transfers) while Qt.I is set once
@@ -238,6 +242,8 @@ def fvm_percentiles(conn, season: str | None) -> dict[int, float]:
     Read on the season GIVEN, which callers pass as the one BEFORE the arrival: the fantavalore of the season
     being played would know its outcome. Empty before 2022-23, where the source stores zeros and not values -
     and a zero is not a fantavalore, so it is excluded rather than ranked.
+    `platform` because a percentile is a comparison, and the two listoni are two currencies: ranking a Serie
+    A player against EuroLeghe fantavalori compares him with a scale his own list does not use.
     """
     if not season:
         return {}
@@ -245,7 +251,8 @@ def fvm_percentiles(conn, season: str | None) -> dict[int, float]:
     by_role: dict[str, list[float]] = {}
     mine: dict[int, tuple[str, float]] = {}
     for fc_id, value in conn.execute(
-            "SELECT fc_id, fvm FROM rosters WHERE season = ? AND fvm IS NOT NULL AND fvm > 0", (season,)):
+            "SELECT fc_id, fvm FROM listone_quotes WHERE season = ? AND platform = ? "
+            "AND fvm IS NOT NULL AND fvm > 0", (season, platform)):
         role = roles.get(fc_id)
         if not role:
             continue
@@ -276,28 +283,36 @@ def measured_percentiles(conn, season: str, equivalents: dict[int, tuple]) -> di
             for fc_id, (role, value) in mine.items()}
 
 
-def _price_percentiles(conn, season: str) -> dict[int, float]:
-    """Price percentile WITHIN the player's Classic role - a 20 is elite for a defender, mid for a striker.
+def _price_percentiles(conn, season: str, platform: str = "default") -> dict[int, float]:
+    """Price percentile WITHIN the player's Classic role, and INSIDE THIS PLATFORM'S listone.
 
     Reads Qt.I, the PRE-AUCTION quotation, not Qt.A. Qt.A is revised all season long, so for a season
     already played it embeds the outcome: tiers built on it would look prescient and be worthless
     (Openda 25/26: Qt.I 20 before the auction, Qt.A 3 after 12 appearances).
+
+    The pool is the platform's own list because the two are two currencies, and NOT proportional ones:
+    measured 07/08/2026 on 2026-27, forwards run to 28 on the Serie A listone and to 49 on the EuroLeghe
+    one, while defenders go the other way (28 against 20). Pooling them ranked an Italian against a scale
+    his own auction does not use, and 84 players of 1175 crossed a T1/T2/T3 band because of it.
     """
     total = conn.execute("SELECT COUNT(*) FROM rosters WHERE season = ?", (season,)).fetchone()[0]
     with_initial = conn.execute(
-        "SELECT COUNT(*) FROM rosters WHERE season = ? AND price_initial IS NOT NULL",
-        (season,)).fetchone()[0]
+        "SELECT COUNT(*) FROM listone_quotes WHERE season = ? AND platform = ? "
+        "AND price_initial IS NOT NULL", (season, platform)).fetchone()[0]
     if total and not with_initial:
         # Every tier would silently fall to the no-price branch and `validate` would still call the DB
         # healthy, because price_initial is allowed to be empty (a roster rebuilt from the votes alone
-        # has neither quotation). Say it out loud instead.
-        print(f"[arrivals] WARNING {season}: no pre-auction quotation (Qt.I) on any of the {total} "
-              "roster rows - every tier will be assigned without the price dimension")
+        # has neither quotation). Say it out loud instead - and name the platform, or a season that has
+        # one listone and not the other reads as a defect twice.
+        print(f"[arrivals] WARNING {season}/{platform}: no pre-auction quotation (Qt.I) in this "
+              f"platform's listone (the season has {total} roster rows) - every tier here will be "
+              "assigned without the price dimension")
+    roles = dict(conn.execute("SELECT fc_id, role_classic FROM rosters WHERE season = ?", (season,)))
     by_role: dict[str, list[tuple[float, int]]] = {}
-    for fc_id, role, price in conn.execute(
-            "SELECT fc_id, role_classic, price_initial FROM rosters "
-            "WHERE season = ? AND price_initial IS NOT NULL", (season,)):
-        by_role.setdefault(role or "?", []).append((price, fc_id))
+    for fc_id, price in conn.execute(
+            "SELECT fc_id, price_initial FROM listone_quotes "
+            "WHERE season = ? AND platform = ? AND price_initial IS NOT NULL", (season, platform)):
+        by_role.setdefault(roles.get(fc_id) or "?", []).append((price, fc_id))
     out: dict[int, float] = {}
     for entries in by_role.values():
         entries.sort()
@@ -307,42 +322,53 @@ def _price_percentiles(conn, season: str) -> dict[int, float]:
 
 
 def enrich(ctx: Context) -> None:
-    """Fill arrivals.tier and arrivals.foreign_fm_equiv, and flag the U22 trigger."""
+    """Fill arrivals.tier and arrivals.foreign_fm_equiv, and flag the U22 trigger.
+
+    Per PLATFORM, because the tier is a percentile inside a listone and there are two of them. Everything
+    else about an arrival is platform-independent - it is a roster diff - so the FM-equivalent and the U22
+    trigger are computed once and written to every row; only the tier is asked twice.
+    """
     conn = ctx.require_conn()
     scoring = ctx.config.load_scoring()
     seasons = [row[0] for row in conn.execute("SELECT DISTINCT season FROM arrivals ORDER BY season")]
     conn.execute("DELETE FROM flags WHERE flag = 'u22_trigger' AND source = 'arrivals'")
-    tiers: dict[str, int] = {}
+    tiers: dict[str, dict[str, int]] = {}
     with_equivalent = 0
     for season in seasons:
-        percentiles = _price_percentiles(conn, season)
         # the history that matters is the season BEFORE the arrival - that is what we can price on
         previous = conn.execute("SELECT MAX(season) FROM rosters WHERE season < ?", (season,)).fetchone()[0]
         equivalents = foreign_fm_equivalent(conn, scoring, previous) if previous else {}
         measured = measured_percentiles(conn, season, equivalents)
-        fvm = fvm_percentiles(conn, previous)
         rows = conn.execute(
-            "SELECT a.fc_id, p.birth_year FROM arrivals a JOIN players p USING(fc_id) "
+            "SELECT DISTINCT a.fc_id, p.birth_year FROM arrivals a JOIN players p USING(fc_id) "
             "WHERE a.season = ?", (season,)).fetchall()
-        for fc_id, birth_year in rows:
-            fm_equiv, matches = equivalents.get(fc_id, (None, 0))
-            season_start = int(season.split("-")[0])
-            u22 = bool(birth_year) and (season_start - birth_year) <= U22_AGE
-            tier = classify_tier(percentiles.get(fc_id), matches, u22,
-                                 measured_percentile=measured.get(fc_id),
-                                 fvm_percentile=fvm.get(fc_id))
-            conn.execute("UPDATE arrivals SET tier = ?, foreign_fm_equiv = ? "
-                         "WHERE fc_id = ? AND season = ?", (tier, fm_equiv, fc_id, season))
-            tiers[tier] = tiers.get(tier, 0) + 1
-            with_equivalent += fm_equiv is not None
-            if u22:
-                conn.execute(
-                    "INSERT OR REPLACE INTO flags(fc_id, season, flag, value, source) "
-                    "VALUES (?, ?, 'u22_trigger', ?, 'arrivals')",
-                    (fc_id, season, str(season_start - birth_year)))
+        for platform in PLATFORMS:
+            percentiles = _price_percentiles(conn, season, platform)
+            fvm = fvm_percentiles(conn, previous, platform)
+            for fc_id, birth_year in rows:
+                fm_equiv, matches = equivalents.get(fc_id, (None, 0))
+                season_start = int(season.split("-")[0])
+                u22 = bool(birth_year) and (season_start - birth_year) <= U22_AGE
+                tier = classify_tier(percentiles.get(fc_id), matches, u22,
+                                     measured_percentile=measured.get(fc_id),
+                                     fvm_percentile=fvm.get(fc_id))
+                conn.execute("UPDATE arrivals SET tier = ?, foreign_fm_equiv = ? "
+                             "WHERE fc_id = ? AND season = ? AND platform = ?",
+                             (tier, fm_equiv, fc_id, season, platform))
+                tiers.setdefault(platform, {})[tier] = tiers.setdefault(platform, {}).get(tier, 0) + 1
+                if u22:
+                    conn.execute(
+                        "INSERT OR REPLACE INTO flags(fc_id, season, flag, value, source) "
+                        "VALUES (?, ?, 'u22_trigger', ?, 'arrivals')",
+                        (fc_id, season, str(season_start - birth_year)))
+        with_equivalent += sum(1 for fc_id, _birth in rows if equivalents.get(fc_id, (None, 0))[0]
+                               is not None)
     conn.commit()
-    detail = " ".join(f"{tier}={n}" for tier, n in sorted(tiers.items()))
-    print(f"[arrivals] tiers [{detail}] · foreign FM-equivalent on {with_equivalent} arrivals")
+    for platform, counts in sorted(tiers.items()):
+        detail = " ".join(f"{tier}={n}" for tier, n in sorted(counts.items()))
+        print(f"[arrivals] tiers {platform}: [{detail}]")
+    print(f"[arrivals] foreign FM-equivalent on {with_equivalent} arrivals (platform-independent: "
+          "measured football, not a quotation)")
 
 
 def run(ctx: Context, **kwargs) -> None:
@@ -363,11 +389,14 @@ def run(ctx: Context, **kwargs) -> None:
                     if classified is None:
                         continue
                     kind, origin_club, origin_league = classified
-                conn.execute(
-                    "INSERT OR REPLACE INTO arrivals(fc_id, season, type, origin_club, origin_league) "
-                    "VALUES (?, ?, ?, ?, ?)",
-                    (fc_id, season, kind, origin_club, origin_league),
-                )
+                # One row per platform: the EVENT is the same on both (a roster diff knows one club per
+                # player-season), the TIER is not - `enrich` fills it from each listone's own pool.
+                for platform in PLATFORMS:
+                    conn.execute(
+                        "INSERT OR REPLACE INTO arrivals(fc_id, season, platform, type, origin_club, "
+                        "origin_league) VALUES (?, ?, ?, ?, ?, ?)",
+                        (fc_id, season, platform, kind, origin_club, origin_league),
+                    )
                 n += 1
         prev_map = cur_map
 

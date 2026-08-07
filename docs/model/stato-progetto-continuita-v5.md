@@ -8,7 +8,7 @@ App per leghe EuroLeghe/fantacalcio.it (Classic+Mantra, 5 campionati) con motore
 
 ## ⚠️ Lo stato corrente è in `00-BRIDGE-punto-di-ingresso.md`, blocco «STATO AL 5 AGOSTO 2026»
 
-### 7 agosto 2026, in una riga: un aggiornamento di routine trova quattro difetti, e il più vecchio riguarda il PREZZO
+### 7 agosto 2026, in una riga: un aggiornamento di routine trova quattro difetti, e li chiude tutti — l'ultimo è il PREZZO
 
 Stato completo nel **00-BRIDGE**, blocco «STATO AL 7 AGOSTO 2026»; dettaglio nella spec **«Novità v9.32»**.
 317 test, `backtest --verify` **22/22**, nessuna regola entrata, `SHEET_REVISION` **4**. Aperto e da decidere:

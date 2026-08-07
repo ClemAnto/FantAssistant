@@ -12,6 +12,20 @@ import sqlite3
 import pytest
 
 
+
+def _publish_quotes(conn, platform: str = "default") -> None:
+    """A listone ingest writes the quotation twice: `rosters` and `listone_quotes` (per platform).
+
+    The queue reads the second one, and per platform, because the two listoni are two currencies with
+    two role medians - see `priced_without_history`.
+    """
+    conn.execute(
+        "INSERT OR REPLACE INTO listone_quotes(fc_id, season, platform, price_initial) "
+        "SELECT fc_id, season, ?, price_initial FROM rosters WHERE price_initial IS NOT NULL",
+        (platform,))
+    conn.commit()
+
+
 def test_unfetched_bonuses_are_missing_not_zero(tmp_path):
     """Lauriente' reached the engine as "0 goals, 0 assists in 715 minutes". He was a Serie B top
     scorer: the bonuses cost one request per match, his were never fetched, and SUM(COALESCE(goals,0))
@@ -166,6 +180,7 @@ def test_population_takes_the_priced_and_historyless_only(tmp_path):
         "VALUES (?, '2025-26', 1, ?, ?)",
         [(1, "A", 15.0), (2, "A", 5.0), (3, "A", 6.0), (4, "P", 1.0), (5, "P", 12.0),
          (6, "A", 7.0)])
+    _publish_quotes(conn)
     # HasHistory played last season; HasMatches has provider rows for it
     conn.execute("INSERT INTO season_stats(fc_id, season, platform, pv, mv, fm) "
                  "VALUES (3, '2024-25', 'euro', 20, 6.2, 7.0)")
@@ -292,6 +307,7 @@ def test_run_is_safe_when_nobody_qualifies(tmp_path):
     conn.execute("INSERT INTO players(fc_id, canonical_name) VALUES (1, 'Solo')")
     conn.executemany("INSERT INTO rosters(fc_id, season, role_classic, price_initial) VALUES (?,?,?,?)",
                      [(1, "2023-24", "A", 10.0), (1, "2024-25", "A", 10.0)])
+    _publish_quotes(conn)
     conn.commit()
     # one player, so he IS the median and nobody is strictly above it: no network call must happen
     monkeypatch_failed = False
@@ -325,6 +341,7 @@ def test_one_bad_player_does_not_end_the_run(tmp_path, monkeypatch):
         "INSERT INTO rosters(fc_id, season, role_classic, price_initial) VALUES (?, ?, 'A', ?)",
         [(1, "2024-25", 20.0), (2, "2024-25", 15.0), (3, "2024-25", 1.0), (4, "2024-25", 2.0),
          (1, "2023-24", 20.0), (2, "2023-24", 15.0), (3, "2023-24", 1.0), (4, "2023-24", 2.0)])
+    _publish_quotes(conn)
     conn.commit()
 
     monkeypatch.setattr(recent_form, "_client", lambda: _Session())

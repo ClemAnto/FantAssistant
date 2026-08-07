@@ -2,13 +2,12 @@
 
 ## Aperti al 7 agosto 2026 — nessuno con scadenza
 
-0. **LA QUOTAZIONE NON HA UNA PIATTAFORMA, e ne servono due** (nuovo, 07/08, spec «Novità v9.32»).
-   `rosters` ha PK `(fc_id, season)` e una sola coppia di prezzi; i due listoni discordano su **202 Qt.I e
-   226 FVM** per i ~249 italiani quotati in entrambi (Svilar 18/65 Serie A contro 15/56 EuroLeghe) e vince
-   l'ultimo che scrive. Tocca ciò contro cui si offre al tavolo, i tier d'arrivo che leggono il prezzo come
-   fallback, la serie `fvm_history` e il bundle. Oggi aggirato costruendo ogni foglio col SUO listone letto
-   per ultimo. Rimedio: `platform` nella chiave (come `match_ratings` e `season_stats`) + `fvm_history` +
-   lettori + ri-derivare `arrivals` e i fogli. **Migrazione: è una decisione, non una pezza.**
+0. ~~**LA QUOTAZIONE NON HA UNA PIATTAFORMA**~~ — **FATTO il 07/08/2026** (spec «Novità v9.33»):
+   `listone_quotes` con `platform` nella chiave, `fvm_history` e `arrivals` allargati, backfill di tutta la
+   storia dalla cache (16.375 righe). Resta da sapere una cosa sola, e solo se qualcuno vorrà rifare il
+   gate: i numeri del **§7-sexies** (tier `measured_first` contro la quotazione) sono stati misurati sul
+   pool MESCOLATO, quindi un ri-run oggi darebbe cifre diverse — la conclusione ha una ragione che non
+   dipende dal pool («la strada è allargare ciò che è misurato»), ma le cifre sì.
 0-bis. **Le probabili EuroLeghe esistono ma sono vuote** (07/08): `probabili_euro` / `indisponibili_euro`
    sono ora catturate ogni giorno e oggi rispondono 200 con zero link giocatore. Quando si riempiranno va
    verificato che il markup sia lo stesso (il parser è condiviso) — e ricordare il giudizio dell'operatore:

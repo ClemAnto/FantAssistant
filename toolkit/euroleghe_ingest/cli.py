@@ -162,6 +162,10 @@ def build_parser() -> argparse.ArgumentParser:
                            help="season to import, e.g. 2024-25 (repeatable; default: all)")
             p.add_argument("--refresh", action="store_true",
                            help="re-download matchdays even if already present")
+            p.add_argument("--quotes-from-cache", dest="quotes_from_cache", action="store_true",
+                           help="OFFLINE: re-apply every cached listone (one file per platform and "
+                                "season) so `listone_quotes` carries the quotation of each listone "
+                                "separately - zero requests, no votes touched")
         if name == "recent_form":
             p.add_argument("--season", action="append", metavar="YYYY-YY",
                            help="target listone season (repeatable; default: all but the first)")
@@ -271,8 +275,11 @@ def main(argv: list[str] | None = None) -> int:
         started_at = dt.datetime.now(tz=dt.UTC).isoformat(timespec="seconds")
         try:
             if args.command == "ratings":
-                load("ratings").run(ctx, platform=args.platform,
-                                    seasons=args.season, refresh=args.refresh)
+                if args.quotes_from_cache:
+                    load("ratings").reingest_listone_from_cache(ctx)
+                else:
+                    load("ratings").run(ctx, platform=args.platform,
+                                        seasons=args.season, refresh=args.refresh)
             elif args.command == "positions":
                 load("positions").run(ctx, leagues=args.league, seasons=args.season,
                                       refresh=args.refresh, layer=args.layer)
