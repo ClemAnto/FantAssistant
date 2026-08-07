@@ -2304,6 +2304,75 @@ def test_the_board_does_not_field_a_man_who_has_left_the_club():
         assert "Riserva" in drawn, f"{mode}: and his place goes to somebody who is actually there"
 
 
+def test_a_mantra_sheet_measures_its_surplus_against_a_mantra_replacement_level():
+    """The SURPLUS on the EuroLeghe sheet was the VALUE, on all 1007 priced rows, and nothing said so.
+
+    `features.replacement_levels` keys its levels on the vocabulary the GAME is played with - 'P'/'D'/'C'/'A'
+    on classic, the twelve codes on mantra ('por' 4.33 ... 'pc' 7.19 on the 2026-27 euro window) - and the
+    sheet asked for them with `role_classic`, which on mantra matches no key at all. Every reader then took
+    the documented "no level, fall back to VALUE" branch: `engine_replacement_fm` empty, `engine_surplus`
+    identical to `engine_value`, `est_surplus` the same, and `engine_role_rank` ranked inside the classic
+    role by that same fallback. Only 1 or 2 of each role's top ten survived the correction.
+
+    What is pinned: the level is found in the game's own vocabulary; a multi-role player is priced in the
+    slot he is worth MOST in (that is the slot an auction fields him in) and the row NAMES it; a man with
+    no mantra code at all still gets a level, because leaving him without one is what put 11 estimated men
+    in the top 12 of the corrected sheet; and a window with no league setup - the gate's own path - still
+    falls back to VALUE.
+    """
+    import pytest
+
+    from euroleghe_ingest.modules import snapshot
+
+    class Obs:
+        def __init__(self, fc_id, roles_mantra, role_classic="A"):
+            self.fc_id, self.role_classic, self.roles_mantra = fc_id, role_classic, roles_mantra
+
+    class Pred:
+        def __init__(self, obs, fm, pv):
+            self.obs, self.fm_pred, self.pv_pred = obs, fm, pv
+
+    class Data:
+        def __init__(self, game, replacement):
+            self.game, self.replacement = game, replacement
+
+    # the real shape of the 2026-27 euro window: a winger's floor is far below a centre-forward's
+    levels = {"w": 6.559, "t": 6.721, "a": 7.199, "pc": 7.191, "por": 4.326}
+    mantra = Data("mantra", levels)
+    winger = Obs(1, ("w", "a"))
+    striker = Obs(2, ("pc",))
+
+    # the slot is the CHEAPEST floor he is listed at - where he is worth most, and where he would be fielded
+    assert snapshot.auction_level(winger, mantra) == ("w", pytest.approx(6.559))
+    assert snapshot.auction_level(striker, mantra) == ("pc", pytest.approx(7.191))
+    # ...and the surplus is measured over it, so it is NOT the value any more
+    assert snapshot._surplus(Pred(winger, 7.5, 30.0), mantra) == pytest.approx((7.5 - 6.559) * 30.0)
+    assert snapshot._surplus(Pred(winger, 7.5, 30.0), mantra) != pytest.approx(7.5 * 30.0)
+
+    # NO mantra code - a man the listone does not carry - is levelled on his classic group's MEAN, and
+    # the row shows the listone role rather than a code nobody observed. Not the cheapest of the group:
+    # picking his best slot is a statement about a man whose slots we know, and we do not know his.
+    unlisted = Obs(4, ())
+    slot, level = snapshot.auction_level(unlisted, mantra)
+    assert slot == "A"
+    assert level == pytest.approx((6.559 + 6.721 + 7.199 + 7.191) / 4)
+    assert snapshot._surplus(Pred(unlisted, 7.5, 30.0), mantra) != pytest.approx(7.5 * 30.0), (
+        "an unlevelled estimate is a VALUE sitting in a column of surpluses - 11 of the top 12 rows")
+
+    # classic asks the same question with one role per player, and the two vocabularies coincide
+    classic = Data("classic", {"A": 5.605})
+    assert snapshot.auction_level(Obs(3, ()), classic) == ("A", pytest.approx(5.605))
+    assert snapshot._surplus(Pred(Obs(3, ()), 7.5, 30.0), classic) == pytest.approx((7.5 - 5.605) * 30.0)
+
+    # the gate prepares its windows WITHOUT a league, so there is no level to be over: VALUE, as published
+    bare = Data("mantra", {})
+    assert snapshot.auction_level(winger, bare) == ("w", None), "still says which role, even unpriced"
+    assert snapshot._surplus(Pred(winger, 7.5, 30.0), bare) == pytest.approx(7.5 * 30.0)
+
+    # and the row carries the slot, or `engine_replacement_fm` is a number nobody can explain
+    assert "engine_role_slot" in snapshot.PLAYER_COLUMNS
+
+
 def test_measured_and_estimated_go_together_and_either_side_can_be_filtered():
     """The operator's decision of 05/08/2026, taken with the measurement in front of him:
     «stimati e misurati vanno insieme ma aggiungiamo la possibilità di filtrare gli uni e gli altri».

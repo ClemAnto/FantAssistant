@@ -1618,3 +1618,59 @@ stimati · `447d86f` la stima messa alla prova · `817e99e` l'assistente d'asta 
 - **Il ripiego del calendario sta in `engine_predictions`**, non nei chiamanti.
 - **L'assenza dalla rosa viva è evidenza solo per chi il provider sa identificare**, e il flag porta sempre la
   data dell'osservazione.
+
+## Sessione 07/08/2026 (notte) — «verifica che ci siano tutti i dati»: le fonti c'erano, il livello no
+
+Verifica di completezza. `fetch --plan` dice *every source is populated* su 19 tabelle, `listone_quotes` copre
+12 stagioni Serie A e 9 EuroLeghe con **zero roster 2026-27 senza quotazione**, `validate` non trova colonne
+vuote inattese. Quello che è uscito non è un buco di acquisizione ma **due difetti nel deliverable**. Racconto
+e numeri: spec «Novità v9.34» e [metrica-asta-surplus-v1.md §13](metrica-asta-surplus-v1.md).
+
+**Il difetto, e la forma che ha.** `engine_replacement_fm` era **0 su 1031** sul foglio EuroLeghe e
+`engine_surplus` identico a `engine_value` su tutte e **1007** le righe prezzate, mentre sul foglio Serie A i
+livelli c'erano (648 su 649). *Un'asimmetria fra due fogli che eseguono lo stesso codice è sempre una chiave
+che non combacia*: `features.replacement_levels` risponde nel vocabolario del **gioco** e cinque punti del
+codice chiedevano con `role_classic`, che su mantra non è chiave di niente — così ogni lettore prendeva il
+ramo documentato «nessun livello ⇒ ripiega su VALORE», corretto per il gate (che prepara le finestre senza
+lega **apposta**) e silenzioso per il pannello, che una lega ce l'ha. Non cosmetico: il livello non è una
+costante additiva, cambia per ruolo, quindi ordinare per VALORE è ordinare un'altra domanda — nelle top-10
+per ruolo sopravvivevano **1 o 2 posizioni su 10**, e `engine_role_rank` stampava una posizione che non era
+quella di nessuna lista mostrata dal pannello.
+
+**Tre cose restano, e la terza è la più istruttiva:**
+- **una definizione sola, letta da tutti** — `snapshot.auction_level` risponde a «contro quale livello si
+  misura questa riga» per il foglio, il rango, `est_surplus`, il pannello e l'armonica `estimates`. Erano
+  cinque copie della stessa `.get()` sbagliata.
+- **un numero deve dire di cosa parla** — la colonna `engine_role_slot` nomina lo slot contro cui il surplus
+  è misurato, altrimenti `engine_replacement_fm` è un numero che la riga non sa spiegare.
+- **correggere un difetto comune scopre quello che nascondeva** — chi il listone non lo porta non ha codice
+  mantra, quindi restava senza livello anche dopo il fix: **11 delle prime 12 righe** del foglio corretto
+  erano uomini stimati con un VALORE in una colonna di surplus. Ora prende la **media** del suo gruppo, non
+  il minimo — scegliere il proprio slot migliore è un'affermazione su chi gli slot li ha, e di lui non
+  sappiamo quale sia.
+
+**E un dato fermo a un anno prima dell'asta**: `elo.auction_dates` offriva per la stagione più recente solo il
+15 agosto convenzionale, che in **preseason non è ancora successo**, quindi tutta la finestra 2026-27 leggeva
+`2025-08-15`. Una lettura non si archivia mai sotto una data che non è arrivata: finché quel giorno è nel
+futuro si prende lo snapshot di **oggi**. La fetch resta da fare, `api.clubelo.com` non risponde (riprovato
+alla chiusura: timeout a 25 s, zero byte) e il modulo salta senza scrivere nulla.
+
+`SHEET_REVISION` **5 → 6** · **320 test** (319 + 1 skipped) · `backtest --verify` **22/22** ·
+`default/classic` invariato al decimale, perché là i due vocabolari sono lo stesso.
+
+### Football Manager come fonte: valutato e scartato senza misurare nulla
+Domanda dell'operatore sulle fonti del videogame. **Ricerca a tavolino, nessun verdetto di gate.** Due ragioni
+indipendenti dalla qualità: **FM non contiene partite** (entità e struttura, mai eventi — i risultati il gioco
+li simula, e l'unità di questo progetto è la partita), e il database più fresco **precede il mercato estivo**
+di un'asta d'agosto, con FM25 cancellato che apre un buco su 2024-25. Il non ridondante è poco e tutto
+giudizio: ruolo granulare datato, scadenza contratto storica, injury proneness. Censimento dei canali,
+vincolo di licenza e le due condizioni per riaprirlo: BRIDGE «7/08/2026 notte, 2» e todolist §D.
+
+### Dove NON toccare senza rileggere (aggiunte di questa sessione)
+- **Il livello di rimpiazzo si chiede a `snapshot.auction_level` e a nessun altro.** Non tornare a
+  `data.replacement.get(role_classic)`: su mantra non matcha nulla e il ripiego è **silenzioso**, quindi il
+  difetto non si vede finché non si confrontano i due fogli.
+- **Un livello `None` resta legittimo e significa VALORE**: il gate prepara le finestre senza lega apposta, ed
+  è così che ogni numero pubblicato resta quello che era.
+- **Una data d'asta nel futuro non si chiede a una fonte datata.** Vale oltre l'Elo: qualunque snapshot
+  archiviato sotto una data non ancora arrivata è una lettura che mente sul proprio quando.

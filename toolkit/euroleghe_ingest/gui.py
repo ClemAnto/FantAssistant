@@ -143,7 +143,8 @@ TOOLTIPS: dict[str, str] = {
                 "with the matches actually missed) plus the contract-expiry snapshot (exit_risk). "
                 "The per-player walk takes hours and is resumable; contract expiry exists only for "
                 "TODAY - a past season's page does not carry it.",
-    "elo": "Load club strength from ClubElo into club_elo at the auction dates (feeds the goalkeeper model).",
+    "elo": "Load club strength from ClubElo into club_elo at the auction dates (feeds R19, the level "
+           "channel: the ORIGIN club's Elo moves the appearances of a man who changed club).",
     "validate": "Run integrity checks on the database (e.g. no entirely-null column) and fail loudly if "
                 "something is wrong.",
     "bootstrap": "Build EVERYTHING from the network, in dependency order, on a machine that has "
@@ -1465,7 +1466,10 @@ class AuctionView(ttk.Frame):
                 continue
             guess = snapshot.estimate_for(obs, by_id.get(obs.fc_id), layer, data.anchors, data,
                                           window, platform)
-            level = data.replacement.get(obs.role_classic or "")
+            # The level of the slot he would be FIELDED in, in the game's own vocabulary: on mantra
+            # `role_classic` matches no key at all, which priced every estimate at its VALUE and let it
+            # outrank gated men measured over their floor (`snapshot.auction_level`).
+            _slot, level = snapshot.auction_level(obs, data)
             out[obs.fc_id] = {
                 "fm": guess.fm, "pv": guess.pv, "basis": guess.basis,
                 "confidence": guess.confidence, "note": guess.note,

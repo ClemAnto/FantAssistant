@@ -71,6 +71,25 @@ def test_auction_dates_come_from_the_engine_windows(tmp_path):
     ctx.conn.execute("INSERT INTO players(fc_id, canonical_name) VALUES (1, 'X')")
     ctx.conn.execute("INSERT INTO rosters(fc_id, season) VALUES (1, '2025-26')")
     ctx.conn.commit()
-    dates = elo.auction_dates(ctx.conn)
+    dates = elo.auction_dates(ctx.conn, today="2026-09-01")
     assert {window.auction_date for window in WINDOWS.values()} <= set(dates)
     assert "2020-09-15" in dates, "the COVID auction date is a special case, not a computed 08-15"
+    assert "2025-08-15" in dates, "the newest season's own auction date, once it has happened"
+
+
+def test_the_newest_snapshot_is_dated_when_it_was_taken_and_never_in_the_future(tmp_path):
+    """A sheet built during the preseason has TODAY as its auction date, and the readers take
+    `MAX(date) <= auction_date` - so with only the conventional 15 August on the list, the whole
+    2026-27 window read the 2025-08-15 snapshot: a club's strength a season and a transfer window
+    ago, which is what `desc_level_elo` (R19) and the club card are built on. Today's date goes in
+    instead, because filing a reading taken today under a day that has not happened is the one thing
+    a dated fact must never do."""
+    ctx = _ctx(tmp_path)
+    ctx.conn.execute("INSERT INTO players(fc_id, canonical_name) VALUES (1, 'X')")
+    ctx.conn.execute("INSERT INTO rosters(fc_id, season) VALUES (1, '2026-27')")
+    ctx.conn.commit()
+
+    early = elo.auction_dates(ctx.conn, today="2026-08-07")
+    assert "2026-08-07" in early and "2026-08-15" not in early
+    # ...and on the day itself the pre-registered date is the one taken, joining the series
+    assert "2026-08-15" in elo.auction_dates(ctx.conn, today="2026-08-20")

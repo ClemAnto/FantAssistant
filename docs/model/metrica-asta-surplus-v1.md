@@ -331,3 +331,44 @@ Esempio che l'ha fatto notare: **Raspadori** ha surplus **−3.7** sul foglio Eu
 **vuoto** su quello Serie A, perché il suo 2025-26 su `default` è di **13 voti**. Da oggi lo dicono il
 `manifest.json` (conteggio, motivo, cinque nomi) e il tooltip della colonna SUR; le colonne `desc_*` non sono
 toccate, perché sono misurate e non previste.
+
+
+## 13. Su mantra il SURPLUS *era* il VALORE (7 agosto 2026)
+
+Trovato verificando i dati, non leggendo il codice: `engine_replacement_fm` era **0 su 1031** sul foglio
+EuroLeghe e `engine_surplus` **identico a `engine_value` su tutte e 1007** le righe prezzate, mentre sul
+foglio Serie A i livelli c'erano (648 su 649). Un'asimmetria fra due fogli che eseguono lo stesso codice è
+sempre una chiave che non combacia, e infatti: `features.replacement_levels` restituisce i livelli nel
+vocabolario del **gioco** (`por` 4.33 · `ds` 5.72 · `e` 5.86 · `w` 6.56 · `pc` 7.19 sulla finestra euro
+2026-27), e i tre lettori li cercavano con `role_classic` (`P/D/C/A`), che su mantra non è chiave di niente.
+Ogni lettore prendeva allora il ramo documentato «nessun livello ⇒ ripiega su VALORE» — che è corretto per
+il gate, il quale prepara le finestre **senza lega** apposta, e silenzioso per il pannello, che una lega ce
+l'ha.
+
+Non era cosmetico. Il livello non è una costante additiva: cambia per ruolo, quindi ordinare per VALORE è
+ordinare un'altra domanda. Nelle top-10 per ruolo **sopravvivevano 1 o 2 posizioni su 10** (`t`: Rogers,
+Baumgartner, Fernandez E. lasciano il posto a Gnabry, Palmer, Uzun; `pc`: Haaland scende sotto Mbappé). E
+lo stesso difetto stava un livello sopra, in `engine_role_rank`, che raggruppava per ruolo di listone: la
+posizione stampata sulla riga non era la posizione in nessuna lista che il pannello mostra — perché
+`evaluate.auction_view` la chiave giusta la usava, ed è per questo che le liste per ruolo erano corrette
+mentre la colonna accanto non lo era.
+
+Tre cose che restano, e la terza è la più istruttiva:
+
+- **una definizione sola, letta da tutti**: `snapshot.auction_level` risponde alla domanda «contro quale
+  livello si misura questa riga» per il foglio, per il rango, per `est_surplus`, per il pannello
+  (`gui._estimates`) e per l'armonica `estimates`. Erano cinque copie della stessa `.get()` sbagliata.
+- **un numero deve dire di cosa parla**: su mantra un `w;a` ha due livelli e la riga ne mostra uno, quello
+  dello slot in cui vale di più (il livello più basso fra i suoi codici, che è lo slot in cui lo si
+  schiera). La colonna **`engine_role_slot`** lo nomina, altrimenti `engine_replacement_fm` è un numero che
+  la riga non sa spiegare.
+- **correggere un difetto comune scopre quello che nascondeva.** Chi il listone non lo porta non ha codice
+  mantra — è da lì che i codici vengono — quindi restava senza livello anche dopo il fix, e il suo
+  `est_surplus` continuava a essere un VALORE in una colonna di surplus: **11 delle prime 12 righe** del
+  foglio corretto erano uomini stimati, con 45-53 contro i 53.7 di Kane. Ora prende la **media** del suo
+  gruppo di listone (6.917 per gli attaccanti) e non il minimo: scegliere il proprio slot migliore è
+  un'affermazione su chi gli slot li ha, e di lui non sappiamo quale sia. Cioffi passa da +48.9 a −4.5, e
+  la top-12 torna a essere fatta di uomini misurati.
+
+`backtest --verify` resta **22/22** e il foglio `default/classic` non muove un decimale: là i due vocabolari
+sono lo stesso. Fogli e bundle rigenerati a `sheet_revision` **6**.

@@ -1,16 +1,20 @@
 # Todolist — Allineamento Mantra & EuroLeghe (v5)
 
-## Aperti alla chiusura del 7 agosto 2026 — nessuno con scadenza
+## Aperti alla chiusura del 7 agosto 2026 (notte) — nessuno con scadenza
 
 Ordinati per COSTO, non per importanza: prima ciò che non dipende da noi, poi il lavoro misurato, poi le
-decisioni. I quattro difetti trovati oggi sono tutti chiusi (spec «Novità v9.32» e «v9.33»).
+decisioni. I quattro difetti del pomeriggio sono chiusi (spec «Novità v9.32» e «v9.33») e i due della notte
+pure (spec «Novità v9.34»): il SURPLUS mantra che era il VALORE, e `club_elo` fermo a un anno prima dell'asta.
 
 **A. Fonti giù, e va riprovato prima di ogni sessione**
 - **Transfermarkt: timeout totale** (curl 28, 0 byte, riprodotto a mano fuori dal modulo) → `contract_until`,
   `market_values` e gli infortuni sono fermi al **29/07**, e il walk per giocatore non riparte. Vedi il
   punto 2 sotto: il modulo deve anche DIRLO.
-- **ClubElo: read timeout** → la data d'asta **2026-08-15** non esiste in `club_elo`. Nulla è rotto oggi
-  (`elo_prev` legge la data della stagione di input, che c'è), ma la riga del target manca.
+- **ClubElo: read timeout, riprovato alla chiusura del 07/08 e ancora giù** (25 s, zero byte). La *causa* per
+  cui la finestra 2026-27 leggeva uno snapshot vecchio di una stagione è però risolta nel codice
+  (`elo.auction_dates` non chiede più una data futura): appena l'host risponde basta rilanciare **`elo`** e la
+  serie si allinea da sola. Finché non risponde, `desc_level_elo` e il modello dei portieri leggono
+  `2025-08-15`, e questo va detto a chi guarda il foglio.
 - **FBref: 403** anche impersonando. Fuori dalla catena di oggi.
 
 **B. Coda di lavoro, misurata il 07/08 — è tutto ripartibile**
@@ -25,7 +29,18 @@ decisioni. I quattro difetti trovati oggi sono tutti chiusi (spec «Novità v9.3
 
 **C. Il pezzo grosso che non è iniziato**
 - **`app/` è un README e ZERO file TypeScript.** Il contratto dati è pronto e verificato (bundle 24 tabelle,
-  361.320 righe, `sheet_revision` 5): manca il porting del motore da `engine/`.
+  361.320 righe, `sheet_revision` **6**): manca il porting del motore da `engine/`.
+
+**D. Chiuso senza misurare, e da non riaprire senza un motivo nuovo**
+- **Football Manager come fonte: valutato il 07/08 e scartato** (BRIDGE, blocco «7/08/2026 notte, 2»). Non è
+  un verdetto di gate — non è stato misurato nulla — ma le due ragioni non dipendono dalla qualità del dato e
+  non cambiano da sole: **FM non contiene partite** (entità e struttura, mai eventi: il gioco i risultati li
+  simula) e il suo database più fresco **precede il mercato estivo**, con FM25 cancellato che apre un buco su
+  2024-25. Quello che avrebbe di non ridondante — ruolo granulare datato, scadenza contratto storica, injury
+  proneness — è tutto **giudizio**, quindi ultimo per la regola del 04/08. Il censimento dei canali di
+  estrazione è nel BRIDGE, così non va rifatto. Riaprirlo ha senso solo se cambia una di queste due cose:
+  serve un fatto che **solo** FM ha (finanze di club, regole di tesseramento), oppure si accetta di pagare
+  gioco + licenza per un canale di opinioni.
 
 0. ~~**LA QUOTAZIONE NON HA UNA PIATTAFORMA**~~ — **FATTO il 07/08/2026** (spec «Novità v9.33»):
    `listone_quotes` con `platform` nella chiave, `fvm_history` e `arrivals` allargati, backfill di tutta la

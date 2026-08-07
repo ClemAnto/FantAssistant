@@ -1,8 +1,22 @@
 """elo - club strength -> club_elo at the auction dates, from the ClubElo API.
 
-Validated uses: the goalkeeper M2e model (a 50/50 persistence+Elo mix for the goals-conceded rate)
-and the club-to-club coefficient of task 3.2. The club-strength FAMILY as a prediction rule is closed
-(gate-motore-v1 §5-nonies); what stays is the goalkeeper module and the arrivals coefficient.
+WHO READS THIS TABLE, checked against the code on 07/08/2026 rather than copied forward:
+* R19, the LEVEL channel and the only adopted use - the ORIGIN club's Elo (`Observation.elo_prev`),
+  standardised over the clubs the movers came from, moving the expected APPEARANCES of a man who
+  changed club. In the engine on `default` (`evaluate.ADOPTED`), in the panel through
+  `presence.level_lift` (`level_weight` 0.06). Its input on the sheet is `desc_level_elo`.
+* the club card, which prints the club's Elo as a fact (`snapshot.club_context`).
+* R5 / R5b, the destination club's strength shifting the FANTAMEDIA: the family is CLOSED after four
+  rejections (`model.club_strength_adjustment`). Kept re-scorable by the gate, not a live use.
+
+Two claims that used to stand here were false, and both were about a use this engine does not make.
+The goalkeeper module does NOT read `club_elo`: `predict_fm_goalkeeper` takes the conceded rate from
+`features.goalkeeper_club_rates`, i.e. measured `season_stats.goals_conceded`, and the 50/50
+persistence+Elo mix that `clubelo-gate.md` adopted in Colab (M2 -> M2e) was never ported - the name
+travelled, the Elo half did not (recorded in gate-motore-v1 §3-quinquies (a) on 27/07/2026 and left in
+the code until now). Porting it is a proposal for the gate, not a fix. And the club-to-club
+coefficient for the ARRIVALS (task 3.2) is not implemented either: `arrivals.py` never mentions Elo,
+and clubelo-gate.md itself files 3.2 as untestable-for-now. Neither was a validated use.
 
 Why the API and not the seed CSV any more. `data/raw/elo-asta-mappa-club.csv` was a hand-made file
 with two columns of Elo: a fresh clone could not reproduce `club_elo` at all, and two columns is also
@@ -47,7 +61,8 @@ COUNTRY_LEAGUE: dict[str, str] = {
 
 # ClubElo's short names -> our canonical spelling. Measured, not guessed: without these the API
 # leaves the strongest clubs of four leagues without an Elo (PSG, City, Bayern, Atletico...), which
-# is precisely the population the goalkeeper model is about.
+# is precisely the population the level channel exists for - a man arriving FROM one of them is the
+# case R19 prices, and a missing origin Elo reads as "no evidence" and moves him not at all.
 ELO_ALIASES: dict[str, str] = {
     "Paris SG": "Paris Saint-Germain",
     "Man City": "Manchester City",
@@ -70,14 +85,26 @@ ELO_ALIASES: dict[str, str] = {
 SEED_DATES = {"elo24": "2024-08-15", "elo25": "2025-08-15"}
 
 
-def auction_dates(conn) -> list[str]:
-    """Every date worth a snapshot: the engine's window auction dates + the newest season's."""
+def auction_dates(conn, today: str | None = None) -> list[str]:
+    """Every date worth a snapshot: the engine's window auction dates + the newest season's.
+
+    The newest season's date is the conventional 15 August, and during the PRESEASON that day has not
+    happened yet - so asking for it would file a reading taken today under a date in the future, which
+    is the one thing a dated fact must never do. Today's own date goes in instead: a sheet built before
+    the auction has TODAY as its auction date, the readers take `MAX(date) <= auction_date`, and
+    without this the whole 2026-27 window was reading the 2025-08-15 snapshot - a club's strength as it
+    was a season and a transfer window ago, which is what `desc_level_elo` (R19) and the club card are
+    built on. On or after the 15th the pre-registered date is fetched as before and joins the series.
+    """
+    import datetime as dt
+
     from euroleghe_ingest.engine.features import WINDOWS
 
     dates = {window.auction_date for window in WINDOWS.values()}
     latest = conn.execute("SELECT MAX(season) FROM rosters").fetchone()[0]
+    today = today or dt.datetime.now(tz=dt.UTC).date().isoformat()
     if latest:
-        dates.add(f"{latest.split('-')[0]}-08-15")
+        dates.add(min(f"{latest.split('-')[0]}-08-15", today))
     return sorted(dates)
 
 

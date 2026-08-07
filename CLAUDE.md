@@ -585,6 +585,24 @@ Two more of the same family, both from the same session:
   parameter says which side is asking). Two copies would be two populations, and the mark would stop meaning
   "this is what is being fetched" — including the case that matters, a man whose window was already fetched
   ELSEWHERE, whom a second definition would keep marking as waiting.
+  **The costliest instance so far, 07/08/2026: a fallback that is CORRECT for one caller is SILENT for
+  another.** The replacement levels come back keyed on the vocabulary the game is played with (`por` … `pc` on
+  mantra), five points of the code asked for them with `role_classic`, and every one of them took the
+  documented «no level ⇒ fall back to VALUE» branch — right for the gate, which prepares its windows without a
+  league on purpose, and mute for the panel, which has one. So the euro sheet's SURPLUS *was* its VALUE:
+  `engine_replacement_fm` 0 of 1031, and since the level is not an additive constant but changes per role,
+  1 or 2 of each role's top ten survived the correction. Three habits come out of it. **An asymmetry between
+  two artifacts running the same code is a key that does not match** — nothing else produces it, and it is the
+  cheapest thing to look for. **A number must say what it is measured against** (`engine_role_slot`), or the
+  row cannot explain the column next to it. And **correcting a common fallback exposes what it was hiding**:
+  once the levels arrived, the men the listone does not carry still had none — no mantra code, no level — and
+  11 of the sheet's top 12 rows were estimates carrying a VALUE in a column of surpluses. One definition now
+  (`snapshot.auction_level`), read by the sheet, the rank, `est_surplus`, the panel and the harness.
+- **A dated reading is never filed under a date that has not arrived.** `elo.auction_dates` offered the
+  conventional 15 August for the newest season, which during the PRESEASON has not happened, so the whole
+  2026-27 window read the 2025-08-15 snapshot — a club's strength a season and a transfer window ago, which is
+  what `desc_level_elo` (R19) and the goalkeeper model are built on. Until that day is past, today's own date
+  goes in instead. Same family as «vuoto = ignoto»: the fact was not missing, it was silently the wrong one.
 - **A parameter is never adopted at the edge of its grid.** The conditional-investment channel passes robust on
   Serie A (+0.79%) and stayed at zero because every fold picked 0.5 out of 0.5. **The follow-up has since been
   run** (05/08/2026, `investment_unplayed_value_wide`, grid to 3.0): on Serie A the winner is **0.75 —

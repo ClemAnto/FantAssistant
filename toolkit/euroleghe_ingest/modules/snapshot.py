@@ -47,6 +47,7 @@ from euroleghe_ingest.context import Context
 from euroleghe_ingest.engine import estimate as est
 from euroleghe_ingest.engine import evaluate, features
 from euroleghe_ingest.modules import positions
+from euroleghe_ingest.sources import MANTRA_BY_CLASSIC
 
 NAME = "snapshot"
 DESCRIPTION = "Today's auction snapshot: refresh the volatile state, then one row per player + per club"
@@ -97,7 +98,19 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      (`probable_starter.season`): until now the freshest reading was the last 2025-26 round, so 428 of
 #      648 Serie A rows carried a starting probability of 1.0 taken from line-ups already played, 415
 #      duels were built on it, and its 442 players asserted a 2026-27 squad. Now empty by design.
-SHEET_REVISION = 5
+#   6  07/08/2026 - A MANTRA SHEET HAD NO REPLACEMENT LEVEL AT ALL, so its SURPLUS was the VALUE. The
+#      levels come back keyed on the game's own vocabulary (`por` 4.33 ... `pc` 7.19) and all three
+#      readers asked for them with `role_classic` ('P'/'D'/'C'/'A'), which matches nothing on mantra:
+#      `engine_replacement_fm` 0 of 1031, `engine_surplus` == `engine_value` on all 1007 priced rows,
+#      `est_surplus` the same, and `engine_role_rank` ranked inside the classic role with that same
+#      fallback. Only 1 or 2 of each role's top ten survived the correction (`t`: Rogers, Baumgartner,
+#      Fernandez E. gave way to Gnabry, Palmer, Uzun). Nothing gated moved - the gate runs without a
+#      league and ranks by VALUE on purpose (`backtest --verify` 22/22) - and `default/classic` is
+#      unchanged, since there the two vocabularies are the same one. Correcting it exposed a second
+#      layer the common fallback had been hiding: a man the listone does not carry has NO mantra code,
+#      so he had no level either and his `est_surplus` stayed a VALUE in a column of surpluses - 11 of
+#      the sheet's top 12 rows. He is levelled on his classic group's mean (`auction_level`).
+SHEET_REVISION = 6
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
@@ -2211,7 +2224,9 @@ PLAYER_COLUMNS: tuple[str, ...] = (
     "price_initial", "price_initial_mantra", "fvm_reporting_only",
     # the gated engine valuation
     "engine_fm_pred", "engine_pv_pred", "engine_value", "engine_surplus", "engine_role_rank",
-    "engine_replacement_fm", "engine_anchor", "engine_unpriced_reason",
+    # `engine_role_slot` is the role the two columns around it are measured in - the game's own
+    # vocabulary, so 'D' on a classic sheet and 'dc'/'dd'/'e'/'b' on a mantra one (see `auction_slot`)
+    "engine_role_slot", "engine_replacement_fm", "engine_anchor", "engine_unpriced_reason",
     # ESTIMATED, a third class next to engine_ (gated) and desc_ (measured): every player gets a surplus,
     # penalised for what we do not know about him, with the basis and the penalty on the row (engine/estimate.py)
     "est_fm", "est_pv", "est_surplus", "est_basis", "est_confidence", "est_note",
@@ -2308,10 +2323,17 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
     provider_known = observed_players(conn)
     live_squad = complete_squads(live_squads(conn, window.auction_date),
                                  data.observations, provider_known)
+    # The rank belongs to the SLOT the row's surplus is measured against, not to the listone role: on a
+    # mantra sheet those are two different populations (a 'w;a' forward competes with wingers, not with
+    # every 'A'), and ranking inside the classic role printed a position that was in no list the panel
+    # shows. One definition, read by both - see `auction_slot`.
+    levels = {obs.fc_id: auction_level(obs, data) for obs in data.observations}
+    slots = {fc_id: slot for fc_id, (slot, _level) in levels.items()}
     ranks: dict[int, int] = {}
-    for role in {obs.role_classic for obs in data.observations if obs.role_classic}:
+    for role in {slot for slot in slots.values() if slot}:
         ranked = sorted(
-            (p for p in predictions if p.obs.role_classic == role and p.value_pred is not None),
+            (p for p in predictions
+             if slots.get(p.obs.fc_id) == role and p.value_pred is not None),
             key=lambda p: (-(_surplus(p, data) or 0.0), p.obs.fc_id))
         for index, prediction in enumerate(ranked, start=1):
             ranks[prediction.obs.fc_id] = index
@@ -2339,8 +2361,11 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
         guess = estimate_for(obs, prediction, estimation, data.anchors, data, window,
                              platform)
         gone_to, gone_on = left_his_club(obs, left.get(obs.fc_id), live_squad, provider_known)
-        guess_surplus = est.surplus(guess.fm, guess.pv,
-                                    data.replacement.get(obs.role_classic or ""), guess.confidence)
+        # The SAME level the gated surplus is measured against: the estimate's whole point is that one
+        # column ranks the sheet, so a fallback row priced off another floor - or off none - would not
+        # compare. That is not hypothetical: unlevelled estimates were 11 of the top 12 rows.
+        slot, replacement = levels.get(obs.fc_id, (None, None))
+        guess_surplus = est.surplus(guess.fm, guess.pv, replacement, guess.confidence)
         rows.append({
             "fc_id": obs.fc_id, "name": obs.name, "club": obs.club_target, "league": obs.league,
             "role_classic": obs.role_classic, "roles_mantra": ";".join(obs.roles_mantra),
@@ -2351,7 +2376,11 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             "engine_value": _round(_value(prediction), 1),
             "engine_surplus": _round(_surplus(prediction, data), 1),
             "engine_role_rank": ranks.get(obs.fc_id),
-            "engine_replacement_fm": _round(data.replacement.get(obs.role_classic or ""), 3),
+            # WHICH slot the two numbers above belong to. Identical to `role_classic` on a classic
+            # sheet; on mantra it is the one of his codes with the lowest replacement level, and
+            # without it `engine_replacement_fm` is a number the row cannot explain.
+            "engine_role_slot": slot,
+            "engine_replacement_fm": _round(replacement, 3),
             "engine_anchor": _round(prediction.anchor if prediction else None, 3),
             # WHY this row has no valuation, per player. The note at the end says it for the sheet, and it
             # could only say ONE thing, while the cell hides three different ones: measured here and too
@@ -2532,11 +2561,56 @@ def _value(prediction) -> float | None:
     return prediction.fm_pred * prediction.pv_pred
 
 
+def auction_level(obs, data: features.WindowData) -> tuple[str | None, float | None]:
+    """(the slot this row's SURPLUS is measured against, its replacement level).
+
+    The levels come out of `features.replacement_levels` keyed on the roles the GAME is played with:
+    'P'/'D'/'C'/'A' on classic, the twelve codes on mantra. Asking for them with `role_classic` on a
+    mantra sheet matched nothing at all, so every reader took the documented "no level, fall back to
+    VALUE" branch - which is the bug this function exists to make impossible to write again.
+
+    Three cases, and the third is the one that bites:
+
+    * classic - one role per player, and the two vocabularies are the same one.
+    * mantra, codes known - each code has its own level ('por' 4.33 against 'pc' 7.19 on the 2026-27
+      euro window), so the row picks the slot he is worth MOST in: the lowest level among his own
+      codes, because that is the slot an auction fields him in. `evaluate.auction_view` still ranks
+      him in every list he belongs to against that list's own floor; this is the same arithmetic
+      collapsed to the row's single answer, and `engine_role_slot` names it so the two cannot be read
+      as disagreeing.
+    * mantra, NO code - a man the listone does not carry has no mantra role, because that is where the
+      codes come from. Leaving him without a floor is not neutral: his `est_surplus` stays a VALUE
+      while every row around it is a surplus, and on the 2026-27 euro sheet that put 11 estimated men
+      in the top 12. He gets his classic group's MEAN level - we do not know which of its slots he
+      would take, and that is a different statement from the case above, where he picks his best.
+      His `engine_role_slot` is the listone role, next to an empty `roles_mantra`, so nobody reads a
+      code that was never observed.
+
+    A level of None is still possible and still means VALUE: the gate prepares its windows without a
+    league on purpose, so `data.replacement` is empty and every published number stays what it was.
+    """
+    if data.game != "mantra":
+        role = obs.role_classic or None
+        return role, data.replacement.get(role or "")
+    priced = [role for role in obs.roles_mantra if role in data.replacement]
+    if priced:
+        best = min(priced, key=lambda role: data.replacement[role])
+        return best, data.replacement[best]
+    if obs.roles_mantra:
+        return obs.roles_mantra[0], None
+    group = [data.replacement[role]
+             for role in MANTRA_BY_CLASSIC.get(obs.role_classic or "", ())
+             if role in data.replacement]
+    if group:
+        return obs.role_classic, sum(group) / len(group)
+    return obs.role_classic or None, None
+
+
 def _surplus(prediction, data: features.WindowData) -> float | None:
-    """(FM - the role's replacement level) x appearances. Falls back to VALUE without a level."""
+    """(FM - the slot's replacement level) x appearances. Falls back to VALUE without a level."""
     if not prediction or prediction.fm_pred is None or prediction.pv_pred is None:
         return None
-    level = data.replacement.get(prediction.obs.role_classic or "")
+    _slot, level = auction_level(prediction.obs, data)
     if level is None:
         return prediction.fm_pred * prediction.pv_pred
     return (prediction.fm_pred - level) * prediction.pv_pred

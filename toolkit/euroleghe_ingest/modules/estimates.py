@@ -51,7 +51,9 @@ def _estimates_for(conn, data, predictions, window, platform: str) -> dict[int, 
             continue
         guess = snapshot.estimate_for(obs, by_id.get(obs.fc_id), layer, data.anchors, data,
                                       window, platform)
-        level = data.replacement.get(obs.role_classic or "")
+        # Same slot the panel and the sheet use - `role_classic` is not a key of `replacement` on a
+        # mantra window, so this used to hand `est.surplus` a None and return the VALUE instead.
+        _slot, level = snapshot.auction_level(obs, data)
         out[obs.fc_id] = {
             "fm": guess.fm, "pv": guess.pv, "basis": guess.basis,
             "confidence": guess.confidence, "note": guess.note,

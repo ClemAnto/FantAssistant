@@ -494,6 +494,46 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.34 (7 agosto 2026, notte — «verifica che ci siano tutti i dati»: le fonti c'erano, il livello di rimpiazzo no)
+
+Verifica di completezza del toolkit. `fetch --plan` dice *every source is populated* su 19 tabelle,
+`listone_quotes` copre 12 stagioni Serie A e 9 EuroLeghe con **0 roster 2026-27 senza quotazione**, e il
+`validate` non trova colonne vuote inattese. Quello che la verifica ha trovato non era un buco di
+acquisizione ma **due difetti nel deliverable**, entrambi visibili solo confrontando i due fogli fra loro.
+
+### 1. Il SURPLUS del foglio mantra era il VALORE — e il secondo strato che nascondeva
+
+Racconto e numeri in [metrica-asta-surplus-v1.md §13](metrica-asta-surplus-v1.md). In breve: i livelli di
+rimpiazzo tornano nel vocabolario del **gioco** e cinque punti del codice li cercavano con `role_classic`,
+che su mantra non è chiave di niente — `engine_replacement_fm` 0 su 1031, `engine_surplus` uguale a
+`engine_value` su tutte le 1007 righe prezzate, `engine_role_rank` calcolato nel ruolo sbagliato. Nelle
+top-10 per ruolo sopravvivevano 1-2 posizioni su 10. Una definizione sola ora (`snapshot.auction_level`),
+la colonna **`engine_role_slot`** che dice contro quale slot il numero è misurato, e il livello di gruppo
+per chi il listone non lo porta — senza il quale, corretto il resto, **11 delle prime 12 righe** erano
+uomini stimati con un VALORE in una colonna di surplus. `SHEET_REVISION` **5 → 6**, `backtest --verify`
+**22/22**, `default/classic` invariato, **320 test**.
+
+### 2. `club_elo` fermo a un anno prima dell'asta
+
+`elo.auction_dates` offriva, per la stagione più recente, solo il 15 agosto convenzionale — che durante la
+**preseason non è ancora successo**. Risultato: l'ultimo snapshot era `2025-08-15` e tutta la finestra
+2026-27 leggeva quello, cioè la forza dei club di una stagione e un mercato fa, che è ciò su cui poggiano
+`desc_level_elo` (R19, adottata il 06/08) e il modello dei portieri. Ora, finché quel giorno è nel futuro,
+si prende lo snapshot di **oggi**: datato quando è stato osservato, mai sotto una data che non è arrivata.
+Dal 15 in poi torna la data pre-registrata e si aggiunge alla serie. La fetch è rimasta da fare —
+`api.clubelo.com` non risponde (timeout, anche fuori sandbox, mentre altri host rispondono) e il modulo
+salta correttamente senza scrivere nulla: basta rilanciare `elo`.
+
+### Cosa la verifica ha invece confermato sano
+
+- **`probable_starter` vuoto è corretto**: dal 05/08 la pagina probabili non contiene **nessun href** di
+  giocatore (non «dati non disponibili»: proprio zero), quindi `desc_starter_prob` e `desc_duel_rivals`
+  vuoti sono la risposta onesta, non un difetto del filtro per stagione introdotto in v9.32.
+- **`fvm_history` con `platform='unknown'`** (5.162 righe) è la migrazione che dichiara ciò che non può
+  attribuire, non uno scrittore che sbaglia: nessuna riga nuova nasce `unknown`.
+- Restano dichiarate e non risolvibili qui: `transfers_history` fermo al 01/07 e le rose Transfermarkt al
+  29/07 in pieno mercato (ore di scraping, il manifest del foglio lo dice riga per riga).
+
 ## Novità v9.33 (7 agosto 2026, sera — la quotazione ha una PIATTAFORMA: `listone_quotes`)
 
 Il quarto difetto della v9.32 era stato lasciato come decisione, con una misura davanti: sul motore vale 10

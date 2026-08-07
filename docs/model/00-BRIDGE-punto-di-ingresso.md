@@ -29,7 +29,82 @@ la pagina delle probabili non basta e quali vincoli valgono già oggi.
 
 Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
 
-### ULTIMO IN ORDINE DI TEMPO — 7/08/2026: «anche la lista euro dovrebbe essere aggiornata»
+### ULTIMO IN ORDINE DI TEMPO — 7/08/2026 (notte): sul foglio mantra il SURPLUS era il VALORE
+
+Nata da «verifica che ci siano tutti i dati». Le fonti c'erano — `fetch --plan` dice *every source is
+populated* su 19 tabelle, `listone_quotes` copre 12 stagioni Serie A e 9 EuroLeghe con **zero roster 2026-27
+senza quotazione** — e quello che la verifica ha trovato non è un buco di acquisizione ma **due difetti nel
+deliverable**, visibili solo confrontando i due fogli fra loro. Dettaglio: spec «Novità v9.34» e
+[metrica-asta-surplus-v1.md §13](metrica-asta-surplus-v1.md).
+
+- **CHIUSO — il foglio EuroLeghe non aveva alcun livello di rimpiazzo**: `engine_replacement_fm` **0 su
+  1031**, `engine_surplus` identico a `engine_value` su **tutte e 1007** le righe prezzate, mentre sul foglio
+  Serie A i livelli c'erano (648 su 649). Un'asimmetria fra due fogli che eseguono lo stesso codice è sempre
+  **una chiave che non combacia**: i livelli tornano nel vocabolario del **gioco** (`por` 4.33 … `pc` 7.19) e
+  cinque punti del codice li cercavano con `role_classic` (`P/D/C/A`), che su mantra non è chiave di niente.
+  Ogni lettore prendeva allora il ramo documentato «nessun livello ⇒ ripiega su VALORE» — corretto per il
+  gate, che prepara le finestre **senza lega** apposta, e silenzioso per il pannello, che una lega ce l'ha.
+  Non era cosmetico: il livello cambia per ruolo, quindi ordinare per VALORE è ordinare un'altra domanda —
+  nelle top-10 per ruolo **sopravvivevano 1 o 2 posizioni su 10**. Ora una definizione sola
+  (`snapshot.auction_level`) letta da foglio, rango, `est_surplus`, pannello e armonica `estimates`, più la
+  colonna **`engine_role_slot`** che dice contro quale slot il numero è misurato.
+- **…e correggerlo ha scoperto lo strato che nascondeva**: chi il listone non lo porta non ha codice mantra,
+  quindi restava senza livello anche dopo il fix e il suo `est_surplus` continuava a essere un VALORE in una
+  colonna di surplus — **11 delle prime 12 righe** del foglio corretto erano uomini stimati. Ora prende la
+  **media** del suo gruppo di listone e non il minimo (scegliere il proprio slot migliore è un'affermazione
+  su chi gli slot li ha): Cioffi da +48.9 a −4.5, e la top-12 torna fatta di uomini misurati.
+- **CHIUSO — `club_elo` fermo a un anno prima dell'asta**: `elo.auction_dates` offriva per la stagione più
+  recente solo il 15 agosto convenzionale, che **in preseason non è ancora successo**, quindi tutta la
+  finestra 2026-27 leggeva `2025-08-15` — la forza dei club di una stagione e un mercato fa, cioè ciò su cui
+  poggiano `desc_level_elo` (R19, adottata il 06/08) e il modello dei portieri. Ora, finché quel giorno è nel
+  futuro, si prende lo snapshot di **oggi**: mai una lettura sotto una data che non è arrivata.
+
+`SHEET_REVISION` **5 → 6**, **320 test** (319 passati, 1 skipped), `backtest --verify` **22/22**, e il foglio
+`default/classic` non muove un decimale — là i due vocabolari sono lo stesso.
+
+**La verifica ha invece confermato sano**: `probable_starter` vuoto è corretto (dal 05/08 la pagina non
+contiene **nessun href** di giocatore — non «dati non disponibili»: proprio zero), e le 5.162 righe di
+`fvm_history` con `platform='unknown'` sono la migrazione che dichiara ciò che non può attribuire, non uno
+scrittore che sbaglia.
+
+### 7/08/2026 (notte, 2): Football Manager come fonte — valutato e scartato, senza misurare nulla
+
+Domanda dell'operatore: le fonti del videogame sono affidabili grazie alla community, si può attingere? È
+**ricerca a tavolino e non porta nessun verdetto di gate** — nulla è stato misurato né ingerito. Verdetto
+negativo per due ragioni indipendenti dalla qualità del dato:
+
+1. **FM non ha PARTITE.** Il database contiene *entità e struttura*, mai *eventi*: niente calendari reali,
+   niente risultati, niente strato per-partita — quelli il gioco li **genera** simulando. L'unità su cui
+   questo progetto è costruito è esattamente ciò che FM non può fornire, e nessun canale di estrazione lo
+   cambia. Sulle statistiche di squadre e giocatori l'apporto è **zero**.
+2. **Il calendario è sbagliato per un'asta di agosto.** FM26 è uscito a novembre 2025, winter update il
+   09/03 e il 30/03/2026, FM27 arriva a novembre: il DB più fresco al momento dell'asta ha 4+ mesi e
+   **precede tutto il mercato estivo** — quindi proprio per il caso che servirebbe meglio (l'arrivo senza
+   storia misurata) conosce il club vecchio. E **FM25 è stato cancellato**, quindi non esiste un database
+   2024-25: un buco in mezzo a qualunque serie di finestre.
+
+Non ridondante ci sarebbe poco, e tutto è **giudizio** (quindi ultimo per la regola del 04/08, con
+l'argomento di R12/R12b che vale a maggior ragione: lo scout guarda le stesse partite di `fm_prev`): il ruolo
+granulare **datato** — Sofascore ignora `seasonId`, i dump FM sono datati per versione, e `player_roles` ha
+già PK `(fc_id, valid_from, source)` quindi una source `fm` non richiederebbe migrazione — la scadenza
+contratto sulle stagioni passate (`exit_risk` oggi non è gatabile), e injury proneness, l'unico punto dove il
+progetto non ha **nessuna** fonte. Per i fatti di club le sorgenti già cablate (FBref, Transfermarkt,
+Wikidata, ClubElo) sono migliori e gratis: gli unici esclusivi FM sono le **finanze di club** e le **regole
+di tesseramento**. Da tenere a mente perché è la stessa distinzione di sempre: `reputation` è un'opinione,
+mentre ClubElo è **misurato dai risultati** ed è adottato (`level_weight` 0.06) — non sono intercambiabili.
+
+Canali censiti (per non doverlo rifare): export dell'intero DB dal gioco in esecuzione — il precedente
+documentato è FUTEK su FM24, 474k giocatori e 371 attributi — via plugin BepInEx/IL2CPP o
+`FMScoutFramework.dll`; lettori di salvataggio (Genie Scout, che espone gli attributi *nascosti*); il print
+della scouting view, parsato da `football-manager-scouting` / `pyscoutfm`; i dump pubblici su Kaggle
+(FM21/22/23), unica via che non richiede il gioco. I `.fmf` sono un **vicolo cieco**: sono zip di XML ma
+contengono i data update della community, non il DB master. I due fansite sono **canali chiusi e lo dicono**:
+`fminside.net` blocca ClaudeBot per nome nel robots.txt (`ai-train=no`), `sortitoutsi.net` ha robots
+permissivo ma risponde **403** agli automatismi; nessuno dei due è stato aggirato. Vincolo su tutto: è
+contenuto proprietario SI/SEGA e **la repo è pubblica**, quindi qualunque cosa entrasse andrebbe trattata
+come la cache fantacalcio.it — gitignorata, mai committata.
+
+### 7/08/2026: «anche la lista euro dovrebbe essere aggiornata»
 
 Sessione di aggiornamento dati, nata da una domanda di controllo. Il foglio euro **era** aggiornato; provando
 a dimostrarlo sono venuti fuori **quattro difetti**, tre chiusi e uno lasciato come decisione. Nessuna regola

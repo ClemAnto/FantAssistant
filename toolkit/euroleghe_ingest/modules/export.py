@@ -109,7 +109,9 @@ CONTRACT: tuple[TableSpec, ...] = (
               "THE QUOTATION PER PLATFORM: Qt.I/Qt.A/FVM as each listone states them. `rosters` keeps "
               "only the last download, and the two lists disagree on 202 Qt.I and 226 FVM for the "
               "players quoted in both - this is the table anything platform-specific must read"),
-    TableSpec("club_elo", "full", "club strength at the auction dates (the goalkeeper module)"),
+    TableSpec("club_elo", "full",
+              "club strength at the auction dates - R19's level channel (the ORIGIN club's Elo) and "
+              "the club card. NOT the goalkeeper module, which reads measured goals conceded"),
     TableSpec("flags", "full",
               "off_role_usage, new_coach, u22_trigger, post_torneo, booking_risk, contract_until, "
               "exit_risk - every derived boolean the engine or the UI reads"),
