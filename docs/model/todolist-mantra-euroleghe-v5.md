@@ -13,8 +13,9 @@ pure (spec «Novità v9.34»): il SURPLUS mantra che era il VALORE, e `club_elo`
 - **ClubElo: read timeout, riprovato alla chiusura del 07/08 e ancora giù** (25 s, zero byte). La *causa* per
   cui la finestra 2026-27 leggeva uno snapshot vecchio di una stagione è però risolta nel codice
   (`elo.auction_dates` non chiede più una data futura): appena l'host risponde basta rilanciare **`elo`** e la
-  serie si allinea da sola. Finché non risponde, `desc_level_elo` e il modello dei portieri leggono
-  `2025-08-15`, e questo va detto a chi guarda il foglio.
+  serie si allinea da sola. Finché non risponde, `desc_level_elo` (R19) e la scheda club leggono
+  `2025-08-15`, e questo va detto a chi guarda il foglio. **Non** il modulo portieri, che non ha mai letto
+  `club_elo`: vedi l'elenco verificato dei lettori in testa a `elo.py`.
 - **FBref: 403** anche impersonando. Fuori dalla catena di oggi.
 
 **B. Coda di lavoro, misurata il 07/08 — è tutto ripartibile**
