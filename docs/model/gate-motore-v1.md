@@ -1900,6 +1900,71 @@ un voto base convertito e **non** un FM-equivalente: per lui serve un equivalent
 portieri, che è un lavoro in `arrivals` e non qui. Va detto adesso perché è il caso che ha generato la
 richiesta. → **§7-decies**.
 
+## 7-tervicies. L'ELO PERSONALE, e l'Elo di TUTTE le squadre (misurato il 7 agosto 2026, non adottato)
+
+Idea dell'operatore: **«calcola per ogni calciatore il suo ELO così: ELO squadra × minutaggio, per ogni
+squadra nelle ultime 5 stagioni»**, per poi confrontare un acquisto coi compagni di reparto. Misurata due
+volte, perché la prima aveva l'Elo del solo perimetro e la seconda — su sua richiesta — di **tutte** le
+squadre.
+
+### Il difetto del primo giro, trovato da un numero che non poteva essere vero
+Ramos usciva a **1.472**, ultimo fra gli attaccanti del Milan, per uno che ha giocato PSG e Benfica. Causa:
+il matcher dei nomi. Togliendo il rumore societario, **«Paris FC» si riduceva al solo token `paris`**, che è
+sottoinsieme di «Paris Saint-Germain», e l'appaiamento risultava pure UNIVOCO — quindi tutte le stagioni al
+PSG hanno preso l'Elo di una squadra di Ligue 2 (1.405-1.538 invece di 1.970). Due guardie lo chiudono: **un
+nome ridotto a un token generico non può coprirne uno di tre** (uccide Paris FC, lascia «Milan» = «AC Milan»
+e «Bayern» = «FC Bayern München»), e **le iniziali sono un nome** (`sg` vale «saint germain»). Più una
+**validazione su club che sappiamo forti**: 14 su 14 plausibili dopo la correzione, 2 sospetti prima.
+La lezione, che è la stessa di §5-quaterdecies un livello più giù: *un appaiamento ambiguo è peggio di uno
+mancante*, perché assegna a un uomo la forza della squadra sbagliata invece di lasciarlo vuoto — e l'unica
+difesa è **guardare un numero che si sa già**.
+
+### L'Elo di tutte le squadre c'era già, e non era acquisizione
+I CSV in cache portano **631 club per anno**; in `club_elo` ne sono finiti **97**, perché `store_snapshot`
+tiene solo chi si risolve a un `fc_club_id` — cioè chi è stato in un listone. Leggendo i CSV e prendendo il
+club dal **layer per-partita** (non dal listone) entrano Benfica, Ajax, Porto: **92.5% delle righe
+per-partita** coperte, contro il 76.7% di partenza.
+
+### Le due varianti dicono cose diverse, e solo una serve
+`somma(Elo × minuti)` misura *quanto* calcio d'alto livello ha giocato — quindi rilegge il volume, ed è la
+trappola che aveva già affossato l'indice a una stagione (r +0.769 coi minuti stessi). `media pesata` misura
+*a che livello* ha giocato. Sul residuo, a parità di minuti: **somma +0.114, media +0.204**.
+
+### Esito
+| | r sul residuo |
+|---|---:|
+| rango per ELO personale, perimetro solo | +0.177 |
+| rango per ELO personale, **tutte le squadre** | **+0.204** |
+
+E allargare la copertura non l'ha solo rafforzato: l'ha reso **uniforme**. Per fascia di minuti precedenti:
++0.223 / +0.218 / +0.215 / +0.131 — mentre il salto crolla a +0.067 sui titolari fissi.
+
+**Sul campione comune (660 acquisti dove entrambi si calcolano) i due canali sono pari e METÀ
+indipendenti**, il che ribalta la conclusione del primo giro:
+
+| | da solo | tolto l'altro |
+|---|---:|---:|
+| salto di livello | +0.149 | **+0.074** |
+| rango ELO personale | +0.152 | **+0.081** |
+
+correlazione fra i due **+0.621**. Nel primo giro il salto teneva +0.135 e il rango +0.051: con la copertura
+piena si equivalgono, e il rango è il più forte nelle fasce alte di minuti — dove il salto non dice niente.
+⚠️ I livelli assoluti dei due giri **non sono confrontabili**: il campione comune è un'altra popolazione
+(660 contro 1400), perché richiede entrambi i segnali. Confrontabili sono i rapporti.
+
+### Su Ramos, che è il caso che ha generato tutto
+Con l'Elo di tutte le squadre è **primo fra gli attaccanti del Milan: 1.884**, sopra Leão 1.820, Gimenez
+1.809, Nkunku 1.805. Il segnale dice quello che l'operatore cercava — «lo hanno preso da titolare» — e lo
+dice **senza leggere una quotazione**.
+
+### Cosa serve prima di poterlo adottare, dichiarato
+1. **Il layer per-partita comincia nel 2019-20**, quindi sulle finestre vecchie la memoria di 5 stagioni è
+   più corta e il canale è più debole per costruzione: va misurato nello sweep, dove le pieghe lo vedono.
+2. **Otto alias scritti a mano** restano nel matcher (Leverkusen, Brighton, Bilbao, Rennes, Wolves,
+   Gladbach, Alaves, Köln). È il rimedio che questo progetto preferisce evitare: se il canale entra, quelli
+   vanno in `ELO_ALIASES` con la loro misura accanto, non in uno script.
+3. **Non è ancora un braccio dello sweep**: è misurato in-sample, come il salto lo era prima di §7-duovicies.
+
 ## 7-duovicies. CHI SCENDE DI LIVELLO SALE DI RUOLO — il SALTO di Elo (pre-registrata il 7 agosto 2026, PRIMA di eseguirla)
 
 Domanda dell'operatore, ed è quella giusta: **«cosa differenzia un giocatore acquistato per riempire la rosa
