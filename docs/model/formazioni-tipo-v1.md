@@ -312,6 +312,59 @@ press --sheet data/reports/auction-snapshot-...    # giudica le board di quel fo
    minuti misurati. Ciò che resta è davvero il modello: i canali d'arrivo adottati (level,
    level_gap) su uomini la cui storia sta altrove.
 
+## 5-ter. IL SECONDO GIUDICE: le board contro l'esito, e il suo null (08/08/2026)
+
+Richiesta dell'operatore: «provare sulla passata stagione i criteri attuali per individuare gli 11
+titolari tipo, e verificare quanto erano corretti». È il giudice più forte che abbiamo — non è
+l'opinione di nessuno — e vive solo per una stagione già giocata:
+
+```
+snapshot --season 2025-26 --date 2025-08-15      # il foglio come sarebbe stato al giorno d'asta
+press --sheet <quel foglio> --against outcome    # giudicato su cosa i club hanno FATTO
+```
+
+`outcome_reference` costruisce per club la **forma modale** degli undici completi della stagione e i
+suoi **undici uomini più schierati** (campionato solo, come ogni quota di stagione qui).
+
+**Risultato (Serie A, board del 15/08/2025 contro l'esito 2025-26)**:
+
+| | moduli | uomini |
+|---|---|---|
+| **BOARD** | **13** MATCH / 1 ALT / 6 DIFF | **134/220 (61%)** |
+| NULL (gli stessi dell'anno prima) | 9 MATCH / 2 ALT / 6 DIFF | 104/220 (47%) |
+
+La board batte la baseline su **entrambi** gli assi: +4 moduli esatti e **+30 uomini**. E il null è
+muto su tre club — i promossi non hanno stagione precedente in questo campionato — dove la board
+porta 20 uomini: contati a parte, perché «0 su 11» lì è una proprietà della baseline e non evidenza
+su di essa (regola del «right null»).
+
+**Due cose che questa misura ha insegnato, e valgono oltre il numero.**
+1. **Quale delle nostre due stringhe di forma si confronta lo decide la REFERENZA.** La stampa scrive
+   moduli a quattro numeri → si giudica sul `picture` dopo `_reshape`. L'esito è contato su
+   `club_match_lineups`, che tiene TRE linee e **non può dire 4-2-3-1**: giudicato sul picture legge
+   disaccordo ogni volta che la trasformazione ha spezzato una riga, cioè la stessa forma scritta due
+   volte (Atalanta 3-4-3 disegnata 3-4-1-2, Roma 3-4-3 → 3-4-2-1, Como 4-5-1 → 4-4-1-1). Quell'artefatto
+   da solo valeva **5 club su 20**: la differenza fra 7 MATCH e 12.
+2. **Il 61% ha un tetto che non è il modello.** La stagione porta infortuni, mercato di gennaio ed
+   esoneri, e nessun undici d'agosto li prevede: il Verona fa **2/11** perché ha cambiato quasi tutto.
+   La referenza stampa di mid-season faceva 83%, ma era già informata di mezzo campionato — non è lo
+   stesso esame.
+
+**Contaminazioni dichiarate** (il foglio retrodatato non è puro e va detto): i **ruoli granulari** non
+sono backfillabili, quindi 1773 di essi sono osservati nel 2026 e usati comunque — il foglio lo scrive
+da sé e `desc_real_role_observed` porta la data vera; le **probabili** sono vuote (il `typical` non le
+legge); la **rosa live** del 2025-08-15 è d'epoca; ma **transfers e arrivi sono derivati oggi**, quindi
+la board conosce il mercato estivo 2025 completo, che a metà agosto non era chiuso. Le prime due sono
+neutre o a sfavore, la terza è a FAVORE del modello: il 61% va letto come un limite superiore.
+
+**E la voce 1 (Serie B) verificata fuori campione**: scaricata la Serie B 2024-25 e rifatto il foglio,
+i moduli passano da 12 a **13** e il Pisa da 4 a 7 uomini, con il netto sugli uomini a −1 (rumore).
+Molto più tiepido del Frosinone 4→10 sul 2026-27, e la ragione è misurata: **il valore degli aggregati
+d'origine scala con quanto la rosa promossa è NUOVA alla Serie A**. Quota di rosa quotata con almeno 5
+start di Serie A in carriera: Cremonese 2025-26 **79%**, Pisa 63%, Sassuolo 54% — contro Frosinone
+2026-27 **16%**, Monza 48%, Venezia 46%. Dove il claim aveva già una storia di Serie A da leggere, la
+Serie B aggiunge poco; dove non l'aveva, vale sei uomini su undici.
+
 ## 6-bis. Una regola misurata, implementata e REFUTATA: la co-titolarità (08/08/2026)
 
 Vale la pena di stare qui perché è il ciclo completo, e perché il dato è rimasto.

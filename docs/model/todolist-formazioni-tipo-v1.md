@@ -66,6 +66,15 @@ acquisizione (poche richieste), con tre scelte che valgono oltre la Serie B:
   denominatore. Senza, gli start del Frosinone si dividevano per i 24 undici parsati invece che per
   le 38 giornate di B — lo stesso difetto del 49% di Kane, sui club meno capaci di assorbirlo.
 
+**VERIFICATA FUORI CAMPIONE** (voce 0-bis, giudice-esito sul 2025-26): con la Serie B 2024-25
+scaricata, i moduli passano da 12 a **13** e il Pisa da 4 a 7 uomini, netto sugli uomini −1 (rumore).
+Molto più tiepido del Frosinone 4→10, e la ragione è misurata: **il valore di un campionato d'origine
+scala con quanto la rosa promossa è NUOVA al campionato d'arrivo**. Quota di rosa quotata con 5+ start
+di Serie A in carriera: Cremonese 2025-26 **79%**, Pisa 63%, Sassuolo 54% contro Frosinone 2026-27
+**16%**, Monza 48%, Venezia 46%. Dove il claim aveva già una storia di Serie A da leggere la Serie B
+aggiunge poco; dove non l'aveva vale sei uomini su undici. Conseguenza per l'anno prossimo: la resa di
+questa acquisizione **dipende da chi sale**, e si stima con quella quota prima di rifarla.
+
 **Due difetti trovati strada facendo**, entrambi della famiglia «un'entità si unisce per chiave
 canonica»: il provider dice `serie-b` e la nostra chiave è `serie_b`, e con tutte e due in tabella
 lo stesso campionato era due (2121 righe normalizzate, per ID del torneo e mai per il testo, al
@@ -256,6 +265,22 @@ divergenti.
 «quale modulo mi CONVIENE» — schiera più uomini di valore, e in Serie A gli attaccanti ne hanno di
 più — mentre le odds rispondono a «quale modulo SCEGLIERÀ l'allenatore». Sono due domande, e
 mischiarle è la stessa famiglia di difetto del claim contro la valutazione.
+
+## 0-bis. Il SECONDO giudice: l'ESITO, e il null che rende leggibile ogni numero — **FATTO** (`c9e0e7c`)
+**Richiesta dell'operatore**: provare i criteri attuali sulla stagione passata e verificare quanto
+erano corretti. `snapshot --season 2025-26 --date 2025-08-15` poi
+`press --sheet ... --against outcome`: forma modale della stagione e undici uomini più schierati.
+**Risultato**: board **13 MATCH / 1 ALT / 6 DIFF, 134/220 uomini (61%)** contro un null
+(«gli stessi dell'anno prima») di **9/2/6 e 104/220 (47%)** — +4 moduli e +30 uomini, e su tre club
+il null è muto per costruzione mentre la board porta 20 uomini.
+**Il difetto che ha esposto nel giudice stesso**: quale delle nostre due stringhe di forma si confronta
+lo decide la REFERENZA, non la preferenza. L'esito ha tre linee e non può dire 4-2-3-1: giudicato sul
+picture leggeva disaccordo ogni volta che `_reshape` spezzava una riga — 5 club su 20, la differenza
+fra 7 MATCH e 12. Il primo giro l'aveva sbagliato.
+**Il tetto**: il 61% non è il modello ma la stagione (infortuni, gennaio, esoneri) — Verona **2/11**
+perché ha cambiato quasi tutto. E il foglio retrodatato ha una contaminazione a FAVORE (transfers e
+arrivi derivati oggi conoscono tutto il mercato estivo 2025), quindi 61% è un limite superiore.
+Dettagli e contaminazioni: [formazioni-tipo-v1.md](formazioni-tipo-v1.md) §5-ter.
 
 ## 6. Letture, non regole (a costo quasi zero)
 - **Ballottaggi quasi-pari**: Gila/Tomori, Thuram K./McKennie, Isaksen/Cancellieri sono duelli
