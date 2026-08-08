@@ -2,6 +2,14 @@
 
 ## Aperti alla chiusura dell'8 agosto 2026 — nessuno con scadenza
 
+**Chiusura 08/08**: cinque commit, tutti sul PANNELLO — nessuna regola e' entrata nel motore
+(`backtest --verify` 22/22). `SHEET_REVISION` 9, 330 test, fogli e bundle rigenerati. L'ELO personale e'
+falsificato due volte e resta 0.0; quello che ha portato Ramos, Kolo Muani e Atta negli undici sono
+**quattro difetti**, non un canale nuovo (spec «Novita' v9.37 → v9.40»). Il piu' istruttivo e' l'ultimo:
+`SnapshotView.rows` e' la rosa del CLUB e cinque statistiche di popolazione la leggevano come se fosse il
+foglio, quindi tre parametri adottati erano storti **solo dentro il pannello** e nessun test poteva
+accorgersene, perche' ogni test costruisce la view col foglio intero.
+
 Ordinati per COSTO, non per importanza: prima ciò che non dipende da noi, poi il lavoro misurato, poi le
 decisioni. I quattro difetti del pomeriggio sono chiusi (spec «Novità v9.32» e «v9.33») e i due della notte
 pure (spec «Novità v9.34»): il SURPLUS mantra che era il VALORE, e `club_elo` fermo a un anno prima dell'asta.

@@ -495,6 +495,38 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.40 (8 agosto 2026 — le statistiche di popolazione erano quelle di UN CLUB, non del foglio)
+
+**Trovato guidando il pannello VERO invece di un harness, che è l'unico modo in cui poteva saltare fuori.**
+L'operatore ripeteva «nel toolkit vedo ancora le formazioni tipo non aggiornate, G. Ramos dovrebbe essere
+titolare nel Milan» e aveva ragione: il foglio era giusto, il pannello no, e nessuno dei due era d'accordo
+con l'altro.
+
+`SnapshotView.rows` viene assegnato in `_show_club` e contiene **la rosa del club selezionato** (25-43
+uomini), mentre le cinque statistiche di POPOLAZIONE che lo leggono — il prior dello shrinkage e i quattro
+z-score (`fm_z`, `career_z`, `level_z`, `level_gap_z`) — dicono tutte «this sheet» nella loro docstring e su
+un foglio erano state misurate. Due cose rotte insieme, e nessuna delle due visibile:
+- il **prior per fascia** su 32 uomini, dove una fascia ne ha uno o due: `standing_prior_rounds` (ADOTTATO,
+  euro strict E robust) tirava verso rumore;
+- la **sd su un pugno di trasferiti di un club solo**, cioè quasi zero: `level_z` e `level_gap_z` (ADOTTATI)
+  uscivano `None` o impazziti.
+
+E le cache **non venivano invalidate mai**: il primo club aperto in una sessione fissava le medie per ogni
+club successivo e per ogni foglio caricato dopo.
+
+**Cosa costava sullo schermo**: il portiere del Milan leggeva **99%** di claim contro l'85% di ogni calcolo
+fuori dal pannello, e il tabellone disegnava il **3-5-2 del predecessore** invece del 3-4-3 di Amorim — le
+quote dei moduli sono costruite su quei claim, quindi Ramos non entrava nell'undici.
+
+**Perché nessun test lo vedeva**: ogni test costruisce la view con `rows` = il foglio intero. L'harness era
+giusto e il pannello sbagliato, e la differenza è invisibile da entrambi i lati presi da soli.
+
+Curato con un solo accessore, **`population()`**, che restituisce il FOGLIO (`self.players`) e ripiega sulla
+rosa solo quando nessun foglio è caricato — che è il caso dei test; più l'invalidazione delle sei cache al
+caricamento di un foglio. Verificato **sul pannello vero**, riavviato e fotografato: Milan **3-4-3 · 44%**
+con Ramos G. 56% in attacco, e i claim che coincidono a una cifra con quelli calcolati fuori (Maignan 85%,
+Gabbia 80%, Pavlovic 75%, Rabiot 76%, Modric 75%).
+
 ## Novità v9.39 (8 agosto 2026 — ogni calciatore deve avere il suo livello, e il Salisburgo è un club vero)
 
 Tre richieste dell'operatore in fila, e la terza ha risposto alle prime due meglio di come chiedevano.

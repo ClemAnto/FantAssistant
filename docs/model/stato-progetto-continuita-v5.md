@@ -1,5 +1,5 @@
 # Stato progetto & continuità — v5
-**Aggiornato: 8 agosto 2026 (il repertorio dell'allenatore joinava per NOME: 13.830 undici su 24.042 non arrivavano)**
+**Aggiornato: 8 agosto 2026 (chiusura: il pannello misurava su un club e nessun test poteva vederlo)**
 Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da qui + i file della cartella "Modello Previsionale Fantacalcio".
 *Glossario: T1/T2 = finestre di test (23/24->24/25, 24/25->25/26) · MAE = errore medio assoluto · cross-fitted = parametri stimati su una finestra, testati sull'altra · M2e = modello portieri decomposto (abilità + tasso gol subiti del club; la metà Elo del nome non è nel motore) · Pv_att = presenze attese · fc_id = id fantacalcio.it · EV = valore atteso · scoring_config = punteggi configurabili per lega · xG/xA = expected goals/assists · 2.5 pieno = backtest motore completo con flag.*
 
@@ -7,6 +7,30 @@ Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da q
 App per leghe EuroLeghe/fantacalcio.it (Classic+Mantra, 5 campionati) con motore previsionale. Metodo: ogni regola entra SOLO se batte il baseline fuori campione su finestre indipendenti (gate pre-registrato). Doc madre: modello-previsionale-v3.8.md.
 
 ## ⚠️ Lo stato corrente è in `00-BRIDGE-punto-di-ingresso.md`, blocco «STATO AL 5 AGOSTO 2026»
+
+### 8 agosto 2026 (chiusura), in una riga: il PANNELLO misurava su un club e nessun test poteva vederlo
+
+Cinque commit, tutti sul pannello: **nessuna regola è entrata nel motore** (`backtest --verify` 22/22).
+`SHEET_REVISION` **9**, 330 test, ruff pulito, fogli e bundle (362.069 righe) rigenerati. Dettaglio nella
+spec «Novità v9.37 → v9.40» e in gate §7-tervicies.
+
+1. **L'ELO personale falsificato una seconda volta** con l'arm corretto (ristretto agli acquisti): `default`
+   +0.03%, `euro` −0.13%. Sul prodotto porta dentro solo Ramos e ad **Atta toglie** claim. La controprova che
+   l'operatore ha chiesto — sulle stagioni passate, contro l'esito «ha giocato più dei compagni di reparto» —
+   dice che il segnale **esiste** (rango +0.147 parziale, **salto +0.271**) e che decade nelle stagioni
+   recenti: correla con l'esito e non migliora la previsione, e le due cose non si contraddicono.
+2. **Due denominatori sbagliati** tenevano fuori gli acquisti: il campione di dieci partite era il solo
+   esente dallo shrinkage (Oulai 0.609 contro Atta 2563 minuti) e una stagione all'estero era una quota del
+   calendario del club di ARRIVO (Ramos, 34 giornate di Ligue 1 divise per 38).
+3. **Il repertorio dell'allenatore joinava per NOME**: 13.830 undici su 24.042 sotto una stringa non
+   canonica, Gattuso 2 → 79, Tedesco 3 → 28, Spalletti 31 → 107. Euro: 3 board su 35 cambiano.
+4. **`club_elo` erano 97 club su ~630 pubblicati** — una tabella sul nostro perimetro usata come tabella sul
+   calcio. Nuova `club_levels`: 1.092 club, buco allo 0,11%. E il livello vero del Salisburgo (1.558) dice
+   che Alajbegovic **non** va premiato: sale di 260 punti verso la Juve.
+5. **E il difetto che spiegava perché l'operatore non vedeva niente**: `SnapshotView.rows` è la rosa del
+   CLUB, non il foglio, e cinque statistiche di popolazione la leggevano — tre parametri adottati storti
+   insieme, cache mai invalidate, Maignan 99% invece di 85%, il tabellone col modulo del predecessore.
+   Ogni test costruiva la view col foglio intero, quindi **l'harness era giusto e il pannello sbagliato**.
 
 ### 8 agosto 2026, in una riga: «applica coach_shapes» — era già applicato, e sotto c'era un join per NOME
 

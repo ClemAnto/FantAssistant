@@ -1,5 +1,5 @@
 # 00 — BRIDGE · Punto d'ingresso del progetto (leggere per primo)
-**Aggiornato: 8 agosto 2026 (ogni calciatore ha il suo livello: `club_levels`, 1.092 club contro 97 — e su Alajbegovic il livello vero dice di no)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
+**Aggiornato: 8 agosto 2026 (chiusura: il pannello misurava le statistiche di popolazione su UN CLUB, e nessun test poteva vederlo)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
 
 ## Il progetto in breve
 Motore previsionale per fantacalcio **EuroLeghe** (fantacalcio.it): valutazione calciatori Classic e Mantra sui 5 grandi campionati europei (Serie A, Premier, Liga, Bundesliga, Ligue 1 — perimetro: i ~35 top club del gioco). Prevede fantamedia (FM), presenze attese e VALORE stagionale = FM × presenze. Metodo scientifico: **ogni regola entra nel motore solo se batte il baseline fuori campione su finestre indipendenti** (gate pre-registrato). Stato: core validato (Mantra, Classic, portieri, presenze); manca lo strato flag/arrivi, sbloccato dal toolkit dati `euroleghe-ingest` (in implementazione).
@@ -29,7 +29,36 @@ la pagina delle probabili non basta e quali vincoli valgono già oggi.
 
 Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
 
-### ULTIMO IN ORDINE DI TEMPO — 8/08/2026 (2): ogni calciatore deve avere il suo livello, e il Salisburgo è un club vero
+### ULTIMO IN ORDINE DI TEMPO — 8/08/2026 (3, chiusura): il pannello misurava su UN CLUB e nessun test poteva vederlo
+
+L'operatore ha ripetuto tre volte «nel toolkit vedo ancora le formazioni tipo non aggiornate» e aveva ragione
+ogni volta. Il foglio era giusto; **il pannello no**, e i due erano d'accordo con nessuno.
+
+`SnapshotView.rows` è la ROSA DEL CLUB selezionato (25-43 uomini), e le cinque statistiche di popolazione che
+lo leggono — il prior dello shrinkage e i quattro z-score — dicono tutte «this sheet». Quindi
+`standing_prior_rounds` tirava verso il rumore di 32 uomini e `level_z`/`level_gap_z` avevano sd quasi nulla:
+**tre parametri ADOTTATI storti insieme**. E le cache non si invalidavano mai, quindi il primo club aperto
+fissava le medie per tutta la sessione. Sullo schermo: Maignan **99%** di claim contro l'85% di ogni calcolo
+fuori dal pannello, e il tabellone col **3-5-2 del predecessore** invece del 3-4-3 di Amorim — ecco perché
+Ramos non compariva. Curato con `population()` (il FOGLIO) più l'invalidazione delle cache; verificato
+riavviando e **fotografando il pannello vero**: Milan 3-4-3 · 44% con Ramos G. 56%.
+
+**La lezione, che è la più importante della giornata**: ogni test costruiva la view con `rows` = il foglio
+intero, quindi l'harness era giusto e il pannello sbagliato, e **la divergenza è invisibile da entrambi i lati
+presi da soli**. Quando l'operatore dice «non lo vedo», si fotografa la SUA finestra prima di rispiegargli il
+codice.
+
+**Chiusura della sessione (5 commit)**: `2ae2b13` i due denominatori · `31dda8b` il repertorio allenatore per
+nome · `52be9a5` `club_levels` · `64b2bcc` la popolazione del pannello · più questa consolidazione.
+`SHEET_REVISION` **9**, 330 test, ruff pulito, `backtest --verify` **22/22**, entrambi i fogli e il bundle
+(362.069 righe) rigenerati. **Nessuna regola è entrata nel motore**: tutto quello che si è mosso è il
+PANNELLO.
+
+**Aperti, in ordine di leva**: la mappa Elo del gate è ancora quella dei 97 club (todolist 9-bis) · 36 righe
+del campionato austriaco sotto lo slug `bundesliga` con un voto sintetico tedesco (9-ter) · `COACH_SHAPE_MIN`
+/`FULL` tarati sui campioni sbagliati · e `app/`, che resta un README e zero TypeScript.
+
+### 8/08/2026 (2): ogni calciatore deve avere il suo livello, e il Salisburgo è un club vero
 
 Tre richieste dell'operatore, e l'ultima ha risposto alle prime due meglio di come chiedevano (spec «Novità
 v9.39»). **Kolo Muani, Ramos e Atta sono titolari; Alajbegovic no, e a dirlo è il dato che l'operatore ha

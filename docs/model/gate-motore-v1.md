@@ -2204,6 +2204,34 @@ senza sconto. Con `loan_discount` = 0.8 — che è dove lo sweep tira su `defaul
 dichiarato APERTO e piatto fra 0.2 e 0.8 — il suo claim va a 0.506 e resta comunque fuori dai tre davanti.
 È una decisione su un parametro, non un difetto, e non è stata presa.
 
+### LA CONTROPROVA CHIESTA DALL'OPERATORE (8 agosto 2026) — il segnale c'è, e non ribalta lo sweep
+
+Richiesta: «vedi nelle stagioni passate i nuovi arrivi, calcolando l'ELO personale per tutta la squadra, e
+vedi quali hanno poi giocato più degli altri compagni di reparto». Disegnata come il progetto pretende:
+l'esito è **la sua percentile per MINUTI fra i compagni di reparto del club in cui arriva**, l'anno DOPO il
+trasferimento — non il residuo di un modello che i minuti li contiene già — il segnale è la sua percentile
+per ELO personale nello stesso reparto (calcolato su calcio giocato **prima** della stagione bersaglio), e il
+controllo sono i suoi minuti dell'anno prima. 4.083 arrivi con un reparto di almeno tre uomini, 2020-21 →
+2025-26.
+
+| segnale | n | r | **parziale (a parità dei suoi minuti)** |
+|---|---:|---:|---:|
+| rango per ELO personale nel reparto | 1781 | +0.112 | **+0.147** |
+| **salto di Elo** (origine − destinazione) | 1271 | +0.162 | **+0.271** |
+| sul campione comune: rango | 1271 | +0.119 | +0.203 |
+
+Per ruolo il rango vale **portieri +0.337**, attaccanti +0.166, centrocampo +0.121, difesa +0.110. **Ma per
+stagione decade**: +0.195 / +0.180 / +0.282 sulle prime tre, poi **+0.083 / +0.065 / +0.080** sulle ultime
+tre — e la memoria dell'ELO personale è *più corta* nelle stagioni vecchie (il layer per-partita comincia nel
+2019-20), quindi dove funziona meglio sta probabilmente facendo da proxy al **livello del club di
+provenienza**, che è `level_weight` e che è già adottato.
+
+**Cosa conclude e cosa no.** Il segnale sull'ESITO esiste, ed è il SALTO ad averne di più — coerente con
+§7-duovicies, che il salto lo ha adottato. Non ribalta lo sweep: quello misura l'errore fuori campione della
+previsione su TUTTI, e le due affermazioni sono compatibili — un canale può correlare con l'esito e non
+migliorare la previsione, perché ciò che aggiunge lo stanno già dicendo i minuti e il salto. `level_rank_weight`
+resta **0.0**.
+
 ## 7-duovicies. CHI SCENDE DI LIVELLO SALE DI RUOLO — il SALTO di Elo (pre-registrata il 7 agosto 2026, PRIMA di eseguirla)
 
 Domanda dell'operatore, ed è quella giusta: **«cosa differenzia un giocatore acquistato per riempire la rosa
