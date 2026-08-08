@@ -1971,6 +1971,46 @@ def test_a_coach_keeps_the_elevens_his_club_is_spelled_differently_in(tmp_path):
     assert snapshot.coach_repertoire(conn, "Allegri")[1] == 1
 
 
+def test_the_perimeter_is_the_target_listone_and_not_last_seasons_ratings(tmp_path):
+    """In August the target season has no ratings, so a ratings-only perimeter is the season that ENDED.
+
+    Measured on the 2026-27 Serie A sheet (08/08/2026): the relegated Cremonese, Pisa and Verona kept
+    94 unpurchasable rows while all 74 quoted players of the promoted Frosinone, Monza and Venezia
+    were silently dropped - three clubs you WILL buy from, absent from the sheet and from every
+    board. The target LISTONE knows a promotion before a ball is kicked, so it is the authority;
+    ratings remain the fallback for a window the quotes backfill does not cover. And a single stray
+    row - `rosters` keeps the last read, so a man the listone still quotes after his move abroad is
+    filed at his NEW club - must not smuggle that club in: a purchasable contingent fields an eleven.
+    """
+    ctx = _ctx(tmp_path)
+    conn = ctx.conn
+    conn.execute("INSERT INTO clubs(fc_club_id, canonical_name, league) VALUES "
+                 "(1, 'Verona', 'serie_a'), (2, 'Venezia', 'serie_a'), "
+                 "(3, 'Bayer Leverkusen', 'bundesliga')")
+    # the season that ended: Verona played it, Venezia did not (Serie B is not ingested)
+    conn.execute("INSERT INTO players(fc_id, canonical_name, birth_year) VALUES (100, 'Suslov', 1998)")
+    conn.execute("INSERT INTO match_ratings(fc_id, season, matchday, platform, team, mv) "
+                 "VALUES (100, '2025-26', 1, 'default', 'Verona', 6.0)")
+    # the target listone: eleven quoted Venezia men, and one stray whose roster row moved abroad
+    for fc_id in range(200, 211):
+        conn.execute("INSERT INTO players(fc_id, canonical_name, birth_year) "
+                     "VALUES (?, 'Laguna', 1998)", (fc_id,))
+        conn.execute("INSERT INTO rosters(fc_id, season, fc_club_id, league, role_classic) "
+                     "VALUES (?, '2026-27', 2, 'serie_a', 'C')", (fc_id,))
+        conn.execute("INSERT INTO listone_quotes(fc_id, season, platform, price_initial) "
+                     "VALUES (?, '2026-27', 'default', 5)", (fc_id,))
+    conn.execute("INSERT INTO players(fc_id, canonical_name, birth_year) VALUES (300, 'Gutierrez', 1998)")
+    conn.execute("INSERT INTO rosters(fc_id, season, fc_club_id, league, role_classic) "
+                 "VALUES (300, '2026-27', 3, 'serie_a', 'D')")
+    conn.execute("INSERT INTO listone_quotes(fc_id, season, platform, price_initial) "
+                 "VALUES (300, '2026-27', 'default', 8)")
+    conn.commit()
+
+    assert snapshot.perimeter_clubs(conn, "default", ("2025-26", "2026-27")) == {"Venezia"}
+    # a window the quotes backfill does not cover falls back to the ratings
+    assert snapshot.perimeter_clubs(conn, "default", ("2024-25", "2025-26")) == {"Verona"}
+
+
 def test_a_ten_match_window_is_shrunk_on_its_ten_matches_like_any_other_short_sample():
     """The shortest sample the panel ever builds a standing from was the only one exempt from the shrinkage.
 

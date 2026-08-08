@@ -126,7 +126,16 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      measured WINDOW: Alajbegovic had never been in a listone, so he carried no level at all while his
 #      ten matches were Bayer Leverkusen's (1836.6, above Juventus's own 1819.4). The adopted level
 #      channels now reach him, and the window branch of `presence.standing` takes them.
-SHEET_REVISION = 9
+#  10  08/08/2026 - THE PERIMETER IS THE TARGET LISTONE, NOT LAST SEASON'S RATINGS. `perimeter_clubs`
+#      read `match_ratings` for (input, target); in August the target has no ratings, so every
+#      preseason sheet was filtered on the season that ENDED: the 2026-27 Serie A sheet listed the
+#      relegated Cremonese, Pisa and Verona (94 rows, none purchasable) and silently dropped all 74
+#      quoted players of the promoted Frosinone, Monza and Venezia - three clubs you WILL buy from,
+#      absent from the auction sheet and from every board. Found comparing the boards with the
+#      press's 2026-27 typical formations. The perimeter now comes from `listone_quotes` for the
+#      target season (contingent >= PERIMETER_SQUAD_MIN, or a stray roster row smuggles a foreign
+#      club in), with ratings as the fallback for windows the quotes backfill does not cover.
+SHEET_REVISION = 10
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
@@ -2368,8 +2377,34 @@ PLAYER_COLUMNS: tuple[str, ...] = (
 )
 
 
+# A club you can buy a squad from fields at least an eleven. The listone perimeter counts each
+# club's quoted contingent because a stray pairing exists by construction: `rosters` keeps the LAST
+# read, so a man the listone still quotes after his move abroad is filed at his NEW club, and that
+# club would ride into the sheet on his single row. Measured on 2026-27 `default`: real contingents
+# run 21-43, the stray (Gutierrez, filed at Bayer Leverkusen, still quoted 8.0) is 1.
+PERIMETER_SQUAD_MIN = 11
+
+
 def perimeter_clubs(conn, platform: str, seasons: tuple[str, ...]) -> set[str]:
-    """The clubs THIS PLATFORM plays, from its own ratings: who you can actually buy from."""
+    """The clubs THIS PLATFORM plays in the TARGET season: who you can actually buy from.
+
+    The TARGET listone is the authority: it exists on auction day and it is the only source that
+    knows a promotion before a ball is kicked. Read from ratings alone, the perimeter was one
+    season stale on every preseason sheet - in August the target season has no ratings, so the
+    2026-27 Serie A sheet kept the relegated clubs' unquoted squads (94 rows of Cremonese, Pisa
+    and Verona) and silently dropped all 74 quoted players of Frosinone, Monza and Venezia
+    (found 08/08/2026, comparing the boards with the press's typical formations). Ratings remain
+    the fallback for a window whose listone `listone_quotes` does not cover.
+    """
+    target = max(seasons) if seasons else None
+    quoted = {club for (club, contingent) in conn.execute(
+        "SELECT c.canonical_name, COUNT(*) FROM listone_quotes q "
+        "JOIN rosters r ON r.fc_id = q.fc_id AND r.season = q.season "
+        "JOIN clubs c ON c.fc_club_id = r.fc_club_id "
+        "WHERE q.platform = ? AND q.season = ? GROUP BY c.canonical_name",
+        (platform, target)) if contingent >= PERIMETER_SQUAD_MIN}
+    if quoted:
+        return quoted
     placeholders = ",".join("?" * len(seasons)) or "NULL"
     return {team for (team,) in conn.execute(
         f"SELECT DISTINCT team FROM match_ratings WHERE platform = ? AND team IS NOT NULL "
