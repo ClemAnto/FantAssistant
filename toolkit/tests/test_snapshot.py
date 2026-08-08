@@ -188,7 +188,6 @@ def test_the_live_squad_is_read_after_the_run_that_downloads_it(tmp_path, monkey
                                {"player": {"id": 903, "name": "Sommer"}}]}
         path = context.config.cache_dir / f"sofascore_squad_2697_{date}.json"
         path.write_text(json.dumps(payload), encoding="utf-8")
-        return None
 
     monkeypatch.setattr(snapshot, "refresh_real_roles", fake_roles)
     monkeypatch.setattr(snapshot, "refresh_editorial", lambda context: None)
@@ -1547,6 +1546,70 @@ def test_a_front_three_of_punte_recruits_the_wings_it_needs(monkeypatch):
     assert {row["name"] for row, _rivals in lanes["A"]} == {"Krstovic"}, "the punta keeps his shirt"
     assert "Solomon" not in {row["name"] for men in lanes.values() for row, _r in men}, \
         "and no wing is recruited for a line that is not holding two punte"
+
+
+def test_a_pure_attacker_is_not_a_wing_back_in_a_back_three(monkeypatch):
+    """The operator, on Roma: «Malen dovrebbe giocare come Pc e non come centrocampista esterno».
+
+    Found comparing the boards with the press's 2026-27 typical formations (08/08/2026). In a module
+    whose back line has no flank places, the midfield's wide places are the WHOLE touchline - the
+    press mans Roma's right one with Molina or Rensch, both full backs - and `_flanked` handed it to
+    Malen (`RW;ST`, 0.391) over Rensch (`DR;MR`, 0.363), because among everybody who plays a side the
+    claim alone decided. A pure attacker does not become an esterno a tutta fascia by 0.03 of claim:
+    on a wing-back row the rival must hold a D/M flank code (`_wing_back_trade`). Malen goes back to
+    the attack's bench, where his shirt is the punta's - which is what the press's own ballottaggio
+    says (Malen vs Castro). The guard this must NOT undo is Bologna's: in front of a back FOUR the
+    wide places stay open to wingers (Orsolini's 4-5-1 right), so the same squad drawn 4-4-2 keeps
+    recruiting its winger.
+    """
+    rows = [{"fc_id": str(index), "name": name, "desc_real_roles": codes, "role_classic": role,
+             "share": share}
+            for index, (name, codes, role, share) in enumerate((
+                ("Svilar", "GK", "P", 0.86),
+                ("Mancini", "DC;DR", "D", 0.80), ("N'Dicka", "DC;DL", "D", 0.71),
+                ("Hermoso", "DC;DL;DR", "D", 0.68),
+                ("Wesley", "DR;ML", "D", 0.74), ("Rensch", "DR;MR", "D", 0.36),
+                ("Cristante", "MC;DM", "C", 0.79), ("Kone", "MC;DM", "C", 0.78),
+                ("Pisilli", "MC;DM", "C", 0.37),
+                ("Soule", "AM;RW", "A", 0.65), ("Dybala", "AM;ST", "A", 0.53),
+                ("Castro", "ST", "A", 0.50), ("Malen", "RW;ST", "A", 0.39)))]
+    view = _view_of(rows)
+    view._calendar, view._slot_side, view._excluded, view._reshaped = {}, {}, set(), set()
+    from euroleghe_ingest.gui import SnapshotView as View
+
+    monkeypatch.setattr(View, "squad", lambda _self, _club: rows)
+    monkeypatch.setattr(View, "presence", lambda _self, row, _horizon: row.get("share", 0.0))
+    monkeypatch.setattr(View, "claim", lambda _self, row, _horizon="season": row.get("share", 0.0))
+    monkeypatch.setattr(View, "titolarita", lambda _self, row, _horizon: (0.0, row.get("share", 0.0)))
+
+    eleven = view.eleven("Test", "3-4-3", "typical")
+    where = {starter["name"]: lane for lane, starter, _rivals in eleven}
+    assert where.get("Malen") != "M", f"a RW;ST holds no wing-back place: {where}"
+    middles = {starter["name"] for lane, starter, _rivals in eleven if lane == "M"}
+    assert {"Wesley", "Rensch"} & middles or {"Wesley"} <= middles, \
+        f"the touchline belongs to men whose codes do the job: {middles}"
+    # ...and the punta's shirt stays a duel between the punte: Malen is Castro's rival, not a wing back
+    front = {starter["name"]: {r.get("name") for r in rivals}
+             for lane, starter, rivals in eleven if lane == "A"}
+    assert "Malen" in front or any("Malen" in rivals for rivals in front.values()), front
+
+    # The Bologna guard: the SAME wide forward is still recruited where full backs stand behind him.
+    four_four_two = [{"fc_id": str(index), "name": name, "desc_real_roles": codes,
+                      "role_classic": role, "share": share}
+                     for index, (name, codes, role, share) in enumerate((
+                         ("Skorupski", "GK", "P", 0.90),
+                         ("Holm", "DR", "D", 0.70), ("Beukema", "DC", "D", 0.80),
+                         ("Lucumi", "DC", "D", 0.78), ("Miranda", "DL", "D", 0.72),
+                         ("Freuler", "MC;DM", "C", 0.80), ("Ferguson", "MC;AM", "C", 0.75),
+                         ("Moro", "MC;DM", "C", 0.50), ("Fabbian", "MC;AM", "C", 0.45),
+                         ("Orsolini", "RW", "A", 0.64), ("Castro", "ST", "A", 0.70),
+                         ("Cambiaghi", "LW", "A", 0.53)))]
+    view = _view_of(four_four_two)
+    view._calendar, view._slot_side, view._excluded, view._reshaped = {}, {}, set(), set()
+    monkeypatch.setattr(View, "squad", lambda _self, _club: four_four_two)
+    eleven = view.eleven("Test", "4-4-2", "typical")
+    middles = {starter["name"] for lane, starter, _rivals in eleven if lane == "M"}
+    assert "Orsolini" in middles, f"in front of a back four the winger still takes the wide place: {middles}"
 
 
 def test_a_four_five_one_whose_five_plays_ahead_of_itself_is_a_four_two_three_one(monkeypatch):

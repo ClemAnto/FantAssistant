@@ -4638,7 +4638,12 @@ class SnapshotView(ttk.Frame):
                     if row.get("name") not in taken and row not in take
                     and can_lend(row, role) and self._within_reach(row, role)
                     and not (role == "A" and self._off_the_front(row, "A"))]
-                take = self._flanked(take, role, slots, horizon, pool)
+                take = self._flanked(
+                    take, role, slots, horizon, pool,
+                    # a midfield in front of a back line with no flanks of its own (three or five
+                    # centrals) owns the whole touchline: its wide places are wing-back jobs
+                    wing_backs=role == "M" and not any(
+                        side in ("R", "L") for side in self.slot_shape("D", defenders)))
                 # ...a place in the FRONT line is a forward's job, which is rule 4a one step earlier...
                 take = self._fronted(take, role, slots, horizon,
                                      [row for row in pool if row not in take])
@@ -4744,6 +4749,22 @@ class SnapshotView(ttk.Frame):
         return held
 
     @classmethod
+    def _wing_back_trade(cls, row: dict) -> bool:
+        """Whether a flank he owns WHOLE is his job: a flank code of the D or M lines, not an attack's.
+
+        «Malen dovrebbe giocare come Pc e non come centrocampista esterno» (operator, 08/08/2026). In a
+        module whose BACK line has no flank places (a back three or five), the midfield's wide places are
+        the whole touchline - a wing back's work, the places the press mans with full backs - and Roma's
+        right one went to Malen (`RW;ST`, 0.391) over Rensch (`DR;MR`, 0.363) because `_flanked` ranks by
+        claim alone among everybody who plays A side. A pure attacker does not become an esterno a tutta
+        fascia by 0.03 of claim. Where the midfield has full backs BEHIND it the wide places stay open to
+        wingers - Bologna's 4-5-1 right is Orsolini's, the case `_flanked` was built on - and `_reshape`
+        rule 3 can still drop a wide attacker onto a VACATED wing: an emergency, never a selection.
+        """
+        return any(REAL_ROLE_SIDE.get(code) and cls.LANE_OF_ROLE.get(code) in ("D", "M")
+                   for code in cls.real_roles(row))
+
+    @classmethod
     def _flank_trade(cls, row: dict, role: str) -> bool:
         """Whether a flank of THIS row is a job he really does: his FIRST code names a side, or the line is
         his own line anyway.
@@ -4762,7 +4783,7 @@ class SnapshotView(ttk.Frame):
             cls.LANE_OF_ROLE.get(code) for code in codes}
 
     def _flanked(self, take: list[dict], role: str, slots: int, horizon: str,
-                 rivals: list[dict]) -> list[dict]:
+                 rivals: list[dict], wing_backs: bool = False) -> list[dict]:
         """A ROW'S FLANK IS A JOB, and the men who do it are not only the ones its own line's pool holds.
 
         «I due attaccanti esterni possono arretrare e coprire il centrocampo» - the same sentence as
@@ -4793,8 +4814,11 @@ class SnapshotView(ttk.Frame):
         if not sides or len(take) < slots:
             return take                      # a row with no flanks, or one that has not even got its men
         for side in sides:
+            # `wing_backs` = this row's flanks are the WHOLE touchline (no full back behind them), so a
+            # flank is a D/M job and a pure attacker does not compete for it (`_wing_back_trade`)
             rival = max((row for row in rivals if side in self.sides_of(row)
-                         and self._flank_trade(row, role)),
+                         and self._flank_trade(row, role)
+                         and (not wing_backs or self._wing_back_trade(row))),
                         key=lambda row: self.claim(row, horizon), default=None)
             if rival is None:
                 continue

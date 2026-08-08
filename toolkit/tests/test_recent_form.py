@@ -12,7 +12,6 @@ import sqlite3
 import pytest
 
 
-
 def _publish_quotes(conn, platform: str = "default") -> None:
     """A listone ingest writes the quotation twice: `rosters` and `listone_quotes` (per platform).
 
