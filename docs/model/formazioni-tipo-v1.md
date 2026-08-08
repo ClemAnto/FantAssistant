@@ -301,6 +301,26 @@ press --sheet data/reports/auction-snapshot-...    # giudica le board di quel fo
    minuti misurati. Ciò che resta è davvero il modello: i canali d'arrivo adottati (level,
    level_gap) su uomini la cui storia sta altrove.
 
+## 6-bis. Una regola misurata, implementata e REFUTATA: la co-titolarità (08/08/2026)
+
+Vale la pena di stare qui perché è il ciclo completo, e perché il dato è rimasto.
+**L'ipotesi** (operatore): «Scamacca e Krstovic giocheranno entrambi ma non contemporaneamente».
+**La misura le dà ragione sulla coppia e torto sul ruolo**: 2 co-start di 15/18 sulle 35 partite in
+cui erano entrambi disponibili (**0.13**) contro Lautaro Martinez e Thuram a **0.58**. Con i due
+ancoraggi sulla stessa scala, «mai due Pc» è falso e «due che non coesistono» è misurabile.
+**Il denominatore È la misura**: contata su tutte le partite, ogni coppia separata da un
+trasferimento legge 0.00 — 35 coppie sembravano «non coesistono» e 32 non avevano mai condiviso una
+rosa. Con le sole partite in cui entrambi erano in rosa restano 198 coppie e **3 sotto 0.25**.
+**Dove va la regola**: non alla selezione. Il pool d'attacco dell'Atalanta è guidato da Zalewski e
+Pasalic (centrocampisti con codice `AM`) ed è `_fronted` a metterci le punte — una regola sulla
+COPPIA deve vedere la coppia, quindi è il quarto override di mestiere.
+**Il verdetto**: uomini **164 → 162**, Atalanta **7/11 → 6/11**, modulo da ALT a DIFF. **La stampa
+schiera Scamacca**, cioè l'uomo che la regola toglieva: scarta il claim più basso (0.468 vs 0.490) e
+sull'unico caso per cui esiste sbaglia metà. Ritirata (v9.16).
+**Cosa resta**: `desc_costart_low` sul foglio, e la domanda vera scritta — serve un segnale su QUALE
+dei due ruotanti comanda, e il claim non lo è, perché in una rotazione i minuti sono quasi pari per
+costruzione.
+
 ## 7. Limiti dichiarati
 
 - `formation_typical` è la stagione di INPUT: per un allenatore nuovo descrive il predecessore, e lo

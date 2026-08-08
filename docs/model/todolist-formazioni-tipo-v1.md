@@ -1,10 +1,14 @@
 # Todolist — formazioni tipo più veritiere (v1, 08/08/2026)
 
-*Nata dal confronto con le fonti giornalistiche dell'08/08/2026 (20 club, 4-6 fonti ciascuno:
-moduli 10 uguali + 5 sull'alternativa dichiarata + 5 divergenti; uomini 159/220 = 72%). Ogni voce
-porta la sua evidenza misurata, il giudice con cui si decide, e la resa attesa. Ordinata per resa.
-Meccanismo e formule: [formazioni-tipo-v1.md](formazioni-tipo-v1.md). Dati del confronto:
-`data/reports/press-formations-2026-08-08/`.*
+*Nata dal confronto con le fonti giornalistiche dell'08/08/2026 (20 club, 4-6 fonti ciascuno). Ogni
+voce porta la sua evidenza misurata, il giudice con cui si decide, e la resa attesa. Ordinata per
+resa. Meccanismo e formule: [formazioni-tipo-v1.md](formazioni-tipo-v1.md).*
+
+**Stato del giudice** (harness `press`, foglio default, `SHEET_REVISION` 11): moduli **10 uguali +
+4 sull'alternativa dichiarata + 6 divergenti**, uomini **164/220 = 75%** — da 9/5/6 e 160/220
+dell'archivio di partenza. La referenza è un DATO (`press_formations`) e il confronto un comando:
+questi numeri si citano da `data/reports/press_comparison.json`, mai a memoria. Il perché di quella
+regola è la voce 3-ter.
 
 **Regola che vale per tutta la lista**: la stampa è un GIUDICE, mai un input del claim — leggerla
 dentro il modello renderebbe circolare proprio il confronto che la usa. E nessun criterio si
@@ -155,25 +159,37 @@ Lecce 8→9-10. Attenzione alla lezione v9.16: se aggiustare un club ne rompe un
 MODELLO sbagliato, si annota e si torna indietro.
 **Resa attesa**: 1-2 club oggi, ma è la classe di difetto più visibile all'operatore.
 
-## 3-bis. Co-titolarità misurata: due che non coesistono non si disegnano insieme
-**Perché, misurato (08/08/2026, su richiesta dell'operatore: «Scamacca e Krstovic giocheranno
-entrambi ma non contemporaneamente — due Pc difficilmente coesistono in campo»)**: la board
-dell'Atalanta disegna un 4-3-1-2 con Krstovic (0.484) E Scamacca (0.452) davanti, ma nel 2025-26 —
-già sotto il predecessore — hanno iniziato insieme **5 partite su 24 start a testa** (47 partite
-comuni: una maglia in rotazione). Il controesempio che la regola deve rispettare è l'Inter:
-Lautaro+Thuram **18 co-start su 23** — le due punte che coesistono davvero. «Mai due Pc» sarebbe
-falso; «due che non hanno mai coesistito non si disegnano insieme» è misurabile e ha i due ancoraggi.
-**Cosa fare**: (a) portare sul foglio la co-titolarità per coppie dello stesso club/linea (dal
-per-partita `external_match_stats.started`, per la stagione di input) — es. `desc_costart_top`:
-per ciascuno, il compagno di linea con cui ha co-iniziato di più e la quota; (b) regola alla
-SELEZIONE: se i due candidati alla stessa linea hanno co-start sotto una soglia (da griglia
-pre-registrata; gli ancoraggi dicono che sta fra 0.21 e 0.78), entra il claim più alto e l'altro è
-il PRIMO rivale sulla targhetta; (c) limite dichiarato: per un cambio allenatore la co-titolarità
-misurata è del predecessore — qui però il segnale era già giusto.
-**Giudice**: referenza stampa (voce 0) + 394 board (l'Inter, il Venezia e il Torino non devono
-muoversi) + gli ancoraggi.
-**Resa attesa**: Atalanta (davanti resta UNA punta e il 4-3-3 recluta le ali: Zalewski/Raspadori
-sono i nomi che la stampa schiera), e ogni coppia in rotazione che oggi viene disegnata coppia.
+## 3-bis. ~~Co-titolarità misurata~~ — **DATO ADOTTATO, REGOLA REFUTATA** (08/08/2026, `a3ee449`)
+**Come è andata, in ordine.** L'ipotesi dell'operatore è **confermata sulla coppia**: Krstovic e
+Scamacca hanno 2 co-start di 15/18 sulle 35 partite in cui erano entrambi disponibili, **0.13**,
+contro Lautaro Martinez e Thuram a **0.58**. Quindi «mai due Pc» è falso e «due che non coesistono
+non si disegnano insieme» è misurabile, con due ancoraggi sulla stessa scala.
+**Il DATO resta** (`desc_costart_low` sul foglio, `SHEET_REVISION` 11), e la lezione che è costato è
+il denominatore: contata su tutte le partite, ogni coppia separata da un trasferimento legge 0.00 e
+«non coesistono» si direbbe di ogni acquisto estivo — **35 coppie sembravano così e 32 semplicemente
+non avevano mai condiviso una rosa** (Doekhi e Romagnoli, Kolo Muani e Conceição). Col denominatore
+giusto — le partite in cui ENTRAMBI erano in rosa — restano 198 coppie e solo **3 sotto 0.25**.
+**La REGOLA non resta.** Implementata come quarto override di mestiere (non può girare alla
+selezione: il pool d'attacco dell'Atalanta è guidato da Zalewski e Pasalic, due centrocampisti con
+codice `AM`, ed è `_fronted` a metterci le punte — una regola sulla COPPIA deve vedere la coppia), ha
+fatto esattamente quello che prometteva: Scamacca fuori, Sulemana K. dentro. **Il giudice l'ha
+bocciata**: uomini **164 → 162**, Atalanta **7/11 → 6/11**, e il suo verdetto modulo da ALT a DIFF.
+**La stampa schiera Scamacca.** La regola non aveva modo di sapere quale metà di una rotazione
+tenere — scarta il claim più basso (0.468 contro 0.490) e sull'unico caso per cui esiste è l'uomo
+sbagliato. Ritirata secondo v9.16.
+**Cosa servirebbe, e non è una soglia**: un segnale su QUALE dei due ruotanti comanda. Il claim non
+lo è (li ordina per minuti, che in una rotazione sono quasi pari per costruzione), e il dato per
+cercarlo ora c'è. Finché non esiste, la co-titolarità è una LETTURA per l'operatore — la targhetta
+dice già i rivali — e non un criterio di selezione.
+
+## 3-ter. Nota su come era scritta la 3-bis, che è la lezione della voce 0
+La stesura originale citava «5 co-start su 24 a testa» per Krstovic/Scamacca e «18 su 23» per
+Lautaro/Thuram. Rimisurati con l'harness: **2 su 15/18** e **15 su 26/28**, cioè 0.13 e 0.58 invece
+di 0.21 e 0.78. La differenza non è un errore di allora: il layer per-partita è cambiato sotto
+(4302 righe duplicate rimosse, le competizioni normalizzate) e i primi numeri furono presi a mano.
+È la terza volta in una sessione che un numero citato a memoria non si riproduce — la prima fu
+«10/5/5 · 159/220». Da qui la regola operativa: **una quota si cita dal report o si rimisura, mai
+dal documento**, e il documento porta la forma della conclusione con la data.
 
 ## 4. `COACH_SHAPE_MIN` / `COACH_SHAPE_FULL` (20/60): la verifica ESTERNA del giudice interno
 **Perché**: la rimisurazione col giudice INTERNO è già stata fatta (v9.41 §3, gate §7-quinvicies,
@@ -225,9 +241,10 @@ d'asta.
   tenerla vicina alla board quando si giudica un undici «sbagliato».
 
 ## Fatto l'08/08/2026, seconda sessione
-- **Voce 0 (`19351fd`)**, **voce 2 (`d7ea4a3`, `a039910`)** e **voce 1 (`9d0f400`)**: sopra, ciascuna
-  coi suoi numeri. Bilancio sul giudice: moduli **9/5/6 → 10 MATCH / 4 ALT / 6 DIFF**, uomini
-  **160 → 164/220**, `backtest --verify` sempre 22/22.
+- **Voce 0 (`19351fd`)**, **voce 2 (`d7ea4a3`, `a039910`)**, **voce 1 (`9d0f400`)** e **voce 3-bis
+  (`a3ee449`, dato adottato e regola refutata)**: sopra, ciascuna coi suoi numeri. Bilancio sul
+  giudice: moduli **9/5/6 → 10 MATCH / 4 ALT / 6 DIFF**, uomini **160 → 164/220**, `backtest
+  --verify` sempre 22/22. `SHEET_REVISION` **11**: i fogli sotto quella revisione sono da rifare.
 - **Il selettore modulo dice anche quanto VALE l'undici** (`39ec7c9`, richiesta dell'operatore).
   Accanto alla probabilità, `SUR` = il surplus MEDIO degli undici che quella forma schiera: due
   domande diverse, e la forma probabile può schierare l'undici più povero — Como 4-5-1 al 77% con

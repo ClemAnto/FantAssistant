@@ -135,7 +135,18 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      press's 2026-27 typical formations. The perimeter now comes from `listone_quotes` for the
 #      target season (contingent >= PERIMETER_SQUAD_MIN, or a stray roster row smuggles a foreign
 #      club in), with ratings as the fallback for windows the quotes backfill does not cover.
-SHEET_REVISION = 10
+#  11  08/08/2026 (evening) - THE MEASURED SEASON GOT BIGGER, in three ways that all move `desc_*` and
+#      therefore every claim built on them. (a) An identity already in `player_xref` now attributes a
+#      season the name pools cannot see, because the listone's perimeter changes every summer: 59 men
+#      of the 2026-27 listone had NO 2025-26 aggregate at all (Doekhi, Geubbels - both started by the
+#      press), and `external_stats` went from 11,732 to 16,970 rows. (b) The FEEDER championships
+#      arrived (`config.FEEDER_LEAGUES`: Serie B), so a promoted club's men have measured starts and
+#      minutes instead of none - Frosinone 2 of 25 quoted players with an aggregate, now 22 - and
+#      `CHAMPIONSHIPS` is the denominator, 38 rounds of Serie B rather than the 24 elevens we parsed.
+#      (c) `transfers_history` resolves by the canonical Transfermarkt id (unresolved 4,422 -> 2,508)
+#      and no longer keeps the same deal twice under two club spellings. Plus one new column,
+#      `desc_costart_low`. Measured against the press: 160 -> 164 of 220 men, 9 -> 10 modules exact.
+SHEET_REVISION = 11
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
