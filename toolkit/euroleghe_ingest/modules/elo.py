@@ -508,6 +508,54 @@ def levels_at(conn, year: str) -> dict[str, float]:
         "SELECT club_key, elo FROM club_levels WHERE year = ?", (year,))}
 
 
+def levels_by_minutes(conn, season: str) -> dict[int, tuple[float, str]]:
+    """{fc_id: the Elo of the club he actually PLAYED his minutes for, that season}.
+
+    The club of the MINUTES, by the provider's own team id, which is the only thing that can answer the
+    question for a man who was never in a listone: `desc_level_elo` reads the roster's previous club, so
+    for a man arriving from outside the perimeter it had nothing to read and the ADOPTED level channels
+    (`level_weight`, `level_gap_weight`) were blind on him. Measured 08/08/2026: 91 of the 158 arrivals
+    on the 2026-27 Serie A sheet carried no level at all, and 49 of them - Ghedjemis and Kvernadze from
+    Frosinone, Geubbels from Paris FC, Adorante from Venezia - have a club_id whose Elo we hold.
+
+    NOT a new population: `snapshot` already falls back to the club of a man's measured WINDOW when he
+    has no previous roster (the Alajbegovic case). This is the same question with a wider source - the
+    season AGGREGATE instead of the ten-match window - so it reaches a man whose window was never
+    fetched. Where he played for two clubs the one with the MOST MINUTES speaks, which is the same rule
+    `personal_levels` uses.
+
+    Returns (Elo, the ClubElo name of that club) because the CALLER has to be able to check whether it
+    is a different club from the one he is at now. That check is not optional: without it the fallback
+    hands a level - and therefore a level GAP - to a man whose club never changed but was PROMOTED, and
+    `level_gap` («chi sale di livello scende di ruolo») then penalises a promoted club's whole squad at
+    once. Measured the hard way on 08/08/2026: it took Frosinone from MATCH to DIFF against the press
+    and drew it as a 3-3-1-3. A promoted man did not step up by moving; his club came up, and the side
+    is still his. The population of `level_gap` is TRANSFERS.
+
+    Reads `club_levels` and `club_levels_xref` in SQL, with no cache and no `ctx`: `levels_at` next door
+    does the same, and a reader that needed the raw snapshots would be unusable from `build_rows`.
+    """
+    year = season.split("-")[0]
+    elo_of = {name: value for name, value in conn.execute(
+        "SELECT elo_name, MAX(elo) FROM club_levels WHERE year = ? GROUP BY elo_name", (year,))}
+    if not elo_of:
+        return {}
+    named = {str(provider): name for provider, name in conn.execute(
+        "SELECT provider_club_id, elo_name FROM club_levels_xref")}
+    out: dict[int, tuple[float, str]] = {}
+    for fc_id, club_id, minutes in conn.execute(
+            """SELECT fc_id, club_id, SUM(COALESCE(minutes, 0)) FROM external_stats
+               WHERE season = ? AND source = 'sofascore' AND competition <> '' AND club_id IS NOT NULL
+               GROUP BY fc_id, club_id ORDER BY 3 DESC""", (season,)):
+        if not minutes or fc_id in out:
+            continue                      # the club he played MOST for, and only that one
+        name = named.get(str(club_id), "")
+        value = elo_of.get(name)
+        if value is not None:             # unknown club: unknown level, never a zero
+            out[fc_id] = (value, name)
+    return out
+
+
 def retag_foreign_competitions(conn) -> list[tuple[str, str, int]]:
     """Re-tag a row whose CLUB plays in a different country from the competition naming it.
 

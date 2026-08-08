@@ -151,7 +151,17 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      `level_z` lesson - a parameter whose input never reaches the caller is switched on and blind).
 #      The channel itself was measured and refused by both judges and sits at 0; the column stays,
 #      because the next hypothesis about age should not have to pay for it again.
-SHEET_REVISION = 12
+#  13  08/08/2026 - THE LEVEL OF A MAN WHO WAS NEVER IN A LISTONE. `desc_level_elo` read the roster's
+#      previous club, so for somebody arriving from outside the perimeter it had nothing to read and the
+#      two ADOPTED level channels were blind on him: 91 of 158 arrivals on the Serie A sheet carried no
+#      level at all. Third fallback added - the club his season AGGREGATE says he played for, by the
+#      provider's team id (`elo.levels_by_minutes`) - which reaches a man whose recent-form window was
+#      never fetched. Coverage on arrivals 67 -> 74, and the guard is the interesting half: the fallback
+#      REFUSES a club that is the one he is still at, because `level_gap` measures what a man gains by
+#      MOVING and a promoted squad moved nowhere. Without that guard it took Frosinone from MATCH to
+#      DIFF against the press and drew it 3-3-1-3. Judges: press unchanged (11/5/4, 166/220), outcome
+#      134 -> 137 men of 220.
+SHEET_REVISION = 13
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
@@ -2525,6 +2535,22 @@ def perimeter_clubs(conn, platform: str, seasons: tuple[str, ...]) -> set[str]:
         f"AND season IN ({placeholders})", (platform, *seasons))}
 
 
+def _level_of_other_club(found, club_target: str | None, elo_names: dict[str, str]) -> float | None:
+    """The Elo of the club his MINUTES were played at - only if it is not the club he is at now.
+
+    The guard is the whole function. `level_gap` measures what a man gains or loses BY MOVING, and its
+    population is transfers; a promoted club's squad has the same club it always had, so handing it a
+    level gap penalises eleven men for a step none of them took. Measured 08/08/2026: without this,
+    Frosinone went from MATCH to DIFF against the press and was drawn as a 3-3-1-3.
+    """
+    if not found:
+        return None
+    value, elo_name = found
+    if club_target and elo_names.get(matching.club_identity(club_target)) == elo_name:
+        return None
+    return value
+
+
 def build_rows(conn, data: features.WindowData, predictions, layers: dict,
                perimeter: set[str] | None = None, window: features.Window | None = None,
                platform: str = "euro") -> list[dict]:
@@ -2555,6 +2581,15 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
     from euroleghe_ingest.modules import elo as elo_module
 
     club_level = elo_module.levels_at(conn, window.input_season.split("-")[0])
+    # ...and the level of the club a man actually PLAYED his minutes for, which is the only source that
+    # can answer for somebody who was never in a listone (see `elo.levels_by_minutes`): 91 of 158
+    # arrivals had no level at all, and this recovers 49 of them.
+    level_by_minutes = elo_module.levels_by_minutes(conn, window.input_season)
+    # ...and which ClubElo club each of OUR clubs is, so the fallback can refuse a man whose minutes
+    # were played at the club he is still at: a promoted squad did not step up by moving.
+    elo_names = {matching.club_identity(key): name for key, name in conn.execute(
+        "SELECT club_key, elo_name FROM club_levels WHERE year = ?",
+        (window.input_season.split("-")[0],))}
     # The rank belongs to the SLOT the row's surplus is measured against, not to the listone role: on a
     # mantra sheet those are two different populations (a 'w;a' forward competes with wingers, not with
     # every 'A'), and ranking inside the classic role printed a position that was in no list the panel
@@ -2762,9 +2797,16 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             # he carried no level at all while his ten matches were Bayer Leverkusen's (1836.6, above
             # Juventus's own 1819.4). It is the origin level for an arrival either way; what changes is how
             # much football is behind it, and the shrinkage already says that.
+            # THE LEVEL of the football behind his minutes, in three steps and the order is the
+            # evidence's own: the club he LEFT where the roster knows it, then the club of his measured
+            # WINDOW (the Alajbegovic case), then the club his season AGGREGATE says he played for -
+            # which is what reaches a man who was never in a listone at all, and whose window was never
+            # fetched. Empty only where none of the three can name a club with a level: «vuoto = ignoto».
             "desc_level_elo": (obs.elo_prev if obs.club_change else
-                               club_level.get(matching.club_identity(recent.get("club")))
-                               if recent.get("club") else None),
+                               (club_level.get(matching.club_identity(recent.get("club")))
+                                if recent.get("club") else None)
+                               or _level_of_other_club(level_by_minutes.get(obs.fc_id),
+                                                       obs.club_target, elo_names)),
             # What he had shown BEFORE last season - the career channel's input, forwards only because
             # that is the population it was measured on (`presence.career_lift`).
             "desc_career_fm": (obs.fm_career if obs.role_classic == "A" else None),
