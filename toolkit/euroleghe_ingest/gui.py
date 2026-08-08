@@ -4721,6 +4721,7 @@ class SnapshotView(ttk.Frame):
                 # ...and so is the middle of a FRONT line, for the same reason and with the same ceiling
                 take = self._pointed(take, role, slots, horizon,
                                      [row for row in pool if row not in take])
+
             for row in take:
                 taken.add(row.get("name"))
                 left[role] -= 1
@@ -4800,6 +4801,41 @@ class SnapshotView(ttk.Frame):
     # for BOTH wings there; 0.40 admits all three and still refuses the case the ceiling exists for
     # (Napoli's row of four regulars, a 0.87 gap). Above 0.50 nothing new is admitted on either sheet.
     FLANK_OVERRIDE_GAP: ClassVar[float] = 0.40
+
+    # CO-TITOLARITÀ: MEASURED, IMPLEMENTED, AND REFUSED BY THE JUDGE (08/08/2026). Kept as a threshold
+    # and an accessor because the DATA is real and on the sheet (`desc_costart_low`); what is gone is
+    # the rule that read them, and the reason it is gone is worth more than the rule was.
+    # The hypothesis was the operator's: «Scamacca e Krstovic giocheranno entrambi ma non
+    # contemporaneamente». The measurement agrees about the pair - 2 co-starts of 15/18 over the 35
+    # matches both were available for, 0.13, against Lautaro Martinez and Thuram at 0.58 - so «mai due
+    # Pc» is false and «two who do not coexist are not drawn together» is measurable, with both
+    # anchors on one scale. Implemented as the fourth trade override (it cannot run at selection time:
+    # Atalanta's attack pool leads with two midfielders coded `AM`, and it is `_fronted` that puts the
+    # centre-forwards in), it did exactly what it promised - Scamacca out, Sulemana K. in - and the
+    # press comparison went from 164/220 to **162**, with Atalanta itself 7/11 -> 6/11 and its module
+    # verdict from ALT to DIFF. The press starts SCAMACCA. The rule had no way to know which half of a
+    # rotation to keep: it drops the lower claim (0.468 against 0.490), and on the one case it exists
+    # for that is the wrong man. Reverted, per v9.16 - «se aggiustare un club ne rompe un altro è il
+    # MODELLO sbagliato, si annota e si torna indietro». What would make it decidable is a signal for
+    # WHICH of two rotating men leads, and the claim is not it.
+    COSTART_MIN: ClassVar[float] = 0.25
+
+    @staticmethod
+    def costart_share(row: dict, mate: dict) -> float | None:
+        """How often these two STARTED together, of the matches both were available for. None = unknown.
+
+        Read off `desc_costart_low`, which the sheet only fills where the share is low and where there
+        was enough shared football to say anything: a pair that never shared a squad has co-started
+        nothing by construction, and that is not the same sentence as «they do not coexist».
+        """
+        name = mate.get("name")
+        if not name:
+            return None
+        for entry in (row.get("desc_costart_low") or "").split(";"):
+            mate_name, _, share = entry.rpartition(":")
+            if mate_name.strip() == name:
+                return _number(share, None)
+        return None
 
     def _covers(self, men: list[dict], sides: list[str]) -> int:
         """How many of a row's flank places these men can hold AT ONCE - a matching, not a count.

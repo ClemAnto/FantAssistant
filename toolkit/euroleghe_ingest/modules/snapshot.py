@@ -1240,6 +1240,75 @@ def availability_now(conn, auction_date: str) -> dict[int, str]:
     return out
 
 
+# A co-start share is only worth storing where it is LOW: a rule can refuse to draw two men who never
+# coexist, and nothing reads "these two always play together". Kept generously above any threshold a
+# sweep might pick, so the grid can move without rebuilding the sheet.
+COSTART_LOW = 0.50
+# ...and how much shared football is enough to say anything at all. Below these the pair is UNKNOWN and
+# gets no entry, which is not the same as a low share: two men who were never in a squad together have
+# co-started nothing by construction - the trap this measurement walked into first, where every summer
+# signing read 0.00 against every team-mate.
+COSTART_MIN_SHARED = 8
+COSTART_MIN_STARTS = 5
+
+
+def costarts(conn, season: str, fc_ids: set[int], clubs: dict[int, str],
+             before: str | None = None) -> dict[int, str]:
+    """fc_id -> "name:share;..." for the team-mates he rarely STARTS beside.
+
+    «Scamacca e Krstovic giocheranno entrambi ma non contemporaneamente» (operator, 08/08/2026), and
+    the measurement agrees where it can see: 2 co-starts of 15/18 over the 35 matches both were
+    available for, 0.13 - against Lautaro Martinez and Thuram at 0.58, the pair that really does
+    coexist. So «never two centre-forwards» is false and «two who do not coexist are not drawn
+    together» is measurable, with both anchors on the same scale.
+
+    The denominator is over the matches BOTH had a row in - i.e. both were in the squad - because the
+    question is whether a coach who COULD field them together does. Over all matches instead, every
+    pair split by a transfer reads 0.00: measured on the boards, 35 pairs looked like "they never
+    coexist" and 32 of them had simply never shared a squad (Doekhi and Romagnoli, Kolo Muani and
+    Conceição). Same rule as the duel columns: absence of evidence is not evidence.
+    """
+    if not fc_ids:
+        return {}
+    holes = ",".join("?" * len(fc_ids))
+    present: dict[int, set] = {}
+    started: dict[int, set] = {}
+    query = (f"""SELECT fc_id, match_id, started FROM external_match_stats
+                 WHERE season = ? AND fc_id IN ({holes})"""
+             + (" AND match_date IS NOT NULL AND match_date < ?" if before else ""))
+    params = [season, *fc_ids] + ([before] if before else [])
+    for fc_id, match_id, was_start in conn.execute(query, params):
+        present.setdefault(fc_id, set()).add(match_id)
+        if was_start:
+            started.setdefault(fc_id, set()).add(match_id)
+
+    by_club: dict[str, list[int]] = {}
+    for fc_id in fc_ids:
+        club = clubs.get(fc_id)
+        if club:
+            by_club.setdefault(club, []).append(fc_id)
+    out: dict[int, list[tuple[float, int]]] = {}
+    for mates in by_club.values():
+        for index, one in enumerate(mates):
+            for other in mates[index + 1:]:
+                shared = present.get(one, set()) & present.get(other, set())
+                if len(shared) < COSTART_MIN_SHARED:
+                    continue                      # unknown, and not a low share
+                starts_one = started.get(one, set()) & shared
+                starts_other = started.get(other, set()) & shared
+                floor = min(len(starts_one), len(starts_other))
+                if floor < COSTART_MIN_STARTS:
+                    continue                      # one of them barely started: nothing to conclude
+                share = len(starts_one & starts_other) / floor
+                if share <= COSTART_LOW:
+                    out.setdefault(one, []).append((share, other))
+                    out.setdefault(other, []).append((share, one))
+    names = dict(conn.execute("SELECT fc_id, canonical_name FROM players"))
+    return {fc_id: ";".join(f"{names.get(mate, mate)}:{share:.2f}"
+                            for share, mate in sorted(pairs))
+            for fc_id, pairs in out.items()}
+
+
 def duels(observations, starters: dict[int, dict],
           roles: dict[int, dict] | None = None) -> dict[int, dict]:
     """Starting duels: same club, same POSITION, comparable starting probability.
@@ -2347,6 +2416,12 @@ PLAYER_COLUMNS: tuple[str, ...] = (
     "desc_minutes_club", "desc_minutes_elsewhere", "desc_at_club_before",
     "desc_elsewhere_matches", "desc_elsewhere_minutes", "desc_elsewhere_where",
     "desc_duel_rivals", "desc_duel_names",
+    # WHO HE DOES NOT COEXIST WITH. Per team-mate he SHARED A SQUAD WITH, the share of the matches
+    # both were available for in which both STARTED - kept only where it is low, because that is the
+    # only side a rule can read (`COSTART_LOW` in the builder). Format: "name:share;name:share".
+    # The denominator is the point: a pair that never shared a squad has co-started nothing, and
+    # reading that as «they do not coexist» would say it of every summer signing - «vuoto = ignoto».
+    "desc_costart_low",
     "desc_injury_matches_missed", "desc_injury_weighted", "desc_injury_spells",
     # What he missed INSIDE the measured season, which is the only one of the injury numbers that is a
     # fact about this sample rather than a forecast: `desc_season_starts` are the starts he made while
@@ -2607,6 +2682,7 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             "desc_elsewhere_minutes": (recent.get("minutes") or None) if recent else None,
             "desc_elsewhere_where": recent.get("where") if recent else None,
             "desc_duel_rivals": duel.get("rivals"), "desc_duel_names": duel.get("names"),
+            "desc_costart_low": (layers.get("costarts") or {}).get(obs.fc_id),
             "desc_injury_matches_missed": injury.get("matches_missed"),
             "desc_injury_weighted": injury.get("weighted"),
             "desc_injury_missed_measured": injury.get("missed_measured"),
@@ -3003,6 +3079,16 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
                      f"than predicted.")
     # after the layers, because a duel is POSITIONAL: it needs the granular real roles, not the P/D/C/A
     layers["duels"] = duels(data.observations, starters, layers["real_role_detail"])
+    # ...and who he does NOT coexist with, over the INPUT season and by the club he plays for THEN:
+    # the question is whether a coach who could field them together did, so the pairs are last
+    # season's team-mates and not this summer's.
+    input_clubs = dict(conn.execute(
+        """SELECT r.fc_id, c.canonical_name FROM rosters r
+           JOIN clubs c ON c.fc_club_id = r.fc_club_id WHERE r.season = ?""",
+        (window.input_season,)))
+    layers["costarts"] = costarts(
+        conn, window.input_season, {obs.fc_id for obs in data.observations}, input_clubs,
+        before=date)
     covered = sum(1 for obs in data.observations if obs.fc_id in layers["real_role_detail"])
     if date:
         borrowed = sum(1 for detail in layers["real_role_detail"].values()

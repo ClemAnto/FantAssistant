@@ -405,6 +405,41 @@ def test_real_role_columns_reach_the_sheet():
 
 
 # ---------- the percentage on a shirt, and the two rules of a real attack ----------
+def test_co_starts_are_counted_over_the_matches_both_were_available_for(tmp_path):
+    """The denominator IS the measurement. Counted over all matches, every pair split by a transfer
+    reads 0.00 and «they never coexist» would be said of every summer signing - measured on the
+    boards, 35 pairs looked like that and 32 had simply never shared a squad."""
+    from euroleghe_ingest.db.database import init_db
+
+    cfg = Config(data_dir=tmp_path / "data", db_path=tmp_path / "data" / "euro.db")
+    conn = init_db(cfg.db_path)
+    conn.executemany("INSERT INTO players(fc_id, canonical_name) VALUES (?, ?)",
+                     [(1, "Krstovic"), (2, "Scamacca"), (3, "Newcomer")])
+    rows = []
+    # 20 matches both were in the squad for, and the shirt ROTATES: Krstovic starts the first twelve,
+    # Scamacca the last ten, so they start together exactly twice
+    for index in range(20):
+        rows.append((1, f"m{index}", 1 if index < 12 else 0))
+        rows.append((2, f"m{index}", 1 if index >= 10 else 0))
+    # the newcomer played 12 matches ELSEWHERE: he shares no squad with either, so he is UNKNOWN
+    for index in range(50, 62):
+        rows.append((3, f"x{index}", 1))
+    conn.executemany("INSERT INTO external_match_stats(fc_id, season, source, match_id, started) "
+                     "VALUES (?, '2025-26', 'sofascore', ?, ?)", rows)
+    conn.commit()
+    clubs = {1: "Atalanta", 2: "Atalanta", 3: "Atalanta"}
+    out = snapshot.costarts(conn, "2025-26", {1, 2, 3}, clubs)
+    assert out[1] == "Scamacca:0.20" and out[2] == "Krstovic:0.20"   # 2 of the rarer man's 10 starts
+    assert 3 not in out, "a man who never shared a squad has co-started nothing BY CONSTRUCTION"
+
+    # ...and the panel reads it back per pair, with None where the sheet says nothing
+    from euroleghe_ingest.gui import SnapshotView as View
+
+    krsto = {"name": "Krstovic", "desc_costart_low": out[1]}
+    assert View.costart_share(krsto, {"name": "Scamacca"}) == 0.20
+    assert View.costart_share(krsto, {"name": "Newcomer"}) is None
+
+
 def test_a_shape_is_worth_the_mean_surplus_of_the_eleven_it_fields():
     """The selector's second number. A missing surplus is UNKNOWN, never zero - averaging it as zero
     would make a shape look poorer for exactly the men the sheet could not price - so the mean is over
