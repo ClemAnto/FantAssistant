@@ -190,6 +190,14 @@ con un quarto pass sull'identità già nota, che è l'evidenza più debole e **n
 un'identità**; e `player_xref.resolved_by` dice chi ha stabilito una mappatura, perché tre moduli
 ci scrivono con evidenze diverse e uno solo cancella. Dettagli e numeri: todolist voce 2.
 
+**...e può averlo vuoto perché il suo CAMPIONATO non era in tabella.** Un campionato d'ORIGINE
+(`config.FEEDER_LEAGUES`: oggi la Serie B) non è in scope — nessun listone lo quota — ed è un
+campionato vero, quindi la sua stagione va acquisita e conta come campionato dove la domanda è «è una
+partita di campionato?» (`config.CHAMPIONSHIPS`, che è il denominatore di ogni quota di stagione:
+38 giornate di B, non i 24 undici che abbiamo parsato). Per un feeder l'identità si risolve contro il
+roster della stagione **DOPO** — nessuno sta in un listone mentre ci gioca. Frosinone da 4/11 a
+10/11 contro la stampa; todolist voce 1, e il suo rovescio (il salto di livello) è la 1-bis.
+
 **Il perimetro del foglio** (chi può comparire): dal 08/08/2026 (`SHEET_REVISION` 10) è **il listone
 della stagione bersaglio** (`listone_quotes`, contingente ≥ 11), con i ratings come ripiego per le
 finestre senza backfill. Letto dai soli ratings era vecchio di una stagione su ogni foglio di
@@ -206,8 +214,8 @@ preseason: il 2026-27 teneva 94 righe di Cremonese/Pisa/Verona retrocesse e scar
 - **Referenza 26/27** (pazzidifanta 03/08, previsione sulla stagione che si asta): 9/17 moduli, il
   giudice con cui `coach_shapes` fu adottato (8/17 → 9/17, Atalanta e Napoli corretti).
 - **Referenza 26/27 della stampa, 08/08/2026** (fantacalcio.it, DAZN, SOS Fanta, fantamaster,
-  pazzidifanta, goal.com — 4-5 fonti per club, tutte del 3-7 agosto): **moduli 9/20 uguali +
-  5/20 sull'alternativa che la stampa stessa dichiara, 6 divergenti; uomini 161/220 = 73%**.
+  pazzidifanta, goal.com — 4-5 fonti per club, tutte del 3-7 agosto): **moduli 10/20 uguali +
+  4/20 sull'alternativa che la stampa stessa dichiara, 6 divergenti; uomini 164/220 = 75%**.
   ⚠️ Questi sono i numeri dell'harness `press` sul foglio corrente. La prima stesura di questa nota
   citava «10 + 5 + 5, 159/220», che era uno stato di metà sessione le cui board non furono salvate:
   l'archivio di quel giorno (`data/reports/press-formations-2026-08-08/`) ne dà 9/5/6 e 160/220, e
@@ -215,14 +223,15 @@ preseason: il 2026-27 teneva 94 righe di Cremonese/Pisa/Verona retrocesse e scar
   (todolist voce 2). **Da qui in poi la referenza è un DATO e il confronto un comando**
   (`press --import` / `press --sheet`, §5-bis): un numero di questa riga si cita dal report, mai a
   memoria.
-  I moduli divergenti, ciascuno con la sua causa: Como (il 4-2-3-1 della stampa È il
-  nostro 4-5-1 nel vocabolario del provider, ma la selezione lascia fuori Paz — sotto — e il
-  disegnato esce 4-4-2), Juventus e Napoli (il repertorio misurato dell'allenatore contro
-  l'annuncio tattico del ritiro: Spalletti 3-4-3 misurato alla Juve vs 4-2-3-1 atteso, Allegri
-  3-5-2 di carriera vs 4-3-3 atteso), Lecce, Milan e Monza (in parte vocabolario: 4-5-1 vs
-  4-2-3-1, 3-4-3 vs 3-4-2-1). Dove l'XI diverge di più la causa è il DATO, non il disegno:
-  Frosinone 4/11 e Lazio 5/11 (sotto), Venezia/Parma/Cagliari/Fiorentina 7/11 (mercato estivo
-  pesante, arrivi con storia sottile o straniera).
+  I sei moduli divergenti, ciascuno con la sua causa: Como e Lecce (il 4-2-3-1 della stampa È il
+  nostro 4-5-1 nel vocabolario del provider, e al Como la selezione lascia comunque fuori Paz —
+  sotto), Juventus e Napoli (il repertorio misurato dell'allenatore contro l'annuncio tattico del
+  ritiro: Spalletti 3-4-3 misurato alla Juve vs 4-2-3-1 atteso, Allegri 3-5-2 di carriera vs 4-3-3
+  atteso), Milan (3-4-3 vs 3-4-2-1, vocabolario) e Bologna. Dove l'XI diverge di più la causa è il
+  DATO, non il disegno — ed è la causa che nella sessione dell'08/08 si è mossa: Frosinone **10/11**
+  (era 4/11: mancava il campionato d'origine, voce 1), Lazio **5/11** (era 4/11: transfers e identità
+  degli arrivi, voce 2), e restano a 6-8/11 i club di mercato estivo pesante, con arrivi di storia
+  sottile o straniera (Cagliari, Parma, Fiorentina, Venezia).
 
 ## 5-bis. Il giudice è un comando, non uno script (modulo `press`, 08/08/2026)
 
@@ -265,13 +274,20 @@ press --sheet data/reports/auction-snapshot-...    # giudica le board di quel fo
    claim va posta anche quando la selezione decide se una riga a 5 si spezza in 2+3 (`_two_rows`
    arriva DOPO la selezione, e a quel punto Paz è già fuori). Da decidere con una misura, non
    inline: è il prossimo caso per la famiglia di regole della selezione.
-2. **Per un club promosso il claim è rumore.** Frosinone: XI disegnato con claim 0.07-0.43, 4/11
-   contro la stampa. `club_match_lineups` copre la Serie B (24-30 undici, quindi modulo e
-   repertorio allenatore ci sono — il MODULO infatti è giusto: 4-3-3 al 92%), ma `external_stats`
-   non ha il campionato serie-b: nessun aggregato stagionale, quindi starts/minuti VUOTI per chi
-   ha giocato solo lì, e `league_XIs` = 0. Il per-partita (`external_match_stats`) ne ha 12-15
-   partite su 38, troppo poche per derivarlo. Cosa manca: l'acquisizione degli aggregati Serie B
-   per le rose promosse (o l'estensione di `positions`/`fbref` a quel campionato per quei club).
+2. **Per un club promosso il claim era rumore — perché il suo campionato non era in tabella.**
+   Frosinone: XI disegnato con claim 0.07-0.43, 4/11 contro la stampa. `club_match_lineups` copriva
+   la Serie B (quindi modulo e repertorio allenatore c'erano — il MODULO infatti era giusto), ma
+   `external_stats` non aveva il campionato: starts e minuti **mancanti, non misurati**. Chiuso lo
+   stesso giorno acquisendo la Serie B come campionato d'ORIGINE (todolist voce 1): **4/11 → 10/11**,
+   e i tre promossi passano da 2/3/5 a 22/17/21 uomini con un aggregato. Tre cose che restano come
+   regole: un feeder non è un campionato in scope ma è un campionato vero (`config.FEEDER_LEAGUES`,
+   e `CHAMPIONSHIPS` dove la domanda è «è una partita di campionato?»); **per un feeder il pool
+   d'identità è quello della stagione DOPO**, perché nessuno sta in un listone mentre ci gioca; e
+   derivare l'aggregato dal per-partita sarebbe stato peggio del vuoto (97 partite su 380: direbbe
+   «ha giocato un terzo della stagione» di chi l'ha giocata tutta). Il rovescio della medaglia — 34
+   start in B non sono 34 in A, e il canale che lo direbbe non raggiunge chi non ha cambiato club di
+   listone — è misurato e messo in coda come voce 1-bis, non risolto inline: cambia la popolazione
+   di un canale adottato, quindi vuole lo sweep.
 3. **Un mercato pesante svuota l'undici anche a dati freschi — ma la metà era il DATO, e si è
    mossa.** Lazio 4/11: tre titolari attesi sono arrivi di luglio con storia altrove (Doekhi,
    Pedraza, Taylor), la stagione di input era anomala (Rovella 6 start da infortunio, il portiere
@@ -293,8 +309,9 @@ press --sheet data/reports/auction-snapshot-...    # giudica le board di quel fo
   finché un claim per nome non la contraddice: `resolved_by` protegge chi l'ha stabilita, ma le righe
   precedenti la colonna sono `unknown` e nessuno le ritratta (§4). È il prezzo scelto — meglio di
   cancellare un'identità pagata da un altro modulo — ed è dichiarato, non nascosto.
-- I club PROMOSSI non hanno `club_match_lineups` di Serie B: la loro board nasce dal repertorio
-  dell'allenatore e dalla lega, e `formation_shapes` può essere di due stagioni fa (l'ultima in A).
+- I club PROMOSSI hanno la Serie B in `club_match_lineups` e ora anche in `external_stats` (voce 1),
+  ma `formation_shapes` può essere di due stagioni fa (l'ultima in A) e nulla sconta il salto di
+  livello di chi ha giocato in B: il claim dice chi parte titolare, non contro chi (voce 1-bis).
 - `COACH_SHAPE_MIN`/`FULL` da ritarare (sopra). `PREVIOUS_COACH_WEIGHT` = 0.25 nel conteggio di club.
 - Il claim di preseason non legge le amichevoli (misurato e NON adottato, cinque ragioni in v9.17 §6;
   pre-registrato per giugno 2027).

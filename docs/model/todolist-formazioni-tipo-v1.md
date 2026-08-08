@@ -35,18 +35,64 @@ mai le colonne che le somigliano. I club si uniscono per `club_identity`, mai pe
 Il test di riproduzione blocca i numeri dell'archivio; il foglio corrente li riproduce.
 **Report**: `data/reports/press_comparison.json`.
 
-## 1. Aggregati Serie B per i club promossi («il claim di una promossa è rumore»)
+## 1. ~~Aggregati Serie B per i club promossi~~ — **FATTA** (08/08/2026, `9d0f400`)
 **Perché, misurato**: Frosinone XI disegnato con claim 0.07-0.43 → **4/11** contro la stampa;
-Venezia 7/11, Monza 8/11. Il MODULO invece esce giusto su tutte e tre (i lineups di B ci sono:
-24-30 undici; Venezia 3-5-2 al 94% come la stampa). Manca il campionato `serie-b` in
-`external_stats` (l'aggregato per-campionato che riempie starts/minuti), il per-partita ne ha
-12-15 partite su 38, e `clubs.league_XIs` = 0 per tutte e tre.
-**Cosa fare**: acquisire gli aggregati stagionali serie-b per le rose promosse (stessa via di
-`positions`/fbref, source-tagged); compilare `league_XIs` per il campionato d'origine; NON serve
-il voto sintetico (il claim legge starts/minuti, non il rating — e serie-b non è tra le
-competizioni calibrate di `synth`, v9.19: non va convertita).
-**Giudice**: il confronto (voce 0) sui tre club promossi; nessun `engine_*` si muove.
-**Resa attesa**: le tre XI peggiori del confronto; ricorre ogni estate (3 club/anno).
+Venezia 7/11, Monza 8/11. Il MODULO invece usciva giusto su tutte e tre (i lineups di B ci sono).
+Mancava il campionato in `external_stats`: starts e minuti **mancanti, non misurati**.
+**Fatto**. Prima la verifica che la via breve era peggio del vuoto: derivarli dal per-partita che
+già avevamo darebbe **97 partite di Serie B su 380**, giornate 16-38, mediana 14 per giocatore
+contro 31 in Serie A — un aggregato derivato direbbe «ha giocato un terzo della stagione» di un uomo
+che l'ha giocata tutta, e **dimezzare un denominatore è peggio che lasciarlo vuoto**. Quindi
+acquisizione (poche richieste), con tre scelte che valgono oltre la Serie B:
+- **`FEEDER_TOURNAMENTS`, fuori da `TOURNAMENTS`**: un campionato d'ORIGINE non è un campionato in
+  scope — nessun listone lo quota, `scoring_config` non ha regole, nessun club ci va archiviato — e
+  resta un campionato vero. Un run bare non lo tocca; `--league serie_b` sì, e solo `--layer season`.
+- **per un feeder il pool d'identità è quello della stagione DOPO**, che non è una scorciatoia ma è
+  cosa È un feeder: nessuno in Serie B sta in un listone MENTRE ci gioca, è quotato l'estate in cui
+  il club sale. Senza, restavano irrisolti 34 provider row dei tre promossi coi cognomi già nei
+  nostri roster 2026-27. Frosinone **2 → 22** dei 25 quotati, Monza 3 → 17, Venezia 5 → 21.
+- **`config.CHAMPIONSHIPS`** (le 5 + i feeder) dove la domanda è «è una partita di campionato?»: il
+  denominatore. Senza, gli start del Frosinone si dividevano per i 24 undici parsati invece che per
+  le 38 giornate di B — lo stesso difetto del 49% di Kane, sui club meno capaci di assorbirlo.
+
+**Due difetti trovati strada facendo**, entrambi della famiglia «un'entità si unisce per chiave
+canonica»: il provider dice `serie-b` e la nostra chiave è `serie_b`, e con tutte e due in tabella
+lo stesso campionato era due (2121 righe normalizzate, per ID del torneo e mai per il testo, al
+download E al parse perché la cache si rigioca); e **4302 righe duplicate** lasciate dal layer extra
+quando scriveva sotto la source di lega — rimosse con un criterio che non può cancellare nulla di
+unico (fuori dal round walk E con il gemello), e **misurato neutro sul giudizio** ricostruendo un
+foglio controfattuale coi duplicati rimessi: 10/4/6 e 164/220 identici.
+**Giudice (voce 0)**: moduli 9/5/6 → **10 MATCH / 4 ALT / 6 DIFF**, uomini **161 → 164/220**.
+Frosinone **4/11 → 10/11** (resta un ballottaggio, El Azzouzi/Koutsoupias), Venezia 7 → 8, Monza
+prende il modulo giusto. `backtest --verify` 22/22.
+
+## 1-bis. Il SALTO DI LIVELLO di chi ha giocato altrove senza cambiare club di listone
+**Perché, misurato (08/08/2026, esce dalla voce 1 e ne è il rovescio)**: col dato di Serie B in
+tabella, Missori (**27 start**), Ciervo (34), Kofler (28), Braunoder (22) passano da zero a titolari
+misurati e la board li schiera — ed è il DATO a essere giusto: quello che manca è scontare che 34
+start in Serie B non sono 34 in Serie A. Costa 3 uomini sul confronto (Sassuolo, Cagliari, Como),
+cioè l'unica parte negativa del bilancio della voce 1.
+Il canale che lo direbbe **esiste già ed è adottato** — `level_gap` («chi scende di livello sale di
+ruolo», 07/08/2026) — e non li raggiunge, per una ragione precisa: è applicato **solo a chi ha
+CAMBIATO CLUB**, che è la popolazione su cui è stato misurato, e questi uomini il club di listone
+non l'hanno cambiato. Erano in PRESTITO (Missori al Palermo col listone che lo teneva al Sassuolo:
+nessuna riga in `arrivals`, che è un diff fra roster) oppure arrivano senza roster precedente
+(Kofler, tipo `new`, `origin_club` e `origin_league` entrambi NULL).
+**La misura del perimetro**: 48 uomini quotati 2026-27 con 10+ start di Serie B nel 2025-26; **40
+sono ai tre promossi** — e per loro il livello non è cambiato per un trasferimento, è salito il club,
+quindi il claim «chi parte titolare» resta giusto (Frosinone 10/11 lo dimostra) — e **8 sono a club
+già in Serie A**, cioè quelli che il salto l'hanno fatto davvero. Uno solo (Missori) senza riga
+d'arrivo.
+**L'ipotesi da misurare, che è più grande del caso**: il livello del calcio giocato è un fatto sui
+MINUTI, non sull'ARRIVO — `external_stats.club_id` → `club_levels` lo sa già per chiunque, e
+`elo.personal_levels` fa esattamente quel join. Estendere `level_gap` da «chi ha cambiato club» a
+«chi ha cambiato LIVELLO» è cambiare la popolazione di un canale adottato, quindi **non si fa inline
+e non si fa senza sweep**: griglia pre-registrata, e il verdetto va letto sulla popolazione su cui
+la regola agisce (regola §7-sexies), che qui sono 8 uomini su un foglio — un numero che da solo
+dice che il giudice interno non basterà e servirà la referenza esterna.
+**Giudice**: sweep pre-registrato + il confronto (voce 0) su Sassuolo/Cagliari/Como.
+**Resa attesa**: piccola oggi e strutturale ogni estate; ClubElo **ha** i club di Serie B (Palermo
+1569, Sampdoria 1643), quindi il dato per misurarla c'è.
 
 ## 2. ~~Transfers: risoluzione dei nomi e freschezza~~ — **FATTA** (08/08/2026, `d7ea4a3` + `a039910`)
 **Perché, misurato**: Lazio **4/11** con tre titolari attesi che sono arrivi di luglio (Doekhi,
@@ -179,7 +225,9 @@ d'asta.
   tenerla vicina alla board quando si giudica un undici «sbagliato».
 
 ## Fatto l'08/08/2026, seconda sessione
-- **Voce 0 (`19351fd`)** e **voce 2 (`d7ea4a3`, `a039910`)**: sopra, ciascuna coi suoi numeri.
+- **Voce 0 (`19351fd`)**, **voce 2 (`d7ea4a3`, `a039910`)** e **voce 1 (`9d0f400`)**: sopra, ciascuna
+  coi suoi numeri. Bilancio sul giudice: moduli **9/5/6 → 10 MATCH / 4 ALT / 6 DIFF**, uomini
+  **160 → 164/220**, `backtest --verify` sempre 22/22.
 - **Il selettore modulo dice anche quanto VALE l'undici** (`39ec7c9`, richiesta dell'operatore).
   Accanto alla probabilità, `SUR` = il surplus MEDIO degli undici che quella forma schiera: due
   domande diverse, e la forma probabile può schierare l'undici più povero — Como 4-5-1 al 77% con
