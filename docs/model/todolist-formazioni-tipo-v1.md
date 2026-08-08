@@ -10,12 +10,15 @@ dell'archivio di partenza. La referenza è un DATO (`press_formations`) e il con
 questi numeri si citano da `data/reports/press_comparison.json`, mai a memoria. Il perché di quella
 regola è la voce 3-ter.
 
-**Le voci, una riga ciascuna**: 0 fatta · 1 fatta · **1-bis aperta** (nata dalla 1) · 2 fatta ·
-3 fatta · 3-bis dato sì regola no · 4 chiusa da due giudici concordi · 5 misurata e non adottata ·
-5-bis (proposta dell'operatore) misurata e rifiutata · **6 aperta** (letture, costo quasi zero).
-Quattro si sono chiuse con un **rifiuto misurato**, ed è il risultato che vale quanto le adozioni:
-una regola che non entra perché il giudice l'ha bocciata costa un pomeriggio, una che entra senza
-giudice costa un'asta. Resta aperta una sola voce di modello, la 1-bis, e vuole uno sweep.
+**Le voci, una riga ciascuna**: 0 fatta · 0-bis fatta (il secondo giudice) · 1 fatta · **1-bis aperta**
+(nata dalla 1, e il giudice-esito l'ha spostata in cima) · 2 fatta · 3 fatta · 3-bis dato sì regola no ·
+4 chiusa da due giudici concordi · 5 misurata e non adottata · 5-bis (proposta dell'operatore) misurata
+e rifiutata · **6 aperta** (letture) · **7 aperta** (la soglia dei 30 anni, dal giudice-esito) ·
+7-bis: due candidati misurati e rifiutati, scritti per non riprovarli.
+Cinque si sono chiuse con un **rifiuto misurato**, ed è il risultato che vale quanto le adozioni: una
+regola che non entra perché il giudice l'ha bocciata costa un pomeriggio, una che entra senza giudice
+costa un'asta. Restano due voci di modello aperte (1-bis e 7) e **entrambe vogliono uno sweep, non un
+fix inline**: cambiano un canale del claim.
 
 **Regola che vale per tutta la lista**: la stampa è un GIUDICE, mai un input del claim — leggerla
 dentro il modello renderebbe circolare proprio il confronto che la usa. E nessun criterio si
@@ -281,6 +284,55 @@ fra 7 MATCH e 12. Il primo giro l'aveva sbagliato.
 perché ha cambiato quasi tutto. E il foglio retrodatato ha una contaminazione a FAVORE (transfers e
 arrivi derivati oggi conoscono tutto il mercato estivo 2025), quindi 61% è un limite superiore.
 Dettagli e contaminazioni: [formazioni-tipo-v1.md](formazioni-tipo-v1.md) §5-ter.
+
+## 7. NUOVA, dal giudice-esito: il crollo di titolarità DOPO I 30, che è una soglia e non una tendenza
+**Da dove viene**: l'analisi dei 172 errori del confronto storico (86 uomini che hanno giocato e non
+avevamo disegnato, 86 disegnati che non hanno giocato). Due cose che quell'analisi ha stabilito prima
+di qualsiasi ipotesi: **il perimetro non è il problema** — 86 su 86 dei mancati erano già sul foglio,
+quindi nessun lavoro di acquisizione muove questi numeri — e **65 degli 86 errori sono uomini con 10+
+presenze l'anno prima**, cioè il difetto sta nell'ORDINAMENTO fra uomini che hanno tutti una storia.
+**La misura, e la trappola che ha evitato.** Guardando i soli errori, l'età sembrava dire «i giovani
+salgono, i vecchi scendono» (media 26.0 fra i mancati contro 27.9 fra gli sbagliati, a parità di banda
+di start). Misurata su TUTTA la popolazione — 500 coppie (giocatore, stagione) con 15+ start di Serie A
+nella stagione di input, su due stagioni perché una sola sarebbe l'annata — la relazione **non è
+monotona**:
+
+| età | n | quota di presenze mantenuta | perde 10+ presenze |
+|---|---|---|---|
+| ≤ 23 | 116 | 66% | 47% |
+| 24-26 | 161 | 72% | 40% |
+| 27-29 | 113 | **77%** | **35%** |
+| ≥ 30 | 110 | **51%** | **56%** |
+
+I 27-29 tengono il posto **meglio di tutti** e i ≤23 lo perdono più dei 24-29: il pattern letto sugli
+errori era un artefatto della coda. Il segnale vero è **uno solo e a soglia**: oltre i 30 la titolarità
+mantenuta crolla da 77% a 51%. La correlazione lineare (r −0.139, parziale −0.122 controllando per gli
+start di input) è debole proprio perché la forma è a U rovesciata: chi la modellasse come tendenza
+lineare perderebbe il segnale e penalizzerebbe i ventenni.
+**⚠️ NON è R4.** R4 («l'età») è stata falsificata dal gate su dieci finestre, e va detto nella
+pre-registrazione perché senza quella frase questa sembra una regola morta riesumata. R4 predice il
+**FANTAVOTO**; questa predice **CHI GIOCA**. Sono le due domande che questo progetto tiene separate
+ovunque (claim contro valutazione), e la seconda non è mai stata misurata.
+**Come si fa**: uno sconto di `standing` sopra una soglia d'età, in `presence.py` — quindi **sweep
+pre-registrato**, non gate del motore, e muove i fogli e le board mai `backtest --verify`. La griglia
+va fissata prima di guardare: soglia ∈ (29, 30, 31) × sconto ∈ (0, 0.03, 0.06, 0.09), con l'ottimo
+adottabile solo se INTERNO. Giudice: il confronto-esito su più stagioni (non una), e la referenza
+stampa come seconda lettura.
+**Resa attesa**: 18 dei 65 errori «con storia» sono uomini di 30+ anni che abbiamo disegnato e che non
+hanno giocato — è il massimo teorico, e un canale con lo 0.06 dei fratelli adottati ne prenderà una
+parte.
+
+## 7-bis. Due cose misurate e RIFIUTATE nella stessa analisi (per non riprovarle)
+- **Scontare il claim per la disponibilità**: il claim è «la squadra con tutti sani» per scelta di
+  design, e si potrebbe pensare che contro l'ESITO — che invece contiene gli infortuni — convenga
+  moltiplicarlo per `availability`. Misurato: **132/220 uomini contro 134 e un modulo in meno**. La
+  scelta di design regge anche contro il giudice più severo, e lo sconto resta dove già sta
+  (`engine_pv_pred`).
+- **Allargare l'acquisizione**: escluso dai dati, non per opinione. Tutti gli 86 mancati erano sul
+  foglio, quindi il perimetro non lascia fuori nessuno di loro.
+- **Nota sugli ARRIVI, che rafforza la voce 1-bis**: 40 degli 86 mancati e 42 degli 86 sbagliati sono
+  arrivi. Metà degli errori in entrambe le direzioni sta sulla popolazione più incerta, che è
+  esattamente quella su cui la 1-bis agirebbe — il che la sposta in cima alle voci aperte.
 
 ## 6. Letture, non regole (a costo quasi zero)
 - **Ballottaggi quasi-pari**: Gila/Tomori, Thuram K./McKennie, Isaksen/Cancellieri sono duelli
