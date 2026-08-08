@@ -81,6 +81,81 @@ def test_parse_club_transfers_separates_arrivals_from_departures():
     assert [rec["direction"] for rec in records] == ["in", "out"]
     assert records[0]["counterpart"] == "Parma" and records[0]["fee"] == 23_000_000
     assert records[1]["counterpart"] == "Botafogo" and records[1]["fee"] is None   # a loan
+    # the href carries Transfermarkt's own player id: the canonical key, kept alongside the name
+    assert [rec["tm_id"] for rec in records] == ["111", "222"]
+
+
+def test_upsert_transfers_resolves_the_canonical_id_where_the_name_pool_is_blind(tmp_path):
+    """The Molina case (08/08/2026): a July arrival is not in the buying club's LISTONE roster, so
+    the name pool cannot contain him - but his Transfermarkt id is already in `player_xref`. The id
+    resolves first; the name inside the club stays as the fallback for men the xref does not know."""
+    cfg = Config(data_dir=tmp_path / "data", db_path=tmp_path / "data" / "euro.db")
+    conn = init_db(cfg.db_path)
+    conn.execute("INSERT INTO clubs(fc_club_id, canonical_name, league) VALUES (1,'Roma','serie_a')")
+    conn.executemany("INSERT INTO players(fc_id, canonical_name) VALUES (?, ?)",
+                     [(4998, "Molina N."), (7, "Bonny")])
+    # the listone still files Molina elsewhere: Roma's roster pool does NOT contain him
+    conn.execute("INSERT INTO rosters(fc_id, season, fc_club_id, league) "
+                 "VALUES (7, '2026-27', 1, 'serie_a')")
+    conn.execute("INSERT INTO player_xref(fc_id, source, source_id) "
+                 "VALUES (4998, 'transfermarkt', '424042')")
+    conn.commit()
+    records = [
+        {"direction": "in", "name": "Nahuel Molina", "tm_id": "424042",
+         "counterpart": "Atletico Madrid", "fee": 15_000_000},
+        # no xref row -> resolved by name inside the club, as before
+        {"direction": "in", "name": "Ange-Yoan Bonny", "tm_id": "111",
+         "counterpart": "Parma", "fee": 23_000_000},
+        # neither an xref row nor a roster row: reported, never guessed
+        {"direction": "in", "name": "Perfect Stranger", "tm_id": "999",
+         "counterpart": "Nowhere FC", "fee": None},
+    ]
+    stored, unresolved = transfers.upsert_transfers(conn, 1, "serie_a", "2026-27", records,
+                                                    observed_on="2026-08-08")
+    assert (stored, unresolved) == (2, ["Perfect Stranger"])
+    rows = dict(conn.execute("SELECT fc_id, first_seen FROM transfers_history").fetchall())
+    assert rows == {4998: "2026-08-08", 7: "2026-08-08"}
+
+
+def test_the_same_deal_on_both_clubs_pages_is_one_row(tmp_path):
+    """A perimeter-to-perimeter deal is published twice, each page spelling the other club its own
+    way ('AS Roma' / 'SS Lazio'): the counterpart canonicalizes at write, so the two parses land on
+    ONE key - and their half-filled league columns merge instead of overwriting each other."""
+    cfg = Config(data_dir=tmp_path / "data", db_path=tmp_path / "data" / "euro.db")
+    conn = init_db(cfg.db_path)
+    conn.executemany("INSERT INTO clubs(fc_club_id, canonical_name, league) VALUES (?, ?, 'serie_a')",
+                     [(1, "Roma"), (2, "Lazio")])
+    conn.execute("INSERT INTO players(fc_id, canonical_name) VALUES (1, 'A')")
+    conn.execute("INSERT INTO player_xref(fc_id, source, source_id) "
+                 "VALUES (1, 'transfermarkt', '11')")
+    conn.commit()
+    # the buyer's page names the seller, the seller's page names the buyer
+    transfers.upsert_transfers(conn, 2, "serie_a", "2026-27",
+                               [{"direction": "in", "name": "A", "tm_id": "11",
+                                 "counterpart": "AS Roma", "fee": 10.0}], observed_on="2026-08-05")
+    transfers.upsert_transfers(conn, 1, "serie_a", "2026-27",
+                               [{"direction": "out", "name": "A", "tm_id": "11",
+                                 "counterpart": "SS Lazio", "fee": 10.0}], observed_on="2026-08-08")
+    rows = [tuple(row) for row in conn.execute(
+        "SELECT from_club, to_club, from_league, to_league, fee, first_seen "
+        "FROM transfers_history")]
+    assert rows == [("Roma", "Lazio", "serie_a", "serie_a", 10.0, "2026-08-05")]
+
+
+def test_first_seen_is_kept_at_its_minimum_across_reparses(tmp_path):
+    """A re-download must never rejuvenate a row: the observation date answers «since when do we
+    know this?», and the earliest answer is the one that means something."""
+    cfg = Config(data_dir=tmp_path / "data", db_path=tmp_path / "data" / "euro.db")
+    conn = init_db(cfg.db_path)
+    conn.execute("INSERT INTO clubs(fc_club_id, canonical_name, league) VALUES (1,'Roma','serie_a')")
+    conn.execute("INSERT INTO players(fc_id, canonical_name) VALUES (1, 'A')")
+    conn.execute("INSERT INTO player_xref(fc_id, source, source_id) "
+                 "VALUES (1, 'transfermarkt', '11')")
+    conn.commit()
+    record = [{"direction": "in", "name": "A", "tm_id": "11", "counterpart": "B", "fee": None}]
+    for day in ("2026-08-08", "2026-08-20", None):
+        transfers.upsert_transfers(conn, 1, "serie_a", "2026-27", record, observed_on=day)
+    assert conn.execute("SELECT first_seen FROM transfers_history").fetchone()[0] == "2026-08-08"
 
 
 def test_resolve_clubs_maps_transfermarkt_names_to_ours(tmp_path):

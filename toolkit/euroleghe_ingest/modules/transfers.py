@@ -8,8 +8,13 @@ What the engine gets out of this:
 
 Identity is resolved twice over. Clubs come from each competition's own table, so the club list is
 authoritative rather than guessed from a search box, and lands in club_xref(source='transfermarkt').
-Players are matched by name INSIDE the club that bought or sold them, the narrowest pool there is;
-unresolved rows are reported, never guessed.
+Players resolve through the CANONICAL KEY first - the row's own href carries Transfermarkt's player
+id, and `player_xref(source='transfermarkt')` already maps it to an fc_id - with the name matched
+INSIDE the club that bought or sold him (the narrowest pool there is) as the fallback. The id path
+matters exactly where the name path is blind: a July arrival is not in the buying club's LISTONE
+roster yet, so the pool cannot contain him however well the name matches (Molina N., fc_id 4998,
+had the identity, the Roma page had the row, and the two never met - 08/08/2026). Unresolved rows
+are reported, never guessed.
 
 NOT covered here: `injuries` (Transfermarkt keeps them per player, one request each) and the
 `exit_risk` flag, which needs contract-expiry data the pages read here do not carry. The CURRENT
@@ -18,6 +23,7 @@ injury state already comes from fc_site.
 
 from __future__ import annotations
 
+import datetime as dt
 import os
 import random
 import re
@@ -61,6 +67,7 @@ SEASONS: tuple[str, ...] = DEFAULT_SEASONS   # config.py owns the list (one edit
 REQUEST_DELAY = 2.5
 REQUEST_JITTER = 1.5
 _DATE = re.compile(r"(\d{2})/(\d{2})/(\d{4})")
+_PLAYER_ID = re.compile(r"/profil/spieler/(\d+)")
 _FEE = re.compile(r"([\d.,]+)\s*(mln|mila)?", re.IGNORECASE)
 _CACHE_NAME = re.compile(r"transfermarkt_([a-z]+)_([a-z0-9_]+)\.html$")
 
@@ -181,10 +188,12 @@ def _counterpart(club_link) -> str | None:
 
 
 def parse_club_transfers(html: str) -> list[dict]:
-    """The club-transfers page -> [{direction, name, counterpart, fee}].
+    """The club-transfers page -> [{direction, name, tm_id, counterpart, fee}].
 
     The page shows arrivals and departures as separate tables; their headers name the counterpart
     ("Venditore" for who sold to us, "Acquirente"/"Nuova squadra" for who bought from us).
+    `tm_id` is Transfermarkt's own player id, from the same href the name comes from: the canonical
+    key, which the parser used to throw away while keeping only the string.
     """
     soup = BeautifulSoup(html, "lxml")
     out: list[dict] = []
@@ -202,9 +211,11 @@ def parse_club_transfers(html: str) -> list[dict]:
                 continue
             cells = [cell.get_text(" ", strip=True) for cell in row.select("td")]
             club_link = row.select_one('a[href*="/startseite/verein/"]')
+            tm_id = _PLAYER_ID.search(player_link.get("href") or "")
             out.append({
                 "direction": direction,
                 "name": player_link.get_text(strip=True),
+                "tm_id": tm_id.group(1) if tm_id else None,
                 "counterpart": _counterpart(club_link),
                 "fee": parse_fee(cells[-1] if cells else None),
             })
@@ -251,18 +262,38 @@ def upsert_coaches(conn, fc_club_id: int, spells: list[dict]) -> int:
     return len(spells)
 
 
-def upsert_transfers(conn, fc_club_id: int, league: str, season: str,
-                     records: list[dict]) -> tuple[int, list[str]]:
+def upsert_transfers(conn, fc_club_id: int, league: str, season: str, records: list[dict],
+                     observed_on: str | None = None) -> tuple[int, list[str]]:
     """transfers_history for one club-season.
 
     The date is the season's window, not the exact day: the club page does not carry one and
     (fc_id, date) is the key. Documented approximation - good enough for "where from, for how much",
-    which is what the arrival pricing asks.
+    which is what the arrival pricing asks. `observed_on` (the cache file's own download day) lands
+    in `first_seen`, kept at its minimum across re-parses: the one date that can tell a late-July
+    operation from an early one.
+
+    Resolution goes CANONICAL KEY first (the row's Transfermarkt id against `player_xref`), the name
+    inside the club's roster pool second. The pool is blind exactly on the men this table exists
+    for: a July arrival is not in the buying club's listone roster yet.
     """
     date = f"{season.split('-')[0]}-07-01"
     row = conn.execute("SELECT canonical_name FROM clubs WHERE fc_club_id = ?",
                        (fc_club_id,)).fetchone()
     club_name = row[0] if row else None
+    # The counterpart resolves to OUR canonical name where the club is in the perimeter, with the
+    # same matcher `resolve_clubs` uses. A deal between two perimeter clubs is on BOTH pages, each
+    # spelling the other its own way ("SS Lazio" / "Lazio", "1.FC Union Berlino" / "Union Berlino"),
+    # and a key holding the raw strings kept both rows - one departure read twice is one departure
+    # flag too many. A club outside the perimeter keeps the source's spelling: an identity we do not
+    # have is not invented.
+    ours: dict[str, str] = {}
+    for (name,) in conn.execute("SELECT canonical_name FROM clubs WHERE canonical_name IS NOT NULL"):
+        for candidate in (name, CLUB_ALIASES.get(name, name)):
+            ours.setdefault(club_key(candidate), name)
+
+    def counterpart_name(spelling: str | None) -> str | None:
+        resolved = match_club(spelling, ours) if spelling else None
+        return resolved[1] if resolved else spelling
     def club_pool(for_season: str | None):
         if not for_season:
             return []
@@ -277,26 +308,41 @@ def upsert_transfers(conn, fc_club_id: int, league: str, season: str,
     stored = 0
     unresolved: list[str] = []
     for rec in records:
-        candidates: list = []
-        for pool in pools[rec["direction"]]:
-            _tier, candidates = match_in_pool(rec["name"], pool)
-            if len(candidates) == 1:
-                break
-        if len(candidates) != 1:
+        fc_id = None
+        if rec.get("tm_id"):
+            row = conn.execute(
+                "SELECT fc_id FROM player_xref WHERE source = 'transfermarkt' AND source_id = ?",
+                (rec["tm_id"],)).fetchone()
+            fc_id = row[0] if row else None
+        if fc_id is None:
+            for pool in pools[rec["direction"]]:
+                _tier, candidates = match_in_pool(rec["name"], pool)
+                if len(candidates) == 1:
+                    fc_id = candidates[0][0]
+                    break
+        if fc_id is None:
             unresolved.append(rec["name"])
             continue
         incoming = rec["direction"] == "in"
+        counterpart = counterpart_name(rec["counterpart"])
         conn.execute(
             """
-            INSERT OR REPLACE INTO transfers_history(
-                fc_id, date, from_club, to_club, from_league, to_league, fee)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO transfers_history(
+                fc_id, date, from_club, to_club, from_league, to_league, fee, first_seen)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(fc_id, date, from_club, to_club) DO UPDATE SET
+                from_league = COALESCE(excluded.from_league, from_league),
+                to_league   = COALESCE(excluded.to_league, to_league),
+                fee         = COALESCE(excluded.fee, fee),
+                first_seen  = CASE WHEN excluded.first_seen IS NOT NULL
+                                    AND (first_seen IS NULL OR excluded.first_seen < first_seen)
+                                   THEN excluded.first_seen ELSE first_seen END
             """,
-            (candidates[0][0], date,
-             rec["counterpart"] if incoming else club_name,
-             club_name if incoming else rec["counterpart"],
+            (fc_id, date,
+             counterpart if incoming else club_name,
+             club_name if incoming else counterpart,
              None if incoming else league, league if incoming else None,
-             rec["fee"]),
+             rec["fee"], observed_on),
         )
         stored += 1
     return stored, unresolved
@@ -450,6 +496,11 @@ def reingest_from_cache(ctx: Context) -> None:
             print(f"[transfers] skipping unreadable {path.name}: {exc}")
     conn.commit()
 
+    # The table is DERIVED from these cached pages and nothing else, so the re-ingest starts clean:
+    # that is what purges rows an older resolution rule wrote - the same deal from both clubs' pages
+    # under two spellings, or a name-match the canonical id now contradicts - instead of accreting
+    # them forever. `first_seen` survives because it re-derives from the cache files' own mtimes.
+    conn.execute("DELETE FROM transfers_history")
     stored = 0
     unresolved: list[str] = []
     for path in sorted(ctx.config.cache_dir.glob("transfermarkt_transfers_*.html")):
@@ -458,10 +509,12 @@ def reingest_from_cache(ctx: Context) -> None:
         if club_id is None or not year.isdigit():
             continue
         season = f"{year}-{(int(year) + 1) % 100:02d}"
+        # the cache file's own download day IS the observation date of every row it carries
+        observed = dt.datetime.fromtimestamp(path.stat().st_mtime, tz=dt.UTC).date().isoformat()
         try:
             count, misses = upsert_transfers(
                 conn, club_id, leagues.get(club_id, ""), season,
-                parse_club_transfers(path.read_text(encoding="utf-8")))
+                parse_club_transfers(path.read_text(encoding="utf-8")), observed_on=observed)
         except Exception as exc:   # noqa: BLE001
             print(f"[transfers] skipping unreadable {path.name}: {exc}")
             continue

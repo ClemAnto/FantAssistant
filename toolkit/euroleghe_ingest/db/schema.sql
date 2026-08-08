@@ -364,6 +364,13 @@ CREATE TABLE IF NOT EXISTS transfers_history (
     from_league TEXT,
     to_league   TEXT,
     fee         REAL,
+    -- WHEN WE FIRST SAW THE ROW (the cache file's own download day). Transfermarkt dates every summer
+    -- operation YYYY-07-01 (contract-start semantics), so `date` cannot tell a late-July deal from an
+    -- early one. This is the OBSERVATION date instead, kept at its MINIMUM across re-parses so a
+    -- re-download never rejuvenates a row. On a fresh clone it is the bootstrap day for the whole
+    -- history - honest («the first time WE saw it») and only informative from then on, like the other
+    -- snapshot facts.
+    first_seen  TEXT,
     -- THE COUNTERPART IS PART OF THE KEY, not decoration. Transfermarkt dates every summer move
     -- YYYY-07-01 and a club's page can legitimately carry the SAME player twice on that date - the loan
     -- return (OUT to the owner) and the permanent signing (IN from the owner). Keyed on (fc_id, date)

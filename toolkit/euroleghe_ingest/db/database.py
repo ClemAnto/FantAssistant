@@ -69,6 +69,9 @@ ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("injuries", "matches_missed", "INTEGER"),
     ("injuries", "detail", "TEXT"),
     ("injuries", "source", "TEXT"),
+    # The transfer row's OBSERVATION day (see schema.sql): Transfermarkt's own date is the contract
+    # start, so every summer deal reads 1 July and freshness lived nowhere.
+    ("transfers_history", "first_seen", "TEXT"),
 )
 
 
@@ -112,10 +115,12 @@ def widen_transfers_pk(conn: sqlite3.Connection) -> bool:
             from_league TEXT,
             to_league   TEXT,
             fee         REAL,
+            first_seen  TEXT,
             PRIMARY KEY (fc_id, date, from_club, to_club)
         );
         INSERT OR REPLACE INTO transfers_history__new
-            SELECT fc_id, date, from_club, to_club, from_league, to_league, fee FROM transfers_history;
+            SELECT fc_id, date, from_club, to_club, from_league, to_league, fee, first_seen
+            FROM transfers_history;
         DROP TABLE transfers_history;
         ALTER TABLE transfers_history__new RENAME TO transfers_history;
         """
@@ -125,10 +130,12 @@ def widen_transfers_pk(conn: sqlite3.Connection) -> bool:
 
 
 # Every table that points at a club by ID, and the tables that store OUR canonical club NAME. The second
-# list is short on purpose: `match_ratings.team`, `external_match_stats.club/opponent`,
-# `club_match_lineups.club` and `transfers_history.from_club/to_club` hold what the SOURCE said, and
-# rewriting those would be editing the evidence - they are resolved at read time through the alias table,
-# which works again as soon as the twin row is gone.
+# list is short on purpose: `match_ratings.team`, `external_match_stats.club/opponent` and
+# `club_match_lineups.club` hold what the SOURCE said, and rewriting those would be editing the
+# evidence - they are resolved at read time through the alias table, which works again as soon as the
+# twin row is gone. (`transfers_history.from_club/to_club` canonicalize PERIMETER clubs at write time
+# since 08/08/2026 - the same deal is on both clubs' pages under two spellings and the PK holds the
+# strings - and the whole table re-derives from the cache, so a merge here would rewrite nothing.)
 _CLUB_ID_TABLES = ("rosters", "club_xref", "club_elo", "coaches", "penalty_hierarchy")
 _CLUB_NAME_COLUMNS = (("squad_snapshot", "club"), ("arrivals", "origin_club"))
 
