@@ -1,5 +1,5 @@
 # Stato progetto & continuità — v5
-**Aggiornato: 8 agosto 2026 (i tre punti aperti chiusi; resta solo `app/`, che e' una fase)**
+**Aggiornato: 8 agosto 2026, sera (il perimetro del foglio era la stagione finita; la stampa come giudice delle board)**
 Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da qui + i file della cartella "Modello Previsionale Fantacalcio".
 *Glossario: T1/T2 = finestre di test (23/24->24/25, 24/25->25/26) · MAE = errore medio assoluto · cross-fitted = parametri stimati su una finestra, testati sull'altra · M2e = modello portieri decomposto (abilità + tasso gol subiti del club; la metà Elo del nome non è nel motore) · Pv_att = presenze attese · fc_id = id fantacalcio.it · EV = valore atteso · scoring_config = punteggi configurabili per lega · xG/xA = expected goals/assists · 2.5 pieno = backtest motore completo con flag.*
 
@@ -7,6 +7,28 @@ Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da q
 App per leghe EuroLeghe/fantacalcio.it (Classic+Mantra, 5 campionati) con motore previsionale. Metodo: ogni regola entra SOLO se batte il baseline fuori campione su finestre indipendenti (gate pre-registrato). Doc madre: modello-previsionale-v3.8.md.
 
 ## ⚠️ Lo stato corrente è in `00-BRIDGE-punto-di-ingresso.md`, blocco «STATO AL 5 AGOSTO 2026»
+
+### 8 agosto 2026 (5), in una riga: il perimetro era la stagione FINITA — le promosse non erano nel foglio
+
+Spec «Novità v9.42». **332 test, ruff pulito, `--verify` 22/22** (niente di gated si muove), fogli
+rigenerati (default + euro), `SHEET_REVISION` **10**. Due documenti nuovi:
+[formazioni-tipo-v1.md](formazioni-tipo-v1.md) (come nasce la board: modulo, claim, fit — formule e
+costanti consolidate) e [todolist-formazioni-tipo-v1.md](todolist-formazioni-tipo-v1.md) (il piano,
+per resa misurata).
+1. **`perimeter_clubs` leggeva i ratings di (input, target)**: in agosto il target non ha partite, quindi
+   ogni foglio di preseason era filtrato sulla stagione FINITA — il 26/27 di Serie A teneva le retrocesse
+   (94 righe non comprabili) e scartava in silenzio i **74 quotati di Frosinone, Monza e Venezia**. Ora il
+   perimetro è il LISTONE bersaglio (contingente ≥ 11: Gutierrez, quotato col roster al Leverkusen,
+   portava dentro un club straniero); euro **35 → 37 club** per la stessa ragione.
+2. **Confronto con la stampa** (20 club, 4-6 fonti del 3-7 agosto): moduli **9 uguali + 5
+   sull'alternativa dichiarata**, uomini **160/220**. Le divergenze grosse sono DATI: Frosinone e Lazio
+   4/11 (aggregato Serie B assente; mercato di luglio con 4.422 nomi transfers irrisolti).
+3. **`_wing_back_trade`** («Malen dovrebbe giocare come Pc e non come centrocampista esterno»): in una
+   difesa a tre la fascia del centrocampo è l'intera touchline e un attaccante puro non la contende alla
+   selezione. 3 board si muovono, tutte verso la stampa; **Juventus 11/11**.
+4. **Due casi dell'operatore misurati e NON cablati**: Giovane è il MODULO (nel 4-3-3 della stampa i
+   nostri claim disegnano già Politano-Hojlund-Neres); Scamacca+Krstovic co-start **5/24** contro i
+   **18/23** di Lautaro+Thuram — la co-titolarità misurata è la voce 3-bis della todolist nuova.
 
 ### 8 agosto 2026 (4), in una riga: i tre punti aperti chiusi, e una diagnosi ribaltata dalla misura
 

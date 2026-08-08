@@ -495,6 +495,64 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.42 (8 agosto 2026, sera — il perimetro era la stagione FINITA, e la stampa come giudice)
+
+Sessione «formazioni tipo contro i giornalisti», quattro richieste dell'operatore. Il reperto più
+grosso non era nelle formazioni: era nel foglio.
+
+### 1. Il perimetro del foglio leggeva i ratings, e in agosto i ratings sono la stagione che è finita
+`perimeter_clubs` («i club da cui puoi comprare») leggeva `match_ratings` su (input, target); la stagione
+bersaglio non ha partite prima di settembre, quindi **ogni foglio di preseason era filtrato sulla stagione
+FINITA**: il 2026-27 di Serie A teneva le retrocesse Cremonese, Pisa e Verona (94 righe, nessuna
+comprabile) e scartava in silenzio **tutti i 74 quotati di Frosinone, Monza e Venezia** — tre club interi
+senza righe e senza board, trovati al primo confronto con le formazioni tipo della stampa. Cura: il
+perimetro è **il listone della stagione bersaglio** (`listone_quotes`, contingente ≥ `PERIMETER_SQUAD_MIN`
+= 11 — senza la guardia Gutierrez, ancora quotato 8.0 col roster al Leverkusen, portava dentro un club
+straniero), ratings come ripiego per le finestre senza backfill delle quotazioni. `SHEET_REVISION` **10**,
+test dedicato, entrambi i fogli ricostruiti: default coi 20 club giusti (639 righe), **euro 35 → 37 club**
+(+Bournemouth, Como, Racing Strasburgo, Rennes entrati nella selezione EuroLeghe; −Lilla e West Ham
+usciti — anche il foglio euro era fermo alla selezione dell'anno prima). `backtest --verify` 22/22: il
+perimetro filtra l'OUTPUT, mai la popolazione del modello. Stessa famiglia di «una lettura datata non si
+archivia sotto una data che non è arrivata»: chi giochi la stagione prossima il listone lo sa prima che
+si giochi una palla, i ratings no.
+
+### 2. Il confronto: 20 club, 4-6 fonti ciascuno (3-7 agosto), e due documenti nuovi
+**Moduli: 9 uguali + 5 sull'alternativa che la stampa stessa dichiara; uomini 160/220 = 73%.** Le
+divergenze vere di modulo hanno ciascuna la sua causa: Como (vocabolario più il caso Paz, sotto), Juventus
+e Napoli (il repertorio misurato dell'allenatore contro l'annuncio del ritiro: Allegri 3-5-2 in 94/152
+undici di carriera contro il 4-3-3 unanime della stampa), Lecce e Milan (vocabolario del provider). Le XI
+peggiori sono DATI e non disegno: Frosinone 4/11 (aggregato Serie B assente: claim 0.07-0.43), Lazio 4/11
+(tre titolari attesi sono arrivi di luglio e la stagione di input era anomala). Consolidato in
+[formazioni-tipo-v1.md](formazioni-tipo-v1.md) (il meccanismo: formule, costanti, dati) e
+[todolist-formazioni-tipo-v1.md](todolist-formazioni-tipo-v1.md) (il piano, ordinato per resa, con la
+regola in testa: la stampa è un GIUDICE, mai un input del claim). Referenza e confronto in
+`data/reports/press-formations-2026-08-08/` (locale: `data/reports/` è gitignorata).
+
+### 3. La fascia posseduta INTERA è un mestiere D/M (`_wing_back_trade`)
+«Malen dovrebbe giocare come Pc e non come centrocampista esterno»: la Roma dava la destra del 3-4-2-1 a
+Malen (`RW;ST`, 0.391) invece che a Rensch (`DR;MR`, 0.363), perché `_flanked` sceglie il rivale di fascia
+col solo claim fra tutti quelli che giocano un lato. Dove la linea difensiva non ha fasce proprie (difesa
+a tre — a cinque le ha), le fasce del centrocampo sono l'intera touchline: un attaccante puro non le
+contende alla selezione. Davanti a una difesa a quattro le ali restano candidate (Bologna/Orsolini, il
+caso che generò `_flanked`, è nel test e non si muove) e la regola 3 di `_reshape` copre ancora una fascia
+SVUOTATA. Effetto: **3 board su 20, tutte verso la stampa sui nomi** — Roma disegna Rensch e Malen torna
+rivale del Pc (il ballottaggio Malen/Castro è quello della stampa), **Juventus 11/11** (Thuram K. per
+Celik), Monza recupera Pessina (il picture scivola al gemello 3-4-1-2). 332 test verdi.
+
+### 4. Due casi dell'operatore misurati e messi in todolist, non cablati
+- **«Giovane sarà quasi certamente una riserva, Alisson e Neres i titolari»**: nel 4-3-3 della stampa i
+  NOSTRI claim disegnano già Politano (0.65)–Hojlund (0.76)–Neres (0.50) e Giovane (0.435) resta fuori da
+  solo — entra solo nel 3-5-2, dove le ali non hanno posto. L'intero caso è il MODULO (todolist voce 5);
+  Santos A. resta a 0.264 con 836 minuti misurati, e la stampa si fida del ritiro che noi non leggiamo.
+- **«Scamacca e Krstovic giocheranno entrambi ma non contemporaneamente»**: misurato, ed è vero già sotto
+  il predecessore — co-start **5 su 24 start a testa** (47 partite comuni), mentre la coppia vera esiste
+  ed è l'Inter (Lautaro+Thuram **18 su 23**). «Mai due Pc» sarebbe falso; «due che non hanno mai
+  coesistito non si disegnano insieme» è misurabile, ha i due ancoraggi, ed è la voce 3-bis.
+- Contorno: il refresh `transfers` non porta righe dopo il 01/07 (Transfermarkt data all'inizio
+  contratto) e dichiara 4.422 nomi irrisolti — Molina N. non ha NESSUNA riga pur avendo l'identità.
+  È la voce 2 della todolist, ed è ciò che tiene i nuovi acquisti fuori dagli undici più di ogni
+  parametro.
+
 ## Novità v9.41 (8 agosto 2026 — i tre punti aperti, chiusi e misurati)
 
 **1. La mappa Elo del gate: cablata, e la misura ribalta la diagnosi.** `features` ora riempie la sua mappa

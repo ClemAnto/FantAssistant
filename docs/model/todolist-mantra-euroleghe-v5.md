@@ -2,6 +2,15 @@
 
 ## Aperti alla chiusura dell'8 agosto 2026 — nessuno con scadenza
 
+**Chiusura 08/08 (sera)**: il perimetro del foglio era la stagione FINITA (le promosse assenti, 74
+quotati; `SHEET_REVISION` 10, spec «Novità v9.42») e le board sono state giudicate contro la stampa
+(20 club: moduli 9+5/20, uomini 160/220). Il piano per le formazioni tipo ha una **todolist propria**,
+ordinata per resa misurata: [todolist-formazioni-tipo-v1.md](todolist-formazioni-tipo-v1.md) — giudice
+come dato, aggregati Serie B per le promosse, risoluzione nomi transfers (4.422 irrisolti, Molina N. a
+zero righe), il trequartista di Como, la co-titolarità (Scamacca+Krstovic 5/24 vs Lautaro+Thuram 18/23),
+il modulo del ritiro. Nota fonte: **Transfermarkt risponde di nuovo** (`transfers` 59/59 club) — il
+timeout del punto A è rientrato per quel modulo; gli infortuni restano da rilanciare.
+
 **Chiusura 08/08**: cinque commit, tutti sul PANNELLO — nessuna regola e' entrata nel motore
 (`backtest --verify` 22/22). `SHEET_REVISION` 9, 330 test, fogli e bundle rigenerati. L'ELO personale e'
 falsificato due volte e resta 0.0; quello che ha portato Ramos, Kolo Muani e Atta negli undici sono

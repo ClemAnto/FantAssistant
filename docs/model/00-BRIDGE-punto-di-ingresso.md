@@ -1,5 +1,5 @@
 # 00 — BRIDGE · Punto d'ingresso del progetto (leggere per primo)
-**Aggiornato: 8 agosto 2026 (i tre punti aperti chiusi e misurati; resta solo `app/`)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
+**Aggiornato: 8 agosto 2026, sera (perimetro del foglio corretto — le promosse c'erano nel listone e non nel foglio; la stampa come giudice delle board)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
 
 ## Il progetto in breve
 Motore previsionale per fantacalcio **EuroLeghe** (fantacalcio.it): valutazione calciatori Classic e Mantra sui 5 grandi campionati europei (Serie A, Premier, Liga, Bundesliga, Ligue 1 — perimetro: i ~35 top club del gioco). Prevede fantamedia (FM), presenze attese e VALORE stagionale = FM × presenze. Metodo scientifico: **ogni regola entra nel motore solo se batte il baseline fuori campione su finestre indipendenti** (gate pre-registrato). Stato: core validato (Mantra, Classic, portieri, presenze); manca lo strato flag/arrivi, sbloccato dal toolkit dati `euroleghe-ingest` (in implementazione).
@@ -22,14 +22,39 @@ proporre qualsiasi regola) → **`metrica-asta-surplus-v1.md`** (con cosa il pan
 è VALORE) → **`assistente-asta-v1.md`** (cosa l'assistente fa al tavolo: tre domande, tre numeri, e le
 regole di UI che sono requisiti) → `spec-euroleghe-ingest-v9.md` → `nota-modello-set-pieces-v2.md` →
 `modello-previsionale-v3.8.md` → consolidati di dettaglio. Tutti in `docs/model/`.
+Per la BOARD (formazioni tipo): **`formazioni-tipo-v1.md`** (come nasce: modulo, claim, fit — formule e
+costanti) e **`todolist-formazioni-tipo-v1.md`** (il piano per renderle più veritiere, nato dal confronto
+con la stampa dell'08/08/2026, ordinato per resa misurata).
 L'altra fase, quella settimanale, è **`formazione-settimanale-v1.md`** (progetto): chi gioca domenica, perché
 la pagina delle probabili non basta e quali vincoli valgono già oggi.
 
-## STATO AL 7 AGOSTO 2026 — LEGGI QUESTO PRIMA DI TUTTO
+## STATO ALL'8 AGOSTO 2026 — LEGGI QUESTO PRIMA DI TUTTO
 
 Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
 
-### ULTIMO IN ORDINE DI TEMPO — 8/08/2026 (4): i tre punti aperti, chiusi — e una diagnosi ribaltata
+### ULTIMO IN ORDINE DI TEMPO — 8/08/2026 (5): il perimetro era la stagione FINITA, e la stampa come giudice
+
+Spec «Novità v9.42». **332 test, ruff pulito, `--verify` 22/22** — niente di gated si muove —
+`SHEET_REVISION` **10**, fogli rigenerati (default + euro).
+
+1. **Le promosse non erano nel foglio d'asta.** `perimeter_clubs` («i club da cui puoi comprare») leggeva
+   `match_ratings` di (input, target); in agosto il target non ha partite, quindi il foglio 26/27 teneva
+   Cremonese/Pisa/Verona (94 righe senza Qt.I) e scartava i **74 quotati di Frosinone, Monza e Venezia**.
+   Ora il perimetro è il **listone bersaglio** (contingente ≥ `PERIMETER_SQUAD_MIN` = 11), ratings come
+   ripiego per le finestre senza backfill. Anche euro era fermo alla selezione dell'anno prima: **35 → 37
+   club** (+Bournemouth, Como, Strasburgo, Rennes; −Lilla, West Ham).
+2. **La stampa come GIUDICE delle board** (mai input del claim): 20 club, 4-6 fonti (3-7 agosto) —
+   **moduli 9 uguali + 5 sull'alternativa dichiarata, uomini 160/220 = 73%**. Il meccanismo è consolidato
+   in `formazioni-tipo-v1.md`, il piano in `todolist-formazioni-tipo-v1.md` (giudice-come-dato, aggregati
+   Serie B, risoluzione transfers, il trequartista di Como, la co-titolarità, il modulo del ritiro).
+3. **`_wing_back_trade`**: «Malen dovrebbe giocare come Pc e non come centrocampista esterno» — in una
+   difesa a tre la fascia del centrocampo non si contende con soli codici d'attacco. 3 board si muovono,
+   tutte verso la stampa (**Juventus 11/11**); Bologna/Orsolini (difesa a 4) intatto e nel test.
+4. Misurati e non cablati: Giovane al Napoli è il MODULO (nel 4-3-3 i claim già disegnano
+   Politano-Hojlund-Neres), Scamacca+Krstovic sono UNA maglia (co-start 5/24; Lautaro+Thuram, la coppia
+   vera, 18/23).
+
+### 8/08/2026 (4): i tre punti aperti, chiusi — e una diagnosi ribaltata
 
 Spec «Novità v9.41», gate §7-quinvicies. **330 test, `--verify` 22/22, gate completo rieseguito senza che
 nessuna regola si muova**, fogli e bundle rigenerati.

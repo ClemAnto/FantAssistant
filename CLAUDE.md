@@ -36,7 +36,10 @@ protocol, every verdict and every falsified hypothesis: read it before proposing
 **`metrica-asta-surplus-v1.md`** (what the Auction panel ranks by, and why it is not VALUE) ->
 **`assistente-asta-v1.md`** (what the assistant does with it at the table: three questions, three
 numbers, and the UI rules that are requirements) -> `spec-euroleghe-ingest-v9.md` -> `nota-modello-set-pieces-v2.md` -> `modello-previsionale-v3.8.md` ->
-the consolidated notes in the same folder.
+the consolidated notes in the same folder. For BOARD work (typical elevens): `formazioni-tipo-v1.md`
+(how the board is decided — shape, claim, fit, with every constant) and `todolist-formazioni-tipo-v1.md`
+(the improvement plan born from the 08/08/2026 press comparison, ordered by measured yield; its standing
+rule: the press is a JUDGE, never an input of the claim).
 Drive dataset IDs (xlsx/csv, not in git) are in [docs/DRIVE-MANIFEST.md](docs/DRIVE-MANIFEST.md).
 
 ## Golden rule (gate)
@@ -120,6 +123,16 @@ own verdict does not, and cannot be used to adopt it.
   list stops at 28, and the distributions are not proportional (defenders are the other way round, 28
   against 20) - and where a fallback would look harmless («no quote on this platform? take the roster
   row»), it is the defect itself, so a man his own listone never quoted has NO price here.
+- **The sheet's PERIMETER is the TARGET listone, never last season's ratings** (08/08/2026,
+  `SHEET_REVISION` 10). `perimeter_clubs` («who you can actually buy from») read `match_ratings` for
+  (input, target); in August the target has no ratings, so every preseason sheet was filtered on the
+  season that ENDED: the 2026-27 Serie A sheet silently dropped all **74 quoted players of the promoted
+  Frosinone, Monza and Venezia** while keeping 94 unpurchasable rows of the relegated — and the euro
+  sheet was still on last year's EuroLeghe selection (35 → 37 clubs). Found at the FIRST comparison of
+  the boards with the press's typical formations, which is the kind of external judge that surfaces an
+  absence no internal test asks about. The listone knows a promotion before a ball is kicked; a
+  purchasable contingent fields at least an eleven (`PERIMETER_SQUAD_MIN` = 11), or one stray last-read
+  roster row (Gutierrez, still quoted 8.0, filed at Bayer Leverkusen) smuggles a foreign club in.
 - **Additive schema changes need a migration.** `CREATE TABLE IF NOT EXISTS` does nothing to an existing
   table, so a new column without an entry in `db.database.ADDED_COLUMNS` fails with "no such column" and
   the only cure would be a `rebuild` that drops everything.
