@@ -127,6 +127,53 @@ def test_a_known_claim_whose_identity_died_is_dropped_before_it_is_written(tmp_p
     assert (len(kept["2025-26"]), dropped) == (1, 0)
 
 
+def test_a_competition_joins_by_our_key_and_not_by_the_providers_slug(tmp_path):
+    """The provider calls Serie B `serie-b` and our key is `serie_b`: with both in the table the same
+    championship is two, the aggregate under one spelling and the per-match rows under the other."""
+    ctx = _ctx(tmp_path)
+    conn = ctx.conn
+    conn.execute("INSERT INTO players(fc_id, canonical_name) VALUES (1, 'A')")
+    conn.execute("INSERT INTO external_match_stats(fc_id, season, source, match_id, competition) "
+                 "VALUES (1, '2025-26', 'sofascore_extra', 'm1', 'serie-b')")
+    conn.execute("INSERT INTO club_match_lineups(season, source, match_id, club, competition, "
+                 "starters) VALUES ('2025-26', 'sofascore_extra', 'm1', 'Frosinone', 'serie-b', 11)")
+    conn.commit()
+    assert positions.normalize_competitions(conn) == 2
+    assert {c for (c,) in conn.execute("SELECT DISTINCT competition FROM external_match_stats")} \
+        == {"serie_b"}
+    # the event parser normalizes at the source too, by tournament ID and never by the text
+    assert positions._slug_of({"tournament": {"uniqueTournament": {"id": 53, "slug": "serie-b"}}}) \
+        == "serie_b"
+    # ...and a cup keeps the provider's slug: it is not a championship and the sheet tells them apart
+    assert positions._slug_of({"tournament": {"uniqueTournament": {"id": 328,
+                                                                   "slug": "coppa-italia"}}}) \
+        == "coppa-italia"
+
+
+def test_the_duplicate_the_extra_layer_left_behind_is_dropped_only_where_a_twin_exists(tmp_path):
+    """4302 rows on the real cache: the extra layer used to write under the league source, so the
+    same match sits twice. The criterion may never delete anything unique - hence the twin test."""
+    ctx = _ctx(tmp_path)
+    conn = ctx.conn
+    conn.execute("INSERT INTO players(fc_id, canonical_name) VALUES (1, 'A')")
+    rows = [
+        # a duplicate: outside the round walk AND present under the extra source -> goes
+        (1, "2025-26", "sofascore", "m1", "serie_b"),
+        (1, "2025-26", "sofascore_extra", "m1", "serie_b"),
+        # outside the round walk but with NO twin -> stays, because it is the only copy
+        (1, "2025-26", "sofascore", "m2", "coppa-italia"),
+        # inside the round walk -> never touched
+        (1, "2025-26", "sofascore", "m3", "serie_a"),
+    ]
+    conn.executemany("INSERT INTO external_match_stats(fc_id, season, source, match_id, competition)"
+                     " VALUES (?, ?, ?, ?, ?)", rows)
+    conn.commit()
+    assert positions.drop_superseded_extra_rows(conn) == 1
+    kept = {(source, match_id) for source, match_id in conn.execute(
+        "SELECT source, match_id FROM external_match_stats")}
+    assert kept == {("sofascore_extra", "m1"), ("sofascore", "m2"), ("sofascore", "m3")}
+
+
 def test_an_authoritative_run_retracts_only_the_identities_it_owns(tmp_path):
     """`recent_form` pays provider searches for men no listone of ours ever quoted, so no name pool
     here can re-establish them - and the delete was dropping exactly those (20 on the real cache, 19

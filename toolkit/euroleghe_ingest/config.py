@@ -40,6 +40,21 @@ LEAGUES: tuple[str, ...] = (
     "ligue_1",
 )
 
+# FEEDER championships: where a PROMOTED club's men played last season. Not in scope - no listone
+# quotes them, `scoring_config` has no rules for them, no club is filed under them - and still real
+# championships, which is the whole distinction: a share of a season is a share of a CHAMPIONSHIP, so
+# a Frosinone player's 30 starts must be divided by Serie B's 38 rounds and not by the 24 elevens we
+# happen to have parsed. Ignoring them made the promoted clubs' claims noise (0.07-0.43, 4/11 against
+# the press). `positions.FEEDER_TOURNAMENTS` holds the provider ids for these keys.
+FEEDER_LEAGUES: tuple[str, ...] = (
+    "serie_b",
+)
+
+# Every championship we can measure a season over: the five in scope plus the feeders. This is the
+# right filter wherever the question is «is this a league match?» rather than «is this one of our
+# five?» - the cups and the continental ties arrive with the provider's own slug and are neither.
+CHAMPIONSHIPS: tuple[str, ...] = LEAGUES + FEEDER_LEAGUES
+
 # The two dimensions a played league is defined on, and which one it is defaults to. `platform` decides
 # which matches count toward the fantamedia (euro bundles a subset of the real rounds), `game` the role
 # vocabulary and the currency - and both change every number in the sheet, so neither can be guessed.

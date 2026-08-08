@@ -508,10 +508,11 @@ COMPETITION_CLASSES: tuple[tuple[str, tuple[str, ...]], ...] = (
 )
 
 # THE COMPETITIONS THAT MAKE UP A PLATFORM'S CALENDAR, and therefore the only ones a "share of the
-# season" may be measured over. They are the five championships themselves (`config.LEAGUES`), which is
-# also the value `external_match_stats.competition` / `club_match_lineups.competition` carry for a league
-# match - the cups and the continental rounds arrive with the provider's own slug ('uefa-champions-
-# league', 'coppa-italia', ...), so the set is exact and not a prefix match.
+# season" may be measured over. They are the CHAMPIONSHIPS (`config.CHAMPIONSHIPS`: the five in scope
+# plus the feeder ones a promoted club comes up from), which is also the value
+# `external_match_stats.competition` / `club_match_lineups.competition` carry for a league match - the
+# cups and the continental rounds arrive with the provider's own slug ('uefa-champions-league',
+# 'coppa-italia', ...), so the set is exact and not a prefix match.
 #
 # Why it is a filter and not a detail: the season AGGREGATE (`external_stats`) stores one row per
 # championship and nothing else, so every numerator in this sheet - starts, appearances, minutes - is
@@ -520,7 +521,12 @@ COMPETITION_CLASSES: tuple[tuple[str, tuple[str, ...]], ...] = (
 # A percentage of one and a percentage of the other are not the same quantity, so the shirts read
 # titolarità that could not be compared across clubs: Kane 25 starts of 34 Bundesliga rounds printed
 # 50%, and a European campaign was indistinguishable from a bench.
-LEAGUE_COMPETITIONS: tuple[str, ...] = config.LEAGUES
+# `CHAMPIONSHIPS` and not `LEAGUES`: the question here is «is this a league match?», not «is it one of
+# our five?». A promoted club's last season was a real championship with a real calendar, and counting
+# it as no championship at all divided its men's starts by the elevens we happened to parse (Frosinone
+# 24) instead of by Serie B's 38 rounds - the same defect as Kane's 49%, on the clubs least able to
+# absorb it. The cups and continental ties still arrive with the provider's own slug and are excluded.
+LEAGUE_COMPETITIONS: tuple[str, ...] = config.CHAMPIONSHIPS
 _LEAGUE_IN = ",".join("?" * len(LEAGUE_COMPETITIONS))
 
 

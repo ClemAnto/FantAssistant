@@ -25,6 +25,7 @@ import random
 import re
 import time
 
+from euroleghe_ingest import config
 from euroleghe_ingest.config import DEFAULT_SEASONS
 from euroleghe_ingest.context import Context
 from euroleghe_ingest.matching import (
@@ -69,6 +70,43 @@ TOURNAMENTS: dict[str, int] = {
     "bundesliga": 35,
     "ligue_1": 34,
 }
+
+# FEEDER leagues: where the PROMOTED clubs come from. Deliberately NOT in `TOURNAMENTS`, which means
+# "a championship in scope" - a listone quotes nobody here, `scoring_config` has no rules for it, and
+# `derive_club_leagues` must not file a club under it. What we want is one thing only: the SEASON
+# AGGREGATE of the men a promoted club brings up, because without it their starts and minutes are
+# missing rather than measured and the claim reads noise (Frosinone's drawn XI: claims 0.07-0.43,
+# 4/11 against the press - todolist-formazioni-tipo item 1).
+# It cannot be derived from the per-match layer we already have: for 2025-26 that holds 97 Serie B
+# matches of 380, round 16 to 38, a median of 14 per player against 31 in Serie A - so a derived
+# aggregate would say "he played a third of the season" about a man who played it all. Halving a
+# denominator is worse than leaving it empty: «vuoto = ignoto, mai zero».
+# A bare run never touches these; `--league serie_b` does. One request for the season list plus one
+# per page of 100 players.
+FEEDER_TOURNAMENTS: dict[str, int] = {
+    "serie_b": 53,
+}
+# The keys are `config.FEEDER_LEAGUES`: this module owns the provider ids, config owns the list, and a
+# key here that config does not know would be a championship nothing downstream counts as one.
+assert set(FEEDER_TOURNAMENTS) == set(config.FEEDER_LEAGUES)
+
+
+# The provider's own slug for a championship we have a key for -> OUR key. Only for the leagues in
+# `known_leagues()`: a cup or a friendly keeps the provider's slug, because it is not a championship
+# and the sheet has to be able to tell them apart (`snapshot.competition_class`).
+_OUR_SLUG: dict[str, str] = {"serie-b": "serie_b"}
+
+
+def tournament_id(league: str) -> int:
+    """The provider's tournament id for a league in scope OR a feeder one."""
+    if league in TOURNAMENTS:
+        return TOURNAMENTS[league]
+    return FEEDER_TOURNAMENTS[league]
+
+
+def known_leagues() -> dict[str, int]:
+    """Every league this module can be pointed at, in scope or feeder."""
+    return {**TOURNAMENTS, **FEEDER_TOURNAMENTS}
 SEASONS: tuple[str, ...] = DEFAULT_SEASONS   # config.py owns the list (one edit per new season)
 
 # Fields requested from the season-statistics endpoint (the default `group` returns far fewer).
@@ -141,7 +179,7 @@ def sofascore_year(season: str) -> str:
 
 
 def resolve_season_id(session, league: str, season: str) -> int | None:
-    data = _get_json(session, SEASONS_ENDPOINT.format(tid=TOURNAMENTS[league]))
+    data = _get_json(session, SEASONS_ENDPOINT.format(tid=tournament_id(league)))
     if not data:
         return None
     year = sofascore_year(season)
@@ -157,7 +195,7 @@ def download_season_stats(session, league: str, season_id: int, cancel_event=Non
     results: list[dict] = []
     page = 0
     while True:
-        url = STATS_ENDPOINT.format(tid=TOURNAMENTS[league], sid=season_id, limit=PAGE_SIZE,
+        url = STATS_ENDPOINT.format(tid=tournament_id(league), sid=season_id, limit=PAGE_SIZE,
                                     offset=page * PAGE_SIZE, fields=fields)
         data = _get_json(session, url)
         if not data:
@@ -186,7 +224,7 @@ def perimeter_club_keys(conn, season: str) -> set[str]:
 def download_round(session, league: str, season_id: int, rnd: int, perimeter: set[str],
                    cancel_event=None) -> dict | None:
     """One round: the round's events plus the lineups of the matches involving a perimeter club."""
-    data = _get_json(session, ROUND_ENDPOINT.format(tid=TOURNAMENTS[league], sid=season_id, rnd=rnd))
+    data = _get_json(session, ROUND_ENDPOINT.format(tid=tournament_id(league), sid=season_id, rnd=rnd))
     if not data or not data.get("events"):
         return None
     events, lineups = [], {}
@@ -253,7 +291,10 @@ def parse_round(payload: dict, season: str, xref: dict[str, int],
         # club's friendlies and cup ties together, so each event may carry its OWN slug. It has to be
         # stored per row: `snapshot.competition_class` reads that slug to keep ten goals in friendlies
         # from ever being counted as ten in a league.
-        competition = event.get("competition") or league
+        # ...and it is normalized HERE too, not only where it was downloaded: the cache is the raw
+        # source of truth and is replayed offline, so a file written before `_slug_of` learned our keys
+        # still carries `serie-b`. One spelling per competition, whichever run wrote the file.
+        competition = _OUR_SLUG.get(event.get("competition") or "", event.get("competition")) or league
         # and the same for the season: one file normally holds one, but a club's extra matches straddle
         # the turn of the football year - a May cup tie and a July friendly are two different seasons.
         event_season = event.get("season") or season
@@ -398,9 +439,22 @@ def _lineups_for(session, event_id) -> dict | None:
 
 
 def _slug_of(event: dict) -> str:
-    """The competition slug of one event, from the provider's own tournament names."""
+    """The competition of one event: OUR key where we have one, the provider's slug otherwise.
+
+    A competition is an entity, so it joins through a canonical key and not through the string a
+    source happens to spell it with - the rule this project pays for over and over. The provider calls
+    Serie B `serie-b` and our own key for it is `serie_b`, and with both in the table the same
+    championship was two: the season aggregate under one spelling, the per-match rows under the other,
+    and any query naming one of them silently missing the other. The tournament ID decides, never the
+    text. Everything genuinely outside our leagues (cups, friendlies, continental ties) keeps its slug,
+    because those are not championships and the sheet reports them apart on purpose.
+    """
     tournament = event.get("tournament") or {}
     unique = tournament.get("uniqueTournament") or {}
+    by_id = {str(tid): league for league, tid in known_leagues().items()}
+    ours = by_id.get(str(unique.get("id")))
+    if ours:
+        return ours
     name = unique.get("slug") or tournament.get("slug") or tournament.get("name") or "other"
     return str(name).lower()
 
@@ -531,7 +585,7 @@ def complete_match_layer(ctx: Context, leagues, seasons) -> dict[str, int]:
                             break
                     _polite_sleep(ctx.cancel_event)
                     listing = _get_json(
-                        session, ROUND_ENDPOINT.format(tid=TOURNAMENTS[league], sid=season_id,
+                        session, ROUND_ENDPOINT.format(tid=tournament_id(league), sid=season_id,
                                                        rnd=rnd))
                     added["requests"] += 1
                     if not listing or not listing.get("events"):
@@ -579,6 +633,51 @@ def complete_match_layer(ctx: Context, leagues, seasons) -> dict[str, int]:
     return added
 
 
+def normalize_competitions(conn) -> int:
+    """Rewrite a stored competition that is a provider SLUG for a league we have a key for.
+
+    The cache is replayed offline and files written before `_slug_of` learned our keys are still on
+    disk, but rows written from them are already in the tables - and a rename at read time would be a
+    second definition. One spelling, in the data.
+    """
+    moved = 0
+    for slug, ours in _OUR_SLUG.items():
+        for table in ("external_match_stats", "club_match_lineups"):
+            moved += conn.execute(f"UPDATE OR REPLACE {table} SET competition = ? "
+                                  f"WHERE competition = ?", (ours, slug)).rowcount
+    if moved:
+        conn.commit()
+    return moved
+
+
+def drop_superseded_extra_rows(conn) -> int:
+    """Remove league-source rows of a competition NO round walk covers, where the extra layer has them.
+
+    The extra layer used to write under the league source and now has its own (`sofascore_extra`), so
+    the same match sits twice: measured 08/08/2026, 4302 rows - Serie B 1707, the Champions League 916,
+    the domestic cups - and EVERY ONE of them has its twin. They were harmless while nothing counted
+    those competitions and stopped being harmless the moment Serie B became a denominator.
+
+    The criterion cannot delete anything unique, which is the whole point of stating it: a row goes
+    only if its competition is outside the round walk (so no league run produces it) AND the same
+    (player, season, match) exists under the extra source. `sofascore_recent` is left alone - that is
+    `recent_form`'s own layer and it means something else.
+    """
+    walked = ",".join("?" * len(TOURNAMENTS))
+    dropped = conn.execute(
+        f"""DELETE FROM external_match_stats
+            WHERE source = ? AND competition NOT IN ({walked})
+              AND EXISTS (SELECT 1 FROM external_match_stats twin
+                          WHERE twin.fc_id = external_match_stats.fc_id
+                            AND twin.season = external_match_stats.season
+                            AND twin.match_id = external_match_stats.match_id
+                            AND twin.source = ?)""",
+        (LEAGUE_SOURCE, *TOURNAMENTS, EXTRA_SOURCE)).rowcount
+    if dropped:
+        conn.commit()
+    return dropped
+
+
 def reingest_match_layer(ctx: Context, seasons=None) -> None:
     """Rebuild external_match_stats offline from the cached round payloads."""
     conn = ctx.require_conn()
@@ -618,11 +717,19 @@ def reingest_match_layer(ctx: Context, seasons=None) -> None:
         _store_club_rows(conn, club_rows, source)
         unknown += missing
     conn.commit()
+    renamed = normalize_competitions(conn)
+    superseded = drop_superseded_extra_rows(conn)
     if touched:
         for (league, season), n in sorted(touched.items()):
             print(f"[positions] {league} {season}: {n} external_match_stats rows")
         print(f"[positions] per-match layer: {sum(touched.values())} rows from {len(files)} cached "
               f"rounds ({unknown} lineup entries without a resolved identity)")
+    if renamed:
+        print(f"[positions] {renamed} row(s) moved onto our own competition key (a provider slug is "
+              f"a spelling, not an identity)")
+    if superseded:
+        print(f"[positions] {superseded} duplicate row(s) dropped: the extra layer wrote them under "
+              f"the league source before it had its own, and every one has its twin")
 
 
 # ---------- real role (offline, from the per-match layer) ----------
@@ -777,7 +884,7 @@ def fetch_heatmaps(ctx: Context, leagues, seasons, refresh: bool = False,
                 continue
             _polite_sleep(ctx.cancel_event)
             payload = _get_json(session, HEATMAP_ENDPOINT.format(
-                pid=provider_id, tid=TOURNAMENTS[league], sid=season_id))
+                pid=provider_id, tid=tournament_id(league), sid=season_id))
             if payload is None:
                 continue
             _atomic_write_text(
@@ -1521,6 +1628,12 @@ class Claim:
                 "reason": reason, "detail": detail}
 
 
+def next_season(season: str) -> str:
+    """'2025-26' -> '2026-27'. The season a promoted club's men are quoted in."""
+    start = int(season.split("-")[0]) + 1
+    return f"{start}-{(start + 1) % 100:02d}"
+
+
 def known_identities(conn) -> dict[str, int]:
     """provider id -> fc_id, as `player_xref` already knows it.
 
@@ -1668,16 +1781,32 @@ def enforce_one_identity(claims_by_season: dict[str, list[Claim]]):
 
 
 def resolve_season(conn, season: str, rows_by_league: dict[str, list[dict]], known=None):
-    """Resolve a WHOLE season at once (every league together), so injectivity can be enforced."""
+    """Resolve a WHOLE season at once (every league together), so injectivity can be enforced.
+
+    A FEEDER league is resolved against the NEXT season's rosters, and that is not a shortcut - it is
+    what a feeder league IS. Nobody in Serie B is in a listone while he plays there; he is quoted the
+    summer his club comes up, so the pool of the season he played in cannot contain him by
+    construction. Measured on the 2025-26 Serie B aggregate: 34 unresolved provider rows of the three
+    promoted clubs, and their surnames - Bracaglia, Calvani, Corrado, Pessina, Dagasso - are sitting
+    in our own 2026-27 rosters. Same pools, same passes, same tier limits: only the year the pool is
+    built from moves.
+    """
     pools = _club_pools(conn, season)
+    feeder_pools = None
     overrides = _manual_overrides(conn)
     if known is None:
         known = known_identities(conn)
     claims: list[Claim] = []
     report: list[dict] = []
     for league, rows in rows_by_league.items():
-        league_claims, league_report = collect_claims(conn, rows, league, season, pools, overrides,
-                                                      known)
+        if league in FEEDER_TOURNAMENTS:
+            if feeder_pools is None:
+                feeder_pools = _club_pools(conn, next_season(season))
+            league_pools = feeder_pools
+        else:
+            league_pools = pools
+        league_claims, league_report = collect_claims(conn, rows, league, season, league_pools,
+                                                      overrides, known)
         claims += league_claims
         report += league_report
     kept, injectivity_report = enforce_injectivity(claims, season)
@@ -1877,14 +2006,21 @@ def run(ctx: Context, *, leagues=None, seasons=None, refresh: bool = False,
         leagues = [leagues]
     if isinstance(seasons, str):
         seasons = [seasons]
+    # A bare run walks the leagues IN SCOPE. A feeder league (`serie_b`) has to be asked for by name:
+    # it is not a championship the engine reasons about, only the place a promoted club's men played.
     leagues = tuple(leagues) if leagues else tuple(TOURNAMENTS)
     # SEASONS only bounds NEW downloads; the offline reparse covers the whole cache unless the
     # caller names seasons explicitly (the cache spans further back than the download default).
     requested_seasons = tuple(seasons) if seasons else None
     seasons = tuple(seasons) if seasons else SEASONS
-    unknown = [league for league in leagues if league not in TOURNAMENTS]
+    unknown = [league for league in leagues if league not in known_leagues()]
     if unknown:
-        raise RuntimeError(f"Unknown league(s) {unknown}; choose from {sorted(TOURNAMENTS)}")
+        raise RuntimeError(f"Unknown league(s) {unknown}; choose from {sorted(known_leagues())}")
+    feeders = [league for league in leagues if league in FEEDER_TOURNAMENTS]
+    if feeders and layer not in ("season", "reparse"):
+        raise RuntimeError(
+            f"{feeders} are FEEDER leagues: only the season aggregate is wanted from them (the men a "
+            f"promoted club brings up need measured starts and minutes). Use --layer season.")
     if layer not in ("season", "match", "complete", "heatmap", "roles", "all", "reparse",
                      "crosstab", "extra"):
         raise RuntimeError(f"Unknown layer {layer!r}; choose from "

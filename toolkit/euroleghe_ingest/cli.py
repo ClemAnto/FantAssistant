@@ -184,7 +184,10 @@ def build_parser() -> argparse.ArgumentParser:
                                 "(read-only) -> data/reports/mv_synth_validation.json")
         if name == "positions":
             p.add_argument("--league", action="append", metavar="LEAGUE",
-                           help="league to import, e.g. premier_league (repeatable; default: all 5)")
+                           help="league to import, e.g. premier_league (repeatable; default: the 5 "
+                                "in scope). A FEEDER league (serie_b) has to be named: only its "
+                                "season aggregate is wanted, so a promoted club's men have measured "
+                                "starts and minutes instead of none")
             p.add_argument("--season", action="append", metavar="YYYY-YY",
                            help="season to import, e.g. 2024-25 (repeatable; default: all)")
             p.add_argument("--refresh", action="store_true",
