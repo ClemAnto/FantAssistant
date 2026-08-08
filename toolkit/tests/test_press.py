@@ -109,8 +109,59 @@ def test_compare_verdicts_and_name_matching(tmp_path):
     assert "Unknown D" in by_club["Hellas Verona"]["only_ours"]
     # the initial is dropped, the surname token joins: 'De Ketelaere C.' finds 'De Ketelaere'
     assert "De Ketelaere" not in by_club["Atalanta"]["only_press"]
-    assert summary == {"clubs": 2, "no_board": 0, "module_match": 0, "module_alt": 1,
-                       "module_diff": 1, "xi_shared": 12, "xi_of": 22}
+    assert summary == {"judged_on": "picture", "clubs": 2, "no_board": 0, "module_match": 0,
+                       "module_alt": 1, "module_diff": 1, "xi_shared": 12, "xi_of": 22}
+
+
+def test_the_verdict_is_given_on_the_shape_the_reference_can_express(tmp_path):
+    """The outcome is counted off the provider's THREE lines, so it can never say '3-4-1-2'. Judged on
+    the drawn picture it reads as a disagreement every time `_reshape` split a row - the same shape
+    written two ways, and on the 2025-26 back-test that artifact alone was 5 clubs of 20, the whole
+    difference between 7 MATCH and 12."""
+    boards = {"Atalanta": {"board_shape": "3-4-3", "picture": "3-4-1-2",
+                           "lines": {"P": [], "D": [], "M": [], "T": [], "A": []}}}
+    reference = {"atalanta": {"club": "Atalanta", "observed_on": "2025-26 (outcome)",
+                              "source": "outcome", "module": "3-4-3", "module_alternatives": [],
+                              "xi": {"XI": []}, "confidence": "46 XIs"}}
+    on_picture, _ = press.compare(boards, reference, on="picture")
+    on_board, summary = press.compare(boards, reference, on="board")
+    assert on_picture[0]["module"] == "DIFF"          # 3-4-1-2 against a three-number reference
+    assert on_board[0]["module"] == "MATCH"           # the comparable side
+    assert summary["judged_on"] == "board"
+
+
+def test_the_outcome_verdict_carries_its_null_model(tmp_path):
+    """«A statistic must be compared with the right null, never with zero.» 135 of 220 means nothing
+    until «the same eleven as last year» is on the page - and a promoted club is counted APART, because
+    «0 of 11» there is a property of the baseline, not evidence about it."""
+    ctx = _ctx(tmp_path)
+    conn = ctx.conn
+    conn.execute("INSERT INTO clubs(fc_club_id, canonical_name, league) VALUES (1,'Inter','serie_a')")
+    conn.executemany("INSERT INTO players(fc_id, canonical_name) VALUES (?, ?)",
+                     [(index, f"Player{index:02d}") for index in range(1, 13)])
+    for season in ("2024-25", "2025-26"):
+        conn.executemany("INSERT INTO rosters(fc_id, season, fc_club_id, league) "
+                         "VALUES (?, ?, 1, 'serie_a')", [(i, season) for i in range(1, 13)])
+        # ten men start both seasons; the eleventh differs, so the null must score 10 of 11
+        squad = list(range(1, 12)) if season == "2024-25" else [*range(1, 11), 12]
+        rows = []
+        for match in range(12):
+            for fc_id in squad:
+                rows.append((fc_id, season, f"{season}-m{match}", 1))
+        conn.executemany(
+            "INSERT INTO external_match_stats(fc_id, season, source, match_id, started, club,"
+            " competition, minutes) VALUES (?, ?, 'sofascore', ?, ?, 'Inter', 'serie_a', 90)", rows)
+        conn.executemany(
+            "INSERT INTO club_match_lineups(season, source, match_id, club, competition, starters,"
+            " goalkeepers, defenders, midfielders, forwards) VALUES (?, 'sofascore', ?, 'Inter',"
+            " 'serie_a', 11, 1, 3, 5, 2)", [(season, f"{season}-m{m}") for m in range(12)])
+    conn.commit()
+    reference = press.outcome_reference(conn, "2025-26")
+    assert reference["inter"]["module"] == "3-5-2"
+    null = press.null_model(conn, "2025-26", reference)
+    assert null["season"] == "2024-25"
+    assert (null["module_match"], null["xi_shared"], null["xi_of"]) == (1, 10, 11)
+    assert null["no_previous"] == 0
 
 
 def test_a_press_club_missing_from_the_sheet_is_reported_not_dropped(tmp_path):

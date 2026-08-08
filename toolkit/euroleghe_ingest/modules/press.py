@@ -1,4 +1,4 @@
-"""press - the press's typical formations as a DATED reference, and the boards judged against it.
+"""press - the boards' EXTERNAL JUDGES: the press's dated forecast, and what the clubs actually did.
 
 Item 0 of docs/model/todolist-formazioni-tipo-v1.md, born from the 08/08/2026 comparison (20 clubs,
 4-6 sources each) that lived in scratchpad scripts and hand-copied JSON files. The standing rule
@@ -15,10 +15,23 @@ Three entry points, one module:
   `lanes_for`), never the columns that look like them (v9.38) - and score modules and shared XI men
   against the stored reference. Report: data/reports/press_comparison.json.
 
-The module verdict is judged on the DRAWN picture (`lanes_for` after `_reshape`), never on the raw
-board string: the provider's vocabulary counts wingers as midfielders, so our 4-5-1 IS the press's
-4-2-3-1 only after the transformation has spoken (formazioni-tipo-v1.md §1). MATCH = the picture is
-the press's module; ALT = it is one of the alternatives the press itself declares; DIFF = neither.
+TWO JUDGES, and `--against` picks one.
+- `press` is a FORECAST by other people, and the only judge that exists before a ball is kicked - which
+  is why it is the one the auction sheet can be scored against.
+- `outcome` is what the clubs DID: the modal shape of a finished season and its eleven most-started
+  men (`outcome_reference`). Stronger evidence - nobody's opinion - and available only for a season
+  already played, so it needs a back-dated sheet: `snapshot --season 2025-26 --date 2025-08-15`, then
+  `press --sheet ... --against outcome`. It carries its own NULL MODEL, because 135 shared men of 220
+  says nothing until «the same eleven as last year» is on the same page.
+
+WHICH SHAPE STRING THE VERDICT USES IS DECIDED BY THE REFERENCE, not by preference (`compare(on=...)`).
+The press writes four-number modules ('4-2-3-1'), so it is judged on the DRAWN picture after
+`_reshape`: the provider's vocabulary counts wingers as midfielders, so our 4-5-1 IS the press's
+4-2-3-1 only once the transformation has spoken (formazioni-tipo-v1.md §1). The outcome is counted off
+`club_match_lineups`, which holds three lines and CANNOT say 4-2-3-1 at all - judged on the picture it
+reads as a disagreement whenever a row was split, which is the same shape written twice (measured: 5
+clubs of 20, the difference between 7 MATCH and 12). MATCH = the reference's module; ALT = one of the
+alternatives it declares; DIFF = neither.
 """
 
 from __future__ import annotations
@@ -32,7 +45,7 @@ from euroleghe_ingest.context import Context
 from euroleghe_ingest.matching import club_identity
 
 NAME = "press"
-DESCRIPTION = "press typical formations: dated reference (import/reingest) + the board comparison"
+DESCRIPTION = "the boards' external judges: the press's dated forecast, and the real outcome"
 DEPENDS_ON: list[str] = []          # reads only its own raw files; the comparison reads a sheet folder
 RAW_INPUTS: list[str] = ["press/press_<season>_<day>_<source>.json (written by --import)"]
 NETWORK = False
@@ -158,6 +171,99 @@ def load_reference(conn, season: str, source: str | None = None) -> dict[str, di
     return out
 
 
+def outcome_reference(conn, season: str, clubs: list[str] | None = None,
+                      alt_share: float = 0.20) -> dict[str, dict]:
+    """THE SECOND JUDGE: what each club actually did, in the same shape as the press reference.
+
+    Better than the press on two counts and worse on none. It is an OUTCOME rather than a forecast -
+    nobody's opinion, just the elevens that were fielded - and it is counted in the SAME vocabulary as
+    our own boards (`club_match_lineups` counts the provider's three lines, exactly as `lanes_for`
+    does), so the 4-5-1/4-2-3-1 translation that muddies every press comparison does not exist here.
+
+    - `module` = the modal shape of the season's complete elevens; `module_alternatives` = every other
+      shape it fielded in at least `alt_share` of them, which is what makes ALT mean the same thing it
+      means for the press («the alternative the source itself declares»).
+    - `xi` = the ELEVEN MOST-STARTED men of the season. Not a line-by-line eleven: a club that changed
+      shape has no single one, and the question the boards answer is «who plays», so the eleven men who
+      played most is the honest target. Counted over the CHAMPIONSHIP alone, like every other share of
+      a season in this project.
+    """
+    from euroleghe_ingest import config
+    from euroleghe_ingest.modules.snapshot import lineup_spellings, typical_formation
+
+    holes = ",".join("?" * len(config.CHAMPIONSHIPS))
+    wanted = clubs or [row[0] for row in conn.execute(
+        """SELECT DISTINCT c.canonical_name FROM rosters r JOIN clubs c USING(fc_club_id)
+           WHERE r.season = ? AND c.canonical_name IS NOT NULL ORDER BY 1""", (season,))]
+    # ...through the CANONICAL KEY, because `club_match_lineups` is keyed on the provider's spelling
+    spellings = lineup_spellings(conn, lambda name: (club_identity(name), name))
+    out: dict[str, dict] = {}
+    for club in wanted:
+        mine = spellings.get(club_identity(club), [club])
+        shapes = typical_formation(conn, mine, season)
+        if not shapes.shape:
+            continue
+        counts: dict[str, int] = {}
+        for part in (shapes.shapes or "").split(";"):
+            shape, _, count = part.partition(":")
+            if shape.strip() and count.strip().isdigit():
+                counts[shape.strip()] = int(count)
+        total = sum(counts.values()) or 1
+        alternatives = [shape for shape, count in counts.items()
+                        if shape != shapes.shape and count / total >= alt_share]
+        club_holes = ",".join("?" * len(mine))
+        starters = [name for name, in conn.execute(
+            f"""SELECT p.canonical_name FROM external_match_stats e
+                JOIN players p USING(fc_id)
+                WHERE e.season = ? AND e.started = 1 AND e.club IN ({club_holes})
+                  AND e.competition IN ({holes})
+                GROUP BY e.fc_id ORDER BY COUNT(*) DESC, SUM(COALESCE(e.minutes, 0)) DESC
+                LIMIT 11""",
+            (season, *mine, *config.CHAMPIONSHIPS))]
+        if len(starters) < 11:
+            continue
+        out[club_identity(club)] = {
+            "club": club, "observed_on": f"{season} (outcome)", "source": "outcome",
+            "coach": None, "module": shapes.shape, "module_alternatives": alternatives,
+            "xi": {"XI": starters}, "duels": [], "confidence": f"{shapes.counted} XIs",
+        }
+    return out
+
+
+def null_model(conn, season: str, reference: dict[str, dict]) -> dict:
+    """The baseline the outcome verdict has to beat: LAST SEASON'S answer, for the same clubs.
+
+    «A statistic must be compared with the right null, never with zero» - the rule this project paid
+    for on the hot-hand measurement. 135 shared men of 220 means nothing on its own: the question is
+    whether the boards beat «the same eleven as last year, in the same shape», which is free and which
+    the model's own strongest input (the club's habit) already contains.
+
+    A promoted club has no previous season in this league at all, so the null cannot answer for it -
+    counted and reported apart rather than scored as a miss, because «0 of 11» there is a property of
+    the baseline and not evidence about it.
+    """
+    previous = f"{int(season[:4]) - 1}-{int(season[:4]) % 100:02d}"
+    prior = outcome_reference(conn, previous, clubs=[entry["club"] for entry in reference.values()])
+    out = {"season": previous, "module_match": 0, "module_alt": 0, "module_diff": 0,
+           "xi_shared": 0, "xi_of": 0, "no_previous": 0}
+    for key, entry in reference.items():
+        out["xi_of"] += len(entry["xi"].get("XI") or [])
+        mine = prior.get(key)
+        if not mine:
+            out["no_previous"] += 1
+            continue
+        out["xi_shared"] += sum(1 for name in (entry["xi"].get("XI") or [])
+                                if any(_names_match(name, other)
+                                       for other in (mine["xi"].get("XI") or [])))
+        if mine["module"] == entry["module"]:
+            out["module_match"] += 1
+        elif mine["module"] in (entry.get("module_alternatives") or []):
+            out["module_alt"] += 1
+        else:
+            out["module_diff"] += 1
+    return out
+
+
 def _name_tokens(name: str) -> set[str]:
     """Surname tokens, accent- and punctuation-free, initials dropped."""
     flat = unicodedata.normalize("NFKD", name or "")
@@ -217,8 +323,17 @@ def extract_boards(config, sheet: Path, mode: str = "typical") -> dict[str, dict
         root.destroy()
 
 
-def compare(boards: dict[str, dict], reference: dict[str, dict]) -> tuple[list[dict], dict]:
+def compare(boards: dict[str, dict], reference: dict[str, dict],
+            on: str = "picture") -> tuple[list[dict], dict]:
     """Score the boards against the reference: per club, the module verdict and the XI overlap.
+
+    `on` picks WHICH OF OUR TWO SHAPE STRINGS is comparable, and it is not a preference: it is decided
+    by what the reference can express. The press writes four-number modules ('4-2-3-1'), so it is
+    judged against the DRAWN picture after `_reshape`. The outcome is counted off `club_match_lineups`,
+    which holds the provider's three lines and therefore CANNOT say 4-2-3-1 at all - judged on the
+    picture it reads as a disagreement whenever the transformation split a row, which is the same shape
+    written two ways: Atalanta's 3-4-3 drawn 3-4-1-2, Roma's 3-4-3 drawn 3-4-2-1, Como's 4-5-1 drawn
+    4-4-1-1. Measured, that artifact alone was 5 clubs of 20 - the difference between 7 MATCH and 12.
 
     Clubs join by IDENTITY (`club_identity`), never by the string a source spelled - the join that
     silently lost Milan, Roma and Napoli once already. XI names match on shared surname tokens, both
@@ -241,7 +356,7 @@ def compare(boards: dict[str, dict], reference: dict[str, dict]) -> tuple[list[d
         our_names = [man["name"] for line in ("P", "D", "M", "T", "A")
                      for man in (board["lines"].get(line) or [])]
         shared = [name for name in press_xi if any(_names_match(name, ours) for ours in our_names)]
-        drawn = board["picture"]
+        drawn = board["picture"] if on == "picture" else board["board_shape"]
         # an alternative may carry a free-text qualifier («4-2-3-1 (in partita)»): the module is its
         # first token
         verdict = ("MATCH" if drawn == entry["module"] else
@@ -254,6 +369,7 @@ def compare(boards: dict[str, dict], reference: dict[str, dict]) -> tuple[list[d
                                    if not any(_names_match(name, ours) for name in press_xi)]})
     scored = [row for row in rows if "module" in row]
     summary = {
+        "judged_on": on,
         "clubs": len(rows),
         "no_board": len(rows) - len(scored),
         "module_match": sum(1 for row in scored if row["module"] == "MATCH"),
@@ -266,23 +382,47 @@ def compare(boards: dict[str, dict], reference: dict[str, dict]) -> tuple[list[d
 
 
 def compare_sheet(ctx: Context, sheet: Path, *, mode: str = "typical", source: str | None = None,
-                  report: bool = True) -> dict | None:
-    """The repeatable judgement: sheet folder in, per-club verdicts and one summary out."""
+                  against: str = "press", report: bool = True) -> dict | None:
+    """The repeatable judgement: sheet folder in, per-club verdicts and one summary out.
+
+    Two judges, and `against` picks one. `press` is a FORECAST by other people, available for the
+    season being auctioned - the only judge that exists before a ball is kicked. `outcome` is what the
+    clubs actually did, available only for a season already played: it needs a back-dated sheet
+    (`snapshot --season 2025-26 --date 2025-08-15`) and it is the stronger evidence of the two, because
+    it is nobody's opinion and it is counted in the same vocabulary as our own boards.
+    """
     manifest = json.loads((sheet / "manifest.json").read_text(encoding="utf-8"))
     season = manifest.get("target_season")
-    reference = load_reference(ctx.conn, season, source=source)
+    if against == "outcome":
+        reference = outcome_reference(ctx.conn, season)
+    else:
+        reference = load_reference(ctx.conn, season, source=source)
     if not reference:
-        print(f"[press] no reference stored for {season}"
+        print(f"[press] no {against} reference for {season}"
               + (f" from source {source}" if source else "")
-              + " - import one first (press --import FILE --season ...)")
+              + (" - import one first (press --import FILE --season ...)" if against == "press"
+                 else " - the season has no complete elevens on file"))
         return None
     boards = extract_boards(ctx.config, sheet, mode=mode)
-    rows, summary = compare(boards, reference)
-    print(f"[press] {sheet.name} vs {len(reference)} press club(s):"
+    if against == "outcome":
+        # the outcome reference covers every club with elevens on file (46 for 2025-26, all five
+        # leagues); a sheet is one platform's perimeter, so score the intersection and say so
+        wanted = {club_identity(club) for club in boards}
+        reference = {key: entry for key, entry in reference.items() if key in wanted}
+    rows, summary = compare(boards, reference,
+                            on="board" if against == "outcome" else "picture")
+    null = null_model(ctx.conn, season, reference) if against == "outcome" else None
+    print(f"[press] {sheet.name} vs {len(reference)} {against} club(s):"
           f" module MATCH {summary['module_match']}, ALT {summary['module_alt']},"
           f" DIFF {summary['module_diff']}"
           + (f", NO BOARD {summary['no_board']}" if summary["no_board"] else "")
           + f" | men {summary['xi_shared']}/{summary['xi_of']}")
+    if null:
+        print(f"[press] NULL MODEL for the same clubs (last season's eleven most-started men, and its"
+              f" modal shape): module MATCH {null['module_match']}, ALT {null['module_alt']},"
+              f" DIFF {null['module_diff']} | men {null['xi_shared']}/{null['xi_of']}"
+              f" · {null['no_previous']} club(s) had no previous season at all (promoted), which the"
+              f" null cannot answer and the boards can")
     for row in rows:
         if "module" not in row:
             print(f"  {row['club']:14s} NO BOARD (press: {row['press_module']}) - {row['error']}")
@@ -293,11 +433,12 @@ def compare_sheet(ctx: Context, sheet: Path, *, mode: str = "typical", source: s
               f" | ours-only: {', '.join(row['only_ours']) or '-'}")
     payload = {
         "generated_at": dt.datetime.now(tz=dt.UTC).isoformat(timespec="seconds"),
-        "sheet": sheet.name, "season": season, "mode": mode,
-        "summary": summary, "clubs": rows,
+        "sheet": sheet.name, "season": season, "mode": mode, "against": against,
+        "summary": summary, "null_model": null, "clubs": rows,
     }
     if report:
-        dest = ctx.config.data_dir / "reports" / "press_comparison.json"
+        dest = ctx.config.data_dir / "reports" / (
+            "press_comparison.json" if against == "press" else "board_outcome_check.json")
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_text(json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8")
         print(f"[press] report -> {dest}")
@@ -306,7 +447,7 @@ def compare_sheet(ctx: Context, sheet: Path, *, mode: str = "typical", source: s
 
 def run(ctx: Context, *, import_files: list[str] | None = None, season: str | None = None,
         source: str | None = None, observed_on: str | None = None, sheet: str | None = None,
-        report: bool = True, **_kwargs) -> None:
+        against: str = "press", report: bool = True, **_kwargs) -> None:
     if import_files:
         for path in import_files:
             file_season, day, src, count = import_reference(
@@ -322,4 +463,4 @@ def run(ctx: Context, *, import_files: list[str] | None = None, season: str | No
             print("[press] nothing to do: no archived reference under data/raw/press/. Import one "
                   "with --import FILE --season YYYY-YY, or judge a sheet with --sheet DIR.")
     if sheet:
-        compare_sheet(ctx, Path(sheet), source=source, report=report)
+        compare_sheet(ctx, Path(sheet), source=source, against=against, report=report)

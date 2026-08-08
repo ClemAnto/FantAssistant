@@ -222,6 +222,12 @@ def build_parser() -> argparse.ArgumentParser:
                            help="judge this sheet folder's boards against the stored reference "
                                 "(headless panel: needs a display). With no option at all the module "
                                 "replays the archived references, which is what `rebuild` runs")
+            p.add_argument("--against", choices=["press", "outcome"], default="press",
+                           help="which judge: 'press' = the stored forecast for the season being "
+                                "auctioned; 'outcome' = what the clubs ACTUALLY did, which needs a "
+                                "back-dated sheet (snapshot --season 2025-26 --date 2025-08-15) and "
+                                "is the stronger evidence - nobody's opinion, and counted in the same "
+                                "vocabulary as the boards")
             p.add_argument("--no-report", dest="report", action="store_false",
                            help="print only, do not write data/reports/press_comparison.json")
         if name == "injuries":
@@ -332,7 +338,7 @@ def main(argv: list[str] | None = None) -> int:
             elif args.command == "press":
                 load("press").run(ctx, import_files=args.import_files, season=args.season,
                                   source=args.source, observed_on=args.observed_on,
-                                  sheet=args.sheet, report=args.report)
+                                  sheet=args.sheet, against=args.against, report=args.report)
             elif args.command == "sweep":
                 load("sweep").run(ctx, windows=args.window, platforms=args.platform,
                                   games=args.game, report=args.report)
