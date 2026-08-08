@@ -405,6 +405,20 @@ def test_real_role_columns_reach_the_sheet():
 
 
 # ---------- the percentage on a shirt, and the two rules of a real attack ----------
+def test_a_trequartista_is_a_candidate_for_the_midfield_too():
+    """The Paz case: coded `AM` and nothing else, our grid calls that a trequartista and sends every
+    trequartista to the ATTACK - so the highest claim in Como's squad (0.760, 33 starts) lost the
+    4-5-1's single forward place to the centre-forward and had no other line to be considered for.
+    Both sources say midfielder: the provider files 20 of 27 `AM` under M, the listone calls 22 C."""
+    from euroleghe_ingest.gui import SnapshotView as View
+
+    # the provider's own slot is a SECOND observation, and it is what widens the candidacy
+    assert View.PROVIDER_LINE["M"] == "M" and View.PROVIDER_LINE["F"] == "A"
+    # our grid still draws him forward - this is about who is CONSIDERED, not where he is placed
+    assert View.LANE_OF_ROLE["AM"] == "T"
+    assert View.depth({"desc_real_roles": "AM"}) > View.depth({"desc_real_roles": "MC"})
+
+
 def test_co_starts_are_counted_over_the_matches_both_were_available_for(tmp_path):
     """The denominator IS the measurement. Counted over all matches, every pair split by a transfer
     reads 0.00 and «they never coexist» would be said of every summer signing - measured on the

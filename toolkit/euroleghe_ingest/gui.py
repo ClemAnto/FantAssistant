@@ -4625,6 +4625,19 @@ class SnapshotView(ttk.Frame):
             # `bucket` stays the PRIMARY lane: it is what `can_lend` calls "his own line".
             keys = {line_key(self.LANE_OF_ROLE.get(code, "")) for code in codes
                     if self.LANE_OF_ROLE.get(code)} or {home}
+            # ...and the line the PROVIDER puts him in, which is a separate observation from his codes
+            # and sometimes contradicts what we derive from them. `AM` is the case that costs: our grid
+            # calls it a trequartista and `line_key` sends every trequartista to the ATTACK, so a man
+            # coded `AM` and nothing else was never a candidate for a midfield - Nico Paz, the highest
+            # claim in Como's squad (0.760, 33 starts), lost the 4-5-1's single forward place to the
+            # centre-forward by `_fronted` and then had no other line to be considered for, while a
+            # 0.49 winger played. Both sources say he is a midfielder: the provider files 20 of the 27
+            # `AM` on this sheet under M, and the listone calls 22 of them C. Widening the CANDIDACY
+            # only - `bucket` stays his primary lane, and where he is DRAWN is still the fit's answer -
+            # touches 28 rows of 638, all of them the linking men (wingers and trequartisti).
+            provider_line = self.PROVIDER_LINE.get(row.get("desc_real_role_line") or "")
+            if provider_line:
+                keys.add(provider_line)
             for key in keys:
                 by_role.setdefault(key, []).append(row)
             bucket[id(row)] = home
@@ -4801,6 +4814,12 @@ class SnapshotView(ttk.Frame):
     # for BOTH wings there; 0.40 admits all three and still refuses the case the ceiling exists for
     # (Napoli's row of four regulars, a 0.87 gap). Above 0.50 nothing new is admitted on either sheet.
     FLANK_OVERRIDE_GAP: ClassVar[float] = 0.40
+
+    # The provider's own broad slot -> the line whose shirts a man may CONTEND for. It is a second
+    # observation, not a restatement of his codes: `desc_real_role_line` is where the provider saw him
+    # play, and for a trequartista it says M where our grid says T. Read in `eleven`, for candidacy
+    # only; nothing about where he is DRAWN, which the fit decides.
+    PROVIDER_LINE: ClassVar[dict[str, str]] = {"G": "P", "D": "D", "M": "M", "F": "A"}
 
     # CO-TITOLARITÀ: MEASURED, IMPLEMENTED, AND REFUSED BY THE JUDGE (08/08/2026). Kept as a threshold
     # and an accessor because the DATA is real and on the sheet (`desc_costart_low`); what is gone is
