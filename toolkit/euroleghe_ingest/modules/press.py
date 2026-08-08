@@ -409,14 +409,25 @@ def compare_sheet(ctx: Context, sheet: Path, *, mode: str = "typical", source: s
         # leagues); a sheet is one platform's perimeter, so score the intersection and say so
         wanted = {club_identity(club) for club in boards}
         reference = {key: entry for key, entry in reference.items() if key in wanted}
-    rows, summary = compare(boards, reference,
-                            on="board" if against == "outcome" else "picture")
+    on = "board" if against == "outcome" else "picture"
+    rows, summary = compare(boards, reference, on=on)
+    # ...and the SAME comparison on our other shape string, which quantifies how much of the
+    # disagreement is VOCABULARY rather than disposition (item 6b). Not a tolerance and not a second
+    # verdict: the verdict stays the one the reference can express (see `compare`). It is a reading -
+    # our 4-5-1 and the press's 4-2-3-1 are the same eleven counted two ways, and the pair of numbers
+    # says how many clubs sit on that difference instead of leaving it as an anecdote.
+    other = "board" if on == "picture" else "picture"
+    _rows_other, summary_other = compare(boards, reference, on=other)
     null = null_model(ctx.conn, season, reference) if against == "outcome" else None
     print(f"[press] {sheet.name} vs {len(reference)} {against} club(s):"
           f" module MATCH {summary['module_match']}, ALT {summary['module_alt']},"
           f" DIFF {summary['module_diff']}"
           + (f", NO BOARD {summary['no_board']}" if summary["no_board"] else "")
           + f" | men {summary['xi_shared']}/{summary['xi_of']}")
+    print(f"[press] the same boards judged on the {other} instead:"
+          f" MATCH {summary_other['module_match']}, ALT {summary_other['module_alt']},"
+          f" DIFF {summary_other['module_diff']} - the difference is VOCABULARY, not disposition"
+          f" (a reading, never the verdict)")
     if null:
         print(f"[press] NULL MODEL for the same clubs (last season's eleven most-started men, and its"
               f" modal shape): module MATCH {null['module_match']}, ALT {null['module_alt']},"
@@ -434,7 +445,8 @@ def compare_sheet(ctx: Context, sheet: Path, *, mode: str = "typical", source: s
     payload = {
         "generated_at": dt.datetime.now(tz=dt.UTC).isoformat(timespec="seconds"),
         "sheet": sheet.name, "season": season, "mode": mode, "against": against,
-        "summary": summary, "null_model": null, "clubs": rows,
+        "summary": summary, "summary_on_" + other: summary_other, "null_model": null,
+        "clubs": rows,
     }
     if report:
         dest = ctx.config.data_dir / "reports" / (

@@ -468,6 +468,30 @@ def test_co_starts_are_counted_over_the_matches_both_were_available_for(tmp_path
     assert View.costart_share(krsto, {"name": "Newcomer"}) is None
 
 
+def test_a_plate_carries_the_MARGIN_and_not_just_the_winner():
+    """Item 6a. «Un undici che mostra 0.72 vs 0.67 e' un'informazione, uno che mostra solo il vincitore
+    e' un'affermazione»: Gila/Tomori and Thuram K./Koopmeiners are duels under 0.1 of claim, and the
+    plate has to let the operator see how thin they are. One rival per LINE, each with his own share -
+    two names sharing a line cannot carry the percentages that make it a ranking."""
+    from euroleghe_ingest.gui import SnapshotView as View
+
+    view = View.__new__(View)
+    view.xi_mode = type("V", (), {"get": staticmethod(lambda: "typical")})()
+    view.clubs = {"Test": {"complete_XIs": "38", "league_XIs": "38"}}
+    view.players = []
+    def row(name, share):
+        return {"name": name, "club": "Test", "desc_start_share": str(share),
+                "desc_season_starts": str(int(share * 38)),
+                "desc_minutes_full_season": str(int(share * 3420)),
+                "desc_injury_source": "transfermarkt (no absence recorded)"}
+    starter, rival = row("Tomori", 0.67), row("Gila", 0.66)
+    lines = view.plate_lines(starter, [rival], 18, 16)
+    assert lines[0].startswith("Tomori") and "%" in lines[0], lines
+    assert lines[1].startswith("vs Gila") and "%" in lines[1], lines
+    # ...and the two shares are close enough that only the numbers can tell them apart
+    assert lines[0] != lines[1]
+
+
 def test_a_shape_is_worth_the_mean_surplus_of_the_eleven_it_fields():
     """The selector's second number. A missing surplus is UNKNOWN, never zero - averaging it as zero
     would make a shape look poorer for exactly the men the sheet could not price - so the mean is over

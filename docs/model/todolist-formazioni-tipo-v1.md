@@ -347,6 +347,80 @@ del layer misurato di questa sessione.
   `level_gap_z`. La 1-bis riguarda i prestiti senza cambio club, che sono cinque. Come si è arrivati
   allo sbaglio, e perché è la lezione più utile della giornata, sta nella voce 1-bis.
 
+## 6. ~~Letture, non regole~~ — **FATTE** (08/08/2026)
+- **(a) Ballottaggi quasi-pari: la targhetta dice il MARGINE.** Era già così e va solo verificato:
+  `plate_lines` mette UN RIVALE PER RIGA con la sua percentuale, perché «un ranking ha bisogno della
+  percentuale di ciascuno accanto, che due nomi sulla stessa riga non possono portare». La targhetta
+  del Milan legge **`Tomori 67% | vs Gila 66%`** — il margine di un punto è visibile, e i duelli che la
+  voce nominava (Gila/Tomori, Thuram K./Koopmeiners) sono leggibili come duelli e non come verdetti.
+  Bloccato da un test, perché una cosa vera per caso è una cosa che si può perdere.
+- **(b) Il vocabolario è QUANTIFICATO, non tollerato.** Il report `press` porta ora lo stesso confronto
+  sull'altra rappresentazione: sul foglio 2026-27 il verdetto è **11/5/4 sul picture** e **9/3/8 sul
+  board**, cioè quanti club stanno sulla differenza di vocabolario invece di lasciarla come aneddoto.
+  **Non** una tolleranza e **non** un secondo verdetto: quello resta la rappresentazione che la
+  referenza può esprimere (`compare(on=...)`, la regola stabilita col giudice-esito). Dichiarare
+  equivalenti 4-5-1 e 4-2-3-1 sarebbe stato allargare un criterio perché dei casi lo fallivano, ed è
+  proibito; misurare quanto vale quella differenza è un'altra cosa.
+- **(c) `evidence_age` accanto alla board.** Era nel manifest e nessuno la leggeva; ora sta nell'HOVER
+  della card del club — non in una riga nuova, perché il pannello spende la sua altezza sulla board e
+  non sul proprio arredo (lezione dell'08/08). Solo le DATE: `evidence_age` porta anche conteggi (789
+  trasferimenti nella finestra) e un conteggio stampato dove il lettore si aspetta un giorno è un
+  numero che dice la cosa sbagliata. Due difetti miei nel farlo, entrambi corretti e utili da
+  ricordare: la variabile del ciclo si chiamava `source` e **ombreggiava** quella del modulo (la prima
+  riga dell'hover leggeva «(transfers_latest, provider lines)» — stessa famiglia dell'attributo
+  `_declared` che ombreggiava il suo metodo), e il filtro sulle date è nato dal vedere `789` accanto a
+  quattro giorni.
+
+## 7. ~~Il crollo di titolarità dopo i 30~~ — **MISURATA E REFUTATA DA DUE GIUDICI** (08/08/2026)
+**Da dove veniva**: l'analisi dei 172 errori del confronto storico. Due cose che quell'analisi ha
+stabilito e che restano vere: **il perimetro non è il problema** (86 su 86 dei mancati erano già sul
+foglio) e **65 degli 86 errori sono uomini con 10+ presenze l'anno prima**, quindi il difetto è
+nell'ORDINAMENTO fra uomini che hanno tutti una storia.
+**L'evidenza che la motivava**, su 500 coppie (giocatore, stagione) con 15+ start di Serie A in
+ingresso, due stagioni: quota di presenze mantenuta **66% / 72% / 77% / 51%** per fasce ≤23, 24-26,
+27-29, ≥30. Una U rovesciata, quindi una SOGLIA e non una tendenza — e la correlazione lineare è
+debole (r −0.139, parziale −0.122) esattamente per questo.
+**Implementata** come canale raggiungibile da entrambi gli harness (`presence.age_lift`,
+`Inputs.age`, `desc_age` sul foglio, la griglia in `sweep.GRIDS`), perché un parametro che nessun
+harness raggiunge è un parametro che nessuno può misurare.
+**Rifiutata da entrambi i giudici, lo stesso giorno:**
+
+| giudice | verdetto |
+|---|---|
+| `sweep` (errore sulla quota di presenze realizzata) | euro **+0.23%** (ottimo 30/0.09, **al bordo**), default **+0.04%** (31/0.06). Nessuno raggiunge il floor 0.5%; strict no, robust no |
+| esito (board 15/08/2025 contro il 2025-26) | **peggiora a ogni punto**: uomini 134 → 132, moduli 13 → 12 |
+
+**E il MECCANISMO, che spiega perché la tabella per fasce era ingannevole**: i 30+ portano **già meno
+minuti misurati** — 1299 contro 1574 dei 27-29 in Serie A 2024-25 — quindi lo standing li sconta
+*prima* che qualunque termine d'età intervenga, e il termine addebita due volte la stessa evidenza. La
+tabella per fasce non controlla per i minuti; il modello sì. **Una differenza fra due gruppi non è un
+canale finché non si verifica che il modello non la stia già leggendo.**
+**Cosa resta**: il parametro a 0 e raggiungibile (come `HEATMAP_SIDE` e `PRESEASON_WEIGHT`), la
+colonna `desc_age` sul foglio (`SHEET_REVISION` 12) perché la prossima ipotesi sull'età non debba
+ripagarla, e la nota che **non era R4**: R4 predice il fantavoto, questa predice chi gioca — la
+distinzione regge, ed è la risposta che ha comunque richiesto di essere misurata.
+**Un difetto latente trovato dalla misura**: lo sweep è morto su una divisione per zero in
+`absences_per_season`, presente da quando la griglia degli infortuni fu scritta — col punto
+`(1.0, 0, 0)` e un uomo senza infortuni nell'ultima stagione ma con infortuni nelle precedenti, tutti
+i pesi contati sono 0. Non è «non si infortuna», è «questa pesatura non ha nulla da dire su lui»:
+ora cade sul ramo della storia non ripartita, «vuoto = ignoto». Era latente e l'ha esposto la crescita
+del layer misurato di questa sessione.
+
+## 7-bis. Due cose misurate e RIFIUTATE nella stessa analisi (per non riprovarle)
+- **Scontare il claim per la disponibilità**: il claim è «la squadra con tutti sani» per scelta di
+  design, e si potrebbe pensare che contro l'ESITO — che invece contiene gli infortuni — convenga
+  moltiplicarlo per `availability`. Misurato: **132/220 uomini contro 134 e un modulo in meno**. La
+  scelta di design regge anche contro il giudice più severo, e lo sconto resta dove già sta
+  (`engine_pv_pred`).
+- **Allargare l'acquisizione**: escluso dai dati, non per opinione. Tutti gli 86 mancati erano sul
+  foglio, quindi il perimetro non lascia fuori nessuno di loro.
+- **Nota sugli ARRIVI, ~~che rafforza la voce 1-bis~~ — CORRETTA**: 40 degli 86 mancati e 42 degli 86
+  sbagliati sono arrivi, quindi metà degli errori sta sulla popolazione più incerta. Ma la conclusione
+  che ne era stata tratta («questo sposta la 1-bis in cima») era **falsa**: quelli sono arrivi VERI, con
+  cambio di club, cioè la popolazione che `level_gap` già copre — 55 degli 81 portano un
+  `level_gap_z`. La 1-bis riguarda i prestiti senza cambio club, che sono cinque. Come si è arrivati
+  allo sbaglio, e perché è la lezione più utile della giornata, sta nella voce 1-bis.
+
 ## 6. Letture, non regole (a costo quasi zero)
 - **Ballottaggi quasi-pari**: Gila/Tomori, Thuram K./McKennie, Isaksen/Cancellieri sono duelli
   sotto 0.1 di claim dove la stampa sceglie l'altro lato — il pannello già disegna i rivali;

@@ -130,6 +130,27 @@ def test_the_verdict_is_given_on_the_shape_the_reference_can_express(tmp_path):
     assert summary["judged_on"] == "board"
 
 
+def test_the_report_quantifies_the_vocabulary_without_tolerating_it(tmp_path):
+    """Item 6b. Our 4-5-1 and the press's 4-2-3-1 can be the same eleven counted two ways, and how many
+    clubs sit on that difference is a READING - never a second verdict, and never a widened criterion.
+    So the report carries both counts and the verdict stays the one the reference can express."""
+    boards = {"Lecce": {"board_shape": "4-5-1", "picture": "4-5-1",
+                        "lines": {"P": [], "D": [], "M": [], "T": [], "A": []}},
+              "Atalanta": {"board_shape": "3-4-3", "picture": "3-4-1-2",
+                           "lines": {"P": [], "D": [], "M": [], "T": [], "A": []}}}
+    reference = {
+        "lecce": {"club": "Lecce", "observed_on": "d", "source": "press", "module": "4-2-3-1",
+                  "module_alternatives": [], "xi": {"XI": []}, "confidence": ""},
+        "atalanta": {"club": "Atalanta", "observed_on": "d", "source": "press", "module": "3-4-3",
+                     "module_alternatives": [], "xi": {"XI": []}, "confidence": ""},
+    }
+    _rows, on_picture = press.compare(boards, reference, on="picture")
+    _rows, on_board = press.compare(boards, reference, on="board")
+    # judged on the picture Atalanta disagrees; judged on the board it agrees - the same eleven
+    assert on_picture["module_match"] == 0 and on_board["module_match"] == 1
+    assert on_picture["judged_on"] == "picture" and on_board["judged_on"] == "board"
+
+
 def test_the_outcome_verdict_carries_its_null_model(tmp_path):
     """«A statistic must be compared with the right null, never with zero.» 135 of 220 means nothing
     until «the same eleven as last year» is on the page - and a promoted club is counted APART, because

@@ -3173,7 +3173,31 @@ class SnapshotView(ttk.Frame):
             bits.append(f"lines D{info.get('lines_fielded_D')}/M{info.get('lines_fielded_M')}/"
                         f"F{info.get('lines_fielded_F')} over {info['complete_XIs']} XIs")
         self.club_info.set(" · ".join(bits))
-        self._club_detail = "\n".join([f"{label} {formation} ({source}, provider lines)", *bits])
+        # HOW OLD THE EVIDENCE IS, on the HOVER and not on the card: it is the first thing to look
+        # at when a drawn eleven seems wrong, and the last that should cost the pitch a pixel (the
+        # 08/08 lesson - the panel spends its height on the board, not on its own chrome). Lazio and
+        # Fiorentina diverge from the press partly because the sheet honestly says its squads are
+        # 4-10 days old and its transfers a month; that sentence belongs beside the board that used
+        # them. Flattened one level, because the manifest nests the squad sources.
+        # ...and NOT with a loop variable called `source`: this method already has one - where the drawn
+        # module came from - and shadowing it made the hover's first line read «(transfers_latest,
+        # provider lines)». The same family as the `_declared` attribute that shadowed its own method.
+        # Only DATES are shown: `evidence_age` also carries counts (789 transfers in the window), and a
+        # count printed where a reader expects a day is a number that means the wrong thing.
+        ages = self.manifest.get("evidence_age") or {}
+        stale: list[str] = []
+
+        def _dates(prefix: str, value) -> None:
+            if isinstance(value, dict):
+                for inner, when in sorted(value.items()):
+                    _dates(inner, when)
+            elif isinstance(value, str) and value[:4].isdigit() and "-" in value:
+                stale.append(f"{prefix} {value}")
+
+        for key, value in sorted(ages.items()):
+            _dates(key, value)
+        self._club_detail = "\n".join([f"{label} {formation} ({source}, provider lines)", *bits]
+            + ([f"evidence: {' · '.join(stale)}"] if stale else []))
 
         self.rows = self.squad(club)
         self._fill_table()
