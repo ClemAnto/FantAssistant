@@ -57,6 +57,19 @@ Scorciatoie, in ordine: `mode == "next"` con `formation_today` (le probabili dic
 (precedenza: `formation_next_fielded` → `formation_today` → `formation_typical` → derivata dalle medie
 di linea, default 4-3-3).
 
+**Il selettore porta DUE numeri, e non rispondono alla stessa domanda** (08/08/2026, richiesta
+dell'operatore). La percentuale dice quanto è probabile che il club schieri quella forma; **`SUR` dice
+il surplus MEDIO degli undici che quella forma mette in campo** (`eleven_surplus`), cioè quanto vale
+la squadra che ne esce — e la forma probabile può schierare l'undici più povero, che è esattamente
+ciò che serve vedere prima di puntare: Como 4-5-1 al 77% con ~17.3 contro il 4-4-2 al 3% con 18.3
+(il caso Paz, §6.1, visto dal pannello); Inter 3-5-2 al 95% e anche il più ricco (25.3). Le odds
+leggono i CLAIM (`shape_matchdays`), questo legge la VALUTAZIONE: sono due assi e il pannello non li
+mescola. Tre regole nel numero: la media e non la somma (ogni forma schiera undici uomini, una somma
+cambierebbe solo l'unità); **un surplus mancante è ignoto e non zero**, quindi la media è sugli
+uomini che ne hanno uno e il conteggio la accompagna (`(9/11)`); `~` quando almeno uno degli undici
+porta la STIMA (`est_surplus`) invece della valutazione gated — Frosinone è tutto `~`. `row_surplus`
+è UNA definizione, letta dalla cella del foglio, dal suo tooltip e dal selettore.
+
 **Costanti** (tutte ClassVar di `SnapshotView`, tutte display-only):
 
 | costante | valore | significato |
@@ -164,7 +177,18 @@ prezzo(riga)   = min sui codici + 4 se ST su fascia del tridente + 2·_off_the_f
 
 Fatti per-GIORNO che non si backfillano: `desc_real_roles` (il provider ignora `seasonId`),
 `desc_starter_prob` (con la sua STAGIONE, v9.32), la rosa live (`squad_snapshot`, quattro fonti,
-guardia `SQUAD_COMPLETENESS` 0.90).
+guardia `SQUAD_COMPLETENESS` 0.90). E `press_formations` (§5-bis), che è per-GIORNO per la stessa
+ragione e sta fuori da questa tabella per una diversa: **nessuno la legge**, è il giudice.
+
+**Un uomo può avere l'aggregato d'ingresso vuoto perché il PERIMETRO del listone è cambiato**
+(08/08/2026). Le righe giocatore vengono da `external_stats`, e l'identità che le attribuisce si
+risolve contro i pool del roster DI QUELLA STAGIONE: un uomo comprato dentro il perimetro
+quest'anno non è in nessun pool dell'anno che ha davvero giocato — 59 uomini del listone 2026-27
+avevano ZERO aggregato 2025-26 col provider id già in `player_xref`, quindi start e minuti mancanti
+invece che misurati, quindi claim vuoto (Doekhi, Geubbels, entrambi titolari per la stampa). Curato
+con un quarto pass sull'identità già nota, che è l'evidenza più debole e **non decide mai
+un'identità**; e `player_xref.resolved_by` dice chi ha stabilito una mappatura, perché tre moduli
+ci scrivono con evidenze diverse e uno solo cancella. Dettagli e numeri: todolist voce 2.
 
 **Il perimetro del foglio** (chi può comparire): dal 08/08/2026 (`SHEET_REVISION` 10) è **il listone
 della stagione bersaglio** (`listone_quotes`, contingente ≥ 11), con i ratings come ripiego per le
@@ -182,15 +206,52 @@ preseason: il 2026-27 teneva 94 righe di Cremonese/Pisa/Verona retrocesse e scar
 - **Referenza 26/27** (pazzidifanta 03/08, previsione sulla stagione che si asta): 9/17 moduli, il
   giudice con cui `coach_shapes` fu adottato (8/17 → 9/17, Atalanta e Napoli corretti).
 - **Referenza 26/27 della stampa, 08/08/2026** (fantacalcio.it, DAZN, SOS Fanta, fantamaster,
-  pazzidifanta, goal.com — 4-5 fonti per club, tutte del 3-7 agosto): **moduli 10/20 uguali +
-  5/20 sull'alternativa che la stampa stessa dichiara, 5 divergenti; uomini 159/220 = 72%**.
-  I cinque moduli divergenti, ciascuno con la sua causa: Como (il 4-2-3-1 della stampa È il
-  nostro 4-5-1 nel vocabolario del provider, ma la selezione lascia fuori Paz — sotto), Juventus
-  e Napoli (il repertorio misurato dell'allenatore contro l'annuncio tattico del ritiro: Spalletti
-  3-4-3 misurato alla Juve vs 4-2-3-1 atteso, Allegri 3-5-2 di carriera vs 4-3-3 atteso), Lecce e
-  Milan (in parte vocabolario: 4-5-1 vs 4-2-3-1, 3-4-3 vs 3-4-2-1). Dove l'XI diverge di più la
-  causa è il DATO, non il disegno: Frosinone 4/11 e Lazio 4/11 (sotto), Venezia/Parma/Cagliari/
-  Fiorentina 7/11 (mercato estivo pesante, arrivi con storia sottile o straniera).
+  pazzidifanta, goal.com — 4-5 fonti per club, tutte del 3-7 agosto): **moduli 9/20 uguali +
+  5/20 sull'alternativa che la stampa stessa dichiara, 6 divergenti; uomini 161/220 = 73%**.
+  ⚠️ Questi sono i numeri dell'harness `press` sul foglio corrente. La prima stesura di questa nota
+  citava «10 + 5 + 5, 159/220», che era uno stato di metà sessione le cui board non furono salvate:
+  l'archivio di quel giorno (`data/reports/press-formations-2026-08-08/`) ne dà 9/5/6 e 160/220, e
+  il +1 sugli uomini è Doekhi, entrato nell'undici della Lazio col recupero degli aggregati
+  (todolist voce 2). **Da qui in poi la referenza è un DATO e il confronto un comando**
+  (`press --import` / `press --sheet`, §5-bis): un numero di questa riga si cita dal report, mai a
+  memoria.
+  I moduli divergenti, ciascuno con la sua causa: Como (il 4-2-3-1 della stampa È il
+  nostro 4-5-1 nel vocabolario del provider, ma la selezione lascia fuori Paz — sotto — e il
+  disegnato esce 4-4-2), Juventus e Napoli (il repertorio misurato dell'allenatore contro
+  l'annuncio tattico del ritiro: Spalletti 3-4-3 misurato alla Juve vs 4-2-3-1 atteso, Allegri
+  3-5-2 di carriera vs 4-3-3 atteso), Lecce, Milan e Monza (in parte vocabolario: 4-5-1 vs
+  4-2-3-1, 3-4-3 vs 3-4-2-1). Dove l'XI diverge di più la causa è il DATO, non il disegno:
+  Frosinone 4/11 e Lazio 5/11 (sotto), Venezia/Parma/Cagliari/Fiorentina 7/11 (mercato estivo
+  pesante, arrivi con storia sottile o straniera).
+
+## 5-bis. Il giudice è un comando, non uno script (modulo `press`, 08/08/2026)
+
+La referenza stampa e il confronto vivevano in script di scratchpad e JSON copiati a mano; ora sono
+un modulo del toolkit — voce 0 della todolist, e la condizione perché le voci 3, 4 e 5 si possano
+decidere «contro la stampa» due volte di seguito con lo stesso metro.
+
+```
+press --import FILE --season 2026-27 [--observed-on YYYY-MM-DD] [--source NAME]
+press                                   # rigioca gli archivi (offline; è quello che fa rebuild)
+press --sheet data/reports/auction-snapshot-...    # giudica le board di quel foglio
+```
+
+- **`press_formations`** = un fatto per-GIORNO come `probable_starter` (`club, season, observed_on,
+  source` in chiave), mai backfillabile; ogni import è archiviato in `data/raw/press/` e `rebuild`
+  lo rigioca, così il DB resta ricostruibile dai raw. **È un GIUDICE, mai un input**: nessuna
+  funzione del motore o del pannello lo legge, e leggerlo dentro il claim renderebbe circolare
+  proprio il confronto che lo usa.
+- **L'estrazione guida il PANNELLO VERO**: `SnapshotView.load_sheet` — l'unico loader, estratto da
+  `load_selected` proprio perché una seconda copia della lista di cache sarebbe una seconda
+  popolazione (il difetto dell'08/08 preso alla radice) — e poi `board_shape`/`eleven`/`lanes_for`,
+  mai le colonne che le somigliano.
+- **Verdetto sul PICTURE disegnato** (§1: il vocabolario del provider), tre classi: `MATCH` = il
+  modulo della stampa, `ALT` = una delle alternative che la stampa stessa dichiara (il qualificatore
+  fra parentesi non conta: si legge il primo token), `DIFF` = nessuno dei due. Club uniti per
+  `club_identity`, uomini per token di cognome, e un club senza board è `NO BOARD` nel report e nel
+  sommario — non un buco silenzioso.
+- Report: `data/reports/press_comparison.json`. Un test blocca la riproduzione del confronto
+  archiviato dell'08/08 (9/5/6, 160/220).
 
 ## 6. Tre cose che il confronto dell'08/08/2026 ha esposto
 
@@ -211,18 +272,27 @@ preseason: il 2026-27 teneva 94 righe di Cremonese/Pisa/Verona retrocesse e scar
    ha giocato solo lì, e `league_XIs` = 0. Il per-partita (`external_match_stats`) ne ha 12-15
    partite su 38, troppo poche per derivarlo. Cosa manca: l'acquisizione degli aggregati Serie B
    per le rose promosse (o l'estensione di `positions`/`fbref` a quel campionato per quei club).
-3. **Un mercato pesante svuota l'undici anche a dati freschi.** Lazio 4/11: tre titolari attesi
-   sono arrivi di luglio con storia altrove (Doekhi, Pedraza, Taylor), la stagione di input era
-   anomala (Rovella 6 start da infortunio, il portiere titolare è partito), e i trasferimenti in
-   `transfers_history` arrivano datati 01/07 (semantica inizio-contratto di Transfermarkt) con
-   4.422 nomi irrisolti — Molina N. non ha NESSUNA riga transfer pur avendo l'identità. Qui il
-   modello fa quel che i dati permettono; ciò che si può muovere è la freschezza/risoluzione del
-   layer transfers e i canali d'arrivo già adottati (level, level_gap).
+3. **Un mercato pesante svuota l'undici anche a dati freschi — ma la metà era il DATO, e si è
+   mossa.** Lazio 4/11: tre titolari attesi sono arrivi di luglio con storia altrove (Doekhi,
+   Pedraza, Taylor), la stagione di input era anomala (Rovella 6 start da infortunio, il portiere
+   titolare è partito), e i trasferimenti arrivavano datati 01/07 con 4.422 nomi irrisolti — Molina
+   N. senza NESSUNA riga transfer pur avendo l'identità. Chiuso lo stesso giorno (todolist voce 2):
+   irrisolti 4.422 → 2.508 leggendo la chiave canonica che il parser buttava, l'affare doppio fra due
+   club del perimetro fuso in una riga, `first_seen` per la freschezza — **e il collo di bottiglia
+   vero, che era un'altra tabella**: 59 uomini del listone 2026-27 senza aggregato d'ingresso perché
+   il perimetro del listone cambia ogni estate e il funnel identità risolve contro i pool della
+   stagione (`external_stats` +5.238 righe). Lazio **4/11 → 5/11**, Doekhi entra con 34 start e 3060
+   minuti misurati. Ciò che resta è davvero il modello: i canali d'arrivo adottati (level,
+   level_gap) su uomini la cui storia sta altrove.
 
 ## 7. Limiti dichiarati
 
 - `formation_typical` è la stagione di INPUT: per un allenatore nuovo descrive il predecessore, e lo
   dice (`formation_typical_basis`); è `coach_shapes` a correggere il disegno, quando il campione regge.
+- **Un'identità che nessun pool per nome può ristabilire non è ritrattabile da `positions`** e resta
+  finché un claim per nome non la contraddice: `resolved_by` protegge chi l'ha stabilita, ma le righe
+  precedenti la colonna sono `unknown` e nessuno le ritratta (§4). È il prezzo scelto — meglio di
+  cancellare un'identità pagata da un altro modulo — ed è dichiarato, non nascosto.
 - I club PROMOSSI non hanno `club_match_lineups` di Serie B: la loro board nasce dal repertorio
   dell'allenatore e dalla lega, e `formation_shapes` può essere di due stagioni fa (l'ultima in A).
 - `COACH_SHAPE_MIN`/`FULL` da ritarare (sopra). `PREVIOUS_COACH_WEIGHT` = 0.25 nel conteggio di club.

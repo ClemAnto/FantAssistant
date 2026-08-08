@@ -12,19 +12,28 @@ allarga perché un caso l'ha fallito (CLAUDE.md, 06/08/2026).
 
 ---
 
-## 0. Il giudice: la referenza stampa come DATO, e il confronto ripetibile
+## 0. ~~Il giudice: la referenza stampa come DATO, e il confronto ripetibile~~ — **FATTA** (08/08/2026, `19351fd`)
 **Perché**: le voci 3, 4 e 5 si decidono «contro la stampa», quindi la referenza deve essere un
-dato datato e il confronto una misura ripetibile — oggi vive in tre script di scratchpad e sei
+dato datato e il confronto una misura ripetibile — viveva in tre script di scratchpad e sei
 JSON copiati a mano. La spec v9.38 chiedeva esattamente questo: «i valori vanno rimisurati quando
 ci sarà di nuovo una referenza esterna sulla stagione che si asta».
-**Cosa fare**: (a) tabella `press_formations(club, season, observed_on, source, module,
-module_alternatives, xi, confidence)` — un fatto per-GIORNO come `probable_starter`, mai
-backfillabile; (b) portare nel toolkit l'estrazione headless delle board (oggi
-`extract_boards.py`) e il confronto (`compare.py`), come harness richiamabile — gli stessi test
-del pannello già costruiscono viste headless; (c) il report dice moduli-uguali / alternativa /
-divergenti e uomini condivisi, per club.
-**Giudice**: n/a — è il giudice.
-**Resa**: abilita tutto il resto; costo un pomeriggio.
+**Fatto**: modulo **`press`** (`python -m euroleghe_ingest press`), tre ingressi:
+- `--import FILE --season YYYY-YY` → `press_formations(club, season, observed_on, source, coach,
+  module, module_alternatives, xi, duels, notes, confidence)`, un fatto per-GIORNO come
+  `probable_starter`; ogni import è **archiviato in `data/raw/press/`** e `rebuild` lo rigioca, così
+  il DB resta ricostruibile dai raw come vuole la spec;
+- senza opzioni → rigioca gli archivi (il ramo offline);
+- `--sheet DIR` → estrae le board **guidando il pannello vero** e le confronta.
+**Due cose che l'implementazione ha imposto, e valgono più del comando**: l'estrazione chiama
+`SnapshotView.load_sheet` — estratto da `load_selected` perché **un solo loader per pannello e
+harness**, che è il difetto dell'08/08 preso alla radice (una seconda copia della lista di cache
+sarebbe una seconda popolazione) — e legge le funzioni REALI (`board_shape`/`eleven`/`lanes_for`),
+mai le colonne che le somigliano. I club si uniscono per `club_identity`, mai per stringa.
+**Numeri, e una correzione a quelli citati qui**: il confronto ARCHIVIATO dell'08/08 dà
+**9 MATCH / 5 ALT / 6 DIFF, uomini 160/220** — il «10/5/5 · 159/220» che questa lista e
+`formazioni-tipo-v1.md` citavano era uno stato di metà sessione le cui board non furono salvate.
+Il test di riproduzione blocca i numeri dell'archivio; il foglio corrente li riproduce.
+**Report**: `data/reports/press_comparison.json`.
 
 ## 1. Aggregati Serie B per i club promossi («il claim di una promossa è rumore»)
 **Perché, misurato**: Frosinone XI disegnato con claim 0.07-0.43 → **4/11** contro la stampa;
@@ -39,21 +48,49 @@ competizioni calibrate di `synth`, v9.19: non va convertita).
 **Giudice**: il confronto (voce 0) sui tre club promossi; nessun `engine_*` si muove.
 **Resa attesa**: le tre XI peggiori del confronto; ricorre ogni estate (3 club/anno).
 
-## 2. Transfers: risoluzione dei nomi e freschezza («i nuovi acquisti restano in panchina»)
+## 2. ~~Transfers: risoluzione dei nomi e freschezza~~ — **FATTA** (08/08/2026, `d7ea4a3` + `a039910`)
 **Perché, misurato**: Lazio **4/11** con tre titolari attesi che sono arrivi di luglio (Doekhi,
 Pedraza, Taylor); Fiorentina 7/11 (Mastantuono, Valdepenas, Oulai attesi titolari); Roma: la
 stampa schiera Molina e **Molina N. non ha NESSUNA riga in `transfers_history`** pur avendo
-l'identità (fc_id 4998). Il refresh dell'08/08 riporta «4.422 nomi irrisolti», e ogni data è
-01/07 (semantica inizio-contratto di Transfermarkt: le operazioni di fine luglio non si
-distinguono).
-**Cosa fare**: (a) misurare il tasso di risoluzione del parser transfers contro `player_xref`
-e recuperare la coda (stessa famiglia della matching per club: chiave canonica, mai la
-stringa); (b) valutare una data-osservazione accanto alla data-contratto; (c) i canali
-d'arrivo adottati (level 0.06, level_gap 0.06) raggiungono un uomo solo se l'arrivo ESISTE nel
-dato — prima il dato, poi ogni discussione sui pesi (regola di §7-quater: «fix the input before
-tuning the weight»).
-**Giudice**: tasso di risoluzione prima/dopo + il confronto (voce 0) sui club di mercato pesante.
-**Resa attesa**: Lazio/Fiorentina/Roma; tocca anche desc_arrival, sconti d'arrivo, partenze.
+l'identità (fc_id 4998). Il refresh dell'08/08 riportava «4.422 nomi irrisolti», e ogni data è
+01/07 (semantica inizio-contratto di Transfermarkt).
+**Fatto, e sono TRE difetti dello stesso layer** — il primo era quello previsto, gli altri due li
+ha trovati la misura:
+1. **La chiave canonica c'era e il parser la buttava.** Prendeva il TESTO del link giocatore e
+   scartava l'href, che porta l'id Transfermarkt — lo stesso che `player_xref` già mappa. Ora
+   id-prima, nome-nel-pool come ripiego, perché **il pool per nome è cieco esattamente sugli uomini
+   per cui la tabella esiste**: un arrivo di luglio non è ancora nel roster listone del club che
+   compra. Irrisolti **4.422 → 2.508** (−43%); 2026-27 da 689 a 789 righe.
+2. **Lo stesso affare fra due club del perimetro stava su ENTRAMBE le pagine** con grafie diverse
+   (`SS Lazio`/`Lazio`, `1.FC Union Berlino`/`Union Berlino`) e la PK con le stringhe teneva due
+   righe — Pedraza ne aveva due, Doekhi una sola e spaiata. Il contropartner si risolve al nome
+   canonico con lo stesso `match_club` di `resolve_clubs`, e le due metà si fondono (1.160 righe
+   ora hanno ENTRAMBE le leghe). Il reingest riparte da tavola pulita: la tabella deriva dalla
+   cache e da nulla altro.
+3. **`first_seen`**, il giorno di download del file di cache, tenuto al MINIMO tra i re-parse: è la
+   data-osservazione che la voce chiedeva, dato che `date` è l'inizio contratto.
+
+**E il collo di bottiglia vero era un'altra tabella** — trovato inseguendo Doekhi, che aveva la riga
+transfer e il claim comunque vuoto. I tre pool per nome del funnel identità (`positions`) sono
+costruiti dal roster DELLA STAGIONE, mentre **il perimetro del listone cambia ogni estate**: un uomo
+comprato dentro il perimetro quest'anno non è in nessun pool dell'anno che ha davvero giocato, e il
+suo aggregato d'ingresso non va a nessuno. Misurato: **59 uomini del listone 2026-27 con ZERO
+aggregato 2025-26** mentre il loro provider id era già in `player_xref` — Doekhi (identificato nel
+2023-24) e Geubbels, entrambi schierati titolari dalla stampa. Quarto pass `known`, l'evidenza più
+debole e l'ultimo ripiego, che **non decide mai un'identità** (un'identità dice a quale uomo
+appartiene un fatto di stagione; un fatto di stagione non dice chi è l'uomo — altrimenti un namesake
+collapse si riconfermerebbe per sempre). `external_stats` **11.732 → 16.970 (+5.238)**.
+**E il difetto che questo ha ESPOSTO**: la delete authoritative di `positions` cancellava identità
+di ALTRI moduli — `recent_form` le paga con ricerche provider, `injuries` le legge dalle pagine rosa
+— perdendone 20, 19 di uomini quotati 2026-27 che nessun pool per nome può ristabilire. Verificato
+che la perdita è PREESISTENTE (il codice al commit precedente perde le stesse 19). Cura:
+`player_xref.resolved_by`, stessa regola di `club_levels_xref`; le righe precedenti la colonna sono
+`unknown` e nessuno le ritratta. xref **−19 → +1**.
+**Giudice (voce 0)**: Lazio **4/11 → 5/11** (Doekhi entra nell'undici), Genoa un nome, uomini
+**160 → 161/220**; i moduli non si muovono. `backtest --verify` 22/22.
+**Cosa resta**: la coda irrisolvibile è **1.060 identità distinte**, di cui ~765 mai state in un
+listone (irrisolvibili per costruzione); la leva sui 109 uomini del listone 2026-27 senza id
+Transfermarkt è `injuries --layer ids`, non il matcher.
 
 ## 3. La selezione e il trequartista («Paz fuori dall'undici»)
 **Perché, misurato**: Como — Paz N. ha **il claim più alto della rosa (0.753, 33 start) e non è
@@ -141,7 +178,19 @@ d'asta.
   che le rose hanno 4-10 giorni e i transfers un mese — la data dell'evidenza è già sul foglio,
   tenerla vicina alla board quando si giudica un undici «sbagliato».
 
-## Fatto in questa sessione (per riferimento)
+## Fatto l'08/08/2026, seconda sessione
+- **Voce 0 (`19351fd`)** e **voce 2 (`d7ea4a3`, `a039910`)**: sopra, ciascuna coi suoi numeri.
+- **Il selettore modulo dice anche quanto VALE l'undici** (`39ec7c9`, richiesta dell'operatore).
+  Accanto alla probabilità, `SUR` = il surplus MEDIO degli undici che quella forma schiera: due
+  domande diverse, e la forma probabile può schierare l'undici più povero — Como 4-5-1 al 77% con
+  ~17.3 contro il 4-4-2 al 3% con 18.3, che è il caso Paz visto dal pannello; Inter 3-5-2 al 95% e
+  anche il più ricco (25.3). Tre scelte con la loro ragione: la MEDIA e non la somma (ogni forma
+  schiera undici uomini); **un surplus mancante è IGNOTO e non zero**, quindi la media è sugli
+  uomini che ne hanno uno e il conteggio viaggia con lei; `~` quando almeno uno porta la STIMA
+  invece della valutazione gated — Frosinone è tutto `~`, che è la voce 1 vista dal pannello.
+  `row_surplus` è UNA definizione, letta dalla cella, dal tooltip e dal selettore.
+
+## Fatto nella prima sessione dell'08/08 (per riferimento)
 - **Perimetro = listone bersaglio** (`perimeter_clubs`, SHEET_REVISION 10): le promosse erano
   ASSENTI dal foglio (74 quotati) e le retrocesse presenti (94 righe). Corretto, testato, fogli
   ricostruiti (default + euro), `backtest --verify` 22/22.
