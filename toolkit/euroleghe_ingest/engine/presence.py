@@ -128,6 +128,24 @@ class Params:
     # over everybody, +0.020 on midfielders and **−0.054** on defenders. A single global weight would be
     # describing four different things at once, so the input is None outside the role it was fitted on.
     career_weight: float = 0.0
+    # THE AGE DECLINE (see `age_lift`): from which age it starts, over how many years it ramps, and how
+    # much of a season it takes at full reach. 0.0 = OFF, which is the incumbent and a point of the grid.
+    # PRE-REGISTERED GRID (08/08/2026, before any verdict was looked at):
+    #     age_decline_from in (29, 30, 31) x age_decline in (0.0, 0.03, 0.06, 0.09), span fixed at 4
+    # MEASURED AND REFUSED BY BOTH JUDGES, the same day:
+    #   * `sweep` (error on the realised appearance share): euro mean gain **+0.23%**, worst -0.36%,
+    #     pooled optimum 30/0.09 which is AT THE EDGE of the grid; default mean **+0.04%**, worst
+    #     -0.84%, optimum 31/0.06. Neither reaches the 0.5% floor - strict no, robust no, on both.
+    #   * the OUTCOME judge (the boards of 2025-08-15 against what the clubs did in 2025-26): every
+    #     point of the grid makes it WORSE, 134/220 men -> 132 and 13 modules -> 12, monotonically.
+    # And the mechanism, which is why the band table that suggested it was misleading: the 30+ ALREADY
+    # carry fewer measured minutes (1299 against 1574 for the 27-29 band, Serie A 2024-25), so the
+    # standing discounts them before any age term is added and the term charges the same evidence twice.
+    # The band table (66/72/77/51% of starts kept) does not control for the minutes; the model does.
+    # Kept at 0 and reachable, like `HEATMAP_SIDE` and `PRESEASON_WEIGHT`: the measurement is the value.
+    age_decline_from: float = 30.0
+    age_decline_span: float = 4.0
+    age_decline: float = 0.0
     quality_weight: float = 0.0
     # THE LEVEL CHANNEL, off until the sweep says otherwise. «Livello più alto puoi intenderlo anche con
     # Premier > Serie A» - the operator, 06/08/2026, and the data agrees: mean ClubElo is 1807 in the Premier
@@ -293,6 +311,9 @@ class Inputs:
     # What he had already SHOWN before last season, relative to his role, in standard deviations - and only
     # for FORWARDS, which is the population it was measured on (gate §7-vicies). None everywhere else.
     career_z: float | None = None
+    # HIS AGE in the target season. None = unknown (no birth year on file), which is not "young".
+    # It is here for ONE measured shape and not as a general "age matters" (see `age_lift`).
+    age: float | None = None
 
 
 def investment_lift(inputs: Inputs, params: Params = DEFAULTS) -> float:
@@ -328,6 +349,43 @@ def career_lift(inputs: Inputs, params: Params = DEFAULTS) -> float:
     if not params.career_weight or inputs.career_z is None:
         return 0.0
     return params.career_weight * inputs.career_z
+
+
+def age_lift(inputs: Inputs, params: Params = DEFAULTS) -> float:
+    """The DECLINE of a man past a threshold age, in shares of a season. 0.0 when off or unknown.
+
+    A THRESHOLD, not a trend, and that distinction is the whole measurement. Over 500 (player, season)
+    pairs with 15+ Serie A starts in the input season, across two seasons so one year's quirk cannot
+    carry it, the share of those starts kept the next season is:
+
+        <= 23   66%   (47% lose 10+ starts)
+        24-26   72%   (40%)
+        27-29   77%   (35%)   <- the BEST band, not the youngest
+        >= 30   51%   (56%)
+
+    So the relationship is an inverted U and a linear term would be the wrong model: it would penalise
+    the twenty-year-olds, who are second-worst, and dilute the one real effect. The linear correlation is
+    accordingly weak (r -0.139, partial -0.122 controlling for the input starts) which is exactly what a
+    threshold looks like when you fit a line to it.
+
+    ⚠️ THIS IS NOT R4. R4 («age») is falsified on ten windows and predicts the FANTAVOTO; this predicts
+    WHO PLAYS. Those are the two questions this project keeps apart everywhere - claim against valuation -
+    and the second one had never been measured. Stated here because without it this reads as a dead rule
+    dug up again.
+
+    One-sided by construction (a discount, never a bonus): the measurement says the old lose the shirt,
+    not that the young gain it - the young lose it too. Where the birth year is missing the term is off,
+    «vuoto = ignoto»: an unknown age is not a young one.
+    """
+    if not params.age_decline or inputs.age is None:
+        return 0.0
+    if inputs.age < params.age_decline_from:
+        return 0.0
+    # Ramped over `age_decline_span` years rather than a cliff, for the reason every other threshold here
+    # is ramped: nothing may turn on one birthday, and a 34-year-old is not a 30-year-old.
+    span = max(params.age_decline_span, 1e-9)
+    reach = min(1.0, (inputs.age - params.age_decline_from) / span)
+    return -params.age_decline * reach
 
 
 def quality_lift(inputs: Inputs, params: Params = DEFAULTS) -> float:
@@ -414,11 +472,18 @@ def absences_per_season(inputs: Inputs, params: Params = DEFAULTS) -> float | No
     counted = [(weight, rounds) for weight, rounds
                in zip(params.injury_weights, inputs.rounds_by_season, strict=False)
                if rounds is not None]
-    if counted:
+    # ...and the weights of the seasons he HAS. Zero is a real possibility and not a corner case: the
+    # sweep's own grid contains (1.0, 0, 0), and for a man with no absence recorded last season but some
+    # in the two before it every counted weight is 0. That is not "he misses nothing", it is "this
+    # weighting has nothing to say about him" - so it falls through to the un-split history below, the
+    # same «vuoto = ignoto» every other branch here follows. It used to divide by zero and kill the run:
+    # a latent defect since the grid was written, surfaced on 08/08/2026 when the measured layer grew and
+    # somebody finally had that exact profile.
+    weight_total = sum(weight for weight, _rounds in counted)
+    if counted and weight_total:
         # The average is over the seasons really measured, so a man with one missing season is not read as
         # having been healthy in it.
-        return sum(weight * rounds for weight, rounds in counted) / sum(
-            weight for weight, _rounds in counted)
+        return sum(weight * rounds for weight, rounds in counted) / weight_total
     if inputs.weighted_all is None:
         return None
     # Fallback: the source counted every competition, so its number is scaled onto the league calendar by
@@ -540,7 +605,7 @@ def standing(inputs: Inputs, params: Params = DEFAULTS) -> float:
     # the man showed.
     lift = (investment_lift(inputs, params) + quality_lift(inputs, params)
             + level_lift(inputs, params) + level_gap_lift(inputs, params)
-            + career_lift(inputs, params))
+            + career_lift(inputs, params) + age_lift(inputs, params))
     # ...and how much of a season is BEHIND that number. Twelve rounds and thirty-eight say the same thing
     # with very different confidence, and the standing said them identically.
     measured = _shrunk(measured, inputs, params)
@@ -561,7 +626,8 @@ def standing(inputs: Inputs, params: Params = DEFAULTS) -> float:
     # Any other shape ("arrival") applies the INVESTMENT lift of its own, elsewhere - so only the quality
     # term is added here, and adding `lift` would have double-counted the other one.
     return min(max(measured + quality_lift(inputs, params) + level_lift(inputs, params)
-                   + level_gap_lift(inputs, params) + career_lift(inputs, params), 0.0), 1.0)
+                   + level_gap_lift(inputs, params) + career_lift(inputs, params)
+                   + age_lift(inputs, params), 0.0), 1.0)
 
 
 def presence(inputs: Inputs, params: Params = DEFAULTS) -> float:

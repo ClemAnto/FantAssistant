@@ -79,6 +79,15 @@ GRIDS: dict[str, tuple] = {
     # includes a negative step for the stature, because a hypothesis that only allows the sign it expects is
     # not being tested. 0.30 of a season is nine rounds: past that the term would be deciding the eleven on
     # its own, which is not what anybody is claiming.
+    # THE AGE DECLINE (pre-registered 08/08/2026, todolist-formazioni-tipo item 7), as PAIRS
+    # (from, decline) for the same reason `arrival_split` is a pair: with the decline at 0 the threshold
+    # is unidentifiable, so sweeping one alone would report "no effect" about a term that is off. The
+    # first entry is the incumbent. Measured shape behind it: over 500 (player, season) pairs with 15+
+    # Serie A starts, the share of starts kept next season is 66% / 72% / 77% / 51% by age band
+    # (<=23, 24-26, 27-29, >=30) - an inverted U, so the term is a THRESHOLD and the grid moves only the
+    # discount above it. NOT R4 (which is falsified, and predicts the fantavoto rather than who plays).
+    "age_decline": ((30.0, 0.0), (30.0, 0.03), (30.0, 0.06), (30.0, 0.09),
+                    (29.0, 0.03), (29.0, 0.06), (31.0, 0.03), (31.0, 0.06)),
     "fee_weight": (0.0, 0.05, 0.10, 0.15, 0.20, 0.30),
     # the market-value channel, on the same grid as the fee: it is the same claim with a proxy that exists
     # for a free arrival too, and a share of the squad's value is on the same 0..1 scale as a share of its
@@ -223,6 +232,7 @@ TARGETS: dict[str, str] = {
     "career_weight": "starts",
     "standing_prior_rounds": "starts",
     "arrival_split": "starts",
+    "age_decline": "starts",
 }
 
 # The gate's own thresholds, quoted from gate-motore-v1.md so the two verdicts mean the same thing here.
@@ -410,6 +420,11 @@ def build_inputs(conn, data: features.WindowData, ctx: Context | None = None) ->
     # 12% of him. Only where his WHOLE measured season was elsewhere - a January transfer has minutes on
     # two calendars and no single denominator is right for him.
     league_calendar = features.league_rounds(conn, season)
+    # ...and the BIRTH YEARS, once: the age channel is a threshold on the target season's age, so the
+    # year the window predicts is what it is measured against and not today's date.
+    birth_years = {fc_id: year for fc_id, year in conn.execute(
+        "SELECT fc_id, birth_year FROM players WHERE birth_year IS NOT NULL")}
+    target_year = int(season.split("-")[0]) + 1
 
     def _season_rounds(obs, split: dict, fallback: float) -> float:
         if not obs.club_prev or (split.get("minutes") or 0) or not (split.get("minutes_elsewhere") or 0):
@@ -468,6 +483,10 @@ def build_inputs(conn, data: features.WindowData, ctx: Context | None = None) ->
             level_gap_z=level_gap_z.get(obs.fc_id),
             level_rank=level_rank.get(obs.fc_id),
             career_z=career_z.get(obs.fc_id),
+            # ...and his AGE in the target season, for the threshold decline (`presence.age_lift`).
+            # Unknown where no birth year is on file, which is not "young".
+            age=(float(target_year - birth_years[obs.fc_id])
+                 if birth_years.get(obs.fc_id) else None),
             standing_prior=prior,
             cross_league=_cross(obs),
             fee_share=(spend.get(obs.fc_id) or {}).get("fee_share"),
@@ -613,6 +632,8 @@ def _current(name: str):
         return wide if name.endswith(("null", "marginal")) else wide[:4]
     if name == "arrival_split":
         return (presence.DEFAULTS.arrival_discount, presence.DEFAULTS.arrival_discount_cross)
+    if name == "age_decline":
+        return (presence.DEFAULTS.age_decline_from, presence.DEFAULTS.age_decline)
     return getattr(presence.DEFAULTS, name)
 
 
@@ -635,6 +656,11 @@ def _params_for(name: str, value) -> presence.Params:
         # is not in force.
         intra, cross = value
         return replace(presence.DEFAULTS, arrival_discount=intra, arrival_discount_cross=cross)
+    if name == "age_decline":
+        # threshold AND discount together: at a discount of 0 the threshold does nothing, so neither is
+        # identifiable alone (same argument as `arrival_split`).
+        starts_at, decline = value
+        return replace(presence.DEFAULTS, age_decline_from=starts_at, age_decline=decline)
     return presence.DEFAULTS.with_value(name, value)
 
 

@@ -4254,6 +4254,9 @@ class SnapshotView(ttk.Frame):
             # which happened twice in one session (`level_z`, `standing_prior`).
             fm_z=self.fm_z(row),
             career_z=self._career_z(row),
+            # ...and his AGE, for the threshold decline. Read straight off the sheet: it is a fact about
+            # the man and not a population statistic, so there is nothing to standardise here.
+            age=_number(row.get("desc_age"), None),
             cross_league=(row.get("desc_arrival") == "transfer_cross_league"),
         )
         # ...and the prior LAST, from the inputs just built: computing it from the row would rebuild them

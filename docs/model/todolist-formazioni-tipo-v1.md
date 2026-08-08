@@ -4,7 +4,7 @@
 voce porta la sua evidenza misurata, il giudice con cui si decide, e la resa attesa. Ordinata per
 resa. Meccanismo e formule: [formazioni-tipo-v1.md](formazioni-tipo-v1.md).*
 
-**Stato del giudice** (harness `press`, foglio default, `SHEET_REVISION` 11): moduli **11 uguali +
+**Stato del giudice** (harness `press`, foglio default, `SHEET_REVISION` 12): moduli **11 uguali +
 5 sull'alternativa dichiarata + 4 divergenti**, uomini **166/220 = 75%** — da 9/5/6 e 160/220
 dell'archivio di partenza. La referenza è un DATO (`press_formations`) e il confronto un comando:
 questi numeri si citano da `data/reports/press_comparison.json`, mai a memoria. Il perché di quella
@@ -13,12 +13,11 @@ regola è la voce 3-ter.
 **Le voci, una riga ciascuna**: 0 fatta · 0-bis fatta (il secondo giudice) · 1 fatta · **1-bis aperta**
 (nata dalla 1, e il giudice-esito l'ha spostata in cima) · 2 fatta · 3 fatta · 3-bis dato sì regola no ·
 4 chiusa da due giudici concordi · 5 misurata e non adottata · 5-bis (proposta dell'operatore) misurata
-e rifiutata · **6 aperta** (letture) · **7 aperta** (la soglia dei 30 anni, dal giudice-esito) ·
-7-bis: due candidati misurati e rifiutati, scritti per non riprovarli.
-Cinque si sono chiuse con un **rifiuto misurato**, ed è il risultato che vale quanto le adozioni: una
-regola che non entra perché il giudice l'ha bocciata costa un pomeriggio, una che entra senza giudice
-costa un'asta. Restano due voci di modello aperte (1-bis e 7) e **entrambe vogliono uno sweep, non un
-fix inline**: cambiano un canale del claim.
+e rifiutata · **6 aperta** (letture, costo quasi zero) · 7 misurata e refutata da due giudici · 7-bis:
+due candidati rifiutati prima di scrivere codice.
+**Sette voci si sono chiuse con un rifiuto misurato e tre con un'adozione**, e questo è il risultato
+che vale: una regola che non entra perché il giudice l'ha bocciata costa un pomeriggio, una che entra
+senza giudice costa un'asta. Resta **una sola** voce di modello aperta, la 1-bis, e vuole uno sweep.
 
 **Regola che vale per tutta la lista**: la stampa è un GIUDICE, mai un input del claim — leggerla
 dentro il modello renderebbe circolare proprio il confronto che la usa. E nessun criterio si
@@ -285,42 +284,40 @@ perché ha cambiato quasi tutto. E il foglio retrodatato ha una contaminazione a
 arrivi derivati oggi conoscono tutto il mercato estivo 2025), quindi 61% è un limite superiore.
 Dettagli e contaminazioni: [formazioni-tipo-v1.md](formazioni-tipo-v1.md) §5-ter.
 
-## 7. NUOVA, dal giudice-esito: il crollo di titolarità DOPO I 30, che è una soglia e non una tendenza
-**Da dove viene**: l'analisi dei 172 errori del confronto storico (86 uomini che hanno giocato e non
-avevamo disegnato, 86 disegnati che non hanno giocato). Due cose che quell'analisi ha stabilito prima
-di qualsiasi ipotesi: **il perimetro non è il problema** — 86 su 86 dei mancati erano già sul foglio,
-quindi nessun lavoro di acquisizione muove questi numeri — e **65 degli 86 errori sono uomini con 10+
-presenze l'anno prima**, cioè il difetto sta nell'ORDINAMENTO fra uomini che hanno tutti una storia.
-**La misura, e la trappola che ha evitato.** Guardando i soli errori, l'età sembrava dire «i giovani
-salgono, i vecchi scendono» (media 26.0 fra i mancati contro 27.9 fra gli sbagliati, a parità di banda
-di start). Misurata su TUTTA la popolazione — 500 coppie (giocatore, stagione) con 15+ start di Serie A
-nella stagione di input, su due stagioni perché una sola sarebbe l'annata — la relazione **non è
-monotona**:
+## 7. ~~Il crollo di titolarità dopo i 30~~ — **MISURATA E REFUTATA DA DUE GIUDICI** (08/08/2026)
+**Da dove veniva**: l'analisi dei 172 errori del confronto storico. Due cose che quell'analisi ha
+stabilito e che restano vere: **il perimetro non è il problema** (86 su 86 dei mancati erano già sul
+foglio) e **65 degli 86 errori sono uomini con 10+ presenze l'anno prima**, quindi il difetto è
+nell'ORDINAMENTO fra uomini che hanno tutti una storia.
+**L'evidenza che la motivava**, su 500 coppie (giocatore, stagione) con 15+ start di Serie A in
+ingresso, due stagioni: quota di presenze mantenuta **66% / 72% / 77% / 51%** per fasce ≤23, 24-26,
+27-29, ≥30. Una U rovesciata, quindi una SOGLIA e non una tendenza — e la correlazione lineare è
+debole (r −0.139, parziale −0.122) esattamente per questo.
+**Implementata** come canale raggiungibile da entrambi gli harness (`presence.age_lift`,
+`Inputs.age`, `desc_age` sul foglio, la griglia in `sweep.GRIDS`), perché un parametro che nessun
+harness raggiunge è un parametro che nessuno può misurare.
+**Rifiutata da entrambi i giudici, lo stesso giorno:**
 
-| età | n | quota di presenze mantenuta | perde 10+ presenze |
-|---|---|---|---|
-| ≤ 23 | 116 | 66% | 47% |
-| 24-26 | 161 | 72% | 40% |
-| 27-29 | 113 | **77%** | **35%** |
-| ≥ 30 | 110 | **51%** | **56%** |
+| giudice | verdetto |
+|---|---|
+| `sweep` (errore sulla quota di presenze realizzata) | euro **+0.23%** (ottimo 30/0.09, **al bordo**), default **+0.04%** (31/0.06). Nessuno raggiunge il floor 0.5%; strict no, robust no |
+| esito (board 15/08/2025 contro il 2025-26) | **peggiora a ogni punto**: uomini 134 → 132, moduli 13 → 12 |
 
-I 27-29 tengono il posto **meglio di tutti** e i ≤23 lo perdono più dei 24-29: il pattern letto sugli
-errori era un artefatto della coda. Il segnale vero è **uno solo e a soglia**: oltre i 30 la titolarità
-mantenuta crolla da 77% a 51%. La correlazione lineare (r −0.139, parziale −0.122 controllando per gli
-start di input) è debole proprio perché la forma è a U rovesciata: chi la modellasse come tendenza
-lineare perderebbe il segnale e penalizzerebbe i ventenni.
-**⚠️ NON è R4.** R4 («l'età») è stata falsificata dal gate su dieci finestre, e va detto nella
-pre-registrazione perché senza quella frase questa sembra una regola morta riesumata. R4 predice il
-**FANTAVOTO**; questa predice **CHI GIOCA**. Sono le due domande che questo progetto tiene separate
-ovunque (claim contro valutazione), e la seconda non è mai stata misurata.
-**Come si fa**: uno sconto di `standing` sopra una soglia d'età, in `presence.py` — quindi **sweep
-pre-registrato**, non gate del motore, e muove i fogli e le board mai `backtest --verify`. La griglia
-va fissata prima di guardare: soglia ∈ (29, 30, 31) × sconto ∈ (0, 0.03, 0.06, 0.09), con l'ottimo
-adottabile solo se INTERNO. Giudice: il confronto-esito su più stagioni (non una), e la referenza
-stampa come seconda lettura.
-**Resa attesa**: 18 dei 65 errori «con storia» sono uomini di 30+ anni che abbiamo disegnato e che non
-hanno giocato — è il massimo teorico, e un canale con lo 0.06 dei fratelli adottati ne prenderà una
-parte.
+**E il MECCANISMO, che spiega perché la tabella per fasce era ingannevole**: i 30+ portano **già meno
+minuti misurati** — 1299 contro 1574 dei 27-29 in Serie A 2024-25 — quindi lo standing li sconta
+*prima* che qualunque termine d'età intervenga, e il termine addebita due volte la stessa evidenza. La
+tabella per fasce non controlla per i minuti; il modello sì. **Una differenza fra due gruppi non è un
+canale finché non si verifica che il modello non la stia già leggendo.**
+**Cosa resta**: il parametro a 0 e raggiungibile (come `HEATMAP_SIDE` e `PRESEASON_WEIGHT`), la
+colonna `desc_age` sul foglio (`SHEET_REVISION` 12) perché la prossima ipotesi sull'età non debba
+ripagarla, e la nota che **non era R4**: R4 predice il fantavoto, questa predice chi gioca — la
+distinzione regge, ed è la risposta che ha comunque richiesto di essere misurata.
+**Un difetto latente trovato dalla misura**: lo sweep è morto su una divisione per zero in
+`absences_per_season`, presente da quando la griglia degli infortuni fu scritta — col punto
+`(1.0, 0, 0)` e un uomo senza infortuni nell'ultima stagione ma con infortuni nelle precedenti, tutti
+i pesi contati sono 0. Non è «non si infortuna», è «questa pesatura non ha nulla da dire su lui»:
+ora cade sul ramo della storia non ripartita, «vuoto = ignoto». Era latente e l'ha esposto la crescita
+del layer misurato di questa sessione.
 
 ## 7-bis. Due cose misurate e RIFIUTATE nella stessa analisi (per non riprovarle)
 - **Scontare il claim per la disponibilità**: il claim è «la squadra con tutti sani» per scelta di

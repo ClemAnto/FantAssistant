@@ -146,7 +146,12 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      (c) `transfers_history` resolves by the canonical Transfermarkt id (unresolved 4,422 -> 2,508)
 #      and no longer keeps the same deal twice under two club spellings. Plus one new column,
 #      `desc_costart_low`. Measured against the press: 160 -> 164 of 220 men, 9 -> 10 modules exact.
-SHEET_REVISION = 11
+#  12  08/08/2026 (late) - one new column, `desc_age`, and no value moved: the panel builds its
+#      `presence.Inputs` from the sheet, so an age channel could not even be MEASURED without it (the
+#      `level_z` lesson - a parameter whose input never reaches the caller is switched on and blind).
+#      The channel itself was measured and refused by both judges and sits at 0; the column stays,
+#      because the next hypothesis about age should not have to pay for it again.
+SHEET_REVISION = 12
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
@@ -2471,6 +2476,12 @@ PLAYER_COLUMNS: tuple[str, ...] = (
     # whitelisted source. The weight they carry in the selection is a PARAMETER, off until the gate speaks.
     "desc_investment_fee", "desc_investment_fee_share", "desc_investment_stature",
     "desc_market_value", "desc_investment_value_share", "desc_level_elo", "desc_career_fm",
+    # HIS AGE in the target season, from `players.birth_year`. On the sheet because the panel builds its
+    # `presence.Inputs` from these columns, and a parameter whose input never reaches the caller is
+    # switched on and blind (the `level_z` lesson). Empty where no birth year is on file - unknown, not
+    # young. DESCRIPTIVE: the physical profile is the operator's to read, and the one thing measured on
+    # it is a THRESHOLD decline past 30 (`presence.age_lift`), not «age matters».
+    "desc_age",
     # A THIRD class, and the prefix is the whole point: `actual_*` is measured strictly AFTER the auction
     # date. It exists because a BACK-DATED sheet does not need a forecast of who plays - the eleven that was
     # fielded that week exists, and a forecast is only interesting while the outcome is unknown. Reporting
@@ -2757,6 +2768,7 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             # What he had shown BEFORE last season - the career channel's input, forwards only because
             # that is the population it was measured on (`presence.career_lift`).
             "desc_career_fm": (obs.fm_career if obs.role_classic == "A" else None),
+            "desc_age": obs.age(window),
             "desc_investment_stature": spend.get("stature"),
             # AFTER the auction date, reporting only (see PLAYER_COLUMNS): what really happened in the
             # club's first match of the week that followed.
