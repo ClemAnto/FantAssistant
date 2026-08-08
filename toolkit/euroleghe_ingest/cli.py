@@ -202,6 +202,25 @@ def build_parser() -> argparse.ArgumentParser:
                                 "'crosstab' for the provider-role vs listone-role report (offline), or "
                                 "'extra' for the matches no league calendar has - pre-season "
                                 "friendlies, cups, continental ties (one request per club)")
+        if name == "press":
+            p.add_argument("--import", dest="import_files", action="append", metavar="FILE",
+                           help="import a press reference JSON (a list of per-club entries: club, "
+                                "module, module_alternatives, typical_xi, ...) as a DATED fact; "
+                                "archived under data/raw/press/ so it survives `rebuild`")
+            p.add_argument("--season", metavar="YYYY-YY",
+                           help="the season the imported XI predicts (required with --import unless "
+                                "the file is a self-describing archive)")
+            p.add_argument("--observed-on", dest="observed_on", metavar="YYYY-MM-DD",
+                           help="the day the press reading was taken (default: today)")
+            p.add_argument("--source", metavar="NAME",
+                           help="outlet or synthesis name (default: press); with --sheet it filters "
+                                "which stored reference judges the boards")
+            p.add_argument("--sheet", metavar="DIR",
+                           help="judge this sheet folder's boards against the stored reference "
+                                "(headless panel: needs a display). With no option at all the module "
+                                "replays the archived references, which is what `rebuild` runs")
+            p.add_argument("--no-report", dest="report", action="store_false",
+                           help="print only, do not write data/reports/press_comparison.json")
         if name == "injuries":
             p.add_argument("--season", action="append", metavar="YYYY-YY",
                            help="seasons whose squads/players to walk (repeatable; default: all)")
@@ -307,6 +326,10 @@ def main(argv: list[str] | None = None) -> int:
                                      games=args.game, rules=args.rules, cases=args.cases,
                                      verify=args.verify, gate=args.gate, auction=args.auction,
                                      pairs=args.pairs, report=args.report)
+            elif args.command == "press":
+                load("press").run(ctx, import_files=args.import_files, season=args.season,
+                                  source=args.source, observed_on=args.observed_on,
+                                  sheet=args.sheet, report=args.report)
             elif args.command == "sweep":
                 load("sweep").run(ctx, windows=args.window, platforms=args.platform,
                                   games=args.game, report=args.report)

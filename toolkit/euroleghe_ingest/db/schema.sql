@@ -515,6 +515,30 @@ CREATE TABLE IF NOT EXISTS availability (
     PRIMARY KEY (fc_id, valid_from)
 );
 
+-- The PRESS'S typical formations: the boards' EXTERNAL JUDGE (todolist-formazioni-tipo-v1.md item 0).
+-- A per-DAY fact like `probable_starter`: the press republishes its typical XIs all summer and a reading
+-- not taken is gone, so the table can never be backfilled - which is why every import is also archived
+-- under data/raw/press/ and replayed by `rebuild` (the DB stays rebuildable from raw).
+-- A JUDGE, never an input: nothing the engine or the panel computes may read this table - reading it
+-- inside the claim would make circular exactly the comparison it exists for. Its one reader is the
+-- `press` module's own comparison report.
+-- `club` and the XI names are stored as the source spelled them and resolved at READ time
+-- (`matching.club_identity`, surname tokens), like every other source string in this schema.
+CREATE TABLE IF NOT EXISTS press_formations (
+    club        TEXT NOT NULL,               -- as the source spelled it
+    season      TEXT NOT NULL,               -- the season the XI predicts, e.g. 2026-27
+    observed_on TEXT NOT NULL,               -- the day the reading was taken (ISO date)
+    source      TEXT NOT NULL,               -- outlet or synthesis name, e.g. 'press'
+    coach       TEXT,                        -- the coach the source names
+    module      TEXT,                        -- the module the source expects, e.g. 4-3-3
+    module_alternatives TEXT,                -- JSON list; a free-text qualifier may follow the module
+    xi          TEXT,                        -- JSON {line: [names]}, the source's own lines/spellings
+    duels       TEXT,                        -- JSON list: the source's own ballottaggi, verbatim
+    notes       TEXT,
+    confidence  TEXT,                        -- the source's own confidence, verbatim
+    PRIMARY KEY (club, season, observed_on, source)
+);
+
 -- ---------- Derived flags and manual overrides ----------
 CREATE TABLE IF NOT EXISTS flags (
     fc_id  INTEGER NOT NULL REFERENCES players(fc_id),

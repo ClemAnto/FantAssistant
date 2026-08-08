@@ -26,6 +26,7 @@ PIPELINE: tuple[str, ...] = (
     "arrivals",
     "tournaments",
     "elo",
+    "press",
     "validate",
 )
 
@@ -43,7 +44,7 @@ ALL_MODULES: tuple[str, ...] = STANDALONE + PIPELINE
 IMPLEMENTED: frozenset[str] = frozenset(
     {"rosters", "stats", "ratings", "matchdays", "fc_site", "transfers", "injuries", "positions",
      "recent_form", "synth", "tournaments", "arrivals",
-     "elo",
+     "elo", "press",
      "validate"}
 )
 

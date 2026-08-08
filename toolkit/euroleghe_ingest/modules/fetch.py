@@ -49,6 +49,8 @@ COVERAGE: tuple[tuple[str, str, str], ...] = (
     ("tournaments_squads", "tournaments", "who actually played at a tournament"),
     ("arrivals", "arrivals", "the roster diff: tier + foreign FM-equivalent"),
     ("flags", "transfers / positions / arrivals / injuries", "the derived booleans"),
+    ("press_formations", "press --import FILE --season YYYY-YY",
+     "the press's typical XIs, dated - the boards' external judge (optional)"),
 )
 
 

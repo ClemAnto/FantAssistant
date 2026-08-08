@@ -78,7 +78,7 @@ OPERATION_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
       "arrivals", "recent_form", "fbref")),
     ("During the season - every matchday",
      ("ratings", "matchdays", "positions", "synth", "fc_site", "validate")),
-    ("Before an auction", ("snapshot", "export")),
+    ("Before an auction", ("snapshot", "press", "export")),
 )
 
 # Labels for the operations that are not pipeline modules (those just use their own name).
@@ -89,6 +89,7 @@ OPERATION_LABELS: dict[str, str] = {
     "fetch:plan": "What is missing?",
     "export": "Export app bundle",
     "snapshot": "Auction snapshot (today)",
+    "press": "Press reference (judge)",
 }
 
 
@@ -163,6 +164,12 @@ TOOLTIPS: dict[str, str] = {
     "export": "Write the app's data bundle (data/export/<season>/): a pruned SQLite + JSON tables + "
               "a manifest carrying provenance, which prices are auction-safe, the provisional "
               "parameters and the known gaps. Read-only on the DB, and it verifies what it wrote.",
+    "press": "THE BOARDS' EXTERNAL JUDGE. Imports the press's typical formations as a DATED fact "
+             "(press_formations, archived under data/raw/press/ - a reading not taken is gone) and "
+             "judges a sheet's boards against them: module MATCH/ALT/DIFF on the drawn picture, "
+             "shared XI men per club. A judge, never an input: nothing the engine or the panel "
+             "computes reads it. From the CLI: press --import FILE --season YYYY-YY, then "
+             "press --sheet DIR. The button alone replays the archived references (offline).",
 }
 
 # Operation state -> (symbol, palette key) for the indicator dot. The colour is resolved at DRAW
@@ -207,6 +214,7 @@ OUTPUT_COUNTER: dict[str, str] = {
     "injuries": "injuries",
     "arrivals": "arrivals",
     "elo": "club_elo",
+    "press": "press_formations",
 }
 
 # Column-level outputs to count alongside the table row counts: (pseudo-key, table, column).
@@ -2623,11 +2631,15 @@ class SnapshotView(ttk.Frame):
         self.when_var.set("")
         self.reload()
 
-    def load_selected(self) -> None:
-        sheet = self._selected_sheet()
-        if not sheet:
-            return
-        folder = sheet["path"]
+    def load_sheet(self, folder) -> None:
+        """Load a sheet folder into the view - the rows, the clubs, the manifest, and every cache OF
+        the sheet invalidated with it.
+
+        THE one loader, read by the panel (`load_selected`) and by the headless harnesses (the press
+        comparison, the tests). A second copy of this list is how a harness ends up describing a
+        different population from the screen's: the cache list below was once duplicated in a
+        scratchpad extractor, and any cache added here alone would silently desynchronize it.
+        """
         self._shape_cache.clear()
         self._shape_choice.clear()      # another sheet is another squad: the judgement does not carry
         self._top_cache.clear()
@@ -2646,6 +2658,13 @@ class SnapshotView(ttk.Frame):
                 delattr(self, cached)
         self.clubs = {row["club"]: row for row in _read_csv(folder / "clubs.csv")}
         self.manifest = _read_json(folder / "manifest.json")
+
+    def load_selected(self) -> None:
+        sheet = self._selected_sheet()
+        if not sheet:
+            return
+        folder = sheet["path"]
+        self.load_sheet(folder)
         engine = self.manifest.get("engine", {})
         league = self.manifest.get("league") or {}
         notes = self.manifest.get("notes", [])
