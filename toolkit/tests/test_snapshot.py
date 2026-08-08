@@ -405,6 +405,35 @@ def test_real_role_columns_reach_the_sheet():
 
 
 # ---------- the percentage on a shirt, and the two rules of a real attack ----------
+def test_a_shape_is_worth_the_mean_surplus_of_the_eleven_it_fields():
+    """The selector's second number. A missing surplus is UNKNOWN, never zero - averaging it as zero
+    would make a shape look poorer for exactly the men the sheet could not price - so the mean is over
+    the men who carry one and the count travels with it. And `~` where the fallback valuation is in it:
+    the two are the same arithmetic times a confidence, which is what lets one number rank a squad, but
+    the reader has to be told which he is looking at."""
+    from euroleghe_ingest.gui import SnapshotView as View
+
+    view = View.__new__(View)
+    # the gated number where it exists, the estimate where it does not, None where neither
+    assert View.row_surplus({"engine_surplus": "12.5", "est_surplus": "9.0"}) == (12.5, False)
+    assert View.row_surplus({"est_surplus": "9.0"}) == (9.0, True)
+    assert View.row_surplus({}) == (None, False)
+
+    def eleven(*surpluses):
+        return [("A", dict(row), []) for row in surpluses]
+
+    gated = eleven(*[{"engine_surplus": "10"}] * 10, {"engine_surplus": "20"})
+    assert view.eleven_surplus(gated) == (10 + 10 / 11, 11, 11, False)
+    # one estimate in the eleven marks the whole mean
+    mixed = eleven(*[{"engine_surplus": "10"}] * 10, {"est_surplus": "20"})
+    assert view.eleven_surplus(mixed)[0] == 10 + 10 / 11
+    assert view.eleven_surplus(mixed)[3] is True
+    # ...and an unpriced man is left OUT of the mean rather than counted as zero
+    partial = eleven(*[{"engine_surplus": "10"}] * 9, {}, {})
+    assert view.eleven_surplus(partial) == (10.0, 9, 11, False)
+    assert view.eleven_surplus(eleven({}, {})) == (None, 0, 2, False)
+
+
 def test_the_shirt_shows_a_share_of_the_matchdays_discounted_by_the_injuries():
     """The number an operator writes by hand ("Meret 50%, Di Lorenzo 95%") is a share of the season, not
     of a duel: normalising over the rivals a slot happens to have left over made a 14-start midfielder

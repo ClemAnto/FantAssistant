@@ -2140,7 +2140,7 @@ class SnapshotView(ttk.Frame):
         # worth: how many of its elevens used it, and how many matchdays the side it fields adds up to.
         ttk.Label(options, text="modulo", style="CardMuted.TLabel").pack(side="left", padx=(0, 4))
         self.shape_var = tk.StringVar()
-        self.shape_cb = ttk.Combobox(options, textvariable=self.shape_var, state="readonly", width=26)
+        self.shape_cb = ttk.Combobox(options, textvariable=self.shape_var, state="readonly", width=36)
         self.shape_cb.pack(side="left")
         self.shape_cb.bind("<<ComboboxSelected>>", lambda _e: self._on_shape_change())
         Tooltip(self.shape_cb,
@@ -2154,7 +2154,15 @@ class SnapshotView(ttk.Frame):
                 "the engine reads. A module nobody in the league plays is not offered at all: on 2025-26 "
                 "that is 2 elevens out of 4812, a parsing tail rather than a formation. Where the men "
                 "redraw a shape, the drawing is named after it: a 4-3-3 with a trequartista is drawn "
-                "4-3-1-2, and both readings are true.", delay=400)
+                "4-3-1-2, and both readings are true.\n\n"
+                "SUR = the mean SURPLUS of the eleven that shape fields. A second question, and not the "
+                "same one: the percentage says how likely the coach is to pick the shape, this says what "
+                "the side it puts on the pitch is worth - so the likely shape can field the poorer "
+                "eleven, which is exactly what is worth seeing before bidding. The mean and not the sum "
+                "(every shape fields eleven men, so a sum would only change the unit). `~` means at "
+                "least one of the eleven carries an ESTIMATE instead of the gated valuation; a count "
+                "like (9/11) means the sheet could not price them all, and the mean is over the nine - "
+                "a missing surplus is unknown, never zero.", delay=400)
         self.pitch = tk.Canvas(pitch_card, width=430, highlightthickness=0,
                                background=theme.color("surface"))
         self.pitch.pack(fill="both", expand=True)
@@ -3045,6 +3053,39 @@ class SnapshotView(ttk.Frame):
             rows = list(reversed(present)) + absent
         return rows
 
+    # ---------- what a shape is WORTH ----------
+    @staticmethod
+    def row_surplus(row: dict) -> tuple[float | None, bool]:
+        """(surplus, whether it is an ESTIMATE) - the gated number where it exists, the fallback else.
+
+        ONE definition, because the sheet's cell, its tooltip and the shape selector all answer the same
+        question and three copies would be three populations (`population()`, same lesson). The two are
+        the same arithmetic times a confidence, which is exactly what lets one number rank a whole squad;
+        a row with neither returns None, and None is not zero - «un vuoto è un'affermazione».
+        """
+        estimated = not row.get("engine_surplus") and bool(row.get("est_surplus"))
+        return _number(row.get("est_surplus" if estimated else "engine_surplus"), None), estimated
+
+    def eleven_surplus(self, eleven: list) -> tuple[float | None, int, int, bool]:
+        """(mean surplus of the starters, how many carried one, of how many, any estimated).
+
+        The mean and NOT the sum, because the shapes being compared all field eleven men: a sum would
+        say the same thing in a bigger unit, and a mean is the number an operator already has in his eye
+        from the squad table. Averaged over the men who HAVE a number - a missing surplus is unknown,
+        not zero, and counting it as zero would make a shape look poorer for the men it cannot price -
+        so the count travels with it and the label shows it whenever it is short of eleven.
+        """
+        values, estimated = [], False
+        for _role, starter, _rivals in eleven:
+            surplus, is_estimate = self.row_surplus(starter)
+            if surplus is None:
+                continue
+            values.append(surplus)
+            estimated = estimated or is_estimate
+        if not values:
+            return None, 0, len(eleven), False
+        return sum(values) / len(values), len(values), len(eleven), estimated
+
     # ---------- which shape to draw ----------
     def _fill_shapes(self, club: str, info: dict, drawn: str) -> None:
         """Offer every shape this club fielded, with what each is worth, and select the drawn one.
@@ -3064,15 +3105,27 @@ class SnapshotView(ttk.Frame):
             return
         self._shape_labels = {}
         for shape, probability in odds.items():
-            # ONE number per shape: how likely this side is to line up in it. Where the men redraw it,
+            # TWO numbers per shape, and they answer different questions: how LIKELY this side is to line
+            # up in it, and what the eleven it fields is WORTH. The odds already read the claims (a shape
+            # whose places force a 5% man on the pitch is not one a coach picks), and a surplus is a
+            # valuation and not a claim - so a shape can be the likely one and field the poorer eleven,
+            # which is precisely what an operator wants to see before he bids. Where the men redraw it,
             # the drawing is named too - the counts are the PROVIDER's three lines, where a trequartista
             # is a forward, so the familiar-but-slightly-different case (a 4-3-3 fielded as a 4-3-1-2) is
             # the same line counts drawn differently, and that is a fact about the shape, not a number.
-            picture = self.lanes_for(self.eleven(club, shape, mode))[2]
+            eleven = self.eleven(club, shape, mode)
+            picture = self.lanes_for(eleven)[2]
+            mean, priced, of_men, estimated = self.eleven_surplus(eleven)
             # `<1%` rather than `0%`: it is offered, so it is possible - a shape a coach would only go to
             # in a corner. Rounding that to zero would say the opposite of why it is in the list.
             label = (f"{shape} · " + ("<1%" if probability < 0.005 else f"{probability:.0%}")
                      + (f" → {picture}" if picture and picture != shape else ""))
+            if mean is not None:
+                # `~` where any of the eleven is an estimate rather than the gated valuation, and the
+                # count where the sheet could not price them all: the number says what it is measured on
+                label += f" · SUR {'~' if estimated else ''}{mean:.1f}"
+                if priced < of_men:
+                    label += f" ({priced}/{of_men})"
             self._shape_labels[label] = shape
         self.shape_cb.configure(values=list(self._shape_labels), state="readonly")
         self.shape_var.set(next((label for label, shape in self._shape_labels.items()
@@ -3293,8 +3346,7 @@ class SnapshotView(ttk.Frame):
         # estimated one is marked with `~` and its own tooltip says what it is built from and what the
         # indeterminacy cost (`est_note`, `est_confidence`); the two are the same arithmetic, so one column
         # can rank the whole squad, which is the point.
-        estimated = not row.get("engine_surplus") and row.get("est_surplus")
-        surplus = _number(row.get("est_surplus" if estimated else "engine_surplus"), None)
+        surplus, estimated = self.row_surplus(row)
         surplus_text = (f"~{row.get('est_surplus')}" if estimated
                         else (row.get("engine_surplus") or ""))
         share = min(presences / calendar, 1) if presences is not None else None
