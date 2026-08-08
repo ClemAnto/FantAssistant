@@ -1898,6 +1898,37 @@ def test_a_man_measured_only_elsewhere_competes_for_a_shirt_and_pays_for_being_e
     assert presence.standing(season, panel) == presence.standing(season, presence.DEFAULTS)
 
 
+def test_a_population_statistic_is_measured_over_the_SHEET_and_not_the_club_on_screen():
+    """`self.rows` is one club's squad; five statistics read it believing they had the sheet.
+
+    Found 08/08/2026 by driving the real panel instead of a harness, which is the only way it could be
+    found: every test built a view with `rows` = the whole sheet, so the harness and the panel were
+    measuring different populations and only the panel was wrong. `_show_club` assigns
+    `self.rows = self.squad(club)`, and the shrinkage prior plus the four z-scores (`fm_z`, `career_z`,
+    `level_z`, `level_gap_z`) all say «this sheet» in their docstrings while getting 25-43 men.
+    What it cost: Milan's keeper read 99% of claim against 85%, and the board drew the predecessor's
+    3-5-2 instead of Amorim's 3-4-3 - the shape odds are built on those claims. Two adopted parameters
+    were affected at once, `standing_prior_rounds` and `level_weight`.
+    """
+    sheet = [{"club": "Test", "name": f"p{i}", "role_classic": "C", "desc_season_starts": "20",
+              "desc_season_matches": "20", "desc_minutes_full_season": str(900 + i * 90),
+              "desc_minutes_club": str(900 + i * 90), "desc_minutes_elsewhere": "0",
+              "engine_fm_pred": f"{6.0 + i * 0.1:.1f}"} for i in range(12)]
+    mine = {"club": "Other", "name": "mine", "role_classic": "C", "desc_season_starts": "30",
+            "desc_season_matches": "30", "desc_minutes_full_season": "2700",
+            "desc_minutes_club": "2700", "desc_minutes_elsewhere": "0", "engine_fm_pred": "7.5"}
+    view = _view_of([*sheet, mine])
+    view.players = [*sheet, mine]
+    view.rows = [mine]                       # what `_show_club` really leaves behind
+    assert len(view.population()) == 13, "the statistics are the SHEET's, not the club on screen"
+    # his fantamedia is measured against the twelve, so it is well above the mean...
+    assert view.fm_z(mine) > 1.0
+    # ...and against his own club of one it cannot be measured at all, which is what used to happen
+    alone = _view_of([mine])
+    alone.players = [mine]
+    assert alone.fm_z(mine) is None, "one man is not a population"
+
+
 def test_a_coach_keeps_the_elevens_his_club_is_spelled_differently_in(tmp_path):
     """A coach's repertoire joined the line-ups on a club NAME, and lost 26% of every career.
 

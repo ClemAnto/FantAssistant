@@ -2637,6 +2637,13 @@ class SnapshotView(ttk.Frame):
         # another sheet is another population and another squad: the means and the operator's own
         # exclusions both belong to the sheet that was on screen, not to the one being loaded
         self._means, self._excluded = None, set()
+        # ...and so do the five POPULATION statistics the presence model needs - the shrinkage prior and
+        # the four z-scores. They are cached because they are read once per row, and they were never
+        # invalidated at all: the first sheet a session opened kept its means for every sheet after it.
+        for cached in ("_standing_prior", "_prior_by_band", "_level_stats", "_level_gap_stats",
+                       "_fm_stats", "_career_stats"):
+            if hasattr(self, cached):
+                delattr(self, cached)
         self.clubs = {row["club"]: row for row in _read_csv(folder / "clubs.csv")}
         self.manifest = _read_json(folder / "manifest.json")
         engine = self.manifest.get("engine", {})
@@ -4082,6 +4089,22 @@ class SnapshotView(ttk.Frame):
     FORM_WEIGHT: ClassVar[float] = 0.60
     RECENT_PRIOR: ClassVar[float] = 3.0
 
+    def population(self) -> list:
+        """The rows every POPULATION statistic is measured over: the SHEET, and not the club on screen.
+
+        Found 08/08/2026, driving the real panel instead of a harness. `self.rows` is assigned in
+        `_show_club` and holds ONE CLUB's squad - 25-43 players - while the five statistics that read it
+        (the shrinkage prior and the four z-scores) all say «this sheet» in their own docstrings and were
+        measured on a sheet. Two things went wrong at once and only the second was visible: a mean over
+        32 men where the bands hold one or two, so the adopted `standing_prior_rounds` was shrinking
+        toward noise; and sd over a single club's movers, which is zero or near it, so `level_z` and
+        `level_gap_z` - both ADOPTED - came out None or wild. Milan's keeper read 99% of claim in the
+        panel against 85% in every harness, and the board drew the predecessor's 3-5-2 instead of
+        Amorim's 3-4-3, because the odds are built on those same claims.
+        Falls back to the club on screen only when no sheet is loaded, which is what the tests build.
+        """
+        return getattr(self, "players", None) or getattr(self, "rows", None) or []
+
     def presence_inputs(self, row: dict) -> presence.Inputs:
         """One row of the sheet, as `engine.presence` wants it: the numbers, with their units settled.
 
@@ -4137,7 +4160,7 @@ class SnapshotView(ttk.Frame):
         stats = getattr(self, "_career_stats", None)
         if stats is None:
             pool = [v for v in (_number(other.get("desc_career_fm"), None)
-                                for other in (getattr(self, "rows", None) or ())) if v is not None]
+                                for other in (self.population() or ())) if v is not None]
             if len(pool) > 1:
                 mean = sum(pool) / len(pool)
                 sd = (sum((v - mean) ** 2 for v in pool) / len(pool)) ** 0.5
@@ -4163,7 +4186,7 @@ class SnapshotView(ttk.Frame):
         if cache is None:
             cache = {}
             pools: dict[str, list[float]] = {}
-            for other in (getattr(self, "rows", None) or ()):
+            for other in (self.population() or ()):
                 value = _number(other.get("engine_fm_pred"), None)
                 if value is None:
                     value = _number(other.get("est_fm"), None)
@@ -4192,7 +4215,7 @@ class SnapshotView(ttk.Frame):
             return cached
         self._standing_prior = None                      # breaks the recursion while the pass runs
         unshrunk = _replace_params(self.PRESENCE, standing_prior_rounds=0.0)
-        population = getattr(self, "rows", None) or ()
+        population = self.population() or ()
         bands: dict[tuple[int, int], list[float]] = {}
         for other in population:
             other_inputs = self.presence_inputs(other)
@@ -4234,7 +4257,7 @@ class SnapshotView(ttk.Frame):
             return None
         stats = getattr(self, "_level_stats", None)
         if stats is None:
-            population = getattr(self, "rows", None) or ()
+            population = self.population() or ()
             values = [v for v in (_number(other.get("desc_level_elo"), None) for other in population)
                       if v is not None]
             if len(values) > 1:
@@ -4270,7 +4293,7 @@ class SnapshotView(ttk.Frame):
             return None
         stats = getattr(self, "_level_gap_stats", None)
         if stats is None:
-            values = [v for v in (gap_of(other) for other in (getattr(self, "rows", None) or ()))
+            values = [v for v in (gap_of(other) for other in (self.population() or ()))
                       if v is not None]
             if len(values) > 1:
                 mean = sum(values) / len(values)

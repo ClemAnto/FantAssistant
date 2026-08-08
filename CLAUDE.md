@@ -170,6 +170,18 @@ own verdict does not, and cannot be used to adopt it.
   itself with a plausible story if you let it**; and the threshold calibrated on the broken samples
   (`COACH_SHAPE_MIN`/`FULL`) is now quoting numbers nobody has re-measured, which is stated rather than
   quietly kept.
+- **Drive the REAL panel, not a harness that builds a different population** (08/08/2026, and it hid two
+  adopted parameters). `SnapshotView.rows` is assigned in `_show_club` and holds ONE CLUB's squad, while the
+  five population statistics that read it - the shrinkage prior and the four z-scores - all say «this sheet»
+  in their own docstrings. Every test built a view with `rows` = the whole sheet, so the harness was right
+  and the panel was wrong, and nothing could see it: Milan's keeper read **99%** of claim on screen against
+  85% everywhere else, `level_z`/`level_gap_z` were standardised over a handful of one club's movers (sd
+  near zero, so often None), and the board drew the predecessor's 3-5-2 instead of Amorim's 3-4-3 because
+  the shape odds are built on those claims. Worse, the caches were never invalidated at all, so the FIRST
+  club opened in a session fixed the means for every club after it. One accessor now (`population()`), and
+  the caches are cleared with the sheet. The lesson is the general one: when the operator says «I don't see
+  it», photograph HIS window before re-explaining the code - the divergence between panel and harness is
+  invisible from either side alone.
 - **Verify the FUNCTION, not the column that looks like it** (08/08/2026, twice in two days). «8 clubs of 20
   are drawn with the predecessor's module» was measured on the sheet's `formation_typical` column while the
   board draws `board_shape`, which had been blending `coach_shapes` for three days — three of the eight were
