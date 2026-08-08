@@ -3599,6 +3599,25 @@ class SnapshotView(ttk.Frame):
                 out[shape.strip()] = int(count)
         return out
 
+    @staticmethod
+    def friendly_shapes(info: dict) -> tuple[dict[str, float], int]:
+        """({shape: its share of the PRE-SEASON elevens}, how many there were).
+
+        The target season's own elevens, which before a competitive match is the training camp - the
+        only football played by the side that will take the field, and the only source that can say
+        what the coach has ANNOUNCED for this squad rather than what he has done elsewhere. Read as a
+        distribution and not as a mode: with two elevens a mode is a coin.
+        """
+        counts: dict[str, int] = {}
+        for part in (info.get("friendly_shapes") or "").split(";"):
+            shape, _, count = part.partition(":")
+            if shape.strip() and count.strip().isdigit():
+                counts[shape.strip()] = int(count)
+        total = sum(counts.values())
+        if not total:
+            return {}, 0
+        return {shape: count / total for shape, count in counts.items()}, total
+
     def league_shapes(self) -> dict[str, float]:
         """{shape: its share of the LEAGUE's complete elevens} - what counts as a formation at all.
 
@@ -3691,9 +3710,16 @@ class SnapshotView(ttk.Frame):
         scores = {shape: self.shape_matchdays(club, shape, mode) for shape in options}
         best = max(scores.values())
         weights: dict[str, float] = {}
+        # THE PRE-SEASON, which is the only thing that has seen THIS squad under THIS coach. Weighed by
+        # its own sample like the coach's repertoire, and it is a small one by nature (1-3 complete
+        # elevens per club): `PRESEASON_FULL` is how many it takes to be worth its full weight.
+        preseason, friendly_xis = self.friendly_shapes(info)
+        camp = (min(1.0, friendly_xis / self.PRESEASON_FULL) * self.PRESEASON_WEIGHT
+                if friendly_xis else 0.0)
         for shape, (count, league_share) in options.items():
             generic = mine * coach_share.get(shape, 0.0) + (1 - mine) * league_share
             prior = trust * (count / played if played else 0.0) + (1 - trust) * generic
+            prior = (1 - camp) * prior + camp * preseason.get(shape, 0.0)
             # exp(-gap / scale): smooth, so half a matchday is nothing and two are decisive
             weights[shape] = prior * math.exp((scores[shape] - best) / self.SHAPE_FIT_SCALE)
         total = sum(weights.values())
@@ -4820,6 +4846,27 @@ class SnapshotView(ttk.Frame):
     # play, and for a trequartista it says M where our grid says T. Read in `eleven`, for candidacy
     # only; nothing about where he is DRAWN, which the fit decides.
     PROVIDER_LINE: ClassVar[dict[str, str]] = {"G": "P", "D": "D", "M": "M", "F": "A"}
+
+    # THE PRE-SEASON as the fifth source of `shape_odds` (todolist item 5). It answers the one question
+    # the repertoire cannot - «what has he announced for THIS squad» - and it is the only football
+    # played by the side that will actually take the field. Coverage measured BEFORE writing any of
+    # this, as the item demanded: 2026-27 has 1-3 complete elevens for all 20 Serie A clubs (297 over
+    # 200 clubs), where 2025-26 had Milan and Napoli at zero.
+    # PRE-REGISTERED GRID for the weight, fixed before looking at any verdict: 0 (off), 0.15, 0.30,
+    # 0.45, 0.60. Judged on the press reference, and adoptable only on an INTERIOR optimum - the same
+    # discipline as any swept constant («a parameter is never adopted at the edge of its grid»).
+    # MEASURED, AND IT DOES NOT PAY (08/08/2026):
+    #     weight   0.00   0.15   0.30   0.45   0.60
+    #     modules  11/5/4 11/5/4 11/5/3+1 11/3/6 11/2/7
+    #     men      166    166    165    163    163
+    # The optimum is at the EDGE and the curve is monotone downward: the module count never improves at
+    # any weight - not even on the two cases the item came from - and the alternatives decay. So the
+    # pre-season shape is kept as a COLUMN (`friendly_shapes`, measured and on the sheet) and weighs
+    # nothing, exactly like `HEATMAP_SIDE`/`HEATMAP_DEPTH`. The reason is worth more than the parameter:
+    # a training-camp shape is chosen against opponents who are not in the league and with men who are
+    # not all signed yet, so it says less about September than the coach's own repertoire does.
+    PRESEASON_WEIGHT: ClassVar[float] = 0.0
+    PRESEASON_FULL: ClassVar[int] = 3           # elevens for the pre-season to carry its full weight
 
     # CO-TITOLARITÀ: MEASURED, IMPLEMENTED, AND REFUSED BY THE JUDGE (08/08/2026). Kept as a threshold
     # and an accessor because the DATA is real and on the sheet (`desc_costart_low`); what is gone is

@@ -405,6 +405,20 @@ def test_real_role_columns_reach_the_sheet():
 
 
 # ---------- the percentage on a shirt, and the two rules of a real attack ----------
+def test_the_pre_season_shape_is_measured_and_weighs_nothing():
+    """Item 5 of the todolist, run and refused. The column exists (`friendly_shapes`, 1-3 complete
+    elevens per club, all 20 covered), the fifth source of `shape_odds` reads it, and the
+    pre-registered grid put its optimum at the EDGE: the module count never improves at any weight and
+    the men fall from 166 to 163. A parameter is not adopted at the edge of its grid."""
+    from euroleghe_ingest.gui import SnapshotView as View
+
+    assert View.PRESEASON_WEIGHT == 0.0
+    # the accessor still reads the measurement, as a distribution and not as a mode
+    shares, count = View.friendly_shapes({"friendly_shapes": "4-3-3:2;3-5-2:1"})
+    assert count == 3 and shares == {"4-3-3": 2 / 3, "3-5-2": 1 / 3}
+    assert View.friendly_shapes({}) == ({}, 0)
+
+
 def test_a_trequartista_is_a_candidate_for_the_midfield_too():
     """The Paz case: coded `AM` and nothing else, our grid calls that a trequartista and sends every
     trequartista to the ATTACK - so the highest claim in Como's squad (0.760, 33 starts) lost the

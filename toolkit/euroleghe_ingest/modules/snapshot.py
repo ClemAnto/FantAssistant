@@ -2246,6 +2246,8 @@ def club_context(conn, data: features.WindowData, starters_date: str | None,
         # NOT `measured`: that name is this function's own parameter, the season the layers are measured
         # on, and shadowing it fed a NamedTuple to the next query as a season.
         shapes = typical_formation(conn, mine, season, coach_since, before)
+        # ...and the same over the TARGET season, which before a ball is kicked is the pre-season alone
+        friendly = typical_formation(conn, mine, window.target_season, None, before)
         typical, share, counted, basis = shapes.shape, shapes.share, shapes.counted, shapes.basis
         coach_shapes, coach_shapes_of = coach_repertoire(
             conn, coach[0] if coach else None, before, repertoires)
@@ -2282,6 +2284,15 @@ def club_context(conn, data: features.WindowData, starters_date: str | None,
             # asks for a player the squad has not got - a formation nobody lined up in is not an
             # alternative, it is an invention.
             "formation_shapes": shapes.shapes,
+            # THE SHAPES OF THE PRE-SEASON, i.e. of the TARGET season - the only elevens that exist for
+            # a side that has not played a competitive match yet, and the one thing the repertoire
+            # cannot answer: «what has he announced for THIS squad». Same format as `formation_shapes`.
+            # Small on purpose and stated: 1-3 complete elevens per club (297 over 200 clubs), which is
+            # why whoever reads it must weigh it by its own sample. The claim is deliberately NOT built
+            # on friendlies (measured and refused, five reasons in v9.17 §6); a SHAPE is a different
+            # signal from a per-player minute, and it is a declaration by the coach.
+            "friendly_shapes": friendly.shapes,
+            "friendly_XIs": friendly.counted,
             # ...and every shape THE COACH fielded, anywhere, with how many elevens it rests on
             # (`coach_repertoire`). It is the answer to «what does the man who is here NOW do», which
             # neither of the two above can give, and the board weighs it by its own sample size - Sarri
