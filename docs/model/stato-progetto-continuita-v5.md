@@ -1,5 +1,5 @@
 # Stato progetto & continuità — v5
-**Aggiornato: 8 agosto 2026 (chiusura: il pannello misurava su un club e nessun test poteva vederlo)**
+**Aggiornato: 8 agosto 2026 (i tre punti aperti chiusi; resta solo `app/`, che e' una fase)**
 Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da qui + i file della cartella "Modello Previsionale Fantacalcio".
 *Glossario: T1/T2 = finestre di test (23/24->24/25, 24/25->25/26) · MAE = errore medio assoluto · cross-fitted = parametri stimati su una finestra, testati sull'altra · M2e = modello portieri decomposto (abilità + tasso gol subiti del club; la metà Elo del nome non è nel motore) · Pv_att = presenze attese · fc_id = id fantacalcio.it · EV = valore atteso · scoring_config = punteggi configurabili per lega · xG/xA = expected goals/assists · 2.5 pieno = backtest motore completo con flag.*
 
@@ -7,6 +7,18 @@ Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da q
 App per leghe EuroLeghe/fantacalcio.it (Classic+Mantra, 5 campionati) con motore previsionale. Metodo: ogni regola entra SOLO se batte il baseline fuori campione su finestre indipendenti (gate pre-registrato). Doc madre: modello-previsionale-v3.8.md.
 
 ## ⚠️ Lo stato corrente è in `00-BRIDGE-punto-di-ingresso.md`, blocco «STATO AL 5 AGOSTO 2026»
+
+### 8 agosto 2026 (4), in una riga: i tre punti aperti chiusi, e una diagnosi ribaltata dalla misura
+
+Spec «Novità v9.41», gate §7-quinvicies. 330 test, `--verify` 22/22, **gate completo rieseguito senza che
+nessuna regola si muova** (R3/R7/R13 passano, R19 robust su default, ADOPTED passes+robust su entrambe).
+1. mappa Elo del gate cablata su `club_levels` — **ma vale quasi nulla**: 4, 1, 0, 0, 0, 0 club per
+   finestra, perché il vincolo è `club_prev`, che viene dal listone precedente;
+2. il campionato austriaco fuori dallo slug della Bundesliga, con un test derivato dalla colonna `Country`
+   che ClubElo porta da sempre: Salzburg 26 + Klagenfurt 10 → `bundesliga-aut`, `mv_synth` a NULL;
+3. `COACH_SHAPE_MIN`/`FULL` rimisurate contro la forma davvero schierata e **lasciate a 20/60**: la forma
+   dell'allenatore non batte mai l'abitudine del club, e le fasce hanno 6-17 casi.
+Resta aperto solo `app/`, che è una fase e non un difetto.
 
 ### 8 agosto 2026 (chiusura), in una riga: il PANNELLO misurava su un club e nessun test poteva vederlo
 

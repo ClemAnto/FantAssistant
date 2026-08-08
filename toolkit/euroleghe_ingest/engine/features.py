@@ -966,6 +966,20 @@ def load(conn: sqlite3.Connection, window: Window, platform: str,
     elo = {club: value for club, value in conn.execute(
         "SELECT c.canonical_name, e.elo FROM club_elo e JOIN clubs c USING(fc_club_id) "
         "WHERE e.date = ?", (elo_date,))} if elo_date else {}
+    # ...and, for a club `club_elo` cannot hold at all, the level from `club_levels` - every club ClubElo
+    # publishes rather than the ~97 that a listone carries. Strictly a FILL: where `club_elo` has a value
+    # it wins, so no published number changes on a club we already priced, and the two agree by
+    # construction (same series, `club_elo` at the auction DATE and this at the year).
+    # Measured before wiring it, because the todolist called this the binding constraint and it is not:
+    # per window it recovers 4, 1, 0, 0, 0, 0 origin clubs. The limit is `club_prev`, which comes from the
+    # PREVIOUS LISTONE - a man arriving from Salzburg has no previous club here at all, so no Elo table can
+    # see him. Widening the table is right and cheap; the coverage it buys the GATE is nearly nil, and
+    # saying so is the point of having measured it.
+    for name, value in conn.execute(
+            """SELECT c.canonical_name, l.elo FROM club_levels l JOIN clubs c USING(fc_club_id)
+               WHERE l.year = ? AND l.fc_club_id IS NOT NULL AND c.canonical_name IS NOT NULL""",
+            (window.input_season.split("-")[0],)):
+        elo.setdefault(name, value)
     off_role = {fc_id for (fc_id,) in conn.execute(
         "SELECT fc_id FROM flags WHERE season = ? AND flag = 'off_role_usage'",
         (window.input_season,))}

@@ -495,6 +495,36 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.41 (8 agosto 2026 — i tre punti aperti, chiusi e misurati)
+
+**1. La mappa Elo del gate: cablata, e la misura ribalta la diagnosi.** `features` ora riempie la sua mappa
+con `club_levels` dove `club_elo` non ha nulla (un FILL: dove `club_elo` ha un valore vince lui, quindi
+nessun numero pubblicato si muove su un club già prezzato). Ma **misurato prima di cablarlo**, il guadagno
+per il gate è quasi nullo — per finestra recupera **4, 1, 0, 0, 0, 0** club di provenienza — e la ragione è
+che il vincolo non è la tabella Elo: è **`club_prev`, che viene dal listone precedente**. Un uomo che arriva
+dal Salisburgo non ha un club precedente qui, quindi nessuna tabella di livelli può vederlo. Il punto era
+scritto nella todolist come «la mappa dei 97 club»; era vero e non era il collo di bottiglia.
+Verificato: `backtest --verify` 22/22 e **gate completo rieseguito** — `R3`, `R7`, `R13` passano, `R19`
+robust su `default`, `ADOPTED` passes+robust su entrambe le piattaforme, `R18` su euro. Nessuna regola
+scalzata. (Servita una migrazione: `club_levels.fc_club_id`, perché `engine/` non può importare `matching`
+per calcolare una chiave, e con l'id il join si fa in SQL.)
+
+**2. Il campionato austriaco sotto lo slug della Bundesliga: corretto, e in modo derivato.** ClubElo porta
+da sempre la colonna `Country` e nessuno la leggeva: ora sta in `club_levels`, e
+`elo.retag_foreign_competitions` ri-etichetta ogni riga il cui CLUB gioca in un paese diverso da quello
+della competizione che la nomina. Non una lista di club: un test. Esito **Red Bull Salzburg 26 righe e
+Austria Klagenfurt 10 → `bundesliga-aut`**, con `mv_synth` riportato a NULL perché era stato calcolato con
+la retta della Bundesliga tedesca (§7-nonies). Residuo: zero. Sul foglio Alajbegovic ora dichiara
+`bundesliga-aut` invece di `bundesliga`, che è la differenza fra «ha giocato in Germania» e «ha giocato in
+Austria».
+
+**3. Le soglie `COACH_SHAPE_MIN`/`FULL`: rimisurate e LASCIATE DOVE SONO.** Gate §7-quinvicies. Giudice
+interno (la forma davvero schierata dal club nella stagione dopo l'arrivo estivo di un allenatore, 48 casi
+con repertorio): la forma dell'allenatore **non batte mai** l'abitudine del club — 17% contro 50% sotto i 20
+undici, 57% contro 57% sopra gli 80. La ragione della soglia regge; la direzione che i dati indicano è di
+ALZARLA, non di abbassarla; e le fasce hanno 6-17 casi, **troppo poco per muovere un parametro**. Restano
+20/60 con la misura accanto.
+
 ## Novità v9.40 (8 agosto 2026 — le statistiche di popolazione erano quelle di UN CLUB, non del foglio)
 
 **Trovato guidando il pannello VERO invece di un harness, che è l'unico modo in cui poteva saltare fuori.**

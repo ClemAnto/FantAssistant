@@ -180,9 +180,11 @@ pure (spec «Novità v9.34»): il SURPLUS mantra che era il VALORE, e `club_elo`
    ⚠️ Cade anche una frase del commento: «Iraola a zero perché la sua carriera sta fuori dai cinque
    campionati» era il join, non la carriera — il Bournemouth è in Premier e sono 115 undici. Restano
    davvero fuori solo Filipe Luís, Carles Martínez, Demichelis e Davide Ancelotti (2 ciascuno).
-   ⚠️ `COACH_SHAPE_MIN`/`FULL` (20/60) sono stati tarati sui campioni SBAGLIATI: la ragione della soglia
-   regge (con n = 2 la moda è rumore), i numeri vanno rivisti al prossimo giro con la referenza esterna,
-   che però non è nel repo.
+   ✅ **`COACH_SHAPE_MIN`/`FULL` rimisurate l'08/08 e LASCIATE a 20/60** (gate §7-quinvicies): con un giudice
+   interno — la forma davvero schierata dopo un arrivo estivo, 48 casi — la forma dell'allenatore **non batte
+   mai** l'abitudine del club (17% contro 50% sotto i 20 undici, 57% contro 57% sopra gli 80). La ragione
+   della soglia regge, la direzione indicata è di ALZARLA, e le fasce hanno 6-17 casi: troppo poco per
+   muovere un parametro. Cosa la chiuderebbe: segnare la forma BLENDED del board, non la modale nuda.
 8. **Il POSTO LASCIATO LIBERO — mai misurato, ed è l'unica strada rimasta con contenuto** per marcare gli
    acquisti da titolare: il club ha venduto o perso il titolare di quel ruolo? È un **fatto**, non un
    giudizio, quindi vince per la regola del 04/08 su qualunque segnale di prezzo. Dopo che il Qt.I è stato
@@ -195,12 +197,21 @@ pure (spec «Novità v9.34»): il SURPLUS mantra che era il VALORE, e `club_elo`
    Lo sconto dice «lo ha mandato via, ed è un suo giudizio», e Kolo Muani era il prestato che la Juve ha
    appena pagato 41,2 M per riprendersi. `was_here_before` + un fee in questa finestra → sconto d'arrivo.
    Claim 0.414 → 0.515, titolare. Il valore 0.60 resta dov'era e resta aperto.
-9-bis. **APERTO — la mappa Elo del GATE è ancora quella dei 97 club.** `features` legge `club_elo`, la cui
+9-bis. ~~**APERTO — la mappa Elo del GATE è ancora quella dei 97 club**~~ — **CHIUSO l'08/08, e la misura ha
+   ribaltato la diagnosi**: cablato il fill da `club_levels`, ma il guadagno per il gate è quasi nullo (4, 1,
+   0, 0, 0, 0 club di provenienza per finestra) perché **il vincolo è `club_prev`, che viene dal listone
+   precedente** — chi arriva dal Salisburgo non ha un club precedente qui, e nessuna tabella di livelli può
+   vederlo. Gate completo rieseguito: R3/R7/R13 passano, R19 robust su `default`, ADOPTED passes+robust su
+   entrambe, `--verify` 22/22. Il punto era vero e non era il collo di bottiglia. *Vecchio testo:* `features` legge `club_elo`, la cui
    chiave è `fc_club_id`: un arrivo da un club mai stato in un listone (Salisburgo, Benfica, Ajax, Porto)
    ha `elo_prev` vuoto, quindi i due canali ADOTTATI sono ciechi su di lui. La tabella che copre tutti
    (`club_levels`, 1.092 club) esiste dall'08/08 ed è già letta dal FOGLIO. Allargare anche il gate muove
    numeri pubblicati (R19, `level_weight`, `level_gap_weight`) e vuole una corsa di gate sua.
-9-ter. **APERTO — 36 righe del campionato AUSTRIACO sotto lo slug `bundesliga`** (Red Bull Salzburg 26,
+9-ter. ~~**APERTO — 36 righe del campionato AUSTRIACO sotto lo slug `bundesliga`**~~ — **CHIUSO l'08/08 in
+   modo derivato**: ClubElo porta da sempre la colonna `Country` e nessuno la leggeva. Ora sta in
+   `club_levels` e `retag_foreign_competitions` ri-etichetta ogni riga il cui club gioca in un paese diverso
+   da quello della competizione che la nomina — un test, non una lista. Salzburg 26 e Klagenfurt 10 →
+   `bundesliga-aut`, `mv_synth` a NULL, residuo zero. *Vecchio testo:* (Red Bull Salzburg 26,
    Austria Klagenfurt 10), tutte con un voto sintetico tarato sulla Bundesliga tedesca. Stessa famiglia di
    §7-nonies («una trasformazione appartiene alla popolazione su cui è stata fitta»), trovata l'08/08
    cercando perché la finestra di Alajbegovic sembrasse tedesca. Piccola in righe, sbagliata in principio.

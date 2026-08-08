@@ -1,5 +1,5 @@
 # 00 — BRIDGE · Punto d'ingresso del progetto (leggere per primo)
-**Aggiornato: 8 agosto 2026 (chiusura: il pannello misurava le statistiche di popolazione su UN CLUB, e nessun test poteva vederlo)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
+**Aggiornato: 8 agosto 2026 (i tre punti aperti chiusi e misurati; resta solo `app/`)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
 
 ## Il progetto in breve
 Motore previsionale per fantacalcio **EuroLeghe** (fantacalcio.it): valutazione calciatori Classic e Mantra sui 5 grandi campionati europei (Serie A, Premier, Liga, Bundesliga, Ligue 1 — perimetro: i ~35 top club del gioco). Prevede fantamedia (FM), presenze attese e VALORE stagionale = FM × presenze. Metodo scientifico: **ogni regola entra nel motore solo se batte il baseline fuori campione su finestre indipendenti** (gate pre-registrato). Stato: core validato (Mantra, Classic, portieri, presenze); manca lo strato flag/arrivi, sbloccato dal toolkit dati `euroleghe-ingest` (in implementazione).
@@ -29,7 +29,28 @@ la pagina delle probabili non basta e quali vincoli valgono già oggi.
 
 Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
 
-### ULTIMO IN ORDINE DI TEMPO — 8/08/2026 (3, chiusura): il pannello misurava su UN CLUB e nessun test poteva vederlo
+### ULTIMO IN ORDINE DI TEMPO — 8/08/2026 (4): i tre punti aperti, chiusi — e una diagnosi ribaltata
+
+Spec «Novità v9.41», gate §7-quinvicies. **330 test, `--verify` 22/22, gate completo rieseguito senza che
+nessuna regola si muova**, fogli e bundle rigenerati.
+
+1. **La mappa Elo del gate** è cablata su `club_levels` (un FILL: dove `club_elo` ha un valore vince lui),
+   **ma misurata prima di cablarla vale quasi nulla** — 4, 1, 0, 0, 0, 0 club di provenienza per finestra.
+   Il vincolo non è la tabella Elo: è **`club_prev`, che viene dal listone precedente**, quindi chi arriva
+   dal Salisburgo non ha un club precedente qui e nessuna tabella può vederlo. Il punto era vero e non era
+   il collo di bottiglia — ed è la stessa lezione del giorno: misurare prima di rimediare.
+2. **Il campionato austriaco** non sta più sotto lo slug della Bundesliga: ClubElo porta da sempre la colonna
+   `Country` e nessuno la leggeva. Ora `retag_foreign_competitions` ri-etichetta ogni riga il cui club gioca
+   in un paese diverso da quello della competizione — un test, non una lista di club. Salzburg 26 +
+   Klagenfurt 10 → `bundesliga-aut`, `mv_synth` a NULL, residuo zero.
+3. **`COACH_SHAPE_MIN`/`FULL` rimisurate e lasciate a 20/60**: con un giudice interno la forma
+   dell'allenatore **non batte mai** l'abitudine del club (17% contro 50% sotto i 20 undici, pari a 57%
+   sopra gli 80). La ragione della soglia regge, la direzione indicata è di ALZARLA, e le fasce hanno 6-17
+   casi — troppo poco per muovere un parametro, e dirlo è meglio che ritoccarlo.
+
+Resta aperto solo `app/`: un README e zero TypeScript. Non è un difetto, è la fase successiva.
+
+### 8/08/2026 (3, chiusura): il pannello misurava su UN CLUB e nessun test poteva vederlo
 
 L'operatore ha ripetuto tre volte «nel toolkit vedo ancora le formazioni tipo non aggiornate» e aveva ragione
 ogni volta. Il foglio era giusto; **il pannello no**, e i due erano d'accordo con nessuno.

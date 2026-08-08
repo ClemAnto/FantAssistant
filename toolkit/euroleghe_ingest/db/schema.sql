@@ -350,6 +350,8 @@ CREATE TABLE IF NOT EXISTS club_levels (
     year       TEXT NOT NULL,                   -- YYYY of the snapshot
     elo        REAL NOT NULL,
     elo_name   TEXT NOT NULL,                   -- the ClubElo club this level belongs to
+    fc_club_id INTEGER,                         -- ours where the key is one of our clubs, NULL otherwise
+    country    TEXT,                            -- ClubElo's own three-letter code (ITA, AUT, ...)
     PRIMARY KEY (club_key, year)
 );
 

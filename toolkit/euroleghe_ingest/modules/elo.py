@@ -467,6 +467,7 @@ def store_levels(conn, ctx: Context) -> tuple[int, int, int]:
     if not levels:
         return 0, 0, 0
     elo_names = sorted({name for year in levels.values() for name in year})
+    countries = load_cached_countries(ctx)
     ours: set[str] = set()
     for query in ("SELECT DISTINCT canonical_name FROM clubs WHERE canonical_name IS NOT NULL",
                   "SELECT DISTINCT club FROM external_match_stats WHERE club IS NOT NULL",
@@ -481,14 +482,22 @@ def store_levels(conn, ctx: Context) -> tuple[int, int, int]:
     keyed: dict[str, str] = {club_identity(name): name for name in elo_names}
     for mine, theirs in index.items():
         keyed.setdefault(club_identity(mine), theirs)
+    # ...and OUR id where the key is one of our clubs, so a reader that cannot compute a key can still
+    # join (`engine/features.py` may not import `matching`: it is a level up). It is also the only part of
+    # this table the GATE can use - `Observation.club_prev` is a canonical name out of `clubs`, so a club
+    # that has never been in a listone cannot be named there at all, whatever levels we hold.
+    ours_by_key = {club_identity(name): club_id for club_id, name in conn.execute(
+        "SELECT fc_club_id, canonical_name FROM clubs WHERE canonical_name IS NOT NULL")}
     rows = 0
     for year, table in levels.items():
         for key, name in keyed.items():
             value = table.get(name)
             if value is None:
                 continue
-            conn.execute("INSERT OR REPLACE INTO club_levels(club_key, year, elo, elo_name) "
-                         "VALUES (?, ?, ?, ?)", (key, year, value, name))
+            conn.execute(
+                "INSERT OR REPLACE INTO club_levels(club_key, year, elo, elo_name, fc_club_id, country) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (key, year, value, name, ours_by_key.get(key), countries.get(name)))
             rows += 1
     return rows, len(elo_names), len(index)
 
@@ -497,6 +506,59 @@ def levels_at(conn, year: str) -> dict[str, float]:
     """{club_key: Elo} for one year - what a read joins against, never a name."""
     return {key: value for key, value in conn.execute(
         "SELECT club_key, elo FROM club_levels WHERE year = ?", (year,))}
+
+
+def retag_foreign_competitions(conn) -> list[tuple[str, str, int]]:
+    """Re-tag a row whose CLUB plays in a different country from the competition naming it.
+
+    The provider slugs the Austrian Bundesliga `bundesliga`, exactly like the German one, so 36 recent-form
+    rows of Red Bull Salzburg and Austria Klagenfurt were filed as one of our five leagues - and took a
+    SYNTHETIC VOTE calibrated on Germany, which is §7-nonies happening again through a name rather than a
+    tag («a fitted transform belongs to the population it was fitted on»).
+
+    DERIVED and not a list of clubs: `club_levels.country` is ClubElo's own column, so the test is «does
+    this club play in the country this competition belongs to». A club we have no country for is left
+    alone - «vuoto = ignoto» - and so is every row whose competition is not one of the five, because
+    outside them the slug decides nothing. The new tag keeps the slug and adds the country
+    (`bundesliga-aut`), so nothing that reads the five leagues can match it and the row still says what
+    it was. `mv_synth` goes back to NULL: it was computed with a line fitted on another competition.
+
+    Returns [(club, new tag, rows)]. Idempotent - a re-tagged row no longer matches the five.
+    """
+    countries = {key: country for key, country in conn.execute(
+        "SELECT club_key, country FROM club_levels WHERE country IS NOT NULL GROUP BY club_key")}
+    ours = {league: country for country, league in COUNTRY_LEAGUE.items()}
+    moved: list[tuple[str, str, int]] = []
+    for club, competition, rows in conn.execute(
+            f"""SELECT club, competition, COUNT(*) FROM external_match_stats
+                WHERE club IS NOT NULL AND competition IN ({','.join('?' * len(ours))})
+                GROUP BY club, competition""", tuple(ours)):
+        theirs = countries.get(club_identity(club))
+        if not theirs or theirs == ours.get(competition):
+            continue
+        tag = f"{competition}-{theirs.lower()}"
+        conn.execute("UPDATE external_match_stats SET competition = ?, mv_synth = NULL "
+                     "WHERE club = ? AND competition = ?", (tag, club, competition))
+        moved.append((club, tag, rows))
+    return moved
+
+
+def load_cached_countries(ctx: Context) -> dict[str, str]:
+    """{ClubElo name: its three-letter country} - the column the CSV has always carried and nobody read.
+
+    It is what separates the two Bundesligas: the provider slugs both `bundesliga`, so without a country
+    a club is only as trustworthy as a competition NAME, which is the join this project forbids.
+    """
+    out: dict[str, str] = {}
+    for path in sorted(ctx.config.cache_dir.glob("clubelo_*.csv")):
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        for record in parse_snapshot(text):
+            if record.get("country"):
+                out[record["club"]] = record["country"]
+    return out
 
 
 def derive_elo_xref(conn, ctx: Context) -> tuple[int, list[str]]:
@@ -639,6 +701,12 @@ def run(ctx: Context, *, refresh: bool = False, fetch: bool = True, **kwargs) ->
     conn.commit()
     print(f"[elo] club_levels: {rows} rows over {clubs_seen} clubs a year "
           f"({matched} of our own spellings resolved onto them)")
+    # ...and, now that a country is on file, the rows whose competition NAMES a league the club does not
+    # play in - the two Bundesligas share a slug at the provider.
+    moved = retag_foreign_competitions(conn)
+    conn.commit()
+    if moved:
+        print("[elo] re-tagged " + " · ".join(f"{club} -> {tag} ({rows})" for club, tag, rows in moved))
     print(f"[elo] club_xref(clubelo): {written} provider clubs mapped"
           + (f" · {len(refused)} names left unresolved (ambiguous or absent): "
              + ", ".join(refused[:6]) if refused else ""))

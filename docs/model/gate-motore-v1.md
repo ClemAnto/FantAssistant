@@ -2232,6 +2232,33 @@ previsione su TUTTI, e le due affermazioni sono compatibili — un canale può c
 migliorare la previsione, perché ciò che aggiunge lo stanno già dicendo i minuti e il salto. `level_rank_weight`
 resta **0.0**.
 
+## 7-quinvicies. Le soglie del REPERTORIO ALLENATORE, rimisurate contro cio' che e' stato schierato (8 agosto 2026)
+
+`COACH_SHAPE_MIN`/`COACH_SHAPE_FULL` = 20/60 erano state tarate su repertori a cui il join per nome toglieva
+il 26% degli undici (spec «Novita' v9.38»), quindi i numeri citavano una popolazione che non esiste piu'.
+Rimisurate con un giudice INTERNO, che non ha bisogno di una fonte esterna: per ogni club il cui allenatore
+e' **arrivato in estate**, si prende la forma modale del CLUB nella stagione precedente e la forma modale
+dell'ALLENATORE su tutti i suoi undici precedenti, e si segnano entrambe contro la forma che il club ha
+davvero schierato di piu' quella stagione. 95 arrivi estivi con una stagione da giudicare, 48 con un
+repertorio.
+
+| campione dei suoi undici | n | forma del CLUB | forma SUA |
+|---|---:|---:|---:|
+| 10-19 | 6 | **50%** | 17% |
+| 20-39 | 8 | **38%** | 25% |
+| 40-79 | 17 | **53%** | 47% |
+| 80+ | 14 | 57% | 57% |
+| **totale** | 48 | **50%** | 42% |
+
+**La forma dell'allenatore non batte MAI l'abitudine del club**, e lo raggiunge solo a 80 undici. Il che non
+contraddice il modello - `shape_odds` non la usa da sola, la mette al posto della quota di LEGA e la pesa col
+suo campione - ma dice due cose: la ragione della soglia regge (sotto i 20 undici la sua forma e' peggio del
+club di 25 punti), e **nessuno deve abbassarla**. Alzarla a 40 sarebbe la direzione che i dati indicano, e le
+fasce hanno 6-17 casi: **troppo poco per muovere un parametro**, e dirlo e' meglio che ritoccarlo. Restano
+20/60, con questa misura accanto invece dei numeri vecchi.
+Cosa la chiuderebbe davvero: segnare la forma BLENDED che il board disegna, non la modale nuda, il che vuole
+i fogli storici ricostruiti.
+
 ## 7-duovicies. CHI SCENDE DI LIVELLO SALE DI RUOLO — il SALTO di Elo (pre-registrata il 7 agosto 2026, PRIMA di eseguirla)
 
 Domanda dell'operatore, ed è quella giusta: **«cosa differenzia un giocatore acquistato per riempire la rosa

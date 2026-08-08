@@ -34,6 +34,16 @@ ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     # uses to name it, which is the join this project forbids - and the one that priced Gonçalo Ramos's
     # PSG seasons at Paris FC. Backfilled offline from the same cache, zero requests.
     ("external_stats", "club_id", "TEXT"),
+    # OUR id on a level row, where the club is one of ours. `club_levels` is keyed on a canonical KEY,
+    # which a reader has to compute - and `engine/features.py` may not import `matching`, because that is
+    # a level up. With the id the gate can join it to `clubs` in SQL and take a level for a club of ours
+    # that `club_elo` happens not to carry on that date.
+    ("club_levels", "fc_club_id", "INTEGER"),
+    # ...and WHICH COUNTRY the club plays in, which is the only thing that can tell the Austrian
+    # Bundesliga from the German one: the provider gives both the slug `bundesliga`, so 36 recent-form
+    # rows of Red Bull Salzburg and Austria Klagenfurt were filed as top-5 football and took a synthetic
+    # vote calibrated on Germany. ClubElo's CSV has carried the column since the first run.
+    ("club_levels", "country", "TEXT"),
     ("external_match_stats", "shots", "INTEGER"),
     ("external_match_stats", "shots_on_target", "INTEGER"),
     ("external_match_stats", "big_chances_created", "INTEGER"),
