@@ -161,7 +161,19 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      MOVING and a promoted squad moved nowhere. Without that guard it took Frosinone from MATCH to
 #      DIFF against the press and drew it 3-3-1-3. Judges: press unchanged (11/5/4, 166/220), outcome
 #      134 -> 137 men of 220.
-SHEET_REVISION = 13
+#  14  08/08/2026 - A NEW SIGNING IS NOT AN UNKNOWN MAN. `est_pv` for whoever has no season on this
+#      platform was the share of a man with NOTHING measured anywhere (0.29 default / 0.19 euro), which
+#      is what the sheet said about Gonçalo Ramos - 11 presences of 38 for a €74M striker with 1320
+#      measured Ligue 1 minutes and 13 starts. Found by the operator on the number, not on the code:
+#      «è comunque l'attaccante titolare di una squadra di buon livello». The three inputs he really
+#      lacks are `pv_prev`/`mv_prev`/`fm_prev` ON THIS PLATFORM; his football abroad is measured and was
+#      simply not read. Now it is: `est.presences_from_abroad`, a line fitted on that exact population
+#      (his league minutes over that league's rounds), leave-one-SEASON-out MAE 0.2300 against 0.2803
+#      for the constant on default (+17.9%) and 0.2831 against 0.2983 on euro (+5.1%). The FANTAMEDIA
+#      stays the anchor - R1 lost to it on five windows of six, and what a man did abroad predicts how
+#      much he PLAYS, not how well. `engine_*` does not move: this is the estimate layer, which the gate
+#      never sees (`backtest --verify` 22/22).
+SHEET_REVISION = 14
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
@@ -1640,6 +1652,21 @@ def estimation_layer(conn, window: features.Window, platform: str,
             f"ORDER BY s.season ASC, s.pv ASC",
             (window.input_season, est.FULL_SEASON_VOTES, *ids)):
         layer[fc_id]["older"] = {"season": season, "platform": plat, "pv": pv, "fm": fm}
+    # ...and the FOOTBALL HE PLAYED ELSEWHERE, which is what a new signing has instead of a season here.
+    # One row per (player, competition) in `external_stats`: the league he played MOST in is his origin,
+    # and its own rounds are the denominator (`features.league_rounds`, the same one `desc_arrival_origin_
+    # rounds` uses - a share of a season is a share of the CHAMPIONSHIP). Cups are not in it, by the same
+    # rule: they are not matchdays of the league whose calendar we are scaling.
+    rounds = features.league_rounds(conn, window.input_season)
+    for fc_id, competition, minutes in conn.execute(
+            f"SELECT fc_id, competition, SUM(COALESCE(minutes, 0)) FROM external_stats "
+            f"WHERE season = ? AND source = 'sofascore' AND COALESCE(minutes, 0) > 0 "
+            f"AND fc_id IN ({marks}) GROUP BY fc_id, competition",
+            (window.input_season, *ids)):
+        seen = layer[fc_id].get("abroad")
+        if competition in rounds and (seen is None or minutes > seen["minutes"]):
+            layer[fc_id]["abroad"] = {"minutes": minutes, "rounds": rounds[competition],
+                                      "league": competition}
     club_level: dict[tuple[str, str], tuple[float, int]] = {}
     for club, role, mean_fm, count in conn.execute(
             """
@@ -1675,10 +1702,26 @@ def estimate_for(obs, prediction, layer: dict, anchors: dict, data,
     other, older = mine.get("other"), mine.get("older")
     pv_pred = prediction.pv_pred if prediction else None
 
-    def presences(source_pv, source_calendar_ratio=1.0):
-        """His presences, if the engine has none: the other calendar's, scaled by the two calendars."""
+    # How much of LAST season he played, wherever he played it - the same line for every rung, because
+    # «i calciatori nelle condizioni di Ramos» are not only the ones who reach the last rung: the fit's
+    # population is everybody with no season on this platform at t-1, which is `anchor` + `older` +
+    # `other_platform`. See `est.presences_from_abroad`.
+    abroad = (layer.get("players", {}).get(obs.fc_id, {}) or {}).get("abroad") or {}
+    abroad_share = ((abroad.get("minutes") or 0) / (90 * abroad["rounds"])
+                    if abroad.get("rounds") else None)
+    from_abroad = est.presences_from_abroad(calendar, platform, abroad_share)
+
+    def presences(source_pv, source_calendar_ratio=1.0, recent_first=False):
+        """His presences, if the engine has none: the other calendar's, scaled by the two calendars.
+
+        `recent_first` prefers LAST season's measured minutes to the rung's own source, and it is used
+        exactly where the rung's source is older than they are: a season two years back says less about
+        how much he will play than the one he has just finished somewhere else.
+        """
         if pv_pred is not None:
             return pv_pred
+        if recent_first and from_abroad is not None:
+            return from_abroad
         if source_pv is None:
             return None
         return round(source_pv * source_calendar_ratio, 1)
@@ -1709,13 +1752,25 @@ def estimate_for(obs, prediction, layer: dict, anchors: dict, data,
         # prediction is the naive baseline the core beats, and it is biased upward for exactly the men
         # this rung serves (`est.OLDER_BETA` carries the measurement).
         value = est.regress(older["fm"], anchor)
-        return est.Estimate(value, presences(older["pv"]), "older", est.older_confidence(back),
+        return est.Estimate(value, presences(older["pv"], recent_first=True), "older",
+                            est.older_confidence(back),
                             f"his last measured season is {older['season']} on {older['platform']} "
                             f"({older['pv']} votes, {older['fm']:.2f}), {back} seasons back - pulled "
                             f"{int((1 - est.OLDER_BETA) * 100)}% toward {level}")
-    return est.Estimate(anchor,
-                        presences(None) or est.default_presences(calendar, platform, "unmeasured"),
-                        "anchor", est.CONFIDENCE["anchor"], f"nothing measured anywhere: {level}")
+    # The last rung, and it has TWO cases that the first version told apart with one constant. A man
+    # nobody has ever measured gets the unmeasured share; a man measured ELSEWHERE - the new signing from
+    # abroad - gets his own minutes converted by a line fitted on exactly that population
+    # (`est.presences_from_abroad`, +17.9% out-of-sample on default). His fantamedia stays the anchor,
+    # which is what the gate preferred to R1 on five windows of six: what he did abroad does not predict
+    # his fantamedia here, and it does predict how much he PLAYS.
+    note = f"nothing measured anywhere: {level}"
+    if from_abroad is not None:
+        note = (f"no season here, so his {abroad['league']} minutes stand in for the calendar "
+                f"({abroad_share:.0%} of it) - {level} for the fantamedia, which is what the gate "
+                f"preferred")
+    return est.Estimate(anchor, presences(None) or from_abroad
+                        or est.default_presences(calendar, platform, "unmeasured"),
+                        "anchor", est.CONFIDENCE["anchor"], note)
 
 
 def _club_key(name: str | None) -> str:

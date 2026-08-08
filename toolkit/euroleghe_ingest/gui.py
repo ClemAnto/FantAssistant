@@ -549,6 +549,34 @@ def _fmt_num(v) -> str:
     return str(v)
 
 
+def draw_role_pills(canvas: tk.Canvas, value, x: int, y: int, cell_w: int,
+                    filled: set[str] | None = None) -> None:
+    """Roles as the coloured chips the panel names a role with - ONE drawing, three tables.
+
+    `filled` = the codes drawn as a solid chip; the others are outlined in the same colour. None means
+    they are all solid, which is what a cell where no code is special looks like. The auction list uses
+    it to say which of a Mantra player's codes his SURPLUS is measured against, and the difference has
+    to be visible without a legend: a filled chip is the shirt he is priced in.
+
+    A chip that does not fit is not drawn HALF - it is not drawn at all, because half a role code is a
+    different role code. What that costs is a column measured on the widest list it really holds.
+    """
+    left = x + 5
+    for role in (value if isinstance(value, (list, tuple)) else _split_roles(value)):
+        background, foreground = role_pill_color(role)
+        label = role.upper() if len(role) == 1 else role.capitalize()
+        width = 10 + len(label) * 7
+        if left + width > x + cell_w:
+            break
+        solid = filled is None or role in filled
+        _round_rect(canvas, left, y + 4, left + width, y + ROW_H - 4, 9,
+                    fill=background if solid else theme.color("surface"), outline=background)
+        canvas.create_text(left + width // 2, y + ROW_H // 2, text=label,
+                           fill=foreground if solid else background,
+                           font=("Segoe UI", 8, "bold"))
+        left += width + 3
+
+
 _PLAYER_QUERY = """
     SELECT p.fc_id AS fc_id, p.canonical_name AS name,
            r.role_classic AS role_classic, r.roles AS roles,
@@ -890,18 +918,8 @@ class PlayersView(ttk.Frame):
         self.info_var.set(f"{len(self._rows)} players")
 
     def _draw_role_pills(self, canvas: tk.Canvas, value, x: int, y: int, cell_w: int) -> None:
-        roles = _split_roles(value)
-        px = x + 5
-        for role in roles:
-            bg, fg = role_pill_color(role)
-            label = role.upper() if len(role) == 1 else role.capitalize()
-            pw = 10 + len(label) * 7
-            if px + pw > x + cell_w:
-                break
-            _round_rect(canvas, px, y + 4, px + pw, y + ROW_H - 4, 9, fill=bg, outline=bg)
-            canvas.create_text(px + pw // 2, y + ROW_H // 2, text=label, fill=fg,
-                               font=("Segoe UI", 8, "bold"))
-            px += pw + 3
+        # one drawing for every table that names a role (see `draw_role_pills`)
+        draw_role_pills(canvas, value, x, y, cell_w)
 
     def _redraw(self) -> None:
         """Redraw the current mode from already-loaded data (used after a header-click sort)."""
@@ -1096,11 +1114,16 @@ SURPLUS_PRESSURE = "surplus_pressure"
 
 
 class AuctionView(ttk.Frame):
-    """Per role, side by side: who the engine would have bought and who actually paid off.
+    """ONE list of every player, sortable by any column and filterable by role and by club.
 
-    The two lists answer different questions and the panel shows both, because a single precision
-    number ("6/10") hides whether the misses were players the engine could not price at all, players it
-    priced in the third hundred, or noise between comparable names.
+    It used to be a top ten per role, twice - predicted and actual, side by side - and that shape
+    answered a question about the ENGINE ("of the ten it names, how many were right?") rather than the
+    question asked at a table ("what about this man in front of me?"). The operator asked for the table's
+    shape, 08/08/2026: one list, every column sortable, a filter for the role and one for the club. What
+    the two top tens carried is kept rather than dropped - each row shows the predicted side AND the
+    outcome, the aggregate score is in the status line, and the men the engine never priced are in the
+    list with empty cells, because that is the only way a single list can still be scored against the
+    season that happened.
 
     ...and, first in the Season selector, the ONE list an auction is actually held on: the season being
     played next, which has no other side at all. Every other entry here is a rehearsal on a season whose
@@ -1141,84 +1164,140 @@ class AuctionView(ttk.Frame):
         "estimated only (~)": "estimated",
     }
 
-    # Shared by both tables. What differs between them - FM/Pv/VALUE are predicted on the left and
-    # actual on the right - is in PREDICTED_HELP / ACTUAL_HELP below.
-    COMMON_HELP: ClassVar[dict[str, str]] = {
-        "#": "Position in this list.",
+    # (row key, decimals, kind) for every column the table can draw. ONE place, because the header, the
+    # cell and the SORT all have to name the same field: a heading that sorts by a different key than the
+    # one under it is the "displayed list whose metrics describe a different list" defect with a mouse
+    # click attached. The KIND is what the cell is DRAWN as, and it is why this table is a canvas and not
+    # a Treeview - in Tk 8.6 a Treeview colours a ROW and nothing smaller, so a role chip could not be
+    # drawn at all (the squad table learned this first).
+    #   text  left-aligned characters · num  a right-aligned number, `decimals` of them
+    #   pill  the role, as the coloured chip the Snapshot board and the pitch badges already use
+    FIELDS: ClassVar[dict[str, tuple[str, int | None, str]]] = {
+        "role #": ("rank", None, "num"),
+        "Player": ("name", None, "text"),
+        "Team": ("club", None, "text"),
+        "R": ("role_classic", None, "pill"),
+        "M": ("roles_mantra", None, "pill"),
+        "FM": ("fm_pred", 2, "num"),
+        "Pv": ("pv_pred", 1, "num"),
+        "VALUE": ("value_pred", 0, "num"),
+        "SURPLUS": ("surplus_pred", 0, "num"),
+        "SpM": ("spm", 0, "num"),
+        "FVM": ("fvm", 0, "num"),
+        "dVM": ("dvm", 0, "num"),
+        "real FM": ("fm_act", 2, "num"),
+        "real Pv": ("pv_act", 0, "num"),
+        "real VALUE": ("value_act", 0, "num"),
+        "real SURPLUS": ("surplus_act", 0, "num"),
+        "real #": ("actual_rank", None, "num"),
+        "Pair": ("pair", None, "text"),
+    }
+
+    HELP: ClassVar[dict[str, str]] = {
+        "role #": "His rank among the players of his own ROLE, in the currency being ranked by - not the "
+             "position in the list on screen, so it survives sorting and filtering. A dash means the "
+             "ranking could not hold him: below the minimum share of the season (see the line above "
+             "the table) he was never someone you could have fielded, or the engine never priced him.",
         "Player": "Name as it appears in the listone (fc_id is the primary key behind it).",
         "Team": "Club at the auction, abbreviated: MUN = Manchester United, S04 = Schalke 04. "
                 "Empty when the club is unknown for that season.",
-        "FVM":"Fantavalore di mercato from the listone, in its current state - so for a finished "
-               "season it is the END-OF-SEASON market value. The market's own answer to the question "
-               "the engine answers with VALUE. Reporting only: no rule may read it. Mantra: FVM M.",
-    }
-    PREDICTED_HELP: ClassVar[dict[str, str]] = {
+        "R": "The listone's Classic role, drawn in the same palette as the Snapshot board and the pitch "
+             "badges, so that a role is one language across the panel.",
+        "M": "His Mantra codes, in the listone's own order. The FILLED chip is the slot this row's "
+             "SURPLUS and `role #` are measured against - on Mantra the one of his codes he is worth "
+             "most in, which is the slot an auction fields him in; the outlined ones are the other "
+             "shirts he can take. One row per player: a 'dc;b' defender is ranked in both lists by the "
+             "engine and shown once here, against the level of the better of the two. On a Classic "
+             "sheet nothing here prices him - his Classic role does - so they are all drawn filled.",
+        "FVM": "Fantavalore di mercato: a PRICE, not an opinion in arbitrary units - the listone's scale "
+               "is calibrated on a reference auction (Serie A: 10 teams with 1000 credits each, max FVM "
+               "500; measured on the complete 2025-26 listone, its top 250 sum to 1032 credits a team). "
+               "It is a VOLATILE state - it moves at every salient event, not once a season - so what is "
+               "shown is the last value read for that listone: for the live season what the market is "
+               "asking now, for a finished one a value that already knows the outcome. Which is why it "
+               "is reporting only: no rule may read it. Mantra: FVM M.",
         "FM": "Predicted fantamedia: role anchor + beta x (last season's fantamedia - anchor). "
               "Goalkeepers go through the decomposed M2e model instead, which never uses the anchor.",
         "Pv": "Predicted appearances over the season's matchdays. This side of the product carries "
               "3 to 11 times more of the VALUE error than the fantamedia does.",
         "VALUE": "Predicted VALUE = predicted fantamedia x predicted appearances - the sum of the "
-                 "fantavoti he is expected to hand you. The list is sorted by this.",
-        "real VALUE": "What he actually returned: real fantamedia x real appearances. Blank when he "
-                      "never played.",
+                 "fantavoti he is expected to hand you.",
         "SURPLUS": "Predicted SURPLUS = (predicted fantamedia - the role's replacement level) x "
                    "predicted appearances, then weighted by how much of the season he is expected to "
                    "play: what he is worth OVER the player you would have fielded instead, discounted "
                    "for not being able to count on him. Negative means worse than the bench. The list "
-                   "is sorted by this; the replacement level is in each role's header and the "
-                   "reliability weight is in the line above the tables.",
-        "real SURPLUS": "The same over-the-bench measure on what he actually did. The weight bites "
-                        "here too: 18 appearances of 38 keep 69% of the surplus. Below the minimum "
-                        "share of the season (see the line above the tables) a player is not ranked "
-                        "at all - he was never someone you could have fielded. Blank when he never "
-                        "played.",
-        "real #": "Where he actually finished among this role's players, in the currency being ranked "
+                   "opens sorted by this; the replacement level of each role and the reliability "
+                   "weight are in the lines above the table. A '~' marks a man the engine could not "
+                   "price at all, whose number is a penalised reconstruction (`engine.estimate`).",
+        "SpM": "SURPLUS DI MERCATO: the same surplus, in the listone's own credits, so it can be put "
+               "beside FVM. The rate is not chosen - it is a budget. Inside each listone role, the "
+               "money the market spends on the men it rosters (its top teams x slots by FVM) divided by "
+               "the surplus of the men THIS engine would roster: so the whole list costs exactly one "
+               "auction's money, and a number here is what he is worth in credits. Reporting only, "
+               "exactly like the FVM it is calibrated on: no rule reads it and the gate never sees it. "
+               "Empty where the surplus is (see 'role #').",
+        "dVM": "SpM - FVM: the credits he is worth, minus the credits he costs. Positive = the market "
+               "asks less than his surplus is worth AMONG HIS OWN ROLE, negative = more. A "
+               "reallocation and not a discount: the same budget over the same number of slots, split "
+               "by the engine instead of by the market - so it says who is cheap relative to whom, and "
+               "cannot say that the whole listone is cheap. Empty when the listone does not quote him - "
+               "a missing price is unknown, not zero, and a difference against it would be the biggest "
+               "bargain on screen. On the LIVE season it is the question an auction asks. On a finished "
+               "one the FVM has since moved with the season itself, so a big positive is not a bargain "
+               "anybody could have taken: it is the engine and a price that already knows the outcome.",
+        "real FM": "Fantamedia actually achieved over the season. Blank when he never played.",
+        "real Pv": "Appearances actually made.",
+        "real VALUE": "What he actually returned: real fantamedia x real appearances.",
+        "real SURPLUS": "The same over-the-bench measure on what he actually did, against the "
+                        "replacement level of the season it happened in. The reliability weight bites "
+                        "here too: 18 appearances of 38 keep 69% of the surplus.",
+        "real #": "Where he actually finished among his role's players, in the currency being ranked "
                   "by. A dash means he ended the season with nothing at all.",
-        "Pair": "Another player of the SAME CLUB sits in this top list: the two claim the same "
-                "slots, so treat the pair as one auction decision, not two. The evidence, all "
-                "auction-legal: K = forwards the club actually fielded per eleven last season "
-                "(2.05 = a two-striker system that can feed both, 1.4 = one slot; n/m = not "
+        "Pair": "Another player of the SAME CLUB is in this role's predicted top ten with him: the two "
+                "claim the same slots, so treat the pair as one auction decision, not two. The "
+                "evidence, all auction-legal: K = forwards the club actually fielded per eleven last "
+                "season (2.05 = a two-striker system that can feed both, 1.4 = one slot; n/m = not "
                 "measurable); co = elevens the two started TOGETHER last season (23 = a real "
                 "partnership, 0-3 = starter and backup, - = never, e.g. one just arrived); "
                 "ΔQt.I = his quotation minus the companion's - negative means the market itself "
                 "ranks him as the second choice.",
     }
-    ACTUAL_HELP: ClassVar[dict[str, str]] = {
-        "FM": "Fantamedia actually achieved over the season.",
-        "Pv": "Appearances actually made.",
-        "VALUE": "VALUE actually achieved = fantamedia x appearances. This list is sorted by it - "
-                 "which is why an iron man on a mediocre fantamedia legitimately appears here.",
-        "SURPLUS": "(fantamedia - the role's replacement level) x appearances, actually achieved, "
-                   "weighted by the share of the season he played. This list is sorted by it, so two "
-                   "kinds of player drop out: whoever only accumulated fantavoti without ever beating "
-                   "the bench, and whoever was excellent in too few matches to be counted on.",
-        "pred. VALUE": "What the engine predicted for him on auction day. Empty when it could not "
-                       "price him at all - no previous season to regress from.",
-        "pred. SURPLUS": "The same prediction in the over-the-bench currency. Empty when the engine "
-                         "could not price him at all.",
-        "pred. #": "His rank in the predicted list. 'not priced' means the engine had no prediction "
-                   "for him, so no ranking could contain him: an unreachable slot, not a bad guess.",
+
+    # Columns follow the chosen currency rather than showing both: the table had one column too many
+    # already. SpM and dVM exist only under SURPLUS, because that is what they are made of - showing
+    # them on the VALUE list would be one name for two different quantities, which is how a column stops
+    # saying what it is measured against. A test asserts every column here has an entry in HELP.
+    COLUMNS: ClassVar[dict[str, tuple[str, ...]]] = {
+        "value": ("role #", "Player", "Team", "R", "M", "FM", "Pv", "VALUE", "FVM",
+                  "real FM", "real Pv", "real VALUE", "real #", "Pair"),
+        SURPLUS: ("role #", "Player", "Team", "R", "M", "FM", "Pv", "SURPLUS", "SpM", "FVM", "dVM",
+                  "real FM", "real Pv", "real SURPLUS", "real #", "Pair"),
     }
 
-    # Columns follow the chosen currency rather than showing both: the panel had one column too many
-    # already. Kept beside the help dictionaries on purpose - a test asserts that every column of every
-    # metric has an explanation, so a new column cannot ship without one.
-    COLUMNS: ClassVar[dict[str, tuple[tuple[str, ...], tuple[str, ...]]]] = {
-        "value": (
-            ("#", "Player", "Team", "FM", "Pv", "VALUE", "real VALUE", "FVM", "real #", "Pair"),
-            ("#", "Player", "Team", "FM", "Pv", "VALUE", "FVM", "pred. VALUE", "pred. #")),
-        SURPLUS: (
-            ("#", "Player", "Team", "FM", "Pv", "SURPLUS", "real SURPLUS", "FVM", "real #", "Pair"),
-            ("#", "Player", "Team", "FM", "Pv", "SURPLUS", "FVM", "pred. SURPLUS", "pred. #")),
-    }
-
-    # The LIVE list is one table, so the columns that report the other side are ABSENT and not empty:
+    # The LIVE list has no other side, so the columns that report the outcome are ABSENT and not empty:
     # an empty "real SURPLUS" reads as a zero, which is the same defect a blank surplus needed a stated
-    # reason for. A subset of the predicted columns, so every one of them is already explained.
+    # reason for. A subset of the columns above, so every one of them is already explained.
     LIVE_COLUMNS: ClassVar[dict[str, tuple[str, ...]]] = {
-        "value": ("#", "Player", "Team", "FM", "Pv", "VALUE", "FVM", "Pair"),
-        SURPLUS: ("#", "Player", "Team", "FM", "Pv", "SURPLUS", "FVM", "Pair"),
+        "value": ("role #", "Player", "Team", "R", "M", "FM", "Pv", "VALUE", "FVM", "Pair"),
+        SURPLUS: ("role #", "Player", "Team", "R", "M", "FM", "Pv", "SURPLUS", "SpM", "FVM", "dVM",
+                  "Pair"),
     }
+
+    # Measured on the widest value each column really holds, not rounded up by eye. `Pair` takes the
+    # spare width because it is the only cell that carries a sentence, and clipping it loses the ΔQt.I;
+    # `M` on the widest real code list ('dc/dd/ds' and 'w/t/a' both exist), because a chip that does not
+    # fit is not drawn half - it is not drawn at all, and then a role is ABSENT rather than narrow.
+    WIDTHS: ClassVar[dict[str, int]] = {
+        "role #": 52, "real #": 52, "Player": 150, "Team": 52, "R": 34, "M": 116, "Pair": 170,
+        "SURPLUS": 82, "real SURPLUS": 92, "VALUE": 70, "real VALUE": 82, "real Pv": 62,
+    }
+    WIDTH_DEFAULT: ClassVar[int] = 60
+    LEFT_ALIGNED: ClassVar[frozenset[str]] = frozenset({"Player", "Team", "R", "M", "Pair"})
+
+    # What the club filter reads when it is not filtering. Not "" - a blank entry in a combobox reads as
+    # "nothing selected yet" next to a table that is showing everything. The ROLE filter is a multiple
+    # choice and says the same thing by having nothing ticked.
+    ALL: ClassVar[str] = "all"
 
     # How the season being auctioned is named in the Season selector. Never a bare season string: next
     # to the concluded ones it would read as one of them, and the whole difference is that this one has
@@ -1238,6 +1317,18 @@ class AuctionView(ttk.Frame):
         # the ORDER of both lists, so a cached view computed under the other one is a different answer.
         self._cache: dict[tuple[str, str, str], dict] = {}
         self._running = False
+        # What the table is showing, and how. The sort survives a change of season on purpose: an
+        # operator who has just sorted by dVM is looking for a bargain, not for the default order.
+        self._view: dict = {}
+        self._rows: list[dict] = []
+        self._table_rows: list[dict] = []
+        self._columns: tuple[str, ...] = ()
+        self._head: tk.Canvas | None = None
+        self._body: tk.Canvas | None = None
+        self._drawn_width = 0
+        self._resize_after: str | None = None
+        self._sort_column: str | None = None
+        self._sort_desc = True
         self._build()
 
     # ---------- layout ----------
@@ -1260,6 +1351,27 @@ class AuctionView(ttk.Frame):
         # (`auction_view` is arithmetic over data already prepared), so the filter is instant.
         self.include_cb = self._selector(top, "Include", self.include_var, list(self.INCLUDES),
                                          self._on_include_change, width=20)
+        # The two FILTERS hide rows; they never recompute and they never touch a figure. In particular
+        # the SpM rate is fitted on the whole list and not on what is left on screen - a rate read off
+        # one club's 25 players would be a percentile computed inside the wrong pool, which is a defect
+        # this project has already paid for once (`listone_quotes`).
+        # ROLE is a MULTIPLE choice, and on Mantra it has to be: a Mantra auction is run one slot at a
+        # time and the question at the table is «chi mi fa il braccetto o l'esterno», which a single
+        # choice cannot ask. A menu of checkbuttons rather than a list box - it reads like a select, it
+        # holds twelve entries without taking twelve rows of the bar, and nothing is ticked = everything.
+        ttk.Label(top, text="Role").pack(side="left", padx=(0, 4))
+        self.role_button = ttk.Menubutton(top, text=self.ALL, width=16)
+        self.role_menu = tk.Menu(self.role_button, tearoff=0)
+        self.role_button.configure(menu=self.role_menu)
+        self.role_button.pack(side="left", padx=(0, 12))
+        self.role_vars: dict[str, tk.BooleanVar] = {}
+        self.team_var = tk.StringVar(value=self.ALL)
+        self.team_cb = self._selector(top, "Team", self.team_var, [self.ALL],
+                                      self._on_filter_change, width=20)
+        # How many rows the filters left, of how many the list holds. Beside them, because it is the
+        # only thing that says a filter is ON once the table is scrolled away from the top.
+        self.count_var = tk.StringVar(value="")
+        ttk.Label(top, textvariable=self.count_var, style="Muted.TLabel").pack(side="left", padx=(0, 8))
         # Indeterminate, because the work has no progress to report: the engine either has the window
         # fitted or it does not. It is packed and unpacked rather than left in place, so a still bar
         # never sits there looking like a stalled one.
@@ -1267,7 +1379,10 @@ class AuctionView(ttk.Frame):
         # Every selector in one place: `_busy` disables the collection, so a selector added later is
         # locked during a run without anyone having to remember it.
         self._selectors = (self.platform_cb, self.game_cb, self.season_cb, self.metric_cb,
-                           self.include_cb)
+                           self.include_cb, self.team_cb)
+        # The role menu is not a combobox and has no 'readonly': it is locked with the others and kept
+        # out of the tuple a test reads, rather than given a state the widget does not have.
+        self._buttons = (self.role_button,)
         self.status_var = tk.StringVar(value="")
         ttk.Label(top, textvariable=self.status_var, style="Muted.TLabel").pack(side="left", padx=8)
 
@@ -1279,25 +1394,11 @@ class AuctionView(ttk.Frame):
                   justify="left").pack(fill="x", pady=(4, 0))
         self._describe_league()
 
-        body = ttk.Frame(self)
-        body.pack(fill="both", expand=True, pady=(6, 0))
-        self.canvas = tk.Canvas(body, highlightthickness=0)
-        scroll = ttk.Scrollbar(body, orient="vertical", command=self.canvas.yview)
-        self.canvas.configure(yscrollcommand=scroll.set)
-        self.canvas.pack(side="left", fill="both", expand=True)
-        scroll.pack(side="right", fill="y")
-        self.inner = ttk.Frame(self.canvas)
-        self._window_id = self.canvas.create_window((0, 0), window=self.inner, anchor="nw")
-        self.inner.bind("<Configure>",
-                        lambda _e: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
-        self.canvas.bind("<Configure>",
-                         lambda e: self.canvas.itemconfigure(self._window_id, width=e.width))
-        self.canvas.bind_all("<MouseWheel>", self._on_wheel)
-
-    def _on_wheel(self, event) -> None:
-        # bind_all is global, so only scroll when this tab is the visible one
-        if self.winfo_ismapped():
-            self.canvas.yview_scroll(int(-event.delta / 120), "units")
+        # One table that scrolls ITSELF, and no enclosing canvas. A thousand rows in a frame inside a
+        # scrolling canvas is a thousand-row-tall widget, and the canvas' `bind_all("<MouseWheel>")`
+        # would swallow the wheel events the tree needs to scroll with.
+        self.inner = ttk.Frame(self)
+        self.inner.pack(fill="both", expand=True, pady=(6, 0))
 
     def _selector(self, parent, label, var, values, callback, width: int = 14) -> ttk.Combobox:
         ttk.Label(parent, text=label).pack(side="left", padx=(0, 4))
@@ -1315,7 +1416,7 @@ class AuctionView(ttk.Frame):
         setup = self._league()
         gamma, floor = setup["reliability_exponent"], setup["min_availability"]
         self.league_hint.set(
-            "predicted from the previous season only · FVM = the listone's end-of-season market value"
+            "predicted from the previous season only · FVM = the listone's market value, last read"
             " · league: "
             + (f"{setup['name']}, " if setup["name"] else "not one you declared, ")
             + f"{setup['teams']} teams, squad "
@@ -1392,12 +1493,16 @@ class AuctionView(ttk.Frame):
                 # the pooled rules averaged over every window except this one
                 source = features.cross_fit_source(key, tuple(usable))
                 params = evaluate.pool_params(fits, key, fits[source])
+                by_role = evaluate.auction_view(
+                    data, evaluate.predict_window(data, adopted, None, params),
+                    metric=metric, full=True)
+                rows = self._one_row_per_player(by_role, data, metric)
+                rates = self._market(rows, metric, setup)
                 out[data.window.target_season] = {
                     "window": key, "params_from": params.source, "metric": metric,
                     "rules": ", ".join(adopted[1:]) or "baseline only",
-                    "by_role": evaluate.auction_view(
-                        data, evaluate.predict_window(data, adopted, None, params),
-                        metric=metric),
+                    "by_role": by_role, "rows": rows, "rates": rates,
+                    "roster": len(data.observations), "teams": setup.get("teams"),
                 }
             live = self._live_view(conn, platform, game, metric, setup, fits)
             if live is not None:
@@ -1438,7 +1543,7 @@ class AuctionView(ttk.Frame):
             "window": f"{window.key} {window.input_season}->{window.target_season}",
             "params_from": params_from, "metric": metric, "live": True,
             "rules": ", ".join(adopted[1:]) or "baseline only",
-            "rows": len(data.observations),
+            "roster": len(data.observations), "teams": setup.get("teams"),
             "priced": sum(1 for p in predictions if p.fm_pred is not None),
             "estimated": len(estimates),
             "notes": ([squad_note] if squad_note else []) + notes,
@@ -1446,12 +1551,85 @@ class AuctionView(ttk.Frame):
         # THE THREE LISTS IN ONE PASS: `auction_view` is arithmetic over data already prepared, so building
         # all of them costs a fraction of the fits above - and that is what makes the Include filter instant
         # instead of a twenty-second rebuild. Whichever is on screen, its own figures were computed from it.
-        return self.LIVE_LABEL.format(season=window.target_season), {
-            include: {**shared, "include": include,
-                      "by_role": evaluate.auction_view(data, predictions, metric=metric,
-                                                       estimates=estimates, include=include)}
-            for include in self.INCLUDES.values()
-        }
+        out, rates = {}, None
+        for include in self.INCLUDES.values():
+            by_role = evaluate.auction_view(data, predictions, metric=metric, estimates=estimates,
+                                            include=include, full=True)
+            rows = self._one_row_per_player(by_role, data, metric)
+            # The exchange rate is fitted ONCE - on the first and widest list - and the two subsets are
+            # priced with it. Refitted per filter it would move a man's SpM because of who else is on
+            # screen, and a number about a player must not depend on what you are looking at.
+            rates = self._market(rows, metric, setup, rates)
+            out[include] = {**shared, "include": include, "by_role": by_role,
+                            "rows": rows, "rates": rates}
+        return self.LIVE_LABEL.format(season=window.target_season), out
+
+    @staticmethod
+    def _rank_key(metric: str) -> str:
+        """The row field the list is ordered by - the chosen currency, and nothing else."""
+        return "surplus_pred" if metric == SURPLUS else "value_pred"
+
+    def _one_row_per_player(self, by_role: dict, data, metric: str) -> list[dict]:
+        """The single list: every player once, in the slot an auction would field him in.
+
+        The engine ranks a Mantra player in EVERY list his codes put him in, each against that list's own
+        floor, and that is right for a per-role top ten. A single table has to answer with one row, and
+        which slot it belongs to is a question that already has an owner: `snapshot.auction_level`, the
+        same definition the sheet, the rank and `est_surplus` read. Asking it again in a second way here
+        is exactly the "two pricers that could disagree" defect, so it is not asked again - the resolver
+        names the slot and the row of that role is the one kept.
+        """
+        from euroleghe_ingest.modules import snapshot
+
+        key = self._rank_key(metric)
+        slots = {obs.fc_id: snapshot.auction_level(obs, data)[0] for obs in data.observations}
+        best: dict[int, dict] = {}
+        for block in by_role.values():
+            for row in block.get("rows") or ():
+                best[row["fc_id"]] = self._better_row(best.get(row["fc_id"]), row,
+                                                      slots.get(row["fc_id"]), key)
+        # Ranking order, and a man without a number goes to the bottom rather than to the top: an
+        # unpriced row is not a zero, and floating it into the first screen is how absence gets read as
+        # a result. fc_id breaks the ties, so the same list comes out twice.
+        return sorted(best.values(),
+                      key=lambda row: (row.get(key) is None, -(row.get(key) or 0.0), row["fc_id"]))
+
+    @staticmethod
+    def _better_row(current: dict | None, candidate: dict, slot: str | None, key: str) -> dict:
+        """Of two rows for the same man, the one whose role is the slot he would be FIELDED in."""
+        if current is None or candidate.get("role") == slot:
+            return candidate
+        if current.get("role") == slot:
+            return current
+        # Neither is that slot (a code the league does not price, or no code at all): keep the list he
+        # is worth most in, which is the same tie-break `auction_level` takes one level down.
+        return max((current, candidate),
+                   key=lambda row: (row.get(key) is not None, row.get(key) or 0.0))
+
+    def _market(self, rows: list[dict], metric: str, setup: dict,
+                rates: dict[str, dict] | None = None) -> dict[str, dict]:
+        """Fit the SURPLUS -> market-money rate (or reuse one), write SpM and dVM, return the rates.
+
+        Only under SURPLUS: SpM is made OF the surplus, and a VALUE list has none - `surplus_pred` is
+        None on every row there, so a column would be empty for everybody. Empty rates and empty cells,
+        stated rather than improvised into a second meaning for the same header.
+
+        The league decides HOW DEEP the conversion looks, and nothing else: the FVM is a price in the
+        listone's own reference auction, and what a league of this size does is fix how many of those
+        men get bought - `teams x squad_slots`, the same numbers that fix the replacement level.
+        """
+        from euroleghe_ingest.engine import evaluate
+
+        if metric != SURPLUS:
+            return {}
+        key = self._rank_key(metric)
+        if rates is None:
+            teams = setup.get("teams") or 0
+            roster = {role: teams * slots
+                      for role, slots in (setup.get("squad_slots") or {}).items()} if teams else None
+            rates = evaluate.market_rates(rows, key=key, roster=roster)
+        evaluate.market_surplus(rows, rates, key=key)
+        return rates
 
     @staticmethod
     def _estimates(conn, data, predictions, window, platform: str) -> dict[int, dict]:
@@ -1496,6 +1674,8 @@ class AuctionView(ttk.Frame):
         leave the panel spinning with its controls locked."""
         for selector in self._selectors:
             selector.configure(state=self.SELECTOR_STATE[running])
+        for button in getattr(self, "_buttons", ()):
+            button.configure(state="disabled" if running else "normal")
         if running:
             self.spinner.pack(side="left", padx=(4, 0))
             self.spinner.start(12)
@@ -1557,9 +1737,18 @@ class AuctionView(ttk.Frame):
     def _clear(self) -> None:
         for child in self.inner.winfo_children():
             child.destroy()
+        # ...and the canvases went with them: a `_fill` between two renders must not draw on a dead
+        # widget, which is the shape of every "invalid command name" this panel has ever raised.
+        self._head = self._body = None
+
+    def _on_filter_change(self, _event=None) -> None:
+        """Role and Team only HIDE rows: no recomputation, and no figure is fitted on what is left."""
+        self._fill()
 
     def _render(self, view: dict) -> None:
         self._clear()
+        self._view = view
+        self._rows = list(view.get("rows") or ())
         metric = view.get("metric", "value")
         currency = "SURPLUS" if metric == SURPLUS else "VALUE"
         live = bool(view.get("live"))
@@ -1569,7 +1758,7 @@ class AuctionView(ttk.Frame):
             # can price at all - the rest is the empty-cell-is-a-statement rule, on a whole list.
             self.status_var.set(
                 f"LIVE · {view['window']} · rules {view['rules']} · parameters from "
-                f"{view['params_from']} · {view['priced']} of {view['rows']} players priced, "
+                f"{view['params_from']} · {view['priced']} of {view['roster']} players priced, "
                 # No PERCENTAGE in this line, and a test pins that: a figure with a % on a season nobody
                 # has played reads as a hit rate. The measured cost of ranking the estimates together is in
                 # the gate (§7-undecies) and in the column help, where it can carry its numbers.
@@ -1592,8 +1781,352 @@ class AuctionView(ttk.Frame):
         for note in view.get("notes") or ():
             ttk.Label(self.inner, text=f"⚠  {note}", style="Muted.TLabel",
                       wraplength=1100, justify="left").pack(fill="x", pady=(0, 4))
-        for role, block in view["by_role"].items():
-            self._render_role(role, block, metric, live=live)
+        # The replacement level is the whole premise of the surplus, so it is stated where the list is
+        # and not in a tooltip: without it a "-33" on a row means nothing. Per role, because there is one
+        # per role - a single number here would be an average of four different zeros.
+        for line in self._role_lines(view, metric, live):
+            ttk.Label(self.inner, text=line, style="Muted.TLabel",
+                      wraplength=1100, justify="left").pack(fill="x", pady=(0, 2))
+        self._build_table(metric, live)
+        self._fill()
+
+    def _role_lines(self, view: dict, metric: str, live: bool) -> list[str]:
+        """The per-role facts a single list would otherwise lose: the level, and the score."""
+        blocks = view.get("by_role") or {}
+        lines = []
+        if metric == SURPLUS:
+            levels = [f"{self.ROLE_LABELS.get(role, role)} {block['replacement']:.2f}"
+                      for role, block in blocks.items() if block.get("replacement") is not None]
+            if levels:
+                lines.append("replacement FM the surplus is measured against · "
+                             + " · ".join(levels))
+        if not live and blocks:
+            lines.append("in each role's predicted top ten · "
+                         + " · ".join(f"{self.ROLE_LABELS.get(role, role)} {block['hits']}/10"
+                                      for role, block in blocks.items()))
+        rates = view.get("rates") or {}
+        if rates:
+            # The rate is a PRICE, so the line says whose money it is and how much of it is in play:
+            # the FVM is calibrated on a reference auction (Serie A: 10 teams x 1000 credits, measured),
+            # and what this league changes is only how deep it buys.
+            credits = sum(entry.get("fvm") or 0 for entry in rates.values())
+            rostered = sum(entry.get("rostered") or 0 for entry in rates.values())
+            teams = view.get("teams") or 0
+            per_team = f" = {credits / teams:,.0f} a team" if teams else ""
+            lines.append(
+                f"SpM = surplus in the listone's own credits, conserving what the market spends on the "
+                f"{rostered} men this league rosters ({credits:,.0f}{per_team}) · "
+                + " · ".join(f"{role} {entry['rate']:.2f}" for role, entry in sorted(rates.items())))
+        return lines
+
+    # ---------- the one table ----------
+    def _build_table(self, metric: str, live: bool) -> None:
+        """Header and body, two canvases scrolled together. Rebuilt per view: the COLUMNS follow the
+        currency and the season.
+
+        A canvas and not a Treeview, for the reason the squad table already wrote down: in Tk 8.6 a
+        Treeview colours a ROW and nothing smaller, so a role drawn as the coloured chip the board uses
+        could not be drawn at all. The trade is that everything the Treeview gave for free is written out
+        here - the sort marks, the tooltips, the alternating rows, the click.
+        """
+        columns = (self.LIVE_COLUMNS if live else self.COLUMNS)[metric]
+        self._columns = columns
+        frame = ttk.Frame(self.inner)
+        frame.pack(fill="both", expand=True)
+        # GRID and not pack, for the reason the squad table already paid for: a widget packed after an
+        # expanding one gets the cavity that is left, which is none - that is how a status bar once
+        # collapsed to 1x1 px. Grid also lets the horizontal bar be removed and put back in its place.
+        frame.rowconfigure(1, weight=1)
+        frame.columnconfigure(0, weight=1)
+        self._head = tk.Canvas(frame, height=HEADER_H, highlightthickness=0,
+                               background=theme.color("surface_alt"))
+        self._body = tk.Canvas(frame, highlightthickness=0, background=theme.color("surface"))
+        scroll = ttk.Scrollbar(frame, orient="vertical", command=self._body.yview)
+        # Tk CLIPS what does not fit and offers no way to reach it - «276px of the squad table's columns
+        # were not narrow, they were ABSENT» - so the sideways bar exists, and it is shown only while it
+        # is needed, asked of the canvas itself (`xview` is (0, 1) exactly when everything is visible)
+        # rather than computed from the widths.
+        self._sideways = ttk.Scrollbar(frame, orient="horizontal", command=self._scroll_sideways)
+        self._body.configure(yscrollcommand=scroll.set, xscrollcommand=self._on_xscroll)
+        self._head.grid(row=0, column=0, sticky="ew")
+        self._body.grid(row=1, column=0, sticky="nsew")
+        scroll.grid(row=1, column=1, sticky="ns")
+        self._sideways.grid(row=2, column=0, sticky="ew")
+        self._sideways.grid_remove()               # put back by `_on_xscroll` the moment it is needed
+        self._sideways_shown = False
+        self._body.bind("<Configure>", lambda _e: self._on_body_configure(), add="+")
+        self._body.bind("<MouseWheel>",
+                        lambda event: self._body.yview_scroll(int(-event.delta / 120), "units"))
+        self._head.bind("<Button-1>", self._on_head_click)
+        # The column help follows the pointer along the header, as it did when the headings were a
+        # Treeview's: a canvas has no headings to bind to, so the column is resolved from x.
+        self._head.bind("<Motion>", self._on_head_motion, add="+")
+        self._head.bind("<Leave>", lambda _e: self._head_tip.hide(), add="+")
+        self._head_tip = Tooltip(self._head, lambda: self.HELP.get(self._hover_column or "", ""),
+                                 delay=350, wraplength=520, anchor="pointer", bind_events=False)
+        self._hover_column = None
+
+    def _scroll_sideways(self, *args) -> None:
+        """The sideways bar drives BOTH canvases: a header out of step is worse than no header."""
+        self._body.xview(*args)
+        self._head.xview(*args)
+
+    def _on_xscroll(self, first: str, last: str) -> None:
+        self._sideways.set(first, last)
+        self._head.xview_moveto(first)
+
+    def _on_body_configure(self) -> None:
+        """A resize changes what `Pair` is worth, so the table is redrawn - once, and only on a real
+        change of width. Debounced, because dragging a window edge fires this by the dozen and a redraw
+        is 20,000 canvas items; guarded on the width, or the redraw's own <Configure> would loop."""
+        self._sync_sideways()
+        width = self._body.winfo_width()
+        if width == self._drawn_width:
+            return
+        self._drawn_width = width
+        if self._resize_after is not None:
+            self.after_cancel(self._resize_after)
+        self._resize_after = self.after(120, self._fill)
+
+    def _sync_sideways(self) -> None:
+        needed = self._body.xview() != (0.0, 1.0)
+        if needed == self._sideways_shown:
+            return                          # only act on a change: gridding fires <Configure> again
+        self._sideways_shown = needed
+        if needed:
+            self._sideways.grid()
+        else:
+            self._sideways.grid_remove()
+
+    def _layout(self) -> list[tuple[str, int, int]]:
+        """[(column, its left edge, its width)] - one measurement, used by the header, the cells and the
+        click. Two of them would be a header that names a column the cells do not hold.
+
+        The spare width goes to `Pair` and to nothing else, measured three ways when this was a Treeview:
+        sharing it leaves `Player` 300 empty pixels beside nine-letter names, giving it to nobody clips
+        the pair text at 170 px and loses the ΔQt.I, `Pair` alone fits it.
+        """
+        widths = [self.WIDTHS.get(column, self.WIDTH_DEFAULT) for column in self._columns]
+        spare = self._drawn_width - sum(widths)
+        if spare > 0 and "Pair" in self._columns:
+            widths[self._columns.index("Pair")] += spare
+        out, left = [], 0
+        for column, width in zip(self._columns, widths, strict=True):
+            out.append((column, left, width))
+            left += width
+        return out
+
+    def _column_at(self, x: float) -> str | None:
+        for column, left, width in self._layout():
+            if left <= x < left + width:
+                return column
+        return None
+
+    def _on_head_click(self, event) -> None:
+        column = self._column_at(self._head.canvasx(event.x))
+        if column:
+            self._sort_by(column)
+
+    def _on_head_motion(self, event) -> None:
+        column = self._column_at(self._head.canvasx(event.x))
+        if column == self._hover_column:
+            return
+        self._hover_column = column
+        self._head_tip.hide()
+        if column and self.HELP.get(column):
+            self._head_tip.schedule()
+
+    def _sort_by(self, column: str) -> None:
+        """Click a heading to sort by it, click it again to reverse, and once more to go back.
+
+        Back to WHAT is the point: the third click restores the ranking order the engine produced, which
+        is the list's own answer and the only order in which `role #` reads top to bottom. Same rule as
+        the squad table's headings, and the same treatment of a missing cell - it sinks to the bottom in
+        both directions, because a blank is not a small number.
+        """
+        if self._sort_column != column:
+            self._sort_column, self._sort_desc = column, True
+        elif self._sort_desc:
+            self._sort_desc = False
+        else:
+            self._sort_column, self._sort_desc = None, True
+        self._fill()
+
+    def _sort_value(self, row: dict, column: str):
+        """What a column SORTS by: the value behind the cell, never the string in it."""
+        field, _digits, _kind = self.FIELDS[column]
+        value = row.get(field)
+        if column == "Team":
+            return club_abbreviation(value)
+        if column == "Pair":
+            return self._pair_text(value)
+        if column == "R":
+            # by the order the game is played in, not alphabetically: A, C, D, P is not a role order
+            return CLASSIC_ORDER.get(str(value or ""), len(CLASSIC_ORDER))
+        if column == "M":
+            codes = _split_roles(value)
+            return MANTRA_ORDER.get(codes[0], len(MANTRA_ORDER)) if codes else None
+        return value
+
+    def _sorted(self, rows: list[dict]) -> list[dict]:
+        column = self._sort_column
+        if not column:
+            return rows                                  # already in ranking order
+        values = [self._sort_value(row, column) for row in rows]
+        numeric = any(_is_number(value) for value in values)
+
+        def key(pair):
+            row, value = pair
+            missing = value in (None, "")
+            if numeric:
+                number = _number(value, 0.0)
+                return (missing, -number if self._sort_desc else number, row["fc_id"])
+            return (missing, str(value or "").lower(), row["fc_id"])
+
+        ordered = [row for row, _value in sorted(zip(rows, values, strict=True), key=key)]
+        if not numeric and self._sort_desc:
+            present = [row for row in ordered if self._sort_value(row, column) not in (None, "")]
+            absent = [row for row in ordered if self._sort_value(row, column) in (None, "")]
+            ordered = list(reversed(present)) + absent
+        return ordered
+
+    def _picked_roles(self) -> set[str]:
+        """The ticked roles. Empty = every role, which is what an empty selection means everywhere."""
+        return {role for role, var in self.role_vars.items() if var.get()}
+
+    def _filtered(self, rows: list[dict]) -> list[dict]:
+        roles, team = self._picked_roles(), self.team_var.get()
+        if roles:
+            # On Mantra the filter reads his CODES and not the slot he is priced in: the question at the
+            # table is «who can play me a braccetto», and a 'dc;b' defender priced as a 'dc' is one of
+            # the answers. On Classic there is one role and the two readings are the same one.
+            rows = [row for row in rows
+                    if roles & ({row.get("role_classic") or ""} | set(_split_roles(
+                        row.get("roles_mantra"))))]
+        if team != self.ALL:
+            rows = [row for row in rows if (row.get("club") or "") == team]
+        return rows
+
+    def _refresh_filters(self) -> None:
+        """The two filters offer what this GAME is played with, and keep a choice that still exists.
+
+        The roles come from the game and not from the rows: on Mantra all twelve codes are offered even
+        where the current list happens to hold none of one - a filter whose entries appear and disappear
+        with the season is a filter the operator cannot learn.
+        """
+        mantra = self.game_var.get() == "mantra"
+        roles = list(MANTRA_ORDER if mantra else CLASSIC_ORDER)
+        if list(self.role_vars) != roles:
+            self.role_vars = {role: tk.BooleanVar(value=False) for role in roles}
+            self.role_menu.delete(0, "end")
+            self.role_menu.add_command(label="all (clear)", command=self._clear_roles)
+            self.role_menu.add_separator()
+            for role in roles:
+                self.role_menu.add_checkbutton(
+                    label=self.ROLE_LABELS.get(role, role), variable=self.role_vars[role],
+                    onvalue=True, offvalue=False, command=self._on_filter_change)
+        picked = self._picked_roles()
+        self.role_button.configure(
+            text=self.ALL if not picked
+            else "/".join(role for role in roles if role in picked) if len(picked) <= 3
+            else f"{len(picked)} roles")
+        teams = [self.ALL, *sorted({row["club"] for row in self._rows if row.get("club")})]
+        self.team_cb.configure(values=teams)
+        if self.team_var.get() not in teams:
+            self.team_var.set(self.ALL)
+
+    def _clear_roles(self) -> None:
+        for var in self.role_vars.values():
+            var.set(False)
+        self._on_filter_change()
+
+    def _fill(self) -> None:
+        """Draw the rows the filters leave, in the order the headings ask for."""
+        if self._body is None:
+            return
+        self._resize_after = None
+        self._drawn_width = self._body.winfo_width()
+        self._refresh_filters()
+        rows = self._sorted(self._filtered(self._rows))
+        self._table_rows = rows
+        layout = self._layout()
+        total = sum(width for _c, _l, width in layout)
+        head, body = self._head, self._body
+        head.delete("all")
+        body.delete("all")
+        for column, left, width in layout:
+            mark = "" if column != self._sort_column else (" ▼" if self._sort_desc else " ▲")
+            head.create_rectangle(left, 0, left + width, HEADER_H,
+                                  fill=theme.color("surface_alt"), outline=theme.color("border"))
+            # The heading follows its CELLS: a title left-aligned over right-aligned numbers reads as
+            # the neighbouring column's.
+            if column in self.LEFT_ALIGNED:
+                head.create_text(left + 5, HEADER_H // 2, anchor="w", text=column + mark,
+                                 font=("Segoe UI", 8, "bold"))
+            else:
+                head.create_text(left + width - 5, HEADER_H // 2, anchor="e", text=column + mark,
+                                 font=("Segoe UI", 8, "bold"))
+        head.configure(scrollregion=(0, 0, total, HEADER_H))
+        # the stripes run the whole width of the canvas and not only of the columns, or the spare space
+        # to the right of the last column reads as a seam down the table
+        stripe = max(total, body.winfo_width())
+        for index, row in enumerate(rows):
+            top = index * ROW_H
+            if index % 2:
+                body.create_rectangle(0, top, stripe, top + ROW_H,
+                                      fill=theme.color("surface_alt"), outline="")
+            for column, left, width in layout:
+                self._draw_cell(row, column, left, top, width)
+        body.configure(scrollregion=(0, 0, total, max(len(rows) * ROW_H, 1)))
+        self._sync_sideways()
+        shown = len(rows)
+        count = len(self._rows)
+        roster = self._view.get("roster")
+        # What is NOT on screen, said out loud: the filters' own count, and how many of the perimeter
+        # never reached the list at all. A list called "all the players" has to be able to say who is
+        # missing from it and why - measured on the 2026-27 euro sheet, 61 of 1895, every one of them a
+        # man the listone does not carry, so he has no Mantra code and there is no slot to rank him in.
+        missing = (f" · {roster - count} of the perimeter not listed (no role this game ranks by)"
+                   if roster and roster > count else "")
+        self.count_var.set(f"{shown} of {count} players{missing}")
+
+    def _draw_cell(self, row: dict, column: str, left: int, top: int, width: int) -> None:
+        """One cell, drawn as its KIND asks. The only place a table colour is decided."""
+        _field, _digits, kind = self.FIELDS[column]
+        if kind == "pill":
+            # The SLOT is the code this row's surplus is measured against, and it is the filled chip:
+            # on Mantra a 'dc;b' man is priced in one of the two and the row has to say which. Where
+            # nothing in the cell is the slot - the whole Classic column, whose roles ARE the slots -
+            # they are all filled, so a rule that is about Mantra never dims a Classic sheet.
+            codes = _split_roles(row.get(_field))
+            slot = row.get("role")
+            draw_role_pills(self._body, codes, left, top, width,
+                            filled=None if slot not in codes else {slot})
+            return
+        text = self._cell(row, column)
+        if column in self.LEFT_ALIGNED:
+            self._body.create_text(left + 5, top + ROW_H // 2, anchor="w", text=text,
+                                   font=("Segoe UI", 8), fill=theme.color("text"))
+        else:
+            self._body.create_text(left + width - 5, top + ROW_H // 2, anchor="e", text=text,
+                                   font=("Segoe UI", 8), fill=theme.color("text"))
+
+    def _cell(self, row: dict, column: str) -> str:
+        field, digits, _kind = self.FIELDS[column]
+        value = row.get(field)
+        if column == "Team":
+            return club_abbreviation(value)
+        if column == "Pair":
+            return self._pair_text(value)
+        if digits is None:                               # a name, or a rank that may not exist
+            return "-" if value in (None, "") else str(value)
+        text = self._num(value, digits)
+        # An ESTIMATED row is marked where the number is, exactly as the squad table marks it: same
+        # arithmetic, penalised, so it belongs in the same order - and a reader has to be able to see
+        # which of two adjacent names is measured and which is a reconstruction.
+        if column in ("SURPLUS", "VALUE", "SpM") and text and row.get("estimated"):
+            text = f"~{text}"
+        return text
 
     @staticmethod
     def _num(value, digits: int = 0) -> str:
@@ -1613,115 +2146,6 @@ class AuctionView(ttk.Frame):
                            f"K {k:.2f}" if k is not None else "K n/m",
                            f"co {co}" if co is not None else "co -",
                            f"ΔQt.I {gap:+.0f}" if gap is not None else "ΔQt.I -"))
-
-    def _render_role(self, role: str, block: dict, metric: str = "value",
-                     live: bool = False) -> None:
-        label = self.ROLE_LABELS.get(role, role)
-        # A live block has no outcome, so it has no miss breakdown either: read it only where it exists.
-        misses = block.get("misses") or {"near": 0, "regime": 0, "unpriced": 0}
-        surplus = metric in (SURPLUS, SURPLUS_PRESSURE)
-        currency = "SURPLUS" if surplus else "VALUE"
-        # The replacement level is the whole premise of the surplus ranking, so it is stated in the
-        # header rather than hidden in a tooltip: without it "-33" on a row means nothing.
-        floor, floor_act = block.get("replacement"), block.get("replacement_actual")
-        floor_text = ""
-        if surplus and floor is not None:
-            floor_text = f" · replacement FM {floor:.2f}"
-            # Both, when the role's level moved: the predicted list is scored against what the auction
-            # could know, the actual list against the season it actually happened in.
-            if floor_act is not None and abs(floor_act - floor) >= 0.005:
-                floor_text += f" (predicted) / {floor_act:.2f} (this season)"
-        if live:
-            # No "in common", no captured-of-perfect and no miss breakdown: all three are statements
-            # about an outcome, and there isn't one. What the header can honestly carry is how deep the
-            # list goes and the level it is measured against.
-            guessed = block.get("n_estimated") or 0
-            marked = sum(1 for row in block["predicted"] if row.get("estimated"))
-            head = (f"{label} — top {len(block['predicted'])} to bid on, of "
-                    f"{block.get('n_ranked', len(block['predicted']))} priced"
-                    + (f" + {guessed} estimated" if guessed else "")
-                    + (f", {marked} of them in the ten (~)" if marked else "")
-                    + floor_text)
-        else:
-            head = (f"{label} — {block['hits']}/10 in common · {currency} captured "
-                    f"{(block['captured_value'] or 0):.0f} of {(block['perfect_value'] or 0):.0f}"
-                    f"{floor_text} · misses: {misses['near']} near, {misses['regime']} beyond rank 50, "
-                    f"{misses['unpriced']} never priced")
-        box = ttk.LabelFrame(self.inner, text=head, padding=6)
-        box.pack(fill="x", expand=True, pady=(0, 10))
-        left = ttk.Frame(box)
-        left.pack(side="left", fill="both", expand=True, padx=(0, 6))
-        if not live:
-            right = ttk.Frame(box)
-            right.pack(side="left", fill="both", expand=True)
-        predicted_columns, actual_columns = self.COLUMNS[metric]
-        pred_key, act_key = (("surplus_pred", "surplus_act") if surplus
-                             else ("value_pred", "value_act"))
-        def predicted_row(row: dict) -> tuple:
-            # An ESTIMATED row is marked where the number is, exactly as the squad table marks it: same
-            # arithmetic, penalised, so it belongs in the same order - and a reader has to be able to see
-            # which of two adjacent names is measured and which is a reconstruction.
-            figure = self._num(row[pred_key])
-            if row.get("estimated") and figure:
-                figure = f"~{figure}"
-            cells = [row["rank"], row["name"], club_abbreviation(row["club"]),
-                     self._num(row["fm_pred"], 2), self._num(row["pv_pred"], 1), figure]
-            if not live:                        # the other side's figures, which a live list has not got
-                cells += [self._num(row[act_key])]
-            cells.append(self._num(row["fvm"]))
-            if not live:
-                cells.append(row["actual_rank"] or "-")
-            if metric == SURPLUS_PRESSURE:
-                cells.append(self._num(row.get("pressure"), 2))
-            cells.append(self._pair_text(row.get("pair")))
-            return tuple(cells)
-
-        if live:
-            # One table in a full-width box has ~800 spare pixels and they go to `Pair`, measured three
-            # ways: both columns stretchy leaves `Player` 300 empty pixels next to nine-letter names;
-            # nothing stretchy CLIPS the pair text at 170 px, losing the ΔQt.I - the same "not narrow,
-            # absent" defect the squad table already paid for; `Pair` alone fits it, now that a heading
-            # is aligned with its cells.
-            self._table(left, f"To bid on — {self.season_var.get()}", self.LIVE_COLUMNS[metric],
-                        [predicted_row(row) for row in block["predicted"]],
-                        {**self.COMMON_HELP, **self.PREDICTED_HELP}, stretch=("Pair",))
-            return
-        self._table(left, "Predicted at the auction", predicted_columns,
-                    [predicted_row(row) for row in block["predicted"]],
-                    {**self.COMMON_HELP, **self.PREDICTED_HELP})
-        self._table(right, "Actual, end of season", actual_columns,
-                    [(row["rank"], row["name"], club_abbreviation(row["club"]),
-                      self._num(row["fm_act"], 2), self._num(row["pv_act"]),
-                      self._num(row[act_key]), self._num(row["fvm"]),
-                      self._num(row[pred_key]),
-                      row["predicted_rank"] or "not priced")
-                     for row in block["actual"]],
-                    {**self.COMMON_HELP, **self.ACTUAL_HELP})
-
-    def _table(self, parent: tk.Widget, title: str, columns: tuple[str, ...],
-               rows: list[tuple], help_by_column: dict[str, str],
-               stretch: tuple[str, ...] = ("Player", "Pair")) -> None:
-        """`help_by_column` is REQUIRED, not defaulted: it went missing from one of the two tables when
-        it was optional, and a missing tooltip is invisible until someone hovers. Now forgetting it is a
-        TypeError at the call site."""
-        ttk.Label(parent, text=title, font=("Segoe UI", 9, "bold")).pack(anchor="w")
-        tree = ttk.Treeview(parent, columns=columns, show="headings", height=max(1, len(rows)))
-        for column in columns:
-            anchor = "w" if column in ("Player", "Team", "Pair") else "e"
-            # The heading follows its CELLS. Left as the default centre, a column wide enough for its
-            # text (`Pair` on the live list, which stretches into 900 px) puts its title half a screen
-            # from the values it names.
-            tree.heading(column, text=column, anchor=anchor)
-            # The widest header decides: "real SURPLUS" and "pred. SURPLUS" do not fit in 68 px with
-            # the theme's font, and a clipped column header reads as a different column.
-            width = (130 if column == "Player" else 46 if column == "#"
-                     else 52 if column == "Team" else 170 if column == "Pair"
-                     else 96 if "SURPLUS" in column else 68)
-            tree.column(column, width=width, anchor=anchor, stretch=column in stretch)
-        for row in rows:
-            tree.insert("", "end", values=row)
-        HeadingTooltip(tree, help_by_column)
-        tree.pack(fill="x")
 
 
 

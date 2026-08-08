@@ -372,3 +372,72 @@ Tre cose che restano, e la terza è la più istruttiva:
 
 `backtest --verify` resta **22/22** e il foglio `default/classic` non muove un decimale: là i due vocabolari
 sono lo stesso. Fogli e bundle rigenerati a `sheet_revision` **6**.
+
+
+## 14. SpM e dVM: il surplus in CREDITI, e l'FVM è un prezzo (8 agosto 2026)
+
+**Richiesta dell'operatore**: «calcola un valore che trasformi il surplus in un nuovo valore confrontabile
+con l'FVM, che chiameremo SpM (surplus di mercato)», più la colonna **dVM = SpM − FVM**.
+
+### 14.1 Due correzioni dell'operatore che cambiano la taratura, non solo le parole
+
+1. **«FVM non è di fine stagione: cambia a ogni evento saliente.»** È uno **stato volatile**, non una
+   grandezza di fine anno — per questo esiste `fvm_history` e per questo su una stagione passata quello
+   che abbiamo è *l'ultima lettura di quel listone*, che l'esito lo conosce già. La conclusione «reporting
+   only» non cambia; cambia la descrizione, corretta ovunque la portasse sbagliata
+   (`features.FEATURE_INVENTORY`, l'aiuto della colonna, la riga sotto i selettori).
+2. **«L'FVM massimo è 500 ed è tarato su una ipotetica asta a 10 squadre con 1000 di budget.»** Questo non
+   è un dettaglio di scala: fa dell'FVM un **prezzo** con un monte crediti noto. Verificato invece che
+   preso per buono — sul listone Serie A **2025-26 completo**, i primi 10 × 25 uomini per FVM sommano
+   **10.323**, cioè **1.032 crediti a squadra** contro i 1.000 di riferimento. (Il listone EuroLeghe è
+   tarato su un monte più grande: 2.063 a squadra a dieci squadre.)
+
+### 14.2 La conversione è un problema di BUDGET, e questo fissa la popolazione
+
+Il surplus è in fantapunti sopra la panchina, l'FVM è in crediti. Con il monte noto, il tasso non è un
+coefficiente da scegliere: per ogni ruolo di listone, con **N = squadre × slot** della lega,
+
+> **budget** = Σ FVM sugli N uomini che il **mercato** rosterizza (i suoi primi N per FVM)
+> **earned** = Σ SURPLUS sugli N uomini che il **motore** rosterizzerebbe (i suoi primi N, solo positivi)
+> **tasso = budget / earned** · **SpM = tasso × surplus** · **dVM = SpM − FVM**
+
+Così **la mia rosa costa esattamente il monte crediti della sua**: stesso budget, stesso numero di slot,
+un'altra opinione su chi se li merita. Il null è esatto e verificato in test: sommato sui miei rosterati,
+dVM è **quanto costa in più la rosa del mercato rispetto alla mia ai prezzi di mercato**, e non può essere
+negativo (nessun sottoinsieme di N costa più dei primi N). Chi ha surplus ≤ 0 non entra nel fit — la moneta
+del mercato verrebbe divisa per qualcosa che non ha comprato — ma **prende comunque un SpM negativo**, che è
+esattamente ciò che la colonna deve dirgli.
+
+**Tararlo su tutti i quotati è sbagliato, ed è misurato**: spalma lo stesso monte su ~900 uomini invece che
+sui 300 che si comprano, e legge i rosterati come **sopravvalutati del 23%** per costruzione (euro/mantra
+2026-27: monte SpM 17.044 contro i 22.208 che il mercato spende davvero). Con la taratura giusta i due monti
+coincidono per costruzione. Tassi misurati (euro 12 squadre): **P 2.07 · D 3.83 · C 8.99 · A 18.42**;
+Serie A 10 squadre: **P 1.11 · D 2.43 · C 3.87 · A 2.93**.
+
+Il tasso è fittato **una volta sola sulla lista intera**: i filtri (Include, ruolo, squadra) nascondono
+righe e non rifittano niente, o l'SpM di un uomo cambierebbe a seconda di chi altro è a video.
+
+### 14.3 Il pool è il RUOLO DI LISTONE, e le altre due scelte sono state misurate
+
+- **un tasso unico per tutti** riduce la colonna a un'affermazione sui RUOLI: media dVM **+38 ai portieri**
+  contro **−57 agli attaccanti**, e **14 delle prime 15 righe per dVM sono portieri**. Vero, incomprabile,
+  e affoga la domanda che si fa al tavolo.
+- **il pool per SLOT mantra** spacca due ali quasi identiche in **8.9 (`w`)** e **26.4 (`a`)**: due tassi
+  fra cui un multi-ruolo si sposta a seconda di quale codice lo prezza meglio.
+- **il ruolo di listone** è il pool in cui il mercato stesso prezza (FVM 1-70 sui portieri, 1-499 sugli
+  attaccanti) ed è quello per cui il monte crediti è ripartito. **Gli stimati (~) stanno nel fit**: toglierli
+  muove i tassi Serie A di ≤5% e su euro di zero, mentre lasciarli dentro conserva la legge su tutta la
+  lista mostrata.
+
+### 14.4 Cosa NON dice, e va detto
+
+- **Non riparte il budget fra i reparti.** Prende per buona la ripartizione del mercato fra P/D/C/A: dice
+  chi è caro *fra i suoi pari ruolo*, non se convenga spendere sugli attaccanti. Quella domanda vuole il
+  prezzo ombra del credito ([assistente-asta-v1.md](assistente-asta-v1.md) §4.2) e l'asta in corso.
+- **In cima la scala salta.** Kane esce a **SpM 989** su un listone che arriva a 499: il suo surplus previsto
+  è quasi il doppio del secondo e l'FVM in alto è compresso. Non è un prezzo pagabile, è «a questo tasso vale
+  metà rosa» — su euro il monte è 1.851 a squadra.
+- **Su una stagione finita l'FVM si è già mosso con la stagione stessa**, quindi un dVM grande non è un
+  affare che qualcuno poteva prendere: è il motore contro un prezzo che l'esito lo conosce.
+- **È REPORTING**, come l'FVM su cui è calibrato: nessuna regola lo legge, il gate non lo vede mai,
+  `backtest --verify` resta 22/22.

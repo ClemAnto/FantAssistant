@@ -192,34 +192,40 @@ def test_auction_tab_offers_both_games_on_both_platforms():
         assert set(gui.AuctionView.GAMES[platform]) == {"classic", "mantra"}
 
 
-def test_every_auction_column_is_explained_by_a_tooltip():
+def test_every_auction_column_is_explained_and_knows_what_it_sorts_by():
     """The columns are the whole point of the view and several are easy to misread - FVM is
-    reporting-only, and FM/Pv/VALUE mean predicted on the left and actual on the right. A new column
-    must not ship without its explanation."""
+    reporting-only, SpM is a conversion of the surplus and dVM is a difference that sums to zero. A new
+    column must not ship without its explanation, and now not without its FIELD either: every heading is
+    a sort button, so a column whose cell and whose sort key were read from two different places would
+    reorder the table by something other than what it is showing."""
     from euroleghe_ingest import gui
 
     view = gui.AuctionView
     used: set[str] = set()
-    for metric, (predicted, actual) in view.COLUMNS.items():
+    for metric, columns in view.COLUMNS.items():
         assert metric in view.METRICS.values(), metric
-        for columns, specific in ((predicted, view.PREDICTED_HELP), (actual, view.ACTUAL_HELP)):
-            help_texts = {**view.COMMON_HELP, **specific}
-            missing = [column for column in columns if not help_texts.get(column)]
-            assert not missing, (metric, missing)
-            used.update(columns)
-    # The LIVE list's columns are a SUBSET of the predicted ones - which is what keeps every one of them
+        missing = [column for column in columns if not view.HELP.get(column)]
+        assert not missing, (metric, missing)
+        unmapped = [column for column in columns if column not in view.FIELDS]
+        assert not unmapped, (metric, unmapped)
+        used.update(columns)
+    # The LIVE list's columns are a SUBSET of the full ones - which is what keeps every one of them
     # explained, and what stops an outcome column from appearing on a list that has no outcome.
     for metric, columns in view.LIVE_COLUMNS.items():
         assert metric in view.METRICS.values(), metric
-        extra = set(columns) - set(view.COLUMNS[metric][0])
+        extra = set(columns) - set(view.COLUMNS[metric])
         assert not extra, (metric, extra)
         assert not [column for column in columns if "real" in column], (metric, columns)
-    # ... and nothing explained that no metric actually shows
-    explained = set(view.COMMON_HELP) | set(view.PREDICTED_HELP) | set(view.ACTUAL_HELP)
-    assert not explained - used, explained - used
-    # the two tables disagree about FM/Pv/VALUE/SURPLUS on purpose, and that must stay true
+    # ... and nothing explained, or mapped to a field, that no metric actually shows
+    assert not set(view.HELP) - used, set(view.HELP) - used
+    assert not set(view.FIELDS) - used, set(view.FIELDS) - used
+    # the predicted and the actual side of the same quantity disagree on purpose, and must keep doing so
     for column in ("FM", "Pv", "VALUE", "SURPLUS"):
-        assert view.PREDICTED_HELP[column] != view.ACTUAL_HELP[column], column
+        assert view.HELP[column] != view.HELP[f"real {column}"], column
+    # SpM and dVM are made OF the surplus, so they exist on that list and on no other: one header must
+    # never name two different quantities depending on a selector
+    assert {"SpM", "dVM"} <= set(view.COLUMNS[gui.SURPLUS])
+    assert not {"SpM", "dVM"} & set(view.COLUMNS["value"])
 
 
 def test_league_setup_has_usable_defaults_and_derives_the_mantra_slots(tmp_path):
@@ -1413,6 +1419,59 @@ def test_a_fold_that_cannot_see_the_feature_is_not_a_failure():
     # and with no informative fold at all there is no verdict to give
     flat = sweep._cross_fit({"a": {"off": 0.3, "on": 0.3}}, ["off", "on"], "off")
     assert "strict" not in flat and flat["verdict"] == "not measurable on any fold"
+
+
+def test_the_auction_table_gets_the_height_and_never_hides_a_column():
+    """The list is now the whole tab, so the two things a table can silently lose are measured here.
+
+    HEIGHT: it must take the window it is given, not a fixed 25 rows with the rest of the tab empty -
+    asserted as a ratio, so the test says the same thing on another display's fonts.
+    WIDTH: Tk CLIPS the columns that do not fit and offers no way to reach them (the squad table paid
+    276px for that lesson), so when the fifteen columns do not fit, the sideways bar has to be there -
+    and when they do, it has to be gone.
+    """
+    import tkinter as tk
+    from pathlib import Path
+
+    from euroleghe_ingest.gui import SURPLUS, AuctionView
+
+    try:
+        root = tk.Tk()
+    except tk.TclError as exc:                       # headless: there is no geometry to measure
+        pytest.skip(f"no Tk display: {exc}")
+    rows = [{"fc_id": index, "rank": index, "name": f"Player{index}", "club": "Inter", "role": "dc",
+             "role_classic": "D", "roles_mantra": "dc;b",
+             "fm_pred": 6.5, "pv_pred": 25.0, "surplus_pred": 30.0 - index,
+             "value_pred": 160.0, "fm_act": 6.4, "pv_act": 24, "value_act": 150.0,
+             "surplus_act": 20.0, "fvm": 40, "spm": 120.0, "dvm": 80.0, "actual_rank": index,
+             "pair": None, "ranked": True} for index in range(1, 60)]
+    view_data = {"window": "T2", "params_from": "T1", "metric": SURPLUS, "rules": "R3",
+                 "roster": 60, "rows": rows, "teams": 10,
+                 "rates": {"D": {"rate": 4.4, "n": 80, "rostered": 80,
+                                 "fvm": 2195.0, "surplus": 904.5}},
+                 "by_role": {"dc": {"replacement": 5.82, "hits": 6, "captured_value": 100.0,
+                                    "perfect_value": 200.0, "predicted": [], "actual": [],
+                                    "rows": rows}}}
+    try:
+        for width, fits in ((1400, True), (900, False)):
+            root.geometry(f"{width}x900")
+            view = AuctionView(root, Config(db_path=Path("nowhere.db")))
+            view.pack(fill="both", expand=True)
+            view._render(view_data)
+            root.update()
+            body = view._body
+            assert body.winfo_height() > 0.7 * view.winfo_height(), (
+                f"{width}: the table gets {body.winfo_height()}px of {view.winfo_height()}")
+            asked = sum(width for _column, _left, width in view._layout())
+            assert (asked <= body.winfo_width()) is fits, (width, asked, body.winfo_width())
+            # `grid_remove` takes it out of the grid and keeps its place, so an empty row 2 IS "hidden"
+            sideways = bool(body.master.grid_slaves(row=2))
+            assert sideways is not fits, (
+                f"{width}: columns {asked}px in {body.winfo_width()}px and the sideways bar is "
+                f"{'shown' if sideways else 'hidden'}")
+            view.destroy()
+    finally:
+        root.destroy()
 
 
 def test_the_panel_spends_its_height_on_the_board_and_not_on_its_own_chrome(tmp_path, monkeypatch):

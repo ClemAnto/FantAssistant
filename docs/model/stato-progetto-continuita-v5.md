@@ -1,5 +1,5 @@
 # Stato progetto & continuità — v5
-**Aggiornato: 8 agosto 2026, sera (il perimetro del foglio era la stagione finita; la stampa come giudice delle board)**
+**Aggiornato: 8 agosto 2026, notte (il pannello Asta è UNA lista con SpM/dVM; la stima di un nuovo acquisto legge i suoi minuti esteri)**
 Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da qui + i file della cartella "Modello Previsionale Fantacalcio".
 *Glossario: T1/T2 = finestre di test (23/24->24/25, 24/25->25/26) · MAE = errore medio assoluto · cross-fitted = parametri stimati su una finestra, testati sull'altra · M2e = modello portieri decomposto (abilità + tasso gol subiti del club; la metà Elo del nome non è nel motore) · Pv_att = presenze attese · fc_id = id fantacalcio.it · EV = valore atteso · scoring_config = punteggi configurabili per lega · xG/xA = expected goals/assists · 2.5 pieno = backtest motore completo con flag.*
 
@@ -7,6 +7,23 @@ Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da q
 App per leghe EuroLeghe/fantacalcio.it (Classic+Mantra, 5 campionati) con motore previsionale. Metodo: ogni regola entra SOLO se batte il baseline fuori campione su finestre indipendenti (gate pre-registrato). Doc madre: modello-previsionale-v3.8.md.
 
 ## ⚠️ Lo stato corrente è in `00-BRIDGE-punto-di-ingresso.md`, blocco «STATO AL 5 AGOSTO 2026»
+
+### 8 agosto 2026 (8), in una riga: il pannello Asta è UNA lista, il surplus si legge in crediti
+
+Dettaglio completo nel blocco «ULTIMO IN ORDINE DI TEMPO — 8/08/2026 (8)» di
+[00-BRIDGE-punto-di-ingresso.md](00-BRIDGE-punto-di-ingresso.md). Spec «Novità v9.45» e «v9.46», metro in
+[metrica-asta-surplus-v1.md](metrica-asta-surplus-v1.md) §14. `SHEET_REVISION` **14**, **362 test**,
+`--verify` 22/22.
+
+1. Il tab Asta mostra **una lista di tutti i calciatori** (niente più venti top-ten), ordinabile per ogni
+   colonna, con filtro ruolo **multiplo** e filtro club, e i ruoli disegnati come palline colorate.
+2. **SpM** = il surplus nella moneta del listone e **dVM = SpM − FVM**: l'FVM è un PREZZO tarato su
+   un'asta a 10 squadre × 1000 (misurato: 1.032 crediti a squadra), quindi il tasso è un budget e non una
+   scala scelta.
+3. La **stima di chi non ha stagione qui** legge i suoi minuti dell'ultima stagione altrove invece della
+   quota di un uomo mai visto: +17.9% fuori campione su Serie A, 192 righe.
+4. Due pre-registrazioni aperte: **R1c** (coefficiente di campionato) e la **griglia finestra ×
+   decadimento** di R18.
 
 ### 8 agosto 2026 (5), in una riga: il perimetro era la stagione FINITA — le promosse non erano nel foglio
 

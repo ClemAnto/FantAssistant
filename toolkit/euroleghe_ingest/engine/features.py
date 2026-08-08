@@ -1099,7 +1099,10 @@ FEATURE_CHECKS: tuple[tuple[str, str], ...] = (
     ("foreign_fm_equiv", "foreign FM-equivalent - R1 arrivals"),
     ("recent_rating", "last matches elsewhere (recent_form) - R13 no-history players"),
     ("longest_gap_days", "longest spell without playing - R14 inactivity"),
-    ("fvm", "end-of-season market value - REPORTING ONLY, never an input"),
+    # a PRICE on the listone's reference-auction scale (Serie A: 10 teams x 1000 credits),
+    # and a VOLATILE state - it moves at every salient event, so on a past season the value
+    # stored is a read taken after that season and already knows its outcome
+    ("fvm", "market value, last read for that listone - REPORTING ONLY, never an input"),
     ("price_initial", "pre-auction quotation Qt.I - R12 market expectation"),
     ("price_initial_prev", "last season's Qt.I - R12b expectation revision"),
     ("birth_year", "birth year - R4 age curve"),

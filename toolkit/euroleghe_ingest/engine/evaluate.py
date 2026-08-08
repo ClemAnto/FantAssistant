@@ -2330,7 +2330,7 @@ INCLUDE_ESTIMATED = "estimated"
 def auction_view(data: features.WindowData, predictions: list[Prediction],
                  top_n: int = TOP_N, metric: str = "value",
                  estimates: dict[int, dict] | None = None,
-                 include: str = INCLUDE_ALL) -> dict:
+                 include: str = INCLUDE_ALL, full: bool = False) -> dict:
     """Per role: the predicted top N and the real top N, each annotated with the other's rank.
 
     Two lists rather than one score. A precision of 6/10 hides whether the four misses were injuries,
@@ -2358,6 +2358,13 @@ def auction_view(data: features.WindowData, predictions: list[Prediction],
     6.65 - and it also puts him in the REAL top ten at the end of the season, which is not a bug: he
     really did accumulate that many fantavoti. Surplus asks the other question, the one an auction is
     actually about, and answers 'nothing, he IS the bench'.
+
+    `full` adds `rows` to every block: the SAME rows, built by the same two builders, with no top-N
+    truncation and with the men the ranking cannot hold - below the availability floor, or never priced
+    at all - kept and SAYING so (`ranked`, and the empty predicted cells). It exists because a top ten
+    per role is a list you read and a single list of everybody is a list you SEARCH, which is what an
+    auction table actually does. Off by default: the gate reads the top ten, and nothing here may move
+    a published number.
     """
     out: dict[str, dict] = {}
     roles, holds = role_membership(data)
@@ -2435,9 +2442,13 @@ def auction_view(data: features.WindowData, predictions: list[Prediction],
                     continue
                 guess = estimates.get(obs.fc_id) or {}
                 score = guess.get("surplus" if surplus_like else "value")
-                if score is None or not fieldable(guess.get("pv")):
+                if score is None:
                     continue
                 estimated.append((score, obs, guess))
+        # The availability floor gates the RANKING and not the row (league_config's own words): the men it
+        # holds out keep their numbers for the full list below, and `n_estimated` stays the count of who
+        # could be ranked, which is what the header has always said.
+        rankable = [entry for entry in estimated if fieldable(entry[2].get("pv"))]
         # ONE list, and `include` says which candidates are in it - the operator's decision of 05/08/2026:
         # «stimati e misurati vanno insieme ma aggiungiamo la possibilità di filtrare gli uni e gli altri».
         # ⚠️ The cost is measured and stays on the record (gate §7-undecies): ranking them together lowered
@@ -2451,7 +2462,7 @@ def auction_view(data: features.WindowData, predictions: list[Prediction],
         if include in (INCLUDE_ALL, INCLUDE_MEASURED):
             entries += [(score_pred(p), p.obs.fc_id, "gated", p, None) for p in ranked]
         if include in (INCLUDE_ALL, INCLUDE_ESTIMATED):
-            entries += [(score, obs.fc_id, "est", obs, guess) for score, obs, guess in estimated]
+            entries += [(score, obs.fc_id, "est", obs, guess) for score, obs, guess in rankable]
         entries.sort(key=lambda entry: (-entry[0], entry[1]))
         chosen = [(kind, subject, guess) for _s, _id, kind, subject, guess in entries[:top_n]]
         chosen_obs = [subject.obs if kind == "gated" else subject for kind, subject, _g in chosen]
@@ -2480,6 +2491,12 @@ def auction_view(data: features.WindowData, predictions: list[Prediction],
         def gated_row(p, _ranks=actual_rank) -> dict:
             """One measured man as the panel shows him."""
             return {
+                # fc_id and the LISTONE role travel with the row: a single list has to collapse a Mantra
+                # player's several role rows into one man, and the SpM exchange rate is fitted per
+                # listone role. Both are identity, not measurement - a row that cannot say who it is
+                # about is a row two lists cannot be joined on.
+                "fc_id": p.obs.fc_id, "role_classic": p.obs.role_classic,
+                "roles_mantra": ";".join(p.obs.roles_mantra or ()),
                 "name": p.obs.name, "club": p.obs.club_target, "price_initial": asked(p.obs),
                 "fm_pred": _round(p.fm_pred, 2), "pv_pred": _round(p.pv_pred, 1),
                 "value_pred": _round(p.value_pred, 1),
@@ -2496,6 +2513,8 @@ def auction_view(data: features.WindowData, predictions: list[Prediction],
         def guessed_row(obs, guess, _ranks=actual_rank) -> dict:
             """One RECONSTRUCTED man, in the same columns and saying so - see `engine.estimate`."""
             return {
+                "fc_id": obs.fc_id, "role_classic": obs.role_classic,
+                "roles_mantra": ";".join(obs.roles_mantra or ()),
                 "name": obs.name, "club": obs.club_target, "price_initial": asked(obs),
                 "fm_pred": _round(guess.get("fm"), 2), "pv_pred": _round(guess.get("pv"), 1),
                 "value_pred": _round(guess.get("value"), 1),
@@ -2541,6 +2560,46 @@ def auction_view(data: features.WindowData, predictions: list[Prediction],
                             if qti_own is not None and qti_mate is not None else None),
             }
 
+        def unpriced_row(obs, _ranks=actual_rank) -> dict:
+            """A man the engine never priced, in the same columns as everybody else.
+
+            Every predicted cell empty, and that IS the statement: no valuation, not a low one. Without
+            him a "list of all the players" would silently exclude precisely the outcome the predicted
+            list is scored against - the `unpriced` misses, the names no ranking could ever contain.
+            """
+            return {
+                "fc_id": obs.fc_id, "role_classic": obs.role_classic,
+                "roles_mantra": ";".join(obs.roles_mantra or ()),
+                "name": obs.name, "club": obs.club_target, "price_initial": asked(obs),
+                "fm_pred": None, "pv_pred": None, "value_pred": None, "surplus_pred": None,
+                "fm_act": obs.fm_act, "pv_act": obs.pv_act,
+                "value_act": _round(obs.value_act, 1),
+                "surplus_act": _round(surplus_act(obs), 1),
+                "fvm": market(obs), "actual_rank": _ranks.get(obs.fc_id),
+                "pair": None, "pressure": None,
+                "estimated": False, "est_basis": None, "est_confidence": None, "est_note": None,
+            }
+
+        # ---- the whole role, untruncated, for a caller that shows ONE list instead of two top tens.
+        rows_full: list[dict] = []
+        if full:
+            everyone: list[tuple[float, int, str, object, dict | None]] = []
+            if include in (INCLUDE_ALL, INCLUDE_MEASURED):
+                everyone += [(score_pred(p), p.obs.fc_id, "gated", p, None) for p in valued]
+            if include in (INCLUDE_ALL, INCLUDE_ESTIMATED):
+                everyone += [(score, obs.fc_id, "est", obs, guess) for score, obs, guess in estimated]
+            everyone.sort(key=lambda entry: (-entry[0], entry[1]))
+            for _score, fc_id, kind, subject, guess in everyone:
+                row = gated_row(subject) if kind == "gated" else guessed_row(subject, guess)
+                # `rank` is his place in the RANKING - the one the availability floor gated - so a man
+                # below the floor carries a dash and not a number he never earned.
+                rows_full.append({**row, "role": role, "rank": predicted_rank.get(fc_id),
+                                  "ranked": fc_id in predicted_rank})
+            listed = {row["fc_id"] for row in rows_full}
+            rows_full += [{**unpriced_row(obs), "role": role, "rank": None, "ranked": False}
+                          for obs in observations
+                          if obs.fc_id not in listed and obs.value_act is not None]
+
         out[role] = {
             # How deep each side goes, before the top-N truncation below. `n_ranked` matters most for a
             # LIVE list, where the top ten is all there is to see and "of how many" is the only thing
@@ -2549,8 +2608,10 @@ def auction_view(data: features.WindowData, predictions: list[Prediction],
             # how many of the role's men are in the list on an ESTIMATE rather than a gated prediction:
             # the header says both, because "of 134 the engine could price" stops being the whole truth
             # once a penalised reconstruction can outrank a measured man.
-            "n_estimated": len(estimated),
+            "n_estimated": len(rankable),
             "n_actual": len(actual),
+            # every man of this role, in ranking order, when the caller asked for the full list
+            "rows": rows_full,
             "metric": metric,
             "replacement": _round(floor, 2),
             "replacement_actual": _round(floor_act, 2),
@@ -2588,6 +2649,101 @@ def auction_view(data: features.WindowData, predictions: list[Prediction],
             } for index, obs in enumerate(actual[:top_n], 1)],
         }
     return out
+
+
+# ---------------------------------------------------------------- SpM, the surplus in market money
+# How many rows a pool needs before its exchange rate is quoted at all. A rate is a RATIO of two sums,
+# so a handful of rows makes it whatever the biggest name in them happens to be; below this the column
+# stays empty, which is the honest answer and not a zero.
+SPM_MIN_POOL = 12
+# The pool a rate is fitted in: the LISTONE role, on both games. Measured on the 2026-27 euro sheet and
+# recorded because both alternatives are tempting and both are worse. ONE rate for everybody reduces the
+# column to a statement about roles - mean dVM +38 for the keepers against -57 for the forwards, and 14
+# of the top 15 are goalkeepers, which is true, unbuyable and drowns the question the operator is
+# actually asking. Per MANTRA SLOT splits two near-identical wide forwards into 8.9 ('w') and 26.4 ('a'),
+# two rates a multi-role man moves between. The listone role is the pool the MARKET itself prices in -
+# its FVM runs 1-70 for keepers and 1-499 for forwards on that same sheet - so it is the pool in which
+# "what he is worth" and "what he costs" are the same kind of number. It is also the pool the reference
+# budget is split by, which is what makes the rate a price and not a scaling.
+SPM_POOL = "role_classic"
+# The currency is the LISTONE's, never the operator's league: the Serie A scale is a 10 x 1000 auction
+# (measured 1,032 credits per team over the complete 2025-26 listone), the EuroLeghe one is about twice
+# as large (2,063 per team at ten teams). What his own league contributes is only how DEEP it rosters,
+# which is how much of the listone's money is in play - and that is `roster` below.
+
+
+def market_rates(rows, key: str = "surplus_pred", pool: str = SPM_POOL,
+                 roster: dict[str, int] | None = None,
+                 min_pool: int = SPM_MIN_POOL) -> dict[str, dict]:
+    """{pool: the exchange rate between SURPLUS and the listone's own money}, fitted on these rows.
+
+    One point of surplus is one fantapunto over the man you would have fielded instead. FVM is not an
+    opinion in arbitrary units: it is a PRICE, and the listone's scale is calibrated on a reference
+    auction - «l'FVM massimo è 500 ed è tarato su una ipotetica asta a 10 squadre con 1000 di budget»
+    (operator, 08/08/2026). Verified rather than taken on trust: on the complete Serie A 2025-26 listone
+    the top 10 x 25 men by FVM sum to 10,323, i.e. **1,032 credits per team** against the reference 1,000.
+
+    That makes the conversion a BUDGET question and fixes the population it must be fitted on - the men an
+    auction actually buys, not everybody who is quoted. Per pool, with N = the league's own teams x slots:
+
+        budget = sum(FVM)     over the N men the MARKET rosters   (its top N by FVM)
+        earned = sum(SURPLUS) over the N men the ENGINE would     (its top N by surplus, positives only)
+        rate   = budget / earned
+
+    so `SpM = rate x surplus` prices MY roster at exactly the money the market spends on its own: same
+    budget, same number of slots, a different opinion about who deserves it. Then `dVM = SpM - FVM` is a
+    reallocation and not a discount, and its null is exact - summed over the men I would roster it is how
+    much MORE the market's own roster costs than mine at market prices, and it can never be negative
+    because no subset of N outprices the top N. Fitting on everybody instead was measured and is wrong
+    for this reason: it spreads the same money over 900 quoted players and reads the 300 who actually get
+    bought as 23% overpriced by construction.
+
+    Men with a surplus of zero or less are not in the fit - they are worth nothing over the bench, so the
+    market's money would be divided by something it did not buy - but they still GET an SpM, a negative
+    one, and that is exactly the point of the column for them.
+
+    `roster` = {pool: N}. Without it the whole quoted pool is the population, which is the honest fallback
+    for a caller with no league (the gate prepares its windows without one on purpose).
+
+    REPORTING ONLY, like the FVM it is calibrated on: no rule may read it, the gate never calls it, and it
+    moves no published number. It is a way of looking at the surplus in the currency of the table.
+    """
+    pools: dict[str, list[dict]] = {}
+    for row in rows:
+        pools.setdefault(row.get(pool) or "", []).append(row)
+    out: dict[str, dict] = {}
+    for name, members in pools.items():
+        size = (roster or {}).get(name) or len(members)
+        quoted = sorted((row for row in members if (row.get("fvm") or 0) > 0),
+                        key=lambda row: -row["fvm"])[:size]
+        mine = sorted((row for row in members if row.get(key) is not None),
+                      key=lambda row: -row[key])[:size]
+        budget = sum(row["fvm"] for row in quoted)
+        earned = sum(row[key] for row in mine if row[key] > 0)
+        # `n` is what the rate is FITTED on, so it is the count that has to clear the floor: a budget of
+        # 300 credits over three men is a rate the biggest name in them decides.
+        fitted = sum(1 for row in mine if row[key] > 0)
+        if not budget or earned <= 0 or min(fitted, len(quoted)) < min_pool:
+            continue
+        out[name] = {"rate": budget / earned, "n": fitted, "rostered": len(quoted),
+                     "fvm": _round(budget, 1), "surplus": _round(earned, 1)}
+    return out
+
+
+def market_surplus(rows, rates: dict[str, dict], key: str = "surplus_pred",
+                   pool: str = SPM_POOL) -> None:
+    """Write `spm` (the surplus in market money) and `dvm` (SpM - FVM) on every row, in place.
+
+    `dvm` stays empty for a man his own listone does not quote: «vuoto = ignoto». A missing FVM is not a
+    price of zero, and a difference against it would be the biggest bargain in the table.
+    """
+    for row in rows:
+        rate = (rates.get(row.get(pool) or "") or {}).get("rate")
+        surplus = row.get(key)
+        spm = None if rate is None or surplus is None else round(rate * surplus, 1)
+        fvm = row.get("fvm")
+        row["spm"] = spm
+        row["dvm"] = None if spm is None or fvm is None else round(spm - fvm, 1)
 
 
 def _print_auction(data: features.WindowData, view: dict, rules: tuple[str, ...]) -> None:

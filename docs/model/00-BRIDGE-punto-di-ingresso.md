@@ -32,6 +32,45 @@ la pagina delle probabili non basta e quali vincoli valgono già oggi.
 
 Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
 
+### ULTIMO IN ORDINE DI TEMPO — 8/08/2026 (8): il pannello Asta è UNA lista, e il surplus in crediti
+
+Spec «Novità v9.45» (pannello) e «v9.46» (stima), metro in `metrica-asta-surplus-v1.md` §14, gate
+§7-sexvicies e §7-octodecies. `SHEET_REVISION` **13 → 14**, **362 test**, `--verify` 22/22: niente di
+gated si muove, tutto quello che cambia è VISTA o STIMA.
+
+1. **Una lista sola di tutti i calciatori**, ordinabile per ogni colonna e filtrabile per ruolo e club
+   (richiesta dell'operatore). `evaluate.auction_view(full=True)` restituisce ogni riga senza
+   troncamento, **compresi quelli che la classifica non può tenere** (sotto la soglia di disponibilità,
+   o mai prezzati ma con una stagione giocata). Su mantra la riga è UNA e lo slot lo decide
+   `snapshot.auction_level`, non un secondo criterio. Chi il listone non porta non ha codice mantra e
+   resta fuori: **61 su 1895** su euro, 1 su 851 su Serie A, e la riga di conteggio lo dice.
+2. **I due ruoli sono palline colorate** (R = classic, M = mantra, piena = lo slot in cui è prezzato) e
+   il filtro ruolo è **multiplo** con tutti e dodici i codici su mantra, letto sui CODICI e non sullo
+   slot (`b`+`e` → 314 righe su 1834). Questo ha cambiato il widget: un Treeview in Tk 8.6 colora la
+   riga e non la cella, quindi la tabella è ora una canvas come quella della rosa.
+3. **SpM / dVM: il surplus in crediti.** Due correzioni dell'operatore hanno cambiato la taratura, non
+   solo le parole — **l'FVM non è di fine stagione** (cambia a ogni evento saliente) ed **è un PREZZO**,
+   tarato su un'asta di riferimento a 10 squadre × 1000 (verificato: i primi 250 del listone Serie A
+   2025-26 fanno 1.032 crediti a squadra). Quindi il tasso è un budget: per ruolo di listone, `FVM degli
+   N che il mercato rosterizza / surplus degli N che il motore rosterizzerebbe`. Tararlo su tutti i
+   quotati leggeva i rosterati **sopravvalutati del 23%** per costruzione.
+4. **Un nuovo acquisto non è un uomo sconosciuto** (segnalazione dell'operatore su Ramos, sul numero e
+   non sul codice). `est_pv` per chi non ha stagione qui usava la quota di chi **non ha misura da nessuna
+   parte** (0.29): 11 presenze su 38 per un attaccante da 74M con 1320 minuti di Ligue 1 misurati. Ora
+   una retta fittata su quella popolazione (minuti di lega / giornate di quella lega), giudicata
+   leave-one-SEASON-out: **+17.9%** su default, **+5.1%** su euro. **192 righe** Serie A e **418** euro.
+   La FANTAMEDIA resta l'àncora — R1 le ha perse cinque volte su sei — perché il calcio giocato altrove
+   predice **quanto gioca**, non quanto vale a voto.
+5. **Due misure che chiudono altrettante domande, senza codice.** Il *coefficiente di campionato* sui
+   voti euro (gate §7-sexvicies): esiste solo per la **Premier** (+0.62, t +3.8, 17 casi su 21), è zero
+   per Ligue 1/Bundesliga/Liga, e per Ramos lo ABBASSEREBBE — R1c è pre-registrata, non adottata. E
+   R18 (le ultime cinque stagioni) **è già adottata su euro** e legge le tre stagioni di Ramos: b2 > b1
+   su quattro finestre di cinque, 407 righe mosse su 1834. Avevo scritto «il core legge una sola
+   stagione»: vero su `default`, falso su euro, corretto in gate §7-octodecies.
+
+**Aperto**: la griglia finestra × decadimento di R18 (n ∈ {2..5}, decay ∈ {1.0, 0.75, 0.5}) e R1c, tutte
+e due pre-registrate e da far girare col gate. Attesa dichiarata: il decadimento abbassa Ramos.
+
 ### ULTIMO IN ORDINE DI TEMPO — 8/08/2026 (7): quattro domande sulle board, e il giudizio dichiarato
 
 Spec «Novità v9.44», dettaglio in `formazioni-tipo-v1.md` §1/§3/§6-ter e nella **manutenzione** in testa

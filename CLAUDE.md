@@ -129,10 +129,15 @@ own verdict does not, and cannot be used to adopt it.
   euro-only was wrong and was switching off a real combination.
 - **Prices are three pairs and only one is auction-safe.** `price_initial` (Qt.I) is the pre-auction
   quotation - the market's expectation, and the ONLY price a rule may read. `price` (Qt.A) is revised all
-  season, so for a past season it embeds the outcome. `fvm` / `fvm_mantra` (fantavalore di mercato) are
-  end-of-season by the same argument, and `price_mantra` / `price_initial_mantra` are the same two
-  quotations in the Mantra currency. Everything but Qt.I is **reporting only**; the schema says so where
-  each column lives.
+  season, so for a past season it embeds the outcome. `fvm` / `fvm_mantra` (fantavalore di mercato) fall by
+  the same argument - **not because they are "end-of-season" numbers, which was a wrong description
+  corrected by the operator 08/08/2026: the FVM moves at every salient event**, so what we hold for a past
+  season is the LAST READ of that listone, taken after the season and knowing its outcome. And it is a
+  PRICE, not an opinion in arbitrary units: the scale is calibrated on a reference auction (max 500, «10
+  squadre con 1000 di budget»), verified rather than believed - the complete 2025-26 Serie A listone's top
+  10x25 by FVM sum to 10,323, i.e. 1,032 credits a team. That is what makes a conversion INTO credits a
+  budget question (SpM, below). `price_mantra` / `price_initial_mantra` are the same two quotations in the
+  Mantra currency. Everything but Qt.I is **reporting only**; the schema says so where each column lives.
 - **...and a quotation is a fact about a PLATFORM: `listone_quotes`** (07/08/2026). `rosters` has PK
   `(fc_id, season)` and holds ONE pair, while the two listoni are two different games: on the ~249 Italians
   quoted in both they disagree on **202 Qt.I and 226 FVM** (Svilar 18/65 on the Serie A listone against
@@ -629,6 +634,28 @@ the case that asked the question: its 28/07 payload had 46 Napoli players and **
   `⇥` in the panel), never silently applied. The transfers layer needed its primary key widened to make this
   possible at all: `(fc_id, date)` could not hold a loan return and a permanent signing dated the same 1 July,
   so it kept whichever was parsed last and read Hojlund as LEAVING the club that had just bought him.
+
+## Converting a currency is a BUDGET question, not a scaling
+**SpM / dVM, 08/08/2026, on the operator's request** («un valore che trasformi il surplus in un nuovo valore
+confrontabile con l'FVM»). The surplus is in fantapunti over the bench, the FVM is in credits on a scale with
+a known total (above), so the rate between them is not a coefficient to choose. Per listone role, with N =
+the league's own `teams × slots`: **`rate = ΣFVM over the N men the MARKET rosters / Σsurplus over the N men
+the ENGINE would`**, then `SpM = rate × surplus` and `dVM = SpM − FVM`. That prices MY roster at exactly the
+money the market spends on its own - same budget, same slots, a different opinion about who deserves them -
+and the null is exact: summed over my roster, dVM is how much MORE the market's roster costs than mine at
+market prices, and it can never be negative. **Fitting on everybody quoted instead is wrong and was
+measured**: it spreads the same money over ~900 men instead of the 300 who get bought and reads them as 23%
+overpriced by construction. The pool is the LISTONE ROLE and both alternatives were measured rather than
+argued: one global rate turns the column into a statement about roles (mean dVM +38 keepers against −57
+forwards, 14 of the top 15 are goalkeepers - true, unbuyable, and it drowns the question being asked), and a
+pool per MANTRA SLOT splits two near-identical wide forwards into 8.9 (`w`) and 26.4 (`a`). REPORTING only,
+like the FVM it is calibrated on - the gate never sees it (`auction_view(full=…)` is not a gate path) and
+`backtest --verify` stays 22/22. Three limits stated rather than averaged away: it never says how to split a
+budget BETWEEN roles (that needs the shadow price of a credit, `assistente-asta-v1.md` §4.2); at the very top
+the scale runs out (Kane SpM 989 against a listone whose maximum is 499 - correct, and not a payable price);
+and on a FINISHED season the FVM has already moved with the season itself, so a big dVM is the engine against
+a price that knows the outcome, not a bargain anybody could have taken. Details:
+`metrica-asta-surplus-v1.md` §14.
 
 ## A displayed list whose metrics describe a different list is worse than no metric
 **Found and paid for within one hour, 05/08/2026.** The estimates were merged into the rows the auction panel

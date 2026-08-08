@@ -2276,6 +2276,7 @@ def test_the_live_auction_list_is_one_table_and_claims_no_score():
     zero. So: one table, the outcome columns ABSENT, and a status line that says what it cannot say.
     """
     import tkinter as tk
+    from pathlib import Path
     from tkinter import ttk
 
     from euroleghe_ingest.gui import SURPLUS, AuctionView
@@ -2294,55 +2295,161 @@ def test_the_live_auction_list_is_one_table_and_claims_no_score():
 
     try:
         for metric in ("value", SURPLUS):
-            view = AuctionView.__new__(AuctionView)
-            view.inner = ttk.Frame(root)
-            view.status_var = tk.StringVar()
-            view.season_var = tk.StringVar(value="2026-27 · LIVE")
-            row = {"rank": 1, "name": "Malen", "club": "Roma", "fm_pred": 7.92, "pv_pred": 28.6,
+            # the REAL panel and not a stand-in, pointed at a database that is not there: a harness that
+            # assembles its own widgets is a harness that can be right while the panel is wrong
+            view = AuctionView(root, Config(db_path=Path("nowhere.db")))
+            view.season_var.set("2026-27 · LIVE")
+            row = {"fc_id": 2839, "rank": 1, "name": "Malen", "club": "Roma", "role": "A",
+                   "role_classic": "A", "roles_mantra": "w;a", "fm_pred": 7.92, "pv_pred": 28.6,
                    "surplus_pred": 44.8, "surplus_act": None, "value_pred": 226.2,
-                   "value_act": None, "fvm": 210, "actual_rank": None, "pair": None}
+                   "value_act": None, "fm_act": None, "pv_act": None, "fvm": 210,
+                   "spm": 254.6, "dvm": 44.6, "actual_rank": None, "pair": None}
             view._render({
                 "window": "SNAP 2025-26->2026-27", "params_from": "T2+pooled(-)", "metric": metric,
-                "live": True, "rules": "R3, R7, R13", "rows": 806, "priced": 357,
+                "live": True, "rules": "R3, R7, R13", "roster": 806, "priced": 357,
                 "notes": [("2026-27 has no matchdays yet, so expected appearances are scaled on "
                            "2025-26's calendar (38 rounds)")],
+                "rows": [row], "teams": 12,
+                "rates": {"A": {"rate": 5.68, "n": 48, "rostered": 72,
+                                "fvm": 10387.0, "surplus": 563.8}},
                 "by_role": {"A": {"n_ranked": 143, "replacement": 6.11, "replacement_actual": None,
                                   "hits": 0, "captured_value": 0.0, "perfect_value": 0.0,
-                                  "predicted": [row], "actual": []}},
+                                  "predicted": [row], "actual": [], "rows": [row]}},
             })
             status = view.status_var.get()
             assert "LIVE" in status and "no season to compare against" in status
             assert "357 of 806 players priced" in status, "what IS honest: how much it can price"
             for claim in ("of the perfect", "names", "%"):
                 assert claim not in status, (metric, claim, status)
-            trees = [w for w in descendants(view.inner) if isinstance(w, ttk.Treeview)]
-            assert len(trees) == 1, f"{metric}: a live role is ONE table, got {len(trees)}"
-            columns = tuple(trees[0]["columns"])
+            bodies = [w for w in descendants(view.inner) if isinstance(w, tk.Canvas)]
+            assert len(bodies) == 2, f"{metric}: one table = a header and a body, got {len(bodies)}"
+            columns = view._columns
             assert columns == AuctionView.LIVE_COLUMNS[metric]
             assert not [c for c in columns if "real" in c], columns
-            # the cells must match the columns: dropping a column and forgetting its cell is how a
-            # table starts printing the FVM under the header of the outcome it does not have
-            values = trees[0].item(trees[0].get_children()[0], "values")
-            assert len(values) == len(columns), (metric, values, columns)
-            assert values[1] == "Malen"
-            # The spare width of a single table goes to `Pair` and NOT to `Player`, measured three ways
-            # (300 empty pixels beside short names / a clipped ΔQt.I at 170 px / this). And a heading is
-            # aligned with its cells, or a 900 px column titles itself half a screen from its values.
-            assert trees[0].column("Pair", "stretch") and not trees[0].column("Player", "stretch")
-            for column in columns:
-                assert trees[0].heading(column, "anchor") == trees[0].column(column, "anchor"), column
+            # the header names exactly the columns the cells are drawn in - one layout, or a title
+            # ends up over the neighbouring column's values
+            titles = [view._head.itemcget(item, "text") for item in view._head.find_all()
+                      if view._head.type(item) == "text"]
+            assert titles == list(columns), (metric, titles)
+            drawn = [view._body.itemcget(item, "text") for item in view._body.find_all()
+                     if view._body.type(item) == "text"]
+            assert "Malen" in drawn and "ROM" in drawn, drawn
+            # the two ROLE columns are chips and not characters: a polygon per code, and the Mantra
+            # ones say which shirt he is priced in by being filled
+            pills = [item for item in view._body.find_all() if view._body.type(item) == "polygon"]
+            assert len(pills) == 3, f"{metric}: A + w + a = three chips, got {len(pills)}"
+            assert {"A", "W"} <= set(drawn), drawn      # the Classic 'A', and 'W'/'A' from the codes
             # and the engine's caveat is on screen, not only in the manifest
             notes = [w for w in descendants(view.inner) if isinstance(w, ttk.Label)
                      and str(w.cget("text")).startswith("⚠")]
             assert len(notes) == 1 and "no matchdays yet" in str(notes[0].cget("text"))
-            # the role header states the depth and the level, and claims nothing about hits
-            box = view.inner.winfo_children()[1]
-            assert isinstance(box, ttk.LabelFrame)
-            head = str(box.cget("text"))
-            assert "of 143 priced" in head, head
-            assert "in common" not in head and "captured" not in head, head
+            # the lines above the table carry what a single list would otherwise lose - the level each
+            # surplus is measured against - and claim nothing about an outcome nobody has played
+            lines = " | ".join(str(w.cget("text")) for w in view.inner.winfo_children()
+                               if isinstance(w, ttk.Label))
+            assert "in common" not in lines and "captured" not in lines, lines
+            if metric == SURPLUS:
+                assert "replacement FM" in lines and "6.11" in lines, lines
+                assert "listone's own credits" in lines and "5.68" in lines, lines
+                assert "10,387" in lines and "866 a team" in lines, lines
+                assert "255" in drawn and "45" in drawn, drawn        # SpM and dVM are on the row
+            assert view.count_var.get().startswith("1 of 1 players · 805 of the perimeter not listed")
     finally:
         root.destroy()
+
+
+def test_the_single_list_shows_a_mantra_player_once_in_the_slot_he_is_fielded_in():
+    """The engine ranks a 'dc;b' defender in BOTH lists, each against its own floor, and that is right
+    for a per-role top ten. One table has to answer with one row, and which slot it belongs to already
+    has an owner - `snapshot.auction_level`, the same definition the sheet, the rank and `est_surplus`
+    read. Deciding it a second time here would be the "two pricers that could disagree" defect, so the
+    resolver names the slot and the row of that role is the one kept: the slot he is worth MOST in, i.e.
+    the lowest replacement level among his own codes.
+    """
+    from euroleghe_ingest.gui import SURPLUS, AuctionView
+
+    class Obs:
+        def __init__(self, fc_id, name, codes, role_classic):
+            self.fc_id, self.name = fc_id, name
+            self.roles_mantra, self.role_classic = codes, role_classic
+
+    class Data:
+        game = "mantra"
+
+        def __init__(self):
+            self.replacement = {"dc": 5.82, "b": 5.92, "por": 4.33}    # 'dc' is the cheaper floor
+
+    both = Obs(1, "Bastoni", ("dc", "b"), "D")
+    keeper = Obs(2, "Svilar", ("por",), "P")
+    data = Data()
+    data.observations = [both, keeper]
+
+    def row(fc_id, name, role, surplus, rank):
+        return {"fc_id": fc_id, "name": name, "role": role, "role_classic": "D",
+                "surplus_pred": surplus, "rank": rank, "ranked": True, "club": "Inter"}
+
+    by_role = {
+        "dc": {"rows": [row(1, "Bastoni", "dc", 18.0, 3)]},
+        "b": {"rows": [row(1, "Bastoni", "b", 16.0, 1)]},
+        "por": {"rows": [{**row(2, "Svilar", "por", 20.0, 1), "role_classic": "P"}]},
+    }
+    view = AuctionView.__new__(AuctionView)
+    rows = view._one_row_per_player(by_role, data, SURPLUS)
+    assert [r["name"] for r in rows] == ["Svilar", "Bastoni"], "ranking order, best first"
+    kept = next(r for r in rows if r["name"] == "Bastoni")
+    assert (kept["role"], kept["rank"]) == ("dc", 3), "the slot an auction fields him in, and its rank"
+
+
+def test_the_auction_table_sorts_by_the_value_and_sinks_the_blanks():
+    """Every heading is a sort button, and three things must hold. It sorts by the VALUE behind the cell
+    and not by the string in it (or 100 would come before 9). A missing cell sinks to the bottom in BOTH
+    directions, because a blank is not a small number - the same rule the squad table follows. And the
+    third click restores the ranking order, which is the only order in which the rank column reads top to
+    bottom, so a sort is never a one-way door.
+    """
+    from euroleghe_ingest.gui import AuctionView
+
+    view = AuctionView.__new__(AuctionView)
+    view._sort_column, view._sort_desc = None, True
+    view._head = view._body = None
+    view._rows = []
+    rows = [{"fc_id": 1, "name": "Nine", "dvm": 9.0, "club": "Inter",
+             "role": "dc", "role_classic": "D", "roles_mantra": "dc;b"},
+            {"fc_id": 2, "name": "Hundred", "dvm": 100.0, "club": "Milan",
+             "role": "dc", "role_classic": "D", "roles_mantra": "dc"},
+            {"fc_id": 3, "name": "Unquoted", "dvm": None, "club": "Inter",
+             "role": "b", "role_classic": "D", "roles_mantra": "b"}]
+
+    view._sort_column, view._sort_desc = "dVM", True
+    assert [r["name"] for r in view._sorted(rows)] == ["Hundred", "Nine", "Unquoted"]
+    view._sort_desc = False
+    assert [r["name"] for r in view._sorted(rows)] == ["Nine", "Hundred", "Unquoted"]
+    view._sort_column = None
+    assert view._sorted(rows) == rows
+
+    # and the two filters only HIDE rows - they never reorder and never recompute
+    view.role_vars, view.team_var = {}, _Var("Inter")
+    assert [r["name"] for r in view._filtered(rows)] == ["Nine", "Unquoted"]
+    # ROLE is a multiple choice and on Mantra it reads his CODES, not the slot he is priced in: a
+    # 'dc;b' defender priced as a 'dc' is one of the answers to «who can play me a braccetto»
+    view.team_var = _Var("all")
+    view.role_vars = {"b": _Var(True), "dc": _Var(False)}
+    assert [r["name"] for r in view._filtered(rows)] == ["Nine", "Unquoted"]
+    view.role_vars = {"b": _Var(False), "dc": _Var(True)}
+    assert [r["name"] for r in view._filtered(rows)] == ["Nine", "Hundred"]
+    # nothing ticked is not "nothing": it is everything, which is what an empty filter means
+    view.role_vars = {"b": _Var(False), "dc": _Var(False)}
+    assert len(view._filtered(rows)) == 3
+
+
+class _Var:
+    """A tk variable without a Tk: the filters read `.get()` and nothing else."""
+
+    def __init__(self, value):
+        self.value = value
+
+    def get(self):
+        return self.value
 
 
 def test_a_front_place_goes_to_a_forward_even_when_a_trequartista_claims_more(monkeypatch):
@@ -2939,6 +3046,12 @@ def test_the_other_platform_rung_is_only_for_the_same_football():
         CREATE TABLE season_stats (fc_id INTEGER, season TEXT, platform TEXT, pv INTEGER, fm REAL);
         CREATE TABLE rosters (fc_id INTEGER, season TEXT, fc_club_id INTEGER, role_classic TEXT, league TEXT);
         CREATE TABLE clubs (fc_club_id INTEGER, canonical_name TEXT);
+        -- the layer that says how much football he played ELSEWHERE: empty here on purpose, so the
+        -- rung under test is the competition filter and nothing else
+        CREATE TABLE external_stats (fc_id INTEGER, season TEXT, source TEXT, competition TEXT,
+                                     minutes INTEGER);
+        CREATE TABLE external_match_stats (fc_id INTEGER, season TEXT, competition TEXT,
+                                           real_md INTEGER);
         INSERT INTO clubs VALUES (1, 'Juventus');
         -- 5951 played 2025-26 in the Premier League; 7 played it in Serie A
         INSERT INTO rosters VALUES (5951, '2025-26', 1, 'A', 'premier_league'), (7, '2025-26', 1, 'A', 'serie_a'),

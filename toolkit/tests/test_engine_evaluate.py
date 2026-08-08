@@ -346,6 +346,86 @@ def test_one_appearance_cannot_reach_a_surplus_top_ten(prepared):
                           for row in evaluate.auction_view(data, [], top_n=4)["D"]["actual"]}
 
 
+def test_the_full_list_holds_the_men_a_top_ten_cannot(prepared):
+    """`full=True` is what a single sortable table needs, and what it must NOT do is drop the men the
+    ranking legitimately refuses. Two kinds: below the availability floor (he was never someone you could
+    have fielded, so he has no rank) and never priced at all (no previous season to regress from). Both
+    keep their row and say so with an empty cell, because a list called "all the players" that quietly
+    holds 60% of them is worse than a top ten that says it is one.
+
+    And the gate's own path must not move a decimal: without `full` there is no list at all."""
+    _cfg, _conn, _window, data = prepared
+    data.replacement = {"D": 6.0, "A": 6.5}
+    predictions = evaluate.predict_window(data, ("R0",))
+    view = evaluate.auction_view(data, predictions, top_n=1, metric=evaluate.SURPLUS, full=True)
+
+    defenders = view["D"]
+    assert len(defenders["predicted"]) == 1, "the top ten is still a top ten"
+    ranked = [row for row in defenders["rows"] if row["ranked"]]
+    assert len(ranked) == defenders["n_ranked"] > 1
+    assert [row["rank"] for row in ranked] == list(range(1, len(ranked) + 1))
+    # ...and the rest is the men the ranking could not hold, below it and marked
+    assert len(defenders["rows"]) > len(ranked)
+    assert all(row["rank"] is None for row in defenders["rows"][len(ranked):])
+    # one row per man, and the identity on it: a single list has to be joined on something
+    ids = [row["fc_id"] for row in defenders["rows"]]
+    assert len(ids) == len(set(ids)) and all(isinstance(fc_id, int) for fc_id in ids)
+
+    # the newcomer has no input season, so no ranking could ever contain him - and he played
+    newcomer = next(row for row in view["A"]["rows"] if row["name"] == "Newcomer")
+    assert newcomer["rank"] is None and not newcomer["ranked"]
+    assert newcomer["surplus_pred"] is None, "no valuation, and that is the statement"
+    assert newcomer["surplus_act"] is not None, "...but the season he played is a fact"
+
+    # ...and the gate path is untouched
+    bare = evaluate.auction_view(data, predictions, top_n=1, metric=evaluate.SURPLUS)
+    assert bare["D"]["rows"] == [] and bare["D"]["predicted"] == defenders["predicted"]
+
+
+def test_the_market_rate_is_a_budget_and_not_a_scaling():
+    """SpM converts the SURPLUS into the listone's credits, and the rate is not chosen: the FVM is a
+    PRICE on a reference auction's scale (Serie A: 10 teams x 1000, max 500 - measured, the complete
+    2025-26 listone's top 250 sum to 1032 a team), so the conversion is a budget question.
+
+    Per role: the money the MARKET spends on the men it rosters, over the surplus of the men the ENGINE
+    would roster. Then the whole list costs exactly one auction, and dVM is the same budget over the same
+    number of slots split by somebody else - which is why the population must be the ROSTERED men and not
+    everybody quoted: spread over the whole listone the same money reads the men who actually get bought
+    as overpriced by construction.
+
+    Three things it must not do: fit on men worth nothing over the bench (they still GET a negative SpM,
+    which is the point of the column for them), quote a rate for a pool too thin to carry one, and invent
+    a difference against a price the listone never published.
+    """
+    rows = [
+        {"role_classic": "A", "surplus_pred": 20.0, "fvm": 100.0},   # both rosters take him
+        {"role_classic": "A", "surplus_pred": 10.0, "fvm": 20.0},    # only the engine's
+        {"role_classic": "A", "surplus_pred": -3.0, "fvm": 60.0},    # only the market's
+        {"role_classic": "A", "surplus_pred": 8.0, "fvm": None},     # not quoted here
+        {"role_classic": "P", "surplus_pred": 4.0, "fvm": 10.0},     # a pool of one
+    ]
+    rates = evaluate.market_rates(rows, roster={"A": 2, "P": 1}, min_pool=2)
+    assert set(rates) == {"A"}, "a rate is a ratio of two sums: one row does not make a market"
+    # budget = the market's two most expensive forwards (100 + 60); earned = the engine's two best (30)
+    assert rates["A"]["rate"] == pytest.approx(160 / 30)
+    assert (rates["A"]["n"], rates["A"]["rostered"]) == (2, 2)
+
+    evaluate.market_surplus(rows, rates)
+    spm = [row["spm"] for row in rows]
+    assert spm == [pytest.approx(106.7), pytest.approx(53.3), pytest.approx(-16.0),
+                   pytest.approx(42.7), None]
+    assert sum(spm[:2]) == pytest.approx(160.0), "my roster costs exactly the market's budget"
+    # ...so dVM summed over my roster is how much MORE the market's own roster costs than mine at market
+    # prices (160 - 120), and it can never be negative: no subset of N outprices the top N
+    assert sum(row["dvm"] for row in rows[:2]) == pytest.approx(40.0, abs=0.1)
+    assert rows[3]["dvm"] is None, "no quotation, no difference: vuoto = ignoto"
+
+    # and without a league to say how deep it rosters, the whole quoted pool is the population
+    plain = evaluate.market_rates(rows, min_pool=2)
+    assert plain["A"]["rate"] == pytest.approx(180 / 38), (
+        "the whole quoted pool is the budget (60 credits more) and the whole list earns it (8 more)")
+
+
 def test_a_role_without_a_replacement_level_keeps_the_value_ordering(prepared):
     """Silently, and on purpose: inventing a floor for a role whose pool cannot support one would put
     a made-up number in the column the panel sorts by."""
@@ -796,3 +876,36 @@ def test_a_season_not_yet_played_is_priced_on_last_seasons_calendar(prepared):
     assert source == "R0-core"                    # no fits given, so the honest fallback says so
     priced = [p for p in predictions if p.pv_pred is not None]
     assert priced and all(p.pv_pred > 0 for p in priced), "a zero calendar prices everyone at zero"
+
+
+def test_a_new_signing_is_not_an_unknown_man():
+    """`est_pv` for whoever has no season on this platform was the share of a man with NOTHING measured
+    anywhere - 0.29 of the calendar on `default`. Applied to a €74M striker with 1320 measured Ligue 1
+    minutes it said 11 appearances of 38, which is the sheet throwing away football it has watched.
+
+    The line is fitted on exactly that population (his league minutes over that league's rounds) and
+    judged leave-one-SEASON-out: MAE 0.2300 against 0.2803 for the constant on default (+17.9%), 0.2831
+    against 0.2983 on euro (+5.1%). What it does NOT touch is the fantamedia: R1 lost to the role anchor
+    on five windows of six, and what a man did abroad predicts how much he PLAYS, not how well.
+    """
+    from euroleghe_ingest.engine import estimate as est
+
+    # Gonçalo Ramos: 1320 minutes over Ligue 1's 34 rounds = 0.431 of a season
+    share = 1320 / (90 * 34)
+    intercept, slope = est.ABROAD_SHARE["default"]
+    assert est.presences_from_abroad(38, "default", share) == pytest.approx(
+        round(38 * (intercept + slope * share), 1))
+    assert est.presences_from_abroad(38, "default", share) > 17, "a starter, not a third of a season"
+    assert est.default_presences(38, "default") == pytest.approx(11.0), "what he used to get"
+
+    # the two platforms have their own line, because everything here is per-platform
+    assert est.presences_from_abroad(31, "euro", share) != est.presences_from_abroad(31, "default",
+                                                                                     share)
+    # ...and where there is nothing to read it says so, instead of inventing a share: the caller then
+    # falls back to the unmeasured constant, which is a different sentence about a different man
+    assert est.presences_from_abroad(38, "default", None) is None
+    assert est.presences_from_abroad(38, "default", 0.0) is None
+    assert est.presences_from_abroad(None, "default", share) is None
+    assert est.presences_from_abroad(38, "nowhere", share) is None
+    # a share above the calendar cannot come out of it, whatever goes in
+    assert est.presences_from_abroad(38, "default", 5.0) <= 38

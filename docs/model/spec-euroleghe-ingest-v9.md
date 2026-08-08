@@ -495,6 +495,170 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.46 (8 agosto 2026 — un nuovo acquisto NON è un uomo sconosciuto)
+
+`SHEET_REVISION` **13 → 14** (muove `est_pv`, quindi `est_surplus`) · **362 test** · `engine_*` non muove
+un decimale: è lo strato della STIMA, che il gate non vede mai.
+
+**Segnalazione dell'operatore, su un numero e non sul codice**: «il surplus di Ramos non può essere così
+basso, è comunque l'attaccante titolare di una squadra di buon livello come il Milan; sicuramente il
+problema è legato al fatto che è un nuovo acquisto, quindi vedi che dati mancano rispetto ad altri».
+
+### Cosa manca davvero, confrontato riga per riga
+
+Confrontando la sua `Observation` con quella di un titolare già in Serie A (Leao), i campi vuoti sono
+**tre**: `pv_prev`, `mv_prev`, `fm_prev` — cioè la stagione **su questa piattaforma**. Tutto il resto c'è:
+`foreign_fm_equiv` 6.394, `arrival_tier` T3, `origin_league` ligue_1, 1320 minuti, 13 titolarità su 30.
+Il calcio giocato è misurato; semplicemente nessuno lo leggeva.
+
+### La costante che lo trattava da sconosciuto
+
+`est_pv` per chi non ha stagione qui era `PRESENCE_SHARE["unmeasured"]` — 0.29 del calendario su default,
+0.19 su euro — cioè la quota di un uomo di cui **non esiste misura da nessuna parte**. Applicata a Ramos
+diceva **11 presenze su 38**. Misurato sulla popolazione giusta (nessuna stagione qui a t−1, minuti di
+campionato misurati altrove, e una stagione qui a t): **323 casi su default, 929 su euro**, quota reale
+mediana **0.447 / 0.290**. La costante regalava sei giornate su 38.
+
+E i suoi minuti portano più della banda: `quota = a + b × (minuti di lega / (90 × giornate di quella
+lega))`, con i due denominatori che la misura stessa usa (`features.league_rounds`, la definizione già
+esistente — una coppa non è una giornata di campionato). Giudicata **leave-one-SEASON-out**, quindi i
+coefficienti non vedono mai la stagione su cui sono misurati:
+
+| piattaforma | retta | banda | costante di oggi | guadagno |
+|---|---|---|---|---|
+| default | **0.2300** | 0.2455 | 0.2803 | **+17.9%** |
+| euro | **0.2831** | 0.3256 | 0.2983 | **+5.1%** |
+
+Su euro la banda è **peggiore** della costante: per questo ciò che entra è la retta e non una seconda
+costante. Coefficienti: default (0.339, 0.320) · euro (0.183, 0.357) — `est.ABROAD_SHARE`.
+
+### Cosa NON cambia, e perché
+
+La **fantamedia** resta l'àncora. R1 — la fantamedia estera come previsione — ha perso contro l'àncora di
+ruolo su cinque finestre di sei (§7-octies), e questa modifica non la riapre: quello che un uomo ha fatto
+all'estero predice **quanto gioca**, non **quanto vale** a voto. Sono due domande e il gate le ha già
+separate.
+
+Applicata a **tutti quelli nella stessa condizione** e non solo all'ultimo gradino, perché la popolazione
+su cui è fittata è «nessuna stagione qui a t−1», che sono i gradini `anchor` **e** `older`: a chi ha una
+stagione vecchia di due anni qui, l'ultima stagione giocata altrove dice di più (`recent_first`). Effetto:
+**192 righe** sul foglio Serie A e **418** su EuroLeghe leggono i minuti dell'ultima stagione.
+Ramos passa da `est_pv` 11.0 a **18.1** e da `est_surplus` 5.0 a **8.3**, con la nota che dice da dove
+viene («no season here, so his ligue_1 minutes stand in for the calendar (43% of it)»).
+
+### E sul foglio EuroLeghe questo non lo tocca — il motivo è un altro
+
+Là Ramos **è prezzato dal core** (ha stagioni euro: PSG è nel perimetro), quindi la stima non interviene:
+FM 6.993, Pv 18.7, e il surplus è −3.7 perché il livello di rimpiazzo dei `pc` su una lega da 12 squadre è
+**7.19** e la sua FM prevista gli sta sotto. Non è un difetto della metrica: su EuroLeghe compete con i
+centravanti delle cinque leghe, e la sua media triennale (7.083) è sotto l'àncora del ruolo (7.424). Le due
+schede dicono cose diverse su di lui perché **sono due mercati diversi**, ed è esattamente quello che il
+livello di rimpiazzo per lega serve a dire.
+
+## Novità v9.45 (8 agosto 2026 — il pannello Asta: UNA lista, ordinabile e filtrabile, e il surplus in crediti)
+
+`SHEET_REVISION` resta **13** (il foglio non cambia: cambia la VISTA) · **361 test** ·
+`backtest --verify` non toccato — il gate non passa mai `full=` né legge SpM.
+
+**Richiesta dell'operatore**: «visualizza una unica lista di tutti i calciatori, ordinabile per ogni colonna
+e filtrabile per ruolo o squadra», più le due colonne **SpM** e **dVM**.
+
+### 1. Una lista, non venti top-ten
+
+La scheda mostrava, per ruolo, due tabelle da dieci: previsto a sinistra, esito a destra. Quella forma
+risponde a una domanda sul MOTORE («dei dieci che nomina, quanti erano giusti?»), non a quella che si fa al
+tavolo («questo uomo qui davanti a me, quanto vale?»). Ora è **una tabella con tutti i giocatori**, e quello
+che le due top-ten portavano non si perde:
+
+- ogni riga porta **entrambi i lati** (FM/Pv/SURPLUS previsti e `real FM`/`real Pv`/`real SURPLUS`/`real #`),
+  quindi il confronto per-giocatore c'è ancora e ordinare per `real SURPLUS` dà la classifica vera;
+- il punteggio aggregato (nomi in comune, % del top-10 perfetto) resta nella riga di stato, e le due cose
+  che una lista unica perderebbe stanno sopra la tabella: il **livello di rimpiazzo di ogni ruolo** (senza
+  cui un «−33» su una riga non vuol dire niente) e il **6/10 per ruolo**;
+- **`role #`** è il rango DENTRO il suo ruolo, non la posizione a video: sopravvive a ordinamenti e filtri,
+  ed è il numero che serve (si comprano 8 difensori, non i migliori 8 della lista). Un trattino dice che la
+  classifica non poteva contenerlo — sotto la soglia di disponibilità, o mai prezzato.
+
+`evaluate.auction_view(full=True)` aggiunge a ogni blocco `rows`: le STESSE righe, dagli STESSI due
+costruttori, senza troncamento e **con dentro chi la classifica non può tenere** — sotto la soglia di
+`min_availability` (che il `league_config` dichiara gatare «solo il RANKING») e chi non è mai stato prezzato
+ma ha giocato, con le celle previste vuote. Senza `full` non esiste: il gate legge le prime dieci e non si
+muove di un decimale.
+
+**Su mantra la riga è UNA**: il motore classifica un `dc;b` in entrambe le liste, ciascuna contro il proprio
+livello, ed è giusto per una top-ten di ruolo; una tabella sola deve rispondere con una riga, e quale slot
+sia lo decide **`snapshot.auction_level`** — la definizione che già rispondono foglio, rango e `est_surplus`
+— non un secondo criterio scritto qui (è il difetto dei «due listini che possono dissentire», pagato tre
+volte).
+
+**Quello che resta fuori, e lo dice**: chi il listone non porta non ha codice mantra, quindi non c'è slot in
+cui classificarlo — **61 su 1895** sul foglio euro 2026-27 (zero prezzati dal core, nessuno quotato), **1 su
+851** su Serie A, dove il vocabolario è uno solo. La riga di conteggio lo scrive («N of the perimeter not
+listed (no role this game ranks by)») invece di lasciare credere che la lista sia tutta la rosa.
+
+### 2. Ordinamento e filtri
+
+Ogni intestazione è un bottone: primo click ordina, secondo inverte, **terzo torna all'ordine di
+classifica** — l'unico in cui `role #` si legge dall'alto in basso, così un ordinamento non è mai una porta
+a senso unico. Si ordina per il **valore dietro la cella** e mai per la stringa dentro (o 100 verrebbe prima
+di 9), e **una cella vuota affonda in fondo in entrambi i versi**, come nella tabella della rosa: un vuoto
+non è un numero piccolo. `FIELDS` tiene in un posto solo (colonna → campo, decimali), perché intestazione,
+cella e chiave d'ordinamento devono nominare lo stesso campo.
+
+I due filtri (Ruolo, Squadra) **nascondono righe e basta**: non ricalcolano niente e nessuna cifra è fittata
+su ciò che resta a video — un tasso letto sui 25 uomini di un club sarebbe un percentile calcolato nel pool
+sbagliato, difetto già pagato con `listone_quotes`.
+
+### 3. Geometria, misurata prima e dopo
+
+La tabella è **la scheda intera** e non un frame dentro un canvas che scorre: mille righe dentro un canvas
+sono un widget alto mille righe, e il suo `bind_all("<MouseWheel>")` si mangiava la rotellina che serve
+all'albero. Tre invarianti, ora sotto test come ratio (`test_the_auction_table_gets_the_height_and_never_hides_a_column`):
+la tabella prende **>70%** dell'altezza della scheda (misurato: 82% a 1400px), le colonne che non ci stanno
+hanno una **barra orizzontale** (Tk le CLIPPA in silenzio — «276px non erano strette, erano ASSENTI»), e la
+barra sparisce quando ci stanno. Griglia e non `pack`, perché un widget impacchettato dopo uno che si
+espande riceve la cavità che resta, cioè nessuna: è così che una barra di stato è vissuta a 1×1 px.
+
+### 4. I due ruoli sono PALLINE, e su Mantra il filtro è multiplo
+
+Richiesta dell'operatore: «ruoli classic e mantra devono essere disegnati come palline colorate (come nella
+pagina snapshot)» e «quando il filtro Game=Mantra il filtro dei ruoli deve essere una select multipla con
+tutti i ruoli mantra». Due colonne, **R** (ruolo di listone) e **M** (i codici mantra), disegnate con la
+stessa tavolozza delle badge sul campetto — una sola funzione, `draw_role_pills`, letta da tutte e tre le
+tabelle che nominano un ruolo.
+
+Questo ha **cambiato il widget**: un `Treeview` in Tk 8.6 colora una RIGA e niente di più piccolo (`tag
+cell` non esiste), che è la ragione per cui la tabella della rosa è già una canvas. Quindi anche questa lo è,
+con header e corpo su due canvas che scorrono insieme; tutto ciò che il Treeview dava gratis è scritto a
+mano: i segni d'ordinamento, i tooltip di colonna, le righe alternate, il click. La barra orizzontale resta
+mostrata solo quando serve e lo spazio in più va a `Pair`, ridisegnando **una volta sola** per cambio di
+larghezza (debounce di 120 ms: un ridisegno sono 20.000 item di canvas).
+
+La pallina **piena** è lo slot in cui la riga è prezzata, le **contornate** sono gli altri codici: su mantra
+un `dc;b` è prezzato in uno dei due e la riga deve dire quale, senza bisogno di una legenda. Su un foglio
+classic nessun codice lo prezza (lo fa il ruolo di listone), quindi sono tutte piene — una regola sola, che
+non spegne il colore dove non c'entra.
+
+Il **filtro ruolo** è un menu di checkbutton: su mantra offre **tutti e dodici** i codici (non solo quelli
+presenti nella lista corrente — un filtro le cui voci compaiono e spariscono con la stagione è un filtro che
+non si impara), e su mantra legge i **CODICI** e non lo slot: la domanda al tavolo è «chi mi fa il braccetto
+o l'esterno», e un `dc;b` prezzato come `dc` è una delle risposte. Misurato sul foglio euro 2026-27:
+`b`+`e` → **314 righe su 1834**. Niente di spuntato = tutto, che è ciò che significa un filtro vuoto.
+
+### 5. SpM e dVM
+
+Definizione, misure e limiti stanno in
+[metrica-asta-surplus-v1.md](metrica-asta-surplus-v1.md) §14, riscritta dopo due correzioni dell'operatore:
+**l'FVM non è di fine stagione** (cambia a ogni evento saliente: quello che abbiamo per una stagione passata
+è l'ultima lettura di quel listone) e **l'FVM è un PREZZO**, tarato su un'asta di riferimento a 10 squadre
+con 1000 di budget, massimo 500 — verificato, non creduto: i primi 250 per FVM del listone Serie A 2025-26
+completo sommano 1.032 crediti a squadra. Quindi la conversione è un problema di budget: per ruolo di
+listone, `tasso = (FVM degli N che il MERCATO rosterizza) / (surplus degli N che il MOTORE rosterizzerebbe)`
+con N = squadre × slot, `SpM = tasso × surplus`, `dVM = SpM − FVM`. Tararlo su tutti i quotati leggeva i
+rosterati come **sopravvalutati del 23%** per costruzione. Solo sulla metrica SURPLUS — sono fatte DI
+surplus, e una VALUE list non ne ha: una sola intestazione non può nominare due quantità diverse a seconda
+di un selettore.
+
 ## Novità v9.44 (8 agosto 2026, notte tarda — quattro domande sulle board: una regola, un giudizio persistente, due rifiuti)
 
 `SHEET_REVISION` resta **13** (nulla che il foglio PORTI si è mosso: cambia il disegno, non una

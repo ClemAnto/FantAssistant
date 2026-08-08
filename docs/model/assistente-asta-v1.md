@@ -187,13 +187,20 @@ Esiste (e va riusato, non riscritto):
   Serie A è passata da 346/629 a 629/629;
 - la colonna **Pair** (K, co-start, ΔQt.I), che porta l'evidenza dell'affollamento al decisore senza
   riordinare nulla;
+- **una lista sola di tutti i giocatori** dall'8/08/2026, ordinabile per ogni colonna e filtrabile per
+  ruolo e per squadra (spec «Novità v9.45»), con dentro anche chi la classifica non può tenere;
+- **SpM/dVM**, il surplus riespresso nella moneta del listone e la differenza con l'FVM
+  (`evaluate.market_rates`, [metrica-asta-surplus-v1.md](metrica-asta-surplus-v1.md) §14). È la versione
+  **statica** del §4.3: stessa legge di conservazione, letta però dal mercato invece che dal monte crediti,
+  e senza asta in corso — quindi dice chi è caro *fra i suoi pari ruolo*, mai quanto spendere per reparto;
 - il **bundle** `data/export/<season>/` come unico canale dati dell'app, con `manifest.json` normativo.
 
 Manca, in ordine di quanto blocca:
 
 1. **La modalità live.** Tutto l'harness assume che l'esito esista: `_window_is_usable` vuole almeno 50
-   fantamedie vere, la vista Auction elenca solo stagioni finite, `auction_view` confronta **due** liste.
-   Un'asta ha **una** lista. È scritto in `app/README.md` come il lavoro aperto, e non è del toolkit.
+   fantamedie vere e `auction_view` confronta **due** liste. Un'asta ha **una** lista, e il pannello ora la
+   mostra così su ogni stagione (spec «Novità v9.45»), stagione LIVE compresa; quello che resta — il tavolo
+   in diretta — è dell'app, ed è scritto in `app/README.md`.
 2. **Il rimpiazzo personale** (§4.1): oggi il rimpiazzo è di lega e statico.
 3. **λ e il tetto di rilancio** (§4.2): non esistono, in nessuna forma.
 4. **Il modello di prezzo di mercato** e il budget residuo degli avversari (§4.3).

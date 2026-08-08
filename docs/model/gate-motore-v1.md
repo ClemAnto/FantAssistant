@@ -2982,6 +2982,34 @@ Effetto sul foglio EuroLeghe: **420 righe su 979**, e nella direzione che un ter
 Kane 8.758 → **9.215** (surplus 232.6 → 244.8), Haaland 7.968 → 8.445, Mbappé 7.998 → 8.593, mentre chi ha
 avuto una stagione sola scende (Dallinga 6.956 → 6.672, Bonny 7.229 → 6.955).
 
+#### Ri-verificata l'8 agosto 2026, perché avevo detto il contrario
+
+Rispondendo a «come mai G. Ramos ha un SURPLUS così basso?» ho scritto che **il core legge una sola
+stagione**: vero su `default`, **falso su euro**, dove R18 è adottata. La verifica è quella di sempre —
+chiamare la funzione invece di leggere la colonna che le somiglia:
+
+- i coefficienti fittati per finestra sono `history_lam` = (b1 su `fm_prev`, b2 su `fm_5y`): Tm4
+  (−0.01, 0.48) · Tm3 (0.44, 0.32) · T0 (0.33, 0.48) · T1 (0.12, 0.52) · T2 (0.24, 0.44). Su quattro
+  finestre di cinque **la media pluriennale pesa PIÙ dell'ultima stagione**;
+- sul foglio euro 2026-27 la regola muove **407 righe su 1834** (Mbappé +0.60, Haaland +0.48, Kane +0.46;
+  in basso Dallinga −0.28, Bonny −0.27);
+- **Ramos**: `fm_prev` 6.23, media delle sue **tre** stagioni (7.52 · 7.50 · 6.23) = **7.083**, àncora `pc`
+  7.424 → 7.424 + 0.24×(6.23−7.424) + 0.44×(7.083−7.424) = **6.993**, cioè **+0.070** contro il core solo.
+  Le tre stagioni sono già lette; resta basso perché la sua media triennale è **sotto** l'àncora dei
+  centravanti euro, e il livello di rimpiazzo dei `pc` è 7.19.
+
+⚠️ E una trappola dell'harness, la stessa di sempre: chiamare `snapshot.engine_predictions(..., fits={})`
+fa ripiegare i parametri su `R0-core`, dove `history_lam` è **None** perché la finestra LIVE non ha esito su
+cui fittare — e R18 muove **0 righe su 531**. Non è la regola che non funziona, è il percorso che non è
+quello del pannello (che i fit glieli passa). Misurare una regola adottata richiede i fit veri.
+
+#### Cosa NON è mai stato misurato, e sarebbe la richiesta «leggi le ultime 3 stagioni»
+La FINESTRA (cinque stagioni) e i PESI (uguali) sono scritti a mano in `features.load` e non li ha mai
+giudicati nessuno. Una griglia pre-registrabile: `n ∈ {2,3,4,5}` × `decadimento ∈ {1.0, 0.75, 0.5}`, giudizio
+col gate su entrambe le piattaforme, incumbent = (5, 1.0). Da dichiarare prima: **un decadimento ABBASSA
+Ramos** — con pesi 1/0.5/0.25 la sua media passa da 7.083 a **6.78**, perché dà più peso alla stagione
+brutta — e va nella direzione OPPOSTA a ciò che i fit dicono (b2 > b1 su 4 finestre di 5).
+
 #### ESITO del primo giro — passava su UNA combinazione su quattro
 
 | combinazione | robust | vince | guadagno medio | peggiore | esito |
@@ -3431,6 +3459,60 @@ nessuno può ri-misurare. Da rifare quando cambia il **dato**, non quando torna 
 E una cosa che questa misura **non** dice: che le bande siano inutili. Dicono che non spostano il **modulo**.
 La domanda per cui erano nate — «copre davvero l'altra fascia?», cioè i ballottaggi e la riga dei rivali — ha
 una metrica diversa e più debole (le fonti pubblicano i ballottaggi a singhiozzo) e non è stata aperta.
+
+## 7-sexvicies. IL COEFFICIENTE DI CAMPIONATO SUI VOTI EURO (misurato l'8 agosto 2026, PRIMA di decidere)
+
+**Domanda dell'operatore**: «per tutti i calciatori che non hanno giocato l'anno scorso per la Serie A, va
+bene considerare i voti di EuroLeghe al netto di un coefficiente per il campionato diverso?»
+
+**Metà della proposta è già in produzione, e l'altra metà è esattamente quello che a R1 manca.**
+`arrivals.foreign_fm_equivalent` usa già il **voto euro REALE** dove esiste (`COALESCE(match_ratings.mv,
+mv_synth)` su `platform='euro'`), convertito con lo scoring della lega d'arrivo: non è un voto sintetico, è
+il voto di fantacalcio.it per le cinque leghe. Quello che non ha mai avuto è il **coefficiente**. E R1 così
+com'è **è stata rifiutata due volte** (§3 il 27/07 su due finestre, §7-octies il 5/08 su sei con copertura
+tripla): batte l'àncora di ruolo solo su 1 finestra di 6.
+
+### Il coefficiente misurato: esiste per UNA lega su quattro
+
+Popolazione: chi ha una stagione **euro** a t−1 (Pv ≥ 15) e una stagione **default/Serie A** a t (Pv ≥ 15).
+Il null non è zero, è lo stesso salto per chi in Serie A c'era già — 547 casi, **−0.020**: la differenza fra
+le due piattaforme, di suo, non sposta la fantamedia.
+
+| origine | n | Δ(FM) medio | se | t contro il null |
+|---|---|---|---|---|
+| premier_league | 21 | **+0.619** | 0.170 | **+3.8** |
+| ligue_1 | 23 | −0.157 | 0.122 | −1.1 |
+| bundesliga | 13 | −0.084 | 0.182 | −0.3 |
+| la_liga | 9 | −0.063 | 0.130 | −0.3 |
+
+17 dei 21 casi Premier migliorano (Lukaku +2.27, Malen +2.10, Hojlund +1.20, McTominay +1.09); le altre tre
+leghe sono indistinguibili dallo zero. **Conseguenza per il caso che ha generato la domanda**: G. Ramos
+arriva dalla Ligue 1, quindi il coefficiente lo abbasserebbe di 0.16 invece di alzarlo. La sua fantamedia
+bassa non è il campionato: è che il core legge **solo l'ultima stagione** e la sua è 6.23 (26 presenze, 5 gol
+al PSG), mentre le due precedenti — 7.52 e 7.50 — non le legge nessuno.
+
+### È la LEGA o il gradino di livello? Nessuna delle due, pulita
+
+Sui 65 casi cross-lega con Elo su entrambi i club: r = **+0.279** fra gradino Elo e Δ(FM), pendenza **+0.19
+di fantamedia ogni 100 punti**, e le bande sono monotone fino a +150 (−0.33 · +0.07 · +0.57). Ma la Liga ha
+il gradino MEDIO più grande della Premier (+79 contro +55) e Δ(FM) −0.06: il gradino non spiega la Premier.
+Con 65 casi in tutto, il segnale è al limite di ciò che il dato può portare.
+
+### Perché non si adotta guardando questi numeri
+
+- **Un offset per competizione può essere vero e non valere lo stesso**: già misurato una volta
+  (§7-nonies), lo scarto di Serie B −0.181 taglia del 20% l'errore contro la retta nuda e **perde contro
+  l'àncora di ruolo**, quindi `synth.APPLY_OFFSETS = False`. Essere reale non è battere la risposta banale.
+- **Selezione**: Pv ≥ 15 su entrambi i lati esclude chi è arrivato e non ha giocato, cioè i flop. Il null
+  ne assorbe una parte, non tutta.
+
+### Pre-registrazione, se si decide di provarlo
+Regola **R1c**: per chi non ha stagione sulla piattaforma bersaglio, `FM = FM euro(t−1) + coefficiente(lega
+d'origine)`, coefficiente fittato **leave-one-window-out** e applicato solo dove il suo intervallo esclude lo
+zero. Giudizio **sulla popolazione che tocca** (criterio 5, come ogni regola di copertura): batte l'àncora di
+ruolo sul MAE della fantamedia, maggioranza delle finestre misurabili e media sopra lo 0.5%. Falsificazione
+attesa, dichiarata prima: non la batte, perché la taglia del segnale sta sull'errore dei giocatori che tocca
+e non sul coefficiente — è già successo con il coefficiente raddoppiato (0.186 → 0.431).
 
 ## 7-quinvicies. LA BOARD CONTRO L'ESITO, e i quattro candidati che ne sono nati (8 agosto 2026)
 

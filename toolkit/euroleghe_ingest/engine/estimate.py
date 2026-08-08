@@ -75,6 +75,28 @@ PRESENCE_SHARE: dict[str, dict[str, float]] = {
     "thin": {"default": 0.42, "euro": 0.29},
 }
 
+# ...and the man who HAS a measured season, only not on THIS platform - the new signing from abroad.
+# Pricing him at the share above says «nobody has ever seen him play», which is false and expensive:
+# measured over the men with no season here at t-1 and league minutes abroad at t-1 who then played here
+# (323 on default, 929 on euro), their real share is a median **0.447 / 0.290** against the 0.29 / 0.19 the
+# unmeasured constant gives them - six matchdays of 38 handed back. And their OWN minutes carry more than
+# the band does:
+#     share = a + b x (his league minutes / (90 x that league's rounds))
+# fitted on `external_stats` league rows over `features.league_rounds`, i.e. the two denominators the
+# measurement itself used - a cup is not a matchday of the championship he played. Judged
+# LEAVE-ONE-SEASON-OUT, so the coefficients never see the season they are scored on: MAE **0.2300 against
+# 0.2803** for the constant on default (**+17.9%**) and **0.2831 against 0.2983** on euro (**+5.1%**). The
+# band median alone is worth less than the line on default (0.2455) and is WORSE than the constant on euro
+# (0.3256), which is why what ships is the line and not a second constant.
+# REPORTING, like the whole of this module: `engine_*` does not move a decimal, the gate never sees it.
+ABROAD_SHARE: dict[str, tuple[float, float]] = {
+    "default": (0.339, 0.320),
+    "euro": (0.183, 0.357),
+}
+# His share of a foreign calendar cannot exceed it, and the line's intercept keeps it off zero - so the
+# clip is about the INPUT being outside the range it was fitted on, not about tidying the output.
+ABROAD_MAX_SHARE: float = 1.0
+
 
 def default_presences(calendar: int | None, platform: str, kind: str = "unmeasured") -> float | None:
     """The presences of a man whose appearances nobody can predict, from the measured shares above."""
@@ -82,6 +104,23 @@ def default_presences(calendar: int | None, platform: str, kind: str = "unmeasur
         return None
     share = PRESENCE_SHARE.get(kind, {}).get(platform)
     return None if share is None else round(calendar * share, 1)
+
+
+def presences_from_abroad(calendar: int | None, platform: str,
+                          minutes_share: float | None) -> float | None:
+    """The presences of a man measured ELSEWHERE last season, from how much of it he actually played.
+
+    None when there is nothing to read - no calendar, no measured minutes, or a platform without a fitted
+    line - and then the caller falls back to the unmeasured constant. A None here is «we have not watched
+    him», which is a different sentence from «he played a third of a season», and only one of them is true
+    for a €74M signing with 1320 minutes in Ligue 1.
+    """
+    line = ABROAD_SHARE.get(platform)
+    if not calendar or line is None or minutes_share is None or minutes_share <= 0:
+        return None
+    intercept, slope = line
+    share = min(max(intercept + slope * minutes_share, 0.0), ABROAD_MAX_SHARE)
+    return round(calendar * share, 1)
 
 
 # How many measured players of a role a club needs before its own level is trusted over the role anchor.
