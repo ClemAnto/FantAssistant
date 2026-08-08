@@ -4,7 +4,7 @@
 voce porta la sua evidenza misurata, il giudice con cui si decide, e la resa attesa. Ordinata per
 resa. Meccanismo e formule: [formazioni-tipo-v1.md](formazioni-tipo-v1.md).*
 
-**Stato del giudice** (harness `press`, foglio default, `SHEET_REVISION` 12): moduli **11 uguali +
+**Stato del giudice** (harness `press`, foglio default, `SHEET_REVISION` 13): moduli **11 uguali +
 5 sull'alternativa dichiarata + 4 divergenti**, uomini **166/220 = 75%** — da 9/5/6 e 160/220
 dell'archivio di partenza. La referenza è un DATO (`press_formations`) e il confronto un comando:
 questi numeri si citano da `data/reports/press_comparison.json`, mai a memoria. Il perché di quella
@@ -13,13 +13,15 @@ regola è la voce 3-ter.
 **Le voci, una riga ciascuna**: 0 fatta · 0-bis fatta (il secondo giudice) · 1 fatta · 1-bis chiusa
 (chiusa: non misurabile, 3-7 uomini per stagione) · 2 fatta · 3 fatta · 3-bis dato sì regola no ·
 4 chiusa da due giudici concordi · 5 misurata e non adottata · 5-bis (proposta dell'operatore) misurata
-e rifiutata · **6 aperta** (letture, costo quasi zero) · 7 misurata e refutata da due giudici · 7-bis:
-due candidati rifiutati prima di scrivere codice.
-**Quattro voci chiuse con un'adozione e sei con un rifiuto misurato** (o con la constatazione che
-nessun harness può giudicarle), ed è il risultato che vale: una regola che non entra perché il giudice
-l'ha bocciata costa un pomeriggio, una che entra senza giudice costa un'asta. **Nessuna voce di modello
-resta aperta**; restano la 6 (letture, costo quasi zero) e un filone sui DATI misurato oggi: la
-copertura del livello, che esiste per 67 dei 158 arrivi (voce 1-bis in fondo).
+e rifiutata · 6 fatta (tre letture) · 7 misurata e refutata da due giudici · 7-bis: due candidati
+rifiutati prima di scrivere codice.
+**LA LISTA È CHIUSA**: cinque voci con un'adozione, sei con un rifiuto misurato (o con la
+constatazione che nessun harness può giudicarle). Ed è il risultato che vale: una regola che non entra
+perché il giudice l'ha bocciata costa un pomeriggio, una che entra senza giudice costa un'asta.
+L'ultimo punto aperto — la copertura del livello — è stato chiuso lo stesso giorno: 67 → **74** dei 158
+arrivi, con la guardia che rifiuta il club in cui un promosso è ancora (voce 1-bis in fondo). Quello
+che resta è la manutenzione: rimisurare i due giudici quando arriva una referenza nuova, e le voci
+future nascono da lì.
 
 **Regola che vale per tutta la lista**: la stampa è un GIUDICE, mai un input del claim — leggerla
 dentro il modello renderebbe circolare proprio il confronto che la usa. E nessun criterio si
