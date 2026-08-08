@@ -10,14 +10,16 @@ dell'archivio di partenza. La referenza è un DATO (`press_formations`) e il con
 questi numeri si citano da `data/reports/press_comparison.json`, mai a memoria. Il perché di quella
 regola è la voce 3-ter.
 
-**Le voci, una riga ciascuna**: 0 fatta · 0-bis fatta (il secondo giudice) · 1 fatta · **1-bis aperta**
-(nata dalla 1, e il giudice-esito l'ha spostata in cima) · 2 fatta · 3 fatta · 3-bis dato sì regola no ·
+**Le voci, una riga ciascuna**: 0 fatta · 0-bis fatta (il secondo giudice) · 1 fatta · 1-bis chiusa
+(chiusa: non misurabile, 3-7 uomini per stagione) · 2 fatta · 3 fatta · 3-bis dato sì regola no ·
 4 chiusa da due giudici concordi · 5 misurata e non adottata · 5-bis (proposta dell'operatore) misurata
 e rifiutata · **6 aperta** (letture, costo quasi zero) · 7 misurata e refutata da due giudici · 7-bis:
 due candidati rifiutati prima di scrivere codice.
-**Sette voci si sono chiuse con un rifiuto misurato e tre con un'adozione**, e questo è il risultato
-che vale: una regola che non entra perché il giudice l'ha bocciata costa un pomeriggio, una che entra
-senza giudice costa un'asta. Resta **una sola** voce di modello aperta, la 1-bis, e vuole uno sweep.
+**Quattro voci chiuse con un'adozione e sei con un rifiuto misurato** (o con la constatazione che
+nessun harness può giudicarle), ed è il risultato che vale: una regola che non entra perché il giudice
+l'ha bocciata costa un pomeriggio, una che entra senza giudice costa un'asta. **Nessuna voce di modello
+resta aperta**; restano la 6 (letture, costo quasi zero) e un filone sui DATI misurato oggi: la
+copertura del livello, che esiste per 67 dei 158 arrivi (voce 1-bis in fondo).
 
 **Regola che vale per tutta la lista**: la stampa è un GIUDICE, mai un input del claim — leggerla
 dentro il modello renderebbe circolare proprio il confronto che la usa. E nessun criterio si
@@ -88,33 +90,44 @@ foglio controfattuale coi duplicati rimessi: 10/4/6 e 164/220 identici.
 Frosinone **4/11 → 10/11** (resta un ballottaggio, El Azzouzi/Koutsoupias), Venezia 7 → 8, Monza
 prende il modulo giusto. `backtest --verify` 22/22.
 
-## 1-bis. Il SALTO DI LIVELLO di chi ha giocato altrove senza cambiare club di listone
-**Perché, misurato (08/08/2026, esce dalla voce 1 e ne è il rovescio)**: col dato di Serie B in
-tabella, Missori (**27 start**), Ciervo (34), Kofler (28), Braunoder (22) passano da zero a titolari
-misurati e la board li schiera — ed è il DATO a essere giusto: quello che manca è scontare che 34
-start in Serie B non sono 34 in Serie A. Costa 3 uomini sul confronto (Sassuolo, Cagliari, Como),
-cioè l'unica parte negativa del bilancio della voce 1.
-Il canale che lo direbbe **esiste già ed è adottato** — `level_gap` («chi scende di livello sale di
-ruolo», 07/08/2026) — e non li raggiunge, per una ragione precisa: è applicato **solo a chi ha
-CAMBIATO CLUB**, che è la popolazione su cui è stato misurato, e questi uomini il club di listone
-non l'hanno cambiato. Erano in PRESTITO (Missori al Palermo col listone che lo teneva al Sassuolo:
-nessuna riga in `arrivals`, che è un diff fra roster) oppure arrivano senza roster precedente
-(Kofler, tipo `new`, `origin_club` e `origin_league` entrambi NULL).
-**La misura del perimetro**: 48 uomini quotati 2026-27 con 10+ start di Serie B nel 2025-26; **40
-sono ai tre promossi** — e per loro il livello non è cambiato per un trasferimento, è salito il club,
-quindi il claim «chi parte titolare» resta giusto (Frosinone 10/11 lo dimostra) — e **8 sono a club
-già in Serie A**, cioè quelli che il salto l'hanno fatto davvero. Uno solo (Missori) senza riga
-d'arrivo.
-**L'ipotesi da misurare, che è più grande del caso**: il livello del calcio giocato è un fatto sui
-MINUTI, non sull'ARRIVO — `external_stats.club_id` → `club_levels` lo sa già per chiunque, e
-`elo.personal_levels` fa esattamente quel join. Estendere `level_gap` da «chi ha cambiato club» a
-«chi ha cambiato LIVELLO» è cambiare la popolazione di un canale adottato, quindi **non si fa inline
-e non si fa senza sweep**: griglia pre-registrata, e il verdetto va letto sulla popolazione su cui
-la regola agisce (regola §7-sexies), che qui sono 8 uomini su un foglio — un numero che da solo
-dice che il giudice interno non basterà e servirà la referenza esterna.
-**Giudice**: sweep pre-registrato + il confronto (voce 0) su Sassuolo/Cagliari/Como.
-**Resa attesa**: piccola oggi e strutturale ogni estate; ClubElo **ha** i club di Serie B (Palermo
-1569, Sampdoria 1643), quindi il dato per misurarla c'è.
+## 1-bis. ~~Il SALTO DI LIVELLO di chi ha giocato altrove senza cambiare club~~ — **NON MISURABILE** (08/08/2026)
+**L'ipotesi**: il livello del calcio giocato è un fatto sui MINUTI e non sull'ARRIVO, quindi
+`level_gap` — adottato il 07/08/2026 e applicato solo a chi ha CAMBIATO CLUB — non raggiunge chi ha
+cambiato campionato restando nello stesso club di listone (un prestito, o una promozione). Il caso che
+la generò: Missori, 27 start in Serie B col listone che lo teneva al Sassuolo.
+**Chiusa senza scrivere il canale, perché la POPOLAZIONE non lo consente.** Contati gli uomini con
+minuti misurati in un campionato diverso da quello del loro club di listone e senza cambio di club:
+
+| stagione bersaglio | quotati | popolazione del canale |
+|---|---|---|
+| 2023-24 | 1558 | **3** |
+| 2024-25 | 1524 | **3** |
+| 2025-26 | 1453 | **7** |
+| 2026-27 | 1175 | **5** |
+
+Fra lo **0.2% e lo 0.5%** dei quotati. Nessun MAE su mille giocatori si muove per cinque uomini, e il
+giudice-esito (20 board × 11 uomini) ne toccherebbe uno o due: **non è una voce da fare, è una voce che
+nessun harness può giudicare**, e per la regola d'oro (nessuna regola entra senza gate) non è
+adottabile. Resta scritta perché il caso è reale e perché se un giorno il perimetro cambia — più
+prestiti nel listone, o i cinque campionati esteri con le loro seconde divisioni — la popolazione
+cresce e la domanda torna misurabile.
+
+**E UNA CORREZIONE A QUESTA STESSA LISTA, che è la parte che vale.** La voce 7-bis diceva: «40 dei
+mancati e 42 degli sbagliati sono ARRIVI, quindi metà degli errori sta sulla popolazione su cui la
+1-bis agirebbe — il che la sposta in cima». **Falso.** Quegli 82 sono arrivi VERI, con cambio di club,
+cioè la popolazione che `level_gap` **già copre**: chiamando la funzione vera, **55 degli 81** portano
+un `level_gap_z`. La 1-bis riguarda i soli prestiti-senza-cambio-club, che sono cinque.
+L'errore è stato commesso misurando `desc_level_gap`, **una colonna che non esiste**: `level_gap_z` è
+CALCOLATO dal pannello da `desc_level_elo` meno l'Elo del club, e `row.get()` su un nome inesistente
+restituisce None per tutti — da cui il «100% cieco» che sembrava un difetto grave su un canale
+adottato il giorno prima. È esattamente la regola che questo progetto ha già pagato due volte e che è
+scritta in CLAUDE.md — **si verifica la FUNZIONE, non la colonna che le somiglia** — violata da chi
+l'aveva appena riscritta. Il modo di non ripeterlo non è ricordarsela: è chiamare la funzione.
+
+**Quello che resta davvero aperto sugli arrivi**, e questa volta misurato con la funzione: la COPERTURA
+del livello. `level_gap_z` esiste per **67 dei 158 arrivi** del foglio 2026-27 (42%), e il limite è
+`desc_level_elo`, che vuole l'Elo di entrambi i club. Alzare quella copertura è un lavoro sui DATI con
+una popolazione vera (91 arrivi), non un canale nuovo — e va misurato prima di essere fatto.
 
 ## 2. ~~Transfers: risoluzione dei nomi e freschezza~~ — **FATTA** (08/08/2026, `d7ea4a3` + `a039910`)
 **Perché, misurato**: Lazio **4/11** con tre titolari attesi che sono arrivi di luglio (Doekhi,
@@ -327,9 +340,12 @@ del layer misurato di questa sessione.
   (`engine_pv_pred`).
 - **Allargare l'acquisizione**: escluso dai dati, non per opinione. Tutti gli 86 mancati erano sul
   foglio, quindi il perimetro non lascia fuori nessuno di loro.
-- **Nota sugli ARRIVI, che rafforza la voce 1-bis**: 40 degli 86 mancati e 42 degli 86 sbagliati sono
-  arrivi. Metà degli errori in entrambe le direzioni sta sulla popolazione più incerta, che è
-  esattamente quella su cui la 1-bis agirebbe — il che la sposta in cima alle voci aperte.
+- **Nota sugli ARRIVI, ~~che rafforza la voce 1-bis~~ — CORRETTA**: 40 degli 86 mancati e 42 degli 86
+  sbagliati sono arrivi, quindi metà degli errori sta sulla popolazione più incerta. Ma la conclusione
+  che ne era stata tratta («questo sposta la 1-bis in cima») era **falsa**: quelli sono arrivi VERI, con
+  cambio di club, cioè la popolazione che `level_gap` già copre — 55 degli 81 portano un
+  `level_gap_z`. La 1-bis riguarda i prestiti senza cambio club, che sono cinque. Come si è arrivati
+  allo sbaglio, e perché è la lezione più utile della giornata, sta nella voce 1-bis.
 
 ## 6. Letture, non regole (a costo quasi zero)
 - **Ballottaggi quasi-pari**: Gila/Tomori, Thuram K./McKennie, Isaksen/Cancellieri sono duelli
