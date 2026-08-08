@@ -86,6 +86,67 @@ def test_an_identity_is_not_a_season_fact(tmp_path):
     assert conn.execute("SELECT COUNT(*) FROM player_xref WHERE source_id = '934235'").fetchone()[0] == 0
 
 
+def test_a_known_identity_rescues_the_season_the_listone_perimeter_hides(tmp_path):
+    """The Doekhi case (08/08/2026): bought into the perimeter in 2026-27, so the pools of the season
+    he actually PLAYED do not contain him and his input season goes to nobody - 59 men of the 2026-27
+    listone with no 2025-26 aggregate at all, their provider id already in `player_xref`."""
+    ctx = _ctx(tmp_path)
+    conn = ctx.conn
+    # quoted in 2023-24 (which is what established his identity) and again in 2026-27, never between
+    _add_player(conn, 1, "Doekhi", "Union Berlino", "bundesliga", season="2023-24")
+    _add_player(conn, 1, "Doekhi", "Lazio", "serie_a", season="2026-27")
+    conn.commit()
+    row = _provider_row(830803, "Danilho Doekhi", "1. FC Union Berlin")
+
+    # without the identity, the 2025-26 aggregate is orphaned - the name pools are that season's roster
+    orphaned, _r = positions.resolve_season(conn, "2025-26", {"bundesliga": [row]}, known={})
+    assert orphaned == []
+    # with it, the row lands on him, at the WEAKEST evidence there is
+    rescued, _r = positions.resolve_season(conn, "2025-26", {"bundesliga": [row]},
+                                           known={"830803": 1})
+    assert [(claim.fc_id, claim.pass_name) for claim in rescued] == [(1, "known")]
+
+    # ...and it does NOT re-confirm the identity: a mapping no name pass supports must still be
+    # droppable, or a namesake collapse from an old run would live forever
+    positions._store_identities(conn, {"2025-26": rescued}, {"2025-26": {"bundesliga": [row]}})
+    assert conn.execute("SELECT COUNT(*) FROM player_xref WHERE source_id = '830803'").fetchone()[0] == 0
+
+
+def test_a_known_claim_whose_identity_died_is_dropped_before_it_is_written(tmp_path):
+    """Otherwise two runs over one cache give two different databases: the first writes the season
+    fact under an identity it has just deleted, the second (reading the emptied table) does not."""
+    ctx = _ctx(tmp_path)
+    row = _provider_row(830803, "Danilho Doekhi", "1. FC Union Berlin")
+    rescued, _r = positions.resolve_season(ctx.conn, "2025-26", {"bundesliga": [row]},
+                                           known={"830803": 1})
+    kept, dropped = positions.drop_orphan_known_claims({"2025-26": rescued}, surviving={})
+    assert (kept["2025-26"], dropped) == ([], 1)
+    # an identity the run DID re-establish keeps its claims
+    kept, dropped = positions.drop_orphan_known_claims({"2025-26": rescued},
+                                                       surviving={"830803": 1})
+    assert (len(kept["2025-26"]), dropped) == (1, 0)
+
+
+def test_an_authoritative_run_retracts_only_the_identities_it_owns(tmp_path):
+    """`recent_form` pays provider searches for men no listone of ours ever quoted, so no name pool
+    here can re-establish them - and the delete was dropping exactly those (20 on the real cache, 19
+    quoted in 2026-27). `resolved_by` says who owns a row; 'unknown' predates the column."""
+    ctx = _ctx(tmp_path)
+    conn = ctx.conn
+    conn.executemany("INSERT INTO players(fc_id, canonical_name) VALUES (?, ?)",
+                     [(1, "Evanilson"), (2, "Stale"), (3, "Legacy")])
+    conn.executemany("INSERT INTO player_xref(fc_id, source, source_id, resolved_by) "
+                     "VALUES (?, 'sofascore', ?, ?)",
+                     [(1, "998490", "recent_form"), (2, "111", "positions"), (3, "222", "unknown")])
+    conn.commit()
+    cache = {"2025-26": {"premier_league": [_provider_row(998490, "Evanilson", "Bournemouth"),
+                                            _provider_row(111, "Stale", "Nowhere"),
+                                            _provider_row(222, "Legacy", "Nowhere")]}}
+    positions._store_identities(conn, {"2025-26": []}, cache)          # nothing claimed this time
+    survivors = dict(conn.execute("SELECT source_id, resolved_by FROM player_xref"))
+    assert survivors == {"998490": "recent_form", "222": "unknown"}    # only its own was retracted
+
+
 def test_namesakes_in_one_season_are_rejected_not_collapsed(tmp_path):
     """Ten different 'Sanchez' must not all land on our single Sanchez (the bug this guards)."""
     ctx = _ctx(tmp_path)

@@ -475,8 +475,10 @@ def _provider_id(conn, session, fc_id: int, name: str, cancel_event=None) -> str
         print(f"[recent_form]   {name[:22]:<22} unresolved - no bonuses possible")
         return None
     conn.execute(
-        """INSERT INTO player_xref(fc_id, source, source_id) VALUES (?, 'sofascore', ?)
-           ON CONFLICT(source, source_id) DO UPDATE SET fc_id = excluded.fc_id""",
+        """INSERT INTO player_xref(fc_id, source, source_id, resolved_by)
+           VALUES (?, 'sofascore', ?, 'recent_form')
+           ON CONFLICT(source, source_id) DO UPDATE SET fc_id = excluded.fc_id,
+                                                        resolved_by = excluded.resolved_by""",
         (fc_id, str(provider_id)))
     conn.commit()
     print(f"[recent_form]   {name[:22]:<22} resolved {provider_id} ({tier})")
@@ -570,8 +572,10 @@ def _process(ctx: Context, session, conn, player: dict, target: str, cutoff: int
     # identity is the expensive half of this module (several search requests, and the fragile half),
     # so it belongs in the DB the moment it is known.
     conn.execute(
-        """INSERT INTO player_xref(fc_id, source, source_id) VALUES (?, 'sofascore', ?)
-           ON CONFLICT(source, source_id) DO UPDATE SET fc_id = excluded.fc_id""",
+        """INSERT INTO player_xref(fc_id, source, source_id, resolved_by)
+           VALUES (?, 'sofascore', ?, 'recent_form')
+           ON CONFLICT(source, source_id) DO UPDATE SET fc_id = excluded.fc_id,
+                                                        resolved_by = excluded.resolved_by""",
         (player["fc_id"], str(provider_id)))
     conn.commit()
 

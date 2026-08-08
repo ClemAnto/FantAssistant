@@ -1487,8 +1487,9 @@ def _club_pools(conn, season: str):
 
 
 # A claim = one provider row asking to be player fc_id. `evidence` = (pass_rank, tier), lower is
-# stronger: an explicit manual override beats the club pass, which beats the league/season fallbacks.
-_PASS_RANK = {"manual": -1, "club": 0, "league": 1, "season": 2}
+# stronger: an explicit manual override beats the club pass, which beats the league/season fallbacks -
+# and last of all the KNOWN IDENTITY, which is not a name match at all (see `collect_claims`).
+_PASS_RANK = {"manual": -1, "club": 0, "league": 1, "season": 2, "known": 3}
 
 
 class Claim:
@@ -1520,6 +1521,16 @@ class Claim:
                 "reason": reason, "detail": detail}
 
 
+def known_identities(conn) -> dict[str, int]:
+    """provider id -> fc_id, as `player_xref` already knows it.
+
+    Read ONCE before the run rewrites the table, so the resolution of every season sees the same
+    starting state whichever order the seasons are processed in.
+    """
+    return {source_id: fc_id for fc_id, source_id in conn.execute(
+        "SELECT fc_id, source_id FROM player_xref WHERE source = 'sofascore'")}
+
+
 def _manual_overrides(conn) -> dict[str, int]:
     """manual_overrides rows pinning a provider id to an fc_id (highest precedence, spec §7):
     entity='player_xref', field='sofascore', value=<provider id>."""
@@ -1528,9 +1539,24 @@ def _manual_overrides(conn) -> dict[str, int]:
         "WHERE entity = 'player_xref' AND field = 'sofascore' AND fc_id IS NOT NULL")}
 
 
-def collect_claims(conn, rows: list[dict], league: str, season: str, pools, overrides):
-    """Turn one league-season of provider rows into claims (+ the rows nothing matched)."""
+def collect_claims(conn, rows: list[dict], league: str, season: str, pools, overrides, known=None):
+    """Turn one league-season of provider rows into claims (+ the rows nothing matched).
+
+    `known` = provider id -> fc_id from `player_xref`, i.e. an identity ALREADY established. It is
+    the LAST pass, only reached when no name pass matched, and it exists because the three name pools
+    are all built from the SEASON'S roster while the listone's perimeter changes every summer: a man
+    bought into the perimeter this year is in no pool of the year he actually played, so his input
+    season goes to nobody. Measured 08/08/2026: 59 men of the 2026-27 listone had NO 2025-26
+    aggregate at all while their provider id was already in `player_xref` - Doekhi (Union Berlin,
+    identified in 2023-24) and Geubbels (Paris FC), both of whom the press starts, and both with an
+    empty claim on the sheet because starts and minutes were missing rather than zero.
+
+    It is deliberately the weakest evidence and it NEVER decides an identity: `_store_identities`
+    skips these claims. An identity says which man a season fact belongs to; a season fact must not
+    say who the man is, or a namesake collapse from an old run would re-confirm itself forever.
+    """
     by_club, by_league, season_pool = pools
+    known = known or {}
     claims: list[Claim] = []
     report: list[dict] = []
     for row in rows:
@@ -1561,6 +1587,10 @@ def collect_claims(conn, rows: list[dict], league: str, season: str, pools, over
                                          + " | ".join(c[1] for c in candidates[:4])})
             break
         else:
+            if provider_id in known:
+                claims.append(Claim(known[provider_id], (_PASS_RANK["known"], 0), league, row,
+                                    "known"))
+                continue
             report.append({"league": league, "season": season, "provider_id": provider_id,
                            "provider_name": name, "provider_team": team, "reason": "unmatched",
                            "detail": f"appearances={row.get('appearances')}"})
@@ -1637,14 +1667,17 @@ def enforce_one_identity(claims_by_season: dict[str, list[Claim]]):
     return kept, report
 
 
-def resolve_season(conn, season: str, rows_by_league: dict[str, list[dict]]):
+def resolve_season(conn, season: str, rows_by_league: dict[str, list[dict]], known=None):
     """Resolve a WHOLE season at once (every league together), so injectivity can be enforced."""
     pools = _club_pools(conn, season)
     overrides = _manual_overrides(conn)
+    if known is None:
+        known = known_identities(conn)
     claims: list[Claim] = []
     report: list[dict] = []
     for league, rows in rows_by_league.items():
-        league_claims, league_report = collect_claims(conn, rows, league, season, pools, overrides)
+        league_claims, league_report = collect_claims(conn, rows, league, season, pools, overrides,
+                                                      known)
         claims += league_claims
         report += league_report
     kept, injectivity_report = enforce_injectivity(claims, season)
@@ -1676,10 +1709,22 @@ def _store_identities(conn, claims_by_season: dict[str, list[Claim]], rows_by_se
     not a verdict at all - the seasons that would have identified him were not even read - so a partial
     run only ever replaces what it can decide. That asymmetry is the whole difference between re-resolving
     and forgetting.
+
+    The `known` pass is EXCLUDED here, and that is the point of having it: those claims were made BY this
+    table, so counting them as evidence would make every mapping re-confirm itself and no stale identity
+    could ever be dropped - the `authoritative` delete above would be undone by the claims it produced.
+    An identity says which man a season fact belongs to; a season fact does not say who the man is.
     """
     if authoritative:
+        # ...and only over the mappings THIS module established. Three modules write identities on
+        # three different kinds of evidence, and this delete had no way of telling them apart: it was
+        # dropping ids `recent_form` had paid provider searches for, about men who play in a
+        # league-season no listone of ours quoted, so no name pool here could ever re-establish them
+        # (20 identities on the real cache, 19 of them quoted in 2026-27). `resolved_by` says who owns
+        # a row; 'unknown' is what a row written before the column is, and nobody retracts those.
         conn.executemany(
-            "DELETE FROM player_xref WHERE source = 'sofascore' AND source_id = ?",
+            "DELETE FROM player_xref WHERE source = 'sofascore' AND source_id = ? "
+            "AND resolved_by = 'positions'",
             [(str((row.get("player") or {}).get("id") or ""),)
              for rows_by_league in rows_by_season.values()
              for rows in rows_by_league.values() for row in rows],
@@ -1687,16 +1732,36 @@ def _store_identities(conn, claims_by_season: dict[str, list[Claim]], rows_by_se
     best: dict[str, tuple] = {}
     for season, claims in sorted(claims_by_season.items()):     # ascending: a tie goes to the newest
         for claim in claims:
-            if not claim.provider_id:
+            if not claim.provider_id or claim.pass_name == "known":
                 continue
             current = best.get(claim.provider_id)
             if current is None or claim.evidence <= current[0]:
                 best[claim.provider_id] = (claim.evidence, season, claim.fc_id)
     conn.executemany(
-        "INSERT OR REPLACE INTO player_xref(fc_id, source, source_id) VALUES (?, 'sofascore', ?)",
+        "INSERT OR REPLACE INTO player_xref(fc_id, source, source_id, resolved_by) "
+        "VALUES (?, 'sofascore', ?, 'positions')",
         [(fc_id, provider_id) for provider_id, (_e, _s, fc_id) in best.items()],
     )
-    return len(best)
+    return {provider_id: fc_id for provider_id, (_e, _s, fc_id) in best.items()}
+
+
+def drop_orphan_known_claims(claims_by_season: dict[str, list[Claim]],
+                             surviving: dict[str, int]) -> tuple[dict[str, list[Claim]], int]:
+    """Remove `known`-pass claims whose identity this run did NOT re-establish.
+
+    Only an authoritative run can say this: it has just deleted and rewritten the whole mapping, so a
+    provider id missing from `surviving` is one no name pass confirmed anywhere. Keeping its claims
+    would write season facts under an identity that no longer exists - and the NEXT run, reading the
+    emptied table, would drop them again: two runs, two different databases, from one cache.
+    """
+    dropped = 0
+    out: dict[str, list[Claim]] = {}
+    for season, claims in claims_by_season.items():
+        keep = [claim for claim in claims
+                if claim.pass_name != "known" or claim.provider_id in surviving]
+        dropped += len(claims) - len(keep)
+        out[season] = keep
+    return out, dropped
 
 
 def _store_claims(conn, season: str, claims: list[Claim]) -> int:
@@ -1940,7 +2005,19 @@ def reingest_from_cache(ctx: Context, seasons=None) -> None:
     report += identity_report
 
     total = 0
-    identities = _store_identities(conn, claims_by_season, by_season, authoritative=not seasons)
+    authoritative = not seasons
+    surviving = _store_identities(conn, claims_by_season, by_season, authoritative=authoritative)
+    identities = len(surviving)
+    if authoritative:
+        claims_by_season, orphans = drop_orphan_known_claims(claims_by_season, surviving)
+        if orphans:
+            print(f"[positions] {orphans} claim(s) dropped: their identity was not re-established "
+                  f"by any name pass in this run")
+    known_rows = sum(1 for claims in claims_by_season.values()
+                     for claim in claims if claim.pass_name == "known")
+    if known_rows:
+        print(f"[positions] {known_rows} season row(s) attributed through an identity the name pools "
+              f"could not see (the listone perimeter changes every summer)")
     for season, rows_by_league in sorted(by_season.items()):
         _clear_season(conn, season, rows_by_league)
         claims = claims_by_season[season]

@@ -72,6 +72,9 @@ ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     # The transfer row's OBSERVATION day (see schema.sql): Transfermarkt's own date is the contract
     # start, so every summer deal reads 1 July and freshness lived nowhere.
     ("transfers_history", "first_seen", "TEXT"),
+    # WHO established an identity, and therefore who may retract it (see schema.sql). Three modules
+    # write here on three different kinds of evidence and one of them deletes.
+    ("player_xref", "resolved_by", "TEXT"),
 )
 
 
@@ -87,6 +90,12 @@ def migrate(conn: sqlite3.Connection) -> list[str]:
         if column not in columns:
             conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {kind}")
             applied.append(f"{table}.{column}")
+            if (table, column) == ("player_xref", "resolved_by"):
+                # An identity already on file was established by SOME module and we cannot say which,
+                # so it is marked as what it is. It matters because `positions` retracts what it owns:
+                # left NULL these would read as its own and be dropped on the next authoritative run.
+                conn.execute("UPDATE player_xref SET resolved_by = 'unknown' "
+                             "WHERE resolved_by IS NULL")
     if applied:
         conn.commit()
     return applied

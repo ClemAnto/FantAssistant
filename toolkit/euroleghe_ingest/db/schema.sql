@@ -27,6 +27,18 @@ CREATE TABLE IF NOT EXISTS player_xref (
     source_id  TEXT NOT NULL,
     valid_from TEXT,                            -- ISO date
     valid_to   TEXT,
+    -- WHICH MODULE established the mapping, and therefore who may retract it. Three of them write
+    -- here with different evidence: `positions` matches names against a season's roster pools,
+    -- `recent_form` pays for a direct provider SEARCH (name + birth year + club - the expensive and
+    -- fragile half of that module), `injuries` reads the Transfermarkt squad pages. `positions` also
+    -- DELETES - over the whole cache "nobody claimed this id" is a verdict on a stale mapping - and
+    -- with no author on the row that verdict was being passed on evidence it had never seen: measured
+    -- 08/08/2026, an authoritative re-ingest dropped 20 identities, 19 of them men quoted in the
+    -- 2026-27 listone (Evanilson, Senesi, Tzolis...) whose ids another module had resolved over the
+    -- network, because they play in a league-season no listone of ours quoted. Same rule as
+    -- `club_levels_xref.resolved_by`: a judgement that cannot be audited is one nobody can correct.
+    -- Rows written before this column are 'unknown' - «vuoto = ignoto» - and no module retracts those.
+    resolved_by TEXT,
     PRIMARY KEY (source, source_id)
 );
 

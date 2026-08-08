@@ -280,8 +280,8 @@ def resolve_squad(conn, fc_club_id: int, season: str, records: list[dict],
             unresolved.append(rec["name"])
             continue
         conn.execute(
-            "INSERT OR REPLACE INTO player_xref(fc_id, source, source_id) "
-            "VALUES (?, 'transfermarkt', ?)", (candidates[0][0], rec["tm_id"]))
+            "INSERT OR REPLACE INTO player_xref(fc_id, source, source_id, resolved_by) "
+            "VALUES (?, 'transfermarkt', ?, 'injuries')", (candidates[0][0], rec["tm_id"]))
         # ...and the MARKET VALUE of that season, which travels on the same row and costs nothing here.
         # Stored per season because that is what it is (see `market_values` in the schema): the value on
         # a past season's squad page is that season's, so a window can read the INPUT season's value to
