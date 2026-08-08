@@ -3579,6 +3579,17 @@ class SnapshotView(ttk.Frame):
     # club habit that is already right (Lazio: the club says 4-3-3, which is what the sources predict, and
     # Gattuso's two elevens say 3-3-4).
     # Ramped and not a cliff, so nothing turns on one eleven either side of the line.
+    # RE-MEASURED AGAINST THE EXTERNAL JUDGE and CONFIRMED (08/08/2026, todolist item 4). The values
+    # were calibrated on samples the name join had BROKEN (v9.38), so they were quoting numbers nobody
+    # had re-measured; the internal judge (gate §7-quinvicies, 48 cases) said «raise, do not lower» off
+    # bands of 6-17 cases, too thin to move anything. The press reference answers the question the
+    # internal one cannot - how the thresholds do against a FORECAST of the season being auctioned -
+    # on a pre-registered grid, MIN in (10, 15, 20, 30, 40) x span in (20, 40, 60):
+    #     every cell from 10/50 to 40/80 returns the SAME 11 MATCH / 5 ALT / 4 DIFF, 165-166 men.
+    #     Only the extremes move it: 10/30 turns an ALT into a DIFF, 40/100 loses a MATCH.
+    # So the verdict is FLAT and 20/60 sits in the middle of the plateau. Two independent judges, and
+    # neither asks to move them: the question is closed rather than left open, and what would reopen it
+    # is a bigger reference, not a finer grid.
     COACH_SHAPE_MIN: ClassVar[int] = 20
     COACH_SHAPE_FULL: ClassVar[int] = 60
     # How many matchdays weaker an eleven has to be for the shape to be half as likely: a coach does not

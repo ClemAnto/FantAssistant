@@ -4,11 +4,18 @@
 voce porta la sua evidenza misurata, il giudice con cui si decide, e la resa attesa. Ordinata per
 resa. Meccanismo e formule: [formazioni-tipo-v1.md](formazioni-tipo-v1.md).*
 
-**Stato del giudice** (harness `press`, foglio default, `SHEET_REVISION` 11): moduli **10 uguali +
-4 sull'alternativa dichiarata + 6 divergenti**, uomini **164/220 = 75%** — da 9/5/6 e 160/220
+**Stato del giudice** (harness `press`, foglio default, `SHEET_REVISION` 11): moduli **11 uguali +
+5 sull'alternativa dichiarata + 4 divergenti**, uomini **166/220 = 75%** — da 9/5/6 e 160/220
 dell'archivio di partenza. La referenza è un DATO (`press_formations`) e il confronto un comando:
 questi numeri si citano da `data/reports/press_comparison.json`, mai a memoria. Il perché di quella
 regola è la voce 3-ter.
+
+**Le voci, una riga ciascuna**: 0 fatta · 1 fatta · **1-bis aperta** (nata dalla 1) · 2 fatta ·
+3 fatta · 3-bis dato sì regola no · 4 chiusa da due giudici concordi · 5 misurata e non adottata ·
+5-bis (proposta dell'operatore) misurata e rifiutata · **6 aperta** (letture, costo quasi zero).
+Quattro si sono chiuse con un **rifiuto misurato**, ed è il risultato che vale quanto le adozioni:
+una regola che non entra perché il giudice l'ha bocciata costa un pomeriggio, una che entra senza
+giudice costa un'asta. Resta aperta una sola voce di modello, la 1-bis, e vuole uno sweep.
 
 **Regola che vale per tutta la lista**: la stampa è un GIUDICE, mai un input del claim — leggerla
 dentro il modello renderebbe circolare proprio il confronto che la usa. E nessun criterio si
@@ -142,22 +149,24 @@ che la perdita è PREESISTENTE (il codice al commit precedente perde le stesse 1
 listone (irrisolvibili per costruzione); la leva sui 109 uomini del listone 2026-27 senza id
 Transfermarkt è `injuries --layer ids`, non il matcher.
 
-## 3. La selezione e il trequartista («Paz fuori dall'undici»)
-**Perché, misurato**: Como — Paz N. ha **il claim più alto della rosa (0.753, 33 start) e non è
-nell'undici disegnato**: primo codice AM → pool d'attacco; l'unico posto davanti del 4-5-1 va
-alla punta per `_fronted` (gap 0.155 < 0.40, la regola funziona come scritto); non essendoci riga
-di trequarti, cade tra le linee mentre un terzino a claim-prior 0.562 gioca esterno di
-centrocampo. `_two_rows` (la riga a 5 che si spezza in 2+3) arriva DOPO la selezione, quando Paz
-è già fuori. Stessa famiglia del «Touré a 0.00» che generò `_flanked` — la domanda del claim
-posta un passo prima.
-**Cosa fare**: progettare la regola alla SELEZIONE (candidate: il pool della riga a 5 considera
-gli AM quando la maggioranza della riga «gioca avanti»; oppure `_fronted` che retrocede un uomo
-deve lasciarlo in gara per M/T, mai fuori dall'undici). Una proposta per volta, in Pareto come
-`_settle`.
-**Giudice**: invarianti sulle 394 board (0 rotture) + il confronto (voce 0): Como 9→10-11, forse
-Lecce 8→9-10. Attenzione alla lezione v9.16: se aggiustare un club ne rompe un altro, è il
-MODELLO sbagliato, si annota e si torna indietro.
-**Resa attesa**: 1-2 club oggi, ma è la classe di difetto più visibile all'operatore.
+## 3. ~~La selezione e il trequartista («Paz fuori dall'undici»)~~ — **FATTA** (08/08/2026, `8f0cb6b`)
+**Perché, misurato**: Como — Paz N. ha **il claim più alto della rosa (0.760, 33 start) e non era
+nell'undici disegnato**: il suo unico codice è `AM`, la nostra griglia chiama trequartista quel
+codice e `line_key` manda ogni trequartista in ATTACCO, quindi perdeva l'unico posto davanti del
+4-5-1 per `_fronted` (gap 0.156 < 0.40, la regola funziona come scritta) e **non aveva nessun'altra
+linea per cui essere considerato**, mentre un'ala da 0.49 giocava.
+**Cosa era davvero**: non un difetto della regola d'attacco ma del BUCKETING, cioè di chi contende
+cosa. E la cura non inventa una regola: usa un dato che avevamo già e che quel bucketing
+contraddiceva — `desc_real_role_line`, la linea in cui il PROVIDER l'ha visto giocare, che è
+un'osservazione distinta dai codici. Il provider archivia **20 dei 27 `AM`** di questo foglio sotto
+M e il listone ne chiama C **22 su 27**; Paz legge `line=M`, `role_classic=C`. Entrambe le fonti
+dicono centrocampista, e solo la nostra derivazione diceva attaccante.
+Allarga la sola CANDIDATURA: `bucket` resta la corsia primaria e dove viene DISEGNATO resta la
+risposta del fit — infatti Paz esce **trequartista centrale del 4-2-3-1**, dove la stampa lo mette.
+Tocca 28 righe su 638, tutte uomini di raccordo (ali e trequartisti visti a centrocampo).
+**Giudice**: moduli 10/4/6 → **11 MATCH / 5 ALT / 4 DIFF**, uomini **164 → 166/220**. Como
+DIFF → MATCH, Bologna DIFF → ALT e recupera Orsolini. **Nessun club peggiora**, e le 394 board
+invarianti reggono.
 
 ## 3-bis. ~~Co-titolarità misurata~~ — **DATO ADOTTATO, REGOLA REFUTATA** (08/08/2026, `a3ee449`)
 **Come è andata, in ordine.** L'ipotesi dell'operatore è **confermata sulla coppia**: Krstovic e
@@ -191,42 +200,62 @@ di 0.21 e 0.78. La differenza non è un errore di allora: il layer per-partita �
 «10/5/5 · 159/220». Da qui la regola operativa: **una quota si cita dal report o si rimisura, mai
 dal documento**, e il documento porta la forma della conclusione con la data.
 
-## 4. `COACH_SHAPE_MIN` / `COACH_SHAPE_FULL` (20/60): la verifica ESTERNA del giudice interno
-**Perché**: la rimisurazione col giudice INTERNO è già stata fatta (v9.41 §3, gate §7-quinvicies,
-48 casi: la forma dell'allenatore non batte mai l'abitudine del club — 17% contro 50% sotto i 20
-undici; direzione indicata: ALZARE, non abbassare; fasce con 6-17 casi, troppo poco per muovere).
-Le soglie restano 20/60 con la misura accanto. Quello che il giudice interno non può dire è come
-le soglie rendono contro una PREVISIONE sulla stagione che si asta — la referenza stampa (voce 0)
-è quel giudice, ed è quella che v9.38 aspettava.
-**Cosa fare**: stessa griglia, giudicata sui 20 moduli stampa + pazzidifanta 03/08 (già usata per
-adottare `coach_shapes`, 8/17 → 9/17). Punteggio: moduli-uguali-o-alternativa. Se conferma il
-giudice interno (tenere o alzare), la questione si chiude con due misure concordi.
-**Giudice**: le due referenze 26/27, riportate separate; mai adottare sul bordo della griglia.
-**Resa attesa**: piccola; il valore è chiudere la domanda con due giudici indipendenti.
+## 4. ~~`COACH_SHAPE_MIN` / `COACH_SHAPE_FULL` (20/60)~~ — **CHIUSA, due giudici concordi** (08/08/2026)
+**Perché**: i valori furono tarati sui campioni ROTTI dal join per nome (v9.38), quindi citavano
+numeri che nessuno aveva rimisurato. Il giudice INTERNO (gate §7-quinvicies, 48 casi) diceva
+«ALZARE, non abbassare», ma su fasce di 6-17 casi — troppo poco per muovere qualcosa.
+**Fatto**: la referenza stampa risponde alla domanda che il giudice interno non può porre — come
+rendono le soglie contro una PREVISIONE sulla stagione che si asta — su griglia **pre-registrata**,
+MIN ∈ (10, 15, 20, 30, 40) × span ∈ (20, 40, 60):
 
-## 5. Il modulo del RITIRO dentro `shape_odds` (i casi Napoli e Juventus)
-**Perché, misurato**: le due divergenze «vere» di modulo sono repertorio-contro-annuncio:
-Allegri ha 3-5-2 in 94/152 undici di carriera e la stampa dà unanime il 4-3-3 provato in ritiro;
-Spalletti ha il 3-4-3 misurato alla Juve (29/46) e la stampa dà 4-2-3-1. Il repertorio risponde
-«cosa fa l'uomo», non «cosa ha annunciato per QUESTA squadra». Le amichevoli sono già in
-`club_match_lineups` dove catturate, e per il CLAIM sono state misurate e rifiutate con cinque
-ragioni (v9.17 §6) — ma il MODULO di un'amichevole è un segnale diverso e più povero di rumore
-per-giocatore: la forma schierata è una dichiarazione dell'allenatore.
-**Cosa fare**: quinta fonte di `shape_odds`, pre-registrata: le forme schierate nelle amichevoli
-della stagione-bersaglio sotto l'allenatore attuale, pesate dal loro (piccolo) campione. Prima di
-scrivere codice: misurare QUANTE amichevoli 26/27 abbiamo per club (nel 25/26 erano 1-3, e Milan
-e Napoli zero — se la copertura è ancora quella, la voce si ferma lì e lo si scrive).
-**Giudice**: il confronto (voce 0); l'anno prossimo, la pre-registrazione di giugno 2027 già
-aperta per la parte claim.
-**Resa attesa**: Napoli, Juventus, forse Udinese (il cambio intra-allenatore è la stessa specie).
-**Caso di studio misurato (08/08/2026, «Giovane sarà quasi certamente una riserva, Alisson e Neres
-dovrebbero essere i titolari»)**: nel 4-3-3 della stampa i NOSTRI claim disegnano già
-Politano (0.65)–Hojlund (0.76)–Neres (0.50) e Giovane (0.435) resta fuori da solo — Giovane entra
-solo nel 3-5-2, dove le ali non hanno posto. L'intero caso è il MODULO, non un parametro sul
-giocatore. Santos A. resta a 0.264 con 836 minuti misurati: la stampa si fida del ritiro, il dato
-non ancora — se sarà titolare lo diranno le prime giornate, e nel frattempo la scelta modulo per
-club (`_shape_choice`) e l'esclusione manuale (`_excluded`) sono le leve del pannello per il giorno
-d'asta.
+| | span 20 | span 40 | span 60 |
+|---|---|---|---|
+| **MIN 10** | 11/4/5 · 166 | 11/5/4 · 166 | 11/5/4 · 165 |
+| **MIN 15** | 11/5/4 · 166 | 11/5/4 · 166 | 11/5/4 · 165 |
+| **MIN 20** | 11/5/4 · 166 | **11/5/4 · 166** (attuale) | 11/5/4 · 165 |
+| **MIN 30** | 11/5/4 · 166 | 11/5/4 · 165 | 11/5/4 · 165 |
+| **MIN 40** | 11/5/4 · 165 | 11/5/4 · 165 | 10/5/5 · 165 |
+
+**Il verdetto è PIATTO**: ogni cella da 10/50 a 40/80 dà lo stesso 11/5/4, e solo gli estremi si
+muovono (10/30 trasforma un ALT in DIFF, 40/100 perde un MATCH). 20/60 sta in mezzo al plateau.
+**Conclusione**: due giudici indipendenti e nessuno dei due chiede di spostarle — la questione si
+**chiude** invece di restare aperta, che è esattamente quello che la voce chiedeva. Quello che la
+riaprirebbe è una referenza più grande, non una griglia più fine.
+
+## 5. ~~Il modulo del RITIRO dentro `shape_odds`~~ — **MISURATO E NON ADOTTATO** (08/08/2026, `1489f58`)
+**La voce chiedeva di misurare la COPERTURA prima di scrivere codice, e questa volta c'è**: il
+2026-27 ha **1-3 undici completi per tutti e 20 i club** di Serie A (297 su 200 club), dove il
+2025-26 aveva Milan e Napoli a zero. Quindi la voce non si è fermata lì.
+**Il DATO resta**: `friendly_shapes` / `friendly_XIs` su `clubs.csv` — le forme schierate nella
+stagione BERSAGLIO, che prima di una giornata di campionato sono il ritiro: l'unico calcio giocato
+dalla squadra che scenderà in campo, e l'unica fonte che può dire cosa l'allenatore ha ANNUNCIATO
+per questa rosa invece di cosa ha fatto altrove. Letto come distribuzione e non come moda (con due
+undici una moda è una monetina).
+**La REGOLA no.** Quinta fonte di `shape_odds`, pesata dal proprio campione, griglia
+**pre-registrata prima di guardare qualsiasi verdetto** (0, 0.15, 0.30, 0.45, 0.60):
+
+| peso | 0.00 | 0.15 | 0.30 | 0.45 | 0.60 |
+|---|---|---|---|---|---|
+| moduli | 11/5/4 | 11/5/4 | 11/5/4 | 11/3/6 | 11/2/7 |
+| uomini | **166** | 166 | 165 | 163 | 163 |
+
+**L'ottimo è al BORDO e la curva scende**: i moduli esatti non migliorano a nessun peso — nemmeno
+sui due casi da cui la voce nasceva, Juventus e Napoli — e le alternative si sfaldano.
+`PRESEASON_WEIGHT` resta **0**, come `HEATMAP_SIDE`/`HEATMAP_DEPTH`. La ragione vale più del
+parametro: una forma da ritiro è scelta contro avversari che non sono del campionato e con uomini
+non ancora tutti tesserati, quindi dice di settembre meno di quanto ne dica il repertorio.
+
+## 5-bis. Il SURPLUS come discrimine di modulo — **PROPOSTA DELL'OPERATORE, MISURATA E RIFIUTATA**
+**La proposta (08/08/2026)**: «per il Napoli puoi utilizzare il surplus medio del modulo come
+discrimine». Il numero c'era già — è il `SUR` che il selettore mostra accanto alla probabilità.
+**Misurato, va nella direzione opposta**: per il Napoli il 4-3-3 della stampa è il modulo col SUR
+più **basso** (18.2 contro 18.9 del 3-4-3). Scegliendo la forma per SUR su tutti e 20 i club:
+**4 MATCH / 3 ALT / 13 DIFF**, contro gli 11/5/4 delle odds. Indovina il solo Milan fra i quattro
+divergenti.
+**Perché, ed è la ragione per cui i due numeri stanno affiancati nel selettore**: il SUR risponde a
+«quale modulo mi CONVIENE» — schiera più uomini di valore, e in Serie A gli attaccanti ne hanno di
+più — mentre le odds rispondono a «quale modulo SCEGLIERÀ l'allenatore». Sono due domande, e
+mischiarle è la stessa famiglia di difetto del claim contro la valutazione.
 
 ## 6. Letture, non regole (a costo quasi zero)
 - **Ballottaggi quasi-pari**: Gila/Tomori, Thuram K./McKennie, Isaksen/Cancellieri sono duelli
@@ -241,10 +270,12 @@ d'asta.
   tenerla vicina alla board quando si giudica un undici «sbagliato».
 
 ## Fatto l'08/08/2026, seconda sessione
-- **Voce 0 (`19351fd`)**, **voce 2 (`d7ea4a3`, `a039910`)**, **voce 1 (`9d0f400`)** e **voce 3-bis
-  (`a3ee449`, dato adottato e regola refutata)**: sopra, ciascuna coi suoi numeri. Bilancio sul
-  giudice: moduli **9/5/6 → 10 MATCH / 4 ALT / 6 DIFF**, uomini **160 → 164/220**, `backtest
-  --verify` sempre 22/22. `SHEET_REVISION` **11**: i fogli sotto quella revisione sono da rifare.
+- **Voci 0 (`19351fd`), 2 (`d7ea4a3`, `a039910`), 1 (`9d0f400`), 3-bis (`a3ee449`), 3 (`8f0cb6b`),
+  5 e 5-bis (`1489f58`), 4**: sopra, ciascuna coi suoi numeri. Bilancio sul giudice: moduli
+  **9 MATCH / 5 ALT / 6 DIFF → 11 / 5 / 4**, uomini **160 → 166/220**, `backtest --verify` sempre
+  22/22. `SHEET_REVISION` **11**: i fogli sotto quella revisione sono da rifare.
+- **Il selettore modulo porta anche il SUR** (`39ec7c9`), il surplus medio dei suoi undici: seconda
+  domanda accanto alla probabilità, e la 5-bis spiega perché non è la stessa.
 - **Il selettore modulo dice anche quanto VALE l'undici** (`39ec7c9`, richiesta dell'operatore).
   Accanto alla probabilità, `SUR` = il surplus MEDIO degli undici che quella forma schiera: due
   domande diverse, e la forma probabile può schierare l'undici più povero — Como 4-5-1 al 77% con

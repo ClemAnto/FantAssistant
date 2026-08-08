@@ -52,6 +52,14 @@ odds         = weight normalizzati
   che un allenatore sceglie. NB: è il valore dell'UNDICI SCELTO, non il costo dei posti della forma —
   il costo-posti fu provato e ANNULLATO (spostava 13 board su 108 e disfaceva decisioni già prese).
 
+Una QUINTA fonte è stata scritta e **non adottata**: le forme del RITIRO (`friendly_shapes`, la
+stagione bersaglio, 1-3 undici per club — copertura verificata prima di scrivere il codice). Griglia
+pre-registrata 0/0.15/0.30/0.45/0.60: i moduli esatti non migliorano a nessun peso e gli uomini
+scendono da 166 a 163, quindi `PRESEASON_WEIGHT` = 0 come `HEATMAP_*`. Il dato resta sul foglio, e
+la ragione è che una forma da ritiro è scelta contro avversari fuori campionato e con una rosa non
+ancora chiusa (todolist voce 5). Rifiutato anche il SUR come discrimine di modulo: sceglierebbe
+4 MATCH / 3 ALT / 13 DIFF contro 11/5/4 (voce 5-bis).
+
 Scorciatoie, in ordine: `mode == "next"` con `formation_today` (le probabili dichiarate) → quella al
 100%; la scelta manuale dell'operatore (`_shape_choice`) batte la stima; senza odds → `_formation`
 (precedenza: `formation_next_fielded` → `formation_today` → `formation_typical` → derivata dalle medie
@@ -81,9 +89,12 @@ porta la STIMA (`est_surplus`) invece della valutazione gated — Frosinone è t
 | `SHAPE_FIT_SCALE` | 0.60 | giornate di differenza che dimezzano le odds di una forma |
 | `LEAGUE_SHAPE_FLOOR` | 0.01 | sotto questa quota di lega una forma è un artefatto di parsing |
 
-⚠️ `COACH_SHAPE_MIN`/`FULL` = 20/60 furono tarati sui campioni ROTTI dal join per nome (v9.38): la
-ragione della soglia regge, i valori vanno rimisurati contro una referenza esterna sulla stagione che
-si asta — che è esattamente il confronto con i giornalisti di questa sessione.
+✅ `COACH_SHAPE_MIN`/`FULL` = 20/60 furono tarati sui campioni ROTTI dal join per nome (v9.38), e
+sono stati **rimisurati contro la referenza esterna** (todolist voce 4) su griglia pre-registrata,
+MIN ∈ (10,15,20,30,40) × span ∈ (20,40,60): **il verdetto è piatto** — ogni cella da 10/50 a 40/80
+dà lo stesso 11 MATCH / 5 ALT / 4 DIFF, e solo gli estremi si muovono (10/30 perde un ALT, 40/100 un
+MATCH). 20/60 sta in mezzo al plateau, il giudice interno diceva «tenere o alzare»: due misure
+indipendenti, nessuna chiede di spostarle, la questione è **chiusa**.
 
 **Vocabolario del provider.** Le forme sono contate nel vocabolario del provider, dove un'ala è un
 centrocampista: un 4-3-3 con due ali si legge **4-5-1**, e il 3-4-2-1 della stampa è il nostro 3-4-3
@@ -214,8 +225,8 @@ preseason: il 2026-27 teneva 94 righe di Cremonese/Pisa/Verona retrocesse e scar
 - **Referenza 26/27** (pazzidifanta 03/08, previsione sulla stagione che si asta): 9/17 moduli, il
   giudice con cui `coach_shapes` fu adottato (8/17 → 9/17, Atalanta e Napoli corretti).
 - **Referenza 26/27 della stampa, 08/08/2026** (fantacalcio.it, DAZN, SOS Fanta, fantamaster,
-  pazzidifanta, goal.com — 4-5 fonti per club, tutte del 3-7 agosto): **moduli 10/20 uguali +
-  4/20 sull'alternativa che la stampa stessa dichiara, 6 divergenti; uomini 164/220 = 75%**.
+  pazzidifanta, goal.com — 4-5 fonti per club, tutte del 3-7 agosto): **moduli 11/20 uguali +
+  5/20 sull'alternativa che la stampa stessa dichiara, 4 divergenti; uomini 166/220 = 75%**.
   ⚠️ Questi sono i numeri dell'harness `press` sul foglio corrente. La prima stesura di questa nota
   citava «10 + 5 + 5, 159/220», che era uno stato di metà sessione le cui board non furono salvate:
   l'archivio di quel giorno (`data/reports/press-formations-2026-08-08/`) ne dà 9/5/6 e 160/220, e
@@ -223,15 +234,15 @@ preseason: il 2026-27 teneva 94 righe di Cremonese/Pisa/Verona retrocesse e scar
   (todolist voce 2). **Da qui in poi la referenza è un DATO e il confronto un comando**
   (`press --import` / `press --sheet`, §5-bis): un numero di questa riga si cita dal report, mai a
   memoria.
-  I sei moduli divergenti, ciascuno con la sua causa: Como e Lecce (il 4-2-3-1 della stampa È il
-  nostro 4-5-1 nel vocabolario del provider, e al Como la selezione lascia comunque fuori Paz —
-  sotto), Juventus e Napoli (il repertorio misurato dell'allenatore contro l'annuncio tattico del
-  ritiro: Spalletti 3-4-3 misurato alla Juve vs 4-2-3-1 atteso, Allegri 3-5-2 di carriera vs 4-3-3
-  atteso), Milan (3-4-3 vs 3-4-2-1, vocabolario) e Bologna. Dove l'XI diverge di più la causa è il
-  DATO, non il disegno — ed è la causa che nella sessione dell'08/08 si è mossa: Frosinone **10/11**
-  (era 4/11: mancava il campionato d'origine, voce 1), Lazio **5/11** (era 4/11: transfers e identità
-  degli arrivi, voce 2), e restano a 6-8/11 i club di mercato estivo pesante, con arrivi di storia
-  sottile o straniera (Cagliari, Parma, Fiorentina, Venezia).
+  **I quattro moduli divergenti rimasti**, ciascuno con la sua causa: Juventus e Napoli (il
+  repertorio misurato dell'allenatore contro l'annuncio tattico del ritiro: Spalletti 3-4-3 misurato
+  alla Juve vs 4-2-3-1 atteso, Allegri 3-5-2 di carriera vs 4-3-3 atteso — e le forme del ritiro
+  sono state misurate come quinta fonte e NON pagano, todolist voce 5), Lecce (4-5-1 vs 4-2-3-1) e
+  Milan (3-4-3 vs 3-4-2-1), entrambi in parte vocabolario. Como e Bologna erano qui e ne sono usciti
+  con la voce 3. Dove l'XI diverge di più la causa è il DATO, non il disegno — ed è la causa che
+  nella sessione dell'08/08 si è mossa: Frosinone **10/11** (era 4/11: mancava il campionato
+  d'origine, voce 1), Lazio **5/11** (era 4/11: transfers e identità degli arrivi, voce 2), e restano
+  a 6-8/11 i club di mercato estivo pesante (Cagliari, Parma, Fiorentina, Venezia).
 
 ## 5-bis. Il giudice è un comando, non uno script (modulo `press`, 08/08/2026)
 
