@@ -65,6 +65,26 @@ Scorciatoie, in ordine: `mode == "next"` con `formation_today` (le probabili dic
 (precedenza: `formation_next_fielded` → `formation_today` → `formation_typical` → derivata dalle medie
 di linea, default 4-3-3).
 
+**Il giudizio dell'operatore è un FATTO PERSISTENTE, non una preferenza di sessione**
+(`config/board_rulings.json`, 08/08/2026). Una scelta in modalità `typical` è un giudizio sulla rosa di
+quella stagione («il Napoli di Allegri gioca a 4-3-3»), quindi si salva come `{stagione: {club:
+{shape, decided_on}}}` — stessa specie di `league_config.json`: una dichiarazione dell'operatore, non
+una misura nostra. Tre proprietà, ciascuna la risposta a un modo di marcire:
+
+- **torna solo per la SUA stagione, e joina i club per IDENTITÀ** (`club_identity`), mai per la
+  stringa scritta nel file — il join per nome perse Milan, Roma e Napoli una volta;
+- **si REVOCA**: la voce «auto · the odds decide» del selettore lo toglie dal file invece di coprirlo,
+  ed è offerta solo dove c'è un giudizio da revocare. Senza, un giudizio sbagliato si potrebbe soltanto
+  sostituire con un altro. Una forma uscita dalle odds plausibili smette di applicarsi da sola;
+- **i due giudici non lo vedono MAI**: `press.extract_boards` carica con `apply_rulings=False`. Un
+  giudizio è spesso preso GUARDANDO la stampa, e un giudice non può valutare le risposte
+  dell'operatore — è la stessa circolarità di «la stampa è un GIUDICE, mai un input» (§5-bis).
+  Una scelta in modalità `next` riguarda UNA giornata e resta volatile per costruzione.
+
+**Perché esiste, ed è la lezione**: quando un operatore ha ragione con indizi che il modello non può
+raggiungere, la terza via non è né adottare un canale contro il giudice né lasciare la board sbagliata.
+Il caso fondante è il Napoli 2026-27 (§6-ter).
+
 **Il selettore porta DUE numeri, e non rispondono alla stessa domanda** (08/08/2026, richiesta
 dell'operatore). La percentuale dice quanto è probabile che il club schieri quella forma; **`SUR` dice
 il surplus MEDIO degli undici che quella forma mette in campo** (`eleven_surplus`), cioè quanto vale
@@ -160,6 +180,17 @@ prezzo(riga)   = min sui codici + 4 se ST su fascia del tridente + 2·_off_the_f
   `LANE_DEPTH`: P 0 · D 0.25 · M 0.60 · T 0.80 · A 0.90. Una linea intera = 7 (`LINE_REACH`), che è
   anche quanto paga chi non gioca NESSUNA linea d'attacco per un posto là davanti (`_off_the_front` —
   un costo, mai un veto).
+- **...e per una linea d'attacco di UNO la domanda è più severa** (`_off_the_front(..., lone=True)`,
+  08/08/2026): «nel 4-5-1 o 4-2-3-1 lì davanti ci vuole una Pc, o al massimo una A». Un tridente si
+  scambia i posti, quindi un'ala ne tiene uno di diritto; una linea di uno non ha fascia con cui
+  scambiarsi. Chi non «guida la linea» (`_leads_the_line`: `ST` fra i codici, oppure la A del listone
+  per chi non ha codici osservati — un'ala CODIFICATA è A di listone e non è una punta, «Neres non è
+  una Sp») paga la linea intera anche lì. Il caso: Bologna schierava Odgaard (`AM;RW`, 0.429) invece di
+  Dovbyk (`ST`, 0.382) e nessuna guardia poteva obiettare — `RW` lo rendeva uomo d'attacco per
+  `_fronted`, `AM` uomo centrale per `_pointed`. **Sta dentro l'UNICA definizione** e non in una
+  guardia nuova: il primo tentativo era una guardia alla sola selezione, e `_settle` — che prezza i
+  posti senza conoscerla — la aggirava RICOLLOCANDO la punta a centrocampo. Costo: 1 board su 57, due
+  giudici identici prima e dopo, 394 invarianti verdi.
 - La heatmap NON pesa nel fit (`HEATMAP_SIDE`/`DEPTH` = 0, misurato su griglia pre-registrata: l'asse
   profondità satura davanti — mediana avg_x: terzino 47, mediano 51, ala 61, PUNTA 62 — e l'asse
   fascia non aggiunge nulla perché i codici già lo dicono). Dove la misura batte il codice (97.9% vs
@@ -385,6 +416,52 @@ sull'unico caso per cui esiste sbaglia metà. Ritirata (v9.16).
 dei due ruotanti comanda, e il claim non lo è, perché in una rotazione i minuti sono quasi pari per
 costruzione.
 
+## 6-ter. Il caso Napoli: quando l'operatore ha ragione e nessun canale può dargliela (08/08/2026)
+
+Il ciclo completo dell'altro esito possibile — tre indizi veri, ogni canale che li leggerebbe già
+misurato e rifiutato, e la terza via.
+
+**Gli indizi dell'operatore**, verificati uno per uno invece che accettati o respinti in blocco:
+1. «Le amichevoli sono 4-3-3» — **vero**, 2 su 2 (22 e 26 luglio), `friendly_shapes = 4-3-3:2`.
+2. «La rosa è di esterni, non è costruita per il 3-5-2» — vero, e il fit è **volutamente sordo** a
+   questo argomento: caricare una forma per i posti che la rosa non copre fu provato e ANNULLATO
+   (`shape_matchdays`, e il club che spostava era proprio il Napoli).
+3. «L'anno scorso giocava 4-3-3» — **parzialmente vero, e il dato è più interessante della domanda**:
+   partito a QUATTRO (8 giornate di 4-5-1 + 3 di 4-3-3), poi **27 giornate di 3-4-3** da fine ottobre.
+   La moda 3-4-3 è onesta, ed è comunque l'abitudine di CONTE: pesa 0.40 per un allenatore nuovo.
+
+**Il canale che li leggerebbe è stato misurato due volte, e perde due volte.** Oltre alla voce 5
+(modulo del ritiro, ottimo al bordo), l'operatore ha proposto la variante più forte e più difendibile:
+pesare solo la **FAMIGLIA DI DIFESA** (3 dietro vs 4), «la base su cui montare il resto». Misurata sui
+16 club con ritiro parsato, contro la stampa:
+
+| predittore | famiglia di difesa indovinata |
+|---|---|
+| difesa del ritiro | **11/16** |
+| board attuale (repertorio + abitudine + fit), stessi club | **14/16** |
+
+Il ritiro vince **esattamente dove l'operatore diceva** — Napoli e Juventus, i due divergenti
+registrati, entrambi con allenatore nuovo — e perde su cinque: Genoa e Udinese con letture **2-0 forti
+quanto quella del Napoli**, in direzione opposta. Sui soli allenatori nuovi è **4 giuste / 4 sbagliate**,
+una moneta, contro 6/8 della board. Un peso capace di girare il Napoli gira anche quelli.
+Stessa cosa rimisurando `PRESEASON_WEIGHT` sulla griglia della voce 5: a 0.30 il Napoli gira sul 4-3-3
+e **la Fiorentina gira al contrario** (ritiro 3-5-2 contro stampa 4-3-3) — saldo 0 moduli, −1 uomo.
+
+**Un limite dichiarato invece che nascosto**: il giudice FORTE non può pronunciarsi. Il DB non ha
+amichevoli del ritiro 2025 (le 24 «friendly» 2025-26 sono di marzo-maggio 2026), quindi tutto questo è
+misurato contro la STAMPA, che è una previsione. Il ritiro 2026 è archiviato (310 undici, 20 club su
+20): a maggio 2027 l'esito 2026-27 lo misura per la prima volta contro la verità. **Voce di
+manutenzione pre-registrata**: se la famiglia di difesa del ritiro batte le fonti della board
+sull'esito, il canale entra con quel numero.
+
+**La terza via, e la lezione generale.** Adottare un canale che il giudice rifiuta perché un caso lo
+fallisce è allargare un criterio (vietato); lasciare la board sbagliata è ignorare l'operatore, che qui
+sa qualcosa di vero. Quindi il giudizio si **dichiara** invece di essere inferito: `board_rulings.json`
+(§1), fuori da ogni misura. **Un giudizio che il modello non può raggiungere non si adotta come
+parametro: si dichiara come fatto.** E resta la via che si chiude da sola — dalle prime giornate vere
+`formation_typical_under_coach` sposta `trust` sull'abitudine del club sotto l'allenatore nuovo, e la
+board gira senza che nessuno tocchi un parametro.
+
 ## 7. Limiti dichiarati
 
 - `formation_typical` è la stagione di INPUT: per un allenatore nuovo descrive il predecessore, e lo
@@ -396,7 +473,21 @@ costruzione.
 - I club PROMOSSI hanno la Serie B in `club_match_lineups` e ora anche in `external_stats` (voce 1),
   ma `formation_shapes` può essere di due stagioni fa (l'ultima in A) e nulla sconta il salto di
   livello di chi ha giocato in B: il claim dice chi parte titolare, non contro chi (voce 1-bis).
-- `COACH_SHAPE_MIN`/`FULL` da ritarare (sopra). `PREVIOUS_COACH_WEIGHT` = 0.25 nel conteggio di club.
+- `COACH_SHAPE_MIN`/`FULL` = 20/60: **non più da ritarare**, rimisurati su griglia pre-registrata e
+  chiusi (§1, todolist voce 4 — il verdetto è piatto e 20/60 sta in mezzo al plateau).
+  `PREVIOUS_COACH_WEIGHT` = 0.25 nel conteggio di club.
+- **Lo standing legge UNA stagione, e due popolazioni ne pagano il prezzo** (misurate 08/08/2026,
+  entrambe candidate a sweep pre-registrato e nessuna delle due decisa a mano):
+  * **il trasferimento di GENNAIO** — `season_calendar` gli lascia il calendario del club perché ha
+    minuti su due calendari e nessun denominatore è giusto (v9.37, limite già dichiarato). Malen è il
+    caso che lo mostra: 1478' in 18 presenze su 18 da titolare alla Roma da gennaio, letti come
+    **0.405** di stagione, quarto del reparto — e fuori dall'undici. Un denominatore sull'UNIONE DEGLI
+    SPELL (lo stesso principio con cui si contano già le assenze) darebbe ~0.59. È una formula di
+    `presence.py`: la decide lo sweep, non una sessione;
+  * **la stagione mangiata da un infortunio** — per chi ha la t−1 quasi vuota, la shrinkage tira verso
+    il prior della BANDA e non verso la sua t−2. Dovbyk (396', 22 turni fuori, 3 titolarità sui 16
+    turni disponibili) legge 0.382: onesto sul dato, cieco sul fatto che l'anno prima era titolare.
+    Un prior personale su t−2 è la variante pre-registrabile.
 - Il claim di preseason non legge le amichevoli (misurato e NON adottato, cinque ragioni in v9.17 §6;
   pre-registrato per giugno 2027).
 - Le probabili estive degli editor sono della stagione finita finché la nuova non parte (v9.32): i

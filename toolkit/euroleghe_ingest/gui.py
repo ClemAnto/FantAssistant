@@ -39,7 +39,7 @@ from euroleghe_ingest.config import Config
 from euroleghe_ingest.context import Context
 from euroleghe_ingest.db.database import connect, init_db, record_run, table_names
 from euroleghe_ingest.engine import presence
-from euroleghe_ingest.matching import club_abbreviation
+from euroleghe_ingest.matching import club_abbreviation, club_identity
 from euroleghe_ingest.modules import IMPLEMENTED, load, recent_form
 from euroleghe_ingest.modules.positions import (
     REAL_ROLE_DEPTH,
@@ -2639,7 +2639,7 @@ class SnapshotView(ttk.Frame):
         self.when_var.set("")
         self.reload()
 
-    def load_sheet(self, folder) -> None:
+    def load_sheet(self, folder, apply_rulings: bool = True) -> None:
         """Load a sheet folder into the view - the rows, the clubs, the manifest, and every cache OF
         the sheet invalidated with it.
 
@@ -2647,6 +2647,11 @@ class SnapshotView(ttk.Frame):
         comparison, the tests). A second copy of this list is how a harness ends up describing a
         different population from the screen's: the cache list below was once duplicated in a
         scratchpad extractor, and any cache added here alone would silently desynchronize it.
+
+        `apply_rulings` re-seeds the operator's persisted shape rulings for the sheet's season
+        (`config/board_rulings.json`). The harnesses pass False: a ruling is often made LOOKING AT the
+        judge, so letting it into the measured boards would have the judge scoring the operator's own
+        answers - the same circularity the press reference is guarded against.
         """
         self._shape_cache.clear()
         self._shape_choice.clear()      # another sheet is another squad: the judgement does not carry
@@ -2666,6 +2671,8 @@ class SnapshotView(ttk.Frame):
                 delattr(self, cached)
         self.clubs = {row["club"]: row for row in _read_csv(folder / "clubs.csv")}
         self.manifest = _read_json(folder / "manifest.json")
+        if apply_rulings:
+            self._seed_shape_rulings()
 
     def load_selected(self) -> None:
         sheet = self._selected_sheet()
@@ -3127,18 +3134,96 @@ class SnapshotView(ttk.Frame):
                 if priced < of_men:
                     label += f" ({priced}/{of_men})"
             self._shape_labels[label] = shape
-        self.shape_cb.configure(values=list(self._shape_labels), state="readonly")
+        # ...and the way BACK, offered only where there is something to go back FROM: a ruling is
+        # revoked by handing the question to the odds again. Without this entry a wrong judgement, once
+        # persisted, could only ever be replaced by another one - and offered unconditionally it would
+        # be a permanent extra line meaning «leave everything as it is».
+        ruled = (club, mode) in self._shape_choice
+        self.shape_cb.configure(values=([self.SHAPE_AUTO] if ruled else []) + list(self._shape_labels),
+                                state="readonly")
         self.shape_var.set(next((label for label, shape in self._shape_labels.items()
                                  if shape == drawn), drawn))
 
+    # The selector entry that means «no ruling»: the odds decide, and any persisted judgement for this
+    # club is withdrawn.
+    SHAPE_AUTO: ClassVar[str] = "auto · the odds decide"
+
     def _on_shape_change(self) -> None:
-        """Draw the shape the operator asked for, and remember it for this club."""
+        """Draw the shape the operator asked for, and remember it for this club.
+
+        A `typical` choice is a RULING about the season's squad («Napoli 2026-27 plays 4-3-3») and is
+        persisted to `config/board_rulings.json` - the same kind of operator-declared fact as
+        `league_config.json`, dated, revocable from the selector (`SHAPE_AUTO`). A `next` choice is a
+        judgement about ONE match day and deliberately stays in memory only.
+        """
         club = self._selected_club()
-        shape = getattr(self, "_shape_labels", {}).get(self.shape_var.get())
-        if not club or not shape:
+        if not club:
             return
-        self._shape_choice[(club, self.xi_mode.get())] = shape
+        mode = self.xi_mode.get()
+        if self.shape_var.get() == self.SHAPE_AUTO:
+            self._shape_choice.pop((club, mode), None)
+            if mode == "typical":
+                self._save_ruling(club, None)
+            self._show_club()
+            return
+        shape = getattr(self, "_shape_labels", {}).get(self.shape_var.get())
+        if not shape:
+            return
+        self._shape_choice[(club, mode)] = shape
+        if mode == "typical":
+            self._save_ruling(club, shape)
         self._show_club()
+
+    def _load_rulings(self) -> dict:
+        """`config/board_rulings.json`: {season: {club: {shape, decided_on}}} - absent file, no rulings."""
+        try:
+            return json.loads(self.config.board_rulings_path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            return {}
+
+    def _save_ruling(self, club: str, shape: str | None) -> None:
+        """Persist (or withdraw, shape=None) the operator's typical-board ruling for this sheet's season.
+
+        A rewrite replaces the club's whole entry, so a hand-written `reason` does NOT survive a change
+        of shape - which is the wanted behaviour rather than an oversight: the reason argued for the
+        shape that is being replaced, and carrying it over would file an old argument under a new
+        ruling. Withdrawing prunes the club, and the season with it when it was the last one, so the
+        file never accumulates empty scaffolding.
+        """
+        season = (self.manifest or {}).get("target_season")
+        if not season:
+            return
+        rulings = self._load_rulings()
+        entries = rulings.setdefault(season, {})
+        if shape is None:
+            entries.pop(club, None)
+            if not entries:
+                rulings.pop(season, None)
+        else:
+            entries[club] = {"shape": shape,
+                             "decided_on": dt.datetime.now(tz=dt.UTC).date().isoformat()}
+        path = self.config.board_rulings_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(rulings, indent=2, ensure_ascii=False, sort_keys=True) + "\n",
+                        encoding="utf-8")
+
+    def _seed_shape_rulings(self) -> None:
+        """The persisted rulings of THIS sheet's season, back into the selector's memory.
+
+        Clubs join by identity, never by the string the file happens to spell (`club_identity` - the
+        join that silently lost Milan, Roma and Napoli once already). A ruling whose shape has dropped
+        out of the club's plausible odds simply stops applying (`board_shape` checks membership), which
+        is the right failure: a squad rebuilt past its ruling is a new question for the odds.
+        """
+        season = (self.manifest or {}).get("target_season")
+        if not season:
+            return
+        known = {club_identity(club): club for club in self.clubs}
+        for club_name, entry in (self._load_rulings().get(season) or {}).items():
+            club = known.get(club_identity(club_name))
+            shape = (entry or {}).get("shape")
+            if club and shape:
+                self._shape_choice[(club, "typical")] = shape
 
     # ---------- club detail ----------
     def _show_club(self) -> None:
@@ -4785,7 +4870,7 @@ class SnapshotView(ttk.Frame):
                     row for row in eligible
                     if row.get("name") not in taken and row not in take
                     and can_lend(row, role) and self._within_reach(row, role)
-                    and not (role == "A" and self._off_the_front(row, "A"))]
+                    and not (role == "A" and self._off_the_front(row, "A", lone=slots == 1))]
                 take = self._flanked(
                     take, role, slots, horizon, pool,
                     # a midfield in front of a back line with no flanks of its own (three or five
@@ -5105,17 +5190,20 @@ class SnapshotView(ttk.Frame):
         con loro», which is why Roma is untouched: Malen reads `RW;ST` and holds the place by right.
 
         `_off_the_front` is the ONE definition of "not his job" (it also covers a man with no observed codes,
-        placed by his listone line): a second opinion on the same question is how the module lost its
-        symmetry once already.
+        placed by his listone line, and the LONE front place's stricter question - the operator's «lì
+        davanti ci vuole una Pc o al massimo una A», which is why Bologna's single place is Dovbyk's and
+        not Odgaard's): a second opinion on the same question is how the module lost its symmetry once
+        already.
         """
         if role != "A" or len(take) < slots:
             return take
+        lone = slots == 1
         while True:
-            weakest = min((row for row in take if self._off_the_front(row, "A")),
+            weakest = min((row for row in take if self._off_the_front(row, "A", lone=lone)),
                           key=lambda row: self.claim(row, horizon), default=None)
             if weakest is None:
                 return take                  # every place is held by a man who plays up there
-            rival = max((row for row in rivals if not self._off_the_front(row, "A")),
+            rival = max((row for row in rivals if not self._off_the_front(row, "A", lone=lone)),
                         key=lambda row: self.claim(row, horizon), default=None)
             if (rival is None or self.claim(rival, horizon) <= 0.0
                     or self.claim(weakest, horizon) - self.claim(rival, horizon)
@@ -5168,15 +5256,22 @@ class SnapshotView(ttk.Frame):
 
         Nothing happens when the squad has nobody else - a front line of wingers is the truth about a side
         with no centre-forward, and rule 6 of `_reshape` leaves it alone for the same reason.
+
+        A front line of ONE asks its stricter question here too (`_off_the_front`'s `lone`): a holder can
+        be central by his codes and still not lead a line - Odgaard's AM satisfied the centrality check
+        while the operator's rule says the lone place is a Pc's, or at most a listone A's.
         """
+        lone = sum(1 for role, _holder, _bench in out if role == "A") == 1
         inside = {row.get("name") for _role, row, _bench in out}
         free = [row for row in eligible
                 if row.get("name") not in inside and not self.is_excluded(row)
-                and "C" in self.sides_of(row) and not self._off_the_front(row, "A")]
+                and "C" in self.sides_of(row)
+                and not self._off_the_front(row, "A", lone=lone)]
         for index, (role, holder, bench) in enumerate(out):
             if role != "A" or self._slot_side.get(id(holder), "C") != "C":
                 continue
-            if "C" in self.sides_of(holder):
+            if "C" in self.sides_of(holder) and not (
+                    lone and self._off_the_front(holder, "A", lone=True)):
                 continue
             rival = max(free, key=lambda row: self.claim(row, "season"), default=None)
             if rival is None or self.claim(rival, "season") <= 0.0 or (
@@ -5269,6 +5364,9 @@ class SnapshotView(ttk.Frame):
         free = [row for row in eligible
                 if row.get("name") not in inside and not self.is_excluded(row)]
         moves = []
+        # the same stricter question the selection asked: a repair pass that prices the lone front place
+        # without it quietly undoes `_fronted`'s answer (the first draft of the 08/08/2026 rule did)
+        lone = sum(1 for role, _row, _bench in out if role == "A") == 1
 
         def price(row: dict, side: str, lane: str) -> int:
             # WITHOUT the first-code half-step (`_slot_price` doubles the grid and adds 1 to a later
@@ -5276,7 +5374,7 @@ class SnapshotView(ttk.Frame):
             # fit" test made a real repair invisible - Gaetano, a trequartista drawn as Cagliari's third
             # centre back, could not hand his midfield shirt back to its MC-first holder because second-
             # code MC read as "worse" by half a step, and Zé Pedro (a DC at the same claim) stayed out.
-            return self._slot_price(row, side, lane) // 2
+            return self._slot_price(row, side, lane, lone=lone) // 2
 
         for here, (role_here, holder, _bench) in enumerate(out):
             if role_here == "P":
@@ -5318,7 +5416,8 @@ class SnapshotView(ttk.Frame):
                 if not reachable:
                     continue
                 refill = min(reachable, key=lambda row: (
-                    self._slot_price(row, side_there, role_there), -self.claim(row, "season")))
+                    self._slot_price(row, side_there, role_there, lone=lone),
+                    -self.claim(row, "season")))
                 closed = price(refill, side_there, role_there)
                 if closed > fit_there:
                     continue                          # the hole would close worse than it was
@@ -5530,13 +5629,18 @@ class SnapshotView(ttk.Frame):
             self._depth_cache = fit
         return fit
 
-    def _slot_price(self, row: dict, side: str, lane: str) -> int:
+    def _slot_price(self, row: dict, side: str, lane: str, lone: bool = False) -> int:
         """What it costs to put this man in that place: the distance from where he really plays.
 
         Read over ALL his codes and the nearest one wins - Spinazzola is `ML;DL` and either job may be the
         one asked of him - and a man with no code at all is placed by his listone line, dead centre, which
         is as much as it says. Each code is then pulled toward where he was MEASURED, by `HEATMAP_SIDE` and
         `HEATMAP_DEPTH`: the code says what he can do, the heatmap what he did.
+
+        `lone` says the front line this price is about has ONE place - `_off_the_front`'s stricter
+        question - so that `_assign` and `_settle` charge the same rule the selection enforces: without
+        it, the first draft's repair pass quietly relocated the centre-forward into the midfield and
+        handed the point of the attack back to the jolly.
         """
         wanted = {"R": 1.0, "L": -1.0}.get(side, 0.0)
         depth = self.LANE_DEPTH.get(lane, 0.60)
@@ -5563,11 +5667,12 @@ class SnapshotView(ttk.Frame):
             # striker are equidistant from a front-three place (both 2), so the two were interchangeable and
             # a 3-4-3 drew McTominay as the centre-forward with Hojlund out on the right.
             wide = 4 if lane == "A" and side != "C" and "ST" in self.real_roles(row) else 0
-            return min(prices) + wide + 2 * self._off_the_front(row, lane)
+            return min(prices) + wide + 2 * self._off_the_front(row, lane, lone=lone)
         own = self.LANE_DEPTH.get(self.lane_of(row), 0.60)
-        return round(40 * abs(own - depth) + 2 * weight * abs(wanted)) + 2 * self._off_the_front(row, lane)
+        return (round(40 * abs(own - depth) + 2 * weight * abs(wanted))
+                + 2 * self._off_the_front(row, lane, lone=lone))
 
-    def _off_the_front(self, row: dict, lane: str) -> int:
+    def _off_the_front(self, row: dict, lane: str, lone: bool = False) -> int:
         """What a man who plays NO attacking line pays for a place in the front one: a FULL line.
 
         The grid cannot say this on its own, and the operator found what that costs, on Fiorentina: a wing
@@ -5588,13 +5693,40 @@ class SnapshotView(ttk.Frame):
         A man with no observed code is placed by his listone line, which is all that is known about him: a
         listone forward is not charged for playing forward. (Returned on the SINGLE grid; `_slot_price`
         doubles it with everything else.)
+
+        ...and a front line of ONE asks a stricter question (`lone`) - the operator's rule, 08/08/2026:
+        «nel 4-5-1 o 4-2-3-1 lì davanti ci vuole una Pc, o al massimo una A». A front THREE interchanges,
+        so a winger holds a place in it by right and is charged nothing; a front line of one has no flank
+        to interchange with - its only place is the point of the attack, and a man who does not lead a
+        line (`_leads_the_line`) pays the same full line there. Bologna was the case that named the hole:
+        Odgaard (`AM;RW`, listone C) outbid Dovbyk (`ST`, listone A) 0.429 to 0.382 and no guard could
+        object - his RW made him a front-line man here, and his AM a central one for `_pointed`. Stated
+        INSIDE the one definition rather than as a new override, because a second opinion on the same
+        question is how the module lost its symmetry once already - and the first draft of this rule was
+        exactly that: a swap at selection that `_settle`, pricing the places without the rule, quietly
+        undid by RELOCATING the centre-forward into the midfield.
         """
         if lane != "A":
             return 0
+        if lone and not self._leads_the_line(row):
+            return self.LINE_REACH
         codes = self.real_roles(row)
         home = ({self.LANE_OF_ROLE.get(code) for code in codes} if codes
                 else {self.lane_of(row)})
         return 0 if "A" in home else self.LINE_REACH
+
+    def _leads_the_line(self, row: dict) -> bool:
+        """Who may hold the LONE place of a front line: a real centre-forward, or an UNCODED listone A.
+
+        The operator's vocabulary, translated once: «una Pc» is the measured `ST`; «al massimo una A» is
+        the listone's line, and it speaks only for the man the provider has never coded - all that is
+        known about him, the same statement `_off_the_front` already makes («a listone forward is not
+        charged for playing forward»). For a CODED man his own measured codes outrank the listone, which
+        calls half a squad the same thing: a coded winger is a listone A too, and a winger is not a punta
+        («Neres non è una Sp») - Liverpool's ruled board is the proof, Gakpo (`LW`, listone A) covering
+        the five's left flank with Wirtz on the lone front place, not the other way round."""
+        codes = self.real_roles(row)
+        return "ST" in codes if codes else (row.get("role_classic") or "") == "A"
 
     @staticmethod
     def _matching(cost: list[list[int]]) -> dict[int, int]:
@@ -5699,7 +5831,8 @@ class SnapshotView(ttk.Frame):
         #     (`MC;DC;DM`) out of its back three, which is the same sentence again;
         #   his rank, so two men who are equal in every other respect are ordered by who plays more and the
         #     board never depends on the order the rows happened to arrive in.
-        cost = [[1000 * self._slot_price(row, side, lane)
+        lone = sum(1 for lane, _side in places if lane == "A") == 1
+        cost = [[1000 * self._slot_price(row, side, lane, lone=lone)
                  + (10 * (len(chosen) - rank[index])
                     if home and home.get(id(row)) not in (None, lane) else 0)
                  + rank[index]

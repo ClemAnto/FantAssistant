@@ -1907,3 +1907,69 @@ Spec «Novità v9.43» · verdetti nel gate **§7-quinvicies** · dettaglio per 
 La todolist formazioni tipo è chiusa; quello che resta è **manutenzione**: rimisurare i due giudici
 quando arriva una referenza nuova, e le voci future nascono da lì. Fuori da quella lista lo stato è
 invariato: nulla di gated si è mosso in tutta la sessione.
+
+## CHIUSURA della sessione 08/08/2026 (notte tarda) — quattro domande sulle board, e il giudizio DICHIARATO
+
+`SHEET_REVISION` resta **13** (cambia il disegno, non una colonna che il foglio porta) · **356 test** ·
+`backtest --verify` 22/22 non toccato — né `presence.py` né il disegno sono importati da `evaluate.py` ·
+Spec «Novità v9.44» · dettaglio in [formazioni-tipo-v1.md](formazioni-tipo-v1.md) §1/§3/§6-ter e nella
+**manutenzione** in testa a [todolist-formazioni-tipo-v1.md](todolist-formazioni-tipo-v1.md).
+
+**Prima applicazione del protocollo che la lista chiusa prevedeva**: quattro segnalazioni
+dell'operatore sulle board, ciascuna misurata prima di decidere. Due hanno prodotto codice, due un
+rifiuto con il numero davanti — e la seconda coppia è la parte interessante.
+
+### Le due adozioni
+1. **Il posto UNICO davanti è di una punta** (`_off_the_front(..., lone=True)` + `_leads_the_line`).
+   Il Bologna schierava Odgaard (`AM;RW`, claim 0.429) invece di Dovbyk (`ST`, 0.382) e **nessuna delle
+   guardie esistenti poteva obiettare**: il suo `RW` lo rendeva uomo della linea d'attacco per
+   `_fronted`, il suo `AM` uomo centrale per `_pointed`. Un tridente si scambia i posti — un'ala ne
+   tiene uno di diritto — ma una linea di UNO non ha fascia con cui scambiarsi.
+   **La regola sta dentro l'UNICA definizione di «non è il suo mestiere», e il primo tentativo no**:
+   era una guardia nuova alla sola selezione, e `_settle` — che prezza i posti senza conoscerla — la
+   aggirava RICOLLOCANDO la punta a centrocampo. È la lezione dei «due listini che possono dissentire»,
+   ripagata a distanza di giorni. Costo: **1 board su 57**, due giudici IDENTICI prima e dopo,
+   394 invarianti verdi. Un vincolo l'ha imposto una board già giudicata: un'ala CODIFICATA è A di
+   listone e non è una punta (Gakpo sulla fascia del 5 del Liverpool, «Neres non è una Sp»).
+2. **`config/board_rulings.json`**: il giudizio dell'operatore sul modulo era memoria di sessione e
+   **evaporava a ogni riavvio**. Ora è un fatto dichiarato per (stagione, club), datato, joinato per
+   IDENTITÀ, **revocabile** (voce «auto», offerta solo dove c'è qualcosa da revocare) e **invisibile ai
+   due giudici** (`load_sheet(apply_rulings=False)`) — un giudizio è spesso preso GUARDANDO la stampa,
+   e un giudice non può valutare le risposte dell'operatore. Una scelta in modalità `next` riguarda una
+   giornata e resta volatile. Prima riga: **Napoli 2026-27 = 4-3-3**.
+
+### I due rifiuti misurati, e il caso che li rende istruttivi
+Il Napoli portava **tre indizi veri**: amichevoli 4-3-3 (2 su 2), una rosa di esterni, e «l'anno scorso
+giocava 4-3-3» — che verificato è più interessante della domanda: partito a QUATTRO (8 giornate di
+4-5-1 + 3 di 4-3-3) e poi **27 di 3-4-3**, cioè la moda è onesta ed è comunque l'abitudine di CONTE.
+
+- **La famiglia di DIFESA del ritiro** (3 dietro vs 4), proposta dell'operatore come «la base su cui si
+  monta il resto» — diversa dalla voce 5, che pesava il modulo. Sui 16 club con ritiro parsato indovina
+  **11/16** contro **14/16** della board: vince dove lui diceva (Napoli e Juventus, entrambi allenatore
+  nuovo) e **perde su cinque**, con Genoa e Udinese a letture 2-0 forti quanto quella del Napoli in
+  direzione opposta. Sui soli allenatori nuovi è **4/4**, una moneta.
+- **`PRESEASON_WEIGHT` rimisurato** sulla griglia della voce 5, perché il caso era stato risollevato: a
+  0.30 il Napoli gira sul 4-3-3 (0.304 vs 0.299) e **la Fiorentina gira al contrario** — saldo 0 moduli,
+  −1 uomo, e sul Napoli stesso l'XI scende 8/11 → 7/11. La variante «solo le ultime due» non separa i
+  due casi: per entrambi i club le ultime due SONO tutto il campione.
+- **Un limite dichiarato invece che nascosto**: il giudice forte non può pronunciarsi — nel DB non c'è
+  ritiro 2025 (le 24 «friendly» 2025-26 sono di marzo-maggio 2026), quindi tutto questo è misurato
+  contro la STAMPA, che è una previsione. Il ritiro 2026 è archiviato (310 undici, 20/20 club) e
+  **M4-bis è pre-registrata per maggio 2027**.
+
+### La regola di metodo che questa sessione aggiunge
+**Un giudizio dell'operatore che il modello non può raggiungere non si adotta come parametro: si
+dichiara come fatto.** Adottare un canale che il giudice rifiuta perché un caso lo fallisce è allargare
+un criterio, che è vietato; lasciare la board sbagliata è ignorare chi sa qualcosa di vero. La terza via
+è dichiarare, **fuori da ogni misura** — e intanto la strada che si chiude da sola resta aperta: dalle
+prime giornate vere `formation_typical_under_coach` sposta il trust e la board gira da sé.
+
+### Cosa resta aperto (due voci, e le decide lo SWEEP)
+Lo standing legge UNA stagione, e due popolazioni ne pagano il prezzo — trovate misurando i casi M1-M3,
+nessuna decisa a mano perché sono formule di `presence.py`:
+1. **Il trasferimento di GENNAIO** (M2-bis): Malen ha 1478' in 18 presenze su 18 da titolare alla Roma
+   da gennaio, letti **0.405** di stagione perché il denominatore è il calendario del club (limite già
+   dichiarato in v9.37) — quarto del reparto, e fuori dall'undici. Sull'unione degli spell farebbe ~0.59.
+2. **La stagione mangiata da un infortunio** (M2-ter): Dovbyk (396', 22 turni fuori, 3 titolarità sui 16
+   in cui era disponibile) legge 0.382 perché la shrinkage tira verso il prior della BANDA e non verso
+   la sua t−2. Un prior personale è la variante pre-registrabile.

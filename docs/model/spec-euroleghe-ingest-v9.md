@@ -495,6 +495,83 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.44 (8 agosto 2026, notte tarda — quattro domande sulle board: una regola, un giudizio persistente, due rifiuti)
+
+`SHEET_REVISION` resta **13** (nulla che il foglio PORTI si è mosso: cambia il disegno, non una
+colonna) · **356 test**, `backtest --verify` 22/22 non toccato — `presence.py` e il disegno non sono
+importati da `evaluate.py`. Quattro segnalazioni dell'operatore sulle board, ciascuna misurata prima di
+decidere; **due hanno prodotto codice, due un rifiuto con il numero davanti**.
+
+### 1. Il posto UNICO davanti è di una punta (`_off_the_front(..., lone=True)`)
+
+**Regola dell'operatore**: «nel 4-5-1 o 4-2-3-1 lì davanti ci vuole una Pc, o al massimo una A».
+Il caso: il Bologna schierava **Odgaard** (`AM;RW`, C di listone, claim 0.429) al posto di **Dovbyk**
+(`ST`, A di listone, 0.382), e **nessuna delle guardie esistenti poteva obiettare** — il suo `RW` lo
+rende un uomo della linea d'attacco per `_fronted`, il suo `AM` un uomo centrale per `_pointed`.
+
+- Un tridente si SCAMBIA i posti, quindi un'ala ne tiene uno di diritto e `_off_the_front` non le
+  addebita nulla; una linea di UNO non ha fascia con cui scambiarsi: il suo unico posto è la punta
+  dell'attacco. Quindi la domanda più severa vive DENTRO l'unica definizione di «non è il suo
+  mestiere» (`lone=`), non in una guardia nuova.
+- **Il primo tentativo era una guardia nuova alla sola selezione, ed è stato buttato**: `_settle`,
+  che prezza i posti senza conoscerla, la aggirava **ricollocando** la punta a centrocampo. È la
+  lezione già scritta («due listini che possono dissentire»), ripagata: il `lone` passa ora per
+  `_fronted`, `_slot_price` (quindi `_assign` e `_settle`) e `_repointed`.
+- **`_leads_the_line`**: `ST` fra i codici, oppure — solo per chi non ha codici osservati — la A del
+  listone. Un'ala CODIFICATA è A di listone e non è una punta («Neres non è una Sp»): il vincolo l'ha
+  imposto la board già giudicata del Liverpool, dove Gakpo (`LW`) copre la fascia del 5 e Wirtz tiene
+  il posto davanti. Oltre `FLANK_OVERRIDE_GAP` = 0.40 non succede nulla: il mestiere decide chi è
+  eleggibile, il claim decide fra gli eleggibili.
+- **Costo misurato**: **1 board su 57** si muove (Bologna, su entrambi i fogli), i due giudici sono
+  IDENTICI prima e dopo (stampa 11/5/4 · 166/220; esito 13/1/6 · 137/220), 394 invarianti verdi.
+  Sul Bologna resta 8/11 contro la stampa: entra Dovbyk, esce Odgaard, e la stampa aveva entrambi.
+
+### 2. Il giudizio dell'operatore sul modulo diventa un fatto persistente (`config/board_rulings.json`)
+
+Il selettore del modulo esisteva già, ma la scelta **evaporava a ogni sessione** (`_shape_choice` era
+sola memoria). Ora una scelta in modalità `typical` è un **fatto dichiarato, datato e revocabile**:
+`{stagione: {club: {shape, decided_on}}}`, stessa specie di `league_config.json` — una dichiarazione
+dell'operatore, non una misura nostra. Tre proprietà, ciascuna la risposta a un modo di marcire:
+
+- **torna per la SUA stagione e joina i club per IDENTITÀ**, mai per la stringa scritta nel file
+  (`club_identity` — il join che perse Milan, Roma e Napoli una volta);
+- **si REVOCA** (voce «auto · the odds decide», offerta solo dove c'è un giudizio da revocare): lo
+  toglie dal file invece di coprirlo. Senza, un giudizio sbagliato si potrebbe solo sostituire;
+- **i giudici non lo vedono MAI**: `press.extract_boards` carica con `load_sheet(apply_rulings=False)`.
+  Un giudizio è spesso preso GUARDANDO il giudice, e un giudice non può valutare le risposte
+  dell'operatore — stessa circolarità di «la stampa è un GIUDICE, mai un input».
+  Una scelta in modalità `next` è un giudizio su UNA giornata e resta volatile per costruzione.
+
+Primo contenuto: **Napoli 2026-27 = 4-3-3**, con la sua motivazione nel file.
+
+### 3. e 4. Due misure che NON hanno prodotto codice, e valgono quanto le altre
+
+- **Il ritiro pesato come FAMIGLIA di difesa (3 dietro vs 4)**, proposta dell'operatore: «scegliere fra
+  difesa a 3 o a 4 è la base su cui montare il resto». Diversa dalla voce 5 (che pesava il MODULO), e
+  misurata a parte: sui 16 club con ritiro parsato la difesa del ritiro indovina la famiglia **11/16**,
+  la board sugli stessi club **14/16**. Vince dove l'operatore diceva (Napoli e Juventus, entrambi
+  allenatore nuovo) e **perde su cinque** — Genoa e Udinese con letture 2-0 forti quanto quella del
+  Napoli, in direzione opposta. Sui soli allenatori nuovi è **4/4**, una moneta. Rifiutata: un peso che
+  gira il Napoli gira anche quelli, nel verso sbagliato.
+  **Un limite dichiarato invece che nascosto**: il giudice forte non può pronunciarsi — il DB non ha
+  amichevoli del ritiro 2025 (le 24 «friendly» 2025-26 sono di marzo-maggio 2026), quindi questa misura
+  sta contro la STAMPA e non contro l'esito. Il ritiro 2026 è archiviato (310 undici, 20 club su 20):
+  a maggio 2027 l'esito 2026-27 la rimisura per la prima volta contro la verità.
+- **`PRESEASON_WEIGHT` rimisurato sulla griglia della voce 5**, perché il caso da cui nasceva era stato
+  risollevato: a 0.30 il Napoli gira sul 4-3-3 (0.304 vs 0.299) e **la Fiorentina gira al contrario**
+  (MATCH → DIFF, ritiro 3-5-2 contro stampa 4-3-3); saldo 0 moduli, −1 uomo, e sul Napoli stesso l'XI
+  scende 8/11 → 7/11. Oltre 0.30 crolla il resto (163 uomini a 0.60). Resta **0**, e la variante «solo
+  le ULTIME due» non separa i due casi: per entrambi i club le ultime due SONO tutto il campione.
+
+### La lezione di metodo di questa sessione
+
+**Un giudizio dell'operatore che il modello non può raggiungere non si adotta come parametro: si
+dichiara come fatto.** Il Napoli aveva tre indizi veri (amichevoli 4-3-3, rosa di esterni, e — a
+verifica — un 2025-26 partito a 4 per 11 giornate prima di 27 di 3-4-3), e ogni canale che li avrebbe
+letti è già stato misurato e rifiutato dai giudici. Adottarne uno per quel caso sarebbe stato allargare
+un criterio perché un caso lo fallisce, che è vietato; lasciare la board sbagliata sarebbe stato
+ignorare l'operatore. La terza via è il giudizio persistente, tenuto **fuori** da ogni misura.
+
 ## Novità v9.43 (8 agosto 2026, notte — DUE GIUDICI per le board, e la todolist formazioni tipo chiusa)
 
 `SHEET_REVISION` **13** · **354 test**, ruff pulito, `backtest --verify` **22/22** in ogni passaggio.

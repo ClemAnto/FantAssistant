@@ -20,6 +20,12 @@ Monorepo for the **EuroLeghe fantacalcio prediction engine**. Two parts:
   the names must not be mixed up. A sheet is built PER LEAGUE (`snapshot --league NAME`), its manifest
   records which one, and the folder name carries it - two leagues on the same platform and game have
   different replacement levels, so a surplus quoted without its league is not comparable.
+  A third, optional file lives here for the same reason those two do - it is DECLARED by the operator
+  rather than measured by us: **`board_rulings.json`**, his per-(season, club) ruling on which module a
+  board draws (`{season: {club: {shape, decided_on}}}`, written from the panel's shape selector).
+  Highest precedence for the DRAWN board and nothing else; the two judges load with
+  `apply_rulings=False`, because a ruling is often made looking at the judge and a judge must never
+  score the operator's own answers. See «A judgement the model cannot reach» below.
 - `docs/` - manifest of the Drive documents (source of truth). `data/` - local datasets (rebuildable).
 
 ## Language convention
@@ -512,6 +518,24 @@ Three rules came out of using it, and they generalise past the boards:
   January window, sackings): Verona reads 2/11 because it changed nearly everything. And a back-dated
   sheet has one contamination IN THE MODEL'S FAVOUR — transfers and arrivals are derived today, so the
   board knows a summer market that was not closed in August. State it: the number is an upper bound.
+
+## A judgement the model cannot reach is DECLARED, not adopted as a parameter
+**08/08/2026, the Napoli case, and it is the third way out of a real dilemma.** The operator brought
+three true clues that his board was wrong (the camp's two 4-3-3, a squad of wide forwards, and a
+previous season that began with a back FOUR for 11 rounds before 27 of 3-4-3), and every channel that
+would read them had already been measured and refused: the camp's MODULE (`PRESEASON_WEIGHT`, optimum
+at the edge) and then its BACK-LINE FAMILY, the stronger form of the same idea - «choosing three at the
+back or four is what you build the rest on». Measured on the 16 clubs with a parsed camp, the camp gets
+the family right **11/16** against the board's **14/16**; it wins exactly where he said (Napoli,
+Juventus - both new coaches) and loses on five, with two clubs reading as strongly in the OPPOSITE
+direction. On new coaches alone it is 4/4, a coin. Adopting it would be widening a criterion because a
+case failed it, which is forbidden; leaving the board wrong would be ignoring someone who knows
+something true. So the judgement is **declared** instead of inferred: `config/board_rulings.json`,
+dated, revocable, joined by identity, and **invisible to both judges**. Three habits travel with it: a
+declared fact needs a way BACK (the selector's «auto» removes it from the file rather than covering
+it); the measurement that refused the channel is written down with its numbers, so nobody re-runs it;
+and the limit is stated rather than hidden - the strong judge could not rule here at all (no 2025 camp
+in the DB), so the 2026 camp is archived and the comparison is pre-registered for May 2027.
 
 ## A difference between two groups is not a channel
 **Not until you have checked that the model is not already reading it** (08/08/2026, the age case, gate

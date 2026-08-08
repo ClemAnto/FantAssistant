@@ -32,7 +32,44 @@ la pagina delle probabili non basta e quali vincoli valgono già oggi.
 
 Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
 
-### ULTIMO IN ORDINE DI TEMPO — 8/08/2026 (6): DUE GIUDICI per le board, e una lista chiusa
+### ULTIMO IN ORDINE DI TEMPO — 8/08/2026 (7): quattro domande sulle board, e il giudizio dichiarato
+
+Spec «Novità v9.44», dettaglio in `formazioni-tipo-v1.md` §1/§3/§6-ter e nella **manutenzione** in testa
+a `todolist-formazioni-tipo-v1.md`. `SHEET_REVISION` resta **13** (cambia il disegno, non una colonna
+del foglio), **356 test**, `--verify` 22/22 non toccato. Quattro segnalazioni dell'operatore, ognuna
+misurata prima di decidere: **due hanno prodotto codice, due un rifiuto con il numero davanti**.
+
+1. **Il posto UNICO davanti è di una punta** (`_off_the_front(..., lone=True)`, regola dell'operatore:
+   «nel 4-5-1 o 4-2-3-1 ci vuole una Pc, o al massimo una A»). Il Bologna schierava Odgaard (`AM;RW`,
+   0.429) invece di Dovbyk (`ST`, 0.382) e **nessuna guardia poteva obiettare** — `RW` lo rendeva uomo
+   d'attacco per `_fronted`, `AM` uomo centrale per `_pointed`. Sta DENTRO l'unica definizione di «non è
+   il suo mestiere»: il primo tentativo era una guardia nuova alla sola selezione, e `_settle` — che
+   prezza i posti senza conoscerla — la aggirava RICOLLOCANDO la punta a centrocampo. Costo misurato:
+   **1 board su 57**, i due giudici IDENTICI prima e dopo (11/5/4 · 166/220 e 13/1/6 · 137/220).
+2. **Il giudizio dell'operatore sul modulo è ora un fatto persistente** (`config/board_rulings.json`):
+   datato, per (stagione, club), joinato per IDENTITÀ, **revocabile** («auto» nel selettore) e — il
+   punto che conta — **invisibile ai due giudici** (`load_sheet(apply_rulings=False)`), perché un
+   giudizio è spesso preso guardando la stampa e un giudice non può valutare le risposte dell'operatore.
+   Prima riga: **Napoli 2026-27 = 4-3-3**.
+3. **Due rifiuti misurati.** La famiglia di DIFESA del ritiro (3 dietro vs 4, proposta dell'operatore:
+   «è la base su cui si monta il resto») indovina **11/16** contro **14/16** della board: vince dove lui
+   diceva (Napoli, Juventus) e perde su cinque, con Genoa e Udinese che hanno letture forti quanto
+   quella del Napoli in direzione opposta — sui soli allenatori nuovi è 4/4, una moneta.
+   E `PRESEASON_WEIGHT` rimisurato: a 0.30 il Napoli gira sul 4-3-3 e **la Fiorentina gira al
+   contrario**, saldo 0 moduli e −1 uomo. Limite dichiarato: il giudice forte non può pronunciarsi (nel
+   DB non c'è ritiro 2025), quindi **M4-bis è pre-registrata per maggio 2027**, quando l'esito 2026-27
+   misurerà il ritiro 2026 già archiviato (310 undici, 20/20 club).
+4. **La regola di metodo, ed è nuova**: *un giudizio dell'operatore che il modello non può raggiungere
+   non si adotta come parametro, si dichiara come fatto*. Sul Napoli i tre indizi erano veri (amichevoli
+   4-3-3; rosa di esterni; e — verificato — un 2025-26 partito a QUATTRO per 11 giornate prima di 27 di
+   3-4-3, cioè l'abitudine di Conte), e ogni canale che li leggerebbe è già stato bocciato dai giudici.
+   Adottarne uno sarebbe stato allargare un criterio perché un caso lo fallisce; lasciare la board
+   sbagliata sarebbe stato ignorare chi sa qualcosa di vero. La terza via è dichiarare, fuori da ogni
+   misura. **Due voci restano APERTE** per lo sweep, non per una sessione: il denominatore del
+   trasferimento di GENNAIO (il caso Malen, 0.405 letti su una mezza stagione da titolare vero) e il
+   prior personale su t−2 per chi ha la t−1 mangiata da un infortunio (il caso Dovbyk).
+
+### 8/08/2026 (6): DUE GIUDICI per le board, e una lista chiusa
 
 Spec «Novità v9.43», verdetti nel gate **§7-quinvicies**, dettaglio per voce in
 `todolist-formazioni-tipo-v1.md` (**chiusa**). `SHEET_REVISION` **13**, **354 test**, `--verify` 22/22 a

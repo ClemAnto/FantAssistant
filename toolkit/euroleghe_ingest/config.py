@@ -107,6 +107,12 @@ class Config:
     db_path: Path = field(default_factory=lambda: _env_path("EUROLEGHE_DB_PATH", REPO_ROOT / "data" / "euroleghe.db"))
     scoring_config_path: Path = field(default_factory=lambda: REPO_ROOT / "config" / "scoring_config.json")
     league_config_path: Path = field(default_factory=lambda: REPO_ROOT / "config" / "league_config.json")
+    # The operator's per-club board rulings («Napoli 2026-27 plays 4-3-3»), declared from the panel's
+    # shape selector and persisted here - the same kind of fact as `league_config.json`: a judgement of
+    # his, not a measurement of ours. Optional, highest-precedence for the DRAWN board only; nothing
+    # gated reads it, and the press/outcome harnesses deliberately ignore it (a ruling is often made
+    # looking at the judge, and a judge must not score the operator's own answers).
+    board_rulings_path: Path = field(default_factory=lambda: REPO_ROOT / "config" / "board_rulings.json")
 
     @property
     def raw_dir(self) -> Path:

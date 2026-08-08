@@ -2394,6 +2394,105 @@ def test_a_front_place_goes_to_a_forward_even_when_a_trequartista_claims_more(mo
     assert front_of(squad_of((("Ngoy", "MC", "C", 0.55),))) == ["Haraldsson"]
 
 
+def test_the_lone_front_place_goes_to_a_centre_forward_not_to_a_jolly(monkeypatch):
+    """The operator's rule of 08/08/2026: «nel 4-5-1 o 4-2-3-1 lì davanti ci vuole una Pc, o al massimo
+    una A» (`_speared`).
+
+    The Bologna case: Odgaard (`AM;RW`, listone C) held the 4-5-1's only front place over Dovbyk (`ST`,
+    listone A) 0.429 to 0.382, and NEITHER existing guard could object - his RW is a front-line code, so
+    `_fronted` does not read him as off the front, and his AM is central, so `_pointed` is satisfied too.
+    A front three interchanges and a winger holds a place in it by right; a front line of ONE has no
+    flank to interchange with, so its only place is the point of the attack.
+    """
+    from euroleghe_ingest.gui import SnapshotView as View
+
+    def squad_of(extra):
+        rows = [{"fc_id": str(index), "name": name, "desc_real_roles": codes, "role_classic": role,
+                 "share": share}
+                for index, (name, codes, role, share) in enumerate((
+                    ("Skorupski", "GK", "P", 1.00),
+                    ("Zortea", "DR;MR", "D", 0.90), ("Lucumi", "DC", "D", 0.88),
+                    ("Heggem", "DC;DL", "D", 0.86), ("Miranda", "DL", "D", 0.84),
+                    ("Moro", "MC;DM", "C", 0.82), ("Ferguson", "MC;DM;AM", "C", 0.80),
+                    ("Holm", "DR;MR", "C", 0.78), ("Orsolini", "RW", "C", 0.61),
+                    ("Cambiaghi", "LW", "C", 0.60),
+                    ("Odgaard", "AM;RW", "C", 0.43)) + extra)]
+        return rows
+
+    def front_of(rows):
+        view = _view_of(rows)
+        view._calendar, view._slot_side, view._excluded, view._reshaped = {}, {}, set(), set()
+        monkeypatch.setattr(View, "squad", lambda _self, _club: rows)
+        monkeypatch.setattr(View, "presence", lambda _self, row, _h: row.get("share", 0.0))
+        monkeypatch.setattr(View, "claim", lambda _self, row, _h="season": row.get("share", 0.0))
+        monkeypatch.setattr(View, "titolarita", lambda _self, row, _h: (0.0, row.get("share", 0.0)))
+        eleven = view.eleven("Bologna", "4-5-1", "typical")
+        assert len(eleven) == 11
+        return [row["name"] for lane, row, _rivals in eleven if lane == "A"]
+
+    # The centre-forward claims LESS and still takes the lone place: it is his job, and 0.05 of claim is
+    # well inside the ceiling every override pays.
+    assert front_of(squad_of((("Dovbyk", "ST", "A", 0.38),))) == ["Dovbyk"]
+    # ...a listone forward with no observed codes is «al massimo una A» and qualifies the same way...
+    assert front_of(squad_of((("Dallinga", "", "A", 0.38),))) == ["Dallinga"]
+    # ...but not at any price: past `FLANK_OVERRIDE_GAP` the striker stays out and a jolly leads the
+    # line - WHICH jolly is the fit's business among men who all pay the same, not this rule's.
+    assert "Dovbyk" not in front_of(squad_of((("Dovbyk", "ST", "A", 0.01),)))
+    # ...and with nobody who leads a line in the squad, the place is still worn: a squad whose only
+    # attackers are jollies is drawn with them.
+    assert len(front_of(squad_of((("Fabbian", "MC;AM", "C", 0.55),)))) == 1
+
+
+def test_a_shape_ruling_outlives_the_session_and_never_reaches_the_judge(tmp_path):
+    """The operator's board ruling («Napoli 2026-27 plays 4-3-3») is a persisted, dated, revocable fact.
+
+    Three statements, each the answer to a way the first draft could rot:
+    - it comes back for the SAME season and joins clubs by IDENTITY, not by the spelled string;
+    - withdrawing it (the selector's `auto`) removes it from the file rather than papering over it;
+    - and the press/outcome harness NEVER sees it (`load_sheet(apply_rulings=False)`): a ruling is
+      often made looking at the judge, and a judge must not score the operator's own answers.
+    """
+    from euroleghe_ingest.config import Config
+    from euroleghe_ingest.gui import SnapshotView as View
+
+    view = _view_of([])
+    view.config = Config(board_rulings_path=tmp_path / "board_rulings.json")
+    view.manifest = {"target_season": "2026-27"}
+    view.clubs = {"Napoli": {}}
+    view._shape_choice = {}
+
+    view._save_ruling("Napoli", "4-3-3")
+    saved = json.loads((tmp_path / "board_rulings.json").read_text(encoding="utf-8"))
+    assert saved["2026-27"]["Napoli"]["shape"] == "4-3-3"
+    assert saved["2026-27"]["Napoli"]["decided_on"], "a ruling is a dated fact"
+
+    # a new session: the ruling comes back for its season, and only for its season
+    view._shape_choice = {}
+    view._seed_shape_rulings()
+    assert view._shape_choice == {("Napoli", "typical"): "4-3-3"}
+    view._shape_choice, view.manifest = {}, {"target_season": "2027-28"}
+    view._seed_shape_rulings()
+    assert view._shape_choice == {}, "another season is another squad"
+
+    # ...by identity, not by the string the file spelled
+    view.manifest, view.clubs = {"target_season": "2026-27"}, {"SSC Napoli": {}}
+    view._seed_shape_rulings()
+    assert view._shape_choice == {("SSC Napoli", "typical"): "4-3-3"}
+
+    # withdrawn = gone from the file, not overwritten
+    view.clubs = {"Napoli": {}}
+    view._save_ruling("Napoli", None)
+    assert json.loads((tmp_path / "board_rulings.json").read_text(encoding="utf-8")) == {}
+
+    # and the harness seam: the loader seeds by default, and not when asked to stay pure
+    assert View.load_sheet.__defaults__ == (True,)
+    import inspect
+
+    from euroleghe_ingest.modules import press
+    assert "apply_rulings=False" in inspect.getsource(press.extract_boards), \
+        "the judge must never score the operator's own rulings"
+
+
 def test_a_sheet_says_how_old_its_squad_and_transfer_evidence_is(tmp_path):
     """The operator's case: «Gutierrez non è più nel Napoli». The sheet was RIGHT about what it had - both
     squad sources said Napoli - and what it had was days old, while `transfers_history` did not carry a

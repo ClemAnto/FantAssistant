@@ -27,6 +27,25 @@ future nascono da lì.
 dentro il modello renderebbe circolare proprio il confronto che la usa. E nessun criterio si
 allarga perché un caso l'ha fallito (CLAUDE.md, 06/08/2026).
 
+**MANUTENZIONE, prima tornata (08/08/2026, notte tarda)** — quattro segnalazioni dell'operatore sulle
+board, che è esattamente il modo in cui la lista chiusa doveva produrre voci nuove. Numeri e dettaglio
+in [formazioni-tipo-v1.md](formazioni-tipo-v1.md) §1, §3, §6-ter e nella spec «Novità v9.44»:
+
+| # | segnalazione | esito |
+|---|---|---|
+| M1 | «Scamacca risulta Sp» | **nessun difetto**: due punte pure in linea di due, una sola maglia Pc, e lo spareggio finisce sui minuti (Krstovic 1786 vs 1319). Comportamento voluto, documentato |
+| M2 | «Malen non titolare» | **causa trovata, non è un bug**: trasferimento di gennaio, denominatore del club (limite già dichiarato in v9.37). Candidato a sweep: denominatore sull'unione degli spell (0.405 → ~0.59) |
+| M3 | «nel Bologna davanti c'è un centrocampista, non Dovbyk» | **ADOTTATA**: il posto unico della linea d'attacco è di una punta (`_off_the_front(lone=True)`). 1 board su 57, due giudici identici |
+| M4 | «il Napoli è un 4-3-3, non un 3-5-2» | **giudizio dichiarato, non canale**: `config/board_rulings.json`. Il canale che lo leggerebbe (famiglia di difesa del ritiro) misurato e rifiutato, 11/16 contro 14/16 della board |
+
+**Le due voci APERTE che ne nascono**, entrambe da decidere con lo sweep e non a mano:
+- **M2-bis — il denominatore del trasferimento di gennaio** (unione degli spell) e **M2-ter — il prior
+  personale su t−2 per chi ha la t−1 mangiata da un infortunio** (il caso Dovbyk, 0.382). Sono formule
+  di `presence.py`, quindi le giudica `sweep` sulla quota di presenze realizzata, non una board.
+- **M4-bis — la famiglia di difesa del ritiro contro l'ESITO**, pre-registrata per maggio 2027: il
+  ritiro 2026 è archiviato (310 undici, 20/20 club) e il giudice forte oggi non può pronunciarsi
+  (nessuna amichevole del ritiro 2025 nel DB). Se batte le fonti della board sull'esito, entra.
+
 ---
 
 ## 0. ~~Il giudice: la referenza stampa come DATO, e il confronto ripetibile~~ — **FATTA** (08/08/2026, `19351fd`)

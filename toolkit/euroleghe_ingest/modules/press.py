@@ -292,7 +292,10 @@ def extract_boards(config, sheet: Path, mode: str = "typical") -> dict[str, dict
     root.withdraw()
     try:
         view = SnapshotView(root, config)
-        view.load_sheet(Path(sheet))
+        # WITHOUT the operator's persisted shape rulings: a ruling is often made looking at this very
+        # judge, and a judge must never score the operator's own answers - the harness measures the
+        # MODEL. Same circularity guard as «the press is a JUDGE, never an input».
+        view.load_sheet(Path(sheet), apply_rulings=False)
         boards: dict[str, dict] = {}
         for club in sorted(view.clubs):
             info = view.clubs[club]

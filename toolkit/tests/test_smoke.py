@@ -761,6 +761,15 @@ def test_the_shape_selector_offers_what_the_club_played_and_locks_on_a_declared_
         assert view._shape_labels[view.shape_var.get()] == "4-5-1", "opens on what the board drew"
         assert str(view.shape_cb.cget("state")) == "readonly"
 
+        # ...and the way BACK is offered only where there is something to go back FROM: with a ruling in
+        # force the list opens with `auto`, so a judgement can be WITHDRAWN and not only replaced by
+        # another one. Offered unconditionally it would be a permanent line meaning «leave it as it is».
+        assert gui.SnapshotView.SHAPE_AUTO not in labels
+        view._shape_choice[("Napoli", "typical")] = "4-3-3"
+        view._fill_shapes("Napoli", info, "4-3-3")
+        assert next(iter(view.shape_cb["values"])) == gui.SnapshotView.SHAPE_AUTO
+        view._shape_choice.clear()
+
         view.xi_mode.set("next")
         view._fill_shapes("Napoli", {**info, "formation_today": "3-5-2"}, "3-5-2")
         assert str(view.shape_cb.cget("state")) == "disabled"
