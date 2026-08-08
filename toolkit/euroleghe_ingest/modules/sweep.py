@@ -460,6 +460,9 @@ def build_inputs(conn, data: features.WindowData, ctx: Context | None = None) ->
             minutes_here=float(split.get("minutes") or 0),
             minutes_elsewhere=float(split.get("minutes_elsewhere") or 0),
             was_here_before=obs.fc_id in was_here,
+            # ...and whether the club PAID for him this window, which decides which discount that earns
+            # (`presence.Inputs.resigned`). The fee exists from 2023, so older folds simply never set it.
+            resigned=bool((spend.get(obs.fc_id) or {}).get("fee")),
             fm_z=fm_z.get(obs.fc_id),
             level_z=level_z.get(obs.fc_id),
             level_gap_z=level_gap_z.get(obs.fc_id),

@@ -246,6 +246,15 @@ class Inputs:
     minutes_here: float = 0.0
     minutes_elsewhere: float = 0.0
     was_here_before: bool = False
+    # ...and whether the club has just PAID a transfer fee for him. It exists to say which of the two
+    # discounts `was_here_before` earns: the harsher one means «it sent him away, and that is its own
+    # judgement», and a club spending 41.2M to sign a man back is making the opposite statement. Kolo
+    # Muani was PSG's player on loan at Juventus, then Tottenham's, and has now been bought - the loan
+    # discount read him as a man Juventus had discarded and charged him 0.60 where his 1670 minutes would
+    # otherwise put him ahead of the incumbent. NOT a claim about how much was paid, which the gate has
+    # falsified twice (§7-quater, and the fee «does not separate»): the AMOUNT says nothing here, only its
+    # existence, and where there is no fee on file the incumbent discount stands - «vuoto = ignoto».
+    resigned: bool = False
     # what the club put into him: his fee as a share of what it spent that window (0 = no new spending,
     # None = we have no fees for that club), and his Qt.I percentile within his role (None = unquoted)
     fee_share: float | None = None
@@ -370,13 +379,17 @@ def at_club_weight(inputs: Inputs, params: Params = DEFAULTS) -> float:
     transfer lands in between - which is also the answer to "the discount should shrink as he accumulates
     matches here": it already does, one match at a time, with no second parameter.
 
+    ...unless the club has just BOUGHT HIM BACK (`resigned`), and then the harsher discount is asserting
+    something the club has just contradicted with money. It is a question about WHICH sentence describes
+    him, not about how much was paid - the amount is a falsified signal here and is deliberately not read.
+
     Minutes rather than starts because they are the continuous measure: a substitute has a share too. No
     minutes on either side reads 1.0 - an unknown split must not penalise him.
     """
     total = inputs.minutes_here + inputs.minutes_elsewhere
     if not total:
         return 1.0
-    if inputs.was_here_before:
+    if inputs.was_here_before and not inputs.resigned:
         discount = params.loan_discount
     elif inputs.cross_league:
         discount = params.arrival_discount_cross
@@ -500,14 +513,21 @@ def standing(inputs: Inputs, params: Params = DEFAULTS) -> float:
         # here to split, so it reads 1.0 - «an unknown split must not penalise him», which is right for a
         # missing split and wrong for a known one. This window was played somewhere else by construction
         # (it is what `recent_form` fetches), so the arrival discount applies to all of it.
-        discount = (params.loan_discount if inputs.was_here_before else params.arrival_discount)
+        discount = (params.loan_discount if inputs.was_here_before and not inputs.resigned
+                    else params.arrival_discount)
         measured = min(max(params.window_standing * share * discount, 0.0), 1.0)
         # ...and SHRUNK like any other standing, on the window's own ten matches. This branch used to
         # return here, which made the shortest sample the panel ever reads the only one exempt from the
         # parameter adopted because short samples do not hold - and it decided elevens: a ten-match window
-        # read 0.609 and displaced a 2563-minute starter. No lift is added, deliberately: the three lifts
-        # are claims about a man whose minutes have been seen, and this one's have not.
-        return _shrunk(measured, inputs, params)
+        # read 0.609 and displaced a 2563-minute starter.
+        # ...and it takes the two LEVEL lifts, which it also used to escape. They are claims about an
+        # ARRIVAL - at what level the football behind his minutes was played, and what step he takes by
+        # moving - and this man is an arrival by construction: the window is football played somewhere
+        # else. Refusing them here was reading «ten matches» as «no evidence about the level», which is
+        # not the same sentence. The other three lifts stay out: investment, quality and career are about
+        # a man whose SEASON has been seen, and this one has none.
+        return min(max(_shrunk(measured, inputs, params) + level_lift(inputs, params)
+                       + level_gap_lift(inputs, params), 0.0), 1.0)
     starts = min(inputs.starts * weight / rounds, 1.0)
     if not inputs.minutes:
         measured = starts

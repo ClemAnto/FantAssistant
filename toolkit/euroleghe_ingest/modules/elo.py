@@ -64,7 +64,7 @@ import urllib.error
 import urllib.request
 
 from euroleghe_ingest.context import Context
-from euroleghe_ingest.matching import CLUB_ALIASES, club_key
+from euroleghe_ingest.matching import CLUB_ALIASES, club_identity, club_key
 
 NAME = "elo"
 DESCRIPTION = "ClubElo API -> club_elo at the auction dates (offline-reingestable)"
@@ -354,15 +354,29 @@ NAME_EXTRA: dict[str, str] = {
     "Bayer 04 Leverkusen": "Leverkusen", "Brighton & Hove Albion": "Brighton",   # 4715 · 3864
     "Athletic Club": "Bilbao", "Stade Rennais": "Rennes",                        # 3739 · 3264
     "Wolverhampton": "Wolves", "Borussia M'gladbach": "Gladbach",                # 2874 · 2520
-    "Deportivo Alavés": "Alaves", "1. FC Köln": "Koeln",                         # 1036 ·  725
+    "Deportivo Alavés": "Alaves",                                                # 1036
+    # ...and the ones the LEVELS table needed, added 08/08/2026 with the rows each recovers: a club with
+    # no level is a player with no level, and the operator's rule is that every player must have one.
+    "Red Bull Salzburg": "Salzburg", "Sporting Braga": "Braga",                  #   26 ·   24
+    "Austria Klagenfurt": "Klagenfurt", "Deportivo de A Coruña": "Depor",        #   10 ·   24
 }
+
+
+# German transliteration, and it is a RULE rather than five aliases. ClubElo spells the umlauts out -
+# `Koeln`, `Duesseldorf`, `Fuerth`, `Nuernberg`, `Suedtirol`, `Muenchen` - while every other source of
+# ours keeps them (`1. FC Köln`), and stripping the diaeresis the ordinary way gives `koln`, which matches
+# nothing. Measured 08/08/2026: it recovers Köln (725 match rows), Düsseldorf, Fürth, Nürnberg, Südtirol
+# and Mönchengladbach in one line, where a hand-written alias each would have been six lines and the next
+# German club would have needed a seventh.
+_UMLAUTS = str.maketrans({"ä": "ae", "ö": "oe", "ü": "ue", "ß": "ss"})
 
 
 def _name_tokens(name: str) -> list[str]:
     import re
     import unicodedata
 
-    text = unicodedata.normalize("NFKD", name.lower())
+    text = name.lower().translate(_UMLAUTS)
+    text = unicodedata.normalize("NFKD", text)
     text = "".join(ch for ch in text if not unicodedata.combining(ch))
     return [t for t in re.sub(r"[^a-z0-9 ]+", " ", text).split() if t]
 
@@ -434,6 +448,55 @@ def load_cached_levels(ctx: Context) -> dict[str, dict[str, float]]:
         for record in parse_snapshot(text):
             out.setdefault(year, {})[record["club"]] = record["elo"]
     return out
+
+
+def store_levels(conn, ctx: Context) -> tuple[int, int, int]:
+    """`club_levels`: every club ClubElo publishes, per year, keyed canonically. Returns (rows, clubs, ours).
+
+    `club_elo` can only hold a club that has been in a listone - its key is `fc_club_id` - so 97 clubs of
+    the ~630 published survived ingest and everybody else read as «no level». That is a table about our
+    PERIMETER being used as a table about FOOTBALL, and the two are different things: Red Bull Salzburg is
+    a real club with a real strength, and a man whose measured window was played there carried nothing.
+
+    Both sides are indexed, so no read path ever compares a name: ClubElo's own spelling, and every
+    spelling WE hold anywhere (`clubs`, the per-match layer, the parsed line-ups) that `match_club_names`
+    resolves to it - with the two guards that function was given after «Paris FC» was matched to PSG.
+    An ambiguous name stays unresolved, because a wrong level is worse than a missing one.
+    """
+    levels = load_cached_levels(ctx)
+    if not levels:
+        return 0, 0, 0
+    elo_names = sorted({name for year in levels.values() for name in year})
+    ours: set[str] = set()
+    for query in ("SELECT DISTINCT canonical_name FROM clubs WHERE canonical_name IS NOT NULL",
+                  "SELECT DISTINCT club FROM external_match_stats WHERE club IS NOT NULL",
+                  "SELECT DISTINCT club FROM club_match_lineups WHERE club IS NOT NULL"):
+        ours.update(name for (name,) in conn.execute(query))
+    known = set(elo_names)
+    seed = {mine: theirs for theirs, mine in ELO_ALIASES.items() if theirs in known}
+    seed.update({mine: theirs for mine, theirs in NAME_EXTRA.items() if theirs in known})
+    index = match_club_names(elo_names, sorted(ours), seed)
+    # ClubElo's own name first, then ours - so a spelling of ours that collides with a ClubElo name
+    # cannot silently take another club's level, and the row says which club it is.
+    keyed: dict[str, str] = {club_identity(name): name for name in elo_names}
+    for mine, theirs in index.items():
+        keyed.setdefault(club_identity(mine), theirs)
+    rows = 0
+    for year, table in levels.items():
+        for key, name in keyed.items():
+            value = table.get(name)
+            if value is None:
+                continue
+            conn.execute("INSERT OR REPLACE INTO club_levels(club_key, year, elo, elo_name) "
+                         "VALUES (?, ?, ?, ?)", (key, year, value, name))
+            rows += 1
+    return rows, len(elo_names), len(index)
+
+
+def levels_at(conn, year: str) -> dict[str, float]:
+    """{club_key: Elo} for one year - what a read joins against, never a name."""
+    return {key: value for key, value in conn.execute(
+        "SELECT club_key, elo FROM club_levels WHERE year = ?", (year,))}
 
 
 def derive_elo_xref(conn, ctx: Context) -> tuple[int, list[str]]:
@@ -570,7 +633,12 @@ def run(ctx: Context, *, refresh: bool = False, fetch: bool = True, **kwargs) ->
     # ...and the identity layer: which ClubElo row belongs to which PROVIDER TEAM ID, resolved once
     # here so that no read path ever compares a club name (§7-tervicies).
     written, refused = derive_elo_xref(conn, ctx)
+    # ...and the LEVELS themselves, for every club ClubElo publishes and not only the ones a listone
+    # carries: `club_elo` is keyed on `fc_club_id` and can hold nobody else (§ `club_levels`).
+    rows, clubs_seen, matched = store_levels(conn, ctx)
     conn.commit()
+    print(f"[elo] club_levels: {rows} rows over {clubs_seen} clubs a year "
+          f"({matched} of our own spellings resolved onto them)")
     print(f"[elo] club_xref(clubelo): {written} provider clubs mapped"
           + (f" · {len(refused)} names left unresolved (ambiguous or absent): "
              + ", ".join(refused[:6]) if refused else ""))

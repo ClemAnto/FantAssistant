@@ -122,7 +122,11 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      and has 79, Tedesco 3 of 28, Spalletti 31 of 107. Three coaches sat under `COACH_SHAPE_MIN` while
 #      their real sample was well over it, which is the board drawing the PREDECESSOR's shape at exactly
 #      the clubs `coach_shapes` exists for. Resolved through `club_index` like every other club join.
-SHEET_REVISION = 8
+#   9  08/08/2026 - `desc_level_elo` is filled for a man with NO previous roster too, from the club of his
+#      measured WINDOW: Alajbegovic had never been in a listone, so he carried no level at all while his
+#      ten matches were Bayer Leverkusen's (1836.6, above Juventus's own 1819.4). The adopted level
+#      channels now reach him, and the window branch of `presence.standing` takes them.
+SHEET_REVISION = 9
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
@@ -1806,6 +1810,12 @@ def measured_elsewhere(conn, window) -> dict[int, dict]:
 
     `where` is the competitions, most matches first, because ten matches somewhere are not a season here and
     the plate has to say where they were played.
+
+    `club` is the side he played those matches FOR, most minutes first, and it is not decoration: it is the
+    only thing that can say at what LEVEL that window was played. `desc_level_elo` is filled from a man's
+    previous ROSTER, so a player who has never been in a listone carries none - and Alajbegovic's ten
+    matches are Bayer Leverkusen's (Elo 1836.6, above Juventus's own 1819.4), which is exactly the evidence
+    the adopted level channels exist to read. Resolved by the canonical index, never by the spelling.
     """
     out: dict[int, dict] = {}
     floor = f"{window.input_season.split('-')[0]}-07-01"
@@ -1818,6 +1828,14 @@ def measured_elsewhere(conn, window) -> dict[int, dict]:
                GROUP BY fc_id""", (floor, window.auction_date)):
         out[fc_id] = {"matches": matches, "minutes": minutes,
                       "where": (competitions or "").replace(",", " ")[:40] or None}
+    for fc_id, club in conn.execute(
+            """SELECT fc_id, club FROM external_match_stats
+               WHERE source = 'sofascore_recent' AND match_date >= ? AND match_date < ?
+                 AND COALESCE(minutes, 0) > 0 AND club IS NOT NULL
+               GROUP BY fc_id, club ORDER BY SUM(COALESCE(minutes, 0))""",
+            (floor, window.auction_date)):
+        if fc_id in out:
+            out[fc_id]["club"] = club          # last wins = the club he played most of the window for
     return out
 
 
@@ -2379,6 +2397,15 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
     provider_known = observed_players(conn)
     live_squad = complete_squads(live_squads(conn, window.auction_date),
                                  data.observations, provider_known)
+    # What each club's Elo was, keyed CANONICALLY, for EVERY club ClubElo publishes and not only the ~97
+    # a listone carries (`club_levels`). It exists for one row of the sheet - `desc_level_elo` for a man
+    # with no previous roster - and that man is precisely the one whose club is likely to be outside our
+    # perimeter: Alajbegovic's window was played at Red Bull Salzburg, which `club_elo` cannot hold at all
+    # because its key is `fc_club_id`. «Ogni calciatore DEVE avere il suo club_elo corretto» - the
+    # operator, 08/08/2026, and Salzburg is the case that proves the point.
+    from euroleghe_ingest.modules import elo as elo_module
+
+    club_level = elo_module.levels_at(conn, window.input_season.split("-")[0])
     # The rank belongs to the SLOT the row's surplus is measured against, not to the listone role: on a
     # mantra sheet those are two different populations (a 'w;a' forward competes with wingers, not with
     # every 'A'), and ranking inside the classic role printed a position that was in no list the panel
@@ -2580,7 +2607,14 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             # for a man who CHANGED club - the population `presence.level_lift` was measured on. Without this
             # column the adopted channel is switched on and blind: the panel builds its `Inputs` from the
             # sheet, so a parameter whose input never reaches the row does nothing at all.
-            "desc_level_elo": (obs.elo_prev if obs.club_change else None),
+            # ...and for a man with NO previous roster, the club of his measured WINDOW - which is the same
+            # question asked of the only football he has played. Alajbegovic had never been in a listone, so
+            # he carried no level at all while his ten matches were Bayer Leverkusen's (1836.6, above
+            # Juventus's own 1819.4). It is the origin level for an arrival either way; what changes is how
+            # much football is behind it, and the shrinkage already says that.
+            "desc_level_elo": (obs.elo_prev if obs.club_change else
+                               club_level.get(matching.club_identity(recent.get("club")))
+                               if recent.get("club") else None),
             # What he had shown BEFORE last season - the career channel's input, forwards only because
             # that is the population it was measured on (`presence.career_lift`).
             "desc_career_fm": (obs.fm_career if obs.role_classic == "A" else None),

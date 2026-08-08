@@ -1,5 +1,5 @@
 # 00 — BRIDGE · Punto d'ingresso del progetto (leggere per primo)
-**Aggiornato: 8 agosto 2026 (`coach_shapes` era gia' applicato: sotto c'era un join per NOME che toglieva il 26% degli undici a ogni allenatore)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
+**Aggiornato: 8 agosto 2026 (ogni calciatore ha il suo livello: `club_levels`, 1.092 club contro 97 — e su Alajbegovic il livello vero dice di no)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
 
 ## Il progetto in breve
 Motore previsionale per fantacalcio **EuroLeghe** (fantacalcio.it): valutazione calciatori Classic e Mantra sui 5 grandi campionati europei (Serie A, Premier, Liga, Bundesliga, Ligue 1 — perimetro: i ~35 top club del gioco). Prevede fantamedia (FM), presenze attese e VALORE stagionale = FM × presenze. Metodo scientifico: **ogni regola entra nel motore solo se batte il baseline fuori campione su finestre indipendenti** (gate pre-registrato). Stato: core validato (Mantra, Classic, portieri, presenze); manca lo strato flag/arrivi, sbloccato dal toolkit dati `euroleghe-ingest` (in implementazione).
@@ -29,7 +29,39 @@ la pagina delle probabili non basta e quali vincoli valgono già oggi.
 
 Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
 
-### ULTIMO IN ORDINE DI TEMPO — 8/08/2026: «applica coach_shapes» — era già applicato, e sotto c'era un join sbagliato
+### ULTIMO IN ORDINE DI TEMPO — 8/08/2026 (2): ogni calciatore deve avere il suo livello, e il Salisburgo è un club vero
+
+Tre richieste dell'operatore, e l'ultima ha risposto alle prime due meglio di come chiedevano (spec «Novità
+v9.39»). **Kolo Muani, Ramos e Atta sono titolari; Alajbegovic no, e a dirlo è il dato che l'operatore ha
+chiesto di correggere.**
+
+1. **Un club che lo RICOMPRA non è un club che lo ha scaricato.** Kolo Muani pagava lo sconto «prestito»
+   0.60 — motivazione: «lo ha mandato via, ed è un suo giudizio» — mentre era lui il prestato e la Juve ha
+   speso **41,2 M** per prenderlo. Ora `was_here_before` + **un fee in questa finestra** prende lo sconto
+   d'arrivo. Si legge che il fee ESISTE, mai quanto: l'importo è falsificato due volte, l'esistenza è
+   un'altra affermazione. Claim 0.414 → **0.515, titolare**.
+2. **Il livello dietro una FINESTRA**: `desc_level_elo` esisteva solo per chi cambia club fra due listoni,
+   quindi chi non è mai stato in un listone non portava nessun livello, e il ramo «finestra» non prendeva
+   neanche i lift adottati. Ora sì.
+3. **E il difetto che i primi due hanno scoperto: `club_elo` sono 97 club su 1092.** La sua chiave è
+   `fc_club_id`, che esiste solo per chi è stato in un listone — una tabella sul nostro PERIMETRO usata come
+   tabella sul CALCIO. Nuova **`club_levels`**: ogni club pubblicato, per anno, chiave canonica di ogni
+   grafia, risolta all'ingest. **7.825 righe su 1.092 club**, e i club dei nostri dati senza livello passano
+   allo **0,11% delle righe per-partita**. Resa possibile da una REGOLA e non da una lista: ClubElo scrive
+   `Koeln`/`Fuerth`/`Suedtirol`, noi teniamo l'umlaut, e una riga di traslitterazione recupera l'intera
+   famiglia tedesca (più quattro alias nuovi, ciascuno con le righe che recupera).
+
+**E l'esito è il contrario di quello che la richiesta si aspettava**: Alajbegovic **scende**, 0.476 →
+**0.272**, perché il suo livello vero è quello del **Red Bull Salzburg, 1.558**, contro i 1.819 della
+Juventus — sale di 260 punti e il canale adottato lo penalizza. Prima non lo penalizzava perché non aveva
+livello affatto. *Dare a ogni calciatore il suo livello vero non è un premio: è una misura, e su questo
+uomo dice di no.*
+
+⚠️ Due cose dichiarate e non fatte: la mappa Elo che il **gate** legge è ancora quella dei 97 club
+(allargarla muove numeri pubblicati e vuole una corsa sua); e **36 righe del campionato austriaco** stanno
+sotto lo slug `bundesliga` con un voto sintetico tarato sulla Bundesliga tedesca.
+
+### 8/08/2026: «applica coach_shapes» — era già applicato, e sotto c'era un join sbagliato
 
 Richiesta dell'operatore dopo aver visto le formazioni tipo. **Verificato prima di eseguire, e la diagnosi
 del giorno prima era FALSA**: `coach_shapes` entra in `shape_odds` dal **04/08** (commit `4d979c3`, verdetto

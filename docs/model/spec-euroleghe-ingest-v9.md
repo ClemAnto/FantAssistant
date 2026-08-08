@@ -495,6 +495,59 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.39 (8 agosto 2026 — ogni calciatore deve avere il suo livello, e il Salisburgo è un club vero)
+
+Tre richieste dell'operatore in fila, e la terza ha risposto alle prime due meglio di come chiedevano.
+
+### 1. Un club che lo RICOMPRA non è un club che lo ha scaricato
+`at_club_weight` addebitava a Kolo Muani lo sconto «prestito» 0.60 — la motivazione scritta è «lo ha mandato
+via, ed è un suo giudizio» — mentre lui era il PRESTATO (di proprietà PSG, alla Juve nel 24-25, al Tottenham
+nel 25-26) e la Juve ha appena speso **41,2 M** per prenderlo. La frase non lo descrive. Ora
+`was_here_before` **+ un fee pagato in questa finestra** (`presence.Inputs.resigned`) prende lo sconto
+d'arrivo. Non si legge **quanto**: solo che esiste — l'importo è un segnale falsificato due volte
+(§7-quater, e «il FEE non separa»), l'esistenza è un'altra affermazione. Dove il fee non c'è resta
+l'incumbent: «vuoto = ignoto». Popolazione: 3 righe su 34 con `was_here_before` e minuti altrove (Serie A).
+
+### 2. Il livello dietro una FINESTRA
+`desc_level_elo` era compilato solo per chi cambia club fra due listoni, quindi un uomo mai stato in un
+listone non portava **nessun** livello — e il ramo «finestra» di `presence.standing` non prendeva neanche i
+due lift adottati. Ora la colonna si compila dal club della finestra misurata e il ramo prende i lift, che
+sono affermazioni su un ARRIVO e questo lo è per costruzione. Restano fuori investment, quality e career:
+parlano di un uomo di cui si è vista la STAGIONE.
+
+### 3. …e il difetto che i primi due hanno scoperto: `club_elo` sono 97 club su 1092
+**Richiesta dell'operatore: «ogni calciatore DEVE avere il suo club_elo corretto, il Salisburgo ha sfornato
+numerosi campioni».** `club_elo` ha per chiave `fc_club_id`, che esiste **solo per un club che è stato in un
+listone**: dei ~630 club che ClubElo pubblica ogni anno ne sopravvivevano **97**. È una tabella sul nostro
+PERIMETRO usata come tabella sul CALCIO, e le due cose sono diverse.
+
+Nuova tabella **`club_levels(club_key, year, elo, elo_name)`**: ogni club pubblicato, per anno, con la
+chiave canonica di OGNI grafia — la sua e le nostre — risolta una volta all'ingest da `match_club_names`
+con le sue due guardie. **7.825 righe su 1.092 club**, e i club dei nostri dati senza livello scendono da
+molte centinaia a **113 su 381, cioè lo 0,11% delle righe per-partita** (Ravenna, Casertana, Flamengo,
+Cruzeiro: fuori dal calcio europeo o fuori scala).
+
+Due cose che l'hanno resa possibile, e la prima vale più della seconda:
+- **la traslitterazione tedesca è una REGOLA, non cinque alias.** ClubElo scrive `Koeln`, `Duesseldorf`,
+  `Fuerth`, `Nuernberg`, `Suedtirol`; noi teniamo l'umlaut, e togliere la dieresi nel modo ordinario dà
+  `koln`, che non appaia niente. Una riga (`_UMLAUTS`) recupera tutta la famiglia;
+- **quattro alias nuovi in `NAME_EXTRA`**, ciascuno con le righe che recupera: Red Bull Salzburg → Salzburg
+  (26), Sporting Braga → Braga (24), Deportivo de A Coruña → Depor (24), Austria Klagenfurt → Klagenfurt (10).
+
+### E l'esito, che è il contrario di quello che la richiesta si aspettava
+Sul foglio 2026-27 di Serie A: **Kolo Muani titolare** (claim 0.414 → 0.515), **Ramos titolare** (0.561),
+**Atta titolare** (0.595). Ma **Alajbegovic scende**, 0.476 → **0.272**, ed è proprio il club_elo corretto a
+dirlo: la sua finestra è del **Red Bull Salzburg, Elo 1.558**, contro i 1.819 della Juventus — sale di 260
+punti di livello, e il canale adottato (§7-duovicies, *chi sale di livello non gioca*) lo penalizza. Prima
+non lo penalizzava perché non aveva livello affatto. **Dare a ogni calciatore il suo livello vero non è un
+premio: è una misura, e su questo uomo dice di no.**
+
+⚠️ **Dichiarato e non fatto**: la mappa Elo che il GATE legge (`features`, `elo_prev`/`elo_target`) è ancora
+quella dei 97 club. Allargarla muove numeri pubblicati e vuole una corsa di gate sua, quindi non è stata
+toccata qui. ⚠️ E un secondo difetto trovato e **non** corretto: 36 righe del campionato **austriaco** sono
+archiviate sotto lo slug `bundesliga` (Red Bull Salzburg, Austria Klagenfurt) e portano tutte un voto
+sintetico tarato sulla Bundesliga tedesca — stessa famiglia di §7-nonies.
+
 ## Novità v9.38 (8 agosto 2026 — il repertorio dell'allenatore joinava per NOME, e perdeva il 26% degli undici)
 
 Richiesta dell'operatore: «applica `coach_shapes`». **Era già applicato** — entra in `shape_odds` dal 04/08

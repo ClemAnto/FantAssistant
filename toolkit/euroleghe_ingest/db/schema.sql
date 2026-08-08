@@ -333,6 +333,26 @@ CREATE TABLE IF NOT EXISTS club_elo (
     PRIMARY KEY (fc_club_id, date)
 );
 
+-- EVERY club ClubElo publishes, per year, keyed CANONICALLY - not just the ~97 that a listone carries.
+-- `club_elo` above is our own clubs at a DATE (the auction day) and cannot hold anybody else: its key is
+-- `fc_club_id`, which only exists for a club that has been in a listone. That is a table about OUR
+-- perimeter, and a level is not: Red Bull Salzburg is a real club with a real strength, and a man whose
+-- measured football was played there read as «no level at all» (08/08/2026, the operator: «ogni calciatore
+-- DEVE avere il suo club_elo corretto, il Salisburgo ha sfornato numerosi campioni»). ~630 clubs a year
+-- against 97, from the same cached snapshots `club_elo` is built from - no acquisition, only a table that
+-- does not throw them away.
+-- The key is `matching.club_identity` of a spelling, and BOTH sides are indexed: ClubElo's own name and
+-- every spelling of ours that resolves to it, so a read never compares a name (`elo_name` says whose level
+-- the row is, so a row can be audited). Per YEAR because that is the granularity the snapshots are cached
+-- at, and because the level of a club is a season-long fact.
+CREATE TABLE IF NOT EXISTS club_levels (
+    club_key   TEXT NOT NULL,                   -- club_identity() of a spelling, ours or ClubElo's
+    year       TEXT NOT NULL,                   -- YYYY of the snapshot
+    elo        REAL NOT NULL,
+    elo_name   TEXT NOT NULL,                   -- the ClubElo club this level belongs to
+    PRIMARY KEY (club_key, year)
+);
+
 -- ---------- Market / career history ----------
 CREATE TABLE IF NOT EXISTS transfers_history (
     fc_id       INTEGER NOT NULL REFERENCES players(fc_id),

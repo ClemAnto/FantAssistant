@@ -182,13 +182,23 @@ pure (spec «Novità v9.34»): il SURPLUS mantra che era il VALORE, e `club_elo`
    sessione del 07/08 notte suggerisce di guardarci prima con un'altra lente: **su tre casi che sembravano
    chiedere un canale nuovo, due erano denominatori sbagliati** (punto 6-septies). Prima di misurare un
    segnale, chiedersi se l'uomo è tenuto fuori da un difetto costa un pomeriggio e ne ha risolti due.
-9. **APERTO — `loan_discount` = 0.60 è il numero che tiene Kolo Muani fuori, ed è un parametro dichiarato
-   APERTO** (platform-dependent: euro tira a 0.2, `default` a 0.8, e la curva è piatta fra i due). Il caso lo
-   rende concreto: 1670 minuti al Tottenham scontati al 60% perché la Juve lo aveva già avuto in prestito,
-   contro i 1795 di David senza sconto. Due cose da sapere prima di toccarlo: **con 0.8 resta comunque fuori**
-   dai tre davanti (claim 0.506), quindi non è il rimedio che sembra; e la motivazione dello sconto è «il club
-   lo ha mandato via, ed è un suo giudizio» — un uomo che era in PRESTITO e non è stato riscattato è un caso
-   diverso, ma nessuna fonte nostra marca il prestito, quindi oggi non è distinguibile.
+9. ~~**APERTO — `loan_discount` = 0.60 è il numero che tiene Kolo Muani fuori**~~ — **CHIUSO l'08/08 senza
+   toccare il parametro** (spec «Novità v9.39»): non era il valore ad essere sbagliato ma la POPOLAZIONE.
+   Lo sconto dice «lo ha mandato via, ed è un suo giudizio», e Kolo Muani era il prestato che la Juve ha
+   appena pagato 41,2 M per riprendersi. `was_here_before` + un fee in questa finestra → sconto d'arrivo.
+   Claim 0.414 → 0.515, titolare. Il valore 0.60 resta dov'era e resta aperto.
+9-bis. **APERTO — la mappa Elo del GATE è ancora quella dei 97 club.** `features` legge `club_elo`, la cui
+   chiave è `fc_club_id`: un arrivo da un club mai stato in un listone (Salisburgo, Benfica, Ajax, Porto)
+   ha `elo_prev` vuoto, quindi i due canali ADOTTATI sono ciechi su di lui. La tabella che copre tutti
+   (`club_levels`, 1.092 club) esiste dall'08/08 ed è già letta dal FOGLIO. Allargare anche il gate muove
+   numeri pubblicati (R19, `level_weight`, `level_gap_weight`) e vuole una corsa di gate sua.
+9-ter. **APERTO — 36 righe del campionato AUSTRIACO sotto lo slug `bundesliga`** (Red Bull Salzburg 26,
+   Austria Klagenfurt 10), tutte con un voto sintetico tarato sulla Bundesliga tedesca. Stessa famiglia di
+   §7-nonies («una trasformazione appartiene alla popolazione su cui è stata fitta»), trovata l'08/08
+   cercando perché la finestra di Alajbegovic sembrasse tedesca. Piccola in righe, sbagliata in principio.
+   ⚠️ Il VALORE resta aperto e platform-dependent (euro tira a 0.2, `default` a 0.8, curva piatta fra i
+   due), e va ricordato che spostarlo a 0.8 **non** sarebbe bastato: misurato, Kolo Muani sarebbe arrivato a
+   0.506 e sarebbe rimasto fuori dai tre davanti. Il rimedio non era il valore.
 
 **Progetto:** App EuroLega Fantacalcio · **Rif.:** modello-previsionale v3.8 · **Aggiornata: 5 agosto 2026**
 Convenzione: [ ] da fare · [x] fatto · [!] bloccato · *Sigle: fc_id = id fantacalcio.it · FM = fantamedia · T1/T2 = finestre di test 23/24->24/25 e 24/25->25/26 · 2.5 pieno = backtest motore completo con flag.*

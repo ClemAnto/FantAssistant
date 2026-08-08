@@ -4107,6 +4107,10 @@ class SnapshotView(ttk.Frame):
             minutes_here=_number(row.get("desc_minutes_club")),
             minutes_elsewhere=_number(row.get("desc_minutes_elsewhere")),
             was_here_before=bool(row.get("desc_at_club_before")),
+            # ...and whether the club has just PAID for him, which decides WHICH of the two discounts that
+            # earns. See `presence.Inputs.resigned`: the amount is never read, only whether there is one.
+            resigned=bool(_number(row.get("desc_transfer_fee"), None)
+                          or _number(row.get("desc_investment_fee"), None)),
             fee_share=_number(row.get("desc_investment_fee_share"), None),
             stature=_number(row.get("desc_investment_stature"), None),
             value_share=_number(row.get("desc_investment_value_share"), None),
