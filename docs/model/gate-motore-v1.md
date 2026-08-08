@@ -3432,6 +3432,83 @@ E una cosa che questa misura **non** dice: che le bande siano inutili. Dicono ch
 La domanda per cui erano nate — «copre davvero l'altra fascia?», cioè i ballottaggi e la riga dei rivali — ha
 una metrica diversa e più debole (le fonti pubblicano i ballottaggi a singhiozzo) e non è stata aperta.
 
+## 7-quinvicies. LA BOARD CONTRO L'ESITO, e i quattro candidati che ne sono nati (8 agosto 2026)
+
+Un **secondo giudice** per le formazioni tipo, e il più severo dei due: non la previsione di terzi ma
+**quello che i club hanno fatto**. `snapshot --season 2025-26 --date 2025-08-15` costruisce il foglio
+come sarebbe stato al giorno d'asta, `press --sheet ... --against outcome` lo confronta con la forma
+modale della stagione e i suoi undici uomini più schierati (`press.outcome_reference`).
+
+**Il risultato, con il suo null** — perché 134 uomini su 220 non significano nulla finché «gli stessi
+dell'anno prima» non è sulla stessa pagina (la regola del «right null» di §5-duodecies):
+
+| | moduli | uomini |
+|---|---|---|
+| **BOARD** | 13 MATCH / 1 ALT / 6 DIFF | **137/220 (62%)** |
+| NULL (gli undici più schierati dell'anno prima) | 9 / 2 / 6 | 104/220 (47%) |
+
+La board batte la baseline su entrambi gli assi, e su tre club (i promossi) il null è muto per
+costruzione mentre la board porta 20 uomini.
+
+**Tre regole di misura che questa verifica ha imposto**, tutte imparate sbagliando:
+1. **Quale delle due stringhe di forma si confronta lo decide la REFERENZA, non la preferenza.** La
+   stampa scrive moduli a quattro numeri → si giudica sul `picture` dopo `_reshape`. L'esito è contato
+   su `club_match_lineups`, che tiene TRE linee e non può dire 4-2-3-1: giudicato sul picture legge
+   disaccordo ogni volta che la trasformazione ha spezzato una riga. Quell'artefatto valeva **5 club su
+   20**, la differenza fra 7 MATCH e 12.
+2. **Il 61-62% ha un tetto che non è il modello**: infortuni, mercato di gennaio, esoneri. Il Verona fa
+   **2/11**. La referenza stampa di mid-season faceva 83% ma era informata di mezzo campionato.
+3. **Il foglio retrodatato ha una contaminazione A FAVORE**: transfers e arrivi sono derivati oggi,
+   quindi la board conosce tutto il mercato estivo 2025, che a metà agosto non era chiuso. Il 62% è un
+   **limite superiore**. (I ruoli granulari, non backfillabili, sono usati e dichiarati dal foglio
+   stesso; le probabili sono vuote e il `typical` non le legge.)
+
+**QUATTRO CANDIDATI, TUTTI MISURATI E TUTTI RIFIUTATI.** Vale la pena elencarli perché tre sembravano
+ovvi:
+
+- **La CO-TITOLARITÀ** («due che non coesistono non si disegnano insieme»). L'ipotesi dell'operatore è
+  vera SULLA COPPIA — Krstovic e Scamacca 2 co-start di 15/18 sulle 35 partite in cui erano entrambi
+  disponibili, **0.13**, contro Lautaro Martinez e Thuram a **0.58** — e falsa come regola sul RUOLO.
+  Il denominatore È la misura: contata su tutte le partite, ogni coppia separata da un trasferimento
+  legge 0.00 (35 coppie sembravano così, 32 non avevano mai condiviso una rosa). Implementata come
+  quarto override di mestiere, ha fatto quel che prometteva e **il giudice l'ha bocciata**: uomini
+  164 → 162, Atalanta 7/11 → 6/11. **La stampa schiera Scamacca**, cioè l'uomo che la regola toglieva:
+  scarta il claim più basso e sull'unico caso per cui esiste sbaglia metà. Il dato resta
+  (`desc_costart_low`); serve un segnale su QUALE dei due ruotanti comanda, e il claim non lo è.
+- **Il modulo del RITIRO** come quinta fonte di `shape_odds`. Copertura verificata prima di scrivere
+  codice (1-3 undici completi per tutti i 20 club, dove il 2025-26 aveva Milan e Napoli a zero), poi
+  griglia **pre-registrata** 0/0.15/0.30/0.45/0.60: moduli 11/11/11/11/11 e uomini 166/166/165/163/163.
+  Ottimo **al bordo** e curva discendente. `PRESEASON_WEIGHT` = 0, come `HEATMAP_*`.
+- **Il SURPLUS come discrimine di modulo** (proposta dell'operatore). Per il Napoli il 4-3-3 della
+  stampa è il modulo col SUR più **basso** (18.2 contro 18.9). Scegliendo la forma per SUR su tutti e
+  20 i club: **4 MATCH / 3 ALT / 13 DIFF** contro 11/5/4. Il SUR risponde a «quale modulo mi CONVIENE»,
+  le odds a «quale SCEGLIERÀ l'allenatore»: due domande, e il selettore le mostra affiancate.
+- **Il declino d'ETÀ oltre i 30**, e questo è il più istruttivo. Su 500 coppie (giocatore, stagione) con
+  15+ start di Serie A in ingresso, su due stagioni, la quota di presenze mantenuta è **66% / 72% /
+  77% / 51%** per fasce ≤23 / 24-26 / 27-29 / ≥30 — una U rovesciata, quindi una SOGLIA e non una
+  tendenza (r lineare −0.139, parziale −0.122). Implementato come canale raggiungibile da entrambi gli
+  harness e **rifiutato da entrambi**: `sweep` dà euro +0.23% con ottimo 30/0.09 AL BORDO e default
+  +0.04% (nessuno raggiunge il floor 0.5%), il giudice-esito peggiora a ogni punto (134 → 132 uomini,
+  13 → 12 moduli). **Il meccanismo**: i 30+ portano già meno minuti misurati (1299 contro 1574 dei
+  27-29), quindi lo standing li sconta prima e il termine addebita due volte la stessa evidenza.
+  ⚠️ **NON era R4**: R4 predice il FANTAVOTO, questa predice CHI GIOCA — le due domande che il progetto
+  tiene separate — e la distinzione regge, ma la risposta è comunque no.
+
+**La regola generale che ne esce, e vale più dei quattro verdetti**: *una differenza fra due gruppi non
+è un canale finché non si è verificato che il modello non la stia già leggendo.* La tabella per fasce
+d'età non controllava per i minuti; il modello sì.
+
+**E due candidati rifiutati senza scrivere codice**: scontare il claim per la disponibilità (il claim è
+«la squadra con tutti sani» per scelta di design — misurato, 132/220 contro 134 e un modulo in meno, la
+scelta regge anche contro il giudice più severo), e allargare l'acquisizione (86 su 86 degli uomini
+mancati erano GIÀ sul foglio: il perimetro non è il problema, l'ordinamento sì).
+
+**Un canale che invece NON è misurabile e si chiude per questo**: il salto di livello di chi ha giocato
+altrove **senza cambiare club di listone** (prestiti, promozioni). Popolazione contata: **3, 3, 7, 5**
+uomini nelle quattro stagioni bersaglio su 1175-1558 quotati, lo 0.2-0.5%. Nessun MAE su mille
+giocatori si muove per cinque uomini: non è una voce da fare, è una voce che nessun harness può
+giudicare, e per la regola d'oro non è adottabile.
+
 ## 8. Casi di regressione (in `model.REGRESSION_CASES`, stampati da `backtest --cases`)
 
 Lewandowski (età/minuti) · Wirtz (cambio lega) · Torres F. (propensione per-90) · Ezzalzouli (nuovo nel

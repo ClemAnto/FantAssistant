@@ -1,5 +1,5 @@
 # 00 — BRIDGE · Punto d'ingresso del progetto (leggere per primo)
-**Aggiornato: 8 agosto 2026, sera (perimetro del foglio corretto — le promosse c'erano nel listone e non nel foglio; la stampa come giudice delle board)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
+**Aggiornato: 8 agosto 2026, notte (DUE GIUDICI per le formazioni tipo — la stampa e l'ESITO reale — e la todolist formazioni tipo chiusa: cinque adozioni, sei rifiuti misurati)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
 
 ## Il progetto in breve
 Motore previsionale per fantacalcio **EuroLeghe** (fantacalcio.it): valutazione calciatori Classic e Mantra sui 5 grandi campionati europei (Serie A, Premier, Liga, Bundesliga, Ligue 1 — perimetro: i ~35 top club del gioco). Prevede fantamedia (FM), presenze attese e VALORE stagionale = FM × presenze. Metodo scientifico: **ogni regola entra nel motore solo se batte il baseline fuori campione su finestre indipendenti** (gate pre-registrato). Stato: core validato (Mantra, Classic, portieri, presenze); manca lo strato flag/arrivi, sbloccato dal toolkit dati `euroleghe-ingest` (in implementazione).
@@ -32,7 +32,35 @@ la pagina delle probabili non basta e quali vincoli valgono già oggi.
 
 Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
 
-### ULTIMO IN ORDINE DI TEMPO — 8/08/2026 (5): il perimetro era la stagione FINITA, e la stampa come giudice
+### ULTIMO IN ORDINE DI TEMPO — 8/08/2026 (6): DUE GIUDICI per le board, e una lista chiusa
+
+Spec «Novità v9.43», verdetti nel gate **§7-quinvicies**, dettaglio per voce in
+`todolist-formazioni-tipo-v1.md` (**chiusa**). `SHEET_REVISION` **13**, **354 test**, `--verify` 22/22 a
+ogni passaggio: nulla di gated si è mosso.
+
+1. **Le board hanno DUE giudici, e il secondo è il più severo.** `press --sheet DIR --against
+   press|outcome`: la previsione di terzi (l'unica che esiste prima che si giochi) e **quello che i club
+   hanno fatto** (forma modale della stagione + gli undici più schierati), che vuole un foglio
+   retrodatato. La referenza è un DATO (`press_formations`, per-GIORNO, archiviata e rigiocata da
+   `rebuild`) e **un GIUDICE mai un input**. Bilancio: stampa **11/5/4 e 166/220** (da 9/5/6 e 160),
+   esito **13/1/6 e 137/220** contro un null di 9/2/6 e 104.
+2. **Cinque adozioni**: il modulo `press`; i campionati d'ORIGINE (`FEEDER_LEAGUES`, Serie B — Frosinone
+   4/11 → 10/11); l'identità già nota che attribuisce la stagione nascosta dal perimetro (+5.238 righe di
+   `external_stats`) con `player_xref.resolved_by`; i transfers per chiave canonica (irrisolti 4.422 →
+   2.508) e il terzo ripiego del livello (67 → 74 arrivi coperti); il trequartista candidato al
+   centrocampo (Como DIFF → MATCH) e il **SUR** nel selettore modulo.
+3. **Sei rifiuti MISURATI** — e contano quanto le adozioni: la co-titolarità come regola (la stampa
+   schiera l'uomo che toglieva), il modulo del ritiro (ottimo al bordo), il SUR come discrimine di
+   modulo (4/3/13 contro 11/5/4), il declino d'età oltre i 30 (bocciato da entrambi i giudici),
+   scontare il claim per la disponibilità, e il salto di livello senza cambio club — **non misurabile**,
+   3-7 uomini per stagione.
+4. **Cinque regole di metodo**, e sono la parte durevole: *un numero senza il suo null non è
+   interpretabile* · *quale rappresentazione si confronta lo decide la referenza* · *una differenza fra
+   due gruppi non è un canale finché non verifichi che il modello non la stia già leggendo* · *una quota
+   si cita dal report o si rimisura, mai dal documento* · **e le regole scritte non bastano: bisogna
+   chiamare la funzione** — le due violazioni di oggi sono mie, dopo averle riscritte.
+
+### 8/08/2026 (5): il perimetro era la stagione FINITA, e la stampa come giudice
 
 Spec «Novità v9.42». **332 test, ruff pulito, `--verify` 22/22** — niente di gated si muove —
 `SHEET_REVISION` **10**, fogli rigenerati (default + euro).

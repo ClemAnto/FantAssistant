@@ -1847,3 +1847,63 @@ invece di usarlo. **È il prossimo lavoro con la leva più alta.**
    sessione a sé.
 4. **`stature_weight`** passa robust su default (+0.55%) partendo da 0.0.
 5. Fonti giù: ClubElo (host morto, ripiego cablato), Transfermarkt (contratti e valori fermi al 29/07).
+
+## CHIUSURA della sessione 08/08/2026 (notte) — DUE GIUDICI, e una todolist chiusa con più rifiuti che adozioni
+
+`SHEET_REVISION` **13** · **354 test**, ruff pulito, `backtest --verify` **22/22** a ogni passaggio ·
+Spec «Novità v9.43» · verdetti nel gate **§7-quinvicies** · dettaglio per voce in
+[todolist-formazioni-tipo-v1.md](todolist-formazioni-tipo-v1.md), che da oggi è **chiusa**.
+
+### Il bilancio, sui due giudici
+| giudice | prima | dopo |
+|---|---|---|
+| stampa 2026-27 (previsione di terzi) | 9 MATCH / 5 ALT / 6 DIFF · 160/220 uomini | **11 / 5 / 4 · 166/220** |
+| esito 2025-26 (cosa i club hanno fatto) | non esisteva | **13 / 1 / 6 · 137/220**, contro un null di 9/2/6 e 104/220 |
+
+### Le cinque cose adottate
+1. **Il modulo `press`**: la referenza esterna è un DATO datato (`press_formations`, archiviata in
+   `data/raw/press/`, rigiocata da `rebuild`) e il confronto un COMANDO, con **due giudici**
+   (`--against press|outcome`). L'estrazione guida il pannello vero attraverso `load_sheet`.
+2. **I campionati d'ORIGINE**: `config.FEEDER_LEAGUES`/`CHAMPIONSHIPS`, la Serie B acquisita per i
+   promossi, l'identità di un feeder risolta contro la stagione DOPO. **Frosinone 4/11 → 10/11.**
+3. **L'identità già nota attribuisce la stagione che il perimetro del listone nasconde**: 59 uomini
+   senza aggregato d'ingresso, `external_stats` 11.732 → 16.970. Più `player_xref.resolved_by`.
+4. **Transfers per chiave canonica** (irrisolti 4.422 → 2.508), contropartner canonico, `first_seen`.
+   E il **terzo ripiego del livello** (`levels_by_minutes`): copertura sugli arrivi 67 → 74.
+5. **Un trequartista è candidato anche al centrocampo** (Como DIFF → MATCH, Paz in campo) e il
+   **selettore modulo porta il SUR**, il surplus medio dell'undici che ogni forma schiera.
+
+### Le sei cose misurate e RIFIUTATE, che valgono quanto le adozioni
+- **La co-titolarità come regola**: l'ipotesi è vera sulla coppia (Krstovic-Scamacca 0.13 contro
+  Lautaro-Thuram 0.58) e la regola peggiora il giudizio, perché **la stampa schiera Scamacca** — cioè
+  l'uomo che toglieva. Il dato resta, la regola no.
+- **Il modulo del ritiro** (`PRESEASON_WEIGHT` 0): griglia pre-registrata, ottimo al bordo, curva
+  discendente. La copertura c'era (1-3 undici per tutti i 20 club), il segnale no.
+- **Il SUR come discrimine di modulo** (proposta dell'operatore): 4/3/13 contro 11/5/4. Il SUR dice
+  «quale modulo mi CONVIENE», le odds «quale SCEGLIERÀ l'allenatore».
+- **Il declino d'età oltre i 30** (`age_decline` 0): rifiutato da **entrambi** i giudici. La tabella per
+  fasce (66/72/77/51%) non controlla per i minuti, e i 30+ ne portano già meno — il termine addebita due
+  volte la stessa evidenza.
+- **Scontare il claim per la disponibilità**: 132/220 contro 134. La scelta di design («la squadra con
+  tutti sani») regge anche contro il giudice più severo.
+- **Il salto di livello senza cambio club** (1-bis): **non misurabile** — 3, 3, 7, 5 uomini nelle quattro
+  stagioni bersaglio. Non una voce da fare: una voce che nessun harness può giudicare.
+
+### Le regole di metodo che questa sessione lascia, e sono la parte durevole
+1. **Un numero senza il suo null non è interpretabile.** 134/220 non significa nulla finché «gli stessi
+   dell'anno prima» (104/220) non è sulla stessa pagina.
+2. **Quale rappresentazione si confronta lo decide la REFERENZA, non la preferenza.** L'esito ha tre
+   linee e non può scrivere 4-2-3-1: sbagliare lato valeva 5 club su 20.
+3. **Una differenza fra due gruppi non è un canale finché non si verifica che il modello non la stia già
+   leggendo.** L'età è morta lì.
+4. **Una quota si cita dal report o si rimisura, mai dal documento.** Tre numeri citati a memoria non si
+   sono riprodotti in una sessione (il «10/5/5 · 159/220», e i due ancoraggi di co-titolarità).
+5. **E le regole scritte non bastano: bisogna chiamare la funzione.** Le due ho violate io, oggi, dopo
+   averle riscritte — ho misurato `desc_level_gap`, una colonna che non esiste, e ne ho dedotto un
+   difetto grave inesistente; e ho applicato `level_gap` fuori dalla sua popolazione, penalizzando in
+   blocco la rosa di una promossa (Frosinone da MATCH a DIFF, 3-3-1-3). Entrambe corrette e scritte.
+
+### Cosa resta
+La todolist formazioni tipo è chiusa; quello che resta è **manutenzione**: rimisurare i due giudici
+quando arriva una referenza nuova, e le voci future nascono da lì. Fuori da quella lista lo stato è
+invariato: nulla di gated si è mosso in tutta la sessione.

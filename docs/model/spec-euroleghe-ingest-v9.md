@@ -495,6 +495,78 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.43 (8 agosto 2026, notte — DUE GIUDICI per le board, e la todolist formazioni tipo chiusa)
+
+`SHEET_REVISION` **13** · **354 test**, ruff pulito, `backtest --verify` **22/22** in ogni passaggio.
+Undici voci lavorate, **cinque adottate e sei chiuse con un rifiuto misurato**: dettaglio e numeri in
+[todolist-formazioni-tipo-v1.md](todolist-formazioni-tipo-v1.md), verdetti nel gate §7-quinvicies.
+
+### Il modulo `press`: la referenza esterna diventa un DATO e il confronto un COMANDO
+- **`press_formations(club, season, observed_on, source, coach, module, module_alternatives, xi, duels,
+  notes, confidence)`** — un fatto per-GIORNO come `probable_starter`, mai backfillabile. Ogni import è
+  archiviato in `data/raw/press/` e `rebuild` lo rigioca, così il DB resta ricostruibile dai raw.
+  **È un GIUDICE, mai un input**: nessuna funzione del motore o del pannello lo legge.
+- **DUE giudici, `--against press|outcome`**. Il primo è la previsione di terzi, l'unico che esiste
+  prima che si giochi. Il secondo è **quello che i club hanno fatto** (`outcome_reference`: forma modale
+  della stagione + gli undici più schierati), vive solo per una stagione conclusa e vuole un foglio
+  retrodatato (`snapshot --season 2025-26 --date 2025-08-15`). Porta sempre il suo **NULL MODEL**.
+- **L'estrazione guida il PANNELLO VERO**: `SnapshotView.load_sheet` — estratto da `load_selected`,
+  perché una seconda copia della lista di cache sarebbe una seconda popolazione — e le funzioni reali.
+- **Quale delle nostre due stringhe di forma si confronta lo decide la REFERENZA** (`compare(on=...)`):
+  la stampa scrive quattro numeri → il `picture`; l'esito conta tre linee → il `board_shape`. Sbagliarlo
+  valeva 5 club su 20. Il report riporta anche l'altro conteggio, come LETTURA del vocabolario.
+
+### I campionati d'ORIGINE (feeder), che non sono campionati in scope
+- **`config.FEEDER_LEAGUES`** (oggi `serie_b`) e **`config.CHAMPIONSHIPS`** = le 5 + i feeder, da usare
+  dove la domanda è «è una partita di campionato?» — cioè il DENOMINATORE di ogni quota di stagione.
+- **`positions.FEEDER_TOURNAMENTS`** con `tournament_id()`: un run bare non li tocca, `--league serie_b`
+  sì e solo `--layer season`. Nessun club vi va archiviato, nessun listone li quota.
+- **Per un feeder l'identità si risolve contro il roster della stagione DOPO**, che non è una
+  scorciatoia ma è cosa È un feeder: nessuno sta in un listone MENTRE ci gioca.
+- **Una competizione si unisce per CHIAVE CANONICA**: il provider dice `serie-b`, la nostra chiave è
+  `serie_b`, e con entrambe in tabella lo stesso campionato era due. Normalizzata per ID del torneo al
+  download E al parse (2121 righe). Coppe e amichevoli tengono lo slug: non sono campionati.
+- **4302 righe duplicate** rimosse (il layer extra scriveva sotto la source di lega), con un criterio
+  che non può cancellare nulla di unico e **misurato neutro** su un foglio controfattuale.
+
+### Identità: chi la stabilisce, e chi può ritrattarla
+- **Il pass `known`**: un'identità già in `player_xref` attribuisce la stagione che i pool per nome non
+  possono vedere, perché il perimetro del listone cambia ogni estate — 59 uomini del listone 2026-27
+  senza alcun aggregato d'ingresso. `external_stats` 11.732 → **16.970**. È l'evidenza più DEBOLE e
+  **non decide mai un'identità**: un'identità dice a quale uomo appartiene un fatto di stagione, un
+  fatto di stagione non dice chi è l'uomo. `drop_orphan_known_claims` chiude l'altra metà.
+- **`player_xref.resolved_by`**: tre moduli scrivono identità con evidenze diverse e uno solo cancella.
+  Senza autore sulla riga, `positions` ritrattava 20 identità pagate da `recent_form` con richieste di
+  rete. Le righe precedenti la colonna sono `unknown` e nessuno le ritratta.
+
+### Transfers e livelli
+- **Risoluzione per chiave canonica** (l'href porta l'id Transfermarkt): irrisolti **4.422 → 2.508**.
+- **Il contropartner si canonicalizza al write**: lo stesso affare è su entrambe le pagine con due
+  grafie e la PK teneva due righe. **`transfers_history.first_seen`** = il giorno di download, tenuto al
+  minimo tra i re-parse: la data-osservazione che il 01/07 di Transfermarkt non può dare.
+- **`desc_level_elo` ha tre ripieghi**, e il terzo è il club che il suo AGGREGATO dice che ha giocato
+  (`elo.levels_by_minutes`): copertura sugli arrivi 67 → **74** di 158. **La guardia vale più del fix**:
+  rifiuta il club in cui è ancora, perché `level_gap` misura cosa un uomo guadagna MUOVENDOSI e una
+  promossa non si è mossa — senza di essa il Frosinone passava da MATCH a DIFF, disegnato 3-3-1-3.
+
+### Il pannello
+- **Il selettore modulo porta due numeri**: la probabilità e il **SUR**, il surplus medio dell'undici
+  che quella forma schiera (`eleven_surplus`, `row_surplus` come definizione unica). Media e non somma,
+  un surplus mancante è ignoto e non zero, `~` dove c'è una stima.
+- **Un trequartista è candidato anche al CENTROCAMPO**: `desc_real_role_line` (la linea in cui il
+  provider l'ha visto) allarga la candidatura, non il disegno. Il provider archivia 20 dei 27 `AM` sotto
+  M e il listone ne chiama C 22 su 27; Paz era il claim più alto del Como e non giocava.
+- **Colonne nuove**: `desc_costart_low` (co-titolarità bassa per compagno), `desc_age`,
+  `friendly_shapes`/`friendly_XIs` (le forme del ritiro). Tutte con la loro misura, tutte con il canale
+  che le legge a 0 dove il giudice ha detto no.
+- **`evidence_age` sull'HOVER** della card, sole date: non una riga nuova, perché il pannello spende la
+  sua altezza sulla board.
+
+### Un difetto latente e una divisione per zero
+`presence.absences_per_season` moriva su 0/0 col punto di griglia `(1.0, 0, 0)` e un uomo senza
+infortuni nell'ultima stagione ma con infortuni nelle precedenti: latente da quando la griglia fu
+scritta, esposto dalla crescita del layer misurato. Ora cade sul ramo della storia non ripartita.
+
 ## Novità v9.42 (8 agosto 2026, sera — il perimetro era la stagione FINITA, e la stampa come giudice)
 
 Sessione «formazioni tipo contro i giornalisti», quattro richieste dell'operatore. Il reperto più

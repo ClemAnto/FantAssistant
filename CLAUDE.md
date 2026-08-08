@@ -41,6 +41,9 @@ the consolidated notes in the same folder. For BOARD work (typical elevens): `fo
 (the improvement plan born from the 08/08/2026 press comparison, ordered by measured yield; its standing
 rule: the press is a JUDGE, never an input of the claim).
 Drive dataset IDs (xlsx/csv, not in git) are in [docs/DRIVE-MANIFEST.md](docs/DRIVE-MANIFEST.md).
+The BOARD list `todolist-formazioni-tipo-v1.md` is **closed** (08/08/2026): five adoptions, six measured
+refusals, and the standing rule that the press is a JUDGE and never an input. What remains is
+maintenance — re-measure the two judges when a new reference arrives, and the next items are born there.
 
 ## Golden rule (gate)
 No prediction rule enters the engine without winning the **pre-registered out-of-sample gate**, with its
@@ -93,6 +96,22 @@ own verdict does not, and cannot be used to adopt it.
 - `scoring_config` is **per-league parametric** (non-standard scoring changes the EV): no hard-coded +3/-3/+1.
 
 ## Data model & platform dimension (spec v9)
+- **A championship a promoted club comes UP from is not a championship in scope, and is still a
+  championship** (08/08/2026). `config.FEEDER_LEAGUES` (today `serie_b`) and `config.CHAMPIONSHIPS` =
+  the five plus the feeders, which is the right filter wherever the question is «is this a league
+  match?» — i.e. every DENOMINATOR of a share of a season. Without it a Frosinone man's starts were
+  divided by the 24 elevens we happened to parse instead of Serie B's 38 rounds, the same defect as
+  Kane's 49% on the clubs least able to absorb it, and his starts and minutes were MISSING rather than
+  measured (claim 0.07-0.43, 4/11 against the press → 10/11 once acquired). A bare run never touches a
+  feeder; `--league serie_b --layer season` does. Two rules travel with it: **for a feeder the identity
+  pool is the NEXT season's roster**, which is not a shortcut but what a feeder IS (nobody is in a
+  listone WHILE he plays there — he is quoted the summer his club comes up); and **do not derive the
+  aggregate from the per-match layer you already have** — for 2025-26 that was 97 Serie B matches of
+  380, a median of 14 per player against 31, so a derived aggregate would say «he played a third of the
+  season» about a man who played it all, and halving a denominator is worse than leaving it empty.
+  What it is WORTH scales with how new the promoted squad is to the arriving championship: quoted men
+  with 5+ Serie A starts in their career were 79% at Cremonese 2025-26 against **16%** at Frosinone
+  2026-27, and the acquisition paid six men of eleven only in the second case.
 - **`platform`** = `euro` | `default`. `euro` = EuroLeghe (5 leagues, top clubs; Serie A is PARTIAL);
   `default` = classic Serie A (all 20 teams). They use **different matchday calendars**, so `platform`
   is part of the PK of `match_ratings`, `match_rating_bonuses` and `season_stats`. `euro` = the
@@ -136,6 +155,20 @@ own verdict does not, and cannot be used to adopt it.
 - **Additive schema changes need a migration.** `CREATE TABLE IF NOT EXISTS` does nothing to an existing
   table, so a new column without an entry in `db.database.ADDED_COLUMNS` fails with "no such column" and
   the only cure would be a `rebuild` that drops everything.
+- **An identity says which man a season fact belongs to; a season fact does not say who the man is**
+  (08/08/2026). The three name pools of the identity funnel are built from the SEASON'S roster while the
+  listone's perimeter changes every summer, so a man bought into the perimeter this year is in no pool of
+  the year he actually played: **59 men of the 2026-27 listone had NO input-season aggregate at all**
+  while their provider id was already in `player_xref` (Doekhi, Geubbels — both started by the press),
+  and `external_stats` went from 11,732 to 16,970 rows once a `known` pass attributed them. That pass is
+  the WEAKEST evidence and never decides an identity — counting it would make every mapping re-confirm
+  itself and no stale one could ever be dropped — and a claim whose identity the run did not
+  re-establish is dropped before writing, or two runs over one cache give two different databases.
+  **And who established a mapping decides who may retract it**: `player_xref.resolved_by`, because three
+  modules write identities on three kinds of evidence (`positions` matches names, `recent_form` pays
+  provider searches, `injuries` reads squad pages) and only one deletes — without the author on the row
+  it was dropping 20 ids another module had paid for over the network. Rows predating the column are
+  `unknown` and nobody retracts those.
 - **An identity is not a season fact.** `player_xref` is written in ONE pass over every season a run reads
   (`positions._store_identities`), strongest evidence first. Written inside the per-season loop it was
   decided by whichever season happened to be processed last, and 827 `fc_id` ended up with their season
@@ -201,6 +234,18 @@ own verdict does not, and cannot be used to adopt it.
   already right, and the audit named a function (`_shape_for`) that does not exist. Same shape as the claim
   that a man «is simply not a starter», measured on a `claim` computed against the wrong calendar. Both cost
   an afternoon and both would have been caught by calling the function once.
+  **Third instance, and it is the one that proves writing the rule down is not enough: it was committed by
+  whoever had just rewritten it** (08/08/2026, night). An audit of «which arrivals does the adopted level
+  channel reach?» was run on `desc_level_gap` — **a column that does not exist**: `level_gap_z` is
+  COMPUTED by the panel from `desc_level_elo` minus the club's Elo, and `row.get()` on a missing name
+  returns None for every row. Conclusion drawn: «100% blind on a channel adopted the day before», which
+  would have been a grave defect. Truth, once the function was called: 67 of 158 arrivals carry it, 55 of
+  the 81 among the errors. The corollary is procedural, not mnemonic: **an audit that reports a suspicious
+  ZERO must call the function before it reports anything at all** — a uniform None is far more often a
+  wrong key than a real hole. The same night produced the mirror error, applying `level_gap` outside its
+  measured population (transfers) to a PROMOTED squad, which penalised eleven men for a step none of them
+  took: Frosinone from MATCH to DIFF, drawn 3-3-1-3. Both were caught by the two judges within minutes,
+  which is the argument for having them.
 - **Full-season propensity**: the euro calendar is a *subset* of a player's real matches, so propensity
   (goals/assists/xG per 90) is computed over the FULL real season while the FM/Mv target stays on `euro`.
   Serie A: from `default`. Other 4 leagues: from **FBref** (facts) + **Sofascore** (rating + heatmaps),
@@ -440,6 +485,50 @@ idem Ad/As, Td/Ts) and an unpaired one falls back to the line's central job; a *
 renamed into an ala** by a place («Krstovic e Scamacca sono Pc e basta»); and a row reaches **both touchlines
 or neither**. Guarded by 394 boards (every club x every shape of its repertoire x both modes x both sheets):
 0 rows over the maximum, 0 unpaired flank codes, 0 lopsided rows. Details: spec «Novità v9.17».
+
+## A judgement needs its NULL, and the reference decides what may be compared
+**Two judges now score the boards, and the second one is the stronger** (08/08/2026, `press` module).
+`press --sheet DIR --against press|outcome`: the press is a FORECAST by other people and the only judge
+that exists before a ball is kicked; the OUTCOME is what the clubs actually did (the modal shape of a
+finished season and its eleven most-started men) and needs a back-dated sheet
+(`snapshot --season 2025-26 --date 2025-08-15`). The reference is a DATED FACT (`press_formations`,
+per-DAY like `probable_starter`, archived under `data/raw/press/` and replayed by `rebuild`) and **a
+JUDGE, never an input**: reading it inside the claim would make circular the very comparison it serves.
+Three rules came out of using it, and they generalise past the boards:
+- **A number without its null is not interpretable.** «134 of 220 men» means nothing until «the same
+  eleven as last year» is on the same page — it is 104. The boards beat that baseline by 30 men and 4
+  modules, and THAT is the result; the raw 62% is not. Same rule as the hot-hand measurement
+  (Miller-Sanjurjo, §5-duodecies): compare with the reshuffled sequence, never with zero. A club the
+  baseline cannot answer for (a promoted side has no previous season here) is counted APART, because
+  «0 of 11» there is a property of the baseline and not evidence about it.
+- **WHICH representation may be compared is decided by the REFERENCE, not by preference.** The press
+  writes four-number modules, so it is judged on the DRAWN picture after `_reshape`; the outcome is
+  counted off `club_match_lineups`, which holds three lines and CANNOT say 4-2-3-1, so it is judged on
+  the board shape. Judged on the wrong side, every split row reads as a disagreement — measured, 5 clubs
+  of 20, the difference between 7 MATCH and 12. The report carries the other count too, as a READING of
+  how much of the gap is vocabulary; declaring 4-5-1 ≡ 4-2-3-1 would be widening a criterion because
+  cases failed it, which is forbidden.
+- **A measured ceiling is not a defect.** 62% of the men is bounded by the season itself (injuries, the
+  January window, sackings): Verona reads 2/11 because it changed nearly everything. And a back-dated
+  sheet has one contamination IN THE MODEL'S FAVOUR — transfers and arrivals are derived today, so the
+  board knows a summer market that was not closed in August. State it: the number is an upper bound.
+
+## A difference between two groups is not a channel
+**Not until you have checked that the model is not already reading it** (08/08/2026, the age case, gate
+§7-quinvicies). Over 500 (player, season) pairs with 15+ Serie A starts, the share of starts kept next
+season is 66% / 72% / 77% / 51% by age band (≤23, 24-26, 27-29, ≥30): an inverted U, so a THRESHOLD and
+not a trend — a linear term would penalise the twenty-year-olds, who are second worst. Implemented as a
+channel reachable by both harnesses and **refused by both**: `sweep` +0.23% and +0.04% (under the 0.5%
+floor, with euro's optimum AT THE EDGE), the outcome judge worse at every grid point. The mechanism is
+the lesson: the 30+ already carry fewer measured minutes (1299 against 1574 for the 27-29 band), so the
+standing discounts them BEFORE any age term and the term charges the same evidence twice. The band table
+did not control for the minutes; the model does. Three more candidates died the same week and are worth
+not re-trying: the co-start rule (true about the pair, and the press starts the man it removed), the
+training-camp shape (`PRESEASON_WEIGHT` 0, optimum at the edge), the SURPLUS as a module discriminator
+(4/3/13 against 11/5/4 — it answers «which module suits ME», the odds answer «which will the coach
+pick»). And one that is not refused but **unmeasurable**: the level step of a man who changed
+championship without changing listone club is 3-7 players a season, so no harness can judge it and by
+the golden rule it cannot be adopted.
 
 ## Judge a drawing against somebody else's eleven
 **A board has an external judge available, so use it instead of arguing.** The published typical elevens of
