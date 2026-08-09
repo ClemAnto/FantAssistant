@@ -27,6 +27,7 @@ import { MatchDetail } from './match-detail/match-detail';
  *  injury is a fact about a player, not a failure. */
 export const STATE_ICON: Record<CellState, string> = {
   played: '',
+  no_data: '',
   no_vote: 'question-circle',
   bench: 'pause-circle',
   injured: 'medicine-box',
@@ -36,6 +37,7 @@ export const STATE_ICON: Record<CellState, string> = {
 
 export const STATE_LABEL: Record<CellState, string> = {
   played: 'Ha giocato',
+  no_data: 'Risulta giocata, nessun dato oltre alla distinta',
   no_vote: 'In campo, senza voto',
   bench: 'In panchina, non entrato',
   injured: 'Infortunato',
@@ -120,7 +122,13 @@ export class Players {
 
   /** True when the cell has no number at all and is drawn as an icon only. */
   protected iconOnly(cell: MatchCell): boolean {
-    return cell.state !== 'played' && cell.vote == null && cell.providerRating == null;
+    // `no_data` keeps the dot: there is no reason to draw, only an absence of measurement.
+    return (
+      cell.state !== 'played' &&
+      cell.state !== 'no_data' &&
+      cell.vote == null &&
+      cell.providerRating == null
+    );
   }
 
   protected stateClass(cell: MatchCell): string {

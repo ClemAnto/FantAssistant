@@ -20,6 +20,12 @@ export type MatchKind = 'league' | 'cup' | 'friendly';
 export type CellState =
   | 'played'
   | 'no_vote'
+  /** The match is on file and carries nothing measurable. NOT the same as `bench`: that
+   *  reading was measured on the LEAGUE layer, where a row without minutes matches a man with
+   *  no ratings row. In a friendly the provider often records the line-up and no minutes at
+   *  all - 0 of Napoli's 63 rows in 2026-27 have any - so calling it a bench would be a claim
+   *  about the player made out of a gap in the source. */
+  | 'no_data'
   | 'bench'
   | 'injured'
   | 'not_in_league'
@@ -629,9 +635,10 @@ function buildOtherMatches(
 
     list.push({
       kind: kind === 'league' ? 'cup' : kind,
-      state: (row[minutes] as number | null) == null && (row[rating] as number | null) == null
-        ? 'bench'
-        : 'played',
+      state:
+        (row[minutes] as number | null) == null && (row[rating] as number | null) == null
+          ? 'no_data'
+          : 'played',
       injury: null,
       role: null,
       competition: slug,

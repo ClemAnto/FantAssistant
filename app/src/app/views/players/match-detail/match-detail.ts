@@ -101,8 +101,8 @@ export class MatchDetail {
   }
 
   protected readonly stateLabel = computed(() => STATE_LABEL[this.cell().state]);
-  protected readonly played = computed(
-    () => this.cell().state === 'played' || this.cell().state === 'no_vote',
+  protected readonly played = computed(() =>
+    ['played', 'no_vote', 'no_data'].includes(this.cell().state),
   );
   protected readonly injuryLabel = computed(() => {
     const injury = this.cell().injury;
