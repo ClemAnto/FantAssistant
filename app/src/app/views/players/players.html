@@ -108,6 +108,7 @@
             (ngModelChange)="store.sortBy.set($event)"
           >
             <nz-option nzValue="played" nzLabel="Presenze nel periodo" />
+            <nz-option nzValue="role" nzLabel="Ruolo" />
             <nz-option nzValue="name" nzLabel="Nome" />
           </nz-select>
         </div>
@@ -176,7 +177,16 @@
           <th nzWidth="110px">Mantra</th>
           <th nzWidth="130px">Squadra</th>
           @for (header of headers(); track $index) {
-            <th class="text-center" nzWidth="58px" [title]="header.title">{{ header.label }}</th>
+            <th
+              class="text-center leading-tight"
+              [attr.nzWidth]="header.detail ? '78px' : '58px'"
+              [title]="header.title"
+            >
+              {{ header.label }}
+              @if (header.detail) {
+                <span class="block text-[10px] font-normal text-muted">{{ header.detail }}</span>
+              }
+            </th>
           }
         </tr>
       </thead>

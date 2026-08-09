@@ -90,11 +90,7 @@ export class Players {
 
   /** In the mixed view a column is a WEEK shared by every row - its label is the matchday
    *  played in it, or the date when no league round falls there. */
-  protected readonly headers = computed(() =>
-    this.store.byMatchday()
-      ? this.store.matchdays().map((md) => ({ label: String(md), title: `Giornata ${md}` }))
-      : this.store.slots().map((slot) => ({ label: slot.label, title: slot.title })),
-  );
+  protected readonly headers = computed(() => this.store.columns());
 
   /** The match the detail panel is showing, with the player it belongs to: a cell alone does
    *  not know whose it is, and the panel names him. */

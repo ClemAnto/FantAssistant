@@ -89,7 +89,10 @@ export interface PlayerLine extends PlayerRow {
  *  Monday and the midweek cup tie of the same week share a column across every player. */
 export interface ColumnSlot {
   key: string;
+  /** The matchday, the date, or - with one club on screen - the fixture: `Nap-Mil`. */
   label: string;
+  /** The scoreline, on its own line under the label. Only when a club is selected. */
+  detail: string | null;
   title: string;
 }
 
@@ -193,7 +196,7 @@ export class PlayersStore {
 
   readonly role = signal<ClassicRole | null>(null);
   readonly club = signal<string | null>(null);
-  readonly sortBy = signal<'played' | 'name'>('played');
+  readonly sortBy = signal<'played' | 'name' | 'role'>('played');
 
   /** Which competitions the columns may show. Adding anything to `league` changes the unit of
    *  a column: a cup match has no matchday, so the columns become the player's last matches. */
@@ -228,8 +231,55 @@ export class PlayersStore {
   /** The shared axis of the mixed view: the last ten WEEKS in which anything was played BY THE
    *  PLAYERS ON SCREEN, so column 3 is the same week for every row and no column is spent on a
    *  week none of them played. Filter by club and the axis follows the club. */
-  readonly slots = computed<ColumnSlot[]>(() => {
-    if (this.byMatchday()) return [];
+  /** The columns, in both modes. With a club selected each one also names the fixture it is
+   *  about - possible only then, because without a filter one week holds many matches. */
+  readonly columns = computed<ColumnSlot[]>(() => {
+    const slots = this.byMatchday() ? this.matchdaySlots() : this.weekSlots();
+    if (!this.club()) return slots;
+    const leagueBySeason = this.league().get(`${this.platform()}|${this.season()}`);
+    const otherBySeason = this.other().get(this.season());
+    const players = this.filtered();
+    return slots.map((slot) => {
+      // Any man of the club will do: they all played the same fixture.
+      let chosen: MatchCell | undefined;
+      for (const player of players) {
+        const candidates = [
+          ...(leagueBySeason?.get(player.fcId)?.values() ?? []),
+          ...(otherBySeason?.get(player.fcId) ?? []),
+        ];
+        for (const cell of candidates) {
+          if (this.slotOf(cell) !== slot.key) continue;
+          if (!chosen || (chosen.kind !== 'league' && cell.kind === 'league')) chosen = cell;
+        }
+        if (chosen?.kind === 'league') break;
+      }
+      if (!chosen || (!chosen.opponent && !chosen.team)) return slot;
+      const fixture = fixtureLabel(chosen);
+      return {
+        ...slot,
+        label: fixture.label,
+        detail: fixture.detail ?? slot.label,
+        title: `${fixture.long} · ${slot.title}`,
+      };
+    });
+  });
+
+  /** Which column a cell belongs to: the matchday, or the week. */
+  private slotOf(cell: MatchCell): string {
+    if (this.byMatchday()) return cell.matchday == null ? '' : String(cell.matchday);
+    return cell.date ? weekOf(cell.date) : '';
+  }
+
+  private readonly matchdaySlots = computed<ColumnSlot[]>(() =>
+    this.matchdays().map((md) => ({
+      key: String(md),
+      label: String(md),
+      detail: null,
+      title: `Giornata ${md}`,
+    })),
+  );
+
+  private readonly weekSlots = computed<ColumnSlot[]>(() => {
     const season = this.season();
     const leagueBySeason = this.league().get(`${this.platform()}|${season}`);
     const otherBySeason = this.other().get(season);
@@ -264,6 +314,7 @@ export class PlayersStore {
         return {
           key,
           label: days.length ? days.join('/') : day(entry.first).slice(0, 5),
+          detail: null,
           title: days.length ? `Giornata ${days.join(', ')} · ${range}` : range,
         };
       });
@@ -276,7 +327,7 @@ export class PlayersStore {
     const otherBySeason = this.other().get(season);
     const days = this.matchdays();
     const byMatchday = this.byMatchday();
-    const slots = this.slots();
+    const slots = this.weekSlots();
     const wantCups = this.withCups();
     const wantFriendlies = this.withFriendlies();
 
@@ -314,7 +365,10 @@ export class PlayersStore {
         };
       });
 
-    if (this.sortBy() === 'played') {
+    if (this.sortBy() === 'role') {
+      const order: Record<ClassicRole, number> = { P: 0, D: 1, C: 2, A: 3 };
+      lines.sort((a, b) => order[a.role] - order[b.role] || a.name.localeCompare(b.name));
+    } else if (this.sortBy() === 'played') {
       // Counting non-empty cells would now count the ABSENCES too - every round has a cell
       // since they carry their reason. What the operator asked to sort by is appearances.
       const played = (line: PlayerLine) =>
@@ -407,6 +461,33 @@ export class PlayersStore {
 /** Sorting mixed competitions needs one axis, and it is the date. A league match whose
  *  provider row did not match has no date, so it falls back to a position derived from its
  *  matchday - approximate, and better than dropping it to the front of the list. */
+/** Club-form words neither side of a fixture label needs. */
+const ABBREVIATION_SKIP = new Set(['ac', 'as', 'ss', 'ssc', 'fc', 'rc', 'afc', 'us', 'ol', 'rb']);
+
+/** `Napoli` -> `Nap`, `Borussia Dortmund` -> `Bor`, `AC Milan` -> `Mil`. Three letters is what
+ *  fits a column; the full fixture stays in the header's title. */
+function abbreviate(name: string | null): string {
+  if (!name) return '???';
+  const words = name.split(/\s+/).filter((w) => w && !ABBREVIATION_SKIP.has(w.toLowerCase()));
+  return (words[0] ?? name).slice(0, 3);
+}
+
+/** The fixture as it is written: home first. */
+function fixtureLabel(cell: MatchCell): { label: string; detail: string | null; long: string } {
+  const away = cell.home === false;
+  const left = away ? cell.opponent : cell.team;
+  const right = away ? cell.team : cell.opponent;
+  const leftGoals = away ? cell.goalsAgainst : cell.goalsFor;
+  const rightGoals = away ? cell.goalsFor : cell.goalsAgainst;
+  const score =
+    leftGoals != null && rightGoals != null ? `${leftGoals}-${rightGoals}` : null;
+  return {
+    label: `${abbreviate(left)}-${abbreviate(right)}`,
+    detail: score,
+    long: `${left ?? 'Ignota'} - ${right ?? 'Ignota'}${score ? ' ' + score : ''}`,
+  };
+}
+
 /** dd/mm/yyyy: a date in a header is read by a person. */
 function day(iso: string): string {
   return iso.split('-').reverse().join('/');
