@@ -4,7 +4,7 @@
     <h1 class="text-2xl font-semibold text-fg">Calciatori</h1>
     @if (store.generatedAt(); as generated) {
       <span class="text-xs text-muted">
-        {{ store.demo() ? 'Bundle dimostrativo generato' : 'Bundle del toolkit · Serie A' }} ·
+        {{ store.demo() ? 'Bundle dimostrativo generato' : 'Bundle del toolkit' }} ·
         {{ generated.slice(0, 10) }}
       </span>
     }
@@ -36,82 +36,122 @@
   }
 
   @if (store.status() === 'ready') {
-    <section
-      class="flex flex-wrap items-end gap-4 rounded-card border border-border bg-surface p-4"
-    >
-      <label class="flex flex-col gap-1">
-        <span class="text-xs text-muted">Ruolo</span>
-        <nz-select
-          class="w-44"
-          nzAllowClear
-          nzPlaceHolder="Tutti"
-          [ngModel]="store.role()"
-          (ngModelChange)="store.role.set($event)"
-        >
-          @for (role of roles; track role) {
-            <nz-option [nzValue]="role" [nzLabel]="roleLabel[role]" />
-          }
-        </nz-select>
-      </label>
+    <section class="flex flex-col gap-3 rounded-card border border-border bg-surface p-4">
+      <div class="flex flex-wrap items-end gap-4">
+        <div class="flex flex-col gap-1">
+          <span class="text-xs text-muted">Listone</span>
+          <nz-radio-group
+            [ngModel]="store.platform()"
+            (ngModelChange)="store.selectPlatform($event)"
+          >
+            <label nz-radio-button nzValue="default">Serie A</label>
+            <label nz-radio-button nzValue="euro">EuroLeghe</label>
+          </nz-radio-group>
+        </div>
 
-      <label class="flex flex-col gap-1">
-        <span class="text-xs text-muted">Squadra</span>
-        <nz-select
-          class="w-52"
-          nzShowSearch
-          nzAllowClear
-          nzPlaceHolder="Tutte"
-          [ngModel]="store.club()"
-          (ngModelChange)="store.club.set($event)"
-        >
-          @for (club of store.clubs(); track club) {
-            <nz-option [nzValue]="club" [nzLabel]="club" />
-          }
-        </nz-select>
-      </label>
+        <div class="flex flex-col gap-1">
+          <span class="text-xs text-muted">Ruolo</span>
+          <nz-select
+            class="w-40"
+            nzAllowClear
+            nzPlaceHolder="Tutti"
+            [ngModel]="store.role()"
+            (ngModelChange)="store.role.set($event)"
+          >
+            @for (role of roles; track role) {
+              <nz-option [nzValue]="role" [nzLabel]="roleLabel[role]" />
+            }
+          </nz-select>
+        </div>
 
-      <label class="flex flex-col gap-1">
-        <span class="text-xs text-muted">Stagione</span>
-        <nz-select
-          class="w-36"
-          [ngModel]="store.season()"
-          (ngModelChange)="store.selectSeason($event)"
-        >
-          @for (season of store.seasons(); track season) {
-            <nz-option [nzValue]="season" [nzLabel]="season" />
-          }
-        </nz-select>
-      </label>
+        <div class="flex flex-col gap-1">
+          <span class="text-xs text-muted">Squadra</span>
+          <nz-select
+            class="w-48"
+            nzShowSearch
+            nzAllowClear
+            nzPlaceHolder="Tutte"
+            [ngModel]="store.club()"
+            (ngModelChange)="store.club.set($event)"
+          >
+            @for (club of store.clubs(); track club) {
+              <nz-option [nzValue]="club" [nzLabel]="club" />
+            }
+          </nz-select>
+        </div>
 
-      <label class="flex min-w-72 flex-1 flex-col gap-1">
-        <span class="text-xs text-muted">
-          Periodo: giornate {{ store.windowFrom() }}-{{ store.windowTo() }}
-          @if (store.windowTo() - store.windowFrom() >= 10) {
-            <span class="text-warning">(mostrate le ultime 10)</span>
-          }
-        </span>
-        <nz-slider
-          nzRange
-          [nzMin]="1"
-          [nzMax]="store.lastMatchday()"
-          [ngModel]="window()"
-          (ngModelChange)="onWindow($event)"
-        />
-      </label>
+        <div class="flex flex-col gap-1">
+          <span class="text-xs text-muted">Stagione</span>
+          <nz-select
+            class="w-32"
+            [ngModel]="store.season()"
+            (ngModelChange)="store.selectSeason($event)"
+          >
+            @for (season of store.seasons(); track season) {
+              <nz-option [nzValue]="season" [nzLabel]="season" />
+            }
+          </nz-select>
+        </div>
 
-      <label class="flex flex-col gap-1">
-        <span class="text-xs text-muted">Ordina per</span>
-        <nz-select
-          class="w-44"
-          [ngModel]="store.sortBy()"
-          (ngModelChange)="store.sortBy.set($event)"
-        >
-          <nz-option nzValue="played" nzLabel="Presenze nel periodo" />
-          <nz-option nzValue="name" nzLabel="Nome" />
-        </nz-select>
-      </label>
+        <div class="flex flex-col gap-1">
+          <span class="text-xs text-muted">Ordina per</span>
+          <nz-select
+            class="w-44"
+            [ngModel]="store.sortBy()"
+            (ngModelChange)="store.sortBy.set($event)"
+          >
+            <nz-option nzValue="played" nzLabel="Presenze nel periodo" />
+            <nz-option nzValue="name" nzLabel="Nome" />
+          </nz-select>
+        </div>
 
-      <span class="pb-2 text-sm text-muted">{{ store.lines().length }} calciatori</span>
+        <span class="pb-2 text-sm text-muted">{{ store.lines().length }} calciatori</span>
+      </div>
+
+      <div class="flex flex-wrap items-end gap-6 border-t border-border pt-3">
+        <div class="flex flex-col gap-1">
+          <span class="text-xs text-muted">Nelle colonne</span>
+          <div class="flex items-center gap-4">
+            <label nz-checkbox nzDisabled [ngModel]="true">Campionato</label>
+            <label
+              nz-checkbox
+              [ngModel]="store.withCups()"
+              (ngModelChange)="store.withCups.set($event)"
+              >Coppe e altre competizioni</label
+            >
+            <label
+              nz-checkbox
+              [ngModel]="store.withFriendlies()"
+              (ngModelChange)="store.withFriendlies.set($event)"
+              >Amichevoli</label
+            >
+          </div>
+        </div>
+
+        @if (store.byMatchday()) {
+          <div class="flex min-w-64 flex-1 flex-col gap-1">
+            <span class="text-xs text-muted">
+              Periodo: giornate {{ store.windowFrom() }}-{{ store.windowTo() }}
+              @if (store.windowTo() - store.windowFrom() >= 10) {
+                <span class="text-warning">(mostrate le ultime 10)</span>
+              }
+            </span>
+            <nz-slider
+              nzRange
+              [nzMin]="1"
+              [nzMax]="store.lastMatchday()"
+              [ngModel]="window()"
+              (ngModelChange)="onWindow($event)"
+            />
+          </div>
+        } @else {
+          <p class="max-w-xl pb-1 text-xs text-muted">
+            Una coppa non ha una giornata di campionato, quindi la colonna smette di essere una
+            giornata e diventa <span class="text-fg">una partita</span>: le ultime dieci di ogni
+            calciatore, in ordine di data. Il filtro per periodo torna togliendo le spunte.
+          </p>
+        }
+      </div>
     </section>
 
     <nz-table
@@ -127,8 +167,8 @@
           <th nzWidth="60px">Ruolo</th>
           <th nzWidth="110px">Mantra</th>
           <th nzWidth="130px">Squadra</th>
-          @for (matchday of store.matchdays(); track matchday) {
-            <th class="text-center" nzWidth="58px">{{ matchday }}</th>
+          @for (header of headers(); track $index) {
+            <th class="text-center" nzWidth="58px">{{ header }}</th>
           }
         </tr>
       </thead>
@@ -150,6 +190,12 @@
                   >
                     <span [class]="voteClass(cell)">{{ voteText(cell) }}</span>
                     <span class="mt-0.5 flex h-3 items-center gap-1 text-[10px]">
+                      @if (cell.kind === 'cup') {
+                        <span class="text-warning" title="Coppa o altra competizione">C</span>
+                      }
+                      @if (cell.kind === 'friendly') {
+                        <span class="text-muted" title="Amichevole">A</span>
+                      }
                       @if (cell.goals + cell.penScored > 0) {
                         <span class="flex items-center text-primary">
                           <nz-icon nzType="aim" />
@@ -169,12 +215,7 @@
                     </span>
                   </span>
                 } @else {
-                  <!-- Not a decoration: it says "no rating row for this matchday", which is a
-                       fact and has to stay readable. Measured 09/08/2026 at 1.39:1 when it was
-                       painted in the border colour. -->
-                  <span class="text-muted" title="Non ha una riga di voti in questa giornata"
-                    >&ndash;</span
-                  >
+                  <span class="text-muted" title="Nessuna partita in questa posizione">&ndash;</span>
                 }
               </td>
             }
@@ -183,11 +224,28 @@
       </tbody>
     </nz-table>
 
-    <p class="text-xs text-muted">
-      Una colonna per giornata: la cella vuota vuol dire che non ha una riga di voti, non che
-      abbia giocato senza voto (quella e' <span class="italic">s.v.</span>). Il voto con
-      <span class="text-fg">~</span> e' sintetico. Il risultato e' derivato dai voti stessi
-      (gol fatti + rigori segnati, subiti dalla riga del portiere).
-    </p>
+    <div class="flex flex-col gap-1 text-xs text-muted">
+      <p>
+        Il numero non e' la stessa cosa in ogni cella:
+        <span class="text-fg">6,5</span> e' il voto di fantacalcio,
+        <span class="text-fg">~6,1</span> il sintetico calibrato,
+        <span class="text-fg">*6,9</span> il voto Sofascore &mdash; scala diversa, per questo non
+        e' colorato. Un <span class="text-fg">·</span> vuol dire che la partita risulta giocata e
+        non sappiamo altro; <span class="italic text-fg">s.v.</span> che ha giocato senza voto.
+      </p>
+      <p>
+        Coppe e amichevoli non hanno voto di fantacalcio e non hanno un sintetico: non sono
+        competizioni calibrate, quindi quello che c'e' e' il rating del provider e nient'altro.
+        Delle <span class="text-fg">nazionali non abbiamo nulla</span>: nessuna competizione per
+        nazionali esiste in questi dati, e una colonna vuota sarebbe peggio di questa riga.
+      </p>
+      <p>
+        Attenzione a leggere un'assenza come un fatto: le coppe sono acquisite
+        <span class="text-fg">dal 2025-26</span> (1.071 righe di Champions contro le 21 del
+        2024-25), e le amichevoli sono quasi tutte del <span class="text-fg">precampionato
+        2026-27</span>. Su una stagione dove il dato non e' stato raccolto, la cella vuota dice
+        che non sappiamo, non che non ha giocato.
+      </p>
+    </div>
   }
 </div>

@@ -52,8 +52,23 @@ node scripts/make-demo-bundle.mjs dist/fantassistant/browser/data   # after a bu
   matchday (the last ten of the chosen period). Each cell carries the vote - the fantacalcio one, or the
   calibrated synthetic one marked `~` - with compact goal/assist icons, and a tooltip with the fixture,
   the score, the side and the minutes played. Filters: role, club, season, matchday window, sort.
-  Serie A (`platform = default`) only for now: on `euro` a matchday is a EuroLeghe round and the join to
-  the provider's per-match layer has to go through `matchday_map`.
+  - **Both listoni.** `Serie A` (`platform = default`, 499 quoted players, 38 rounds) and `EuroLeghe`
+    (`euro`, 925, 31 rounds). WHO is on a platform comes from `listone_quotes`, not from `rosters`: the
+    latter holds one row per player while the two listoni are two different games. On `euro` a matchday
+    is a EuroLeghe round, so the join to the provider's per-match layer goes through `matchday_map`,
+    per league - 16,414 of 16,661 rows match on 2025-26.
+  - **Cups and friendlies in the columns.** A cup has no matchday, so switching them on changes the unit
+    of a column from a matchday to a MATCH: the player's last ten, by date. Neither carries a fantacalcio
+    vote and neither has a synthetic one - they are not calibrated competitions, `mv_synth` is null on
+    every single row - so all they can show is the provider's own 1-10 rating, marked `*` and left
+    uncoloured because the bands belong to the other scale. A `·` means the match is on file with
+    nothing measurable on it.
+  - **Of national teams there is nothing.** Not thin: absent. No national-team competition exists in the
+    per-match layer, so there is no toggle for it - a note on the page says so, which is better than an
+    empty column that reads as "he did not play".
+  - Coverage to state rather than average away: cups were acquired **from 2025-26** (1,071 Champions rows
+    against 21 the season before) and friendlies are almost entirely the **2026-27 pre-season** (1,752
+    rows, 321 of them with minutes).
 - **`views/hello`** - the smoke page that proves the theme, the tokens and ng-zorro are wired.
 - **`core/bundle.ts`** - the only data source. See the contract below.
 

@@ -62,6 +62,26 @@
     background-color: color-mix(in srgb, var(--color-primary) 8%, var(--color-surface));
   }
 
+  /* Measured 09/08/2026: the CHECKED radio button read 4.10:1 in antd's blue and the DISABLED
+     checkbox label 2.71:1 - the first is the control that says which listone you are looking
+     at, the second says "campionato is always in". Both have to be readable. */
+  .ant-radio-button-wrapper-checked:not(.ant-radio-button-wrapper-disabled) {
+    background-color: var(--color-control);
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+  }
+
+  .ant-radio-button-wrapper {
+    background-color: transparent;
+    border-color: var(--color-border);
+    color: var(--color-fg);
+  }
+
+  .ant-checkbox-wrapper-disabled span,
+  .ant-checkbox-disabled + span {
+    color: var(--color-muted);
+  }
+
   /* The last two contrast failures of the page, both antd pagination internals: the active
      page sat at 4.45:1 (AA wants 4.5) and the jump ellipsis at 2.68:1. */
   .ant-pagination-item a {

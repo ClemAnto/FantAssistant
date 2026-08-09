@@ -18,6 +18,7 @@ const TABLES = [
   'players',
   'clubs',
   'rosters',
+  'listone_quotes',
   'match_ratings',
   'external_match_stats',
   'matchday_map',
