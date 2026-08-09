@@ -33,6 +33,7 @@ import { tmpdir } from 'node:os';
 const APP = resolve(import.meta.dirname, '..');
 const REPO = resolve(APP, '..');
 const DIST = join(APP, 'dist/fantassistant/browser');
+const MANIFEST_PATH = join(APP, 'package.json');
 const BRANCH = 'gh-pages';
 const BASE_HREF = '/FantAssistant/';
 
@@ -41,14 +42,17 @@ const BASE_HREF = '/FantAssistant/';
 const run = (cmd, args, { cwd = APP, shell = false } = {}) =>
   execFileSync(cmd, args, { cwd, stdio: 'inherit', shell });
 
-console.log('1/5  bundle: copio l\'export piu\' recente in public/data');
+console.log('1/6  versione: bump di patch - ogni pubblicazione ha un numero suo');
+run('node', ['scripts/version.mjs', '--bump']);
+
+console.log('\n2/6  bundle: copio l\'export piu\' recente in public/data');
 run('node', ['scripts/pull-bundle.mjs']);
 
-console.log(`\n2/5  build con base href ${BASE_HREF}`);
+console.log(`\n3/6  build con base href ${BASE_HREF}`);
 // public/ is an asset root in angular.json, so the bundle in public/data lands in dist.
 run('npx', ['ng', 'build', '--base-href', BASE_HREF], { shell: process.platform === 'win32' });
 
-console.log('\n3/5  file di contorno del sito');
+console.log('\n4/6  file di contorno del sito');
 copyFileSync(join(DIST, 'index.html'), join(DIST, '404.html')); // SPA fallback on Pages
 writeFileSync(join(DIST, '.nojekyll'), '');
 writeFileSync(
@@ -61,7 +65,7 @@ console.log(
   `     bundle pubblicato: ${manifest.demo ? 'DEMO generato' : 'REALE, esportato il ' + manifest.generated_at.slice(0, 10)}`,
 );
 
-console.log(`\n4/5  preparo il branch ${BRANCH}`);
+console.log(`\n5/6  preparo il branch ${BRANCH}`);
 const work = mkdtempSync(join(tmpdir(), 'ghpages-'));
 try {
   run('git', ['worktree', 'add', '--detach', work], { cwd: REPO });
@@ -81,7 +85,7 @@ try {
   }
   cpSync(DIST, work, { recursive: true });
 
-  console.log(`\n5/5  push`);
+  console.log(`\n6/6  push`);
   run('git', ['add', '-A', '-f'], { cwd: work });
   run('git', ['commit', '-q', '-m', `deploy ${new Date().toISOString()}`], { cwd: work });
   run('git', ['push', '-q', '--force', 'origin', `${BRANCH}:${BRANCH}`], { cwd: work });
@@ -90,4 +94,6 @@ try {
   if (existsSync(work)) rmSync(work, { recursive: true, force: true });
 }
 
-console.log('\nfatto -> https://clemanto.github.io/FantAssistant/');
+const published = JSON.parse(readFileSync(MANIFEST_PATH, 'utf8')).version;
+console.log(`\nfatto -> https://clemanto.github.io/FantAssistant/  (v${published})`);
+console.log('da committare: package.json e src/app/version.ts, cambiati dal bump');
