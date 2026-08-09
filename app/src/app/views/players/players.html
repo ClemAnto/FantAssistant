@@ -43,7 +43,13 @@
   }
 
   @if (store.status() === 'ready') {
-    <section class="flex flex-col gap-3 rounded-card border border-border bg-surface p-4">
+    <nz-collapse nzGhost class="rounded-card border border-border bg-surface">
+      <nz-collapse-panel
+        [nzActive]="filtersOpen()"
+        (nzActiveChange)="filtersOpen.set($event)"
+        [nzHeader]="filterHeader"
+      >
+    <section class="flex flex-col gap-3">
       <div class="flex flex-wrap items-end gap-4">
         <div class="flex flex-col gap-1">
           <span class="text-xs text-muted">Listone</span>
@@ -162,6 +168,16 @@
         }
       </div>
     </section>
+      </nz-collapse-panel>
+    </nz-collapse>
+
+    <ng-template #filterHeader>
+      <span class="text-sm text-fg">Filtri</span>
+      @if (!filtersOpen()) {
+        <span class="ml-2 text-xs text-muted">{{ filterSummary() }}</span>
+      }
+      <span class="ml-2 text-xs text-muted">· {{ store.lines().length }} calciatori</span>
+    </ng-template>
 
     <nz-table
       #table

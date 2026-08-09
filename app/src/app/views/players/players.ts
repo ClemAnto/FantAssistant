@@ -2,6 +2,7 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NzAlertModule } from 'ng-zorro-antd/alert';
 import { NzCheckboxModule } from 'ng-zorro-antd/checkbox';
+import { NzCollapseModule } from 'ng-zorro-antd/collapse';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzRadioModule } from 'ng-zorro-antd/radio';
 import { NzSelectModule } from 'ng-zorro-antd/select';
@@ -80,6 +81,7 @@ const ROLE_LABEL: Record<ClassicRole, string> = {
     FormsModule,
     NzAlertModule,
     NzCheckboxModule,
+    NzCollapseModule,
     NzIconModule,
     NzModalModule,
     NzRadioModule,
@@ -113,6 +115,27 @@ export class Players {
   /** The match the detail panel is showing, with the player it belongs to: a cell alone does
    *  not know whose it is, and the panel names him. */
   protected readonly selected = signal<{ cell: MatchCell; player: PlayerLine } | null>(null);
+
+  /** The filter bar takes a fifth of the screen and is set once per session: it collapses, and
+   *  when closed its header says what is applied, so a folded filter can never be a hidden one. */
+  protected readonly filtersOpen = signal(true);
+
+  protected readonly filterSummary = computed(() => {
+    const parts: string[] = [
+      this.store.platform() === 'euro' ? 'EuroLeghe' : 'Serie A',
+      this.store.season(),
+    ];
+    const role = this.store.role();
+    if (role) parts.push(ROLE_LABEL[role]);
+    const club = this.store.club();
+    if (club) parts.push(club);
+    if (this.store.withCups()) parts.push('coppe');
+    if (this.store.withFriendlies()) parts.push('amichevoli');
+    if (this.store.byMatchday()) {
+      parts.push(`giornate ${this.store.windowFrom()}-${this.store.windowTo()}`);
+    }
+    return parts.join(' · ');
+  });
 
   /** Which cell the pointer is on. The tooltip is driven from here instead of by hover alone,
    *  so a CLICK can close it: otherwise it stays up over the panel it just opened. */
