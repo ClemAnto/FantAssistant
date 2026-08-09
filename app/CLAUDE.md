@@ -10,9 +10,12 @@ Not imported on purpose, and the reason is in the open:
 - **`committa` does NOT mean commit + push here.** In Jingle Machine it does; this repository is
   **public** and `master` is its own deploy surface, so the root rule stands: commit only when asked,
   push only when asked.
-- **Version bumping** is delegated in Jingle Machine (`patch` = any build, `minor` = a completed phase,
-  `major` = only on request). It applies here the day `app/package.json` exists - today there is none, so
-  there is nothing to bump. Keep the bump in the SAME commit as the change when it does.
+- **Version bumping** now applies, and the operator tightened it on 09/08/2026: **every publish gets a
+  new number**. `npm run deploy:pages` bumps the patch itself (`scripts/version.mjs --bump`), so it
+  cannot be forgotten; `minor` marks a completed phase and `major` is only on request. The version lives
+  in `package.json` and nowhere else - `src/app/version.ts` is GENERATED from it (prebuild/prestart) so
+  the header can show it without pulling the manifest into the bundle. After a deploy, commit the bumped
+  `package.json` and `version.ts`: the deploy prints the reminder.
 
 ## Where things are
 

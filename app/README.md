@@ -21,7 +21,8 @@ MSYS_NO_PATHCONV=1 npm run deploy:pages   # the env var is a Git Bash quirk: wit
                                           # rewrites --base-href /FantAssistant/ into a C:\ path
 ```
 
-It pulls the newest export, builds with `--base-href /FantAssistant/` (the bundle rides along because
+It **bumps the patch version** (every publish gets a number, and the header shows it), pulls the newest
+export, builds with `--base-href /FantAssistant/` (the bundle rides along because
 `public/` is an asset root), adds `404.html`, `.nojekyll` and `robots.txt`, and force-pushes the result
 to the **`gh-pages`** branch as a single orphan commit - so the repository does not grow by 2.4 MB per
 deploy. Pages serves that branch.

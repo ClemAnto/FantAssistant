@@ -59,7 +59,12 @@ CLUB_ALIASES: dict[str, str] = {
     "Lens": "RC Lens", "Lilla": "Lille", "Monaco": "AS Monaco",
     "Olympique Lione": "Olympique Lyonnais", "Olympique Marsiglia": "Olympique de Marseille",
     "Paris Saint Germain": "Paris Saint-Germain", "Rennes": "Stade Rennais",
-    "Strasburgo": "RC Strasbourg", "Nizza": "Nice", "Marsiglia": "Olympique de Marseille",
+    # Both listone spellings, and the second one is the row `clubs` actually holds: with only
+    # "Strasburgo" here the alias never fired, `club_key` read `racing strasburgo` against the
+    # provider's `strasbourg`, and the club got no `club_xref` id at all - so the extra layer,
+    # which fetches per club id, left its 23 quoted men with no pre-season match (09/08/2026).
+    "Strasburgo": "RC Strasbourg", "Racing Strasburgo": "RC Strasbourg",
+    "Nizza": "Nice", "Marsiglia": "Olympique de Marseille",
     "Lione": "Olympique Lyonnais", "Brest": "Stade Brestois", "Reims": "Stade de Reims",
 }
 

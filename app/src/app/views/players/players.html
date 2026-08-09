@@ -1,7 +1,14 @@
 <!-- UI text is ITALIAN in app/ (see app/CLAUDE.md); code and comments stay English. -->
 <div class="mx-auto flex min-h-full max-w-[1400px] flex-col gap-4 p-4">
   <header class="flex flex-wrap items-baseline justify-between gap-2">
-    <h1 class="text-2xl font-semibold text-fg">Calciatori</h1>
+    <div class="flex items-baseline gap-2">
+      <h1 class="text-2xl font-semibold text-fg">Calciatori</h1>
+      <span
+        class="rounded-full border border-border px-2 py-0.5 text-xs text-muted"
+        title="Versione della webapp - cambia a ogni pubblicazione"
+        >v{{ appVersion }}</span
+      >
+    </div>
     @if (store.generatedAt(); as generated) {
       <span class="text-xs text-muted">
         {{ store.demo() ? 'Bundle dimostrativo generato' : 'Bundle del toolkit' }} ·

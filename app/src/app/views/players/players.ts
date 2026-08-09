@@ -21,6 +21,7 @@ import {
 } from '../../core/players-store';
 import { ClubCrest } from '../../ui/club-crest/club-crest';
 import { RoleBadge } from '../../ui/role-badge/role-badge';
+import { APP_VERSION } from '../../version';
 import { MatchDetail } from './match-detail/match-detail';
 
 /** A cell with no vote is not blank: it says WHY. One icon per reason, and never red - an
@@ -78,6 +79,7 @@ const ROLE_LABEL: Record<ClassicRole, string> = {
 })
 export class Players {
   protected readonly store = inject(PlayersStore);
+  protected readonly appVersion = APP_VERSION;
   protected readonly roles = CLASSIC_ROLES;
   protected readonly roleLabel = ROLE_LABEL;
 

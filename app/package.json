@@ -2,13 +2,16 @@
   "name": "fantassistant-app",
   "version": "0.1.0",
   "scripts": {
-    "ng": "ng",
-    "start": "ng serve",
     "build": "ng build",
-    "watch": "ng build --watch --configuration development",
-    "test": "ng test",
     "data:pull": "node scripts/pull-bundle.mjs",
-    "deploy:pages": "node scripts/deploy-pages.mjs"
+    "deploy:pages": "node scripts/deploy-pages.mjs",
+    "ng": "ng",
+    "prebuild": "node scripts/version.mjs",
+    "prestart": "node scripts/version.mjs",
+    "start": "ng serve",
+    "test": "ng test",
+    "version:bump": "node scripts/version.mjs --bump",
+    "watch": "ng build --watch --configuration development"
   },
   "private": true,
   "packageManager": "npm@11.9.0",
