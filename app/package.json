@@ -1,6 +1,6 @@
 {
   "name": "fantassistant-app",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "scripts": {
     "build": "ng build",
     "data:pull": "node scripts/pull-bundle.mjs",
