@@ -87,6 +87,15 @@ node scripts/make-demo-bundle.mjs dist/fantassistant/browser/data   # after a bu
     `config/scoring_config.json` - never hard-coded, because the scoring is per-championship
     parametric. The panel also checks its own arithmetic against the stored fantavoto and says
     so when the two disagree.
+  - **Crests are real** (`positions --layer crests`, 93 clubs, 611 KB, carried inside the bundle): the app
+    still reads only what it is given. A club is matched by `fc_club_id`, so the OPPONENT of a match keeps
+    a monogram - of it we hold the provider's string and no id.
+  - **Who scored a friendly** comes from the match report, not from per-player statistics that do not
+    exist there: 232 matches, 293 goals and 72 assists credited. Assists only where the provider recorded
+    one (11 of 40 in a sample), never invented.
+  - **On a phone** (< 700px) the three narrow columns fold into the name, the first column stays pinned,
+    and the tooltip does not open at all: it is driven by the event's `pointerType`, because a media query
+    is read once and is wrong on a hybrid laptop.
   - Coverage to state rather than average away: cups were acquired **from 2025-26** (1,071 Champions rows
     against 21 the season before) and friendlies are almost entirely the **2026-27 pre-season** (1,752
     rows, 321 of them with minutes).

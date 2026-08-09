@@ -1,5 +1,5 @@
 # Stato progetto & continuità — v5
-**Aggiornato: 8 agosto 2026, notte (il pannello Asta è UNA lista con SpM/dVM; la stima di un nuovo acquisto legge i suoi minuti esteri)**
+**Aggiornato: 9 agosto 2026 (l'app esiste ed è pubblicata; il layer per-partita si è scongelato)**
 Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da qui + i file della cartella "Modello Previsionale Fantacalcio".
 *Glossario: T1/T2 = finestre di test (23/24->24/25, 24/25->25/26) · MAE = errore medio assoluto · cross-fitted = parametri stimati su una finestra, testati sull'altra · M2e = modello portieri decomposto (abilità + tasso gol subiti del club; la metà Elo del nome non è nel motore) · Pv_att = presenze attese · fc_id = id fantacalcio.it · EV = valore atteso · scoring_config = punteggi configurabili per lega · xG/xA = expected goals/assists · 2.5 pieno = backtest motore completo con flag.*
 
@@ -7,6 +7,26 @@ Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da q
 App per leghe EuroLeghe/fantacalcio.it (Classic+Mantra, 5 campionati) con motore previsionale. Metodo: ogni regola entra SOLO se batte il baseline fuori campione su finestre indipendenti (gate pre-registrato). Doc madre: modello-previsionale-v3.8.md.
 
 ## ⚠️ Lo stato corrente è in `00-BRIDGE-punto-di-ingresso.md`, blocco «STATO AL 5 AGOSTO 2026»
+
+### 9 agosto 2026, in una riga: `app/` non è più un placeholder — è una webapp Angular pubblicata
+
+Dettaglio nel blocco «ULTIMO IN ORDINE DI TEMPO — 9/08/2026» del
+[00-BRIDGE-punto-di-ingresso.md](00-BRIDGE-punto-di-ingresso.md); parte toolkit in spec «Novità v9.47»;
+convenzioni in `app/CLAUDE.md`, comandi in `app/README.md`. **362 test**, `SHEET_REVISION` e `engine_*`
+invariati: la giornata non tocca il motore.
+
+1. **La webapp** (Angular 22 + ng-zorro + Tailwind v4) legge il **bundle** dell'export e mai il database:
+   pagina Calciatori con voti per giornata, dettaglio partita, filtri, due listoni (Serie A 499 quotati /
+   EuroLeghe 925), coppe e amichevoli, stemmi veri. Online su
+   `https://clemanto.github.io/FantAssistant/`, pubblicata da questa macchina.
+2. **Il layer per-partita era congelato al 28/07** da una cache per club senza scadenza: `--refresh` lo ha
+   riportato a oggi (1.772 → 4.234 righe sul 2026-27) e ha fatto comparire le amichevoli d'agosto.
+3. **Chi ha segnato in amichevole** adesso c'è: 232 partite lette dai tabellini, 293 gol e 72 assist
+   attribuiti (le righe con gol da 92 a 351). Gli assist solo dove il provider li registra — 11 su 40 nel
+   campione — e mai inventati.
+4. **Racing Strasburgo** era fuori dalla pipeline per una chiave alias mancante: 23 quotati senza una riga.
+   Curato; e il residuo è stato misurato invece che inseguito (300 uomini che semplicemente non hanno
+   giocato, 67 senza identità provider).
 
 ### 8 agosto 2026 (8), in una riga: il pannello Asta è UNA lista, il surplus si legge in crediti
 

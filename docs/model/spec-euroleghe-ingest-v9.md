@@ -495,6 +495,76 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.47 (9 agosto 2026 — il layer extra si scongela, chi ha segnato in amichevole, e gli stemmi)
+
+**362 test** · nessun `SHEET_REVISION` (niente di questo tocca il foglio: sono acquisizione e schema) ·
+`engine_*` invariato.
+
+### 1. La cache che non scadeva mai — il difetto più costoso della giornata
+L'operatore non vedeva Napoli-Celta e Napoli-Osasuna fra le amichevoli. Non era la webapp: il layer
+per-partita era **fermo al 28/07/2026** su TUTTI i club. `fetch_extra_matches` tiene **un file di cache
+per club** e salta il download se il file esiste — `if cache.exists() and not refresh: continue` — quindi
+ogni ri-esecuzione senza `--refresh` rileggeva un file di fine luglio. Con `--refresh`: 2026-27 da **1.772
+a 4.234 righe**, ultima data 09/08.
+
+Il punto di metodo, che vale oltre questo caso: **il docstring prometteva il contrario di ciò che il
+codice fa** — «cached per club, *so it can be re-run through August as the friendlies are played*» — ed è
+falso senza `--refresh`, proprio nella finestra per cui quel layer esiste. Una cache senza scadenza su un
+fatto che cambia è un congelamento, non un risparmio.
+
+### 2. Il RISULTATO delle partite fuori campionato (`team_goals`, `opponent_goals`)
+Lo buttavamo via noi: l'evento del provider porta `homeScore`/`awayScore` (verificato sulla chiamata
+vera, Napoli-Celta 1-1) e `download_extra` costruiva il suo evento senza quei campi. Ora li tiene e il
+parser li scrive **per lato**, come già `club`/`opponent`. Due colonne nuove con la loro riga in
+`ADDED_COLUMNS`: senza migrazione un DB esistente darebbe «no such column».
+
+Perché non si poteva derivare come nel campionato: lì il risultato esce da `match_ratings` (gol + rigori
+segnati per il fatto, la riga del portiere per il subito), ma un'amichevole non ha nessuna riga di voti, e
+sommare le nostre righe conterebbe solo i giocatori con identità risolta e **nessuno** dell'avversario.
+Nel campionato le due colonne restano NULLE ed è giusto.
+
+### 3. Chi ha segnato — `fetch_extra_incidents`
+Nelle partite fuori campionato il provider pubblica la distinta e **nessuna statistica per giocatore**
+(1.188 righe su 4.332 hanno anche solo un minuto), quindi i gol esistevano come risultato e non come nomi:
+**92 attribuiti su 919** dichiarati, il 10%. L'endpoint degli *incidents* nomina il marcatore con l'id del
+provider, quindi `player_xref` lo mappa **senza sfiorare un nome**.
+
+Gira in coda al layer extra e chiede solo le partite che servono — la query confronta i gol dichiarati con
+quelli già attribuiti, quindi uno 0-0 non costa nulla. Esito sul 2026-27: **232 partite, 293 gol e 72
+assist attribuiti**, 510 marcatori fuori dal nostro perimetro (gli avversari, giustamente ignorati); le
+righe con gol passano da 92 a **351**, quelle con assist da 83 a **124**.
+
+Due onestà dentro il codice: un **autogol** non è un gol di chi lo segna e questa tabella non ha una
+colonna per l'autogol, quindi resta fuori invece di essere accreditato; e gli **assist** si scrivono solo
+dove il provider li ha registrati — **11 gol su 40** in un campione di 12 amichevoli — senza inventare uno
+zero dove non ha guardato. Qui la cache non scade mai ed è corretto: una partita finita non prende altri
+gol.
+
+### 4. Gli STEMMI dei club — `positions --layer crests`
+L'endpoint immagini del provider risponde 200 attraverso la sessione del toolkit (il 403 osservato con
+`curl` era la mancanza degli header, non un divieto): **93 club, 611 KB**. Li scarica il toolkit e non
+l'app, perché l'app legge il bundle e mai il web e una pagina pubblica che hot-linka le immagini di un
+provider dipende dal fatto che quel provider resti gentile. `export` li imbarca in `crests/`.
+
+Nessuna conversione — i byte sono la fonte di verità come per tutta la cache — quindi il tipo varia (png e
+webp) e un `index.json` dice quale file è di chi. Lo stemma si prende per `fc_club_id`: l'**avversario**
+di una partita resta senza, perché di lui abbiamo la stringa del provider e nessun id, e uno stemma non si
+sceglie per nome.
+
+### 5. Racing Strasburgo: un club fuori dalla pipeline per una chiave mancante
+23 quotati con **zero** righe. Non un club «gemello» ma un club mai agganciato al provider: il writer degli
+id cerca `CLUB_ALIASES.get("Racing Strasburgo")` mentre la tabella conosceva solo la chiave
+**«Strasburgo»**, così `club_key` leggeva `racing strasburgo` contro lo `strasbourg` del provider. Siccome
+il layer extra scarica **per id di club**, i suoi uomini non potevano avere nessuna partita. Aggiunta la
+riga mancante: `derive_club_xref` gli assegna l'id 1659, i club passano da 92 a 93, e 7 dei 23 hanno
+partite.
+
+Curati i quotati di tutte le squadre, con i numeri: 1.175 quotati, **808 con almeno una riga** in stagione
+(erano 801). Il resto **non è idraulica** e va detto invece che inseguito: dei 367 senza righe, **300**
+hanno identità provider e il loro club HA amichevoli — non sono scesi in campo, che è calcio — e **67** non
+hanno nessuna identità provider (Kepa, Vismara, Christie, Brooks…), tutti con `birth_year` nullo. Quello è
+il funnel delle identità e merita una misura sua.
+
 ## Novità v9.46 (8 agosto 2026 — un nuovo acquisto NON è un uomo sconosciuto)
 
 `SHEET_REVISION` **13 → 14** (muove `est_pv`, quindi `est_surplus`) · **362 test** · `engine_*` non muove

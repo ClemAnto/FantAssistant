@@ -7,8 +7,10 @@ Monorepo for the **EuroLeghe fantacalcio prediction engine**. Two parts:
   Inside it, `euroleghe_ingest/engine/` is NOT part of the pipeline: it is the **reference model + the
   out-of-sample GATE harness** (`python -m euroleghe_ingest backtest`), read-only on the DB, writing
   only reports. It stays dependency-free because the shippable engine gets ported from it.
-- `app/` - **final assistant** (Electron + Angular, TypeScript) with the `prediction-engine`. **Placeholder**:
-  initialized after the toolkit (see roadmap); it will be ported from `toolkit/euroleghe_ingest/engine/`.
+- `app/` - **final assistant** (Angular 22 + ng-zorro + Tailwind v4; Electron shell still to come) with
+  the `prediction-engine` still to be ported from `toolkit/euroleghe_ingest/engine/`. **Initialized
+  09/08/2026 and PUBLISHED**: https://clemanto.github.io/FantAssistant/ - the consultation page reads the
+  bundle, never the DB and never the web.
   Its data contract already exists: `python -m euroleghe_ingest export` writes `data/export/<season>/`
   (pruned SQLite + JSON tables + `manifest.json`), and the table list is DERIVED from what
   `engine/features.py` queries - a rule that reads a new table must be added to `export.CONTRACT`.
@@ -341,6 +343,16 @@ Two commands own these, and both print a plan before doing anything:
 `fetch --plan` answers "what is missing here?" table by table, with the command that fills each gap.
 Every run leaves a line in `ingest_runs` (module, when, status, options), written by whoever owns the
 invocation - CLI, rebuild or GUI - never by the module itself.
+
+## A cache without an expiry is a freeze, not a saving
+**Found 09/08/2026, and the code promised the opposite of what it did.** `fetch_extra_matches` keeps ONE
+file per club and skips the download when it exists, while its own docstring says the layer «can be re-run
+through August as the friendlies are played». Without `--refresh` that is false: the per-match layer sat at
+**28/07/2026** for every club, so the pre-season friendlies of August did not exist - in the very window
+that layer is for. Re-run with `--refresh`: 2026-27 from 1,772 to 4,234 rows. The rule to carry: a cache
+over a fact that CHANGES needs an expiry or an explicit refresh in the caller's hands; a cache over a fact
+that is FINISHED (a played match's incidents, a club's badge) can live forever, and the difference is
+worth stating where the cache is written.
 
 ## Three facts that are snapshots and can never be backfilled
 - **Starting probability** (`probable_starter`): the site publishes only "now", so a week not captured is

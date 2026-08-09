@@ -1,5 +1,5 @@
 # 00 — BRIDGE · Punto d'ingresso del progetto (leggere per primo)
-**Aggiornato: 8 agosto 2026, notte (DUE GIUDICI per le formazioni tipo — la stampa e l'ESITO reale — e la todolist formazioni tipo chiusa: cinque adozioni, sei rifiuti misurati)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
+**Aggiornato: 9 agosto 2026 (l'app esiste: Angular, pubblicata su GitHub Pages, legge il bundle del toolkit)** · precedente: 8 agosto (DUE GIUDICI per le formazioni tipo — la stampa e l'ESITO reale — e la todolist formazioni tipo chiusa: cinque adozioni, sei rifiuti misurati)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
 
 ## Il progetto in breve
 Motore previsionale per fantacalcio **EuroLeghe** (fantacalcio.it): valutazione calciatori Classic e Mantra sui 5 grandi campionati europei (Serie A, Premier, Liga, Bundesliga, Ligue 1 — perimetro: i ~35 top club del gioco). Prevede fantamedia (FM), presenze attese e VALORE stagionale = FM × presenze. Metodo scientifico: **ogni regola entra nel motore solo se batte il baseline fuori campione su finestre indipendenti** (gate pre-registrato). Stato: core validato (Mantra, Classic, portieri, presenze); manca lo strato flag/arrivi, sbloccato dal toolkit dati `euroleghe-ingest` (in implementazione).
@@ -32,7 +32,43 @@ la pagina delle probabili non basta e quali vincoli valgono già oggi.
 
 Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
 
-### ULTIMO IN ORDINE DI TEMPO — 8/08/2026 (8): il pannello Asta è UNA lista, e il surplus in crediti
+### ULTIMO IN ORDINE DI TEMPO — 9/08/2026: **l'app esiste** — Angular, pubblicata, e legge il bundle
+
+Spec «Novità v9.47» per la parte toolkit. Convenzioni della app in **`app/CLAUDE.md`**, stato e comandi in
+**`app/README.md`**. 29 commit, **362 test**, `SHEET_REVISION` invariata, `engine_*` invariato: nulla di
+questa giornata tocca il motore.
+
+1. **`app/` non è più un README.** Angular 22 + ng-zorro 22 + Tailwind v4 (zoneless, standalone, signals),
+   il workspace è `app/` senza sottocartella `client/`. Le convenzioni sono state importate dal progetto
+   Jingle Machine dell'operatore, con **tre scostamenti dichiarati**: la UI di `app/` è in ITALIANO (il
+   resto del repo resta inglese), `committa` NON diventa commit+push perché il repo è pubblico, e il
+   version bumping parte da subito.
+2. **La pagina Calciatori**: nome, ruolo, ruolo mantra, squadra e una colonna per giornata. In cella il
+   voto — fantacalcio, o sintetico calibrato marcato `~`, o il rating del provider marcato `*` perché è
+   **un'altra scala** — con gol/assist compatti, tooltip e un dettaglio partita al click (competizione,
+   squadre con stemma, risultato, minuti, bonus/malus letti da `scoring_config.json` e mai scritti a
+   mano). Filtri: listone, ruolo, squadra, stagione, finestra di giornate, ordinamento; competizioni da
+   includere.
+3. **Una cella vuota dice PERCHÉ.** Cinque stati misurati sui 499 quotati per 38 giornate di Serie A
+   2025-26: giocata o s.v. 45,9% · panchina 14,9% · mai in quel campionato 24,6% (123 uomini) ·
+   infortunato 7,6% · e solo il **6,9%** senza spiegazione, che è quello che dice l'ultima icona. L'ordine
+   è deliberato: «non in questo campionato» batte «infortunato», perché l'infortunio di un uomo della
+   Ligue 1 non deve leggersi come una giornata di Serie A saltata.
+4. **Con coppe o amichevoli la colonna diventa una SETTIMANA condivisa**, da giovedì a mercoledì — misurato:
+   un'ancora al lunedì spezza 28 giornate su 38 fra due colonne, quella al giovedì ne spezza 4; il
+   raggruppamento «per buchi» è stato provato e scartato (240 date collassano in 14 gruppi, uno lungo 59
+   giorni). L'asse nasce dai calciatori **filtrati**, così le colonne descrivono la tabella che guardi.
+5. **La pagina è pubblica**: `https://clemanto.github.io/FantAssistant/`, branch `gh-pages`, pubblicata
+   **da questa macchina** con `npm run deploy:pages` (che fa il bump di versione da solo). Non da CI: il
+   bundle non è in git, quindi un runner non può averlo, e un secondo pubblicatore ripubblicherebbe il
+   sito senza dati.
+6. ⚠️ **Decisione dell'operatore, non una misura**: online ci sono i **dati veri** del toolkit, cioè
+   contenuto a pagamento di fantacalcio.it, su un URL che chiunque può scaricare. Gliel'ho detto due volte
+   — una pagina Pages su repo pubblica non è protetta da «uso personale» e `robots.txt` è solo una
+   richiesta ai crawler — e la scelta è sua. Il `CLAUDE.md` di radice registra l'eccezione alla propria
+   regola; `master` continua a non portare il bundle.
+
+### 8/08/2026 (8): il pannello Asta è UNA lista, e il surplus in crediti
 
 Spec «Novità v9.45» (pannello) e «v9.46» (stima), metro in `metrica-asta-surplus-v1.md` §14, gate
 §7-sexvicies e §7-octodecies. `SHEET_REVISION` **13 → 14**, **362 test**, `--verify` 22/22: niente di
