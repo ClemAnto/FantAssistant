@@ -217,9 +217,17 @@ export class PlayersStore {
     return days;
   });
 
-  /** The shared axis of the mixed view: the last ten WEEKS in which anything was played, so
-   *  column 3 is the same week for every row. Without it each player carried his own last ten
-   *  matches and two rows could not be read against each other. */
+  /** The players the filters keep. Both the axis and the rows are built from this and nothing
+   *  else, so the columns describe the table you are looking at. */
+  private readonly filtered = computed(() => {
+    const role = this.role();
+    const club = this.club();
+    return this.roster().filter((p) => (!role || p.role === role) && (!club || p.club === club));
+  });
+
+  /** The shared axis of the mixed view: the last ten WEEKS in which anything was played BY THE
+   *  PLAYERS ON SCREEN, so column 3 is the same week for every row and no column is spent on a
+   *  week none of them played. Filter by club and the axis follows the club. */
   readonly slots = computed<ColumnSlot[]>(() => {
     if (this.byMatchday()) return [];
     const season = this.season();
@@ -239,9 +247,9 @@ export class PlayersStore {
       if (cell.date! < entry.first) entry.first = cell.date!;
       if (cell.date! > entry.last) entry.last = cell.date!;
     };
-    for (const byDay of leagueBySeason?.values() ?? []) for (const cell of byDay.values()) note(cell);
-    for (const list of otherBySeason?.values() ?? []) {
-      for (const cell of list) {
+    for (const player of this.filtered()) {
+      for (const cell of leagueBySeason?.get(player.fcId)?.values() ?? []) note(cell);
+      for (const cell of otherBySeason?.get(player.fcId) ?? []) {
         if (cell.kind === 'cup' ? wantCups : wantFriendlies) note(cell);
       }
     }
@@ -267,16 +275,12 @@ export class PlayersStore {
     const absenceBySeason = this.absence().get(`${this.platform()}|${season}`);
     const otherBySeason = this.other().get(season);
     const days = this.matchdays();
-    const role = this.role();
-    const club = this.club();
     const byMatchday = this.byMatchday();
     const slots = this.slots();
     const wantCups = this.withCups();
     const wantFriendlies = this.withFriendlies();
 
-    const lines = this.roster()
-      .filter((p) => (!role || p.role === role) && (!club || p.club === club))
-      .map((p) => {
+    const lines = this.filtered().map((p) => {
         const own = leagueBySeason?.get(p.fcId);
         if (byMatchday) {
           // A round he is not in the ratings of is not an empty cell: it has a reason, and the
