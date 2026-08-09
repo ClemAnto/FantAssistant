@@ -188,10 +188,12 @@
     >
       <thead>
         <tr>
-          <th nzWidth="190px">Nome</th>
-          <th nzWidth="60px">Ruolo</th>
-          <th nzWidth="110px">Mantra</th>
-          <th nzWidth="130px">Squadra</th>
+          <th [attr.nzWidth]="narrow() ? '176px' : '190px'" nzLeft>Nome</th>
+          @if (!narrow()) {
+            <th nzWidth="60px">Ruolo</th>
+            <th nzWidth="110px">Mantra</th>
+            <th nzWidth="130px">Squadra</th>
+          }
           @for (header of headers(); track $index) {
             <th
               class="text-center leading-tight"
@@ -218,7 +220,23 @@
       <tbody>
         @for (line of table.data; track line.fcId) {
           <tr>
-            <td class="font-medium text-fg">{{ line.name }}</td>
+            <td class="font-medium text-fg" nzLeft>
+              @if (narrow()) {
+                <span class="flex items-center gap-1.5">
+                  <ui-crest
+                    [club]="line.club"
+                    [clubId]="line.clubId"
+                    [crests]="store.crests()"
+                    size="sm"
+                  />
+                  <ui-role [role]="line.role" />
+                  <span class="truncate">{{ line.name }}</span>
+                </span>
+              } @else {
+                {{ line.name }}
+              }
+            </td>
+            @if (!narrow()) {
             <td><ui-role [role]="line.role" /></td>
             <td>
               <span class="flex flex-wrap gap-1">
@@ -238,6 +256,7 @@
                 {{ line.club }}
               </span>
             </td>
+            }
 
             @for (cell of line.cells; track $index) {
               <td class="text-center align-middle">
@@ -248,9 +267,10 @@
                     tabindex="0"
                     nz-tooltip
                     [nzTooltipTitle]="tooltip(cell)"
+                    [nzTooltipTrigger]="null"
                     [nzTooltipVisible]="hovered() === line.fcId + ':' + $index"
-                    (mouseenter)="hovered.set(line.fcId + ':' + $index)"
-                    (mouseleave)="hovered.set(null)"
+                    (pointerenter)="onPointerEnter($event, line.fcId + ':' + $index)"
+                    (pointerleave)="hovered.set(null)"
                     (click)="open(cell, line)"
                     (keydown.enter)="open(cell, line)"
                     (keydown.space)="open(cell, line)"

@@ -116,6 +116,11 @@ export class Players {
    *  not know whose it is, and the panel names him. */
   protected readonly selected = signal<{ cell: MatchCell; player: PlayerLine } | null>(null);
 
+  /** A phone. Two things change: the table gives up the three narrow columns and folds them
+   *  into the name, and the tooltip goes away - on a touch screen there is no hover, so it would
+   *  only be a thing that appears over the panel the tap just opened. */
+  protected readonly narrow = signal(false);
+
   /** The filter bar takes a fifth of the screen and is set once per session: it collapses, and
    *  when closed its header says what is applied, so a folded filter can never be a hidden one. */
   protected readonly filtersOpen = signal(true);
@@ -142,7 +147,17 @@ export class Players {
   protected readonly hovered = signal<string | null>(null);
 
   constructor() {
+    const narrow = matchMedia('(max-width: 700px)');
+    this.narrow.set(narrow.matches);
+    narrow.addEventListener('change', (event) => this.narrow.set(event.matches));
     void this.store.load();
+  }
+
+  /** The tooltip belongs to a MOUSE, and the pointer event says which one it is - a media query
+   *  cannot: `(hover: none)` is read once, is wrong on a hybrid laptop, and did not stop the
+   *  tooltip on an emulated phone. A finger opens the detail; only a mouse gets the hint. */
+  protected onPointerEnter(event: PointerEvent, key: string): void {
+    if (event.pointerType === 'mouse') this.hovered.set(key);
   }
 
   protected open(cell: MatchCell, player: PlayerLine): void {
