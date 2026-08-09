@@ -66,6 +66,26 @@ node scripts/make-demo-bundle.mjs dist/fantassistant/browser/data   # after a bu
   - **Of national teams there is nothing.** Not thin: absent. No national-team competition exists in the
     per-match layer, so there is no toggle for it - a note on the page says so, which is better than an
     empty column that reads as "he did not play".
+  - **A cell with no vote says WHY.** Five states, one icon each, no red - an injury is a fact
+    about a player, not a failure: in campo senza voto, in panchina (his provider row exists
+    with no minutes), infortunato (a dated spell covers the day the round was played), non in
+    questo campionato, non risulta in distinta. Measured on Serie A 2025-26 over the 499 quoted
+    men x 38 rounds: 45.9% played or s.v., 14.9% bench, 24.6% never in that championship (123
+    men of 499), 7.6% injured, and only **6.9%** genuinely unaccounted for - which is what the
+    last icon says, instead of a reason nobody has. The order is deliberate: "not in this
+    league" outranks "injured", because a Ligue 1 man's injury has no business reading as a
+    missed Serie A round. Absences appear in the matchday mode only: in "last matches" a column
+    is a match he PLAYED.
+  - **Dedicated components for the roles and the clubs** (`ui/role-badge`, `ui/club-crest`):
+    one colour per code, white text, always the same shape - a circle for one character, a pill
+    for two or three. The crests are MONOGRAMS: no crest image exists anywhere in the toolkit's
+    data, and the app reads the bundle and never the web, so the real badges would be a
+    decision about what this app may fetch, not a detail to slip in.
+  - **Clicking a cell opens the match**: competition, the two teams with their marks, the
+    scoreline, the minutes, and the bonus/malus with their points read from
+    `config/scoring_config.json` - never hard-coded, because the scoring is per-championship
+    parametric. The panel also checks its own arithmetic against the stored fantavoto and says
+    so when the two disagree.
   - Coverage to state rather than average away: cups were acquired **from 2025-26** (1,071 Champions rows
     against 21 the season before) and friendlies are almost entirely the **2026-27 pre-season** (1,752
     rows, 321 of them with minutes).

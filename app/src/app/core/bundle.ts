@@ -21,6 +21,27 @@ export interface BundleManifest {
   known_gaps?: string[];
 }
 
+/** Only the terms a match can carry. `clean_sheet_bonus_gk` is deliberately absent from every
+ *  computation: the config's own note records that the SOURCE does not apply it - measured on
+ *  16,017 keeper rows, exact in 100% of them - and every reader must keep leaving it out. */
+export interface ScoringTerms {
+  goal_bonus: number;
+  penalty_scored_bonus: number;
+  penalty_missed_malus: number;
+  assist_bonus: number;
+  assist_set_piece_bonus: number;
+  own_goal_malus: number;
+  yellow_card_malus: number;
+  red_card_malus: number;
+  goal_conceded_malus_gk: number;
+  penalty_saved_bonus_gk: number;
+}
+
+export interface ScoringConfig {
+  default: ScoringTerms;
+  leagues: Record<string, Partial<ScoringTerms>>;
+}
+
 const KNOWN_SCHEMA = 1;
 
 /** Reads the toolkit's export bundle. The app has no other data source: no scraping, no DB. */
@@ -29,6 +50,7 @@ export class Bundle {
   private readonly base = 'data';
   private readonly cache = new Map<string, Promise<BundleTable>>();
   private manifestPromise?: Promise<BundleManifest>;
+  private scoringPromise?: Promise<ScoringConfig>;
 
   manifest(): Promise<BundleManifest> {
     this.manifestPromise ??= fetch(`${this.base}/manifest.json`)
@@ -49,6 +71,16 @@ export class Bundle {
         return manifest;
       });
     return this.manifestPromise;
+  }
+
+  /** The per-CHAMPIONSHIP bonus/malus. It is read, never hard-coded: a league with
+   *  non-standard scoring changes what a match was worth, and both the toolkit and the engine
+   *  read this same file. */
+  scoring(): Promise<ScoringConfig> {
+    this.scoringPromise ??= fetch(`${this.base}/scoring_config.json`)
+      .then((res) => (res.ok ? (res.json() as Promise<ScoringConfig>) : Promise.reject(
+        new Error(`scoring_config.json non trovato (${res.status}).`))));
+    return this.scoringPromise;
   }
 
   table(name: string): Promise<BundleTable> {

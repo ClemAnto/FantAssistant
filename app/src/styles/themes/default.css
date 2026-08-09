@@ -27,6 +27,17 @@
   --color-warning: #f5b544;
   --color-success: #2ecc82;
 
+  /* Role tokens. These carry WHITE text, so they are dark enough to pass AA at 10px - the
+     audit measures it. Red here is the listone's word for "attaccante", not a warning: the
+     one deliberate exception to "red means danger" in this app. */
+  --color-role-keeper: #a16207;
+  --color-role-defence: #15803d;
+  --color-role-wingback: #0f766e;
+  --color-role-midfield: #1d4ed8;
+  --color-role-winger: #6d28d9;
+  --color-role-attack: #b91c1c;
+  --color-role-unknown: #475569;
+
   --radius-control: 0.75rem;
   --radius-card: 1.25rem;
 

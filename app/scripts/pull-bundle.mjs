@@ -19,6 +19,7 @@ const TABLES = [
   'clubs',
   'rosters',
   'listone_quotes',
+  'injuries',
   'match_ratings',
   'external_match_stats',
   'matchday_map',
@@ -44,6 +45,9 @@ if (!existsSync(join(src, 'manifest.json'))) {
 
 mkdirSync(OUT, { recursive: true });
 copyFileSync(join(src, 'manifest.json'), join(OUT, 'manifest.json'));
+/* The scoring is per-CHAMPIONSHIP parametric and no reader may hard-code +3/-3/+1, so the
+ * bonus/malus panel reads the same file the toolkit and the engine read. */
+copyFileSync(join(src, 'config/scoring_config.json'), join(OUT, 'scoring_config.json'));
 
 let bytes = statSync(join(OUT, 'manifest.json')).size;
 const missing = [];

@@ -1,6 +1,11 @@
 import { IconDefinition } from '@ant-design/icons-angular';
 import {
   AimOutline,
+  GlobalOutline,
+  MedicineBoxOutline,
+  MinusCircleOutline,
+  PauseCircleOutline,
+  QuestionCircleOutline,
   RocketOutline,
   ShareAltOutline,
   ThunderboltOutline,
@@ -11,6 +16,11 @@ import {
  *  (otherwise the icon is fetched dynamically, 404s, and the test hangs). */
 export const NZ_ICONS: IconDefinition[] = [
   AimOutline,
+  GlobalOutline,
+  MedicineBoxOutline,
+  MinusCircleOutline,
+  PauseCircleOutline,
+  QuestionCircleOutline,
   RocketOutline,
   ShareAltOutline,
   ThunderboltOutline,

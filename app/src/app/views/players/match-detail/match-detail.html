@@ -1,0 +1,191 @@
+<!-- UI text is ITALIAN in app/ (see app/CLAUDE.md); code and comments stay English. -->
+<div class="flex flex-col gap-4">
+  <!-- Competition -->
+  <div class="flex items-center gap-3">
+    <ui-crest [club]="cell().competitionLabel" size="sm" />
+    <div class="flex flex-col leading-tight">
+      <span class="text-fg">
+        {{ cell().competitionLabel }}
+        @if (cell().matchday !== null) {
+          <span class="text-muted">· giornata {{ cell().matchday }}</span>
+        }
+      </span>
+      @if (dateLabel(); as when) {
+        <span class="text-xs text-muted">{{ when }}</span>
+      }
+    </div>
+  </div>
+
+  @if (!played()) {
+    <div class="rounded-control border border-border bg-control px-4 py-3">
+      <p class="text-fg">{{ stateLabel() }}</p>
+      @if (injuryLabel(); as detail) {
+        <p class="mt-1 text-sm text-muted">{{ detail }}</p>
+      }
+      @if (cell().state === 'bench') {
+        <p class="mt-1 text-sm text-muted">
+          Era in distinta e non e' entrato: la sua riga esiste nel layer per-partita senza
+          minuti. Il risultato non compare perche' arrivarci vorrebbe dire incrociare due fonti
+          per NOME della squadra, ed e' il difetto che questo progetto ha gia' pagato.
+        </p>
+      }
+      @if (cell().state === 'not_in_league') {
+        <p class="mt-1 text-sm text-muted">
+          In questa stagione non ha nessuna riga in questo campionato: e' quotato oggi, ma
+          giocava altrove. Non e' un'esclusione.
+        </p>
+      }
+      @if (cell().state === 'absent') {
+        <p class="mt-1 text-sm text-muted">
+          Ne' in campo ne' in panchina, e nessun infortunio noto in quella data. Perche' sia
+          fuori, i dati non lo dicono.
+        </p>
+      }
+    </div>
+  }
+
+  <!-- The two teams and the result -->
+  @if (cell().opponent || cell().team) {
+  <div class="flex items-center justify-between gap-3 rounded-control bg-control p-4">
+    <div class="flex flex-1 flex-col items-center gap-2 text-center">
+      <ui-crest [club]="left()" size="lg" />
+      <span class="text-sm" [class]="cell().home !== false ? 'text-fg' : 'text-muted'">
+        {{ left() ?? 'Ignota' }}
+      </span>
+    </div>
+
+    <div class="flex flex-col items-center">
+      @if (leftGoals() !== null && rightGoals() !== null) {
+        <span class="text-2xl font-semibold text-fg">{{ leftGoals() }} - {{ rightGoals() }}</span>
+      } @else {
+        <span class="text-sm text-muted">risultato<br />non disponibile</span>
+      }
+      <span class="text-xs text-muted">
+        {{ cell().home === null ? 'campo ignoto' : cell().home ? 'in casa' : 'in trasferta' }}
+      </span>
+    </div>
+
+    <div class="flex flex-1 flex-col items-center gap-2 text-center">
+      <ui-crest [club]="right()" size="lg" />
+      <span class="text-sm" [class]="cell().home === false ? 'text-fg' : 'text-muted'">
+        {{ right() ?? 'Ignota' }}
+      </span>
+    </div>
+  </div>
+
+  }
+
+  <!-- The player -->
+  <div class="flex flex-wrap items-center gap-3">
+    <ui-role [role]="player().role" size="md" />
+    <span class="font-medium text-fg">{{ player().name }}</span>
+    @for (code of mantraCodes(); track code) {
+      <ui-role [role]="code" size="md" />
+    }
+    @if (played()) {
+      <span class="ml-auto text-sm text-muted">
+        {{ cell().minutes === null ? 'minuti ignoti' : cell().minutes + "'" }}
+      </span>
+    } @else if (cell().state === 'bench') {
+      <span class="ml-auto text-sm text-muted">0'</span>
+    }
+  </div>
+
+  <!-- Bonus and malus -->
+  @if (played()) {
+  <div class="flex flex-col gap-2">
+    <span class="text-xs uppercase tracking-wide text-muted">Bonus e malus</span>
+
+    @if (bonuses().length === 0) {
+      <p class="text-sm text-muted">Nessun bonus ne' malus in questa partita.</p>
+    } @else {
+      <table class="w-full text-sm">
+        <tbody>
+          @for (row of bonuses(); track row.label) {
+            <tr class="border-b border-border/60">
+              <td class="py-1 text-muted">{{ row.label }}</td>
+              <td class="py-1 text-right text-fg">{{ row.count }}</td>
+              <td
+                class="w-16 py-1 text-right"
+                [class]="row.points === null ? 'text-muted' : row.points > 0 ? 'text-primary' : 'text-danger'"
+              >
+                {{ row.points === null ? '?' : signed(row.points) }}
+              </td>
+            </tr>
+          }
+          @if (hasPoints()) {
+            <tr>
+              <td class="py-1 font-medium text-fg" colspan="2">Totale</td>
+              <td
+                class="py-1 text-right font-medium"
+                [class]="totalBonus() >= 0 ? 'text-primary' : 'text-danger'"
+              >
+                {{ signed(totalBonus()) }}
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    }
+
+    @if (!hasPoints() && bonuses().length) {
+      <p class="text-xs text-muted">
+        I punteggi non sono disponibili: manca <span class="text-fg">scoring_config.json</span>
+        nel bundle. Gli eventi restano un fatto, il loro valore no.
+      </p>
+    }
+  </div>
+
+  }
+
+  <!-- Vote and fantavoto -->
+  @if (played()) {
+  <div class="flex flex-wrap items-baseline gap-x-6 gap-y-1 border-t border-border pt-3">
+    @if (cell().kind === 'league') {
+      <span class="text-sm text-muted">
+        Voto
+        <span class="ml-1 text-base text-fg">
+          {{ cell().vote === null ? 's.v.' : number(cell().vote) }}
+        </span>
+        @if (cell().voteSynthetic) {
+          <span class="ml-1 text-xs text-warning">sintetico calibrato</span>
+        }
+      </span>
+      <span class="text-sm text-muted">
+        Fantavoto
+        <span class="ml-1 text-base text-fg">{{ number(cell().fantavoto) }}</span>
+      </span>
+    } @else {
+      <span class="text-sm text-muted">
+        Voto Sofascore
+        <span class="ml-1 text-base text-fg">{{ number(cell().providerRating) }}</span>
+        <span class="ml-1 text-xs">scala diversa dal voto di fantacalcio</span>
+      </span>
+    }
+  </div>
+
+  }
+
+  @if (reconciliation(); as check) {
+    @if (!check.matches) {
+      <p class="text-xs text-warning">
+        Il conto non torna: voto {{ number(cell().vote) }} + bonus {{ signed(totalBonus()) }} =
+        {{ number(check.computed) }}, ma il fantavoto registrato e'
+        {{ number(check.stored) }} (differenza {{ signed(check.diff) }}). Il numero registrato e'
+        quello della fonte; questa somma e' solo la sua lettura.
+      </p>
+    }
+  }
+
+  @if (cell().kind !== 'league') {
+    <p class="text-xs text-muted">
+      Coppe e amichevoli non sono competizioni calibrate: non esiste un voto di fantacalcio ne'
+      un sintetico, e il risultato non e' ricavabile perche' di questa partita abbiamo solo la
+      riga del giocatore.
+    </p>
+  }
+
+  <p class="text-xs text-muted">
+    Gli stemmi sono monogrammi: nei dati del toolkit non esiste alcuna immagine di squadra.
+  </p>
+</div>

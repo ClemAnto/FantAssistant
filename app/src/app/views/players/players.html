@@ -176,19 +176,42 @@
         @for (line of table.data; track line.fcId) {
           <tr>
             <td class="font-medium text-fg">{{ line.name }}</td>
-            <td>{{ line.role }}</td>
-            <td class="text-muted">{{ line.mantra }}</td>
-            <td class="text-muted">{{ line.club }}</td>
+            <td><ui-role [role]="line.role" /></td>
+            <td>
+              <span class="flex flex-wrap gap-1">
+                @for (code of mantraCodes(line); track code) {
+                  <ui-role [role]="code" />
+                }
+              </span>
+            </td>
+            <td>
+              <span class="flex items-center gap-2 text-muted">
+                <ui-crest [club]="line.club" size="sm" />
+                {{ line.club }}
+              </span>
+            </td>
 
             @for (cell of line.cells; track $index) {
               <td class="text-center align-middle">
                 @if (cell) {
                   <span
-                    class="inline-flex cursor-default flex-col items-center leading-none"
+                    class="inline-flex cursor-pointer flex-col items-center rounded leading-none outline-offset-2 hover:bg-control focus-visible:outline focus-visible:outline-primary"
+                    role="button"
+                    tabindex="0"
                     nz-tooltip
                     [nzTooltipTitle]="tooltip(cell)"
+                    (click)="open(cell, line)"
+                    (keydown.enter)="open(cell, line)"
+                    (keydown.space)="open(cell, line)"
                   >
-                    <span [class]="voteClass(cell)">{{ voteText(cell) }}</span>
+                    @if (iconOnly(cell)) {
+                      <nz-icon
+                        [nzType]="stateIcon[cell.state]"
+                        [class]="stateClass(cell) + ' text-sm'"
+                      />
+                    } @else {
+                      <span [class]="voteClass(cell)">{{ voteText(cell) }}</span>
+                    }
                     <span class="mt-0.5 flex h-3 items-center gap-1 text-[10px]">
                       @if (cell.kind === 'cup') {
                         <span class="text-warning" title="Coppa o altra competizione">C</span>
@@ -224,6 +247,24 @@
       </tbody>
     </nz-table>
 
+    <nz-modal
+      [nzVisible]="!!selected()"
+      nzTitle="Dettaglio partita"
+      [nzFooter]="null"
+      nzWidth="30rem"
+      (nzOnCancel)="selected.set(null)"
+    >
+      <ng-container *nzModalContent>
+        @if (selected(); as chosen) {
+          <app-match-detail
+            [cell]="chosen.cell"
+            [player]="chosen.player"
+            [scoring]="store.scoring()"
+          />
+        }
+      </ng-container>
+    </nz-modal>
+
     <div class="flex flex-col gap-1 text-xs text-muted">
       <p>
         Il numero non e' la stessa cosa in ogni cella:
@@ -238,6 +279,30 @@
         competizioni calibrate, quindi quello che c'e' e' il rating del provider e nient'altro.
         Delle <span class="text-fg">nazionali non abbiamo nulla</span>: nessuna competizione per
         nazionali esiste in questi dati, e una colonna vuota sarebbe peggio di questa riga.
+      </p>
+      <p class="flex flex-wrap items-center gap-x-4 gap-y-1">
+        <span>Quando non ha giocato, la cella dice perche':</span>
+        <span class="flex items-center gap-1"
+          ><nz-icon nzType="question-circle" /> in campo senza voto</span
+        >
+        <span class="flex items-center gap-1"
+          ><nz-icon nzType="pause-circle" /> in panchina, non entrato</span
+        >
+        <span class="flex items-center gap-1 text-warning"
+          ><nz-icon nzType="medicine-box" /> infortunato</span
+        >
+        <span class="flex items-center gap-1"
+          ><nz-icon nzType="global" /> non in questo campionato</span
+        >
+        <span class="flex items-center gap-1"
+          ><nz-icon nzType="minus-circle" /> non risulta in distinta</span
+        >
+      </p>
+      <p>
+        Misurate sulla Serie A 2025-26, sui 499 quotati per 38 giornate: giocate 45,9%,
+        panchina 14,9%, mai in quel campionato 24,6%, infortunio 7,6%, e solo il 6,9% resta
+        senza spiegazione. Le assenze compaiono solo nella modalita' per giornata: nelle
+        <span class="text-fg">ultime partite</span> una colonna e' una partita giocata.
       </p>
       <p>
         Attenzione a leggere un'assenza come un fatto: le coppe sono acquisite

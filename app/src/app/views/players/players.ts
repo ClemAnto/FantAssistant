@@ -1,4 +1,4 @@
-import { Component, computed, inject } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NzAlertModule } from 'ng-zorro-antd/alert';
 import { NzCheckboxModule } from 'ng-zorro-antd/checkbox';
@@ -8,9 +8,43 @@ import { NzSelectModule } from 'ng-zorro-antd/select';
 import { NzSliderModule } from 'ng-zorro-antd/slider';
 import { NzSpinModule } from 'ng-zorro-antd/spin';
 import { NzTableModule } from 'ng-zorro-antd/table';
+import { NzModalModule } from 'ng-zorro-antd/modal';
 import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 
-import { CLASSIC_ROLES, ClassicRole, MatchCell, PlayersStore } from '../../core/players-store';
+import {
+  CLASSIC_ROLES,
+  CellState,
+  ClassicRole,
+  MatchCell,
+  PlayerLine,
+  PlayersStore,
+} from '../../core/players-store';
+import { ClubCrest } from '../../ui/club-crest/club-crest';
+import { RoleBadge } from '../../ui/role-badge/role-badge';
+import { MatchDetail } from './match-detail/match-detail';
+
+/** A cell with no vote is not blank: it says WHY. One icon per reason, and never red - an
+ *  injury is a fact about a player, not a failure. */
+export const STATE_ICON: Record<CellState, string> = {
+  played: '',
+  no_vote: 'question-circle',
+  bench: 'pause-circle',
+  injured: 'medicine-box',
+  not_in_league: 'global',
+  absent: 'minus-circle',
+};
+
+export const STATE_LABEL: Record<CellState, string> = {
+  played: 'Ha giocato',
+  no_vote: 'In campo, senza voto',
+  bench: 'In panchina, non entrato',
+  injured: 'Infortunato',
+  not_in_league: 'Non in questo campionato',
+  absent: 'Non risulta in distinta',
+};
+
+/** dd/mm/yyyy, because a date in a tooltip is read by a person and not by a parser. */
+const it = (iso: string): string => iso.split('-').reverse().join('/');
 
 const ROLE_LABEL: Record<ClassicRole, string> = {
   P: 'Portiere',
@@ -26,12 +60,16 @@ const ROLE_LABEL: Record<ClassicRole, string> = {
     NzAlertModule,
     NzCheckboxModule,
     NzIconModule,
+    NzModalModule,
     NzRadioModule,
     NzSelectModule,
     NzSliderModule,
     NzSpinModule,
     NzTableModule,
     NzTooltipModule,
+    ClubCrest,
+    RoleBadge,
+    MatchDetail,
   ],
   templateUrl: './players.html',
   host: { class: 'view-host' },
@@ -54,9 +92,20 @@ export class Players {
       : Array.from({ length: 10 }, (_, i) => String(10 - i)),
   );
 
+  /** The match the detail panel is showing, with the player it belongs to: a cell alone does
+   *  not know whose it is, and the panel names him. */
+  protected readonly selected = signal<{ cell: MatchCell; player: PlayerLine } | null>(null);
+
   constructor() {
     void this.store.load();
   }
+
+  protected open(cell: MatchCell, player: PlayerLine): void {
+    this.selected.set({ cell, player });
+  }
+
+  protected readonly mantraCodes = (line: PlayerLine): string[] =>
+    line.mantra.split(/\s+/).filter(Boolean);
 
   protected onWindow(value: number[] | number): void {
     if (Array.isArray(value)) this.store.setWindow([value[0], value[1]]);
@@ -66,6 +115,18 @@ export class Players {
    *  a league match carries the fantacalcio vote (or the calibrated synthetic one, marked
    *  `~`), while a cup or a friendly can only carry the provider's own 1-10 rating, marked
    *  `*` because it is a different scale. A dot means he has a row and nothing measurable. */
+  protected readonly stateIcon = STATE_ICON;
+  protected readonly stateLabel = STATE_LABEL;
+
+  /** True when the cell has no number at all and is drawn as an icon only. */
+  protected iconOnly(cell: MatchCell): boolean {
+    return cell.state !== 'played' && cell.vote == null && cell.providerRating == null;
+  }
+
+  protected stateClass(cell: MatchCell): string {
+    return cell.state === 'injured' ? 'text-warning' : 'text-muted';
+  }
+
   protected voteText(cell: MatchCell): string {
     if (cell.kind === 'league') {
       if (cell.vote == null) return 's.v.';
@@ -88,6 +149,14 @@ export class Players {
   protected tooltip(cell: MatchCell): string {
     const parts: string[] = [];
 
+    if (cell.state !== 'played') {
+      parts.push(STATE_LABEL[cell.state]);
+      if (cell.state === 'injured' && cell.injury) {
+        const detail = cell.injury.detail ? `${cell.injury.detail}, ` : '';
+        parts.push(`${detail}dal ${it(cell.injury.from)}${cell.injury.to ? ' al ' + it(cell.injury.to) : ''}`);
+      }
+    }
+
     if (cell.kind === 'league') {
       parts.push(`${cell.competitionLabel}, giornata ${cell.matchday}`);
     } else {
@@ -107,8 +176,10 @@ export class Players {
       parts.push(cell.team);
     }
 
-    parts.push(cell.home == null ? 'campo ignoto' : cell.home ? 'in casa' : 'in trasferta');
-    parts.push(cell.minutes == null ? 'minuti ignoti' : `${cell.minutes}'`);
+    if (cell.state === 'played' || cell.state === 'no_vote' || cell.state === 'bench') {
+      parts.push(cell.home == null ? 'campo ignoto' : cell.home ? 'in casa' : 'in trasferta');
+      parts.push(cell.minutes == null ? 'minuti ignoti' : `${cell.minutes}'`);
+    }
 
     const events: string[] = [];
     if (cell.goals) events.push(`${cell.goals} gol`);
