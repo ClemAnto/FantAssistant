@@ -4,7 +4,8 @@
     <h1 class="text-2xl font-semibold text-fg">Calciatori</h1>
     @if (store.generatedAt(); as generated) {
       <span class="text-xs text-muted">
-        Bundle del toolkit · esportato il {{ generated.slice(0, 10) }} · Serie A
+        {{ store.demo() ? 'Bundle dimostrativo generato' : 'Bundle del toolkit · Serie A' }} ·
+        {{ generated.slice(0, 10) }}
       </span>
     }
   </header>
