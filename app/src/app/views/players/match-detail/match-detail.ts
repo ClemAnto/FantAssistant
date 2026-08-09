@@ -22,6 +22,16 @@ export class MatchDetail {
   readonly cell = input.required<MatchCell>();
   readonly player = input.required<PlayerRow>();
   readonly scoring = input.required<ScoringConfig | null>();
+  readonly crests = input<Record<string, string>>({});
+
+  /** Only OUR side has an id, so only our side can show its badge: of the opponent we hold the
+   *  provider's name and nothing that identifies it. */
+  protected readonly leftId = computed(() =>
+    this.cell().home === false ? null : this.player().clubId,
+  );
+  protected readonly rightId = computed(() =>
+    this.cell().home === false ? this.player().clubId : null,
+  );
 
   /** Home on the left, always, so the score is read the way it is written. */
   protected readonly left = computed(() =>

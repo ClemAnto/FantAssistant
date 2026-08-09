@@ -194,7 +194,7 @@ def build_parser() -> argparse.ArgumentParser:
                            help="re-download league-seasons even if already present")
             p.add_argument("--layer",
                            choices=["season", "match", "complete", "heatmap", "roles", "all",
-                                    "reparse", "crosstab", "extra"],
+                                    "reparse", "crosstab", "extra", "crests"],
                            default="season",
                            help="season aggregates (fast), the per-match layer (hours), "
                                 "'complete' to add the matches the perimeter filter skipped, "

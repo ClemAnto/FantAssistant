@@ -229,7 +229,12 @@
             </td>
             <td>
               <span class="flex items-center gap-2 text-muted">
-                <ui-crest [club]="line.club" size="sm" />
+                <ui-crest
+                  [club]="line.club"
+                  [clubId]="line.clubId"
+                  [crests]="store.crests()"
+                  size="sm"
+                />
                 {{ line.club }}
               </span>
             </td>
@@ -307,6 +312,7 @@
             [cell]="chosen.cell"
             [player]="chosen.player"
             [scoring]="store.scoring()"
+            [crests]="store.crests()"
           />
         }
       </ng-container>

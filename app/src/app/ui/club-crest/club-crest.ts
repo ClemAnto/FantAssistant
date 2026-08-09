@@ -16,11 +16,12 @@ const CREST_COLOURS = [
 ];
 
 /**
- * A club's mark. It is a MONOGRAM, not the club's badge: no crest image exists anywhere in the
- * toolkit's data - `clubs` carries an id, a canonical name and a league, and nothing else - and
- * the app reads the bundle and never the web. Fetching the real badges would mean pointing at
- * a provider's image endpoint, which is a decision about what this app is allowed to do, not a
- * detail to slip in. Until that decision, this is honest and self-contained.
+ * A club's mark: the real badge when the bundle carries one, a MONOGRAM otherwise.
+ *
+ * The badges are downloaded ONCE by the toolkit (`positions --layer crests`, 93 clubs, 611 KB)
+ * and travel inside the export, so the app still reads only what it is given - a public page of
+ * ours never depends on a provider's CDN staying friendly. A club with no provider id, and every
+ * OPPONENT (we hold its name and not its id), falls back to the monogram.
  */
 @Component({
   selector: 'ui-crest',
@@ -30,6 +31,15 @@ const CREST_COLOURS = [
 export class ClubCrest {
   readonly club = input.required<string | null>();
   readonly size = input<'sm' | 'md' | 'lg'>('md');
+  /** The club's id and the bundle's index: without both, the monogram stands. */
+  readonly clubId = input<number | null>(null);
+  readonly crests = input<Record<string, string>>({});
+
+  protected readonly badge = computed(() => {
+    const id = this.clubId();
+    const file = id == null ? undefined : this.crests()[String(id)];
+    return file ? `data/crests/${file}` : null;
+  });
 
   protected readonly initials = computed(() => {
     const name = (this.club() ?? '').trim();

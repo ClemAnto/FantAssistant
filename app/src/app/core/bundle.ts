@@ -51,6 +51,7 @@ export class Bundle {
   private readonly cache = new Map<string, Promise<BundleTable>>();
   private manifestPromise?: Promise<BundleManifest>;
   private scoringPromise?: Promise<ScoringConfig>;
+  private crestsPromise?: Promise<Record<string, string>>;
 
   manifest(): Promise<BundleManifest> {
     this.manifestPromise ??= fetch(`${this.base}/manifest.json`)
@@ -81,6 +82,14 @@ export class Bundle {
       .then((res) => (res.ok ? (res.json() as Promise<ScoringConfig>) : Promise.reject(
         new Error(`scoring_config.json non trovato (${res.status}).`))));
     return this.scoringPromise;
+  }
+
+  /** fc_club_id -> file name, written by the export next to the badges themselves. */
+  crests(): Promise<Record<string, string>> {
+    this.crestsPromise ??= fetch(`${this.base}/crests/index.json`).then((res) =>
+      res.ok ? (res.json() as Promise<Record<string, string>>) : {},
+    );
+    return this.crestsPromise;
   }
 
   table(name: string): Promise<BundleTable> {

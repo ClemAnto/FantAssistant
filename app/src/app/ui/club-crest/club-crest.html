@@ -1,7 +1,17 @@
-<span
-  class="inline-flex shrink-0 items-center justify-center rounded-full font-semibold leading-none text-white"
-  [class]="shape()"
-  [style.background-color]="colour()"
-  [title]="club() ?? 'Squadra ignota'"
-  >{{ initials() }}</span
->
+@if (badge(); as src) {
+  <img
+    [src]="src"
+    [alt]="club() ?? 'Squadra ignota'"
+    [title]="club() ?? 'Squadra ignota'"
+    [class]="shape() + ' shrink-0 rounded-full bg-white/5 object-contain p-0.5'"
+    loading="lazy"
+  />
+} @else {
+  <span
+    class="inline-flex shrink-0 items-center justify-center rounded-full font-semibold leading-none text-white"
+    [class]="shape()"
+    [style.background-color]="colour()"
+    [title]="club() ?? 'Squadra ignota'"
+    >{{ initials() }}</span
+  >
+}

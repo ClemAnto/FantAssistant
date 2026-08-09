@@ -80,6 +80,8 @@ export interface MatchCell {
 export interface PlayerRow {
   fcId: number;
   name: string;
+  /** The club's own id, which is what a crest is filed under - the NAME is not a key. */
+  clubId: number | null;
   role: ClassicRole;
   mantra: string;
   club: string;
@@ -186,6 +188,9 @@ export class PlayersStore {
   readonly generatedAt = signal<string | null>(null);
   readonly demo = signal(false);
   readonly scoring = signal<ScoringConfig | null>(null);
+  /** fc_club_id -> the badge's file name. Missing club, missing file: the mark falls back to a
+   *  monogram, which is what every club had before the badges existed. */
+  readonly crests = signal<Record<string, string>>({});
 
   private readonly rosters = signal<Map<Platform, PlayerRow[]>>(new Map());
   /** `platform|season` -> fc_id -> matchday -> cell */
@@ -395,8 +400,8 @@ export class PlayersStore {
     this.error.set(null);
     try {
       const manifest = await this.bundle.manifest();
-      const [players, clubs, rosters, quotes, ratings, external, map, injuries, lineups, scoring] =
-        await Promise.all([
+      const [players, clubs, rosters, quotes, ratings, external, map, injuries, lineups, scoring,
+        crests] = await Promise.all([
         this.bundle.table('players'),
         this.bundle.table('clubs'),
         this.bundle.table('rosters'),
@@ -409,11 +414,14 @@ export class PlayersStore {
         // A missing scoring file must not take the table down with it: the panel then shows
         // the events without their points, which is less than the truth but never a wrong one.
         this.bundle.scoring().catch(() => null),
+        // Optional by design: a bundle exported before the badges existed simply has none.
+        this.bundle.crests().catch(() => null),
       ]);
 
       this.generatedAt.set(manifest.generated_at);
       this.demo.set(manifest.demo === true);
       this.scoring.set(scoring);
+      this.crests.set(crests ?? {});
 
       const roster = buildRosters(players, clubs, rosters, quotes, manifest.target_season);
       this.rosters.set(roster);
@@ -545,6 +553,7 @@ function buildRosters(
     byId.set(fcId, {
       fcId,
       name: names.get(fcId) ?? `#${fcId}`,
+      clubId: (row[rClub] as number) ?? null,
       role,
       mantra: mantraLabel(row[rRoles] as string | null),
       club: clubNames.get(row[rClub] as number) ?? '',

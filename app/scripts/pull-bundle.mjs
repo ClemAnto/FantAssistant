@@ -63,9 +63,22 @@ for (const table of TABLES) {
   bytes += statSync(from).size;
 }
 
+// The clubs' badges: a folder of small images plus the index that says which file is whose.
+const crestsIn = join(src, 'crests');
+let crests = 0;
+if (existsSync(crestsIn)) {
+  const crestsOut = join(OUT, 'crests');
+  mkdirSync(crestsOut, { recursive: true });
+  for (const file of readdirSync(crestsIn)) {
+    copyFileSync(join(crestsIn, file), join(crestsOut, file));
+    bytes += statSync(join(crestsIn, file)).size;
+    crests++;
+  }
+}
+
 const manifest = JSON.parse(readFileSync(join(OUT, 'manifest.json'), 'utf8'));
 console.log(`bundle ${season} -> public/data`);
 console.log(`  schema_version ${manifest.schema_version}, generated ${manifest.generated_at}`);
 console.log(`  target ${manifest.target_season}, heavy seasons ${manifest.heavy_seasons.join(', ')}`);
-console.log(`  ${TABLES.length - missing.length}/${TABLES.length} tables, ${(bytes / 1024 / 1024).toFixed(1)} MB`);
+console.log(`  ${TABLES.length - missing.length}/${TABLES.length} tables, ${crests} crests, ${(bytes / 1024 / 1024).toFixed(1)} MB`);
 if (missing.length) console.warn(`  MISSING: ${missing.join(', ')}`);

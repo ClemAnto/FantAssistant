@@ -442,6 +442,23 @@ def run(ctx: Context, *, season: str | None = None, out: str | None = None,
         except OSError as exc:
             print(f"[export] WARNING: config {source.name} not copied ({exc})")
 
+    # The clubs' badges, downloaded once by `positions --layer crests`. They travel with the
+    # bundle for the same reason everything else does: the app reads what it is given and never
+    # the web, so a page of ours never depends on a provider's CDN staying friendly.
+    crests_in = ctx.config.cache_dir / "crests"
+    if crests_in.exists():
+        crests_out = folder / "crests"
+        crests_out.mkdir(parents=True, exist_ok=True)
+        copied = 0
+        for source in crests_in.iterdir():
+            if source.is_file():
+                _atomic_write_bytes(crests_out / source.name, source.read_bytes())
+                copied += 1
+        size = sum(path.stat().st_size for path in crests_out.iterdir())
+        print(f"[export] crests/: {copied} files, {size / 1024:.0f} KB")
+    else:
+        print("[export] note: no crests in the cache (run `positions --layer crests`)")
+
     problems: list[str] = []
     notes: list[str] = []
     if verify and "sqlite" in formats:

@@ -61,6 +61,7 @@ PLAYER_ENDPOINT = BASE_URL + "/player/{pid}"
 # pre-season is invisible - which is precisely the window an August auction is prepared in.
 TEAM_EVENTS_ENDPOINT = BASE_URL + "/team/{tid}/events/last/{page}"
 INCIDENTS_ENDPOINT = BASE_URL + "/event/{eid}/incidents"
+CREST_ENDPOINT = BASE_URL + "/team/{tid}/image"
 EXTRA_WINDOW_DAYS = 150       # how far back a non-league match is still part of "the last ten"
 
 # SofaScore unique-tournament ids for the 5 leagues in scope (verified against the API).
@@ -652,6 +653,69 @@ def fetch_extra_incidents(ctx: Context, seasons=None, refresh: bool = False) -> 
         session.close()
     print(f"[positions] incidents: {counts['matches']} matches, {counts['goals']} goals and "
           f"{counts['assists']} assists credited, {counts['unmatched']} scorers outside our pool")
+    return counts
+
+
+def fetch_club_crests(ctx: Context, refresh: bool = False) -> dict[str, int]:
+    """The clubs' badges, one request per club, cached as the bytes the provider sent.
+
+    Why the toolkit and not the app: the app reads the bundle and never the web, and a public
+    page that hot-links a provider's images depends on that provider staying friendly. Downloaded
+    once here, they travel with the export like any other fact.
+
+    No conversion and no resizing - the bytes are the source of truth, as everywhere else in this
+    cache - so the type varies (png and webp both come back) and `index.json` records the file
+    name per club. An unknown extension served as octet-stream is the kind of thing that works in
+    one browser and not in the next.
+    """
+    conn = ctx.require_conn()
+    targets = role_targets(conn, None)
+    out = ctx.config.cache_dir / "crests"
+    out.mkdir(parents=True, exist_ok=True)
+    by_club = conn.execute(
+        "SELECT c.canonical_name, c.fc_club_id FROM clubs c WHERE c.canonical_name IS NOT NULL")
+    ids = {name: club_id for name, club_id in by_club}
+    counts = {"clubs": 0, "downloaded": 0, "bytes": 0, "missing_id": 0}
+    index: dict[str, str] = {}
+    existing = json.loads((out / "index.json").read_text(encoding="utf-8")) if (
+        out / "index.json").exists() else {}
+    index.update(existing)
+
+    session = _client()
+    try:
+        for name, team_id in targets:
+            club_id = ids.get(name)
+            if club_id is None:
+                counts["missing_id"] += 1
+                continue
+            counts["clubs"] += 1
+            already = index.get(str(club_id))
+            if already and (out / already).exists() and not refresh:
+                continue
+            if ctx.cancelled():
+                raise KeyboardInterrupt
+            _polite_sleep(ctx.cancel_event)
+            response = session.get(CREST_ENDPOINT.format(tid=team_id), timeout=30)
+            if response.status_code != 200 or not response.content:
+                print(f"[positions] crest {name}: HTTP {response.status_code}")
+                continue
+            kind = (response.headers.get("content-type") or "").split("/")[-1].split(";")[0]
+            suffix = {"png": "png", "webp": "webp", "jpeg": "jpg", "svg+xml": "svg"}.get(kind)
+            if suffix is None:
+                print(f"[positions] crest {name}: unexpected type {kind!r}, skipped")
+                continue
+            file_name = f"{club_id}.{suffix}"
+            (out / file_name).write_bytes(response.content)
+            index[str(club_id)] = file_name
+            counts["downloaded"] += 1
+            counts["bytes"] += len(response.content)
+    except KeyboardInterrupt:
+        print("[positions] interrupted - the crests already downloaded are cached")
+    finally:
+        session.close()
+        _atomic_write_text(out / "index.json", json.dumps(index, ensure_ascii=False, indent=1))
+    print(f"[positions] crests: {counts['downloaded']} downloaded, {len(index)} in cache, "
+          f"{counts['bytes'] / 1024:.0f} KB")
     return counts
 
 
@@ -2128,8 +2192,10 @@ def run(ctx: Context, *, leagues=None, seasons=None, refresh: bool = False,
         raise RuntimeError(
             f"{feeders} are FEEDER leagues: only the season aggregate is wanted from them (the men a "
             f"promoted club brings up need measured starts and minutes). Use --layer season.")
+    if layer == "crests":
+        return fetch_club_crests(ctx, refresh=refresh)
     if layer not in ("season", "match", "complete", "heatmap", "roles", "all", "reparse",
-                     "crosstab", "extra"):
+                     "crosstab", "extra", "crests"):
         raise RuntimeError(f"Unknown layer {layer!r}; choose from "
                            "season|match|complete|heatmap|roles|all|reparse|crosstab|extra")
 
