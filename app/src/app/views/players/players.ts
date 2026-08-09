@@ -49,6 +49,24 @@ export const STATE_LABEL: Record<CellState, string> = {
 /** dd/mm/yyyy, because a date in a tooltip is read by a person and not by a parser. */
 const it = (iso: string): string => iso.split('-').reverse().join('/');
 
+/** One symbol per kind of match, used BOTH in the column header and in the cell: two marks for
+ *  the same thing would be two vocabularies. `national` has no icon in use - no national-team
+ *  competition exists in the per-match layer, measured - but it is mapped so that the day one
+ *  arrives it is named rather than filed under "cup". */
+export const KIND_ICON: Record<string, string> = {
+  league: 'calendar',
+  cup: 'trophy',
+  friendly: 'coffee',
+  national: 'flag',
+};
+
+export const KIND_LABEL: Record<string, string> = {
+  league: 'Campionato',
+  cup: 'Coppa o altra competizione',
+  friendly: 'Amichevole',
+  national: 'Nazionale',
+};
+
 const ROLE_LABEL: Record<ClassicRole, string> = {
   P: 'Portiere',
   D: 'Difensore',
@@ -96,11 +114,16 @@ export class Players {
    *  not know whose it is, and the panel names him. */
   protected readonly selected = signal<{ cell: MatchCell; player: PlayerLine } | null>(null);
 
+  /** Which cell the pointer is on. The tooltip is driven from here instead of by hover alone,
+   *  so a CLICK can close it: otherwise it stays up over the panel it just opened. */
+  protected readonly hovered = signal<string | null>(null);
+
   constructor() {
     void this.store.load();
   }
 
   protected open(cell: MatchCell, player: PlayerLine): void {
+    this.hovered.set(null);
     this.selected.set({ cell, player });
   }
 
@@ -115,6 +138,8 @@ export class Players {
    *  a league match carries the fantacalcio vote (or the calibrated synthetic one, marked
    *  `~`), while a cup or a friendly can only carry the provider's own 1-10 rating, marked
    *  `*` because it is a different scale. A dot means he has a row and nothing measurable. */
+  protected readonly kindIcon = KIND_ICON;
+  protected readonly kindLabel = KIND_LABEL;
   protected readonly stateIcon = STATE_ICON;
   protected readonly stateLabel = STATE_LABEL;
 

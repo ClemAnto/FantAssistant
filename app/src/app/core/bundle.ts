@@ -111,6 +111,12 @@ export class Bundle {
   }
 }
 
+/** For a column a NEWER export added: an older bundle simply does not have it, and that is
+ *  "unknown", not a reason to refuse the whole table. Returns -1, and the caller reads null. */
+export function optionalIndex(table: BundleTable, name: string): number {
+  return table.columns.indexOf(name);
+}
+
 /** Positional access without materialising an object per row: 110k rows go through here. */
 export function columnIndex(table: BundleTable, ...names: string[]): number[] {
   return names.map((name) => {

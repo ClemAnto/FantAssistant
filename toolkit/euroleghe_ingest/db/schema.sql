@@ -247,6 +247,13 @@ CREATE TABLE IF NOT EXISTS external_match_stats (
     yellows     INTEGER,
     reds        INTEGER,
     mv_synth    REAL,                        -- calibrated synthetic base voto, never the euro target
+    -- The SCORELINE of that match, from the side of `club`. Only the extra layer fills it: a
+    -- league match derives its score inside `match_ratings` (goals + converted penalties for,
+    -- the keeper's conceded against), while a friendly has no ratings row anywhere and summing
+    -- our own rows would count only the players whose identity resolved - and none of the
+    -- opponent's. The provider's event object carries it and the parser used to drop it.
+    team_goals      INTEGER,
+    opponent_goals  INTEGER,
     PRIMARY KEY (fc_id, season, source, match_id)
 );
 

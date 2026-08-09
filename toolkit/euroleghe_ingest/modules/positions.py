@@ -301,9 +301,12 @@ def parse_round(payload: dict, season: str, xref: dict[str, int],
         sides = payload.get("lineups", {}).get(event_id) or {}
         real_md = event.get("round")
         match_date = _iso_date(event.get("startTimestamp"))
+        home_goals, away_goals = event.get("homeGoals"), event.get("awayGoals")
         for side in ("home", "away"):
             club = event.get(side)
             opponent = event.get("away" if side == "home" else "home")
+            team_goals = home_goals if side == "home" else away_goals
+            opponent_goals = away_goals if side == "home" else home_goals
             slots = {"G": 0, "D": 0, "M": 0, "F": 0}
             starters = 0
             for entry in sides.get(side) or []:
@@ -336,6 +339,7 @@ def parse_round(payload: dict, season: str, xref: dict[str, int],
                     _int(stats.get("totalShots")), _int(stats.get("onTargetScoringAttempt")),
                     _int(stats.get("bigChanceCreated")), _int(stats.get("bigChanceMissed")),
                     _int(stats.get("keyPass")), _int(stats.get("touches")),
+                    team_goals, opponent_goals,
                 ))
             if starters:
                 club_rows.append((event_season, event_id, club, competition, real_md, match_date,
@@ -360,8 +364,9 @@ def _store_match_rows(conn, rows: list[tuple], source: str = LEAGUE_SOURCE) -> i
         INSERT OR REPLACE INTO external_match_stats(
             fc_id, season, source, match_id, competition, real_md, match_date, club, opponent,
             home, position, started, minutes, rating, goals, assists, xg, xa,
-            shots, shots_on_target, big_chances_created, big_chances_missed, key_passes, touches)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            shots, shots_on_target, big_chances_created, big_chances_missed, key_passes, touches,
+            team_goals, opponent_goals)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         [(row[0], row[1], source, *row[2:]) for row in rows],
     )
@@ -489,6 +494,10 @@ def download_extra(session, team_id: str, since: str, cancel_event=None) -> dict
             "startTimestamp": event.get("startTimestamp"),
             "competition": _slug_of(event),
             "season": _season_of(date),
+            # The result. A friendly has no ratings row to derive it from, so if it is not kept
+            # here it does not exist anywhere.
+            "homeGoals": ((event.get("homeScore") or {}).get("current")),
+            "awayGoals": ((event.get("awayScore") or {}).get("current")),
         })
         if cancel_event is not None and cancel_event.is_set():
             break

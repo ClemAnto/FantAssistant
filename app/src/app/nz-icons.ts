@@ -1,6 +1,9 @@
 import { IconDefinition } from '@ant-design/icons-angular';
 import {
   AimOutline,
+  CalendarOutline,
+  CoffeeOutline,
+  FlagOutline,
   GlobalOutline,
   MedicineBoxOutline,
   MinusCircleOutline,
@@ -9,6 +12,7 @@ import {
   RocketOutline,
   ShareAltOutline,
   ThunderboltOutline,
+  TrophyOutline,
 } from '@ant-design/icons-angular/icons';
 
 /** The icons the app registers, in one place: `provideNzIcons(NZ_ICONS)` in app.config.ts
@@ -16,6 +20,9 @@ import {
  *  (otherwise the icon is fetched dynamically, 404s, and the test hangs). */
 export const NZ_ICONS: IconDefinition[] = [
   AimOutline,
+  CalendarOutline,
+  CoffeeOutline,
+  FlagOutline,
   GlobalOutline,
   MedicineBoxOutline,
   MinusCircleOutline,
@@ -24,4 +31,5 @@ export const NZ_ICONS: IconDefinition[] = [
   RocketOutline,
   ShareAltOutline,
   ThunderboltOutline,
+  TrophyOutline,
 ];

@@ -23,6 +23,11 @@ def connect(db_path: Path) -> sqlite3.Connection:
 # every query naming the new column fails with "no such column" - and the only cure would be
 # `rebuild`, which drops everything. Additive columns only: anything else needs a real migration.
 ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
+    # The scoreline of a match the ratings layer never sees: friendlies and cup ties. Added
+    # 09/08/2026 - the provider's event has always carried `homeScore`/`awayScore` and the
+    # parser threw them away, so a pre-season friendly could name the opponent and not the result.
+    ("external_match_stats", "team_goals", "INTEGER"),
+    ("external_match_stats", "opponent_goals", "INTEGER"),
     ("rosters", "price_initial", "REAL"),
     ("rosters", "fvm", "REAL"),
     ("rosters", "fvm_mantra", "REAL"),

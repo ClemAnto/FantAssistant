@@ -278,11 +278,15 @@ def test_parse_round_uses_the_xref_and_keeps_the_real_matchday():
                           1, 0, 0, 0, 1)]
     (fc_id, season, match_id, competition, real_md, match_date, club, opponent, home, position,
      started, minutes, rating, goals, assists, xg, xa,
-     shots, shots_on_target, bcc, bcm, key_passes, touches) = rows[0]
+     shots, shots_on_target, bcc, bcm, key_passes, touches,
+     team_goals, opponent_goals) = rows[0]
     assert (fc_id, season, match_id, competition, real_md) == (1, "2023-24", "111", "premier_league", 7)
     assert (club, opponent, home, started, minutes, rating) == ("Liverpool FC", "Arsenal", 1, 1, 88, 7.4)
     assert (goals, assists, xg, xa, position) == (1, 1, 0.7, 0.2, "F")
     assert (shots, shots_on_target, bcc, bcm, key_passes, touches) == (5, 3, 1, 2, 4, 41)
+    # a league payload carries no scoreline: it is derived from `match_ratings`, and the extra
+    # layer is the only one that has to keep the provider's own numbers
+    assert (team_goals, opponent_goals) == (None, None)
     assert match_date == "2023-09-29"
 
 

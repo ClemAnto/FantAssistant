@@ -1,6 +1,6 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 
-import { Bundle, BundleTable, ScoringConfig, columnIndex } from './bundle';
+import { Bundle, BundleTable, ScoringConfig, columnIndex, optionalIndex } from './bundle';
 
 export type ClassicRole = 'P' | 'D' | 'C' | 'A';
 export const CLASSIC_ROLES: ClassicRole[] = ['P', 'D', 'C', 'A'];
@@ -93,6 +93,9 @@ export interface ColumnSlot {
   label: string;
   /** The scoreline, on its own line under the label. Only when a club is selected. */
   detail: string | null;
+  /** What kind of match the column is about - known only when one club is on screen, because
+   *  without a filter a week holds a league round AND its cup ties AND friendlies at once. */
+  kind: MatchKind | null;
   title: string;
 }
 
@@ -259,7 +262,8 @@ export class PlayersStore {
         ...slot,
         label: fixture.label,
         detail: fixture.detail ?? slot.label,
-        title: `${fixture.long} · ${slot.title}`,
+        kind: chosen.kind,
+        title: `${chosen.competitionLabel} · ${fixture.long} · ${slot.title}`,
       };
     });
   });
@@ -275,6 +279,7 @@ export class PlayersStore {
       key: String(md),
       label: String(md),
       detail: null,
+      kind: null,
       title: `Giornata ${md}`,
     })),
   );
@@ -315,6 +320,7 @@ export class PlayersStore {
           key,
           label: days.length ? days.join('/') : day(entry.first).slice(0, 5),
           detail: null,
+          kind: null,
           title: days.length ? `Giornata ${days.join(', ')} · ${range}` : range,
         };
       });
@@ -773,8 +779,8 @@ function buildOtherMatches(
   seasons: Set<string>,
   leagueOf: Map<number, string | null>,
 ): Map<string, Map<number, MatchCell[]>> {
-  const [fcId, season, competition, date, club, opponent, home, minutes, rating, goals, assists, yellows, reds] =
-    columnIndex(
+  const [fcId, season, competition, date, club, opponent, home, minutes, rating, goals, assists,
+    yellows, reds] = columnIndex(
       external,
       'fc_id',
       'season',
@@ -790,6 +796,11 @@ function buildOtherMatches(
       'yellows',
       'reds',
     );
+  // The scoreline the provider published - a cup or a friendly has no ratings row to derive one
+  // from. Optional: a bundle exported before 09/08/2026 has no such column, and that is a gap in
+  // the data, not a reason to refuse to draw the table.
+  const teamGoals = optionalIndex(external, 'team_goals');
+  const opponentGoals = optionalIndex(external, 'opponent_goals');
 
   const out = new Map<string, Map<number, MatchCell[]>>();
   for (const row of external.rows) {
@@ -837,8 +848,8 @@ function buildOtherMatches(
       team: (row[club] as string) ?? '',
       opponent: (row[opponent] as string) ?? null,
       home: row[home] == null ? null : row[home] === 1,
-      goalsFor: null,
-      goalsAgainst: null,
+      goalsFor: teamGoals < 0 ? null : ((row[teamGoals] as number) ?? null),
+      goalsAgainst: opponentGoals < 0 ? null : ((row[opponentGoals] as number) ?? null),
     });
   }
   for (const seasonMap of out.values()) {

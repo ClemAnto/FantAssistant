@@ -168,7 +168,7 @@
       nzSize="small"
       [nzData]="store.lines()"
       [nzPageSize]="25"
-      [nzScroll]="{ x: '1120px' }"
+      [nzScroll]="{ x: '1220px' }"
     >
       <thead>
         <tr>
@@ -179,10 +179,19 @@
           @for (header of headers(); track $index) {
             <th
               class="text-center leading-tight"
-              [attr.nzWidth]="header.detail ? '78px' : '58px'"
+              [attr.nzWidth]="header.detail ? '92px' : '58px'"
               [title]="header.title"
             >
-              {{ header.label }}
+              <span class="flex items-center justify-center gap-1">
+                @if (header.kind) {
+                  <nz-icon
+                    [nzType]="kindIcon[header.kind]"
+                    class="text-[10px] text-muted"
+                    [attr.title]="kindLabel[header.kind]"
+                  />
+                }
+                {{ header.label }}
+              </span>
               @if (header.detail) {
                 <span class="block text-[10px] font-normal text-muted">{{ header.detail }}</span>
               }
@@ -218,6 +227,9 @@
                     tabindex="0"
                     nz-tooltip
                     [nzTooltipTitle]="tooltip(cell)"
+                    [nzTooltipVisible]="hovered() === line.fcId + ':' + $index"
+                    (mouseenter)="hovered.set(line.fcId + ':' + $index)"
+                    (mouseleave)="hovered.set(null)"
                     (click)="open(cell, line)"
                     (keydown.enter)="open(cell, line)"
                     (keydown.space)="open(cell, line)"
@@ -231,11 +243,12 @@
                       <span [class]="voteClass(cell)">{{ voteText(cell) }}</span>
                     }
                     <span class="mt-0.5 flex h-3 items-center gap-1 text-[10px]">
-                      @if (cell.kind === 'cup') {
-                        <span class="text-warning" title="Coppa o altra competizione">C</span>
-                      }
-                      @if (cell.kind === 'friendly') {
-                        <span class="text-muted" title="Amichevole">A</span>
+                      @if (cell.kind !== 'league') {
+                        <nz-icon
+                          [nzType]="kindIcon[cell.kind]"
+                          [class]="cell.kind === 'cup' ? 'text-warning' : 'text-muted'"
+                          [attr.title]="kindLabel[cell.kind]"
+                        />
                       }
                       @if (cell.goals + cell.penScored > 0) {
                         <span class="flex items-center text-primary">
@@ -297,6 +310,14 @@
         competizioni calibrate, quindi quello che c'e' e' il rating del provider e nient'altro.
         Delle <span class="text-fg">nazionali non abbiamo nulla</span>: nessuna competizione per
         nazionali esiste in questi dati, e una colonna vuota sarebbe peggio di questa riga.
+      </p>
+      <p class="flex flex-wrap items-center gap-x-4 gap-y-1">
+        <span>Competizione:</span>
+        <span class="flex items-center gap-1"><nz-icon nzType="calendar" /> campionato</span>
+        <span class="flex items-center gap-1 text-warning"
+          ><nz-icon nzType="trophy" /> coppa o altra competizione</span
+        >
+        <span class="flex items-center gap-1"><nz-icon nzType="coffee" /> amichevole</span>
       </p>
       <p class="flex flex-wrap items-center gap-x-4 gap-y-1">
         <span>Quando non ha giocato, la cella dice perche':</span>
