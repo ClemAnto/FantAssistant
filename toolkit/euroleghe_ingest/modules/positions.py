@@ -60,6 +60,7 @@ PLAYER_ENDPOINT = BASE_URL + "/player/{pid}"
 # LEAGUE calendar contains, so in July the per-match layer stops at the last matchday of May and a whole
 # pre-season is invisible - which is precisely the window an August auction is prepared in.
 TEAM_EVENTS_ENDPOINT = BASE_URL + "/team/{tid}/events/last/{page}"
+INCIDENTS_ENDPOINT = BASE_URL + "/event/{eid}/incidents"
 EXTRA_WINDOW_DAYS = 150       # how far back a non-league match is still part of "the last ten"
 
 # SofaScore unique-tournament ids for the 5 leagues in scope (verified against the API).
@@ -554,6 +555,103 @@ def fetch_extra_matches(ctx: Context, clubs=None, refresh: bool = False,
     finally:
         session.close()
     reingest_match_layer(ctx, seasons=[season])
+    # The line-ups say who was there; only the incidents say who scored.
+    fetch_extra_incidents(ctx, seasons=[season], refresh=refresh)
+    return counts
+
+
+def fetch_extra_incidents(ctx: Context, seasons=None, refresh: bool = False) -> dict[str, int]:
+    """WHO scored in a friendly, which the line-up payload cannot say.
+
+    A non-league match arrives with the eleven and no per-player statistics at all - measured on
+    2026-27: 1,188 rows of 4,332 carry even a minute - so its goals exist only as a scoreline and
+    92 of 919 had a name on them. The incidents endpoint names the scorer with the provider's own
+    player id, so `player_xref` maps him without ever touching a NAME.
+
+    Only the matches that need it are fetched: a 0-0 costs nothing, and neither does one whose
+    goals are already attributed. The cache never expires here and that is correct - a finished
+    match does not get new goals - unlike the club listing, whose cache froze the whole layer.
+
+    Assists are written ONLY where the provider recorded one (11 of 40 goals over a sample of 12
+    pre-season matches). A missing assist is not a zero and nothing here invents it.
+    """
+    conn = ctx.require_conn()
+    seasons = list(seasons or [])
+    params: list = [EXTRA_SOURCE]
+    where = "source = ?"
+    if seasons:
+        where += f" AND season IN ({','.join('?' * len(seasons))})"
+        params += seasons
+    # (match, club) pairs whose declared goals are not all attributed to a player yet
+    todo = conn.execute(
+        f"""
+        SELECT match_id, season, SUM(declared) AS declared, SUM(attributed) AS attributed
+        FROM (SELECT match_id, season, club,
+                     MAX(COALESCE(team_goals, 0)) AS declared,
+                     SUM(COALESCE(goals, 0))      AS attributed
+              FROM external_match_stats WHERE {where}
+              GROUP BY match_id, season, club)
+        GROUP BY match_id, season
+        HAVING declared > attributed
+        ORDER BY match_id
+        """, params).fetchall()
+    counts = {"matches": 0, "goals": 0, "assists": 0, "unmatched": 0, "requests": 0}
+    if not todo:
+        print("[positions] incidents: nothing to attribute")
+        return counts
+
+    xref = {source_id: fc_id for source_id, fc_id in conn.execute(
+        "SELECT source_id, fc_id FROM player_xref WHERE source = 'sofascore'")}
+    print(f"[positions] incidents: {len(todo)} matches with goals nobody is credited for")
+    session = _client()
+    try:
+        for match_id, season, _declared, _attributed in todo:
+            if ctx.cancelled():
+                raise KeyboardInterrupt
+            cache = ctx.config.cache_dir / f"sofascore_incidents_{match_id}.json"
+            if cache.exists() and not refresh:
+                payload = json.loads(cache.read_text(encoding="utf-8"))
+            else:
+                _polite_sleep(ctx.cancel_event)
+                payload = _get_json(session, INCIDENTS_ENDPOINT.format(eid=match_id)) or {}
+                counts["requests"] += 1
+                _atomic_write_text(cache, json.dumps(payload, ensure_ascii=False))
+            goals: dict[int, int] = {}
+            assists: dict[int, int] = {}
+            for incident in payload.get("incidents", []):
+                if incident.get("incidentType") != "goal":
+                    continue
+                # An own goal is not a goal for the man who put it in: this table has no column
+                # for one, so it is left out rather than credited to him.
+                if incident.get("incidentClass") == "ownGoal":
+                    continue
+                scorer = xref.get(str((incident.get("player") or {}).get("id") or ""))
+                if scorer is None:
+                    counts["unmatched"] += 1
+                else:
+                    goals[scorer] = goals.get(scorer, 0) + 1
+                helper = xref.get(str((incident.get("assist1") or {}).get("id") or ""))
+                if helper is not None:
+                    assists[helper] = assists.get(helper, 0) + 1
+            for fc_id, n in goals.items():
+                counts["goals"] += conn.execute(
+                    "UPDATE external_match_stats SET goals = ? "
+                    "WHERE fc_id = ? AND season = ? AND source = ? AND match_id = ?",
+                    (n, fc_id, season, EXTRA_SOURCE, match_id)).rowcount
+            for fc_id, n in assists.items():
+                counts["assists"] += conn.execute(
+                    "UPDATE external_match_stats SET assists = ? "
+                    "WHERE fc_id = ? AND season = ? AND source = ? AND match_id = ?",
+                    (n, fc_id, season, EXTRA_SOURCE, match_id)).rowcount
+            counts["matches"] += 1
+        conn.commit()
+    except KeyboardInterrupt:
+        conn.commit()
+        print("[positions] interrupted - what was already read is committed")
+    finally:
+        session.close()
+    print(f"[positions] incidents: {counts['matches']} matches, {counts['goals']} goals and "
+          f"{counts['assists']} assists credited, {counts['unmatched']} scorers outside our pool")
     return counts
 
 
