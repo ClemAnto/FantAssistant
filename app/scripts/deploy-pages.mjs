@@ -65,6 +65,13 @@ console.log(`\n4/5  preparo il branch ${BRANCH}`);
 const work = mkdtempSync(join(tmpdir(), 'ghpages-'));
 try {
   run('git', ['worktree', 'add', '--detach', work], { cwd: REPO });
+  // The branch is rebuilt from scratch every time, so a local one left by the previous deploy
+  // would make `checkout --orphan` fail. It is dropped, not reused: the remote is the truth.
+  try {
+    run('git', ['branch', '-D', BRANCH], { cwd: REPO });
+  } catch {
+    /* first deploy on this machine: there is nothing to delete */
+  }
   run('git', ['checkout', '--orphan', BRANCH], { cwd: work });
   // The orphan branch starts with the previous worktree's files staged: clear it, then take
   // exactly what the build produced.
