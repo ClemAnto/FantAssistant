@@ -153,9 +153,10 @@
           </div>
         } @else {
           <p class="max-w-xl pb-1 text-xs text-muted">
-            Una coppa non ha una giornata di campionato, quindi la colonna smette di essere una
-            giornata e diventa <span class="text-fg">una partita</span>: le ultime dieci di ogni
-            calciatore, in ordine di data. Il filtro per periodo torna togliendo le spunte.
+            Con le coppe la colonna diventa una <span class="text-fg">settimana</span>, da giovedi'
+            a mercoledi': cosi' una giornata giocata fra venerdi' e lunedi' e il turno infrasettimanale
+            restano incolonnati, e la stessa colonna e' la stessa settimana per tutti. Il filtro per
+            periodo torna togliendo le spunte.
           </p>
         }
       </div>
@@ -175,7 +176,7 @@
           <th nzWidth="110px">Mantra</th>
           <th nzWidth="130px">Squadra</th>
           @for (header of headers(); track $index) {
-            <th class="text-center" nzWidth="58px">{{ header }}</th>
+            <th class="text-center" nzWidth="58px" [title]="header.title">{{ header.label }}</th>
           }
         </tr>
       </thead>

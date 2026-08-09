@@ -88,12 +88,12 @@ export class Players {
     this.store.windowTo(),
   ]);
 
-  /** In "last matches" mode a column is a position, not a matchday: 10 = ten matches ago,
-   *  1 = the most recent, so the row still reads left to right in time. */
+  /** In the mixed view a column is a WEEK shared by every row - its label is the matchday
+   *  played in it, or the date when no league round falls there. */
   protected readonly headers = computed(() =>
     this.store.byMatchday()
-      ? this.store.matchdays().map(String)
-      : Array.from({ length: 10 }, (_, i) => String(10 - i)),
+      ? this.store.matchdays().map((md) => ({ label: String(md), title: `Giornata ${md}` }))
+      : this.store.slots().map((slot) => ({ label: slot.label, title: slot.title })),
   );
 
   /** The match the detail panel is showing, with the player it belongs to: a cell alone does
@@ -206,6 +206,9 @@ export class Players {
         parts.push(`fantavoto ${cell.fantavoto.toFixed(1).replace('.', ',')}`);
       }
       if (cell.voteSynthetic) parts.push('voto sintetico calibrato, non quello di fantacalcio');
+    }
+    if (cell.alsoInWeek) {
+      parts.push(`+${cell.alsoInWeek} altra partita nella stessa settimana`);
     } else if (cell.providerRating != null) {
       parts.push(`* voto Sofascore ${cell.providerRating.toFixed(1).replace('.', ',')} - scala diversa dal voto di fantacalcio`);
     } else {

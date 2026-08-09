@@ -68,6 +68,8 @@ export interface MatchCell {
   home: boolean | null;
   goalsFor: number | null;
   goalsAgainst: number | null;
+  /** Set only in the mixed view, when the week held more than one match for this player. */
+  alsoInWeek?: number;
 }
 
 export interface PlayerRow {
@@ -83,7 +85,29 @@ export interface PlayerLine extends PlayerRow {
   cells: (MatchCell | null)[];
 }
 
+/** One column of the mixed-competition view: a WEEK, so that a round spread over Friday to
+ *  Monday and the midweek cup tie of the same week share a column across every player. */
+export interface ColumnSlot {
+  key: string;
+  label: string;
+  title: string;
+}
+
 const COLUMNS = 10;
+
+/** The football week runs THURSDAY to WEDNESDAY, and that is measured rather than chosen: on
+ *  Serie A 2025-26 a Monday-anchored week splits 28 matchdays of 38 across two columns, a
+ *  Thursday-anchored one splits 4. Clustering by gaps does not work at all - across five
+ *  leagues and their cups there is football almost every day, so 240 dates collapse into 14
+ *  groups, one of them 59 days long. */
+const WEEK_ANCHOR = 4; // Thursday, as Date#getUTCDay counts it (Sunday = 0)
+
+function weekOf(iso: string): string {
+  const day = new Date(`${iso}T00:00:00Z`);
+  const back = (day.getUTCDay() - WEEK_ANCHOR + 7) % 7;
+  day.setUTCDate(day.getUTCDate() - back);
+  return day.toISOString().slice(0, 10);
+}
 
 /** The championships a player's own league rows live under: everything else in the per-match
  *  layer is another competition. Measured on the bundle, not guessed. */
@@ -193,6 +217,50 @@ export class PlayersStore {
     return days;
   });
 
+  /** The shared axis of the mixed view: the last ten WEEKS in which anything was played, so
+   *  column 3 is the same week for every row. Without it each player carried his own last ten
+   *  matches and two rows could not be read against each other. */
+  readonly slots = computed<ColumnSlot[]>(() => {
+    if (this.byMatchday()) return [];
+    const season = this.season();
+    const leagueBySeason = this.league().get(`${this.platform()}|${season}`);
+    const otherBySeason = this.other().get(season);
+    const wantCups = this.withCups();
+    const wantFriendlies = this.withFriendlies();
+
+    /** week -> the matchdays played in it, and the earliest date seen */
+    const weeks = new Map<string, { matchdays: Set<number>; first: string; last: string }>();
+    const note = (cell: MatchCell) => {
+      const week = cell.date ? weekOf(cell.date) : null;
+      if (!week) return;
+      let entry = weeks.get(week);
+      if (!entry) weeks.set(week, (entry = { matchdays: new Set(), first: cell.date!, last: cell.date! }));
+      if (cell.matchday != null && cell.kind === 'league') entry.matchdays.add(cell.matchday);
+      if (cell.date! < entry.first) entry.first = cell.date!;
+      if (cell.date! > entry.last) entry.last = cell.date!;
+    };
+    for (const byDay of leagueBySeason?.values() ?? []) for (const cell of byDay.values()) note(cell);
+    for (const list of otherBySeason?.values() ?? []) {
+      for (const cell of list) {
+        if (cell.kind === 'cup' ? wantCups : wantFriendlies) note(cell);
+      }
+    }
+
+    return [...weeks.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .slice(-COLUMNS)
+      .map(([key, entry]) => {
+        const days = [...entry.matchdays].sort((a, b) => a - b);
+        const range =
+          entry.first === entry.last ? day(entry.first) : `${day(entry.first)}-${day(entry.last)}`;
+        return {
+          key,
+          label: days.length ? days.join('/') : day(entry.first).slice(0, 5),
+          title: days.length ? `Giornata ${days.join(', ')} · ${range}` : range,
+        };
+      });
+  });
+
   readonly lines = computed<PlayerLine[]>(() => {
     const season = this.season();
     const leagueBySeason = this.league().get(`${this.platform()}|${season}`);
@@ -202,6 +270,7 @@ export class PlayersStore {
     const role = this.role();
     const club = this.club();
     const byMatchday = this.byMatchday();
+    const slots = this.slots();
     const wantCups = this.withCups();
     const wantFriendlies = this.withFriendlies();
 
@@ -215,15 +284,30 @@ export class PlayersStore {
           const missing = absenceBySeason?.get(p.fcId);
           return { ...p, cells: days.map((md) => own?.get(md) ?? missing?.get(md) ?? null) };
         }
-        // Mixed competitions: a column is a MATCH, and the only order they share is the date.
+        // Mixed competitions: a column is a WEEK of the shared axis, not this player's own
+        // nth-from-last match - otherwise column 3 means a different date on every row.
         const matches = [...(own?.values() ?? [])];
         for (const cell of otherBySeason?.get(p.fcId) ?? []) {
           if (cell.kind === 'cup' ? wantCups : wantFriendlies) matches.push(cell);
         }
-        matches.sort((a, b) => sortKey(a, season) - sortKey(b, season));
-        const last = matches.slice(-COLUMNS);
-        const pad = Array<MatchCell | null>(Math.max(0, COLUMNS - last.length)).fill(null);
-        return { ...p, cells: [...pad, ...last] };
+        const byWeek = new Map<string, MatchCell[]>();
+        for (const cell of matches) {
+          if (!cell.date) continue; // no date, no column it can honestly sit in
+          const week = weekOf(cell.date);
+          const list = byWeek.get(week);
+          list ? list.push(cell) : byWeek.set(week, [cell]);
+        }
+        return {
+          ...p,
+          cells: slots.map((slot) => {
+            const week = byWeek.get(slot.key);
+            if (!week?.length) return null;
+            // Two matches in one week: the league one is the column's subject, the other is
+            // named in the tooltip rather than dropped in silence.
+            const chosen = week.find((c) => c.kind === 'league') ?? week[0];
+            return week.length > 1 ? { ...chosen, alsoInWeek: week.length - 1 } : chosen;
+          }),
+        };
       });
 
     if (this.sortBy() === 'played') {
@@ -319,6 +403,11 @@ export class PlayersStore {
 /** Sorting mixed competitions needs one axis, and it is the date. A league match whose
  *  provider row did not match has no date, so it falls back to a position derived from its
  *  matchday - approximate, and better than dropping it to the front of the list. */
+/** dd/mm/yyyy: a date in a header is read by a person. */
+function day(iso: string): string {
+  return iso.split('-').reverse().join('/');
+}
+
 function sortKey(cell: MatchCell, season: string): number {
   if (cell.date) return Date.parse(cell.date);
   const startYear = Number(season.slice(0, 4));
