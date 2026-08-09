@@ -68,6 +68,11 @@ export interface MatchCell {
   home: boolean | null;
   goalsFor: number | null;
   goalsAgainst: number | null;
+  /** The shape his club started with, from the line counts of that match's own line-up:
+   *  `4-3-3`. Joined on (match_id, club) - two outputs of the SAME parser - and never by
+   *  matching a club NAME across sources, which is how `coach_repertoire` once lost 13,830
+   *  elevens of 24,042. */
+  shape: string | null;
   /** Set only in the mixed view, when the week held more than one match for this player. */
   alsoInWeek?: number;
 }
@@ -261,9 +266,9 @@ export class PlayersStore {
       return {
         ...slot,
         label: fixture.label,
-        detail: fixture.detail ?? slot.label,
+        detail: [fixture.detail ?? slot.label, chosen.shape].filter(Boolean).join(' · '),
         kind: chosen.kind,
-        title: `${chosen.competitionLabel} · ${fixture.long} · ${slot.title}`,
+        title: `${chosen.competitionLabel} · ${fixture.long}${chosen.shape ? ' · modulo ' + chosen.shape : ''} · ${slot.title}`,
       };
     });
   });
@@ -390,7 +395,7 @@ export class PlayersStore {
     this.error.set(null);
     try {
       const manifest = await this.bundle.manifest();
-      const [players, clubs, rosters, quotes, ratings, external, map, injuries, scoring] =
+      const [players, clubs, rosters, quotes, ratings, external, map, injuries, lineups, scoring] =
         await Promise.all([
         this.bundle.table('players'),
         this.bundle.table('clubs'),
@@ -400,6 +405,7 @@ export class PlayersStore {
         this.bundle.table('external_match_stats'),
         this.bundle.table('matchday_map'),
         this.bundle.table('injuries'),
+        this.bundle.table('club_match_lineups'),
         // A missing scoring file must not take the table down with it: the panel then shows
         // the events without their points, which is less than the truth but never a wrong one.
         this.bundle.scoring().catch(() => null),
@@ -417,7 +423,8 @@ export class PlayersStore {
 
       const provider = buildProviderIndex(external);
       const euroToReal = buildMatchdayMap(map);
-      const built = buildLeagueMatches(ratings, provider.index, leagueOf, euroToReal);
+      const shapes = buildShapes(lineups);
+      const built = buildLeagueMatches(ratings, provider.index, leagueOf, euroToReal, shapes);
       this.league.set(built);
       this.absence.set(
         buildAbsences(built, roster, provider, euroToReal, buildInjuries(injuries)),
@@ -428,7 +435,7 @@ export class PlayersStore {
         manifest.target_season,
       ].sort();
       this.seasons.set(seasons);
-      this.other.set(buildOtherMatches(external, new Set(seasons), leagueOf));
+      this.other.set(buildOtherMatches(external, new Set(seasons), leagueOf, shapes));
 
       this.selectSeason(seasons.at(-2) ?? seasons.at(-1) ?? '');
       this.status.set('ready');
@@ -574,6 +581,7 @@ function mantraLabel(roles: string | null): string {
 }
 
 interface ProviderMatch {
+  matchId: string | null;
   club: string | null;
   opponent: string | null;
   home: boolean | null;
@@ -590,8 +598,8 @@ function buildProviderIndex(external: BundleTable): {
   present: Set<string>;
   roundDates: Map<string, string>;
 } {
-  const [fcId, season, competition, realMd, date, club, opponent, home, minutes, rating, mvSynth] =
-    columnIndex(
+  const [fcId, season, competition, realMd, date, club, opponent, home, minutes, rating, mvSynth,
+    matchId] = columnIndex(
       external,
       'fc_id',
       'season',
@@ -604,6 +612,7 @@ function buildProviderIndex(external: BundleTable): {
       'minutes',
       'rating',
       'mv_synth',
+      'match_id',
     );
   const index = new Map<string, ProviderMatch>();
   /** He appears in this championship this season - on the pitch or on the bench. Without it a
@@ -623,6 +632,7 @@ function buildProviderIndex(external: BundleTable): {
     const key = `${row[fcId]}|${row[season]}|${row[competition]}|${row[realMd]}`;
     if (index.has(key)) continue;
     index.set(key, {
+      matchId: (row[matchId] as string) ?? null,
       club: (row[club] as string) ?? null,
       opponent: (row[opponent] as string) ?? null,
       home: row[home] == null ? null : row[home] === 1,
@@ -658,6 +668,7 @@ function buildLeagueMatches(
   provider: Map<string, ProviderMatch>,
   leagueOf: Map<number, string | null>,
   euroToReal: Map<string, number>,
+  shapes: Map<string, string>,
 ) {
   const [
     fcId,
@@ -766,6 +777,7 @@ function buildLeagueMatches(
       home: extra?.home ?? null,
       goalsFor: score?.for ?? null,
       goalsAgainst: score?.against ?? null,
+      shape: extra ? (shapes.get(`${extra.matchId}|${extra.club}`) ?? null) : null,
     });
   }
   return out;
@@ -778,9 +790,10 @@ function buildOtherMatches(
   external: BundleTable,
   seasons: Set<string>,
   leagueOf: Map<number, string | null>,
+  shapes: Map<string, string>,
 ): Map<string, Map<number, MatchCell[]>> {
   const [fcId, season, competition, date, club, opponent, home, minutes, rating, goals, assists,
-    yellows, reds] = columnIndex(
+    yellows, reds, matchIdOther] = columnIndex(
       external,
       'fc_id',
       'season',
@@ -795,6 +808,7 @@ function buildOtherMatches(
       'assists',
       'yellows',
       'reds',
+      'match_id',
     );
   // The scoreline the provider published - a cup or a friendly has no ratings row to derive one
   // from. Optional: a bundle exported before 09/08/2026 has no such column, and that is a gap in
@@ -850,6 +864,7 @@ function buildOtherMatches(
       home: row[home] == null ? null : row[home] === 1,
       goalsFor: teamGoals < 0 ? null : ((row[teamGoals] as number) ?? null),
       goalsAgainst: opponentGoals < 0 ? null : ((row[opponentGoals] as number) ?? null),
+      shape: shapes.get(`${row[matchIdOther]}|${row[club]}`) ?? null,
     });
   }
   for (const seasonMap of out.values()) {
@@ -864,6 +879,31 @@ interface InjurySpell {
   from: string;
   to: string | null;
   detail: string | null;
+}
+
+/** The shape a club STARTED a match with, from the counts of its own line-up: `4-3-3`. Keyed on
+ *  (match_id, club), both written by the same parser from the same payload - so this is not a
+ *  name join across sources. Only complete elevens count: 24,378 rows of 24,379 have eleven
+ *  starters, and the odd one out cannot say a shape. */
+function buildShapes(lineups: BundleTable): Map<string, string> {
+  const [matchId, club, starters, defenders, midfielders, forwards] = columnIndex(
+    lineups,
+    'match_id',
+    'club',
+    'starters',
+    'defenders',
+    'midfielders',
+    'forwards',
+  );
+  const out = new Map<string, string>();
+  for (const row of lineups.rows) {
+    if (row[starters] !== 11) continue;
+    out.set(
+      `${row[matchId]}|${row[club]}`,
+      `${row[defenders]}-${row[midfielders]}-${row[forwards]}`,
+    );
+  }
+  return out;
 }
 
 /** Dated spells from the source, over EVERY competition: the question they answer is "was he
@@ -988,6 +1028,7 @@ function buildAbsences(
           home: bench?.home ?? null,
           goalsFor: null,
           goalsAgainst: null,
+          shape: null,
         });
       }
       if (missing.size) seasonOut.set(player.fcId, missing);

@@ -17,6 +17,7 @@ const OUT = resolve(import.meta.dirname, '../public/data');
 const TABLES = [
   'players',
   'clubs',
+  'club_match_lineups',
   'rosters',
   'listone_quotes',
   'injuries',

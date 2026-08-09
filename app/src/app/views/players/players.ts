@@ -238,6 +238,7 @@ export class Players {
       parts.push(cell.home == null ? 'campo ignoto' : cell.home ? 'in casa' : 'in trasferta');
       parts.push(cell.minutes == null ? 'minuti ignoti' : `${cell.minutes}'`);
     }
+    if (cell.shape) parts.push(`modulo ${cell.shape}`);
 
     const events: string[] = [];
     if (cell.goals) events.push(`${cell.goals} gol`);

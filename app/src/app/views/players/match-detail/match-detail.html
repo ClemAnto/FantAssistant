@@ -63,6 +63,9 @@
       <span class="text-xs text-muted">
         {{ cell().home === null ? 'campo ignoto' : cell().home ? 'in casa' : 'in trasferta' }}
       </span>
+      @if (cell().shape) {
+        <span class="text-xs text-muted">modulo {{ cell().shape }}</span>
+      }
     </div>
 
     <div class="flex flex-1 flex-col items-center gap-2 text-center">
