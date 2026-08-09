@@ -1,0 +1,34 @@
+/* The default theme: one file per theme, and this one is the default so it declares the
+   tokens in `@theme static`. An extra theme overrides only the `--color-*` under
+   `:root[data-theme="<name>"]` (specificity 0,2,0, so it beats a bare `:root`).
+
+   `static` is MANDATORY. Without it Tailwind drops the variables that only ng-zorro.css
+   reads, and their backgrounds silently turn transparent.
+
+   These are Tailwind's own token slots, so they generate the native utilities:
+   `bg-page`, `text-muted`, `rounded-card`. No parallel scale, no literal values. */
+@theme static {
+  /* Surfaces, darkest to lightest. `page` is the window, `surface` a card, `control` an input. */
+  --color-page: #0d1411;
+  --color-surface: #141d19;
+  --color-control: #1b2823;
+  --color-border: #24332d;
+
+  /* Ink */
+  --color-fg: #e8f0ec;
+  --color-muted: #9db1a9;
+
+  /* Brand. `on-primary` is the ink that goes ON a primary fill. */
+  --color-primary: #2ecc82;
+  --color-on-primary: #06140e;
+
+  /* Meaning, not decoration: red is danger only. Amber warns, green confirms. */
+  --color-danger: #ff7a7a;
+  --color-warning: #f5b544;
+  --color-success: #2ecc82;
+
+  --radius-control: 0.75rem;
+  --radius-card: 1.25rem;
+
+  --font-sans: 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
+}

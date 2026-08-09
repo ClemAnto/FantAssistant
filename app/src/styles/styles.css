@@ -1,0 +1,14 @@
+/* The ONLY global style entry (angular.json points here) and it must stay a .css file.
+   Everything else is @imported into it so it goes through the same Tailwind pipeline.
+
+   The layer order is declared explicitly, and Tailwind v4 honours it: ng-zorro sits ABOVE
+   `base`, because Tailwind's Preflight (which lives in `base`) resets margin, padding and
+   border on every element and would take the components' layout apart. Our own `.ant-*`
+   overrides live in `components`, above ng-zorro, so they win without `!important`. */
+@layer theme, base, ngzorro, components, utilities;
+
+@import 'ng-zorro-antd/ng-zorro-antd.dark.min.css' layer(ngzorro);
+@import 'tailwindcss';
+@import './themes/default.css';
+@import './tokens.css';
+@import './ng-zorro.css';

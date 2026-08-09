@@ -1,9 +1,36 @@
-# app/ - final assistant (placeholder, but the data contract is real)
+# app/ - final assistant (initialized 09/08/2026)
 
-This is where the **auction assistant app** will live (Electron + Angular, TypeScript) with the
-`prediction-engine`. **Not initialized yet**: the roadmap places it after the toolkit.
+The **auction assistant app**: Angular 22 + ng-zorro + Tailwind v4, with the `prediction-engine` still
+to be ported. The Angular workspace is this folder - there is no `client/` sub-folder.
 
-## What it will contain (from the parent doc §7 and §2-bis)
+```bash
+npm install
+npm run data:pull    # copy the newest data/export/<season>/ into public/data (gitignored)
+npm start            # dev server on http://localhost:4200
+npm run build        # the check that must pass before delivering a change
+```
+
+Conventions are in [CLAUDE.md](CLAUDE.md) - read it before writing a component or touching a style.
+
+## What exists today
+
+- **`views/players`** - the consultation table: name, role, Mantra role, current club and one column per
+  matchday (the last ten of the chosen period). Each cell carries the vote - the fantacalcio one, or the
+  calibrated synthetic one marked `~` - with compact goal/assist icons, and a tooltip with the fixture,
+  the score, the side and the minutes played. Filters: role, club, season, matchday window, sort.
+  Serie A (`platform = default`) only for now: on `euro` a matchday is a EuroLeghe round and the join to
+  the provider's per-match layer has to go through `matchday_map`.
+- **`views/hello`** - the smoke page that proves the theme, the tokens and ng-zorro are wired.
+- **`core/bundle.ts`** - the only data source. See the contract below.
+
+Two things about the data the page shows, worth stating because they are not obvious:
+`match_ratings.minutes` is empty in the bundle, so the **minutes come from the provider's per-match
+layer** (`external_match_stats`, joined on `fc_id, season, real_md` - 11,866 of 12,686 rows match on
+Serie A 2025-26); and the **scoreline is derived inside `match_ratings`** (goals + converted penalties
+for, the goalkeeper's conceded against) rather than by matching club names across sources, because a
+name join is what once lost Milan, Roma and Napoli from a measurement.
+
+## What it will still contain (from the parent doc §7 and §2-bis)
 
 - `prediction-engine/` - the TypeScript engine: Mantra formula + per-league parameter configuration,
   goalkeeper M2e module (ability + the club's measured conceded rate - it does not read `club_elo`),

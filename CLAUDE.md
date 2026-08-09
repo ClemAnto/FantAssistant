@@ -12,6 +12,11 @@ Monorepo for the **EuroLeghe fantacalcio prediction engine**. Two parts:
   Its data contract already exists: `python -m euroleghe_ingest export` writes `data/export/<season>/`
   (pruned SQLite + JSON tables + `manifest.json`), and the table list is DERIVED from what
   `engine/features.py` queries - a rule that reads a new table must be added to `export.CONTRACT`.
+  Its **working conventions are already written too**: [app/CLAUDE.md](app/CLAUDE.md) (Angular standalone +
+  signals + `inject()`, ng-zorro components, Tailwind v4 token system with explicit cascade layers,
+  `views/`-`ui/`-`core/`, CSS-only motion, measured verification) - imported 09/08/2026 from the operator's
+  Jingle Machine project, where they were paid for on a working app. Read it before writing the first
+  TypeScript file, not after.
 - `config/` - shared configuration read by both the toolkit and the engine: `scoring_config.json`
   (per-CHAMPIONSHIP scoring: its `leagues` are serie_a, premier_league, ... - what a PLAYER belongs to)
   and `league_config.json`, whose `my_leagues` are the leagues the operator PLAYS IN: one entry each,
@@ -32,6 +37,10 @@ Monorepo for the **EuroLeghe fantacalcio prediction engine**. Two parts:
 Chat replies to the user: **Italian**. Everything in the repo (code, comments, logs, UI strings, file names,
 Markdown docs): **English**. The Google Drive documents are the user's Italian knowledge base (source of truth)
 and stay in Italian.
+**One exception, decided 09/08/2026: the UI strings of `app/` are ITALIAN** - the auction assistant is used
+at an Italian table, by the operator. Code, comments, logs, identifiers and the Markdown docs of `app/` stay
+English, and the toolkit's Tkinter panel is NOT covered: its strings stay English. See
+[app/CLAUDE.md](app/CLAUDE.md).
 
 ## Reading order for a new session
 The knowledge base now lives in **git** under [docs/model/](docs/model/) (Italian, source of truth; Drive

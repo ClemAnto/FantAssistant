@@ -1,0 +1,183 @@
+<!-- UI text is ITALIAN in app/ (see app/CLAUDE.md); code and comments stay English. -->
+<div class="mx-auto flex min-h-full max-w-[1400px] flex-col gap-4 p-4">
+  <header class="flex flex-wrap items-baseline justify-between gap-2">
+    <h1 class="text-2xl font-semibold text-fg">Calciatori</h1>
+    @if (store.generatedAt(); as generated) {
+      <span class="text-xs text-muted">
+        Bundle del toolkit · esportato il {{ generated.slice(0, 10) }} · Serie A
+      </span>
+    }
+  </header>
+
+  @if (store.status() === 'error') {
+    <nz-alert
+      nzType="error"
+      nzShowIcon
+      nzMessage="Non riesco a leggere il bundle"
+      [nzDescription]="store.error() ?? ''"
+    />
+  }
+
+  @if (store.status() === 'loading') {
+    <div class="flex items-center gap-3 text-muted">
+      <nz-spin nzSimple nzSize="small" />
+      Carico le tabelle del bundle...
+    </div>
+  }
+
+  @if (store.status() === 'ready') {
+    <section
+      class="flex flex-wrap items-end gap-4 rounded-card border border-border bg-surface p-4"
+    >
+      <label class="flex flex-col gap-1">
+        <span class="text-xs text-muted">Ruolo</span>
+        <nz-select
+          class="w-44"
+          nzAllowClear
+          nzPlaceHolder="Tutti"
+          [ngModel]="store.role()"
+          (ngModelChange)="store.role.set($event)"
+        >
+          @for (role of roles; track role) {
+            <nz-option [nzValue]="role" [nzLabel]="roleLabel[role]" />
+          }
+        </nz-select>
+      </label>
+
+      <label class="flex flex-col gap-1">
+        <span class="text-xs text-muted">Squadra</span>
+        <nz-select
+          class="w-52"
+          nzShowSearch
+          nzAllowClear
+          nzPlaceHolder="Tutte"
+          [ngModel]="store.club()"
+          (ngModelChange)="store.club.set($event)"
+        >
+          @for (club of store.clubs(); track club) {
+            <nz-option [nzValue]="club" [nzLabel]="club" />
+          }
+        </nz-select>
+      </label>
+
+      <label class="flex flex-col gap-1">
+        <span class="text-xs text-muted">Stagione</span>
+        <nz-select
+          class="w-36"
+          [ngModel]="store.season()"
+          (ngModelChange)="store.selectSeason($event)"
+        >
+          @for (season of store.seasons(); track season) {
+            <nz-option [nzValue]="season" [nzLabel]="season" />
+          }
+        </nz-select>
+      </label>
+
+      <label class="flex min-w-72 flex-1 flex-col gap-1">
+        <span class="text-xs text-muted">
+          Periodo: giornate {{ store.windowFrom() }}-{{ store.windowTo() }}
+          @if (store.windowTo() - store.windowFrom() >= 10) {
+            <span class="text-warning">(mostrate le ultime 10)</span>
+          }
+        </span>
+        <nz-slider
+          nzRange
+          [nzMin]="1"
+          [nzMax]="store.lastMatchday()"
+          [ngModel]="window()"
+          (ngModelChange)="onWindow($event)"
+        />
+      </label>
+
+      <label class="flex flex-col gap-1">
+        <span class="text-xs text-muted">Ordina per</span>
+        <nz-select
+          class="w-44"
+          [ngModel]="store.sortBy()"
+          (ngModelChange)="store.sortBy.set($event)"
+        >
+          <nz-option nzValue="played" nzLabel="Presenze nel periodo" />
+          <nz-option nzValue="name" nzLabel="Nome" />
+        </nz-select>
+      </label>
+
+      <span class="pb-2 text-sm text-muted">{{ store.lines().length }} calciatori</span>
+    </section>
+
+    <nz-table
+      #table
+      nzSize="small"
+      [nzData]="store.lines()"
+      [nzPageSize]="25"
+      [nzScroll]="{ x: '1120px' }"
+    >
+      <thead>
+        <tr>
+          <th nzWidth="190px">Nome</th>
+          <th nzWidth="60px">Ruolo</th>
+          <th nzWidth="110px">Mantra</th>
+          <th nzWidth="130px">Squadra</th>
+          @for (matchday of store.matchdays(); track matchday) {
+            <th class="text-center" nzWidth="58px">{{ matchday }}</th>
+          }
+        </tr>
+      </thead>
+      <tbody>
+        @for (line of table.data; track line.fcId) {
+          <tr>
+            <td class="font-medium text-fg">{{ line.name }}</td>
+            <td>{{ line.role }}</td>
+            <td class="text-muted">{{ line.mantra }}</td>
+            <td class="text-muted">{{ line.club }}</td>
+
+            @for (cell of line.cells; track $index) {
+              <td class="text-center align-middle">
+                @if (cell) {
+                  <span
+                    class="inline-flex cursor-default flex-col items-center leading-none"
+                    nz-tooltip
+                    [nzTooltipTitle]="tooltip(cell)"
+                  >
+                    <span [class]="voteClass(cell)">{{ voteText(cell) }}</span>
+                    <span class="mt-0.5 flex h-3 items-center gap-1 text-[10px]">
+                      @if (cell.goals + cell.penScored > 0) {
+                        <span class="flex items-center text-primary">
+                          <nz-icon nzType="aim" />
+                          @if (cell.goals + cell.penScored > 1) {
+                            <span class="ml-px">{{ cell.goals + cell.penScored }}</span>
+                          }
+                        </span>
+                      }
+                      @if (cell.assists > 0) {
+                        <span class="flex items-center text-muted">
+                          <nz-icon nzType="share-alt" />
+                          @if (cell.assists > 1) {
+                            <span class="ml-px">{{ cell.assists }}</span>
+                          }
+                        </span>
+                      }
+                    </span>
+                  </span>
+                } @else {
+                  <!-- Not a decoration: it says "no rating row for this matchday", which is a
+                       fact and has to stay readable. Measured 09/08/2026 at 1.39:1 when it was
+                       painted in the border colour. -->
+                  <span class="text-muted" title="Non ha una riga di voti in questa giornata"
+                    >&ndash;</span
+                  >
+                }
+              </td>
+            }
+          </tr>
+        }
+      </tbody>
+    </nz-table>
+
+    <p class="text-xs text-muted">
+      Una colonna per giornata: la cella vuota vuol dire che non ha una riga di voti, non che
+      abbia giocato senza voto (quella e' <span class="italic">s.v.</span>). Il voto con
+      <span class="text-fg">~</span> e' sintetico. Il risultato e' derivato dai voti stessi
+      (gol fatti + rigori segnati, subiti dalla riga del portiere).
+    </p>
+  }
+</div>

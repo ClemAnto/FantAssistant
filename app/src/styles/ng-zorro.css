@@ -1,0 +1,83 @@
+/* The single global file for ng-zorro overrides. It lives in `@layer components`, which
+   sits above `ngzorro` in the declared order, so these rules win WITHOUT `!important`.
+   Only tokens and color-mix() in here - never a literal colour. */
+@layer components {
+  .ant-btn-primary {
+    background-color: var(--color-primary);
+    border-color: var(--color-primary);
+    color: var(--color-on-primary);
+  }
+
+  .ant-btn-primary:hover,
+  .ant-btn-primary:focus-visible {
+    background-color: color-mix(in srgb, var(--color-primary) 85%, white);
+    border-color: color-mix(in srgb, var(--color-primary) 85%, white);
+    color: var(--color-on-primary);
+  }
+
+  .ant-btn-default {
+    background-color: var(--color-control);
+    border-color: var(--color-border);
+    color: var(--color-fg);
+  }
+
+  .ant-btn-default:hover,
+  .ant-btn-default:focus-visible {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+  }
+
+  /* antd's own placeholder is rgba(255,255,255,.3) - measured at 2.71:1 against our
+     control surface, so it fails AA on a label the user has to read to use the filter. */
+  .ant-select-selection-placeholder,
+  .ant-input::placeholder {
+    color: var(--color-muted);
+    opacity: 1;
+  }
+
+  /* No `!important` even though antd's own rule is more specific: a later LAYER beats
+     specificity outright, which is the whole reason the order is declared. */
+  .ant-select-selector,
+  .ant-input {
+    background-color: var(--color-control);
+    border-color: var(--color-border);
+  }
+
+  .ant-table {
+    background-color: var(--color-surface);
+    border-radius: var(--radius-card);
+  }
+
+  .ant-table-thead > tr > th {
+    background-color: var(--color-control);
+    border-bottom-color: var(--color-border);
+    color: var(--color-fg);
+  }
+
+  .ant-table-tbody > tr > td {
+    border-bottom-color: color-mix(in srgb, var(--color-border) 60%, transparent);
+  }
+
+  .ant-table-tbody > tr:hover > td {
+    background-color: color-mix(in srgb, var(--color-primary) 8%, var(--color-surface));
+  }
+
+  /* The last two contrast failures of the page, both antd pagination internals: the active
+     page sat at 4.45:1 (AA wants 4.5) and the jump ellipsis at 2.68:1. */
+  .ant-pagination-item a {
+    color: var(--color-fg);
+  }
+
+  .ant-pagination-item-active {
+    background-color: var(--color-control);
+    border-color: var(--color-primary);
+  }
+
+  .ant-pagination-item-active a {
+    color: var(--color-primary);
+  }
+
+  .ant-pagination-item-ellipsis {
+    color: var(--color-muted);
+  }
+}

@@ -1,0 +1,57 @@
+/* Structural tokens and the few global rules. Colours do NOT live here - they are in
+   themes/, so a new theme is one file and nothing else. */
+
+/* Measured 09/08/2026, not assumed: ng-zorro's dark CSS paints `body` pure black, and it
+   sits ABOVE `base` in the declared order - so the page's own paint has to be stated in
+   `components`, like any other repaint of something ng-zorro already painted. In `base`
+   it lost silently: the audit read rgb(0,0,0) while the token said #0d1411. */
+@layer components {
+  body {
+    background-color: var(--color-page);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+  }
+}
+
+@layer base {
+  :root {
+    /* Z-index is an explicit scale aligned to ng-zorro/antd. Never an arbitrary number:
+       write `z-[var(--z-modal)]`. NB: `--z-*` is not a Tailwind namespace, so these
+       generate no utility of their own - that is why they are read through var(). */
+    --z-affix: 10;
+    --z-modal: 1000;
+    --z-message: 1010;
+    --z-popover: 1030;
+    --z-dropdown: 1050;
+    --z-popconfirm: 1060;
+    --z-tooltip: 1070;
+    --z-image: 1080;
+
+    --control-height: 44px;
+  }
+
+  html,
+  body {
+    height: 100%;
+  }
+
+  /* View hosts are block: a custom element is inline by default, which quietly breaks
+     every height and margin the layout asks for. */
+  app-root,
+  [class~='view-host'] {
+    display: block;
+    min-height: 100%;
+  }
+
+  /* Motion is CSS only in this app, so honouring the setting is a CSS job too. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}

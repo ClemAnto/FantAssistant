@@ -1,0 +1,30 @@
+<!-- UI text is ITALIAN in app/ (see app/CLAUDE.md); code and comments stay English. -->
+<main class="flex min-h-full items-center justify-center p-6">
+  <section
+    class="w-full max-w-lg rounded-card border border-border bg-surface p-8 text-center shadow-lg"
+  >
+    <nz-icon nzType="rocket" class="text-4xl text-primary" />
+
+    <h1 class="mt-4 text-3xl font-semibold text-fg">Ciao, FantAssistant</h1>
+
+    <p class="mt-2 text-muted">
+      L'assistente d'asta parte da qui: una pagina sola, ma con il tema, i token e ng-zorro
+      gia' al loro posto.
+    </p>
+
+    <button
+      nz-button
+      nzType="primary"
+      nzSize="large"
+      class="mt-6 rounded-control"
+      (click)="greet()"
+    >
+      <nz-icon nzType="thunderbolt" />
+      {{ greeted() ? 'Di nuovo' : 'Salutami' }}
+    </button>
+
+    @if (greeted()) {
+      <p class="mt-4 text-primary">Funziona: signal letto dal template, nessuno zone.js.</p>
+    }
+  </section>
+</main>
