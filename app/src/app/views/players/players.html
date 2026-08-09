@@ -9,6 +9,15 @@
     }
   </header>
 
+  @if (store.demo()) {
+    <nz-alert
+      nzType="warning"
+      nzShowIcon
+      nzMessage="Dati dimostrativi"
+      nzDescription="Squadre, calciatori, voti e partite di questa pagina sono INVENTATI e generati apposta per la demo pubblica. Il bundle vero del toolkit contiene dati a pagamento e non e' pubblicabile: gira solo in locale."
+    />
+  }
+
   @if (store.status() === 'error') {
     <nz-alert
       nzType="error"

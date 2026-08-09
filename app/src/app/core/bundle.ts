@@ -15,6 +15,10 @@ export interface BundleManifest {
   input_season: string;
   heavy_seasons: string[];
   sheet_revision?: number;
+  /** True only for the generated bundle the public build ships: invented clubs, players and
+   *  votes. The real one is paid content and never leaves the machine. */
+  demo?: boolean;
+  known_gaps?: string[];
 }
 
 const KNOWN_SCHEMA = 1;

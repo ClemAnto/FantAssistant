@@ -56,6 +56,7 @@ export class PlayersStore {
   readonly status = signal<Status>('idle');
   readonly error = signal<string | null>(null);
   readonly generatedAt = signal<string | null>(null);
+  readonly demo = signal(false);
 
   private readonly roster = signal<PlayerRow[]>([]);
   /** season -> fc_id -> matchday -> cell */
@@ -121,6 +122,7 @@ export class PlayersStore {
       ]);
 
       this.generatedAt.set(manifest.generated_at);
+      this.demo.set(manifest.demo === true);
       this.roster.set(buildRoster(players, clubs, rosters, manifest.target_season));
 
       const provider = buildProviderIndex(external);

@@ -1,0 +1,74 @@
+# Publishes the app to GitHub Pages as a PUBLIC DEMO.
+#
+# What ships is the built Angular app plus a GENERATED bundle: invented clubs, players and
+# votes (`app/scripts/make-demo-bundle.mjs`, manifest `demo: true`, banner on screen). The
+# real bundle is paid fantacalcio.it content - gitignored, never deployed, never in an
+# artifact. If you ever add a step that copies data/export/ here, you are publishing content
+# the project is not allowed to publish.
+name: pages
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'app/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - run: npm ci
+
+      - name: Build (base href = the project page's path)
+        run: npm run build -- --base-href /FantAssistant/
+
+      - name: Generate the demo bundle
+        run: node scripts/make-demo-bundle.mjs dist/fantassistant/browser/data
+
+      - name: SPA fallback and no Jekyll
+        run: |
+          cp dist/fantassistant/browser/index.html dist/fantassistant/browser/404.html
+          touch dist/fantassistant/browser/.nojekyll
+
+      - name: Refuse to publish real data
+        # A guard, not a formality: the demo manifest must say demo:true, and nothing that
+        # looks like the toolkit's own export may be in the artifact.
+        run: |
+          grep -q '"demo": true' dist/fantassistant/browser/data/manifest.json
+          test ! -f dist/fantassistant/browser/data/bundle.sqlite
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: app/dist/fantassistant/browser
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
