@@ -12,31 +12,38 @@ npm run build        # the check that must pass before delivering a change
 
 Conventions are in [CLAUDE.md](CLAUDE.md) - read it before writing a component or touching a style.
 
-## The public demo
+## The published site
 
-**https://clemanto.github.io/FantAssistant/** - every push to `master` that touches `app/` rebuilds it
-(`.github/workflows/pages.yml`).
-
-What is published is the app plus a **generated** bundle: 20 invented clubs, 500 invented players, two
-seasons of invented matches (`scripts/make-demo-bundle.mjs`, fixed seed, so the demo is identical build
-to build). The real bundle can never go there - it is paid fantacalcio.it content, gitignored, local
-only. The generated manifest carries `demo: true`, the app reads it and puts a banner on the page, and
-the workflow has a guard step that fails if the published manifest does not declare the demo or if a
-`bundle.sqlite` turns up in the artifact.
-
-The generator imitates the SHAPE of the real bundle, not just its columns: the fixtures are a
-circle-method round robin, a team's goals are handed to its own players and the opposing keeper takes
-them as conceded - so the scoreline the page derives inside `match_ratings` comes out consistent. It also
-speaks the real vocabulary (`league = serie_a`): with an invented `demo_league` the page read 0 players,
-which is exactly the kind of defect a demo dataset is there to expose.
-
-To rehearse the deployment locally, build with the base href and serve it under that prefix - `ng serve`
-does not exercise either:
+**https://clemanto.github.io/FantAssistant/** - `npm run deploy:pages`, from this machine.
 
 ```bash
-MSYS_NO_PATHCONV=1 npm run build -- --base-href /FantAssistant/   # the env var is a Git Bash quirk:
-                                                                  # without it MSYS rewrites the path
-node scripts/make-demo-bundle.mjs dist/fantassistant/browser/data
+MSYS_NO_PATHCONV=1 npm run deploy:pages   # the env var is a Git Bash quirk: without it MSYS
+                                          # rewrites --base-href /FantAssistant/ into a C:\ path
+```
+
+It pulls the newest export, builds with `--base-href /FantAssistant/` (the bundle rides along because
+`public/` is an asset root), adds `404.html`, `.nojekyll` and `robots.txt`, and force-pushes the result
+to the **`gh-pages`** branch as a single orphan commit - so the repository does not grow by 2.4 MB per
+deploy. Pages serves that branch.
+
+⚠️ **What goes online is the real bundle**: the toolkit's paid fantacalcio.it data, on a public URL that
+anybody who finds it can download. That is the operator's decision of 09/08/2026, taken knowing that a
+Pages site on a public repository is open to everyone and that `robots.txt` only asks crawlers to stay
+away. The root `CLAUDE.md` records it as an exception to its own rule. `master` still never carries the
+bundle and `data/export/` is still gitignored - the data lives on `gh-pages` alone.
+
+**There is exactly one publisher, and it is this machine.** A CI job cannot do it (a runner has no
+bundle), and a second publisher would republish the site without the data and wipe it. That is why the
+Pages workflow was deleted rather than kept alongside.
+
+To go back to a data-free site, `scripts/make-demo-bundle.mjs` still generates a demo bundle - 20
+invented clubs, 500 invented players, two seasons of invented matches, fixed seed. It imitates the SHAPE
+of the real one: circle-method fixtures, a team's goals handed to its own players and taken by the
+opposing keeper as conceded, so the scoreline the page derives inside `match_ratings` comes out
+consistent. Its manifest carries `demo: true` and the app puts a banner on the page when it reads it.
+
+```bash
+node scripts/make-demo-bundle.mjs dist/fantassistant/browser/data   # after a build, before publishing
 ```
 
 ## What exists today

@@ -23,8 +23,12 @@ layout on 09/08/2026, so `app/package.json`, `app/angular.json` and `app/src/` s
 - `src/app/core/` - `bundle.ts` (reads the export bundle) and `players-store.ts` (the signal store).
 - `src/styles/` - `styles.css` is the ONLY entry; `themes/`, `tokens.css`, `ng-zorro.css` are imported by it.
 - `scripts/pull-bundle.mjs` + `npm run data:pull` - copies the newest `data/export/<season>/` into
-  `public/data/`, which is **gitignored**: it carries the same paid fantacalcio.it content the cache does
-  and this repository is public.
+  `public/data/`, which is **gitignored** on `master`: it carries the same paid fantacalcio.it content
+  the cache does.
+- `scripts/deploy-pages.mjs` + `npm run deploy:pages` - publishes the site to the `gh-pages` branch FROM
+  THIS MACHINE, real bundle included (the operator's decision of 09/08/2026, recorded in the root
+  `CLAUDE.md`). Never add a CI publisher beside it: a runner has no bundle, so it would republish the
+  site without data and wipe the deploy.
 
 **The app reads the BUNDLE, never the database and never the web.** `python -m euroleghe_ingest export`
 writes it; `manifest.json` is normative (refuse a `schema_version` you do not know); a view that needs a

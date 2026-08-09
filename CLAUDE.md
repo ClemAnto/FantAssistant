@@ -328,6 +328,16 @@ Two commands own these, and both print a plan before doing anything:
   authenticated listone creates `players`/`clubs`/`rosters` without them.
 - **`export`** = the app's bundle. `data/export/` is **gitignored**: it carries the same paid
   fantacalcio.it content the cache does, and the repo is public.
+  **Exception, and it is the operator's decision rather than a measurement (09/08/2026):** he asked for
+  the real bundle on the public GitHub Pages site — «pubblica i dati veri ... la webapp e' per uso
+  personale» — after being told twice that a Pages site on a public repository is open to anyone,
+  indexable and downloadable, so «personal use» does not restrict it. So the bundle DOES travel through
+  git now, on the **`gh-pages` branch only** (`app/scripts/deploy-pages.mjs`, rewritten as a single
+  orphan commit each time); `master` still never carries it, and `data/export/` stays gitignored.
+  A `robots.txt` asks crawlers to stay out, which is the only access control Pages offers here.
+  Two consequences worth stating: the publisher is the OPERATOR'S MACHINE and cannot be CI (a runner has
+  no bundle, and a second publisher would republish the site without data and wipe it); and the decision
+  is revocable — `make-demo-bundle.mjs` still generates a data-free demo, so going back is one script.
 `fetch --plan` answers "what is missing here?" table by table, with the command that fills each gap.
 Every run leaves a line in `ingest_runs` (module, when, status, options), written by whoever owns the
 invocation - CLI, rebuild or GUI - never by the module itself.
