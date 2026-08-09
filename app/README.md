@@ -12,6 +12,33 @@ npm run build        # the check that must pass before delivering a change
 
 Conventions are in [CLAUDE.md](CLAUDE.md) - read it before writing a component or touching a style.
 
+## The public demo
+
+**https://clemanto.github.io/FantAssistant/** - every push to `master` that touches `app/` rebuilds it
+(`.github/workflows/pages.yml`).
+
+What is published is the app plus a **generated** bundle: 20 invented clubs, 500 invented players, two
+seasons of invented matches (`scripts/make-demo-bundle.mjs`, fixed seed, so the demo is identical build
+to build). The real bundle can never go there - it is paid fantacalcio.it content, gitignored, local
+only. The generated manifest carries `demo: true`, the app reads it and puts a banner on the page, and
+the workflow has a guard step that fails if the published manifest does not declare the demo or if a
+`bundle.sqlite` turns up in the artifact.
+
+The generator imitates the SHAPE of the real bundle, not just its columns: the fixtures are a
+circle-method round robin, a team's goals are handed to its own players and the opposing keeper takes
+them as conceded - so the scoreline the page derives inside `match_ratings` comes out consistent. It also
+speaks the real vocabulary (`league = serie_a`): with an invented `demo_league` the page read 0 players,
+which is exactly the kind of defect a demo dataset is there to expose.
+
+To rehearse the deployment locally, build with the base href and serve it under that prefix - `ng serve`
+does not exercise either:
+
+```bash
+MSYS_NO_PATHCONV=1 npm run build -- --base-href /FantAssistant/   # the env var is a Git Bash quirk:
+                                                                  # without it MSYS rewrites the path
+node scripts/make-demo-bundle.mjs dist/fantassistant/browser/data
+```
+
 ## What exists today
 
 - **`views/players`** - the consultation table: name, role, Mantra role, current club and one column per
