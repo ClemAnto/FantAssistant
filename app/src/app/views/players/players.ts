@@ -194,12 +194,13 @@ export class Players {
     // The bands are calibrated on the fantacalcio vote. A provider rating is another scale,
     // so colouring it the same way would be a claim nobody measured: it stays neutral.
     if (cell.kind !== 'league') return 'text-muted';
-    // The bands are the game's, not a gradient: 6,5 is already a good vote and 5,5 is already a
-    // bad one, so both ends are marked and only 6,0 is neutral. Red here is an explicit negative
-    // verdict - the one use the colour rule allows.
+    // Back to the original bands (the operator changed his mind on 09/08/2026), with one
+    // addition: 5 and below is marked in red. That is an explicit negative verdict, which is
+    // the one use the colour rule allows.
     if (cell.vote == null) return 'text-muted italic';
-    if (cell.vote >= 6.5) return 'text-primary font-semibold';
-    if (cell.vote > 5.5) return 'text-fg';
+    if (cell.vote >= 7) return 'text-primary font-semibold';
+    if (cell.vote >= 6) return 'text-fg';
+    if (cell.vote > 5) return 'text-muted';
     return 'text-danger font-semibold';
   }
 
