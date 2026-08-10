@@ -13,7 +13,12 @@
 
   @if (club(); as name) {
     <span class="flex items-center gap-2">
-      <ui-crest [club]="name" size="md" />
+      <ui-crest
+        [club]="name"
+        [clubId]="advice.clubIds().get(name) ?? null"
+        [crests]="advice.crests()"
+        size="md"
+      />
       <span class="font-semibold">{{ name }}</span>
     </span>
     <span class="text-sm text-muted">
@@ -78,7 +83,7 @@
                  at a glance, an average is «gioca 45 minuti» and that is the question a pitch is asked. -->
             <span class="w-full truncate text-[10px] tabular-nums text-muted">
               @if (man.perMatch != null) {
-                {{ man.perMatch }}′/partita
+                {{ man.perMatch }}′
               } @else {
                 minuti ignoti
               }

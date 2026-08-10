@@ -152,6 +152,18 @@ export class AuctionAdvice {
    */
   readonly boards = signal<BoardsFile | null>(null);
 
+  /**
+   * The clubs' badges, and the id each club is filed under.
+   *
+   * Both are needed together or neither works: `ui-crest` resolves a file from `fc_club_id` and the index, and
+   * without them it draws a MONOGRAM - which is what the auction panel was doing for every club while the
+   * bundle carried 93 badges and all 47 clubs of this listone had one. The data was there; nobody asked for it.
+   *
+   * The join is the club's canonical NAME, which is what the live listone and the bundle's `clubs` share.
+   */
+  readonly crests = signal<Record<string, string>>({});
+  readonly clubIds = signal<Map<string, number>>(new Map());
+
   constructor() {
     this.restoreHorizon();
     effect(() => {
@@ -703,6 +715,8 @@ export class AuctionAdvice {
       this.measured.set(await this.lastSeason(chosen, manifest.input_season));
       // The boards of THIS sheet, by the path the manifest itself declares - never a guessed file name.
       this.boards.set(chosen.boards ? await this.bundle.boards(chosen.boards) : null);
+      this.crests.set((await this.bundle.crests().catch(() => null)) ?? {});
+      this.clubIds.set(await this.clubIndex());
       const notes: string[] = [];
       if (chosen.teams !== teams) {
         notes.push(
@@ -746,6 +760,23 @@ export class AuctionAdvice {
       return measured;
     } catch {
       // An older bundle does not carry it: one column stays empty, nothing else changes.
+      return new Map();
+    }
+  }
+
+  /** Canonical club name -> `fc_club_id`, so a badge can be looked up by the only key the two sides share. */
+  private async clubIndex(): Promise<Map<string, number>> {
+    try {
+      const table = await this.bundle.table('clubs');
+      const [id, name] = ['fc_club_id', 'canonical_name'].map((column) => table.columns.indexOf(column));
+      const out = new Map<string, number>();
+      for (const row of table.rows) {
+        const club = row[name] as string | null;
+        if (club) out.set(club, Number(row[id]));
+      }
+      return out;
+    } catch {
+      // An older bundle without the table: every club falls back to its monogram, which still reads.
       return new Map();
     }
   }
