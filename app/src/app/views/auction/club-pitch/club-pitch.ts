@@ -30,8 +30,8 @@ const LINE_LABEL: Record<PitchLine, string> = {
  *
  * The drawing is the module's numbers, as the operator stated the rule: each number is how many men stand on
  * that line, the keeper is never one of them and always stands alone in front of the defence, and with four
- * numbers the third is the trequarti and the last is always the attack. The horizontal position is the
- * panel's own `x`, so an empty flank reads as a gap instead of as a tidy row.
+ * numbers the third is the trequarti and the last is always the attack. It is drawn with the KEEPER AT THE TOP
+ * and the forwards at the bottom - his own direction - and the men ordered across by the panel's own `x`.
  */
 @Component({
   selector: 'app-club-pitch',

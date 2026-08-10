@@ -17,10 +17,18 @@
 
 import { Board, BoardMan } from './bundle';
 
-/** The lines a pitch draws, from the attack down to the goal. */
+/** The lines a pitch draws, from the GOAL down to the attack: the keeper at the top. */
 export type PitchLine = 'A' | 'T' | 'M' | 'D' | 'P';
 
-export const DRAW_ORDER: PitchLine[] = ['A', 'T', 'M', 'D', 'P'];
+/**
+ * The order the rows are drawn in, and it is the operator's (10/08/2026): the keeper at the TOP and the
+ * forwards at the bottom - the team attacking downward, the way he reads a formation.
+ *
+ * It is only the drawing. The module's numbers are unchanged and still count from the defence up (`4-3-3` is
+ * four defenders, three midfielders, three forwards, keeper never one of them): `lineCounts` reads the string,
+ * this decides which end of the page each line lands on.
+ */
+export const DRAW_ORDER: PitchLine[] = ['P', 'D', 'M', 'T', 'A'];
 
 export interface PitchMan {
   fcId: number | null;
@@ -32,7 +40,7 @@ export interface PitchMan {
   minutesPerMatch: number | null;
   /** The panel's own claim: who starts when everybody is fit. It is what put him on the pitch. */
   claim: number | null;
-  /** Where the panel draws him: 0 is the team's right touchline, 1 its left. Flanks already ordered. */
+  /** Where the panel draws him across the line: 0 is one touchline, 1 the other. Flanks already ordered. */
   x: number;
   /** Already off the board at this table. */
   taken: boolean;

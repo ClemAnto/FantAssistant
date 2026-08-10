@@ -63,19 +63,19 @@ describe('pitchOf', () => {
     expect(fresh.newCoach).toBe(true);
   });
 
-  it('draws the rows the module asks for, attack first and the goal last', () => {
+  it('draws the rows the module asks for, the KEEPER first and the attack last', () => {
     const drawn = pitchOf(board('4-3-3', {
       P: [man('Portiere', 0.5)],
       D: [man('A', 0.1), man('B', 0.37), man('C', 0.63), man('D', 0.89)],
       M: [man('E', 0.28), man('F', 0.5), man('G', 0.72)],
       A: [man('H', 0.11), man('I', 0.5), man('J', 0.89)],
     }), () => free)!;
-    expect(drawn.rows.map((row) => row.line)).toEqual(['A', 'M', 'D', 'P']);
-    expect(drawn.rows.map((row) => row.wanted)).toEqual([3, 3, 4, 1]);
+    expect(drawn.rows.map((row) => row.line)).toEqual(['P', 'D', 'M', 'A']);
+    expect(drawn.rows.map((row) => row.wanted)).toEqual([1, 4, 3, 3]);
     expect(drawn.problems).toEqual([]);
     // The panel's own horizontal position travels through untouched: that is what makes a flank a flank.
-    expect(drawn.rows.at(-1)!.men[0].x).toBe(0.5);
-    expect(drawn.rows[2].men[0].x).toBe(0.1);
+    expect(drawn.rows[0].men[0].x).toBe(0.5);
+    expect(drawn.rows[1].men[0].x).toBe(0.1);
   });
 
   it('keeps the TREQUARTI as its own row when the module has four numbers', () => {
@@ -86,8 +86,8 @@ describe('pitchOf', () => {
       T: [man('G', 0.15), man('H', 0.5), man('I', 0.85)],
       A: [man('J', 0.5)],
     }), () => free)!;
-    expect(drawn.rows.map((row) => row.line)).toEqual(['A', 'T', 'M', 'D', 'P']);
-    expect(drawn.rows[1].wanted).toBe(3);
+    expect(drawn.rows.map((row) => row.line)).toEqual(['P', 'D', 'M', 'T', 'A']);
+    expect(drawn.rows[3].wanted).toBe(3);        // the trequarti, third number of a four-number module
   });
 
   it('REPORTS a line where the module and the drawn men disagree, and still draws it', () => {
@@ -116,7 +116,7 @@ describe('pitchOf', () => {
 
   it('a man the session listone does not carry is not «free»: he is not on the table', () => {
     const drawn = pitchOf(board('4-3-3', { P: [man('Portiere', 0.5)] }), nowhere)!;
-    const keeper = drawn.rows.at(-1)!.men[0];
+    const keeper = drawn.rows[0].men[0];
     expect(keeper.onTable).toBe(false);
     expect(keeper.taken).toBe(false);
     expect(keeper.price).toBeNull();
@@ -129,7 +129,7 @@ describe('pitchOf', () => {
     });
     const blind = man('Senza ruolo', 0.5, { duels: [], duels_known: false, codes: null });
     const drawn = pitchOf(board('4-3-3', { P: [withDuels], D: [blind] }), () => free)!;
-    expect(drawn.rows.at(-1)!.men[0].duels.map((rival) => rival.name)).toEqual(['Rivale1', 'Rivale2']);
+    expect(drawn.rows[0].men[0].duels.map((rival) => rival.name)).toEqual(['Rivale1', 'Rivale2']);
     const unknown = drawn.rows.find((row) => row.line === 'D')!.men[0];
     expect(unknown.duels.length).toBe(0);
     expect(unknown.duelsKnown).toBe(false);
