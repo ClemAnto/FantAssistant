@@ -1850,19 +1850,33 @@ Tre cambi, e ognuno porta la sua misura nel codice dove sta:
   (`HEAD_WARMUP` = 2, misurato: il warmup più lungo è peggiore). Un rivale che non ha mostrato abbastanza
   resta sulla testa di default, che è «il più caro che gli serve»: è un «non lo sappiamo» e non una scoperta.
 - **Un campetto della squadra REALE, sotto i suggerimenti** (richiesta dell'operatore, 10/08/2026): selettore
-  dei club del listone e undici disegnato sui posti tipizzati del modulo, con i giocatori **già presi ad alpha
-  0,3**. Tre cose che questa carta DICHIARA di non essere, perché altrimenti sarebbe un numero che descrive
-  una cosa sotto il nome di un'altra: non è la **board del pannello** (quella nasce dalla titolarità di
-  `presence.standing`, dal repertorio dell'allenatore e dalle decisioni per club di `board_rulings.json`, e
-  nessuna delle tre viaggia nel bundle); l'undici è quello dei **più presenti previsti** (`pv`), che è la metà
-  della previsione che porta la graduatoria (§18) ed è la grandezza giusta per «chi scende in campo»; e il
-  campetto dice la LINEA e il TIPO DI POSTO, **non il lato** — fra due posti identici l'ordine è un effetto
-  del cammino aumentante, e l'accoppiamento delle fasce è esattamente ciò che `_reshape` fa nel toolkit e qui
-  non c'è. Un posto che il listone non copre resta **vuoto** e dice quale posto è; un uomo senza presenze
-  previste non è disegnato («vuoto = ignoto»), e la didascalia conta quanti sono. La legalità è la stessa di
-  `mantra-legal.ts`, condivisa col banco: nessuna seconda definizione.
-  La via per avere la board VERA è dichiarata e non fatta: esportare la titolarità (`presence.standing` è
-  senza dipendenze e importabile) e la forma che il pannello disegna, e allora questa carta le legge.
+  dei club e **la board del TOOLKIT**, con i giocatori già presi ad **alpha 0,3**. La prima versione disegnava
+  un undici calcolato nell'app (i più presenti previsti) e l'operatore l'ha corretta lo stesso giorno: «il
+  campetto deve utilizzare le informazioni del db generato dal toolkit». Aveva ragione, e la via giusta era
+  più corta di quanto sembrasse — **esisteva già**: `press.extract_boards` guidava il pannello VERO senza
+  finestra (Tk nascosto, il loader del pannello, `board_shape` / `eleven` / `lanes_for` / `_placed`) per i due
+  giudici, e i **ballottaggi** li calcolava già e li **buttava via** (`_placed` restituisce
+  `(x, titolare, rivali)`).
+  Ora: `modules/boards.py` è l'UNICA definizione di una board e ha due chiamanti con bisogni opposti — i
+  giudici con `apply_rulings=False` (un giudice non deve punteggiare le risposte dell'operatore), il pannello
+  e da lì il bundle con `apply_rulings=True` (le tue decisioni hanno la precedenza massima sulla board
+  disegnata). Lo `snapshot` scrive `boards.json` **dentro la cartella del foglio appena scritto**, così una
+  board non può descrivere un foglio diverso da quello esportato, e l'`export` lo copia dove il manifest lo
+  dichiara (`engine_sheets[].boards`).
+  Per club: modulo disegnato (`picture`, dopo `_reshape`) e quello su cui il fit è stato risolto quando
+  differiscono, modulo tipico, allenatore, probabilità dei moduli; per uomo: `fc_id`, **x** (la posizione
+  orizzontale del pannello, fasce già ordinate), **ruoli reali** granulari, minuti e partite del suo
+  campionato, titolarità, e **fino a due ballottaggi**. Verificato sul bundle: 37 + 20 + 20 club, 407 + 220 +
+  220 uomini, 649 + 378 + 378 ballottaggi, **zero** disaccordi fra i numeri del modulo e i disegnati, zero
+  uomini senza `x` o senza `fc_id`.
+  Il disegno è la tua regola: ogni numero è quanti uomini stanno su quella linea, il portiere non è mai uno di
+  quei numeri e sta sempre solo davanti alla difesa, con quattro numeri il terzo è la trequarti e l'ultimo è
+  sempre l'attacco. Una linea con meno uomini di quanti il modulo chiede si disegna comunque e il difetto
+  **si dice** (⚠ sotto il campetto), perché riempirla sarebbe inventare un uomo che il toolkit non ha messo.
+  Tre cose che restano dichiarate: un uomo che la board disegna e il listone di sessione non ha **non è
+  «libero»**, è fuori tavolo (bordo tratteggiato, nessun prezzo); «ballottaggio ignoto» non è «nessun rivale»
+  (un titolare senza ruolo reale granulare non ha duelli esprimibili — 1 su 407); e un foglio costruito prima
+  delle board non ne ha, e la carta lo dice invece di disegnare un altro undici sotto lo stesso nome.
 - **Ogni pick previsto dice quanto TOGLIEREBBE quel giocatore al rivale che lo prende** (`denies`, mostrato
   sopra i 50 fantapunti). È una NOTA e non un cambio di scelta, ed è la misura stessa a dirlo: al tasso più
   generoso difendibile per questo gioco il denial ripaga il suo costo nel 63-70% dei pick dei primi quindici

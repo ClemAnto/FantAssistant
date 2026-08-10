@@ -31,7 +31,7 @@ import {
   predictRivalPick,
   startingPlaces,
 } from './auction-plan';
-import { Bundle, EngineSheetEntry } from './bundle';
+import { Board, BoardsFile, Bundle, EngineSheetEntry } from './bundle';
 
 /** Where the priced window lives between sessions: it is a setting, not a derived value. */
 const HORIZON_KEY = 'fantassistant.auction.horizon';
@@ -142,6 +142,15 @@ export class AuctionAdvice {
   /** The game's shapes, and last season's measured fantamedia per player on the sheet's platform. */
   private readonly shapes = signal<MantraModules | null>(null);
   private readonly measured = signal<Map<number, number>>(new Map());
+
+  /**
+   * The DRAWN BOARDS of the sheet in use: the toolkit's own, not a second eleven computed here.
+   *
+   * They come from the panel's own class driven headless (`modules/boards.py`), with the operator's shape
+   * rulings applied - the same call the screen makes. Null on a sheet built before they existed, and the pitch
+   * says so instead of drawing something else under the same name.
+   */
+  readonly boards = signal<BoardsFile | null>(null);
 
   constructor() {
     this.restoreHorizon();
@@ -414,6 +423,20 @@ export class AuctionAdvice {
     return rows;
   });
 
+  /**
+   * The drawn board of one real club, joined by NAME.
+   *
+   * By name and not by identity because that is all these two artefacts share: the board's key is the sheet's
+   * `club` (the canonical name the toolkit resolved) and the live listone spells the same club the same way -
+   * both come from the same fc_site listone. Where a name does not match, the pitch has no board and says so;
+   * inventing a fuzzy match here would be the name join this repository has already paid for four times.
+   */
+  boardOf(club: string | null): Board | null {
+    if (!club) return null;
+    const board = this.boards()?.clubs?.[club] ?? null;
+    return board && !board.error ? board : null;
+  }
+
   /** The REAL clubs at this listone, in alphabetical order - the axis of the pitch selector. */
   readonly realClubs = computed<string[]>(() => {
     const clubs = new Set<string>();
@@ -678,6 +701,8 @@ export class AuctionAdvice {
       // needs the classic places rather than nothing at all (measured: no rationing costs 4.93%).
       this.shapes.set(game === 'mantra' ? await this.bundle.modules() : await this.bundle.classicModules());
       this.measured.set(await this.lastSeason(chosen, manifest.input_season));
+      // The boards of THIS sheet, by the path the manifest itself declares - never a guessed file name.
+      this.boards.set(chosen.boards ? await this.bundle.boards(chosen.boards) : null);
       const notes: string[] = [];
       if (chosen.teams !== teams) {
         notes.push(

@@ -217,6 +217,7 @@ STAGES: tuple[tuple[str, str, float], ...] = (
     ("fielded", "the eleven fielded next", 0.5),
     ("rows", "the sheet's rows", 1.0),
     ("write", "csv + manifest", 0.5),
+    ("boards", "the drawn boards", 6.0),
 )
 
 
@@ -3387,6 +3388,37 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
     folder.mkdir(parents=True, exist_ok=True)
     _write_csv(folder / "players.csv", PLAYER_COLUMNS, rows)
     _write_csv(folder / "clubs.csv", list(club_rows[0]) if club_rows else ["club"], club_rows)
+
+    # THE DRAWN BOARDS, produced from the folder that was just written and stored inside it.
+    #
+    # Beside the sheet on purpose: a board that could come from a different sheet than the one exported is a
+    # mismatch nobody would ever see. And through the PANEL's own class (`boards.extract_boards` drives
+    # `SnapshotView` headless), so what the app draws and what the screen draws are the same call - the
+    # alternative was a second eleven, which is the defect of 08/08/2026.
+    #
+    # WITH the operator's rulings, unlike the two judges: `board_rulings.json` is his declared truth and has
+    # the highest precedence for the drawn board, while a judge must never score his own answers.
+    #
+    # It needs Tk, which is an ENVIRONMENT and not a dependency of a sheet: without a display the sheet is
+    # complete and only its boards are missing, so the failure is reported and never raised.
+    board_summary = None
+    try:
+        from euroleghe_ingest.modules.boards import write_boards
+
+        board_summary = write_boards(ctx.config, folder)
+    except Exception as exc:                              # noqa: BLE001 - a display is not a sheet's problem
+        print(f"[snapshot] note: boards.json not written ({exc!r}). The sheet is complete; the app's pitch"
+              f" falls back to what the bundle carries. `python -m euroleghe_ingest snapshot` on a machine"
+              f" with a display writes them.")
+    if board_summary:
+        print(f"[snapshot] boards: {board_summary['drawn']}/{board_summary['clubs']} clubs drawn"
+              f" · {board_summary['men']} men · {board_summary['duels']} ballottaggi"
+              f" · {board_summary['no_granular_role']} men with no granular real role, whose duels are"
+              f" UNKNOWN and not absent")
+        for club, why in board_summary["failed"].items():
+            print(f"[snapshot] WARNING: board not drawn for {club}: {why}")
+        for club, why in board_summary["disagreements"].items():
+            print(f"[snapshot] WARNING: {club}: {' · '.join(why)}")
 
     filled = {column: sum(1 for row in rows if row.get(column) not in (None, ""))
               for column in PLAYER_COLUMNS}

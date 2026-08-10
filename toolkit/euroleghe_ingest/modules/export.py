@@ -274,9 +274,29 @@ def write_engine_sheets(ctx: Context, folder: Path, target: str,
         if compress:
             payload = gzip.compress(payload, mtime=0)
         _atomic_write_bytes(out / f"{name}{suffix}", payload)
+
+        # The DRAWN BOARDS of this sheet: per club the module, the eleven where the PANEL places it, and up
+        # to two ballottaggi per man. COPIED from what `snapshot` wrote next to this very sheet, never
+        # recomputed here - a second eleven would be a second answer, which is the defect this project keeps
+        # paying for. It is copied inside this loop on purpose: here the sheet and its own folder are both in
+        # scope, so the boards cannot come from a different sheet than the rows.
+        boards = path / "boards.json"
+        board_path = None
+        if boards.exists():
+            (folder / "boards").mkdir(parents=True, exist_ok=True)
+            _atomic_write_bytes(folder / "boards" / f"{name}.json", boards.read_bytes())
+            board_path = f"boards/{name}.json"
+            print(f"[export] boards/{name}.json: {league}")
+        else:
+            print(f"[export] note: {league} has no boards.json (the sheet predates it, or the machine that"
+                  f" built it had no display): the app's pitch has no board for this league")
+
         priced = sum(1 for row in sheet if row.get("engine_fm_pred"))
         written.append({
             "league": league,
+            # Null where the sheet carries none: the app then says it has no board rather than drawing
+            # something else under the same name.
+            "boards": board_path,
             "platform": manifest.get("platform"),
             "game": manifest.get("game"),
             "teams": (manifest.get("league") or {}).get("teams"),

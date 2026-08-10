@@ -30,6 +30,8 @@ export interface EngineSheetEntry {
   estimated: number;
   /** Bundle-relative path, e.g. `sheets/euroleghe.json.gz`. */
   path: string;
+  /** The drawn boards of this sheet, or null when it was built before they existed. */
+  boards?: string | null;
 }
 
 /** The part of the manifest the UI reads. It is normative: refuse a schema we do not know. */
@@ -64,6 +66,57 @@ export interface ScoringTerms {
   penalty_saved_bonus_gk: number;
 }
 
+/**
+ * One man of a drawn board, as `modules/boards.py` writes him.
+ *
+ * Every field is a MEASURED column of the sheet or the panel's own output - nothing here is derived a second
+ * time by the app. `x` is the horizontal position the panel draws him at (0 = the team's right touchline,
+ * 1 = its left), flank ordering and the pull toward the centre already applied.
+ */
+export interface BoardMan {
+  fc_id: number | null;
+  name: string | null;
+  /** The granular real role codes, `;`-separated: the only thing that separates a left back from a centre. */
+  codes: string | null;
+  role_line: string | null;
+  role_side: string | null;
+  minutes: string | null;
+  matches: string | null;
+  minutes_club: string | null;
+  starts_club: string | null;
+  minutes_per_match: string | null;
+  starter_prob: string | null;
+  x?: number;
+  claim: number | null;
+  /** Up to two, in the panel's own order. */
+  duels?: BoardMan[];
+  /** False when his granular real role is unknown: then the duels are UNKNOWN, not absent. */
+  duels_known?: boolean;
+}
+
+export interface Board {
+  coach?: string | null;
+  new_coach?: string | null;
+  formation_typical?: string | null;
+  /** The module the fit was solved on. */
+  board_shape?: string | null;
+  /** The module the DRAWN men actually form, after the panel's transformations: the numbers of the pitch. */
+  picture?: string | null;
+  why?: string | null;
+  odds?: Record<string, number>;
+  lines?: Record<'P' | 'D' | 'M' | 'T' | 'A', BoardMan[]>;
+  /** Present when the panel could not draw this club at all: then there is nothing to show. */
+  error?: string;
+}
+
+export interface BoardsFile {
+  sheet: string;
+  mode: string;
+  /** True for the panel's own boards: they honour the operator's rulings, unlike the judges'. */
+  apply_rulings: boolean;
+  clubs: Record<string, Board>;
+}
+
 /** The shape of `mantra_modules.json`, as the toolkit ships it. */
 export interface MantraModulesFile {
   edition?: string;
@@ -87,6 +140,7 @@ export class Bundle {
   private scoringPromise?: Promise<ScoringConfig>;
   private modulesPromise?: Promise<MantraModulesFile | null>;
   private classicModulesPromise?: Promise<MantraModulesFile | null>;
+  private readonly boardsByPath = new Map<string, Promise<BoardsFile | null>>();
   private crestsPromise?: Promise<Record<string, string>>;
 
   manifest(): Promise<BundleManifest> {
@@ -150,6 +204,24 @@ export class Bundle {
     return this.classicModulesPromise;
   }
 
+
+  /**
+   * The DRAWN BOARDS of a league's sheet: per club the module, the eleven the PANEL places, and the duels.
+   *
+   * `path` comes from the manifest's own `engine_sheets[].boards`, so the app never guesses a file name - and
+   * a sheet built before the boards existed simply carries null there, which the caller must treat as «no
+   * board» rather than as an empty one.
+   */
+  boards(path: string): Promise<BoardsFile | null> {
+    let pending = this.boardsByPath.get(path);
+    if (!pending) {
+      pending = fetch(`${this.base}/${path}`)
+        .then((res) => (res.ok ? (res.json() as Promise<BoardsFile>) : null))
+        .catch(() => null);
+      this.boardsByPath.set(path, pending);
+    }
+    return pending;
+  }
 
   /** fc_club_id -> file name, written by the export next to the badges themselves. */
   crests(): Promise<Record<string, string>> {

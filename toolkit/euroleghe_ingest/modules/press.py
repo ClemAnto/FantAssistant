@@ -276,54 +276,10 @@ def _names_match(one: str, other: str) -> bool:
     return bool(_name_tokens(one) & _name_tokens(other))
 
 
-def extract_boards(config, sheet: Path, mode: str = "typical") -> dict[str, dict]:
-    """What the panel would draw for every club of the sheet, by calling the REAL functions.
-
-    A headless Tk instance of the panel's own class, loaded through the panel's own loader
-    (`SnapshotView.load_sheet`), so the population statistics, the caches and the elevens are exactly
-    the screen's - the 08/08/2026 defect was precisely a harness whose rows were a different
-    population from the panel's (CLAUDE.md, «Drive the REAL panel»).
-    """
-    import tkinter as tk
-
-    from euroleghe_ingest.gui import SnapshotView
-
-    root = tk.Tk()
-    root.withdraw()
-    try:
-        view = SnapshotView(root, config)
-        # WITHOUT the operator's persisted shape rulings: a ruling is often made looking at this very
-        # judge, and a judge must never score the operator's own answers - the harness measures the
-        # MODEL. Same circularity guard as «the press is a JUDGE, never an input».
-        view.load_sheet(Path(sheet), apply_rulings=False)
-        boards: dict[str, dict] = {}
-        for club in sorted(view.clubs):
-            info = view.clubs[club]
-            try:
-                odds = view.shape_odds(club, info, mode)
-                shape, why = view.board_shape(club, info, mode)
-                eleven = view.eleven(club, shape, mode)
-                lanes, _geometry, picture = view.lanes_for(eleven)
-                lines = {}
-                for line in ("P", "D", "M", "T", "A"):
-                    placed = view._placed(lanes.get(line) or [], line)
-                    lines[line] = [{"name": row.get("name"), "x": round(x, 2),
-                                    "codes": row.get("desc_real_roles"),
-                                    "claim": round(view.claim(row, "season"), 3)}
-                                   for x, row, _rivals in placed]
-                boards[club] = {
-                    "coach": info.get("coach"), "new_coach": info.get("new_coach"),
-                    "formation_typical": info.get("formation_typical"),
-                    "coach_shapes": info.get("coach_shapes"),
-                    "board_shape": shape, "why": why, "picture": picture,
-                    "odds": {s: round(p, 3) for s, p in list(odds.items())[:4]},
-                    "lines": lines,
-                }
-            except Exception as exc:    # noqa: BLE001 - one broken club must not hide the other 19
-                boards[club] = {"error": repr(exc)}
-        return boards
-    finally:
-        root.destroy()
+# The board extraction lives in `boards.py`: it has two callers with OPPOSITE needs - the judges must not
+# score the operator's own rulings, the panel's data path must honour them - and a shared function is the only
+# way the two cannot drift. Imported rather than wrapped so `press.extract_boards` still resolves.
+from euroleghe_ingest.modules.boards import extract_boards        # noqa: E402  (after the module's constants)
 
 
 def compare(boards: dict[str, dict], reference: dict[str, dict],
@@ -406,7 +362,10 @@ def compare_sheet(ctx: Context, sheet: Path, *, mode: str = "typical", source: s
               + (" - import one first (press --import FILE --season ...)" if against == "press"
                  else " - the season has no complete elevens on file"))
         return None
-    boards = extract_boards(ctx.config, sheet, mode=mode)
+    # WITHOUT the operator's rulings: a ruling is often made looking at this very judge, and a
+    # judge must never score the operator's own answers. The default is False; saying it here
+    # anyway is the point - this is the one call for which it is a decision and not a default.
+    boards = extract_boards(ctx.config, sheet, mode=mode, apply_rulings=False)
     if against == "outcome":
         # the outcome reference covers every club with elevens on file (46 for 2025-26, all five
         # leagues); a sheet is one platform's perimeter, so score the intersection and say so

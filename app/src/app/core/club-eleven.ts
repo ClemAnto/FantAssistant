@@ -1,128 +1,171 @@
 /**
- * The eleven a REAL club is most likely to field, drawn on one of the game's own shapes.
+ * A real club's eleven, read from the board the TOOLKIT drew - not computed here.
  *
- * WHAT THIS IS, and the label matters more than the picture. It is the eleven of the men the ENGINE expects
- * to play most (`pv`, expected appearances), placed on the shape those men fill best. It is **not** the
- * toolkit's board: that one is drawn in the Tk panel from the claim (`engine/presence.standing`), the coach's
- * own repertoire (`coach_shapes`), the operator's rulings (`config/board_rulings.json`) and a Hungarian fit
- * over a distance grid with the five `_reshape` transformations on top - none of which travels in the bundle.
- * Calling this «la formazione tipo» of the panel would be the defect this repository keeps paying for: a
- * number that describes one thing under the name of another.
+ * The board comes from `modules/boards.py`, which drives the panel's own class headless and calls the real
+ * `board_shape` / `eleven` / `lanes_for` / `_placed`, with the operator's shape rulings applied. So the pitch
+ * in this app and the pitch on the panel are the same call: there is no second eleven anywhere, which is the
+ * whole point - the 08/08/2026 defect was a harness whose population differed from the screen's.
  *
- * Why `pv` and not our value: measured on fifteen window instances (`gate-motore-v1.md` §7-octovicies,
- * `metrica-asta-surplus-v1.md` §18), expected appearances are the half of the prediction that carries the
- * ranking - `pv_pred` +0.459 against `fm_pred` +0.259 - and «who starts» is exactly the question a pitch is
- * asking. Ranking this eleven by the fantamedia would draw the men who score when they play, which is a
- * different picture and the wrong one for «chi scende in campo».
+ * What this file does is only READING it: turn the module's numbers into rows, join each man to the live
+ * listone (so a man already taken can be faded), and report where the two disagree instead of hiding it.
  *
- * The placement is the SHARED matroid (`mantra-legal`), the same definition the draft bench and the coverage
- * rule use, so no second legality exists anywhere in this app.
+ * THE MODULE IS THE DRAWING, and it is the operator's own rule (10/08/2026): every number is how many men
+ * stand on that line; the keeper is never one of them and always occupies one slot in front of the defence;
+ * three numbers are defence / midfield / attack; four are defence / midfield / TREQUARTI / attack, and the
+ * last is always the attack.
  */
 
-import { MantraModules } from './auction-value';
-import { Placeable, assign, placesOf } from './mantra-legal';
+import { Board, BoardMan } from './bundle';
 
-/** A man as a pitch needs him: who he is, whether he is gone, and what the eleven is ranked by. */
-export interface ClubMan extends Placeable {
-  id: number;
+/** The lines a pitch draws, from the attack down to the goal. */
+export type PitchLine = 'A' | 'T' | 'M' | 'D' | 'P';
+
+export const DRAW_ORDER: PitchLine[] = ['A', 'T', 'M', 'D', 'P'];
+
+export interface PitchMan {
+  fcId: number | null;
   name: string;
-  /** Expected appearances. A man the sheet cannot price has none, and he is not drawn - unknown, not zero. */
-  pv: number | null;
-  price: number;
+  /** The granular REAL role codes, which is what says a left back is not a centre back. */
+  codes: string[];
+  minutes: number | null;
+  matches: number | null;
+  minutesPerMatch: number | null;
+  /** The panel's own claim: who starts when everybody is fit. It is what put him on the pitch. */
+  claim: number | null;
+  /** Where the panel draws him: 0 is the team's right touchline, 1 its left. Flanks already ordered. */
+  x: number;
+  /** Already off the board at this table. */
   taken: boolean;
+  /** What the table asks for him, from the LIVE listone - the board does not carry a price. */
+  price: number | null;
+  /** In the live listone at all: a man the board draws and the session does not have cannot be bought. */
+  onTable: boolean;
+  /** At most two, in the panel's own order. */
+  duels: PitchMan[];
+  /** False when his granular real role is unknown: then the duels are UNKNOWN, not absent. */
+  duelsKnown: boolean;
 }
 
-/** One place of the drawn shape, and who fills it. `player` is null for a place nobody covers. */
-export interface ElevenPlace {
-  /** The place's own type as the rulebook spells it (`DC/B`, `A/PC`, `P`, `D`, ...). */
-  slot: string;
-  /** Which line it belongs to, in the order a pitch draws them from the goal up. */
-  line: 'P' | 'D' | 'M' | 'T' | 'A';
-  player: ClubMan | null;
+export interface PitchRow {
+  line: PitchLine;
+  /** How many men the MODULE puts on this line. */
+  wanted: number;
+  men: PitchMan[];
 }
 
-export interface ClubEleven {
+export interface Pitch {
+  /** The module the drawn men actually form - the numbers this pitch is built from. */
   module: string;
-  places: ElevenPlace[];
-  /** How many places the club's men actually cover: a squad we can only half price shows gaps. */
-  filled: number;
-  /** How many of the drawn men are already off the board. */
+  /** The module the fit was solved on, when it differs: a transformation split a row. */
+  solvedOn: string | null;
+  /** What the club usually plays, and how likely the drawn one was, so the picture can be doubted. */
+  typical: string | null;
+  coach: string | null;
+  newCoach: boolean;
+  why: string | null;
+  odds: { shape: string; p: number }[];
+  rows: PitchRow[];
   taken: number;
-  /** Men with no `pv` at all, so the pitch can say why it drew ten and not eleven. */
-  unpriced: number;
-}
-
-/** The lines of a module, in the order they are drawn, keeper first. */
-function linesOf(rules: MantraModules, name: string): ElevenPlace['line'][] {
-  const shape = rules.modules[name];
-  const lines: ElevenPlace['line'][] = ['P'];
-  for (const line of ['D', 'M', 'T', 'A'] as const) {
-    for (const _place of shape?.[line] ?? []) lines.push(line);
-  }
-  return lines;
-}
-
-/** The place types of a module, keeper first - the same order `placesOf` walks. */
-function slotsOf(rules: MantraModules, name: string): string[] {
-  const shape = rules.modules[name];
-  return ['P', ...(shape?.['D'] ?? []), ...(shape?.['M'] ?? []), ...(shape?.['T'] ?? []),
-          ...(shape?.['A'] ?? [])];
+  /** Where the module's numbers and the drawn men disagree. Shown, never smoothed over. */
+  problems: string[];
 }
 
 /**
- * The club's likely eleven: the shape its most-used men fill best, and who stands where.
+ * The module's numbers as the LINES they are, keeper excluded.
  *
- * «Best» is the sum of the expected appearances of the men the shape can place, so a shape that leaves a place
- * empty is beaten by one that fills it - which is what makes the drawn module the club's own and not ours.
- * Ties go to the first module declared, the same tie-break the coverage rule uses and for the same reason:
- * it is the one that was measured.
- *
- * A man with no `pv` is not drawn at all. That is «vuoto = ignoto»: on a Serie A sheet the engine refuses 111
- * men of 433, and filling their places with a guess would draw an eleven nobody predicted.
+ * The same function exists in the toolkit (`boards.counts_of`) because both sides have to agree on what a
+ * module string means; they are checked against each other by the fact that a mismatch is REPORTED - if the
+ * two ever read a string differently, `problems` says so on the club it happens to.
  */
-export function clubEleven(men: ClubMan[], rules: MantraModules | null): ClubEleven | null {
-  if (!rules?.modules) return null;
-  const unpriced = men.filter((man) => man.pv == null).length;
-  const ranked = men
-    .filter((man) => man.pv != null && man.roles.length)
-    .sort((left, right) => (right.pv ?? 0) - (left.pv ?? 0));
-  if (!ranked.length) return null;
-
-  let best: ClubEleven | null = null;
-  for (const name of Object.keys(rules.modules)) {
-    const places = placesOf(rules, name);
-    if (!places.length) continue;
-    const { chosen, holder } = assign(ranked, places);
-    const worth = chosen.reduce((sum, man) => sum + (man.pv ?? 0), 0);
-    const slots = slotsOf(rules, name);
-    const lines = linesOf(rules, name);
-    const drawn: ElevenPlace[] = places.map((_roles, at) => ({
-      slot: slots[at] ?? '',
-      line: lines[at] ?? 'M',
-      player: holder[at] >= 0 ? chosen[holder[at]] : null,
-    }));
-    const filled = drawn.filter((place) => place.player).length;
-    const candidate: ClubEleven = {
-      module: name,
-      places: drawn,
-      filled,
-      taken: drawn.filter((place) => place.player?.taken).length,
-      unpriced,
-    };
-    // More places covered first, then the appearances they add up to: a fuller eleven is the club's eleven.
-    if (!best || filled > best.filled
-        || (filled === best.filled && worth > best.places.reduce(
-          (sum, place) => sum + (place.player?.pv ?? 0), 0))) {
-      best = candidate;
-    }
+export function lineCounts(picture: string | null | undefined): Record<PitchLine, number> | null {
+  if (!picture) return null;
+  const numbers = String(picture)
+    .split('-')
+    .map((part) => part.trim())
+    .filter((part) => /^\d+$/.test(part))
+    .map((part) => Number(part));
+  if (numbers.length === 3) {
+    return { P: 1, D: numbers[0], M: numbers[1], T: 0, A: numbers[2] };
   }
-  return best;
+  if (numbers.length === 4) {
+    return { P: 1, D: numbers[0], M: numbers[1], T: numbers[2], A: numbers[3] };
+  }
+  return null;
 }
 
-/** The lines a pitch draws, top (attack) to bottom (goal), with the places of each. */
-export function byLine(eleven: ClubEleven): { line: ElevenPlace['line']; places: ElevenPlace[] }[] {
-  const order: ElevenPlace['line'][] = ['A', 'T', 'M', 'D', 'P'];
-  return order
-    .map((line) => ({ line, places: eleven.places.filter((place) => place.line === line) }))
-    .filter((row) => row.places.length);
+const int = (value: string | null | undefined): number | null => {
+  if (value == null || value === '') return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+/** What the live table knows about a man the board drew: whether he is gone, and what he costs. */
+export interface OnTable {
+  taken: boolean;
+  price: number | null;
+  onTable: boolean;
+}
+
+function toMan(man: BoardMan, resolve: (man: BoardMan) => OnTable): PitchMan {
+  const live = resolve(man);
+  return {
+    fcId: man.fc_id ?? null,
+    name: man.name ?? '—',
+    codes: (man.codes ?? '').split(';').map((code) => code.trim()).filter(Boolean),
+    minutes: int(man.minutes),
+    matches: int(man.matches),
+    minutesPerMatch: int(man.minutes_per_match) ?? (man.minutes_per_match
+      ? Number(man.minutes_per_match) : null),
+    claim: man.claim ?? null,
+    x: typeof man.x === 'number' ? man.x : 0.5,
+    taken: live.taken,
+    price: live.price,
+    onTable: live.onTable,
+    duels: (man.duels ?? []).map((rival) => toMan(rival, resolve)),
+    duelsKnown: man.duels_known !== false,
+  };
+}
+
+/**
+ * The pitch of one board: rows from the module's numbers, men where the panel puts them.
+ *
+ * A row is drawn even when the board placed FEWER men on it than the module asks for - the gap is the
+ * information (an empty flank reads as a gap, which is exactly what the panel's own geometry is for), and
+ * `problems` names it. Filling it would be inventing a man the toolkit did not place.
+ */
+export function pitchOf(board: Board | null, resolve: (man: BoardMan) => OnTable): Pitch | null {
+  if (!board || board.error) return null;
+  const module = board.picture ?? board.board_shape ?? null;
+  const counts = lineCounts(module);
+  if (!counts || !board.lines) return null;
+
+  const rows: PitchRow[] = [];
+  const problems: string[] = [];
+  let taken = 0;
+  for (const line of DRAW_ORDER) {
+    const wanted = counts[line] ?? 0;
+    const drawn = (board.lines[line] ?? []).map((man) => toMan(man, resolve));
+    if (!wanted && !drawn.length) continue;
+    if (wanted !== drawn.length) {
+      problems.push(`linea ${line}: il modulo dice ${wanted}, i disegnati sono ${drawn.length}`);
+    }
+    taken += drawn.filter((man) => man.taken).length;
+    rows.push({ line, wanted, men: drawn });
+  }
+
+  const solved = board.board_shape ?? null;
+  return {
+    module: module ?? '',
+    solvedOn: solved && solved !== module ? solved : null,
+    typical: board.formation_typical ?? null,
+    coach: board.coach ?? null,
+    // `'yes'` / `'no'`, as the sheet's own column spells it - and NOT `Boolean(...)`, which reads `'no'` as
+    // true and would have called every coach new. The column that looks like a flag is a word.
+    newCoach: String(board.new_coach ?? '').toLowerCase() === 'yes',
+    why: board.why ?? null,
+    odds: Object.entries(board.odds ?? {}).map(([shape, p]) => ({ shape, p })),
+    rows,
+    taken,
+    problems,
+  };
 }

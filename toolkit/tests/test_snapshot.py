@@ -2595,9 +2595,24 @@ def test_a_shape_ruling_outlives_the_session_and_never_reaches_the_judge(tmp_pat
     assert View.load_sheet.__defaults__ == (True,)
     import inspect
 
-    from euroleghe_ingest.modules import press
-    assert "apply_rulings=False" in inspect.getsource(press.extract_boards), \
+    from euroleghe_ingest.modules import boards, press
+    from euroleghe_ingest.modules import snapshot as snap
+    # The invariant is no longer a substring inside one function: `extract_boards` grew a SECOND caller with
+    # the opposite need - the panel's data path must honour the rulings, the judge must never see them - so the
+    # guard grew into the three facts that keep them apart, plus where the boards are written, which is what
+    # stops them from describing a different sheet than the one exported.
+    assert inspect.signature(boards.extract_boards).parameters["apply_rulings"].default is False, \
+        "the safe default must be the judge's: a forgotten flag must not seed the operator's rulings"
+    # On the MODULE and not on one function: which function holds the call is a detail, «the judge never
+    # turns the flag on anywhere» is the invariant.
+    assert "apply_rulings=False" in inspect.getsource(press), \
+        "the judge must ask for the model's own answer explicitly"
+    assert "apply_rulings=True" not in inspect.getsource(press), \
         "the judge must never score the operator's own rulings"
+    assert "apply_rulings=True" in inspect.getsource(boards.write_boards), \
+        "the PANEL's board must honour the operator's rulings: they have the highest precedence"
+    assert "write_boards" in inspect.getsource(snap.run), \
+        "the boards are written from the sheet just built, so they cannot describe a different one"
 
 
 def test_a_sheet_says_how_old_its_squad_and_transfer_evidence_is(tmp_path):
