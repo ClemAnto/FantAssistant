@@ -133,13 +133,35 @@ RULES: tuple[Rule, ...] = (
                 "the role anchor", True, metric="fm"),
     Rule("R17", "forward crowding: team-mates' claimed share above the club's fielded-forward "
                 "capacity, charged to the market's lower-ranked claimants", True, metric="pv"),
+    # R18b / R18c - the two DECLARED shapes of R18's history term, one per grid point so «which value»
+    # is a verdict and not a fit. Both were pre-registered on 10/08/2026 and both were REFUSED (mean
+    # +0.3/0.4% against the 0.5% floor, gate §7-septvicies); they stay declared, because a refused form
+    # is documented with its instrument rather than by deleting it.
+    *(Rule(key, f"R18 with the history weighted for RECENCY, declared decay d = {decay:.2f} "
+                f"(one lambda instead of two)", True, metric="fm")
+      for key, decay in (("R18b50", 0.50), ("R18b70", 0.70), ("R18b85", 0.85))),
+    *(Rule(key, f"R18 with the split between last season and the five-year mean DECLARED at "
+                f"w = {weight:.2f}, only the total strength fitted", True, metric="fm")
+      for key, weight in (("R18c50", 0.50), ("R18c65", 0.65))),
 )
 
 # Rules that get fitted and compared one at a time by `compare`.
 CANDIDATES: tuple[str, ...] = ("R0c", "R1", "R1b", "R2", "R3", "R3c", "R4", "R4b", "R5", "R6", "R7",
                                "R8", "R10", "R11", "R11b", "R12", "R12b", "R13", "R13b",
                                "R13c", "R14", "R14b", "R15", "R3d", "R16", "R16b", "R5b", "R17",
-                               "R18", "R19")
+                               "R18", "R19", "R18b50", "R18b70", "R18b85",
+                               "R18c50", "R18c65")
+
+# R18b - R18 with the history weighted for RECENCY, pre-registered on 10/08/2026 with this grid and no
+# other. One candidate name per decay so the report states the whole grid instead of a chosen value, and
+# so «which d» is a verdict and not a fit. `d = 1` is R18 itself, deliberately outside the grid: the
+# incumbent is the thing being tested against.
+R18B_DECAYS: dict[str, float] = {"R18b50": 0.50, "R18b70": 0.70, "R18b85": 0.85}
+
+# R18c - the split between last season and the five-year mean is DECLARED and only the total strength
+# is fitted. Pre-registered 10/08/2026 with this grid and no other, after measuring that R18's split is
+# not identified while its sum is (0.68 +/- 19% over nine windows).
+R18C_WEIGHTS: dict[str, float] = {"R18c50": 0.50, "R18c65": 0.65}
 
 # What survived the gate, PER PLATFORM. Keeping it per platform is not a hedge: `platform` is a
 # first-class dimension of the data model (different calendars, different perimeters), and the gate
@@ -594,6 +616,10 @@ class Params:
     crowding_lam: float | None = None              # R17: teammates' claim above the fielded capacity
     level_lam: float | None = None                # R19: the origin club's Elo, on the share
     history_lam: tuple[float, ...] | None = None  # R18
+    history_lam_b: dict[str, tuple[float, ...]] = field(default_factory=dict)      # R18b, per decay
+    history_lam_b_gk: dict[str, tuple[float, ...]] = field(default_factory=dict)   # R18b, keepers
+    history_lam_c: dict[str, float] = field(default_factory=dict)                  # R18c, one strength
+    history_lam_c_gk: dict[str, float] = field(default_factory=dict)               # R18c, keepers
     history_lam_gk: tuple[float, ...] | None = None  # R18-GK: the same, on the keeper's Mv: last season AND the five-year mean, together
     off_role_forward: float | None = None         # R8: used further forward than listed
     off_role_backward: float | None = None        # R8: used further back than listed
@@ -902,6 +928,71 @@ def fit_params(data: features.WindowData, rules: tuple[str, ...]) -> Params:
         params.history_lam_gk = fitted_gk if fitted_gk else None
         params.notes["R18_gk_n"] = len(gk_pairs)
 
+    for name, decay in R18B_DECAYS.items():
+        if name not in rules:
+            continue
+        # The SAME regression and the SAME population as R18: only the history term changes, which is
+        # the whole point of a variant - anything else moving would make the comparison meaningless.
+        pairs = []
+        for obs in data.observations:
+            anchor = _anchor_for(obs, data)
+            history = model.weighted_history(obs.fm_seasons, decay)
+            if (anchor is None or obs.fm_prev is None or history is None
+                    or obs.fm_5y_seasons < 2 or obs.fm_act is None
+                    or (obs.pv_prev or 0) < model.MIN_PV_PREV or (obs.pv_act or 0) < MIN_PV_ACT):
+                continue
+            pairs.append(((obs.fm_prev - anchor, history - anchor), obs.fm_act - anchor))
+        fitted = fit_linear(pairs, intercept=False)
+        if fitted:
+            params.history_lam_b[name] = fitted
+        params.notes[f"{name}_n"] = len(pairs)
+
+        gk_pairs = []
+        for obs in data.observations:
+            history = model.weighted_history(obs.mv_seasons, decay)
+            if (not _is_goalkeeper(obs) or obs.mv_prev is None or history is None
+                    or obs.fm_5y_seasons < 2 or obs.mv_act is None
+                    or (obs.pv_prev or 0) < model.MIN_PV_PREV or (obs.pv_act or 0) < MIN_PV_ACT):
+                continue
+            gk_pairs.append(((obs.mv_prev - model.GK_MV_ANCHOR, history - model.GK_MV_ANCHOR),
+                             obs.mv_act - model.GK_MV_ANCHOR))
+        fitted_gk = fit_linear(gk_pairs, intercept=False)
+        if fitted_gk:
+            params.history_lam_b_gk[name] = fitted_gk
+        params.notes[f"{name}_gk_n"] = len(gk_pairs)
+
+    for name, weight in R18C_WEIGHTS.items():
+        if name not in rules:
+            continue
+        # ONE regressor: the declared blend. Same population as R18, so the comparison is like-for-like.
+        pairs = []
+        for obs in data.observations:
+            anchor = _anchor_for(obs, data)
+            if (anchor is None or obs.fm_prev is None or obs.fm_5y is None
+                    or obs.fm_5y_seasons < 2 or obs.fm_act is None
+                    or (obs.pv_prev or 0) < model.MIN_PV_PREV or (obs.pv_act or 0) < MIN_PV_ACT):
+                continue
+            blended = weight * (obs.fm_prev - anchor) + (1.0 - weight) * (obs.fm_5y - anchor)
+            pairs.append(((blended,), obs.fm_act - anchor))
+        fitted = fit_linear(pairs, intercept=False)
+        if fitted:
+            params.history_lam_c[name] = fitted[0]
+        params.notes[f"{name}_n"] = len(pairs)
+
+        gk_pairs = []
+        for obs in data.observations:
+            if (not _is_goalkeeper(obs) or obs.mv_prev is None or obs.mv_5y is None
+                    or obs.fm_5y_seasons < 2 or obs.mv_act is None
+                    or (obs.pv_prev or 0) < model.MIN_PV_PREV or (obs.pv_act or 0) < MIN_PV_ACT):
+                continue
+            blended = (weight * (obs.mv_prev - model.GK_MV_ANCHOR)
+                       + (1.0 - weight) * (obs.mv_5y - model.GK_MV_ANCHOR))
+            gk_pairs.append(((blended,), obs.mv_act - model.GK_MV_ANCHOR))
+        fitted_gk = fit_linear(gk_pairs, intercept=False)
+        if fitted_gk:
+            params.history_lam_c_gk[name] = fitted_gk[0]
+        params.notes[f"{name}_gk_n"] = len(gk_pairs)
+
     if {"R14", "R14b"} & set(rules):
         idle_share, idle_fm = [], []
         for obs in data.observations:
@@ -1118,6 +1209,39 @@ def _rule_fm(obs: features.Observation, data: features.WindowData, rules: tuple[
             and obs.fm_5y_seasons >= 2 and not _is_goalkeeper(obs)):
         fm_pred = model.predict_fm_from_history(anchor, obs.fm_prev, obs.fm_5y,
                                                 (params.history_lam[0], params.history_lam[1]))
+
+    # R18b - the same shrinkage as R18 with the history weighted for recency. Only one decay can be in
+    # play at a time: the gate scores each candidate on its own, which is what a grid means here.
+    for name, decay in R18B_DECAYS.items():
+        if name not in rules or baseline is None:
+            continue
+        if _is_goalkeeper(obs) and name in params.history_lam_b_gk and obs.mv_prev is not None:
+            history = model.weighted_history(obs.mv_seasons, decay)
+            if history is not None and obs.fm_5y_seasons >= 2:
+                lams = params.history_lam_b_gk[name]
+                fm_pred = model.predict_fm_goalkeeper_history(
+                    obs.mv_prev, history, data.gk_rates.get(obs.club_target or ""), data.mu_rate,
+                    (lams[0], lams[1]))
+        elif (not _is_goalkeeper(obs) and name in params.history_lam_b
+                and anchor is not None and obs.fm_prev is not None and obs.fm_5y_seasons >= 2):
+            history = model.weighted_history(obs.fm_seasons, decay)
+            if history is not None:
+                lams = params.history_lam_b[name]
+                fm_pred = model.predict_fm_from_history(anchor, obs.fm_prev, history,
+                                                        (lams[0], lams[1]))
+
+    # R18c - the same two ingredients with the split declared instead of fitted.
+    for name, weight in R18C_WEIGHTS.items():
+        if name not in rules or baseline is None or obs.fm_5y_seasons < 2:
+            continue
+        if _is_goalkeeper(obs) and name in params.history_lam_c_gk and obs.mv_prev is not None                 and obs.mv_5y is not None:
+            fm_pred = model.predict_fm_goalkeeper_weighted_history(
+                obs.mv_prev, obs.mv_5y, data.gk_rates.get(obs.club_target or ""), data.mu_rate,
+                params.history_lam_c_gk[name], weight)
+        elif (not _is_goalkeeper(obs) and name in params.history_lam_c and anchor is not None
+                and obs.fm_prev is not None and obs.fm_5y is not None):
+            fm_pred = model.predict_fm_weighted_history(anchor, obs.fm_prev, obs.fm_5y,
+                                                        params.history_lam_c[name], weight)
 
     # R1a - the player the engine cannot see at all: price him off the foreign FM-equivalent.
     # NOT for goalkeepers: `arrivals.foreign_fm_equiv` adds goal/assist bonuses to the base voto and

@@ -52,7 +52,10 @@ is a mirror/archive). Before any work read, in order:
 protocol, every verdict and every falsified hypothesis: read it before proposing any rule) ->
 **`metrica-asta-surplus-v1.md`** (what the Auction panel ranks by, and why it is not VALUE) ->
 **`assistente-asta-v1.md`** (what the assistant does with it at the table: three questions, three
-numbers, and the UI rules that are requirements) -> `spec-euroleghe-ingest-v9.md` -> `nota-modello-set-pieces-v2.md` -> `modello-previsionale-v3.8.md` ->
+numbers, and the UI rules that are requirements) -> **`todolist-draft-v1.md`** (the DRAFT improvement
+plan born from the 10/08/2026 five-window strategy campaign, ordered by measured yield; its standing
+results: role coverage beats the currency tenfold, the surplus is the wrong draft currency, playing
+for first pick is ruinous) -> `spec-euroleghe-ingest-v9.md` -> `nota-modello-set-pieces-v2.md` -> `modello-previsionale-v3.8.md` ->
 the consolidated notes in the same folder. For BOARD work (typical elevens): `formazioni-tipo-v1.md`
 (how the board is decided — shape, claim, fit, with every constant) and `todolist-formazioni-tipo-v1.md`
 (the improvement plan born from the 08/08/2026 press comparison, ordered by measured yield; its standing
@@ -687,6 +690,28 @@ the scale runs out (Kane SpM 989 against a listone whose maximum is 499 - correc
 and on a FINISHED season the FVM has already moved with the season itself, so a big dVM is the engine against
 a price that knows the outcome, not a bargain anybody could have taken. Details:
 `metrica-asta-surplus-v1.md` §14.
+
+## The currency depends on the FORMAT, and one window is not a verdict
+**Measured 10/08/2026 on the five gate windows of euro/mantra, against the real outcome** (`docs/model/
+metrica-asta-surplus-v1.md` §15, and the plan it produced: `todolist-draft-v1.md`). The SURPLUS is right
+where the scarce resource is what it subtracts against - a credit auction, and the goalkeeper, where you
+field exactly one (replacement `por` 4.36 of fantamedia against `pc` 7.29). In a DRAFT on mantra it is the
+wrong currency (**-4.0%** against the table, -15.7% on one window) because it charges a per-slot scarcity
+the rulebook does not impose: the roster binds 3 keepers + 22 outfield and no per-slot quota, and 497
+quoted men of 1014 carry 2+ codes, so the demand behind the surplus is DERIVED from the shapes rather than
+imposed by the game. What survives on every window: **playing for the first pick is ruinous** (-45.8%,
+0/5), and **role COVERAGE beats the choice of currency tenfold** - covering the module twice is worth
++10.6 points per matchday against the 0.8 that separate the currencies, and the top 25 of ANY ranking
+cannot field a legal eleven at all (4-10 places of 11).
+Three habits come out of it and they are the durable part. **A conclusion on one window is not a
+conclusion**: two were reported to the operator from T2 alone and both died on five - the middle-way floor
+(+92 became **+0.0%**) and «the engine beats the market» (Qt.I **+0.545** against our value **+0.514**, the
+value ahead only on the window it was measured on). **A number needs the right null**: the +1.9% the
+price-driven policy shows is largely «being like the better rivals», because the comparison is against the
+MEAN of a table that contains deliberately weak heads. And **an intuition can be right about the mechanism
+and wrong about the remedy**: «when slots get scarce you need alternatives in every role» is true, and the
+cure is a constraint on the roster, not a change of currency - the schedule that switches currency
+mid-draft is worse the earlier it switches (-131 at round 6, -162 at round 11).
 
 ## A displayed list whose metrics describe a different list is worse than no metric
 **Found and paid for within one hour, 05/08/2026.** The estimates were merged into the rows the auction panel

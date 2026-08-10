@@ -27,6 +27,7 @@ Read-only on the DB, like `backtest`: it writes a folder under data/export/ and 
 from __future__ import annotations
 
 import datetime as dt
+import csv
 import gzip
 import json
 import os
@@ -158,6 +159,152 @@ PRICE_DISCIPLINE: dict[str, list[str]] = {
     # platform, so the app reads `listone_quotes` and filters on the platform it is playing.
     "platform_note": ["rosters.* quotations are the last read, unattributed - do not decide on them"],
 }
+
+
+# The engine's own numbers, per player, taken from the sheet `snapshot` already writes. Only these
+# columns travel: they are the INGREDIENTS the app needs to compute a surplus against the pool that is
+# actually on the table, and nothing else on the sheet is an ingredient.
+#
+# Why the ingredients and not `engine_surplus` itself, which is right there. A surplus is measured
+# against a REPLACEMENT LEVEL, and at a live auction that zero is the marginal man among the players
+# still FREE - which moves at every pick, and moves again if the host uploads his own list instead of
+# the listone (`playerListType: custom`, observed 09/08/2026). A frozen surplus answers the question
+# the sheet was built for, not the one the table asks. `engine_surplus` travels anyway as the
+# league-level reference the sheet stands behind, clearly named as such.
+SHEET_COLUMNS: tuple[str, ...] = (
+    "fc_id",
+    "engine_fm_pred",        # the predicted fantamedia: the only quality term
+    "engine_pv_pred",        # expected appearances ON THE PLATFORM CALENDAR (see `matchdays` below)
+    "engine_role_slot",      # the role the two columns above are measured in - the game's own
+    "engine_replacement_fm", # the sheet's own league zero, so the app can show what it recomputed against
+    "engine_surplus",        # league-level reference, NOT the number a live panel should rank by
+    "engine_anchor",
+    "engine_unpriced_reason",
+    "est_fm",                # the fallback for a man the core refuses to price, with its penalty
+    "est_pv",
+    "est_surplus",
+    "est_confidence",
+    "est_basis",
+    "est_note",
+    # MEASURED football, for the row to be judged and not only ranked: how much he actually played
+    # last season, and over how many matches - the two together are minutes per match, and one
+    # without the other is not a rate. Both counted on his own championship, never on our calendar.
+    "desc_minutes_full_season",
+    "desc_season_matches",
+    # The calendar still to be played, as the sheet computed it: «k/n (p%)» and the mean Elo advantage.
+    # DISPLAY-ONLY on the row too - the app shows them and no valuation reads them.
+    "desc_easy_matches",
+    "desc_calendar_margin",
+)
+
+
+def _sheet_folders(reports: Path, target: str) -> list[Path]:
+    """Every sheet folder of the target season, newest stamp last."""
+    return sorted(path for path in reports.glob(f"auction-snapshot-{target}-*")
+                  if path.is_dir() and (path / "players.csv").exists())
+
+
+def write_engine_sheets(ctx: Context, folder: Path, target: str,
+                        compress: bool = True) -> list[dict]:
+    """Copy the engine's per-player numbers into the bundle, one file per LEAGUE.
+
+    Per league because a surplus without its league is not comparable with another league's: the
+    replacement level is fixed by `teams x squad_slots` (`assistente-asta-v1.md` §1), so two sheets of
+    the same platform and game can hold different numbers. The league setup travels next to the rows
+    for the same reason, and so does `matchdays.platform_target` - `engine_pv_pred` is expressed on that
+    calendar, so an app pricing a competition of n rounds has to scale by n/N and cannot guess N.
+
+    A folder that is not a whole sheet is skipped rather than half-read: `snapshot --clubs X` writes one
+    club's rows, and a one-club population is not a population (its own manifest says so).
+    """
+    reports = ctx.config.data_dir / "reports"
+    written: list[dict] = []
+    if not reports.exists():
+        return written
+
+    newest: dict[str, tuple[str, Path, dict]] = {}
+    for path in _sheet_folders(reports, target):
+        try:
+            manifest = json.loads((path / "manifest.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            print(f"[export] WARNING: sheet {path.name} has no readable manifest ({exc})")
+            continue
+        league = (manifest.get("league") or {}).get("name")
+        if not league or not (manifest.get("league") or {}).get("declared"):
+            continue        # a sheet built without a declared league has no replacement level to quote
+        # `snapshot --clubs X` writes one club's rows, and one squad is not a population: its own
+        # replacement level would be meaningless. `clubs` is the sheet's own count, so the guard reads
+        # the artefact instead of parsing the folder name.
+        if (manifest.get("clubs") or 0) < 2:
+            continue
+        stamp = manifest.get("generated_at") or ""
+        if league not in newest or stamp > newest[league][0]:
+            newest[league] = (stamp, path, manifest)
+
+    if not newest:
+        print(f"[export] note: no declared-league sheet for {target} in data/reports "
+              f"(run `snapshot --league NAME`), so the app has no engine numbers to rank by")
+        return written
+
+    out = folder / "sheets"
+    out.mkdir(parents=True, exist_ok=True)
+    for league, (_stamp, path, manifest) in sorted(newest.items()):
+        with (path / "players.csv").open(encoding="utf-8-sig", newline="") as handle:
+            sheet = list(csv.DictReader(handle))
+        missing = [column for column in SHEET_COLUMNS if sheet and column not in sheet[0]]
+        if missing:
+            print(f"[export] WARNING: sheet {path.name} lacks {missing} - skipped")
+            continue
+        rows = [[_sheet_value(row.get(column)) for column in SHEET_COLUMNS] for row in sheet]
+        payload = json.dumps({
+            "table": "engine_sheet",
+            "league": manifest.get("league"),
+            "platform": manifest.get("platform"),
+            "game": manifest.get("game"),
+            "target_season": manifest.get("target_season"),
+            "auction_date": manifest.get("auction_date"),
+            "sheet_revision": manifest.get("sheet_revision"),
+            "generated_at": manifest.get("generated_at"),
+            "matchdays": manifest.get("matchdays"),
+            "columns": list(SHEET_COLUMNS),
+            "rows": rows,
+        }, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        name = league.lower().replace(" ", "-")
+        suffix = ".json.gz" if compress else ".json"
+        if compress:
+            payload = gzip.compress(payload, mtime=0)
+        _atomic_write_bytes(out / f"{name}{suffix}", payload)
+        priced = sum(1 for row in sheet if row.get("engine_fm_pred"))
+        written.append({
+            "league": league,
+            "platform": manifest.get("platform"),
+            "game": manifest.get("game"),
+            "teams": (manifest.get("league") or {}).get("teams"),
+            "squad_slots": (manifest.get("league") or {}).get("squad_slots"),
+            "matchdays_target": (manifest.get("matchdays") or {}).get("platform_target"),
+            "sheet_revision": manifest.get("sheet_revision"),
+            "generated_at": manifest.get("generated_at"),
+            "auction_date": manifest.get("auction_date"),
+            "rows": len(rows),
+            "priced": priced,
+            "estimated": len(rows) - priced,
+            "path": f"sheets/{name}{suffix}",
+            "source": path.name,
+        })
+        print(f"[export] sheets/{name}{suffix}: {len(rows)} rows ({priced} priced, "
+              f"{len(rows) - priced} estimated) · {league} {manifest.get('platform')}/"
+              f"{manifest.get('game')} · sheet revision {manifest.get('sheet_revision')}")
+    return written
+
+
+def _sheet_value(raw: str | None) -> float | str | None:
+    """A CSV cell back to what it was. An empty cell stays NULL - it is a statement, never a zero."""
+    if raw is None or raw == "":
+        return None
+    try:
+        return float(raw)
+    except ValueError:
+        return raw
 
 
 def _provisional_parameters() -> dict[str, object]:
@@ -432,15 +579,25 @@ def run(ctx: Context, *, season: str | None = None, out: str | None = None,
         print(f"[export] json/: {len(json_counts)} tables, {size / 1e6:.1f} MB"
               f"{' (gzip)' if compress else ''}")
 
-    # The two config files are part of the contract: the scoring is per league and the league setup
-    # is what fixes the auction's replacement level. A bundle without them is not reproducible.
+    # The config files are part of the contract: the scoring is per league, the league setup is what
+    # fixes the auction's replacement level, and the Mantra modules are the GAME's own rules - which is
+    # what says how many men of each role a squad actually fields (§13.3). Without the modules the app
+    # can only split a roster by macro-role quotas, and that reads «the league will buy all 124 left
+    # backs»: measured 10/08/2026, it doubled the surplus of the best `ds` in the listone.
     config_out = folder / "config"
     config_out.mkdir(parents=True, exist_ok=True)
-    for source in (ctx.config.scoring_config_path, ctx.config.league_config_path):
+    for source in (ctx.config.scoring_config_path, ctx.config.league_config_path,
+                   ctx.config.mantra_modules_path):
         try:
             _atomic_write_bytes(config_out / source.name, source.read_bytes())
         except OSError as exc:
             print(f"[export] WARNING: config {source.name} not copied ({exc})")
+
+    # The engine's own numbers, so the app can rank by SURPLUS instead of by the listone's price. They
+    # come from the sheet `snapshot` writes, not from a second engine run: the sheet is the artefact the
+    # gate and the panel already agree on, and re-deriving it here would be a second implementation of
+    # the same numbers - the defect this project keeps paying for.
+    engine_sheets = write_engine_sheets(ctx, folder, target, compress)
 
     # The clubs' badges, downloaded once by `positions --layer crests`. They travel with the
     # bundle for the same reason everything else does: the app reads what it is given and never
@@ -495,6 +652,17 @@ def run(ctx: Context, *, season: str | None = None, out: str | None = None,
         "tables": [{"name": spec.name, "scope": spec.scope, "rows": counts.get(spec.name, 0),
                     "why": spec.why} for spec in CONTRACT],
         "excluded": EXCLUDED,
+        # WHICH engine numbers travel, and against which league they were measured. The app ranks by
+        # surplus, and a surplus is only comparable inside one league: the entry carries the league, its
+        # teams and slots, the sheet revision that produced it, and the platform calendar
+        # `engine_pv_pred` is expressed on - so a competition of n rounds is scaled by n/N and never
+        # guessed. Empty means the bundle carries no engine numbers, which the app must SAY rather than
+        # fall back on the listone's price.
+        "engine_sheets": engine_sheets,
+        "engine_sheets_note": "Per-player fm_pred/pv_pred (plus the est_* fallback), from the sheet of "
+                              "each declared league. `engine_surplus` travels as the league-level "
+                              "reference; a LIVE panel recomputes the replacement level over the players "
+                              "still free, which is the only zero an auction is about.",
         "price_discipline": PRICE_DISCIPLINE,
         "provisional_parameters": _provisional_parameters(),
         "adopted_rules": _adopted_rules(),

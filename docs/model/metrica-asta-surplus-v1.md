@@ -441,3 +441,145 @@ righe e non rifittano niente, o l'SpM di un uomo cambierebbe a seconda di chi al
   affare che qualcuno poteva prendere: è il motore contro un prezzo che l'esito lo conosce.
 - **È REPORTING**, come l'FVM su cui è calibrato: nessuna regola lo legge, il gate non lo vede mai,
   `backtest --verify` resta 22/22.
+
+---
+
+## 15. In un DRAFT la moneta è il VALORE, e la copertura per ruolo vale dieci volte la moneta (10 agosto 2026)
+
+**Campagna di misura su richiesta dell'operatore** («conviene prendere sempre il meglio, giocare per
+scegliere sempre primo o una via di mezzo?», poi «consolida su più stagioni»). È la prima volta che il
+metro di questo documento viene messo alla prova **contro l'esito vero**, e ne esce ridimensionato per un
+formato preciso: il draft.
+
+### 15.1 Il banco
+
+Due attrezzi, entrambi sulle **cinque finestre euro/mantra misurabili del gate** (Tm4, Tm3, T0, T1, T2 —
+bersagli 2019-20, 2020-21, 2023-24, 2024-25, 2025-26; la 21/22 è vuota alla fonte e ne costa due):
+
+1. **Replay del draft**: 12 squadre, 25 giri, ordine ricalcolato con la regola vera della piattaforma
+   (§11.1), rivali **eterogenei** come al tavolo (2 sul surplus, 4 con giudizio personale = prezzo per un
+   rumore fisso per giocatore, 5 sul prezzo; tutti punti-per-credito in coda al giro). 8 semi × 12 sedie
+   = 96 aste per politica e per finestra.
+2. **Prova di sola graduatoria**, senza avversari: si ordina il listone per un criterio, si prende la rosa
+   mantra standard e si guarda l'undici che ne esce.
+
+Due metri, perché uno solo dice cose che l'altro smentisce: i **totali di stagione** del miglior undici
+legale, e — la definizione di questo progetto (§12.1) — la **somma sulle giornate del miglior undici
+LEGALE fra i disponibili di quella giornata**, coi `fantavoto` veri. L'undici è legale sui moduli del
+regolamento (`config/mantra_modules.json`): l'abbinamento ai posti tipizzati è un matroide trasversale,
+quindi il greedy sul peso è esatto. Confronto **appaiato** (io meno la media dei rivali NELLO STESSO
+draft) e in **percentuale**, perché le stagioni hanno 29-31 giornate.
+
+**Il prezzo è il Qt.I.** L'FVM archiviato è l'ultima lettura del listone, presa a stagione finita: con
+quello come prezzo ogni politica perdeva, ed era il prezzo che conosceva l'esito.
+
+### 15.2 La risposta alla domanda: né «sempre il meglio» né «sempre primo»
+
+Politica = `qualità × bisogno / (prezzo + pavimento)`; pavimento ∞ = prendi sempre il meglio e ignora
+l'ordine, pavimento 0 = gioca per scegliere primo. Metro a giornata, cinque finestre:
+
+| politica | Tm4 | Tm3 | T0 | T1 | T2 | media | verdetto |
+|---|---|---|---|---|---|---|---|
+| prezzo, pavimento 200 | +4,7 | +2,2 | −0,1 | +1,3 | +1,3 | +1,9% | robust |
+| VALORE, sempre il meglio | +1,1 | +3,1 | +2,3 | −3,3 | −0,3 | +0,6% | — |
+| VALORE, pavimento 200 | +1,0 | +3,2 | −0,5 | −5,1 | +1,3 | +0,0% | — |
+| SURPLUS, sempre il meglio | −15,7 | +0,9 | +2,0 | −5,6 | −1,7 | −4,0% | — |
+| sempre primo (pavimento 0) | −24,8 | −51,2 | −53,7 | −53,6 | −45,7 | −45,8% | — |
+
+**«Giocare per scegliere primo» è rovinoso**: −45,8%, 0/5 finestre. È il risultato più solido della
+campagna e non dipende da nessuna taratura: la posizione nel giro dopo non ripaga una rosa di scarti.
+**Il SURPLUS come moneta generale del draft è refutato**: −4,0%, 2/5, e −15,7% su una finestra.
+
+Attenzione al NULL di quella tabella: il confronto è contro la MEDIA dei rivali, che contiene teste
+deliberatamente deboli, quindi il +1,9% del prezzo è in buona parte «essere come i rivali migliori».
+
+### 15.3 Perché il surplus perde QUI, e dove resta giusto
+
+Il surplus sottrae il rimpiazzo **per slot**, e in mantra quella scarsità **il regolamento non la impone**:
+la rosa vincola 3 portieri + 22 di movimento e nessuna quota per slot, e 497 quotati su 1014 hanno 2+
+codici, quindi la flessibilità annacqua ancora la scarsità. La domanda per slot dietro al surplus è
+DEDOTTA dai moduli (`auction-value.slotShares`, dichiarata come scelta di modello), non imposta dal gioco.
+
+Resta la grandezza giusta dove il vincolo è reale:
+- **la porta**, dove ne schieri esattamente uno (rimpiazzo `por` 4,36 di fantamedia contro `pc` 7,29 — e
+  con la regola delle **porte** di questa lega l'unità è il club, quindi ancora di più);
+- **le aste a CREDITI**, dove la risorsa scarsa è il budget e non la scelta: tutto il resto di questo
+  documento parla di quelle e non cambia di una riga.
+
+Da qui la moneta ibrida — VALORE sul movimento, SURPLUS in porta — che è **pre-registrata e non ancora
+misurata**: [todolist-draft-v1.md](todolist-draft-v1.md) item 1.2.
+
+### 15.4 La leva grossa non è la moneta: è la COPERTURA per ruolo
+
+Prova di graduatoria, punti per giornata, media sulle cinque stagioni:
+
+| rosa | FVM* | SURPLUS | VALORE | Qt.I | FM−1 |
+|---|---|---|---|---|---|
+| modulo coperto una volta, panchina ai migliori | 84,0 | **78,7** | 74,7 | 72,8 | 65,7 |
+| — posti coperti | 90,6% | 89,2% | 83,3% | 80,3% | 72,7% |
+| modulo coperto **due volte** (20 movimento + 2) | 93,6 | 84,5 | **85,3** | 84,8 | 78,8 |
+| — posti coperti | 99,7% | 97,6% | 98,7% | 95,4% | 91,4% |
+
+FVM* = FVM archiviato: conosce l'esito. Sta lì come **tetto**, non come criterio da tavolo.
+
+Tre cose, in ordine di importanza. **Imporre la seconda copertura vale +10,6 punti a giornata** al valore
+e +5,8 al surplus, contro gli **0,8** che separano le monete fra loro: la ripartizione per ruolo è un
+VINCOLO da imporre, non una cosa da comprare con la moneta. **I primi 25 di QUALUNQUE graduatoria non
+schierano un undici legale** — i migliori 22 di movimento sono attaccanti ed esterni, 4-10 posti coperti
+su 11 — quindi la rosa si costruisce coprendo prima il modulo. E nella prima riga il surplus vince 5/5
+non perché classifichi meglio, ma perché essendo normalizzato per slot **la copertura la compra da sé**:
+imposta il vincolo e il suo vantaggio svanisce.
+
+Questo risponde anche all'intuizione dell'operatore («quando gli slot scarseggiano e servono buone
+alternative in ogni ruolo, il surplus acquista importanza»): giusta nel MECCANISMO, sbagliato il rimedio.
+La schedula che cambia moneta durante l'asta è stata misurata ed è **peggio** in modo monotono a quanto
+prima si cambia (θ lineare −36, gradino al giro 6 −131, al giro 11 −162 punti contro i rivali), e la
+schedula ROVESCIA pareggia il valore puro. Si misura esattamente perché le due monete differiscono per un
+termine solo: `surplus = valore − rimpiazzo × presenze`.
+
+### 15.5 La fantamedia dell'undici non separa i criteri; la disponibilità sì
+
+La fantamedia vera del miglior undici legale sta fra **7,05 e 7,56** per tutti e cinque i criteri, su
+tutte e cinque le stagioni: un undici scelto fra i migliori 25 di qualunque graduatoria rende ~7,2
+*quando gioca*. Ciò che separa i criteri è la **disponibilità** (65,7 → 84,5 punti a giornata). Coerente
+con quello che il gate sapeva da un'altra strada: `Var(ln pv)` è il 90% della varianza dei fantapunti.
+E `FM −1` è il peggiore dei criteri onesti (65,7 / 78,8): motore e prezzo aggiungono qualcosa di reale
+sopra «la fantamedia dell'anno scorso».
+
+### 15.6 Due conclusioni RITIRATE, e vanno ricordate come metodo
+
+Entrambe erano state misurate su **T2 sola** e riportate all'operatore prima del consolidamento:
+
+1. **«La via di mezzo vale +92»** (pavimento 200 sulla moneta VALORE). Sulle cinque finestre fa
+   **+0,0%**, 3/5, nessun verdetto — con T1 a −5,1%. Sui totali di stagione +2,6%, 4/5, ancora nessun
+   verdetto. La FORMA della curva (optimum interno per finestra) resta vera; il LIVELLO no.
+2. **«Il motore batte il mercato».** Correlazione col risultato vero (fm × presenze) sulle cinque
+   stagioni: **Qt.I +0,545** contro **VALORE +0,514**, e il valore vince solo su 2025-26 (0,569 contro
+   0,549) — la finestra su cui era stato misurato. In cima alla lista i due restano vicini (il valore
+   avanti 4/5 a copertura singola, 3/5 a doppia): **nessuno dei due ha un verdetto**. Il tetto è vicino
+   per entrambi — l'FVM che conosce l'esito correla +0,591, cioè 0,046 sopra il Qt.I.
+
+Una conclusione su una finestra non è una conclusione. È la stessa disciplina del §5-duodecies del gate
+sul null, applicata al numero di finestre invece che al confronto.
+
+### 15.7 Cosa NON è stato misurato, dichiarato
+
+- **Legalità CLASSIC.** Tutto quanto sopra è mantra. In classic la legalità è per macro-ruolo (1 P + D +
+  C + A) e la quota per ruolo È un vincolo di regolamento, quindi la gerarchia delle monete va
+  **rimisurata**: l'ipotesi è che il surplus vi si comporti molto meglio, ed è un'ipotesi.
+- I rivali sono il **modello** del tavolo, e nessuno di loro usa la disciplina sul prezzo fuori dalla coda
+  del giro: il margine si assottiglia se un avversario la adotta.
+- Il pavimento 200 era stato scelto guardando T2, quindi **come parametro non è ancora giudicabile**:
+  serve il cross-fit leave-one-out (todolist item 1.3).
+- Nessuna riga di `engine_*` si muove: la campagna misura POLITICHE di scelta, non regole di previsione,
+  e il gate non è stato attraversato.
+
+### 15.8 Errori di banco pagati (perché non si ripetano)
+
+- «I migliori 11» **non è** un undici legale: serve l'abbinamento sui posti tipizzati del modulo.
+- Un posto scoperto vale **zero** e non azzera la giornata (come un «senza voto» senza panchinaro dello
+  stesso ruolo): l'errore opposto azzerava il 37% delle giornate e gonfiava i margini di un ordine di
+  grandezza.
+- I ruoli mantra vanno passati **completi** al matching (497/1014 hanno 2+ codici): col solo codice
+  primario la flessibilità sparisce e le conclusioni cambiano.
+- L'FVM archiviato non è un prezzo di pre-stagione.

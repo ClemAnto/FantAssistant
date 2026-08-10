@@ -11,6 +11,8 @@ import { NzSpinModule } from 'ng-zorro-antd/spin';
 import { NzTableModule } from 'ng-zorro-antd/table';
 import { NzModalModule } from 'ng-zorro-antd/modal';
 import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
+import { NzButtonModule } from 'ng-zorro-antd/button';
+import { RouterLink } from '@angular/router';
 
 import {
   CLASSIC_ROLES,
@@ -79,7 +81,9 @@ const ROLE_LABEL: Record<ClassicRole, string> = {
   selector: 'app-players',
   imports: [
     FormsModule,
+    RouterLink,
     NzAlertModule,
+    NzButtonModule,
     NzCheckboxModule,
     NzCollapseModule,
     NzIconModule,

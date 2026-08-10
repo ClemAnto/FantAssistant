@@ -24,6 +24,9 @@ const TABLES = [
   'match_ratings',
   'external_match_stats',
   'matchday_map',
+  /* Last season's MEASURED fantamedia, per platform: the auction panel shows it beside the
+   * prediction so a number can be judged against what the man actually did. */
+  'season_stats',
 ];
 
 if (!existsSync(EXPORT_ROOT)) {
@@ -49,6 +52,12 @@ copyFileSync(join(src, 'manifest.json'), join(OUT, 'manifest.json'));
 /* The scoring is per-CHAMPIONSHIP parametric and no reader may hard-code +3/-3/+1, so the
  * bonus/malus panel reads the same file the toolkit and the engine read. */
 copyFileSync(join(src, 'config/scoring_config.json'), join(OUT, 'scoring_config.json'));
+/* The GAME's own rules: the eleven legal Mantra shapes and which listone role fits each slot type.
+ * They are what says how many men of a role a squad actually fields, so the auction panel needs them
+ * to know its demand per role - without them it can only split a roster by macro quotas. */
+if (existsSync(join(src, 'config/mantra_modules.json'))) {
+  copyFileSync(join(src, 'config/mantra_modules.json'), join(OUT, 'mantra_modules.json'));
+}
 
 let bytes = statSync(join(OUT, 'manifest.json')).size;
 const missing = [];
@@ -61,6 +70,21 @@ for (const table of TABLES) {
   }
   copyFileSync(from, join(OUT, file));
   bytes += statSync(from).size;
+}
+
+/* The engine's per-player numbers, one file per declared league. They are what the auction panel
+ * ranks by - a surplus, never the listone's price - and the manifest says which league each one was
+ * measured against, so they travel under their own folder and keep their names. */
+const sheetsIn = join(src, 'sheets');
+let sheets = 0;
+if (existsSync(sheetsIn)) {
+  const sheetsOut = join(OUT, 'sheets');
+  mkdirSync(sheetsOut, { recursive: true });
+  for (const file of readdirSync(sheetsIn)) {
+    copyFileSync(join(sheetsIn, file), join(sheetsOut, file));
+    bytes += statSync(join(sheetsIn, file)).size;
+    sheets++;
+  }
 }
 
 // The clubs' badges: a folder of small images plus the index that says which file is whose.
@@ -80,5 +104,8 @@ const manifest = JSON.parse(readFileSync(join(OUT, 'manifest.json'), 'utf8'));
 console.log(`bundle ${season} -> public/data`);
 console.log(`  schema_version ${manifest.schema_version}, generated ${manifest.generated_at}`);
 console.log(`  target ${manifest.target_season}, heavy seasons ${manifest.heavy_seasons.join(', ')}`);
-console.log(`  ${TABLES.length - missing.length}/${TABLES.length} tables, ${crests} crests, ${(bytes / 1024 / 1024).toFixed(1)} MB`);
+console.log(`  ${TABLES.length - missing.length}/${TABLES.length} tables, ${crests} crests, ${sheets} engine sheets, ${(bytes / 1024 / 1024).toFixed(1)} MB`);
 if (missing.length) console.warn(`  MISSING: ${missing.join(', ')}`);
+/* Silence here would read as "the app can rank by surplus" while it cannot: without a sheet the
+ * auction panel has no engine numbers at all and has to say so instead of ranking by the price. */
+if (!sheets) console.warn('  NO engine sheets: run `snapshot --league NAME` then `export`.');

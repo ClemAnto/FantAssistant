@@ -107,6 +107,10 @@ class Config:
     db_path: Path = field(default_factory=lambda: _env_path("EUROLEGHE_DB_PATH", REPO_ROOT / "data" / "euroleghe.db"))
     scoring_config_path: Path = field(default_factory=lambda: REPO_ROOT / "config" / "scoring_config.json")
     league_config_path: Path = field(default_factory=lambda: REPO_ROOT / "config" / "league_config.json")
+    # The GAME's own rules, not ours: the eleven legal Mantra shapes and which listone role may occupy
+    # each of their eighteen slot types. Read, never measured (assistente-asta-v1 §12.3).
+    mantra_modules_path: Path = field(
+        default_factory=lambda: REPO_ROOT / "config" / "mantra_modules.json")
     # The operator's per-club board rulings («Napoli 2026-27 plays 4-3-3»), declared from the panel's
     # shape selector and persisted here - the same kind of fact as `league_config.json`: a judgement of
     # his, not a measurement of ours. Optional, highest-precedence for the DRAWN board only; nothing

@@ -495,6 +495,69 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.48 (10 agosto 2026 — il calendario entra nel DB, le partite facili nel foglio, e il motore nel bundle)
+
+`SHEET_REVISION` **15**. `engine_*` invariato, `backtest --verify` 22/22: niente di questa giornata tocca
+il motore. Tre cose nuove nel toolkit, tutte al servizio del pannello d'asta.
+
+### 1. `fixtures`: il calendario futuro, per club e per campionato
+
+Nuovo modulo `modules/fixtures.py` e nuova tabella `fixtures`, chiave `event_id` (l'id della partita del
+provider) con `home_key`/`away_key` **canonici** più gli id provider e gli indici. La chiave è l'evento e
+non `(club, giornata)` per la ragione già scritta in «l'unità è la PARTITA, mai la giornata»: un rinvio
+sposta una partita di settimane e una data può portare i recuperi di un altro turno.
+
+Due regole rispettate perché il progetto le ha già pagate: i club si risolvono **per id provider** via
+`club_xref` e non per nome (il join per nome perdeva Milan, Roma e Napoli), e il campionato viene
+dall'**evento** e non da `clubs.league`, che è inaffidabile (Valencia e Wolfsburg risultano `serie_a`).
+
+### 2. Le partite facili nel foglio: `desc_easy_matches` e `desc_calendar_margin`
+
+Il §21-§23 di [assistente-asta-v1.md](assistente-asta-v1.md) aveva congelato la definizione e dichiarato
+che mancava l'ingestione del calendario. Adesso c'è: `fixtures.easy_matches()` restituisce
+`easy / n / share / margin / margin_trimmed / margin_of / unclassified / elo_year`, e lo snapshot le
+mostra come **k/n (p%)** più un **coefficiente di difficoltà**, calcolando il calendario una volta per
+(club, campionato).
+
+Le costanti sono dichiarate: `EASY_MARGIN` = 200 punti Elo, `HOME_AWAY_GAP` = **29** punti,
+`HOME_ADVANTAGE` = metà del gap. Il 29 è **misurato** sui risultati delle stagioni passate, non scelto: la
+prima versione usava fattori moltiplicativi ×1,1 in casa e ×0,8 fuori, e la colonna finiva per dire solo
+«in casa o fuori» (zero partite facili in trasferta su 1111, log-loss 1,258 contro 0,628 della forma
+additiva). L'Elo è una scala a **intervalli**, non a rapporti: un vantaggio campo si somma, non si
+moltiplica.
+
+Il margine usa la **media troncata** (via il massimo e il minimo, se i campioni sono almeno 5:
+`TRIM_MIN_SAMPLE`) — è la regola generale dell'operatore, e qui si applica perché è una statistica
+descrittiva. Il conteggio `k/n` resta pieno: è un conteggio, non una media.
+
+Il manifest porta il blocco `calendar` coi cinque fatti, la nota sulla media troncata e quella
+display-only. **Corretto in corsa un manifest che mentiva**: dichiarava `elo_year 2025` per un calcolo
+fatto sul 2026, e i denominatori mescolavano le coppe (39/40 invece di 38). Ora la lega viene passata e
+l'anno letto è quello che il calcolo ha usato davvero (`calendar_sample`).
+
+### 3. `export` manda i numeri del motore, un foglio per lega
+
+`write_engine_sheets()` scrive il foglio più recente per ogni lega dichiarata (salta quelli con meno di
+due club) con `SHEET_COLUMNS`: `fc_id`, `engine_fm_pred`, `engine_pv_pred`, `engine_role_slot`,
+`engine_replacement_fm`, `engine_surplus`, `engine_anchor`, `engine_unpriced_reason`, gli `est_*`,
+`desc_minutes_full_season`, `desc_season_matches`, `desc_easy_matches`, `desc_calendar_margin`. Il
+manifest li elenca in `engine_sheets` (lega, piattaforma, gioco, squadre, giornate del calendario).
+`config/mantra_modules.json` viaggia nel bundle, perché la domanda per slot del pannello si deriva dai
+moduli del gioco e non dalle quote per macro-ruolo.
+
+Perché fm e pv e **non** il surplus già calcolato: al tavolo il rimpiazzo è vivo e il pool si svuota — un
+surplus congelato risponde a una domanda che nessuno sta facendo. Dettaglio in
+[assistente-asta-v1.md](assistente-asta-v1.md) §25.2.
+
+### 4. Il gate a dieci finestre sulla storia pluriennale
+
+`features.Observation` porta `fm_seasons`/`mv_seasons`; `model` porta `HISTORY_DECAYS`,
+`weighted_history`, `HISTORY_SPLITS`, `predict_fm_weighted_history` e la variante portieri; `evaluate`
+porta i candidati `R18b50/70/85` e `R18c50/65`. **Tutti respinti** — media +0,3/0,4% contro un pavimento
+dello 0,5% — e la diagnosi è in [gate-motore-v1.md](gate-motore-v1.md) §7-septvicies: la somma delle due
+lambda di R18 è stabile (0,662, sd/media 21%), la ripartizione no (da 0,13 a 41,38), quindi il +1,9% era
+il fit che comprava quella libertà.
+
 ## Novità v9.47 (9 agosto 2026 — il layer extra si scongela, chi ha segnato in amichevole, e gli stemmi)
 
 **362 test** · nessun `SHEET_REVISION` (niente di questo tocca il foglio: sono acquisizione e schema) ·

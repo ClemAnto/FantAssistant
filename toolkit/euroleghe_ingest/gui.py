@@ -77,7 +77,7 @@ OPERATION_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Start of season", ("rosters", "stats", "elo", "transfers", "injuries", "tournaments",
       "arrivals", "recent_form", "fbref")),
     ("During the season - every matchday",
-     ("ratings", "matchdays", "positions", "synth", "fc_site", "validate")),
+     ("ratings", "matchdays", "positions", "synth", "fc_site", "fixtures", "validate")),
     ("Before an auction", ("snapshot", "press", "export")),
 )
 
@@ -120,6 +120,9 @@ TOOLTIPS: dict[str, str] = {
                  "which real matchdays the euro rounds cover, and which ones they skip.",
     "fc_site": "Read fantacalcio.it editorial lists (penalty takers, probable starters, unavailable "
                "players) into dated tables.",
+    "fixtures": "Read each club's upcoming matches into `fixtures` (keyed on the provider's event id, "
+                "clubs resolved by provider id). Feeds the sheet's easy-matches count and calendar "
+                "margin. Re-run it through the season: a postponement moves a match by weeks.",
     "transfers": "Read the club identities, the coach history and the club transfer pages from "
                  "Transfermarkt -> club_xref, coaches (hence the new_coach flag) and "
                  "transfers_history with the fees. Injuries and exit_risk are not covered yet.",

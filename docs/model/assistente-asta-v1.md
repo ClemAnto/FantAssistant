@@ -1596,3 +1596,200 @@ la colonna resta **display-only**: mai un ingrediente di previsione senza gate (
 
 **Stato**: definizione congelata, **non ancora calcolabile** — aspetta l'ingestione del calendario (§21.4) e, fuori
 dalla Serie A, l'Elo degli avversari non-perimetro (§21.6). Fino ad allora la cella è vuota e lo dice.
+
+---
+
+## 24. Il tavolo in diretta è collegato, e la registrazione manuale sparisce (9 agosto 2026)
+
+**Cosa esiste da oggi**: l'app legge una sessione **fanta-asta-live** in diretta. Il codice della sessione si
+digita, ci si collega, si sceglie quale squadra è la propria, e da lì il pannello segue l'asta da solo.
+Tutto in `app/src/app/core/auction-feed.ts` (il feed) e `app/src/app/views/auction/` (la vista).
+
+**Come**: fanta-asta-live tiene ogni sessione su un Realtime Database Firebase. Ci si autentica in anonimo —
+è quello che fa il sito stesso al caricamento — e si resta agganciati allo stream SSE di
+`sessions/<codice>/state`, applicando gli eventi `put`/`patch` a uno specchio locale. Nessuna dipendenza
+nuova: `fetch` e `EventSource` bastano. **Si legge e basta**: l'assistente non registra un peer, quindi non
+compare fra i partecipanti e non può alterare l'asta che guarda.
+
+### 24.1 Una regola del §9 e del §11.7 decade: non ci sono più due click
+
+Il §9 chiedeva che registrare un movimento altrui costasse due click, e il §11.7 rendeva **obbligatorio**
+il «a chi» perché la squadra che prende determina l'ordine dei giri. Col feed in diretta **non si registra
+niente**: chi ha preso chi, a quanto, e l'ordine ricalcolato arrivano dal banditore nell'istante in cui li
+scrive. Il requisito non è stato soddisfatto, è stato **eliminato** — ed era il punto più a rischio di far
+abbandonare l'app a metà asta.
+
+Resta valido tutto il resto del §9: ricalcolo istantaneo (i derivati sono `computed` su signal), e la
+reversibilità che ora è del banditore, non nostra — un pick rilasciato arriva con `released` e il feed lo
+scarta.
+
+### 24.2 Due fatti misurati sul campo, non supposti
+
+1. **`teams[].currentBudget` è in ritardo, i `picks` no.** Osservato in diretta il 9/08/2026: due giocatori
+   già assegnati per 370 e 280, e il campo `currentBudget` di tutte e dieci le squadre ancora a 1000.
+   L'host lo ricalcola e lo ripubblica dopo. Il feed quindi **deriva la spesa dai pick** e non legge quel
+   campo. È fissato in un test di regressione con lo stato reale.
+2. **La regola d'ordine del §11.1 è confermata contro i dati.** Con `pickOrderType: "default"` l'ordine è
+   ricalcolato dopo ogni pick: prima chi ha meno pick (`maxAheadPicks: 1` = giro secco), a parità chi ha il
+   **valore rosa più basso**. Verificato: `pickOrder [2,3,4,5,6,7,8,9,1,0]` con le otto squadre a zero
+   davanti, poi chi aveva speso 280, poi chi aveva speso 370. E poiché `cost == FVM`, il valore rosa
+   **coincide con la spesa**: l'ordine di scelta è l'esatto inverso della classifica di spesa. È il §11.5
+   («il costo che non è FVM: la posizione») con un numero sotto.
+
+### 24.3 Cosa il pannello NON dice, e lo dichiara
+
+Dei tre numeri del §11.7 ce ne sono **due**: *tocca a te fra N scelte* e *l'ordine del giro con il mio posto
+dentro*. Manca il terzo — **il consiglio con la riga di motivo** — perché il SURPLUS vive nel motore Python
+e non è ancora portato (§6, punto 6). Il pannello lo **dichiara con un avviso** invece di mostrare una
+raccomandazione senza numeri dietro: un consiglio inventato al tavolo è peggio di nessun consiglio.
+Manca per la stessa ragione la **probabilità di arrivare al proprio turno**.
+
+Quello che il pannello mostra oggi è la **meccanica** del draft: turno, ordine, budget residuo, tetto sul
+prossimo nome (budget meno un credito per ogni slot ancora da riempire), slot mancanti per reparto, rosa,
+ultimi movimenti e il listone ancora libero per reparto.
+
+### 24.4 Stato di verifica, onesto
+
+- **Verificato** (9/08/2026): `ng build` verde; 10 test sul feed passano; autenticazione anonima e lettura
+  del listone provate **contro il server reale**, entrambe 200; il rendering della card di collegamento
+  controllato a schermo; il percorso d'errore visto funzionare (sessione inesistente → messaggio corretto).
+- **NON verificato**: selezione squadra e pannello **con dati veri**. La sessione osservata è stata
+  cancellata dall'host a fine asta mentre il lavoro era in corso (`sessions/FA-y6k-vg9` → `null`), e non ne
+  è stata aperta un'altra. Lo stato reale catturato prima della cancellazione è fissato nelle fixture di
+  `auction-feed.spec.ts`, ma **una fixture non è il tavolo**: al primo draft vero questo va guardato.
+
+### 24.5 Tre decisioni che restano dell'operatore
+
+1. **L'app ora parla con la rete.** `app/README.md` dice che cosa l'app può scaricare è una decisione, non
+   un dettaglio da infilare: questa è una deroga a «legge il bundle e mai il web», confinata a un file solo
+   e commentata sul posto. Lo stato di una sessione in diretta non è una cosa che un export offline possa
+   portare, ma la deroga va accettata esplicitamente o rifiutata.
+2. **La web API key di fanta-asta-live è nel repo, che è pubblico.** È pubblica per costruzione — sta nel
+   bundle di ogni client del sito — quindi non è un segreto esposto; è però ora anche su GitHub.
+3. **Resta aperta la §11.8 punto 1**: l'FVM si congela alla data del draft o si rilegge dal listone del
+   giorno? Oggi il feed usa quello che la sessione si porta dietro. Se non si congela, l'ordine di domani
+   cambia per giocatori presi ieri.
+
+---
+
+## 25. Il pannello del tavolo, completo: porte, surplus vivo, orizzonte e la scelta consigliata (10 agosto 2026)
+
+Il §24 aveva collegato il feed e dichiarato che mancava il terzo numero — **il consiglio**. Adesso c'è, e
+con lui tutto il resto che serviva per usare il pannello a un tavolo vero. Il codice sta in
+`app/src/app/core/` (`auction-feed.ts` il feed, `auction-value.ts` l'aritmetica pura, `auction-advice.ts`
+la giunzione col motore, `auction-plan.ts` il lookahead) e `app/src/app/views/auction/`.
+
+### 25.1 Il motore arriva nel bundle, e la giunzione è per `fc_id`
+
+`export` scrive un **foglio per lega dichiarata** (`engine_sheets` nel manifest) con `engine_fm_pred`,
+`engine_pv_pred`, `engine_role_slot`, `engine_replacement_fm`, `engine_surplus`,
+`engine_unpriced_reason`, gli `est_*` e le colonne misurate. L'app li unisce al listone della sessione
+**sull'id**, che è `fc_id` — verificato 5 su 5 contro `players` — e mai su un nome.
+
+Il foglio si scegli per **sovrapposizione di id**, non per piattaforma: quando l'host carica una lista
+propria `playerListType` dice `custom` e le righe possono non portare nessun campionato, quindi la
+piattaforma non è leggibile (osservato in diretta: il pannello prezzava nessuno). Il gioco invece filtra
+davvero — 904 valori su 916 si muovono fra classic e mantra. La **copertura è riportata**, non supposta:
+«N giocatori su M non sono nel foglio», e per loro la riga lo dice invece di valere zero.
+
+### 25.2 Il rimpiazzo è VIVO, e per questo l'export manda fm e pv e non il surplus
+
+Il surplus del foglio è al rimpiazzo **di lega**; al tavolo il pool si svuota e può essere una lista
+personalizzata. Quindi il pannello ricalcola: per slot, la fantamedia dell'**ultimo libero per cui il
+tavolo ha ancora posto** (`liveReplacements`). Si muove nella direzione giusta da sé — se chi è stato
+preso stava tutto sopra la linea lo zero non cambia, se qualcuno scava sotto la panchina migliora e ogni
+surplus si accorcia. Uno zero che non può muoversi risponde a una domanda che nessuno al tavolo sta
+facendo.
+
+La **domanda per slot** viene dai moduli del gioco (`mantra_modules.json` → `slotShares`), non dalle quote
+per macro-ruolo: quelle rispondevano «la lega comprerà tutti i 124 terzini sinistri» e raddoppiavano il
+surplus del miglior `ds` del listone (misurato 10/08/2026, caso Grimaldo: 28,0 → 15,5). È una **scelta di
+modello dichiarata**, non una misura: ogni posto vale un'unità di domanda divisa fra i ruoli ammessi, e
+gli undici moduli pesano uguale perché nessuno ha misurato quali un tavolo giochi. Il punto fisso del
+§15.4 resta la risposta giusta; questo è il segnaposto che ne sostituisce uno peggiore.
+
+### 25.3 I tre numeri sulla riga, e cosa ciascuno risponde
+
+- **Valore, 0-99.** Fantamedia × presenze attese, lordo: nessuna sottrazione. Su scala relativa al
+  listone, **99 = il migliore della sessione, presi compresi**, così la scala non si muove durante l'asta
+  (un 60 detto alla prima scelta è un 60 all'ultima). Lineare e non percentile: il doppio dei fantapunti
+  legge il doppio. Richiesto dall'operatore il 10/08 per leggibilità, e giustificato dal
+  [metrica-asta-surplus-v1.md](metrica-asta-surplus-v1.md) §15: in un draft è la moneta che ha vinto.
+- **+/10g** = il surplus in **punti ogni dieci giornate** dell'orizzonte. Un totale di stagione non è una
+  quantità che qualcuno sente; «+3 ogni 10 giornate» sì. È una costante per tutti, quindi non riordina
+  nessuno, ed è lo **stesso numero in qualunque competizione** — che è ciò che rende confrontabili due
+  aste diverse. Le sue assenze attese sono già dentro, perché il surplus sta sulle presenze e non sul
+  calendario.
+- **Netto/10g** = gli stessi punti dopo aver pagato il prezzo al cambio corrente. In un draft λ non si
+  stima: si ordina i liberi per surplus per credito, si cammina finché la domanda residua è esaurita, e
+  l'ultimo che ci sta fissa il tasso (§11.2). Nessun tasso ⇒ nessun netto, e la riga mostra il surplus.
+
+L'ordine di default resta il **netto/surplus**; ogni intestazione è cliccabile e il tooltip di riga porta
+i secondari (fantamedia e presenze, il rimpiazzo che ha fatto da zero, «alza il TUO undici di N», il
+qualità/prezzo, e la base della stima con `~` quando non è misurata). **Trenta** nomi per reparto, su
+richiesta dell'operatore: otto finivano appena partivano i primi giri.
+
+### 25.4 La regola delle PORTE, che la piattaforma non sa esprimere
+
+Questa lega gioca **2 porte**, non 3 portieri: si prende la porta di un club prendendone un portiere
+qualsiasi. fanta-asta-live non lo esprime, quindi il pannello lo modella sopra: un interruttore
+**Portieri / Porte**, e con le porte attive l'unità diventata il club — una riga per porta, prezzo = l'FVM
+del portiere più caro, cioè quello su cui si fa l'offerta. **La porta è del PRIMO che ha preso un portiere
+qualsiasi di quel club**; un secondo o terzo portiere dello stesso club non dà niente e il pannello lo
+segnala come tale invece di contarlo (`strayKeeperPicks`, con i nomi, così l'avviso è azionabile).
+
+### 25.5 L'orizzonte è un'impostazione, perché n/N non è un'assunzione
+
+Prima e ultima giornata si dichiarano (`from`/`to`, ricordate fra le sessioni). Un draft giocato alla
+terza giornata è un orizzonte diverso e ogni numero ASSOLUTO deve starci sopra (§19.5). Il fattore è
+`n/N`, uguale per tutti: **muove le cifre e non può riordinare una sola riga** — proprietà che vale la
+pena affermare perché è ciò che rende l'impostazione innocua.
+
+### 25.6 La scelta consigliata: quattro giri, tre direzioni, e il «e se prendessi lui?»
+
+La carta simula il proprio pick, poi **tutti gli altri fino alla fine del giro**, poi il giro successivo
+fino al proprio turno, per **quattro giri interi**. L'ordine non è supposto: è la regola della piattaforma
+riprodotta dalla sua sorgente (meno pick, poi valore rosa più basso, poi il pick più caro in ordine
+lessicografico, poi l'ordine del primo giro). La politica dei rivali **è dichiarata** (§17.3 lo richiede):
+prende il più caro fra i ruoli che la sua rosa non ha ancora coperto, e **in coda al giro** — ultimo o
+penultimo — passa a punti-per-credito, perché lì conviene tenere la scelta alta del giro dopo. Con un
+pavimento sul prezzo (`TAIL_PRICE_FLOOR`), altrimenti il rivale in coda prende il riempi-rosa da 1 credito.
+
+Tre **direzioni divergenti** invece delle prime tre di una lista: il massimo netto, un altro reparto, e il
+più caro che *tiene la posizione* — misurata sull'ORDINE e non sul prezzo (`positionAfterSpending`), che
+è la correzione di un difetto reale: col prezzo mediano del pool la carta offriva un uomo da 11 crediti
+al posto dell'ultima scelta vera del giro. Ogni radice porta la **media della catena** in punti ogni dieci
+giornate, che è ciò che rende confrontabili tre opzioni — la radice sola direbbe «vince il più caro»,
+che è esattamente ciò con cui la lista di opzioni discute.
+
+Due viste della stessa simulazione: **estesa** (per giro, chi sceglie attorno a te) e **compatta** (una
+riga per squadra nell'ordine di scelta corrente, con la catena `Pc Kane 123 > C Valverde 345 > …`, la
+media delle scelte e la **posizione di scelta del giro successivo**). E cliccando qualunque nome in una
+delle due viste si ottiene «e se prendessi lui?»: la scelta manuale diventa una quarta opzione **accanto**
+alle tre dichiarate, non al posto loro, e le due viste seguono.
+
+### 25.7 Lo stato sopravvive a un refresh, e un salvato non legge mai come live
+
+Il codice di sessione e la squadra seguita restano nel browser, così un refresh a metà asta non costa un
+setup. Ma serviva di più: lo **stato** dell'asta è messo in cache e **ridipinto subito**, in sola lettura,
+mentre il riaggancio va in corso sotto. Tre cose imparate facendolo, tutte da difetti veri:
+
+1. **La cache si dimentica solo se la sessione NON esiste.** Un `forget()` su qualunque collegamento
+   fallito cancellava l'unica copia dell'operatore appena cadeva la rete: `failure` distingue `missing` da
+   `network`, e solo il primo dimentica. Trovato bloccando il RTDB nel browser.
+2. **Un salvataggio a throttle va scritto sul fronte di DISCESA.** Col solo fronte di salita restava in
+   memoria `state: {}`, perché una sessione ferma non manda altri eventi.
+3. **Il pannello non si apre sul socket, si apre sulla TABELLA.** Con i dati in memoria mostrava ancora la
+   card del codice: la condizione è «ho una tabella», non «sono collegato». E il marcatore dice quale dei
+   due è (`salvato · riaggancio in corso` / `riaggancio non riuscito`, con l'ora).
+
+### 25.8 Cosa resta dichiarato come mancante
+
+- La **probabilità di arrivare al proprio turno** (§11.7, terzo numero) non c'è ancora.
+- La lega `default`/mantra non è dichiarata, quindi un draft mantra su listone Serie A ha **250 giocatori
+  su 503 senza numero**: [todolist-draft-v1.md](todolist-draft-v1.md) item 0.2.
+- Il consiglio ordina per netto/surplus e sceglie di fatto «il meglio» (pavimento ∞) — misurato come la
+  variante peggiore delle tre in [metrica-asta-surplus-v1.md](metrica-asta-surplus-v1.md) §15.2. La moneta
+  ibrida e la copertura come vincolo sono gli item 1.1 e 1.2 della todolist: **misurare prima di cambiare
+  il pannello**.
+- Resta aperta la §11.8 punto 1 (l'FVM si congela alla data del draft o si rilegge?).

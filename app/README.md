@@ -99,8 +99,25 @@ node scripts/make-demo-bundle.mjs dist/fantassistant/browser/data   # after a bu
   - Coverage to state rather than average away: cups were acquired **from 2025-26** (1,071 Champions rows
     against 21 the season before) and friendlies are almost entirely the **2026-27 pre-season** (1,752
     rows, 321 of them with minutes).
+- **`views/auction`** (09/08/2026) - follows a **live fanta-asta-live session**: type the session code,
+  connect, pick which team is yours, and the panel tracks the table on its own. It shows the draft
+  MECHANICS - whose turn it is and in how many picks yours comes, the pick order with your place in it,
+  budget left, the cap on the next name, missing slots per zone, your squad, the last moves and the
+  listone still free. It does **not** advise: the SURPLUS lives in the Python engine and is not ported, so
+  the panel says so rather than inventing a recommendation. Two of the three numbers the parent doc §11.7
+  asks for; the third waits for the engine. Full write-up in
+  [docs/model/assistente-asta-v1.md](../docs/model/assistente-asta-v1.md) §24.
+  - **Nothing is registered by hand.** The feed removes the "two clicks per move" requirement (§9, §11.7)
+    outright: picks, prices and the recomputed order arrive from the auctioneer as he writes them.
+  - **Read-only, and it does not join.** No peer is registered, so the assistant never appears among the
+    participants and cannot alter the auction it watches.
 - **`views/hello`** - the smoke page that proves the theme, the tokens and ng-zorro are wired.
-- **`core/bundle.ts`** - the only data source. See the contract below.
+- **`core/bundle.ts`** - the data source for everything the model knows. See the contract below.
+- **`core/auction-feed.ts`** - the ONE place that talks to the network, and the one exception to "reads the
+  bundle, never the web": a live auction's state is not a thing an offline export could carry. Firebase
+  Realtime Database over anonymous sign-in and server-sent events, no new dependency. The deroga is the
+  operator's to accept - see §24.5 of the parent doc, together with the note that fanta-asta-live's web API
+  key now sits in this public repository (public by design: it ships in every client of that site).
 
 Two things about the data the page shows, worth stating because they are not obvious:
 `match_ratings.minutes` is empty in the bundle, so the **minutes come from the provider's per-match
@@ -170,6 +187,16 @@ never through git.
 A **live mode**. Every path in the harness assumes an outcome exists: `_window_is_usable` wants at
 least 50 actual fantamedie, the Auction view lists finished seasons only, `auction_view` compares two
 lists. An auction needs **one list**. That is the open work, and it is not the toolkit's.
+
+Half of it landed on 09/08/2026: **the table is now connected** (`views/auction`), so the app knows in real
+time who took whom, at what price and whose turn it is. What is still missing is the half that needs a
+number - the SURPLUS port, and with it the advice line and the probability of reaching your next turn. The
+panel currently declares the gap instead of filling it.
+
+⚠️ Verified so far: build, unit tests, and the connection itself against the real server. **Not** verified:
+the team picker and the panel against live data - the observed session was deleted by its host when the
+auction ended, mid-work. The real state captured before that is pinned in `auction-feed.spec.ts`, but a
+fixture is not the table: watch this at the first real draft.
 
 ## When we start
 

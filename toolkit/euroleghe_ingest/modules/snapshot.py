@@ -46,7 +46,7 @@ from euroleghe_ingest import config, matching
 from euroleghe_ingest.context import Context
 from euroleghe_ingest.engine import estimate as est
 from euroleghe_ingest.engine import evaluate, features
-from euroleghe_ingest.modules import positions
+from euroleghe_ingest.modules import fixtures, positions
 from euroleghe_ingest.sources import MANTRA_BY_CLASSIC
 
 NAME = "snapshot"
@@ -173,7 +173,7 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      stays the anchor - R1 lost to it on five windows of six, and what a man did abroad predicts how
 #      much he PLAYS, not how well. `engine_*` does not move: this is the estimate layer, which the gate
 #      never sees (`backtest --verify` 22/22).
-SHEET_REVISION = 14
+SHEET_REVISION = 15
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
@@ -2541,6 +2541,16 @@ PLAYER_COLUMNS: tuple[str, ...] = (
     # whitelisted source. The weight they carry in the selection is a PARAMETER, off until the gate speaks.
     "desc_investment_fee", "desc_investment_fee_share", "desc_investment_stature",
     "desc_market_value", "desc_investment_value_share", "desc_level_elo", "desc_career_fm",
+    # THE CALENDAR STILL TO BE PLAYED, from `fixtures` (§23.4, frozen 05/08/2026 and calculable since
+    # 10/08/2026). Two readings of one measurement because the COUNT saturates and the mean does not:
+    # `desc_easy_matches` is «k/n (p%)» - the count first, since on eight matches a percentage moves in
+    # steps of 12.5 - and `desc_calendar_margin` is the mean Elo advantage, which still separates the
+    # clubs the count files as 0/38 (Cagliari -100 against Frosinone -157).
+    # DISPLAY-ONLY, and the reason is a verdict and not caution: the club-strength family has been
+    # refused by the gate three times, and letting it back in through the side door of a percentage
+    # would be the same mistake under another name (§23.3). It is a CLUB fact on a player row, like
+    # Pair: it cannot tell two team-mates apart, and it joins by `club_key`, never by name.
+    "desc_easy_matches", "desc_calendar_margin",
     # HIS AGE in the target season, from `players.birth_year`. On the sheet because the panel builds its
     # `presence.Inputs` from these columns, and a parameter whose input never reaches the caller is
     # switched on and blind (the `level_z` lesson). Empty where no birth year is on file - unknown, not
@@ -2606,6 +2616,14 @@ def _level_of_other_club(found, club_target: str | None, elo_names: dict[str, st
     return value
 
 
+def _easy_label(answer: dict | None) -> str | None:
+    """«k/n (p%)»: the COUNT first, because on eight matches a percentage moves in steps of 12.5 and
+    saying «75%» hides how many matches it was computed on (§22.3)."""
+    if not answer or not answer.get("n"):
+        return None
+    return f"{answer['easy']}/{answer['n']} ({answer['share']:.0%})"
+
+
 def build_rows(conn, data: features.WindowData, predictions, layers: dict,
                perimeter: set[str] | None = None, window: features.Window | None = None,
                platform: str = "euro") -> list[dict]:
@@ -2640,6 +2658,21 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
     # can answer for somebody who was never in a listone (see `elo.levels_by_minutes`): 91 of 158
     # arrivals had no level at all, and this recovers 49 of them.
     level_by_minutes = elo_module.levels_by_minutes(conn, window.input_season)
+    # THE CALENDAR STILL TO BE PLAYED, per club, computed ONCE for the whole sheet: it is a club fact and
+    # every player of a club carries the same one. The window is the auction date to the end - what is
+    # LEFT is the question an auction asks - and the whole thing is empty by design until `fixtures` has
+    # been ingested, which is a state the manifest declares rather than a zero the row invents.
+    # Per (club, CHAMPIONSHIP), and the championship is not optional: without it the count mixes the
+    # cups in and the denominator stops meaning anything - measured 10/08/2026, Serie A clubs read 39 and
+    # 40 matches instead of 38 depending on how far they were still in the Coppa Italia. The window a
+    # sheet asks about is the PLATFORM's own calendar (§21.5), which per club is his own league.
+    calendar: dict[str, dict] = {}
+    for club, league in {(matching.club_identity(obs.club_target), obs.league)
+                         for obs in data.observations if obs.club_target and obs.league}:
+        answer = fixtures.easy_matches(conn, window.target_season, club, league=league,
+                                       since=window.auction_date)
+        if answer["n"]:
+            calendar[club] = answer
     # ...and which ClubElo club each of OUR clubs is, so the fallback can refuse a man whose minutes
     # were played at the club he is still at: a promoted squad did not step up by moving.
     elo_names = {matching.club_identity(key): name for key, name in conn.execute(
@@ -2865,6 +2898,12 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             # What he had shown BEFORE last season - the career channel's input, forwards only because
             # that is the population it was measured on (`presence.career_lift`).
             "desc_career_fm": (obs.fm_career if obs.role_classic == "A" else None),
+            # How many EASY matches his club has left, and by how much on average. The count carries its
+            # own denominator because a percentage without it is not a fact, and both are empty rather
+            # than zero where the calendar or an opponent's level is missing.
+            "desc_easy_matches": _easy_label(calendar.get(matching.club_identity(obs.club_target or ""))),
+            "desc_calendar_margin": _round(
+                (calendar.get(matching.club_identity(obs.club_target or "")) or {}).get("margin"), 1),
             "desc_age": obs.age(window),
             "desc_investment_stature": spend.get("stature"),
             # AFTER the auction date, reporting only (see PLAYER_COLUMNS): what really happened in the
@@ -3351,6 +3390,12 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
 
     filled = {column: sum(1 for row in rows if row.get(column) not in (None, ""))
               for column in PLAYER_COLUMNS}
+    # One row's answer, re-read only to report the provenance the rows were built with.
+    calendar_sample = next(
+        (fixtures.easy_matches(conn, window.target_season, matching.club_identity(row["club"]),
+                               league=row.get("league"))
+         for row in rows if row.get("desc_easy_matches") and row.get("club")), None)
+
     manifest = {
         "generated_at": dt.datetime.now(tz=dt.UTC).isoformat(timespec="seconds"),
         "sheet_revision": SHEET_REVISION,
@@ -3440,6 +3485,33 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
                            "translation, provider slot -> listone role: G->P 100%, D->D 97%, M->C 80%, "
                            "F->A 80% (data/reports/role_crosstab.csv). Read the shape as who stands "
                            "where, not as the coach's declared module."),
+        # THE FIVE THINGS A PERCENTAGE NEEDS to be a fact (§22.3/§23.4): the threshold, the home bonus
+        # WITH the date it was measured on, the Elo snapshot, the window, and how many matches were
+        # actually classified. Without them «6/8 (75%)» is a number nobody can audit.
+        "calendar": {
+            "easy_margin": fixtures.EASY_MARGIN,
+            "home_away_gap": fixtures.HOME_AWAY_GAP,
+            "home_bonus_applied": fixtures.HOME_ADVANTAGE,
+            "home_bonus_measured_on": "1140 Serie A matches 2023-24..2025-26, home score share 0.5412; "
+                                      "re-verified out of sample 10/08/2026 on 1140 held-out matches, "
+                                      "where 29 beat both a refitted constant and a strength-banded "
+                                      "version - the multiplicative form (x1.10/x0.80) is refuted",
+            # The year the computation ACTUALLY read, and not the one the window suggests: the fixtures
+            # are the TARGET season's while a sheet's input season is the one before, so stating
+            # `input_season` here would have declared 2025 for a number computed on 2026. A manifest
+            # that states the wrong provenance is worse than one that states none.
+            "elo_year": (calendar_sample or {}).get("elo_year"),
+            "window": f"{window.auction_date} -> end of {window.target_season}",
+            "clubs_with_calendar": len({row.get("club") for row in rows
+                                        if row.get("desc_easy_matches")}),
+            "trimmed_mean": {
+                "applied_to": "desc_calendar_margin",
+                "rule": "a mean used to JUDGE drops its highest and lowest value when there are 5+ "
+                        "samples (operator, 10/08/2026); the COUNT k/n stays whole",
+            },
+            "display_only": "the club-strength family was refused by the gate three times: this column "
+                            "informs the decision and never enters a prediction (§23.3)",
+        },
         "not_measurable": {
             "club_relationship": "no source in the whitelist states it. The proxies actually measured "
                                  "are desc_contract_until, desc_exit_risk, desc_arrival*, "

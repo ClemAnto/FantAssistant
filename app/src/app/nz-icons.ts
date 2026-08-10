@@ -13,6 +13,7 @@ import {
   ShareAltOutline,
   ThunderboltOutline,
   TrophyOutline,
+  WifiOutline,
 } from '@ant-design/icons-angular/icons';
 
 /** The icons the app registers, in one place: `provideNzIcons(NZ_ICONS)` in app.config.ts
@@ -32,4 +33,5 @@ export const NZ_ICONS: IconDefinition[] = [
   ShareAltOutline,
   ThunderboltOutline,
   TrophyOutline,
+  WifiOutline,
 ];

@@ -190,6 +190,50 @@ def predict_fm_from_history(anchor: float, fm_prev: float, fm_history: float,
     return anchor + lams[0] * (fm_prev - anchor) + lams[1] * (fm_history - anchor)
 
 
+# R18b's pre-registered grid (10/08/2026). `d = 1` would BE R18, so the incumbent is inside the space
+# and a decay that only wins at the edge of this grid is not adopted - it earns a follow-up instead.
+HISTORY_DECAYS: tuple[float, ...] = (0.50, 0.70, 0.85)
+
+
+def weighted_history(seasons: tuple[float, ...] | list[float], decay: float) -> float | None:
+    """The history term with older seasons worth less: weight `decay**k`, k = seasons back.
+
+    `seasons` is MOST RECENT FIRST. With `decay = 1` this is the flat mean R18 already uses, which is
+    what makes R18b a variant of it rather than a different rule: the hypothesis under test is only
+    «older seasons say less», and nothing else moves.
+    """
+    if not seasons:
+        return None
+    weights = [decay ** k for k in range(len(seasons))]
+    total = sum(weights)
+    return sum(value * weight for value, weight in zip(seasons, weights)) / total if total else None
+
+
+# R18c's pre-registered grid (10/08/2026): the SPLIT between last season and the history is declared,
+# only the total strength is fitted. Diagnosed rather than guessed - the two-coefficient fit of R18 is
+# not identified (the two regressors are nearly the same quantity), so its split swung from 0.38 to
+# 40.7 across the nine windows while the SUM stayed at 0.68 +/- 19%. A parameter that follows its
+# estimation window is not a parameter, and scoring one window with another's split is what put R18
+# 4.6% under water on Tm5.
+HISTORY_SPLITS: tuple[float, ...] = (0.50, 0.65)
+
+
+def predict_fm_weighted_history(anchor: float, fm_prev: float, history: float,
+                                lam: float, weight: float) -> float:
+    """R18c - one strength, a declared split. `weight` = 1 is the core, so it stays inside the space."""
+    blended = weight * (fm_prev - anchor) + (1.0 - weight) * (history - anchor)
+    return anchor + lam * blended
+
+
+def predict_fm_goalkeeper_weighted_history(mv_prev: float, mv_history: float,
+                                           club_rate_prev: float | None, mu_rate: float,
+                                           lam: float, weight: float) -> float:
+    """R18c on a keeper's Mv: the ability half only, exactly as R18-GK does."""
+    blended = weight * (mv_prev - GK_MV_ANCHOR) + (1.0 - weight) * (mv_history - GK_MV_ANCHOR)
+    return predict_fm_goalkeeper_history(
+        GK_MV_ANCHOR + blended, GK_MV_ANCHOR, club_rate_prev, mu_rate, (1.0, 0.0))
+
+
 def predict_fm_goalkeeper_history(mv_prev: float, mv_history: float, club_rate_prev: float | None,
                                   mu_rate: float, lams: tuple[float, float]) -> float:
     """R18-GK: M2e with the ABILITY term told about more than one season.

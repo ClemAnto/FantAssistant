@@ -8,6 +8,7 @@ dangle, and lose the manifest that says which prices are auction-safe.
 
 from __future__ import annotations
 
+import csv
 import gzip
 import json
 import sqlite3
@@ -169,3 +170,96 @@ def test_heavy_window_covers_the_cross_fit_window(tmp_path):
     # the input season of the window AND of the window its parameters come from must both be there
     assert window.input_season in manifest["heavy_seasons"]
     assert features.WINDOWS[source].input_season in manifest["heavy_seasons"]
+
+
+# ---------------------------------------------------------------- engine sheets
+def _write_sheet(ctx, *, league="EuroLeghe", declared=True, revision=13, stamp="2026-08-08T12:00:00+00:00",
+                 target="2025-26", columns=None, rows=None, clubs=12) -> None:
+    """A sheet folder shaped like the one `snapshot` writes, with only the columns the bundle takes."""
+    folder = ctx.config.data_dir / "reports" / f"auction-snapshot-{target}-euro-mantra-{league.lower()}-2026-08-08"
+    folder.mkdir(parents=True, exist_ok=True)
+    columns = columns or list(export.SHEET_COLUMNS)
+    rows = rows if rows is not None else [
+        # A priced man and one the core refuses: the second is why est_* travels at all.
+        {"fc_id": "1", "engine_fm_pred": "7.25", "engine_pv_pred": "26.5", "engine_role_slot": "pc",
+         "engine_replacement_fm": "6.10", "engine_surplus": "30.5", "engine_anchor": "6.4",
+         "engine_unpriced_reason": "", "est_fm": "", "est_pv": "", "est_surplus": "",
+         "est_confidence": "", "est_basis": "", "est_note": ""},
+        {"fc_id": "2", "engine_fm_pred": "", "engine_pv_pred": "", "engine_role_slot": "dc",
+         "engine_replacement_fm": "5.90", "engine_surplus": "", "engine_anchor": "6.0",
+         "engine_unpriced_reason": "only 3 votes of 15", "est_fm": "6.05", "est_pv": "18.0",
+         "est_surplus": "2.7", "est_confidence": "0.55", "est_basis": "shrunk",
+         "est_note": "thin season blended with the club's level"},
+    ]
+    with (folder / "players.csv").open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=columns)
+        writer.writeheader()
+        for row in rows:
+            writer.writerow({column: row.get(column, "") for column in columns})
+    (folder / "manifest.json").write_text(json.dumps({
+        "generated_at": stamp, "sheet_revision": revision, "platform": "euro", "game": "mantra",
+        "target_season": target, "auction_date": "2026-08-08",
+        "matchdays": {"platform_target": 31, "platform_input": 31},
+        "players": len(rows), "clubs": clubs,
+        "league": {"name": league, "declared": declared, "teams": 12,
+                   "squad_slots": {"P": 3, "D": 8, "C": 8, "A": 6}},
+    }), encoding="utf-8")
+
+
+def test_engine_numbers_travel_with_their_league_and_calendar(tmp_path):
+    ctx = _ctx(tmp_path)
+    _seed(ctx.conn)
+    _write_sheet(ctx)
+
+    manifest = export.run(ctx, history=1, verify=False)
+
+    entry = manifest["engine_sheets"][0]
+    assert entry["league"] == "EuroLeghe" and entry["teams"] == 12
+    # Without the calendar `engine_pv_pred` is on, a competition of n rounds cannot be scaled.
+    assert entry["matchdays_target"] == 31
+    assert entry["sheet_revision"] == 13
+    assert (entry["rows"], entry["priced"], entry["estimated"]) == (2, 1, 1)
+
+    payload = json.loads(gzip.decompress(
+        (tmp_path / "data" / "export" / "2025-26" / entry["path"]).read_bytes()))
+    assert payload["columns"] == list(export.SHEET_COLUMNS)
+    priced = dict(zip(payload["columns"], payload["rows"][0]))
+    assert priced["fc_id"] == 1 and priced["engine_fm_pred"] == 7.25
+    # An empty cell stays NULL: a blank surplus is a statement, never a zero.
+    estimated = dict(zip(payload["columns"], payload["rows"][1]))
+    assert estimated["engine_fm_pred"] is None and estimated["est_fm"] == 6.05
+    assert estimated["est_basis"] == "shrunk"
+
+
+def test_one_clubs_sheet_does_not_travel(tmp_path):
+    # `snapshot --clubs X` prices one squad, and one squad is not a population to measure a zero on.
+    ctx = _ctx(tmp_path)
+    _seed(ctx.conn)
+    _write_sheet(ctx, clubs=1)
+
+    assert export.run(ctx, history=1, verify=False)["engine_sheets"] == []
+
+
+def test_a_sheet_without_a_declared_league_does_not_travel(tmp_path):
+    # A surplus quoted without its league is not comparable with another league's, so it is not shipped.
+    ctx = _ctx(tmp_path)
+    _seed(ctx.conn)
+    _write_sheet(ctx, declared=False)
+
+    manifest = export.run(ctx, history=1, verify=False)
+
+    assert manifest["engine_sheets"] == []
+    assert not (tmp_path / "data" / "export" / "2025-26" / "sheets").exists()
+
+
+def test_the_newest_sheet_of_each_league_wins(tmp_path):
+    ctx = _ctx(tmp_path)
+    _seed(ctx.conn)
+    _write_sheet(ctx, stamp="2026-08-07T09:00:00+00:00", revision=12)
+    _write_sheet(ctx, stamp="2026-08-08T12:00:00+00:00", revision=13)
+    _write_sheet(ctx, league="Leghe", stamp="2026-08-01T09:00:00+00:00", revision=11)
+
+    manifest = export.run(ctx, history=1, verify=False)
+
+    revisions = {entry["league"]: entry["sheet_revision"] for entry in manifest["engine_sheets"]}
+    assert revisions == {"EuroLeghe": 13, "Leghe": 11}

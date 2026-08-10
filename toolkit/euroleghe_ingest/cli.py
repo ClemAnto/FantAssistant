@@ -182,6 +182,16 @@ def build_parser() -> argparse.ArgumentParser:
             p.add_argument("--validate", action="store_true",
                            help="only re-measure the synthetic layer against the Serie A real votes "
                                 "(read-only) -> data/reports/mv_synth_validation.json")
+        if name == "fixtures":
+            p.add_argument("--league", action="append", metavar="LEAGUE",
+                           help="only the clubs of this league (repeatable; default: every club with "
+                                "a sofascore id)")
+            p.add_argument("--refresh", action="store_true",
+                           help="re-download: a CALENDAR MOVES, so a cached page can be stale by a "
+                                "postponement - without this the cache is used as it is")
+            p.add_argument("--pages", type=int, default=3,
+                           help="pages of 30 future events per club (default: 3, which covered a whole "
+                                "38-round season plus cups on the club it was measured on)")
         if name == "positions":
             p.add_argument("--league", action="append", metavar="LEAGUE",
                            help="league to import, e.g. premier_league (repeatable; default: the 5 "
@@ -308,6 +318,9 @@ def main(argv: list[str] | None = None) -> int:
                 else:
                     load("ratings").run(ctx, platform=args.platform,
                                         seasons=args.season, refresh=args.refresh)
+            elif args.command == "fixtures":
+                load("fixtures").run(ctx, leagues=args.league, refresh=args.refresh,
+                                     pages=args.pages)
             elif args.command == "positions":
                 load("positions").run(ctx, leagues=args.league, seasons=args.season,
                                       refresh=args.refresh, layer=args.layer)

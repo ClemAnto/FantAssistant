@@ -3591,6 +3591,102 @@ uomini nelle quattro stagioni bersaglio su 1175-1558 quotati, lo 0.2-0.5%. Nessu
 giocatori si muove per cinque uomini: non è una voce da fare, è una voce che nessun harness può
 giudicare, e per la regola d'oro non è adottabile.
 
+---
+
+## 7-septvicies. LA STORIA PLURIENNALE SU SERIE A: R18b e R18c pre-registrate e RESPINTE, e perché il +1,9% di R18 era rumore (10 agosto 2026)
+
+**Domanda dell'operatore**, e ha ragione lui sul fatto: «non mi faccio capace che tra un calciatore che
+nelle ultime 5 stagioni ne sbaglia una e uno che nelle ultime 5 stagioni gioca l'ultima bene non ci sia
+differenza» — e sul foglio Serie A (`default`) differenza non c'è, perché il core legge solo `fm_prev`.
+R18 («una carriera non è una stagione»: ultima stagione E media quinquennale, entrambe ritirate verso
+l'ancora di ruolo) è adottata su `euro` e **non** su `default`.
+
+### (a) Il fatto è vero e misurato, prima di qualunque regola
+
+Su `default`, stagioni con pv ≥ 15: chi ha quattro annate buone e sbaglia l'ultima **recupera +0,33** di
+fantamedia la stagione dopo (n = 38); chi ha quattro annate mediocri e azzecca l'ultima **restituisce
+−0,51** (n = 26). La stagione dopo sta **in mezzo** fra l'ultima e la base: vale 0,3-0,5 di fantamedia,
+cioè 9-15 fantapunti. L'intuizione dell'operatore è corretta; il problema è come leggerla.
+
+### (b) R18 su `default`: 8/9 finestre, media +1,9%, e Tm5 a −4,6%
+
+Ricorsa del gate a dieci finestre (log della corsa del 10/08/2026): su `default/classic` R18 vince **8
+finestre su 9** con media **+1,9%**, e la peggiore è **−4,6%** — è Tm5 (2017-18 → 2018-19). Robust non
+tiene per la soglia della finestra peggiore (−2%), strict nemmeno. Su `default/mantra`: 5/9, +1,1%,
+peggiore −4,6%. Su `euro` R18 resta adottata, **e le cinque finestre misurabili là escludono proprio
+Tm5** — l'unico fallimento noto della regola non è osservabile dove la regola è in produzione. Va detto
+così, invece di leggerlo come conferma.
+
+### (c) La diagnosi: la SOMMA delle due lambda è stabile, la RIPARTIZIONE non è identificata
+
+Letto dai parametri fittati della corsa stessa, finestra per finestra (`history_lam` = coppia
+ultima-stagione / media-quinquennale):
+
+- **somma**: media **0,662**, minimo 0,369, massimo 0,826 — sd/media **21%**. Stabile.
+- **rapporto media5 / ultima**: da **0,13** a **41,38**. Non identificato in alcun senso utile.
+
+Cioè: i dati sanno *quanto* pesare la storia in totale, e **non sanno come dividerla** fra «l'anno scorso»
+e «i cinque anni». Il +1,9% era in buona parte il fit che comprava quella libertà — una finestra alla
+volta, con un parametro che cambia di due ordini di grandezza fra finestre adiacenti.
+
+### (d) Le due forme pre-registrate, e il loro esito
+
+Scritte PRIMA di misurarle, per togliere al fit quella libertà:
+
+- **R18b** — la storia scontata per recenza, con decadimento **dichiarato** d ∈ {0,50, 0,70, 0,85}
+  (`model.HISTORY_DECAYS`, `weighted_history`): una lambda sola su una media pesata, invece di due.
+- **R18c** — lo split **dichiarato** w ∈ {0,50, 0,65} fra ultima e media (`model.HISTORY_SPLITS`).
+
+Verdetti (target VALUE MAE, `default/classic`; fra parentesi `default/mantra`):
+
+| candidato | finestre vinte | media | peggiore |
+|---|---|---|---|
+| R18b50 | 4/9 (4/9) | +0,3% (+0,4%) | −0,8% (−0,5%) |
+| R18b70 | 5/9 (5/9) | +0,3% (+0,4%) | −0,8% (−0,5%) |
+| R18b85 | 5/9 (5/9) | +0,3% (+0,4%) | −0,8% (−0,5%) |
+| R18c50 | 3/9 (4/9) | +0,3% (+0,4%) | −0,8% (−0,5%) |
+| R18c65 | 3/9 (4/9) | +0,3% (+0,4%) | −0,9% (−0,6%) |
+
+**Tutte respinte**: nessuna arriva al pavimento dello 0,5% sulla media, e nessuna vince la maggioranza in
+modo convincente. Il dato interessante è che il guadagno **crolla da +1,9% a +0,3/0,4% appena lo split è
+dichiarato invece che fittato**, che è esattamente ciò che la diagnosi (c) prevedeva: quel +1,9% non era
+la storia pluriennale, era la libertà di ripartirla.
+
+### (e) Le forme di SINTESI, misurate per non riprovarle
+
+Su chi ha cinque stagioni piene più la sesta (n = 263 `default`, 121 `euro`), MAE grezzo nel predire la
+sesta:
+
+| sintesi | MAE |
+|---|---|
+| ultima stagione | 0,3802 |
+| media 5 | 0,3437 |
+| **media troncata** (via la migliore e la peggiore) | **0,3425** |
+| mediana | 0,3436 |
+
+Test appaiato trim contro media5: **−0,0012 ± 0,0077**, indistinguibile da zero. Il **trim non aggiunge
+niente** come predittore — e il trim è la regola generale dell'operatore («quando calcoliamo una media per
+valutare qualcosa, scartiamo il più alto e il più basso, se i campioni sono almeno 5»), che resta valida
+come **robustezza dichiarata** per le statistiche descrittive e NON come miglioramento misurato: dove
+tocca una previsione, serve il gate. Prima applicazione descrittiva: il margine di calendario di
+`fixtures.easy_matches`.
+
+Il salto vero è passare dall'ultima stagione a **qualunque** sintesi pluriennale (0,3802 → ~0,343). E un
+dettaglio che spiega la coda di R18: **l'ultima stagione è il predittore più spesso più VICINO (37%) pur
+avendo il MAE peggiore** — quindi pesare troppo il passato sbaglia di poco su molti e di molto su pochi,
+che è il profilo che fa cadere una finestra intera.
+
+### (f) Cosa resta aperto, e cosa NON va riproposto
+
+- **Aperta**: mostrare `FM 5a` e il numero di stagioni sulla riga d'asta — evidenza al decisore, zero
+  gate, nessun riordino. Proposta il 10/08 e **rinviata dall'operatore** («per il momento non fare
+  niente»): [todolist-draft-v1.md](todolist-draft-v1.md) item 2.4.
+- **Non riproporre** senza rileggere questa sezione: R18 su `default` in qualunque forma a due lambda
+  libere, R18b, R18c, e il trim come predittore. Il codice dei candidati resta in `evaluate.py`
+  (`R18B_DECAYS`, `R18C_WEIGHTS`, `history_lam_b/_c`) perché una forma respinta si documenta col suo
+  strumento, non cancellandolo.
+- `ADOPTED` non cambia, `backtest --verify` resta 22/22.
+
 ## 8. Casi di regressione (in `model.REGRESSION_CASES`, stampati da `backtest --cases`)
 
 Lewandowski (età/minuti) · Wirtz (cambio lega) · Torres F. (propensione per-90) · Ezzalzouli (nuovo nel

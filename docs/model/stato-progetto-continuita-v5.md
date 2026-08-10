@@ -1,5 +1,5 @@
 # Stato progetto & continuità — v5
-**Aggiornato: 9 agosto 2026 (l'app esiste ed è pubblicata; il layer per-partita si è scongelato)**
+**Aggiornato: 10 agosto 2026 (l'assistente d'asta è completo; la sua moneta è stata misurata su cinque finestre)**
 Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da qui + i file della cartella "Modello Previsionale Fantacalcio".
 *Glossario: T1/T2 = finestre di test (23/24->24/25, 24/25->25/26) · MAE = errore medio assoluto · cross-fitted = parametri stimati su una finestra, testati sull'altra · M2e = modello portieri decomposto (abilità + tasso gol subiti del club; la metà Elo del nome non è nel motore) · Pv_att = presenze attese · fc_id = id fantacalcio.it · EV = valore atteso · scoring_config = punteggi configurabili per lega · xG/xA = expected goals/assists · 2.5 pieno = backtest motore completo con flag.*
 
@@ -7,6 +7,34 @@ Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da q
 App per leghe EuroLeghe/fantacalcio.it (Classic+Mantra, 5 campionati) con motore previsionale. Metodo: ogni regola entra SOLO se batte il baseline fuori campione su finestre indipendenti (gate pre-registrato). Doc madre: modello-previsionale-v3.8.md.
 
 ## ⚠️ Lo stato corrente è in `00-BRIDGE-punto-di-ingresso.md`, blocco «STATO AL 5 AGOSTO 2026»
+
+### 10 agosto 2026, in una riga: l'assistente d'asta è completo, e la sua moneta è stata messa alla prova
+
+Dettaglio nel blocco «ULTIMO IN ORDINE DI TEMPO — 10/08/2026» del
+[00-BRIDGE-punto-di-ingresso.md](00-BRIDGE-punto-di-ingresso.md); pannello in
+[assistente-asta-v1.md](assistente-asta-v1.md) §25, moneta in
+[metrica-asta-surplus-v1.md](metrica-asta-surplus-v1.md) §15, gate in
+[gate-motore-v1.md](gate-motore-v1.md) §7-septvicies, toolkit in spec «Novità v9.48».
+`SHEET_REVISION` **15**, `engine_*` invariato, `--verify` **22/22**.
+
+1. **Il pannello d'asta fa i tre numeri**: Valore 0-99, surplus in punti ogni dieci giornate, netto dopo
+   il cambio λ. Il rimpiazzo è **vivo** (l'ultimo libero per cui c'è ancora posto) e la domanda per slot
+   viene dai **moduli del gioco**, non dalle quote per macro-ruolo (che raddoppiavano il surplus del
+   miglior `ds`: Grimaldo 28,0 → 15,5).
+2. **Le PORTE**, la regola di questa lega che la piattaforma non esprime: l'unità è il club, la porta è del
+   primo che prende un portiere qualsiasi, un secondo portiere è segnalato come inutile.
+3. **La scelta consigliata**: quattro giri interi, tre direzioni divergenti, vista estesa o compatta, e il
+   «e se prendessi lui?» che si aggiunge alle opzioni invece di sostituirle. Lo stato dell'asta sopravvive
+   a un refresh (e tre difetti veri sono stati pagati per arrivarci).
+4. **Il calendario nel DB** (`fixtures`) e le **partite facili** nel foglio; vantaggio campo **misurato**,
+   29 punti Elo **additivi** — la versione moltiplicativa riduceva la colonna a «in casa o fuori».
+5. **La storia pluriennale su Serie A è respinta due volte** (R18b, R18c: +0,3/0,4% contro un pavimento
+   di 0,5%), e la diagnosi vale più del verdetto: la somma delle due lambda di R18 è stabile, la
+   ripartizione non è identificata. Il **trim** resta robustezza dichiarata, non predittore.
+6. **Due conclusioni RITIRATE** dopo il consolidamento su cinque finestre: il «+92 della via di mezzo»
+   (→ +0,0%) e «il motore batte il mercato» (Qt.I +0,545 contro VALORE +0,514). Restano: giocare per
+   scegliere primo è rovinoso, il surplus è la moneta sbagliata per un draft, la copertura per ruolo vale
+   dieci volte la moneta. **Prossimi passi**: [todolist-draft-v1.md](todolist-draft-v1.md).
 
 ### 9 agosto 2026, in una riga: `app/` non è più un placeholder — è una webapp Angular pubblicata
 

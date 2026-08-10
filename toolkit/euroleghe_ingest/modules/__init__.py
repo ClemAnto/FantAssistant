@@ -21,6 +21,7 @@ PIPELINE: tuple[str, ...] = (
     "injuries",
     "fbref",
     "positions",
+    "fixtures",
     "recent_form",
     "synth",
     "arrivals",

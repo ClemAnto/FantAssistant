@@ -290,6 +290,39 @@ CREATE TABLE IF NOT EXISTS matchday_map (
     PRIMARY KEY (season, euro_md, league)
 );
 
+-- The calendar STILL TO BE PLAYED, which is the one thing `external_match_stats` cannot hold: that
+-- table is matches that HAPPENED. Without the fixtures «how many easy matches are left» is not a
+-- question anybody can answer, and the % of easy matches (assistente-asta-v1 §23.4) stays empty.
+--
+-- The unit is the MATCH and the key is the PROVIDER'S EVENT ID, deliberately: a round can be played
+-- weeks after the one that follows it, so (league, round, club) is not unique and a postponement has
+-- to move a row instead of adding one. `round` is NULL for a cup tie, which is a fact and not a gap.
+--
+-- Clubs are stored by their CANONICAL KEY (`matching.club_identity`) and never by the provider's
+-- string - the join that lost Milan, Roma and Napoli from every club's schedule (§21.7) - with the
+-- provider id kept beside it so a row can say where it came from. An opponent outside our perimeter
+-- has no `fc_club_id` at all and still has a key: that is the whole point, because his Elo lives in
+-- `club_levels`, which is keyed the same way.
+CREATE TABLE IF NOT EXISTS fixtures (
+    event_id     TEXT NOT NULL,              -- the provider's own match id
+    season       TEXT NOT NULL,              -- OUR season key (2026-27)
+    league       TEXT NOT NULL,              -- our championship key, or the provider slug for a cup
+    round        INTEGER,                    -- NULL for a cup tie
+    date         TEXT NOT NULL,              -- ISO date of kick-off, local to the provider's stamp
+    home_key     TEXT NOT NULL,              -- club_identity() of the home club
+    away_key     TEXT NOT NULL,
+    home_source_id TEXT,
+    away_source_id TEXT,
+    played       INTEGER NOT NULL DEFAULT 0, -- 1 once the provider marks it finished
+    source       TEXT NOT NULL,              -- sofascore
+    observed_on  TEXT NOT NULL,              -- when we read it: a calendar changes
+    PRIMARY KEY (event_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_fixtures_season_league ON fixtures(season, league, date);
+CREATE INDEX IF NOT EXISTS idx_fixtures_home ON fixtures(home_key, season);
+CREATE INDEX IF NOT EXISTS idx_fixtures_away ON fixtures(away_key, season);
+
 CREATE TABLE IF NOT EXISTS positions (
     fc_id     INTEGER NOT NULL REFERENCES players(fc_id),
     season    TEXT NOT NULL,

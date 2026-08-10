@@ -7,6 +7,31 @@ export interface BundleTable {
   rows: unknown[][];
 }
 
+/**
+ * One league's engine numbers, as the export declares them.
+ *
+ * The league is part of the fact and not a label: the replacement level a surplus is measured
+ * against comes from `teams x squad_slots`, so two entries of the same platform and game can carry
+ * different numbers. `matchdays_target` is the calendar `engine_pv_pred` is expressed on, which is
+ * what lets a competition of n rounds be scaled by n/N instead of guessed.
+ */
+export interface EngineSheetEntry {
+  league: string;
+  platform: 'default' | 'euro';
+  game: 'classic' | 'mantra';
+  teams: number | null;
+  squad_slots: Record<string, number> | null;
+  matchdays_target: number | null;
+  sheet_revision: number | null;
+  generated_at: string | null;
+  auction_date: string | null;
+  rows: number;
+  priced: number;
+  estimated: number;
+  /** Bundle-relative path, e.g. `sheets/euroleghe.json.gz`. */
+  path: string;
+}
+
 /** The part of the manifest the UI reads. It is normative: refuse a schema we do not know. */
 export interface BundleManifest {
   schema_version: number;
@@ -15,6 +40,8 @@ export interface BundleManifest {
   input_season: string;
   heavy_seasons: string[];
   sheet_revision?: number;
+  /** Empty when the bundle carries no engine numbers - which the panel must SAY, not paper over. */
+  engine_sheets?: EngineSheetEntry[];
   /** True only for the generated bundle the public build ships: invented clubs, players and
    *  votes. The real one is paid content and never leaves the machine. */
   demo?: boolean;
@@ -37,6 +64,13 @@ export interface ScoringTerms {
   penalty_saved_bonus_gk: number;
 }
 
+/** The shape of `mantra_modules.json`, as the toolkit ships it. */
+export interface MantraModulesFile {
+  edition?: string;
+  slot_roles: Record<string, string[]>;
+  modules: Record<string, Record<string, string[]>>;
+}
+
 export interface ScoringConfig {
   default: ScoringTerms;
   leagues: Record<string, Partial<ScoringTerms>>;
@@ -51,6 +85,7 @@ export class Bundle {
   private readonly cache = new Map<string, Promise<BundleTable>>();
   private manifestPromise?: Promise<BundleManifest>;
   private scoringPromise?: Promise<ScoringConfig>;
+  private modulesPromise?: Promise<MantraModulesFile | null>;
   private crestsPromise?: Promise<Record<string, string>>;
 
   manifest(): Promise<BundleManifest> {
@@ -82,6 +117,20 @@ export class Bundle {
       .then((res) => (res.ok ? (res.json() as Promise<ScoringConfig>) : Promise.reject(
         new Error(`scoring_config.json non trovato (${res.status}).`))));
     return this.scoringPromise;
+  }
+
+  /**
+   * The GAME's rules: the eleven legal Mantra shapes and which listone role fits each slot type.
+   *
+   * Read and never measured (`assistente-asta-v1.md` §12.3): it is a regulation, so estimating it
+   * would be guessing at something that is written down. An older bundle simply does not carry it, and
+   * the caller has to cope rather than pretend - hence null instead of a throw.
+   */
+  modules(): Promise<MantraModulesFile | null> {
+    this.modulesPromise ??= fetch(`${this.base}/mantra_modules.json`).then((res) =>
+      res.ok ? (res.json() as Promise<MantraModulesFile>) : null,
+    );
+    return this.modulesPromise;
   }
 
   /** fc_club_id -> file name, written by the export next to the badges themselves. */

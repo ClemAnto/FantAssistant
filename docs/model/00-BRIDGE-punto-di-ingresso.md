@@ -1,5 +1,5 @@
 # 00 — BRIDGE · Punto d'ingresso del progetto (leggere per primo)
-**Aggiornato: 9 agosto 2026 (l'app esiste: Angular, pubblicata su GitHub Pages, legge il bundle del toolkit)** · precedente: 8 agosto (DUE GIUDICI per le formazioni tipo — la stampa e l'ESITO reale — e la todolist formazioni tipo chiusa: cinque adozioni, sei rifiuti misurati)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
+**Aggiornato: 10 agosto 2026 (l'assistente d'asta e' completo — porte, surplus vivo, scelta consigliata — e la campagna sulle strategie di draft ha RITIRATO due conclusioni)** · precedente: 9 agosto (l'app esiste: Angular, pubblicata su GitHub Pages, legge il bundle del toolkit)** · 8 agosto (DUE GIUDICI per le formazioni tipo — la stampa e l'ESITO reale — e la todolist formazioni tipo chiusa: cinque adozioni, sei rifiuti misurati)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
 
 ## Il progetto in breve
 Motore previsionale per fantacalcio **EuroLeghe** (fantacalcio.it): valutazione calciatori Classic e Mantra sui 5 grandi campionati europei (Serie A, Premier, Liga, Bundesliga, Ligue 1 — perimetro: i ~35 top club del gioco). Prevede fantamedia (FM), presenze attese e VALORE stagionale = FM × presenze. Metodo scientifico: **ogni regola entra nel motore solo se batte il baseline fuori campione su finestre indipendenti** (gate pre-registrato). Stato: core validato (Mantra, Classic, portieri, presenze); manca lo strato flag/arrivi, sbloccato dal toolkit dati `euroleghe-ingest` (in implementazione).
@@ -20,7 +20,9 @@ La knowledge base è ora nel repo git **`FantAssistant`**, cartella **`docs/mode
 **`gate-motore-v1.md`** (protocollo del gate, verdetti, ipotesi falsificate: leggerlo prima di
 proporre qualsiasi regola) → **`metrica-asta-surplus-v1.md`** (con cosa il pannello ordina, e perché non
 è VALORE) → **`assistente-asta-v1.md`** (cosa l'assistente fa al tavolo: tre domande, tre numeri, e le
-regole di UI che sono requisiti) → `spec-euroleghe-ingest-v9.md` → `nota-modello-set-pieces-v2.md` →
+regole di UI che sono requisiti) → **`todolist-draft-v1.md`** (il piano per i suggerimenti del draft e per le
+formule di valore/surplus, nato dalla campagna a cinque finestre del 10/08/2026, ordinato per resa misurata:
+leggerlo prima di riproporre una strategia) → `spec-euroleghe-ingest-v9.md` → `nota-modello-set-pieces-v2.md` →
 `modello-previsionale-v3.8.md` → consolidati di dettaglio. Tutti in `docs/model/`.
 Per la BOARD (formazioni tipo): **`formazioni-tipo-v1.md`** (come nasce: modulo, claim, fit — formule e
 costanti) e **`todolist-formazioni-tipo-v1.md`** (il piano per renderle più veritiere, nato dal confronto
@@ -28,11 +30,58 @@ con la stampa dell'08/08/2026, ordinato per resa misurata).
 L'altra fase, quella settimanale, è **`formazione-settimanale-v1.md`** (progetto): chi gioca domenica, perché
 la pagina delle probabili non basta e quali vincoli valgono già oggi.
 
-## STATO ALL'8 AGOSTO 2026 — LEGGI QUESTO PRIMA DI TUTTO
+## STATO AL 10 AGOSTO 2026 — LEGGI QUESTO PRIMA DI TUTTO
 
 Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
 
-### ULTIMO IN ORDINE DI TEMPO — 9/08/2026: **l'app esiste** — Angular, pubblicata, e legge il bundle
+### ULTIMO IN ORDINE DI TEMPO — 10/08/2026: **l'assistente d'asta è completo**, e due conclusioni sono state RITIRATE
+
+Un solo filo, dalla mattina alla notte: portare il pannello d'asta a essere usabile a un tavolo vero, e poi
+**mettere alla prova contro l'esito** ciò con cui consiglia. Documenti: pannello in
+[assistente-asta-v1.md](assistente-asta-v1.md) §25, moneta in
+[metrica-asta-surplus-v1.md](metrica-asta-surplus-v1.md) §15, gate in
+[gate-motore-v1.md](gate-motore-v1.md) §7-septvicies, toolkit in spec «Novità v9.48», piano di seguito in
+**[todolist-draft-v1.md](todolist-draft-v1.md)**. `SHEET_REVISION` **15**, `engine_*` invariato,
+`backtest --verify` **22/22**, 75 test app + suite toolkit verdi.
+
+1. **Il pannello d'asta fa i tre numeri.** Il motore viaggia nel bundle (un foglio per lega dichiarata),
+   la giunzione è per `fc_id` e la copertura è **riportata**; il rimpiazzo è **vivo** (l'ultimo libero per
+   cui il tavolo ha ancora posto) e la domanda per slot viene dai **moduli del gioco** — non dalle quote
+   per macro-ruolo, che rispondevano «la lega comprerà tutti i 124 terzini sinistri» e raddoppiavano il
+   surplus del miglior `ds` (Grimaldo 28,0 → 15,5). Sulla riga: **Valore 0-99**, **+/10g** (surplus in
+   punti ogni dieci giornate) e **Netto/10g** (dopo aver pagato al cambio corrente λ).
+2. **La regola delle PORTE**, che la piattaforma non sa esprimere: interruttore Portieri/Porte, l'unità
+   diventa il club, la porta è del **primo** che prende un portiere qualsiasi di quel club e un secondo
+   portiere dello stesso club è segnalato come inutile invece di essere contato.
+3. **Lo stato sopravvive a un refresh**: cache dello stato, ridipinto subito in sola lettura mentre il
+   riaggancio va sotto. Tre difetti veri pagati per arrivarci — un `forget()` che cancellava l'unica copia
+   quando cadeva la rete, un throttle sul solo fronte di salita che salvava `state: {}`, e un pannello che
+   si apriva sul socket invece che sulla tabella.
+4. **La scelta consigliata**: quattro giri interi, tre direzioni divergenti (massimo netto, altro reparto,
+   il più caro che *tiene la posizione* — misurata sull'ORDINE e non sul prezzo), vista **estesa** o
+   **compatta**, e il «e se prendessi lui?» cliccando qualunque nome, che si aggiunge alle tre opzioni
+   invece di sostituirle.
+5. **Il calendario entra nel DB** (`fixtures`, chiave `event_id`, club per id provider) e le **partite
+   facili** arrivano nel foglio come k/n più coefficiente. Il vantaggio campo è **misurato**: **29 punti
+   Elo additivi**, dopo che la versione moltiplicativa ×1,1/×0,8 aveva ridotto la colonna a «in casa o
+   fuori» (0 partite facili in trasferta su 1111, log-loss 1,258 contro 0,628).
+6. **La storia pluriennale su Serie A: respinta due volte.** L'intuizione dell'operatore è vera e misurata
+   (+0,33 chi sbaglia l'ultima di cinque, −0,51 chi azzecca solo l'ultima), ma R18b (recenza dichiarata) e
+   R18c (split dichiarato) danno **+0,3/0,4%** contro un pavimento dello 0,5%. La diagnosi vale più del
+   verdetto: la **somma** delle due lambda di R18 è stabile (0,662, sd/media 21%), la **ripartizione** no
+   (da 0,13 a 41,38) — il +1,9% di R18 era il fit che comprava quella libertà. E il **trim** dell'operatore
+   come predittore non aggiunge niente (−0,0012 ± 0,0077 contro la media piena): resta robustezza
+   dichiarata per le descrittive, prima applicazione il margine di calendario.
+7. **La campagna sulle strategie di draft, e le due conclusioni ritirate.** Cinque finestre euro/mantra,
+   prezzo Qt.I, undici **legale** sui moduli, confronto appaiato. Restano in piedi: «giocare per scegliere
+   primo» è **rovinoso** (−45,8%, 0/5); il **SURPLUS è la moneta sbagliata per un draft** (−4,0%, e −15,7%
+   su una finestra) perché sconta una scarsità che il regolamento mantra non impone; la **copertura per
+   ruolo vale dieci volte la moneta** (+10,6 punti a giornata contro 0,8 fra le monete). Cadute: il «+92
+   della via di mezzo» (sulle cinque finestre **+0,0%**) e «il motore batte il mercato» (Qt.I **+0,545**
+   contro VALORE **+0,514**; il valore vince solo sulla finestra su cui era stato misurato). **Una
+   conclusione su una finestra non è una conclusione**, ed è la lezione di metodo della giornata.
+
+### 9/08/2026: **l'app esiste** — Angular, pubblicata, e legge il bundle
 
 Spec «Novità v9.47» per la parte toolkit. Convenzioni della app in **`app/CLAUDE.md`**, stato e comandi in
 **`app/README.md`**. 29 commit, **362 test**, `SHEET_REVISION` invariata, `engine_*` invariato: nulla di

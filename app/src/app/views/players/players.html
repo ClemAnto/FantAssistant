@@ -9,12 +9,19 @@
         >v{{ appVersion }}</span
       >
     </div>
-    @if (store.generatedAt(); as generated) {
-      <span class="text-xs text-muted">
-        {{ store.demo() ? 'Bundle dimostrativo generato' : 'Bundle del toolkit' }} ·
-        {{ generated.slice(0, 10) }}
-      </span>
-    }
+    <div class="flex items-baseline gap-3">
+      @if (store.generatedAt(); as generated) {
+        <span class="text-xs text-muted">
+          {{ store.demo() ? 'Bundle dimostrativo generato' : 'Bundle del toolkit' }} ·
+          {{ generated.slice(0, 10) }}
+        </span>
+      }
+      <!-- The only way into the live view: without it /auction is reachable by URL alone. -->
+      <a nz-button nzType="text" routerLink="/auction">
+        <nz-icon nzType="wifi" />
+        Segui un'asta
+      </a>
+    </div>
   </header>
 
   @if (store.demo()) {

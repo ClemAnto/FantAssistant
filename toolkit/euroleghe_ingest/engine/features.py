@@ -127,6 +127,10 @@ class Observation:
     pv_prev: int | None
     mv_prev: float | None
     fm_prev: float | None
+    # The measured seasons themselves, MOST RECENT FIRST, so a rule can weight them instead of taking
+    # the flat mean `fm_5y` already carries. R18b (pre-registered 10/08/2026) is the reason they exist.
+    fm_seasons: tuple[float, ...] = ()
+    mv_seasons: tuple[float, ...] = ()
     minutes_prev: int | None = None
     starts_prev: int | None = None
     matches_prev: int | None = None
@@ -1022,6 +1026,8 @@ def load(conn: sqlite3.Connection, window: Window, platform: str,
             (MIN_PV_PREV, window.input_season)):
         history.setdefault(fc_id, []).append((season, pv, fm, mv))
     fm_history: dict[int, tuple[float, int, float | None]] = {}
+    fm_seasons: dict[int, tuple[float, ...]] = {}
+    mv_seasons: dict[int, tuple[float, ...]] = {}
     career: dict[int, float | None] = {}
     for fc_id, seen in history.items():
         best: dict[str, tuple[int, float, float | None]] = {}
@@ -1036,6 +1042,10 @@ def load(conn: sqlite3.Connection, window: Window, platform: str,
         if recent_five:
             fm_history[fc_id] = (sum(recent_five) / len(recent_five), len(recent_five),
                                  (sum(votes) / len(votes)) if votes else None)
+        # Reversed: index 0 is the most recent season, which is what a decay is written against.
+        fm_seasons[fc_id] = tuple(reversed(recent_five))
+        mv_seasons[fc_id] = tuple(
+            reversed([best[season][2] for season in chosen if best[season][2] is not None]))
 
     observations: list[Observation] = []
     for (fc_id, name, role_classic, roles_raw, league, price, club_target, club_prev, birth_year,
@@ -1056,6 +1066,8 @@ def load(conn: sqlite3.Connection, window: Window, platform: str,
             fm_5y_seasons=(fm_history.get(fc_id) or (None, 0, None))[1],
             mv_5y=(fm_history.get(fc_id) or (None, 0, None))[2],
             fm_career=career.get(fc_id),
+            fm_seasons=fm_seasons.get(fc_id, ()),
+            mv_seasons=mv_seasons.get(fc_id, ()),
             minutes_prev=minutes, starts_prev=starts, matches_prev=matches,
             goals_prev=goals, assists_prev=assists, xg_prev=xg, xa_prev=xa, rating_prev=rating,
             minutes_share_euro_prev=euro_minutes.get(fc_id),

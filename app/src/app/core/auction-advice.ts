@@ -1,0 +1,604 @@
+import { Injectable, computed, effect, inject, signal } from '@angular/core';
+
+import { AuctionFeed, AuctionPlayer, Zone } from './auction-feed';
+import {
+  EngineNumbers,
+  MantraModules,
+  Valuation,
+  demandBySlot,
+  demandFromShapes,
+  slotShares,
+  lambdaOf,
+  liveReplacements,
+  netOf,
+  per,
+  score99,
+  surplusOf,
+  valuationOf,
+  valueOf,
+} from './auction-value';
+import {
+  Plan,
+  PlanPlayer,
+  PlanRoot,
+  PlanTeam,
+  plan,
+  planRoots,
+  predictRivalPick,
+  startingPlaces,
+} from './auction-plan';
+import { Bundle, EngineSheetEntry } from './bundle';
+
+/** Where the priced window lives between sessions: it is a setting, not a derived value. */
+const HORIZON_KEY = 'fantassistant.auction.horizon';
+
+/**
+ * The engine's numbers, joined to the table that is actually being played.
+ *
+ * The join costs nothing and is exact: fanta-asta-live's player ids ARE `fc_id`, this project's
+ * primary key (verified against `players` on 09/08/2026, 5 of 5). So the bundle's sheet and the live
+ * listone meet on the id and never on a name - the defect this repository has paid for four times.
+ *
+ * What this service refuses to do is rank by the price. The FVM is the PRICE in a draft, and the
+ * ranking is by SURPLUS over the live replacement, then by what is left of it after paying the going
+ * rate (`netto`). The operator's rule: «utilizziamo la quotazione quando non abbiamo altre risorse
+ * oggettive» - here we have them.
+ */
+
+export interface RankedPlayer {
+  player: AuctionPlayer;
+  zone: Zone;
+  valuation: Valuation;
+  /** The zero this row was measured against, so the number can explain itself. */
+  replacementFm: number | null;
+  surplus: number | null;
+  /** Fantapunti per round: the same number in any competition, so two auctions can be compared. */
+  surplusPerRound: number | null;
+  /**
+   * The same thing in the unit the table thinks in: points gained every TEN rounds of this
+   * competition. His own absences are already inside it - `pv` is expected appearances, not rounds -
+   * so a man who plays 20 rounds of 31 is diluted by exactly that, which is the honest answer to
+   * «quanto mi fa guadagnare»: `Var(ln pv)` is 90% of the variance of fantapunti.
+   */
+  surplusPer10: number | null;
+  netPer10: number | null;
+  /** What is left after paying `lambda` per credit. Null when no rate can be computed. */
+  net: number | null;
+  /** Surplus per credit - the readable «qualità/prezzo», degenerate at the bottom of the listone. */
+  ratio: number | null;
+  /**
+   * The GROSS worth on the 0-99 scale: 99 = the best man of this session's listone, taken or not, so
+   * the number keeps its meaning as the pool empties. Unlike the surplus it subtracts nothing - it is
+   * fantamedia x expected appearances, the currency the five-window draft measurement preferred.
+   */
+  value99: number | null;
+  /** How much he would raise MY eleven: the personal zero of §4.1, secondary by decision. */
+  surplusForMe: number | null;
+  price: number;
+  /** Last season's MEASURED fantamedia on this sheet's platform - what he did, not what we predict. */
+  fmPrev: number | null;
+  /** Minutes per match played, on his own championship's calendar. */
+  minutesPerMatch: number | null;
+  /** False when the zero is the sheet's league-wide one because no live demand exists for the slot. */
+  zeroIsLive: boolean;
+}
+
+@Injectable({ providedIn: 'root' })
+export class AuctionAdvice {
+  private readonly feed = inject(AuctionFeed);
+  private readonly bundle = inject(Bundle);
+
+  /** The league sheet in use, and the numbers it carries per `fc_id`. */
+  readonly entry = signal<EngineSheetEntry | null>(null);
+  readonly numbers = signal<Map<number, EngineNumbers>>(new Map());
+  readonly problem = signal<string | null>(null);
+
+  /**
+   * The competition being priced: the first and last matchday. Defaults to the whole platform
+   * calendar; a draft played after the third round is a different horizon and every ABSOLUTE number
+   * has to be on it (§19.5), which is why this is a setting and not an assumption.
+   *
+   * It is the operator's to set, so it survives a refresh - and it is only a UNIT: the factor n/N is
+   * the same for everybody, so moving it changes every cifra and cannot reorder a single row.
+   */
+  readonly from = signal(1);
+  readonly to = signal<number | null>(null);
+
+  /** Sets the window, clamped to a calendar that exists, and remembers it. */
+  setHorizon(from: number | null, to: number | null): void {
+    const total = this.matchdaysTarget();
+    const first = Math.max(1, Math.min(Math.round(from ?? 1), total ?? Infinity));
+    const last = to == null ? null : Math.max(first, Math.min(Math.round(to), total ?? Infinity));
+    this.from.set(first);
+    this.to.set(last);
+    try {
+      localStorage.setItem(HORIZON_KEY, JSON.stringify({ from: first, to: last }));
+    } catch {
+      // A browser that refuses storage still prices the auction; it just forgets the window.
+    }
+  }
+
+  private restoreHorizon(): void {
+    try {
+      const saved = JSON.parse(localStorage.getItem(HORIZON_KEY) ?? 'null');
+      if (saved?.from) this.from.set(Math.max(1, Math.round(saved.from)));
+      if (saved?.to) this.to.set(Math.max(1, Math.round(saved.to)));
+    } catch {
+      // Nothing saved, or unreadable: the whole calendar is the honest default.
+    }
+  }
+
+  private loading: string | null = null;
+
+  /** How many of the session's own listone the chosen sheet can price. Reported, never assumed. */
+  readonly coverage = signal<{ matched: number; total: number } | null>(null);
+
+  /** The game's shapes, and last season's measured fantamedia per player on the sheet's platform. */
+  private readonly shapes = signal<MantraModules | null>(null);
+  private readonly measured = signal<Map<number, number>>(new Map());
+
+  constructor() {
+    this.restoreHorizon();
+    effect(() => {
+      const ids = [...this.feed.listoneIds()];
+      const game = this.feed.isMantra() ? 'mantra' : 'classic';
+      const teams = this.feed.teams().length;
+      if (ids.length) void this.ensure(ids, game, teams);
+    });
+  }
+
+  /** The rounds of the platform's own calendar, from the sheet: `engine_pv_pred` is expressed on it. */
+  readonly matchdaysTarget = computed(() => this.entry()?.matchdays_target ?? null);
+
+  readonly lastMatchday = computed(() => this.to() ?? this.matchdaysTarget());
+
+  /** n / N. One constant for everybody, so it moves the cifre and can never reorder the list. */
+  readonly horizon = computed(() => {
+    const total = this.matchdaysTarget();
+    const last = this.lastMatchday();
+    if (!total || !last) return 1;
+    const rounds = Math.max(0, last - this.from() + 1);
+    return Math.min(1, rounds / total);
+  });
+
+  readonly rounds = computed(() => {
+    const last = this.lastMatchday();
+    return last ? Math.max(0, last - this.from() + 1) : null;
+  });
+
+  /** The rounds every absolute number is spread over: the horizon, or the whole calendar. */
+  private readonly spread = computed(() => this.rounds() ?? this.matchdaysTarget());
+
+  /**
+   * How many men of each slot the table will buy.
+   *
+   * Classic is exact: the zone IS the role and the session states the quota, so it is `teams x slots`.
+   * Mantra is not, and the source matters - the places come from the GAME's shapes
+   * (`mantra_modules.json`), because splitting a roster by macro-role quotas answered «all 124 left
+   * backs» and doubled the best `ds`'s surplus. Without the modules file we fall back to reading the
+   * sheet's own replacement levels, which is that same worse placeholder, and the panel says so.
+   */
+  private readonly demand = computed(() => {
+    const teams = this.feed.teams().length;
+    const roles = this.feed.league()['roles'] ?? {};
+    const slots = (zone: string) => {
+      const pair = roles[zone];
+      return Array.isArray(pair) ? pair[0] : (pair ?? 0);
+    };
+    if (!teams) return new Map<string, number>();
+
+    if (!this.feed.isMantra()) {
+      return new Map<string, number>([
+        ['P', teams * slots('gk')],
+        ['D', teams * slots('def')],
+        ['C', teams * slots('mid')],
+        ['A', teams * slots('atk')],
+      ]);
+    }
+
+    const shapes = this.shapes();
+    if (!shapes) return demandBySlot(this.numbers().values());
+    const demand = demandFromShapes(slotShares(shapes), teams, slots('mov'));
+    demand.set('por', teams * slots('gk'));
+    return demand;
+  });
+
+  /** True while the demand is the placeholder the modules file replaces. */
+  readonly demandFromQuotas = computed(() => this.feed.isMantra() && !this.shapes());
+
+  /** How many of each slot are already gone from the table. */
+  private readonly taken = computed(() => {
+    const taken = new Map<string, number>();
+    for (const pick of this.feed.picks()) {
+      const slot = this.numbers().get(pick.playerId)?.slot;
+      if (slot) taken.set(slot, (taken.get(slot) ?? 0) + 1);
+    }
+    return taken;
+  });
+
+  /** The live zero per slot: the marginal man among those still free. */
+  readonly replacements = computed(() =>
+    liveReplacements(
+      this.feed.available().map((player) => ({
+        id: player.id,
+        slot: this.numbers().get(player.id)?.slot ?? null,
+        fm: valuationOf(this.numbers().get(player.id)).fm,
+      })),
+      this.demand(),
+      this.taken(),
+    ),
+  );
+
+  /** The slots the table still has to fill - the budget lambda is spent against in a draft. */
+  readonly slotsLeft = computed(() => {
+    let left = 0;
+    for (const [slot, wanted] of this.demand()) {
+      left += Math.max(0, wanted - (this.taken().get(slot) ?? 0));
+    }
+    return left;
+  });
+
+  /**
+   * The 99 of the value scale: the best gross worth in THIS SESSION'S listone, taken players included.
+   * Free men alone would re-scale everybody upward as the big names go, and a number that changes
+   * meaning mid-auction cannot be read across two moments of the same table.
+   */
+  private readonly valueMax = computed(() => {
+    const numbers = this.numbers();
+    let max = 0;
+    for (const id of this.feed.listoneIds()) {
+      const value = valueOf(valuationOf(numbers.get(id)));
+      if (value != null && value > max) max = value;
+    }
+    return max;
+  });
+
+  /** My own best man per slot: the zero of §4.1, the one that makes a fourth strong midfielder cheap. */
+  private readonly mineBySlot = computed(() => {
+    const mine = new Map<string, number>();
+    for (const entry of this.feed.followed()?.squad ?? []) {
+      const numbers = entry.player ? this.numbers().get(entry.player.id) : undefined;
+      const valuation = valuationOf(numbers);
+      if (!numbers?.slot || valuation.fm == null) continue;
+      mine.set(numbers.slot, Math.max(mine.get(numbers.slot) ?? 0, valuation.fm));
+    }
+    return mine;
+  });
+
+  readonly lambda = computed(() =>
+    lambdaOf(
+      this.priced().map((row) => ({ id: row.player.id, surplus: row.surplus, price: row.price })),
+      this.slotsLeft(),
+    ),
+  );
+
+  /** Every free man with his surplus. Ranked by `net` once a rate exists, by surplus until then. */
+  readonly ranked = computed<RankedPlayer[]>(() => {
+    const lambda = this.lambda();
+    const spread = this.spread();
+    const rows = this.priced().map((row) => {
+      const net = netOf(row.surplus, row.price, lambda);
+      return { ...row, net, netPer10: per(net, spread) };
+    });
+    rows.sort((a, b) => (b.net ?? b.surplus ?? -1e9) - (a.net ?? a.surplus ?? -1e9));
+    return rows;
+  });
+
+  bySlotOrZone(zone: Zone, limit: number): RankedPlayer[] {
+    return this.ranked()
+      .filter((row) => row.zone === zone)
+      .slice(0, limit);
+  }
+
+  /** The surplus of a single player, for a card that already knows who it is about (a porta). */
+  forPlayer(player: AuctionPlayer | null): RankedPlayer | null {
+    if (!player) return null;
+    return this.ranked().find((row) => row.player.id === player.id) ?? null;
+  }
+
+  /** Everything except `net`, which needs the whole list first: lambda is a property of the pool. */
+  private readonly priced = computed<Omit<RankedPlayer, 'net' | 'netPer10'>[]>(() => {
+    const numbers = this.numbers();
+    const replacements = this.replacements();
+    const mine = this.mineBySlot();
+    const horizon = this.horizon();
+    const total = this.matchdaysTarget();
+    const spread = this.spread();
+    const valueMax = this.valueMax();
+
+    return this.feed.available().map((player) => {
+      const row = numbers.get(player.id);
+      const valuation = valuationOf(row);
+      const slot = row?.slot ?? null;
+      const live = slot ? (replacements.get(slot) ?? null) : null;
+      // A slot the live demand cannot speak for - a man the listone gives no Mantra role, so the sheet
+      // priced him on his classic one - keeps the sheet's league zero and the row says which it is.
+      const replacement = live ?? row?.replacementFm ?? null;
+      const surplus = surplusOf(valuation, replacement, horizon);
+      // MY zero is the better of the league's marginal man and the best I already hold there: a slot
+      // I have covered is worth what it ADDS, which is the whole point of the personal replacement.
+      const personal = slot ? Math.max(replacement ?? 0, mine.get(slot) ?? 0) || replacement : replacement;
+      return {
+        player,
+        zone: this.feed.zoneOf(player),
+        valuation,
+        replacementFm: replacement,
+        surplus,
+        surplusPerRound: surplus != null && total ? surplus / (this.rounds() || total) : null,
+        surplusPer10: per(surplus, spread),
+        ratio: surplus != null && player.fvm > 0 ? surplus / player.fvm : null,
+        value99: score99(valueOf(valuation), valueMax),
+        surplusForMe: surplusOf(valuation, personal, horizon),
+        price: player.fvm,
+        fmPrev: this.measured().get(player.id) ?? null,
+        minutesPerMatch:
+          row?.minutesFullSeason != null && row.seasonMatches
+            ? row.minutesFullSeason / row.seasonMatches
+            : null,
+        zeroIsLive: live != null,
+      };
+    });
+  });
+
+  /**
+   * Load the sheet that actually fits this table, and say how well it fits.
+   *
+   * The sheet is chosen by the OVERLAP OF IDS, not by the platform. `playerListType` says `custom`
+   * whenever the host uploads his own list - which is the normal case here, since the pool of free
+   * agents is customised - and a custom list may carry no championship on its rows at all, so the
+   * platform is not readable from it (observed live on `FA-zna-v85`, 09/08/2026: every row without a
+   * championship, the panel silently priced nobody). Ids are not a matter of interpretation: they are
+   * `fc_id`, so «which sheet knows these men» is a countable question, and the count is reported.
+   *
+   * The GAME still filters, because it is stated by the session and it changes the slots a surplus is
+   * measured in - 904 of 916 values move between classic and mantra.
+   */
+  /**
+   * The recommended pick, with the picks it expects before our next turn.
+   *
+   * One assumption and it is named in the card: a rival takes the dearest man still free among the
+   * roles his own squad has yet to cover (§17.3 requires the policy to be stated, not hidden). The
+   * ORDER around it is not assumed - it is the platform's own rule, reproduced from its source.
+   */
+  /** Which of the divergent options the operator is looking at. Both views read the same one. */
+  readonly chosenRoot = signal<number | null>(null);
+
+  chooseRoot(playerId: number | null): void {
+    this.chosenRoot.set(playerId);
+  }
+
+  /** The inputs a plan needs, gathered once: the roots and the plans share them. */
+  private readonly planInput = computed(() => {
+    const mineId = this.feed.followedTeamId();
+    const teams = this.feed.teams();
+    if (mineId === null || !teams.length) return null;
+    const numbers = this.numbers();
+    const roles = this.feed.league()['roles'] ?? {};
+    const keeperSlots = Array.isArray(roles['gk']) ? roles['gk'][1] : (roles['gk'] ?? 3);
+    const order = this.feed.pickOrder().map((team) => team.id);
+
+    return {
+      teams: teams.map((team) => ({
+        id: team.id,
+        label: team.label,
+        slots: team.squad
+          .map((entry) => (entry.player ? (numbers.get(entry.player.id)?.slot ?? '') : ''))
+          .filter(Boolean),
+        rosterValue: team.spent,
+        pickValues: team.squad.map((entry) => entry.cost),
+        picksCount: team.squad.length,
+        firstRoundIndex: Math.max(0, order.indexOf(team.id)),
+      })) as PlanTeam[],
+      order,
+      pool: this.ranked().map((row) => ({
+        id: row.player.id,
+        name: row.player.name,
+        club: row.player.club,
+        slot: numbers.get(row.player.id)?.slot ?? null,
+        roles: row.player.roles,
+        price: row.price,
+        net: row.net ?? row.surplus,
+      })) as PlanPlayer[],
+      mineId,
+      shapes: this.shapes(),
+      keeperCap: Number(keeperSlots) || 3,
+      maxAheadPicks: Number(this.feed.draftRules()?.['maxAheadPicks'] ?? 1) || 1,
+    };
+  });
+
+  /** The three divergent starting points (§17.3), each with the reason it is offered. */
+  readonly roots = computed<PlanRoot[]>(() => {
+    const input = this.planInput();
+    if (!input) return [];
+
+    // What each rival's squad will be worth once this round is over: his spend plus what the policy
+    // expects him to take. It is what «keeping our place» has to be measured against - their current
+    // values would flatter every big spend of ours, since everybody is about to add a name.
+    const places = startingPlaces(input.shapes);
+    let pool = input.pool;
+    const rivalValues: number[] = [];
+    for (const team of input.teams) {
+      if (team.id === input.mineId) continue;
+      const choice = predictRivalPick(team, pool, places, input.keeperCap);
+      if (choice) pool = pool.filter((player) => player.id !== choice.id);
+      rivalValues.push(team.rosterValue + (choice?.price ?? 0));
+    }
+    const mine = input.teams.find((team) => team.id === input.mineId);
+
+    return planRoots(input.pool, {
+      mySpend: mine?.rosterValue ?? 0,
+      rivalValues,
+      // The first half of the order: past it «keeping our place» would be a claim nobody can read.
+      keepWithin: Math.ceil((rivalValues.length + 1) / 2),
+    });
+  });
+
+  /**
+   * One plan per root, so switching option costs nothing and the two views stay in step.
+   *
+   * A root the operator picked by hand - clicking any name in either view - is appended as one more
+   * option instead of replacing the three: «and if I took HIM» is a question about the same table, and
+   * the three declared directions have to stay visible beside the answer.
+   */
+  readonly plans = computed<{ root: PlanRoot; plan: Plan }[]>(() => {
+    const input = this.planInput();
+    if (!input) return [];
+    const roots = this.roots();
+    const options = roots.map((root) => ({
+      root,
+      plan: plan({ ...input, rootId: root.player.id }),
+    }));
+
+    const chosen = this.chosenRoot();
+    if (chosen !== null && !roots.some((root) => root.player.id === chosen)) {
+      const player = input.pool.find((candidate) => candidate.id === chosen);
+      if (player) {
+        options.push({
+          root: { player, why: 'se prendi lui' },
+          plan: plan({ ...input, rootId: chosen }),
+        });
+      }
+    }
+    return options;
+  });
+
+  readonly planned = computed<Plan | null>(() => {
+    const plans = this.plans();
+    if (!plans.length) return null;
+    const chosen = this.chosenRoot();
+    return (plans.find((entry) => entry.root.player.id === chosen) ?? plans[0]).plan;
+  });
+
+  private async ensure(ids: number[], game: 'classic' | 'mantra', teams: number): Promise<void> {
+    const key = `${game}/${teams}/${ids.length}`;
+    if (this.loading === key) return;
+    this.loading = key;
+    try {
+      const manifest = await this.bundle.manifest();
+      const all = manifest.engine_sheets ?? [];
+      const sheets = all.filter((sheet) => sheet.game === game);
+      if (!sheets.length) {
+        this.entry.set(null);
+        this.numbers.set(new Map());
+        this.coverage.set(null);
+        this.problem.set(
+          all.length
+            ? `Il bundle porta i numeri del motore solo per ${all.map((sheet) => sheet.game).join(', ')}, ` +
+                `e questa asta è ${game}: il SURPLUS non è confrontabile fra i due giochi, quindi il ` +
+                `pannello non lo mostra. Lancia "snapshot --league NOME" con il game giusto, poi "export".`
+            : `Il bundle non porta i numeri del motore: senza di essi il pannello non può ordinare per ` +
+                `SURPLUS. Lancia "snapshot --league NOME" e poi "export".`,
+        );
+        return;
+      }
+
+      const wanted = new Set(ids);
+      let chosen = sheets[0];
+      let best: Map<number, EngineNumbers> = new Map();
+      let matched = -1;
+      for (const sheet of sheets) {
+        const numbers = await this.read(sheet);
+        const hits = [...wanted].filter((id) => numbers.has(id)).length;
+        if (hits > matched) {
+          matched = hits;
+          best = numbers;
+          chosen = sheet;
+        }
+      }
+
+      this.entry.set(chosen);
+      this.numbers.set(best);
+      this.coverage.set({ matched, total: wanted.size });
+      this.shapes.set(game === 'mantra' ? await this.bundle.modules() : null);
+      this.measured.set(await this.lastSeason(chosen, manifest.input_season));
+      const notes: string[] = [];
+      if (chosen.teams !== teams) {
+        notes.push(
+          `il foglio è della lega "${chosen.league}" (${chosen.teams} squadre) e al tavolo ne siedono ` +
+            `${teams}: il livello di rimpiazzo è quello di un'altra lega`,
+        );
+      }
+      if (matched < wanted.size) {
+        notes.push(
+          `${wanted.size - matched} giocatori su ${wanted.size} non sono nel foglio: per loro non c'è ` +
+            `nessun numero, e la riga lo dice invece di valere zero`,
+        );
+      }
+      this.problem.set(notes.length ? notes.join(' · ') : null);
+    } catch (error) {
+      this.problem.set(
+        error instanceof Error ? error.message : 'I numeri del motore non sono leggibili.',
+      );
+    }
+  }
+
+  /**
+   * Last season's MEASURED fantamedia, on the same platform as the sheet.
+   *
+   * It is shown next to the prediction so a row can be judged and not only ranked - and it is read on
+   * the sheet's platform because a fantamedia is a fact about a CALENDAR: euro and default are the same
+   * season seen from two different ones.
+   */
+  private async lastSeason(sheet: EngineSheetEntry, season: string): Promise<Map<number, number>> {
+    try {
+      const table = await this.bundle.table('season_stats');
+      const [id, when, platform, fm] = ['fc_id', 'season', 'platform', 'fm'].map((name) =>
+        table.columns.indexOf(name),
+      );
+      const measured = new Map<number, number>();
+      for (const row of table.rows) {
+        if (row[when] !== season || row[platform] !== sheet.platform) continue;
+        const value = row[fm] as number | null;
+        if (value != null) measured.set(Number(row[id]), value);
+      }
+      return measured;
+    } catch {
+      // An older bundle does not carry it: one column stays empty, nothing else changes.
+      return new Map();
+    }
+  }
+
+  private async read(sheet: EngineSheetEntry): Promise<Map<number, EngineNumbers>> {
+    {
+      const table = await this.bundle.table(sheet.path.replace(/\.json(\.gz)?$/, ''));
+      const at = (name: string) => table.columns.indexOf(name);
+      const columns = {
+        id: at('fc_id'),
+        fm: at('engine_fm_pred'),
+        pv: at('engine_pv_pred'),
+        slot: at('engine_role_slot'),
+        replacement: at('engine_replacement_fm'),
+        surplus: at('engine_surplus'),
+        reason: at('engine_unpriced_reason'),
+        estFm: at('est_fm'),
+        estPv: at('est_pv'),
+        estConfidence: at('est_confidence'),
+        estBasis: at('est_basis'),
+        estNote: at('est_note'),
+        minutes: at('desc_minutes_full_season'),
+        matches: at('desc_season_matches'),
+      };
+      const numbers = new Map<number, EngineNumbers>();
+      for (const row of table.rows) {
+        const id = Number(row[columns.id]);
+        if (!id) continue;
+        numbers.set(id, {
+          fm: row[columns.fm] as number | null,
+          pv: row[columns.pv] as number | null,
+          slot: (row[columns.slot] as string | null) ?? null,
+          replacementFm: row[columns.replacement] as number | null,
+          surplusLeague: row[columns.surplus] as number | null,
+          unpricedReason: (row[columns.reason] as string | null) ?? null,
+          estFm: row[columns.estFm] as number | null,
+          estPv: row[columns.estPv] as number | null,
+          estConfidence: row[columns.estConfidence] as number | null,
+          estBasis: (row[columns.estBasis] as string | null) ?? null,
+          estNote: (row[columns.estNote] as string | null) ?? null,
+          minutesFullSeason: row[columns.minutes] as number | null,
+          seasonMatches: row[columns.matches] as number | null,
+        });
+      }
+      return numbers;
+    }
+  }
+}

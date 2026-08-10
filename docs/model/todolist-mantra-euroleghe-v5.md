@@ -2,6 +2,16 @@
 
 ## Aperti alla chiusura dell'8 agosto 2026 — nessuno con scadenza
 
+**Chiusura 10/08 (draft)**: il pannello d'asta è completo (porte, rimpiazzo vivo, Valore 0-99, scelta
+consigliata a quattro giri) e la moneta con cui consiglia è stata **misurata sull'esito** su cinque
+finestre. Il piano che ne nasce ha una **todolist propria**, ordinata per resa misurata:
+[todolist-draft-v1.md](todolist-draft-v1.md) — banco nel repo, lega `default`/mantra da dichiarare,
+copertura per ruolo come VINCOLO (+10,6 punti a giornata), moneta ibrida valore/surplus, cross-fit del
+pavimento, teste dei rivali dai pick, valore di blocco, Qt.I lato presenze da pre-registrare, `FM 5a` in
+display, giro su legalità classic. Due conclusioni della vigilia sono state **ritirate** là dentro:
+leggerlo prima di riproporre una strategia di draft.
+
+
 **Chiusura 08/08 (sera)**: il perimetro del foglio era la stagione FINITA (le promosse assenti, 74
 quotati; `SHEET_REVISION` 10, spec «Novità v9.42») e le board sono state giudicate contro la stampa
 (20 club: moduli 9+5/20, uomini 160/220). Il piano per le formazioni tipo ha una **todolist propria**,
