@@ -52,7 +52,7 @@ export const setup = (name = 'EuroLeghe') => setupFrom(loadLeagues(), name);
  *
  * Ties share their mean rank, so a listone that quotes forty men at 1 credit does not order them by accident.
  */
-export function annotate(players) {
+export function annotate(players, rounds) {
   const put = (field, of) => {
     const rows = players.filter((p) => of(p) !== null && of(p) !== undefined)
       .sort((a, b) => of(a) - of(b));
@@ -68,6 +68,11 @@ export function annotate(players) {
   put('pctPrice', (p) => p.price);
   put('pctValue', (p) => p.value);
   put('pctPv', (p) => p.pv_pred);
+  // The share of the CALENDAR he is expected to play, which is the only form of `pv` a probability can be
+  // read off - `pv_pred` is a count of appearances on the platform's own calendar, not a rate.
+  for (const man of players) {
+    man.p = rounds ? Math.min(1, Math.max(0, (man.pv_pred ?? 0) / rounds)) : 0;
+  }
   return players;
 }
 
@@ -81,7 +86,7 @@ export function measure(policies, { windows, shapes, setup: table, seeds = SEEDS
   const results = new Map(policies.map((p) => [p.name, { adv: [], tot: [], mine: [], cover: [], spent: [] }]));
   for (const key of keys) {
     const w = windows[key];
-    const draft = makeDraft(annotate(w.players), shapes, table);
+    const draft = makeDraft(annotate(w.players, w.rounds), shapes, table);
     for (const policy of policies) {
       const adv = [], tot = [], mineRaw = [];
       let filled = 0, places = 0, spent = 0, runs = 0;

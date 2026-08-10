@@ -1062,3 +1062,109 @@ cattura quelle informazioni peggio del prezzo.
   domanda non è «chi ordinare» ma «quanto pagare».
 - Da **non** fare: sommare blend e sopravvivenza (misurato, peggio); reintrodurre un pavimento prezzo (§16.4 —
   ed è il rovescio esatto della regola che funziona).
+
+## 19. La COPPIA «uno che fa bonus e gioca poco + una riserva affidabile»: misurata in due forme, respinta in entrambe (10 agosto 2026, notte)
+
+**Idea dell'operatore:** per un posto del modulo, prendere un calciatore che gioca poco ma fa spesso bonus
+INSIEME a uno da panchina, dello stesso posto, che fa molte presenze e pochi bonus. La coppia copre il posto:
+quando gioca il primo prendi il bonus, quando non gioca c'è il secondo.
+
+Il meccanismo è reale e ha una forma matematica esatta, quindi è stata misurata in due forme invece di una —
+perché «sostituisci la moneta» e «preferisci quella riserva» sono due ipotesi diverse e potevano dare risposte
+diverse. Non l'hanno data: perdono entrambe.
+
+### 19.1 La forma FORTE: la resa attesa del posto come moneta
+
+Se schieri sempre il migliore fra quelli che si presentano, un posto rende
+
+    E = SOMMA_i  fm_i × p_i × PRODOTTO_{j<i} (1 − p_j)
+
+e il valore marginale di aggiungere un uomo a un posto già tenuto da uno inaffidabile è
+`fm × p × (1 − p_tenuto)` — grande esattamente quando il titolare è inaffidabile. È l'idea dell'operatore
+scritta, **senza nessun parametro**, e sostituirebbe `DEPTH_WEIGHT` = 0,35 (una costante dichiarata) con una
+quantità calcolata. Per questo valeva la misura.
+
+Guadagno contro la politica che SPEDISCE (valore × copertura ×2 × sopravvivenza 0,7), cinque finestre:
+
+| candidato | Tm4 | Tm3 | T0 | T1 | T2 | media | vinte | coperti |
+|---|---|---|---|---|---|---|---|---|
+| **portafoglio (resa del posto)** | −0,28 | −3,93 | −5,88 | −8,58 | −4,79 | **−4,69%** | 0/5 | 94,4% |
+| portafoglio, senza copertura | −3,54 | −9,04 | −8,28 | −13,93 | −7,56 | −8,47% | 0/5 | 90,3% |
+| portafoglio, senza sopravvivenza | −5,00 | −11,21 | −5,34 | −9,29 | −7,64 | −7,70% | 0/5 | 93,3% |
+
+**Refutata, e il meccanismo è leggibile.** Due difetti, e sono lo stesso difetto visto da due lati.
+**Raziona la profondità molto più duramente di quanto convenga**: il fattore `(1 − p_tenuto)` vale 0,15-0,30
+per un titolare con p fra 0,70 e 0,85, contro il **0,35** piatto che spedisce — quindi compra meno riserve, e
+la copertura scende da 98,4% a 94,4% delle giornate, cioè proprio la leva che il §16.2 ha misurato valere un
+ordine di grandezza. E **tratta i posti come INDIPENDENTI**, definendo «chi gli compete il posto» come «chi
+condivide un codice di ruolo»: su mantra 497 quotati su 1014 hanno 2+ codici, quindi un uomo flessibile viene
+scontato contro il posto meglio coperto fra quelli che sa occupare, e la flessibilità è ciò che rende legale un
+undici. È un tetto per ruolo travestito, e che i tetti per ruolo non bastino a esprimere il vincolo questo
+progetto lo ha già stabilito (`assistente-asta-v1.md` §12.3).
+
+### 19.2 La forma RISTRETTA: tieni la moneta, preferisci solo la riserva affidabile
+
+Un moltiplicatore limitato SOPRA quello che spedisce — 1 per un posto vuoto, `1 + k × (1 − p_tenuto) × p` per
+un posto già occupato — così non può razionare la profondità e isola la sola preferenza sulla coppia:
+
+| candidato | media | vinte | coperti |
+|---|---|---|---|
+| coppia: riserva affidabile k=0,3 | −0,40% | 0/5 | 98,2% |
+| coppia: riserva affidabile k=0,6 | −0,50% | 1/5 | 98,1% |
+| coppia: riserva affidabile k=1,0 | −0,55% | 1/5 | 98,1% |
+
+**Piatta e monotona nella direzione sbagliata**: non danneggia, non paga, e peggiora al crescere di k. È un
+«confermato niente da guadagnare» e non un «trovato peggio» — la distinzione conta, perché il secondo invita a
+riprovare e il primo no.
+
+### 19.3 Perché non paga: due ragioni che il progetto aveva già misurato
+
+**La moneta la contiene già.** `valore = fm × pv`. Un uomo che fa bonus e gioca poco ha le poche presenze già
+dentro il prezzo del suo numero; una riserva affidabile che non fa bonus ha la fantamedia bassa già dentro il
+suo. Sono sulla stessa scala, quindi una preferenza sulla coppia **ri-addebita informazione che la moneta ha
+già** — la stessa forma dell'età (CLAUDE.md, «una differenza fra due gruppi non è un canale»: i trentenni
+hanno già meno minuti misurati, quindi un termine sull'età addebita due volte la stessa evidenza).
+
+**Il metro ti regala già il beneficio della coppia.** `matchdayXI` schiera il miglior undici legale fra i
+DISPONIBILI di ogni giornata: la riserva affidabile entra da sé nelle giornate in cui il titolare non c'è,
+senza che nessuno l'abbia accoppiata di proposito. Il guadagno che l'idea si aspetta è già nella base;
+imporlo distorce solo la graduatoria.
+
+E la terza, che è la più scomoda: **ciò che separa i criteri è la disponibilità, non la fantamedia** (§15.5 —
+la fantamedia vera del miglior undici sta fra 7,05 e 7,56 per TUTTI i criteri e tutte le stagioni). «Uno che
+fa bonus ma gioca poco» compra la dimensione che non separa.
+
+### 19.4 E il metro era GENEROSO con l'idea, il che rafforza il rifiuto
+
+`matchdayXI` concede la previsione perfetta dentro la giornata: schiera il migliore fra i disponibili come se
+si sapesse in anticipo chi gioca. Il gioco vero dà una **gerarchia ordinata di sostituzioni** con il malus
+fuori posizione (`mantra_modules.json`, «optimal → efficient → adapted»), quindi la coppia copre **meno bene**
+di quanto il banco assuma. Un'idea che perde con il metro a suo favore perde di più nella realtà.
+
+Da nominare per la stessa ragione: se questa lega accende l'**R-Factor**, spinge ancora contro. L'R-Factor
+«misura il numero di calciatori con voto di BASE almeno sufficiente» (§14.2) — i bonus non lo alimentano —
+quindi un uomo che vive di bonus con un voto base mediocre non gli porta niente, mentre la riserva affidabile
+da 6,0 gli porta tutto.
+
+### 19.5 Cosa NON è stato misurato, e va detto perché il rifiuto non lo copre
+
+Quello che è stato refutato è «fantamedia alta con poche presenze, accoppiata a molte presenze con fantamedia
+bassa». **NON** è stato misurato se la QUOTA DI BONUS della fantamedia conti separatamente dal suo livello:
+due uomini da 7,0 di fantamedia, uno costruito sui bonus e uno sul voto base, per il totale dei fantapunti
+sono lo stesso uomo, e il motore ne prevede un numero solo (`fm_pred`) — non sa distinguerli.
+
+Ci sono due strade per cui la distinzione potrebbe contare, e nessuna delle due è nei numeri qui sopra:
+- **l'R-Factor**, che conta i voti base e non i bonus (sopra) — e spinge contro il bonus-man;
+- la **varianza**, che in un campionato a scontri diretti non è neutra: una rosa a varianza alta vince più
+  partite improbabili e perde più partite probabili, che vale qualcosa per una squadra sfavorita e niente per
+  una favorita. Il banco misura i PUNTI, non le partite vinte, quindi su questo non dice nulla.
+`match_rating_bonuses` conserva i bonus riga per riga, quindi una «quota di bonus» per giocatore è
+costruibile: è una misura possibile, non fatta, e non è quella che questa sezione ha respinto.
+
+### 19.6 Un difetto di banco pagato, e vale come regola
+
+La prima esecuzione non finiva mai. `withSurvival` costruiva il memo della simulazione **dentro** la funzione
+restituita invece che dove la politica si costruisce: il memo diventava per-chiamata e il look-ahead veniva
+rifatto per OGNI candidato di ogni scelta. Non falliva — girava e non arrivava mai, che è il modo peggiore di
+sbagliare. **Un hook memoizzato si costruisce dove si costruisce la politica**, e una politica che rallenta di
+due ordini di grandezza va guardata prima di attribuire la lentezza al banco.

@@ -198,6 +198,20 @@ un'idea, leggere «cosa è già stato respinto» in fondo.
   **+0,443** sopra il prezzo (k=2) e **+0,536** a k=6 — il segnale più grosso di tutto il file — e sono
   PUBBLICHE: con prezzo e formazioni note, il nostro valore scende a +0,170, il pv a +0,127 e il surplus va
   **negativo (−0,028)**. L'incertezza ERA il nostro vantaggio.
+- [x] **4.6 — La COPPIA «bonus e poche presenze + riserva affidabile»** (idea dell'operatore): misurata in
+  DUE forme e respinta in entrambe (§19). Forma forte (la resa attesa del posto come moneta, senza parametri):
+  **−4,69%, 0/5**, e la copertura scende 98,4% → 94,4% perché il fattore `(1 − p_tenuto)` raziona la
+  profondità a 0,15-0,30 dove il `DEPTH_WEIGHT` che spedisce sta a 0,35 — inoltre tratta i posti come
+  indipendenti, cioè è un tetto per ruolo travestito. Forma ristretta (solo la preferenza sulla riserva
+  affidabile, moltiplicatore limitato): **−0,40% / −0,50% / −0,55%** al crescere di k, 0-1/5 — piatta e
+  monotona nella direzione sbagliata, quindi «confermato niente da guadagnare». Perché: la moneta la contiene
+  già (`valore = fm × pv` prezza entrambe le metà) e il metro regala già il beneficio della coppia (schiera il
+  migliore fra i DISPONIBILI). E il metro era **generoso** con l'idea — concede previsione perfetta dentro la
+  giornata dove il gioco dà una gerarchia di sostituzioni col malus — quindi nella realtà andrebbe peggio.
+  **Cosa il rifiuto NON copre:** la QUOTA DI BONUS della fantamedia, separata dal suo livello. Il motore
+  prevede un numero solo e non li distingue; le due strade per cui potrebbe contare sono l'R-Factor (conta i
+  voti BASE, quindi spinge contro il bonus-man) e la varianza in un campionato a scontri diretti. Misurabile
+  da `match_rating_bonuses`, non misurata.
 - [ ] **4.5 — NUOVO e conseguenza diretta di 4.4, il numero più grande della campagna:** se l'asta è a
   stagione iniziata, `engine_pv_pred` deve LEGGERE le giornate giocate. Oggi è costruito sulla stagione
   precedente, quindi un pannello al terzo turno ignora un segnale da +0,443. Il foglio si sa già costruire a

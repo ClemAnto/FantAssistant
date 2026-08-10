@@ -204,6 +204,58 @@ export const survival = (discount) => {
   return (p, ctx) => (p.value ?? 0) * (goneBefore(ctx).has(p.id) ? 1 : discount);
 };
 
+/* ---- the operator's PAIR: a bonus man who plays little beside a reliable man who does not score ------ */
+
+/**
+ * What a place is expected to YIELD, if you always field the best of the men who turn up.
+ *
+ * Sort the men who can fill it by fantamedia, and walk down: the first plays with probability p and pays his
+ * fantamedia, the second only pays when the first does not turn up, and so on.
+ *
+ *     E = SUM_i  fm_i x p_i x PRODUCT_{j<i} (1 - p_j)
+ *
+ * This is the operator's idea written down (10/08/2026): «for one place in my module, a man who plays little
+ * but scores bonuses often, TOGETHER WITH a bench man of the same place who plays a lot and scores nothing».
+ * The formula says exactly when that pairing pays - adding a reliable man to a place held by an unreliable one
+ * is worth `fm x p x (1 - p_held)`, which is large precisely when the holder is unreliable - and it needs NO
+ * parameter, which is what makes it worth measuring: it would REPLACE `DEPTH_WEIGHT` = 0.35, a declared
+ * constant, with a computed quantity.
+ *
+ * Two declared approximations. A place is treated as INDEPENDENT of the others, while the real assignment is
+ * joint (the matroid), so «the men who compete for his place» is read as «the men who share a role code with
+ * him» - the cheap honest definition. And the metric this is scored on fields the best of the AVAILABLE men
+ * each matchday, i.e. it grants perfect within-matchday foresight, where the real game gives you an ordered
+ * substitution hierarchy with an out-of-position malus. The bench is therefore GENEROUS to this idea, which
+ * matters for how a positive result should be read.
+ */
+export const placeYield = (men) => {
+  const sorted = [...men].sort((a, b) => (b.fm_pred ?? 0) - (a.fm_pred ?? 0));
+  let total = 0, left = 1;
+  for (const man of sorted) {
+    const p = man.p ?? 0;
+    total += (man.fm_pred ?? 0) * p * left;
+    left *= 1 - p;
+    if (left <= 0) break;
+  }
+  return total;
+};
+
+/** The men of our roster who would compete with him for the same place: a shared role code. */
+const rivalsForHisPlace = (roster, player) =>
+  roster.filter((man) => man.roles.some((role) => player.roles.includes(role)));
+
+/**
+ * The currency: how much this man raises the expected yield of the place he would fill.
+ *
+ * For an EMPTY place it reduces to `fm x p`, which is the value divided by the calendar - so on the first man
+ * of a place it ranks exactly as the adopted policy does, and it can only differ on DEPTH. That is the whole
+ * point: depth is where a flat 0.35 is currently deciding.
+ */
+export const PORTFOLIO = (p, ctx) => {
+  const held = rivalsForHisPlace(ctx.team?.roster ?? [], p);
+  return placeYield([...held, p]) - placeYield(held);
+};
+
 /* ---- the policy sets a run can ask for ------------------------------------------------------------- */
 
 const app = { need: appNeed };
@@ -342,7 +394,57 @@ export const COMBINED = [
     })() },
 ];
 
+/**
+ * The operator's pair, against the policy AS IT SHIPS - which by now is value x coverage x survival, so a
+ * candidate has to beat all three and not just the value.
+ *
+ * `senza copertura` is in the table because the marginal yield already knows whether a place is covered: if the
+ * idea works, the coverage need may be double-counting it, and that is a question the table can answer instead
+ * of an argument.
+ */
+const shipped = (currency) => ({ need: coverPlaces(2), currency, floor: Infinity });
+
+/**
+ * The survival discount, applied to whatever base currency is handed in.
+ *
+ * `survival(...)` is built ONCE per policy and never inside the returned function: it carries the memo of the
+ * forward simulation, so constructing it per call makes the memo per call and the whole look-ahead is redone
+ * for EVERY candidate of every pick. The run does not fail, it just never finishes - which is how it was
+ * found. A memoised hook is built where the policy is built.
+ */
+const withSurvival = (currency) => {
+  const discount = survival(SURVIVOR_DISCOUNT);
+  return (p, ctx) => currency(p, ctx) * (discount(p, ctx) / (p.value || 1));
+};
+
+/**
+ * The operator's claim in its NARROW form: keep the currency that ships, and only prefer a RELIABLE man as
+ * depth behind an UNRELIABLE holder.
+ *
+ * The wide form (`PORTFOLIO`) replaced the currency and lost 4.69%, mostly by rationing depth far harder than
+ * `DEPTH_WEIGHT` does - `fm x p x (1 - p_held)` is 0.15-0.30 where the flat weight is 0.35 - so the coverage
+ * fell with it. This form cannot do that: it is a bounded multiplier ON TOP of what ships, it is 1 for a place
+ * with nobody in it, and it grows only with how unreliable the holder is times how reliable the candidate is.
+ * `k` = 0 is the rule switched off, which is the baseline.
+ */
+export const complement = (k) => (p, ctx) => {
+  const held = rivalsForHisPlace(ctx.team?.roster ?? [], p);
+  if (!held.length) return p.value ?? 0;
+  const pHeld = held.reduce((best, man) => Math.max(best, man.p ?? 0), 0);
+  return (p.value ?? 0) * (1 + k * (1 - pHeld) * (p.p ?? 0));
+};
+
+export const PAIRS = [
+  { name: 'SPEDITA: valore x copertura x sopravv.', ...shipped(withSurvival(VALUE)) },
+  { name: 'portafoglio (resa del posto)', ...shipped(withSurvival(PORTFOLIO)) },
+  { name: 'portafoglio, senza copertura', need: () => 1, currency: withSurvival(PORTFOLIO), floor: Infinity },
+  { name: 'portafoglio, senza sopravvivenza', ...shipped(PORTFOLIO) },
+  ...[0.3, 0.6, 1.0].map((k) => ({
+    name: `coppia: riserva affidabile k=${k}`, ...shipped(withSurvival(complement(k))),
+  })),
+];
+
 export const SETS = {
   published: PUBLISHED, coverage: COVERAGE, currency: CURRENCY, blend: BLEND, survival: SURVIVAL,
-  combined: COMBINED,
+  combined: COMBINED, pairs: PAIRS,
 };
