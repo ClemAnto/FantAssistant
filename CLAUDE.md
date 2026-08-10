@@ -336,6 +336,17 @@ Two habits it re-taught. **The app must not keep a fallback that draws a differe
 - no board means the card says so. And **a column that looks like a flag can be a word**: `new_coach` is
 `yes`/`no`, so `Boolean(...)` read every coach as new, caught by the test that typed it.
 
+**And two defects the DATA did not have.** «Non vedo i campetti»: the bundle carried the boards, the app's own
+copy did not - `app/scripts/pull-bundle.mjs` copies named folders, and a folder added to the EXPORT has to be
+added THERE too, or the app reads an older shape of the same bundle. The card was right to say it had no board.
+The pull now counts what it copies and warns on a zero: a silent zero is indistinguishable from a broken
+feature. Then «recupera gli stemmi di tutte le squadre»: measured before downloading anything, and nothing
+needed downloading - 93 badges travel, **all 47 clubs the panel can show have one**, and the 13 that do not are
+outside the perimeter AND have no provider id (zero clubs have the id and not the file), so the cure would be
+an IDENTITY and never an API. What was actually broken was the call: `ui-crest` given only a name draws a
+monogram by design, and the auction panel was passing only the name. **The data was there; nobody asked for
+it** - and measuring first saved a whole scraper.
+
 ## Provisional parameters, and the sweep that judges them
 Some constants exist only because a module needed a number to run. They are MODEL choices, so the gate owns
 them: same rule as any candidate rule, no gate no engine. The presence formulas that read them live in

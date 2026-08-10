@@ -1,5 +1,5 @@
 # 00 — BRIDGE · Punto d'ingresso del progetto (leggere per primo)
-**Aggiornato: 10 agosto 2026, notte (la todolist del draft ESEGUITA: il consiglio del pannello riscritto su misure, e il campetto legge la board del toolkit)** · precedente: 10 agosto, giorno (l'assistente d'asta e' completo — porte, surplus vivo, scelta consigliata — e la campagna sulle strategie di draft ha RITIRATO due conclusioni)** · precedente: 9 agosto (l'app esiste: Angular, pubblicata su GitHub Pages, legge il bundle del toolkit)** · 8 agosto (DUE GIUDICI per le formazioni tipo — la stampa e l'ESITO reale — e la todolist formazioni tipo chiusa: cinque adozioni, sei rifiuti misurati)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
+**Aggiornato: 10 agosto 2026, notte tarda (la todolist del draft ESEGUITA, il campetto legge la board del toolkit ed e' rifinito, v0.1.8 pushata)** · precedente: 10 agosto, giorno (l'assistente d'asta e' completo — porte, surplus vivo, scelta consigliata — e la campagna sulle strategie di draft ha RITIRATO due conclusioni)** · precedente: 9 agosto (l'app esiste: Angular, pubblicata su GitHub Pages, legge il bundle del toolkit)** · 8 agosto (DUE GIUDICI per le formazioni tipo — la stampa e l'ESITO reale — e la todolist formazioni tipo chiusa: cinque adozioni, sei rifiuti misurati)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
 
 ## Il progetto in breve
 Motore previsionale per fantacalcio **EuroLeghe** (fantacalcio.it): valutazione calciatori Classic e Mantra sui 5 grandi campionati europei (Serie A, Premier, Liga, Bundesliga, Ligue 1 — perimetro: i ~35 top club del gioco). Prevede fantamedia (FM), presenze attese e VALORE stagionale = FM × presenze. Metodo scientifico: **ogni regola entra nel motore solo se batte il baseline fuori campione su finestre indipendenti** (gate pre-registrato). Stato: core validato (Mantra, Classic, portieri, presenze); manca lo strato flag/arrivi, sbloccato dal toolkit dati `euroleghe-ingest` (in implementazione).
@@ -80,6 +80,33 @@ pannello vero senza finestra, con **le sue decisioni per club applicate** (i due
 lo `snapshot` scrive `boards.json` dentro la cartella del foglio appena scritto e l'`export` la porta nel
 bundle. Per club: modulo disegnato, 11 titolari con la `x` del pannello, **fino a due ballottaggi** ciascuno,
 ruoli reali e minuti. Verificato sul bundle: 77 club, 847 uomini, 1405 ballottaggi, **zero** disaccordi.
+
+**SEGUITO DELLA STESSA SERATA — il campetto rifinito su sei richieste dell'operatore, e due difetti trovati
+dove nessuno guardava.** Commit `f8c4466` → `e1a084b`, **v0.1.8 pushata** (15 commit su `origin/master`).
+
+Il campetto come e' adesso: **portiere in alto** e attacco in basso (ed e' come il pannello disegna da sempre —
+`_lane` lo dice nel suo docstring); **un solo ruolo**, quello che il modulo gli ha dato, che non e' `badge` da
+solo ma `_line_codes`, il quale lo CORREGGE per riga (un centravanti resta `Pc` e non diventa `As`); il **ruolo
+mantra** su una riga sua, perche' e' quello che il gioco punteggia; i minuti sempre come **media a partita**
+(minuti diviso le partite giocate); il **valore in 99esimi** in un quadratino dopo il nome, sulla stessa scala
+della tabella; larghezza massima **500px**; i presi ad **alpha 0,3**.
+
+**Due difetti che il dato non aveva, ma il cablaggio si.**
+1. **«Non vedo i campetti»**: il bundle portava le board, `app/public/data` no — `pull-bundle.mjs` copiava
+   `sheets/` e `mantra_modules.json` e non `boards/` ne' `classic_modules.json`, aggiunti quel giorno. La carta
+   diceva CORRETTAMENTE di non avere board. Regola: **una cartella aggiunta all'export va aggiunta al pull**, e
+   ora il riassunto del pull le CONTA e avvisa quando sono zero — uno zero silenzioso e' indistinguibile da una
+   funzione rotta.
+2. **«Recupera gli stemmi»**: gli stemmi c'erano già. 93 file, e **tutti i 47 club** che il pannello puo'
+   mostrare ne hanno uno; i 13 senza sono fuori perimetro (Chievo, Huddersfield, Hertha, Maiorca…) e **non
+   hanno un id sofascore** — zero club hanno l'id e non il file, quindi la cura sarebbe l'IDENTITA' e non
+   un'API. Il difetto era che il campetto chiamava `ui-crest` col solo nome, e senza `clubId` + l'indice quel
+   componente disegna sempre il monogramma. **Il dato c'era, nessuno lo chiedeva** — misurare prima di scaricare
+   ha risparmiato uno scraping intero.
+
+E una divergenza latente chiusa: saltavo `_lane` fra `lanes_for` e `_placed`. Non cambia CHI e' nell'undici
+(nessun numero pubblicato dei giudici si muove) ma decide il lato di chi non ce l'ha, e il marcatore si legge
+da quel lato.
 
 **Fondamenta nuove**: il **banco del draft è nel repo** (`toolkit/bench/draft/`) ed è il **terzo attrezzo di
 misura** — `backtest` giudica le regole, `sweep` le costanti, questo le POLITICHE — e **legge il codice vero

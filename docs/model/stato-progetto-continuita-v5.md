@@ -1,5 +1,5 @@
 # Stato progetto & continuità — v5
-**Aggiornato: 10 agosto 2026, notte (la todolist del draft eseguita: il consiglio del pannello riscritto su misure, il campetto legge la board del toolkit)**
+**Aggiornato: 10 agosto 2026, notte tarda (la todolist del draft eseguita, il campetto legge la board del toolkit ed e' rifinito, v0.1.8)**
 Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da qui + i file della cartella "Modello Previsionale Fantacalcio".
 *Glossario: T1/T2 = finestre di test (23/24->24/25, 24/25->25/26) · MAE = errore medio assoluto · cross-fitted = parametri stimati su una finestra, testati sull'altra · M2e = modello portieri decomposto (abilità + tasso gol subiti del club; la metà Elo del nome non è nel motore) · Pv_att = presenze attese · fc_id = id fantacalcio.it · EV = valore atteso · scoring_config = punteggi configurabili per lega · xG/xA = expected goals/assists · 2.5 pieno = backtest motore completo con flag.*
 
@@ -33,6 +33,33 @@ Dettaglio nel blocco «ULTIMO IN ORDINE DI TEMPO — 10/08/2026, NOTTE» del
    definizione, con le decisioni per club dell'operatore applicate (i giudici no), 11 titolari con la `x` del
    pannello e fino a due ballottaggi. `boards.json` accanto al foglio, poi nel bundle.
 5. **Il banco del draft è nel repo** ed è il terzo attrezzo di misura, e legge il codice vero dell'app.
+
+**SEGUITO DELLA STESSA SERATA — il campetto rifinito su sei richieste dell'operatore, e due difetti trovati
+dove nessuno guardava.** Commit `f8c4466` → `e1a084b`, **v0.1.8 pushata** (15 commit su `origin/master`).
+
+Il campetto come e' adesso: **portiere in alto** e attacco in basso (ed e' come il pannello disegna da sempre —
+`_lane` lo dice nel suo docstring); **un solo ruolo**, quello che il modulo gli ha dato, che non e' `badge` da
+solo ma `_line_codes`, il quale lo CORREGGE per riga (un centravanti resta `Pc` e non diventa `As`); il **ruolo
+mantra** su una riga sua, perche' e' quello che il gioco punteggia; i minuti sempre come **media a partita**
+(minuti diviso le partite giocate); il **valore in 99esimi** in un quadratino dopo il nome, sulla stessa scala
+della tabella; larghezza massima **500px**; i presi ad **alpha 0,3**.
+
+**Due difetti che il dato non aveva, ma il cablaggio si.**
+1. **«Non vedo i campetti»**: il bundle portava le board, `app/public/data` no — `pull-bundle.mjs` copiava
+   `sheets/` e `mantra_modules.json` e non `boards/` ne' `classic_modules.json`, aggiunti quel giorno. La carta
+   diceva CORRETTAMENTE di non avere board. Regola: **una cartella aggiunta all'export va aggiunta al pull**, e
+   ora il riassunto del pull le CONTA e avvisa quando sono zero — uno zero silenzioso e' indistinguibile da una
+   funzione rotta.
+2. **«Recupera gli stemmi»**: gli stemmi c'erano già. 93 file, e **tutti i 47 club** che il pannello puo'
+   mostrare ne hanno uno; i 13 senza sono fuori perimetro (Chievo, Huddersfield, Hertha, Maiorca…) e **non
+   hanno un id sofascore** — zero club hanno l'id e non il file, quindi la cura sarebbe l'IDENTITA' e non
+   un'API. Il difetto era che il campetto chiamava `ui-crest` col solo nome, e senza `clubId` + l'indice quel
+   componente disegna sempre il monogramma. **Il dato c'era, nessuno lo chiedeva** — misurare prima di scaricare
+   ha risparmiato uno scraping intero.
+
+E una divergenza latente chiusa: saltavo `_lane` fra `lanes_for` e `_placed`. Non cambia CHI e' nell'undici
+(nessun numero pubblicato dei giudici si muove) ma decide il lato di chi non ce l'ha, e il marcatore si legge
+da quel lato.
 
 ### 10 agosto 2026, in una riga: l'assistente d'asta è completo, e la sua moneta è stata messa alla prova
 
