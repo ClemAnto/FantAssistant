@@ -71,7 +71,16 @@
             @if (man.badge) {
               <ui-role [role]="man.badge" size="md" />
             }
-            <span class="flex w-full items-baseline justify-center gap-1">
+            <span class="flex w-full items-center justify-center gap-1">
+              <!-- The worth in 99ths, always present: a square rather than a number in the flow, because it is
+                   the one figure on the chip that is a RANK of this listone and not a measurement of the man.
+                   `—` where the sheet cannot price him: unknown, never a zero. -->
+              <span
+                class="flex h-4 min-w-4 shrink-0 items-center justify-center rounded-sm bg-primary px-0.5
+                       text-[9px] font-semibold leading-none text-on-primary tabular-nums"
+                [class.opacity-60]="man.value99 == null"
+                >{{ man.value99 ?? '—' }}</span
+              >
               <span class="min-w-0 truncate text-[11px] font-medium leading-tight">{{ man.name }}</span>
               @if (man.mantra.length) {
                 <span class="shrink-0 text-[9px] uppercase leading-tight text-muted">

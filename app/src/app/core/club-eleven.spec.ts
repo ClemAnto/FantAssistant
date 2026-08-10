@@ -35,8 +35,8 @@ const board = (picture: string, lines: Partial<Board['lines']>, over: Partial<Bo
   ...over,
 });
 
-const free: OnTable = { taken: false, price: 20, onTable: true };
-const nowhere = (): OnTable => ({ taken: false, price: null, onTable: false });
+const free: OnTable = { taken: false, price: 20, onTable: true, value99: 55 };
+const nowhere = (): OnTable => ({ taken: false, price: null, onTable: false, value99: null });
 
 describe('lineCounts', () => {
   it('reads three numbers as defence, midfield and attack, with the keeper always alone', () => {
@@ -106,7 +106,8 @@ describe('pitchOf', () => {
   });
 
   it('marks who is already TAKEN, which is the only thing the board cannot know', () => {
-    const gone = (name: string): OnTable => ({ taken: name === 'B', price: 30, onTable: true });
+    const gone = (name: string): OnTable =>
+      ({ taken: name === 'B', price: 30, onTable: true, value99: 40 });
     const drawn = pitchOf(board('3-4-3', {
       P: [man('Portiere', 0.5)],
       D: [man('A', 0.2), man('B', 0.5), man('C', 0.8)],
@@ -123,6 +124,8 @@ describe('pitchOf', () => {
     expect(keeper.onTable).toBe(false);
     expect(keeper.taken).toBe(false);
     expect(keeper.price).toBeNull();
+    // No row on the table means no worth either: a square with «—», never a zero.
+    expect(keeper.value99).toBeNull();
   });
 
   it('carries the ballottaggi, and «unknown» is not «no rival»', () => {

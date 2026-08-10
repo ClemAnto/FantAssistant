@@ -70,9 +70,15 @@ export class ClubPitch {
 
   /** The live listone by id: what the board cannot know - who is gone, and what he costs here. */
   private readonly live = computed(() => {
+    const worth = this.advice.value99By();
     const rows = new Map<number, OnTable>();
     for (const row of this.advice.listone()) {
-      rows.set(row.player.id, { taken: row.taken, price: row.player.fvm, onTable: true });
+      rows.set(row.player.id, {
+        taken: row.taken,
+        price: row.player.fvm,
+        onTable: true,
+        value99: worth.get(row.player.id) ?? null,
+      });
     }
     return rows;
   });
@@ -84,7 +90,7 @@ export class ClubPitch {
       (man.fc_id != null ? live.get(man.fc_id) : undefined)
       // A man the board draws and this session's listone does not carry is NOT «free»: he cannot be bought
       // at all, and saying «taken» would be a different claim. `onTable` false is what the row reads.
-      ?? { taken: false, price: null, onTable: false };
+      ?? { taken: false, price: null, onTable: false, value99: null };
     return pitchOf(board, resolve);
   });
 
@@ -116,6 +122,7 @@ export class ClubPitch {
       bits.push(`${man.minutesPerClubMatch}′ per partita del club nelle ultime dieci`);
     }
     if (man.claim != null) bits.push(`titolarità ${man.claim}`);
+    if (man.value99 != null) bits.push(`valore ${man.value99}/99 su questo listone`);
     if (man.price != null) bits.push(`FVM ${man.price}`);
     return bits.join(' · ');
   }

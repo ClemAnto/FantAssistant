@@ -71,6 +71,8 @@ export interface PitchMan {
   price: number | null;
   /** In the live listone at all: a man the board draws and the session does not have cannot be bought. */
   onTable: boolean;
+  /** The 0-99 worth, on the scale of the whole session listone so it means one thing all evening. */
+  value99: number | null;
   /** At most two, in the panel's own order. */
   duels: PitchMan[];
   /** False when his granular real role is unknown: then the duels are UNKNOWN, not absent. */
@@ -130,11 +132,13 @@ const int = (value: string | null | undefined): number | null => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
-/** What the live table knows about a man the board drew: whether he is gone, and what he costs. */
+/** What the live table knows about a man the board drew: whether he is gone, what he costs, what he is worth. */
 export interface OnTable {
   taken: boolean;
   price: number | null;
   onTable: boolean;
+  /** His worth on the 0-99 scale of THIS session's listone. Null when the sheet cannot price him. */
+  value99: number | null;
 }
 
 function toMan(man: BoardMan, resolve: (man: BoardMan) => OnTable): PitchMan {
@@ -159,6 +163,7 @@ function toMan(man: BoardMan, resolve: (man: BoardMan) => OnTable): PitchMan {
     taken: live.taken,
     price: live.price,
     onTable: live.onTable,
+    value99: live.value99,
     duels: (man.duels ?? []).map((rival) => toMan(rival, resolve)),
     duelsKnown: man.duels_known !== false,
   };

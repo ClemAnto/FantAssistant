@@ -449,6 +449,23 @@ export class AuctionAdvice {
     return board && !board.error ? board : null;
   }
 
+  /**
+   * The 0-99 worth of EVERY man of the listone, taken ones included, on the SAME scale the table reads.
+   *
+   * The same scale is the point: `value99` is measured against the best man of this session's listone, taken or
+   * not, so a 60 said at the first pick is a 60 at the last. Computing it a second time from the free pool
+   * alone would re-scale everybody upward as the big names go, and the number would stop meaning one thing.
+   */
+  readonly value99By = computed<Map<number, number | null>>(() => {
+    const numbers = this.numbers();
+    const max = this.valueMax();
+    const out = new Map<number, number | null>();
+    for (const { player } of this.listone()) {
+      out.set(player.id, score99(valueOf(valuationOf(numbers.get(player.id))), max));
+    }
+    return out;
+  });
+
   /** The REAL clubs at this listone, in alphabetical order - the axis of the pitch selector. */
   readonly realClubs = computed<string[]>(() => {
     const clubs = new Set<string>();
