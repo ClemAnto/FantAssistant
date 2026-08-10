@@ -34,6 +34,20 @@
     "Edit by hand or from the Snapshot tab (Lega > Manage leagues...); the snapshot writes the league's",
     "name and numbers into its manifest, so a sheet always says which replacement level it used."
   ],
+  "_leghe_mantra_note": [
+    "Declared 10/08/2026 on the operator's answer: 10 teams, squads of at least 2 keepers and 21 outfield",
+    "players. It closes todolist-draft-v1 item 0.2 - without it a mantra draft on the Serie A listone had",
+    "250 quoted players of 503 with no number at all, because no sheet existed for default/mantra.",
+    "",
+    "The D/C/A split of those 21 is an ARTIFACT OF THIS SCHEMA, not a rule of that league: mantra rosters",
+    "keepers + outfield with no per-role quota (that is exactly why the surplus is the wrong draft currency",
+    "there, metrica-asta-surplus-v1.md §15). Since `squad_slots` has to name the four groups, the split is",
+    "READ FROM THE RULEBOOK rather than chosen: averaged over the eleven Mantra schemes a shape fields 3.545",
+    "defensive places, 4.727 midfield-plus-trequarti and 1.727 attacking ones (mantra_modules.json, checked",
+    "by counting), and 21 in those proportions is 7 / 10 / 4. A league that really rosters differently",
+    "overrides `squad_slots` here or from the panel; what must NOT happen is quoting a surplus from this",
+    "sheet as if the split were measured."
+  ],
   "my_leagues": {
     "EuroLeghe": {
       "platform": "euro",
@@ -44,6 +58,17 @@
       "platform": "default",
       "game": "classic",
       "teams": 10
+    },
+    "Leghe Mantra": {
+      "platform": "default",
+      "game": "mantra",
+      "teams": 10,
+      "squad_slots": {
+        "P": 2,
+        "D": 7,
+        "C": 10,
+        "A": 4
+      }
     }
   },
   "_reliability_note": [

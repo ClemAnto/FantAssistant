@@ -1793,3 +1793,86 @@ mentre il riaggancio va in corso sotto. Tre cose imparate facendolo, tutte da di
   ibrida e la copertura come vincolo sono gli item 1.1 e 1.2 della todolist: **misurare prima di cambiare
   il pannello**.
 - Resta aperta la §11.8 punto 1 (l'FVM si congela alla data del draft o si rilegge?).
+
+## 26. La moneta dipende dal FORMATO, e ora il pannello ne raziona una sola (10 agosto 2026, sera)
+
+Chiude gli item **1.1, 1.2, 1.3, 2.6** di [todolist-draft-v1.md](todolist-draft-v1.md). I numeri stanno in
+[metrica-asta-surplus-v1.md](metrica-asta-surplus-v1.md) §16 e si citano da lì, non da qui: questo file porta
+la FORMA della conclusione e cosa fa il pannello, quello porta la misura con la sua data.
+
+### 26.1 Tre formati, tre monete — e non è un difetto del surplus da correggere
+
+Non esiste «la moneta giusta»: esiste la risorsa scarsa del formato, e la moneta è quella che la sottrae.
+
+| formato | risorsa scarsa | moneta | perché |
+|---|---|---|---|
+| asta a CREDITI | il budget | **SURPLUS** (e `SpM`/`dVM` per leggerlo in crediti) | paghi per l'uomo, quindi conta quanto rende **sopra chi giocherebbe al suo posto**: tutto il resto di questo documento parla di questa |
+| DRAFT mantra | le SCELTE | **VALORE** = fm × presenze | il regolamento vincola 3 portieri + 22 di movimento e **nessuna quota per slot**, quindi il surplus sconta una scarsità che il gioco non impone (§15.3) |
+| la PORTA (§14.1) | ne schieri uno | **SURPLUS**, e l'unità è il club | lo zero del `por` è 4,36 di fantamedia contro 7,29 di un `pc`: qui la scarsità è reale |
+
+Due precisazioni che la misura ha aggiunto e che cambiano la riga della porta:
+
+1. **In un draft il valore vince anche in porta.** L'ibrida «valore sul movimento, surplus in porta» è stata
+   pre-registrata e **respinta**: −4,88%, 0/5 finestre. Non perché l'idea sia falsa, ma perché le due
+   grandezze non stanno sulla stessa scala e in un solo argmax l'effetto non è «prezzare la porta», è
+   **rimandare i portieri** — la copertura dell'undici scende di 8 punti perché il posto del portiere resta
+   scoperto. La forma onesta sulla scala (il valore decide SE, il surplus decide QUALE portiere) non è
+   peggiore ma non guadagna niente (−0,23%, sotto il pavimento), quindi non è adottata. La riga della porta
+   nella tabella resta vera **per un'asta a crediti**, non per la scelta di un draft.
+2. **Il netto non è una moneta di draft, e non è una taratura da correggere.** λ è il tasso di cambio fra un
+   credito e un fantapunto; in un draft non spendi crediti, spendi scelte (§11.2), quindi `surplus − λ×prezzo`
+   premia l'essere quasi gratis: **−52,3% sui rivali, 0/5, 34 crediti in 25 giri, metà undici scoperto.**
+   Era la chiave con cui questo pannello consigliava.
+
+### 26.2 Cosa fa il pannello adesso
+
+Tre cambi, e ognuno porta la sua misura nel codice dove sta:
+
+- **`ranked` ordina per VALORE** (`auction-advice.ts`). Netto, surplus, `ratio` e `SpM` restano colonne: sono
+  i numeri giusti in un'asta a rilanci e sono quello che si legge per capire un prezzo. Quello che è cambiato
+  è la chiave, e il commento dice quale formato sta prezzando — il giorno che qui si gioca un'asta a rilanci,
+  quella riga va riletta e non copiata.
+- **`pickForUs` raziona per COPERTURA** (`auction-plan.ts` + il nuovo `mantra-legal.ts`): un uomo vale 1 se
+  copre un posto che la rosa non copre ancora su **due undici legali**, `DEPTH_WEIGHT` = 0,35 se no. È la
+  leva più grossa di tutto il consiglio (+1,47%, robust, copertura 93,4% → 97,4%, 30 crediti in meno) e
+  chiude l'item 1.1 con una correzione: **il bersaglio non è `startingPlaces × 2`**, perché quelle quote sono
+  il *ceil* di una media e sommano 16 contro i 10 posti di un modulo, quindi raddoppiarle spegne la regola
+  invece di stringerla. Quello che il regolamento raziona è un POSTO.
+- **Le tre strisce sono razionate come il nostro pick** (`planRoots` riceve lo stesso `need`), altrimenti
+  «un altro reparto» offriva un quarto centrale che il piano sotto rifiutava di prendere — una lista mostrata
+  le cui metriche descrivono un'altra lista, che è un difetto già pagato una volta.
+
+E un cambio che NON è stato fatto, con la ragione: **nessun pavimento prezzo**. Il cross-fit leave-one-out
+(item 1.3) non ne promuove nessuno — media held-out −0,05%, 3/5 — e col vincolo di copertura acceso il
+«pavimento 200» vale −0,30%: comprava copertura per via del prezzo, e adesso la copertura si compra diretta.
+Restano il tie-break «a parità prendi il meno quotato» e la coda punti-per-credito, già misurate.
+
+### 26.3 Il banco è nel repo, e legge il codice del pannello
+
+`toolkit/bench/draft/` è il terzo attrezzo di misura del progetto: `backtest` giudica le regole, `sweep` le
+costanti, **questo giudica le POLITICHE** — cosa prendere adesso, in quale moneta, con quale razionamento.
+Non tiene una copia del pannello: `entry.ts` ri-esporta `needFor`, `predictRivalPick`, `startingPlaces`,
+`lambdaOf`, `netOf`, `coverNeedOf`, `needForUs` e tutta la legalità mantra da `app/src/app/core/`, e
+`build.mjs` li impacchetta con l'esbuild dell'app. Una riga del banco (`APP: adottata, letta dal pannello`)
+esiste solo per verificare che il codice che spedisce riproduca la misura che lo ha adottato.
+
+L'ordine è quello della regola d'oro applicata al consiglio: **si misura sul banco, poi si cambia il
+pannello, poi il banco lo rilegge dal pannello.** Un candidato vive in `policies.mjs` e non nell'app finché
+non ha un verdetto.
+
+### 26.4 Cosa resta dichiarato come mancante (aggiorna la §25.8)
+
+- La **probabilità di arrivare al proprio turno** (§11.7, terzo numero) non c'è ancora.
+- ~~La lega `default`/mantra non è dichiarata~~ → dichiarata il 10/08/2026 come **`Leghe Mantra`** (10
+  squadre, 2 portieri + 21 di movimento, quindi 23 giri) e il suo foglio è nel bundle: 635 righe, 310
+  prezzate dal motore e 325 stimate. Nota da non perdere: su `default` non è adottato R0c, quindi chi ha meno
+  di 15 voti **non ha `engine_*` e ha `est_*`** — la colonna è vuota per costruzione, non per omissione.
+- ~~Il consiglio ordina per netto/surplus~~ → ordina per valore e raziona per copertura (§26.2).
+- **La testa dei rivali è ancora una sola politica per tutti** («il più caro che gli serve», più la coda
+  punti-per-credito): stimarla dai pick che ognuno ha fatto è l'item 1.4 e non è misurata.
+- **Il valore di BLOCCO** (togliere l'ultimo `Dc` che completerebbe l'undici di un avversario) è l'item 1.5:
+  il banco saprebbe calcolarlo, nessuno ha misurato se e quando il denial batta il proprio miglior pick.
+- **La strategia porta in modalità porte** (item 1.6): il piano tratta ancora i portieri come slot anche
+  quando `keeperMode = 'goals'`, dove l'unità è il club. Da fare, e non richiede una misura nuova: è la
+  regola di lega già scritta nella §14.1 che il piano non legge.
+- Resta aperta la §11.8 punto 1 (l'FVM si congela alla data del draft o si rilegge?).

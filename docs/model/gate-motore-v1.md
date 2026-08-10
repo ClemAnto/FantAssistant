@@ -3687,6 +3687,79 @@ che è il profilo che fa cadere una finestra intera.
   strumento, non cancellandolo.
 - `ADOPTED` non cambia, `backtest --verify` resta 22/22.
 
+## 7-octovicies. IL COLLO DI BOTTIGLIA È `pv_pred`, MISURATO SU CINQUE FINESTRE — e la pre-registrazione del Qt.I sul lato PRESENZE (10 agosto 2026, sera)
+
+Chiude gli item **2.1 e 2.2** di [todolist-draft-v1.md](todolist-draft-v1.md). Il primo era una conclusione
+su **T2 sola** e adesso è una conclusione; il secondo è una pre-registrazione e non una misura, ed è scritta
+qui prima di toccare una riga del motore.
+
+### (a) Quale metà della previsione porta la graduatoria — cinque finestre, due letture
+
+Banco: `toolkit/bench/draft/signal.py` sulle cinque finestre euro/mantra del gate, bersaglio = i fantapunti
+VERI della stagione (`fm_act × pv_act`), lettura su RANGHI (Spearman) perché la domanda è su come si ordina
+una lista d'asta, con Pearson accanto.
+
+| segnale | Tm4 | Tm3 | T0 | T1 | T2 | media | batte l'altra metà |
+|---|---|---|---|---|---|---|---|
+| **`pv_pred`** | +0,383 | +0,413 | +0,469 | +0,489 | +0,539 | **+0,459** | **5/5** |
+| `fm_pred` | +0,246 | +0,243 | +0,248 | +0,276 | +0,280 | +0,259 | 0/5 |
+| `value` = fm × pv | +0,426 | +0,453 | +0,529 | +0,522 | +0,567 | +0,499 | — |
+| Qt.I | +0,467 | +0,545 | +0,639 | +0,616 | +0,602 | **+0,574** | — |
+| `fm_prev` | +0,313 | +0,338 | +0,375 | +0,457 | +0,465 | +0,390 | — |
+
+In Pearson lo stesso ordine e le stesse distanze (`pv_pred` +0,465, `fm_pred` +0,303, valore +0,514, Qt.I
++0,545): **il divario non è un fatto sulle code, è il segnale.** Due controlli che rendono la tabella
+citabile: i due numeri che la todolist riportava da T2 (+0,545 e +0,313) sono esattamente la colonna T2 di
+Pearson, e Qt.I +0,545 / valore +0,514 riproducono il §15.6 punto 2 di
+[metrica-asta-surplus-v1.md](metrica-asta-surplus-v1.md), che era stato misurato da un'altra strada.
+
+La decomposizione della varianza, misurata qui per la terza volta e da un terzo angolo: `Var(ln pv)` è
+l'**86,8%-90,6%** di `Var(ln fantapunti)` su tutte e cinque le finestre (`Var(ln fm)` sta fra 0,012 e 0,019
+contro 0,45-0,76). Non è un'altra prova della stessa cosa: è la stessa conclusione raggiunta da correlazione
+e da varianza, e quando due strade indipendenti danno la stessa risposta la conclusione è più solida di
+entrambe.
+
+**Conseguenza sull'ORDINE del lavoro, che è tutto quello che questo item chiede:** un punto guadagnato su
+`pv_pred` vale più di tre su `fm_pred`, quindi una regola candidata che tocca le presenze merita il gate
+prima di una che tocca la fantamedia, a parità di plausibilità. Non è un criterio nuovo e non cambia nessun
+verdetto: cambia la coda.
+
+### (b) PRE-REGISTRAZIONE: il Qt.I come segnale di TITOLARITÀ, e solo lì
+
+Scritta **prima** dell'implementazione, come vuole il protocollo. Il fatto che la motiva è nella tabella
+sopra: il Qt.I ci batte nel classificare su tutte e cinque le finestre (+0,574 contro +0,499 del nostro
+valore, 5/5 sui ranghi) e la metà dove siamo deboli è quella delle presenze.
+
+**Ipotesi.** Il Qt.I incorpora l'opinione del suo autore sulla TITOLARITÀ del giocatore, che è informazione
+sul lato `pv` e non sul lato `fm`. R12 e R12b sono falsificate **sul lato FANTAMEDIA** («il mercato non
+aggiunge nulla alla fantamedia precedente: è costruito sulla stessa storia», 4/10 e 5/10, λ≈0): il lato
+presenze non è mai stato misurato, quindi non è un'idea già respinta ed è la sola faccia del prezzo che resti
+in piedi.
+
+**Forma.** Un termine sul solo `pv_pred`, sul percentile del Qt.I DENTRO IL RUOLO E DENTRO IL LISTONE (il
+pool di un percentile è parte della misura: le due piattaforme non sono proporzionali), come shrinkage verso
+la titolarità che il prezzo implica. Peso su griglia pre-registrata {0, 0,03, 0,06, 0,10, 0,15}, un parametro
+solo, cross-fit leave-one-out come ogni altra costante.
+
+**Criteri, e sono quelli che esistono già.** Strict e robust affiancati, pavimento 0,5% sulla media, nessuna
+finestra sotto −2%; MAE complessiva mai peggiore; **e il giudizio anche sul DELIVERABLE** (`captured_value` e
+i nomi catturati), perché il gate vincola la consegna e non solo l'errore. Un optimum al bordo della griglia
+non si adotta.
+
+**Tre cose dichiarate prima, perché dopo non valgono.**
+1. La regola dell'operatore («la quotazione quando non abbiamo altre risorse oggettive») è una **precedenza,
+   non un divieto**: se passa, il termine va DOPO le risorse misurate e non al posto loro — e la prima cosa da
+   provare a spostare resta la COPERTURA della risorsa misurata, direzione che ha già due conferme (§7-sexies).
+2. C'è un rischio di circolarità **specifico e diverso** da quello di R12: il Qt.I è scritto da chi guarda le
+   stesse formazioni tipo che il nostro `standing` legge. Se il termine passa, va misurato quanto del suo
+   guadagno sopravvive a controllare per i minuti già in mano — la lezione di `level_gap` (§7-duovicies): un
+   segnale si giudica contro l'ESITO controllando per quello che è già noto, mai contro il residuo di un
+   modello che quella conoscenza contiene.
+3. Se passa, passa **per piattaforma**: `default` e `euro` hanno listoni diversi e su 249 italiani quotati in
+   entrambi i Qt.I discordano su 202.
+
+**Stato: pre-registrata, NON misurata.** Nessuna riga di codice del motore è stata scritta per questa.
+
 ## 8. Casi di regressione (in `model.REGRESSION_CASES`, stampati da `backtest --cases`)
 
 Lewandowski (età/minuti) · Wirtz (cambio lega) · Torres F. (propensione per-90) · Ezzalzouli (nuovo nel

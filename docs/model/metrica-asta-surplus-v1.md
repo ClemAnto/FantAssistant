@@ -583,3 +583,162 @@ sul null, applicata al numero di finestre invece che al confronto.
 - I ruoli mantra vanno passati **completi** al matching (497/1014 hanno 2+ codici): col solo codice
   primario la flessibilità sparisce e le conclusioni cambiano.
 - L'FVM archiviato non è un prezzo di pre-stagione.
+
+## 16. La COPERTURA è un vincolo, e la moneta con cui il pannello consigliava era la peggiore di tutte (10 agosto 2026, sera)
+
+**Esecuzione della [todolist-draft-v1.md](todolist-draft-v1.md): item 0.1-0.3, 1.1, 1.2, 1.3, 3.2, 3.3.** Il
+banco è entrato nel repo (`toolkit/bench/draft/`) e adesso **legge il codice vero dell'app** invece di una
+copia: `entry.ts` ri-esporta `needFor`, `predictRivalPick`, `startingPlaces`, `lambdaOf`, `netOf` e la
+legalità mantra da `app/src/app/core/`, e `build.mjs` li impacchetta con l'esbuild dell'app. Il porting è
+stato **verificato riproducendo i numeri del §15 finestra per finestra** (SURPLUS −4,0% 2/5, primo pick
+−45,8% 0/5, via di mezzo +0,0%); le due righe «prezzo» differiscono nell'ultimo decimale per finestra e non
+nella media, perché l'originale consumava il PRNG del rumore dei rivali anche sulla nostra sedia.
+
+Un errore di porting pagato subito, e vale come regola: la nuova firma passa il GIOCATORE dove la vecchia
+passava lo slot, e le politiche pubblicate passavano ancora `needFor` direttamente. `places.get(giocatore)`
+è `undefined`, quindi il peso valeva 1 per tutti e la prima tabella diceva che il surplus era la moneta
+migliore. Riprodurre i numeri pubblicati è quello che lo ha scoperto: **un porting si verifica sui numeri,
+non sulla compilazione.**
+
+### 16.1 Il difetto più grosso non era nella lista: era la moneta con cui il pannello CONSIGLIA
+
+`pickForUs` — la riga che il pannello raccomanda — non ordinava per valore né per surplus, ma per **netto**
+(`surplus − λ × prezzo`), e non razionava per ruolo **affatto**. Misurata come politica, cinque finestre,
+metro a giornata:
+
+| politica | Tm4 | Tm3 | T0 | T1 | T2 | media | vinte | coperti | speso |
+|---|---|---|---|---|---|---|---|---|---|
+| PANNELLO OGGI: netto, 0 razionamento | −37,9 | −39,6 | −67,9 | −66,3 | −49,7 | **−52,3%** | 0/5 | 51,9% | **34** |
+| netto + copertura ×2 | −19,9 | −41,9 | −73,5 | −66,8 | −50,1 | −50,4% | 0/5 | 54,2% | 34 |
+| VALORE + copertura ×2 (adottata) | +2,2 | +4,2 | +5,4 | −0,6 | −0,9 | +2,1% | 3/5 | 97,4% | 299 |
+
+**34 crediti spesi in 25 scelte**: il netto, in un draft, è un generatore di giocatori quasi gratis. La causa
+è **strutturale e non una taratura**: λ è il tasso di cambio fra un credito e un fantapunto, e in un draft
+non spendi crediti, spendi **SCELTE** (§11.2) — sottrarre un tasso che nessuno paga premia l'essere gratis.
+Il razionamento non lo salva (−50,4%): la moneta va cambiata, non pesata.
+
+Due cose che questo spiega a posteriori, e che erano state **rattoppate localmente due volte** senza che la
+causa fosse trovata: la coda del giro che prendeva riempitivi da 1 credito (Lahdo, Goldaniga — da lì
+`TAIL_PRICE_FLOOR`) e la terza striscia che offriva «uno sconosciuto da 11 crediti» invece dell'attaccante da
+244 che teneva davvero il posto nell'ordine. Erano lo stesso difetto visto due volte dal bordo. **Quando lo
+stesso sintomo va rattoppato due volte in punti diversi, il difetto è nella grandezza che entrambi leggono.**
+
+Il netto e il surplus **restano sulla riga e nelle colonne**: sono i numeri giusti in un'asta a rilanci.
+Quello che cambia è la CHIAVE DI ORDINAMENTO di un draft, e ora il codice dice quale formato sta prezzando.
+
+### 16.2 Item 1.1 — la copertura si conta sui POSTI, e «×2» sulle quote non vincola niente
+
+Il tentativo letterale della todolist («il bersaglio del mio pick è `startingPlaces × 2`») **non vincola**:
+`startingPlaces` è il *ceil* della quota media di ogni ruolo sugli undici moduli e somma **16**, non 10,
+quindi una rosa da 22 di movimento non arriva quasi mai al doppio di una quota. Raddoppiarlo non stringe la
+regola, la **spegne** (−4,20%, 0/5). Quello che il regolamento raziona è un **POSTO**, e «quest'uomo copre un
+posto che la rosa non copre ancora?» è esattamente la domanda del matroide che il progetto già sa risolvere.
+
+Guadagno % sui NOSTRI punti a giornata contro il razionamento che l'app aveva (`needFor`), cinque finestre:
+
+| candidato | Tm4 | Tm3 | T0 | T1 | T2 | media | vinte | verdetto | coperti | speso |
+|---|---|---|---|---|---|---|---|---|---|---|
+| **posti ×2: due undici** | +1,36 | +0,62 | +3,13 | +2,90 | −0,64 | **+1,47%** | 4/5 | **robust** | 97,4% | 299 |
+| quote ×2 graduata (1/0,7/0,35) | +0,29 | +2,46 | +0,97 | −0,37 | +0,17 | +0,70% | 4/5 | robust | 95,1% | 318 |
+| posti ×2 VINCOLO (0 fuori) | −2,70 | −1,63 | −0,20 | +1,13 | −3,80 | −1,44% | 1/5 | — | 97,0% | 270 |
+| posti ×1: un undici | −9,54 | −3,50 | −3,31 | −2,46 | −7,88 | −5,34% | 0/5 | — | 86,6% | 365 |
+| posti ×3: tre undici | −4,12 | −5,05 | −4,16 | −0,69 | −7,51 | −4,31% | 0/5 | — | 89,5% | 303 |
+| quote ×2 morbida | −4,86 | −2,84 | −3,24 | −3,19 | −6,89 | −4,20% | 0/5 | — | 89,1% | 300 |
+| nessuna copertura (peso 1) | −44,23 | −16,04 | −23,80 | −32,57 | −30,26 | −29,38% | 0/5 | — | 60,0% | 379 |
+
+**Adottata: `COVER_COPIES = 2`** — copri due undici legali, poi il peso torna a `DEPTH_WEIGHT` = 0,35.
+Verdetto **robust** e non strict (T2 −0,64%), come R19 e come `level_gap_weight`: si adotta e si dichiara.
+Tre cose la sostengono oltre alla media: la copertura dell'undici sale **93,4% → 97,4%** delle giornate, si
+spendono **30 crediti in meno**, e il parametro è **interno alla griglia** (un undici −5,34%, tre −4,31%).
+
+Il **vincolo duro** (non prendere NIENTE fuori dalla copertura) perde: −1,44%. La copertura è un bisogno, non
+un divieto — a rosa quasi chiusa il vincolo duro rifiuta l'unico uomo forte rimasto.
+
+La runner-up va citata col suo margine, come vuole la regola del progetto: le quote ×2 GRADUATE (1 fino alla
+quota, 0,7 fino al doppio, 0,35 dopo) passano robust a +0,70%, cioè **0,77 punti percentuali sotto** la
+regola adottata, con 2,3 punti di copertura in meno e 19 crediti in più. È un cambio di un numero solo
+invece di un abbinamento, quindi è la ricaduta se un giorno il matroide diventasse un costo.
+
+### 16.3 Item 1.2 — l'ibrida è RESPINTA, e per la ragione dichiarata prima della misura
+
+Tutte le righe sopra il razionamento adottato, guadagno contro il VALORE puro, metro a giornata:
+
+| candidato | Tm4 | Tm3 | T0 | T1 | T2 | media | vinte | coperti |
+|---|---|---|---|---|---|---|---|---|
+| SURPLUS puro | −4,47 | −1,65 | −1,17 | −1,62 | +1,51 | −1,48% | 1/5 | 98,1% |
+| **IBRIDA letterale** (surplus in porta) | −3,35 | −5,62 | −4,99 | −5,11 | −5,33 | **−4,88%** | 0/5 | **89,2%** |
+| IBRIDA per scelta interna | +2,47 | −0,00 | −1,91 | −0,98 | −0,74 | −0,23% | 1/5 | 97,4% |
+
+L'ibrida letterale perde **per il difetto di SCALA nominato prima di girarla**: il surplus di un portiere e il
+valore di un uomo di movimento non stanno sulla stessa scala (lo zero del `por` è 4,36 di fantamedia, quello
+di un `pc` 7,29), quindi metterli in un solo argmax non prezza la scarsità della porta — **rimanda solo i
+portieri**, e la copertura crolla di 8 punti perché il posto del portiere resta scoperto. Non è l'ipotesi che
+è sbagliata: è la forma in cui era scritta.
+
+La forma **onesta sulla scala** — il valore decide SE spendere una scelta su un portiere, il surplus decide
+QUALE portiere, e i due numeri non si confrontano mai — non è peggiore: −0,23%, dentro il rumore, e sui
+totali di stagione è la riga migliore del banco (+4,6%, 5/5, strict, contro +4,2% del valore puro). Sotto il
+pavimento dello 0,5% sul metro del progetto, quindi **non si adotta**: è un «confermato niente da
+guadagnare», non un «trovato peggio», e la distinzione va scritta perché la seconda inviterebbe a riprovare e
+la prima no.
+
+Quindi: **in un draft la moneta è il VALORE per tutti, portiere compreso.** E il surplus puro, col vincolo di
+copertura imposto, passa da −4,0% (§15.2) a **−1,48%**: buona parte del suo svantaggio era copertura, non
+moneta — la faccia opposta del «col vincolo imposto il vantaggio del surplus svanisce» del §15.4. Le due
+misure insieme dicono una cosa sola: **quasi tutto quello che sembrava una questione di moneta era una
+questione di ripartizione.**
+
+### 16.4 Item 1.3 — nessun pavimento prezzo passa il cross-fit: il consiglio non ne usa
+
+Protocollo dello `sweep`: si scegle il pavimento su quattro finestre e si giudica sulla quinta. Griglia
+**pre-registrata** {0, 25, 50, 100, 200, 400, 800}, sopra il razionamento adottato.
+
+| finestra tenuta fuori | scelto sulle altre 4 | guadagno in training | guadagno HELD-OUT |
+|---|---|---|---|
+| Tm4 | 400 | +0,29% | −1,42% |
+| Tm3 | 400 | +0,16% | −0,93% |
+| T0 | 400 | −0,11% | +0,17% |
+| T1 | 400 | −0,51% | +1,76% |
+| T2 | 400 | −0,10% | +0,14% |
+
+**Media held-out −0,05%, 3/5, nessun verdetto.** Il cross-fit scegle 400 su tutte e cinque le pieghe (e 400
+non è il bordo: 800 lo è), ma la curva sopra 200 è **piatta a zero** — 200 → −0,30%, 400 → −0,05%, 800 →
+−0,35% — mentre sotto crolla (100 → −2,26%, 50 → −3,24%, 25 → −7,29%, 0 → −44,50%). Quindi il consiglio
+**non usa pavimenti**: restano il tie-break «a parità prendi il meno quotato» e la coda punti-per-credito
+(`TAIL_POSITIONS` / `TAIL_PRICE_FLOOR`), già misurate e già nel codice.
+
+Un pezzo di meccanismo in regalo: **il «pavimento 200» comprava copertura.** Col vincolo di copertura imposto
+vale −0,30%; era una disciplina che spargeva le scelte sui ruoli per via del prezzo, e il vincolo fa la stessa
+cosa meglio e senza rinunciare ai nomi (299 crediti spesi contro 275). Chiude il §15.6 punto 1: la via di
+mezzo non era un livello sbagliato, era un **rimedio indiretto** a un problema che ora ha il suo.
+
+### 16.5 Item 3.2 — la sesta finestra: non da `default`, e la ragione è misurata
+
+Tm5 (2017-18 → 2018-19) ha 566 giocatori con voti euro nel bersaglio. Costruire l'INPUT da `default` copre
+**88 di 566 (15,5%)** — gli italiani — quindi non è «una sesta finestra», è una finestra su un sesto della
+popolazione, e i 478 che mancano sono esattamente gli stranieri per cui la piattaforma euro esiste. Da
+`external_stats` (FBref + Sofascore, il layer nato per le altre quattro leghe) la copertura è **501 di 566
+(88,5%)**, quindi la finestra è *costruibile* — ma con l'input SINTETICO per la totalità della popolazione
+invece che per una parte, cioè su una qualità d'ingresso sistematicamente diversa dalle altre cinque.
+Aggiungere una finestra muove OGNI verdetto del gate, quindi è una **pre-registrazione** e non una cosa da
+infilare: resta nella todolist e non è stata fatta.
+
+E una trappola trovata mentre lo si verificava, che vale più della finestra: **`match_ratings` per euro
+2021-22 ha 17.825 righe con tutte le colonne di bonus/malus piene e `mv` a 0 su 17.825.** Chi conta le righe
+conclude l'opposto del vero — il buco è il VOTO, non la stagione. Sintetizzarlo con `synth` contaminerebbe il
+bersaglio euro con una trasformazione fittata (vietato da una regola che esiste già), quindi Tm2 e Tm1 restano
+fuori da euro, e ora è scritto **col numero** invece che «vuota alla fonte».
+
+### 16.6 Cosa NON è stato misurato in questa tornata, dichiarato
+
+- **Legalità CLASSIC** (item 3.1): i moduli classic ora sono configurazione (`config/classic_modules.json`,
+  letti dal regolamento leghe private, trascrizione verificata — sette moduli, ogni riga somma dieci e
+  riproduce il proprio nome) e la lega `Leghe Mantra` (`default`/mantra, 10 squadre, 2 portieri + 21 di
+  movimento) è dichiarata col suo foglio nel bundle (635 righe: 310 prezzate, 325 stimate). Ma la gerarchia
+  delle monete su classic **non è stata rimisurata**: resta un'ipotesi che il surplus vi si comporti meglio,
+  ed è l'ipotesi più interessante rimasta, perché in classic la quota per ruolo È un vincolo di regolamento.
+- **La testa dei rivali stimata dai loro pick** (item 1.4) e **il valore di BLOCCO** (item 1.5): nessuna
+  misura, servono due banchi nuovi.
+- I rivali restano il **modello** del tavolo, e nessuno di loro raziona per copertura: il margine si
+  assottiglia se un avversario adotta la stessa regola. Ora che la regola è nel repo, è più facile che accada.
+- Nessuna riga di `engine_*` si muove. Il gate non è stato attraversato: si misurano POLITICHE di scelta.

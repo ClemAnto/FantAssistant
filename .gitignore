@@ -22,6 +22,11 @@
 /data/export/
 # report/modelli rigenerati dal toolkit (coverage, calibrazione voto sintetico)
 /data/reports/
+# I dati di lavoro del banco del draft: nomi, prezzi e voti del contenuto a pagamento, e si RIGENERANO
+# (`toolkit/bench/draft/extract.py`, due minuti) invece di essere conservati. `appcode.mjs` e' il bundle
+# del codice dell'app: un artefatto di build, mai una copia da committare.
+/toolkit/bench/draft/*.json
+/toolkit/bench/draft/appcode.mjs
 
 # --- Python ---
 __pycache__/

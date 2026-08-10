@@ -27,6 +27,14 @@ Monorepo for the **EuroLeghe fantacalcio prediction engine**. Two parts:
   the names must not be mixed up. A sheet is built PER LEAGUE (`snapshot --league NAME`), its manifest
   records which one, and the folder name carries it - two leagues on the same platform and game have
   different replacement levels, so a surplus quoted without its league is not comparable.
+  Beside them live the two RULEBOOKS, which are read and never fitted: `mantra_modules.json` (typed places,
+  hybrid places, the substitution matrix) and **`classic_modules.json`** (10/08/2026, from the public
+  private-leagues regulation: 3-4-3, 3-5-2, 4-3-3, 4-4-2, 4-5-1, 5-3-2, 5-4-1, transcription checked - every
+  module sums to ten outfield places and its three lines reproduce its own name). **Classic legality is per
+  MACRO-ROLE and must not be deduced from Mantra by analogy** (the operator's warning, same day): there are no
+  typed places and no choice of roles there, so a classic eleven is legal if the COUNTS match and none of the
+  matroid machinery applies. The emergency shapes (3-6-1, 6-3-1) are recorded and switched OFF: they are
+  optional per league, and leaving them out can only make a squad's cover look worse than it is.
   A third, optional file lives here for the same reason those two do - it is DECLARED by the operator
   rather than measured by us: **`board_rulings.json`**, his per-(season, club) ruling on which module a
   board draws (`{season: {club: {shape, decided_on}}}`, written from the panel's shape selector).
@@ -282,6 +290,28 @@ own verdict does not, and cannot be used to adopt it.
 - Ratings via the **authenticated Excel API** (login + `/api/v1/Excel/votes/...`), never the boobytrapped
   HTML. Aggregation **option A**: canonical `match_ratings` columns + lossless `match_rating_bonuses`.
   Cached Excel = raw source of truth -> `rebuild` re-ingests offline so scraped ratings survive.
+
+## Three harnesses, not two - and the third one reads the app's own code
+**`toolkit/bench/draft/` (10/08/2026).** `backtest` judges RULES, `sweep` judges CONSTANTS, and this judges
+**POLICIES**: what to take now, in which currency, under which rationing. It replays the gate's own windows as
+a DRAFT (legal eleven on the rulebook's modules, paired comparison inside the same draft, in per cent because
+seasons have 29-31 matchdays), with the same vocabulary of verdicts - strict and robust, the 0.5% floor, no
+window below -2%. Two readings and neither may hide the other: the advantage over the rivals (whose null is
+weak on purpose, the table contains deliberately weak heads) and the gain over the BASELINE, which is what a
+candidate has to win.
+It keeps **no copy of the panel**: `entry.ts` re-exports `needFor`, `predictRivalPick`, `startingPlaces`,
+`lambdaOf`, `netOf`, `coverNeedOf`, `needForUs` and the whole of `mantra-legal.ts` from `app/src/app/core/`,
+and `build.mjs` bundles them with the app's own esbuild - so what is measured is what ships, and one row of the
+bench exists only to check that the shipped code reproduces the measurement that adopted it (it does, to the
+decimal). A candidate lives in `policies.mjs` and NOT in the app until it has a verdict: measure on the bench,
+then change the panel, then let the bench read it from the panel.
+`windows.json` is regenerated (`extract.py`, ~2 min, read-only on the DB) and is **not in git** - it carries
+names, prices and votes of paid content. Two things that cost an afternoon and are worth stating: **a port is
+verified on the NUMBERS, not on the compile** (the new signature passes the PLAYER where the old one passed the
+slot, the published policies still passed `needFor`, `places.get(player)` is `undefined`, the weight was 1 for
+everybody, and the first table said the surplus was the best currency - reproducing the published numbers is
+what caught it); and a working file must be written in **explicit UTF-8**, or on Windows the script cannot
+re-read what it wrote.
 
 ## Provisional parameters, and the sweep that judges them
 Some constants exist only because a module needed a number to run. They are MODEL choices, so the gate owns
@@ -706,12 +736,32 @@ cannot field a legal eleven at all (4-10 places of 11).
 Three habits come out of it and they are the durable part. **A conclusion on one window is not a
 conclusion**: two were reported to the operator from T2 alone and both died on five - the middle-way floor
 (+92 became **+0.0%**) and «the engine beats the market» (Qt.I **+0.545** against our value **+0.514**, the
-value ahead only on the window it was measured on). **A number needs the right null**: the +1.9% the
+value ahead only on the window it was measured on). The same discipline later PROMOTED a third one instead of
+retiring it: «the bottleneck is `pv_pred`» was also T2 alone and, re-measured, it is 5/5 from two independent
+directions (Spearman +0.459 against `fm_pred`'s +0.259; `Var(ln pv)` 86.8-90.6% of `Var(ln` fantapunti`)`).
+**A number needs the right null**: the +1.9% the
 price-driven policy shows is largely «being like the better rivals», because the comparison is against the
 MEAN of a table that contains deliberately weak heads. And **an intuition can be right about the mechanism
 and wrong about the remedy**: «when slots get scarce you need alternatives in every role» is true, and the
 cure is a constraint on the roster, not a change of currency - the schedule that switches currency
 mid-draft is worse the earlier it switches (-131 at round 6, -162 at round 11).
+
+**And the biggest defect the campaign found was not in the plan it produced: it was the currency the panel
+was already advising with** (10/08/2026 evening, `metrica-asta-surplus-v1.md` §16). `pickForUs` ranked by the
+NET - `surplus - lambda x price` - and rationed by role not at all: measured as a policy, **-52.3% against
+the paired rivals, 0 of 5 windows, 34 credits spent over 25 picks, half the eleven uncovered**. Structural
+rather than mistuned: lambda is the exchange rate between a credit and a fantapunto, and in a draft you do not
+spend credits, you spend PICKS - so subtracting a rate nobody pays rewards being nearly free. Two symptoms had
+already been patched at the edges without the cause being found (the one-credit fillers at the end of a round,
+which is where `TAIL_PRICE_FLOOR` came from, and the third strip offering an 11-credit unknown). **When the
+same symptom has to be patched twice in two different places, the defect is in the quantity both of them
+read.** Adopted instead: the VALUE as the draft's currency for everybody including the keeper (the literal
+hybrid is refused, -4.88%, on a SCALE defect named before the run), and role coverage as a CONSTRAINT counted
+on the module's PLACES over two legal elevens (`COVER_COPIES` = 2, +1.47% robust, coverage 93.4% -> 97.4%).
+The target the plan proposed - `startingPlaces x 2` - does not bind at all: those quotas are the ceiling of an
+average and sum to SIXTEEN against a shape's ten outfield places, so doubling them releases the rule instead
+of tightening it. And no price floor survives the leave-one-out cross-fit (held-out -0.05%), which retires the
+«middle way» for good: it was buying coverage indirectly, and the constraint buys it directly.
 
 ## A displayed list whose metrics describe a different list is worse than no metric
 **Found and paid for within one hour, 05/08/2026.** The estimates were merged into the rows the auction panel

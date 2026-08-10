@@ -248,8 +248,11 @@ export class Auction {
   /**
    * The best free men per zone, ranked by what they are WORTH and not by what they cost.
    *
-   * The order is the netto (surplus minus the going rate per credit); the FVM is only the price in the
-   * denominator. Operator's rule of 09/08/2026, and the §11.3 currency of the parent doc.
+   * The order is the VALUE - fantamedia x expected appearances - because this panel prices a DRAFT, and
+   * that is measured and not preferred (§26, five gate windows): the netto scores −52% against the paired
+   * rivals here, because lambda is a rate you pay in an auction with raises and not in a draft, where the
+   * scarce thing is the PICK. The surplus and the netto stay as columns and as sort keys: they are what a
+   * price is read against, and they are the right key the day a credit auction is played here.
    */
   protected readonly topAvailable = computed(() => {
     // With the porte rule on, the keepers are listed as goals instead: one row per club, below.
@@ -265,8 +268,14 @@ export class Auction {
     }));
   });
 
-  /** Which column the lists are ordered by. The surplus is the default, descending. */
-  protected readonly sortKey = signal<SortKey>('surplus');
+  /**
+   * Which column the lists are ordered by. The WORTH is the default, descending.
+   *
+   * It has to be the same quantity the rows were SELECTED with, or the first row the operator reads is not
+   * the one the panel recommends - a displayed list whose order describes a different list, which is a
+   * defect this project has already paid for once.
+   */
+  protected readonly sortKey = signal<SortKey>('worth');
   protected readonly sortAsc = signal(false);
 
   /** Click once to sort by a column, again to flip it. */

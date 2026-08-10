@@ -1,10 +1,13 @@
 import {
+  COVER_COPIES,
   DEPTH_WEIGHT,
   TAIL_POSITIONS,
   TAIL_PRICE_FLOOR,
   PlanPlayer,
   PlanTeam,
+  coverNeedOf,
   needFor,
+  needForUs,
   pickForUs,
   plan,
   planRoots,
@@ -26,6 +29,7 @@ const team = (id: number, over: Partial<PlanTeam> = {}): PlanTeam => ({
   id,
   label: `Squadra ${id}`,
   slots: [],
+  held: [],
   rosterValue: 0,
   pickValues: [],
   picksCount: 0,
@@ -33,7 +37,13 @@ const team = (id: number, over: Partial<PlanTeam> = {}): PlanTeam => ({
   ...over,
 });
 
-const player = (id: number, slot: string | null, price: number, net = price / 10): PlanPlayer => ({
+const player = (
+  id: number,
+  slot: string | null,
+  price: number,
+  net = price / 10,
+  value = net,
+): PlanPlayer => ({
   id,
   name: `P${id}`,
   club: 'C',
@@ -41,6 +51,7 @@ const player = (id: number, slot: string | null, price: number, net = price / 10
   roles: slot ? [slot] : [],
   price,
   net,
+  value,
 });
 
 describe('startingPlaces', () => {
@@ -82,14 +93,61 @@ describe('predictRivalPick', () => {
 });
 
 describe('pickForUs', () => {
-  it('ranks by OUR net and not by the price', () => {
+  it('ranks by OUR worth and not by the price', () => {
     const pool = [player(1, 'dc', 500, 4), player(2, 'pc', 100, 9)];
     expect(pickForUs(pool)!.id).toBe(2);
   });
 
   it('falls back to the price when nothing is priced', () => {
-    const pool = [{ ...player(1, 'dc', 100), net: null }, { ...player(2, 'pc', 300), net: null }];
-    expect(pickForUs(pool)!.id).toBe(2);
+    const bare = (id: number, slot: string, price: number) =>
+      ({ ...player(id, slot, price), net: null, value: null });
+    expect(pickForUs([bare(1, 'dc', 100), bare(2, 'pc', 300)])!.id).toBe(2);
+  });
+
+  it('prefers the man who COVERS a place over a dearer man who does not', () => {
+    // The squad already holds both `dc` places of every shape, so a third `dc` covers nothing: 30 x 0.35
+    // against a `ds` worth 12 x 1. Without the rationing the `dc` would win, which is the whole point.
+    const need = coverNeedOf([{ roles: ['dc'] }, { roles: ['dc'] }], SHAPES, 1);
+    const pool = [player(1, 'dc', 300, 30), player(2, 'ds', 120, 12)];
+    expect(pickForUs(pool, need)!.id).toBe(2);
+    expect(pickForUs(pool)!.id).toBe(1);
+  });
+});
+
+describe('needForUs', () => {
+  it('wants a man who covers a place, and only as depth one who does not', () => {
+    const need = coverNeedOf([{ roles: ['dc'] }], SHAPES, 1);
+    expect(needForUs(need, player(1, 'ds', 10))).toBe(1);
+    expect(needForUs(need, player(2, 'dc', 10))).toBe(1);      // the second `dc` place is still open
+    const two = coverNeedOf([{ roles: ['dc'] }, { roles: ['dc'] }], SHAPES, 1);
+    expect(needForUs(two, player(3, 'dc', 10))).toBe(DEPTH_WEIGHT);
+  });
+
+  it('reads a HYBRID place, which is where the flexibility lives', () => {
+    // `A/PC` accepts an A or a Pc, so an `a` covers a striker's place even though no place is typed `A`.
+    const need = coverNeedOf([{ roles: ['dc'] }, { roles: ['dc'] }], SHAPES, 1);
+    expect(needForUs(need, player(4, 'a', 10))).toBe(1);
+    expect(needForUs(need, player(5, 'pc', 10))).toBe(1);
+  });
+
+  it('measures against ONE module, and a tie between two is broken by the first', () => {
+    // Both shapes cover this squad's three men, so the target is the first of them - and on that one the
+    // single `A/PC` place is already taken, which the three-at-the-back would still have open. It is a
+    // real limit of the rule and it is the behaviour that was MEASURED, so it is asserted rather than
+    // quietly improved: with the shipping target of two elevens the tie is far rarer.
+    const need = coverNeedOf([{ roles: ['dc'] }, { roles: ['dc'] }, { roles: ['pc'] }], SHAPES, 1);
+    expect(needForUs(need, player(6, 'a', 10))).toBe(DEPTH_WEIGHT);
+  });
+
+  it('rations nothing when there are no shapes to read: 1 for everybody', () => {
+    const need = coverNeedOf([{ roles: ['dc'] }], null);
+    expect(needForUs(need, player(1, 'dc', 10))).toBe(1);
+  });
+
+  it('targets TWO elevens by default, which is the measured number', () => {
+    expect(COVER_COPIES).toBe(2);
+    const need = coverNeedOf([{ roles: ['dc'] }, { roles: ['dc'] }], SHAPES);
+    expect(needForUs(need, player(3, 'dc', 10))).toBe(1);      // the second eleven's places are open
   });
 });
 

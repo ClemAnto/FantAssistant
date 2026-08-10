@@ -20,6 +20,7 @@
  */
 
 import { MantraModules, slotShares } from './auction-value';
+import { Covered, Placeable, augments, bestCovered } from './mantra-legal';
 
 /** A team as the simulation needs it: who it is, what it holds, and where it sits in the order. */
 export interface PlanTeam {
@@ -27,6 +28,12 @@ export interface PlanTeam {
   label: string;
   /** The slots it already holds, one entry per player taken (`pc`, `dc`, ...). */
   slots: string[];
+  /**
+   * The same men by their COMPLETE role lists, which is what legality is decided on: 497 of 1014 quoted
+   * players carry two or more Mantra codes, and with the primary code alone the flexibility disappears and
+   * the conclusions change (a bench mistake already paid for). Empty in classic, where a role is a role.
+   */
+  held: Placeable[];
   /** What its squad is worth in the order's own currency - the FVM sum, which IS the spend. */
   rosterValue: number;
   /** Its picks, dearest first: the platform's tie-break compares them lexicographically. */
@@ -48,6 +55,17 @@ export interface PlanPlayer {
   price: number;
   /** OUR valuation: what the panel ranks by. Rivals are not assumed to see it. */
   net: number | null;
+  /**
+   * The GROSS worth - fantamedia x expected appearances - and in a DRAFT this is the currency, not `net`.
+   *
+   * Measured on the five gate windows (10/08/2026, `docs/model/metrica-asta-surplus-v1.md` §16): ranking a
+   * draft by the net is a near-free-player generator, −52% against the paired rivals on 0 of 5 windows, 34
+   * credits spent over 25 picks and half the eleven uncovered. The cause is structural rather than a bad
+   * coefficient - lambda is the exchange rate between a credit and a fantapunto, and in a draft you do not
+   * spend credits, you spend PICKS (§11.2), so subtracting a rate nobody pays rewards being nearly free.
+   * `net` stays on the row because it is the right number in an auction with raises.
+   */
+  value: number | null;
 }
 
 export interface PlannedPick {
@@ -247,16 +265,19 @@ export interface RootsContext {
   rivalValues: number[];
   /** How far down the next round's order still counts as «keeping our place». */
   keepWithin: number;
+  /** What our squad still has to cover, so all three roots are rationed the way our pick is. */
+  need?: CoverNeed | null;
 }
 
 export function planRoots(pool: PlanPlayer[], context?: RootsContext): PlanRoot[] {
   const roots: PlanRoot[] = [];
-  const best = pickForUs(pool);
+  const need = context?.need ?? null;
+  const best = pickForUs(pool, need);
   if (!best) return roots;
-  roots.push({ player: best, why: 'il massimo netto' });
+  roots.push({ player: best, why: 'il massimo valore' });
 
   const bestLine = lineOf(best.slot);
-  const elsewhere = pickForUs(pool.filter((player) => lineOf(player.slot) !== bestLine));
+  const elsewhere = pickForUs(pool.filter((player) => lineOf(player.slot) !== bestLine), need);
   if (elsewhere) roots.push({ player: elsewhere, why: 'un altro reparto' });
 
   // «Keeps our place» is a statement about the ORDER and it has to be measured there. It used to be
@@ -268,7 +289,7 @@ export function planRoots(pool: PlanPlayer[], context?: RootsContext): PlanRoot[
       (player) => !roots.some((root) => root.player.id === player.id)
         && positionAfterSpending(player.price, context.mySpend, context.rivalValues) <= context.keepWithin,
     );
-    const holding = pickForUs(affordable);
+    const holding = pickForUs(affordable, need);
     if (holding) {
       roots.push({
         player: holding,
@@ -281,17 +302,89 @@ export function planRoots(pool: PlanPlayer[], context?: RootsContext): PlanRoot[
   return roots;
 }
 
-/** Our own pick: the best `net` we can see, falling back to the price when nothing is priced. */
-export function pickForUs(pool: PlanPlayer[]): PlanPlayer | null {
+/**
+ * How many legal elevens our squad should be able to field before depth stops being urgent.
+ *
+ * TWO, and it is measured rather than chosen: a Mantra squad rosters 22 outfield men against a shape's ten
+ * outfield places, so two elevens plus two spares IS the standard roster. Imposing it is the biggest lever
+ * in the whole advice - +1.47% of points per matchday against the app's previous rationing, robust on 5
+ * windows (4/5, worst −0.64%), with the eleven covered 93.4% → 97.4% of the matchdays and 30 credits LESS
+ * spent. One eleven (−5.34%) and three (−4.31%) both lose, so the number is interior and not an edge.
+ */
+export const COVER_COPIES = 2;
+
+/**
+ * What our squad still has to cover, and the memo that makes asking cheap.
+ *
+ * `answers` is keyed by ROLE SET because that is what the question depends on: a listone has a few dozen
+ * distinct role sets against a thousand free men, so one augmenting walk per set answers the whole pool.
+ * Rebuild it whenever our squad changes - it describes exactly that squad.
+ */
+export interface CoverNeed {
+  covered: Covered<Placeable> | null;
+  answers: Map<string, boolean>;
+}
+
+export function coverNeedOf(
+  held: Placeable[],
+  shapes: MantraModules | null,
+  copies = COVER_COPIES,
+): CoverNeed {
+  return { covered: bestCovered(held, shapes, copies), answers: new Map() };
+}
+
+/**
+ * How much WE still want a man: 1 if he covers a place the squad cannot cover yet, `DEPTH_WEIGHT` if not.
+ *
+ * Without shapes to read (classic, or a bundle with no modules file) it returns 1 for everybody: the rule
+ * cannot be evaluated, and a rationing nobody can compute must not silently become a rationing of zero.
+ *
+ * A man whose Mantra codes we do NOT have is discounted, and that is «vuoto = ignoto» being bent: he covers
+ * nothing because no typed place accepts a role nobody stated. It is left this way because it is exactly what
+ * the bench measured - there a man with no Mantra role carries his classic one (`d`, `c`, `a`), which matches
+ * no place either - so the panel and the measurement agree. Worth revisiting with a measurement, not with an
+ * opinion: on the 2026-27 euro sheet it is a handful of rows, on a custom list it could be more.
+ */
+export function needForUs(need: CoverNeed | null, player: PlanPlayer): number {
+  if (!need?.covered) return 1;
+  const roles = player.roles.length ? player.roles.map((role) => role.toLowerCase()) : [];
+  if (!roles.length) return DEPTH_WEIGHT;
+  const key = roles.join('|');
+  let helps = need.answers.get(key);
+  if (helps === undefined) {
+    helps = augments(need.covered.matching, need.covered.places, roles);
+    need.answers.set(key, helps);
+  }
+  return helps ? 1 : DEPTH_WEIGHT;
+}
+
+/**
+ * Our own pick: the best gross worth we can see, rationed by what our squad still has to cover.
+ *
+ * Two measured decisions in one line, both from the five-window draft bench (§16):
+ *   * the currency is the VALUE and not the net (see `PlanPlayer.value`);
+ *   * the rationing is coverage of TWO legal elevens (see `COVER_COPIES`).
+ * A negative worth divides by the weight instead of multiplying, because multiplying would RAISE it - the
+ * discount has to stay a discount on both sides of zero.
+ *
+ * Falls back to the price when nothing is priced at all, which is the behaviour this function has always
+ * had for a man the sheet cannot value.
+ */
+export function pickForUs(pool: PlanPlayer[], need: CoverNeed | null = null): PlanPlayer | null {
   let best: PlanPlayer | null = null;
+  let bestScore = -Infinity;
+  const scoreOf = (player: PlanPlayer) => {
+    const worth = player.value ?? player.net;
+    if (worth == null) return -Infinity;
+    const want = needForUs(need, player);
+    return worth >= 0 ? worth * want : worth / want;
+  };
   for (const player of pool) {
-    if (!best) {
+    const score = scoreOf(player);
+    if (best === null || score > bestScore || (score === bestScore && player.price > best.price)) {
       best = player;
-      continue;
+      bestScore = score;
     }
-    const left = player.net ?? -Infinity;
-    const right = best.net ?? -Infinity;
-    if (left > right || (left === right && player.price > best.price)) best = player;
   }
   return best;
 }
@@ -316,6 +409,9 @@ function take(team: PlanTeam, player: PlanPlayer): PlanTeam {
   return {
     ...team,
     slots: [...team.slots, player.slot ?? ''],
+    // The roles travel too, or our coverage would stop moving after the first simulated pick and every
+    // later round would ration against the squad we started with.
+    held: [...team.held, { roles: player.roles.map((role) => role.toLowerCase()) }],
     rosterValue: team.rosterValue + player.price,
     pickValues: [...team.pickValues, player.price],
     picksCount: team.picksCount + 1,
@@ -350,9 +446,12 @@ export function plan(input: PlanInput): Plan {
   let pool = [...input.pool];
   const order = input.order.filter((id) => teams.has(id));
 
+  // What WE still have to cover, rebuilt after every pick of ours: it describes one squad, and a memo of a
+  // squad that has changed would ration the next round against the one we started with.
+  const needNow = () => coverNeedOf(teams.get(input.mineId)?.held ?? [], input.shapes);
   const mine = input.rootId !== undefined
-    ? (pool.find((player) => player.id === input.rootId) ?? pickForUs(pool))
-    : pickForUs(pool);
+    ? (pool.find((player) => player.id === input.rootId) ?? pickForUs(pool, needNow()))
+    : pickForUs(pool, needNow());
   if (!mine) return { mine: null, rounds: [], gap: 0, nextOrder: [] };
   pool = pool.filter((player) => player.id !== mine.id);
   teams.set(input.mineId, take(teams.get(input.mineId)!, mine));
@@ -387,7 +486,7 @@ export function plan(input: PlanInput): Plan {
     let passed = false;
     for (const [index, id] of nextOrder.entries()) {
       if (id === input.mineId) {
-        ours = pickForUs(pool);
+        ours = pickForUs(pool, needNow());
         if (ours) {
           pool = pool.filter((player) => player.id !== ours!.id);
           teams.set(id, take(teams.get(id)!, ours));

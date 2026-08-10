@@ -246,6 +246,40 @@ export function porteOf(
   return { porte: [...byClub.values()], strayPicks };
 }
 
+/**
+ * Which keeper STANDS FOR each free goal, and which keepers stop being buyable things because of it.
+ *
+ * The porte rule makes a goal the unit (§14.1): taking any keeper of a club takes its goal, and nobody can
+ * take a second one. So a pool that offers three keepers per club offers the same goal three times - and a
+ * plan built on it spends picks that buy nothing. One row per goal, and the one that stands for it is the
+ * club's BEST keeper, by whatever worth the caller measures (the surplus, because you field exactly one).
+ *
+ * Returns the stand-ins keyed by player id, and the ids to drop. A keeper with no worth at all cannot stand
+ * for his goal - and if none of a club's keepers has one, that goal has no row rather than an invented one.
+ */
+export function portaStandIns(
+  porte: Porta[],
+  worthOf: (playerId: number) => number | null,
+): { standIn: Map<number, Porta>; drop: Set<number> } {
+  const standIn = new Map<number, Porta>();
+  const drop = new Set<number>();
+  for (const porta of porte) {
+    let best: number | null = null;
+    let bestWorth = -Infinity;
+    for (const keeper of porta.keepers) {
+      const worth = worthOf(keeper.id);
+      if (worth == null) continue;
+      if (best === null || worth > bestWorth) {
+        best = keeper.id;
+        bestWorth = worth;
+      }
+    }
+    for (const keeper of porta.keepers) if (keeper.id !== best) drop.add(keeper.id);
+    if (best !== null) standIn.set(best, porta);
+  }
+  return { standIn, drop };
+}
+
 export interface DeriveContext {
   budget: number;
   zones: Zone[];

@@ -1,6 +1,6 @@
 import { Injectable, computed, effect, inject, signal } from '@angular/core';
 
-import { AuctionFeed, AuctionPlayer, Zone } from './auction-feed';
+import { AuctionFeed, AuctionPlayer, Zone, portaStandIns } from './auction-feed';
 import {
   EngineNumbers,
   MantraModules,
@@ -22,6 +22,7 @@ import {
   PlanPlayer,
   PlanRoot,
   PlanTeam,
+  coverNeedOf,
   plan,
   planRoots,
   predictRivalPick,
@@ -72,6 +73,8 @@ export interface RankedPlayer {
    * fantamedia x expected appearances, the currency the five-window draft measurement preferred.
    */
   value99: number | null;
+  /** The same worth in fantapunti, which is what the ranking and the plan are computed on. */
+  value: number | null;
   /** How much he would raise MY eleven: the personal zero of §4.1, secondary by decision. */
   surplusForMe: number | null;
   price: number;
@@ -272,7 +275,22 @@ export class AuctionAdvice {
     ),
   );
 
-  /** Every free man with his surplus. Ranked by `net` once a rate exists, by surplus until then. */
+  /**
+   * Every free man, ranked by the currency the FORMAT asks for - and this panel prices a DRAFT (§11).
+   *
+   * The key is the VALUE, fantamedia x expected appearances, and that is measured rather than preferred
+   * (`docs/model/metrica-asta-surplus-v1.md` §16, five gate windows, 10/08/2026): ranking a draft by the
+   * `net` scores −52% against the paired rivals on 0 of 5 windows, spends 34 credits over 25 picks and
+   * leaves half the eleven uncovered. Lambda is the exchange rate between a credit and a fantapunto, so
+   * subtracting it rewards being nearly free - and in a draft you do not spend credits, you spend PICKS
+   * (§11.2). The surplus loses too (−1.48%), because it charges a per-slot scarcity the mantra rulebook
+   * does not impose.
+   *
+   * `net` and `surplus` stay ON the row, and stay in the panel's columns: they are the right numbers in an
+   * auction with raises, and this file will have to ask the format before choosing between them the day
+   * one is played here. A man with no valuation at all keeps his row and sorts last - he has no number,
+   * which is not a zero.
+   */
   readonly ranked = computed<RankedPlayer[]>(() => {
     const lambda = this.lambda();
     const spread = this.spread();
@@ -280,7 +298,7 @@ export class AuctionAdvice {
       const net = netOf(row.surplus, row.price, lambda);
       return { ...row, net, netPer10: per(net, spread) };
     });
-    rows.sort((a, b) => (b.net ?? b.surplus ?? -1e9) - (a.net ?? a.surplus ?? -1e9));
+    rows.sort((a, b) => (b.value ?? -1e9) - (a.value ?? -1e9));
     return rows;
   });
 
@@ -328,6 +346,7 @@ export class AuctionAdvice {
         surplusPer10: per(surplus, spread),
         ratio: surplus != null && player.fvm > 0 ? surplus / player.fvm : null,
         value99: score99(valueOf(valuation), valueMax),
+        value: valueOf(valuation),
         surplusForMe: surplusOf(valuation, personal, horizon),
         price: player.fvm,
         fmPrev: this.measured().get(player.id) ?? null,
@@ -377,6 +396,24 @@ export class AuctionAdvice {
     const keeperSlots = Array.isArray(roles['gk']) ? roles['gk'][1] : (roles['gk'] ?? 3);
     const order = this.feed.pickOrder().map((team) => team.id);
 
+    // THE PORTE RULE, which the tool cannot express and the plan was ignoring (§14.1, todolist item 1.6).
+    // With it on, a keeper is not a man and a slot is not a man: the unit is the CLUB - taking any keeper of
+    // a club takes its goal, and nobody can take a second one. So the pool must offer ONE row per free goal,
+    // priced at what a bid would actually be made on (the dearest keeper of that club) and worth what you
+    // would field (its best keeper). Leaving three keeper rows per club in the pool made the plan believe it
+    // could buy the same goal three times, and made it spend picks on keepers that buy nothing at all.
+    //
+    // The SURPLUS is the right currency here even though the draft's currency is the value, and it is not an
+    // exception: you field exactly one keeper, so his replacement really is the marginal keeper - the whole
+    // reason the porta was measured as the place where the scarcity is real (§26.1). It picks WHICH keeper of
+    // the club stands for the goal; the value still decides whether a pick is spent on a goal at all.
+    const goalsMode = this.feed.isGoalsMode();
+    const bySurplus = new Map(this.ranked().map((row) => [row.player.id, row.surplus]));
+    const { standIn, drop } = portaStandIns(
+      goalsMode ? this.feed.freePorte() : [],
+      (id) => bySurplus.get(id) ?? null,
+    );
+
     return {
       teams: teams.map((team) => ({
         id: team.id,
@@ -384,23 +421,41 @@ export class AuctionAdvice {
         slots: team.squad
           .map((entry) => (entry.player ? (numbers.get(entry.player.id)?.slot ?? '') : ''))
           .filter(Boolean),
+        // The complete Mantra codes, which is what legality is decided on - the primary code alone would
+        // throw away the flexibility of the 497 men of 1014 who carry two or more.
+        held: team.squad
+          .filter((entry) => entry.player?.roles?.length)
+          .map((entry) => ({ roles: entry.player!.roles.map((role) => role.toLowerCase()) })),
         rosterValue: team.spent,
         pickValues: team.squad.map((entry) => entry.cost),
         picksCount: team.squad.length,
         firstRoundIndex: Math.max(0, order.indexOf(team.id)),
       })) as PlanTeam[],
       order,
-      pool: this.ranked().map((row) => ({
-        id: row.player.id,
-        name: row.player.name,
-        club: row.player.club,
-        slot: numbers.get(row.player.id)?.slot ?? null,
-        roles: row.player.roles,
-        price: row.price,
-        net: row.net ?? row.surplus,
-      })) as PlanPlayer[],
+      pool: this.ranked()
+        // In porte mode every keeper of a club except the one standing for its goal leaves the pool: he is
+        // not a thing that can be bought, and a row nobody can take is worse than no row.
+        .filter((row) => !drop.has(row.player.id))
+        .map((row) => {
+          const porta = standIn.get(row.player.id);
+          return {
+            id: row.player.id,
+            name: porta ? `porta ${porta.club}` : row.player.name,
+            club: row.player.club,
+            slot: numbers.get(row.player.id)?.slot ?? null,
+            roles: row.player.roles,
+            // The goal costs what its dearest keeper costs: that is the bid the table would receive.
+            price: porta ? porta.price : row.price,
+            net: row.net ?? row.surplus,
+            value: row.value,
+          };
+        }) as PlanPlayer[],
       mineId,
       shapes: this.shapes(),
+      // The cap is the session's own keeper slots, and in porte mode it needs no separate arithmetic: with
+      // one row per goal, a squad's `por` entries ARE the goals it owns. The one case where the two differ
+      // is a table that wrongly let somebody take a second keeper of a club, and the panel already reports
+      // that as a mistake (`myStrayKeeperPicks`) rather than counting it.
       keeperCap: Number(keeperSlots) || 3,
       maxAheadPicks: Number(this.feed.draftRules()?.['maxAheadPicks'] ?? 1) || 1,
     };
@@ -430,6 +485,9 @@ export class AuctionAdvice {
       rivalValues,
       // The first half of the order: past it «keeping our place» would be a claim nobody can read.
       keepWithin: Math.ceil((rivalValues.length + 1) / 2),
+      // All three directions are rationed the way our own pick is, or the strips would offer a fourth
+      // centre-back as «un altro reparto» while the plan below refuses to take him.
+      need: coverNeedOf(mine?.held ?? [], input.shapes),
     });
   });
 
