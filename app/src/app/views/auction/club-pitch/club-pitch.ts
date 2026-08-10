@@ -103,11 +103,18 @@ export class ClubPitch {
     const bits = [man.name];
     if (man.taken) bits.push('già preso');
     if (!man.onTable) bits.push('non è nel listone di questa sessione');
+    if (man.badge) bits.push(`nel modulo ${man.badge}`);
+    if (man.mantra.length) bits.push(`listone ${man.mantra.join('/')}`);
     if (man.codes.length) bits.push(`ruolo reale ${man.codes.join(', ')}`);
+    if (man.perMatch != null) bits.push(`${man.perMatch}′ medi a partita`);
     if (man.minutes != null) {
-      bits.push(man.matches ? `${man.minutes}′ in ${man.matches} partite` : `${man.minutes}′`);
+      bits.push(man.matches ? `${man.minutes}′ in ${man.matches} partite giocate` : `${man.minutes}′`);
     }
-    if (man.minutesPerMatch != null) bits.push(`${man.minutesPerMatch}′ per partita del club`);
+    // The other denominator, named: this one divides by the CLUB's matches over the last ten, so it folds
+    // absences in and is a smaller number for the same man. Two averages with one label would be a trap.
+    if (man.minutesPerClubMatch != null) {
+      bits.push(`${man.minutesPerClubMatch}′ per partita del club nelle ultime dieci`);
+    }
     if (man.claim != null) bits.push(`titolarità ${man.claim}`);
     if (man.price != null) bits.push(`FVM ${man.price}`);
     return bits.join(' · ');

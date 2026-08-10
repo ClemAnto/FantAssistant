@@ -5,6 +5,9 @@ const man = (name: string, x: number, over: Partial<BoardMan> = {}): BoardMan =>
   fc_id: name.length,
   name,
   codes: 'DC',
+  mantra: 'dc',
+  classic: 'D',
+  badge: 'Dc',
   role_line: 'D',
   role_side: '0.0',
   minutes: '1800',
@@ -134,6 +137,31 @@ describe('pitchOf', () => {
     expect(unknown.duels.length).toBe(0);
     expect(unknown.duelsKnown).toBe(false);
     expect(unknown.codes).toEqual([]);
+  });
+
+  it('shows the minutes as an AVERAGE PER MATCH, and keeps the club average apart', () => {
+    const drawn = pitchOf(board('4-3-3', {
+      P: [man('Portiere', 0.5, { minutes: '2278', matches: '26', minutes_per_match: '44.7' })],
+      D: [man('Ignoto', 0.1, { minutes: null, matches: null, minutes_per_match: null })],
+    }), () => free)!;
+    const keeper = drawn.rows[0].men[0];
+    expect(keeper.perMatch).toBe(88);                 // 2278 / 26, the matches he PLAYED
+    expect(keeper.minutesPerClubMatch).toBe(44.7);    // the sheet's own, over the CLUB's last ten
+    // Missing minutes are unknown, never zero: the chip says «minuti ignoti».
+    expect(drawn.rows[1].men[0].perMatch).toBeNull();
+  });
+
+  it('carries the ONE role of the module and the listone role beside it', () => {
+    const drawn = pitchOf(board('4-3-3', {
+      P: [man('Portiere', 0.5, { badge: 'P', mantra: 'por', codes: 'GK' })],
+      D: [man('Terzino', 0.1, { badge: 'Td', mantra: 'dd;e', codes: 'DR;DC' })],
+    }), () => free)!;
+    const back = drawn.rows.find((row) => row.line === 'D')!.men[0];
+    // The marker is ONE code - the job the module gave him - while his own list stays available for the
+    // tooltip: printing `DR;DC` on the pitch said two jobs where the module gave him one.
+    expect(back.badge).toBe('Td');
+    expect(back.mantra).toEqual(['dd', 'e']);
+    expect(back.codes).toEqual(['DR', 'DC']);
   });
 
   it('says when the fit was solved on a DIFFERENT module than the one drawn', () => {

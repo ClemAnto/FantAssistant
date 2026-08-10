@@ -44,6 +44,10 @@ MAN_COLUMNS = {
     "fc_id": "fc_id",
     "name": "name",
     "codes": "desc_real_roles",
+    # The LISTONE's own role, which is what the game scores by and what a bid is made against - a different
+    # thing from the granular real role above (`Dd;Dc` against `DR;DC`) and from the marker below.
+    "mantra": "roles_mantra",
+    "classic": "role_classic",
     "role_line": "desc_real_role_line",
     "role_side": "desc_real_role_side",
     "minutes": "desc_minutes_full_season",
@@ -108,10 +112,21 @@ def extract_boards(config, sheet: Path, mode: str = "typical", *,
                 lanes, _geometry, picture = view.lanes_for(eleven)
                 lines: dict[str, list] = {}
                 for line in LINES:
-                    placed = view._placed(lanes.get(line) or [], line)
+                    # The panel's EXACT sequence: `_lane` puts the line in screen order (and decides the side
+                    # of the men whose side is unknown, alternately), `_placed` spreads them, `_line_codes`
+                    # names the marker each of them wears - with the corrections that make a centre-forward a
+                    # `Pc` and not an `As`. Skipping `_lane` was a latent divergence from the screen: it does
+                    # not change WHO is in the eleven (so no published judge number moves) but it can change
+                    # the side an unknown-side man is drawn on, and the marker is read off that side.
+                    slots = view._lane(lanes.get(line) or [], line)
+                    placed = view._placed(slots, line)
+                    markers = view._line_codes(placed, line)
                     drawn = []
-                    for x, row, rivals in placed:
+                    for index, (x, row, rivals) in enumerate(placed):
                         man = _man(view, row, x)
+                        # The role he wears IN THIS MODULE, which is one code and not his whole list: that is
+                        # what the pitch shows, and it is the panel's own answer rather than a re-derivation.
+                        man["badge"] = markers[index] if index < len(markers) else None
                         if with_rivals:
                             # The panel's own order, capped: the first two are the ones a pitch can show.
                             man["duels"] = [_man(view, rival) for rival in (rivals or [])[:MAX_DUELS]]

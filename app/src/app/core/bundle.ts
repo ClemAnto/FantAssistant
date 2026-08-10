@@ -78,6 +78,15 @@ export interface BoardMan {
   name: string | null;
   /** The granular real role codes, `;`-separated: the only thing that separates a left back from a centre. */
   codes: string | null;
+  /** The LISTONE's own role(s), which is what the game scores by and what a bid is made against. */
+  mantra: string | null;
+  classic: string | null;
+  /**
+   * The one role he wears IN THIS MODULE - `Td`, `Dc`, `C`, `Pc`, `As`... - as the PANEL names it
+   * (`_line_codes`, with its own corrections: a centre-forward stays a `Pc` and never becomes an `As`).
+   * It is the marker a pitch shows, and it is not his whole code list.
+   */
+  badge: string | null;
   role_line: string | null;
   role_side: string | null;
   minutes: string | null;

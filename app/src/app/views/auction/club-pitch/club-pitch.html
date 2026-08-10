@@ -40,7 +40,8 @@
        Ordered across by the panel's own x, so a flank stays a flank; not placed AT that x, because four chips
        at their true coordinates overlap on a phone and this is read at a table. -->
   <div
-    class="mt-4 flex flex-col gap-1 rounded-lg p-2 outline outline-1 -outline-offset-4 outline-fg/25 sm:gap-2 sm:p-3"
+    class="mt-4 flex w-full max-w-[500px] flex-col gap-1 rounded-lg p-2 outline outline-1
+           -outline-offset-4 outline-fg/25 sm:gap-2 sm:p-3"
     style="background-image: linear-gradient(
       to bottom,
       color-mix(in oklab, var(--color-role-defence) 30%, var(--color-surface)),
@@ -60,15 +61,26 @@
             nz-tooltip
             [nzTooltipTitle]="hint(man)"
           >
-            <span class="flex flex-wrap items-center justify-center gap-0.5">
-              @for (code of man.codes; track code) {
-                <ui-role [role]="code" />
+            <!-- ONE role: the marker the module gave him (`Td`, `Dc`, `Pc`), not his whole code list. Beside
+                 the name, his LISTONE role - what the game scores by and what a bid is made against. -->
+            @if (man.badge) {
+              <ui-role [role]="man.badge" size="md" />
+            }
+            <span class="flex w-full items-baseline justify-center gap-1">
+              <span class="min-w-0 truncate text-[11px] font-medium leading-tight">{{ man.name }}</span>
+              @if (man.mantra.length) {
+                <span class="shrink-0 text-[9px] uppercase leading-tight text-muted">
+                  {{ man.mantra.join('/') }}
+                </span>
               }
             </span>
-            <span class="w-full truncate text-[11px] font-medium leading-tight">{{ man.name }}</span>
+            <!-- Always MINUTI MEDI A PARTITA, never the season total: a total is a number nobody can compare
+                 at a glance, an average is «gioca 45 minuti» and that is the question a pitch is asked. -->
             <span class="w-full truncate text-[10px] tabular-nums text-muted">
-              @if (man.minutes != null) {
-                {{ man.minutes | number: '1.0-0' }}′
+              @if (man.perMatch != null) {
+                {{ man.perMatch }}′/partita
+              } @else {
+                minuti ignoti
               }
               @if (man.price != null) {
                 · {{ man.price }}

@@ -23,6 +23,13 @@ const ROLE_COLOURS: Record<string, string> = {
   pc: 'bg-role-attack',
 };
 
+/**
+ * The PANEL's own markers, which are sided variants of the same jobs (`Td` is a trequartista drawn on the
+ * right, `Ts` on the left) plus `Sp`, the seconda punta. They carry the colour of the job and not a new one:
+ * a marker is a position, not a meaning. Anything else sided falls back generically below.
+ */
+const MARKER_BASE: Record<string, string> = { sp: 'a' };
+
 const ROLE_TITLES: Record<string, string> = {
   p: 'Portiere',
   d: 'Difensore',
@@ -57,8 +64,18 @@ export class RoleBadge {
    *  whoever is looking at this table, so one title serves both. */
   protected readonly title = computed(() => ROLE_TITLES[this.code()] ?? this.role().trim());
 
-  /** An unknown code is not painted as if it were known: it stays neutral and legible. */
-  protected readonly colour = computed(() => ROLE_COLOURS[this.code()] ?? 'bg-role-unknown');
+  /**
+   * An unknown code is not painted as if it were known: it stays neutral and legible.
+   *
+   * A sided MARKER (`Td`, `Es`, `Ad`) is not unknown though - it is a known job drawn on a flank - so before
+   * giving up, the trailing `d`/`s` is dropped and the base job's colour is used. Without this the panel's own
+   * markers, which are exactly what the pitch shows, would all have read neutral.
+   */
+  protected readonly colour = computed(() => {
+    const code = this.code();
+    const base = MARKER_BASE[code] ?? (code.length > 1 && /[ds]$/.test(code) ? code.slice(0, -1) : code);
+    return ROLE_COLOURS[code] ?? ROLE_COLOURS[base] ?? 'bg-role-unknown';
+  });
 
   /** One character is a dot; two or three are a pill, because a circle that fits "Por" is a
    *  circle far too big for the "P" standing next to it. */

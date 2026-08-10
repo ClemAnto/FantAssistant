@@ -35,9 +35,32 @@ export interface PitchMan {
   name: string;
   /** The granular REAL role codes, which is what says a left back is not a centre back. */
   codes: string[];
+  /** The LISTONE's own role(s): what the game scores by, and what a bid is made against. */
+  mantra: string[];
+  /**
+   * The ONE role he wears in this module, named by the panel (`Td`, `Dc`, `C`, `Pc`, ...).
+   *
+   * This is what the pitch shows, and showing his whole code list instead was the operator's correction of
+   * 10/08/2026: a man drawn at right back is a `Td` there, and printing `DR;DC` says two jobs where the
+   * module gave him one. Null on a board built before the marker travelled.
+   */
+  badge: string | null;
+  /** The season's total minutes, on his own championship's calendar. Kept for the tooltip. */
   minutes: number | null;
+  /** The matches he PLAYED, which is the denominator of the average below. */
   matches: number | null;
-  minutesPerMatch: number | null;
+  /**
+   * MINUTI MEDI A PARTITA, and this is the number the pitch shows (operator, 10/08/2026): minutes over the
+   * matches he played, so «gioca poco» reads as «45′» and not as a season total nobody can compare at a
+   * glance. Null when either half is missing - unknown, never zero.
+   */
+  perMatch: number | null;
+  /**
+   * A DIFFERENT quantity, and the two must not be confused: the sheet's own `minutes per club match` over the
+   * last-ten window, which divides by the CLUB's matches and therefore folds absences in (Di Lorenzo 44.7
+   * against 88 of the season average). It stays in the tooltip, labelled, and never on the chip.
+   */
+  minutesPerClubMatch: number | null;
   /** The panel's own claim: who starts when everybody is fit. It is what put him on the pitch. */
   claim: number | null;
   /** Where the panel draws him across the line: 0 is one touchline, 1 the other. Flanks already ordered. */
@@ -120,10 +143,17 @@ function toMan(man: BoardMan, resolve: (man: BoardMan) => OnTable): PitchMan {
     fcId: man.fc_id ?? null,
     name: man.name ?? '—',
     codes: (man.codes ?? '').split(';').map((code) => code.trim()).filter(Boolean),
+    mantra: (man.mantra ?? '').split(';').map((code) => code.trim()).filter(Boolean),
+    badge: man.badge ?? null,
     minutes: int(man.minutes),
     matches: int(man.matches),
-    minutesPerMatch: int(man.minutes_per_match) ?? (man.minutes_per_match
-      ? Number(man.minutes_per_match) : null),
+    perMatch: (() => {
+      const minutes = int(man.minutes);
+      const matches = int(man.matches);
+      return minutes != null && matches ? Math.round(minutes / matches) : null;
+    })(),
+    minutesPerClubMatch: man.minutes_per_match != null && man.minutes_per_match !== ''
+      ? Number(man.minutes_per_match) : null,
     claim: man.claim ?? null,
     x: typeof man.x === 'number' ? man.x : 0.5,
     taken: live.taken,
