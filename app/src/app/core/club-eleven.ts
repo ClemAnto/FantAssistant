@@ -150,7 +150,12 @@ export function pitchOf(board: Board | null, resolve: (man: BoardMan) => OnTable
       problems.push(`linea ${line}: il modulo dice ${wanted}, i disegnati sono ${drawn.length}`);
     }
     taken += drawn.filter((man) => man.taken).length;
-    rows.push({ line, wanted, men: drawn });
+    // ORDERED by the panel's own x and then spread evenly on the row, instead of placed at that x.
+    // The order is the information a pitch can keep on a phone - it is the team's right to its left, flanks
+    // already resolved by `_placed` - while the exact coordinate is not: four chips at their true x overlap
+    // on a narrow screen, and a row nobody can read says less than a tidy one. A line the module says is
+    // fuller than the drawn men still reports the gap (`problems`), which is what the empty space said.
+    rows.push({ line, wanted, men: [...drawn].sort((left, right) => left.x - right.x) });
   }
 
   const solved = board.board_shape ?? null;

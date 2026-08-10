@@ -58,6 +58,12 @@ copyFileSync(join(src, 'config/scoring_config.json'), join(OUT, 'scoring_config.
 if (existsSync(join(src, 'config/mantra_modules.json'))) {
   copyFileSync(join(src, 'config/mantra_modules.json'), join(OUT, 'mantra_modules.json'));
 }
+/* And the CLASSIC rulebook, which is a different law and not a subset: its places are macro-roles. The panel
+ * needs it because its own role rationing was measured PER GAME, and without it a classic session rations
+ * with what `startingPlaces` can say from nothing. */
+if (existsSync(join(src, 'config/classic_modules.json'))) {
+  copyFileSync(join(src, 'config/classic_modules.json'), join(OUT, 'classic_modules.json'));
+}
 
 let bytes = statSync(join(OUT, 'manifest.json')).size;
 const missing = [];
@@ -87,6 +93,23 @@ if (existsSync(sheetsIn)) {
   }
 }
 
+/* The DRAWN BOARDS, one file per declared league: per club the module, the eleven where the PANEL places it
+ * and up to two ballottaggi per man. Without them the pitch has nothing honest to draw - and this copy was
+ * missing for one build, which is exactly how «non vedo i campetti» happened: the bundle had them, the app's
+ * own copy did not, and the card correctly said it had no board. A folder added to the export has to be added
+ * HERE too, or the app is reading an older shape of the same bundle. */
+const boardsIn = join(src, 'boards');
+let boards = 0;
+if (existsSync(boardsIn)) {
+  const boardsOut = join(OUT, 'boards');
+  mkdirSync(boardsOut, { recursive: true });
+  for (const file of readdirSync(boardsIn)) {
+    copyFileSync(join(boardsIn, file), join(boardsOut, file));
+    bytes += statSync(join(boardsIn, file)).size;
+    boards++;
+  }
+}
+
 // The clubs' badges: a folder of small images plus the index that says which file is whose.
 const crestsIn = join(src, 'crests');
 let crests = 0;
@@ -104,8 +127,14 @@ const manifest = JSON.parse(readFileSync(join(OUT, 'manifest.json'), 'utf8'));
 console.log(`bundle ${season} -> public/data`);
 console.log(`  schema_version ${manifest.schema_version}, generated ${manifest.generated_at}`);
 console.log(`  target ${manifest.target_season}, heavy seasons ${manifest.heavy_seasons.join(', ')}`);
-console.log(`  ${TABLES.length - missing.length}/${TABLES.length} tables, ${crests} crests, ${sheets} engine sheets, ${(bytes / 1024 / 1024).toFixed(1)} MB`);
+console.log(`  ${TABLES.length - missing.length}/${TABLES.length} tables, ${crests} crests, `
+  + `${sheets} engine sheets, ${boards} board files, ${(bytes / 1024 / 1024).toFixed(1)} MB`);
 if (missing.length) console.warn(`  MISSING: ${missing.join(', ')}`);
 /* Silence here would read as "the app can rank by surplus" while it cannot: without a sheet the
  * auction panel has no engine numbers at all and has to say so instead of ranking by the price. */
 if (!sheets) console.warn('  NO engine sheets: run `snapshot --league NAME` then `export`.');
+// A silent zero is how a whole feature reads as broken: the pitch has nothing to draw and nobody knows why.
+if (!boards) {
+  console.warn('  NO boards: the pitch of a real club will say it has none. They are written by `snapshot`'
+    + ' (it needs a display) and carried by `export`.');
+}

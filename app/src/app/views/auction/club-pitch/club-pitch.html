@@ -34,41 +34,39 @@
 </div>
 
 @if (pitch(); as drawn) {
-  <!-- The pitch: one row per line of the module, the attack at the top and the goal at the bottom. Each man
-       is placed at the panel's own `x`, so an empty flank reads as a GAP - which is what that geometry is
-       for - instead of as a tidy centred row. -->
+  <!-- The pitch, in the visual language of the operator's own `ui-lineup-pitch`: a green field with an inset
+       white outline, one flex ZONE per line of the module, the men spread evenly across it. The keeper's zone
+       is one slot and always the last, in front of nothing. Ordered left to right by the panel's own x, so a
+       flank stays a flank; not placed AT that x, because four chips at their true coordinates overlap on a
+       phone and this is read at a table. -->
   <div
-    class="mt-4 flex flex-col gap-2 rounded-lg border border-border p-3 sm:p-4"
+    class="mt-4 flex flex-col gap-1 rounded-lg p-2 outline outline-1 -outline-offset-4 outline-fg/25 sm:gap-2 sm:p-3"
     style="background-image: linear-gradient(
       to bottom,
-      color-mix(in oklab, var(--color-role-defence) 22%, var(--color-surface)),
-      color-mix(in oklab, var(--color-role-defence) 8%, var(--color-surface))
+      color-mix(in oklab, var(--color-role-defence) 30%, var(--color-surface)),
+      color-mix(in oklab, var(--color-role-defence) 12%, var(--color-surface))
     )"
   >
     @for (row of drawn.rows; track row.line) {
-      <div class="relative h-24 sm:h-[6.5rem]">
-        <span class="absolute left-0 top-0 text-[10px] uppercase tracking-wide text-muted/70">
-          {{ label[row.line] }}
-        </span>
+      <div class="flex items-stretch gap-1 sm:gap-2">
         @for (man of row.men; track $index) {
-          <!-- A man already taken is drawn at 30% opacity: he is part of this club's eleven and he is not part
-               of this auction any more, and both facts have to be readable at once. -->
+          <!-- Already taken: 30% opacity. He is part of this club's eleven and not part of this auction any
+               more, and both facts have to be readable at once. -->
           <span
-            class="absolute top-1/2 flex w-[5.5rem] -translate-x-1/2 -translate-y-1/2 flex-col items-center
-                   gap-0.5 rounded-md border border-border bg-surface/90 px-1 py-1 text-center sm:w-24"
+            class="flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-md border border-border
+                   bg-surface/90 px-1 py-1 text-center"
             [class.opacity-30]="man.taken"
             [class.border-dashed]="!man.onTable"
-            [style.left.%]="man.x * 100"
             nz-tooltip
             [nzTooltipTitle]="hint(man)"
           >
-            <span class="flex items-center gap-0.5">
+            <span class="flex flex-wrap items-center justify-center gap-0.5">
               @for (code of man.codes; track code) {
                 <ui-role [role]="code" />
               }
             </span>
             <span class="w-full truncate text-[11px] font-medium leading-tight">{{ man.name }}</span>
-            <span class="text-[10px] tabular-nums text-muted">
+            <span class="w-full truncate text-[10px] tabular-nums text-muted">
               @if (man.minutes != null) {
                 {{ man.minutes | number: '1.0-0' }}′
               }
@@ -78,7 +76,7 @@
             </span>
 
             <!-- The ballottaggi: at most two, in the panel's own order. A rival already taken is faded for the
-                 same reason the starter is - and «no duel» is not the same as «we do not know his role». -->
+                 same reason the starter is, and «unknown» is not «no rival». -->
             @if (duelHint(man); as duels) {
               <span
                 class="w-full truncate text-[9px] leading-tight text-muted/80"
