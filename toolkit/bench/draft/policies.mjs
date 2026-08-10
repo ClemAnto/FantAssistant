@@ -3,8 +3,10 @@
  *
  * A candidate lives here and NOT in the app until it wins a verdict. That order is the golden rule applied
  * to the advice: measure on the bench, then change the panel, then let the bench read it from the panel. */
-import { DEPTH_WEIGHT, coverNeedOf, lambdaOf, needForUs, netOf } from './appcode.mjs';
-import { appNeed } from './engine.mjs';
+import {
+  DEPTH_WEIGHT, SURVIVOR_DISCOUNT, coverNeedOf, goneBeforeOurNextTurn, lambdaOf, needForUs, netOf,
+} from './appcode.mjs';
+import { ahead, appNeed, bestUnder } from './engine.mjs';
 import { augments, bestCovered } from './legal.mjs';
 
 /* ---- currencies ------------------------------------------------------------------------------------ */
@@ -126,6 +128,82 @@ export const adoptedCover = () => {
   };
 };
 
+/* ---- exploiting what the TABLE does not know -------------------------------------------------------- */
+
+/**
+ * A blend of the market's ranking and one of ours, both on the pool's own percentile scale.
+ *
+ * Why a blend at all, and why THIS one. Measured with `edge.py` (partial Spearman against the real
+ * fantapunti, each signal controlling for the other): our value carries information the price does not
+ * (+0.214 on euro, +0.246 on Serie A) and the price carries information WE do not (+0.388 on euro, +0.211 on
+ * Serie A). Two signals, neither redundant, and on euro theirs is the bigger of the two - so «prefer our
+ * number» is not the way to use the asymmetry, and «prefer theirs» throws our half away.
+ *
+ * `signal` says WHICH of ours to blend, and that is the sharp part of the measurement: essentially all of our
+ * incremental information is the expected APPEARANCES. Controlling for the price, `pv_pred` is worth +0.198
+ * (euro) and +0.243 (Serie A), while `fm_pred` is worth +0.046 and **-0.032** and the SURPLUS +0.006 and
+ * **-0.077**. Our edge over a price-driven table is one number wide, and it is not the fantamedia.
+ */
+export const blendWith = (signal, w) => (p) =>
+  (1 - w) * (p.pctPrice ?? 0) + w * (signal === 'pv' ? (p.pctPv ?? 0) : (p.pctValue ?? 0));
+
+/**
+ * The other way to use the asymmetry, and it needs no ranking edge at all: TAKE THE MAN WHO WILL BE GONE.
+ *
+ * The rivals rank by the price, so expensive men disappear and cheap ones survive. Two candidates we rate
+ * almost the same are therefore not equivalent at all: the dear one has to be taken NOW or lost, the cheap one
+ * can be harvested next round. Buying the survivor first spends a pick to acquire what waiting would have
+ * given for free - and the bench says the choice is available constantly (in 57.3% of our picks some man about
+ * to disappear raises our own eleven as much as the policy's pick).
+ *
+ * `discount` is what a survivor is worth relative to a man who will be gone. 1 = the rule is off.
+ *
+ * What it is allowed to know is exactly what the panel knows: the ORDER (the platform's own rule, reproduced),
+ * the rivals' squads (public), and one policy for their heads - the DEFAULT price head, deliberately, so the
+ * candidate wins or loses on the weaker of the two assumptions available to it rather than on the classifier.
+ * It never sees the future; it simulates it.
+ */
+export const survival = (discount) => {
+  const cache = new WeakMap();
+  const goneBefore = (ctx) => {
+    let set = cache.get(ctx.pool);
+    if (set) return set;
+    set = new Set();
+    const { table, order, at, setup, places, keeperSlot } = ctx;
+    if (!table || !order) { cache.set(ctx.pool, set); return set; }
+    // The rest of THIS round, then the next round up to our own turn: the men gone before we choose again.
+    let pool = ctx.pool, teams = table.map((t) => ({ ...t }));
+    const meId = order[at];
+    const take = (id, choice) => {
+      pool = pool.filter((p) => p.id !== choice.id);
+      const t = teams.find((x) => x.id === id);
+      t.slots = [...t.slots, choice.slot];
+      t.roster = [...t.roster, choice];
+      t.rosterValue += choice.price;
+      t.pickValues = [...t.pickValues, choice.price];
+      t.picksCount += 1;
+      set.add(choice.id);
+    };
+    const ask = (team) => bestUnder({
+      team, pool, places, keeperCap: setup.keepers, tail: false,
+      quality: (p) => p.price, need: appNeed, ctx: { ...ctx, pool, keeperSlot },
+    });
+    for (const id of order.slice(at + 1)) {
+      const choice = ask(teams.find((x) => x.id === id));
+      if (choice) take(id, choice);
+    }
+    const next = [...teams].sort((a, b) => ahead(a, b, setup.maxAhead ?? 1)).map((t) => t.id);
+    for (const id of next) {
+      if (id === meId) break;
+      const choice = ask(teams.find((x) => x.id === id));
+      if (choice) take(id, choice);
+    }
+    cache.set(ctx.pool, set);
+    return set;
+  };
+  return (p, ctx) => (p.value ?? 0) * (goneBefore(ctx).has(p.id) ? 1 : discount);
+};
+
 /* ---- the policy sets a run can ask for ------------------------------------------------------------- */
 
 const app = { need: appNeed };
@@ -187,4 +265,84 @@ export const CURRENCY = [
     restrict: keeperBySurplus },
 ];
 
-export const SETS = { published: PUBLISHED, coverage: COVERAGE, currency: CURRENCY };
+/**
+ * Item «how do we use what the table cannot see»: the blend, on a PRE-REGISTERED grid, both families, with
+ * the two pure ends in the table so the shape of the curve is visible instead of inferred.
+ */
+export const BLEND = [
+  { name: 'VALORE puro (la base)', need: coverPlaces(2), currency: VALUE, floor: Infinity },
+  { name: 'prezzo puro', need: coverPlaces(2), currency: PRICE, floor: Infinity },
+  ...[0.25, 0.5, 0.75].map((w) => ({
+    name: `prezzo + valore, w=${w}`, need: coverPlaces(2), currency: blendWith('value', w), floor: Infinity,
+  })),
+  ...[0.25, 0.5, 0.75].map((w) => ({
+    name: `prezzo + PRESENZE, w=${w}`, need: coverPlaces(2), currency: blendWith('pv', w), floor: Infinity,
+  })),
+];
+
+/** The same question from the other side: use what they will DO, not what they cannot see. */
+export const SURVIVAL = [
+  { name: 'VALORE puro (la base)', need: coverPlaces(2), currency: VALUE, floor: Infinity },
+  ...[0.85, 0.7, 0.5].map((d) => ({
+    name: `sopravvive => sconto ${d}`, need: coverPlaces(2), currency: survival(d), floor: Infinity,
+  })),
+];
+
+/**
+ * Do the two ways of using the asymmetry ADD UP, or are they the same mechanism twice?
+ *
+ * They might well be one: ranking closer to the price means taking the men the rivals want, which is the men
+ * who would be gone - so the blend may be an implicit, blunter survival rule. Measured rather than assumed,
+ * because «they are independent» is exactly the kind of claim that stacks two gains into one that is not there.
+ */
+const blended = blendWith('value', 0.25);
+/**
+ * The survival rule AS THE PANEL SHIPS IT, read from the app instead of restated here.
+ *
+ * Same purpose as `adoptedCover`: check that the code that ships lands on the number that adopted it. The one
+ * adaptation is the team's shape - the app's `PlanTeam` carries `held`/`heldIds` (a weighted eleven needs
+ * them), the bench's carries the men themselves - so the teams are mapped, never the rule.
+ */
+export const appSurvival = () => {
+  const cache = new WeakMap();
+  const asPlanTeam = (t) => ({
+    ...t,
+    held: t.roster.map((p) => ({ roles: p.roles })),
+    heldIds: t.roster.map((p) => p.id),
+  });
+  return (p, ctx) => {
+    let gone = cache.get(ctx.pool);
+    if (!gone) {
+      gone = goneBeforeOurNextTurn({
+        teams: (ctx.table ?? []).map(asPlanTeam),
+        order: ctx.order ?? [],
+        pool: ctx.pool,
+        places: ctx.places,
+        mineId: (ctx.order ?? [])[ctx.at ?? 0],
+        keeperCap: ctx.setup?.keepers ?? 3,
+        maxAheadPicks: ctx.setup?.maxAhead ?? 1,
+      });
+      cache.set(ctx.pool, gone);
+    }
+    return (p.value ?? 0) * (gone.has(p.id) ? 1 : SURVIVOR_DISCOUNT);
+  };
+};
+
+export const COMBINED = [
+  { name: 'VALORE puro (la base)', need: coverPlaces(2), currency: VALUE, floor: Infinity },
+  { name: 'solo sopravvivenza 0.7', need: coverPlaces(2), currency: survival(0.7), floor: Infinity },
+  { name: 'solo blend prezzo+valore 0.25', need: coverPlaces(2), currency: blended, floor: Infinity },
+  { name: 'APP: sopravvivenza dal pannello', need: coverPlaces(2), currency: appSurvival(), floor: Infinity },
+  { name: 'sopravvivenza SU blend', need: coverPlaces(2), floor: Infinity,
+    currency: (() => {
+      const inner = survival(0.7);
+      // The same survival discount, applied to the blended base instead of to our value alone: the discount
+      // is a factor, so it composes with whatever the base currency is.
+      return (p, ctx) => blended(p) * (inner(p, ctx) / (p.value || 1));
+    })() },
+];
+
+export const SETS = {
+  published: PUBLISHED, coverage: COVERAGE, currency: CURRENCY, blend: BLEND, survival: SURVIVAL,
+  combined: COMBINED,
+};

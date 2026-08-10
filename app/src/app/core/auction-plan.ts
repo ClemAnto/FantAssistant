@@ -428,18 +428,21 @@ export interface RootsContext {
   need?: CoverNeed | null;
   /** Our own squad: the quota rule counts what we already hold at a role, so it needs the team. */
   mine?: PlanTeam;
+  /** Who will be gone before our next turn: a survivor is worth waiting for (`SURVIVOR_DISCOUNT`). */
+  gone?: Set<number> | null;
 }
 
 export function planRoots(pool: PlanPlayer[], context?: RootsContext): PlanRoot[] {
   const roots: PlanRoot[] = [];
   const need = context?.need ?? null;
   const mine = context?.mine;
-  const best = pickForUs(pool, need, mine);
+  const gone = context?.gone ?? null;
+  const best = pickForUs(pool, need, mine, gone);
   if (!best) return roots;
   roots.push({ player: best, why: 'il massimo valore' });
 
   const bestLine = lineOf(best.slot);
-  const elsewhere = pickForUs(pool.filter((player) => lineOf(player.slot) !== bestLine), need, mine);
+  const elsewhere = pickForUs(pool.filter((player) => lineOf(player.slot) !== bestLine), need, mine, gone);
   if (elsewhere) roots.push({ player: elsewhere, why: 'un altro reparto' });
 
   // «Keeps our place» is a statement about the ORDER and it has to be measured there. It used to be
@@ -451,7 +454,7 @@ export function planRoots(pool: PlanPlayer[], context?: RootsContext): PlanRoot[
       (player) => !roots.some((root) => root.player.id === player.id)
         && positionAfterSpending(player.price, context.mySpend, context.rivalValues) <= context.keepWithin,
     );
-    const holding = pickForUs(affordable, need, mine);
+    const holding = pickForUs(affordable, need, mine, gone);
     if (holding) {
       roots.push({
         player: holding,
@@ -574,6 +577,7 @@ export function pickForUs(
   pool: PlanPlayer[],
   need: CoverNeed | null = null,
   team?: PlanTeam,
+  gone?: Set<number> | null,
 ): PlanPlayer | null {
   let best: PlanPlayer | null = null;
   let bestScore = -Infinity;
@@ -581,7 +585,9 @@ export function pickForUs(
     const worth = player.value ?? player.net;
     if (worth == null) return -Infinity;
     const want = needForUs(need, player, team);
-    return worth >= 0 ? worth * want : worth / want;
+    // A man who will still be there next round is worth waiting for: the discount is what was measured.
+    const survives = gone && !gone.has(player.id) ? SURVIVOR_DISCOUNT : 1;
+    return worth >= 0 ? worth * want * survives : (worth / want) / survives;
   };
   for (const player of pool) {
     const score = scoreOf(player);
@@ -593,8 +599,77 @@ export function pickForUs(
   return best;
 }
 
+/**
+ * What a survivor is worth next to a man who will be GONE by our next turn.
+ *
+ * This is the biggest lever measured on the whole draft bench and it uses no informational edge at all: the
+ * rivals rank by the price, so the dear men disappear and the cheap ones survive - which means two candidates
+ * we rate the same are not equivalent. The dear one has to be taken NOW or lost; the cheap one can be
+ * harvested next round. Buying the survivor first spends a pick on what waiting would have given for free.
+ *
+ * Measured on the five gate windows (`metrica-asta-surplus-v1.md` §18), gain over the adopted value policy:
+ * **+4.54%** of points per matchday, **5 of 5 windows, STRICT** - three times the coverage constraint, which
+ * was the previous biggest lever, and the only strict verdict this bench has produced. The parameter is
+ * interior (0.85 → +3.76%, 0.70 → +4.54%, 0.50 → +4.16%) and 1.0 is the rule switched off, which is the
+ * baseline. The spend rises from 299 to 345 credits, which IS the mechanism: it buys what would be gone.
+ *
+ * What it is allowed to know is only what the table shows: the ORDER (the platform's own rule), the rivals'
+ * squads, and a policy for their heads. It never sees the future - it simulates it, and it was measured with
+ * the WEAKER assumption available (one price head for everybody) rather than with the estimated heads, so the
+ * classifier of §17.1 can only help from here.
+ */
+export const SURVIVOR_DISCOUNT = 0.7;
+
+/**
+ * Who will be taken between now and our next turn, simulated with the platform's own order rule.
+ *
+ * It is the same walk `plan()` does, minus ourselves: the rest of this round, then the next round up to our
+ * slot. Ours is left out on purpose - the set has to be knowable BEFORE we choose, or the pick would depend on
+ * itself.
+ */
+export function goneBeforeOurNextTurn(input: {
+  teams: PlanTeam[];
+  order: number[];
+  pool: PlanPlayer[];
+  places: Map<string, number>;
+  mineId: number;
+  keeperCap: number;
+  maxAheadPicks: number;
+  heads?: Map<number, RivalHead>;
+}): Set<number> {
+  const gone = new Set<number>();
+  const teams = new Map(input.teams.map((team) => [team.id, team]));
+  const order = input.order.filter((id) => teams.has(id));
+  const myPlace = order.indexOf(input.mineId);
+  if (myPlace < 0) return gone;
+  let pool = [...input.pool];
+
+  const step = (id: number, placesFromEnd: number) => {
+    const team = teams.get(id);
+    if (!team) return;
+    const choice = predictRivalPick(team, pool, input.places, input.keeperCap, placesFromEnd,
+                                    input.heads?.get(id) ?? DEFAULT_HEAD);
+    if (!choice) return;
+    pool = pool.filter((player) => player.id !== choice.id);
+    teams.set(id, take(team, choice));
+    gone.add(choice.id);
+  };
+
+  const after = order.slice(myPlace + 1);
+  for (const [index, id] of after.entries()) step(id, after.length - index);
+
+  const next = [...teams.values()]
+    .sort((a, b) => ahead(a, b, input.maxAheadPicks))
+    .map((team) => team.id);
+  for (const [index, id] of next.entries()) {
+    if (id === input.mineId) break;
+    step(id, next.length - index);
+  }
+  return gone;
+}
+
 /** The platform's own comparison, in the order its `compare()` applies it. */
-function ahead(a: PlanTeam, b: PlanTeam, maxAheadPicks: number): number {
+export function ahead(a: PlanTeam, b: PlanTeam, maxAheadPicks: number): number {
   let byPicks = a.picksCount - b.picksCount;
   if (Math.abs(byPicks) < maxAheadPicks) byPicks = 0;
   if (byPicks) return byPicks;
@@ -665,9 +740,13 @@ export function plan(input: PlanInput): Plan {
   // squad that has changed would ration the next round against the one we started with.
   const needNow = () => coverNeedOf(teams.get(input.mineId)?.held ?? [], input.shapes, input.game);
   const meNow = () => teams.get(input.mineId);
+  const goneNow = (from: number[]) => goneBeforeOurNextTurn({
+    teams: [...teams.values()], order: from, pool, places, mineId: input.mineId,
+    keeperCap: input.keeperCap, maxAheadPicks: input.maxAheadPicks, heads: input.heads,
+  });
   const mine = input.rootId !== undefined
-    ? (pool.find((player) => player.id === input.rootId) ?? pickForUs(pool, needNow(), meNow()))
-    : pickForUs(pool, needNow(), meNow());
+    ? (pool.find((player) => player.id === input.rootId) ?? pickForUs(pool, needNow(), meNow(), goneNow(order)))
+    : pickForUs(pool, needNow(), meNow(), goneNow(order));
   if (!mine) return { mine: null, rounds: [], gap: 0, nextOrder: [] };
   pool = pool.filter((player) => player.id !== mine.id);
   teams.set(input.mineId, take(teams.get(input.mineId)!, mine));
@@ -704,7 +783,7 @@ export function plan(input: PlanInput): Plan {
     let passed = false;
     for (const [index, id] of nextOrder.entries()) {
       if (id === input.mineId) {
-        ours = pickForUs(pool, needNow(), meNow());
+        ours = pickForUs(pool, needNow(), meNow(), goneNow(nextOrder));
         if (ours) {
           pool = pool.filter((player) => player.id !== ours!.id);
           teams.set(id, take(teams.get(id)!, ours));

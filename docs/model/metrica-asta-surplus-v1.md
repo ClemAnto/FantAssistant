@@ -921,3 +921,144 @@ Quindi l'item resta aperto con due prerequisiti nominati: un metro su orizzonte 
 dei calendari storici. Dirlo è meglio di una mezza misura — e la prima delle due ragioni vale anche come
 avvertimento sul pannello: le colonne `desc_easy_matches` e `desc_calendar_margin` hanno senso sulla finestra
 `from`–`to`, non sulla stagione.
+
+## 18. Sfruttare l'asimmetria: il nostro vantaggio è UN numero, e la leva più grossa non è informativa (10 agosto 2026, notte)
+
+**Domanda dell'operatore:** «noi conosciamo Qt.I, FVM, surplus e valore; gli altri solo Qt.I e FVM — come lo
+sfruttiamo?» La risposta è misurata e non è quella che sembra: il nostro vantaggio informativo è reale, largo
+un numero solo, e **più piccolo del loro**; la leva che paga davvero non usa informazione affatto.
+
+### 18.1 Prima di sfruttarla, verificare che esista: parziali contro l'esito
+
+`edge.py`. Un vantaggio esiste solo se il nostro numero porta informazione che il PREZZO non ha — e «la nostra
+correlazione è più alta» non lo dimostra, due segnali possono ordinare uguale e dire la stessa cosa. Quindi si
+chiede come il progetto chiede ogni domanda incrementale (gate §7-duovicies): partial Spearman contro l'esito
+vero, ciascun segnale controllato per l'altro.
+
+| segnale, controllato per | euro (5 finestre) | Serie A (10 finestre) |
+|---|---|---|
+| **value \| Qt.I** (il nostro vantaggio) | **+0,214** | **+0,246** |
+| **Qt.I \| value** (il loro) | **+0,388** | +0,211 |
+| pv_pred \| Qt.I | +0,198 | +0,243 |
+| fm_pred \| Qt.I | +0,046 | **−0,032** |
+| surplus \| Qt.I | +0,006 | **−0,077** |
+
+Tre letture, e la terza è la più importante.
+
+**Il vantaggio esiste** e non è redundante: il nostro valore aggiunge +0,21/+0,25 sopra il prezzo.
+**Ma su euro il loro è quasi il doppio del nostro** (+0,388 contro +0,214): là l'asimmetria taglia contro di
+noi, ed è coerente col §17.4 (Qt.I +0,574 contro +0,499) e col §15.2 (il prezzo è la miglior testa delle dieci
+provate). Su Serie A si ribalta (+0,246 contro +0,211). **Quindi «fidati del nostro numero» non è la risposta
+su euro, e «fidati del prezzo» butta via la nostra metà.**
+
+**E il vantaggio è largo UN NUMERO SOLO: le presenze.** Controllando per il prezzo, `pv_pred` vale +0,198 e
++0,243, la fantamedia **+0,046 e −0,032**, il surplus **+0,006 e −0,077**. Il nostro vantaggio su un tavolo
+guidato dal prezzo non è la fantamedia e non è il surplus: è chi gioca. Terzo chiodo indipendente sul surplus
+come chiave d'asta, dopo il −4,0% del draft e il −0,077 di Serie A.
+
+La prova del disaccordo lo conferma dall'altro lato: dove noi lo mettiamo alto e il mercato basso (1182 uomini
+su euro), l'esito vero cade al 45,2° percentile contro il nostro 62,6 e il loro 31,8 — **più vicino a loro**.
+Su Serie A cade al 49,1 contro 62,3 e 33,7, appena più vicino a noi. I nostri disaccordi con il prezzo, su
+euro, sono in media **nostri errori**.
+
+### 18.2 La leva che paga: PRENDI CHI SPARIRÀ, RACCOGLI CHI RESTA (adottata, +4,54% strict)
+
+Se il vantaggio informativo è sottile, quello **comportamentale** non lo è: i rivali ordinano per prezzo,
+quindi i cari sparisco e gli economici restano. Due candidati che valutiamo uguale **non sono equivalenti**: il
+caro va preso ADESSO o è perso, l'economico si raccoglie al giro dopo. Comprare il sopravvissuto per primo
+spende una scelta per avere ciò che aspettare dava gratis.
+
+`survival(sconto)` in `policies.mjs`: il valore, moltiplicato per lo sconto se l'uomo **sopravvivrà** al nostro
+prossimo turno. Chi sparirà è SIMULATO con quello che il tavolo mostra — la regola d'ordine della piattaforma,
+le rose pubbliche dei rivali, e una testa sola per tutti (il prezzo, deliberatamente: la più debole delle due
+assunzioni disponibili, così il candidato vince o perde senza il classificatore del §17.1). Non vede il futuro.
+
+Guadagno sui nostri punti a giornata contro la politica ADOTTATA (valore + copertura ×2), cinque finestre:
+
+| candidato | Tm4 | Tm3 | T0 | T1 | T2 | media | vinte | verdetto | speso |
+|---|---|---|---|---|---|---|---|---|---|
+| sopravvive → sconto 0,85 | +4,84 | +2,08 | +0,64 | +8,20 | +3,03 | +3,76% | 5/5 | **strict** | 338 |
+| **sopravvive → sconto 0,70** | +4,63 | +2,24 | +3,75 | +7,43 | +4,63 | **+4,54%** | 5/5 | **strict** | 345 |
+| sopravvive → sconto 0,50 | +6,41 | +1,07 | +2,61 | +7,14 | +3,54 | +4,16% | 5/5 | **strict** | 352 |
+
+**È la leva più grossa di tutta la campagna e l'unico verdetto STRICT che questo banco abbia prodotto**: tre
+volte il vincolo di copertura (+1,47%, robust), che era il record precedente. Il parametro è **interno**
+(0,85 → 0,70 → 0,50 sale e poi scende) e 1,0 è la regola spenta, cioè la base. La spesa sale da 299 a 345
+crediti, e **quella è il meccanismo**: compra ciò che sarebbe sparito. La copertura sale ancora un po'
+(97,4% → 98,4%). Adottata: `SURVIVOR_DISCOUNT = 0,7`, e il banco verifica che il codice spedito riproduca la
+misura riga per riga (`APP: sopravvivenza dal pannello`, identica in ogni colonna).
+
+Vale la pena notare cosa questo dice del §16.4: il pavimento prezzo fallisce perché spinge verso gli
+ECONOMICI, cioè esattamente verso i sopravvissuti — comprava per primi quelli che si potevano aspettare. La
+regola giusta è il contrario del pavimento, e ha lo stesso ingrediente (il prezzo) usato al rovescio.
+
+### 18.3 Il blend prezzo+nostro: passa, ma è lo STESSO meccanismo più smussato
+
+Griglia pre-registrata, percentili dentro la finestra (due segnali si mescolano su una scala sola o si mescolano
+le loro unità). Guadagno contro il valore puro:
+
+| candidato | media | vinte | verdetto | speso |
+|---|---|---|---|---|
+| prezzo + valore, w=0,25 | **+2,35%** | 5/5 | strict | 367 |
+| prezzo + PRESENZE, w=0,25 | +2,31% | 5/5 | strict | 364 |
+| prezzo + valore, w=0,75 | +1,94% | 5/5 | strict | 339 |
+| prezzo puro | +1,57% | 4/5 | robust | 374 |
+| prezzo + valore, w=0,5 | +1,53% | 2/5 | — | 357 |
+
+Funziona (w = 0,25 è interno fra 0 e 0,5) e vale **metà** della sopravvivenza. E non si sommano: misurato,
+**sopravvivenza SU blend fa +2,52%, 4/5 — peggio della sopravvivenza da sola**. Sono lo stesso meccanismo
+contato due volte: ordinare più vicino al prezzo significa prendere gli uomini che i rivali vogliono, cioè
+quelli che sparirebbero, e lo sconto sui sopravvissuti lo fa di nuovo. Quindi **non si adotta il blend**: la
+forma esplicita è il doppio e la composizione è dannosa. Vale come metodo: due guadagni che «sembrano
+indipendenti» vanno moltiplicati insieme prima di sommarli a parole.
+
+### 18.4 «Fare l'asta due giornate dopo l'inizio dovrebbe favorire surplus e value»
+
+**Ipotesi dell'operatore, misurata (`late.py`), e il meccanismo è giusto mentre il beneficiario no.**
+
+Il bersaglio di un'asta fatta dopo la giornata k non è la stagione: sono i fantapunti dalla k+1 in poi, e li
+abbiamo giornata per giornata. Spostato il bersaglio, il nostro vantaggio sul prezzo **non si muove**:
+
+| | stagione intera | dalla 3ª (k=2) | dalla 7ª (k=6) |
+|---|---|---|---|
+| value \| Qt.I (euro) | +0,214 | +0,209 | +0,204 |
+| surplus \| Qt.I (euro) | +0,006 | +0,004 | −0,001 |
+| value \| Qt.I (Serie A) | +0,246 | +0,240 | — |
+
+Ma quelle giornate sono **PUBBLICHE**, e sono il segnale più grosso di tutto il file:
+
+| | k=2 | k=6 |
+|---|---|---|
+| presenze VISTE \| Qt.I (euro) | **+0,443** | **+0,536** |
+| presenze VISTE \| value (euro) | **+0,494** | **+0,584** |
+| presenze VISTE \| Qt.I (Serie A) | +0,278 | — |
+
+Più grosso del Qt.I, più grosso del nostro valore, e **cresce con k**. E ci mangia il vantaggio: una volta noto
+il prezzo E le presenze osservate, `value` scende da +0,209 a **+0,170**, `pv_pred` da +0,192 a **+0,127** (un
+terzo perso) e il **surplus va NEGATIVO, −0,028**.
+
+Quindi: **l'intuizione sul meccanismo è esatta — le presenze diventano meno incerte e le presenze sono tutto il
+gioco — ma il beneficiario non siamo noi. L'incertezza ERA il nostro vantaggio**, e togliergliela lo toglie a
+noi. Il fatto che `presenze VISTE | value` (+0,494) sia più alto di `presenze VISTE | Qt.I` (+0,443) è la parte
+che brucia: le formazioni viste aggiungono più sopra il NOSTRO numero che sopra il loro, cioè il nostro numero
+cattura quelle informazioni peggio del prezzo.
+
+**Due conseguenze operative, e la prima è un requisito, non una raffinatezza.**
+1. **Se l'asta è a stagione iniziata, il foglio va ricostruito a quella data e il pv deve LEGGERE le giornate
+   giocate.** `engine_pv_pred` è costruito sulla stagione precedente; le presenze osservate valgono +0,443 a
+   k=2 e +0,536 a k=6 sopra il prezzo, che è il numero più grande misurato in tutta questa campagna. Un
+   pannello che non le legge, in un'asta al terzo turno, sta ignorando il segnale principale.
+2. **Se possiamo scegliere quando farla, farla PRESTO tiene la gara sulla previsione**, che è dove un motore
+   batte uno scalare; farla tardi consegna a tutti gratis un segnale che noi ancora non leggiamo.
+
+### 18.5 La risposta breve, e cosa NON fare
+
+- L'asimmetria informativa è **reale, larga un numero (le presenze) e più piccola della loro su euro**. Non si
+  sfrutta preferendo il nostro numero: su euro i nostri disaccordi col prezzo sono in media nostri errori.
+- Si sfrutta **sapendo cosa faranno**, non sapendo più di loro: `SURVIVOR_DISCOUNT` = 0,7, +4,54% strict, e il
+  classificatore delle teste (§17.1) rende la simulazione migliore di quella con cui è stata misurata.
+- Il **surplus** non aggiunge niente sopra il prezzo (+0,006 su euro, −0,077 su Serie A, −0,028 a stagione
+  iniziata). Come chiave di ordinamento è finita: resta la grandezza giusta per un'asta a CREDITI, dove la
+  domanda non è «chi ordinare» ma «quanto pagare».
+- Da **non** fare: sommare blend e sopravvivenza (misurato, peggio); reintrodurre un pavimento prezzo (§16.4 —
+  ed è il rovescio esatto della regola che funziona).

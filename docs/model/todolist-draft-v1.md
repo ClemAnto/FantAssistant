@@ -171,6 +171,39 @@ un'idea, leggere «cosa è già stato respinto» in fondo.
   club) e le due precisazioni che la misura ha aggiunto: in un **draft** il valore vince anche in porta, e il
   **netto** non è una moneta di draft e non è una taratura da correggere.
 
+## 4. Sfruttare l'asimmetria informativa (nata il 10/08/2026 dalla domanda dell'operatore)
+
+«Noi conosciamo Qt.I, FVM, surplus e valore; gli altri solo Qt.I e FVM.» Misurato in
+[metrica-asta-surplus-v1.md](metrica-asta-surplus-v1.md) §18, e la risposta ribalta la premessa.
+
+- [x] **4.1 — Verificare che l'asimmetria esista, prima di sfruttarla.** Partial Spearman contro l'esito
+  (`edge.py`): il nostro valore aggiunge **+0,214** (euro) e **+0,246** (Serie A) sopra il prezzo — ma il
+  prezzo aggiunge **+0,388** (euro) sopra di noi, quasi il doppio. E il vantaggio è largo **un numero solo**:
+  `pv_pred | Qt.I` +0,198/+0,243, `fm_pred | Qt.I` +0,046/**−0,032**, `surplus | Qt.I`
+  +0,006/**−0,077**. Su euro i nostri disaccordi col prezzo sono in media **nostri errori** (l'esito cade al
+  45,2° percentile contro il nostro 62,6 e il loro 31,8).
+- [x] **4.2 — ADOTTATA: prendi chi sparirà, raccogli chi resta.** `SURVIVOR_DISCOUNT` = 0,7: un uomo che
+  sopravvivrà al nostro prossimo turno vale 0,7 di uno che sparirà. **+4,54%, 5/5, STRICT** — la leva più
+  grossa della campagna e l'unico strict che questo banco abbia prodotto, tre volte il vincolo di copertura.
+  Parametro interno (0,85 → 0,70 → 0,50), spesa 299 → 345 (che È il meccanismo), e non usa **nessun**
+  vantaggio informativo: solo la regola d'ordine della piattaforma e le rose pubbliche. Verificata riga per
+  riga sul codice spedito. Nota: è il **rovescio esatto** del pavimento prezzo respinto nel §16.4, che
+  spingeva verso gli economici, cioè verso i sopravvissuti.
+- [x] **4.3 — MISURATO e NON adottato: il blend prezzo+nostro.** +2,35% strict a w=0,25 (interno), cioè metà
+  della sopravvivenza — e **non si sommano**: sopravvivenza SU blend fa +2,52%, 4/5, peggio della
+  sopravvivenza da sola. Sono lo stesso meccanismo contato due volte.
+- [x] **4.4 — «L'asta due giornate dopo l'inizio favorisce surplus e valore»** (ipotesi dell'operatore):
+  meccanismo giusto, **beneficiario sbagliato**. Spostando il bersaglio ai fantapunti dalla 3ª, il nostro
+  vantaggio sul prezzo non si muove (+0,214 → +0,209; a k=6 → +0,204). Ma le presenze **VISTE** valgono
+  **+0,443** sopra il prezzo (k=2) e **+0,536** a k=6 — il segnale più grosso di tutto il file — e sono
+  PUBBLICHE: con prezzo e formazioni note, il nostro valore scende a +0,170, il pv a +0,127 e il surplus va
+  **negativo (−0,028)**. L'incertezza ERA il nostro vantaggio.
+- [ ] **4.5 — NUOVO e conseguenza diretta di 4.4, il numero più grande della campagna:** se l'asta è a
+  stagione iniziata, `engine_pv_pred` deve LEGGERE le giornate giocate. Oggi è costruito sulla stagione
+  precedente, quindi un pannello al terzo turno ignora un segnale da +0,443. Il foglio si sa già costruire a
+  una data (`snapshot --date`); quello che manca è che il pv incorpori le presenze osservate. Tocca
+  `engine_*`, quindi **gate**.
+
 ## 3. Consolidamenti rimasti aperti
 
 - [x] **3.1 — Il giro su CLASSIC.** Fatto su **dieci** finestre Serie A, e ha **corretto un'adozione di

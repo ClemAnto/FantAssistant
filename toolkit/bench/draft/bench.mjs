@@ -44,6 +44,34 @@ export function loadWindows(file = 'windows.json') {
 export const setup = (name = 'EuroLeghe') => setupFrom(loadLeagues(), name);
 
 /**
+ * The PERCENTILE of each signal inside this window's listone, added to the men once.
+ *
+ * A blend of two signals has to be on one scale or it is a blend of their units: a Qt.I runs 1-499 and a
+ * value runs 0-400 of fantapunti, so «half price half value» on the raw numbers is neither. Percentiles are
+ * the scale the pool itself defines, and they are what the panel can compute at the table.
+ *
+ * Ties share their mean rank, so a listone that quotes forty men at 1 credit does not order them by accident.
+ */
+export function annotate(players) {
+  const put = (field, of) => {
+    const rows = players.filter((p) => of(p) !== null && of(p) !== undefined)
+      .sort((a, b) => of(a) - of(b));
+    for (let i = 0; i < rows.length;) {
+      let j = i;
+      while (j + 1 < rows.length && of(rows[j + 1]) === of(rows[i])) j += 1;
+      const pct = ((i + j) / 2 + 1) / rows.length;
+      for (let k = i; k <= j; k += 1) rows[k][field] = pct;
+      i = j + 1;
+    }
+    for (const p of players) if (p[field] === undefined) p[field] = 0;
+  };
+  put('pctPrice', (p) => p.price);
+  put('pctValue', (p) => p.value);
+  put('pctPv', (p) => p.pv_pred);
+  return players;
+}
+
+/**
  * One pass per window: the draft is built ONCE on that window's listone, then every policy plays it from
  * every seat with every seed. Same board, same rivals, same order - so a difference between two rows is
  * the head and nothing else.
@@ -53,7 +81,7 @@ export function measure(policies, { windows, shapes, setup: table, seeds = SEEDS
   const results = new Map(policies.map((p) => [p.name, { adv: [], tot: [], mine: [], cover: [], spent: [] }]));
   for (const key of keys) {
     const w = windows[key];
-    const draft = makeDraft(w.players, shapes, table);
+    const draft = makeDraft(annotate(w.players), shapes, table);
     for (const policy of policies) {
       const adv = [], tot = [], mineRaw = [];
       let filled = 0, places = 0, spent = 0, runs = 0;

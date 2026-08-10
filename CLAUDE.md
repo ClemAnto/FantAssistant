@@ -785,6 +785,32 @@ Serie A we beat it (+0.475 against +0.463 over ten windows). Third instance of a
 singular about a platform-dependent quantity. Meanwhile the `pv` bottleneck now holds on FIFTEEN window
 instances (5 euro + 10 default, 15/15) with the variance decomposition agreeing from another direction.
 
+**And then the operator asked how to use what the table cannot see - «we know Qt.I, FVM, surplus and value,
+they only know Qt.I and FVM» - and the measured answer reverses the premise** (§18). Partial Spearman against
+the outcome, each signal controlling for the other: our value adds +0.214 (euro) / +0.246 (Serie A) over the
+price, but the PRICE adds +0.388 (euro) over us - nearly double - and our whole incremental edge is ONE number
+wide, the appearances (`pv_pred | Qt.I` +0.198/+0.243 against `fm_pred | Qt.I` +0.046/**-0.032** and
+`surplus | Qt.I` +0.006/**-0.077**). On euro our disagreements with the price are, on average, our own errors:
+where we rate a man high and the market low, the real outcome lands nearer THEIR rank. So the asymmetry is not
+exploited by trusting our number.
+**What pays uses no informational edge at all: take the man who will be GONE, harvest the one who survives.**
+The rivals rank by price, so the dear disappear and the cheap remain - two men we rate the same are not
+equivalent, because one has to be taken now and the other can be waited for. `SURVIVOR_DISCOUNT` = 0.7 is
+**+4.54% of points per matchday, 5 of 5 windows, STRICT** - three times the coverage constraint and the only
+strict verdict this bench has produced - with the spend rising 299 → 345, which IS the mechanism. It is also
+the exact REVERSE of the refused price floor, which pushed toward the cheap, i.e. toward the survivors. The
+blend of price and our own number also passes (+2.35% strict) and is half as good, and the two do NOT compose:
+survival on top of the blend is +2.52% and 4/5, worse than survival alone - the same mechanism counted twice.
+**A late auction favours whoever reads the played matchdays, and that is everybody.** The operator's
+hypothesis - «holding the auction two rounds in should favour the surplus and the value» - has the right
+mechanism and the wrong beneficiary: moving the target to the fantapunti from round 3 leaves our edge over the
+price unchanged (+0.214 → +0.209, and +0.204 at six rounds), while the OBSERVED appearances are worth +0.443
+over the price at k=2 and +0.536 at k=6 - the biggest signal in the whole campaign, and public. With the price
+and the line-ups both known our value's edge falls to +0.170, the pv's to +0.127 and the surplus goes NEGATIVE
+(-0.028). The uncertainty WAS our advantage. Consequence that is a requirement rather than a refinement: an
+auction played after kick-off needs `engine_pv_pred` to READ the played rounds, which today it does not - it is
+built on the previous season.
+
 ## A displayed list whose metrics describe a different list is worse than no metric
 **Found and paid for within one hour, 05/08/2026.** The estimates were merged into the rows the auction panel
 DISPLAYS while `captured`/`hits`/`predicted_rank` stayed on the gated list alone: the screen showed an estimated

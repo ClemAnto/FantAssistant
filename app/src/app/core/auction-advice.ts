@@ -25,6 +25,7 @@ import {
   RivalHead,
   classifyRivals,
   coverNeedOf,
+  goneBeforeOurNextTurn,
   plan,
   planRoots,
   predictRivalPick,
@@ -559,6 +560,13 @@ export class AuctionAdvice {
       // centre-back as «un altro reparto» while the plan below refuses to take him.
       need: coverNeedOf(mine?.held ?? [], input.shapes, input.game),
       mine,
+      // Who will be gone before our next turn: the biggest lever on the bench (+4.54%, strict on 5/5), and
+      // it needs no informational edge - only the platform's order rule and the rivals' public squads.
+      gone: mine ? goneBeforeOurNextTurn({
+        teams: input.teams, order: input.order, pool: input.pool,
+        places: startingPlaces(input.shapes), mineId: input.mineId,
+        keeperCap: input.keeperCap, maxAheadPicks: input.maxAheadPicks, heads: input.heads,
+      }) : null,
     });
   });
 

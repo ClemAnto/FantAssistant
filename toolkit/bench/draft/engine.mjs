@@ -90,7 +90,7 @@ export const stat = (xs) => {
   return { m, se: sd / Math.sqrt(xs.length) };
 };
 
-const ahead = (a, b, maxAhead) => {
+export const ahead = (a, b, maxAhead) => {
   let byPicks = a.picksCount - b.picksCount;
   if (Math.abs(byPicks) < maxAhead) byPicks = 0;
   if (byPicks) return byPicks;
@@ -157,13 +157,18 @@ export function makeDraft(players, shapes, setup = PUBLISHED_SETUP) {
   const places = startingPlaces(shapes);
   const { teams: TEAMS, rounds: ROUNDS, keepers: KEEPERS, maxAhead: MAX_AHEAD } = setup;
   const KEEPER_SLOT_HERE = setup.keeperSlot ?? 'por';
+  // The live state a policy may LOOK AHEAD with: every team, this round's order, and where we are in it. In
+  // `makeDraft`'s scope and not in `draft`'s, because `pickFor` is what hands it to the policy - and a draft
+  // runs to its end before the next one starts, so one slot is enough.
+  let liveTeams = null, liveOrder = null, liveAt = 0;
 
   const pickFor = (team, pool, kind, noiseAt, placesFromEnd, policy, round, slotsLeft) => {
     // The context every hook shares. `pool` and `slotsLeft` are in it because the app's own currency (the
     // net, surplus minus lambda x price) is a property of the POOL and not of the man - so a bench row that
     // claims to be «the panel as it ships» has to be able to compute it.
     const ctx = { round, rounds: ROUNDS, keepers: KEEPERS, shapes, pool, slotsLeft, teams: TEAMS,
-                  keeperSlot: KEEPER_SLOT_HERE };
+                  keeperSlot: KEEPER_SLOT_HERE, table: liveTeams, order: liveOrder, at: liveAt,
+                  setup, places, maxAhead: MAX_AHEAD };
     return bestUnder({
       team,
       pool: policy?.restrict ? policy.restrict(pool, ctx) : pool,
@@ -199,6 +204,7 @@ export function makeDraft(players, shapes, setup = PUBLISHED_SETUP) {
       for (const [index, id] of order.entries()) {
         const team = teams.find((t) => t.id === id);
         const fromEnd = order.length - index;
+        liveTeams = teams; liveOrder = order; liveAt = index;
         // The table's residual demand in SLOTS, which is what a draft spends instead of credits (§11.2).
         const slotsLeft = TEAMS * ROUNDS - teams.reduce((a, t) => a + t.picksCount, 0);
         const choice = id === seat
