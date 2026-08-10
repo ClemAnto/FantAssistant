@@ -1,5 +1,5 @@
 # 00 — BRIDGE · Punto d'ingresso del progetto (leggere per primo)
-**Aggiornato: 10 agosto 2026 (l'assistente d'asta e' completo — porte, surplus vivo, scelta consigliata — e la campagna sulle strategie di draft ha RITIRATO due conclusioni)** · precedente: 9 agosto (l'app esiste: Angular, pubblicata su GitHub Pages, legge il bundle del toolkit)** · 8 agosto (DUE GIUDICI per le formazioni tipo — la stampa e l'ESITO reale — e la todolist formazioni tipo chiusa: cinque adozioni, sei rifiuti misurati)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
+**Aggiornato: 10 agosto 2026, notte (la todolist del draft ESEGUITA: il consiglio del pannello riscritto su misure, e il campetto legge la board del toolkit)** · precedente: 10 agosto, giorno (l'assistente d'asta e' completo — porte, surplus vivo, scelta consigliata — e la campagna sulle strategie di draft ha RITIRATO due conclusioni)** · precedente: 9 agosto (l'app esiste: Angular, pubblicata su GitHub Pages, legge il bundle del toolkit)** · 8 agosto (DUE GIUDICI per le formazioni tipo — la stampa e l'ESITO reale — e la todolist formazioni tipo chiusa: cinque adozioni, sei rifiuti misurati)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
 
 ## Il progetto in breve
 Motore previsionale per fantacalcio **EuroLeghe** (fantacalcio.it): valutazione calciatori Classic e Mantra sui 5 grandi campionati europei (Serie A, Premier, Liga, Bundesliga, Ligue 1 — perimetro: i ~35 top club del gioco). Prevede fantamedia (FM), presenze attese e VALORE stagionale = FM × presenze. Metodo scientifico: **ogni regola entra nel motore solo se batte il baseline fuori campione su finestre indipendenti** (gate pre-registrato). Stato: core validato (Mantra, Classic, portieri, presenze); manca lo strato flag/arrivi, sbloccato dal toolkit dati `euroleghe-ingest` (in implementazione).
@@ -34,7 +34,68 @@ la pagina delle probabili non basta e quali vincoli valgono già oggi.
 
 Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
 
-### ULTIMO IN ORDINE DI TEMPO — 10/08/2026: **l'assistente d'asta è completo**, e due conclusioni sono state RITIRATE
+### ULTIMO IN ORDINE DI TEMPO — 10/08/2026, NOTTE: **la todolist del draft eseguita**, e il consiglio del pannello riscritto su misure
+
+Sei commit in una sera (`eed0c56`, `1bbe45c`, `32bf89e`, `55cd319`, `c1f499a`, `9951a83`). Documenti:
+[metrica-asta-surplus-v1.md](metrica-asta-surplus-v1.md) **§16 §17 §18 §19**,
+[assistente-asta-v1.md](assistente-asta-v1.md) **§26**, [gate-motore-v1.md](gate-motore-v1.md)
+**§7-octovicies**, e [todolist-draft-v1.md](todolist-draft-v1.md) aggiornata item per item.
+`engine_*` **invariato** (nessun file del motore toccato), `backtest --verify` tutti OK, **366 test toolkit +
+105 test app** verdi.
+
+**Il difetto più grosso non era nella lista.** Il pannello consigliava ordinando per **netto**
+(`surplus − λ×prezzo`) e non razionava per ruolo: misurato come politica fa **−52,3% sui rivali, 0/5, 34
+crediti spesi in 25 giri, metà undici scoperto**. λ è il tasso fra un credito e un fantapunto, e in un draft
+non spendi crediti, spendi **scelte**. Era la causa comune di due sintomi già rattoppati sul bordo — quando lo
+stesso sintomo va rattoppato due volte in punti diversi, il difetto è nella grandezza che entrambi leggono.
+
+**Cosa il pannello fa adesso** (tutto misurato sul banco a cinque finestre, verdetti del gate):
+1. **ordina per VALORE** (fm × presenze). Netto e surplus restano colonne: sono i numeri giusti in un'asta a
+   rilanci, non in un draft.
+2. **raziona per COPERTURA**, e la regola è **per GIOCO**: su mantra due undici legali contati sui POSTI
+   (`COVER_COPIES` = 2, +1,47% robust); su classic la quota graduata (`QUOTA_DEPTH` = 0,7, +0,77% robust),
+   perché là la versione sui posti **perde** (−1,00%). Il bersaglio `startingPlaces × 2` della todolist NON
+   vincola: quelle quote sommano 16 contro i 10 posti di uno schema.
+3. **stima la testa di ogni rivale dai suoi pick** (82,8% contro 69,2%, 5/5; due pick bastano).
+4. **prende chi sparirà e raccoglie chi resta** (`SURVIVOR_DISCOUNT` = 0,7): **+4,54%, 5/5, STRICT** — la leva
+   più grossa della campagna, tre volte la copertura, e non usa nessun vantaggio informativo.
+5. **dice quanto toglieresti al rivale** che stava per prenderlo (nota, non cambio di scelta).
+
+**Cosa è stato RESPINTO con la misura** (non riproporre senza rileggere): la moneta ibrida (−4,88%, difetto di
+SCALA), ogni pavimento prezzo (cross-fit held-out −0,05%), il blend prezzo+nostro **sommato** alla
+sopravvivenza (peggio della sopravvivenza sola), e la coppia «bonus e poche presenze + riserva affidabile»
+(forma forte −4,69%, forma ristretta −0,40%: la moneta la contiene già, e il metro regala già il beneficio).
+
+**La domanda dell'operatore sull'asimmetria, e la risposta ribalta la premessa.** Il nostro vantaggio
+incrementale sul prezzo esiste (+0,214 euro, +0,246 Serie A) ma **il loro è quasi il doppio su euro** (+0,388),
+ed è largo **un numero solo: le presenze** (la fantamedia +0,046/−0,032, il surplus +0,006/−0,077). Su euro i
+nostri disaccordi col prezzo sono in media **nostri errori**. E «il mercato ci batte» è una frase su una
+PIATTAFORMA: su Serie A lo battiamo noi. **L'asta a stagione iniziata** non ci favorisce: le presenze VISTE
+valgono +0,443 (k=2) e +0,536 (k=6) sopra il prezzo — il segnale più grosso di tutto il file — e sono
+PUBBLICHE; l'incertezza ERA il nostro vantaggio.
+
+**Il campetto della squadra reale legge la BOARD del toolkit.** La prima versione calcolava un undici
+nell'app e l'operatore l'ha corretta: `modules/boards.py` è ora l'unica definizione di una board e guida il
+pannello vero senza finestra, con **le sue decisioni per club applicate** (i due giudici la leggono senza);
+lo `snapshot` scrive `boards.json` dentro la cartella del foglio appena scritto e l'`export` la porta nel
+bundle. Per club: modulo disegnato, 11 titolari con la `x` del pannello, **fino a due ballottaggi** ciascuno,
+ruoli reali e minuti. Verificato sul bundle: 77 club, 847 uomini, 1405 ballottaggi, **zero** disaccordi.
+
+**Fondamenta nuove**: il **banco del draft è nel repo** (`toolkit/bench/draft/`) ed è il **terzo attrezzo di
+misura** — `backtest` giudica le regole, `sweep` le costanti, questo le POLITICHE — e **legge il codice vero
+dell'app** via esbuild, con una riga che verifica che il codice spedito riproduca la misura che lo ha adottato.
+Più `config/classic_modules.json` (i sette moduli, letti dal regolamento) e la lega **`Leghe Mantra`**
+(default/mantra, 10 squadre, 2+21) col suo foglio nel bundle.
+
+**Cosa resta aperto**, in ordine di resa: item **4.5** (se l'asta è a stagione iniziata, `engine_pv_pred` deve
+LEGGERE le giornate giocate — il numero più grande della campagna, tocca `engine_*` quindi gate), **1.5b** (il
+guadagno marginale sull'undici come obiettivo: nel 57,3% dei pick sceglie un altro uomo), **2.2** (il Qt.I sul
+lato presenze, pre-registrato nel gate), **3.1 rimane misurato** ma su classic il nostro posto perde contro la
+media dei rivali (−2,6%) e nessuno sa ancora perché, **2.3** (buchi di input), **2.5** (calendario: NON
+misurabile, `fixtures` ha solo 2026-27), **2.4** (rinviata dall'operatore). E **la verifica visiva del
+campetto**, che vive dentro un'asta seguita: è la prima cosa da aprire al prossimo draft.
+
+### 10/08/2026, giorno: **l'assistente d'asta è completo**, e due conclusioni sono state RITIRATE
 
 Un solo filo, dalla mattina alla notte: portare il pannello d'asta a essere usabile a un tavolo vero, e poi
 **mettere alla prova contro l'esito** ciò con cui consiglia. Documenti: pannello in

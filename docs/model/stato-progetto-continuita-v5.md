@@ -1,5 +1,5 @@
 # Stato progetto & continuità — v5
-**Aggiornato: 10 agosto 2026 (l'assistente d'asta è completo; la sua moneta è stata misurata su cinque finestre)**
+**Aggiornato: 10 agosto 2026, notte (la todolist del draft eseguita: il consiglio del pannello riscritto su misure, il campetto legge la board del toolkit)**
 Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da qui + i file della cartella "Modello Previsionale Fantacalcio".
 *Glossario: T1/T2 = finestre di test (23/24->24/25, 24/25->25/26) · MAE = errore medio assoluto · cross-fitted = parametri stimati su una finestra, testati sull'altra · M2e = modello portieri decomposto (abilità + tasso gol subiti del club; la metà Elo del nome non è nel motore) · Pv_att = presenze attese · fc_id = id fantacalcio.it · EV = valore atteso · scoring_config = punteggi configurabili per lega · xG/xA = expected goals/assists · 2.5 pieno = backtest motore completo con flag.*
 
@@ -7,6 +7,32 @@ Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da q
 App per leghe EuroLeghe/fantacalcio.it (Classic+Mantra, 5 campionati) con motore previsionale. Metodo: ogni regola entra SOLO se batte il baseline fuori campione su finestre indipendenti (gate pre-registrato). Doc madre: modello-previsionale-v3.8.md.
 
 ## ⚠️ Lo stato corrente è in `00-BRIDGE-punto-di-ingresso.md`, blocco «STATO AL 5 AGOSTO 2026»
+
+### 10 agosto 2026, notte, in una riga: la todolist del draft eseguita, e il consiglio riscritto su misure
+
+Dettaglio nel blocco «ULTIMO IN ORDINE DI TEMPO — 10/08/2026, NOTTE» del
+[00-BRIDGE-punto-di-ingresso.md](00-BRIDGE-punto-di-ingresso.md); numeri in
+[metrica-asta-surplus-v1.md](metrica-asta-surplus-v1.md) §16-§19, pannello in
+[assistente-asta-v1.md](assistente-asta-v1.md) §26, motore in [gate-motore-v1.md](gate-motore-v1.md)
+§7-octovicies, stato item per item in [todolist-draft-v1.md](todolist-draft-v1.md).
+`engine_*` **invariato**, `--verify` OK, 366 test toolkit + 105 app.
+
+1. **Il pannello consigliava con la moneta peggiore**: il netto, in un draft, vale **−52,3% sui rivali** (0/5,
+   34 crediti in 25 giri). Adesso ordina per VALORE, raziona per copertura **per gioco** (posti ×2 su mantra,
+   quota graduata su classic — dove la versione sui posti perde), stima la testa di ogni rivale dai suoi pick
+   (82,8% contro 69,2%) e **prende chi sparirà** (`SURVIVOR_DISCOUNT` 0,7: **+4,54%, 5/5, strict**, la leva
+   più grossa mai misurata qui).
+2. **L'asimmetria informativa è più piccola della loro, e larga un numero solo.** Il nostro valore aggiunge
+   +0,214 sopra il Qt.I su euro; il Qt.I aggiunge **+0,388** sopra di noi. Tutto il vantaggio è sulle
+   PRESENZE; la fantamedia e il surplus non aggiungono nulla. Quindi non si sfrutta fidandosi del nostro
+   numero, ma **sapendo cosa faranno**.
+3. **Un'asta a stagione iniziata favorisce chi legge le giornate giocate, cioè tutti**: le presenze viste
+   valgono +0,443 sopra il prezzo, sono pubbliche, e col prezzo e le formazioni note il nostro surplus va
+   negativo. Conseguenza che è un requisito: `engine_pv_pred` deve leggerle (item 4.5, gate).
+4. **Il campetto legge la board del TOOLKIT** e non un undici ricalcolato: `modules/boards.py`, unica
+   definizione, con le decisioni per club dell'operatore applicate (i giudici no), 11 titolari con la `x` del
+   pannello e fino a due ballottaggi. `boards.json` accanto al foglio, poi nel bundle.
+5. **Il banco del draft è nel repo** ed è il terzo attrezzo di misura, e legge il codice vero dell'app.
 
 ### 10 agosto 2026, in una riga: l'assistente d'asta è completo, e la sua moneta è stata messa alla prova
 

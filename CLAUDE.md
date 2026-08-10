@@ -313,6 +313,29 @@ everybody, and the first table said the surplus was the best currency - reproduc
 what caught it); and a working file must be written in **explicit UTF-8**, or on Windows the script cannot
 re-read what it wrote.
 
+## A drawing is a claim too, so the app reads the PANEL's board and never its own
+**`modules/boards.py` (10/08/2026).** The auction panel shows a real club's eleven on a pitch, and the first
+version computed that eleven in the APP - which was a second answer to a question the toolkit already answers.
+The operator corrected it the same day («il campetto deve utilizzare le informazioni del db generato dal
+toolkit») and the right path turned out to exist already: `press.extract_boards` was driving the REAL panel
+headless for the two judges, and it was **throwing the ballottaggi away** (`_placed` returns
+`(x, starter, rivals)`).
+So there is now ONE definition of a board, and it has two callers with opposite needs: the JUDGES read it with
+`apply_rulings=False`, because a ruling is often made looking at the judge and a judge must never score the
+operator's own answers; the PANEL's data path reads it with `apply_rulings=True`, because
+`config/board_rulings.json` is his declared truth and has the highest precedence for the drawn board. Same
+function, opposite flag, the reason written at each call site, and a test that asserts all three facts (the
+safe default, the judge that never opts in, the panel that does) instead of one substring.
+`snapshot` writes `boards.json` **inside the folder of the sheet it just wrote** - a board that could describe
+a different sheet than the one exported is a mismatch nobody would ever see - and `export` copies it where the
+manifest declares it (`engine_sheets[].boards`). It carries per club the drawn module, the eleven with the
+panel's own `x` (flanks already ordered, so an empty flank reads as a gap), up to two duels per man, the
+granular real roles and the minutes. Tk is an ENVIRONMENT and not a dependency of a sheet: without a display
+the sheet is complete and only its boards are missing, which is reported and never raised.
+Two habits it re-taught. **The app must not keep a fallback that draws a different eleven under the same name**
+- no board means the card says so. And **a column that looks like a flag can be a word**: `new_coach` is
+`yes`/`no`, so `Boolean(...)` read every coach as new, caught by the test that typed it.
+
 ## Provisional parameters, and the sweep that judges them
 Some constants exist only because a module needed a number to run. They are MODEL choices, so the gate owns
 them: same rule as any candidate rule, no gate no engine. The presence formulas that read them live in
