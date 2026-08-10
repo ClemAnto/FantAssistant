@@ -1,0 +1,99 @@
+<div class="flex flex-wrap items-center gap-3">
+  <nz-select
+    class="min-w-56"
+    nzPlaceHolder="Squadra reale"
+    nzShowSearch
+    [ngModel]="club()"
+    (ngModelChange)="choose($event)"
+  >
+    @for (name of clubs(); track name) {
+      <nz-option [nzValue]="name" [nzLabel]="name" />
+    }
+  </nz-select>
+
+  @if (club(); as name) {
+    <span class="flex items-center gap-2">
+      <ui-crest [club]="name" size="md" />
+      <span class="font-semibold">{{ name }}</span>
+    </span>
+    <span class="text-sm text-muted">
+      {{ counted().total }} in listone · {{ counted().taken }} già presi
+    </span>
+  }
+</div>
+
+@if (lines().length) {
+  <!-- The pitch: attack at the top, goal at the bottom, one row per line of the module. The green is the
+       role palette's own defence colour rather than a new token: a pitch is not a new meaning. -->
+  <div
+    class="mt-4 flex flex-col gap-3 rounded-lg border border-border p-3 sm:p-4"
+    style="background-image: linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--color-role-defence) 22%, var(--color-surface)),
+      color-mix(in oklab, var(--color-role-defence) 8%, var(--color-surface))
+    )"
+  >
+    @for (row of lines(); track row.line) {
+      <div class="flex flex-wrap items-stretch justify-center gap-2">
+        @for (place of row.places; track $index) {
+          @if (place.player; as man) {
+            <!-- A man already taken is drawn at 30% opacity: he is part of this club's eleven and he is not
+                 part of this auction any more, and both facts have to be readable at once. -->
+            <span
+              class="flex min-w-24 max-w-36 flex-col items-center gap-1 rounded-md border border-border
+                     bg-surface/85 px-2 py-1.5 text-center transition-opacity"
+              [class.opacity-30]="man.taken"
+              nz-tooltip
+              [nzTooltipTitle]="
+                man.name
+                  + (man.taken ? ' — già preso' : '')
+                  + ' · ' + (man.pv | number: '1.0-0') + ' presenze attese'
+                  + ' · FVM ' + man.price
+                  + ' · posto ' + place.slot
+              "
+            >
+              <span class="flex items-center gap-1">
+                @for (code of man.roles; track code) {
+                  <ui-role [role]="code" />
+                }
+              </span>
+              <span class="w-full truncate text-xs font-medium leading-tight">{{ man.name }}</span>
+              <span class="text-[10px] tabular-nums text-muted">
+                {{ man.pv | number: '1.0-0' }}p · {{ man.price }}
+              </span>
+            </span>
+          } @else {
+            <!-- A place the listone cannot cover stays EMPTY and says which place it is: drawing somebody
+                 there would be inventing an eleven nobody predicted. -->
+            <span
+              class="flex min-w-24 flex-col items-center justify-center gap-1 rounded-md border border-dashed
+                     border-border px-2 py-1.5 text-center text-[10px] text-muted"
+              nz-tooltip
+              nzTooltipTitle="Nessun uomo di questo club, con presenze previste, può occupare questo posto"
+            >
+              <span class="font-medium">{{ place.slot }}</span>
+              <span>scoperto</span>
+            </span>
+          }
+        }
+      </div>
+    }
+  </div>
+
+  <p class="mt-2 text-xs text-muted">{{ caption() }}</p>
+  <p class="mt-1 text-xs text-muted">
+    È l'undici dei giocatori con più <strong>presenze attese</strong> dal motore, disegnato sul modulo che
+    quegli uomini riempiono meglio — non è la board del pannello del toolkit, che si costruisce sulla
+    titolarità, sul repertorio dell'allenatore e sulle tue decisioni per club, e nessuna delle tre viaggia nel
+    bundle. Le presenze sono la metà della previsione che porta la graduatoria, quindi è la grandezza giusta
+    per «chi scende in campo»; per «quanto vale quando gioca» le colonne sono sotto.
+    Il campetto dice la <strong>linea</strong> e il <strong>tipo di posto</strong>, non il lato: fra due posti
+    identici l'ordine è un effetto dell'abbinamento, e l'accoppiamento delle fasce è proprio ciò che la board
+    del toolkit fa e qui non c'è.
+  </p>
+} @else if (club()) {
+  <nz-empty
+    class="mt-4"
+    nzNotFoundContent="Di questa squadra il foglio non prevede le presenze di nessuno, quindi non c'è un undici da disegnare."
+  />
+}

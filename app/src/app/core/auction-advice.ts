@@ -390,6 +390,41 @@ export class AuctionAdvice {
   }
 
   /**
+   * Every man of the session's listone, with whether he is already off the board.
+   *
+   * ONE definition, because two places need it and they must not disagree: the rival classifier replays the
+   * whole draft (a man taken in round two WAS available then), and the club pitch draws the men who are gone
+   * at 30% opacity. `available()` is the free pool, so the taken ones are recovered from the squads - which is
+   * also the only public way to reach them.
+   */
+  readonly listone = computed<{ player: AuctionPlayer; taken: boolean }[]>(() => {
+    const rows: { player: AuctionPlayer; taken: boolean }[] = [];
+    const seen = new Set<number>();
+    for (const player of this.feed.available()) {
+      seen.add(player.id);
+      rows.push({ player, taken: false });
+    }
+    for (const team of this.feed.teams()) {
+      for (const entry of team.squad) {
+        if (!entry.player || seen.has(entry.player.id)) continue;
+        seen.add(entry.player.id);
+        rows.push({ player: entry.player, taken: true });
+      }
+    }
+    return rows;
+  });
+
+  /** The REAL clubs at this listone, in alphabetical order - the axis of the pitch selector. */
+  readonly realClubs = computed<string[]>(() => {
+    const clubs = new Set<string>();
+    for (const row of this.listone()) if (row.player.club) clubs.add(row.player.club);
+    return [...clubs].sort((left, right) => left.localeCompare(right, 'it'));
+  });
+
+  /** The game's shapes as loaded, so a view can draw an eleven on them. */
+  readonly rules = computed(() => this.shapes());
+
+  /**
    * What each rival ranks by, guessed from the picks he has already made.
    *
    * Measured on the five gate windows (§17): it predicts a rival's next pick 82.8% of the time against
@@ -405,18 +440,11 @@ export class AuctionAdvice {
     if (mineId === null || !this.shapes()) return new Map();
     const numbers = this.numbers();
     const priced = new Map(this.priced().map((row) => [row.player.id, row]));
-    // Every man of the session's listone, free or taken: `available()` plus what the squads hold. A man
-    // taken in round two WAS available in round two, so a replay against the free pool alone would grade
-    // every head on a counterfactual - and the taken men are exactly the evidence.
-    const everyone: AuctionPlayer[] = [...this.feed.available()];
-    for (const team of this.feed.teams()) {
-      for (const entry of team.squad) if (entry.player) everyone.push(entry.player);
-    }
-    const seen = new Set<number>();
+    // Every man of the listone, free or taken (`listone`): a man taken in round two WAS available in round
+    // two, so a replay against the free pool alone would grade every head on a counterfactual - and the men
+    // already taken are exactly the evidence.
     const pool: PlanPlayer[] = [];
-    for (const player of everyone) {
-      if (seen.has(player.id)) continue;
-      seen.add(player.id);
+    for (const { player } of this.listone()) {
       const row = priced.get(player.id);
       pool.push({
         id: player.id,

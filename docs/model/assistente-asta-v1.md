@@ -1849,6 +1849,20 @@ Tre cambi, e ognuno porta la sua misura nel codice dove sta:
   quarto delle sedie è guidata dal prezzo la politica unica crolla al 28,4% contro il 74,8%. Due pick bastano
   (`HEAD_WARMUP` = 2, misurato: il warmup più lungo è peggiore). Un rivale che non ha mostrato abbastanza
   resta sulla testa di default, che è «il più caro che gli serve»: è un «non lo sappiamo» e non una scoperta.
+- **Un campetto della squadra REALE, sotto i suggerimenti** (richiesta dell'operatore, 10/08/2026): selettore
+  dei club del listone e undici disegnato sui posti tipizzati del modulo, con i giocatori **già presi ad alpha
+  0,3**. Tre cose che questa carta DICHIARA di non essere, perché altrimenti sarebbe un numero che descrive
+  una cosa sotto il nome di un'altra: non è la **board del pannello** (quella nasce dalla titolarità di
+  `presence.standing`, dal repertorio dell'allenatore e dalle decisioni per club di `board_rulings.json`, e
+  nessuna delle tre viaggia nel bundle); l'undici è quello dei **più presenti previsti** (`pv`), che è la metà
+  della previsione che porta la graduatoria (§18) ed è la grandezza giusta per «chi scende in campo»; e il
+  campetto dice la LINEA e il TIPO DI POSTO, **non il lato** — fra due posti identici l'ordine è un effetto
+  del cammino aumentante, e l'accoppiamento delle fasce è esattamente ciò che `_reshape` fa nel toolkit e qui
+  non c'è. Un posto che il listone non copre resta **vuoto** e dice quale posto è; un uomo senza presenze
+  previste non è disegnato («vuoto = ignoto»), e la didascalia conta quanti sono. La legalità è la stessa di
+  `mantra-legal.ts`, condivisa col banco: nessuna seconda definizione.
+  La via per avere la board VERA è dichiarata e non fatta: esportare la titolarità (`presence.standing` è
+  senza dipendenze e importabile) e la forma che il pannello disegna, e allora questa carta le legge.
 - **Ogni pick previsto dice quanto TOGLIEREBBE quel giocatore al rivale che lo prende** (`denies`, mostrato
   sopra i 50 fantapunti). È una NOTA e non un cambio di scelta, ed è la misura stessa a dirlo: al tasso più
   generoso difendibile per questo gioco il denial ripaga il suo costo nel 63-70% dei pick dei primi quindici

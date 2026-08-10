@@ -18,6 +18,7 @@ import { Plan, PlanPlayer, PlannedPick } from '../../core/auction-plan';
 import { per } from '../../core/auction-value';
 import { AuctionFeed, DraftStatus, KeeperMode, Zone } from '../../core/auction-feed';
 import { RoleBadge } from '../../ui/role-badge/role-badge';
+import { ClubPitch } from './club-pitch/club-pitch';
 
 const STATUS_LABEL: Record<DraftStatus, string> = {
   [DraftStatus.Loading]: 'Caricamento',
@@ -57,6 +58,7 @@ export type SortKey = keyof typeof SORTS;
 @Component({
   selector: 'app-auction',
   imports: [
+    ClubPitch,
     DecimalPipe,
     FormsModule,
     NzAlertModule,
