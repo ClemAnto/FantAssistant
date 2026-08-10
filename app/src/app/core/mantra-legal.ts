@@ -154,3 +154,35 @@ export function bestCovered<T extends Placeable>(
   }
   return best;
 }
+
+/**
+ * The best legal eleven a squad can field, by a weight - and how much it is worth.
+ *
+ * The app did not need this while it only asked «does he cover a place»; it needs it for the DENIAL note
+ * (`todolist-draft-v1.md` item 1.5), because «what taking him removes from a rival» is the difference between
+ * two elevens and nothing cheaper says the same thing.
+ *
+ * Sorting first is what makes it the BEST eleven and not merely a legal one: the matching is maximum whatever
+ * the order, but WHICH men are in it is not. A non-positive weight is not fielded - an empty place is worth
+ * more than a vote below zero - and a man with no weight at all is not fielded either, because that is
+ * «unknown», never «zero».
+ */
+export function bestElevenWorth<T extends Placeable>(
+  squad: readonly T[],
+  rules: MantraModules | null,
+  weightOf: (man: T) => number | null,
+): number {
+  if (!rules?.modules) return 0;
+  const ranked = squad
+    .filter((man) => (weightOf(man) ?? 0) > 0)
+    .sort((left, right) => (weightOf(right) ?? 0) - (weightOf(left) ?? 0));
+  let best = 0;
+  for (const name of Object.keys(rules.modules)) {
+    const places = placesOf(rules, name);
+    if (!places.length) continue;
+    const { chosen } = assign(ranked, places);
+    const total = chosen.reduce((sum, man) => sum + (weightOf(man) ?? 0), 0);
+    if (total > best) best = total;
+  }
+  return best;
+}

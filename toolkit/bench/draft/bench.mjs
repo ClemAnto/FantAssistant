@@ -21,7 +21,13 @@ export const SEEDS = [7, 42, 1234, 99, 2026, 555, 8081, 31337];
 export const FLOOR_PCT = 0.5, WORST_PCT = -2.0;
 export const NL = String.fromCharCode(10);
 
-export const loadShapes = () => JSON.parse(readFileSync(config('mantra_modules.json'), 'utf8'));
+/**
+ * The RULEBOOK of the game being played. Two files, and they must not be swapped: mantra places are typed
+ * and hybrid, classic places are macro-roles - which is the whole reason the currency has to be re-measured
+ * per game (`todolist-draft-v1.md` item 3.1) and why classic legality is not deduced from mantra by analogy.
+ */
+export const loadShapes = (game = 'mantra') =>
+  JSON.parse(readFileSync(config(game === 'classic' ? 'classic_modules.json' : 'mantra_modules.json'), 'utf8'));
 export const loadLeagues = () => JSON.parse(readFileSync(config('league_config.json'), 'utf8'));
 
 export function loadWindows(file = 'windows.json') {

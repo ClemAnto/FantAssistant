@@ -763,6 +763,28 @@ average and sum to SIXTEEN against a shape's ten outfield places, so doubling th
 of tightening it. And no price floor survives the leave-one-out cross-fit (held-out -0.05%), which retires the
 «middle way» for good: it was buying coverage indirectly, and the constraint buys it directly.
 
+**...and the same night the CLASSIC round corrected that adoption, which is what a todolist item is for**
+(§17). On the ten Serie A windows under classic legality the places-based coverage target LOSES (-1.00%,
+4/10), because there `startingPlaces` sums to exactly TEN - a classic module's places are integers, so the
+quotas already are one eleven and need no correction - and insisting on two full elevens over a pool only 20%
+larger than the draft's own demand buys weak men to cover places that were covered anyway. What ships on
+classic is the graduated quota ladder (+0.77% robust, 6/10), which is also robust on mantra (+0.70%) and is
+therefore the only one of the two with a verdict on both games; mantra keeps the places rule because it is
+worth twice as much there. **A parameter belongs to the population it was measured on, and «game» is such a
+population** - the same discipline the gate applies per platform (R19 on `default` only). The bug that made
+it visible is the one worth remembering: the panel read a modules file only for mantra, so classic was left
+UNRATIONED, which the bench prices at -4.93% - reading «no shapes loaded» as «no rule to apply» is the same
+family as reading an empty cell as a zero.
+Three more results of that round, all measured. **A rival's head can be read off his own picks**: guessing it
+predicts his next pick 82.8% of the time against 69.2% for one head for everybody, 5/5 windows, and two picks
+are enough (a longer warm-up is WORSE). **Denial pays early and never late**: at the most generous defensible
+rate for this game it repays its cost on 63-70% of the picks in the first fifteen rounds and on 0% after the
+sixteenth, so it ships as a NOTE on the predicted picks and never as a change of pick. And **«the market beats
+us at ranking» is a sentence about a PLATFORM**: on euro the Qt.I beats our value (+0.574 against +0.499), on
+Serie A we beat it (+0.475 against +0.463 over ten windows). Third instance of a conclusion written in the
+singular about a platform-dependent quantity. Meanwhile the `pv` bottleneck now holds on FIFTEEN window
+instances (5 euro + 10 default, 15/15) with the variance decomposition agreeing from another direction.
+
 ## A displayed list whose metrics describe a different list is worse than no metric
 **Found and paid for within one hour, 05/08/2026.** The estimates were merged into the rows the auction panel
 DISPLAYS while `captured`/`hits`/`predicted_rank` stayed on the gated list alone: the screen showed an estimated

@@ -86,6 +86,7 @@ export class Bundle {
   private manifestPromise?: Promise<BundleManifest>;
   private scoringPromise?: Promise<ScoringConfig>;
   private modulesPromise?: Promise<MantraModulesFile | null>;
+  private classicModulesPromise?: Promise<MantraModulesFile | null>;
   private crestsPromise?: Promise<Record<string, string>>;
 
   manifest(): Promise<BundleManifest> {
@@ -132,6 +133,23 @@ export class Bundle {
     );
     return this.modulesPromise;
   }
+  /**
+   * The CLASSIC rulebook. Same shape, different law: a classic place is a MACRO-ROLE, so its `slot_roles`
+   * map each of P/D/C/A to itself and there are no hybrid places at all. It is a separate file because
+   * classic legality is not deducible from Mantra by analogy - and the panel needs it because its own role
+   * rationing was measured PER GAME (`metrica-asta-surplus-v1.md` §17: the places-based target wins on
+   * mantra and loses on classic).
+   *
+   * Null on an older bundle that does not carry it: the panel then rations with what `startingPlaces` can
+   * say from nothing, which is «one per role, then depth». Reported, never silently treated as a rule.
+   */
+  classicModules(): Promise<MantraModulesFile | null> {
+    this.classicModulesPromise ??= fetch(`${this.base}/classic_modules.json`).then((res) =>
+      res.ok ? (res.json() as Promise<MantraModulesFile>) : null,
+    ).catch(() => null);
+    return this.classicModulesPromise;
+  }
+
 
   /** fc_club_id -> file name, written by the export next to the badges themselves. */
   crests(): Promise<Record<string, string>> {

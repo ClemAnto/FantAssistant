@@ -24,8 +24,8 @@ const POLICIES = [
 ];
 
 const table = setup(process.argv[2] ?? 'EuroLeghe');
-const windows = loadWindows();
-const shapes = loadShapes();
+const windows = loadWindows(process.argv[3] ?? 'windows.json');
+const shapes = loadShapes(table.game);
 const run = measure(POLICIES, { windows, shapes, setup: table });
 reportAgainstBaseline(run, POLICIES);
 

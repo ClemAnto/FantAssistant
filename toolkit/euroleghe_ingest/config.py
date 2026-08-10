@@ -111,6 +111,12 @@ class Config:
     # each of their eighteen slot types. Read, never measured (assistente-asta-v1 §12.3).
     mantra_modules_path: Path = field(
         default_factory=lambda: REPO_ROOT / "config" / "mantra_modules.json")
+    # The same for CLASSIC, and it is a different rulebook rather than a subset: a classic place is a
+    # MACRO-ROLE, there are no typed places and no choice of roles, so nothing about it is deducible from
+    # the Mantra file by analogy (the operator's warning, 10/08/2026). The app needs it because the role
+    # rationing of its own advice is measured per GAME - on classic the places-based target LOSES.
+    classic_modules_path: Path = field(
+        default_factory=lambda: REPO_ROOT / "config" / "classic_modules.json")
     # The operator's per-club board rulings («Napoli 2026-27 plays 4-3-3»), declared from the panel's
     # shape selector and persisted here - the same kind of fact as `league_config.json`: a judgement of
     # his, not a measurement of ours. Optional, highest-precedence for the DRAWN board only; nothing

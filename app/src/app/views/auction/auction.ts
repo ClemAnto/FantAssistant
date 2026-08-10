@@ -14,7 +14,7 @@ import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 
 import { APP_VERSION } from '../../version';
 import { AuctionAdvice, RankedPlayer } from '../../core/auction-advice';
-import { Plan, PlanPlayer } from '../../core/auction-plan';
+import { Plan, PlanPlayer, PlannedPick } from '../../core/auction-plan';
 import { per } from '../../core/auction-value';
 import { AuctionFeed, DraftStatus, KeeperMode, Zone } from '../../core/auction-feed';
 import { RoleBadge } from '../../ui/role-badge/role-badge';
@@ -277,6 +277,25 @@ export class Auction {
    */
   protected readonly sortKey = signal<SortKey>('worth');
   protected readonly sortAsc = signal(false);
+
+  /**
+   * Below how many fantapunti a denial is not worth printing.
+   *
+   * Measured (item 1.5, §17): what switching to a denial pick costs us has a median of about 10 fantapunti in
+   * the rounds where denial can pay at all, and a point taken from ONE rival is worth about a tenth of a point
+   * of ours in a table of twelve. So a denial under ~50 cannot repay even a small sacrifice, and printing it
+   * would be decoration. The number is deliberately blunt: it decides what is SHOWN, never what is chosen.
+   */
+  protected readonly denialFloor = 50;
+
+  /** What clicking a predicted pick does, and what taking him first would remove from that rival. */
+  protected denialHint(row: PlannedPick): string {
+    const base = 'Imposta questo giocatore come TUA scelta e ricalcola tutto da lì';
+    if (!(row.denies >= this.denialFloor)) return base;
+    return `${base}. Prendendolo tu, togli ${Math.round(row.denies)} fantapunti all'undici di `
+      + `${row.teamLabel} — misurato: conviene solo nei primi giri, e solo se il tuo miglior nome `
+      + 'alternativo è quasi equivalente.';
+  }
 
   /** Click once to sort by a column, again to flip it. */
   protected toggleSort(key: SortKey): void {

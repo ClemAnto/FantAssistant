@@ -14,7 +14,11 @@ import { needFor, startingPlaces, TAIL_POSITIONS, TAIL_PRICE_FLOOR } from './app
 import { legalXI } from './legal.mjs';
 
 /** The table the campaign of 10/08/2026 was measured on, kept as the default so its numbers reproduce. */
-export const PUBLISHED_SETUP = { teams: 12, rounds: 25, keepers: 3, maxAhead: 1 };
+export const PUBLISHED_SETUP = { teams: 12, rounds: 25, keepers: 3, maxAhead: 1, keeperSlot: 'por' };
+
+/** What the keeper's slot is CALLED in each game. Reading `'por'` as a literal made the cap unreachable on
+ *  classic, where the same role is `p` - and an unreachable cap is a rival taking a fourth keeper. */
+export const KEEPER_SLOT = { mantra: 'por', classic: 'p' };
 
 /**
  * The same three numbers read from a DECLARED league instead of assumed (item 3.3).
@@ -32,13 +36,15 @@ export function setupFrom(leagueConfig, name) {
   const slots = league.squad_slots ?? leagueConfig.squad_slots ?? {};
   const rounds = Object.values(slots).reduce((a, b) => a + b, 0);
   const keepers = slots.P ?? 3;
+  const game = league.game ?? leagueConfig.game ?? 'classic';
   return {
     teams: league.teams ?? leagueConfig.teams,
     rounds,
     keepers,
     maxAhead: 1,
     platform: league.platform,
-    game: league.game,
+    game,
+    keeperSlot: KEEPER_SLOT[game] ?? 'por',
     name,
   };
 }
@@ -68,6 +74,16 @@ export const KIND = {
 /** The default table: 2 heads like ours, 4 with personal judgements, the rest on the price. */
 export const MIXED = (i) => (i % 6 === 0 ? 'surplus' : (i % 3 === 0 ? 'giudizio' : 'prezzo'));
 
+/**
+ * A table with ALL FOUR heads at it, three seats each.
+ *
+ * `MIXED` is the model of the operator's real table and it contains no `valore` head at all, so a classifier
+ * judged only on it is never asked to recognise one (found while measuring item 1.4 - a hole that is invisible
+ * from inside the run). This table exists to ask that question and NOT to replace `MIXED`: the published
+ * numbers are about the real table.
+ */
+export const EVERY_KIND = (i) => ['prezzo', 'giudizio', 'surplus', 'valore'][i % 4];
+
 export const stat = (xs) => {
   const m = xs.reduce((a, b) => a + b, 0) / xs.length;
   const sd = Math.sqrt(xs.reduce((a, b) => a + (b - m) ** 2, 0) / (xs.length - 1));
@@ -93,40 +109,79 @@ const ahead = (a, b, maxAhead) => {
  */
 export const THETA = { value: () => 0, surplus: () => 1 };
 
+/**
+ * What a HEAD would take out of this pool, and the only place that arithmetic exists.
+ *
+ * `quality(p)` is the currency, `need` the rationing, `floor` the credits added under the price. It is at
+ * module level so that whoever wants to ASK the question - the draft itself, or a harness trying to guess a
+ * rival's head from his past picks (item 1.4) - asks the same function. Allocation-free on purpose: it runs
+ * once per candidate per pick, twelve thousand picks per policy per window.
+ */
+export function bestUnder({ team, pool, places, keeperCap, tail, quality, need, floor = Infinity, ctx }) {
+  const keeperSlot = ctx?.keeperSlot ?? 'por';
+  const keepers = team.slots.filter((s) => s === keeperSlot).length;
+  let best = null, score = -Infinity;
+  for (const p of pool) {
+    if (p.slot === keeperSlot && keepers >= keeperCap) continue;
+    const want = need(team, p, places, ctx);
+    if (want <= 0) continue;
+    const q = quality(p);
+    // At the end of a round the price is a price again for everybody: points per credit, price smoothed.
+    const value = tail ? (q * want) / (p.price + TAIL_PRICE_FLOOR)
+                       : (floor === Infinity ? q * want : (q * want) / (p.price + floor));
+    if (value > score) { score = value; best = p; }
+  }
+  return best;
+}
+
+/** The same scores, sorted, for a harness that needs WHERE a man came rather than who won. */
+export function rankUnder(args) {
+  const { team, pool, places, keeperCap, tail, quality, need, floor = Infinity, ctx } = args;
+  const keeperSlot = ctx?.keeperSlot ?? 'por';
+  const keepers = team.slots.filter((s) => s === keeperSlot).length;
+  const rows = [];
+  for (const p of pool) {
+    if (p.slot === keeperSlot && keepers >= keeperCap) continue;
+    const want = need(team, p, places, ctx);
+    if (want <= 0) continue;
+    const q = quality(p);
+    rows.push({ player: p, score: tail ? (q * want) / (p.price + TAIL_PRICE_FLOOR)
+                                       : (floor === Infinity ? q * want : (q * want) / (p.price + floor)) });
+  }
+  rows.sort((a, b) => b.score - a.score);
+  return rows;
+}
+
 /** The draft of ONE listone, at ONE league setup. */
 export function makeDraft(players, shapes, setup = PUBLISHED_SETUP) {
   const places = startingPlaces(shapes);
   const { teams: TEAMS, rounds: ROUNDS, keepers: KEEPERS, maxAhead: MAX_AHEAD } = setup;
+  const KEEPER_SLOT_HERE = setup.keeperSlot ?? 'por';
 
   const pickFor = (team, pool, kind, noiseAt, placesFromEnd, policy, round, slotsLeft) => {
-    const keepers = team.slots.filter((s) => s === 'por').length;
-    const tail = placesFromEnd <= TAIL_POSITIONS;
-    const need = policy?.need ?? appNeed;
-    const floor = policy?.floor ?? Infinity;
     // The context every hook shares. `pool` and `slotsLeft` are in it because the app's own currency (the
     // net, surplus minus lambda x price) is a property of the POOL and not of the man - so a bench row that
     // claims to be «the panel as it ships» has to be able to compute it.
-    const ctx = { round, rounds: ROUNDS, keepers: KEEPERS, shapes, pool, slotsLeft, teams: TEAMS };
-    const ranked = policy?.restrict ? policy.restrict(pool, ctx) : pool;
-    let best = null, score = -Infinity;
-    for (const p of ranked) {
-      if (p.slot === 'por' && keepers >= KEEPERS) continue;
-      const want = need(team, p, places, ctx);
-      if (want <= 0) continue;
-      const quality = policy ? policy.currency(p, { ...ctx, team }) : KIND[kind](p, noiseAt(p.id));
-      // At the end of a round the price is a price again for everybody: points per credit, price smoothed.
-      const value = tail ? (quality * want) / (p.price + TAIL_PRICE_FLOOR)
-                         : (floor === Infinity ? quality * want : (quality * want) / (p.price + floor));
-      if (value > score) { score = value; best = p; }
-    }
-    return best;
+    const ctx = { round, rounds: ROUNDS, keepers: KEEPERS, shapes, pool, slotsLeft, teams: TEAMS,
+                  keeperSlot: KEEPER_SLOT_HERE };
+    return bestUnder({
+      team,
+      pool: policy?.restrict ? policy.restrict(pool, ctx) : pool,
+      places,
+      keeperCap: KEEPERS,
+      tail: placesFromEnd <= TAIL_POSITIONS,
+      quality: policy ? (p) => policy.currency(p, { ...ctx, team }) : (p) => KIND[kind](p, noiseAt(p.id)),
+      need: policy?.need ?? appNeed,
+      floor: policy?.floor ?? Infinity,
+      ctx,
+    });
   };
 
   /**
    * One draft. `seat` is us; `policy` is our head; every rival runs `table(i)`'s KIND with the app's own
    * need weighting and no floor - a rival is not assumed to have our discipline either.
    */
-  return function draft({ seat, seed, policy, table = MIXED }) {
+  return function draft({ seat, seed, policy, table = MIXED, observe = null }) {
     const random = rng(seed);
     const noise = new Map();
     const noiseAt = (id) => { if (!noise.has(id)) noise.set(id, random()); return noise.get(id); };
@@ -149,6 +204,12 @@ export function makeDraft(players, shapes, setup = PUBLISHED_SETUP) {
         const choice = id === seat
           ? pickFor(team, pool, null, noiseAt, fromEnd, policy, round, slotsLeft)
           : pickFor(team, pool, kinds[id], noiseAt, fromEnd, null, round, slotsLeft);
+        // The harness sees the state a predictor would have: this team, this pool, this position in the
+        // round - and then what actually happened. It is called BEFORE the pool shrinks, on purpose.
+        if (observe) {
+          observe({ team, teams, pool, places, round, fromEnd, slotsLeft, keeperCap: KEEPERS,
+                    kind: kinds[id], isMine: id === seat, choice });
+        }
         if (!choice) continue;
         pool = pool.filter((p) => p.id !== choice.id);
         teams = teams.map((t) => (t.id === id

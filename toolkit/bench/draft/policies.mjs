@@ -41,7 +41,7 @@ export const NET = (p, ctx) => {
  * replacement `por` is 4.36 of fantamedia against `pc` 7.29. So the hypothesis is not «the surplus is
  * wrong», it is «the surplus is right where the constraint is».
  */
-export const HYBRID = (p) => (p.slot === 'por' ? p.surplus : p.value);
+export const HYBRID = (p, ctx) => (p.slot === (ctx?.keeperSlot ?? 'por') ? p.surplus : p.value);
 
 /** The interpolation the campaign used, kept because the two are the same number bar one term. */
 export const blend = (theta) => (p, ctx) => {
@@ -172,10 +172,11 @@ export const COVERAGE = [
  * two questions the rulebook separates: WHETHER to spend a pick on a keeper is decided by the value, WHICH
  * keeper is decided by the surplus, and neither number is ever compared with the other.
  */
-const keeperBySurplus = (pool) => {
+const keeperBySurplus = (pool, ctx) => {
+  const keeper = ctx?.keeperSlot ?? 'por';
   let best = null;
-  for (const p of pool) if (p.slot === 'por' && (!best || p.surplus > best.surplus)) best = p;
-  return best ? pool.filter((p) => p.slot !== 'por' || p.id === best.id) : pool;
+  for (const p of pool) if (p.slot === keeper && (!best || p.surplus > best.surplus)) best = p;
+  return best ? pool.filter((p) => p.slot !== keeper || p.id === best.id) : pool;
 };
 
 export const CURRENCY = [

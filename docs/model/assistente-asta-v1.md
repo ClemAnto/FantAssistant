@@ -1838,6 +1838,21 @@ Tre cambi, e ognuno porta la sua misura nel codice dove sta:
   chiude l'item 1.1 con una correzione: **il bersaglio non è `startingPlaces × 2`**, perché quelle quote sono
   il *ceil* di una media e sommano 16 contro i 10 posti di un modulo, quindi raddoppiarle spegne la regola
   invece di stringerla. Quello che il regolamento raziona è un POSTO.
+  **Su MANTRA soltanto** (misurato la notte stessa, §17.3): sotto legalità classic la stessa regola perde
+  (−1,00%, 4/10) perché lì `startingPlaces` somma già esattamente dieci, e quello che spedisce è la **quota
+  graduata** (1 fino alla quota, `QUOTA_DEPTH` = 0,7 fino al doppio, 0,35 dopo): +0,77% robust su classic,
+  +0,70% robust su mantra, l'unica delle due con un verdetto su entrambi i giochi. Il razionamento è deciso
+  dal GIOCO e non da quali forme sono state caricate — leggere «nessuna forma» come «nessun razionamento»
+  aveva lasciato classic senza razionamento per un giorno, che il banco prezza −**4,93%**.
+- **La testa di ogni rivale è stimata dai suoi pick** (`classifyRivals`): prevede la sua scelta successiva
+  l'**82,8%** delle volte contro il 69,2% della politica unica, 5/5 finestre, e su un tavolo dove solo un
+  quarto delle sedie è guidata dal prezzo la politica unica crolla al 28,4% contro il 74,8%. Due pick bastano
+  (`HEAD_WARMUP` = 2, misurato: il warmup più lungo è peggiore). Un rivale che non ha mostrato abbastanza
+  resta sulla testa di default, che è «il più caro che gli serve»: è un «non lo sappiamo» e non una scoperta.
+- **Ogni pick previsto dice quanto TOGLIEREBBE quel giocatore al rivale che lo prende** (`denies`, mostrato
+  sopra i 50 fantapunti). È una NOTA e non un cambio di scelta, ed è la misura stessa a dirlo: al tasso più
+  generoso difendibile per questo gioco il denial ripaga il suo costo nel 63-70% dei pick dei primi quindici
+  giri e nello **0%** dopo il sedicesimo.
 - **Le tre strisce sono razionate come il nostro pick** (`planRoots` riceve lo stesso `need`), altrimenti
   «un altro reparto» offriva un quarto centrale che il piano sotto rifiutava di prendere — una lista mostrata
   le cui metriche descrivono un'altra lista, che è un difetto già pagato una volta.
@@ -1868,11 +1883,18 @@ non ha un verdetto.
   prezzate dal motore e 325 stimate. Nota da non perdere: su `default` non è adottato R0c, quindi chi ha meno
   di 15 voti **non ha `engine_*` e ha `est_*`** — la colonna è vuota per costruzione, non per omissione.
 - ~~Il consiglio ordina per netto/surplus~~ → ordina per valore e raziona per copertura (§26.2).
-- **La testa dei rivali è ancora una sola politica per tutti** («il più caro che gli serve», più la coda
-  punti-per-credito): stimarla dai pick che ognuno ha fatto è l'item 1.4 e non è misurata.
-- **Il valore di BLOCCO** (togliere l'ultimo `Dc` che completerebbe l'undici di un avversario) è l'item 1.5:
-  il banco saprebbe calcolarlo, nessuno ha misurato se e quando il denial batta il proprio miglior pick.
-- **La strategia porta in modalità porte** (item 1.6): il piano tratta ancora i portieri come slot anche
-  quando `keeperMode = 'goals'`, dove l'unità è il club. Da fare, e non richiede una misura nuova: è la
-  regola di lega già scritta nella §14.1 che il piano non legge.
+- ~~La testa dei rivali è una sola politica per tutti~~ → stimata per rivale (§26.2). Quello che resta
+  NON misurato è la regola della **coda** del giro: i due bracci della misura la condividono, quindi non dice
+  niente su di essa, e resta sulla nostra valutazione con l'assunzione dichiarata.
+- ~~Il valore di BLOCCO non è misurato~~ → misurato e mostrato come nota (§26.2). Non entra nella scelta.
+- ~~La strategia porta in modalità porte~~ → fatta (una riga per porta, §26.4 dell'elenco precedente).
+- **Il calendario dentro l'orizzonte** (item 2.5) NON è misurabile sul banco, e le due ragioni sono misurate:
+  su una stagione intera il calendario è identico per tutti (girone all'italiana), e `fixtures` contiene solo
+  2026-27, quindi per le finestre storiche non esiste nessun calendario. Avvertimento che ne deriva per il
+  pannello: `desc_easy_matches` e `desc_calendar_margin` hanno senso sulla finestra `from`–`to`, mai sulla
+  stagione.
+- **Un candidato nuovo, segnato e non adottato**: fra gli uomini che stanno per sparire, nel **57,3%** dei
+  nostri pick ce n'è uno che alza il nostro undici almeno quanto la scelta della politica — cioè «valore ×
+  copertura» e «il massimo guadagno marginale sull'undici» non sono lo stesso obiettivo, e il secondo non è
+  mai stato misurato come politica.
 - Resta aperta la §11.8 punto 1 (l'FVM si congela alla data del draft o si rilegge?).

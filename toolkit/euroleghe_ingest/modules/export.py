@@ -583,11 +583,13 @@ def run(ctx: Context, *, season: str | None = None, out: str | None = None,
     # fixes the auction's replacement level, and the Mantra modules are the GAME's own rules - which is
     # what says how many men of each role a squad actually fields (§13.3). Without the modules the app
     # can only split a roster by macro-role quotas, and that reads «the league will buy all 124 left
-    # backs»: measured 10/08/2026, it doubled the surplus of the best `ds` in the listone.
+    # backs»: measured 10/08/2026, it doubled the surplus of the best `ds` in the listone. The CLASSIC
+    # rulebook travels for the same reason and is not the same file: its places are macro-roles, and the
+    # panel's own rationing was measured to need a different rule there (metrica-asta-surplus-v1 §17).
     config_out = folder / "config"
     config_out.mkdir(parents=True, exist_ok=True)
     for source in (ctx.config.scoring_config_path, ctx.config.league_config_path,
-                   ctx.config.mantra_modules_path):
+                   ctx.config.mantra_modules_path, ctx.config.classic_modules_path):
         try:
             _atomic_write_bytes(config_out / source.name, source.read_bytes())
         except OSError as exc:

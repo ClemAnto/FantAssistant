@@ -65,11 +65,16 @@ for key in windows:
     rows = []
     for pred in preds:
         obs = pred.obs
+        # The SLOT is in the vocabulary the game is played with, because that is the vocabulary the
+        # replacement levels come back in: `por`..`pc` on mantra, `P`/`D`/`C`/`A` on classic. Lowercasing the
+        # classic one made `replacement.get('p')` miss on every row and the extraction wrote 0 players in all
+        # ten windows - the project's own «an asymmetry between two artifacts is a key that does not match».
         if mantra:
             roles = [r.lower() for r in (obs.roles_mantra or ()) if r]
+            slot = roles[0] if roles else (obs.role_classic or "").lower()
         else:
-            roles = []
-        slot = roles[0] if roles else (obs.role_classic or "").lower()
+            slot = obs.role_classic or ""
+            roles = [slot.lower()] if slot else []
         rep = (data.replacement or {}).get(slot)
         pair = quotes.get(obs.fc_id)
         price = pair[0] if pair else None
@@ -78,7 +83,9 @@ for key in windows:
         if obs.fm_act is None or obs.pv_act is None:
             continue
         rows.append({
-            "id": obs.fc_id, "name": obs.name, "slot": slot, "roles": roles or [slot],
+            # `slot` lowercase for the bench (its module files spell places in either case and `placesOf`
+            # lowercases them), `roles` complete - on classic that is one macro-role and that IS the legality.
+            "id": obs.fc_id, "name": obs.name, "slot": slot.lower(), "roles": roles or [slot.lower()],
             "price": float(price),
             "fvm": float(pair[1]) if pair[1] else None,      # ARCHIVED: it has already seen the season
             "fm_prev": float(obs.fm_prev) if obs.fm_prev is not None else None,

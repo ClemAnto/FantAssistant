@@ -22,6 +22,8 @@ import {
   PlanPlayer,
   PlanRoot,
   PlanTeam,
+  RivalHead,
+  classifyRivals,
   coverNeedOf,
   plan,
   planRoots,
@@ -386,6 +388,64 @@ export class AuctionAdvice {
     this.chosenRoot.set(playerId);
   }
 
+  /**
+   * What each rival ranks by, guessed from the picks he has already made.
+   *
+   * Measured on the five gate windows (§17): it predicts a rival's next pick 82.8% of the time against
+   * 69.2% for one head for all. It reads `feed.picks()`, so it is recomputed when a pick arrives and not
+   * when a row is read - the replay walks the whole draft and is not free.
+   *
+   * The pool it replays against is the whole session listone and not the free men: a man taken in round two
+   * WAS available in round two, and scoring a head against a pool he never faced would grade it on a
+   * counterfactual.
+   */
+  readonly rivalHeads = computed<Map<number, RivalHead>>(() => {
+    const mineId = this.feed.followedTeamId();
+    if (mineId === null || !this.shapes()) return new Map();
+    const numbers = this.numbers();
+    const priced = new Map(this.priced().map((row) => [row.player.id, row]));
+    // Every man of the session's listone, free or taken: `available()` plus what the squads hold. A man
+    // taken in round two WAS available in round two, so a replay against the free pool alone would grade
+    // every head on a counterfactual - and the taken men are exactly the evidence.
+    const everyone: AuctionPlayer[] = [...this.feed.available()];
+    for (const team of this.feed.teams()) {
+      for (const entry of team.squad) if (entry.player) everyone.push(entry.player);
+    }
+    const seen = new Set<number>();
+    const pool: PlanPlayer[] = [];
+    for (const player of everyone) {
+      if (seen.has(player.id)) continue;
+      seen.add(player.id);
+      const row = priced.get(player.id);
+      pool.push({
+        id: player.id,
+        name: player.name,
+        club: player.club,
+        slot: numbers.get(player.id)?.slot ?? null,
+        roles: player.roles,
+        price: player.fvm,
+        net: row?.surplus ?? null,
+        surplus: row?.surplus ?? null,
+        value: row?.value ?? null,
+      });
+    }
+    if (!pool.length) return new Map();
+    return classifyRivals({
+      picks: this.feed.picks().map((pick) => ({ teamId: pick.teamId, playerId: pick.playerId })),
+      pool,
+      places: startingPlaces(this.shapes()),
+      keeperCap: this.keeperSlots(),
+      mineId,
+    });
+  });
+
+  /** How many keepers a squad may hold, as the session states it. */
+  private readonly keeperSlots = computed(() => {
+    const roles = this.feed.league()['roles'] ?? {};
+    const slots = Array.isArray(roles['gk']) ? roles['gk'][1] : (roles['gk'] ?? 3);
+    return Number(slots) || 3;
+  });
+
   /** The inputs a plan needs, gathered once: the roots and the plans share them. */
   private readonly planInput = computed(() => {
     const mineId = this.feed.followedTeamId();
@@ -426,6 +486,9 @@ export class AuctionAdvice {
         held: team.squad
           .filter((entry) => entry.player?.roles?.length)
           .map((entry) => ({ roles: entry.player!.roles.map((role) => role.toLowerCase()) })),
+        heldIds: team.squad
+          .filter((entry) => entry.player?.roles?.length)
+          .map((entry) => entry.player!.id),
         rosterValue: team.spent,
         pickValues: team.squad.map((entry) => entry.cost),
         picksCount: team.squad.length,
@@ -447,6 +510,7 @@ export class AuctionAdvice {
             // The goal costs what its dearest keeper costs: that is the bid the table would receive.
             price: porta ? porta.price : row.price,
             net: row.net ?? row.surplus,
+            surplus: row.surplus,
             value: row.value,
           };
         }) as PlanPlayer[],
@@ -458,6 +522,11 @@ export class AuctionAdvice {
       // that as a mistake (`myStrayKeeperPicks`) rather than counting it.
       keeperCap: Number(keeperSlots) || 3,
       maxAheadPicks: Number(this.feed.draftRules()?.['maxAheadPicks'] ?? 1) || 1,
+      heads: this.rivalHeads(),
+      game: (this.feed.isMantra() ? 'mantra' : 'classic') as 'mantra' | 'classic',
+      // What a man is worth to whoever holds him. The same VALUE the panel ranks by, because the question a
+      // denial answers is about the football and not about the rival's opinion of it.
+      worthOf: (playerId: number) => valueOf(valuationOf(numbers.get(playerId))),
     };
   });
 
@@ -474,7 +543,8 @@ export class AuctionAdvice {
     const rivalValues: number[] = [];
     for (const team of input.teams) {
       if (team.id === input.mineId) continue;
-      const choice = predictRivalPick(team, pool, places, input.keeperCap);
+      const choice = predictRivalPick(team, pool, places, input.keeperCap, Infinity,
+                                      input.heads?.get(team.id));
       if (choice) pool = pool.filter((player) => player.id !== choice.id);
       rivalValues.push(team.rosterValue + (choice?.price ?? 0));
     }
@@ -487,7 +557,8 @@ export class AuctionAdvice {
       keepWithin: Math.ceil((rivalValues.length + 1) / 2),
       // All three directions are rationed the way our own pick is, or the strips would offer a fourth
       // centre-back as «un altro reparto» while the plan below refuses to take him.
-      need: coverNeedOf(mine?.held ?? [], input.shapes),
+      need: coverNeedOf(mine?.held ?? [], input.shapes, input.game),
+      mine,
     });
   });
 
@@ -567,7 +638,9 @@ export class AuctionAdvice {
       this.entry.set(chosen);
       this.numbers.set(best);
       this.coverage.set({ matched, total: wanted.size });
-      this.shapes.set(game === 'mantra' ? await this.bundle.modules() : null);
+      // BOTH rulebooks matter now: the panel's own rationing was measured per GAME, so on classic it
+      // needs the classic places rather than nothing at all (measured: no rationing costs 4.93%).
+      this.shapes.set(game === 'mantra' ? await this.bundle.modules() : await this.bundle.classicModules());
       this.measured.set(await this.lastSeason(chosen, manifest.input_season));
       const notes: string[] = [];
       if (chosen.teams !== teams) {

@@ -742,3 +742,182 @@ fuori da euro, e ora è scritto **col numero** invece che «vuota alla fonte».
 - I rivali restano il **modello** del tavolo, e nessuno di loro raziona per copertura: il margine si
   assottiglia se un avversario adotta la stessa regola. Ora che la regola è nel repo, è più facile che accada.
 - Nessuna riga di `engine_*` si muove. Il gate non è stato attraversato: si misurano POLITICHE di scelta.
+
+## 17. Le teste dei rivali, il valore di blocco, e il giro su CLASSIC che ha corretto un'adozione (10 agosto 2026, notte)
+
+**Seconda passata sulla [todolist-draft-v1.md](todolist-draft-v1.md): item 1.4, 1.5, 3.1, 2.5.** Tre misure e
+un rifiuto di misurare. La più importante delle quattro **corregge quello che il §16 aveva appena adottato**,
+ed è la ragione per cui il giro su classic era in lista.
+
+### 17.1 Item 1.4 — la testa di ogni rivale si legge dai suoi pick, e vale 13 punti di previsione
+
+Il pannello assume UNA testa per tutti («il più caro che gli serve»). Il candidato: indovinare la testa di
+ognuno dalle scelte che ha già fatto, e prevedere con quella. Banco: `heads.mjs`, cinque finestre, tavolo con
+teste vere miste, valutato sulla **quota di pick avversari indovinati** — che è il metro che l'item chiede,
+perché la testa stimata cambia quello che il pannello MOSTRA e non quello che consiglia (la nostra scelta è
+miope per costruzione).
+
+| predittore | Tm4 | Tm3 | T0 | T1 | T2 | media | vinte |
+|---|---|---|---|---|---|---|---|
+| pannello: sempre «il più caro» | 69,5% | 69,4% | 68,9% | 68,8% | 69,6% | 69,2% | — |
+| **testa stimata, warmup 2** | 83,4% | 82,9% | 82,5% | 82,3% | 82,9% | **82,8%** | **5/5** |
+| testa stimata, warmup 4 | 82,2% | 81,7% | 81,3% | 81,3% | 81,7% | 81,7% | 5/5 |
+| testa stimata, warmup 8 | 79,8% | 79,4% | 79,0% | 78,9% | 79,4% | 79,3% | 5/5 |
+| APP: evidenza senza coda | 83,2% | 82,9% | 82,5% | 82,3% | 82,7% | 82,7% | 5/5 |
+
+**+13,6 punti, 5/5, e il warmup più corto è il migliore** (due pick bastano a distinguere una testa a surplus
+da una a prezzo, e ogni pick in più speso sulla testa di default è un pick previsto con la testa sbagliata).
+Classificazione a fine draft: `prezzo` 100%, `surplus` 100%, `valore` 100%, `giudizio` → letto come `prezzo`
+nel 93-95% — che non è un errore ma **l'informazione che il tavolo non emette**: il suo rumore è per
+giocatore e privato, quindi di lui è conoscibile solo la parte sistematica, il prezzo.
+
+Tre cose che valgono più del numero.
+
+**Un buco della misura invisibile da dentro la misura.** Il tavolo di default (`MIXED`, il modello del tavolo
+vero) non contiene NESSUNA testa a valore, quindi il classificatore non era mai stato interrogato su una.
+Aggiunto un tavolo con tutte e quattro (`EVERY_KIND`, tre sedie a testa) la riconosce al 100% — e su quel
+tavolo la politica unica **crolla al 28,4% contro il 74,8%**. Il che dice anche quanto vale l'assunzione
+attuale: regge solo perché il tavolo vero è in maggioranza guidato dal prezzo.
+
+**Una discrepanza fra ciò che è misurato e ciò che spedisce, chiusa con un numero.** Nel banco l'evidenza è
+punteggiata con la regola della coda; nell'app la posizione nel giro non è ricostruibile da una lista di
+pick, quindi il classificatore la ignora. Misurata invece che assunta: **82,7% contro 82,8%**, la cecità
+sulla coda non costa niente.
+
+**Quello che NON è stato toccato, e per una ragione.** La regola della coda resta com'era (i punti per
+credito sulla NOSTRA valutazione). I due bracci della misura la condividono, quindi la misura non dice niente
+su di essa — e «la sua moneta per credito» renderebbe un rivale guidato dal prezzo affamato del più CARO in
+coda (`prezzo/(prezzo+pavimento)` cresce col prezzo), che è l'opposto dell'incentivo per cui la regola
+esiste. Misurare la coda è una domanda a sé e non è stata posta.
+
+### 17.2 Item 1.5 — il denial paga PRESTO, e mai tardi
+
+`block.mjs`. La prima versione della diagnostica **era sbagliata e vale come lezione**: definiva il denial
+come «il massimo che qualunque rivale guadagnerebbe da lui», che è un numero su un contro-fattuale che nessuno
+affronta — e faceva sembrare l'84% dei pick un caso da denial. Il denial vale qualcosa **solo se quel
+giocatore sparirebbe davvero** prima del nostro turno successivo: se resta lì lo prendiamo poi, e prenderlo
+adesso non compra niente. Riscritta sulla sequenza VERA dei pick della stessa asta:
+
+- `ourGain(X)` = miglior XI(nostra rosa + X) − miglior XI(nostra rosa)
+- `denial(X)` = quanto guadagna il rivale che lo ha PRESO davvero, zero se nessuno lo prende
+- `cost(X)` = `ourGain(B) − ourGain(X)`, con B la scelta della politica adottata
+
+Il tasso di cambio è la risposta, non un sì/no: in questo gioco incontri ogni rivale una volta a giornata,
+quindi un punto tolto a UNO di loro vale circa 1/(squadre−1) del nostro — il denial deve essere **11 volte**
+più grande di quello che rinunciamo.
+
+| pick | n | «free» | reali | paga @1 | paga @11x | mediana | p90 | denial | costo |
+|---|---|---|---|---|---|---|---|---|---|
+| tutti | 747 | 57,3% | 319 | 86,2% | 56,4% | 14,11 | 51,38 | 144,53 | 10,47 |
+| giri 1-5 | 147 | 34,0% | 97 | 100% | 62,9% | 14,57 | 69,91 | 185,92 | 13,03 |
+| giri 6-15 | 300 | 43,0% | 171 | 100% | 69,6% | 17,94 | 53,51 | 140,08 | 7,70 |
+| **giri 16+** | 300 | 83,0% | 51 | 13,7% | **0,0%** | 0,19 | 1,04 | 16,84 | 119,68 |
+
+**Il denial paga nei primi due terzi del draft e non paga più nell'ultimo**, e va letto sul MECCANISMO e non
+sul rapporto: 144/11 = 13,1 contro un costo di 10,5. Il rapporto è un numero grande su uno piccolo — il
+valore di un giocatore intero sopra la distanza fra due candidati che valutiamo quasi uguali — quindi con
+mille uomini sulla lavagna un quasi-pareggio esiste sempre e il rapporto esplode per costruzione. Il margine
+vero è **un quarto** (tutti i giri) a **due terzi** (giri 6-15) del costo: reale, non un ordine di grandezza.
+Dopo il giro 16 il costo esplode a 119,7 perché chi se ne va vale poco e le nostre alternative valgono molto.
+
+**Deliverable, quello che l'item chiedeva:** una NOTA nel consiglio, non un cambio di scelta. Ogni pick
+previsto porta `denies` — i fantapunti che il suo undici guadagnerebbe — e il pannello lo mostra sopra i 50,
+sotto i quali non ripagherebbe nemmeno un piccolo sacrificio. Un bias dichiarato: un uomo che il foglio non
+sa prezzare non è schierato nell'undici del rivale («vuoto = ignoto»), quindi la sua rosa mostra posti vuoti
+e il denial è un LIMITE SUPERIORE, tanto più largo quanto meno della sua rosa sappiamo prezzare (sul listone
+Serie A il motore rifiuta 111 uomini su 433).
+
+**E un candidato NUOVO che questa misura ha fatto emergere**, segnato e non adottato: il 57,3% di «free» dice
+che fra gli uomini che stanno per sparire ce n'è uno che alza il NOSTRO undici almeno quanto la scelta della
+politica. Non è un'evidenza sul denial: è un'evidenza che **valore × copertura e «il massimo guadagno
+marginale sull'undici» non sono lo stesso obiettivo**. Il secondo non è mai stato misurato come politica.
+
+### 17.3 Item 3.1 — il giro su CLASSIC, e l'adozione del §16.2 va ristretta
+
+Dieci finestre Serie A (Tm7…T2), lega `Leghe` (default/classic, 10 squadre, 25 giri), legalità classic dai
+sette moduli di `config/classic_modules.json`. **Un limite che va detto prima dei numeri:** il motore prezza
+**301 uomini su 433** (111 sono sotto i 15 voti, e su `default` non è adottato R0c che li ancorerebbe), e il
+draft ne consuma 250 — il pool è più grande della domanda solo del 20%, quindi gli ultimi giri sono quasi
+forzati e le differenze fra politiche si comprimono. Non invalida il confronto (ogni politica affronta lo
+stesso pool) ma spiega le ampiezze.
+
+**L'ipotesi dell'item era che il surplus si comportasse molto meglio su classic. Direzione giusta, non
+abbastanza:** guadagno sui nostri punti a giornata contro il VALORE, dieci finestre, media **−0,50%, 5/10**
+(contro −1,48% e 1/5 su mantra). Si avvicina alla parità e vince metà delle finestre, ma non supera il valore
+e non ha verdetto. **L'ibrida letterale è respinta anche qui** (−2,94%, 0/10) e l'ibrida per scelta interna è
+esattamente zero su sette finestre (−0,17%): su classic «quale portiere» non cambia quasi nulla. Quindi **la
+moneta non cambia per gioco: è il VALORE su entrambi.**
+
+**E poi la correzione, che è il risultato più importante della notte.** La regola di copertura adottata nel
+§16.2 — coprire due undici, contata sui POSTI — su classic **PERDE**:
+
+| candidato | media su 10 finestre | vinte | verdetto |
+|---|---|---|---|
+| **quote ×2 graduata** (1 / 0,7 / 0,35) | **+0,77%** | 6/10 | **robust** |
+| posti ×1: un undici | +0,22% | 7/10 | — |
+| quote ×2 morbida | −0,87% | 3/10 | — |
+| **posti ×2: due undici** (adottata su mantra) | **−1,00%** | 4/10 | — |
+| posti ×2 VINCOLO (0 fuori) | −3,19% | 1/10 | — |
+| nessuna copertura (peso 1) | −4,93% | 1/10 | — |
+| PANNELLO OGGI: netto, 0 razionamento | −30,82% | 0/10 | — |
+
+Il meccanismo è leggibile e non è un mistero: su classic `startingPlaces` somma **esattamente dieci** (d4 c4
+a2), perché i posti di un modulo classic sono interi e le quote medie sono già un undici — non c'è il *ceil*
+che su mantra gonfia la somma a sedici. Quindi la quota per ruolo è già ben calibrata, e imporre due undici
+INTERI su un pool più grande della domanda del 20% compra uomini debolissimi per coprire posti che sarebbero
+stati coperti comunque.
+
+**Cosa è stato adottato, e la forma della decisione.** La **quota graduata** è l'unica regola con un verdetto
+su entrambi i giochi (+0,70% su mantra dove è la runner-up, +0,77% su classic dove vince), quindi è quella che
+spedisce su CLASSIC; su mantra resta la regola sui posti, che lì vale il doppio. Un parametro appartiene alla
+popolazione su cui è stato misurato — e il gate fa la stessa cosa quando l'evidenza cambia per piattaforma
+(R19 adottata su `default` e non su euro). La cosa da NON fare era lasciare l'adozione di mantra a decidere
+per un gioco che la misura dice essere l'opposto.
+
+**Un difetto che questa misura ha scoperto nel codice appena scritto:** l'app leggeva i moduli SOLO per
+mantra, quindi dopo il §16 su classic non razionava affatto — la riga da **−4,93%**. Adesso il bundle porta
+anche `classic_modules.json` (aggiunto al contratto di `export`) e il razionamento è deciso dal GIOCO e non
+da «quali forme sono state caricate». Leggere «nessuna forma» come «nessun razionamento» è la stessa famiglia
+di «vuoto = zero».
+
+**E un fatto scomodo che va lasciato in piedi: su classic il nostro posto perde contro la media dei rivali**
+— il valore fa **−2,6%** a giornata (2/10) e ogni politica provata è negativa. Non è un difetto del
+razionamento (la base `needFor` fa −1,4%): è che su Serie A, con un pool appena più grande della domanda e
+sei sedie su dieci guidate dal Qt.I, il vantaggio informativo è sottile. Su mantra le stesse politiche stanno
+sopra la media (+2,1%).
+
+### 17.4 Il mercato ci batte SU EURO, non su Serie A — e la conclusione era scritta al singolare
+
+Misurato con lo stesso `signal.py` sulle dieci finestre di `default` (§7-octovicies(a) lo aveva fatto sulle
+cinque di euro):
+
+| segnale | euro (5 finestre) | default (10 finestre) |
+|---|---|---|
+| `pv_pred` | +0,459 | +0,426 (**10/10** contro `fm_pred`) |
+| `fm_pred` | +0,259 | +0,283 |
+| `value` = fm × pv | +0,499 | **+0,475** |
+| Qt.I | **+0,574** | +0,463 |
+
+Due conclusioni, e la seconda è una correzione. **Il collo di bottiglia `pv` regge su quindici istanze
+finestra** (5 euro + 10 default), 15/15, e con la varianza a dirlo da un'altra strada (85-91% su default).
+E **«il mercato ci batte nel classificare» è una frase su una PIATTAFORMA**: su euro il Qt.I ci batte
+(+0,574 contro +0,499), su Serie A lo battiamo noi (+0,475 contro +0,463). È la terza volta che una
+conclusione di questo progetto viene scritta al singolare su una quantità che dipende dalla piattaforma —
+il CLAUDE.md lo elenca già come difetto ricorrente, e questa volta la correzione arriva dalla misura e non
+da una rilettura.
+
+### 17.5 Item 2.5 — il banco NON può rispondere, e le due ragioni sono misurate
+
+Pesare il pv dell'orizzonte col calendario del club non è misurabile su questo banco, e non per mancanza di
+una politica in più:
+
+1. **Su una stagione intera il calendario è identico per tutti.** Un girone all'italiana fa giocare ognuno
+   contro tutti, quindi la difficoltà cumulata è la stessa per definizione e un peso di calendario può
+   contare solo su un orizzonte PARZIALE. Il banco misura stagioni intere.
+2. **Le partite storiche non ci sono.** `fixtures` contiene 2.538 righe e sono **tutte 2026-27**: per le
+   finestre del banco non esiste nessun calendario, quindi la politica non è nemmeno calcolabile.
+
+Quindi l'item resta aperto con due prerequisiti nominati: un metro su orizzonte parziale, e l'acquisizione
+dei calendari storici. Dirlo è meglio di una mezza misura — e la prima delle due ragioni vale anche come
+avvertimento sul pannello: le colonne `desc_easy_matches` e `desc_calendar_margin` hanno senso sulla finestra
+`from`–`to`, non sulla stagione.

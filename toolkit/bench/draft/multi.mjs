@@ -1,7 +1,7 @@
 /* The draft-strategy measurements, on FIVE seasons instead of one: the gate's measurable euro/mantra
  * windows (Tm4, Tm3, T0, T1, T2 - 21/22 is empty at the source and costs euro two of them).
  *
- * Usage:  node multi.mjs [published|coverage|currency] [league]
+ * Usage:  node multi.mjs [published|coverage|currency] [league] [windowsFile]
  * `published` reproduces the 10/08/2026 campaign; the others judge a candidate against the app as it
  * ships, which is the first policy of the set (see `bench.reportAgainstBaseline`).
  *
@@ -19,8 +19,8 @@ if (!policies) {
 }
 
 const table = setup(league);
-const windows = loadWindows();
-const shapes = loadShapes();
+const windows = loadWindows(process.argv[4] ?? 'windows.json');
+const shapes = loadShapes(table.game);
 console.log(`league "${table.name}": ${table.teams} teams, ${table.rounds} rounds, ${table.keepers} keepers`
   + ` (${table.platform}/${table.game})`);
 

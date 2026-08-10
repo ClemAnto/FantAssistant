@@ -344,13 +344,18 @@
                         <button
                           class="-mx-1 flex min-w-0 flex-1 cursor-pointer items-center gap-1 rounded px-1 text-left hover:ring-1 hover:ring-primary hover:ring-offset-2 hover:ring-offset-surface"
                           nz-tooltip
-                          nzTooltipTitle="Imposta questo giocatore come TUA scelta e ricalcola tutto da lì"
+                          [nzTooltipTitle]="denialHint(row)"
                           (click)="advice.chooseRoot(row.player.id)"
                         >
                           @for (code of row.player.roles; track code) {
                             <ui-role [role]="code" />
                           }
                           <span class="truncate">{{ row.player.name }}</span>
+                          @if (row.denies >= denialFloor) {
+                            <span class="shrink-0 text-[10px] tabular-nums opacity-60"
+                              >−{{ row.denies | number: '1.0-0' }}</span
+                            >
+                          }
                           <span class="ml-auto shrink-0 opacity-60">{{ row.player.price }}</span>
                         </button>
                       </li>
@@ -389,13 +394,18 @@
                         <button
                           class="-mx-1 flex min-w-0 flex-1 cursor-pointer items-center gap-1 rounded px-1 text-left hover:ring-1 hover:ring-primary hover:ring-offset-2 hover:ring-offset-surface"
                           nz-tooltip
-                          nzTooltipTitle="Imposta questo giocatore come TUA scelta e ricalcola tutto da lì"
+                          [nzTooltipTitle]="denialHint(row)"
                           (click)="advice.chooseRoot(row.player.id)"
                         >
                           @for (code of row.player.roles; track code) {
                             <ui-role [role]="code" />
                           }
                           <span class="truncate">{{ row.player.name }}</span>
+                          @if (row.denies >= denialFloor) {
+                            <span class="shrink-0 text-[10px] tabular-nums opacity-60"
+                              >−{{ row.denies | number: '1.0-0' }}</span
+                            >
+                          }
                           <span class="ml-auto shrink-0 opacity-60">{{ row.player.price }}</span>
                         </button>
                       </li>

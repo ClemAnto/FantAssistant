@@ -6,11 +6,12 @@ moduli del regolamento, confronto appaiato dentro lo stesso draft). Le conclusio
 fondo a questo file; gli item sono **ordinati per resa attesa**, come `todolist-formazioni-tipo-v1.md`.
 
 **Prima passata di esecuzione: 10/08/2026, sera.** Chiusi 0.1, 0.2, 0.3, 1.1, 1.2, 1.3, 1.6, 2.1, 2.6, 3.2,
-3.3. I numeri di tutto quello che segue stanno in
-[metrica-asta-surplus-v1.md](metrica-asta-surplus-v1.md) §16 (politiche del draft),
-[assistente-asta-v1.md](assistente-asta-v1.md) §26 (moneta per formato e cosa fa il pannello) e
-[gate-motore-v1.md](gate-motore-v1.md) §7-octovicies (il collo di bottiglia `pv`, e la pre-registrazione del
-Qt.I). **Citare da lì, non da qui:** questo file porta lo stato, non la misura.
+3.3. **Seconda passata, la notte stessa:** chiusi 1.4, 1.5, 3.1 e 2.5 — e la seconda passata ha **corretto
+un'adozione della prima** (la copertura sui posti perde su classic). Dove stanno i numeri:
+[metrica-asta-surplus-v1.md](metrica-asta-surplus-v1.md) **§16** (prima passata) e **§17** (seconda),
+[assistente-asta-v1.md](assistente-asta-v1.md) **§26** (moneta per formato e cosa fa il pannello),
+[gate-motore-v1.md](gate-motore-v1.md) **§7-octovicies** (il collo di bottiglia `pv` e la pre-registrazione
+del Qt.I). **Citare da lì, non da qui:** questo file porta lo stato, non la misura.
 
 **Il risultato più grosso della passata non era nella lista.** Il pannello consigliava ordinando per NETTO
 (`surplus − λ × prezzo`) e senza razionare per ruolo: misurata come politica fa **−52,3% sui rivali, 0/5,
@@ -65,7 +66,9 @@ un'idea, leggere «cosa è già stato respinto» in fondo.
   93,4% → 97,4% delle giornate, 30 crediti in meno, e il parametro è interno alla griglia (un undici −5,34%,
   tre −4,31%). Il vincolo DURO perde (−1,44%): la copertura è un bisogno, non un divieto.
   Runner-up col suo margine: le quote ×2 **graduate** (1/0,7/0,35) passano robust a +0,70%, cioè 0,77 punti
-  sotto — è la ricaduta se un giorno il matroide diventasse un costo.
+  sotto. **Aggiornamento della notte (item 3.1): quella runner-up è diventata la regola adottata su CLASSIC**,
+  dove la versione sui posti perde (−1,00%) — quindi il razionamento è per GIOCO, e la graduata è l'unica
+  delle due con un verdetto su entrambi.
 - [x] **1.2 — Moneta ibrida: VALORE per il movimento, SURPLUS per la porta.** Pre-registrata e
   **RESPINTA**: −4,88%, 0/5, e per la ragione dichiarata PRIMA della misura — il surplus di un portiere e il
   valore di un uomo di movimento non stanno sulla stessa scala, quindi in un solo argmax l'effetto non è
@@ -82,18 +85,37 @@ un'idea, leggere «cosa è già stato respinto» in fondo.
   tie-break «a parità prendi il meno quotato» e la coda punti-per-credito. Meccanismo in regalo: il
   «pavimento 200» **comprava copertura** (col vincolo acceso vale −0,30%), quindi il §15.6 punto 1 si chiude
   non con «era un livello sbagliato» ma con «era un rimedio indiretto a un problema che ora ha il suo».
-- [ ] **1.4 — Identificare la testa di ogni rivale DAI PICK CHE HA FATTO.** NON misurata. Oggi
-  `predictRivalPick` usa una sola politica («il più caro che gli serve», più la coda punti-per-credito) per
-  tutti. Dopo k scelte si può classificare ogni avversario (prezzo / giudizio / surplus / valore) da quale
-  moneta prevede meglio le sue scelte passate, e far usare al lookahead la testa stimata. Misura sul banco:
-  tavolo con teste vere miste, la previsione dei pick altrui deve migliorare rispetto alla politica unica.
-  **Il banco ora sa già fare metà del lavoro** — `engine.mjs` assegna una `KIND` diversa a ogni sedia e la
-  restituisce (`kinds`), quindi la verità è disponibile per punteggiare un classificatore.
-- [ ] **1.5 — Il valore di BLOCCO** (idea dell'operatore, 10/08/2026, segnata e non implementata):
-  `miglior XI(rivale + X) − miglior XI(rivale)` — prendere l'ultimo `Dc` forte che completerebbe l'undici di
-  un avversario, anche a reparto pieno. Il banco sa già calcolarlo (`legal.mjs` + le rose che il draft tiene
-  per ogni squadra, ora complete di ruoli). PRIMA misurare se e quando il denial batte il proprio best pick;
-  solo dopo, la nota nel consiglio («toglie N punti a squadra Y»).
+- [x] **1.4 — Identificare la testa di ogni rivale DAI PICK CHE HA FATTO.** ADOTTATA: `classifyRivals` +
+  `predictRivalPick(..., head)`. La testa stimata prevede la scelta successiva del rivale l'**82,8%** delle
+  volte contro il **69,2%** della politica unica, **5/5** finestre, e il warmup più corto è il migliore
+  (`HEAD_WARMUP` = 2: 82,8% / 81,7% / 79,3% a 2, 4, 8 pick). Classificazione a fine draft: `prezzo`,
+  `surplus` e `valore` al 100%; `giudizio` letto come `prezzo` nel 93-95%, che non è un errore ma
+  l'informazione che il tavolo non emette (il suo rumore è privato).
+  Tre cose che valgono più del numero. **Un buco invisibile da dentro la misura**: il tavolo di default non
+  contiene nessuna testa a VALORE, quindi il classificatore non era mai stato interrogato su una — aggiunto
+  `EVERY_KIND` la riconosce al 100%, e su quel tavolo la politica unica crolla al **28,4% contro il 74,8%**.
+  **Una discrepanza fra misura e codice spedito, chiusa con un numero**: nell'app la posizione nel giro non è
+  ricostruibile da una lista di pick, quindi il classificatore ignora la coda — misurato, **82,7% contro
+  82,8%**, non costa niente. **E la regola della coda NON è stata toccata**: i due bracci la condividono,
+  quindi la misura non dice niente su di essa, e «la sua moneta per credito» renderebbe un rivale a prezzo
+  affamato del più caro proprio in coda, cioè l'opposto dell'incentivo per cui la regola esiste.
+- [x] **1.5 — Il valore di BLOCCO.** Misurato (`block.mjs`) e consegnato come NOTA, che è esattamente
+  l'ordine che l'item chiedeva. **Il denial paga presto e mai tardi**: al tasso più generoso difendibile
+  (incontri ogni rivale una volta a giornata, quindi il denial deve essere 11× il costo) ripaga nel **62,9%**
+  dei pick dei giri 1-5, nel **69,6%** dei giri 6-15 e nello **0,0%** dai 16 in poi. Da leggere sul
+  meccanismo, non sul rapporto: 144/11 = 13,1 contro un costo mediano di 10,5 — un margine di un quarto,
+  reale e non un ordine di grandezza; dopo il giro 16 il costo esplode a 119,7. Nel pannello: ogni pick
+  previsto porta `denies`, mostrato sopra i 50 fantapunti, e NON cambia la scelta.
+  **La prima versione della diagnostica era sbagliata e vale come lezione**: definiva il denial come «il
+  massimo che qualunque rivale guadagnerebbe da lui» e faceva sembrare l'84% dei pick un caso da denial. Il
+  denial esiste solo se quel giocatore **sparirebbe davvero** prima del nostro turno: se resta, lo prendiamo
+  poi. Bias dichiarato: un uomo che il foglio non sa prezzare non è schierato nell'undici del rivale, quindi
+  il denial è un limite superiore, tanto più largo quanto meno della sua rosa sappiamo prezzare.
+- [ ] **1.5b — NUOVO, nato dalla misura di 1.5 e non adottato**: nel **57,3%** dei nostri pick, fra gli
+  uomini che stanno per sparire ce n'è uno che alza il NOSTRO undici almeno quanto la scelta della politica.
+  Non è un'evidenza sul denial: è che «valore × copertura» e «il massimo guadagno marginale sull'undici
+  legale» non sono lo stesso obiettivo. Il secondo non è mai stato misurato come politica — ed è miope in
+  un altro modo, quindi potrebbe essere peggio. Da pre-registrare e misurare, non da assumere.
 - [x] **1.6 — La strategia porta in modalità porte.** Fatto, e non serviva una misura nuova: era la regola
   di lega della §14.1 che il piano non leggeva. Con `keeperMode = 'goals'` il pool offre **una riga per
   PORTA** e non una per portiere (`portaStandIns`, funzione pura e testata): il prezzo è quello del portiere
@@ -106,13 +128,20 @@ un'idea, leggere «cosa è già stato respinto» in fondo.
 ## 2. Formule di valore e surplus (toolkit/motore — tutto passa dal gate)
 
 - [x] **2.1 — Il collo di bottiglia è `pv_pred`, non `fm_pred`.** Era una conclusione su **T2 sola** e ora è
-  una conclusione: rimisurata sulle cinque finestre (`signal.py`), `pv_pred` batte `fm_pred` su **5/5**,
+  una conclusione su **quindici istanze finestra**: rimisurata la notte stessa anche sulle dieci di `default`,
+  dove `pv_pred` batte `fm_pred` **10/10** (Spearman +0,426 contro +0,283) e la varianza dice la stessa cosa
+  (85-91%). Sulle cinque di euro (`signal.py`), `pv_pred` batte `fm_pred` su **5/5**,
   Spearman +0,459 contro +0,259, Pearson +0,465 contro +0,303 — e i due numeri che l'item citava (+0,545 e
   +0,313) sono esattamente la colonna T2 di Pearson. La decomposizione della varianza dà la stessa risposta
   da un'altra strada: `Var(ln pv)` è l'86,8%-90,6% di `Var(ln fantapunti)` su tutte e cinque. Conseguenza
   sull'ORDINE del lavoro: a parità di plausibilità, una regola candidata che tocca le presenze merita il gate
   prima di una che tocca la fantamedia.
 - [ ] **2.2 — PRE-REGISTRATA, non misurata: il Qt.I come segnale di titolarità (lato pv SOLTANTO).**
+  **Aggiornamento della notte 10/08, e cambia la motivazione:** «il mercato ci batte nel classificare» è una
+  frase su una PIATTAFORMA. Su euro il Qt.I batte il nostro valore (+0,574 contro +0,499), su Serie A lo
+  battiamo noi (+0,475 contro +0,463, dieci finestre). Terza volta che una conclusione di questo progetto
+  viene scritta al singolare su una quantità che dipende dalla piattaforma. La pre-registrazione resta valida
+  — dice già che un'adozione sarebbe per piattaforma — ma il fatto che la motiva vale su **euro**.
   Scritta in `gate-motore-v1.md` §7-octovicies (b) prima di toccare una riga del motore: forma (un termine
   sul solo `pv_pred`, sul percentile del Qt.I dentro il ruolo e dentro il listone), griglia pre-registrata,
   criteri (strict + robust, pavimento 0,5%, MAE mai peggiore, giudizio anche sul `captured_value`), e tre
@@ -129,10 +158,14 @@ un'idea, leggere «cosa è già stato respinto» in fondo.
   regola del trim ≥5). **Rinviata dall'operatore il 10/08** («per il momento non fare niente») e lasciata
   ferma: è la via aperta della memoria `multi-season-fm-intuition` — mostrare, non prevedere. R18b/R18c sono
   già respinte: nessuna forma predittiva senza pre-registrazione.
-- [ ] **2.5 — Il calendario dentro l'orizzonte del consiglio.** NON misurata. `desc_easy_matches` e
-  `desc_calendar_margin` sono già nel foglio (display-only). Misurare sul banco se pesare il pv
-  DELL'ORIZZONTE col calendario del club (finestra `from`–`to` del pannello) migliora il consiglio.
-  Non tocca `engine_*`; se mai dovesse entrarci, gate.
+- [ ] **2.5 — Il calendario dentro l'orizzonte del consiglio. NON MISURABILE sul banco attuale, e le due
+  ragioni sono misurate.** (1) Su una stagione intera il calendario è **identico per tutti**: un girone
+  all'italiana fa giocare ognuno contro tutti, quindi un peso di calendario può contare solo su un orizzonte
+  PARZIALE, e il banco misura stagioni intere. (2) `fixtures` contiene 2.538 righe e sono **tutte 2026-27**:
+  per le finestre del banco non esiste nessun calendario, quindi la politica non è nemmeno calcolabile.
+  Prerequisiti nominati: un metro su orizzonte parziale, e l'acquisizione dei calendari storici. Avvertimento
+  che ne deriva subito per il pannello: `desc_easy_matches` e `desc_calendar_margin` hanno senso sulla
+  finestra `from`–`to`, mai sulla stagione.
 - [x] **2.6 — Documentare la moneta per formato.** Fatto in `assistente-asta-v1.md` §26.1, con la tabella
   formato → risorsa scarsa → moneta (crediti → surplus; draft mantra → valore; porta → surplus e l'unità è il
   club) e le due precisazioni che la misura ha aggiunto: in un **draft** il valore vince anche in porta, e il
@@ -140,12 +173,21 @@ un'idea, leggere «cosa è già stato respinto» in fondo.
 
 ## 3. Consolidamenti rimasti aperti
 
-- [ ] **3.1 — Il giro su CLASSIC.** Le due dipendenze sono chiuse (0.2 e 0.3), la misura NO. Sotto legalità
-  classic la quota per ruolo è un vincolo di regolamento, quindi la gerarchia delle monete va rimisurata —
-  l'ipotesi è che il surplus vi si comporti molto meglio che su mantra, ed è un'ipotesi, non una conclusione.
-  È l'item più interessante rimasto. Serve: `extract.py serie-a.json "Leghe Mantra"` (già parametrico) e un
-  `legal.mjs` che sappia leggere `classic_modules.json` (i moduli hanno la stessa forma, ma la legalità è per
-  conteggio di macro-ruolo e **non va dedotta per analogia**).
+- [x] **3.1 — Il giro su CLASSIC.** Fatto su **dieci** finestre Serie A, e ha **corretto un'adozione di
+  poche ore prima**. L'ipotesi dell'item (il surplus si comporta molto meglio su classic) ha la direzione
+  giusta e non basta: −**0,50%** contro il valore, 5/10 (contro −1,48% e 1/5 su mantra), nessun verdetto —
+  quindi **la moneta resta il VALORE su entrambi i giochi**, e l'ibrida è respinta anche qui (−2,94%, 0/10).
+  La correzione: la copertura contata sui POSTI, adottata su mantra a +1,47%, su classic **PERDE** (−1,00%,
+  4/10), perché lì `startingPlaces` somma **esattamente dieci** (d4 c4 a2 — i posti di un modulo classic sono
+  interi, non c'è il *ceil* che su mantra gonfia a sedici) e imporre due undici interi su un pool più grande
+  della domanda solo del 20% compra uomini debolissimi. Adottata su classic la **quota graduata** (+0,77%
+  robust, 6/10), che è l'unica regola con un verdetto su entrambi i giochi.
+  Tre cose da tenere. Il **limite del pool**: il motore prezza 301 uomini su 433 (111 sotto i 15 voti, e su
+  `default` R0c non è adottato) e il draft ne consuma 250, quindi gli ultimi giri sono quasi forzati.
+  Un **difetto scoperto nel codice appena scritto**: l'app leggeva i moduli solo per mantra, quindi su classic
+  non razionava affatto — la riga da −4,93%; ora il bundle porta anche `classic_modules.json` e il
+  razionamento è deciso dal GIOCO. E un **fatto scomodo lasciato in piedi**: su classic il nostro posto perde
+  contro la media dei rivali (−2,6% col valore, 2/10) mentre su mantra vince (+2,1%).
 - [x] **3.2 — Stagioni-bersaglio in più per il banco.** Misurato e la risposta è NO da `default`: il
   bersaglio euro 2018-19 ha 566 giocatori con voti, e l'input 2017-18 da `default` ne copre **88 (15,5%)** —
   gli italiani; i 478 che mancano sono esattamente gli stranieri per cui euro esiste. Da `external_stats` la

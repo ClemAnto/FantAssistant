@@ -1,5 +1,10 @@
 import {
   COVER_COPIES,
+  DEFAULT_HEAD,
+  HEAD_WARMUP,
+  QUOTA_DEPTH,
+  classifyRivals,
+  denialOf,
   DEPTH_WEIGHT,
   TAIL_POSITIONS,
   TAIL_PRICE_FLOOR,
@@ -30,6 +35,7 @@ const team = (id: number, over: Partial<PlanTeam> = {}): PlanTeam => ({
   label: `Squadra ${id}`,
   slots: [],
   held: [],
+  heldIds: [],
   rosterValue: 0,
   pickValues: [],
   picksCount: 0,
@@ -51,6 +57,7 @@ const player = (
   roles: slot ? [slot] : [],
   price,
   net,
+  surplus: net,
   value,
 });
 
@@ -100,14 +107,14 @@ describe('pickForUs', () => {
 
   it('falls back to the price when nothing is priced', () => {
     const bare = (id: number, slot: string, price: number) =>
-      ({ ...player(id, slot, price), net: null, value: null });
+      ({ ...player(id, slot, price), net: null, surplus: null, value: null });
     expect(pickForUs([bare(1, 'dc', 100), bare(2, 'pc', 300)])!.id).toBe(2);
   });
 
   it('prefers the man who COVERS a place over a dearer man who does not', () => {
     // The squad already holds both `dc` places of every shape, so a third `dc` covers nothing: 30 x 0.35
     // against a `ds` worth 12 x 1. Without the rationing the `dc` would win, which is the whole point.
-    const need = coverNeedOf([{ roles: ['dc'] }, { roles: ['dc'] }], SHAPES, 1);
+    const need = coverNeedOf([{ roles: ['dc'] }, { roles: ['dc'] }], SHAPES, 'mantra', 1);
     const pool = [player(1, 'dc', 300, 30), player(2, 'ds', 120, 12)];
     expect(pickForUs(pool, need)!.id).toBe(2);
     expect(pickForUs(pool)!.id).toBe(1);
@@ -116,16 +123,16 @@ describe('pickForUs', () => {
 
 describe('needForUs', () => {
   it('wants a man who covers a place, and only as depth one who does not', () => {
-    const need = coverNeedOf([{ roles: ['dc'] }], SHAPES, 1);
+    const need = coverNeedOf([{ roles: ['dc'] }], SHAPES, 'mantra', 1);
     expect(needForUs(need, player(1, 'ds', 10))).toBe(1);
     expect(needForUs(need, player(2, 'dc', 10))).toBe(1);      // the second `dc` place is still open
-    const two = coverNeedOf([{ roles: ['dc'] }, { roles: ['dc'] }], SHAPES, 1);
+    const two = coverNeedOf([{ roles: ['dc'] }, { roles: ['dc'] }], SHAPES, 'mantra', 1);
     expect(needForUs(two, player(3, 'dc', 10))).toBe(DEPTH_WEIGHT);
   });
 
   it('reads a HYBRID place, which is where the flexibility lives', () => {
     // `A/PC` accepts an A or a Pc, so an `a` covers a striker's place even though no place is typed `A`.
-    const need = coverNeedOf([{ roles: ['dc'] }, { roles: ['dc'] }], SHAPES, 1);
+    const need = coverNeedOf([{ roles: ['dc'] }, { roles: ['dc'] }], SHAPES, 'mantra', 1);
     expect(needForUs(need, player(4, 'a', 10))).toBe(1);
     expect(needForUs(need, player(5, 'pc', 10))).toBe(1);
   });
@@ -135,8 +142,24 @@ describe('needForUs', () => {
     // single `A/PC` place is already taken, which the three-at-the-back would still have open. It is a
     // real limit of the rule and it is the behaviour that was MEASURED, so it is asserted rather than
     // quietly improved: with the shipping target of two elevens the tie is far rarer.
-    const need = coverNeedOf([{ roles: ['dc'] }, { roles: ['dc'] }, { roles: ['pc'] }], SHAPES, 1);
+    const need = coverNeedOf([{ roles: ['dc'] }, { roles: ['dc'] }, { roles: ['pc'] }], SHAPES, 'mantra', 1);
     expect(needForUs(need, player(6, 'a', 10))).toBe(DEPTH_WEIGHT);
+  });
+
+  it('rations by graduated QUOTAS on classic, because that is what was measured there', () => {
+    // Classic places are macro-roles and `startingPlaces` sums to exactly ten there, so the quota IS one
+    // eleven: full weight up to it, QUOTA_DEPTH up to twice it, DEPTH_WEIGHT after.
+    const CLASSIC = {
+      slot_roles: { P: ['P'], D: ['D'], C: ['C'], A: ['A'] },
+      modules: { '4-4-2': { D: ['D', 'D', 'D', 'D'], M: ['C', 'C', 'C', 'C'], T: [], A: ['A', 'A'] } },
+    };
+    const held = (n: number) => team(1, { slots: Array.from({ length: n }, () => 'd') });
+    const need = coverNeedOf([], CLASSIC, 'classic');
+    const man = player(1, 'd', 10);
+    expect(needForUs(need, man, held(0))).toBe(1);
+    expect(needForUs(need, man, held(3))).toBe(1);          // the fourth defender still fills a place
+    expect(needForUs(need, man, held(4))).toBe(QUOTA_DEPTH);
+    expect(needForUs(need, man, held(8))).toBe(DEPTH_WEIGHT);
   });
 
   it('rations nothing when there are no shapes to read: 1 for everybody', () => {
@@ -148,6 +171,102 @@ describe('needForUs', () => {
     expect(COVER_COPIES).toBe(2);
     const need = coverNeedOf([{ roles: ['dc'] }, { roles: ['dc'] }], SHAPES);
     expect(needForUs(need, player(3, 'dc', 10))).toBe(1);      // the second eleven's places are open
+  });
+});
+
+describe('classifyRivals', () => {
+  const places = startingPlaces(SHAPES);
+  // Two men the three heads disagree about: the DEARER one is worth less, so «price» and «surplus/value»
+  // name different players and a couple of picks are enough to tell them apart.
+  const pool = [
+    player(1, 'dc', 300, 5, 5),
+    player(2, 'dc', 100, 40, 40),
+    player(3, 'ds', 280, 4, 4),
+    player(4, 'ds', 90, 35, 35),
+  ];
+
+  it('reads a rival who takes the DEAREST man as the default head, and says nothing about him', () => {
+    const heads = classifyRivals({
+      picks: [{ teamId: 7, playerId: 1 }, { teamId: 7, playerId: 3 }],
+      pool, places, keeperCap: 3, mineId: 0,
+    });
+    // The default is «we do not know, so assume the price»: it is absent from the map rather than asserted.
+    expect(heads.has(7)).toBe(false);
+    expect(DEFAULT_HEAD).toBe('prezzo');
+  });
+
+  it('reads a rival who takes the WORTH as a surplus head', () => {
+    const heads = classifyRivals({
+      picks: [{ teamId: 7, playerId: 2 }, { teamId: 7, playerId: 4 }],
+      pool, places, keeperCap: 3, mineId: 0,
+    });
+    expect(heads.get(7)).toBe('surplus');
+  });
+
+  it('says nothing about a rival below the warm-up, and the warm-up is TWO', () => {
+    expect(HEAD_WARMUP).toBe(2);
+    const heads = classifyRivals({
+      picks: [{ teamId: 7, playerId: 2 }],
+      pool, places, keeperCap: 3, mineId: 0,
+    });
+    expect(heads.size).toBe(0);
+  });
+
+  it('never classifies US: our own picks are not evidence about a rival', () => {
+    const heads = classifyRivals({
+      picks: [{ teamId: 0, playerId: 2 }, { teamId: 0, playerId: 4 }],
+      pool, places, keeperCap: 3, mineId: 0,
+    });
+    expect(heads.size).toBe(0);
+  });
+
+  it('scores a head against the pool AS IT WAS: a man already taken is not a candidate', () => {
+    // Team 7 takes the cheap-and-worthy man, then the dear one - but by then the other worthy man is gone
+    // (team 8 took it), so «surplus» still explains his second pick and the guess survives.
+    const heads = classifyRivals({
+      picks: [
+        { teamId: 7, playerId: 2 },
+        { teamId: 8, playerId: 4 },
+        { teamId: 7, playerId: 3 },
+      ],
+      pool, places, keeperCap: 3, mineId: 0,
+    });
+    expect(heads.get(7)).toBe('surplus');
+  });
+});
+
+describe('denialOf', () => {
+  // A squad that can already field both `dc` places and the striker's: another `dc` adds nothing to its
+  // eleven, while the `ds` it has no place for... also adds nothing, because no shape here needs three at
+  // the back plus a `ds`. What DOES add is a better man at a place it already fills.
+  const squad = (roles: string[][], ids: number[]): PlanTeam =>
+    team(9, { held: roles.map((list) => ({ roles: list })), heldIds: ids });
+
+  const worth = (map: Record<number, number>) => (id: number) => map[id] ?? null;
+
+  it('is what the man ADDS to his best legal eleven, not what he is worth', () => {
+    // He holds one `dc` worth 100; a second `dc` worth 40 fills the second place, so he gains 40.
+    const held = squad([['dc']], [1]);
+    const newcomer = player(2, 'dc', 10, 40, 40);
+    expect(denialOf(newcomer, held, SHAPES, worth({ 1: 100 }))).toBe(40);
+  });
+
+  it('is ZERO when the module has no place left for him', () => {
+    // Both `dc` places and the single `A/PC` are held, and the three-at-the-back shape has only two `dc`.
+    const held = squad([['dc'], ['dc'], ['pc'], ['pc']], [1, 2, 3, 4]);
+    const newcomer = player(5, 'dc', 10, 30, 30);
+    expect(denialOf(newcomer, held, SHAPES, worth({ 1: 100, 2: 90, 3: 80, 4: 70 }))).toBe(0);
+  });
+
+  it('is ZERO without shapes: no eleven, no difference - and never a guess', () => {
+    const held = squad([['dc']], [1]);
+    expect(denialOf(player(2, 'dc', 10, 40, 40), held, null, worth({ 1: 100 }))).toBe(0);
+  });
+
+  it('never goes negative: taking a man cannot IMPROVE the squad he is taken from', () => {
+    const held = squad([['dc'], ['dc']], [1, 2]);
+    const newcomer = player(3, 'dc', 10, 1, 1);
+    expect(denialOf(newcomer, held, SHAPES, worth({ 1: 100, 2: 90 }))).toBeGreaterThanOrEqual(0);
   });
 });
 
