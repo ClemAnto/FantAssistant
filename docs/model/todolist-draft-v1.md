@@ -361,3 +361,29 @@ fantamedia euro**, e `matchday_map` sa esattamente quali.
   valore che il pannello già usa. Poi `score99` sulla scala che l'app ha già, **con il pool dichiarato: dentro
   il RUOLO**, perché «va forte» è una frase relativa a quello che il suo ruolo può produrre e perché il pool di
   un percentile è parte della misura. Nessun gate: è reporting, non entra in nessuna valutazione.
+
+## 6. Chi ha GUADAGNATO il posto e chi l'ha PERSO, col controllo sul reparto (operatore, 14/08/2026)
+
+Due direzioni della stessa domanda, e la parte che le rende oneste è il controllo: **un uomo che gioca perché
+il titolare davanti a lui è rotto non è un uomo che ha vinto il posto**, e la differenza è tutta nel fatto che
+il primo torna indietro quando l'altro rientra.
+
+- [ ] **6.1 — L'aspettativa iniziale non va inventata: esiste già come numero.** `engine_pv_pred` sono le
+  presenze attese sul calendario della piattaforma, e il percentile del prezzo dentro il ruolo è la lettura del
+  mercato. Il confronto è fra QUELLE e i minuti osservati, per partita reale — non fra i minuti di quest'anno e
+  quelli dell'anno scorso, che è una cosa diversa e più debole (vedi 6.4).
+- [ ] **6.2 — Il controllo sul reparto.** Per ogni partita in cui l'uomo ha giocato oltre l'attesa, guardare i
+  compagni **dello stesso club e della stessa LINEA** (il ruolo granulare di `player_roles`, non il macro-ruolo:
+  un terzino destro non copre un centrale) con uno spell di `injuries` aperto a quella data. Se il posto è
+  arrivato mentre chi lo teneva era fuori, il flag lo dice: «ha giocato, e davanti a lui mancava X». Due fatti
+  diversi meritano due frasi diverse.
+- [ ] **6.3 — Il limite sulle squalifiche, misurato il 14/08 e non aggirabile oggi**: `availability` ha 633
+  righe e copre solo dal 26/07 al 10/08/2026 (uno snapshot, non una serie), e `reds` è **0 su tutto il 2025-26**
+  nel layer per-partita. La squalifica di un compagno si può derivare solo dai rossi di `match_ratings`, quindi
+  **solo per le giornate del calendario della piattaforma** — non per quelle fuori, che sono il 18% (item 5).
+  Dove non si può sapere, il flag dice «non controllato», mai «nessuna squalifica».
+- [ ] **6.4 — Perché è REPORTING e non un segnale.** La forma predittiva di questa idea è già stata misurata il
+  14/08 come «promozione nei minuti» (minuti per partita nella finestra contro quelli della stagione
+  precedente), controllando prezzo e minuti visti: **media +0,049, 6/8 istanze**, cioè debole e non stabile.
+  Quindi mostrarlo è utile — è un fatto che l'operatore vuole vedere — e ordinarci sopra una valutazione no.
+  Se un giorno lo si vuole come input, serve una pre-registrazione: la misura c'è già e dice «poco».
