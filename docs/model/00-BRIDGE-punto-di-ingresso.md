@@ -34,6 +34,21 @@ la pagina delle probabili non basta e quali vincoli valgono già oggi.
 
 Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
 
+**Dove siamo, in cinque righe.** Il 14/08 ha chiuso **quattro item in un giorno** (5, 6, 7, 8 di
+`todolist-draft-v1.md`): il TREND delle ultime dieci REALI col giudizio 0-99, chi ha guadagnato o perso
+il posto col controllo sul reparto, «preso per titolare ruotato di fatto» e il suo specchio. Sono
+**tutti reporting** — `engine_*` non è stato toccato e `backtest --verify` è 22/22 — e `SHEET_REVISION`
+è passato da **15 a 17**, quindi ogni cartella di foglio precedente è da ricostruire. Toolkit **388
+test**, app **162**, **v0.1.10 pubblicata** con bundle reale. **Cosa resta aperto**: item **4.5** (se
+l'asta è a stagione iniziata `engine_pv_pred` deve leggere le giornate giocate — tocca il motore, quindi
+GATE), poi **1.5b**, **2.2**, **2.3**.
+
+**La lezione della giornata, che vale più dei quattro item**: **tre volte su tre il numero è cambiato
+cambiando il NULL**, e ogni volta verso il basso — il pool degli screen del mattino (5-10x → 1,0-2,4x),
+il denominatore dello screen di rotazione (2,42x → 1,52x), la definizione di esito dello specchio (base
+dal 22% al 41%). Due di quelle tre volte il difetto era una misura fatta su una **reimplementazione**
+invece che sulla funzione che spedisce. Regole nuove nel `CLAUDE.md` di radice.
+
 ### ULTIMO IN ORDINE DI TEMPO — 14/08/2026, notte: **lo SPECCHIO** (dato per riserva, gioca da titolare)
 
 Item **8** di [todolist-draft-v1.md](todolist-draft-v1.md), spec **«Novità v9.53»**,

@@ -618,6 +618,27 @@ the key. So the reader imposes the convention and never trusts the encoding; rea
 would have thrown away half the table, and reading them as zero without checking would have been the opposite
 defect.
 
+**A screen's numbers must come from the FUNCTION THAT SHIPS, and the denominator is half of them**
+(14/08/2026, twice in one evening). A rotation screen was calibrated on a reimplementation that walked
+each man's own ROWS and read 84.5% precision against a 34.9% base; the shipped function walks his CLUB'S
+FIXTURES and counts the rounds he missed as zero. Re-scored by CALLING it at six dates of four seasons:
+90.4% against a base of **59.5%** - the precision went up, the lift fell from 2.42x to 1.52x, and only
+the second pair is about the thing that ships. Same evening, the mirror screen: its outcome bar was
+borrowed from the rotation one (60 minutes a club match), and **the mirror of «he is not a starter» is
+not «he is one»** - it called Castro wrong, a man who started 27 matches of 37. Counted the way the word
+is used (how often he STARTS) the base moved from 22% to 41% and the screen from 53.8% to 79.1%. Two
+habits: score the function, not a copy of it; and when a threshold is reused on the opposite question,
+check that the WORD still means the same thing. Both readings stay on the record, so nothing is hidden by
+the correction - and the reason for it must not depend on the screen's own score, or it is fitting.
+
+**And a short window carries ONE threshold, not two.** The same evening, on the operator's «warn me
+before the fifth round»: measured at 1, 2, 3, 4 rounds, the fourth is worth as much as the fifth (96.3%
+against 94.9%) and two and three are worth 81% against a 58% base. So the full mark fires from the
+fourth and the earlier one is a DIFFERENT mark with a different sentence - «look at him», not «he is not
+the starter» - because the counter-example is what decides it: after two rounds it would have named
+Donnarumma on 0 minutes, and he averaged 85. Under four rounds the rule is «he has never started», since
+«at most one start of two» is not a sentence anybody measured.
+
 ## Non-emptiness is not completeness, and three things look identical to a COUNT
 **14/08/2026.** `fetch --plan` said «every source is populated» while the xG of 2021-22 did not exist. A count
 cannot distinguish four situations and only one of them is work to do: **declared** (the column has no source

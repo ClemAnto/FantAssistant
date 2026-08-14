@@ -13,6 +13,20 @@ un'adozione della prima** (la copertura sui posti perde su classic). Dove stanno
 [gate-motore-v1.md](gate-motore-v1.md) **§7-octovicies** (il collo di bottiglia `pv` e la pre-registrazione
 del Qt.I). **Citare da lì, non da qui:** questo file porta lo stato, non la misura.
 
+**Terza passata: 14/08/2026.** Chiusi gli item **5, 6, 7 e 8** — il TREND delle ultime dieci REALI col
+giudizio 0-99, chi ha guadagnato o perso il posto col controllo sul reparto, «preso per titolare ruotato
+di fatto» e il suo specchio. Numeri in spec «Novità v9.50-v9.53» e in
+[assistente-asta-v1.md](assistente-asta-v1.md) **§28-§31**. Tutti e quattro sono **reporting**: nessun
+`engine_*` toccato, nessuna graduatoria che li legga. Quello che la giornata ha insegnato, oltre agli
+item: **tre volte su tre il numero è cambiato cambiando il NULL** (il pool degli screen del mattino, il
+denominatore dello screen di rotazione, la definizione di esito dello specchio) e ogni volta verso il
+basso — e due volte il difetto era in una misura fatta su una reimplementazione invece che sulla
+funzione che spedisce.
+
+**Cosa resta aperto in questo file**: **4.5** (se l'asta è a stagione iniziata `engine_pv_pred` deve
+leggere le giornate giocate — tocca `engine_*`, quindi GATE), **1.5b**, **2.2**, **2.3** (acquisizione
+dati) e **2.4** (rinviata dall'operatore).
+
 **Il risultato più grosso della passata non era nella lista.** Il pannello consigliava ordinando per NETTO
 (`surplus − λ × prezzo`) e senza razionare per ruolo: misurata come politica fa **−52,3% sui rivali, 0/5,
 34 crediti spesi in 25 giri, metà undici scoperto**. Era la causa comune di due sintomi già rattoppati sul

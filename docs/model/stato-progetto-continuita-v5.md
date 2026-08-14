@@ -1,5 +1,5 @@
 # Stato progetto & continuità — v5
-**Aggiornato: 14 agosto 2026, sera (chi ha sbagliato il mercato e tre refutazioni; due screen spediti; il piano del toolkit per stagione — più il lavoro dell'11/08 committato e pubblicato lo stesso giorno)**
+**Aggiornato: 14 agosto 2026, notte (QUATTRO item chiusi in una giornata: il TREND delle ultime dieci REALI, chi ha guadagnato o perso il posto, «preso per titolare ruotato di fatto» e il suo specchio — v0.1.10 pubblicata)**
 Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da qui + i file della cartella "Modello Previsionale Fantacalcio".
 *Glossario: T1/T2 = finestre di test (23/24->24/25, 24/25->25/26) · MAE = errore medio assoluto · cross-fitted = parametri stimati su una finestra, testati sull'altra · M2e = modello portieri decomposto (abilità + tasso gol subiti del club; la metà Elo del nome non è nel motore) · Pv_att = presenze attese · fc_id = id fantacalcio.it · EV = valore atteso · scoring_config = punteggi configurabili per lega · xG/xA = expected goals/assists · 2.5 pieno = backtest motore completo con flag.*
 
@@ -7,6 +7,34 @@ Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da q
 App per leghe EuroLeghe/fantacalcio.it (Classic+Mantra, 5 campionati) con motore previsionale. Metodo: ogni regola entra SOLO se batte il baseline fuori campione su finestre indipendenti (gate pre-registrato). Doc madre: modello-previsionale-v3.8.md.
 
 ## ⚠️ Lo stato corrente è in `00-BRIDGE-punto-di-ingresso.md`, blocco «STATO AL 5 AGOSTO 2026»
+
+### 14 agosto 2026, NOTTE, in una riga: quattro item chiusi, e tre volte il null ha spostato il numero
+
+Dettaglio nei quattro blocchi del [00-BRIDGE-punto-di-ingresso.md](00-BRIDGE-punto-di-ingresso.md); toolkit
+in spec **«Novità v9.50, v9.51, v9.52, v9.53»**, pannello e app in
+[assistente-asta-v1.md](assistente-asta-v1.md) **§28-§31**, item **5, 6, 7, 8** di
+[todolist-draft-v1.md](todolist-draft-v1.md) tutti chiusi. `engine_*` **invariato** (`backtest --verify`
+22/22), `SHEET_REVISION` **15 → 17**, **388 test toolkit + 162 app**, **v0.1.10 pubblicata** su GitHub
+Pages con bundle reale (verificato scaricando il manifest dal sito).
+
+1. **Il TREND delle ultime dieci REALI** (item 5): finestra di CAMPIONATO perché il calendario euro salta
+   3-7 giornate a lega, cascata del voto dichiarata (voto vero → `mv_synth` → niente, mai uno zero) e
+   giudizio 0-99 dentro il RUOLO. Istogramma nel pannello e nell'app, stessa tavolozza.
+2. **La panchina era già nel database, sotto un NULL** (79.437 righe): l'item prevedeva un re-parse di
+   1.373 file e serviva un LETTORE. Un'osservazione vera con una conclusione falsa attaccata.
+3. **Chi ha guadagnato o perso il posto** (item 6), col controllo sul reparto fatto sulle DATE: 243 cambi
+   su 635 righe, e i due casi dell'operatore riprodotti esatti (Bartesaghi prende il posto una settimana
+   PRIMA dell'infortunio di Estupiñán; Angeliño «disponibile e non schierato» 20 volte su 31).
+4. **«Preso per titolare, ruotato di fatto»** (item 7, caso Lewandowski): 90,4% contro una base del 59,5%.
+   Due marchi e non uno anticipato — pieno dalla 4ª giornata (96,3%), debole dalla 2ª (81%), col
+   contro-esempio Donnarumma nel tooltip.
+5. **Lo specchio** (item 8, casi F. Torres e Castro): 79,1% contro il 40,9%. E per un PORTIERE è la lettura
+   più forte di tutte, 81,9% contro 22,3% — il sospetto che fosse un difetto era sbagliato.
+6. **Tre volte il null ha spostato il numero, e ogni volta verso il basso**: il denominatore dello screen
+   di rotazione (righe → fixture del club: base dal 35% al 60%), l'esito dello specchio (minuti → titolarità:
+   base dal 22% al 41%), e prima ancora il pool degli screen di stamattina. **La misura è il confronto, non
+   il numero.**
+7. **Perdere il posto è più prevedibile che conquistarlo**: 90,4% contro 76,8%.
 
 ### 14 agosto 2026, in una riga: chi ha sbagliato il mercato, e il null che dimezza i lift
 
