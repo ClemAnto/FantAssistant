@@ -34,6 +34,7 @@ import {
 import { Board, BoardsFile, Bundle, EngineSheetEntry } from './bundle';
 import { MACRO_ROLE, ScreenInput, screenMark, screensFor, windowOf } from './player-screens';
 import { PlayerMark, PlayerStatus } from './player-status';
+import { PlayerTrend, isKnownAbsence, parseTrend, trendScores } from './player-trend';
 
 /** Where the priced window lives between sessions: it is a setting, not a derived value. */
 const HORIZON_KEY = 'fantassistant.auction.horizon';
@@ -89,6 +90,10 @@ export interface RankedPlayer {
   minutesPerMatch: number | null;
   /** False when the zero is the sheet's league-wide one because no live demand exists for the slot. */
   zeroIsLive: boolean;
+  /** His club's last ten CHAMPIONSHIP matches, as the sheet measured them. Null on an older bundle. */
+  trend: PlayerTrend | null;
+  /** The same window as a 0-99 inside his role. A description of what he has done, never a forecast. */
+  trend99: number | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -145,6 +150,8 @@ export class AuctionAdvice {
   /** The game's shapes, and last season's measured fantamedia per player on the sheet's platform. */
   private readonly shapes = signal<MantraModules | null>(null);
   private readonly measured = signal<Map<number, number>>(new Map());
+  /** The club's last ten CHAMPIONSHIP matches per player, as the chosen sheet measured them. */
+  private readonly trends = signal<Map<number, PlayerTrend>>(new Map());
 
   /**
    * The DRAWN BOARDS of the sheet in use: the toolkit's own, not a second eleven computed here.
@@ -426,8 +433,30 @@ export class AuctionAdvice {
             ? row.minutesFullSeason / row.seasonMatches
             : null,
         zeroIsLive: live != null,
+        trend: this.trends().get(player.id) ?? null,
+        trend99: this.trend99().get(player.id) ?? null,
       };
     });
+  });
+
+  /**
+   * The 0-99 of the trend, inside the ROLE and over the listone being played.
+   *
+   * The pool is part of the measurement, so it is the same one `value99` uses - this session's listone,
+   * taken men included - and the role is the operator's own: «he is going well» is relative to what his
+   * role can produce. It is a DESCRIPTION and not a forecast (see `core/player-trend`), which is why it
+   * enters no plan, no advice and no eleven.
+   */
+  private readonly trend99 = computed(() => {
+    const trends = this.trends();
+    if (!trends.size) return new Map<number, number>();
+    return trendScores(
+      this.listone().map(({ player }) => ({
+        id: player.id,
+        role: MACRO_ROLE[player.zoneClassic] ?? null,
+        fp: trends.get(player.id)?.fp ?? null,
+      })),
+    );
   });
 
   /**
@@ -790,6 +819,9 @@ export class AuctionAdvice {
       // needs the classic places rather than nothing at all (measured: no rationing costs 4.93%).
       this.shapes.set(game === 'mantra' ? await this.bundle.modules() : await this.bundle.classicModules());
       this.measured.set(await this.lastSeason(chosen, manifest.input_season));
+      // Read from the CHOSEN sheet and no other: the window is measured per sheet, so taking it from
+      // one and the valuation from another would put two different populations on one row.
+      this.trends.set(await this.readTrends(chosen));
       // The boards of THIS sheet, by the path the manifest itself declares - never a guessed file name.
       this.boards.set(chosen.boards ? await this.bundle.boards(chosen.boards) : null);
       this.crests.set((await this.bundle.crests().catch(() => null)) ?? {});
@@ -881,6 +913,55 @@ export class AuctionAdvice {
       return out;
     } catch {
       // An older bundle without the per-match layer: no screens, and `screenMarks` returns empty.
+      return new Map();
+    }
+  }
+
+  /**
+   * The trend window per player, straight from the sheet's own record.
+   *
+   * The AGGREGATES are recomputed here from the matches rather than read from their columns, and that is
+   * deliberate: the picture and the number beside it then come from one array, so they cannot describe
+   * two different windows. The rule they follow is the toolkit's own and is stated where it is applied -
+   * a match he did not play counts ZERO because availability is half of what a fantamedia is worth, a
+   * match nobody could score is left out of the denominator rather than counted as a bad one.
+   */
+  private async readTrends(sheet: EngineSheetEntry): Promise<Map<number, PlayerTrend>> {
+    try {
+      const table = await this.bundle.table(sheet.path.replace(/\.json(\.gz)?$/, ''));
+      const id = table.columns.indexOf('fc_id');
+      const detail = table.columns.indexOf('desc_trend_detail');
+      if (id < 0 || detail < 0) return new Map(); // a bundle older than the column: no strip, no claim
+      const out = new Map<number, PlayerTrend>();
+      for (const row of table.rows) {
+        const matches = parseTrend(row[detail] as string | null);
+        if (!matches.length) continue;
+        const points: number[] = [];
+        let played = 0;
+        let bench = 0;
+        let outsideEuro = 0;
+        for (const match of matches) {
+          if (match.state === 'b') bench += 1;
+          if (isKnownAbsence(match.state)) points.push(0);
+          if (match.state === 'p') {
+            played += 1;
+            if (match.points != null) points.push(match.points);
+            if (match.inEuro === false) outsideEuro += 1;
+          }
+        }
+        out.set(Number(row[id]), {
+          matches,
+          fp: points.length ? points.reduce((sum, one) => sum + one, 0) / points.length : null,
+          scored: points.length,
+          window: matches.length,
+          played,
+          bench,
+          outsideEuro,
+        });
+      }
+      return out;
+    } catch {
+      // An older bundle without the sheet columns: the strip is simply not drawn.
       return new Map();
     }
   }

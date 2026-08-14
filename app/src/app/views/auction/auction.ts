@@ -18,6 +18,7 @@ import { Plan, PlanPlayer, PlannedPick } from '../../core/auction-plan';
 import { per } from '../../core/auction-value';
 import { AuctionFeed, DraftStatus, KeeperMode, Zone } from '../../core/auction-feed';
 import { PlayerFlags } from '../../ui/player-flags/player-flags';
+import { PlayerTrendStrip } from '../../ui/player-trend/player-trend';
 import { RoleBadge } from '../../ui/role-badge/role-badge';
 import { ClubPitch } from './club-pitch/club-pitch';
 import { FantaPitch } from './fanta-pitch/fanta-pitch';
@@ -53,6 +54,10 @@ const SORTS = {
   fmPrev: (row: RankedPlayer) => row.fmPrev,
   minutes: (row: RankedPlayer) => row.minutesPerMatch,
   net: (row: RankedPlayer) => row.netPer10,
+  // What he has DONE in his club's last ten league matches. It orders the list and it enters no
+  // valuation: measured 14/08/2026, a departure from one's own averages does not predict the next
+  // rounds (excess +0.0167 / +0.0072 / -0.0007 at 2, 3 and 5 matchdays, sign changing).
+  trend: (row: RankedPlayer) => row.trend99,
 } as const;
 
 export type SortKey = keyof typeof SORTS;
@@ -75,6 +80,7 @@ export type SortKey = keyof typeof SORTS;
     NzTagModule,
     NzTooltipModule,
     PlayerFlags,
+    PlayerTrendStrip,
     RoleBadge,
   ],
   templateUrl: './auction.html',

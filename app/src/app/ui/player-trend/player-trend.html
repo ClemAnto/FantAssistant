@@ -1,0 +1,64 @@
+@if (bars().length) {
+  <svg
+    [attr.width]="width()"
+    [attr.height]="height"
+    [attr.viewBox]="'0 0 ' + width() + ' ' + height"
+    role="img"
+    [attr.aria-label]="summary()"
+  >
+    <title>{{ summary() }}</title>
+    @for (bar of bars(); track bar.key) {
+      <g>
+        <title>{{ bar.title }}</title>
+        @if (bar.y === null) {
+          <!-- he did not play: a plinth in the reason's own colour, never a short bar -->
+          <rect [attr.x]="bar.x" [attr.y]="16" [attr.width]="bar.width" height="2" [attr.fill]="bar.colour" />
+        } @else if (bar.hollow) {
+          <!-- the voto is the calibrated synthetic one: same colour, drawn hollow -->
+          <rect
+            [attr.x]="bar.x + 0.5"
+            [attr.y]="bar.y + 0.5"
+            [attr.width]="bar.width - 1"
+            [attr.height]="bar.height - 1"
+            fill="none"
+            [attr.stroke]="bar.colour"
+          />
+        } @else {
+          <rect
+            [attr.x]="bar.x"
+            [attr.y]="bar.y"
+            [attr.width]="bar.width"
+            [attr.height]="bar.height"
+            [attr.fill]="bar.colour"
+          />
+        }
+        @if (bar.xgaY !== null) {
+          <rect
+            [attr.x]="bar.x + bar.width"
+            [attr.y]="bar.xgaY"
+            width="2"
+            [attr.height]="bar.xgaHeight"
+            fill="var(--color-xga)"
+          />
+        }
+        @if (bar.goal) {
+          <circle [attr.cx]="bar.x + bar.width - 1" cy="2" r="2" fill="var(--color-fg)" />
+        } @else if (bar.assist) {
+          <circle [attr.cx]="bar.x + bar.width - 1" cy="2" r="1" fill="var(--color-fg)" />
+        }
+        @if (bar.card) {
+          <rect [attr.x]="bar.x" y="17" [attr.width]="bar.width" height="1" [attr.fill]="bar.card" />
+        }
+        @if (bar.outside) {
+          <rect
+            [attr.x]="bar.x"
+            [attr.y]="height - 1"
+            [attr.width]="bar.width"
+            height="1"
+            fill="var(--color-muted)"
+          />
+        }
+      </g>
+    }
+  </svg>
+}

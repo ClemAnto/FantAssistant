@@ -38,6 +38,24 @@
   --color-role-attack: #b91c1c;
   --color-role-unknown: #475569;
 
+  /* The last-ten histogram. Six bands of the VOTO and five reasons for not playing - a DISPLAY
+     scale, declared here and read by nothing that values a player. They are deliberately the same
+     colours the toolkit's own panel draws (`SnapshotView.VOTE_BANDS`): the operator reads both
+     pictures, and one fact must not have two vocabularies. */
+  --color-vote-top: #00e5ff;
+  --color-vote-high: #2196f3;
+  --color-vote-good: #66bb6a;
+  --color-vote-mid: #9e9e9e;
+  --color-vote-low: #ffd54f;
+  --color-vote-poor: #ef5350;
+  --color-absent-bench: #9e9e9e;
+  --color-absent-injury: #9575cd;
+  --color-absent-ban: #ef5350;
+  --color-absent-out: #546e7a;
+  --color-absent-unknown: #37474f;
+  /* xG+xA, the second layer: beside the bar and never inside its height. */
+  --color-xga: #7e57c2;
+
   --radius-control: 0.75rem;
   --radius-card: 1.25rem;
 

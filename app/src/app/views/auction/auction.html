@@ -590,6 +590,14 @@
                 <span class="w-24">Ruoli</span>
                 <span class="flex-1">Nome</span>
                 <button
+                  class="w-30 text-left hover:text-fg"
+                  nz-tooltip
+                  nzTooltipTitle="Le ultime 10 di CAMPIONATO del suo club, dalla più vecchia. L'altezza della barra è il voto (quello vero, oppure quello sintetico calibrato — barra vuota — per le giornate che il calendario EuroLeghe salta: sono 3-7 a stagione per lega). Una barra ridotta a uno zoccolo è una partita non giocata, e il colore dice perché: grigio panchina, viola infortunio, rosso squalifica, ardesia fuori dai convocati, grigio scuro nessun dato. La colonnina viola è xG+xA, il pallino un gol (piccolo: assist), la linea in basso un cartellino, la sottolineatura una giornata fuori dal calendario EuroLeghe. Il numero è la media fantapunti su quelle dieci, 0–99 dentro il suo ruolo: descrive quello che ha fatto, non prevede. Clicca per ordinare."
+                  (click)="toggleSort('trend')"
+                >
+                  Ultime 10{{ sortArrow('trend') }}
+                </button>
+                <button
                   class="w-14 text-right hover:text-fg"
                   nz-tooltip
                   nzTooltipTitle="Quanto vale in assoluto — fantamedia × presenze attese — su una scala 0–99: 99 è il migliore del listone, presi compresi, quindi la scala non si muove durante l'asta. A differenza del surplus non sottrae il rimpiazzo di ruolo. Clicca per ordinare."
@@ -655,6 +663,12 @@
                     <span class="opacity-60"> · {{ row.player.club }}</span>
                     @if (row.valuation.basis !== 'measured') {
                       <span class="opacity-60" [title]="row.valuation.note ?? ''">~</span>
+                    }
+                  </span>
+                  <span class="flex w-30 shrink-0 items-center gap-1">
+                    <ui-trend [trend]="row.trend" />
+                    @if (row.trend99 !== null) {
+                      <b class="ml-auto text-[11px] opacity-70">{{ row.trend99 }}</b>
                     }
                   </span>
                   <b class="w-14 text-right">
