@@ -1168,3 +1168,117 @@ restituita invece che dove la politica si costruisce: il memo diventava per-chia
 rifatto per OGNI candidato di ogni scelta. Non falliva — girava e non arrivava mai, che è il modo peggiore di
 sbagliare. **Un hook memoizzato si costruisce dove si costruisce la politica**, e una politica che rallenta di
 due ordini di grandezza va guardata prima di attribuire la lentezza al banco.
+
+---
+
+## 20. Chi ha sbagliato il mercato, e con che cosa lo si vedeva (14 agosto 2026)
+
+Domanda dell'operatore: quali calciatori il Qt.I e l'FVM hanno sottostimato o sopravvalutato nella stagione
+scorsa, individuabili **dopo due giornate** con statistiche che il listone non porta; e quali parametri
+rileviamo che quei due prezzi non intercettano. Misurato su **quattro stagioni × due piattaforme**
+(2022-23 → 2025-26, euro e Serie A), taglio al **31 agosto** — che nel 2025-26 cade lo stesso giorno in tutte
+e cinque le leghe, quindi è una data d'asta vera — ed esito = **fantapunti raccolti dalla 3ª giornata in poi**,
+coi percentili presi dentro il RUOLO e dentro la piattaforma.
+
+### 20.1 Sull'FVM la domanda non è rispondibile, e va detto prima di tutto
+
+Ogni lettura di FVM che il DB ha per una stagione passata è datata **07/08/2026**, cioè dopo la stagione:
+correla **+0,776** (euro) e **+0,798** (Serie A) con l'esito, contro **+0,582** e **+0,558** del Qt.I. Non è un
+prezzo d'asta, è un numero che ha già visto com'è finita — e `fvm_history` accumula solo da agosto 2026, quindi
+un «FVM al giorno dell'asta» per le stagioni passate non esiste da nessuna parte. Tutto il resto è **contro il
+Qt.I**, l'unico prezzo pre-asta.
+
+### 20.2 I due lati sono problemi DIVERSI, e questa è la conclusione principale
+
+Attribuzione dei 200 casi estremi per lato (top 25 × 2 piattaforme × 4 stagioni), con la causa cercata nei
+nostri stessi dati:
+
+| causa | sopravvalutati | sottostimati |
+|---|---|---|
+| infortunio **già aperto** all'asta | 23,5% | 2,5% |
+| **già partito** dalle cinque leghe | 16,5% | – |
+| fuori tutto l'anno (noto) | 3,0% | – |
+| **→ già noto il 31 agosto** | **43,0%** | **2,5%** |
+| infortunio arrivato dopo | 17,0% | 5,5% |
+| ha perso / preso il posto | 24,5% | **92,0%** |
+| zeri che i nostri dati non spiegano | 15,5% | 0% |
+
+**Il ribasso è in gran parte DISPONIBILITÀ, e quasi metà era sul tavolo il giorno dell'asta** (Maddison,
+crociato il 3 agosto; Lukaku, coscia il 14 agosto; Kulusevski, ginocchio da maggio) — cioè esattamente i marchi
+spediti il 14/08. **Il rialzo non si spiega con infortuni né mercato: è 92% «chi prende la maglia».**
+
+Correzione che ha rimosso metà dei sopravvalutati estremi: Coman, Gündogan, Ederson, Boniface, Millot, Onana,
+Trapp, Ndoye, Man portano un Qt.I e un FVM, siedono al **club vecchio** in `rosters` e hanno **zero righe di
+voto** in tutta la stagione; tre di loro hanno un trasferimento fuori dalle cinque leghe datato 1 luglio 2025.
+Il loro zero non è il mercato che sbaglia, è **la nostra riga che è stantia** — e vale per il **13-18% di ogni
+listone**, stabile su otto istanze. Contarli come errore altrui sarebbe inventarlo da un difetto nostro.
+
+### 20.3 Cosa intercetta quello che il prezzo non vede — 8 istanze su 8
+
+Partial Spearman contro l'esito, controllando **Qt.I + i minuti che ha visto anche il tavolo** (i minuti sono
+PUBBLICI: `match_ratings.minutes` è NULL su tutte le 263.393 righe, quindi si leggono dal layer per-partita,
+che è nostro da conservare e pubblico da sapere):
+
+| segnale | media | istanze |
+|---|---|---|
+| **xG+xA per 90 nella finestra** | **+0,198** | **8/8** |
+| xA/90 finestra | +0,194 | 8/8 |
+| passaggi chiave/90 finestra | +0,165 | 8/8 |
+| tiri/90 finestra | +0,162 | 8/8 |
+| xG/90 finestra | +0,159 | 8/8 |
+| rating del provider, finestra | +0,147 | 8/8 |
+| presenze stagione precedente | +0,141 | 7/7 |
+
+**Tre refutazioni, e valgono più delle adozioni.** «Crea e non segna ancora» (xG+xA meno gol+assist):
+**−0,046, 3/8** — l'idea del giocatore «in credito» non regge. «Fortuna da correggere» (gol meno xG):
+**0,000, 3/8**, che su una finestra sola valeva −0,181 e sarebbe stato adottato da chi guarda una stagione.
+Nuovo allenatore −0,014 (2/8), modulo del club cambiato −0,032 (2/8), posizione più avanzata +0,009 (4/8),
+promozione nei minuti +0,049 (6/8), età −0,069 (0/8, sempre negativa e piccola). Il **rigorista** dà +0,035
+(7/8) — ma dava +0,083 finché il conteggio includeva chi è diventato rigorista a marzo, cioè leggeva il futuro.
+
+### 20.4 «Sopra le proprie medie quindi scenderà»: falsificato in entrambe le direzioni
+
+Terza forma della stessa famiglia, e la formulazione esatta dell'operatore. Per ogni (giocatore, stagione,
+piattaforma) il confronto fra la media delle ultime K giornate e la sua base, contro le K successive, col
+**null rimescolato** dentro il giocatore-stagione (Miller-Sanjurjo):
+
+| finestra | osservato \|base | null rimescolato | **eccesso vero** | minuti futuri |
+|---|---|---|---|---|
+| 2 giornate | +0,089 | +0,073 | **+0,0167** | −0,001 |
+| 3 giornate | +0,139 | +0,132 | **+0,0072** | −0,020 |
+| 5 giornate | +0,204 | +0,205 | **−0,0007** | −0,047 |
+
+~65.000 finestre per riga, 5 stagioni. L'eccesso vero è dentro il rumore **e cambia segno con la finestra**.
+E il null era obbligatorio: il numero grezzo a cinque giornate è **+0,204**, e chi lo leggesse direbbe «la forma
+persiste, e tanto più su finestre lunghe» — è tutto artefatto del confronto fra una finestra e una base
+calcolata sulla stessa serie. Concorda con la mano calda già misurata dal progetto (+0,012 là, +0,007 qui):
+due strade indipendenti, una conclusione.
+
+### 20.5 Gli SCREEN adottati, e il null che li ha dimezzati
+
+La base prima di ogni filtro (chi ha ≥90' nella finestra, 8 istanze): **un economico che gioca esplode nel
+28,9% dei casi fra i difensori**, 28,3% fra i centrocampisti, 23,9% fra gli attaccanti; e **un portiere caro
+floppa 1 volta su 166** (0,6%), quindi lì non c'è niente da prevedere. Sopravvivono al leave-one-out due screen
+soli:
+
+| | screen | precisione | base | lift | n |
+|---|---|---|---|---|---|
+| promessa | difensore economico + xG+xA/90 ≥ 0,25 | 50,0% | 28,9% | **1,89×** | 24 |
+| flop | attaccante caro + xG+xA/90 ≤ 0,25 | 21,9% | 9,1% | **2,41×** | 32 |
+
+Per il rialzo si guardano i **difensori**, per il ribasso gli **attaccanti**: un difensore economico che gioca e
+produce in avanti è una fonte di bonus che il prezzo ignora, un attaccante caro che non genera sta pagando gol
+che non produce. Spediti come icone il 14/08 (`1adb4eb`), reporting only.
+
+**La prima versione dava lift 5-10× perché il null era sbagliato**: lo screen contiene «economico» fra le sue
+condizioni, e confrontarlo con tutti quelli che non passano — i costosi compresi, che per definizione non
+possono essere «esplosi» — accredita al segnale un merito che è solo la definizione. Misurato dentro il pool in
+cui si sceglie davvero: 1,0-2,4×. Il resto della griglia sta a 1,1× o sotto e **tre celle stanno sotto 1,0**,
+cioè peggio del non filtrare (tiri/90 per la promessa dei centrocampisti 0,79×; tiri/90 0,79× e passaggi
+chiave/90 0,64× per il flop degli attaccanti).
+
+### 20.6 I limiti, dichiarati
+
+Non è un verdetto del gate: niente era pre-registrato, i campioni sul lato promessa sono piccoli (24-91 uomini
+tenuti fuori) e diversi segnali sono stati guardati perché una stagione li suggeriva. Genera ipotesi ordinate
+per stabilità; adottarne una come input del motore richiede una pre-registrazione e un giro sul banco.

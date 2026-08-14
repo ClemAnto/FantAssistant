@@ -596,6 +596,50 @@ So anything that walks a calendar walks DATES and match ids: `club_form`'s last-
 `fielded_next` ("the first match after the auction date" is by date, and it carries the round so a catch-up
 is visible). Code that groups by matchday is making a claim it cannot support.
 
+## A null is not a detail, it is the measurement - and the POOL is half of it
+**14/08/2026, and it halved a result twice in one day.** Two screens («possibile promessa», «possibile flop»)
+came out at a lift of **5-10x** and ship at **1.0-2.4x**. Nothing about the signal changed: the screen contains
+«cheap» among its own conditions, and the first version compared it with everybody who failed the filter -
+**the expensive men included, who by definition cannot be labelled «exploded»**. That credits the signal with
+what is merely the definition. Measured inside the pool the operator actually chooses from (same role, same
+price band, same minutes floor), the honest numbers are the second ones. Same shape as the hot-hand lesson one
+level up: there the null was the reshuffled sequence, here it is the CONDITIONING SET, and both times the raw
+number was a statement about the construction rather than about football.
+The companion case the same day: «he played above his own averages so he will come down» reads **+0.204** raw at
+five matchdays - which anybody would report as «form persists, and more so over longer windows» - and the
+reshuffled null is **+0.205**. The true excess is −0.0007, and it changes SIGN with the window (+0.0167 at two,
++0.0072 at three) over ~65,000 windows. Third refusal of that family, after «goals minus xG» (0.000, 3/8) and
+«creating and not converting yet» (−0.046, 3/8). Numbers and method in
+[metrica-asta-surplus-v1.md](docs/model/metrica-asta-surplus-v1.md) §20.
+**And a corollary about what a blank means, verified rather than assumed**: NULL `xg` in the per-match layer is
+a ZERO (3701 of 3701 such rows carry `shots` = 0, and not one of a season's goals sits on one), while the
+provider CHANGED the payload's shape between seasons - 2022-23 emitted an explicit 0 and from 2024-25 it omits
+the key. So the reader imposes the convention and never trusts the encoding; reading those NULLs as unknown
+would have thrown away half the table, and reading them as zero without checking would have been the opposite
+defect.
+
+## Non-emptiness is not completeness, and three things look identical to a COUNT
+**14/08/2026.** `fetch --plan` said «every source is populated» while the xG of 2021-22 did not exist. A count
+cannot distinguish four situations and only one of them is work to do: **declared** (the column has no source
+and `validate.ALLOWED_EMPTY` says so - `match_ratings.minutes` is NULL on all 263,393 rows because the votes
+Excel has no minutes, and nobody reads it there), **convention** (the value is absent because it IS zero, per
+the xG rule above), **source** (the provider does not serve it, so no scraping will produce it), **missing**
+(the only class that deserves a command). Plus the TARGET season, whose on-pitch facts are absent by
+construction: offering `ratings --season 2026-27` in August is a command that cannot succeed.
+`fetch --plan --seasons N` now classifies instead of counting, and the result over six seasons is **zero
+season-shaped gaps a command could fill**. Two habits travel with it: a defect that explains itself with a
+plausible story («we never scraped it») is worth one measurement - the cached 2021-22 payload carries
+`expectedGoals` for **0 of 446** players against 312 of 471 in 2022-23, so re-downloading adds nothing; and a
+plan that prints a command nobody can run is worse than no plan - the first version of the list offered
+`matchdays --season 2021-22`, a flag that does not exist, so a test now checks every template against the real
+parser.
+**A column documented with six states can carry two.** `match_ratings.status` is populated on 100% of rows and
+holds only `played` (228,246) and `no_vote` (35,147); the schema comment promises `bench | injured | suspended |
+not_in_squad`, never written. Anyone trusting the comment would believe the bench is readable from there. Same
+family as «a column that looks like a flag can be a word», and the reason `flags.new_coach` cost a whole
+channel the same day: its value is the COACH'S NAME, so a filter on `value='yes'` matched nothing and the
+channel went silently constant.
+
 ## Comparing against the right null
 **A "does the event repeat?" statistic must be compared with the RESHUFFLED sequence, never with zero.**
 Found 29\07\2026 by making the mistake: a lagged autocorrelation inside a demeaned group carries a

@@ -387,3 +387,20 @@ il primo torna indietro quando l'altro rientra.
   precedente), controllando prezzo e minuti visti: **media +0,049, 6/8 istanze**, cioè debole e non stabile.
   Quindi mostrarlo è utile — è un fatto che l'operatore vuole vedere — e ordinarci sopra una valutazione no.
   Se un giorno lo si vuole come input, serve una pre-registrazione: la misura c'è già e dice «poco».
+
+**Aggiunte all'item 6 dal caso che l'operatore ha portato (14/08, sera), verificato sui dati e in parte
+CORRETTO da essi.** «Bartesaghi è diventato titolare dopo l'infortunio di Estupiñán»: il primo 90' di
+Bartesaghi è la md 6 (3-5 ottobre), la caviglia di Estupiñán è del **12 ottobre**. Ha preso il posto una
+settimana PRIMA; l'infortunio l'ha consolidato, non causato — e il primo acciacco di Estupiñán (8-11 settembre,
+4 giorni) cade nella pausa, dopo la quale gioca md 3, 4 e 5 interi. Finale: 31 presenze e 2.442 minuti contro
+19 e 1.046, stesso ruolo granulare `DL`, quindi la linea coincide davvero. Angeliño è il rovescio: md 1-5 da
+titolare, poi influenza e **bronchite (15/10 → 4/12, 51 giorni)**, ma da md 15 a md 29 **nessun infortunio a
+referto e nessuna presenza** — ricompare alla 30ª per 15' e alla 32ª per 12'. Due requisiti che ne derivano:
+
+- [ ] **6.5 — Il controllo confronta DATE, non stagioni.** La sola co-occorrenza avrebbe dato la risposta
+  sbagliata su un caso che l'operatore conosce: serve l'ordine fra il giorno in cui il posto cambia e il giorno
+  in cui lo spell si apre. Le frasi sono due e diverse: «ha vinto il posto, e l'infortunio è arrivato dopo» e
+  «gioca perché davanti a lui manca X».
+- [ ] **6.6 — Distinguere «fuori per infortunio» da «disponibile e NON schierato».** È il secondo che dice che
+  il posto è perso per scelta, ed è l'informazione che al tavolo cambia un'offerta: quindici giornate in
+  panchina da sano non sono una convalescenza.

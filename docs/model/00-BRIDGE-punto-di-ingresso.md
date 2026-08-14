@@ -34,7 +34,51 @@ la pagina delle probabili non basta e quali vincoli valgono già oggi.
 
 Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
 
-### ULTIMO IN ORDINE DI TEMPO — 11/08/2026 (committato e documentato il 14/08): **cosa un nome porta con sé**, e l'undici che la MIA rosa schiera
+### ULTIMO IN ORDINE DI TEMPO — 14/08/2026: **chi ha sbagliato il mercato**, e tre refutazioni che valgono più delle adozioni
+
+Numeri in [metrica-asta-surplus-v1.md](metrica-asta-surplus-v1.md) **§20** (citare da lì), piano del toolkit in
+spec **«Novità v9.49»**, requisiti nuovi negli item **5 e 6** di
+[todolist-draft-v1.md](todolist-draft-v1.md). Commit: `89f64fd` (piano per stagione, toolkit 366 → **372 test**),
+`1adb4eb` (le due icone, app 132 → **142 test**), `b3da2f4` e `35d39cb` (i requisiti). `engine_*` **non
+toccato**, `SHEET_REVISION` fermo a 15.
+
+**La domanda dell'operatore era: chi il Qt.I e l'FVM hanno sbagliato la stagione scorsa, e con che cosa lo si
+vedeva dopo due giornate.** Misurato su 4 stagioni × 2 piattaforme, taglio al **31 agosto**.
+
+1. **Sull'FVM non è rispondibile, e va detto prima**: ogni lettura che il DB ha per una stagione passata è del
+   07/08/2026, quindi correla **+0,78/+0,80** con l'esito contro il **+0,56/+0,58** del Qt.I. Non è un prezzo
+   d'asta, è un numero che ha visto com'è finita.
+2. **I due lati sono problemi diversi, ed è la conclusione principale.** Dei 200 casi estremi per lato:
+   **43% dei sopravvalutati era già noto il giorno dell'asta** (infortunio aperto 23,5%, già partito dalle
+   cinque leghe 16,5%), mentre i sottostimati sono **92% «chi prende la maglia»** e solo 2,5% noti. Il ribasso è
+   DISPONIBILITÀ (cioè i marchi spediti l'11/08); il rialzo è previsione.
+3. **Una correzione che ha rimosso metà dei sopravvalutati estremi**: il **13-18% di ogni listone** ha un Qt.I,
+   un FVM, il club VECCHIO in `rosters` e **zero righe di voto** in tutta la stagione. Il loro zero non è il
+   mercato che sbaglia, è la nostra riga stantia — contarlo sarebbe inventare l'errore altrui da un difetto
+   nostro.
+4. **Quello che intercetta ciò che il prezzo non vede sono le RATE per 90 della finestra**, 8 istanze su 8:
+   xG+xA/90 **+0,198**, xA/90 +0,194, passaggi chiave/90 +0,165, tiri/90 +0,162, rating +0,147.
+5. **Tre refutazioni**: «crea e non segna ancora» −0,046 (3/8); «fortuna da correggere» **0,000** (3/8), che su
+   una finestra sola valeva −0,181; e «sopra le proprie medie quindi scenderà» **falsificato in entrambe le
+   direzioni** su ~65.000 finestre col null rimescolato (eccesso vero +0,0167 / +0,0072 / −0,0007 a 2, 3, 5
+   giornate, segno che cambia). Il grezzo a 5 giornate è +0,204 ed è tutto artefatto: **il null non è un
+   dettaglio, è la misura**.
+6. **Due screen spediti come icone** (`ui-flags`): difensore economico con xG+xA/90 ≥ 0,25 → 50% contro 28,9% di
+   base (**1,89×**); attaccante caro con xG+xA/90 ≤ 0,25 → 21,9% contro 9,1% (**2,41×**). Per il rialzo si
+   guardano i difensori, per il ribasso gli attaccanti. **La prima versione dava 5-10× perché il null era
+   sbagliato** (confrontava anche coi costosi, che per definizione non possono «esplodere»): dentro il pool in
+   cui si sceglie davvero sono 1,0-2,4×.
+7. **Il toolkit sa dire cosa manca PER STAGIONE**, e classificare il buco in dichiarato / convenzione / limite
+   di fonte / mancante. Risultato su sei stagioni: **zero buchi che un comando possa colmare**. Le tre assenze
+   reali sono di FONTE e ora sono scritte con la prova (voti euro 2021-22 con `mv` NULL su 17.825 righe; xG
+   assente fino al 2021-22 — 0 giocatori su 446 nel payload in cache; `matchday_map` 2021-22 a valle dei voti).
+   E `fetch --plan` da solo diceva «every source is populated».
+
+**Cosa resta aperto**, in ordine: item **5** (il trend delle ultime 10 REALI col giudizio 0-99, e il reparse
+OFFLINE che crea le righe di panchina), item **6** (chi ha guadagnato o perso il posto, col controllo sul
+reparto per DATE), poi i vecchi **4.5**, **1.5b**, **2.2**.
+
+### 11/08/2026 (committato e documentato il 14/08): **cosa un nome porta con sé**, e l'undici che la MIA rosa schiera
 
 Documenti: [assistente-asta-v1.md](assistente-asta-v1.md) **§27**, spec **«Novità v9.49»**.
 `engine_*` non toccato, `SHEET_REVISION` **invariato a 15** (nessun foglio diventa stantio), toolkit **366 test

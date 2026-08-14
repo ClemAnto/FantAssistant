@@ -1,5 +1,5 @@
 # Stato progetto & continuità — v5
-**Aggiornato: 14 agosto 2026 (i marchi accanto al nome, il campetto della squadra FANTA, le note dichiarate nel bundle — lavoro dell'11/08 committato e pubblicato il 14)**
+**Aggiornato: 14 agosto 2026, sera (chi ha sbagliato il mercato e tre refutazioni; due screen spediti; il piano del toolkit per stagione — più il lavoro dell'11/08 committato e pubblicato lo stesso giorno)**
 Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da qui + i file della cartella "Modello Previsionale Fantacalcio".
 *Glossario: T1/T2 = finestre di test (23/24->24/25, 24/25->25/26) · MAE = errore medio assoluto · cross-fitted = parametri stimati su una finestra, testati sull'altra · M2e = modello portieri decomposto (abilità + tasso gol subiti del club; la metà Elo del nome non è nel motore) · Pv_att = presenze attese · fc_id = id fantacalcio.it · EV = valore atteso · scoring_config = punteggi configurabili per lega · xG/xA = expected goals/assists · 2.5 pieno = backtest motore completo con flag.*
 
@@ -7,6 +7,30 @@ Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da q
 App per leghe EuroLeghe/fantacalcio.it (Classic+Mantra, 5 campionati) con motore previsionale. Metodo: ogni regola entra SOLO se batte il baseline fuori campione su finestre indipendenti (gate pre-registrato). Doc madre: modello-previsionale-v3.8.md.
 
 ## ⚠️ Lo stato corrente è in `00-BRIDGE-punto-di-ingresso.md`, blocco «STATO AL 5 AGOSTO 2026»
+
+### 14 agosto 2026, in una riga: chi ha sbagliato il mercato, e il null che dimezza i lift
+
+Dettaglio nel blocco «ULTIMO IN ORDINE DI TEMPO — 14/08/2026» del
+[00-BRIDGE-punto-di-ingresso.md](00-BRIDGE-punto-di-ingresso.md); numeri in
+[metrica-asta-surplus-v1.md](metrica-asta-surplus-v1.md) **§20**, toolkit in spec «Novità v9.49», requisiti
+nuovi negli item **5** e **6** di [todolist-draft-v1.md](todolist-draft-v1.md).
+`engine_*` **invariato**, `SHEET_REVISION` 15, **372 test toolkit + 142 app**.
+
+1. **I due lati dell'errore di mercato sono problemi diversi**: il **43%** dei sopravvalutati estremi era già
+   noto il giorno dell'asta (infortunio aperto o già partito dalle cinque leghe), i sottostimati sono **92%**
+   «chi prende la maglia». Il ribasso è disponibilità, il rialzo è previsione.
+2. **Sull'FVM la domanda non è rispondibile**: per una stagione passata è una lettura del 07/08/2026 e correla
+   +0,78/+0,80 contro il +0,56/+0,58 del Qt.I — ha visto com'è finita.
+3. **Le rate per 90 della finestra sono l'unica cosa che tiene 8/8** (xG+xA/90 +0,198 in testa), e **due screen**
+   sono stati spediti come icone: difensore economico che produce **1,89×**, attaccante caro che non genera
+   **2,41×**.
+4. **Tre refutazioni**, e la terza è la formulazione esatta dell'operatore: «sopra le proprie medie quindi
+   scenderà» è falsificata in entrambe le direzioni su ~65.000 finestre col null rimescolato. Il numero grezzo
+   sarebbe +0,204 ed è **tutto artefatto**.
+5. **Il null non è un dettaglio, è la misura**: gli screen davano 5-10× confrontati col pool sbagliato e danno
+   1,0-2,4× confrontati con quello giusto.
+6. **Il toolkit sa dire cosa manca per stagione** e classifica il buco: su sei stagioni **zero** buchi che un
+   comando possa colmare, tre limiti di fonte scritti con la prova. Prima diceva «every source is populated».
 
 ### 11 agosto 2026 (committato il 14), in una riga: cosa un nome porta con sé, e l'undici che la MIA rosa schiera
 
