@@ -32,6 +32,7 @@ import {
   startingPlaces,
 } from './auction-plan';
 import { Board, BoardsFile, Bundle, EngineSheetEntry } from './bundle';
+import { PlaceChange, placeMark } from './player-place';
 import { MACRO_ROLE, ScreenInput, screenMark, screensFor, windowOf } from './player-screens';
 import { PlayerMark, PlayerStatus } from './player-status';
 import { PlayerTrend, isKnownAbsence, parseTrend, trendScores } from './player-trend';
@@ -152,6 +153,8 @@ export class AuctionAdvice {
   private readonly measured = signal<Map<number, number>>(new Map());
   /** The club's last ten CHAMPIONSHIP matches per player, as the chosen sheet measured them. */
   private readonly trends = signal<Map<number, PlayerTrend>>(new Map());
+  /** ...and who gained or lost a place during the measured season, from the same sheet. */
+  private readonly places = signal<Map<number, PlaceChange>>(new Map());
 
   /**
    * The DRAWN BOARDS of the sheet in use: the toolkit's own, not a second eleven computed here.
@@ -186,6 +189,9 @@ export class AuctionAdvice {
     // and two lists can never disagree. The direction is deliberate - this service knows the POOL (which
     // listone is being played, which is part of the measurement) and `PlayerStatus` must not.
     effect(() => this.status.screens.set(this.screenMarks()));
+    // ...and the same for who gained or lost a place: the fact is the SHEET's, and which sheet is in
+    // play is something only this service knows.
+    effect(() => this.status.places.set(this.placeMarks()));
   }
 
   /**
@@ -225,6 +231,16 @@ export class AuctionAdvice {
     }
     const out = new Map<number, PlayerMark>();
     for (const [id, hit] of screensFor(input)) out.set(id, screenMark(hit));
+    return out;
+  });
+
+  /** Who gained a place and who lost one, as marks. The sentence is written in `player-place.ts`. */
+  readonly placeMarks = computed<Map<number, PlayerMark>>(() => {
+    const out = new Map<number, PlayerMark>();
+    for (const [id, place] of this.places()) {
+      const mark = placeMark(place);
+      if (mark) out.set(id, mark);
+    }
     return out;
   });
 
@@ -821,7 +837,9 @@ export class AuctionAdvice {
       this.measured.set(await this.lastSeason(chosen, manifest.input_season));
       // Read from the CHOSEN sheet and no other: the window is measured per sheet, so taking it from
       // one and the valuation from another would put two different populations on one row.
-      this.trends.set(await this.readTrends(chosen));
+      const measured = await this.readMeasuredWindows(chosen);
+      this.trends.set(measured.trends);
+      this.places.set(measured.places);
       // The boards of THIS sheet, by the path the manifest itself declares - never a guessed file name.
       this.boards.set(chosen.boards ? await this.bundle.boards(chosen.boards) : null);
       this.crests.set((await this.bundle.crests().catch(() => null)) ?? {});
@@ -926,12 +944,39 @@ export class AuctionAdvice {
    * a match he did not play counts ZERO because availability is half of what a fantamedia is worth, a
    * match nobody could score is left out of the denominator rather than counted as a bad one.
    */
-  private async readTrends(sheet: EngineSheetEntry): Promise<Map<number, PlayerTrend>> {
+  private async readMeasuredWindows(
+    sheet: EngineSheetEntry,
+  ): Promise<{ trends: Map<number, PlayerTrend>; places: Map<number, PlaceChange> }> {
     try {
       const table = await this.bundle.table(sheet.path.replace(/\.json(\.gz)?$/, ''));
-      const id = table.columns.indexOf('fc_id');
-      const detail = table.columns.indexOf('desc_trend_detail');
-      if (id < 0 || detail < 0) return new Map(); // a bundle older than the column: no strip, no claim
+      const at = (name: string) => table.columns.indexOf(name);
+      const id = at('fc_id');
+      const detail = at('desc_trend_detail');
+      const place = {
+        change: at('desc_place_change'),
+        on: at('desc_place_on'),
+        md: at('desc_place_md'),
+        minutes: at('desc_place_minutes'),
+        cause: at('desc_place_cause'),
+        who: at('desc_place_who'),
+      };
+      const places = new Map<number, PlaceChange>();
+      if (id >= 0 && place.change >= 0) {
+        for (const row of table.rows) {
+          const change = row[place.change] as PlaceChange['change'] | null;
+          if (!change) continue;
+          places.set(Number(row[id]), {
+            change,
+            on: (row[place.on] as string) ?? '',
+            matchday: (row[place.md] as number) ?? null,
+            minutes: (row[place.minutes] as string) ?? null,
+            cause: (row[place.cause] as PlaceChange['cause']) ?? null,
+            who: (row[place.who] as string) ?? null,
+          });
+        }
+      }
+      // a bundle older than the column: no strip and no claim, and the places above may still be there
+      if (id < 0 || detail < 0) return { trends: new Map(), places };
       const out = new Map<number, PlayerTrend>();
       for (const row of table.rows) {
         const matches = parseTrend(row[detail] as string | null);
@@ -959,10 +1004,10 @@ export class AuctionAdvice {
           outsideEuro,
         });
       }
-      return out;
+      return { trends: out, places };
     } catch {
       // An older bundle without the sheet columns: the strip is simply not drawn.
-      return new Map();
+      return { trends: new Map(), places: new Map() };
     }
   }
 

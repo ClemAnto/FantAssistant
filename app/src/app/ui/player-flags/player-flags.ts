@@ -14,6 +14,10 @@ const ICON: Record<PlayerFlag, string> = {
   dispute: 'disconnect',
   promise: 'rise',
   flop_risk: 'fall',
+  // A place gained or lost is a fact about the PAST and about a shirt, so it must not borrow the two
+  // arrows the screens use for a projection: those say «he might», these say «he did».
+  place_gained: 'login',
+  place_lost: 'logout',
 };
 
 /**
@@ -31,6 +35,10 @@ const TONE: Record<PlayerFlag, string> = {
   // measured lift, which is what makes them worth looking at rather than believing.
   promise: 'opacity-70',
   flop_risk: 'opacity-70',
+  // Measured facts about last season, and neither is good or bad news on its own: a place won while
+  // the starter was hurt is not a promotion, and the tooltip is where that lives. So: neutral.
+  place_gained: 'opacity-70',
+  place_lost: 'opacity-70',
 };
 
 const LABEL: Record<PlayerFlag, string> = {
@@ -39,6 +47,8 @@ const LABEL: Record<PlayerFlag, string> = {
   dispute: 'Fuori rosa / rottura con la società',
   promise: 'Possibile promessa',
   flop_risk: 'Possibile flop',
+  place_gained: 'Ha guadagnato il posto',
+  place_lost: 'Ha perso il posto',
 };
 
 /**

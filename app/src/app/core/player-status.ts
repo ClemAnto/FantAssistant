@@ -27,7 +27,14 @@ export const LONG_INJURY_DAYS = 45;
 /** For how long after his return a man is still «just back»: about two months of calendar. */
 export const BACK_FROM_LONG_DAYS = 60;
 
-export type PlayerFlag = 'long_injury' | 'back_from_long' | 'dispute' | 'promise' | 'flop_risk';
+export type PlayerFlag =
+  | 'long_injury'
+  | 'back_from_long'
+  | 'dispute'
+  | 'promise'
+  | 'flop_risk'
+  | 'place_gained'
+  | 'place_lost';
 
 export interface PlayerMark {
   flag: PlayerFlag;
@@ -225,6 +232,13 @@ export class PlayerStatus {
    */
   readonly screens = signal<Map<number, PlayerMark>>(new Map());
 
+  /**
+   * Who took a shirt during the measured season and who lost one, registered the same way and for the
+   * same reason: it is MEASURED by the toolkit (`desc_place_*`) and read off the sheet that is in play,
+   * so only the panel knows which sheet that is. The app never re-derives it - it writes the sentence.
+   */
+  readonly places = signal<Map<number, PlayerMark>>(new Map());
+
   /** Every mark a man carries, in the order they are drawn. Empty is the normal case. */
   marksFor(playerId: number | null | undefined): PlayerMark[] {
     if (playerId == null) return [];
@@ -233,6 +247,10 @@ export class PlayerStatus {
     if (injury) marks.push(injury);
     const declared = this.declared().get(playerId);
     if (declared) marks.push(declaredMark(declared));
+    // Then what happened to his shirt LAST season - a measured fact about the past, which outranks a
+    // projection and is outranked by a state of now.
+    const place = this.places().get(playerId);
+    if (place) marks.push(place);
     // The screen goes LAST: an availability fact outranks a projection about form, and the order the
     // marks are pushed in is the order they are drawn.
     const screen = this.screens().get(playerId);
