@@ -495,6 +495,69 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.50 (14 agosto 2026 — il TREND delle ultime dieci REALI, e la panchina che era già nel dato)
+
+`SHEET_REVISION` **15 → 16**: undici colonne nuove e due che si sdoppiano, quindi ogni cartella
+precedente è da ricostruire. `engine_*` **non si muove di un decimale** (nessun file sotto `engine/`
+toccato) e nessun gate vede niente di tutto questo: è la quarta famiglia di colonne, `desc_*`.
+Toolkit **373 → 379 test**, app **142 → 153**, `ng build` verde.
+
+**La richiesta dell'operatore** (item 5 di [todolist-draft-v1.md](todolist-draft-v1.md)) nasce dal suo
+metodo personale e ha una base misurabile: il calendario EuroLeghe **salta 3-7 giornate reali per lega
+ogni stagione**, quindi chi guarda solo il voto euro perde partite vere. Sulle finestre scritte oggi
+sono **940 partite su 9.657 (9,7%)**, e `matchday_map` sa esattamente quali.
+
+**1. La panchina NON andava recuperata: era già nel database, sotto un NULL.** L'item 5.3 prevedeva un
+re-parse offline dei 1.373 payload in cache perché «il parse scarta la panchina senza ingresso». Misurato
+prima di scrivere una riga: un sostituto non utilizzato porta un oggetto `statistics` con `totalShots` e
+**senza** `minutesPlayed`, quindi il parser la riga l'ha sempre scritta — **79.437 righe** con `started`
+= 0 e `minutes` NULL, di cui 5.068 sulla sola Serie A 2025-26. L'osservazione da cui l'item partiva era
+giusta (nessuna riga ha `minutes` = 0); la conclusione attaccata era sbagliata. Il re-parse non è stato
+fatto: quello che mancava era un LETTORE (`snapshot.bench_matches`), e la lettura vale solo per il layer
+di LEGA — in un'amichevole il provider pubblica l'undici e nessuna statistica, quindi lì «niente minuti»
+non distingue un panchinaro da chi ha giocato un'ora.
+
+**2. Una finestra nuova, e non un allargamento di quella che c'era.** `desc_form_*` cammina su OGNI
+competizione (ad agosto sono quasi tutte amichevoli); `desc_trend_*` cammina sulle ultime dieci di
+**CAMPIONATO**, che sono le uniche per cui un voto può esistere. Due domande diverse, due serie di
+contatori, e il popup del pannello legge solo i secondi: una figura spiegata dai numeri di un'altra
+finestra è il difetto che questo progetto ha già pagato.
+
+**3. La cascata del VOTO, dichiarata in un punto solo** (`snapshot.match_worth`): voto vero se il gioco
+l'ha dato → **`mv_synth`** calibrato per la giornata che il calendario euro ha saltato → niente. Mai uno
+zero: una partita che nessuno ha votato non è una brutta partita. Copertura sulle finestre di oggi:
+**4.179 voti reali e 1.356 sintetici**. Due cose che la via sintetica non può portare, dichiarate invece
+che approssimate — i **cartellini** (lo strato per-partita non ha ammonizioni: 0 righe non nulle su
+250.678) e i **portieri**, il cui fantavoto è dominato dai gol subiti che nessuna riga per-partita
+contiene: un turno sintetico di un portiere ha il voto e NON i fantapunti, e resta fuori dal denominatore
+invece di entrarci con un numero gonfiato di un gol a partita.
+
+**4. Il GIUDIZIO, `desc_trend_fp`**: media dei fantapunti su quelle dieci, dove **una partita non giocata
+vale 0** (la disponibilità è metà di quello che vale una fantamedia — `Var(ln pv)` è il 90% di
+`Var(ln fantapunti)`) e **una che nessuno può punteggiare non entra nel denominatore**, che
+`desc_trend_matches` dichiara. È una DESCRIZIONE: misurato lo stesso giorno, lo scostamento dalle proprie
+medie non predice le giornate successive (eccesso vero +0,0167 / +0,0072 / −0,0007 a 2, 3 e 5 giornate
+col null rimescolato, e il segno cambia). Il 0-99 è calcolato **dentro il RUOLO** e sul foglio intero,
+in entrambe le interfacce, perché «va forte» è una frase relativa a quello che il suo ruolo può produrre.
+
+**5. Un difetto trovato chiamando la funzione, non leggendola** — e sarebbe finito nel foglio. Doekhi,
+listone 2026-27 alla Lazio dopo un'estate all'Union Berlino, aveva una finestra che **intrecciava la
+primavera della Lazio con le sue partite di Bundesliga** e lo segnava ZERO su sei giornate giocate mentre
+lui era ancora in Germania: 2,742 di media invece di 6,159. La risoluzione dei club in due passate sapeva
+QUALI club la finestra attraversa e non aveva modo di dire QUANDO ciascuno era suo. Curato con
+`snapshot.player_clubs` — un club è suo per le stagioni in cui il **listone** ce lo mette o in cui le sue
+**presenze** dicono che ci ha giocato, e servono entrambe le sorgenti: senza il listone un uomo infortunato
+da agosto a maggio non avrebbe finestra affatto. Misurato sul listone euro: **173 finestre su 1.085
+cambiano, 99 guadagnano più di mezzo fantapunto a partita**.
+
+**6. Cosa disegna la barra** (pannello Tk `_histogram`, app `ui-trend`, stessa tavolozza in entrambi
+perché una figura non può avere due vocabolari): l'ALTEZZA è il voto sulla scala dichiarata 4-8, la barra
+**vuota** dice che quel voto è il sintetico, uno **zoccolo** di due pixel al posto della barra è una
+partita non giocata col colore della ragione (panchina, infortunio, squalifica, fuori dai convocati,
+nessun dato), la colonnina viola **accanto** alla barra è xG+xA — mai dentro l'altezza, perché uno può
+giocare bene e finalizzare male — un disco nero è un gol e uno piccolo un assist, una riga gialla o rossa
+in basso il cartellino, e una sottolineatura la giornata che il calendario euro non ha contato.
+
 ## Novità v9.49 (11 agosto 2026 — le note DICHIARATE sui giocatori viaggiano nel bundle)
 
 `SHEET_REVISION` resta **15** e `engine_*` è invariato: questa novità non produce nessun numero, quindi non

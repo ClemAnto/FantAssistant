@@ -1,5 +1,5 @@
 # 00 — BRIDGE · Punto d'ingresso del progetto (leggere per primo)
-**Aggiornato: 10 agosto 2026, notte tarda (la todolist del draft ESEGUITA, il campetto legge la board del toolkit ed e' rifinito, v0.1.8 pushata)** · precedente: 10 agosto, giorno (l'assistente d'asta e' completo — porte, surplus vivo, scelta consigliata — e la campagna sulle strategie di draft ha RITIRATO due conclusioni)** · precedente: 9 agosto (l'app esiste: Angular, pubblicata su GitHub Pages, legge il bundle del toolkit)** · 8 agosto (DUE GIUDICI per le formazioni tipo — la stampa e l'ESITO reale — e la todolist formazioni tipo chiusa: cinque adozioni, sei rifiuti misurati)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
+**Aggiornato: 14 agosto 2026, sera (il TREND delle ultime dieci REALI nel foglio, nel pannello e nell'app — e la panchina che era gia' nel dato)** · precedente: 10 agosto, notte tarda (la todolist del draft ESEGUITA, il campetto legge la board del toolkit ed e' rifinito, v0.1.8 pushata)** · precedente: 10 agosto, giorno (l'assistente d'asta e' completo — porte, surplus vivo, scelta consigliata — e la campagna sulle strategie di draft ha RITIRATO due conclusioni)** · precedente: 9 agosto (l'app esiste: Angular, pubblicata su GitHub Pages, legge il bundle del toolkit)** · 8 agosto (DUE GIUDICI per le formazioni tipo — la stampa e l'ESITO reale — e la todolist formazioni tipo chiusa: cinque adozioni, sei rifiuti misurati)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
 
 ## Il progetto in breve
 Motore previsionale per fantacalcio **EuroLeghe** (fantacalcio.it): valutazione calciatori Classic e Mantra sui 5 grandi campionati europei (Serie A, Premier, Liga, Bundesliga, Ligue 1 — perimetro: i ~35 top club del gioco). Prevede fantamedia (FM), presenze attese e VALORE stagionale = FM × presenze. Metodo scientifico: **ogni regola entra nel motore solo se batte il baseline fuori campione su finestre indipendenti** (gate pre-registrato). Stato: core validato (Mantra, Classic, portieri, presenze); manca lo strato flag/arrivi, sbloccato dal toolkit dati `euroleghe-ingest` (in implementazione).
@@ -34,7 +34,41 @@ la pagina delle probabili non basta e quali vincoli valgono già oggi.
 
 Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
 
-### ULTIMO IN ORDINE DI TEMPO — 14/08/2026: **chi ha sbagliato il mercato**, e tre refutazioni che valgono più delle adozioni
+### ULTIMO IN ORDINE DI TEMPO — 14/08/2026, sera: **il TREND delle ultime dieci REALI**, e la panchina che era già nel dato
+
+Costruzione e numeri in spec **«Novità v9.50»**, cosa il tavolo ci legge in
+[assistente-asta-v1.md](assistente-asta-v1.md) **§28**, item **5** di
+[todolist-draft-v1.md](todolist-draft-v1.md) **chiuso** (5.1, 5.2, 5.3, 5.4). `SHEET_REVISION` **15 → 16**
+(undici colonne nuove: ogni cartella precedente è da ricostruire), `engine_*` **invariato**, toolkit
+**373 → 379 test**, app **142 → 153**, `ng build` verde.
+
+1. **La finestra è il CAMPIONATO**, non «le ultime dieci»: il calendario euro salta 3-7 giornate reali per
+   lega a stagione, quindi chi legge solo la fantamedia euro legge l'82% del calcio giocato. Sulle finestre
+   scritte oggi sono **940 partite su 9.657 (9,7%)**, marcate una per una.
+2. **La panchina NON andava recuperata: era già nel database, sotto un NULL.** L'item 5.3 prevedeva un
+   re-parse offline di 1.373 payload perché «il parse scarta la panchina»; misurato prima di scrivere una
+   riga, un sostituto non utilizzato porta `statistics` senza `minutesPlayed`, quindi la riga c'è sempre
+   stata — **79.437 righe**, `started` = 0 e `minutes` NULL. L'osservazione era vera (nessuna riga ha
+   `minutes = 0`), la conclusione attaccata era falsa. Mancava un LETTORE. **Un re-parse risparmiato da una
+   query**, e la panchina VINCE su uno spell che copra quel giorno: chi è in distinta era disponibile e non
+   è stato scelto.
+3. **La cascata del voto è dichiarata in un punto solo**: voto vero → `mv_synth` calibrato → niente. Mai uno
+   zero. Copertura: **4.179 voti reali e 1.356 sintetici**. Due limiti dichiarati invece che approssimati:
+   niente cartellini sul ramo sintetico (lo strato per-partita non ha ammonizioni) e **niente fantapunti per
+   un portiere** sintetico (il suo fantavoto è dominato dai gol subiti, che non abbiamo per-partita).
+4. **Il giudizio 0-99 è dentro il RUOLO** e sul foglio intero, ed è una DESCRIZIONE: lo scostamento dalle
+   proprie medie non predice le giornate successive (+0,0167 / +0,0072 / −0,0007 a 2, 3, 5 giornate, segno
+   che cambia). Il tooltip lo dice; nessuna valutazione lo legge.
+5. **Un difetto trovato CHIAMANDO la funzione**, e sarebbe finito nel foglio: un uomo arrivato in estate
+   aveva la primavera del club NUOVO nella sua finestra e ci prendeva zero (Doekhi 2,742 invece di 6,159).
+   Curato con `snapshot.player_clubs` — un club è suo per le stagioni in cui il listone ce lo mette **o** le
+   sue presenze dicono che ci ha giocato, e servono entrambe. **173 finestre su 1.085 cambiano, 99 guadagnano
+   più di mezzo fantapunto a partita.**
+
+**Cosa resta aperto**, in ordine: item **6** (chi ha guadagnato o perso il posto, col controllo sul reparto
+per DATE), poi i vecchi **4.5**, **1.5b**, **2.2**.
+
+### 14/08/2026: **chi ha sbagliato il mercato**, e tre refutazioni che valgono più delle adozioni
 
 Numeri in [metrica-asta-surplus-v1.md](metrica-asta-surplus-v1.md) **§20** (citare da lì), piano del toolkit in
 spec **«Novità v9.49»**, requisiti nuovi negli item **5 e 6** di
@@ -74,9 +108,8 @@ vedeva dopo due giornate.** Misurato su 4 stagioni × 2 piattaforme, taglio al *
    assente fino al 2021-22 — 0 giocatori su 446 nel payload in cache; `matchday_map` 2021-22 a valle dei voti).
    E `fetch --plan` da solo diceva «every source is populated».
 
-**Cosa resta aperto**, in ordine: item **5** (il trend delle ultime 10 REALI col giudizio 0-99, e il reparse
-OFFLINE che crea le righe di panchina), item **6** (chi ha guadagnato o perso il posto, col controllo sul
-reparto per DATE), poi i vecchi **4.5**, **1.5b**, **2.2**.
+**Cosa restava aperto quel pomeriggio**: item **5** (chiuso la sera stessa, blocco sopra), item **6**, poi i
+vecchi **4.5**, **1.5b**, **2.2**.
 
 ### 11/08/2026 (committato e documentato il 14/08): **cosa un nome porta con sé**, e l'undici che la MIA rosa schiera
 

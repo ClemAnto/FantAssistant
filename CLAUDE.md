@@ -633,6 +633,17 @@ plausible story («we never scraped it») is worth one measurement - the cached 
 plan that prints a command nobody can run is worse than no plan - the first version of the list offered
 `matchdays --season 2021-22`, a flag that does not exist, so a test now checks every template against the real
 parser.
+**...and the same NULL can be the fact you were about to go and fetch** (14/08/2026). A todolist item planned
+an offline re-parse of 1,373 cached payloads to «create the bench rows the parser discards», on a true
+observation - no row of the per-match layer has `minutes` = 0 - and a false conclusion. An unused substitute
+carries a `statistics` object with `totalShots` and no `minutesPlayed`, so the parser has always written his
+row: **79,437 of them**, `started` = 0 and `minutes` NULL, and the app's own consultation table was already
+reading them as the bench. What was missing was a READER, not a run. Two things travel with it: the reading
+holds for the LEAGUE source only (in a friendly the provider publishes the eleven and no statistics at all, so
+there «no minutes» cannot tell an unused substitute from a man who played an hour - the same absence with two
+opposite meanings), and the bench BEATS a dated injury spell that covers the day, because a man printed on the
+team sheet was available and was not chosen, which is the other question and the one that changes a bid.
+
 **A column documented with six states can carry two.** `match_ratings.status` is populated on 100% of rows and
 holds only `played` (228,246) and `no_vote` (35,147); the schema comment promises `bench | injured | suspended |
 not_in_squad`, never written. Anyone trusting the comment would believe the bench is readable from there. Same

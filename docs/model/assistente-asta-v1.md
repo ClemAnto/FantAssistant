@@ -2067,3 +2067,56 @@ questo. Due conseguenze da tenere:
    complete e verdi alle 08:11 dell'11/08; il documento che le spiega è di tre giorni dopo, ricostruito
    leggendo i diff. Ha funzionato perché i commenti nel codice portavano i «perché» e le date; sarebbe
    fallito senza.
+
+## 28. Il TREND delle ultime dieci REALI, e il giudizio 0-99 che lo ordina (14 agosto 2026)
+
+Richiesta dell'operatore (item 5 di [todolist-draft-v1.md](todolist-draft-v1.md)), nata dal suo metodo
+personale. Numeri e costruzione: spec **«Novità v9.50»**; qui c'è cosa il tavolo ci legge.
+
+### 28.1 Perché la finestra è il CAMPIONATO e non «le ultime dieci»
+
+Il calendario EuroLeghe salta **3-7 giornate reali per lega ogni stagione**, quindi un uomo giudicato sulla
+sua fantamedia euro è giudicato sull'82% del suo calcio. Quelle giornate sono nel layer per-partita, hanno un
+voto sintetico **calibrato**, e la striscia le marca con una sottolineatura: sulle finestre scritte oggi sono
+**940 partite su 9.657 (9,7%)**. La finestra `desc_form_*` — ogni competizione, amichevoli comprese — resta
+dov'era e risponde a un'altra domanda; il popup del pannello legge SOLO i contatori della sua, perché una
+figura spiegata dai numeri di un'altra finestra è il difetto che questo progetto ha già pagato.
+
+### 28.2 Cosa dice una barra, e cosa non dirà mai
+
+L'ALTEZZA è il voto, da una cascata dichiarata in un punto solo: **voto vero → `mv_synth` → niente**. Mai uno
+zero — una partita che nessuno ha votato non è una brutta partita, ed è la stessa regola di «vuoto = ignoto».
+Una barra **vuota** dice che quel voto è il sintetico. Uno **zoccolo** di due pixel al posto della barra è una
+partita non giocata, e il colore dice quale delle cinque ragioni: panchina, infortunio, squalifica, fuori dai
+convocati, nessun dato. **La panchina è MISURATA** (la riga del sostituto non utilizzato esiste da sempre nel
+provider) e **vince su uno spell** che copra quel giorno: un uomo in distinta era disponibile e non è stato
+scelto, che è l'unica delle due frasi che cambia un'offerta. Accanto alla barra, mai dentro la sua altezza, la
+colonnina di **xG+xA**: uno può giocare bene e finalizzare male, e sommare le due cose nasconderebbe proprio
+quello. Gol, assist e cartellini sono icone, e i cartellini solo dove la partita è stata davvero votata —
+lo strato per-partita non ha ammonizioni, e disegnarne una sarebbe inventare una misura.
+
+### 28.3 Il numero: 0-99 dentro il ruolo, e la frase che deve accompagnarlo
+
+`desc_trend_fp` è la **media dei fantapunti** su quelle dieci: una partita non giocata vale **0** (la
+disponibilità è metà di quello che vale una fantamedia — `Var(ln pv)` è il 90% di `Var(ln fantapunti)`), una
+che nessuno può punteggiare **non entra nel denominatore**, e `desc_trend_matches` dice quante ci sono
+entrate. Il 0-99 è lineare contro il migliore **del suo ruolo** sul listone in gioco: «va forte» è una frase
+relativa a quello che il ruolo può produrre, e un pool sotto gli 8 uomini non è una distribuzione, quindi la
+colonna resta vuota.
+
+**È una DESCRIZIONE e non una previsione, e il tooltip lo dice.** Misurato lo stesso giorno su ~65.000
+finestre col null rimescolato, lo scostamento dalle proprie medie non predice le giornate successive: eccesso
+vero **+0,0167 / +0,0072 / −0,0007** a 2, 3 e 5 giornate, **col segno che cambia**. Ordinare per trend è
+ordinare per «cosa ha fatto» — legittimo, veloce, e quello che l'operatore ha chiesto; venderlo come «cosa
+farà» sarebbe la terza forma respinta della stessa idea. Nessuna valutazione, nessun piano e nessun undici lo
+legge.
+
+### 28.4 Verificato come, e cosa resta dichiarato
+
+La figura è stata **guardata** (le strisce scritte a 6x direttamente da Tk, non uno screenshot della finestra)
+e la prima versione è stata corretta su quello che si vedeva: la colonnina xG+xA invadeva la barra, e uno zero
+disegnava un pixel indistinguibile da un valore piccolo. Poi il pannello vero, fotografato: la colonna TREND
+tiene i suoi 102px in 106 e il 0-99 le sta accanto. Nell'app la striscia è un componente unico (`ui-trend`,
+SVG) verificato **sulla geometria** e non a occhio - cinque test che leggono altezze, colori e posizioni,
+perché uno screenshot non dimostra che un'assenza non sia stata disegnata come una barra bassa. Quello che
+resta non verificato è la riga d'asta **dentro una sessione viva**: come per i campetti, serve un'asta seguita.

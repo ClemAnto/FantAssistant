@@ -325,7 +325,7 @@ un'idea, leggere «cosa è già stato respinto» in fondo.
 
 ---
 
-## 5. Il TREND delle ultime 10 partite REALI (richiesta dell'operatore, 14/08/2026)
+## 5. Il TREND delle ultime 10 partite REALI (richiesta dell'operatore, 14/08/2026) — CHIUSO la sera stessa
 
 Nasce dal suo metodo personale, che ha una base misurabile: **il calendario EuroLeghe salta giornate**, quindi
 chi guarda solo il voto euro perde partite vere. Misurato eseguendo `matchdays` il 14/08: nel 2025-26 le
@@ -333,34 +333,44 @@ giornate reali fuori dal calendario euro sono 7 su 38 in Serie A (la 9, 16, 17, 
 7 in Liga, 3 su 34 in Bundesliga, 4 su 34 in Ligue 1 — **il 18% delle partite di un uomo è invisibile nella sua
 fantamedia euro**, e `matchday_map` sa esattamente quali.
 
-- [ ] **5.1 — L'istogramma delle ultime 10 reali**, sia nell'app sia nel pannello Tk. Altezza = performance da
-  una cascata DICHIARATA (voto vero se c'è → `mv_synth` se no → barra vuota, mai uno zero) e ogni barra dice su
-  cosa sta; **xG+xA come SECONDO STRATO** sulla barra (scelta dell'operatore) e non dentro il numero;
-  mini-icone gol/assist/giallo/rosso; e un segno sulle giornate che il calendario euro non ha contato.
-- [ ] **5.2 — Gli stati della barra: due esistono, due no** (misurato 14/08). Disponibili: **≥75'** (netto:
-  6.255 righe contro 5.646 spezzoni in Serie A 2025-26) e **infortunato** (da `injuries`, spell datato che
-  copre la data). NON disponibili: **squalificato** (`availability` ha 633 righe e solo dal 26/07 al 10/08/2026
-  — è uno snapshot, non una serie; e `reds` è 0 su tutto il 2025-26 nel layer per-partita) e **panchinato**
-  (non esiste una riga con `minutes = 0`: sono tutte NULL, e il parse scarta la panchina senza ingresso).
-  Quindi gli stati spedibili sono quattro — titolare pieno, spezzone, infortunato, **ignoto** — e «ignoto» non
-  diventa «panchina» finché 5.3 non c'è.
-- [ ] **5.3 — La panchina è recuperabile OFFLINE**: il parse ha già `keep_unplayed` (lo usa il layer `extra`) e
-  i payload di tutte le giornate sono in cache, quindi `positions --layer reparse` con quell'opzione estesa al
-  layer di lega crea le righe di panchina **senza una richiesta di rete**. La squalifica no: va derivata dai
-  rossi di `match_ratings` e coprirebbe solo il calendario della piattaforma, non le giornate fuori.
-- [ ] **5.4 — Il GIUDIZIO 0-99 del trend, per poterci ordinare** (richiesta del 14/08). Tre vincoli che il
-  numero deve portare addosso, e il primo è il motivo per cui esiste questo item invece di una formula:
-  **è una DESCRIZIONE, non una previsione.** Lo stesso giorno è stato misurato che lo scostamento dalle proprie
-  medie non predice il rendimento successivo (eccesso vero +0,0167 / +0,0072 / −0,0007 a 2, 3 e 5 giornate, col
-  segno che cambia, su ~65.000 finestre e col null rimescolato): quindi ordinare per trend è ordinare per
-  «cosa ha fatto», che è legittimo e veloce, e vendere quel numero come «cosa farà» sarebbe la terza forma
-  respinta della stessa idea. Il tooltip deve dirlo.
-  Forma proposta: **la media dei fantapunti raccolti sulle sue ultime 10 partite REALI**, dove una partita non
-  giocata conta 0 e una ignota non entra nel denominatore — così dentro ci sono sia la qualità sia la
-  DISPONIBILITÀ, che è la metà grossa (`Var(ln pv)` è il 90% di `Var(ln fantapunti)`), esattamente come il
-  valore che il pannello già usa. Poi `score99` sulla scala che l'app ha già, **con il pool dichiarato: dentro
-  il RUOLO**, perché «va forte» è una frase relativa a quello che il suo ruolo può produrre e perché il pool di
-  un percentile è parte della misura. Nessun gate: è reporting, non entra in nessuna valutazione.
+**Eseguito il 14/08/2026, sera** (spec «Novità v9.50», `SHEET_REVISION` 15 → **16**, `engine_*` invariato).
+Sulle finestre realmente scritte le giornate fuori dal calendario sono **940 su 9.657 (9,7%)** — la quota è
+per SEASON del 18%, ma le ultime dieci di un club non sono un campione casuale della stagione, e va citata
+quella misurata sulla finestra. Copertura del voto: **4.179 reali e 1.356 sintetici calibrati**.
+
+- [x] **5.1 — L'istogramma delle ultime 10 reali**, sia nell'app sia nel pannello Tk. FATTO, con la stessa
+  tavolozza nei due (una figura non può avere due vocabolari): altezza = il VOTO dalla cascata dichiarata in
+  un punto solo (`snapshot.match_worth`) — voto vero → `mv_synth` → niente, **mai uno zero**; barra **vuota**
+  quando quel voto è il sintetico; **zoccolo** di due pixel al posto della barra per una partita non giocata,
+  col colore della ragione; **xG+xA accanto** alla barra e mai dentro la sua altezza (prima versione: la
+  colonnina invadeva la barra e un 1px per lo zero era indistinguibile da un valore piccolo — corretto sulla
+  figura, guardandola); disco nero gol / piccolo assist, riga gialla o rossa il cartellino, sottolineatura la
+  giornata fuori dal calendario euro. Il dato è UNO (`desc_trend_detail`, undici colonne nuove nel foglio e
+  nel bundle): l'app non ricalcola niente, e questa è la stessa regola per cui le board stanno nel toolkit.
+- [x] **5.2 — Gli stati della barra: erano due, sono CINQUE, e uno dei «non disponibili» era un errore
+  di lettura.** Titolare pieno, spezzone, **panchinato** (vedi 5.3), infortunato e squalificato (spell datato
+  da `injuries`), più `fuori dai convocati` e `ignoto`, che restano distinti perché sono fatti diversi.
+  L'ordine è la tesi: **la panchina VINCE su uno spell** che copra quel giorno — un uomo stampato in distinta
+  era disponibile e non è stato scelto, ed è l'unica delle due frasi che cambia un'offerta.
+- [x] **5.3 — La panchina NON era da recuperare: era già nel database, sotto un NULL.** L'item prevedeva un
+  re-parse offline; misurato prima di scriverlo, un sostituto non utilizzato porta `statistics` con
+  `totalShots` e senza `minutesPlayed`, quindi la riga c'è sempre stata — **79.437 righe** con `started` = 0 e
+  `minutes` NULL (5.068 sulla sola Serie A 2025-26, che è esattamente il numero su cui la tabella di
+  consultazione dell'app leggeva già la panchina). L'osservazione da cui l'item partiva era vera (nessuna riga
+  ha `minutes = 0`), la conclusione attaccata era falsa. Quello che mancava era un LETTORE, e vale solo per il
+  layer di LEGA: in un'amichevole «niente minuti» non distingue un panchinaro da chi ha giocato un'ora.
+  **Un re-parse di 1.373 file risparmiato da una query.** La squalifica resta come l'item la descriveva.
+- [x] **5.4 — Il GIUDIZIO 0-99 del trend.** FATTO nella forma proposta: `desc_trend_fp` è la media dei
+  fantapunti sulle ultime dieci di campionato, una non giocata vale 0, una che nessuno può punteggiare non
+  entra nel denominatore (`desc_trend_matches` lo dichiara), e il 99 è **dentro il RUOLO** e sul foglio intero
+  — in entrambe le interfacce, con la soglia di 8 uomini sotto la quale il ruolo non è una distribuzione e la
+  colonna resta vuota. Il tooltip porta la refutazione per esteso, come l'item chiedeva.
+  **Difetto trovato chiamando la funzione** e non leggendola, e sarebbe finito nel foglio: Doekhi (Union
+  Berlino → Lazio) aveva una finestra che intrecciava la primavera del club NUOVO con le sue partite di
+  Bundesliga, e lo segnava zero su sei giornate giocate mentre era ancora in Germania — 2,742 invece di 6,159.
+  Curato con `snapshot.player_clubs` (un club è suo per le stagioni in cui il listone ce lo mette o le sue
+  presenze dicono che ci ha giocato: servono entrambe, o un infortunato di dieci mesi non ha finestra).
+  Misurato: **173 finestre su 1.085 cambiano, 99 guadagnano più di mezzo fantapunto a partita.**
 
 ## 6. Chi ha GUADAGNATO il posto e chi l'ha PERSO, col controllo sul reparto (operatore, 14/08/2026)
 
