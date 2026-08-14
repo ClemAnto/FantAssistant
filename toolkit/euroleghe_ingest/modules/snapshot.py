@@ -173,7 +173,17 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      stays the anchor - R1 lost to it on five windows of six, and what a man did abroad predicts how
 #      much he PLAYS, not how well. `engine_*` does not move: this is the estimate layer, which the gate
 #      never sees (`backtest --verify` 22/22).
-SHEET_REVISION = 15
+#  16  14/08/2026 - THE TREND OF THE LAST TEN REAL MATCHES, and the bench that was already in the data.
+#      Eleven new `desc_trend_*` columns (the operator's item 5): the club's last ten CHAMPIONSHIP
+#      matches with the vote, the fantapunti, the cards, the xG+xA and a mark on the rounds the euro
+#      calendar never counted - 3 to 7 a season per league, i.e. 18% of a man's football invisible in
+#      his euro fantamedia. Plus `desc_form_bench` / `desc_form_out`, which SPLIT a count the sheet
+#      used to give as one: an unused substitute has always been in the per-match layer (79,437 rows,
+#      `started` = 0 and `minutes` NULL, because the provider's payload gives him a statistics object
+#      with `totalShots` and no `minutesPlayed`), so the planned offline re-parse was not needed - the
+#      todolist's claim that «the parse discards the bench» came from a true observation (no row has
+#      `minutes` = 0) and a wrong conclusion. Nothing gated moves; `engine_*` is untouched.
+SHEET_REVISION = 16
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
@@ -596,34 +606,51 @@ def squad_as_of(conn, date: str) -> tuple[dict[int, str], dict[int, str]]:
             {fc_id: entry[2] for fc_id, entry in best.items()})
 
 
-def club_matches(conn, auction_date: str, resolve, limit: int = FORM_MATCHES) -> dict[str, list[tuple]]:
-    """Each club's last `limit` matches before the auction date: (date, match_id, competition).
+def club_matches(conn, auction_date: str, resolve, limit: int = FORM_MATCHES,
+                 competitions: tuple[str, ...] | None = None) -> dict[str, list[tuple]]:
+    """Each club's last `limit` matches before the auction date: (date, match_id, competition, season).
 
     Two sources, unioned: `club_match_lineups` (one row per club-match of the five leagues we scrape)
     and the per-match rows themselves, which is what brings in the cups, the friendlies and the other
     championships `recent_form` fetched. Keyed by the canonical club, so the provider's spelling and
     the listone's agree. A match nobody appeared in and no lineup recorded does not exist for us, and
     the count says so rather than pretending it was a rest.
+
+    `competitions` restricts the walk, and the TREND is the caller that needs it: «the last ten REAL
+    matches» are the last ten of a CHAMPIONSHIP, because those are the only ones a vote can exist for
+    (a cup tie has neither a fantacalcio vote nor a calibrated synthetic one) and because the question
+    behind the window - how much of him the euro calendar never counted - is about league rounds. One
+    function, two calls, the argument saying which side is asking.
     """
+    where = ""
+    params: tuple = (auction_date, auction_date)
+    if competitions:
+        holes = ",".join("?" * len(competitions))
+        where = f" AND competition IN ({holes})"
+        params = (auction_date, *competitions, auction_date, *competitions)
     rows = conn.execute(
-        """
-        SELECT club, match_date, match_id, competition FROM club_match_lineups
-        WHERE match_date IS NOT NULL AND match_date < ?
+        f"""
+        SELECT club, match_date, match_id, competition, season FROM club_match_lineups
+        WHERE match_date IS NOT NULL AND match_date < ?{where}
         UNION
-        SELECT club, match_date, match_id, competition FROM external_match_stats
-        WHERE match_date IS NOT NULL AND match_date < ? AND club IS NOT NULL
+        SELECT club, match_date, match_id, competition, season FROM external_match_stats
+        WHERE match_date IS NOT NULL AND match_date < ? AND club IS NOT NULL{where}
         ORDER BY match_date DESC
         """,
-        (auction_date, auction_date),
+        params,
     ).fetchall()
+    # More than `limit` per club: a fixture is only a candidate until it is known WHOSE it was, and a
+    # man who joined this summer does not own his new club's spring (see `player_clubs`). Keeping a
+    # deeper list is what lets his own window reach back past the transfer instead of ending short.
+    depth = limit * 6
     out: dict[str, list[tuple]] = {}
-    for club, date, match_id, competition in rows:
+    for club, date, match_id, competition, season in rows:
         key, _name = resolve(club)
         if key is None:
             continue
         bucket = out.setdefault(key, [])
-        if len(bucket) < limit and all(str(match_id) != str(known[1]) for known in bucket):
-            bucket.append((date, match_id, competition))
+        if len(bucket) < depth and all(str(match_id) != str(known[1]) for known in bucket):
+            bucket.append((date, match_id, competition, season))
     return out
 
 
@@ -657,8 +684,228 @@ def absence_spells(conn, auction_date: str) -> dict[int, list[tuple[str, str, st
     return out
 
 
+def player_clubs(conn, resolve) -> dict[int, dict[str, set[str]]]:
+    """{fc_id: {club_key: the seasons he belonged to it}} - whose calendar a man's window may walk.
+
+    Found by CALLING the function on a real case rather than by reading it (14/08/2026): Doekhi, in
+    the 2026-27 listone at Lazio after a summer from Union Berlin, was given a window that interleaved
+    Lazio's spring with his own Bundesliga matches and scored him ZERO on six rounds his new club
+    played while he was still in Germany. The two-pass club resolution was right about which clubs the
+    window spans and had no way to say WHEN each of them was his.
+
+    Two sources, and neither alone is enough. The LISTONE says where he was quoted each season, which
+    is what keeps a man injured from August to May attached to his club - he has no appearances at all
+    and his rounds must still read «injured» and not «no window». The APPEARANCES say where he really
+    played, which is what covers a season the listone never quoted him in (a foreign club, a promoted
+    side, a January move). A club is his for a season if either says so.
+    """
+    out: dict[int, dict[str, set[str]]] = {}
+    for fc_id, season, club in conn.execute(
+            """SELECT r.fc_id, r.season, c.canonical_name FROM rosters r
+               JOIN clubs c ON c.fc_club_id = r.fc_club_id WHERE c.canonical_name IS NOT NULL"""):
+        key, _name = resolve(club)
+        if key:
+            out.setdefault(fc_id, {}).setdefault(key, set()).add(season)
+    for fc_id, season, club in conn.execute(
+            """SELECT DISTINCT fc_id, season, club FROM external_match_stats
+               WHERE club IS NOT NULL"""):
+        key, _name = resolve(club)
+        if key:
+            out.setdefault(fc_id, {}).setdefault(key, set()).add(season)
+    return out
+
+
+def bench_matches(conn, auction_date: str) -> dict[int, set[str]]:
+    """{fc_id: the matches he was NAMED ON THE BENCH for and never came on}.
+
+    MEASURED, not derived: in a league payload an unused substitute carries a statistics object with
+    `totalShots` and no `minutesPlayed` at all, so the parser has always stored his row - 79,437 of
+    them, `started` = 0 and `minutes` NULL, and 7 of those carry a rating. The todolist said the parse
+    «discards the bench without an appearance» and planned an offline re-parse to recover it; the
+    re-parse was not needed, and the claim came from the right observation (no row anywhere has
+    `minutes` = 0) with the wrong conclusion attached. The bench was already in the database, under a
+    NULL.
+
+    The LEAGUE source only. In `sofascore_extra` a row with no minutes means something else and the
+    difference is not a detail: the provider publishes a friendly's eleven and NO per-player statistics
+    at all, so there `started` = 0 with no minutes cannot tell an unused substitute from a man who
+    played an hour. Reading it as a bench would be a claim about the player made out of a gap in the
+    source - the same reason the app's consultation table refuses it.
+    """
+    out: dict[int, set[str]] = {}
+    for fc_id, match_id in conn.execute(
+            """SELECT fc_id, match_id FROM external_match_stats
+               WHERE source = 'sofascore' AND match_date IS NOT NULL AND match_date < ?
+                 AND COALESCE(started, 0) = 0 AND minutes IS NULL""", (auction_date,)):
+        out.setdefault(fc_id, set()).add(str(match_id))
+    return out
+
+
+def euro_mapped_leagues(conn) -> set[tuple[str, str]]:
+    """The (season, league) pairs the euro calendar is aligned for, so «outside it» can be said at all.
+
+    A season nobody has mapped is not a season the euro game skipped: `matchday_map` is empty for
+    2021-22 (a source limit, `fetch --plan` classifies it), and marking every round of it as invisible
+    would turn a hole of ours into a fact about the game. Where the pair is missing the mark is unknown.
+    """
+    return {(season, league) for season, league in conn.execute(
+        "SELECT DISTINCT season, league FROM matchday_map")}
+
+
+def _xga(xg, xa, shots) -> float | None:
+    """xG + xA of one match, or None when the provider did not serve it that season.
+
+    The convention on a NULL is MEASURED and it is not the same on both halves. A NULL `xg` on a row
+    with `shots` = 0 is a zero - 19,719 of 19,719 such rows in 2025-26 have no shots, and the provider
+    changed the payload's shape between seasons (an explicit 0 until 2022-23, the key omitted from
+    2024-25), so the reader imposes the convention instead of trusting the encoding. A NULL on a row
+    that DID shoot is unknown: before 2022-23 the payload carries no xG at all (0 of 446 players in
+    the cached 2021-22 files), and drawing a zero there would be the opposite defect - inventing a
+    measurement out of a season the source never covered.
+    """
+    if xg is None and (shots is None or shots > 0):
+        return None
+    if xa is None and (shots is None or shots > 0):
+        return None
+    return round((xg or 0.0) + (xa or 0.0), 3)
+
+
+def match_worth(real_fantavoto, real_mv, mv_synth, goals: int, assists: int,
+                keeper: bool, scoring: dict[str, float] | None) -> tuple:
+    """(vote, source, fantapunti) for one match, from a cascade DECLARED here and nowhere else.
+
+    The bar's height is a VOTE and the judgement is in FANTAPUNTI - two different numbers, and the
+    operator asked for both: the real vote when the game gave one, the calibrated synthetic base voto
+    when the euro calendar skipped that round (18% of a championship), and nothing at all otherwise.
+    Never a zero: a match with no vote is a match we cannot score, and a zero would be a bad one.
+
+    The real side is taken WHOLE - `match_ratings.fantavoto`, the fantavoto the votes API's own
+    arithmetic produced - so the sheet and the ratings can never disagree about a match that was
+    voted. The synthetic side has to be built, and it is built with the same terms the FM-equivalent
+    uses (`arrivals.fm_equivalent`): base voto plus the league's own goal and assist bonuses. TWO
+    things it cannot carry, stated instead of approximated:
+
+    * CARDS. The per-match layer has no bookings (0 non-null `yellows` in 250,678 rows), so a
+      synthetic fantapunto is missing a malus that is real - it reads slightly HIGH, by at most the
+      card malus itself.
+    * GOALKEEPERS. Their fantavoto is dominated by the goals conceded, which no per-match row of ours
+      carries; measured on the men it could be measured on, the outfield formula reads +0.82 to +1.22
+      above a keeper's real fantamedia. So a keeper's synthetic match has a vote and NO fantapunti,
+      and the trend's denominator loses it rather than gaining a number inflated by a goal a game.
+
+    No scoring handed in - a caller that has no league to read one for - means the same thing: the
+    vote still stands, the fantapunti do not, because the bonus values are a LEAGUE's and this project
+    hard-codes none of them.
+    """
+    if real_fantavoto is not None:
+        return real_mv, "real", real_fantavoto
+    if mv_synth is None:
+        return None, None, None
+    if keeper or not scoring:
+        return mv_synth, "synth", None
+    return (mv_synth, "synth",
+            round(mv_synth + scoring["goal_bonus"] * goals + scoring["assist_bonus"] * assists, 3))
+
+
+class Appearance(NamedTuple):
+    """One match a player really played, with what it was worth. Keyed by (fc_id, match_id)."""
+    club: str | None
+    competition: str | None
+    date: str
+    minutes: int
+    started: int | None
+    rating: float | None
+    goals: int
+    assists: int
+    vote: float | None
+    vote_source: str | None
+    points: float | None
+    yellows: int | None
+    reds: int | None
+    xga: float | None
+    in_euro: int | None
+
+
+def appearances_with_worth(conn, auction_date: str,
+                           scoring: dict[str, dict[str, float]] | None = None,
+                           ) -> dict[int, dict[str, Appearance]]:
+    """Every appearance before the auction date, with the vote and the fantapunti of that match.
+
+    The join is the one `arrivals` already uses and it is the only one that reaches a real vote from a
+    per-match row: `matchday_map` translates the real round into the euro one, and on Serie A the
+    `default` platform IS the real calendar, so its matchday and `real_md` are the same number
+    (verified: 11,899 of 11,901 played Serie A rows of 2025-26 find their ratings row). `default` is
+    preferred where both exist - it covers the whole championship, while euro covers 31 rounds of 38 -
+    and it is restricted to `serie_a`, or a foreign round number would meet an Italian one.
+    """
+    out: dict[int, dict[str, Appearance]] = {}
+    mapped = euro_mapped_leagues(conn)
+    for (fc_id, match_id, club, competition, date, minutes, started, rating, goals, assists,
+         real_fv, real_mv, mv_synth, xg, xa, shots, position, yellows, reds,
+         euro_md, season) in conn.execute(
+            """
+            SELECT e.fc_id, e.match_id, e.club, e.competition, e.match_date,
+                   COALESCE(e.minutes, 0), e.started, e.rating,
+                   COALESCE(e.goals, 0), COALESCE(e.assists, 0),
+                   COALESCE(dm.fantavoto, em.fantavoto), COALESCE(dm.mv, em.mv), e.mv_synth,
+                   e.xg, e.xa, e.shots, e.position,
+                   COALESCE(dm.yellows, em.yellows), COALESCE(dm.reds, em.reds),
+                   m.euro_md, e.season
+            FROM external_match_stats e
+            LEFT JOIN matchday_map m ON m.season = e.season AND m.league = e.competition
+                                    AND m.real_md = e.real_md
+            LEFT JOIN match_ratings em ON em.fc_id = e.fc_id AND em.season = e.season
+                                      AND em.platform = 'euro' AND em.matchday = m.euro_md
+            LEFT JOIN match_ratings dm ON dm.fc_id = e.fc_id AND dm.season = e.season
+                                      AND dm.platform = 'default' AND e.competition = 'serie_a'
+                                      AND dm.matchday = e.real_md
+            WHERE e.match_date IS NOT NULL AND e.match_date < ? AND COALESCE(e.minutes, 0) > 0
+            """, (auction_date,)):
+        vote, source, points = match_worth(
+            real_fv, real_mv, mv_synth, goals, assists, position == "G",
+            (scoring or {}).get(competition or "") or (scoring or {}).get(""))
+        out.setdefault(fc_id, {})[str(match_id)] = Appearance(
+            club, competition, date, minutes, started, rating, goals, assists,
+            vote, source, points,
+            yellows if source == "real" else None, reds if source == "real" else None,
+            _xga(xg, xa, shots),
+            (1 if euro_md is not None else 0) if (season, competition) in mapped else None)
+    return out
+
+
+def _state_token(fc_id: int, match_id: str, date: str, entry: Appearance | None, known: bool,
+                 benched: dict[int, set[str]], lineup_only: dict[int, set[str]],
+                 spells: dict[int, list[tuple[str, str, str]]]) -> str:
+    """What happened to this man in this match, in one character. The ORDER is the claim.
+
+      p:<rating>:<minutes>  he played
+      b                     NAMED ON THE BENCH and never came on - measured, not inferred
+      x                     in the ELEVEN of a match nobody has statistics for (a friendly)
+      i / s                 inside a recorded injury / suspension spell on that date
+      o                     the match is on file, he has no row and no spell: OUT of the squad
+      n                     no player-level data for that match at all - unknown
+
+    The bench WINS over a spell, and that is the whole point of item 6.6: a man named among the
+    substitutes was available and was not chosen, which is a different fact from being unavailable -
+    and it is the one that changes a bid. A spell whose dates happen to cover the day cannot overrule
+    the team sheet he is printed on.
+    """
+    if entry:
+        return f"p:{entry.rating if entry.rating is not None else ''}:{entry.minutes}"
+    if match_id in benched.get(fc_id, ()):
+        return "b"
+    if match_id in lineup_only.get(fc_id, ()):
+        return "x"
+    if (reason := next((code for start, end, code in spells.get(fc_id, ())
+                        if start <= date <= end), None)):
+        return reason
+    return "o" if known else "n"
+
+
 def club_form(conn, auction_date: str, observations, squads: dict[int, str],
-              limit: int = FORM_MATCHES) -> dict[int, dict]:
+              limit: int = FORM_MATCHES,
+              scoring: dict[str, dict[str, float]] | None = None,
+              target_season: str | None = None) -> dict[int, dict]:
     """Form measured over the last `limit` matches of the player's CLUB, not of the player.
 
     The difference is the whole point. A player's own last ten appearances hide the weeks he sat on the
@@ -671,15 +918,27 @@ def club_form(conn, auction_date: str, observations, squads: dict[int, str],
     * a player with NO rows in the per-match layer (identity unresolved, or a league we do not scrape)
       reads UNKNOWN, not `0 of 10`. 231 of the 2025-26 listone are in that state, and reporting them as
       "never played" would be a lie about a fact we do not have. `desc_form_source` says which it is.
-    * "named on the bench" and "not in the squad" are indistinguishable here, because the layer only
-      stores a row for a player who got minutes. They are reported together as `unused`.
+    * "named on the bench" is now MEASURED and no longer folded into "not in the squad" (see
+      `bench_matches`): `desc_form_bench` counts the first, `desc_form_out` the second, and `unused`
+      stays as their sum so nothing that read it changes meaning.
 
     Goals and assists are split league / other and never summed: ten goals in friendlies are worth
     something, and nothing like ten in a league.
+
+    TWO WINDOWS COME OUT OF ONE WALK, and they answer two questions. `form` is the club's last ten in
+    EVERY competition - "has he been playing", which in August is mostly friendlies. `trend` is the
+    club's last ten of a CHAMPIONSHIP with what each of them was worth - "how has he been doing" - and
+    it is the operator's own reading (14/08/2026): the euro calendar skips 3 to 7 real rounds a season,
+    so a man judged on his euro fantamedia alone is judged on 82% of his football. Two windows means
+    two sets of counters, never one picture explained by the other's numbers.
     """
     resolve = club_index(conn)
     fixtures = club_matches(conn, auction_date, resolve, limit)
+    league_fixtures = club_matches(conn, auction_date, resolve, limit, LEAGUE_COMPETITIONS)
     spells = absence_spells(conn, auction_date)
+    benched = bench_matches(conn, auction_date)
+    belongs = player_clubs(conn, resolve)
+    now = {target_season} if target_season else None
     covered = {fc_id for (fc_id,) in conn.execute(
         "SELECT DISTINCT fc_id FROM external_match_stats")}
     # Which MATCHES we have player-level rows for at all. A club's last ten include cups and other
@@ -697,15 +956,7 @@ def club_form(conn, auction_date: str, observations, squads: dict[int, str],
                WHERE match_date IS NOT NULL AND match_date < ? AND started = 1
                  AND COALESCE(minutes, 0) = 0""", (auction_date,)):
         lineup_only.setdefault(fc_id, set()).add(str(match_id))
-    appearances: dict[int, dict[str, tuple]] = {}
-    for fc_id, match_id, club, competition, date, minutes, started, rating, goals, assists in             conn.execute(
-                """SELECT fc_id, match_id, club, competition, match_date, COALESCE(minutes, 0),
-                          started, rating, COALESCE(goals, 0), COALESCE(assists, 0)
-                   FROM external_match_stats
-                   WHERE match_date IS NOT NULL AND match_date < ? AND COALESCE(minutes, 0) > 0""",
-                (auction_date,)):
-        appearances.setdefault(fc_id, {})[str(match_id)] = (
-            club, competition, date, minutes, started, rating, goals, assists)
+    appearances = appearances_with_worth(conn, auction_date, scoring)
     # Who the club played, per match: a fact about the FIXTURE, so it is available for the matches he did
     # not play too - which is exactly where the strip needs it to become readable.
     opponents: dict[tuple[str, str], tuple[str, int]] = {}
@@ -725,11 +976,16 @@ def club_form(conn, auction_date: str, observations, squads: dict[int, str],
             continue
         mine = appearances.get(obs.fc_id, {})
 
-        def build(clubs: dict[str, str], _mine=mine) -> list[tuple]:
+        def build(clubs: dict[str, str], calendar=fixtures, _mine=obs.fc_id) -> list[tuple]:
+            his = belongs.get(_mine, {})
             pool: list[tuple] = []
             for key in clubs:
+                # A club neither the listone nor his appearances attach to him is one the LIVE SQUAD
+                # put there: he is at it NOW, so its current season counts and its past does not.
+                seasons = his.get(key, now)
                 pool += [(date, match_id, competition, key)
-                         for date, match_id, competition in fixtures.get(key, [])]
+                         for date, match_id, competition, season in calendar.get(key, [])
+                         if seasons is None or season in seasons]
             pool.sort(key=_by_date, reverse=True)
             seen: set[str] = set()
             window: list[tuple] = []
@@ -742,36 +998,29 @@ def club_form(conn, auction_date: str, observations, squads: dict[int, str],
                     break
             return window
 
-        # WHERE he is now, then which clubs that window actually spans. Two passes, because the two
-        # depend on each other: the window comes from his clubs, and which clubs count comes from the
-        # window's dates. A transfer inside the window is exactly the case this resolves - the sample
-        # becomes his old club's matches up to the move and his new club's after it - while a club he
-        # left three seasons ago stays out, which one pass over his whole career would not manage.
+        # WHOSE calendar the window walks: where he is NOW, plus every club of his last `limit`
+        # appearances. A transfer is exactly what this resolves - the sample becomes his old club's
+        # matches up to the move and his new club's after it - and the two halves cannot bleed into
+        # each other, because `build` keeps a club's fixtures only for the seasons that club was his
+        # (`player_clubs`). Both halves are needed: without the current club a man injured all season
+        # has no window at all, and without the clubs he played for a summer arrival's window is his
+        # new club's pre-season and nothing else.
         clubs: dict[str, str] = {}
         for candidate in (squads.get(obs.fc_id), obs.club_target):
             key, name = resolve(candidate)
             if key:
                 clubs.setdefault(key, name)
-        recent = sorted(mine.values(), key=lambda entry: entry[2], reverse=True)
-        if recent and not clubs:
-            key, name = resolve(recent[0][0])
+        for entry in sorted(mine.values(), key=lambda one: one.date, reverse=True)[:limit]:
+            key, name = resolve(entry.club)
             if key:
-                clubs[key] = name
+                clubs.setdefault(key, name)
         window = build(clubs)
-        if window:
-            floor = min(item[0] for item in window)
-            for entry in mine.values():
-                if entry[2] >= floor:
-                    key, name = resolve(entry[0])
-                    if key:
-                        clubs.setdefault(key, name)
-            window = build(clubs)
         if not window:
             out[obs.fc_id] = {"source": f"no recent matches recorded for "
                                         f"{', '.join(clubs.values()) or 'his club'}"}
             continue
 
-        played = starts = minutes = measured = 0
+        played = starts = minutes = measured = bench = 0
         ratings: list[float] = []
         goals: dict[str, int] = {}
         assists: dict[str, int] = {}
@@ -785,41 +1034,37 @@ def club_form(conn, auction_date: str, observations, squads: dict[int, str],
             if known:
                 measured += 1
             entry = mine.get(str(match_id))
-            if entry:
-                rating = entry[5]
-                token = f"p:{rating if rating is not None else ''}:{entry[3]}"
-            elif str(match_id) in lineup_only.get(obs.fc_id, ()):
-                token = "x"
-            elif (reason := next((code for start, end, code in spells.get(obs.fc_id, ())
-                                  if start <= date <= end), None)):
-                token = reason
-            else:
-                token = "b" if known else "n"
+            token = _state_token(obs.fc_id, str(match_id), date, entry, known,
+                                 benched, lineup_only, spells)
+            if token == "b":
+                bench += 1
             series.append(token)
             # One line per match for the popup: everything a dot cannot say. Same order as the strip.
             opponent, home = opponents.get((club_key, str(match_id)), ("", 0))
             detail.append("|".join(str(part) for part in (
                 date, competition or "", opponent, "H" if home else "A", token.split(":")[0],
-                entry[3] if entry else "", entry[5] if entry and entry[5] is not None else "",
-                entry[6] if entry else "", entry[7] if entry else "",
-                1 if entry and entry[4] else "")))
+                entry.minutes if entry else "", entry.rating if entry and entry.rating is not None else "",
+                entry.goals if entry else "", entry.assists if entry else "",
+                1 if entry and entry.started else "")))
             if not entry:
                 continue
-            _c, _comp, _d, match_minutes, started, rating, match_goals, match_assists = entry
             played += 1
-            minutes += match_minutes
-            starts += 1 if started else 0
-            if rating is not None:
-                ratings.append(rating)
-            goals[kind] = goals.get(kind, 0) + match_goals
-            assists[kind] = assists.get(kind, 0) + match_assists
+            minutes += entry.minutes
+            starts += 1 if entry.started else 0
+            if entry.rating is not None:
+                ratings.append(entry.rating)
+            goals[kind] = goals.get(kind, 0) + entry.goals
+            assists[kind] = assists.get(kind, 0) + entry.assists
         out[obs.fc_id] = {
             "club_matches": len(window),
             "measured": measured,
             "played": played,
-            # bench or out of the squad - the layer cannot tell them apart - among the matches we DO
-            # have player rows for. The rest of the window is `club_matches - measured`: unknown.
+            # bench or out of the squad, among the matches we DO have player rows for. Kept as their
+            # sum because everything that already read it means "he did not play"; the split is in
+            # `bench` and `out`, and the bench half is measured (`bench_matches`).
             "unused": measured - played,
+            "bench": bench,
+            "out": measured - played - bench,
             "unknown": len(window) - measured,
             "starts": starts,
             "minutes": minutes,
@@ -838,8 +1083,86 @@ def club_form(conn, auction_date: str, observations, squads: dict[int, str],
             "series": " ".join(series),
             "detail": ";".join(detail),
             "source": "per-match layer",
+            **trend_block(obs.fc_id, build(clubs, league_fixtures), mine, with_players,
+                          benched, lineup_only, spells, opponents),
         }
     return out
+
+
+# What a match he did not play is worth in the trend: ZERO, and the reason is the operator's own
+# formula - the mean has to carry AVAILABILITY as well as quality, because `Var(ln pv)` is 90% of
+# `Var(ln fantapunti)` and a man who is not on the pitch collects nothing. What it must never do is
+# put a zero where we do not KNOW: an unmeasured match leaves the denominator instead.
+_TREND_ZERO: frozenset[str] = frozenset({"b", "i", "s", "o"})
+
+
+def trend_block(fc_id: int, window: list[tuple], mine: dict[str, Appearance],
+                with_players: set[str], benched: dict[int, set[str]],
+                lineup_only: dict[int, set[str]],
+                spells: dict[int, list[tuple[str, str, str]]],
+                opponents: dict[tuple[str, str], tuple[str, int]]) -> dict:
+    """The last ten CHAMPIONSHIP matches, one record each, and the judgement that orders them.
+
+    `trend_fp` is the mean of the fantapunti he collected over them - the operator's own definition
+    (14/08/2026): a match he did not play counts ZERO, a match nobody can score does not enter the
+    denominator at all. `trend_matches` says how many did, so a mean over three matches never reads
+    as a mean over ten.
+
+    IT IS A DESCRIPTION AND NOT A PREDICTION, and that has to travel with the number. The same day it
+    was measured that a player's departure from his own averages does NOT predict what he does next -
+    the true excess over the reshuffled null is +0.0167 / +0.0072 / -0.0007 at two, three and five
+    matchdays, and the sign changes - so ordering by the trend is ordering by «what he has done»,
+    which is legitimate and fast, and selling it as «what he will do» would be the third refused form
+    of one idea. Nothing under `engine/` reads this.
+    """
+    record: list[str] = []
+    points: list[float] = []
+    played = starts = minutes = bench = missed = 0
+    goals = assists = 0
+    outside = 0
+    for date, match_id, competition, club_key in reversed(window):     # oldest first, like the strip
+        entry = mine.get(str(match_id))
+        token = _state_token(fc_id, str(match_id), date, entry, str(match_id) in with_players,
+                             benched, lineup_only, spells)
+        state = token.split(":")[0]
+        if state == "b":
+            bench += 1
+        if state in _TREND_ZERO:
+            missed += 1
+            points.append(0.0)
+        if entry:
+            played += 1
+            minutes += entry.minutes
+            starts += 1 if entry.started else 0
+            goals += entry.goals
+            assists += entry.assists
+            if entry.points is not None:
+                points.append(entry.points)
+            if entry.in_euro == 0:
+                outside += 1
+        opponent, home = opponents.get((club_key, str(match_id)), ("", 0))
+        record.append("|".join("" if part is None else str(part) for part in (
+            date, competition or "", opponent, "H" if home else "A", state,
+            entry.minutes if entry else "", 1 if entry and entry.started else "",
+            entry.vote if entry else None, entry.vote_source if entry else None,
+            entry.points if entry else None,
+            entry.goals if entry else "", entry.assists if entry else "",
+            entry.yellows if entry else None, entry.reds if entry else None,
+            entry.xga if entry else None, entry.in_euro if entry else None)))
+    return {
+        "trend_window": len(window),
+        "trend_played": played,
+        "trend_starts": starts,
+        "trend_bench": bench,
+        "trend_minutes": minutes,
+        "trend_goals": goals,
+        "trend_assists": assists,
+        # How many of them the euro calendar never counted: the reason this window exists at all.
+        "trend_outside_euro": outside,
+        "trend_matches": len(points),
+        "trend_fp": round(sum(points) / len(points), 3) if points else None,
+        "trend_detail": ";".join(record),
+    }
 
 
 def _merged_spells(dates: list[tuple[str, str]]) -> list[tuple[str, str]]:
@@ -2485,12 +2808,26 @@ PLAYER_COLUMNS: tuple[str, ...] = (
     "desc_left_for", "desc_left_on",
     # descriptive, NOT gated
     "desc_form_club_matches", "desc_form_measured", "desc_form_played", "desc_form_unused",
+    # ...and the split of `unused` the bench rows made measurable: NAMED and not used, against not in
+    # the squad at all. Two different facts about an auction - the first says the coach had him and
+    # chose somebody else.
+    "desc_form_bench", "desc_form_out",
     "desc_form_unknown", "desc_form_starts",
     "desc_form_minutes", "desc_form_minutes_per_club_match", "desc_form_rating",
     "desc_form_goals_league", "desc_form_assists_league",
     "desc_form_goals_other", "desc_form_assists_other",
     "desc_form_competitions", "desc_form_clubs", "desc_form_last_match", "desc_form_source",
     "desc_form_series", "desc_form_detail",
+    # THE TREND: the club's last ten CHAMPIONSHIP matches, and what he collected in them. A second
+    # window on purpose (`club_form`), because the euro calendar skips 3-7 real rounds a season and a
+    # man read on his euro fantamedia alone is read on 82% of his football. `desc_trend_fp` is the mean
+    # fantapunti - a match not played counts zero, a match nobody can score is not in the denominator,
+    # which `desc_trend_matches` states. DESCRIPTIVE and never predictive: measured the same day, the
+    # departure from one's own averages does not predict the next rounds (excess +0.0167/+0.0072/-0.0007
+    # at 2, 3 and 5 matchdays against the reshuffled null, sign changing).
+    "desc_trend_fp", "desc_trend_matches", "desc_trend_window", "desc_trend_played",
+    "desc_trend_starts", "desc_trend_bench", "desc_trend_minutes", "desc_trend_goals",
+    "desc_trend_assists", "desc_trend_outside_euro", "desc_trend_detail",
     "desc_squad_club", "desc_squad_source", "desc_real_role",
     # The granular real role: where on the pitch he belongs, in the twelve-code vocabulary.
     "desc_real_roles", "desc_real_role_primary", "desc_real_role_line", "desc_real_role_depth",
@@ -2758,6 +3095,7 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             "desc_form_club_matches": form.get("club_matches"),
             "desc_form_measured": form.get("measured"),
             "desc_form_played": form.get("played"), "desc_form_unused": form.get("unused"),
+            "desc_form_bench": form.get("bench"), "desc_form_out": form.get("out"),
             "desc_form_unknown": form.get("unknown"),
             "desc_form_starts": form.get("starts"), "desc_form_minutes": form.get("minutes"),
             "desc_form_minutes_per_club_match": form.get("minutes_per_club_match"),
@@ -2771,6 +3109,17 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             "desc_form_source": form.get("source"),
             "desc_form_series": form.get("series"),
             "desc_form_detail": form.get("detail"),
+            "desc_trend_fp": form.get("trend_fp"),
+            "desc_trend_matches": form.get("trend_matches"),
+            "desc_trend_window": form.get("trend_window"),
+            "desc_trend_played": form.get("trend_played"),
+            "desc_trend_starts": form.get("trend_starts"),
+            "desc_trend_bench": form.get("trend_bench"),
+            "desc_trend_minutes": form.get("trend_minutes"),
+            "desc_trend_goals": form.get("trend_goals"),
+            "desc_trend_assists": form.get("trend_assists"),
+            "desc_trend_outside_euro": form.get("trend_outside_euro"),
+            "desc_trend_detail": form.get("trend_detail"),
             "desc_squad_club": layers["squads"].get(obs.fc_id),
             "desc_squad_source": layers["squad_sources"].get(obs.fc_id),
             # The role he was REALLY used in, from the provider's own slot per match (positions.
@@ -3170,7 +3519,13 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
     # list and it is the single most expensive descriptive layer, so folding it in with the cheap lookups
     # would make a quarter of the bar move in one step.
     progress.stage("form")
-    form = club_form(conn, window.auction_date, data.observations, squads)
+    # The bonus values are a CHAMPIONSHIP's, so they are read per championship and never hard-coded:
+    # a synthetic fantapunto for a Bundesliga round is built with the Bundesliga's own goal bonus, and
+    # `""` is the fallback for a competition `scoring_config` does not name (a cup, another league).
+    scoring = {league: ctx.config.load_scoring(league) for league in config.CHAMPIONSHIPS}
+    scoring[""] = ctx.config.load_scoring()
+    form = club_form(conn, window.auction_date, data.observations, squads, scoring=scoring,
+                     target_season=window.target_season)
     progress.stage("layers")
     layers = {
         "form": form,
@@ -3489,6 +3844,31 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
             "form_matches": FORM_MATCHES,
             "duel_margin": BALLOTTAGGIO_MARGIN,
             "injury_recency_weights": list(INJURY_WEIGHTS),
+            "trend": {
+                "_note": "desc_trend_* is the club's last "
+                         f"{FORM_MATCHES} CHAMPIONSHIP matches - a second window beside desc_form_*, "
+                         "which walks EVERY competition. The reason is measured: the euro calendar "
+                         "leaves 3 to 7 real rounds a season out of each league, so a man read on his "
+                         "euro fantamedia alone is read on about 82% of his football, and "
+                         "desc_trend_outside_euro counts how many of these ten it never saw.",
+                "height": "desc_trend_detail carries, per match, the VOTE from a declared cascade: the "
+                          "real one when the game gave it, the calibrated synthetic base voto "
+                          "(mv_synth) when the euro calendar skipped that round, and nothing at all "
+                          "otherwise. Never a zero - a match nobody voted is not a bad match.",
+                "judgement": "desc_trend_fp is the mean FANTAPUNTI over that window: a match he did "
+                             "not play counts 0 (availability is half of what a fantamedia is worth), "
+                             "a match nobody can score is not in the denominator, and "
+                             "desc_trend_matches says how many were. It is a DESCRIPTION, not a "
+                             "prediction: measured 14/08/2026, a player's departure from his own "
+                             "averages does not predict his next rounds (true excess +0.0167 / "
+                             "+0.0072 / -0.0007 at 2, 3 and 5 matchdays over the reshuffled null, "
+                             "with the sign changing over ~65,000 windows).",
+                "two_limits": "The synthetic side carries NO cards (the per-match layer has no "
+                              "bookings at all) and NO goalkeeper fantapunti (their fantavoto is "
+                              "dominated by the goals conceded, which no per-match row of ours "
+                              "holds): a keeper's non-voted round therefore leaves the denominator "
+                              "instead of entering it with a number inflated by a goal a game.",
+            },
         },
         "real_role_note": {
             "_note": "desc_real_roles is the player's REAL position in the provider's own twelve-code "

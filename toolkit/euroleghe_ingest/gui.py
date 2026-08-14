@@ -2265,6 +2265,9 @@ class SnapshotView(ttk.Frame):
         # The strip comes next, as it did when it was the Treeview's tree column: it is the row's
         # picture, and a picture belongs at the start of the line one reads.
         ("trend", "TREND", 106, "w", "trend"),
+        # ...and its JUDGEMENT, 0-99, right beside the picture it summarises. A description and not a
+        # forecast (`trend_score`), which is why it does not sit among the engine's numbers.
+        ("judge", "0-99", 38, "e", "num"),
         ("role", "R", 30, "center", "pill_classic"),
         # Three role columns, because they answer three questions: what you BUY (the listone role), what
         # a Mantra module asks for (the sided roles), and where he was actually USED - the last one small
@@ -2300,18 +2303,31 @@ class SnapshotView(ttk.Frame):
                 "He stays in this table, and the pitch caption counts how many are unticked, because a "
                 "side drawn without somebody must say so. It changes nothing in the sheet or in the "
                 "engine's numbers: it is a question asked of the drawing.",
-        "#0": "TREND - the club's last 10 matches, oldest on the left. Click a row to read them one by "
-              "one (date, opponent, minutes, rating). One dot per match: cyan exceptional, "
-              "light blue very good, green good, grey average, yellow weak, red poor - by the provider's "
-              "rating, which is a DISPLAY threshold and not a model parameter. Faded dots are matches he "
-              "did not play: pale grey bench or left out, violet inside a recorded injury spell, pale "
-              "red a suspension, dark grey no player-level data at all (unknown, which includes not "
-              "being in the squad). A suspension nobody recorded reads as bench - we do not know he "
-              "was banned. A FULL dot means he played at least 75 minutes, a hollow one that he was "
-              "on for less. A black mark on the top-right corner is the bonus: the big one a goal, the "
-              "small one an assist - and a match with both reads as a goal. A FRIENDLY is a small grey "
-              "dot, solid if he was in the eleven: the provider publishes those line-ups and no "
-              "per-player statistics at all, so there is no rating to colour it with.",
+        "trend": "TREND - the club's last 10 CHAMPIONSHIP matches, oldest on the left. Click a row to "
+              "read them one by one. The BAR's height is the voto, from a declared cascade: the real "
+              "one where the game gave it, the calibrated synthetic one (hollow bar) where the "
+              "EuroLeghe calendar skipped that round, and nothing at all otherwise - never a zero for "
+              "a match nobody voted. Its colour is the same reading in bands (cyan 7.5+, blue 7, "
+              "green 6.5, grey 6, yellow 5.5, red below) - a DISPLAY threshold, not a model parameter. "
+              "A two-pixel plinth instead of a bar is a match he did not play, and the four reasons "
+              "are four colours: pale grey on the bench, violet injured, red suspended, slate not in "
+              "the squad, dark grey no data at all. The BENCH is measured, not guessed: the provider's "
+              "own row for an unused substitute. The purple column on the right of each bar is xG+xA, "
+              "the second layer - a man can play well and finish badly, and adding the two into one "
+              "number would hide exactly that. A black disc is a goal, the small one an assist, a "
+              "yellow or red line at the foot a card (only where the match was really voted: the "
+              "per-match layer carries no bookings). An underline marks a round the EuroLeghe calendar "
+              "never counted - 3 to 7 a season, i.e. about 18% of his football missing from the "
+              "fantamedia the game shows.",
+        "judge": "The trend as a 0-99, inside HIS OWN ROLE and over this whole sheet: the mean "
+              "fantapunti of those ten league matches against the best of his role. A match he did not "
+              "play counts ZERO - availability is half of what a fantamedia is worth - and a match "
+              "nobody can score is left out of the denominator instead of counting as a bad one. "
+              "It is a DESCRIPTION and not a forecast: measured 14/08/2026 over ~65,000 windows "
+              "against the reshuffled null, a player's departure from his own averages does not "
+              "predict his next rounds (+0.0167 / +0.0072 / -0.0007 at two, three and five matchdays, "
+              "the sign changing). Order by it to see who has been going well; do not read it as who "
+              "will. No valuation and no board reads it.",
         "tit": "The share of the season's matchdays he is expected to GET A VOTO in: his appearances "
                "over the matches he was available for, discounted by how much of a season a player with "
                "his injury history misses, and by how much of that season he played in ANOTHER shirt "
@@ -2433,6 +2449,8 @@ class SnapshotView(ttk.Frame):
         # The sheet's mean per column, computed once per sheet (`_column_means`): it is what the cell
         # colours compare against, and it walks every row of every club.
         self._means: dict[str, float] | None = None
+        # ...and the 99 of the trend scale, per role, over the same population and cleared with it.
+        self._trend_pool: dict[str, float] | None = None
         self._build()
 
     # ---------- layout ----------
@@ -2850,7 +2868,7 @@ class SnapshotView(ttk.Frame):
     def _clear_sheet(self, message: str) -> None:
         """No sheet to show: empty the board and say why, rather than leaving the last one on screen."""
         self.players, self.clubs, self.manifest, self.rows = [], {}, {}, []
-        self._means, self._excluded = None, set()
+        self._means, self._excluded, self._trend_pool = None, set(), None
         self.club_tree.delete(*self.club_tree.get_children())
         self._table_rows = []
         self.table_body.delete("all")
@@ -3088,7 +3106,7 @@ class SnapshotView(ttk.Frame):
         self.players = _read_csv(folder / "players.csv")
         # another sheet is another population and another squad: the means and the operator's own
         # exclusions both belong to the sheet that was on screen, not to the one being loaded
-        self._means, self._excluded = None, set()
+        self._means, self._excluded, self._trend_pool = None, set(), None
         # ...and so do the five POPULATION statistics the presence model needs - the shrinkage prior and
         # the four z-scores. They are cached because they are read once per row, and they were never
         # invalidated at all: the first sheet a session opened kept its means for every sheet after it.
@@ -3153,8 +3171,8 @@ class SnapshotView(ttk.Frame):
     # ---------- the last-10 strip ----------
     # What each token of `desc_form_series` means, in the popup's own words.
     TOKEN_LABEL: ClassVar[dict[str, str]] = {
-        "p": "played", "b": "bench / left out", "i": "injured", "s": "suspended",
-        "n": "no data for this match",
+        "p": "played", "b": "on the bench, unused", "i": "injured", "s": "suspended",
+        "o": "not in the squad", "n": "no data for this match",
         "x": "in the eleven, no statistics published (friendly)",
     }
 
@@ -3261,51 +3279,80 @@ class SnapshotView(ttk.Frame):
         return self.COLUMN_HELP.get(self._hover_column or "", "")
 
     def _match_popup(self, row: dict) -> None:
-        """The club's last ten, one line each: what the dots are, in words.
+        """The club's last ten CHAMPIONSHIP matches, one line each: what the bars are, in words.
 
-        Reads `desc_form_detail`, which the sheet carries for exactly this purpose - so the window and
-        the CSV can never tell different stories about the same match.
+        Reads `desc_trend_detail`, which the sheet carries for exactly this purpose - so the window and
+        the CSV can never tell different stories about the same match. Its counters are the TREND's own
+        (`desc_trend_*`) and never `desc_form_*`: those describe a different window - every competition,
+        friendlies included - and a picture explained by another window's numbers is the defect this
+        project has already paid for.
         """
         dialog = tk.Toplevel(self)
-        dialog.title(f"{row.get('name')} · last 10 matches of {row.get('club')}")
+        dialog.title(f"{row.get('name')} · last 10 league matches of {row.get('club')}")
         dialog.transient(self.winfo_toplevel())
         dialog.resizable(False, False)
         frame = ttk.Frame(dialog, padding=12)
         frame.pack(fill="both", expand=True)
         ttk.Label(frame, text=f"{row.get('name')}  ({row.get('role_classic') or '?'})",
                   style="H2.TLabel").pack(anchor="w")
-        played = row.get("desc_form_played") or 0
-        measured = row.get("desc_form_measured") or 0
-        ttk.Label(frame, style="Muted.TLabel", justify="left", wraplength=520,
-                  text=f"played {played} of {measured} matches we have player data for, out of "
-                       f"{row.get('desc_form_club_matches') or 0} the club played. "
-                       f"{row.get('desc_form_unknown') or 0} of them we know nothing about."
+        trend = bool(row.get("desc_trend_detail"))
+        played = row.get("desc_trend_played" if trend else "desc_form_played") or 0
+        window = row.get("desc_trend_window" if trend else "desc_form_club_matches") or 0
+        scored = row.get("desc_trend_matches") or 0
+        mean = _number(row.get("desc_trend_fp"), None)
+        ttk.Label(frame, style="Muted.TLabel", justify="left", wraplength=560,
+                  text=(f"played {played} of the {window} championship matches his club played, "
+                        f"{row.get('desc_trend_bench') or 0} of them on the bench. "
+                        + (f"Mean {mean:.2f} fantapunti over the {scored} we can score "
+                           f"(a match he did not play counts 0, a match nobody voted is left out). "
+                           if mean is not None else "No match of the ten can be scored. ")
+                        + f"{row.get('desc_trend_outside_euro') or 0} of them the EuroLeghe calendar "
+                          f"never counted."
+                        if trend else
+                        f"played {played} of {row.get('desc_form_measured') or 0} matches we have "
+                        f"player data for, out of {window} the club played.")
                   ).pack(anchor="w", pady=(2, 8))
 
-        columns = ("date", "comp", "opponent", "state", "min", "rating", "g", "a")
-        titles = ("date", "competition", "opponent", "what happened", "min", "rating", "G", "A")
-        widths = (82, 118, 130, 118, 44, 52, 30, 30)
+        columns = ("date", "comp", "opponent", "state", "min", "vote", "fp", "g", "a", "xga")
+        titles = ("date", "competition", "opponent", "what happened", "min", "voto", "fanta",
+                  "G", "A", "xG+xA")
+        widths = (82, 112, 126, 116, 40, 46, 46, 26, 26, 48)
         tree = ttk.Treeview(frame, columns=columns, show="headings", height=11, selectmode="none")
         for key, title, width in zip(columns, titles, widths, strict=True):
             tree.heading(key, text=title)
             tree.column(key, width=width, anchor="w" if key in ("comp", "opponent", "state") else "e")
         tree.pack(fill="both", expand=True)
-        for line in (row.get("desc_form_detail") or "").split(";"):
+        source = row.get("desc_trend_detail") if trend else row.get("desc_form_detail")
+        for line in (source or "").split(";"):
             if not line:
                 continue
-            parts = (line.split("|") + [""] * 10)[:10]
-            date, comp, opponent, side, token, minutes, rating, goals, assists, started = parts
+            parts = (line.split("|") + [""] * 16)[:16]
+            date, comp, opponent, side, token, minutes, started = parts[:7]
+            vote, vote_source, points = parts[7], parts[8], parts[9]
+            goals, assists, xga, in_euro = parts[10], parts[11], parts[14], parts[15]
+            if not trend:                     # an older sheet: the form strip's own, shorter record
+                minutes, started, vote = parts[5], parts[9], parts[6]
+                goals, assists, vote_source, points, xga, in_euro = parts[7], parts[8], "", "", "", ""
             state = self.TOKEN_LABEL.get(token, token)
             if token == "p":
                 state = f"started, {state}" if started else f"came on, {state}"
             tree.insert("", "end", values=(
-                date, comp, f"{'vs' if side == 'H' else '@'} {opponent}".strip(), state,
-                minutes, rating, goals or "", assists or ""))
-        ttk.Label(frame, style="Muted.TLabel", justify="left", wraplength=520,
-                  text="Oldest first, same order as the dots. The rating is the provider's, not a "
-                       "fantavoto: a 7.0 in another league is not a 7.0 here, which is why it is shown "
-                       "raw. 'no data' includes not being in the squad - it is not a bench appearance."
-                  ).pack(anchor="w", pady=(8, 0))
+                date + (" *" if in_euro == "0" else ""), comp,
+                f"{'vs' if side == 'H' else '@'} {opponent}".strip(), state, minutes,
+                f"{vote}~" if vote and vote_source == "synth" else vote, points,
+                goals or "", assists or "", xga))
+        ttk.Label(frame, style="Muted.TLabel", justify="left", wraplength=560,
+                  text=("Oldest first, same order as the bars. The voto is the real one where the game "
+                        "gave it and the CALIBRATED SYNTHETIC one where it did not (marked ~) - never a "
+                        "zero for a match nobody voted. `fanta` is that match's fantapunti, and it is "
+                        "missing for a synthetic goalkeeper round: his fantavoto is mostly the goals "
+                        "conceded, which the per-match layer does not carry. A date marked * is a round "
+                        "the EuroLeghe calendar skipped, i.e. football that is invisible in his "
+                        "fantamedia. 'out of the squad' is not a bench appearance: the bench is measured."
+                        if trend else
+                        "Oldest first. This sheet predates the trend columns: the rating is the "
+                        "provider's, not a fantavoto, and the window is every competition."))\
+            .pack(anchor="w", pady=(8, 0))
         ttk.Button(frame, text="Close", command=dialog.destroy).pack(anchor="e", pady=(8, 0))
 
     # Performance bands, by the provider's rating. A DISPLAY threshold, not a model parameter: nothing
@@ -3383,6 +3430,112 @@ class SnapshotView(ttk.Frame):
             if goals or assists:
                 self._bonus(image, x, bool(goals))
         return image
+
+    # ---------- the last-ten HISTOGRAM (the trend) ----------
+    # Where a bar starts and where it tops out, ON THE VOTE. A DISPLAY scale and nothing else: it is
+    # declared here, no number downstream reads it, and it is NOT the rating bands above - those are
+    # calibrated on the provider's 1-10 rating, and a fantacalcio voto lives on a different one (6 is
+    # the average match, 7 a very good one). Votes outside are clamped, never dropped.
+    VOTE_FLOOR = 4.0
+    VOTE_CEIL = 8.0
+    VOTE_BANDS: ClassVar[tuple[tuple[float, str], ...]] = (
+        (7.5, "#00e5ff"),      # exceptional
+        (7.0, "#2196f3"),      # very good
+        (6.5, "#66bb6a"),      # good
+        (6.0, "#9e9e9e"),      # average
+        (5.5, "#ffd54f"),      # weak
+        (0.0, "#ef5350"),      # poor
+    )
+    # A SYNTHETIC vote is a different fact from a real one and the picture has to say so, or the strip
+    # claims the game voted a round it never saw. Same hue, drawn hollow (a one-pixel outline).
+    BAR_W = 10                 # one match, in pixels
+    BAR_H = 18                 # the drawing area: 14 for the bar, 4 above it for the bonus mark
+    # A match he did not play: no bar, a two-pixel plinth in the reason's own colour, so an absence can
+    # never read as a bad performance and the four reasons stay four.
+    ABSENT_BAR: ClassVar[dict[str, str]] = {"b": "#9e9e9e", "i": "#9575cd", "s": "#ef5350",
+                                            "o": "#546e7a", "n": "#37474f", "x": "#9e9e9e"}
+    # xG+xA, the SECOND layer the operator asked for - BESIDE the bar and never inside its height, so
+    # the cell is seven pixels of voto plus two of expectation. Full at this many expected goals+assists
+    # in one match. Nothing is drawn at zero: at two pixels a floor of one is indistinguishable from a
+    # small value, so the number lives in the popup and the column says «he created something».
+    XGA_FULL = 1.0
+    XGA_W = 2
+    XGA_COLOUR = "#7e57c2"
+
+    @classmethod
+    def vote_band(cls, vote: float | None) -> str:
+        if vote is None:
+            return "#9e9e9e"
+        for floor, colour in cls.VOTE_BANDS:
+            if vote >= floor:
+                return colour
+        return cls.VOTE_BANDS[-1][1]
+
+    def _histogram(self, detail: str | None):
+        """The last ten CHAMPIONSHIP matches as BARS, oldest on the left. `desc_trend_detail`.
+
+        Four things are readable at a glance and each is a different question. The HEIGHT is the vote,
+        on the declared scale above; a HOLLOW bar means that vote is the calibrated synthetic one,
+        because the euro calendar skipped that round and the game never voted it. A bar that is only a
+        plinth is a match he did not play, coloured by the reason (bench, injury, suspension, out of
+        the squad, unknown) - never by a performance he did not give. The purple column on the right of
+        each cell is xG+xA, the second layer: a man can be playing well and finishing badly, and the
+        two must not be added into one number. The marks are the events - a black disc for a goal, a
+        small one for an assist, a yellow or red two-pixel line at the foot for a card - and a match
+        the EURO calendar never counted carries a one-pixel underline: 18% of a season, invisible in
+        the fantamedia the game shows.
+        """
+        records = [line.split("|") for line in (detail or "").split(";") if line]
+        image = tk.PhotoImage(width=self.BAR_W * max(len(records), 1) + 2, height=self.BAR_H + 2)
+        background = theme.color("surface")
+        image.put(background, to=(0, 0, image.width(), image.height()))
+        floor_y = self.BAR_H              # the baseline: bars grow up from it
+        top_room = self.BAR_H - 4         # what a bar may use, leaving room for the bonus mark
+        for index, fields in enumerate(records):
+            parts = (fields + [""] * 16)[:16]
+            state, vote, source = parts[4], _number(parts[7], None), parts[8]
+            goals, assists = _number(parts[10]), _number(parts[11])
+            yellows, reds = _number(parts[12], None), _number(parts[13], None)
+            xga, in_euro = _number(parts[14], None), parts[15]
+            x = index * self.BAR_W + 1
+            bar_w = self.BAR_W - self.XGA_W - 1        # the voto's own width; the rest is the layer
+            if in_euro == "0":
+                # under the cell, the width of the cell: this round is not in the euro calendar
+                image.put(theme.color("text_faint"),
+                          to=(x, floor_y + 1, x + self.BAR_W - 1, floor_y + 2))
+            if state != "p" or vote is None:
+                colour = self.ABSENT_BAR.get(state, "#37474f")
+                if state == "p":
+                    colour = self.ABSENT_BAR["n"]     # he played and nobody scored it: unknown, not bad
+                image.put(colour, to=(x, floor_y - 2, x + bar_w, floor_y))
+                continue
+            share = (min(vote, self.VOTE_CEIL) - self.VOTE_FLOOR) / (self.VOTE_CEIL - self.VOTE_FLOOR)
+            height = max(2, min(top_room, round(share * top_room)))
+            self._bar(image, x, floor_y - height, bar_w, height,
+                      self.vote_band(vote), hollow=source == "synth")
+            if xga:
+                tall = min(top_room, round(min(xga / self.XGA_FULL, 1.0) * top_room))
+                if tall:
+                    image.put(self.XGA_COLOUR,
+                              to=(x + bar_w, floor_y - tall, x + bar_w + self.XGA_W, floor_y))
+            if goals or assists:
+                self._bonus(image, x, bool(goals))
+            if reds:
+                image.put("#ef5350", to=(x, floor_y - 1, x + bar_w, floor_y))
+            elif yellows:
+                image.put("#ffd54f", to=(x, floor_y - 1, x + bar_w, floor_y))
+        return image
+
+    @staticmethod
+    def _bar(image, x: int, y: int, width: int, height: int, colour: str, hollow: bool) -> None:
+        """A filled rectangle, or its one-pixel outline when the vote behind it is synthetic."""
+        if not hollow or height <= 2 or width <= 2:
+            image.put(colour, to=(x, y, x + width, y + height))
+            return
+        image.put(colour, to=(x, y, x + width, y + 1))
+        image.put(colour, to=(x, y + height - 1, x + width, y + height))
+        image.put(colour, to=(x, y, x + 1, y + height))
+        image.put(colour, to=(x + width - 1, y, x + width, y + height))
 
     # The bonus mark: a 5x5 disc for a goal, a 3x3 one for an assist, black, on the dot's top-right
     # corner. One mark per match and the GOAL WINS - a man who scored and assisted the same game reads
@@ -3471,6 +3624,14 @@ class SnapshotView(ttk.Frame):
         if not self.sort_by:
             return rows                                    # already in auction order
         field = self.SORT_FIELD.get(self.sort_by, self.sort_by)
+        if rows and field not in rows[0]:
+            # A DERIVED column - `claim`, `judge` - whose number is computed by the panel and is in no
+            # CSV field. Ordering it by a raw column would order the list by something other than what
+            # it SHOWS, which is the defect this project paid for once already.
+            pairs = [(row, self._cell_values(row).get(self.sort_by, ("", None))[1]) for row in rows]
+            pairs.sort(key=lambda pair: (pair[1] is None,
+                                         -(pair[1] or 0.0) if self.sort_desc else (pair[1] or 0.0)))
+            return [row for row, _value in pairs]
         numeric = any(_is_number(row.get(field)) for row in rows)
 
         def key(row: dict):
@@ -3889,6 +4050,7 @@ class SnapshotView(ttk.Frame):
         started = self.voto_share(row) if row.get("desc_season_matches") else None
         rating = _number(row.get("desc_form_rating"), None)
         claim = self.claim(row, "season")
+        judge = self.trend_score(row)
         missed = 1 - self.availability(row) if row.get("desc_injury_source") else None
         return {
             "role": (row.get("role_classic") or "?", None),
@@ -3905,11 +4067,51 @@ class SnapshotView(ttk.Frame):
             # different one and answers it with `presence('recent')`; showing two claims in one column
             # would be showing neither.
             "claim": (f"{claim:.0%}", claim),
+            "judge": ((f"{judge:.0f}" if judge is not None else ""), judge),
             "rating": (row.get("desc_form_rating") or "", rating),
             "bonus": (f"{bonus:.0f}" if bonus >= 0.5 else "", bonus),
             "inj": (f"{missed:.0%}" if missed is not None else "", missed),
             "status": (self._flags(row)[0], None),
         }
+
+    # How few men of a role make a scale rather than a coincidence. Below it the column stays empty:
+    # a 0-99 read against two other players says nothing about either.
+    TREND_POOL_MIN: ClassVar[int] = 8
+
+    def trend_pool(self) -> dict[str, float]:
+        """{listone role: the best trend of that role in THIS SHEET} - the 99 of the scale.
+
+        THE POOL IS PART OF THE MEASUREMENT and it is the ROLE, declared rather than implied: «he is
+        going well» is a sentence about what his own role can produce, and a forward's ten matches are
+        worth more fantapunti than a defender's by construction. The population is the SHEET and never
+        the club on screen - being the best of a bad squad is not being good - which is the same
+        accessor every other population statistic here reads (`population`).
+        """
+        if self._trend_pool is None:
+            best: dict[str, list[float]] = {}
+            for row in self.population():
+                value = _number(row.get("desc_trend_fp"), None)
+                if value is not None:
+                    best.setdefault((row.get("role_classic") or "?").upper(), []).append(value)
+            self._trend_pool = {role: max(values) for role, values in best.items()
+                                if len(values) >= self.TREND_POOL_MIN and max(values) > 0}
+        return self._trend_pool
+
+    def trend_score(self, row: dict) -> float | None:
+        """The last ten league matches as a 0-99, inside his own role. A DESCRIPTION, not a forecast.
+
+        Linear against the best of the role, which is the scale the app already uses for the value, so
+        twice the fantapunti reads as twice the score. What it must never be read as is a prediction:
+        measured 14/08/2026 over ~65,000 windows with the reshuffled null, a player's departure from
+        his own averages carries a true excess of +0.0167 / +0.0072 / -0.0007 at two, three and five
+        matchdays - it changes SIGN - so this orders «what he has done» and nothing else. No gate owns
+        it because no valuation reads it.
+        """
+        value = _number(row.get("desc_trend_fp"), None)
+        top = self.trend_pool().get((row.get("role_classic") or "?").upper())
+        if value is None or not top:
+            return None
+        return max(0.0, min(99.0, round(value / top * 99)))
 
     # The columns where a HIGH number is the bad news, so "above the mean" has to read red: `inj` is the
     # share of a season a man like this one MISSES. Everything else is more-is-better.
@@ -3968,9 +4170,12 @@ class SnapshotView(ttk.Frame):
         body = self.table_body
         middle = top + self.ROW_H // 2
         if kind == "trend":
-            # The strip stays a PhotoImage: the dot logic is measured and tested, and re-drawing it on the
-            # canvas would be a second implementation of it.
-            spark = self._sparkline(row.get("desc_form_series"), row.get("desc_form_detail"))
+            # The strip stays a PhotoImage: the bar logic is measured and tested, and re-drawing it on the
+            # canvas would be a second implementation of it. A sheet built before the trend existed still
+            # has its dots - the picture degrades to the older one instead of disappearing.
+            spark = (self._histogram(row.get("desc_trend_detail"))
+                     if row.get("desc_trend_detail")
+                     else self._sparkline(row.get("desc_form_series"), row.get("desc_form_detail")))
             self._sparks.append(spark)              # Tk drops an image nobody references
             body.create_image(left + 3, middle, image=spark, anchor="w")
             return
@@ -4554,6 +4759,7 @@ class SnapshotView(ttk.Frame):
     _lanes_final: ClassVar[bool] = False
     _excluded: ClassVar[set] = set()
     _means: ClassVar[dict[str, float] | None] = None
+    _trend_pool: ClassVar[dict[str, float] | None] = None
 
     @staticmethod
     def build(row: dict) -> str:

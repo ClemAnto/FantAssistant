@@ -195,6 +195,18 @@ SHEET_COLUMNS: tuple[str, ...] = (
     # DISPLAY-ONLY on the row too - the app shows them and no valuation reads them.
     "desc_easy_matches",
     "desc_calendar_margin",
+    # THE TREND: the club's last ten CHAMPIONSHIP matches. The detail string is what the histogram is
+    # drawn from - one record per match, with the vote, its source, the fantapunti, the bonuses, the
+    # cards, xG+xA and whether the euro calendar counted that round - and the aggregate is the number
+    # the panel can ORDER by. It travels whole rather than pre-rendered because the app draws it and
+    # the toolkit's own panel draws it, and two pictures built from two summaries would drift.
+    "desc_trend_fp",
+    "desc_trend_matches",
+    "desc_trend_window",
+    "desc_trend_played",
+    "desc_trend_bench",
+    "desc_trend_outside_euro",
+    "desc_trend_detail",
 )
 
 

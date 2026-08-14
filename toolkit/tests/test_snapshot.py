@@ -15,6 +15,7 @@ import io
 import json
 import re
 
+from euroleghe_ingest import ui_theme as theme
 from euroleghe_ingest.config import Config
 from euroleghe_ingest.context import Context
 from euroleghe_ingest.db.database import init_db
@@ -247,6 +248,159 @@ def test_the_last_ten_series_tells_bench_from_injured_from_unknown(tmp_path):
     assert tokens[3] == "n", "a match with no player-level data is unknown, not a bench appearance"
     assert (form["played"], form["measured"], form["club_matches"]) == (2, 3, 4)
     assert form["unused"] == 1 and form["unknown"] == 1
+
+
+def test_the_bench_is_measured_and_beats_a_spell_that_covers_the_day(tmp_path):
+    """A man NAMED among the substitutes was available and was not chosen - and that is not an absence.
+
+    The row has always been there (an unused substitute carries a statistics object with no
+    `minutesPlayed`, so `minutes` is NULL and `started` is 0): what was missing is a reader that says
+    so. The order is the claim - a spell whose dates happen to cover the day cannot overrule the team
+    sheet he is printed on - because «out injured» and «fit and left out» are the two answers item 6
+    exists to tell apart, and only the second one changes a bid.
+    """
+    ctx = _ctx(tmp_path)
+    conn = ctx.conn
+    _seed(conn)
+    # He is on the bench for m1 and nowhere near m2; a spell covers BOTH days.
+    conn.execute(
+        "INSERT INTO external_match_stats(fc_id, season, source, match_id, competition, match_date, "
+        "club, minutes, started) "
+        "VALUES (1, '2024-25', 'sofascore', 'm1', 'serie_a', '2025-05-01', 'Inter', NULL, 0)")
+    for match_id, date in (("m1", "2025-05-01"), ("m2", "2025-05-08")):
+        conn.execute(
+            "INSERT INTO external_match_stats(fc_id, season, source, match_id, competition, "
+            "match_date, club, minutes, started, rating) "
+            "VALUES (2, '2024-25', 'sofascore', ?, 'serie_a', ?, 'Inter', 90, 1, 6.5)",
+            (match_id, date))
+    conn.execute("INSERT INTO injuries(fc_id, start_date, end_date, kind, days_out, matches_missed, "
+                 "source) VALUES (1, '2025-04-20', '2025-05-20', 'muscular', 30, 5, 'transfermarkt')")
+    conn.commit()
+
+    class Obs:
+        fc_id, name, club_target, role_classic = 1, "Lautaro", "Inter", "A"
+
+    form = snapshot.club_form(conn, "2025-08-15", [Obs()], {1: "Inter"})[1]
+    assert form["series"].split() == ["b", "i"], "named on the bench beats a spell; the other day is a spell"
+    assert (form["bench"], form["out"], form["unused"]) == (1, 1, 2), "the sum is what `unused` was"
+    # And the friendly layer must NOT be read as a bench: there a row with no minutes means the
+    # provider published the line-up and no statistics at all, which says nothing about the player.
+    assert snapshot.bench_matches(conn, "2025-08-15") == {1: {"m1"}}
+    conn.execute("UPDATE external_match_stats SET source = 'sofascore_extra' WHERE fc_id = 1")
+    conn.commit()
+    assert snapshot.bench_matches(conn, "2025-08-15") == {}, "a friendly's blank row is not a bench"
+
+
+def test_a_summer_arrival_is_not_scored_on_his_new_club_s_spring(tmp_path):
+    """The window follows the MAN, and a club is only his for the seasons he belonged to it.
+
+    Found by calling the function on a real case (Doekhi, Union Berlin -> Lazio): the window
+    interleaved his new club's spring with his own Bundesliga matches and scored him ZERO on six
+    rounds played while he was still in Germany. The two-pass club resolution knew WHICH clubs the
+    window spans and had no way to say WHEN each of them was his.
+    """
+    ctx = _ctx(tmp_path)
+    conn = ctx.conn
+    _seed(conn)
+    conn.execute("INSERT INTO clubs(fc_club_id, canonical_name, league) "
+                 "VALUES (11, 'Union Berlino', 'bundesliga')")
+    # He is quoted at Inter for the season being auctioned and played 2025-26 at Union Berlin.
+    conn.execute("UPDATE rosters SET fc_club_id = 11, league = 'bundesliga' "
+                 "WHERE fc_id = 1 AND season = '2024-25'")
+    for match_id, date in (("u1", "2025-05-03"), ("u2", "2025-05-10")):
+        conn.execute(
+            "INSERT INTO external_match_stats(fc_id, season, source, match_id, competition, "
+            "match_date, club, minutes, started, rating, mv_synth) "
+            "VALUES (1, '2024-25', 'sofascore', ?, 'bundesliga', ?, 'Union Berlino', 90, 1, 7.0, 6.5)",
+            (match_id, date))
+    # ...while his NEW club played its own rounds on the very same days, with other men in them.
+    for match_id, date in (("i1", "2025-05-03"), ("i2", "2025-05-10")):
+        conn.execute(
+            "INSERT INTO external_match_stats(fc_id, season, source, match_id, competition, "
+            "match_date, club, minutes, started, rating) "
+            "VALUES (2, '2024-25', 'sofascore', ?, 'serie_a', ?, 'Inter', 90, 1, 6.5)",
+            (match_id, date))
+    conn.commit()
+
+    class Obs:
+        fc_id, name, club_target, role_classic = 1, "Doekhi", "Inter", "D"
+
+    scoring = {"": {"goal_bonus": 3.0, "assist_bonus": 1.0}}
+    form = snapshot.club_form(conn, "2025-08-15", [Obs()], {1: "Inter"}, scoring=scoring,
+                              target_season="2025-26")
+    assert form[1]["trend_window"] == 2, "his window is his own two matches, not four"
+    assert "serie_a" not in form[1]["trend_detail"], "his new club's spring is not his"
+    assert form[1]["trend_played"] == 2
+    assert form[1]["trend_fp"] == 6.5, "the synthetic voto, with no bonus to add"
+
+
+def test_the_trend_scores_what_it_can_and_leaves_out_what_it_cannot(tmp_path):
+    """The judgement's denominator is the claim: zero for an absence, nothing for an unknown.
+
+    A match he did not play is a ZERO because availability is half of what a fantamedia is worth; a
+    match nobody voted cannot be scored at all, and putting a zero there would say he was bad when we
+    do not know. `trend_matches` is what makes the two readable apart.
+    """
+    ctx = _ctx(tmp_path)
+    conn = ctx.conn
+    _seed(conn)
+    # voted (real), unvoted (no mv_synth either), and a round he sat out with nothing recorded
+    conn.execute(
+        "INSERT INTO external_match_stats(fc_id, season, source, match_id, competition, match_date, "
+        "club, minutes, started, rating) "
+        "VALUES (1, '2024-25', 'sofascore', 'm1', 'serie_a', '2025-05-01', 'Inter', 90, 1, 7.0)")
+    conn.execute("INSERT INTO match_ratings(fc_id, season, matchday, platform, team, mv, fantavoto) "
+                 "VALUES (1, '2024-25', 33, 'default', 'Inter', 7.0, 10.0)")
+    conn.execute("UPDATE external_match_stats SET real_md = 33 WHERE match_id = 'm1'")
+    conn.execute(
+        "INSERT INTO external_match_stats(fc_id, season, source, match_id, competition, match_date, "
+        "club, minutes, started, rating) "
+        "VALUES (1, '2024-25', 'sofascore', 'm2', 'serie_a', '2025-05-08', 'Inter', 90, 1, 6.0)")
+    conn.execute(
+        "INSERT INTO external_match_stats(fc_id, season, source, match_id, competition, match_date, "
+        "club, minutes, started, rating) "
+        "VALUES (2, '2024-25', 'sofascore', 'm3', 'serie_a', '2025-05-15', 'Inter', 90, 1, 6.0)")
+    conn.commit()
+
+    class Obs:
+        fc_id, name, club_target, role_classic = 1, "Lautaro", "Inter", "A"
+
+    form = snapshot.club_form(conn, "2025-08-15", [Obs()], {1: "Inter"},
+                              scoring={"": {"goal_bonus": 3.0, "assist_bonus": 1.0}},
+                              target_season="2025-26")[1]
+    assert form["trend_window"] == 3 and form["trend_played"] == 2
+    assert form["trend_matches"] == 2, "the voted match and the absence; the unvoted one is left out"
+    assert form["trend_fp"] == 5.0, "(10 + 0) / 2 - and never (10 + 0 + 0) / 3"
+
+
+def test_the_vote_cascade_is_declared_and_a_keeper_is_not_guessed():
+    """Real fantavoto, then the calibrated synthetic voto, then nothing. Never a zero.
+
+    Two things the synthetic side cannot carry, and both are stated instead of approximated: cards
+    (the per-match layer has no bookings at all) and a goalkeeper's fantapunti, which are dominated by
+    the goals conceded - no per-match row of ours holds them, and the outfield formula reads +0.82 to
+    +1.22 above a keeper's real fantamedia.
+    """
+    scoring = {"goal_bonus": 3.0, "assist_bonus": 1.0}
+    assert snapshot.match_worth(10.0, 7.0, 6.2, 1, 0, False, scoring) == (7.0, "real", 10.0)
+    assert snapshot.match_worth(None, None, 6.2, 1, 1, False, scoring) == (6.2, "synth", 10.2)
+    assert snapshot.match_worth(None, None, None, 0, 0, False, scoring) == (None, None, None)
+    assert snapshot.match_worth(None, None, 6.2, 0, 0, True, scoring) == (6.2, "synth", None)
+    assert snapshot.match_worth(None, None, 6.2, 2, 0, False, None) == (6.2, "synth", None), \
+        "no league, no bonus values: this project hard-codes none"
+
+
+def test_a_missing_xg_is_a_zero_only_where_he_did_not_shoot():
+    """The convention on a NULL is measured, and it is not the same in both directions.
+
+    NULL with no shots is a zero (19,719 of 19,719 such rows in 2025-26 have `shots` = 0); NULL on a
+    row that DID shoot is unknown, because before 2022-23 the provider served no xG at all and drawing
+    a zero there would invent a measurement out of a season nobody covered.
+    """
+    assert snapshot._xga(0.3, 0.2, 4) == 0.5
+    assert snapshot._xga(None, 0.0, 0) == 0.0, "he did not shoot: that is a zero, not a hole"
+    assert snapshot._xga(None, 0.1, 3) is None, "he shot and no xG was served: unknown"
+    assert snapshot._xga(0.4, None, 2) is None
 
 
 def _headless_root():
@@ -843,6 +997,69 @@ def test_the_trend_dot_is_full_only_for_a_full_match_and_carries_the_bonus():
     assert goal.pixels[(5, 2)] == assist.pixels[(6, 1)] == "#000000"
     assert len(goal.pixels) > len(assist.pixels)
     assert max(x for x, _y in goal.pixels) == max(x for x, _y in assist.pixels) == 7
+
+
+def test_the_trend_bar_says_four_things_and_never_confuses_them():
+    """Height = the voto, hollow = that voto is synthetic, a plinth = he did not play, purple = xG+xA.
+
+    A bar is read at ten pixels wide, so every channel has to be a different KIND of mark and not a
+    shade of another. The one that matters most is the plinth: an absence drawn as a short bar would
+    read as a bad match, and «he did not play» and «he played badly» are the two facts an auction must
+    not confuse - the first is availability, which is 90% of the variance of fantapunti.
+    """
+    from euroleghe_ingest.gui import SnapshotView as View
+
+    class Fake:
+        def __init__(self, width=200, height=20):
+            self.pixels: dict[tuple[int, int], str] = {}
+            self._size = (width, height)
+
+        def width(self):
+            return self._size[0]
+
+        def height(self):
+            return self._size[1]
+
+        def put(self, colour, to):
+            for x in range(to[0], to[2]):
+                for y in range(to[1], to[3]):
+                    self.pixels[(x, y)] = colour
+
+    image = Fake()
+    View._bar(image, 0, 4, 8, 10, "#66bb6a", hollow=False)
+    assert image.pixels[(4, 8)] == "#66bb6a", "a real voto fills its bar"
+    hollow = Fake()
+    View._bar(hollow, 0, 4, 8, 10, "#66bb6a", hollow=True)
+    assert (4, 8) not in hollow.pixels, "a SYNTHETIC voto is the same colour, drawn hollow"
+    assert hollow.pixels[(0, 4)] == hollow.pixels[(7, 13)] == "#66bb6a"
+
+    # ...and the same four channels through the real drawing, which is what the panel calls.
+    class Panel(View):
+        def __init__(self):
+            pass
+
+    import tkinter as tk
+    made: list[Fake] = []
+    original = tk.PhotoImage
+    tk.PhotoImage = lambda width, height: made.append(Fake(width, height)) or made[-1]
+    try:
+        Panel()._histogram(
+            "2026-05-01|serie_a|Lazio|A|p|90|1|7.0|real|7.0|0|0|0|0|0.5|1"
+            ";2026-05-08|serie_a|Como|H|b|||||||||||1"
+            ";2026-05-15|serie_a|Roma|A|p|90|1|6.0|synth||0|0|||0.0|0")
+    finally:
+        tk.PhotoImage = original
+    drawn = made[-1]
+    column = {y: colour for (x, y), colour in drawn.pixels.items() if x == 1}
+    assert View.vote_band(7.0) in column.values(), "the height is coloured by the voto's own band"
+    bench = {y for (x, y), colour in drawn.pixels.items()
+             if x == View.BAR_W + 1 and colour == View.ABSENT_BAR["b"]}
+    assert bench == {View.BAR_H - 2, View.BAR_H - 1}, "an absence is a two-pixel plinth, never a bar"
+    assert View.XGA_COLOUR in drawn.pixels.values(), "xG+xA is a layer of its own beside the bar"
+    outside = [(x, y) for (x, y), colour in drawn.pixels.items()
+               if y == View.BAR_H + 1 and colour == theme.color("text_faint")]
+    assert outside and all(x >= 2 * View.BAR_W for x, _y in outside), \
+        "only the third round is outside the euro calendar, and it says so under its own bar"
 
 
 def test_the_shape_decides_where_a_man_is_drawn_and_not_his_own_code(monkeypatch):
@@ -2106,6 +2323,30 @@ def test_a_population_statistic_is_measured_over_the_SHEET_and_not_the_club_on_s
     alone = _view_of([mine])
     alone.players = [mine]
     assert alone.fm_z(mine) is None, "one man is not a population"
+
+
+def test_the_trend_score_is_read_inside_its_own_role_and_over_the_whole_sheet():
+    """The 0-99 says «he is going well», and that sentence is relative to what his ROLE can produce.
+
+    A forward's ten matches are worth more fantapunti than a defender's by construction, so one pool
+    for everybody would rank the roles and call it form. The population is the SHEET (`population`) and
+    a role too thin to be a distribution gets no number at all - a 0-99 read against two other men says
+    nothing about either.
+    """
+    forwards = [{"club": "Test", "name": f"a{i}", "role_classic": "A",
+                 "desc_trend_fp": f"{4.0 + i * 0.5:.1f}"} for i in range(10)]
+    defenders = [{"club": "Test", "name": f"d{i}", "role_classic": "D",
+                  "desc_trend_fp": f"{3.0 + i * 0.2:.1f}"} for i in range(10)]
+    keepers = [{"club": "Test", "name": "p1", "role_classic": "P", "desc_trend_fp": "5.0"}]
+    view = _view_of([*forwards, *defenders, *keepers])
+    view.players = [*forwards, *defenders, *keepers]
+    assert view.trend_score(forwards[-1]) == 99 and view.trend_score(defenders[-1]) == 99, \
+        "the best of each role is the 99 of that role's scale"
+    # the best defender collects 4.8 against the best forward's 8.5, and still reads 99: what the
+    # column answers is «how is HE going», not «is a defender worth as much as a striker»
+    assert view.trend_score(defenders[0]) == round(3.0 / 4.8 * 99)
+    assert view.trend_score(keepers[0]) is None, "one keeper is not a distribution"
+    assert view.trend_score({"role_classic": "A"}) is None, "no trend, no score - never a zero"
 
 
 def test_a_coach_keeps_the_elevens_his_club_is_spelled_differently_in(tmp_path):
