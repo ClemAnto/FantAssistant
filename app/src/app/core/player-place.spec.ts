@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { PlaceChange, placeMark, rotationMark } from './player-place';
+import { PlaceChange, placeMark, rotationMark, starterSignsMark } from './player-place';
 
 const base: PlaceChange = {
   change: 'gained',
@@ -78,5 +78,28 @@ describe('rotationMark', () => {
     expect(early.note).toContain("81%");
     expect(early.note).toContain('Donnarumma');
     expect(early.note).not.toContain('non è il titolare e non ha minutaggio');
+  });
+});
+
+describe('starterSignsMark', () => {
+  it('says the mirror fact, and a keeper gets a different sentence', () => {
+    const outfield = starterSignsMark({ minutes: 73, starts: 5, window: 5, keeper: false })!;
+    expect(outfield.flag).toBe('starter_signs');
+    expect(outfield.note).toContain('Quotato da riserva');
+    expect(outfield.note).toContain('76,8%');
+    // the honest half: this claim is weaker than the rotation one
+    expect(outfield.note).toContain('più debole');
+
+    // For a keeper the same reading means «he is the number one» - and it is the strongest cell of
+    // the screen (81.9% against a 22.3% base), because the reserve band of keepers is real reserves.
+    const keeper = starterSignsMark({ minutes: 90, starts: 4, window: 4, keeper: true })!;
+    expect(keeper.note).toContain('81,9%');
+    expect(keeper.note).toContain('è il numero uno');
+    expect(keeper.note).not.toContain('più debole');
+  });
+
+  it('is null when the sheet says nothing', () => {
+    expect(starterSignsMark(null)).toBeNull();
+    expect(starterSignsMark({ minutes: null, starts: null, window: null, keeper: false })).toBeNull();
   });
 });

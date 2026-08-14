@@ -63,6 +63,26 @@ export interface RotationWatch {
   to: string | null;
 }
 
+/**
+ * IL TERZO FATTO SULLA MAGLIA, ed è lo specchio del secondo: dato per riserva, gioca da titolare.
+ * Ferran Torres 2025-26 (64° percentile del ruolo, 73 minuti e 5 titolarità sulle prime 5) e Castro
+ * 2024-25 (46°, 76 minuti e 4 su 5) sono i casi da cui nasce.
+ *
+ * MISURATO su quattro stagioni: chi si legge così parte titolare in almeno metà delle partite che
+ * restano nel **76,8%** dei casi contro il 42,3% della sua fascia (1,82x). Per un PORTIERE è la
+ * lettura più forte dello screen — 81,9% contro una base del 22,3% (3,68x) — e vuol dire «è il numero
+ * uno», non «sta crescendo».
+ *
+ * È una pretesa più DEBOLE di quella dell'altro marchio: perdere il posto è più prevedibile che
+ * conquistarlo (90,4% contro 76,8%).
+ */
+export interface StarterSigns {
+  minutes: number | null;
+  starts: number | null;
+  window: number | null;
+  keeper: boolean;
+}
+
 export interface PlaceChange {
   change: 'gained' | 'lost';
   /** Il giorno in cui il posto cambia di mano, e la giornata reale di quel giorno. */
@@ -143,5 +163,24 @@ export function rotationMark(watch: RotationWatch | null | undefined): PlayerMar
       `Misurato su 4 stagioni: il 90,4% di chi si legge così chiude il resto della stagione sotto i 60 ` +
       `minuti a partita, contro il 59,5% di chi non lo fa (1,52x). Uno su dieci diventa titolare ` +
       `davvero.`,
+  };
+}
+
+/** «Dato per riserva, gioca da titolare»: lo specchio, con la sua misura (più debole) addosso. */
+export function starterSignsMark(signs: StarterSigns | null | undefined): PlayerMark | null {
+  if (!signs || signs.minutes == null) return null;
+  const rounds = signs.window ?? 5;
+  const evidence = signs.keeper
+    ? "Misurato su 4 stagioni: per un PORTIERE è la lettura più forte di questo screen — l'81,9% di "
+      + 'chi si legge così parte titolare in almeno metà delle partite che restano, contro il 22,3% '
+      + 'della fascia riserve (3,68x). Vuol dire «è il numero uno», non «sta crescendo».'
+    : 'Misurato su 4 stagioni: il 76,8% di chi si legge così parte titolare in almeno metà delle '
+      + 'partite che restano, contro il 42,3% della sua fascia (1,82x). È una pretesa più debole '
+      + "dell'altro marchio: perdere il posto è più prevedibile che conquistarlo.";
+  return {
+    flag: 'starter_signs',
+    note:
+      `Quotato da riserva nel suo ruolo, ma sulle ultime ${rounds} di campionato del suo club ne ha ` +
+      `iniziate ${signs.starts ?? 0} con una media di ${signs.minutes.toFixed(0)} minuti. ${evidence}`,
   };
 }

@@ -1,5 +1,5 @@
 # 00 — BRIDGE · Punto d'ingresso del progetto (leggere per primo)
-**Aggiornato: 14 agosto 2026, notte (il TREND delle ultime dieci, CHI HA GUADAGNATO IL POSTO e «preso per titolare, ruotato di fatto»: item 5, 6 e 7 chiusi lo stesso giorno)** · precedente: 10 agosto, notte tarda (la todolist del draft ESEGUITA, il campetto legge la board del toolkit ed e' rifinito, v0.1.8 pushata)** · precedente: 10 agosto, giorno (l'assistente d'asta e' completo — porte, surplus vivo, scelta consigliata — e la campagna sulle strategie di draft ha RITIRATO due conclusioni)** · precedente: 9 agosto (l'app esiste: Angular, pubblicata su GitHub Pages, legge il bundle del toolkit)** · 8 agosto (DUE GIUDICI per le formazioni tipo — la stampa e l'ESITO reale — e la todolist formazioni tipo chiusa: cinque adozioni, sei rifiuti misurati)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
+**Aggiornato: 14 agosto 2026, notte (il TREND delle ultime dieci, CHI HA GUADAGNATO IL POSTO, «preso per titolare ruotato di fatto» e il suo SPECCHIO: item 5, 6, 7 e 8 chiusi lo stesso giorno)** · precedente: 10 agosto, notte tarda (la todolist del draft ESEGUITA, il campetto legge la board del toolkit ed e' rifinito, v0.1.8 pushata)** · precedente: 10 agosto, giorno (l'assistente d'asta e' completo — porte, surplus vivo, scelta consigliata — e la campagna sulle strategie di draft ha RITIRATO due conclusioni)** · precedente: 9 agosto (l'app esiste: Angular, pubblicata su GitHub Pages, legge il bundle del toolkit)** · 8 agosto (DUE GIUDICI per le formazioni tipo — la stampa e l'ESITO reale — e la todolist formazioni tipo chiusa: cinque adozioni, sei rifiuti misurati)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
 
 ## Il progetto in breve
 Motore previsionale per fantacalcio **EuroLeghe** (fantacalcio.it): valutazione calciatori Classic e Mantra sui 5 grandi campionati europei (Serie A, Premier, Liga, Bundesliga, Ligue 1 — perimetro: i ~35 top club del gioco). Prevede fantamedia (FM), presenze attese e VALORE stagionale = FM × presenze. Metodo scientifico: **ogni regola entra nel motore solo se batte il baseline fuori campione su finestre indipendenti** (gate pre-registrato). Stato: core validato (Mantra, Classic, portieri, presenze); manca lo strato flag/arrivi, sbloccato dal toolkit dati `euroleghe-ingest` (in implementazione).
@@ -34,7 +34,25 @@ la pagina delle probabili non basta e quali vincoli valgono già oggi.
 
 Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
 
-### ULTIMO IN ORDINE DI TEMPO — 14/08/2026, notte: **«preso per titolare, ruotato di fatto»** (caso Lewandowski)
+### ULTIMO IN ORDINE DI TEMPO — 14/08/2026, notte: **lo SPECCHIO** (dato per riserva, gioca da titolare)
+
+Item **8** di [todolist-draft-v1.md](todolist-draft-v1.md), spec **«Novità v9.53»**,
+[assistente-asta-v1.md](assistente-asta-v1.md) **§31**. Toolkit **388 test**, app **162**.
+
+1. **La regola**: fascia 30°-85° percentile del ruolo, ultime 5 del club, ≥65 minuti e 80% iniziate,
+   niente prima della quarta. Entrambi i bordi della fascia lavorano.
+2. **L'ESITO è stato corretto dai casi dell'operatore, non dallo screen.** La soglia dei 60 minuti
+   dava sbagliati sia Castro sia Ferran Torres, ma Castro ha iniziato 27 partite su 37: «titolare»
+   dice quante volte INIZIA. Contato così: **79,1% contro una base del 40,9% (1,94x)**, e la lettura
+   sui minuti resta a verbale.
+3. **Il portiere è il caso più forte e il sospetto era sbagliato**: sembrava un difetto che la lista
+   fosse piena di portieri (sono quotati poco per costruzione), ma la loro fascia riserve è fatta
+   davvero di riserve — base 22,3% contro 42,3% — quindi **81,9% e 3,68x**, e per lui vuol dire «è il
+   numero uno».
+4. **Douvikas non spara** ed è dichiarato: 3 titolarità su 5, sotto soglia, e ha poi iniziato il 67%.
+5. **Perdere il posto è più prevedibile che conquistarlo**: 90,4% contro 76,8%.
+
+### 14/08/2026, notte: **«preso per titolare, ruotato di fatto»** (caso Lewandowski)
 
 Item **7** di [todolist-draft-v1.md](todolist-draft-v1.md), spec **«Novità v9.52»**,
 [assistente-asta-v1.md](assistente-asta-v1.md) **§30**. Toolkit **385 test**, app **159**.

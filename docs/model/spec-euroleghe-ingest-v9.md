@@ -495,6 +495,44 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.53 (14 agosto 2026, notte — lo SPECCHIO: dato per riserva, gioca da titolare)
+
+`SHEET_REVISION` **17** (sei colonne `desc_riser_*`), `engine_*` invariato, toolkit **387 → 388 test**,
+app **160 → 162**. Domanda inversa dell'operatore, coi suoi tre casi come banco di prova: **Ferran
+Torres** e **Douvikas** 2025-26, **Castro** 2024-25.
+
+**1. La regola**: fascia di quotazione **30°-85° percentile del ruolo** («una riserva, non un
+riempitivo»), ultime 5 giornate del club, **almeno 65 minuti di media** e **l'80% delle partite
+iniziate**, e nulla prima della **quarta** giornata. Entrambi i bordi della fascia lavorano: sopra
+l'85° era venduto come titolare (è la popolazione dell'altro screen, e «gioca» non è una notizia),
+sotto il 30° è un riempitivo le cui quattro buone partite sono una coppa.
+
+**2. COSA VUOL DIRE «È DIVENTATO TITOLARE» l'hanno corretto i casi dell'operatore, ed è la parte che
+vale.** Il primo punteggio riusava la soglia dell'altro screen — 60 minuti a partita del club sul resto
+della stagione — e dava **sbagliati tutti e due i nomi segnalati**: Castro legge 58 e Ferran 49. Ma
+Castro ha iniziato **27 partite su 37**: la soglia dice «non è titolare» di un uomo che ha giocato tre
+quarti di stagione da titolare. Il rovescio di «non è titolare» non è «lo è»: la parola riguarda
+**quante volte INIZIA**, ed è così che l'esito viene contato (metà delle partite che restano). Le due
+letture sono entrambe a verbale — sulla soglia dei minuti lo stesso screen legge 54,9% contro una base
+del 22,2% (2,47x) — quindi il cambio non nasconde niente, e la ragione non dipende dal punteggio dello
+screen.
+
+**3. Quanto vale**, con l'esito contato come si deve: dopo 3 giornate 73,6% contro una base del 39,4%;
+**dopo 4 il 79,1% contro il 40,9% (1,94x)**, per stagione 81/80/80/76%; dopo 5 il 77,3%. **È una
+pretesa più DEBOLE di quella dell'altro marchio** (90,4%): perdere il posto è più prevedibile che
+conquistarlo, e la nota lo dice.
+
+**4. Il portiere è un caso a sé, ed è il più forte.** Temevo il contrario — la testa della lista è
+tutta di portieri, perché un portiere è quotato poco per costruzione — e la misura ha ribaltato il
+sospetto: la fascia «riserva» dei portieri è fatta **davvero** di riserve (base 22,3% contro il 42,3%
+degli uomini di movimento), quindi uno che parte titolare nelle prime giornate lo resta nell'**81,9%**
+dei casi, **3,68x**. Per lui il marchio vuol dire «è il numero uno», non «sta crescendo» — e la frase
+cambia di conseguenza, con `desc_riser_keeper` che fa viaggiare il fatto invece di farlo dedurre.
+
+**5. Il buco dichiarato**: **Douvikas non spara**. Aveva iniziato 3 partite su 5 con 49 minuti di media,
+sotto entrambe le soglie, e ha poi iniziato il 67% del resto. Lo screen è volutamente severo (quattro
+titolarità su cinque) e un uomo che parte lentamente è quello che si perde in cambio del 79%.
+
 ## Novità v9.52 (14 agosto 2026, notte — «preso per titolare, ruotato di fatto»: il caso Lewandowski)
 
 `SHEET_REVISION` **17** (le sei colonne `desc_rotation_*` entrano con lo stesso stampo delle nove

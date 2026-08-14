@@ -610,6 +610,44 @@ def test_a_window_too_short_says_less_instead_of_saying_it_earlier(tmp_path):
     assert "90.4%" in four[1]["note"]
 
 
+def test_the_mirror_screen_names_a_reserve_who_is_playing_like_a_starter(tmp_path):
+    """The operator's inverse question, with his own cases as the test: F. Torres, Castro.
+
+    Same window and the opposite reading, and the POOL is where the work is: above the 85th percentile
+    of his role he was sold as a starter (that is the other screen's population and «he is playing» is
+    not news), below the 30th he is a filler whose four good matches are a cup run. What the mark
+    claims is weaker than the rotation one and says so - 76.8% against a 42.3% base for an outfield
+    player, where losing a place reads 90.4%.
+    """
+    ctx = _ctx(tmp_path)
+    conn = ctx.conn
+    _seed(conn)
+    _place_seed(conn, {round_number: 90 for round_number in range(1, 21)})
+    conn.commit()
+
+    class Obs:
+        def __init__(self, fc_id, price_initial, role="A"):
+            self.fc_id, self.price_initial = fc_id, price_initial
+            self.name, self.club_target, self.role_classic = f"p{fc_id}", "Inter", role
+
+    # a role pool of twenty-one where our man sits mid-table: a reserve, not a filler and not a top
+    observations = [Obs(1, 11.0)] + [Obs(100 + i, float(i)) for i in range(21)]
+    prices = snapshot.role_percentiles(observations)
+    belongs = snapshot.player_clubs(conn, snapshot.club_index(conn))
+    low, high = snapshot.RISER_POOL
+    assert low <= prices[1] < high, "he is quoted in the reserve band of his role"
+    flagged = snapshot.starter_signs(conn, "2024-25", observations, belongs, prices,
+                                     before="2025-09-06")
+    assert flagged[1]["starts"] == 5 and flagged[1]["minutes"] == 90.0
+    assert "76.8%" in flagged[1]["note"] and "WEAKER" in flagged[1]["note"]
+
+    # ...and the two edges of the band, which are the measurement and not a precaution
+    top = [Obs(1, 99.0)] + [Obs(100 + i, float(i)) for i in range(21)]
+    assert 1 not in snapshot.starter_signs(
+        conn, "2024-25", top, belongs, snapshot.role_percentiles(top), before="2025-09-06"), \
+        "a man sold as a starter cannot be «a reserve who is playing»"
+
+
 def test_the_vote_cascade_is_declared_and_a_keeper_is_not_guessed():
     """Real fantavoto, then the calibrated synthetic voto, then nothing. Never a zero.
 

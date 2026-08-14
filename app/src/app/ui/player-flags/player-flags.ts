@@ -22,6 +22,8 @@ const ICON: Record<PlayerFlag, string> = {
   rotation_risk: 'clock-circle',
   // The same icon at half strength: same fact, a window too short to say it as loudly.
   rotation_early: 'clock-circle',
+  // The mirror: he is taking off, and it is the one piece of GOOD news among the marks.
+  starter_signs: 'rocket',
 };
 
 /**
@@ -46,6 +48,8 @@ const TONE: Record<PlayerFlag, string> = {
   // Amber: this one IS a warning about what you are buying, and it is measured (90.4% precision).
   rotation_risk: 'text-warning',
   rotation_early: 'text-warning opacity-50',
+  // Green confirms, and this is the only mark that is good news for the man carrying it.
+  starter_signs: 'text-success',
 };
 
 const LABEL: Record<PlayerFlag, string> = {
@@ -58,6 +62,7 @@ const LABEL: Record<PlayerFlag, string> = {
   place_lost: 'Ha perso il posto',
   rotation_risk: 'Preso per titolare, ma ruotato',
   rotation_early: 'Preso per titolare, segnali di incertezza',
+  starter_signs: 'Dato per riserva, gioca da titolare',
 };
 
 /**

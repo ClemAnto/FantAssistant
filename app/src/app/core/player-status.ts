@@ -36,7 +36,8 @@ export type PlayerFlag =
   | 'place_gained'
   | 'place_lost'
   | 'rotation_risk'
-  | 'rotation_early';
+  | 'rotation_early'
+  | 'starter_signs';
 
 export interface PlayerMark {
   flag: PlayerFlag;

@@ -224,6 +224,11 @@ SHEET_COLUMNS: tuple[str, ...] = (
     "desc_rotation_from",
     "desc_rotation_to",
     "desc_rotation_window",
+    "desc_riser_watch",
+    "desc_riser_minutes",
+    "desc_riser_starts",
+    "desc_riser_window",
+    "desc_riser_keeper",
 )
 
 

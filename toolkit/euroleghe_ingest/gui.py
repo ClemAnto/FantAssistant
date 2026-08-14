@@ -3903,6 +3903,8 @@ class SnapshotView(ttk.Frame):
         # ...and the same reading on a window too short to say that much: «look at him», measured at
         # 81% against a 58% base where the full one reads 96%.
         ("◔", "sold as a starter and showing signs of uncertainty (a SHORT window)"),
+        # ...and the mirror, in the same clock family: nearly full, because he is on the pitch.
+        ("◕", "given as a RESERVE and playing like a starter"),
     )
 
     # Whether a data-recovery run is in flight, so the mark says «being fetched» instead of «missing».
@@ -3984,6 +3986,7 @@ class SnapshotView(ttk.Frame):
             row.get("desc_place_change") == "lost",
             row.get("desc_rotation_watch") == "watch",
             row.get("desc_rotation_watch") == "early",
+            bool(row.get("desc_riser_watch")),
         )
         icons = "".join(icon for (icon, _why), on in zip(self.FLAG_ICONS, present, strict=True) if on)
         words = []
@@ -4012,6 +4015,8 @@ class SnapshotView(ttk.Frame):
                 extra = f" - {row.get('desc_place_note') or ''}"
             elif icon in ("◑", "◔"):
                 extra = f" - {row.get('desc_rotation_note') or ''}"
+            elif icon == "◕":
+                extra = f" - {row.get('desc_riser_note') or ''}"
             words.append(f"{icon}  {why}{extra}")
         return icons, "\n".join(words)
 

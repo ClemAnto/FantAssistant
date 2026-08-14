@@ -253,6 +253,26 @@ titolare e non ha minutaggio. Numeri e costruzione: spec «Novità v9.52»; cosa
   lettura del 2025-26: 70,0% contro una base del 72,0%), e la soglia non si muove dopo aver visto la
   curva.
 
+## 8. Lo SPECCHIO: dato per riserva, gioca da titolare (operatore, 14/08/2026) — CHIUSO
+
+Domanda inversa dell'item 7, coi suoi tre casi: F. Torres e Douvikas 2025-26, Castro 2024-25. Numeri in
+spec «Novità v9.53», cosa mostra in [assistente-asta-v1.md](assistente-asta-v1.md) §31.
+
+- [x] **8.1 — La regola**: fascia 30°-85° percentile del ruolo, ultime 5 del club, ≥65 minuti di media e
+  80% iniziate, niente prima della quarta giornata. Entrambi i bordi della fascia lavorano.
+- [x] **8.2 — L'ESITO è stato corretto dai casi, non dallo screen.** La soglia dei 60 minuti a partita
+  (quella dell'altro screen) dava sbagliati sia Castro sia Ferran, ma Castro ha iniziato 27 partite su
+  37: «titolare» riguarda quante volte INIZIA. Contato così: **79,1% contro una base del 40,9% (1,94x)**
+  dopo quattro giornate, 81/80/80/76% per stagione. Entrambe le letture restano a verbale.
+- [x] **8.3 — Il portiere è il caso più forte, e il sospetto era sbagliato.** La testa della lista è
+  tutta portieri perché sono quotati poco per costruzione; misurato, però, la loro fascia «riserva» è
+  fatta davvero di riserve — base 22,3% contro 42,3% — quindi **81,9% e 3,68x**, e per lui il marchio
+  vuol dire «è il numero uno».
+- [x] **8.4 — Il buco dichiarato**: Douvikas non spara (3 titolarità su 5 e 49 minuti, sotto entrambe le
+  soglie) e ha poi iniziato il 67% del resto. È il prezzo della severità.
+- [x] **8.5 — Ed è più debole del suo specchio**, il che è un risultato: perdere il posto si prevede al
+  90,4%, conquistarlo al 76,8%.
+
 ## 3. Consolidamenti rimasti aperti
 
 - [x] **3.1 — Il giro su CLASSIC.** Fatto su **dieci** finestre Serie A, e ha **corretto un'adozione di

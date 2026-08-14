@@ -1487,6 +1487,127 @@ ROTATION_OUTCOME = 60
 ROTATION_LEFT = 8
 
 
+# ---------- ...and the MIRROR: given as a reserve, playing like a starter ----------
+# The operator's own inverse question (14/08/2026), with his own three cases as the test: Ferran Torres
+# and Douvikas 2025-26, Castro 2024-25. Same machinery as the rotation watch and the opposite reading.
+#
+# WHAT «HE BECAME A STARTER» MEANS was corrected by those cases, and the correction is declared rather
+# than buried. The first scoring reused the rotation screen's bar - 60 minutes a club match over the
+# rest of the season - and it called BOTH flagged cases wrong: Castro reads 58 and Ferran 49. But
+# Castro started 27 of 37 matches; the bar says «he is not a starter» about a man who started three
+# quarters of a season. The mirror of «he is not a starter» is not «he is one»: the word is about how
+# often he STARTS, so that is what the outcome counts (half the remaining matches). Both readings are
+# on the record - on the minutes bar the same screen reads 54.9% against a base of 22.2% (2.47x) - so
+# nothing is hidden by the change, and the reason for it does not depend on the screen's own score.
+#
+#   after 3 rounds   1022 flagged   73.6% precision   base 39.4%   1.87x   (78/73/75/69%)
+#   after 4           810           79.1%                  40.9%   1.94x   (81/80/80/76%)
+#   after 5           973           77.3%                  39.5%   1.96x   (76/79/80/74%)
+#
+# THE POOL IS A BAND, and both edges do work: above the 85th percentile of his role he was sold as a
+# starter (that is the other screen's population, and «he is playing» is not news), below the 30th he
+# is a filler whose four good matches are a cup run. Ferran reads 64, Castro 46.
+#
+# The known miss, stated because a screen without its misses is a slogan: DOUVIKAS does not fire. He
+# started 3 of the first 5 and averaged 49 minutes, under both thresholds, and he went on to start 67%
+# of the rest. The screen is deliberately strict - four starts of five - and a slow riser is what it
+# gives up in exchange for the 79%.
+RISER_POOL = (30.0, 85.0)     # percentile band inside his role: «a reserve, but not a filler»
+RISER_WINDOW = 5              # rounds of his club, the most recent ones
+RISER_MINUTES = 65.0          # mean minutes a match from which the reading fires
+RISER_START_SHARE = 0.8       # ...and this share of the window started
+RISER_FROM = 4                # nothing is said before this many rounds: a rise needs to be seen
+RISER_OUTCOME = 0.5           # what it claims: he starts at least half of what is left
+
+
+def starter_signs(conn, season: str, observations, belongs: dict[int, dict[str, set[str]]],
+                  prices: dict[int, float], before: str | None = None) -> dict[int, dict]:
+    """Who was given as a reserve and is playing like a starter. The inverse of `rotation_watch`.
+
+    Same window, same pool discipline, opposite direction - and a WEAKER claim, which the note says:
+    losing a place is far more predictable than winning one (90.4% against 79.1%), because a man who
+    stops playing has usually been dropped for a reason that lasts, while a man who starts five matches
+    may be covering for somebody.
+    """
+    resolve = club_index(conn)
+    fixtures = season_fixtures(conn, season, resolve, before)
+    length: dict[str, int] = {}
+    for club, rounds in conn.execute(
+            f"""SELECT club, MAX(real_md) FROM external_match_stats
+                WHERE season = ? AND source = 'sofascore' AND competition IN ({_LEAGUE_IN})
+                GROUP BY club""", (season, *LEAGUE_COMPETITIONS)):
+        key, _name = resolve(club)
+        if key and rounds:
+            length[key] = max(length.get(key, 0), int(rounds))
+    minutes_of: dict[int, dict[str, int]] = {}
+    spans: dict[int, dict[str, list[str]]] = {}
+    for fc_id, match_id, minutes, club, date in conn.execute(
+            f"""SELECT fc_id, match_id, COALESCE(minutes, 0), club, match_date
+                FROM external_match_stats
+                WHERE season = ? AND source = 'sofascore' AND competition IN ({_LEAGUE_IN})""",
+            (season, *LEAGUE_COMPETITIONS)):
+        minutes_of.setdefault(fc_id, {})[str(match_id)] = minutes
+        if minutes and club and date:
+            key, _name = resolve(club)
+            if key:
+                span = spans.setdefault(fc_id, {}).setdefault(key, [date, date])
+                span[0], span[1] = min(span[0], date), max(span[1], date)
+    started_in = {(fc_id, str(match_id)) for fc_id, match_id in conn.execute(
+        f"""SELECT fc_id, match_id FROM external_match_stats
+            WHERE season = ? AND source = 'sofascore' AND started = 1
+              AND competition IN ({_LEAGUE_IN})""", (season, *LEAGUE_COMPETITIONS))}
+
+    out: dict[int, dict] = {}
+    low, high = RISER_POOL
+    for obs in observations:
+        pct = prices.get(obs.fc_id)
+        if pct is None or not (low <= pct < high):
+            continue
+        window = his_season(obs.fc_id, season, fixtures, belongs, spans)
+        if len(window) < RISER_FROM:
+            continue
+        his = {key for key, seasons in (belongs.get(obs.fc_id) or {}).items() if season in seasons}
+        rounds = max((length.get(club, 0) for club in his), default=0)
+        if rounds - (window[-1][2] or len(window)) < ROTATION_LEFT:
+            continue
+        recent = window[-RISER_WINDOW:]
+        minutes = [float(minutes_of.get(obs.fc_id, {}).get(match_id, 0))
+                   for _d, match_id, _md in recent]
+        starts = sum(1 for _d, match_id, _md in recent if (obs.fc_id, match_id) in started_in)
+        mean = sum(minutes) / len(minutes)
+        if mean < RISER_MINUTES or starts < RISER_START_SHARE * len(recent):
+            continue
+        # A KEEPER's percentile is not the same sentence as an outfield player's, and the split was
+        # measured: the reserve band of the goalkeepers is made of real reserves (base 22.3%, against
+        # 42.3% outfield), so a cheap keeper who starts the first rounds is the strongest reading this
+        # screen produces - 81.9% precision, 3.68x - and what it says about him is «he is the number
+        # one», not «he is rising». Outfield: 76.8% and 1.82x.
+        keeper = (obs.role_classic or "").upper() == "P"
+        evidence = (f"MEASURED on four seasons: for a GOALKEEPER this is the strongest reading the "
+                    f"screen produces - 81.9% of those who read like this started at least half of "
+                    f"the rest of the season, against 22.3% of the reserve band (3.68x). For a keeper "
+                    f"it means «he is the number one», not «he is rising»."
+                    if keeper else
+                    f"MEASURED on four seasons: 76.8% of the outfield men who read like this went on "
+                    f"to START at least half of the rest of the season, against 42.3% of the band "
+                    f"that did not (1.82x). It is a WEAKER claim than the rotation mark - losing a "
+                    f"place is more predictable than winning one - and a slow riser is what the "
+                    f"strictness gives up: Douvikas 2025-26 does not fire and started 67% of his "
+                    f"rest.")
+        out[obs.fc_id] = {
+            "minutes": round(mean, 1),
+            "starts": starts,
+            "window": len(recent),
+            "keeper": keeper,
+            "from": recent[0][0],
+            "to": recent[-1][0],
+            "note": (f"He was quoted in the {pct:.0f}th percentile of his role - a reserve, not a "
+                     f"filler - and over his club's last {len(recent)} rounds he has started {starts} "
+                     f"of them, averaging {mean:.0f} minutes. {evidence}"),
+        }
+    return out
+
+
 def role_percentiles(observations) -> dict[int, float]:
     """{fc_id: the percentile of his pre-auction quotation INSIDE HIS ROLE, on this sheet's listone}.
 
@@ -3345,6 +3466,13 @@ PLAYER_COLUMNS: tuple[str, ...] = (
     # that have to have been played first.
     "desc_rotation_watch", "desc_rotation_minutes", "desc_rotation_starts", "desc_rotation_from",
     "desc_rotation_to", "desc_rotation_window", "desc_rotation_note",
+    # ...and the MIRROR of it: quoted as a reserve, playing like a starter. A weaker claim than the one
+    # above (79.1% against a 40.9% base, where the rotation mark reads 90.4% against 59.5%), because
+    # losing a place is more predictable than winning one.
+    "desc_riser_watch", "desc_riser_minutes", "desc_riser_starts", "desc_riser_window",
+    # ...and whether it is about a GOALKEEPER, because for him the same reading is a different
+    # sentence (and the strongest one this screen has). The fact travels; the app writes the words.
+    "desc_riser_keeper", "desc_riser_note",
     "desc_squad_club", "desc_squad_source", "desc_real_role",
     # The granular real role: where on the pitch he belongs, in the twelve-code vocabulary.
     "desc_real_roles", "desc_real_role_primary", "desc_real_role_line", "desc_real_role_depth",
@@ -3556,6 +3684,7 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
         form = layers["form"].get(obs.fc_id, {})
         place = layers["place"].get(obs.fc_id, {})
         rotation = layers["rotation"].get(obs.fc_id, {})
+        riser = layers["riser"].get(obs.fc_id, {})
         injury = layers["injuries"].get(obs.fc_id, {})
         starter = layers["starters"].get(obs.fc_id, {})
         duel = layers["duels"].get(obs.fc_id, {})
@@ -3657,6 +3786,12 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             "desc_rotation_to": rotation.get("to"),
             "desc_rotation_window": rotation.get("window"),
             "desc_rotation_note": rotation.get("note"),
+            "desc_riser_watch": "yes" if riser else None,
+            "desc_riser_minutes": riser.get("minutes"),
+            "desc_riser_starts": riser.get("starts"),
+            "desc_riser_window": riser.get("window"),
+            "desc_riser_keeper": "yes" if riser.get("keeper") else None,
+            "desc_riser_note": riser.get("note"),
             "desc_squad_club": layers["squads"].get(obs.fc_id),
             "desc_squad_source": layers["squad_sources"].get(obs.fc_id),
             # The role he was REALLY used in, from the provider's own slot per match (positions.
@@ -4080,6 +4215,10 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
         # pre-season sheet by construction: it reads rounds that have to exist first.
         "rotation": rotation_watch(conn, measured, data.observations, belongs,
                                    role_percentiles(data.observations), before),
+        # ...and its MIRROR: given as a reserve, playing like a starter. Same window, opposite
+        # direction, and a weaker claim - which its own note says.
+        "riser": starter_signs(conn, measured, data.observations, belongs,
+                               role_percentiles(data.observations), before),
         "squads": squads, "squad_sources": squad_sources,
         "injuries": injury_history(conn, window.auction_date, seasons, measured),
         "starters": starters,

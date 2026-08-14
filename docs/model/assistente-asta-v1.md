@@ -2233,3 +2233,42 @@ quello pieno **4 su 4**.
 Quindi due icone e due frasi: `◑` piena dalla quarta giornata, `◔` a metà opacità dalla seconda, ognuna
 col proprio numero nel tooltip. Lewandowski prende quella debole alla 2ª e quella piena alla 4ª — che è
 esattamente la domanda da cui è partita.
+
+## 31. Lo specchio: dato per riserva, gioca da titolare (14 agosto 2026, notte)
+
+Domanda inversa dell'operatore, coi suoi tre casi: **Ferran Torres** e **Douvikas** 2025-26, **Castro**
+2024-25. Item 8 di [todolist-draft-v1.md](todolist-draft-v1.md), numeri in spec «Novità v9.53».
+
+### 31.1 La regola, e perché la fascia ha due bordi
+
+Quotato fra il **30° e l'85° percentile del suo ruolo** — una riserva, non un riempitivo — con almeno
+**65 minuti di media** e l'**80% delle ultime cinque iniziate**, e niente prima della quarta giornata.
+Sopra l'85° era venduto come titolare, ed è la popolazione dell'altro marchio: «gioca» non è una
+notizia. Sotto il 30° è un riempitivo, e quattro buone partite sono una coppa.
+
+### 31.2 Cosa vuol dire «è diventato titolare», corretto dai casi
+
+Il primo punteggio riusava la soglia dell'altro screen (60 minuti a partita del club) e dava
+**sbagliati tutti e due i nomi segnalati**: Castro legge 58, Ferran 49. Ma Castro ha **iniziato 27
+partite su 37**. Il rovescio di «non è titolare» non è «lo è»: la parola dice **quante volte inizia**,
+ed è così che l'esito viene contato. Contato così l'icona è giusta il **79,1%** delle volte contro una
+base del **40,9%** (1,94x), stabile su tutte e quattro le stagioni (81/80/80/76%). La lettura sui minuti
+resta a verbale (54,9% contro 22,2%, 2,47x) così il cambio non nasconde niente.
+
+### 31.3 Il portiere è il caso più forte, e il sospetto era sbagliato
+
+La testa della lista è tutta portieri, perché un portiere è quotato poco per costruzione — sembrava un
+difetto. Misurato: la fascia «riserva» dei portieri è fatta **davvero** di riserve (base 22,3% contro il
+42,3% degli uomini di movimento), quindi uno che parte titolare nelle prime giornate lo resta
+nell'**81,9%** dei casi, **3,68x**. Per lui il marchio vuol dire «è il numero uno» e non «sta
+crescendo», e la frase cambia di conseguenza — che è la classica occasione da tavolo, il portiere
+titolare di una piccola a cinque crediti.
+
+### 31.4 Quello che si perde, e la simmetria che ne esce
+
+**Douvikas non spara**: 3 titolarità su 5 e 49 minuti, sotto entrambe le soglie, e ha poi iniziato il
+67% del resto. Lo screen è severo di proposito, e un uomo che parte lentamente è il prezzo del 79%.
+
+E il risultato che vale oltre i due marchi: **perdere il posto è più prevedibile che conquistarlo** —
+90,4% contro 76,8%. Un uomo che smette di giocare di solito è stato tolto per una ragione che dura; uno
+che ne inizia cinque può stare coprendo qualcuno.

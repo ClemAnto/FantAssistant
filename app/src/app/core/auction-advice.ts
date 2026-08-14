@@ -32,7 +32,14 @@ import {
   startingPlaces,
 } from './auction-plan';
 import { Board, BoardsFile, Bundle, EngineSheetEntry } from './bundle';
-import { PlaceChange, RotationWatch, placeMark, rotationMark } from './player-place';
+import {
+  PlaceChange,
+  RotationWatch,
+  StarterSigns,
+  placeMark,
+  rotationMark,
+  starterSignsMark,
+} from './player-place';
 import { MACRO_ROLE, ScreenInput, screenMark, screensFor, windowOf } from './player-screens';
 import { PlayerMark, PlayerStatus } from './player-status';
 import { PlayerTrend, isKnownAbsence, parseTrend, trendScores } from './player-trend';
@@ -157,6 +164,8 @@ export class AuctionAdvice {
   private readonly places = signal<Map<number, PlaceChange>>(new Map());
   /** ...and who is being ROTATED in the season being played. Empty on a pre-season sheet. */
   private readonly rotations = signal<Map<number, RotationWatch>>(new Map());
+  /** ...and its mirror: given as a reserve, playing like a starter. */
+  private readonly risers = signal<Map<number, StarterSigns>>(new Map());
 
   /**
    * The DRAWN BOARDS of the sheet in use: the toolkit's own, not a second eleven computed here.
@@ -247,6 +256,12 @@ export class AuctionAdvice {
     // now» is a state of this season, and it outranks what happened to his shirt in the last one.
     for (const [id, watch] of this.rotations()) {
       const mark = rotationMark(watch);
+      if (mark) out.set(id, mark);
+    }
+    // The mirror cannot collide with them: a man cannot be in the reserve band and the starter band
+    // at once, and the two screens read opposite windows.
+    for (const [id, signs] of this.risers()) {
+      const mark = starterSignsMark(signs);
       if (mark) out.set(id, mark);
     }
     return out;
@@ -849,6 +864,7 @@ export class AuctionAdvice {
       this.trends.set(measured.trends);
       this.places.set(measured.places);
       this.rotations.set(measured.rotations);
+      this.risers.set(measured.risers);
       // The boards of THIS sheet, by the path the manifest itself declares - never a guessed file name.
       this.boards.set(chosen.boards ? await this.bundle.boards(chosen.boards) : null);
       this.crests.set((await this.bundle.crests().catch(() => null)) ?? {});
@@ -959,6 +975,7 @@ export class AuctionAdvice {
     trends: Map<number, PlayerTrend>;
     places: Map<number, PlaceChange>;
     rotations: Map<number, RotationWatch>;
+    risers: Map<number, StarterSigns>;
   }> {
     try {
       const table = await this.bundle.table(sheet.path.replace(/\.json(\.gz)?$/, ''));
@@ -981,6 +998,25 @@ export class AuctionAdvice {
         from: at('desc_rotation_from'),
         to: at('desc_rotation_to'),
       };
+      const riser = {
+        watch: at('desc_riser_watch'),
+        minutes: at('desc_riser_minutes'),
+        starts: at('desc_riser_starts'),
+        window: at('desc_riser_window'),
+        keeper: at('desc_riser_keeper'),
+      };
+      const risers = new Map<number, StarterSigns>();
+      if (id >= 0 && riser.watch >= 0) {
+        for (const row of table.rows) {
+          if (!row[riser.watch]) continue;
+          risers.set(Number(row[id]), {
+            minutes: (row[riser.minutes] as number) ?? null,
+            starts: (row[riser.starts] as number) ?? null,
+            window: riser.window < 0 ? null : ((row[riser.window] as number) ?? null),
+            keeper: riser.keeper >= 0 && !!row[riser.keeper],
+          });
+        }
+      }
       const rotations = new Map<number, RotationWatch>();
       if (id >= 0 && rotation.watch >= 0) {
         for (const row of table.rows) {
@@ -1013,7 +1049,7 @@ export class AuctionAdvice {
         }
       }
       // a bundle older than the column: no strip and no claim, and the places above may still be there
-      if (id < 0 || detail < 0) return { trends: new Map(), places, rotations };
+      if (id < 0 || detail < 0) return { trends: new Map(), places, rotations, risers };
       const out = new Map<number, PlayerTrend>();
       for (const row of table.rows) {
         const matches = parseTrend(row[detail] as string | null);
@@ -1041,10 +1077,10 @@ export class AuctionAdvice {
           outsideEuro,
         });
       }
-      return { trends: out, places, rotations };
+      return { trends: out, places, rotations, risers };
     } catch {
       // An older bundle without the sheet columns: the strip is simply not drawn.
-      return { trends: new Map(), places: new Map(), rotations: new Map() };
+      return { trends: new Map(), places: new Map(), rotations: new Map(), risers: new Map() };
     }
   }
 
