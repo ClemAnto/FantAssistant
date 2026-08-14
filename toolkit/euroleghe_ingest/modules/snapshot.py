@@ -183,7 +183,15 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      with `totalShots` and no `minutesPlayed`), so the planned offline re-parse was not needed - the
 #      todolist's claim that «the parse discards the bench» came from a true observation (no row has
 #      `minutes` = 0) and a wrong conclusion. Nothing gated moves; `engine_*` is untouched.
-SHEET_REVISION = 16
+#  17  14/08/2026 - WHO GAINED A PLACE AND WHO LOST ONE (the operator's item 6). Nine `desc_place_*`
+#      columns: the DAY a man's minutes changed durably, and what was happening on his line at that
+#      day. The control is the point - «a man who plays because the starter in front of him is broken
+#      has not won the place» - and it is done on DATES, because co-occurrence answers the wrong thing:
+#      Bartesaghi's first 90 minutes are the round of 3-5 October and Estupinan's ankle is of the 12th,
+#      so the injury consolidated the place and did not cause it. Measured on 635 Serie A rows: 243
+#      changes, 128 gained and 115 lost. Reporting only - the predictive form of this idea reads +0.049
+#      over 8 instances (6/8) - and `engine_*` is untouched again.
+SHEET_REVISION = 17
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
@@ -1163,6 +1171,280 @@ def trend_block(fc_id: int, window: list[tuple], mine: dict[str, Appearance],
         "trend_fp": round(sum(points) / len(points), 3) if points else None,
         "trend_detail": ";".join(record),
     }
+
+
+# ---------- who GAINED a place during the season, and who LOST it (item 6) ----------
+# How many matches each side of the split, and how big the step has to be. DISPLAY thresholds, in the
+# same class as the injury marks: nothing fits on them, no valuation reads them, and they are declared
+# here rather than tuned. Five matches because four is a rotation; thirty minutes a match because a
+# place is not won for a quarter of an hour, and because both cases the operator brought are far above
+# it (Bartesaghi 6 -> 78, Angelino 78 -> 2).
+PLACE_MIN_SIDE = 5
+PLACE_MIN_JUMP = 30.0
+# How long after the change an injury still counts as «it came later, and consolidated it». The Milan
+# case is exactly this: the place changed hands on 3-5 October and the ankle is of the 12th.
+PLACE_FOLLOWS_DAYS = 30
+
+
+def _role_codes(roles: str | None) -> list[str]:
+    """`DL;ML` -> ['DL', 'ML']. The GRANULAR vocabulary, which is upper case and stays that way: the
+    Mantra splitter next door lower-cases, and one of these lists joined to the other would match
+    nothing at all."""
+    return [code.strip().upper() for code in (roles or "").split(";") if code.strip()]
+
+
+def season_fixtures(conn, season: str, resolve, before: str | None = None) -> dict[str, list[tuple]]:
+    """{club_key: every CHAMPIONSHIP match of that season, oldest first}.
+
+    The whole season and not a window: the question is when a place changed hands, and that day can be
+    anywhere in it. Ordered by DATE and never by matchday - a postponement makes round 16 arrive after
+    round 20, which is exactly what the per-match layer shows for Milan 2025-26, and a walk that trusted
+    the number would place the change on the wrong day.
+    """
+    where = " AND match_date < ?" if before else ""
+    params: tuple = ((season, *LEAGUE_COMPETITIONS) + ((before,) if before else ())) * 2
+    rows = conn.execute(
+        f"""SELECT club, match_date, match_id, real_md FROM club_match_lineups
+            WHERE season = ? AND competition IN ({_LEAGUE_IN}) AND match_date IS NOT NULL{where}
+            UNION
+            SELECT club, match_date, match_id, real_md FROM external_match_stats
+            WHERE season = ? AND competition IN ({_LEAGUE_IN}) AND match_date IS NOT NULL
+              AND club IS NOT NULL{where}""", params).fetchall()
+    out: dict[str, list[tuple]] = {}
+    for club, date, match_id, real_md in rows:
+        key, _name = resolve(club)
+        if key:
+            out.setdefault(key, []).append((date, str(match_id), real_md))
+    for key, fixtures in out.items():
+        seen: set[str] = set()
+        unique = []
+        # By DATE and by match id only: a round number can be NULL on one of the two sources, and
+        # sorting tuples that carry it would compare an int with a None on the first such row.
+        for date, match_id, real_md in sorted(fixtures, key=lambda one: (one[0], one[1])):
+            if match_id not in seen:
+                seen.add(match_id)
+                unique.append((date, match_id, real_md))
+        out[key] = unique
+    return out
+
+
+def _changepoint(minutes: list[float]) -> tuple[int, float, float] | None:
+    """The split that best separates his season in two, or None. (index, before, after) in minutes.
+
+    A mean either side and the biggest step wins - no fit, no parameter anybody could tune afterwards.
+    What makes it honest is the FLOOR on both sides: a man who plays once in October and once in May
+    has no two halves, and reading a step off two matches would manufacture a story out of rotation.
+    """
+    if len(minutes) < PLACE_MIN_SIDE * 2:
+        return None
+    best = None
+    for split in range(PLACE_MIN_SIDE, len(minutes) - PLACE_MIN_SIDE + 1):
+        before = sum(minutes[:split]) / split
+        after = sum(minutes[split:]) / (len(minutes) - split)
+        if best is None or abs(after - before) > abs(best[2] - best[1]):
+            best = (split, before, after)
+    if best is None or abs(best[2] - best[1]) < PLACE_MIN_JUMP:
+        return None
+    return best
+
+
+def place_changes(conn, season: str, observations, squads: dict[int, str],
+                  belongs: dict[int, dict[str, set[str]]], roles: dict[int, dict],
+                  before: str | None = None) -> dict[int, dict]:
+    """Who took a shirt during `season` and who lost one, with the DEPARTMENT control.
+
+    The control is what makes the flag honest, and it is the operator's own point: **a man who plays
+    because the starter in front of him is broken has not won the place**, and the difference is that he
+    goes back when the other one returns. So the change is dated, and the spells of his line-mates are
+    read AT THAT DATE - not over the season, which would have answered the wrong thing on a case he
+    knows: Bartesaghi's first 90 minutes are the round of 3-5 October and Estupinan's ankle is of the
+    12th. He took the place a week BEFORE; the injury consolidated it. Co-occurrence alone reads that
+    backwards, and the order between the two days is the whole measurement.
+
+    THE LINE IS THE GRANULAR ROLE (`player_roles`), never the macro-role: a right back does not cover a
+    centre back, and `role_classic` calls both D. Its own limit travels with it - the provider serves
+    only today's codes, so the line of a man measured last season is read from the roles he has NOW.
+
+    SUSPENSIONS CANNOT BE CHECKED and the flag says so instead of implying their absence: `availability`
+    is a two-week snapshot of 2026 and `reds` is 0 on the whole 2025-26 of the per-match layer, so a
+    team-mate's ban is invisible. «Not checked» is the honest word, and «no suspension» would be a
+    claim the data cannot make.
+
+    REPORTING ONLY. The predictive form of this idea was measured on 14/08/2026 as «promotion in
+    minutes» - minutes per match in the window against the previous season's, controlling for the price
+    and the minutes already seen - and it came out at a mean of +0.049 over 8 instances, 6 of them
+    positive: weak and not stable. Showing it is useful, ranking on it is not.
+    """
+    resolve = club_index(conn)
+    fixtures = season_fixtures(conn, season, resolve, before)
+    benched = bench_matches(conn, before or "9999-12-31")
+    spells: dict[int, list[tuple[str, str, str]]] = {}
+    for fc_id, start, end, kind in conn.execute(
+            "SELECT fc_id, start_date, end_date, kind FROM injuries WHERE start_date IS NOT NULL"):
+        spells.setdefault(fc_id, []).append((start, end or "9999-12-31", kind))
+    minutes_of: dict[int, dict[str, int]] = {}
+    # ...and WHEN he was at each club, from his own appearances. A man who moves in January belongs to
+    # two clubs in one season, and the union of their calendars would give him 76 fixtures with half of
+    # them played by a side he was not in - which reads as «he lost his place» on the day of the
+    # transfer. 123 players of 1,692 are in that state on 2025-26 (7.3%), so it is not a corner.
+    spans: dict[int, dict[str, list[str]]] = {}
+    for fc_id, match_id, minutes, club, date in conn.execute(
+            f"""SELECT fc_id, match_id, COALESCE(minutes, 0), club, match_date
+                FROM external_match_stats
+                WHERE season = ? AND source = 'sofascore' AND competition IN ({_LEAGUE_IN})""",
+            (season, *LEAGUE_COMPETITIONS)):
+        minutes_of.setdefault(fc_id, {})[str(match_id)] = minutes
+        if minutes and club and date:
+            key, _name = resolve(club)
+            if key:
+                span = spans.setdefault(fc_id, {}).setdefault(key, [date, date])
+                span[0], span[1] = min(span[0], date), max(span[1], date)
+    names = {fc_id: name for fc_id, name in conn.execute(
+        "SELECT fc_id, canonical_name FROM players")}
+    # Who else played that line at that club, THAT SEASON. Built from the same source as the window
+    # itself (`player_clubs`), so a man's club and his line-mates can never come from two different
+    # ideas of where he was.
+    mates: dict[tuple[str, str], set[int]] = {}
+    for fc_id, clubs in belongs.items():
+        for code in _role_codes((roles.get(fc_id) or {}).get("roles")):
+            for club, seasons in clubs.items():
+                if season in seasons:
+                    mates.setdefault((club, code), set()).add(fc_id)
+
+    def open_spell(fc_id: int, day: str):
+        return next(((start, end, kind) for start, end, kind in spells.get(fc_id, ())
+                     if start <= day <= end), None)
+
+    out: dict[int, dict] = {}
+    for obs in observations:
+        clubs = {key for key, seasons in (belongs.get(obs.fc_id) or {}).items() if season in seasons}
+        if not clubs:
+            continue
+        # A club's calendar is his only WHILE he was there. The bound is his own first and last
+        # appearance for it, and it is applied ONLY to a man who really played for two clubs that
+        # season: for everybody else it would cut off exactly the rounds a place was won in - the
+        # four Milan matches before Bartesaghi's first are the evidence, not noise.
+        played_at = spans.get(obs.fc_id, {})
+        bounded = len([club for club in played_at if club in clubs]) > 1
+        window: list[tuple] = []
+        seen: set[str] = set()
+        for club in clubs:
+            span = played_at.get(club) if bounded else None
+            for date, match_id, real_md in fixtures.get(club, ()):
+                if span and not (span[0] <= date <= span[1]):
+                    continue
+                if match_id not in seen:
+                    seen.add(match_id)
+                    window.append((date, match_id, real_md))
+        window.sort()
+        played = [float(minutes_of.get(obs.fc_id, {}).get(match_id, 0)) for _d, match_id, _md in window]
+        change = _changepoint(played)
+        if change is None:
+            continue
+        split, mean_before, mean_after = change
+        day, _match, real_md = window[split]
+        gained = mean_after > mean_before
+        block = {
+            "change": "gained" if gained else "lost",
+            "on": day,
+            "md": real_md,
+            "minutes": f"{mean_before:.0f} -> {mean_after:.0f}",
+            "sample": f"{split}/{len(window) - split}",
+        }
+        code = ((roles.get(obs.fc_id) or {}).get("primary") or "").upper() or None
+        # Whether he was in the side at all BEFORE: taking a shirt off somebody and being given more
+        # of the pitch are two different promotions, and the sentence has to say which one it saw.
+        block["played_before"] = sum(1 for minute in played[:split] if minute)
+        if gained:
+            # WHO was missing in front of him, and WHEN his absence started. The order decides the
+            # sentence, and the two sentences are different facts about the same man.
+            rivals = [fc for club in clubs for fc in mates.get((club, code or ""), ())
+                      if fc != obs.fc_id]
+            out_now = [(fc, open_spell(fc, day)) for fc in rivals]
+            missing = [(fc, spell) for fc, spell in out_now if spell and spell[0] <= day]
+            if missing:
+                fc, spell = missing[0]
+                block["cause"] = "front_injured"
+                block["who"] = f"{names.get(fc, fc)} ({spell[2]}, {spell[0]} -> {spell[1]})"
+            else:
+                later = [(fc, start, end, kind) for fc in rivals
+                         for start, end, kind in spells.get(fc, ())
+                         if day < start <= _days_after(day, PLACE_FOLLOWS_DAYS)]
+                if later:
+                    fc, start, end, kind = later[0]
+                    block["cause"] = "won_then_injury"
+                    block["who"] = f"{names.get(fc, fc)} ({kind}, {start} -> {end})"
+                else:
+                    block["cause"] = "won_it"
+                    block["who"] = None
+        else:
+            # WHY he is not playing is a question about the whole window and not about one day, and
+            # the difference is the operator's own case: Angelino's place changes hands the week of a
+            # six-day flu, and what matters is that fifteen rounds later he is still not playing with
+            # NO spell on record. Counting the states of every match after the split says that; reading
+            # the day alone would have answered «influenza» and stopped there.
+            missed = [(date, match_id) for date, match_id, _md in window[split:]
+                      if not minutes_of.get(obs.fc_id, {}).get(match_id)]
+            hurt = sum(1 for date, _match in missed if open_spell(obs.fc_id, date))
+            on_the_bench = sum(1 for _date, match_id in missed
+                               if match_id in benched.get(obs.fc_id, ()))
+            free = len(missed) - hurt
+            block["missed"] = f"{hurt} injured, {on_the_bench} benched, {len(missed)} in all"
+            if len(missed) * 2 < len(window) - split:
+                # He is STILL PLAYING and playing less, which is a different fact from losing a shirt
+                # - and calling it «he was out himself» off one missed match, as the first version did
+                # for a man who played five of six, is a claim the data does not make.
+                block["cause"] = "fewer_minutes"
+                block["who"] = f"still played {len(window) - split - len(missed)} of " \
+                               f"{len(window) - split}"
+            elif hurt * 2 >= len(missed):
+                block["cause"] = "own_injury"
+                block["who"] = f"out for {hurt} of the {len(missed)} he missed"
+            elif on_the_bench >= free / 2:
+                # 6.6: fit and not chosen. Fifteen rounds on the bench in good health are not a
+                # convalescence, and this is the half of the question that changes a bid.
+                block["cause"] = "benched"
+                block["who"] = (f"on the bench for {on_the_bench} of the {len(missed)} he missed, "
+                                f"and {free} of them with no spell on record at all")
+            else:
+                block["cause"] = "out_of_squad"
+                block["who"] = f"{free} of the {len(missed)} he missed with no spell on record"
+        block["note"] = _place_note(block, code)
+        out[obs.fc_id] = block
+    return out
+
+
+def _days_after(day: str, days: int) -> str:
+    return (dt.date.fromisoformat(day) + dt.timedelta(days=days)).isoformat()
+
+
+_PLACE_SENTENCE: dict[str, str] = {
+    "front_injured": "he came in while {who} was already out - the place may go back when he returns",
+    "won_then_injury": "he took the place first and {who} broke down afterwards: the injury "
+                       "consolidated it, it did not cause it",
+    "won_it": "nobody of his line was out on that day",
+    "own_injury": "he was out himself ({who})",
+    "benched": "he was AVAILABLE and not fielded ({who})",
+    "out_of_squad": "he was not in the squad ({who})",
+    "fewer_minutes": "he is still in the side and playing less ({who})",
+}
+
+
+def _place_note(block: dict, code: str | None) -> str:
+    """The sentence, with what could NOT be checked stated rather than implied."""
+    if block["change"] == "gained":
+        # He was already in the side more often than not: what he gained is PITCH, not a shirt.
+        before = int(block["sample"].split("/")[0])
+        what = "gained minutes" if block["played_before"] * 2 > before else "took a place"
+    else:
+        what = "lost minutes" if block["cause"] == "fewer_minutes" else "lost his place"
+    where = f" of the {code} line" if code else ""
+    sentence = _PLACE_SENTENCE[block["cause"]].format(who=block.get("who") or "")
+    unchecked = (" Suspensions are NOT checked - no dated source covers them for a past season, so "
+                 "this is «not looked at» and never «he was not banned»."
+                 if block["cause"] in ("won_it", "out_of_squad", "benched", "fewer_minutes") else "")
+    return (f"He {what}{where} around {block['on']} (round {block['md']}), "
+            f"{block['minutes']} minutes a match over {block['sample']} of them: {sentence}.{unchecked}")
 
 
 def _merged_spells(dates: list[tuple[str, str]]) -> list[tuple[str, str]]:
@@ -2828,6 +3110,14 @@ PLAYER_COLUMNS: tuple[str, ...] = (
     "desc_trend_fp", "desc_trend_matches", "desc_trend_window", "desc_trend_played",
     "desc_trend_starts", "desc_trend_bench", "desc_trend_minutes", "desc_trend_goals",
     "desc_trend_assists", "desc_trend_outside_euro", "desc_trend_detail",
+    # WHO GAINED A PLACE DURING THE MEASURED SEASON AND WHO LOST ONE, with the department control that
+    # makes it honest: a man who plays because the starter in front of him is broken has not won the
+    # place, and he goes back when the other returns. Dated, because the ORDER between the day the place
+    # changed and the day a spell opened is the whole measurement. `desc_place_cause` is the vocabulary
+    # (front_injured | won_then_injury | won_it | own_injury | benched | out_of_squad) and
+    # `desc_place_note` says it in words, including what could NOT be checked - suspensions.
+    "desc_place_change", "desc_place_on", "desc_place_md", "desc_place_minutes", "desc_place_sample",
+    "desc_place_cause", "desc_place_who", "desc_place_missed", "desc_place_note",
     "desc_squad_club", "desc_squad_source", "desc_real_role",
     # The granular real role: where on the pitch he belongs, in the twelve-code vocabulary.
     "desc_real_roles", "desc_real_role_primary", "desc_real_role_line", "desc_real_role_depth",
@@ -3037,6 +3327,7 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             continue
         prediction = by_id.get(obs.fc_id)
         form = layers["form"].get(obs.fc_id, {})
+        place = layers["place"].get(obs.fc_id, {})
         injury = layers["injuries"].get(obs.fc_id, {})
         starter = layers["starters"].get(obs.fc_id, {})
         duel = layers["duels"].get(obs.fc_id, {})
@@ -3120,6 +3411,15 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             "desc_trend_assists": form.get("trend_assists"),
             "desc_trend_outside_euro": form.get("trend_outside_euro"),
             "desc_trend_detail": form.get("trend_detail"),
+            "desc_place_change": place.get("change"),
+            "desc_place_on": place.get("on"),
+            "desc_place_md": place.get("md"),
+            "desc_place_minutes": place.get("minutes"),
+            "desc_place_sample": place.get("sample"),
+            "desc_place_cause": place.get("cause"),
+            "desc_place_who": place.get("who"),
+            "desc_place_missed": place.get("missed"),
+            "desc_place_note": place.get("note"),
             "desc_squad_club": layers["squads"].get(obs.fc_id),
             "desc_squad_source": layers["squad_sources"].get(obs.fc_id),
             # The role he was REALLY used in, from the provider's own slot per match (positions.
@@ -3526,9 +3826,17 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
     scoring[""] = ctx.config.load_scoring()
     form = club_form(conn, window.auction_date, data.observations, squads, scoring=scoring,
                      target_season=window.target_season)
+    # The GRANULAR real role, read once: the sheet shows it, and the department control of `place_changes`
+    # needs the LINE - a right back does not cover a centre back, and `role_classic` calls both D.
+    role_detail = positions.roles_as_of(conn, window.auction_date, fallback=bool(date))
     progress.stage("layers")
     layers = {
         "form": form,
+        # WHO TOOK A SHIRT during the measured season and who lost one, with the order between the day
+        # the place changed and the day a spell opened. Reporting only: the predictive form of this
+        # idea was measured on 14/08/2026 and came out at +0.049 over 8 instances, 6/8.
+        "place": place_changes(conn, measured, data.observations, squads,
+                               player_clubs(conn, club_index(conn)), role_detail, before),
         "squads": squads, "squad_sources": squad_sources,
         "injuries": injury_history(conn, window.auction_date, seasons, measured),
         "starters": starters,
@@ -3562,7 +3870,7 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
         # ML/MC/MR, AM, LW/RW, ST). It answers the question neither of the other two can - a left back
         # is not a centre back, and P/D/C/A and G/D/M/F both call them the same thing. Read as of the
         # auction date, because it is a dated observation and not a season fact.
-        "real_role_detail": positions.roles_as_of(conn, window.auction_date, fallback=bool(date)),
+        "real_role_detail": role_detail,
         "sides": measured_sides(conn, window.input_season, notes),
         # How many rounds each CHAMPIONSHIP played in the input season (34 in the Bundesliga and Ligue 1,
         # 38 elsewhere). It travels with an arrival because his measured season belongs to the calendar he
@@ -3868,6 +4176,31 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
                               "dominated by the goals conceded, which no per-match row of ours "
                               "holds): a keeper's non-voted round therefore leaves the denominator "
                               "instead of entering it with a number inflated by a goal a game.",
+            },
+            "place": {
+                "_note": "desc_place_* is who TOOK a shirt during the measured season and who lost "
+                         "one: the day his minutes per match changed durably (at least "
+                         f"{PLACE_MIN_SIDE} matches each side and {PLACE_MIN_JUMP:.0f} minutes of "
+                         "step - display thresholds, nothing fits on them), and what was happening "
+                         "on his line that day.",
+                "control": "The department control is what makes it honest: a man who plays because "
+                           "the starter in front of him is broken has NOT won the place, and he goes "
+                           "back when the other returns. It is done on DATES and never on "
+                           "co-occurrence - `front_injured` means the spell was already open on the "
+                           "day the place changed, `won_then_injury` that it opened within "
+                           f"{PLACE_FOLLOWS_DAYS} days AFTER it. The line is the GRANULAR role "
+                           "(`player_roles`), because a right back does not cover a centre back and "
+                           "role_classic calls both D - with that role's own limit: the provider "
+                           "serves only today's codes, so a man's line is read from the roles he has "
+                           "NOW.",
+                "suspensions": "NOT CHECKED, and the note says so rather than implying their "
+                               "absence: `availability` is a two-week snapshot of 2026 and `reds` is "
+                               "0 on the whole 2025-26 of the per-match layer, so a team-mate's ban "
+                               "is invisible. «Not looked at» is the honest word.",
+                "reporting_only": "The predictive form of this idea was measured on 14/08/2026 as "
+                                  "«promotion in minutes», controlling for the price and the minutes "
+                                  "already seen: mean +0.049 over 8 instances, 6 of them positive - "
+                                  "weak and not stable. Showing it is useful; ranking on it is not.",
             },
         },
         "real_role_note": {

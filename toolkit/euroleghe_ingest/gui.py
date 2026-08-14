@@ -3891,6 +3891,11 @@ class SnapshotView(ttk.Frame):
         ("⟳", "the toolkit is fetching his data right now"),
         ("→", "priced from a WINDOW measured elsewhere, not from a season here"),
         ("⇥", "a TRANSFER says he has left this club - the listone and the squad pages can be days behind"),
+        # ...and what happened to his SHIRT during the measured season. Two arrows and not one flag,
+        # because gaining a place and losing one are opposite facts about the same man, and the tooltip
+        # carries the department control that says whether he won it or merely stood in for somebody.
+        ("↑", "he GAINED a place during the season"),
+        ("↓", "he LOST his place during the season"),
     )
 
     # Whether a data-recovery run is in flight, so the mark says «being fetched» instead of «missing».
@@ -3968,6 +3973,8 @@ class SnapshotView(ttk.Frame):
             # the contradiction at all («verifica bene le rose ed i trasferimenti»: Gutierrez was still drawn
             # at Napoli while the transfer had him at Leverkusen since 1 July).
             bool(row.get("desc_left_for")),
+            row.get("desc_place_change") == "gained",
+            row.get("desc_place_change") == "lost",
         )
         icons = "".join(icon for (icon, _why), on in zip(self.FLAG_ICONS, present, strict=True) if on)
         words = []
@@ -3990,6 +3997,10 @@ class SnapshotView(ttk.Frame):
             elif icon == "⇥":
                 extra = (f" - to {row.get('desc_left_for')} on {row.get('desc_left_on')}. He is still "
                          f"listed here, so treat the row as a question and not as a squad")
+            elif icon in ("↑", "↓"):
+                # The whole sentence, control included: the icon says WHAT and the note says whether
+                # he won the shirt or was standing in for somebody who was hurt.
+                extra = f" - {row.get('desc_place_note') or ''}"
             words.append(f"{icon}  {why}{extra}")
         return icons, "\n".join(words)
 

@@ -207,6 +207,15 @@ SHEET_COLUMNS: tuple[str, ...] = (
     "desc_trend_bench",
     "desc_trend_outside_euro",
     "desc_trend_detail",
+    # WHO GAINED A PLACE and who lost one during the measured season, with the department control. The
+    # CODES travel and the sentence does not: the panel writes it in English for the CSV, the app writes
+    # it in Italian for the table, and both build it from the same three fields - one FACT, two wordings.
+    "desc_place_change",
+    "desc_place_on",
+    "desc_place_md",
+    "desc_place_minutes",
+    "desc_place_cause",
+    "desc_place_who",
 )
 
 

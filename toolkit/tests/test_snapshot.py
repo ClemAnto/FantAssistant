@@ -373,6 +373,136 @@ def test_the_trend_scores_what_it_can_and_leaves_out_what_it_cannot(tmp_path):
     assert form["trend_fp"] == 5.0, "(10 + 0) / 2 - and never (10 + 0 + 0) / 3"
 
 
+def _place_seed(conn, minutes_by_round: dict[int, int | None], mate: dict | None = None) -> None:
+    """A club season of 20 rounds, a week apart, with his minutes per round. None = no row at all."""
+    for round_number in range(1, 21):
+        date = f"2025-09-{round_number:02d}" if round_number < 10 else f"2025-10-{round_number - 9:02d}"
+        conn.execute(
+            "INSERT INTO club_match_lineups(season, source, match_id, club, competition, match_date, "
+            "real_md, starters, goalkeepers, defenders, midfielders, forwards) "
+            "VALUES ('2024-25', 'sofascore', ?, 'Inter', 'serie_a', ?, ?, 11, 1, 4, 4, 2)",
+            (f"r{round_number}", date, round_number))
+        minutes = minutes_by_round.get(round_number)
+        if minutes is not None:
+            conn.execute(
+                "INSERT INTO external_match_stats(fc_id, season, source, match_id, competition, "
+                "match_date, real_md, club, minutes, started) "
+                "VALUES (1, '2024-25', 'sofascore', ?, 'serie_a', ?, ?, 'Inter', ?, ?)",
+                (f"r{round_number}", date, round_number, minutes or None, 1 if minutes else 0))
+        if mate:
+            conn.execute(
+                "INSERT INTO external_match_stats(fc_id, season, source, match_id, competition, "
+                "match_date, real_md, club, minutes, started) "
+                "VALUES (2, '2024-25', 'sofascore', ?, 'serie_a', ?, ?, 'Inter', 90, 1)",
+                (f"r{round_number}", date, round_number))
+    for fc_id in (1, 2):
+        conn.execute("INSERT INTO player_roles(fc_id, valid_from, source, roles, primary_role, line) "
+                     "VALUES (?, '2025-08-01', 'sofascore', 'DL;ML', 'DL', 'M')", (fc_id,))
+    conn.commit()
+
+
+def _place_of(conn, tmp_path=None):
+    from euroleghe_ingest.modules import positions
+
+    class Obs:
+        fc_id, name, club_target, role_classic = 1, "Lautaro", "Inter", "D"
+
+    roles = positions.roles_as_of(conn, "2025-11-01")
+    belongs = snapshot.player_clubs(conn, snapshot.club_index(conn))
+    return snapshot.place_changes(conn, "2024-25", [Obs()], {1: "Inter"}, belongs, roles).get(1)
+
+
+def test_a_place_is_dated_and_the_order_with_the_injury_is_the_measurement(tmp_path):
+    """«Gioca perche' manca X» and «ha vinto il posto, l'infortunio e' arrivato dopo» are two facts.
+
+    The operator's own case: Bartesaghi's first 90 minutes are the round of 3-5 October and Estupinan's
+    ankle is of the 12th - he took the place a WEEK BEFORE, and the injury consolidated it rather than
+    causing it. Co-occurrence over the season answers the opposite, which is exactly why the control
+    compares DATES and why the two sentences must not collapse into one.
+    """
+    ctx = _ctx(tmp_path)
+    conn = ctx.conn
+    _seed(conn)
+    # bench for five rounds, then a starter for the rest - the shape of a place changing hands
+    _place_seed(conn, {round_number: (0 if round_number <= 5 else 90) for round_number in range(1, 21)},
+                mate={"any": True})
+    # the man in front of him breaks down AFTER the change (round 6 is 2025-09-06)
+    conn.execute("INSERT INTO injuries(fc_id, start_date, end_date, kind, days_out, matches_missed, "
+                 "source) VALUES (2, '2025-09-13', '2025-10-05', 'ankle', 22, 4, 'transfermarkt')")
+    conn.commit()
+    place = _place_of(conn)
+    assert place["change"] == "gained"
+    assert place["on"] == "2025-09-06" and place["md"] == 6
+    assert place["cause"] == "won_then_injury", "the injury is LATER: it consolidated the place"
+    assert "Thuram" in place["who"]
+
+    # ...and the same spell moved to BEFORE the change reverses the sentence, which is the whole point
+    conn.execute("UPDATE injuries SET start_date = '2025-08-20', end_date = '2025-10-05' WHERE fc_id = 2")
+    conn.commit()
+    place = _place_of(conn)
+    assert place["cause"] == "front_injured"
+    assert "may go back" in place["note"], "a stand-in loses the place when the other returns"
+
+
+def test_a_lost_place_says_whether_he_was_out_or_simply_not_chosen(tmp_path):
+    """6.6, and the operator's second case: fifteen rounds on the bench in good health are not a convalescence.
+
+    The reading is over the WHOLE window and not over the day the place changed: Angelino's place goes
+    on the week of a six-day flu, and what matters is that fifteen rounds later he is still not playing
+    with no spell on record at all. Reading the day alone answers «influenza» and stops there.
+    """
+    ctx = _ctx(tmp_path)
+    conn = ctx.conn
+    _seed(conn)
+    _place_seed(conn, {round_number: (90 if round_number <= 5 else 0) for round_number in range(1, 21)})
+    conn.execute("INSERT INTO injuries(fc_id, start_date, end_date, kind, days_out, matches_missed, "
+                 "source) VALUES (1, '2025-09-05', '2025-09-11', 'illness', 6, 1, 'transfermarkt')")
+    conn.commit()
+    place = _place_of(conn)
+    assert place["change"] == "lost"
+    assert place["cause"] == "benched", "a six-day spell does not explain fifteen rounds"
+    assert "AVAILABLE and not fielded" in place["note"]
+    assert "Suspensions are NOT checked" in place["note"], \
+        "where a ban cannot be seen the note says so, and never «he was not banned»"
+
+    # ...and a spell that really covers the window is the other answer
+    conn.execute("UPDATE injuries SET end_date = '2025-10-30' WHERE fc_id = 1")
+    conn.commit()
+    assert _place_of(conn)["cause"] == "own_injury"
+
+
+def test_a_january_transfer_is_not_a_place_lost(tmp_path):
+    """A club's calendar is his only WHILE he was there - and 7.3% of a season's players moved.
+
+    Without the bound the union of two clubs' fixtures gives him 76 matches with half of them played by
+    a side he was not in, and the changepoint lands on the day of the transfer and calls it «he lost his
+    place». The bound is his own first and last appearance for each club, and it applies ONLY to a man
+    who really played for two: for everybody else it would cut off exactly the rounds a place is won in.
+    """
+    ctx = _ctx(tmp_path)
+    conn = ctx.conn
+    _seed(conn)
+    conn.execute("INSERT INTO clubs(fc_club_id, canonical_name, league) "
+                 "VALUES (11, 'Milan', 'serie_a')")
+    _place_seed(conn, {round_number: 90 for round_number in range(1, 11)})
+    # the same twenty rounds played by his NEW club, where he arrives in January and starts every game
+    for round_number in range(1, 21):
+        date = f"2025-09-{round_number:02d}" if round_number < 10 else f"2025-10-{round_number - 9:02d}"
+        conn.execute(
+            "INSERT INTO club_match_lineups(season, source, match_id, club, competition, match_date, "
+            "real_md, starters, goalkeepers, defenders, midfielders, forwards) "
+            "VALUES ('2024-25', 'sofascore', ?, 'Milan', 'serie_a', ?, ?, 11, 1, 4, 4, 2)",
+            (f"m{round_number}", date, round_number))
+        if round_number > 10:
+            conn.execute(
+                "INSERT INTO external_match_stats(fc_id, season, source, match_id, competition, "
+                "match_date, real_md, club, minutes, started) "
+                "VALUES (1, '2024-25', 'sofascore', ?, 'serie_a', ?, ?, 'Milan', 90, 1)",
+                (f"m{round_number}", date, round_number))
+    conn.commit()
+    assert _place_of(conn) is None, "he started every match of both halves: nothing changed hands"
+
+
 def test_the_vote_cascade_is_declared_and_a_keeper_is_not_guessed():
     """Real fantavoto, then the calibrated synthetic voto, then nothing. Never a zero.
 
