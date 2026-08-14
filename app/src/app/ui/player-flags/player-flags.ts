@@ -12,6 +12,8 @@ const ICON: Record<PlayerFlag, string> = {
   long_injury: 'medicine-box',
   back_from_long: 'medicine-box',
   dispute: 'disconnect',
+  promise: 'rise',
+  flop_risk: 'fall',
 };
 
 /**
@@ -24,12 +26,19 @@ const TONE: Record<PlayerFlag, string> = {
   long_injury: 'text-warning',
   back_from_long: 'text-warning opacity-50',
   dispute: 'text-warning',
+  // The two screens are a READING and not a fact about the man, so they stay neutral: this app paints
+  // red for danger and amber for a warning, and a projection is neither. Their own tooltip carries the
+  // measured lift, which is what makes them worth looking at rather than believing.
+  promise: 'opacity-70',
+  flop_risk: 'opacity-70',
 };
 
 const LABEL: Record<PlayerFlag, string> = {
   long_injury: 'Infortunio lungo in corso',
   back_from_long: 'Rientrato da poco da un infortunio lungo',
   dispute: 'Fuori rosa / rottura con la società',
+  promise: 'Possibile promessa',
+  flop_risk: 'Possibile flop',
 };
 
 /**

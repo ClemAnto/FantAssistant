@@ -32,6 +32,8 @@ import {
   startingPlaces,
 } from './auction-plan';
 import { Board, BoardsFile, Bundle, EngineSheetEntry } from './bundle';
+import { MACRO_ROLE, ScreenInput, screenMark, screensFor, windowOf } from './player-screens';
+import { PlayerMark, PlayerStatus } from './player-status';
 
 /** Where the priced window lives between sessions: it is a setting, not a derived value. */
 const HORIZON_KEY = 'fantassistant.auction.horizon';
@@ -93,6 +95,7 @@ export interface RankedPlayer {
 export class AuctionAdvice {
   private readonly feed = inject(AuctionFeed);
   private readonly bundle = inject(Bundle);
+  private readonly status = inject(PlayerStatus);
 
   /** The league sheet in use, and the numbers it carries per `fc_id`. */
   readonly entry = signal<EngineSheetEntry | null>(null);
@@ -172,7 +175,51 @@ export class AuctionAdvice {
       const teams = this.feed.teams().length;
       if (ids.length) void this.ensure(ids, game, teams);
     });
+    // The two SCREENS are registered on `PlayerStatus`, so one component draws every mark a name carries
+    // and two lists can never disagree. The direction is deliberate - this service knows the POOL (which
+    // listone is being played, which is part of the measurement) and `PlayerStatus` must not.
+    effect(() => this.status.screens.set(this.screenMarks()));
   }
+
+  /**
+   * The played window of THIS season, per player: minutes, xG and xA of the league matches.
+   *
+   * Empty before the season starts, which is the normal August case and is why nothing lights up at a
+   * pre-season auction: the screens were calibrated on the first two ROUNDS and a rate needs minutes
+   * actually played. `sofascore_extra` (friendlies, cups) is excluded on purpose - the calibration walked
+   * the league calendar, and a friendly goal must never enter a number a threshold was fitted on.
+   */
+  private readonly window = signal<Map<number, { minutes: number; xg: number; xa: number }>>(new Map());
+
+  /**
+   * The screens, as marks ready to draw. The pool is the listone in play, and the price is the FVM.
+   *
+   * A DIFFERENCE from the calibration, stated rather than glossed: the thresholds were fitted on the
+   * Qt.I percentile, and this app deliberately does not read the quotation at all (the feed carries four
+   * price numbers and nothing says which of each pair is Qt.I - operator's decision, 09/08/2026). So the
+   * percentile here is the FVM's. Both are the market's own judgement of the same man and only the RANK
+   * inside the role is used, but they are not the same number and the difference is not measured.
+   */
+  readonly screenMarks = computed<Map<number, PlayerMark>>(() => {
+    const played = this.window();
+    if (!played.size) return new Map();
+    const input: ScreenInput[] = [];
+    for (const { player } of this.listone()) {
+      const seen = played.get(player.id);
+      if (!seen) continue;
+      input.push({
+        id: player.id,
+        role: MACRO_ROLE[player.zoneClassic] ?? null,
+        price: player.fvm ?? null,
+        minutes: seen.minutes,
+        xg: seen.xg,
+        xa: seen.xa,
+      });
+    }
+    const out = new Map<number, PlayerMark>();
+    for (const [id, hit] of screensFor(input)) out.set(id, screenMark(hit));
+    return out;
+  });
 
   /** The rounds of the platform's own calendar, from the sheet: `engine_pv_pred` is expressed on it. */
   readonly matchdaysTarget = computed(() => this.entry()?.matchdays_target ?? null);
@@ -747,6 +794,7 @@ export class AuctionAdvice {
       this.boards.set(chosen.boards ? await this.bundle.boards(chosen.boards) : null);
       this.crests.set((await this.bundle.crests().catch(() => null)) ?? {});
       this.clubIds.set(await this.clubIndex());
+      this.window.set(await this.playedWindow(manifest.target_season));
       const notes: string[] = [];
       if (chosen.teams !== teams) {
         notes.push(
@@ -790,6 +838,49 @@ export class AuctionAdvice {
       return measured;
     } catch {
       // An older bundle does not carry it: one column stays empty, nothing else changes.
+      return new Map();
+    }
+  }
+
+  /**
+   * The minutes, xG and xA each man has actually played THIS season, from the per-match layer.
+   *
+   * Only `sofascore` rows, i.e. the five leagues' own calendars: `sofascore_extra` carries friendlies,
+   * cups and continental ties, and the screens were calibrated walking the league rounds - a friendly
+   * goal must never enter a number a threshold was fitted on (the same rule that keeps the two sources
+   * apart everywhere else in this project).
+   *
+   * Empty before the season starts, and that is the answer rather than a failure: at a pre-season auction
+   * nobody has minutes, so no screen is drawn at all.
+   */
+  private async playedWindow(
+    season: string,
+  ): Promise<Map<number, { minutes: number; xg: number; xa: number }>> {
+    try {
+      const table = await this.bundle.table('external_match_stats');
+      const [id, when, source, minutes, xg, xa] = [
+        'fc_id', 'season', 'source', 'minutes', 'xg', 'xa',
+      ].map((name) => table.columns.indexOf(name));
+      if (id < 0 || when < 0 || minutes < 0) return new Map();
+      const rows = new Map<number, { minutes: number; xg: number; xa: number }[]>();
+      for (const row of table.rows) {
+        if (row[when] !== season) continue;
+        if (source >= 0 && row[source] !== 'sofascore') continue;
+        const key = Number(row[id]);
+        const one = {
+          minutes: row[minutes] as number | null,
+          xg: xg < 0 ? null : (row[xg] as number | null),
+          xa: xa < 0 ? null : (row[xa] as number | null),
+        };
+        const list = rows.get(key);
+        if (list) list.push(one as never);
+        else rows.set(key, [one as never]);
+      }
+      const out = new Map<number, { minutes: number; xg: number; xa: number }>();
+      for (const [key, list] of rows) out.set(key, windowOf(list));
+      return out;
+    } catch {
+      // An older bundle without the per-match layer: no screens, and `screenMarks` returns empty.
       return new Map();
     }
   }

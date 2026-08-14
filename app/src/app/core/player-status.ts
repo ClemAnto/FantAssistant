@@ -27,7 +27,7 @@ export const LONG_INJURY_DAYS = 45;
 /** For how long after his return a man is still «just back»: about two months of calendar. */
 export const BACK_FROM_LONG_DAYS = 60;
 
-export type PlayerFlag = 'long_injury' | 'back_from_long' | 'dispute';
+export type PlayerFlag = 'long_injury' | 'back_from_long' | 'dispute' | 'promise' | 'flop_risk';
 
 export interface PlayerMark {
   flag: PlayerFlag;
@@ -211,6 +211,20 @@ export class PlayerStatus {
     return out;
   });
 
+  /**
+   * The two calibrated SCREENS, pushed in by whoever holds the pool.
+   *
+   * They are not computed here on purpose: a screen's price percentile is measured inside the ROLE and
+   * inside the LISTONE being played, and only the panel knows which listone that is - «the pool of a
+   * percentile is part of the measurement» is a rule this project has already paid for. So the owner of
+   * the selection computes them (`player-screens.ts`, pure and tested) and registers them here, which
+   * keeps ONE marks pipeline and one component instead of a second way of decorating a name.
+   *
+   * Empty is the normal case, and before a season's first two rounds it is empty BY CONSTRUCTION: the
+   * screens read minutes actually played, so in August nothing lights up and that is not a fault.
+   */
+  readonly screens = signal<Map<number, PlayerMark>>(new Map());
+
   /** Every mark a man carries, in the order they are drawn. Empty is the normal case. */
   marksFor(playerId: number | null | undefined): PlayerMark[] {
     if (playerId == null) return [];
@@ -219,6 +233,10 @@ export class PlayerStatus {
     if (injury) marks.push(injury);
     const declared = this.declared().get(playerId);
     if (declared) marks.push(declaredMark(declared));
+    // The screen goes LAST: an availability fact outranks a projection about form, and the order the
+    // marks are pushed in is the order they are drawn.
+    const screen = this.screens().get(playerId);
+    if (screen) marks.push(screen);
     return marks;
   }
 }
