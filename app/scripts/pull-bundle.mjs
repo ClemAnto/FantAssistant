@@ -64,6 +64,13 @@ if (existsSync(join(src, 'config/mantra_modules.json'))) {
 if (existsSync(join(src, 'config/classic_modules.json'))) {
   copyFileSync(join(src, 'config/classic_modules.json'), join(OUT, 'classic_modules.json'));
 }
+/* The operator's DECLARED player notes: fuori rosa, rottura con la società, ha chiesto di andare via.
+ * Nothing measures those, so they are declared and dated (`config/player_notes.json`, the same standing
+ * as `board_rulings.json`), and they only ever draw an icon beside a name - no number reads them. A
+ * bundle without the file simply shows no such icon. */
+if (existsSync(join(src, 'config/player_notes.json'))) {
+  copyFileSync(join(src, 'config/player_notes.json'), join(OUT, 'player_notes.json'));
+}
 
 let bytes = statSync(join(OUT, 'manifest.json')).size;
 const missing = [];

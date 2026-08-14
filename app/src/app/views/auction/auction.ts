@@ -17,8 +17,10 @@ import { AuctionAdvice, RankedPlayer } from '../../core/auction-advice';
 import { Plan, PlanPlayer, PlannedPick } from '../../core/auction-plan';
 import { per } from '../../core/auction-value';
 import { AuctionFeed, DraftStatus, KeeperMode, Zone } from '../../core/auction-feed';
+import { PlayerFlags } from '../../ui/player-flags/player-flags';
 import { RoleBadge } from '../../ui/role-badge/role-badge';
 import { ClubPitch } from './club-pitch/club-pitch';
+import { FantaPitch } from './fanta-pitch/fanta-pitch';
 
 const STATUS_LABEL: Record<DraftStatus, string> = {
   [DraftStatus.Loading]: 'Caricamento',
@@ -60,6 +62,7 @@ export type SortKey = keyof typeof SORTS;
   imports: [
     ClubPitch,
     DecimalPipe,
+    FantaPitch,
     FormsModule,
     NzAlertModule,
     NzButtonModule,
@@ -71,6 +74,7 @@ export type SortKey = keyof typeof SORTS;
     NzSegmentedModule,
     NzTagModule,
     NzTooltipModule,
+    PlayerFlags,
     RoleBadge,
   ],
   templateUrl: './auction.html',

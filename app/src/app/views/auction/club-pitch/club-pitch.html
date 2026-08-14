@@ -73,6 +73,9 @@
             }
             <span class="flex w-full items-center justify-center gap-1">
               <span class="min-w-0 truncate text-[11px] font-medium leading-tight">{{ man.name }}</span>
+              <!-- The marks travel with the NAME wherever it is drawn (operator, 11/08/2026): a long absence
+                   is exactly the kind of fact a claim built on last season's minutes cannot carry. -->
+              <ui-flags class="text-[10px]" [playerId]="man.fcId" />
               <!-- The worth in 99ths, AFTER the name, always present: a square rather than a number in the flow,
                    because it is the one figure on the chip that is a RANK of this listone and not a measurement
                    of the man. `—` where the sheet cannot price him: unknown, never a zero. -->

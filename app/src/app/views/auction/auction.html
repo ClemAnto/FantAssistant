@@ -228,6 +228,7 @@
                         <ui-role [role]="code" />
                       }
                       <b>{{ entry.root.player.name }}</b>
+                      <ui-flags [playerId]="entry.root.player.id" />
                       <span class="text-xs opacity-70">{{ entry.root.player.price }}</span>
                     </span>
                     <span class="text-xs font-normal opacity-70">
@@ -256,6 +257,7 @@
                   class="inline-flex items-center gap-2 rounded-full bg-role-attack px-4 py-1.5 text-base font-semibold text-white"
                 >
                   {{ plan.mine.name }}
+                  <ui-flags [playerId]="plan.mine.id" />
                   <span class="text-xs font-normal opacity-80">{{ plan.mine.club }}</span>
                 </span>
             <span class="text-sm opacity-70">
@@ -312,6 +314,7 @@
                         <ui-role [role]="code" />
                       }
                       <span [class.font-semibold]="row.mine">{{ pick.name }}</span>
+                      <ui-flags [playerId]="pick.id" />
                       <span class="opacity-60">{{ pick.price }}</span>
                     </button>
                   }
@@ -351,6 +354,7 @@
                             <ui-role [role]="code" />
                           }
                           <span class="truncate">{{ row.player.name }}</span>
+                          <ui-flags [playerId]="row.player.id" />
                           @if (row.denies >= denialFloor) {
                             <span class="shrink-0 text-[10px] tabular-nums opacity-60"
                               >−{{ row.denies | number: '1.0-0' }}</span
@@ -376,6 +380,7 @@
                         [class.opacity-70]="$index > 2"
                       >
                         {{ round.mine.name }}
+                        <ui-flags [playerId]="round.mine.id" />
                         <span class="text-xs font-normal opacity-70">{{ round.mine.club }}</span>
                       </span>
                       <span class="text-sm opacity-70">{{ round.mine.price }}</span>
@@ -401,6 +406,7 @@
                             <ui-role [role]="code" />
                           }
                           <span class="truncate">{{ row.player.name }}</span>
+                          <ui-flags [playerId]="row.player.id" />
                           @if (row.denies >= denialFloor) {
                             <span class="shrink-0 text-[10px] tabular-nums opacity-60"
                               >−{{ row.denies | number: '1.0-0' }}</span
@@ -434,9 +440,18 @@
       }
     }
 
-    <nz-card nzTitle="Formazione della squadra reale">
-      <app-club-pitch />
-    </nz-card>
+    <!-- Two pitches side by side, and they answer opposite questions: on the left what a REAL coach will
+         field (the toolkit's own board, read and never recomputed here), on the right what a squad AT THIS
+         TABLE could field (the rulebook, applied here, because there is no coach to predict). -->
+    <div class="grid gap-4 xl:grid-cols-2">
+      <nz-card nzTitle="Formazione della squadra reale">
+        <app-club-pitch />
+      </nz-card>
+
+      <nz-card nzTitle="Formazione della squadra fanta">
+        <app-fanta-pitch />
+      </nz-card>
+    </div>
 
     <div class="grid gap-4 lg:grid-cols-3">
       <nz-card nzTitle="La tua situazione">
@@ -497,6 +512,7 @@
                   <b>{{ entry.player?.name }}</b>
                   <span class="opacity-60"> · {{ entry.player?.club }}</span>
                 </span>
+                <ui-flags [playerId]="entry.player?.id" />
                 <span class="ml-auto whitespace-nowrap opacity-70">
                   {{ entry.team?.label }} · {{ entry.cost }}
                 </span>
@@ -523,6 +539,7 @@
                 <b>{{ entry.player?.name }}</b>
                 <span class="opacity-60"> · {{ entry.player?.club }}</span>
               </span>
+              <ui-flags [playerId]="entry.player?.id" />
               @if (feed.isGoalsMode() && isStray(entry.index)) {
                 <nz-tag nzColor="warning" nz-tooltip nzTooltipTitle="La porta di questo club è di un altro: questo portiere non conta come porta.">
                   no porta
@@ -634,6 +651,7 @@
                   </span>
                   <span class="flex-1 truncate">
                     <b>{{ row.player.name }}</b>
+                    <ui-flags [playerId]="row.player.id" />
                     <span class="opacity-60"> · {{ row.player.club }}</span>
                     @if (row.valuation.basis !== 'measured') {
                       <span class="opacity-60" [title]="row.valuation.note ?? ''">~</span>

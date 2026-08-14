@@ -106,6 +106,24 @@ def test_manifest_carries_the_discipline_the_app_must_not_guess(tmp_path):
     assert (config_dir / "league_config.json").exists()
 
 
+def test_the_declared_player_notes_travel_and_their_absence_is_silence(tmp_path):
+    """`config/player_notes.json` is the operator's own, so the bundle carries it - and a project with
+    nothing declared has no file at all, which must be silence rather than a warning."""
+    ctx = _ctx(tmp_path)
+    _seed(ctx.conn)
+    notes = tmp_path / "player_notes.json"
+    ctx = Context(config=Config(data_dir=ctx.config.data_dir, db_path=ctx.config.db_path,
+                                player_notes_path=notes), conn=ctx.conn)
+    export.run(ctx, history=1)
+    config_dir = ctx.config.data_dir / "export" / "2025-26" / "config"
+    assert not (config_dir / "player_notes.json").exists(), "no file declared, nothing to copy"
+
+    notes.write_text(json.dumps({"2025-26": {"1": {"kind": "out_of_squad"}}}), encoding="utf-8")
+    export.run(ctx, history=1)
+    copied = json.loads((config_dir / "player_notes.json").read_text(encoding="utf-8"))
+    assert copied["2025-26"]["1"]["kind"] == "out_of_squad"
+
+
 def test_verify_fails_on_a_dangling_reference(tmp_path):
     ctx = _ctx(tmp_path)
     _seed(ctx.conn)

@@ -457,11 +457,24 @@ export class AuctionAdvice {
    * alone would re-scale everybody upward as the big names go, and the number would stop meaning one thing.
    */
   readonly value99By = computed<Map<number, number | null>>(() => {
-    const numbers = this.numbers();
     const max = this.valueMax();
     const out = new Map<number, number | null>();
+    for (const [id, value] of this.valueBy()) out.set(id, score99(value, max));
+    return out;
+  });
+
+  /**
+   * The same worth in FANTAPUNTI, for every man of the listone, taken ones included.
+   *
+   * `value99` is a rank and cannot be summed; an eleven's worth is a sum, so the fanta pitch needs the number
+   * behind it. One definition for both - `value99By` is this map on the session's scale - because two ways of
+   * pricing the same man would eventually disagree about which eleven is the strongest.
+   */
+  readonly valueBy = computed<Map<number, number | null>>(() => {
+    const numbers = this.numbers();
+    const out = new Map<number, number | null>();
     for (const { player } of this.listone()) {
-      out.set(player.id, score99(valueOf(valuationOf(numbers.get(player.id))), max));
+      out.set(player.id, valueOf(valuationOf(numbers.get(player.id))));
     }
     return out;
   });

@@ -23,6 +23,7 @@ import {
   PlayersStore,
 } from '../../core/players-store';
 import { ClubCrest } from '../../ui/club-crest/club-crest';
+import { PlayerFlags } from '../../ui/player-flags/player-flags';
 import { RoleBadge } from '../../ui/role-badge/role-badge';
 import { APP_VERSION } from '../../version';
 import { MatchDetail } from './match-detail/match-detail';
@@ -95,6 +96,7 @@ const ROLE_LABEL: Record<ClassicRole, string> = {
     NzTableModule,
     NzTooltipModule,
     ClubCrest,
+    PlayerFlags,
     RoleBadge,
     MatchDetail,
   ],

@@ -238,9 +238,13 @@
                   />
                   <ui-role [role]="line.role" />
                   <span class="truncate">{{ line.name }}</span>
+                  <ui-flags [playerId]="line.fcId" />
                 </span>
               } @else {
-                {{ line.name }}
+                <span class="inline-flex items-center gap-1.5">
+                  {{ line.name }}
+                  <ui-flags [playerId]="line.fcId" />
+                </span>
               }
             </td>
             @if (!narrow()) {

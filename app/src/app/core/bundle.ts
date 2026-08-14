@@ -126,6 +126,23 @@ export interface BoardsFile {
   clubs: Record<string, Board>;
 }
 
+/**
+ * One declared note about a player: what the operator states, and when he stated it.
+ *
+ * The three kinds share ONE icon (his own grouping, 11/08/2026) because they are one question at the
+ * table - «will this man play at all?» - and the word is what the tooltip says.
+ */
+export interface PlayerNote {
+  kind: 'out_of_squad' | 'dispute' | 'wants_out';
+  note?: string | null;
+  decided_on?: string | null;
+}
+
+/** `config/player_notes.json`: `{season: {fc_id: PlayerNote}}`, plus its own comment keys. */
+export interface PlayerNotesFile {
+  [season: string]: Record<string, PlayerNote> | unknown;
+}
+
 /** The shape of `mantra_modules.json`, as the toolkit ships it. */
 export interface MantraModulesFile {
   edition?: string;
@@ -149,6 +166,7 @@ export class Bundle {
   private scoringPromise?: Promise<ScoringConfig>;
   private modulesPromise?: Promise<MantraModulesFile | null>;
   private classicModulesPromise?: Promise<MantraModulesFile | null>;
+  private playerNotesPromise?: Promise<PlayerNotesFile | null>;
   private readonly boardsByPath = new Map<string, Promise<BoardsFile | null>>();
   private crestsPromise?: Promise<Record<string, string>>;
 
@@ -230,6 +248,24 @@ export class Bundle {
       this.boardsByPath.set(path, pending);
     }
     return pending;
+  }
+
+  /**
+   * The operator's DECLARED notes on single players, by season and `fc_id`.
+   *
+   * `config/player_notes.json`, the same standing as `board_rulings.json`: nothing in this project
+   * observes a quarrel, a man kept out of the squad or a transfer request, so those are written down by
+   * whoever knows them, dated, and revocable by deleting the entry. It is REPORTING only - it draws an
+   * icon beside a name and enters no valuation, no ranking and no gate.
+   *
+   * Null on a bundle that carries no file, which is the normal case for a project with nothing declared:
+   * the caller must read that as «nothing declared», never as «nothing to declare».
+   */
+  playerNotes(): Promise<PlayerNotesFile | null> {
+    this.playerNotesPromise ??= fetch(`${this.base}/player_notes.json`)
+      .then((res) => (res.ok ? (res.json() as Promise<PlayerNotesFile>) : null))
+      .catch(() => null);
+    return this.playerNotesPromise;
   }
 
   /** fc_club_id -> file name, written by the export next to the badges themselves. */

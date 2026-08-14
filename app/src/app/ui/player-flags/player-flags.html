@@ -1,0 +1,8 @@
+@for (mark of marks(); track mark.flag) {
+  <nz-icon
+    [nzType]="icon[mark.flag]"
+    [class]="tone[mark.flag]"
+    nz-tooltip
+    [nzTooltipTitle]="hint(mark)"
+  />
+}

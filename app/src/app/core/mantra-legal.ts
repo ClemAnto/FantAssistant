@@ -25,16 +25,44 @@ export interface Placeable {
 }
 
 /**
- * A module's places, keeper first, each as the lowercase roles allowed to fill it.
+ * The lines a module is written in. Same five letters the boards use, declared here rather than imported:
+ * this file is bundled by the draft bench, and the pitch's own types drag in `bundle.ts` and with it Angular.
+ */
+export type ModuleLine = 'P' | 'D' | 'M' | 'T' | 'A';
+
+const LINES: ModuleLine[] = ['D', 'M', 'T', 'A'];
+
+/** One typed place of a module: the line it belongs to, the slot that names it, the roles it accepts. */
+export interface Place {
+  line: ModuleLine;
+  /** The rulebook's own name for it (`DC/B`, `A/PC`, and `P` for the keeper). */
+  slot: string;
+  /** Lowercase, because that is the vocabulary a man's roles are compared in. */
+  roles: string[];
+}
+
+/**
+ * A module's places IN ORDER, keeper first, each with the line it belongs to.
  *
  * The keeper is outside the lines in the rulebook's own table (one `P` place in every scheme), so it is
- * prepended here rather than stored eleven times.
+ * prepended here rather than stored eleven times. The order inside a line is the rulebook's own, which is the
+ * team's right to its left (`4-3-3` opens its defence with `DD` and closes it with `DS`): that is the only
+ * side information a module carries, and a drawing that ignored it would put the right back on the left.
  */
-export function placesOf(rules: MantraModules, moduleName: string): string[][] {
+export function placesIn(rules: MantraModules, moduleName: string): Place[] {
   const shape = rules.modules[moduleName];
   if (!shape) return [];
-  return ['P', ...shape['D'] ?? [], ...shape['M'] ?? [], ...shape['T'] ?? [], ...shape['A'] ?? []]
-    .map((place) => (rules.slot_roles[place] ?? []).map((role) => role.toLowerCase()));
+  const roles = (slot: string) => (rules.slot_roles[slot] ?? []).map((role) => role.toLowerCase());
+  const places: Place[] = [{ line: 'P', slot: 'P', roles: roles('P') }];
+  for (const line of LINES) {
+    for (const slot of shape[line] ?? []) places.push({ line, slot, roles: roles(slot) });
+  }
+  return places;
+}
+
+/** The same places as the bare role lists the matching walks. ONE definition: `placesIn` is it. */
+export function placesOf(rules: MantraModules, moduleName: string): string[][] {
+  return placesIn(rules, moduleName).map((place) => place.roles);
 }
 
 /** A matching of men onto places: which men are placed, and who holds each place (`-1` = empty). */
@@ -155,34 +183,74 @@ export function bestCovered<T extends Placeable>(
   return best;
 }
 
+/** The best legal eleven a squad can field on one module, place by place. */
+export interface Eleven<T extends Placeable> {
+  module: string;
+  places: Place[];
+  /** Who stands on each place, aligned to `places`. Null where the squad cannot fill it. */
+  holders: (T | null)[];
+  /** The men on the pitch, in no particular order: the same ones `holders` names. */
+  men: T[];
+  total: number;
+  /** What every module is worth to this squad, best first: the reason the winner won. */
+  scores: { module: string; total: number; placed: number }[];
+}
+
 /**
- * The best legal eleven a squad can field, by a weight - and how much it is worth.
- *
- * The app did not need this while it only asked «does he cover a place»; it needs it for the DENIAL note
- * (`todolist-draft-v1.md` item 1.5), because «what taking him removes from a rival» is the difference between
- * two elevens and nothing cheaper says the same thing.
+ * The best legal eleven a squad can field, by a weight - the module, the men, and where each one stands.
  *
  * Sorting first is what makes it the BEST eleven and not merely a legal one: the matching is maximum whatever
  * the order, but WHICH men are in it is not. A non-positive weight is not fielded - an empty place is worth
  * more than a vote below zero - and a man with no weight at all is not fielded either, because that is
  * «unknown», never «zero».
+ *
+ * A TIE goes to the module declared first, exactly as `bestCovered` resolves its own: with an incomplete squad
+ * many shapes hold the same men and the tie is common, so it is stated rather than hidden.
+ */
+export function bestEleven<T extends Placeable>(
+  squad: readonly T[],
+  rules: MantraModules | null,
+  weightOf: (man: T) => number | null,
+): Eleven<T> | null {
+  if (!rules?.modules) return null;
+  const ranked = squad
+    .filter((man) => (weightOf(man) ?? 0) > 0)
+    .sort((left, right) => (weightOf(right) ?? 0) - (weightOf(left) ?? 0));
+  let best: Eleven<T> | null = null;
+  const scores: { module: string; total: number; placed: number }[] = [];
+  for (const name of Object.keys(rules.modules)) {
+    const places = placesIn(rules, name);
+    if (!places.length) continue;
+    const { chosen, holder } = assign(ranked, places.map((place) => place.roles));
+    const total = chosen.reduce((sum, man) => sum + (weightOf(man) ?? 0), 0);
+    scores.push({ module: name, total, placed: chosen.length });
+    if (total > (best?.total ?? 0)) {
+      best = {
+        module: name,
+        places,
+        holders: holder.map((who) => (who === -1 ? null : chosen[who])),
+        men: chosen,
+        total,
+        scores,
+      };
+    }
+  }
+  if (best) best.scores = [...scores].sort((left, right) => right.total - left.total);
+  return best;
+}
+
+/**
+ * What that eleven is WORTH, which is all the denial note needs.
+ *
+ * The app did not need the eleven itself while it only asked «does he cover a place»; it needs the number for
+ * the DENIAL note (`todolist-draft-v1.md` item 1.5), because «what taking him removes from a rival» is the
+ * difference between two elevens and nothing cheaper says the same thing. Zero when nothing can be fielded -
+ * `bestEleven` returns null there, and a squad that fields nobody is worth nothing rather than unknown.
  */
 export function bestElevenWorth<T extends Placeable>(
   squad: readonly T[],
   rules: MantraModules | null,
   weightOf: (man: T) => number | null,
 ): number {
-  if (!rules?.modules) return 0;
-  const ranked = squad
-    .filter((man) => (weightOf(man) ?? 0) > 0)
-    .sort((left, right) => (weightOf(right) ?? 0) - (weightOf(left) ?? 0));
-  let best = 0;
-  for (const name of Object.keys(rules.modules)) {
-    const places = placesOf(rules, name);
-    if (!places.length) continue;
-    const { chosen } = assign(ranked, places);
-    const total = chosen.reduce((sum, man) => sum + (weightOf(man) ?? 0), 0);
-    if (total > best) best = total;
-  }
-  return best;
+  return bestEleven(squad, rules, weightOf)?.total ?? 0;
 }

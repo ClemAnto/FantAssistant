@@ -1,0 +1,155 @@
+<div class="flex flex-wrap items-center gap-3">
+  <nz-select
+    class="min-w-56"
+    nzPlaceHolder="Squadra fanta"
+    nzShowSearch
+    [ngModel]="team()?.id ?? null"
+    (ngModelChange)="choose($event)"
+  >
+    @for (other of teams(); track other.id) {
+      <nz-option [nzValue]="other.id" [nzLabel]="other.label" />
+    }
+  </nz-select>
+
+  @if (team(); as squad) {
+    <span class="flex items-center gap-2">
+      <nz-tag [nzColor]="squad.colour">&nbsp;</nz-tag>
+      <span class="font-semibold">{{ squad.label }}</span>
+      @if (isMine()) {
+        <span class="text-sm text-muted">(la tua)</span>
+      }
+    </span>
+    <span class="text-sm text-muted">
+      {{ squad.squad.length }} in rosa · {{ squad.spent }} spesi
+    </span>
+  }
+
+  @if (eleven(); as drawn) {
+    @if (drawn.module) {
+      <span class="ml-auto flex flex-wrap items-center gap-2 text-sm">
+        <span class="rounded-full border border-border px-2 py-0.5 font-semibold tabular-nums">
+          {{ drawn.module }}
+        </span>
+        <span class="text-muted tabular-nums">{{ drawn.total | number: '1.0-0' }} fantapunti</span>
+      </span>
+    }
+  }
+</div>
+
+@if (eleven(); as drawn) {
+  @if (drawn.rows.length) {
+    <!-- The same pitch as the real clubs': keeper at the top, forwards at the bottom, one flex zone per line
+         of the module. The men are drawn in the RULEBOOK's own order inside a line, which is the team's right
+         to its left - a module carries no other side information, so nothing here is invented. -->
+    <div
+      class="mt-4 flex w-full max-w-[500px] flex-col gap-1 rounded-lg p-2 outline outline-1
+             -outline-offset-4 outline-fg/25 sm:gap-2 sm:p-3"
+      style="background-image: linear-gradient(
+        to bottom,
+        color-mix(in oklab, var(--color-role-defence) 30%, var(--color-surface)),
+        color-mix(in oklab, var(--color-role-defence) 12%, var(--color-surface))
+      )"
+    >
+      @for (row of drawn.rows; track row.line) {
+        <div class="flex items-stretch gap-1 sm:gap-2">
+          @for (place of row.places; track $index) {
+            <span
+              class="flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-md border border-border
+                     bg-surface/90 px-1 py-1 text-center"
+              [class.border-dashed]="!place.man"
+              [class.opacity-60]="!place.man"
+              nz-tooltip
+              [nzTooltipTitle]="placeHint(place)"
+            >
+              <!-- ONE role: the one this place is filled with, exactly as the real pitch shows the marker the
+                   module gave a man. On an empty place the SLOT is shown instead - what is missing, named. -->
+              <ui-role [role]="place.badge ?? place.slot" size="md" />
+
+              @if (place.man) {
+                <span class="flex w-full items-center justify-center gap-1">
+                  <span class="min-w-0 truncate text-[11px] font-medium leading-tight">{{ place.man.name }}</span>
+                  <ui-flags class="text-[10px]" [playerId]="place.man.id" />
+                  <!-- The worth in 99ths, AFTER the name: the one figure on the chip that is a RANK of this
+                       listone and not a measurement of the man. `—` where the sheet cannot price him. -->
+                  <span
+                    class="flex h-4 min-w-4 shrink-0 items-center justify-center rounded-sm bg-primary px-0.5
+                           text-[9px] font-semibold leading-none text-on-primary tabular-nums"
+                    [class.opacity-60]="place.man.value99 == null"
+                    >{{ place.man.value99 ?? '—' }}</span
+                  >
+                </span>
+                <span class="w-full truncate text-[10px] tabular-nums text-muted">
+                  {{ place.man.club }} · {{ place.man.cost }}
+                </span>
+              } @else {
+                <span class="w-full truncate text-[11px] font-medium leading-tight text-muted">scoperto</span>
+              }
+
+              <!-- The ballottaggio: the strongest man of the bench THIS place would accept. It is exact - a
+                   swap on one place leaves the other ten untouched - and it is not a substitution plan. -->
+              @if (place.rival; as rival) {
+                <span
+                  class="w-full truncate text-[9px] leading-tight text-muted/80"
+                  nz-tooltip
+                  [nzTooltipTitle]="rivalHint(rival)"
+                >
+                  ⇄ {{ rival.name }}
+                </span>
+              }
+            </span>
+          }
+        </div>
+      }
+    </div>
+
+    <p class="mt-2 text-xs text-muted">
+      Modulo <strong>{{ drawn.module }}</strong> scelto da noi: fra gli schemi legali di questo gioco è quello
+      che manda in campo l'undici più forte ({{ drawn.total | number: '1.0-0' }} fantapunti).
+      @if (drawn.placed < 11) {
+        <span> · {{ 11 - drawn.placed }} posti scoperti: la rosa non ha ancora chi possa occuparli.</span>
+      }
+      @if (runnersUp().length) {
+        <span>
+          · Subito dietro:
+          @for (score of runnersUp(); track score.module; let last = $last) {
+            <span class="tabular-nums">{{ score.module }} {{ score.total | number: '1.0-0' }}</span>@if (!last) {
+              <span> · </span>
+            }
+          }
+        </span>
+      }
+    </p>
+
+    @if (drawn.unpriced.length) {
+      <p class="mt-1 text-xs text-warning">
+        ⚠ {{ drawn.unpriced.length }} in rosa senza numero del motore, quindi fuori da questo undici:
+        @for (man of drawn.unpriced; track man.id; let last = $last) {
+          <span>{{ man.name }}</span>@if (!last) {<span>, </span>}
+        }.
+        Vuoto è ignoto, mai zero: non è un giudizio su di loro.
+      </p>
+    }
+
+    <p class="mt-2 text-xs text-muted">
+      A differenza del campetto delle squadre reali, questo undici lo <strong>calcoliamo qui</strong>: non c'è
+      nessun allenatore da prevedere, solo il <strong>regolamento</strong> — i moduli legali del gioco in corso,
+      letti e mai stimati — e il <strong>valore</strong> del pannello (fantamedia × presenze attese), che è la
+      moneta misurata giusta per questo formato. Il «⇄» è il <strong>ballottaggio</strong>: il più forte della
+      panchina che quel posto accetterebbe, e può essere lo stesso uomo su più posti.
+    </p>
+  } @else if (noRules()) {
+    <nz-empty
+      class="mt-4"
+      nzNotFoundContent="Il bundle non porta il regolamento di questo gioco: senza i moduli legali non c'è nessun undici da disegnare. Rilancia «export» dal toolkit."
+    />
+  } @else {
+    <nz-empty class="mt-4" nzNotFoundContent="Questa rosa non ha ancora nessuno che il motore sappia valutare: niente da schierare." />
+  }
+} @else if (noRules()) {
+  <nz-empty
+    class="mt-4"
+    nzNotFoundContent="Il bundle non porta il regolamento di questo gioco: senza i moduli legali non c'è nessun undici da disegnare. Rilancia «export» dal toolkit."
+  />
+} @else {
+  <nz-empty class="mt-4" nzNotFoundContent="Nessuna squadra al tavolo." />
+}

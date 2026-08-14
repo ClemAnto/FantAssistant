@@ -615,6 +615,17 @@ def run(ctx: Context, *, season: str | None = None, out: str | None = None,
         except OSError as exc:
             print(f"[export] WARNING: config {source.name} not copied ({exc})")
 
+    # The operator's DECLARED player notes (fuori rosa, rottura con la societa', ha chiesto di andare
+    # via). Optional by nature - a project with nothing to declare has no file - so a missing one is
+    # silence and not a warning, unlike the four above, which are the contract. It is REPORTING only:
+    # the app draws an icon with it, and no engine path reads it.
+    if ctx.config.player_notes_path.exists():
+        try:
+            _atomic_write_bytes(config_out / ctx.config.player_notes_path.name,
+                                ctx.config.player_notes_path.read_bytes())
+        except OSError as exc:
+            print(f"[export] WARNING: config player_notes.json not copied ({exc})")
+
     # The engine's own numbers, so the app can rank by SURPLUS instead of by the listone's price. They
     # come from the sheet `snapshot` writes, not from a second engine run: the sheet is the artefact the
     # gate and the panel already agree on, and re-deriving it here would be a second implementation of

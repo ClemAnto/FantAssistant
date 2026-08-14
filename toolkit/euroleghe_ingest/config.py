@@ -123,6 +123,13 @@ class Config:
     # gated reads it, and the press/outcome harnesses deliberately ignore it (a ruling is often made
     # looking at the judge, and a judge must not score the operator's own answers).
     board_rulings_path: Path = field(default_factory=lambda: REPO_ROOT / "config" / "board_rulings.json")
+    # The operator's DECLARED notes on single players - out of the squad, fallen out with the club, has
+    # asked to leave - for the same reason the rulings above are declared: nothing here observes a
+    # quarrel, and reading `exit_risk` (a contract) or a squad absence (a departure) as one would be
+    # inventing a fact from a different one. REPORTING only: it travels to the app in the bundle's
+    # `config/` and no engine path reads it. Optional, like the rulings.
+    player_notes_path: Path = field(
+        default_factory=lambda: REPO_ROOT / "config" / "player_notes.json")
 
     @property
     def raw_dir(self) -> Path:

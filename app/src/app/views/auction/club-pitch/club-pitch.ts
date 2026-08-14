@@ -10,6 +10,7 @@ import { AuctionFeed } from '../../../core/auction-feed';
 import { BoardMan } from '../../../core/bundle';
 import { OnTable, PitchLine, PitchMan, pitchOf } from '../../../core/club-eleven';
 import { ClubCrest } from '../../../ui/club-crest/club-crest';
+import { PlayerFlags } from '../../../ui/player-flags/player-flags';
 import { RoleBadge } from '../../../ui/role-badge/role-badge';
 
 /** What each drawn line is called, in the language of the pitch. */
@@ -36,7 +37,16 @@ const LINE_LABEL: Record<PitchLine, string> = {
 @Component({
   selector: 'app-club-pitch',
   templateUrl: './club-pitch.html',
-  imports: [ClubCrest, DecimalPipe, FormsModule, NzEmptyModule, NzSelectModule, NzTooltipModule, RoleBadge],
+  imports: [
+    ClubCrest,
+    DecimalPipe,
+    FormsModule,
+    NzEmptyModule,
+    NzSelectModule,
+    NzTooltipModule,
+    PlayerFlags,
+    RoleBadge,
+  ],
   host: { class: 'block' },
 })
 export class ClubPitch {
