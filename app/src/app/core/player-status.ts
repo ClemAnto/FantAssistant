@@ -34,7 +34,8 @@ export type PlayerFlag =
   | 'promise'
   | 'flop_risk'
   | 'place_gained'
-  | 'place_lost';
+  | 'place_lost'
+  | 'rotation_risk';
 
 export interface PlayerMark {
   flag: PlayerFlag;

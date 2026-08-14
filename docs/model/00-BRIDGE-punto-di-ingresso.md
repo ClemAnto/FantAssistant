@@ -1,5 +1,5 @@
 # 00 — BRIDGE · Punto d'ingresso del progetto (leggere per primo)
-**Aggiornato: 14 agosto 2026, sera tardi (il TREND delle ultime dieci REALI e CHI HA GUADAGNATO IL POSTO: gli item 5 e 6 chiusi lo stesso giorno)** · precedente: 10 agosto, notte tarda (la todolist del draft ESEGUITA, il campetto legge la board del toolkit ed e' rifinito, v0.1.8 pushata)** · precedente: 10 agosto, giorno (l'assistente d'asta e' completo — porte, surplus vivo, scelta consigliata — e la campagna sulle strategie di draft ha RITIRATO due conclusioni)** · precedente: 9 agosto (l'app esiste: Angular, pubblicata su GitHub Pages, legge il bundle del toolkit)** · 8 agosto (DUE GIUDICI per le formazioni tipo — la stampa e l'ESITO reale — e la todolist formazioni tipo chiusa: cinque adozioni, sei rifiuti misurati)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
+**Aggiornato: 14 agosto 2026, notte (il TREND delle ultime dieci, CHI HA GUADAGNATO IL POSTO e «preso per titolare, ruotato di fatto»: item 5, 6 e 7 chiusi lo stesso giorno)** · precedente: 10 agosto, notte tarda (la todolist del draft ESEGUITA, il campetto legge la board del toolkit ed e' rifinito, v0.1.8 pushata)** · precedente: 10 agosto, giorno (l'assistente d'asta e' completo — porte, surplus vivo, scelta consigliata — e la campagna sulle strategie di draft ha RITIRATO due conclusioni)** · precedente: 9 agosto (l'app esiste: Angular, pubblicata su GitHub Pages, legge il bundle del toolkit)** · 8 agosto (DUE GIUDICI per le formazioni tipo — la stampa e l'ESITO reale — e la todolist formazioni tipo chiusa: cinque adozioni, sei rifiuti misurati)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
 
 ## Il progetto in breve
 Motore previsionale per fantacalcio **EuroLeghe** (fantacalcio.it): valutazione calciatori Classic e Mantra sui 5 grandi campionati europei (Serie A, Premier, Liga, Bundesliga, Ligue 1 — perimetro: i ~35 top club del gioco). Prevede fantamedia (FM), presenze attese e VALORE stagionale = FM × presenze. Metodo scientifico: **ogni regola entra nel motore solo se batte il baseline fuori campione su finestre indipendenti** (gate pre-registrato). Stato: core validato (Mantra, Classic, portieri, presenze); manca lo strato flag/arrivi, sbloccato dal toolkit dati `euroleghe-ingest` (in implementazione).
@@ -34,7 +34,27 @@ la pagina delle probabili non basta e quali vincoli valgono già oggi.
 
 Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
 
-### ULTIMO IN ORDINE DI TEMPO — 14/08/2026, sera tardi: **chi ha guadagnato il posto e chi l'ha perso**
+### ULTIMO IN ORDINE DI TEMPO — 14/08/2026, notte: **«preso per titolare, ruotato di fatto»** (caso Lewandowski)
+
+Item **7** di [todolist-draft-v1.md](todolist-draft-v1.md), spec **«Novità v9.52»**,
+[assistente-asta-v1.md](assistente-asta-v1.md) **§30**. Toolkit **385 test**, app **159**.
+
+1. **Una forma diversa da quella dell'item 6**: `14 12 22 90* 25 90* 90* 16 90*…` — gioca ogni settimana
+   e non è il titolare (17 su 35 e 47 minuti, dopo 32 su 36 e 74 minuti). Nessun gradino da trovare,
+   quindi il changepoint legge zero mentre al tavolo si perdono punti ogni domenica.
+2. **La regola, calibrata**: ultime 5 giornate del CLUB, sotto i 45 minuti di media, al più una da
+   titolare, dentro il pool dei quotati nel top 15% del ruolo (che è cosa vuol dire «venduto come
+   titolare», ed è la popolazione su cui la soglia è tarata).
+3. **I numeri sono quelli della funzione che spedisce, ed è la metà interessante.** Una prima
+   calibrazione scorreva le RIGHE (84,5% contro 34,9%, 2,42x); la funzione vera scorre i FIXTURE del
+   club. Rimisurata chiamandola: **3.711 letture, 471 segnalati, 90,4% contro una base del 59,5% —
+   1,52x**. Cambiando il denominatore la base passa dal 35% al 60%: il null è la misura, ancora.
+4. **Due silenzi**: chi era infortunato in quella finestra non è «ruotato» (la guardia non costa
+   precisione, 86,3% contro 85,7%, e toglie una frase falsa), e chi non era quotato titolare non entra.
+5. **Ad agosto la colonna è VUOTA per costruzione**: legge cinque giornate dietro e otto davanti.
+   Comparirà al quinto turno — è l'item 4.4 visto dall'altro lato.
+
+### 14/08/2026, sera tardi: **chi ha guadagnato il posto e chi l'ha perso**
 
 Item **6** di [todolist-draft-v1.md](todolist-draft-v1.md) **chiuso** (6.1-6.6). Spec **«Novità v9.51»**,
 [assistente-asta-v1.md](assistente-asta-v1.md) **§29**. `SHEET_REVISION` 16 → **17** (nove colonne

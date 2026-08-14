@@ -18,6 +18,8 @@ const ICON: Record<PlayerFlag, string> = {
   // arrows the screens use for a projection: those say «he might», these say «he did».
   place_gained: 'login',
   place_lost: 'logout',
+  // A half-filled clock: he is on the pitch and only for part of it, which is exactly what the mark says.
+  rotation_risk: 'clock-circle',
 };
 
 /**
@@ -39,6 +41,8 @@ const TONE: Record<PlayerFlag, string> = {
   // the starter was hurt is not a promotion, and the tooltip is where that lives. So: neutral.
   place_gained: 'opacity-70',
   place_lost: 'opacity-70',
+  // Amber: this one IS a warning about what you are buying, and it is measured (90.4% precision).
+  rotation_risk: 'text-warning',
 };
 
 const LABEL: Record<PlayerFlag, string> = {
@@ -49,6 +53,7 @@ const LABEL: Record<PlayerFlag, string> = {
   flop_risk: 'Possibile flop',
   place_gained: 'Ha guadagnato il posto',
   place_lost: 'Ha perso il posto',
+  rotation_risk: 'Preso per titolare, ma ruotato',
 };
 
 /**

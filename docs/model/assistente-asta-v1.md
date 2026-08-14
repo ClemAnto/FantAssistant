@@ -2165,3 +2165,47 @@ Perché la forma predittiva è stata misurata e vale poco: «promozione nei minu
 minuti già visti, legge **+0,049 su 8 istanze, 6/8**. Mostrarlo è utile — è un fatto che l'operatore vuole
 vedere prima di puntare — e ordinarci sopra una valutazione no. Niente sotto `engine/` lo legge, non è una
 chiave di ordinamento e non entra in nessun undici.
+
+## 30. «Preso per titolare, ruotato di fatto»: il caso Lewandowski (14 agosto 2026, notte)
+
+Secondo caso portato dall'operatore, e la domanda era operativa: un uomo dato titolare a inizio anno che
+titolare non è stato, e un'icona che dopo un tot di giornate lo dica. Item 7 di
+[todolist-draft-v1.md](todolist-draft-v1.md), numeri in spec «Novità v9.52».
+
+### 30.1 Perché serviva un secondo indicatore
+
+Lewandowski 2025-26 legge `14 12 22 90* 25 90* 90* 16 90*…`: gioca ogni settimana e non è il titolare —
+17 partenze su 35 e **47 minuti a partita**, dopo un 2024-25 di 32 su 36 e **74 minuti**. Non c'è nessun
+gradino, quindi il changepoint dell'item 6 non vede niente; e il Qt.I era 34, cioè il mercato lo dava
+titolare. È la differenza fra **perdere il posto** (un giorno, un prima e un dopo) ed **essere ruotato**
+(nessun giorno, e ogni domenica costa).
+
+### 30.2 La regola e il suo pool
+
+Ultime **5 giornate del CLUB**, media sotto i **45 minuti**, al più **una da titolare**, e solo per chi è
+quotato nel **top 15% del suo ruolo**. Quest'ultima non è una restrizione prudenziale: è la popolazione su
+cui la soglia è tarata, e «venduto come titolare» è la premessa della frase — chi il mercato non ha
+venduto così non può fallire di esserlo.
+
+### 30.3 Quanto vale, misurato sulla funzione che spedisce
+
+**3.711 letture, 471 segnalate (12,7%), precisione 90,4% contro una base del 59,5% — 1,52x**; per stagione
+91,0% / 95,9% / 86,7% / 87,3%. Nove su dieci chiudono davvero il resto della stagione sotto i 60 minuti a
+partita del club; il decimo diventa titolare.
+
+**La correzione vale più del numero.** Una prima calibrazione scorreva le RIGHE di ciascun uomo e leggeva
+84,5% contro una base del 34,9% (2,42x). La funzione vera scorre i **fixture del club** e conta come zero
+le giornate saltate: un'altra finestra e un altro denominatore, quindi quei numeri non erano suoi. Sono
+stati rifatti **chiamando `rotation_watch`** a sei date di ogni stagione e punteggiando quello che
+restituisce. È la stessa lezione del null del §20, un livello sopra: cambiando il denominatore la base
+passa dal 35% al 60% e il lift da 2,42x a 1,52x — e il numero onesto è il secondo.
+
+### 30.4 Due silenzi, e uno stato che non esiste ad agosto
+
+Chi era **infortunato** in quella finestra non è ruotato: lo screen punteggia uguale con o senza la
+guardia (86,3% contro 85,7%), quindi non costa precisione e toglie una frase falsa a un uomo che porta già
+il marchio dell'infortunio. E l'icona **legge la stagione che si gioca**: cinque giornate dietro, otto
+davanti. Su un foglio di agosto la colonna è vuota **per costruzione** — non è una segnalazione negativa,
+è che non c'è ancora niente da leggere; comparirà al quinto turno. Dichiarato e non aggiustato: lo screen
+si indebolisce a fine stagione (l'ultima lettura del 2025-26 vale 70,0% contro una base del 72,0%, cioè
+niente), e la soglia non si muove dopo aver visto quella curva.

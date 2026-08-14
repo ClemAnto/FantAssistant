@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { PlaceChange, placeMark } from './player-place';
+import { PlaceChange, placeMark, rotationMark } from './player-place';
 
 const base: PlaceChange = {
   change: 'gained',
@@ -44,5 +44,24 @@ describe('placeMark', () => {
     expect(placeMark(null)).toBeNull();
     expect(placeMark({ ...base, change: '' as never })).toBeNull();
     expect(placeMark({ ...base, on: '' })).toBeNull();
+  });
+});
+
+describe('rotationMark', () => {
+  it('says the two things the operator asked for, and carries its own measurement', () => {
+    const mark = rotationMark({ minutes: 27.6, starts: 1, from: '2025-08-16', to: '2025-09-21' })!;
+    expect(mark.flag).toBe('rotation_risk');
+    expect(mark.note).toContain('28 minuti');
+    expect(mark.note).toContain('1 partita da titolare');
+    expect(mark.note).toContain('non è il titolare e non ha minutaggio');
+    // a screen is a reason to look and never a certainty: the note says how often it is right
+    expect(mark.note).toContain('90,4%');
+    expect(mark.note).toContain('Uno su dieci diventa titolare davvero');
+  });
+
+  it('is null on a sheet that has no season to read yet', () => {
+    // Pre-season: the columns are empty by construction, and an empty column is not a clean bill.
+    expect(rotationMark(null)).toBeNull();
+    expect(rotationMark({ minutes: null, starts: null, from: null, to: null })).toBeNull();
   });
 });

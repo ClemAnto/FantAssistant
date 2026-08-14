@@ -37,6 +37,28 @@ export type PlaceCause =
   /** Non era fra i convocati, e nessuno spell lo spiega. */
   | 'out_of_squad';
 
+/**
+ * IL SECONDO FATTO SULLA MAGLIA, e ha una forma diversa dal primo: venduto come titolare, ruotato di
+ * fatto. Non c'è nessun gradino da trovare — Lewandowski 2025-26 gioca ogni settimana (14, 12, 22, 90,
+ * 25, 90, 90, 16, 90...) e semplicemente non è il titolare — quindi il changepoint sopra non vede
+ * niente mentre al tavolo si perdono punti ogni domenica.
+ *
+ * MISURATO chiamando la funzione che spedisce, su quattro stagioni e le cinque leghe: 3.711 letture,
+ * 471 segnalate (12,7%), **precisione 90,4% contro una base del 59,5%** — 1,52x. Nove su dieci di
+ * quelli segnalati chiudono il resto della stagione sotto i 60 minuti a partita del club; il decimo
+ * diventa titolare davvero, ed è per questo che è un marchio e non un numero.
+ *
+ * Legge la stagione CHE SI STA GIOCANDO ed è muto finché non ce n'è una: cinque giornate dietro e otto
+ * ancora davanti. Su un foglio pre-stagione la colonna è vuota per costruzione.
+ */
+export interface RotationWatch {
+  /** Media minuti sulle ultime cinque del club, e quante ne ha iniziate. */
+  minutes: number | null;
+  starts: number | null;
+  from: string | null;
+  to: string | null;
+}
+
 export interface PlaceChange {
   change: 'gained' | 'lost';
   /** Il giorno in cui il posto cambia di mano, e la giornata reale di quel giorno. */
@@ -78,5 +100,21 @@ export function placeMark(place: PlaceChange | null | undefined): PlayerMark | n
   return {
     flag: place.change === 'gained' ? 'place_gained' : 'place_lost',
     note: `${what} ${when}${how}${why}${caveat}.`,
+  };
+}
+
+/** «Preso per titolare, ruotato di fatto»: il marchio, con la misura che lo giustifica addosso. */
+export function rotationMark(watch: RotationWatch | null | undefined): PlayerMark | null {
+  if (!watch || watch.minutes == null) return null;
+  const starts = watch.starts ?? 0;
+  const window = watch.from && watch.to ? ` (${day(watch.from)}–${day(watch.to)})` : '';
+  return {
+    flag: 'rotation_risk',
+    note:
+      `Quotato fra i primi del suo ruolo, ma sulle ultime 5 di campionato del suo club ha una media di ` +
+      `${watch.minutes.toFixed(0)} minuti con ${starts} ${starts === 1 ? 'partita' : 'partite'} da ` +
+      `titolare${window} — non è il titolare e non ha minutaggio. Misurato su 4 stagioni: il 90,4% di ` +
+      `chi si legge così chiude il resto della stagione sotto i 60 minuti a partita, contro il 59,5% ` +
+      `di chi non lo fa (1,52x). Uno su dieci diventa titolare davvero.`,
   };
 }

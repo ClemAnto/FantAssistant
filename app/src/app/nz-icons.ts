@@ -2,6 +2,7 @@ import { IconDefinition } from '@ant-design/icons-angular';
 import {
   AimOutline,
   CalendarOutline,
+  ClockCircleOutline,
   CoffeeOutline,
   DisconnectOutline,
   FallOutline,
@@ -27,6 +28,7 @@ import {
 export const NZ_ICONS: IconDefinition[] = [
   AimOutline,
   CalendarOutline,
+  ClockCircleOutline,
   CoffeeOutline,
   DisconnectOutline,
   FallOutline,

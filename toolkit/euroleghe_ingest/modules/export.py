@@ -216,6 +216,13 @@ SHEET_COLUMNS: tuple[str, ...] = (
     "desc_place_minutes",
     "desc_place_cause",
     "desc_place_who",
+    # ...and the in-season screen: sold as a starter, rotated in fact. Empty until five rounds have been
+    # played, which is what it reads.
+    "desc_rotation_watch",
+    "desc_rotation_minutes",
+    "desc_rotation_starts",
+    "desc_rotation_from",
+    "desc_rotation_to",
 )
 
 

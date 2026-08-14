@@ -1228,6 +1228,39 @@ def season_fixtures(conn, season: str, resolve, before: str | None = None) -> di
     return out
 
 
+def his_season(fc_id: int, season: str, fixtures: dict[str, list[tuple]],
+               belongs: dict[int, dict[str, set[str]]],
+               spans: dict[int, dict[str, list[str]]]) -> list[tuple]:
+    """One man's championship fixtures for a season, oldest first: (date, match_id, real_md).
+
+    A club's calendar is his only WHILE he was there. The bound is his own first and last appearance
+    for it, and it is applied ONLY to a man who really played for two clubs that season (123 of 1,692
+    on 2025-26): for everybody else it would cut off exactly the rounds a place is won in - the four
+    Milan matches before Bartesaghi's first are the evidence, not noise.
+
+    ONE definition, because two readings of «his season» - who lost a place, and who is being rotated -
+    would eventually disagree about which matches were his, and the first place anybody would notice is
+    a table.
+    """
+    clubs = {key for key, seasons in (belongs.get(fc_id) or {}).items() if season in seasons}
+    if not clubs:
+        return []
+    played_at = spans.get(fc_id, {})
+    bounded = len([club for club in played_at if club in clubs]) > 1
+    window: list[tuple] = []
+    seen: set[str] = set()
+    for club in clubs:
+        span = played_at.get(club) if bounded else None
+        for date, match_id, real_md in fixtures.get(club, ()):
+            if span and not (span[0] <= date <= span[1]):
+                continue
+            if match_id not in seen:
+                seen.add(match_id)
+                window.append((date, match_id, real_md))
+    window.sort()
+    return window
+
+
 def _changepoint(minutes: list[float]) -> tuple[int, float, float] | None:
     """The split that best separates his season in two, or None. (index, before, after) in minutes.
 
@@ -1317,26 +1350,9 @@ def place_changes(conn, season: str, observations, squads: dict[int, str],
 
     out: dict[int, dict] = {}
     for obs in observations:
-        clubs = {key for key, seasons in (belongs.get(obs.fc_id) or {}).items() if season in seasons}
-        if not clubs:
+        window = his_season(obs.fc_id, season, fixtures, belongs, spans)
+        if not window:
             continue
-        # A club's calendar is his only WHILE he was there. The bound is his own first and last
-        # appearance for it, and it is applied ONLY to a man who really played for two clubs that
-        # season: for everybody else it would cut off exactly the rounds a place was won in - the
-        # four Milan matches before Bartesaghi's first are the evidence, not noise.
-        played_at = spans.get(obs.fc_id, {})
-        bounded = len([club for club in played_at if club in clubs]) > 1
-        window: list[tuple] = []
-        seen: set[str] = set()
-        for club in clubs:
-            span = played_at.get(club) if bounded else None
-            for date, match_id, real_md in fixtures.get(club, ()):
-                if span and not (span[0] <= date <= span[1]):
-                    continue
-                if match_id not in seen:
-                    seen.add(match_id)
-                    window.append((date, match_id, real_md))
-        window.sort()
         played = [float(minutes_of.get(obs.fc_id, {}).get(match_id, 0)) for _d, match_id, _md in window]
         change = _changepoint(played)
         if change is None:
@@ -1416,6 +1432,179 @@ def place_changes(conn, season: str, observations, squads: dict[int, str],
 
 def _days_after(day: str, days: int) -> str:
     return (dt.date.fromisoformat(day) + dt.timedelta(days=days)).isoformat()
+
+
+# ---------- «he was sold as a starter and he is not one» (the operator's Lewandowski case) ----------
+# CALIBRATED, not chosen (14/08/2026, four seasons x the five leagues): the window is the last five
+# rounds OF HIS CLUB, the man is flagged when he averages under 45 minutes a match AND started at most
+# one of them, and the pool is the top 15% of his role BY QUOTATION - which is what «sold as a starter»
+# means, and the pool is part of the measurement.
+#
+# THE NUMBERS ARE THE SHIPPED FUNCTION'S OWN, and that correction is the interesting half. A first
+# calibration walked each man's own ROWS and read 84.5% precision against a 34.9% base (2.42x); this
+# function walks his CLUB'S FIXTURES and counts the rounds he missed as zero, which is a different
+# window and a different denominator. Re-measured by calling `rotation_watch` itself at six dates of
+# each season and scoring what it returned: 3,711 readings, 471 flagged (12.7%), precision 90.4%
+# against a base of 59.5% - a lift of 1.52x. Per season 91.0% / 95.9% / 86.7% / 87.3%. Nine of ten
+# flagged men really end the rest of the season under 60 minutes a club match; the tenth becomes a
+# starter after all, which is why this is a mark and not a number.
+#
+# Declared rather than tuned away: the screen WEAKENS as the season closes (the last reading of 2025-26
+# is 70.0% against a 72.0% base, i.e. nothing at all), because with eight rounds left almost everybody
+# in the pool is under the bar. `ROTATION_LEFT` was fixed by the calibration and is not moved after
+# seeing that curve - widening a grid because a case fell on it is the other way of fitting.
+#
+# The case it was built from: Lewandowski 2025-26 fires at round 5 (27.6 minutes and one start over
+# Barcelona's last five) and again mid-season, after a 2024-25 of 32 starts in 36 and 74 minutes.
+ROTATION_WINDOW = 5           # rounds of his club, the most recent ones
+ROTATION_MINUTES = 45.0       # mean minutes a match under which the reading fires
+ROTATION_STARTS = 1           # ...and at most this many starts inside the window
+ROTATION_POOL = 85.0          # percentile of his own listone role: «sold as a starter»
+# The outcome the screen was scored against - a DISPLAY definition of «not a starter», stated so nobody
+# reads the mark as being about anything else.
+ROTATION_OUTCOME = 60
+# ...and it says nothing about a season that is nearly over: the screen was measured predicting the REST
+# of a season, and the calibration required at least this many rounds still to play.
+ROTATION_LEFT = 8
+
+
+def role_percentiles(observations) -> dict[int, float]:
+    """{fc_id: the percentile of his pre-auction quotation INSIDE HIS ROLE, on this sheet's listone}.
+
+    The Qt.I and nothing else: it is the only auction-safe price (the FVM moves with the season) and it
+    is the market's own reading of «he will be a starter» - which is exactly the claim the rotation
+    screen tests. Ties share the average rank, and a role with fewer than twenty quoted men is not a
+    distribution, so nobody in it gets a percentile at all.
+    """
+    pools: dict[str, list[tuple[int, float]]] = {}
+    for obs in observations:
+        price = getattr(obs, "price_initial", None)
+        role = (getattr(obs, "role_classic", None) or "").upper()
+        if price and role:
+            pools.setdefault(role, []).append((obs.fc_id, float(price)))
+    out: dict[int, float] = {}
+    for group in pools.values():
+        if len(group) < 20:
+            continue
+        order = sorted(range(len(group)), key=lambda at: group[at][1])
+        index = 0
+        while index < len(order):
+            last = index
+            while last + 1 < len(order) and group[order[last + 1]][1] == group[order[index]][1]:
+                last += 1
+            rank = (index + last) / 2 + 1
+            for at in range(index, last + 1):
+                out[group[order[at]][0]] = 100 * (rank - 0.5) / len(group)
+            index = last + 1
+    return out
+
+
+def rotation_watch(conn, season: str, observations, belongs: dict[int, dict[str, set[str]]],
+                   prices: dict[int, float], before: str | None = None) -> dict[int, dict]:
+    """Who was bought as a starter and is being ROTATED, once the season has been played a little.
+
+    This is the operator's own case (14/08/2026): a man «indicato all'inizio come titolare» who is not
+    one in fact - and the shape is not the one item 6 looks for. Lewandowski 2025-26 has no step down to
+    find: he plays every week (14, 12, 22, 90, 25, 90, 90, 16, 90...) and is simply not the starter, so
+    a changepoint over a whole season reads nothing while the table loses points every Sunday.
+
+    THE READING IS OF THE SEASON BEING PLAYED, and it is silent until there is one. Five rounds have to
+    be behind it and eight still to come - the calibration measured it predicting the REST of a season,
+    and a mark that fired in August, or on the last day of May, would be making a claim nobody scored.
+    Consequence to state rather than treat as a gap: on a PRE-SEASON sheet this column is empty by
+    construction, which is the same thing item 4.4 measured from the other side - what pays after
+    kick-off is the appearances everybody can see.
+    """
+    resolve = club_index(conn)
+    fixtures = season_fixtures(conn, season, resolve, before)
+    # HOW LONG THE CHAMPIONSHIP IS, and it must not be read off the fixtures above: those are filtered
+    # to the sheet's own date, so counting them says «five rounds played, five rounds long» and the
+    # «enough left to play» guard rejects everybody. Found by calling the function on the case it was
+    # built from and getting a uniform zero - which is far more often a wrong quantity than a real hole.
+    length: dict[str, int] = {}
+    for club, rounds in conn.execute(
+            f"""SELECT club, MAX(real_md) FROM external_match_stats
+                WHERE season = ? AND source = 'sofascore' AND competition IN ({_LEAGUE_IN})
+                GROUP BY club""", (season, *LEAGUE_COMPETITIONS)):
+        key, _name = resolve(club)
+        if key and rounds:
+            length[key] = max(length.get(key, 0), int(rounds))
+    minutes_of: dict[int, dict[str, int]] = {}
+    spans: dict[int, dict[str, list[str]]] = {}
+    for fc_id, match_id, minutes, club, date in conn.execute(
+            f"""SELECT fc_id, match_id, COALESCE(minutes, 0), club, match_date
+                FROM external_match_stats
+                WHERE season = ? AND source = 'sofascore' AND competition IN ({_LEAGUE_IN})""",
+            (season, *LEAGUE_COMPETITIONS)):
+        minutes_of.setdefault(fc_id, {})[str(match_id)] = minutes
+        if minutes and club and date:
+            key, _name = resolve(club)
+            if key:
+                span = spans.setdefault(fc_id, {}).setdefault(key, [date, date])
+                span[0], span[1] = min(span[0], date), max(span[1], date)
+    started_in = {(fc_id, str(match_id)) for fc_id, match_id in conn.execute(
+        f"""SELECT fc_id, match_id FROM external_match_stats
+            WHERE season = ? AND source = 'sofascore' AND started = 1
+              AND competition IN ({_LEAGUE_IN})""", (season, *LEAGUE_COMPETITIONS))}
+    spells: dict[int, list[tuple[str, str]]] = {}
+    for fc_id, start, end in conn.execute(
+            "SELECT fc_id, start_date, COALESCE(end_date, '9999-12-31') FROM injuries "
+            "WHERE start_date IS NOT NULL"):
+        spells.setdefault(fc_id, []).append((start, end))
+    # The pool is part of the measurement: his quotation's percentile INSIDE HIS ROLE, on the listone
+    # this sheet is built for. A man the market did not sell as a starter cannot fail to be one.
+    out: dict[int, dict] = {}
+    for obs in observations:
+        if prices.get(obs.fc_id, 0.0) < ROTATION_POOL:
+            continue
+        window = his_season(obs.fc_id, season, fixtures, belongs, spans)
+        if len(window) < ROTATION_WINDOW:
+            continue
+        # ...and enough of the season still to come for the reading to be about anything: the last
+        # round he has played against the length of HIS OWN championship (34 in the Bundesliga and
+        # Ligue 1, 38 elsewhere - never one number for everybody).
+        his = {key for key, seasons in (belongs.get(obs.fc_id) or {}).items() if season in seasons}
+        rounds = max((length.get(club, 0) for club in his), default=0)
+        if rounds - (window[-1][2] or len(window)) < ROTATION_LEFT:
+            continue
+        recent = window[-ROTATION_WINDOW:]
+        minutes = [float(minutes_of.get(obs.fc_id, {}).get(match_id, 0))
+                   for _d, match_id, _md in recent]
+        starts = sum(1 for _d, match_id, _md in recent if (obs.fc_id, match_id) in started_in)
+        mean = sum(minutes) / len(minutes)
+        if mean >= ROTATION_MINUTES or starts > ROTATION_STARTS:
+            continue
+        # A man who spent that window INJURED is not a man being rotated. The screen scores the same
+        # either way (86.3% against 85.7% with the injured rounds taken out, so the outcome does not
+        # depend on it), but the SENTENCE would be false and he already carries the injury mark - and
+        # two marks saying two different things about the same five matches is how a table stops
+        # trusting both.
+        hurt = sum(1 for date, _match, _md in recent
+                   if any(start <= date <= end for start, end in spells.get(obs.fc_id, ())))
+        if hurt * 2 > len(recent):
+            continue
+        season_minutes = sum(float(minutes_of.get(obs.fc_id, {}).get(match_id, 0))
+                             for _d, match_id, _md in window) / len(window)
+        season_starts = sum(1 for _d, match_id, _md in window
+                            if (obs.fc_id, match_id) in started_in)
+        out[obs.fc_id] = {
+            "minutes": round(mean, 1),
+            "starts": starts,
+            "window": ROTATION_WINDOW,
+            "from": recent[0][0],
+            "to": recent[-1][0],
+            "season_minutes": round(season_minutes, 1),
+            "season_starts": f"{season_starts}/{len(window)}",
+            "note": (f"He was quoted in the top {100 - ROTATION_POOL:.0f}% of his role and over his "
+                     f"club's last {ROTATION_WINDOW} rounds he averaged {mean:.0f} minutes with "
+                     f"{starts} start{'s' if starts != 1 else ''} - {season_starts} of {len(window)} "
+                     f"and {season_minutes:.0f} minutes a match on the season so far. MEASURED on four "
+                     f"seasons by scoring this very screen: 90.4% of the men who read like this ended "
+                     f"the rest of the season under {ROTATION_OUTCOME} minutes a club match, against "
+                     f"59.5% of the pool that did not trip it (1.52x) - a reason to look, and one in "
+                     f"ten becomes a starter after all."),
+        }
+    return out
 
 
 _PLACE_SENTENCE: dict[str, str] = {
@@ -3118,6 +3307,12 @@ PLAYER_COLUMNS: tuple[str, ...] = (
     # `desc_place_note` says it in words, including what could NOT be checked - suspensions.
     "desc_place_change", "desc_place_on", "desc_place_md", "desc_place_minutes", "desc_place_sample",
     "desc_place_cause", "desc_place_who", "desc_place_missed", "desc_place_note",
+    # ...and the screen for the man SOLD as a starter who is being rotated, over his club's last five
+    # rounds. CALIBRATED (84.5% of the flagged end under 60 minutes a club match against 34.9% of the
+    # pool, 2.42x on 15,897 readings) and EMPTY on a pre-season sheet by construction: it reads rounds
+    # that have to have been played first.
+    "desc_rotation_watch", "desc_rotation_minutes", "desc_rotation_starts", "desc_rotation_from",
+    "desc_rotation_to", "desc_rotation_note",
     "desc_squad_club", "desc_squad_source", "desc_real_role",
     # The granular real role: where on the pitch he belongs, in the twelve-code vocabulary.
     "desc_real_roles", "desc_real_role_primary", "desc_real_role_line", "desc_real_role_depth",
@@ -3328,6 +3523,7 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
         prediction = by_id.get(obs.fc_id)
         form = layers["form"].get(obs.fc_id, {})
         place = layers["place"].get(obs.fc_id, {})
+        rotation = layers["rotation"].get(obs.fc_id, {})
         injury = layers["injuries"].get(obs.fc_id, {})
         starter = layers["starters"].get(obs.fc_id, {})
         duel = layers["duels"].get(obs.fc_id, {})
@@ -3420,6 +3616,12 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             "desc_place_who": place.get("who"),
             "desc_place_missed": place.get("missed"),
             "desc_place_note": place.get("note"),
+            "desc_rotation_watch": "yes" if rotation else None,
+            "desc_rotation_minutes": rotation.get("minutes"),
+            "desc_rotation_starts": rotation.get("starts"),
+            "desc_rotation_from": rotation.get("from"),
+            "desc_rotation_to": rotation.get("to"),
+            "desc_rotation_note": rotation.get("note"),
             "desc_squad_club": layers["squads"].get(obs.fc_id),
             "desc_squad_source": layers["squad_sources"].get(obs.fc_id),
             # The role he was REALLY used in, from the provider's own slot per match (positions.
@@ -3829,14 +4031,20 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
     # The GRANULAR real role, read once: the sheet shows it, and the department control of `place_changes`
     # needs the LINE - a right back does not cover a centre back, and `role_classic` calls both D.
     role_detail = positions.roles_as_of(conn, window.auction_date, fallback=bool(date))
+    # ...and WHERE each man was, season by season: the two layers that walk his own season read it, and
+    # one walk means they cannot disagree about which matches were his.
+    belongs = player_clubs(conn, club_index(conn))
     progress.stage("layers")
     layers = {
         "form": form,
         # WHO TOOK A SHIRT during the measured season and who lost one, with the order between the day
         # the place changed and the day a spell opened. Reporting only: the predictive form of this
         # idea was measured on 14/08/2026 and came out at +0.049 over 8 instances, 6/8.
-        "place": place_changes(conn, measured, data.observations, squads,
-                               player_clubs(conn, club_index(conn)), role_detail, before),
+        "place": place_changes(conn, measured, data.observations, squads, belongs, role_detail, before),
+        # ...and who was SOLD as a starter and is being rotated, in the season being played. Empty on a
+        # pre-season sheet by construction: it reads rounds that have to exist first.
+        "rotation": rotation_watch(conn, measured, data.observations, belongs,
+                                   role_percentiles(data.observations), before),
         "squads": squads, "squad_sources": squad_sources,
         "injuries": injury_history(conn, window.auction_date, seasons, measured),
         "starters": starters,

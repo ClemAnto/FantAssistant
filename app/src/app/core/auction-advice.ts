@@ -32,7 +32,7 @@ import {
   startingPlaces,
 } from './auction-plan';
 import { Board, BoardsFile, Bundle, EngineSheetEntry } from './bundle';
-import { PlaceChange, placeMark } from './player-place';
+import { PlaceChange, RotationWatch, placeMark, rotationMark } from './player-place';
 import { MACRO_ROLE, ScreenInput, screenMark, screensFor, windowOf } from './player-screens';
 import { PlayerMark, PlayerStatus } from './player-status';
 import { PlayerTrend, isKnownAbsence, parseTrend, trendScores } from './player-trend';
@@ -155,6 +155,8 @@ export class AuctionAdvice {
   private readonly trends = signal<Map<number, PlayerTrend>>(new Map());
   /** ...and who gained or lost a place during the measured season, from the same sheet. */
   private readonly places = signal<Map<number, PlaceChange>>(new Map());
+  /** ...and who is being ROTATED in the season being played. Empty on a pre-season sheet. */
+  private readonly rotations = signal<Map<number, RotationWatch>>(new Map());
 
   /**
    * The DRAWN BOARDS of the sheet in use: the toolkit's own, not a second eleven computed here.
@@ -239,6 +241,12 @@ export class AuctionAdvice {
     const out = new Map<number, PlayerMark>();
     for (const [id, place] of this.places()) {
       const mark = placeMark(place);
+      if (mark) out.set(id, mark);
+    }
+    // The rotation watch goes in the SAME map and wins where both exist: «he is being rotated right
+    // now» is a state of this season, and it outranks what happened to his shirt in the last one.
+    for (const [id, watch] of this.rotations()) {
+      const mark = rotationMark(watch);
       if (mark) out.set(id, mark);
     }
     return out;
@@ -840,6 +848,7 @@ export class AuctionAdvice {
       const measured = await this.readMeasuredWindows(chosen);
       this.trends.set(measured.trends);
       this.places.set(measured.places);
+      this.rotations.set(measured.rotations);
       // The boards of THIS sheet, by the path the manifest itself declares - never a guessed file name.
       this.boards.set(chosen.boards ? await this.bundle.boards(chosen.boards) : null);
       this.crests.set((await this.bundle.crests().catch(() => null)) ?? {});
@@ -946,7 +955,11 @@ export class AuctionAdvice {
    */
   private async readMeasuredWindows(
     sheet: EngineSheetEntry,
-  ): Promise<{ trends: Map<number, PlayerTrend>; places: Map<number, PlaceChange> }> {
+  ): Promise<{
+    trends: Map<number, PlayerTrend>;
+    places: Map<number, PlaceChange>;
+    rotations: Map<number, RotationWatch>;
+  }> {
     try {
       const table = await this.bundle.table(sheet.path.replace(/\.json(\.gz)?$/, ''));
       const at = (name: string) => table.columns.indexOf(name);
@@ -960,6 +973,25 @@ export class AuctionAdvice {
         cause: at('desc_place_cause'),
         who: at('desc_place_who'),
       };
+      const rotation = {
+        watch: at('desc_rotation_watch'),
+        minutes: at('desc_rotation_minutes'),
+        starts: at('desc_rotation_starts'),
+        from: at('desc_rotation_from'),
+        to: at('desc_rotation_to'),
+      };
+      const rotations = new Map<number, RotationWatch>();
+      if (id >= 0 && rotation.watch >= 0) {
+        for (const row of table.rows) {
+          if (!row[rotation.watch]) continue;
+          rotations.set(Number(row[id]), {
+            minutes: (row[rotation.minutes] as number) ?? null,
+            starts: (row[rotation.starts] as number) ?? null,
+            from: (row[rotation.from] as string) ?? null,
+            to: (row[rotation.to] as string) ?? null,
+          });
+        }
+      }
       const places = new Map<number, PlaceChange>();
       if (id >= 0 && place.change >= 0) {
         for (const row of table.rows) {
@@ -976,7 +1008,7 @@ export class AuctionAdvice {
         }
       }
       // a bundle older than the column: no strip and no claim, and the places above may still be there
-      if (id < 0 || detail < 0) return { trends: new Map(), places };
+      if (id < 0 || detail < 0) return { trends: new Map(), places, rotations };
       const out = new Map<number, PlayerTrend>();
       for (const row of table.rows) {
         const matches = parseTrend(row[detail] as string | null);
@@ -1004,10 +1036,10 @@ export class AuctionAdvice {
           outsideEuro,
         });
       }
-      return { trends: out, places };
+      return { trends: out, places, rotations };
     } catch {
       // An older bundle without the sheet columns: the strip is simply not drawn.
-      return { trends: new Map(), places: new Map() };
+      return { trends: new Map(), places: new Map(), rotations: new Map() };
     }
   }
 

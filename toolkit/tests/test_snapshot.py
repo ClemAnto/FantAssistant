@@ -388,7 +388,9 @@ def _place_seed(conn, minutes_by_round: dict[int, int | None], mate: dict | None
                 "INSERT INTO external_match_stats(fc_id, season, source, match_id, competition, "
                 "match_date, real_md, club, minutes, started) "
                 "VALUES (1, '2024-25', 'sofascore', ?, 'serie_a', ?, ?, 'Inter', ?, ?)",
-                (f"r{round_number}", date, round_number, minutes or None, 1 if minutes else 0))
+                # a CAMEO is not a start, and the difference is the whole point of the screen below
+                (f"r{round_number}", date, round_number, minutes or None,
+                 1 if minutes >= 60 else 0))
         if mate:
             conn.execute(
                 "INSERT INTO external_match_stats(fc_id, season, source, match_id, competition, "
@@ -501,6 +503,89 @@ def test_a_january_transfer_is_not_a_place_lost(tmp_path):
                 (f"m{round_number}", date, round_number))
     conn.commit()
     assert _place_of(conn) is None, "he started every match of both halves: nothing changed hands"
+
+
+def _rotation_of(conn, minutes_by_round, price=40.0, before=None, spell=None, seed=True):
+    """The screen, driven the way the sheet drives it. `minutes_by_round`: None = no row at all."""
+    if seed:
+        _place_seed(conn, minutes_by_round)
+        if spell:
+            conn.execute("INSERT INTO injuries(fc_id, start_date, end_date, kind, days_out, "
+                         "matches_missed, source) VALUES (1, ?, ?, 'muscular', 30, 5, "
+                         "'transfermarkt')", spell)
+        conn.commit()
+
+    class Obs:
+        def __init__(self, fc_id, price_initial):
+            self.fc_id, self.price_initial = fc_id, price_initial
+            self.name, self.club_target, self.role_classic = f"p{fc_id}", "Inter", "A"
+
+    # a role pool of twenty, so a percentile exists at all, with our man at the top
+    observations = [Obs(1, price)] + [Obs(100 + i, 1.0 + i) for i in range(20)]
+    prices = snapshot.role_percentiles(observations)
+    belongs = snapshot.player_clubs(conn, snapshot.club_index(conn))
+    return snapshot.rotation_watch(conn, "2024-25", observations, belongs, prices, before), prices
+
+
+def test_the_rotation_screen_fires_on_a_man_who_plays_every_week_and_never_starts(tmp_path):
+    """The operator's Lewandowski case, and it is a DIFFERENT shape from a place lost.
+
+    There is no step to find: he plays every round (14, 12, 22, 90, 25, 90...) and is simply not the
+    starter, so a changepoint over a season reads nothing while the table loses points every Sunday.
+    What fires is a reading of the CLUB's last five rounds - under 45 minutes a match and at most one
+    start - inside the pool that was sold as a starter, which is the top of his role by quotation.
+    """
+    ctx = _ctx(tmp_path)
+    conn = ctx.conn
+    _seed(conn)
+    # cameo, cameo, cameo, one start, cameo... over twenty rounds, so eight are still to play
+    rotated = {round_number: (90 if round_number % 4 == 0 else 15) for round_number in range(1, 21)}
+    flagged, prices = _rotation_of(conn, rotated, before="2025-09-06")
+    assert prices[1] > snapshot.ROTATION_POOL, "he is quoted at the top of his role"
+    watch = flagged.get(1)
+    assert watch, "five rounds under the bar with one start is what the screen is for"
+    assert watch["starts"] == 1 and watch["minutes"] < snapshot.ROTATION_MINUTES
+    assert "90.4%" in watch["note"], "the mark carries the measurement that justifies it"
+
+
+def test_the_rotation_screen_stays_silent_where_it_would_be_saying_something_else(tmp_path):
+    """Three silences, and each is a claim the data does not support.
+
+    A STARTER is not rotated. A man the market never sold as a starter cannot fail to be one - the pool
+    is part of the measurement, and the thresholds were calibrated inside it. And a man who spent that
+    window INJURED is not being rotated: the screen scores the same either way (86.3% against 85.7%),
+    so the guard costs no precision, and he already carries the injury mark - two marks saying two
+    different things about the same five matches is how a table stops trusting both.
+    """
+    for case, minutes, price, spell in (
+            ("a starter", {n: 90 for n in range(1, 21)}, 40.0, None),
+            ("nobody sold him as a starter",
+             {n: (90 if n % 4 == 0 else 15) for n in range(1, 21)}, 0.5, None),
+            ("he was hurt", {n: (90 if n % 4 == 0 else 15) for n in range(1, 21)}, 40.0,
+             ("2025-08-25", "2025-09-30"))):
+        ctx = _ctx(tmp_path / case.replace(" ", "-"))
+        conn = ctx.conn
+        _seed(conn)
+        flagged, _prices = _rotation_of(conn, minutes, price=price, before="2025-09-06", spell=spell)
+        assert 1 not in flagged, f"it must not fire when {case}"
+
+
+def test_the_rotation_screen_says_nothing_about_a_season_that_has_not_been_played(tmp_path):
+    """It reads rounds, so before there are any it is EMPTY - and it stops when the season is closing.
+
+    Both ends are the calibration's own: the screen was measured predicting the REST of a season, so a
+    mark in August (nothing behind it) or in May (nothing in front) would be a claim nobody scored.
+    On a pre-season sheet this column is therefore empty by construction, which is the same thing item
+    4.4 measured from the other side - what pays after kick-off is the appearances everybody can see.
+    """
+    ctx = _ctx(tmp_path)
+    conn = ctx.conn
+    _seed(conn)
+    rotated = {round_number: (90 if round_number % 4 == 0 else 15) for round_number in range(1, 21)}
+    early, _prices = _rotation_of(conn, rotated, before="2025-09-03")
+    assert 1 not in early, "four rounds are not five: no reading yet"
+    late, _prices = _rotation_of(conn, rotated, before="2025-10-09", seed=False)
+    assert 1 not in late, "with fewer than eight rounds left the screen was never scored"
 
 
 def test_the_vote_cascade_is_declared_and_a_keeper_is_not_guessed():

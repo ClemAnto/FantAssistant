@@ -3896,6 +3896,10 @@ class SnapshotView(ttk.Frame):
         # carries the department control that says whether he won it or merely stood in for somebody.
         ("↑", "he GAINED a place during the season"),
         ("↓", "he LOST his place during the season"),
+        # ...and the one that fires WHILE the season is being played: bought as a starter, rotated in
+        # fact. A different shape from the two arrows above - no step to find, just a man who plays
+        # every week and never starts - and the mark that would have caught the operator's own case.
+        ("◑", "sold as a starter and being ROTATED right now"),
     )
 
     # Whether a data-recovery run is in flight, so the mark says «being fetched» instead of «missing».
@@ -3975,6 +3979,7 @@ class SnapshotView(ttk.Frame):
             bool(row.get("desc_left_for")),
             row.get("desc_place_change") == "gained",
             row.get("desc_place_change") == "lost",
+            bool(row.get("desc_rotation_watch")),
         )
         icons = "".join(icon for (icon, _why), on in zip(self.FLAG_ICONS, present, strict=True) if on)
         words = []
@@ -4001,6 +4006,8 @@ class SnapshotView(ttk.Frame):
                 # The whole sentence, control included: the icon says WHAT and the note says whether
                 # he won the shirt or was standing in for somebody who was hurt.
                 extra = f" - {row.get('desc_place_note') or ''}"
+            elif icon == "◑":
+                extra = f" - {row.get('desc_rotation_note') or ''}"
             words.append(f"{icon}  {why}{extra}")
         return icons, "\n".join(words)
 

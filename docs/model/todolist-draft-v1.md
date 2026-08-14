@@ -218,6 +218,35 @@ un'idea, leggere «cosa è già stato respinto» in fondo.
   una data (`snapshot --date`); quello che manca è che il pv incorpori le presenze osservate. Tocca
   `engine_*`, quindi **gate**.
 
+## 7. «Preso per titolare, ruotato di fatto» (caso Lewandowski, operatore 14/08/2026) — CHIUSO
+
+Nato da un secondo caso dell'anno scorso: **Lewandowski, dato titolare a inizio anno e titolare non è
+stato**. L'operatore chiede un'icona che, dopo un tot di giornate di incostanza, dica che non è il
+titolare e non ha minutaggio. Numeri e costruzione: spec «Novità v9.52»; cosa mostra:
+[assistente-asta-v1.md](assistente-asta-v1.md) §30.
+
+- [x] **7.1 — È una forma diversa da quella dell'item 6.** Non c'è nessun gradino da trovare: `14 12 22
+  90* 25 90* 90* 16 90*…` — gioca ogni settimana e non è il titolare (17 su 35 e 47 minuti nel 2025-26,
+  contro 32 su 36 e 74 minuti nel 2024-25). Il changepoint dell'item 6 su una serie così legge zero.
+- [x] **7.2 — La regola è CALIBRATA, non scelta**: ultime 5 giornate del CLUB, sotto i 45 minuti di media
+  e al più una da titolare, dentro il pool dei quotati nel top 15% del proprio ruolo. Il pool è parte
+  della misura: chi il mercato non ha venduto come titolare non può fallire di esserlo.
+- [x] **7.3 — I numeri sono quelli della funzione che spedisce.** Una prima calibrazione scorreva le
+  RIGHE di ciascun uomo (84,5% contro 34,9%, 2,42x); la funzione vera scorre i FIXTURE del suo club e
+  conta come zero le giornate saltate. Rimisurata chiamandola a sei date di ogni stagione: **3.711
+  letture, 471 segnalati, precisione 90,4% contro una base del 59,5% — 1,52x**, per stagione 91,0% /
+  95,9% / 86,7% / 87,3%. Una soglia misurata su una finestra e applicata a un'altra è il difetto che
+  questo progetto ha già pagato: qui è stato trovato prima di spedirlo, e solo perché la misura è stata
+  rifatta chiamando il codice.
+- [x] **7.4 — Due silenzi.** Chi era infortunato in quella finestra non è «ruotato» (lo screen punteggia
+  uguale, 86,3% contro 85,7%, quindi la guardia non costa precisione — costa una frase falsa in meno), e
+  chi non era quotato come titolare non entra.
+- [x] **7.5 — Legge la stagione che si gioca, e lo dice.** Cinque giornate dietro e otto davanti: su un
+  foglio pre-stagione la colonna è **vuota per costruzione**, che è la stessa cosa misurata dall'item
+  4.4 dall'altro lato. Dichiarato e non corretto: lo screen si indebolisce a fine stagione (ultima
+  lettura del 2025-26: 70,0% contro una base del 72,0%), e la soglia non si muove dopo aver visto la
+  curva.
+
 ## 3. Consolidamenti rimasti aperti
 
 - [x] **3.1 — Il giro su CLASSIC.** Fatto su **dieci** finestre Serie A, e ha **corretto un'adozione di

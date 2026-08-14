@@ -495,6 +495,47 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.52 (14 agosto 2026, notte — «preso per titolare, ruotato di fatto»: il caso Lewandowski)
+
+`SHEET_REVISION` **17** (le sei colonne `desc_rotation_*` entrano con lo stesso stampo delle nove
+precedenti, stessa giornata), `engine_*` invariato, toolkit **383 → 385 test**, app **157 → 159**.
+
+**La domanda dell'operatore**: Lewandowski, dato titolare a inizio anno e titolare non è stato — e serve
+un'icona che, dopo un tot di giornate di incostanza, dica che non è il titolare e non ha minutaggio.
+
+**1. È una forma DIVERSA da quella dell'item 6, e per questo l'item 6 non lo vedeva.** Non c'è nessun
+gradino: 2025-26 legge `14 12 22 90* 25 90* 90* 16 90*…` — gioca ogni settimana e semplicemente non è il
+titolare (17 partenze su 35, **47 minuti a partita** contro le 32 su 36 e i **74 minuti** del 2024-25).
+Un changepoint su una serie così non scatta, mentre al tavolo si perdono punti ogni domenica.
+
+**2. La regola, CALIBRATA e non scelta**: finestra = le ultime **5 giornate del CLUB**, scatta sotto i
+**45 minuti di media** e con **al più una partita da titolare**, dentro il pool dei quotati nel **top 15%
+del proprio ruolo** — che è cosa vuol dire «venduto come titolare», e il pool è parte della misura.
+
+**3. I numeri sono quelli della FUNZIONE CHE SPEDISCE, e la correzione è la metà interessante.** Una
+prima calibrazione scorreva le RIGHE di ciascun uomo e leggeva 84,5% di precisione contro una base del
+34,9% (2,42x); la funzione vera scorre i **fixture del suo club** e conta come zero le giornate che ha
+saltato — un'altra finestra e un altro denominatore. Rimisurata **chiamando `rotation_watch` a sei date
+di ogni stagione** e punteggiando quello che restituisce: **3.711 letture, 471 segnalati (12,7%),
+precisione 90,4% contro una base del 59,5% — 1,52x**. Per stagione 91,0% / 95,9% / 86,7% / 87,3%. Nove
+su dieci chiudono davvero il resto della stagione sotto i 60 minuti a partita del club; il decimo diventa
+titolare, ed è per questo che è un marchio e non un numero.
+
+**4. Due silenzi che sono altrettante affermazioni.** Chi era **infortunato** in quella finestra non è
+«ruotato»: lo screen punteggia uguale (86,3% contro 85,7%), quindi la guardia non costa precisione, e la
+FRASE sarebbe falsa mentre l'uomo porta già il marchio dell'infortunio — due marchi che dicono due cose
+diverse delle stesse cinque partite sono il modo di far smettere un tavolo di fidarsi di entrambi. E chi
+il mercato **non ha venduto come titolare** non può fallire di esserlo: la soglia è tarata dentro quel
+pool e fuori non vale.
+
+**5. Legge la stagione CHE SI GIOCA, e lo dice.** Cinque giornate dietro e otto ancora davanti, che sono
+i due estremi della calibrazione: su un foglio **pre-stagione la colonna è vuota per costruzione** — è la
+stessa cosa che l'item 4.4 aveva misurato dall'altro lato (dopo il fischio d'inizio quello che paga sono
+le presenze che vedono tutti). Dichiarato invece che corretto: lo screen **si indebolisce a fine
+stagione** (l'ultima lettura del 2025-26 è 70,0% contro una base del 72,0%, cioè niente), e
+`ROTATION_LEFT` non si muove dopo aver visto quella curva — allargare una griglia perché un caso ci cade
+sopra è l'altro modo di fittare.
+
 ## Novità v9.51 (14 agosto 2026, sera — chi ha guadagnato il posto e chi l'ha perso, col controllo sul reparto)
 
 `SHEET_REVISION` **16 → 17**: nove colonne `desc_place_*`. `engine_*` **invariato**, toolkit **380 → 383
