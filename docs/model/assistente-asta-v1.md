@@ -2120,3 +2120,48 @@ tiene i suoi 102px in 106 e il 0-99 le sta accanto. Nell'app la striscia è un c
 SVG) verificato **sulla geometria** e non a occhio - cinque test che leggono altezze, colori e posizioni,
 perché uno screenshot non dimostra che un'assenza non sia stata disegnata come una barra bassa. Quello che
 resta non verificato è la riga d'asta **dentro una sessione viva**: come per i campetti, serve un'asta seguita.
+
+## 29. Chi ha guadagnato il posto e chi l'ha perso, col controllo sul reparto (14 agosto 2026, sera)
+
+Item 6 di [todolist-draft-v1.md](todolist-draft-v1.md). Costruzione e numeri: spec **«Novità v9.51»**.
+
+### 29.1 Cosa dice l'icona, e perché ce ne sono due
+
+`↑` ha guadagnato il posto, `↓` l'ha perso — nel pannello Tk fra i flag, nell'app come marchio accanto al
+nome (`ui-flags`, la stessa pipeline dei marchi di infortunio, così una lista non può contraddirne un'altra).
+Il fatto è il GIORNO in cui i suoi minuti cambiano stabilmente durante la stagione misurata: media prima,
+media dopo, almeno cinque partite per lato e trenta minuti di scalino. Sulle 635 righe di Serie A sono **243
+cambi, 128 guadagnati e 115 persi**.
+
+### 29.2 Il controllo sul reparto, che è tutto il valore della cosa
+
+**Un uomo che gioca perché il titolare davanti a lui è rotto non ha vinto il posto**: torna indietro quando
+l'altro rientra, e al tavolo è una differenza che cambia un'offerta. Quindi il tooltip non dice «ha
+guadagnato il posto» e basta, dice **quale delle sei cose** è successa:
+
+| codice | cosa dice al tavolo |
+|---|---|
+| `front_injured` | è entrato mentre X era GIÀ fuori — il posto può tornare indietro |
+| `won_then_injury` | ha preso il posto PRIMA, X si è fatto male dopo: l'infortunio l'ha consolidato |
+| `won_it` | nessuno della sua linea era fuori quel giorno |
+| `own_injury` | l'ha perso perché era fuori lui |
+| `benched` | era DISPONIBILE e non schierato |
+| `fewer_minutes` | è ancora in squadra e gioca meno — che non è perdere la maglia |
+
+Il confronto è fra **DATE** e mai fra stagioni, ed è la ragione per cui l'item esisteva: il primo 90' di
+Bartesaghi è la giornata del 3-5 ottobre e la caviglia di Estupiñán è del 12. La sola co-occorrenza avrebbe
+detto «gioca perché manca Estupiñán», che è il contrario di quello che è successo. La LINEA è il ruolo
+granulare (`DL`, non `D`), perché un terzino destro non copre un centrale.
+
+### 29.3 Quello che NON si può controllare, detto invece che sottinteso
+
+Le **squalifiche**: `availability` è uno snapshot di due settimane e `reds` è 0 su tutto il 2025-26 nel layer
+per-partita. La nota di ogni riga dove la domanda si pone finisce con «le squalifiche non sono controllate»,
+che è diverso da «non era squalificato». È la stessa regola dei duelli e delle presenze: vuoto = ignoto.
+
+### 29.4 Perché è un'icona e non una colonna ordinabile
+
+Perché la forma predittiva è stata misurata e vale poco: «promozione nei minuti», controllando prezzo e
+minuti già visti, legge **+0,049 su 8 istanze, 6/8**. Mostrarlo è utile — è un fatto che l'operatore vuole
+vedere prima di puntare — e ordinarci sopra una valutazione no. Niente sotto `engine/` lo legge, non è una
+chiave di ordinamento e non entra in nessun undici.

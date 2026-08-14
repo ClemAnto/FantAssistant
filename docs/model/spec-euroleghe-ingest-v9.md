@@ -495,6 +495,54 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.51 (14 agosto 2026, sera — chi ha guadagnato il posto e chi l'ha perso, col controllo sul reparto)
+
+`SHEET_REVISION` **16 → 17**: nove colonne `desc_place_*`. `engine_*` **invariato**, toolkit **380 → 383
+test**, app **153 → 157**. È l'item **6** di [todolist-draft-v1.md](todolist-draft-v1.md), e come il 5 è
+**solo reporting**: la forma predittiva di questa idea è stata misurata lo stesso giorno («promozione nei
+minuti», controllando prezzo e minuti già visti) e legge **+0,049 su 8 istanze, 6/8** — debole e non
+stabile. Mostrarlo è utile, ordinarci sopra una valutazione no.
+
+**1. Il fatto: il GIORNO in cui i minuti di un uomo cambiano stabilmente.** Nessun fit e nessun parametro
+che qualcuno possa tarare dopo: la media dei minuti prima e dopo ogni possibile taglio, vince il salto
+più grande, con **almeno 5 partite per lato** e **30 minuti a partita** di scalino (soglie di DISPLAY,
+dichiarate). L'ordine è per DATA e mai per giornata — un rinvio fa arrivare la 16ª dopo la 20ª, ed è
+esattamente quello che il layer per-partita mostra per il Milan 2025-26. Misurato sulle 635 righe di Serie
+A: **243 cambi, 128 guadagnati e 115 persi**.
+
+**2. La parte che lo rende onesto è il CONTROLLO SUL REPARTO, e si fa sulle DATE.** «Un uomo che gioca
+perché il titolare davanti a lui è rotto non ha vinto il posto», e la differenza è che torna indietro
+quando l'altro rientra. La sola co-occorrenza risponde al contrario sul caso che l'operatore conosce: il
+primo 90' di Bartesaghi è la giornata del **3-5 ottobre** e la caviglia di Estupiñán è del **12** — il
+posto è cambiato una settimana PRIMA, l'infortunio l'ha consolidato. Quindi due frasi diverse
+(`front_injured` = lo spell era già aperto quel giorno · `won_then_injury` = si è aperto entro 30 giorni
+DOPO), e la LINEA è il ruolo **granulare** di `player_roles`, non il macro-ruolo: un terzino destro non
+copre un centrale, e `role_classic` li chiama entrambi D. Limite che viaggia con esso: il provider serve
+solo i codici di oggi, quindi la linea di un uomo misurato l'anno scorso è letta dai ruoli che ha ADESSO.
+
+**3. Il lato «perso» risponde alla domanda 6.6, e la risposta è sulla FINESTRA e non sul giorno.**
+Angeliño perde il posto la settimana di un'influenza di sei giorni, e quello che conta è che quindici
+giornate dopo non gioca ancora **senza nessuno spell a referto**: leggere il solo giorno del cambio
+risponde «influenza» e si ferma lì. Contando gli stati di tutte le partite dopo il taglio: `own_injury`
+(fuori per almeno metà di quelle saltate), **`benched`** (in panchina, sano — l'informazione che al tavolo
+cambia un'offerta), `out_of_squad`, e `fewer_minutes` per chi **gioca ancora e gioca meno**, che è un
+fatto diverso da perdere la maglia — la prima versione lo classificava «era fuori lui» per un uomo che
+aveva giocato 5 partite su 6.
+
+**4. Due difetti trovati guardando l'output, non il codice.** Il primo è quello appena detto. Il secondo è
+**il trasferimento di gennaio**: senza un vincolo, l'unione dei calendari dei suoi due club gli dà 76
+partite di cui metà giocate da una squadra in cui non era, e il changepoint cade sul giorno del
+trasferimento e lo chiama «ha perso il posto». Il calendario di un club è suo **solo mentre ci stava** —
+prima e ultima presenza per quel club — e il vincolo si applica **solo** a chi ha davvero giocato per due:
+per tutti gli altri taglierebbe via esattamente le giornate in cui un posto si conquista (le quattro
+partite del Milan prima della prima di Bartesaghi sono la prova, non rumore). Sono **123 giocatori su
+1.692** nel 2025-26, il 7,3%.
+
+**5. Le squalifiche NON sono controllate, e la nota lo dice** invece di sottintenderlo: `availability` è
+uno snapshot di due settimane del 2026 e `reds` è **0 su tutto il 2025-26** nel layer per-partita, quindi
+la squalifica di un compagno è invisibile. «Non guardato» è la parola onesta; «nessuna squalifica» sarebbe
+un'affermazione che il dato non può fare.
+
 ## Novità v9.50 (14 agosto 2026 — il TREND delle ultime dieci REALI, e la panchina che era già nel dato)
 
 `SHEET_REVISION` **15 → 16**: undici colonne nuove e due che si sdoppiano, quindi ogni cartella

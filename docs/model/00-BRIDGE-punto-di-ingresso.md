@@ -1,5 +1,5 @@
 # 00 — BRIDGE · Punto d'ingresso del progetto (leggere per primo)
-**Aggiornato: 14 agosto 2026, sera (il TREND delle ultime dieci REALI nel foglio, nel pannello e nell'app — e la panchina che era gia' nel dato)** · precedente: 10 agosto, notte tarda (la todolist del draft ESEGUITA, il campetto legge la board del toolkit ed e' rifinito, v0.1.8 pushata)** · precedente: 10 agosto, giorno (l'assistente d'asta e' completo — porte, surplus vivo, scelta consigliata — e la campagna sulle strategie di draft ha RITIRATO due conclusioni)** · precedente: 9 agosto (l'app esiste: Angular, pubblicata su GitHub Pages, legge il bundle del toolkit)** · 8 agosto (DUE GIUDICI per le formazioni tipo — la stampa e l'ESITO reale — e la todolist formazioni tipo chiusa: cinque adozioni, sei rifiuti misurati)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
+**Aggiornato: 14 agosto 2026, sera tardi (il TREND delle ultime dieci REALI e CHI HA GUADAGNATO IL POSTO: gli item 5 e 6 chiusi lo stesso giorno)** · precedente: 10 agosto, notte tarda (la todolist del draft ESEGUITA, il campetto legge la board del toolkit ed e' rifinito, v0.1.8 pushata)** · precedente: 10 agosto, giorno (l'assistente d'asta e' completo — porte, surplus vivo, scelta consigliata — e la campagna sulle strategie di draft ha RITIRATO due conclusioni)** · precedente: 9 agosto (l'app esiste: Angular, pubblicata su GitHub Pages, legge il bundle del toolkit)** · 8 agosto (DUE GIUDICI per le formazioni tipo — la stampa e l'ESITO reale — e la todolist formazioni tipo chiusa: cinque adozioni, sei rifiuti misurati)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
 
 ## Il progetto in breve
 Motore previsionale per fantacalcio **EuroLeghe** (fantacalcio.it): valutazione calciatori Classic e Mantra sui 5 grandi campionati europei (Serie A, Premier, Liga, Bundesliga, Ligue 1 — perimetro: i ~35 top club del gioco). Prevede fantamedia (FM), presenze attese e VALORE stagionale = FM × presenze. Metodo scientifico: **ogni regola entra nel motore solo se batte il baseline fuori campione su finestre indipendenti** (gate pre-registrato). Stato: core validato (Mantra, Classic, portieri, presenze); manca lo strato flag/arrivi, sbloccato dal toolkit dati `euroleghe-ingest` (in implementazione).
@@ -34,7 +34,29 @@ la pagina delle probabili non basta e quali vincoli valgono già oggi.
 
 Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
 
-### ULTIMO IN ORDINE DI TEMPO — 14/08/2026, sera: **il TREND delle ultime dieci REALI**, e la panchina che era già nel dato
+### ULTIMO IN ORDINE DI TEMPO — 14/08/2026, sera tardi: **chi ha guadagnato il posto e chi l'ha perso**
+
+Item **6** di [todolist-draft-v1.md](todolist-draft-v1.md) **chiuso** (6.1-6.6). Spec **«Novità v9.51»**,
+[assistente-asta-v1.md](assistente-asta-v1.md) **§29**. `SHEET_REVISION` 16 → **17** (nove colonne
+`desc_place_*`), `engine_*` invariato, toolkit **383 test**, app **157**.
+
+1. **Il fatto è un GIORNO**: quello in cui i minuti di un uomo cambiano stabilmente (media prima, media
+   dopo, cinque partite per lato, trenta minuti di scalino — soglie di display). 635 righe di Serie A:
+   **243 cambi, 128 guadagnati e 115 persi**.
+2. **Il controllo sul reparto si fa sulle DATE**, ed è tutto il valore della cosa: un uomo che gioca
+   perché il titolare davanti a lui è rotto **non ha vinto il posto**. La sola co-occorrenza risponde al
+   contrario sul caso dell'operatore — Bartesaghi prende il posto il 5 ottobre e la caviglia di Estupiñán
+   è del 12 — quindi due frasi diverse per due fatti diversi. La linea è il ruolo GRANULARE.
+3. **Il lato «perso» risponde sulla FINESTRA e non sul giorno**: Angeliño legge «era DISPONIBILE e non
+   schierato, in panchina per 20 delle 31 che ha saltato», che è la sua storia; guardando solo il giorno
+   del cambio la risposta sarebbe «influenza» (sei giorni) e si fermerebbe lì.
+4. **Due difetti trovati guardando l'OUTPUT**: «era fuori lui» detto di chi aveva giocato 5 partite su 6
+   (da cui `fewer_minutes` — giocare meno non è perdere la maglia), e il TRASFERIMENTO DI GENNAIO, che
+   senza vincolo dà 76 partite di cui metà di una squadra in cui non era e legge il trasferimento come una
+   panchina (7,3% dei giocatori di una stagione).
+5. **Le squalifiche non sono controllabili** e la nota lo dice invece di sottintenderlo.
+
+### 14/08/2026, sera: **il TREND delle ultime dieci REALI**, e la panchina che era già nel dato
 
 Costruzione e numeri in spec **«Novità v9.50»**, cosa il tavolo ci legge in
 [assistente-asta-v1.md](assistente-asta-v1.md) **§28**, item **5** di
@@ -65,8 +87,8 @@ Costruzione e numeri in spec **«Novità v9.50»**, cosa il tavolo ci legge in
    sue presenze dicono che ci ha giocato, e servono entrambe. **173 finestre su 1.085 cambiano, 99 guadagnano
    più di mezzo fantapunto a partita.**
 
-**Cosa resta aperto**, in ordine: item **6** (chi ha guadagnato o perso il posto, col controllo sul reparto
-per DATE), poi i vecchi **4.5**, **1.5b**, **2.2**.
+**Cosa resta aperto**, in ordine: i vecchi **4.5** (`engine_pv_pred` deve leggere le giornate giocate se
+l'asta e' a stagione iniziata — tocca `engine_*`, quindi GATE), **1.5b** e **2.2**.
 
 ### 14/08/2026: **chi ha sbagliato il mercato**, e tre refutazioni che valgono più delle adozioni
 

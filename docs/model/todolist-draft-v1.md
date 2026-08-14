@@ -372,31 +372,42 @@ quella misurata sulla finestra. Copertura del voto: **4.179 reali e 1.356 sintet
   presenze dicono che ci ha giocato: servono entrambe, o un infortunato di dieci mesi non ha finestra).
   Misurato: **173 finestre su 1.085 cambiano, 99 guadagnano più di mezzo fantapunto a partita.**
 
-## 6. Chi ha GUADAGNATO il posto e chi l'ha PERSO, col controllo sul reparto (operatore, 14/08/2026)
+## 6. Chi ha GUADAGNATO il posto e chi l'ha PERSO, col controllo sul reparto (operatore, 14/08/2026) — CHIUSO
 
 Due direzioni della stessa domanda, e la parte che le rende oneste è il controllo: **un uomo che gioca perché
 il titolare davanti a lui è rotto non è un uomo che ha vinto il posto**, e la differenza è tutta nel fatto che
 il primo torna indietro quando l'altro rientra.
 
-- [ ] **6.1 — L'aspettativa iniziale non va inventata: esiste già come numero.** `engine_pv_pred` sono le
+**Eseguito il 14/08/2026, sera** (spec «Novità v9.51», `SHEET_REVISION` 16 → **17**, nove colonne
+`desc_place_*`, `engine_*` invariato). Sulle 635 righe di Serie A: **243 cambi, 128 guadagnati e 115 persi**;
+le cause si dividono in `front_injured` 67, `own_injury` 38, `fewer_minutes` 42, `won_then_injury` 35,
+`won_it` 26, `benched` 26, `out_of_squad` 9.
+
+- [x] **6.1 — L'aspettativa iniziale non va inventata: esiste già come numero.** `engine_pv_pred` sono le
   presenze attese sul calendario della piattaforma, e il percentile del prezzo dentro il ruolo è la lettura del
   mercato. Il confronto è fra QUELLE e i minuti osservati, per partita reale — non fra i minuti di quest'anno e
   quelli dell'anno scorso, che è una cosa diversa e più debole (vedi 6.4).
-- [ ] **6.2 — Il controllo sul reparto.** Per ogni partita in cui l'uomo ha giocato oltre l'attesa, guardare i
-  compagni **dello stesso club e della stessa LINEA** (il ruolo granulare di `player_roles`, non il macro-ruolo:
-  un terzino destro non copre un centrale) con uno spell di `injuries` aperto a quella data. Se il posto è
-  arrivato mentre chi lo teneva era fuori, il flag lo dice: «ha giocato, e davanti a lui mancava X». Due fatti
-  diversi meritano due frasi diverse.
-- [ ] **6.3 — Il limite sulle squalifiche, misurato il 14/08 e non aggirabile oggi**: `availability` ha 633
+  **Corretto dall'esecuzione, e la ragione è di calendario**: su un foglio PRE-STAGIONE `engine_pv_pred` è una
+  previsione sul 2026-27 e i minuti osservati sono del 2025-26, quindi confrontarli non risponde «chi ha
+  guadagnato il posto» ma «il motore lo prevede sopra o sotto quello che ha fatto», che è un'altra domanda. Il
+  riferimento adottato è **il suo stesso anno**: la media dei minuti prima e dopo il taglio. Non è il confronto
+  fra due stagioni che l'item rifiuta — è dentro una stagione sola, che è esattamente dove la promozione si
+  vede.
+- [x] **6.2 — Il controllo sul reparto.** FATTO come l'item lo chiedeva: compagni dello stesso club e della
+  stessa LINEA dal ruolo **granulare**, con uno spell aperto a quella data, e due frasi diverse per due fatti
+  diversi. Limite dichiarato: il provider serve solo i codici di oggi, quindi la linea di un uomo misurato
+  l'anno scorso è letta dai ruoli che ha adesso.
+- [x] **6.3 — Il limite sulle squalifiche, misurato il 14/08 e non aggirabile oggi**: `availability` ha 633
   righe e copre solo dal 26/07 al 10/08/2026 (uno snapshot, non una serie), e `reds` è **0 su tutto il 2025-26**
-  nel layer per-partita. La squalifica di un compagno si può derivare solo dai rossi di `match_ratings`, quindi
-  **solo per le giornate del calendario della piattaforma** — non per quelle fuori, che sono il 18% (item 5).
-  Dove non si può sapere, il flag dice «non controllato», mai «nessuna squalifica».
-- [ ] **6.4 — Perché è REPORTING e non un segnale.** La forma predittiva di questa idea è già stata misurata il
+  nel layer per-partita. Dove non si può sapere, il flag dice «non controllato», mai «nessuna squalifica» — ed è
+  scritto nella nota di ogni riga dove la domanda si pone.
+- [x] **6.4 — Perché è REPORTING e non un segnale.** La forma predittiva di questa idea è già stata misurata il
   14/08 come «promozione nei minuti» (minuti per partita nella finestra contro quelli della stagione
   precedente), controllando prezzo e minuti visti: **media +0,049, 6/8 istanze**, cioè debole e non stabile.
   Quindi mostrarlo è utile — è un fatto che l'operatore vuole vedere — e ordinarci sopra una valutazione no.
   Se un giorno lo si vuole come input, serve una pre-registrazione: la misura c'è già e dice «poco».
+  **Rispettato alla lettera**: niente sotto `engine/` lo legge, non è una chiave di ordinamento da nessuna
+  parte, ed è un'icona con una frase.
 
 **Aggiunte all'item 6 dal caso che l'operatore ha portato (14/08, sera), verificato sui dati e in parte
 CORRETTO da essi.** «Bartesaghi è diventato titolare dopo l'infortunio di Estupiñán»: il primo 90' di
@@ -407,10 +418,20 @@ settimana PRIMA; l'infortunio l'ha consolidato, non causato — e il primo accia
 titolare, poi influenza e **bronchite (15/10 → 4/12, 51 giorni)**, ma da md 15 a md 29 **nessun infortunio a
 referto e nessuna presenza** — ricompare alla 30ª per 15' e alla 32ª per 12'. Due requisiti che ne derivano:
 
-- [ ] **6.5 — Il controllo confronta DATE, non stagioni.** La sola co-occorrenza avrebbe dato la risposta
-  sbagliata su un caso che l'operatore conosce: serve l'ordine fra il giorno in cui il posto cambia e il giorno
-  in cui lo spell si apre. Le frasi sono due e diverse: «ha vinto il posto, e l'infortunio è arrivato dopo» e
-  «gioca perché davanti a lui manca X».
-- [ ] **6.6 — Distinguere «fuori per infortunio» da «disponibile e NON schierato».** È il secondo che dice che
-  il posto è perso per scelta, ed è l'informazione che al tavolo cambia un'offerta: quindici giornate in
-  panchina da sano non sono una convalescenza.
+- [x] **6.5 — Il controllo confronta DATE, non stagioni.** FATTO, ed è la riga che il test asserisce due volte:
+  lo stesso spell spostato prima o dopo il giorno del cambio produce le due frasi opposte. Sul caso reale:
+  Bartesaghi `won_then_injury` con la caviglia di Estupiñán del 12 ottobre contro un cambio del 5.
+- [x] **6.6 — Distinguere «fuori per infortunio» da «disponibile e NON schierato».** FATTO, e la panchina è
+  MISURATA (item 5.3): Angeliño legge «era DISPONIBILE e non schierato — in panchina per 20 delle 31 che ha
+  saltato, e 20 di quelle senza nessuno spell a referto», che è la sua storia com'è scritta nell'item.
+  La lettura è sulla FINESTRA e non sul giorno: guardando solo il giorno del cambio la risposta sarebbe stata
+  «influenza» (uno spell di sei giorni) e si sarebbe fermata lì.
+
+**Due difetti trovati GUARDANDO L'OUTPUT, non il codice, e nessuno dei due era nell'item.** «Ha perso il
+posto: era fuori lui (fuori per 1 delle 1 che ha saltato)» per un uomo che ne aveva giocate 5 su 6 — da cui
+`fewer_minutes`, perché **giocare meno non è perdere la maglia**. E il trasferimento di GENNAIO: senza un
+vincolo l'unione dei calendari dei suoi due club gli dà 76 partite di cui metà giocate da una squadra in cui
+non era, e il changepoint cade sul giorno del trasferimento e lo chiama «ha perso il posto» (123 giocatori su
+1.692 nel 2025-26 sono in quello stato, il 7,3%). Il calendario di un club è suo **solo mentre ci stava**, e
+il vincolo vale solo per chi ha davvero giocato per due club: per gli altri taglierebbe via esattamente le
+giornate in cui un posto si conquista.
