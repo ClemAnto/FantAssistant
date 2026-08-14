@@ -41,6 +41,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_fetch.add_argument("--run", dest="do_run", action="store_true",
                          help="(not implemented: downloading belongs to each module - see bootstrap)")
     p_fetch.add_argument("--inbox", action="store_true", help="import manual downloads from data/inbox/")
+    # Non-emptiness is not completeness: `--plan` alone says «populated» while a whole season of a
+    # column is absent. This adds the per-season matrix, and states the gaps the SOURCE cannot fill
+    # instead of printing a command that would not work.
+    p_fetch.add_argument("--seasons", type=int, nargs="?", const=5, default=0, metavar="N",
+                         help="also report per-season coverage for the last N seasons (default 5)")
 
     sub.add_parser("rebuild", help="rebuild the whole DB from raw files (idempotent)")
 
@@ -301,7 +306,8 @@ def main(argv: list[str] | None = None) -> int:
         # A status report needs the DB it is reporting on (it may legitimately not exist yet).
         ctx.conn = init_db(cfg.db_path) if cfg.db_path.exists() else None
         try:
-            load("fetch").run(ctx, plan=args.plan, do_run=args.do_run, inbox=args.inbox)
+            load("fetch").run(ctx, plan=args.plan, do_run=args.do_run, inbox=args.inbox,
+                              seasons=args.seasons)
         except NotImplementedError as exc:
             print(f"[fetch] not implemented: {exc}")
             return 1

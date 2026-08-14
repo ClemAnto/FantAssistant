@@ -241,7 +241,9 @@ un'idea, leggere «cosa è già stato respinto» in fondo.
   copertura è **501 (88,5%)**, quindi la finestra è *costruibile* ma con l'input sintetico per la totalità
   della popolazione: aggiungere una finestra muove OGNI verdetto del gate, quindi è una **pre-registrazione**
   e non è stata fatta. Trappola trovata strada facendo, e vale più della finestra: `match_ratings` per euro
-  2021-22 ha **17.825 righe con tutti i bonus pieni e `mv` a 0 su 17.825** — chi conta le righe conclude
+  2021-22 ha **17.825 righe con tutti i bonus pieni e `mv` NULL su 17.825** (rimisurato il 14/08/2026: NULL,
+  non `0` — e la distinzione è quella su cui gira «vuoto = ignoto, mai zero»; `fantavoto` è NULL sulle stesse
+  righe, `goals` è pieno su tutte) — chi conta le righe conclude
   l'opposto del vero, il buco è il VOTO. Sintetizzarlo contaminerebbe il bersaglio euro: Tm2 e Tm1 restano
   fuori, e ora è scritto col numero.
 - [x] **3.3 — Il banco assume 12 squadre / 25 giri / 3 portieri**: ora legge la lega dichiarata
