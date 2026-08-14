@@ -322,3 +322,42 @@ un'idea, leggere «cosa è già stato respinto» in fondo.
 - **Un pareggio di copertura fra due moduli è rotto dal primo**, e questo decide se un uomo «copre
   qualcosa»: è un limite reale, è asserito in un test e NON è stato «migliorato» dopo la misura — cambiare un
   tie-break dopo la corsa sarebbe spedire qualcosa che nessuno ha punteggiato.
+
+---
+
+## 5. Il TREND delle ultime 10 partite REALI (richiesta dell'operatore, 14/08/2026)
+
+Nasce dal suo metodo personale, che ha una base misurabile: **il calendario EuroLeghe salta giornate**, quindi
+chi guarda solo il voto euro perde partite vere. Misurato eseguendo `matchdays` il 14/08: nel 2025-26 le
+giornate reali fuori dal calendario euro sono 7 su 38 in Serie A (la 9, 16, 17, 19, 20, 31, 38), 7 in Premier,
+7 in Liga, 3 su 34 in Bundesliga, 4 su 34 in Ligue 1 — **il 18% delle partite di un uomo è invisibile nella sua
+fantamedia euro**, e `matchday_map` sa esattamente quali.
+
+- [ ] **5.1 — L'istogramma delle ultime 10 reali**, sia nell'app sia nel pannello Tk. Altezza = performance da
+  una cascata DICHIARATA (voto vero se c'è → `mv_synth` se no → barra vuota, mai uno zero) e ogni barra dice su
+  cosa sta; **xG+xA come SECONDO STRATO** sulla barra (scelta dell'operatore) e non dentro il numero;
+  mini-icone gol/assist/giallo/rosso; e un segno sulle giornate che il calendario euro non ha contato.
+- [ ] **5.2 — Gli stati della barra: due esistono, due no** (misurato 14/08). Disponibili: **≥75'** (netto:
+  6.255 righe contro 5.646 spezzoni in Serie A 2025-26) e **infortunato** (da `injuries`, spell datato che
+  copre la data). NON disponibili: **squalificato** (`availability` ha 633 righe e solo dal 26/07 al 10/08/2026
+  — è uno snapshot, non una serie; e `reds` è 0 su tutto il 2025-26 nel layer per-partita) e **panchinato**
+  (non esiste una riga con `minutes = 0`: sono tutte NULL, e il parse scarta la panchina senza ingresso).
+  Quindi gli stati spedibili sono quattro — titolare pieno, spezzone, infortunato, **ignoto** — e «ignoto» non
+  diventa «panchina» finché 5.3 non c'è.
+- [ ] **5.3 — La panchina è recuperabile OFFLINE**: il parse ha già `keep_unplayed` (lo usa il layer `extra`) e
+  i payload di tutte le giornate sono in cache, quindi `positions --layer reparse` con quell'opzione estesa al
+  layer di lega crea le righe di panchina **senza una richiesta di rete**. La squalifica no: va derivata dai
+  rossi di `match_ratings` e coprirebbe solo il calendario della piattaforma, non le giornate fuori.
+- [ ] **5.4 — Il GIUDIZIO 0-99 del trend, per poterci ordinare** (richiesta del 14/08). Tre vincoli che il
+  numero deve portare addosso, e il primo è il motivo per cui esiste questo item invece di una formula:
+  **è una DESCRIZIONE, non una previsione.** Lo stesso giorno è stato misurato che lo scostamento dalle proprie
+  medie non predice il rendimento successivo (eccesso vero +0,0167 / +0,0072 / −0,0007 a 2, 3 e 5 giornate, col
+  segno che cambia, su ~65.000 finestre e col null rimescolato): quindi ordinare per trend è ordinare per
+  «cosa ha fatto», che è legittimo e veloce, e vendere quel numero come «cosa farà» sarebbe la terza forma
+  respinta della stessa idea. Il tooltip deve dirlo.
+  Forma proposta: **la media dei fantapunti raccolti sulle sue ultime 10 partite REALI**, dove una partita non
+  giocata conta 0 e una ignota non entra nel denominatore — così dentro ci sono sia la qualità sia la
+  DISPONIBILITÀ, che è la metà grossa (`Var(ln pv)` è il 90% di `Var(ln fantapunti)`), esattamente come il
+  valore che il pannello già usa. Poi `score99` sulla scala che l'app ha già, **con il pool dichiarato: dentro
+  il RUOLO**, perché «va forte» è una frase relativa a quello che il suo ruolo può produrre e perché il pool di
+  un percentile è parte della misura. Nessun gate: è reporting, non entra in nessuna valutazione.
