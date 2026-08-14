@@ -49,7 +49,8 @@ describe('placeMark', () => {
 
 describe('rotationMark', () => {
   it('says the two things the operator asked for, and carries its own measurement', () => {
-    const mark = rotationMark({ minutes: 27.6, starts: 1, from: '2025-08-16', to: '2025-09-21' })!;
+    const mark = rotationMark({ minutes: 27.6, starts: 1, window: 5, strength: 'watch',
+      from: '2025-08-16', to: '2025-09-21' })!;
     expect(mark.flag).toBe('rotation_risk');
     expect(mark.note).toContain('28 minuti');
     expect(mark.note).toContain('1 partita da titolare');
@@ -62,6 +63,20 @@ describe('rotationMark', () => {
   it('is null on a sheet that has no season to read yet', () => {
     // Pre-season: the columns are empty by construction, and an empty column is not a clean bill.
     expect(rotationMark(null)).toBeNull();
-    expect(rotationMark({ minutes: null, starts: null, from: null, to: null })).toBeNull();
+    expect(rotationMark({ minutes: null, starts: null, window: null, strength: null,
+      from: null, to: null })).toBeNull();
+  });
+
+  it('says LESS on a window too short to say it, and names its own counter-example', () => {
+    // The operator asked for a mark before the fifth round. The fourth is worth as much as the fifth
+    // (96.3% against 94.9%); two and three are worth 81% against a 58% base, which is «look at him»
+    // and not «he is not the starter» - and the honest way to say that is a different sentence.
+    const early = rotationMark({ minutes: 7, starts: 0, window: 2, strength: 'early',
+      from: '2025-08-16', to: '2025-08-23' })!;
+    expect(early.flag).toBe('rotation_early');
+    expect(early.note).toContain('finestra CORTA');
+    expect(early.note).toContain("81%");
+    expect(early.note).toContain('Donnarumma');
+    expect(early.note).not.toContain('non è il titolare e non ha minutaggio');
   });
 });

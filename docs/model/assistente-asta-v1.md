@@ -2209,3 +2209,27 @@ davanti. Su un foglio di agosto la colonna è vuota **per costruzione** — non 
 è che non c'è ancora niente da leggere; comparirà al quinto turno. Dichiarato e non aggiustato: lo screen
 si indebolisce a fine stagione (l'ultima lettura del 2025-26 vale 70,0% contro una base del 72,0%, cioè
 niente), e la soglia non si muove dopo aver visto quella curva.
+
+### 30.5 «Anche prima della quinta giornata»: due marchi, non uno anticipato
+
+Richiesta dell'operatore la sera stessa, e la risposta è misurata invece che concessa. Sulla finestra
+d'apertura, con l'unica soglia che un campione corto regge (**non ha MAI iniziato una partita**):
+
+| dopo | segnalati | precisione | base | lift |
+|---|---|---|---|---|
+| 1 giornata | 130 | 76,9% | 56,3% | 1,37x |
+| 2 | 99 | 78,8% | 57,5% | 1,37x |
+| 3 | 70 | 84,3% | 57,8% | 1,46x |
+| **4** | 54 | **96,3%** | 58,1% | **1,66x** |
+| 5 | 78 | 94,9% | 58,6% | 1,62x |
+
+**Alla quarta si può dire tutto**: vale quanto alla quinta, quindi il marchio pieno scatta lì e non si
+perde niente. A due e tre giornate vale l'81% contro una base del 58%, che è **«guardalo»** e non «non è
+il titolare» — e il contro-esempio decide la questione: dopo due giornate del 2025-26 la lettura avrebbe
+segnalato **Donnarumma** al Manchester City con 0 minuti, e lui ha chiuso a **85** di media; sei dei suoi
+diciassette nomi sono diventati titolari. Su quella stagione il marchio debole prende **10 nomi su 15** e
+quello pieno **4 su 4**.
+
+Quindi due icone e due frasi: `◑` piena dalla quarta giornata, `◔` a metà opacità dalla seconda, ognuna
+col proprio numero nel tooltip. Lewandowski prende quella debole alla 2ª e quella piena alla 4ª — che è
+esattamente la domanda da cui è partita.

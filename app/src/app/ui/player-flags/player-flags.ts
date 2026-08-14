@@ -20,6 +20,8 @@ const ICON: Record<PlayerFlag, string> = {
   place_lost: 'logout',
   // A half-filled clock: he is on the pitch and only for part of it, which is exactly what the mark says.
   rotation_risk: 'clock-circle',
+  // The same icon at half strength: same fact, a window too short to say it as loudly.
+  rotation_early: 'clock-circle',
 };
 
 /**
@@ -43,6 +45,7 @@ const TONE: Record<PlayerFlag, string> = {
   place_lost: 'opacity-70',
   // Amber: this one IS a warning about what you are buying, and it is measured (90.4% precision).
   rotation_risk: 'text-warning',
+  rotation_early: 'text-warning opacity-50',
 };
 
 const LABEL: Record<PlayerFlag, string> = {
@@ -54,6 +57,7 @@ const LABEL: Record<PlayerFlag, string> = {
   place_gained: 'Ha guadagnato il posto',
   place_lost: 'Ha perso il posto',
   rotation_risk: 'Preso per titolare, ma ruotato',
+  rotation_early: 'Preso per titolare, segnali di incertezza',
 };
 
 /**

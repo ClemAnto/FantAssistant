@@ -52,9 +52,13 @@ export type PlaceCause =
  * ancora davanti. Su un foglio pre-stagione la colonna è vuota per costruzione.
  */
 export interface RotationWatch {
-  /** Media minuti sulle ultime cinque del club, e quante ne ha iniziate. */
+  /** Media minuti sulla finestra letta, e quante partite ne ha iniziate. */
   minutes: number | null;
   starts: number | null;
+  /** Quante giornate ci sono dentro: sotto le quattro la frase è più debole, e lo dice. */
+  window: number | null;
+  /** `watch` dalla quarta giornata (forte quanto la quinta), `early` dalla seconda. */
+  strength: 'watch' | 'early' | null;
   from: string | null;
   to: string | null;
 }
@@ -103,18 +107,41 @@ export function placeMark(place: PlaceChange | null | undefined): PlayerMark | n
   };
 }
 
-/** «Preso per titolare, ruotato di fatto»: il marchio, con la misura che lo giustifica addosso. */
+/**
+ * «Preso per titolare, ruotato di fatto»: il marchio, con la misura che lo giustifica addosso.
+ *
+ * DUE MARCHI E NON UNO ANTICIPATO, ed è una richiesta dell'operatore risolta misurando: «anche prima
+ * della quinta giornata segnala i top che mostrano segnali di incertezza». Alla QUARTA la lettura vale
+ * quanto alla quinta (96,3% contro 94,9%), quindi il marchio pieno scatta lì; a due e tre giornate vale
+ * l'81% contro una base del 58%, che è una ragione per guardare e non la stessa frase — dopo due
+ * giornate del 2025-26 avrebbe segnalato Donnarumma al Manchester City con 0 minuti, e lui ha poi
+ * chiuso a 85 di media. Sei dei suoi diciassette nomi sono diventati titolari.
+ */
 export function rotationMark(watch: RotationWatch | null | undefined): PlayerMark | null {
   if (!watch || watch.minutes == null) return null;
   const starts = watch.starts ?? 0;
-  const window = watch.from && watch.to ? ` (${day(watch.from)}–${day(watch.to)})` : '';
+  const rounds = watch.window ?? 5;
+  const when = watch.from && watch.to ? ` (${day(watch.from)}–${day(watch.to)})` : '';
+  const played = `sulle ultime ${rounds} di campionato del suo club ha una media di ` +
+    `${watch.minutes.toFixed(0)} minuti con ${starts} ${starts === 1 ? 'partita' : 'partite'} da ` +
+    `titolare${when}`;
+  if (watch.strength === 'early') {
+    return {
+      flag: 'rotation_early',
+      note:
+        `Quotato fra i primi del suo ruolo, ma ${played} — segnali di incertezza, su una finestra ` +
+        `CORTA. Misurato: a due o tre giornate questa lettura è giusta circa l'81% delle volte contro ` +
+        `una base del 58% (1,40x), dove alla quarta è giusta al 96%. Vuol dire «guardalo», non «non è ` +
+        `il titolare»: dopo due giornate del 2025-26 avrebbe segnalato anche Donnarumma, che ha poi ` +
+        `chiuso a 85 minuti di media.`,
+    };
+  }
   return {
     flag: 'rotation_risk',
     note:
-      `Quotato fra i primi del suo ruolo, ma sulle ultime 5 di campionato del suo club ha una media di ` +
-      `${watch.minutes.toFixed(0)} minuti con ${starts} ${starts === 1 ? 'partita' : 'partite'} da ` +
-      `titolare${window} — non è il titolare e non ha minutaggio. Misurato su 4 stagioni: il 90,4% di ` +
-      `chi si legge così chiude il resto della stagione sotto i 60 minuti a partita, contro il 59,5% ` +
-      `di chi non lo fa (1,52x). Uno su dieci diventa titolare davvero.`,
+      `Quotato fra i primi del suo ruolo, ma ${played} — non è il titolare e non ha minutaggio. ` +
+      `Misurato su 4 stagioni: il 90,4% di chi si legge così chiude il resto della stagione sotto i 60 ` +
+      `minuti a partita, contro il 59,5% di chi non lo fa (1,52x). Uno su dieci diventa titolare ` +
+      `davvero.`,
   };
 }

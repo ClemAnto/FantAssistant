@@ -1460,6 +1460,25 @@ ROTATION_WINDOW = 5           # rounds of his club, the most recent ones
 ROTATION_MINUTES = 45.0       # mean minutes a match under which the reading fires
 ROTATION_STARTS = 1           # ...and at most this many starts inside the window
 ROTATION_POOL = 85.0          # percentile of his own listone role: «sold as a starter»
+# ...and the EARLY reading, on the operator's request of 14/08/2026: «anche prima della quinta giornata
+# segnala i top che mostrano segnali di incertezza». Measured before it was drawn, on the season's
+# opening window with the only threshold a short sample can carry - he has NEVER started - and the
+# answer has a sharp edge in it:
+#
+#   after 1 round   130 flagged   76.9% precision   base 56.3%   1.37x   (per season 82/74/80/68%)
+#   after 2 rounds   99            78.8%                 57.5%   1.37x   (74/80/90/65%)
+#   after 3 rounds   70            84.3%                 57.8%   1.46x   (88/84/88/67%)
+#   after 4 rounds   54            96.3%                 58.1%   1.66x   (91/93/100/100%)
+#   after 5 rounds   78            94.9%                 58.6%   1.62x   (95/95/93/100%)
+#
+# So the FOURTH round is worth as much as the fifth and the mark fires there in full; two and three are
+# worth about 81% against a 58% base (1.40x), which is a reason to look and NOT the same sentence - and
+# the counter-example is the one that settles it: after two rounds of 2025-26 the reading would have
+# named Donnarumma at Manchester City on 0 minutes, and he then averaged 85. Six of its seventeen names
+# became starters. Hence two marks and not one drawn earlier: «he is not the starter» from the fourth
+# round, «he is showing signs of uncertainty» from the second, each carrying its own number.
+ROTATION_EARLY = 2            # rounds under which nothing is said at all
+ROTATION_FULL = 4             # ...and from which the reading is as strong as the five-round one
 # The outcome the screen was scored against - a DISPLAY definition of «not a starter», stated so nobody
 # reads the mark as being about anything else.
 ROTATION_OUTCOME = 60
@@ -1558,7 +1577,7 @@ def rotation_watch(conn, season: str, observations, belongs: dict[int, dict[str,
         if prices.get(obs.fc_id, 0.0) < ROTATION_POOL:
             continue
         window = his_season(obs.fc_id, season, fixtures, belongs, spans)
-        if len(window) < ROTATION_WINDOW:
+        if len(window) < ROTATION_EARLY:
             continue
         # ...and enough of the season still to come for the reading to be about anything: the last
         # round he has played against the length of HIS OWN championship (34 in the Bundesliga and
@@ -1572,7 +1591,10 @@ def rotation_watch(conn, season: str, observations, belongs: dict[int, dict[str,
                    for _d, match_id, _md in recent]
         starts = sum(1 for _d, match_id, _md in recent if (obs.fc_id, match_id) in started_in)
         mean = sum(minutes) / len(minutes)
-        if mean >= ROTATION_MINUTES or starts > ROTATION_STARTS:
+        # A SHORT window carries one threshold and not two: under four rounds the reading is «he has
+        # never started», because one start of two says nothing anybody measured.
+        allowed = ROTATION_STARTS if len(recent) >= ROTATION_WINDOW else 0
+        if mean >= ROTATION_MINUTES or starts > allowed:
             continue
         # A man who spent that window INJURED is not a man being rotated. The screen scores the same
         # either way (86.3% against 85.7% with the injured rounds taken out, so the outcome does not
@@ -1587,22 +1609,32 @@ def rotation_watch(conn, season: str, observations, belongs: dict[int, dict[str,
                              for _d, match_id, _md in window) / len(window)
         season_starts = sum(1 for _d, match_id, _md in window
                             if (obs.fc_id, match_id) in started_in)
+        strong = len(recent) >= ROTATION_FULL
+        evidence = (
+            "MEASURED on four seasons by scoring this very screen: 90.4% of the men who read like this "
+            f"ended the rest of the season under {ROTATION_OUTCOME} minutes a club match, against 59.5% "
+            "of the pool that did not trip it (1.52x) - a reason to look, and one in ten becomes a "
+            "starter after all."
+            if strong else
+            "MEASURED on the same four seasons, and this reading is the WEAKER one: after two or three "
+            "rounds it is right about 81% of the time against a base of 58% (1.40x), where the "
+            "four-round reading is right 96%. It says «look at him», not «he is not the starter» - "
+            "after two rounds of 2025-26 it would have named Donnarumma at Manchester City on 0 "
+            "minutes, and he went on to average 85.")
         out[obs.fc_id] = {
             "minutes": round(mean, 1),
             "starts": starts,
-            "window": ROTATION_WINDOW,
+            "window": len(recent),
+            "strength": "watch" if strong else "early",
             "from": recent[0][0],
             "to": recent[-1][0],
             "season_minutes": round(season_minutes, 1),
             "season_starts": f"{season_starts}/{len(window)}",
             "note": (f"He was quoted in the top {100 - ROTATION_POOL:.0f}% of his role and over his "
-                     f"club's last {ROTATION_WINDOW} rounds he averaged {mean:.0f} minutes with "
-                     f"{starts} start{'s' if starts != 1 else ''} - {season_starts} of {len(window)} "
-                     f"and {season_minutes:.0f} minutes a match on the season so far. MEASURED on four "
-                     f"seasons by scoring this very screen: 90.4% of the men who read like this ended "
-                     f"the rest of the season under {ROTATION_OUTCOME} minutes a club match, against "
-                     f"59.5% of the pool that did not trip it (1.52x) - a reason to look, and one in "
-                     f"ten becomes a starter after all."),
+                     f"club's last {len(recent)} round{'s' if len(recent) != 1 else ''} he averaged "
+                     f"{mean:.0f} minutes with {starts} start{'s' if starts != 1 else ''} - "
+                     f"{season_starts} of {len(window)} and {season_minutes:.0f} minutes a match on "
+                     f"the season so far. {evidence}"),
         }
     return out
 
@@ -3312,7 +3344,7 @@ PLAYER_COLUMNS: tuple[str, ...] = (
     # pool, 2.42x on 15,897 readings) and EMPTY on a pre-season sheet by construction: it reads rounds
     # that have to have been played first.
     "desc_rotation_watch", "desc_rotation_minutes", "desc_rotation_starts", "desc_rotation_from",
-    "desc_rotation_to", "desc_rotation_note",
+    "desc_rotation_to", "desc_rotation_window", "desc_rotation_note",
     "desc_squad_club", "desc_squad_source", "desc_real_role",
     # The granular real role: where on the pitch he belongs, in the twelve-code vocabulary.
     "desc_real_roles", "desc_real_role_primary", "desc_real_role_line", "desc_real_role_depth",
@@ -3616,11 +3648,14 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             "desc_place_who": place.get("who"),
             "desc_place_missed": place.get("missed"),
             "desc_place_note": place.get("note"),
-            "desc_rotation_watch": "yes" if rotation else None,
+            # `watch` from the fourth round (as strong as the fifth), `early` from the second - two
+            # different sentences, because at two rounds one name in four or five is wrong.
+            "desc_rotation_watch": rotation.get("strength"),
             "desc_rotation_minutes": rotation.get("minutes"),
             "desc_rotation_starts": rotation.get("starts"),
             "desc_rotation_from": rotation.get("from"),
             "desc_rotation_to": rotation.get("to"),
+            "desc_rotation_window": rotation.get("window"),
             "desc_rotation_note": rotation.get("note"),
             "desc_squad_club": layers["squads"].get(obs.fc_id),
             "desc_squad_source": layers["squad_sources"].get(obs.fc_id),

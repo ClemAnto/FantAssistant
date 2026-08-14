@@ -241,6 +241,12 @@ titolare e non ha minutaggio. Numeri e costruzione: spec «Novità v9.52»; cosa
 - [x] **7.4 — Due silenzi.** Chi era infortunato in quella finestra non è «ruotato» (lo screen punteggia
   uguale, 86,3% contro 85,7%, quindi la guardia non costa precisione — costa una frase falsa in meno), e
   chi non era quotato come titolare non entra.
+- [x] **7.6 — «Anche prima della quinta giornata»** (richiesta dell'operatore la sera stessa). Misurato
+  invece che concesso: alla QUARTA la lettura vale quanto alla quinta (96,3% contro 94,9%), quindi il
+  marchio pieno scatta lì; a due e tre vale l'81% contro una base del 58% (1,40x) ed esce come marchio
+  DEBOLE con una frase diversa («segnali di incertezza», non «non è il titolare»). Il contro-esempio che
+  decide: dopo due giornate del 2025-26 avrebbe segnalato Donnarumma con 0 minuti, e lui ha chiuso a 85
+  di media. Su quella stagione il debole prende 10 su 15, il pieno 4 su 4.
 - [x] **7.5 — Legge la stagione che si gioca, e lo dice.** Cinque giornate dietro e otto davanti: su un
   foglio pre-stagione la colonna è **vuota per costruzione**, che è la stessa cosa misurata dall'item
   4.4 dall'altro lato. Dichiarato e non corretto: lo screen si indebolisce a fine stagione (ultima

@@ -582,10 +582,32 @@ def test_the_rotation_screen_says_nothing_about_a_season_that_has_not_been_playe
     conn = ctx.conn
     _seed(conn)
     rotated = {round_number: (90 if round_number % 4 == 0 else 15) for round_number in range(1, 21)}
-    early, _prices = _rotation_of(conn, rotated, before="2025-09-03")
-    assert 1 not in early, "four rounds are not five: no reading yet"
+    nothing, _prices = _rotation_of(conn, rotated, before="2025-09-02")
+    assert 1 not in nothing, "one round is not a reading of anything"
     late, _prices = _rotation_of(conn, rotated, before="2025-10-09", seed=False)
     assert 1 not in late, "with fewer than eight rounds left the screen was never scored"
+
+
+def test_a_window_too_short_says_less_instead_of_saying_it_earlier(tmp_path):
+    """The operator asked for a mark BEFORE the fifth round, and the measurement drew the line.
+
+    After four rounds the reading is worth as much as after five (96.3% against 94.9%), so the full
+    mark fires there. After two or three it is worth 81% against a base of 58% - a reason to look and
+    NOT the same sentence, which is why it comes out as its own weaker mark instead of the strong one
+    drawn early. The counter-example is what settles it: after two rounds of 2025-26 the reading would
+    have named Donnarumma at Manchester City on 0 minutes, and he went on to average 85.
+    """
+    ctx = _ctx(tmp_path)
+    conn = ctx.conn
+    _seed(conn)
+    # never a starter, cameos only, so the short window has something to read
+    rotated = {round_number: 15 for round_number in range(1, 21)}
+    two, _prices = _rotation_of(conn, rotated, before="2025-09-03")
+    assert two[1]["strength"] == "early" and two[1]["window"] == 2
+    assert "81%" in two[1]["note"] and "Donnarumma" in two[1]["note"]
+    four, _prices = _rotation_of(conn, rotated, before="2025-09-05", seed=False)
+    assert four[1]["strength"] == "watch", "the fourth round is worth as much as the fifth"
+    assert "90.4%" in four[1]["note"]
 
 
 def test_the_vote_cascade_is_declared_and_a_keeper_is_not_guessed():

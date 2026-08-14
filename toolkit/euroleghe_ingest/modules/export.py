@@ -223,6 +223,7 @@ SHEET_COLUMNS: tuple[str, ...] = (
     "desc_rotation_starts",
     "desc_rotation_from",
     "desc_rotation_to",
+    "desc_rotation_window",
 )
 
 

@@ -51,8 +51,13 @@ Item **7** di [todolist-draft-v1.md](todolist-draft-v1.md), spec **«Novità v9.
    1,52x**. Cambiando il denominatore la base passa dal 35% al 60%: il null è la misura, ancora.
 4. **Due silenzi**: chi era infortunato in quella finestra non è «ruotato» (la guardia non costa
    precisione, 86,3% contro 85,7%, e toglie una frase falsa), e chi non era quotato titolare non entra.
-5. **Ad agosto la colonna è VUOTA per costruzione**: legge cinque giornate dietro e otto davanti.
-   Comparirà al quinto turno — è l'item 4.4 visto dall'altro lato.
+5. **Ad agosto la colonna è VUOTA per costruzione**: legge le giornate giocate e otto ancora davanti.
+   Comparirà dalla seconda — è l'item 4.4 visto dall'altro lato.
+6. **E due marchi, non uno anticipato** (richiesta della sera stessa: «anche prima della quinta»).
+   Misurato: alla QUARTA la lettura vale quanto alla quinta (96,3% contro 94,9%), a due e tre vale
+   l'81% contro una base del 58%. Quindi il pieno scatta alla quarta e il DEBOLE dalla seconda, con una
+   frase diversa — il contro-esempio è **Donnarumma**, segnalato a due giornate con 0 minuti e poi 85 di
+   media. Su quella stagione: debole 10 nomi su 15, pieno 4 su 4.
 
 ### 14/08/2026, sera tardi: **chi ha guadagnato il posto e chi l'ha perso**
 

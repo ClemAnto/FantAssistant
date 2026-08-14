@@ -528,6 +528,25 @@ diverse delle stesse cinque partite sono il modo di far smettere un tavolo di fi
 il mercato **non ha venduto come titolare** non può fallire di esserlo: la soglia è tarata dentro quel
 pool e fuori non vale.
 
+**5-bis. E DUE MARCHI, NON UNO ANTICIPATO** (richiesta dell'operatore la sera stessa: «anche prima
+della quinta giornata segnala i top che mostrano segnali di incertezza»). Misurato prima di disegnarlo,
+sulla finestra d'apertura e con l'unica soglia che un campione corto regge — **non ha MAI iniziato**:
+
+| dopo | segnalati | precisione | base | lift | per stagione |
+|---|---|---|---|---|---|
+| 1 giornata | 130 | 76,9% | 56,3% | 1,37x | 82/74/80/68% |
+| 2 | 99 | 78,8% | 57,5% | 1,37x | 74/80/90/65% |
+| 3 | 70 | 84,3% | 57,8% | 1,46x | 88/84/88/67% |
+| **4** | 54 | **96,3%** | 58,1% | **1,66x** | 91/93/100/100% |
+| 5 | 78 | 94,9% | 58,6% | 1,62x | 95/95/93/100% |
+
+**Alla quarta la lettura vale quanto alla quinta**, quindi il marchio pieno scatta lì e non si perde
+niente. A due e tre vale l'81% contro una base del 58% (1,40x): è «guardalo», non «non è il titolare», e
+il contro-esempio è quello che decide — dopo due giornate del 2025-26 avrebbe segnalato **Donnarumma** al
+Manchester City con 0 minuti, e lui ha chiuso a **85** di media. Su quella stagione il marchio debole
+prende 10 nomi su 15 e il pieno 4 su 4. Quindi due marchi con due frasi e due numeri, e non lo stesso
+disegnato prima.
+
 **5. Legge la stagione CHE SI GIOCA, e lo dice.** Cinque giornate dietro e otto ancora davanti, che sono
 i due estremi della calibrazione: su un foglio **pre-stagione la colonna è vuota per costruzione** — è la
 stessa cosa che l'item 4.4 aveva misurato dall'altro lato (dopo il fischio d'inizio quello che paga sono

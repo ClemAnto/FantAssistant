@@ -977,6 +977,7 @@ export class AuctionAdvice {
         watch: at('desc_rotation_watch'),
         minutes: at('desc_rotation_minutes'),
         starts: at('desc_rotation_starts'),
+        window: at('desc_rotation_window'),
         from: at('desc_rotation_from'),
         to: at('desc_rotation_to'),
       };
@@ -987,6 +988,10 @@ export class AuctionAdvice {
           rotations.set(Number(row[id]), {
             minutes: (row[rotation.minutes] as number) ?? null,
             starts: (row[rotation.starts] as number) ?? null,
+            window: rotation.window < 0 ? null : ((row[rotation.window] as number) ?? null),
+            // `watch` from the fourth round, `early` from the second: the older bundles that carried
+            // a plain «yes» read as the strong one, which is what that column meant.
+            strength: row[rotation.watch] === 'early' ? 'early' : 'watch',
             from: (row[rotation.from] as string) ?? null,
             to: (row[rotation.to] as string) ?? null,
           });
