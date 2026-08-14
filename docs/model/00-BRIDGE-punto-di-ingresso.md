@@ -30,11 +30,55 @@ con la stampa dell'08/08/2026, ordinato per resa misurata).
 L'altra fase, quella settimanale, è **`formazione-settimanale-v1.md`** (progetto): chi gioca domenica, perché
 la pagina delle probabili non basta e quali vincoli valgono già oggi.
 
-## STATO AL 10 AGOSTO 2026 — LEGGI QUESTO PRIMA DI TUTTO
+## STATO AL 14 AGOSTO 2026 — LEGGI QUESTO PRIMA DI TUTTO
 
 Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
 
-### ULTIMO IN ORDINE DI TEMPO — 10/08/2026, NOTTE: **la todolist del draft eseguita**, e il consiglio del pannello riscritto su misure
+### ULTIMO IN ORDINE DI TEMPO — 11/08/2026 (committato e documentato il 14/08): **cosa un nome porta con sé**, e l'undici che la MIA rosa schiera
+
+Documenti: [assistente-asta-v1.md](assistente-asta-v1.md) **§27**, spec **«Novità v9.49»**.
+`engine_*` non toccato, `SHEET_REVISION` **invariato a 15** (nessun foglio diventa stantio), toolkit **366 test
++ 1 skipped**, app **da 107 a 132 test**, `ng build` verde.
+
+**Due richieste dell'operatore, la stessa mattina, e sono la stessa domanda da due lati: guardando un nome,
+cosa mi manca per decidere?**
+
+1. **I marchi accanto al nome** (`ui-flags`, un solo componente e un solo servizio, disegnato in **quattro**
+   liste: consiglio, feed, tabella di consultazione, i due campetti — «nei suggerimenti ma anche dalle altre
+   parti»). Due sono **misurati** dalla tabella `injuries` del bundle, che è la stessa definizione di
+   infortunio che la tabella di consultazione già usa: **infortunio lungo aperto** (icona piena) e **rientrato
+   da poco** (stessa icona a metà opacità — «ci è passato» è lo stesso fatto visto da dopo). Le soglie **45** e
+   **60 giorni** sono scelte di **DISPLAY** dichiarate in un punto solo: non entrano in nessuna valutazione,
+   quindi nessun gate le tocca. Misurato sul bundle: **134** lunghi aperti e **73** rientri recenti su 3.081
+   uomini con almeno uno spell; sui 1.413 dei tre fogli, **54** e **39**, cioè circa il **6,6%** del listone —
+   la densità giusta per una segnalazione.
+2. **Il terzo marchio non è misurabile, quindi è DICHIARATO**: `config/player_notes.json`, quarto file
+   dichiarato con lo standing di `board_rulings.json` — fuori rosa / rottura con la società / ha chiesto di
+   andare via. **Niente in questo progetto osserva un litigio**: `exit_risk` è un contratto che scade, un
+   trasferimento è un movimento avvenuto, una riga di rosa mancante è indizio di una partenza; leggere uno dei
+   tre come una rottura sarebbe **inventare un fatto da un fatto diverso**. Solo REPORTING (niente sotto
+   `engine/` lo legge), giunzione per `fc_id`, e un test asserisce **due** cose: che il file dichiarato arrivi
+   nel bundle e che la sua **assenza sia silenzio** e non un warning. Oggi per 2026-27 è vuoto: zero nomi, cioè
+   «niente dichiarato», mai «niente da dichiarare».
+3. **Il campetto FANTA accanto a quello reale, e qui l'undici si CALCOLA.** Non contraddice la regola del
+   10/08: là c'è un **allenatore da prevedere** e prevederlo è una misura, che vive nel toolkit; qui non c'è
+   nessuno da prevedere, solo il **regolamento**, quindi la risposta è una deduzione e sta nell'app. Miglior
+   undici legale sulla moneta che il banco ha misurato (il **VALORE**, non il surplus), **modulo scelto** da
+   quale schema fa entrare l'undici più forte, coi **runner-up mostrati** perché una scelta automatica deve
+   poter essere dubitata, **ballottaggi esatti** (scambiare un uomo su un posto lascia intatti gli altri, quindi
+   basta che i ruoli stiano in quel posto — nessun secondo abbinamento), e **chi il foglio non sa prezzare è
+   elencato a parte e non schierato**: «vuoto = ignoto» applicato a un disegno. `mantra-legal.ts` resta l'unica
+   definizione della legalità e si è **allargata** (`placesIn` con linea e nome del posto, `bestEleven`) invece
+   di essere duplicata; il banco continua a leggerla.
+
+**La cosa andata storta è di metodo.** Questo lavoro è rimasto **tre giorni nel working tree** — verde, non
+committato, non documentato, non pubblicato — e il sito pubblico è restato al deploy del **09/08**, indietro di
+**due** sessioni (mancavano anche i campetti reali del 10/08). **Codice verde e non spedito è codice che nessuno
+può correggere**: un difetto che vive solo sulla macchina dell'operatore non produce nemmeno la segnalazione che
+lo farebbe trovare. E **il `chiudi` va fatto quando finisce il lavoro, non quando finisce la sessione**: la §27
+è stata ricostruita dai diff, ed è andata bene solo perché i commenti nel codice portavano i «perché» e le date.
+
+### 10/08/2026, NOTTE: **la todolist del draft eseguita**, e il consiglio del pannello riscritto su misure
 
 Sei commit in una sera (`eed0c56`, `1bbe45c`, `32bf89e`, `55cd319`, `c1f499a`, `9951a83`). Documenti:
 [metrica-asta-surplus-v1.md](metrica-asta-surplus-v1.md) **§16 §17 §18 §19**,

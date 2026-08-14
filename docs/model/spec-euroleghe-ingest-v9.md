@@ -495,6 +495,41 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.49 (11 agosto 2026 — le note DICHIARATE sui giocatori viaggiano nel bundle)
+
+`SHEET_REVISION` resta **15** e `engine_*` è invariato: questa novità non produce nessun numero, quindi non
+può rendere stantio un foglio. Nessun test cambia verdetto; il toolkit resta a **366 test + 1 skipped**.
+
+**`config/player_notes.json`, quinto file di configurazione del bundle e QUARTO file dichiarato** dopo i due
+regolamenti, `board_rulings.json` (§v9.44 punto 2) e `league_config.json`. Forma:
+`{stagione: {fc_id: {kind, note, decided_on}}}`, dove `kind` è `out_of_squad` (fuori rosa) | `dispute`
+(rottura con la società) | `wants_out` (ha chiesto di andare via).
+
+**Perché è DICHIARATO e non misurato, che è l'unica cosa che conta di questo file.** Niente in questo
+progetto osserva un litigio. Il DB tiene `flags.exit_risk` (un CONTRATTO che scade entro dodici mesi — un
+fatto sul contratto, mai sulla relazione), lo strato dei trasferimenti (un movimento che È avvenuto) e la
+lettura della rosa viva (un uomo assente da un payload, che è indizio di una PARTENZA e non di una rottura).
+Leggere uno qualunque dei tre come «ha litigato con la società» sarebbe **inventare un fatto da un fatto
+diverso** — la stessa regola per cui il modulo dell'operatore è dichiarato invece che dedotto dal ritiro.
+Quindi lo scrive chi lo sa, con la data, e si revoca cancellando la voce.
+
+**Cosa non può fare mai**: è SOLO REPORTING. Decora una riga che il motore ha già prezzato e non entra in
+nessuna valutazione, in nessuna graduatoria, in nessun gate e in nessuna board. Niente sotto `engine/` legge
+questo file, e non dovrebbe: un fatto dichiarato che muovesse un numero fittato renderebbe ogni misura la
+risposta dell'operatore a se stesso, che è esattamente quello che i due giudici delle board rifiutano
+(`apply_rulings=False`).
+
+**Come viaggia**: `config.player_notes_path` (opzionale come le rulings), `export` lo copia nel `config/` del
+bundle, `npm run data:pull` nel `public/data/` dell'app, che legge la stagione bersaglio del manifest. Aggiungere
+un nome costa quindi un export, un pull e un deploy — **scelta dell'operatore contro una lista locale
+dell'app**, così la dichiarazione vive in git ed è la stessa su ogni dispositivo.
+
+Un test lo copre e asserisce **due** fatti, non uno
+(`test_the_declared_player_notes_travel_and_their_absence_is_silence`): il file dichiarato arriva nel bundle,
+e un progetto che non ha nulla da dichiarare **non ha il file affatto**, quindi l'assenza è silenzio e non un
+warning — al contrario dei quattro file del contratto, dove un file mancante è una segnalazione. La giunzione
+è per `fc_id` e mai per nome: è il difetto che questo repository ha già pagato quattro volte.
+
 ## Novità v9.48 (10 agosto 2026 — il calendario entra nel DB, le partite facili nel foglio, e il motore nel bundle)
 
 `SHEET_REVISION` **15**. `engine_*` invariato, `backtest --verify` 22/22: niente di questa giornata tocca

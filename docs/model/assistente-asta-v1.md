@@ -1926,3 +1926,144 @@ non ha un verdetto.
   copertura» e «il massimo guadagno marginale sull'undici» non sono lo stesso obiettivo, e il secondo non è
   mai stato misurato come politica.
 - Resta aperta la §11.8 punto 1 (l'FVM si congela alla data del draft o si rilegge?).
+
+---
+
+## 27. Cosa un nome porta con sé, e l'undici che la MIA rosa schiera (11 agosto 2026)
+
+Due richieste dell'operatore, nella stessa mattina, e sono la stessa domanda posta da due lati: **guardando un
+nome, cosa mi manca per decidere?** La prima è un fatto che nessuna fantamedia può esprimere (chi è fuori da
+mesi, chi è appena rientrato, chi ha rotto con la società); la seconda è che il pannello mostrava l'undici della
+squadra REALE e non quello della rosa che sto costruendo al tavolo.
+
+Il lavoro è dell'11/08/2026; **è stato committato e documentato il 14/08**, e i tre giorni di ritardo sono
+registrati qui perché sono l'unica cosa che è andata storta: codice verde e non spedito è codice che nessuno
+può correggere (§27.4).
+
+### 27.1 I marchi accanto al nome: due misurati, uno dichiarato, un solo componente
+
+`ui-flags` disegna quello che un nome porta, **dovunque quel nome sia disegnato** — la richiesta era «nei
+suggerimenti ma anche dalle altre parti», e oggi sono quattro liste: le strisce del consiglio, il feed del
+tavolo, la tabella di consultazione e i due campetti. Un solo componente e **un solo servizio**
+(`PlayerStatus`), perché il difetto che questo progetto ha già pagato è *una lista mostrata i cui numeri
+descrivono una lista diversa* (§05/08): due definizioni di «è infortunato» finirebbero per non essere
+d'accordo, e la prima volta lo scoprirei a un'asta.
+
+**I due marchi misurati** vengono dalla tabella `injuries` del bundle — gli stessi spell datati che la tabella
+di consultazione già legge per spiegare una giornata vuota, quindi in questa app c'è **una** definizione di
+infortunio e non due:
+
+| marchio | cos'è | come si legge |
+|---|---|---|
+| `long_injury` | uno spell **aperto** che ha già superato la soglia | icona piena, ambra |
+| `back_from_long` | rientrato **di recente** da uno spell lungo | **stessa icona a metà opacità** |
+
+La stessa icona a due intensità è una scelta dell'operatore e porta il messaggio: «ci è passato» è lo stesso
+fatto visto da dopo. Ambra e non rosso — un infortunio è un fatto su un giocatore, non un fallimento, e in
+questa app il rosso è per il pericolo.
+
+**Le due soglie sono scelte di DISPLAY, non parametri del modello**, e sono dichiarate in un punto solo
+(`player-status.ts`): **45 giorni** perché un'assenza smetta di essere una botta e diventi un fatto che cambia
+un'offerta, **60 giorni** di «è appena rientrato». Nessun gate le tocca perché non c'è niente da giudicare:
+non entrano in nessuna valutazione e non spostano una graduatoria di un decimale. Scriverlo è il punto —
+altrimenti il prossimo che le legge le prende per misurate.
+
+Tre regole che il codice rispetta e che valgono oltre questo caso:
+1. **Lo spell aperto VINCE sul rientro.** Chi è rientrato in giugno e si è rotto in agosto è fuori ADESSO, e
+   un «appena rientrato» sbiadito accanto a lui direbbe l'opposto del vero. Quindi `back_from_long` riguarda
+   solo un uomo che non ha niente di aperto.
+2. **Fra il conteggio della fonte e il calendario si prende il PIÙ LUNGO.** `days_out` è scritto quando la
+   pagina viene letta, e la pagina può essere più vecchia del bundle: un'assenza ancora in corso è durata
+   almeno quanto dice il calendario.
+3. **Il dato ha l'età del bundle, la domanda è su adesso**, quindi contano due date e nessuna è assunta: il
+   marchio si calcola sull'orologio, e il tooltip dichiara **il giorno in cui il dato è stato letto**
+   (`manifest.generated_at`). Uno spell aperto in un bundle di un mese può essersi chiuso il giorno dopo.
+
+**Quanto tocca, misurato sul bundle del 10/08 letto al 14/08/2026** (32.891 righe di `injuries`, 3.081 uomini
+con almeno uno spell): **134 infortuni lunghi aperti** e **73 rientri recenti** in tutta la tabella; sui
+**1.413** uomini distinti dei tre fogli, **54** lunghi e **39** rientrati — foglio euro 42 e 28 su 1.085 righe,
+i due fogli `default` 18 e 18 su 635. Cioè il marchio parla di circa **il 6,6% del listone**, che è la densità
+giusta per una segnalazione: se dicesse qualcosa su un nome su tre non sarebbe una segnalazione.
+
+**Il terzo marchio non è misurabile e quindi è DICHIARATO**: `config/player_notes.json`
+(spec «Novità v9.49»), `{stagione: {fc_id: {kind, note, decided_on}}}`, con `kind` = `out_of_squad` |
+`dispute` | `wants_out`. Niente qui osserva un litigio: `exit_risk` è un CONTRATTO che scade, un trasferimento
+è un movimento avvenuto, una riga di rosa mancante è indizio di una partenza — leggere uno dei tre come una
+rottura sarebbe inventare un fatto da un fatto diverso. **Una icona per tutti e tre** (raggruppamento
+dell'operatore: al tavolo sono una domanda sola, «questo giocherà?») e la parola decide cosa dice il tooltip,
+insieme alla data della dichiarazione, così chi legge vede quanto è vecchia invece di fidarsi per sempre.
+Oggi il file per 2026-27 è **vuoto**: zero nomi dichiarati, quindi quell'icona non compare da nessuna parte —
+ed è «niente dichiarato», mai «niente da dichiarare».
+
+### 27.2 Il campetto FANTA: qui l'undici si CALCOLA, e non è una contraddizione
+
+Accanto al campetto della squadra reale c'è ora quello della rosa al tavolo, e i due rispondono a domande
+**opposte**:
+
+| | squadra REALE | squadra FANTA |
+|---|---|---|
+| la domanda | quale undici schiererà quell'allenatore? | quale undici può schierare questa rosa? |
+| chi risponde | il **toolkit** (`modules/boards.py`), l'app legge e non ricalcola | l'**app**, sul regolamento |
+| perché | è una PREVISIONE su una persona, quindi una misura | non c'è nessun allenatore da prevedere |
+
+La regola «il campetto legge la board del toolkit e mai un undici suo» (10/08) **resta intera**, e questo non
+la viola: là c'è un allenatore da prevedere e prevederlo è una misura, che vive dove vivono le misure; qui non
+c'è nessuno da prevedere, solo il **regolamento** — quali schemi legali fanno entrare questi uomini — quindi
+la risposta è una deduzione e sta dove sta la domanda. Scritto anche nel `CLAUDE.md` di radice, perché una
+sessione futura che leggesse solo la prima regola cancellerebbe questo campetto citandola.
+
+Come è fatto:
+- **La moneta è il VALORE** (fm × presenze attese), che è quello che il banco a cinque finestre ha misurato
+  come moneta di questo formato (§26.1) — non il surplus, non il netto. Serviva il numero in fantapunti e non
+  il rango: `value99` è un rango e **non si somma**, un undici è una somma, quindi `valueBy` è la definizione
+  in fantapunti e `value99By` è quella stessa mappa sulla scala della sessione. Due modi di prezzare lo stesso
+  uomo finirebbero per non essere d'accordo su quale undici è il più forte.
+- **Il modulo è scelto, non chiesto**: è quello i cui posti fanno entrare l'undici più forte fra gli schemi
+  legali del gioco che si sta giocando. La carta mostra i **runner-up col loro punteggio**, perché una scelta
+  automatica deve poter essere dubitata; il **pareggio va al primo dichiarato**, che è lo stesso tie-break di
+  `bestCovered` ed è asserito in un test invece di essere nascosto (con una rosa incompleta il pareggio è
+  frequente).
+- **Chi il foglio non sa prezzare NON è schierato e non è uno zero**: è elencato a parte, così «questo undici
+  ha dieci uomini» si legge per quello che è invece che come una rosa con un buco. È «vuoto = ignoto» applicato
+  a un disegno.
+- **Il ballottaggio è esatto, non un'euristica**: il più forte della panchina che quel posto accetterebbe.
+  Scambiarlo col titolare di un posto lascia intatti tutti gli altri posti, quindi l'undici resta legale
+  **se e solo se** i suoi ruoli stanno in quel posto — nessun secondo abbinamento da rifare. Lo stesso uomo
+  può essere il ballottaggio di due posti: è quello che «è la prima alternativa lì» significa, e non è un
+  piano di sostituzioni.
+- **Su classic il macro-ruolo si LEGGE dalla zona** che il feed usa già per contare i suoi slot, e non si
+  piega un codice mantra per analogia: è l'avvertimento dell'operatore del 10/08 e la ragione per cui i due
+  regolamenti sono due file.
+
+`mantra-legal.ts` resta l'**unica** definizione della legalità (la legge anche il banco del draft) e si è
+allargata invece di essere duplicata: `placesIn` porta ora la **linea** e il **nome del posto** del
+regolamento, `placesOf` è la sua proiezione sui soli ruoli, `bestEleven` restituisce chi sta su ogni posto e
+`bestElevenWorth` è il suo totale — cioè la funzione che il valore di blocco (§26.2) usava già continua a
+esistere come una riga sopra la nuova. **L'ordine dentro una linea è quello del regolamento**, dalla destra
+della squadra alla sua sinistra: è la sola informazione di lato che un modulo porta, e un disegno che la
+ignorasse metterebbe il terzino destro a sinistra.
+
+### 27.3 Verifica
+
+`ng build` verde; test dell'app **da 107 a 132** — i 25 nuovi sono tutti nei due file nuovi
+(`fanta-eleven.spec.ts` 11, `player-status.spec.ts` 14) — toolkit **366 + 1 skipped**, `engine_*` non toccato
+e `SHEET_REVISION` invariato a 15, quindi nessun foglio diventa stantio.
+
+**Cosa NON è verificato, e va detto**: la verifica visiva dei due campetti affiancati vive dentro un'asta
+seguita, esattamente come quella del campetto reale (§26.4 dell'elenco precedente). Nessuno screenshot è stato
+preso, quindi la geometria a due colonne (`xl:grid-cols-2`) è dichiarata e non misurata.
+
+### 27.4 La cosa andata storta, che è di metodo e non di codice
+
+Questo lavoro è stato scritto l'11/08 la mattina ed è rimasto **tre giorni nel working tree**: non committato,
+non documentato in `docs/model/` e non pubblicato. Nel frattempo il sito pubblico è restato al deploy del
+**09/08**, cioè indietro di **due** sessioni intere — mancavano sia i campetti reali del 10/08 sia tutto
+questo. Due conseguenze da tenere:
+
+1. **Codice verde e non spedito è codice che nessuno può correggere.** Un difetto che vive solo sulla macchina
+   dell'operatore non produce nemmeno la segnalazione che lo farebbe trovare — la stessa forma di «uno zero
+   silenzioso è indistinguibile da una funzione rotta», un livello sopra.
+2. **Il `chiudi` va fatto quando il lavoro finisce, non quando la sessione finisce.** Le due funzioni erano
+   complete e verdi alle 08:11 dell'11/08; il documento che le spiega è di tre giorni dopo, ricostruito
+   leggendo i diff. Ha funzionato perché i commenti nel codice portavano i «perché» e le date; sarebbe
+   fallito senza.

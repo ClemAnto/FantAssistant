@@ -41,6 +41,14 @@ Monorepo for the **EuroLeghe fantacalcio prediction engine**. Two parts:
   Highest precedence for the DRAWN board and nothing else; the two judges load with
   `apply_rulings=False`, because a ruling is often made looking at the judge and a judge must never
   score the operator's own answers. See «A judgement the model cannot reach» below.
+  **A fourth file joined it on 11/08/2026 for the same reason and with the same standing**:
+  `player_notes.json`, `{season: {fc_id: {kind, note, decided_on}}}`, where `kind` is `out_of_squad` |
+  `dispute` | `wants_out` — who is out of the squad, who has fallen out with his club, who has asked to
+  leave. Nothing in this project observes a quarrel: `flags.exit_risk` is a CONTRACT expiring, a
+  transfer is a move that has happened and a missing squad row is evidence of a departure, so reading
+  any of the three as a dispute would be inventing a fact from a different one. REPORTING only — it
+  draws an icon beside a name in the app and no engine path reads it — it travels in the bundle's
+  `config/` (`export` copies it, `data:pull` pulls it), and it is joined by `fc_id`, never by a name.
 - `docs/` - manifest of the Drive documents (source of truth). `data/` - local datasets (rebuildable).
 
 ## Language convention
@@ -346,6 +354,36 @@ outside the perimeter AND have no provider id (zero clubs have the id and not th
 an IDENTITY and never an API. What was actually broken was the call: `ui-crest` given only a name draws a
 monogram by design, and the auction panel was passing only the name. **The data was there; nobody asked for
 it** - and measuring first saved a whole scraper.
+
+**And the MIRROR of that rule, which a future session must not delete by citing the rule above**
+(11/08/2026). The app now draws a SECOND pitch beside the real one: the best legal eleven a squad AT THIS
+TABLE can field (`core/fanta-eleven.ts`, `views/auction/fanta-pitch/`), and that one IS computed here. The
+two are opposite questions and the boundary is the same one that put boards in the toolkit: a real club's
+eleven is a **prediction about a person**, so it is a measurement and lives where measurements live and are
+judged; a fanta squad's eleven has **no coach to predict** - it is a question about the RULEBOOK, «which of
+the legal shapes lets these men on the pitch», so it is a deduction and lives where the question is asked.
+Hence «the app reads the board and never its own» binds the DRAWN board of a real club and nothing else.
+What travels with it: the currency is the **VALUE**, the one the five-window draft bench measured for this
+format (not the surplus, and `value99` is a rank that cannot be summed - an eleven is a sum, so `valueBy` is
+the fantapunti definition and `value99By` is that same map on the session's scale, one pricing and not two);
+the module is CHOSEN as the one whose places field the strongest eleven, with the runners-up shown, because
+an automatic choice must be doubtable; a man the sheet cannot price is listed APART and never fielded, which
+is «vuoto = ignoto» applied to a drawing; and `mantra-legal.ts` was WIDENED rather than copied (`placesIn`
+carries the line and the rulebook's own slot name, `bestEleven` returns who stands where, `bestElevenWorth`
+is its total), so the draft bench keeps reading the one definition of legality.
+
+**Three states a name carries, and only two of them are measurable** (11/08/2026, `ui-flags` +
+`core/player-status.ts`). One component and ONE service, drawn in every list that shows a player, because the
+defect this project has already paid for is a displayed list whose figures describe a different list: two
+definitions of «he is injured» would eventually disagree, and the first time anyone noticed would be at a
+table. A long OPEN injury and a RECENT RETURN from one are read from the bundle's own `injuries` table - the
+same dated spells the consultation table already uses - and their two thresholds (45 and 60 days) are DISPLAY
+choices declared in one place: they enter no valuation and move no ranking, so no gate owns them, and saying
+so is the point or the next reader takes them for measured. Three rules the code obeys: the open spell WINS
+over the return (a man who came back in June and broke down in August is out NOW), the LONGER of the source's
+own `days_out` and the calendar is taken (the page can be older than the bundle), and the mark is computed on
+the CLOCK while the tooltip states the day the data was READ - two dates, neither assumed. The third state
+cannot be measured at all and is therefore DECLARED (`config/player_notes.json`, above).
 
 ## Provisional parameters, and the sweep that judges them
 Some constants exist only because a module needed a number to run. They are MODEL choices, so the gate owns

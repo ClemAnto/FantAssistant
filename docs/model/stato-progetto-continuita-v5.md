@@ -1,5 +1,5 @@
 # Stato progetto & continuità — v5
-**Aggiornato: 10 agosto 2026, notte tarda (la todolist del draft eseguita, il campetto legge la board del toolkit ed e' rifinito, v0.1.8)**
+**Aggiornato: 14 agosto 2026 (i marchi accanto al nome, il campetto della squadra FANTA, le note dichiarate nel bundle — lavoro dell'11/08 committato e pubblicato il 14)**
 Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da qui + i file della cartella "Modello Previsionale Fantacalcio".
 *Glossario: T1/T2 = finestre di test (23/24->24/25, 24/25->25/26) · MAE = errore medio assoluto · cross-fitted = parametri stimati su una finestra, testati sull'altra · M2e = modello portieri decomposto (abilità + tasso gol subiti del club; la metà Elo del nome non è nel motore) · Pv_att = presenze attese · fc_id = id fantacalcio.it · EV = valore atteso · scoring_config = punteggi configurabili per lega · xG/xA = expected goals/assists · 2.5 pieno = backtest motore completo con flag.*
 
@@ -7,6 +7,27 @@ Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da q
 App per leghe EuroLeghe/fantacalcio.it (Classic+Mantra, 5 campionati) con motore previsionale. Metodo: ogni regola entra SOLO se batte il baseline fuori campione su finestre indipendenti (gate pre-registrato). Doc madre: modello-previsionale-v3.8.md.
 
 ## ⚠️ Lo stato corrente è in `00-BRIDGE-punto-di-ingresso.md`, blocco «STATO AL 5 AGOSTO 2026»
+
+### 11 agosto 2026 (committato il 14), in una riga: cosa un nome porta con sé, e l'undici che la MIA rosa schiera
+
+Dettaglio nel blocco «ULTIMO IN ORDINE DI TEMPO — 11/08/2026» del
+[00-BRIDGE-punto-di-ingresso.md](00-BRIDGE-punto-di-ingresso.md); pannello in
+[assistente-asta-v1.md](assistente-asta-v1.md) §27, toolkit in spec «Novità v9.49».
+`engine_*` **invariato**, `SHEET_REVISION` fermo a 15, **366 test toolkit + 132 app** (da 107), build verde.
+
+1. **I marchi accanto al nome**, in quattro liste e con un solo servizio: **infortunio lungo aperto** e
+   **rientrato da poco** (stessa icona a metà opacità), misurati dalla tabella `injuries` — soglie 45 e 60
+   giorni, **scelte di DISPLAY** e non parametri, quindi nessun gate. Toccano il **6,6%** del listone (54 e 39
+   sui 1.413 uomini dei fogli), che è la densità giusta per una segnalazione.
+2. **Il terzo marchio è DICHIARATO** perché niente qui osserva un litigio: `config/player_notes.json` (fuori
+   rosa / rottura / ha chiesto di andare via), quarto file dichiarato, solo reporting, giunto per `fc_id`, e
+   la sua **assenza è silenzio** — asserito in un test insieme al fatto che viaggi nel bundle.
+3. **Il campetto FANTA accanto a quello reale**, e qui l'undici **si calcola**: là c'è un allenatore da
+   prevedere (misura → toolkit), qui solo il regolamento (deduzione → app). Moneta = **valore**, modulo scelto
+   coi runner-up mostrati, ballottaggi esatti, i non prezzati elencati a parte.
+4. **Andata storta, di metodo**: tre giorni nel working tree e il sito indietro di **due** sessioni (deploy
+   fermo al 09/08). **Codice verde e non spedito è codice che nessuno può correggere**, e il `chiudi` va fatto
+   quando finisce il lavoro, non quando finisce la sessione.
 
 ### 10 agosto 2026, notte, in una riga: la todolist del draft eseguita, e il consiglio riscritto su misure
 
