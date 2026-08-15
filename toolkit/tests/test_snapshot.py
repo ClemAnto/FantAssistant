@@ -93,6 +93,10 @@ def test_columns_declare_which_half_is_gated():
     assert engine and desc and actual and estimated
     assert {"est_surplus", "est_basis", "est_confidence", "est_note"} <= set(estimated), (
         "an estimate that does not say what it is built from and what it cost is not usable")
+    # ...and BOTH halves of the pair: the operator's rule is that every player always has a realistic FM
+    # and MV, so an estimate that answers only one of the two leaves the other column empty for exactly
+    # the men the fallback exists for.
+    assert {"est_fm", "est_mv"} <= set(estimated)
     # nothing may sit in between: every column is identity/market, engine, descriptive, or an outcome
     known = {"fc_id", "name", "club", "league", "role_classic", "roles_mantra", "price_initial",
              "price_initial_mantra", "fvm_reporting_only"}
@@ -3574,7 +3578,10 @@ def test_the_other_platform_rung_is_only_for_the_same_football():
     conn = sqlite3.connect(":memory:")
     conn.executescript(
         """
-        CREATE TABLE season_stats (fc_id INTEGER, season TEXT, platform TEXT, pv INTEGER, fm REAL);
+        -- `mv` beside `fm` because the real table has both and the layer reads both: the estimate now
+        -- carries the base vote too (`est_mv` = FM minus the bonus per appearance).
+        CREATE TABLE season_stats (fc_id INTEGER, season TEXT, platform TEXT, pv INTEGER, mv REAL,
+                                   fm REAL);
         CREATE TABLE rosters (fc_id INTEGER, season TEXT, fc_club_id INTEGER, role_classic TEXT, league TEXT);
         CREATE TABLE clubs (fc_club_id INTEGER, canonical_name TEXT);
         -- the layer that says how much football he played ELSEWHERE: empty here on purpose, so the
@@ -3588,15 +3595,16 @@ def test_the_other_platform_rung_is_only_for_the_same_football():
         INSERT INTO rosters VALUES (5951, '2025-26', 1, 'A', 'premier_league'), (7, '2025-26', 1, 'A', 'serie_a'),
                                    (5951, '2024-25', 1, 'A', 'serie_a');   -- his Juventus year
         INSERT INTO season_stats VALUES
-            (5951, '2025-26', 'euro', 23, 5.74), (5951, '2024-25', 'default', 16, 7.62),
-            (7,    '2025-26', 'euro', 30, 6.90);
+            (5951, '2025-26', 'euro', 23, 5.61, 5.74), (5951, '2024-25', 'default', 16, 6.06, 7.62),
+            (7,    '2025-26', 'euro', 30, 6.10, 6.90);
         """
     )
     conn.executescript(
         """
         -- 6397 is Gonçalo Ramos: PSG for every season he has, and never a Serie A one
         INSERT INTO rosters VALUES (6397, '2025-26', 1, 'A', 'ligue_1'), (6397, '2024-25', 1, 'A', 'ligue_1');
-        INSERT INTO season_stats VALUES (6397, '2025-26', 'euro', 26, 6.23), (6397, '2024-25', 'euro', 19, 7.50);
+        INSERT INTO season_stats VALUES (6397, '2025-26', 'euro', 26, 5.98, 6.23),
+                                        (6397, '2024-25', 'euro', 19, 6.20, 7.50);
         """
     )
     window = features.Window("W", "2025-26", "2026-27", "2026-08-06")

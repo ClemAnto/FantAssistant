@@ -909,3 +909,36 @@ def test_a_new_signing_is_not_an_unknown_man():
     assert est.presences_from_abroad(38, "nowhere", share) is None
     # a share above the calendar cannot come out of it, whatever goes in
     assert est.presences_from_abroad(38, "default", 5.0) <= 38
+
+
+def test_the_estimate_carries_a_base_vote_and_never_guesses_it_apart():
+    """`est_mv` = `est_fm` minus the bonus per appearance, so the pair cannot contradict itself.
+
+    Measured 15/08/2026 on 3750 Serie A player-seasons with >= 15 votes: the bonus rate is a property of
+    the man (r = +0.842 from one season to the next) and its size is the ROLE's - keepers -1.29 against
+    +0.05 for defenders - so padding a short sample with the role's own rate is what «spannometrico ma
+    ragionato» means here. A direct estimate of the MV was measured too (anchor + 0.45(his - anchor), MAE
+    0.148 against 0.166 for the anchor alone) and refused on purpose: a second free number could
+    contradict the first.
+    """
+    from euroleghe_ingest.engine import estimate as est
+
+    # nothing measured of him: the role's rate answers, which is how everybody still gets an MV
+    assert est.bonus_rate(None, None, 0.74) == pytest.approx(0.74)
+    assert est.bonus_rate(0.90, 0, 0.74) == pytest.approx(0.74)
+    # a full sample is entirely his
+    assert est.bonus_rate(0.90, est.FULL_SEASON_VOTES, 0.74) == pytest.approx(0.90)
+    assert est.bonus_rate(0.90, 60, 0.74) == pytest.approx(0.90), "never past his own rate"
+    # a third of a sample is a third of his own, the same shrink as everywhere else
+    assert est.bonus_rate(0.90, 5, 0.74) == pytest.approx(0.74 + (0.90 - 0.74) / 3)
+    # and with no role rate at all his own stands rather than nothing
+    assert est.bonus_rate(0.90, 5, None) == pytest.approx(0.90)
+
+    # the derivation itself, and the identity that makes the pair readable: fm - mv IS the bonus rate
+    assert est.mv_from(6.85, 0.74) == pytest.approx(6.11)
+    assert est.mv_from(5.20, -1.29) == pytest.approx(6.49), "a keeper's fantamedia is BELOW his vote"
+    assert est.mv_from(None, 0.74) is None
+    assert est.mv_from(6.85, None) is None
+
+    # an Estimate built without one is still valid: an older bundle simply has no MV to show
+    assert est.Estimate(6.0, 20.0, "anchor", 0.5, "").mv is None

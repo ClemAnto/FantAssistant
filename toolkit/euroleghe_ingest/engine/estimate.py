@@ -138,6 +138,10 @@ class Estimate:
     basis: str
     confidence: float
     note: str
+    # The base vote behind that fantamedia. It is DERIVED from `fm` and never estimated on its own - see
+    # `bonus_rate` - so the pair can never contradict itself: fm - mv IS the bonus per appearance the row
+    # expects of him, which is a number a reader can disagree with.
+    mv: float | None = None
 
     @property
     def estimated(self) -> bool:
@@ -169,6 +173,50 @@ def shrink(fm: float, votes: int, anchor: float, full: int = FULL_SEASON_VOTES) 
     value = weight * fm + (1.0 - weight) * anchor
     confidence = CONFIDENCE["shrunk_floor"] + CONFIDENCE["shrunk_span"] * weight
     return value, confidence
+
+
+# THE BONUS PER APPEARANCE, which is what separates a fantamedia from a base vote: FM = MV + (bonuses -
+# maluses) / Pv, so MV = FM - this. Measured 15/08/2026 on our own DB, 3750 Serie A player-seasons with
+# >= 15 votes, after the operator asked for an MV for everybody:
+#
+#     role   n     mean    sd     p10     p90
+#     P     247   -1.293  0.388  -1.77   -0.82      (the goals-conceded malus, and it is huge)
+#     D    1348   +0.045  0.178  -0.14   +0.28
+#     C    1395   +0.239  0.301  -0.08   +0.64
+#     A     760   +0.735  0.519  +0.17   +1.43
+#
+# It is a PROPERTY OF THE MAN and not noise: from one season to the next it repeats at **r = +0.842**,
+# which is far above anything else this project carries season to season. That is why the estimate blends
+# HIS OWN rate toward his role's instead of using the role's alone.
+#
+# Why derive the MV instead of estimating it directly. Measured on the same table, predicting a season's MV
+# from the one before: his own MV raw MAE **0.170**, the role anchor alone **0.166**, anchor + b(his -
+# anchor) **0.148** at b = 0.45 - the same shape and nearly the same coefficient as `OLDER_BETA`. So a
+# direct estimate is available and about as good; it is refused because it would be a SECOND number free to
+# contradict the first, and «fm - mv» would then be a bonus rate nobody chose. One number and one
+# derivation keeps the pair readable.
+BONUS_FULL_VOTES: int = FULL_SEASON_VOTES
+
+
+def bonus_rate(own: float | None, votes: int | None, role_rate: float | None) -> float | None:
+    """His bonus per appearance, padded with his role's for the appearances he has not got.
+
+    The same arithmetic as `shrink` and for the same reason: a rate off three matches is his in name only.
+    With nothing measured at all it IS the role's rate, which is what «spannometrico ma ragionato» means.
+    """
+    if own is None or not votes:
+        return role_rate
+    if role_rate is None:
+        return own
+    weight = max(0.0, min(1.0, votes / BONUS_FULL_VOTES))
+    return weight * own + (1.0 - weight) * role_rate
+
+
+def mv_from(fm: float | None, rate: float | None) -> float | None:
+    """The base vote behind a fantamedia: `MV = FM - bonus per appearance`. Null if either half is."""
+    if fm is None or rate is None:
+        return None
+    return fm - rate
 
 
 def older_confidence(seasons_back: int) -> float:

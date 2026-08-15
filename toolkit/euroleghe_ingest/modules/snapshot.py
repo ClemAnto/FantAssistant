@@ -39,6 +39,7 @@ import io
 import json
 import os
 import time
+from dataclasses import replace
 from pathlib import Path
 from typing import NamedTuple
 
@@ -191,7 +192,17 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      so the injury consolidated the place and did not cause it. Measured on 635 Serie A rows: 243
 #      changes, 128 gained and 115 lost. Reporting only - the predictive form of this idea reads +0.049
 #      over 8 instances (6/8) - and `engine_*` is untouched again.
-SHEET_REVISION = 17
+#  18  15/08/2026 - AND THE OTHER HALF OF THE PAIR: `est_mv`, so every player always has a realistic MV
+#      as well as an FM (the operator's rule of 05/08, one column further). It is DERIVED and never
+#      guessed apart - `MV = FM - bonus per appearance` - with his own rate padded toward his role's by
+#      the votes he has (`est.bonus_rate`, the same shrink as everywhere else). Measured on 3750 Serie A
+#      player-seasons: the rate is a property of the man (r = +0.842 from one season to the next) and it
+#      is huge for keepers (-1.29) against +0.05 for defenders, so a single number would have been
+#      useless. A direct estimate of the MV was available and about as good (anchor + 0.45(his - anchor),
+#      MAE 0.148 against 0.166 for the anchor alone and 0.170 for his own raw MV) and is refused on
+#      purpose: a second free number could contradict the first, and «fm - mv» would stop being a bonus
+#      rate anybody chose. Reporting, like the whole `est_*` prefix: `engine_*` does not move a decimal.
+SHEET_REVISION = 18
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
@@ -2577,12 +2588,12 @@ def estimation_layer(conn, window: features.Window, platform: str,
     eligible_other = {fc_id for (fc_id,) in conn.execute(
         f"SELECT fc_id FROM rosters WHERE season = ? AND league = 'serie_a' AND fc_id IN ({marks})",
         (window.input_season, *ids))} if platform == "default" else set(ids)
-    for fc_id, pv, fm in conn.execute(
-            f"SELECT fc_id, pv, fm FROM season_stats WHERE season = ? AND platform = ? "
+    for fc_id, pv, mv, fm in conn.execute(
+            f"SELECT fc_id, pv, mv, fm FROM season_stats WHERE season = ? AND platform = ? "
             f"AND fm IS NOT NULL AND fc_id IN ({marks})",
             (window.input_season, other, *ids)):
         if fc_id in eligible_other:
-            layer[fc_id]["other"] = {"pv": pv, "fm": fm, "platform": other}
+            layer[fc_id]["other"] = {"pv": pv, "mv": mv, "fm": fm, "platform": other}
     # The newest season BEFORE the input one, whichever platform measured it best (most votes wins, then
     # the newest): an older season is a weaker rung, and `engine.estimate` prices that by how far back it is.
     # ...and it is bound by the SAME competition test as the rung above, which the first version of this
@@ -2594,12 +2605,12 @@ def estimation_layer(conn, window: features.Window, platform: str,
     # against and what it preferred on five windows of six.
     older_join = (" JOIN rosters r ON r.fc_id = s.fc_id AND r.season = s.season "
                   "AND r.league = 'serie_a' ") if platform == "default" else ""
-    for fc_id, season, plat, pv, fm in conn.execute(
-            f"SELECT s.fc_id, s.season, s.platform, s.pv, s.fm FROM season_stats s{older_join} "
+    for fc_id, season, plat, pv, mv, fm in conn.execute(
+            f"SELECT s.fc_id, s.season, s.platform, s.pv, s.mv, s.fm FROM season_stats s{older_join} "
             f"WHERE s.season < ? AND s.fm IS NOT NULL AND s.pv >= ? AND s.fc_id IN ({marks}) "
             f"ORDER BY s.season ASC, s.pv ASC",
             (window.input_season, est.FULL_SEASON_VOTES, *ids)):
-        layer[fc_id]["older"] = {"season": season, "platform": plat, "pv": pv, "fm": fm}
+        layer[fc_id]["older"] = {"season": season, "platform": plat, "pv": pv, "mv": mv, "fm": fm}
     # ...and the FOOTBALL HE PLAYED ELSEWHERE, which is what a new signing has instead of a season here.
     # One row per (player, competition) in `external_stats`: the league he played MOST in is his origin,
     # and its own rounds are the denominator (`features.league_rounds`, the same one `desc_arrival_origin_
@@ -2615,6 +2626,32 @@ def estimation_layer(conn, window: features.Window, platform: str,
         if competition in rounds and (seen is None or minutes > seen["minutes"]):
             layer[fc_id]["abroad"] = {"minutes": minutes, "rounds": rounds[competition],
                                       "league": competition}
+    # HIS BONUS PER APPEARANCE, pv-weighted over every season we have measured of him, and the same rate
+    # per ROLE to pad it with. It is what turns the estimated fantamedia into an estimated base VOTE
+    # (`est.bonus_rate` carries the measurement): every player then has an MV as well as an FM, which is
+    # the operator's rule of 05/08 applied to the other half of the pair. The sheet's own platform is
+    # preferred and the other one answers for a man this calendar has never measured - a bonus rate is a
+    # per-appearance quantity, so the two calendars measure the same thing.
+    for fc_id, plat, votes, rate in conn.execute(
+            f"SELECT fc_id, platform, SUM(pv), SUM((fm - mv) * pv) / SUM(pv) FROM season_stats "
+            f"WHERE season <= ? AND pv > 0 AND fm IS NOT NULL AND mv IS NOT NULL "
+            f"AND fc_id IN ({marks}) GROUP BY fc_id, platform",
+            (window.input_season, *ids)):
+        seen = layer[fc_id].get("bonus")
+        if seen is None or plat == platform:
+            layer[fc_id]["bonus"] = {"votes": votes, "rate": rate, "platform": plat}
+    role_bonus: dict[str, float] = {}
+    for role, rate in conn.execute(
+            """
+            SELECT r.role_classic, SUM((s.fm - s.mv) * s.pv) / SUM(s.pv)
+            FROM season_stats s
+            JOIN rosters r ON r.fc_id = s.fc_id AND r.season = s.season
+            WHERE s.season = ? AND s.platform = ? AND s.pv >= ? AND s.fm IS NOT NULL AND s.mv IS NOT NULL
+            GROUP BY 1
+            """,
+            (window.input_season, platform, est.FULL_SEASON_VOTES)):
+        if role:
+            role_bonus[role] = rate
     club_level: dict[tuple[str, str], tuple[float, int]] = {}
     for club, role, mean_fm, count in conn.execute(
             """
@@ -2628,11 +2665,38 @@ def estimation_layer(conn, window: features.Window, platform: str,
             (window.input_season, platform, est.FULL_SEASON_VOTES)):
         if club and role:
             club_level[(club, role)] = (mean_fm, count)
-    return {"players": layer, "club_level": club_level}
+    return {"players": layer, "club_level": club_level, "role_bonus": role_bonus}
 
 
 def estimate_for(obs, prediction, layer: dict, anchors: dict, data,
                  window: features.Window, platform: str = "euro") -> est.Estimate:
+    """The rung, and then the BASE VOTE that goes with whatever fantamedia it produced.
+
+    The MV is derived and never estimated on its own (`est.bonus_rate`): one number, one derivation, and
+    `fm - mv` stays the bonus per appearance the row expects of him instead of being the difference between
+    two independent guesses. It is filled for EVERY row, `core` included - the operator's rule is that
+    every player always has a realistic FM and MV, not only the ones the engine can price.
+    """
+    guess = _rung_for(obs, prediction, layer, anchors, data, window, platform)
+    if guess.mv is None:
+        # Only the `core` rung reaches here: the engine predicts a fantamedia and no base vote, so this
+        # is the one place the MV is DERIVED - fm_pred minus his own bonus per appearance, padded with
+        # his role's for the appearances he has not got. Every other rung transforms a measured season,
+        # and there the MV is transformed the same way as the FM (see `_rung_for`): deriving it there
+        # too would dump the whole regression toward the anchor onto the base vote, which is how Kolo
+        # Muani first came out at 5.29 of MV against the 6.06 he actually averaged.
+        mine = layer.get("players", {}).get(obs.fc_id, {}).get("bonus") or {}
+        rate = est.bonus_rate(mine.get("rate"), mine.get("votes"),
+                              layer.get("role_bonus", {}).get(obs.role_classic or ""))
+        guess = replace(guess, mv=est.mv_from(guess.fm, rate))
+    if guess.mv is None or guess.fm is None:
+        return guess
+    said = f"MV attesa {guess.mv:.2f}, cioè {guess.fm - guess.mv:+.2f} di bonus a presenza"
+    return replace(guess, note=f"{guess.note} · {said}" if guess.note else said)
+
+
+def _rung_for(obs, prediction, layer: dict, anchors: dict, data,
+              window: features.Window, platform: str = "euro") -> est.Estimate:
     """One player's fallback valuation, down the ladder `engine.estimate` declares. Never returns None.
 
     The order is the measured one and NOT "his own football first": R1 put a foreign FM-equivalent against
@@ -2643,6 +2707,13 @@ def estimate_for(obs, prediction, layer: dict, anchors: dict, data,
     anchor = est.club_anchor(
         anchors.get(role) or (prediction.anchor if prediction else None) or 6.0,
         *(layer.get("club_level", {}).get((obs.club_target or "", role)) or (None, 0)))
+    # The anchor of the BASE VOTE, which is the fantamedia anchor minus the role's own bonus per
+    # appearance: a keeper's MV anchor sits ABOVE his FM anchor (-1.29 of bonus), a forward's well below
+    # (+0.74). Every rung that transforms a measured season transforms his MV toward this one exactly as
+    # it transforms his FM toward the other, so `fm - mv` stays a bonus rate and never becomes the
+    # leftover of two unrelated shrinkages.
+    role_bonus = layer.get("role_bonus", {}).get(role)
+    anchor_mv = None if role_bonus is None else anchor - role_bonus
     mine = layer.get("players", {}).get(obs.fc_id, {})
     calendar = data.matchdays_target or 0
     if prediction is not None and prediction.fm_pred is not None:
@@ -2680,18 +2751,24 @@ def estimate_for(obs, prediction, layer: dict, anchors: dict, data,
             other["fm"], presences(other["pv"], ratio), "other_platform",
             est.CONFIDENCE["other_platform"],
             f"his {window.input_season} on {other['platform']} ({other['pv']} votes) stands in for "
-            f"a season this platform has not got")
+            f"a season this platform has not got",
+            mv=other.get("mv"))
     level = f"the level of {obs.club_target or 'the club'}'s {role or 'players'} ({anchor:.2f})"
     if obs.pv_prev and obs.fm_prev is not None:
         value, confidence = est.shrink(obs.fm_prev, obs.pv_prev, anchor)
+        base = (est.shrink(obs.mv_prev, obs.pv_prev, anchor_mv)[0]
+                if obs.mv_prev is not None and anchor_mv is not None else None)
         return est.Estimate(value, presences(obs.pv_prev), "shrunk", confidence,
-                            f"only {_votes(obs.pv_prev)} here, so his mean is blended with {level}")
+                            f"only {_votes(obs.pv_prev)} here, so his mean is blended with {level}",
+                            mv=base)
     if other and other["fm"] is not None and (other["pv"] or 0) >= 1:
         value, confidence = est.shrink(other["fm"], other["pv"], anchor)
+        base = (est.shrink(other["mv"], other["pv"], anchor_mv)[0]
+                if other.get("mv") is not None and anchor_mv is not None else None)
         ratio = (calendar / 31.0) if calendar else 1.0
         return est.Estimate(value, presences(other["pv"], ratio), "shrunk", confidence * 0.9,
                             f"only {_votes(other['pv'])} on {other['platform']} and none here, blended "
-                            f"with {level}")
+                            f"with {level}", mv=base)
     if older:
         # how many seasons back it is, from the season the sheet predicts FROM: 2 by construction, since
         # anything at t-1 would have been caught by the rungs above.
@@ -2700,11 +2777,13 @@ def estimate_for(obs, prediction, layer: dict, anchors: dict, data,
         # prediction is the naive baseline the core beats, and it is biased upward for exactly the men
         # this rung serves (`est.OLDER_BETA` carries the measurement).
         value = est.regress(older["fm"], anchor)
+        base = (est.regress(older["mv"], anchor_mv)
+                if older.get("mv") is not None and anchor_mv is not None else None)
         return est.Estimate(value, presences(older["pv"], recent_first=True), "older",
                             est.older_confidence(back),
                             f"his last measured season is {older['season']} on {older['platform']} "
                             f"({older['pv']} votes, {older['fm']:.2f}), {back} seasons back - pulled "
-                            f"{int((1 - est.OLDER_BETA) * 100)}% toward {level}")
+                            f"{int((1 - est.OLDER_BETA) * 100)}% toward {level}", mv=base)
     # The last rung, and it has TWO cases that the first version told apart with one constant. A man
     # nobody has ever measured gets the unmeasured share; a man measured ELSEWHERE - the new signing from
     # abroad - gets his own minutes converted by a line fitted on exactly that population
@@ -2718,7 +2797,7 @@ def estimate_for(obs, prediction, layer: dict, anchors: dict, data,
                 f"preferred")
     return est.Estimate(anchor, presences(None) or from_abroad
                         or est.default_presences(calendar, platform, "unmeasured"),
-                        "anchor", est.CONFIDENCE["anchor"], note)
+                        "anchor", est.CONFIDENCE["anchor"], note, mv=anchor_mv)
 
 
 def _club_key(name: str | None) -> str:
@@ -3427,7 +3506,9 @@ PLAYER_COLUMNS: tuple[str, ...] = (
     "engine_role_slot", "engine_replacement_fm", "engine_anchor", "engine_unpriced_reason",
     # ESTIMATED, a third class next to engine_ (gated) and desc_ (measured): every player gets a surplus,
     # penalised for what we do not know about him, with the basis and the penalty on the row (engine/estimate.py)
-    "est_fm", "est_pv", "est_surplus", "est_basis", "est_confidence", "est_note",
+    # `est_mv` is the base vote behind `est_fm`, derived from it and never guessed apart: FM - MV is the
+    # bonus per appearance the row expects, so the two can never say different things about one player.
+    "est_fm", "est_mv", "est_pv", "est_surplus", "est_basis", "est_confidence", "est_note",
     # a TRANSFER says he has left the club this row shows him at (see `departures`): reported, never applied
     "desc_left_for", "desc_left_on",
     # descriptive, NOT gated
@@ -3730,6 +3811,7 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             # Stones 3). An empty cell is a statement; this is which statement.
             "engine_unpriced_reason": _unpriced_reason(prediction, obs),
             "est_fm": _round(guess.fm, 3),
+            "est_mv": _round(guess.mv, 3),
             "est_pv": _round(guess.pv, 1),
             "est_surplus": _round(guess_surplus, 1),
             "est_basis": guess.basis,

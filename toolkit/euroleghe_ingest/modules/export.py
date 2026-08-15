@@ -181,6 +181,7 @@ SHEET_COLUMNS: tuple[str, ...] = (
     "engine_anchor",
     "engine_unpriced_reason",
     "est_fm",                # the fallback for a man the core refuses to price, with its penalty
+    "est_mv",                # ...and the base vote behind it: FM minus the bonus per appearance
     "est_pv",
     "est_surplus",
     "est_confidence",
