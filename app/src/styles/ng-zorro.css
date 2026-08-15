@@ -100,4 +100,16 @@
   .ant-pagination-item-ellipsis {
     color: var(--color-muted);
   }
+
+  /* The rate inside `ui-stars` is a READING in a table cell, not an input: antd draws it at 20px with
+     8px between stars, which is 132px - wider than the column, so the five stars wrapped after the
+     third and a five-star row read as three. Sized on the type scale and on the spacing token; the
+     utility class cannot do it because `.ant-rate` is the component's own inner <ul>, not its host. */
+  ui-stars .ant-rate {
+    font-size: var(--text-xs);
+  }
+
+  ui-stars .ant-rate-star:not(:last-child) {
+    margin-inline-end: calc(var(--spacing) / 2);
+  }
 }

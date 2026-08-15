@@ -171,8 +171,8 @@ export class Players {
     this.selected.set({ cell, player });
   }
 
-  protected readonly mantraCodes = (line: PlayerLine): string[] =>
-    line.mantra.split(/\s+/).filter(Boolean);
+  /** The roster row already carries the codes: splitting the label again would be a second parsing. */
+  protected readonly mantraCodes = (line: PlayerLine): string[] => line.mantraCodes;
 
   protected onWindow(value: number[] | number): void {
     if (Array.isArray(value)) this.store.setWindow([value[0], value[1]]);

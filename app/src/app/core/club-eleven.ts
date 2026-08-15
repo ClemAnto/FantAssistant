@@ -126,6 +126,56 @@ export function lineCounts(picture: string | null | undefined): Record<PitchLine
   return null;
 }
 
+/**
+ * The granular code a drawn PLACE asks for, best first - the reading that says «in the typical eleven he
+ * plays THERE».
+ *
+ * It is a vocabulary and not a measurement: the panel names a place with its own marker (`Td`, `Dc`, `C`,
+ * `Pc`, `Sp`) and the provider names a man with the twelve codes, and this is the correspondence between
+ * the two, keyed by the LINE because the same marker means different jobs on different rows - `Td` in the
+ * defence is a terzino destro, `Td` on the trequarti is a trequartista drawn on the right.
+ *
+ * Where none of a man's codes appears in the list, nothing is marked: he is drawn off every role he has
+ * been measured in, which is worth seeing rather than papering over.
+ */
+export function placeCodes(line: PitchLine, badge: string | null): string[] {
+  const marker = (badge ?? '').trim().toLowerCase();
+  const side = /d$/.test(marker) && marker !== 'd' ? 'right' : /s$/.test(marker) ? 'left' : 'centre';
+  switch (line) {
+    case 'P':
+      return ['GK'];
+    case 'D':
+      if (side === 'right') return ['DR', 'MR', 'RW'];
+      if (side === 'left') return ['DL', 'ML', 'LW'];
+      return ['DC'];
+    case 'M':
+      if (side === 'right') return ['MR', 'DR', 'RW'];
+      if (side === 'left') return ['ML', 'DL', 'LW'];
+      // A mediano and a centrale are one row apart on the grid the twelve codes live on, and the panel
+      // spells both `M`/`C`: the central codes answer for both, deepest job first.
+      return ['MC', 'DM', 'AM'];
+    case 'T':
+      if (side === 'right') return ['RW', 'AM', 'MR'];
+      if (side === 'left') return ['LW', 'AM', 'ML'];
+      return ['AM', 'MC', 'ST'];
+    case 'A':
+      if (side === 'right') return ['RW', 'ST', 'AM'];
+      if (side === 'left') return ['LW', 'ST', 'AM'];
+      // `Pc` and `Sp` are both centre-forwards to the provider: there is no second-striker code at all.
+      return ['ST', 'AM'];
+  }
+}
+
+/** Which of HIS codes the place he is drawn in asks for, or null when none of them does. */
+export function occupiedCode(
+  line: PitchLine,
+  badge: string | null,
+  codes: readonly string[],
+): string | null {
+  const his = new Set(codes.map((code) => code.trim().toUpperCase()));
+  return placeCodes(line, badge).find((code) => his.has(code)) ?? null;
+}
+
 const int = (value: string | null | undefined): number | null => {
   if (value == null || value === '') return null;
   const parsed = Number(value);

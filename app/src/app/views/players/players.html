@@ -16,6 +16,11 @@
           {{ generated.slice(0, 10) }}
         </span>
       }
+      <!-- The only way into the squads view: without it /clubs is reachable by URL alone. -->
+      <a nz-button nzType="text" routerLink="/clubs">
+        <nz-icon nzType="team" />
+        Squadre
+      </a>
       <!-- The only way into the live view: without it /auction is reachable by URL alone. -->
       <a nz-button nzType="text" routerLink="/auction">
         <nz-icon nzType="wifi" />

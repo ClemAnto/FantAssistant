@@ -1,0 +1,319 @@
+<!-- UI text is ITALIAN in app/ (see app/CLAUDE.md); code and comments stay English. -->
+<!-- Wider than the other pages on purpose: this table carries fourteen columns and the alternative is
+     scrolling it sideways, which hides exactly the four star columns it exists for. -->
+<div class="mx-auto flex min-h-full max-w-[1700px] flex-col gap-4 p-4">
+  <header class="flex flex-wrap items-baseline justify-between gap-2">
+    <div class="flex items-baseline gap-2">
+      <h1 class="text-2xl font-semibold text-fg">Squadre</h1>
+      <span
+        class="rounded-full border border-border px-2 py-0.5 text-xs text-muted"
+        title="Versione della webapp - cambia a ogni pubblicazione"
+        >v{{ appVersion }}</span
+      >
+    </div>
+    <div class="flex items-baseline gap-3">
+      @if (store.generatedAt(); as generated) {
+        <span class="text-xs text-muted">
+          Snapshot del {{ generated.slice(0, 10).split('-').reverse().join('/') }}
+          @if (store.targetSeason()) {
+            <span> · listone {{ store.targetSeason() }}</span>
+          }
+        </span>
+      }
+      <a nz-button nzType="text" routerLink="/">
+        <nz-icon nzType="calendar" />
+        Calciatori
+      </a>
+      <a nz-button nzType="text" routerLink="/auction">
+        <nz-icon nzType="wifi" />
+        Segui un'asta
+      </a>
+    </div>
+  </header>
+
+  @if (store.demo()) {
+    <nz-alert
+      nzType="warning"
+      nzShowIcon
+      nzMessage="Dati dimostrativi"
+      nzDescription="Squadre, calciatori e voti di questa pagina sono INVENTATI e generati apposta per la demo pubblica."
+    />
+  }
+
+  @if (store.status() === 'error') {
+    <nz-alert
+      nzType="error"
+      nzShowIcon
+      nzMessage="Non riesco a leggere il bundle"
+      [nzDescription]="store.error() ?? ''"
+    />
+  }
+
+  @if (store.status() === 'loading') {
+    <div class="flex items-center gap-3 text-muted">
+      <nz-spin nzSimple nzSize="small" />
+      Carico le tabelle del bundle...
+    </div>
+  }
+
+  @if (store.status() === 'ready') {
+    <section class="flex flex-col gap-3 rounded-card border border-border bg-surface p-3">
+      <div class="flex flex-wrap items-center gap-4">
+        <div class="flex flex-col gap-1">
+          <span class="text-xs text-muted">Listone</span>
+          <nz-radio-group
+            [ngModel]="store.platform()"
+            (ngModelChange)="choosePlatform($event)"
+          >
+            <label nz-radio-button nzValue="default">Serie A</label>
+            <label nz-radio-button nzValue="euro">EuroLeghe</label>
+          </nz-radio-group>
+        </div>
+        <span class="text-xs text-muted">
+          {{ store.clubs().length }} squadre in questo listone
+        </span>
+      </div>
+
+      <!-- The clubs of the chosen listone, one badge each, GROUPED BY CHAMPIONSHIP: Serie A is one strip,
+           EuroLeghe is 37 clubs over five leagues and reading them in one alphabetical run mixes
+           championships that have nothing to do with each other. The rows WRAP and never scroll (operator,
+           14/08/2026): a strip you have to drag hides half the listone behind a gesture. -->
+      @for (group of store.groups(); track group.label) {
+        <div class="flex flex-col gap-1">
+          @if (store.groups().length > 1) {
+            <span class="text-xs font-medium text-muted">
+              {{ group.label }} · {{ group.clubs.length }}
+            </span>
+          }
+          <div class="-mx-1 flex flex-wrap gap-1 px-1">
+            @for (club of group.clubs; track club.name) {
+              <!-- The chosen club has to be findable in a strip of 37 without hunting: its tile keeps the
+                   primary border AND is painted, its name goes from muted to full strength, and the crest
+                   of every OTHER club is dimmed - three signals, because a border alone on a dark theme is
+                   a thin line among many small round images. -->
+              <button
+                type="button"
+                class="flex w-14 shrink-0 cursor-pointer flex-col items-center gap-1 rounded-md border
+                       border-transparent bg-transparent px-1 py-1.5 text-center transition-colors
+                       hover:border-border hover:bg-control focus-visible:border-primary"
+                [class.border-primary]="club.name === store.club()"
+                [class.bg-control]="club.name === store.club()"
+                [class.ring-1]="club.name === store.club()"
+                [class.ring-primary]="club.name === store.club()"
+                [attr.aria-pressed]="club.name === store.club()"
+                [title]="club.name + ' · ' + club.quoted + ' quotati'"
+                (click)="choose(club.name)"
+              >
+                <ui-crest
+                  class="transition-opacity"
+                  [class.opacity-60]="club.name !== store.club()"
+                  [club]="club.name"
+                  [clubId]="club.id"
+                  [crests]="store.crests()"
+                  size="md"
+                />
+                <!-- The SHORT name, unique inside this listone: `Man` names two clubs when both City and
+                     United are on screen, so there it reads `ManC` and `ManU`. The full name is in the
+                     button's title, which is what a hover asks for. -->
+                <span
+                  class="w-full truncate text-[10px] leading-tight"
+                  [class.text-muted]="club.name !== store.club()"
+                  [class.font-semibold]="club.name === store.club()"
+                  [class.text-primary]="club.name === store.club()"
+                  >{{ club.short }}</span
+                >
+              </button>
+            }
+          </div>
+        </div>
+      }
+    </section>
+
+    @if (selected(); as club) {
+      <div class="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)]">
+        <section class="flex flex-col gap-2 rounded-card border border-border bg-surface p-3">
+          <div class="flex items-center gap-2">
+            <ui-crest [club]="club.name" [clubId]="club.id" [crests]="store.crests()" size="md" />
+            <h2 class="text-lg font-semibold text-fg">{{ club.name }}</h2>
+          </div>
+          <app-board-pitch [board]="store.board()" [noBoards]="store.noBoards()" />
+          <p class="text-xs text-muted">
+            È la <strong>board del toolkit</strong>, non un undici ricalcolato qui: la disegna la classe
+            del pannello guidata senza finestra, con le <strong>tue</strong> decisioni per club applicate.
+            @if (store.boardSheet(); as sheet) {
+              <span>Foglio «{{ sheet.league }}».</span>
+            }
+          </p>
+        </section>
+
+        <section class="flex flex-col gap-2 rounded-card border border-border bg-surface p-3">
+          <div class="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 class="text-lg font-semibold text-fg">Rosa quotata</h2>
+            <span class="text-xs text-muted">
+              {{ store.squad().length }} calciatori · MV e FM misurate: {{ measuredOn() }}
+            </span>
+          </div>
+
+          <!-- The order is the listone's own - P, D, C, A - and inside a role the best measured
+               fantamedia first. Every column can be re-sorted, and a man with no measured season
+               always sorts last: he has no number, which is not a zero. -->
+          <!-- `nzFrontPagination` false, not just a hidden pager: with the pager merely hidden the table
+               still showed the first TEN men of a squad of 26 while the count above it said 26 - a
+               displayed list whose figures describe a different list. -->
+          <nz-table
+            #squadTable
+            nzSize="small"
+            [nzData]="store.squad()"
+            [nzFrontPagination]="false"
+            [nzShowPagination]="false"
+            [nzScroll]="{ x: '900px' }"
+          >
+            <thead>
+              <tr>
+                <th nzWidth="44px" [nzSortFn]="byRole">R</th>
+                <th nzWidth="78px">Mantra</th>
+                <th nzWidth="116px" [nzSortFn]="byName">Nome</th>
+                <th nzWidth="100px" nz-tooltip nzTooltipTitle="I dodici codici granulari osservati dal provider: sono ciò che distingue un terzino sinistro da un centrale. È una FOTOGRAFIA di oggi, non una storia. In GRASSETTO il ruolo che occuperebbe nella formazione tipo.">
+                  Ruolo reale
+                </th>
+                <!-- P: the engine's own expected matches with a vote, on this platform's calendar. -->
+                <th
+                  nzWidth="48px"
+                  class="text-right"
+                  [nzSortFn]="byExpected"
+                  nz-tooltip
+                  [nzTooltipTitle]="expectedHeader()"
+                >
+                  P
+                </th>
+                <!-- The engine's own expected fantamedia. It sits BESIDE the measured one and never
+                     inside it: «quanto ha fatto» e «quanto ci si aspetta» sono due numeri diversi, e per
+                     chi ha giocato altrove solo il secondo può esistere. -->
+                <th
+                  nzWidth="62px"
+                  class="text-right"
+                  [nzSortFn]="byExpectedFm"
+                  nz-tooltip
+                  [nzTooltipTitle]="expectedFmHeader()"
+                >
+                  FM att.
+                </th>
+                <th
+                  nzWidth="62px"
+                  class="text-right"
+                  [nzSortFn]="byExpectedMv"
+                  nz-tooltip
+                  nzTooltipTitle="Media voto ATTESA, che il foglio ricava dalla FM attesa togliendo il bonus a presenza che si aspetta da lui: FM att. meno MV att. È quel bonus. Derivata e mai indovinata a parte, così le due non possono dire cose diverse sullo stesso giocatore."
+                >
+                  MV att.
+                </th>
+                <th nzWidth="56px" class="text-right" [nzSortFn]="byMv">MV</th>
+                <th nzWidth="56px" class="text-right" [nzSortFn]="byFm">FM</th>
+                <!-- The four readings. Each sorts on its 0-99 and shows the stars: two men half a star
+                     apart are two different numbers, so the number is what the column is ordered by. -->
+                @for (key of ratingKeys; track key) {
+                  <th
+                    nzWidth="84px"
+                    [nzSortFn]="byRating(key)"
+                    nz-tooltip
+                    [nzTooltipTitle]="ratingHint[key] + ' ' + anchorHint"
+                  >
+                    {{ ratingLabel[key] }}
+                  </th>
+                }
+              </tr>
+            </thead>
+            <tbody>
+              @for (man of squadTable.data; track man.fcId) {
+                <tr>
+                  <td [title]="roleLabel[man.role]"><ui-role [role]="man.role" /></td>
+                  <td>
+                    <span class="flex flex-wrap gap-1">
+                      @for (code of man.mantraCodes; track code) {
+                        <ui-role [role]="code" />
+                      }
+                    </span>
+                  </td>
+                  <td>
+                    <span class="flex items-center gap-1">
+                      <span class="truncate">{{ man.name }}</span>
+                      <ui-flags [playerId]="man.fcId" />
+                    </span>
+                  </td>
+                  <td class="text-xs text-muted">
+                    @if (man.codes.length) {
+                      <!-- In BOLD the code the typical eleven would field him in - only for the men the
+                           board actually draws: «dove giocherebbe» has no answer for who would not. -->
+                      <span [title]="codesHint(man)">
+                        @for (code of man.codes; track code; let last = $last) {
+                          <span [class.font-semibold]="code === man.place" [class.text-fg]="code === man.place"
+                            >{{ code }}</span
+                          >@if (!last) {<span> · </span>}
+                        }
+                      </span>
+                    } @else {
+                      <span class="opacity-60">ignoto</span>
+                    }
+                  </td>
+                  <td class="text-right tabular-nums" [title]="expectedHint(man)">
+                    @if (man.expected == null) {
+                      —
+                    } @else {
+                      <!-- `~` is the sheet's own mark for an estimated row: the number is there, and it
+                           says what kind of number it is. -->
+                      <span [class.text-muted]="man.expectedIsEstimate"
+                        >@if (man.expectedIsEstimate) {~}{{ man.expected | number: '1.0-0' }}</span
+                      >
+                    }
+                  </td>
+                  <td class="text-right tabular-nums" [title]="expectedFmHint(man)">
+                    @if (man.expectedFm == null) {
+                      —
+                    } @else {
+                      <span [class.text-muted]="man.expectedFmIsEstimate"
+                        >@if (man.expectedFmIsEstimate) {~}{{ man.expectedFm | number: '1.2-2' }}</span
+                      >
+                    }
+                  </td>
+                  <td class="text-right tabular-nums" [title]="expectedMvHint(man)">
+                    @if (man.expectedMv == null) {
+                      —
+                    } @else {
+                      <span [class.text-muted]="man.expectedFmIsEstimate"
+                        >@if (man.expectedFmIsEstimate) {~}{{ man.expectedMv | number: '1.2-2' }}</span
+                      >
+                    }
+                  </td>
+                  <td class="text-right tabular-nums" [title]="measuredHint(man)">
+                    {{ man.mv == null ? '—' : (man.mv | number: '1.2-2') }}
+                  </td>
+                  <td class="text-right tabular-nums" [title]="measuredHint(man)">
+                    {{ man.fm == null ? '—' : (man.fm | number: '1.2-2') }}
+                  </td>
+                  @for (key of ratingKeys; track key) {
+                    <td>
+                      <ui-stars
+                        [score]="man.rating ? man.rating[key].score : null"
+                        [weight]="man.rating ? man.rating[key].weight : 1"
+                        [hint]="man.rating ? man.rating[key].note : 'in calcolo'"
+                      />
+                    </td>
+                  }
+                </tr>
+              }
+            </tbody>
+          </nz-table>
+
+          <p class="text-xs text-muted">
+            MV e FM sono <strong>misurate</strong>, non previste: la stagione {{ store.inputSeason() }}
+            sul calendario di questo listone. Una cella vuota vuol dire <strong>ignoto</strong>, mai zero —
+            un arrivo da un altro campionato o un promosso qui non ha una stagione misurata, ed è
+            esattamente per lui che ci sono <strong>P</strong> e <strong>FM att.</strong>: quelli sono i
+            numeri del <strong>motore</strong> per la stagione che viene, e «~» segna la stima dichiarata
+            per chi il motore non riesce a valutare (il tooltip dice su cosa è costruita).
+          </p>
+        </section>
+      </div>
+    }
+  }
+</div>

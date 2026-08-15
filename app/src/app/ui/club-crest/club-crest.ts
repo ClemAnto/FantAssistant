@@ -67,4 +67,23 @@ export class ClubCrest {
         return 'h-8 w-8 text-[11px]';
     }
   });
+
+  /**
+   * How much room the badge is given inside its circle, and it grows with the circle.
+   *
+   * A badge is a square drawing with its own margins and a crest is a round plate: without padding the
+   * artwork touches the rim and a wide badge (the Bundesliga's, the ones with a banner) reads as clipped.
+   * It is part of the crest's own vocabulary rather than a caller's class, so every list that draws one -
+   * this view, the auction panel, the club card - shows the same plate.
+   */
+  protected readonly inset = computed(() => {
+    switch (this.size()) {
+      case 'sm':
+        return 'p-0.5';
+      case 'lg':
+        return 'p-1.5';
+      default:
+        return 'p-1';
+    }
+  });
 }

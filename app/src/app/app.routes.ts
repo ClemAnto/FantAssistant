@@ -10,6 +10,10 @@ export const routes: Routes = [
     loadComponent: () => import('./views/auction/auction').then((m) => m.Auction),
   },
   {
+    path: 'clubs',
+    loadComponent: () => import('./views/clubs/clubs').then((m) => m.Clubs),
+  },
+  {
     path: 'hello',
     loadComponent: () => import('./views/hello/hello').then((m) => m.Hello),
   },

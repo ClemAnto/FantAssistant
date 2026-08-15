@@ -1,0 +1,13 @@
+<!-- ng-zorro's own rate draws the halves, so the app does not draw a star of its own: one vocabulary.
+     It is `nzDisabled` because this is a READING and not an input - nothing here is set by clicking. -->
+@if (slots().length) {
+  <!-- `whitespace-nowrap`: the five stars are ONE reading and a rate that wraps after the third says
+       «three stars» to anybody scanning the column. -->
+  <!-- Faded = mostly the anchor and not his own football: a guess has to look like a guess, or the
+       «tutti hanno un valore» rule turns into «tutti hanno una misura», which is a different claim. -->
+  <span class="whitespace-nowrap" [class.opacity-50]="rough()" [title]="label()">
+    <nz-rate class="whitespace-nowrap" [ngModel]="stars()" nzDisabled nzAllowHalf />
+  </span>
+} @else {
+  <span class="text-muted" [title]="label()">—</span>
+}

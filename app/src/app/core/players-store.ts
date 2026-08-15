@@ -83,7 +83,10 @@ export interface PlayerRow {
   /** The club's own id, which is what a crest is filed under - the NAME is not a key. */
   clubId: number | null;
   role: ClassicRole;
+  /** The listone's Mantra roles as one label: `Dc Ds`. */
   mantra: string;
+  /** The same roles as the codes they are, for a list that draws one badge each. */
+  mantraCodes: string[];
   club: string;
   league: string | null;
 }
@@ -485,12 +488,16 @@ export class PlayersStore {
 /** Club-form words neither side of a fixture label needs. */
 const ABBREVIATION_SKIP = new Set(['ac', 'as', 'ss', 'ssc', 'fc', 'rc', 'afc', 'us', 'ol', 'rb']);
 
+/** The words of a club's name that actually name it: `AC Milan` -> `['Milan']`. */
+export function nameWords(name: string | null): string[] {
+  return (name ?? '').split(/\s+/).filter((word) => word && !ABBREVIATION_SKIP.has(word.toLowerCase()));
+}
+
 /** `Napoli` -> `Nap`, `Borussia Dortmund` -> `Bor`, `AC Milan` -> `Mil`. Three letters is what
  *  fits a column; the full fixture stays in the header's title. */
-function abbreviate(name: string | null): string {
+export function abbreviate(name: string | null): string {
   if (!name) return '???';
-  const words = name.split(/\s+/).filter((w) => w && !ABBREVIATION_SKIP.has(w.toLowerCase()));
-  return (words[0] ?? name).slice(0, 3);
+  return (nameWords(name)[0] ?? name).slice(0, 3);
 }
 
 /** The fixture as it is written: home first. */
@@ -520,7 +527,15 @@ function sortKey(cell: MatchCell, season: string): number {
   return Date.UTC(startYear, 7, 20) + (cell.matchday ?? 0) * 7 * 86400000;
 }
 
-function buildRosters(
+/**
+ * Who is quoted on each platform for `targetSeason`, with his identity, club and roles.
+ *
+ * Exported because it is the ONE definition of the perimeter: a platform's listone is decided by
+ * `listone_quotes` and never by `rosters`, which holds a single unattributed last read. A second view
+ * building its own club list from the roster alone would show a different set of men under the same
+ * words - the defect this project keeps paying for.
+ */
+export function buildRosters(
   players: BundleTable,
   clubs: BundleTable,
   rosters: BundleTable,
@@ -550,12 +565,14 @@ function buildRosters(
     const fcId = row[rId] as number;
     const role = row[rRoleClassic] as ClassicRole | null;
     if (!role) continue;
+    const codes = mantraCodes(row[rRoles] as string | null);
     byId.set(fcId, {
       fcId,
       name: names.get(fcId) ?? `#${fcId}`,
       clubId: (row[rClub] as number) ?? null,
       role,
-      mantra: mantraLabel(row[rRoles] as string | null),
+      mantra: codes.join(' '),
+      mantraCodes: codes,
       club: clubNames.get(row[rClub] as number) ?? '',
       league: (row[rLeague] as string) ?? null,
     });
@@ -579,14 +596,14 @@ function buildRosters(
   return out;
 }
 
-function mantraLabel(roles: string | null): string {
-  if (!roles) return '';
+/** `dc;ds` -> `['Dc', 'Ds']`. One parsing of the listone's roles, whatever shape the caller wants. */
+function mantraCodes(roles: string | null): string[] {
+  if (!roles) return [];
   return roles
     .split(';')
     .map((code) => code.trim())
     .filter(Boolean)
-    .map((code) => code[0].toUpperCase() + code.slice(1))
-    .join(' ');
+    .map((code) => code[0].toUpperCase() + code.slice(1));
 }
 
 interface ProviderMatch {

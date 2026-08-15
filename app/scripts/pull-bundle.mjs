@@ -27,6 +27,11 @@ const TABLES = [
   /* Last season's MEASURED fantamedia, per platform: the auction panel shows it beside the
    * prediction so a number can be judged against what the man actually did. */
   'season_stats',
+  /* The GRANULAR real role - GK | DL DC DR | DM | ML MC MR | AM | LW RW | ST - which is the only
+   * thing that separates a left back from a centre back: `rosters.role_classic` calls both `D`.
+   * The boards already carry it for the eleven they draw; the squad view needs it for everybody,
+   * and it is a SNAPSHOT (the provider serves only "now"), so the row carries its own date. */
+  'player_roles',
 ];
 
 if (!existsSync(EXPORT_ROOT)) {

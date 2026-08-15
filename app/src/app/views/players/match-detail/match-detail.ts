@@ -47,9 +47,8 @@ export class MatchDetail {
     this.cell().home === false ? this.cell().goalsFor : this.cell().goalsAgainst,
   );
 
-  protected readonly mantraCodes = computed(() =>
-    this.player().mantra.split(/\s+/).filter(Boolean),
-  );
+  /** The roster row already carries the codes: splitting the label again would be a second parsing. */
+  protected readonly mantraCodes = computed(() => this.player().mantraCodes);
 
   /** The terms of the CHAMPIONSHIP the match was played in, falling back to the default. The
    *  file exists exactly because a league may score differently. */
