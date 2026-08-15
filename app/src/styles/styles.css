@@ -10,5 +10,6 @@
 @import 'ng-zorro-antd/ng-zorro-antd.dark.min.css' layer(ngzorro);
 @import 'tailwindcss';
 @import './themes/default.css';
+@import './themes/magenta.css';
 @import './tokens.css';
 @import './ng-zorro.css';

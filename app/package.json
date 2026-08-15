@@ -2,6 +2,7 @@
   "name": "fantassistant-app",
   "version": "0.1.10",
   "scripts": {
+    "audit:contrast": "node scripts/audit-contrast.mjs",
     "build": "ng build",
     "data:pull": "node scripts/pull-bundle.mjs",
     "deploy:pages": "node scripts/deploy-pages.mjs",

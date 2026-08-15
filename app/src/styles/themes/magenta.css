@@ -1,0 +1,46 @@
+/* The `magenta` theme - transcribed from the operator's UI kit board (15/08/2026), the
+   "GESTIONALE CALCIO / FANTACALCIO" design system: near-black surfaces with a violet cast
+   and one hot magenta accent carrying every affordance.
+
+   One theme = one file, and this is an EXTRA theme, so it declares nothing new: it only
+   re-points the `--color-*` slots the default theme opened in its `@theme static` block.
+   `:root[data-theme="magenta"]` is specificity 0,2,0 against `@theme`'s bare `:root`, and
+   both sit in `@layer theme`, so this wins deterministically without `!important`.
+
+   Two families are DELIBERATELY not overridden and the reason is not laziness:
+   - `--color-vote-*` / `--color-absent-*` / `--color-xga`, the last-ten histogram. They are
+     the same colours the toolkit's own Tk panel draws (`SnapshotView.VOTE_BANDS`): the
+     operator reads both pictures, and one fact must not have two vocabularies.
+   - `--color-role-*`, the listone's roles. They carry WHITE text at 10px and were tuned for
+     AA against that white; the page under them changing does not move that pair.
+
+   Contrast is MEASURED, not eyeballed - `scripts/audit-contrast.mjs` reads this file and
+   reports every pair. The numbers below are from that run and are WCAG 2.1 ratios. */
+@layer theme {
+  :root[data-theme='magenta'] {
+    /* Surfaces, darkest to lightest. The kit's board is near-black with a blue-violet cast,
+       so the neutrals are not grey: they carry a few points of blue all the way down. */
+    --color-page: #0a0a0f;
+    --color-surface: #14141c;
+    --color-control: #1c1c26;
+    --color-border: #2c2c3a;
+
+    /* Ink. muted reads 7.5:1 on the page and 6.3:1 on a control - it is secondary, never faint. */
+    --color-fg: #f2f2f7;
+    --color-muted: #9d9dae;
+
+    /* Brand. The kit paints WHITE on the magenta fill; measured, that pair is 3.6:1 and fails
+       AA for text, so the ink is flipped to a near-black plum (5.6:1) and the neon fill - which
+       is what the design actually is - is kept untouched. `on-primary` exists for exactly this.
+       As TEXT the magenta reads 5.5:1 on the page, 5.1:1 on a card, 4.6:1 on a control. */
+    --color-primary: #ff2d78;
+    --color-on-primary: #1a0210;
+
+    /* Meaning, not decoration - the kit's own alert row: green confirms, amber warns,
+       red is danger only. The red is warmed away from the brand magenta on purpose, or a
+       failure and a call to action would read as the same colour. */
+    --color-danger: #ff6b6b;
+    --color-warning: #ffb020;
+    --color-success: #3ddc84;
+  }
+}
