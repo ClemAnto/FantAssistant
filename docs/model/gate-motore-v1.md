@@ -4119,7 +4119,42 @@ cui sbagliare, ed è per questo che si cura prima di pubblicare il numero e non 
 settembre (+28% contro +10%), ma settembre non è trascurabile - a due o tre giornate viste il canale vale
 già dieci volte il pavimento.
 
-### euro: stessi guadagni, verdetto NON stabilito — e il perché è dell'harness, non della regola
+### euro, dopo aver curato l'harness: il verdetto c'è, e non è quello che sembrava
+
+**Il buco era una SOGLIA tarata su una popolazione e applicata a un'altra**, cioè il difetto che questo
+progetto conosce meglio. `MIN_PV_ACT` = 15 dice «sotto quindici presenze una fantamedia non giudica il
+modello», ed è il **39% di una stagione da 38**. Su una finestra in-season il calendario previsto è il
+RESTO — quattordici o quindici giornate — quindi quella soglia non è severa, è **irraggiungibile**: su
+euro a febbraio ne restano 14 e nessuno la supera, così la guardia sulla fantamedia **smetteva di
+misurare** invece di fallire, e il gate contava «non verificata» come «peggiorata». Curata: la soglia è
+la stessa QUOTA del calendario previsto (`scoring_floor`), quindi 15 su una pre-stagione — dove i dieci
+numeri pubblicati non si muovono di un'unità, verificato 22/22 — e 6 o 7 su una in-season.
+
+Rifatta la corsa, la guardia misura e il quadro completo è questo:
+
+| K | Serie A febbraio | Serie A settembre | euro febbraio |
+|---|---|---|---|
+| 40 | **passa** | no (top10) | **passa** |
+| 25 | no (top10) | no (top10) | **passa** |
+| 15 | no (top10) | **passa** | **passa** |
+| 10 | **passa** | **passa** | no (top10) |
+| 6 | no (top10) | **passa** | **passa** |
+| 3 | no (top10) | no (top10) | no (VALUE) |
+
+**L'accuratezza è unanime — 3/3 finestre su ogni punto e ogni regime, da +3,8% a +29,2% — e NESSUN K
+supera tutte le guardie in tutti e tre i regimi.** Quella che morde è sempre la stessa: i **nomi in cima**,
+che è un conteggio su dieci e si muove di un'unità alla volta. Va detto così invece di scegliere il K che
+passa dove guardo: il candidato di prima (K = 10) resta il migliore su Serie A e su euro perde una
+posizione in una finestra su tre.
+
+**Quindi l'adozione è una DECISIONE e non un automatismo**, e va presa in chiaro come quella di R19 — che
+fu la prima adottata sul solo verdetto robust. Le due strade oneste: adottare **K = 10** dichiarando che
+la guardia sui nomi cede su una finestra euro di tre (e allora si scrive, come si scrisse per R19, che
+un'adozione senza `passes` pieno è più fragile e esce senza discutere se la prossima corsa la trova
+peggiore); oppure adottarlo **per piattaforma**, che è quello che il gate fa già altrove (R19 su
+`default` e non su euro) — e allora la griglia dice K = 10 su Serie A e K = 15 o 6 su euro.
+
+### La corsa euro precedente, e perché è stata riportata come non-verdetto
 
 Corsa fatta (I23feb, I24feb, I25feb, euro/classic): l'accuratezza si muove come su Serie A —
 **3/3 finestre su tutti e sei i punti**, da +14,5% (K=40) a +24,7% (K=3), K=10 a **+23,7%** con la

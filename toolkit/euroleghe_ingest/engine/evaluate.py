@@ -1607,14 +1607,36 @@ def _delta(before: float | None, after: float | None) -> str:
     return f"{(after - before) / before * 100:+5.1f}%"
 
 
-def _errors(predictions: list[Prediction], metric: str) -> dict[int, float]:
+def scoring_floor(data: features.WindowData) -> int:
+    """Quante presenze deve avere l'esito perché la sua FANTAMEDIA possa giudicare il modello.
+
+    `MIN_PV_ACT` = 15 su una stagione da 38, cioè il **39% del calendario che si sta prevedendo**: sotto,
+    una media è fatta di troppo poche partite per dire qualcosa. Su una finestra IN-SEASON quel calendario
+    è il RESTO della stagione - quattordici o quindici giornate - e una soglia assoluta di 15 non è severa,
+    è **irraggiungibile**: su euro a febbraio ne restano 14, quindi nessuno la supera e la guardia sulla
+    fantamedia smette di misurare invece di fallire. Trovato così, con `FM None -> None` su tutte e tre le
+    finestre (16/08/2026), ed è la stessa famiglia di «una soglia appartiene alla popolazione su cui è
+    stata tarata»: qui la popolazione è il CALENDARIO.
+
+    Quindi la soglia è la stessa QUOTA e non lo stesso numero. Le finestre pre-stagione non si muovono di
+    un'unità - lì il resto della stagione è la stagione - e i numeri pubblicati restano quelli.
+    """
+    full = data.matchdays_target + data.matchdays_seen
+    if not data.matchdays_seen or not full:
+        return MIN_PV_ACT
+    return max(3, round(MIN_PV_ACT * data.matchdays_target / full))
+
+
+def _errors(predictions: list[Prediction], metric: str,
+            min_pv_act: int | None = None) -> dict[int, float]:
     """{fc_id: absolute error} for the players this configuration actually priced."""
+    floor = MIN_PV_ACT if min_pv_act is None else min_pv_act
     out: dict[int, float] = {}
     for prediction in predictions:
         obs = prediction.obs
         if metric == "fm":
             if (prediction.fm_pred is None or obs.fm_act is None
-                    or (obs.pv_act or 0) < MIN_PV_ACT):
+                    or (obs.pv_act or 0) < floor):
                 continue
             out[obs.fc_id] = abs(prediction.fm_pred - obs.fm_act)
         elif metric == "pv":
@@ -1716,15 +1738,16 @@ def _changed_mae(baseline: list[Prediction], candidate: list[Prediction],
 
 
 def _common_mae(baseline: list[Prediction], candidate: list[Prediction],
-                metric: str) -> tuple[float | None, float | None, int, float | None, int]:
+                metric: str,
+                min_pv_act: int | None = None) -> tuple[float | None, float | None, int, float | None, int]:
     """MAE of both configurations ON THE SAME PLAYERS, plus the candidate's new coverage.
 
     A rule that prices players the baseline skipped (R1) must not be judged on a bigger, harder
     sample: that would score it against a different population. So the comparison runs on the
     intersection, and what it added is reported separately - a MAE with no baseline to beat.
     """
-    before = _errors(baseline, metric)
-    after = _errors(candidate, metric)
+    before = _errors(baseline, metric, min_pv_act)
+    after = _errors(candidate, metric, min_pv_act)
     shared = set(before) & set(after)
     added = set(after) - set(before)
     mean_before = sum(before[i] for i in shared) / len(shared) if shared else None
@@ -1942,8 +1965,11 @@ def compare(conn: sqlite3.Connection, candidates: tuple[str, ...], platform: str
             candidate = out["windows"][key][rule]["overall"]
             before, after, shared, added_mae, added_n = _common_mae(
                 predictions[key]["R0"], predictions[key][rule], target)
+            # La soglia della fantamedia è una QUOTA del calendario previsto, non un numero fisso: su
+            # una finestra in-season restano quattordici giornate e 15 presenze non le fa nessuno.
             _fmb, fma, _n, _a, _an = _common_mae(
-                predictions[key]["R0"], predictions[key][rule], "fm")
+                predictions[key]["R0"], predictions[key][rule], "fm",
+                scoring_floor(window_data))
             _vb, vla, _n2, _a2, _an2 = _common_mae(
                 predictions[key]["R0"], predictions[key][rule], "value")
             fm_before, value_before = _fmb, _vb
