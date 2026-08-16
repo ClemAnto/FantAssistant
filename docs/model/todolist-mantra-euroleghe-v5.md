@@ -2,6 +2,35 @@
 
 ## Aperti alla chiusura dell'8 agosto 2026 — nessuno con scadenza
 
+**Chiusura 16/08 (letture dell'app)**: le cinque colonne 0-99 della consultazione hanno ora un documento
+proprio, [letture-app-v1.md](letture-app-v1.md), con le costanti, le misure che le hanno scelte e — quello
+che conta di più — **le alternative rifiutate con i loro numeri** (lo zero «schierato», che manda Simeone
+da 94 a 41; gli zeri a distanza fissa dall'ancora, che ribaltano Bremer e Kelly a 0,7). Quattro cose
+adottate quel giorno: la costanza centrata sul RUOLO e a peso 2, l'Overall allineato fra ruoli con uno z
+dentro il ruolo, la base spostata su `FM att.`, l'icona della porta inviolata come fatto del CLUB. Aperti
+che ne nascono, in ordine di quanto costano:
+
+- [ ] **`season_stats.clean_sheets`** — derivabile da `match_ratings` su tutte e 11 le stagioni, nessun
+  provider di mezzo (colonna + `ADDED_COLUMNS` + ri-derivazione + export). Finché non c'è, il `+1` della
+  porta inviolata è prezzato dal lettore dell'app e vale **zero**.
+- [ ] **Storico del valore di mercato** — `transfermarkt.it/ceapi/marketValueDevelopment/graph/{pid}`,
+  provato il 16/08/2026: JSON pulito, 42 punti datati per Stones con club ed età, nessun muro di consenso.
+  Il DB ha già `market_values` ma con **un valore per stagione**: manca la CURVA, che è anche l'input che
+  il gate segnalava rotto («sistemare l'input prima di toccare il peso»). Identità già risolta in
+  `player_xref` dal modulo infortuni.
+- [ ] **Minuti per competizione e in nazionale (Transfermarkt)** — le pagine rispondono 200 ma la tabella
+  **non è nell'HTML**: muro di consenso, dati solo dopo. Il prefisso `/x/` che salva gli infortuni lì non
+  basta (quattro forme provate). Prossimo passo: **registrare le chiamate della pagina** dopo il consenso
+  nel browser headless, non indovinare endpoint — dei tentati, 4 su 6 hanno risposto 404.
+- [ ] **Coppe da Sofascore** — 403 `challenge` su ogni endpoint dal 16/08/2026, dopo una corsa su 93 club
+  che ha portato solo il 2026-27. In attesa; non insistere.
+- [ ] **Secondo giudice per le board** — l'articolo Transfermarkt del 14/08/2026 (formazioni tipo
+  2026-27) da archiviare in `press_formations` con fonte propria. Misurato intanto: le board ci prendono
+  7/20 contro quel giudice, **ma i due giudici concordano fra loro 7/20**, quindi il 35% è il rumore della
+  domanda e non un voto su di noi. Contro il riferimento consolidato dell'08/08 le board leggono 12/20
+  esatte e 17/20 dentro le alternative citate, contro 7/20 e 12/20 dell'articolo — numero contaminato,
+  però, perché le board sono state sviluppate guardando quel riferimento.
+
 **Chiusura 10/08 (draft)**: il pannello d'asta è completo (porte, rimpiazzo vivo, Valore 0-99, scelta
 consigliata a quattro giri) e la moneta con cui consiglia è stata **misurata sull'esito** su cinque
 finestre. Il piano che ne nasce ha una **todolist propria**, ordinata per resa misurata:
@@ -767,3 +796,58 @@ Nota: **nessuna delle feature generate il 27/07 e' entrata nel motore**, e **nes
       dell'attacco (tetto `FLANK_OVERRIDE_GAP` 0.40); la targhetta legge il **posto** dove il posto decide. 17
       disegni cambiati su 108 board, invarianti **4+7+4 → 0**. ⚠️ **Revocato**: far pagare al modulo i posti che
       la rosa non copre (disfaceva Barcellona e Napoli per aggiustare il Marsiglia).
+
+- [ ] **DA MISURARE (aperto il 15/08/2026, dal caso Stones) — `est_pv` per un arrivo legge i SUOI minuti, e
+      per un uomo che l'anno prima si è rotto quei minuti non dicono la sua titolarità.** Il core rifiuta di
+      prezzare chi non ha una stagione qui (`engine_pv_pred` NULL: giusto, R1 è bocciata su 5 finestre di 6) e
+      il gradino `anchor` di `engine/estimate.py` riporta la **sua quota di calendario nel campionato di
+      provenienza**. Misurato su Stones all'Inter: 449 minuti di Premier in 24 referti, **5 da titolare**, con
+      **7 spell di infortunio e 267 giorni** fra il 2024-07 e oggi → 13% di calendario → `est_pv` **14,5**. La
+      board non lo disegna (claim sui minuti: Akanji 2820, Bastoni 2249, Bisseck 1922 contro i suoi 449), il che
+      è coerente ma discutibile: quel 13% descrive **un anno spezzato**, non il posto che prenderà.
+      L'osservazione dell'operatore, tradotta in numeri e non in giornali: un difensore che gioca all'Inter sta
+      fra il **52% e l'82%** del calendario (Carlos Augusto 52, Bisseck 56, Pavard 60, Bastoni 66, Dimarco 79,
+      Akanji 82), cioè **20-31 giornate**. I candidati **oggettivi**, tutti già misurati altrove:
+      (a) la quota del RUOLO nel club di destinazione al posto della sua; (b) il **livello** da cui arriva —
+      `level_gap` è già adottato (r parziale +0,220, «chi scende di livello sale di ruolo») e non arriva a
+      questo gradino; (c) la sua qualità misurata contro l'àncora dei difensori del club (FM-equivalente).
+      Quello che **non** è disponibile e va detto: nazionali (zero righe) e coppe europee (troppo poche per
+      pesare) — quindi «esperienza internazionale» oggi non è un canale, è un'impressione.
+      **Nessuna modifica senza gate**: è `engine/estimate.py`, quindi finestra fuori campione, strict e robust,
+      e il confronto è contro l'àncora di ruolo che ha già battuto R1.
+
+- [ ] **DA ACQUISIRE (aperto il 15/08/2026, su richiesta dell'operatore) — i minuti di COPPA e di NAZIONALE,
+      pesati con l'Elo, per dare un corpo misurabile alla «caratura» di un giocatore.** Nasce dal caso Stones:
+      «esperienza internazionale e convocazioni» oggi non sono un canale, sono un'impressione. Il precedente è
+      già a verbale e va letto prima di ricominciare: l'indice **minuti × Elo** («qualità di carriera») è stato
+      **misurato e non adottato** — r **+0,010** complessivo, reale solo per gli attaccanti (+0,135) — e la
+      diagnosi di allora era «non manca una formula, manca un'acquisizione». Misurato oggi sul per-partita:
+      Champions **1.071 righe / 318 uomini** nel 2025-26 contro **21 righe** nel 2024-25 e zero prima; Europa
+      League 580 contro 2; Conference 249. **Nazionali: zero righe in ogni stagione.** Tre lavori di costo
+      molto diverso, in quest'ordine:
+      **(a) coppe europee delle stagioni passate** — stessa fonte e stesso parser già in produzione (gli slug
+      sono mappati e `competitionKind` li classifica), quindi è tempo di rete e non codice nuovo; ed è la metà
+      che l'Elo ce l'ha già (`club_elo` per i club).
+      **(b) ri-misurare la qualità di carriera** con quella copertura, prima di toccare le nazionali: è lo
+      stesso schema che ha pagato sugli arrivi (FM-equivalente da 707 a 2128, e il margine si è mosso nella
+      direzione prevista senza toccare un parametro). Se resta piatta a copertura tripla, il canale è morto e
+      lo si scrive.
+      **(c) nazionali** — due acquisizioni, non una: le PARTITE (fonte nuova, per-giocatore, ~1000 richieste a
+      stagione, e l'identità si aggancia con `player_xref` che il provider id ce l'ha già) e un **Elo per le
+      nazionali**, che ClubElo non copre e va da un'altra fonte (World Football Elo / ranking FIFA). Finché non
+      c'è la seconda, i minuti in nazionale non si possono pesare come gli altri e non vanno mescolati.
+      **(d) GOL E ASSIST DA PIAZZATO** (aggiunto il 15/08/2026 su richiesta dell'operatore), che oggi non
+      esistono: `match_ratings.assists_set_piece` è **NULL su tutte le 61.306 righe** del bundle - una
+      colonna senza sorgente, non giocatori senza assist da fermo - e un gol non porta il TIPO, quindi una
+      punizione diretta è indistinguibile da un tiro da fuori. Il gioco però li paga a parte
+      (`assist_set_piece_bonus` è nel `scoring_config`), e al tavolo «chi batte le punizioni» è una
+      domanda che si fa. Due sorgenti possibili, in ordine di forza:
+      lo **shotmap** per partita, che porta la `situation` di ogni tiro (azione, corner, punizione,
+      rigore) ed è quindi la risposta diretta; e gli **incidents**, che il toolkit già scarica per il
+      layer extra (`fetch_extra_incidents`) e che nominano marcatore e assistman con l'id del provider -
+      quindi identità già risolta, nessun join per nome. Costo: una richiesta per partita, ~380 a
+      stagione per campionato (~1.900 per i cinque), che è dello stesso ordine del layer per-partita e
+      quindi ore, non minuti. Da acquisire PRIMA di decidere se pesa: oggi non è misurabile per niente,
+      e l'app dice «di punizioni e angoli i dati non dicono nulla» invece di far finta.
+      **Nessuna adozione senza gate**, come sempre: qui il canale è già stato bocciato una volta, quindi la
+      barra è la stessa e il confronto è contro il modello che i minuti li legge già.

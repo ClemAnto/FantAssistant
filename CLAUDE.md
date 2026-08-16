@@ -68,7 +68,9 @@ is a mirror/archive). Before any work read, in order:
 protocol, every verdict and every falsified hypothesis: read it before proposing any rule) ->
 **`metrica-asta-surplus-v1.md`** (what the Auction panel ranks by, and why it is not VALUE) ->
 **`assistente-asta-v1.md`** (what the assistant does with it at the table: three questions, three
-numbers, and the UI rules that are requirements) -> **`todolist-draft-v1.md`** (the DRAFT improvement
+numbers, and the UI rules that are requirements) -> **`letture-app-v1.md`** (the app's five 0-99
+columns: reporting, ungated, every threshold measured — and the alternatives that were refused, with
+their numbers) -> **`todolist-draft-v1.md`** (the DRAFT improvement
 plan born from the 10/08/2026 five-window strategy campaign, ordered by measured yield; its standing
 results: role coverage beats the currency tenfold, the surplus is the wrong draft currency, playing
 for first pick is ruinous) -> `spec-euroleghe-ingest-v9.md` -> `nota-modello-set-pieces-v2.md` -> `modello-previsionale-v3.8.md` ->
@@ -458,6 +460,45 @@ that layer is for. Re-run with `--refresh`: 2026-27 from 1,772 to 4,234 rows. Th
 over a fact that CHANGES needs an expiry or an explicit refresh in the caller's hands; a cache over a fact
 that is FINISHED (a played match's incidents, a club's badge) can live forever, and the difference is
 worth stating where the cache is written.
+
+## A cross-role ranking must say WHICH pool each number is a fact about
+**16/08/2026, and the operator found it as a paradox: «mettere tutti i primi portieri a 99 non ha senso,
+significa che tutti sono forti uguale».** The app's Overall ranked the whole listone on one raw number,
+and the goalkeeper role both FLOATED (median 66 against the midfielders' 40) and COMPRESSED (the twelve
+best keepers inside ten points), so the column said neither what a keeper is worth nor which one to buy.
+The cause is in the ZERO and not in the ranking, and it is written in the toolkit itself
+(`features.replacement_levels`): the replacement is the rank `teams × slots` inside that role's pool of
+REGULARS, and the pools are different sizes — for Serie A keepers the rank (10×3 = 30) is longer than the
+pool (~22 starters), so their zero is **the worst regular keeper** while D/C/A get the 80th of ~150, a
+mid-table one. Measured as distance from each role's own anchor: **P −0.90 · D −0.35 · C −0.38 · A
+−1.15**. Four zeros at four depths are not comparable, and every role-level statement that follows is a
+statement about the ruler.
+The cure is the operator's own sentence — «normalmente è la fantamedia a creare questo confronto» — each
+role measured against its own, then all four in one ranking: role medians 66/49/40/60 → **58/51/46/47**,
+the keepers' spread 10 → 16 points, agreement with the sheet's surplus 0.64 → 0.48, and the price stated
+rather than hidden (dividing by the role's spread promotes a compact role's best over a wide one's).
+Two habits travel with it. **A difference between two GROUPS is not a virtue of whoever carries it** —
+the same lesson the age channel taught, met again in the steadiness tilt, which was centred on the whole
+listone while «closing at 6» has medians 0.86 / 0.65 / 0.61 / 0.57 by role and was therefore paying every
+keeper +0.11 of fantamedia a match for being a keeper. And **a case the operator has already ruled on is
+a test**: the elegant alternative (take the zero from the man you would FIELD, the 11th keeper instead of
+the 31st) spreads the keepers three times better and was REFUSED because it sends Simeone from 94 to 41
+while leaving Esposito F.P. at 79 — exactly the ordering he had corrected the day before. Details and
+every refused variant: [docs/model/letture-app-v1.md](docs/model/letture-app-v1.md).
+
+## A provider that stops answering is a measurement, not an obstacle
+**16/08/2026.** A `--refresh` over 93 clubs left Sofascore returning **403 `challenge`** on every
+endpoint, and the run that caused it brought only the current season — so the story told the night
+before («the extra layer is keyed per (club, season), so pagination could never reach back») was itself
+wrong: the code does paginate, it stopped receiving data. Three things worth keeping. **Verify the route
+on ONE unit before launching 93** — that check was never made, and it is what the whole run cost.
+**A defect explains itself with a plausible story if you let it**, which is the same rule the coach-join
+taught. And when a source closes, the answer is measured and not argued: of the four alternatives probed
+with one request each, FBref is behind Cloudflare (403), football-data.org needs a key and has no
+per-player minutes, **Transfermarkt answers 200** — and its `ceapi` serves the market-value history as
+clean JSON with no consent wall, while its performance and national-team pages hide their tables behind
+one. Guessing endpoints is not searching: 4 of 6 guesses returned 404, and the way in is to record the
+calls the real page makes.
 
 ## Three facts that are snapshots and can never be backfilled
 - **Starting probability** (`probable_starter`): the site publishes only "now", so a week not captured is

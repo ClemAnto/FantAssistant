@@ -3760,6 +3760,35 @@ non si adotta.
 
 **Stato: pre-registrata, NON misurata.** Nessuna riga di codice del motore è stata scritta per questa.
 
+## 7-novemvicies. «CHI CAMBIA SQUADRA VA RIMODULATO SUL REPARTO NUOVO»: il PASSO non regge, il LIVELLO non è del trasferimento (16 agosto 2026)
+
+**L'ipotesi dell'operatore**, dal caso Gila: arriva al Milan dalla Lazio, e la sua fantamedia è quella di
+un difensore della Lazio; siccome il reparto del Milan è parso più solido, i suoi difensori ne hanno
+beneficiato e ne beneficeranno. Misurata **prima** di scrivere una riga, come chiede la regola d'oro.
+
+**Disegno.** 284 uomini con due stagioni consecutive misurate su `default` e club diverso. Per ognuno il
+livello del reparto che LASCIA e di quello che lo PRENDE — la fantamedia media dei suoi pari ruolo in quel
+club, quell'anno, **lui escluso** — e il passo fra i due. Il segnale si giudica contro l'ESITO (la
+fantamedia dell'anno dopo) **controllando per la sua fantamedia precedente**, che è la lezione di
+`level_gap` (§7-duovicies).
+
+**Verdetto: il passo non vale niente.** r parziale **−0,010** su 284. Per ruolo: D +0,113 (n=113),
+C −0,092 (n=134), A −0,021 (n=37). E il controllo che chiude la questione: il quinto che SALE di più
+(passo medio +0,58) l'anno dopo **perde 0,121** di fantamedia, il quinto che scende ne guadagna 0,015 —
+direzione opposta all'ipotesi, quasi certamente ritorno alla media.
+
+**Quello che invece esiste, e non è del trasferimento.** Il LIVELLO del reparto in cui uno gioca correla
++0,270 con la sua fantamedia dell'anno dopo a parità di quella precedente — ma per chi **non** cambia
+squadra vale **+0,255**. Cioè è un fatto generale sul club, uguale per tutti, e non un effetto
+dell'arrivo. Prima di trasformarlo in un canale va misurato contro il RESIDUO del motore e non contro la
+fantamedia grezza: `engine_fm_pred` contiene già canali di club, e il +0,27 potrebbe essere per intero
+roba che il motore sa già.
+
+**Che cosa è stato fatto invece, e senza toccare il motore**: l'Overall dell'app si basa ora su `FM att.`
+(`letture-app-v1.md` §2), che è il modo di ereditare tutto quello che il motore sa di club e trasferimenti
+senza inventare un canale nuovo. Su Gila vale +10 punti di Overall — e va detto che il motore stesso lo
+alza solo di 0,07 di fantamedia, cioè neanche lui rimodula.
+
 ## 8. Casi di regressione (in `model.REGRESSION_CASES`, stampati da `backtest --cases`)
 
 Lewandowski (età/minuti) · Wirtz (cambio lega) · Torres F. (propensione per-90) · Ezzalzouli (nuovo nel
