@@ -4167,10 +4167,24 @@ in-season per definizione, e per quello `SHEET_REVISION` sale a **21** anche se 
 cambiano: una revisione che descrivesse due comportamenti sarebbe una cartella che non sa dire quale dei
 due la riguarda.
 
-**Quello che resta da decidere è il PANNELLO**, e non è questa riga: `presence.py` è il modello del
-pannello e non importa `evaluate`, quindi lo standing con cui si disegna la board e si consiglia al tavolo
-NON legge ancora le giornate giocate. È la stessa asimmetria che `CLAUDE.md` già dichiara («un parametro
-adottato in `presence.py` muove solo i FOGLI»), vista dall'altro lato.
+**E il PANNELLO? La premessa era sbagliata, verificato chiamando il codice invece di dedurlo.** Avevo
+scritto che lo standing del pannello «non legge le giornate giocate»: falso. Su un foglio in-season
+`snapshot.measured_season` sposta TUTTI gli strati descrittivi sulla stagione in corso fino alla data
+d'asta (soglia `TO_DATE_MIN_ROUNDS` = 5 giornate), quindi `desc_season_starts` e `desc_season_matches`
+sono già quelle di adesso — sul pacchetto del 5 febbraio la mediana è **15 partite misurate** su 24
+massime, e il pannello ci calcola sopra il suo standing.
+
+**Il difetto vero è un altro, ed è più piccolo e più preciso**: a stagione iniziata il pannello
+**butta via la stagione precedente** e restringe il campione corto verso la MEDIA DI POPOLAZIONE
+(`standing_prior_rounds` = 10), invece che verso il prior di QUELL'UOMO. Su quindici partite viste il
+peso è 60% osservato e 40% popolazione — e quel 40% dovrebbe essere la sua stagione scorsa, non la
+media di tutti. È esattamente la differenza fra la forma del pannello e quella di R20, che il prior
+personale ce l'ha.
+
+**Costo di giudicarlo, e correggo la mia stima**: non è una riga di griglia. Lo sweep gira sulle
+finestre PRE-STAGIONE, dove il campione corrente non esiste e il cambio è inerte — quindi per misurarlo
+servono finestre in-season anche là, cioè lo stesso lavoro fatto per `backtest`. Voce aperta con la sua
+taglia dichiarata, non fatta di fretta.
 
 ### La corsa euro precedente, e perché è stata riportata come non-verdetto
 
