@@ -3968,6 +3968,127 @@ cose da fare: quello che lo riaprirebbe non è un'altra misura di questo genere 
 **Una cosa che NON è stata rimisurata e va detta**: il FEE (§7-quater braccio B) esiste solo dal 2023 e
 quella corsa non lo tocca. Restava tre finestre allora e ne resta tre adesso.
 
+## 7-duotricies. `engine_pv_pred` DEVE LEGGERE LE GIORNATE GIOCATE (pre-registrata il 16 agosto 2026, PRIMA di eseguirla)
+
+**Da dove viene.** È l'item 4.5 di [todolist-draft-v1.md](todolist-draft-v1.md), e il numero che lo ha
+generato è il più grande di tutta la campagna sul draft (§18 di
+[metrica-asta-surplus-v1.md](metrica-asta-surplus-v1.md)): con l'asta giocata a stagione iniziata, le
+**presenze OSSERVATE** valgono **+0,443** di Spearman parziale sopra il prezzo a due giornate e **+0,536**
+a sei. È anche l'unico segnale grosso che è **pubblico** - lo vedono tutti al tavolo - e proprio per
+questo non averlo è un buco e non una scelta: oggi `engine_pv_pred` è costruito sulla stagione
+PRECEDENTE, quindi un pannello aperto alla terza giornata ignora tre giornate che chiunque può contare.
+
+### La forma, dichiarata prima della corsa
+
+Una MEDIA PESATA fra quello che ha fatto finora e quello che il modello direbbe senza guardarlo, con il
+peso dell'osservato che cresce con le giornate viste:
+
+    share = (k x osservato + K x prior) / (k + K)
+
+dove `k` sono le giornate del suo campionato già giocate alla data d'asta, `osservato` la sua quota di
+presenze in quelle, e `prior` la quota che il core prevede oggi (`model.expected_share`). `K` è il solo
+parametro nuovo - **in giornate**: quante ne servono perché l'osservato pesi quanto il prior.
+
+Tre proprietà, e la prima è quella che rende la cosa sicura:
+
+1. **A `k` = 0 è ESATTAMENTE il modello di oggi**, per costruzione. Tutte le finestre del gate hanno la
+   data d'asta al 15 agosto, quindi nessun numero pubblicato si muove e `backtest --verify` resta 22/22.
+   Il canale esiste solo dove esiste la domanda.
+2. **Non è una sostituzione ma una convergenza**: a tre giornate un uomo che le ha giocate tutte non
+   diventa un titolare da 38, e a ventitré lo diventa. È la stessa forma di `standing_prior_rounds`
+   (§7-quaterdecies), che è il pezzo di questo modello che ha vinto il verdetto più netto di sempre.
+3. **Il rifiuto lo esprime `K` grande**: con `K` = ∞ il canale è spento. Quindi la griglia è a senso
+   unico verso il basso e lo zero dell'ipotesi sta in fondo, non fuori.
+
+**Griglia pre-registrata**: `K` ∈ {∞ (spento), 40, 25, 15, 10, 6, 3}. Estremi ragionati e non tondi a
+caso: `K` = 3 vuol dire che tre giornate viste pesano quanto tutta la stagione scorsa - il massimo che
+qualcuno stia proponendo - e `K` = 40 che ne servono più di una stagione intera, cioè quasi spento.
+
+### LA TRAPPOLA, e va dichiarata adesso perché è quella che renderebbe il risultato un'illusione
+
+Con la data d'asta DENTRO la stagione, l'esito `pv_act` (le presenze di tutta la stagione bersaglio)
+**contiene le k giornate che il modello ha appena letto**. Un canale che si limitasse a ricopiare
+l'osservato sembrerebbe bravissimo per la parte di stagione che è già successa: non è previsione, è
+lettura. Quindi:
+
+> **il bersaglio di una finestra in-season sono le presenze DOPO la data d'asta**, cioè le giornate
+> `k+1..N`, contate dal layer per-partita per data. Non il totale di stagione.
+
+È la stessa disciplina di «vuoto = ignoto» applicata al tempo: quello che è già successo non si prevede.
+Chi non ha nessuna giornata dopo la data (un infortunato di lungo corso, uno partito a gennaio) resta
+nella popolazione con esito 0, perché zero presenze future è un esito e non un dato mancante.
+
+### Le finestre: nuove, e per forza
+
+Le dieci del gate sono tutte pre-stagione, quindi su di loro il canale è inerte e **non giudicabile**.
+Ne servono di IN-SEASON, e le date sono le stesse due che il viaggio nel tempo dell'app ha già scelto per
+la stessa ragione (la rosa è quella vera): **il 5 settembre** (k ≈ 2-4 giornate) e **il 5 febbraio**
+(k ≈ 20-24). Il layer per-partita le sostiene dal 2019-20, quindi ci sono **sette stagioni** e quattordici
+finestre per piattaforma - anche se euro ne perde due, come sempre, per il 2021-22 vuoto alla fonte.
+
+Che le due date siano poche e scelte è deliberato: k = 3 e k = 23 sono i due regimi diversi che la
+domanda ha (l'asta tardiva di settembre e quella di riparazione), e una finestra per giornata direbbe
+soprattutto quanto è liscia l'interpolazione fra i due.
+
+### I criteri, che sono quelli di sempre
+
+Strict e robust affiancati, pavimento 0,5% sulla media, nessuna finestra sotto −2%, cross-fit
+leave-one-out, e **un parametro non si adotta al bordo della sua griglia** - regola che ha appena spento
+il canale del rientro due volte (§7-tricies). Bersaglio: le **presenze dopo la data**, in MAE.
+
+### Che cosa mi aspetto, scritto adesso per non poterlo aggiustare dopo
+
+Che passi a febbraio e sia dubbio a settembre. A ventitré giornate l'osservato è mezza stagione di
+evidenza fresca e il prior è vecchio di un anno; a tre giornate `k`/(k+K) è piccolo per ogni `K`
+sensato, quindi il canale può muovere poco - e quel poco è esattamente dove un'asta tardiva si gioca.
+Se invece passasse a settembre con `K` piccolo, la lettura da controllare prima di adottare è che non
+stia leggendo **chi è in campo adesso** (una probabile formazione mascherata da presenze), che è un fatto
+di un'altra natura e ha un suo gate.
+
+### La stima di FATTIBILITÀ (16 agosto 2026, sera) — e non è il verdetto
+
+Costruire l'harness costa, quindi prima di costruirlo ho replicato **la formula pre-registrata** fuori
+dal motore, per decidere se ne vale la pena. Va letta per quello che è: usa `model.expected_share`
+importata (la funzione vera), REIMPLEMENTA il giro che le prepara gli input e il conteggio per data, e
+non ha né cross-fit né criteri. È un ordine di grandezza, non un verdetto — quello lo darà `backtest`
+sulle finestre in-season.
+
+Sette stagioni di Serie A (2019-20 → 2025-26), MAE sulla quota di presenze **dopo il taglio**:
+
+| taglio | guadagno a K=40 | K=15 | K=6 | **K=3** |
+|---|---|---|---|---|
+| settembre (k = 2-5) | +2,8/+6,4% | +6,5/+12,7% | +10,8/+19,1% | **+11,2/+19,6%** |
+| febbraio (k = 19-23) | +15,9/+20,0% | +22,8/+30,3% | +25,3/+35,6% | **+25,6/+36,8%** |
+| media sulle 13 finestre | +11,9% | +19,0% | +23,6% | **+24,8%** |
+
+**Un ordine di grandezza sopra qualunque canale mai adottato** (il record è `standing_prior_rounds` a
++2,8%), il che è insieme la promessa e il motivo per diffidare. Concorda da un'altra direzione con
+§18, che sulle presenze OSSERVATE misurava +0,443 di Spearman parziale sopra il prezzo: due metodi
+diversi che dicono «è la leva grossa».
+
+**E la prima lettura era gonfiata del 40%, per un difetto di POPOLAZIONE che vale la pena scrivere.**
+Misurata su chiunque avesse una stagione precedente, la resa a K=3 era **+42%**; sul LISTONE della
+stagione bersaglio — che è la popolazione del motore — è +24,8%. La differenza sono gli uomini che in
+Serie A non ci sono più: le giornate osservate li smascherano subito, ma non è una previsione, è gente
+che non compri. Terza volta che il pool decide metà del numero.
+
+**Due cose che questa stima dice e che vanno tenute per la corsa vera.** L'ottimo è al **BORDO** della
+griglia (K=3, il più piccolo), quindi anche il gate ci finirebbe contro la regola del bordo: il
+follow-up da pre-registrare è verso il basso (K = 2, 1,5, 1), sapendo che a K→0 il modello diventa «solo
+quello che ha fatto finora», che a due giornate è un pessimo stimatore. E **la mia attesa scritta prima
+era giusta a metà**: febbraio vale molto più di settembre (+30% contro +11%), ma settembre non è
+trascurabile come avevo previsto.
+
+**Stato: PRE-REGISTRATA, fattibilità misurata, harness DA COSTRUIRE.** Serve un esito «presenze dopo la
+data» e le finestre in-season; la modifica non tocca nessun numero esistente, perché a `k` = 0 il canale
+è inerte e le finestre di oggi sono tutte pre-stagione.
+
+**Una scorciatoia che vale la pena valutare prima**: buona parte del valore pratico è al TAVOLO, e il
+tavolo legge il pannello, la cui presenza è `presence.py` — che è governato da `sweep` e non da
+`backtest`. Far leggere le giornate giocate allo STANDING del pannello è una riga di griglia e non un
+harness nuovo, muove i fogli e non `engine_*`, e risponde alla stessa domanda dell'operatore un giorno
+prima.
+
 ## 8. Casi di regressione (in `model.REGRESSION_CASES`, stampati da `backtest --cases`)
 
 Lewandowski (età/minuti) · Wirtz (cambio lega) · Torres F. (propensione per-90) · Ezzalzouli (nuovo nel

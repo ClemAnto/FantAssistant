@@ -231,6 +231,12 @@ un'idea, leggere «cosa è già stato respinto» in fondo.
   precedente, quindi un pannello al terzo turno ignora un segnale da +0,443. Il foglio si sa già costruire a
   una data (`snapshot --date`); quello che manca è che il pv incorpori le presenze osservate. Tocca
   `engine_*`, quindi **gate**.
+  **PRE-REGISTRATA il 16/08/2026** (gate **§7-duotricies**): media pesata `(k×osservato + K×prior)/(k+K)`
+  con `K` in giornate, inerte a `k`=0 per costruzione — quindi nessuna finestra di oggi si muove. La
+  trappola è dichiarata prima: con la data d'asta dentro la stagione l'esito `pv_act` CONTIENE le giornate
+  appena lette, quindi il bersaglio sono le presenze **dopo** la data, non il totale. Servono finestre
+  in-season nuove (5 settembre e 5 febbraio, dal 2019-20: sette stagioni) e sono le stesse due date che i
+  pacchetti del viaggio nel tempo hanno già scelto, per la stessa ragione.
 
 ## 7. «Preso per titolare, ruotato di fatto» (caso Lewandowski, operatore 14/08/2026) — CHIUSO
 
