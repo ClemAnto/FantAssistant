@@ -8,6 +8,35 @@ App per leghe EuroLeghe/fantacalcio.it (Classic+Mantra, 5 campionati) con motore
 
 ## ⚠️ Lo stato corrente è in `00-BRIDGE-punto-di-ingresso.md`, blocco «STATO AL 5 AGOSTO 2026»
 
+### 16 agosto 2026, POMERIGGIO E SERA, in una riga: il viaggio nel tempo, e tre voci del gate chiuse o aperte
+
+Dieci commit (`f46dc28` → `d4b213f`), **v0.1.12 e v0.1.13 pubblicate**, toolkit **411 test**, app **261**,
+`backtest --verify` **22/22**. Dettaglio nel blocco «ULTIMO IN ORDINE DI TEMPO» del
+[00-BRIDGE-punto-di-ingresso.md](00-BRIDGE-punto-di-ingresso.md).
+
+1. **R20 — le giornate già giocate entrano nelle presenze attese** (gate §7-duotricies). Pre-registrata
+   PRIMA con la sua trappola dichiarata (l'esito di una finestra in-season conterrebbe le giornate appena
+   lette: il bersaglio è il RESTO della stagione), harness costruito, misurata. Serie A **passa**: 3/3
+   finestre su tutti e sei i punti, **+28,3%** di MAE a febbraio e **+10,4%** a settembre con **K = 10**,
+   che è interno alla griglia e l'unico a superare tutte e quattro le guardie in tutti e due i regimi.
+   Su euro il verdetto è **aperto** (stessi guadagni, ma la guardia FM non ha potuto misurare: buco
+   dell'harness). **Non adottata.**
+2. **Il canale dell'investimento con l'input riparato**: **no** (§7-untricies). Chiude la voce
+   «sistemare l'input prima di toccare il peso» aperta da agosto: +0,26% su Serie A con ottimo interno e
+   ogni fold positivo, sotto il pavimento; la forma condizionale adesso costa.
+3. **Il canale rientro**: **no definitivo** (§7-tricies). L'ottimo scappa al bordo anche a 240 giorni, e
+   là compra la storia infortuni che il modello legge già.
+4. **L'app**: FM/MV/FM att./MV att. colorate dentro il RUOLO, l'FVM colorato dal **dVM**, le quattro
+   letture allineate come l'Overall, «Valore» → **Fantapunti**, e il **viaggio nel tempo** con quattro
+   date che retrodatano anche il motore.
+5. **Il toolkit**: curva del valore completa (3.323 quotati, 85.061 punti), valore letto **al giorno
+   dell'asta**, `desc_spm`/`desc_dvm` sul foglio, modulo `timepack`.
+
+**La lezione, e ricorre tre volte in un pomeriggio: il POOL decide metà del numero.** Copertura della
+curva (un filtro di sopravvivenza), colore delle celle (le righe a schermo contro il listone), stima di
+R20 (+42% su tutti contro +24,8% sul listone). Ogni volta la correzione ha tolto dal 40% al 100% del
+risultato apparente.
+
 ### 16 agosto 2026, in una riga: le letture dell'app hanno una casa, e lo zero cambia natura
 
 Documento proprio: [letture-app-v1.md](letture-app-v1.md). `engine_*` invariato (`backtest --verify`

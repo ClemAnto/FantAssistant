@@ -32,9 +32,43 @@ con la stampa dell'08/08/2026, ordinato per resa misurata).
 L'altra fase, quella settimanale, è **`formazione-settimanale-v1.md`** (progetto): chi gioca domenica, perché
 la pagina delle probabili non basta e quali vincoli valgono già oggi.
 
-## STATO AL 16 AGOSTO 2026 — LEGGI QUESTO PRIMA DI TUTTO
+## STATO AL 16 AGOSTO 2026, SERA — LEGGI QUESTO PRIMA DI TUTTO
 
 Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
+
+**Il pomeriggio del 16/08 in cinque righe.** Dieci commit, **v0.1.13 pubblicata**, e tre voci del gate
+mosse: due CHIUSE con un no e una aperta che vale un ordine di grandezza più di qualunque canale
+adottato. Toolkit **411 test**, app **261**, `backtest --verify` **22/22** — nessun numero pubblicato si
+muove. La curva del valore è acquisita per intero (**3.323 quotati, 85.061 punti**), il surplus in
+crediti è uscito dal pannello ed è sul foglio (`SHEET_REVISION` **20**), e l'app ha un **viaggio nel
+tempo** con quattro date che retrodatano anche il motore.
+
+**Le tre voci del gate, in ordine di quanto pesano.**
+1. **R20 — le giornate già giocate entrano nelle presenze attese** (§7-duotricies): pre-registrata,
+   harness in-season costruito, misurata. Su Serie A **passa**: 3/3 finestre su tutti e sei i punti di
+   griglia, +28,3% di MAE a febbraio e +10,4% a settembre col candidato **K = 10** — interno alla
+   griglia e unico punto che supera tutte e quattro le guardie in tutti e due i regimi. Su **euro il
+   verdetto è APERTO**: gli stessi guadagni (+23,7%), ma la guardia sulla fantamedia non ha potuto
+   misurare (`FM None`), ed è un buco dell'harness. **Non adottata**, deliberatamente.
+2. **Il canale dell'investimento con l'input riparato** (§7-untricies): **no**. Serie A +0,26% con
+   ottimo interno e ogni fold positivo, sotto il pavimento dello 0,5%; la forma condizionale adesso
+   COSTA. Chiude la voce «sistemare l'input prima di toccare il peso», aperta da agosto.
+3. **La griglia allargata del canale rientro** (§7-tricies): **no, e per sempre**. L'ottimo scappa al
+   bordo anche a 240 giorni, e a quella distanza il canale compra la storia infortuni che
+   `injury_weights` legge già (giornate perse in mediana: 12,9 chi rientra entro 120 giorni, 1,9 chi
+   oltre 240).
+
+**La lezione della giornata, e ricorre tre volte:** *il POOL decide metà del numero.* La copertura della
+curva sembrava un dato e era un **filtro di sopravvivenza** (7% su Tm7, 60% su T2, e la mancanza
+correlata con l'esito da predire); il colore delle celle misurato sulle righe a schermo avrebbe detto «il
+migliore di questi ventisei»; e la stima di fattibilità di R20 dava **+42%** su chiunque avesse una
+stagione precedente contro **+24,8%** sul listone. Ogni volta la correzione ha tolto fra il 40% e il 100%
+del risultato apparente.
+
+**Cosa resta aperto**, in ordine: il buco `FM None` dell'harness su euro (blocca il verdetto di R20 e
+quindi l'adozione); il SURPLUS del foglio che usa ancora il marginale di rosa (mezzo punto di
+sopravvalutazione); la TENDENZA della curva del valore, acquisita e non letta da nessuno; i minuti per
+competizione e in nazionale (muro di consenso su Transfermarkt) e le coppe da Sofascore (403).
 
 **Dove siamo, in cinque righe.** La giornata del 15-16/08 è stata quasi tutta **sull'app**: la tabella di
 consultazione ha ora **cinque letture 0-99** con un documento proprio,
@@ -97,7 +131,34 @@ il denominatore dello screen di rotazione (2,42x → 1,52x), la definizione di e
 dal 22% al 41%). Due di quelle tre volte il difetto era una misura fatta su una **reimplementazione**
 invece che sulla funzione che spedisce. Regole nuove nel `CLAUDE.md` di radice.
 
-### ULTIMO IN ORDINE DI TEMPO — 14/08/2026, notte: **lo SPECCHIO** (dato per riserva, gioca da titolare)
+### ULTIMO IN ORDINE DI TEMPO — 16/08/2026, pomeriggio e sera: il viaggio nel tempo, e tre voci del gate
+
+Dieci commit (`f46dc28` → `d4b213f`), **v0.1.12 e v0.1.13 pubblicate**. Dettaglio nel gate
+**§7-untricies**, **§7-tricies** (follow-up) e **§7-duotricies**, in [letture-app-v1.md](letture-app-v1.md)
+§4-ter/§4-quater/§4-quinquies e in spec «Novità v9.54».
+
+1. **La curva del valore acquisita per intero e collegata**. Il perimetro «quotati di oggi» era un
+   **filtro di sopravvivenza** — copriva il 7% dei quotati di Tm7 e il 60% di quelli di T2, con la
+   mancanza correlata all'esito da predire — quindi `market --all-seasons`: 2.200 curve in più, 61.894
+   punti, zero fallite, copertura 77-97% piatta su ogni finestra. Il valore di mercato si legge ora **al
+   giorno dell'asta** e non sulla fotografia della stagione di input.
+2. **SpM e dVM sul foglio** (`SHEET_REVISION` 20), che risponde alla domanda dell'operatore «l'FVM va
+   confrontata coi fantapunti o col surplus?»: **col surplus**, perché quello che un credito compra è il
+   margine sopra chi giocherebbe al posto suo. L'app colora l'FVM col dVM (verde = occasione, ambra =
+   caro) e le quattro colonne di fantamedia col posto **dentro il ruolo**.
+3. **Le quattro letture sulla scala del surplus**: voti, bonus e costanza standardizzati dentro il ruolo
+   (scarti per ruolo 51/83/67 punti → **1**), le presenze deliberatamente no, perché una quota di
+   calendario è lo stesso fatto per tutti. Colonna **Fantapunti** (era «Valore») e **Bonus** (era
+   «Bonus/Malus»).
+4. **Il VIAGGIO NEL TEMPO**, con quattro date che retrodatano anche il MOTORE: `timepack` gira
+   `snapshot --date` sulle tre leghe e impacchetta fogli e campetti (~1,3 MB a data), l'app li carica e
+   il box dichiara sempre le tre cose che nessuno può retrodatare (probabili, ruolo granulare, scadenza
+   di contratto). Le date sono il giorno dopo ogni finestra di mercato delle ultime due stagioni — e
+   **non** si leggono dai trasferimenti, che portano tutti la data del 1º luglio.
+5. **Tre voci del gate**: R20 pre-registrata e misurata (passa su Serie A, aperta su euro), il canale
+   dell'investimento chiuso con un no, il canale rientro chiuso con un no definitivo.
+
+### 14/08/2026, notte: **lo SPECCHIO** (dato per riserva, gioca da titolare)
 
 Item **8** di [todolist-draft-v1.md](todolist-draft-v1.md), spec **«Novità v9.53»**,
 [assistente-asta-v1.md](assistente-asta-v1.md) **§31**. Toolkit **388 test**, app **162**.

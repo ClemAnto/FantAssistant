@@ -23,8 +23,12 @@ denominatore dello screen di rotazione, la definizione di esito dello specchio) 
 basso — e due volte il difetto era in una misura fatta su una reimplementazione invece che sulla
 funzione che spedisce.
 
-**Cosa resta aperto in questo file**: **4.5** (se l'asta è a stagione iniziata `engine_pv_pred` deve
-leggere le giornate giocate — tocca `engine_*`, quindi GATE), **1.5b**, **2.2**, **2.3** (acquisizione
+**Quarta passata: 16/08/2026, sera.** L'item **4.5** è stato **misurato sul gate vero** e non è ancora
+adottato: R20 passa su Serie A (3/3 finestre, +28,3% a febbraio e +10,4% a settembre con K = 10), su euro
+il verdetto è aperto per un buco dell'harness. Dettaglio in gate **§7-duotricies** e nell'item stesso.
+
+**Cosa resta aperto in questo file**: **4.5** (misurata, non adottata: manca il buco `FM None` su euro,
+la corsa euro rifatta e la decisione su come il pannello la usa), **1.5b**, **2.2**, **2.3** (acquisizione
 dati) e **2.4** (rinviata dall'operatore).
 
 **Il risultato più grosso della passata non era nella lista.** Il pannello consigliava ordinando per NETTO
@@ -226,6 +230,15 @@ un'idea, leggere «cosa è già stato respinto» in fondo.
   prevede un numero solo e non li distingue; le due strade per cui potrebbe contare sono l'R-Factor (conta i
   voti BASE, quindi spinge contro il bonus-man) e la varianza in un campionato a scontri diretti. Misurabile
   da `match_rating_bonuses`, non misurata.
+- [~] **4.5 — MISURATA il 16/08/2026 e non ancora adottata** (gate §7-duotricies). Harness in-season
+  costruito, regola R20 dichiarata un punto di griglia alla volta, corsa fatta: su **Serie A passa** —
+  3/3 finestre su tutti e sei i punti, +28,3% di MAE a febbraio e +10,4% a settembre con **K = 10**, che
+  è interno alla griglia e l'unico punto che supera tutte e quattro le guardie in entrambi i regimi. Su
+  **euro il verdetto è aperto**: stessi ordini di grandezza, ma la guardia sulla fantamedia non ha potuto
+  misurare (`FM None`, buco dell'harness da diagnosticare). Prima di accenderla servono quel buco chiuso,
+  la corsa euro rifatta e la decisione su come il pannello la usa — cambia fogli, surplus e consiglio.
+  Il testo originale dell'item resta qui sotto perché è la domanda che l'ha generata.
+
 - [ ] **4.5 — NUOVO e conseguenza diretta di 4.4, il numero più grande della campagna:** se l'asta è a
   stagione iniziata, `engine_pv_pred` deve LEGGERE le giornate giocate. Oggi è costruito sulla stagione
   precedente, quindi un pannello al terzo turno ignora un segnale da +0,443. Il foglio si sa già costruire a

@@ -1239,6 +1239,30 @@ Two more of the same family, both from the same session:
   would reopen this is not another measurement of the same kind but the WAGES, which is what §7-quinquies
   had already declared.
 
+## Quello che è già successo non si prevede — e l'app può viaggiare nel tempo
+**16/08/2026, e sono due facce dello stesso problema.** Un'asta giocata a stagione iniziata è l'esercizio
+più redditizio che il gate abbia mai misurato (**R20**, §7-duotricies: +28% di MAE sulle presenze a
+febbraio, +10% a settembre) e anche il più facile da misurare male: con la data d'asta DENTRO la stagione
+bersaglio, l'esito contiene le giornate che il modello ha appena letto, e un canale che le ricopiasse
+sembrerebbe bravissimo per una parte di stagione già successa. Quindi una finestra **in-season**
+(`features.INSEASON_WINDOWS`, tenute fuori da `WINDOWS` così nessuna corsa di default cambia significato)
+ha per bersaglio le presenze **dopo** la data, per input `Observation.pv_seen` — l'unico pezzo della
+stagione bersaglio che sia lecito leggere, perché quel giorno era pubblico — e per denominatore le
+giornate che **restano**. La giornata **a cavallo** della data esce da tutt'e due i lati: non è vista (non
+era finita) e non è esito (era cominciata), e senza quella cura il risultato era gonfio di sei punti.
+La regola è inerte a `k` = 0 per costruzione, quindi tutte e dieci le finestre pubblicate restano ferme.
+
+**L'app fa lo stesso viaggio, e la sua onestà è metà della funzione** (`core/time-travel.ts`,
+`ui/time-machine/`). Ritaglia da sé tutto quello che nel bundle è datato — strato per-partita, infortuni,
+ruoli, stagioni chiuse — mentre il MOTORE di una data passata non si ricalcola: lo costruisce il toolkit
+(`timepack`, che gira `snapshot --date` sulle leghe dichiarate) e viaggia nel bundle, ~1,3 MB a data,
+perché con la data cambiano solo i fogli e i campetti. **Le date sono poche e scelte** - il giorno dopo
+ogni finestra di mercato delle ultime due stagioni - e non si leggono dai trasferimenti: misurato, tutte
+le 5.371 righe di `transfers_history` portano la data del **1º luglio**, che è un diff fra rose e non un
+registro datato. Tre cose non tornano indietro nemmeno col pacchetto (probabili, ruolo granulare,
+scadenza di contratto) e il box **le scrive a schermo**: un viaggio nel tempo che ne retrodata metà in
+silenzio è peggio di nessun viaggio nel tempo.
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,
