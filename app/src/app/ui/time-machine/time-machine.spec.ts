@@ -30,16 +30,32 @@ describe('ui-time-machine', () => {
     expect(text).not.toContain('NON retrodatati');
   });
 
-  it('DICHIARA a schermo che il motore non è retrodatato, appena si viaggia', () => {
+  it('senza pacchetto DICHIARA a schermo che il motore non è retrodatato', () => {
     const travel = TestBed.inject(TimeTravel);
     const fixture = box();
     travel.travelTo('2025-11-03');
     fixture.detectChanges();
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).toContain('2025-11-03');
-    expect(text).toContain('NON retrodatati');
-    expect(text).toContain('Fantapunti');
-    expect(text).toContain('ricalcolati');
+    expect(text).toContain('motore NON retrodatato');
+    expect(travel.fidelity()).toBe('partial');
+  });
+
+  it('col PACCHETTO dice che è retrodatato tutto - e le tre istantanee restano dichiarate', () => {
+    const travel = TestBed.inject(TimeTravel);
+    travel.packs.set([{
+      date: '2025-09-05', target_season: '2025-26', input_season: '2024-25',
+      window: 'estiva', leagues: 3, path: 'timepacks/2025-09-05/manifest.json',
+    }]);
+    const fixture = box();
+    travel.travelTo('2025-09-05');
+    fixture.detectChanges();
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(travel.fidelity()).toBe('full');
+    expect(text).toContain('motore compreso');
+    expect(text).toContain('2025-26');
+    // ...e la riga sulle istantanee NON sparisce col pacchetto: sono fatti che al tempo non tornano.
+    expect(text).toContain('probabili');
   });
 
   it('torna a oggi, e una data futura non è un viaggio nel tempo', () => {

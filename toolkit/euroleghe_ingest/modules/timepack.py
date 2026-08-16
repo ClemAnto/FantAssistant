@@ -14,8 +14,8 @@ listoni, infortuni - è identico a qualunque data e l'app lo ritaglia da sola. Q
 LE DATE SONO POCHE E SCELTE (decisione dell'operatore, 16/08/2026): le ultime due stagioni, e per ognuna i
 due momenti in cui la rosa è quella vera - **appena chiuso il mercato estivo** e **appena chiuso quello
 invernale**. In mezzo il mercato è aperto e una fotografia dice poco; quelli sono i due giorni in cui un
-tavolo ha davanti la squadra che giocherà. Le date esatte NON sono scritte a mano: si leggono dai
-trasferimenti (`window_close`), perché una finestra chiude in un giorno diverso ogni anno e ogni lega.
+tavolo ha davanti la squadra che giocherà. Le due date sono una CONVENZIONE dichiarata e verificata sul
+calendario - vedi `WINDOWS`, dove sta anche il tentativo sbagliato di leggerle dai trasferimenti.
 
 TRE COSE CHE UN PACCHETTO NON PUÒ RESTITUIRE, e stanno scritte nel suo manifest invece che scoperte:
   * le PROBABILI di quel giorno (il sito pubblica solo «adesso»: la storia comincia il giorno in cui
@@ -46,68 +46,55 @@ NETWORK = False
 #: è un'altra cosa e lo strato per-partita del bundle si assottiglia (`export --history`).
 SEASONS_BACK = 2
 
-#: Quanti giorni dopo l'ultimo movimento della finestra si scatta la fotografia. Uno: il giorno dopo la
-#: chiusura la rosa è quella, e aspettarne di più vorrebbe dire far entrare giornate giocate senza motivo.
-AFTER_CLOSE_DAYS = 1
-
-#: Dove cercare la chiusura di ogni finestra: (nome, primo giorno, ultimo giorno) dentro l'anno solare.
-#: Larghe apposta - una finestra chiude il 30 agosto o il 2 settembre a seconda dell'anno e del paese.
-WINDOWS: tuple[tuple[str, str, str], ...] = (
-    ("estiva", "07-01", "09-15"),
-    ("invernale", "01-02", "02-20"),
+#: I due giorni dell'anno in cui si scatta, e sono una CONVENZIONE DICHIARATA - non un fatto letto dai
+#: dati, e il perché va scritto qui perché la prima versione ci ha provato e ha sbagliato.
+#:
+#: `transfers_history` NON può dire quando chiude una finestra: misurato, le sue 5.371 righe portano tutte
+#: la data del **1º luglio** (1.692 nel 2024, 1.657 nel 2025, 789 nel 2026) - è un diff fra rose, non un
+#: registro datato dei movimenti, e un'euristica «l'ultimo giorno affollato» ci legge il 1º luglio, cioè il
+#: giorno in cui partono i contratti. Quindi la data la si DICHIARA, e si verifica sul calendario, che
+#: invece è datato davvero.
+#:
+#: Il 5 settembre e il 5 febbraio: le cinque grandi leghe chiudono l'estiva il 1º-2 settembre e
+#: l'invernale il 2-3 febbraio, e cinque giorni di margine servono a essere dopo la chiusura ovunque.
+#: Verificato sul nostro calendario - al 2024-09-05 la Serie A aveva giocato 3 giornate (le altre quattro
+#: fra 2 e 4), al 2025-02-05 ne aveva 23. Quante ne aveva giocate ogni campionato finisce nel manifest del
+#: pacchetto, così il numero si legge invece di darlo per buono.
+WINDOWS: tuple[tuple[str, str], ...] = (
+    ("estiva", "09-05"),
+    ("invernale", "02-05"),
 )
 
-#: Sotto quanti movimenti in un giorno non si parla di «finestra»: è rumore (un prestito, uno svincolato).
-BUSY_DAY = 3
 
+def rounds_played(conn, season: str, date: str) -> dict[str, int]:
+    """Quante giornate ogni campionato aveva giocato a quella data, dal calendario vero.
 
-def _iso_plus(date: str, days: int) -> str:
-    import datetime as dt
-
-    return (dt.date.fromisoformat(date) + dt.timedelta(days=days)).isoformat()
-
-
-def window_close(conn, season: str, which: str) -> str | None:
-    """L'ultimo giorno AFFOLLATO della finestra, letto dai trasferimenti e non da una lista di date.
-
-    Una finestra di mercato chiude in un giorno diverso ogni anno, e le cinque leghe non chiudono insieme.
-    Prendere l'ultimo giorno con almeno `BUSY_DAY` movimenti è la definizione operativa: il singolo
-    trasferimento tardivo (uno svincolato, un prestito fra società dello stesso gruppo) non è la finestra.
-
-    `season` è «2025-26»: la finestra estiva è nel primo anno, l'invernale nel secondo.
+    È la VERIFICA della convenzione: la data è dichiarata, questo dice che cosa c'era davvero in campo
+    quel giorno, e finisce nel manifest del pacchetto. Una fotografia «dopo il mercato» che risultasse
+    scattata prima della prima giornata si vedrebbe subito da qui.
     """
-    start = int(season.split("-")[0])
-    for name, first, last in WINDOWS:
-        if name != which:
-            continue
-        year = start if name == "estiva" else start + 1
-        rows = conn.execute(
-            """SELECT date, COUNT(*) FROM transfers_history
-               WHERE date BETWEEN ? AND ? GROUP BY date ORDER BY date""",
-            (f"{year}-{first}", f"{year}-{last}"),
-        ).fetchall()
-        busy = [date for date, count in rows if count >= BUSY_DAY]
-        return busy[-1] if busy else None
-    return None
+    return {league: rounds for league, rounds in conn.execute(
+        """SELECT competition, MAX(real_md) FROM external_match_stats
+           WHERE season = ? AND source = 'sofascore' AND real_md IS NOT NULL AND match_date <= ?
+           GROUP BY competition ORDER BY competition""", (season, date))}
 
 
 def significant_dates(conn, seasons: list[str]) -> list[dict]:
-    """Le date da impacchettare: per ogni stagione, il giorno dopo la chiusura di ognuna delle due finestre.
+    """Le date da impacchettare: per ogni stagione, il giorno dopo ognuna delle due finestre di mercato.
 
-    Ritorna anche la finestra da cui viene e quanti movimenti l'hanno decisa, perché una data senza la sua
-    provenienza è un numero scritto a mano - e fra un anno nessuno saprebbe più perché è quella.
+    Ognuna porta con sé quante giornate erano state giocate, perché una data senza il suo contesto è un
+    numero scritto a mano - e fra un anno nessuno saprebbe più perché è quella.
     """
     out: list[dict] = []
     for season in seasons:
-        for name, _first, _last in WINDOWS:
-            close = window_close(conn, season, name)
-            if not close:
-                continue
+        start = int(season.split("-")[0])
+        for name, day in WINDOWS:
+            date = f"{start if name == 'estiva' else start + 1}-{day}"
             out.append({
-                "date": _iso_plus(close, AFTER_CLOSE_DAYS),
+                "date": date,
                 "season": season,
                 "window": name,
-                "closed_on": close,
+                "rounds_played": rounds_played(conn, season, date),
             })
     return sorted(out, key=lambda one: one["date"])
 
@@ -116,7 +103,7 @@ def _pack_dir(ctx: Context, date: str) -> Path:
     return ctx.config.data_dir / "timepacks" / date
 
 
-def build(ctx: Context, date: str, season: str, leagues: dict, *, refresh: bool = False) -> dict:
+def build(ctx: Context, entry: dict, leagues: dict, *, refresh: bool = False) -> dict:
     """Costruisce il pacchetto di UNA data: un foglio per lega dichiarata, coi suoi campetti.
 
     Chiama `snapshot.run` con `--date`, che è la stessa strada del gate: niente qui sa come si prezza un
@@ -125,10 +112,17 @@ def build(ctx: Context, date: str, season: str, leagues: dict, *, refresh: bool 
     """
     from euroleghe_ingest.modules import snapshot
 
+    date, season = entry["date"], entry["season"]
     folder = _pack_dir(ctx, date)
     if folder.exists() and not refresh:
-        print(f"[timepack] {date}: già costruito ({folder}) - `--refresh` per rifarlo")
-        return json.loads((folder / "manifest.json").read_text(encoding="utf-8"))
+        # I FOGLI non si rifanno (costano una corsa a lega), il CONTESTO della data sì: è una query, e
+        # tenerlo vecchio vorrebbe dire che una riga del manifest descrive un'altra misura.
+        payload = json.loads((folder / "manifest.json").read_text(encoding="utf-8"))
+        payload.update(window=entry.get("window"), rounds_played=entry.get("rounds_played"))
+        (folder / "manifest.json").write_text(
+            json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+        print(f"[timepack] {date}: già costruito ({folder}) - `--refresh` per rifare i fogli")
+        return payload
     folder.mkdir(parents=True, exist_ok=True)
     (folder / "sheets").mkdir(exist_ok=True)
     (folder / "boards").mkdir(exist_ok=True)
@@ -156,12 +150,24 @@ def build(ctx: Context, date: str, season: str, leagues: dict, *, refresh: bool 
             "sheet": f"sheets/{key}.csv",
             "boards": f"boards/{key}.json" if boards.exists() else None,
             "rows": manifest.get("players"),
+            "teams": (manifest.get("league") or {}).get("teams"),
+            "squad_slots": (manifest.get("league") or {}).get("squad_slots"),
             "matchdays_target": (manifest.get("matchdays") or {}).get("platform_target"),
+            # Quello che serve a `export` per serializzare il foglio ESATTAMENTE come quello di oggi:
+            # è il manifest dello snapshot ridotto ai suoi campi di intestazione. Copiato qui perché il
+            # pacchetto resti leggibile da solo, senza dover ritrovare la cartella in `data/reports`.
+            "manifest": {key: manifest.get(key) for key in
+                         ("league", "platform", "game", "target_season", "input_season",
+                          "auction_date", "sheet_revision", "generated_at", "matchdays", "folder")},
         })
 
     payload = {
         "date": date,
         "target_season": season,
+        # Perché è QUESTA data, e che cosa c'era in campo quel giorno: senza, fra un anno il numero non
+        # si spiega più da solo.
+        "window": entry.get("window"),
+        "rounds_played": entry.get("rounds_played"),
         "leagues": built,
         # Quello che nemmeno il toolkit può retrodatare, scritto nel pacchetto perché l'app lo mostri.
         "known_gaps": [
@@ -184,7 +190,9 @@ def run(ctx: Context, date: str | None = None, plan: bool = False,
         build_all: bool = False, refresh: bool = False, **kwargs) -> dict:
     conn = ctx.require_conn()
     config = ctx.config
-    leagues = config.my_leagues if hasattr(config, "my_leagues") else {}
+    # `my_leagues()` è un METODO e non una property: chiamarlo senza parentesi restituisce la funzione,
+    # e l'errore arriva un secondo dopo su `.items()`. Costato una corsa di quattro pacchetti.
+    leagues = config.my_leagues()
     seasons = [row[0] for row in conn.execute(
         "SELECT DISTINCT season FROM rosters ORDER BY season DESC LIMIT ?", (SEASONS_BACK + 1,))]
     # La stagione in corso non si impacchetta: il suo mercato non è chiuso, ed è quella che l'app mostra
@@ -195,13 +203,15 @@ def run(ctx: Context, date: str | None = None, plan: bool = False,
         print(f"[timepack] stagioni: {', '.join(past)}")
         for one in wanted:
             built = "già costruito" if _pack_dir(ctx, one["date"]).exists() else "da costruire"
-            print(f"  {one['date']}  {one['season']}  finestra {one['window']}"
-                  f" (chiusa il {one['closed_on']}) - {built}")
+            played = ", ".join(f"{league} {rounds}"
+                               for league, rounds in sorted(one["rounds_played"].items()))
+            print(f"  {one['date']}  {one['season']}  finestra {one['window']} - {built}")
+            print(f"      giornate giocate: {played or 'nessuna'}")
         return {"dates": wanted}
     if build_all:
-        done = [build(ctx, one["date"], one["season"], leagues, refresh=refresh) for one in wanted]
+        done = [build(ctx, one, leagues, refresh=refresh) for one in wanted]
         return {"packs": done}
     chosen = next((one for one in wanted if one["date"] == date), None)
     if chosen is None:
         raise RuntimeError(f"{date} non è una delle date significative - `timepack --plan` le elenca")
-    return build(ctx, date, chosen["season"], leagues, refresh=refresh)
+    return build(ctx, chosen, leagues, refresh=refresh)

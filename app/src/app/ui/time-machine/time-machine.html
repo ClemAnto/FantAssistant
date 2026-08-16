@@ -1,34 +1,35 @@
 <!-- UI text is ITALIAN in app/ (see app/CLAUDE.md); code and comments stay English. -->
-<!-- Fisso in basso a destra: l'altezza della pagina si spende sulla tabella, non sulla sua cornice.
-     `z-modal` perché deve restare leggibile sopra una tabella che scorre, e mai sopra un dialogo. -->
+<!-- Fisso in basso a destra: l'altezza della pagina si spende sulla tabella, non sulla sua cornice. -->
 <div
-  class="fixed right-3 bottom-3 z-[var(--z-dropdown)] max-w-sm rounded-lg border bg-surface px-3 py-2
+  class="fixed right-3 bottom-3 z-(--z-dropdown) max-w-sm rounded-lg border bg-surface px-3 py-2
          text-xs shadow-lg"
   [class.border-border]="!travelling()"
   [class.border-warning]="travelling()"
 >
   <div class="flex items-center gap-2">
     <span
-      class="font-medium"
+      class="font-medium whitespace-nowrap"
       nz-tooltip
       nzTooltipTitle="Attrezzo di DEBUG: sposta il giorno in cui l'app crede di trovarsi. Non si ricorda dopo un refresh."
       >🕐 Viaggio nel tempo</span
     >
-    <nz-date-picker
+    <!-- Solo le date per cui il toolkit ha costruito il motore di quel giorno: un calendario libero
+         mostrerebbe il motore di oggi sotto una data di ieri. -->
+    <nz-select
+      class="w-52"
       nzSize="small"
-      class="w-32"
+      nzAllowClear
       nzPlaceHolder="oggi"
-      nzFormat="dd/MM/yyyy"
-      [ngModel]="picked()"
-      (ngModelChange)="travelTo($event)"
-      [nzDisabledDate]="future"
-    />
-    @if (travelling()) {
-      <button nz-button nzSize="small" nzType="text" (click)="reset()">torna a oggi</button>
-    }
+      [ngModel]="chosen()"
+      (ngModelChange)="travelTo($event ?? null)"
+    >
+      @for (one of options(); track one.value) {
+        <nz-option [nzValue]="one.value" [nzLabel]="one.label" />
+      }
+    </nz-select>
     @if (busy()) {
-      <!-- Il ricalcolo attraversa 110.961 righe per-partita: senza il loader il box sembrerebbe rotto
-           mentre invece sta lavorando. -->
+      <!-- Il ricalcolo attraversa 110.961 righe per-partita e ricarica i fogli: senza il loader il box
+           sembrerebbe rotto mentre invece sta lavorando. -->
       <nz-spin nzSimple nzSize="small" />
     }
   </div>
@@ -36,16 +37,21 @@
   @if (travelling()) {
     <p class="mt-2 text-muted">
       L'app si comporta come se fosse il <strong>{{ today() }}</strong
-      >: tutto quello che è successo dopo è <strong>ignoto</strong>, che non vuol dire zero.
+      >@if (season()) { · listone <strong>{{ season() }}</strong> }: tutto quello che è successo dopo è
+      <strong>ignoto</strong>, che non vuol dire zero.
     </p>
-    <!-- La dichiarazione sta SEMPRE a schermo e non dentro un tooltip: un viaggio nel tempo che
-         retrodata metà dei numeri in silenzio è peggio di nessun viaggio nel tempo. -->
-    <p class="mt-1 text-muted" nz-tooltip [nzTooltipTitle]="recomputed">
-      ✓ ricalcolati: letture, trend, infortuni, marchi, screen, ruoli
-    </p>
-    <p class="mt-1 text-warning" nz-tooltip [nzTooltipTitle]="frozen">
-      ⚠ NON retrodatati: le colonne del motore (P, FM att., MV att., Surplus, Fantapunti, SpM/dVM), i
-      campetti e il listone — li scrive il toolkit per un giorno solo
+    @if (fidelity() === 'full') {
+      <p class="mt-1 text-muted" nz-tooltip [nzTooltipTitle]="recomputed">
+        ✓ retrodatato tutto, motore compreso (fogli e campetti di quel giorno)
+      </p>
+    } @else {
+      <p class="mt-1 text-warning" nz-tooltip [nzTooltipTitle]="partial">
+        ⚠ motore NON retrodatato: per questa data manca il pacchetto
+      </p>
+    }
+    <!-- Questa riga resta anche col pacchetto: tre fatti sono istantanee e al tempo non tornano. -->
+    <p class="mt-1 text-muted" nz-tooltip [nzTooltipTitle]="frozen">
+      ⓘ restano di oggi: probabili, ruolo granulare, scadenza contratto
     </p>
   }
 </div>

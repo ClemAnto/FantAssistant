@@ -1,4 +1,4 @@
-import { Injectable, computed, inject, signal } from '@angular/core';
+import { Injectable, computed, effect, inject, signal } from '@angular/core';
 
 import { valueOf } from './auction-value';
 import { BoardsFile, Bundle, EngineSheetEntry, columnIndex, optionalIndex } from './bundle';
@@ -6,6 +6,7 @@ import { DRAW_ORDER, occupiedCode } from './club-eleven';
 import { EngineForecast, PlayerRating, rank99ByRole } from './player-ratings';
 import { PlayerRatingsStore } from './player-ratings-store';
 import { Platform, PlayerRow, buildRosters } from './players-store';
+import { TimeTravel } from './time-travel';
 
 /**
  * What today's snapshot says a quoted man is WORTH: measured season, engine forecast, four readings.
@@ -245,6 +246,7 @@ export function placesFrom(file: BoardsFile | null): Map<number, string> {
 export class ValuationStore {
   private readonly bundle = inject(Bundle);
   private readonly ratings = inject(PlayerRatingsStore);
+  private readonly travel = inject(TimeTravel);
 
   readonly status = signal<Status>('idle');
   readonly error = signal<string | null>(null);
@@ -451,15 +453,43 @@ export class ValuationStore {
     return this.pending;
   }
 
+  constructor() {
+    // IL VIAGGIO NEL TEMPO con un pacchetto cambia il MOTORE, non solo il taglio delle date: fogli,
+    // campetti e persino la STAGIONE bersaglio (nel novembre 2025 il listone 2026-27 non esisteva).
+    // Quindi tutto quello che lo store deriva va rifatto - le tabelle grezze sono già in cache, quindi
+    // costa qualche centinaio di millisecondi e il box mostra il loader.
+    effect(() => {
+      const wanted = this.travel.pack()?.date ?? null;
+      if (this.status() !== 'idle' && wanted !== this.loadedPack) {
+        this.pending = this.read();
+      }
+    });
+  }
+
+  /** Il pacchetto su cui è costruita la risposta attuale (null = il bundle di oggi). */
+  private loadedPack: string | null = null;
+
   private async read(): Promise<void> {
     this.status.set('loading');
     this.error.set(null);
+    this.travel.busy.set(true);
     try {
       const manifest = await this.bundle.manifest();
+      // Le date disponibili le pubblica chi legge il manifest: il servizio del viaggio nel tempo non
+      // conosce il bundle, e il box non deve conoscere nessuno dei due.
+      this.travel.packs.set(manifest.timepacks ?? []);
+      const chosen = this.travel.pack();
+      this.loadedPack = chosen?.date ?? null;
+      const pack = chosen ? await this.bundle.timepack(chosen.path) : null;
       this.generatedAt.set(manifest.generated_at);
       this.demo.set(manifest.demo === true);
-      this.targetSeason.set(manifest.target_season);
-      this.inputSeason.set(manifest.input_season);
+      // LE STAGIONI SONO QUELLE DEL PACCHETTO quando se ne sta usando uno, e non è un dettaglio: nel
+      // settembre 2025 il listone 2026-27 non esisteva, quindi un viaggio a quella data mostra un'altra
+      // lista di uomini e altri prezzi. Il pacchetto le dichiara entrambe; senza, sono quelle di oggi.
+      const target = pack?.target_season ?? manifest.target_season;
+      const input = pack?.input_season ?? manifest.input_season;
+      this.targetSeason.set(target);
+      this.inputSeason.set(input);
 
       const [players, clubs, rosters, quotes, seasons, crests] = await Promise.all([
         this.bundle.table('players'),
@@ -472,7 +502,7 @@ export class ValuationStore {
         this.bundle.crests().catch(() => null),
       ]);
 
-      this.rostersByPlatform.set(buildRosters(players, clubs, rosters, quotes, manifest.target_season));
+      this.rostersByPlatform.set(buildRosters(players, clubs, rosters, quotes, target));
       this.crests.set(crests ?? {});
 
       const [cId, cLeague] = columnIndex(clubs, 'fc_club_id', 'league');
@@ -485,7 +515,7 @@ export class ValuationStore {
       );
       const worth = new Map<string, { classic: number | null; mantra: number | null }>();
       for (const row of quotes.rows) {
-        if (row[vSeason] !== manifest.target_season) continue;
+        if (row[vSeason] !== target) continue;
         worth.set(`${row[vPlatform]}|${row[vId]}`, {
           classic: (row[vFvm] as number | null) ?? null,
           mantra: (row[vFvmMantra] as number | null) ?? null,
@@ -504,7 +534,7 @@ export class ValuationStore {
       );
       const stats = new Map<string, { pv: number | null; mv: number | null; fm: number | null }>();
       for (const row of seasons.rows) {
-        if (row[sSeason] !== manifest.input_season) continue;
+        if (row[sSeason] !== input) continue;
         stats.set(`${row[sPlatform]}|${row[sId]}`, {
           pv: (row[sPv] as number) ?? null,
           mv: (row[sMv] as number) ?? null,
@@ -514,7 +544,19 @@ export class ValuationStore {
       this.measured.set(stats);
 
       this.roles.set(await this.realRoles());
-      const sheets = manifest.engine_sheets ?? [];
+      // I fogli del PACCHETTO se c'è, quelli di oggi altrimenti - stesso formato, perché li scrive la
+      // stessa funzione dell'export. I percorsi diventano relativi al bundle qui e in un posto solo.
+      const sheets: EngineSheetEntry[] = pack
+        ? pack.leagues.map((one) => ({
+          league: one.league, platform: one.platform, game: one.game,
+          teams: one.teams, squad_slots: one.squad_slots,
+          matchdays_target: one.matchdays_target,
+          sheet_revision: null, generated_at: null,
+          auction_date: pack.date, rows: one.rows ?? 0, priced: 0, estimated: 0,
+          path: `timepacks/${pack.date}/${one.sheet}`,
+          boards: one.boards ? `timepacks/${pack.date}/${one.boards}` : null,
+        }))
+        : (manifest.engine_sheets ?? []);
       const boards = await this.boardsByPlatform(sheets);
       this.boards.set(boards);
       this.expected.set(await this.expectedByPlatform(boards, sheets));
@@ -532,6 +574,10 @@ export class ValuationStore {
       this.status.set('error');
       // A failure must not be cached as an answer: the next view that asks gets a real attempt.
       this.pending = null;
+    } finally {
+      // Il loader si spegne comunque: un box che gira per sempre dopo un errore direbbe «sto
+      // lavorando» a proposito di niente. Le letture accendono il loro subito dopo.
+      this.travel.busy.set(false);
     }
   }
 

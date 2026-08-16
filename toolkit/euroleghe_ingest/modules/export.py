@@ -317,11 +317,17 @@ def write_timepacks(ctx: Context, folder: Path, compress: bool = True) -> list[d
         if not leagues:
             print(f"[export] note: timepack {info['date']} has no readable sheet - skipped")
             continue
-        info = {**info, "leagues": leagues}
+        # La stagione di INPUT sale al livello del pacchetto: è la stagione che le colonne misurate
+        # dell'app leggono (MV e FM), e cercarla dentro il manifest di una lega vorrebbe dire che due
+        # leghe potrebbero dichiararne due diverse - non possono, ma il lettore non lo saprebbe.
+        first = next((one for one in (info.get("leagues") or []) if one.get("manifest")), None)
+        info = {**info, "leagues": leagues,
+                "input_season": ((first or {}).get("manifest") or {}).get("input_season")}
         out.mkdir(parents=True, exist_ok=True)
         _atomic_write_bytes(out / "manifest.json",
                             json.dumps(info, indent=2, ensure_ascii=False).encode("utf-8"))
         written.append({"date": info["date"], "target_season": info.get("target_season"),
+                        "input_season": info.get("input_season"),
                         "window": info.get("window"), "leagues": len(leagues),
                         "path": f"timepacks/{info['date']}/manifest.json"})
         print(f"[export] timepacks/{info['date']}: {len(leagues)} fogli")
@@ -755,6 +761,10 @@ def run(ctx: Context, *, season: str | None = None, out: str | None = None,
     # gate and the panel already agree on, and re-deriving it here would be a second implementation of
     # the same numbers - the defect this project keeps paying for.
     engine_sheets = write_engine_sheets(ctx, folder, target, compress)
+    # ...e il MOTORE DELLE DATE PASSATE, se `timepack` ne ha costruite: stesse colonne, stesso formato,
+    # una cartella per data. Poche e scelte - i due giorni in cui la rosa è quella vera - perché ognuna
+    # costa una corsa di `snapshot` per lega e non ha senso averne una al giorno.
+    timepacks = write_timepacks(ctx, folder, compress)
 
     # The clubs' badges, downloaded once by `positions --layer crests`. They travel with the
     # bundle for the same reason everything else does: the app reads what it is given and never
@@ -816,6 +826,14 @@ def run(ctx: Context, *, season: str | None = None, out: str | None = None,
         # guessed. Empty means the bundle carries no engine numbers, which the app must SAY rather than
         # fall back on the listone's price.
         "engine_sheets": engine_sheets,
+        # LE DATE del viaggio nel tempo, ognuna col suo motore. Vuoto = l'app può retrodatare solo quello
+        # che è datato nel bundle (letture, trend, marchi) e lo dichiara, invece di far credere il resto.
+        "timepacks": timepacks,
+        "timepacks_note": "Il motore a una data passata: fogli e campetti costruiti da `snapshot --date`, "
+                          "cioè lo stesso codice con cui il gate replica le sue finestre. Le date sono "
+                          "poche e scelte (dopo ogni finestra di mercato delle ultime due stagioni); "
+                          "ognuna dichiara nel suo manifest che cosa nemmeno il toolkit può retrodatare "
+                          "- probabili, ruoli granulari, scadenze di contratto.",
         "engine_sheets_note": "Per-player fm_pred/pv_pred (plus the est_* fallback), from the sheet of "
                               "each declared league. `engine_surplus` travels as the league-level "
                               "reference; a LIVE panel recomputes the replacement level over the players "

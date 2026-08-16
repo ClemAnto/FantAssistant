@@ -15,6 +15,34 @@ export interface BundleTable {
  * different numbers. `matchdays_target` is the calendar `engine_pv_pred` is expressed on, which is
  * what lets a competition of n rounds be scaled by n/N instead of guessed.
  */
+/**
+ * Il manifest di un pacchetto: il motore di una data passata, lega per lega.
+ *
+ * `known_gaps` è la parte che va MOSTRATA e non solo trasportata: sono le tre cose che nemmeno il
+ * toolkit può retrodatare (probabili, ruolo granulare, scadenza di contratto) più la contaminazione a
+ * favore del modello, e un pacchetto che le tacesse si farebbe leggere come una fotografia perfetta.
+ */
+export interface TimePackFile {
+  date: string;
+  target_season: string;
+  input_season: string | null;
+  window?: string;
+  rounds_played?: Record<string, number>;
+  known_gaps?: string[];
+  leagues: {
+    league: string;
+    platform: 'default' | 'euro';
+    game: 'classic' | 'mantra';
+    teams: number | null;
+    squad_slots: Record<string, number> | null;
+    matchdays_target: number | null;
+    rows: number | null;
+    /** Percorso RELATIVO al pacchetto, es. `sheets/leghe.json.gz`. */
+    sheet: string;
+    boards: string | null;
+  }[];
+}
+
 export interface EngineSheetEntry {
   league: string;
   platform: 'default' | 'euro';
@@ -44,6 +72,16 @@ export interface BundleManifest {
   sheet_revision?: number;
   /** Empty when the bundle carries no engine numbers - which the panel must SAY, not paper over. */
   engine_sheets?: EngineSheetEntry[];
+  /**
+   * Le date per cui il bundle porta il MOTORE di quel giorno (`timepack`), per il viaggio nel tempo.
+   *
+   * Assente su un bundle costruito prima: allora il viaggio retrodata solo quello che è datato qui
+   * dentro - letture, trend, marchi - e il box lo dichiara invece di far credere il resto.
+   */
+  timepacks?: {
+    date: string; target_season: string; input_season: string | null;
+    window?: string; leagues: number; path: string;
+  }[];
   /** True only for the generated bundle the public build ships: invented clubs, players and
    *  votes. The real one is paid content and never leaves the machine. */
   demo?: boolean;
@@ -178,6 +216,7 @@ export class Bundle {
   private classicModulesPromise?: Promise<MantraModulesFile | null>;
   private playerNotesPromise?: Promise<PlayerNotesFile | null>;
   private readonly boardsByPath = new Map<string, Promise<BoardsFile | null>>();
+  private readonly packsByPath = new Map<string, Promise<TimePackFile | null>>();
   private crestsPromise?: Promise<Record<string, string>>;
 
   manifest(): Promise<BundleManifest> {
@@ -249,6 +288,23 @@ export class Bundle {
    * a sheet built before the boards existed simply carries null there, which the caller must treat as «no
    * board» rather than as an empty one.
    */
+  /**
+   * Il manifest di un PACCHETTO del viaggio nel tempo: quali fogli e quali campetti porta quella data.
+   *
+   * Un file a parte e non dentro il manifest grande, per la stessa ragione per cui i fogli sono file a
+   * parte: una data che nessuno apre non deve costare niente a chi apre la pagina.
+   */
+  timepack(path: string): Promise<TimePackFile | null> {
+    let pending = this.packsByPath.get(path);
+    if (!pending) {
+      pending = fetch(`${this.base}/${path}`)
+        .then((res) => (res.ok ? (res.json() as Promise<TimePackFile>) : null))
+        .catch(() => null);
+      this.packsByPath.set(path, pending);
+    }
+    return pending;
+  }
+
   boards(path: string): Promise<BoardsFile | null> {
     let pending = this.boardsByPath.get(path);
     if (!pending) {

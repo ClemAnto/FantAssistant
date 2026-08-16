@@ -20,6 +20,10 @@
 # the cache does ("NON PUO' ESSERE RIPRODOTTO NE' PUBBLICATO"). The repo is PUBLIC - it ships with
 # the app, never through git.
 /data/export/
+# I pacchetti del viaggio nel tempo: sono FOGLI, cioe' la stessa roba dell'export - nomi, prezzi e voti
+# del contenuto a pagamento - e si rigenerano con `timepack --all`. Viaggiano nel bundle, come tutto il
+# resto, e il bundle passa da git solo sul branch `gh-pages`.
+/data/timepacks/
 # report/modelli rigenerati dal toolkit (coverage, calibrazione voto sintetico)
 /data/reports/
 # I dati di lavoro del banco del draft: nomi, prezzi e voti del contenuto a pagamento, e si RIGENERANO

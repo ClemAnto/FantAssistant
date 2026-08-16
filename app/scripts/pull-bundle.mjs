@@ -122,6 +122,30 @@ if (existsSync(boardsIn)) {
   }
 }
 
+/* I PACCHETTI del viaggio nel tempo: una cartella per data, dentro fogli e campetti costruiti dal toolkit
+ * a quel giorno. Copiata RICORSIVAMENTE perché ha due livelli, e contata come tutto il resto: uno zero
+ * silenzioso è indistinguibile da una funzione rotta, ed è la lezione dei campetti mancanti. */
+const packsIn = join(src, 'timepacks');
+let packs = 0;
+if (existsSync(packsIn)) {
+  const packsOut = join(OUT, 'timepacks');
+  for (const date of readdirSync(packsIn)) {
+    for (const part of ['', 'sheets', 'boards']) {
+      const from = part ? join(packsIn, date, part) : join(packsIn, date);
+      if (!existsSync(from)) continue;
+      const to = part ? join(packsOut, date, part) : join(packsOut, date);
+      mkdirSync(to, { recursive: true });
+      for (const file of readdirSync(from)) {
+        const source = join(from, file);
+        if (!statSync(source).isFile()) continue;
+        copyFileSync(source, join(to, file));
+        bytes += statSync(source).size;
+      }
+    }
+    packs++;
+  }
+}
+
 // The clubs' badges: a folder of small images plus the index that says which file is whose.
 const crestsIn = join(src, 'crests');
 let crests = 0;
@@ -140,7 +164,12 @@ console.log(`bundle ${season} -> public/data`);
 console.log(`  schema_version ${manifest.schema_version}, generated ${manifest.generated_at}`);
 console.log(`  target ${manifest.target_season}, heavy seasons ${manifest.heavy_seasons.join(', ')}`);
 console.log(`  ${TABLES.length - missing.length}/${TABLES.length} tables, ${crests} crests, `
-  + `${sheets} engine sheets, ${boards} board files, ${(bytes / 1024 / 1024).toFixed(1)} MB`);
+  + `${sheets} engine sheets, ${boards} board files, ${packs} timepacks, `
+  + `${(bytes / 1024 / 1024).toFixed(1)} MB`);
+if (!packs) {
+  console.warn('  nessun timepack: il viaggio nel tempo potrà retrodatare solo quello che è datato nel '
+    + 'bundle (letture, trend, marchi), non il motore. `python -m euroleghe_ingest timepack --all`');
+}
 if (missing.length) console.warn(`  MISSING: ${missing.join(', ')}`);
 /* Silence here would read as "the app can rank by surplus" while it cannot: without a sheet the
  * auction panel has no engine numbers at all and has to say so instead of ranking by the price. */

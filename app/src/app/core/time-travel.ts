@@ -26,10 +26,40 @@ import { Injectable, computed, signal } from '@angular/core';
  * NON SI RICORDA fra un refresh e l'altro, ed è deliberato: una data di debug appiccicata in silenzio
  * farebbe leggere numeri di novembre come numeri di oggi il giorno che uno se ne dimentica.
  */
+/**
+ * Una data per cui il TOOLKIT ha costruito il motore: fogli e campetti di quel giorno.
+ *
+ * Con un pacchetto il viaggio è completo - surplus, Fantapunti, campetti compresi - perché quei numeri
+ * li ha scritti `snapshot --date`, cioè lo stesso codice con cui il gate replica le sue finestre. Senza,
+ * resta il viaggio parziale su ciò che nel bundle è datato, e il box lo dichiara.
+ */
+export interface TimePack {
+  date: string;
+  target_season: string;
+  input_season: string | null;
+  /** Quale finestra di mercato ha appena chiuso: «estiva» o «invernale». */
+  window?: string;
+  leagues: number;
+  path: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class TimeTravel {
   /** Il giorno vero, letto una volta: è anche il punto di ritorno. */
   readonly realToday = new Date().toISOString().slice(0, 10);
+
+  /**
+   * Le date che il bundle porta col motore già costruito. Le riempie chi legge il manifest.
+   *
+   * Poche e scelte: i due giorni per stagione in cui la rosa è quella vera - appena chiuso il mercato
+   * estivo e appena chiuso l'invernale - sulle ultime due stagioni. Una data al giorno costerebbe una
+   * corsa di `snapshot` per lega ciascuna (~75 s l'una) e non direbbe niente di più.
+   */
+  readonly packs = signal<TimePack[]>([]);
+
+  /** Il pacchetto della data scelta, se c'è: allora il viaggio è completo e non parziale. */
+  readonly pack = computed(() =>
+    this.packs().find((one) => one.date === this.chosen()) ?? null);
 
   private readonly chosen = signal<string | null>(null);
 
@@ -50,6 +80,10 @@ export class TimeTravel {
     }
     this.chosen.set(date);
   }
+
+  /** Che cosa il viaggio in corso riesce a retrodatare: tutto, o solo quello che nel bundle è datato. */
+  readonly fidelity = computed<'none' | 'partial' | 'full'>(() =>
+    !this.travelling() ? 'none' : this.pack() ? 'full' : 'partial');
 
   /**
    * Se una data è dentro il tempo che l'app riconosce. Vuoto resta vuoto: «ignoto», mai «prima».
