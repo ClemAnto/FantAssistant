@@ -5009,6 +5009,7 @@ class SnapshotView(ttk.Frame):
             rounds_by_season=_rounds_by_season(row.get("desc_injury_rounds_by_season")),
             weighted_all=_number(row.get("desc_injury_weighted")),
             known_injuries=bool(row.get("desc_injury_source")),
+            days_since_return=_number(row.get("desc_injury_days_since_return")),
             window_matches=_number(row.get("desc_elsewhere_matches")),
             window_minutes=_number(row.get("desc_elsewhere_minutes")),
             minutes_here=_number(row.get("desc_minutes_club")),

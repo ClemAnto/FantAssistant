@@ -3789,6 +3789,95 @@ roba che il motore sa già.
 senza inventare un canale nuovo. Su Gila vale +10 punti di Overall — e va detto che il motore stesso lo
 alza solo di 0,07 di fantamedia, cioè neanche lui rimodula.
 
+## 7-tricies. IL RIENTRO DA UN LUNGO INFORTUNIO: la FANTAMEDIA non cala, e le PRESENZE sono pre-registrate (16 agosto 2026)
+
+**Il caso che ha aperto la domanda** (operatore): Berisha M., mai più di 15 presenze in carriera (6, 15,
+13), **quattro stop muscolari di cui due da 101 giorni consecutivi**, rientrato 46 giorni prima dell'asta
+— e il motore gliene prevede **21,2**, sei più del suo massimo assoluto. Sul metro di popolazione: chi ha
+il 25-35% degli ultimi tre anni fuori (lui è al 28%) l'anno dopo gioca in **mediana 15** partite e solo il
+**28%** ne supera 21.
+
+Prima di chiamarlo difetto è stato misurato quanto sia generale: **35 quotati su 321 (10%) hanno una
+previsione sopra il loro massimo in carriera**, con uno sforo medio di +4,7 — e i primi della lista sono
+ragazzi con un massimo di 1-5 partite a cui il motore ne prevede 17-18, il che è GIUSTO. I giorni di
+infortunio di chi sfora tanto (133) sono quasi identici a quelli di tutti gli altri (117), quindi
+prevedere sopra il massimo non è di per sé un difetto del canale infortuni. Quello che distingue Berisha è
+la **combinazione**: sfora di 6 ed è a 316 giorni fuori in tre anni.
+
+### La FANTAMEDIA: misurata e RIFIUTATA
+
+L'operatore ha chiesto anche l'altra metà — «di quanto peggiora la FM di chi torna, vedi Chiesa o Insigne
+o De Bruyne». Disegno: per ogni stop CHIUSO di 60+ giorni, la media del fantavoto nelle **8 partite prima**
+contro le **8 dopo il rientro**, con le date dal layer per partita e il fantavoto da `match_ratings`.
+
+| | |
+|---|---|
+| 310 rientri da 60+ giorni | FM prima **6,142** → dopo **6,099** = **−0,043** |
+| il NULL (stesse persone, due finestre adiacenti SENZA infortunio in mezzo, 6.761 coppie) | **−0,010** |
+| **eccesso attribuibile al rientro** | **−0,034** |
+
+Mediana esattamente **0,000**, e peggiora nel **49%** dei casi: una monetina. **Il rientro non tocca la
+fantamedia**, e nessun canale deve farlo.
+
+I tre nomi citati esistono davvero — Chiesa **−0,44** dopo 270 giorni, De Bruyne **−1,25** dopo 129 — e
+sono la coda, non la regola: memorabili proprio perché estremi. Stessa famiglia dell'attaccante alto
+(48%, §5-terdecies): una credenza calcistica vera su tre casi e falsa sulla popolazione.
+
+### Le PRESENZE: canale pre-registrato, spento
+
+`presence.return_recency_days` / `return_recency_weight`, coppia (finestra, peso) perché col peso a zero
+la finestra non è identificabile — stesso argomento di `arrival_split` e `age_decline`. L'effetto decade
+linearmente dal giorno del rientro al bordo della finestra, si somma agli infortuni invece di sostituirli
+(sono due fatti diversi: quanto si è fatto male, e da quanto è tornato) e resta sopra
+`availability_floor`. Il dato è `desc_injury_days_since_return`: la fine dello stop chiuso più recente che
+gli sia costato **almeno una giornata** — la condizione serve a non chiamare «rientro» un'influenza di tre
+giorni.
+
+Griglia: `(90, 0)` incumbente, poi finestre 60/90/120 giorni per pesi 0,05 / 0,10 / 0,20 di stagione (due,
+quattro, otto giornate). A senso unico verso l'alto sul peso, e non è un modo di non testarla: il
+contrario — «chi è appena rientrato gioca di più» — non lo propone nessuno, e il rifiuto lo esprime lo 0,
+che è nella griglia ed è l'incumbente. Giudicata sulle **presenze**, non sugli starts: la domanda è quante
+ne gioca, non chi il tecnico sceglie.
+
+### Il verdetto dello sweep (16/08/2026): NON ADOTTATA, per due ragioni indipendenti
+
+| | euro/classic (4 finestre) | default/classic (6 finestre) |
+|---|---|---|
+| migliore pooled | `120/0.1` | `120/0.05` |
+| cross-fit | **unanime**, 4 fold su 4 | **spaccato**: 3 fold su 6 scelgono lo 0, cioè SPENTO |
+| guadagno medio | **+0,56%** | **−0,16%** |
+| finestra peggiore | −0,08% | −0,93% |
+| strict / robust | no / **sì** | no / no |
+
+**Uno**: fallisce su `default`, che è la piattaforma del caso che l'ha generata — Berisha gioca in Serie A.
+Mezza griglia dei fold sceglie l'incumbente, cioè il canale spento, e il guadagno medio è negativo. Un
+canale nato da un caso e rifiutato proprio sulla piattaforma di quel caso non si adotta perché passa
+altrove.
+
+**Due**: dove passa (euro, robust), il punto vincente è **al bordo della griglia** sulla dimensione della
+finestra — 120 giorni di 60/90/120 — e la regola di casa è che *un parametro non si adotta al bordo della
+sua griglia*. È la stessa ragione per cui il canale dell'investimento condizionale rimase a zero pur
+passando robust su Serie A. Il peso invece è interno (0,1 fra 0,05 e 0,2), quindi il difetto è di una
+dimensione sola.
+
+**Follow-up pre-registrato**, e va fatto prima e non dopo aver visto la curva: griglia allargata sulle
+finestre (150, 180, 240 giorni) su euro. Se l'ottimo resta al bordo anche lì, la lettura non è «serve una
+finestra più lunga» ma «questo canale sta misurando qualcos'altro» — probabilmente il fatto che uno stop
+recente e lungo è anche un indicatore di quanti giorni ha già perso, che `injury_weights` legge di suo.
+
+**Stato: pre-registrata, misurata, SPENTA.** Il codice resta - il canale è a peso zero e non muove un
+decimale (`backtest --verify` invariato) - perché una griglia allargata è una riga di sweep e non un
+modulo da riscrivere.
+
+### E che cosa resta del caso Berisha
+
+Il 21,2 del motore non scende: nessun canale misurato lo fa scendere, e sostituirlo con un numero a mano
+sarebbe la cosa che questo progetto rifiuta da sempre. Quello che c'è, ed è già in mano all'operatore, è
+il resto del foglio: l'app lo porta all'**8% del calendario** nell'Overall — per il posto da titolare e
+per la fragilità, che sono due preferenze DICHIARATE e non due previsioni — e gli mette accanto i due
+marchi «rientrato da poco» e «si infortuna spesso». Il numero grezzo del motore resta ottimista e visibile;
+il giudizio accanto dice perché non fidarsene.
+
 ## 8. Casi di regressione (in `model.REGRESSION_CASES`, stampati da `backtest --cases`)
 
 Lewandowski (età/minuti) · Wirtz (cambio lega) · Torres F. (propensione per-90) · Ezzalzouli (nuovo nel

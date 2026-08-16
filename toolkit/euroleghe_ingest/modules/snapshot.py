@@ -2125,6 +2125,14 @@ def injury_history(conn, auction_date: str, seasons: list[str],
             entry["missed_measured"] += missed or 0
         if (end is None or end >= auction_date) and entry["open"] is None:
             entry["open"] = f"{kind} since {start}"
+        # DA QUANTI GIORNI E' RIENTRATO: la fine dello stop CHIUSO piu' recente che gli sia costato
+        # almeno una giornata. La condizione sulle giornate serve a non chiamare «rientro» un'influenza
+        # di tre giorni fra due soste - e le righe arrivano gia' dalla piu' recente, quindi la prima che
+        # passa e' quella. Uno stop ancora aperto non e' un rientro: quello lo dicono le assenze.
+        if (entry.get("days_since_return") is None and end is not None and end < auction_date
+                and (missed or 0) >= 1):
+            entry["days_since_return"] = (
+                dt.date.fromisoformat(auction_date) - dt.date.fromisoformat(end)).days
         if entry["worst_kind"] is None or (days or 0) >= (entry.get("worst_days") or 0):
             entry["worst_kind"], entry["worst_days"] = kind, days or 0
     for fc_id, entry in out.items():
@@ -3589,7 +3597,7 @@ PLAYER_COLUMNS: tuple[str, ...] = (
     # recent first, aligned with the recency weights and with an empty entry for a season we could not
     # count: the weights are PROVISIONAL, and a pre-weighted total would freeze them.
     "desc_injury_rounds_weighted", "desc_injury_rounds_by_season", "desc_injury_rounds_measured",
-    "desc_injury_rounds_seasons",
+    "desc_injury_rounds_seasons", "desc_injury_days_since_return",
     "desc_injury_worst_kind", "desc_injury_open", "desc_injury_source",
     "desc_availability_now",
     "desc_goals_p90", "desc_assists_p90", "desc_xg_p90", "desc_xa_p90", "desc_minutes_full_season",
@@ -3950,6 +3958,9 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             "desc_injury_rounds_by_season": injury.get("rounds_by_season"),
             "desc_injury_rounds_measured": injury.get("rounds_measured"),
             "desc_injury_rounds_seasons": injury.get("rounds_seasons"),
+            # Da quanti giorni e' rientrato dall'ultimo stop che gli e' costato una giornata. Vuoto =
+            # non ne ha avuti o non lo sappiamo, mai zero.
+            "desc_injury_days_since_return": injury.get("days_since_return"),
             "desc_injury_spells": injury.get("spells"),
             "desc_injury_worst_kind": injury.get("worst_kind"),
             "desc_injury_open": injury.get("open"),

@@ -72,6 +72,19 @@ GRIDS: dict[str, tuple] = {
     "availability_floor": (0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6),
     "injury_weights": ((1.0, 0.6, 0.35), (1.0, 0.75, 0.5), (1.0, 0.45, 0.2),
                        (1.0, 0.0, 0.0), (1.0, 1.0, 1.0)),
+    # LA RECENZA DEL RIENTRO (pre-registrata 16/08/2026), come COPPIE (giorni, peso) per la stessa ragione
+    # per cui `arrival_split` e `age_decline` lo sono: col peso a zero la finestra non e' identificabile, e
+    # spazzarne una sola direbbe «nessun effetto» di un termine spento. La prima voce E' l'incumbente.
+    #
+    # La griglia e' a senso unico verso l'alto sul peso, e non e' un modo di non testare l'ipotesi: il
+    # contrario - «chi e' appena rientrato gioca DI PIU'» - non e' una cosa che qualcuno stia proponendo,
+    # e un peso negativo qui vorrebbe dire che un club rimette in campo prima chi si e' appena fatto male.
+    # Il rifiuto lo esprime lo 0, che e' nella griglia e che e' l'incumbente.
+    # Le finestre: 60 giorni sono due mesi (un rientro estivo pieno), 90 un trimestre, 120 quattro mesi.
+    # I pesi: 0,05 di stagione sono due giornate, 0,20 sono otto - oltre, il termine deciderebbe da solo.
+    "return_recency": ((90.0, 0.0), (60.0, 0.05), (60.0, 0.10), (60.0, 0.20),
+                       (90.0, 0.05), (90.0, 0.10), (90.0, 0.20),
+                       (120.0, 0.05), (120.0, 0.10)),
     "standing_weights": ((1.0, 0.0), (0.8, 0.2), (0.65, 0.35), (0.5, 0.5), (0.35, 0.65), (0.0, 1.0)),
     "contested_from": ("measured", "forecast"),
     # THE INVESTMENT HYPOTHESIS (pre-registered 29/07/2026, gate 7-quater). Both weights start at 0 = off,
@@ -209,6 +222,8 @@ TARGETS: dict[str, str] = {
     "arrival_discount": "appearances",
     "availability_floor": "appearances",
     "injury_weights": "appearances",
+    # Il rientro recente parla di quante ne GIOCA, non di chi il tecnico sceglie: si giudica sulle presenze.
+    "return_recency": "appearances",
     "contested_from": "appearances",
     "standing_weights": "starts",
     # The claim is about SELECTION - who the coach puts on the pitch - so it is judged on starts.
@@ -472,6 +487,7 @@ def build_inputs(conn, data: features.WindowData, ctx: Context | None = None) ->
             rounds_by_season=tuple(by_season),
             weighted_all=injury.get("weighted"),
             known_injuries=bool(injury.get("source")),
+            days_since_return=injury.get("days_since_return"),
             minutes_here=float(split.get("minutes") or 0),
             minutes_elsewhere=float(split.get("minutes_elsewhere") or 0),
             was_here_before=obs.fc_id in was_here,
@@ -634,6 +650,8 @@ def _current(name: str):
         return (presence.DEFAULTS.arrival_discount, presence.DEFAULTS.arrival_discount_cross)
     if name == "age_decline":
         return (presence.DEFAULTS.age_decline_from, presence.DEFAULTS.age_decline)
+    if name == "return_recency":
+        return (presence.DEFAULTS.return_recency_days, presence.DEFAULTS.return_recency_weight)
     return getattr(presence.DEFAULTS, name)
 
 
@@ -661,6 +679,11 @@ def _params_for(name: str, value) -> presence.Params:
         # identifiable alone (same argument as `arrival_split`).
         starts_at, decline = value
         return replace(presence.DEFAULTS, age_decline_from=starts_at, age_decline=decline)
+    if name == "return_recency":
+        # finestra E peso insieme: col peso a 0 la finestra non fa niente, quindi nessuna delle due e'
+        # identificabile da sola (stesso argomento di `arrival_split`).
+        days, weight = value
+        return replace(presence.DEFAULTS, return_recency_days=days, return_recency_weight=weight)
     return presence.DEFAULTS.with_value(name, value)
 
 

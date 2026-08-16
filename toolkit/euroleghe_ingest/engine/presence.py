@@ -62,6 +62,24 @@ class Params:
     # A man is never assumed to miss more than this much of a season: a bad history is a discount, not a
     # verdict that he will not play.
     availability_floor: float = 0.40
+    # LA RECENZA DEL RIENTRO (pre-registrata 16/08/2026). L'ipotesi: un uomo tornato da poco da uno stop
+    # lungo non e' lo stesso uomo con lo stesso storico che sta bene da un anno - rischia la ricaduta e
+    # viene reinserito con calma. Il canale che gia' c'e' legge i GIORNI FUORI negli ultimi tre anni, che
+    # e' una cosa diversa: dice quanto si e' fatto male, non quanto e' fa che e' tornato.
+    #
+    # Il caso che l'ha chiesta (operatore, 16/08/2026): Berisha M., mai piu' di 15 presenze in carriera
+    # (6, 15, 13), quattro stop muscolari di cui DUE da 101 giorni consecutivi, rientrato 46 giorni prima
+    # dell'asta - e il motore gliene prevede 21,2. Sulla popolazione: chi ha il 25-35% degli ultimi tre
+    # anni fuori gioca l'anno dopo in mediana 15 partite e solo il 28% ne supera 21.
+    #
+    # PARTE DA ZERO, che e' l'unico default onesto per un'ipotesi che nessuno ha ancora giudicato - come
+    # i due canali dell'investimento. `return_recency_days` e' la finestra entro cui un rientro conta
+    # ancora, `return_recency_weight` quanta disponibilita' toglie a chi e' appena tornato, in quota di
+    # stagione; l'effetto decade linearmente fino a zero al bordo della finestra. Sono una COPPIA perche'
+    # con il peso a zero la finestra non e' identificabile: spazzarne una sola direbbe «nessun effetto» di
+    # un termine che e' spento.
+    return_recency_days: float = 90.0
+    return_recency_weight: float = 0.0
     # How the standing splits between his START RATE and his SHARE OF THE MINUTES. The only one of these
     # parameters that is no longer provisional: `sweep` ran it on 29/07/2026 against the share of his
     # championship's rounds he actually STARTED next season, and (0, 1) - minutes alone - won on every one
@@ -260,6 +278,10 @@ class Inputs:
     # fallback for a player whose club we have no calendar for. Not sweepable, and it says so.
     weighted_all: float | None = None
     known_injuries: bool = False
+    # Da quanti GIORNI e' rientrato dal suo ultimo stop CHIUSO, alla data della previsione. None = non lo
+    # sappiamo o non ne ha avuti, e allora il canale tace: «vuoto = ignoto», mai «e' integro da sempre».
+    # Uno stop ancora APERTO non arriva qui - quello e' un'altra cosa e lo dicono le assenze.
+    days_since_return: float | None = None
     # whose season it was
     minutes_here: float = 0.0
     minutes_elsewhere: float = 0.0
@@ -493,12 +515,35 @@ def absences_per_season(inputs: Inputs, params: Params = DEFAULTS) -> float | No
     return inputs.weighted_all / (sum(DEFAULTS.injury_weights) or 1.0) * share
 
 
+def return_penalty(inputs: Inputs, params: Params = DEFAULTS) -> float:
+    """Quanto toglie l'essere RIENTRATI DA POCO, in quota di stagione. Zero se il canale e' spento.
+
+    Decade linearmente: pieno il giorno del rientro, nullo al bordo della finestra. Lineare e non a
+    gradino perche' un gradino chiederebbe alla griglia di indovinare due cose (dove sta e quanto vale)
+    con un solo parametro, ed e' quello che fa sembrare «senza effetto» un canale mal tagliato.
+    """
+    if not params.return_recency_weight or params.return_recency_days <= 0:
+        return 0.0
+    days = inputs.days_since_return
+    if days is None or days < 0 or days >= params.return_recency_days:
+        return 0.0
+    return params.return_recency_weight * (1.0 - days / params.return_recency_days)
+
+
 def availability(inputs: Inputs, params: Params = DEFAULTS) -> float:
-    """The share of a season a man like this one is fit for: 1.0 healthy, less for the injury-prone."""
+    """The share of a season a man like this one is fit for: 1.0 healthy, less for the injury-prone.
+
+    Il rientro recente si toglie DOPO gli infortuni e prima del pavimento, cosi' il pavimento resta
+    quello che dice di essere - «una storia brutta e' uno sconto, non un verdetto» - e vale per tutt'e
+    due i motivi insieme invece che per uno solo.
+    """
     missed = absences_per_season(inputs, params)
+    recent = return_penalty(inputs, params)
     if missed is None:
-        return 1.0
-    return max(1.0 - missed / max(inputs.league_matches, 1.0), params.availability_floor)
+        # Nessuna storia di infortuni: il rientro recente, se lo conosciamo, parla da solo.
+        return max(1.0 - recent, params.availability_floor) if recent else 1.0
+    share = 1.0 - missed / max(inputs.league_matches, 1.0) - recent
+    return max(share, params.availability_floor)
 
 
 def contested(inputs: Inputs, params: Params = DEFAULTS) -> float:

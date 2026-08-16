@@ -1199,8 +1199,10 @@ def test_every_swept_parameter_exists_and_is_scored_against_a_target():
     # transfer fees) and a verdict that hides that is not a verdict.
     # ...and `age_decline` is one for the same reason: at a discount of 0 the threshold is
     # unidentifiable, so the two move together (todolist-formazioni-tipo item 7).
+    # ...e `return_recency` idem (finestra e peso: col peso a 0 la finestra non e' identificabile,
+    # pre-registrata 16/08/2026).
     composite = ({name for name in sweep.GRIDS if name.startswith("investment")}
-                 | {"arrival_split", "age_decline"})
+                 | {"arrival_split", "age_decline", "return_recency"})
     assert set(sweep.GRIDS) - composite <= names,         f"swept but not a parameter: {set(sweep.GRIDS) - composite - names}"
     assert set(sweep.GRIDS) == set(sweep.TARGETS), "every grid needs its target named"
     assert set(sweep.TARGETS.values()) <= set(sweep.PREDICTORS)
