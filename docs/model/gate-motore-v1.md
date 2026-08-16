@@ -4148,11 +4148,29 @@ passa dove guardo: il candidato di prima (K = 10) resta il migliore su Serie A e
 posizione in una finestra su tre.
 
 **Quindi l'adozione è una DECISIONE e non un automatismo**, e va presa in chiaro come quella di R19 — che
-fu la prima adottata sul solo verdetto robust. Le due strade oneste: adottare **K = 10** dichiarando che
-la guardia sui nomi cede su una finestra euro di tre (e allora si scrive, come si scrisse per R19, che
-un'adozione senza `passes` pieno è più fragile e esce senza discutere se la prossima corsa la trova
-peggiore); oppure adottarlo **per piattaforma**, che è quello che il gate fa già altrove (R19 su
-`default` e non su euro) — e allora la griglia dice K = 10 su Serie A e K = 15 o 6 su euro.
+fu la prima adottata sul solo verdetto robust. Le due strade oneste erano: **K = 10 dappertutto**,
+dichiarando che la guardia sui nomi cede su una finestra euro di tre; oppure **un K per piattaforma**,
+che è quello che il gate fa già altrove (R19 su `default` e non su euro).
+
+### ADOTTATA (16 agosto 2026): K = 10 su Serie A, K = 6 su euro
+
+Decisione dell'operatore, presa con la tabella davanti, ed è la seconda strada: **l'evidenza è per
+piattaforma, quindi lo è l'adozione**. Su euro il 6 supera tutte e quattro le guardie (3/3 finestre,
++24,7% di MAE sulle presenze) mentre il 10 perde una posizione in cima su una finestra di tre; su Serie A
+è esattamente l'opposto, e il 10 passa i due regimi. Nessun numero è stato scelto perché passava dove si
+guardava: ognuno passa dove è adottato.
+
+`ADOPTED` porta ora `R20K10` su `default` e `R20K6` su `euro`. **Non muove un decimale di niente che
+esista oggi**: la regola è inerte a zero giornate viste, quindi i dieci numeri pubblicati (`--verify`
+22/22) e i fogli d'agosto restano identici. Si muovono i **pacchetti del viaggio nel tempo**, che sono
+in-season per definizione, e per quello `SHEET_REVISION` sale a **21** anche se i fogli pre-stagione non
+cambiano: una revisione che descrivesse due comportamenti sarebbe una cartella che non sa dire quale dei
+due la riguarda.
+
+**Quello che resta da decidere è il PANNELLO**, e non è questa riga: `presence.py` è il modello del
+pannello e non importa `evaluate`, quindi lo standing con cui si disegna la board e si consiglia al tavolo
+NON legge ancora le giornate giocate. È la stessa asimmetria che `CLAUDE.md` già dichiara («un parametro
+adottato in `presence.py` muove solo i FOGLI»), vista dall'altro lato.
 
 ### La corsa euro precedente, e perché è stata riportata come non-verdetto
 

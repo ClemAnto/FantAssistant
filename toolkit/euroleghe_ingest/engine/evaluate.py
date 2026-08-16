@@ -312,7 +312,15 @@ ADOPTED: dict[str, tuple[str, ...]] = {
     # guardandola (§7-sexdecies, §7-octodecies). euro/classic passa solo coi criteri nuovi - concordante ma
     # contaminato, e vale come conferma, non come prova. Su `default` non passa in nessuna versione: 8/9
     # finestre ma una a -5.6%, quindi resta fuori di la'.
-    "euro": ("R0c", "R3c", "R18"),
+    # R20K6 adottata il 16/08/2026 su EURO e R20K10 su `default`: un K per piattaforma, che è quello che
+    # questo dizionario fa già con R19, e per la stessa ragione - l'evidenza è per piattaforma. Su euro il
+    # 6 supera tutte e quattro le guardie (3/3 finestre, +24,7% di MAE sulle presenze) mentre il 10 perde
+    # una posizione in cima su una finestra di tre; su Serie A è l'opposto. Decisione dell'operatore presa
+    # con la tabella davanti (gate §7-duotricies), che è il modo in cui questo progetto scioglie un
+    # disaccordo fra guardie invece di scegliere il numero che passa dove si guarda.
+    # INERTE su ogni finestra pre-stagione, quindi non muove un decimale dei numeri pubblicati né dei
+    # fogli d'agosto: agisce solo dove esiste la domanda, cioè a stagione iniziata.
+    "euro": ("R0c", "R3c", "R18", "R20K6"),
     # R19 is the FIRST rule here adopted on the ROBUST verdict alone, and it is written down as such.
     # Decision taken in the open on 06/08/2026, which is what the protocol asks for when the two verdicts
     # disagree. What it rests on: 9 of the 10 Serie A windows improve (the tenth costs 1.5%, inside the 2%
@@ -324,7 +332,7 @@ ADOPTED: dict[str, tuple[str, ...]] = {
     # NOT on euro, and that is not caution but measurement: 0 windows of 5, mean -1.1%, and on mantra the
     # auction names fall 152 -> 145, outside the no-harm allowance. Adoption is per platform because the
     # evidence is.
-    "default": ("R3", "R7", "R13", "R19"),
+    "default": ("R3", "R7", "R13", "R19", "R20K10"),
 }
 # What the corrected criteria changed, and why the list is shorter than it was:
 # * accuracy rules are judged on the players they MOVE, with a 0.5% floor. That made R4 and R10 much

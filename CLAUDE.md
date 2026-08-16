@@ -1251,6 +1251,20 @@ stagione bersaglio che sia lecito leggere, perché quel giorno era pubblico — 
 giornate che **restano**. La giornata **a cavallo** della data esce da tutt'e due i lati: non è vista (non
 era finita) e non è esito (era cominciata), e senza quella cura il risultato era gonfio di sei punti.
 La regola è inerte a `k` = 0 per costruzione, quindi tutte e dieci le finestre pubblicate restano ferme.
+**ADOTTATA il 16/08/2026 con un K per PIATTAFORMA** — `R20K10` su `default`, `R20K6` su `euro` — perché
+l'evidenza è per piattaforma come lo era per R19: su euro il 6 supera tutte e quattro le guardie e il 10
+perde un nome in cima su una finestra di tre, su Serie A è l'opposto. L'accuratezza invece è unanime
+(3/3 finestre su ogni punto di griglia e ogni regime, da +3,8% a +29,2%), e la guardia che decide è
+sempre quella sui NOMI, che è un conteggio su dieci: quando le guardie si dividono, la decisione si
+prende in chiaro e si scrive. **Il PANNELLO non la legge ancora**: `presence.py` non importa `evaluate`,
+quindi lo standing che disegna la board e consiglia al tavolo ignora tuttora le giornate giocate - è la
+stessa asimmetria di sempre, vista dall'altro lato.
+Un difetto trovato lungo la strada e che vale oltre R20: **una soglia di scoring è una QUOTA del
+calendario che si sta prevedendo, non un numero**. `MIN_PV_ACT` = 15 è il 39% di una stagione da 38; su
+una finestra in-season restano quattordici giornate, quindi quella soglia non è severa ma
+irraggiungibile, e la guardia sulla fantamedia **smetteva di misurare** invece di fallire - col gate che
+contava «non verificata» come «peggiorata» e bocciava una regola da +23,7%. `evaluate.scoring_floor`
+tiene la quota; sulle pre-stagione non cambia di un'unità.
 
 **L'app fa lo stesso viaggio, e la sua onestà è metà della funzione** (`core/time-travel.ts`,
 `ui/time-machine/`). Ritaglia da sé tutto quello che nel bundle è datato — strato per-partita, infortuni,

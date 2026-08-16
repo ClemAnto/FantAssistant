@@ -213,7 +213,13 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      (`evaluate.market_rates` / `market_surplus`), tasso fittato sulla lista INTERA prima di ogni
 #      restringimento, surplus quello che la riga mostra (motore dove c'e', stima altrove). Reporting,
 #      come l'FVM su cui e' tarata: nessuna regola la legge e il gate non la chiama.
-SHEET_REVISION = 20
+#  21  16/08/2026 - R20 ADOTTATA, un K per piattaforma (K=10 su Serie A, K=6 su euro): un foglio
+#      costruito a stagione iniziata (`--date`) legge le giornate gia' giocate nelle presenze attese.
+#      Su un foglio PRE-STAGIONE non cambia un decimale - la regola e' inerte a zero giornate viste - ma
+#      la revisione sale lo stesso, perche' i pacchetti del viaggio nel tempo SONO in-season e i loro
+#      numeri si muovono: una revisione per due comportamenti sarebbe una cartella che non sa dire quale
+#      dei due la descrive.
+SHEET_REVISION = 21
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
