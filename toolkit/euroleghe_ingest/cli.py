@@ -11,7 +11,7 @@ from euroleghe_ingest import __version__
 from euroleghe_ingest.config import Config
 from euroleghe_ingest.context import Context
 from euroleghe_ingest.db.database import init_db, record_run
-from euroleghe_ingest.engine.features import WINDOWS
+from euroleghe_ingest.engine.features import ALL_WINDOWS, WINDOWS
 from euroleghe_ingest.modules import ALL_MODULES, PIPELINE, load
 
 
@@ -63,7 +63,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     # Gate harness: read-only on the DB, writes only a report under data/reports/.
     p_backtest = sub.add_parser("backtest", help=load("backtest").DESCRIPTION)
-    p_backtest.add_argument("--window", action="append", choices=list(WINDOWS),
+    p_backtest.add_argument("--window", action="append", choices=list(ALL_WINDOWS),
                             metavar="|".join(WINDOWS),
                             help="prediction window, oldest to newest (repeatable; default: all). "
                                  "The published gate numbers are T1 and T2 alone.")

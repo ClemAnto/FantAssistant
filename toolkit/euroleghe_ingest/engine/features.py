@@ -88,6 +88,43 @@ WINDOWS: dict[str, Window] = {
 # comparison against the documents stays pinned to them however many windows exist.
 PUBLISHED_WINDOWS: tuple[str, ...] = ("T1", "T2")
 
+# LE FINESTRE IN-SEASON: l'asta giocata a stagione iniziata (gate §7-duotricies).
+#
+# TENUTE FUORI da `WINDOWS` di proposito. Sono un esercizio DIVERSO - si prevede il resto della stagione,
+# non la stagione - e mescolarle alle dieci vorrebbe dire che una corsa qualunque del gate cambierebbe di
+# significato senza che nessuno l'abbia chiesto. Si scelgono con `backtest --in-season`, e ogni numero
+# pubblicato resta quello che era.
+#
+# Le due date per stagione sono quelle che il progetto ha già scelto due volte oggi, per la stessa
+# ragione: il **5 settembre** e il **5 febbraio** sono i due giorni in cui il mercato ha appena chiuso e
+# la rosa è quella vera. Sono anche i due REGIMI diversi della domanda - l'asta tardiva di settembre
+# (k = 2-5 giornate) e quella di riparazione (k = 19-23) - e una finestra per giornata direbbe soprattutto
+# quanto è liscia l'interpolazione fra i due.
+#
+# Dal 2019-20 perché il layer per-partita comincia lì, ed è quello che data le giornate: senza le date non
+# si sa quali erano già giocate, e senza quello la finestra non esiste.
+INSEASON_WINDOWS: dict[str, Window] = {
+    f"{key}{tag}": Window(f"{key}{tag}", f"{start - 1}-{str(start)[2:]}", f"{start}-{str(start + 1)[2:]}",
+                          f"{start if tag == 'set' else start + 1}-{day}")
+    for start, key in ((2019, "I19"), (2020, "I20"), (2021, "I21"), (2022, "I22"),
+                       (2023, "I23"), (2024, "I24"), (2025, "I25"))
+    for tag, day in (("set", "09-05"), ("feb", "02-05"))
+}
+
+
+#: Ogni finestra che il gate sappia nominare. NON è il set di default di nessuna corsa: quello resta
+#: `WINDOWS`, e le in-season si prendono nominandole. Serve solo a risolvere una chiave in un oggetto.
+ALL_WINDOWS: dict[str, Window] = {**WINDOWS, **INSEASON_WINDOWS}
+
+
+def window(key: str) -> Window:
+    """La finestra con quel nome, pre-stagione o in-season che sia."""
+    try:
+        return ALL_WINDOWS[key]
+    except KeyError:
+        raise KeyError(f"finestra sconosciuta: {key!r}. "
+                       f"Disponibili: {', '.join(ALL_WINDOWS)}") from None
+
 
 def cross_fit_source(key: str, available: tuple[str, ...] | None = None) -> str:
     """Which window's parameters score `key`. Never `key` itself - that is the whole point.
@@ -98,7 +135,11 @@ def cross_fit_source(key: str, available: tuple[str, ...] | None = None) -> str:
     parameters fitted on better data, and - crucially - T1/T2 keep pairing with each other, so adding
     windows does not silently restate the published results.
     """
-    order = [name for name in WINDOWS if available is None or name in available]
+    # Le in-season si accoppiano FRA LORO e mai con una pre-stagione: sono un altro esercizio (si
+    # prevede il resto della stagione), quindi un parametro fittato su una non descrive l'altra. È lo
+    # stesso motivo per cui T1/T2 continuano ad accoppiarsi fra loro quando si aggiungono finestre.
+    pool = INSEASON_WINDOWS if key in INSEASON_WINDOWS else WINDOWS
+    order = [name for name in pool if available is None or name in available]
     if key not in order:
         raise KeyError(f"unknown window {key}")
     index = order.index(key)
@@ -304,8 +345,41 @@ def matchdays_before(conn: sqlite3.Connection, platform: str, season: str, date:
 
     Un insieme e non un conteggio: le giornate rinviate fanno sì che «le prime k» non siano le prime k, e
     contarle basterebbe solo in un calendario che nessuno sposta.
+
+    Il criterio è l'ULTIMA partita della giornata (`matchday_dates`), quindi una giornata è «vista» solo
+    se è finita: nessuna partita giocata DOPO la data può entrare in quello che il modello legge.
     """
     return {md for md, played in matchday_dates(conn, platform, season).items() if played <= date}
+
+
+def matchdays_straddling(conn: sqlite3.Connection, platform: str, season: str,
+                         date: str) -> set[int]:
+    """Le giornate A CAVALLO della data d'asta: cominciate prima, finite dopo.
+
+    Sono il buco fra le due metà di una finestra in-season, e vanno tolte da TUTT'E DUE. Non stanno fra
+    quelle viste - il modello non può leggere una giornata che non è finita - ma se restassero nell'ESITO
+    porterebbero dentro le partite di quella giornata già giocate il giorno dell'asta, cioè un pezzo di
+    risultato già noto contato come previsione. Piccolo (al più una giornata) e nella direzione che
+    favorisce la regola, che è la peggiore in cui sbagliare.
+
+    Un rinvio è la ragione per cui esistono: «l'unità è la partita, mai la giornata» (`CLAUDE.md`), e qui
+    la giornata è l'unità che il voto usa - quindi quella che non si può spezzare si butta.
+    """
+    if platform == "euro":
+        rows = conn.execute(
+            """SELECT m.euro_md, MIN(e.match_date), MAX(e.match_date) FROM matchday_map m
+               JOIN external_match_stats e ON e.season = m.season AND e.competition = m.league
+                                          AND e.real_md = m.real_md AND e.source = 'sofascore'
+               WHERE m.season = ? AND e.match_date IS NOT NULL
+               GROUP BY m.euro_md""", (season,))
+    else:
+        rows = conn.execute(
+            """SELECT real_md, MIN(match_date), MAX(match_date) FROM external_match_stats
+               WHERE season = ? AND competition = 'serie_a' AND source = 'sofascore'
+                 AND real_md IS NOT NULL AND match_date IS NOT NULL
+               GROUP BY real_md""", (season,))
+    return {int(md) for md, first, last in rows if md is not None and first and last
+            and first <= date < last}
 
 
 def league_rounds(conn: sqlite3.Connection, season: str) -> dict[str, int]:
@@ -1101,7 +1175,9 @@ def load(conn: sqlite3.Connection, window: Window, platform: str,
     # dell'asta. Vuoto per tutte e dieci le finestre pubblicate (data d'asta al 15 agosto), quindi qui
     # sotto non cambia un decimale di niente - `backtest --verify` resta 22/22.
     seen_rounds = matchdays_before(conn, platform, window.target_season, window.auction_date)
-    seen_totals, rest_totals = _split_target_season(conn, window, platform, seen_rounds)
+    # ...e la giornata A CAVALLO della data, che non appartiene a nessuna delle due metà.
+    straddling = matchdays_straddling(conn, platform, window.target_season, window.auction_date)
+    seen_totals, rest_totals = _split_target_season(conn, window, platform, seen_rounds, straddling)
 
     observations: list[Observation] = []
     for (fc_id, name, role_classic, roles_raw, league, price, club_target, club_prev, birth_year,
@@ -1162,7 +1238,8 @@ def load(conn: sqlite3.Connection, window: Window, platform: str,
 
 
 def _split_target_season(conn: sqlite3.Connection, window: Window, platform: str,
-                         seen: set[int]) -> tuple[dict[int, int], dict[int, tuple]]:
+                         seen: set[int],
+                         straddling: set[int] | None = None) -> tuple[dict[int, int], dict[int, tuple]]:
     """Le presenze della stagione bersaglio spezzate dalla data d'asta: (viste, resto).
 
     Serve solo alle finestre IN-SEASON e su una pre-stagione non fa nemmeno la query. Il resto porta
@@ -1176,7 +1253,11 @@ def _split_target_season(conn: sqlite3.Connection, window: Window, platform: str
     """
     if not seen:
         return {}, {}
+    # La giornata a cavallo esce da tutt'e due i lati: il modello non la vede (non era finita) e l'esito
+    # non la conta (una parte era gia' giocata). Un buco dichiarato vale una perdita nascosta.
+    excluded = sorted(seen | (straddling or set()))
     marks = ",".join("?" * len(seen))
+    marks_out = ",".join("?" * len(excluded))
     played: dict[int, int] = {}
     for fc_id, count in conn.execute(
             f"""SELECT fc_id, COUNT(*) FROM match_ratings
@@ -1188,8 +1269,8 @@ def _split_target_season(conn: sqlite3.Connection, window: Window, platform: str
     for fc_id, count, mv, fm in conn.execute(
             f"""SELECT fc_id, COUNT(*), AVG(mv), AVG(fantavoto) FROM match_ratings
                 WHERE season = ? AND platform = ? AND status = 'played'
-                  AND matchday NOT IN ({marks}) GROUP BY fc_id""",
-            (window.target_season, platform, *sorted(seen))):
+                  AND matchday NOT IN ({marks_out}) GROUP BY fc_id""",
+            (window.target_season, platform, *excluded)):
         rest[int(fc_id)] = (int(count), mv, fm)
     return played, rest
 

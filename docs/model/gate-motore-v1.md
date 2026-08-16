@@ -4079,9 +4079,50 @@ quello che ha fatto finora», che a due giornate è un pessimo stimatore. E **la
 era giusta a metà**: febbraio vale molto più di settembre (+30% contro +11%), ma settembre non è
 trascurabile come avevo previsto.
 
-**Stato: PRE-REGISTRATA, fattibilità misurata, harness DA COSTRUIRE.** Serve un esito «presenze dopo la
-data» e le finestre in-season; la modifica non tocca nessun numero esistente, perché a `k` = 0 il canale
-è inerte e le finestre di oggi sono tutte pre-stagione.
+### ESEGUITA (16 agosto 2026, sera tardi): passa su tutta la griglia, e la regola del bordo sceglie da sola
+
+Harness costruito (finestre in-season, esito «presenze dopo la data», `pv_seen` come input), regola
+dichiarata un punto di griglia alla volta come R18b/R18c - così «quale K» è un verdetto e non un fit.
+Serie A, tre stagioni per regime (2023-24, 2024-25, 2025-26), cross-fit fra finestre dello stesso regime.
+
+| K | febbraio: media (peggiore) | tutte le guardie | settembre: media (peggiore) | tutte le guardie |
+|---|---|---|---|---|
+| 40 | +18,4% (+17,3%) | **sì** | +3,8% (+3,3%) | no (top10) |
+| 25 | +22,9% (+21,9%) | no (top10) | +5,5% (+4,8%) | no (top10) |
+| 15 | +26,6% (+26,3%) | no (top10) | +8,1% (+6,9%) | **sì** |
+| **10** | **+28,3% (+27,3%)** | **sì** | **+10,4% (+8,7%)** | **sì** |
+| 6 | +29,2% (+26,9%) | no (top10) | +13,2% (+10,7%) | **sì** |
+| 3 | +29,2% (+25,5%) | no (top10) | +14,9% (+10,9%) | no (top10) |
+
+**Tutti e sei i punti passano l'accuratezza, 3/3 finestre, su entrambi i regimi** — e sono guadagni di
+un ordine di grandezza sopra qualunque cosa questo gate abbia mai adottato. La fantamedia non si muove di
+un decimale (la regola tocca solo le presenze), il VALORE migliora, e i nomi in lista salgono del 22-34%.
+
+**K = 10 è il candidato all'adozione, e non l'ho scelto io: lo scelgono le due regole di casa.** È
+INTERNO alla griglia (la regola del bordo, che ha appena spento il canale del rientro due volte) ed è
+l'unico punto che supera **tutte e quattro** le guardie in **tutti e due** i regimi — compresa quella sui
+nomi catturati, che il gate ha aggiunto nel 06/08 proprio perché «il gate vincola il DELIVERABLE e non
+solo l'errore». Il massimo per MAE è a K=3, ma là la lista peggiora: più precisione sui numeri, meno
+nomi giusti in cima.
+
+**Una perdita trovata e curata prima di scrivere il verdetto, e vale la pena raccontarla.** Le giornate
+si classificano per data dell'ULTIMA partita, quindi una giornata rinviata a metà finiva tutta
+nell'esito - portandoci dentro le sue partite già giocate il giorno dell'asta, cioè risultato noto
+contato come previsione. Adesso la giornata **a cavallo esce da tutt'e due i lati** (`matchdays_
+straddling`): il modello non la vede perché non era finita, l'esito non la conta perché era cominciata.
+Costo: una giornata su quindici. Effetto sul risultato: K=3 scende da +35,4% a +29,2%, e la curva si
+APPIATTISCE in fondo (K=6 e K=3 pari), il che toglie anche il problema del bordo che la stima di
+fattibilità aveva previsto. Una perdita piccola nella direzione che favorisce la regola è la peggiore in
+cui sbagliare, ed è per questo che si cura prima di pubblicare il numero e non dopo.
+
+**E l'attesa scritta prima della corsa era giusta a metà, come nella stima**: febbraio vale tre volte
+settembre (+28% contro +10%), ma settembre non è trascurabile - a due o tre giornate viste il canale vale
+già dieci volte il pavimento.
+
+**Stato: MISURATA e PASSA, adozione non ancora fatta.** Restano due cose prima di accenderla, ed è
+deliberato non farle nella stessa sessione della misura: **euro** (le finestre esistono, la corsa no) e
+la decisione su come il PANNELLO la usa - perché una regola che cambia `engine_pv_pred` cambia i fogli,
+il surplus e il consiglio d'asta, e quella è una giornata di verifiche e non una riga.
 
 **Una scorciatoia che vale la pena valutare prima**: buona parte del valore pratico è al TAVOLO, e il
 tavolo legge il pannello, la cui presenza è `presence.py` — che è governato da `sweep` e non da

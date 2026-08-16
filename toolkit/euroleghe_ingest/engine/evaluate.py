@@ -143,14 +143,31 @@ RULES: tuple[Rule, ...] = (
     *(Rule(key, f"R18 with the split between last season and the five-year mean DECLARED at "
                 f"w = {weight:.2f}, only the total strength fitted", True, metric="fm")
       for key, weight in (("R18c50", 0.50), ("R18c65", 0.65))),
+    # R20 - LE GIORNATE GIÀ GIOCATE, una regola per punto di griglia (gate §7-duotricies).
+    # Dichiarata e non fittata, che è l'idioma di R18b/R18c: così «quale K» è un VERDETTO e non un fit,
+    # e ogni punto si giudica da solo contro lo stesso baseline. K è in GIORNATE - quante ne servono
+    # perché quello che ha fatto finora pesi quanto la previsione. Inerte su una finestra pre-stagione,
+    # per costruzione: senza giornate viste il termine non esiste.
+    *(Rule(key, f"le giornate GIÀ GIOCATE entrano nelle presenze attese, con il prior che pesa "
+                f"K = {rounds:.0f} giornate", True, metric="pv")
+      for key, rounds in (("R20K40", 40.0), ("R20K25", 25.0), ("R20K15", 15.0),
+                          ("R20K10", 10.0), ("R20K6", 6.0), ("R20K3", 3.0))),
 )
+
+#: Quante giornate di PRIOR vale ogni punto della griglia di R20. La chiave è la regola stessa.
+R20_ROUNDS: dict[str, float] = {"R20K40": 40.0, "R20K25": 25.0, "R20K15": 15.0,
+                                "R20K10": 10.0, "R20K6": 6.0, "R20K3": 3.0}
 
 # Rules that get fitted and compared one at a time by `compare`.
 CANDIDATES: tuple[str, ...] = ("R0c", "R1", "R1b", "R2", "R3", "R3c", "R4", "R4b", "R5", "R6", "R7",
                                "R8", "R10", "R11", "R11b", "R12", "R12b", "R13", "R13b",
                                "R13c", "R14", "R14b", "R15", "R3d", "R16", "R16b", "R5b", "R17",
                                "R18", "R19", "R18b50", "R18b70", "R18b85",
-                               "R18c50", "R18c65")
+                               "R18c50", "R18c65",
+                               # R20: inerti su ogni finestra pre-stagione, quindi una corsa normale del
+                               # gate le trova a guadagno esattamente zero - che è il modo giusto in cui
+                               # una regola che risponde a un'altra domanda si comporta qui.
+                               "R20K40", "R20K25", "R20K15", "R20K10", "R20K6", "R20K3")
 
 # R18b - R18 with the history weighted for RECENCY, pre-registered on 10/08/2026 with this grid and no
 # other. One candidate name per decay so the report states the whole grid instead of a chosen value, and
@@ -1410,6 +1427,16 @@ def _rule_pv(obs: features.Observation, data: features.WindowData, rules: tuple[
         overflow = crowding_x.get(obs.fc_id)
         if overflow:
             share += model.forward_crowding_adjustment(overflow, params.crowding_lam)
+    # R20 - LE GIORNATE GIÀ GIOCATE, e va per ULTIMA perché la sua è l'ultima domanda: qualunque cosa il
+    # resto del modello preveda, il giorno dell'asta una parte di stagione era già stata giocata, e a
+    # fine gennaio quella parte pesa più di tutto il resto. Non SOSTITUISCE la previsione, ci converge:
+    # a due giornate viste il termine è piccolo per ogni K sensato, a ventitré è quasi tutto.
+    # Su una finestra pre-stagione `matchdays_seen` è 0 e questo blocco non esiste.
+    for key, prior in R20_ROUNDS.items():
+        if key in rules and data.matchdays_seen and obs.pv_seen is not None:
+            share = model.blend_with_seen(share, obs.pv_seen / data.matchdays_seen,
+                                          data.matchdays_seen, prior)
+            break
     return model.expected_appearances(model.clip(share, 0.0, 1.0), data.matchdays_target)
 
 
@@ -1870,7 +1897,7 @@ def compare(conn: sqlite3.Connection, candidates: tuple[str, ...], platform: str
     and without losing the top-10 precision the auction actually consumes.
     """
     keys = tuple(windows or features.WINDOWS)
-    prepared = {key: features.prepare(conn, features.WINDOWS[key], platform, game) for key in keys}
+    prepared = {key: features.prepare(conn, features.window(key), platform, game) for key in keys}
     prepared = {key: data for key, data in prepared.items() if _window_is_usable(data, platform)}
     if len(prepared) < 2:
         raise RuntimeError("the gate needs at least two usable windows, got "
@@ -2133,7 +2160,7 @@ def verify_baseline(conn: sqlite3.Connection) -> list[Check]:
 
     # Prepared once: every remaining check reads the same windows - and only the two the published
     # numbers refer to. A new window has no published counterpart to be verified against.
-    prepared = {key: features.prepare(conn, features.WINDOWS[key], "euro", "mantra")
+    prepared = {key: features.prepare(conn, features.window(key), "euro", "mantra")
                 for key in features.PUBLISHED_WINDOWS}
 
     # 3. the two independent Mantra beta estimates
@@ -2945,17 +2972,17 @@ def run(ctx: Context, *, windows: list[str] | None = None, platforms: list[str] 
                 active = ("R0", *ADOPTED.get(platform, ()))
                 usable = tuple(key for key in features.WINDOWS
                                if _window_is_usable(features.prepare(
-                                   conn, features.WINDOWS[key], platform, game), platform))
+                                   conn, features.window(key), platform, game), platform))
                 # every usable window's fit, because the pooled rules average over all but the scored
                 # one - the same parameters the gate uses, or the deliverable would disagree with the
                 # verdicts that produced it
                 every = {key: fit_params(features.prepare(
-                    conn, features.WINDOWS[key], platform, game), ("R0", *CANDIDATES))
+                    conn, features.window(key), platform, game), ("R0", *CANDIDATES))
                     for key in usable}
                 for key in window_keys:
                     if key not in usable:
                         continue
-                    data = features.prepare(conn, features.WINDOWS[key], platform, game)
+                    data = features.prepare(conn, features.window(key), platform, game)
                     other = features.cross_fit_source(key, usable)
                     params = pool_params(every, key, every[other])
                     view = auction_view(data, predict_window(data, active, None, params))
@@ -2975,7 +3002,7 @@ def run(ctx: Context, *, windows: list[str] | None = None, platforms: list[str] 
                     # the cases are shown under the ADOPTED set: what the engine would now say
                     active = ("R0", *ADOPTED.get(platform, ()))
                     for key in features.WINDOWS:
-                        data = features.prepare(conn, features.WINDOWS[key], platform, game)
+                        data = features.prepare(conn, features.window(key), platform, game)
                         other = features.cross_fit_source(key)
                         params = fit_params(features.prepare(
                             conn, features.WINDOWS[other], platform, game), ("R0", *CANDIDATES))
@@ -2983,7 +3010,7 @@ def run(ctx: Context, *, windows: list[str] | None = None, platforms: list[str] 
                         _print_cases(data, predict_window(data, active, None, params))
                 continue
             for key in window_keys:
-                window = features.WINDOWS[key]
+                window = features.window(key)
                 data = features.prepare(conn, window, platform, game)
                 if not data.observations:
                     print(f"[backtest] {window.label} {platform}/{game}: no observations, skipped")

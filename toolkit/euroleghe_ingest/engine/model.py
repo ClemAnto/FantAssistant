@@ -274,6 +274,25 @@ def expected_share(share_prev: float, mv_prev: float, club_change: bool,
     return clip(share, 0.0, 1.0)
 
 
+def blend_with_seen(prior: float, seen: float, rounds_seen: float, prior_rounds: float) -> float:
+    """Quello che ha fatto finora e quello che ci si aspettava, pesati: R20 (gate §7-duotricies).
+
+        share = (k x osservato + K x prior) / (k + K)
+
+    `k` sono le giornate già giocate alla data d'asta, `K` quante ne servono perché l'osservato pesi
+    quanto il prior. È la stessa forma della shrinkage per taglia del campione che il modello delle
+    presenze già usa (`presence.standing_prior_rounds`, il verdetto più netto che quel giro abbia dato):
+    un uomo che ha giocato tutte e tre le prime giornate non diventa un titolare da trentotto, e uno che
+    ne ha giocate ventitré su ventitré sì.
+
+    A `k` = 0 restituisce il prior INTATTO, che è ciò che rende la regola inerte su ogni finestra
+    pre-stagione - cioè su tutte quelle su cui il gate ha pubblicato i suoi numeri.
+    """
+    if rounds_seen <= 0:
+        return prior
+    return (rounds_seen * seen + prior_rounds * prior) / (rounds_seen + prior_rounds)
+
+
 def expected_appearances(share: float, matchdays: int) -> float:
     return clip(share, 0.0, 1.0) * matchdays
 
