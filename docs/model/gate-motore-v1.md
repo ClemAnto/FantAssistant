@@ -4119,8 +4119,24 @@ cui sbagliare, ed è per questo che si cura prima di pubblicare il numero e non 
 settembre (+28% contro +10%), ma settembre non è trascurabile - a due o tre giornate viste il canale vale
 già dieci volte il pavimento.
 
-**Stato: MISURATA e PASSA, adozione non ancora fatta.** Restano due cose prima di accenderla, ed è
-deliberato non farle nella stessa sessione della misura: **euro** (le finestre esistono, la corsa no) e
+### euro: stessi guadagni, verdetto NON stabilito — e il perché è dell'harness, non della regola
+
+Corsa fatta (I23feb, I24feb, I25feb, euro/classic): l'accuratezza si muove come su Serie A —
+**3/3 finestre su tutti e sei i punti**, da +14,5% (K=40) a +24,7% (K=3), K=10 a **+23,7%** con la
+peggiore a +20,3%. Eppure il gate stampa **DOES NOT PASS**, e la ragione va letta prima di crederci:
+
+- **`FM None -> None`** su tutte e tre le finestre, quindi la guardia «FM non peggiora» non può essere
+  verificata e viene contata come fallita. Il dato per-partita c'è (16.403 righe euro 2025-26 giocate,
+  tutte con fantavoto), quindi **è un buco dell'harness e non un fatto sulla regola**: da diagnosticare
+  prima di rifare la corsa. Nessuna adozione può poggiare su una guardia che non ha potuto misurare.
+- **top10 9 → 8 su I23feb**, mentre le altre due salgono (3→5, 11→13). Quello è un fatto e conta.
+
+**Quindi su euro la regola NON ha un verdetto**, e va detto così invece di riportare il +23,7% come se
+lo fosse: un numero di accuratezza senza le sue guardie non è un verdetto, è metà di uno.
+
+**Stato: MISURATA e PASSA su Serie A, verdetto APERTO su euro, adozione non fatta.** Restano tre cose,
+ed è deliberato non farle nella stessa sessione della misura: il buco FM dell'harness su euro, la corsa
+euro rifatta, e
 la decisione su come il PANNELLO la usa - perché una regola che cambia `engine_pv_pred` cambia i fogli,
 il surplus e il consiglio d'asta, e quella è una giornata di verifiche e non una riga.
 
