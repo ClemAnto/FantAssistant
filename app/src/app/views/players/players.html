@@ -1,13 +1,29 @@
 <!-- UI text is ITALIAN in app/ (see app/CLAUDE.md); code and comments stay English. -->
 <div class="mx-auto flex min-h-full max-w-[1400px] flex-col gap-4 p-4">
   <header class="flex flex-wrap items-baseline justify-between gap-2">
-    <div class="flex items-baseline gap-2">
-      <h1 class="text-2xl font-semibold text-fg">Calciatori</h1>
-      <span
-        class="rounded-full border border-border px-2 py-0.5 text-xs text-muted"
-        title="Versione della webapp - cambia a ogni pubblicazione"
-        >v{{ appVersion }}</span
-      >
+    <div class="flex flex-wrap items-baseline gap-3">
+      <div class="flex items-baseline gap-2">
+        <h1 class="text-2xl font-semibold text-fg">Calciatori</h1>
+        <span
+          class="rounded-full border border-border px-2 py-0.5 text-xs text-muted"
+          title="Versione della webapp - cambia a ogni pubblicazione"
+          >v{{ appVersion }}</span
+        >
+      </div>
+      <!-- Due letture degli stessi uomini, e lo switch sta FUORI dai filtri: un filtro si richiude,
+           e una modalita' nascosta dentro un pannello chiuso non si trova. -->
+      @if (store.status() === 'ready') {
+        <nz-radio-group
+          nzSize="small"
+          [ngModel]="mode()"
+          (ngModelChange)="show($event)"
+        >
+          <label nz-radio-button nzValue="matches" nz-tooltip
+            nzTooltipTitle="Ultime partite: una colonna per giornata (o per settimana con le coppe), il voto e cosa ha fatto in quella partita.">Ultime partite</label>
+          <label nz-radio-button nzValue="ratings" nz-tooltip
+            nzTooltipTitle="Le stesse colonne della tabella nella vista SQUADRE: la stagione misurata, i numeri attesi dal motore e le cinque letture a stelline, su tutto il listone.">Valutazioni</label>
+        </nz-radio-group>
+      }
     </div>
     <div class="flex items-baseline gap-3">
       @if (store.generatedAt(); as generated) {
@@ -20,6 +36,11 @@
       <a nz-button nzType="text" routerLink="/clubs">
         <nz-icon nzType="team" />
         Squadre
+      </a>
+      <!-- The only way into the charts view: without it /charts is reachable by URL alone. -->
+      <a nz-button nzType="text" routerLink="/charts">
+        <nz-icon nzType="pie-chart" />
+        Grafici
       </a>
       <!-- The only way into the live view: without it /auction is reachable by URL alone. -->
       <a nz-button nzType="text" routerLink="/auction">
@@ -74,6 +95,22 @@
           </nz-radio-group>
         </div>
 
+        <!-- La ricerca vale in TUTTE E DUE le modalita': filtra la stessa lista che le due tabelle
+             disegnano, quindi non puo' mostrare un uomo di qua e non di la'. -->
+        <div class="flex flex-col gap-1">
+          <span class="text-xs text-muted">Cerca</span>
+          <nz-input-wrapper class="w-56" nzAllowClear (nzClear)="store.search.set('')">
+            <nz-icon nzInputPrefix nzType="search" class="text-muted" />
+            <input
+              nz-input
+              type="search"
+              placeholder="nome o id"
+              [ngModel]="store.search()"
+              (ngModelChange)="store.search.set($event)"
+            />
+          </nz-input-wrapper>
+        </div>
+
         <div class="flex flex-col gap-1">
           <span class="text-xs text-muted">Ruolo</span>
           <nz-select
@@ -87,6 +124,29 @@
               <nz-option [nzValue]="role" [nzLabel]="roleLabel[role]" />
             }
           </nz-select>
+        </div>
+
+        <!-- Le icone come filtro: «mostrami tutti i misteri». Sono le stesse che la riga disegna, con
+             la stessa parola, perche' l'elenco e la legenda non possono dire due cose diverse. -->
+        <div class="flex flex-col gap-1">
+          <span class="text-xs text-muted">Icone</span>
+          <nz-select
+            class="w-56"
+            nzMode="multiple"
+            nzAllowClear
+            nzPlaceHolder="Tutte"
+            [ngModel]="store.flags()"
+            (ngModelChange)="chooseFlags($event)"
+          >
+            @for (flag of markFlags; track flag) {
+              <nz-option [nzValue]="flag" [nzLabel]="markLabel[flag]" />
+            }
+          </nz-select>
+          @if (store.flags().length && valuation.status() !== 'ready') {
+            <span class="flex items-center gap-1 text-xs text-muted">
+              <nz-spin nzSimple nzSize="small" /> cerco i marchi...
+            </span>
+          }
         </div>
 
         <div class="flex flex-col gap-1">
@@ -105,80 +165,87 @@
           </nz-select>
         </div>
 
-        <div class="flex flex-col gap-1">
-          <span class="text-xs text-muted">Stagione</span>
-          <nz-select
-            class="w-32"
-            [ngModel]="store.season()"
-            (ngModelChange)="store.selectSeason($event)"
-          >
-            @for (season of store.seasons(); track season) {
-              <nz-option [nzValue]="season" [nzLabel]="season" />
-            }
-          </nz-select>
-        </div>
-
-        <div class="flex flex-col gap-1">
-          <span class="text-xs text-muted">Ordina per</span>
-          <nz-select
-            class="w-44"
-            [ngModel]="store.sortBy()"
-            (ngModelChange)="store.sortBy.set($event)"
-          >
-            <nz-option nzValue="played" nzLabel="Presenze nel periodo" />
-            <nz-option nzValue="role" nzLabel="Ruolo" />
-            <nz-option nzValue="name" nzLabel="Nome" />
-          </nz-select>
-        </div>
-
-        <span class="pb-2 text-sm text-muted">{{ store.lines().length }} calciatori</span>
-      </div>
-
-      <div class="flex flex-wrap items-end gap-6 border-t border-border pt-3">
-        <div class="flex flex-col gap-1">
-          <span class="text-xs text-muted">Nelle colonne</span>
-          <div class="flex items-center gap-4">
-            <label nz-checkbox nzDisabled [ngModel]="true">Campionato</label>
-            <label
-              nz-checkbox
-              [ngModel]="store.withCups()"
-              (ngModelChange)="store.withCups.set($event)"
-              >Coppe e altre competizioni</label
+        <!-- Stagione e ordinamento valgono per le PARTITE. Nell'altra modalita' la stagione misurata e'
+             una sola - quella del bundle, scritta sotto la tabella - e a ordinare sono le colonne: un
+             filtro che non muove niente e' peggio di un filtro che non c'e'. -->
+        @if (mode() === 'matches') {
+          <div class="flex flex-col gap-1">
+            <span class="text-xs text-muted">Stagione</span>
+            <nz-select
+              class="w-32"
+              [ngModel]="store.season()"
+              (ngModelChange)="store.selectSeason($event)"
             >
-            <label
-              nz-checkbox
-              [ngModel]="store.withFriendlies()"
-              (ngModelChange)="store.withFriendlies.set($event)"
-              >Amichevoli</label
-            >
-          </div>
-        </div>
-
-        @if (store.byMatchday()) {
-          <div class="flex min-w-64 flex-1 flex-col gap-1">
-            <span class="text-xs text-muted">
-              Periodo: giornate {{ store.windowFrom() }}-{{ store.windowTo() }}
-              @if (store.windowTo() - store.windowFrom() >= 10) {
-                <span class="text-warning">(mostrate le ultime 10)</span>
+              @for (season of store.seasons(); track season) {
+                <nz-option [nzValue]="season" [nzLabel]="season" />
               }
-            </span>
-            <nz-slider
-              nzRange
-              [nzMin]="1"
-              [nzMax]="store.lastMatchday()"
-              [ngModel]="window()"
-              (ngModelChange)="onWindow($event)"
-            />
+            </nz-select>
           </div>
-        } @else {
-          <p class="max-w-xl pb-1 text-xs text-muted">
-            Con le coppe la colonna diventa una <span class="text-fg">settimana</span>, da giovedi'
-            a mercoledi': cosi' una giornata giocata fra venerdi' e lunedi' e il turno infrasettimanale
-            restano incolonnati, e la stessa colonna e' la stessa settimana per tutti. Il filtro per
-            periodo torna togliendo le spunte.
-          </p>
+
+          <div class="flex flex-col gap-1">
+            <span class="text-xs text-muted">Ordina per</span>
+            <nz-select
+              class="w-44"
+              [ngModel]="store.sortBy()"
+              (ngModelChange)="store.sortBy.set($event)"
+            >
+              <nz-option nzValue="played" nzLabel="Presenze nel periodo" />
+              <nz-option nzValue="role" nzLabel="Ruolo" />
+              <nz-option nzValue="name" nzLabel="Nome" />
+            </nz-select>
+          </div>
         }
+
+        <span class="pb-2 text-sm text-muted">{{ store.filtered().length }} calciatori</span>
       </div>
+
+      @if (mode() === 'matches') {
+        <div class="flex flex-wrap items-end gap-6 border-t border-border pt-3">
+          <div class="flex flex-col gap-1">
+            <span class="text-xs text-muted">Nelle colonne</span>
+            <div class="flex items-center gap-4">
+              <label nz-checkbox nzDisabled [ngModel]="true">Campionato</label>
+              <label
+                nz-checkbox
+                [ngModel]="store.withCups()"
+                (ngModelChange)="store.withCups.set($event)"
+                >Coppe e altre competizioni</label
+              >
+              <label
+                nz-checkbox
+                [ngModel]="store.withFriendlies()"
+                (ngModelChange)="store.withFriendlies.set($event)"
+                >Amichevoli</label
+              >
+            </div>
+          </div>
+
+          @if (store.byMatchday()) {
+            <div class="flex min-w-64 flex-1 flex-col gap-1">
+              <span class="text-xs text-muted">
+                Periodo: giornate {{ store.windowFrom() }}-{{ store.windowTo() }}
+                @if (store.windowTo() - store.windowFrom() >= 10) {
+                  <span class="text-warning">(mostrate le ultime 10)</span>
+                }
+              </span>
+              <nz-slider
+                nzRange
+                [nzMin]="1"
+                [nzMax]="store.lastMatchday()"
+                [ngModel]="window()"
+                (ngModelChange)="onWindow($event)"
+              />
+            </div>
+          } @else {
+            <p class="max-w-xl pb-1 text-xs text-muted">
+              Con le coppe la colonna diventa una <span class="text-fg">settimana</span>, da giovedi'
+              a mercoledi': cosi' una giornata giocata fra venerdi' e lunedi' e il turno infrasettimanale
+              restano incolonnati, e la stessa colonna e' la stessa settimana per tutti. Il filtro per
+              periodo torna togliendo le spunte.
+            </p>
+          }
+        </div>
+      }
     </section>
       </nz-collapse-panel>
     </nz-collapse>
@@ -188,233 +255,50 @@
       @if (!filtersOpen()) {
         <span class="ml-2 text-xs text-muted">{{ filterSummary() }}</span>
       }
-      <span class="ml-2 text-xs text-muted">· {{ store.lines().length }} calciatori</span>
+      <span class="ml-2 text-xs text-muted">· {{ store.filtered().length }} calciatori</span>
     </ng-template>
 
-    <nz-table
-      #table
-      nzSize="small"
-      [nzData]="store.lines()"
-      [nzPageSize]="30"
-      [nzScroll]="{ x: '1220px' }"
-    >
-      <thead>
-        <tr>
-          <th [attr.nzWidth]="narrow() ? '176px' : '190px'" nzLeft>Nome</th>
-          @if (!narrow()) {
-            <th nzWidth="60px">Ruolo</th>
-            <th nzWidth="110px">Mantra</th>
-            <th nzWidth="130px">Squadra</th>
-          }
-          @for (header of headers(); track $index) {
-            <th
-              class="text-center leading-tight"
-              [attr.nzWidth]="header.detail ? '92px' : '58px'"
-              [title]="header.title"
-            >
-              <span class="flex items-center justify-center gap-1">
-                @if (header.kind) {
-                  <nz-icon
-                    [nzType]="kindIcon[header.kind]"
-                    class="text-[10px] text-muted"
-                    [attr.title]="kindLabel[header.kind]"
-                  />
-                }
-                {{ header.label }}
-              </span>
-              @if (header.detail) {
-                <span class="block text-[10px] font-normal text-muted">{{ header.detail }}</span>
-              }
-            </th>
-          }
-        </tr>
-      </thead>
-      <tbody>
-        @for (line of table.data; track line.fcId) {
-          <tr>
-            <td class="font-medium text-fg" nzLeft>
-              @if (narrow()) {
-                <span class="flex items-center gap-1.5">
-                  <ui-crest
-                    [club]="line.club"
-                    [clubId]="line.clubId"
-                    [crests]="store.crests()"
-                    size="sm"
-                  />
-                  <ui-role [role]="line.role" />
-                  <span class="truncate">{{ line.name }}</span>
-                  <ui-flags [playerId]="line.fcId" />
-                </span>
-              } @else {
-                <span class="inline-flex items-center gap-1.5">
-                  {{ line.name }}
-                  <ui-flags [playerId]="line.fcId" />
-                </span>
-              }
-            </td>
-            @if (!narrow()) {
-            <td><ui-role [role]="line.role" /></td>
-            <td>
-              <span class="flex flex-wrap gap-1">
-                @for (code of mantraCodes(line); track code) {
-                  <ui-role [role]="code" />
-                }
-              </span>
-            </td>
-            <td>
-              <span class="flex items-center gap-2 text-muted">
-                <ui-crest
-                  [club]="line.club"
-                  [clubId]="line.clubId"
-                  [crests]="store.crests()"
-                  size="sm"
-                />
-                {{ line.club }}
-              </span>
-            </td>
-            }
-
-            @for (cell of line.cells; track $index) {
-              <td class="text-center align-middle">
-                @if (cell) {
-                  <span
-                    class="inline-flex cursor-pointer flex-col items-center rounded leading-none outline-offset-2 hover:bg-control focus-visible:outline focus-visible:outline-primary"
-                    role="button"
-                    tabindex="0"
-                    nz-tooltip
-                    [nzTooltipTitle]="tooltip(cell)"
-                    [nzTooltipTrigger]="null"
-                    [nzTooltipVisible]="hovered() === line.fcId + ':' + $index"
-                    (pointerenter)="onPointerEnter($event, line.fcId + ':' + $index)"
-                    (pointerleave)="hovered.set(null)"
-                    (click)="open(cell, line)"
-                    (keydown.enter)="open(cell, line)"
-                    (keydown.space)="open(cell, line)"
-                  >
-                    @if (iconOnly(cell)) {
-                      <nz-icon
-                        [nzType]="stateIcon[cell.state]"
-                        [class]="stateClass(cell) + ' text-sm'"
-                      />
-                    } @else {
-                      <span [class]="voteClass(cell)">{{ voteText(cell) }}</span>
-                    }
-                    <span class="mt-0.5 flex h-3 items-center gap-1 text-[10px]">
-                      @if (cell.kind !== 'league') {
-                        <nz-icon
-                          [nzType]="kindIcon[cell.kind]"
-                          [class]="cell.kind === 'cup' ? 'text-warning' : 'text-muted'"
-                          [attr.title]="kindLabel[cell.kind]"
-                        />
-                      }
-                      @if (cell.goals + cell.penScored > 0) {
-                        <span class="flex items-center text-primary">
-                          <nz-icon nzType="aim" />
-                          @if (cell.goals + cell.penScored > 1) {
-                            <span class="ml-px">{{ cell.goals + cell.penScored }}</span>
-                          }
-                        </span>
-                      }
-                      @if (cell.assists > 0) {
-                        <span class="flex items-center text-muted">
-                          <nz-icon nzType="share-alt" />
-                          @if (cell.assists > 1) {
-                            <span class="ml-px">{{ cell.assists }}</span>
-                          }
-                        </span>
-                      }
-                    </span>
-                  </span>
-                } @else {
-                  <span class="text-muted" title="Nessuna partita in questa posizione">&ndash;</span>
-                }
-              </td>
-            }
-          </tr>
-        }
-      </tbody>
-    </nz-table>
-
-    <nz-modal
-      [nzVisible]="!!selected()"
-      nzTitle="Dettaglio partita"
-      [nzFooter]="null"
-      nzWidth="30rem"
-      (nzOnCancel)="selected.set(null)"
-    >
-      <ng-container *nzModalContent>
-        @if (selected(); as chosen) {
-          <app-match-detail
-            [cell]="chosen.cell"
-            [player]="chosen.player"
-            [scoring]="store.scoring()"
-            [crests]="store.crests()"
-          />
-        }
-      </ng-container>
-    </nz-modal>
-
-    <div class="flex flex-col gap-1 text-xs text-muted">
-      <p>
-        Il colore e' il giudizio: da <span class="text-primary font-semibold">7</span> in su
-        buono, da <span class="text-danger font-semibold">5</span> in giu' negativo. Il numero
-        pero' non e' la stessa cosa in ogni cella:
-        <span class="text-fg">6,5</span> e' il voto di fantacalcio,
-        <span class="text-fg">~6,1</span> il sintetico calibrato,
-        <span class="text-fg">*6,9</span> il voto Sofascore &mdash; scala diversa, per questo non
-        e' colorato. Un <span class="text-fg">·</span> vuol dire che la partita risulta giocata e
-        non sappiamo altro; <span class="italic text-fg">s.v.</span> che ha giocato senza voto.
-      </p>
-      <p>
-        Coppe e amichevoli non hanno voto di fantacalcio e non hanno un sintetico: non sono
-        competizioni calibrate, quindi quello che c'e' e' il rating del provider e nient'altro.
-        Gol e assist di quelle partite vengono dal tabellino, non dalle statistiche per giocatore
-        che li' non esistono: i marcatori ci sono quasi tutti, gli
-        <span class="text-fg">assist solo dove il provider li ha registrati</span> (11 gol su 40
-        in un campione di 12 amichevoli), quindi un attaccante senza assist non e' un attaccante
-        che non ne ha fatti.
-        Delle <span class="text-fg">nazionali non abbiamo nulla</span>: nessuna competizione per
-        nazionali esiste in questi dati, e una colonna vuota sarebbe peggio di questa riga.
-      </p>
-      <p class="flex flex-wrap items-center gap-x-4 gap-y-1">
-        <span>Competizione:</span>
-        <span class="flex items-center gap-1"><nz-icon nzType="calendar" /> campionato</span>
-        <span class="flex items-center gap-1 text-warning"
-          ><nz-icon nzType="trophy" /> coppa o altra competizione</span
-        >
-        <span class="flex items-center gap-1"><nz-icon nzType="coffee" /> amichevole</span>
-      </p>
-      <p class="flex flex-wrap items-center gap-x-4 gap-y-1">
-        <span>Quando non ha giocato, la cella dice perche':</span>
-        <span class="flex items-center gap-1"
-          ><nz-icon nzType="question-circle" /> in campo senza voto</span
-        >
-        <span class="flex items-center gap-1"
-          ><nz-icon nzType="pause-circle" /> in panchina, non entrato</span
-        >
-        <span class="flex items-center gap-1 text-warning"
-          ><nz-icon nzType="medicine-box" /> infortunato</span
-        >
-        <span class="flex items-center gap-1"
-          ><nz-icon nzType="global" /> non in questo campionato</span
-        >
-        <span class="flex items-center gap-1"
-          ><nz-icon nzType="minus-circle" /> non risulta in distinta</span
-        >
-      </p>
-      <p>
-        Misurate sulla Serie A 2025-26, sui 499 quotati per 38 giornate: giocate 45,9%,
-        panchina 14,9%, mai in quel campionato 24,6%, infortunio 7,6%, e solo il 6,9% resta
-        senza spiegazione. Le assenze compaiono solo nella modalita' per giornata: nelle
-        <span class="text-fg">ultime partite</span> una colonna e' una partita giocata.
-      </p>
-      <p>
-        Attenzione a leggere un'assenza come un fatto: le coppe sono acquisite
-        <span class="text-fg">dal 2025-26</span> (1.071 righe di Champions contro le 21 del
-        2024-25), e le amichevoli sono quasi tutte del <span class="text-fg">precampionato
-        2026-27</span>. Su una stagione dove il dato non e' stato raccolto, la cella vuota dice
-        che non sappiamo, non che non ha giocato.
-      </p>
-    </div>
+    <!-- Le stesse partite della vista SQUADRE, e lo STESSO componente: il vocabolario delle celle -
+         cosa vuol dire un colore, cosa vuol dire un'icona - deve essere lo stesso oggetto nelle due. -->
+    @if (mode() === 'matches') {
+      <ui-matches-table
+        [lines]="store.lines()"
+        [columns]="store.columns()"
+        [crests]="store.crests()"
+        [pageSize]="30"
+      />
+    } @else {
+      <!-- Le stesse colonne della vista SQUADRE, e lo STESSO componente: una rosa e tutto il listone
+           sono la stessa domanda fatta a due liste, e due copie sarebbero due definizioni di «FM att.»
+           sotto un'intestazione sola. -->
+      @if (valuation.status() === 'error') {
+        <nz-alert
+          nzType="error"
+          nzShowIcon
+          nzMessage="Non riesco a leggere le valutazioni"
+          [nzDescription]="valuation.error() ?? ''"
+        />
+      } @else if (valuation.status() !== 'ready') {
+        <div class="flex items-center gap-3 text-muted">
+          <nz-spin nzSimple nzSize="small" />
+          Carico il foglio del motore, i ruoli reali e le board...
+        </div>
+      } @else {
+        <ui-squad-table
+          [rows]="valued()"
+          [platform]="store.platform()"
+          [crests]="store.crests()"
+          [showClub]="true"
+          [pageSize]="30"
+        />
+        <p class="text-xs text-muted">
+          Qui la <span class="text-fg">stagione</span> non si sceglie e il periodo non c'entra: le
+          colonne misurate sono quelle del bundle, quelle attese sono la previsione del motore per la
+          stagione che viene. Le stelline sono un <span class="text-fg">posto nel listone</span>, e il
+          posto e' calcolato su <span class="text-fg">tutto il listone</span> anche quando filtri:
+          filtrare per squadra non deve ri-classificare un uomo contro i suoi soli compagni.
+        </p>
+      }
+    }
   }
 </div>

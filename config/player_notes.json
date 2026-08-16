@@ -12,10 +12,15 @@
     "«he has fallen out with the club» would be inventing a fact from a different one. So it is written",
     "down by whoever knows it, dated, and revocable by deleting the entry.",
     "",
-    "WHAT IT MAY NEVER DO. It is REPORTING only: it decorates a row the engine has already priced and it",
-    "enters no valuation, no ranking, no gate and no board. Nothing under `engine/` reads this file, and",
-    "nothing should - a declared fact that moved a fitted number would make every measurement the",
-    "operator's own answer, which is exactly what the two board judges refuse (`apply_rulings=False`).",
+    "WHAT IT MAY NEVER DO. Nothing under `engine/` reads this file and nothing should: a declared fact",
+    "that moved a FITTED number would make every measurement the operator's own answer, which is exactly",
+    "what the two board judges refuse (`apply_rulings=False`). It enters no valuation, no gate, no board.",
+    "",
+    "WHAT IT MAY DO, since 15/08/2026 and by the operator's own decision («penalizzarli gravemente",
+    "nell'overall»): the APP's Overall column reads it. That column is reporting too - no gate owns it, no",
+    "judge scores it, nothing is fitted on it - so a declared fact and a measured one can meet there",
+    "without contaminating anything that is judged. The discount is declared in `player-ratings.ts`",
+    "(DECLARED_RISK) and the row's tooltip says which word caused it.",
     "",
     "SHAPE: {season: {fc_id: {kind, note, decided_on}}}.",
     "  * `fc_id`   the fantacalcio.it id, this project's primary key - never a name, because a name join",
@@ -36,5 +41,11 @@
 
   "edition": "2026/2027",
 
-  "2026-27": {}
+  "2026-27": {
+    "2531": {
+      "kind": "dispute",
+      "note": "In rotta con la societa' dalla fine della scorsa stagione, destinazione ignota",
+      "decided_on": "2026-08-15"
+    }
+  }
 }

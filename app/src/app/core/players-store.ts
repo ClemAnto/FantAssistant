@@ -1,6 +1,7 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 
 import { Bundle, BundleTable, ScoringConfig, columnIndex, optionalIndex } from './bundle';
+import { PlayerFlag, PlayerStatus } from './player-status';
 
 export type ClassicRole = 'P' | 'D' | 'C' | 'A';
 export const CLASSIC_ROLES: ClassicRole[] = ['P', 'D', 'C', 'A'];
@@ -109,7 +110,37 @@ export interface ColumnSlot {
   title: string;
 }
 
+/**
+ * WHAT a match table is about: which listone, which season, which window, which competitions.
+ *
+ * It exists so that the table can be asked for a selection that is NOT the one the filter bar holds:
+ * the squads view draws the same ten columns for one club's rosa, and a second implementation of «le
+ * ultime partite» would be a second answer to the question this store already answers.
+ */
+export interface MatchQuery {
+  platform: Platform;
+  season: string;
+  /** The window of league rounds, inclusive. The last ten of it are drawn - see `COLUMNS`. */
+  from: number;
+  to: number;
+  withCups: boolean;
+  withFriendlies: boolean;
+  /** One club on screen: only then can a column name the fixture, because only then is there one. */
+  club: string | null;
+}
+
+/** The two halves of one answer, built together: a column and the cells under it must agree. */
+export interface MatchTable {
+  columns: ColumnSlot[];
+  lines: PlayerLine[];
+}
+
 const COLUMNS = 10;
+
+/** Adding a cup or a friendly changes the UNIT of a column: no cup match has a matchday. */
+function byMatchdayOf(query: MatchQuery): boolean {
+  return !query.withCups && !query.withFriendlies;
+}
 
 /** The football week runs THURSDAY to WEDNESDAY, and that is measured rather than chosen: on
  *  Serie A 2025-26 a Monday-anchored week splits 28 matchdays of 38 across two columns, a
@@ -185,6 +216,8 @@ type Status = 'idle' | 'loading' | 'ready' | 'error';
 @Injectable({ providedIn: 'root' })
 export class PlayersStore {
   private readonly bundle = inject(Bundle);
+  /** I marchi che un nome porta: li possiede `PlayerStatus`, e il filtro legge quelli e non una copia. */
+  private readonly marks = inject(PlayerStatus);
 
   readonly status = signal<Status>('idle');
   readonly error = signal<string | null>(null);
@@ -213,6 +246,10 @@ export class PlayersStore {
   readonly role = signal<ClassicRole | null>(null);
   readonly club = signal<string | null>(null);
   readonly sortBy = signal<'played' | 'name' | 'role'>('played');
+  /** Un nome o un `fc_id`: la ricerca del tavolo, dove quello che si ha è il nome detto ad alta voce. */
+  readonly search = signal<string>('');
+  /** «Mostrami tutti i misteri»: i marchi che un uomo deve portare per restare in lista. Vuoto = tutti. */
+  readonly flags = signal<PlayerFlag[]>([]);
 
   /** Which competitions the columns may show. Adding anything to `league` changes the unit of
    *  a column: a cup match has no matchday, so the columns become the player's last matches. */
@@ -228,47 +265,166 @@ export class PlayersStore {
       .sort((a, b) => a.localeCompare(b)),
   );
 
-  readonly matchdays = computed(() => {
-    const to = this.windowTo();
-    const from = Math.max(this.windowFrom(), to - COLUMNS + 1);
+  readonly matchdays = computed(() => this.daysOf(this.query()));
+
+  /** The window as rounds, at most the last ten: more columns than that stop being readable. */
+  private daysOf(query: MatchQuery): number[] {
+    const to = query.to;
+    const from = Math.max(query.from, to - COLUMNS + 1);
     const days: number[] = [];
     for (let md = from; md <= to; md++) days.push(md);
     return days;
-  });
+  }
 
   /** The players the filters keep. Both the axis and the rows are built from this and nothing
-   *  else, so the columns describe the table you are looking at. */
-  private readonly filtered = computed(() => {
+   *  else, so the columns describe the table you are looking at - and the other mode of the same
+   *  view values exactly these men, so the two tables can never be about two different lists. */
+  readonly filtered = computed(() => {
     const role = this.role();
     const club = this.club();
-    return this.roster().filter((p) => (!role || p.role === role) && (!club || p.club === club));
+    const wanted = plain(this.search());
+    const byId = /^\d+$/.test(wanted);
+    // Un uomo basta che ne porti UNO dei marchi chiesti: chi ne seleziona due vuole vedere le due liste
+    // insieme, non l'intersezione, che è quasi sempre vuota.
+    const flags = this.flags();
+    const marked = (fcId: number): boolean =>
+      this.marks.marksFor(fcId).some((mark) => flags.includes(mark.flag));
+    return this.roster().filter(
+      (p) =>
+        (!role || p.role === role)
+        && (!club || p.club === club)
+        // Un id si cerca INTERO - `25` non deve tirar fuori tutti i 25xx - mentre un nome si cerca per
+        // pezzo: al tavolo si sente «Esposito» e la riga giusta è «Esposito F.P.».
+        && (!wanted || (byId ? String(p.fcId) === wanted : plain(p.name).includes(wanted)))
+        && (!flags.length || marked(p.fcId)),
+    );
   });
 
-  /** The shared axis of the mixed view: the last ten WEEKS in which anything was played BY THE
-   *  PLAYERS ON SCREEN, so column 3 is the same week for every row and no column is spent on a
-   *  week none of them played. Filter by club and the axis follows the club. */
-  /** The columns, in both modes. With a club selected each one also names the fixture it is
-   *  about - possible only then, because without a filter one week holds many matches. */
-  readonly columns = computed<ColumnSlot[]>(() => {
-    const slots = this.byMatchday() ? this.matchdaySlots() : this.weekSlots();
-    if (!this.club()) return slots;
-    const leagueBySeason = this.league().get(`${this.platform()}|${this.season()}`);
-    const otherBySeason = this.other().get(this.season());
-    const players = this.filtered();
-    return slots.map((slot) => {
-      // Any man of the club will do: they all played the same fixture.
-      let chosen: MatchCell | undefined;
-      for (const player of players) {
-        const candidates = [
-          ...(leagueBySeason?.get(player.fcId)?.values() ?? []),
-          ...(otherBySeason?.get(player.fcId) ?? []),
-        ];
-        for (const cell of candidates) {
-          if (this.slotOf(cell) !== slot.key) continue;
-          if (!chosen || (chosen.kind !== 'league' && cell.kind === 'league')) chosen = cell;
-        }
-        if (chosen?.kind === 'league') break;
+  /**
+   * WHAT the table on screen is about, as one value.
+   *
+   * The filter bar owns these seven things and nothing else does; gathering them into a query is what
+   * lets the SAME builder answer for another selection - one club's rosa in the squads view - without a
+   * second copy of «le ultime partite» that could drift from this one.
+   */
+  readonly query = computed<MatchQuery>(() => ({
+    platform: this.platform(),
+    season: this.season(),
+    from: this.windowFrom(),
+    to: this.windowTo(),
+    withCups: this.withCups(),
+    withFriendlies: this.withFriendlies(),
+    club: this.club(),
+  }));
+
+  private readonly table = computed(() => this.matchTable(this.query(), this.filtered()));
+
+  /** The columns of the table on screen. Built with its rows, from the same query. */
+  readonly columns = computed<ColumnSlot[]>(() => this.table().columns);
+
+  readonly lines = computed<PlayerLine[]>(() => {
+    const lines = [...this.table().lines];
+    if (this.sortBy() === 'role') {
+      const order: Record<ClassicRole, number> = { P: 0, D: 1, C: 2, A: 3 };
+      lines.sort((a, b) => order[a.role] - order[b.role] || a.name.localeCompare(b.name));
+    } else if (this.sortBy() === 'played') {
+      // Counting non-empty cells would now count the ABSENCES too - every round has a cell
+      // since they carry their reason. What the operator asked to sort by is appearances.
+      const played = (line: PlayerLine) =>
+        line.cells.reduce((n, c) => n + (c && (c.state === 'played' || c.state === 'no_vote') ? 1 : 0), 0);
+      lines.sort((a, b) => played(b) - played(a) || a.name.localeCompare(b.name));
+    }
+    return lines;
+  });
+
+  /**
+   * The match table of ANY selection: the axis and the rows, built together and in the order given.
+   *
+   * A METHOD and not a computed, because two views ask it about two different lists - the whole listone
+   * behind the filter bar, and one club's rosa in the squads view - and the answer must be one
+   * definition for both. The ORDER of `players` is kept, so the caller decides how the list reads and
+   * the two tables of a view can be the same list twice.
+   */
+  matchTable(query: MatchQuery, players: readonly PlayerRow[]): MatchTable {
+    const slots = byMatchdayOf(query)
+      ? this.daysOf(query).map((md) => ({
+          key: String(md),
+          label: String(md),
+          detail: null,
+          kind: null,
+          title: `Giornata ${md}`,
+        }))
+      : this.weekSlots(query, players);
+    return {
+      columns: this.namedColumns(query, players, slots),
+      lines: this.rowsOf(query, players, slots),
+    };
+  }
+
+  /** The last league round this season has ratings for: where «le ultime partite» end. */
+  lastMatchdayOf(platform: Platform, season: string): number {
+    let last = COLUMNS;
+    for (const byDay of this.league().get(`${platform}|${season}`)?.values() ?? []) {
+      for (const md of byDay.keys()) if (md > last) last = md;
+    }
+    return last;
+  }
+
+  /**
+   * The columns, in both modes. With a club selected each one also names the fixture it is about -
+   * possible only then, because without a filter one week holds many matches.
+   */
+  private namedColumns(
+    query: MatchQuery,
+    players: readonly PlayerRow[],
+    slots: ColumnSlot[],
+  ): ColumnSlot[] {
+    if (!query.club) return slots;
+    const leagueBySeason = this.league().get(`${query.platform}|${query.season}`);
+    const otherBySeason = this.other().get(query.season);
+
+    /**
+     * WHICH club these columns are about, in the spelling the ratings use, and which of its matches
+     * falls in each column.
+     *
+     * «Qualunque uomo del club va bene: hanno giocato la stessa partita» is false for exactly the men
+     * a summer listone is full of: the rosa is next season's and the rows are last season's, so a
+     * signing carries his OLD club's fixtures - measured here, an Arsenal column read `Oly-???`, a
+     * Ligue 1 match of a man Arsenal has just bought. The club is therefore taken as the team that
+     * carries the MOST cells over the whole table - one man's ten rows cannot outweigh a squad's two
+     * hundred - which settles it by weight of evidence and never by joining a club NAME across two
+     * sources, the defect this project keeps paying for.
+     *
+     * A column with no match OF THAT TEAM keeps its plain round number: on a euro round the calendar
+     * did not bundle for this championship the rosa has no rated row at all, and naming the column
+     * after the only foreign match in it would write somebody else's fixture over this club's.
+     * «Vuoto = ignoto», applied to a header.
+     */
+    const bySlot = new Map<string, MatchCell[]>();
+    const weight = new Map<string, number>();
+    for (const player of players) {
+      const candidates = [
+        ...(leagueBySeason?.get(player.fcId)?.values() ?? []),
+        ...(otherBySeason?.get(player.fcId) ?? []),
+      ];
+      for (const cell of candidates) {
+        const key = this.slotOf(cell, query);
+        if (!key) continue;
+        const found = bySlot.get(key);
+        found ? found.push(cell) : bySlot.set(key, [cell]);
+        // Only the LEAGUE rows vote for the club's spelling: a cup tie is played by the same club
+        // under the same name, and a friendly can be played by a squad the rosa barely shares.
+        if (cell.kind === 'league') weight.set(cell.team, (weight.get(cell.team) ?? 0) + 1);
       }
+    }
+    let team: string | null = null;
+    for (const [name, seen] of weight) if (!team || seen > weight.get(team)!) team = name;
+
+    return slots.map((slot) => {
+      const own = (bySlot.get(slot.key) ?? []).filter((cell) => cell.team === team);
+      // Where the same club has both in one week, the league match is the column's subject: the cup
+      // tie is named in the tooltip of the cell, not in the header of the column.
+      const chosen = own.find((cell) => cell.kind === 'league') ?? own[0];
       if (!chosen || (!chosen.opponent && !chosen.team)) return slot;
       const fixture = fixtureLabel(chosen);
       return {
@@ -279,30 +435,20 @@ export class PlayersStore {
         title: `${chosen.competitionLabel} · ${fixture.long}${chosen.shape ? ' · modulo ' + chosen.shape : ''} · ${slot.title}`,
       };
     });
-  });
+  }
 
   /** Which column a cell belongs to: the matchday, or the week. */
-  private slotOf(cell: MatchCell): string {
-    if (this.byMatchday()) return cell.matchday == null ? '' : String(cell.matchday);
+  private slotOf(cell: MatchCell, query: MatchQuery): string {
+    if (byMatchdayOf(query)) return cell.matchday == null ? '' : String(cell.matchday);
     return cell.date ? weekOf(cell.date) : '';
   }
 
-  private readonly matchdaySlots = computed<ColumnSlot[]>(() =>
-    this.matchdays().map((md) => ({
-      key: String(md),
-      label: String(md),
-      detail: null,
-      kind: null,
-      title: `Giornata ${md}`,
-    })),
-  );
-
-  private readonly weekSlots = computed<ColumnSlot[]>(() => {
-    const season = this.season();
-    const leagueBySeason = this.league().get(`${this.platform()}|${season}`);
-    const otherBySeason = this.other().get(season);
-    const wantCups = this.withCups();
-    const wantFriendlies = this.withFriendlies();
+  /** The shared axis of the mixed view: the last ten WEEKS in which anything was played BY THE
+   *  PLAYERS ON SCREEN, so column 3 is the same week for every row and no column is spent on a
+   *  week none of them played. Filter by club and the axis follows the club. */
+  private weekSlots(query: MatchQuery, players: readonly PlayerRow[]): ColumnSlot[] {
+    const leagueBySeason = this.league().get(`${query.platform}|${query.season}`);
+    const otherBySeason = this.other().get(query.season);
 
     /** week -> the matchdays played in it, and the earliest date seen */
     const weeks = new Map<string, { matchdays: Set<number>; first: string; last: string }>();
@@ -315,10 +461,10 @@ export class PlayersStore {
       if (cell.date! < entry.first) entry.first = cell.date!;
       if (cell.date! > entry.last) entry.last = cell.date!;
     };
-    for (const player of this.filtered()) {
+    for (const player of players) {
       for (const cell of leagueBySeason?.get(player.fcId)?.values() ?? []) note(cell);
       for (const cell of otherBySeason?.get(player.fcId) ?? []) {
-        if (cell.kind === 'cup' ? wantCups : wantFriendlies) note(cell);
+        if (cell.kind === 'cup' ? query.withCups : query.withFriendlies) note(cell);
       }
     }
 
@@ -337,68 +483,70 @@ export class PlayersStore {
           title: days.length ? `Giornata ${days.join(', ')} · ${range}` : range,
         };
       });
-  });
+  }
 
-  readonly lines = computed<PlayerLine[]>(() => {
-    const season = this.season();
-    const leagueBySeason = this.league().get(`${this.platform()}|${season}`);
-    const absenceBySeason = this.absence().get(`${this.platform()}|${season}`);
-    const otherBySeason = this.other().get(season);
-    const days = this.matchdays();
-    const byMatchday = this.byMatchday();
-    const slots = this.weekSlots();
-    const wantCups = this.withCups();
-    const wantFriendlies = this.withFriendlies();
+  /** One row per player: his cell under every column of the axis, in the axis's own order. */
+  private rowsOf(
+    query: MatchQuery,
+    players: readonly PlayerRow[],
+    slots: ColumnSlot[],
+  ): PlayerLine[] {
+    const leagueBySeason = this.league().get(`${query.platform}|${query.season}`);
+    const absenceBySeason = this.absence().get(`${query.platform}|${query.season}`);
+    const otherBySeason = this.other().get(query.season);
+    const byMatchday = byMatchdayOf(query);
 
-    const lines = this.filtered().map((p) => {
-        const own = leagueBySeason?.get(p.fcId);
-        if (byMatchday) {
-          // A round he is not in the ratings of is not an empty cell: it has a reason, and the
-          // reason is the point of the column.
-          const missing = absenceBySeason?.get(p.fcId);
-          return { ...p, cells: days.map((md) => own?.get(md) ?? missing?.get(md) ?? null) };
-        }
-        // Mixed competitions: a column is a WEEK of the shared axis, not this player's own
-        // nth-from-last match - otherwise column 3 means a different date on every row.
-        const matches = [...(own?.values() ?? [])];
-        for (const cell of otherBySeason?.get(p.fcId) ?? []) {
-          if (cell.kind === 'cup' ? wantCups : wantFriendlies) matches.push(cell);
-        }
-        const byWeek = new Map<string, MatchCell[]>();
-        for (const cell of matches) {
-          if (!cell.date) continue; // no date, no column it can honestly sit in
-          const week = weekOf(cell.date);
-          const list = byWeek.get(week);
-          list ? list.push(cell) : byWeek.set(week, [cell]);
-        }
+    return players.map((p) => {
+      const own = leagueBySeason?.get(p.fcId);
+      if (byMatchday) {
+        // A round he is not in the ratings of is not an empty cell: it has a reason, and the
+        // reason is the point of the column.
+        const missing = absenceBySeason?.get(p.fcId);
         return {
           ...p,
           cells: slots.map((slot) => {
-            const week = byWeek.get(slot.key);
-            if (!week?.length) return null;
-            // Two matches in one week: the league one is the column's subject, the other is
-            // named in the tooltip rather than dropped in silence.
-            const chosen = week.find((c) => c.kind === 'league') ?? week[0];
-            return week.length > 1 ? { ...chosen, alsoInWeek: week.length - 1 } : chosen;
+            const md = Number(slot.key);
+            return own?.get(md) ?? missing?.get(md) ?? null;
           }),
         };
-      });
+      }
+      // Mixed competitions: a column is a WEEK of the shared axis, not this player's own
+      // nth-from-last match - otherwise column 3 means a different date on every row.
+      const matches = [...(own?.values() ?? [])];
+      for (const cell of otherBySeason?.get(p.fcId) ?? []) {
+        if (cell.kind === 'cup' ? query.withCups : query.withFriendlies) matches.push(cell);
+      }
+      const byWeek = new Map<string, MatchCell[]>();
+      for (const cell of matches) {
+        if (!cell.date) continue; // no date, no column it can honestly sit in
+        const week = weekOf(cell.date);
+        const list = byWeek.get(week);
+        list ? list.push(cell) : byWeek.set(week, [cell]);
+      }
+      return {
+        ...p,
+        cells: slots.map((slot) => {
+          const week = byWeek.get(slot.key);
+          if (!week?.length) return null;
+          // Two matches in one week: the league one is the column's subject, the other is
+          // named in the tooltip rather than dropped in silence.
+          const chosen = week.find((c) => c.kind === 'league') ?? week[0];
+          return week.length > 1 ? { ...chosen, alsoInWeek: week.length - 1 } : chosen;
+        }),
+      };
+    });
+  }
 
-    if (this.sortBy() === 'role') {
-      const order: Record<ClassicRole, number> = { P: 0, D: 1, C: 2, A: 3 };
-      lines.sort((a, b) => order[a.role] - order[b.role] || a.name.localeCompare(b.name));
-    } else if (this.sortBy() === 'played') {
-      // Counting non-empty cells would now count the ABSENCES too - every round has a cell
-      // since they carry their reason. What the operator asked to sort by is appearances.
-      const played = (line: PlayerLine) =>
-        line.cells.reduce((n, c) => n + (c && (c.state === 'played' || c.state === 'no_vote') ? 1 : 0), 0);
-      lines.sort((a, b) => played(b) - played(a) || a.name.localeCompare(b.name));
-    }
-    return lines;
-  });
+  /** One load for every caller: the squads view asks for the same layer and must AWAIT this one,
+   *  not walk past it while it is still being built. */
+  private pending: Promise<void> | null = null;
 
-  async load(): Promise<void> {
-    if (this.status() === 'loading' || this.status() === 'ready') return;
+  load(): Promise<void> {
+    this.pending ??= this.read();
+    return this.pending;
+  }
+
+  private async read(): Promise<void> {
     this.status.set('loading');
     this.error.set(null);
     try {
@@ -453,6 +601,8 @@ export class PlayersStore {
     } catch (err) {
       this.error.set(err instanceof Error ? err.message : String(err));
       this.status.set('error');
+      // A failure must not be cached as an answer: the next view that asks gets a real attempt.
+      this.pending = null;
     }
   }
 
@@ -464,13 +614,7 @@ export class PlayersStore {
 
   selectSeason(season: string): void {
     this.season.set(season);
-    const played = this.league().get(`${this.platform()}|${season}`);
-    let last = COLUMNS;
-    if (played) {
-      for (const byDay of played.values()) {
-        for (const md of byDay.keys()) if (md > last) last = md;
-      }
-    }
+    const last = this.lastMatchdayOf(this.platform(), season);
     this.lastMatchday.set(last);
     this.windowFrom.set(Math.max(1, last - COLUMNS + 1));
     this.windowTo.set(last);
@@ -514,6 +658,16 @@ function fixtureLabel(cell: MatchCell): { label: string; detail: string | null; 
     detail: score,
     long: `${left ?? 'Ignota'} - ${right ?? 'Ignota'}${score ? ' ' + score : ''}`,
   };
+}
+
+/**
+ * Un testo come lo si digita: senza accenti, senza maiuscole, senza spazi ai bordi.
+ *
+ * Gli accenti si tolgono da TUTTI E DUE i lati, o «Perez» non troverebbe «Pérez» - e chi cerca non ha
+ * modo di sapere quale delle due grafie abbia il listone.
+ */
+export function plain(text: string): string {
+  return text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
 }
 
 /** dd/mm/yyyy: a date in a header is read by a person. */

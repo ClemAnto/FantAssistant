@@ -1,0 +1,58 @@
+<!-- UI text is ITALIAN in app/ (see app/CLAUDE.md); code and comments stay English. -->
+@if (total() > 0) {
+  <div class="flex flex-wrap items-center justify-center gap-6">
+    <svg
+      viewBox="0 0 100 100"
+      class="h-56 w-56 shrink-0"
+      role="img"
+      aria-label="Ripartizione per fasce"
+    >
+      <!-- One slice covering the whole turn is a RING and not an arc: an arc whose start point is its
+           end point draws nothing at all. -->
+      @if (whole(); as only) {
+        <circle
+          [attr.cx]="centre"
+          [attr.cy]="centre"
+          [attr.r]="ringRadius()"
+          fill="none"
+          [attr.stroke]="only.fill"
+          [attr.stroke-width]="ringWidth()"
+        >
+          <title>{{ title(only) }}</title>
+        </circle>
+      } @else {
+        @for (wedge of wedges(); track wedge.label) {
+          <path
+            [attr.d]="wedge.path"
+            [attr.fill]="wedge.fill"
+            stroke="var(--color-page)"
+            stroke-width="0.75"
+          >
+            <title>{{ title(wedge) }}</title>
+          </path>
+        }
+      }
+    </svg>
+
+    <!-- The legend is HTML beside the drawing and not text inside it: it wraps, it can be read aloud,
+         and it does not scale with the circle. -->
+    <ul class="flex min-w-48 flex-col gap-1.5 text-sm">
+      @for (slice of slices(); track slice.label) {
+        <li class="flex items-baseline gap-2" [title]="title(slice)">
+          <span
+            class="mt-1 inline-block size-3 shrink-0 rounded-sm border border-border"
+            [style.background]="slice.fill"
+          ></span>
+          <span class="text-fg">{{ slice.label }}</span>
+          <span class="ml-auto tabular-nums text-fg">{{ slice.value }}</span>
+          <span class="w-14 text-right tabular-nums text-muted">
+            {{ share(slice.value) | number: '1.1-1' }}%
+          </span>
+        </li>
+      }
+    </ul>
+  </div>
+} @else {
+  <!-- A doughnut of nobody looks exactly like a doughnut of men all in one band, so it is not drawn. -->
+  <p class="text-sm text-muted">Nessun calciatore da contare.</p>
+}

@@ -64,6 +64,16 @@ export interface ScoringTerms {
   red_card_malus: number;
   goal_conceded_malus_gk: number;
   penalty_saved_bonus_gk: number;
+  /**
+   * La PORTA INVIOLATA, che è il solo termine del config che la fonte NON applica.
+   *
+   * Sta nel `scoring_config` da sempre come termine configurabile per lega, e ogni lettore che
+   * ricostruisce il fantavoto di fantacalcio.it deve continuare a lasciarlo fuori (misurato: su 16.017
+   * righe di portiere `fm = mv − subiti + 3×parati − cartellini` è esatto al 100%). Qui si legge perché
+   * la lega dell'operatore lo paga (sua decisione, 16/08/2026) e questa colonna dice quanto vale una
+   * sua partita NELLA TUA LEGA, non quanto ha scritto il sito.
+   */
+  clean_sheet_bonus_gk: number;
 }
 
 /**

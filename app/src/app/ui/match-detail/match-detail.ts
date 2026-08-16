@@ -1,10 +1,10 @@
 import { Component, computed, input } from '@angular/core';
 
-import { ScoringConfig, ScoringTerms } from '../../../core/bundle';
-import { MatchCell, PlayerRow } from '../../../core/players-store';
-import { STATE_LABEL } from '../players';
-import { ClubCrest } from '../../../ui/club-crest/club-crest';
-import { RoleBadge } from '../../../ui/role-badge/role-badge';
+import { ScoringConfig, ScoringTerms } from '../../core/bundle';
+import { MatchCell, PlayerRow } from '../../core/players-store';
+import { ClubCrest } from '../club-crest/club-crest';
+import { STATE_LABEL } from '../matches-table/vocabulary';
+import { RoleBadge } from '../role-badge/role-badge';
 
 export interface BonusRow {
   label: string;
@@ -14,7 +14,7 @@ export interface BonusRow {
 }
 
 @Component({
-  selector: 'app-match-detail',
+  selector: 'ui-match-detail',
   imports: [ClubCrest, RoleBadge],
   templateUrl: './match-detail.html',
 })

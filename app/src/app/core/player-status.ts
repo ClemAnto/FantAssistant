@@ -27,9 +27,38 @@ export const LONG_INJURY_DAYS = 45;
 /** For how long after his return a man is still «just back»: about two months of calendar. */
 export const BACK_FROM_LONG_DAYS = 60;
 
+/**
+ * How far back «si infortuna spesso» is asked: three years, because one season is an accident and a
+ * career is a different man - Berardi lost 318 days over three years in three long spells, and in one
+ * of those seasons he played 33 matches.
+ */
+export const FRAGILITY_YEARS = 3;
+
+/**
+ * Above which share of those three years a man is marked FRAGILE.
+ *
+ * Measured on the Serie A listone (499 quoted, 15/08/2026): the median man loses 5.3% of three years to
+ * injury, the ninth decile 21.9%, the worst 42.3%. A fifth of three years is therefore the top tenth of
+ * the listone, and it is exactly where the three men the operator named sit - Dybala 32% in 16 spells,
+ * Berardi 29%, Buongiorno 23% - while a Yildiz (3%) or a Di Lorenzo (8%) stay clean.
+ *
+ * A DISPLAY threshold like the two above it, declared here so nobody reads it as a fitted parameter.
+ * What it does to a VALUATION is a different matter and lives in `player-ratings.ts`.
+ */
+export const FRAGILE_SHARE = 0.20;
+
 export type PlayerFlag =
   | 'long_injury'
   | 'back_from_long'
+  | 'fragile'
+  | 'mystery'
+  | 'yellows'
+  | 'reds'
+  | 'own_goals'
+  | 'penalty_risk'
+  | 'penalty_saved'
+  | 'set_pieces'
+  | 'clean_sheets'
   | 'dispute'
   | 'promise'
   | 'flop_risk'
@@ -38,6 +67,56 @@ export type PlayerFlag =
   | 'rotation_risk'
   | 'rotation_early'
   | 'starter_signs';
+
+/**
+ * Come si chiama ogni marchio, in una riga. Sta QUI e non nel componente che lo disegna perché ormai lo
+ * legge anche il filtro «mostrami tutti i misteri»: un'icona e la voce che la sceglie devono essere la
+ * stessa parola, o l'elenco dei filtri e la legenda finiscono per dire due cose diverse.
+ */
+export const FLAG_LABEL: Record<PlayerFlag, string> = {
+  long_injury: 'Infortunio lungo in corso',
+  back_from_long: 'Rientrato da poco da un infortunio lungo',
+  fragile: 'Si infortuna spesso',
+  mystery: 'Mistero: disponibile, quotato, e non gioca',
+  yellows: 'Si fa ammonire spessissimo',
+  reds: 'Si fa espellere: −1 e il voto rovinato',
+  own_goals: 'Fa autogol più della norma',
+  penalty_risk: 'Sbaglia spesso i rigori',
+  penalty_saved: 'Para i rigori',
+  set_pieces: 'Batte i rigori',
+  // Il soggetto è la SQUADRA e la frase lo dice: il merito non è suo (`club-defence.ts`).
+  clean_sheets: 'Squadra che tiene la porta inviolata spesso',
+  dispute: 'Fuori rosa / rottura con la società',
+  promise: 'Possibile promessa',
+  flop_risk: 'Possibile flop',
+  place_gained: 'Ha guadagnato il posto',
+  place_lost: 'Ha perso il posto',
+  rotation_risk: 'Preso per titolare, ma ruotato',
+  rotation_early: 'Preso per titolare, segnali di incertezza',
+  starter_signs: 'Dato per riserva, gioca da titolare',
+};
+
+/**
+ * I marchi che le due tabelle di consultazione sanno produrre, nell'ordine in cui si leggono.
+ *
+ * Gli altri - i due screen calibrati, il posto guadagnato o perso, i due di rotazione - li registra il
+ * PANNELLO D'ASTA, che è l'unico a conoscere il listone in gioco e i prezzi: offrirli qui sarebbe un
+ * filtro che non trova mai niente, cioè una bugia con l'aria di una funzione.
+ */
+export const CONSULTABLE_FLAGS: PlayerFlag[] = [
+  'mystery',
+  'fragile',
+  'yellows',
+  'reds',
+  'own_goals',
+  'penalty_risk',
+  'penalty_saved',
+  'set_pieces',
+  'clean_sheets',
+  'long_injury',
+  'back_from_long',
+  'dispute',
+];
 
 export interface PlayerMark {
   flag: PlayerFlag;
@@ -134,6 +213,66 @@ export function injuryMark(spells: readonly Spell[], today: string): PlayerMark 
   return null;
 }
 
+/** What a career of absences says about a man: days lost, and in how many separate spells. */
+export interface Fragility {
+  /** Days spent injured inside the window, counted ONCE where two diagnoses overlap. */
+  days: number;
+  /** ...and how many distinct spells they came in: «tante partite saltate» is not «un crociato». */
+  episodes: number;
+  /** Those days as a share of the window. The number the threshold is read against. */
+  share: number;
+}
+
+/**
+ * How much of the last `FRAGILITY_YEARS` a man spent injured, and in how many separate spells.
+ *
+ * Overlapping spells are MERGED before they are counted, for the reason the injury share already had to
+ * learn: the source records one row per DIAGNOSIS, so a man hurt twice at once read 591 days out of 365.
+ * A spell that started before the window counts only its part inside it - what is being asked is «how
+ * much of the last three years did this cost», not «how long was the injury».
+ */
+export function fragilityOf(
+  spells: readonly Spell[],
+  today: string,
+  years: number = FRAGILITY_YEARS,
+): Fragility {
+  const end = Date.parse(today);
+  const start = end - years * 365 * DAY_MS;
+  const windows: [number, number][] = [];
+  for (const spell of spells) {
+    if (!spell.from) continue;
+    const from = Math.max(Date.parse(spell.from), start);
+    const to = Math.min(spell.to ? Date.parse(spell.to) : end, end);
+    if (to > from) windows.push([from, to]);
+  }
+  windows.sort((left, right) => left[0] - right[0]);
+  let days = 0;
+  let episodes = 0;
+  let open: [number, number] | null = null;
+  for (const one of windows) {
+    if (open && one[0] <= open[1]) {
+      open[1] = Math.max(open[1], one[1]);
+      continue;
+    }
+    if (open) days += (open[1] - open[0]) / DAY_MS;
+    open = [one[0], one[1]];
+    episodes += 1;
+  }
+  if (open) days += (open[1] - open[0]) / DAY_MS;
+  return { days: Math.round(days), episodes, share: days / (years * 365) };
+}
+
+/** The mark for a man who breaks down often, or null. Says the days, the spells and the window. */
+export function fragilityMark(spells: readonly Spell[], today: string): PlayerMark | null {
+  const one = fragilityOf(spells, today);
+  if (one.share < FRAGILE_SHARE) return null;
+  return {
+    flag: 'fragile',
+    note: `${one.days} giorni fuori in ${FRAGILITY_YEARS} anni (${Math.round(one.share * 100)}%)`
+      + `, in ${one.episodes} episodi`,
+  };
+}
+
 /** The dated spells per player, from the bundle's own table. */
 export function buildSpells(table: BundleTable): Map<number, Spell[]> {
   const [id, from, to, kind] = columnIndex(table, 'fc_id', 'start_date', 'end_date', 'kind');
@@ -221,6 +360,36 @@ export class PlayerStatus {
     return out;
   });
 
+  /** ...and who breaks down OFTEN, which is a different fact from being hurt today. */
+  private readonly fragileMarks = computed(() => {
+    const today = this.today();
+    const out = new Map<number, PlayerMark>();
+    for (const [id, spells] of this.spells()) {
+      const mark = fragilityMark(spells, today);
+      if (mark) out.set(id, mark);
+    }
+    return out;
+  });
+
+  /** How much of the last three years a man lost, for whoever prices him. Zero when nothing is on file. */
+  fragility(playerId: number): Fragility {
+    return fragilityOf(this.spells().get(playerId) ?? [], this.today());
+  }
+
+  /**
+   * Le due abitudini misurate: cartellini e rigori sbagliati. Registrate da fuori come i misteri e per
+   * la stessa ragione - la carriera che le misura la legge chi calcola le letture.
+   */
+  readonly habits = signal<Map<number, PlayerMark[]>>(new Map());
+
+  /**
+   * I MISTERI: chi non gioca pur essendo disponibile e prezzato per giocare.
+   *
+   * Registrati da fuori come gli screen, e per la stessa ragione: il percentile del prezzo è un fatto
+   * sul RUOLO dentro UN listone, e solo chi possiede la selezione sa quale listone sia.
+   */
+  readonly mysteries = signal<Map<number, PlayerMark>>(new Map());
+
   /**
    * The two calibrated SCREENS, pushed in by whoever holds the pool.
    *
@@ -248,6 +417,15 @@ export class PlayerStatus {
     const marks: PlayerMark[] = [];
     const injury = this.injuryMarks().get(playerId);
     if (injury) marks.push(injury);
+    // Being hurt NOW and breaking down OFTEN are two different facts, and a man can carry both: the
+    // state of today is drawn first, the habit beside it.
+    const fragile = this.fragileMarks().get(playerId);
+    if (fragile) marks.push(fragile);
+    // ...and the man who is neither hurt nor fragile and still does not play.
+    const mystery = this.mysteries().get(playerId);
+    if (mystery) marks.push(mystery);
+    // Le abitudini vengono dopo gli stati: quello che È viene prima di quello che FA.
+    marks.push(...(this.habits().get(playerId) ?? []));
     const declared = this.declared().get(playerId);
     if (declared) marks.push(declaredMark(declared));
     // Then what happened to his shirt LAST season - a measured fact about the past, which outranks a

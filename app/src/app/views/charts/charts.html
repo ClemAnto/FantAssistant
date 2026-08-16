@@ -1,0 +1,147 @@
+<!-- UI text is ITALIAN in app/ (see app/CLAUDE.md); code and comments stay English. -->
+<div class="mx-auto flex min-h-full max-w-[1100px] flex-col gap-4 p-4">
+  <header class="flex flex-wrap items-baseline justify-between gap-2">
+    <div class="flex items-baseline gap-2">
+      <h1 class="text-2xl font-semibold text-fg">Grafici</h1>
+      <span
+        class="rounded-full border border-border px-2 py-0.5 text-xs text-muted"
+        title="Versione della webapp - cambia a ogni pubblicazione"
+        >v{{ appVersion }}</span
+      >
+    </div>
+    <div class="flex items-baseline gap-3">
+      @if (store.generatedAt(); as generated) {
+        <span class="text-xs text-muted">
+          Snapshot del {{ generated.slice(0, 10).split('-').reverse().join('/') }}
+          @if (store.targetSeason()) {
+            <span> · listone {{ store.targetSeason() }}</span>
+          }
+        </span>
+      }
+      <a nz-button nzType="text" routerLink="/">
+        <nz-icon nzType="calendar" />
+        Calciatori
+      </a>
+      <a nz-button nzType="text" routerLink="/clubs">
+        <nz-icon nzType="team" />
+        Squadre
+      </a>
+    </div>
+  </header>
+
+  @if (store.demo()) {
+    <nz-alert
+      nzType="warning"
+      nzShowIcon
+      nzMessage="Dati dimostrativi"
+      nzDescription="Squadre, calciatori e voti di questa pagina sono INVENTATI e generati apposta per la demo pubblica."
+    />
+  }
+
+  @if (store.status() === 'error') {
+    <nz-alert
+      nzType="error"
+      nzShowIcon
+      nzMessage="Non riesco a leggere il bundle"
+      [nzDescription]="store.error() ?? ''"
+    />
+  }
+
+  @if (store.status() === 'loading' || store.status() === 'idle') {
+    <div class="flex items-center gap-3 text-muted">
+      <nz-spin nzSimple nzSize="small" />
+      Carico le tabelle del bundle...
+    </div>
+  }
+
+  @if (store.status() === 'ready') {
+    <section class="flex flex-col gap-3 rounded-card border border-border bg-surface p-3">
+      <div class="flex flex-wrap items-end gap-4">
+        <div class="flex flex-col gap-1">
+          <span class="text-xs text-muted">Listone</span>
+          <nz-radio-group
+            [ngModel]="platform()"
+            (ngModelChange)="choosePlatform($event)"
+          >
+            <label nz-radio-button nzValue="default">Serie A</label>
+            <label nz-radio-button nzValue="euro">EuroLeghe</label>
+          </nz-radio-group>
+        </div>
+
+        <div class="flex flex-col gap-1">
+          <span class="text-xs text-muted">Ruolo</span>
+          <nz-radio-group [ngModel]="role()" (ngModelChange)="role.set($event)">
+            <label nz-radio-button [nzValue]="null">Tutti</label>
+            @for (one of roles; track one) {
+              <label nz-radio-button [nzValue]="one">{{ one }}</label>
+            }
+          </nz-radio-group>
+        </div>
+
+        <div class="flex flex-col gap-1">
+          <span class="text-xs text-muted">Squadra</span>
+          <nz-select
+            class="w-56"
+            nzShowSearch
+            nzAllowClear
+            nzPlaceHolder="Tutte"
+            [ngModel]="club()"
+            (ngModelChange)="club.set($event ?? null)"
+          >
+            @for (one of clubs(); track one) {
+              <nz-option [nzValue]="one" [nzLabel]="one" />
+            }
+          </nz-select>
+        </div>
+      </div>
+    </section>
+
+    <section class="flex flex-col gap-4 rounded-card border border-border bg-surface p-4">
+      <div class="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 class="text-lg font-semibold text-fg">
+          Overall per fasce
+          <span
+            class="ml-2 text-sm font-normal text-muted"
+            nz-tooltip
+            nzTooltipTitle="Quanto ti dà IN PIÙ di chi prenderesti al suo posto, come posto sul listone: 0-99."
+            >0-99</span
+          >
+        </h2>
+        <span class="text-sm text-muted">
+          {{ counted() }} quotati
+          @if (unrated()) {
+            <span> · {{ unrated() }} senza Overall</span>
+          }
+        </span>
+      </div>
+
+      @if (!rated() && counted()) {
+        <!-- The four readings land after the rest of the bundle: drawing now would say «nobody has an
+             Overall», which is a wrong answer that looks like an answer. -->
+        <div class="flex items-center gap-3 text-muted">
+          <nz-spin nzSimple nzSize="small" />
+          Calcolo le letture su tutto il listone...
+        </div>
+      } @else {
+        <ui-pie [slices]="slices()" />
+      }
+
+      <!-- Non è decorazione: senza questa frase la torta sull'intero listone si legge come un fatto sul
+           calcio mentre è un fatto sulla scala. -->
+      <p class="max-w-3xl text-xs leading-relaxed text-muted">
+        L'Overall è un <strong class="text-fg">posto dentro il listone</strong>, non un voto: 50 vuol
+        dire «metà del listone sta sotto di lui». Su TUTTO il listone le fette sono quindi quelle che
+        sono per costruzione della scala - circa 9% sopra 90, 15% fra 76 e 90, un quarto in ognuna delle
+        tre fasce sotto - e la torta descrive il righello. Comincia a dire qualcosa di vero appena si
+        restringe la pool: quanti ne ha sopra 90 <em>questa</em> squadra, o <em>questo</em> ruolo. Il
+        rango non cambia mai col filtro, perché è calcolato una volta sul listone intero: cambia solo
+        chi viene contato.
+        <span class="mt-1 block">
+          <strong class="text-fg">Senza Overall</strong> = il motore non gli prevede presenze, che non è
+          uno zero: è un uomo di cui non sappiamo rispondere, e metterlo fra i peggiori sarebbe un
+          giudizio che nessuno ha dato.
+        </span>
+      </p>
+    </section>
+  }
+</div>

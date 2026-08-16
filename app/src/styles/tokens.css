@@ -11,6 +11,55 @@
     color: var(--color-fg);
     font-family: var(--font-sans);
   }
+
+  /* LE BARRE DI SCORRIMENTO, che il browser disegna col suo grigio di sistema e stonano su un tema
+     scuro. Stanno in `components` come ogni altra ripittura di qualcosa che non è nostro.
+
+     DUE MECCANISMI E NON UNO, e l'ordine conta: su Chromium `scrollbar-color` VINCE sugli
+     pseudo-elementi `::-webkit-scrollbar` e li spegne, quindi la forma (la maniglia staccata dal
+     bordo, l'angolo trasparente) si perderebbe. Le proprietà standard vanno perciò solo dove gli
+     pseudo-elementi non esistono - Firefox - ed è quello che chiede `@supports not selector()`.
+
+     Il pollice è un MIX del testo secondario col fondo della pagina e non il colore del bordo: sui
+     due temi il bordo sta a 1.3-1.4 di contrasto contro la pagina, cioè invisibile. La quota è
+     MISURATA e non scelta a occhio - WCAG 1.4.11 chiede 3:1 per un elemento d'interfaccia, e al 45%
+     il tema magenta leggeva 2.6:1 - al 60% si legge 3.4:1 su `page` e 3.4:1 su `surface` sul tema
+     default, 3.3:1 sul magenta. Nessun colore letterale: cambia col tema come tutto il resto. */
+  ::-webkit-scrollbar {
+    width: var(--scrollbar-size);
+    height: var(--scrollbar-size);
+  }
+
+  /* Trasparente: la barra vive dentro tabelle e pannelli di fondi diversi, e una traccia dipinta
+     ci disegnerebbe sopra una striscia del colore sbagliato. */
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-corner {
+    background-color: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background-color: color-mix(in srgb, var(--color-muted) 60%, var(--color-page));
+    /* Il bordo trasparente più `padding-box` è quello che stacca la maniglia dal bordo: è il modo
+       di dare un margine a uno pseudo-elemento che non accetta `margin`. */
+    border: var(--scrollbar-inset) solid transparent;
+    background-clip: padding-box;
+    border-radius: var(--radius-control);
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: color-mix(in srgb, var(--color-muted) 85%, var(--color-page));
+  }
+
+  ::-webkit-scrollbar-thumb:active {
+    background-color: var(--color-primary);
+  }
+
+  @supports not selector(::-webkit-scrollbar) {
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: color-mix(in srgb, var(--color-muted) 60%, var(--color-page)) transparent;
+    }
+  }
 }
 
 @layer base {
@@ -28,6 +77,11 @@
     --z-image: 1080;
 
     --control-height: 44px;
+
+    /* La barra di scorrimento: quanto è larga e quanto è staccata dal bordo. Strutturale come
+       `--control-height`, quindi qui e non fra i colori - il colore lo mette il tema. */
+    --scrollbar-size: 12px;
+    --scrollbar-inset: 3px;
   }
 
   html,

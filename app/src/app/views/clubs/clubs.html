@@ -24,6 +24,11 @@
         <nz-icon nzType="calendar" />
         Calciatori
       </a>
+      <!-- The only way into the charts view: without it /charts is reachable by URL alone. -->
+      <a nz-button nzType="text" routerLink="/charts">
+        <nz-icon nzType="pie-chart" />
+        Grafici
+      </a>
       <a nz-button nzType="text" routerLink="/auction">
         <nz-icon nzType="wifi" />
         Segui un'asta
@@ -148,170 +153,51 @@
 
         <section class="flex flex-col gap-2 rounded-card border border-border bg-surface p-3">
           <div class="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 class="text-lg font-semibold text-fg">Rosa quotata</h2>
+            <div class="flex flex-wrap items-baseline gap-3">
+              <h2 class="text-lg font-semibold text-fg">Rosa quotata</h2>
+              <!-- Due letture della stessa rosa, nello stesso ordine: chi sono questi uomini, e cosa
+                   hanno fatto nelle ultime dieci giornate. -->
+              <nz-radio-group nzSize="small" [ngModel]="mode()" (ngModelChange)="show($event)">
+                <label nz-radio-button nzValue="values" nz-tooltip
+                  nzTooltipTitle="La stagione misurata, i numeri attesi dal motore e le cinque letture a stelline.">Valori</label>
+                <label nz-radio-button nzValue="matches" nz-tooltip
+                  nzTooltipTitle="Le ultime dieci giornate di campionato, una colonna per giornata: il voto, i bonus e - quando non ha giocato - il perche'. La stessa tabella della vista CALCIATORI.">Ultime partite</label>
+              </nz-radio-group>
+            </div>
             <span class="text-xs text-muted">
-              {{ store.squad().length }} calciatori · MV e FM misurate: {{ measuredOn() }}
+              {{ store.squad().length }} calciatori ·
+              @if (mode() === 'values') {
+                MV e FM misurate: {{ store.measuredOn() }}
+              } @else {
+                ultime 10 giornate di {{ store.measuredOn() }}
+              }
             </span>
           </div>
 
-          <!-- The order is the listone's own - P, D, C, A - and inside a role the best measured
-               fantamedia first. Every column can be re-sorted, and a man with no measured season
-               always sorts last: he has no number, which is not a zero. -->
-          <!-- `nzFrontPagination` false, not just a hidden pager: with the pager merely hidden the table
-               still showed the first TEN men of a squad of 26 while the count above it said 26 - a
-               displayed list whose figures describe a different list. -->
-          <nz-table
-            #squadTable
-            nzSize="small"
-            [nzData]="store.squad()"
-            [nzFrontPagination]="false"
-            [nzShowPagination]="false"
-            [nzScroll]="{ x: '900px' }"
-          >
-            <thead>
-              <tr>
-                <th nzWidth="44px" [nzSortFn]="byRole">R</th>
-                <th nzWidth="78px">Mantra</th>
-                <th nzWidth="116px" [nzSortFn]="byName">Nome</th>
-                <th nzWidth="100px" nz-tooltip nzTooltipTitle="I dodici codici granulari osservati dal provider: sono ciò che distingue un terzino sinistro da un centrale. È una FOTOGRAFIA di oggi, non una storia. In GRASSETTO il ruolo che occuperebbe nella formazione tipo.">
-                  Ruolo reale
-                </th>
-                <!-- P: the engine's own expected matches with a vote, on this platform's calendar. -->
-                <th
-                  nzWidth="48px"
-                  class="text-right"
-                  [nzSortFn]="byExpected"
-                  nz-tooltip
-                  [nzTooltipTitle]="expectedHeader()"
-                >
-                  P
-                </th>
-                <!-- The engine's own expected fantamedia. It sits BESIDE the measured one and never
-                     inside it: «quanto ha fatto» e «quanto ci si aspetta» sono due numeri diversi, e per
-                     chi ha giocato altrove solo il secondo può esistere. -->
-                <th
-                  nzWidth="62px"
-                  class="text-right"
-                  [nzSortFn]="byExpectedFm"
-                  nz-tooltip
-                  [nzTooltipTitle]="expectedFmHeader()"
-                >
-                  FM att.
-                </th>
-                <th
-                  nzWidth="62px"
-                  class="text-right"
-                  [nzSortFn]="byExpectedMv"
-                  nz-tooltip
-                  nzTooltipTitle="Media voto ATTESA, che il foglio ricava dalla FM attesa togliendo il bonus a presenza che si aspetta da lui: FM att. meno MV att. È quel bonus. Derivata e mai indovinata a parte, così le due non possono dire cose diverse sullo stesso giocatore."
-                >
-                  MV att.
-                </th>
-                <th nzWidth="56px" class="text-right" [nzSortFn]="byMv">MV</th>
-                <th nzWidth="56px" class="text-right" [nzSortFn]="byFm">FM</th>
-                <!-- The four readings. Each sorts on its 0-99 and shows the stars: two men half a star
-                     apart are two different numbers, so the number is what the column is ordered by. -->
-                @for (key of ratingKeys; track key) {
-                  <th
-                    nzWidth="84px"
-                    [nzSortFn]="byRating(key)"
-                    nz-tooltip
-                    [nzTooltipTitle]="ratingHint[key] + ' ' + anchorHint"
-                  >
-                    {{ ratingLabel[key] }}
-                  </th>
-                }
-              </tr>
-            </thead>
-            <tbody>
-              @for (man of squadTable.data; track man.fcId) {
-                <tr>
-                  <td [title]="roleLabel[man.role]"><ui-role [role]="man.role" /></td>
-                  <td>
-                    <span class="flex flex-wrap gap-1">
-                      @for (code of man.mantraCodes; track code) {
-                        <ui-role [role]="code" />
-                      }
-                    </span>
-                  </td>
-                  <td>
-                    <span class="flex items-center gap-1">
-                      <span class="truncate">{{ man.name }}</span>
-                      <ui-flags [playerId]="man.fcId" />
-                    </span>
-                  </td>
-                  <td class="text-xs text-muted">
-                    @if (man.codes.length) {
-                      <!-- In BOLD the code the typical eleven would field him in - only for the men the
-                           board actually draws: «dove giocherebbe» has no answer for who would not. -->
-                      <span [title]="codesHint(man)">
-                        @for (code of man.codes; track code; let last = $last) {
-                          <span [class.font-semibold]="code === man.place" [class.text-fg]="code === man.place"
-                            >{{ code }}</span
-                          >@if (!last) {<span> · </span>}
-                        }
-                      </span>
-                    } @else {
-                      <span class="opacity-60">ignoto</span>
-                    }
-                  </td>
-                  <td class="text-right tabular-nums" [title]="expectedHint(man)">
-                    @if (man.expected == null) {
-                      —
-                    } @else {
-                      <!-- `~` is the sheet's own mark for an estimated row: the number is there, and it
-                           says what kind of number it is. -->
-                      <span [class.text-muted]="man.expectedIsEstimate"
-                        >@if (man.expectedIsEstimate) {~}{{ man.expected | number: '1.0-0' }}</span
-                      >
-                    }
-                  </td>
-                  <td class="text-right tabular-nums" [title]="expectedFmHint(man)">
-                    @if (man.expectedFm == null) {
-                      —
-                    } @else {
-                      <span [class.text-muted]="man.expectedFmIsEstimate"
-                        >@if (man.expectedFmIsEstimate) {~}{{ man.expectedFm | number: '1.2-2' }}</span
-                      >
-                    }
-                  </td>
-                  <td class="text-right tabular-nums" [title]="expectedMvHint(man)">
-                    @if (man.expectedMv == null) {
-                      —
-                    } @else {
-                      <span [class.text-muted]="man.expectedFmIsEstimate"
-                        >@if (man.expectedFmIsEstimate) {~}{{ man.expectedMv | number: '1.2-2' }}</span
-                      >
-                    }
-                  </td>
-                  <td class="text-right tabular-nums" [title]="measuredHint(man)">
-                    {{ man.mv == null ? '—' : (man.mv | number: '1.2-2') }}
-                  </td>
-                  <td class="text-right tabular-nums" [title]="measuredHint(man)">
-                    {{ man.fm == null ? '—' : (man.fm | number: '1.2-2') }}
-                  </td>
-                  @for (key of ratingKeys; track key) {
-                    <td>
-                      <ui-stars
-                        [score]="man.rating ? man.rating[key].score : null"
-                        [weight]="man.rating ? man.rating[key].weight : 1"
-                        [hint]="man.rating ? man.rating[key].note : 'in calcolo'"
-                      />
-                    </td>
-                  }
-                </tr>
-              }
-            </tbody>
-          </nz-table>
-
-          <p class="text-xs text-muted">
-            MV e FM sono <strong>misurate</strong>, non previste: la stagione {{ store.inputSeason() }}
-            sul calendario di questo listone. Una cella vuota vuol dire <strong>ignoto</strong>, mai zero —
-            un arrivo da un altro campionato o un promosso qui non ha una stagione misurata, ed è
-            esattamente per lui che ci sono <strong>P</strong> e <strong>FM att.</strong>: quelli sono i
-            numeri del <strong>motore</strong> per la stagione che viene, e «~» segna la stima dichiarata
-            per chi il motore non riesce a valutare (il tooltip dice su cosa è costruita).
-          </p>
+          <!-- The same tables the CALCIATORI view draws for the whole listone, and deliberately the same
+               components: two copies would be two definitions of these columns under one heading. -->
+          @if (mode() === 'values') {
+            <ui-squad-table [rows]="store.squad()" [platform]="store.platform()" />
+          } @else if (matches.status() === 'error') {
+            <nz-alert
+              nzType="error"
+              nzShowIcon
+              nzMessage="Non riesco a leggere le partite"
+              [nzDescription]="matches.error() ?? ''"
+            />
+          } @else if (matches.status() !== 'ready') {
+            <div class="flex items-center gap-3 text-muted">
+              <nz-spin nzSimple nzSize="small" />
+              Carico i voti e le partite del bundle...
+            </div>
+          } @else {
+            <ui-matches-table
+              [lines]="matchTable().lines"
+              [columns]="matchTable().columns"
+              [crests]="store.crests()"
+              [showClub]="false"
+            />
+          }
         </section>
       </div>
     }

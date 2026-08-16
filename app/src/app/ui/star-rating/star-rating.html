@@ -1,6 +1,21 @@
 <!-- ng-zorro's own rate draws the halves, so the app does not draw a star of its own: one vocabulary.
      It is `nzDisabled` because this is a READING and not an input - nothing here is set by clicking. -->
-@if (slots().length) {
+@if (!slots().length) {
+  <span class="text-muted" [title]="label()">&mdash;</span>
+} @else if (show() === 'score') {
+  <!-- Lo stesso numero delle stelle, intero, dentro un quadrato smussato che ne porta il colore: la
+       banda è quella di `starsOf`, così colore e stella non possono dire due cose diverse. Sfumato sotto
+       la stessa regola, perché quanto è sicuro non cambia con il modo in cui lo si disegna. -->
+  <!-- QUADRATO, non una pillola: due cifre ci stanno, e una fila di quadrati uguali si scorre a colpo
+       d'occhio mentre larghezze diverse fanno leggere la forma invece del colore. -->
+  <span
+    class="inline-flex size-6 items-center justify-center rounded-md text-xs font-medium tabular-nums"
+    [class]="tone()"
+    [class.opacity-50]="rough()"
+    [title]="label()"
+    >{{ score() | number: '1.0-0' }}</span
+  >
+} @else {
   <!-- `whitespace-nowrap`: the five stars are ONE reading and a rate that wraps after the third says
        «three stars» to anybody scanning the column. -->
   <!-- Faded = mostly the anchor and not his own football: a guess has to look like a guess, or the
@@ -8,6 +23,4 @@
   <span class="whitespace-nowrap" [class.opacity-50]="rough()" [title]="label()">
     <nz-rate class="whitespace-nowrap" [ngModel]="stars()" nzDisabled nzAllowHalf />
   </span>
-} @else {
-  <span class="text-muted" [title]="label()">—</span>
 }

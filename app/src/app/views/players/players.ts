@@ -4,72 +4,22 @@ import { NzAlertModule } from 'ng-zorro-antd/alert';
 import { NzCheckboxModule } from 'ng-zorro-antd/checkbox';
 import { NzCollapseModule } from 'ng-zorro-antd/collapse';
 import { NzIconModule } from 'ng-zorro-antd/icon';
+import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzRadioModule } from 'ng-zorro-antd/radio';
 import { NzSelectModule } from 'ng-zorro-antd/select';
 import { NzSliderModule } from 'ng-zorro-antd/slider';
 import { NzSpinModule } from 'ng-zorro-antd/spin';
-import { NzTableModule } from 'ng-zorro-antd/table';
-import { NzModalModule } from 'ng-zorro-antd/modal';
 import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { RouterLink } from '@angular/router';
 
-import {
-  CLASSIC_ROLES,
-  CellState,
-  ClassicRole,
-  MatchCell,
-  PlayerLine,
-  PlayersStore,
-} from '../../core/players-store';
-import { ClubCrest } from '../../ui/club-crest/club-crest';
-import { PlayerFlags } from '../../ui/player-flags/player-flags';
-import { RoleBadge } from '../../ui/role-badge/role-badge';
+import { CLASSIC_ROLES, ClassicRole, Platform, PlayersStore } from '../../core/players-store';
+import { CONSULTABLE_FLAGS, FLAG_LABEL, PlayerFlag } from '../../core/player-status';
+import { ValuationStore } from '../../core/valuation-store';
+import { asFlag, bindQuery, storedFlag } from '../../core/view-state';
+import { MatchesTable } from '../../ui/matches-table/matches-table';
+import { SquadTable } from '../../ui/squad-table/squad-table';
 import { APP_VERSION } from '../../version';
-import { MatchDetail } from './match-detail/match-detail';
-
-/** A cell with no vote is not blank: it says WHY. One icon per reason, and never red - an
- *  injury is a fact about a player, not a failure. */
-export const STATE_ICON: Record<CellState, string> = {
-  played: '',
-  no_data: '',
-  no_vote: 'question-circle',
-  bench: 'pause-circle',
-  injured: 'medicine-box',
-  not_in_league: 'global',
-  absent: 'minus-circle',
-};
-
-export const STATE_LABEL: Record<CellState, string> = {
-  played: 'Ha giocato',
-  no_data: 'Risulta giocata, nessun dato oltre alla distinta',
-  no_vote: 'In campo, senza voto',
-  bench: 'In panchina, non entrato',
-  injured: 'Infortunato',
-  not_in_league: 'Non in questo campionato',
-  absent: 'Non risulta in distinta',
-};
-
-/** dd/mm/yyyy, because a date in a tooltip is read by a person and not by a parser. */
-const it = (iso: string): string => iso.split('-').reverse().join('/');
-
-/** One symbol per kind of match, used BOTH in the column header and in the cell: two marks for
- *  the same thing would be two vocabularies. `national` has no icon in use - no national-team
- *  competition exists in the per-match layer, measured - but it is mapped so that the day one
- *  arrives it is named rather than filed under "cup". */
-export const KIND_ICON: Record<string, string> = {
-  league: 'calendar',
-  cup: 'trophy',
-  friendly: 'coffee',
-  national: 'flag',
-};
-
-export const KIND_LABEL: Record<string, string> = {
-  league: 'Campionato',
-  cup: 'Coppa o altra competizione',
-  friendly: 'Amichevole',
-  national: 'Nazionale',
-};
 
 const ROLE_LABEL: Record<ClassicRole, string> = {
   P: 'Portiere',
@@ -77,6 +27,16 @@ const ROLE_LABEL: Record<ClassicRole, string> = {
   C: 'Centrocampista',
   A: 'Attaccante',
 };
+
+/**
+ * The two questions this page can answer about the same list of men.
+ *
+ * `matches` is what he DID, match by match; `ratings` is what he is WORTH - the squads view's own table,
+ * the same component reading the same store, because «le stesse colonne» has to mean the same numbers.
+ * The filters that survive the switch are the ones both modes can honour: a period of matchdays means
+ * nothing to a valuation of the season that is coming, so it is hidden rather than left there lying.
+ */
+export type PlayersMode = 'matches' | 'ratings';
 
 @Component({
   selector: 'app-players',
@@ -88,58 +48,67 @@ const ROLE_LABEL: Record<ClassicRole, string> = {
     NzCheckboxModule,
     NzCollapseModule,
     NzIconModule,
-    NzModalModule,
+    NzInputModule,
     NzRadioModule,
     NzSelectModule,
     NzSliderModule,
     NzSpinModule,
-    NzTableModule,
     NzTooltipModule,
-    ClubCrest,
-    PlayerFlags,
-    RoleBadge,
-    MatchDetail,
+    MatchesTable,
+    SquadTable,
   ],
   templateUrl: './players.html',
   host: { class: 'view-host' },
 })
 export class Players {
   protected readonly store = inject(PlayersStore);
+  /** The valuation of a man: the same store the squads view reads, so one man reads one way. */
+  protected readonly valuation = inject(ValuationStore);
   protected readonly appVersion = APP_VERSION;
   protected readonly roles = CLASSIC_ROLES;
   protected readonly roleLabel = ROLE_LABEL;
+  /** Le icone che queste tabelle sanno produrre, e come si chiamano: una definizione sola. */
+  protected readonly markFlags = CONSULTABLE_FLAGS;
+  protected readonly markLabel = FLAG_LABEL;
+
+  /** Which of the two tables is on screen. The match one is what this page has always been. */
+  protected readonly mode = signal<PlayersMode>('matches');
+
+  /**
+   * The men the filters keep, valued.
+   *
+   * The POOL of the four readings stays the whole listone - a percentile is a fact about a pool, and
+   * filtering by club must not re-rank a man against his team-mates alone - while the ROWS are the ones
+   * on screen: the same `filtered` the match table is built from, so the two modes are two readings of
+   * one list and never two lists.
+   */
+  protected readonly valued = computed(() =>
+    this.valuation.valuations(this.store.platform(), this.store.filtered()),
+  );
 
   protected readonly window = computed<[number, number]>(() => [
     this.store.windowFrom(),
     this.store.windowTo(),
   ]);
 
-  /** In the mixed view a column is a WEEK shared by every row - its label is the matchday
-   *  played in it, or the date when no league round falls there. */
-  protected readonly headers = computed(() => this.store.columns());
-
-  /** The match the detail panel is showing, with the player it belongs to: a cell alone does
-   *  not know whose it is, and the panel names him. */
-  protected readonly selected = signal<{ cell: MatchCell; player: PlayerLine } | null>(null);
-
-  /** A phone. Two things change: the table gives up the three narrow columns and folds them
-   *  into the name, and the tooltip goes away - on a touch screen there is no hover, so it would
-   *  only be a thing that appears over the panel the tap just opened. */
-  protected readonly narrow = signal(false);
-
   /** The filter bar takes a fifth of the screen and is set once per session: it collapses, and
-   *  when closed its header says what is applied, so a folded filter can never be a hidden one. */
-  protected readonly filtersOpen = signal(true);
+   *  when closed its header says what is applied, so a folded filter can never be a hidden one.
+   *  Open or closed is a habit and not a selection, so it is remembered here and not in the address. */
+  protected readonly filtersOpen = storedFlag('players.filters', true);
 
+  /** What is applied, so a folded filter bar is never a hidden one - and it lists only the filters
+   *  the mode on screen actually honours. */
   protected readonly filterSummary = computed(() => {
-    const parts: string[] = [
-      this.store.platform() === 'euro' ? 'EuroLeghe' : 'Serie A',
-      this.store.season(),
-    ];
+    const parts: string[] = [this.store.platform() === 'euro' ? 'EuroLeghe' : 'Serie A'];
+    if (this.mode() === 'matches') parts.push(this.store.season());
+    const search = this.store.search();
+    if (search) parts.push(`«${search}»`);
     const role = this.store.role();
     if (role) parts.push(ROLE_LABEL[role]);
+    for (const flag of this.store.flags()) parts.push(FLAG_LABEL[flag]);
     const club = this.store.club();
     if (club) parts.push(club);
+    if (this.mode() !== 'matches') return parts.join(' · ');
     if (this.store.withCups()) parts.push('coppe');
     if (this.store.withFriendlies()) parts.push('amichevoli');
     if (this.store.byMatchday()) {
@@ -148,143 +117,130 @@ export class Players {
     return parts.join(' · ');
   });
 
-  /** Which cell the pointer is on. The tooltip is driven from here instead of by hover alone,
-   *  so a CLICK can close it: otherwise it stays up over the panel it just opened. */
-  protected readonly hovered = signal<string | null>(null);
-
   constructor() {
-    const narrow = matchMedia('(max-width: 700px)');
-    this.narrow.set(narrow.matches);
-    narrow.addEventListener('change', (event) => this.narrow.set(event.matches));
     void this.store.load();
-  }
 
-  /** The tooltip belongs to a MOUSE, and the pointer event says which one it is - a media query
-   *  cannot: `(hover: none)` is read once, is wrong on a hybrid laptop, and did not stop the
-   *  tooltip on an emulated phone. A finger opens the detail; only a mouse gets the hint. */
-  protected onPointerEnter(event: PointerEvent, key: string): void {
-    if (event.pointerType === 'mouse') this.hovered.set(key);
-  }
-
-  protected open(cell: MatchCell, player: PlayerLine): void {
-    this.hovered.set(null);
-    this.selected.set({ cell, player });
-  }
-
-  /** The roster row already carries the codes: splitting the label again would be a second parsing. */
-  protected readonly mantraCodes = (line: PlayerLine): string[] => line.mantraCodes;
-
-  protected onWindow(value: number[] | number): void {
-    if (Array.isArray(value)) this.store.setWindow([value[0], value[1]]);
-  }
-
-  /** The number in the cell, and it is NOT the same quantity in every cell:
-   *  a league match carries the fantacalcio vote (or the calibrated synthetic one, marked
-   *  `~`), while a cup or a friendly can only carry the provider's own 1-10 rating, marked
-   *  `*` because it is a different scale. A dot means he has a row and nothing measurable. */
-  protected readonly kindIcon = KIND_ICON;
-  protected readonly kindLabel = KIND_LABEL;
-  protected readonly stateIcon = STATE_ICON;
-  protected readonly stateLabel = STATE_LABEL;
-
-  /** True when the cell has no number at all and is drawn as an icon only. */
-  protected iconOnly(cell: MatchCell): boolean {
-    // `no_data` keeps the dot: there is no reason to draw, only an absence of measurement.
-    return (
-      cell.state !== 'played' &&
-      cell.state !== 'no_data' &&
-      cell.vote == null &&
-      cell.providerRating == null
+    /*
+     * Every filter of this page in the address, so a refresh - or a link - finds the same table.
+     *
+     * The ORDER is the point: choosing a listone empties the club filter and re-picks the season, and
+     * choosing a season resets the window, so those two are applied first and the fields they would
+     * overwrite come after. Each `apply` checks before it writes for the same reason: this runs on every
+     * navigation, and a blind re-apply would wipe the fields applied beside it.
+     */
+    bindQuery(
+      [
+        {
+          param: 'listone',
+          read: () => (this.store.platform() === 'default' ? null : this.store.platform()),
+          apply: (raw) => {
+            const platform: Platform = raw === 'euro' ? 'euro' : 'default';
+            if (platform !== this.store.platform()) this.store.selectPlatform(platform);
+          },
+        },
+        {
+          param: 'stagione',
+          read: () => this.store.season() || null,
+          apply: (raw) => {
+            if (raw && raw !== this.store.season() && this.store.seasons().includes(raw)) {
+              this.store.selectSeason(raw);
+            }
+          },
+        },
+        {
+          param: 'da',
+          read: () => String(this.store.windowFrom()),
+          apply: (raw) => {
+            const round = Number(raw);
+            if (raw && Number.isFinite(round)) this.store.windowFrom.set(round);
+          },
+        },
+        {
+          param: 'a',
+          read: () => String(this.store.windowTo()),
+          apply: (raw) => {
+            const round = Number(raw);
+            if (raw && Number.isFinite(round)) this.store.windowTo.set(round);
+          },
+        },
+        {
+          param: 'vista',
+          read: () => (this.mode() === 'matches' ? null : this.mode()),
+          apply: (raw) => this.show(raw === 'ratings' ? 'ratings' : 'matches'),
+        },
+        {
+          param: 'cerca',
+          read: () => this.store.search() || null,
+          apply: (raw) => this.store.search.set(raw ?? ''),
+        },
+        {
+          param: 'ruolo',
+          read: () => this.store.role(),
+          apply: (raw) =>
+            this.store.role.set(
+              CLASSIC_ROLES.includes(raw as ClassicRole) ? (raw as ClassicRole) : null,
+            ),
+        },
+        {
+          param: 'icone',
+          read: () => this.store.flags().join(',') || null,
+          apply: (raw) =>
+            this.store.flags.set(
+              (raw ?? '').split(',').filter((one): one is PlayerFlag =>
+                CONSULTABLE_FLAGS.includes(one as PlayerFlag)),
+            ),
+        },
+        {
+          param: 'squadra',
+          read: () => this.store.club(),
+          apply: (raw) => this.store.club.set(raw && this.store.clubs().includes(raw) ? raw : null),
+        },
+        {
+          param: 'coppe',
+          read: () => asFlag.read(this.store.withCups()),
+          apply: (raw) => this.store.withCups.set(asFlag.apply(raw)),
+        },
+        {
+          param: 'amichevoli',
+          read: () => asFlag.read(this.store.withFriendlies()),
+          apply: (raw) => this.store.withFriendlies.set(asFlag.apply(raw)),
+        },
+        {
+          param: 'ordine',
+          read: () => (this.store.sortBy() === 'played' ? null : this.store.sortBy()),
+          apply: (raw) =>
+            this.store.sortBy.set(raw === 'name' || raw === 'role' ? raw : 'played'),
+        },
+      ],
+      computed(() => this.store.status() === 'ready'),
     );
   }
 
-  protected stateClass(cell: MatchCell): string {
-    return cell.state === 'injured' ? 'text-warning' : 'text-muted';
+  /**
+   * The other table, and its data is fetched only when it is asked for.
+   *
+   * The valuation reads the engine sheet, the boards and the granular roles, and it ranks the whole
+   * listone for the stars: that is a real cost, and the page that opens by default does not owe it.
+   * `load()` is idempotent, so switching back and forth costs one fetch in a session.
+   */
+  protected show(mode: PlayersMode): void {
+    this.mode.set(mode);
+    if (mode === 'ratings') void this.valuation.load();
   }
 
-  protected voteText(cell: MatchCell): string {
-    if (cell.kind === 'league') {
-      if (cell.vote == null) return 's.v.';
-      return (cell.voteSynthetic ? '~' : '') + cell.vote.toFixed(1).replace('.', ',');
-    }
-    if (cell.providerRating == null) return '·';
-    return '*' + cell.providerRating.toFixed(1).replace('.', ',');
+  /**
+   * Filtrare per icona chiede il layer che quelle icone le produce.
+   *
+   * Infortuni, fragilità e note dichiarate `PlayerStatus` se li carica da solo; il MISTERO no - nasce dal
+   * calcolo delle letture, cioè dallo stesso lavoro che la modalità «Valutazioni» fa partire. Senza
+   * questa riga il filtro trovava zero misteri e non lo diceva: una funzione che sembra rotta.
+   */
+  protected chooseFlags(flags: PlayerFlag[]): void {
+    this.store.flags.set(flags);
+    if (flags.length) void this.valuation.load();
   }
 
-  protected voteClass(cell: MatchCell): string {
-    // The bands are calibrated on the fantacalcio vote. A provider rating is another scale,
-    // so colouring it the same way would be a claim nobody measured: it stays neutral.
-    if (cell.kind !== 'league') return 'text-muted';
-    // Back to the original bands (the operator changed his mind on 09/08/2026), with one
-    // addition: 5 and below is marked in red. That is an explicit negative verdict, which is
-    // the one use the colour rule allows.
-    if (cell.vote == null) return 'text-muted italic';
-    if (cell.vote >= 7) return 'text-primary font-semibold';
-    if (cell.vote >= 6) return 'text-fg';
-    if (cell.vote > 5) return 'text-muted';
-    return 'text-danger font-semibold';
-  }
-
-  protected tooltip(cell: MatchCell): string {
-    const parts: string[] = [];
-
-    if (cell.state !== 'played') {
-      parts.push(STATE_LABEL[cell.state]);
-      if (cell.state === 'injured' && cell.injury) {
-        const detail = cell.injury.detail ? `${cell.injury.detail}, ` : '';
-        parts.push(`${detail}dal ${it(cell.injury.from)}${cell.injury.to ? ' al ' + it(cell.injury.to) : ''}`);
-      }
-    }
-
-    if (cell.kind === 'league') {
-      parts.push(`${cell.competitionLabel}, giornata ${cell.matchday}`);
-    } else {
-      parts.push(cell.competitionLabel);
-    }
-    if (cell.date) parts.push(cell.date.split('-').reverse().join('/'));
-
-    if (cell.goalsFor != null && cell.goalsAgainst != null && cell.opponent) {
-      const [left, right] = cell.home
-        ? [`${cell.team} ${cell.goalsFor}`, `${cell.goalsAgainst} ${cell.opponent}`]
-        : [`${cell.opponent} ${cell.goalsAgainst}`, `${cell.goalsFor} ${cell.team}`];
-      parts.push(`${left} - ${right}`);
-    } else if (cell.opponent) {
-      parts.push(cell.home === false ? `${cell.opponent} - ${cell.team}` : `${cell.team} - ${cell.opponent}`);
-      if (cell.kind !== 'league') parts.push('risultato non disponibile');
-    } else {
-      parts.push(cell.team);
-    }
-
-    if (cell.state === 'played' || cell.state === 'no_vote' || cell.state === 'bench') {
-      parts.push(cell.home == null ? 'campo ignoto' : cell.home ? 'in casa' : 'in trasferta');
-      parts.push(cell.minutes == null ? 'minuti ignoti' : `${cell.minutes}'`);
-    }
-    if (cell.shape) parts.push(`modulo ${cell.shape}`);
-
-    const events: string[] = [];
-    if (cell.goals) events.push(`${cell.goals} gol`);
-    if (cell.penScored) events.push(`${cell.penScored} rig. segnati`);
-    if (cell.penMissed) events.push(`${cell.penMissed} rig. sbagliati`);
-    if (cell.assists) events.push(`${cell.assists} assist`);
-    if (cell.ownGoals) events.push(`${cell.ownGoals} autogol`);
-    if (cell.yellows) events.push('ammonito');
-    if (cell.reds) events.push('espulso');
-    if (events.length) parts.push(events.join(', '));
-
-    if (cell.kind === 'league') {
-      if (cell.fantavoto != null) {
-        parts.push(`fantavoto ${cell.fantavoto.toFixed(1).replace('.', ',')}`);
-      }
-      if (cell.voteSynthetic) parts.push('voto sintetico calibrato, non quello di fantacalcio');
-    }
-    if (cell.alsoInWeek) {
-      parts.push(`+${cell.alsoInWeek} altra partita nella stessa settimana`);
-    } else if (cell.providerRating != null) {
-      parts.push(`* voto Sofascore ${cell.providerRating.toFixed(1).replace('.', ',')} - scala diversa dal voto di fantacalcio`);
-    } else {
-      parts.push('nessun voto ne\' minuti: di questa partita sappiamo solo che risulta giocata');
-    }
-
-    return parts.join(' · ');
+  protected onWindow(value: number[] | number): void {
+    if (Array.isArray(value)) this.store.setWindow([value[0], value[1]]);
   }
 }
