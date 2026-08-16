@@ -3878,6 +3878,66 @@ per la fragilità, che sono due preferenze DICHIARATE e non due previsioni — e
 marchi «rientrato da poco» e «si infortuna spesso». Il numero grezzo del motore resta ottimista e visibile;
 il giudizio accanto dice perché non fidarsene.
 
+## 7-untricies. IL CANALE DELL'INVESTIMENTO CON L'INPUT RIPARATO: misurato, e ancora sotto il pavimento (16 agosto 2026)
+
+**Perché questa corsa esiste.** §7-quater chiudeva con «sistemare l'input prima di toccare il peso»: il
+canale legge il VALORE DI MERCATO, e quel valore era una fotografia per stagione — per Gonçalo Ramos non
+esisteva affatto, e Kolo Muani leggeva 20M contro i 18M di Gimenez in un'estate in cui uno dei due era
+costato 41,2M. L'input è stato riparato (spec «Novità v9.54»): la CURVA, letta **al giorno dell'asta**.
+
+### Prima della misura: il perimetro era un filtro di sopravvivenza, e andava allargato
+
+La curva era stata scaricata per i **quotati di oggi**. Per il foglio di oggi è il perimetro giusto; per
+l'harness è il difetto, perché «quotato nel 2026» vuol dire «ha ancora una carriera». Copertura dei quotati
+della stagione bersaglio, prima → dopo l'acquisizione allargata (`market --all-seasons`, 2.200 curve,
+61.894 punti, zero fallite):
+
+| | Tm7 | Tm4 | T0 | T1 | T2 | oggi |
+|---|---|---|---|---|---|---|
+| curva ≤ data d'asta (Serie A) | 7% → **77%** | 14% → 85% | 37% → 91% | 48% → 93% | 60% → 90% | 97% |
+| `market_values` (stagione di input) | 48% | 57% | 52% | 58% | 60% | 76% |
+
+Prima la copertura SALIVA con la recenza della finestra, che è la forma di un filtro di sopravvivenza ed è
+correlata con l'esito che il canale predice; dopo è piatta al 77-97% e batte `market_values` ovunque. Far
+girare lo sweep sulla prima sarebbe stato dargli ragione da solo.
+
+### Il verdetto: NON ADOTTATO su nessuna piattaforma
+
+Griglie **non ritoccate** (quelle di §7-quater e §7-septies), bersaglio `starts`, cross-fit leave-one-out.
+
+| | euro (4 finestre) | Serie A (6 finestre) |
+|---|---|---|
+| `value_weight` (effetto principale) — ottimo pooled | 0,2 *(interno)* | **0,3** *(interno)* |
+| cross-fit | 0,1 / 0,2 / 0,2 / 0,3 | **0,3 su 5 fold di 6** |
+| guadagno medio | +0,04% | **+0,26%** |
+| finestra peggiore | −0,19% | **+0,02%** *(tutte positive)* |
+| `investment_unplayed_value_wide` (forma condizionale) | media **−0,12%** | media **−0,30%** |
+| `investment_unplayed_marginal` (al netto del suo null) | −0,03% | −0,01% |
+
+**Sotto il pavimento dello 0,5%, quindi resta a zero.** Ed è la volta che ci è andato più vicino: su Serie A
+la curva pooled ha un minimo **interno** (0,19682 a peso 0 → 0,19629 a 0,3 → 0,19651 a 0,5), il cross-fit è
+quasi unanime e **ogni fold guadagna**. Mancano due decimi e mezzo di punto percentuale.
+
+**La forma CONDIZIONALE è peggio di prima, ed è un'informazione.** Prima leggeva 0,0% (il canale non si
+accendeva mai: senza valore non c'è lift); adesso che l'input c'è, accenderla **costa** — media −0,12% su
+euro e −0,30% su Serie A. Quindi «il lift solo dove i minuti non sono informativi» non è la forma giusta di
+questa idea: dove i minuti non ci sono, il valore di mercato non li sostituisce.
+
+### Che cosa questa corsa chiude, e la disciplina che la rende leggibile
+
+**L'attribuzione è a una variabile sola e verificata**: 60 parametri confrontati col report di otto ore
+prima (stesso codice, stessa griglia, stesse finestre), **8 cambiati e sono tutti e otto la famiglia del
+valore**. Nessun parametro adottato si muove — la stessa verifica che il gate fece quando `passes` fu
+allargato («0 verdetti di 120 cambiano»).
+
+**Si chiude la voce «sistemare l'input prima di toccare il peso»**: l'input è sistemato, il peso è stato
+misurato sulla griglia pre-registrata, e la risposta è no. Il canale resta a zero e la sua riga esce dalle
+cose da fare: quello che lo riaprirebbe non è un'altra misura di questo genere ma un dato che non abbiamo
+— gli INGAGGI, che è la stessa condizione che §7-quinquies aveva già dichiarato.
+
+**Una cosa che NON è stata rimisurata e va detta**: il FEE (§7-quater braccio B) esiste solo dal 2023 e
+quella corsa non lo tocca. Restava tre finestre allora e ne resta tre adesso.
+
 ## 8. Casi di regressione (in `model.REGRESSION_CASES`, stampati da `backtest --cases`)
 
 Lewandowski (età/minuti) · Wirtz (cambio lega) · Torres F. (propensione per-90) · Ezzalzouli (nuovo nel

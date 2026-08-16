@@ -214,6 +214,12 @@ pure (spec «Novità v9.34»): il SURPLUS mantra che era il VALORE, e `club_elo`
    che avrebbe visto Ramos e Kolo Muani. Misurato: fee mediana 6.5 M → residuo +0.074, 30 M → +0.058, esito
    reale 0.385 contro 0.402, e la fee esiste su **98 casi di 766**. «Fix the input before tuning the weight»
    resta giusto, l'input indicato no.
+   **CHIUSA il 16/08 — l'input giusto era la CURVA, ed è stato riparato: la risposta resta no.** Il valore
+   si legge al giorno dell'asta e la copertura delle finestre passate è salita dal 7-60% al 77-97%
+   (`market --all-seasons`, 2.200 curve). Rimisurato sulle griglie non ritoccate: Serie A da +0,14% a
+   **+0,26%**, ottimo INTERNO a 0,3, cross-fit unanime su 5 fold di 6, ogni fold positivo — e ancora sotto
+   il pavimento dello 0,5%. La forma condizionale peggiora (−0,12% euro, −0,30% Serie A). Quello che
+   riaprirebbe la voce sono gli INGAGGI, che non abbiamo. Dettaglio e tabelle: gate **§7-untricies**.
 6-bis. **DECISIONE APERTA — `desc_start_share` ha il denominatore sbagliato e non la legge nessuno.**
    `snapshot.titolarita` divide per le **sue presenze** e non per le giornate del campionato: scarto medio
    **+0.216**, e **51 righe su 516** (72 su 851 sull'euro) leggono **1.000** senza aver giocato il 90% del

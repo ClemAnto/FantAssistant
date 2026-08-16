@@ -1226,6 +1226,18 @@ Two more of the same family, both from the same session:
   Gimenez's 18M — equals, in the summer one of them cost 41.2M. The signal that would see them is the FEE
   (54% and 27% of what their clubs spent) and the new quotation (percentiles 0.95 and 0.94), and the fee arm
   has only three windows because fees exist from 2023. Fix the input before tuning the weight.
+  **DONE, and the answer is no** (16/08/2026, gate §7-untricies). The input was repaired — the market value
+  is now the last point of his CURVE on or before the auction day, and the acquisition was widened because
+  «quoted today» is a SURVIVORSHIP filter that covered 7% of Tm7's quoted men and 60% of T2's, a coverage
+  correlated with the very outcome the channel predicts (77-97% and flat after, `market --all-seasons`).
+  Re-swept on the untouched grids: Serie A's `value_weight` goes from +0.14% to **+0.26%**, with an
+  INTERIOR pooled optimum (0.3), a cross-fit unanimous on 5 folds of 6 and **every fold positive** - and
+  still under the 0.5% floor, so it stays at zero. The CONDITIONAL form is now actively worse (−0.12% euro,
+  −0.30% Serie A): where the minutes are missing, the market value does not replace them. Two habits the run
+  is worth keeping for: the attribution was verified at ONE variable (60 parameters compared with the report
+  of eight hours before, **8 changed and all 8 are the value family**, no adopted parameter moves); and what
+  would reopen this is not another measurement of the same kind but the WAGES, which is what §7-quinquies
+  had already declared.
 
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
