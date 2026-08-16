@@ -1337,3 +1337,26 @@ riguarda un'altra cosa — la scorciatoia che questo progetto paga. Quindi:
 - Il **consiglio d'asta resta legato al formato**, che è misurato, e non al selettore.
 
 Nomi da decidere insieme: «Surplus» resta, la seconda deve dire *in campo* (Resa, Margine in campo).
+
+### 21.2 La ricetta tecnica, così la prossima sessione non la ri-deriva
+
+Lo zero B non è un numero nuovo da fittare: è la **stessa funzione** con una profondità diversa.
+`features.replacement_levels(conn, platform, seasons, game, slots, teams)` prende il rango
+`teams × slots[ruolo]` dentro la pool dei regolari; oggi `slots` viene da `roster_depth`, cioè dagli slot
+di ROSA della lega (2+21, o 3/8/8/6). Per la B lo stesso rango si conta sui posti **SCHIERATI**, che sono
+una proprietà del regolamento e non della lega:
+
+  classic, dai sette moduli di `config/classic_modules.json` — 3-4-3, 3-5-2, 4-3-3, 4-4-2, 4-5-1, 5-3-2,
+  5-4-1 — la media dei posti per linea è **P 1 · D 4 · C 4 · A 2** (difesa 3+3+4+4+4+5+5 su 7 = 4,0;
+  centrocampo 4+5+3+4+5+3+4 = 4,0; attacco 3+2+3+2+1+2+1 = 2,0). Su dieci squadre il rango diventa
+  10/40/40/20 invece di 30/80/80/60.
+
+Che il conto sia giusto lo dice la verifica incrociata già fatta (§4-bis di
+[letture-app-v1.md](letture-app-v1.md)): il rango `squadre × posti schierati` e la SIMULAZIONE della
+stagione danno **P 5,03/5,01 · D 5,81/6,11 · C 6,30/6,37 · A 6,87/6,79** — due strade indipendenti che si
+incontrano al secondo decimale. Su mantra i posti schierati vanno presi dagli undici schemi allo stesso
+modo, ed è l'unico pezzo in più.
+
+Ordine dei lavori: `features` restituisce anche `replacement_fielded` → `snapshot.auction_level` lo legge
+con la stessa cascata (una riga in più, non una seconda) → due colonne nuove sul foglio
+(`desc_replacement_fielded`, `desc_surplus_fielded`) → `export.SHEET_COLUMNS` → l'app.
