@@ -19,6 +19,7 @@ PIPELINE: tuple[str, ...] = (
     "fc_site",
     "transfers",
     "injuries",
+    "market",       # dopo `injuries`: i tm_id sono suoi
     "fbref",
     "positions",
     "fixtures",

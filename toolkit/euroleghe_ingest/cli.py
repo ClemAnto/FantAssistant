@@ -171,6 +171,16 @@ def build_parser() -> argparse.ArgumentParser:
                            help="OFFLINE: re-apply every cached listone (one file per platform and "
                                 "season) so `listone_quotes` carries the quotation of each listone "
                                 "separately - zero requests, no votes touched")
+        if name == "market":
+            p.add_argument("--limit", type=int, metavar="N",
+                           help="only the N most valuable quoted players - which is how a pilot run "
+                                "verifies the route before it is paid for on a thousand")
+            p.add_argument("--refresh", action="store_true",
+                           help="re-download a curve already cached: the series GROWS, so a cached "
+                                "file is short rather than wrong, and only the caller knows if it is "
+                                "worth re-asking")
+            p.add_argument("--from-cache", dest="from_cache", action="store_true",
+                           help="OFFLINE: re-read the curves already downloaded, zero requests")
         if name == "recent_form":
             p.add_argument("--season", action="append", metavar="YYYY-YY",
                            help="target listone season (repeatable; default: all but the first)")
@@ -341,6 +351,11 @@ def main(argv: list[str] | None = None) -> int:
             elif args.command == "injuries":
                 load("injuries").run(ctx, seasons=args.season, layer=args.layer,
                                      limit=args.limit, refresh=args.refresh)
+            elif args.command == "market":
+                if args.from_cache:
+                    load("market").reingest_from_cache(ctx)
+                else:
+                    load("market").run(ctx, limit=args.limit, refresh=args.refresh)
             elif args.command == "recent_form":
                 load("recent_form").run(ctx, seasons=args.season, wanted=args.matches,
                                         bonuses=args.bonuses, limit=args.limit,

@@ -74,7 +74,7 @@ class _QueueWriter:
 #   weekly  = as the season goes: new ratings, the round they map to, the external layer, the checks
 OPERATION_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Setup - once", ("initdb", "bootstrap", "rebuild", "fetch:plan")),
-    ("Start of season", ("rosters", "stats", "elo", "transfers", "injuries", "tournaments",
+    ("Start of season", ("rosters", "stats", "elo", "transfers", "injuries", "market", "tournaments",
       "arrivals", "recent_form", "fbref")),
     ("During the season - every matchday",
      ("ratings", "matchdays", "positions", "synth", "fc_site", "fixtures", "validate")),
@@ -147,6 +147,12 @@ TOOLTIPS: dict[str, str] = {
                 "with the matches actually missed) plus the contract-expiry snapshot (exit_risk). "
                 "The per-player walk takes hours and is resumable; contract expiry exists only for "
                 "TODAY - a past season's page does not carry it.",
+    "market": "Load the market-value CURVE per player from Transfermarkt's own JSON endpoint -> "
+              "market_value_history: every change with its date, the club and the age of the time. It "
+              "is not `market_values`, which holds ONE value per season and cannot say whether a man "
+              "was rising or falling - nor what he was worth on the day of the auction. One request "
+              "per quoted player (about an hour), resumable, and a man with two Transfermarkt ids is "
+              "skipped rather than blended.",
     "elo": "Load club strength from ClubElo into club_elo at the auction dates (feeds R19, the level "
            "channel: the ORIGIN club's Elo moves the appearances of a man who changed club).",
     "validate": "Run integrity checks on the database (e.g. no entirely-null column) and fail loudly if "
@@ -215,6 +221,7 @@ OUTPUT_COUNTER: dict[str, str] = {
     "tournaments": "tournaments_squads",
     "transfers": "coaches",
     "injuries": "injuries",
+    "market": "market_value_history",
     "arrivals": "arrivals",
     "elo": "club_elo",
     "press": "press_formations",

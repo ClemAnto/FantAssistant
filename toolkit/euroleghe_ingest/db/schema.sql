@@ -486,6 +486,26 @@ CREATE TABLE IF NOT EXISTS market_values (
     PRIMARY KEY (fc_id, season, source)
 );
 
+-- La CURVA del valore di mercato: ogni variazione con la sua data, non un punto per stagione.
+--
+-- `market_values` sopra tiene un valore per stagione (quello che la pagina della rosa mostra) e non sa
+-- dire se un uomo stava salendo o scendendo, ne' quanto valeva IL GIORNO dell'asta. Questa lo sa: e' la
+-- serie che Transfermarkt disegna nel grafico, letta dal suo endpoint JSON e non dall'HTML.
+--
+-- `observed_on` e' la data in cui il valore E' STATO FISSATO dalla fonte, non il giorno in cui l'abbiamo
+-- scaricato: due cose diverse, e questa e' quella che serve per leggere il valore a una data passata.
+-- `club` ed `age` sono quelli DI ALLORA - la fonte li porta su ogni punto - percio' non vanno raggiunti
+-- con un join su oggi.
+CREATE TABLE IF NOT EXISTS market_value_history (
+    fc_id       INTEGER NOT NULL REFERENCES players(fc_id),
+    observed_on TEXT NOT NULL,
+    source      TEXT NOT NULL DEFAULT 'transfermarkt',
+    value       REAL,                      -- euro
+    club        TEXT,                      -- il club di allora, come lo scrive la fonte
+    age         INTEGER,                   -- l'eta' di allora
+    PRIMARY KEY (fc_id, observed_on, source)
+);
+
 CREATE TABLE IF NOT EXISTS injuries (
     fc_id      INTEGER NOT NULL REFERENCES players(fc_id),
     start_date TEXT NOT NULL,

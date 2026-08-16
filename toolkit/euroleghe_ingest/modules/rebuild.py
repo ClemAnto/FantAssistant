@@ -72,6 +72,7 @@ def run(ctx: Context, *, include_network: bool = False, **kwargs) -> None:
     load("tournaments").reingest_from_cache(ctx)         # who played which tournament, offline
     load("transfers").reingest_from_cache(ctx)           # clubs, coaches (new_coach), transfers
     load("injuries").reingest_from_cache(ctx)            # tm ids, dated absences, contract snapshot
+    load("market").reingest_from_cache(ctx)              # la curva del valore (dopo: usa i tm id)
     load("elo").reingest_from_cache(ctx)                 # club strength at the auction dates
     load("synth").run(ctx)                               # calibrated synthetic base voto (needs the map)
     load("arrivals").run(ctx)   # roster diff needs the backfilled clubs
