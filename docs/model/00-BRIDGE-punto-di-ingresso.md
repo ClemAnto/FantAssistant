@@ -70,10 +70,17 @@ archiviare.
 
 **Cosa resta aperto**, in ordine di quanto costa: il SURPLUS del foglio usa ancora il marginale di rosa e
 quindi **sopravvaluta di mezzo punto** quello che un giocatore aggiunge (è lavoro di motore su dieci
-finestre); la griglia allargata del canale rientro (150/180/240 su euro, pre-registrata); i minuti per
-competizione e in nazionale, **bloccati da un muro di consenso** su Transfermarkt (il valore invece passa
-da un endpoint JSON); le coppe da Sofascore, **403 da tutti gli endpoint**; l'uso della curva del valore,
-che è acquisita e non la legge ancora nessuno.
+finestre); l'item **4.5** (`engine_pv_pred` deve leggere le giornate giocate se l'asta è a stagione
+iniziata: +0,443, il segnale più grosso della campagna draft); i minuti per competizione e in nazionale,
+**bloccati da un muro di consenso** su Transfermarkt (il valore invece passa da un endpoint JSON); le
+coppe da Sofascore, **403 da tutti gli endpoint**; la TENDENZA della curva del valore, che è acquisita e
+non la legge ancora nessuno.
+**Due voci si sono CHIUSE il pomeriggio del 16/08, e tutte e due con un no**: il canale
+dell'investimento con l'input riparato (gate §7-untricies: Serie A +0,26% con ottimo interno e ogni fold
+positivo, sotto il pavimento dello 0,5%; la forma condizionale adesso COSTA) e la griglia allargata del
+rientro (§7-tricies: l'ottimo scappa al bordo anche a 240 giorni, e a quella distanza il canale sta
+comprando la storia infortuni che `injury_weights` legge già — mediana delle giornate perse 12,9 contro
+1,9 fra chi rientra entro 120 giorni e chi oltre 240).
 
 **Dove siamo, in cinque righe.** Il 14/08 ha chiuso **quattro item in un giorno** (5, 6, 7, 8 di
 `todolist-draft-v1.md`): il TREND delle ultime dieci REALI col giudizio 0-99, chi ha guadagnato o perso

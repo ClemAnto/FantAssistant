@@ -3865,9 +3865,39 @@ finestre (150, 180, 240 giorni) su euro. Se l'ottimo resta al bordo anche lì, l
 finestra più lunga» ma «questo canale sta misurando qualcos'altro» — probabilmente il fatto che uno stop
 recente e lungo è anche un indicatore di quanti giorni ha già perso, che `injury_weights` legge di suo.
 
-**Stato: pre-registrata, misurata, SPENTA.** Il codice resta - il canale è a peso zero e non muove un
-decimale (`backtest --verify` invariato) - perché una griglia allargata è una riga di sweep e non un
-modulo da riscrivere.
+### Il follow-up ESEGUITO (16 agosto 2026, sera): l'ottimo scappa al bordo un'altra volta
+
+Griglia allargata esattamente come dichiarato sopra — finestre 150, 180, 240 giorni, stessi tre pesi — più
+`(120, 0.20)`, che mancava dalla griglia originale ed era un buco e non una scelta.
+
+| | euro (4 finestre) | Serie A (6 finestre) |
+|---|---|---|
+| migliore pooled | **240/0,2** — di nuovo il BORDO | **240/0,05** — di nuovo il bordo |
+| cross-fit | 240 su 4 fold di 4 | 240 su 6 fold di 6 |
+| guadagno medio | **+1,06%** (era +0,56%) | +0,08% |
+| finestra peggiore | −1,25% | −1,08% |
+| strict / robust | no / **sì** | no / no |
+
+**E la lettura è quella scritta PRIMA della corsa, non una trovata dopo**: l'errore pooled scende in modo
+**monotono** con la finestra (0,22712 a canale spento → 0,22388 a 240 giorni) e l'ottimo corre al bordo
+ovunque lo si sposti. Una finestra di 240 giorni non dice più «è rientrato da poco»: dice «ha avuto uno
+stop lungo negli ultimi otto mesi», che è un'altra cosa e che `injury_weights` legge già di suo.
+
+**Misurato invece che raccontato**, sui 509 uomini del foglio Serie A con un rientro datato — mediana delle
+giornate perse (pesate, tre stagioni):
+
+| rientro entro 120 giorni | fra 120 e 240 | oltre 240 |
+|---|---|---|
+| **12,9** (n=127) | 9,2 (n=155) | **1,9** (n=227) |
+
+Chi la finestra lunga accende è chi ha la storia infortuni pesante, e il canale sta comprando quella. È la
+stessa famiglia della lezione dell'ETÀ (§7-quinvicies): *un canale che passa perché ripesca un'informazione
+che il modello ha già non è un canale nuovo, è la stessa evidenza contata due volte.*
+
+**Stato: pre-registrata, misurata due volte, SPENTA per sempre.** Il codice e la griglia allargata restano
+- il canale è a peso zero e non muove un decimale (`backtest --verify` invariato) - ma la voce esce dalle
+cose da fare: non c'è una terza griglia da provare, perché il difetto non è la taglia della finestra.
+Controllo di attribuzione: **0 altri parametri su 60 si muovono** fra le due corse.
 
 ### E che cosa resta del caso Berisha
 

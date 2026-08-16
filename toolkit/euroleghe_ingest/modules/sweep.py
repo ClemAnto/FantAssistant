@@ -82,9 +82,25 @@ GRIDS: dict[str, tuple] = {
     # Il rifiuto lo esprime lo 0, che e' nella griglia e che e' l'incumbente.
     # Le finestre: 60 giorni sono due mesi (un rientro estivo pieno), 90 un trimestre, 120 quattro mesi.
     # I pesi: 0,05 di stagione sono due giornate, 0,20 sono otto - oltre, il termine deciderebbe da solo.
+    #
+    # ALLARGATA il 16/08/2026, ed e' il FOLLOW-UP PRE-REGISTRATO della corsa precedente, non una griglia
+    # ritoccata dopo aver visto la curva: su euro il punto vincente era `120/0.1`, cioe' al BORDO sulla
+    # dimensione della finestra, e la regola di casa dice che un parametro al bordo non si adotta. Il gate
+    # (§7-tricies) aveva scritto prima della misura che cosa fare - «griglia allargata sulle finestre (150,
+    # 180, 240) su euro» - e anche come leggere l'esito: se l'ottimo resta al bordo anche li', la lettura
+    # non e' «serve una finestra piu' lunga» ma «questo canale sta misurando qualcos'altro», probabilmente
+    # il fatto che uno stop recente e lungo dice anche quanti giorni ha gia' perso, che `injury_weights`
+    # legge di suo.
+    #
+    # `(120, 0.20)` mancava dalla griglia originale e viene aggiunto qui: era un BUCO e non una scelta - i
+    # pesi sono 0,05/0,10/0,20 su ogni altra finestra - e lasciarlo fuori mentre si aggiunge `(150, 0.20)`
+    # renderebbe la griglia irregolare proprio nella zona che si sta guardando.
     "return_recency": ((90.0, 0.0), (60.0, 0.05), (60.0, 0.10), (60.0, 0.20),
                        (90.0, 0.05), (90.0, 0.10), (90.0, 0.20),
-                       (120.0, 0.05), (120.0, 0.10)),
+                       (120.0, 0.05), (120.0, 0.10), (120.0, 0.20),
+                       (150.0, 0.05), (150.0, 0.10), (150.0, 0.20),
+                       (180.0, 0.05), (180.0, 0.10), (180.0, 0.20),
+                       (240.0, 0.05), (240.0, 0.10), (240.0, 0.20)),
     "standing_weights": ((1.0, 0.0), (0.8, 0.2), (0.65, 0.35), (0.5, 0.5), (0.35, 0.65), (0.0, 1.0)),
     "contested_from": ("measured", "forecast"),
     # THE INVESTMENT HYPOTHESIS (pre-registered 29/07/2026, gate 7-quater). Both weights start at 0 = off,
