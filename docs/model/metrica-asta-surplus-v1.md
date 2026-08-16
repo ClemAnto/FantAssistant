@@ -1311,3 +1311,29 @@ allora: quel rifiuto era condizionato alla base di carriera, e con `FM att.` com
 l'obiezione nota non lo blocca — quindi il gate vale la corsa. Le due domande restano due
 («chi conviene comprare» contro «quanto costa una giornata saltata») e la scelta va fatta in chiaro
 prima di misurare, non dopo aver visto quale delle due vince.
+
+### 21.1 DECISO (16 agosto 2026): due colonne, non una scelta
+
+L'operatore ha chiesto se si potessero adottare **tutt'e due** con un interruttore, e poi se legarlo al
+tipo d'asta. La risposta concordata, e le due cose vanno tenute distinte perché una ha già una misura:
+
+| asse | che cosa decide | chi lo decide |
+|---|---|---|
+| Fantapunti ↔ Surplus | **con che moneta compri** | il **FORMATO**, ed è misurato (§16: in un draft la moneta è il valore, il surplus perde −4,0%) |
+| zero A ↔ zero B | **rispetto a chi lo misuri** | **la domanda**, e non è misurabile: sono due domande diverse |
+
+Legare A/B all'etichetta «rilanci/draft» attaccherebbe a una scelta non misurata un verdetto che
+riguarda un'altra cosa — la scorciatoia che questo progetto paga. Quindi:
+
+- **`engine_surplus` non si tocca**: è gated, dieci finestre ci stanno sopra, `captured_value` lo legge.
+- **La seconda colonna nasce REPORTING**, con il suo zero dichiarato in cella, come SpM/dVM. Niente gate:
+  non muove un decimale di `engine_*`.
+- **Tutt'e due VISIBILI**, spegnibili dal selettore «Colonne» (e la nuova nasce accesa, per la regola
+  delle preferenze salvate). Vederle affiancate insegna in tre secondi la cosa che nessuna delle due dice
+  da sola: quanto del valore di un attaccante è merito suo e quanto è merito del fatto che i riempitivi
+  del suo ruolo sono pessimi. Chi sta in alto in tutt'e due è forte davvero.
+- **Si sceglie soltanto per QUALE delle due si ordina**, e rango e statistiche del blocco seguono quella —
+  la regola degli estimati (§7-undecies del gate: una lista scelta, ogni cifra calcolata da quella).
+- Il **consiglio d'asta resta legato al formato**, che è misurato, e non al selettore.
+
+Nomi da decidere insieme: «Surplus» resta, la seconda deve dire *in campo* (Resa, Margine in campo).
