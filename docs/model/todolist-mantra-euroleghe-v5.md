@@ -10,14 +10,25 @@ adottate quel giorno: la costanza centrata sul RUOLO e a peso 2, l'Overall allin
 dentro il ruolo, la base spostata su `FM att.`, l'icona della porta inviolata come fatto del CLUB. Aperti
 che ne nascono, in ordine di quanto costano:
 
-- [ ] **`season_stats.clean_sheets`** — derivabile da `match_ratings` su tutte e 11 le stagioni, nessun
-  provider di mezzo (colonna + `ADDED_COLUMNS` + ri-derivazione + export). Finché non c'è, il `+1` della
-  porta inviolata è prezzato dal lettore dell'app e vale **zero**.
-- [ ] **Storico del valore di mercato** — `transfermarkt.it/ceapi/marketValueDevelopment/graph/{pid}`,
-  provato il 16/08/2026: JSON pulito, 42 punti datati per Stones con club ed età, nessun muro di consenso.
-  Il DB ha già `market_values` ma con **un valore per stagione**: manca la CURVA, che è anche l'input che
-  il gate segnalava rotto («sistemare l'input prima di toccare il peso»). Identità già risolta in
-  `player_xref` dal modulo infortuni.
+- [x] **`season_stats.clean_sheets`** — FATTO: 970 stagioni-portiere, **4.872** porte inviolate, che è
+  esattamente il numero che il commento del `scoring_config` cita. Tre guardie (solo `played`, solo col
+  voto, e NULL per chi il layer non copre) e un disaccordo fra le fonti dichiarato invece che ritagliato.
+- [ ] **Allineare il punteggio della lega anche nel motore.** Bonus/Malus prezza la porta inviolata,
+  l'Overall parte da `FM att.` che è nel punteggio della FONTE: ognuna coerente con sé, le due non dicono
+  lo stesso numero su un portiere. Allinearle davvero vuol dire rifare `engine_fm_pred` e
+  `engine_replacement_fm` col punteggio della lega — dieci finestre di gate, non una riga.
+- [ ] **Il SURPLUS del foglio usa il marginale di ROSA**, quindi sopravvaluta di **mezzo punto** quello
+  che un giocatore aggiunge: misurato per due strade il 16/08/2026 (`letture-app-v1.md` §4-bis). È lo
+  zero della metrica del progetto, quindi si cambia solo con il gate sulle dieci finestre.
+- [ ] **Griglia allargata per la recenza del rientro** (150/180/240 giorni, su euro): pre-registrata il
+  16/08/2026 perché l'ottimo era al bordo. Se resta al bordo anche lì, la lettura non è «serve più
+  finestra» ma «sta misurando qualcos'altro» — gate §7-tricies.
+- [x] **Storico del valore di mercato** — FATTO: modulo `market`, **1.055 curve e 22.269 punti** dal 2005,
+  zero fallite. Tutti i 1.058 quotati hanno un valore alla data d'asta e 1.056 ne hanno due o più
+  nell'ultimo anno, cioè una tendenza leggibile. **Non viaggia nel bundle**: nessuno lo legge ancora.
+- [ ] **Usare la curva del valore.** Due strade molto diverse: una lettura di TENDENZA accanto all'FVM
+  nell'app (serve aggiungerla a `export.CONTRACT`), oppure rimisurare il **canale dell'investimento** del
+  gate, che era rimasto lì proprio perché l'input era rotto. La seconda è il motivo per cui è stata presa.
 - [ ] **Minuti per competizione e in nazionale (Transfermarkt)** — le pagine rispondono 200 ma la tabella
   **non è nell'HTML**: muro di consenso, dati solo dopo. Il prefisso `/x/` che salva gli infortuni lì non
   basta (quattro forme provate). Prossimo passo: **registrare le chiamate della pagina** dopo il consenso

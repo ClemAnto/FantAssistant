@@ -1,5 +1,5 @@
 # 00 — BRIDGE · Punto d'ingresso del progetto (leggere per primo)
-**Aggiornato: 14 agosto 2026, notte (il TREND delle ultime dieci, CHI HA GUADAGNATO IL POSTO, «preso per titolare ruotato di fatto» e il suo SPECCHIO: item 5, 6, 7 e 8 chiusi lo stesso giorno)** · precedente: 10 agosto, notte tarda (la todolist del draft ESEGUITA, il campetto legge la board del toolkit ed e' rifinito, v0.1.8 pushata)** · precedente: 10 agosto, giorno (l'assistente d'asta e' completo — porte, surplus vivo, scelta consigliata — e la campagna sulle strategie di draft ha RITIRATO due conclusioni)** · precedente: 9 agosto (l'app esiste: Angular, pubblicata su GitHub Pages, legge il bundle del toolkit)** · 8 agosto (DUE GIUDICI per le formazioni tipo — la stampa e l'ESITO reale — e la todolist formazioni tipo chiusa: cinque adozioni, sei rifiuti misurati)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
+**Aggiornato: 16 agosto 2026 (le CINQUE LETTURE dell'app con un documento proprio, lo zero che diventa il rimpiazzo che ENTRA, due dati nuovi — porte inviolate e curva del valore — e tre ipotesi rifiutate dalla misura; v0.1.11)** · precedente: 14 agosto 2026, notte (il TREND delle ultime dieci, CHI HA GUADAGNATO IL POSTO, «preso per titolare ruotato di fatto» e il suo SPECCHIO: item 5, 6, 7 e 8 chiusi lo stesso giorno)** · precedente: 10 agosto, notte tarda (la todolist del draft ESEGUITA, il campetto legge la board del toolkit ed e' rifinito, v0.1.8 pushata)** · precedente: 10 agosto, giorno (l'assistente d'asta e' completo — porte, surplus vivo, scelta consigliata — e la campagna sulle strategie di draft ha RITIRATO due conclusioni)** · precedente: 9 agosto (l'app esiste: Angular, pubblicata su GitHub Pages, legge il bundle del toolkit)** · 8 agosto (DUE GIUDICI per le formazioni tipo — la stampa e l'ESITO reale — e la todolist formazioni tipo chiusa: cinque adozioni, sei rifiuti misurati)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
 
 ## Il progetto in breve
 Motore previsionale per fantacalcio **EuroLeghe** (fantacalcio.it): valutazione calciatori Classic e Mantra sui 5 grandi campionati europei (Serie A, Premier, Liga, Bundesliga, Ligue 1 — perimetro: i ~35 top club del gioco). Prevede fantamedia (FM), presenze attese e VALORE stagionale = FM × presenze. Metodo scientifico: **ogni regola entra nel motore solo se batte il baseline fuori campione su finestre indipendenti** (gate pre-registrato). Stato: core validato (Mantra, Classic, portieri, presenze); manca lo strato flag/arrivi, sbloccato dal toolkit dati `euroleghe-ingest` (in implementazione).
@@ -19,7 +19,9 @@ La knowledge base è ora nel repo git **`FantAssistant`**, cartella **`docs/mode
 `00-BRIDGE` (questo) → `stato-progetto-continuita-v5.md` → `todolist-mantra-euroleghe-v5.md` →
 **`gate-motore-v1.md`** (protocollo del gate, verdetti, ipotesi falsificate: leggerlo prima di
 proporre qualsiasi regola) → **`metrica-asta-surplus-v1.md`** (con cosa il pannello ordina, e perché non
-è VALORE) → **`assistente-asta-v1.md`** (cosa l'assistente fa al tavolo: tre domande, tre numeri, e le
+è VALORE) → **`letture-app-v1.md`** (le cinque colonne 0-99 della consultazione: reporting, senza gate,
+ogni soglia misurata — e le alternative RIFIUTATE coi loro numeri, che è la parte che fa risparmiare una
+serata) → **`assistente-asta-v1.md`** (cosa l'assistente fa al tavolo: tre domande, tre numeri, e le
 regole di UI che sono requisiti) → **`todolist-draft-v1.md`** (il piano per i suggerimenti del draft e per le
 formule di valore/surplus, nato dalla campagna a cinque finestre del 10/08/2026, ordinato per resa misurata:
 leggerlo prima di riproporre una strategia) → `spec-euroleghe-ingest-v9.md` → `nota-modello-set-pieces-v2.md` →
@@ -30,9 +32,48 @@ con la stampa dell'08/08/2026, ordinato per resa misurata).
 L'altra fase, quella settimanale, è **`formazione-settimanale-v1.md`** (progetto): chi gioca domenica, perché
 la pagina delle probabili non basta e quali vincoli valgono già oggi.
 
-## STATO AL 14 AGOSTO 2026 — LEGGI QUESTO PRIMA DI TUTTO
+## STATO AL 16 AGOSTO 2026 — LEGGI QUESTO PRIMA DI TUTTO
 
 Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
+
+**Dove siamo, in cinque righe.** La giornata del 15-16/08 è stata quasi tutta **sull'app**: la tabella di
+consultazione ha ora **cinque letture 0-99** con un documento proprio,
+[letture-app-v1.md](letture-app-v1.md), che è dove va guardato prima di toccarle. `engine_*` invariato
+(`backtest --verify` **22/22**), **407 test toolkit + 248 app**, **v0.1.11 pubblicata** con bundle reale.
+Due dati NUOVI in casa: `season_stats.clean_sheets` (970 stagioni-portiere, 4.872 porte inviolate) e
+`market_value_history` (**1.055 quotati, 22.269 punti** dal 2005, la CURVA del valore e non un punto per
+stagione). Un canale pre-registrato e **rifiutato** (§7-tricies del gate). E un difetto di identità curato
+che toccava il tavolo: **28 id Transfermarkt di omonimi scartati, 3.951 giorni di infortunio tolti a chi
+non li aveva**.
+
+**Le quattro decisioni sull'Overall**, tutte misurate e tutte in `letture-app-v1.md`:
+1. la **costanza** è centrata sul RUOLO e non sul listone (mediane 0,86 / 0,65 / 0,61 / 0,57: il centro
+   unico regalava +0,11 di fantamedia a ogni portiere per il fatto di essere un portiere) e pesa 2;
+2. i **ruoli sono allineati** con uno z dentro il ruolo classificato su tutto il listone — e la
+   standardizzazione è a **mediana e MAD**, perché con lo zero nuovo le distribuzioni si sbilanciano;
+3. la base è **`FM att.`** e non la fantamedia di carriera (caso Gila: 45 → 55);
+4. lo zero è il **rimpiazzo che ENTRA** e non il marginale di rosa — misurato per due strade
+   indipendenti (P 5,01/5,03 · D 6,11/5,81 · C 6,37/6,30 · A 6,79/6,87 contro 4,13/5,66/5,87/5,61 del
+   foglio) e derivato dalla pool, non incollato.
+
+**Tre cose rifiutate dalla misura**, e vanno lette prima di riproporle: la porta inviolata come merito
+dell'**allenatore** (scarto 0,155 contro un null di 0,094); il **calo di FM dopo un lungo infortunio**
+(−0,034 di eccesso su 310 rientri, mediana 0,000 — Chiesa e De Bruyne sono la coda); la **recenza del
+rientro** sulle presenze (robust su euro ma al BORDO della griglia, e negativa su `default`, che è la
+piattaforma del caso che l'ha generata).
+
+⚠️ **Un numero RITIRATO il 16/08**: il confronto delle board con l'articolo Transfermarkt del 14/08 (7/20,
+e i due giudici 7/20 fra loro). Verificato scaricando la pagina: **non contiene i moduli**, e l'elenco su
+cui i conti erano fatti veniva dal riassunto automatico del fetch, che li aveva *dedotti*. Quello che la
+pagina porta davvero — ballottaggi, rigoristi, giocatori in bilico — è un giudice diverso e ancora da
+archiviare.
+
+**Cosa resta aperto**, in ordine di quanto costa: il SURPLUS del foglio usa ancora il marginale di rosa e
+quindi **sopravvaluta di mezzo punto** quello che un giocatore aggiunge (è lavoro di motore su dieci
+finestre); la griglia allargata del canale rientro (150/180/240 su euro, pre-registrata); i minuti per
+competizione e in nazionale, **bloccati da un muro di consenso** su Transfermarkt (il valore invece passa
+da un endpoint JSON); le coppe da Sofascore, **403 da tutti gli endpoint**; l'uso della curva del valore,
+che è acquisita e non la legge ancora nessuno.
 
 **Dove siamo, in cinque righe.** Il 14/08 ha chiuso **quattro item in un giorno** (5, 6, 7, 8 di
 `todolist-draft-v1.md`): il TREND delle ultime dieci REALI col giudizio 0-99, chi ha guadagnato o perso

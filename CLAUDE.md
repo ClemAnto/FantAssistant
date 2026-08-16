@@ -486,6 +486,29 @@ the 31st) spreads the keepers three times better and was REFUSED because it send
 while leaving Esposito F.P. at 79 — exactly the ordering he had corrected the day before. Details and
 every refused variant: [docs/model/letture-app-v1.md](docs/model/letture-app-v1.md).
 
+## The zero of a metric is a question, and there is more than one question
+**16/08/2026, and the operator found it by asking a schoolboy question**: over three matches, is a
+midfielder who scores 6.5 / 7 / does-not-play better than one who scores 6.5 / 7 / 6? The answer is not
+19.5 against 13.5, because a missed round is not a zero — a substitute comes on. So everything depends on
+what the bench is worth, and the sheet's `engine_replacement_fm` is the marginal ROSTERED man (the 80th
+midfielder of a ten-team league) while what actually enters is **the best of your own who has a vote that
+day**. Measured two independent ways — simulating the season (ten squads, snake rosters, field the best
+with a vote) and taking the rank `teams × places FIELDED` — the two agree: **P 5.01/5.03 · D 6.11/5.81 ·
+C 6.37/6.30 · A 6.79/6.87**, against the sheet's 4.13 / 5.66 / 5.87 / 5.61. Half a point.
+Three things the simulation settled that an armchair estimate gets wrong. It is not a mean but a
+**maximum** — you pick the best of the spares, not one at random. The bench is shorter than it looks: of
+eight midfielders you have **5.3 available on average and all eight on 3% of rounds**, so that maximum is
+taken over ~2.3 men. And the value DECAYS with the number of holes (6.46 with one, 6.30 with two, 5.88
+with three) until, with three, it lands on the sheet's own number: **the sheet's replacement is the value
+of your bench on the worst day**, which happens 2% of the time. League size barely moves it (6.42 → 6.28
+from 8 to 12 teams) because the binding constraint is availability, not the depth of the listone.
+The durable lesson is not the number. It is that **`engine_replacement_fm` and «what enters» are two
+zeros for two questions** — «who should I buy» against «what does a missed round cost» — and the same
+change is right for one and wrong for the other: the fielded zero, adopted in the app's Overall, had been
+REFUSED hours earlier because it broke a ruling the operator had already made, and it stopped breaking it
+only once the Overall's base moved to `FM att.`. A refusal is conditional on everything else that was
+true when it was made, and re-measuring after a change is not re-litigating.
+
 ## A provider that stops answering is a measurement, not an obstacle
 **16/08/2026.** A `--refresh` over 93 clubs left Sofascore returning **403 `challenge`** on every
 endpoint, and the run that caused it brought only the current season — so the story told the night

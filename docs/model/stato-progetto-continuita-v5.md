@@ -1,5 +1,5 @@
 # Stato progetto & continuità — v5
-**Aggiornato: 14 agosto 2026, notte (QUATTRO item chiusi in una giornata: il TREND delle ultime dieci REALI, chi ha guadagnato o perso il posto, «preso per titolare ruotato di fatto» e il suo specchio — v0.1.10 pubblicata)**
+**Aggiornato: 16 agosto 2026 (le CINQUE LETTURE dell'app, lo zero che diventa il rimpiazzo che ENTRA, porte inviolate e curva del valore acquisite, tre ipotesi rifiutate e un numero ritirato — v0.1.11 pubblicata)** · precedente: 14 agosto 2026, notte (QUATTRO item chiusi in una giornata: il TREND delle ultime dieci REALI, chi ha guadagnato o perso il posto, «preso per titolare ruotato di fatto» e il suo specchio — v0.1.10 pubblicata)**
 Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da qui + i file della cartella "Modello Previsionale Fantacalcio".
 *Glossario: T1/T2 = finestre di test (23/24->24/25, 24/25->25/26) · MAE = errore medio assoluto · cross-fitted = parametri stimati su una finestra, testati sull'altra · M2e = modello portieri decomposto (abilità + tasso gol subiti del club; la metà Elo del nome non è nel motore) · Pv_att = presenze attese · fc_id = id fantacalcio.it · EV = valore atteso · scoring_config = punteggi configurabili per lega · xG/xA = expected goals/assists · 2.5 pieno = backtest motore completo con flag.*
 
@@ -7,6 +7,41 @@ Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da q
 App per leghe EuroLeghe/fantacalcio.it (Classic+Mantra, 5 campionati) con motore previsionale. Metodo: ogni regola entra SOLO se batte il baseline fuori campione su finestre indipendenti (gate pre-registrato). Doc madre: modello-previsionale-v3.8.md.
 
 ## ⚠️ Lo stato corrente è in `00-BRIDGE-punto-di-ingresso.md`, blocco «STATO AL 5 AGOSTO 2026»
+
+### 16 agosto 2026, in una riga: le letture dell'app hanno una casa, e lo zero cambia natura
+
+Documento proprio: [letture-app-v1.md](letture-app-v1.md). `engine_*` invariato (`backtest --verify`
+**22/22**), **407 test toolkit + 248 app**, **v0.1.11 pubblicata**. Dodici commit.
+
+1. **L'OVERALL, quattro decisioni misurate.** La costanza centrata sul RUOLO (il centro unico regalava
+   +0,11 di fantamedia a ogni portiere per il fatto di esserlo) e a peso 2; i ruoli allineati con uno z
+   dentro il ruolo, standardizzato a **mediana e MAD**; la base spostata su **`FM att.`** (Gila 45 → 55);
+   e lo zero che diventa il **rimpiazzo che ENTRA** invece del marginale di rosa.
+2. **Lo zero, e come ci si è arrivati.** È partito da una domanda dell'operatore («su tre partite, meglio
+   6,5/7/non gioca o 6,5/7/6?») e la risposta ha richiesto di misurare chi entra davvero: simulando la
+   stagione (dieci squadre, rose a serpentina, si schierano i migliori che hanno il voto) e per l'altra
+   via col rango `squadre × posti schierati`. **P 5,01/5,03 · D 6,11/5,81 · C 6,37/6,30 · A 6,79/6,87**
+   contro il 4,13/5,66/5,87/5,61 del foglio. Non è una media ma un **massimo**, preso su una panchina
+   corta (di otto centrocampisti ne hai **5,3** disponibili, tutti e otto il **3%** delle giornate), e
+   decade coi buchi (6,46 / 6,30 / 5,88) fino a coincidere col foglio quando ne mancano tre: **il numero
+   del foglio è il valore della panchina nel giorno peggiore**. La dimensione della lega quasi non conta
+   (da 8 a 12 squadre: 6,42 → 6,28), perché il vincolo che morde è la disponibilità e non la profondità.
+3. **Due dati nuovi.** `season_stats.clean_sheets` (970 stagioni-portiere, **4.872** porte inviolate — lo
+   stesso numero che il `scoring_config` cita, cioè una conferma da un'altra strada) e
+   `market_value_history` (**1.055 quotati, 22.269 punti** dal 2005: la CURVA e non un punto per
+   stagione, presa da un endpoint JSON senza muro di consenso).
+4. **Un difetto di identità che toccava il tavolo.** 31 fc_id portavano due o più id Transfermarkt e per
+   28 di loro erano stati scaricati gli infortuni di OGNI id: **48% con spell sovrapposti contro il 14%**
+   di tutti gli altri. Curato scegliendo l'id che compare nella rosa dove il listone lo dà — e dove la
+   prova pareggia non si sceglie (7 casi). **3.951 giorni di infortunio** tolti a chi non li aveva.
+5. **Tre ipotesi RIFIUTATE dalla misura.** La porta inviolata come merito dell'ALLENATORE (0,155 contro
+   un null di 0,094); il calo di FM dopo un lungo infortunio (**−0,034** di eccesso su 310 rientri,
+   mediana 0,000: Chiesa −0,44 e De Bruyne −1,25 sono la coda, non la regola); la **recenza del rientro**
+   sulle presenze — robust su euro (+0,56%, cross-fit unanime) ma **al bordo della griglia**, e negativa
+   su `default`, che è la piattaforma del caso che l'aveva generata.
+6. ⚠️ **Un numero ritirato.** Il confronto delle board con l'articolo Transfermarkt del 14/08: la pagina
+   **non contiene i moduli**, e l'elenco veniva dal riassunto automatico del fetch che li aveva dedotti.
+   Un numero costruito su una fonte che non si può ri-leggere non è un numero.
 
 ### 14 agosto 2026, NOTTE, in una riga: quattro item chiusi, e tre volte il null ha spostato il numero
 
