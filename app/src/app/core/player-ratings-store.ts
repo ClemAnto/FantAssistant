@@ -1,7 +1,7 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 
 import { Bundle, BundleTable, columnIndex } from './bundle';
-import { CLEAN_SHEET_SHARE, ClubDefence, clubCleanSheets } from './club-defence';
+import { CLEAN_SHEET_SHARE, ClubDefence, clubCleanSheets, fieldedPlaces } from './club-defence';
 import { EngineForecast, PlayerRating, matchHistories, ratingsFor, seasonHistories } from './player-ratings';
 import { CareerEvents, habitMarks } from './player-discipline';
 import { MYSTERY_WINDOW, mysteryOf } from './player-mystery';
@@ -89,6 +89,11 @@ export class PlayerRatingsStore {
       this.bundle.manifest().then((one) => one.target_season).catch(() => null),
       this.bundle.playerNotes().catch(() => null),
     ]);
+    // Quante squadre gioca la lega e quanti posti schiera il suo regolamento: i due numeri del
+    // rimpiazzo che entra davvero. Vengono dal manifest e dal regolamento, mai scritti qui.
+    const sheets = await this.bundle.manifest()
+      .then((one) => one.engine_sheets ?? []).catch(() => []);
+    const places = fieldedPlaces(await this.bundle.classicModules().catch(() => null));
     const spells = buildSpells(injuries);
     const declared = declaredFor(notes, season);
 
@@ -107,6 +112,11 @@ export class PlayerRatingsStore {
         const one = expected.get(`${platform}|${player.fcId}`);
         if (one) share.set(player.fcId, one);
       }
+      // La quota di porte inviolate per club, che l'Overall applica ai portieri sui DUE lati del conto.
+      // Stessa funzione che disegna l'icona: un fatto, una definizione.
+      const cleanSheetRate = new Map(
+        [...clubCleanSheets(ratings, platform)].map(([club, one]) => [club, one.share]),
+      );
       out.set(
         platform,
         ratingsFor({
@@ -118,6 +128,9 @@ export class PlayerRatingsStore {
           today: this.today,
           scoring,
           declared,
+          cleanSheetRate,
+          teams: sheets.find((one) => one.platform === platform)?.teams ?? null,
+          fieldedPlaces: places ?? undefined,
         }),
       );
     }

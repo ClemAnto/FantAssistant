@@ -112,6 +112,56 @@ cella, ed è quella la scala.
 - **Tutti gli zeri alla stessa distanza dall'ancora del ruolo.** Tiene quel caso solo fino a 0,5 di
   distanza; già a 0,7 ribalta Bremer e Kelly. E non allinea: mediane 49 / 59 / 45 / 39.
 
+## 4-bis. Lo zero è il rimpiazzo che ENTRA, non il marginale di rosa (16/08/2026)
+
+**L'osservazione è dell'operatore** e parte da un caso di scuola: su tre partite, meglio un
+centrocampista che fa 6,5 / 7 / non gioca o uno che fa 6,5 / 7 / 6? La risposta non è «19,5 contro 13,5»,
+perché la giornata saltata non è uno zero: entra un panchinaro. Quindi tutto dipende da **quanto vale
+chi entra** — e lui ha obiettato che il numero del foglio non può essere quello giusto.
+
+**Aveva ragione, ed è misurato per due strade indipendenti.** `engine_replacement_fm` è il marginale di
+ROSA (l'ottantesimo centrocampista di dieci squadre); quello che entra davvero è **il migliore dei tuoi
+che ha il voto quel giorno**. Simulando la stagione 2025-26 - dieci squadre, rose a serpentina, si
+schierano i migliori con il voto - e prendendo per l'altra via il rango `squadre × posti schierati`:
+
+| ruolo | simulato | dal rango | foglio |
+|---|---|---|---|
+| P | 5,01 | 5,03 | 4,13 |
+| D | 6,11 | 5,81 | 5,66 |
+| C | 6,37 | 6,30 | 5,87 |
+| A | 6,79 | 6,87 | 5,61 |
+
+Due metodi che non si parlano, lo stesso numero. **Il foglio sottostima la panchina di mezzo punto.**
+
+**Quello che la simulazione ha chiarito e che una stima a tavolino sbaglia.** Non è una media, è un
+**massimo**: peschi il migliore dei rimanenti. E la panchina è corta - di otto centrocampisti ne hai
+disponibili **5,3 in media e tutti e otto il 3% delle giornate** - quindi quel massimo si prende su ~2,3
+uomini. Il valore decade col numero di buchi (6,46 con uno, 6,30 con due, **5,88 con tre**) e con tre
+coincide col numero del foglio: **quello del foglio è il valore della tua panchina nel giorno peggiore**,
+che capita il 2% delle volte.
+
+**La dimensione della lega quasi non conta**, ed è controintuitivo: da 8 a 12 squadre il centrocampista
+che entra passa da 6,42 a 6,28. Il vincolo che morde è la disponibilità, non la profondità del listone -
+2,3 riserve restano 2,3 contro sette avversari o contro undici. Quello che cambia è la tua rosa (i tuoi
+titolari da 6,83 a 6,71), non quello che ti dà la panchina. L'eccezione è il **portiere**: la pool è di
+32 uomini e una lega da 12 se li prende tutti.
+
+**Adottato nell'Overall**, e derivato dalla pool invece che incollato: il rango è `squadre × posti che il
+regolamento schiera`, con le squadre dal manifest e i posti da `classic_modules.json` (media dei suoi
+moduli: 1 / 4 / 4 / 2, che fanno undici). Senza quei due numeri resta il rimpiazzo del foglio, che è la
+scelta conservativa.
+
+**Due conseguenze da tenere.** La prima: le due decisioni dell'operatore reggono (Esposito F.P. 88 sotto
+Simeone 92 e Davis 90; Bremer 92 sopra Kelly 71) — cosa che con lo zero schierato **non** accadeva prima
+che l'Overall passasse a `FM att.`, il che dice che quel rifiuto era condizionato al resto e non
+assoluto. La seconda: con lo zero più alto le distribuzioni per ruolo si sbilanciano, e la
+standardizzazione a media/sd non le centrava più (mediane 29 / 61 / 48 / 62). Si usa quindi la **mediana
+e il MAD** (× 1,4826, così una z resta una z): mediane 50 / 49 / 49 / 50.
+
+E resta la cosa che il SURPLUS del foglio non fa e che va detta: lui usa ancora il marginale di rosa,
+quindi **sopravvaluta di mezzo punto quello che un giocatore aggiunge**. Cambiarlo è lavoro di motore su
+dieci finestre di gate, non una riga qui.
+
 ## 5. La colonna Bonus/Malus è quanto vale una sua partita OLTRE al voto
 
 Non solo gol e assist: **tutti** i termini che il `scoring_config` prezza, con i malus **sottratti** —
@@ -141,13 +191,18 @@ Resta **un disaccordo fra le fonti, dichiarato invece che nascosto**: su 970 sta
 più porte inviolate che presenze (Padilla, euro 2024-25: il listone dà `pv` = 0, il layer ha una giornata
 giocata e votata). Ritagliare il numeratore sul denominatore nasconderebbe la contraddizione.
 
-⚠️ **E ora le due colonne prezzano diversamente la partita di un portiere.** Bonus/Malus usa il punteggio
-della LEGA, porta inviolata compresa; l'Overall parte da `FM att.`, che è la previsione del motore nel
-punteggio della FONTE, dove quel termine non c'è **né nel numeratore né nel rimpiazzo**. Ognuna è coerente
-con sé stessa e le due non dicono lo stesso numero. Aggiungerlo a un lato solo dell'Overall regalerebbe a
-ogni portiere ~+0,30 di fantamedia — l'errore che questo progetto ha già pagato altrove — e allinearle
-davvero vuol dire rifare `engine_fm_pred` e `engine_replacement_fm` col punteggio della lega, cioè lavoro
-di motore che passa dal gate.
+**Le due colonne sono state ALLINEATE lo stesso giorno**, e il come conta più del cosa. `FM att.` è la
+previsione del motore nel punteggio della FONTE, che quel termine non lo applica; la colonna Bonus usa
+quello della LEGA, che lo paga. L'allineamento è una conversione di REPORTING nell'app e **non** un
+cambio di punteggio nel motore — quello vorrebbe dire rifare ogni numero che il gate ha misurato — e la
+regola che la rende onesta è una sola: **si applica al giocatore E al suo rimpiazzo**. Da un lato solo
+regalerebbe a ogni portiere ~+0,30 di fantamedia, che è l'errore già pagato altrove.
+
+Il tasso è quello del **CLUB** e non del portiere, perché è quello che persiste (r 0,488 contro 0,074,
+§6); un club che non abbiamo misurato prende la mediana del listone, che è anche quella che prende il
+rimpiazzo, così nessun lato resta scoperto. Effetto: Svilar passa da `84% × (5,22 − 4,13)` a
+`84% × (5,69 − 4,42)`, e i portieri si ordinano per la porta in cui giocano invece che per nulla —
+mediane per ruolo 56 / 51 / 47 / 48, i primi dodici portieri in 17 punti.
 
 ---
 

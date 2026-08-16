@@ -356,6 +356,74 @@ def _perimeter_clubs(conn) -> list[tuple[int, str]]:
         "ORDER BY fc_club_id")]
 
 
+def drop_ambiguous_ids(ctx: Context) -> int:
+    """Un fc_id con DUE id Transfermarkt sono due persone su una riga: si tiene quella giusta.
+
+    IL DIFETTO, misurato il 16/08/2026. 31 fc_id su 3.407 mappature ne portavano due o più - Sergio
+    Ramos quattro - e per 28 di loro la cache aveva scaricato la cronaca infortuni di OGNI id. Le righe
+    finiscono tutte sullo stesso fc_id, quindi quegli uomini si portavano in casa gli acciacchi di un
+    omonimo: **il 48% di loro ha spell sovrapposti contro il 14% di tutti gli altri**, 1,5 sovrapposizioni
+    a testa contro 0,2. Non è un dettaglio d'archivio: la fragilità entra nell'icona «si infortuna
+    spesso» e nel riassunto che l'app mostra al tavolo.
+
+    LA PROVA CHE SEPARA I DUE, e non è «quale ha più pagine»: l'id giusto compare nella rosa di un club
+    dove il NOSTRO listone dice che quel giocatore stava, in quella stagione. L'omonimo compare altrove.
+    Si conta quindi la sovrapposizione con `rosters`, che è un fatto, e non il numero di pagine, che è
+    un artefatto di quanto abbiamo scaricato.
+
+    E dove la prova non decide - nessun candidato conferma una rosa, o due pareggiano - NON SI SCEGLIE:
+    si lascia l'ambiguità e la si stampa. Un id sbagliato tenuto per un pareggio è peggio di un nome
+    senza infortuni, perché il primo non si vede.
+    """
+    conn = ctx.require_conn()
+    doubled: dict[int, list[str]] = {}
+    for fc_id, ids in conn.execute(
+        """SELECT fc_id, GROUP_CONCAT(DISTINCT source_id) FROM player_xref
+           WHERE source = 'transfermarkt'
+           GROUP BY fc_id HAVING COUNT(DISTINCT source_id) > 1"""
+    ):
+        doubled[int(fc_id)] = str(ids).split(",")
+    if not doubled:
+        return 0
+
+    wanted = {one for ids in doubled.values() for one in ids}
+    by_tm = {tm_id: club_id for club_id, tm_id in _perimeter_clubs(conn)}
+    # (id) -> {(club, stagione)} dove quell'id compare in una rosa che abbiamo scaricato.
+    seen: dict[str, set[tuple[int, str]]] = {one: set() for one in wanted}
+    for path in sorted(ctx.config.cache_dir.glob("transfermarkt_kader_*.html")):
+        key = _KADER_CACHE.search(path.name)
+        club_id = by_tm.get(key.group(1)) if key else None
+        if club_id is None:
+            continue
+        season = f"{key.group(2)}-{(int(key.group(2)) + 1) % 100:02d}"
+        text = path.read_text(encoding="utf-8", errors="ignore")
+        for one in wanted:
+            if f"/spieler/{one}" in text:
+                seen[one].add((club_id, season))
+
+    dropped = 0
+    for fc_id, ids in doubled.items():
+        mine = {(club_id, season) for club_id, season in conn.execute(
+            "SELECT fc_club_id, season FROM rosters WHERE fc_id = ?", (fc_id,))}
+        scores = {one: len(seen[one] & mine) for one in ids}
+        best = max(scores.values())
+        winners = [one for one, score in scores.items() if score == best]
+        if best == 0 or len(winners) > 1:
+            print(f"[injuries] fc_id {fc_id}: {len(ids)} id e nessuna prova che ne scelga uno "
+                  f"({scores}) - lasciato ambiguo")
+            continue
+        for one in ids:
+            if one != winners[0]:
+                conn.execute(
+                    "DELETE FROM player_xref WHERE fc_id = ? AND source = 'transfermarkt' "
+                    "AND source_id = ?", (fc_id, one))
+                dropped += 1
+    if dropped:
+        print(f"[injuries] omonimi: {dropped} id scartati su {len(doubled)} giocatori ambigui "
+              f"(vince l'id che compare nelle rose dove il listone lo dà)")
+    return dropped
+
+
 def _harvest_ids_from_transfer_cache(ctx: Context) -> int:
     """Free ids: the club-transfer pages `transfers` already cached name every player they list.
 
@@ -512,6 +580,9 @@ def reingest_from_cache(ctx: Context) -> None:
             continue
         squads += matched
         unresolved += len(misses)
+    # ...e SUBITO DOPO gli omonimi, prima che qualcuno legga queste identità: un fc_id con due id è
+    # due persone su una riga, e il passo che segue costruisce gli infortuni proprio da qui.
+    drop_ambiguous_ids(ctx)
     conn.commit()
     total_ids = conn.execute(
         "SELECT COUNT(*) FROM player_xref WHERE source = 'transfermarkt'").fetchone()[0]

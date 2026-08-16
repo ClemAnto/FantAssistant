@@ -35,6 +35,30 @@ export const CLEAN_SHEET_SHARE = 0.4;
 /** Sotto quante giornate una quota non si legge: mezza stagione non dice come gioca una squadra. */
 export const CLEAN_SHEET_MIN_ROUNDS = 20;
 
+/**
+ * I POSTI CHE UN MODULO SCHIERA, per ruolo, mediati sui moduli del regolamento.
+ *
+ * Serve al rimpiazzo che entra davvero: il rango è `squadre × posti`. Si legge dal REGOLAMENTO
+ * (`classic_modules.json`) e non si scrive a mano, perché è configurazione - e perché un listone euro
+ * gioca un altro gioco. Sui sette moduli classici la media è 1 portiere, 4 difensori, 4 centrocampisti,
+ * 2 attaccanti, che fanno undici; il portiere è uno per costruzione e non sta nei moduli.
+ */
+export function fieldedPlaces(modules: unknown): Map<string, number> | null {
+  const shapes = (modules as { modules?: Record<string, Record<string, string[]>> })?.modules;
+  if (!shapes) return null;
+  const totals = new Map<string, number>();
+  const names = Object.keys(shapes);
+  if (!names.length) return null;
+  for (const shape of Object.values(shapes)) {
+    for (const line of Object.values(shape)) {
+      for (const role of line) totals.set(role, (totals.get(role) ?? 0) + 1);
+    }
+  }
+  const out = new Map<string, number>([['P', 1]]);
+  for (const [role, total] of totals) out.set(role, total / names.length);
+  return out;
+}
+
 /** Il record difensivo di un club in una stagione: giornate chiuse a zero su giornate giocate. */
 export interface ClubDefence {
   season: string;

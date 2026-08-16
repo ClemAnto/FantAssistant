@@ -863,6 +863,21 @@ export function ratingsFor(input: {
    * means «nothing declared» - never «nothing to declare».
    */
   declared?: ReadonlyMap<number, PlayerNote>;
+  /**
+   * La quota di porte inviolate del CLUB, per nome di club (`club-defence.clubCleanSheets`).
+   *
+   * Serve solo ai portieri, ed entra su tutt'e due i lati del conto - vedi `cleanSheetLift`. Assente su
+   * un bundle vecchio: allora nessun lato la vede, che è coerente e non un mezzo conto.
+   */
+  cleanSheetRate?: ReadonlyMap<string, number>;
+  /**
+   * Quante squadre gioca questa lega e quanti posti per ruolo il suo regolamento SCHIERA.
+   *
+   * Servono al rimpiazzo che entra davvero (`fieldedZero`): il rango è `squadre × posti`. Vengono dal
+   * manifest e dal regolamento, non da qui - senza, resta il rimpiazzo del foglio.
+   */
+  teams?: number | null;
+  fieldedPlaces?: ReadonlyMap<string, number>;
 }): Map<number, PlayerRating> {
   const { pool, seasons, matches, spells, expectedShare, today } = input;
   /**
@@ -1230,25 +1245,123 @@ export function ratingsFor(input: {
    * due sta parlando, perché due basi diverse sotto una colonna sola sono esattamente il difetto che
    * questo progetto paga da sempre.
    */
-  const matchWorth = (id: number): { value: number | null; fromEngine: boolean } => {
+  /**
+   * LA PORTA INVIOLATA, sui DUE LATI del conto o su nessuno.
+   *
+   * `FM att.` è la previsione del motore nel punteggio della FONTE, che quel termine non lo applica; la
+   * colonna Bonus invece usa il punteggio della LEGA, che lo paga. Le due colonne dicevano quindi due
+   * numeri diversi sulla stessa partita di un portiere (dichiarato il 16/08/2026, e l'operatore ha
+   * chiesto di allinearle).
+   *
+   * Si allineano QUI e non nel motore, e la differenza conta: cambiare il punteggio in cui il motore
+   * prevede vorrebbe dire rifare ogni numero che il gate ha misurato. Questa è invece una conversione
+   * di REPORTING, dichiarata come la fragilità e la costanza, e la regola che la rende onesta è una
+   * sola: **si applica al giocatore E al suo rimpiazzo**. Aggiungerla da un lato solo regalerebbe a
+   * ogni portiere +0,30 di fantamedia, che è l'errore che questo progetto ha già pagato altrove.
+   *
+   * IL TASSO È QUELLO DEL CLUB, non del portiere, ed è misurato: la quota di porte inviolate non
+   * persiste sull'uomo (r 0,074 fra due stagioni) e persiste sul club (r 0,488) - la misura sta in
+   * `club-defence.ts`. Un club che non abbiamo misurato (una promossa) prende la mediana del listone,
+   * che è anche quello che prende il rimpiazzo: così nessuno dei due lati resta scoperto.
+   */
+  const keeperBonus = input.scoring == null && !input.cleanSheetRate
+    ? 0
+    : eventTerms(input.scoring ?? null, null).clean_sheet_bonus_gk;
+  const cleanSheetRates = [...(input.cleanSheetRate?.values() ?? [])];
+  const typicalCleanSheet = medianOf(cleanSheetRates) ?? 0;
+  const cleanSheetLift = (player: PlayerRow): number => {
+    if (player.role !== 'P' || !keeperBonus) return 0;
+    return keeperBonus * (input.cleanSheetRate?.get(player.club) ?? typicalCleanSheet);
+  };
+
+  const matchWorth = (id: number, player: PlayerRow): { value: number | null; fromEngine: boolean } => {
     const engine = expectedShare.get(id)?.fm ?? null;
-    if (engine != null) return { value: engine, fromEngine: true };
+    if (engine != null) return { value: engine + cleanSheetLift(player), fromEngine: true };
     const votes = raw.votes.get(id) ?? null;
     if (votes == null) return { value: null, fromEngine: false };
+    // La carriera passa dai punti-evento, che la porta inviolata la contano già (`eventPointsOf`).
     return { value: votes + (eventPoints.get(id)?.value ?? 0), fromEngine: false };
+  };
+
+  /** Lo stesso numero senza il giro del ruolo: serve a ordinare la pool prima che lo zero esista. */
+  const matchWorthRaw = (id: number): number | null => {
+    const engine = expectedShare.get(id)?.fm ?? null;
+    if (engine != null) return engine;
+    const votes = raw.votes.get(id) ?? null;
+    return votes == null ? null : votes + (eventPoints.get(id)?.value ?? 0);
+  };
+
+  /**
+   * IL RIMPIAZZO CHE ENTRA DAVVERO, che non è quello del foglio - e la differenza vale mezzo punto.
+   *
+   * `engine_replacement_fm` è il marginale di ROSA: l'N-esimo del ruolo con N = squadre × slot, cioè
+   * l'ottantesimo centrocampista di dieci squadre. Ma quando il tuo titolare salta non entra
+   * l'ottantesimo del listone: entra **il migliore dei tuoi che ha il voto quel giorno**, e quello sta
+   * molto più in alto.
+   *
+   * MISURATO PER DUE STRADE INDIPENDENTI (16/08/2026, stagione 2025-26). Simulando dieci squadre con
+   * rose a serpentina, schierando ogni giornata i migliori CHE HANNO IL VOTO e guardando cosa rende lo
+   * slot quando un titolare manca: **P 5,01 · D 6,11 · C 6,37 · A 6,79**, contro il 4,13 / 5,66 / 5,87 /
+   * 5,61 del foglio. Prendendo invece il rango `squadre × posti SCHIERATI` dentro il listone: 5,03 /
+   * 5,81 / 6,30 / 6,87. Due metodi che non si parlano, lo stesso numero.
+   *
+   * DUE COSE CHE LA SIMULAZIONE HA CHIARITO e che una stima a tavolino sbaglia. Non è una media, è un
+   * MASSIMO: peschi il migliore dei rimanenti, non uno a caso. E la panchina è più corta di quanto
+   * sembri - di otto centrocampisti ne hai disponibili **5,3 in media, tutti e otto il 3% delle
+   * giornate** - quindi il massimo si prende su ~2,3 uomini e non su cinque. Il valore decade col
+   * numero di buchi (6,46 con uno, 6,30 con due, 5,88 con tre) e con TRE buchi coincide col numero del
+   * foglio: **quello del foglio è il valore della tua panchina nel giorno peggiore**, e capita il 2%
+   * delle volte.
+   *
+   * SI DERIVA DALLA POOL e non si incolla: quei numeri valgono per dieci squadre e per il regolamento
+   * classico, e questa stessa colonna la legge anche un listone euro da dodici. Il rango è `squadre ×
+   * posti che il modulo schiera`, e i posti vengono dal regolamento (media dei suoi moduli: 1 portiere,
+   * 4 difensori, 4 centrocampisti, 2 attaccanti, che fanno undici). Senza quei due numeri resta il
+   * rimpiazzo del foglio, che è la scelta conservativa.
+   */
+  const fieldedZero = new Map<string, number>();
+  if (input.teams && input.fieldedPlaces) {
+    const worthOfSeason = (id: number): number | null => {
+      const share = expectedShare.get(id)?.share ?? null;
+      const points = matchWorthRaw(id);
+      return share == null || points == null ? null : share * points;
+    };
+    const byRole = new Map<string, { id: number; points: number; season: number }[]>();
+    for (const player of pool) {
+      const points = matchWorthRaw(player.fcId);
+      const season = worthOfSeason(player.fcId);
+      if (points == null || season == null) continue;
+      const mine = byRole.get(player.role) ?? byRole.set(player.role, []).get(player.role)!;
+      mine.push({ id: player.fcId, points, season });
+    }
+    for (const [role, men] of byRole) {
+      const cut = Math.round(input.teams * (input.fieldedPlaces.get(role) ?? 0));
+      if (cut < 1 || men.length <= cut) continue;   // pool più corta del rango: niente da dire
+      men.sort((left, right) => right.season - left.season);
+      fieldedZero.set(role, men[cut].points);
+    }
+  }
+
+  /** Lo zero del ruolo, con la porta inviolata del rimpiazzo dentro: il tasso TIPICO del listone. */
+  const zeroFor = (player: PlayerRow): number | null => {
+    const fielded = fieldedZero.get(player.role);
+    if (fielded != null) return fielded;   // già in punti-partita: la porta inviolata è dentro
+    const base = expectedShare.get(player.fcId)?.replacement ?? roleZero.get(player.role) ?? null;
+    if (base == null) return null;
+    return base + (player.role === 'P' && keeperBonus ? keeperBonus * typicalCleanSheet : 0);
   };
 
   const overallRaw = new Map<number, number | null>();
   for (const player of pool) {
     const id = player.fcId;
-    const points = matchWorth(id);
+    const points = matchWorth(id, player);
     overallRaw.set(
       id,
       worthOf({
         matches: calendarShare.get(id) ?? null,
         votes: points.value,
         eventPoints: null,
-        replacement: expectedShare.get(id)?.replacement ?? roleZero.get(player.role) ?? null,
+        replacement: zeroFor(player),
         consistency: raw.consistency.get(id) ?? null,
         medianConsistency: consistencyMedian.get(player.role) ?? null,
       }),
@@ -1304,13 +1417,20 @@ export function ratingsFor(input: {
       if (value == null) continue;
       (measured.get(player.role) ?? measured.set(player.role, []).get(player.role)!).push(value);
     }
+    /*
+     * MEDIANA e scarto ROBUSTO, non media e deviazione standard.
+     *
+     * Con lo zero del rimpiazzo che ENTRA (sopra) le distribuzioni per ruolo diventano sbilanciate -
+     * pochi titolari molto sopra, una coda lunga di riserve appena sotto - e una media non ne sta più
+     * al centro: misurato, i ruoli si disallineavano di nuovo (mediane 29 / 61 / 48 / 62) proprio dopo
+     * averli allineati. La mediana ci sta per definizione, e il MAD è la sua misura di dispersione;
+     * il fattore 1,4826 lo rimette sulla scala di una sd, così una z resta una z.
+     */
     const scale = new Map<string, { mean: number; sd: number }>();
     for (const [role, values] of measured) {
-      const mean = values.reduce((sum, one) => sum + one, 0) / values.length;
-      const sd = Math.sqrt(
-        values.reduce((sum, one) => sum + (one - mean) ** 2, 0) / values.length,
-      );
-      scale.set(role, { mean, sd });
+      const middle = medianOf(values)!;
+      const spread = medianOf(values.map((one) => Math.abs(one - middle)))! * 1.4826;
+      scale.set(role, { mean: middle, sd: spread });
     }
     const aligned = new Map<number, number | null>();
     for (const player of pool) {
@@ -1339,9 +1459,9 @@ export function ratingsFor(input: {
     // ...and the sum, said in words: the three factors and what they make, so the number can be
     // disagreed with instead of believed.
     const presence = calendarShare.get(id) ?? null;
-    const worthOfOne = matchWorth(id);
+    const worthOfOne = matchWorth(id, player);
     const points = worthOfOne.value;
-    const zero = expectedShare.get(id)?.replacement ?? roleZero.get(player.role) ?? null;
+    const zero = zeroFor(player);
     const steady = steadinessOf({
       consistency: raw.consistency.get(id) ?? null,
       medianConsistency: consistencyMedian.get(player.role) ?? null,
