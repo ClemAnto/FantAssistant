@@ -496,6 +496,11 @@ CREATE TABLE IF NOT EXISTS market_values (
 -- scaricato: due cose diverse, e questa e' quella che serve per leggere il valore a una data passata.
 -- `club` ed `age` sono quelli DI ALLORA - la fonte li porta su ogni punto - percio' non vanno raggiunti
 -- con un join su oggi.
+--
+-- UNO ZERO QUI E' DELLA FONTE e non nostro, e resta com'e': su 22.269 punti sono 12, e guardati uno per
+-- uno sono ragazzi di settore giovanile o di squadra B, uno svincolato, e Pogba durante la squalifica.
+-- Reinterpretarli come NULL vorrebbe dire inventare che cosa intendeva chi li ha scritti; quello che si
+-- fa e' guardarsene chi calcola un rapporto (un denominatore a zero e' un problema di chi divide).
 CREATE TABLE IF NOT EXISTS market_value_history (
     fc_id       INTEGER NOT NULL REFERENCES players(fc_id),
     observed_on TEXT NOT NULL,

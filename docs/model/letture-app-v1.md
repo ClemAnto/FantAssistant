@@ -214,11 +214,14 @@ tali perché il prossimo lettore non le prenda per misure:
 
 1. **`season_stats.clean_sheets`** — derivabile da `match_ratings` per tutte e 11 le stagioni, nessun
    provider di mezzo. Finché non c'è, il +1 della porta inviolata è prezzato dal lettore e vale zero.
-2. **Storico del valore di mercato** — strada provata il 16/08/2026:
-   `transfermarkt.it/ceapi/marketValueDevelopment/graph/{pid}` risponde JSON pulito (42 punti datati per
-   Stones, con club ed età a ogni punto), senza il muro di consenso. Il DB ha già `market_values`, ma con
-   **un valore per stagione**: quello che manca è la CURVA, che è anche l'input che il gate aveva già
-   segnalato rotto (§ canale dell'investimento: «sistemare l'input prima di toccare il peso»).
+2. ~~Storico del valore di mercato~~ — **FATTO il 16/08/2026**: modulo `market`, endpoint JSON
+   `transfermarkt.it/ceapi/marketValueDevelopment/graph/{pid}` (senza muro di consenso), tabella
+   `market_value_history`. Acquisiti **1.055 quotati, 22.269 punti**, dal 2005 al 2026, mediana 20 punti
+   a testa, zero fallite. E la domanda per cui era stato preso ha risposta: **tutti e 1.058 hanno un
+   valore alla data d'asta e 1.056 ne hanno due o più nell'ultimo anno**, cioè una tendenza leggibile —
+   che è l'input che il gate segnalava rotto (canale dell'investimento: «sistemare l'input prima di
+   toccare il peso»). `market_values`, un valore per stagione, resta dov'è: risponde a un'altra domanda.
+   Nessuno lo legge ancora, e infatti non viaggia nel bundle: aggiungerlo all'app è una decisione a sé.
 3. **Minuti per competizione e in nazionale** — le pagine ci sono e rispondono 200, ma la tabella non è
    nell'HTML: c'è un **muro di consenso** e i dati arrivano solo dopo. Il prefisso `/x/` che salva il
    modulo infortuni lì non basta (provate quattro forme). La strada seria è registrare le chiamate che la
