@@ -23,6 +23,11 @@ def connect(db_path: Path) -> sqlite3.Connection:
 # every query naming the new column fails with "no such column" - and the only cure would be
 # `rebuild`, which drops everything. Additive columns only: anything else needs a real migration.
 ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
+    # Le porte inviolate di un portiere, contate dal layer per partita (16/08/2026). Non arrivano da
+    # nessuna lista: le deriva `stats.derive_clean_sheets`, e restano NULL per chiunque quel layer non
+    # copra. Servono perché una lega PUÒ pagarle (`scoring_config.clean_sheet_bonus_gk`) anche se la
+    # fonte non lo fa - e senza la colonna quel termine era prezzato dall'app e valeva zero.
+    ("season_stats", "clean_sheets", "INTEGER"),
     # The scoreline of a match the ratings layer never sees: friendlies and cup ties. Added
     # 09/08/2026 - the provider's event has always carried `homeScore`/`awayScore` and the
     # parser threw them away, so a pre-season friendly could name the opponent and not the result.

@@ -1428,9 +1428,15 @@ export const RATING_DETAIL: Record<RatingKey, string> = {
     + 'scartata la migliore e la peggiore. Dove una stagione non è sul listone entra il voto sintetico '
     + 'calibrato.',
   bonus:
-    'Gol più assist per presenza, sulle stesse stagioni e con la stessa media troncata. I MALUS non sono '
-    + 'qui: i gol subiti di un portiere pesano nell\'Overall, perché quella colonna chiede quanto vale '
-    + 'una sua partita e questa chiede se fa bonus.',
+    'Quanto vale una sua partita OLTRE al voto, coi punti della TUA lega: gol e assist meno cartellini, '
+    + 'autogol e rigori sbagliati, e per un portiere i gol subiti meno le porte inviolate. Il +1 della '
+    + 'porta inviolata la FONTE non lo applica (misurato: su 16.017 righe di portiere il fantavoto del '
+    + 'sito torna esatto senza) ma la tua lega sì, ed è per questo che è qui. ATTENZIONE ALLA '
+    + 'DIFFERENZA CON L\'OVERALL: quello parte da FM att., che è la previsione del motore nel punteggio '
+    + 'della fonte, quindi la porta inviolata lì non c\'è né da una parte né dall\'altra. Le due colonne '
+    + 'sono coerenti ognuna con sé, e per un portiere non dicono lo stesso numero: allinearle vuol dire '
+    + 'rifare la previsione e il rimpiazzo col punteggio della lega, che è lavoro di motore e passa dal '
+    + 'gate.',
   presence:
     'La quota di calendario che il motore gli prevede (engine_pv_pred, o la stima dichiarata), corretta '
     + 'da quanti minuti sta in campo quando gioca. Guarda avanti e non indietro; gli infortuni sono già '

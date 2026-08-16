@@ -34,7 +34,11 @@ ALLOWED_EMPTY: dict[str, set[str]] = {
     # quotations and FVM all come from the listone: a roster rebuilt from the votes alone has none
     "rosters": {"price", "price_initial", "fvm", "fvm_mantra",
                 "price_mantra", "price_initial_mantra"},
-    "season_stats": {"own_goals"},  # own goals only in the 25/26 Excel, not in the CSVs
+    # own goals only in the 25/26 Excel, not in the CSVs · clean_sheets is DERIVED from the keepers'
+    # per-match rows (`stats.derive_clean_sheets`), so a DB without that layer - or without a keeper -
+    # legitimately has none, exactly like `match_ratings.goals_conceded` below. «Consentita vuota» non
+    # vuol dire «mai riempita»: sul DB vero sono 970 stagioni-portiere e 4.872 porte inviolate.
+    "season_stats": {"own_goals", "clean_sheets"},
     # future/enrichment fields + source-/season-dependent event columns that can be legitimately all
     # empty on a partial scrape (a raise here would abort an otherwise-good rebuild).
     "match_ratings": {"assists_set_piece", "player_of_the_match", "started", "minutes",

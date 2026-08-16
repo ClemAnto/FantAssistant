@@ -128,8 +128,26 @@ applica — misurato su 16.017 righe di portiere, `fm = mv − subiti + 3×parat
 100%, e sulle 4.872 partite chiuse a zero il residuo è 0,000. Resta vero per chi RICOSTRUISCE il
 fantavoto del sito (`ratings._fantavoto`, `arrivals.keeper_fm_equivalent`), e **non** per questa colonna,
 che chiede quanto vale una partita nella lega in cui si gioca — e quella dell'operatore la paga. Il
-lettore c'è; **manca il dato**: le porte inviolate si contano dal layer per partita e `season_stats` non
-porta la colonna, quindi oggi il termine non entra («vuoto = ignoto», mai zero).
+**Il dato è arrivato lo stesso giorno**: `season_stats.clean_sheets`, derivata dal layer per partita
+(`stats.derive_clean_sheets`) su tutte e 11 le stagioni — **970 stagioni-portiere, 4.872 porte
+inviolate**, che è esattamente il numero che il commento del `scoring_config` cita per le partite chiuse a
+zero: una conferma indipendente arrivata da un'altra strada. Tre guardie: solo `status = 'played'` (senza,
+ogni riserva prenderebbe una porta inviolata a ogni giornata, perché una riga di panchina porta zero gol
+subiti come chi ha parato tutto), solo con il VOTO (un bonus si attacca a un fantavoto, e così il
+numeratore sta sullo stesso dominio di `pv`), e il numero si scrive solo per chi il layer copre davvero —
+gli altri restano NULL. Effetto in colonna: Svilar da −0,92 a **−0,49** a partita, Butez da −0,82 a −0,39.
+
+Resta **un disaccordo fra le fonti, dichiarato invece che nascosto**: su 970 stagioni-portiere UNA legge
+più porte inviolate che presenze (Padilla, euro 2024-25: il listone dà `pv` = 0, il layer ha una giornata
+giocata e votata). Ritagliare il numeratore sul denominatore nasconderebbe la contraddizione.
+
+⚠️ **E ora le due colonne prezzano diversamente la partita di un portiere.** Bonus/Malus usa il punteggio
+della LEGA, porta inviolata compresa; l'Overall parte da `FM att.`, che è la previsione del motore nel
+punteggio della FONTE, dove quel termine non c'è **né nel numeratore né nel rimpiazzo**. Ognuna è coerente
+con sé stessa e le due non dicono lo stesso numero. Aggiungerlo a un lato solo dell'Overall regalerebbe a
+ogni portiere ~+0,30 di fantamedia — l'errore che questo progetto ha già pagato altrove — e allinearle
+davvero vuol dire rifare `engine_fm_pred` e `engine_replacement_fm` col punteggio della lega, cioè lavoro
+di motore che passa dal gate.
 
 ---
 

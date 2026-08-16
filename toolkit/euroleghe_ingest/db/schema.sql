@@ -129,6 +129,19 @@ CREATE TABLE IF NOT EXISTS season_stats (
     pen_missed INTEGER,
     goals_conceded INTEGER,                     -- goalkeepers
     pen_saved INTEGER,                          -- goalkeepers
+    -- Matches HE played and conceded nothing in. Goalkeepers only, and NULL for everybody the
+    -- per-match layer cannot speak about: «vuoto = ignoto», never a zero, because a zero here would
+    -- read as «he never kept one». Derived by `stats.derive_clean_sheets`, never parsed from a list.
+    --
+    -- IT IS A FACT ABOUT THE MAN AND NOT ABOUT THE CLUB: with a substitution the goal is one and the
+    -- keepers are two, and each row carries what HE let in - so a keeper who came on at half time and
+    -- conceded nothing has a clean sheet even if his club conceded before he came on. That is what the
+    -- row says, and the league's own rule pays the keeper who did not concede.
+    --
+    -- The SOURCE does not pay it (measured: fm = mv - conceded + 3*saved - cards on 16,017 keeper rows,
+    -- exact), so nothing that RECONSTRUCTS the site's fantavoto may read this. It exists because a
+    -- league can pay it - `scoring_config.clean_sheet_bonus_gk` - and the app's Bonus column does.
+    clean_sheets INTEGER,
     PRIMARY KEY (fc_id, season, platform)
 );
 

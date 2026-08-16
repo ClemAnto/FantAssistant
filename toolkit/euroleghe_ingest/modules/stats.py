@@ -82,3 +82,55 @@ def derive_from_ratings(ctx: Context) -> None:
             (fc_id, season, platform, pv, r2(mv), r2(fm), g, a, y, red, og, ps, pm, gc, psv),
         )
     print(f"[stats] derived {len(rows)} season_stats rows from ratings (per platform)")
+    derive_clean_sheets(ctx)
+
+
+def derive_clean_sheets(ctx: Context) -> int:
+    """Le porte inviolate di ogni portiere, contate dal layer per partita.
+
+    Va su TUTTE le righe e non solo su quelle che `derive_from_ratings` scrive: la maggioranza delle
+    righe di `season_stats` viene dal listone, che questo numero non lo porta, quindi contarlo solo per
+    le derivate lo lascerebbe vuoto proprio per i titolari.
+
+    TRE GUARDIE, e senza la prima il numero sarebbe una bugia. Una riga di portiere che NON ha giocato
+    porta `goals_conceded` a zero come chiunque altro: contata, darebbe una porta inviolata a ogni
+    riserva a ogni giornata, cioè il contrario di quello che la colonna dice. Quindi solo `status =
+    'played'`. Poi il VOTO (`mv IS NOT NULL`), che tiene il numeratore sullo stesso dominio di `pv`:
+    un bonus si attacca a un fantavoto, e senza voto non c'è fantavoto a cui attaccarlo. E infine il
+    numero si scrive solo per chi quel layer copre davvero (`EXISTS`): per gli altri resta NULL, perché
+    «non l'abbiamo misurato» e «non ne ha tenuta nessuna» sono due frasi diverse e l'app le legge in due
+    modi diversi.
+
+    Il ruolo è quello della RIGA di quella giornata (`match_ratings.role`), non quello del listone: un
+    uomo schierato in porta quel giorno è un portiere quel giorno.
+
+    RESTA UN DISACCORDO FRA LE FONTI e non lo si nasconde: su 970 stagioni-portiere UNA legge più porte
+    inviolate che presenze (Padilla, euro 2024-25: il listone gli dà `pv` = 0 e il layer per partita ha
+    una giornata giocata e votata). Sono due sorgenti che dicono cose diverse su chi è sceso in campo -
+    non un errore di questo conto - e ritagliare il numeratore sul denominatore nasconderebbe la
+    contraddizione invece di mostrarla.
+    """
+    conn = ctx.require_conn()
+    played = """
+        SELECT 1 FROM match_ratings mr
+        WHERE mr.fc_id = season_stats.fc_id AND mr.season = season_stats.season
+          AND mr.platform = season_stats.platform
+          AND mr.role = 'P' AND mr.status = 'played' AND mr.goals_conceded IS NOT NULL
+    """
+    conn.execute(
+        f"""
+        UPDATE season_stats SET clean_sheets = (
+            SELECT COUNT(*) FROM match_ratings mr
+            WHERE mr.fc_id = season_stats.fc_id AND mr.season = season_stats.season
+              AND mr.platform = season_stats.platform
+              AND mr.role = 'P' AND mr.status = 'played' AND mr.goals_conceded = 0
+              AND mr.mv IS NOT NULL
+        )
+        WHERE EXISTS ({played})
+        """
+    )
+    filled, total = conn.execute(
+        "SELECT COUNT(clean_sheets), SUM(clean_sheets) FROM season_stats"
+    ).fetchone()
+    print(f"[stats] clean_sheets: {filled} stagioni-portiere · {total or 0} porte inviolate")
+    return filled or 0
