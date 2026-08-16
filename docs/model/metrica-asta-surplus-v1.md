@@ -1282,3 +1282,32 @@ chiave/90 0,64× per il flop degli attaccanti).
 Non è un verdetto del gate: niente era pre-registrato, i campioni sul lato promessa sono piccoli (24-91 uomini
 tenuti fuori) e diversi segnali sono stati guardati perché una stagione li suggeriva. Genera ipotesi ordinate
 per stabilità; adottarne una come input del motore richiede una pre-registrazione e un giro sul banco.
+
+## 21. I DUE ZERI sul foglio: misurato che cosa cambierebbe (16 agosto 2026, sera)
+
+Il surplus del foglio conta ancora dal **marginale di rosa** (`engine_replacement_fm`: P 4,13 · D 5,66 ·
+C 5,87 · A 5,61 sul foglio Serie A), mentre l'app ha adottato per l'Overall il **rimpiazzo che ENTRA**
+(P 5,01 · D 6,11 · C 6,37 · A 6,79, §4-bis di [letture-app-v1.md](letture-app-v1.md)). Prima di aprire un
+gate su un cambio del genere, la domanda è: **che cosa cambierebbe davvero?** Misurato sui 637 uomini
+prezzati del foglio 2026-27.
+
+| zero | composizione dei primi 25 |
+|---|---|
+| marginale di rosa (oggi) | **P5 · D1 · C0 · A19** |
+| rimpiazzo che entra | P3 · D5 · **C8** · A9 |
+
+**Diciannove attaccanti su venticinque e ZERO centrocampisti**: è la prova più forte finora che lo zero di
+oggi non rende comparabili i ruoli sul foglio, ed è lo stesso difetto che l'Overall aveva prima
+dell'allineamento — visto dall'altro lato, perché qui non c'è una standardizzazione a rimediare. Solo
+**13 nomi su 25** sopravvivono al cambio.
+
+**E il caso che l'operatore aveva già chiuso NON si riapre**, che è la ragione per cui il rimpiazzo
+schierato era stato rifiutato in mattinata: Simeone passa da 7° a 23° ed Esposito F.P. da 20° a 57°, cioè
+i due restano nell'ordine giusto e si allontanano invece di invertirsi. Vale la stessa spiegazione di
+allora: quel rifiuto era condizionato alla base di carriera, e con `FM att.` come base cade.
+
+**Non è un'adozione e non può esserlo qui**: il surplus alimenta le liste d'asta e `captured_value`, cioè
+è gated. Questa sezione dice soltanto che il cambio è **grande** (metà dei primi venticinque) e che
+l'obiezione nota non lo blocca — quindi il gate vale la corsa. Le due domande restano due
+(«chi conviene comprare» contro «quanto costa una giornata saltata») e la scelta va fatta in chiaro
+prima di misurare, non dopo aver visto quale delle due vince.
