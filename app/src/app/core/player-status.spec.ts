@@ -140,3 +140,38 @@ describe('declaredFor', () => {
     expect(mark.note).toBe('Fuori rosa · allenamenti a parte · dichiarato il 11/08/2026');
   });
 });
+
+/**
+ * IL VIAGGIO NEL TEMPO su uno spell, che è il caso in cui è più facile sapere il futuro senza accorgersene.
+ *
+ * Tre regole, e la seconda è quella che conta: uno stop che si CHIUDE dopo la data era ancora aperto quel
+ * giorno, quindi dire «è durato 40 giorni» sarebbe leggere il referto di domani. Anche `days_out` se ne va
+ * con lui - è la durata totale, che quel giorno nessuno conosceva.
+ */
+describe('buildSpells nel viaggio nel tempo', () => {
+  const table: BundleTable = {
+    table: 'injuries',
+    columns: ['fc_id', 'start_date', 'end_date', 'kind', 'days_out'],
+    rows: [
+      [1, '2025-09-01', '2025-09-20', 'knee', 19],   // finito prima: intatto
+      [1, '2025-10-15', '2025-12-20', 'thigh', 66],  // ancora aperto al 3 novembre
+      [1, '2026-02-01', '2026-03-01', 'ankle', 28],  // non è ancora successo
+    ],
+  };
+
+  it('taglia quello che non è ancora cominciato e lascia APERTO quello che finisce dopo', () => {
+    const spells = buildSpells(table, '2025-11-03').get(1)!;
+    expect(spells.length).toBe(2);
+    expect(spells[0].to).toBe('2025-09-20');
+    expect(spells[0].days).toBe(19);
+    expect(spells[1].to).toBeNull();
+    expect(spells[1].days).toBeNull();
+  });
+
+  it('senza data legge la tabella come sta scritta, che e` il caso normale', () => {
+    const spells = buildSpells(table).get(1)!;
+    expect(spells.length).toBe(3);
+    expect(spells[1].to).toBe('2025-12-20');
+    expect(spells[1].days).toBe(66);
+  });
+});

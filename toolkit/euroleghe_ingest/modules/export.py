@@ -187,6 +187,13 @@ SHEET_COLUMNS: tuple[str, ...] = (
     "est_confidence",
     "est_basis",
     "est_note",
+    # IL SURPLUS IN CREDITI e la sua distanza dal prezzo del listone, per la sola cosa che l'app non
+    # poteva fare senza: confrontare l'FVM con qualcosa. È il confronto giusto - quello che un credito
+    # compra è il margine sopra chi giocherebbe al posto suo, non i fantapunti, che contano da zero -
+    # ed è tarato come un problema di budget («metrica-asta-surplus-v1.md» §14). Come `engine_surplus`
+    # è un riferimento di LEGA e non il numero con cui un pannello vivo ordina.
+    "desc_spm",
+    "desc_dvm",
     # MEASURED football, for the row to be judged and not only ranked: how much he actually played
     # last season, and over how many matches - the two together are minutes per match, and one
     # without the other is not a rate. Both counted on his own championship, never on our calendar.
@@ -237,6 +244,88 @@ def _sheet_folders(reports: Path, target: str) -> list[Path]:
     """Every sheet folder of the target season, newest stamp last."""
     return sorted(path for path in reports.glob(f"auction-snapshot-{target}-*")
                   if path.is_dir() and (path / "players.csv").exists())
+
+
+def _sheet_bytes(sheet: list[dict], manifest: dict, compress: bool) -> bytes | None:
+    """Un foglio serializzato come l'app lo legge. None se gli mancano colonne che il contratto promette.
+
+    Estratta perché ha DUE chiamanti che devono produrre lo stesso identico formato: il foglio di oggi e
+    quelli dei pacchetti del viaggio nel tempo. Due serializzatori sarebbero due formati sotto un nome
+    solo, e il lettore dell'app è uno.
+    """
+    missing = [column for column in SHEET_COLUMNS if sheet and column not in sheet[0]]
+    if missing:
+        print(f"[export] WARNING: sheet {manifest.get('folder')} lacks {missing} - skipped")
+        return None
+    payload = json.dumps({
+        "table": "engine_sheet",
+        "league": manifest.get("league"),
+        "platform": manifest.get("platform"),
+        "game": manifest.get("game"),
+        "target_season": manifest.get("target_season"),
+        "auction_date": manifest.get("auction_date"),
+        "sheet_revision": manifest.get("sheet_revision"),
+        "generated_at": manifest.get("generated_at"),
+        "matchdays": manifest.get("matchdays"),
+        "columns": list(SHEET_COLUMNS),
+        "rows": [[_sheet_value(row.get(column)) for column in SHEET_COLUMNS] for row in sheet],
+    }, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    return gzip.compress(payload, mtime=0) if compress else payload
+
+
+def write_timepacks(ctx: Context, folder: Path, compress: bool = True) -> list[dict]:
+    """I PACCHETTI del viaggio nel tempo: il motore a una data passata, uno per data significativa.
+
+    Solo fogli e campetti, perché sono le sole cose che con la data cambiano: voti, strato per-partita,
+    listoni e infortuni sono identici a qualunque data e l'app li ritaglia da sé. Misurato - un pacchetto
+    pesa ~1,3 MB contro i 5,4 del bundle intero.
+
+    Li costruisce `timepack` (che chiama `snapshot --date`, cioè il motore vero e non una sua imitazione);
+    qui si serializzano nello STESSO formato del foglio di oggi, con la stessa funzione.
+    """
+    source = ctx.config.data_dir / "timepacks"
+    written: list[dict] = []
+    if not source.exists():
+        return written
+    for pack in sorted(path for path in source.iterdir() if (path / "manifest.json").exists()):
+        info = json.loads((pack / "manifest.json").read_text(encoding="utf-8"))
+        out = folder / "timepacks" / info["date"]
+        leagues: list[dict] = []
+        for one in info.get("leagues", []):
+            csv_path = pack / one["sheet"]
+            if not csv_path.exists():
+                continue
+            with csv_path.open(encoding="utf-8-sig", newline="") as handle:
+                rows = list(csv.DictReader(handle))
+            payload = _sheet_bytes(rows, one.get("manifest") or {}, compress)
+            if payload is None:
+                continue
+            (out / "sheets").mkdir(parents=True, exist_ok=True)
+            name = one["league"].lower().replace(" ", "-")
+            suffix = ".json.gz" if compress else ".json"
+            _atomic_write_bytes(out / "sheets" / f"{name}{suffix}", payload)
+            entry = dict(one)
+            entry["sheet"] = f"sheets/{name}{suffix}"
+            entry.pop("manifest", None)
+            if one.get("boards") and (pack / one["boards"]).exists():
+                (out / "boards").mkdir(parents=True, exist_ok=True)
+                _atomic_write_bytes(out / "boards" / f"{name}.json", (pack / one["boards"]).read_bytes())
+                entry["boards"] = f"boards/{name}.json"
+            else:
+                entry["boards"] = None
+            leagues.append(entry)
+        if not leagues:
+            print(f"[export] note: timepack {info['date']} has no readable sheet - skipped")
+            continue
+        info = {**info, "leagues": leagues}
+        out.mkdir(parents=True, exist_ok=True)
+        _atomic_write_bytes(out / "manifest.json",
+                            json.dumps(info, indent=2, ensure_ascii=False).encode("utf-8"))
+        written.append({"date": info["date"], "target_season": info.get("target_season"),
+                        "window": info.get("window"), "leagues": len(leagues),
+                        "path": f"timepacks/{info['date']}/manifest.json"})
+        print(f"[export] timepacks/{info['date']}: {len(leagues)} fogli")
+    return written
 
 
 def write_engine_sheets(ctx: Context, folder: Path, target: str,

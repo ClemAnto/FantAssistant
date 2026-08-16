@@ -9,6 +9,8 @@ import {
   STAR_WORD,
   medianOf,
   rank99,
+  rank99ByRole,
+  seasonsClosedBy,
   starsOf,
   steadinessOf,
   worthOf,
@@ -40,6 +42,48 @@ describe('rank99', () => {
   it('refuses to rank a pool of one measured man against nobody', () => {
     expect(rank99(new Map<number, number | null>([[1, 6]])).get(1)).toBe(50);
     expect(rank99(new Map<number, number | null>([[1, null]])).get(1)).toBeNull();
+  });
+});
+
+/**
+ * Il rango DENTRO IL RUOLO, che è quello che colora le colonne di fantamedia.
+ *
+ * La proprietà che conta è una sola e va inchiodata: un portiere si confronta con i portieri. Con un
+ * rango unico sul listone la stessa 6,20 direbbe «ottimo» in porta e «mediocre» in attacco leggendo
+ * soltanto il ruolo, e la colonna colorata dipingerebbe i ruoli invece dei giocatori.
+ */
+describe('rank99ByRole', () => {
+  const pool = [
+    { fcId: 1, role: 'P' }, { fcId: 2, role: 'P' }, { fcId: 3, role: 'P' },
+    { fcId: 4, role: 'A' }, { fcId: 5, role: 'A' }, { fcId: 6, role: 'A' },
+  ];
+
+  it('judges a man against his own role and not against the listone', () => {
+    // I portieri stanno su 5,9-6,3 e gli attaccanti su 6,5-8,0: sul listone intero OGNI portiere
+    // starebbe sotto OGNI attaccante, e il colore direbbe soltanto «è un portiere».
+    const ranked = rank99ByRole(pool, new Map([
+      [1, 5.9], [2, 6.1], [3, 6.3],
+      [4, 6.5], [5, 7.2], [6, 8.0],
+    ]));
+    expect(ranked.get(3)).toBe(99);   // il miglior portiere è in cima al SUO pool...
+    expect(ranked.get(4)).toBe(0);    // ...e il peggiore attaccante in fondo al suo, pur valendo di più
+    expect(ranked.get(2)).toBe(50);
+    expect(ranked.get(5)).toBe(50);
+  });
+
+  it('leaves a man with no number out of his role\'s ranking', () => {
+    const ranked = rank99ByRole(pool, new Map<number, number | null>([
+      [1, 5.9], [2, null], [3, 6.3], [4, 6.5], [5, 7.2], [6, 8.0],
+    ]));
+    expect(ranked.get(2)).toBeNull();
+    expect(ranked.get(1)).toBe(0);
+    expect(ranked.get(3)).toBe(99);
+  });
+
+  it('answers for every man of the pool, measured or not', () => {
+    const ranked = rank99ByRole(pool, new Map());
+    expect([...ranked.keys()].sort()).toEqual([1, 2, 3, 4, 5, 6]);
+    expect([...ranked.values()].every((one) => one === null)).toBe(true);
   });
 });
 
@@ -312,5 +356,29 @@ describe('injuredShare, overlapping spells', () => {
   it('never reports more than the window itself', () => {
     const many = [spell('2020-01-01', null), spell('2026-01-01', null), spell('2026-06-01', null)];
     expect(injuredShare(many, '2026-08-14')).toBe(1);
+  });
+});
+
+/**
+ * IL VIAGGIO NEL TEMPO sulle stagioni: un aggregato è un numero che esiste a maggio.
+ *
+ * La regola severa è deliberata: a novembre la stagione in corso NON ha un totale, e leggerlo sarebbe
+ * sapere come va a finire. Meglio una lettura in meno che una che conosce il futuro.
+ */
+describe('seasonsClosedBy', () => {
+  const seasons = ['2023-24', '2024-25', '2025-26'];
+
+  it('drops the season being played and every one after it', () => {
+    expect([...seasonsClosedBy(seasons, '2025-11-03')].sort()).toEqual(['2023-24', '2024-25']);
+  });
+
+  it('opens a season only once it is really over', () => {
+    // Il 30 giugno la 2024-25 non è ancora «chiusa» per questa convenzione, il 1º luglio sì.
+    expect(seasonsClosedBy(seasons, '2025-06-30').has('2024-25')).toBe(false);
+    expect(seasonsClosedBy(seasons, '2025-07-01').has('2024-25')).toBe(true);
+  });
+
+  it('keeps everything when the day is today', () => {
+    expect(seasonsClosedBy(seasons, '2026-08-17').size).toBe(3);
   });
 });

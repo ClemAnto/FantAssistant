@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { NzCollapseModule } from 'ng-zorro-antd/collapse';
 import { NzRadioModule } from 'ng-zorro-antd/radio';
 import { NzSelectModule } from 'ng-zorro-antd/select';
-import { NzTableModule } from 'ng-zorro-antd/table';
+import { NzTableModule, NzTableSortOrder } from 'ng-zorro-antd/table';
 import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 
 import {
@@ -18,8 +18,9 @@ import {
   STAR_SCALE_HINT,
   RatingKey,
 } from '../../core/player-ratings';
+import { starsOf, toneOf } from '../../core/player-ratings';
 import { ClassicRole, Platform } from '../../core/players-store';
-import { SquadMan, ValuationStore } from '../../core/valuation-store';
+import { SquadMan, ToneKey, ValuationStore } from '../../core/valuation-store';
 import { short } from '../../core/tooltip';
 import { stored, storedList } from '../../core/view-state';
 import { ClubCrest } from '../club-crest/club-crest';
@@ -37,6 +38,14 @@ const ROLE_LABEL: Record<ClassicRole, string> = {
 /** The listone's own reading order, and the table's default one. */
 const ROLE_ORDER: Record<string, number> = { P: 0, D: 1, C: 2, A: 3 };
 
+/** Come si chiama il pool in una frase: «78/99 fra i 152 difensori del listone». */
+const ROLE_POOL_WORD: Record<string, string> = {
+  P: 'portieri',
+  D: 'difensori',
+  C: 'centrocampisti',
+  A: 'attaccanti',
+};
+
 /**
  * Le colonne che si possono spegnere, con quanto occupano.
  *
@@ -52,13 +61,19 @@ export const SQUAD_COLUMNS: readonly { key: string; label: string; width: number
   { key: 'club', label: 'Squadra', width: 130 },
   { key: 'codes', label: 'Ruolo reale', width: 100 },
   { key: 'expected', label: 'P (partite attese)', width: 48 },
-  { key: 'expectedFm', label: 'FM att.', width: 62 },
-  { key: 'expectedMv', label: 'MV att.', width: 62 },
+  // Le quattro colonne di fantamedia sono più larghe delle cifre che portano: dentro ognuna il numero sta
+  // in un riquadro colorato, e un riquadro più largo della colonna manderebbe la tabella a scorrere.
+  { key: 'expectedFm', label: 'FM att.', width: 70 },
+  { key: 'expectedMv', label: 'MV att.', width: 70 },
   { key: 'surplus', label: 'Surplus', width: 64 },
-  { key: 'value', label: 'Valore', width: 64 },
+  // FANTAPUNTI e non «Valore» (operatore, 16/08/2026): la colonna vive accanto all'FVM, che è il
+  // fantaVALORE di mercato, e i due si chiamavano uguale pur essendo uno in fantapunti e l'altro in
+  // crediti. Il nome nuovo dice l'UNITÀ, che è la sola cosa che non si può confondere con un prezzo.
+  // La chiave resta `value`: gli identificatori del codice stanno in inglese e non seguono l'etichetta.
+  { key: 'value', label: 'Fantapunti', width: 92 },
   { key: 'fvm', label: 'FVM', width: 58 },
-  { key: 'mv', label: 'MV', width: 56 },
-  { key: 'fm', label: 'FM', width: 56 },
+  { key: 'mv', label: 'MV', width: 64 },
+  { key: 'fm', label: 'FM', width: 64 },
   ...RATING_KEYS.map((key) => ({ key, label: RATING_LABEL[key], width: 84 })),
 ];
 
@@ -107,6 +122,15 @@ export class SquadTable {
   /** Null = the whole list, which is what a squad of 26 wants. A number paginates. */
   readonly pageSize = input<number | null>(null);
 
+  /**
+   * Un click su una colonna di NUMERI ordina subito dal più alto al più basso (operatore, 16/08/2026).
+   *
+   * ng-zorro gira `ascend → descend → niente`, che su una tabella di valutazioni è il verso sbagliato:
+   * il primo click mostra i peggiori, e per vedere i migliori - che è sempre la domanda - ne servono due.
+   * Le colonne di TESTO restano al loro giro naturale: su «Nome» il primo click deve dare la A, non la Z.
+   */
+  protected readonly highFirst: NzTableSortOrder[] = ['descend', 'ascend', null];
+
   protected readonly roleLabel = ROLE_LABEL;
   protected readonly ratingKeys = RATING_KEYS;
   protected readonly ratingLabel = RATING_LABEL;
@@ -131,6 +155,28 @@ export class SquadTable {
 
   /** What a star is worth, said once and in the operator's own words (15/08/2026). */
   protected readonly starsHint = STAR_SCALE_HINT;
+
+  /** Che cosa dice il colore delle quattro colonne di fantamedia - e, soprattutto, contro chi. */
+  protected readonly tonesDetail =
+    'Verde = fra i migliori del SUO RUOLO nel listone, ambra = sotto la metà, rosso = in fondo, e il '
+    + 'centro resta neutro perché la media non è una notizia. È il ruolo e non il listone intero perché '
+    + '6,20 di fantamedia è un ottimo portiere e un mediocre attaccante: un colore trasversale direbbe '
+    + 'che ruolo gioca, non quanto è buono. Il pool sono i quotati di questo listone — non le righe che '
+    + 'vedi — così il colore di un uomo non cambia passando dalla rosa di un club alla lista intera. Il '
+    + 'tooltip di ogni cella dice il posto e su quanti. La scala è la stessa delle stelline: sono '
+    + 'percentili, nessuna valutazione li legge.';
+
+  /** ...e perché l'FVM è colorato da un ALTRO numero, che è la parte che va spiegata seduti. */
+  protected readonly fvmToneDetail =
+    'L\'FVM non è colorato da sé stesso ma dal confronto col surplus, perché «costa tanto» non è una '
+    + 'notizia: un fuoriclasse costa. La notizia è quanto il listone lo prezza sopra o sotto quello che '
+    + 'il motore gli dà. Le due valute si convertono come un problema di budget — il surplus dei '
+    + '«squadre × slot» uomini che il motore comprerebbe vale il monte crediti che il mercato spende sui '
+    + 'suoi, per ruolo di listone — e la differenza è il dVM. VERDE = il listone lo prezza molto sotto '
+    + '(occasione), AMBRA = molto sopra (caro), e «molto» è la stessa banda che le stelline chiamano '
+    + '«molto sopra/sotto la media». Si confronta col SURPLUS e non con i Fantapunti perché quello che un '
+    + 'credito compra è il margine sopra chi giocherebbe al suo posto: i fantapunti contano da zero, e da '
+    + 'zero non paga nessuno.';
 
   /**
    * QUALI COLONNE si vedono. Ricordato come la scala delle letture, e per lo stesso motivo: è una
@@ -212,10 +258,40 @@ export class SquadTable {
 
   protected fvmHint(man: SquadMan): string {
     if (man.fvm == null) return 'Questo listone non lo quota: ignoto, mai zero.';
+    if (man.dvm == null || man.spm == null) {
+      return short(
+        `${man.fvm} di fantavalore · questo foglio non porta l'SpM, quindi il confronto col surplus non `
+          + 'è stato fatto (foglio da ricostruire, revisione 20)',
+      );
+    }
+    // Il verso in parole, perché «+38» da solo non dice CHI sta sopra: dVM positivo = il motore lo
+    // prezza più del listone, cioè costa meno di quanto rende.
+    const verse = man.dvm >= 0 ? 'meno' : 'più';
     return short(
-      `${man.fvm} di fantavalore · si muove a ogni evento, a differenza della Qt.I che è fissata prima `
-        + 'della stagione',
+      `${man.fvm} di fantavalore contro ${Math.round(man.spm)} di surplus in crediti: `
+        + `il listone lo prezza ${Math.abs(Math.round(man.dvm))} ${verse} del motore${this.rank(man, 'dvm')}`,
     );
+  }
+
+  /**
+   * IL COLORE DELL'FVM, e qui è INCHIOSTRO e non riquadro (operatore, 16/08/2026).
+   *
+   * Che cosa colora, e perché non il prezzo in sé: un fuoriclasse costa, quindi tingere l'FVM per quanto
+   * è grande direbbe «è caro», che si legge già dal numero. La notizia è il CONFRONTO col surplus - il
+   * dVM - e va nel verso giusto: **verde quando il listone lo prezza molto SOTTO** quello che il motore
+   * gli dà (occasione), **ambra quando lo prezza molto SOPRA** (caro). Niente rosso: la regola di casa lo
+   * tiene per il pericolo, e un uomo caro è un avvertimento, non un allarme.
+   *
+   * «MOLTO» NON È UNA SOGLIA NUOVA: è la banda che le stelline già chiamano «molto sopra / molto sotto la
+   * media» (±0,75 sigma, cioè i percentili 77 e 23 dentro il ruolo). Inventarne una seconda avrebbe fatto
+   * dire due cose diverse alla stessa parola. Prende circa un quarto del ruolo per lato.
+   */
+  protected fvmTone(man: SquadMan): string {
+    const stars = starsOf(man.tones.dvm);
+    if (stars == null) return '';
+    if (stars >= 4) return 'text-success font-medium';
+    if (stars <= 2) return 'text-warning font-medium';
+    return '';
   }
 
   /**
@@ -235,8 +311,8 @@ export class SquadTable {
   );
 
   protected readonly valueHeader = short(
-    'VALORE: i fantapunti che porta in tutto (fantamedia × presenze attese), senza sottrarre niente. '
-      + 'Surplus = valore − rimpiazzo × presenze.',
+    'FANTAPUNTI che porta in tutto (fantamedia × presenze attese), senza sottrarre niente. '
+      + 'Surplus = fantapunti − rimpiazzo × presenze. Da non confondere con l\'FVM, che è un prezzo.',
   );
 
   protected surplusHint(man: SquadMan): string {
@@ -299,18 +375,24 @@ export class SquadTable {
     return short(
       `${man.expectedMv.toFixed(2)} di media voto attesa`
         + (bonus == null ? '' : ` · ${bonus >= 0 ? '+' : ''}${bonus.toFixed(2)} di bonus a presenza`)
-        + (man.expectedFmIsEstimate ? ' · sulla STIMA della fantamedia' : ''),
+        + (man.expectedFmIsEstimate ? ' · sulla STIMA della fantamedia' : '')
+        + this.rank(man, 'expectedMv'),
     );
   }
 
   /** ...and on the row: the number, and - per una stima - la parola che il toolkit le ha scritto. */
   protected expectedFmHint(man: SquadMan): string {
     if (man.expectedFm == null) return 'Il motore non lo valuta e non offre una stima: ignoto, mai zero.';
-    if (!man.expectedFmIsEstimate) return `${man.expectedFm.toFixed(2)} di fantamedia attesa dal motore`;
+    if (!man.expectedFmIsEstimate) {
+      return short(
+        `${man.expectedFm.toFixed(2)} di fantamedia attesa dal motore${this.rank(man, 'expectedFm')}`,
+      );
+    }
     return short(
       `STIMA ${man.expectedFm.toFixed(2)}`
         + (man.estimateBasis ? ` · base «${man.estimateBasis}»` : '')
-        + (man.estimateNote ? ` · ${man.estimateNote}` : ''),
+        + (man.estimateNote ? ` · ${man.estimateNote}` : '')
+        + this.rank(man, 'expectedFm'),
     );
   }
 
@@ -344,6 +426,38 @@ export class SquadTable {
     return this.ratingSorters[key];
   }
 
+  /**
+   * IL COLORE delle quattro colonne di fantamedia: buono, medio, scarso, a colpo d'occhio.
+   *
+   * Tre decisioni, e vanno lette insieme perché una sola di esse renderebbe la colonna una bugia comoda.
+   *
+   * DENTRO IL RUOLO. 6,20 di fantamedia è un ottimo portiere e un mediocre attaccante, quindi un colore
+   * cross-ruolo dipingerebbe i ruoli e non i giocatori - la stessa lezione che il 16/08 ha rifatto
+   * l'Overall. Il rango lo calcola `ValuationStore` sul LISTONE, non su queste righe.
+   *
+   * LA SCALA È QUELLA DELLE STELLINE (`toneOf`), non una sua: due scale sullo stesso numero finirebbero
+   * per dire due cose diverse. Quindi il centro del listone resta NEUTRO - una tabella dove ogni numero è
+   * colorato è una tabella che grida - e il rosso sta solo in fondo.
+   *
+   * IL NUMERO RESTA IL FATTO. Il colore è la lettura, e il tooltip dice sempre contro chi è presa:
+   * senza il pool un percentile non vuol dire niente.
+   */
+  protected tone(man: SquadMan, key: ToneKey): string {
+    const score = man.tones[key];
+    // Nessun posto nel ruolo = nessun colore. `toneOf(null)` risponderebbe `text-muted`, che su una cella
+    // con un numero dentro lo sbiadirebbe come se fosse una stima.
+    return score == null ? '' : toneOf(score);
+  }
+
+  /** Il percentile in parole, per la coda del tooltip. Vuoto quando non c'è un posto da dichiarare. */
+  protected rank(man: SquadMan, key: ToneKey): string {
+    const score = man.tones[key];
+    if (score == null) return '';
+    const pool = this.valuation.rolePool().get(`${this.platform()}|${man.role}`);
+    const among = ROLE_POOL_WORD[man.role] ?? 'quotati del suo ruolo';
+    return ` · ${Math.round(score)}/99 fra i ${pool ?? ''}${pool ? ' ' : ''}${among} del listone`;
+  }
+
   /** The real-role cell: when it was observed, and which of the codes the typical eleven would use. */
   protected codesHint(man: SquadMan): string {
     const bits: string[] = [];
@@ -359,12 +473,12 @@ export class SquadTable {
    * appearances: he was quoted and never got a vote, so he has no average - which is not an average of
    * zero. Otherwise the number, with the appearances it rests on beside it.
    */
-  protected measuredHint(man: SquadMan): string {
+  protected measuredHint(man: SquadMan, key: 'fm' | 'mv'): string {
     if (man.pv === 0) return short(`Mai a voto in ${this.measuredOn()}: non ha una media, che non è zero.`);
     if (man.fm == null && man.mv == null) {
       return short(`Nessuna stagione misurata in ${this.measuredOn()}: ignoto, mai zero.`);
     }
     const played = man.pv != null ? `${man.pv} presenze` : 'presenze ignote';
-    return short(`${this.measuredOn()} · ${played}`);
+    return short(`${this.measuredOn()} · ${played}${this.rank(man, key)}`);
   }
 }

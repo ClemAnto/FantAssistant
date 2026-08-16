@@ -32,7 +32,12 @@ import re
 import time
 
 from euroleghe_ingest.context import Context
-from euroleghe_ingest.modules.injuries import BASE_URL, REQUEST_DELAY, REQUEST_JITTER, _client
+from euroleghe_ingest.modules.injuries import (
+    BASE_URL,
+    REQUEST_DELAY,
+    REQUEST_JITTER,
+    _client,
+)
 
 NAME = "market"
 DESCRIPTION = "Transfermarkt -> market_value_history (la curva del valore, non un punto per stagione)"
@@ -118,12 +123,27 @@ def ambiguous(conn) -> set[int]:
     }
 
 
-def _targets(conn, limit: int | None = None) -> list[tuple[int, str]]:
-    """(fc_id, tm_id) per chi è QUOTATO oggi, il più caro per primo.
+def _targets(conn, limit: int | None = None, all_seasons: bool = False) -> list[tuple[int, str]]:
+    """(fc_id, tm_id) per chi è QUOTATO oggi, il più caro per primo - o per chi lo è MAI STATO.
 
-    Il perimetro è il listone e non l'anagrafica intera: la curva di un uomo che nessuno può comprare
-    non serve a niente e costa una richiesta come le altre. `--limit` prende i primi N, che è quello che
-    rende possibile una corsa di prova prima di lanciarne mille.
+    Il perimetro di default è il listone di oggi e non l'anagrafica intera: la curva di un uomo che
+    nessuno può comprare non serve al pannello e costa una richiesta come le altre. `--limit` prende i
+    primi N, che è quello che rende possibile una corsa di prova prima di lanciarne mille.
+
+    QUEL PERIMETRO PERÒ È UN FILTRO DI SOPRAVVIVENZA, e per l'harness è il difetto (misurato il
+    16/08/2026, prima di scrivere una riga). «Quotato oggi» vuol dire «ha ancora una carriera nel 2026»,
+    quindi guardando indietro la curva c'è solo per chi ce l'ha fatta: dei quotati della stagione
+    bersaglio ne copre il **59% su T2, il 48% su T1 e il 7% su Tm7** contro il 48-60% di `market_values`,
+    e la mancanza NON è casuale - è correlata proprio con l'esito che il canale dell'investimento predice
+    (quanto giocherà). Sul foglio di OGGI vale il contrario ed è il motivo per cui l'acquisizione è stata
+    fatta: 96% su Serie A e 89% su euro contro il 76%/82% di `market_values`. Quindi l'input è riparato
+    per il foglio e non per lo sweep, che giudica sulle finestre passate - e un canale giudicato su una
+    copertura che seleziona i sopravvissuti sarebbe un canale che si dà ragione da solo.
+
+    `all_seasons=True` è la cura: chiunque sia stato quotato in una qualsiasi stagione (2.267 curve in
+    più al 16/08/2026). L'ordine è per stagione più recente in cui è stato quotato, discendente, e non
+    per capriccio: una corsa interrotta a metà lascia le finestre recenti COMPLETE invece di lasciarle
+    tutte bucate a metà, e un buco parziale è la cosa che rende una finestra non giudicabile.
     """
     skip = ambiguous(conn)
     rows = conn.execute(
@@ -136,8 +156,28 @@ def _targets(conn, limit: int | None = None) -> list[tuple[int, str]]:
         ORDER BY COALESCE(r.fvm, r.price_initial, 0) DESC
         """
     ).fetchall()
-    wanted = [(int(fc_id), str(tm_id)) for fc_id, tm_id in rows if int(fc_id) not in skip]
-    dropped = len(rows) - len(wanted)
+    if all_seasons:
+        # ...e dietro ai quotati di oggi, tutti gli altri, il più recentemente quotato per primo. Il
+        # prezzo qui non ordina: un Qt.I del 2016 e uno del 2025 non sono la stessa moneta.
+        rows += conn.execute(
+            """
+            SELECT x.fc_id, x.source_id
+            FROM player_xref x
+            JOIN listone_quotes q ON q.fc_id = x.fc_id
+            WHERE x.source = 'transfermarkt' AND q.price_initial IS NOT NULL
+            GROUP BY x.fc_id, x.source_id
+            ORDER BY MAX(q.season) DESC
+            """
+        ).fetchall()
+    wanted: list[tuple[int, str]] = []
+    seen: set[int] = set()
+    for fc_id, tm_id in rows:
+        fc_id = int(fc_id)
+        if fc_id in skip or fc_id in seen:
+            continue
+        seen.add(fc_id)
+        wanted.append((fc_id, str(tm_id)))
+    dropped = len({int(fc_id) for fc_id, _ in rows} & skip)
     if dropped:
         print(f"[market] saltati {dropped} quotati con più di un id Transfermarkt (omonimi da sciogliere)")
     return wanted[: limit or None]
@@ -154,15 +194,20 @@ def upsert(conn, fc_id: int, points: list[dict]) -> int:
     return len(points)
 
 
-def run(ctx: Context, limit: int | None = None, refresh: bool = False, **kwargs) -> dict[str, int]:
+def run(ctx: Context, limit: int | None = None, refresh: bool = False,
+        all_seasons: bool = False, **kwargs) -> dict[str, int]:
     conn = ctx.require_conn()
-    targets = _targets(conn, limit)
+    targets = _targets(conn, limit, all_seasons)
     counts = {"players": 0, "points": 0, "requests": 0, "misses": 0}
     if not targets:
         print("[market] nessun tm_id in player_xref - lancia prima `injuries --layer ids`")
         return counts
+    todo = len(targets) if refresh else sum(
+        1 for _fc_id, tm_id in targets if not _cache_path(ctx, tm_id).exists())
     print(f"[market] curva del valore per {len(targets)} quotati"
-          + (" (--refresh)" if refresh else " (solo i mancanti)"))
+          + (" di ogni stagione" if all_seasons else " di oggi")
+          + (" (--refresh)" if refresh else f" - {todo} da scaricare")
+          + f" (~{todo * (REQUEST_DELAY + REQUEST_JITTER / 2) / 60:.0f} min)")
     session = _client()
     try:
         for fc_id, tm_id in targets:

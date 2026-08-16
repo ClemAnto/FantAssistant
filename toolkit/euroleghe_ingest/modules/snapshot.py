@@ -202,7 +202,18 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      MAE 0.148 against 0.166 for the anchor alone and 0.170 for his own raw MV) and is refused on
 #      purpose: a second free number could contradict the first, and «fm - mv» would stop being a bonus
 #      rate anybody chose. Reporting, like the whole `est_*` prefix: `engine_*` does not move a decimal.
-SHEET_REVISION = 18
+#  19  16/08/2026 - IL VALORE DI MERCATO SI LEGGE AL GIORNO DELL'ASTA. `desc_market_value` (e la quota di
+#      squadra che ne esce) veniva dalla fotografia della stagione di INPUT, vecchia fino a un anno;
+#      adesso e' l'ultimo punto della CURVA a quella data (`market_value_history`), con la fotografia
+#      come ripiego e `desc_market_value_basis` che dice quale delle due e' finita nella riga. Copertura
+#      sul foglio di oggi 76% -> 96% su Serie A e 82% -> 89% su euro. `engine_*` non si muove: il peso
+#      di questo canale e' 0 finche' lo sweep non parla.
+#  20  16/08/2026 - IL SURPLUS IN CREDITI SUL FOGLIO: `desc_spm` (surplus x il tasso del suo ruolo di
+#      listone) e `desc_dvm` (SpM - FVM), che vivevano solo nel pannello Tk. Stessa coppia di funzioni
+#      (`evaluate.market_rates` / `market_surplus`), tasso fittato sulla lista INTERA prima di ogni
+#      restringimento, surplus quello che la riga mostra (motore dove c'e', stima altrove). Reporting,
+#      come l'FVM su cui e' tarata: nessuna regola la legge e il gate non la chiama.
+SHEET_REVISION = 20
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
@@ -1911,7 +1922,10 @@ def investment(conn, window, observations, squads: dict[int, str],
 
     Legality: the fee is dated and read only before the auction date; Qt.I is the PRE-auction quotation (the
     only price a rule may read), taken from the season being auctioned where the listone exists and from the
-    previous one where it does not yet - which is the case in July, when this sheet is built.
+    previous one where it does not yet - which is the case in July, when this sheet is built; and the market
+    value is the last point of his CURVE on or before the auction day, which is the strictest of the three
+    (a dated observation filtered on the date) and falls back to the input season's snapshot where the curve
+    does not reach him.
     """
     resolve = club_index(conn)
     now: dict[int, str] = {}
@@ -1956,9 +1970,26 @@ def investment(conn, window, observations, squads: dict[int, str],
     # which is exactly where the fee proxy failed: Modric and De Bruyne read "no investment" (gate
     # 7-quater). Read on the input season and never on the target one: the target season's value would
     # know the outcome.
-    values = {fc_id: float(value) for fc_id, value in conn.execute(
+    #
+    # ...AND SINCE 16/08/2026 IL VALORE SI LEGGE AL GIORNO DELL'ASTA, non sulla stagione di input.
+    # `market_value_history` porta la CURVA (ogni variazione con la sua data), quindi la domanda «quanto
+    # valeva il giorno in cui lo compravi» ha una risposta esatta invece di una approssimata da una
+    # fotografia vecchia fino a un anno - ed e' anche la legalita' piu' stretta delle due: un punto della
+    # curva e' datato e si filtra sulla data d'asta, mentre lo scatto di una stagione e' un numero che
+    # nessuno sa quando e' stato preso. Sul foglio di oggi la copertura sale dal 76% al 96% su Serie A e
+    # dall'82% all'89% su euro.
+    # LE DUE BASI CONVIVONO E OGNI RIGA DICE LA SUA (`value_basis`), che e' la stessa disciplina della
+    # cascata di `estimate.py`: la curva dove c'e', lo scatto di stagione dove la curva non arriva, e il
+    # denominatore somma per ogni uomo la lettura che quell'uomo ha. Sono la stessa grandezza nella stessa
+    # unita' (valore di mercato in euro) lette in due momenti, e una quota di squadra normalizza il
+    # livello; quello che non si puo' fare e' tacere quale delle due e' stata usata.
+    curve = {int(fc_id): float(value) for fc_id, value, _when in conn.execute(
+        """SELECT fc_id, value, MAX(observed_on) FROM market_value_history
+           WHERE observed_on <= ? AND value IS NOT NULL GROUP BY fc_id""", (window.auction_date,))}
+    snapshots = {int(fc_id): float(value) for fc_id, value in conn.execute(
         "SELECT fc_id, value FROM market_values WHERE season = ? AND value IS NOT NULL",
         (window.input_season,))}
+    values = {**snapshots, **curve}
     squad_value: dict[str, float] = {}
     for fc_id, value in values.items():
         club = now.get(fc_id)
@@ -1975,6 +2006,10 @@ def investment(conn, window, observations, squads: dict[int, str],
             # and reporting it as 0 would say "he was free" about a club whose fees we simply do not have.
             "fee_share": round(fee / total, 3) if fee and total else (0.0 if total else None),
             "value": values.get(obs.fc_id),
+            # Quale delle due letture e' finita nella riga: «curve» = il punto al giorno dell'asta,
+            # «season» = la fotografia della stagione di input. None quando non c'e' ne' l'una ne' l'altra.
+            "value_basis": ("curve" if obs.fc_id in curve
+                            else "season" if obs.fc_id in snapshots else None),
             # ...and the same rule for the share: unknown squad total, unknown share.
             "value_share": (round(values[obs.fc_id] / squad_value[club], 4)
                             if obs.fc_id in values and squad_value.get(club) else None),
@@ -3517,6 +3552,12 @@ PLAYER_COLUMNS: tuple[str, ...] = (
     # `est_mv` is the base vote behind `est_fm`, derived from it and never guessed apart: FM - MV is the
     # bonus per appearance the row expects, so the two can never say different things about one player.
     "est_fm", "est_mv", "est_pv", "est_surplus", "est_basis", "est_confidence", "est_note",
+    # IL SURPLUS IN CREDITI e la sua distanza dal prezzo del listone (`evaluate.market_rates` /
+    # `market_surplus`, la stessa coppia che il pannello Tk chiama - qui non c'è una seconda aritmetica).
+    # Erano dentro il pannello soltanto, quindi l'app non poteva confrontare l'FVM con niente: la
+    # domanda «l'FVM va confrontata coi fantapunti o col surplus?» ha una risposta sola (il surplus, che
+    # è quello che un credito compra), ed è questa colonna. REPORTING, come l'FVM su cui è tarata.
+    "desc_spm", "desc_dvm",
     # a TRANSFER says he has left the club this row shows him at (see `departures`): reported, never applied
     "desc_left_for", "desc_left_on",
     # descriptive, NOT gated
@@ -3612,7 +3653,11 @@ PLAYER_COLUMNS: tuple[str, ...] = (
     # are PRE-auction facts and legal to read; wages, which would be the best measure, do not exist in any
     # whitelisted source. The weight they carry in the selection is a PARAMETER, off until the gate speaks.
     "desc_investment_fee", "desc_investment_fee_share", "desc_investment_stature",
-    "desc_market_value", "desc_investment_value_share", "desc_level_elo", "desc_career_fm",
+    # ...e il valore di mercato AL GIORNO DELL'ASTA, con la BASE da cui viene («curve» = il punto della
+    # curva a quella data, «season» = la fotografia della stagione di input): due letture della stessa
+    # grandezza, e una riga che non dicesse quale userebbe si farebbe leggere come una sola.
+    "desc_market_value", "desc_market_value_basis",
+    "desc_investment_value_share", "desc_level_elo", "desc_career_fm",
     # THE CALENDAR STILL TO BE PLAYED, from `fixtures` (§23.4, frozen 05/08/2026 and calculable since
     # 10/08/2026). Two readings of one measurement because the COUNT saturates and the mean does not:
     # `desc_easy_matches` is «k/n (p%)» - the count first, since on eight matches a percentage moves in
@@ -3990,6 +4035,7 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             # The MARKET VALUE of the input season, and his share of his squad's: the third channel of the
             # investment hypothesis, and the only one that exists for a man who arrived free.
             "desc_market_value": spend.get("value"),
+            "desc_market_value_basis": spend.get("value_basis"),
             "desc_investment_value_share": spend.get("value_share"),
             # THE LEVEL of the football behind his minutes: the Elo of the club he played them for, and only
             # for a man who CHANGED club - the population `presence.level_lift` was measured on. Without this
@@ -4029,6 +4075,39 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
         })
     rows.sort(key=lambda row: (row["role_classic"] or "Z", -(row["engine_surplus"] or -1e9)))
     return rows
+
+
+def _market_money(rows: list[dict], setup: dict) -> None:
+    """Scrive `desc_spm` e `desc_dvm` su ogni riga: il surplus in crediti, e quanto dista dall'FVM.
+
+    PERCHÉ QUI. L'FVM è un PREZZO con un monte crediti noto, e quello che un credito compra è il margine
+    sopra chi giocherebbe al posto suo - cioè il SURPLUS, non i fantapunti, che contano da zero e da zero
+    nessuno paga. La conversione è quindi un problema di budget e non una scala da scegliere
+    (`metrica-asta-surplus-v1.md` §14). Viveva solo nel pannello Tk; il foglio la porta perché l'app legge
+    il foglio e non ricalcola una definizione misurata.
+
+    IL SURPLUS È QUELLO CHE LA RIGA MOSTRA - il motore dove c'è, la stima altrove - perché è la lista che
+    l'operatore guarda davvero e gli stimati stanno nel fit per decisione misurata (§14.3: toglierli muove
+    i tassi di ≤5% su Serie A e di zero su euro). Chi non ha nemmeno una stima non entra e non riceve
+    niente: «vuoto = ignoto».
+
+    Nessuna aritmetica nuova: le due funzioni sono quelle del pannello, chiamate su righe-ponte che
+    portano i nomi che si aspettano (`fvm` qui si chiama `fvm_reporting_only`).
+    """
+    teams = setup.get("teams") or 0
+    roster = {role: teams * slots
+              for role, slots in (setup.get("squad_slots") or {}).items()} if teams else None
+    bridge = [{
+        "role_classic": row.get("role_classic"),
+        "fvm": row.get("fvm_reporting_only"),
+        "surplus_shown": row.get("engine_surplus") if row.get("engine_surplus") is not None
+        else row.get("est_surplus"),
+    } for row in rows]
+    rates = evaluate.market_rates(bridge, key="surplus_shown", roster=roster)
+    evaluate.market_surplus(bridge, rates, key="surplus_shown")
+    for row, one in zip(rows, bridge, strict=True):
+        row["desc_spm"] = one["spm"]
+        row["desc_dvm"] = one["dvm"]
 
 
 def _expected_minutes(obs, form: dict, pv_pred) -> float | None:
@@ -4497,6 +4576,11 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
                          for row in gone[:6])
             + (f" · and {len(gone) - 6} more" if len(gone) > 6 else "")
             + ". `desc_left_for` / `desc_left_on` carry it per row.")
+    # IL SURPLUS IN CREDITI, prima di qualunque restringimento: il tasso si fitta UNA VOLTA sulla lista
+    # intera, o l'SpM di un uomo cambierebbe a seconda di chi altro è nel foglio (stessa regola del
+    # pannello, `gui._market`). La lega decide solo QUANTO IN FONDO guarda la conversione - `teams x
+    # squad_slots`, gli stessi numeri che fissano il rimpiazzo.
+    _market_money(rows, setup)
     if clubs:
         wanted = {matching.club_key(name) for name in clubs}
         kept = [row for row in rows if matching.club_key(row.get("club") or "") in wanted]
@@ -4569,6 +4653,10 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
     manifest = {
         "generated_at": dt.datetime.now(tz=dt.UTC).isoformat(timespec="seconds"),
         "sheet_revision": SHEET_REVISION,
+        # DOVE è finito, detto dall'artefatto stesso: il nome della cartella lo compone questa funzione
+        # con la lega, il club e la data, e un chiamante che lo ricostruisse a mano lo sbaglierebbe il
+        # giorno che una di quelle tre regole cambia (`timepack` lo legge invece di indovinarlo).
+        "folder": str(folder),
         "platform": platform, "game": game,
         "target_season": window.target_season, "input_season": window.input_season,
         "auction_date": window.auction_date,

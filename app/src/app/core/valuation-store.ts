@@ -3,7 +3,7 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import { valueOf } from './auction-value';
 import { BoardsFile, Bundle, EngineSheetEntry, columnIndex, optionalIndex } from './bundle';
 import { DRAW_ORDER, occupiedCode } from './club-eleven';
-import { EngineForecast, PlayerRating } from './player-ratings';
+import { EngineForecast, PlayerRating, rank99ByRole } from './player-ratings';
 import { PlayerRatingsStore } from './player-ratings-store';
 import { Platform, PlayerRow, buildRosters } from './players-store';
 
@@ -101,8 +101,17 @@ export interface SquadMan extends PlayerRow {
   surplus: number | null;
   surplusIsEstimate: boolean;
   /**
+   * Lo stesso surplus in CREDITI, e quanto dista dal prezzo del listone: `dvm = spm − fvm`, positivo
+   * per chi il mercato prezza SOTTO quello che il motore gli dà. Letti dal foglio (revisione 20+).
+   */
+  spm: number | null;
+  dvm: number | null;
+  /**
    * ...e il VALORE, che è l'altra metà dello stesso conto: fantamedia × presenze attese, senza sottrarre
-   * niente (`surplus = valore − rimpiazzo × presenze`).
+   * niente (`surplus = valore − rimpiazzo × presenze`). In tabella la colonna si chiama **Fantapunti**
+   * (operatore, 16/08/2026): «valore» stava accanto all'FVM, che è il fantaVALORE di mercato, e un
+   * numero in fantapunti e un prezzo in crediti non possono portare lo stesso nome. Il campo resta
+   * `value` perché gli identificatori del codice stanno in inglese e non seguono l'etichetta.
    *
    * Sono due domande diverse e vanno lette insieme: il surplus dice quanto ti dà IN PIÙ di chi
    * giocherebbe al suo posto - giusto a un'asta a crediti, dove la risorsa scarsa è quello che sottrae -
@@ -113,7 +122,48 @@ export interface SquadMan extends PlayerRow {
   value: number | null;
   /** The four readings, 0-99 inside this listone. Null before they are computed, and it says so. */
   rating: PlayerRating | null;
+  /** Dove stanno le sue quattro fantamedie fra quelle del SUO RUOLO, 0-99: è quello che le colora. */
+  tones: ValueTones;
 }
+
+/**
+ * Il posto delle quattro colonne di fantamedia e media voto DENTRO IL RUOLO, 0-99 - o null dove non c'è
+ * un numero da collocare.
+ *
+ * Serve a una cosa sola: colorare la cella, così scorrendo la tabella si vede subito chi è buono e chi no
+ * senza leggere mille decimali (richiesta dell'operatore, 16/08/2026). Sono percentili e non giudizi
+ * nuovi: nessuna valutazione li legge, nessun gate li possiede, e la scala di colore è quella che le
+ * letture a stelline già usano (`player-ratings.toneOf`) invece di una seconda che finirebbe per dire
+ * un'altra cosa dello stesso numero.
+ *
+ * DENTRO IL RUOLO, e non sul listone intero, per la ragione scritta in `rank99ByRole`: 6,20 di fantamedia
+ * è un portiere ottimo e un attaccante mediocre, quindi un colore cross-ruolo direbbe soprattutto che
+ * ruolo gioca.
+ */
+export interface ValueTones {
+  fm: number | null;
+  mv: number | null;
+  expectedFm: number | null;
+  expectedMv: number | null;
+  /**
+   * ...e il posto del **dVM**, che è quello che colora la cella dell'**FVM**: due grandezze diverse per
+   * una cella sola, ed è voluto.
+   *
+   * Un prezzo alto non è una brutta notizia - un fuoriclasse costa - quindi colorare l'FVM per quanto è
+   * grande direbbe soltanto «è caro», che si legge già dal numero. La notizia è il CONFRONTO: quanto il
+   * listone lo prezza sopra o sotto quello che il motore dice che vale, e la sola conversione onesta fra
+   * le due valute è `dVM = SpM − FVM`, tarata dal toolkit come un problema di budget (il surplus in
+   * crediti, non i fantapunti: quello che un credito compra è il margine sopra la panchina).
+   */
+  dvm: number | null;
+}
+
+const NO_TONES: ValueTones = {
+  fm: null, mv: null, expectedFm: null, expectedMv: null, dvm: null,
+};
+
+/** Quali colonne portano un colore. Una chiave sola per la cella, la nota e il rango. */
+export type ToneKey = keyof ValueTones;
 
 /** What the engine's sheet says it expects of a player, prediction and declared fallback alike. */
 interface EngineExpectation {
@@ -142,6 +192,19 @@ interface EngineExpectation {
    */
   surplus: number | null;
   surplusIsEstimate: boolean;
+  /**
+   * IL SURPLUS IN CREDITI (`desc_spm`) e la sua distanza dal prezzo del listone (`desc_dvm` = SpM − FVM).
+   *
+   * Letti dal foglio, mai ricalcolati: il tasso è una taratura di BUDGET fatta per ruolo di listone sui
+   * `squadre × slot` uomini che il mercato compra davvero, con due alternative già misurate e scartate
+   * (un tasso unico riduce la colonna a un'affermazione sui ruoli, un pool per slot mantra spacca due
+   * ali identiche). Rifarla qui sarebbe una seconda risposta a una domanda già decisa.
+   *
+   * Assenti su un bundle scritto prima della revisione 20 del foglio: allora la cella dell'FVM non ha
+   * colore e il suo tooltip lo dice, invece di far credere che il confronto sia stato fatto.
+   */
+  spm: number | null;
+  dvm: number | null;
   /** `est_confidence`: quanto della stima è suo. 1 per una riga misurata, che non ha nulla da scontare. */
   confidence: number;
   basis: string | null;
@@ -240,6 +303,69 @@ export class ValuationStore {
     return `${this.inputSeason()} · calendario ${platform === 'euro' ? 'EuroLeghe' : 'Serie A'}`;
   }
 
+  /**
+   * Il posto di ogni fantamedia dentro il suo RUOLO, per piattaforma: `platform|fc_id` -> i quattro 0-99.
+   *
+   * Calcolato QUI e non nella tabella perché il pool giusto è il LISTONE - chi puoi comprare - mentre la
+   * tabella riceve ora una rosa di ventisei uomini e ora il listone intero. Con il pool delle righe la
+   * stessa cella cambierebbe colore passando da una vista all'altra, e «buono» vorrebbe dire «il migliore
+   * di questi ventisei»: è il difetto che il pannello del toolkit ha già pagato una volta.
+   *
+   * I numeri sono gli STESSI che la riga mostra, presi con la stessa regola (niente media per chi non ha
+   * presenze: quello 0.0 è dell'aggregazione, non suo). Rankare valori diversi da quelli scritti sarebbe
+   * una lista i cui colori descrivono un'altra lista.
+   */
+  private readonly toneScores = computed<Map<string, ValueTones>>(() => {
+    const measured = this.measured();
+    const expected = this.expected();
+    const out = new Map<string, ValueTones>();
+    for (const [platform, pool] of this.rostersByPlatform()) {
+      const columns: Record<ToneKey, Map<number, number | null>> = {
+        fm: new Map(), mv: new Map(), expectedFm: new Map(), expectedMv: new Map(), dvm: new Map(),
+      };
+      for (const player of pool) {
+        const key = `${platform}|${player.fcId}`;
+        const season = measured.get(key);
+        const engine = expected.get(key);
+        const played = !!season?.pv;
+        columns.fm.set(player.fcId, played ? (season?.fm ?? null) : null);
+        columns.mv.set(player.fcId, played ? (season?.mv ?? null) : null);
+        columns.expectedFm.set(player.fcId, engine?.fm ?? null);
+        columns.expectedMv.set(player.fcId, engine?.mv ?? null);
+        columns.dvm.set(player.fcId, engine?.dvm ?? null);
+      }
+      const ranked = {
+        fm: rank99ByRole(pool, columns.fm),
+        mv: rank99ByRole(pool, columns.mv),
+        expectedFm: rank99ByRole(pool, columns.expectedFm),
+        expectedMv: rank99ByRole(pool, columns.expectedMv),
+        dvm: rank99ByRole(pool, columns.dvm),
+      };
+      for (const player of pool) {
+        out.set(`${platform}|${player.fcId}`, {
+          fm: ranked.fm.get(player.fcId) ?? null,
+          mv: ranked.mv.get(player.fcId) ?? null,
+          expectedFm: ranked.expectedFm.get(player.fcId) ?? null,
+          expectedMv: ranked.expectedMv.get(player.fcId) ?? null,
+          dvm: ranked.dvm.get(player.fcId) ?? null,
+        });
+      }
+    }
+    return out;
+  });
+
+  /** How many men of each role the colours were ranked against, so a tooltip can say the pool. */
+  readonly rolePool = computed<Map<string, number>>(() => {
+    const out = new Map<string, number>();
+    for (const [platform, pool] of this.rostersByPlatform()) {
+      for (const player of pool) {
+        const key = `${platform}|${player.role}`;
+        out.set(key, (out.get(key) ?? 0) + 1);
+      }
+    }
+    return out;
+  });
+
   /** Where each drawn eleven puts its men, for one platform. */
   private readonly places = computed<Map<Platform, Map<number, string>>>(() => {
     const out = new Map<Platform, Map<number, string>>();
@@ -264,6 +390,7 @@ export class ValuationStore {
     const roles = this.roles();
     const places = this.places().get(platform);
     const expected = this.expected();
+    const tones = this.toneScores();
     // Read once so the rows recompute when the ratings land, instead of staying empty.
     const rated = this.ratings.ready();
     return players
@@ -289,6 +416,8 @@ export class ValuationStore {
           estimateNote: engine?.note ?? null,
           surplus: engine?.surplus ?? null,
           surplusIsEstimate: engine?.surplusIsEstimate ?? false,
+          spm: engine?.spm ?? null,
+          dvm: engine?.dvm ?? null,
           // La confidenza moltiplica anche qui, per la stessa ragione per cui moltiplica il surplus:
           // una colonna sola deve poter ordinare tutta la lista, misurati e stimati insieme.
           value: valueOf({
@@ -304,6 +433,9 @@ export class ValuationStore {
             : values.get(`${platform}|${player.fcId}`)?.classic) ?? null,
           place: places?.get(player.fcId) ?? null,
           rating: rated ? this.ratings.for(platform, player.fcId) : null,
+          // Un uomo che il listone di questa piattaforma non quota non ha un posto nel suo ruolo: la
+          // cella resta senza colore invece di prenderne uno da un pool a cui non appartiene.
+          tones: tones.get(`${platform}|${player.fcId}`) ?? NO_TONES,
         };
       })
       .sort(
@@ -514,6 +646,7 @@ export class ValuationStore {
           fm: at('engine_fm_pred'), estFm: at('est_fm'),
           mv: at('est_mv'), replacement: at('engine_replacement_fm'),
           surplus: at('engine_surplus'), estSurplus: at('est_surplus'),
+          spm: at('desc_spm'), dvm: at('desc_dvm'),
           confidence: at('est_confidence'),
           basis: at('est_basis'), note: at('est_note'),
         };
@@ -534,6 +667,8 @@ export class ValuationStore {
             fmIsEstimate: fm.isEstimate,
             surplus: surplus.value,
             surplusIsEstimate: surplus.isEstimate,
+            spm: columns.spm < 0 ? null : ((row[columns.spm] as number | null) ?? null),
+            dvm: columns.dvm < 0 ? null : ((row[columns.dvm] as number | null) ?? null),
             confidence:
               columns.confidence < 0 ? 1 : ((row[columns.confidence] as number | null) ?? 1),
             mv: columns.mv < 0 ? null : ((row[columns.mv] as number | null) ?? null),

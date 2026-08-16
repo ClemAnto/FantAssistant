@@ -1,6 +1,7 @@
-import { Injectable, computed, inject, signal } from '@angular/core';
+import { Injectable, computed, effect, inject, signal } from '@angular/core';
 
 import { Bundle, BundleTable, PlayerNote, PlayerNotesFile, columnIndex, optionalIndex } from './bundle';
+import { TimeTravel } from './time-travel';
 
 /**
  * What a name carries beside its numbers: a long absence, a return from one, a broken relationship.
@@ -274,7 +275,7 @@ export function fragilityMark(spells: readonly Spell[], today: string): PlayerMa
 }
 
 /** The dated spells per player, from the bundle's own table. */
-export function buildSpells(table: BundleTable): Map<number, Spell[]> {
+export function buildSpells(table: BundleTable, cutoff?: string): Map<number, Spell[]> {
   const [id, from, to, kind] = columnIndex(table, 'fc_id', 'start_date', 'end_date', 'kind');
   // An older bundle may not carry them, and that is «unknown»: the dates still answer.
   const days = optionalIndex(table, 'days_out');
@@ -283,13 +284,20 @@ export function buildSpells(table: BundleTable): Map<number, Spell[]> {
   for (const row of table.rows) {
     const start = row[from] as string | null;
     if (!start) continue;
+    // IL VIAGGIO NEL TEMPO, e uno spell è il caso che lo spiega meglio: quello che comincia DOPO la data
+    // non esiste ancora, e quello che finisce dopo quel giorno era ancora APERTO - dire «è durato 40
+    // giorni» sarebbe sapere il futuro. Anche `days_out` se ne va per la stessa ragione: è la durata
+    // totale, che quel giorno nessuno conosceva.
+    if (cutoff && start > cutoff) continue;
+    const ended = (row[to] as string | null) ?? null;
+    const open = cutoff != null && ended != null && ended > cutoff;
     const fcId = Number(row[id]);
     let list = out.get(fcId);
     if (!list) out.set(fcId, (list = []));
     list.push({
       from: start,
-      to: (row[to] as string | null) ?? null,
-      days: days < 0 ? null : ((row[days] as number | null) ?? null),
+      to: open ? null : ended,
+      days: open || days < 0 ? null : ((row[days] as number | null) ?? null),
       kind: (row[kind] as string | null) ?? null,
       detail: detail < 0 ? null : ((row[detail] as string | null) ?? null),
     });
@@ -314,10 +322,12 @@ export class PlayerStatus {
    * The day the marks are read against.
    *
    * The DATA is as old as the bundle and the QUESTION is about now, so both dates matter and neither is
-   * assumed: this one is the clock's, and `readAt` carries the bundle's, which the tooltip states - an open
-   * spell in a month-old bundle may have closed the day after it was written.
+   * assumed: this one is the CLOCK's - o quella del box di debug, se si sta viaggiando nel tempo - e
+   * `readAt` carries the bundle's, which the tooltip states: an open spell in a month-old bundle may have
+   * closed the day after it was written.
    */
-  private readonly today = signal(new Date().toISOString().slice(0, 10));
+  private readonly travel = inject(TimeTravel);
+  private readonly today = this.travel.today;
 
   readonly readAt = signal<string | null>(null);
 
@@ -328,6 +338,17 @@ export class PlayerStatus {
 
   constructor() {
     void this.ensure();
+    // Gli spell si RITAGLIANO alla data: uno che comincia dopo non esiste, uno che finisce dopo era
+    // ancora aperto. Quindi al cambio di data la tabella va riletta, non solo ri-giudicata.
+    effect(() => {
+      this.travel.today();
+      if (this.loaded()) void this.reread();
+    });
+  }
+
+  private async reread(): Promise<void> {
+    const cutoff = this.travel.travelling() ? this.travel.today() : undefined;
+    this.spells.set(buildSpells(await this.bundle.table('injuries'), cutoff));
   }
 
   private async ensure(): Promise<void> {

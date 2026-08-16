@@ -1,8 +1,16 @@
-import { Injectable, computed, inject, signal } from '@angular/core';
+import { Injectable, computed, effect, inject, signal } from '@angular/core';
 
 import { Bundle, BundleTable, columnIndex } from './bundle';
 import { CLEAN_SHEET_SHARE, ClubDefence, clubCleanSheets, fieldedPlaces } from './club-defence';
-import { EngineForecast, PlayerRating, matchHistories, ratingsFor, seasonHistories } from './player-ratings';
+import {
+  EngineForecast,
+  PlayerRating,
+  matchHistories,
+  ratingsFor,
+  seasonHistories,
+  seasonsClosedBy,
+} from './player-ratings';
+import { TimeTravel } from './time-travel';
 import { CareerEvents, habitMarks } from './player-discipline';
 import { MYSTERY_WINDOW, mysteryOf } from './player-mystery';
 import { PlayerMark, PlayerStatus, Spell, buildSpells, declaredFor } from './player-status';
@@ -26,15 +34,30 @@ export class PlayerRatingsStore {
 
   private readonly byPlatform = signal<Map<Platform, Map<number, PlayerRating>>>(new Map());
 
+  /** Il giorno in cui l'app crede di trovarsi: oggi, o quello del box di debug. */
+  private readonly travel = inject(TimeTravel);
+
   /** True once the ratings are in: before that a missing star means «not computed», not «no data». */
   readonly ready = computed(() => this.byPlatform().size > 0);
-
-  /** The day the injury window is read against - the clock's, while the data is as old as the bundle. */
-  private readonly today = new Date().toISOString().slice(0, 10);
 
   /** The pools the current answer was computed for: a different one has to be computed, not reused. */
   private pending: Promise<void> | null = null;
   private computed: string | null = null;
+  /** L'ultima domanda fatta, per poterla RIFARE quando la data cambia: il pool non lo conosce questo store. */
+  private asked: {
+    pool: ReadonlyMap<Platform, PlayerRow[]>;
+    expected: ReadonlyMap<string, EngineForecast>;
+  } | null = null;
+
+  constructor() {
+    // Il viaggio nel tempo cambia la RISPOSTA e non la domanda, quindi il ricalcolo parte da qui invece
+    // che dai chiamanti: le due tabelle chiedono le letture una volta sola, all'apertura.
+    effect(() => {
+      this.travel.today();
+      const asked = this.asked;
+      if (asked) void this.ensure(asked.pool, asked.expected);
+    });
+  }
 
   /**
    * Computes them for every platform of `pool`, once. A second call with the same pools is free.
@@ -49,18 +72,21 @@ export class PlayerRatingsStore {
   ): Promise<void> {
     // The percentile is a fact about a POOL, so a call with a different pool is a different question and
     // must not be answered with the previous one's numbers. Keyed on what actually changes the answer.
+    // ...e la DATA fa parte della domanda: le stesse persone lette a novembre sono un'altra risposta.
     const wanted = [...pool]
       .map(([platform, players]) => `${platform}:${players.length}`)
       .sort()
-      .join('|') + `/${expected.size}`;
+      .join('|') + `/${expected.size}@${this.travel.today()}`;
     if (this.computed === wanted && this.pending) return this.pending;
     this.computed = wanted;
+    this.asked = { pool, expected };
+    this.travel.busy.set(true);
     this.pending = this.build(pool, expected).catch(() => {
       // An older bundle without one of the tables: no stars anywhere, and `ready` stays false so
       // nothing reads their absence as «this player has nothing measured». The next call retries.
       this.pending = null;
       this.computed = null;
-    });
+    }).finally(() => this.travel.busy.set(false));
     return this.pending;
   }
 
@@ -94,8 +120,18 @@ export class PlayerRatingsStore {
     const sheets = await this.bundle.manifest()
       .then((one) => one.engine_sheets ?? []).catch(() => []);
     const places = fieldedPlaces(await this.bundle.classicModules().catch(() => null));
-    const spells = buildSpells(injuries);
+    // IL GIORNO in cui l'app crede di trovarsi, letto UNA volta per tutta la costruzione: pezzi tagliati
+    // a due date diverse sarebbero due liste sotto un'intestazione sola.
+    const today = this.travel.today();
+    const cutoff = this.travel.travelling() ? today : undefined;
+    const spells = buildSpells(injuries, cutoff);
     const declared = declaredFor(notes, season);
+    // Le stagioni leggibili come TOTALE quel giorno: quella in corso non ne ha uno (vedi `seasonsClosedBy`).
+    const closed = cutoff
+      ? seasonsClosedBy(
+        new Set(seasonStats.rows.map((row) => row[columnIndex(seasonStats, 'season')[0]] as string)),
+        cutoff)
+      : undefined;
 
     const out = new Map<Platform, Map<number, PlayerRating>>();
     for (const [platform, players] of pool) {
@@ -121,11 +157,11 @@ export class PlayerRatingsStore {
         platform,
         ratingsFor({
           pool: players,
-          seasons: seasonHistories(seasonStats, platform),
-          matches: matchHistories(external, ratings, matchdayMap, leagueOf, inScope),
+          seasons: seasonHistories(seasonStats, platform, closed),
+          matches: matchHistories(external, ratings, matchdayMap, leagueOf, inScope, cutoff),
           spells,
           expectedShare: share,
-          today: this.today,
+          today,
           scoring,
           declared,
           cleanSheetRate,

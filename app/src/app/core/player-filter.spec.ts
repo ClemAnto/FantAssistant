@@ -9,7 +9,8 @@ const man = (over: Partial<SquadMan> = {}): SquadMan => ({
   mv: 6.2, fm: 6.9, pv: 30, expected: 24, expectedIsEstimate: false, expectedFm: 6.8,
   expectedFmIsEstimate: false, expectedMv: 6.1, estimateBasis: null, estimateNote: null,
   fvm: 120, place: null, rating: null,
-  surplus: 28.4, surplusIsEstimate: false, value: 163.2,
+  tones: { fm: null, mv: null, expectedFm: null, expectedMv: null, dvm: null },
+  surplus: 28.4, surplusIsEstimate: false, value: 163.2, spm: null, dvm: null,
   ...over,
 });
 

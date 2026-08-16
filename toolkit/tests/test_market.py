@@ -11,7 +11,7 @@ import json
 from euroleghe_ingest.config import Config
 from euroleghe_ingest.context import Context
 from euroleghe_ingest.db.database import init_db
-from euroleghe_ingest.modules.market import parse_graph, reingest_from_cache, upsert
+from euroleghe_ingest.modules.market import _targets, parse_graph, reingest_from_cache, upsert
 
 PAYLOAD = {
     "list": [
@@ -94,6 +94,35 @@ def test_un_fc_id_con_DUE_id_transfermarkt_non_si_scarica_affatto(tmp_path):
 
     assert reingest_from_cache(ctx) == 0
     assert conn.execute("SELECT COUNT(*) FROM market_value_history").fetchone()[0] == 0
+
+
+def test_il_perimetro_di_ogni_stagione_aggiunge_i_quotati_di_ieri_e_tiene_l_ordine(tmp_path):
+    """«Quotato oggi» e' un filtro di SOPRAVVIVENZA, e sulle finestre passate e' il difetto.
+
+    Tre cose che il chiamante deve poter dare per certe: il perimetro di default non si muove (i quotati
+    di oggi restano in testa e nello stesso ordine, cioe' una corsa gia' fatta non si rifa'), chi era
+    quotato solo IERI entra solo con `all_seasons`, e i nuovi arrivano dal piu' recente al piu' vecchio -
+    perche' una corsa interrotta deve lasciare le finestre recenti COMPLETE, non tutte bucate a meta'.
+    """
+    ctx = _ctx(tmp_path)
+    conn = ctx.require_conn()
+    for fc_id, name in ((1, 'Oggi caro'), (2, 'Oggi meno caro'), (3, 'Ieri'), (4, 'Ieri l altro')):
+        conn.execute("INSERT INTO players(fc_id, canonical_name) VALUES (?, ?)", (fc_id, name))
+        conn.execute("INSERT INTO player_xref(fc_id, source, source_id) VALUES (?, 'transfermarkt', ?)",
+                     (fc_id, str(100 + fc_id)))
+    conn.execute("INSERT INTO rosters(fc_id, season, fvm) VALUES (1, '2025-26', 200)")
+    conn.execute("INSERT INTO rosters(fc_id, season, fvm) VALUES (2, '2025-26', 10)")
+    conn.execute("INSERT INTO rosters(fc_id, season, fvm) VALUES (3, '2019-20', 300)")
+    conn.execute("INSERT INTO rosters(fc_id, season, fvm) VALUES (4, '2023-24', 5)")
+    for fc_id, season in ((1, '2025-26'), (2, '2025-26'), (3, '2019-20'), (4, '2023-24')):
+        conn.execute("""INSERT INTO listone_quotes(fc_id, season, platform, price_initial)
+                        VALUES (?, ?, 'default', 10)""", (fc_id, season))
+
+    assert _targets(conn) == [(1, '101'), (2, '102')]
+    # il piu' recentemente quotato per primo, e il prezzo NON ordina qui: un Qt.I del 2019 e uno del
+    # 2023 non sono la stessa moneta (il piu' caro dei due, il 3, arriva per ultimo)
+    assert _targets(conn, all_seasons=True) == [(1, '101'), (2, '102'), (4, '104'), (3, '103')]
+    assert _targets(conn, limit=3, all_seasons=True) == [(1, '101'), (2, '102'), (4, '104')]
 
 
 def test_ripassare_la_stessa_curva_non_duplica_niente(tmp_path):

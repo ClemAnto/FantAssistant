@@ -495,6 +495,46 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.54 (16 agosto 2026, pomeriggio — la curva del valore letta AL GIORNO DELL'ASTA, e il surplus in crediti sul foglio)
+
+`SHEET_REVISION` **18 → 20**, `engine_*` invariato, toolkit **407 → 409 test**.
+
+### 1. Il perimetro della curva era un filtro di SOPRAVVIVENZA (`market --all-seasons`)
+
+`market` scaricava la curva del valore dei **quotati di oggi**, che per il foglio di oggi è il perimetro
+giusto e per l'harness è il difetto: «quotato nel 2026» vuol dire «ha ancora una carriera», quindi
+guardando indietro la curva esiste solo per chi ce l'ha fatta. Misurato sui quotati della stagione
+bersaglio di ogni finestra del gate:
+
+| finestra | Tm7 | Tm4 | T0 | T1 | T2 | oggi |
+|---|---|---|---|---|---|---|
+| curva ≤ data d'asta (Serie A) | **7%** | 14% | 37% | 48% | 60% | **97%** |
+| `market_values` (stagione di input) | 48% | 57% | 52% | 58% | 60% | 76% |
+
+E la mancanza **non è casuale**: è correlata proprio con l'esito che il canale dell'investimento predice
+(quanto giocherà). Far girare lo sweep su quella copertura sarebbe stato dargli ragione da solo — quindi
+prima l'acquisizione, poi la misura. `--all-seasons` allarga il perimetro a chiunque sia **mai** stato
+quotato (2.200 curve in più), in ordine di stagione più recente: una corsa interrotta lascia le finestre
+recenti COMPLETE invece di lasciarle tutte bucate a metà, e un buco parziale è ciò che rende una finestra
+non giudicabile. Rotta verificata su un uomo quotato solo in passato **prima** di lanciarne duemila.
+
+### 2. Il valore di mercato si legge AL GIORNO DELL'ASTA
+
+`snapshot.investment` leggeva `market_values`, cioè un valore per la stagione di INPUT: per un'asta di
+agosto è un numero vecchio fino a un anno, che di un uomo comprato a luglio dice quanto valeva prima del
+trasferimento. Ora è l'ultimo punto della curva **non successivo alla data d'asta**, con la fotografia di
+stagione come ripiego e `desc_market_value_basis` che dichiara quale delle due è finita nella riga (la
+stessa disciplina della cascata di `estimate.py`). È anche la legalità più stretta delle due: un punto
+datato si filtra sulla data, una fotografia di stagione non sa dire quando è stata presa.
+
+### 3. `desc_spm` e `desc_dvm`: il surplus in crediti esce dal pannello
+
+Vivevano solo nel Tk, quindi l'app non aveva niente con cui confrontare l'FVM. Stessa coppia di funzioni
+(`evaluate.market_rates` / `market_surplus`, nessuna aritmetica nuova), tasso fittato sulla lista
+**intera** prima di ogni restringimento — o l'SpM di un uomo cambierebbe a seconda di chi altro è nel
+foglio — e surplus «quello che la riga mostra»: il motore dove c'è, la stima altrove, che è la lista che
+l'operatore guarda davvero. Reporting, come l'FVM su cui è tarata.
+
 ## Novità v9.53 (14 agosto 2026, notte — lo SPECCHIO: dato per riserva, gioca da titolare)
 
 `SHEET_REVISION` **17** (sei colonne `desc_riser_*`), `engine_*` invariato, toolkit **387 → 388 test**,

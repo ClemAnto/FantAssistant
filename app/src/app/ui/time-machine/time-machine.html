@@ -1,0 +1,51 @@
+<!-- UI text is ITALIAN in app/ (see app/CLAUDE.md); code and comments stay English. -->
+<!-- Fisso in basso a destra: l'altezza della pagina si spende sulla tabella, non sulla sua cornice.
+     `z-modal` perché deve restare leggibile sopra una tabella che scorre, e mai sopra un dialogo. -->
+<div
+  class="fixed right-3 bottom-3 z-[var(--z-dropdown)] max-w-sm rounded-lg border bg-surface px-3 py-2
+         text-xs shadow-lg"
+  [class.border-border]="!travelling()"
+  [class.border-warning]="travelling()"
+>
+  <div class="flex items-center gap-2">
+    <span
+      class="font-medium"
+      nz-tooltip
+      nzTooltipTitle="Attrezzo di DEBUG: sposta il giorno in cui l'app crede di trovarsi. Non si ricorda dopo un refresh."
+      >🕐 Viaggio nel tempo</span
+    >
+    <nz-date-picker
+      nzSize="small"
+      class="w-32"
+      nzPlaceHolder="oggi"
+      nzFormat="dd/MM/yyyy"
+      [ngModel]="picked()"
+      (ngModelChange)="travelTo($event)"
+      [nzDisabledDate]="future"
+    />
+    @if (travelling()) {
+      <button nz-button nzSize="small" nzType="text" (click)="reset()">torna a oggi</button>
+    }
+    @if (busy()) {
+      <!-- Il ricalcolo attraversa 110.961 righe per-partita: senza il loader il box sembrerebbe rotto
+           mentre invece sta lavorando. -->
+      <nz-spin nzSimple nzSize="small" />
+    }
+  </div>
+
+  @if (travelling()) {
+    <p class="mt-2 text-muted">
+      L'app si comporta come se fosse il <strong>{{ today() }}</strong
+      >: tutto quello che è successo dopo è <strong>ignoto</strong>, che non vuol dire zero.
+    </p>
+    <!-- La dichiarazione sta SEMPRE a schermo e non dentro un tooltip: un viaggio nel tempo che
+         retrodata metà dei numeri in silenzio è peggio di nessun viaggio nel tempo. -->
+    <p class="mt-1 text-muted" nz-tooltip [nzTooltipTitle]="recomputed">
+      ✓ ricalcolati: letture, trend, infortuni, marchi, screen, ruoli
+    </p>
+    <p class="mt-1 text-warning" nz-tooltip [nzTooltipTitle]="frozen">
+      ⚠ NON retrodatati: le colonne del motore (P, FM att., MV att., Surplus, Fantapunti, SpM/dVM), i
+      campetti e il listone — li scrive il toolkit per un giorno solo
+    </p>
+  }
+</div>

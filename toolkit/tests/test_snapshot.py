@@ -3679,3 +3679,55 @@ def test_a_club_squad_does_not_contain_a_man_who_has_left():
     view.players = rows
     assert [r["name"] for r in view.squad("Napoli")] == ["Buongiorno", "Rrahmani"]
     assert any(r["name"] == "Gutierrez" for r in view.players), "resta nella lista d'asta"
+
+
+def test_il_valore_di_mercato_si_legge_al_giorno_dell_asta_e_la_riga_dice_da_dove(tmp_path):
+    """La CURVA batte la fotografia di stagione, e dove non arriva la fotografia resta - dichiarata.
+
+    Il canale dell'investimento leggeva `market_values`, cioè UN valore per la stagione di input: per
+    un'asta di agosto è un numero vecchio fino a un anno, che di un uomo comprato a luglio dice quanto
+    valeva prima del trasferimento. `market_value_history` porta ogni variazione con la sua data, quindi
+    «quanto valeva il giorno dell'asta» ha una risposta esatta - e la legalità è più stretta, non meno:
+    un punto datato si filtra sulla data, una fotografia di stagione non sa dire quando è stata presa.
+
+    Tre cose che questo test inchioda, e la terza è quella che un lettore futuro potrebbe togliere per
+    sbaglio: si prende l'ULTIMO punto non successivo alla data d'asta (mai il più recente in assoluto,
+    che sarebbe leggere il futuro), dove la curva non c'è si torna alla fotografia invece di dire None,
+    e ogni riga dichiara quale delle due basi ha usato - due letture della stessa grandezza dentro la
+    stessa somma sono oneste solo se la riga lo dice.
+    """
+    from euroleghe_ingest.engine import features
+
+    conn = init_db(tmp_path / "test.db")
+    conn.execute("INSERT INTO clubs(fc_club_id, canonical_name, league) VALUES (10, 'Inter', 'serie_a')")
+    for fc_id, name in ((1, "Con curva"), (2, "Solo fotografia")):
+        conn.execute("INSERT INTO players(fc_id, canonical_name) VALUES (?, ?)", (fc_id, name))
+    conn.executemany(
+        "INSERT INTO market_value_history(fc_id, observed_on, source, value) VALUES (?, ?, 'tm', ?)",
+        [(1, "2025-12-01", 30_000_000.0),      # la sua ultima lettura PRIMA dell'asta
+         (1, "2026-09-30", 90_000_000.0)])     # ...e una DOPO, che nessuno può conoscere quel giorno
+    conn.executemany("INSERT INTO market_values(fc_id, season, source, value) VALUES (?, '2025-26', 'tm', ?)",
+                     [(1, 10_000_000.0), (2, 10_000_000.0)])
+    conn.commit()
+
+    class Obs:
+        def __init__(self, fc_id):
+            self.fc_id, self.club_target, self.role_classic = fc_id, "Inter", "A"
+
+    window = features.Window("W", "2025-26", "2026-27", "2026-08-15")
+    out = snapshot.investment(conn, window, [Obs(1), Obs(2)], {})
+
+    assert out[1]["value"] == 30_000_000.0, "l'ultimo punto al giorno dell'asta, non quello di dicembre dopo"
+    assert out[1]["value_basis"] == "curve"
+    assert out[2]["value"] == 10_000_000.0, "senza curva resta la fotografia della stagione di input"
+    assert out[2]["value_basis"] == "season"
+    # ...e il denominatore è la somma delle letture che quei due uomini hanno davvero (30 + 10)
+    assert out[1]["value_share"] == 0.75 and out[2]["value_share"] == 0.25
+
+    # un uomo che la curva non tocca e che nessuna fotografia porta non ha né valore né base: «vuoto =
+    # ignoto», e la sua assenza non entra nemmeno nel denominatore degli altri
+    conn.execute("INSERT INTO players(fc_id, canonical_name) VALUES (3, 'Ignoto')")
+    conn.commit()
+    out = snapshot.investment(conn, window, [Obs(1), Obs(2), Obs(3)], {})
+    assert out[3]["value"] is None and out[3]["value_basis"] is None and out[3]["value_share"] is None
+    assert out[1]["value_share"] == 0.75, "il denominatore non cambia per un uomo che nessuno sa prezzare"

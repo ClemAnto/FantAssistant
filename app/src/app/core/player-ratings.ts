@@ -10,11 +10,19 @@ import { Platform, PlayerRow } from './players-store';
  * table - «prende voti?», «fa bonus?», «gioca?», «è costante?» - answered from what was MEASURED, with
  * every threshold declared here in one place so nobody takes one for a fitted parameter.
  *
- * THE POOL IS PART OF THE MEASUREMENT. The score is a percentile inside the platform's own listone with
- * the ROLES MIXED, which is what the operator asked for («rispetto a tutti gli altri trasversalmente ai
- * ruoli»): a keeper therefore reads one star for bonus, and that is the answer and not a defect. It is
- * also why this is computed per platform - the euro listone and the Serie A one are different pools, and
- * a percentile quoted without its pool means nothing.
+ * THE POOL IS PART OF THE MEASUREMENT, and it is why this is computed per platform: the euro listone and
+ * the Serie A one are different pools, and a percentile quoted without its pool means nothing.
+ *
+ * ~~The score is a percentile with the ROLES MIXED («rispetto a tutti gli altri trasversalmente ai
+ * ruoli»), so a keeper reads one star for bonus and that is the answer and not a defect.~~ CORRETTO IL
+ * 16/08/2026, su richiesta dell'operatore («i loro valori devono essere confrontabili a prescindere dal
+ * ruolo, come il surplus») e con la misura davanti: mescolare i ruoli non rendeva le letture
+ * cross-ruolo, le rendeva una FOTOGRAFIA DEL RUOLO - mediane del punteggio per P/D/C/A: bonus 6/35/63/89,
+ * costanza 91/50/42/24, voti 87/36/45/55. Quelle tre sono ora standardizzate dentro il ruolo e poi
+ * classificate insieme (`alignedRank99`, scarti 83/67/51 → 1), come l'Overall dal 16/08. Le PRESENZE
+ * restano mescolate ed è deliberato: una quota di calendario è lo stesso fatto per ogni ruolo, e il loro
+ * scarto (34/63/46/40) è una verità sul listone - i portieri quotati sono quasi tutti riserve.
+ * La frase vecchia resta barrata perché chi legge trova prima quella.
  *
  * It is NOT `value99`, which is a proportion of the best man's worth (`auction-value.score99`). This one
  * is a RANK: 50 means «half the listone is below him», not «half as good as the best».
@@ -446,6 +454,88 @@ export function rank99(values: ReadonlyMap<number, number | null>): Map<number, 
 }
 
 /**
+ * Lo stesso percentile, ma dentro il RUOLO: ogni uomo confrontato con quelli del suo, sul listone intero.
+ *
+ * Perché non basta `rank99` su tutti. Una fantamedia e una media voto non vogliono dire la stessa cosa in
+ * porta e in attacco - è la lezione del 16/08/2026 sull'Overall, scritta per esteso dove i ruoli vengono
+ * allineati - quindi un 6,20 classificato sul listone intero direbbe soprattutto CHE RUOLO GIOCA, e una
+ * colonna colorata così sarebbe una colonna che dipinge i portieri. «Un portiere lo si giudica sui
+ * portieri e un attaccante sugli attaccanti», che è la frase dell'operatore e anche la cura.
+ *
+ * IL POOL È IL LISTONE e non le righe a schermo, ed è deliberato: la stessa tabella disegna la rosa di UN
+ * club e il listone intero, e con il pool delle righe «buono» vorrebbe dire «il migliore di questi
+ * ventisei» - cioè il difetto che il pannello del toolkit ha già pagato (il portiere del Milan al 99%
+ * perché la popolazione era un club solo). Buono qui vuol dire buono fra i giocatori che puoi comprare.
+ *
+ * Un ruolo con un uomo misurato solo non ha una classifica: `rank99` gli dà 50, che è «né sopra né sotto».
+ */
+export function rank99ByRole(
+  pool: readonly { fcId: number; role: string }[],
+  values: ReadonlyMap<number, number | null>,
+): Map<number, number | null> {
+  const byRole = new Map<string, Map<number, number | null>>();
+  for (const player of pool) {
+    const mine = byRole.get(player.role) ?? byRole.set(player.role, new Map()).get(player.role)!;
+    mine.set(player.fcId, values.get(player.fcId) ?? null);
+  }
+  const out = new Map<number, number | null>();
+  for (const [, mine] of byRole) {
+    for (const [fcId, score] of rank99(mine)) out.set(fcId, score);
+  }
+  return out;
+}
+
+/**
+ * IL PERCENTILE ALLINEATO FRA I RUOLI: ognuno standardizzato dentro il suo, poi tutti classificati
+ * insieme su una scala sola. È la scala del SURPLUS applicata a una lettura qualsiasi.
+ *
+ * PERCHÉ ESISTE (operatore, 16/08/2026: «i loro valori devono essere confrontabili a prescindere dal
+ * ruolo, come il surplus»). Il surplus è confrontabile fra ruoli perché sottrae il rimpiazzo DEL SUO
+ * ruolo: +20 fantapunti sopra la panchina vogliono dire la stessa cosa per un portiere e per un
+ * attaccante. Un percentile grezzo sul listone no, e quanto no è misurato - mediane per ruolo del
+ * punteggio, 499 quotati di Serie A: BONUS 6 / 35 / 63 / 89 (83 punti di scarto, perché i punti evento di
+ * un portiere sono negativi per costruzione: i gol che subisce), COSTANZA 91 / 50 / 42 / 24 (67), VOTI
+ * 87 / 36 / 45 / 55 (51). Su quelle colonne il numero diceva soprattutto CHE RUOLO GIOCA.
+ *
+ * MEDIANA e MAD, non media e deviazione standard: con lo zero del rimpiazzo che entra le distribuzioni
+ * per ruolo sono sbilanciate - pochi titolari molto sopra, una coda lunga di riserve appena sotto - e una
+ * media non ne sta più al centro. Il fattore 1,4826 rimette il MAD sulla scala di una sd, così una z
+ * resta una z. Un ruolo con un uomo solo, o con tutti uguali, non ha una dispersione da dividere: allora
+ * si classifica il numero com'è invece di inventare una scala.
+ *
+ * DOVE NON SI USA, ed è la metà interessante della regola: si allinea una lettura la cui scala GREZZA
+ * vuol dire cose diverse a seconda del ruolo, non una il cui numero grezzo è già lo stesso fatto per
+ * tutti. Le PRESENZE sono una quota dello stesso calendario - il 42% è il 42% per chiunque - e il loro
+ * scarto per ruolo (34 / 63 / 46 / 40) è una verità sul listone e non un difetto della scala: la mediana
+ * dei portieri QUOTATI gioca poco perché la maggior parte sono riserve. Allinearle direbbe «questo
+ * secondo portiere gioca una quantità normale», che è vero fra i portieri e falso in assoluto.
+ */
+export function alignedRank99(
+  pool: readonly { fcId: number; role: string }[],
+  values: ReadonlyMap<number, number | null>,
+): Map<number, number | null> {
+  const measured = new Map<string, number[]>();
+  for (const player of pool) {
+    const value = values.get(player.fcId);
+    if (value == null) continue;
+    (measured.get(player.role) ?? measured.set(player.role, []).get(player.role)!).push(value);
+  }
+  const scale = new Map<string, { mean: number; sd: number }>();
+  for (const [role, own] of measured) {
+    const middle = medianOf(own)!;
+    const spread = medianOf(own.map((one) => Math.abs(one - middle)))! * 1.4826;
+    scale.set(role, { mean: middle, sd: spread });
+  }
+  const aligned = new Map<number, number | null>();
+  for (const player of pool) {
+    const value = values.get(player.fcId) ?? null;
+    const own = scale.get(player.role);
+    aligned.set(player.fcId, value == null || !own || !own.sd ? value : (value - own.mean) / own.sd);
+  }
+  return rank99(aligned);
+}
+
+/**
  * What each half-star means, as the operator wrote it (15/08/2026), and the percentile it starts at.
  *
  *   5 = eccezionale · 4 = molto sopra la media · 3 = in media · 2 = molto sotto · 1 = estremamente
@@ -562,9 +652,34 @@ function seasonMean(rows: readonly { pv: number; value: number | null }[]): numb
 }
 
 /** `season_stats` reduced to one list per player, for one platform. */
+/**
+ * Quali stagioni un uomo al `cutoff` poteva già leggere come TOTALE: quelle finite.
+ *
+ * Un aggregato di stagione è un numero che esiste a maggio. A novembre la stagione in corso non ha un
+ * totale - ce l'ha a fine anno, e leggerlo sarebbe sapere come va a finire - quindi al viaggio nel tempo
+ * la stagione in corso e tutte quelle successive escono, e le letture che vivono sullo strato per-partita
+ * (costanza, trend) continuano a rispondere per il pezzo giocato. È il taglio più severo dei due, ed è il
+ * lato giusto da sbagliare: meglio una lettura in meno che una che conosce il futuro.
+ *
+ * La fine si ricava dal NOME («2024-25» è chiusa dal 1º luglio 2025) e non dall'ultima partita che
+ * abbiamo: una stagione che il layer per-partita non copre sarebbe altrimenti indistinguibile da una mai
+ * cominciata, e la sparirebbe anche viaggiando a ieri.
+ */
+export function seasonsClosedBy(seasons: Iterable<string>, cutoff: string): Set<string> {
+  const out = new Set<string>();
+  for (const season of seasons) {
+    const start = Number(season.slice(0, 4));
+    if (!Number.isFinite(start)) continue;
+    if (`${start + 1}-07-01` <= cutoff) out.add(season);
+  }
+  return out;
+}
+
 export function seasonHistories(
   table: BundleTable,
   platform: Platform,
+  /** Le sole stagioni leggibili come totale. Assente = tutte, che è il caso normale (nessun viaggio). */
+  closed?: ReadonlySet<string>,
 ): Map<number, SeasonRow[]> {
   const [id, season, plat, pv, mv, goals, assists] = columnIndex(
     table, 'fc_id', 'season', 'platform', 'pv', 'mv', 'goals', 'assists',
@@ -584,6 +699,7 @@ export function seasonHistories(
   const out = new Map<number, SeasonRow[]>();
   for (const row of table.rows) {
     if (row[plat] !== platform) continue;
+    if (closed && !closed.has(row[season] as string)) continue;
     const appearances = (row[pv] as number) ?? 0;
     // A season with no appearance carries no average: its stored 0.0 is the aggregation's zero.
     if (!appearances) continue;
@@ -636,6 +752,15 @@ export function matchHistories(
    * Silva's 71 Premier matches among them.
    */
   inScope: ReadonlySet<string>,
+  /**
+   * IL VIAGGIO NEL TEMPO: una partita giocata dopo questo giorno non è ancora stata giocata.
+   *
+   * Taglia in un punto solo - la prima passata e la seconda leggono lo stesso predicato - perché i
+   * denominatori vivono qui: le giornate che un campionato aveva giocato, le partite da titolare, la
+   * finestra delle ultime dieci. Tagliare il numeratore e non il denominatore è il modo classico di
+   * inventarsi una quota, ed è lo stesso difetto che questo progetto ha già pagato sui campionati.
+   */
+  cutoff?: string,
 ): Map<number, MatchHistory> {
   const [rId, rSeason, rPlatform, rMatchday, rMv] = columnIndex(
     ratings, 'fc_id', 'season', 'platform', 'matchday', 'mv',
@@ -663,12 +788,16 @@ export function matchHistories(
   // subentrato ne prende, quindi la titolarità non si legge da lì. La colonna è opzionale per un bundle
   // vecchio, e allora la quota resta ignota invece di diventare zero.
   const eStarted = optionalIndex(external, 'started');
+  const eDate = optionalIndex(external, 'match_date');
+  /** Un solo predicato per le due passate: «questa partita era già stata giocata quel giorno?». */
+  const played = (row: unknown[]): boolean =>
+    !cutoff || eDate < 0 || ((row[eDate] as string | null) ?? '') <= cutoff;
   /** (stagione, campionato) -> quante giornate ha giocato: il denominatore giusto è il suo campionato. */
   const rounds = new Map<string, number>();
   /** fc_id -> stagione -> quante ne ha cominciate. */
   const startsBySeason = new Map<number, Map<string, number>>();
   for (const row of external.rows) {
-    if (row[eSource] !== 'sofascore') continue;
+    if (row[eSource] !== 'sofascore' || !played(row)) continue;
     const realMd = row[eRealMd] as number | null;
     if (realMd == null) continue;
     const key = `${row[eSeason]}|${row[eCompetition]}`;
@@ -684,7 +813,7 @@ export function matchHistories(
   for (const row of external.rows) {
     // The LEAGUE calendar only, and only the source the calibration was fitted on: a friendly goal must
     // never enter a number a threshold was fitted on, and a cup tie has no fantacalcio vote at all.
-    if (row[eSource] !== 'sofascore') continue;
+    if (row[eSource] !== 'sofascore' || !played(row)) continue;
     const fcId = Number(row[eId]);
     const league = row[eCompetition] as string;
     // Football played in a championship this listone does not price: it happened, and it is not what
@@ -1171,11 +1300,21 @@ export function ratingsFor(input: {
     notes.bonus.set(id, one.said);
   }
 
+  /**
+   * TRE LETTURE SU QUATTRO SI ALLINEANO FRA I RUOLI, e la quarta no: vedi `alignedRank99`, dove stanno
+   * le mediane misurate che decidono quale è quale.
+   *
+   * VOTI, BONUS e COSTANZA hanno una scala grezza che vuol dire cose diverse a seconda del ruolo - un
+   * portiere prende voti più alti, i suoi punti evento sono negativi per costruzione, e chiudere a 6 è
+   * un evento comune in porta e raro in attacco - quindi il percentile grezzo li ordinava per ruolo
+   * prima che per merito. Le PRESENZE restano sul listone intero perché il 42% del calendario è il 42%
+   * per chiunque: lì lo scarto fra ruoli è un fatto e non un difetto del metro.
+   */
   const ranked: Record<RatingKey, Map<number, number | null>> = {
-    votes: rank99(raw.votes),
-    bonus: rank99(raw.bonus),
+    votes: alignedRank99(pool, raw.votes),
+    bonus: alignedRank99(pool, raw.bonus),
     presence: rank99(raw.presence),
-    consistency: rank99(raw.consistency),
+    consistency: alignedRank99(pool, raw.consistency),
     overall: new Map(),
   };
 
@@ -1410,38 +1549,12 @@ export function ratingsFor(input: {
    * quel caso solo fino a 0,5 di distanza, e già a 0,7 ribalta Bremer e Kelly. Entrambe misurate il
    * 16/08/2026.
    */
-  {
-    const measured = new Map<string, number[]>();
-    for (const player of pool) {
-      const value = overallRaw.get(player.fcId);
-      if (value == null) continue;
-      (measured.get(player.role) ?? measured.set(player.role, []).get(player.role)!).push(value);
-    }
-    /*
-     * MEDIANA e scarto ROBUSTO, non media e deviazione standard.
-     *
-     * Con lo zero del rimpiazzo che ENTRA (sopra) le distribuzioni per ruolo diventano sbilanciate -
-     * pochi titolari molto sopra, una coda lunga di riserve appena sotto - e una media non ne sta più
-     * al centro: misurato, i ruoli si disallineavano di nuovo (mediane 29 / 61 / 48 / 62) proprio dopo
-     * averli allineati. La mediana ci sta per definizione, e il MAD è la sua misura di dispersione;
-     * il fattore 1,4826 lo rimette sulla scala di una sd, così una z resta una z.
-     */
-    const scale = new Map<string, { mean: number; sd: number }>();
-    for (const [role, values] of measured) {
-      const middle = medianOf(values)!;
-      const spread = medianOf(values.map((one) => Math.abs(one - middle)))! * 1.4826;
-      scale.set(role, { mean: middle, sd: spread });
-    }
-    const aligned = new Map<number, number | null>();
-    for (const player of pool) {
-      const value = overallRaw.get(player.fcId) ?? null;
-      const own = scale.get(player.role);
-      // Un ruolo con un uomo solo, o con tutti uguali, non ha una dispersione da dividere: allora si
-      // classifica il numero com'è invece di inventare una scala.
-      aligned.set(player.fcId, value == null || !own || !own.sd ? value : (value - own.mean) / own.sd);
-    }
-    ranked.overall = rank99(aligned);
-  }
+  //
+  // UNA SOLA IMPLEMENTAZIONE, dal 16/08/2026: `alignedRank99`, la stessa che ora allinea VOTI, BONUS e
+  // COSTANZA. Era scritta qui dentro e valeva per l'Overall soltanto; due copie della stessa
+  // standardizzazione avrebbero finito per divergere, e la mediana-con-MAD è una scelta misurata (con la
+  // media i ruoli si disallineavano di nuovo: mediane 29 / 61 / 48 / 62 proprio dopo averli allineati).
+  ranked.overall = alignedRank99(pool, overallRaw);
 
   const out = new Map<number, PlayerRating>();
   for (const player of pool) {
@@ -1497,7 +1610,9 @@ export function ratingsFor(input: {
 export const RATING_LABEL: Record<RatingKey, string> = {
   overall: 'Overall',
   votes: 'Voti',
-  bonus: 'Bonus/Malus',
+  // «Bonus» e basta (operatore, 16/08/2026): il malus è sottinteso, e la colonna lo dice già da sé -
+  // per un portiere il numero è NEGATIVO, perché i gol che subisce sono la parte grossa di quel conto.
+  bonus: 'Bonus',
   presence: 'Presenze',
   consistency: 'Costanza',
 };
@@ -1506,16 +1621,18 @@ export const RATING_HINT: Record<RatingKey, string> = {
   overall:
     'Quanto ti dà IN PIÙ di chi prenderesti al suo posto: giornate × (voto + bonus − il rimpiazzo). '
     + 'Cross-ruolo: ognuno è misurato sui suoi.',
-  votes: 'Media voto di carriera, pesata sulle presenze di ogni stagione e troncata da cinque in su.',
+  votes:
+    'Media voto di carriera, pesata sulle presenze di ogni stagione e troncata da cinque in su. '
+    + 'Cross-ruolo: ognuno è misurato sui suoi.',
   bonus:
-    'Quanto vale una sua partita OLTRE al voto: gol e assist meno cartellini, autogol, rigori sbagliati '
-    + 'e - per un portiere - i gol subiti.',
+    'Quanto vale una sua partita OLTRE al voto: gol e assist meno cartellini, autogol, rigori e i gol '
+    + 'subiti. Cross-ruolo: ognuno sui suoi.',
   presence:
-    'Quanto della stagione CHE VIENE ti assicura: la quota di calendario che il motore gli prevede, '
-    + 'corretta dai minuti che gioca quando gioca.',
+    'Quanto della stagione CHE VIENE ti assicura: quota di calendario prevista, corretta dai minuti. '
+    + 'Posto sul listone intero.',
   consistency:
-    'Quante delle partite che gioca chiude con almeno 6 di VOTO: se non segna, prende 5? Il posto è '
-    + 'sul listone, il giudizio sul suo ruolo.',
+    'Quante delle partite che gioca chiude con almeno 6 di VOTO: se non segna, prende 5? '
+    + 'Cross-ruolo: ognuno è misurato sui suoi.',
 };
 
 /**
@@ -1563,12 +1680,12 @@ export const RATING_DETAIL: Record<RatingKey, string> = {
     + 'dentro la previsione e non vengono contati due volte.',
   consistency:
     'Quante delle partite che gioca chiude con almeno 6 di voto base - reale dove c\'è, sintetico '
-    + 'calibrato dove manca. ATTENZIONE A COME SI LEGGE: il numero 0-99 è il posto sul listone INTERO, '
-    + 'e prendere 6 è un evento diverso a seconda del ruolo (mediana: portieri 86%, difensori 65%, '
-    + 'centrocampisti 61%, attaccanti 57%), quindi un attaccante a 58 è nella metà alta dei suoi. '
-    + 'Nell\'Overall infatti entra confrontato con la mediana del SUO RUOLO - centrarlo sul listone '
-    + 'regalava a ogni portiere un decimo di fantamedia a partita per il fatto di essere un portiere - '
-    + 'e vale due punti di fantamedia per punto di scarto: una correzione che si vede, non un verdetto.',
+    + 'calibrato dove manca. Prendere 6 è un evento diverso a seconda del ruolo (mediana: portieri 86%, '
+    + 'difensori 68%, centrocampisti 66%, attaccanti 60%), quindi dal 16/08/2026 il posto è misurato '
+    + 'DENTRO IL RUOLO e poi classificato con tutti: prima la colonna dava 91 di mediana ai portieri e '
+    + '24 agli attaccanti, cioè diceva il ruolo e non il merito. Nell\'Overall entra allo stesso modo, '
+    + 'come scarto dalla mediana del SUO RUOLO, e vale due punti di fantamedia per punto di scarto: una '
+    + 'correzione che si vede, non un verdetto.',
 };
 
 /** What the five stars mean, in the operator's own words. Said once, drawn wherever they are. */

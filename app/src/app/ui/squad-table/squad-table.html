@@ -64,6 +64,7 @@
           nzWidth="48px"
           class="text-right"
           [nzSortFn]="byExpected"
+          [nzSortDirections]="highFirst"
           nz-tooltip
           [nzTooltipTitle]="expectedHeader()"
         >
@@ -75,9 +76,10 @@
            altrove solo il secondo può esistere. -->
       @if (shows('expectedFm')) {
         <th
-          nzWidth="62px"
+          nzWidth="70px"
           class="text-right"
           [nzSortFn]="byExpectedFm"
+          [nzSortDirections]="highFirst"
           nz-tooltip
           [nzTooltipTitle]="expectedFmHeader"
         >
@@ -86,9 +88,10 @@
       }
       @if (shows('expectedMv')) {
         <th
-          nzWidth="62px"
+          nzWidth="70px"
           class="text-right"
           [nzSortFn]="byExpectedMv"
+          [nzSortDirections]="highFirst"
           nz-tooltip
           nzTooltipTitle="Media voto ATTESA: il foglio la ricava dalla FM attesa, e la differenza fra le due è il bonus che si aspetta da lui."
         >
@@ -102,6 +105,7 @@
           nzWidth="64px"
           class="text-right"
           [nzSortFn]="bySurplus"
+          [nzSortDirections]="highFirst"
           nz-tooltip
           [nzTooltipTitle]="surplusHeader"
         >
@@ -110,13 +114,14 @@
       }
       @if (shows('value')) {
         <th
-          nzWidth="64px"
+          nzWidth="92px"
           class="text-right"
           [nzSortFn]="byValue"
+          [nzSortDirections]="highFirst"
           nz-tooltip
           [nzTooltipTitle]="valueHeader"
         >
-          Valore
+          Fantapunti
         </th>
       }
       @if (shows('fvm')) {
@@ -124,6 +129,7 @@
           nzWidth="58px"
           class="text-right"
           [nzSortFn]="byFvm"
+          [nzSortDirections]="highFirst"
           nz-tooltip
           [nzTooltipTitle]="fvmHeader()"
         >
@@ -131,10 +137,10 @@
         </th>
       }
       @if (shows('mv')) {
-        <th nzWidth="56px" class="text-right" [nzSortFn]="byMv">MV</th>
+        <th nzWidth="64px" class="text-right" [nzSortFn]="byMv" [nzSortDirections]="highFirst">MV</th>
       }
       @if (shows('fm')) {
-        <th nzWidth="56px" class="text-right" [nzSortFn]="byFm">FM</th>
+        <th nzWidth="64px" class="text-right" [nzSortFn]="byFm" [nzSortDirections]="highFirst">FM</th>
       }
       <!-- The four readings. Each sorts on its 0-99 and shows the stars: two men half a star apart are
            two different numbers, so the number is what the column is ordered by. -->
@@ -143,6 +149,7 @@
           <th
             nzWidth="84px"
             [nzSortFn]="byRating(key)"
+            [nzSortDirections]="highFirst"
             nz-tooltip
             [nzTooltipTitle]="ratingHint[key]"
           >
@@ -209,12 +216,19 @@
             }
           </td>
         }
+        <!-- Le quattro colonne di fantamedia portano il COLORE del loro posto dentro il ruolo: la scala è
+             quella delle stelline, quindi il centro del listone resta neutro e il rosso sta solo in
+             fondo. Il riquadro è quello dei quadratini 0-99, allargato al numero: una fila di riquadri
+             uguali si scorre a colpo d'occhio, larghezze diverse fanno leggere la forma. -->
         @if (shows('expectedFm')) {
           <td class="text-right tabular-nums" [title]="expectedFmHint(man)">
             @if (man.expectedFm == null) {
               —
             } @else {
-              <span [class.text-muted]="man.expectedFmIsEstimate"
+              <span
+                class="inline-flex min-w-11 justify-center rounded-md px-1"
+                [class]="tone(man, 'expectedFm')"
+                [class.opacity-60]="man.expectedFmIsEstimate"
                 >@if (man.expectedFmIsEstimate) {~}{{ man.expectedFm | number: '1.2-2' }}</span
               >
             }
@@ -225,7 +239,10 @@
             @if (man.expectedMv == null) {
               —
             } @else {
-              <span [class.text-muted]="man.expectedFmIsEstimate"
+              <span
+                class="inline-flex min-w-11 justify-center rounded-md px-1"
+                [class]="tone(man, 'expectedMv')"
+                [class.opacity-60]="man.expectedFmIsEstimate"
                 >@if (man.expectedFmIsEstimate) {~}{{ man.expectedMv | number: '1.2-2' }}</span
               >
             }
@@ -253,19 +270,38 @@
             }
           </td>
         }
+        <!-- L'FVM è colorato dal dVM e non da sé stesso: un fuoriclasse costa, e «è caro» si legge già
+             dal numero. Verde = il listone lo prezza molto SOTTO il surplus in crediti, ambra = molto
+             sopra. INCHIOSTRO e non riquadro, così la colonna dei prezzi resta una colonna di prezzi. -->
         @if (shows('fvm')) {
           <td class="text-right tabular-nums" [title]="fvmHint(man)">
-            {{ man.fvm == null ? '—' : (man.fvm | number: '1.0-0') }}
+            <span [class]="fvmTone(man)">{{ man.fvm == null ? '—' : (man.fvm | number: '1.0-0') }}</span>
           </td>
         }
         @if (shows('mv')) {
-          <td class="text-right tabular-nums" [title]="measuredHint(man)">
-            {{ man.mv == null ? '—' : (man.mv | number: '1.2-2') }}
+          <td class="text-right tabular-nums" [title]="measuredHint(man, 'mv')">
+            @if (man.mv == null) {
+              —
+            } @else {
+              <span
+                class="inline-flex min-w-11 justify-center rounded-md px-1"
+                [class]="tone(man, 'mv')"
+                >{{ man.mv | number: '1.2-2' }}</span
+              >
+            }
           </td>
         }
         @if (shows('fm')) {
-          <td class="text-right tabular-nums" [title]="measuredHint(man)">
-            {{ man.fm == null ? '—' : (man.fm | number: '1.2-2') }}
+          <td class="text-right tabular-nums" [title]="measuredHint(man, 'fm')">
+            @if (man.fm == null) {
+              —
+            } @else {
+              <span
+                class="inline-flex min-w-11 justify-center rounded-md px-1"
+                [class]="tone(man, 'fm')"
+                >{{ man.fm | number: '1.2-2' }}</span
+              >
+            }
           </td>
         }
         @for (key of ratingKeys; track key) {
@@ -299,6 +335,8 @@
 <nz-collapse nzGhost class="mt-1">
   <nz-collapse-panel nzHeader="Come si leggono queste colonne">
     <div class="flex flex-col gap-2 text-xs text-muted">
+      <p><strong>Il colore di FM, MV, FM att. e MV att.</strong> {{ tonesDetail }}</p>
+      <p><strong>Il colore dell'FVM.</strong> {{ fvmToneDetail }}</p>
       <p><strong>Le stelline.</strong> {{ starsDetail }}</p>
       <p><strong>Stelle sfumate.</strong> {{ anchorDetail }}</p>
       @for (key of ratingKeys; track key) {

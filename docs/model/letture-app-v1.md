@@ -1,7 +1,7 @@
 # Le letture dell'app — Overall e le quattro colonne (v1)
 
 **Che cosa sono e che cosa NON sono.** Cinque numeri 0-99 che l'app mostra accanto a ogni nome — Overall,
-Voti, Bonus/Malus, Presenze, Costanza — e sono **REPORTING**: nessuna valutazione del motore li legge,
+Voti, Bonus, Presenze, Costanza — e sono **REPORTING**: nessuna valutazione del motore li legge,
 nessun gate li possiede, nessuna lista d'asta ci ordina sopra. Sono le domande che l'operatore fa al
 tavolo — «prende voti?», «fa bonus?», «gioca?», «è costante?», «chi conviene avere?» — risposte da quello
 che è stato misurato, con **ogni soglia dichiarata in un posto solo** perché nessuno le scambi per
@@ -162,7 +162,92 @@ E resta la cosa che il SURPLUS del foglio non fa e che va detta: lui usa ancora 
 quindi **sopravvaluta di mezzo punto quello che un giocatore aggiunge**. Cambiarlo è lavoro di motore su
 dieci finestre di gate, non una riga qui.
 
-## 5. La colonna Bonus/Malus è quanto vale una sua partita OLTRE al voto
+## 4-ter. Le QUATTRO letture allineate come l'Overall — e la sola che resta fuori (16/08, pomeriggio)
+
+**Richiesta dell'operatore**: «vorrei che l'overall e i valori voti, bonus, presenze e costanza
+rispecchiassero di più la scala del SURPLUS: i loro valori devono essere confrontabili a prescindere dal
+ruolo». Il surplus lo è per costruzione — sottrae il rimpiazzo DEL SUO ruolo, quindi +20 fantapunti sopra
+la panchina vogliono dire la stessa cosa in porta e in attacco. Le quattro letture no, e **la §4 aveva
+sistemato solo l'Overall**.
+
+Misurato prima di decidere (mediane del punteggio per P / D / C / A, 499 quotati di Serie A):
+
+| lettura | prima | dopo | scarto |
+|---|---|---|---|
+| **Bonus** | 6 / 35 / 63 / 89 | 50 / 49 / 50 / 50 | 83 → **1** |
+| **Costanza** | 91 / 50 / 42 / 24 | 49 / 50 / 50 / 49 | 67 → **1** |
+| **Voti** | 87 / 36 / 45 / 55 | 49 / 49 / 49 / 49 | 51 → **1** |
+| Presenze | 34 / 63 / 46 / 40 | *invariata* | 29 |
+| Overall | 50 / 49 / 49 / 48 | *invariato* | 2 |
+
+Il Bonus era il caso peggiore **per costruzione**: i punti evento di un portiere sono negativi (i gol che
+subisce), quindi la colonna dava 6 di mediana ai portieri — diceva il ruolo, non il merito. Il rimedio è
+quello della §4 applicato un livello sotto, e ora è **una funzione sola** (`alignedRank99`, mediana e MAD
+dentro il ruolo, poi classifica su tutto il listone) letta dall'Overall e dalle tre letture: le mediane
+dell'Overall sono identiche prima e dopo, che è la prova che l'estrazione non ha cambiato niente.
+
+**Le PRESENZE restano fuori, e la regola generale è questa**: si allinea una lettura la cui scala GREZZA
+vuol dire cose diverse a seconda del ruolo, non una il cui numero grezzo è già lo stesso fatto per tutti.
+Il 42% del calendario è il 42% per chiunque, e lo scarto 34 / 63 / 46 / 40 è una **verità sul listone** e
+non un difetto del metro: la mediana dei portieri *quotati* gioca poco perché quasi tutti sono riserve.
+Allinearle direbbe «questo secondo portiere gioca una quantità normale», che è vero fra i portieri e
+falso in assoluto.
+
+⚠️ **Una cosa che questa modifica NON fa, e va detta perché la richiesta si può leggere in due modi.**
+«Scala del surplus» qui vuol dire *confrontabile fra ruoli*. Se volesse dire *più d'accordo con la
+classifica del surplus del foglio*, la direzione è l'opposta: l'allineamento ha ABBASSATO quell'accordo
+da 0,64 a 0,48 (§4), perché il surplus del foglio ha i quattro zeri a profondità diverse — che è
+esattamente il difetto che l'allineamento cura.
+
+## 4-quater. Il colore delle celle: FM/MV nel ruolo, l'FVM contro il surplus (16/08, pomeriggio)
+
+Due richieste dello stesso giorno, e la seconda è la più interessante perché il colore NON descrive il
+numero su cui sta.
+
+**FM, MV, FM att. e MV att.** portano il colore del loro posto **dentro il ruolo** (pool: il listone, mai
+le righe a schermo — la stessa tabella disegna la rosa di un club e la lista intera, e col pool delle
+righe «buono» vorrebbe dire «il migliore di questi ventisei»). Verificato chiamando la funzione che
+spedisce: le quote per ruolo escono identiche — portieri 12 verdi / 11 ambra, difensori 51/50,
+centrocampisti 55/52, attaccanti 26/25 — che è la prova che il colore parla del giocatore e non del ruolo.
+Scala: quella delle stelline (`toneOf`), quindi centro NEUTRO e rosso solo in fondo.
+
+**L'FVM è colorato dal dVM**, non da sé stesso: «costa tanto» non è una notizia, un fuoriclasse costa. La
+notizia è quanto il listone lo prezza sopra o sotto quello che il motore gli dà — verde molto sotto
+(occasione), ambra molto sopra (caro), inchiostro e non riquadro. «Molto» è la banda che le stelline già
+chiamano «molto sopra/sotto la media» (±0,75σ dentro il ruolo): nessuna soglia nuova inventata.
+
+Questo ha richiesto di portare **SpM e dVM sul foglio** (`desc_spm`, `desc_dvm`, `SHEET_REVISION` 20):
+vivevano solo nel pannello Tk, quindi l'app non aveva niente con cui confrontare l'FVM. Stessa coppia di
+funzioni del pannello (`evaluate.market_rates` / `market_surplus`), tasso fittato sulla lista **intera**
+prima di ogni restringimento. E la risposta alla domanda che l'ha generata — «l'FVM va confrontata coi
+fantapunti o col surplus?» — è **col surplus**: quello che un credito compra è il margine sopra chi
+giocherebbe al posto suo, mentre i fantapunti contano da zero e da zero non paga nessuno
+([metrica-asta-surplus-v1.md](metrica-asta-surplus-v1.md) §14).
+
+**E la colonna VALORE si chiama FANTAPUNTI** (operatore, stesso giorno): viveva accanto all'FVM, che è il
+fanta*valore* di mercato, e un numero in fantapunti e un prezzo in crediti non possono portare lo stesso
+nome. Il campo resta `value` nel codice.
+
+## 4-quinquies. Il VIAGGIO NEL TEMPO, e che cosa non retrodata (16/08, pomeriggio)
+
+Un box di **debug** fisso in basso a destra sposta il giorno in cui l'app crede di trovarsi. Serve a
+guardare la tabella com'era a una data passata; tutto quello che è successo dopo torna a essere IGNOTO.
+
+**Retrodatato**: lo strato per-partita (110.961 righe con `match_date`, e i voti che ci si agganciano),
+gli infortuni, i ruoli granulari, le stagioni chiuse — e quindi le cinque letture, il trend delle ultime
+dieci, i marchi e gli screen. Tre regole che il codice obbedisce e i test inchiodano: uno stop che
+comincia dopo **non esiste**, uno che si chiude dopo era ancora **APERTO** (e allora `days_out` sparisce:
+è la durata totale, che quel giorno nessuno conosceva), e una stagione **non ancora conclusa non ha un
+totale** da leggere — il taglio più severo dei due, ed è il lato giusto da sbagliare.
+
+**NON retrodatabile, e il box lo scrive sempre a schermo**: le colonne del foglio (P, FM att., MV att.,
+Surplus, Fantapunti, SpM/dVM), i campetti e il listone stesso. Le scrive il toolkit per un giorno preciso
+(`snapshot --date`), e rifarle nell'app vorrebbe dire rimettere il motore qui dentro. Un viaggio nel
+tempo che ne retrodata metà **in silenzio** sarebbe peggio di nessun viaggio nel tempo: è la stessa
+regola della lista i cui numeri descrivono un'altra lista. Per un viaggio fedele anche sul motore la
+strada esiste ed è un'altra: un bundle costruito dal toolkit per quella data.
+
+## 5. La colonna Bonus è quanto vale una sua partita OLTRE al voto
 
 Non solo gol e assist: **tutti** i termini che il `scoring_config` prezza, con i malus **sottratti** —
 cartellini, autogol, rigori sbagliati e, per un portiere, i gol subiti. Prima la colonna portava solo gol

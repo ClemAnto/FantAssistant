@@ -156,6 +156,19 @@ def build_parser() -> argparse.ArgumentParser:
     p_snap.add_argument("--no-refresh", dest="refresh", action="store_false",
                         help="do not fetch today's probabili/indisponibili first (offline run)")
 
+    # The engine at a PAST date, packed for the app's time travel. Few dates and chosen ones: the two
+    # days a squad is really the squad - just after each transfer window closes - for the last two
+    # seasons. The dates are READ from the transfers layer, never written by hand.
+    p_pack = sub.add_parser("timepack", help=load("timepack").DESCRIPTION)
+    p_pack.add_argument("--plan", action="store_true",
+                        help="list the significant dates, where each comes from, and which are built")
+    p_pack.add_argument("--date", metavar="YYYY-MM-DD",
+                        help="build this one (must be one of the dates --plan lists)")
+    p_pack.add_argument("--all", dest="build_all", action="store_true",
+                        help="build every date that is still missing")
+    p_pack.add_argument("--refresh", action="store_true",
+                        help="rebuild a pack that already exists")
+
     # One subcommand per pipeline module (single run).
     for name in PIPELINE:
         module = load(name)
@@ -181,6 +194,11 @@ def build_parser() -> argparse.ArgumentParser:
                                 "worth re-asking")
             p.add_argument("--from-cache", dest="from_cache", action="store_true",
                            help="OFFLINE: re-read the curves already downloaded, zero requests")
+            p.add_argument("--all-seasons", dest="all_seasons", action="store_true",
+                           help="everybody ever quoted, not just today's listone: 'quoted today' is a "
+                                "SURVIVORSHIP filter, so on a past window the curve only exists for who "
+                                "still has a career (7%% of Tm7's quoted against 59%% of T2's) and the "
+                                "harness cannot judge the channel on it")
         if name == "recent_form":
             p.add_argument("--season", action="append", metavar="YYYY-YY",
                            help="target listone season (repeatable; default: all but the first)")
@@ -355,7 +373,8 @@ def main(argv: list[str] | None = None) -> int:
                 if args.from_cache:
                     load("market").reingest_from_cache(ctx)
                 else:
-                    load("market").run(ctx, limit=args.limit, refresh=args.refresh)
+                    load("market").run(ctx, limit=args.limit, refresh=args.refresh,
+                                       all_seasons=args.all_seasons)
             elif args.command == "recent_form":
                 load("recent_form").run(ctx, seasons=args.season, wanted=args.matches,
                                         bonuses=args.bonuses, limit=args.limit,
@@ -372,6 +391,9 @@ def main(argv: list[str] | None = None) -> int:
                 load("snapshot").run(ctx, season=args.season, platform=args.platform,
                                      game=args.game, refresh=args.refresh, out=args.out,
                                      date=args.date, clubs=args.club, league=args.league)
+            elif args.command == "timepack":
+                load("timepack").run(ctx, date=args.date, plan=args.plan,
+                                     build_all=args.build_all, refresh=args.refresh)
             elif args.command == "backtest":
                 load("backtest").run(ctx, windows=args.window, platforms=args.platform,
                                      games=args.game, rules=args.rules, cases=args.cases,
