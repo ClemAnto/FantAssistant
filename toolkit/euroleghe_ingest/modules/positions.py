@@ -64,6 +64,13 @@ INCIDENTS_ENDPOINT = BASE_URL + "/event/{eid}/incidents"
 CREST_ENDPOINT = BASE_URL + "/team/{tid}/image"
 EXTRA_WINDOW_DAYS = 150       # how far back a non-league match is still part of "the last ten"
 
+# How many pages of a club's history the listing may be walked back. The endpoint serves 30 finished
+# events a page - measured on Inter, 15/08/2026: page 0 covers 2026-01→2026-08, page 3 reaches
+# 2024-10 - so a page is about half a season and twelve of them are three years, which is as far back
+# as any channel here looks. It is a CAP and not a target: the walk stops as soon as a page is older
+# than the window asked for, so the default 150-day run still costs one page per club.
+EXTRA_MAX_PAGES = 12
+
 # SofaScore unique-tournament ids for the 5 leagues in scope (verified against the API).
 TOURNAMENTS: dict[str, int] = {
     "serie_a": 23,
@@ -466,20 +473,40 @@ def _slug_of(event: dict) -> str:
     return str(name).lower()
 
 
-def download_extra(session, team_id: str, since: str, cancel_event=None) -> dict | None:
-    """One club's recent matches OUTSIDE our five leagues, in the round cache's own shape.
+def download_extra(session, team_id: str, since: str, cancel_event=None,
+                   max_pages: int = EXTRA_MAX_PAGES) -> dict | None:
+    """One club's matches OUTSIDE our five leagues, back to `since`, in the round cache's own shape.
 
     Kept: FINISHED events, no older than `since`, whose tournament is not one of the five we walk round
     by round - so friendlies and pre-season trophies, but also the cups and the continental ties the
     league calendar never listed. Each event keeps its own slug, because a friendly and a Coppa Italia
     tie are not the same evidence and the sheet reports them apart.
+
+    PAGINATED, and it is what makes the past reachable at all: the endpoint serves 30 events a page and
+    the first page is barely half a season, so a single page could never carry the European ties of the
+    seasons before this one - measured 15/08/2026, Champions had 1,071 rows in 2025-26 and 21 in
+    2024-25, which reads as «we never played them» and is really «we never asked». The walk stops at the
+    first page entirely older than `since`, so a short window still costs one request per club.
     """
-    data = _get_json(session, TEAM_EVENTS_ENDPOINT.format(tid=team_id, page=0))
-    if not data or not data.get("events"):
-        return None
     known_tournaments = {str(tid) for tid in TOURNAMENTS.values()}
     events, lineups = [], {}
-    for event in data["events"]:
+    listing = []
+    for page in range(max(1, max_pages)):
+        if cancel_event is not None and cancel_event.is_set():
+            break
+        if page:
+            _polite_sleep(cancel_event)
+        data = _get_json(session, TEAM_EVENTS_ENDPOINT.format(tid=team_id, page=page))
+        found = (data or {}).get("events") or []
+        if not found:
+            break
+        listing.extend(found)
+        newest = max((_iso_date(one.get("startTimestamp")) or "" for one in found), default="")
+        if newest < since:
+            break                         # this page is already past the window: so is every next one
+    if not listing:
+        return None
+    for event in listing:
         if (event.get("status") or {}).get("type") != "finished":
             continue
         date = _iso_date(event.get("startTimestamp"))
@@ -555,9 +582,11 @@ def fetch_extra_matches(ctx: Context, clubs=None, refresh: bool = False,
         print("[positions] interrupted - already-downloaded clubs are cached")
     finally:
         session.close()
-    reingest_match_layer(ctx, seasons=[season])
+    # Un file «extra» porta ora eventi di PIÙ stagioni (ognuno con la sua), quindi la ricostruzione non
+    # può essere ristretta alla stagione del nome del file: quella è solo la chiave della cache.
+    reingest_match_layer(ctx)
     # The line-ups say who was there; only the incidents say who scored.
-    fetch_extra_incidents(ctx, seasons=[season], refresh=refresh)
+    fetch_extra_incidents(ctx, refresh=refresh)
     return counts
 
 
@@ -2220,7 +2249,8 @@ def run(ctx: Context, *, leagues=None, seasons=None, refresh: bool = False,
         # run beside another job (it is re-run through August as the friendlies are played).
         if not role_targets(ctx.require_conn()):
             derive_club_xref(ctx)
-        fetch_extra_matches(ctx, clubs=kwargs.get("clubs"), refresh=refresh)
+        fetch_extra_matches(ctx, clubs=kwargs.get("clubs"), refresh=refresh,
+                            days=kwargs.get("days") or EXTRA_WINDOW_DAYS)
         return
     if layer == "heatmap":
         fetch_heatmaps(ctx, leagues, seasons, refresh)

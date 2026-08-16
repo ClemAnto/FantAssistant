@@ -207,6 +207,14 @@ def build_parser() -> argparse.ArgumentParser:
                            help="season to import, e.g. 2024-25 (repeatable; default: all)")
             p.add_argument("--refresh", action="store_true",
                            help="re-download league-seasons even if already present")
+            p.add_argument("--days", type=int, metavar="N",
+                           help="with --layer extra: how far back to walk a club's non-league matches "
+                                "(default 150, i.e. the last ten rounds). The listing is paginated 30 "
+                                "events at a time, so a wider window costs one request more per page - "
+                                "1100 reaches three seasons and is what the European ties need, since "
+                                "one page is barely half a season and the cups of the seasons before "
+                                "this one were never asked for (Champions: 1.071 rows in 2025-26, 21 "
+                                "in 2024-25)")
             p.add_argument("--layer",
                            choices=["season", "match", "complete", "heatmap", "roles", "all",
                                     "reparse", "crosstab", "extra", "crests"],
