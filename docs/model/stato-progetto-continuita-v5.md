@@ -8,7 +8,30 @@ App per leghe EuroLeghe/fantacalcio.it (Classic+Mantra, 5 campionati) con motore
 
 ## ⚠️ Lo stato corrente è in `00-BRIDGE-punto-di-ingresso.md`, blocco «STATO AL 5 AGOSTO 2026»
 
-### 16 agosto 2026, POMERIGGIO E SERA, in una riga: il viaggio nel tempo, e tre voci del gate chiuse o aperte
+### 16 agosto 2026, SERA TARDI, in una riga: R20 adottata, e i due zeri del foglio hanno un progetto
+
+Sei commit dopo la prima chiusura (`14935d5` → `21a13a4`), **v0.1.14 pubblicata**, `SHEET_REVISION` **21**.
+
+1. **R20 ADOTTATA con un K per piattaforma** — `R20K10` su `default`, `R20K6` su `euro` — perché
+   l'evidenza è per piattaforma come per R19: l'accuratezza è unanime (3/3 finestre ovunque, da +3,8% a
+   +29,2%) e a dividersi sono le guardie, con quella sui NOMI che morde in un verso su euro e nell'altro
+   su Serie A. Non muove niente di esistente (`--verify` 22/22, fogli d'agosto identici): si muovono i
+   quattro pacchetti del viaggio nel tempo, che sono in-season per definizione.
+2. **Un difetto dell'attrezzo trovato lungo la strada, e vale oltre R20**: una soglia di scoring è una
+   QUOTA del calendario previsto, non un numero. `MIN_PV_ACT` = 15 su quattordici giornate residue era
+   irraggiungibile, quindi la guardia sulla fantamedia **smetteva di misurare** e il gate contava «non
+   verificata» come «peggiorata» — bocciando una regola da +23,7% (`evaluate.scoring_floor`).
+3. **Una mia premessa sbagliata, corretta chiamando il codice**: il pannello le giornate giocate le legge
+   già. Il difetto vero è che a stagione iniziata butta via la stagione precedente e restringe verso la
+   media di popolazione invece che verso il prior di quell'uomo — e giudicarlo costa finestre in-season
+   nello sweep, non «una riga di griglia» come avevo stimato.
+4. **I due zeri del foglio, misurati**: coi zeri di oggi i primi 25 sono P5 D1 C0 **A19**, col rimpiazzo
+   che entra P3 D5 C8 A9, 13 nomi su 25 in comune, e il caso già chiuso dall'operatore non si riapre.
+   **Deciso di averle tutt'e due** (§21.1): `engine_surplus` resta gated e intoccato, la seconda nasce
+   reporting, si sceglie solo per quale si ORDINA. La ricetta tecnica è scritta (§21.2) perché la
+   prossima sessione non la ri-derivi.
+
+### 16 agosto 2026, POMERIGGIO, in una riga: il viaggio nel tempo, e tre voci del gate chiuse o aperte
 
 Dieci commit (`f46dc28` → `d4b213f`), **v0.1.12 e v0.1.13 pubblicate**, toolkit **411 test**, app **261**,
 `backtest --verify` **22/22**. Dettaglio nel blocco «ULTIMO IN ORDINE DI TEMPO» del

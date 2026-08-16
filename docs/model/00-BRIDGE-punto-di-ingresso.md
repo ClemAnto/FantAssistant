@@ -45,11 +45,19 @@ tempo** con quattro date che retrodatano anche il motore.
 
 **Le tre voci del gate, in ordine di quanto pesano.**
 1. **R20 — le giornate già giocate entrano nelle presenze attese** (§7-duotricies): pre-registrata,
-   harness in-season costruito, misurata. Su Serie A **passa**: 3/3 finestre su tutti e sei i punti di
-   griglia, +28,3% di MAE a febbraio e +10,4% a settembre col candidato **K = 10** — interno alla
-   griglia e unico punto che supera tutte e quattro le guardie in tutti e due i regimi. Su **euro il
-   verdetto è APERTO**: gli stessi guadagni (+23,7%), ma la guardia sulla fantamedia non ha potuto
-   misurare (`FM None`), ed è un buco dell'harness. **Non adottata**, deliberatamente.
+   harness in-season costruito, misurata e **ADOTTATA con un K per PIATTAFORMA — `R20K10` su
+   `default`, `R20K6` su `euro`**. L'accuratezza è unanime (3/3 finestre su ogni punto e ogni regime,
+   da +3,8% a +29,2%); a dividersi sono le guardie, e quella che morde è sempre quella sui NOMI in
+   cima, che è un conteggio su dieci. Su euro il 6 le supera tutte e il 10 perde una posizione in una
+   finestra di tre; su Serie A è l'opposto — quindi l'evidenza è per piattaforma e lo è l'adozione,
+   come già per R19. **Non muove un decimale di quello che esiste**: la regola è inerte a zero giornate
+   viste, `--verify` resta 22/22 e i fogli d'agosto sono identici; si muovono i quattro pacchetti del
+   viaggio nel tempo, e per quello `SHEET_REVISION` è 21 e **v0.1.14 è pubblicata**.
+   Lungo la strada un difetto dell'attrezzo che vale oltre R20: **una soglia di scoring è una QUOTA del
+   calendario previsto, non un numero**. `MIN_PV_ACT` = 15 è il 39% di una stagione da 38; su una
+   finestra in-season ne restano quattordici, quindi era irraggiungibile e la guardia sulla fantamedia
+   **smetteva di misurare** invece di fallire — col gate che contava «non verificata» come «peggiorata»
+   e bocciava una regola da +23,7% (`evaluate.scoring_floor`).
 2. **Il canale dell'investimento con l'input riparato** (§7-untricies): **no**. Serie A +0,26% con
    ottimo interno e ogni fold positivo, sotto il pavimento dello 0,5%; la forma condizionale adesso
    COSTA. Chiude la voce «sistemare l'input prima di toccare il peso», aperta da agosto.
@@ -65,10 +73,26 @@ migliore di questi ventisei»; e la stima di fattibilità di R20 dava **+42%** s
 stagione precedente contro **+24,8%** sul listone. Ogni volta la correzione ha tolto fra il 40% e il 100%
 del risultato apparente.
 
-**Cosa resta aperto**, in ordine: il buco `FM None` dell'harness su euro (blocca il verdetto di R20 e
-quindi l'adozione); il SURPLUS del foglio che usa ancora il marginale di rosa (mezzo punto di
-sopravvalutazione); la TENDENZA della curva del valore, acquisita e non letta da nessuno; i minuti per
-competizione e in nazionale (muro di consenso su Transfermarkt) e le coppe da Sofascore (403).
+**I DUE ZERI del foglio, misurati e con un progetto deciso** (metrica §21, §21.1, §21.2). Il surplus
+conta dal marginale di ROSA e i primi 25 del foglio sono **P5 D1 C0 A19** — diciannove attaccanti e zero
+centrocampisti — mentre col rimpiazzo che ENTRA diventano P3 D5 C8 A9, con solo 13 nomi su 25 in comune.
+E il caso che l'operatore aveva chiuso non si riapre (Simeone 7°→23°, Esposito F.P. 20°→57°: restano
+nell'ordine giusto). **Deciso di averle tutt'e due**: `engine_surplus` non si tocca perché è gated, la
+seconda nasce REPORTING col suo zero dichiarato in cella, si sceglie solo per quale si ORDINA e le
+statistiche del blocco seguono. Il toggle NON si chiama «rilanci/draft»: quella è la MONETA e ha già una
+misura, A/B è «rispetto a chi misuri» ed è un'altra domanda. La ricetta tecnica è in §21.2.
+
+**E una premessa mia che era sbagliata, verificata chiamando il codice**: il pannello le giornate giocate
+**le legge già** (su un foglio in-season `measured_season` sposta tutti gli strati sulla stagione in
+corso: mediana 15 partite misurate al 5 febbraio). Il difetto vero è più piccolo — a stagione iniziata
+butta via la stagione precedente e restringe verso la media di POPOLAZIONE invece che verso il prior di
+quell'uomo — e giudicarlo costa finestre in-season anche nello sweep, non «una riga di griglia» come
+avevo stimato.
+
+**Cosa resta aperto**, in ordine: le **due colonne** (§21.2, lavoro meccanico: features → auction_level →
+foglio → export → app); il **prior personale** del pannello a stagione iniziata; la TENDENZA della curva
+del valore, acquisita e non letta da nessuno; i minuti per competizione e in nazionale (muro di consenso
+su Transfermarkt) e le coppe da Sofascore (403).
 
 **Dove siamo, in cinque righe.** La giornata del 15-16/08 è stata quasi tutta **sull'app**: la tabella di
 consultazione ha ora **cinque letture 0-99** con un documento proprio,
