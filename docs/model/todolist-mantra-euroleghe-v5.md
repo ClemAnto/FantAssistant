@@ -24,12 +24,20 @@ che ne nascono, in ordine di quanto costano:
   nel browser headless, non indovinare endpoint — dei tentati, 4 su 6 hanno risposto 404.
 - [ ] **Coppe da Sofascore** — 403 `challenge` su ogni endpoint dal 16/08/2026, dopo una corsa su 93 club
   che ha portato solo il 2026-27. In attesa; non insistere.
-- [ ] **Secondo giudice per le board** — l'articolo Transfermarkt del 14/08/2026 (formazioni tipo
-  2026-27) da archiviare in `press_formations` con fonte propria. Misurato intanto: le board ci prendono
-  7/20 contro quel giudice, **ma i due giudici concordano fra loro 7/20**, quindi il 35% è il rumore della
-  domanda e non un voto su di noi. Contro il riferimento consolidato dell'08/08 le board leggono 12/20
-  esatte e 17/20 dentro le alternative citate, contro 7/20 e 12/20 dell'articolo — numero contaminato,
-  però, perché le board sono state sviluppate guardando quel riferimento.
+- [ ] **Secondo giudice per le board** — l'articolo Transfermarkt del 14/08/2026 («Formazioni titolari
+  Serie A 2026/2027: ecco tutte le squadre-tipo»).
+
+  ⚠️ **RITIRATI i numeri riportati il 16/08 su questo confronto** (le board 7/20 contro quel giudice, i
+  due giudici 7/20 fra loro, 12/20 contro il riferimento dell'08/08). Verificato scaricando la pagina:
+  **l'articolo non contiene i moduli**, né in chiaro né negli `alt`, e non ha immagini di formazione —
+  l'undici è disegnato in un grafico. L'elenco su cui quei conti erano fatti veniva dal riassunto
+  automatico del fetch, che li aveva **dedotti** e non letti, e un numero costruito su una fonte che non
+  si può ri-leggere non è un numero. Stessa regola di «cita il report, non il numero».
+
+  Quello che la pagina porta DAVVERO, verificato e parsabile: per ogni club i movimenti principali, gli
+  obiettivi di mercato, i giocatori in bilico, i **ballottaggi** e i **rigoristi**. Sono un giudice
+  diverso e utile - i ballottaggi le board li producono - ma non è un confronto sui moduli. Se lo si
+  archivia, si archivia quello che c'è.
 
 **Chiusura 10/08 (draft)**: il pannello d'asta è completo (porte, rimpiazzo vivo, Valore 0-99, scelta
 consigliata a quattro giri) e la moneta con cui consiglia è stata **misurata sull'esito** su cinque
