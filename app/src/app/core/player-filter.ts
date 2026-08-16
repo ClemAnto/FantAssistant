@@ -70,6 +70,12 @@ export const FILTER_FIELDS: FilterField[] = [
   { key: 'expected', label: 'P (partite attese)', kind: 'number', number: (man) => man.expected },
   { key: 'expectedFm', label: 'FM att.', kind: 'number', number: (man) => man.expectedFm },
   { key: 'expectedMv', label: 'MV att.', kind: 'number', number: (man) => man.expectedMv },
+  // I DUE SURPLUS, tutt'e due filtrabili e con l'etichetta della loro colonna: «Surplus > 20» e
+  // «Margine > 0» sono due domande diverse (dal marginale di rosa, dal rimpiazzo che entra), e offrirne
+  // una sola avrebbe insegnato che l'altra è un di più. Vuoto resta fuori da entrambe le liste, come
+  // ogni altro numero qui.
+  { key: 'surplus', label: 'Surplus', kind: 'number', number: (man) => man.surplus },
+  { key: 'surplusFielded', label: 'Margine', kind: 'number', number: (man) => man.surplusFielded },
   { key: 'fvm', label: 'FVM', kind: 'number', number: (man) => man.fvm },
   { key: 'mv', label: 'MV misurata', kind: 'number', number: (man) => man.mv },
   { key: 'fm', label: 'FM misurata', kind: 'number', number: (man) => man.fm },

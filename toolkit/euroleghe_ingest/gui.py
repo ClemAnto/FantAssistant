@@ -2287,6 +2287,9 @@ class SnapshotView(ttk.Frame):
         # campo e Ramos no?» stops being a puzzle when 59% and 31% sit right beside those numbers.
         ("claim", "claim", 44, "e", "num"),
         ("surplus", "SUR", 44, "e", "num"),
+        # ...and the SAME margin over the other zero, right beside it: two questions, two columns, and
+        # the pair is read together (`docs/model/metrica-asta-surplus-v1.md` §21.1).
+        ("mar", "MAR", 44, "e", "num"),
         ("fm", "FM", 38, "e", "num"),
         # Everything to the right is PER MATCHDAY, which is the unit an auction thinks in: a season total
         # answers "how good was he", a per-matchday share answers "what does he give me on Sunday".
@@ -2372,6 +2375,19 @@ class SnapshotView(ttk.Frame):
                "which the gate has refused twice. On euro the adopted set falls back to the role anchor "
                "(R0c) and prices him anyway; on Serie A R0c is not adopted, so there is nothing to fall "
                "back to - measured on this sheet: 283 of 629 rows, 157 + 126.",
+        "mar": "THE SAME MARGIN OVER THE OTHER ZERO, and the two columns are two QUESTIONS rather than "
+               "two answers to one (`docs/model/metrica-asta-surplus-v1.md` §21). `SUR` counts from the "
+               "marginal ROSTERED man - the 80th midfielder of a ten-team league - which is «who is worth "
+               "buying». `MAR` counts from the man who actually ENTERS when a starter misses a round: the "
+               "rank `teams x the places the rulebook FIELDS` (P 1 - D 4 - C 4 - A 2 on classic, the "
+               "twelve codes on mantra, counted from the rulebook and never chosen). That zero is half a "
+               "fantavoto higher, so this column is always the smaller number, and the ORDER is what "
+               "changes: on the Serie A sheet the two top twenty-fives share 7 names of 25. Read them "
+               "together - a man high in both is strong, a man who falls here was worth mostly because "
+               "the fillers of his role are poor. REPORTING and not gated: no rule reads it, and "
+               "`engine_surplus` did not move a decimal when it arrived. Same slot as `SUR` by "
+               "construction, so the difference is the DEPTH and nothing else. EMPTY where the sheet "
+               "carries no second zero (a folder older than revision 22) - never a zero.",
         "fm": "GATED. Predicted fantamedia for the season being auctioned, from the adopted rule set "
               "with parameters fitted on a window that is not this season. A `~` in front means the "
               "core could not predict him (too few votes here) and the cell shows the ESTIMATE instead, "
@@ -3607,7 +3623,8 @@ class SnapshotView(ttk.Frame):
     # predicted surplus, which is what the sheet opens on and what clicking "R" restores.
     SORT_FIELD: ClassVar[dict[str, str]] = {
         "real": "desc_real_role", "mantra": "roles_mantra", "name": "name",
-        "surplus": "engine_surplus", "fm": "engine_fm_pred", "pv": "engine_pv_pred",
+        "surplus": "engine_surplus", "mar": "desc_surplus_fielded",
+        "fm": "engine_fm_pred", "pv": "engine_pv_pred",
         "minutes": "desc_expected_minutes", "tit": "desc_season_matches",
         "rating": "desc_form_rating", "bonus": "desc_goals_p90", "inj": "desc_injury_weighted",
         "status": "desc_starter_prob",
@@ -4080,6 +4097,10 @@ class SnapshotView(ttk.Frame):
         surplus, estimated = self.row_surplus(row)
         surplus_text = (f"~{row.get('est_surplus')}" if estimated
                         else (row.get("engine_surplus") or ""))
+        # ...and the same margin over the OTHER zero, which the sheet writes for the whole list (engine
+        # where there is one, estimate elsewhere) - so the `~` is the same fact as the column beside it.
+        margin = _number(row.get("desc_surplus_fielded"), None)
+        margin_text = "" if margin is None else (f"~{margin:.1f}" if estimated else f"{margin:.1f}")
         share = min(presences / calendar, 1) if presences is not None else None
         started = self.voto_share(row) if row.get("desc_season_matches") else None
         rating = _number(row.get("desc_form_rating"), None)
@@ -4092,6 +4113,7 @@ class SnapshotView(ttk.Frame):
             "real": (real or "-", None),
             "name": (row.get("name") or "", None),
             "surplus": (surplus_text, surplus),
+            "mar": (margin_text, margin),
             "fm": (fm_text, fm),
             "pv": (f"{share:.0%}" if share is not None else "", share),
             "minutes": (f"{per_match:.0f}" if per_match else "", per_match),

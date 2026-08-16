@@ -3466,6 +3466,36 @@ def test_a_mantra_sheet_measures_its_surplus_against_a_mantra_replacement_level(
     assert "engine_role_slot" in snapshot.PLAYER_COLUMNS
 
 
+def test_the_panel_draws_the_two_zeros_side_by_side():
+    """Il pannello legge il FOGLIO, quindi la seconda colonna è una lettura e non un secondo conto.
+
+    Guidata sulla VISTA vera (`_cell_values`, la funzione che riempie la tabella) e non su una copia:
+    è la regola pagata l'08/08/2026 - «drive the REAL panel, not a harness that builds a different
+    population». Quello che è fissato: la colonna esiste, porta `desc_surplus_fielded` così com'è, la
+    marca `~` è la STESSA della cella accanto (una riga stimata è stimata in tutt'e due), e un foglio
+    più vecchio della revisione 22 la lascia VUOTA invece di scriverci uno zero.
+    """
+    from euroleghe_ingest.gui import SnapshotView as View
+
+    def man(**extra) -> dict:
+        return {"name": "Tizio", "role_classic": "C", "engine_pv_pred": "30",
+                "desc_season_matches": "30", "engine_fm_pred": "6.5", **extra}
+
+    gated = man(engine_surplus="28.4", desc_surplus_fielded="14.7")
+    guessed = man(est_surplus="9.1", est_fm="6.1", desc_surplus_fielded="4.2")
+    old = man(engine_surplus="28.4")            # cartella scritta prima della revisione 22
+    view = _view_of([gated, guessed, old])
+    view.manifest = {"matchdays": {"platform_target": 38}}
+
+    assert ("mar", "MAR", 44, "e", "num") in View.COLUMNS
+    assert view._cell_values(gated)["mar"] == ("14.7", 14.7)
+    assert view._cell_values(guessed)["mar"] == ("~4.2", 4.2), "stimata di là, stimata di qua"
+    assert view._cell_values(old)["mar"] == ("", None), "vuoto = ignoto, mai zero"
+    # ...e si ordina per quello che MOSTRA: la colonna del foglio, non un'altra
+    assert View.SORT_FIELD["mar"] == "desc_surplus_fielded"
+    assert "mar" in View.COLUMN_HELP, "una colonna senza la sua riga di spiegazione non si spedisce"
+
+
 def test_the_sheet_carries_two_zeros_because_they_answer_two_questions():
     """DECISO il 16/08/2026 (metrica-asta-surplus-v1.md §21.1): due colonne, non una scelta.
 

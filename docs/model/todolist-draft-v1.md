@@ -230,14 +230,18 @@ un'idea, leggere «cosa è già stato respinto» in fondo.
   prevede un numero solo e non li distingue; le due strade per cui potrebbe contare sono l'R-Factor (conta i
   voti BASE, quindi spinge contro il bonus-man) e la varianza in un campionato a scontri diretti. Misurabile
   da `match_rating_bonuses`, non misurata.
-- [~] **4.5 — MISURATA il 16/08/2026 e non ancora adottata** (gate §7-duotricies). Harness in-season
-  costruito, regola R20 dichiarata un punto di griglia alla volta, corsa fatta: su **Serie A passa** —
-  3/3 finestre su tutti e sei i punti, +28,3% di MAE a febbraio e +10,4% a settembre con **K = 10**, che
-  è interno alla griglia e l'unico punto che supera tutte e quattro le guardie in entrambi i regimi. Su
-  **euro il verdetto è aperto**: stessi ordini di grandezza, ma la guardia sulla fantamedia non ha potuto
-  misurare (`FM None`, buco dell'harness da diagnosticare). Prima di accenderla servono quel buco chiuso,
-  la corsa euro rifatta e la decisione su come il pannello la usa — cambia fogli, surplus e consiglio.
-  Il testo originale dell'item resta qui sotto perché è la domanda che l'ha generata.
+- [x] **4.5 — ADOTTATA il 16/08/2026, con un K per PIATTAFORMA** (gate §7-duotricies): `R20K10` su
+  `default`, `R20K6` su `euro`, in `evaluate.ADOPTED`. L'accuratezza è unanime (3/3 finestre su ogni
+  punto di griglia e ogni regime, da +3,8% a +29,2%); a dividersi sono le guardie, e quella che morde è
+  sempre quella sui NOMI in cima — su euro il 6 le supera tutte, su Serie A è il 10. Il buco `FM None`
+  era l'attrezzo e non la regola: `MIN_PV_ACT` = 15 è il **39% di un calendario da 38**, quindi su una
+  finestra in-season con quattordici giornate residue era irraggiungibile e la guardia *smetteva di
+  misurare* invece di fallire (`evaluate.scoring_floor` tiene la quota).
+  **Quello che resta aperto è il PANNELLO**: `presence.py` non importa `evaluate`, quindi lo standing che
+  disegna la board e consiglia al tavolo ignora ancora le giornate giocate. È la stessa asimmetria di
+  sempre («un parametro di `presence.py` muove i fogli, una regola muove `engine_*`»), vista dall'altro
+  lato — e non è una riga: va deciso come il pannello la usa, e giudicarlo costa finestre in-season anche
+  nello sweep. Il testo originale dell'item resta qui sotto perché è la domanda che l'ha generata.
 
 - [ ] **4.5 — NUOVO e conseguenza diretta di 4.4, il numero più grande della campagna:** se l'asta è a
   stagione iniziata, `engine_pv_pred` deve LEGGERE le giornate giocate. Oggi è costruito sulla stagione

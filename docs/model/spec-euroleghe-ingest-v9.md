@@ -538,6 +538,12 @@ l'export li avrebbe saltati per colonne mancanti — che è esattamente ciò che
 prova che il warning serve. In app la colonna si chiama **«Margine»** (scelta dell'operatore) e sta
 accanto a «Surplus»: due domande, si sceglie solo per quale ORDINARE, e il consiglio d'asta non la legge.
 
+**E il pannello Tk la legge dal FOGLIO** (colonna `MAR` accanto a `SUR`, con la sua riga di
+`COLUMN_HELP`): là non c'è un secondo conto da fare, perché la cella è la colonna del CSV così com'è — la
+marca `~` è la stessa della cella accanto, una cartella più vecchia della revisione 22 la lascia vuota, e
+l'ordinamento legge il campo che la colonna MOSTRA. In app le due sono anche **filtrabili** («Surplus > 20»
+e «Margine > 0» sono due domande, e offrirne una sola avrebbe insegnato che l'altra è un di più).
+
 ## Novità v9.54 (16 agosto 2026, pomeriggio — la curva del valore letta AL GIORNO DELL'ASTA, e il surplus in crediti sul foglio)
 
 `SHEET_REVISION` **18 → 20**, `engine_*` invariato, toolkit **407 → 409 test**.

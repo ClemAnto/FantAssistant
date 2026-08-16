@@ -45,6 +45,18 @@ describe('matchesFilter', () => {
     expect(matchesFilter([clause({ field: 'fm', op: 'filled', value: '' })], arrivo)).toBe(false);
   });
 
+  it('offre TUTT\'E DUE i surplus, perché sono due domande', () => {
+    // «Surplus > 20» conta dal marginale di rosa, «Margine > 20» dal rimpiazzo che entra: lo stesso uomo
+    // passa il primo e non il secondo, ed è esattamente la differenza che le due colonne mostrano.
+    expect(matchesFilter([clause({ field: 'surplus', op: 'gt', value: '20' })], row())).toBe(true);
+    expect(matchesFilter([clause({ field: 'surplusFielded', op: 'gt', value: '20' })], row())).toBe(false);
+    expect(matchesFilter([clause({ field: 'surplusFielded', op: 'gt', value: '10' })], row())).toBe(true);
+    // e un foglio che non porta il secondo zero non è uno zero: si trova col criterio apposta
+    const vecchio = row({ surplusFielded: null });
+    expect(matchesFilter([clause({ field: 'surplusFielded', op: 'lt', value: '99' })], vecchio)).toBe(false);
+    expect(matchesFilter([clause({ field: 'surplusFielded', op: 'empty', value: '' })], vecchio)).toBe(true);
+  });
+
   it('confronta ruolo, squadra e nome senza badare ad accenti e maiuscole', () => {
     expect(matchesFilter([clause({ field: 'role', op: 'is', value: 'A' })], row())).toBe(true);
     expect(matchesFilter([clause({ field: 'role', op: 'not', value: 'A' })], row())).toBe(false);
