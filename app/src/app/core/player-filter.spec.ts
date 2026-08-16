@@ -11,6 +11,7 @@ const man = (over: Partial<SquadMan> = {}): SquadMan => ({
   fvm: 120, place: null, rating: null,
   tones: { fm: null, mv: null, expectedFm: null, expectedMv: null, dvm: null },
   surplus: 28.4, surplusIsEstimate: false, value: 163.2, spm: null, dvm: null,
+  surplusFielded: 14.7, replacementFielded: 6.99,
   ...over,
 });
 

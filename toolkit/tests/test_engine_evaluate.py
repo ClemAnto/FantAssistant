@@ -201,6 +201,61 @@ def test_replacement_level_is_the_marginal_rostered_player_at_that_role(prepared
     assert deep["D"] == pytest.approx(6.30)            # pool exhausted -> its last man
 
 
+def test_the_places_an_eleven_fields_are_counted_from_the_rulebook_and_sum_to_eleven():
+    """THE OTHER ZERO, and the only thing it needs is the game's own rulebook, counted.
+
+    `roster_depth` says how deep a league ROSTERS (8 defenders x 10 teams -> the 80th) and answers «chi
+    conviene comprare». `fielded_places` says how many places an eleven FIELDS, which is the rank behind
+    «quanto costa una giornata saltata» - and it is configuration read, never a number chosen: the seven
+    classic modules give exactly P 1 · D 4 · C 4 · A 2 and the eleven Mantra schemes give the twelve
+    codes. Both sum to ELEVEN, which is the same transcription check the two files carry about
+    themselves, and it is what would catch a mis-read line or a hybrid place counted twice.
+
+    The two conventions are pinned here because they are conventions: a hybrid place is split evenly
+    among the roles it accepts (a `W/A` is half a `w` and half an `a`), and the keeper is one place in
+    every shape although no shape lists him.
+    """
+    config = Config()
+    classic = features.fielded_places(config.load_modules("classic"), "classic")
+    assert classic == {"P": 1.0, "D": 4.0, "C": 4.0, "A": 2.0}
+    assert sum(classic.values()) == pytest.approx(11.0)
+
+    mantra = features.fielded_places(config.load_modules("mantra"), "mantra")
+    assert sum(mantra.values()) == pytest.approx(11.0)
+    assert mantra["por"] == pytest.approx(1.0)
+    assert set(mantra) == set(model.MANTRA_ROLES), "every code the pools are keyed on has a rank"
+    # the hybrid split, read off the file: `A/PC` and `T/A/PC` are the only striker places there are, so
+    # a `pc` never reaches one whole place a shape - which is the rulebook's own consequence (§13 of
+    # assistente-asta-v1) arriving here as a number.
+    assert mantra["pc"] < 1.0 < mantra["dc"]
+    # ...and by macro-role the two rulebooks agree on the only thing they can: eleven men, one keeper.
+    by_group = {group: sum(mantra[role] for role in roles)
+                for group, roles in model.MANTRA_BY_CLASSIC.items()}
+    assert by_group["P"] == pytest.approx(1.0)
+    assert sum(by_group.values()) == pytest.approx(11.0)
+
+    # no rulebook is a SILENCE and not an empty rulebook: the columns it feeds stay empty (see
+    # `snapshot._surplus_over`), and nothing invents a zero.
+    assert features.fielded_places({}, "classic") == {}
+
+
+def test_the_fielded_zero_is_the_same_function_one_depth_up(prepared):
+    """Same pool, same domain, same seasons: only the RANK moves, and it moves the level up.
+
+    That is the whole claim of metrica-asta-surplus-v1 §21.2 - «non è un numero nuovo da fittare, è la
+    stessa funzione con una profondità diversa» - and it is what keeps the two sheet columns comparable:
+    a reader can attribute their difference to the depth, because nothing else differs. Measured on the
+    real 2025-26 Serie A pool the pair is P 4.13/5.01 · D 5.66/6.14 · C 5.87/6.36 · A 5.61/6.71.
+    """
+    _cfg, conn, _window, _data = prepared
+    roster = features.replacement_levels(conn, "euro", (INPUT_SEASON,), "classic",
+                                         {"P": 1, "D": 3, "C": 1, "A": 1}, teams=1)
+    fielded = features.replacement_levels(conn, "euro", (INPUT_SEASON,), "classic",
+                                          {"P": 1, "D": 1, "C": 1, "A": 1}, teams=1)
+    assert fielded["D"] > roster["D"], "fewer places means a stronger marginal man"
+    assert fielded["P"] == roster["P"], "a role whose depth does not change does not move"
+
+
 def test_fielding_caps_reproduce_the_module_limits(prepared):
     """A Mantra module caps how many of a role you can field - no scheme allows 3 'pc' or 4 'dc'. Rather
     than transcribe the official module table, the cap is MEASURED off real starting elevens, and this

@@ -508,6 +508,17 @@ change is right for one and wrong for the other: the fielded zero, adopted in th
 REFUSED hours earlier because it broke a ruling the operator had already made, and it stopped breaking it
 only once the Overall's base moved to `FM att.`. A refusal is conditional on everything else that was
 true when it was made, and re-measuring after a change is not re-litigating.
+**So the sheet carries BOTH, and the gated one was not touched** (16/08/2026, `SHEET_REVISION` 22,
+`desc_replacement_fielded` / `desc_surplus_fielded`, column «Margine» beside «Surplus» in the app). The
+places an eleven fields are COUNTED from the game's own rulebook (`features.fielded_places`, one reader
+for both files: classic reproduces P 1 · D 4 · C 4 · A 2, mantra gives the twelve codes, and both sum to
+ELEVEN — which is the test, and the same transcription check the two files make about themselves). Two
+habits it re-taught. **Move ONE variable**: the second zero reads the same pool over the same seasons as
+the gated one, so the two columns differ by the depth and by nothing else — and because of that the top
+25 change MORE than §21 had estimated (7 names in common against 13), the whole difference being the
+forwards' pooled level (6.99) against 2025-26's (6.71). And **a slot is decided once**: asked to choose
+freely on the deeper zero, every `dd`/`ds` of both mantra sheets moves into the `dc` list, so the row
+would name one slot and carry another's level — the very sin `auction_level` exists to prevent.
 
 ## A provider that stops answering is a measurement, not an obstacle
 **16/08/2026.** A `--refresh` over 93 clubs left Sofascore returning **403 `challenge`** on every

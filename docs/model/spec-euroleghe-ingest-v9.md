@@ -495,6 +495,49 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.55 (16 agosto 2026, sera tardi — l'ALTRO ZERO sul foglio: il rimpiazzo che ENTRA)
+
+`SHEET_REVISION` **21 → 22** (due colonne `desc_*_fielded`), `engine_*` invariato (`backtest --verify`
+**22/22**), toolkit **411 → 414 test**, app **261 → 263**. Numeri e verifiche incrociate in
+[metrica-asta-surplus-v1.md](metrica-asta-surplus-v1.md) **§21.3**; qui la meccanica.
+
+### 1. `features.fielded_places(rulebook, game)` — i posti che un undici SCHIERA, contati dal regolamento
+
+Non un numero nuovo da fittare: la stessa `replacement_levels` con un rango diverso. `roster_depth` dice
+quanto in fondo la lega ROSTERIZZA (8 difensori × 10 squadre → l'80°), questa dice quanti posti un undici
+schiera (4 × 10 → il 40°). Legge lo stesso file per tutt'e due i giochi — `modules` + `slot_roles` — e
+non conosce nessun nome di modulo: **classic esce P 1 · D 4 · C 4 · A 2**, mantra esce sui dodici codici,
+e **tutt'e due sommano 11**, che è il test (la stessa verifica di trascrizione che i due file fanno su sé
+stessi). Due convenzioni, dichiarate perché sono convenzioni: posto IBRIDO diviso in parti uguali fra i
+ruoli che accetta, e nessuna inflazione di listings (serve a convertire una regola detta in GIOCATORI, e
+un posto tipizzato è già nell'unità della pool).
+
+`Config.load_modules(game)` è l'unico lettore dei due file dentro il toolkit (prima li copiava soltanto
+l'`export`); `features.prepare(..., rulebook=)` resta senza dipendenze da file di configurazione come già
+per `league`, e senza il regolamento la mappa è vuota — cioè le colonne sono vuote, mai zero.
+
+### 2. Una cascata sola, con lo slot già deciso
+
+`snapshot.auction_level(obs, data, levels, slot=)`: la mappa dei livelli si passa, lo slot si decide UNA
+volta sulla mappa gated e la seconda colonna prezza quello. **Misurato prima di sceglierlo**: lasciando
+scegliere di nuovo, sul secondo zero tutti i `dd`/`ds` dei fogli mantra finiscono nella lista dei `dc`
+(a quella profondità 5,99 contro 6,28), e la riga dichiarerebbe uno slot portando il livello di un altro.
+
+`_surplus_over(prediction, level)` fa la stessa aritmetica su un livello DATO e **non ha il ripiego sul
+VALORE** che ha `_surplus`: senza livello la cella è vuota. Sulle righe che il motore non prezza vale la
+stima con la stessa penale di confidenza del suo `est_surplus`, perché una colonna deve poter ordinare
+tutta la lista (regola degli estimati, gate §7-undecies) — e il test è sul NUMERO e non sull'oggetto, che
+è il difetto trovato al primo giro: una `prediction` esiste anche per chi il core rifiuta di prezzare, e
+il primo tentativo lasciava 137 righe vuote su 638.
+
+### 3. Sul foglio, nel bundle, in tabella
+
+`desc_replacement_fielded` e `desc_surplus_fielded` in `PLAYER_COLUMNS` e in `export.SHEET_COLUMNS`; i
+quattro pacchetti del viaggio nel tempo sono stati **ricostruiti** (`timepack --all --refresh`), o
+l'export li avrebbe saltati per colonne mancanti — che è esattamente ciò che il contratto deve fare, e la
+prova che il warning serve. In app la colonna si chiama **«Margine»** (scelta dell'operatore) e sta
+accanto a «Surplus»: due domande, si sceglie solo per quale ORDINARE, e il consiglio d'asta non la legge.
+
 ## Novità v9.54 (16 agosto 2026, pomeriggio — la curva del valore letta AL GIORNO DELL'ASTA, e il surplus in crediti sul foglio)
 
 `SHEET_REVISION` **18 → 20**, `engine_*` invariato, toolkit **407 → 409 test**.

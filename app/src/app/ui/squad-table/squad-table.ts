@@ -66,6 +66,11 @@ export const SQUAD_COLUMNS: readonly { key: string; label: string; width: number
   { key: 'expectedFm', label: 'FM att.', width: 70 },
   { key: 'expectedMv', label: 'MV att.', width: 70 },
   { key: 'surplus', label: 'Surplus', width: 64 },
+  // ...e lo stesso conto dall'ALTRO ZERO, affiancato invece che al posto suo: sono due domande («chi
+  // conviene comprare» contro «quanto costa una giornata saltata») e nessuna delle due vince, quindi si
+  // vedono insieme e si sceglie soltanto per quale ordinare (operatore, 16/08/2026, §21.1 della metrica).
+  // MARGINE è il suo nome scelto dall'operatore: dice che è una differenza, e il tooltip dice da chi.
+  { key: 'surplusFielded', label: 'Margine', width: 68 },
   // FANTAPUNTI e non «Valore» (operatore, 16/08/2026): la colonna vive accanto all'FVM, che è il
   // fantaVALORE di mercato, e i due si chiamavano uguale pur essendo uno in fantapunti e l'altro in
   // crediti. Il nome nuovo dice l'UNITÀ, che è la sola cosa che non si può confondere con un prezzo.
@@ -302,12 +307,30 @@ export class SquadTable {
   protected readonly bySurplus = (left: SquadMan, right: SquadMan): number =>
     (left.surplus ?? -Infinity) - (right.surplus ?? -Infinity);
 
+  /** Stesso ordinamento del surplus e stessa sentinella: senza numero si sta in fondo, non a −1. */
+  protected readonly bySurplusFielded = (left: SquadMan, right: SquadMan): number =>
+    (left.surplusFielded ?? -Infinity) - (right.surplusFielded ?? -Infinity);
+
   protected readonly byValue = (left: SquadMan, right: SquadMan): number =>
     (left.value ?? -1) - (right.value ?? -1);
 
   protected readonly surplusHeader = short(
     'SURPLUS del motore: i fantapunti che ti dà IN PIÙ del rimpiazzo del suo ruolo, su tutta la '
-      + 'stagione. È la metrica con cui il toolkit ordina l\'asta.',
+      + 'stagione. Il rimpiazzo qui è il MARGINALE DI ROSA - l\'ottantesimo centrocampista di dieci '
+      + 'squadre - quindi la domanda a cui risponde è «chi conviene comprare». È la metrica con cui il '
+      + 'toolkit ordina l\'asta, ed è quella che il gate possiede.',
+  );
+
+  /**
+   * L'altra colonna, e la sua intestazione deve dire lo ZERO: senza, i due numeri sembrano lo stesso
+   * numero calcolato due volte, che è il modo più veloce per non fidarsi di nessuno dei due.
+   */
+  protected readonly surplusFieldedHeader = short(
+    'MARGINE sul rimpiazzo che ENTRA DAVVERO: non l\'ottantesimo del listone, ma il migliore dei tuoi '
+      + 'che ha il voto quel giorno (rango «squadre × posti che il regolamento schiera»). Mezzo punto di '
+      + 'fantamedia più in alto del Surplus, quindi risponde a un\'altra domanda: quanto costa una '
+      + 'giornata saltata. Chi sta in alto in tutt\'e due è forte davvero; chi qui scende valeva '
+      + 'soprattutto perché i riempitivi del suo ruolo sono pessimi. REPORTING: nessuna regola la legge.',
   );
 
   protected readonly valueHeader = short(
@@ -319,6 +342,22 @@ export class SquadTable {
     if (man.surplus == null) return 'Il motore non lo valuta e non offre una stima: ignoto, mai zero.';
     return short(
       `${man.surplus >= 0 ? '+' : '−'}${Math.abs(man.surplus).toFixed(1)} fantapunti sopra il rimpiazzo`
+        + (man.surplusIsEstimate ? ' · è la STIMA, già scontata della sua incertezza' : ''),
+    );
+  }
+
+  protected surplusFieldedHint(man: SquadMan): string {
+    if (man.surplusFielded == null) {
+      return 'Il foglio non porta questo secondo zero (bundle prima della revisione 22), o il motore '
+        + 'non lo valuta e non offre una stima: ignoto, mai zero.';
+    }
+    const sign = man.surplusFielded >= 0 ? '+' : '−';
+    // Il numero E il suo zero: una differenza senza il metro non è un fatto, ed è precisamente la
+    // domanda che una seconda colonna di surplus fa venire in mente.
+    return short(
+      `${sign}${Math.abs(man.surplusFielded).toFixed(1)} fantapunti sopra chi entrerebbe al posto suo`
+        + (man.replacementFielded != null
+          ? ` · il rimpiazzo che entra vale ${man.replacementFielded.toFixed(2)} di fantamedia` : '')
         + (man.surplusIsEstimate ? ' · è la STIMA, già scontata della sua incertezza' : ''),
     );
   }

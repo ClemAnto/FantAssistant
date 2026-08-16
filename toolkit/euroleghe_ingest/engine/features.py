@@ -700,6 +700,53 @@ def replacement_levels(conn: sqlite3.Connection, platform: str, seasons: tuple[s
     return out
 
 
+def fielded_places(rulebook: Mapping, game: str) -> dict[str, float]:
+    """How many places of each role an eleven FIELDS, averaged over the rulebook's own shapes.
+
+    THE OTHER DEPTH, and the reason it exists is that «rimpiazzo» answers two different questions
+    (`docs/model/metrica-asta-surplus-v1.md` §21). `roster_depth` says how many men of a role a league
+    ROSTERS - 8 defenders of 10 teams, so the marginal one is the 80th - and that is the right zero for
+    «who is worth buying». What a missed round actually costs is measured against the man who ENTERS,
+    and he is not the 80th of the listone: with `teams x fielded places` the same rank lands on the
+    40th, half a fantavoto higher (P 5.03 · D 5.81 · C 6.30 · A 6.87 against the sheet's
+    4.13 / 5.66 / 5.87 / 5.61, cross-checked against a season SIMULATION that agrees to the second
+    decimal - `docs/model/letture-app-v1.md` §4-bis).
+
+    Not a fitted number and not a chosen one: it is the GAME's own rulebook, counted. The classic file's
+    seven modules give exactly P 1 · D 4 · C 4 · A 2, the eleven Mantra schemes give the twelve codes,
+    and both sum to eleven - which is the same transcription check the two files carry.
+
+    Two conventions, declared because they are conventions:
+
+    * a HYBRID place is split evenly among the roles it accepts ('W/A' is half a `w` and half an `a`).
+      The rulebook says the place takes either, so anything else would be a claim about which of the two
+      a coach picks - a measurement, and this file is not measuring.
+    * no listings inflation, unlike `derive_mantra_slots`. That factor exists to convert a rule stated
+      in PLAYERS ("eight defenders") into the pool's LISTINGS; a typed Mantra place is already a place
+      for one listing of that role, so converting it again would count the same thing twice.
+    """
+    shapes = rulebook.get("modules") or {}
+    slot_roles = rulebook.get("slot_roles") or {}
+    if not shapes or not slot_roles:
+        return {}
+
+    def key(role: str) -> str:
+        return role.lower() if game == "mantra" else role.upper()
+
+    total: dict[str, float] = {}
+    for lines in shapes.values():
+        for slots in lines.values():
+            for slot in slots:
+                accepted = slot_roles.get(slot) or ()
+                for role in accepted:
+                    total[key(role)] = total.get(key(role), 0.0) + 1.0 / len(accepted)
+    # The keeper is implicit in both files - the shapes are the four lines BEYOND him - and he is the
+    # same single place in every one of them.
+    for role in slot_roles.get("P") or ():
+        total[key(role)] = total.get(key(role), 0.0) + len(shapes)
+    return {role: places / len(shapes) for role, places in total.items()}
+
+
 def goalkeeper_club_rates(conn: sqlite3.Connection, platform: str,
                           season: str) -> tuple[dict[str, float], float]:
     """{club: goals conceded per game} from its keepers, plus the population mean (M2e's mu_rate)."""
@@ -1345,6 +1392,12 @@ class WindowData:
     # between the two (rank 13: 8.02 -> 7.80 -> 7.38), which on 28 appearances is 14 points - enough to
     # rank a striker who played 28 matches below one who played a single match well.
     replacement_actual: dict[str, float] = field(default_factory=dict)
+    # ...e lo STESSO livello contato sui posti che un undici SCHIERA invece che sugli slot di rosa
+    # (`fielded_places`): il rimpiazzo che entra davvero, non il marginale di rosa. È l'altra domanda -
+    # «quanto costa una giornata saltata» contro «chi conviene comprare» - e per questo è una seconda
+    # mappa e non una sostituzione. Vuota se il chiamante non passa il regolamento, come sopra: il gate
+    # non ne sa niente e nessuna riga di `engine_*` la legge.
+    replacement_fielded: dict[str, float] = field(default_factory=dict)
     # Reliability exponent: SURPLUS x (Pv / matchdays)^reliability. 0 = off, which is the mathematically
     # pure setting. Above 0 it trades exact expected points for utility - a slot you cannot count on is
     # worth less than its expectation. A user PREFERENCE carried through, never fitted here.
@@ -1383,13 +1436,19 @@ def roster_depth(conn: sqlite3.Connection, platform: str, seasons: tuple[str, ..
 
 
 def prepare(conn: sqlite3.Connection, window: Window, platform: str, game: str, *,
-            league: Mapping | None = None, squad_source: str = "listone") -> WindowData:
+            league: Mapping | None = None, squad_source: str = "listone",
+            rulebook: Mapping | None = None) -> WindowData:
     """Load a window and everything the model needs, using only seasons <= the input season.
 
     `league` is the league setup as `Config.load_league()` returns it - a plain mapping, so the engine
     still knows nothing about config files. Optional on purpose: without it the replacement levels stay
     empty and the window is exactly the one every published gate number was produced on. The Auction
     panel supplies it; the gate does not.
+
+    `rulebook` is the GAME's own modules file, parsed (`Config.load_modules`) - again a plain mapping,
+    for the same reason. It buys the second replacement level, the one counted on the places an eleven
+    FIELDS (`fielded_places`), which is REPORTING: no rule reads it, so passing it or not cannot move a
+    gated number.
 
     `squad_source='real'` widens the row set to the real squads (see `load`), for an auction prepared
     before the listone exists. Default 'listone', so nothing in the gate moves.
@@ -1402,6 +1461,7 @@ def prepare(conn: sqlite3.Connection, window: Window, platform: str, game: str, 
     gk_rates, mu_rate = goalkeeper_club_rates(conn, platform, window.input_season)
     replacement: dict[str, float] = {}
     replacement_actual: dict[str, float] = {}
+    replacement_fielded: dict[str, float] = {}
     if league and league.get("teams"):
         # ONE depth - how deep the league rosters is its rule, not a property of a season - read in two
         # populations: the seasons the auction could know about, and the season being scored.
@@ -1410,6 +1470,12 @@ def prepare(conn: sqlite3.Connection, window: Window, platform: str, game: str, 
         replacement = replacement_levels(conn, platform, seasons, game, depth, teams)
         replacement_actual = replacement_levels(
             conn, platform, (window.target_season,), game, depth, teams)
+        # La seconda profondità: stessa funzione, stessa pool, stesso dominio - cambia solo il rango,
+        # che qui viene dai posti SCHIERATI. Sulle seasons di input soltanto: è una colonna d'asta e non
+        # un metro di scoring, quindi non le serve la popolazione della stagione bersaglio.
+        places = fielded_places(rulebook, game) if rulebook else {}
+        if places:
+            replacement_fielded = replacement_levels(conn, platform, seasons, game, places, teams)
     return WindowData(
         window=window, platform=platform, game=game,
         observations=load(conn, window, platform, squad_source),
@@ -1425,6 +1491,7 @@ def prepare(conn: sqlite3.Connection, window: Window, platform: str, game: str, 
         co_starts=forward_co_starts(conn, platform, window.input_season),
         replacement=replacement,
         replacement_actual=replacement_actual,
+        replacement_fielded=replacement_fielded,
         reliability=float((league or {}).get("reliability_exponent") or 0.0),
         min_availability=float((league or {}).get("min_availability") or 0.0),
     )

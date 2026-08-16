@@ -194,6 +194,13 @@ SHEET_COLUMNS: tuple[str, ...] = (
     # è un riferimento di LEGA e non il numero con cui un pannello vivo ordina.
     "desc_spm",
     "desc_dvm",
+    # L'ALTRO ZERO, e l'app le mostra AFFIANCATE invece di sceglierne una: `engine_surplus` conta dal
+    # marginale di ROSA («chi conviene comprare»), queste dal rimpiazzo che ENTRA («quanto costa una
+    # giornata saltata»). Due domande, non due risposte alla stessa - quindi due colonne, e si sceglie
+    # soltanto per quale delle due si ORDINA (metrica-asta-surplus-v1.md §21.1). Reporting: nessun
+    # numero gated cambia perché queste esistono.
+    "desc_replacement_fielded",
+    "desc_surplus_fielded",
     # MEASURED football, for the row to be judged and not only ranked: how much he actually played
     # last season, and over how many matches - the two together are minutes per match, and one
     # without the other is not a rate. Both counted on his own championship, never on our calendar.

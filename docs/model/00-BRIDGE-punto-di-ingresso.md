@@ -1,5 +1,5 @@
 # 00 — BRIDGE · Punto d'ingresso del progetto (leggere per primo)
-**Aggiornato: 16 agosto 2026 (le CINQUE LETTURE dell'app con un documento proprio, lo zero che diventa il rimpiazzo che ENTRA, due dati nuovi — porte inviolate e curva del valore — e tre ipotesi rifiutate dalla misura; v0.1.11)** · precedente: 14 agosto 2026, notte (il TREND delle ultime dieci, CHI HA GUADAGNATO IL POSTO, «preso per titolare ruotato di fatto» e il suo SPECCHIO: item 5, 6, 7 e 8 chiusi lo stesso giorno)** · precedente: 10 agosto, notte tarda (la todolist del draft ESEGUITA, il campetto legge la board del toolkit ed e' rifinito, v0.1.8 pushata)** · precedente: 10 agosto, giorno (l'assistente d'asta e' completo — porte, surplus vivo, scelta consigliata — e la campagna sulle strategie di draft ha RITIRATO due conclusioni)** · precedente: 9 agosto (l'app esiste: Angular, pubblicata su GitHub Pages, legge il bundle del toolkit)** · 8 agosto (DUE GIUDICI per le formazioni tipo — la stampa e l'ESITO reale — e la todolist formazioni tipo chiusa: cinque adozioni, sei rifiuti misurati)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
+**Aggiornato: 16 agosto 2026, sera tardi (i DUE ZERI sul foglio e in tabella — `SHEET_REVISION` 22, colonna «Margine» accanto a «Surplus» — e i posti schierati contati dal regolamento)** · precedente: 16 agosto 2026 (le CINQUE LETTURE dell'app con un documento proprio, lo zero che diventa il rimpiazzo che ENTRA, due dati nuovi — porte inviolate e curva del valore — e tre ipotesi rifiutate dalla misura; v0.1.11)** · precedente: 14 agosto 2026, notte (il TREND delle ultime dieci, CHI HA GUADAGNATO IL POSTO, «preso per titolare ruotato di fatto» e il suo SPECCHIO: item 5, 6, 7 e 8 chiusi lo stesso giorno)** · precedente: 10 agosto, notte tarda (la todolist del draft ESEGUITA, il campetto legge la board del toolkit ed e' rifinito, v0.1.8 pushata)** · precedente: 10 agosto, giorno (l'assistente d'asta e' completo — porte, surplus vivo, scelta consigliata — e la campagna sulle strategie di draft ha RITIRATO due conclusioni)** · precedente: 9 agosto (l'app esiste: Angular, pubblicata su GitHub Pages, legge il bundle del toolkit)** · 8 agosto (DUE GIUDICI per le formazioni tipo — la stampa e l'ESITO reale — e la todolist formazioni tipo chiusa: cinque adozioni, sei rifiuti misurati)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
 
 ## Il progetto in breve
 Motore previsionale per fantacalcio **EuroLeghe** (fantacalcio.it): valutazione calciatori Classic e Mantra sui 5 grandi campionati europei (Serie A, Premier, Liga, Bundesliga, Ligue 1 — perimetro: i ~35 top club del gioco). Prevede fantamedia (FM), presenze attese e VALORE stagionale = FM × presenze. Metodo scientifico: **ogni regola entra nel motore solo se batte il baseline fuori campione su finestre indipendenti** (gate pre-registrato). Stato: core validato (Mantra, Classic, portieri, presenze); manca lo strato flag/arrivi, sbloccato dal toolkit dati `euroleghe-ingest` (in implementazione).
@@ -35,6 +35,11 @@ la pagina delle probabili non basta e quali vincoli valgono già oggi.
 ## STATO AL 16 AGOSTO 2026, SERA — LEGGI QUESTO PRIMA DI TUTTO
 
 Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
+
+**La SERA TARDI del 16/08, in tre righe.** I due zeri sono sul foglio e in tabella (blocco qui sotto):
+`SHEET_REVISION` **22**, toolkit **414 test**, app **263**, `backtest --verify` **22/22** — non si muove
+un decimale di quello che è gated, perché la seconda colonna nasce reporting. Resta aperto il prior
+personale del pannello a stagione iniziata, poi la tendenza della curva del valore.
 
 **Il pomeriggio del 16/08 in cinque righe.** Dieci commit, **v0.1.13 pubblicata**, e tre voci del gate
 mosse: due CHIUSE con un no e una aperta che vale un ordine di grandezza più di qualunque canale
@@ -73,6 +78,23 @@ migliore di questi ventisei»; e la stima di fattibilità di R20 dava **+42%** s
 stagione precedente contro **+24,8%** sul listone. Ogni volta la correzione ha tolto fra il 40% e il 100%
 del risultato apparente.
 
+**I DUE ZERI SONO SUL FOGLIO** (16/08 sera tardi, metrica **§21.3**, spec «Novità v9.55»).
+`desc_replacement_fielded` e `desc_surplus_fielded`, `SHEET_REVISION` **22**, `engine_*` invariato
+(`--verify` 22/22), toolkit **414 test**, app **263**, in tabella la colonna **«Margine»** accanto a
+«Surplus». Tre cose da sapere prima di rileggerle:
+1. **i posti si CONTANO dal regolamento** (`features.fielded_places`, un solo lettore per i due file):
+   classic riproduce P 1 · D 4 · C 4 · A 2, mantra dà i dodici codici, e **tutt'e due sommano 11** —
+   che è il test, la stessa verifica di trascrizione che i due file fanno su sé stessi;
+2. **la pool è quella dello zero gated** (undici stagioni, non l'ultima), perché si muove UNA variabile:
+   la profondità. Conseguenza da non scoprire per caso: i primi 25 cambiano **più** del preventivo di
+   §21 (P3 D8 C11 A3 e 7 nomi in comune, contro P3 D5 C8 A9 e 13) e la differenza è tutta l'attacco,
+   6,99 in pool contro 6,71 nel 2025-26. Sulla SINGOLA stagione il conto riproduce la simulazione
+   dell'app al secondo decimale, che era la verifica promessa;
+3. **lo slot si decide una volta sola**: lasciando riscegliere la cascata, al secondo zero tutti i
+   `dd`/`ds` dei fogli mantra passano nella lista dei `dc`, e la riga dichiarerebbe uno slot portando il
+   livello di un altro. I quattro pacchetti del viaggio nel tempo sono stati ricostruiti, o l'export li
+   saltava per colonne mancanti — che è il contratto che fa il suo mestiere.
+
 **I DUE ZERI del foglio, misurati e con un progetto deciso** (metrica §21, §21.1, §21.2). Il surplus
 conta dal marginale di ROSA e i primi 25 del foglio sono **P5 D1 C0 A19** — diciannove attaccanti e zero
 centrocampisti — mentre col rimpiazzo che ENTRA diventano P3 D5 C8 A9, con solo 13 nomi su 25 in comune.
@@ -89,8 +111,7 @@ butta via la stagione precedente e restringe verso la media di POPOLAZIONE invec
 quell'uomo — e giudicarlo costa finestre in-season anche nello sweep, non «una riga di griglia» come
 avevo stimato.
 
-**Cosa resta aperto**, in ordine: le **due colonne** (§21.2, lavoro meccanico: features → auction_level →
-foglio → export → app); il **prior personale** del pannello a stagione iniziata; la TENDENZA della curva
+**Cosa resta aperto**, in ordine: il **prior personale** del pannello a stagione iniziata; la TENDENZA della curva
 del valore, acquisita e non letta da nessuno; i minuti per competizione e in nazionale (muro di consenso
 su Transfermarkt) e le coppe da Sofascore (403).
 

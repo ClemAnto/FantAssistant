@@ -39,6 +39,7 @@ import io
 import json
 import os
 import time
+from collections.abc import Mapping
 from dataclasses import replace
 from pathlib import Path
 from typing import NamedTuple
@@ -219,7 +220,14 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      la revisione sale lo stesso, perche' i pacchetti del viaggio nel tempo SONO in-season e i loro
 #      numeri si muovono: una revisione per due comportamenti sarebbe una cartella che non sa dire quale
 #      dei due la descrive.
-SHEET_REVISION = 21
+#  22  16/08/2026 - L'ALTRO ZERO SUL FOGLIO: `desc_replacement_fielded` e `desc_surplus_fielded`, il
+#      rimpiazzo che ENTRA (rango `squadre x posti che il regolamento schiera`, non `x slot di rosa`) e
+#      il surplus misurato su di lui. Due domande diverse e nessuna vince: «chi conviene comprare» conta
+#      dal marginale di rosa, «quanto costa una giornata saltata» dal rimpiazzo schierato, e sui primi
+#      25 del foglio Serie A i due ordini condividono 13 nomi su 25 (P5 D1 C0 A19 contro P3 D5 C8 A9).
+#      REPORTING: `engine_surplus` non si muove di un decimale - e' gated - e il gate non vede queste
+#      colonne. I posti vengono CONTATI dal regolamento (`features.fielded_places`), non scelti.
+SHEET_REVISION = 22
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
@@ -3558,6 +3566,14 @@ PLAYER_COLUMNS: tuple[str, ...] = (
     # `est_mv` is the base vote behind `est_fm`, derived from it and never guessed apart: FM - MV is the
     # bonus per appearance the row expects, so the two can never say different things about one player.
     "est_fm", "est_mv", "est_pv", "est_surplus", "est_basis", "est_confidence", "est_note",
+    # L'ALTRO ZERO, e sono due DOMANDE diverse invece che due risposte alla stessa (metrica §21).
+    # `engine_surplus` conta dal marginale di ROSA - l'ottantesimo centrocampista di dieci squadre - che
+    # è la risposta a «chi conviene comprare»; queste due contano dal rimpiazzo che ENTRA, il rango
+    # `squadre x posti che il regolamento SCHIERA`, che è la risposta a «quanto costa una giornata
+    # saltata». Sui primi 25 del foglio Serie A la differenza è P5 D1 C0 A19 contro P3 D5 C8 A9, con 13
+    # nomi in comune: non un dettaglio. REPORTING - `engine_surplus` non si tocca perché è gated e dieci
+    # finestre ci stanno sopra - e la colonna prezza tutta la lista, motore dove c'è e stima altrove.
+    "desc_replacement_fielded", "desc_surplus_fielded",
     # IL SURPLUS IN CREDITI e la sua distanza dal prezzo del listone (`evaluate.market_rates` /
     # `market_surplus`, la stessa coppia che il pannello Tk chiama - qui non c'è una seconda aritmetica).
     # Erano dentro il pannello soltanto, quindi l'app non poteva confrontare l'FVM con niente: la
@@ -3807,6 +3823,13 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
     # shows. One definition, read by both - see `auction_slot`.
     levels = {obs.fc_id: auction_level(obs, data) for obs in data.observations}
     slots = {fc_id: slot for fc_id, (slot, _level) in levels.items()}
+    # ...e lo stesso, contato sui posti che un undici SCHIERA (`features.fielded_places`): il rimpiazzo
+    # che ENTRA, letto sullo SLOT che la riga già dichiara (`slot=`), così le due colonne differiscono
+    # per la profondità e per nient'altro. Vuoto quando il chiamante non ha passato il regolamento -
+    # allora le due colonne `desc_*_fielded` restano vuote, che è la risposta onesta e non uno zero.
+    fielded_levels = ({obs.fc_id: auction_level(obs, data, data.replacement_fielded,
+                                                slot=slots.get(obs.fc_id))
+                       for obs in data.observations} if data.replacement_fielded else {})
     ranks: dict[int, int] = {}
     for role in {slot for slot in slots.values() if slot}:
         ranked = sorted(
@@ -3847,6 +3870,17 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
         # compare. That is not hypothetical: unlevelled estimates were 11 of the top 12 rows.
         slot, replacement = levels.get(obs.fc_id, (None, None))
         guess_surplus = est.surplus(guess.fm, guess.pv, replacement, guess.confidence)
+        # L'ALTRO ZERO, sulla riga: il rimpiazzo che entra e il surplus misurato su di lui. Una colonna
+        # sola per tutta la lista, quindi chi il motore non prezza la riceve dalla STIMA con la stessa
+        # penale del suo `est_surplus` - ordinare per questa colonna deve poter ordinare l'intero foglio,
+        # o si torna al difetto delle due liste (§7-undecies del gate).
+        _fielded_slot, fielded_level = fielded_levels.get(obs.fc_id, (None, None))
+        fielded_surplus = _surplus_over(prediction, fielded_level)
+        if fielded_surplus is None and fielded_level is not None:
+            # Il motore non l'ha prezzato - la riga esiste comunque, con `fm_pred` vuota - quindi vale la
+            # stima, con la stessa penale del suo `est_surplus`. Il test è sul NUMERO e non sull'oggetto:
+            # una `prediction` esiste anche per chi il core rifiuta di prezzare.
+            fielded_surplus = est.surplus(guess.fm, guess.pv, fielded_level, guess.confidence)
         rows.append({
             "fc_id": obs.fc_id, "name": obs.name, "club": obs.club_target, "league": obs.league,
             "role_classic": obs.role_classic, "roles_mantra": ";".join(obs.roles_mantra),
@@ -3876,6 +3910,11 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             "est_basis": guess.basis,
             "est_confidence": _round(guess.confidence, 2),
             "est_note": guess.note,
+            # L'ALTRO ZERO: il rimpiazzo che ENTRA (rango `squadre x posti schierati`) e il surplus
+            # misurato su di lui. Stesso slot e stessa aritmetica di `engine_surplus`, cambia solo la
+            # profondità - vedi `features.fielded_places`.
+            "desc_replacement_fielded": _round(fielded_level, 3),
+            "desc_surplus_fielded": _round(fielded_surplus, 1),
             # A transfer dated in this window took him somewhere else, and no arrival brought him back:
             # the listone and the squad pages can be weeks behind in August, and this is the one source
             # that carries the event (`left_his_club` - an OUT alone is not a departure).
@@ -4142,7 +4181,8 @@ def _value(prediction) -> float | None:
     return prediction.fm_pred * prediction.pv_pred
 
 
-def auction_level(obs, data: features.WindowData) -> tuple[str | None, float | None]:
+def auction_level(obs, data: features.WindowData, levels: Mapping[str, float] | None = None, *,
+                  slot: str | None = None) -> tuple[str | None, float | None]:
     """(the slot this row's SURPLUS is measured against, its replacement level).
 
     The levels come out of `features.replacement_levels` keyed on the roles the GAME is played with:
@@ -4169,19 +4209,42 @@ def auction_level(obs, data: features.WindowData) -> tuple[str | None, float | N
 
     A level of None is still possible and still means VALUE: the gate prepares its windows without a
     league on purpose, so `data.replacement` is empty and every published number stays what it was.
+
+    `levels` says WHICH zero to read, and it is one line rather than a second function: the sheet also
+    carries the replacement counted on the places an eleven FIELDS (`features.fielded_places`), which is
+    the same question asked at another depth - «quanto costa una giornata saltata» instead of «chi
+    conviene comprare» (metrica-asta-surplus-v1.md §21). Two cascades would eventually disagree about
+    which slot a man belongs to, which is exactly the defect this function was written to make
+    impossible.
+
+    ...and `slot` is what keeps them from disagreeing, MEASURED and not feared: asked to choose freely,
+    the deeper zero moves every `dd`/`ds` of both mantra sheets into the `dc` list, because at that
+    depth the centre-backs' floor is the lowest of the three. The row would then show one slot and a
+    level belonging to another - a number the row cannot explain, which is this function's own sin.
+    So the slot is decided ONCE, on the sheet's own zero, and the second column prices that same slot:
+    the two differ by the DEPTH and by nothing else, which is the only way their difference is readable.
     """
+    levels = data.replacement if levels is None else levels
+    if slot is not None:
+        # The slot is already decided. Three shapes and the same three answers as below: a role this map
+        # prices, a CLASSIC group (the man with no mantra code, levelled on his group's mean), or a code
+        # this map does not carry - and then no level, never a fabricated one.
+        if slot in levels:
+            return slot, levels[slot]
+        group = [levels[role] for role in MANTRA_BY_CLASSIC.get(slot, ()) if role in levels]
+        return slot, (sum(group) / len(group) if group else None)
     if data.game != "mantra":
         role = obs.role_classic or None
-        return role, data.replacement.get(role or "")
-    priced = [role for role in obs.roles_mantra if role in data.replacement]
+        return role, levels.get(role or "")
+    priced = [role for role in obs.roles_mantra if role in levels]
     if priced:
-        best = min(priced, key=lambda role: data.replacement[role])
-        return best, data.replacement[best]
+        best = min(priced, key=lambda role: levels[role])
+        return best, levels[best]
     if obs.roles_mantra:
         return obs.roles_mantra[0], None
-    group = [data.replacement[role]
+    group = [levels[role]
              for role in MANTRA_BY_CLASSIC.get(obs.role_classic or "", ())
-             if role in data.replacement]
+             if role in levels]
     if group:
         return obs.role_classic, sum(group) / len(group)
     return obs.role_classic or None, None
@@ -4194,6 +4257,19 @@ def _surplus(prediction, data: features.WindowData) -> float | None:
     _slot, level = auction_level(prediction.obs, data)
     if level is None:
         return prediction.fm_pred * prediction.pv_pred
+    return (prediction.fm_pred - level) * prediction.pv_pred
+
+
+def _surplus_over(prediction, level: float | None) -> float | None:
+    """The same arithmetic over a level GIVEN, and empty without one.
+
+    No VALUE fallback here, and that is the difference from `_surplus`: the gated column has to price
+    every row it can, while the second zero is reporting - where the rulebook cannot say how deep the
+    league fields, the cell is empty and says nothing, «vuoto = ignoto». A fallback would put a value
+    among surpluses, which is the defect that once made 11 of a sheet's top 12 rows estimates.
+    """
+    if not prediction or prediction.fm_pred is None or prediction.pv_pred is None or level is None:
+        return None
     return (prediction.fm_pred - level) * prediction.pv_pred
 
 
@@ -4326,7 +4402,11 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
         derive_squads(ctx, window.auction_date, window.target_season)
     progress.stage("prepare")
     data = features.prepare(conn, window, platform, game, league=setup,
-                            squad_source="real")
+                            squad_source="real",
+                            # Il regolamento del GIOCO, per il secondo zero (`features.fielded_places`):
+                            # quanti posti per ruolo schiera un undici. È configurazione letta, non una
+                            # misura, e serve solo alle due colonne `desc_*_fielded`.
+                            rulebook=ctx.config.load_modules(game))
     # The empty target calendar is patched inside `engine_predictions` - where the price is decided, so
     # every caller gets it - and its note arrives with the engine's own.
     progress.stage("predict")

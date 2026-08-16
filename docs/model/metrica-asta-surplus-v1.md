@@ -1360,3 +1360,60 @@ modo, ed è l'unico pezzo in più.
 Ordine dei lavori: `features` restituisce anche `replacement_fielded` → `snapshot.auction_level` lo legge
 con la stessa cascata (una riga in più, non una seconda) → due colonne nuove sul foglio
 (`desc_replacement_fielded`, `desc_surplus_fielded`) → `export.SHEET_COLUMNS` → l'app.
+
+### 21.3 FATTO (16 agosto 2026, sera tardi): i numeri veri, e in che cosa differiscono dal preventivo
+
+`SHEET_REVISION` **21 → 22**, `engine_*` invariato (`backtest --verify` **22/22**), toolkit **411 → 414
+test**, app **261 → 263**. La ricetta di sopra è stata eseguita alla lettera; qui c'è solo quello che si
+è imparato eseguendola, che è la parte che non si poteva scrivere prima.
+
+**I posti si CONTANO dal regolamento** (`features.fielded_places`, che legge lo stesso file per tutt'e due
+i giochi). Classic riproduce esattamente il preventivo — **P 1 · D 4 · C 4 · A 2** — e mantra dà i dodici
+codici: `dc` 2,23 · `m` 1,18 · `c` 1,14 · `a` 1,03 · `e` 1,00 · `w` 0,73 · `t` 0,71 · `pc` 0,67 · `dd`/`ds`
+0,55 · `b` 0,23, più il portiere. **Tutt'e due sommano ELEVEN**, che è la stessa verifica di trascrizione
+che i due file fanno su sé stessi, ed è il test. Due convenzioni dichiarate perché sono convenzioni: un
+posto IBRIDO si divide in parti uguali fra i ruoli che accetta (un `W/A` è mezzo `w` e mezzo `a` — dire
+altro sarebbe una misura su quale dei due sceglie un allenatore), e **niente inflazione di listings**,
+che in `derive_mantra_slots` serve a convertire una regola detta in GIOCATORI («otto difensori») in
+quotazioni, mentre un posto tipizzato è già un posto per una quotazione sola.
+
+**Gli zeri, per lega** (`engine_replacement_fm` → `desc_replacement_fielded`):
+
+| lega | P | D | C | A |
+|---|---|---|---|---|
+| Leghe (Serie A classic, 10) | 4,13 → **4,94** | 5,66 → **6,01** | 5,87 → **6,32** | 5,61 → **6,99** |
+| EuroLeghe (euro mantra, 12) | `por` 4,33 → **5,18** | `dc` 5,82 → **6,06** | `c` 6,19 → **6,73** | `pc` 7,19 → **8,29** |
+
+**Il conto sulla singola stagione riproduce la simulazione dell'app**, che è la verifica incrociata
+promessa: 2025-26 da sola dà **P 5,01 · D 6,14 · C 6,36 · A 6,71** contro il 5,01/6,11/6,37/6,79 di
+§4-bis — due strade indipendenti, terzo decimale a parte.
+
+**E qui c'è la differenza col preventivo, che va detta invece di lasciarla scoprire.** Il foglio pesca la
+pool sulle **stesse stagioni** su cui pesca lo zero gated (undici, non l'ultima), perché *si muove UNA
+variabile*: la profondità. L'attacco è il ruolo dove le due pool divergono di più (6,99 in pool contro
+6,71 nel 2025-26 — le stagioni 2019-2021 avevano attaccanti più forti), quindi i primi venticinque
+cambiano più di quanto §21 stimava:
+
+| zero dei primi 25 (foglio Serie A, 638 righe) | composizione | nomi in comune |
+|---|---|---|
+| marginale di rosa (oggi) | P5 · D1 · C0 · A19 | — |
+| rimpiazzo che entra, **pool del foglio** | P3 · D8 · C11 · A3 | **7/25** |
+| rimpiazzo che entra, solo 2025-26 (il preventivo di §21) | P3 · D5 · C8 · A9 | 13/25 |
+
+Le tre righe sono state misurate sullo stesso foglio: il preventivo non era sbagliato, era **su un'altra
+pool di stagioni**. La conclusione di §21 non cambia — la sostituzione è grande e il caso chiuso
+dall'operatore non si riapre (Simeone 7° → 111°, Esposito F.P. 21° → 340°, nell'ordine giusto e più
+lontani) — cambia solo di quanto.
+
+**Lo SLOT si decide una volta sola, e questo l'ha trovato la misura.** Lasciando scegliere di nuovo alla
+cascata, sul secondo zero **tutti** i `dd`/`ds` dei due fogli mantra passano nella lista dei `dc`: a quella
+profondità il pavimento dei centrali (5,99) sta sotto quello dei terzini (6,28). La riga avrebbe
+dichiarato uno slot e portato il livello di un altro — il peccato che `auction_level` esiste per rendere
+impossibile — quindi lo slot arriva già deciso (`auction_level(..., slot=)`) e la seconda colonna prezza
+quello: **le due differiscono per la profondità e per nient'altro**, che è l'unico modo in cui la loro
+differenza si legge.
+
+**In app**: colonna **«Margine»** accanto a «Surplus» (nome scelto dall'operatore), stessa regola di
+ordinamento e stesso posto nel selettore «Colonne» — e nasce accesa, perché il selettore ricorda le
+colonne spente. Il tooltip dichiara lo zero in cella, come SpM/dVM. **Il consiglio d'asta non la legge**:
+quello resta legato al FORMATO, che è misurato (§16).

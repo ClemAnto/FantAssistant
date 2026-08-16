@@ -112,6 +112,20 @@
           Surplus
         </th>
       }
+      <!-- ...e lo stesso conto dall'altro zero. Due colonne perché sono due domande, e si sceglie solo
+           per quale ORDINARE: chi sta in alto in tutt'e due è forte davvero. -->
+      @if (shows('surplusFielded')) {
+        <th
+          nzWidth="68px"
+          class="text-right"
+          [nzSortFn]="bySurplusFielded"
+          [nzSortDirections]="highFirst"
+          nz-tooltip
+          [nzTooltipTitle]="surplusFieldedHeader"
+        >
+          Margine
+        </th>
+      }
       @if (shows('value')) {
         <th
           nzWidth="92px"
@@ -255,6 +269,19 @@
             } @else {
               <span [class.text-muted]="man.surplusIsEstimate" [class.text-danger]="man.surplus < 0"
                 >@if (man.surplusIsEstimate) {~}{{ man.surplus | number: '1.0-1' }}</span
+              >
+            }
+          </td>
+        }
+        @if (shows('surplusFielded')) {
+          <td class="text-right tabular-nums" [title]="surplusFieldedHint(man)">
+            @if (man.surplusFielded == null) {
+              —
+            } @else {
+              <span
+                [class.text-muted]="man.surplusIsEstimate"
+                [class.text-danger]="man.surplusFielded < 0"
+                >@if (man.surplusIsEstimate) {~}{{ man.surplusFielded | number: '1.0-1' }}</span
               >
             }
           </td>

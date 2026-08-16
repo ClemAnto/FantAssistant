@@ -151,6 +151,21 @@ class Config:
             merged.update(raw.get("leagues", {}).get(league, {}))
         return merged
 
+    def load_modules(self, game: str) -> dict:
+        """The GAME's own rulebook, parsed: `mantra_modules.json` or `classic_modules.json`.
+
+        Two files and never one deduced from the other (the operator's warning of 10/08/2026, and the
+        reason both exist). Never raises: a missing or malformed file yields {}, and every reader treats
+        that as «no rulebook» rather than as an empty rulebook - the columns it feeds are reporting, so
+        their absence is a silence and not a wrong number.
+        """
+        path = self.mantra_modules_path if game == "mantra" else self.classic_modules_path
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return {}
+        return raw if isinstance(raw, dict) else {}
+
     def _raw_league_config(self) -> dict:
         """The file as it is on disk, or {}. Never raises: see `load_league`."""
         try:

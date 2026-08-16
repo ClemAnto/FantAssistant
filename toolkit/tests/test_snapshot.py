@@ -3466,6 +3466,84 @@ def test_a_mantra_sheet_measures_its_surplus_against_a_mantra_replacement_level(
     assert "engine_role_slot" in snapshot.PLAYER_COLUMNS
 
 
+def test_the_sheet_carries_two_zeros_because_they_answer_two_questions():
+    """DECISO il 16/08/2026 (metrica-asta-surplus-v1.md §21.1): due colonne, non una scelta.
+
+    `engine_surplus` conta dal marginale di ROSA e risponde a «chi conviene comprare»; il rimpiazzo che
+    ENTRA risponde a «quanto costa una giornata saltata», ed è mezzo punto più in alto. Nessuna delle due
+    vince, quindi il foglio le porta tutt'e due e si sceglie soltanto per quale si ORDINA.
+
+    Quattro cose sono fissate qui, e ognuna è una decisione che si potrebbe disfare per sbaglio:
+
+    * la cascata è UNA (`auction_level` con la mappa che le si passa): due cascate finirebbero per
+      dissentire su quale slot è di un uomo, che è il difetto per cui quella funzione esiste;
+    * `engine_surplus` non si muove di un decimale - è gated, e questo è reporting;
+    * senza regolamento la colonna è VUOTA e non un VALORE: un valore in una colonna di surplus è il
+      difetto che mise 11 stimati nei primi 12;
+    * le due colonne stanno nel contratto d'export, o l'app legge un foglio che non le ha.
+    """
+    import pytest
+
+    from euroleghe_ingest.modules import snapshot
+
+    class Obs:
+        def __init__(self, fc_id, roles_mantra, role_classic="A"):
+            self.fc_id, self.role_classic, self.roles_mantra = fc_id, role_classic, roles_mantra
+
+    class Pred:
+        def __init__(self, obs, fm, pv):
+            self.obs, self.fm_pred, self.pv_pred = obs, fm, pv
+
+    class Data:
+        def __init__(self, game, replacement, fielded=None):
+            self.game, self.replacement = game, replacement
+            self.replacement_fielded = fielded or {}
+
+    # i due zeri del foglio euro/mantra: la rosa e quello che entra davvero
+    roster = {"w": 6.559, "t": 6.721, "a": 7.199, "pc": 7.191}
+    fielded = {"w": 7.084, "t": 7.244, "a": 7.726, "pc": 8.286}
+    data = Data("mantra", roster, fielded)
+    winger = Obs(1, ("w", "a"))
+
+    assert snapshot.auction_level(winger, data) == ("w", pytest.approx(6.559))
+    assert snapshot.auction_level(winger, data, fielded) == ("w", pytest.approx(7.084))
+
+    # LO SLOT SI DECIDE UNA VOLTA SOLA, e questo è il caso misurato che lo impone: al secondo livello i
+    # centrali sono il pavimento più basso della difesa, quindi lasciando scegliere di nuovo TUTTI i
+    # `dd`/`ds` dei due fogli mantra finirebbero nella lista dei `dc` - riga che dichiara uno slot e
+    # porta il livello di un altro.
+    back = Data("mantra", {"dc": 5.852, "dd": 5.669, "ds": 5.727},
+                {"dc": 5.992, "dd": 6.282, "ds": 6.268})
+    right = Obs(9, ("dd", "dc"), "D")
+    assert snapshot.auction_level(right, back) == ("dd", pytest.approx(5.669))
+    assert snapshot.auction_level(right, back, back.replacement_fielded) == (
+        "dc", pytest.approx(5.992)), "libera di scegliere, la cascata lo sposta di lista"
+    assert snapshot.auction_level(right, back, back.replacement_fielded, slot="dd") == (
+        "dd", pytest.approx(6.282)), "con lo slot già deciso cambia solo la PROFONDITÀ"
+    # ...e chi non ha codici resta sulla media del suo gruppo di listone, con lo slot fissato come senza
+    assert snapshot.auction_level(Obs(10, (), "D"), back, back.replacement_fielded, slot="D") == (
+        "D", pytest.approx((5.992 + 6.282 + 6.268) / 3))
+    prediction = Pred(winger, 7.5, 30.0)
+    assert snapshot._surplus(prediction, data) == pytest.approx((7.5 - 6.559) * 30.0)
+    _slot, level = snapshot.auction_level(winger, data, fielded)
+    assert snapshot._surplus_over(prediction, level) == pytest.approx((7.5 - 7.084) * 30.0)
+    assert snapshot._surplus_over(prediction, level) < snapshot._surplus(prediction, data), (
+        "lo zero più alto vale meno surplus: è la stessa aritmetica, non una seconda")
+
+    # nessun regolamento -> nessuna colonna, e MAI il ripiego sul VALORE che la colonna gated ha
+    assert snapshot._surplus_over(prediction, None) is None
+    bare = Data("mantra", roster)
+    assert snapshot.auction_level(winger, bare, bare.replacement_fielded) == ("w", None)
+    assert snapshot._surplus(prediction, bare) == pytest.approx((7.5 - 6.559) * 30.0), (
+        "e la colonna gated non si accorge nemmeno che l'altra esiste")
+
+    from euroleghe_ingest.modules import export
+
+    for column in ("desc_replacement_fielded", "desc_surplus_fielded"):
+        assert column in snapshot.PLAYER_COLUMNS
+        assert column in export.SHEET_COLUMNS, "un foglio che l'app non può leggere non serve a niente"
+
+
 def test_measured_and_estimated_go_together_and_either_side_can_be_filtered():
     """The operator's decision of 05/08/2026, taken with the measurement in front of him:
     «stimati e misurati vanno insieme ma aggiungiamo la possibilità di filtrare gli uni e gli altri».

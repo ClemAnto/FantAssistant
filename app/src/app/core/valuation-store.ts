@@ -102,6 +102,24 @@ export interface SquadMan extends PlayerRow {
   surplus: number | null;
   surplusIsEstimate: boolean;
   /**
+   * LO STESSO SURPLUS CONTATO DALL'ALTRO ZERO: il rimpiazzo che ENTRA (`desc_surplus_fielded`).
+   *
+   * Non è una seconda risposta alla stessa domanda, sono due domande (metrica-asta-surplus-v1.md §21):
+   * `surplus` conta dal marginale di ROSA - l'ottantesimo centrocampista di dieci squadre - e risponde a
+   * «chi conviene comprare»; questo conta dal rango `squadre × posti che il regolamento SCHIERA`, cioè
+   * dal migliore dei tuoi che ha il voto quel giorno, e risponde a «quanto costa una giornata saltata».
+   * Mezzo punto di fantamedia più in alto, e sul foglio Serie A i primi venticinque cambiano metà: P5 D1
+   * C0 A19 contro P3 D8 C11 A3.
+   *
+   * Si mostrano AFFIANCATE e si sceglie solo per quale ordinare (decisione dell'operatore, §21.1): chi
+   * sta in alto in tutt'e due è forte davvero, e chi scende è un uomo il cui valore era in gran parte
+   * merito dei riempitivi del suo ruolo. Letto dal foglio e mai ricalcolato, come il primo, e assente su
+   * un bundle scritto prima della revisione 22 - allora la colonna non c'è invece di portare uno zero.
+   */
+  surplusFielded: number | null;
+  /** Il rimpiazzo che entra, per la nota della cella: un numero che non dice il suo zero non è un fatto. */
+  replacementFielded: number | null;
+  /**
    * Lo stesso surplus in CREDITI, e quanto dista dal prezzo del listone: `dvm = spm − fvm`, positivo
    * per chi il mercato prezza SOTTO quello che il motore gli dà. Letti dal foglio (revisione 20+).
    */
@@ -193,6 +211,13 @@ interface EngineExpectation {
    */
   surplus: number | null;
   surplusIsEstimate: boolean;
+  /**
+   * L'ALTRO ZERO del foglio (revisione 22+): il surplus contato dal rimpiazzo che ENTRA, e il livello
+   * su cui è contato. Letti, mai ricalcolati - stessa cascata e stesso slot del primo, cambia solo la
+   * profondità (`snapshot.auction_level(..., slot=)`).
+   */
+  surplusFielded: number | null;
+  replacementFielded: number | null;
   /**
    * IL SURPLUS IN CREDITI (`desc_spm`) e la sua distanza dal prezzo del listone (`desc_dvm` = SpM − FVM).
    *
@@ -418,6 +443,8 @@ export class ValuationStore {
           estimateNote: engine?.note ?? null,
           surplus: engine?.surplus ?? null,
           surplusIsEstimate: engine?.surplusIsEstimate ?? false,
+          surplusFielded: engine?.surplusFielded ?? null,
+          replacementFielded: engine?.replacementFielded ?? null,
           spm: engine?.spm ?? null,
           dvm: engine?.dvm ?? null,
           // La confidenza moltiplica anche qui, per la stessa ragione per cui moltiplica il surplus:
@@ -692,6 +719,10 @@ export class ValuationStore {
           fm: at('engine_fm_pred'), estFm: at('est_fm'),
           mv: at('est_mv'), replacement: at('engine_replacement_fm'),
           surplus: at('engine_surplus'), estSurplus: at('est_surplus'),
+          // L'ALTRO ZERO: una colonna sola, perché il foglio la scrive già per tutta la lista - motore
+          // dove c'è, stima altrove, con la stessa penale. Assente prima della revisione 22.
+          surplusFielded: at('desc_surplus_fielded'),
+          replacementFielded: at('desc_replacement_fielded'),
           spm: at('desc_spm'), dvm: at('desc_dvm'),
           confidence: at('est_confidence'),
           basis: at('est_basis'), note: at('est_note'),
@@ -713,6 +744,10 @@ export class ValuationStore {
             fmIsEstimate: fm.isEstimate,
             surplus: surplus.value,
             surplusIsEstimate: surplus.isEstimate,
+            surplusFielded: columns.surplusFielded < 0
+              ? null : ((row[columns.surplusFielded] as number | null) ?? null),
+            replacementFielded: columns.replacementFielded < 0
+              ? null : ((row[columns.replacementFielded] as number | null) ?? null),
             spm: columns.spm < 0 ? null : ((row[columns.spm] as number | null) ?? null),
             dvm: columns.dvm < 0 ? null : ((row[columns.dvm] as number | null) ?? null),
             confidence:

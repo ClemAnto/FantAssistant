@@ -162,6 +162,16 @@ E resta la cosa che il SURPLUS del foglio non fa e che va detta: lui usa ancora 
 quindi **sopravvaluta di mezzo punto quello che un giocatore aggiunge**. Cambiarlo è lavoro di motore su
 dieci finestre di gate, non una riga qui.
 
+**SEGUITO (16/08/2026, sera tardi): il foglio adesso porta tutt'e due gli zeri, e `engine_surplus` non è
+stato toccato.** `desc_replacement_fielded` / `desc_surplus_fielded` nascono REPORTING accanto a quelle
+gated — in app la colonna **«Margine»** accanto a «Surplus» — perché sono due domande e non due risposte
+alla stessa (`metrica-asta-surplus-v1.md` §21.1 e §21.3). Due cose da NON confondere leggendo questa
+sezione: il numero del foglio è una **fantamedia** contata sulle stesse stagioni dello zero gated
+(undici), mentre il `fieldedZero` dell'Overall è in **punti-partita** sulla pool dell'app e con la porta
+inviolata dentro — stessa domanda, due scale, e unificarli sarebbe sommare due unità. Sulla singola
+stagione le due strade tornano a incontrarsi (2025-26: P 5,01 · D 6,14 · C 6,36 · A 6,71 dal foglio,
+contro la tabella qui sopra), che è la verifica che questa sezione prometteva.
+
 ## 4-ter. Le QUATTRO letture allineate come l'Overall — e la sola che resta fuori (16/08, pomeriggio)
 
 **Richiesta dell'operatore**: «vorrei che l'overall e i valori voti, bonus, presenze e costanza
