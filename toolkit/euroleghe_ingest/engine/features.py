@@ -214,7 +214,15 @@ class Observation:
     starter_prob: float | None = None
     penalty_rank: int | None = None
     penalty_confidence: float | None = None
-    # actual outcome - SCORING ONLY, never an input
+    # QUELLO CHE HA GIÀ FATTO NELLA STAGIONE BERSAGLIO, per le sole finestre IN-SEASON: le presenze a
+    # voto nelle giornate già giocate alla data d'asta. È un INPUT - a differenza di tutto il resto della
+    # stagione bersaglio - perché quel giorno era pubblico: lo vede chiunque sieda al tavolo.
+    # None (e non 0) su una finestra pre-stagione, dove la domanda non esiste: «vuoto = ignoto».
+    pv_seen: int | None = None
+    # actual outcome - SCORING ONLY, never an input.
+    # Su una finestra IN-SEASON queste tre sono le giornate DOPO la data d'asta e non il totale di
+    # stagione: l'esito conterrebbe altrimenti le giornate che il modello ha appena letto, e ricopiarle
+    # sembrerebbe previsione (gate §7-duotricies, «quello che è già successo non si prevede»).
     pv_act: int | None = None
     mv_act: float | None = None
     fm_act: float | None = None
@@ -256,6 +264,48 @@ def matchday_count(conn: sqlite3.Connection, platform: str, season: str) -> int:
         "SELECT COUNT(DISTINCT matchday) FROM match_ratings WHERE season = ? AND platform = ?",
         (season, platform)).fetchone()
     return int(row[0] or 0)
+
+
+def matchday_dates(conn: sqlite3.Connection, platform: str, season: str) -> dict[int, str]:
+    """Quando ogni giornata di questa piattaforma è stata giocata: giornata -> ultimo giorno.
+
+    Serve alle finestre IN-SEASON (gate §7-duotricies), cioè quelle la cui data d'asta cade dentro la
+    stagione bersaglio: senza le date non si può dire quali giornate erano già state giocate quel giorno,
+    e quindi nemmeno separare quello che il modello può leggere da quello che deve prevedere.
+
+    Le due piattaforme sono due calendari e si leggono in due modi. Su `default` la giornata È il turno di
+    Serie A. Su `euro` un turno impacchetta un turno REALE diverso in ognuna delle cinque leghe
+    (`matchday_map`), quindi la sua data è l'ULTIMA di quelle - un turno euro è finito quando è finita
+    anche la lega che gioca per ultima, e prenderne la prima direbbe «giocata» di una giornata ancora
+    aperta altrove.
+
+    Il giorno è l'ULTIMO e non il primo per la stessa ragione per cui l'unità è la partita e non la
+    giornata (`CLAUDE.md`): un rinvio sposta una partita di settimane, e una giornata «giocata» a metà non
+    è un fatto compiuto.
+    """
+    if platform == "euro":
+        rows = conn.execute(
+            """SELECT m.euro_md, MAX(e.match_date) FROM matchday_map m
+               JOIN external_match_stats e ON e.season = m.season AND e.competition = m.league
+                                          AND e.real_md = m.real_md AND e.source = 'sofascore'
+               WHERE m.season = ? AND e.match_date IS NOT NULL
+               GROUP BY m.euro_md""", (season,))
+    else:
+        rows = conn.execute(
+            """SELECT real_md, MAX(match_date) FROM external_match_stats
+               WHERE season = ? AND competition = 'serie_a' AND source = 'sofascore'
+                 AND real_md IS NOT NULL AND match_date IS NOT NULL
+               GROUP BY real_md""", (season,))
+    return {int(md): date for md, date in rows if md is not None and date}
+
+
+def matchdays_before(conn: sqlite3.Connection, platform: str, season: str, date: str) -> set[int]:
+    """Le giornate della stagione bersaglio già giocate alla data d'asta. Vuoto = finestra pre-stagione.
+
+    Un insieme e non un conteggio: le giornate rinviate fanno sì che «le prime k» non siano le prime k, e
+    contarle basterebbe solo in un calendario che nessuno sposta.
+    """
+    return {md for md, played in matchday_dates(conn, platform, season).items() if played <= date}
 
 
 def league_rounds(conn: sqlite3.Connection, season: str) -> dict[str, int]:
@@ -1047,6 +1097,12 @@ def load(conn: sqlite3.Connection, window: Window, platform: str,
         mv_seasons[fc_id] = tuple(
             reversed([best[season][2] for season in chosen if best[season][2] is not None]))
 
+    # LA FINESTRA IN-SEASON, se lo è: quali giornate della stagione bersaglio erano già giocate il giorno
+    # dell'asta. Vuoto per tutte e dieci le finestre pubblicate (data d'asta al 15 agosto), quindi qui
+    # sotto non cambia un decimale di niente - `backtest --verify` resta 22/22.
+    seen_rounds = matchdays_before(conn, platform, window.target_season, window.auction_date)
+    seen_totals, rest_totals = _split_target_season(conn, window, platform, seen_rounds)
+
     observations: list[Observation] = []
     for (fc_id, name, role_classic, roles_raw, league, price, club_target, club_prev, birth_year,
          pv_prev, mv_prev, fm_prev, pv_act, mv_act, fm_act,
@@ -1096,8 +1152,46 @@ def load(conn: sqlite3.Connection, window: Window, platform: str,
             same_role_arrivals=max(0, competition.get((club_target or "", role_classic or ""), 0)
                                    - (1 if fc_id in arrived else 0)),
             starter_prob=starters.get(fc_id), penalty_rank=rank, penalty_confidence=confidence,
-            pv_act=pv_act, mv_act=mv_act, fm_act=fm_act))
+            pv_seen=seen_totals.get(fc_id, 0 if seen_rounds else None),
+            # Su una finestra in-season l'esito è il RESTO della stagione; su una pre-stagione resta il
+            # totale, che è quello che i dieci numeri pubblicati misurano.
+            **(dict(zip(("pv_act", "mv_act", "fm_act"),
+                        rest_totals.get(fc_id, (0, None, None)), strict=True)) if seen_rounds
+               else {"pv_act": pv_act, "mv_act": mv_act, "fm_act": fm_act})))
     return observations
+
+
+def _split_target_season(conn: sqlite3.Connection, window: Window, platform: str,
+                         seen: set[int]) -> tuple[dict[int, int], dict[int, tuple]]:
+    """Le presenze della stagione bersaglio spezzate dalla data d'asta: (viste, resto).
+
+    Serve solo alle finestre IN-SEASON e su una pre-stagione non fa nemmeno la query. Il resto porta
+    anche media voto e fantamedia di quelle giornate, perché una finestra che prevede il RESTO della
+    stagione dev'essere giudicata sul resto anche sul lato voto: la fantamedia di tutta la stagione
+    contiene le giornate che il modello ha appena letto.
+
+    Chi non ha nessuna giornata dopo la data resta con **zero presenze e nessuna media**, e i due sono
+    fatti diversi: zero presenze future è un ESITO (si è fatto male, è partito, non gioca più), mentre
+    una media su zero partite non esiste - «vuoto = ignoto, mai zero».
+    """
+    if not seen:
+        return {}, {}
+    marks = ",".join("?" * len(seen))
+    played: dict[int, int] = {}
+    for fc_id, count in conn.execute(
+            f"""SELECT fc_id, COUNT(*) FROM match_ratings
+                WHERE season = ? AND platform = ? AND status = 'played'
+                  AND matchday IN ({marks}) GROUP BY fc_id""",
+            (window.target_season, platform, *sorted(seen))):
+        played[int(fc_id)] = int(count)
+    rest: dict[int, tuple] = {}
+    for fc_id, count, mv, fm in conn.execute(
+            f"""SELECT fc_id, COUNT(*), AVG(mv), AVG(fantavoto) FROM match_ratings
+                WHERE season = ? AND platform = ? AND status = 'played'
+                  AND matchday NOT IN ({marks}) GROUP BY fc_id""",
+            (window.target_season, platform, *sorted(seen))):
+        rest[int(fc_id)] = (int(count), mv, fm)
+    return played, rest
 
 
 # ---------------------------------------------------------------- input inventory
@@ -1145,7 +1239,13 @@ class WindowData:
     gk_rates: dict[str, float] = field(default_factory=dict)
     mu_rate: float = 1.3
     matchdays_prev: int = 0
+    # Le giornate che il modello sta prevedendo. Su una finestra IN-SEASON sono quelle che RESTANO, non
+    # quelle della stagione: la previsione è sul resto, e dividere per il totale direbbe che un uomo
+    # arrivato a febbraio può giocare trentotto partite in tre mesi.
     matchdays_target: int = 0
+    # ...e quelle già giocate alla data d'asta, che sono l'altro pezzo della stessa somma. 0 = finestra
+    # pre-stagione, cioè tutte e dieci quelle pubblicate.
+    matchdays_seen: int = 0
     rounds: dict[str, int] = field(default_factory=dict)
     # Input-season lineup structure (auction-safe: the lineups are last season's). Per club the
     # (mean, p90, complete-XI count) of simultaneously fielded forwards, and per sorted fc_id pair
@@ -1215,6 +1315,9 @@ def prepare(conn: sqlite3.Connection, window: Window, platform: str, game: str, 
     """
     seasons = tuple(season for (season,) in conn.execute(
         "SELECT DISTINCT season FROM season_stats ORDER BY season") if season <= window.input_season)
+    # Le giornate della stagione bersaglio già giocate alla data d'asta: vuote per ogni finestra
+    # pre-stagione, cioè per tutte quelle su cui il gate ha pubblicato i suoi numeri.
+    seen = matchdays_before(conn, platform, window.target_season, window.auction_date)
     gk_rates, mu_rate = goalkeeper_club_rates(conn, platform, window.input_season)
     replacement: dict[str, float] = {}
     replacement_actual: dict[str, float] = {}
@@ -1232,7 +1335,10 @@ def prepare(conn: sqlite3.Connection, window: Window, platform: str, game: str, 
         anchors=anchors(conn, platform, seasons, game),
         gk_rates=gk_rates, mu_rate=mu_rate,
         matchdays_prev=matchday_count(conn, platform, window.input_season),
-        matchdays_target=matchday_count(conn, platform, window.target_season),
+        # Su una finestra in-season il bersaglio è il RESTO: il totale meno quelle già giocate. Su una
+        # pre-stagione `seen` è vuoto e questa riga è il conteggio di sempre.
+        matchdays_target=(matchday_count(conn, platform, window.target_season) - len(seen)),
+        matchdays_seen=len(seen),
         rounds=league_rounds(conn, window.input_season),
         forward_caps=club_forward_caps(conn, platform, window.input_season),
         co_starts=forward_co_starts(conn, platform, window.input_season),
