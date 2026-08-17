@@ -1078,6 +1078,45 @@ _TARGET_FROM_LISTONE = """
 # The real squad, with what the listone would have supplied taken from the player's LAST known listone
 # row (his role travels with him; his price does not - there is no quotation yet, and inventing one
 # would be the very look-ahead the whole project is built to avoid).
+# ...e il TERZO modo, `squad_source='squad'`, che è la regola dell'operatore del 17/08/2026 portata alle sue
+# conseguenze: «l'autorità di chi è in rosa è sofascore» e «quando fai lo snapshot devi vedere tutti i
+# calciatori in rosa a prescindere se è quotato o meno nel listone». Quindi qui il CLUB e il CAMPIONATO
+# vengono dalla rosa osservata e non dal listone, e le quotazioni dal listone se c'è: Molina è quotato
+# all'Atlético su EuroLeghe e la fonte lo vede alla Roma dal 14/08, quindi va sul foglio Serie A (dove il
+# listone non lo porta affatto) e su quello euro con il suo prezzo, in tutt'e due i casi alla ROMA.
+# Chi la fonte non ha mai visto tiene il club del listone - ignoto non è partito - ed è il secondo ramo.
+# Il gate non lo usa: il suo default resta `listone` e un test lo asserisce, quindi nessun numero pubblicato
+# cambia popolazione.
+_TARGET_FROM_AUTHORITY = """
+    SELECT s.fc_id,
+           COALESCE(rt.role_classic,
+                    (SELECT r2.role_classic FROM rosters r2 WHERE r2.fc_id = s.fc_id
+                      AND r2.role_classic IS NOT NULL ORDER BY r2.season DESC LIMIT 1)) AS role_classic,
+           COALESCE(rt.roles,
+                    (SELECT r3.roles FROM rosters r3 WHERE r3.fc_id = s.fc_id
+                      AND r3.roles IS NOT NULL ORDER BY r3.season DESC LIMIT 1)) AS roles,
+           (SELECT c2.league FROM clubs c2 WHERE c2.canonical_name = s.club) AS league,
+           q.price, (SELECT c3.fc_club_id FROM clubs c3 WHERE c3.canonical_name = s.club) AS fc_club_id,
+           q.price_initial, q.fvm, q.fvm_mantra, q.price_mantra, q.price_initial_mantra
+    FROM (SELECT fc_id, club, MAX(valid_from) FROM squad_snapshot
+          WHERE valid_from <= :auction AND source = 'sofascore' GROUP BY fc_id) s
+    LEFT JOIN rosters rt ON rt.fc_id = s.fc_id AND rt.season = :target
+    LEFT JOIN listone_quotes q ON q.fc_id = s.fc_id AND q.season = :target AND q.platform = :platform
+    WHERE s.club IN (SELECT DISTINCT team FROM match_ratings
+                     WHERE platform = :platform AND team IS NOT NULL)
+    UNION ALL
+    -- ...e i quotati che la fonte non ha mai visto: tengono il club del listone, perché un uomo che il
+    -- provider non riesce a identificare non è un uomo senza squadra (`observed_players`, la stessa regola).
+    SELECT r.fc_id, r.role_classic, r.roles, r.league, q.price, r.fc_club_id,
+           q.price_initial, q.fvm, q.fvm_mantra, q.price_mantra, q.price_initial_mantra
+    FROM rosters r
+    LEFT JOIN listone_quotes q ON q.fc_id = r.fc_id AND q.season = r.season AND q.platform = :platform
+    WHERE r.season = :target
+      AND r.fc_id NOT IN (SELECT fc_id FROM squad_snapshot WHERE source = 'sofascore'
+                          AND valid_from <= :auction)
+"""
+
+
 _TARGET_FROM_SQUAD = """
     SELECT s.fc_id,
            (SELECT r2.role_classic FROM rosters r2 WHERE r2.fc_id = s.fc_id AND r2.role_classic IS NOT NULL
@@ -1112,8 +1151,13 @@ def load(conn: sqlite3.Connection, window: Window, platform: str,
     target = _TARGET_FROM_LISTONE
     if squad_source == "real":
         target = f"{_TARGET_FROM_LISTONE} UNION ALL {_TARGET_FROM_SQUAD}"
+    elif squad_source == "squad":
+        # L'autorità decide il club: vedi `_TARGET_FROM_AUTHORITY`. Il filtro per campionato di `default`
+        # lavora poi sul campionato del club OSSERVATO, che è il punto - Molina legge `serie_a` perché la
+        # fonte lo vede alla Roma, mentre la sua riga di listone dice ancora `la_liga`.
+        target = _TARGET_FROM_AUTHORITY
     elif squad_source != "listone":
-        raise ValueError(f"unknown squad_source {squad_source!r}; choose listone|real")
+        raise ValueError(f"unknown squad_source {squad_source!r}; choose listone|real|squad")
     rows = conn.execute(
         f"""WITH r AS ({target})
             SELECT r.fc_id, p.canonical_name, r.role_classic, r.roles, r.league, r.price,

@@ -22,8 +22,9 @@ describe('tooltip length', () => {
 
   it('keeps every hint the app hovers within two lines', () => {
     const tooLong = Object.entries(hints).filter(([, text]) => text.length > TOOLTIP_MAX);
-    // Report WHAT was examined: an audit that checks nothing also finds nothing.
-    expect(Object.keys(hints).length).toBeGreaterThanOrEqual(7);
+    // Report WHAT was examined: an audit that checks nothing also finds nothing. Sei da quando la
+    // COSTANZA non è più una colonna (operatore, 17/08/2026) ma un simbolo accanto ai Voti: erano sette.
+    expect(Object.keys(hints).length).toBeGreaterThanOrEqual(6);
     expect(tooLong.map(([name, text]) => `${name} (${text.length})`)).toEqual([]);
   });
 

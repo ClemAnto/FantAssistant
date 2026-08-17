@@ -37,12 +37,16 @@ alternatives it declares; DIFF = neither.
 from __future__ import annotations
 
 import datetime as dt
+import html
 import json
+import random
+import re
 import unicodedata
+from itertools import combinations
 from pathlib import Path
 
 from euroleghe_ingest.context import Context
-from euroleghe_ingest.matching import club_identity
+from euroleghe_ingest.matching import build_pool_entry, club_identity, match_in_pool
 
 NAME = "press"
 DESCRIPTION = "the boards' external judges: the press's dated forecast, and the real outcome"
@@ -69,6 +73,93 @@ def _entry_value(entry: dict, field: str):
         if key in entry:
             return entry[key]
     return None
+
+
+# ---------- il terzo giudice: i BALLOTTAGGI pubblicati (17/08/2026) ----------
+# L'articolo delle «squadre-tipo» NON porta i moduli - verificato due volte scaricando la pagina: «modulo»,
+# «3-5-2» e «4-3-3» compaiono zero volte, l'undici e' un grafico - e i numeri che nel 16/08 erano stati
+# riportati su quel confronto sono stati RITIRATI perche' venivano dal riassunto automatico di un fetch, che
+# li aveva dedotti. Quello che la pagina porta davvero, club per club, sono i BALLOTTAGGI e i RIGORISTI: due
+# cose che il pannello produce, quindi due confronti veri. Entrano dalla stessa porta della stampa
+# (`press_formations`, colonna `duels`), archiviati e datati come ogni riferimento, senza modulo ne' undici.
+DUELS_FIELDS = ("Ballottaggi", "Rigoristi", "Punizioni e calci piazzati", "In bilico")
+# L'ARTICOLO DELLA PREPOSIZIONE, e l'ordine delle alternative e' il difetto: con `del` per primo,
+# «dell'Atalanta» veniva catturato come «l'Atalanta» e «della Roma» come «la Roma» - sette club su venti,
+# cioe' esattamente quelli che nella prima misura «non si confrontavano». Le alternative vanno dalla piu'
+# lunga alla piu' corta, e il `delI'` con la I maiuscola c'e' perche' la fonte lo scrive cosi' (Inter).
+_CLUB_HEAD = re.compile(r"La probabile formazione (?:della|dell'|delI'|del|di)\s*(.+?)\s*20\d\d/\d\d")
+
+
+def parse_duels_article(raw: str) -> list[dict]:
+    """L'HTML dell'articolo -> le entry per club nel formato che `import_reference` accetta.
+
+    Un club per `<h2>`, e i campi si prendono per ETICHETTA e non per posizione: la pagina si aggiorna e
+    l'ordine dei paragrafi non e' una promessa. I nomi restano VERBATIM - la risoluzione in `fc_id` e' un
+    problema di chi confronta, non di chi archivia, e un nome normalizzato in archivio e' un nome perso.
+    """
+    out: list[dict] = []
+    for chunk in re.split(r"<h[23][^>]*>", raw)[1:]:
+        head = re.sub(r"<[^>]+>", "", chunk.split("</h")[0]).strip()
+        found = _CLUB_HEAD.match(head)
+        if not found:
+            continue
+        text = re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", " ", chunk)))
+        fields: dict[str, list[str]] = {}
+        for name in DUELS_FIELDS:
+            # ...e il campo finisce a un'altra etichetta O ALLA FINE della sezione: l'ultimo paragrafo di
+            # un club non ha un successore, e pretenderlo perdeva l'ultimo campo di quel club.
+            hit = re.search(rf"{name}\s*:\s*(.+?)(?:{'|'.join(DUELS_FIELDS)}|Giovani in rampa"
+                            rf"|Assenza prolungata|Rumor|Clicca qui|$)", text)
+            if hit:
+                fields[name] = [one.strip() for one in hit.group(1).split(",") if one.strip()]
+        if not fields.get("Ballottaggi"):
+            continue
+        out.append({
+            "club": found.group(1).strip(),
+            # Ogni ballottaggio e' un GRUPPO di nomi, che sono due o tre: si tiene il gruppo e non le
+            # coppie, perche' «A-B-C» dice che tre si giocano un posto e non che ci sono tre duelli.
+            "duels": [[one.strip() for one in group.split("-") if one.strip()]
+                      for group in fields["Ballottaggi"]],
+            "notes": json.dumps({key.lower().replace(" ", "_"): value
+                                 for key, value in fields.items() if key != "Ballottaggi"},
+                                ensure_ascii=False),
+            "confidence": "no module: the eleven is a graphic",
+        })
+    return out
+
+
+def fetch_duels_url(ctx: Context, url: str, *, season: str, observed_on: str | None = None,
+                source: str = "transfermarkt") -> tuple[str, int]:
+    """Scarica l'articolo, lo parsa e lo importa come riferimento datato. Ritorna (giorno, club).
+
+    Il client e' quello degli infortuni e non `requests` nudo: la fonte guarda l'impronta TLS. La pagina si
+    AGGIORNA (l'edizione del 17/08 e' delle 11:10), quindi il giorno di osservazione e' parte del fatto.
+    """
+    from euroleghe_ingest.modules.injuries import _client
+
+    session = _client()
+    try:
+        response = session.get(url, timeout=30)
+    finally:
+        session.close()
+    if response.status_code != 200:
+        print(f"[press] {url}: HTTP {response.status_code}, niente da importare")
+        return "", 0
+    entries = parse_duels_article(response.text)
+    if not entries:
+        print(f"[press] {url}: nessun club con ballottaggi - la pagina ha cambiato forma?")
+        return "", 0
+    day = observed_on or dt.datetime.now(tz=dt.UTC).date().isoformat()
+    scratch = ctx.config.data_dir / "raw" / "press" / f"_incoming_{source}_{day}.json"
+    scratch.parent.mkdir(parents=True, exist_ok=True)
+    scratch.write_text(json.dumps({"season": season, "observed_on": day, "source": source,
+                                   "clubs": entries}, ensure_ascii=False, indent=1), encoding="utf-8")
+    import_reference(ctx, scratch, season=season, observed_on=day, source=source)
+    archived = archive(ctx, season, day, source)
+    scratch.unlink(missing_ok=True)
+    print(f"[press] {len(entries)} club con ballottaggi -> press_formations ({season}, {day}, {source})"
+          f" · archiviato {archived.name}")
+    return day, len(entries)
 
 
 # ---------- import / archive / reingest ----------
@@ -279,7 +370,7 @@ def _names_match(one: str, other: str) -> bool:
 # The board extraction lives in `boards.py`: it has two callers with OPPOSITE needs - the judges must not
 # score the operator's own rulings, the panel's data path must honour them - and a shared function is the only
 # way the two cannot drift. Imported rather than wrapped so `press.extract_boards` still resolves.
-from euroleghe_ingest.modules.boards import extract_boards        # noqa: E402  (after the module's constants)
+from euroleghe_ingest.modules.boards import extract_boards
 
 
 def compare(boards: dict[str, dict], reference: dict[str, dict],
@@ -340,6 +431,84 @@ def compare(boards: dict[str, dict], reference: dict[str, dict],
     return rows, summary
 
 
+def _pool_of(conn, season: str, club_key_wanted: str):
+    """Il pool di nomi di UN club per il matcher: (fc_id, nome, base, iniziale)."""
+    rows = conn.execute(
+        """SELECT r.fc_id, p.canonical_name, c.canonical_name FROM rosters r
+           JOIN players p ON p.fc_id = r.fc_id
+           LEFT JOIN clubs c ON c.fc_club_id = r.fc_club_id
+           WHERE r.season = ?""", (season,)).fetchall()
+    return [build_pool_entry(int(fc_id), name) for fc_id, name, club in rows
+            if club_identity(club) == club_key_wanted]
+
+
+def judge_duels(conn, boards: dict, reference: dict, season: str) -> dict:
+    """I nostri BALLOTTAGGI contro quelli pubblicati, con il suo null. Un dizionario, non una stampa.
+
+    LA RISOLUZIONE PASSA DAL MATCHER e non dal cognome esatto, e la differenza e' misurata: col cognome
+    esatto dentro il club, 41 gruppi su 89 non si risolvevano affatto (la fonte scrive «Samardcic» dove il
+    listone ha «Samardzic») e sette club su venti restavano fuori dal confronto. `match_in_pool` e' lo stesso
+    imbuto che il modulo infortuni paga da mesi, e un nome ambiguo resta NON risolto invece di diventare il
+    primo candidato: un abbinamento sbagliato e' peggio di uno mancante.
+
+    IL NULL: al posto del nostro rivale si mette un uomo qualunque dello stesso club, e si guarda quante
+    volte si beccherebbe comunque un loro ballottaggio. Senza quello, «18 coppie in comune» non e' un numero.
+    """
+    out = {"clubs": 0, "theirs": 0, "ours": 0, "shared": 0, "unresolved": 0,
+           "null_hits": 0, "null_trials": 0, "per_club": {}}
+    random.seed(20260817)
+    for club, board in boards.items():
+        key = club_identity(club)
+        entry = reference.get(key)
+        if not entry or not entry.get("duels"):
+            continue
+        groups = entry["duels"] if isinstance(entry["duels"], list) else json.loads(entry["duels"])
+        pool = _pool_of(conn, season, key)
+        if not pool:
+            continue
+        def resolve(name: str, pool=pool) -> int | None:
+            # `pool` legato adesso e non alla chiamata: in un ciclo una chiusura che lo cerca fuori
+            # risolverebbe i nomi di un club nel pool dell'ULTIMO, che e' il modo silenzioso di
+            # abbinare la persona sbagliata.
+            tier, found = match_in_pool(name, pool)
+            return int(found[0][0]) if tier and len(found) == 1 else None
+        theirs: set[frozenset] = set()
+        for group in groups:
+            people = [resolve(one) for one in (group if isinstance(group, list) else [group])]
+            if any(one is None for one in people) or len(people) < 2:
+                out["unresolved"] += 1
+                continue
+            theirs |= {frozenset(pair) for pair in combinations(people, 2)}
+        ours: set[frozenset] = set()
+        for line in (board.get("lines") or {}).values():
+            for man in line:
+                mine = man.get("fc_id")
+                for rival in man.get("duels") or []:
+                    if mine and rival.get("fc_id"):
+                        ours.add(frozenset({int(mine), int(rival["fc_id"])}))
+        if not theirs:
+            continue
+        out["clubs"] += 1
+        out["theirs"] += len(theirs)
+        out["ours"] += len(ours)
+        out["shared"] += len(ours & theirs)
+        out["per_club"][club] = {"theirs": len(theirs), "ours": len(ours),
+                                 "shared": len(ours & theirs)}
+        squad = [entry_row[0] for entry_row in pool]
+        for pair in ours:
+            first = min(pair)
+            for _ in range(50):
+                other = random.choice(squad)
+                if other == first:
+                    continue
+                out["null_trials"] += 1
+                out["null_hits"] += frozenset({first, other}) in theirs
+    out["recall"] = round(out["shared"] / out["theirs"], 4) if out["theirs"] else None
+    out["precision"] = round(out["shared"] / out["ours"], 4) if out["ours"] else None
+    out["null"] = round(out["null_hits"] / out["null_trials"], 4) if out["null_trials"] else None
+    return out
+
+
 def compare_sheet(ctx: Context, sheet: Path, *, mode: str = "typical", source: str | None = None,
                   against: str = "press", report: bool = True) -> dict | None:
     """The repeatable judgement: sheet folder in, per-club verdicts and one summary out.
@@ -354,6 +523,12 @@ def compare_sheet(ctx: Context, sheet: Path, *, mode: str = "typical", source: s
     season = manifest.get("target_season")
     if against == "outcome":
         reference = outcome_reference(ctx.conn, season)
+    elif against == "duels":
+        # IL RIFERIMENTO DEI BALLOTTAGGI HA UNA SUA FONTE, e prenderlo con `source=None` era il difetto:
+        # `load_reference` restituiva l'ultima lettura QUALUNQUE - cioè le formazioni della stampa dell'08/08,
+        # che portano i ballottaggi di un'altra stagione - e il giudice leggeva «0 club, 97 gruppi non
+        # risolti», che suona come una fonte vuota e invece era la fonte sbagliata.
+        reference = load_reference(ctx.conn, season, source=source or "transfermarkt")
     else:
         reference = load_reference(ctx.conn, season, source=source)
     if not reference:
@@ -365,12 +540,32 @@ def compare_sheet(ctx: Context, sheet: Path, *, mode: str = "typical", source: s
     # WITHOUT the operator's rulings: a ruling is often made looking at this very judge, and a
     # judge must never score the operator's own answers. The default is False; saying it here
     # anyway is the point - this is the one call for which it is a decision and not a default.
-    boards = extract_boards(ctx.config, sheet, mode=mode, apply_rulings=False)
+    # I DUELLI VANNO CHIESTI, o la board li butta (`_placed` ritorna `(x, starter, rivals)` e senza il
+    # flag i rivali non arrivano): il giudice dei ballottaggi leggeva «nostre 0» contro le loro 80, che è
+    # esattamente lo zero uniforme che questo progetto ha imparato a NON credere - era la chiamata.
+    boards = extract_boards(ctx.config, sheet, mode=mode, apply_rulings=False,
+                            with_rivals=(against == "duels"))
     if against == "outcome":
         # the outcome reference covers every club with elevens on file (46 for 2025-26, all five
         # leagues); a sheet is one platform's perimeter, so score the intersection and say so
         wanted = {club_identity(club) for club in boards}
         reference = {key: entry for key, entry in reference.items() if key in wanted}
+    if against == "duels":
+        # Il TERZO giudice non parla di moduli: l'articolo non li porta (verificato due volte). Quindi non
+        # si passa da `compare`, che conta forme e uomini, ma dal confronto sui BALLOTTAGGI col suo null.
+        verdict = judge_duels(ctx.conn, boards, reference, season)
+        print(f"[press] {sheet.name} vs {verdict['clubs']} club di «{source or 'transfermarkt'}»: "
+              f"in comune {verdict['shared']} · loro {verdict['theirs']} (recall "
+              f"{(verdict['recall'] or 0):.1%}) · nostre {verdict['ours']} (precisione "
+              f"{(verdict['precision'] or 0):.1%}) · NULL {(verdict['null'] or 0):.1%} · "
+              f"{verdict['unresolved']} gruppi non risolti")
+        if report:
+            out = ctx.config.data_dir / "reports" / "press_duels.json"
+            out.parent.mkdir(parents=True, exist_ok=True)
+            out.write_text(json.dumps({"sheet": sheet.name, "season": season, **verdict},
+                                      indent=1, ensure_ascii=False), encoding="utf-8")
+            print(f"[press] report -> {out}")
+        return verdict
     on = "board" if against == "outcome" else "picture"
     rows, summary = compare(boards, reference, on=on)
     # ...and the SAME comparison on our other shape string, which quantifies how much of the
@@ -421,7 +616,13 @@ def compare_sheet(ctx: Context, sheet: Path, *, mode: str = "typical", source: s
 
 def run(ctx: Context, *, import_files: list[str] | None = None, season: str | None = None,
         source: str | None = None, observed_on: str | None = None, sheet: str | None = None,
-        against: str = "press", report: bool = True, **_kwargs) -> None:
+        against: str = "press", report: bool = True, fetch_duels: str | None = None,
+        **_kwargs) -> None:
+    if fetch_duels:
+        if not season:
+            raise ValueError("--fetch-duels needs the season the article predicts (--season YYYY-YY)")
+        fetch_duels_url(ctx, fetch_duels, season=season, observed_on=observed_on,
+                        source=source or "transfermarkt")
     if import_files:
         for path in import_files:
             file_season, day, src, count = import_reference(

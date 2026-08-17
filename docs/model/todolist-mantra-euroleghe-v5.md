@@ -34,28 +34,117 @@ che ne nascono, in ordine di quanto costano:
 - [x] **`season_stats.clean_sheets`** — FATTO: 970 stagioni-portiere, **4.872** porte inviolate, che è
   esattamente il numero che il commento del `scoring_config` cita. Tre guardie (solo `played`, solo col
   voto, e NULL per chi il layer non copre) e un disaccordo fra le fonti dichiarato invece che ritagliato.
-- [ ] **Allineare il punteggio della lega anche nel motore.** Bonus/Malus prezza la porta inviolata,
-  l'Overall parte da `FM att.` che è nel punteggio della FONTE: ognuna coerente con sé, le due non dicono
-  lo stesso numero su un portiere. Allinearle davvero vuol dire rifare `engine_fm_pred` e
-  `engine_replacement_fm` col punteggio della lega — dieci finestre di gate, non una riga.
-- [ ] **Il SURPLUS del foglio usa il marginale di ROSA**, quindi sopravvaluta di **mezzo punto** quello
-  che un giocatore aggiunge: misurato per due strade il 16/08/2026 (`letture-app-v1.md` §4-bis). È lo
-  zero della metrica del progetto, quindi si cambia solo con il gate sulle dieci finestre.
-- [ ] **Griglia allargata per la recenza del rientro** (150/180/240 giorni, su euro): pre-registrata il
-  16/08/2026 perché l'ottimo era al bordo. Se resta al bordo anche lì, la lettura non è «serve più
-  finestra» ma «sta misurando qualcos'altro» — gate §7-tricies.
+- [x] ~~**Allineare il punteggio della lega anche nel motore.**~~ — **MISURATA e CHIUSA il 17/08/2026
+  notte** (gate §7-sextricies (a)). La domanda si riduce ai PORTIERI: il `scoring_config` della lega è
+  identico a quello della fonte su ogni termine tranne `clean_sheet_bonus_gk` = 1,0, che la fonte non paga.
+  Quindi per D/C/A il bersaglio non si muove di un decimale e «rifare il motore col punteggio della lega» è
+  «prevedere le porte inviolate di un portiere». Mettere il termine vale +19,1% di MAE sui portieri e **non
+  è una scoperta: è aritmetica**; il pezzo falsificabile — il tasso del CLUB batte lo spostamento costante?
+  — fa 7/10 finestre e +2,48% di media ma perde il 3,5% e il 4,9% su due, quindi **non passa il criterio
+  robusto**. Resta lo spostamento costante, che dentro il ruolo non cambia nessun ordine: cioè esattamente
+  quello che l'app fa già in reporting su tutt'e due i lati del conto. **Il punteggio della lega resta dove
+  è.**
+- [x] ~~**Il SURPLUS del foglio usa il marginale di ROSA**~~ — **MISURATO e RESPINTO il 17/08/2026 notte**
+  (gate §7-sextricies (b)), con una premessa da correggere prima: **il gate non poteva giudicarlo**, perché
+  prepara le finestre senza lega e quindi ordina per VALUE, dove lo zero non entra affatto. Misurato invece
+  il DELIVERABLE, con il nuovo comando **`python -m euroleghe_ingest zeros`**: lo zero SCHIERATO peggiora la
+  lista su **15 finestre su 15** (Serie A −18,5 punti di efficienza media, euro −51,2; nomi giusti 171→154
+  e 193→163). Le due guardie sono concordi, quindi niente decisione in chiaro: **resta il marginale di
+  rosa**. La prima corsa dell'harness leggeva −66% e non misurava niente — due surplus con zeri diversi sono
+  in due unità — e la cura (confrontare una QUOTA, non una somma) è ora protetta da un test.
+- [x] ~~**Griglia allargata per la recenza del rientro**~~ — **FATTA la sera stessa del 16/08** e la voce
+  era rimasta aperta per svista: finestre 150/180/240 più il `(120, 0.20)` che mancava, l'ottimo è **di
+  nuovo al bordo** su tutt'e due le piattaforme (240) e l'errore pooled scende in modo monotono con la
+  finestra. Quindi la lettura è quella scritta prima della corsa: a 240 giorni il canale non dice più «è
+  rientrato da poco» ma «ha avuto uno stop lungo negli ultimi otto mesi», che `injury_weights` legge già
+  di suo — mediana delle giornate perse 12,9 sotto i 120 giorni contro 1,9 oltre i 240. **SPENTA per
+  sempre**: non c'è una terza griglia da provare, perché il difetto non è la taglia della finestra
+  (gate §7-tricies).
 - [x] **Storico del valore di mercato** — FATTO: modulo `market`, **1.055 curve e 22.269 punti** dal 2005,
   zero fallite. Tutti i 1.058 quotati hanno un valore alla data d'asta e 1.056 ne hanno due o più
   nell'ultimo anno, cioè una tendenza leggibile. **Non viaggia nel bundle**: nessuno lo legge ancora.
-- [ ] **Usare la curva del valore.** Due strade molto diverse: una lettura di TENDENZA accanto all'FVM
-  nell'app (serve aggiungerla a `export.CONTRACT`), oppure rimisurare il **canale dell'investimento** del
-  gate, che era rimasto lì proprio perché l'input era rotto. La seconda è il motivo per cui è stata presa.
-- [ ] **Minuti per competizione e in nazionale (Transfermarkt)** — le pagine rispondono 200 ma la tabella
-  **non è nell'HTML**: muro di consenso, dati solo dopo. Il prefisso `/x/` che salva gli infortuni lì non
-  basta (quattro forme provate). Prossimo passo: **registrare le chiamate della pagina** dopo il consenso
-  nel browser headless, non indovinare endpoint — dei tentati, 4 su 6 hanno risposto 404.
-- [ ] **Coppe da Sofascore** — 403 `challenge` su ogni endpoint dal 16/08/2026, dopo una corsa su 93 club
-  che ha portato solo il 2026-27. In attesa; non insistere.
+- [x] ~~**Usare la curva del valore.**~~ — **CHIUSA il 17/08/2026 sera, in due tempi e con due esiti
+  opposti.** La strada per cui la curva era stata presa — rimisurare il **canale dell'investimento** —
+  è stata percorsa il 16/08 stesso ed è un **NO**: input riparato, griglie non ritoccate, +0,04% su euro e
+  +0,26% su Serie A, sotto il pavimento dello 0,5% (gate §7-untricies; quello che lo riaprirebbe sono gli
+  INGAGGI, non un'altra misura di questo tipo). La strada della **lettura** è invece fatta: colonna
+  «Mercato» accanto all'FVM, valore alla data più freccia a dodici mesi, `market_value_history` in
+  `export.CONTRACT` con uno scope **datato** (85.061 righe → 26.314, 218 KB, e tutti e 3.323 i giocatori
+  conservano un livello). Reporting e nient'altro, con la banda ±15% dichiarata come le soglie degli
+  infortuni e l'ordinamento **per valore e non per tendenza**, perché una percentuale dipende dalla base
+  (mediana +50% nel quartile povero contro −9% nel ricco). Dettagli: `letture-app-v1.md` §7-ter, spec
+  «Novità v9.40».
+- [x] ~~**Minuti per competizione e in nazionale (Transfermarkt)**~~ — **ROTTA TROVATA il 17/08/2026 sera**,
+  facendo esattamente quello che la voce prescriveva: registrare le chiamate della pagina in un browser
+  headless (CDP) invece di indovinare endpoint. Non c'è nessun muro da aggirare, perché i dati non stanno
+  nell'HTML: la pagina «Rendimento dettagliato» li chiede a un HOST DIVERSO che nessuno aveva provato —
+  **`https://tmapi.transfermarkt.technology/player/{tm_id}/performance-game`**, JSON pulito, 200 col
+  client TLS che il modulo infortuni già usa, **senza consenso**. Verificato su un quotato (Jacquet,
+  `tm_id` 1004301): **238 partite su 5 stagioni**, e per ognuna competizione, giornata, data, club e
+  avversario, `playedMinutes` (69 in quella d'esempio), lo stato di partecipazione (`played`, `injured`, …),
+  gol/assist/rigori/cartellini, duelli e passaggi. **44 delle 238 sono di NAZIONALE** (`isNationalGame`),
+  cioè la seconda metà della richiesta arriva dalla stessa chiamata. Gli endpoint di servizio che la
+  pagina usa per tradurre gli id: `/players?ids[]=`, `/competitions?ids[]=`, `/attributes`,
+  `ceapi/competitionSort`.
+
+  **INGESTIONE FATTA la notte stessa**: modulo `performance`, tabella **`tm_appearances`** (una riga per
+  giocatore-partita, PK `(fc_id, tm_game_id)`), cache per `tm_id`, `--limit` per la corsa pilota e
+  `--refresh` in mano al chiamante perché la serie cresce. Tabella SUA e non `external_match_stats`: là la
+  competizione è una nostra chiave e sopra gira `mv_synth` calibrato su un'altra popolazione, e mescolarle
+  sarebbe §7-nonies. Pilota su **6 quotati: 4.416 partite, 809 di nazionale**, competizioni `GB1 780 · CL
+  408 · L1 373 · IT1 322 · FR1 312 · FS 240`, e la semantica giusta — `played` 3.309 righe tutte con i
+  minuti, `not in squad`/`injured`/`in squad` tutte con i minuti **NULL**, che è «vuoto = ignoto, mai zero».
+  Per confronto: tutto Sofascore ha 1.071 righe di Champions sul 2025-26 e **21** sul 2024-25.
+
+  **CORSA COMPLETA ESEGUITA la notte del 17/08/2026**: **1.120 giocatori, 547.633 partite**, 1.052 richieste,
+  **zero senza risposta**. Che cosa porta, e sono le tre cose che il gate aveva dichiarato bloccate:
+
+  | | |
+  |---|---|
+  | righe di NAZIONALE | **74.258** (41.749 con i minuti) |
+  | Champions · Europa · Conference | **23.857 · 12.486 · 3.038** |
+  | Champions per stagione (25-26 → 21-22) | 5.500 · 4.472 · 2.419 · 2.160 · 2.009 |
+  | stagioni coperte | dal **2021-22** al 2026-27, 50-65 mila righe l'una |
+
+  Il confronto che dice perché questa rotta conta: di Champions, tutto Sofascore aveva **1.071 righe sul
+  2025-26 e 21 sul 2024-25** — qui sono 5.500 e 4.472, e cinque stagioni invece di una. Le europee non erano
+  «troppo sottili da pesare» (§7-quinquies): erano una fonte sbagliata.
+
+  Residuo misurato e dichiarato invece che nascosto: `played` 334.985 righe di cui **14 senza minuti**, e
+  `in squad` 76.287 di cui **10 CON** minuti — inconsistenze della fonte su mezzo milione di righe, che si
+  scrivono qui perché chi legge quella tabella non le scopra come un difetto nostro. La prima corsa piena era
+  morta su un `database is locked` (l'acquisizione coppe teneva il lock): da lì `store` **aspetta con attesa
+  crescente** invece di buttare un'ora di download.
+- [~] **Coppe da Sofascore** — **il provider risponde 200 di nuovo il 17/08/2026 sera** (verificato su una
+  unità sola prima di lanciare, che è la regola che quella corsa aveva insegnato): rotta provata su un club
+  con finestra di tre stagioni, **46 partite fuori campionato in 145 secondi**.
+
+  ⚠️ **E la corsa lanciata con `--days 1100` ha usato 150 giorni**, perché il dispatcher della CLI parsava il
+  flag e non lo passava al modulo — **la seconda volta che questo dispatcher perde un flag** (la prima fu
+  `--tournament`, spec «Novità v9.39»). Il risultato: **797 eventi** su 93 club (mediana 8 a club, sole due
+  stagioni) invece delle tre stagioni di coppe europee, e i conteggi che non si muovevano di una riga
+  (`uefa-champions-league` 2024-25 fermo a **21**) senza che niente segnalasse un errore. Trovato guardando i
+  file di cache uno per uno perché il numero non cresceva. Corretto, e ora un test legge il SORGENTE del
+  dispatcher e pretende che ogni opzione dichiarata compaia nella chiamata del suo comando: *un flag parsato
+  e non passato è peggio di un flag che non esiste, perché il secondo dà errore.*
+
+  ⚠️⚠️ **E la corsa vera, lanciata subito dopo, ha fatto un DANNO** — il secondo difetto della serata e il
+  più costoso. Sofascore è tornato a rispondere **403 `challenge`** (la seconda volta dopo una corsa sui 93
+  club, esattamente come il 16/08), e `fetch_extra_matches` scriveva il **marcatore vuoto** anche quando la
+  richiesta era stata RIFIUTATA: «un club senza amichevoli in finestra è un fatto», dice il commento, ma un
+  403 non è quel fatto. Risultato: **91 file di cache su 93 sovrascritti con zero eventi**, sopra dati
+  buoni, in un'ora. È «vuoto = ignoto, mai zero» applicato alla CACHE, e il progetto lo aveva già scritto
+  tre volte per le colonne.
+
+  Quello che si è perso e quello che no, detto invece che sperato: le **11.516 righe extra restano nel DB**
+  (2026-27: 5.876 · 2025-26: 5.640) perché un file extra non cancella niente in reingest; si è persa la
+  SORGENTE GREZZA che `rebuild` replica, quindi finché il provider non riapre un `rebuild` non le
+  ricostruirebbe. Corretto: `download_extra` ora distingue «ha risposto niente» (paga il marcatore) da «non
+  ha risposto» (None, e il chiamante non tocca niente), e la corsa **si ferma dopo cinque rifiuti di fila**
+  invece di macinare 93 club contro una porta chiusa. Test di regressione sulle due strade.
+
+  **Stato: in attesa che Sofascore riapra**, e senza insistere - è il terzo giro di questa lezione. Quando
+  riapre: `positions --layer extra --days 1100 --refresh`, che a 46 eventi per club costa ore e non minuti.
 - [ ] **Secondo giudice per le board** — l'articolo Transfermarkt del 14/08/2026 («Formazioni titolari
   Serie A 2026/2027: ecco tutte le squadre-tipo»).
 
@@ -70,6 +159,74 @@ che ne nascono, in ordine di quanto costano:
   obiettivi di mercato, i giocatori in bilico, i **ballottaggi** e i **rigoristi**. Sono un giudice
   diverso e utile - i ballottaggi le board li producono - ma non è un confronto sui moduli. Se lo si
   archivia, si archivia quello che c'è.
+
+  **La PAGINA è stata ritrovata e ri-verificata il 17/08/2026 sera**, e l'articolo si aggiorna: l'ultima
+  edizione è di **oggi alle 11:10**
+  (`transfermarkt.it/oggi-giocherebbero-cosi-le-formazioni-dei-20-club-di-serie-a/view/news/482230`, il cui
+  titolo interno è esattamente «Formazioni titolari Serie A 2026/2027: ecco tutte le squadre-tipo»). Scaricata
+  col client TLS degli infortuni: **200, 369 KB**, e la struttura è pulita — un `<h2>` per club («La
+  probabile formazione dell'Atalanta 2026/27»), **tutti e 20 presenti**, con «ballottagg…» 22 volte e
+  «rigorist…» 21 nel testo. Confermato di nuovo che **i moduli non ci sono**: «3-5-2», «4-3-3» e la parola
+  «modulo» compaiono **zero** volte, perché l'undici è un grafico.
+
+  **PRIMA MISURA ESEGUITA la sera del 17/08/2026**, chiamando le funzioni che spediscono
+  (`boards.extract_boards` con `apply_rulings=False`, che è la convenzione dei giudici) e non una copia:
+
+  | | |
+  |---|---|
+  | club letti dall'articolo / board disegnate | **20 / 20** |
+  | loro ballottaggi risolti in `fc_id` | **48 coppie** — e **41 gruppi su 89 NON risolti** per nome |
+  | club davvero confrontabili | **13 su 20** |
+  | nostri duelli in quei club | 235 coppie (373 su tutti e venti) |
+  | coppie in comune | **18** |
+  | *recall*: quante delle LORO ritroviamo | **18/48 = 37,5%** |
+  | *precisione*: quante delle NOSTRE confermano | 18/235 = **7,7%** |
+  | **il NULL** (rivale sostituito con un uomo qualunque dello stesso club, 11.340 estrazioni) | **1,6%** |
+  | RIGORISTI: il loro primo è fra i nostri primi due | **7 su 10** club risolvibili |
+
+  Come si legge, e i limiti che vanno detti prima dei numeri. Il segnale c'è — 7,7% contro un caso di
+  1,6% è **quasi cinque volte** il null — e la forma della differenza è quella attesa: il pannello propone
+  fino a DUE rivali per uomo (fino a 22 coppie per club) mentre l'articolo ne elenca una manciata, quindi
+  la precisione bassa è in parte la definizione e non un errore. Quello che NON si può dire è che il
+  confronto sia completo: **quasi metà dei gruppi non si risolve** perché la risoluzione è per cognome
+  esatto dentro il club (l'articolo scrive «Samardcic» dove il listone ha «Samardzic»), e sette club
+  restano fuori del tutto. Il passo che rende questi numeri buoni non è un'altra misura ma il MATCHER:
+  `matching.match_in_pool`, che il modulo infortuni già paga, al posto del cognome esatto.
+
+  **PORTATO DENTRO `press` la notte stessa**, che è il posto dove doveva stare: `press --fetch-duels URL
+  --season 2026-27` scarica l'articolo, lo parsa per ETICHETTA (la pagina si ri-pubblica e l'ordine dei
+  paragrafi non è una promessa), lo importa nella colonna `duels` di `press_formations` e lo **archivia
+  datato** come ogni riferimento; `press --sheet DIR --against duels` produce il confronto col suo null e
+  scrive `data/reports/press_duels.json`. La risoluzione dei nomi passa da `matching.match_in_pool` e non
+  dal cognome esatto, e un nome ambiguo resta NON risolto: un abbinamento sbagliato è peggio di uno mancante.
+
+  ⚠️ **E il test ha trovato subito un difetto che la misura di poche ore prima aveva riportato come un
+  numero**: `dell'Atalanta` veniva letto «l'Atalanta» e `della Roma` «la Roma», perché nell'alternativa
+  `(?:del|dell'|della)` il `del` vince per primo. Sono **sette club su venti** — cioè esattamente i «13 su
+  20 confrontabili» della prima misura, che quindi non era una proprietà della fonte ma una nostra regex.
+
+  **LA MISURA BUONA, dal comando (17/08/2026, `data/reports/press_duels.json`):**
+
+  | | |
+  |---|---|
+  | club confrontati | **20 su 20** |
+  | loro coppie di ballottaggio | **79** (16 gruppi su ~95 non risolti per nome) |
+  | nostre coppie (fino a due per uomo) | 373 |
+  | in comune | **30** |
+  | *recall* — quante delle LORO ritroviamo | **38,0%** |
+  | *precisione* — quante delle NOSTRE confermano | 8,0% |
+  | **il NULL** (rivale sostituito con un uomo qualunque dello stesso club, 17.991 estrazioni) | **1,65%** |
+
+  Quindi **cinque volte il caso**, e la precisione bassa è in parte la definizione: il pannello propone fino
+  a due rivali per uomo (fino a 22 coppie per club) dove l'articolo ne elenca quattro. Le due misure — quella
+  a mano di poche ore prima e questa — danno gli stessi TASSI su una copertura diversa (37,5% e 38,8% di
+  recall), che è la conferma che quello che era rotto era la copertura e non il metro.
+
+  Altri due difetti trovati eseguendo, e sono la solita famiglia: `--against duels` caricava `load_reference`
+  **senza fonte**, cioè le formazioni della stampa dell'08/08 — «0 club, 97 gruppi non risolti», che suona
+  come una fonte vuota ed era la fonte sbagliata; e `extract_boards` va chiamata con `with_rivals=True`,
+  altrimenti la board **butta i duelli** e il giudice leggeva «nostre 0» contro le loro 80. Uno zero uniforme
+  è quasi sempre una chiamata sbagliata, ed è la terza volta che questo repo lo scrive.
 
 **Chiusura 10/08 (draft)**: il pannello d'asta è completo (porte, rimpiazzo vivo, Valore 0-99, scelta
 consigliata a quattro giri) e la moneta con cui consiglia è stata **misurata sull'esito** su cinque

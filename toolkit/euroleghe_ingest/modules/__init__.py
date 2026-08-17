@@ -20,6 +20,7 @@ PIPELINE: tuple[str, ...] = (
     "transfers",
     "injuries",
     "market",       # dopo `injuries`: i tm_id sono suoi
+    "performance",  # e per la stessa ragione: le partite di Transfermarkt (coppe, europee, nazionale)
     "fbref",
     "positions",
     "fixtures",
@@ -38,8 +39,10 @@ PIPELINE: tuple[str, ...] = (
 # judges candidate RULES, `sweep` judges the provisional CONSTANTS (gate-motore-v1.md 7-bis).
 # `timepack` sta qui e non nella PIPELINE per la stessa ragione di `snapshot`: non produce una tabella,
 # richiama il motore a una data passata e ne impacchetta il risultato per il viaggio nel tempo dell'app.
-STANDALONE: tuple[str, ...] = ("fetch", "rebuild", "bootstrap", "backtest", "sweep", "estimates", "export",
-                              "snapshot", "timepack")
+# `zeros` e' la terza armatura di misura, e la ragione per cui non e' dentro `backtest` sta nel suo
+# docstring: il gate prepara le finestre senza lega, quindi lo zero non lo vede affatto.
+STANDALONE: tuple[str, ...] = ("fetch", "rebuild", "bootstrap", "backtest", "sweep", "estimates", "zeros",
+                              "export", "snapshot", "timepack")
 
 ALL_MODULES: tuple[str, ...] = STANDALONE + PIPELINE
 
@@ -47,6 +50,7 @@ ALL_MODULES: tuple[str, ...] = STANDALONE + PIPELINE
 # Single source of truth: add a name here when its module becomes real.
 IMPLEMENTED: frozenset[str] = frozenset(
     {"rosters", "stats", "ratings", "matchdays", "fc_site", "transfers", "injuries", "positions",
+     "performance",
      "recent_form", "synth", "tournaments", "arrivals",
      "elo", "press",
      "validate"}

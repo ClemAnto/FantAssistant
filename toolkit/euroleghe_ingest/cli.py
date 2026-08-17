@@ -115,6 +115,17 @@ def build_parser() -> argparse.ArgumentParser:
     p_estimates.add_argument("--no-report", dest="report", action="store_false",
                              help="print only, do not write data/reports/estimates_check.json")
 
+    # La quarta domanda, e non e' una regola ne' una costante: QUALE ZERO fa la lista migliore. Il gate
+    # non puo' giudicarla - prepara le sue finestre senza lega, quindi ordina per VALUE e lo zero non lo
+    # vede - percio' si misura il DELIVERABLE, com'e' stato fatto per le stime (§7-undecies).
+    p_zeros = sub.add_parser("zeros", help=load("zeros").DESCRIPTION)
+    p_zeros.add_argument("--platform", action="append", choices=["euro", "default"],
+                         help="euro = EuroLeghe, default = Serie A classica (default: tutte e due)")
+    p_zeros.add_argument("--game", choices=["classic", "mantra"],
+                         help="il vocabolario dei ruoli in cui si ordina (default: classic)")
+    p_zeros.add_argument("--no-report", dest="report", action="store_false",
+                         help="stampa e non scrivere data/reports/zeros_check.json")
+
     # The app's data bundle: read-only on the DB, writes data/export/<season>/.
     p_export = sub.add_parser("export", help=load("export").DESCRIPTION)
     p_export.add_argument("--season", metavar="YYYY-YY",
@@ -134,6 +145,16 @@ def build_parser() -> argparse.ArgumentParser:
 
     # Today's auction snapshot: the sheet an initial auction is prepared from.
     p_snap = sub.add_parser("snapshot", help=load("snapshot").DESCRIPTION)
+    p_snap.add_argument("--listone-only", dest="listone_only", action="store_true",
+                        help="il foglio dei soli QUOTATI, com'era prima del 17/08/2026. Per default le "
+                             "righe sono le ROSE OSSERVATE: chi e' in rosa c'e' a prescindere dal listone, "
+                             "col club in cui la fonte lo vede (Serie A: 499 quotati contro 730 osservati)")
+    p_snap.add_argument("--keep-departed", dest="keep_departed", action="store_true",
+                        help="tieni nel foglio chi non e' piu' nella rosa in cui il listone lo elenca. "
+                             "Per default ESCE: l'autorita' su chi e' in rosa e' il provider che la legge "
+                             "ogni giorno, non il listone (regola dell'operatore del 17/08/2026). Il "
+                             "segnale della rosa live e' preciso all'83,1%% e non al 100%%, quindi la "
+                             "decisione resta revocabile a ogni corsa")
     p_snap.add_argument("--league", metavar="NAME",
                         help="a league you play in, as declared in config/league_config.json: it "
                              "states the platform and the game, so those two are taken from it and "
@@ -184,6 +205,15 @@ def build_parser() -> argparse.ArgumentParser:
                            help="OFFLINE: re-apply every cached listone (one file per platform and "
                                 "season) so `listone_quotes` carries the quotation of each listone "
                                 "separately - zero requests, no votes touched")
+        if name == "performance":
+            p.add_argument("--season", action="append", metavar="YYYY-YY",
+                           help="di quali quotati (ripetibile; default: il listone piu' recente)")
+            p.add_argument("--limit", type=int, metavar="N",
+                           help="solo gli N quotati piu' cari: una corsa PILOTA verifica la rotta su "
+                                "pochi prima di pagarla su mille (la regola della corsa sui 93 club)")
+            p.add_argument("--refresh", action="store_true",
+                           help="ri-scarica chi e' gia' in cache: la serie CRESCE a ogni giornata, "
+                                "quindi un file di ieri e' corto e non sbagliato")
         if name == "market":
             p.add_argument("--limit", type=int, metavar="N",
                            help="only the N most valuable quoted players - which is how a pilot run "
@@ -284,7 +314,10 @@ def build_parser() -> argparse.ArgumentParser:
                            help="judge this sheet folder's boards against the stored reference "
                                 "(headless panel: needs a display). With no option at all the module "
                                 "replays the archived references, which is what `rebuild` runs")
-            p.add_argument("--against", choices=["press", "outcome"], default="press",
+            p.add_argument("--fetch-duels", dest="fetch_duels", metavar="URL",
+                           help="scarica un articolo di ballottaggi (le «squadre-tipo» di Transfermarkt), "
+                                "lo parsa e lo importa come riferimento datato. Serve --season")
+            p.add_argument("--against", choices=["press", "outcome", "duels"], default="press",
                            help="which judge: 'press' = the stored forecast for the season being "
                                 "auctioned; 'outcome' = what the clubs ACTUALLY did, which needs a "
                                 "back-dated sheet (snapshot --season 2025-26 --date 2025-08-15) and "
@@ -375,11 +408,21 @@ def main(argv: list[str] | None = None) -> int:
                 load("fixtures").run(ctx, leagues=args.league, refresh=args.refresh,
                                      pages=args.pages)
             elif args.command == "positions":
+                # `--days` ANCHE QUI, ed e' la seconda volta che questo dispatcher perde un flag che aveva
+                # appena parsato (la prima fu `--tournament`, spec «Novita' v9.39»). Misurato il
+                # 17/08/2026: una corsa da quattro ore lanciata con `--days 1100` ha usato la finestra di
+                # default di 150 giorni, quindi ha portato 797 eventi invece delle tre stagioni di coppe
+                # europee che quella finestra serviva a raggiungere - e i conteggi non si muovevano di una
+                # riga senza che niente segnalasse un errore. Un flag parsato e non passato e' peggio di un
+                # flag che non esiste: il secondo da' errore, il primo da' una corsa sbagliata.
                 load("positions").run(ctx, leagues=args.league, seasons=args.season,
-                                      refresh=args.refresh, layer=args.layer)
+                                      refresh=args.refresh, layer=args.layer, days=args.days)
             elif args.command == "injuries":
                 load("injuries").run(ctx, seasons=args.season, layer=args.layer,
                                      limit=args.limit, refresh=args.refresh)
+            elif args.command == "performance":
+                load("performance").run(ctx, seasons=args.season, limit=args.limit,
+                                        refresh=args.refresh)
             elif args.command == "market":
                 if args.from_cache:
                     load("market").reingest_from_cache(ctx)
@@ -401,7 +444,9 @@ def main(argv: list[str] | None = None) -> int:
             elif args.command == "snapshot":
                 load("snapshot").run(ctx, season=args.season, platform=args.platform,
                                      game=args.game, refresh=args.refresh, out=args.out,
-                                     date=args.date, clubs=args.club, league=args.league)
+                                     date=args.date, clubs=args.club, league=args.league,
+                                     keep_departed=args.keep_departed,
+                                     listone_only=args.listone_only)
             elif args.command == "timepack":
                 load("timepack").run(ctx, date=args.date, plan=args.plan,
                                      build_all=args.build_all, refresh=args.refresh)
@@ -413,13 +458,17 @@ def main(argv: list[str] | None = None) -> int:
             elif args.command == "press":
                 load("press").run(ctx, import_files=args.import_files, season=args.season,
                                   source=args.source, observed_on=args.observed_on,
-                                  sheet=args.sheet, against=args.against, report=args.report)
+                                  sheet=args.sheet, against=args.against, report=args.report,
+                                  fetch_duels=args.fetch_duels)
             elif args.command == "sweep":
                 load("sweep").run(ctx, windows=args.window, platforms=args.platform,
                                   games=args.game, report=args.report)
             elif args.command == "estimates":
                 load("estimates").run(ctx, platform=args.platform, game=args.game,
                                       metric=args.metric, no_report=not args.report)
+            elif args.command == "zeros":
+                load("zeros").run(ctx, platforms=args.platform, game=args.game,
+                                  no_report=not args.report)
             elif args.command == "tournaments":
                 # The two options the module has always accepted. Without this branch it fell through to
                 # the bare `run(ctx)` below, which is why `--tournament` parsed cleanly and then did

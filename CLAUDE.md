@@ -310,6 +310,69 @@ own verdict does not, and cannot be used to adopt it.
   HTML. Aggregation **option A**: canonical `match_ratings` columns + lossless `match_rating_bonuses`.
   Cached Excel = raw source of truth -> `rebuild` re-ingests offline so scraped ratings survive.
 
+## FOUR harnesses, and the fourth exists because the gate is BLIND to the question
+**17/08/2026.** `backtest` judges RULES, `sweep` judges CONSTANTS, `bench/draft` judges POLICIES - and
+**`zeros`** judges the ZERO, because none of the other three can. The gate prepares its windows WITHOUT a
+league (`features.prepare(league=None)`), so `data.replacement` is empty and `auction_view` ranks by VALUE =
+FM x Pv: the choice of replacement level does not enter one published number, and `backtest --verify` would
+stay 22/22 whatever zero were adopted. It does not touch ACCURACY either - the fm and pv predictions are the
+same and the zero enters afterwards. So the pre-registration that said «ten windows of gate» had a false
+premise, found before the run and corrected in the open (gate §7-sextricies).
+What CAN be measured is the DELIVERABLE, the same metre `estimates` uses: the same list twice, changing only
+the zero. Verdict: the FIELDED zero is worse on **15 of 15** windows (Serie A −18,5 points of efficiency,
+euro −51,2; the right names 171→154 and 193→163), so the roster-marginal stays.
+**And the harness's own first run was the lesson**: it read −66% on ten windows of ten and was measuring
+nothing, because a surplus counted from a higher zero is smaller BY CONSTRUCTION - two numbers in two units.
+The comparable figure is a QUOTA (how much of the perfect list, scored with the SAME zero, the predicted one
+captured) plus the names, which never had a unit. Same family as «the unit of a subtraction is part of the
+subtraction», applied to ourselves; a test now protects it.
+
+## An empty CACHE file must mean «the source said nothing», never «the source did not answer»
+**17/08/2026, and it cost 91 cache files of 93.** `fetch_extra_matches` writes an empty marker when a club
+has no non-league match in the window - a FACT worth saving, or every re-run pays for it again. But the
+marker was written on ANY failed download, and when Sofascore went back to 403 `challenge` mid-run (the
+second time after a 93-club sweep, exactly as on 16/08) the run overwrote 91 files that held good payloads
+with «zero events», in one hour. It is «vuoto = ignoto, mai zero» applied to the CACHE, which this project
+had already written down three times for columns.
+What survived and what did not, stated rather than hoped: the **11,516 extra rows are still in the DB** (an
+extra file deletes nothing on reingest), and what was lost is the RAW SOURCE that `rebuild` replays - so
+until the provider reopens, a rebuild would not reconstruct them. The cure is in `download_extra`, which now
+returns an empty PAYLOAD when the source answered with nothing and `None` when it did not answer at all, and
+the run stops after five refusals in a row instead of grinding 93 clubs against a closed door.
+Two habits: **a marker that records an absence must know WHO said the absence**; and **a long sweep that
+starts getting refused is a sweep to abandon**, because continuing does not reopen the source and can damage
+what is already on disk.
+
+## A flag the parser accepts and the dispatcher drops is worse than a flag that does not exist
+**17/08/2026, and it is the SECOND time in this dispatcher** (the first was `--tournament`, spec «Novità
+v9.39»). A four-hour acquisition was launched as `positions --layer extra --days 1100 --refresh` to reach
+three seasons of European ties; the CLI parsed `--days` and never passed it, so the run used the default
+150-day window and brought **797 events over 93 clubs** (median 8 per club, two seasons) instead of the
+thousands intended - with `uefa-champions-league` 2024-25 sitting at **21 rows** and nothing reporting
+anything. A missing flag errors; a dropped one produces a wrong run that looks like a right one. Found by
+opening the cache files because a count would not grow, not by reading the code.
+The cure is a test that reads the DISPATCHER'S SOURCE and requires every declared option to appear in its
+command's call - deliberately crude (an `args.days` written and unused would pass) because it catches exactly
+the defect that has now cost two runs.
+
+## A source that hides its table may not be hiding it at all
+**17/08/2026, and the way it was found matters more than the endpoint.** Transfermarkt's «detailed
+performance» page answers 200 and does not carry the table; it had been chased through the HTML for weeks (four
+hand-tried forms, 4 of 6 guesses 404) and written down as «a consent wall, data only after». Driving a headless
+browser and RECORDING the calls the page makes - which the todolist itself prescribed - showed the data is not
+in that page at all: it comes from a different HOST nobody had tried, `tmapi.transfermarkt.technology`, which
+serves clean JSON with **no consent wall**. There was nothing to get around; there was something to look at.
+What it buys (`performance` -> `tm_appearances`, one row per player-match): the competition of every match, the
+MINUTES, the participation state, and `isNationalGame`. On one quoted player: 238 matches over five seasons, 44
+of them for his national team. So «minutes per competition» and «minutes for the national team» were one call,
+and they were two separate todolist items. It lives in a table of its OWN and not in `external_match_stats`,
+because there the competition is one of our own keys and `mv_synth` is calibrated over that population -
+mixing them would be §7-nonies again.
+Two habits travel with it: **a long acquisition must survive a lock** (this run and the cups run write the
+same SQLite, and the second holds the write lock through its reparse for longer than `busy_timeout` - an hour
+of downloads died on `database is locked`, so `store` now retries with a growing wait); and **a cache over a
+growing series has its expiry in the caller's hands**, like the market curve.
+
 ## Three harnesses, not two - and the third one reads the app's own code
 **`toolkit/bench/draft/` (10/08/2026).** `backtest` judges RULES, `sweep` judges CONSTANTS, and this judges
 **POLICIES**: what to take now, in which currency, under which rationing. It replays the gate's own windows as
@@ -967,9 +1030,17 @@ the case that asked the question: its 28/07 payload had 46 Napoli players and **
   is «the side with everybody fit» and a man who plays elsewhere is not in it at any fitness. The order is
   forced: without the completeness guard, this same change benches twelve West Ham players who are really
   there.
-- **the sheet declares and does not overrule.** The listone is the game's own authority on who is in a squad -
-  it is what you buy from - so a contradiction is reported (`desc_left_for` / `desc_left_on`, a sheet note, a
-  `⇥` in the panel), never silently applied. The transfers layer needed its primary key widened to make this
+- ~~**the sheet declares and does not overrule.** The listone is the game's own authority on who is in a
+  squad - it is what you buy from - so a contradiction is reported, never silently applied.~~ **REVERSED by
+  the operator on 17/08/2026: «l'autorità di chi è in rosa è sofascore».** The authority is the source that
+  READS the squad every day, so the sheet now obeys instead of reporting: a man the two independent signals
+  say is gone LEAVES the sheet, because a row you can buy from a club he is not at is worse than a row
+  fewer. Measured on the sheets of that day: Serie A **53 rows out** (36 by a transfer that names where he
+  went, 17 by the live squad), euro **63** (29 + 34). **The cost is stated, not hidden**: the live-squad
+  signal is 83.1% precise at `SQUAD_COMPLETENESS` = 0.90, so about one in six of the absence-based removals
+  is a man still there - the board was already paying that cost by excluding him, and now the auction list
+  pays it too. Revocable at every run (`snapshot --keep-departed`), and the sheet's note always says how many
+  and who. `desc_left_for` / `desc_left_on` still carry the reason on the rows that remain. The transfers layer needed its primary key widened to make this
   possible at all: `(fc_id, date)` could not hold a loan return and a permanent signing dated the same 1 July,
   so it kept whichever was parsed last and read Hojlund as LEAVING the club that had just bought him.
 

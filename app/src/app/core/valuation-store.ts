@@ -7,7 +7,7 @@ import { cupMark, windowFromNote } from './player-cup';
 import { EngineForecast, PlayerRating, rank99ByRole } from './player-ratings';
 import { PlayerRatingsStore } from './player-ratings-store';
 import { PlayerMark, PlayerStatus } from './player-status';
-import { Platform, PlayerRow, buildRosters } from './players-store';
+import { Platform, PlayerRow, buildRosters, sheetIdentities } from './players-store';
 import { TimeTravel } from './time-travel';
 
 /**
@@ -155,12 +155,15 @@ export interface SquadMan extends PlayerRow {
   pvCup: number | null;
   valueCup: number | null;
   /**
-   * ...e i due SURPLUS al netto della stessa coppa (`desc_surplus_cup`, `desc_surplus_fielded_cup`), che
-   * la tabella offre come due colonne in più solo quando in lista c'è qualcuno esposto.
+   * ...e i due SURPLUS al netto della stessa coppa (`desc_surplus_cup`, `desc_surplus_fielded_cup`).
    *
-   * Letti dal foglio come tutto il resto, e con la stessa penale di confidenza dei due gated: senza
-   * quella, su una riga che il motore non prezza il surplus «al netto» risultava PIÙ ALTO di quello
-   * lordo, cioè la coppa sembrava pagare.
+   * NESSUNA COLONNA LI DISEGNA PIÙ: le due «−C» sono state tolte per decisione dell'operatore il
+   * 17/08/2026, la sera stessa in cui erano nate. Restano qui perché sono righe del FOGLIO e leggerle
+   * costa niente - chi vuole rimettere una colonna non deve rifare il lettore - e perché il tooltip
+   * delle presenze attese racconta la stessa coppa dal lato delle giornate. Letti dal foglio come tutto
+   * il resto, e con la stessa penale di confidenza dei due gated: senza quella, su una riga che il
+   * motore non prezza il surplus «al netto» risultava PIÙ ALTO di quello lordo, cioè la coppa sembrava
+   * pagare.
    */
   surplusCup: number | null;
   surplusFieldedCup: number | null;
@@ -612,7 +615,14 @@ export class ValuationStore {
         this.bundle.crests().catch(() => null),
       ]);
 
-      this.rostersByPlatform.set(buildRosters(players, clubs, rosters, quotes, target));
+      // LA STESSA POPOLAZIONE della vista Calciatori, foglio compreso: due liste diverse sotto le stesse
+      // colonne sarebbero due liste i cui numeri descrivono l'altra. Si riusa la FUNZIONE e non l'istanza
+      // dell'altro store, così non nasce un ordine di caricamento fra i due; le tabelle sono in cache,
+      // quindi la seconda lettura non costa una richiesta.
+      // NOTA sul viaggio nel tempo: le identità vengono dai fogli di OGGI, quindi un pacchetto passato
+      // mostra la popolazione del listone di allora - che è quello che mostrava anche prima.
+      this.rostersByPlatform.set(buildRosters(players, clubs, rosters, quotes, target,
+                                             await sheetIdentities(this.bundle, manifest)));
       this.crests.set(crests ?? {});
 
       const [cId, cLeague] = columnIndex(clubs, 'fc_club_id', 'league');
@@ -746,6 +756,9 @@ export class ValuationStore {
         // stagione che viene, non la media di quello che ha fatto altrove.
         fm: one.fm,
         fmIsEstimate: one.fmIsEstimate,
+        // ...e la MEDIA VOTO attesa, che dal 17/08/2026 è la lettura VOTI: `est_mv`, il numero che il
+        // foglio deriva dalla fantamedia togliendo il bonus a presenza che le prevede.
+        mv: one.mv,
       });
     }
     return out;

@@ -4269,6 +4269,117 @@ La misura è nel repo — `toolkit/bench/panel/prior_personale.py`, sola lettura
 perché una misura che nessuno può rifare è un'opinione, e perché il prerequisito per riaprire la voce
 (il prior costruito con l'aritmetica completa del pannello) si prova cambiando dieci righe di quel file.
 
+## 7-sextricies. I DUE CANDIDATI DEL MOTORE, ESEGUITI (17 agosto 2026, notte): due rifiuti e una premessa da correggere
+
+Sono le due voci di §7-quinquiestricies, misurate la notte stessa. Il risultato e' un doppio NO, e la cosa
+piu' utile della corsa e' che ha corretto la sua stessa pre-registrazione: **il gate non poteva giudicare
+nessuno dei due**, e la ragione e' strutturale.
+
+### La premessa sbagliata, trovata prima di lanciare
+
+La pre-registrazione diceva «dieci finestre di gate, strict e robust». Ma il gate prepara le sue finestre
+**senza lega** (`features.prepare(league=None)`), quindi `data.replacement` e' VUOTA e `auction_view` ordina
+per VALUE = FM x Pv: la scelta dello zero non entra in nessun numero pubblicato, e `backtest --verify`
+sarebbe rimasto 22/22 qualunque zero si adottasse. Peggio: lo zero non tocca nemmeno l'ACCURATEZZA, perche'
+le previsioni di fm e pv sono le stesse e lo zero entra dopo. Misurare la MAE qui avrebbe dato zero per
+costruzione, ed e' la lezione «verifica la FUNZIONE, non la colonna che le somiglia» applicata a un harness.
+Quindi si misura il **DELIVERABLE**, come per le stime (§7-undecies): la stessa lista due volte, cambiando
+solo lo zero. Nuovo comando: **`python -m euroleghe_ingest zeros`**, read-only, `data/reports/zeros_check.json`.
+
+### (b) Lo zero SCHIERATO: peggiora la lista su 15 finestre su 15
+
+| | Serie A / classic (10 finestre) | euro / mantra (5) |
+|---|---|---|
+| finestre non peggiori | **0 su 10** | **0 su 5** |
+| efficienza media (quota della lista perfetta catturata) | **−18,5 punti** | **−51,2 punti** |
+| finestra peggiore | −28,4 punti | −62,6 punti |
+| nomi giusti | **171 → 154** (−17) | **193 → 163** (−30) |
+
+Le due guardie sono concordi, quindi non c'e' nessuna decisione da prendere in chiaro: **il marginale di
+ROSA resta lo zero del foglio e dell'asta**. Su due finestre euro l'efficienza dello zero schierato e'
+addirittura NEGATIVA (−17,6% e −16,8%): la lista predetta, misurata contro quel rimpiazzo, cattura in
+aggregato meno di zero — gli uomini che scegli finiscono sotto il rimpiazzo che entra davvero.
+
+**Un difetto che l'harness ha prodotto e che vale piu' del verdetto.** La prima corsa leggeva **−66% su
+dieci finestre su dieci**, e non stava misurando niente: il surplus catturato con uno zero piu' alto e' piu'
+piccolo *per costruzione*, quindi confrontava due numeri in due unita' («l'unita' di una sottrazione e'
+parte della sottrazione», applicata a noi stessi). La cifra confrontabile e' una QUOTA — quanto della lista
+perfetta, scorata con LO STESSO zero, la lista predetta cattura — piu' i NOMI, che di unita' non ne hanno.
+Il segno del verdetto non cambia; la sua taglia si', da −66% a −18,5 punti, e solo la seconda e' un numero.
+
+### (a) Il punteggio della LEGA nel motore: la domanda si riduce ai portieri, e il pezzo falsificabile FALLISCE
+
+Prima di rifare `engine_fm_pred`, la domanda che questo progetto fa sempre per prima: che cosa puo'
+cambiare l'output? Il `scoring_config` della lega e' identico a quello che la FONTE applica su ogni termine
+tranne UNO, `clean_sheet_bonus_gk` = 1,0, e la fonte non lo paga. Quindi per D, C e A il bersaglio non si
+muove di un decimale, e per i PORTIERI sale di `1,0 x porte inviolate / presenze`. «Rifare il motore col
+punteggio della lega» **e' prevedere le porte inviolate di un portiere**, e nient'altro.
+
+Misurato sui portieri di tutte e dieci le finestre Serie A (bersaglio: la fantamedia della LEGA della
+stagione bersaglio; il tasso del club letto sulla stagione di INPUT, mai su quella bersaglio):
+
+| | MAE media |
+|---|---|
+| senza il termine | 0,5322 |
+| **spostamento COSTANTE** (mediana del listone) | **0,4290** |
+| tasso del CLUB (persistente, r 0,488) | 0,4174 |
+
+Mettere il termine vale **+19,1%**, e non e' una scoperta: e' aritmetica, prevedere un bersaglio che
+contiene un termine mettendoci quel termine. Il pezzo falsificabile e' l'altro — il tasso del club batte lo
+spostamento costante? — e la risposta e' **7 su 10 finestre, media +2,48%**, quindi maggioranza e sopra il
+pavimento, **ma due finestre perdono il 3,5% e il 4,9%**: il criterio robusto vuole nessuna finestra sotto
+il −2%, e **non passa**.
+
+**Conseguenza, e chiude la voce**: l'unica forma che passerebbe e' lo spostamento costante, che dentro il
+ruolo del portiere non cambia NESSUN ordine (e' una costante aggiunta a tutti) e fuori cambia solo il
+livello del ruolo rispetto agli altri — cioe' esattamente quello che l'app fa gia' in REPORTING, applicandolo
+su tutt'e due i lati del conto. Quindi il punteggio della lega **resta dove e'**, e la voce esce dalle cose
+da fare: quello che la riaprirebbe non e' un'altra misura di questo tipo ma una lega con un punteggio che
+differisce su piu' di un termine, che non e' il caso di quella dell'operatore.
+
+## 7-quinquiestricies. PRE-REGISTRAZIONE (17 agosto 2026, sera) — i due candidati che toccano il MOTORE
+
+Nascono dal residuo del 16/08 e sono le due voci che il todolist chiama «dieci finestre di gate, non una
+riga». **Scritta PRIMA di eseguirle**, com'è la regola di casa: i criteri non si toccano dopo aver visto la
+curva, e la ragione per cui esistono non dipende dal loro esito.
+
+### (a) Il punteggio della LEGA dentro il motore
+
+**Che cosa cambia.** `engine_fm_pred` e `engine_replacement_fm` prevedono la fantamedia nel punteggio della
+FONTE, che la porta inviolata non la applica (misurato: su 16.017 righe di portiere `fm = mv − subiti +
+3×parati − cartellini` è esatto al 100%). La lega dell'operatore la paga. Oggi l'app allinea le due cose in
+REPORTING (`player-ratings.eventTerms`, e la regola che la tiene onesta è che entra su tutt'e due i lati del
+conto); allinearle nel MOTORE vuol dire prevedere un bersaglio diverso.
+
+**Il punto delicato, e va detto prima**: cambiando il punteggio cambia il BERSAGLIO, quindi il MAE «prima»
+e «dopo» non sono due misure della stessa cosa e non si confrontano. La sola forma legittima del confronto
+è a bersaglio fisso: si ricostruisce la fantamedia della LEGA per le stagioni passate (i componenti ci
+sono: gol, assist, cartellini, parate, subiti, e `season_stats.clean_sheets` da ieri), e si misura chi la
+predice meglio — il motore attuale (che prevede la fantamedia della fonte) contro il motore ri-fittato sul
+punteggio della lega. Criteri: le dieci finestre Serie A e le cinque euro, strict e robust come sempre,
+pavimento 0,5% sulla media, nessuna finestra sotto −2%, e le due guardie del deliverable (nomi e valore
+catturato) invariate. **Se non passa, il punteggio della lega resta dov'è oggi: nel reporting.**
+
+### (b) Il SURPLUS del foglio dal rimpiazzo che ENTRA
+
+**Che cosa cambia.** `engine_replacement_fm` è il marginale di ROSA (il rango `squadre × slot`); il
+rimpiazzo che entra davvero è il rango `squadre × posti SCHIERATI`, misurato per due strade indipendenti il
+16/08 (P 5,01 · D 6,11 · C 6,37 · A 6,79 simulando, 5,03 / 5,81 / 6,30 / 6,87 col rango) contro il 4,13 /
+5,66 / 5,87 / 5,61 del foglio: **mezzo punto di fantamedia**. Le due colonne convivono già sul foglio
+(`desc_surplus_fielded`, «Lead») ed è la GATED che si vuole spostare.
+
+**Criteri.** Identici a quelli di sempre e nessuno nuovo: dieci finestre Serie A, cinque euro, strict e
+robust, pavimento 0,5%, nessuna finestra sotto −2%, `passes` sui nomi e sul valore catturato. Il bersaglio
+NON cambia (la fantamedia resta quella della fonte), quindi qui il confronto prima/dopo è legittimo e la
+domanda è una sola: la lista che il prodotto consuma migliora? **Un'avvertenza scritta prima**: lo zero più
+alto comprime tutti i surplus verso il basso e ne manda in negativo molti di più, quindi la guardia che
+decide sarà quella sui NOMI — un conteggio su dieci — e se le due guardie si dividono la decisione si
+prende in chiaro, come per R19 e per R20.
+
+**Ordine di esecuzione**: prima la (b), che è la più semplice e non tocca il bersaglio; la (a) solo dopo,
+perché la ricostruzione del punteggio della lega sulle stagioni passate è essa stessa un lavoro da
+verificare (e il primo test è che, senza porta inviolata, riproduca la `fm` del bundle all'unità).
+
 ## 7-quattuortricies. LA COPPA CONTINENTALE IN MEZZO AL CAMPIONATO: misurata su quattro finestre-torneo (17 agosto 2026)
 
 **Domanda dell'operatore**: «controlla se ci sono calciatori che durante il campionato potrebbero essere

@@ -2,11 +2,10 @@
 <nz-table
   #table
   nzSize="small"
-  [nzData]="lines()"
-  [nzFrontPagination]="paginated()"
-  [nzShowPagination]="paginated()"
-  [nzPageSize]="pageSize() ?? 30"
-  [nzScroll]="scroll()"
+  [nzData]="lazy.rows()"
+  [nzFrontPagination]="false"
+  [nzShowPagination]="false"
+  [style.min-width]="minWidth()"
 >
   <thead>
     <tr>
@@ -222,3 +221,12 @@
     che non sappiamo, non che non ha giocato.
   </p>
 </div>
+
+<!-- Il conteggio che non mente: quante righe sono a schermo e quante sono in tutto. -->
+<p class="mt-2 text-xs text-muted">
+  @if (lazy.complete()) {
+    <strong>{{ lazy.total() }}</strong> calciatori, tutti a schermo.
+  } @else {
+    <strong>{{ lazy.shown() }}</strong> di {{ lazy.total() }} a schermo — scorri per gli altri.
+  }
+</p>

@@ -74,8 +74,8 @@ class _QueueWriter:
 #   weekly  = as the season goes: new ratings, the round they map to, the external layer, the checks
 OPERATION_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Setup - once", ("initdb", "bootstrap", "rebuild", "fetch:plan")),
-    ("Start of season", ("rosters", "stats", "elo", "transfers", "injuries", "market", "tournaments",
-      "arrivals", "recent_form", "fbref")),
+    ("Start of season", ("rosters", "stats", "elo", "transfers", "injuries", "market", "performance",
+      "tournaments", "arrivals", "recent_form", "fbref")),
     ("During the season - every matchday",
      ("ratings", "matchdays", "positions", "synth", "fc_site", "fixtures", "validate")),
     ("Before an auction", ("snapshot", "press", "export")),
@@ -153,6 +153,12 @@ TOOLTIPS: dict[str, str] = {
               "was rising or falling - nor what he was worth on the day of the auction. One request "
               "per quoted player (about an hour), resumable, and a man with two Transfermarkt ids is "
               "skipped rather than blended.",
+    "performance": "Load Transfermarkt's PER-MATCH layer -> tm_appearances: the competition of every "
+                   "match, the minutes, the participation state and whether it was a NATIONAL-team "
+                   "game. It is the acquisition that unblocks the congestion channel (cups and European "
+                   "ties) and the national-team minutes the gate had declared missing. One request per "
+                   "quoted player (about fifty minutes), resumable from the cache, and the minutes of a "
+                   "man who never came on stay NULL - never a zero.",
     "elo": "Load club strength from ClubElo into club_elo at the auction dates (feeds R19, the level "
            "channel: the ORIGIN club's Elo moves the appearances of a man who changed club).",
     "validate": "Run integrity checks on the database (e.g. no entirely-null column) and fail loudly if "
@@ -222,6 +228,7 @@ OUTPUT_COUNTER: dict[str, str] = {
     "transfers": "coaches",
     "injuries": "injuries",
     "market": "market_value_history",
+    "performance": "tm_appearances",
     "arrivals": "arrivals",
     "elo": "club_elo",
     "press": "press_formations",

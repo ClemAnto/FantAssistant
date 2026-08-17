@@ -279,6 +279,29 @@ CREATE TABLE IF NOT EXISTS external_match_stats (
     PRIMARY KEY (fc_id, season, source, match_id)
 );
 
+-- LE PARTITE DI TRANSFERMARKT, una riga per (giocatore, partita): coppe, europee e NAZIONALE.
+-- Tabella SUA e non `external_match_stats` perche' la competizione qui e' l'id della FONTE (`IT1`, `CL`,
+-- `FS`) e non una nostra chiave di campionato, non c'e' un rating sulla scala di Sofascore, e sopra quel
+-- layer girano trasformazioni fittate su un'altra popolazione (`mv_synth`): mescolarle sarebbe il difetto
+-- di §7-nonies. La traduzione in chiavi nostre si fa in lettura, e allora si dichiara.
+-- `minutes` NULL non e' zero: un convocato che non entra non ha minuti, e lo stato lo dice.
+CREATE TABLE IF NOT EXISTS tm_appearances (
+    fc_id       INTEGER NOT NULL REFERENCES players(fc_id),
+    tm_game_id  TEXT NOT NULL,               -- id partita della fonte
+    played_on   TEXT,                        -- ISO date
+    season      TEXT,                        -- la nostra stringa di stagione, dall'id della fonte
+    competition TEXT,                        -- id competizione della FONTE, mai tradotto qui
+    is_national INTEGER,                     -- 0/1: partita di NAZIONALE, l'altra meta' della richiesta
+    club_id     TEXT,                        -- id club della fonte
+    minutes     INTEGER,
+    state       TEXT,                        -- played | injured | not_in_squad | ...
+    goals       INTEGER,
+    assists     INTEGER,
+    yellows     INTEGER,
+    reds        INTEGER,
+    PRIMARY KEY (fc_id, tm_game_id)
+);
+
 -- Club-level lineup counts from the SAME cached rounds, over ALL entries - resolved or not. A
 -- per-player row needs an identity, but counting how many forwards a club FIELDS does not, and
 -- the identity funnel would bias exactly the clubs whose fringe players are not quoted (Serie A

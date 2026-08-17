@@ -11,6 +11,7 @@ import { ClubCrest } from '../club-crest/club-crest';
 import { MatchDetail } from '../match-detail/match-detail';
 import { PlayerFlags } from '../player-flags/player-flags';
 import { RoleBadge } from '../role-badge/role-badge';
+import { lazyRows } from '../../core/lazy-rows';
 import { KIND_ICON, KIND_LABEL, STATE_ICON, STATE_LABEL } from './vocabulary';
 
 /** dd/mm/yyyy, because a date in a tooltip is read by a person and not by a parser. */
@@ -48,8 +49,11 @@ export class MatchesTable {
   readonly crests = input<Record<string, string>>({});
   /** A list of one club does not repeat the club on every row. */
   readonly showClub = input(true);
-  /** Null = the whole list. A number paginates, which a listone of 900 men needs. */
-  readonly pageSize = input<number | null>(null);
+  /**
+   * LE RIGHE ARRIVANO SCORRENDO, senza paginazione (operatore, 17/08/2026): le prime 60 e poi 60 per volta
+   * quando lo scorrimento arriva al fondo. La riga sotto la tabella dice quante se ne vedono su quante.
+   */
+  protected readonly lazy = lazyRows(this.lines);
 
   protected readonly kindIcon = KIND_ICON;
   protected readonly kindLabel = KIND_LABEL;
@@ -65,17 +69,15 @@ export class MatchesTable {
    */
   protected readonly scoring = signal<ScoringConfig | null>(null);
 
-  protected readonly paginated = computed(() => this.pageSize() != null);
 
   /**
    * The name column plus the three narrow ones, then a column per match - and `y`, which is what keeps
    * the column names in view while the list scrolls: ng-zorro's own fixed header (two tables), because
    * a `position: sticky` on the th anchors itself to the scrolling container and leaves with it.
    */
-  protected readonly scroll = computed(() => ({
-    x: `${(this.narrow() ? 176 : this.showClub() ? 490 : 360) + this.columns().length * 62}px`,
-    y: 'calc(100vh - 22rem)',
-  }));
+  /** La larghezza minima, non uno scroller: scorre la PAGINA nei due assi (vedi `squad-table.minWidth`). */
+  protected readonly minWidth = computed(() =>
+    `${(this.narrow() ? 176 : this.showClub() ? 490 : 360) + this.columns().length * 62}px`);
 
   /** A phone. Two things change: the table gives up the three narrow columns and folds them
    *  into the name, and the tooltip goes away - on a touch screen there is no hover, so it would

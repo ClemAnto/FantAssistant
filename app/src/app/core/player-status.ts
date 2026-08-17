@@ -2,6 +2,7 @@ import { Injectable, computed, effect, inject, signal } from '@angular/core';
 
 import { Bundle, BundleTable, PlayerNote, PlayerNotesFile, columnIndex, optionalIndex } from './bundle';
 import { TimeTravel } from './time-travel';
+import { itDate } from './tooltip';
 
 /**
  * What a name carries beside its numbers: a long absence, a return from one, a broken relationship.
@@ -151,8 +152,8 @@ export function daysBetween(from: string, to: string): number {
   return Math.round((Date.parse(to) - Date.parse(from)) / DAY_MS);
 }
 
-/** dd/mm/yyyy: a date in a tooltip is read by a person, not by a parser. */
-const it = (iso: string): string => iso.split('-').reverse().join('/');
+/** dd/mm/yyyy: a date in a tooltip is read by a person, not by a parser. One definition, shared. */
+const it = itDate;
 
 /**
  * How long a spell has lasted by `today`, in days.

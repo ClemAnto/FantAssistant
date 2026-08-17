@@ -52,6 +52,50 @@
     background-color: var(--color-control);
     border-bottom-color: var(--color-border);
     color: var(--color-fg);
+    /* L'INTESTAZIONE RESTA IN ALTO mentre la pagina scorre (operatore, 17/08/2026: un solo scroller).
+       Funziona perché lo scroller verticale è il DOCUMENTO: il tentativo del 29/07 metteva sticky dentro
+       un contenitore che scorreva, dove l'ancora è il contenitore e se ne va con lui (misurato: dopo
+       463px di pagina l'intestazione era a -215). Lo z-index e' quello DICHIARATO per gli elementi
+       agganciati (`--z-affix`, la scala di antd) e non un numero qualunque. */
+    position: sticky;
+    top: 0;
+    z-index: var(--z-affix);
+  }
+
+  /* PERCHÉ LA TABELLA NON STA DENTRO UN CONTENITORE CHE SCORRE, e non è una preferenza: `overflow-x: auto`
+     porta con sé l'asse Y per SPECIFICA (un `overflow-y: visible` accanto a un `overflow-x: auto` viene
+     calcolato `auto`), quindi quel contenitore diventa l'ancora dello sticky e l'intestazione se ne va con
+     lui. Misurato il 17/08/2026: dopo 1200px di pagina la testa era a **−952px**, cioè fuori. Senza
+     `nzScroll` la tabella è larga quanto il suo contenuto, scorre la PAGINA nei due assi - una sola barra
+     per asse, che è quello che l'operatore ha chiesto - e lo sticky si ancora al viewport, dove funziona. */
+  .ant-table-content,
+  .ant-table-body {
+    overflow: visible;
+  }
+
+  /* L'ANTEPRIMA DEL TRASCINAMENTO di una colonna: CDK clona la cella e la fa volare, e una cella staccata
+     dalla tabella non ha più le regole della tabella - va vestita qui, o è un rettangolo trasparente.
+     Misurato in e2e il 17/08/2026: `th 64x39`, cioè la larghezza giusta e nessuno sfondo. */
+  .cdk-drag-preview {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--color-primary);
+    border-radius: var(--radius-card);
+    background-color: var(--color-control);
+    color: var(--color-fg);
+    box-shadow: 0 8px 24px rgb(0 0 0 / 35%);
+    font-size: 0.75rem;
+    font-weight: 500;
+    padding: 0.25rem 0.5rem;
+    /* NIENTE RIENTRO: al rilascio l'anteprima sparisce dove è, invece di volare al posto d'origine mentre
+       la riga è già stata ridisegnata nell'ordine nuovo. È l'altra metà della cura dell'«effetto strano». */
+    transition: none;
+  }
+
+  /* Il posto che la colonna lascia mentre viaggia: si vede che è un buco, non una colonna vuota. */
+  .cdk-drag-placeholder {
+    opacity: 0.3;
   }
 
   .ant-table-tbody > tr > td {

@@ -67,6 +67,8 @@ class TableSpec:
       'full'    the table travels whole (small, and used across seasons)
       'season'  rows of every season up to and including the target
       'heavy'   rows of the last `history` seasons only - the per-match tables
+      'dated'   a DATED series, cut a year before the heavy window opens - plus, per key, the last
+                point BEFORE the cut, so nobody loses his level: see `_where`
 
     Whatever `scope` says, `also` rows always travel: see `_where`.
     """
@@ -75,6 +77,9 @@ class TableSpec:
     scope: str
     why: str
     season_column: str = "season"
+    # 'dated' only: the columns a series belongs to, so the carry-forward point is the last one of THAT
+    # series and not of the whole table.
+    dated_key: tuple[str, ...] = ()
     extra: str = ""            # additional SQL predicate, ANDed
     also: str = ""             # rows to keep REGARDLESS of the season filter, ORed
 
@@ -135,6 +140,14 @@ CONTRACT: tuple[TableSpec, ...] = (
               "the market value per SEASON, from the source's own squad page of that season: the third "
               "channel of the investment hypothesis, and the only one that exists for a man who arrived "
               "free (a fee is NULL for a free transfer). Dated, so a window reads the input season"),
+    TableSpec("market_value_history", "dated",
+              "the market value CURVE - every change with its date - so the app can say whether the "
+              "market is rising or cooling on a man beside what the listone asks for him. REPORTING "
+              "only: the gate measured the channel it was acquired for and refused it (§7-untricies), "
+              "so nothing here enters a valuation. Cut a year before the heavy window with the "
+              "carry-forward point, or a man whose value last moved before the cut would read as "
+              "unpriced",
+              season_column="observed_on", dated_key=("fc_id", "source")),
     TableSpec("tournaments_squads", "full", "who actually played at a tournament, minutes included"),
     TableSpec("manual_overrides", "full", "the highest-precedence layer; empty is the normal state"),
 )
@@ -174,6 +187,19 @@ PRICE_DISCIPLINE: dict[str, list[str]] = {
 # league-level reference the sheet stands behind, clearly named as such.
 SHEET_COLUMNS: tuple[str, ...] = (
     "fc_id",
+    # L'IDENTITÀ DELLA RIGA, e viaggia dal 17/08/2026 per una ragione precisa: dal `SHEET_REVISION` 26 le
+    # righe del foglio sono le ROSE OSSERVATE, quindi il foglio porta uomini che il listone non quota (93 su
+    # 589 in Serie A) e uomini in un club diverso da quello del listone (Molina, alla Roma dal 14/08 mentre
+    # `rosters` lo tiene all'Atlético). L'app costruiva le sue righe dal listone e quindi non li vedeva:
+    # senza queste quattro colonne non poteva nemmeno saperlo, perché il foglio portava solo `fc_id`.
+    # `desc_live_club` è la lettura della fonte, che è l'autorità su chi è in rosa.
+    "name",
+    "club",
+    "league",
+    "role_classic",
+    "roles_mantra",
+    "desc_live_club",
+    "desc_live_club_on",
     "engine_fm_pred",        # the predicted fantamedia: the only quality term
     "engine_pv_pred",        # expected appearances ON THE PLATFORM CALENDAR (see `matchdays` below)
     "engine_role_slot",      # the role the two columns above are measured in - the game's own
@@ -266,6 +292,14 @@ SHEET_COLUMNS: tuple[str, ...] = (
 )
 
 
+# COLONNE OPZIONALI del foglio: promesse al lettore, non pretese dallo scrittore. Le due della rosa live
+# sono nate il 17/08/2026 e i fogli RETRODATATI dei pacchetti non le hanno - ne potrebbero averle, perche'
+# una pagina di rosa non si scarica per un giorno passato. Pretenderle li avrebbe fatti scartare tutti,
+# cioe' avrebbe spento il viaggio nel tempo per aggiungere una colonna. Un foglio che non le ha le porta
+# NULL, che e' «ignoto» e si legge come tale (`optionalIndex` fa la stessa cosa dall'altra parte).
+SHEET_COLUMNS_OPTIONAL: frozenset[str] = frozenset({"desc_live_club", "desc_live_club_on"})
+
+
 def _sheet_folders(reports: Path, target: str) -> list[Path]:
     """Every sheet folder of the target season, newest stamp last."""
     return sorted(path for path in reports.glob(f"auction-snapshot-{target}-*")
@@ -279,7 +313,8 @@ def _sheet_bytes(sheet: list[dict], manifest: dict, compress: bool) -> bytes | N
     quelli dei pacchetti del viaggio nel tempo. Due serializzatori sarebbero due formati sotto un nome
     solo, e il lettore dell'app è uno.
     """
-    missing = [column for column in SHEET_COLUMNS if sheet and column not in sheet[0]]
+    missing = [column for column in SHEET_COLUMNS if sheet and column not in sheet[0]
+               and column not in SHEET_COLUMNS_OPTIONAL]
     if missing:
         print(f"[export] WARNING: sheet {manifest.get('folder')} lacks {missing} - skipped")
         return None
@@ -407,7 +442,8 @@ def write_engine_sheets(ctx: Context, folder: Path, target: str,
     for league, (_stamp, path, manifest) in sorted(newest.items()):
         with (path / "players.csv").open(encoding="utf-8-sig", newline="") as handle:
             sheet = list(csv.DictReader(handle))
-        missing = [column for column in SHEET_COLUMNS if sheet and column not in sheet[0]]
+        missing = [column for column in SHEET_COLUMNS if sheet and column not in sheet[0]
+                   and column not in SHEET_COLUMNS_OPTIONAL]
         if missing:
             print(f"[export] WARNING: sheet {path.name} lacks {missing} - skipped")
             continue
@@ -577,9 +613,41 @@ def resolve_target_season(conn: sqlite3.Connection, requested: str | None) -> tu
                     f"The bundle for {requested} can only be produced once its listone is out.")
 
 
-def _where(spec: TableSpec, seasons: list[str], heavy: list[str]) -> tuple[str, list]:
+def dated_cut(heavy: list[str]) -> str:
+    """The day a 'dated' series is cut at: ONE YEAR before the heavy window opens.
+
+    Derived and not chosen, because the app can ask about any day inside that window - that is what the
+    time machine travels - and a TENDENCY at a day needs a year of series before it. `2024-25` -> the
+    window opens on 2024-07-01, so the cut is 2023-07-01. A season starts in July here for the same
+    reason the auction dates do: nothing is played in June, so a July boundary never splits a season.
+    """
+    first = (heavy or ["2000-01"])[0]
+    return f"{int(first.split('-')[0]) - 1:04d}-07-01"
+
+
+def _where(spec: TableSpec, seasons: list[str], heavy: list[str],
+           source: str = "") -> tuple[str, list]:
+    """The row filter, and `source` is the SCHEMA the rows are read from (`src.` for the pruned copy).
+
+    It exists for the 'dated' scope alone, whose carry-forward is a correlated subquery over the SAME
+    table: unqualified, that name resolves to the DESTINATION database in `write_sqlite` - a table being
+    filled, so the subquery would return nothing and the pre-cut points would vanish in silence.
+    """
     if spec.scope == "full":
         clause, params = "", []
+    elif spec.scope == "dated":
+        # A dated series is cut by DATE, and the cut keeps one point before it per series. Without that
+        # carry-forward a man whose value last changed before the cut would travel with no point at all,
+        # and the app would read «unknown» about a value that is perfectly well known - the same «vuoto =
+        # ignoto» defect from the other side, produced by us instead of by the source. Measured on
+        # `market_value_history` 17/08/2026: 85,061 rows -> 26,314, and all 3,323 players keep a level.
+        cut = dated_cut(heavy)
+        same = " AND ".join(f'inner."{column}" = "{spec.name}"."{column}"'
+                            for column in spec.dated_key) or "1 = 1"
+        clause = (f'"{spec.season_column}" >= ? OR "{spec.season_column}" = ('
+                  f'SELECT MAX(inner."{spec.season_column}") FROM {source}"{spec.name}" AS inner '
+                  f'WHERE {same} AND inner."{spec.season_column}" < ?)')
+        params = [cut, cut]
     else:
         wanted = seasons if spec.scope == "season" else heavy
         placeholders = ",".join("?" * len(wanted)) or "NULL"
@@ -614,7 +682,7 @@ def write_sqlite(ctx: Context, path: Path, seasons: list[str],
     for spec in CONTRACT:
         source_columns = _columns(ctx.require_conn(), spec.name)
         columns = [column for column in _columns(out, spec.name) if column in source_columns]
-        clause, params = _where(spec, seasons, heavy)
+        clause, params = _where(spec, seasons, heavy, source="src.")
         names = ", ".join(f'"{column}"' for column in columns)
         out.execute(f'INSERT OR REPLACE INTO "{spec.name}"({names}) '
                     f'SELECT {names} FROM src."{spec.name}"{clause}', params)

@@ -686,3 +686,25 @@ def test_the_football_year_turns_in_july():
     assert _season_of("2026-07-18") == "2026-27"      # pre-season
     assert _season_of("2026-06-30") == "2025-26"      # the season that just ended
     assert _season_of("2027-05-24") == "2026-27"
+
+
+def test_a_refused_request_never_writes_the_empty_marker(tmp_path, monkeypatch):
+    """«Vuoto = ignoto, mai zero» APPLICATO ALLA CACHE, e il 17/08/2026 e' costato 91 file su 93.
+
+    Il marcatore vuoto esiste perche' un club senza amichevoli in finestra e' un FATTO e va salvato, o ogni
+    ri-corsa lo ri-paga. Ma con il provider che rispondeva 403 a tutto, quello stesso marcatore veniva
+    scritto SOPRA file pieni: un ignoto salvato come uno zero, e la sorgente grezza che `rebuild` replica
+    persa per novantuno club. Adesso `download_extra` distingue «ha risposto niente» (paga il marcatore) da
+    «non ha risposto» (None, e il chiamante non tocca niente).
+    """
+    from euroleghe_ingest.modules import positions
+
+    # (a) nessuna pagina risponde -> None, che il chiamante legge come «non so»
+    monkeypatch.setattr(positions, "_get_json", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(positions, "_polite_sleep", lambda *_args, **_kwargs: None)
+    assert positions.download_extra(None, "2687", "2023-08-14") is None
+
+    # (b) risponde con zero eventi -> un payload vuoto VERO, che si puo' salvare
+    monkeypatch.setattr(positions, "_get_json", lambda *_args, **_kwargs: {"events": []})
+    payload = positions.download_extra(None, "2687", "2023-08-14")
+    assert payload == {"league": "extra", "round": 0, "events": [], "lineups": {}}

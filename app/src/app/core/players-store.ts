@@ -1,6 +1,6 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 
-import { Bundle, BundleTable, ScoringConfig, columnIndex, optionalIndex } from './bundle';
+import { Bundle, BundleManifest, BundleTable, ScoringConfig, columnIndex, optionalIndex } from './bundle';
 import { PlayerFlag, PlayerStatus } from './player-status';
 
 export type ClassicRole = 'P' | 'D' | 'C' | 'A';
@@ -574,7 +574,13 @@ export class PlayersStore {
       this.scoring.set(scoring);
       this.crests.set(crests ?? {});
 
-      const roster = buildRosters(players, clubs, rosters, quotes, manifest.target_season);
+      /* LE RIGHE DEL FOGLIO, per completare e correggere il listone. Dal `SHEET_REVISION` 26 il foglio è
+       * costruito sulle rose OSSERVATE, quindi porta chi il listone non quota e il club vero di chi si è
+       * mosso: senza questo, la vista mostrava Molina all'Atlético su euro e non lo mostrava affatto su
+       * Serie A, mentre il foglio lo aveva già alla Roma. Le tabelle sono in cache, quindi leggerle qui non
+       * costa una richiesta in più: le legge anche il ValuationStore. */
+      const roster = buildRosters(players, clubs, rosters, quotes, manifest.target_season,
+                                  await sheetIdentities(this.bundle, manifest));
       this.rosters.set(roster);
 
       const leagueOf = new Map<number, string | null>();
@@ -689,12 +695,81 @@ function sortKey(cell: MatchCell, season: string): number {
  * building its own club list from the roster alone would show a different set of men under the same
  * words - the defect this project keeps paying for.
  */
+/**
+ * Una riga che il FOGLIO porta e il listone no: dal `SHEET_REVISION` 26 il foglio è costruito sulle ROSE
+ * OSSERVATE, quindi contiene chi non è quotato (93 su 589 in Serie A) e chi è in un club diverso da quello
+ * del listone - Molina, alla Roma dal 14/08 mentre `rosters` lo tiene ancora all'Atlético.
+ */
+export interface SheetRow {
+  fcId: number;
+  name: string;
+  club: string;
+  league: string | null;
+  role: ClassicRole;
+  mantra: string | null;
+}
+
+/**
+ * Le righe dei fogli del motore, per piattaforma, ridotte all'IDENTITÀ: chi c'è e in che club.
+ *
+ * Solo quello serve qui - i numeri li legge il `ValuationStore` - e per questo si prendono le sette colonne
+ * che il foglio porta dal 17/08/2026 (`export.SHEET_COLUMNS`). Un bundle più vecchio non le ha: allora la
+ * mappa è vuota e la vista è quella del listone, com'era prima. `optionalIndex` lo consente per costruzione.
+ */
+export async function sheetIdentities(
+  bundle: Bundle,
+  manifest: BundleManifest,
+): Promise<Map<Platform, SheetRow[]>> {
+  const out = new Map<Platform, SheetRow[]>();
+  for (const sheet of manifest.engine_sheets ?? []) {
+    let table: BundleTable;
+    try {
+      table = await bundle.table(sheet.path.replace(/\.json(\.gz)?$/, ''));
+    } catch {
+      continue;                       // un foglio che non si legge non fa cadere la lista
+    }
+    const id = optionalIndex(table, 'fc_id');
+    const name = optionalIndex(table, 'name');
+    const club = optionalIndex(table, 'club');
+    const league = optionalIndex(table, 'league');
+    const role = optionalIndex(table, 'role_classic');
+    const mantra = optionalIndex(table, 'roles_mantra');
+    if (id < 0 || club < 0 || role < 0) continue;
+    const rows: SheetRow[] = [];
+    for (const row of table.rows) {
+      const kind = row[role] as ClassicRole | null;
+      const where = row[club] as string | null;
+      if (!kind || !where) continue;
+      rows.push({
+        fcId: Number(row[id]),
+        name: name < 0 ? '' : ((row[name] as string) ?? ''),
+        club: where,
+        league: league < 0 ? null : ((row[league] as string) ?? null),
+        role: kind,
+        mantra: mantra < 0 ? null : ((row[mantra] as string) ?? null),
+      });
+    }
+    // Due fogli della stessa piattaforma (classic e mantra della stessa lega) portano la stessa
+    // popolazione: il primo vince, e il secondo non aggiunge nulla che il primo non abbia già.
+    if (!out.has(sheet.platform)) out.set(sheet.platform, rows);
+  }
+  return out;
+}
+
+
 export function buildRosters(
   players: BundleTable,
   clubs: BundleTable,
   rosters: BundleTable,
   quotes: BundleTable,
   targetSeason: string,
+  /**
+   * Le righe del foglio di quella piattaforma, per aggiungere chi il listone non ha e per CORREGGERE il
+   * club di chi ha cambiato squadra: l'autorità su chi è in rosa è la fonte che la legge ogni giorno
+   * (operatore, 17/08/2026), e il foglio la porta già decisa. Assente = la vista è quella del listone,
+   * com'era prima, che è anche quello che vede un bundle più vecchio.
+   */
+  fromSheet: ReadonlyMap<Platform, readonly SheetRow[]> = new Map(),
 ): Map<Platform, PlayerRow[]> {
   const [pId, pName] = columnIndex(players, 'fc_id', 'canonical_name');
   const names = new Map<number, string>();
@@ -702,7 +777,11 @@ export function buildRosters(
 
   const [cId, cName] = columnIndex(clubs, 'fc_club_id', 'canonical_name');
   const clubNames = new Map<number, string>();
-  for (const row of clubs.rows) clubNames.set(row[cId] as number, row[cName] as string);
+  const clubIds = new Map<string, number>();
+  for (const row of clubs.rows) {
+    clubNames.set(row[cId] as number, row[cName] as string);
+    clubIds.set(row[cName] as string, row[cId] as number);
+  }
 
   const [rId, rSeason, rClub, rRoles, rRoleClassic, rLeague] = columnIndex(
     rosters,
@@ -745,6 +824,37 @@ export function buildRosters(
     const player = byId.get(row[qId] as number);
     const list = out.get(row[qPlatform] as Platform);
     if (player && list) list.push(player);
+  }
+  /* IL FOGLIO COMPLETA E CORREGGE: chi non c'è entra, e chi ha cambiato club prende quello che la fonte
+   * gli dà. Non è un secondo listone - il prezzo e il ruolo restano quelli del listone dove ci sono - è la
+   * stessa lista con l'autorità giusta su una colonna sola. Chi entra così non ha quotazione: `fvm` e
+   * `price_initial` restano vuoti, e la riga lo mostra come mostra ogni altra cosa che non sa. */
+  for (const [platform, extra] of fromSheet) {
+    const list = out.get(platform);
+    if (!list) continue;
+    const known = new Map(list.map((one) => [one.fcId, one]));
+    for (const row of extra) {
+      const already = known.get(row.fcId);
+      if (already) {
+        if (row.club && already.club !== row.club) {
+          already.club = row.club;
+          already.clubId = clubIds.get(row.club) ?? already.clubId;
+          already.league = row.league ?? already.league;
+        }
+        continue;
+      }
+      const codes = mantraCodes(row.mantra);
+      list.push({
+        fcId: row.fcId,
+        name: row.name || names.get(row.fcId) || `#${row.fcId}`,
+        clubId: clubIds.get(row.club) ?? null,
+        role: row.role,
+        mantra: codes.join(' '),
+        mantraCodes: codes,
+        club: row.club,
+        league: row.league,
+      });
+    }
   }
   for (const list of out.values()) list.sort((a, b) => a.name.localeCompare(b.name));
   return out;

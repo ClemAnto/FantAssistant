@@ -318,6 +318,38 @@ perché ha cambiato quasi tutto. E il foglio retrodatato ha una contaminazione a
 arrivi derivati oggi conoscono tutto il mercato estivo 2025), quindi 61% è un limite superiore.
 Dettagli e contaminazioni: [formazioni-tipo-v1.md](formazioni-tipo-v1.md) §5-ter.
 
+## 0-ter. Il TERZO giudice: i BALLOTTAGGI pubblicati — **FATTO** (17/08/2026)
+
+Il primo giudice è la stampa (una previsione di altri), il secondo l'esito (quello che i club hanno fatto). Il
+terzo non giudica i MODULI, e per una ragione verificata due volte scaricando la pagina: l'articolo delle
+«squadre-tipo» non li contiene — «modulo», «3-5-2» e «4-3-3» compaiono **zero** volte, l'undici è un grafico —
+e i numeri riportati il 16/08 su quel confronto erano stati **ritirati** perché venivano dal riassunto
+automatico di un fetch, che li aveva dedotti. Quello che la pagina porta sono i **ballottaggi** e i
+**rigoristi**, e i ballottaggi il pannello li produce: `_placed` restituisce `(x, starter, rivals)`.
+
+Comando: `press --fetch-duels URL --season 2026-27` (scarica, parsa per etichetta, importa nella colonna
+`duels` e **archivia datato**), poi `press --sheet DIR --against duels`.
+
+| | |
+|---|---|
+| club confrontati | **20 su 20** |
+| loro coppie | **79** · 16 gruppi su ~95 non risolti per nome |
+| nostre coppie (fino a due per uomo) | 373 |
+| in comune | **30** → recall **38,0%**, precisione 8,0% |
+| **null** (rivale sostituito con un uomo qualunque dello stesso club, 17.991 estrazioni) | **1,65%** |
+
+Cinque volte il caso, e la precisione bassa è in parte la definizione: noi proponiamo fino a 22 coppie per
+club dove l'articolo ne elenca quattro. **Tre difetti trovati eseguendo**, tutti della stessa famiglia e tutti
+in codice della stessa sera: la regex della preposizione (`dell'Atalanta` → «l'Atalanta», sette club su
+venti); il riferimento caricato **senza fonte**, che pescava le formazioni dell'08/08 e leggeva «0 club, 97
+gruppi non risolti» — una fonte sbagliata che suona come una fonte vuota; e `extract_boards` chiamata senza
+`with_rivals`, che fa buttare i duelli alla board e leggere «nostre 0». *Uno zero uniforme è quasi sempre una
+chiamata sbagliata*, ed è la terza volta che questo repo lo scrive.
+
+**Aperto, e piccolo**: i 16 gruppi non risolti (un nome ambiguo resta non risolto per scelta), e il confronto
+sui **rigoristi** contro `penalty_hierarchy`, che ha il suo null naturale in «chi li batteva l'anno prima».
+
+
 ## 7. ~~Il crollo di titolarità dopo i 30~~ — **MISURATA E REFUTATA DA DUE GIUDICI** (08/08/2026)
 **Da dove veniva**: l'analisi dei 172 errori del confronto storico. Due cose che quell'analisi ha
 stabilito e che restano vere: **il perimetro non è il problema** (86 su 86 dei mancati erano già sul

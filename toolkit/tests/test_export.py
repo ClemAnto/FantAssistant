@@ -190,6 +190,47 @@ def test_heavy_window_covers_the_cross_fit_window(tmp_path):
     assert features.WINDOWS[source].input_season in manifest["heavy_seasons"]
 
 
+def test_the_dated_cut_keeps_the_last_point_before_it(tmp_path):
+    """A dated series is cut by DATE, and the cut must not cost anybody his LEVEL.
+
+    The curve of a market value is 85k rows for 3.3k players and only the recent part answers «is the
+    market rising on him», so it travels cut - but a man whose value last changed years ago would then
+    arrive with no point at all, and the app would read «ignoto» about a value that is perfectly well
+    known. So the filter keeps, per series, the last point BEFORE the cut. Asserted on both writers
+    because the SQLite one reads through an ATTACHed schema, where an unqualified table name in the
+    subquery would resolve to the destination - empty, and silent.
+    """
+    ctx = _ctx(tmp_path)
+    _seed(ctx.conn)
+    for when, value in (("2019-06-11", 1_000_000.0),      # ancient: the carry-forward point
+                        ("2020-06-11", 2_000_000.0),      # ancient too, and superseded by the one above
+                        ("2025-01-15", 8_000_000.0),      # inside the window
+                        ("2025-12-20", 9_000_000.0)):
+        ctx.conn.execute("INSERT INTO market_value_history(fc_id, observed_on, source, value) "
+                         "VALUES (1, ?, 'transfermarkt', ?)", (when, value))
+    # ...and a man whose whole curve predates the cut keeps exactly one point, never zero.
+    ctx.conn.execute("INSERT INTO market_value_history(fc_id, observed_on, source, value) "
+                     "VALUES (2, '2018-05-01', 'transfermarkt', 500000.0)")
+    ctx.conn.execute("INSERT INTO market_value_history(fc_id, observed_on, source, value) "
+                     "VALUES (2, '2019-05-01', 'transfermarkt', 700000.0)")
+    ctx.conn.commit()
+
+    manifest = export.run(ctx, history=1)
+    assert export.dated_cut(manifest["heavy_seasons"]) == "2024-07-01"
+    out = sqlite3.connect(ctx.config.data_dir / "export" / "2025-26" / "bundle.sqlite")
+    try:
+        kept = {(fc_id, when) for fc_id, when in out.execute(
+            "SELECT fc_id, observed_on FROM market_value_history ORDER BY fc_id, observed_on")}
+    finally:
+        out.close()
+    assert kept == {(1, "2020-06-11"), (1, "2025-01-15"), (1, "2025-12-20"), (2, "2019-05-01")}, \
+        "the cut keeps the window plus ONE point before it, per player"
+    payload = json.loads(gzip.decompress(
+        (ctx.config.data_dir / "export" / "2025-26" / "json"
+         / "market_value_history.json.gz").read_bytes()).decode("utf-8"))
+    assert len(payload["rows"]) == len(kept), "the two writers must prune identically"
+
+
 # ---------------------------------------------------------------- engine sheets
 def _write_sheet(ctx, *, league="EuroLeghe", declared=True, revision=13, stamp="2026-08-08T12:00:00+00:00",
                  target="2025-26", columns=None, rows=None, clubs=12) -> None:

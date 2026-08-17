@@ -2267,3 +2267,106 @@ nessuna decisa a mano perché sono formule di `presence.py`:
 2. **La stagione mangiata da un infortunio** (M2-ter): Dovbyk (396', 22 turni fuori, 3 titolarità sui 16
    in cui era disponibile) legge 0.382 perché la shrinkage tira verso il prior della BANDA e non verso
    la sua t−2. Un prior personale è la variante pre-registrabile.
+
+---
+
+## CHIUSURA della sessione 17/08/2026 (dalla sera alla notte) — l'app riscritta a voce, quattro voci chiuse, e tre difetti che hanno insegnato piu delle adozioni
+
+`SHEET_REVISION` **26** · toolkit **442 test** · app **278 test** · `backtest --verify` **22/22** ·
+`ruff` pulito · spec «Novita v9.40 → v9.43» · gate §7-sextricies · [letture-app-v1.md](letture-app-v1.md) §9 ·
+[todolist-formazioni-tipo-v1.md](todolist-formazioni-tipo-v1.md) §0-ter.
+
+La sessione ha due meta. La prima e l'operatore che riscrive le colonne dell'app dettandole una per una; la
+seconda e la coda delle quattro voci aperte il 16/08, portate a verdetto. In mezzo, tre difetti trovati
+misurando — e sono la parte che vale rileggere, perche due erano nostri e uno ha distrutto dati.
+
+### (1) Le letture dell'app, dettate e misurate (`letture-app-v1.md` §9)
+Sei richieste in fila, ognuna applicata e poi MISURATA:
+
+* **Overall = `Presenze × (Voti + Bonus)`**, senza nessuno zero sottratto. Prima di arrivarci ha attraversato
+  il rimpiazzo del RUOLO MANTRA, che e durato un'ora ed e documentato perche la misura vale: con quello zero
+  le mediane del percentile per ruolo erano **P 77 · C 56 · D 46 · A 11** e i primi 25 contenevano **14
+  portieri** — la pool dei `pc` e corta e alta (marginale 7,01), quella dei `por` lunga e bassa (4,13), quindi
+  quasi ogni attaccante stava sotto il proprio rimpiazzo. Messa la misura davanti, l'operatore ha scelto di
+  togliere lo zero. Conseguenza da sapere: l'Overall coincide quasi con **Fantapunti**.
+* **Voti ← MVa · Bonus ← FMa · Presenze ← P**, classificate su TUTTI i calciatori (`alignedRank99`
+  cancellata). Le mediane per ruolo tornano a parlare (VOTI 87/36/45/55, BONUS 6/35/63/89) e va detto: il
+  ruolo e scritto sulla riga. Con esse sono spariti l'ancora del ruolo, i minuti-quando-gioca, lo sconto di
+  fragilita, la concavita sul posto da titolare e la penale della nota dichiarata — che restano come MARCHI
+  accanto al nome, dove si leggono in parole.
+* **Costanza → simbolo di varianza** accanto ai Voti (`↕` grande, `≡` piccola, niente per il 60% in mezzo),
+  con le bande DENTRO il ruolo perche la sd mediana del voto e A **0,715** contro P 0,569 / D 0,598 / C 0,579:
+  bande comuni avrebbero marcato mezzo reparto d'attacco, cioe avrebbero detto il ruolo e non l'uomo.
+* **FMa · MVa · Lead** (anche nei filtri, o l'elenco dei filtri e l'intestazione chiamano due cose con un
+  nome solo), e le due colonne **−C** tolte la sera stessa in cui erano nate.
+* **Colonne trascinabili** con l'ordine in `localStorage`, **paginazione via** e lazy load a 60 righe,
+  **una sola barra** di scorrimento e **intestazioni sticky**.
+* **Colonna «Mercato»**: il valore Transfermarkt alla data piu la tendenza a 12 mesi, con
+  `market_value_history` nel bundle (85.061 righe → **26.314** con uno scope DATATO che porta avanti l'ultimo
+  punto prima del taglio, cosi nessuno perde il suo livello). La freccia e una DIREZIONE e mai una
+  graduatoria: la variazione in percentuale dipende dalla base (quartile povero mediana +50% e nono decile
+  +1.614%, quartile ricco mediana −9%).
+
+### (2) Le quattro voci del residuo 16/08, tutte a verdetto
+1. **`zeros`, la QUARTA armatura** (gate §7-sextricies), nata perche il gate e **cieco** sulla domanda:
+   prepara le finestre senza lega, quindi ordina per VALUE e lo zero non entra in nessun numero pubblicato.
+   La pre-registrazione «dieci finestre di gate» aveva una premessa falsa, corretta prima di lanciare.
+   Verdetti: lo zero **SCHIERATO** peggiora la lista su **15 finestre su 15** (Serie A −18,5 punti di
+   efficienza, euro −51,2; nomi giusti 171→154 e 193→163), e il **punteggio della lega** si riduce ai
+   portieri — mettere la porta inviolata vale +19,1% di MAE ma e aritmetica, e il pezzo falsificabile (tasso
+   del CLUB contro spostamento costante) fa 7/10 e +2,48% con **due finestre a −3,5% e −4,9%**, quindi non
+   passa il robusto. Entrambi restano dove erano. E la prima corsa dell'harness leggeva −66% misurando due
+   unita diverse: la cifra confrontabile e una QUOTA, e un test la protegge.
+2. **`performance` → `tm_appearances`**: la rotta trovata REGISTRANDO le chiamate della pagina in headless
+   invece di indovinare endpoint — i dati non erano dietro il muro di consenso, erano su un altro host
+   (`tmapi.transfermarkt.technology`, JSON pulito). Corsa completa: **1.120 giocatori, 547.633 partite, zero
+   senza risposta**, di cui **74.258 di nazionale** e Champions/Europa/Conference **23.857 · 12.486 · 3.038**
+   su cinque stagioni. Per confronto, tutto Sofascore aveva 1.071 righe di Champions sul 2025-26 e **21** sul
+   2024-25: le europee non erano «troppo sottili da pesare», era la fonte sbagliata.
+3. **Il TERZO giudice delle board** dentro `press` (`--fetch-duels` + `--against duels`): 20 club su 20,
+   recall **38,0%** sui ballottaggi pubblicati contro un null di **1,65%** su 17.991 estrazioni. L'articolo si
+   ri-pubblica durante il giorno, quindi i numeri si citano dal report (`press_duels.json`) e non da qui.
+   Tre difetti trovati eseguendolo, tutti della stessa famiglia: la regex della preposizione
+   (`dell'Atalanta` → «l'Atalanta», 7 club su 20), il riferimento caricato senza fonte (pescava le formazioni
+   dell'08/08: «0 club» che suona come fonte vuota ed era fonte sbagliata) e `extract_boards` senza
+   `with_rivals` («nostre 0» contro le loro 79). *Uno zero uniforme e quasi sempre una chiamata sbagliata.*
+4. **Coppe da Sofascore: chiusa dal provider**, e la corsa ha fatto un danno (sotto).
+
+### (3) I tre difetti, e sono la lezione
+* **Un flag parsato e non passato** (`positions --days`): la corsa da quattro ore ha usato la finestra di
+  default, **797 eventi** invece di tre stagioni di coppe, `uefa-champions-league` 2024-25 fermo a **21
+  righe** e nessun errore da nessuna parte. Seconda volta per questo dispatcher dopo `--tournament`. Ora un
+  test legge il SORGENTE del dispatcher e pretende che ogni opzione dichiarata arrivi al modulo.
+* **Un marcatore vuoto scritto su un rifiuto**: Sofascore e tornato a 403 `challenge` e
+  `fetch_extra_matches` ha sovrascritto **91 file di cache su 93** con «zero eventi». Le 11.516 righe restano
+  nel DB (un file extra non cancella in reingest), si e persa la sorgente grezza che `rebuild` replica.
+  `download_extra` ora distingue «ha risposto niente» da «non ha risposto», e la corsa si ferma dopo cinque
+  rifiuti di fila. *Un file vuoto deve dire CHI ha detto il vuoto.*
+* **Due scrittori sullo stesso SQLite**: un'ora di download morta su `database is locked`, e un processo
+  «fermato» che era ancora vivo a tenere il lock. `performance.store` riprova con attesa crescente.
+
+### (4) L'autorita su chi e in rosa, ribaltata e poi corretta due volte
+«L'autorita di chi e in rosa e sofascore» ha rovesciato una regola scritta («il listone e l'autorita del
+gioco, il foglio riporta e non applica»). La prima applicazione era **sbagliata** e l'ha scoperta una sua
+domanda («verifica se Molina e ufficialmente della Roma» — si, dal 12/08): leggere l'assenza come «non
+comprabile» toglieva dal foglio **6 falsi** su 20 (la fonte lo da ancora al suo club) e **8 spostati** dentro
+il perimetro. La fonte non dice «non e piu comprabile», dice DOVE E — da 63 e 53 rimozioni a **2 e 1**, con
+`desc_live_club` su ogni riga. Poi la conseguenza piena: «tutti i calciatori in rosa a prescindere se e
+quotato o meno», cioe il modo `squad_source='squad'` (Serie A 499 → **730** osservazioni, foglio 589 righe di
+cui 93 senza prezzo) e le colonne d'identita nel bundle, cosi l'app mostra Molina **alla Roma** su un listone
+che non lo quota. Il gate non si muove: `squad_source` resta `listone` e un test lo asserisce.
+
+### Cosa resta aperto
+1. **Il deploy**: il sito e al 16/08 e tutta la serata non e pubblicata (`npm run deploy:pages`, dalla sua
+   macchina, che e l'unica che ha il bundle).
+2. **Coppe da Sofascore**: in attesa che il provider riapra, e senza insistere — e il terzo giro di questa
+   lezione. Quando riapre: `positions --layer extra --days 1100 --refresh`, che ora passa davvero la finestra.
+3. **`tm_appearances` non la legge nessuno**: con essa si aprono la CONGESTIONE vera (coppe ed europee), la
+   qualita di carriera con le coppe pesabili e i minuti in NAZIONALE, che §7-quinquies aveva dichiarato
+   mancanti.
+4. **I 16 gruppi di ballottaggio non risolti** (il matcher lascia ambiguo e un ambiguo resta non risolto) e
+   il confronto sui RIGORISTI col suo null, «chi li batteva l'anno prima».
+5. **R e Nome scorrono via** quando la pagina scorre di lato con molte colonne accese: appuntarle (`nzLeft`)
+   e un lavoro a se.
+6. **La costanza non pesa piu su nessun numero**: la misura che l'aveva scelta (centro sul ruolo, peso 2)
+   resta scritta in §3, e se un giorno la si rivuole va rimisurata, non ricopiata.

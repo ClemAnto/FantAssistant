@@ -1,5 +1,11 @@
 # 00 — BRIDGE · Punto d'ingresso del progetto (leggere per primo)
-**Aggiornato: 17 agosto 2026 (LA COPPA CONTINENTALE IN MEZZO AL CAMPIONATO — `SHEET_REVISION` 24, la
+**Aggiornato: 17 agosto 2026, notte (L'APP RISCRITTA A VOCE e le quattro voci del residuo chiuse —
+`SHEET_REVISION` 26: Overall = `Presenze × (Voti+Bonus)`, le tre letture sulle colonne del foglio e su TUTTI
+i calciatori, la costanza diventata un simbolo di varianza, colonne trascinabili e lazy load senza doppio
+scroll; e sul motore la QUARTA armatura `zeros` con due rifiuti su 15 finestre, i minuti per competizione e
+in NAZIONALE di Transfermarkt — 547.633 partite, 23.857 righe di Champions — il TERZO giudice delle board sui
+ballottaggi, e l'autorità su chi è in rosa passata a sofascore: il foglio ora porta le ROSE OSSERVATE)** ·
+precedente: 17 agosto 2026 (LA COPPA CONTINENTALE IN MEZZO AL CAMPIONATO — `SHEET_REVISION` 24, la
 nazionalità letta offline dalla cache che già pagavamo, la penalità misurata su quattro finestre-torneo e
 per fascia di titolarità, R21 provata nel motore e RESPINTA, il post-torneo estivo falsificato col segno
 opposto)** · precedente: 16 agosto 2026, sera tardi (i DUE ZERI sul foglio e in tabella — `SHEET_REVISION` 22, colonna «Margine» accanto a «Surplus», posti schierati contati dal regolamento — v0.1.17 pubblicata, e il prior personale del pannello misurato e RESPINTO 12 fogli su 12)** · precedente: 16 agosto 2026 (le CINQUE LETTURE dell'app con un documento proprio, lo zero che diventa il rimpiazzo che ENTRA, due dati nuovi — porte inviolate e curva del valore — e tre ipotesi rifiutate dalla misura; v0.1.11)** · precedente: 14 agosto 2026, notte (il TREND delle ultime dieci, CHI HA GUADAGNATO IL POSTO, «preso per titolare ruotato di fatto» e il suo SPECCHIO: item 5, 6, 7 e 8 chiusi lo stesso giorno)** · precedente: 10 agosto, notte tarda (la todolist del draft ESEGUITA, il campetto legge la board del toolkit ed e' rifinito, v0.1.8 pushata)** · precedente: 10 agosto, giorno (l'assistente d'asta e' completo — porte, surplus vivo, scelta consigliata — e la campagna sulle strategie di draft ha RITIRATO due conclusioni)** · precedente: 9 agosto (l'app esiste: Angular, pubblicata su GitHub Pages, legge il bundle del toolkit)** · 8 agosto (DUE GIUDICI per le formazioni tipo — la stampa e l'ESITO reale — e la todolist formazioni tipo chiusa: cinque adozioni, sei rifiuti misurati)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
@@ -22,7 +28,7 @@ La knowledge base è ora nel repo git **`FantAssistant`**, cartella **`docs/mode
 `00-BRIDGE` (questo) → `stato-progetto-continuita-v5.md` → `todolist-mantra-euroleghe-v5.md` →
 **`gate-motore-v1.md`** (protocollo del gate, verdetti, ipotesi falsificate: leggerlo prima di
 proporre qualsiasi regola) → **`metrica-asta-surplus-v1.md`** (con cosa il pannello ordina, e perché non
-è VALORE) → **`letture-app-v1.md`** (le cinque colonne 0-99 della consultazione: reporting, senza gate,
+è VALORE) → **`letture-app-v1.md`** (le colonne 0-99 della consultazione — tre più il riassunto dal 17/08: reporting, senza gate,
 ogni soglia misurata — e le alternative RIFIUTATE coi loro numeri, che è la parte che fa risparmiare una
 serata) → **`assistente-asta-v1.md`** (cosa l'assistente fa al tavolo: tre domande, tre numeri, e le
 regole di UI che sono requisiti) → **`todolist-draft-v1.md`** (il piano per i suggerimenti del draft e per le

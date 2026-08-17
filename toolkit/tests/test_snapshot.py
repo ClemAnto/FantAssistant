@@ -3839,3 +3839,28 @@ def test_il_valore_di_mercato_si_legge_al_giorno_dell_asta_e_la_riga_dice_da_dov
     out = snapshot.investment(conn, window, [Obs(1), Obs(2), Obs(3)], {})
     assert out[3]["value"] is None and out[3]["value_basis"] is None and out[3]["value_share"] is None
     assert out[1]["value_share"] == 0.75, "il denominatore non cambia per un uomo che nessuno sa prezzare"
+
+
+def test_who_is_in_the_squad_is_the_PROVIDERS_call_and_the_sheet_obeys():
+    """Regola dell'operatore del 17/08/2026, che ROVESCIA quella precedente.
+
+    Fino a quella sera il listone era l'autorita' («e' quello da cui compri») e il foglio si limitava a
+    RIPORTARE la contraddizione con un `⇥`, lasciando che la board fosse l'unica a escludere l'uomo. Ora
+    l'autorita' e' il provider che legge la rosa ogni giorno, quindi la riga esce: una riga comprabile da un
+    club dove non c'e' e' peggio di una riga in meno.
+
+    Il test non ricostruisce un foglio - serve mezzo database - ma protegge le tre cose che la regola dice:
+    la revisione e' salita (il foglio porta altre righe), il flag di ritorno esiste, e la funzione lo accetta.
+    """
+    import inspect
+
+    from euroleghe_ingest.modules import snapshot
+
+    assert snapshot.SHEET_REVISION >= 25, "una riga in meno e' un valore che il foglio porta: la revisione sale"
+    assert "keep_departed" in inspect.signature(snapshot.run).parameters, \
+        "una decisione che costa qualcosa resta revocabile a ogni corsa"
+    source = inspect.getsource(snapshot.run)
+    # La riga esce SOLO se il flag non c'e': il default e' l'autorita' del provider.
+    assert "if departed and not keep_departed:" in source
+    # ...e il costo va detto nella nota, non scoperto al tavolo: l'83,1% e' la precisione misurata.
+    assert "83.1%" in source

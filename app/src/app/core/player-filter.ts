@@ -68,14 +68,14 @@ export const FILTER_FIELDS: FilterField[] = [
   { key: 'club', label: 'Squadra', kind: 'club', text: (man) => man.club },
   { key: 'flag', label: 'Icona', kind: 'flag' },
   { key: 'expected', label: 'P (partite attese)', kind: 'number', number: (man) => man.expected },
-  { key: 'expectedFm', label: 'FM att.', kind: 'number', number: (man) => man.expectedFm },
-  { key: 'expectedMv', label: 'MV att.', kind: 'number', number: (man) => man.expectedMv },
+  { key: 'expectedFm', label: 'FMa', kind: 'number', number: (man) => man.expectedFm },
+  { key: 'expectedMv', label: 'MVa', kind: 'number', number: (man) => man.expectedMv },
   // I DUE SURPLUS, tutt'e due filtrabili e con l'etichetta della loro colonna: «Surplus > 20» e
   // «Margine > 0» sono due domande diverse (dal marginale di rosa, dal rimpiazzo che entra), e offrirne
   // una sola avrebbe insegnato che l'altra è un di più. Vuoto resta fuori da entrambe le liste, come
   // ogni altro numero qui.
   { key: 'surplus', label: 'Surplus', kind: 'number', number: (man) => man.surplus },
-  { key: 'surplusFielded', label: 'Margine', kind: 'number', number: (man) => man.surplusFielded },
+  { key: 'surplusFielded', label: 'Lead', kind: 'number', number: (man) => man.surplusFielded },
   { key: 'fvm', label: 'FVM', kind: 'number', number: (man) => man.fvm },
   { key: 'mv', label: 'MV misurata', kind: 'number', number: (man) => man.mv },
   { key: 'fm', label: 'FM misurata', kind: 'number', number: (man) => man.fm },
@@ -84,7 +84,10 @@ export const FILTER_FIELDS: FilterField[] = [
   { key: 'votes', label: 'Voti (0-99)', kind: 'number', number: (man) => man.rating?.votes.score ?? null },
   { key: 'bonus', label: 'Bonus (0-99)', kind: 'number', number: (man) => man.rating?.bonus.score ?? null },
   { key: 'presence', label: 'Presenze (0-99)', kind: 'number', number: (man) => man.rating?.presence.score ?? null },
-  { key: 'consistency', label: 'Costanza (0-99)', kind: 'number', number: (man) => man.rating?.consistency.score ?? null },
+  // LA COSTANZA non è più una lettura 0-99 (operatore, 17/08/2026): è un simbolo di varianza accanto ai
+  // Voti, quindi il filtro sul suo percentile è stato tolto - un campo che filtra un numero che nessuna
+  // colonna mostra è un filtro che non si può verificare a occhio.
+  { key: 'variance', label: 'Varianza del voto (sd)', kind: 'number', number: (man) => man.rating?.variance?.sd ?? null },
 ];
 
 export const FIELD_BY_KEY = new Map(FILTER_FIELDS.map((field) => [field.key, field]));

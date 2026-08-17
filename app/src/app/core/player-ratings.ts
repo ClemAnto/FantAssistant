@@ -1,28 +1,32 @@
 import { BundleTable, PlayerNote, ScoringConfig, ScoringTerms, columnIndex, optionalIndex } from './bundle';
 import { FRAGILITY_YEARS, Fragility, Spell, fragilityOf, isOpen } from './player-status';
 import { Platform, PlayerRow } from './players-store';
+import { short } from './tooltip';
 
 /**
- * Four readings of a player, each a 0-99 inside the listone he is quoted on.
+ * THREE readings of a player plus their summary, each a 0-99 inside the listone he is quoted on.
  *
  * THEY ARE REPORTING, and that has to be said before anything else: no valuation reads them, no ranking
- * of the auction panel uses them, no gate owns them. They are four questions the operator asks at a
- * table - «prende voti?», «fa bonus?», «gioca?», «è costante?» - answered from what was MEASURED, with
+ * of the auction panel uses them, no gate owns them. They are the questions the operator asks at a table -
+ * «prende voti?», «fa bonus?», «gioca?», «chi conviene avere?» - answered from what was MEASURED, with
  * every threshold declared here in one place so nobody takes one for a fitted parameter.
  *
  * THE POOL IS PART OF THE MEASUREMENT, and it is why this is computed per platform: the euro listone and
  * the Serie A one are different pools, and a percentile quoted without its pool means nothing.
  *
- * ~~The score is a percentile with the ROLES MIXED («rispetto a tutti gli altri trasversalmente ai
- * ruoli»), so a keeper reads one star for bonus and that is the answer and not a defect.~~ CORRETTO IL
- * 16/08/2026, su richiesta dell'operatore («i loro valori devono essere confrontabili a prescindere dal
- * ruolo, come il surplus») e con la misura davanti: mescolare i ruoli non rendeva le letture
- * cross-ruolo, le rendeva una FOTOGRAFIA DEL RUOLO - mediane del punteggio per P/D/C/A: bonus 6/35/63/89,
- * costanza 91/50/42/24, voti 87/36/45/55. Quelle tre sono ora standardizzate dentro il ruolo e poi
- * classificate insieme (`alignedRank99`, scarti 83/67/51 → 1), come l'Overall dal 16/08. Le PRESENZE
- * restano mescolate ed è deliberato: una quota di calendario è lo stesso fatto per ogni ruolo, e il loro
- * scarto (34/63/46/40) è una verità sul listone - i portieri quotati sono quasi tutti riserve.
- * La frase vecchia resta barrata perché chi legge trova prima quella.
+ * COME SI CLASSIFICANO, e la storia va letta in ordine perché è cambiata due volte in due giorni.
+ * ~~Percentile coi ruoli MESCOLATI, «rispetto a tutti gli altri trasversalmente ai ruoli».~~ Il 16/08/2026
+ * fu corretto in uno z DENTRO il ruolo poi classificato con tutti (`alignedRank99`), perché mescolare i
+ * ruoli non rendeva le letture cross-ruolo ma una FOTOGRAFIA DEL RUOLO - mediane del punteggio per
+ * P/D/C/A: bonus 6/35/63/89, costanza 91/50/42/24, voti 87/36/45/55. **Il 17/08/2026 l'operatore ha
+ * chiesto di tornare a tutti i calciatori** («il valore di VOTI, BONUS e PRESENZE deve essere calcolato in
+ * relazione a tutti i calciatori e non al suo ruolo»), quindi quella funzione è stata cancellata e le tre
+ * letture usano `rank99` sul listone: le mediane sopra tornano a valere, il ruolo è scritto sulla riga, e
+ * il confronto fra ruoli lo fa l'OVERALL, che sottrae a ognuno il rimpiazzo della sua pool mantra. Le due
+ * frasi vecchie restano barrate perché chi legge trova prima quelle.
+ *
+ * LA QUARTA LETTURA NON C'È PIÙ: la COSTANZA è un simbolo di varianza accanto ai Voti (`VarianceMark`,
+ * stessa data e stessa richiesta), non un percentile fra gli altri.
  *
  * It is NOT `value99`, which is a proportion of the best man's worth (`auction-value.score99`). This one
  * is a RANK: 50 means «half the listone is below him», not «half as good as the best».
@@ -55,37 +59,19 @@ export const PASS_MARK = 6;
 export const TRIM_FROM = 5;
 
 /**
- * How much the COSTANZA moves the summary: POINTS OF FANTAMEDIA per point of steadiness above or below
- * THE MEDIAN OF HIS OWN ROLE.
+ * LA COSTANZA NON PESA PIÙ SULL'OVERALL, e questa nota resta al posto del parametro che c'era.
  *
- * The operator asked that it weigh («la costanza deve avere il suo peso»), and it enters as a correction
- * of what one of his matches is worth rather than as a fourth addend, because steadiness is not a term
- * of the sum the game pays: it is a property of the DISTRIBUTION of the votes already counted.
+ * L'operatore ha dettato la formula il 17/08/2026: «Overall deve essere uguale a Presenze × (Voti +
+ * Bonus − Rimpiazzo)». Non contiene un termine di costanza, quindi il tilt (`CONSISTENCY_TILT` = 2, con
+ * il suo centro per ruolo) è stato TOLTO invece di essere messo a zero: un parametro che nessuno legge è
+ * un parametro che il prossimo lettore crede attivo.
  *
- * IL CENTRO È IL RUOLO, e prima era il listone intero: è il difetto che questo numero aveva, e non la
- * sua taglia (misurato 16/08/2026 sui 498 quotati di Serie A). Prendere almeno 6 è un evento diverso a
- * seconda di dove si gioca - mediana della quota: portieri 0,864 · difensori 0,652 · centrocampisti
- * 0,611 · attaccanti 0,572 - quindi centrare sulla mediana del listone (0,636) regalava a OGNI portiere
- * +0,11 di fantamedia a partita per il fatto di essere un portiere, e ne toglieva agli attaccanti. Con
- * quel centro i portieri erano 4 dei primi 10 e 8 dei primi 25 dell'Overall, contro gli 0 e i 5 del
- * SURPLUS con cui il toolkit ordina la sua asta; centrato sul ruolo e a questo peso sono 1 e 7. È la
- * lezione che il canale dell'età aveva già insegnato (`CLAUDE.md`, «una differenza fra due gruppi non è
- * un canale»): una differenza fra RUOLI non è una virtù di chi la porta.
- *
- * E il peso è 2 e non più 0,5 perché a 0,5 non si vedeva: Hojlund, 29 di costanza sul listone, pagava
- * −0,03 su un surplus di 1,60 a giornata. L'accordo con il surplus del foglio (Spearman fra i due
- * ranghi, 498 uomini) dice dove sta il ginocchio: 0,628 senza costanza, 0,644 a peso 1, **0,639 a peso
- * 2**, 0,623 a 3, 0,559 a 6. Sopra 2 si comincia a pagare in accordo quello che si guadagna in severità,
- * e 2 è il valore che dimezza i portieri nei primi dieci restando sopra il «senza».
- *
- * ADDED and not multiplied, and the reason is a sign: the summary is a SURPLUS over the man who would
- * play instead, so it can be negative, and multiplying a negative by 1.06 would make a steady reserve
- * WORSE than an erratic one. An addend is monotonic whatever the sign.
- *
- * DECLARED, not fitted: no gate owns the readings (they are reporting), and it is stated here in one
- * place so nobody takes it for a measured parameter.
+ * Quello che quella misura aveva insegnato non si butta e sta scritto in `letture-app-v1.md` §3: il
+ * centro giusto era il RUOLO e non il listone (mediane della quota di partite chiuse col 6: portieri
+ * 0,864 · difensori 0,652 · centrocampisti 0,611 · attaccanti 0,572), perché una differenza fra RUOLI non
+ * è una virtù di chi la porta. La stessa quota adesso si legge nel tooltip del simbolo di varianza, che
+ * è dove l'operatore l'ha voluta (stessa data): una nota accanto al voto, non un addendo dentro la somma.
  */
-export const CONSISTENCY_TILT = 2;
 
 /**
  * How much a man who breaks down often has to give back, per point of injury share above the median.
@@ -156,22 +142,6 @@ export const DECLARED_RISK: Record<PlayerNote['kind'], number> = {
   dispute: 0.35,
   wants_out: 0.6,
 };
-
-/**
- * What his steadiness adds to one of his matches, in points of fantamedia. Zero without a pool.
- *
- * `medianConsistency` is the middle of HIS ROLE and not of the listone - see `CONSISTENCY_TILT`, where
- * the four medians and what the wrong centre cost are written down.
- */
-export function steadinessOf(input: {
-  consistency: number | null;
-  medianConsistency: number | null;
-  tilt?: number;
-}): number {
-  const { consistency, medianConsistency } = input;
-  if (consistency == null || medianConsistency == null) return 0;
-  return (input.tilt ?? CONSISTENCY_TILT) * (consistency - medianConsistency);
-}
 
 /**
  * What every event is worth in a man's own CHAMPIONSHIP: read from the shared config, never hard-coded
@@ -301,21 +271,12 @@ export function worthOf(input: {
    * bonuses AND maluses, so a keeper carries the goals he concedes and the number is negative for him.
    */
   eventPoints: number | null;
-  /**
-   * The fantamedia of the man who would play instead of him, from the engine's own sheet. Null only
-   * when no sheet carries one, and then the number counts from zero and the note says so.
-   */
-  replacement: number | null;
-  consistency: number | null;
-  /** The listone's own middle: the tilt is a fact about the pool, like every other number here. */
-  medianConsistency: number | null;
-  tilt?: number;
 }): number | null {
-  const { matches, votes, eventPoints, replacement, consistency, medianConsistency } = input;
+  const { matches, votes, eventPoints } = input;
   // No forecast of his appearances, no worth to state: «vuoto = ignoto, mai zero». A man nobody
   // predicts is not the worst man in the listone, he is one we cannot answer for.
   if (matches == null || votes == null) return null;
-  return matches * (votes + (eventPoints ?? 0) + steadinessOf(input) - (replacement ?? 0));
+  return matches * (votes + (eventPoints ?? 0));
 }
 
 /** The middle of a pool's readings, used to centre the tilt. Null when nothing was measured. */
@@ -331,12 +292,18 @@ export const INJURY_WINDOW_DAYS = 365;
 
 const DAY_MS = 86_400_000;
 
-export type RatingKey = 'overall' | 'votes' | 'bonus' | 'presence' | 'consistency';
+export type RatingKey = 'overall' | 'votes' | 'bonus' | 'presence';
 
-/** The four readings, in the order a row is read. `overall` is not one of them: it is their mean. */
-export const DETAIL_KEYS: Exclude<RatingKey, 'overall'>[] = [
-  'votes', 'bonus', 'presence', 'consistency',
-];
+/**
+ * The three readings, in the order a row is read. `overall` is not one of them: it is what they make.
+ *
+ * LA COSTANZA NON È PIÙ UNA COLONNA (operatore, 17/08/2026): «trasformiamo il valore in un simbolo vicino
+ * al voto che deve indicare la varianza». La misura non si è persa - si legge come marchio accanto ai
+ * Voti (`VarianceMark`), con la sua deviazione standard e la quota di partite chiuse col 6 nel tooltip -
+ * ma non è più un percentile fra gli altri: era una lettura che nessuno ordinava, e una colonna in meno è
+ * una tabella che si legge.
+ */
+export const DETAIL_KEYS: Exclude<RatingKey, 'overall'>[] = ['votes', 'bonus', 'presence'];
 
 /** Every column, the summary first: it is the one that is scanned, the four are the reason for it. */
 export const RATING_KEYS: RatingKey[] = ['overall', ...DETAIL_KEYS];
@@ -359,7 +326,50 @@ export interface Rating {
   note: string;
 }
 
-export type PlayerRating = Record<RatingKey, Rating>;
+export type PlayerRating = Record<RatingKey, Rating> & {
+  /** Il marchio di varianza accanto ai Voti, o null quando è nella norma o non è misurabile. */
+  variance: VarianceMark | null;
+};
+
+/**
+ * QUANTO BALLA IL SUO VOTO, come simbolo accanto al voto (operatore, 17/08/2026).
+ *
+ * Tre stati e uno è il silenzio: varianza GRANDE, nella norma (nessun simbolo), PICCOLA. La misura è la
+ * deviazione standard dei voti che ha preso davvero - la stessa lista di partite su cui si leggeva la
+ * Costanza, che era invece la quota di partite chiuse col 6 e viaggia nel tooltip.
+ *
+ * LE BANDE SONO DENTRO IL RUOLO, e la ragione è misurata (17/08/2026, 359 quotati di Serie A con almeno
+ * dieci voti nelle due stagioni sul calendario Serie A): la sd mediana è P 0,569 · D 0,598 · C 0,579 ·
+ * A 0,715. Un attaccante balla di più per mestiere - segna o non segna - quindi bande comuni avrebbero
+ * marcato «grande varianza» su mezzo reparto d'attacco, cioè avrebbero detto il RUOLO e non l'uomo: è la
+ * lezione del canale dell'età, «una differenza fra due gruppi non è una virtù di chi la porta».
+ *
+ * I QUINTILI ESTERNI del suo ruolo DENTRO LA POOL sul quale la tabella lavora (il listone, non le righe a
+ * schermo): il 20% più stabile e il 20% più ballerino prendono un simbolo, il 60% in mezzo niente. È una
+ * scelta di VISUALIZZAZIONE dichiarata qui, come le soglie degli infortuni: non entra in nessuna
+ * valutazione e nessun gate la possiede. Un ruolo con meno di `VARIANCE_MIN_POOL` uomini misurati non si
+ * bandisce affatto - un quintile su otto portieri sarebbe un solo uomo.
+ */
+export interface VarianceMark {
+  /** Deviazione standard dei suoi voti. */
+  sd: number;
+  band: 'high' | 'low';
+  /** Una riga: la sd, la banda del suo ruolo e la vecchia costanza. */
+  note: string;
+}
+
+/** Quale coda del ruolo prende un simbolo: il quinto per lato. */
+export const VARIANCE_TAIL = 0.2;
+
+/** Sotto quanti uomini misurati un ruolo non si bandisce: un quintile di otto portieri è un uomo. */
+export const VARIANCE_MIN_POOL = 20;
+
+/** La deviazione standard di una lista di voti, o null sotto `MIN_MATCHES`: una sd su tre partite non è una sd. */
+export function spreadOf(votes: readonly number[]): number | null {
+  if (votes.length < MIN_MATCHES) return null;
+  const mean = votes.reduce((sum, one) => sum + one, 0) / votes.length;
+  return Math.sqrt(votes.reduce((sum, one) => sum + (one - mean) ** 2, 0) / votes.length);
+}
 
 /**
  * What the ENGINE'S SHEET says about the season that is coming, for one man on one platform.
@@ -382,6 +392,13 @@ export interface EngineForecast {
    */
   fm: number | null;
   fmIsEstimate: boolean;
+  /**
+   * La MEDIA VOTO ATTESA del foglio (`est_mv`), che è la colonna MVa.
+   *
+   * La legge la lettura VOTI dal 17/08/2026 su richiesta dell'operatore («il valore Voti (0-99) deve
+   * essere calcolato su MVa»): prima quella colonna era la media voto di CARRIERA, un'altra domanda.
+   */
+  mv: number | null;
 }
 
 /** One season of a player, as `season_stats` states it for one platform. */
@@ -486,55 +503,25 @@ export function rank99ByRole(
 }
 
 /**
- * IL PERCENTILE ALLINEATO FRA I RUOLI: ognuno standardizzato dentro il suo, poi tutti classificati
- * insieme su una scala sola. È la scala del SURPLUS applicata a una lettura qualsiasi.
+ * IL PERCENTILE ALLINEATO FRA I RUOLI È STATO RITIRATO il 17/08/2026, e questa nota sta al posto suo.
  *
- * PERCHÉ ESISTE (operatore, 16/08/2026: «i loro valori devono essere confrontabili a prescindere dal
- * ruolo, come il surplus»). Il surplus è confrontabile fra ruoli perché sottrae il rimpiazzo DEL SUO
- * ruolo: +20 fantapunti sopra la panchina vogliono dire la stessa cosa per un portiere e per un
- * attaccante. Un percentile grezzo sul listone no, e quanto no è misurato - mediane per ruolo del
- * punteggio, 499 quotati di Serie A: BONUS 6 / 35 / 63 / 89 (83 punti di scarto, perché i punti evento di
- * un portiere sono negativi per costruzione: i gol che subisce), COSTANZA 91 / 50 / 42 / 24 (67), VOTI
- * 87 / 36 / 45 / 55 (51). Su quelle colonne il numero diceva soprattutto CHE RUOLO GIOCA.
+ * Che cos'era: ogni lettura standardizzata dentro il suo ruolo (mediana e MAD) e poi classificata con
+ * tutte le altre, cioè la scala del surplus applicata a una lettura qualsiasi. Serviva perché il numero
+ * GREZZO di VOTI, BONUS e COSTANZA vuol dire cose diverse a seconda del ruolo, e quanto diverse era
+ * misurato - mediane per ruolo del punteggio, 499 quotati di Serie A: BONUS 6 / 35 / 63 / 89 (83 punti di
+ * scarto, perché i punti evento di un portiere sono negativi per costruzione: i gol che subisce),
+ * COSTANZA 91 / 50 / 42 / 24 (67), VOTI 87 / 36 / 45 / 55 (51).
  *
- * MEDIANA e MAD, non media e deviazione standard: con lo zero del rimpiazzo che entra le distribuzioni
- * per ruolo sono sbilanciate - pochi titolari molto sopra, una coda lunga di riserve appena sotto - e una
- * media non ne sta più al centro. Il fattore 1,4826 rimette il MAD sulla scala di una sd, così una z
- * resta una z. Un ruolo con un uomo solo, o con tutti uguali, non ha una dispersione da dividere: allora
- * si classifica il numero com'è invece di inventare una scala.
+ * Perché non c'è più: l'operatore ha chiesto l'opposto - «il valore di VOTI, BONUS e PRESENZE deve essere
+ * calcolato in relazione a tutti i calciatori e non al suo ruolo» - e la sua ragione tiene, perché quelle
+ * tre colonne sono descrittive e il ruolo è scritto sulla riga. Il confronto fra ruoli lo fa l'OVERALL,
+ * che sottrae a ognuno il rimpiazzo della sua pool MANTRA: comparabile per costruzione, senza
+ * standardizzare due volte. Le misure sopra restano vere e sono la ragione per cui la conseguenza va
+ * detta invece che scoperta al tavolo (`letture-app-v1.md` §4-ter).
  *
- * DOVE NON SI USA, ed è la metà interessante della regola: si allinea una lettura la cui scala GREZZA
- * vuol dire cose diverse a seconda del ruolo, non una il cui numero grezzo è già lo stesso fatto per
- * tutti. Le PRESENZE sono una quota dello stesso calendario - il 42% è il 42% per chiunque - e il loro
- * scarto per ruolo (34 / 63 / 46 / 40) è una verità sul listone e non un difetto della scala: la mediana
- * dei portieri QUOTATI gioca poco perché la maggior parte sono riserve. Allinearle direbbe «questo
- * secondo portiere gioca una quantità normale», che è vero fra i portieri e falso in assoluto.
+ * Cancellata e non messa a riposo: una funzione esportata che nessuno chiama è una funzione che il
+ * prossimo lettore crede attiva.
  */
-export function alignedRank99(
-  pool: readonly { fcId: number; role: string }[],
-  values: ReadonlyMap<number, number | null>,
-): Map<number, number | null> {
-  const measured = new Map<string, number[]>();
-  for (const player of pool) {
-    const value = values.get(player.fcId);
-    if (value == null) continue;
-    (measured.get(player.role) ?? measured.set(player.role, []).get(player.role)!).push(value);
-  }
-  const scale = new Map<string, { mean: number; sd: number }>();
-  for (const [role, own] of measured) {
-    const middle = medianOf(own)!;
-    const spread = medianOf(own.map((one) => Math.abs(one - middle)))! * 1.4826;
-    scale.set(role, { mean: middle, sd: spread });
-  }
-  const aligned = new Map<number, number | null>();
-  for (const player of pool) {
-    const value = values.get(player.fcId) ?? null;
-    const own = scale.get(player.role);
-    aligned.set(player.fcId, value == null || !own || !own.sd ? value : (value - own.mean) / own.sd);
-  }
-  return rank99(aligned);
-}
-
 /**
  * What each half-star means, as the operator wrote it (15/08/2026), and the percentile it starts at.
  *
@@ -999,14 +986,6 @@ export function ratingsFor(input: {
    * un bundle vecchio: allora nessun lato la vede, che è coerente e non un mezzo conto.
    */
   cleanSheetRate?: ReadonlyMap<string, number>;
-  /**
-   * Quante squadre gioca questa lega e quanti posti per ruolo il suo regolamento SCHIERA.
-   *
-   * Servono al rimpiazzo che entra davvero (`fieldedZero`): il rango è `squadre × posti`. Vengono dal
-   * manifest e dal regolamento, non da qui - senza, resta il rimpiazzo del foglio.
-   */
-  teams?: number | null;
-  fieldedPlaces?: ReadonlyMap<string, number>;
 }): Map<number, PlayerRating> {
   const { pool, seasons, matches, spells, expectedShare, today } = input;
   /**
@@ -1020,14 +999,32 @@ export function ratingsFor(input: {
    */
   const calendarShare = new Map<number, number | null>();
   const raw: Record<Exclude<RatingKey, 'overall'>, Map<number, number | null>> = {
-    votes: new Map(), bonus: new Map(), presence: new Map(), consistency: new Map(),
+    votes: new Map(), bonus: new Map(), presence: new Map(),
   };
   const notes: Record<Exclude<RatingKey, 'overall'>, Map<number, string>> = {
-    votes: new Map(), bonus: new Map(), presence: new Map(), consistency: new Map(),
+    votes: new Map(), bonus: new Map(), presence: new Map(),
   };
   const weights: Record<Exclude<RatingKey, 'overall'>, Map<number, number>> = {
-    votes: new Map(), bonus: new Map(), presence: new Map(), consistency: new Map(),
+    votes: new Map(), bonus: new Map(), presence: new Map(),
   };
+  /**
+   * La COSTANZA, che non è più una colonna e non è più un addendo: resta come NOTA del simbolo di
+   * varianza, blendata con l'ancora come quando era una lettura, così la frase sul tooltip è la stessa
+   * che la colonna diceva.
+   */
+  const steadyRaw = new Map<number, number | null>();
+  const steadyNote = new Map<number, string>();
+  /** ...e la DISPERSIONE vera dei suoi voti, che è quello che il simbolo dichiara di dire. */
+  const spread = new Map<number, { sd: number | null; size: number }>();
+  /**
+   * LA CARRIERA, che non è più una colonna e serve solo come RIPIEGO dell'Overall.
+   *
+   * Il voto medio pesato e troncato, e quello che i suoi eventi valgono a presenza: rispondono a «quanto
+   * ha fatto» e l'Overall li usa soltanto per chi il foglio non valuta affatto, perché ogni calciatore
+   * deve avere il suo numero. La nota della cella lo DICHIARA.
+   */
+  const careerVote = new Map<number, number | null>();
+  const careerEvents = new Map<number, number | null>();
 
   /** What each man's own football says, before anybody is compared with anybody. */
   const own = new Map<number, Record<OwnKey, Sample>>();
@@ -1075,6 +1072,8 @@ export function ratingsFor(input: {
     // 4. COSTANZA - quante delle partite che gioca porta a casa almeno la sufficienza. È misurata sul
     //    VOTO e non sul fantavoto, perché la domanda è proprio quella: se non segna, prende 5?
     const votesPlayed = played?.votes ?? [];
+    // ...e la DISPERSIONE degli stessi voti, che è quello che il simbolo accanto ai Voti dichiara di dire.
+    spread.set(id, { sd: spreadOf(votesPlayed), size: votesPlayed.length });
     const consistency: Sample = {
       value: votesPlayed.length
         ? votesPlayed.filter((vote) => vote >= PASS_MARK).length / votesPlayed.length
@@ -1102,132 +1101,55 @@ export function ratingsFor(input: {
     };
     own.set(id, { votes, bonus, consistency, points });
 
-    // 3. PRESENZE - quanto della stagione CHE VIENE ti assicura, e la domanda guarda avanti (operator,
-    //    15/08/2026): la base è la quota di calendario che il MOTORE gli prevede - la sua titolarità
-    //    nella rosa di oggi, non le partite di ieri - corretta da quanto sta in campo QUANDO gioca, che
-    //    è l'unica cosa che il passato sa e la previsione non dice: `pv` conta presenze a voto, non
-    //    minuti, e un uomo che entra sempre al 70' ne ha tante e vale poco.
+    // ---- LE TRE LETTURE VENGONO DAL FOGLIO (operatore, 17/08/2026):
+    //      «Voti (0-99) deve essere calcolato su MVa · Bonus (0-99) su FMa · Presenze (0-99) su P».
     //
-    //    Il modello delle presenze del toolkit legge già gli infortuni, quindi la PREVISIONE non viene
-    //    scontata una seconda volta. Quello che si applica sotto (`FRAGILITY_RISK`) non è una seconda
-    //    previsione ma la preferenza dichiarata dell'operatore su chi si rompe spesso, ed è scritta lì.
+    // Quindi non sono più tre misure di carriera pesate e ancorate: sono i tre numeri che il MOTORE
+    // prevede per la stagione che viene, classificati sul listone. Il senso di ognuna cambia e va detto:
+    // VOTI è la media voto ATTESA (`est_mv`) e non quella fatta; BONUS classifica la FANTAMEDIA attesa
+    // (`engine_fm_pred`), che contiene il voto - il tasso di bonus vero sarebbe FMa − MVa, e questa
+    // colonna non è quello; PRESENZE è la quota di calendario che il motore gli prevede, senza le tre
+    // correzioni che c'erano prima (minuti quando gioca, fragilità, nota dichiarata).
+    //
+    // Quelle tre preferenze non sono sparite dal tavolo, sono sparite da QUESTE colonne: restano i marchi
+    // accanto al nome (infortunio in corso, si infortuna spesso, fuori rosa) che le dicono in parole.
     const forecast = expectedShare.get(id);
-    const expected = forecast?.share ?? null;
-    fragility.set(id, fragilityOf(spells.get(id) ?? [], today));
-    // How much of a match he plays when he is on the team sheet. Blended with the ROLE's own figure by
-    // how many appearances it rests on - the same shrink as every other reading here - because crediting
-    // an unmeasured man with a full 90' put men nobody has seen play at the top of the column.
-    minutesShare.set(id, played?.appearances
-      ? { value: Math.min(1, played.minutes / (played.appearances * 90)), size: played.appearances }
-      : { value: null, size: 0 });
-    raw.presence.set(id, expected);       // the corrections are applied below, once the pool is known
-    weights.presence.set(id, expected == null ? 0 : forecast!.estimated ? 0.5 : 1);
-    notes.presence.set(
-      id,
-      expected == null
-        ? 'il motore non lo prevede e non offre una stima: non misurabile'
-        : `${Math.round(expected * 100)}% del calendario${forecast!.estimated ? ' (STIMA)' : ''}`,
-    );
-  }
-
-  /**
-   * ...and now the men with little or nothing measured, which is most of what an August listone is.
-   *
-   * NOBODY IS LEFT WITHOUT A NUMBER (operator, 15/08/2026, and it is his own rule of 05/08 one level
-   * down): where his own football is thin the reading is BLENDED with the anchor of his role moved
-   * toward his club's own level for that role, and where there is no football at all the anchor IS the
-   * reading. The arithmetic is the toolkit's own and so are its constants - `engine/estimate.py`:
-   * `shrink` pads the sample he is missing with the anchor (full sample = 15 votes), `club_anchor`
-   * moves the role's number toward the club's by `n/(n+3)`.
-   *
-   * The doubt is not hidden, it is CARRIED: `weight` says how much of the number is his own, the note
-   * says it in words, and the stars are drawn faded when it is mostly the anchor speaking. «Un
-   * attaccante titolare della Juve anche se sconosciuto è sempre meglio di un attaccante sconosciuto
-   * del Verona» - that is what the club pull is, and it is measured rather than assumed.
-   */
-  /**
-   * The second half of PRESENZE, now that the pool can speak for a man it has not measured: how much of
-   * a match his ROLE plays when it plays, blended with his own by the appearances he has. A keeper who
-   * is fielded plays 90, a forward is taken off, and neither is «unknown means a full match».
-   */
-  const minuteAnchor = new Map<string, number>();
-  const byRole = new Map<string, number[]>();
-  for (const player of pool) {
-    const one = minutesShare.get(player.fcId);
-    if (!one || one.value == null || one.size < FULL_SAMPLE) continue;
-    (byRole.get(player.role) ?? byRole.set(player.role, []).get(player.role)!).push(one.value);
-  }
-  for (const [role, values] of byRole) {
-    minuteAnchor.set(role, values.reduce((sum, one) => sum + one, 0) / values.length);
-  }
-  /**
-   * ...and the FRAGILITY, measured from the listone's own middle so that the ordinary man pays nothing.
-   *
-   * The median of the pool is the zero here for the same reason it is everywhere else in this file: half
-   * a listone loses some days to injury every year, and charging everybody for the normal amount would
-   * only re-scale the column. What is charged is the EXCESS - see `FRAGILITY_RISK`, and read the reason
-   * there before touching it, because it is a declared preference and not a second forecast.
-   */
-  const injuryShares = [...pool].map((player) => fragility.get(player.fcId)?.share ?? 0);
-  const usualInjury = medianOf(injuryShares) ?? 0;
-  const secured = (id: number): number =>
-    Math.max(0, 1 - FRAGILITY_RISK * Math.max(0, (fragility.get(id)?.share ?? 0) - usualInjury));
-
-  for (const player of pool) {
-    const id = player.fcId;
-    const expected = raw.presence.get(id) ?? null;
-    if (expected == null) continue;
-    // The share you can COUNT ON: what the engine predicts, less what a man who breaks down often
-    // cannot promise. One definition, read by this column and by the overall.
-    const risk = secured(id);
-    // ...and the overall alone also asks whether the place is his, and whether he will be there at all:
-    // below `STARTER_SHARE` the summary stops paying linearly, and a DECLARED quarrel cuts what is left.
-    // The COLUMN keeps the plain share - it answers «quanto gioca», and mixing a preference into it
-    // would say the engine predicts something it does not.
-    // Each preference is charged ONCE and on its own evidence: the guarantee reads what the engine
-    // predicts for him when he is fit, the fragility what his three years say, the note what the
-    // operator declared. Charging the concavity on the already-cut share billed the fragility twice
-    // and took Dybala to 15% of a calendar the engine puts at 60%.
-    const said = input.declared?.get(id);
-    // Il POSTO si legge dalle partite cominciate, non da quelle giocate; se non ne ha di misurate il
-    // vincolo non si applica invece di dare per scontato il peggio.
-    const startShare = matches.get(id)?.startShare ?? null;
-    const place = startShare == null
-      ? 1
-      : Math.min(1, startShare / STARTER_SHARE) ** STARTER_CONCAVITY;
-    calendarShare.set(id, expected * place * risk * (said ? DECLARED_RISK[said.kind] : 1));
-    const one = minutesShare.get(id) ?? { value: null, size: 0 };
-    const anchor = minuteAnchor.get(player.role) ?? null;
-    const weight = Math.max(0, Math.min(1, one.size / FULL_SAMPLE));
-    const share = one.value == null || anchor == null
-      ? (one.value ?? anchor)
-      : anchor + weight * (one.value - anchor);
-    if (share == null) {
-      raw.presence.set(id, expected * risk);   // nothing of his role measured: the forecast stands alone
-      continue;
+    const sheetReading = (value: number | null | undefined, said: string) => {
+      const known = value ?? null;
+      return {
+        value: known,
+        weight: known == null ? 0 : forecast?.estimated ? 0.5 : 1,
+        said: known == null
+          ? 'il motore non lo valuta e non offre una stima: ignoto, mai zero'
+          : `${said}${forecast?.estimated ? ' (STIMA dichiarata)' : ''}`,
+      };
+    };
+    for (const [key, one] of [
+      ['votes', sheetReading(forecast?.mv, `${(forecast?.mv ?? 0).toFixed(2)} di media voto attesa`)],
+      ['bonus', sheetReading(forecast?.fm, `${(forecast?.fm ?? 0).toFixed(2)} di fantamedia attesa`)],
+      ['presence', sheetReading(
+        forecast?.share,
+        `${Math.round((forecast?.share ?? 0) * 100)}% del calendario a voto`,
+      )],
+    ] as const) {
+      raw[key].set(id, one.value);
+      weights[key].set(id, one.weight);
+      notes[key].set(id, one.said);
     }
-    raw.presence.set(id, expected * risk * share);
-    // A forecast is only as sure as the minutes it is multiplied by: an unmeasured factor halves it.
-    if (one.value == null || weight < 1) {
-      weights.presence.set(id, (weights.presence.get(id) ?? 1) * Math.max(0.5, weight));
-    }
-    const hurt = fragility.get(id);
-    notes.presence.set(
-      id,
-      `${notes.presence.get(id)} × ${Math.round(share * 90)}′ quando gioca`
-        + (one.value == null
-          ? ' (del suo ruolo)'
-          : weight < 1
-            ? ` (${Math.round(weight * 100)}% suoi)`
-            : '')
-        + (risk < 1 && hurt
-          ? ` · −${Math.round((1 - risk) * 100)}% fragilità (${Math.round(hurt.share * 100)}% fuori in `
-            + `${FRAGILITY_YEARS} anni)`
-          : ''),
-    );
+    // Quello che l'OVERALL moltiplica è la stessa quota, senza correzioni: la formula dettata è
+    // «presenze × (voti+bonus)» e le presenze sono quelle del motore.
+    calendarShare.set(id, forecast?.share ?? null);
   }
 
-  /** One reading, blended with its anchors for the men the pool has little or nothing of. */
+  /**
+   * IL BLEND CON L'ANCORA resta per DUE usi soli, e non è più una lettura di nessuna colonna.
+   *
+   * Serve (a) al ripiego di CARRIERA dell'Overall - chi il foglio non prezza affatto deve comunque avere
+   * un numero, ed è la regola «ogni calciatore deve avere il suo» - e (b) alla nota del simbolo di
+   * varianza, che porta la vecchia costanza. L'aritmetica è quella del toolkit (`engine/estimate.py`):
+   * `shrink` riempie il campione che manca con l'ancora del ruolo, `club_anchor` la tira verso il livello
+   * del club di `n/(n+3)`.
+   */
   const blend = (key: OwnKey): Map<number, { value: number | null; weight: number; said: string }> => {
     const anchors = anchorsOf(pool, own, key);
     const out = new Map<number, { value: number | null; weight: number; said: string }>();
@@ -1265,25 +1187,14 @@ export function ratingsFor(input: {
     return out;
   };
 
-  for (const key of ['votes', 'consistency'] as const) {
-    for (const [id, one] of blend(key)) {
-      raw[key].set(id, one.value);
-      weights[key].set(id, one.weight);
-      notes[key].set(id, one.said);
-    }
+  for (const [id, one] of blend('votes')) {
+    careerVote.set(id, one.value);
   }
-
-  /**
-   * The fourth blended reading, and the only one with no column: what his bonuses and MALUSES are
-   * worth per appearance, in his championship's own points.
-   *
-   * It exists because the summary needs the whole of a match and the Bonus column is only half of it:
-   * measured 15/08/2026, an overall built on «voto + gol e assist» put third-choice goalkeepers above
-   * strikers (Corvi 73 against a value rank of 21), for the plain reason that a keeper's points are
-   * mostly the goals he CONCEDES - a malus the column does not carry, because the column answers «fa
-   * bonus?» and this one answers «quanto pesa una sua partita». Anchored like the others, so a man with
-   * no measured season is his role's average and not «non subisce gol».
-   */
+  // ...e la costanza per la stessa strada, in due mappe sue: nessuna colonna la classifica più.
+  for (const [id, one] of blend('consistency')) {
+    steadyRaw.set(id, one.value);
+    steadyNote.set(id, one.said);
+  }
   const eventPoints = blend('points');
 
   /*
@@ -1295,52 +1206,28 @@ export function ratingsFor(input: {
    * moltiplica: una colonna che spiega l'Overall invece di raccontare metà della storia.
    */
   for (const [id, one] of eventPoints) {
-    raw.bonus.set(id, one.value);
-    weights.bonus.set(id, one.weight);
-    notes.bonus.set(id, one.said);
+    careerEvents.set(id, one.value);
   }
 
   /**
-   * TRE LETTURE SU QUATTRO SI ALLINEANO FRA I RUOLI, e la quarta no: vedi `alignedRank99`, dove stanno
-   * le mediane misurate che decidono quale è quale.
+   * NIENTE PIÙ ANCORE, NIENTE PIÙ CORREZIONI SULLE PRESENZE: le tre letture sono i numeri del foglio.
    *
-   * VOTI, BONUS e COSTANZA hanno una scala grezza che vuol dire cose diverse a seconda del ruolo - un
-   * portiere prende voti più alti, i suoi punti evento sono negativi per costruzione, e chiudere a 6 è
-   * un evento comune in porta e raro in attacco - quindi il percentile grezzo li ordinava per ruolo
-   * prima che per merito. Le PRESENZE restano sul listone intero perché il 42% del calendario è il 42%
-   * per chiunque: lì lo scarto fra ruoli è un fatto e non un difetto del metro.
-   */
-  const ranked: Record<RatingKey, Map<number, number | null>> = {
-    votes: alignedRank99(pool, raw.votes),
-    bonus: alignedRank99(pool, raw.bonus),
-    presence: rank99(raw.presence),
-    consistency: alignedRank99(pool, raw.consistency),
-    overall: new Map(),
-  };
-
-  /**
-   * OVERALL - «chi conviene avere», in the arithmetic the game pays in, then ranked like the others.
+   * Che cosa è stato cancellato il 17/08/2026 con la richiesta dell'operatore, perché nessuno lo
+   * ricostruisca per sbaglio credendo che manchi: il blend con l'ANCORA del ruolo tirata verso il livello
+   * del club (era la regola «ogni calciatore deve avere il suo numero» applicata alle letture), i MINUTI
+   * QUANDO GIOCA (un esterno tolto al 70' valeva meno di un centrale a parità di presenze), lo sconto di
+   * FRAGILITÀ sull'eccesso rispetto alla mediana del listone, la concavità sul POSTO da titolare e la
+   * penale della NOTA DICHIARATA. Le misure che li avevano scelti stanno in `letture-app-v1.md` §5-§7.
    *
-   * NOT a mean of the four (operator, 15/08/2026, with the measurement in front of him): matches and
-   * points per match MULTIPLY, so averaging their ranks made the summary worse than its own best part -
-   * rho 0.538 against the presences' 0.776 on Serie A. It is `worthOf`: the share of the calendar he is
-   * expected to play, times the points he makes when he plays, tilted by his steadiness. Ranked
-   * afterwards for the same reason every column is: the raw number piles up in the middle, and the
-   * column has to spread the listone it is about.
-   */
-  /**
-   * Il centro della COSTANZA, uno per RUOLO.
-   *
-   * Chiudere a 6 è un evento diverso in porta e in attacco (le quattro mediane stanno in
-   * `CONSISTENCY_TILT`), quindi un centro solo per tutti pagava il ruolo e non l'uomo. Un ruolo di cui
-   * non è misurato nessuno resta senza centro e allora la correzione è zero: «vuoto = ignoto».
+   * Restano - e sono la stessa informazione detta in parole invece che in un numero - i marchi accanto al
+   * nome: infortunio lungo in corso, rientrato da poco, si infortuna spesso, fuori rosa/rottura.
    */
   const consistencyMedian = new Map<string, number | null>();
   {
     const byRole = new Map<string, (number | null)[]>();
     for (const player of pool) {
       (byRole.get(player.role) ?? byRole.set(player.role, []).get(player.role)!)
-        .push(raw.consistency.get(player.fcId) ?? null);
+        .push(steadyRaw.get(player.fcId) ?? null);
     }
     for (const [role, values] of byRole) consistencyMedian.set(role, medianOf(values));
     // ...e il centro va DETTO sulla riga, o il numero si legge male: il 58 di Martinez L. è un 58 sul
@@ -1349,27 +1236,11 @@ export function ratingsFor(input: {
     // la nota porta il metro con cui l'Overall lo giudica.
     for (const player of pool) {
       const mid = consistencyMedian.get(player.role);
-      const said = notes.consistency.get(player.fcId);
+      const said = steadyNote.get(player.fcId);
       if (mid == null || !said) continue;
-      notes.consistency.set(player.fcId, `${said} · nel suo ruolo la mediana è ${Math.round(mid * 100)}%`);
+      steadyNote.set(player.fcId, `${said} · nel suo ruolo la mediana è ${Math.round(mid * 100)}%`);
     }
   }
-  /**
-   * The zero per ROLE, for the men the sheet does not price.
-   *
-   * Taken from the sheet's own numbers - the median of what it says about the men of that role - and
-   * never invented: an estimated row still has to be measured against the man who would play instead,
-   * and the alternative («no replacement, so count from zero») would put exactly the unmeasured men on
-   * a different scale from everybody else in the same column.
-   */
-  const roleZero = new Map<string, number>();
-  const zeros = new Map<string, number[]>();
-  for (const player of pool) {
-    const one = expectedShare.get(player.fcId)?.replacement;
-    if (one != null) (zeros.get(player.role) ?? zeros.set(player.role, []).get(player.role)!).push(one);
-  }
-  for (const [role, values] of zeros) roleZero.set(role, medianOf(values)!);
-
   /**
    * QUANTO VALE UNA SUA PARTITA, e la fonte è il MOTORE prima della sua carriera.
    *
@@ -1416,78 +1287,50 @@ export function ratingsFor(input: {
   const matchWorth = (id: number, player: PlayerRow): { value: number | null; fromEngine: boolean } => {
     const engine = expectedShare.get(id)?.fm ?? null;
     if (engine != null) return { value: engine + cleanSheetLift(player), fromEngine: true };
-    const votes = raw.votes.get(id) ?? null;
+    const votes = careerVote.get(id) ?? null;
     if (votes == null) return { value: null, fromEngine: false };
     // La carriera passa dai punti-evento, che la porta inviolata la contano già (`eventPointsOf`).
-    return { value: votes + (eventPoints.get(id)?.value ?? 0), fromEngine: false };
+    return { value: votes + (careerEvents.get(id) ?? 0), fromEngine: false };
   };
 
   /** Lo stesso numero senza il giro del ruolo: serve a ordinare la pool prima che lo zero esista. */
   const matchWorthRaw = (id: number): number | null => {
     const engine = expectedShare.get(id)?.fm ?? null;
     if (engine != null) return engine;
-    const votes = raw.votes.get(id) ?? null;
-    return votes == null ? null : votes + (eventPoints.get(id)?.value ?? 0);
+    const votes = careerVote.get(id) ?? null;
+    return votes == null ? null : votes + (careerEvents.get(id) ?? 0);
   };
 
   /**
-   * IL RIMPIAZZO CHE ENTRA DAVVERO, che non è quello del foglio - e la differenza vale mezzo punto.
+   * NON C'È PIÙ UNO ZERO, e la formula in vigore è quella dettata dall'operatore il 17/08/2026 sera:
+   * «facciamo che overall è semplicemente presenze × (voti+bonus)».
    *
-   * `engine_replacement_fm` è il marginale di ROSA: l'N-esimo del ruolo con N = squadre × slot, cioè
-   * l'ottantesimo centrocampista di dieci squadre. Ma quando il tuo titolare salta non entra
-   * l'ottantesimo del listone: entra **il migliore dei tuoi che ha il voto quel giorno**, e quello sta
-   * molto più in alto.
+   * Quindi la colonna dice **quanti fantapunti porta in tutto**, non quanti ne porta in più di qualcuno.
+   * Tre pezzi di macchina sono stati cancellati con essa e vanno ricordati per non ricostruirli per
+   * sbaglio: il rimpiazzo che si SCHIERA (P 5,01 · D 6,11 · C 6,37 · A 6,79, misurato per due strade il
+   * 16/08), il rimpiazzo del RUOLO MANTRA letto dal foglio mantra (`por` 4,13 … `pc` 7,01, in vigore per
+   * un'ora la sera del 17/08) e la mediana per ruolo che serviva a chi il foglio non prezza. Le misure
+   * stanno in `letture-app-v1.md` §4-bis e §9.
    *
-   * MISURATO PER DUE STRADE INDIPENDENTI (16/08/2026, stagione 2025-26). Simulando dieci squadre con
-   * rose a serpentina, schierando ogni giornata i migliori CHE HANNO IL VOTO e guardando cosa rende lo
-   * slot quando un titolare manca: **P 5,01 · D 6,11 · C 6,37 · A 6,79**, contro il 4,13 / 5,66 / 5,87 /
-   * 5,61 del foglio. Prendendo invece il rango `squadre × posti SCHIERATI` dentro il listone: 5,03 /
-   * 5,81 / 6,30 / 6,87. Due metodi che non si parlano, lo stesso numero.
-   *
-   * DUE COSE CHE LA SIMULAZIONE HA CHIARITO e che una stima a tavolino sbaglia. Non è una media, è un
-   * MASSIMO: peschi il migliore dei rimanenti, non uno a caso. E la panchina è più corta di quanto
-   * sembri - di otto centrocampisti ne hai disponibili **5,3 in media, tutti e otto il 3% delle
-   * giornate** - quindi il massimo si prende su ~2,3 uomini e non su cinque. Il valore decade col
-   * numero di buchi (6,46 con uno, 6,30 con due, 5,88 con tre) e con TRE buchi coincide col numero del
-   * foglio: **quello del foglio è il valore della tua panchina nel giorno peggiore**, e capita il 2%
-   * delle volte.
-   *
-   * SI DERIVA DALLA POOL e non si incolla: quei numeri valgono per dieci squadre e per il regolamento
-   * classico, e questa stessa colonna la legge anche un listone euro da dodici. Il rango è `squadre ×
-   * posti che il modulo schiera`, e i posti vengono dal regolamento (media dei suoi moduli: 1 portiere,
-   * 4 difensori, 4 centrocampisti, 2 attaccanti, che fanno undici). Senza quei due numeri resta il
-   * rimpiazzo del foglio, che è la scelta conservativa.
+   * UNA CONSEGUENZA VA DETTA, perché nessuno la scopra al tavolo: senza rimpiazzo la porta inviolata del
+   * portiere resta su UN SOLO lato del conto (la sua). Prima entrava su tutt'e due proprio per non
+   * regalargliela; adesso non c'è un altro lato, quindi il numero è «quanto vale una sua partita nella
+   * TUA lega» e la porta inviolata ne fa parte per definizione. Chi la volesse fuori dovrebbe togliere
+   * `clean_sheet_bonus_gk` dal punteggio della lega, che è un'altra decisione.
    */
-  const fieldedZero = new Map<string, number>();
-  if (input.teams && input.fieldedPlaces) {
-    const worthOfSeason = (id: number): number | null => {
-      const share = expectedShare.get(id)?.share ?? null;
-      const points = matchWorthRaw(id);
-      return share == null || points == null ? null : share * points;
-    };
-    const byRole = new Map<string, { id: number; points: number; season: number }[]>();
-    for (const player of pool) {
-      const points = matchWorthRaw(player.fcId);
-      const season = worthOfSeason(player.fcId);
-      if (points == null || season == null) continue;
-      const mine = byRole.get(player.role) ?? byRole.set(player.role, []).get(player.role)!;
-      mine.push({ id: player.fcId, points, season });
-    }
-    for (const [role, men] of byRole) {
-      const cut = Math.round(input.teams * (input.fieldedPlaces.get(role) ?? 0));
-      if (cut < 1 || men.length <= cut) continue;   // pool più corta del rango: niente da dire
-      men.sort((left, right) => right.season - left.season);
-      fieldedZero.set(role, men[cut].points);
-    }
-  }
 
-  /** Lo zero del ruolo, con la porta inviolata del rimpiazzo dentro: il tasso TIPICO del listone. */
-  const zeroFor = (player: PlayerRow): number | null => {
-    const fielded = fieldedZero.get(player.role);
-    if (fielded != null) return fielded;   // già in punti-partita: la porta inviolata è dentro
-    const base = expectedShare.get(player.fcId)?.replacement ?? roleZero.get(player.role) ?? null;
-    if (base == null) return null;
-    return base + (player.role === 'P' && keeperBonus ? keeperBonus * typicalCleanSheet : 0);
+  /**
+   * OGNI LETTURA È CLASSIFICATA SU TUTTI I CALCIATORI, e non dentro il suo ruolo (operatore, 17/08/2026:
+   * «il valore di VOTI, BONUS e PRESENZE deve essere calcolato in relazione a tutti i calciatori e non al
+   * suo ruolo»). `alignedRank99` è stata cancellata; la conseguenza misurata sta in `letture-app-v1.md`
+   * §9.2 - un portiere prende voti base più alti, quindi in VOTI i portieri stanno in alto per il ruolo
+   * prima che per il merito, e il ruolo è scritto sulla riga davanti al nome.
+   */
+  const ranked: Record<RatingKey, Map<number, number | null>> = {
+    votes: rank99(raw.votes),
+    bonus: rank99(raw.bonus),
+    presence: rank99(raw.presence),
+    overall: new Map(),
   };
 
   const overallRaw = new Map<number, number | null>();
@@ -1500,61 +1343,68 @@ export function ratingsFor(input: {
         matches: calendarShare.get(id) ?? null,
         votes: points.value,
         eventPoints: null,
-        replacement: zeroFor(player),
-        consistency: raw.consistency.get(id) ?? null,
-        medianConsistency: consistencyMedian.get(player.role) ?? null,
       }),
     );
   }
   /**
-   * ...e prima di classificarlo, l'Overall grezzo viene ALLINEATO FRA I RUOLI: ognuno standardizzato
-   * dentro il suo, poi tutti e quattro classificati insieme su una scala sola.
+   * ...e SI CLASSIFICA GREZZO, su tutto il listone, senza più allinearlo fra i ruoli.
    *
-   * IL PROBLEMA, portato dall'operatore il 16/08/2026 e vero due volte: «mettere tutti i primi portieri
-   * a 99 non ha senso, significa che tutti sono forti uguale». Classificato grezzo su tutto il listone
-   * il ruolo del portiere galleggiava (mediana 66 contro il 40 dei centrocampisti) e insieme si
-   * schiacciava (i dodici migliori in dieci punti, 88-98), quindi la colonna non diceva né quanto vale
-   * un portiere né QUALE comprare.
+   * PERCHÉ SI PUÒ, dal 17/08/2026: lo z dentro il ruolo esisteva per curare uno ZERO che cambiava
+   * profondità da ruolo a ruolo (i quattro rimpiazzi del foglio stanno a −0,90 / −0,35 / −0,38 / −1,15
+   * dall'ancora del loro ruolo, perché per i portieri di Serie A il rango «squadre × slot» è più lungo
+   * della pool dei regolari). Adesso lo zero è il marginale della sua pool MANTRA, quindi ogni uomo è già
+   * misurato contro chi lo sostituirebbe davvero e la scala è la stessa per tutti: standardizzare ancora
+   * dividerebbe una seconda volta per la dispersione del ruolo, che è il prezzo che quella cura faceva
+   * pagare (a parità di z l'attaccante porta più fantapunti dell'esterno basso).
    *
-   * LA CAUSA sta nello zero e non nella classifica, ed è scritta nel toolkit stesso
-   * (`features.replacement_levels`): il rimpiazzo è il rango `squadre × slot` dentro la pool dei
-   * regolari di quel ruolo, e le pool hanno taglie diverse. Per i portieri di Serie A il rango (10×3 =
-   * 30) è più lungo della pool (~22 titolari), quindi lo zero è **l'ultimo portiere titolare**, mentre
-   * per D/C/A è l'80° di ~150, cioè uno di metà classifica. Misurato come distanza dall'ancora del
-   * proprio ruolo: P −0,90 · D −0,35 · C −0,38 · A −1,15. Quattro zeri a quattro profondità diverse
-   * non sono confrontabili, ed è per questo che i ruoli non si allineavano.
-   *
-   * LA CURA è quella che l'operatore stesso ha indicato - «normalmente è la fantamedia a creare questo
-   * confronto cross-ruolo»: un portiere lo si giudica sui portieri e un attaccante sugli attaccanti, e
-   * POI i due giudizi si confrontano. Cioè uno z dentro il ruolo, classificato su tutto il listone. I
-   * ruoli partono alla pari per costruzione e la colonna resta CROSS-RUOLO, che è quello che deve
-   * essere.
-   *
-   * MISURATO, 498 quotati di Serie A - grezzo → allineato:
-   *   mediana per ruolo   P 66 / D 49 / C 40 / A 60  →  P 58 / D 51 / C 46 / A 47   (scarto 26 → 12)
-   *   primi 25            P7 / D5 / C5 / A8          →  P6 / D7 / C6 / A6
-   *   spanna dei primi 12 portieri            10     →  16
-   *   accordo col SURPLUS del foglio (Spearman) 0,64 →  0,48
-   *
-   * IL PREZZO VA DETTO: lo z divide per la dispersione del ruolo, quindi promuove i migliori di un
-   * ruolo compatto (difensori, sd 0,21) rispetto a quelli di un ruolo largo (attaccanti, sd 0,39) - a
-   * parità di z l'attaccante porta più fantapunti. Chi vuole i fantapunti li ha nel tooltip di ogni
-   * cella, che è il numero grezzo e resta la scala vera.
-   *
-   * DUE STRADE RIFIUTATE, perché nessuno le ri-provi. Prendere come zero il rimpiazzo che si SCHIERA
-   * (l'11° portiere invece del 31°, il 21° attaccante invece del 61°) distanzia benissimo i portieri ma
-   * manda Simeone da 94 a 41 lasciando Esposito F.P. a 79 - cioè rimette la riserva sopra i due «che
-   * hanno dimostrato di essere più affidabili», il caso che l'operatore aveva già chiuso - e l'accordo
-   * col foglio crolla a 0,29. Mettere tutti gli zeri alla stessa distanza dall'ancora del ruolo tiene
-   * quel caso solo fino a 0,5 di distanza, e già a 0,7 ribalta Bremer e Kelly. Entrambe misurate il
-   * 16/08/2026.
+   * QUELLO CHE SI PERDE VA DETTO, perché è la misura del 16/08: allineati, i quattro ruoli avevano
+   * mediane 58/51/46/47 contro 66/49/40/60 da grezzi, e i dodici migliori portieri si distanziavano su 16
+   * punti invece di 10. Con questo zero il conto va rifatto, non ricopiato: la cura è un'altra e i numeri
+   * di quella non descrivono questa. Le due strade rifiutate quel giorno restano rifiutate e stanno in
+   * `letture-app-v1.md` §4 - lo zero «schierato» (manda Simeone da 94 a 41) e gli zeri a distanza fissa
+   * dall'ancora (ribaltano Bremer e Kelly a 0,7).
    */
-  //
-  // UNA SOLA IMPLEMENTAZIONE, dal 16/08/2026: `alignedRank99`, la stessa che ora allinea VOTI, BONUS e
-  // COSTANZA. Era scritta qui dentro e valeva per l'Overall soltanto; due copie della stessa
-  // standardizzazione avrebbero finito per divergere, e la mediana-con-MAD è una scelta misurata (con la
-  // media i ruoli si disallineavano di nuovo: mediane 29 / 61 / 48 / 62 proprio dopo averli allineati).
-  ranked.overall = alignedRank99(pool, overallRaw);
+  ranked.overall = rank99(overallRaw);
+
+  /**
+   * Le due soglie per ruolo, prese DALLA POOL: il quintile basso e quello alto della sd di quel ruolo.
+   *
+   * Il pool di un percentile è parte della misura - la regola che questo progetto ha già pagato - quindi
+   * le soglie di un listone euro non sono quelle di un listone di Serie A, e non sono scritte a mano.
+   */
+  const varianceBands = new Map<string, { low: number; high: number }>();
+  {
+    const byRole = new Map<string, number[]>();
+    for (const player of pool) {
+      const sd = spread.get(player.fcId)?.sd;
+      if (sd == null) continue;
+      (byRole.get(player.role) ?? byRole.set(player.role, []).get(player.role)!).push(sd);
+    }
+    for (const [role, values] of byRole) {
+      if (values.length < VARIANCE_MIN_POOL) continue;   // pool troppo corta: nessun simbolo, e va bene
+      values.sort((left, right) => left - right);
+      const at = (share: number) => values[Math.min(values.length - 1, Math.floor(share * values.length))];
+      varianceBands.set(role, { low: at(VARIANCE_TAIL), high: at(1 - VARIANCE_TAIL) });
+    }
+  }
+  const varianceFor = (player: PlayerRow): VarianceMark | null => {
+    const sd = spread.get(player.fcId)?.sd;
+    const bands = varianceBands.get(player.role);
+    if (sd == null || !bands) return null;
+    const band = sd >= bands.high ? 'high' : sd <= bands.low ? 'low' : null;
+    if (!band) return null;
+    const steady = steadyNote.get(player.fcId);
+    return {
+      sd,
+      band,
+      note: short(
+        `Varianza ${band === 'high' ? 'GRANDE' : 'PICCOLA'}: sd ${sd.toFixed(2)} sul voto, `
+          + `${band === 'high' ? 'ultimo' : 'primo'} quinto del suo ruolo (soglie `
+          + `${bands.low.toFixed(2)} / ${bands.high.toFixed(2)})`
+          + (steady ? ` · ${steady}` : ''),
+      ),
+    };
+  };
 
   const out = new Map<number, PlayerRating>();
   for (const player of pool) {
@@ -1574,25 +1424,17 @@ export function ratingsFor(input: {
     const presence = calendarShare.get(id) ?? null;
     const worthOfOne = matchWorth(id, player);
     const points = worthOfOne.value;
-    const zero = zeroFor(player);
-    const steady = steadinessOf({
-      consistency: raw.consistency.get(id) ?? null,
-      medianConsistency: consistencyMedian.get(player.role) ?? null,
-    });
     out.set(id, {
       overall: {
         raw: worth,
         score: ranked.overall.get(id) ?? null,
         weight: sureness.reduce((sum, one) => sum + one, 0) / sureness.length,
-        // Two lines at most (`TOOLTIP_MAX`): the surplus, and the three numbers it is made of. The
-        // sentence that explains WHAT it is lives under the table, where it can be read twice.
+        // Due righe al massimo (`TOOLTIP_MAX`): il totale e i due fattori che lo fanno, così il numero si
+        // può contestare invece di crederlo. La frase che spiega CHE COS'È sta sotto la tabella.
         note: worth == null || presence == null || points == null
           ? 'il motore non gli prevede presenze'
-          : `${worth >= 0 ? '+' : '−'}${Math.abs(worth).toFixed(2)} a giornata sul rimpiazzo`
-            + ` · ${Math.round(presence * 100)}% × (${points.toFixed(2)}`
-            + (zero == null ? ' da zero' : ` − ${zero.toFixed(2)}`)
-            + ')'
-            + (steady === 0 ? '' : `, costanza ${steady > 0 ? '+' : '−'}${Math.abs(steady).toFixed(2)}`)
+          : `${worth.toFixed(2)} fantapunti a giornata`
+            + ` · ${Math.round(presence * 100)}% del calendario × ${points.toFixed(2)} a partita`
             // Quale delle due basi ha parlato: la FM attesa dal motore o - per chi il foglio non porta -
             // la sua carriera. Due basi sotto una colonna sola devono dirsi.
             + (worthOfOne.fromEngine ? '' : ' · su CARRIERA, il foglio non lo valuta'),
@@ -1600,7 +1442,7 @@ export function ratingsFor(input: {
       votes: reading('votes'),
       bonus: reading('bonus'),
       presence: reading('presence'),
-      consistency: reading('consistency'),
+      variance: varianceFor(player),
     });
   }
   return out;
@@ -1614,25 +1456,17 @@ export const RATING_LABEL: Record<RatingKey, string> = {
   // per un portiere il numero è NEGATIVO, perché i gol che subisce sono la parte grossa di quel conto.
   bonus: 'Bonus',
   presence: 'Presenze',
-  consistency: 'Costanza',
 };
 
 export const RATING_HINT: Record<RatingKey, string> = {
   overall:
-    'Quanto ti dà IN PIÙ di chi prenderesti al suo posto: giornate × (voto + bonus − il rimpiazzo). '
-    + 'Cross-ruolo: ognuno è misurato sui suoi.',
+    'FANTAPUNTI in tutto: giornate a voto attese x quanto vale una sua partita. Un totale, non un margine.',
   votes:
-    'Media voto di carriera, pesata sulle presenze di ogni stagione e troncata da cinque in su. '
-    + 'Cross-ruolo: ognuno è misurato sui suoi.',
+    'MVa: la media voto che il MOTORE gli prevede. Posto su tutto il listone, portieri compresi.',
   bonus:
-    'Quanto vale una sua partita OLTRE al voto: gol e assist meno cartellini, autogol, rigori e i gol '
-    + 'subiti. Cross-ruolo: ognuno sui suoi.',
+    'FMa: la fantamedia attesa dal motore, voto compreso. Posto su tutto il listone.',
   presence:
-    'Quanto della stagione CHE VIENE ti assicura: quota di calendario prevista, corretta dai minuti. '
-    + 'Posto sul listone intero.',
-  consistency:
-    'Quante delle partite che gioca chiude con almeno 6 di VOTO: se non segna, prende 5? '
-    + 'Cross-ruolo: ognuno è misurato sui suoi.',
+    'P: la quota di calendario a voto che il motore gli prevede. Numero nudo, senza sconti.',
 };
 
 /**
@@ -1643,49 +1477,28 @@ export const RATING_HINT: Record<RatingKey, string> = {
  */
 export const RATING_DETAIL: Record<RatingKey, string> = {
   overall:
-    'È CROSS-RUOLO, e per esserlo davvero ogni ruolo è misurato sui suoi prima di finire nella stessa '
-    + 'classifica - come si fa normalmente con la fantamedia, dove un portiere si giudica sui portieri. '
-    + 'Serviva: i quattro rimpiazzi del foglio stanno a profondità diverse della loro pool (per i '
-    + 'portieri di Serie A i regolari sono meno degli slot di rosa, quindi lo zero è l\'ULTIMO titolare), '
-    + 'e così i portieri galleggiavano - mediana 66 contro il 40 dei centrocampisti - e insieme si '
-    + 'schiacciavano, i dodici migliori in dieci punti. Allineati: 58/51/46/47, e i portieri si '
-    + 'distanziano. Il prezzo, detto: si divide per la dispersione del ruolo, quindi a parità di posto un '
-    + 'attaccante porta più fantapunti di un difensore - i fantapunti veri sono nel tooltip della cella. '
-    + 'Come è fatto il numero grezzo: '
-    + 'le giornate a voto che il motore gli prevede × (voto + bonus e MALUS coi punti della tua lega + un '
-    + 'aggiustamento di costanza − il livello di RIMPIAZZO del suo ruolo, che dice il foglio del motore: '
-    + '4,13 per un portiere di Serie A contro 5,87 per un centrocampista). Lo zero non è zero perché al '
-    + 'suo posto un giocatore lo schieri comunque: contati da zero, tre giornate in più battevano mezzo '
-    + 'punto di qualità e un portiere titolare finiva in fondo al listone. È un PRODOTTO e non una media '
-    + '(la media delle quattro letture concorda 0,54 col surplus del motore, questo 0,81) e NON sconta i '
-    + 'minuti: chi esce al 70\' porta a casa tutto il fantavoto, ed è quella la differenza con la colonna '
-    + 'Presenze. Vuoto = il motore non gli prevede presenze, che non è uno zero.',
+    'È il TOTALE che porta: le giornate a voto che il motore gli prevede per la stagione che viene, per '
+    + 'quello che vale una sua partita nel punteggio della TUA lega (fantamedia attesa, con la porta '
+    + 'inviolata dei portieri dentro). La formula e quella che ha dettato lui il 17/08/2026: '
+    + '«presenze × (voti+bonus)» — e non sottrae nessun rimpiazzo: risponde a «quanti fantapunti mi '
+    + 'porta», non a «quanti in più del suo sostituto», che è la domanda del Surplus e del Lead. Per chi '
+    + 'il foglio non valuta affatto parla la CARRIERA e la nota della cella lo dichiara. Il numero grezzo '
+    + 'è nel tooltip; la colonna mostra il posto 0-99 su tutto il listone.',
   votes:
-    'Media voto di carriera, pesata sulle presenze di ogni stagione e - da cinque stagioni in su - '
-    + 'scartata la migliore e la peggiore. Dove una stagione non è sul listone entra il voto sintetico '
-    + 'calibrato.',
+    'La MVa del foglio: la media voto che il motore gli prevede, non quella che ha fatto. Classificata su '
+    + 'TUTTI i quotati (sua richiesta del 17/08/2026), e la conseguenza va detta: un portiere prende voti '
+    + 'base più alti per mestiere, quindi in questa colonna i portieri stanno in cima per il ruolo prima '
+    + 'che per il merito — mediane misurate per P/D/C/A: 87 / 36 / 45 / 55. Il ruolo è scritto sulla riga.',
   bonus:
-    'Quanto vale una sua partita OLTRE al voto, coi punti della TUA lega: gol e assist meno cartellini, '
-    + 'autogol e rigori sbagliati, e per un portiere i gol subiti meno le porte inviolate. Il +1 della '
-    + 'porta inviolata la FONTE non lo applica (misurato: su 16.017 righe di portiere il fantavoto del '
-    + 'sito torna esatto senza) ma la tua lega sì, ed è per questo che è qui. ATTENZIONE ALLA '
-    + 'DIFFERENZA CON L\'OVERALL: quello parte da FM att., che è la previsione del motore nel punteggio '
-    + 'della fonte, quindi la porta inviolata lì non c\'è né da una parte né dall\'altra. Le due colonne '
-    + 'sono coerenti ognuna con sé, e per un portiere non dicono lo stesso numero: allinearle vuol dire '
-    + 'rifare la previsione e il rimpiazzo col punteggio della lega, che è lavoro di motore e passa dal '
-    + 'gate.',
+    'La FMa del foglio: la fantamedia attesa, che CONTIENE il voto. Quindi non è il tasso di bonus (quello '
+    + 'sarebbe FMa − MVa) ma quanto vale una sua partita in totale, ed è per questo che la colonna somiglia '
+    + 'a Voti. Classificata su tutti i quotati: i punti evento di un portiere sono negativi per costruzione '
+    + '(i gol che subisce), quindi lì i portieri stanno in fondo — mediane 6 / 35 / 63 / 89.',
   presence:
-    'La quota di calendario che il motore gli prevede (engine_pv_pred, o la stima dichiarata), corretta '
-    + 'da quanti minuti sta in campo quando gioca. Guarda avanti e non indietro; gli infortuni sono già '
-    + 'dentro la previsione e non vengono contati due volte.',
-  consistency:
-    'Quante delle partite che gioca chiude con almeno 6 di voto base - reale dove c\'è, sintetico '
-    + 'calibrato dove manca. Prendere 6 è un evento diverso a seconda del ruolo (mediana: portieri 86%, '
-    + 'difensori 68%, centrocampisti 66%, attaccanti 60%), quindi dal 16/08/2026 il posto è misurato '
-    + 'DENTRO IL RUOLO e poi classificato con tutti: prima la colonna dava 91 di mediana ai portieri e '
-    + '24 agli attaccanti, cioè diceva il ruolo e non il merito. Nell\'Overall entra allo stesso modo, '
-    + 'come scarto dalla mediana del SUO RUOLO, e vale due punti di fantamedia per punto di scarto: una '
-    + 'correzione che si vede, non un verdetto.',
+    'La P del foglio: la quota di calendario a voto che il motore gli prevede (`engine_pv_pred`, o la '
+    + 'stima dichiarata, e allora la stellina è sfumata). Dal 17/08/2026 è il numero NUDO: non è più '
+    + 'corretta dai minuti che gioca quando gioca, né scontata dalla fragilità o da una nota dichiarata. '
+    + 'Quelle tre cose restano al tavolo come MARCHI accanto al nome, dove si leggono in parole.',
 };
 
 /** What the five stars mean, in the operator's own words. Said once, drawn wherever they are. */

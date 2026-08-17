@@ -29,6 +29,44 @@ def test_cli_parser_builds():
     assert parser.prog == "euroleghe-ingest"
 
 
+def test_every_option_the_parser_accepts_REACHES_the_module():
+    """Un flag parsato e non passato e' peggio di un flag che non esiste: il secondo da' errore.
+
+    E' successo due volte a questo dispatcher. `--tournament` si parsava e veniva scartato (spec «Novita'
+    v9.39»), e il 17/08/2026 e' successo a `--days`: una corsa da quattro ore lanciata con `--days 1100` ha
+    usato la finestra di default di 150 giorni e ha portato 797 eventi invece delle tre stagioni di coppe che
+    quella finestra serviva a raggiungere, senza che niente segnalasse niente. Questo test non guarda il
+    parser: guarda il SORGENTE del dispatcher, e chiede che ogni opzione dichiarata compaia nella chiamata
+    del suo comando. Grossolano di proposito - un `args.days` scritto e non usato lo passerebbe - ma prende
+    esattamente il difetto che e' costato due volte.
+    """
+    import inspect
+
+    from euroleghe_ingest import cli
+
+    source = inspect.getsource(cli.main)
+    # Le opzioni che il dispatcher deve inoltrare, per comando, e il perche' di ognuna e' che qualcuno le
+    # ha aggiunte al parser: se il branch non le nomina, il flag e' rumore.
+    wanted = {
+        "positions": ("layer", "days", "refresh", "season", "league"),
+        "injuries": ("layer", "limit", "refresh", "season"),
+        "performance": ("limit", "refresh", "season"),
+        "market": ("limit", "refresh", "all_seasons"),
+        "press": ("sheet", "against", "fetch_duels", "source", "observed_on"),
+        "zeros": ("platform", "game"),
+    }
+    for command, options in wanted.items():
+        head = 'args.command == "' + command + '":'
+        at = source.index(head)
+        rest = source[at + len(head):]
+        # Solo fino al branch SEGUENTE: un `else:` interno appartiene al branch (`market --from-cache`
+        # ne ha uno), e tagliare lì leggeva mezza chiamata e accusava un dispatcher innocente.
+        stop = rest.index('elif args.command') if 'elif args.command' in rest else len(rest)
+        body = rest[:stop]
+        missing = [one for one in options if f"args.{one}" not in body]
+        assert not missing, f"{command}: il dispatcher scarta {missing}"
+
+
 def test_a_summary_symbol_does_not_fail_a_run_on_a_narrow_console(capsys, monkeypatch):
     """The ⚑ of the departures line cost two snapshot runs their `ok` on 06/08/2026: the sheets were
     written, the console was cp1252, and `ingest_runs` recorded UnicodeEncodeError. Reproduced on the

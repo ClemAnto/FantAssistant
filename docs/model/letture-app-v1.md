@@ -1,5 +1,13 @@
 # Le letture dell'app — Overall e le quattro colonne (v1)
 
+> ⚠️ **REVISIONE DEL 17/08/2026 SERA — leggere prima [§9](#9-la-revisione-del-1708-sera-la-formula-dettata-dalloperatore).**
+> In una sera l'operatore ha riscritto queste colonne: l'**Overall** è `Presenze × (Voti + Bonus)`, senza
+> nessun rimpiazzo sottratto; **Voti, Bonus e Presenze** sono i tre numeri del FOGLIO (MVa, FMa, P)
+> classificati su **tutti i calciatori** e non dentro il ruolo; la **Costanza** non è più una colonna ma un
+> simbolo di varianza accanto ai Voti; le colonne si **trascinano** e l'ordine si ricorda. Quindi §1-§7
+> descrivono lo stato del 16/08 e restano per le MISURE che contengono - comprese quelle che spiegano cosa
+> si è perso: le decisioni in vigore sono quelle di §9.
+
 **Che cosa sono e che cosa NON sono.** Cinque numeri 0-99 che l'app mostra accanto a ogni nome — Overall,
 Voti, Bonus, Presenze, Costanza — e sono **REPORTING**: nessuna valutazione del motore li legge,
 nessun gate li possiede, nessuna lista d'asta ci ordina sopra. Sono le domande che l'operatore fa al
@@ -15,6 +23,9 @@ colonna risponde a una domanda vicina ma diversa.
 ---
 
 ## 1. L'Overall: che cos'è
+
+> **Superata il 17/08/2026**: la formula in vigore è quella di §9 e non contiene l'aggiustamento di costanza.
+
 
 `giornate a voto attese × (fantamedia attesa + aggiustamento di costanza − il rimpiazzo del suo ruolo)`
 
@@ -54,6 +65,10 @@ carriera), **Dybala 65 → 49** (6,72 atteso contro 7,70 fatti).
 
 ## 3. La costanza: il centro è il RUOLO, e il peso è 2 (16/08/2026)
 
+> **Superata il 17/08/2026**: la costanza non entra più nell'Overall e non è più una colonna. Le mediane
+> per ruolo qui sotto restano la ragione per cui il simbolo che l'ha sostituita è bandito DENTRO il ruolo (§9).
+
+
 Chiudere a 6 è un evento diverso a seconda di dove si gioca. Mediana della quota di partite con almeno 6
 di voto base, 498 quotati di Serie A:
 
@@ -77,6 +92,10 @@ mediana del suo ruolo. La colonna resta ordinata su tutto il listone (è la pool
 chiesto) ma la nota della cella porta ora la mediana del ruolo, o il numero si rilegge male.
 
 ## 4. L'allineamento fra ruoli: z dentro il ruolo, classifica su tutti (16/08/2026)
+
+> **Ritirato il 17/08/2026** su richiesta dell'operatore: ogni lettura è classificata su tutti i calciatori.
+> Le misure qui sotto restano vere e sono la ragione per cui la conseguenza va detta invece che scoperta (§9).
+
 
 **Il problema**, portato dall'operatore: «mettere tutti i primi portieri a 99 non ha senso, significa che
 tutti sono forti uguale». Classificato grezzo sul listone, il ruolo del portiere **galleggiava** (mediana
@@ -113,6 +132,10 @@ cella, ed è quella la scala.
   distanza; già a 0,7 ribalta Bremer e Kelly. E non allinea: mediane 49 / 59 / 45 / 39.
 
 ## 4-bis. Lo zero è il rimpiazzo che ENTRA, non il marginale di rosa (16/08/2026)
+
+> **Non è più lo zero dell'Overall dal 17/08/2026** (lo è il rimpiazzo del ruolo MANTRA, §9). Resta lo zero
+> della colonna «Lead» del foglio, che è la domanda per cui è stato misurato.
+
 
 **L'osservazione è dell'operatore** e parte da un caso di scuola: su tre partite, meglio un
 centrocampista che fa 6,5 / 7 / non gioca o uno che fa 6,5 / 7 / 6? La risposta non è «19,5 contro 13,5»,
@@ -259,6 +282,10 @@ strada esiste ed è un'altra: un bundle costruito dal toolkit per quella data.
 
 ## 5. La colonna Bonus è quanto vale una sua partita OLTRE al voto
 
+> **Superata il 17/08/2026**: la colonna Bonus classifica la FMa del foglio (§9.5). Quello che c'è scritto
+> qui resta la ragione per cui i punti evento di un portiere sono negativi, che vale ancora nel tooltip.
+
+
 Non solo gol e assist: **tutti** i termini che il `scoring_config` prezza, con i malus **sottratti** —
 cartellini, autogol, rigori sbagliati e, per un portiere, i gol subiti. Prima la colonna portava solo gol
 e assist, quindi ogni portiere leggeva zero mentre fra i portieri con 20+ presenze i gol subiti vanno da
@@ -302,6 +329,10 @@ mediane per ruolo 56 / 51 / 47 / 48, i primi dodici portieri in 17 punti.
 ---
 
 ## 6. Le icone, e le soglie che le hanno scelte
+
+> Le icone NON sono state toccate dalla revisione del 17/08: sono l'unico posto dove fragilità, infortunio
+> e nota dichiarata continuano a parlare, dopo che le tre letture hanno smesso di scontarle (§9.5).
+
 
 Ogni soglia è misurata sui 324 quotati di Serie A con 30+ presenze (15/08/2026), e quelle sui numeri rari
 chiedono anche un MINIMO di episodi, perché una quota su un episodio solo è sfortuna e non abitudine.
@@ -383,6 +414,275 @@ quando in lista c'è qualcuno esposto. Sta scritto qui perché le regole sono le
 
 ---
 
+## 7-ter. MERCATO: il prezzo dell'altro tavolo, e una tendenza che non è una graduatoria (17 agosto 2026, sera)
+
+Colonna nuova accanto all'FVM, **reporting e nient'altro**: il valore di mercato Transfermarkt alla data,
+più una freccia sulla tendenza a dodici mesi. Nasce dal residuo del 16/08 («usare la curva del valore») e
+l'altra metà di quella voce è chiusa in senso negativo — il canale dell'investimento con l'input riparato è
+stato **respinto dal gate** (§7-untricies) — quindi qui la curva si **legge** e non prevede niente: nessuna
+valutazione, nessuna classifica, nessuna delle cinque letture 0-99 la tocca.
+
+**Perché sta accanto all'FVM.** Sono due giudizi sulla stessa persona da due tavoli diversi: l'FVM è il
+prezzo che il **listone chiede**, il valore di mercato è quello che il **mercato vero** gli ha dato, con la
+data di ogni variazione. La differenza fra i due è l'unica cosa che un'asta può usare, e nessuno dei due è
+un nostro numero.
+
+**La freccia è una DIREZIONE e mai una graduatoria, e questo è misurato.** Una variazione in percentuale
+dipende dalla base. Sui **1.092** quotati 2026-27 che hanno un anno di curva alle spalle (17/08/2026):
+
+| quartile del valore di un anno prima | mediana della variazione a 12 mesi | nono decile |
+|---|---|---|
+| sotto 3,5 M | **+50%** | **+1.614%** |
+| 3,5 – 12 M | +0% | +191% |
+| 12 – 28 M | +0% | +100% |
+| sopra 28 M | **−9%** | +43% |
+
+Ordinare per tendenza metterebbe in cima i ragazzi che passano da 200 mila a 3 milioni: vero, e non è la
+domanda di un'asta — è la stessa lezione dei portieri (§4), *un numero deve dire di quale pool è un fatto*.
+Quindi la cella porta il **valore in euro** (che rende visibile la base), la colonna si ordina **per
+valore**, e la percentuale con le sue due date sta nel tooltip.
+
+**Le costanti, dichiarate come le due soglie degli infortuni** (`core/market-trend.ts`): finestra **12
+mesi** — una stagione, quindi confronta un uomo con sé stesso in un momento comparabile del calendario e
+contiene più di un'ondata della fonte (mediana 3 punti in dodici mesi) — e banda **±15%**, che sui 1.092
+produce **38,6% in salita · 24,1% ferma · 37,7% in discesa**. Sono scelte di VISUALIZZAZIONE: non entrano in
+nessuna valutazione e nessun gate le possiede.
+
+**Tre regole che la colonna eredita dal resto dell'app.**
+
+* **«Ignoto» non è «ferma».** Senza un punto a dodici mesi la tendenza non si scrive: il valore c'è, la
+  freccia no. Sono **26 quotati su 1.175** — chi è appena entrato nel giro della fonte — e altri **57** non
+  hanno curva affatto, cioè non hanno identità Transfermarkt. Una freccia «→» su di loro sarebbe una notizia
+  inventata dal silenzio.
+* **Due date e nessuna delle due si presume.** La fonte muove i valori a ondate: l'ultimo punto ha in
+  mediana **77 giorni** (massimo 95). Non è vecchio, è l'ultimo che esiste, e oltre il mese il tooltip dice
+  da quanto. La curva si ritaglia poi al giorno del **viaggio nel tempo**, quindi la colonna torna indietro
+  con tutto il resto di ciò che nel bundle è datato.
+* **Il colore va nel verso del MERCATO, non del nostro interesse.** Verde sale, ambra scende — e sta sulla
+  **freccia** e non sulla cifra, perché colora la notizia («il mercato si è mosso») e non un consiglio: un
+  valore che scende è spesso un uomo che costa poco.
+
+Verificato chiamando la funzione e non guardando lo schermo: Carnesecchi 30 M **↑** (+20% su 25 M del
+17/06/2025), Maignan 20 M **↓** (−20%), Svilar 35 M **↑** (+40%), Christensen O. 1,4 M **→** (−7%, dentro la
+banda). Il dato viaggia nel bundle con uno scope nuovo — datato, tagliato un anno prima della finestra
+`heavy` e col punto portato avanti, così nessuno perde il suo livello: spec «Novità v9.40».
+
+---
+
+---
+
+## 9. La revisione del 17/08 sera: la formula dettata dall'operatore
+
+Quattro decisioni sue, dettate una dopo l'altra, e per ognuna quello che ho MISURATO dopo averla applicata.
+Sono decisioni di PRODOTTO su colonne di reporting: nessun gate le possiede, `engine_*` non si muove di un
+decimale e `backtest --verify` resta 22/22.
+
+### 9.1 L'Overall è `Presenze × (Voti + Bonus)` — e il rimpiazzo mantra è durato un'ora
+
+**La formula in vigore, ultima parola della serata**: «facciamo che overall è semplicemente presenze ×
+(voti+bonus)». Nessuno zero sottratto, quindi la colonna dice **quanti fantapunti porta in tutto** e non
+quanti ne porta in più di qualcuno — quella domanda ce l'hanno già il Surplus e il Lead, ognuno col suo zero.
+Il numero grezzo è nel tooltip, la colonna mostra il posto 0-99 su tutto il listone.
+
+Conseguenza da dire, perché non la scopra nessuno al tavolo: senza rimpiazzo, la **porta inviolata** del
+portiere resta su UN SOLO lato del conto (la sua). Prima entrava su tutt'e due proprio per non regalarla; ora
+non c'è un altro lato, quindi il numero è «quanto vale una sua partita nella TUA lega» e la porta inviolata
+ne fa parte per definizione.
+
+E la colonna coincide quasi con **Fantapunti** (`fantamedia attesa × presenze attese`): è la stessa
+grandezza, una come numero e una come posto 0-99, e le sole differenze sono la porta inviolata dei portieri
+e il ripiego di CARRIERA per chi il foglio non prezza. Va saputo: due colonne che dicono la stessa cosa sono
+una scelta, non una scoperta.
+
+### 9.1-bis Il rimpiazzo del RUOLO MANTRA: provato, misurato, superato in un'ora (e la misura resta)
+
+Parole sue: «Overall deve essere uguale a Presenze × (Voti+Bonus−Rimpiazzo) dove il Rimpiazzo è calcolato
+sull'intera lega su ruoli mantra». Tre conseguenze, tutte volute:
+
+1. **via l'aggiustamento di costanza** (§3): la formula non lo contiene, quindi `CONSISTENCY_TILT` è stato
+   cancellato e non messo a zero — un parametro che nessuno legge è un parametro che il prossimo lettore
+   crede attivo;
+2. **lo zero non è più il rimpiazzo che si SCHIERA** (§4-bis) ma `engine_replacement_fm` letto sul foglio
+   **mantra** della stessa piattaforma, cioè il marginale della pool del suo slot. Non lo ricalcola l'app:
+   i posti per CODICE mantra li conosce il regolamento, non questa tabella. Su Serie A il pannello lavora
+   sul foglio classico (è quello che porta i campetti) e il numero arriva dal foglio mantra della stessa
+   lega — copertura misurata: **498 quotati su 498**;
+3. **niente più z dentro il ruolo** (§9.2): sottraendo a ognuno il marginale della SUA pool il numero è già
+   comparabile, e standardizzarlo di nuovo dividerebbe una seconda volta per la dispersione del ruolo.
+
+**I dodici zeri, misurati sul foglio mantra di Serie A 2026-27:** `por` 4,13 · `dd` 5,67 · `ds` 5,73 ·
+`e` 5,66 · `dc` 5,85 · `c` 5,79 · `w` 6,30 · `t` 6,60 · `a` 6,85 · `pc` **7,01**. Contro i quattro
+classici: P 4,13 · D 5,66 · C 5,87 · A 5,61.
+
+⚠️ **E qui c'è la conseguenza che va detta, perché è grossa e va nella direzione opposta a quella di ieri.**
+Ricalcolando la formula sul foglio (498 quotati di Serie A, `pv/38 × (fm − zero)`), le mediane del
+percentile per ruolo e i primi venticinque:
+
+| zero usato | mediane P / D / C / A | primi 25 |
+|---|---|---|
+| rimpiazzo mantra (**in vigore**) | **77 / 46 / 56 / 11** | **P14 · C9 · D1 · A1** |
+| rimpiazzo classico del foglio | 59 / 32 / 37 / 86 | A18 · P6 · D1 |
+| allineato per ruolo (16/08, ritirato) | 58 / 51 / 46 / 47 | P6 · D7 · C6 · A6 |
+
+Il meccanismo è quello di §4 con dodici pool invece di quattro: la pool dei `pc` è **corta e alta** (il
+marginale è 7,01, cioè un centravanti vero), quindi quasi ogni attaccante sta sotto il proprio rimpiazzo;
+la pool dei `por` è lunga e bassa (il trentesimo portiere di dieci squadre è un terzo portiere, 4,13),
+quindi ogni titolare la sovrasta. Otto nomi su venticinque restano gli stessi; i primi otto ora sono
+Svilar, Carnesecchi, Dimarco, Maignan, Butez, Falcone, Caprile, Calhanoglu. **È la formula che è stata
+chiesta e produce l'effetto che il 16/08 era stato chiamato difetto** («mettere tutti i primi portieri a 99
+non ha senso»): sta scritto qui perché la decisione sia in chiaro, non perché sia stata disattesa.
+
+Le due strade note che lo curerebbero erano quelle già misurate e già rifiutate una volta: i posti
+**schierati** per slot mantra (il decimo portiere invece del trentesimo) oppure zeri alla stessa distanza
+dall'ancora del ruolo (§4, «Due strade rifiutate»). **Non è stata presa nessuna delle due**: messa la misura
+davanti all'operatore, ha scelto di togliere lo zero e basta (§9.1). La misura resta scritta qui perché è la
+prova che tre zeri diversi danno tre classifiche diverse, e nessuno dei tre è «il» giusto — dipende dalla
+domanda, che è la lezione di §4-bis.
+
+### 9.2 Voti, Bonus e Presenze si classificano su TUTTI i calciatori
+
+Parole sue: «il valore di VOTI, BONUS e PRESENZE deve essere calcolato in relazione a tutti i calciatori e
+non al suo ruolo». `alignedRank99` è stata **cancellata** (nessun chiamante) e le tre letture usano
+`rank99` sul listone. La conseguenza è esattamente quella che quella funzione evitava, ed è misurata al
+16/08: mediane per ruolo del punteggio, 499 quotati di Serie A — **BONUS 6 / 35 / 63 / 89** (i punti evento
+di un portiere sono negativi per costruzione: contengono i gol subiti), **VOTI 87 / 36 / 45 / 55**. Quindi
+in Bonus i portieri stanno in fondo e in Voti in cima, **per il ruolo prima che per il merito**. Il ruolo
+però è scritto sulla riga, e il confronto fra ruoli lo fa l'Overall: è la ragione per cui la richiesta tiene.
+
+### 9.3 La Costanza esce dalle colonne e diventa un simbolo di VARIANZA accanto ai Voti
+
+Parole sue: «Costanza eliminiamola come colonna e trasformiamo il valore in un simbolo vicino al voto che
+deve indicare la varianza: grande, media (nessun simbolo), piccola». Il simbolo dice quello che dichiara:
+la **deviazione standard dei voti** che ha davvero preso — non la quota di partite chiuse col 6, che era la
+Costanza e che viaggia nel tooltip insieme alla sd e alle due soglie.
+
+**Le bande sono DENTRO IL RUOLO, e la ragione è misurata** (17/08/2026, 359 quotati di Serie A con almeno
+dieci voti su due stagioni di calendario Serie A): sd mediana **P 0,569 · D 0,598 · C 0,579 · A 0,715**. Un
+attaccante balla di più per mestiere — segna o non segna — quindi bande comuni avrebbero marcato «varianza
+grande» su mezzo reparto d'attacco, cioè avrebbero detto il RUOLO e non l'uomo (la lezione del canale
+dell'età, ancora). Prende un simbolo il **quinto** più stabile (`≡`) e il quinto più ballerino (`↕`) del suo
+ruolo, il 60% in mezzo niente; le soglie si prendono dalla POOL su cui la tabella lavora — il listone, non
+le righe a schermo — e un ruolo con meno di venti uomini misurati non si bandisce affatto. Scelta di
+visualizzazione dichiarata in `player-ratings.ts`, come le due soglie degli infortuni.
+
+### 9.5 Voti, Bonus e Presenze SONO le colonne del foglio: MVa, FMa, P
+
+Parole sue: «Il valore Voti (0-99) deve essere calcolato su MVa · Il valore Bonus (0-99) su FMa · il valore
+Presenze (0-99) su P». Quindi le tre letture non sono più tre misure di CARRIERA pesate e ancorate: sono i
+tre numeri che il motore prevede, classificati sul listone. Che cosa cambia il senso di ognuna:
+
+* **VOTI** era la media voto di carriera (pesata sulle presenze, troncata da cinque stagioni in su); ora è la
+  media voto **attesa** (`est_mv`);
+* **BONUS** era quanto valgono i suoi eventi a presenza (gol e assist MENO cartellini, autogol e i gol
+  subiti dal portiere); ora classifica la **fantamedia attesa**, che contiene il voto. Va detto: il tasso di
+  bonus vero sarebbe `FMa − MVa`, e questa colonna non è quello — è per questo che somiglia a Voti;
+* **PRESENZE** era la quota di calendario prevista **corretta** dai minuti che gioca quando gioca, scontata
+  della fragilità e della nota dichiarata; ora è la quota **nuda**.
+
+**Che cosa è stato cancellato con loro**, perché nessuno lo ricostruisca credendo che manchi: il blend con
+l'ANCORA del ruolo tirata verso il livello del club (era «ogni calciatore deve avere il suo numero» applicato
+alle letture), i minuti quando gioca, lo sconto di FRAGILITÀ sull'eccesso rispetto alla mediana del listone,
+la concavità sul POSTO da titolare, la penale della NOTA DICHIARATA. Le misure che li avevano scelti restano
+in §5-§7. Quello che NON si è perso è l'informazione: infortunio lungo, rientro recente, fragilità e fuori
+rosa sono i **marchi** accanto al nome, che le dicono in parole invece che in un numero. La carriera resta,
+ma solo come RIPIEGO dell'Overall per chi il foglio non valuta affatto, e la nota della cella lo dichiara.
+
+### 9.7 Niente paginazione: le righe arrivano scorrendo (lazy load)
+
+Richiesta sua: «nella vista calciatori riusciamo a togliere la paginazione e a mettere un lazyload?». Le due
+tabelle della vista — Ultime partite e Valutazioni — mostrano le prime **60** righe e ne aggiungono 60 quando
+lo scorrimento arriva a 500px dal fondo (`core/lazy-rows.ts`, costanti dichiarate lì). La paginazione è via
+per davvero: `nzFrontPagination` resta **false** e non è un pager nascosto — col pager soltanto nascosto la
+tabella mostrava i primi dieci di una rosa di 26 mentre il conteggio diceva 26, che è il difetto già pagato.
+
+Due cose che sono requisiti e non rifiniture. **Il conteggio non mente**: sotto la tabella c'è sempre «X di Y
+a schermo — scorri per gli altri», e quando finiscono «Y calciatori, tutti a schermo». E **la finestra si
+riazzera quando la lista cambia**: filtrare per ruolo restando al quattrocentesimo rigo mostrerebbe righe
+nuove sotto una posizione vecchia.
+
+Perché non lo scroll virtuale di ng-zorro: vuole un'altezza di riga FISSA, mentre qui una riga cresce con i
+badge dei ruoli e con le icone — e una misura sbagliata là non «sposta un po'», salta righe.
+
+**Verificato funzionalmente** (uno screenshot mostra righe, non mostra che ne arrivano altre): guidando Chrome
+via CDP, la tabella parte con 60 righe e **zero** elementi di paginazione, e ogni scorrimento al fondo ne
+aggiunge 60 — 60 → 240 → 300 → 360 → 420 su 499 — con la frase che segue il conteggio a ogni passo.
+
+### 9.8 Una sola barra di scorrimento, e le intestazioni restano in alto
+
+Richieste sue, la sera stessa: «non ci deve essere il doppio scroll» e «le etichette delle colonne sticky
+top». Sono la stessa cosa vista da due lati, e la trappola è di CSS.
+
+Com'era: `nzScroll` dava alla tabella un suo scorrimento verticale (`calc(100vh - 22rem)`) DENTRO una pagina
+che scorreva a sua volta — due barre, e col lazy load due barre che crescono. Il primo tentativo ha tolto solo
+l'asse Y e messo `position: sticky` sulle `th`: **misurato, non funzionava** — dopo 1200px di pagina la testa
+era a **−952px**. La ragione è la specifica: un `overflow-x: auto` porta con sé l'asse Y (un `overflow-y:
+visible` accanto viene calcolato `auto`), quindi quel contenitore restava l'ancora dello sticky e se ne andava
+con la pagina.
+
+Com'è: la tabella **non sta in nessun contenitore che scorre** (`overflow: visible` su `.ant-table-content` e
+`.ant-table-body`, e la larghezza delle colonne accese diventa un `min-width`), quindi scorre la PAGINA nei due
+assi — una barra per asse — e lo sticky si ancora al viewport, dove funziona. Verificato misurando: **nessuno
+scroller verticale interno** su 16.335 elementi esaminati, e la prima `th` a **0px** dopo 1200px di
+scorrimento (era −952). Il prezzo, detto: con molte colonne accese la pagina scorre anche di lato, e in quel
+caso R e Nome scorrono via con le altre — appuntarle è un lavoro a sé (`nzLeft`), non è stato fatto.
+
+### 9.9 Il trascinamento: l'«effetto strano al rilascio», misurato e curato
+
+Segnalato da lui e riprodotto in e2e con CDP, che è il solo modo di vedere un'animazione: al rilascio, per
+qualche frame, **quattro intestazioni restavano traslate di 64px** (`matrix(1,0,0,1,64,0)`) mentre l'ordine
+era già cambiato. Il meccanismo: mentre trascini, CDK sposta i vicini con un `transform` inline e al rilascio
+li ripulisce **un tick dopo**, quando Angular ha già ridisegnato la riga nell'ordine nuovo riusando gli stessi
+nodi — quindi si vedono celle nuove con lo spostamento della posizione vecchia. Cura: azzerare i `transform`
+nello stesso frame in cui l'ordine cambia, dentro `dropColumn`.
+
+Due cose provate e scartate, con la misura accanto. Mettere l'anteprima DENTRO la riga
+(`cdkDragPreviewContainer="parent"`) la fa disegnare bene mentre viaggia, ma al rilascio CDK la fa **rientrare
+volando** (in e2e: un transform di 439x248 con l'ordine già cambiato) — cioè peggiora esattamente il momento
+da curare. Un'anteprima nostra (`*cdkDragPreview`) non si applicava affatto, perché quel template vale solo
+DENTRO l'elemento trascinato. Quello che ship: anteprima fuori dalla riga (il default), vestita dal CSS e
+**senza transizione**, così al rilascio sparisce dov'è invece di tornare indietro.
+
+Misurato dopo la cura, e sono le tre cose che il difetto lasciava a schermo: al rilascio **0 transform
+residui, 0 anteprime, 0 placeholder**, ordine già quello nuovo, 19 intestazioni e 19 celle. E col caso che lui
+ha segnalato subito dopo — «le colonne si possono anche selezionare e deselezionare» — con MVa e FVM spente:
+17 intestazioni e 17 celle prima e dopo, zero residui, e le due chiavi spente **ancora nell'ordine salvato**,
+così riaccendendole tornano dove erano. La regola dell'ordine è ora una funzione pura (`orderColumns`) con
+quattro test, perché «una colonna nuova non deve nascere in coda» e «una chiave che questa vista non offre non
+deve spostare le altre» sono due cose che si rompono in silenzio.
+
+### 9.6 Le colonne si trascinano, e l'ordine si ricorda
+
+Richiesta sua: drag&drop, «l'ordine deve essere memorizzato in localStorage». La riga di intestazione è una
+drop list orizzontale (CDK), ogni intestazione opzionale è trascinabile, e l'ordine finisce in
+`fantassistant.squad.order` insieme alle colonne spente — quindi vale in tutt'e due le tabelle (listone e
+rosa) e sopravvive al refresh, come la scelta di quali colonne vedere.
+
+Due cose per chi ci mette mano:
+
+* **R e Nome non si trascinano**: sono l'identità della riga. Conseguenza visibile, e va detta perché cambia
+  il colpo d'occhio: «Mantra» prima stava FRA R e Nome, ora è la prima colonna trascinabile dopo il nome.
+* **Il template è diventato un ciclo** su `visible()` con uno `@switch` per chiave, per l'intestazione e per
+  la cella: era l'unico modo di far seguire alle celle l'ordine delle teste. Se si aggiunge una colonna
+  bisogna aggiungerne il `@case` in tutt'e due i posti, e il test conta che le due file abbiano lo stesso
+  numero di elementi.
+
+**Verificato funzionalmente e non a occhio** (uno screenshot non mostra un trascinamento): guidando Chrome
+via CDP, «Surplus» trascinato sopra «Mantra» cambia l'ordine a schermo, la chiave in `localStorage` viene
+riscritta con l'ordine completo, e le celle della prima riga restano **19 come le intestazioni**. Il primo
+tentativo NON funzionava - `cdkDrag` era su un `<ng-container>`, che non ha elemento e quindi non ha nulla
+da trascinare - ed è il genere di difetto che uno screenshot dichiara sano.
+
+### 9.4 I nomi delle colonne, e le due che sono state tolte
+
+`FM att.` → **FMa**, `MV att.` → **MVa**, `Margine` → **Lead** (sue, 17/08/2026): il filtro usa le stesse
+parole della tabella, o l'elenco dei filtri e l'intestazione finiscono per chiamare due cose con un nome
+solo. E le due colonne al netto della coppa — `Surplus −C` e `Margine −C`, nate la mattina — **sono state
+tolte la sera stessa**: il fatto resta dove è misurato (il foglio porta `desc_surplus_cup` e
+`desc_surplus_fielded_cup`, il globo accanto al nome dice chi parte e il tooltip delle presenze attese dice
+quante giornate costa), quindi non si è perso niente e la tabella ha due colonne in meno.
+
+---
+
 ## 8. Aperti
 
 1. **`season_stats.clean_sheets`** — derivabile da `match_ratings` per tutte e 11 le stagioni, nessun
@@ -394,7 +694,10 @@ quando in lista c'è qualcuno esposto. Sta scritto qui perché le regole sono le
    valore alla data d'asta e 1.056 ne hanno due o più nell'ultimo anno**, cioè una tendenza leggibile —
    che è l'input che il gate segnalava rotto (canale dell'investimento: «sistemare l'input prima di
    toccare il peso»). `market_values`, un valore per stagione, resta dov'è: risponde a un'altra domanda.
-   Nessuno lo legge ancora, e infatti non viaggia nel bundle: aggiungerlo all'app è una decisione a sé.
+   **E il 17/08/2026 la curva è arrivata all'app** (§7-ter): in DB sono **3.323 curve e 85.061 punti** —
+   cresciute con l'acquisizione allargata che ha tolto il filtro di sopravvivenza per l'harness
+   (§7-untricies) — di cui **26.314 viaggiano** nel bundle, tagliati un anno prima della finestra `heavy`.
+   Come CANALE invece è chiusa in senso negativo, e quella misura sta nel gate.
 3. **Minuti per competizione e in nazionale** — le pagine ci sono e rispondono 200, ma la tabella non è
    nell'HTML: c'è un **muro di consenso** e i dati arrivano solo dopo. Il prefisso `/x/` che salva il
    modulo infortuni lì non basta (provate quattro forme). La strada seria è registrare le chiamate che la

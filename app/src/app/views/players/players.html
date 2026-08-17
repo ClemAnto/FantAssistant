@@ -265,7 +265,6 @@
         [lines]="store.lines()"
         [columns]="store.columns()"
         [crests]="store.crests()"
-        [pageSize]="30"
       />
     } @else {
       <!-- Le stesse colonne della vista SQUADRE, e lo STESSO componente: una rosa e tutto il listone
@@ -289,8 +288,7 @@
           [platform]="store.platform()"
           [crests]="store.crests()"
           [showClub]="true"
-          [pageSize]="30"
-        />
+          />
         <p class="text-xs text-muted">
           Qui la <span class="text-fg">stagione</span> non si sceglie e il periodo non c'entra: le
           colonne misurate sono quelle del bundle, quelle attese sono la previsione del motore per la

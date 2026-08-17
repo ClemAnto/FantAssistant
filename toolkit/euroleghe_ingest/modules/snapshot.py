@@ -246,7 +246,28 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      surplus al netto (`desc_surplus_cup`, `desc_surplus_fielded_cup`), con la stessa penale di
 #      confidenza dei gated: senza quella la coppa sembrava PAGARE su una riga stimata.
 #      Il POST-TORNEO estivo è stato misurato e RIFIUTATO (+0,06 e +0,02 su due finestre, segno opposto).
-SHEET_REVISION = 24
+#  25  17/08/2026, notte - CHI E' IN ROSA LO DECIDE SOFASCORE, e il foglio OBBEDISCE. Fino a qui la regola
+#      era l'opposto e sta scritta in CLAUDE.md: «il listone e' l'autorita' del gioco su chi e' in rosa -
+#      e' quello da cui compri - quindi una contraddizione si RIPORTA e non si applica», e la riga restava
+#      al suo club con un `⇥`. L'operatore l'ha ribaltata («l'autorita' di chi e' in rosa e' sofascore»),
+#      quindi un uomo che i due segnali indipendenti dicono partito ESCE dal foglio: non e' comprabile da
+#      quel club, e una riga comprabile che non lo e' e' peggio di una riga in meno. Misurato sui fogli di
+#      oggi: Serie A 53 righe in meno (36 da un trasferimento che nomina la destinazione, 17 dalla rosa
+#      live), euro 63 (29 + 34). IL COSTO VA DETTO: il segnale della rosa live ha precisione misurata
+#      **83,1%** al gate di completezza (`SQUAD_COMPLETENESS` 0.90, 172 assenze), quindi circa un uomo su
+#      sei fra quelli tolti per assenza c'e' ancora - prima quel costo lo pagava la board, che lo
+#      escludeva gia', e adesso lo paga anche la lista d'asta. Reversibile a ogni corsa: `--keep-departed`
+#      rimette la vecchia regola, e la nota del foglio dice sempre quanti e chi.
+#  26  17/08/2026, notte tarda - LE RIGHE SONO LE ROSE OSSERVATE e non piu' i soli quotati: «quando fai lo
+#      snapshot devi vedere tutti i calciatori in rosa a prescindere se e' quotato o meno nel listone»
+#      (operatore). Il modo `squad` di `features.load`: il CLUB e il CAMPIONATO vengono dalla rosa che la
+#      fonte legge ogni giorno, le quotazioni dal listone per chi ce le ha, e chi la fonte non ha mai visto
+#      tiene il club del listone (ignoto non e' partito). Il caso che lo ha deciso e' Molina: quotato
+#      all'Atletico sul listone euro, alla Roma dal 14/08 secondo la fonte, quindi prima non esisteva sul
+#      foglio Serie A e su euro era all'Atletico. Misurato sulla finestra Serie A di quel giorno: 499 righe
+#      quotate contro **730** osservate. `--listone-only` torna al foglio di prima. Il gate non si muove: il
+#      suo `squad_source` resta `listone` e un test lo asserisce.
+SHEET_REVISION = 26
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
@@ -2680,6 +2701,27 @@ def live_squads(conn, date: str) -> dict[str, dict]:
     return out
 
 
+def live_club_of(conn, date: str) -> dict[int, tuple[str, str]]:
+    """{fc_id: (club, giorno)} - IL CLUB IN CUI LA FONTE LO VEDE, la lettura piu' recente al `date`.
+
+    Serve perche' «l'autorita' di chi e' in rosa e' sofascore» (operatore, 17/08/2026) e la fonte non dice
+    soltanto «non e' piu' qui»: dice DOVE E'. La prima versione di quella regola leggeva l'assenza come
+    «non comprabile» e toglieva la riga; misurato sui fogli del giorno, di 20 tolti su euro **6 erano falsi**
+    (la fonte lo da' ancora al suo club: il payload di un giorno dopo non lo elencava) e **8 erano
+    SPOSTATI** in un club che la piattaforma gioca - Molina alla Roma, Bruno Guimaraes all'Arsenal, Araujo al
+    Liverpool. Toglierli era sbagliato due volte: uno c'e', l'altro si compra ancora.
+
+    Un uomo che compare in due payload - il vecchio club e il nuovo - vale per il piu' RECENTE, e chi la
+    fonte non ha mai visto non ha club qui: ignoto, e allora l'autorita' non ha parlato.
+    """
+    out: dict[int, tuple[str, str]] = {}
+    for fc_id, club, observed in conn.execute(
+            "SELECT fc_id, club, MAX(valid_from) FROM squad_snapshot WHERE source = 'sofascore' "
+            "AND valid_from <= ? GROUP BY fc_id", (date,)):
+        out[int(fc_id)] = (club, observed)
+    return out
+
+
 def complete_squads(live: dict[str, dict], observations, known: set[int],
                     completeness: float = SQUAD_COMPLETENESS) -> dict[str, dict]:
     """The payloads whose SILENCE is evidence: those covering `completeness` of the squad the sheet shows.
@@ -3728,6 +3770,10 @@ PLAYER_COLUMNS: tuple[str, ...] = (
     "desc_spm", "desc_dvm",
     # a TRANSFER says he has left the club this row shows him at (see `departures`): reported, never applied
     "desc_left_for", "desc_left_on",
+    # DOVE LA FONTE LO VEDE oggi, con il giorno della lettura: l'autorita' su chi e' in rosa (regola
+    # dell'operatore del 17/08/2026). Non e' il club della RIGA - i numeri del motore sono calcolati su
+    # quello del listone - ed e' per questo che sono due colonne e non una sostituzione.
+    "desc_live_club", "desc_live_club_on",
     # descriptive, NOT gated
     "desc_form_club_matches", "desc_form_measured", "desc_form_played", "desc_form_unused",
     # ...and the split of `unused` the bench rows made measurable: NAMED and not used, against not in
@@ -4518,7 +4564,8 @@ def refresh_real_roles(ctx: Context, clubs, date: str, progress: Progress | None
 
 def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
         game: str = "classic", refresh: bool = True, out: str | None = None,
-        date: str | None = None, clubs=None, league: str | None = None, **kwargs) -> dict:
+        date: str | None = None, clubs=None, league: str | None = None,
+        keep_departed: bool = False, listone_only: bool = False, **kwargs) -> dict:
     """Build the auction snapshot. Read-only on the DB except for the editorial refresh.
 
     `league` names one of the leagues declared in `config/league_config.json`, and it is the whole
@@ -4527,6 +4574,18 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
     `platform` and `game` come from it and the arguments are ignored - one name cannot mean two sheets.
     Without one, the two dimensions are read straight and the league setup is whatever the config file
     states at top level, which is what this module did before leagues had names.
+
+    `listone_only` goes back to a sheet of the QUOTED men alone. By default the rows are the OBSERVED
+    SQUADS - «tutti i calciatori in rosa a prescindere se è quotato o meno nel listone» (the operator,
+    17/08/2026) - so a man the listone has not moved yet appears at the club the provider sees him in, and a
+    man nobody quotes appears with no price and his declared estimate. Measured on the Serie A window of
+    that day: 499 quoted rows against 730 observed.
+
+    `keep_departed` puts back the men who are no longer in the squad the listone lists them at. By default
+    they are OUT: the authority on who is in a squad is the provider that reads it every day, not the listone
+    (the operator's rule of 17/08/2026, which reverses the previous one - the sheet used to keep them with a
+    `⇥` and let the board exclude them alone). The flag exists because the live-squad signal is 83.1%
+    precise, not 100%, and a decision that costs something must stay revocable at every run.
 
     `date` stands the whole sheet on a chosen DAY: the last ten matches are the ten before it, the squads
     and the availability are the ones known then, and the descriptive layers are measured on the season so
@@ -4600,7 +4659,13 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
         derive_squads(ctx, window.auction_date, window.target_season)
     progress.stage("prepare")
     data = features.prepare(conn, window, platform, game, league=setup,
-                            squad_source="real",
+                            # «TUTTI i calciatori in rosa, a prescindere se è quotato o meno nel listone»
+                            # (operatore, 17/08/2026): la rosa OSSERVATA decide chi c'è e in che club, il
+                            # listone dà il prezzo a chi ce l'ha. Era `real`, che aggiungeva solo i NON
+                            # quotati e lasciava il club del listone a tutti gli altri - quindi Molina
+                            # restava all'Atlético su euro e non esisteva affatto sul foglio Serie A, pur
+                            # essendo alla Roma dal 14/08. `--listone-only` torna al foglio dei soli quotati.
+                            squad_source="listone" if listone_only else "squad",
                             # Il regolamento del GIOCO, per il secondo zero (`features.fielded_places`):
                             # quanti posti per ruolo schiera un undici. È configurazione letta, non una
                             # misura, e serve solo alle due colonne `desc_*_fielded`.
@@ -4846,7 +4911,50 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
         perimeter = None
     progress.stage("rows")
     rows = build_rows(conn, data, predictions, layers, perimeter, window, platform)
-    dropped = len(data.observations) - len(rows) if perimeter is not None else 0
+    # CHI NON E' PIU' IN ROSA ESCE DAL FOGLIO (operatore, 17/08/2026: «l'autorita' di chi e' in rosa e'
+    # sofascore»). Prima restava con un `⇥` perche' l'autorita' era il listone; ora l'autorita' e' la fonte
+    # che vede la rosa ogni giorno, e una riga che si puo' comprare da un club dove non c'e' e' peggio di una
+    # riga in meno. La board lo escludeva gia': era il foglio a non obbedire.
+    # L'AUTORITA' DICE DOVE E', NON SOLO CHE NON E' PIU' LI' (operatore, 17/08/2026, e la prima versione di
+    # questa regola sbagliava proprio qui). Quindi si toglie dal foglio SOLTANTO chi la fonte vede in un club
+    # che questa piattaforma non gioca: chi la fonte vede ancora al suo club resta (il marchio era un falso
+    # positivo del payload di un giorno), e chi si e' spostato dentro il perimetro resta comprabile - la riga
+    # porta il club del listone, perche' ogni numero del motore e' calcolato su quello, e `desc_live_club`
+    # dice dove la fonte lo vede. Un'etichetta che dicesse Roma su numeri dell'Atletico sarebbe il difetto
+    # «una lista mostrata i cui numeri descrivono un'altra lista».
+    seen_at = live_club_of(conn, window.auction_date)
+    for row in rows:
+        where = seen_at.get(row["fc_id"])
+        if where:
+            row["desc_live_club"], row["desc_live_club_on"] = where
+    def _still_buyable(row) -> bool:
+        where = seen_at.get(row["fc_id"])
+        if not where:
+            return True            # la fonte non ha parlato: ignoto, non partito
+        return perimeter is None or _club_key(where[0]) in {_club_key(one) for one in perimeter}
+    departed = [row for row in rows
+                if row.get("desc_left_for") and not _still_buyable(row)]
+    stayed = [row for row in rows if row.get("desc_left_for") and _still_buyable(row)]
+    if departed and not keep_departed:
+        gone = {id(row) for row in departed}
+        rows = [row for row in rows if id(row) not in gone]
+        notes.append(
+            f"⚑ {len(departed)} players were REMOVED from the sheet: the provider that reads the squads "
+            f"every day has them at a club this platform does not play. The authority on who is in a squad "
+            f"is that provider and not the listone (the operator's rule of 17/08/2026, which REVERSES the "
+            f"previous one: the sheet used to keep them with a mark). What is NOT removed, and it is the "
+            f"half the first version of this rule got wrong: {len(stayed)} men also carry a departure mark "
+            f"and STAY, because the provider still sees them at their listone club (a later payload simply "
+            f"did not list them) or at another club this platform plays - measured on this sheet, removing "
+            f"them would have dropped men who are still buyable. `desc_live_club` says where the provider "
+            f"sees each of them, and the engine's numbers stay those of the listone club, which is what "
+            f"they are computed on. `--keep-departed` keeps everybody. Removed: " + " · ".join(
+                f"{row['name']} -> {row['desc_left_for']}" for row in departed[:6])
+            + (f" · and {len(departed) - 6} more" if len(departed) > 6 else ""))
+    # I due conteggi sono due fatti diversi e non si sommano in silenzio: fuori perimetro = «il suo club non
+    # gioca qui», partito = «non e' piu' in quel club». Il primo e' quello che questa nota racconta.
+    outside = len(data.observations) - len(rows) - (0 if keep_departed else len(departed))
+    dropped = outside if perimeter is not None else 0
     if dropped:
         notes.append(f"{dropped} players were left out of the sheet: their club is not one this "
                      f"platform plays ({len(perimeter)} clubs are). They stay in the engine's "

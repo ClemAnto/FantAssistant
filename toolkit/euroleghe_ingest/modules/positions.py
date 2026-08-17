@@ -70,6 +70,10 @@ EXTRA_WINDOW_DAYS = 150       # how far back a non-league match is still part of
 # as any channel here looks. It is a CAP and not a target: the walk stops as soon as a page is older
 # than the window asked for, so the default 150-day run still costs one page per club.
 EXTRA_MAX_PAGES = 12
+# Quanti rifiuti di fila bastano a dire che la fonte ha chiuso. Cinque e non uno: un 403 isolato capita, e
+# novantuno di fila sono un provider che non ci vuole - continuare a chiedere non lo riapre e la corsa del
+# 17/08/2026 ha dimostrato che intanto puo' fare danni.
+REFUSAL_LIMIT = 5
 
 # SofaScore unique-tournament ids for the 5 leagues in scope (verified against the API).
 TOURNAMENTS: dict[str, int] = {
@@ -491,12 +495,18 @@ def download_extra(session, team_id: str, since: str, cancel_event=None,
     known_tournaments = {str(tid) for tid in TOURNAMENTS.values()}
     events, lineups = [], {}
     listing = []
+    # UNA PAGINA CHE RISPONDE non e' la stessa cosa di una pagina che non risponde, e la differenza decide
+    # se si puo' scrivere il file vuoto: vedi `fetch_extra_matches`. Il 17/08/2026 questa distinzione non
+    # c'era e 91 file di cache su 93 sono stati sovrascritti con «zero eventi» mentre il provider
+    # rispondeva 403 a tutto - un IGNOTO salvato come uno ZERO, sopra dati buoni.
+    answered = False
     for page in range(max(1, max_pages)):
         if cancel_event is not None and cancel_event.is_set():
             break
         if page:
             _polite_sleep(cancel_event)
         data = _get_json(session, TEAM_EVENTS_ENDPOINT.format(tid=team_id, page=page))
+        answered = answered or data is not None
         found = (data or {}).get("events") or []
         if not found:
             break
@@ -505,7 +515,9 @@ def download_extra(session, team_id: str, since: str, cancel_event=None,
         if newest < since:
             break                         # this page is already past the window: so is every next one
     if not listing:
-        return None
+        # Ha risposto e non ha niente in finestra: e' un FATTO, e il chiamante puo' salvarlo.
+        # Non ha risposto: non si sa niente, e il chiamante non deve toccare quello che ha.
+        return {"league": "extra", "round": 0, "events": [], "lineups": {}} if answered else None
     for event in listing:
         if (event.get("status") or {}).get("type") != "finished":
             continue
@@ -568,10 +580,18 @@ def fetch_extra_matches(ctx: Context, clubs=None, refresh: bool = False,
             payload = download_extra(session, team_id, since, ctx.cancel_event)
             counts["requests"] += 1
             if payload is None:
-                # Written anyway, and empty: a club with no friendly in the window is a FACT, and
-                # without the marker every re-run pays for it again.
-                _atomic_write_text(cache, json.dumps({"league": "extra", "round": 0, "events": [],
-                                                      "lineups": {}}, ensure_ascii=False))
+                # LA FONTE NON HA RISPOSTO: non si scrive niente. Il file che c'e' resta com'e' - un club
+                # senza partite in finestra e' un fatto e lo scrive `download_extra`, un 403 non lo e'.
+                counts["refused"] = counts.get("refused", 0) + 1
+                if counts["refused"] >= REFUSAL_LIMIT:
+                    print(f"[positions] {REFUSAL_LIMIT} rifiuti di fila: la fonte ha chiuso, mi fermo "
+                          "(quello che c'e' in cache resta intatto)")
+                    break
+                continue
+            counts["refused"] = 0
+            if not payload["events"]:
+                # Ha risposto «niente in finestra»: si salva, o ogni ri-corsa lo ri-paga.
+                _atomic_write_text(cache, json.dumps(payload, ensure_ascii=False))
                 continue
             _atomic_write_text(cache, json.dumps(payload, ensure_ascii=False))
             counts["clubs"] += 1

@@ -12,7 +12,6 @@ import {
   rank99ByRole,
   seasonsClosedBy,
   starsOf,
-  steadinessOf,
   worthOf,
 } from './player-ratings';
 import { Spell } from './player-status';
@@ -119,22 +118,24 @@ describe('worthOf', () => {
     matches: 0.8,
     votes: 6.0,
     eventPoints: 0.6,
-    replacement: 5.6,
-    consistency: 0.5,
-    medianConsistency: 0.5,
   };
 
-  it('counts what he adds OVER the man who would play instead, and not from zero', () => {
-    // The case the operator brought: Kelly plays three more rounds than Bremer at half a point less,
-    // and from zero the two came out level. From the replacement, quality is what separates them.
-    expect(worthOf(base)).toBeCloseTo(0.8 * (6.6 - 5.6), 6);
+  it('e i FANTAPUNTI CHE PORTA IN TUTTO: presenze per quanto vale una sua partita', () => {
+    // La formula dettata dall'operatore il 17/08/2026 sera: «facciamo che overall e semplicemente
+    // presenze * (voti+bonus)». Nessuno zero da sottrarre, quindi il numero e un TOTALE e non un margine.
+    expect(worthOf(base)).toBeCloseTo(0.8 * (6.0 + 0.6), 6);
     const many = worthOf({ ...base, matches: 0.9, votes: 5.7, eventPoints: 0.3 })!;
     const better = worthOf({ ...base, matches: 0.8, votes: 6.2, eventPoints: 0.5 })!;
-    expect(better).toBeGreaterThan(many);
+    // Chi gioca piu con meno qualita puo stare avanti: e la proprieta di un totale, non un difetto.
+    expect(many).toBeGreaterThan(better);
   });
 
-  it('falls back to counting from zero when no sheet says what the replacement is', () => {
-    expect(worthOf({ ...base, replacement: null })).toBeCloseTo(0.8 * 6.6, 6);
+  it('NON sottrae piu un rimpiazzo, e i tre zeri cancellati non tornano per sbaglio', () => {
+    // Sono esistiti tre zeri in due giorni - il marginale di rosa del foglio, il rimpiazzo SCHIERATO
+    // (P 5,01 / D 6,11 / C 6,37 / A 6,79) e il rimpiazzo del ruolo MANTRA (por 4,13 ... pc 7,01), e
+    // l'ultimo mandava gli attaccanti in fondo (mediana 11 di percentile) e i portieri in cima (77). La
+    // formula in vigore non ne ha nessuno: letture-app-v1.md 9.
+    expect(worthOf({ ...base, votes: 4.0, eventPoints: 0 })).toBeCloseTo(0.8 * 4.0, 6);
   });
 
   it('says nothing about a man nobody predicts, which is not a zero', () => {
@@ -143,49 +144,9 @@ describe('worthOf', () => {
     expect(worthOf({ ...base, votes: null })).toBeNull();
   });
 
-  it('lets the steadier of two identical men come out ahead - and by a bounded amount', () => {
-    const steady = worthOf({ ...base, consistency: 0.9 })!;
-    const lottery = worthOf({ ...base, consistency: 0.1 })!;
-    expect(steady).toBeGreaterThan(lottery);
-    // Si deve VEDERE (a 0,5 Hojlund pagava −0,03 su 1,60 di surplus) e deve restare una correzione:
-    // fra i due estremi del suo ruolo ballano meno di un fantavoto a giornata.
-    expect(steady - worthOf(base)!).toBeGreaterThan(0.8 * 0.5);
-    expect(steady - worthOf(base)!).toBeLessThan(0.8 * 1);
-  });
-
-  it('confronta la costanza col RUOLO e non col listone: il centro è un parametro, non una costante', () => {
-    // Il difetto misurato il 16/08/2026: chiudere a 6 è un evento diverso in porta (mediana 86%) e in
-    // attacco (57%), quindi un centro solo pagava il ruolo. Lo stesso uomo, i due metri:
-    const forward = { ...base, consistency: 0.656, medianConsistency: 0.572 };
-    const listone = { ...base, consistency: 0.656, medianConsistency: 0.636 };
-    expect(worthOf(forward)!).toBeGreaterThan(worthOf(listone)!);
-    // ...e un portiere a 0,864 è nella media dei suoi, quindi non guadagna nulla.
-    expect(steadinessOf({ consistency: 0.864, medianConsistency: 0.864 })).toBe(0);
-  });
-
-  it('keeps the steadier man ahead even BELOW the replacement, where a factor would flip the sign', () => {
-    // Multiplying a negative surplus by 1.06 makes it worse, which is why the tilt is an addend.
-    const reserve = { ...base, votes: 5.0, eventPoints: 0.1 };
-    expect(worthOf({ ...reserve, consistency: 0.9 })!).toBeGreaterThan(
-      worthOf({ ...reserve, consistency: 0.1 })!,
-    );
-    expect(worthOf(reserve)!).toBeLessThan(0);
-  });
-
-  it('leaves the number alone when the pool has no steadiness to compare with', () => {
-    expect(worthOf({ ...base, medianConsistency: null })).toBeCloseTo(worthOf(base)!, 6);
-  });
-
   it('prefers who plays more at equal points, and who scores more at equal presences', () => {
     expect(worthOf({ ...base, matches: 0.9 })!).toBeGreaterThan(worthOf(base)!);
     expect(worthOf({ ...base, eventPoints: 1.2 })!).toBeGreaterThan(worthOf(base)!);
-  });
-
-  it('prices a keeper against KEEPERS: his zero is not a midfielder\'s', () => {
-    // Counted from zero a first-choice keeper reads 15 of 99, because his matches are made of the goals
-    // he concedes. Against the keeper you would field instead (4.13 on the Serie A sheet) he is 81.
-    const keeper = worthOf({ ...base, votes: 6.1, eventPoints: -1.2, replacement: 4.13 })!;
-    expect(keeper).toBeGreaterThan(0);
   });
 
   it('does NOT scale a man by the minutes he plays: the game pays the whole fantavoto', () => {

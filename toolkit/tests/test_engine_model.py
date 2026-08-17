@@ -184,3 +184,23 @@ def test_spearman_reads_order_not_magnitude():
     assert spearman([(1.0, 5.0), (1.0, 5.0)]) is None           # too few points
     # all predictions identical -> no order to reward
     assert spearman([(1.0, 3.0), (1.0, 2.0), (1.0, 1.0)]) is None
+
+
+def test_the_gate_keeps_the_LISTONE_population_whatever_the_sheet_does():
+    """Il foglio legge le rose osservate dal 17/08/2026; il gate NO, e questo test è la sua garanzia.
+
+    `squad_source` ha tre modi e due sono nati per l'asta: `real` aggiunge i non quotati, `squad` fa decidere
+    alla fonte anche il CLUB (Molina alla Roma mentre il listone lo tiene all'Atlético). Il gate deve restare
+    su `listone`, o ogni numero pubblicato cambierebbe popolazione senza che nessuno lo veda - è la stessa
+    ragione per cui `prepare` non prende la lega di default.
+    """
+    import inspect
+
+    from euroleghe_ingest.engine import features
+
+    assert inspect.signature(features.load).parameters["squad_source"].default == "listone"
+    assert inspect.signature(features.prepare).parameters["squad_source"].default == "listone"
+    # ...e i tre modi sono esattamente tre: un quarto senza test è un quarto che nessuno protegge.
+    source = inspect.getsource(features.load)
+    assert 'squad_source == "real"' in source and 'squad_source == "squad"' in source
+    assert "choose listone|real|squad" in source

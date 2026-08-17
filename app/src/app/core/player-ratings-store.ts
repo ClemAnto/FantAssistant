@@ -1,7 +1,7 @@
 import { Injectable, computed, effect, inject, signal } from '@angular/core';
 
 import { Bundle, BundleTable, columnIndex } from './bundle';
-import { CLEAN_SHEET_SHARE, ClubDefence, clubCleanSheets, fieldedPlaces } from './club-defence';
+import { CLEAN_SHEET_SHARE, ClubDefence, clubCleanSheets } from './club-defence';
 import {
   EngineForecast,
   PlayerRating,
@@ -115,11 +115,6 @@ export class PlayerRatingsStore {
       this.bundle.manifest().then((one) => one.target_season).catch(() => null),
       this.bundle.playerNotes().catch(() => null),
     ]);
-    // Quante squadre gioca la lega e quanti posti schiera il suo regolamento: i due numeri del
-    // rimpiazzo che entra davvero. Vengono dal manifest e dal regolamento, mai scritti qui.
-    const sheets = await this.bundle.manifest()
-      .then((one) => one.engine_sheets ?? []).catch(() => []);
-    const places = fieldedPlaces(await this.bundle.classicModules().catch(() => null));
     // IL GIORNO in cui l'app crede di trovarsi, letto UNA volta per tutta la costruzione: pezzi tagliati
     // a due date diverse sarebbero due liste sotto un'intestazione sola.
     const today = this.travel.today();
@@ -165,8 +160,6 @@ export class PlayerRatingsStore {
           scoring,
           declared,
           cleanSheetRate,
-          teams: sheets.find((one) => one.platform === platform)?.teams ?? null,
-          fieldedPlaces: places ?? undefined,
         }),
       );
     }

@@ -12,6 +12,9 @@
  */
 export const TOOLTIP_MAX = 140;
 
+/** Una data ISO come la legge un italiano: `2026-08-17` -> `17/08/2026`. */
+export const itDate = (iso: string): string => iso.split('-').reverse().join('/');
+
 /** Cuts a sentence at the last word that fits, and says that it was cut. */
 export function short(text: string, max: number = TOOLTIP_MAX): string {
   const clean = text.trim();

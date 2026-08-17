@@ -1447,6 +1447,116 @@ toccata qui. ⚠️ E un secondo difetto trovato e **non** corretto: 36 righe de
 archiviate sotto lo slug `bundesliga` (Red Bull Salzburg, Austria Klagenfurt) e portano tutte un voto
 sintetico tarato sulla Bundesliga tedesca — stessa famiglia di §7-nonies.
 
+## Novità v9.43 (17 agosto 2026, notte tarda — LE RIGHE SONO LE ROSE OSSERVATE, e la fonte dice DOVE è)
+
+**Due correzioni della v9.42, e le ha fatte emergere una domanda dell'operatore**: «verifica se Molina è
+ufficialmente della Roma». È ufficiale dal 12/08/2026, la rosa live lo sposta Atlético → Roma il **14/08**,
+e il listone no: lo tiene all'Atlético e lo quota **solo su EuroLeghe**.
+
+**(1) La fonte non dice «non è più comprabile», dice DOVE È.** La v9.42 leggeva l'assenza dalla rosa come una
+rimozione, e su Molina si vedeva l'errore: fuori dal foglio euro pur essendo quotato e pur giocando in un club
+che euro gioca. Misurato sui fogli del giorno, dei 20 tolti su euro **6 erano falsi** (la fonte lo dà ancora
+al suo club: il payload di un giorno dopo non lo elencava) e **8 erano spostati** dentro il perimetro —
+Molina alla Roma, Bruno Guimaraes all'Arsenal, Araujo al Liverpool, Chalobah al Como. Ora si toglie **solo**
+chi la fonte vede in un club che la piattaforma non gioca: da 63 e 53 rimozioni a **2 e 1**. Ogni riga porta
+`desc_live_club` / `desc_live_club_on` — dove la fonte lo vede e quando — mentre i numeri restano quelli del
+club di listone su cui sono calcolati: un'etichetta «Roma» su numeri dell'Atlético sarebbe «una lista mostrata
+i cui numeri descrivono un'altra lista».
+
+**(2) Le righe del foglio sono le ROSE OSSERVATE** (`SHEET_REVISION` 26): «quando fai lo snapshot devi vedere
+tutti i calciatori in rosa a prescindere se è quotato o meno nel listone». Nuovo modo `squad_source='squad'`
+in `features.load`: club e campionato dalla rosa che la fonte legge ogni giorno, quotazioni dal listone per
+chi ce le ha, e chi la fonte non ha mai visto tiene il club del listone (ignoto non è partito). Misurato sulla
+finestra Serie A: **499 osservazioni quotate contro 730 osservate**; sui fogli, Serie A 589 righe di cui **93
+senza prezzo** e euro 1.009 di cui 111 — e **Molina compare alla Roma su tutt'e tre i fogli**, senza prezzo su
+Serie A perché quel listone non lo quota. `--listone-only` torna al foglio dei soli quotati.
+
+**Il gate non si muove**: il suo `squad_source` resta `listone`, un test lo asserisce e `backtest --verify`
+resta **22/22**. Quello che resta aperto e va detto: la vista Calciatori dell'app costruisce le righe dal
+LISTONE del bundle, non dal foglio, quindi Molina è nel foglio (e nel pannello d'asta) ma non in quella
+tabella — mostrarlo lì vuol dire cambiare la popolazione su cui l'app calcola i suoi percentili, che è una
+decisione a sé.
+
+## Novità v9.42 (17 agosto 2026, notte — CHI È IN ROSA LO DECIDE SOFASCORE, e il foglio obbedisce)
+
+**Regola dell'operatore, e ribalta quella precedente**: «l'autorità di chi è in rosa è sofascore». Fino a
+quella sera l'autorità era il listone — «è quello da cui compri» — e il foglio si limitava a RIPORTARE la
+contraddizione (`desc_left_for` / `desc_left_on`, un `⇥` nel pannello, una nota), lasciando che la board
+fosse l'unica a escludere l'uomo. Ora l'autorità è la fonte che LEGGE la rosa ogni giorno, quindi la riga
+esce dal foglio: una riga comprabile da un club dove non c'è è peggio di una riga in meno.
+
+**Misurato sui fogli del giorno**: Serie A **53 righe in meno** (36 da un trasferimento che nomina la
+destinazione, **17** dalla rosa live), euro **63** (29 + 34). `SHEET_REVISION` 25, perché una riga in meno è
+un valore che il foglio porta.
+
+**Il costo è dichiarato e non nascosto**, e questa è la parte che non va perduta: il segnale della rosa live
+ha precisione misurata **83,1%** al gate di completezza (`SQUAD_COMPLETENESS` = 0.90, su 172 assenze), quindi
+circa **un uomo su sei** fra quelli tolti per assenza c'è ancora. Prima quel costo lo pagava solo la board —
+che lo escludeva già — e adesso lo paga anche la lista d'asta. Per questo la decisione resta **revocabile a
+ogni corsa** (`snapshot --keep-departed` rimette le righe col loro marchio) e la nota del foglio dice sempre
+quanti sono, per quale dei due segnali, e i primi sei nomi.
+
+## Novità v9.41 (17 agosto 2026, notte — tre aggiunte: `zeros`, `tm_appearances`, il terzo giudice)
+
+**`zeros`, la quarta armatura, e la ragione per cui esiste è che il gate è CIECO sulla domanda.** Il gate
+prepara le sue finestre senza lega, quindi `data.replacement` è vuota e `auction_view` ordina per VALUE: lo
+zero non entra in nessun numero pubblicato e non tocca l'accuratezza. Perciò «dieci finestre di gate» era una
+premessa falsa, trovata prima di lanciare. Si misura il DELIVERABLE — la stessa lista due volte, cambiando
+solo lo zero — e il verdetto è che il rimpiazzo SCHIERATO peggiora su 15 finestre su 15. Dettagli e il
+difetto di unità che la prima corsa ha prodotto: gate §7-sextricies.
+
+**`performance` → `tm_appearances`, il layer per-partita di Transfermarkt.** Una riga per (giocatore,
+partita) con la competizione della FONTE, i minuti, lo stato di partecipazione e il flag di NAZIONALE; PK
+`(fc_id, tm_game_id)`; cache per `tm_id` e `--refresh` in mano al chiamante perché la serie cresce;
+`--limit` per la corsa pilota, che è la regola nata dalla corsa sui 93 club. **Tabella sua e non
+`external_match_stats`**: là la competizione è una nostra chiave e sopra gira `mv_synth`, calibrato su
+un'altra popolazione — mescolarle sarebbe il difetto di §7-nonies. Due cose misurate e non previste: i minuti
+di un convocato che non entra sono **NULL e non zero** (`played` 3.309 righe tutte con i minuti, `in squad` /
+`injured` / `not in squad` tutte senza), e una corsa lunga **deve sopravvivere a un lock** — questa e quella
+delle coppe scrivono lo stesso SQLite e la seconda tiene il lock oltre i 5 secondi di `busy_timeout`, quindi
+`store` riprova con attesa crescente invece di buttare un'ora di download.
+
+**Il TERZO GIUDICE delle board, dentro `press`.** `press --fetch-duels URL --season YYYY-YY` scarica
+l'articolo delle «squadre-tipo», lo parsa **per etichetta** (la pagina si ri-pubblica: l'ordine dei paragrafi
+non è una promessa), lo importa nella colonna `duels` di `press_formations` e lo archivia datato come ogni
+riferimento; `press --sheet DIR --against duels` confronta i ballottaggi col suo null e scrive
+`data/reports/press_duels.json`. I nomi si risolvono con `matching.match_in_pool` e un nome ambiguo resta NON
+risolto. **Il test ha trovato subito un difetto che la misura di qualche ora prima aveva riportato come un
+numero**: nell'alternativa `(?:del|dell'|della)` il `del` vince per primo, quindi `dell'Atalanta` diventava
+«l'Atalanta» — sette club su venti, cioè esattamente i «13 su 20 confrontabili» di quella misura, che era una
+proprietà della nostra regex e non della fonte. Le alternative vanno dalla più lunga alla più corta.
+
+## Novità v9.40 (17 agosto 2026, sera — la CURVA DEL VALORE nel bundle: uno scope DATATO, col punto portato avanti)
+
+**Perché esiste.** Del residuo del 16/08 la voce «usare la curva del valore» aveva due strade e la seconda
+era già chiusa: il canale dell'investimento è stato rimisurato con l'input riparato e **respinto**
+(gate §7-untricies, +0,04% su euro e +0,26% su Serie A, sotto il pavimento). Resta la prima, che non è una
+previsione: far **vedere** all'app quello che il mercato vero paga, accanto a quello che il listone chiede.
+Quindi `market_value_history` entra in `export.CONTRACT` e la lettura vive nell'app
+(`core/market-trend.ts`), come i marchi degli infortuni e per la stessa ragione — è una scelta di
+visualizzazione su una tabella datata, non una misura da giudicare.
+
+**Lo scope nuovo, e il difetto che gli ha dato la forma.** I tre scope del bundle sono per STAGIONE
+(`full`, `season`, `heavy`) e questa tabella non ha una colonna stagione: ha `observed_on`. Farla viaggiare
+intera costa **761 KB gzip su un bundle di 3,2 MB**, un quarto in più per una colonna di reporting. Quindi
+scope **`dated`**: si taglia un anno prima di dove si apre la finestra `heavy` — derivato e non scelto,
+perché l'app può chiedere qualunque giorno dentro quella finestra (è ciò che viaggia la macchina del tempo)
+e una TENDENZA a una data ha bisogno di un anno di serie prima di quella data. Con il bersaglio 2026-27 il
+taglio è il **2023-07-01**, che sta un anno prima anche del più vecchio dei quattro pacchetti (2024-09-05).
+
+Il taglio da solo però **costa il livello a chi non si muove**: un uomo il cui valore non cambia da tre
+anni arriverebbe senza nemmeno un punto, e l'app leggerebbe «ignoto» su un valore che si conosce
+benissimo — «vuoto = ignoto» prodotto da noi invece che dalla fonte. Quindi il filtro tiene, **per serie
+(`fc_id`, `source`), l'ultimo punto PRIMA del taglio**: 85.061 righe → **26.314** (218 KB), e tutti e
+**3.323** i giocatori conservano un livello. Misurato, non stimato.
+
+**Una trappola che il test protegge**: `write_sqlite` legge da uno schema ATTACHed (`src.`), quindi la
+sottointerrogazione correlata sul nome nudo della tabella si risolverebbe sulla base di DESTINAZIONE —
+che in quel momento è vuota — e i punti prima del taglio sparirebbero **in silenzio**. `_where` prende
+quindi il prefisso dello schema dal chiamante, e il test asserisce lo stesso insieme di righe sui due
+scrittori. Stessa famiglia di «una colonna che sembra un flag può essere una parola»: la query gira, non
+solleva niente, e risponde a un'altra domanda.
+
 ## Novità v9.39 (17 agosto 2026 — la COPPA CONTINENTALE, la nazionalità che era già in cache, e l'id dell'NBA)
 
 **Cosa è entrato nello schema e nei moduli.** `players.nationality` esisteva dal primo giorno ed era NULL

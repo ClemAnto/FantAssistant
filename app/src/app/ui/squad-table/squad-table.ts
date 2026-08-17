@@ -1,3 +1,4 @@
+import { CdkDragDrop, DragDropModule, moveItemInArray } from '@angular/cdk/drag-drop';
 import { DecimalPipe } from '@angular/common';
 import { Component, computed, inject, input } from '@angular/core';
 import { FormsModule } from '@angular/forms';
@@ -19,9 +20,19 @@ import {
   RatingKey,
 } from '../../core/player-ratings';
 import { starsOf, toneOf } from '../../core/player-ratings';
+import {
+  MarketTrend,
+  MarketValues,
+  TREND_BAND,
+  TREND_MONTHS,
+  daysSince,
+  euros,
+} from '../../core/market-trend';
 import { ClassicRole, Platform } from '../../core/players-store';
+import { TimeTravel } from '../../core/time-travel';
 import { SquadMan, ToneKey, ValuationStore } from '../../core/valuation-store';
-import { short } from '../../core/tooltip';
+import { itDate, short } from '../../core/tooltip';
+import { lazyRows } from '../../core/lazy-rows';
 import { stored, storedList } from '../../core/view-state';
 import { ClubCrest } from '../club-crest/club-crest';
 import { PlayerFlags } from '../player-flags/player-flags';
@@ -63,31 +74,57 @@ export const SQUAD_COLUMNS: readonly { key: string; label: string; width: number
   { key: 'expected', label: 'P (partite attese)', width: 48 },
   // Le quattro colonne di fantamedia sono più larghe delle cifre che portano: dentro ognuna il numero sta
   // in un riquadro colorato, e un riquadro più largo della colonna manderebbe la tabella a scorrere.
-  { key: 'expectedFm', label: 'FM att.', width: 70 },
-  { key: 'expectedMv', label: 'MV att.', width: 70 },
+  { key: 'expectedFm', label: 'FMa', width: 70 },
+  { key: 'expectedMv', label: 'MVa', width: 70 },
   { key: 'surplus', label: 'Surplus', width: 64 },
   // ...e lo stesso conto dall'ALTRO ZERO, affiancato invece che al posto suo: sono due domande («chi
   // conviene comprare» contro «quanto costa una giornata saltata») e nessuna delle due vince, quindi si
   // vedono insieme e si sceglie soltanto per quale ordinare (operatore, 16/08/2026, §21.1 della metrica).
-  // MARGINE è il suo nome scelto dall'operatore: dice che è una differenza, e il tooltip dice da chi.
-  { key: 'surplusFielded', label: 'Margine', width: 68 },
-  // ...e le stesse due AL NETTO DELLA COPPA, per chi una coppa continentale in mezzo al campionato la
-  // porta via per qualche giornata. Sono in coppia e DOPO le due gated per non rompere l'adiacenza che
-  // l'operatore ha chiesto fra «Surplus» e «Margine» (la spec la protegge), e compaiono soltanto se la
-  // lista sullo schermo contiene almeno un uomo esposto - lo stesso trattamento che ha «Squadra», che
-  // non serve a una rosa sola. Una colonna vuota per 1.590 righe su 1.596 non e' una funzione, e' rumore.
-  { key: 'surplusCup', label: 'Surplus −C', width: 76 },
-  { key: 'surplusFieldedCup', label: 'Margine −C', width: 80 },
+  // LEAD è il suo nome scelto dall'operatore (17/08/2026, era «Margine»): il vantaggio sul rimpiazzo
+  // che entra davvero, e il tooltip dice da chi si conta.
+  { key: 'surplusFielded', label: 'Lead', width: 68 },
+  // LE DUE COLONNE «−C» (Surplus e Margine al netto della coppa) SONO STATE TOLTE, decisione
+  // dell'operatore del 17/08/2026 sera, il giorno stesso in cui erano nate. Il FATTO resta dove è
+  // misurato - il foglio porta `desc_surplus_cup` / `desc_surplus_fielded_cup`, il globo segna chi parte
+  // e il tooltip delle presenze attese dice quante giornate costa - quindi non si è perso niente: due
+  // colonne in più su una tabella che ne ha quindici sono un costo di lettura, e la stessa notizia era
+  // già leggibile accanto al nome. Non rimetterle senza che lo chieda lui.
   // FANTAPUNTI e non «Valore» (operatore, 16/08/2026): la colonna vive accanto all'FVM, che è il
   // fantaVALORE di mercato, e i due si chiamavano uguale pur essendo uno in fantapunti e l'altro in
   // crediti. Il nome nuovo dice l'UNITÀ, che è la sola cosa che non si può confondere con un prezzo.
   // La chiave resta `value`: gli identificatori del codice stanno in inglese e non seguono l'etichetta.
   { key: 'value', label: 'Fantapunti', width: 92 },
   { key: 'fvm', label: 'FVM', width: 58 },
+  // ...e accanto all'FVM il prezzo che il MERCATO VERO gli dà, con la sua tendenza (`market-trend.ts`).
+  // Si chiama «Mercato» e non «Valore» perché in questa tabella `value` sono i Fantapunti e `mv` è la
+  // media voto: due colonne che già portano quelle due lettere, e un terzo «V» le renderebbe indistinguibili.
+  { key: 'market', label: 'Mercato', width: 92 },
   { key: 'mv', label: 'MV', width: 64 },
   { key: 'fm', label: 'FM', width: 64 },
   ...RATING_KEYS.map((key) => ({ key, label: RATING_LABEL[key], width: 84 })),
 ];
+
+/**
+ * L'ORDINE DELLE COLONNE: quelle salvate nell'ordine salvato, e le nuove al loro posto di listino.
+ *
+ * Pura e esportata perché due cose vanno protette da un test e non da un'occhiata (l'operatore le ha
+ * segnalate entrambe): le colonne si SPENGONO, quindi una chiave salvata può non essere fra quelle offerte
+ * in questa vista - la squadra non c'è nella rosa di un club - e va ignorata senza spostare le altre; e una
+ * colonna NUOVA non deve nascere invisibile per chi ha già un ordine salvato, quindi entra accanto alla
+ * vicina con cui è nata in `SQUAD_COLUMNS` e non in coda, dove nessuno la cercherebbe.
+ */
+export function orderColumns(saved: readonly string[], offered: readonly string[]): string[] {
+  const known = new Set(offered);
+  const out = saved.filter((key) => known.has(key));
+  for (const key of offered) {
+    if (out.includes(key)) continue;
+    // Il vicino di SINISTRA che è già in lista: la colonna nuova gli si mette accanto.
+    const at = offered.indexOf(key);
+    const after = offered.slice(0, at).filter((other) => out.includes(other)).pop();
+    out.splice(after ? out.indexOf(after) + 1 : 0, 0, key);
+  }
+  return out;
+}
 
 /** Quello che una riga occupa comunque: il ruolo e il nome. */
 const FIXED_WIDTH = 44 + 116;
@@ -97,7 +134,7 @@ const FIXED_WIDTH = 44 + 116;
  *
  * ONE component because it is ONE table: the squads view draws it for a club's rosa, the consultation
  * view for the whole listone, and the columns, the tooltips and the sort rules must be the same object
- * in both - two copies would be two definitions of «FM att.» under one heading, which is exactly the
+ * in both - two copies would be two definitions of «FMa» under one heading, which is exactly the
  * defect this project keeps paying for. The rows come from `ValuationStore` through the caller, so the
  * figures always describe the list on screen.
  *
@@ -110,6 +147,7 @@ const FIXED_WIDTH = 44 + 116;
   imports: [
     ClubCrest,
     DecimalPipe,
+    DragDropModule,
     FormsModule,
     NzCollapseModule,
     NzRadioModule,
@@ -124,6 +162,9 @@ const FIXED_WIDTH = 44 + 116;
 })
 export class SquadTable {
   private readonly valuation = inject(ValuationStore);
+  private readonly market = inject(MarketValues);
+  /** L'ultima variazione va detta in giorni, e i giorni si contano dalla data in cui l'app si trova. */
+  private readonly travel = inject(TimeTravel);
 
   readonly rows = input.required<SquadMan[]>();
   /** Which listone these numbers are about: MV and FM are a fact about a CALENDAR, so it is said. */
@@ -131,8 +172,14 @@ export class SquadTable {
   /** A list of one club does not need a club column; the listone's own does. */
   readonly showClub = input(false);
   readonly crests = input<Record<string, string>>({});
-  /** Null = the whole list, which is what a squad of 26 wants. A number paginates. */
-  readonly pageSize = input<number | null>(null);
+  /**
+   * LE RIGHE SI CARICANO SCORRENDO e la paginazione non c'è più (operatore, 17/08/2026).
+   *
+   * `lazyRows` mostra le prime 60 e ne aggiunge 60 quando lo scorrimento arriva vicino al fondo, e la riga
+   * sotto la tabella dice sempre quante se ne vedono su quante: un conteggio che non corrisponde a quello
+   * che è a schermo è il difetto che la paginazione nascosta di nz-table aveva già prodotto qui.
+   */
+  protected readonly lazy = lazyRows(this.rows);
 
   /**
    * Un click su una colonna di NUMERI ordina subito dal più alto al più basso (operatore, 16/08/2026).
@@ -202,21 +249,59 @@ export class SquadTable {
   private readonly hidden = storedList<string>('squad.hidden',
     (one): one is string => typeof one === 'string');
 
-  /** C'è qualcuno, nella lista che si sta guardando, che una coppa continentale porta via? */
-  private readonly anyCup = computed(() => this.rows().some((man) => man.cup != null));
-
   /**
-   * Le colonne offerte: la squadra solo dove ha senso (una rosa sola non ha bisogno della colonna), e le
-   * due al netto della coppa solo se qualcuno in lista ne ha una - altrimenti sarebbero due colonne vuote
-   * su tutte le righe, che allargano la tabella e non dicono niente.
+   * Le colonne offerte: la squadra solo dove ha senso (una rosa sola non ha bisogno della colonna) e il
+   * valore di mercato solo se il bundle porta la curva, perché una colonna vuota si legge come «il
+   * mercato non si muove» invece di «questo bundle è più vecchio della tabella».
    */
   protected readonly columns = computed(() =>
     SQUAD_COLUMNS.filter((one) =>
       (one.key !== 'club' || this.showClub())
-      && (!one.key.endsWith('Cup') || this.anyCup())));
+      && (one.key !== 'market' || this.market.loaded())));
+
+  /**
+   * L'ORDINE DELLE COLONNE, trascinabile e ricordato (operatore, 17/08/2026).
+   *
+   * Sul disco finiscono le chiavi nell'ordine scelto, come per le colonne spente e per la stessa ragione:
+   * e' una preferenza sulla TABELLA, quindi vale in tutt'e due le viste e sopravvive a un refresh. Una
+   * chiave che il codice non conosce piu' viene ignorata, e una NUOVA colonna non resta invisibile a chi
+   * ha gia' un ordine salvato: si aggiunge al suo posto di listino invece di sparire in fondo.
+   */
+  private readonly order = storedList<string>('squad.order',
+    (one): one is string => typeof one === 'string');
+
+  /** Le colonne offerte, nell'ordine scelto. La regola è una funzione pura, così un test la copre. */
+  private readonly ordered = computed(() => orderColumns(this.order(), this.columns().map((one) => one.key)));
 
   protected readonly visible = computed(() =>
-    this.columns().filter((one) => !this.hidden().includes(one.key)).map((one) => one.key));
+    this.ordered().filter((key) => !this.hidden().includes(key)));
+
+  /** Trascinata una colonna: l'ordine si scrive per intero, comprese quelle spente. */
+  protected dropColumn(event: CdkDragDrop<unknown>): void {
+    // LE TRASLAZIONI SI AZZERANO NELLO STESSO FRAME in cui l'ordine cambia, e questa e' la cura
+    // dell'«effetto strano al rilascio» segnalato dall'operatore e MISURATO in e2e: mentre trascini, CDK
+    // sposta i vicini con un `transform` inline (le quattro intestazioni dopo quella presa leggevano
+    // `matrix(1,0,0,1,64,0)`) e al rilascio le ripulisce un tick DOPO, quando Angular ha gia' ridisegnato
+    // la riga nell'ordine nuovo riusando gli stessi nodi: per due frame si vedono celle nuove ancora
+    // spostate di 64px. Non e' una gara con l'animazione di CDK - e' togliere da un nodo uno stato che
+    // apparteneva alla sua posizione vecchia.
+    const row = event.container.element.nativeElement;
+    for (const cell of Array.from(row.querySelectorAll<HTMLElement>('th'))) {
+      cell.style.transform = '';
+    }
+    const shown = this.visible();
+    const moved = shown[event.previousIndex];
+    const target = shown[event.currentIndex];
+    if (!moved || !target || moved === target) return;
+    const all = [...this.ordered()];
+    moveItemInArray(all, all.indexOf(moved), all.indexOf(target));
+    this.order.set(all);
+  }
+
+  /** Il cast che il template non puo' fare da se': nel `@default` la chiave e' una delle letture. */
+  protected asRating(key: string): RatingKey {
+    return key as RatingKey;
+  }
 
   protected shows(key: string): boolean {
     return !this.hidden().includes(key);
@@ -242,14 +327,21 @@ export class SquadTable {
    * L'altezza è quella della finestra meno quello che sta sopra la tabella, così il corpo scorre e la
    * pagina no; sotto le venti righe non cambia niente perché il corpo è più corto del suo massimo.
    */
-  protected readonly scroll = computed(() => {
+  /**
+   * LA LARGHEZZA MINIMA della tabella: la somma delle colonne accese.
+   *
+   * Non è più `nzScroll` - la tabella non sta in un contenitore che scorre, o lo sticky dell'intestazione si
+   * ancorerebbe a quello e se ne andrebbe con lui (misurato: −952px dopo 1200px di pagina) - ma la somma
+   * serve ancora: senza, con venti colonne accese le celle si stringono fino a spezzare i numeri. Scorre la
+   * PAGINA, nei due assi, e la barra è una per asse.
+   */
+  protected readonly minWidth = computed(() => {
     const width = this.columns()
       .filter((one) => this.shows(one.key))
       .reduce((sum, one) => sum + one.width, FIXED_WIDTH);
-    return { x: `${width}px`, y: 'calc(100vh - 22rem)' };
+    return `${width}px`;
   });
 
-  protected readonly paginated = computed(() => this.pageSize() != null);
 
   /** What the two measured columns are about: one season, one calendar, said once. */
   protected readonly measuredOn = computed(() => this.valuation.measuredOn(this.platform()));
@@ -315,6 +407,87 @@ export class SquadTable {
     return '';
   }
 
+  /* ---------------------------------------------------------------- il valore di mercato */
+  /** La lettura di un uomo alla data dell'app. Null = la fonte non lo conosce: ignoto, mai zero. */
+  protected trend(man: SquadMan): MarketTrend | null {
+    return this.market.trend(man.fcId);
+  }
+
+  /** Che cos'è la colonna, e - la parte che conta - che cosa NON è. */
+  protected readonly marketHeader = short(
+    `Valore di mercato Transfermarkt e la sua tendenza sugli ultimi ${TREND_MONTHS} mesi. `
+      + 'È un prezzo misurato, non un nostro numero: nessuna valutazione lo legge.',
+  );
+
+  /** La freccia: tre stati, e nessuno quando la curva non arriva a un anno prima. */
+  protected marketArrow(man: SquadMan): string {
+    const direction = this.trend(man)?.direction;
+    return direction === 'up' ? '↑' : direction === 'down' ? '↓' : direction === 'flat' ? '→' : '';
+  }
+
+  /**
+   * IL COLORE, e va nel verso del MERCATO e non del nostro interesse.
+   *
+   * Verde = il mercato sta salendo su di lui, ambra = sta scendendo. Non è un consiglio d'acquisto - un
+   * valore che scende è spesso un uomo che costa poco - ed è per questo che il colore sta sulla freccia
+   * e non sulla cifra: colora la NOTIZIA (il mercato si è mosso), non il prezzo.
+   */
+  protected marketTone(man: SquadMan): string {
+    const direction = this.trend(man)?.direction;
+    if (direction === 'up') return 'text-success';
+    if (direction === 'down') return 'text-warning';
+    return 'text-muted';
+  }
+
+  protected marketCell(man: SquadMan): string {
+    const trend = this.trend(man);
+    return trend ? euros(trend.value) : '—';
+  }
+
+  protected marketHint(man: SquadMan): string {
+    const trend = this.trend(man);
+    if (!trend) {
+      return short(
+        'La fonte non ha una curva per lui: ignoto, mai zero. Sono 57 quotati su 1.175 (17/08/2026), e '
+          + 'sono quelli senza identità Transfermarkt.',
+      );
+    }
+    const read = `${euros(trend.value)} il ${itDate(trend.at)}`;
+    // La data conta quanto la cifra: la fonte muove i valori a ondate, quindi l'ultimo punto ha in mediana
+    // 77 giorni. Non è vecchio, è l'ultimo che esiste - e chi lo legge deve saperlo.
+    const age = daysSince(trend.at, this.travel.today());
+    const when = age > 30 ? `${read} (l'ultima variazione: ${age} giorni)` : read;
+    if (trend.change == null || !trend.from) {
+      return short(`${when} · la curva non arriva a ${TREND_MONTHS} mesi prima, quindi la tendenza è ignota`);
+    }
+    const percent = `${trend.change > 0 ? '+' : '−'}${Math.abs(Math.round(trend.change * 100))}%`;
+    return short(
+      `${when} · da ${euros(trend.from.value)} del ${itDate(trend.from.on)}: ${percent} in `
+        + `${TREND_MONTHS} mesi`,
+    );
+  }
+
+  /**
+   * SI ORDINA PER VALORE E MAI PER TENDENZA, ed è una misura e non un gusto.
+   *
+   * Una variazione in percentuale dipende dalla base: sui quotati 2026-27 il quartile più povero ha mediana
+   * +50% e nono decile +1.614%, il più ricco mediana −9%. Ordinare per tendenza metterebbe in cima chi
+   * passa da 200 mila a 3 milioni, che è vero e non è la domanda di un'asta - la stessa lezione dei
+   * portieri. Chi non ha curva sta in fondo: non ha un prezzo, non vale zero.
+   */
+  protected readonly byMarket = (left: SquadMan, right: SquadMan): number =>
+    (this.trend(left)?.value ?? -1) - (this.trend(right)?.value ?? -1);
+
+  /** La parte lunga, per il pannello sotto la tabella. */
+  protected readonly marketDetail =
+    'Il valore di mercato è il prezzo che il mercato VERO gli ha dato (Transfermarkt), l\'FVM è quello che '
+    + 'il listone chiede: due giudizi sulla stessa persona da due tavoli diversi. La freccia guarda '
+    + `${TREND_MONTHS} mesi indietro e cambia oltre il ${Math.round(TREND_BAND * 100)}% — verde sale, ambra `
+    + 'scende, → si è mossa di poco — e si ferma quando la curva non arriva a un anno, perché «ignoto» non '
+    + 'è «ferma». La colonna si ordina per VALORE e non per tendenza: una percentuale dipende dalla base, e '
+    + 'ordinarci sopra metterebbe in cima i ragazzi che passano da 200 mila a 3 milioni. Nessun numero del '
+    + 'motore la legge: il gate ha misurato la curva come canale (l\'investimento) e l\'ha respinta.';
+
   /**
    * Il SURPLUS, e chi non ne ha uno sta in fondo - ma il fondo qui è più basso di −1, perché il surplus
    * È NEGATIVO per chiunque valga meno del rimpiazzo del suo ruolo, e sono tanti. Con −1 come sentinella
@@ -326,21 +499,6 @@ export class SquadTable {
   /** Stesso ordinamento del surplus e stessa sentinella: senza numero si sta in fondo, non a −1. */
   protected readonly bySurplusFielded = (left: SquadMan, right: SquadMan): number =>
     (left.surplusFielded ?? -Infinity) - (right.surplusFielded ?? -Infinity);
-
-  /**
-   * Le due AL NETTO DELLA COPPA, e chi non ha coppa porta qui il suo numero PIENO.
-   *
-   * Non `-Infinity` e non vuoto: senza esposizione il valore al netto È quello lordo, quindi ordinare per
-   * questa colonna deve poter ordinare tutta la lista - se i non esposti finissero in fondo, la colonna
-   * risponderebbe a «chi parte per la coppa» invece che a «quanto vale tenuto conto della coppa», che è
-   * la domanda per cui esiste.
-   */
-  protected readonly bySurplusCup = (left: SquadMan, right: SquadMan): number =>
-    (left.surplusCup ?? left.surplus ?? -Infinity) - (right.surplusCup ?? right.surplus ?? -Infinity);
-
-  protected readonly bySurplusFieldedCup = (left: SquadMan, right: SquadMan): number =>
-    (left.surplusFieldedCup ?? left.surplusFielded ?? -Infinity)
-    - (right.surplusFieldedCup ?? right.surplusFielded ?? -Infinity);
 
   protected readonly byValue = (left: SquadMan, right: SquadMan): number =>
     (left.value ?? -1) - (right.value ?? -1);
@@ -364,35 +522,10 @@ export class SquadTable {
       + 'soprattutto perché i riempitivi del suo ruolo sono pessimi. REPORTING: nessuna regola la legge.',
   );
 
-  /**
-   * Le due al netto della coppa, e l'intestazione deve dire che il gate le ha GUARDATE e rifiutate: chi
-   * legge una colonna «−C» deve sapere che non è una versione migliore di quella accanto.
-   */
-  protected readonly surplusCupHeader = short(
-    'SURPLUS AL NETTO DELLA COPPA: lo stesso conto, sulle presenze che restano dopo il torneo '
-      + 'continentale che lo porta via in mezzo al campionato. Il coefficiente è MISURATO (quattro '
-      + 'finestre-torneo, per fascia di titolarità e a seconda che sia già nazionale), e chi non parte '
-      + 'porta qui il suo numero pieno, così la colonna ordina tutta la lista. Il gate ha valutato la '
-      + 'stessa penalità DENTRO le presenze attese e l\'ha RESPINTA - il modello legge già lo sconto nei '
-      + 'minuti dell\'anno prima - quindi questa colonna serve a leggere una riga, non a rifare il motore.',
-  );
-
   protected readonly valueHeader = short(
     'FANTAPUNTI che porta in tutto (fantamedia × presenze attese), senza sottrarre niente. '
       + 'Surplus = fantapunti − rimpiazzo × presenze. Da non confondere con l\'FVM, che è un prezzo.',
   );
-
-  /** Il numero al netto, quanto costa la coppa, e per chi non parte il fatto che non cambi niente. */
-  protected cupHint(man: SquadMan, net: number | null, gross: number | null): string {
-    if (gross == null) return 'Il motore non lo valuta e non offre una stima: ignoto, mai zero.';
-    if (net == null || man.cup == null) return short(`${gross.toFixed(1)}: nessuna coppa lo porta via`);
-    const lost = gross - net;
-    return short(
-      `${net.toFixed(1)} al netto di ${man.cup}`
-        + (lost > 0.05 ? ` · ${lost.toFixed(1)} fantapunti in meno di ${gross.toFixed(1)}` : '')
-        + (man.cupRounds ? ` · ${man.cupRounds.toFixed(1)} giornate dentro la finestra` : ''),
-    );
-  }
 
   protected surplusHint(man: SquadMan): string {
     if (man.surplus == null) return 'Il motore non lo valuta e non offre una stima: ignoto, mai zero.';

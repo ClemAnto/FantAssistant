@@ -32,6 +32,11 @@ const TABLES = [
    * The boards already carry it for the eleven they draw; the squad view needs it for everybody,
    * and it is a SNAPSHOT (the provider serves only "now"), so the row carries its own date. */
   'player_roles',
+  /* The market value CURVE, dated: the consultation table shows what the real market pays for a man
+   * beside what the listone asks, plus its twelve-month tendency. REPORTING only - the gate refused the
+   * one channel it was acquired for - and it travels cut a year before the heavy window, with the last
+   * point before the cut, so nobody arrives without a level. */
+  'market_value_history',
 ];
 
 if (!existsSync(EXPORT_ROOT)) {
