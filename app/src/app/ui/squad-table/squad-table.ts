@@ -71,6 +71,13 @@ export const SQUAD_COLUMNS: readonly { key: string; label: string; width: number
   // vedono insieme e si sceglie soltanto per quale ordinare (operatore, 16/08/2026, §21.1 della metrica).
   // MARGINE è il suo nome scelto dall'operatore: dice che è una differenza, e il tooltip dice da chi.
   { key: 'surplusFielded', label: 'Margine', width: 68 },
+  // ...e le stesse due AL NETTO DELLA COPPA, per chi una coppa continentale in mezzo al campionato la
+  // porta via per qualche giornata. Sono in coppia e DOPO le due gated per non rompere l'adiacenza che
+  // l'operatore ha chiesto fra «Surplus» e «Margine» (la spec la protegge), e compaiono soltanto se la
+  // lista sullo schermo contiene almeno un uomo esposto - lo stesso trattamento che ha «Squadra», che
+  // non serve a una rosa sola. Una colonna vuota per 1.590 righe su 1.596 non e' una funzione, e' rumore.
+  { key: 'surplusCup', label: 'Surplus −C', width: 76 },
+  { key: 'surplusFieldedCup', label: 'Margine −C', width: 80 },
   // FANTAPUNTI e non «Valore» (operatore, 16/08/2026): la colonna vive accanto all'FVM, che è il
   // fantaVALORE di mercato, e i due si chiamavano uguale pur essendo uno in fantapunti e l'altro in
   // crediti. Il nome nuovo dice l'UNITÀ, che è la sola cosa che non si può confondere con un prezzo.
@@ -195,9 +202,18 @@ export class SquadTable {
   private readonly hidden = storedList<string>('squad.hidden',
     (one): one is string => typeof one === 'string');
 
-  /** Le colonne offerte: la squadra solo dove ha senso (una rosa sola non ha bisogno della colonna). */
+  /** C'è qualcuno, nella lista che si sta guardando, che una coppa continentale porta via? */
+  private readonly anyCup = computed(() => this.rows().some((man) => man.cup != null));
+
+  /**
+   * Le colonne offerte: la squadra solo dove ha senso (una rosa sola non ha bisogno della colonna), e le
+   * due al netto della coppa solo se qualcuno in lista ne ha una - altrimenti sarebbero due colonne vuote
+   * su tutte le righe, che allargano la tabella e non dicono niente.
+   */
   protected readonly columns = computed(() =>
-    SQUAD_COLUMNS.filter((one) => one.key !== 'club' || this.showClub()));
+    SQUAD_COLUMNS.filter((one) =>
+      (one.key !== 'club' || this.showClub())
+      && (!one.key.endsWith('Cup') || this.anyCup())));
 
   protected readonly visible = computed(() =>
     this.columns().filter((one) => !this.hidden().includes(one.key)).map((one) => one.key));
@@ -311,6 +327,21 @@ export class SquadTable {
   protected readonly bySurplusFielded = (left: SquadMan, right: SquadMan): number =>
     (left.surplusFielded ?? -Infinity) - (right.surplusFielded ?? -Infinity);
 
+  /**
+   * Le due AL NETTO DELLA COPPA, e chi non ha coppa porta qui il suo numero PIENO.
+   *
+   * Non `-Infinity` e non vuoto: senza esposizione il valore al netto È quello lordo, quindi ordinare per
+   * questa colonna deve poter ordinare tutta la lista - se i non esposti finissero in fondo, la colonna
+   * risponderebbe a «chi parte per la coppa» invece che a «quanto vale tenuto conto della coppa», che è
+   * la domanda per cui esiste.
+   */
+  protected readonly bySurplusCup = (left: SquadMan, right: SquadMan): number =>
+    (left.surplusCup ?? left.surplus ?? -Infinity) - (right.surplusCup ?? right.surplus ?? -Infinity);
+
+  protected readonly bySurplusFieldedCup = (left: SquadMan, right: SquadMan): number =>
+    (left.surplusFieldedCup ?? left.surplusFielded ?? -Infinity)
+    - (right.surplusFieldedCup ?? right.surplusFielded ?? -Infinity);
+
   protected readonly byValue = (left: SquadMan, right: SquadMan): number =>
     (left.value ?? -1) - (right.value ?? -1);
 
@@ -333,10 +364,35 @@ export class SquadTable {
       + 'soprattutto perché i riempitivi del suo ruolo sono pessimi. REPORTING: nessuna regola la legge.',
   );
 
+  /**
+   * Le due al netto della coppa, e l'intestazione deve dire che il gate le ha GUARDATE e rifiutate: chi
+   * legge una colonna «−C» deve sapere che non è una versione migliore di quella accanto.
+   */
+  protected readonly surplusCupHeader = short(
+    'SURPLUS AL NETTO DELLA COPPA: lo stesso conto, sulle presenze che restano dopo il torneo '
+      + 'continentale che lo porta via in mezzo al campionato. Il coefficiente è MISURATO (quattro '
+      + 'finestre-torneo, per fascia di titolarità e a seconda che sia già nazionale), e chi non parte '
+      + 'porta qui il suo numero pieno, così la colonna ordina tutta la lista. Il gate ha valutato la '
+      + 'stessa penalità DENTRO le presenze attese e l\'ha RESPINTA - il modello legge già lo sconto nei '
+      + 'minuti dell\'anno prima - quindi questa colonna serve a leggere una riga, non a rifare il motore.',
+  );
+
   protected readonly valueHeader = short(
     'FANTAPUNTI che porta in tutto (fantamedia × presenze attese), senza sottrarre niente. '
       + 'Surplus = fantapunti − rimpiazzo × presenze. Da non confondere con l\'FVM, che è un prezzo.',
   );
+
+  /** Il numero al netto, quanto costa la coppa, e per chi non parte il fatto che non cambi niente. */
+  protected cupHint(man: SquadMan, net: number | null, gross: number | null): string {
+    if (gross == null) return 'Il motore non lo valuta e non offre una stima: ignoto, mai zero.';
+    if (net == null || man.cup == null) return short(`${gross.toFixed(1)}: nessuna coppa lo porta via`);
+    const lost = gross - net;
+    return short(
+      `${net.toFixed(1)} al netto di ${man.cup}`
+        + (lost > 0.05 ? ` · ${lost.toFixed(1)} fantapunti in meno di ${gross.toFixed(1)}` : '')
+        + (man.cupRounds ? ` · ${man.cupRounds.toFixed(1)} giornate dentro la finestra` : ''),
+    );
+  }
 
   protected surplusHint(man: SquadMan): string {
     if (man.surplus == null) return 'Il motore non lo valuta e non offre una stima: ignoto, mai zero.';

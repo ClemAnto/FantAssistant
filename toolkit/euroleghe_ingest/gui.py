@@ -3929,6 +3929,11 @@ class SnapshotView(ttk.Frame):
         ("◔", "sold as a starter and showing signs of uncertainty (a SHORT window)"),
         # ...and the mirror, in the same clock family: nearly full, because he is on the pitch.
         ("◕", "given as a RESERVE and playing like a starter"),
+        # A CONTINENTAL CUP takes him away in the middle of the league season. A GLOBE - meridians in a
+        # circle - and not a calendar or a plane: what is missing in January is not a date and not a
+        # journey, it is that he plays for another continent. Same reading as the app's `global` icon,
+        # because a mark is a vocabulary and one fact must not carry two symbols across one project.
+        ("⊕", "a CONTINENTAL CUP takes him away during the season"),
     )
 
     # Whether a data-recovery run is in flight, so the mark says «being fetched» instead of «missing».
@@ -4011,6 +4016,7 @@ class SnapshotView(ttk.Frame):
             row.get("desc_rotation_watch") == "watch",
             row.get("desc_rotation_watch") == "early",
             bool(row.get("desc_riser_watch")),
+            bool(row.get("desc_cup")),
         )
         icons = "".join(icon for (icon, _why), on in zip(self.FLAG_ICONS, present, strict=True) if on)
         words = []
@@ -4041,6 +4047,11 @@ class SnapshotView(ttk.Frame):
                 extra = f" - {row.get('desc_rotation_note') or ''}"
             elif icon == "◕":
                 extra = f" - {row.get('desc_riser_note') or ''}"
+            elif icon == "⊕":
+                # The sheet's own sentence: the tournament, its window, which population the coefficient
+                # is about and how many rounds it covers. Rewriting it here would be a second wording of
+                # one measurement, and the two would drift.
+                extra = f" - {row.get('desc_cup_note') or ''}"
             words.append(f"{icon}  {why}{extra}")
         return icons, "\n".join(words)
 

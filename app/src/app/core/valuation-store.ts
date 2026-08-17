@@ -154,6 +154,16 @@ export interface SquadMan extends PlayerRow {
   cupRounds: number | null;
   pvCup: number | null;
   valueCup: number | null;
+  /**
+   * ...e i due SURPLUS al netto della stessa coppa (`desc_surplus_cup`, `desc_surplus_fielded_cup`), che
+   * la tabella offre come due colonne in più solo quando in lista c'è qualcuno esposto.
+   *
+   * Letti dal foglio come tutto il resto, e con la stessa penale di confidenza dei due gated: senza
+   * quella, su una riga che il motore non prezza il surplus «al netto» risultava PIÙ ALTO di quello
+   * lordo, cioè la coppa sembrava pagare.
+   */
+  surplusCup: number | null;
+  surplusFieldedCup: number | null;
   /** The four readings, 0-99 inside this listone. Null before they are computed, and it says so. */
   rating: PlayerRating | null;
   /** Dove stanno le sue quattro fantamedie fra quelle del SUO RUOLO, 0-99: è quello che le colora. */
@@ -265,6 +275,8 @@ interface EngineExpectation {
   cupRounds: number | null;
   pvCup: number | null;
   valueCup: number | null;
+  surplusCup: number | null;
+  surplusFieldedCup: number | null;
   cupNote: string | null;
 }
 
@@ -508,6 +520,8 @@ export class ValuationStore {
           cupRounds: engine?.cupRounds ?? null,
           pvCup: engine?.pvCup ?? null,
           valueCup: engine?.valueCup ?? null,
+          surplusCup: engine?.surplusCup ?? null,
+          surplusFieldedCup: engine?.surplusFieldedCup ?? null,
           // La confidenza moltiplica anche qui, per la stessa ragione per cui moltiplica il surplus:
           // una colonna sola deve poter ordinare tutta la lista, misurati e stimati insieme.
           value: valueOf({
@@ -800,6 +814,8 @@ export class ValuationStore {
           cup: at('desc_cup'), cupCountry: at('desc_cup_country'),
           cupCapped: at('desc_cup_capped'), cupRounds: at('desc_cup_rounds'),
           pvCup: at('desc_pv_cup'), valueCup: at('desc_value_cup'),
+          surplusCup: at('desc_surplus_cup'),
+          surplusFieldedCup: at('desc_surplus_fielded_cup'),
           cupNote: at('desc_cup_note'),
         };
         const read = (row: unknown[], engineAt: number, estimateAt: number) => {
@@ -843,6 +859,10 @@ export class ValuationStore {
             pvCup: columns.pvCup < 0 ? null : ((row[columns.pvCup] as number | null) ?? null),
             valueCup:
               columns.valueCup < 0 ? null : ((row[columns.valueCup] as number | null) ?? null),
+            surplusCup:
+              columns.surplusCup < 0 ? null : ((row[columns.surplusCup] as number | null) ?? null),
+            surplusFieldedCup: columns.surplusFieldedCup < 0
+              ? null : ((row[columns.surplusFieldedCup] as number | null) ?? null),
             cupNote: columns.cupNote < 0 ? null : ((row[columns.cupNote] as string) ?? null),
           });
         }

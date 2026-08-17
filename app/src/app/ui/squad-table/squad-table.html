@@ -126,6 +126,30 @@
           Margine
         </th>
       }
+      @if (shows('surplusCup')) {
+        <th
+          nzWidth="76px"
+          class="text-right"
+          [nzSortFn]="bySurplusCup"
+          [nzSortDirections]="highFirst"
+          nz-tooltip
+          [nzTooltipTitle]="surplusCupHeader"
+        >
+          Surplus −C
+        </th>
+      }
+      @if (shows('surplusFieldedCup')) {
+        <th
+          nzWidth="80px"
+          class="text-right"
+          [nzSortFn]="bySurplusFieldedCup"
+          [nzSortDirections]="highFirst"
+          nz-tooltip
+          [nzTooltipTitle]="surplusCupHeader"
+        >
+          Margine −C
+        </th>
+      }
       @if (shows('value')) {
         <th
           nzWidth="92px"
@@ -282,6 +306,42 @@
                 [class.text-muted]="man.surplusIsEstimate"
                 [class.text-danger]="man.surplusFielded < 0"
                 >@if (man.surplusIsEstimate) {~}{{ man.surplusFielded | number: '1.0-1' }}</span
+              >
+            }
+          </td>
+        }
+        <!-- Le due AL NETTO DELLA COPPA: chi non parte porta qui il suo numero pieno, in grigio, così
+             la colonna ordina tutta la lista e si vede a occhio chi è l'unico a cui la coppa cambia
+             qualcosa. Il marchio col torneo sta accanto al nome (ui-flags), qui sta il numero. -->
+        @if (shows('surplusCup')) {
+          <td class="text-right tabular-nums" [title]="cupHint(man, man.surplusCup, man.surplus)">
+            @if ((man.surplusCup ?? man.surplus) == null) {
+              —
+            } @else {
+              <span
+                [class.text-muted]="man.surplusCup == null || man.surplusIsEstimate"
+                [class.text-danger]="(man.surplusCup ?? man.surplus)! < 0"
+                >@if (man.surplusIsEstimate) {~}{{
+                  man.surplusCup ?? man.surplus | number: '1.0-1'
+                }}</span
+              >
+            }
+          </td>
+        }
+        @if (shows('surplusFieldedCup')) {
+          <td
+            class="text-right tabular-nums"
+            [title]="cupHint(man, man.surplusFieldedCup, man.surplusFielded)"
+          >
+            @if ((man.surplusFieldedCup ?? man.surplusFielded) == null) {
+              —
+            } @else {
+              <span
+                [class.text-muted]="man.surplusFieldedCup == null || man.surplusIsEstimate"
+                [class.text-danger]="(man.surplusFieldedCup ?? man.surplusFielded)! < 0"
+                >@if (man.surplusIsEstimate) {~}{{
+                  man.surplusFieldedCup ?? man.surplusFielded | number: '1.0-1'
+                }}</span
               >
             }
           </td>

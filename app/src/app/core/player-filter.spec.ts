@@ -14,6 +14,7 @@ const man = (over: Partial<SquadMan> = {}): SquadMan => ({
   surplusFielded: 14.7, replacementFielded: 6.99,
   // Nessuna coppa: è lo stato normale di un italiano, e in questa stagione anche di ogni africano.
   cup: null, cupRounds: null, pvCup: null, valueCup: null,
+  surplusCup: null, surplusFieldedCup: null,
   ...over,
 });
 

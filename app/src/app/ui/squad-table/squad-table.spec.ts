@@ -30,4 +30,17 @@ describe('le colonne della tabella', () => {
     expect(byKey.get('surplus')).toBe('Surplus');
     expect(byKey.get('surplusFielded')).toBe('Margine');
   });
+  it('offre le due AL NETTO DELLA COPPA in coppia, e DOPO le due gated', () => {
+    // L'adiacenza fra «Surplus» e «Margine» è una decisione dell'operatore e il test sopra la protegge,
+    // quindi le due nuove vanno in coda alla coppia e non in mezzo. Restano adiacenti fra loro per la
+    // stessa ragione per cui lo sono le prime due: sono lo stesso conto da due zeri diversi.
+    const keys = SQUAD_COLUMNS.map((one) => one.key);
+    expect(keys.indexOf('surplusCup')).toBe(keys.indexOf('surplusFielded') + 1);
+    expect(keys.indexOf('surplusFieldedCup')).toBe(keys.indexOf('surplusCup') + 1);
+    const byKey = new Map(SQUAD_COLUMNS.map((one) => [one.key, one.label]));
+    // Il nome dice che è la stessa cosa MENO qualcosa: «−C» invece di un secondo nome, o due colonne
+    // diverse sembrerebbero due metriche diverse.
+    expect(byKey.get('surplusCup')).toBe('Surplus −C');
+    expect(byKey.get('surplusFieldedCup')).toBe('Margine −C');
+  });
 });
