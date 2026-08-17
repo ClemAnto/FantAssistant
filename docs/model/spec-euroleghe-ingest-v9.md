@@ -1447,6 +1447,47 @@ toccata qui. ⚠️ E un secondo difetto trovato e **non** corretto: 36 righe de
 archiviate sotto lo slug `bundesliga` (Red Bull Salzburg, Austria Klagenfurt) e portano tutte un voto
 sintetico tarato sulla Bundesliga tedesca — stessa famiglia di §7-nonies.
 
+## Novità v9.39 (17 agosto 2026 — la COPPA CONTINENTALE, la nazionalità che era già in cache, e l'id dell'NBA)
+
+**Cosa è entrato nello schema e nei moduli.** `players.nationality` esisteva dal primo giorno ed era NULL
+su **tutte le 4.674 righe**: i due listoni non la portano (la colonna «Nazione» dell'Excel è il
+CAMPIONATO, lo dice `sources.py`), e nessuno aveva notato che i payload delle rose che scarichiamo ogni
+giorno per i ruoli granulari portano `player.country`. La scrive `positions.ingest_nationality_from_cache`,
+**offline, zero richieste** — che è anche l'unica ragione per cui era fattibile quel giorno, con il
+provider che rispondeva 403 la sera prima. Copertura: 1.840 giocatori, **92% del listone Serie A e 90% di
+euro**, e il buco è esattamente chi non ha identità sofascore, cioè un buco di IDENTITÀ e non di fonte.
+Accanto, con migrazione additiva, `players.capped_on`: il giorno in cui un payload lo ha filato fra i
+`nationalPlayers` del suo club. Una DATA e non un flag, perché è quello che è — la pagina pubblica «oggi»,
+quindi un uomo convocato per la prima volta in primavera legge NULL fino a quel giorno — e prova di una
+convocazione, mai prova del contrario.
+
+**Il modulo dei tornei aveva un id sbagliato, e non poteva accorgersene nessuno.** `africa_cup_2025`
+puntava a **132, che è l'NBA** (le sue stagioni tornano come «NBA 25/26»). Nessuno l'aveva mai scaricato,
+e il difetto sarebbe rimasto invisibile: un payload di basket risolve **zero** identità attraverso
+`player_xref` e produce zero righe, che è indistinguibile da «questo torneo non ha nessuno del nostro
+perimetro». Id verificati via `/search/all`: Coppa d'Africa **270**, Coppa d'Asia **246**, Euro 1,
+Mondiale 16. Corollario che vale per ogni tabella di id: prima di aggiungerne uno, si cerca — non si tira.
+E `--tournament` esisteva nel modulo ma non nella CLI: il flag si parsava e il dispatcher lo scartava nel
+ramo di default, quindi l'unico torneo scaricabile era quello predefinito. Un'opzione che nessun chiamante
+può passare è lo stesso difetto di un parametro che nessuna harness può spazzare.
+
+**Sul foglio (`SHEET_REVISION` 24)**: `desc_cup`, `desc_cup_country`, `desc_cup_capped`,
+`desc_cup_rounds`, `desc_cup_share`, `desc_cup_band`, `desc_cup_confirmed`, `desc_pv_cup`,
+`desc_value_cup`, `desc_surplus_cup`, `desc_surplus_fielded_cup`, `desc_cup_note`. Le giornate dentro la
+finestra sono **contate** dal calendario e da due fonti per necessità, con precedenza dichiarata:
+`fixtures` per una stagione non ancora giocata (l'unico posto dove esiste un gennaio futuro) e le lineup
+parsate per una passata (`fixtures` si scarica per la stagione in corso, quindi per il 2021-22 è vuoto).
+Convertite sul calendario della PIATTAFORMA prima di essere sottratte, perché è l'unità su cui vive
+`engine_pv_pred`: 4 giornate di 38 sono 3,3 di una stagione euro da 31.
+
+**Tre note che sono regole più che dettagli.** Un vuoto in queste colonne ha DUE cause e la nota del foglio
+le distingue — nessun torneo dichiarato cade nella stagione (per costruzione: nel 2026-27 è tutta l'Africa,
+la CAN è estiva) oppure uno ci cade e il calendario di quella stagione non è in `fixtures`, e allora è
+IGNOTO, non zero. Il file dichiarato **non viaggia nel bundle** di proposito: le colonne del foglio già
+portano torneo, date e penalità, e una seconda fonte per lo stesso fatto è come finiscono per divergere.
+E `validate.ALLOWED_EMPTY` accoglie le due colonne nuove di `players`, perché un database costruito dal
+listone e dai voti soli legittimamente non ha né l'una né l'altra.
+
 ## Novità v9.38 (8 agosto 2026 — il repertorio dell'allenatore joinava per NOME, e perdeva il 26% degli undici)
 
 Richiesta dell'operatore: «applica `coach_shapes`». **Era già applicato** — entra in `shape_odds` dal 04/08

@@ -1,5 +1,8 @@
 # 00 — BRIDGE · Punto d'ingresso del progetto (leggere per primo)
-**Aggiornato: 16 agosto 2026, sera tardi (i DUE ZERI sul foglio e in tabella — `SHEET_REVISION` 22, colonna «Margine» accanto a «Surplus», posti schierati contati dal regolamento — v0.1.17 pubblicata, e il prior personale del pannello misurato e RESPINTO 12 fogli su 12)** · precedente: 16 agosto 2026 (le CINQUE LETTURE dell'app con un documento proprio, lo zero che diventa il rimpiazzo che ENTRA, due dati nuovi — porte inviolate e curva del valore — e tre ipotesi rifiutate dalla misura; v0.1.11)** · precedente: 14 agosto 2026, notte (il TREND delle ultime dieci, CHI HA GUADAGNATO IL POSTO, «preso per titolare ruotato di fatto» e il suo SPECCHIO: item 5, 6, 7 e 8 chiusi lo stesso giorno)** · precedente: 10 agosto, notte tarda (la todolist del draft ESEGUITA, il campetto legge la board del toolkit ed e' rifinito, v0.1.8 pushata)** · precedente: 10 agosto, giorno (l'assistente d'asta e' completo — porte, surplus vivo, scelta consigliata — e la campagna sulle strategie di draft ha RITIRATO due conclusioni)** · precedente: 9 agosto (l'app esiste: Angular, pubblicata su GitHub Pages, legge il bundle del toolkit)** · 8 agosto (DUE GIUDICI per le formazioni tipo — la stampa e l'ESITO reale — e la todolist formazioni tipo chiusa: cinque adozioni, sei rifiuti misurati)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
+**Aggiornato: 17 agosto 2026 (LA COPPA CONTINENTALE IN MEZZO AL CAMPIONATO — `SHEET_REVISION` 24, la
+nazionalità letta offline dalla cache che già pagavamo, la penalità misurata su quattro finestre-torneo e
+per fascia di titolarità, R21 provata nel motore e RESPINTA, il post-torneo estivo falsificato col segno
+opposto)** · precedente: 16 agosto 2026, sera tardi (i DUE ZERI sul foglio e in tabella — `SHEET_REVISION` 22, colonna «Margine» accanto a «Surplus», posti schierati contati dal regolamento — v0.1.17 pubblicata, e il prior personale del pannello misurato e RESPINTO 12 fogli su 12)** · precedente: 16 agosto 2026 (le CINQUE LETTURE dell'app con un documento proprio, lo zero che diventa il rimpiazzo che ENTRA, due dati nuovi — porte inviolate e curva del valore — e tre ipotesi rifiutate dalla misura; v0.1.11)** · precedente: 14 agosto 2026, notte (il TREND delle ultime dieci, CHI HA GUADAGNATO IL POSTO, «preso per titolare ruotato di fatto» e il suo SPECCHIO: item 5, 6, 7 e 8 chiusi lo stesso giorno)** · precedente: 10 agosto, notte tarda (la todolist del draft ESEGUITA, il campetto legge la board del toolkit ed e' rifinito, v0.1.8 pushata)** · precedente: 10 agosto, giorno (l'assistente d'asta e' completo — porte, surplus vivo, scelta consigliata — e la campagna sulle strategie di draft ha RITIRATO due conclusioni)** · precedente: 9 agosto (l'app esiste: Angular, pubblicata su GitHub Pages, legge il bundle del toolkit)** · 8 agosto (DUE GIUDICI per le formazioni tipo — la stampa e l'ESITO reale — e la todolist formazioni tipo chiusa: cinque adozioni, sei rifiuti misurati)** · Questo file inizializza qualsiasi sessione/strumento nuovo. Il prefisso "00" lo tiene in cima alla cartella.
 
 ## Il progetto in breve
 Motore previsionale per fantacalcio **EuroLeghe** (fantacalcio.it): valutazione calciatori Classic e Mantra sui 5 grandi campionati europei (Serie A, Premier, Liga, Bundesliga, Ligue 1 — perimetro: i ~35 top club del gioco). Prevede fantamedia (FM), presenze attese e VALORE stagionale = FM × presenze. Metodo scientifico: **ogni regola entra nel motore solo se batte il baseline fuori campione su finestre indipendenti** (gate pre-registrato). Stato: core validato (Mantra, Classic, portieri, presenze); manca lo strato flag/arrivi, sbloccato dal toolkit dati `euroleghe-ingest` (in implementazione).
@@ -32,9 +35,51 @@ con la stampa dell'08/08/2026, ordinato per resa misurata).
 L'altra fase, quella settimanale, è **`formazione-settimanale-v1.md`** (progetto): chi gioca domenica, perché
 la pagina delle probabili non basta e quali vincoli valgono già oggi.
 
-## STATO AL 16 AGOSTO 2026, SERA — LEGGI QUESTO PRIMA DI TUTTO
+## STATO AL 17 AGOSTO 2026 — LEGGI QUESTO PRIMA DI TUTTO
 
 Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
+
+**Il 17/08 in quattro righe.** La domanda era «chi può essere convocato in nazionale durante il
+campionato», e la prima risposta ribalta la premessa: nel 2026-27 **la Coppa d'Africa non tocca il
+campionato** (19/06-17/07/2027, prima edizione estiva dal 2019), quindi l'unico torneo in stagione è la
+**Coppa d'Asia, 07/01-05/02/2027** — 4 quotati in Serie A e 9 su euro, **zero africani**. La penalità è
+MISURATA (difference-in-differences su quattro finestre-torneo), sta sul foglio come reporting
+(`SHEET_REVISION` **24**) e l'app la disegna; dentro `engine_pv_pred` è stata **provata e respinta**.
+Toolkit **423 test**, app **269**, `backtest --verify` **22/22**.
+
+**Le cinque cose che valgono oltre la feature.**
+1. **La nazionalità era in casa e nessuno la leggeva.** `players.nationality` era NULL su tutte le 4.674
+   righe — i listoni non la portano, la loro colonna «Nazione» è il CAMPIONATO — mentre i payload delle
+   rose che scarichiamo ogni giorno per i ruoli granulari portano `player.country`. Letta offline: 1.840
+   giocatori, **92% del listone Serie A e 90% di euro**, zero richieste di rete. Validata contro un
+   fatto: sui 300 quotati che hanno giocato il Mondiale 2026 nomina la nazionale vera **299 volte**.
+2. **La penalità si scompone, e la scomposizione la rende spiegabile**: `P(convocato) × costo di
+   andarci`. Il costo è lo stesso calcio in Africa e in Asia (0,59) e va il 43% dei CAF delle nostre
+   leghe (65% dei già nazionali, 20% degli altri) — 0,6 × 0,59 = 0,35 contro lo 0,352 misurato in
+   blocco. Quindi la Coppa d'Asia non costa il doppio perché sia un torneo peggiore: costa il doppio
+   perché là il passaporto quasi implica la convocazione. Da dicembre le rose vere trasformano la media
+   nel fatto.
+3. **Il POST-TORNEO estivo non esiste**, col segno opposto: Euro 2024 **+0,066** e Euro 2020 **+0,017**,
+   positivo su sei punti di griglia di sei e anche per chi è andato in fondo. Il null lo spiega: a inizio
+   stagione peggiorano i CONTROLLI (base −0,069), non i reduci, perché chi va all'Europeo è un titolare
+   consolidato.
+4. **R21 dentro il motore NON PASSA** (§7-quattuortricies-bis): su T2 muove 35 giocatori e la MAE delle
+   presenze peggiora del 4%. È la lezione del canale ETÀ un'altra volta — chi va alla Coppa d'Africa ci è
+   andato anche l'anno prima, quindi `minutes_prev` porta già lo sconto e sottrarlo lo conta due volte.
+   Ipotesi dichiarata NON verificata; il prerequisito per riaprirla è l'esposizione dell'anno di INPUT
+   come controllo.
+5. **Un torneo per cui il campionato si ferma non costa niente**: nella finestra del Mondiale 2022 i
+   cinque campionati non hanno una sola partita. La penalità non è una proprietà del torneo ma della
+   SOVRAPPOSIZIONE — e il codice lo ottiene già, perché conta le giornate dal calendario vero.
+
+**Due difetti trovati eseguendo, non leggendo.** `africa_cup_2025` puntava all'id **132, che è l'NBA**: un
+payload di basket risolve zero identità e produce zero righe, cioè è indistinguibile da «nessuno del
+nostro perimetro» (id veri: CAN **270**, Coppa d'Asia **246**). E `--tournament` non arrivava al modulo:
+la CLI parsava il flag e il dispatcher lo scartava nel ramo di default.
+
+**Aperto, e non è lavoro di oggi**: a **dicembre 2026** `tournaments --tournament asian_cup_2027` porta le
+penalità da media a fatto; `fixtures --season 2025-26` riempirebbe le colonne dei pacchetti retrodatati,
+oggi IGNOTE per mancanza di calendario e non di torneo.
 
 **La SERA TARDI del 16/08, in tre righe.** I due zeri sono sul foglio e in tabella (blocco qui sotto):
 `SHEET_REVISION` **22**, toolkit **415 test** (uno salta se non c'è un display), app **264**,

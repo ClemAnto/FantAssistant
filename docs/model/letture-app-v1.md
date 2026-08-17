@@ -360,6 +360,29 @@ tali perché il prossimo lettore non le prenda per misure:
 
 ---
 
+## 7-bis. La COPPA CONTINENTALE accanto al nome: un marchio, e due colonne che compaiono solo se servono (17 agosto 2026)
+
+Non è una lettura 0-99 e non entra in nessuna: è un **marchio** (globo ambra, `intl_cup`, filtrabile fra le
+icone) più la penalità nel tooltip delle presenze attese, e due colonne al netto che compaiono soltanto
+quando in lista c'è qualcuno esposto. Sta scritto qui perché le regole sono le stesse delle cinque letture:
+
+* **il marchio viene dal FOGLIO e l'app non lo ricalcola.** Chi va a un torneo è una previsione su una
+  persona, quindi si misura dove le misure si giudicano. Se l'app se lo derivasse da nazionalità e finestre
+  prima o poi segnerebbe un uomo che il foglio non segna — una nazionale non qualificata, un'eccezione
+  dichiarata, un calendario che non copre quella lega — ed è il difetto «una lista mostrata i cui numeri
+  descrivono un'altra lista»;
+* **il marchio NON porta il numero delle giornate.** `PlayerStatus` è uno per giocatore e la stessa Coppa
+  d'Asia vale 4 giornate in Serie A e 3,3 su euro: il numero sta nella colonna, che sa su quale calendario
+  contarlo. Un numero senza il suo calendario non dice di cosa è misura;
+* **«nazionale» e «convocabile» sono due frasi diverse** e la differenza è misurata (0,35 contro 0,20 in
+  una finestra di Coppa d'Africa), quindi il tooltip le tiene separate invece di dire «potrebbe partire»;
+* **la soglia non c'è**: non è un marchio con una soglia di display come i due infortuni, è un fatto di
+  calendario. Quello che è dichiarato — e va detto — è la mappa paese/confederazione e le eccezioni
+  (`config/international_cups.json`), perché la nazionale per cui un uomo gioca non è osservabile da
+  niente in questo repo: Dahoud legge Syria ed è sceso in campo per la Germania.
+
+---
+
 ## 8. Aperti
 
 1. **`season_stats.clean_sheets`** — derivabile da `match_ratings` per tutte e 11 le stagioni, nessun

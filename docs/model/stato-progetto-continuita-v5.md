@@ -8,6 +8,22 @@ App per leghe EuroLeghe/fantacalcio.it (Classic+Mantra, 5 campionati) con motore
 
 ## ⚠️ Lo stato corrente è in `00-BRIDGE-punto-di-ingresso.md`, blocco «STATO AL 5 AGOSTO 2026»
 
+### 17 agosto 2026, in una riga: la COPPA CONTINENTALE in mezzo al campionato — misurata, sul foglio, e respinta dal gate
+
+La domanda («chi può essere convocato durante il campionato») ha una risposta che ribalta la premessa:
+nel 2026-27 la **Coppa d'Africa non tocca il campionato** (19/06-17/07/2027, prima estiva dal 2019) e
+l'unico torneo in stagione è la **Coppa d'Asia** del 07/01-05/02/2027 — 4 quotati in Serie A, 9 su euro,
+nessun africano. Quello che è entrato: la NAZIONALITÀ letta offline dalla cache che già pagavamo
+(`players.nationality` era NULL su 4.674 righe su 4.674; ora 1.840 giocatori, 92%/90% dei due listoni,
+validata 299 volte su 300 contro il Mondiale 2026), la penalità MISURATA per fascia di titolarità e per
+«già nazionale o no» (`engine/cups.py`), otto colonne `desc_cup*` più i due surplus al netto
+(`SHEET_REVISION` **24**), l'icona nell'app e nel pannello Tk, e `config/international_cups.json` come
+quinto file dichiarato. Quello che NON è entrato, e sono i risultati che valgono di più: **R21 dentro
+`engine_pv_pred` non passa** (su T2 muove 35 uomini e la MAE delle presenze peggiora del 4% — il modello
+legge già lo sconto nei minuti dell'anno prima, come nel canale ETÀ) e il **post-torneo estivo è
+falsificato col segno opposto** (+0,066 e +0,017 su due finestre). Dettagli e numeri: `gate-motore-v1.md`
+§7-quattuortricies e §7-quattuortricies-bis. Toolkit 423 test, app 269, `--verify` 22/22.
+
 ### 16 agosto 2026, SERA TARDI, in una riga: R20 adottata, e i due zeri del foglio hanno un progetto
 
 Sei commit dopo la prima chiusura (`14935d5` → `21a13a4`), **v0.1.14 pubblicata**, `SHEET_REVISION` **21**.

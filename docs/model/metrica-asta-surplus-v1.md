@@ -1417,3 +1417,26 @@ differenza si legge.
 ordinamento e stesso posto nel selettore «Colonne» — e nasce accesa, perché il selettore ricorda le
 colonne spente. Il tooltip dichiara lo zero in cella, come SpM/dVM. **Il consiglio d'asta non la legge**:
 quello resta legato al FORMATO, che è misurato (§16).
+
+
+## 22. Le due colonne AL NETTO DELLA COPPA, e perché non sostituiscono niente (17 agosto 2026)
+
+`desc_surplus_cup` e `desc_surplus_fielded_cup`: gli stessi due conti del §21, sulle presenze che restano
+dopo il torneo continentale che porta via un uomo in mezzo al campionato. In tabella sono «Surplus −C» e
+«Margine −C», ordinabili, e **compaiono solo se in lista c'è qualcuno esposto** — lo stesso trattamento
+della colonna «Squadra», perché due colonne vuote su 1.590 righe di 1.596 non sono una funzione.
+
+Tre cose che le rendono leggibili, e ognuna è una lezione già pagata altrove:
+
+* **chi non parte porta qui il numero PIENO**, non un vuoto. Ordinare per questa colonna deve ordinare
+  tutta la lista: coi non esposti in fondo, la colonna risponderebbe a «chi parte per la coppa» invece che
+  a «quanto vale tenuto conto della coppa», che è la domanda per cui esiste;
+* **la stessa penale di confidenza dei due gated** quando la riga è una stima. Senza, il surplus «al
+  netto» di Jasim usciva **9,6 contro i 5,1** della colonna accanto — cioè la coppa sembrava PAGARE, e la
+  differenza non era la coppa, era la penale che una delle due aritmetiche non applicava. Terzo caso della
+  stessa famiglia dopo `est_surplus` e i due zeri: due colonne accanto vanno calcolate con la STESSA
+  aritmetica, o quella che sembra migliore lo è per un motivo che non c'entra col fenomeno;
+* **il coefficiente è misurato e il gate l'ha respinto DENTRO le presenze**, e l'intestazione lo dice: chi
+  legge «−C» non deve prenderla per una versione migliore di quella accanto. Le due colonne rispondono a
+  «questo salta quattro giornate», che è una domanda da tavolo; il gate rispondeva a «l'errore aggregato
+  migliora se lo sottraggo», ed è no (`gate-motore-v1.md` §7-quattuortricies-bis).
