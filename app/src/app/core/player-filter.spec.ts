@@ -12,6 +12,8 @@ const man = (over: Partial<SquadMan> = {}): SquadMan => ({
   tones: { fm: null, mv: null, expectedFm: null, expectedMv: null, dvm: null },
   surplus: 28.4, surplusIsEstimate: false, value: 163.2, spm: null, dvm: null,
   surplusFielded: 14.7, replacementFielded: 6.99,
+  // Nessuna coppa: è lo stato normale di un italiano, e in questa stagione anche di ogni africano.
+  cup: null, cupRounds: null, pvCup: null, valueCup: null,
   ...over,
 });
 

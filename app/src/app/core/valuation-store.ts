@@ -3,8 +3,10 @@ import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import { valueOf } from './auction-value';
 import { BoardsFile, Bundle, EngineSheetEntry, columnIndex, optionalIndex } from './bundle';
 import { DRAW_ORDER, occupiedCode } from './club-eleven';
+import { cupMark, windowFromNote } from './player-cup';
 import { EngineForecast, PlayerRating, rank99ByRole } from './player-ratings';
 import { PlayerRatingsStore } from './player-ratings-store';
+import { PlayerMark, PlayerStatus } from './player-status';
 import { Platform, PlayerRow, buildRosters } from './players-store';
 import { TimeTravel } from './time-travel';
 
@@ -139,6 +141,19 @@ export interface SquadMan extends PlayerRow {
    * sola definizione che questo progetto ha, la stessa che legge il pannello d'asta.
    */
   value: number | null;
+  /**
+   * LA COPPA CONTINENTALE in mezzo al campionato, per la riga: il torneo, le giornate a rischio su questo
+   * calendario, e le presenze e i fantapunti al netto (`desc_cup`, `desc_cup_rounds`, `desc_pv_cup`,
+   * `desc_value_cup`). Letti dal foglio, mai ricalcolati.
+   *
+   * Stanno ACCANTO a `expected` e `value` e non al loro posto, per la ragione che questo progetto ha già
+   * scritto due volte: `engine_pv_pred` è la colonna che il gate possiede, e una correzione misurata
+   * fuori dal gate le si affianca - come «Margine» sta accanto a «Surplus» - invece di riscriverla.
+   */
+  cup: string | null;
+  cupRounds: number | null;
+  pvCup: number | null;
+  valueCup: number | null;
   /** The four readings, 0-99 inside this listone. Null before they are computed, and it says so. */
   rating: PlayerRating | null;
   /** Dove stanno le sue quattro fantamedie fra quelle del SUO RUOLO, 0-99: è quello che le colora. */
@@ -235,6 +250,22 @@ interface EngineExpectation {
   confidence: number;
   basis: string | null;
   note: string | null;
+  /**
+   * LA COPPA CONTINENTALE che cade dentro il campionato (revisione 23+): il torneo, il paese, se è già
+   * nazionale, le giornate a rischio su QUESTO calendario e le presenze attese al netto.
+   *
+   * Tutto letto dal foglio e niente ricalcolato qui, nemmeno la sottrazione: quanto perde uno di quel
+   * profilo è una misura (difference-in-differences su quattro finestre-torneo), e il tappo che impedisce
+   * a un riservista di perdere più giornate di quante ne avrebbe giocate sta nella stessa funzione che
+   * l'ha misurata. Vuoti per chiunque nessun torneo dichiarato tocchi, che nel 2026-27 è tutta l'Africa.
+   */
+  cup: string | null;
+  cupCountry: string | null;
+  cupCapped: boolean;
+  cupRounds: number | null;
+  pvCup: number | null;
+  valueCup: number | null;
+  cupNote: string | null;
 }
 
 type Status = 'idle' | 'loading' | 'ready' | 'error';
@@ -272,6 +303,31 @@ export class ValuationStore {
   private readonly bundle = inject(Bundle);
   private readonly ratings = inject(PlayerRatingsStore);
   private readonly travel = inject(TimeTravel);
+  private readonly marks = inject(PlayerStatus);
+
+  /**
+   * Il marchio per giocatore, da qualunque foglio lo dichiari.
+   *
+   * Un uomo può stare su entrambi i listoni con giornate a rischio diverse (4 in Serie A, 3,3 su euro), e
+   * il marchio è UNO: porta quindi solo quello che non dipende dalla piattaforma - torneo, finestra,
+   * paese, se è già nazionale - e le giornate restano nella colonna, che sa su quale calendario contarle.
+   */
+  private readonly cupMarks = computed<Map<number, PlayerMark>>(() => {
+    const out = new Map<number, PlayerMark>();
+    for (const [key, engine] of this.expected()) {
+      if (!engine.cup || !engine.cupCountry) continue;
+      const fcId = Number(key.split('|')[1]);
+      if (out.has(fcId)) continue;                 // il primo foglio che lo dichiara basta
+      const mark = cupMark({
+        cup: engine.cup,
+        window: windowFromNote(engine.cupNote),
+        country: engine.cupCountry,
+        capped: engine.cupCapped,
+      });
+      if (mark) out.set(fcId, mark);
+    }
+    return out;
+  });
 
   readonly status = signal<Status>('idle');
   readonly error = signal<string | null>(null);
@@ -447,6 +503,11 @@ export class ValuationStore {
           replacementFielded: engine?.replacementFielded ?? null,
           spm: engine?.spm ?? null,
           dvm: engine?.dvm ?? null,
+          // La coppa continentale: le giornate a rischio su QUESTO calendario e le presenze al netto.
+          cup: engine?.cup ?? null,
+          cupRounds: engine?.cupRounds ?? null,
+          pvCup: engine?.pvCup ?? null,
+          valueCup: engine?.valueCup ?? null,
           // La confidenza moltiplica anche qui, per la stessa ragione per cui moltiplica il surplus:
           // una colonna sola deve poter ordinare tutta la lista, misurati e stimati insieme.
           value: valueOf({
@@ -491,6 +552,14 @@ export class ValuationStore {
         this.pending = this.read();
       }
     });
+    // I MARCHI DELLA COPPA, registrati appena i fogli sono in casa.
+    //
+    // Da QUI e non dal pannello d'asta, perché questo è il negozio che ogni lista legge - la tabella di
+    // consultazione compresa - e il marchio deve comparire dove compare il nome. Una definizione sola, e
+    // sta nel FOGLIO: se l'app se lo ricalcolasse da nazionalità e finestre, prima o poi segnerebbe un
+    // uomo che il foglio non segna (una nazionale non qualificata, un'eccezione dichiarata, un calendario
+    // che non copre quella lega) - il difetto «una lista mostrata i cui numeri descrivono un'altra lista».
+    effect(() => this.marks.cups.set(this.cupMarks()));
   }
 
   /** Il pacchetto su cui è costruita la risposta attuale (null = il bundle di oggi). */
@@ -726,6 +795,12 @@ export class ValuationStore {
           spm: at('desc_spm'), dvm: at('desc_dvm'),
           confidence: at('est_confidence'),
           basis: at('est_basis'), note: at('est_note'),
+          // La coppa continentale in mezzo al campionato, revisione 23+: assenti prima, e allora la
+          // colonna è muta invece di dire «nessuno parte».
+          cup: at('desc_cup'), cupCountry: at('desc_cup_country'),
+          cupCapped: at('desc_cup_capped'), cupRounds: at('desc_cup_rounds'),
+          pvCup: at('desc_pv_cup'), valueCup: at('desc_value_cup'),
+          cupNote: at('desc_cup_note'),
         };
         const read = (row: unknown[], engineAt: number, estimateAt: number) => {
           const engine = engineAt < 0 ? null : (row[engineAt] as number | null);
@@ -757,6 +832,18 @@ export class ValuationStore {
               columns.replacement < 0 ? null : ((row[columns.replacement] as number | null) ?? null),
             basis: columns.basis < 0 ? null : ((row[columns.basis] as string) ?? null),
             note: columns.note < 0 ? null : ((row[columns.note] as string) ?? null),
+            cup: columns.cup < 0 ? null : ((row[columns.cup] as string) ?? null),
+            cupCountry:
+              columns.cupCountry < 0 ? null : ((row[columns.cupCountry] as string) ?? null),
+            // «yes»/«no» e non un booleano: il foglio scrive parole, e questo progetto ha già pagato una
+            // volta un `Boolean(...)` su una colonna che sembrava un flag e portava una parola.
+            cupCapped: columns.cupCapped >= 0 && row[columns.cupCapped] === 'yes',
+            cupRounds:
+              columns.cupRounds < 0 ? null : ((row[columns.cupRounds] as number | null) ?? null),
+            pvCup: columns.pvCup < 0 ? null : ((row[columns.pvCup] as number | null) ?? null),
+            valueCup:
+              columns.valueCup < 0 ? null : ((row[columns.valueCup] as number | null) ?? null),
+            cupNote: columns.cupNote < 0 ? null : ((row[columns.cupNote] as string) ?? null),
           });
         }
       } catch {

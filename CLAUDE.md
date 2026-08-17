@@ -49,6 +49,15 @@ Monorepo for the **EuroLeghe fantacalcio prediction engine**. Two parts:
   any of the three as a dispute would be inventing a fact from a different one. REPORTING only — it
   draws an icon beside a name in the app and no engine path reads it — it travels in the bundle's
   `config/` (`export` copies it, `data:pull` pulls it), and it is joined by `fc_id`, never by a name.
+  **A fifth one, 17/08/2026: `international_cups.json`** — the continental cups played INSIDE a league
+  season (window, host, the qualified field, the source and the day it was read) and which country belongs
+  to which confederation, plus `exceptions`: the per-`fc_id` declaration that a man plays for somebody
+  other than his passport (Dahoud reads Syria and has played for Germany, and nothing in this project
+  observes a national-team choice). Declared like the two rulebooks, because it is a published calendar
+  read and never fitted; what is MEASURED is what one of those windows COSTS, and that lives in
+  `engine/cups.py` where a harness can reach it. It deliberately does NOT travel in the bundle — the
+  sheet's own `desc_cup*` columns already carry the tournament, its dates and the penalty, and a second
+  copy would be a second source for one fact. See «A mid-season continental cup» below.
 - `docs/` - manifest of the Drive documents (source of truth). `data/` - local datasets (rebuildable).
 
 ## Language convention
@@ -533,6 +542,36 @@ per-player minutes, **Transfermarkt answers 200** — and its `ceapi` serves the
 clean JSON with no consent wall, while its performance and national-team pages hide their tables behind
 one. Guessing endpoints is not searching: 4 of 6 guesses returned 404, and the way in is to record the
 calls the real page makes.
+
+## A mid-season continental cup is a CALENDAR, and the only unknown is who goes
+**17/08/2026, from the operator's question about the Africa Cup — and the first answer reverses the
+premise.** In 2026-27 the CAN does not touch the league at all: it is played **19/06 → 17/07/2027**, the
+first summer edition since 2019, so it costs a PRESEASON (`post_torneo`) and not a matchday. The only
+tournament inside the season is the **Coppa d'Asia, 07/01 → 05/02/2027**, and it reaches 4 quoted men in
+Serie A and 9 on euro. Zero Africans, which is the point.
+Three facts of three different kinds meet on that row and each is treated as what it is. The CALENDAR is
+declared (above). The NATIONALITY is an IDENTITY, and it was **already paid for and unread**:
+`players.nationality` had been in the schema since day one and was NULL on all 4,674 rows (the listone's
+«Nazione» column is the LEAGUE), while the squad payloads we download daily for the granular roles carry
+`player.country` — read offline, 1,840 players, 92% of the Serie A listone and 90% of euro, and the gap is
+exactly who has no sofascore identity. No network, which is also the only reason it could be done at all:
+the provider has answered 403 `challenge` since 16/08. Validated instead of believed: on the 300 quoted men
+who played the 2026 World Cup it names the national team they really turned out for **299 times**.
+What it COSTS is MEASURED — difference-in-differences over four tournament windows, treated = that
+confederation's nationals, control = the same league and season, outcome = the share of his club's matches
+he was on the pitch for inside the window against outside it: **AFC 0.59 · CAF 0.35 capped / 0.20 not**
+(gate §7-quattuortricies). The Asian Cup costs twice the CAN, and the mechanism says why: an African
+passport in Europe is common and a call-up is not, while the handful of Asians who play here are their
+countries' starters. So the coefficient already contains the probability of being called, which is what
+makes a call-up list — a thing nobody publishes in August — unnecessary rather than missing.
+Three habits it re-taught. **The unit of a subtraction is part of the subtraction**: the window's rounds
+are counted from the real calendar (`fixtures`: Serie A 4, Bundesliga 5, Premier 3) and converted to the
+PLATFORM's, because that is what `engine_pv_pred` lives on. **A coefficient is capped by the population it
+was measured on** — regulars — so a squad player can never lose more rounds than he was going to play.
+And **the counter-example lives where the validation is blind**: the World Cup test can only see men who
+have already chosen, so the man who chose another country is declared, never inferred from a birthplace.
+REPORTING: `desc_pv_cup` / `desc_value_cup` sit beside the gated column, `backtest --verify` stays 22/22,
+and the engine-side rule is pre-registered with its criteria written before the run.
 
 ## Three facts that are snapshots and can never be backfilled
 - **Starting probability** (`probable_starter`): the site publishes only "now", so a week not captured is

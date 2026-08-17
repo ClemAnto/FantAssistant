@@ -46,6 +46,7 @@ from typing import NamedTuple
 
 from euroleghe_ingest import config, matching
 from euroleghe_ingest.context import Context
+from euroleghe_ingest.engine import cups as engine_cups
 from euroleghe_ingest.engine import estimate as est
 from euroleghe_ingest.engine import evaluate, features
 from euroleghe_ingest.modules import fixtures, positions
@@ -227,7 +228,25 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      25 del foglio Serie A i due ordini condividono 13 nomi su 25 (P5 D1 C0 A19 contro P3 D5 C8 A9).
 #      REPORTING: `engine_surplus` non si muove di un decimale - e' gated - e il gate non vede queste
 #      colonne. I posti vengono CONTATI dal regolamento (`features.fielded_places`), non scelti.
-SHEET_REVISION = 22
+#  23  17/08/2026 - LA COPPA CONTINENTALE IN MEZZO AL CAMPIONATO: `desc_cup*`, `desc_pv_cup`,
+#      `desc_value_cup`. Tre fatti e una misura: le finestre e le qualificate sono DICHIARATE
+#      (`config/international_cups.json`, dal registro pubblico), la nazionalità è un'IDENTITÀ letta dai
+#      payload che già pagavamo (`players.nationality`, 0 righe su 4674 prima di oggi, 1840 dopo, e
+#      validata sui 300 quotati del Mondiale 2026 a 299), e quanto perde uno di quel profilo è MISURATO
+#      col difference-in-differences su quattro finestre-torneo (AFC 0.59 · CAF 0.35 se nazionale, 0.20
+#      se no). Sul 2026-27 tocca 13 quotati e nessun africano: la Coppa d'Africa 2027 è a giugno.
+#      REPORTING - `engine_pv_pred` non si muove di un decimale e il gate non vede queste colonne.
+#  24  17/08/2026, poche ore dopo - PENALITÀ A TUTTI, e la revisione sale perché i NUMERI della 23 sono
+#      già superati: il coefficiente non è più uno per confederazione ma uno per POPOLAZIONE (`regular` /
+#      `rotation` / `fringe`, misurate: CAF 0,35/0,09/0,03 da nazionale e 0,20/0,07/0,03 da convocabile,
+#      AFC 0,59 e la forma prestata sotto), al posto del tappo `pv/calendario` che sbagliava di quattro
+#      volte in basso. Con le rose dei tornei scaricate arrivano anche `desc_cup_band` /
+#      `desc_cup_confirmed` - una convocazione NOTA cancella la probabilità e la penalità diventa il
+#      costo di andarci (0,59, misurato su quattro tornei e identico in Africa e in Asia) - e i due
+#      surplus al netto (`desc_surplus_cup`, `desc_surplus_fielded_cup`), con la stessa penale di
+#      confidenza dei gated: senza quella la coppa sembrava PAGARE su una riga stimata.
+#      Il POST-TORNEO estivo è stato misurato e RIFIUTATO (+0,06 e +0,02 su due finestre, segno opposto).
+SHEET_REVISION = 24
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
@@ -2426,6 +2445,120 @@ def penalty_duty(conn, auction_date: str) -> dict[int, tuple[int, float]]:
     return out
 
 
+def cup_rounds_by_league(conn, season: str, cup, after: str | None = None) -> dict[str, tuple[int, int]]:
+    """Per championship: (rounds inside the cup's window, rounds in the whole season), from `fixtures`.
+
+    COUNTED and not assumed, because the same tournament costs a different number of rounds in each
+    league - the Asian Cup of January 2027 covers 4 Serie A rounds, 5 Bundesliga ones and 3 Premier
+    ones - and because the calendar is the one thing about next January that is already published.
+
+    `after` drops what has already been played: a round before the auction date is not a round at risk,
+    and an auction held in February looks at a tournament that is over. A league whose calendar we do
+    not have yields nothing at all rather than a zero, which is the difference between «no rounds fall
+    in the window» and «we cannot say» - and the sheet's column has to mean the first one only.
+    """
+    start = max(cup.start, after) if after else cup.start
+    out: dict[str, tuple[int, int]] = {}
+    total = {league: rounds for league, rounds in conn.execute(
+        "SELECT league, COUNT(DISTINCT round) FROM fixtures WHERE season = ? GROUP BY league", (season,))}
+    inside = {league: rounds for league, rounds in conn.execute(
+        "SELECT league, COUNT(DISTINCT round) FROM fixtures WHERE season = ? AND date BETWEEN ? AND ? "
+        "GROUP BY league", (season, start, cup.end))}
+    for league, rounds in total.items():
+        if rounds:
+            out[league] = (inside.get(league, 0), rounds)
+    return out
+
+
+def cup_exposure(ctx: Context, conn, window, observations, platform_rounds: int | None,
+                 pv_by_id: Mapping[int, float] | None = None) -> dict[int, dict]:
+    """Who a mid-season continental cup takes away, and what it is expected to cost him.
+
+    Three facts meet here and none of them is guessed. WHEN the tournament is played and WHO is in it
+    are declared (`config/international_cups.json`, read from the public record). WHICH country a man
+    belongs to is his identity, from the provider payloads (`players.nationality`, validated against
+    the 2026 World Cup at 299/300). HOW MUCH a player of that profile loses is MEASURED - the
+    difference-in-differences of `engine/cups.py`, which already contains the probability of being
+    called up at all, so nothing here needs a call-up list that does not exist in August.
+
+    The rounds are converted to the PLATFORM's calendar before they are subtracted, because that is the
+    unit `engine_pv_pred` lives on: 4 Serie A rounds of 38 are 3.3 rounds of a 31-round euro season.
+    Without that conversion the sheet would take championship rounds off a platform number.
+
+    REPORTING. The adjusted appearances are a column of their own beside the gated one - the same
+    treatment «Margine» gets beside «Surplus» - and `engine_pv_pred` is not touched by a decimal.
+    """
+    declared = ctx.config.load_international_cups()
+    cups, membership = engine_cups.parse(declared)
+    if not cups:
+        return {}
+    # ...and whoever the operator has declared out of his passport's national team. It only removes.
+    excused = engine_cups.excused(declared)
+    season = window.target_season
+    # Everything this season can still be hit by: a cup whose window ended before the auction date is
+    # over and costs nothing, while one that has not started yet is exactly what an August sheet exists
+    # to warn about. The season filter is the file's own declaration, so a back-dated sheet cannot pick
+    # up a tournament from a different year.
+    live = [cup for cup in cups.values() if cup.end >= window.auction_date
+            and (not cup.seasons or season in cup.seasons)]
+    if not live:
+        return {}
+    rounds_by_cup = {cup.key: cup_rounds_by_league(conn, season, cup, after=window.auction_date)
+                     for cup in live}
+    pv_by_id = pv_by_id or {}
+    # ...e CHI È DAVVERO CONVOCATO, quando la lista esiste: `tournaments_squads` porta chi ha giocato un
+    # torneo, quindi per una coppa GIÀ GIOCATA (un foglio retrodatato) è un fatto, e per quella che
+    # verrà lo diventa quando le rose vengono pubblicate. Una convocazione nota cancella la probabilità:
+    # la penalità diventa il COSTO di andarci (0,53 di finestra) invece di quel costo per la probabilità.
+    confirmed: dict[int, set[str]] = {}
+    for fc_id, tournament in conn.execute(
+            "SELECT fc_id, tournament FROM tournaments_squads WHERE tournament IN "
+            f"({','.join('?' * len(live))})", [cup.key for cup in live]) if live else ():
+        confirmed.setdefault(fc_id, set()).add(tournament)
+    nationality = {fc_id: (country, capped) for fc_id, country, capped in conn.execute(
+        "SELECT fc_id, nationality, capped_on FROM players WHERE nationality IS NOT NULL")}
+    out: dict[int, dict] = {}
+    for obs in observations:
+        country, capped_on = nationality.get(obs.fc_id, (None, None))
+        went = confirmed.get(obs.fc_id, set())
+        # Senza nazionalità e senza convocazione non c'è niente da dire; con la convocazione la
+        # nazionalità non serve più. L'eccezione dichiarata toglie in entrambi i casi: è l'operatore che
+        # dice «questo non ci va», e nessun dato di qui può contraddirlo.
+        if (not country and not went) or obs.fc_id in excused:
+            continue
+        # QUALE POPOLAZIONE, che è quella che scegli il coefficiente: la quota di calendario che gli è
+        # prevista. Un titolare giapponese perde lo 0,59 della finestra, un suo riservista lo 0,05, e
+        # sono due numeri MISURATI su due popolazioni invece di uno tagliato a occhio.
+        pv_for_band = pv_by_id.get(obs.fc_id)
+        played_share = (pv_for_band / platform_rounds
+                        if pv_for_band is not None and platform_rounds else None)
+        def rounds_in_window(cup, league=obs.league):
+            inside, total = rounds_by_cup[cup.key].get(league or "", (0, 0))
+            if not inside or not total:
+                return 0.0
+            # championship rounds -> the platform's own calendar, which is what pv_pred counts on
+            return inside * (platform_rounds / total) if platform_rounds else inside
+        exposures = engine_cups.exposure_of(country, capped_on is not None, live, membership,
+                                            rounds_in_window, played_share=played_share,
+                                            confirmed_in=went)
+        if not exposures:
+            continue
+        first = exposures[0]
+        out[obs.fc_id] = {
+            "band": first.band,
+            "confirmed": first.confirmed,
+            "cup": first.cup.key,
+            "name": first.cup.name,
+            "country": country,
+            "capped": capped_on is not None,
+            "rounds": round(sum(e.rounds_at_risk for e in exposures), 1),
+            "share": first.share_lost,
+            "note": " · ".join(e.note() for e in exposures),
+            "exposures": exposures,
+        }
+    return out
+
+
 def contract_state(conn, season: str, platform: str = "default") -> dict[int, dict]:
     """The club-relationship PROXIES: contract expiry, exit risk, arrival, seasons at the club.
 
@@ -3574,6 +3707,19 @@ PLAYER_COLUMNS: tuple[str, ...] = (
     # nomi in comune: non un dettaglio. REPORTING - `engine_surplus` non si tocca perché è gated e dieci
     # finestre ci stanno sopra - e la colonna prezza tutta la lista, motore dove c'è e stima altrove.
     "desc_replacement_fielded", "desc_surplus_fielded",
+    # LA COPPA CONTINENTALE IN MEZZO AL CAMPIONATO. Tre fatti e una misura: quando si gioca e chi è
+    # qualificato sono DICHIARATI (`config/international_cups.json`, dal registro pubblico), la
+    # nazionalità è un'IDENTITÀ (`players.nationality`, dai payload che già pagavamo), e quanto perde
+    # uno di quel profilo è MISURATO - il difference-in-differences di `engine/cups.py` su quattro
+    # finestre, che contiene già la probabilità di essere convocato. Quindi nessuna lista di convocati,
+    # che ad agosto non esiste. REPORTING: `engine_pv_pred` non si muove di un decimale, e `desc_pv_cup`
+    # gli sta accanto come «Margine» sta accanto a «Surplus».
+    "desc_cup", "desc_cup_country", "desc_cup_capped", "desc_cup_rounds", "desc_cup_share",
+    # QUALE POPOLAZIONE il coefficiente descrive (`regular` | `rotation` | `fringe`, dalla quota di
+    # calendario che gli è prevista) e se la convocazione è un FATTO invece di una probabilità: con la
+    # rosa del torneo pubblicata la penalità diventa il costo di andarci, 0,53 invece di 0,53 x P(va).
+    "desc_cup_band", "desc_cup_confirmed",
+    "desc_pv_cup", "desc_value_cup", "desc_surplus_cup", "desc_surplus_fielded_cup", "desc_cup_note",
     # IL SURPLUS IN CREDITI e la sua distanza dal prezzo del listone (`evaluate.market_rates` /
     # `market_surplus`, la stessa coppia che il pannello Tk chiama - qui non c'è una seconda aritmetica).
     # Erano dentro il pannello soltanto, quindi l'app non poteva confrontare l'FVM con niente: la
@@ -3874,7 +4020,40 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
         # sola per tutta la lista, quindi chi il motore non prezza la riceve dalla STIMA con la stessa
         # penale del suo `est_surplus` - ordinare per questa colonna deve poter ordinare l'intero foglio,
         # o si torna al difetto delle due liste (§7-undecies del gate).
+        # LA COPPA: le presenze attese al netto del torneo che lo porta via, e il valore che ne segue.
+        # Il pv del MOTORE quando c'è e quello della STIMA altrimenti, per la ragione di sempre - una
+        # colonna deve poter ordinare tutta la lista - e la fantamedia che lo moltiplica è quella della
+        # stessa fonte, o il valore mescolerebbe due modelli. La sottrazione è tappata dalla quota di
+        # calendario che gli è prevista (`cups.adjusted_pv`): un riservista non può perdere più giornate
+        # di quante ne avrebbe giocate.
+        cup = layers["cups"].get(obs.fc_id, {})
+        cup_fm = prediction.fm_pred if prediction and prediction.fm_pred is not None else guess.fm
+        cup_pv_base = pv_pred if pv_pred is not None else guess.pv
+        # LA BANDA si decide QUI, dove le presenze davvero usate sono note: il layer non poteva, perché
+        # la STIMA di chi il motore non prezza nasce due passi più tardi - e senza questo un uomo da
+        # undici giornate su trentotto pagava il coefficiente dei titolari (2,4 giornate invece di 0,6).
+        cup_exposures = engine_cups.with_band(
+            cup.get("exposures") or (),
+            cup_pv_base / data.matchdays_target
+            if cup_pv_base is not None and data.matchdays_target else None)
+        cup_pv = engine_cups.adjusted_pv(cup_pv_base, cup_exposures, data.matchdays_target)
+        cup_value = cup_fm * cup_pv if cup and cup_fm is not None and cup_pv is not None else None
         _fielded_slot, fielded_level = fielded_levels.get(obs.fc_id, (None, None))
+        # ...e i DUE surplus rifatti sulle stesse presenze, perché la coppa toglie giornate e un surplus è
+        # `(fm - rimpiazzo) x giornate`: senza questi, ordinare per surplus a un tavolo di gennaio conta
+        # le giornate di chi non c'è. Stessa aritmetica dei due gated, stesso slot e stessi due livelli -
+        # cambia solo il moltiplicatore, che è esattamente il punto.
+        def _over(level):
+            if not cup or cup_fm is None or cup_pv is None or level is None:
+                return None
+            # ...e con la STESSA PENALE DI CONFIDENZA dei due gated quando la base è la stima, o la
+            # colonna accanto direbbe il contrario di quello che descrive: misurato su Jasim, il surplus
+            # «al netto della coppa» risultava 9,6 contro i 5,1 della colonna gated - cioè la coppa
+            # sembrava PAGARE, e la differenza non era la coppa, era la penale che io non applicavo.
+            if prediction is None or prediction.fm_pred is None or pv_pred is None:
+                return est.surplus(cup_fm, cup_pv, level, guess.confidence)
+            return (cup_fm - level) * cup_pv
+        cup_surplus, cup_surplus_fielded = _over(replacement), _over(fielded_level)
         fielded_surplus = _surplus_over(prediction, fielded_level)
         if fielded_surplus is None and fielded_level is not None:
             # Il motore non l'ha prezzato - la riga esiste comunque, con `fm_pred` vuota - quindi vale la
@@ -3915,6 +4094,25 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             # profondità - vedi `features.fielded_places`.
             "desc_replacement_fielded": _round(fielded_level, 3),
             "desc_surplus_fielded": _round(fielded_surplus, 1),
+            # LA COPPA CONTINENTALE che cade dentro il campionato. Vuote per chiunque nessun torneo
+            # dichiarato tocchi - che nel 2026-27 è tutto il continente africano, perché la CAN è
+            # estiva - e vuote anche per chi non ha nazionalità sul file: «vuoto = ignoto».
+            "desc_cup": cup.get("name"),
+            "desc_cup_country": cup.get("country"),
+            "desc_cup_capped": ("yes" if cup["capped"] else "no") if cup else None,
+            "desc_cup_rounds": cup.get("rounds"),
+            # Lo share e la nota vengono dall'esposizione RI-BANDATA, non da quella del layer: la riga
+            # deve poter spiegare la sottrazione che porta accanto, e due numeri diversi sotto lo stesso
+            # nome sono il difetto che questo progetto ha già pagato.
+            "desc_cup_share": _round(cup_exposures[0].share_lost if cup_exposures else None, 2),
+            "desc_cup_band": cup_exposures[0].band if cup_exposures else None,
+            "desc_cup_confirmed": (("yes" if cup_exposures[0].confirmed else "no")
+                                   if cup_exposures else None),
+            "desc_pv_cup": _round(cup_pv, 1) if cup else None,
+            "desc_value_cup": _round(cup_value, 1),
+            "desc_surplus_cup": _round(cup_surplus, 1),
+            "desc_surplus_fielded_cup": _round(cup_surplus_fielded, 1),
+            "desc_cup_note": " · ".join(one.note() for one in cup_exposures) or None,
             # A transfer dated in this window took him somewhere else, and no arrival brought him back:
             # the listone and the squad pages can be weeks behind in August, and this is the one source
             # that carries the event (`left_his_club` - an OUT alone is not a departure).
@@ -4500,6 +4698,12 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
         "discipline": discipline(conn, window.input_season, platform),
         "contract": contract_state(conn, window.target_season, platform),
         "penalties": penalty_duty(conn, window.auction_date),
+        # Chi una COPPA CONTINENTALE in mezzo al campionato porta via, e quanto costa. Il calendario e
+        # la nazionalità sono fatti; quanto perde uno di quel profilo è misurato (`engine/cups.py`).
+        # Vuoto quando nessun torneo dichiarato cade dopo la data d'asta - in una stagione senza coppe
+        # in mezzo la colonna è muta, e nel 2026-27 la Coppa d'Africa è per la prima volta estiva.
+        "cups": cup_exposure(ctx, conn, window, data.observations, data.matchdays_target,
+                             {p.obs.fc_id: p.pv_pred for p in predictions if p.pv_pred is not None}),
         # Where he really stood on the pitch last season (the positional heatmap). Empty until
         # `positions --layer heatmap` has run; the view falls back to the Mantra roles, which name a
         # side for defenders but not for wingers.
@@ -4551,6 +4755,54 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
                      f"complete except Pavard. Measured AFTER the auction date, so reporting ONLY: no "
                      f"engine_* or desc_* column reads them, and the pitch labels them as fielded rather "
                      f"than predicted.")
+    # LA COPPA CONTINENTALE, e la nota è la provenance: il file dichiarato non viaggia nel bundle, quindi
+    # è qui che il foglio dice quale finestra ha applicato, a quanti uomini e con quale coefficiente.
+    if layers["cups"]:
+        by_cup: dict[str, list[dict]] = {}
+        for one in layers["cups"].values():
+            by_cup.setdefault(one["name"], []).append(one)
+        for name, men in sorted(by_cup.items()):
+            capped = sum(1 for one in men if one["capped"])
+            rounds = max(one["rounds"] for one in men)
+            notes.append(
+                f"⚽ {len(men)} players are exposed to {name} ({men[0]['exposures'][0].cup.start} .. "
+                f"{men[0]['exposures'][0].cup.end}), {capped} of them already capped, up to {rounds} "
+                f"rounds of this calendar inside the window. `desc_pv_cup` / `desc_value_cup` carry the "
+                f"appearances and the fantapunti net of it, and `engine_pv_pred` is NOT touched - the "
+                f"coefficient is measured (difference-in-differences over four tournament windows: AFC "
+                f"0.59 · CAF 0.35 capped / 0.20 not) and the gate does not own these columns. WHEN it is "
+                f"played and WHO is in it are declared in config/international_cups.json with their "
+                f"source; the nationality is the provider's own `player.country`, which names the "
+                f"national team a man really turned out for on 299 of 300 checkable cases - the "
+                f"exceptions are the men who chose another country, and those are declared per player.")
+    else:
+        # UN VUOTO HA DUE CAUSE E VANNO DETTE SEPARATE, che è la regola di «non-vuoto non è completezza»
+        # applicata a questa colonna: o nessun torneo dichiarato cade dentro la stagione (per
+        # costruzione, ed è il caso del 2026-27 per l'Africa), o uno ci cade e il CALENDARIO di quella
+        # stagione non è in `fixtures` - allora la colonna è IGNOTA, non vuota, e dirle uguali sarebbe
+        # esattamente il difetto che un conteggio non sa distinguere.
+        cups_declared, _membership = engine_cups.parse(ctx.config.load_international_cups())
+        overlapping = [cup for cup in cups_declared.values()
+                       if cup.end >= window.auction_date
+                       and (not cup.seasons or window.target_season in cup.seasons)]
+        if overlapping and not any(
+                inside for cup in overlapping
+                for inside, _total in cup_rounds_by_league(
+                    conn, window.target_season, cup, after=window.auction_date).values()):
+            notes.append(
+                f"{len(overlapping)} declared continental cup(s) DO fall inside {window.target_season} "
+                f"after {window.auction_date} ({', '.join(cup.name for cup in overlapping)}), and the "
+                f"`desc_cup*` columns are still empty - because `fixtures` has no calendar for this "
+                f"season, so how many rounds the window covers is UNKNOWN and not zero. A back-dated "
+                f"sheet is the normal case for this: the calendar is scraped for the season being "
+                f"played. `fixtures --season {window.target_season}` is what would fill it.")
+        elif cups_declared:
+            notes.append(
+                f"no declared continental cup falls inside {window.target_season} after "
+                f"{window.auction_date}, so the `desc_cup*` columns are empty BY CONSTRUCTION and not "
+                f"by omission: of the {len(cups_declared)} windows on file none overlaps this calendar. "
+                f"For 2026-27 that is the Africa Cup, which is played 19/06-17/07/2027 - the first "
+                f"summer edition since 2019 - and it costs a PRESEASON instead (`post_torneo`).")
     # after the layers, because a duel is POSITIONAL: it needs the granular real roles, not the P/D/C/A
     layers["duels"] = duels(data.observations, starters, layers["real_role_detail"])
     # ...and who he does NOT coexist with, over the INPUT season and by the club he plays for THEN:

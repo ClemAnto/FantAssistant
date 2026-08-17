@@ -43,6 +43,9 @@ const ICON: Record<PlayerFlag, string> = {
   rotation_early: 'clock-circle',
   // The mirror: he is taking off, and it is the one piece of GOOD news among the marks.
   starter_signs: 'rocket',
+  // Il globo: parte per un torneo continentale. Non un aereo e non un calendario - quello che manca a
+  // gennaio non è un viaggio né una data, è che gioca per un ALTRO continente.
+  intl_cup: 'global',
 };
 
 /**
@@ -86,6 +89,9 @@ const TONE: Record<PlayerFlag, string> = {
   rotation_early: 'text-warning opacity-50',
   // Green confirms, and this is the only mark that is good news for the man carrying it.
   starter_signs: 'text-success',
+  // Ambra come gli altri avvisi MISURATI su quello che stai comprando: non è un verdetto su di lui - una
+  // convocazione è un merito - ma quelle giornate non le avrai.
+  intl_cup: 'text-warning',
 };
 
 

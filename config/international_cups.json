@@ -1,0 +1,124 @@
+{
+  "_comment": [
+    "The continental cups that take a player AWAY DURING a league season, and which countries belong to",
+    "which confederation. DECLARED, like `classic_modules.json` and `board_rulings.json` are declared: it",
+    "is a published calendar and a published membership list, i.e. somebody else's fact that we read and",
+    "never fit. Every window below was verified against the public record on 17/08/2026 - the sources are",
+    "on each entry - because a date recalled from memory is exactly the kind of fact this project has",
+    "already been burnt by.",
+    "",
+    "What it is NOT: a list of who will be called up. Nobody publishes that in August, and the engine does",
+    "not guess it - the measured penalty (`engine/cups.py`) is the AVERAGE loss of a player of that",
+    "nationality, which already contains the probability of being called at all. That is why 'ivoriano'",
+    "and 'convocato' must not be conflated: the dilution IS the measurement.",
+    "",
+    "A tournament is in scope for a season when its window overlaps that season's league calendar. The",
+    "summer ones (World Cup, Euro, and from 2027 the Africa Cup) do not belong here at all: they eat a",
+    "PRESEASON, which is the `post_torneo` flag `modules/tournaments.py` already writes.",
+    "",
+    "`qualified` is the final tournament's field, when it is known. Empty or absent = unknown, and then",
+    "nationality alone decides - «vuoto = ignoto», never «nobody qualified»."
+  ],
+  "edition": "2026-08-17",
+  "cups": {
+    "asian_cup_2027": {
+      "name": "Coppa d'Asia 2027",
+      "confederation": "AFC",
+      "host": "Saudi Arabia",
+      "start": "2027-01-07",
+      "end": "2027-02-05",
+      "seasons": ["2026-27"],
+      "source": "en.wikipedia.org/wiki/2027_AFC_Asian_Cup + the-afc.com, read 17/08/2026",
+      "qualified": [
+        "Saudi Arabia", "Australia", "Iraq", "Iran", "Uzbekistan", "Qatar", "United Arab Emirates",
+        "Japan", "South Korea", "Oman", "Palestine", "Bahrain", "Jordan", "China", "Indonesia",
+        "North Korea", "Kuwait", "Kyrgyzstan", "Syria", "Singapore", "Vietnam", "Thailand",
+        "Tajikistan", "Yemen"
+      ]
+    },
+    "afcon_2025": {
+      "name": "Coppa d'Africa 2025",
+      "confederation": "CAF",
+      "host": "Morocco",
+      "start": "2025-12-21",
+      "end": "2026-01-18",
+      "seasons": ["2025-26"],
+      "source": "en.wikipedia.org/wiki/2025_Africa_Cup_of_Nations, read 17/08/2026",
+      "qualified": []
+    },
+    "afcon_2023": {
+      "name": "Coppa d'Africa 2023",
+      "confederation": "CAF",
+      "host": "Ivory Coast",
+      "start": "2024-01-13",
+      "end": "2024-02-11",
+      "seasons": ["2023-24"],
+      "source": "en.wikipedia.org/wiki/2023_Africa_Cup_of_Nations, read 17/08/2026",
+      "qualified": []
+    },
+    "asian_cup_2023": {
+      "name": "Coppa d'Asia 2023",
+      "confederation": "AFC",
+      "host": "Qatar",
+      "start": "2024-01-12",
+      "end": "2024-02-10",
+      "seasons": ["2023-24"],
+      "source": "en.wikipedia.org/wiki/2023_AFC_Asian_Cup, read 17/08/2026",
+      "qualified": []
+    },
+    "afcon_2021": {
+      "name": "Coppa d'Africa 2021",
+      "confederation": "CAF",
+      "host": "Cameroon",
+      "start": "2022-01-09",
+      "end": "2022-02-06",
+      "seasons": ["2021-22"],
+      "source": "en.wikipedia.org/wiki/2021_Africa_Cup_of_Nations, read 17/08/2026",
+      "qualified": []
+    }
+  },
+  "_exceptions_comment": [
+    "The ONE thing the provider's country cannot answer: a man who holds that passport and plays for",
+    "somebody else's national team. The proxy is right 299 times out of 300 on men who played the 2026",
+    "World Cup - but that test can only see players who have already chosen, so the counter-example lives",
+    "exactly where the test is blind. A real one is in the euro sheet: Dahoud (Eintracht) reads Syria,",
+    "which is his birthplace, and has played for Germany.",
+    "",
+    "Not measurable and therefore DECLARED, with the standing `board_rulings.json` has: keyed by fc_id,",
+    "dated, revocable, and it only ever REMOVES an exposure - it can excuse a man from a tournament, never",
+    "send him to one. Nothing else in the repository observes a national-team choice, so inferring it from",
+    "a birthplace would be inventing one fact from another.",
+    "",
+    "`{fc_id: {reason, decided_on}}`. Empty is the normal state: it exists for the handful of names the",
+    "operator recognises at the table."
+  ],
+  "exceptions": {},
+  "_confederations_comment": [
+    "Country -> confederation, in the SPELLING the provider uses for a player's country (SofaScore's",
+    "`player.country.name`), because that is the string this is joined on. Validated rather than trusted:",
+    "on the 303 quoted men who played the 2026 World Cup, the provider's country matches the national team",
+    "they actually turned out for 299 times out of 300, and the single difference is a spelling (Cape Verde",
+    "/ Cabo Verde) - which is why BOTH spellings are listed here.",
+    "",
+    "Only AFC and CAF are listed: they are the confederations whose senior cup has ever been played inside",
+    "a European league season. CONCACAF's Gold Cup and CONMEBOL's Copa America are summer tournaments, so a",
+    "membership list for them would be a list nothing reads."
+  ],
+  "confederations": {
+    "AFC": [
+      "Australia", "Bahrain", "China", "Hong Kong", "India", "Indonesia", "Iran", "Iraq", "Japan",
+      "Jordan", "Kuwait", "Kyrgyzstan", "Lebanon", "Malaysia", "Myanmar", "North Korea", "Oman",
+      "Palestine", "Philippines", "Qatar", "Saudi Arabia", "Singapore", "South Korea", "Syria",
+      "Tajikistan", "Thailand", "Turkmenistan", "United Arab Emirates", "Uzbekistan", "Vietnam", "Yemen"
+    ],
+    "CAF": [
+      "Algeria", "Angola", "Benin", "Botswana", "Burkina Faso", "Burundi", "Cabo Verde", "Cameroon",
+      "Cape Verde", "Central African Republic", "Chad", "Comoros", "Congo", "DR Congo", "Djibouti",
+      "Egypt", "Equatorial Guinea", "Eritrea", "Eswatini", "Ethiopia", "Gabon", "Gambia", "Ghana",
+      "Guinea", "Guinea-Bissau", "Ivory Coast", "Côte d'Ivoire", "Kenya", "Lesotho", "Liberia", "Libya",
+      "Madagascar", "Malawi", "Mali", "Mauritania", "Mauritius", "Morocco", "Mozambique", "Namibia",
+      "Niger", "Nigeria", "Rwanda", "Senegal", "Seychelles", "Sierra Leone", "Somalia", "South Africa",
+      "South Sudan", "Sudan", "Tanzania", "Togo", "Tunisia", "Uganda", "Zambia", "Zimbabwe"
+    ]
+  }
+}

@@ -40,12 +40,27 @@ LINEUPS_ENDPOINT = BASE_URL + "/event/{eid}/lineups"
 MAX_PAGES = 12
 
 # key -> (SofaScore unique-tournament id, season label, the season the effect lands on).
-# The World Cup and the Euro hit the following season's preseason; the Africa/Asia Cups happen
-# mid-season, so they hit the season they are played in.
+# A SUMMER tournament (Euro, and from 2027 the Africa Cup) eats the following season's preseason; one
+# played MID-SEASON (the Asia Cup, the Africa Cup until 2025, and the World Cup of 2022) takes him away
+# during the season it is played in, and those are the two different effects the docstring names.
+#
+# ⚠ THE IDS ARE VERIFIED AGAINST THE PROVIDER, and one was wrong: `africa_cup_2025` carried **132**,
+# which is the **NBA** (its seasons come back as «NBA 25/26»). Nothing had ever downloaded it, so the
+# error was invisible - and it would have stayed invisible, because a basketball payload resolves zero
+# `player_xref` ids and produces zero rows, i.e. exactly what «this tournament has nobody we price»
+# looks like. Checked 17/08/2026 through `/search/all`: Africa Cup of Nations = **270**, AFC Asian
+# Cup = **246**, Euro = 1, World Cup = 16. Before adding one, look the id up rather than guess it.
 TOURNAMENTS: dict[str, tuple[int, str, str]] = {
+    # summer tournaments: the effect lands on the PRESEASON of the season after
     "world_cup_2026": (16, "2026", "2026-27"),
     "euro_2024": (1, "2024", "2024-25"),
-    "africa_cup_2025": (132, "2025", "2025-26"),
+    "euro_2020": (1, "2021", "2021-22"),          # played June-July 2021: the provider's year is 2021
+    # mid-season tournaments: the effect lands on the season they are played in
+    "world_cup_2022": (16, "2022", "2022-23"),    # November-December 2022, in the middle of the season
+    "africa_cup_2025": (270, "2025", "2025-26"),  # 21/12/2025 - 18/01/2026
+    "africa_cup_2023": (270, "2023", "2023-24"),  # 13/01 - 11/02/2024
+    "africa_cup_2021": (270, "2021", "2021-22"),  # 09/01 - 06/02/2022
+    "asian_cup_2023": (246, "2023", "2023-24"),   # 12/01 - 10/02/2024
 }
 DEFAULT_TOURNAMENTS: tuple[str, ...] = ("world_cup_2026",)
 _CACHE_NAME = re.compile(r"sofascore_tournament_([a-z0-9_]+)\.json$")

@@ -82,7 +82,8 @@ class TableSpec:
 # Ordered parents-first: the bundle's own foreign keys have to resolve as it is written.
 CONTRACT: tuple[TableSpec, ...] = (
     TableSpec("players", "full",
-              "identity + birth_year (the U22 trigger and, later, the age curves)"),
+              "identity + birth_year (the U22 trigger and, later, the age curves) + nationality and "
+              "capped_on, which is what a mid-season continental cup is read off"),
     TableSpec("clubs", "full",
               "club identity and league; the engine keys strength and lineups by canonical name"),
     TableSpec("rosters", "season",
@@ -201,6 +202,24 @@ SHEET_COLUMNS: tuple[str, ...] = (
     # numero gated cambia perché queste esistono.
     "desc_replacement_fielded",
     "desc_surplus_fielded",
+    # LA COPPA CONTINENTALE in mezzo al campionato: il torneo, il paese, se è già nazionale, le giornate
+    # di QUESTO calendario dentro la finestra, e le presenze e i fantapunti al netto. Viaggiano perché
+    # l'app disegna l'icona e scrive la penalità nel tooltip delle presenze attese, e nessuna delle due
+    # cose può essere ricalcolata lì: chi va a un torneo è una previsione su una persona. Il file
+    # dichiarato (`config/international_cups.json`) NON viaggia, di proposito - sarebbe una seconda fonte
+    # per lo stesso fatto. Reporting: `engine_pv_pred` qui sopra non si muove di un decimale.
+    "desc_cup",
+    "desc_cup_country",
+    "desc_cup_capped",
+    "desc_cup_rounds",
+    "desc_cup_share",
+    "desc_cup_band",
+    "desc_cup_confirmed",
+    "desc_pv_cup",
+    "desc_value_cup",
+    "desc_surplus_cup",
+    "desc_surplus_fielded_cup",
+    "desc_cup_note",
     # MEASURED football, for the row to be judged and not only ranked: how much he actually played
     # last season, and over how many matches - the two together are minutes per match, and one
     # without the other is not a rate. Both counted on his own championship, never on our calendar.
@@ -762,6 +781,12 @@ def run(ctx: Context, *, season: str | None = None, out: str | None = None,
                                 ctx.config.player_notes_path.read_bytes())
         except OSError as exc:
             print(f"[export] WARNING: config player_notes.json not copied ({exc})")
+
+    # `international_cups.json` deliberately does NOT travel. The app needs no window and no membership
+    # list: the sheet's own `desc_cup*` columns already name the tournament, its dates and what it costs,
+    # because who goes to a cup is a prediction about a person and those live in the toolkit. A copy in
+    # the bundle would be a second source for the same fact - and the first reader to prefer it would be
+    # showing a list whose figures describe a different list. The sheet's notes carry the provenance.
 
     # The engine's own numbers, so the app can rank by SURPLUS instead of by the listone's price. They
     # come from the sheet `snapshot` writes, not from a second engine run: the sheet is the artefact the

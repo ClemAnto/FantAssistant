@@ -4269,6 +4269,169 @@ La misura è nel repo — `toolkit/bench/panel/prior_personale.py`, sola lettura
 perché una misura che nessuno può rifare è un'opinione, e perché il prerequisito per riaprire la voce
 (il prior costruito con l'aritmetica completa del pannello) si prova cambiando dieci righe di quel file.
 
+## 7-quattuortricies. LA COPPA CONTINENTALE IN MEZZO AL CAMPIONATO: misurata su quattro finestre-torneo (17 agosto 2026)
+
+**Domanda dell'operatore**: «controlla se ci sono calciatori che durante il campionato potrebbero essere
+convocati con la propria nazionale (es: coppa d'Africa)», e poi «metti la giusta penalità sulle partite
+giocate previste». La prima metà è un fatto di calendario, la seconda è una misura — e la parola
+**giusta** è la ragione per cui non si è scelto un numero.
+
+**Il primo risultato ribalta la premessa, e vale più del coefficiente.** Nel 2026-27 la Coppa d'Africa
+**non tocca il campionato**: la CAN 2027 (Kenya/Tanzania/Uganda) si gioca dal **19/06 al 17/07/2027**,
+prima edizione estiva dal 2019, quindi costa una PRE-STAGIONE (`post_torneo`) e non una giornata. L'unico
+torneo dentro la stagione è la **Coppa d'Asia (07/01 → 05/02/2027**, Arabia Saudita, 24 qualificate,
+qualificazione chiusa). Anche la Gold Cup 2027 è estiva (19/06 → 11/07). Fonti e date in
+`config/international_cups.json`, una per torneo, con il giorno in cui sono state lette.
+
+**Chi tocca**, contato sul listone 2026-27: **4 quotati in Serie A** (Volpato, Suzuki, Idzes, Circati) e
+**9 su euro** (Doan, Lee K., Mitoma, Khusanov, Ito, Tamari, Kim, Minamino, Endo); sui fogli, che portano
+anche i non quotati in rosa, 6 e 12. **Zero africani**, che è il punto.
+
+**La nazionalità non è stata acquistata: era in casa e nessuno la leggeva.** `players.nationality` è nello
+schema dal primo giorno ed era NULL su **tutte le 4.674 righe** — i due listoni non la portano (la colonna
+«Nazione» dell'Excel è il CAMPIONATO) — mentre i payload delle rose che paghiamo ogni giorno per i ruoli
+granulari portano `player.country`. Letta offline dalla cache: **1.840 giocatori**, che sul listone target
+sono il **92% dei quotati Serie A e il 90% di euro**, e il buco è esattamente chi non ha identità
+sofascore, cioè un buco di IDENTITÀ e non di fonte. Nessuna richiesta di rete, che è anche l'unica ragione
+per cui si poteva fare oggi: il provider risponde 403 `challenge` dal 16/08.
+
+**Validata contro un fatto, non creduta.** Il payload del Mondiale 2026 dice per quale nazionale un uomo è
+davvero sceso in campo: sui **300** quotati 2026-27 che l'hanno giocato e hanno un `country`, i due
+coincidono **299 volte**, e l'unica differenza è ortografica (Cape Verde / Cabo Verde). Il limite di quel
+test è dichiarato ed è dove sta il controesempio: può vedere solo chi ha già SCELTO. Un caso reale è nel
+foglio euro — **Dahoud** legge Syria, che è dove è nato, e ha giocato per la Germania — e non è
+misurabile da nulla che questo repo osservi, quindi è **dichiarato** (`exceptions` nello stesso file, per
+`fc_id`, datato, revocabile, e può solo TOGLIERE un'esposizione: una dichiarazione che ne AGGIUNGESSE
+sarebbe una previsione di convocazione, cioè la cosa che il coefficiente esiste per non dover fare).
+
+**Disegno della misura: difference-in-differences sullo strato per-partita datato.** Per ogni finestra di
+torneo: trattati = i giocatori la cui nazionalità appartiene alla confederazione di quella coppa,
+controlli = tutti gli altri nello stesso campionato e nella stessa stagione, esito = la quota delle
+partite di campionato **del suo club** in cui è stato in campo, dentro la finestra contro fuori. Il DiD
+sottrae quello che la finestra fa a tutti (le giornate invernali, le coppe, il calendario) e lascia la
+parte attribuibile all'essere via. Numeratore e denominatore vengono dalla stessa fonte e sono uniti sulla
+stringa che UN parser ha scritto, non su un nome incrociato fra due tabelle. Popolazione: **titolari**
+(quota ≥ 0,50 fuori finestra), perché è quella su cui il foglio la applica.
+
+| finestra | trattati | DiD | già nazionale | solo convocabile |
+|---|---|---|---|---|
+| CAN 2022 (Camerun, 09/01-06/02) | 56 | −0,198 | −0,283 | −0,135 |
+| CAN 2024 (Costa d'Avorio, 13/01-11/02) | 90 | −0,243 | −0,293 | −0,191 |
+| **Coppa d'Asia 2024** (Qatar, 12/01-10/02) | 12 | **−0,593** | −0,607 | −0,564 |
+| CAN 2026 (Marocco, 21/12-18/01) | 87 | −0,405 | −0,480 | −0,262 |
+
+La misura è nel repo — `toolkit/bench/panel/cup_penalty.py`, sola lettura, una corsa e la tabella qui
+sopra. Due corse a distanza di un'ora hanno dato −0,245 e −0,243 sulla stessa finestra: la **terza cifra
+si muove con `player_xref`**, perché fra le due c'era girato `snapshot`, che rinfresca le identità e
+quindi sposta di un'unità la popolazione trattata. Vale la pena scriverlo invece di lasciare due numeri
+diversi in giro: nessun coefficiente adottato si muove, e chi rifà la misura non deve chiedersi cosa
+abbia sbagliato.
+
+Sul listone intero (non solo i titolari) i DiD sono −0,173 / −0,162 / −0,518 / −0,226: stesso segno,
+ampiezza minore, e vogliono dire un'altra cosa — «compresi gli uomini che giocano un terzo di stagione
+comunque». Il segno è **unanime su quattro finestre**, e i controlli si muovono di +0,00 ± 0,03, che è la
+prova che il disegno sta misurando la coppa e non l'inverno.
+
+**Tre letture della tabella, e il codice le obbedisce tutte e tre** (`engine/cups.py`):
+- **la Coppa d'Asia costa il doppio della CAN**, e il meccanismo dice perché: un passaporto africano in
+  Europa è comune e una convocazione no (l'Europa è piena di franco-africani mai chiamati), mentre i pochi
+  asiatici che giocano qui sono titolari delle loro nazionali quasi senza eccezione. Da cui **due
+  coefficienti per la CAF** (0,35 già nazionale · 0,20 solo convocabile) **e uno per l'AFC** (0,59): su
+  quest'ultima −0,608 e −0,564 sono un numero letto due volte.
+- **l'evidenza AFC è SOTTILE** — una finestra, 12 titolari, 8 già nazionali — e sta scritto invece di
+  essere smussato. È anche l'unica coppa che toccherà il 2026-27, quindi è il coefficiente che verrà usato:
+  se una seconda Coppa d'Asia cadrà dentro una stagione, si ri-misura prima di fidarsi di quel decimale.
+- **le tre finestre CAF non sono uguali e la più recente è la peggiore** (−0,28 → −0,29 → −0,48). Una
+  spiegazione plausibile è la MISURA e non il calcio: la nazionalità si legge dalle rose di OGGI, quindi
+  più indietro sta una finestra, più il gruppo trattato è fatto di chi è ancora in circolazione e meno
+  sopravvivono i mai convocati. Registrato, non corretto: quello che ship è la media fra le finestre, e la
+  dispersione è l'incertezza onesta che le sta attorno.
+
+**Come entra nel foglio, e perché NON nel motore** (`SHEET_REVISION` 23). Le giornate dentro la finestra
+sono **contate** dal calendario vero (`fixtures`, che per il 2026-27 esiste già: Serie A 4, Bundesliga 5,
+Liga 4, Premier 3, Ligue 1 3) e **convertite sul calendario della piattaforma**, che è l'unità su cui
+`engine_pv_pred` vive — 4 giornate di 38 sono 3,3 di una stagione euro da 31, e sottrarre giornate di
+campionato da un numero di piattaforma sarebbe un errore di unità. La sottrazione ha un tappo: un
+riservista non può perdere più giornate di quante ne avrebbe giocate (`min(share, pv_pred/calendario)`),
+che lascia intatto un titolare e impedisce di applicare un coefficiente fuori dalla popolazione su cui è
+stato misurato. Le colonne sono `desc_cup*`, `desc_pv_cup`, `desc_value_cup`: **REPORTING**, accanto a
+`engine_pv_pred` come «Margine» sta accanto a «Surplus». `backtest --verify` resta **22/22**.
+
+**Pre-registrata, per il giorno in cui la si vorrà dentro `engine_pv_pred`.** La regola candidata legge
+nazionalità + finestra dichiarata + calendario e riduce le presenze attese del coefficiente qui sopra.
+Criteri, scritti PRIMA: attiva soltanto sulle finestre il cui bersaglio contiene un torneo in-season —
+oggi 21/22, 23/24 e 25/26, cioè **tre su dieci** — e inerte per costruzione sulle altre sette, quindi «0
+verdetti cambiati» su quelle non è un PASS ma una finestra senza popolazione (§7-undecies). Guardie: le
+quattro di sempre (MAE presenze, MAE fantamedia, nomi in cima, valore catturato). Limite noto da dichiarare
+nel rapporto: la copertura della nazionalità su una finestra vecchia è quella di oggi, e per Tm7 è quasi
+nulla — se la copertura correla con l'esito, quella finestra non è giudicabile, che è la stessa lezione
+della sopravvivenza nella curva dei valori di mercato (§7-untricies).
+
+### 7-quattuortricies-bis. «PENALITÀ A TUTTI»: le bande misurate, i convocati veri, e il POST-TORNEO che non esiste (17 agosto 2026, pomeriggio)
+
+**Richiesta dell'operatore, quattro cose insieme**: penalità anche fuori dai titolari, anche per il
+post-torneo estivo, dentro `engine_pv_pred`, e su tutte le colonne derivate. Le prime due sono misure e
+sono state fatte; la terza e la quarta dipendono da come vanno le prime due.
+
+**(a) FUORI DAI TITOLARI si MISURA, non si taglia.** Il coefficiente era tappato da
+`pv_pred/calendario`, cioè da una regola a occhio. Misurato per banda (la quota di calendario che il
+foglio gli prevede), pooled sulle finestre di ogni confederazione:
+
+| | regular | rotation | fringe |
+|---|---|---|---|
+| CAF già nazionale | −0,352 (n=128) | −0,089 (n=29) | −0,026 (n=20) |
+| CAF solo convocabile | −0,195 (n=105) | −0,073 (n=73) | −0,027 (n=50) |
+| AFC | −0,607 / −0,563 (n=8 / 4) | (n=1) | (n=1) |
+
+La forma è la stessa nelle due confederazioni ed è la ragione onesta per cui il tappo *sembrava* giusto;
+il tappo però sbagliava di quattro volte nel verso severo (0,10 di finestra a un africano di fascia bassa
+dove la misura dice 0,03). Sulle bande dell'AFC fuori dai titolari ci sono UNA e DUE osservazioni, che
+non è una misura: là il livello resta dell'AFC e la FORMA è prestata dalla CAF (rotation 0,25 di
+regular, fringe 0,08), e sta scritto sul posto invece di essere spacciato per misurato.
+
+**(b) I CONVOCATI VERI, e il coefficiente si scompone.** Scaricate le rose di quattro tornei (e qui è
+emerso che `africa_cup_2025` puntava all'id **132, che è l'NBA**: un payload di basket risolve zero
+identità e produce zero righe, cioè esattamente quello che sembra «nessuno del nostro perimetro» — id
+veri: CAN **270**, Coppa d'Asia **246**). Sui soli uomini che hanno GIOCATO il torneo:
+
+    CAN 2026 −0,598 (n=60) · CAN 2024 −0,472 (n=74) · CAN 2022 −0,643 (n=54) · Asia 2024 −0,633 (n=12)
+    media −0,586 · chi ha giocato 270+ minuti al torneo −0,639
+
+E il tasso di convocazione, sugli stessi dati: **43% e 42%** dei CAF delle nostre cinque leghe, cioè
+**65%/57%** fra i già nazionali contro **20%/31%** fra gli altri. Quindi
+`WINDOW_LOSS = P(convocato | passaporto, banda) × COSTO`, e 0,6 × 0,59 = **0,35** contro lo 0,352
+misurato in blocco: l'aritmetica si chiude da due direzioni indipendenti. Il costo di andarci è lo
+STESSO calcio in Africa e in Asia, e tutta la differenza fra le due coppe è la probabilità di andarci —
+che è anche perché il numero AFC (0,59) coincide col costo dei convocati. Conseguenza operativa:
+a dicembre, quando le rose escono, `tournaments_squads` trasforma la media nel fatto e la penalità di un
+convocato diventa il costo pieno (`desc_cup_confirmed`).
+
+**(c) IL POST-TORNEO ESTIVO NON ESISTE, e il segno è l'opposto.** Ipotesi: un torneo d'estate mangia la
+preparazione e costa presenze a inizio stagione. Trattati = chi l'ha giocato (fatto, non passaporto),
+finestra = le prime 4 / 6 / 10 giornate del campionato dopo, controlli = gli altri delle stesse leghe:
+
+    Euro 2024 -> 2024-25:  +0,066 · +0,064 · +0,047      (270+ min: +0,048 · +0,055 · +0,058)
+    Euro 2020 -> 2021-22:  +0,012 · +0,017 · +0,040      (270+ min: +0,042 · +0,070 · +0,089)
+
+**Positivo su 6 punti di griglia di 6 e su due finestre**, e anche per chi è andato in fondo al torneo —
+cioè l'esatto contrario di quello che la penalità avrebbe fatto. Il meccanismo è la SELEZIONE e si legge
+nel null: i controlli PEGGIORANO nelle prime giornate (base −0,069 / −0,084) mentre i reduci no, perché
+chi va a un Europeo è un titolare consolidato e i posti in bilico a inizio stagione sono degli altri.
+**Nessuna penalità post-torneo entra**, e questo è un rifiuto misurato invece di un numero messo a mano.
+
+**(d) UN TORNEO PER CUI IL CAMPIONATO SI FERMA NON COSTA NIENTE**, e non serviva un coefficiente per
+saperlo: il Mondiale 2022 si è giocato dal 20/11 al 18/12/2022 e nella sua finestra i cinque campionati
+non hanno **una sola partita** — la misura non ha popolazione, ed è la risposta giusta. Il gennaio dopo:
++0,009 (n=282), nessun effetto di rientro. Il codice lo ottiene già senza saperlo, perché conta le
+giornate DENTRO la finestra dal calendario vero (`cup_rounds_by_league`): zero giornate, zero penalità.
+La lezione generale è che la penalità non è una proprietà del torneo ma della SOVRAPPOSIZIONE, e l'unica
+coppa che si sovrappone è quella per cui il campionato non si ferma.
+
+**(e) e (f) restano aperte**: la regola dentro `engine_pv_pred` e le colonne derivate. La prima non è
+stata eseguita di proposito — i coefficienti sono cambiati due volte in una mattina (il tappo, poi le
+bande, poi i convocati), e far girare il gate su numeri già superati è il modo di ottenere un verdetto su
+niente.
+
 ## 8. Casi di regressione (in `model.REGRESSION_CASES`, stampati da `backtest --cases`)
 
 Lewandowski (età/minuti) · Wirtz (cambio lega) · Torres F. (propensione per-90) · Ezzalzouli (nuovo nel

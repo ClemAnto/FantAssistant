@@ -441,8 +441,27 @@ export class SquadTable {
     const rounds = this.valuation.sheetFor(this.platform())?.matchdays_target;
     return short(
       `${man.expected.toFixed(1)} partite a voto attese${rounds ? ` su ${rounds}` : ''}`
-        + (man.expectedIsEstimate ? ' · è la STIMA, il motore non riesce a valutarlo' : ''),
+        + (man.expectedIsEstimate ? ' · è la STIMA, il motore non riesce a valutarlo' : '')
+        // LA COPPA sta QUI e non in una colonna sua: è una correzione MISURATA a questo numero, e il
+        // numero è quello che il gate possiede - quindi si affianca, si spiega, e non lo riscrive. È
+        // anche l'unico posto che sa su quale calendario contare le giornate.
+        + this.cupPenalty(man),
     );
+  }
+
+  /**
+   * «− 2,4 per la Coppa d'Asia 2027» — o niente, che è il caso normale.
+   *
+   * Il numero è LETTO dal foglio (`desc_pv_cup`) e la sottrazione non si rifà qui: il coefficiente è una
+   * misura e il tappo che impedisce a un riservista di perdere più giornate di quante ne avrebbe giocate
+   * sta nella funzione che l'ha misurato (`engine/cups.py`).
+   */
+  private cupPenalty(man: SquadMan): string {
+    if (!man.cup || man.pvCup == null || man.expected == null) return '';
+    const lost = man.expected - man.pvCup;
+    if (lost <= 0.05) return '';
+    return ` · −${lost.toFixed(1)} per ${man.cup}, che si gioca in mezzo al campionato`
+      + (man.cupRounds ? ` (${man.cupRounds.toFixed(1)} giornate dentro la finestra)` : '');
   }
 
   /**

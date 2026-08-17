@@ -130,6 +130,13 @@ class Config:
     # `config/` and no engine path reads it. Optional, like the rulings.
     player_notes_path: Path = field(
         default_factory=lambda: REPO_ROOT / "config" / "player_notes.json")
+    # The continental cups played INSIDE a league season (today: the Asian Cup; the Africa Cup when it
+    # is a January tournament, which from 2027 it is not) and which countries belong to which
+    # confederation. Declared for the same reason the two module files are: it is a published calendar
+    # and a published membership list, read and never fitted. What is MEASURED is what one of those
+    # windows costs a player, and that lives in `engine/cups.py` where a harness can reach it.
+    international_cups_path: Path = field(
+        default_factory=lambda: REPO_ROOT / "config" / "international_cups.json")
 
     @property
     def raw_dir(self) -> Path:
@@ -162,6 +169,20 @@ class Config:
         path = self.mantra_modules_path if game == "mantra" else self.classic_modules_path
         try:
             raw = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return {}
+        return raw if isinstance(raw, dict) else {}
+
+    def load_international_cups(self) -> dict:
+        """The declared cup windows and confederation membership, as they are on disk, or {}.
+
+        Never raises, like `load_modules`: a missing file means the sheet reports no cup exposure at
+        all, which is a silence. What must never happen is a HALF-read file - a window without its
+        dates would expose nobody while looking like a working column - so `engine.cups.parse` drops a
+        malformed entry rather than defaulting it.
+        """
+        try:
+            raw = json.loads(self.international_cups_path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             return {}
         return raw if isinstance(raw, dict) else {}

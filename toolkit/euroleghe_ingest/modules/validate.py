@@ -26,7 +26,12 @@ class ValidationError(RuntimeError):
 # Columns that MAY be entirely empty because no source feeds them yet
 # (documented, not an extraction bug). Any other entirely-NULL column is suspicious.
 ALLOWED_EMPTY: dict[str, set[str]] = {
-    "players": {"birth_year", "nationality"},
+    # nationality and capped_on both come from the provider's cached squad pages, so a database built
+    # from the listone and the votes alone legitimately has neither: 1840 of 4674 players carry a country
+    # on the real one, and «consentita vuota» is not «mai riempita». capped_on is emptier by nature and
+    # says so - it is the day the provider FILED him among his club's internationals, which is evidence
+    # of a cap and never evidence against one.
+    "players": {"birth_year", "nationality", "capped_on"},
     # the providers give an id, not the window it is valid for: we date a mapping only when a source
     # actually tells us it changed (e.g. a manual override), which has not happened yet.
     "player_xref": {"valid_from", "valid_to"},

@@ -67,7 +67,8 @@ export type PlayerFlag =
   | 'place_lost'
   | 'rotation_risk'
   | 'rotation_early'
-  | 'starter_signs';
+  | 'starter_signs'
+  | 'intl_cup';
 
 /**
  * Come si chiama ogni marchio, in una riga. Sta QUI e non nel componente che lo disegna perché ormai lo
@@ -95,6 +96,9 @@ export const FLAG_LABEL: Record<PlayerFlag, string> = {
   rotation_risk: 'Preso per titolare, ma ruotato',
   rotation_early: 'Preso per titolare, segnali di incertezza',
   starter_signs: 'Dato per riserva, gioca da titolare',
+  // «Coppa» da sola sarebbe ambigua: questa stessa vista ha già un filtro «Coppe e altre competizioni»,
+  // che sono le coppe dei CLUB nella tabella delle partite. Qui il soggetto è la NAZIONALE.
+  intl_cup: 'In nazionale a una coppa continentale, a campionato in corso',
 };
 
 /**
@@ -105,6 +109,10 @@ export const FLAG_LABEL: Record<PlayerFlag, string> = {
  * filtro che non trova mai niente, cioè una bugia con l'aria di una funzione.
  */
 export const CONSULTABLE_FLAGS: PlayerFlag[] = [
+  // La coppa continentale c'è anche qui, a differenza degli screen e dei due marchi di rotazione: il suo
+  // marchio lo registra `ValuationStore`, che ogni lista carica, non il pannello d'asta - quindi il filtro
+  // «fammi vedere chi parte a gennaio» trova davvero qualcuno invece di essere una funzione vuota.
+  'intl_cup',
   'mystery',
   'fragile',
   'yellows',
@@ -432,6 +440,16 @@ export class PlayerStatus {
    */
   readonly places = signal<Map<number, PlayerMark>>(new Map());
 
+  /**
+   * ...e chi una COPPA CONTINENTALE porta via in mezzo al campionato.
+   *
+   * Registrato da fuori come i precedenti, e dalla stessa fonte: il FOGLIO. Chi va a un torneo è una
+   * previsione su una persona - il toolkit la calcola, l'app la disegna - e il calendario delle giornate
+   * a rischio dipende dal campionato del club, che solo il foglio conosce. Vuoto è lo stato normale: in
+   * una stagione senza coppe in mezzo nessuno lo porta, e nel 2026-27 la Coppa d'Africa è estiva.
+   */
+  readonly cups = signal<Map<number, PlayerMark>>(new Map());
+
   /** Every mark a man carries, in the order they are drawn. Empty is the normal case. */
   marksFor(playerId: number | null | undefined): PlayerMark[] {
     if (playerId == null) return [];
@@ -449,6 +467,11 @@ export class PlayerStatus {
     marks.push(...(this.habits().get(playerId) ?? []));
     const declared = this.declared().get(playerId);
     if (declared) marks.push(declaredMark(declared));
+    // La coppa continentale sta fra gli STATI e le letture: è un fatto sul calendario che verrà - non
+    // uno stato di oggi come l'infortunio, e non una proiezione come gli screen - e riguarda proprio le
+    // giornate che si stanno comprando.
+    const cup = this.cups().get(playerId);
+    if (cup) marks.push(cup);
     // Then what happened to his shirt LAST season - a measured fact about the past, which outranks a
     // projection and is outranked by a state of now.
     const place = this.places().get(playerId);

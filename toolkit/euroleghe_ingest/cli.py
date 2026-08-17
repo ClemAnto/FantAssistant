@@ -225,6 +225,17 @@ def build_parser() -> argparse.ArgumentParser:
             p.add_argument("--pages", type=int, default=3,
                            help="pages of 30 future events per club (default: 3, which covered a whole "
                                 "38-round season plus cups on the club it was measured on)")
+        if name == "tournaments":
+            # The module has always taken both, and neither was reachable from the CLI - so the only
+            # tournament anybody could download was the built-in default. An option no caller can pass
+            # is the same defect as a parameter no harness can sweep.
+            p.add_argument("--tournament", dest="tournaments", action="append", metavar="KEY",
+                           help="which tournament to download, e.g. africa_cup_2025 (repeatable; "
+                                "default: the most recent World Cup). The keys are the ones in "
+                                "`tournaments.TOURNAMENTS`")
+            p.add_argument("--refresh", action="store_true",
+                           help="re-download a tournament already cached. A FINISHED tournament never "
+                                "changes, so this is only for a cache written by a broken run")
         if name == "positions":
             p.add_argument("--league", action="append", metavar="LEAGUE",
                            help="league to import, e.g. premier_league (repeatable; default: the 5 "
@@ -409,6 +420,12 @@ def main(argv: list[str] | None = None) -> int:
             elif args.command == "estimates":
                 load("estimates").run(ctx, platform=args.platform, game=args.game,
                                       metric=args.metric, no_report=not args.report)
+            elif args.command == "tournaments":
+                # The two options the module has always accepted. Without this branch it fell through to
+                # the bare `run(ctx)` below, which is why `--tournament` parsed cleanly and then did
+                # nothing at all: the flag existed, the argument never arrived. A dispatcher whose
+                # default silently drops the options it just parsed is the worst of the three states.
+                load("tournaments").run(ctx, tournaments=args.tournaments, refresh=args.refresh)
             else:
                 load(args.command).run(ctx)
         except NotImplementedError as exc:

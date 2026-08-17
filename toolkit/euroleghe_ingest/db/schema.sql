@@ -10,7 +10,16 @@ CREATE TABLE IF NOT EXISTS players (
     fc_id          INTEGER PRIMARY KEY,       -- fantacalcio.it id
     canonical_name TEXT NOT NULL,
     birth_year     INTEGER,
-    nationality    TEXT
+    -- The provider's own `player.country.name`, written by `positions.ingest_nationality_from_cache`
+    -- from payloads we already cache. NOT from the listone: its 'Nazione' column holds the LEAGUE.
+    -- Validated on the 2026 World Cup - on 300 quoted men who played it, this string names the national
+    -- team they actually turned out for 299 times (the miss is Cape Verde / Cabo Verde, a spelling).
+    nationality    TEXT,
+    -- The earliest day a payload filed him among a club's `nationalPlayers`, i.e. the provider's «he
+    -- has played for his country». An OBSERVATION DATE and not a flag, because that is what it is: the
+    -- page publishes today, so a man first capped next spring reads NULL until a payload sees it. Read
+    -- by the cup-exposure column, where being capped is worth 0.35 of a window against 0.20.
+    capped_on      TEXT
 );
 
 CREATE TABLE IF NOT EXISTS clubs (

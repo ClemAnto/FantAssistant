@@ -1487,6 +1487,10 @@ def fetch_roles(ctx: Context, clubs=None, date: str | None = None, refresh: bool
     if top_up:
         counts.update(_top_up_roles(ctx, date, top_up, [name for name, _id in targets]))
         ingest_roles_from_cache(ctx)
+    # The same payloads carry the player's COUNTRY, and a mid-season continental cup is priced off it
+    # (`engine/cups.py`). Written here rather than in a module of its own so one fetch answers both
+    # questions - and so a run that refreshes the squads cannot leave the two facts on different days.
+    ingest_nationality_from_cache(ctx)
     return counts
 
 
@@ -1601,6 +1605,82 @@ def ingest_roles_from_cache(ctx: Context, date: str | None = None) -> int:
               f"{unknown} - add them to REAL_ROLES/REAL_ROLE_LINE/REAL_ROLE_SIDE before trusting "
               f"a sheet that silently dropped them")
     return len(rows)
+
+
+def ingest_nationality_from_cache(ctx: Context) -> int:
+    """players.nationality (+ `capped_on`) from the cached squad and player pages (offline).
+
+    `players.nationality` has been in the schema since the first day and was NULL on all 4674 rows,
+    because the two listoni do not carry it - the Excel column labelled 'Nazione' holds the LEAGUE
+    (`sources.py` says so). Nobody had noticed that the provider payload the granular roles are already
+    read from carries `player.country`: the fact was in the cache, paid for, and unread. So this needs
+    no network at all, which is the only reason it can run today - the provider has been answering 403
+    `challenge` since 16/08/2026.
+
+    A nationality is an IDENTITY fact, not a season fact, so it is written once over every cached file
+    rather than inside a per-season loop - the mistake that left 827 fc_id with their aggregates in the
+    table and no provider id. And it is joined through `player_xref` like everything else here: a
+    provider row nobody resolved is counted and skipped, never matched by name.
+
+    `capped_on` is the day a payload was seen listing him among the club's `nationalPlayers`, i.e. the
+    provider's own «he has played for his country». It is kept because the measurement needs it: a CAF
+    regular who is capped loses 0.35 of a cup window against 0.20 for one who is not (`engine/cups.py`).
+    It is stored as the OBSERVATION DATE and not as a flag, because that is what it is - the provider
+    publishes today's squad, and a man capped for the first time next spring will read NULL until then.
+    Never retracted: «he has played for his country» does not stop being true.
+    """
+    conn = ctx.require_conn()
+    xref = {source_id: fc_id for source_id, fc_id in conn.execute(
+        "SELECT source_id, fc_id FROM player_xref WHERE source = 'sofascore'")}
+    country: dict[int, str] = {}
+    capped: dict[int, str] = {}
+    unresolved: set[str] = set()
+    files = [(path, _SQUAD_CACHE_NAME.search(path.name) or _PLAYER_CACHE_NAME.search(path.name))
+             for path in sorted(ctx.config.cache_dir.glob("sofascore_squad_*.json"))
+             + sorted(ctx.config.cache_dir.glob("sofascore_player_*.json"))]
+    for path, key in files:
+        if not key:
+            continue
+        observed = key.group(2)
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except Exception as exc:   # noqa: BLE001 - a corrupt cache file must not abort the rebuild
+            print(f"[positions] skipping unreadable cache {path.name}: {exc}")
+            continue
+        for player in _squad_players(payload):
+            provider_id = str(player.get("id") or "")
+            name = ((player.get("country") or {}).get("name") or "").strip()
+            if not provider_id or not name:
+                continue
+            fc_id = xref.get(provider_id)
+            if fc_id is None:
+                unresolved.add(provider_id)
+                continue
+            country[fc_id] = name
+        # `nationalPlayers` is a SUBSET of `players` (checked over 120 cached squads: not one id sits
+        # outside it), so this loop adds no player - only the fact that the provider files him as an
+        # international. The EARLIEST observation is kept: it is the earliest day we can prove it.
+        national = payload.get("nationalPlayers") or [] if isinstance(payload, dict) else []
+        for entry in national:
+            provider_id = str(((entry.get("player") or {}).get("id")) or "")
+            fc_id = xref.get(provider_id)
+            if fc_id is None:
+                continue
+            capped[fc_id] = min(capped.get(fc_id, observed), observed)
+    if not country:
+        return 0
+    conn.executemany("UPDATE players SET nationality = ? WHERE fc_id = ?",
+                     [(name, fc_id) for fc_id, name in country.items()])
+    # COALESCE keeps a date already on file: a rerun must not move it later than the first sighting.
+    conn.executemany("UPDATE players SET capped_on = MIN(COALESCE(capped_on, ?), ?) WHERE fc_id = ?",
+                     [(observed, observed, fc_id) for fc_id, observed in capped.items()])
+    conn.commit()
+    total = conn.execute("SELECT COUNT(*) FROM players").fetchone()[0]
+    share = f" ({100 * len(country) / total:.0f}%)" if total else ""
+    print(f"[positions] nationality: {len(country)}/{total} players{share} · "
+          f"{len(capped)} filed as internationals · "
+          f"{len(unresolved)} provider ids without a resolved identity")
+    return len(country)
 
 
 def roles_as_of(conn, date: str, fallback: bool = False) -> dict[int, dict]:
@@ -2419,4 +2499,5 @@ def reingest_all_from_cache(ctx: Context) -> None:
     ingest_heatmaps_from_cache(ctx)     # after the roles: they rewrite the same `positions` slice
     derive_club_xref(ctx)               # provider team ids, from the same cached aggregates
     ingest_roles_from_cache(ctx)        # every dated real-role observation still on disk
+    ingest_nationality_from_cache(ctx)  # ...and the country the same payloads have always carried
     derive_birth_years(ctx)

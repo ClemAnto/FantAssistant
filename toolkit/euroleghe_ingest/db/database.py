@@ -85,6 +85,10 @@ ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     # WHO established an identity, and therefore who may retract it (see schema.sql). Three modules
     # write here on three different kinds of evidence and one of them deletes.
     ("player_xref", "resolved_by", "TEXT"),
+    # The day the provider first filed him as an international (17/08/2026). `players.nationality` has
+    # been in the schema since day one, so it needs no migration - this one does, and without it every
+    # query naming it fails with "no such column".
+    ("players", "capped_on", "TEXT"),
 )
 
 
