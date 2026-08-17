@@ -4201,17 +4201,73 @@ peggiore a +20,3%. Eppure il gate stampa **DOES NOT PASS**, e la ragione va lett
 **Quindi su euro la regola NON ha un verdetto**, e va detto così invece di riportare il +23,7% come se
 lo fosse: un numero di accuratezza senza le sue guardie non è un verdetto, è metà di uno.
 
-**Stato: MISURATA e PASSA su Serie A, verdetto APERTO su euro, adozione non fatta.** Restano tre cose,
-ed è deliberato non farle nella stessa sessione della misura: il buco FM dell'harness su euro, la corsa
-euro rifatta, e
-la decisione su come il PANNELLO la usa - perché una regola che cambia `engine_pv_pred` cambia i fogli,
-il surplus e il consiglio d'asta, e quella è una giornata di verifiche e non una riga.
+⚠️ **Le due righe qui sopra sono state SUPERATE nel giro di ore**, e restano perché fanno vedere in che
+ordine si è capito: la corsa euro è stata rifatta (il buco `FM None` era `MIN_PV_ACT`, cioè l'attrezzo -
+vedi «una soglia di scoring è una QUOTA»), il verdetto euro esiste, e la regola è **ADOTTATA con un K per
+piattaforma** nel blocco più sopra. La «scorciatoia sul pannello» è stata poi MISURATA e respinta:
+**§7-tretricies**.
 
-**Una scorciatoia che vale la pena valutare prima**: buona parte del valore pratico è al TAVOLO, e il
-tavolo legge il pannello, la cui presenza è `presence.py` — che è governato da `sweep` e non da
-`backtest`. Far leggere le giornate giocate allo STANDING del pannello è una riga di griglia e non un
-harness nuovo, muove i fogli e non `engine_*`, e risponde alla stessa domanda dell'operatore un giorno
-prima.
+## 7-tretricies. IL PRIOR PERSONALE DEL PANNELLO a stagione iniziata: misurato su dodici fogli e RESPINTO (16 agosto 2026, sera tardi)
+
+**L'ipotesi è la mia**, scritta due paragrafi sopra: a stagione iniziata il pannello restringe il campione
+corto verso la MEDIA DI POPOLAZIONE (`standing_prior_rounds` = 10) invece che verso il prior di
+quell'uomo, quindi su quindici giornate viste il 40% del suo standing è la media di tutti. Sembra
+ovviamente sbagliato — ed è il tipo di ipotesi che questo progetto misura prima di scrivere una riga di
+motore, perché la lezione del canale ETÀ è che una differenza fra due gruppi non è un canale finché non
+si è verificato che il modello non la stia già leggendo.
+
+**Disegno, e muove UNA variabile.** Sulla VISTA vera (`SnapshotView`, la stessa che disegna la board),
+su **tutti e dodici** i fogli retrodatati che esistono — tre leghe × le quattro date dei pacchetti del
+viaggio nel tempo, cioè settembre e febbraio di due stagioni — si sostituisce **solo**
+`Inputs.standing_prior`: la media di popolazione della sua banda diventa il **suo** standing della
+stagione precedente. Tutto il resto (eleven, fit, `_reshape`, odds del modulo) gira col codice che
+spedisce. Il prior personale è approssimato con i minuti della stagione precedente sul calendario del
+SUO campionato, che è la stessa aritmetica dello standing (`standing_weights` = (0, 1)) senza i lift, e
+la sua copertura è dichiarata: **58-60%** sui fogli Serie A, **19-20%** su euro (dove chi non ce l'ha
+tiene il prior di banda, cioè non si muove).
+
+**Giudice**: `actual_next_started`, che il foglio porta già — chi ha davvero iniziato la prima partita
+del club DOPO quel giorno. 3.322 posti disegnati in tutto.
+
+| foglio | claim mossi | mediana \|Δ\| | moduli cambiati | uomini cambiati | oggi | prior personale |
+|---|---|---|---|---|---|---|
+| 4 fogli di SETTEMBRE | 183-352 | 0,17-0,21 | **0** | 31-66 di 220-396 | 135 · 135 · 278 · 144 | 133 · 133 · 276 · 140 |
+| 4 fogli di FEBBRAIO | 177-349 | 0,08 | **0** | 8-15 | 134 · 134 · 266 · 143 | 134 · 134 · 266 · 139 |
+| **totale (12 fogli)** | ~3.400 | — | **0 su 322 club** | **385 su 3.322** | **2.164/3.322** | **2.142/3.322** |
+
+**Verdetto: NON adottata.** Non pareggia su nessun foglio in cui muove qualcosa: **peggiore o uguale
+dodici volte su dodici**, −22 uomini in totale. E non è un caso di «troppo piccolo per vedersi»: muove
+metà dei claim del foglio, con una mediana di 0,08 a febbraio e di 0,19 a settembre, e sposta 385 posti
+di board.
+
+**Il meccanismo, misurato invece che raccontato**: il prior personale correla **+0,523** con lo standing
+GREZZO di quest'anno (417 uomini del foglio del 5 febbraio). Cioè metà di quello che porta è già dentro i
+minuti che il pannello sta guardando, e l'altra metà è vecchia di una stagione — la stessa forma del
+rifiuto del canale ETÀ (§7-quinvicies): il modello lo legge già, e il termine gli fa pagare due volte la
+stessa evidenza. Il prior personale ha anche mediana **0,406** contro lo 0,351 della popolazione, quindi
+in media alza tutti — e alzare tutti non cambia un ordine.
+
+**Perché i MODULI non si muovono mai, ed è un fatto sul meccanismo e non sul rumore**: dentro un club, a
+stagione iniziata, gli uomini hanno quasi tutti lo stesso campione (23 giornate su 23 al 5 febbraio),
+quindi la restrizione è una mappa AFFINE con lo stesso peso per tutti e l'ordine non può cambiare. A
+muoversi sono solo i confronti fra campioni di taglia diversa — un arrivo di gennaio contro un titolare —
+ed è lì che i 385 uomini cambiano, con l'esito che dice che cambiano in peggio.
+
+**Cosa questo NON chiude**: la forma di R20 sul lato motore resta adottata e non è in discussione (là il
+prior è la stagione precedente *pesata sulle giornate*, non un rimpiazzo del prior di popolazione), e
+resta non misurato il caso in cui il prior personale sia costruito con l'aritmetica completa del
+pannello (lift e `at_club_weight` compresi) invece che coi soli minuti. Se qualcuno lo riprende, il
+prerequisito è quello — non un peso diverso su questa stessa forma, che qui è stata misurata dodici volte
+e non ha mai vinto.
+
+**Limite del giudice, dichiarato**: una partita per club è un campione stretto, e il giudice forte
+(`press --against outcome`, l'undici più schierato della stagione finita) avrebbe più potere. Non è stato
+usato perché la direzione è unanime su dodici fogli e due stagioni: per ribaltare un 12-0 non basta un
+giudice più fine, serve un'altra ipotesi.
+
+La misura è nel repo — `toolkit/bench/panel/prior_personale.py`, sola lettura, una corsa e una tabella —
+perché una misura che nessuno può rifare è un'opinione, e perché il prerequisito per riaprire la voce
+(il prior costruito con l'aritmetica completa del pannello) si prova cambiando dieci righe di quel file.
 
 ## 8. Casi di regressione (in `model.REGRESSION_CASES`, stampati da `backtest --cases`)
 

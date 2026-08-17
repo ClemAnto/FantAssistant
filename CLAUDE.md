@@ -829,6 +829,18 @@ it); the measurement that refused the channel is written down with its numbers, 
 and the limit is stated rather than hidden - the strong judge could not rule here at all (no 2025 camp
 in the DB), so the 2026 camp is archived and the comparison is pre-registered for May 2027.
 
+**And the same family refused a fourth candidate, this time inside the PANEL** (16/08/2026, gate
+§7-tretricies): shrinking a short in-season sample toward the man's OWN previous season instead of the
+population's mean. Measured on all twelve back-dated sheets by moving ONE variable on the real view: it
+moves half the sheet's claims (median 0.08 in February, 0.19 in September) and 385 board places, changes
+**zero shapes**, and against the outcome the sheet itself carries it is worse or equal **12 times out of
+12** (2142 against 2164 of 3322). The mechanism is the age channel's again — the personal prior
+correlates **+0.523** with this year's raw standing, so half of what it brings is already in the minutes
+being read and the other half is a season old. Plus a structural reason the shapes cannot move: inside a
+club, in-season, the men share nearly the same sample size, so the shrinkage is an AFFINE map and the
+order is preserved. **Before building a channel, ask what its output can even change** — that argument
+was available before the measurement and would have predicted half the result.
+
 ## A difference between two groups is not a channel
 **Not until you have checked that the model is not already reading it** (08/08/2026, the age case, gate
 §7-quinvicies). Over 500 (player, season) pairs with 15+ Serie A starts, the share of starts kept next
