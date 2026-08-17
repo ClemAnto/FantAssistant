@@ -2,6 +2,27 @@
 
 ## Aperti alla chiusura dell'8 agosto 2026 — nessuno con scadenza
 
+**Chiusura 17/08 (la coppa continentale in mezzo al campionato)**: la penalità è misurata, sta sul foglio
+(`SHEET_REVISION` 24) e l'app la disegna; dentro `engine_pv_pred` è stata provata e **respinta**
+(§7-quattuortricies-bis), e il **post-torneo estivo è falsificato col segno opposto**. Quello che resta
+aperto non è una misura da rifare, sono due appuntamenti e una riapertura condizionata:
+
+- [ ] **Dicembre 2026 — le rose vere della Coppa d'Asia.** `tournaments --tournament asian_cup_2027`
+  quando la CAF/AFC le pubblica: `tournaments_squads` trasforma la media nel FATTO e la penalità di un
+  convocato passa dal prodotto `P(va) × costo` al solo costo (0,59). Il meccanismo è già nel codice
+  (`desc_cup_confirmed`, `cups.CONFIRMED_LOSS`): serve solo la corsa. Prima di lanciarla, verificare la
+  rotta su UNA unità — il provider ha risposto 403 il 16/08 e 200 il 17/08.
+- [ ] **`fixtures --season 2025-26`** (e le stagioni dei pacchetti): oggi le colonne della coppa nei
+  quattro pacchetti del viaggio nel tempo sono **ignote per mancanza di CALENDARIO, non di torneo** — il
+  che è dichiarato nella nota del foglio invece di leggersi come «nessuno parte». Costa una corsa e
+  rende leggibile la CAN 2025 su un foglio retrodatato a settembre 2025, che è anche il modo più
+  onesto di guardare la feature in azione su una coppa già avvenuta.
+- [ ] **Riaprire R21 solo con l'esposizione dell'anno di INPUT come controllo.** Il verdetto dice che il
+  modello legge già lo sconto nei minuti dell'anno prima (chi va alla coppa ci è andato anche allora), e
+  quella è un'ipotesi PLAUSIBILE E NON VERIFICATA. Si prova mettendo l'esposizione dell'anno di input
+  accanto a quella del bersaglio, non provando un coefficiente diverso: cambiare il coefficiente
+  risponderebbe a una domanda che nessuno ha fatto.
+
 **Chiusura 16/08 (letture dell'app)**: le cinque colonne 0-99 della consultazione hanno ora un documento
 proprio, [letture-app-v1.md](letture-app-v1.md), con le costanti, le misure che le hanno scelte e — quello
 che conta di più — **le alternative rifiutate con i loro numeri** (lo zero «schierato», che manda Simeone
@@ -376,6 +397,14 @@ Invariata (storico 9 stagioni, endpoint Excel, fallback SofaScore, scala ricalib
 arrivo_intra_lega · regola U22 · Bundesliga+ · beta attacco alto/difesa bassa · ancora pc con recenza · correttivo elite condizionale · ancora B dedicata · **penalty_ev** · **set_piece_duty (solo upside)**
 
 ## RESPINTE dal gate (non riproporre senza nuove finestre)
+**R21 — LA COPPA CONTINENTALE nelle presenze attese (17/08/2026)**: su T2 muove 35 giocatori e la MAE
+delle presenze peggiora del **4%**; su T1, dove nessuna coppa cade nella stagione bersaglio, è inerte per
+costruzione. La penalità è REALE (DiD su quattro finestre-torneo) e il modello la stava già leggendo —
+`minutes_prev` porta lo sconto dentro di sé, come nel canale ETÀ. Riapribile SOLO con l'esposizione
+dell'anno di input come controllo (vedi gli aperti in testa), non con un coefficiente diverso.
+**POST-TORNEO ESTIVO (17/08/2026)**: falsificato col segno OPPOSTO su due finestre e tre orizzonti
+ciascuna (Euro 2024 +0,066 · Euro 2020 +0,017, e anche per chi ha giocato 270+ minuti). Il null lo
+spiega: a inizio stagione peggiorano i controlli, non i reduci. Non riproporre come penalità.
 beta per gruppo di ruolo · baseline multi-stagione 62/38 · ancore per lega · **FAMIGLIA FORZA-CLUB: CHIUSA il 28/07/2026** (forza-club interna statica · Elo additivo movimento · R5 · R5b) — riapribile solo con una misura *prospettica*, non con nuove finestre: `gate-motore-v1.md` §5-nonies ·
 **AFFOLLAMENTO DEL REPARTO: cinque forme, cinque no** (R11 arrivi nello stesso ruolo · R11b · R16 con la propria quota · R16b con quella dei compagni · **R17 con i posti realmente schierati**, 28/07 notte). Il coefficiente esce col segno dell'ipotesi e stabile — il meccanismo esiste **dentro** la stagione e **non si trasferisce**. Sul lato d'asta la stessa idea è stata misurata come valuta di ordinamento e nasce spenta: `metrica-asta-surplus-v1.md` §11
 
