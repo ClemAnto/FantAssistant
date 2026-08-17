@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import sqlite3
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from itertools import pairwise
 
 from euroleghe_ingest.engine.model import (
@@ -260,6 +260,14 @@ class Observation:
     # stagione bersaglio - perché quel giorno era pubblico: lo vede chiunque sieda al tavolo.
     # None (e non 0) su una finestra pre-stagione, dove la domanda non esiste: «vuoto = ignoto».
     pv_seen: int | None = None
+    # LA COPPA CONTINENTALE che cade dentro la stagione bersaglio, per lui: la confederazione della sua
+    # nazionale, se il provider lo file fra i nazionali, e la QUOTA della stagione del suo campionato che
+    # sta dentro le finestre di quella coppa. Tre input legittimi il giorno dell'asta - un calendario
+    # pubblicato, un passaporto e una presenza in nazionale - e zero per chiunque non sia esposto, che è
+    # anche il modo in cui R21 è inerte dove nessuna coppa tocca la stagione.
+    cup_conf: str | None = None
+    cup_capped: bool = False
+    cup_at_risk: float = 0.0
     # actual outcome - SCORING ONLY, never an input.
     # Su una finestra IN-SEASON queste tre sono le giornate DOPO la data d'asta e non il totale di
     # stagione: l'esito conterrebbe altrimenti le giornate che il modello ha appena letto, e ricopiarle
@@ -1435,9 +1443,67 @@ def roster_depth(conn: sqlite3.Connection, platform: str, seasons: tuple[str, ..
     return {**derived, **{role: float(count) for role, count in stated.items() if role in derived}}
 
 
+def cup_exposure(conn: sqlite3.Connection, season: str, cups: Mapping,
+                 membership: Mapping[str, str]) -> dict[int, tuple[str, bool, float]]:
+    """{fc_id: (confederation, capped, share of HIS league's season inside the cup windows)}.
+
+    The share and not the rounds, because a share needs no calendar conversion: R21 subtracts inside the
+    share of the season the appearances model already works in.
+
+    The rounds inside a window are COUNTED from the calendar, and there are two sources by necessity:
+    `fixtures` for a season not yet played (the only place a future January exists) and the lineups that
+    were actually parsed for a season already played (`fixtures` is scraped for the season in play, so it
+    is empty for 2021-22). One function, precedence declared, and neither is a guess.
+
+    `cups` and `membership` come from `engine.cups.parse` - plain mappings, so this file still knows
+    nothing about config files, the same rule `league` and `rulebook` follow.
+    """
+    windows = [cup for cup in cups.values() if not cup.seasons or season in cup.seasons]
+    if not windows:
+        return {}
+    total: dict[str, int] = {}
+    for source in ("fixtures", "club_match_lineups"):
+        column = "round" if source == "fixtures" else "real_md"
+        date = "date" if source == "fixtures" else "match_date"
+        for league, rounds in conn.execute(
+                f"SELECT {'league' if source == 'fixtures' else 'competition'}, "
+                f"COUNT(DISTINCT {column}) FROM {source} WHERE season = ? GROUP BY 1", (season,)):
+            if rounds and league not in total:      # fixtures wins where it has the season
+                total[league] = int(rounds)
+        inside: dict[tuple[str, str], int] = {}
+        for cup in windows:
+            for league, rounds in conn.execute(
+                    f"SELECT {'league' if source == 'fixtures' else 'competition'}, "
+                    f"COUNT(DISTINCT {column}) FROM {source} WHERE season = ? AND {date} BETWEEN ? AND ? "
+                    f"GROUP BY 1", (season, cup.start, cup.end)):
+                inside.setdefault((cup.key, league), int(rounds or 0))
+        if inside:
+            break
+    at_risk: dict[tuple[str, str], float] = {}
+    for (key, league), rounds in inside.items():
+        cup = next(one for one in windows if one.key == key)
+        if total.get(league):
+            at_risk[(cup.confederation, league)] = (at_risk.get((cup.confederation, league), 0.0)
+                                                    + rounds / total[league])
+    if not at_risk:
+        return {}
+    out: dict[int, tuple[str, bool, float]] = {}
+    for fc_id, country, capped, league in conn.execute(
+            "SELECT p.fc_id, p.nationality, p.capped_on, c.league FROM players p "
+            "JOIN rosters r ON r.fc_id = p.fc_id AND r.season = ? "
+            "LEFT JOIN clubs c ON c.fc_club_id = r.fc_club_id WHERE p.nationality IS NOT NULL",
+            (season,)):
+        confederation = membership.get(country or "")
+        share = at_risk.get((confederation or "", league or ""))
+        if confederation and share:
+            out[fc_id] = (confederation, capped is not None, share)
+    return out
+
+
 def prepare(conn: sqlite3.Connection, window: Window, platform: str, game: str, *,
             league: Mapping | None = None, squad_source: str = "listone",
-            rulebook: Mapping | None = None) -> WindowData:
+            rulebook: Mapping | None = None, cups: Mapping | None = None,
+            confederations: Mapping[str, str] | None = None) -> WindowData:
     """Load a window and everything the model needs, using only seasons <= the input season.
 
     `league` is the league setup as `Config.load_league()` returns it - a plain mapping, so the engine
@@ -1476,9 +1542,22 @@ def prepare(conn: sqlite3.Connection, window: Window, platform: str, game: str, 
         places = fielded_places(rulebook, game) if rulebook else {}
         if places:
             replacement_fielded = replacement_levels(conn, platform, seasons, game, places, teams)
+    observations = load(conn, window, platform, squad_source)
+    # LA COPPA, sulle osservazioni: assegnata qui e non dentro `load` perché è un fatto sulla stagione
+    # BERSAGLIO (un calendario e una nazionalità di oggi), mentre `load` legge le stagioni <= input. Senza
+    # `cups` non tocca niente, che è come ogni finestra pubblicata del gate resta identica.
+    if cups and confederations:
+        exposed = cup_exposure(conn, window.target_season, cups, confederations)
+        if exposed:
+            # `Observation` è frozen - un'osservazione è un fatto e non un accumulatore - quindi si
+            # RICOSTRUISCE invece di essere modificata.
+            observations = [
+                replace(obs, cup_conf=exposed[obs.fc_id][0], cup_capped=exposed[obs.fc_id][1],
+                        cup_at_risk=exposed[obs.fc_id][2]) if obs.fc_id in exposed else obs
+                for obs in observations]
     return WindowData(
         window=window, platform=platform, game=game,
-        observations=load(conn, window, platform, squad_source),
+        observations=observations,
         anchors=anchors(conn, platform, seasons, game),
         gk_rates=gk_rates, mu_rate=mu_rate,
         matchdays_prev=matchday_count(conn, platform, window.input_season),

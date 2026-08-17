@@ -92,7 +92,12 @@
     "`{fc_id: {reason, decided_on}}`. Empty is the normal state: it exists for the handful of names the",
     "operator recognises at the table."
   ],
-  "exceptions": {},
+  "exceptions": {
+    "4161": {
+      "reason": "Dahoud (Eintracht): nato in Siria, ha giocato per la Germania",
+      "decided_on": "2026-08-17"
+    }
+  },
   "_confederations_comment": [
     "Country -> confederation, in the SPELLING the provider uses for a player's country (SofaScore's",
     "`player.country.name`), because that is the string this is joined on. Validated rather than trusted:",

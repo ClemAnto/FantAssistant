@@ -23,7 +23,7 @@ from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 
 from euroleghe_ingest.context import Context
-from euroleghe_ingest.engine import features, model
+from euroleghe_ingest.engine import cups, features, model
 from euroleghe_ingest.engine.fitting import fit_linear, spearman
 
 # ---------------------------------------------------------------- rules registry
@@ -152,6 +152,13 @@ RULES: tuple[Rule, ...] = (
                 f"K = {rounds:.0f} giornate", True, metric="pv")
       for key, rounds in (("R20K40", 40.0), ("R20K25", 25.0), ("R20K15", 15.0),
                           ("R20K10", 10.0), ("R20K6", 6.0), ("R20K3", 3.0))),
+    # R21 - LA COPPA CONTINENTALE dentro la stagione bersaglio. Senza parametro fittato: il coefficiente
+    # è misurato fuori (`engine/cups.py`, DiD su quattro finestre-torneo) e la regola decide solo se
+    # applicarlo. Attiva soltanto dove una coppa dichiarata cade nel calendario del bersaglio - tre
+    # finestre su dieci - e inerte altrove per costruzione, come le R20 su una pre-stagione.
+    Rule("R21", "le presenze attese scendono della quota di stagione che una coppa continentale in "
+                "mezzo al campionato gli porta via, col coefficiente misurato per la sua popolazione",
+         True, metric="pv"),
 )
 
 #: Quante giornate di PRIOR vale ogni punto della griglia di R20. La chiave è la regola stessa.
@@ -167,7 +174,11 @@ CANDIDATES: tuple[str, ...] = ("R0c", "R1", "R1b", "R2", "R3", "R3c", "R4", "R4b
                                # R20: inerti su ogni finestra pre-stagione, quindi una corsa normale del
                                # gate le trova a guadagno esattamente zero - che è il modo giusto in cui
                                # una regola che risponde a un'altra domanda si comporta qui.
-                               "R20K40", "R20K25", "R20K15", "R20K10", "R20K6", "R20K3")
+                               "R20K40", "R20K25", "R20K15", "R20K10", "R20K6", "R20K3",
+                               # R21: la coppa continentale in mezzo al campionato (17/08/2026). Il suo
+                               # coefficiente è misurato altrove e non si fitta qui; quello che il gate
+                               # decide è se applicarlo migliora le presenze previste.
+                               "R21")
 
 # R18b - R18 with the history weighted for RECENCY, pre-registered on 10/08/2026 with this grid and no
 # other. One candidate name per decay so the report states the whole grid instead of a chosen value, and
@@ -532,6 +543,37 @@ def _price_signals(data: features.WindowData) -> tuple[dict[int, float], dict[in
             revision[obs.fc_id] = model.clip(
                 (obs.price_initial - obs.price_initial_prev) / obs.price_initial_prev, -1.0, 2.0)
     return price_z, revision
+
+
+_DECLARED_CUPS: tuple | None = None
+
+
+def declared_cups() -> tuple[dict, dict]:
+    """The declared cup windows and the confederation map, read once (`config/international_cups.json`).
+
+    It lives here and not in `features` for the reason every other config-shaped input follows: the
+    engine takes plain mappings and knows nothing about files. This module already imports `Context`, so
+    it is the lowest place in the stack that may open one - and the gate must be able to reach R21, or a
+    candidate nobody can pass to `prepare` is a candidate nobody can judge.
+    """
+    global _DECLARED_CUPS
+    if _DECLARED_CUPS is None:
+        from euroleghe_ingest.config import Config
+        _DECLARED_CUPS = cups.parse(Config().load_international_cups())
+    return _DECLARED_CUPS
+
+
+def prepared_window(conn, window, platform: str, game: str, **kwargs) -> features.WindowData:
+    """`features.prepare` with the declared cups attached, which is how every gate path gets them.
+
+    One helper instead of the same two keywords at six call sites: they were forgotten once already in
+    this project's history (a fallback that was right for one caller and silent for another), and a
+    window prepared WITHOUT the cups cannot move R21 by construction - which would read as «the rule
+    changes nothing» instead of «the rule was never applied».
+    """
+    declared, membership = declared_cups()
+    return features.prepare(conn, window, platform, game, cups=declared,
+                            confederations=membership, **kwargs)
 
 
 def derive(data: features.WindowData) -> Derived:
@@ -1445,6 +1487,19 @@ def _rule_pv(obs: features.Observation, data: features.WindowData, rules: tuple[
             share = model.blend_with_seen(share, obs.pv_seen / data.matchdays_seen,
                                           data.matchdays_seen, prior)
             break
+    # R21 - LA COPPA CONTINENTALE IN MEZZO AL CAMPIONATO, e va DOPO R20 per la stessa ragione per cui R20
+    # va dopo tutto il resto: è l'ultima cosa che si sa. Qualunque quota di stagione il modello preveda,
+    # una parte di quella stagione lui la passa altrove - e la banda del coefficiente si legge sulla quota
+    # appena calcolata, che è quello che il foglio chiama `played_share`.
+    #
+    # Nessun parametro fittato: il coefficiente è MISURATO fuori dal gate (difference-in-differences su
+    # quattro finestre-torneo, `engine/cups.py`) e qui non si tocca. Il gate giudica se applicarlo
+    # migliora le presenze, che è una domanda diversa da «quanto vale» - e su una finestra il cui
+    # bersaglio non contiene nessuna coppa in-season `cup_at_risk` è 0 e la regola non esiste.
+    if "R21" in rules and obs.cup_conf and obs.cup_at_risk:
+        lost = cups.loss_share(obs.cup_conf, obs.cup_capped, share)
+        if lost:
+            share = max(0.0, share - lost * obs.cup_at_risk)
     return model.expected_appearances(model.clip(share, 0.0, 1.0), data.matchdays_target)
 
 
@@ -1928,7 +1983,7 @@ def compare(conn: sqlite3.Connection, candidates: tuple[str, ...], platform: str
     and without losing the top-10 precision the auction actually consumes.
     """
     keys = tuple(windows or features.WINDOWS)
-    prepared = {key: features.prepare(conn, features.window(key), platform, game) for key in keys}
+    prepared = {key: prepared_window(conn, features.window(key), platform, game) for key in keys}
     prepared = {key: data for key, data in prepared.items() if _window_is_usable(data, platform)}
     if len(prepared) < 2:
         raise RuntimeError("the gate needs at least two usable windows, got "
@@ -2194,7 +2249,7 @@ def verify_baseline(conn: sqlite3.Connection) -> list[Check]:
 
     # Prepared once: every remaining check reads the same windows - and only the two the published
     # numbers refer to. A new window has no published counterpart to be verified against.
-    prepared = {key: features.prepare(conn, features.window(key), "euro", "mantra")
+    prepared = {key: prepared_window(conn, features.window(key), "euro", "mantra")
                 for key in features.PUBLISHED_WINDOWS}
 
     # 3. the two independent Mantra beta estimates
@@ -3005,18 +3060,18 @@ def run(ctx: Context, *, windows: list[str] | None = None, platforms: list[str] 
                 # nothing in the prediction comes from the season being predicted.
                 active = ("R0", *ADOPTED.get(platform, ()))
                 usable = tuple(key for key in features.WINDOWS
-                               if _window_is_usable(features.prepare(
+                               if _window_is_usable(prepared_window(
                                    conn, features.window(key), platform, game), platform))
                 # every usable window's fit, because the pooled rules average over all but the scored
                 # one - the same parameters the gate uses, or the deliverable would disagree with the
                 # verdicts that produced it
-                every = {key: fit_params(features.prepare(
+                every = {key: fit_params(prepared_window(
                     conn, features.window(key), platform, game), ("R0", *CANDIDATES))
                     for key in usable}
                 for key in window_keys:
                     if key not in usable:
                         continue
-                    data = features.prepare(conn, features.window(key), platform, game)
+                    data = prepared_window(conn, features.window(key), platform, game)
                     other = features.cross_fit_source(key, usable)
                     params = pool_params(every, key, every[other])
                     view = auction_view(data, predict_window(data, active, None, params))
@@ -3036,16 +3091,16 @@ def run(ctx: Context, *, windows: list[str] | None = None, platforms: list[str] 
                     # the cases are shown under the ADOPTED set: what the engine would now say
                     active = ("R0", *ADOPTED.get(platform, ()))
                     for key in features.WINDOWS:
-                        data = features.prepare(conn, features.window(key), platform, game)
+                        data = prepared_window(conn, features.window(key), platform, game)
                         other = features.cross_fit_source(key)
-                        params = fit_params(features.prepare(
+                        params = fit_params(prepared_window(
                             conn, features.WINDOWS[other], platform, game), ("R0", *CANDIDATES))
                         print(f"  with {', '.join(active[1:]) or 'the baseline only'}:")
                         _print_cases(data, predict_window(data, active, None, params))
                 continue
             for key in window_keys:
                 window = features.window(key)
-                data = features.prepare(conn, window, platform, game)
+                data = prepared_window(conn, window, platform, game)
                 if not data.observations:
                     print(f"[backtest] {window.label} {platform}/{game}: no observations, skipped")
                     continue

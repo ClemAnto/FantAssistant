@@ -4427,10 +4427,30 @@ giornate DENTRO la finestra dal calendario vero (`cup_rounds_by_league`): zero g
 La lezione generale è che la penalità non è una proprietà del torneo ma della SOVRAPPOSIZIONE, e l'unica
 coppa che si sovrappone è quella per cui il campionato non si ferma.
 
-**(e) e (f) restano aperte**: la regola dentro `engine_pv_pred` e le colonne derivate. La prima non è
-stata eseguita di proposito — i coefficienti sono cambiati due volte in una mattina (il tappo, poi le
-bande, poi i convocati), e far girare il gate su numeri già superati è il modo di ottenere un verdetto su
-niente.
+**(e) R21 DENTRO `engine_pv_pred`: ESEGUITA E RESPINTA** (17 agosto 2026, sera). Implementata senza
+nessun parametro fittato - il coefficiente è quello misurato sopra e la regola decide solo se applicarlo -
+e attiva soltanto dove una coppa dichiarata cade nel calendario del bersaglio. Il verdetto, su Serie A:
+
+    T1 (bersaglio 2024-25, nessuna coppa in stagione)   changed_n 0        inerte per costruzione
+    T2 (bersaglio 2025-26, CAN 2025)                    changed_n 35       pv MAE 7,181 -> 7,472 (+4,0%)
+    -> NON PASSA
+
+**La lettura è la lezione del canale ETÀ, incontrata di nuovo**: la penalità è REALE - il
+difference-in-differences la misura quattro volte - e il modello la sta già leggendo. Chi va alla Coppa
+d'Africa ci è andato anche l'anno prima, quindi le sue presenze dell'anno di input sono GIÀ abbassate
+dalla stessa causa, e `minutes_prev` porta lo sconto dentro di sé: sottrarlo di nuovo lo conta due volte.
+È la stessa forma del refuso dell'età (i trentenni portano già meno minuti misurati, quindi lo standing
+li sconta prima di ogni termine di età) e del canale investimento. Ipotesi plausibile e NON verificata -
+lo sarebbe misurando l'esposizione alla coppa dell'anno di INPUT accanto a quella del bersaglio - quindi
+va scritta come ipotesi e non come spiegazione dimostrata.
+
+Cosa NON dice questo verdetto: che la coppa non costi. Costa, ed è per questo che le colonne `desc_*`
+esistono e sono reporting: al tavolo servono a leggere una riga («questo salta 4 giornate»), che è una
+domanda diversa da «l'errore aggregato sulle presenze migliora se lo sottraggo». Chi riaprirà la voce
+deve muovere UNA variabile: l'esposizione dell'anno di input come controllo, non un coefficiente diverso.
+
+**(f) le colonne derivate**: fatte, `desc_surplus_cup` e `desc_surplus_fielded_cup` (revisione 24), con la
+stessa penale di confidenza dei gated - senza quella la coppa sembrava PAGARE su una riga stimata.
 
 ## 8. Casi di regressione (in `model.REGRESSION_CASES`, stampati da `backtest --cases`)
 
