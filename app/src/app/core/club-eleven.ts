@@ -56,6 +56,16 @@ export interface PitchMan {
    */
   perMatch: number | null;
   /**
+   * ...E LO STESSO NUMERO PER LA STAGIONE CHE VIENE, che è quello che il campetto stampa dal 19/08/2026.
+   *
+   * Letto dalla board e mai ricalcolato qui (`engine/minutes.py`, con la misura che l'ha adottato: +7,5% e
+   * +7,6% di errore su due finestre retrodatate contro il mostrare la media dell'anno scorso invariata).
+   * È una PREVISIONE e quello sopra è una MISURA: il tooltip li nomina tutt'e due, perché una cifra nuda
+   * che cambia natura è la trappola che questa carta ha già pagato una volta. Null = ignoto, mai zero -
+   * una board scritta prima della colonna non ne ha una.
+   */
+  minutesNext: number | null;
+  /**
    * A DIFFERENT quantity, and the two must not be confused: the sheet's own `minutes per club match` over the
    * last-ten window, which divides by the CLUB's matches and therefore folds absences in (Di Lorenzo 44.7
    * against 88 of the season average). It stays in the tooltip, labelled, and never on the chip.
@@ -342,6 +352,9 @@ function toMan(man: BoardMan, resolve: (man: BoardMan) => OnTable): PitchMan {
       const matches = int(man.matches);
       return minutes != null && matches ? Math.round(minutes / matches) : null;
     })(),
+    // Letto e basta: nessuna aritmetica su un numero che il toolkit ha già deciso, o sarebbero due
+    // definizioni dello stesso minuto.
+    minutesNext: man.minutes_next ?? null,
     minutesPerClubMatch: man.minutes_per_match != null && man.minutes_per_match !== ''
       ? Number(man.minutes_per_match) : null,
     classic: man.classic ?? null,
@@ -366,71 +379,153 @@ function toMan(man: BoardMan, resolve: (man: BoardMan) => OnTable): PitchMan {
 }
 
 /**
- * UN UOMO IN BALLOTTAGGIO SU UN POSTO SOLO (operatore, 18/08/2026: «non voglio che un calciatore compaia in
- * ballottaggio in più di un item, verifica dove il suo claim è più alto e mostralo solo in quella
- * posizione»), e i rivali sotto la soglia via.
+ * UN UOMO IN BALLOTTAGGIO SU UN POSTO SOLO, E I POSTI DI UNA LINEA CON UN NUMERO SIMILE DI ALTERNATIVE.
  *
- * Che il problema sia vero è misurato, non supposto: sulle board del bundle **171 voci di ballottaggio su
- * 610** sono ripetizioni dello stesso uomo su euro (35 club su 37) e 104 su 371 su Serie A (tutti e 20 i
- * club) - il pannello calcola i rivali POSTO per posto, e un vice che copre due maglie compare due volte.
+ * Due richieste dell'operatore nello stesso giorno (18/08/2026), e la seconda ha riscritto la prima.
+ * «Non voglio che un calciatore compaia in ballottaggio in più di un item» - il pannello calcola i rivali
+ * POSTO per posto, e un vice che copre due maglie compare due volte: misurato sulle board del bundle,
+ * **171 voci di ballottaggio su 610** sono ripetizioni su euro (35 club su 37) e 104 su 371 su Serie A
+ * (tutti e 20 i club). Poi: «riesci a distribuire i giocatori in ballottaggio in maniera più saggia? fai
+ * una valutazione sui ruoli REALI e se possibile evitiamo posizioni con tanti calciatori in alternativa e
+ * posizioni senza alternative».
  *
- * Dove tenerlo: il claim è UNO per uomo, quindi «dove è più alto» non può distinguere fra due posti, e la
- * regola che lo rispetta è quella che risponde alla stessa domanda con i numeri che cambiano fra i due
- * posti - dove ha più probabilità di giocare davvero:
+ * PERCHÉ LA PRIMA REGOLA DA SOLA SBILANCIAVA. Toglieva i doppioni scegliendo un posto alla volta, quindi il
+ * quarto e il quinto rivale finivano dove finiva il terzo: l'Atalanta del bundle disegnava i due centrali di
+ * riserva TUTT'E DUE sul posto del terzino sinistro e lasciava i due `Dc` senza nessuno, mentre un mancino
+ * stava in ballottaggio a DESTRA perché era lì che il toolkit l'aveva elencato. Una scelta per uomo non può
+ * vedere quel disegno: è un'ASSEGNAZIONE e va risolta come tale - la stessa forma del `_matching` ungherese
+ * con cui il pannello assegna l'undici ai posti del modulo.
  *
- *   1. dove il posto chiede uno dei SUOI codici granulari, il migliore prima (`placeCodes` è già l'ordine
- *      di preferenza): un vice terzino destro è un ballottaggio a destra e non in mezzo;
- *   2. a pari fit, dove il TITOLARE è più debole, perché è là che entrerebbe;
- *   3. a pari tutto, il primo nell'ordine di disegno, così il risultato non dipende dall'iterazione.
+ * COSA COSTA COSA, e sono tutte scelte di visualizzazione dichiarate qui, che nessun gate possiede:
+ *
+ *   1. il FIT sul ruolo REALE, che è il termine dominante: quanto in giù nella lista di codici che il posto
+ *      chiede (`placeCodes`, già in ordine di preferenza) sta il primo codice che l'uomo ha, e a pari posto
+ *      quanto in su nella lista SUA sta quel codice - un vice terzino destro è un ballottaggio a destra, e
+ *      un uomo che il posto non chiede affatto paga `DUEL_MISS`;
+ *   2. la FOLLA: il secondo uomo su un posto costa `DUEL_CROWD`, il terzo il doppio. È un prezzo convesso,
+ *      che è il modo di dire «meglio uno e uno che due e zero» senza vietare niente;
+ *   3. lo SPOSTAMENTO: un posto che il toolkit non gli aveva elencato costa `DUEL_OFF_PLACE`. Può succedere
+ *      - è quello che porta il mancino a sinistra - ma solo dentro la SUA linea e solo se il ruolo reale lo
+ *      giustifica: nessun ballottaggio viene inventato, si sceglie fra i posti di una riga dove il toolkit
+ *      lo aveva già messo in discussione.
+ *
+ * Il tetto della folla non c'è: un rivale che il toolkit ha dichiarato si vede sempre da qualche parte,
+ * perché nasconderlo sarebbe peggio che disegnarne tre su un posto.
  */
-function oneItemEach(rows: PitchRow[]): { floor: number; duplicate: number } {
-  interface Spot { row: PitchRow; starter: PitchMan; rival: PitchMan; fit: number; }
-  const seen = new Map<number, Spot>();
-  /**
-   * Chi si scarta si segna per OGGETTO e non per id, e la differenza è un difetto vero che il test ha
-   * preso: due voci con lo stesso `fc_id` sotto lo stesso titolare - un id ripetuto nei dati - facevano
-   * cancellare anche quella che si voleva tenere, perché il filtro girava sull'id.
-   */
-  const drop = new Set<PitchMan>();
+export const DUEL_CROWD = 4;
+export const DUEL_OFF_PLACE = 1;
+const DUEL_MISS = 12;
+
+/** Il prezzo di quel rivale su quel posto, folla esclusa: solo il ruolo reale e lo spostamento. */
+function duelFit(line: PitchLine, badge: string | null, rival: PitchMan, listed: boolean): number {
+  const asked = placeCodes(line, badge);
+  const his = rival.codes.map((code) => code.trim().toUpperCase());
+  const at = asked.findIndex((code) => his.includes(code));
+  const moved = listed ? 0 : DUEL_OFF_PLACE;
+  if (at < 0) return DUEL_MISS + moved;
+  return at * 4 + Math.max(his.indexOf(asked[at]), 0) + moved;
+}
+
+/** Quanto costa aggiungere un uomo a un posto che ne ha già `taken`: convesso, e zero per il primo. */
+const crowd = (taken: number): number => taken * DUEL_CROWD;
+
+/** Il posto più conveniente per un uomo, folla compresa. A pari costo vince quello dove già sta e poi il
+ *  primo nell'ordine di disegno: due riletture della stessa board devono dare la stessa board. */
+function bestPlace(cost: number[], taken: number[], current: number): number {
+  let best = current;
+  let price = cost[current] + crowd(taken[current]);
+  for (let place = 0; place < cost.length; place += 1) {
+    const here = cost[place] + crowd(taken[place]);
+    if (here < price - 1e-9) {
+      price = here;
+      best = place;
+    }
+  }
+  return best;
+}
+
+function spreadDuels(rows: PitchRow[]): { floor: number; duplicate: number } {
   const counted = { floor: 0, duplicate: 0 };
-  for (const row of rows) {
-    for (const starter of row.men) {
-      for (const rival of starter.duels) {
-        // Sotto la soglia non è un ballottaggio: via, e il titolare resta comunque disegnato.
-        if (rival.claim != null && rival.claim < PITCH_CLAIM_FLOOR) {
-          drop.add(rival);
-          counted.floor += 1;
-          continue;
-        }
-        if (rival.fcId == null) continue;
-        const asked = placeCodes(row.line, starter.badge);
-        const his = new Set(rival.codes.map((code) => code.trim().toUpperCase()));
-        const at = asked.findIndex((code) => his.has(code));
-        const fit = at < 0 ? asked.length : at;
-        const before = seen.get(rival.fcId);
-        if (!before) {
-          seen.set(rival.fcId, { row, starter, rival, fit });
-          continue;
-        }
-        const better = fit < before.fit
-          || (fit === before.fit && (starter.claim ?? 1) < (before.starter.claim ?? 1));
+  /** I posti dell'undici, in fila: l'assegnazione è UNA per tutto il campetto e non una per riga, o un
+   *  uomo che il toolkit mette in ballottaggio su due LINEE torna a comparire due volte - che è
+   *  esattamente la cosa da togliere (Pasalic, ballottaggio in mezzo e sulla trequarti insieme). */
+  const places = rows.flatMap((row) => row.men.map((starter) => ({ row, starter })));
+
+  /** Un candidato: l'uomo - un oggetto solo, anche dove il toolkit lo elencava su tre posti - i posti su
+   *  cui era elencato, che è quello che distingue uno spostamento da una conferma, e le LINEE di quei
+   *  posti, che sono il suo perimetro: un rivale della difesa non si sposta a centrocampo. */
+  interface Candidate { rival: PitchMan; listed: Set<number>; lines: Set<PitchLine>; at: number; }
+  const candidates: Candidate[] = [];
+  const byId = new Map<number, Candidate>();
+  places.forEach(({ row, starter }, place) => {
+    for (const rival of starter.duels) {
+      // Sotto la soglia non è un ballottaggio: via, e il titolare resta comunque disegnato.
+      if (rival.claim != null && rival.claim < PITCH_CLAIM_FLOOR) {
+        counted.floor += 1;
+        continue;
+      }
+      const before = rival.fcId == null ? undefined : byId.get(rival.fcId);
+      if (before) {
+        // Lo stesso uomo su due posti: una voce sola, e i due posti diventano due sue candidature.
         counted.duplicate += 1;
-        if (better) {
-          drop.add(before.rival);
-          seen.set(rival.fcId, { row, starter, rival, fit });
-        } else {
-          drop.add(rival);
-        }
+        before.listed.add(place);
+        before.lines.add(row.line);
+        continue;
       }
+      const one: Candidate = { rival, listed: new Set([place]), lines: new Set([row.line]), at: place };
+      candidates.push(one);
+      if (rival.fcId != null) byId.set(rival.fcId, one);
     }
+  });
+  for (const { starter } of places) starter.duels = [];
+  if (!candidates.length) return counted;
+
+  // Il costo di ogni uomo su ogni posto, folla a parte. Fuori dalle sue linee non è un posto, e un posto
+  // il cui titolare È lui nemmeno: sarebbe un uomo in ballottaggio con se stesso.
+  const cost = candidates.map((one) => places.map(({ row, starter }, place) => (
+    !one.lines.has(row.line) || (starter.fcId != null && starter.fcId === one.rival.fcId)
+      ? Number.POSITIVE_INFINITY
+      : duelFit(row.line, starter.badge, one.rival, one.listed.has(place))
+  )));
+
+  const taken = places.map(() => 0);
+  // Prima chi ha meno scelta - il rimpianto fra il posto migliore e il secondo - così chi ha un solo posto
+  // sensato non se lo trova occupato da chi ne aveva due.
+  const regret = (index: number): number => {
+    const sorted = [...cost[index]].sort((left, right) => left - right);
+    return (sorted[1] ?? Number.POSITIVE_INFINITY) - (sorted[0] ?? 0);
+  };
+  const order = candidates.map((one, index) => index)
+    .sort((left, right) => regret(right) - regret(left) || left - right);
+  for (const index of order) {
+    const place = bestPlace(cost[index], taken, candidates[index].at);
+    candidates[index].at = place;
+    taken[place] += 1;
   }
-  if (drop.size) {
-    for (const row of rows) {
-      for (const starter of row.men) {
-        starter.duels = starter.duels.filter((rival) => !drop.has(rival));
-      }
-    }
+  // ...e poi si migliora finché si migliora: il greedy vede un uomo alla volta, e due mosse che
+  // separatamente non convengono possono convenire insieme. Su undici posti converge in due passate.
+  for (let pass = 0; pass < 8; pass += 1) {
+    let moved = false;
+    candidates.forEach((one, index) => {
+      taken[one.at] -= 1;
+      const place = bestPlace(cost[index], taken, one.at);
+      taken[place] += 1;
+      if (place !== one.at) moved = true;
+      one.at = place;
+    });
+    if (!moved) break;
   }
+
+  // Rimontaggio: ogni posto riceve i suoi, il più credibile per primo. Un `claim` ignoto va in fondo - è
+  // un ignoto e non uno zero, ma un ordine ci vuole e metterlo in cima direbbe il contrario.
+  const drawn: PitchMan[][] = places.map(() => []);
+  for (const one of candidates) drawn[one.at].push(one.rival);
+  places.forEach(({ starter }, place) => {
+    starter.duels = drawn[place]
+      .map((rival, index) => ({ rival, index }))
+      .sort((left, right) => (right.rival.claim ?? -1) - (left.rival.claim ?? -1) || left.index - right.index)
+      .map((one) => one.rival);
+  });
   return counted;
 }
 
@@ -477,7 +572,7 @@ export function pitchOf(
     rows.push({ line, wanted, men: [...drawn].sort((left, right) => left.x - right.x) });
   }
 
-  const hiddenDuels = oneItemEach(rows);
+  const hiddenDuels = spreadDuels(rows);
 
   const solved = chosen ? shape ?? null : board.board_shape ?? null;
   return {

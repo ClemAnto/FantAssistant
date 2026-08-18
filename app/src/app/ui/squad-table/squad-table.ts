@@ -36,6 +36,7 @@ import { stored, storedList } from '../../core/view-state';
 import { ClubCrest } from '../club-crest/club-crest';
 import { PlayerFlags } from '../player-flags/player-flags';
 import { RoleBadge } from '../role-badge/role-badge';
+import { RoleSet } from '../role-set/role-set';
 import { StarRating } from '../star-rating/star-rating';
 
 const ROLE_LABEL: Record<ClassicRole, string> = {
@@ -177,6 +178,7 @@ const DRAG_THRESHOLD_PX = 5;
     NzTooltipModule,
     PlayerFlags,
     RoleBadge,
+    RoleSet,
     StarRating,
   ],
   host: { class: 'block' },

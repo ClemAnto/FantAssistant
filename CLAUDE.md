@@ -1429,6 +1429,31 @@ And **one pitch drawn by one component** in both the auction and the Squadre scr
 PLACE and not a man (the real role it asks for on top, the men disputing it below, each in ONE place
 only): `docs/model/formazioni-tipo-v1.md` §6-quinquies, with its measured floors.
 
+## A number on the card is a MEASUREMENT or a FORECAST, and the two never share a figure
+**19/08/2026, and the operator moved the same vice twice in two days.** The pitch chip carried
+«minutes per club match» - a measurement times a prediction - and on 18/08 it became the plain measured
+average, «minuti totali stagione scorsa / partite giocate», because the product «mescolava una misura e una
+previsione in un numero solo». Then the right question: that average describes the season that ENDED, and
+what is being bought is the one that comes. So the chip is now a declared FORECAST (`engine/minutes.py`)
+and the measurement sits in the tooltip **with its name**, next to the two other averages that have other
+denominators - three labels, never a naked figure.
+His own proposal for it was refused by ALGEBRA before any measurement: the claim IS last season's minutes
+(`standing_weights` = (0,1)), so `perMatch × claim_now / claim_prev` cancels the minutes and leaves
+`90 × rounds × claim / matches` - measured, **−59% and −55%** against changing nothing, and a test keeps
+that arithmetic so nobody proposes it again. What ships is `C + P × (S − C)` with S and C measured over
+247,825 appearances, and a P that is 70% the MEASURED start-per-appearance rate and 30% the model's, in
+that proportion because the model's forecast of it is measurably WORSE than the measurement (MAE 0.234
+against 0.200). Verdict on two back-dated pre-season sheets, criterion written before the run, parameters
+cross-fit: **+7.5% and +7.6%**, no role losing, the keeper excluded because for him the measurement IS the
+forecast. Two habits: **the regime of the judge is part of the judgement** - a pilot run on the time-travel
+packs (dated after the fifth round, so they measure the season in progress) gave the opposite sign - and
+the ceiling with the TRUE P is +74%, which says the form is right and what is missing is a forecast of
+titolarità: that is where to go back, not to a bigger formula.
+And where a rival is DRAWN is an assignment, not a per-man choice: the same day, «evitiamo posizioni con
+tanti calciatori in alternativa e posizioni senza alternative» turned the dedup rule into one allocation
+over the whole pitch (real-role fit dominating, a convex crowd price, a price for moving inside the line),
+and the empty places went 126 → 91 on Serie A and 218 → 165 on euro with the same men drawn.
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,

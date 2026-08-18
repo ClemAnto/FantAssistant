@@ -43,6 +43,25 @@
     border-color: var(--color-border);
   }
 
+  /* IL TOOLTIP PORTA UNA CARTA, non una frase (operatore, 18/08/2026: «i tooltip che utilizzi sul campetto
+     sono monocolore e senza formattazione e rendono molto difficile la lettura»). antd lo disegna nero,
+     stretto e con l'interlinea di una riga sola: qui prende i token della pagina - lo stesso fondo e lo
+     stesso bordo delle carte che ci stanno sotto - e la larghezza per una griglia di etichette e numeri.
+     Nessun colore letterale, e la freccia si tinge con la variabile che antd espone apposta. */
+  .ant-tooltip {
+    --antd-arrow-background-color: var(--color-surface);
+    max-width: 22rem;
+  }
+
+  .ant-tooltip-inner {
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+    color: var(--color-fg);
+    min-width: 0;
+    padding: 0.5rem 0.625rem;
+  }
+
   .ant-table {
     background-color: var(--color-surface);
     border-radius: var(--radius-card);

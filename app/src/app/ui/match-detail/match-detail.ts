@@ -5,6 +5,7 @@ import { MatchCell, PlayerRow } from '../../core/players-store';
 import { ClubCrest } from '../club-crest/club-crest';
 import { STATE_LABEL } from '../matches-table/vocabulary';
 import { RoleBadge } from '../role-badge/role-badge';
+import { RoleSet } from '../role-set/role-set';
 
 export interface BonusRow {
   label: string;
@@ -15,7 +16,7 @@ export interface BonusRow {
 
 @Component({
   selector: 'ui-match-detail',
-  imports: [ClubCrest, RoleBadge],
+  imports: [ClubCrest, RoleBadge, RoleSet],
   templateUrl: './match-detail.html',
 })
 export class MatchDetail {

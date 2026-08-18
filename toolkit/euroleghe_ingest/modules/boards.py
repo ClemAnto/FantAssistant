@@ -90,6 +90,15 @@ def _man(view: Any, row: dict, x: float | None = None) -> dict:
         out["claim"] = round(view.claim(row, "season"), 3)
     except Exception:                                   # noqa: BLE001 - a claim we cannot read is not a zero
         out["claim"] = None
+    # ...and how long he is expected to stay ON THE PITCH next season, which is a different question from
+    # how often he plays and the one the card's chip answers (`engine/minutes.py`, measured +7.5%/+7.6%
+    # against showing last season's average unchanged). It is written HERE and not recomputed in the app
+    # for the same reason the board is: it is a prediction about a person. Unknown stays None.
+    try:
+        predicted = view.minutes_next(row)
+        out["minutes_next"] = None if predicted is None else round(predicted, 0)
+    except Exception:                                   # noqa: BLE001 - one man, never the board
+        out["minutes_next"] = None
     return out
 
 

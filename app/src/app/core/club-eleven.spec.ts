@@ -236,6 +236,61 @@ describe('pitchOf', () => {
     expect(drawn.hiddenDuels.duplicate).toBe(1);
   });
 
+  it('spartisce i ballottaggi fra i posti invece di ammucchiarli su uno', () => {
+    // Operatore, 18/08/2026: «evitiamo posizioni con tanti calciatori in alternativa e posizioni senza
+    // alternative». Due riserve centrali elencate dal toolkit su TUTT'E TRE i posti della difesa: la
+    // regola vecchia le metteva tutt'e due sul titolare più debole e lasciava due posti vuoti.
+    const vice = (id: number, name: string, claim: number) =>
+      man(name, 0.5, { fc_id: id, claim, codes: 'DC;DL' });
+    const place = (id: number, name: string, x: number, claim: number) => man(name, x, {
+      fc_id: id, claim, badge: 'Dc', codes: 'DC',
+      duels: [vice(91, 'Vice1', 0.45), vice(92, 'Vice2', 0.4)],
+      duels_known: true,
+    });
+    const drawn = pitchOf(board('4-3-3', {
+      D: [place(51, 'Centrale1', 0.3, 0.7), place(52, 'Centrale2', 0.5, 0.65),
+        place(53, 'Centrale3', 0.7, 0.6)],
+    }), () => free)!;
+    const defence = drawn.rows.find((row) => row.line === 'D')!;
+    expect(defence.men.map((one) => one.duels.length).sort()).toEqual([0, 1, 1]);
+    // ...e ognuno è disegnato UNA volta sola: la vecchia regola vale ancora, non è stata sostituita.
+    expect(defence.men.flatMap((one) => one.duels.map((rival) => rival.name)).sort())
+      .toEqual(['Vice1', 'Vice2']);
+    expect(drawn.hiddenDuels.duplicate).toBe(4);
+  });
+
+  it('manda il mancino sul posto di sinistra anche se il toolkit lo elencava a destra', () => {
+    // «Fai una valutazione sui ruoli REALI» (stesso giorno). Il ballottaggio resta dentro la sua LINEA -
+    // nessuno viene inventato - ma quale posto della linea lo dice il ruolo reale, non l'ordine in cui il
+    // pannello lo ha elencato.
+    const right = man('Terzino destro', 0.1, {
+      fc_id: 61, claim: 0.7, badge: 'Td', codes: 'DR',
+      duels: [man('Mancino', 0.5, { fc_id: 62, claim: 0.5, codes: 'DL;ML' })],
+      duels_known: true,
+    });
+    const left = man('Terzino sinistro', 0.9, { fc_id: 63, claim: 0.6, badge: 'Ts', codes: 'DL' });
+    const drawn = pitchOf(board('4-3-3', { D: [right, left] }), () => free)!;
+    const defence = drawn.rows.find((row) => row.line === 'D')!;
+    const shown = defence.men.filter((one) => one.duels.length);
+    expect(shown.length).toBe(1);
+    expect(shown[0].name).toBe('Terzino sinistro');
+  });
+
+  it('non disegna lo stesso uomo su due LINEE diverse', () => {
+    // Il caso vero: Pasalic è ballottaggio in mezzo e sulla trequarti insieme, quindi l'assegnazione è
+    // una per tutto il campetto - una per riga lo faceva ricomparire.
+    const jolly = () => man('Jolly', 0.5, { fc_id: 71, claim: 0.5, codes: 'MC;AM' });
+    const drawn = pitchOf(board('4-3-1-2', {
+      M: [man('Mediano', 0.5, { fc_id: 72, badge: 'C', codes: 'MC', duels: [jolly()], duels_known: true })],
+      T: [man('Trequartista', 0.5, {
+        fc_id: 73, badge: 'T', codes: 'AM', duels: [jolly()], duels_known: true,
+      })],
+    }), () => free)!;
+    const drawnNames = drawn.rows.flatMap((row) => row.men.flatMap((one) => one.duels.map((r) => r.name)));
+    expect(drawnNames).toEqual(['Jolly']);
+    expect(drawn.hiddenDuels.duplicate).toBe(1);
+  });
+
   it('shows the minutes as an AVERAGE PER MATCH, and keeps the club average apart', () => {
     const drawn = pitchOf(board('4-3-3', {
       P: [man('Portiere', 0.5, { minutes: '2278', matches: '26', minutes_per_match: '44.7' })],
@@ -246,6 +301,22 @@ describe('pitchOf', () => {
     expect(keeper.minutesPerClubMatch).toBe(44.7);    // the sheet's own, over the CLUB's last ten
     // Missing minutes are unknown, never zero: the chip says «minuti ignoti».
     expect(drawn.rows[1].men[0].perMatch).toBeNull();
+  });
+
+  it('legge i minuti PREVISTI dalla board e non ne calcola nessuno', () => {
+    // È il numero che il chip stampa dal 19/08/2026, e lo decide il toolkit (`engine/minutes.py`): quanto
+    // un uomo resta in campo è una previsione su una persona, quindi qui si legge e basta. La misura resta
+    // accanto, con un altro nome, perché una previsione e una misura sotto una cifra sola sono due cose.
+    const drawn = pitchOf(board('4-3-3', {
+      P: [man('Previsto', 0.5, { minutes: '2278', matches: '26', minutes_next: 71 })],
+      D: [man('Board vecchia', 0.1, { minutes: '1800', matches: '24' })],
+    }), () => free)!;
+    const priced = drawn.rows[0].men[0];
+    expect(priced.minutesNext).toBe(71);
+    expect(priced.perMatch).toBe(88);                  // la misura non si muove di un minuto
+    // Una board scritta prima della colonna non ne ha una: ignoto, mai un ripiego silenzioso sulla misura.
+    expect(drawn.rows[1].men[0].minutesNext).toBeNull();
+    expect(drawn.rows[1].men[0].perMatch).toBe(75);
   });
 
   it('carries the ONE role of the module and the listone role beside it', () => {

@@ -217,13 +217,7 @@
         @for (key of visible(); track key) {
           @switch (key) {
             @case ('mantra') {
-              <td>
-                <span class="flex flex-wrap gap-1">
-                  @for (code of man.mantraCodes; track code) {
-                    <ui-role [role]="code" />
-                  }
-                </span>
-              </td>
+              <td><ui-roles [roles]="man.mantraCodes" /></td>
             }
             @case ('club') {
               <td>

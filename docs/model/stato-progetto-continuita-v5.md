@@ -2454,3 +2454,54 @@ colonna **Pv** (le partite a voto della stagione scorsa).
 4. Dalla sessione precedente e non toccate: le coppe da Sofascore (in attesa che il provider riapra),
    `tm_appearances` che nessuno legge, i 16 gruppi di ballottaggio ambigui, `R` e `Nome` da appuntare
    quando la tabella scorre di lato.
+
+## CHIUSURA della sessione 19/08/2026 — il campetto letto a voce, e un rapporto respinto dall'algebra
+
+Sessione tutta sul CAMPETTO, nata da correzioni dettate una dopo l'altra mentre l'operatore lo guardava. Le
+prime sei sono di lettura e si sono chiuse in ore; la settima era una domanda di modello e ha richiesto una
+misura, che è finita con un rifiuto e un'adozione.
+
+**Le sei di lettura.** I ruoli mantra in un pezzo solo (`ui/role-set/`, spazio zero fra i codici, raggio
+solo alle estremità, mai a capo) e più piccoli sul campetto (16px contro 20). L'**Overall a colori**, a
+bande che sono quantili (`letture-app-v1.md` §12). I minuti senza la parola «attesi», con accanto la quota
+di giornate. Le **icone attaccate al nome** — col nome a `flex-1` la riga le spingeva al bordo opposto. Il
+**badge del posto in grigio**: i colori del listone sono dei calciatori, e un marcatore acceso come loro
+faceva leggere il posto come un dodicesimo uomo. Una **cella non passa il terzo della riga**, o una riga di
+uno — la porta — si prende tutta la larghezza. E i **tooltip sono schede** (`ng-template` dentro il ciclo,
+`.ant-tooltip-inner` ridipinto coi token): una frase monocolore di otto voci non si legge.
+
+**I ballottaggi distribuiti** (`formazioni-tipo-v1.md` §6-quinquies). «Evitiamo posizioni con tanti
+calciatori in alternativa e posizioni senza alternative»: la regola di ieri toglieva i doppioni un uomo
+alla volta e lasciava l'Atalanta con due centrali di riserva sullo stesso posto e i due `Dc` vuoti. Adesso
+è un'ASSEGNAZIONE su tutto il campetto, col fit sul ruolo reale che domina, un prezzo convesso per la folla
+e uno per lo spostamento dentro la linea. Misurato chiamando la funzione che spedisce: posti senza
+alternative 126 → **91** su Serie A e 218 → **165** su euro, posti con due 48 → **13** e 76 → **23**, e i
+disegnati fuori ruolo 5 → 2 e 10 → 3. Stessi rivali disegnati, nessuno due volte.
+
+**La domanda di modello, e la risposta è no.** «Riusciamo a rimodulare i minuti per match con il rapporto
+fra i claim?» Il claim È costruito sui minuti dell'anno scorso (`standing_weights` = (0,1)), quindi quel
+rapporto **cancella i minuti misurati** e lascia `90 × giornate × claim / partite`: misurato, **−59% e
+−55%** contro il non fare niente, il braccio peggiore della tabella. Al suo posto è adottata la
+decomposizione `C + P × (S − C)` con S e C misurati su 247.825 presenze, e con P della stagione nuova che è
+una MISCELA — 70% la quota misurata, 30% quella del modello — perché la previsione del modello è
+**peggiore** della misura (MAE 0,234 contro 0,200). Verdetto su due fogli pre-stagione retrodatati, criterio
+scritto prima e parametri scelti cross-fit: **+7,5% e +7,6%** di errore, nessun ruolo in perdita, il
+portiere escluso perché per lui la misura È la previsione. Dettaglio e tabelle: `formazioni-tipo-v1.md`
+§6-sexies; codice in `engine/minutes.py`, `SnapshotView.minutes_next`, `boards._man`.
+
+**Tre cose che questa sessione ha insegnato oltre al risultato.** Il tetto della famiglia, col P vero, è
++74%: **la forma è giusta e quello che manca è prevedere la titolarità**, quindi è lì che si torna e non su
+una formula più grande. Una previsione su una persona la fa il toolkit e l'app la legge — la regola di «A
+drawing is a claim too» applicata a un numero invece che a un disegno. E un pilota fatto su una popolazione
+sbagliata (i pacchetti del viaggio nel tempo, che sono datati DOPO la quinta giornata e quindi misurano la
+stagione in corso) dava il segno opposto sul braccio adottato: **il regime del giudice è parte del
+giudizio**, e i due fogli retrodatati al 15 agosto sono stati costruiti apposta.
+
+**Verificato**: `backtest --verify` **22/22** (nessun `engine_*` si muove), 305 test dell'app, 12 test nuovi
+del motore, fogli e bundle rigenerati (`SHEET_REVISION` 28), campetto fotografato in headless.
+
+**Aperto, e dichiarato**: tre dei quattro pacchetti del viaggio nel tempo non si sono rigenerati (il DB era
+bloccato da una corsa dell'operatore), quindi in modalità viaggio nel tempo il chip dei minuti legge `—`
+finché non si rifà `timepack --date <data> --refresh` più `export` e `data:pull`. E `snapshot.py` porta il
+bump a `SHEET_REVISION` 28 in mezzo a lavoro dell'operatore ancora non committato: quel file resta fuori
+dal commit di questa sessione, apposta.

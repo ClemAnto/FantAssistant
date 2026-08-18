@@ -56,74 +56,160 @@
     )"
   >
     @for (row of drawn.rows; track row.line) {
-      <div class="flex items-stretch gap-1 sm:gap-2" [attr.aria-label]="label[row.line]">
+      <!-- UNA CELLA NON PASSA IL TERZO DELLA RIGA (operatore, 18/08/2026): senza il tetto una riga di uno
+           - la porta - si prendeva tutta la larghezza e il portiere leggeva come una scheda, mentre gli
+           altri dieci stavano in colonnine. Col tetto le righe corte si centrano invece di gonfiarsi. -->
+      <div class="flex items-stretch justify-center gap-1 sm:gap-2" [attr.aria-label]="label[row.line]">
         @for (man of row.men; track $index) {
           <!-- UN ITEM È UN POSTO, non un uomo: sopra il ruolo reale che quel posto chiede, sotto i
                calciatori che se lo giocano - il titolare per primo, poi i ballottaggi. -->
           <span
-            class="flex min-w-0 flex-1 flex-col gap-0.5 rounded-md border border-border bg-surface/90
-                   px-1 py-1"
+            class="flex min-w-0 max-w-[33%] flex-1 flex-col gap-0.5 rounded-md border border-border
+                   bg-surface/90 px-1 py-1"
           >
             @if (place(man); as marker) {
-              <span class="flex justify-center"><ui-role [role]="marker" size="sm" /></span>
+              <!-- IL RUOLO DEL POSTO, in grigio (operatore, 18/08/2026): i colori del listone sono dei
+                   calciatori, e un marcatore acceso come loro faceva leggere il posto come un uomo in
+                   più. Il colore del ruolo resta accanto ai nomi, dove serve a scegliere chi comprare. -->
+              <span class="flex justify-center"><ui-role [role]="marker" size="sm" quiet /></span>
             }
             @for (one of candidates(man); track $index; let first = $first) {
               <!-- Il titolare in evidenza, i rivali sotto e più tenui: la gerarchia è la notizia, e un
                    uomo già preso è sbiadito perché è dell'undici e non più dell'asta. -->
+              <!-- LA SCHEDA DELL'UOMO, che è il tooltip di questo posto (operatore, 18/08/2026: una frase
+                   monocolore lunga otto voci non si legge). È un `ng-template` DENTRO il ciclo, così si
+                   porta dietro il suo `one` senza che nessuno debba passarglielo, e antd la disegna al
+                   posto della stringa. Le due medie dei minuti stanno qui una sotto l'altra CON LA LORO
+                   ETICHETTA, che è l'unico modo di mostrarle insieme: hanno denominatori diversi - le
+                   partite del club l'una, quelle che ha giocato l'altra - e due medie sotto un nome solo
+                   sarebbero una trappola. -->
+              <ng-template #card>
+                <div class="flex min-w-52 flex-col gap-2 text-left">
+                  <div class="flex flex-wrap items-center gap-1.5">
+                    <ui-roles [roles]="rolesOf(one)" size="xs" />
+                    <b class="text-sm text-fg">{{ one.name }}</b>
+                    @if (one.taken) {
+                      <span class="rounded-sm bg-control px-1 text-[10px] text-muted">già preso</span>
+                    }
+                    @if (!one.onTable) {
+                      <span class="rounded-sm bg-control px-1 text-[10px] text-muted">fuori listone</span>
+                    }
+                  </div>
+
+                  <dl class="grid grid-cols-[1fr_auto] gap-x-4 gap-y-0.5 text-[11px] tabular-nums">
+                    @if (one.claim != null) {
+                      <dt class="text-muted">Titolarità (board)</dt>
+                      <dd>{{ one.claim * 100 | number: '1.0-0' }}%</dd>
+                    }
+                    @if (one.expectedShare != null) {
+                      <dt class="text-muted">Giornate a voto (motore)</dt>
+                      <dd>{{ one.expectedShare * 100 | number: '1.0-0' }}%</dd>
+                    }
+                    @if (one.minutesNext != null) {
+                      <dt class="text-muted">Minuti previsti quando gioca</dt>
+                      <dd>{{ one.minutesNext }}′</dd>
+                    }
+                    @if (one.perMatch != null) {
+                      <dt class="text-muted">Minuti quando gioca (misurati)</dt>
+                      <dd>{{ one.perMatch }}′</dd>
+                    }
+                    @if (one.expectedMinutes != null) {
+                      <dt class="text-muted">Minuti per partita del club</dt>
+                      <dd>{{ one.expectedMinutes }}′</dd>
+                    }
+                    @if (one.minutesPerClubMatch != null) {
+                      <dt class="text-muted">Per partita, ultime dieci</dt>
+                      <dd>{{ one.minutesPerClubMatch | number: '1.0-1' }}′</dd>
+                    }
+                    @if (one.minutes != null) {
+                      <dt class="text-muted">Stagione</dt>
+                      <dd>{{ one.minutes }}′@if (one.matches) { in {{ one.matches }} partite }</dd>
+                    }
+                    @if (one.overall != null) {
+                      <dt class="text-muted">Overall</dt>
+                      <dd>{{ one.overall }}/99</dd>
+                    }
+                    @if (one.price != null) {
+                      <dt class="text-muted">FVM</dt>
+                      <dd>{{ one.price }}</dd>
+                    }
+                    @if (one.codes.length) {
+                      <dt class="text-muted">Ruolo reale</dt>
+                      <dd>{{ one.codes.join(', ') }}</dd>
+                    }
+                  </dl>
+
+                  @if (disputed(one); as said) {
+                    <p class="border-t border-border pt-1.5 text-[11px] leading-snug text-warning">
+                      ⚖ {{ said }}
+                    </p>
+                  }
+                </div>
+              </ng-template>
               <span
                 class="flex w-full min-w-0 flex-col leading-tight"
                 [class.opacity-30]="one.taken"
                 [class.opacity-70]="!one.taken && !first"
                 nz-tooltip
-                [nzTooltipTitle]="hint(one)"
+                [nzTooltipTitle]="card"
               >
                 <!-- IL NOME SI PRENDE LA PRIMA RIGA, e i ruoli scendono sotto: con i badge davanti, in una
                      colonna stretta il nome veniva troncato a ZERO e restavano i soli quadratini -
                      misurato a schermo il 18/08/2026, sul campetto della vista Squadre. -->
                 <span class="flex w-full min-w-0 items-center gap-1">
-                  <span
-                    class="min-w-0 flex-1 truncate text-[11px]"
-                    [class.font-semibold]="first"
-                    [class.border-dashed]="!one.onTable"
-                    >{{ one.name }}</span
-                  >
-                  <!-- Le icone viaggiano col NOME dovunque sia disegnato (operatore, 11/08/2026). -->
-                  <ui-flags class="text-[10px]" [playerId]="one.fcId" />
-                  @if (disputed(one); as said) {
-                    <!-- I due modelli non sono d'accordo su di lui: la board risponde a «chi parte
-                         titolare», il motore a «in quante giornate prende voto». Nessuno dei due si
-                         corregge, ma la carta lo dice invece di tacerlo. -->
+                  <!-- LE ICONE STANNO ATTACCATE AL NOME (operatore, 18/08/2026), e per starci devono
+                       viaggiare DENTRO il suo gruppo: col nome a `flex-1` la riga lo allargava fino al
+                       bordo e le spingeva in fondo, lontane dalla parola che descrivono. -->
+                  <span class="flex min-w-0 flex-1 items-center gap-1">
                     <span
-                      class="shrink-0 text-[10px] leading-none text-warning"
-                      nz-tooltip
-                      [nzTooltipTitle]="said"
-                      >⚖</span
+                      class="min-w-0 truncate text-[11px]"
+                      [class.font-semibold]="first"
+                      [class.border-dashed]="!one.onTable"
+                      >{{ one.name }}</span
                     >
-                  }
+                    <!-- Le icone viaggiano col NOME dovunque sia disegnato (operatore, 11/08/2026). -->
+                    <ui-flags class="shrink-0 text-[10px]" [playerId]="one.fcId" />
+                    @if (disputed(one); as said) {
+                      <!-- I due modelli non sono d'accordo su di lui: la board risponde a «chi parte
+                           titolare», il motore a «in quante giornate prende voto». Nessuno dei due si
+                           corregge, ma la carta lo dice invece di tacerlo. -->
+                      <span
+                        class="shrink-0 text-[10px] leading-none text-warning"
+                        nz-tooltip
+                        [nzTooltipTitle]="said"
+                        >⚖</span
+                      >
+                    }
+                  </span>
                   <!-- L'OVERALL, lo stesso 0-99 della tabella Giocatori: un uomo non porta due giudizi in
-                       due schermate. `—` dove il foglio non lo valuta: ignoto, mai zero. -->
+                       due schermate. «Colora l'overall evidenziando i valori buoni da quelli meno buoni»
+                       (operatore, 18/08/2026): le bande sono QUANTILI del listone e stanno dichiarate in
+                       `core/player-ratings.ts`, non qui. `—` col grigio del bordo dove il foglio non lo
+                       valuta: ignoto, mai zero, e un ignoto non si dipinge come un numero basso. -->
                   <span
-                    class="flex h-4 min-w-4 shrink-0 items-center justify-center rounded-sm bg-primary
-                           px-0.5 text-[9px] font-semibold leading-none text-on-primary tabular-nums"
-                    [class.opacity-60]="one.overall == null"
+                    class="flex h-4 min-w-4 shrink-0 items-center justify-center rounded-sm px-0.5
+                           text-[9px] font-semibold leading-none text-on-primary tabular-nums"
+                    [style.background-color]="tone(one.overall)"
+                    [class.text-muted]="one.overall == null"
                     >{{ one.overall ?? '—' }}</span
                   >
                 </span>
-                <!-- I MINUTI ATTESI per una partita del club: la quota di calendario del motore per i
-                     minuti che fa quando gioca. Assenze comprese, ed è dichiarato nel tooltip. -->
+                <!-- DUE NUMERI E NESSUNA PAROLA (operatore, 18/08/2026), e sono tutt'e due PREVISIONI
+                     della stagione che viene: quanti minuti gioca in una partita che gioca, e in quante
+                     giornate il motore se lo aspetta a voto. Il primo lo calcola il TOOLKIT
+                     (`engine/minutes.py`) e qui si legge soltanto - quanto un uomo resta in campo è una
+                     previsione su una persona - e vale +7,5%/+7,6% di errore contro il mostrare la media
+                     misurata invariata, che è quello che c'era il 18/08 e che ora sta nel tooltip col suo
+                     nome. Una previsione e una misura sotto una cifra nuda sono la trappola che questa
+                     carta ha già pagato. `—` = ignoto, mai zero. -->
                 <span class="flex w-full min-w-0 items-center gap-1 pl-0.5 text-[9px] tabular-nums text-muted">
-                  @for (role of rolesOf(one); track role) {
-                    <ui-role [role]="role" size="sm" />
-                  }
-                  @if (one.expectedMinutes != null) {
-                    {{ one.expectedMinutes }}′ attesi
-                  } @else if (one.perMatch != null) {
-                    {{ one.perMatch }}′ quando gioca
-                  } @else {
-                    minuti ignoti
+                  <ui-roles [roles]="rolesOf(one)" size="xs" />
+                  <span class="shrink-0">{{ one.minutesNext != null ? one.minutesNext + '′' : '—' }}</span>
+                  @if (one.expectedShare != null) {
+                    <span class="shrink-0">{{ one.expectedShare * 100 | number: '1.0-0' }}%</span>
                   }
                   @if (one.price != null) {
-                    · {{ one.price }}
+                    <span class="shrink-0">· {{ one.price }}</span>
                   }
                 </span>
               </span>

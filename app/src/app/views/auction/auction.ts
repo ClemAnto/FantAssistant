@@ -21,6 +21,7 @@ import { AuctionFeed, DraftStatus, KeeperMode, Zone } from '../../core/auction-f
 import { PlayerFlags } from '../../ui/player-flags/player-flags';
 import { PlayerTrendStrip } from '../../ui/player-trend/player-trend';
 import { RoleBadge } from '../../ui/role-badge/role-badge';
+import { RoleSet } from '../../ui/role-set/role-set';
 import { ClubPitch } from './club-pitch/club-pitch';
 import { FantaPitch } from './fanta-pitch/fanta-pitch';
 
@@ -84,6 +85,7 @@ export type SortKey = keyof typeof SORTS;
     PlayerFlags,
     PlayerTrendStrip,
     RoleBadge,
+    RoleSet,
   ],
   templateUrl: './auction.html',
   host: { class: 'view-host' },

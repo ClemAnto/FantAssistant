@@ -1,4 +1,4 @@
-import { Component, computed, input } from '@angular/core';
+import { Component, booleanAttribute, computed, input } from '@angular/core';
 
 /** Every role is drawn the same way everywhere: a coloured token with white text, one colour
  *  per code. The colour is the LISTONE's own language - a keeper is amber, a defender green, a
@@ -54,7 +54,24 @@ const ROLE_TITLES: Record<string, string> = {
 })
 export class RoleBadge {
   readonly role = input.required<string>();
-  readonly size = input<'sm' | 'md'>('sm');
+  readonly size = input<'xs' | 'sm' | 'md'>('sm');
+
+  /** Where this token sits inside a SET of roles (`ui-roles`). A man's codes are one vocabulary and are
+   *  read as one word, so the set is drawn as a single pill: the radius belongs to the two ends and the
+   *  segments in between are square. Alone - which is the default and the case of every single-role
+   *  column - it stays the round token it has always been. */
+  readonly join = input<'alone' | 'first' | 'middle' | 'last'>('alone');
+
+  /**
+   * SPENTO, cioè disegnato in grigio invece che nel colore del ruolo (operatore, 18/08/2026: «sui campetti
+   * il badge con il ruolo della posizione reale non lo colorare, fai un cerchio grigio con una scritta
+   * grigia»).
+   *
+   * È per il RUOLO DI UN POSTO, che è una domanda diversa dal ruolo di un uomo: il posto è l'intestazione
+   * dell'item e i colori del listone appartengono ai calciatori sotto, che sono quelli che si comprano. Un
+   * marcatore acceso come loro faceva leggere il posto come un dodicesimo giocatore.
+   */
+  readonly quiet = input(false, { transform: booleanAttribute });
 
   private readonly code = computed(() => this.role().trim().toLowerCase());
 
@@ -72,16 +89,43 @@ export class RoleBadge {
    * markers, which are exactly what the pitch shows, would all have read neutral.
    */
   protected readonly colour = computed(() => {
+    if (this.quiet()) return 'bg-control text-muted';
     const code = this.code();
     const base = MARKER_BASE[code] ?? (code.length > 1 && /[ds]$/.test(code) ? code.slice(0, -1) : code);
-    return ROLE_COLOURS[code] ?? ROLE_COLOURS[base] ?? 'bg-role-unknown';
+    return `${ROLE_COLOURS[code] ?? ROLE_COLOURS[base] ?? 'bg-role-unknown'} text-white`;
   });
 
   /** One character is a dot; two or three are a pill, because a circle that fits "Por" is a
-   *  circle far too big for the "P" standing next to it. */
+   *  circle far too big for the "P" standing next to it. `xs` is the PITCH's size: there a place
+   *  carries a name, its rivals and their codes inside one column of a row of eleven, so the token
+   *  has to be read beside the name and never instead of it. */
   protected readonly shape = computed(() => {
     const wide = this.label().length > 1;
-    if (this.size() === 'md') return wide ? 'h-6 min-w-9 px-2 text-xs' : 'h-6 w-6 text-xs';
-    return wide ? 'h-5 min-w-7 px-1.5 text-[10px]' : 'h-5 w-5 text-[10px]';
+    switch (this.size()) {
+      case 'md':
+        return wide ? 'h-6 min-w-9 px-2 text-xs' : 'h-6 w-6 text-xs';
+      case 'xs':
+        return wide ? 'h-4 min-w-5 px-1 text-[9px]' : 'h-4 w-4 text-[9px]';
+      default:
+        return wide ? 'h-5 min-w-7 px-1.5 text-[10px]' : 'h-5 w-5 text-[10px]';
+    }
+  });
+
+  /**
+   * The two ends of a set are round and the joins are square, so three codes read as one object instead
+   * of three. The hairline between the segments is not a gap: two neighbouring codes of the same job wear
+   * the SAME colour (`Dd Dc Ds` are all green), so without it the set would read `DdDcDs` as one word.
+   */
+  protected readonly corners = computed(() => {
+    switch (this.join()) {
+      case 'first':
+        return 'rounded-l-full';
+      case 'middle':
+        return 'border-l border-white/25';
+      case 'last':
+        return 'rounded-r-full border-l border-white/25';
+      default:
+        return 'rounded-full';
+    }
   });
 }

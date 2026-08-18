@@ -799,3 +799,29 @@ non è una scelta ma una misura, **APERTA**: il malus deve appartenere al club p
 tira verso il tasso di ruolo quando l'uomo ha cambiato squadra, o si ricava dai gol che il motore già predice
 al club nuovo (per i portieri lo fa). È la stessa famiglia di «una trasformazione appartiene alla popolazione
 su cui è stata fittata», vista sull'altro lato: qui le due metà della sottrazione appartengono a due club.
+
+## 12. L'OVERALL A COLORI, e perché le bande sono quantili (19 agosto 2026)
+
+Richiesta dell'operatore sul campetto: «colora l'overall evidenziando i valori buoni da quelli meno buoni».
+Le bande stanno in **un posto solo** (`core/player-ratings.ts`, `OVERALL_BANDS`) e sono **quantili del
+listone**, non giudizi: l'Overall è un `rank99`, quindi 90 vuol dire «il 10% migliore» e 50 è la mediana per
+costruzione — cambiando listone cambia chi ci finisce dentro, e questo va detto o il prossimo lettore legge
+una soglia di bravura.
+
+| banda | colore | che cos'è |
+|---|---|---|
+| ≥ 90 | `--color-vote-top` | il decimo migliore del listone |
+| 75-89 | `--color-vote-high` | |
+| 60-74 | `--color-vote-good` | |
+| 40-59 | `--color-vote-mid` | la fascia che contiene la mediana |
+| 20-39 | `--color-vote-low` | |
+| < 20 | `--color-vote-poor` | l'ultimo quinto |
+| ignoto | `--color-border` | **un numero che non c'è non è un numero basso** |
+
+Due scelte dichiarate. I colori sono quelli che l'app già usa per dire «quanto è buono questo numero» (le
+barre di `player-trend`) e non una seconda tavolozza: un secondo vocabolario per la stessa domanda finisce
+per dire due cose, e il rosso qui non è un pericolo ma l'ultimo quinto del listone. E l'ignoto ha un colore
+suo — il grigio del bordo — perché dipingerlo come un numero basso sarebbe la stessa bugia di leggere una
+cella vuota come uno zero.
+
+È **visualizzazione**: nessuna valutazione la legge, nessun gate la possiede.

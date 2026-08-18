@@ -501,18 +501,45 @@ pannello d'asta chi è già stato preso). È la stessa ragione per cui l'undici 
 di una carta finiscono per dire due cose.
 
 **Un item è un posto, non un uomo.** Sopra il **ruolo reale** che quel posto chiede (il marcatore del
-pannello: `Td`, `Dc`, `Pc`), sotto i calciatori che se lo giocano - titolare per primo - ognuno con il suo
-ruolo di listone, le sue icone, il suo **Overall 0-99** (lo stesso della tabella Giocatori, letto da lì e non
-ricalcolato) e i **minuti attesi per partita del club**. Quest'ultimo numero non esiste nel bundle: è il
-prodotto DICHIARATO di due colonne pubblicate — `engine_pv_pred / giornate` per `desc_minutes_full_season /
-desc_season_matches` — scelto dall'operatore fra tre numeri veri, e va letto come «quanti minuti ti aspetti
-da lui in una partita qualunque», assenze comprese.
+pannello: `Td`, `Dc`, `Pc`, disegnato in grigio dal 18/08 sera: i colori del listone sono dei calciatori, e un
+marcatore acceso come loro faceva leggere il posto come un dodicesimo uomo), sotto i calciatori che se lo
+giocano - titolare per primo - ognuno con il suo ruolo di listone, le sue icone accanto al NOME, il suo
+**Overall 0-99** (lo stesso della tabella Giocatori, letto da lì e non ricalcolato, e colorato a bande che
+sono QUANTILI del listone) e due numeri senza parole: i **minuti che gioca quando gioca** e la **quota di
+giornate** in cui il motore se lo aspetta a voto. Una cella non passa il **terzo** della riga, o una riga di
+uno - la porta - si prendeva tutta la larghezza mentre gli altri dieci stavano in colonnine.
 
-**Un uomo in ballottaggio su un posto solo.** Il pannello calcola i rivali POSTO per posto, quindi un vice che
-copre due maglie compariva due volte: misurato sul bundle, **171 voci di ballottaggio su 610 sono ripetizioni**
-su euro (35 club su 37) e 104 su 371 su Serie A (tutti e 20). Il claim è UNO per uomo, quindi «dove è più
-alto» non distingue fra due posti: si tiene dove il posto chiede uno dei suoi codici granulari (l'ordine di
-`placeCodes` è già una preferenza) e, a pari fit, dove il TITOLARE è più debole - perché è là che entrerebbe.
+~~I minuti attesi per partita del club: il prodotto dichiarato di `engine_pv_pred / giornate` per
+`desc_minutes_full_season / desc_season_matches`.~~ **Cambiato due volte in due giorni, e le due correzioni
+sono l'operatore che stringe la stessa vite.** Il 18/08 il prodotto è uscito dal chip - «mescolava una misura
+e una previsione in un numero solo» - e al suo posto è andata la media MISURATA, «minuti totali stagione
+scorsa / partite giocate». Il 19/08 la domanda è diventata quella giusta: quella media descrive la stagione
+FINITA, e al tavolo si compra quella che viene. Il numero sul chip è ora una previsione dichiarata,
+`engine/minutes.py`, misurata in §6-sexies; la media misurata resta nel tooltip **col suo nome**, insieme alle
+altre due (per partita del club, e ultime dieci) - tre denominatori diversi, tre etichette, mai una cifra nuda.
+
+**Un uomo in ballottaggio su un posto solo... e i posti con un numero simile di alternative.** Il pannello
+calcola i rivali POSTO per posto, quindi un vice che copre due maglie compariva due volte: misurato sul
+bundle, **171 voci di ballottaggio su 610 sono ripetizioni** su euro (35 club su 37) e 104 su 371 su Serie A
+(tutti e 20). La prima regola li toglieva un uomo alla volta - dove il posto chiede uno dei suoi codici e, a
+pari fit, dove il titolare è più debole - e il 18/08 sera l'operatore ha mostrato cosa lasciava in piedi:
+l'Atalanta con i due centrali di riserva **tutt'e due** sul terzino sinistro, i due `Dc` senza nessuno, e un
+mancino in ballottaggio a destra perché era lì che il toolkit l'aveva elencato. Una scelta per uomo non può
+vedere quel disegno: è un'**assegnazione** su tutto il campetto (`spreadDuels`), con tre prezzi dichiarati -
+il fit sul ruolo REALE, che domina; la FOLLA, convessa, così «uno e uno» batte «due e zero»; lo SPOSTAMENTO su
+un posto che il toolkit non gli aveva elencato, permesso solo dentro la sua LINEA e solo se il ruolo reale lo
+giustifica, perché nessun ballottaggio viene inventato.
+Misurato chiamando la funzione che spedisce, stessi rivali disegnati, prima e dopo:
+
+| | posti senza alternative | con una | con due | fuori ruolo |
+|---|---|---|---|---|
+| Serie A prima | 126 | 46 | 48 | 5 |
+| Serie A adesso | **91** | **116** | **13** | **2** |
+| euro prima | 218 | 106 | 76 | 10 |
+| euro adesso | **165** | **212** | **23** | **3** |
+
+Nessuno compare due volte, nemmeno su due LINEE diverse - il difetto che la versione per riga aveva
+reintrodotto (Pasalic, ballottaggio in mezzo e sulla trequarti insieme).
 
 **Un ballottaggio sotto il 20% di titolarità non si disegna** («se non ci sono ballottaggi accetta qualsiasi
 claim; nel caso di ballottaggi scarta quelli sotto il 0,20»). Vale sui RIVALI e non sul titolare, o l'undici
@@ -530,6 +557,79 @@ a claim too» vale anche per la seconda risposta. Misurato sul bundle del 18/08:
 su 20 su Serie A hanno un'alternativa; una forma che si rimodella nella stessa figura viene scartata, perché
 sarebbe un tastino che non cambia niente. Il tastino porta la FIGURA disegnata e il tooltip dice su quale
 forma è stata risolta (Atalanta: «3-4-1-2 38%», risolto su 3-4-3).
+
+## 6-sexies. I MINUTI PREVISTI, e il rapporto dei claim che è stato misurato e respinto (19/08/2026)
+
+**La domanda dell'operatore**: «riusciamo a rimodulare i minuti per match della scorsa stagione in modo che
+rispecchino i minuti per match PREVISTI nella stagione corrente? Dovremmo trovare il rapporto (claim stagione
+scorsa) / (claim stagione corrente)».
+
+**Il rapporto secco non si può usare, e la ragione è algebrica prima che empirica.** Il claim È costruito sui
+minuti della stagione scorsa (`standing_weights` = (0, 1), adottato su dieci fold di dieci): la sua parte
+misurata è `minuti × peso / (giornate × 90)`. Quindi
+
+    perMatch × claim_now / claim_prev = (minuti/partite) × claim_now × giornate × 90 / minuti
+                                      = 90 × giornate × claim_now / partite
+
+— **i minuti misurati si cancellano**. Lo stimatore butta via il numero che dice di correggere, e quel che
+resta non ha più niente di suo tranne il denominatore. Stessa famiglia del difetto `contested`/`availability`
+(«sottrarre e rimoltiplicare la stessa stima si annulla»). Misurato, è il braccio peggiore di tutta la
+tabella: **−59% e −55%** contro il non fare niente. Un test di `engine/minutes.py` lo tiene come aritmetica,
+così nessuno lo ripropone.
+
+**Cosa è stato adottato.** Un minuto per presenza è la miscela di due tipi di presenza, e quando cambia il
+ruolo cambia la MISCELA: `minuti = C + P × (S − C)`, con `P` = P(titolare | presenza). `S` e `C` sono
+MISURATI su 247.825 presenze di lega (`external_match_stats`, 19/08/2026), per ruolo di listone:
+
+| ruolo | partenze | S | subentri | C |
+|---|---:|---:|---:|---:|
+| P | 12.589 | 89,5 | **178** | 35,4 |
+| D | 52.533 | 84,5 | 13.023 | 21,3 |
+| C | 48.615 | 79,9 | 22.153 | 21,1 |
+| A | 26.441 | 78,5 | 16.588 | 20,7 |
+| ? | 42.995 | 83,4 | 12.710 | 20,5 |
+
+`P` prossimo è una MISCELA di due letture, non una sola: la quota misurata l'anno scorso (`desc_start_share`,
+che divide per le sue PRESENZE - la colonna che il pannello dichiara sbagliata per la titolarità è quella
+giusta qui, perché la cosa che si sta dividendo è una presenza) e quella implicita nel modello
+(`presence / (engine_pv_pred / giornate)`, **due quote e non due conteggi**, o sarebbe il denominatore
+sbagliato di sempre). Il peso del modello è **0,30**, e la ragione è misurata e scomoda: **la previsione del
+modello è PEGGIORE della misura** come stima della titolarità che verrà.
+
+| stima di P | bias | MAE | correlazione con P reale |
+|---|---:|---:|---:|
+| quota misurata l'anno scorso | +0,010 / +0,022 | **0,200 / 0,197** | **0,497 / 0,468** |
+| quota implicita nel modello | +0,085 / +0,109 | 0,234 / 0,237 | 0,408 / 0,359 |
+
+Non è un motivo per buttarla: sa di un trasferimento, di un allenatore nuovo e di una storia infortuni che la
+misura non può vedere. È un motivo per darle la MINORANZA. Il braccio col modello puro è negativo su tutt'e
+due le finestre (−4,2% e −8,4%).
+
+**Il giudizio.** Due fogli PRE-stagione retrodatati (`snapshot --season S --date S-08-15`: sotto le cinque
+giornate il foglio misura la stagione precedente, cioè lo stato di un'asta d'agosto), esito = i minuti per
+presenza realizzati nella stagione bersaglio, minimo tre presenze, 2.303 coppie:
+
+| finestra | naive (media invariata) | adottato | |
+|---|---:|---:|---|
+| 2024-08-15 → 2024-25 | MAE 14,29 | **13,21** | **+7,5%** · D +9,4% · C +8,5% · A +2,8% |
+| 2025-08-15 → 2025-26 | MAE 13,89 | **12,84** | **+7,6%** · D +7,0% · C +7,7% · A +8,8% |
+| in pool | 14,09 | **13,02** | **+7,6%** |
+
+Il criterio era scritto prima della corsa (batte il naive su tutt'e due le finestre e in pool di almeno il 3%
+relativo, nessun ruolo peggio del 2%) e i due parametri sono scelti **cross-fit** - ognuno sulla finestra che
+non lo giudica - con optimum **interno** su tutt'e due (mix 0,25-0,30, ancora 0-0,2). Non è un gate: è
+REPORTING, e nessun `engine_*` si muove (`backtest --verify` resta 22/22).
+
+**Tre cose che vale la pena portarsi dietro.** È anche una CONTRAZIONE e non solo una riscalatura: solo 0,20
+del residuo personale sopravvive, e il braccio che non fa altro che contrarre (P invariato) vale già
+**+4,6% / +4,9%** dei sette punti - una media misurata su poche presenze regredisce come ogni altro tasso, e
+88′ su quattro presenze non sono una promessa. **Il portiere non si riscala**: la sua P è 1 per regolamento e
+il modello non lo sa (MAE 3,65 → 6,19 e 2,24 → 5,88), quindi per lui la misura È la previsione. E il tetto
+della famiglia, sostituendo il P VERO, è MAE **3,78 / 3,54 (+74%)**: la forma è giusta e quel che manca è una
+previsione della titolarità - **è quello che riaprirebbe la questione, non una formula più grande**.
+
+Il numero si muove poco e dove deve: mediana |Δ| **4,2-4,5 minuti**, e solo il **13%** degli uomini si sposta
+di dieci minuti o più. Chi non ha una stagione misurata non ha previsione e la carta lo dice: vuoto = ignoto.
 
 ## 7. Limiti dichiarati
 

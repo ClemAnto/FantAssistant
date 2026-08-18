@@ -145,6 +145,14 @@ export interface BoardMan {
   starter_prob: string | null;
   x?: number;
   claim: number | null;
+  /**
+   * I MINUTI CHE CI SI ASPETTA DA LUI IN UNA PARTITA CHE GIOCA, stagione che viene - `engine/minutes.py`.
+   *
+   * Previsione, non misura, e la calcola il TOOLKIT: quanto un uomo resta in campo è una previsione su una
+   * persona, quindi si fa dove si fanno e si giudicano le previsioni. Assente su una board più vecchia
+   * della colonna (i pacchetti del viaggio nel tempo, per esempio): allora è ignoto e la carta lo dice.
+   */
+  minutes_next?: number | null;
   /** Up to two, in the panel's own order. */
   duels?: BoardMan[];
   /** False when his granular real role is unknown: then the duels are UNKNOWN, not absent. */

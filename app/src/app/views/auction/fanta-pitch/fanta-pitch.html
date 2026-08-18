@@ -51,11 +51,13 @@
       )"
     >
       @for (row of drawn.rows; track row.line) {
-        <div class="flex items-stretch gap-1 sm:gap-2">
+        <!-- Stesso tetto del campetto vero: una cella non passa il terzo della riga, e una riga corta si
+             centra. I due campetti si leggono uguali o sono due carte diverse. -->
+        <div class="flex items-stretch justify-center gap-1 sm:gap-2">
           @for (place of row.places; track $index) {
             <span
-              class="flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-md border border-border
-                     bg-surface/90 px-1 py-1 text-center"
+              class="flex min-w-0 max-w-[33%] flex-1 flex-col items-center gap-0.5 rounded-md border
+                     border-border bg-surface/90 px-1 py-1 text-center"
               [class.border-dashed]="!place.man"
               [class.opacity-60]="!place.man"
               nz-tooltip
@@ -63,7 +65,7 @@
             >
               <!-- ONE role: the one this place is filled with, exactly as the real pitch shows the marker the
                    module gave a man. On an empty place the SLOT is shown instead - what is missing, named. -->
-              <ui-role [role]="place.badge ?? place.slot" size="md" />
+              <ui-role [role]="place.badge ?? place.slot" size="sm" quiet />
 
               @if (place.man) {
                 <span class="flex w-full items-center justify-center gap-1">

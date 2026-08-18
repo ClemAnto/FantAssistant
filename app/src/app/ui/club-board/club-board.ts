@@ -13,9 +13,11 @@ import {
   pitchOf,
   shapesOf,
 } from '../../core/club-eleven';
+import { overallTone } from '../../core/player-ratings';
 import { stored } from '../../core/view-state';
 import { PlayerFlags } from '../player-flags/player-flags';
 import { RoleBadge } from '../role-badge/role-badge';
+import { RoleSet } from '../role-set/role-set';
 
 /** What each drawn line is called, in the language of the pitch. */
 const LINE_LABEL: Record<PitchLine, string> = {
@@ -49,7 +51,7 @@ const NO_TABLE: ReadonlyMap<number, OnTable> = new Map();
 @Component({
   selector: 'ui-club-board',
   templateUrl: './club-board.html',
-  imports: [DecimalPipe, NzEmptyModule, NzTooltipModule, PlayerFlags, RoleBadge],
+  imports: [DecimalPipe, NzEmptyModule, NzTooltipModule, PlayerFlags, RoleBadge, RoleSet],
   host: { class: 'block' },
 })
 export class ClubBoard {
@@ -148,39 +150,20 @@ export class ClubBoard {
     return man.badge;
   }
 
+  /**
+   * Il colore del pallino dell'overall.
+   *
+   * Le bande stanno dove sta l'overall (`core/player-ratings.ts`) e non qui: il campetto lo DISEGNA, non
+   * decide cosa sia un buon numero - e un secondo posto dove deciderlo sarebbe il secondo giudizio sullo
+   * stesso uomo che questo componente esiste per evitare.
+   */
+  protected tone(overall: number | null): string {
+    return overallTone(overall);
+  }
+
   /** Il marchio del disaccordo fra board e motore, che viaggia col nome dovunque sia disegnato. */
   protected disputed(man: PitchMan): string | null {
     return disagreementHint(man);
-  }
-
-  /** Un uomo in una frase: cosa è, quanto gioca, e - se c'è un tavolo - quanto costa. */
-  protected hint(man: PitchMan): string {
-    const bits = [man.name];
-    if (man.taken) bits.push('già preso');
-    if (!man.onTable) bits.push('non è nel listone di questa sessione');
-    if (man.claim != null) bits.push(`titolarità ${man.claim}`);
-    if (man.expectedMinutes != null) {
-      bits.push(`${man.expectedMinutes}′ attesi per partita del club`
-        + (man.perMatch != null ? ` (${man.perMatch}′ quando gioca)` : ''));
-    } else if (man.perMatch != null) {
-      bits.push(`${man.perMatch}′ medi quando gioca`);
-    }
-    if (man.minutes != null) {
-      bits.push(man.matches ? `${man.minutes}′ in ${man.matches} partite giocate` : `${man.minutes}′`);
-    }
-    // L'altro denominatore, nominato: questo divide per le partite DEL CLUB nelle ultime dieci, quindi le
-    // assenze sono dentro e per lo stesso uomo è un numero più piccolo. Due medie con un'etichetta sola
-    // sarebbero una trappola.
-    if (man.minutesPerClubMatch != null) {
-      bits.push(`${man.minutesPerClubMatch}′ per partita del club nelle ultime dieci`);
-    }
-    if (man.codes.length) bits.push(`ruolo reale ${man.codes.join(', ')}`);
-    if (man.mantra.length) bits.push(`listone ${man.mantra.join('/')}`);
-    if (man.overall != null) bits.push(`overall ${man.overall}/99`);
-    if (man.price != null) bits.push(`FVM ${man.price}`);
-    const said = disagreementHint(man);
-    if (said) bits.push(said);
-    return bits.join(' · ');
   }
 
   /**

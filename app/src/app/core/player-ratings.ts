@@ -308,6 +308,36 @@ export const DETAIL_KEYS: Exclude<RatingKey, 'overall'>[] = ['votes', 'bonus', '
 /** Every column, the summary first: it is the one that is scanned, the four are the reason for it. */
 export const RATING_KEYS: RatingKey[] = ['overall', ...DETAIL_KEYS];
 
+/**
+ * L'OVERALL A COLORI, le bande dalla migliore in giù - richiesta dell'operatore del 18/08/2026 sul
+ * campetto: «colora l'overall evidenziando i valori buoni da quelli meno buoni».
+ *
+ * DUE COSE VANNO DETTE PRIMA DEI NUMERI. La prima è che sono QUANTILI e non giudizi: l'overall è un
+ * `rank99` dentro il listone della sessione, quindi 90 vuol dire «il 10% migliore» e 50 è la mediana per
+ * costruzione - una banda qui è una fetta di listone, non una soglia di bravura, e cambiando listone
+ * cambia chi ci finisce dentro. La seconda è che è una SCELTA DI VISUALIZZAZIONE dichiarata in un posto
+ * solo, come le due soglie degli infortuni: nessuna valutazione la legge, nessun gate la possiede.
+ *
+ * I colori sono quelli che l'app usa già per dire «quanto è buono questo numero» (le barre di
+ * `player-trend`), e non una seconda tavolozza: un secondo vocabolario per la stessa domanda finirebbe
+ * per dire due cose. Il rosso qui non è un pericolo, è l'ultimo quinto del listone.
+ */
+export const OVERALL_BANDS: readonly [number, string][] = [
+  [90, 'var(--color-vote-top)'],
+  [75, 'var(--color-vote-high)'],
+  [60, 'var(--color-vote-good)'],
+  [40, 'var(--color-vote-mid)'],
+  [20, 'var(--color-vote-low)'],
+  [0, 'var(--color-vote-poor)'],
+];
+
+/** Il colore di un overall, e per un overall IGNOTO il grigio del bordo: un numero che non c'è non è un
+ *  numero basso - «vuoto = ignoto, mai zero», applicato a una tinta. */
+export function overallTone(score: number | null | undefined): string {
+  if (score == null) return 'var(--color-border)';
+  return OVERALL_BANDS.find(([floor]) => score >= floor)?.[1] ?? 'var(--color-vote-poor)';
+}
+
 export interface Rating {
   /** The quantity itself, in its own unit. Null = not even an anchor could answer. */
   raw: number | null;

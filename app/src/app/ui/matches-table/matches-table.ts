@@ -11,6 +11,7 @@ import { ClubCrest } from '../club-crest/club-crest';
 import { MatchDetail } from '../match-detail/match-detail';
 import { PlayerFlags } from '../player-flags/player-flags';
 import { RoleBadge } from '../role-badge/role-badge';
+import { RoleSet } from '../role-set/role-set';
 import { lazyRows } from '../../core/lazy-rows';
 import { KIND_ICON, KIND_LABEL, STATE_ICON, STATE_LABEL } from './vocabulary';
 
@@ -38,6 +39,7 @@ const it = (iso: string): string => iso.split('-').reverse().join('/');
     NzTooltipModule,
     PlayerFlags,
     RoleBadge,
+    RoleSet,
   ],
   host: { class: 'block' },
 })

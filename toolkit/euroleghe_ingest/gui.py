@@ -38,7 +38,7 @@ from euroleghe_ingest import ui_theme as theme
 from euroleghe_ingest.config import Config
 from euroleghe_ingest.context import Context
 from euroleghe_ingest.db.database import connect, init_db, record_run, table_names
-from euroleghe_ingest.engine import presence
+from euroleghe_ingest.engine import minutes, presence
 from euroleghe_ingest.matching import club_abbreviation, club_identity
 from euroleghe_ingest.modules import IMPLEMENTED, load, recent_form
 from euroleghe_ingest.modules.positions import (
@@ -5401,6 +5401,34 @@ class SnapshotView(ttk.Frame):
         if row.get("desc_left_for"):
             return 0.0
         return self.presence(row, "recent") if horizon == "recent" else self.standing(row)
+
+    def minutes_next(self, row: dict) -> float | None:
+        """The minutes he is expected to play IN A MATCH HE PLAYS, next season (`engine.minutes`).
+
+        Where the sheet's column names stop and the model starts, exactly like `presence_inputs`: the
+        formula and its two measured weights live in `engine/minutes.py`, so a harness can reach them and
+        the panel cannot drift from what it publishes. ONE definition, called by the panel and by the
+        board writer - the app then draws it and never recomputes it, because how long a man stays on the
+        pitch is a prediction about a person.
+
+        `desc_start_share` is his measured start-per-appearance rate, and this is the first thing that
+        reads it: its own docstring says it «reaches no decision at all» and that its denominator - HIS
+        APPEARANCES rather than the club's rounds - is the wrong one for titolarità. For this question it
+        is the right one, because the quantity being split is an appearance.
+        """
+        # The share of the PLATFORM's calendar the engine expects him to be rated in - the denominator of
+        # the start rate, and the reason it is a share: `engine_pv_pred` is a count on a different
+        # calendar from the one `presence` is a share of.
+        predicted = _number(row.get("engine_pv_pred"), None)
+        rounds = self.platform_matchdays()
+        return minutes.per_appearance(
+            row.get("role_classic"),
+            _number(row.get("desc_minutes_full_season")),
+            _number(row.get("desc_season_matches")),
+            _number(row.get("desc_start_share"), None),
+            self.presence(row, "season"),
+            predicted / rounds if predicted and rounds else None,
+        )
 
     @staticmethod
     def titolarita(row: dict, horizon: str) -> tuple[float, float]:

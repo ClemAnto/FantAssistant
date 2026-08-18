@@ -60,13 +60,7 @@
         </td>
         @if (!narrow()) {
           <td><ui-role [role]="line.role" /></td>
-          <td>
-            <span class="flex flex-wrap gap-1">
-              @for (code of line.mantraCodes; track code) {
-                <ui-role [role]="code" />
-              }
-            </span>
-          </td>
+          <td><ui-roles [roles]="line.mantraCodes" /></td>
           @if (showClub()) {
             <td>
               <span class="flex items-center gap-2 text-muted">

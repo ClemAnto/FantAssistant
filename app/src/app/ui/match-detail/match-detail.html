@@ -82,9 +82,7 @@
   <div class="flex flex-wrap items-center gap-3">
     <ui-role [role]="player().role" size="md" />
     <span class="font-medium text-fg">{{ player().name }}</span>
-    @for (code of mantraCodes(); track code) {
-      <ui-role [role]="code" size="md" />
-    }
+    <ui-roles [roles]="mantraCodes()" size="md" />
     @if (played()) {
       <span class="ml-auto text-sm text-muted">
         {{ cell().minutes === null ? 'minuti ignoti' : cell().minutes + "'" }}

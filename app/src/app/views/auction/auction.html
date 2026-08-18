@@ -269,9 +269,7 @@
                 >
                   <span class="flex flex-col items-start">
                     <span class="flex items-center gap-1">
-                      @for (code of entry.root.player.roles; track code) {
-                        <ui-role [role]="code" />
-                      }
+                      <ui-roles [roles]="entry.root.player.roles" />
                       <b>{{ entry.root.player.name }}</b>
                       <ui-flags [playerId]="entry.root.player.id" />
                       <span class="text-xs opacity-70">{{ entry.root.player.price }}</span>
@@ -293,11 +291,7 @@
           }
 
           <div class="mb-6 flex flex-wrap items-center gap-2">
-                <span class="flex shrink-0 gap-1">
-                  @for (code of plan.mine.roles; track code) {
-                    <ui-role [role]="code" size="md" />
-                  }
-                </span>
+                <ui-roles [roles]="plan.mine.roles" size="md" />
                 <span
                   class="inline-flex items-center gap-2 rounded-full bg-role-attack px-4 py-1.5 text-base font-semibold text-white"
                 >
@@ -355,9 +349,7 @@
                       nzTooltipTitle="Imposta questo giocatore come TUA scelta e ricalcola tutto da lì"
                       (click)="advice.chooseRoot(pick.id)"
                     >
-                      @for (code of pick.roles; track code) {
-                        <ui-role [role]="code" />
-                      }
+                      <ui-roles [roles]="pick.roles" />
                       <span [class.font-semibold]="row.mine">{{ pick.name }}</span>
                       <ui-flags [playerId]="pick.id" />
                       <span class="opacity-60">{{ pick.price }}</span>
@@ -395,9 +387,7 @@
                           [nzTooltipTitle]="denialHint(row)"
                           (click)="advice.chooseRoot(row.player.id)"
                         >
-                          @for (code of row.player.roles; track code) {
-                            <ui-role [role]="code" />
-                          }
+                          <ui-roles [roles]="row.player.roles" />
                           <span class="truncate">{{ row.player.name }}</span>
                           <ui-flags [playerId]="row.player.id" />
                           @if (row.denies >= denialFloor) {
@@ -415,11 +405,7 @@
                 @if ($index > 0) {
                   @if (round.mine) {
                     <div class="mt-2 flex flex-wrap items-center gap-2">
-                      <span class="flex shrink-0 gap-1">
-                        @for (code of round.mine.roles; track code) {
-                          <ui-role [role]="code" />
-                        }
-                      </span>
+                      <ui-roles [roles]="round.mine.roles" />
                       <span
                         class="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1 text-sm font-semibold"
                         [class.opacity-70]="$index > 2"
@@ -447,9 +433,7 @@
                           [nzTooltipTitle]="denialHint(row)"
                           (click)="advice.chooseRoot(row.player.id)"
                         >
-                          @for (code of row.player.roles; track code) {
-                            <ui-role [role]="code" />
-                          }
+                          <ui-roles [roles]="row.player.roles" />
                           <span class="truncate">{{ row.player.name }}</span>
                           <ui-flags [playerId]="row.player.id" />
                           @if (row.denies >= denialFloor) {
@@ -575,11 +559,7 @@
         <div class="grid grid-cols-[repeat(auto-fill,minmax(16rem,1fr))] gap-2">
           @for (entry of team.squad; track entry.index) {
             <div class="flex items-center gap-2 text-sm">
-              <span class="flex shrink-0 gap-1">
-                @for (code of entry.player?.roles ?? []; track code) {
-                  <ui-role [role]="code" />
-                }
-              </span>
+              <ui-roles [roles]="entry.player?.roles ?? []" />
               <span class="truncate">
                 <b>{{ entry.player?.name }}</b>
                 <span class="opacity-60"> · {{ entry.player?.club }}</span>
@@ -697,11 +677,7 @@
                   nz-tooltip
                   [nzTooltipTitle]="explain(row)"
                 >
-                  <span class="flex w-24 shrink-0 gap-1">
-                    @for (code of row.player.roles; track code) {
-                      <ui-role [role]="code" />
-                    }
-                  </span>
+                  <ui-roles class="w-24" [roles]="row.player.roles" />
                   <span class="flex-1 truncate">
                     <b>{{ row.player.name }}</b>
                     <ui-flags [playerId]="row.player.id" />
