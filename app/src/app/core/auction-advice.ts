@@ -89,6 +89,24 @@ export interface RankedPlayer {
   value99: number | null;
   /** The same worth in fantapunti, which is what the ranking and the plan are computed on. */
   value: number | null;
+  /**
+   * IL LEAD: i punti in più che porta rispetto al suo rimpiazzo (definizione dell'operatore, 18/08/2026,
+   * ed è la colonna che si chiamava «Valore»).
+   *
+   * `(FMa − rimpiazzo) × presenze attese × confidenza`, cioè l'Overall della tabella Giocatori meno il
+   * valore del suo rimpiazzo. Lo zero è quello del FOGLIO - il marginale di ROSA, `engine_replacement_fm`,
+   * il rango «squadre × slot» di una lega da dieci - e NON quello vivo fra i liberi, che è la colonna
+   * «+/10g» accanto: due domande, «quanto vale in una lega da dieci» contro «quanto vale adesso, a questo
+   * tavolo che si sta svuotando», e nessuna delle due sostituisce l'altra.
+   *
+   * In FANTAPUNTI e non su 0-99, che è il cambio più visibile: un lead può essere NEGATIVO (peggio del
+   * rimpiazzo) e una scala 0-99 lo schiaccerebbe a zero, cancellando proprio la notizia. La confidenza
+   * della stima moltiplica, per sua decisione dello stesso giorno: chi decide un rilancio sconta quello
+   * che non sa.
+   */
+  lead: number | null;
+  /** Lo zero da cui il lead è contato, così la riga sa spiegare la propria colonna. */
+  leadZero: number | null;
   /** How much he would raise MY eleven: the personal zero of §4.1, secondary by decision. */
   surplusForMe: number | null;
   price: number;
@@ -463,6 +481,10 @@ export class AuctionAdvice {
         surplusPer10: per(surplus, spread),
         ratio: surplus != null && player.fvm > 0 ? surplus / player.fvm : null,
         value99: score99(valueOf(valuation), valueMax),
+        // Il LEAD conta dal rimpiazzo del FOGLIO e non da quello vivo: `replacement` qui sopra è la
+        // domanda dell'asta in corso, questo è «quanto vale in una lega da dieci» (vedi l'interfaccia).
+        lead: surplusOf(valuation, row?.replacementFm ?? null),
+        leadZero: row?.replacementFm ?? null,
         value: valueOf(valuation),
         surplusForMe: surplusOf(valuation, personal, horizon),
         price: player.fvm,
@@ -590,6 +612,25 @@ export class AuctionAdvice {
     const out = new Map<number, number | null>();
     for (const { player } of this.listone()) {
       out.set(player.id, valueOf(valuationOf(numbers.get(player.id))));
+    }
+    return out;
+  });
+
+  /**
+   * The share of the calendar the ENGINE expects each man to be RATED in, for the whole listone.
+   *
+   * The other half of the board's own answer, and it is here rather than in the pitch because the pitch
+   * must not own a definition: the same fraction decides whether a chip is marked as disputed and it is
+   * the number the sheet's `Presenze` column shows. It is `engine_pv_pred` (or the declared estimate)
+   * over the calendar THAT sheet's appearances are expressed on - never another sheet's.
+   */
+  readonly expectedShareBy = computed<Map<number, number | null>>(() => {
+    const total = this.matchdaysTarget();
+    const numbers = this.numbers();
+    const out = new Map<number, number | null>();
+    for (const { player } of this.listone()) {
+      const pv = valuationOf(numbers.get(player.id)).pv;
+      out.set(player.id, pv == null || !total ? null : Math.min(1, pv / total));
     }
     return out;
   });

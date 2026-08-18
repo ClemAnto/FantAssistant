@@ -1,5 +1,12 @@
 import { Board, BoardMan } from './bundle';
-import { OnTable, lineCounts, pitchOf } from './club-eleven';
+import {
+  BOARD_ENGINE_GAP,
+  OnTable,
+  disagreementHint,
+  disagreementOf,
+  lineCounts,
+  pitchOf,
+} from './club-eleven';
 
 const man = (name: string, x: number, over: Partial<BoardMan> = {}): BoardMan => ({
   fc_id: name.length,
@@ -38,6 +45,25 @@ const board = (picture: string, lines: Partial<Board['lines']>, over: Partial<Bo
 const free: OnTable = { taken: false, price: 20, onTable: true, value99: 55 };
 const nowhere = (): OnTable => ({ taken: false, price: null, onTable: false, value99: null });
 
+describe('disagreementOf', () => {
+  it('says nothing while the two models are within the declared gap', () => {
+    expect(disagreementOf(0.7, 0.6)).toBeNull();
+    expect(disagreementOf(0.7, 0.7 - BOARD_ENGINE_GAP + 0.001)).toBeNull();
+  });
+
+  it('names WHICH of the two is the optimist, because the sentence differs', () => {
+    // La board gli dà la maglia, il motore lo prevede a voto in molte meno giornate.
+    expect(disagreementOf(0.87, 0.5)).toBe('board');
+    // ...e il contrario: spesso vuol dire che per quel posto la board non aveva nessuno di meglio.
+    expect(disagreementOf(0.08, 0.5)).toBe('engine');
+  });
+
+  it('non risponde su un uomo di cui manca una delle due: ignoto, mai «d\'accordo»', () => {
+    expect(disagreementOf(null, 0.5)).toBeNull();
+    expect(disagreementOf(0.9, null)).toBeNull();
+  });
+});
+
 describe('lineCounts', () => {
   it('reads three numbers as defence, midfield and attack, with the keeper always alone', () => {
     expect(lineCounts('4-3-3')).toEqual({ P: 1, D: 4, M: 3, T: 0, A: 3 });
@@ -53,6 +79,30 @@ describe('lineCounts', () => {
     expect(lineCounts('')).toBeNull();
     expect(lineCounts(null)).toBeNull();
     expect(lineCounts('4-4-2-1-1')).toBeNull();
+  });
+});
+
+describe('pitchOf and the two models', () => {
+  it('carries the engine\'s own forecast onto the chip and marks where it contradicts the board', () => {
+    const drawn = pitchOf(
+      board('4-3-3', { P: [man('Portiere', 0.5, { claim: 0.9 })] }),
+      () => ({ ...free, expectedShare: 0.4 }),
+    )!;
+    const keeper = drawn.rows[0].men[0];
+    expect(keeper.expectedShare).toBe(0.4);
+    expect(keeper.disagreement).toBe('board');
+    // ...e la frase nomina le DUE domande invece di dichiarare un vincitore.
+    const said = disagreementHint(keeper)!;
+    expect(said).toContain('90%');
+    expect(said).toContain('40%');
+    expect(said).toContain('subentrato');
+  });
+
+  it('non marca niente quando il chiamante non porta la quota del motore', () => {
+    const drawn = pitchOf(board('4-3-3', { P: [man('Portiere', 0.5, { claim: 0.9 })] }), () => free)!;
+    expect(drawn.rows[0].men[0].expectedShare).toBeNull();
+    expect(drawn.rows[0].men[0].disagreement).toBeNull();
+    expect(disagreementHint(drawn.rows[0].men[0])).toBeNull();
   });
 });
 
@@ -130,7 +180,10 @@ describe('pitchOf', () => {
 
   it('carries the ballottaggi, and «unknown» is not «no rival»', () => {
     const withDuels = man('Titolare', 0.5, {
-      duels: [man('Rivale1', 0), man('Rivale2', 0)],
+      duels: [
+        man('Rivale1', 0.5, { fc_id: 41, claim: 0.4 }),
+        man('Rivale2', 0.5, { fc_id: 42, claim: 0.3 }),
+      ],
       duels_known: true,
     });
     const blind = man('Senza ruolo', 0.5, { duels: [], duels_known: false, codes: null });
@@ -140,6 +193,47 @@ describe('pitchOf', () => {
     expect(unknown.duels.length).toBe(0);
     expect(unknown.duelsKnown).toBe(false);
     expect(unknown.codes).toEqual([]);
+  });
+
+  it('non disegna un ballottaggio sotto la soglia, e dice quanti ne ha nascosti', () => {
+    // Operatore, 18/08/2026: «se non ci sono ballottaggi accetta qualsiasi claim; nel caso di
+    // ballottaggi scarta quelli sotto il 0,20». Vale sui RIVALI: il titolare resta disegnato comunque,
+    // o l'undici avrebbe un posto vuoto che il toolkit non ha lasciato.
+    const starter = man('Titolare', 0.5, {
+      claim: 0.08,
+      duels: [
+        man('Credibile', 0.5, { fc_id: 11, claim: 0.35 }),
+        man('Rumore', 0.5, { fc_id: 12, claim: 0.05 }),
+      ],
+      duels_known: true,
+    });
+    const drawn = pitchOf(board('4-3-3', { P: [starter] }), () => free)!;
+    const drawnStarter = drawn.rows[0].men[0];
+    expect(drawnStarter.name).toBe('Titolare');
+    expect(drawnStarter.claim).toBe(0.08);
+    expect(drawnStarter.duels.map((rival) => rival.name)).toEqual(['Credibile']);
+    expect(drawn.hiddenDuels.floor).toBe(1);
+    expect(drawn.hiddenDuels.duplicate).toBe(0);
+  });
+
+  it('lo stesso uomo compare in ballottaggio su UN posto solo', () => {
+    // Misurato sul bundle: 171 voci di ballottaggio su 610 sono ripetizioni dello stesso uomo (euro), e
+    // il pannello le produce perché calcola i rivali posto per posto. Dove tenerlo: dove il posto chiede
+    // uno dei suoi codici granulari e, a pari fit, dove il titolare è più debole.
+    const rival = () => man('Vice', 0.5, { fc_id: 21, claim: 0.4, codes: 'DR' });
+    const right = man('Terzino destro', 0.1, {
+      fc_id: 31, claim: 0.7, badge: 'Dd', codes: 'DR', duels: [rival()], duels_known: true,
+    });
+    const centre = man('Centrale', 0.5, {
+      fc_id: 32, claim: 0.6, badge: 'Dc', codes: 'DC', duels: [rival()], duels_known: true,
+    });
+    const drawn = pitchOf(board('4-3-3', { D: [right, centre] }), () => free)!;
+    const defence = drawn.rows.find((row) => row.line === 'D')!;
+    const shown = defence.men.filter((one) => one.duels.length);
+    expect(shown.length).toBe(1);
+    // Il posto che chiede `DR` è quello del terzino destro: è là che il vice si vede.
+    expect(shown[0].name).toBe('Terzino destro');
+    expect(drawn.hiddenDuels.duplicate).toBe(1);
   });
 
   it('shows the minutes as an AVERAGE PER MATCH, and keeps the club average apart', () => {

@@ -41,9 +41,44 @@ con la stampa dell'08/08/2026, ordinato per resa misurata).
 L'altra fase, quella settimanale, è **`formazione-settimanale-v1.md`** (progetto): chi gioca domenica, perché
 la pagina delle probabili non basta e quali vincoli valgono già oggi.
 
-## STATO AL 17 AGOSTO 2026 — LEGGI QUESTO PRIMA DI TUTTO
+## STATO AL 18 AGOSTO 2026 — LEGGI QUESTO PRIMA DI TUTTO
 
 Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
+
+**Il 18/08 in quattro righe.** Una giornata senza gate: l'operatore ha **dettato le definizioni** delle
+colonne («Overall = Presenze × (Voti + Bonus)», «Lead = punti in più rispetto al suo rimpiazzo, su una
+lega da dieci») e ha chiesto che valgano **ovunque** — quindi la colonna «Bonus» porta adesso i bonus
+soli, il «Valore» del pannello Asta è diventato **Lead** in fantapunti e la vecchia «Lead» della tabella è
+tornata **«Margine»**, che è la stessa sottrazione contro l'altro zero. Poi **un campetto solo** per l'asta
+e per le Squadre, dove un item è un POSTO. Toolkit **444 test**, app **301**, e2e pulito,
+`SHEET_REVISION` **26**, `--verify` 22/22.
+
+**Le tre cose che valgono oltre le feature.**
+1. **Un ordinamento vedeva solo le righe caricate.** La tabella carica 60 righe alla volta e ordinava
+   DOPO il taglio: in cima leggeva **95** dove il massimo del listone è **99**. Difetto di famiglia nota
+   — una lista mostrata i cui numeri descrivono un'altra lista — e invisibile a occhio, perché un ordine
+   sbagliato è comunque un ordine. Ora si ordina la lista intera e si taglia dopo; l'ordine scelto e
+   l'ordine delle colonne stanno in `localStorage`.
+2. **Il riordino delle colonne non riordinava affatto**, e nessuno l'avrebbe detto guardando: il CDK
+   muoveva il DOM che Angular possiede (i buchi che l'operatore ha fotografato) e la sonda a metà
+   trascinamento diceva `dragging` vero, **zero** trasformazioni sui fratelli e `squad.order` ancora
+   vuoto. Sostituito con un gesto scritto in casa, quindici righe. *Un difetto visibile a schermo e un
+   difetto funzionale possono avere la stessa causa e sembrare due.*
+3. **L'harness e2e ha misurato due volte niente**, e l'ho scoperto solo perché passava sempre: leggeva
+   colonne di stelle (nessun testo) e dava per scontato che un click ordini in discendente. Il controllo
+   ora legge una colonna 0-99, pretende **≥100 numeri** e confronta «la cima con 60 righe» col «massimo
+   su tutte». *Un test che non può fallire è peggio di nessun test*, ed è la stessa lezione dello zero
+   uniforme, vista dal lato di chi verifica.
+
+**Due domande dell'operatore, due difetti**, entrambi aperti con la loro misura in
+[letture-app-v1.md](letture-app-v1.md) §11.3 e nella todolist: **Audero con MVa 6,61** (il malus della
+stima è DERIVATO come `FM − bonus` e attraversa un cambio di club, quindi restituisce la fantamedia
+dell'altro club) e **Vicario che non risulta alla Juventus** (il listone in cache del 07/08 ha 499 righe e
+non contiene affatto quel nome — il foglio non dice mai quanto è vecchio il listone che ha letto).
+
+**Aperto, e non è lavoro di oggi**: il **deploy** è indietro di due sessioni (il sito è al 16/08); i due
+difetti sopra; e il giudizio della board contro `engine_pv_pred` (`press --against outcome`), che il
+marchio ⚖ oggi dichiara senza che nessuno l'abbia ancora misurato.
 
 **Il 17/08 in quattro righe.** La domanda era «chi può essere convocato in nazionale durante il
 campionato», e la prima risposta ribalta la premessa: nel 2026-27 **la Coppa d'Africa non tocca il

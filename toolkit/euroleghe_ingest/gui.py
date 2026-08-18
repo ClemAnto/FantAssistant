@@ -1245,7 +1245,12 @@ class AuctionView(ttk.Frame):
                    "for not being able to count on him. Negative means worse than the bench. The list "
                    "opens sorted by this; the replacement level of each role and the reliability "
                    "weight are in the lines above the table. A '~' marks a man the engine could not "
-                   "price at all, whose number is a penalised reconstruction (`engine.estimate`).",
+                   "price at all, whose number is a penalised reconstruction (`engine.estimate`). "
+                   "THIS IS NOT THE SHEET'S `SUR`, and the difference is the weight: the sheet carries "
+                   "the exact expected surplus and this ranking discounts it by (Pv/matchdays)^gamma, "
+                   "because a line-up is set before knowing whether he plays. Same arithmetic "
+                   "(`model.surplus_of`), gamma on one side only - measured, 22-23 of the top 25 are "
+                   "the same men and the ones that move are the high-fantamedia, low-appearance names.",
         "SpM": "SURPLUS DI MERCATO: the same surplus, in the listone's own credits, so it can be put "
                "beside FVM. The rate is not chosen - it is a budget. Inside each listone role, the "
                "money the market spends on the men it rosters (its top teams x slots by FVM) divided by "
@@ -2381,7 +2386,11 @@ class SnapshotView(ttk.Frame):
                "votes and no Serie A season, Stones 3). Converting the second into a prediction is R1, "
                "which the gate has refused twice. On euro the adopted set falls back to the role anchor "
                "(R0c) and prices him anyway; on Serie A R0c is not adopted, so there is nothing to fall "
-               "back to - measured on this sheet: 283 of 629 rows, 157 + 126.",
+               "back to - measured on this sheet: 283 of 629 rows, 157 + 126. "
+               "UNWEIGHTED, and deliberately: the league declares a `reliability_exponent` and the "
+               "AUCTION tab applies it to its own ranking, not to this column - the weight is a "
+               "property of whoever ranks, so the sheet, the app and the bench all read the exact "
+               "expected surplus. One arithmetic for both (`model.surplus_of`), gamma as an argument.",
         "mar": "THE SAME MARGIN OVER THE OTHER ZERO, and the two columns are two QUESTIONS rather than "
                "two answers to one (`docs/model/metrica-asta-surplus-v1.md` §21). `SUR` counts from the "
                "marginal ROSTERED man - the 80th midfielder of a ten-team league - which is «who is worth "

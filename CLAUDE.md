@@ -1410,6 +1410,25 @@ registro datato. Tre cose non tornano indietro nemmeno col pacchetto (probabili,
 scadenza di contratto) e il box **le scrive a schermo**: un viaggio nel tempo che ne retrodata metà in
 silenzio è peggio di nessun viaggio nel tempo.
 
+## Every column has a DECLARED name, and each name is one question
+**The operator's definitions, dictated 18/08/2026, and they bind everywhere.** They are his to decide -
+they are what he reads at a table - so they are recorded here and not re-derived per screen:
+- **`Overall`** = absolute judgement of a man's return, 0-99, `Pv x (MVa + expected bonuses)`, with NO
+  zero subtracted (that measurement is `letture-app-v1.md` §9: with the mantra-role replacement the
+  role medians read P 77 / C 56 / D 46 / A 11 and 14 of the top 25 were goalkeepers).
+- **`Lead`** (ex «Valore») = the points he would add to YOUR squad over his replacement, i.e.
+  `Overall - replacement`, the zero being the roster-marginal man of a ten-team league
+  (`engine_replacement_fm`) and the estimate's confidence penalty still applied.
+- **`Margine`** = the same subtraction against the FIELDED zero (what your bench is actually worth,
+  `desc_replacement_fielded`). Two zeros are two questions, so they get two names and never one -
+  the rule «the zero of a metric is a question» applied to the vocabulary.
+- **`Bonus`** = the bonuses ALONE (`FMa - MVa`), so `Overall`'s own formula can be read off the row.
+  Until 18/08 the column carried the fantamedia, which made the header a false statement about the
+  arithmetic beside it: a name that does not match its number is worse than a missing column.
+And **one pitch drawn by one component** in both the auction and the Squadre screens, where an item is a
+PLACE and not a man (the real role it asks for on top, the men disputing it below, each in ONE place
+only): `docs/model/formazioni-tipo-v1.md` §6-quinquies, with its measured floors.
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,

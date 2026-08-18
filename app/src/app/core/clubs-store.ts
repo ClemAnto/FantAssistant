@@ -196,6 +196,36 @@ export class ClubsStore {
   /** What the table's two measured columns are about: one season, one calendar. */
   readonly measuredOn = computed(() => this.valuation.measuredOn(this.platform()));
 
+  /**
+   * The share of the calendar the ENGINE expects each man of this squad to be RATED in.
+   *
+   * It is the pitch's other half: the board says who starts, this says in how many rounds he takes a
+   * vote, and where the two are far apart the chip says so instead of leaving the contradiction mute.
+   * The calendar is the BOARD SHEET's own (`matchdays_target`) and never another's - a share whose
+   * denominator comes from a different sheet is a share of nothing.
+   */
+  readonly expectedShares = computed<ReadonlyMap<number, number | null>>(() => {
+    const rounds = this.boardSheet()?.matchdays_target ?? null;
+    const out = new Map<number, number | null>();
+    for (const man of this.squad()) {
+      out.set(man.fcId, man.expected == null || !rounds ? null : Math.min(1, man.expected / rounds));
+    }
+    return out;
+  });
+
+  /**
+   * L'OVERALL 0-99 di ogni uomo della rosa, che è il numero che il campetto mostra accanto ai nomi.
+   *
+   * Viene dalla STESSA valutazione della tabella qui sotto (`ValuationStore`), non da un secondo conto:
+   * un uomo che legge 85 nella tabella deve leggere 85 sul campetto, o le due letture della stessa
+   * schermata direbbero due cose. Il rango è calcolato sul listone intero, non su questa rosa.
+   */
+  readonly overalls = computed<ReadonlyMap<number, number | null>>(() => {
+    const out = new Map<number, number | null>();
+    for (const man of this.squad()) out.set(man.fcId, man.rating?.overall.score ?? null);
+    return out;
+  });
+
   /** The board of the chosen club, or null: a club the sheet could not draw says so, never a fallback. */
   readonly board = computed<Board | null>(() => {
     const club = this.club();

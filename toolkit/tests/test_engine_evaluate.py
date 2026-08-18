@@ -351,6 +351,44 @@ def test_reliability_weight_demotes_the_man_who_played_too_little(prepared):
         assert row_weighted["surplus_pred"] <= row_bare["surplus_pred"]
 
 
+def test_the_weight_is_the_ranking_s_and_the_sheet_s_column_is_the_bare_expectation():
+    """ONE arithmetic, and the exponent has to be asked for in writing.
+
+    The three surpluses of this project - the sheet's `engine_surplus`, the estimate's fallback and the
+    Auction tab's ranking - had drifted into two numbers under one name: only `auction_view` applied the
+    league's `reliability_exponent`, so preparing an auction on the panel and bidding with the app read
+    two different orders (measured on the shipped bundle, 17/08/2026: rho 0.989-0.998, 22-23 of the top
+    25 in common). The operator's decision is that the weight belongs to whoever RANKS, so what this
+    test protects is the ASYMMETRY itself - both directions, or the next reader "fixes" one of them.
+    """
+    from euroleghe_ingest.engine import estimate, model
+    from euroleghe_ingest.modules import snapshot
+
+    fm, pv, floor, matchdays = 7.0, 18.0, 6.0, 38
+    bare = model.surplus_of(fm, pv, floor)
+    assert bare == pytest.approx((fm - floor) * pv)
+    # ...and off unless asked for, in both of the ways it can be left out
+    assert model.surplus_of(fm, pv, floor, matchdays=matchdays) == pytest.approx(bare)
+    assert model.surplus_of(fm, pv, floor, reliability=0.5) == pytest.approx(bare)
+    weighted = model.surplus_of(fm, pv, floor, reliability=0.5, matchdays=matchdays)
+    assert weighted == pytest.approx(bare * (pv / matchdays) ** 0.5)
+    assert weighted < bare
+
+    # The SHEET is the bare expectation, whatever the league declares: `_surplus` never passes gamma.
+    class _Obs:
+        fc_id, role_classic, roles_mantra = 1, "D", ()
+
+    class _Data:
+        game, replacement, matchdays_target, reliability = "classic", {"D": floor}, matchdays, 0.5
+
+    prediction = evaluate.Prediction(_Obs(), fm, pv, None)
+    assert snapshot._surplus(prediction, _Data()) == pytest.approx(bare)
+    # ...and so is the estimate's column, times its own penalty and nothing else.
+    assert estimate.surplus(fm, pv, floor, 0.5) == pytest.approx(bare * 0.5)
+    # No level anywhere means VALUE, which is what a role without a replacement has always done.
+    assert model.surplus_of(fm, pv, None) == pytest.approx(fm * pv)
+
+
 def test_the_two_sides_are_scored_against_their_own_seasons_level(prepared):
     """A forecast may only know the input seasons. A REPORT on what happened must be measured against
     the season it happened in - and getting that backwards is a level error big enough to invert the

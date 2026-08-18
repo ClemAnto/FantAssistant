@@ -462,6 +462,75 @@ parametro: si dichiara come fatto.** E resta la via che si chiude da sola — da
 `formation_typical_under_coach` sposta `trust` sull'abitudine del club sotto l'allenatore nuovo, e la
 board gira senza che nessuno tocchi un parametro.
 
+## 6-quater. La board e il motore prevedono due cose diverse su chi gioca, e adesso lo dicono (17/08/2026)
+
+Misurato sul bundle spedito, non discusso: l'undici disegnato condivide **296 uomini su 396** con gli undici
+di maggior `engine_pv_pred` dello stesso club su euro (36 club) e **150 su 187** su Serie A (17 club). Il
+`claim` di `presence.py` contro la quota attesa del motore correla **ρ 0,58 su euro** e **0,83 su Serie A**,
+con mediane praticamente uguali (0,68 contro 0,63 · 0,69 contro 0,69).
+
+**Non è un difetto da correggere e non era una cosa da tacere.** Le due domande sono diverse per costruzione
+— `claim` è «chi parte titolare quando stanno tutti bene», `engine_pv_pred` è «in quante giornate prende un
+voto», e un subentrato il voto lo prende — quindi allinearle a forza sarebbe cambiare una regola senza una
+finestra che la giudichi. Ma una carta che mostra un undici e prezza quegli stessi uomini su una previsione
+che lo contraddice **in silenzio** è il difetto che `presence.py` scrive di sé: «una board che non disegna
+nessuno dove il motore prevede qualcuno sono due risposte a una domanda».
+
+Decisione dell'operatore (17/08/2026): **mostrare il disaccordo**. I due campetti dell'app (asta e Squadre,
+che leggono la stessa funzione) marcano l'uomo dove i due numeri distano più di `BOARD_ENGINE_GAP` = **0,20
+di calendario**, e il tooltip nomina le due domande invece di dichiarare un vincitore. La soglia è una
+scelta di VISUALIZZAZIONE dichiarata — nessun gate la possiede — ma è **misurata e non scelta**: il divario
+|claim − quota| ha mediana 0,07 e p90 **0,20** su euro, mediana 0,05 e p90 0,14 su Serie A, quindi a 0,20 il
+marchio tocca il 10% dell'undici euro (circa un uomo per club) e il 3% su Serie A. A 0,15 sarebbe un uomo su
+cinque, cioè una decorazione.
+
+Le due direzioni dicono cose diverse e la frase lo rispetta: **board più alta** = gli dà la maglia e il
+motore lo prevede a voto in molte meno giornate (Petrovic D. 0,87 contro 0,50); **motore più alto** = spesso
+per quel posto la board non aveva nessuno di meglio (Tornqvist, Cuenca A., Milla, Azon: claim 0,08 contro una
+quota attesa di 0,50). Quale delle due prevedere meglio chi ha davvero giocato è **una misura che nessuno ha
+ancora fatto**, e il giudice esiste già: l'esito della stagione, come in `press --against outcome`.
+
+## 6-quinquies. UN CAMPETTO SOLO, e un item è un POSTO (18/08/2026)
+
+Richieste dell'operatore, tutte lo stesso giorno, e ognuna con la misura che l'ha resa possibile.
+
+**Un componente per due schermate.** «Il campetto di una squadra reale deve essere sempre uguale sia nella
+schermata dell'asta che in quello delle squadre»: erano due componenti con due template che si assomigliavano,
+adesso è `ui/club-board/` e le due viste gli passano solo quello che sanno loro (la vista Squadre niente, il
+pannello d'asta chi è già stato preso). È la stessa ragione per cui l'undici lo disegna il toolkit: due copie
+di una carta finiscono per dire due cose.
+
+**Un item è un posto, non un uomo.** Sopra il **ruolo reale** che quel posto chiede (il marcatore del
+pannello: `Td`, `Dc`, `Pc`), sotto i calciatori che se lo giocano - titolare per primo - ognuno con il suo
+ruolo di listone, le sue icone, il suo **Overall 0-99** (lo stesso della tabella Giocatori, letto da lì e non
+ricalcolato) e i **minuti attesi per partita del club**. Quest'ultimo numero non esiste nel bundle: è il
+prodotto DICHIARATO di due colonne pubblicate — `engine_pv_pred / giornate` per `desc_minutes_full_season /
+desc_season_matches` — scelto dall'operatore fra tre numeri veri, e va letto come «quanti minuti ti aspetti
+da lui in una partita qualunque», assenze comprese.
+
+**Un uomo in ballottaggio su un posto solo.** Il pannello calcola i rivali POSTO per posto, quindi un vice che
+copre due maglie compariva due volte: misurato sul bundle, **171 voci di ballottaggio su 610 sono ripetizioni**
+su euro (35 club su 37) e 104 su 371 su Serie A (tutti e 20). Il claim è UNO per uomo, quindi «dove è più
+alto» non distingue fra due posti: si tiene dove il posto chiede uno dei suoi codici granulari (l'ordine di
+`placeCodes` è già una preferenza) e, a pari fit, dove il TITOLARE è più debole - perché è là che entrerebbe.
+
+**Un ballottaggio sotto il 20% di titolarità non si disegna** («se non ci sono ballottaggi accetta qualsiasi
+claim; nel caso di ballottaggi scarta quelli sotto il 0,20»). Vale sui RIVALI e non sul titolare, o l'undici
+avrebbe un posto vuoto che il toolkit non ha lasciato. Misurato prima di scegliere, su 610 rivali di euro: a
+0,20 se ne scartano 95 e 40 posizioni su 357 restano senza ballottaggio; a 0,30 sarebbero 161 e 72, cioè un
+ballottaggio vero su quattro; a 0,15 solo 62, appena la coda (il decimo percentile dei rivali sta a 0,145).
+Come le soglie degli infortuni: scelta di VISUALIZZAZIONE, nessun gate la possiede — e la carta **dice quanti
+nomi non ha disegnato e per quale delle due ragioni**, perché un filtro silenzioso è un filtro che inganna.
+
+**I moduli con percentuali importanti si possono provare.** Dove due o più forme stanno sopra il **30%**
+(`boards.ALTERNATIVE_MIN_ODDS`) il campetto mostra dei tastini e disegna l'undici di quella scelta. L'undici
+però lo scrive il TOOLKIT, uno per forma, chiamando le stesse funzioni del pannello (`_drawn`): un undici di
+un club vero è una previsione su una persona, quindi l'app non ne calcola nessuno - la regola di «A drawing is
+a claim too» vale anche per la seconda risposta. Misurato sul bundle del 18/08: **7 club su 37 su euro** e 3-4
+su 20 su Serie A hanno un'alternativa; una forma che si rimodella nella stessa figura viene scartata, perché
+sarebbe un tastino che non cambia niente. Il tastino porta la FIGURA disegnata e il tooltip dice su quale
+forma è stata risolta (Atalanta: «3-4-1-2 38%», risolto su 3-4-3).
+
 ## 7. Limiti dichiarati
 
 - `formation_typical` è la stagione di INPUT: per un allenatore nuovo descrive il predecessore, e lo

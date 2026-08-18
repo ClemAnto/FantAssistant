@@ -1440,3 +1440,43 @@ Tre cose che le rendono leggibili, e ognuna è una lezione già pagata altrove:
   legge «−C» non deve prenderla per una versione migliore di quella accanto. Le due colonne rispondono a
   «questo salta quattro giornate», che è una domanda da tavolo; il gate rispondeva a «l'errore aggregato
   migliora se lo sottraggo», ed è no (`gate-motore-v1.md` §7-quattuortricies-bis).
+
+## 23. IL SURPLUS AVEVA DUE ARITMETICHE E UN NOME SOLO (17 agosto 2026, notte)
+
+Trovato leggendo le formule invece che i risultati, che è il modo in cui questa famiglia di difetti si
+trova sempre. Tre posti calcolano il surplus e uno dei tre non faceva la stessa cosa degli altri due:
+
+| dove | formula | chi lo legge |
+|---|---|---|
+| `snapshot._surplus` → `engine_surplus` | `(FM − rimpiazzo) × Pv` | il foglio, l'app, il bench del draft |
+| `estimate.surplus` → `est_surplus` | idem, × confidenza | le righe che il motore non prezza |
+| `evaluate.auction_view` | idem, **× (Pv/giornate)^0,5** | la scheda **Asta** del pannello Tk |
+
+Il fattore in più è il `reliability_exponent` che `config/league_config.json` dichiara a 0,5 — e che il
+manifest del foglio **registrava** pur non essendo applicato a nessuna sua colonna, cioè la cosa peggiore:
+chi lo trovava lì poteva solo concludere che le colonne lo usassero.
+
+**Quanto costava**, misurato sul bundle spedito (tre fogli, 17/08/2026): ρ **0,989 / 0,995 / 0,998** e
+**22-23 nomi su 25** in comune fra i primi 25. Piccolo in aggregato e concentrato esattamente dove il peso
+esiste — Mbappè 32,8 → 28,5 su 23,4 giornate di 31, Calhanoglu 16,5 → 12,6 su 18,0 — cioè sugli uomini di
+alta fantamedia e poche presenze, che sono quelli su cui una preferenza di rischio decide qualcosa. La
+conseguenza pratica era che l'asta si preparava su un ordine e si rilanciava su un altro.
+
+**Decisione dell'operatore (17/08/2026): il peso è di chi ORDINA, non della colonna.** Ed era già la
+posizione scritta in `estimate.surplus` da giorni («the catchability weight belongs to whoever RANKS ... it
+does not belong to the column»): mancava solo che il codice la rispettasse. Quindi:
+
+* una sola aritmetica, `model.surplus_of(fm, pv, rimpiazzo, *, reliability=0, matchdays=None)`, chiamata da
+  tutt'e tre. `reliability` è un **argomento e parte da spento**, così nessuno lo applica per distrazione:
+  chiederlo per iscritto è l'unica difesa contro il ritorno dello stesso difetto;
+* il foglio, l'app e il bench portano il surplus **atteso esatto** — nei giorni in cui non gioca schieri il
+  rimpiazzo e non incassi niente, quindi il prodotto nudo è l'attesa e non un'approssimazione;
+* la scheda Asta continua a pesare, e adesso **lo dice** nel suo tooltip; il tooltip del foglio dice il
+  contrario; il manifest porta `_ranking_only` che nomina i due parametri registrati e non applicati
+  (`reliability_exponent` e `min_availability`, che filtra una classifica e non il file).
+
+`backtest --verify` resta **22/22** e nessun numero pubblicato si muove: il gate prepara le finestre senza
+lega, quindi `data.replacement` è vuoto, la metrica è VALUE e γ non entra in nessuna delle due strade. Il
+test che protegge la cosa è scritto sull'**asimmetria** e non su una delle due metà (`test_engine_evaluate.
+test_the_weight_is_the_ranking_s_and_the_sheet_s_column_is_the_bare_expectation`): senza quello il prossimo
+lettore «aggiusta» il lato che gli capita davanti per primo.

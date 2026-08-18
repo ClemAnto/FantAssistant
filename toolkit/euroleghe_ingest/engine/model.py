@@ -302,6 +302,36 @@ def season_value(fm: float, appearances: float) -> float:
     return fm * appearances
 
 
+def surplus_of(fm: float | None, pv: float | None, replacement: float | None, *,
+               reliability: float = 0.0, matchdays: int | None = None) -> float | None:
+    """(FM - replacement) x Pv, optionally weighted by how much of him you could SEE COMING.
+
+    ONE definition, and it exists because there were three: `evaluate.auction_view` weighted, while
+    `snapshot._surplus` and `estimate.surplus` did not, so the SHEET's `engine_surplus` and the Auction
+    tab's `SURPLUS` were two numbers under one name. Measured on the shipped bundle (17/08/2026): rho
+    0.989 / 0.995 / 0.998 over the three sheets and 22-23 of the top 25 in common, biting exactly where
+    the weight exists - Mbappe 32.8 -> 28.5 on 23.4 rounds of 31, Calhanoglu 16.5 -> 12.6 on 18.0.
+
+    `reliability` IS AN ARGUMENT and defaults to OFF, which is the whole point of collecting the three
+    here: the weight is a property of whoever RANKS and not of the column, so a caller has to ask for it
+    in writing. The operator's decision, 17/08/2026, and it was already the position `estimate.surplus`
+    had written down: the sheet carries the exact expected surplus - on the days he does not play you
+    field the replacement and bank nothing - and the panel's ranking applies the catchability weight
+    `(Pv / matchdays)^gamma` on top, because you set a line-up before knowing whether he plays.
+    `config/league_config.json` measures that shape and declares gamma; nothing else may switch it on.
+
+    `replacement=None` falls back to VALUE (FM x Pv), which is what a role with no level has always
+    done. A caller that would rather say nothing at all guards before calling - `evaluate.over_floor`
+    and `snapshot._surplus_over` both do, and for opposite reasons stated at each site.
+    """
+    if fm is None or pv is None:
+        return None
+    points = fm * pv if replacement is None else (fm - replacement) * pv
+    if not reliability or not matchdays:
+        return points
+    return points * clip(pv / matchdays, 0.0, 1.0) ** reliability
+
+
 # ---------------------------------------------------------------- candidate rules
 #
 # Every parameter below is FITTED (cross-window) by `evaluate.fit_params`, never a constant: the

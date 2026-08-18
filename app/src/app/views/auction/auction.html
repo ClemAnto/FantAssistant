@@ -35,6 +35,22 @@
         Collegati
       </button>
 
+      <!-- La demo: stesso pannello, tavolo inventato. Sta qui e non altrove perche' e' l'alternativa
+           al codice, non una funzione in piu' da cercare in un menu. -->
+      <div class="mt-8 border-t border-border pt-6">
+        <button nz-button nzBlock [nzLoading]="demo.loading()" (click)="startDemo()">
+          Provala senza un'asta vera
+        </button>
+        <p class="mt-2 text-xs opacity-60">
+          Apre il pannello su un tavolo <b>inventato</b> — squadre, ordine di scelta e scelte già
+          fatte — giocato però sul listone vero e sui numeri veri del motore, così si vede che cosa fa.
+          Non ti collega a niente e non salva niente.
+        </p>
+        @if (demo.error()) {
+          <nz-alert class="mt-3 block" nzType="error" [nzMessage]="demo.error()" />
+        }
+      </div>
+
       <p class="mt-6 text-xs opacity-50">FantAssistant {{ appVersion }}</p>
     </nz-card>
   </div>
@@ -43,12 +59,19 @@
   <div class="flex flex-col gap-4">
     <header class="flex flex-wrap items-center gap-3">
       <div>
-        <h1 class="text-xl font-semibold">{{ feed.code() }}</h1>
+        <h1 class="flex items-center gap-2 text-xl font-semibold">
+          {{ feed.code() }}
+          @if (feed.demo()) {
+            <nz-tag nzColor="warning">tavolo inventato</nz-tag>
+          }
+        </h1>
         <p class="text-sm opacity-70">
           {{ marketLabel() }} · {{ statusLabel() }} · {{ feed.teams().length }} squadre
         </p>
       </div>
-      <button nz-button nzType="text" class="ml-auto" (click)="exit()">Cambia asta</button>
+      <button nz-button nzType="text" class="ml-auto" (click)="exit()">
+        {{ feed.demo() ? 'Esci dalla demo' : 'Cambia asta' }}
+      </button>
     </header>
 
     <h2 class="text-lg">Quale squadra è la tua?</h2>
@@ -85,7 +108,12 @@
     <header class="flex flex-wrap items-center gap-3">
       <nz-tag [nzColor]="team.colour">&nbsp;</nz-tag>
       <div>
-        <h1 class="text-xl font-semibold">{{ team.label }}</h1>
+        <h1 class="flex items-center gap-2 text-xl font-semibold">
+          {{ team.label }}
+          @if (feed.demo()) {
+            <nz-tag nzColor="warning">demo</nz-tag>
+          }
+        </h1>
         <p class="text-sm opacity-70">
           {{ feed.code() }} · {{ marketLabel() }} · {{ statusLabel() }}
           @if (feed.stale()) {
@@ -104,9 +132,26 @@
           (ngModelChange)="feed.setKeeperMode($event)"
         />
         <button nz-button (click)="feed.unfollow()">Cambia squadra</button>
-        <button nz-button nzType="text" (click)="exit()">Esci</button>
+        <button nz-button nzType="text" (click)="exit()">
+          {{ feed.demo() ? 'Esci dalla demo' : 'Esci' }}
+        </button>
       </div>
     </header>
+
+    @if (feed.demo()) {
+      <!-- Resta a schermo per tutta la demo: che cosa e' finto e che cosa no e' esattamente la cosa
+           che un pannello di numeri non puo' permettersi di lasciare implicita. -->
+      <nz-alert
+        nzType="warning"
+        nzMessage="Questo è un tavolo inventato"
+        [nzDescription]="
+          'Squadre, ordine di scelta, scelte già fatte e crediti non descrivono nessuno: servono a far ' +
+          'vedere che cosa fa il pannello. Giocatori, prezzi e numeri del motore sono invece quelli veri ' +
+          'del bundle (' + demoSource() + '), perché con nomi inventati ogni colonna resterebbe vuota. ' +
+          'Le scelte già fatte sono un riempimento, non una previsione. Niente di tutto questo viene salvato.'
+        "
+      />
+    }
 
     @if (feed.isGoalsMode() && feed.myStrayKeeperPicks().length) {
       <nz-alert
@@ -600,15 +645,15 @@
                 <button
                   class="w-14 text-right hover:text-fg"
                   nz-tooltip
-                  nzTooltipTitle="Quanto vale in assoluto — fantamedia × presenze attese — su una scala 0–99: 99 è il migliore del listone, presi compresi, quindi la scala non si muove durante l'asta. A differenza del surplus non sottrae il rimpiazzo di ruolo. Clicca per ordinare."
-                  (click)="toggleSort('worth')"
+                  nzTooltipTitle="LEAD: i fantapunti in più che porta rispetto al suo rimpiazzo, sulla stagione intera — (fantamedia attesa − rimpiazzo) × presenze attese, cioè l'Overall della tabella Giocatori meno il valore del rimpiazzo. Lo zero è quello del foglio, il marginale di ROSA di una lega da dieci (engine_replacement_fm), NON quello vivo fra i liberi: quella è la colonna +/10g accanto, e sono due domande. Una riga STIMATA è moltiplicata per la sua confidenza (chi il motore non prezza vale circa metà), quindi può stare sotto un misurato che gli somiglia. Negativo = peggio del rimpiazzo. Clicca per ordinare."
+                  (click)="toggleSort('lead')"
                 >
-                  Valore{{ sortArrow('worth') }}
+                  Lead{{ sortArrow('lead') }}
                 </button>
                 <button
                   class="w-16 text-right hover:text-fg"
                   nz-tooltip
-                  nzTooltipTitle="Punti in più ogni 10 giornate rispetto al giocatore che schiereresti al suo posto fra quelli ancora liberi. Le sue assenze attese sono già dentro. Clicca per ordinare."
+                  nzTooltipTitle="Punti in più ogni 10 giornate rispetto al giocatore che schiereresti al suo posto fra quelli ancora liberi. Le sue assenze attese sono già dentro. È il surplus ATTESO esatto, come sul foglio: la scheda Asta del pannello Tk lo pesa per quanto di lui potevi vedere arrivare (Pv/giornate)^0,5, che è una preferenza di chi ORDINA e non una proprietà della colonna — misurato, 22-23 nomi su 25 restano gli stessi. Clicca per ordinare."
                   (click)="toggleSort('surplus')"
                 >
                   +/10g{{ sortArrow('surplus') }}
@@ -672,7 +717,9 @@
                     }
                   </span>
                   <b class="w-14 text-right">
-                    {{ row.value99 !== null ? row.value99 : '—' }}
+                    <span [class.text-danger]="(row.lead ?? 0) < 0"
+                      >{{ row.lead !== null ? (row.lead | number: '1.1-1') : '—' }}</span
+                    >
                   </b>
                   <b class="w-16 text-right">
                     {{ row.surplusPer10 !== null ? (row.surplusPer10 | number: '1.1-1') : '—' }}

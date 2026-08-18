@@ -1,6 +1,5 @@
-import { CdkDragDrop, DragDropModule, moveItemInArray } from '@angular/cdk/drag-drop';
 import { DecimalPipe } from '@angular/common';
-import { Component, computed, inject, input } from '@angular/core';
+import { Component, computed, inject, input, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NzCollapseModule } from 'ng-zorro-antd/collapse';
 import { NzRadioModule } from 'ng-zorro-antd/radio';
@@ -80,9 +79,11 @@ export const SQUAD_COLUMNS: readonly { key: string; label: string; width: number
   // ...e lo stesso conto dall'ALTRO ZERO, affiancato invece che al posto suo: sono due domande («chi
   // conviene comprare» contro «quanto costa una giornata saltata») e nessuna delle due vince, quindi si
   // vedono insieme e si sceglie soltanto per quale ordinare (operatore, 16/08/2026, §21.1 della metrica).
-  // LEAD è il suo nome scelto dall'operatore (17/08/2026, era «Margine»): il vantaggio sul rimpiazzo
-  // che entra davvero, e il tooltip dice da chi si conta.
-  { key: 'surplusFielded', label: 'Lead', width: 68 },
+  // «MARGINE» DI NUOVO (operatore, 18/08/2026): per un giorno si è chiamata «Lead», e quel nome è passato
+  // alla colonna dell'asta, che conta dal marginale di ROSA - lo stesso zero di «Surplus» qui accanto.
+  // Due colonne con un nome solo sarebbero due domande indistinguibili, che è il difetto che questo
+  // progetto paga da sempre: questa resta il conto dall'altro zero, il rimpiazzo che ENTRA davvero.
+  { key: 'surplusFielded', label: 'Margine', width: 68 },
   // LE DUE COLONNE «−C» (Surplus e Margine al netto della coppa) SONO STATE TOLTE, decisione
   // dell'operatore del 17/08/2026 sera, il giorno stesso in cui erano nate. Il FATTO resta dove è
   // misurato - il foglio porta `desc_surplus_cup` / `desc_surplus_fielded_cup`, il globo segna chi parte
@@ -99,9 +100,27 @@ export const SQUAD_COLUMNS: readonly { key: string; label: string; width: number
   // Si chiama «Mercato» e non «Valore» perché in questa tabella `value` sono i Fantapunti e `mv` è la
   // media voto: due colonne che già portano quelle due lettere, e un terzo «V» le renderebbe indistinguibili.
   { key: 'market', label: 'Mercato', width: 92 },
+  // LE PARTITE A VOTO DELLA STAGIONE MISURATA (operatore, 18/08/2026), davanti alle due medie di cui
+  // sono il DENOMINATORE: una FM di 7,00 su tre presenze e una su trentotto sono due fatti diversi, e
+  // finora quel numero stava solo nel tooltip. Zero non e' vuoto: quotato e mai a voto (`pv` = 0) e' un
+  // fatto, e chi non ha giocato affatto in questo listone porta un trattino.
+  { key: 'pv', label: 'Pv', width: 48 },
   { key: 'mv', label: 'MV', width: 64 },
   { key: 'fm', label: 'FM', width: 64 },
   ...RATING_KEYS.map((key) => ({ key, label: RATING_LABEL[key], width: 84 })),
+];
+
+/**
+ * Le colonne per cui si può ORDINARE, che non sono tutte: `mantra` e `codes` portano una lista di
+ * badge e «in ordine di ruolo reale» non è una domanda che qualcuno faccia.
+ *
+ * Serve come vocabolario di quello che si può trovare salvato su disco: una chiave che non è qui torna al
+ * default, così una preferenza di una versione precedente non lascia la tabella senza ordinamento.
+ * `role` e `name` sono le due colonne fisse, che si ordinano come tutte le altre.
+ */
+export const SORTABLE_COLUMNS: readonly string[] = [
+  'role', 'name', 'club', 'expected', 'expectedFm', 'expectedMv', 'surplus', 'surplusFielded',
+  'value', 'fvm', 'market', 'pv', 'mv', 'fm', ...RATING_KEYS,
 ];
 
 /**
@@ -129,6 +148,9 @@ export function orderColumns(saved: readonly string[], offered: readonly string[
 /** Quello che una riga occupa comunque: il ruolo e il nome. */
 const FIXED_WIDTH = 44 + 116;
 
+/** Quanti pixel prima che un click diventi un trascinamento: lo stesso valore che usava CDK. */
+const DRAG_THRESHOLD_PX = 5;
+
 /**
  * What a quoted man is worth, as a table: measured season, engine forecast, four readings.
  *
@@ -147,7 +169,6 @@ const FIXED_WIDTH = 44 + 116;
   imports: [
     ClubCrest,
     DecimalPipe,
-    DragDropModule,
     FormsModule,
     NzCollapseModule,
     NzRadioModule,
@@ -179,7 +200,36 @@ export class SquadTable {
    * sotto la tabella dice sempre quante se ne vedono su quante: un conteggio che non corrisponde a quello
    * che è a schermo è il difetto che la paginazione nascosta di nz-table aveva già prodotto qui.
    */
-  protected readonly lazy = lazyRows(this.rows);
+  /**
+   * L'ORDINAMENTO È DI QUESTO COMPONENTE, non di nz-table, e la ragione è misurata (18/08/2026).
+   *
+   * `nzSortFn` ordina `nzData`, e `nzData` sono le righe GIÀ CARICATE: con 60 righe di 592 a schermo,
+   * ordinare per Overall metteva in cima il 95 mentre il massimo del listone è 99 - e scorrendo comparivano
+   * uomini che dovevano stare sopra. Misurato in e2e (`scripts/e2e-table.mjs`), che è l'unico posto da cui
+   * si vede: in jsdom le righe non arrivano scorrendo. Non era «una tabella ordinata», era una tabella
+   * ordinata su un campione, cioè la stessa famiglia del difetto «una lista mostrata i cui numeri
+   * descrivono un'altra lista».
+   *
+   * Quindi si ordina PRIMA di ritagliare: `sorted` ordina tutte le righe e `lazyRows` ne mostra le prime.
+   * La scelta finisce in localStorage come le colonne spente e per lo stesso motivo (regola dell'operatore
+   * del 18/08/2026: «l'ordinamento selezionato deve essere memorizzato e ripreso al refresh»), e il valore
+   * salvato viene VALIDATO: una chiave che il codice non conosce più torna al default invece di lasciare la
+   * tabella in uno stato che non sa disegnare.
+   */
+  protected readonly sortKey = stored<string>('squad.sort', 'overall', SORTABLE_COLUMNS);
+  protected readonly sortWay = stored<NonNullable<NzTableSortOrder>>(
+    'squad.sortWay', 'descend', ['ascend', 'descend']);
+
+  /** Le righe nell'ordine scelto: TUTTE, perché è la lista intera che si ordina. */
+  protected readonly sorted = computed<SquadMan[]>(() => {
+    const rows = this.rows();
+    const compare = this.comparatorOf(this.sortKey());
+    if (!compare) return [...rows];
+    const way = this.sortWay() === 'ascend' ? 1 : -1;
+    return [...rows].sort((left, right) => way * compare(left, right));
+  });
+
+  protected readonly lazy = lazyRows(this.sorted);
 
   /**
    * Un click su una colonna di NUMERI ordina subito dal più alto al più basso (operatore, 16/08/2026).
@@ -276,26 +326,154 @@ export class SquadTable {
   protected readonly visible = computed(() =>
     this.ordered().filter((key) => !this.hidden().includes(key)));
 
-  /** Trascinata una colonna: l'ordine si scrive per intero, comprese quelle spente. */
-  protected dropColumn(event: CdkDragDrop<unknown>): void {
-    // LE TRASLAZIONI SI AZZERANO NELLO STESSO FRAME in cui l'ordine cambia, e questa e' la cura
-    // dell'«effetto strano al rilascio» segnalato dall'operatore e MISURATO in e2e: mentre trascini, CDK
-    // sposta i vicini con un `transform` inline (le quattro intestazioni dopo quella presa leggevano
-    // `matrix(1,0,0,1,64,0)`) e al rilascio le ripulisce un tick DOPO, quando Angular ha gia' ridisegnato
-    // la riga nell'ordine nuovo riusando gli stessi nodi: per due frame si vedono celle nuove ancora
-    // spostate di 64px. Non e' una gara con l'animazione di CDK - e' togliere da un nodo uno stato che
-    // apparteneva alla sua posizione vecchia.
-    const row = event.container.element.nativeElement;
-    for (const cell of Array.from(row.querySelectorAll<HTMLElement>('th'))) {
-      cell.style.transform = '';
-    }
-    const shown = this.visible();
-    const moved = shown[event.previousIndex];
-    const target = shown[event.currentIndex];
-    if (!moved || !target || moved === target) return;
+  /* ---------------------------------------------------------------- riordinare le colonne
+   *
+   * NIENTE CDK DRAG-DROP, e non è una preferenza: è la cura del difetto che l'operatore ha visto come
+   * «buchi / disallineamenti» il 18/08/2026, e ognuno dei due pezzi è misurato in e2e
+   * (`scripts/e2e-table.mjs`, che guida un browser vero perché in jsdom non esistono né il colgroup né il
+   * gesto).
+   *
+   *   * CDK MUOVE IL DOM che Angular possiede. Le intestazioni nascono da un `@for` dentro il `<tr>`, e
+   *     CDK ci infila il suo placeholder e ne stacca l'elemento trascinato: al rilascio Angular ridisegna
+   *     la riga nell'ordine nuovo riusando gli stessi nodi, e per qualche frame - o per sempre, quando le
+   *     due riconciliazioni divergono - una cella resta dove non è più. Il segno che si vede a schermo è
+   *     un'intestazione senza la sua colonna sotto.
+   *   * E NON RIORDINAVA NEMMENO. Guidato con eventi di mouse veri, CDK trascinava (preview, placeholder e
+   *     `cdk-drop-list-dragging` tutti presenti) ma nessuna intestazione vicina si spostava di un pixel e
+   *     `squad.order` restava `[]`: il drop arrivava con l'indice di partenza. Sei ordini SEMINATI a mano
+   *     invece si disegnano allineati, quindi il difetto è del gesto e non del rendering - ed è la ragione
+   *     per cui la cura è cambiare gesto e non aggiustare la tabella.
+   *
+   * Quello che c'è adesso è un gesto di quindici righe che non tocca il DOM: segna quale colonna è in mano
+   * e quale sarebbe la sua destinazione, e al rilascio riscrive SOLO il segnale dell'ordine. Angular
+   * ridisegna una volta, da una sola verità.
+   */
+
+  /** La colonna in mano, e quella su cui finirebbe. Null = niente in volo. */
+  protected readonly dragged = signal<string | null>(null);
+  protected readonly dropOn = signal<string | null>(null);
+
+  /**
+   * Preso per la testa: si aspetta un movimento vero prima di chiamarlo trascinamento.
+   *
+   * La soglia esiste perché la stessa intestazione fa DUE cose - un click ordina, un trascinamento
+   * riordina - e senza di essa un click sarebbe un riordino di zero pixel. Quando un trascinamento è
+   * davvero avvenuto, il click che il browser manda dopo viene mangiato una volta sola: altrimenti
+   * lasciare la colonna al suo nuovo posto la ordinerebbe anche.
+   */
+  protected grabAt(event: PointerEvent): void {
+    if (event.button !== 0) return;
+    const row = (event.currentTarget as HTMLElement).closest('tr');
+    if (!row) return;
+    // QUALE colonna è in mano lo dice la posizione, non un gestore per intestazione: la riga ne ha una
+    // sola e l'ordine a schermo è già l'unica verità che serve.
+    const key = this.columnAt(row, event.clientX);
+    if (!key) return;
+    const startX = event.clientX;
+    let dragging = false;
+
+    const move = (moving: PointerEvent): void => {
+      if (!dragging && Math.abs(moving.clientX - startX) < DRAG_THRESHOLD_PX) return;
+      dragging = true;
+      this.dragged.set(key);
+      this.dropOn.set(this.columnAt(row, moving.clientX));
+    };
+    const up = (): void => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      const onto = this.dropOn();
+      this.dragged.set(null);
+      this.dropOn.set(null);
+      if (!dragging) return;
+      // Il click che segue il rilascio non deve ordinare: è la coda del gesto, non una scelta.
+      row.addEventListener('click', (click) => {
+        click.stopPropagation();
+        click.preventDefault();
+      }, { capture: true, once: true });
+      if (onto && onto !== key) this.moveColumn(key, onto);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  }
+
+  /**
+   * Il segno del gesto: sbiadita quella in mano, contornata quella su cui finirebbe.
+   *
+   * Una classe sola per intestazione invece di tre binding ognuna, e nessun nodo spostato da nessuno: è
+   * tutta la differenza col riordino di prima.
+   */
+  protected dragMark(key: string): string {
+    if (!this.dragged()) return '';
+    if (this.dragged() === key) return 'opacity-40';
+    return this.dropOn() === key ? 'outline outline-primary' : '';
+  }
+
+  /** Su quale colonna sta il dito, letto dalle intestazioni vere: l'ordine a schermo è l'unica verità. */
+  private columnAt(row: Element, x: number): string | null {
+    const heads = Array.from(row.querySelectorAll<HTMLElement>('th'));
+    // Le due fisse (ruolo e nome) non sono nell'elenco delle spostabili: si scartano dall'inizio.
+    const movable = heads.slice(heads.length - this.visible().length);
+    const at = movable.findIndex((head) => {
+      const box = head.getBoundingClientRect();
+      return x >= box.left && x <= box.right;
+    });
+    return at < 0 ? null : (this.visible()[at] ?? null);
+  }
+
+  /** Sposta una colonna dove sta un'altra, scrivendo l'ordine INTERO - comprese le spente. */
+  private moveColumn(key: string, onto: string): void {
     const all = [...this.ordered()];
-    moveItemInArray(all, all.indexOf(moved), all.indexOf(target));
+    const from = all.indexOf(key);
+    const to = all.indexOf(onto);
+    if (from < 0 || to < 0 || from === to) return;
+    all.splice(from, 1);
+    all.splice(to, 0, key);
     this.order.set(all);
+  }
+
+  /* ---------------------------------------------------------------- ordinare
+   *
+   * Un comparatore per colonna, presi UNO A UNO da quelli che già esistono: la mappa non ne inventa
+   * nessuno, così l'ordinamento di una colonna resta quello che il suo tooltip descrive.
+   */
+  private comparatorOf(key: string): ((left: SquadMan, right: SquadMan) => number) | null {
+    switch (key) {
+      case 'role': return this.byRole;
+      case 'name': return this.byName;
+      case 'club': return this.byClub;
+      case 'expected': return this.byExpected;
+      case 'expectedFm': return this.byExpectedFm;
+      case 'expectedMv': return this.byExpectedMv;
+      case 'surplus': return this.bySurplus;
+      case 'surplusFielded': return this.bySurplusFielded;
+      case 'value': return this.byValue;
+      case 'fvm': return this.byFvm;
+      case 'market': return this.byMarket;
+      case 'pv': return this.byPv;
+      case 'mv': return this.byMv;
+      case 'fm': return this.byFm;
+      default:
+        return RATING_KEYS.includes(key as RatingKey) ? this.byRating(key as RatingKey) : null;
+    }
+  }
+
+  /** Quale freccia mostra un'intestazione: la sua, o nessuna. */
+  protected sortOrderOf(key: string): NzTableSortOrder {
+    return this.sortKey() === key ? this.sortWay() : null;
+  }
+
+  /**
+   * Cliccata un'intestazione. `null` (il terzo giro di ng-zorro) rimette il RUOLO, che è l'ordine di
+   * lettura del listone: una tabella senza ordinamento non esiste, le righe arriverebbero come capita.
+   */
+  protected sortWith(key: string, order: string | null): void {
+    if (!order) {
+      this.sortKey.set('role');
+      this.sortWay.set('ascend');
+      return;
+    }
+    this.sortKey.set(key);
+    this.sortWay.set(order === 'ascend' ? 'ascend' : 'descend');
   }
 
   /** Il cast che il template non puo' fare da se': nel `@default` la chiave e' una delle letture. */
@@ -507,7 +685,9 @@ export class SquadTable {
     'SURPLUS del motore: i fantapunti che ti dà IN PIÙ del rimpiazzo del suo ruolo, su tutta la '
       + 'stagione. Il rimpiazzo qui è il MARGINALE DI ROSA - l\'ottantesimo centrocampista di dieci '
       + 'squadre - quindi la domanda a cui risponde è «chi conviene comprare». È la metrica con cui il '
-      + 'toolkit ordina l\'asta, ed è quella che il gate possiede.',
+      + 'toolkit ordina l\'asta, ed è quella che il gate possiede. È lo STESSO zero del «Lead» del '
+      + 'pannello asta, con una differenza sola: là una riga stimata è moltiplicata per la sua '
+      + 'confidenza, qui no.',
   );
 
   /**
@@ -562,6 +742,10 @@ export class SquadTable {
   }
 
   /** A man with no measured season sorts last in both directions: he has no number, not a zero. */
+  /** Le presenze misurate: chi non ne ha in questo listone sta in fondo - ignoto, non zero. */
+  protected readonly byPv = (left: SquadMan, right: SquadMan): number =>
+    (left.pv ?? -1) - (right.pv ?? -1);
+
   protected readonly byMv = (left: SquadMan, right: SquadMan): number =>
     (left.mv ?? -1) - (right.mv ?? -1);
 
@@ -694,6 +878,24 @@ export class SquadTable {
     // Nessun posto nel ruolo = nessun colore. `toneOf(null)` risponderebbe `text-muted`, che su una cella
     // con un numero dentro lo sbiadirebbe come se fosse una stima.
     return score == null ? '' : toneOf(score);
+  }
+
+  /** Che cosa sono le Pv, e di QUALE stagione: una presenza senza il suo calendario non è confrontabile. */
+  protected readonly pvHeader = computed(() => short(
+    `Partite a VOTO in ${this.measuredOn()}: quante volte ha preso un voto, che è il denominatore delle `
+      + 'due medie accanto. Zero vuol dire quotato e mai a voto - un fatto - mentre un trattino vuol dire '
+      + 'che in questo listone non esiste una stagione misurata: ignoto, mai zero.',
+  ));
+
+  /** ...e sulla riga, la stessa cosa detta del singolo: le tre situazioni sono tre fatti diversi. */
+  protected pvHint(man: SquadMan): string {
+    if (man.pv == null) return short(`Nessuna stagione misurata in ${this.measuredOn()}: ignoto, mai zero.`);
+    if (man.pv === 0) {
+      return short(`Quotato in ${this.measuredOn()} e mai a voto: le due medie accanto non esistono, `
+        + 'e non sono uno zero.');
+    }
+    return short(`${man.pv} partite a voto in ${this.measuredOn()}`
+      + (man.expected != null ? ` · il motore gliene prevede ${Math.round(man.expected)}` : ''));
   }
 
   /** Il percentile in parole, per la coda del tooltip. Vuoto quando non c'è un posto da dichiarare. */

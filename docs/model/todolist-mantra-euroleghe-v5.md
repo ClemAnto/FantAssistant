@@ -7,6 +7,26 @@
 (§7-quattuortricies-bis), e il **post-torneo estivo è falsificato col segno opposto**. Quello che resta
 aperto non è una misura da rifare, sono due appuntamenti e una riapertura condizionata:
 
+**Chiusura 18/08 (le definizioni dell'operatore, un campetto solo)**: nessuna corsa di gate, quindi nessun
+numero pubblicato si muove — e due voci NUOVE, entrambe nate da una sua domanda su un numero che non
+tornava, che è il modo in cui questa lista si allunga meglio. Restano appese anche il **deploy** (il sito è
+al 16/08 e il bundle è nuovo) e il giudizio della board contro `engine_pv_pred`, che il marchio ⚖ dichiara
+a schermo senza che nessuno l'abbia ancora misurato (`press --against outcome`).
+
+- [ ] **DA MISURARE (aperto il 18/08/2026, dalla domanda dell'operatore «come è possibile che Audero abbia
+  una MVa di 6,61?») — il malus derivato attraversa un cambio di club.** `est_mv = est_fm − il suo malus
+  storico a presenza`: per un portiere che ha cambiato squadra le due metà appartengono a due club (FM
+  prevista al Como 5,147, malus preso alla Cremonese −1,46) e il residuo non è una media voto - 6,61 contro
+  un massimo storico di 6,34. Non è cosmetico: la lettura VOTI dell'app legge `est_mv`, quindi esce 99/99 fra
+  i portieri. Due cure candidate, e vanno MISURATE contro l'esito, non scelte: tirare il malus verso il tasso
+  di RUOLO quando l'uomo ha cambiato club (come `bonus_rate` già fa per il campione corto), oppure ricavarlo
+  dai gol che il motore prevede al club NUOVO (per i portieri li predice già). Reporting, quindi nessun
+  `engine_*` si muove; dettagli e numeri in `letture-app-v1.md` §11.3.
+- [ ] **Il foglio non dice se il LISTONE è vecchio** (aperto il 18/08/2026, dal caso Vicario). `sheet_revision`
+  protegge dai cambi di CODICE, non dalla freschezza dell'INGRESSO: il listone Serie A 2026-27 in cache è del
+  **07/08** e porta 499 righe contro le 663 del 2025-26 - è uno scaglione - e niente a schermo lo dice, così
+  «Vicario non c'è» sembra un difetto del foglio. Il manifest e la nota del foglio dovrebbero portare la data
+  di lettura del listone e le sue righe contro la stagione prima. Costa poco e chiude una classe di domande.
 - [ ] **Dicembre 2026 — le rose vere della Coppa d'Asia.** `tournaments --tournament asian_cup_2027`
   quando la CAF/AFC le pubblica: `tournaments_squads` trasforma la media nel FATTO e la penalità di un
   convocato passa dal prodotto `P(va) × costo` al solo costo (0,59). Il meccanismo è già nel codice

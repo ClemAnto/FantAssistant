@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { SQUAD_COLUMNS, orderColumns } from './squad-table';
+import { SORTABLE_COLUMNS, SQUAD_COLUMNS, orderColumns } from './squad-table';
 
 /**
  * I DUE ZERI, affiancati - e la ragione per cui questo test esiste è che la prossima persona che legge
@@ -28,7 +28,9 @@ describe('le colonne della tabella', () => {
   it('le chiama con due nomi diversi, perché sono due domande', () => {
     const byKey = new Map(SQUAD_COLUMNS.map((one) => [one.key, one.label]));
     expect(byKey.get('surplus')).toBe('Surplus');
-    expect(byKey.get('surplusFielded')).toBe('Lead');
+    // «Lead» dal 18/08/2026 è la colonna dell'ASTA (lo zero marginale di rosa, la definizione
+    // dell'operatore «Overall − rimpiazzo»), quindi questa è tornata «Margine»: un nome per domanda.
+    expect(byKey.get('surplusFielded')).toBe('Margine');
   });
   it('NON offre le due al netto della coppa: decisione dell\'operatore, 17/08/2026', () => {
     // Nate e tolte lo stesso giorno. Il fatto non si è perso - il globo accanto al nome dice chi parte
@@ -84,5 +86,36 @@ describe('orderColumns', () => {
     // elenco a parte), quindi riaccendere una colonna la rimette dove era e non in fondo.
     const saved = ['market', 'mantra', 'club', 'codes', 'expected', 'surplus', 'value', 'fvm'];
     expect(orderColumns(saved, listino)).toEqual(saved);
+  });
+});
+
+/**
+ * QUALI COLONNE SI POSSONO ORDINARE - e dove vive la garanzia vera, che non e' qui.
+ *
+ * Il difetto misurato in e2e il 18/08/2026: `nzSortFn` ordina `nzData`, e `nzData` sono le sole righe gia'
+ * caricate, quindi ordinando per Overall si vedeva 95 in cima con un massimo di 99 sul listone. Un test
+ * unitario non lo vede - in jsdom le righe non arrivano scorrendo e il `colgroup` non esiste - e il
+ * template non e' leggibile da qui (esbuild non carica un `.html?raw` e `node:fs` non c'e' lato browser).
+ * Quindi la verifica sta in `node scripts/e2e-table.mjs`, che apre un browser vero, ordina, scorre fino in
+ * fondo e confronta la cima col massimo. Qui resta il vocabolario, che e' quello che il disco puo'
+ * contenere: una chiave fuori da questo elenco torna al default invece di lasciare la tabella senz'ordine.
+ */
+describe('le colonne per cui si ordina', () => {
+  it('ci sono tutte quelle di numeri, comprese le due fisse', () => {
+    for (const key of ['role', 'name', 'overall', 'value', 'surplus', 'surplusFielded', 'expected']) {
+      expect(SORTABLE_COLUMNS).toContain(key);
+    }
+  });
+
+  it('non ci sono le due che portano badge: in ordine di ruolo reale non e una domanda', () => {
+    expect(SORTABLE_COLUMNS).not.toContain('mantra');
+    expect(SORTABLE_COLUMNS).not.toContain('codes');
+  });
+
+  it('ogni colonna ordinabile e una colonna che esiste', () => {
+    // Una chiave che non e' fra le colonne offerte sarebbe un ordinamento per una colonna che nessuno
+    // vede: `role` e `name` sono le due fisse e stanno fuori da SQUAD_COLUMNS di proposito.
+    const offered = new Set([...SQUAD_COLUMNS.map((one) => one.key), 'role', 'name']);
+    for (const key of SORTABLE_COLUMNS) expect(offered).toContain(key);
   });
 });

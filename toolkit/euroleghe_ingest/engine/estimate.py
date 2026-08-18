@@ -47,6 +47,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+# The ONE surplus arithmetic. `model` is pure formulas with no DB and no I/O, so importing it keeps this
+# file as portable as it was and removes the third copy of a subtraction that had already drifted once.
+from euroleghe_ingest.engine import model
+
 # How many votes the core needs before it will predict at all - `model.MIN_PV_PREV`, restated here because
 # this module must stay importable on its own (the gate's harness reaches both).
 FULL_SEASON_VOTES: int = 15
@@ -269,8 +273,10 @@ def surplus(fm: float | None, pv: float | None, replacement: float | None,
     ranks - points over the man you would have fielded instead - is the thing that should cost for not being
     known. Without a replacement level there is nothing to be over, so it falls back to VALUE, exactly as
     `snapshot._surplus` does.
+
+    The paragraph above turned out to be the project's position and NOT the project's code: `auction_view`
+    weighted and this did not, under one name. Both call `model.surplus_of` now with the exponent as an
+    explicit argument, so the sentence and the arithmetic can no longer disagree (17/08/2026).
     """
-    if fm is None or pv is None:
-        return None
-    value = fm * pv if replacement is None else (fm - replacement) * pv
-    return value * confidence
+    surplus_value = model.surplus_of(fm, pv, replacement)
+    return None if surplus_value is None else surplus_value * confidence

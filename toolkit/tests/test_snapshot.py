@@ -3864,3 +3864,28 @@ def test_who_is_in_the_squad_is_the_PROVIDERS_call_and_the_sheet_obeys():
     assert "if departed and not keep_departed:" in source
     # ...e il costo va detto nella nota, non scoperto al tavolo: l'83,1% e' la precisione misurata.
     assert "83.1%" in source
+
+def test_the_alternative_modules_are_drawn_by_the_same_function_as_the_board():
+    """Un secondo modulo e' una BOARD, non un disegno a parte - e la soglia e' quella dell'operatore.
+
+    L'app mette dei tastini per passare da un modulo all'altro (>30% di probabilita', 18/08/2026), e puo'
+    farlo solo se l'undici di ogni modulo VIAGGIA: un undici di club vero e' una previsione su una persona,
+    quindi lo disegna il toolkit e mai l'app. Il rischio che questo test copre e' l'unico che conta qui:
+    che il modulo alternativo venga disegnato da un secondo pezzo di codice, cioe' due definizioni di board
+    - esattamente quello che `boards.py` esiste per impedire. Quindi si guarda che il disegno passi da
+    `_drawn` per tutt'e due e che la soglia sia una costante dichiarata, non un numero sparso.
+    """
+    import inspect
+
+    from euroleghe_ingest.modules import boards
+
+    assert boards.ALTERNATIVE_MIN_ODDS == 0.30, "la soglia e' quella dichiarata dall'operatore"
+    source = inspect.getsource(boards.extract_boards)
+    # Il modulo disegnato e gli alternativi passano dalla stessa funzione, chiamata due volte.
+    assert source.count("_drawn(view, club") == 2, "il secondo modulo non passa dallo stesso disegno"
+    assert "ALTERNATIVE_MIN_ODDS" in source, "la soglia va letta dalla costante"
+    # Un modulo che si RIMODELLA nella stessa figura non e' un'alternativa: sarebbe un tastino inerte.
+    assert "if other_picture == picture" in source
+    # E il conteggio si stampa: uno zero silenzioso non si distingue da una funzione rotta.
+    written = inspect.getsource(boards.write_boards)
+    assert "clubs_with_alternatives" in written and "alternative_shapes" in written

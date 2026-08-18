@@ -45,37 +45,40 @@
   [style.min-width]="minWidth()"
 >
   <thead>
-    <!-- LE COLONNE SI TRASCINANO (operatore, 17/08/2026): la riga di intestazione e una drop list
-         orizzontale e ogni intestazione opzionale e un cdkDrag, quindi si riordina prendendo la colonna
-         per la sua testa. R e Nome restano fuori: sono l'identita' della riga, non colonne che si
-         spostano. L'ordine finisce in localStorage (`order` nel componente). -->
-    <tr cdkDropList cdkDropListOrientation="horizontal" (cdkDropListDropped)="dropColumn($event)">
-      <th nzWidth="44px" [nzSortFn]="byRole">R</th>
-      <th nzWidth="116px" [nzSortFn]="byName">Nome</th>
-      <!-- L'ANTEPRIMA VOLA FUORI DALLA RIGA (il default di CDK, `global`), e la scelta è misurata: messa
-           dentro la riga (`cdkDragPreviewContainer="parent"`) al rilascio CDK la fa RIENTRARE volando, e
-           quella è proprio l'animazione che l'operatore ha chiamato «effetto strano al rilascio» - in e2e si
-           vedeva la cella clonata con un transform di 439x248 mentre l'ordine era già cambiato. Fuori, al
-           rilascio scompare senza tornare indietro (`.cdk-drag-preview { transition: none }`), e il suo
-           aspetto lo dà il CSS invece della tabella. -->
+    <!-- LE COLONNE SI TRASCINANO prendendole per la testa (operatore, 17/08/2026), e dal 18/08/2026 il
+         gesto è NOSTRO e non di CDK: un gestore solo sulla riga, che dalla posizione del dito ricava la
+         colonna e al rilascio riscrive soltanto il segnale dell'ordine. CDK muoveva il DOM che Angular
+         possiede - da cui i «buchi / disallineamenti» - e nemmeno riordinava; le due misure stanno in
+         `squad-table.ts` sopra `grabAt` e si rifanno con `node scripts/e2e-table.mjs`. R e Nome si
+         trascinano come le altre? No: sono l'identità della riga e restano ferme. L'ordinamento invece è
+         di tutte, comprese loro, e vive in `sortKey`/`sortWay` (localStorage). -->
+    <!-- L'ORDINAMENTO NON È DI nz-table: niente `nzSortFn`, perché ordinerebbe solo le righe già
+         caricate (misurato: cima 95 contro un massimo di 99 sul listone). Le intestazioni EMETTONO la
+         scelta e il componente ordina la lista intera prima di ritagliarla. -->
+    <tr (pointerdown)="grabAt($event)">
+      <th nzWidth="44px" [nzSortOrder]="sortOrderOf('role')" (nzSortOrderChange)="sortWith('role', $event)">R</th>
+      <th nzWidth="116px" [nzSortOrder]="sortOrderOf('name')" (nzSortOrderChange)="sortWith('name', $event)">Nome</th>
+      <!-- Il segno del gesto è una classe sola per intestazione (`dragMark`): sbiadita quella in mano,
+           contornata quella dove finirebbe. Nessuna anteprima che vola, nessun nodo staccato - il difetto
+           di prima era proprio là, e l'«effetto strano al rilascio» era la sua animazione di rientro. -->
       @for (key of visible(); track key) {
           @switch (key) {
             @case ('mantra') {
-              <th cdkDrag nzWidth="78px">Mantra</th>
+              <th [class]="dragMark(key)" nzWidth="78px">Mantra</th>
             }
             @case ('club') {
-              <th cdkDrag nzWidth="130px" [nzSortFn]="byClub">Squadra</th>
+              <th [class]="dragMark(key)" nzWidth="130px" [nzSortOrder]="sortOrderOf(key)" (nzSortOrderChange)="sortWith(key, $event)">Squadra</th>
             }
             @case ('codes') {
-              <th cdkDrag nzWidth="100px" nz-tooltip nzTooltipTitle="Dove gioca davvero, osservato oggi. In GRASSETTO il ruolo che occuperebbe nella formazione tipo.">
+              <th [class]="dragMark(key)" nzWidth="100px" nz-tooltip nzTooltipTitle="Dove gioca davvero, osservato oggi. In GRASSETTO il ruolo che occuperebbe nella formazione tipo.">
                 Ruolo reale
               </th>
             }
             @case ('expected') {
-              <th cdkDrag
+              <th [class]="dragMark(key)"
                 nzWidth="48px"
                 class="text-right"
-                [nzSortFn]="byExpected"
+                [nzSortOrder]="sortOrderOf(key)" (nzSortOrderChange)="sortWith(key, $event)"
                 [nzSortDirections]="highFirst"
                 nz-tooltip
                 [nzTooltipTitle]="expectedHeader()"
@@ -84,10 +87,10 @@
               </th>
             }
             @case ('expectedFm') {
-              <th cdkDrag
+              <th [class]="dragMark(key)"
                 nzWidth="70px"
                 class="text-right"
-                [nzSortFn]="byExpectedFm"
+                [nzSortOrder]="sortOrderOf(key)" (nzSortOrderChange)="sortWith(key, $event)"
                 [nzSortDirections]="highFirst"
                 nz-tooltip
                 [nzTooltipTitle]="expectedFmHeader"
@@ -96,10 +99,10 @@
               </th>
             }
             @case ('expectedMv') {
-              <th cdkDrag
+              <th [class]="dragMark(key)"
                 nzWidth="70px"
                 class="text-right"
-                [nzSortFn]="byExpectedMv"
+                [nzSortOrder]="sortOrderOf(key)" (nzSortOrderChange)="sortWith(key, $event)"
                 [nzSortDirections]="highFirst"
                 nz-tooltip
                 nzTooltipTitle="Media voto ATTESA: il foglio la ricava dalla FM attesa, e la differenza fra le due è il bonus che si aspetta da lui."
@@ -108,10 +111,10 @@
               </th>
             }
             @case ('surplus') {
-              <th cdkDrag
+              <th [class]="dragMark(key)"
                 nzWidth="64px"
                 class="text-right"
-                [nzSortFn]="bySurplus"
+                [nzSortOrder]="sortOrderOf(key)" (nzSortOrderChange)="sortWith(key, $event)"
                 [nzSortDirections]="highFirst"
                 nz-tooltip
                 [nzTooltipTitle]="surplusHeader"
@@ -120,22 +123,22 @@
               </th>
             }
             @case ('surplusFielded') {
-              <th cdkDrag
+              <th [class]="dragMark(key)"
                 nzWidth="68px"
                 class="text-right"
-                [nzSortFn]="bySurplusFielded"
+                [nzSortOrder]="sortOrderOf(key)" (nzSortOrderChange)="sortWith(key, $event)"
                 [nzSortDirections]="highFirst"
                 nz-tooltip
                 [nzTooltipTitle]="surplusFieldedHeader"
               >
-                Lead
+                Margine
               </th>
             }
             @case ('value') {
-              <th cdkDrag
+              <th [class]="dragMark(key)"
                 nzWidth="92px"
                 class="text-right"
-                [nzSortFn]="byValue"
+                [nzSortOrder]="sortOrderOf(key)" (nzSortOrderChange)="sortWith(key, $event)"
                 [nzSortDirections]="highFirst"
                 nz-tooltip
                 [nzTooltipTitle]="valueHeader"
@@ -144,10 +147,10 @@
               </th>
             }
             @case ('fvm') {
-              <th cdkDrag
+              <th [class]="dragMark(key)"
                 nzWidth="58px"
                 class="text-right"
-                [nzSortFn]="byFvm"
+                [nzSortOrder]="sortOrderOf(key)" (nzSortOrderChange)="sortWith(key, $event)"
                 [nzSortDirections]="highFirst"
                 nz-tooltip
                 [nzTooltipTitle]="fvmHeader()"
@@ -156,10 +159,10 @@
               </th>
             }
             @case ('market') {
-              <th cdkDrag
+              <th [class]="dragMark(key)"
                 nzWidth="92px"
                 class="text-right"
-                [nzSortFn]="byMarket"
+                [nzSortOrder]="sortOrderOf(key)" (nzSortOrderChange)="sortWith(key, $event)"
                 [nzSortDirections]="highFirst"
                 nz-tooltip
                 [nzTooltipTitle]="marketHeader"
@@ -167,17 +170,29 @@
                 Mercato
               </th>
             }
+            @case ('pv') {
+              <th [class]="dragMark(key)"
+                nzWidth="48px"
+                class="text-right"
+                [nzSortOrder]="sortOrderOf(key)" (nzSortOrderChange)="sortWith(key, $event)"
+                [nzSortDirections]="highFirst"
+                nz-tooltip
+                [nzTooltipTitle]="pvHeader()"
+              >
+                Pv
+              </th>
+            }
             @case ('mv') {
-              <th cdkDrag nzWidth="64px" class="text-right" [nzSortFn]="byMv" [nzSortDirections]="highFirst">MV</th>
+              <th [class]="dragMark(key)" nzWidth="64px" class="text-right" [nzSortOrder]="sortOrderOf(key)" (nzSortOrderChange)="sortWith(key, $event)" [nzSortDirections]="highFirst">MV</th>
             }
             @case ('fm') {
-              <th cdkDrag nzWidth="64px" class="text-right" [nzSortFn]="byFm" [nzSortDirections]="highFirst">FM</th>
+              <th [class]="dragMark(key)" nzWidth="64px" class="text-right" [nzSortOrder]="sortOrderOf(key)" (nzSortOrderChange)="sortWith(key, $event)" [nzSortDirections]="highFirst">FM</th>
             }
             @default {
               <!-- Le letture 0-99: una cella sola per tutte, etichetta e tooltip dal loro record. -->
-              <th cdkDrag
+              <th [class]="dragMark(key)"
                 nzWidth="84px"
-                [nzSortFn]="byRating(asRating(key))"
+                [nzSortOrder]="sortOrderOf(key)" (nzSortOrderChange)="sortWith(key, $event)"
                 [nzSortDirections]="highFirst"
                 nz-tooltip
                 [nzTooltipTitle]="ratingHint[asRating(key)]"
@@ -190,7 +205,7 @@
     </tr>
   </thead>
   <tbody>
-    @for (man of squadTable.data; track man.fcId) {
+    @for (man of lazy.rows(); track man.fcId) {
       <tr>
         <td [title]="roleLabel[man.role]"><ui-role [role]="man.role" /></td>
         <td>
@@ -320,6 +335,15 @@
               <td class="text-right tabular-nums" [title]="marketHint(man)">
                 {{ marketCell(man) }}
                 <span [class]="marketTone(man)">{{ marketArrow(man) }}</span>
+              </td>
+            }
+            @case ('pv') {
+              <td class="text-right tabular-nums" [title]="pvHint(man)">
+                @if (man.pv == null) {
+                  —
+                } @else {
+                  {{ man.pv }}
+                }
               </td>
             }
             @case ('mv') {

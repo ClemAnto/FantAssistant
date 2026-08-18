@@ -135,13 +135,23 @@
     </section>
 
     @if (selected(); as club) {
-      <div class="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)]">
+      <!-- IL CAMPETTO HA BISOGNO DI PIÙ LARGHEZZA da quando un item porta i ballottaggi (18/08/2026):
+           a 320px i nomi si troncavano a zero e restavano i soli badge - una carta illeggibile. -->
+      <div class="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,460px)_minmax(0,1fr)]">
         <section class="flex flex-col gap-2 rounded-card border border-border bg-surface p-3">
           <div class="flex items-center gap-2">
             <ui-crest [club]="club.name" [clubId]="club.id" [crests]="store.crests()" size="md" />
             <h2 class="text-lg font-semibold text-fg">{{ club.name }}</h2>
           </div>
-          <app-board-pitch [board]="store.board()" [noBoards]="store.noBoards()" />
+          <!-- UN CAMPETTO SOLO per le due schermate (operatore, 18/08/2026): `ui-club-board` è lo stesso
+               componente che disegna il campetto del pannello d'asta, e qui riceve soltanto quello che
+               questa vista sa - fuori da un tavolo nessuno è «già preso». -->
+          <ui-club-board
+            [board]="store.board()"
+            [noBoards]="store.noBoards()"
+            [overall]="store.overalls()"
+            [expectedShares]="store.expectedShares()"
+          />
           <p class="text-xs text-muted">
             È la <strong>board del toolkit</strong>, non un undici ricalcolato qui: la disegna la classe
             del pannello guidata senza finestra, con le <strong>tue</strong> decisioni per club applicate.

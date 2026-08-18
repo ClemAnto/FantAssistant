@@ -1,5 +1,5 @@
 # Stato progetto & continuità — v5
-**Aggiornato: 16 agosto 2026 (le CINQUE LETTURE dell'app, lo zero che diventa il rimpiazzo che ENTRA, porte inviolate e curva del valore acquisite, tre ipotesi rifiutate e un numero ritirato — v0.1.11 pubblicata)** · precedente: 14 agosto 2026, notte (QUATTRO item chiusi in una giornata: il TREND delle ultime dieci REALI, chi ha guadagnato o perso il posto, «preso per titolare ruotato di fatto» e il suo specchio — v0.1.10 pubblicata)**
+**Aggiornato: 18 agosto 2026 (le DEFINIZIONI dell'operatore — Overall, Lead, Margine, Bonus — applicate ovunque; UN campetto solo per asta e Squadre, con l'item-posto e i moduli alternativi scritti dal toolkit; tre difetti della tabella misurati in browser)** · precedente: 17 agosto 2026, notte (la coppa continentale in mezzo al campionato: misurata, sul foglio e RESPINTA dal gate; l'app riscritta a voce; il surplus che aveva due aritmetiche)
 Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da qui + i file della cartella "Modello Previsionale Fantacalcio".
 *Glossario: T1/T2 = finestre di test (23/24->24/25, 24/25->25/26) · MAE = errore medio assoluto · cross-fitted = parametri stimati su una finestra, testati sull'altra · M2e = modello portieri decomposto (abilità + tasso gol subiti del club; la metà Elo del nome non è nel motore) · Pv_att = presenze attese · fc_id = id fantacalcio.it · EV = valore atteso · scoring_config = punteggi configurabili per lega · xG/xA = expected goals/assists · 2.5 pieno = backtest motore completo con flag.*
 
@@ -2370,3 +2370,87 @@ che non lo quota. Il gate non si muove: `squad_source` resta `listone` e un test
    e un lavoro a se.
 6. **La costanza non pesa piu su nessun numero**: la misura che l'aveva scelta (centro sul ruolo, peso 2)
    resta scritta in §3, e se un giorno la si rivuole va rimisurata, non ricopiata.
+
+## CHIUSURA della sessione 18/08/2026 — le definizioni dettate dall'operatore, un campetto solo, e tre difetti che nessun test vedeva
+
+`SHEET_REVISION` **26** · toolkit **444 test** (1 salta senza display) · app **301 test** ·
+`backtest --verify` **22/22** · e2e della tabella pulito · [letture-app-v1.md](letture-app-v1.md) §11 ·
+[formazioni-tipo-v1.md](formazioni-tipo-v1.md) §6-quinquies · nessuna corsa di gate: **nessun numero
+pubblicato si muove**.
+
+Nel commit viaggia anche il residuo della notte del 17/08 già documentato e non ancora committato: il
+surplus con **una sola aritmetica** (`model.surplus_of`, [metrica-asta-surplus-v1.md](metrica-asta-surplus-v1.md)
+§23), l'Overall e il Valore come due domande sulla stessa formula (§10 delle letture) e il marchio del
+disaccordo board/motore (§6-quater delle formazioni).
+
+### (1) Le definizioni, dettate e applicate «ovunque»
+L'operatore ha scritto le due che contano e ha chiesto di verificarle in ogni schermata:
+**`Overall` = Presenze × (Voti + Bonus)** e **`Lead` = i punti in più che porterebbe alla mia squadra
+rispetto a un suo rimpiazzo, tarato su una lega da dieci**. Tre conseguenze, e ognuna era un nome che
+mentiva:
+
+* la colonna **«Bonus» portava la fantamedia**, quindi la formula dell'Overall non si poteva leggere sulla
+  riga: `Voti + Bonus` valeva due volte il voto. Adesso porta i **bonus soli** (`FMa − MVa`), e le due
+  colonne si sommano davvero.
+* **«Valore» → «Lead»** nel pannello Asta, in fantapunti, con lo zero del **marginale di ROSA** e la
+  penale di confidenza della stima ancora applicata (sua scelta, messa davanti alle alternative).
+* la vecchia **«Lead» della tabella è tornata «Margine»**: è la stessa sottrazione contro lo zero
+  SCHIERATO, cioè un'altra domanda, e due domande non condividono un nome. La tabella dei quattro zeri sta
+  in §11.2 delle letture.
+
+### (2) Un campetto solo, e un item è un POSTO
+«Il campetto di una squadra reale deve essere sempre uguale sia nella schermata dell'asta che in quello
+delle squadre»: prima erano due template che si assomigliavano, adesso è `ui/club-board/` e le due
+schermate gli passano soltanto quello che sanno loro (il tavolo sa chi è già preso e quanto chiede).
+L'undici lo disegna sempre il toolkit — nessuna delle due lo ricalcola. Sopra ogni posto il **ruolo reale**
+che quel posto chiede, sotto i calciatori che se lo giocano col loro **Overall** e i **minuti attesi** per
+partita del club, e in fondo l'interruttore **Mantra/Classic** che sopravvive a un refresh.
+Tre misure dentro questa richiesta:
+
+* **un uomo in un posto solo**: i ballottaggi ripetuti erano **171 voci su 610** su euro e **104 su 371**
+  su Serie A — lo stesso uomo dato in lizza per due maglie. Si tiene dove il suo claim è più alto, e il
+  taglio è per IDENTITÀ dell'oggetto: la prima versione usava l'`fc_id` e su due righe con lo stesso id
+  cancellava tutt'e due i rivali.
+* **la soglia del claim è condizionale**: «se non ci sono ballottaggi accetta qualsiasi claim, se ci sono
+  scarta quelli sotto il 0,20» (operatore). Un titolare debole è una notizia; un rivale debole è rumore.
+* **i moduli alternativi sono del toolkit**: `boards.ALTERNATIVE_MIN_ODDS` = 0,30 e la **stessa funzione**
+  che disegna il modulo scelto (`_drawn`) disegna gli altri, così un tastino non mostra un undici prodotto
+  da un'altra strada. Portano un modulo in più **7 club su 37** su euro e **3-4 su 20** su Serie A: i
+  tastini compaiono solo dove c'è davvero una scelta.
+
+### (3) I tre difetti della tabella, e come si sono fatti vedere
+1. **L'ordinamento vedeva solo le righe caricate** (sua segnalazione). Con il lazy load a 60 righe si
+   ordinava DOPO il taglio: in cima **95** contro un massimo di **99**. Ora si ordina la lista intera
+   (589 numeri letti dall'harness, cima 99; un click su Fantapunti dà 216, che è il massimo).
+2. **Il riordino delle colonne non riordinava**, e i buchi che aveva fotografato erano l'altra faccia
+   della stessa causa: il CDK muoveva il DOM che Angular possiede. Provato con una sonda a metà
+   trascinamento — `dragging` vero, **zero** trasformazioni sui fratelli, `squad.order` ancora vuoto — e
+   con sei ordini seminati che si disegnavano allineati. Sostituito con un gesto a puntatore scritto in
+   casa; l'ordine e l'ordinamento stanno in `localStorage` e tornano al refresh.
+3. **Il mio harness misurava due volte niente**: leggeva colonne di stelle (nessun testo) e dava per
+   scontato che un click ordini in discendente, quindi passava sempre. Ora pretende una colonna 0-99 e
+   **≥100 numeri**, e l'invariante è «la cima con 60 righe contro il massimo su tutte». *Un test che non
+   può fallire è peggio di nessun test* — è lo zero uniforme, visto dal lato di chi verifica.
+
+Più due richieste minori: la vista **Calciatori** apre sulle valutazioni ordinate per Overall, e c'è la
+colonna **Pv** (le partite a voto della stagione scorsa).
+
+### (4) Due sue domande, due difetti aperti con la misura accanto
+* **«Come è possibile che Audero abbia una MVa di 6,61?»** Il malus della stima è **derivato**
+  (`estimate.mv_from`: `FM − tasso di bonus`) e attraversa un cambio di club, quindi su un portiere
+  arrivato restituisce la fantamedia dell'altra squadra. La misura e la cura proposta stanno in §11.3
+  delle letture; non è stata applicata, perché sposta una colonna che l'app ordina.
+* **«Perché non risulta Vicario alla Juventus?»** Il listone in cache del **07/08** ha 499 righe e non
+  contiene affatto quel nome, mentre le altre due fonti lo danno al Tottenham. Il difetto non è il dato:
+  è che **il foglio non dice quanto è vecchio il listone che ha letto**. Voce aperta nella todolist.
+
+### Cosa resta aperto
+1. **Il deploy è indietro di due sessioni** — il sito è al 16/08 e ora il bundle è nuovo
+   (`npm run deploy:pages`, dalla sua macchina, l'unica che ha i dati).
+2. Le **due voci nate oggi** (il malus derivato attraverso un cambio di club; il foglio che dichiari la
+   data di lettura del listone e il numero di righe).
+3. Il **marchio ⚖** dichiara un disaccordo fra board e motore che **nessuno ha ancora misurato**:
+   `press --against outcome` è il giudice che direbbe chi dei due ha ragione.
+4. Dalla sessione precedente e non toccate: le coppe da Sofascore (in attesa che il provider riapra),
+   `tm_appearances` che nessuno legge, i 16 gruppi di ballottaggio ambigui, `R` e `Nome` da appuntare
+   quando la tabella scorre di lato.

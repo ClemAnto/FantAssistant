@@ -1,64 +1,51 @@
-import { DecimalPipe } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { NzEmptyModule } from 'ng-zorro-antd/empty';
 import { NzSelectModule } from 'ng-zorro-antd/select';
-import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 
 import { AuctionAdvice } from '../../../core/auction-advice';
 import { AuctionFeed } from '../../../core/auction-feed';
-import { BoardMan } from '../../../core/bundle';
-import { OnTable, PitchLine, PitchMan, pitchOf } from '../../../core/club-eleven';
+import { OnTable } from '../../../core/club-eleven';
+import { ValuationStore } from '../../../core/valuation-store';
+import { ClubBoard } from '../../../ui/club-board/club-board';
 import { ClubCrest } from '../../../ui/club-crest/club-crest';
-import { PlayerFlags } from '../../../ui/player-flags/player-flags';
-import { RoleBadge } from '../../../ui/role-badge/role-badge';
-
-/** What each drawn line is called, in the language of the pitch. */
-const LINE_LABEL: Record<PitchLine, string> = {
-  A: 'attacco',
-  T: 'trequarti',
-  M: 'centrocampo',
-  D: 'difesa',
-  P: 'porta',
-};
 
 /**
- * A real club's board on a pitch, with the men already taken faded out.
+ * IL CAMPETTO DI UN CLUB VERO AL TAVOLO: il selettore della squadra, e il disegno che è di tutti.
  *
- * The board is the TOOLKIT's - the panel's own class, driven headless, with the operator's shape rulings
- * applied (`modules/boards.py`) - so this component computes no eleven of its own. What it adds is the only
- * thing the toolkit cannot know: which of those men are already off THIS table.
+ * Dal 18/08/2026 questo componente non disegna più niente da sé: «il campetto di una squadra reale deve
+ * essere sempre uguale sia nella schermata dell'asta che in quello delle squadre» (operatore), e prima
+ * erano due template che si assomigliavano. Il disegno sta in `ui-club-board`; qui resta quello che solo
+ * un'asta sa - QUALE club guardare, chi è già stato preso e quanto chiede il tavolo.
  *
- * The drawing is the module's numbers, as the operator stated the rule: each number is how many men stand on
- * that line, the keeper is never one of them and always stands alone in front of the defence, and with four
- * numbers the third is the trequarti and the last is always the attack. It is drawn with the KEEPER AT THE TOP
- * and the forwards at the bottom - his own direction - and the men ordered across by the panel's own `x`.
+ * L'undici lo disegna sempre il TOOLKIT (`modules/boards.py`, il pannello guidato senza finestra con le
+ * decisioni per club dell'operatore applicate): nessuna delle due schermate ne calcola uno.
  */
 @Component({
   selector: 'app-club-pitch',
   templateUrl: './club-pitch.html',
-  imports: [
-    ClubCrest,
-    DecimalPipe,
-    FormsModule,
-    NzEmptyModule,
-    NzSelectModule,
-    NzTooltipModule,
-    PlayerFlags,
-    RoleBadge,
-  ],
+  imports: [ClubBoard, ClubCrest, FormsModule, NzSelectModule],
   host: { class: 'block' },
 })
 export class ClubPitch {
   protected readonly advice = inject(AuctionAdvice);
   protected readonly feed = inject(AuctionFeed);
-
-  protected readonly label = LINE_LABEL;
+  /**
+   * La valutazione della tabella Giocatori, per l'OVERALL accanto ai nomi.
+   *
+   * Letta da lì e non ricalcolata: è la richiesta dell'operatore del 18/08/2026 («mostra il suo overall»)
+   * e la regola di casa - un uomo che legge 85 fra i Calciatori deve leggere 85 sul campetto, o la stessa
+   * app porterebbe due giudizi sulla stessa persona. `load()` è idempotente.
+   */
+  private readonly valuation = inject(ValuationStore);
 
   /** What the operator picked. Null = follow the recommended pick's club, which is where he is looking. */
   private readonly chosen = signal<string | null>(null);
 
   protected readonly clubs = computed(() => this.advice.realClubs());
+
+  constructor() {
+    void this.valuation.load();
+  }
 
   /**
    * The club on the pitch: his choice, or the club of the man the panel is recommending.
@@ -78,9 +65,20 @@ export class ClubPitch {
     this.chosen.set(club);
   }
 
-  /** The live listone by id: what the board cannot know - who is gone, and what he costs here. */
-  private readonly live = computed(() => {
+  protected readonly board = computed(() => this.advice.boardOf(this.club()));
+
+  /** True when the sheet in use carries no boards at all: then there is nothing honest to draw. */
+  protected readonly noBoards = computed(() => this.advice.boards() === null);
+
+  /**
+   * QUELLO CHE SOLO IL TAVOLO SA: chi è già stato preso, cosa chiede, chi non è in questo listone.
+   *
+   * Un uomo che la board disegna e la sessione non porta NON è «libero»: non si può comprare affatto, e
+   * dire «preso» sarebbe un'altra affermazione. Il campetto lo disegna tratteggiato.
+   */
+  protected readonly table = computed<ReadonlyMap<number, OnTable>>(() => {
     const worth = this.advice.value99By();
+    const share = this.advice.expectedShareBy();
     const rows = new Map<number, OnTable>();
     for (const row of this.advice.listone()) {
       rows.set(row.player.id, {
@@ -88,24 +86,32 @@ export class ClubPitch {
         price: row.player.fvm,
         onTable: true,
         value99: worth.get(row.player.id) ?? null,
+        expectedShare: share.get(row.player.id) ?? null,
       });
     }
     return rows;
   });
 
-  protected readonly pitch = computed(() => {
-    const board = this.advice.boardOf(this.club());
-    const live = this.live();
-    const resolve = (man: BoardMan): OnTable =>
-      (man.fc_id != null ? live.get(man.fc_id) : undefined)
-      // A man the board draws and this session's listone does not carry is NOT «free»: he cannot be bought
-      // at all, and saying «taken» would be a different claim. `onTable` false is what the row reads.
-      ?? { taken: false, price: null, onTable: false, value99: null };
-    return pitchOf(board, resolve);
-  });
+  /** La quota di calendario del motore, per il marchio del disaccordo fra board e motore. */
+  protected readonly shares = computed(() => this.advice.expectedShareBy());
 
-  /** True when the sheet in use carries no boards at all: then there is nothing honest to draw. */
-  protected readonly noBoards = computed(() => this.advice.boards() === null);
+  /**
+   * L'OVERALL 0-99 degli uomini di QUESTO club, dal listone del bundle.
+   *
+   * Si valutano soltanto i suoi - il rango però è sul listone intero, che è come `valuations` è fatta -
+   * così la carta non paga il conto di mille uomini per disegnarne undici.
+   */
+  protected readonly overall = computed<ReadonlyMap<number, number | null>>(() => {
+    const club = this.club();
+    const platform = this.advice.entry()?.platform ?? null;
+    const out = new Map<number, number | null>();
+    if (!club || !platform) return out;
+    const rows = (this.valuation.rosters().get(platform) ?? []).filter((one) => one.club === club);
+    for (const man of this.valuation.valuations(platform, rows)) {
+      out.set(man.fcId, man.rating?.overall.score ?? null);
+    }
+    return out;
+  });
 
   /** How many men of this club are in the session listone, and how many are gone. */
   protected readonly counted = computed(() => {
@@ -113,38 +119,4 @@ export class ClubPitch {
     const rows = this.advice.listone().filter((row) => row.player.club === club);
     return { total: rows.length, taken: rows.filter((row) => row.taken).length };
   });
-
-  /** A man's tooltip: what he is, how much he plays, and what he costs here. */
-  protected hint(man: PitchMan): string {
-    const bits = [man.name];
-    if (man.taken) bits.push('già preso');
-    if (!man.onTable) bits.push('non è nel listone di questa sessione');
-    if (man.badge) bits.push(`nel modulo ${man.badge}`);
-    if (man.mantra.length) bits.push(`listone ${man.mantra.join('/')}`);
-    if (man.codes.length) bits.push(`ruolo reale ${man.codes.join(', ')}`);
-    if (man.perMatch != null) bits.push(`${man.perMatch}′ medi a partita`);
-    if (man.minutes != null) {
-      bits.push(man.matches ? `${man.minutes}′ in ${man.matches} partite giocate` : `${man.minutes}′`);
-    }
-    // The other denominator, named: this one divides by the CLUB's matches over the last ten, so it folds
-    // absences in and is a smaller number for the same man. Two averages with one label would be a trap.
-    if (man.minutesPerClubMatch != null) {
-      bits.push(`${man.minutesPerClubMatch}′ per partita del club nelle ultime dieci`);
-    }
-    if (man.claim != null) bits.push(`titolarità ${man.claim}`);
-    if (man.value99 != null) bits.push(`valore ${man.value99}/99 su questo listone`);
-    if (man.price != null) bits.push(`FVM ${man.price}`);
-    return bits.join(' · ');
-  }
-
-  /** The ballottaggi of a man, as one line: «insidiato da X, Y». */
-  protected duelHint(man: PitchMan): string | null {
-    if (!man.duelsKnown) {
-      return 'ballottaggio ignoto: di lui non conosciamo il ruolo reale granulare, quindi non «nessun rivale»';
-    }
-    if (!man.duels.length) return null;
-    return `insidiato da ${man.duels.map((rival) => `${rival.name}`
-      + (rival.claim != null ? ` (${rival.claim})` : '')
-      + (rival.taken ? ' — già preso' : '')).join(', ')}`;
-  }
 }

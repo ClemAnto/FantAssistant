@@ -31,7 +31,15 @@ const SNAPSHOT_KEY = 'fantassistant.auction.snapshot';
 /** At most one write per this many ms: a draft writes the whole state on every pick. */
 const SNAPSHOT_THROTTLE_MS = 1500;
 
-export type FeedStatus = 'idle' | 'connecting' | 'connected' | 'error';
+/**
+ * What stands where a session code would be while the table is INVENTED.
+ *
+ * It is not a code and it cannot be one: `CODE_PATTERN` would refuse it, so nothing that talks to the
+ * network can ever be handed this by accident.
+ */
+export const DEMO_CODE = 'DEMO';
+
+export type FeedStatus = 'idle' | 'connecting' | 'connected' | 'demo' | 'error';
 
 /** fanta-asta-live's own market modes. */
 export enum MarketType {
@@ -452,13 +460,24 @@ export class AuctionFeed {
   readonly connected = computed(() => this.status() === 'connected');
 
   /**
+   * True while the table on screen is INVENTED (`startDemo`).
+   *
+   * It is a state of the FEED and not a flag of the view, because three different things have to obey
+   * it - the panel must say so, nothing may be saved, and `connected()` must stay false - and three
+   * copies of «are we pretending?» would eventually disagree.
+   */
+  readonly demo = computed(() => this.status() === 'demo');
+
+  /**
    * Whether there is a table to SHOW - which is not the same as being connected.
    *
    * After a refresh the saved mirror is on screen while the stream is still opening, and gating the
    * panel on the socket meant the operator looked at the code card with the whole table already in
    * memory. What the panel needs is a state; what the header needs is to say whether it is live.
    */
-  readonly hasTable = computed(() => this.connected() || (this.stale() && !!this.state().teams));
+  readonly hasTable = computed(
+    () => this.connected() || this.demo() || (this.stale() && !!this.state().teams),
+  );
 
   readonly league = computed(() => leagueSettings(this.state()));
   readonly listType = computed<ListType | null>(() => listTypeOf(this.state()));
@@ -679,6 +698,32 @@ export class AuctionFeed {
     return true;
   }
 
+  /**
+   * Shows an INVENTED table, so the panel can be looked at without a real auction behind it.
+   *
+   * Everything a session brings from the network is fabricated by the caller - the squads, the pick
+   * order, the picks already made - while the PLAYERS are the bundle's own. That asymmetry is the whole
+   * point and not a shortcut: a demo built on invented names would join no sheet at all (the join is on
+   * `fc_id`), so every engine column would read «—» and the operator would be shown the layout of a
+   * panel with none of the numbers it exists for.
+   *
+   * It touches no network and no storage. Not saving it is a requirement rather than a simplification:
+   * a demo that survived a refresh would be indistinguishable from a followed session at the next look,
+   * and writing it would overwrite the real table this browser may be holding for a live auction.
+   */
+  startDemo(session: { players: AuctionPlayer[]; state: RawState; mineId: number }): void {
+    this.disconnect();
+    this.mirror = session.state;
+    this.state.set({ ...session.state });
+    this.players.set(new Map(session.players.map((player) => [player.id, player])));
+    this.code.set(DEMO_CODE);
+    this.followedTeamId.set(session.mineId);
+    this.savedAt.set(null);
+    this.stale.set(false);
+    this.failure.set(null);
+    this.status.set('demo');
+  }
+
   follow(teamId: number) {
     this.followedTeamId.set(teamId);
     this.remember();
@@ -718,7 +763,8 @@ export class AuctionFeed {
 
   private remember() {
     const code = this.code();
-    if (!code) return;
+    // An invented table is never remembered: see `startDemo`.
+    if (!code || this.demo()) return;
     try {
       localStorage.setItem(
         STORAGE_KEY,
@@ -746,7 +792,7 @@ export class AuctionFeed {
    */
   private rememberState(): void {
     const code = this.code();
-    if (!code) return;
+    if (!code || this.demo()) return;
     const now = performance.now();
     if (now - this.lastSaved < SNAPSHOT_THROTTLE_MS) {
       if (!this.trailing) {

@@ -14,6 +14,7 @@ import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 
 import { APP_VERSION } from '../../version';
 import { AuctionAdvice, RankedPlayer } from '../../core/auction-advice';
+import { AuctionDemo } from '../../core/auction-demo';
 import { Plan, PlanPlayer, PlannedPick } from '../../core/auction-plan';
 import { per } from '../../core/auction-value';
 import { AuctionFeed, DraftStatus, KeeperMode, Zone } from '../../core/auction-feed';
@@ -48,7 +49,8 @@ const AVAILABLE_PER_ZONE = 30;
 
 /** The columns a header can sort by, and how each one reads a row. */
 const SORTS = {
-  worth: (row: RankedPlayer) => row.value99,
+  // IL LEAD, che è la colonna con cui la lista apre (operatore, 18/08/2026: era «Valore», su 0-99).
+  lead: (row: RankedPlayer) => row.lead,
   surplus: (row: RankedPlayer) => row.surplusPer10,
   price: (row: RankedPlayer) => row.price,
   fmPrev: (row: RankedPlayer) => row.fmPrev,
@@ -89,6 +91,7 @@ export type SortKey = keyof typeof SORTS;
 export class Auction {
   protected readonly feed = inject(AuctionFeed);
   protected readonly advice = inject(AuctionAdvice);
+  protected readonly demo = inject(AuctionDemo);
   protected readonly appVersion = APP_VERSION;
   protected readonly zoneLabel = ZONE_LABEL;
 
@@ -287,7 +290,7 @@ export class Auction {
    * the one the panel recommends - a displayed list whose order describes a different list, which is a
    * defect this project has already paid for once.
    */
-  protected readonly sortKey = signal<SortKey>('worth');
+  protected readonly sortKey = signal<SortKey>('lead');
   protected readonly sortAsc = signal(false);
 
   /**
@@ -343,8 +346,9 @@ export class Auction {
   protected explain(row: RankedPlayer): string {
     const parts: string[] = [];
     const rounds = this.advice.rounds();
-    if (row.value99 != null) {
-      parts.push(`valore ${row.value99}/99 (99 = il migliore del listone)`);
+    if (row.lead != null) {
+      parts.push(`lead ${row.lead.toFixed(1)} fantapunti sopra il rimpiazzo`
+        + (row.leadZero != null ? ` (rimpiazzo ${row.leadZero.toFixed(2)} di fantamedia)` : ''));
     }
     if (row.surplus != null) {
       parts.push(
@@ -387,9 +391,31 @@ export class Auction {
     await this.feed.connect(this.code());
   }
 
+  /** The invented table: what the panel does, without an auction to follow. */
+  protected async startDemo(): Promise<void> {
+    await this.demo.start();
+  }
+
+  /**
+   * One line naming the listone the demo is played on: a fixture must say what it is made of.
+   *
+   * The count is the LIVE one and not the sheet's `rows`: the demo board carries only the men the target
+   * listone actually quotes, so the two numbers differ (898 of 1009 on the euro sheet) and printing the
+   * bigger one would describe a list nobody is playing with.
+   */
+  protected readonly demoSource = computed(() => {
+    const sheet = this.demo.sheet();
+    if (!sheet) return '';
+    return `${sheet.league} · ${sheet.game} · ${sheet.platform} · `
+      + `${this.feed.listoneIds().length} giocatori quotati`;
+  });
+
   protected exit(): void {
+    // Leaving a DEMO must not forget the real session this browser may be holding: the demo was never
+    // saved, so there is nothing of its own to remove and `forget()` here would delete somebody else's.
+    const wasDemo = this.feed.demo();
     this.feed.disconnect();
-    this.feed.forget();
+    if (!wasDemo) this.feed.forget();
     this.code.set('');
   }
 }

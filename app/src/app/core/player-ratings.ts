@@ -1126,7 +1126,23 @@ export function ratingsFor(input: {
     };
     for (const [key, one] of [
       ['votes', sheetReading(forecast?.mv, `${(forecast?.mv ?? 0).toFixed(2)} di media voto attesa`)],
-      ['bonus', sheetReading(forecast?.fm, `${(forecast?.fm ?? 0).toFixed(2)} di fantamedia attesa`)],
+      /*
+       * BONUS = I BONUS, e non la fantamedia (operatore, 18/08/2026, con la sua definizione dell'Overall:
+       * «partite a voto previste x (Media Voto attesa + Bonus attesi)»).
+       *
+       * Portava `est_fm`, cioe' il voto DENTRO, quindi «MVa + Bonus» contava il voto due volte e la frase
+       * sotto la tabella doveva avvertire di non sommarle - e un avvertimento e' la confessione che due
+       * colonne non si possono leggere insieme. Adesso la colonna e' `est_fm - est_mv`: il tasso di bonus a
+       * presenza che il foglio si aspetta da lui, cioe' l'altro addendo della sua formula. Per un portiere
+       * resta NEGATIVO per costruzione (i gol che subisce), ed e' la stessa aritmetica che il foglio scrive
+       * nella propria nota (`est_note`: «-0.82 di bonus a presenza»).
+       */
+      ['bonus', sheetReading(
+        forecast?.fm != null && forecast?.mv != null ? forecast.fm - forecast.mv : null,
+        `${((forecast?.fm ?? 0) - (forecast?.mv ?? 0)).toFixed(2)} di bonus a presenza`
+          + ` (fantamedia attesa ${(forecast?.fm ?? 0).toFixed(2)} meno media voto`
+          + ` ${(forecast?.mv ?? 0).toFixed(2)})`,
+      )],
       ['presence', sheetReading(
         forecast?.share,
         `${Math.round((forecast?.share ?? 0) * 100)}% del calendario a voto`,
@@ -1460,11 +1476,13 @@ export const RATING_LABEL: Record<RatingKey, string> = {
 
 export const RATING_HINT: Record<RatingKey, string> = {
   overall:
-    'FANTAPUNTI in tutto: giornate a voto attese x quanto vale una sua partita. Un totale, non un margine.',
+    'FANTAPUNTI in tutto: giornate a voto attese × quanto vale una sua partita. Un totale, non un margine, '
+    + 'e non il «Valore» dell\'asta.',
   votes:
     'MVa: la media voto che il MOTORE gli prevede. Posto su tutto il listone, portieri compresi.',
   bonus:
-    'FMa: la fantamedia attesa dal motore, voto compreso. Posto su tutto il listone.',
+    'I BONUS attesi a presenza: fantamedia attesa meno media voto. Per un portiere è negativa: i gol che '
+    + 'subisce. Posto su tutto il listone.',
   presence:
     'P: la quota di calendario a voto che il motore gli prevede. Numero nudo, senza sconti.',
 };
@@ -1479,21 +1497,34 @@ export const RATING_DETAIL: Record<RatingKey, string> = {
   overall:
     'È il TOTALE che porta: le giornate a voto che il motore gli prevede per la stagione che viene, per '
     + 'quello che vale una sua partita nel punteggio della TUA lega (fantamedia attesa, con la porta '
-    + 'inviolata dei portieri dentro). La formula e quella che ha dettato lui il 17/08/2026: '
-    + '«presenze × (voti+bonus)» — e non sottrae nessun rimpiazzo: risponde a «quanti fantapunti mi '
-    + 'porta», non a «quanti in più del suo sostituto», che è la domanda del Surplus e del Lead. Per chi '
-    + 'il foglio non valuta affatto parla la CARRIERA e la nota della cella lo dichiara. Il numero grezzo '
-    + 'è nel tooltip; la colonna mostra il posto 0-99 su tutto il listone.',
+    + 'inviolata dei portieri dentro). La formula è la sua, nella forma del 18/08/2026: '
+    + '«partite a voto previste × (Media Voto attesa + Bonus attesi)», e le due colonne accanto sono '
+    + 'esattamente quei due addendi: Voti è la MVa, Bonus è il tasso di bonus a presenza, e la loro '
+    + 'somma è la fantamedia attesa. Fino al 17/08/2026 Bonus portava la fantamedia intera e la somma '
+    + 'contava il voto due volte; dal 18/08/2026 si sommano davvero. '
+    + 'E non sottrae nessun rimpiazzo: risponde a «quanti fantapunti mi porta», non a «quanti in più del '
+    + 'suo sostituto», che è la domanda del Surplus. Per chi il foglio non valuta affatto parla la '
+    + 'CARRIERA e la nota della cella lo dichiara. Il numero grezzo è nel tooltip; la colonna mostra il '
+    + 'posto 0-99 su tutto il listone. '
+    + 'DUE DIFFERENZE COL «VALORE» DEL PANNELLO ASTA, dichiarate invece che scoperte al tavolo (17/08/2026): '
+    + 'quella colonna moltiplica per la CONFIDENZA della stima e questa no — sul listone di Serie A metà '
+    + 'delle righe sono stimate con confidenza mediana 0,50, quindi Doekhi è 167° qui e 390° là — e questa '
+    + 'aggiunge ai portieri la porta inviolata che la tua lega paga, mentre là il conto resta nel punteggio '
+    + 'della fonte, che non la applica. Sono due domande («quanto vale» contro «quanto conviene comprarlo '
+    + 'a questo tavolo») e nessuna delle due è sbagliata: quello che sarebbe sbagliato è non saperlo.',
   votes:
     'La MVa del foglio: la media voto che il motore gli prevede, non quella che ha fatto. Classificata su '
     + 'TUTTI i quotati (sua richiesta del 17/08/2026), e la conseguenza va detta: un portiere prende voti '
     + 'base più alti per mestiere, quindi in questa colonna i portieri stanno in cima per il ruolo prima '
     + 'che per il merito — mediane misurate per P/D/C/A: 87 / 36 / 45 / 55. Il ruolo è scritto sulla riga.',
   bonus:
-    'La FMa del foglio: la fantamedia attesa, che CONTIENE il voto. Quindi non è il tasso di bonus (quello '
-    + 'sarebbe FMa − MVa) ma quanto vale una sua partita in totale, ed è per questo che la colonna somiglia '
-    + 'a Voti. Classificata su tutti i quotati: i punti evento di un portiere sono negativi per costruzione '
-    + '(i gol che subisce), quindi lì i portieri stanno in fondo — mediane 6 / 35 / 63 / 89.',
+    'I BONUS ATTESI A PRESENZA, e da soli: la fantamedia attesa meno la media voto attesa, cioè quanto il '
+    + 'foglio si aspetta che aggiunga al suo voto ogni volta che gioca - o che gli levi, e per un portiere '
+    + 'è negativa per costruzione, perché i gol che subisce sono la parte grossa di quel conto. Fino al '
+    + '17/08/2026 questa colonna portava la FANTAMEDIA, voto compreso, e allora «Voti + Bonus» contava il '
+    + 'voto due volte: cambiata sulla sua definizione del 18/08/2026, così la somma delle due colonne È il '
+    + 'fattore dell Overall e non serve più avvertire di non sommarle. Classificata su tutti i quotati '
+    + '(sua richiesta del 17/08/2026), quindi qui i portieri stanno in fondo.',
   presence:
     'La P del foglio: la quota di calendario a voto che il motore gli prevede (`engine_pv_pred`, o la '
     + 'stima dichiarata, e allora la stellina è sfumata). Dal 17/08/2026 è il numero NUDO: non è più '

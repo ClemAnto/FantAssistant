@@ -71,8 +71,17 @@ export class Players {
   protected readonly markFlags = CONSULTABLE_FLAGS;
   protected readonly markLabel = FLAG_LABEL;
 
-  /** Which of the two tables is on screen. The match one is what this page has always been. */
-  protected readonly mode = signal<PlayersMode>('matches');
+  /**
+   * Which of the two tables is on screen, and it OPENS ON THE VALUATIONS (operatore, 18/08/2026).
+   *
+   * It used to open on the matches - what the page had always been - and the cost of the valuations was
+   * the reason (they read the sheet, the boards and the granular roles, and rank the whole listone). The
+   * decision reverses the default because this app is an auction assistant: «quanto vale» is the question
+   * one comes here with, and «ultime partite» is the one you ask about a man you have already found.
+   * The load is started in the constructor for the same reason - a default view that fetches only after a
+   * click would show an empty table on the page that opens.
+   */
+  protected readonly mode = signal<PlayersMode>('ratings');
 
   /**
    * The men the filters keep, valued.
@@ -119,6 +128,9 @@ export class Players {
 
   constructor() {
     void this.store.load();
+    // La vista che apre e' quella delle valutazioni, quindi il suo strato si carica subito: `load()` e'
+    // idempotente, quindi tornare avanti e indietro costa una fetch per sessione.
+    void this.valuation.load();
 
     /*
      * Every filter of this page in the address, so a refresh - or a link - finds the same table.
@@ -165,8 +177,10 @@ export class Players {
         },
         {
           param: 'vista',
-          read: () => (this.mode() === 'matches' ? null : this.mode()),
-          apply: (raw) => this.show(raw === 'ratings' ? 'ratings' : 'matches'),
+          // L'indirizzo porta soltanto quello che NON e' il default, e il default e' cambiato: adesso
+          // «?vista=matches» e' la deviazione. Un link vecchio con «?vista=ratings» resta valido.
+          read: () => (this.mode() === 'ratings' ? null : this.mode()),
+          apply: (raw) => this.show(raw === 'matches' ? 'matches' : 'ratings'),
         },
         {
           param: 'cerca',

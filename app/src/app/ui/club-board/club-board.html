@@ -1,0 +1,195 @@
+<!-- UI text is ITALIAN in app/ (see app/CLAUDE.md); code and comments stay English. -->
+@if (pitch(); as drawn) {
+  <div class="flex flex-wrap items-center gap-2 text-sm">
+    <!-- I MODULI FRA CUI PASSARE, e ci sono soltanto quando ce n'è più d'uno sopra il 30% (la soglia sta
+         nel toolkit, `boards.ALTERNATIVE_MIN_ODDS`): un tastino solo direbbe «potevi scegliere» a chi non
+         può, e su quattro club su cinque il modello ha una risposta sola. Il disegnato è marcato. -->
+    @if (shapes().length > 1) {
+      <span class="flex flex-wrap items-center gap-1">
+        @for (one of shapes(); track one.shape) {
+          <button
+            type="button"
+            class="rounded-full border px-2 py-0.5 text-xs font-semibold tabular-nums transition-colors"
+            [class.border-primary]="shows(one.shape)"
+            [class.bg-primary]="shows(one.shape)"
+            [class.text-on-primary]="shows(one.shape)"
+            [class.border-border]="!shows(one.shape)"
+            [class.text-muted]="!shows(one.shape)"
+            nz-tooltip
+            [nzTooltipTitle]="
+              one.picture !== one.shape
+                ? 'Risolto su ' + one.shape + ', disegnato ' + one.picture
+                : 'Modulo ' + one.shape
+            "
+            (click)="choose(one.shape)"
+          >
+            {{ one.picture }}@if (one.p != null) {<span class="ml-1 font-normal opacity-80"
+              >{{ one.p * 100 | number: '1.0-0' }}%</span
+            >}
+          </button>
+        }
+      </span>
+    } @else {
+      <span class="rounded-full border border-border px-2 py-0.5 font-semibold tabular-nums">
+        {{ drawn.module }}
+      </span>
+    }
+    @if (drawn.coach) {
+      <span class="text-muted">{{ drawn.coach }}@if (drawn.newCoach) {<span> · nuovo</span>}</span>
+    }
+    @if (taken()) {
+      <span class="text-muted">{{ taken() }} degli undici già presi</span>
+    }
+  </div>
+
+  <!-- Il campo: una ZONA per linea del modulo, il PORTIERE in alto e l'attacco in basso - la direzione
+       dell'operatore, la squadra che attacca verso il basso. Gli uomini sono ordinati per la x del
+       pannello, non messi A quella x: quattro carte alle loro coordinate vere si sovrappongono su un
+       telefono, e questa si legge a un tavolo. -->
+  <div
+    class="mt-3 flex w-full flex-col gap-1 rounded-lg p-2 outline outline-1 -outline-offset-4
+           outline-fg/25 sm:gap-2 sm:p-3"
+    style="background-image: linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--color-role-defence) 30%, var(--color-surface)),
+      color-mix(in oklab, var(--color-role-defence) 12%, var(--color-surface))
+    )"
+  >
+    @for (row of drawn.rows; track row.line) {
+      <div class="flex items-stretch gap-1 sm:gap-2" [attr.aria-label]="label[row.line]">
+        @for (man of row.men; track $index) {
+          <!-- UN ITEM È UN POSTO, non un uomo: sopra il ruolo reale che quel posto chiede, sotto i
+               calciatori che se lo giocano - il titolare per primo, poi i ballottaggi. -->
+          <span
+            class="flex min-w-0 flex-1 flex-col gap-0.5 rounded-md border border-border bg-surface/90
+                   px-1 py-1"
+          >
+            @if (place(man); as marker) {
+              <span class="flex justify-center"><ui-role [role]="marker" size="sm" /></span>
+            }
+            @for (one of candidates(man); track $index; let first = $first) {
+              <!-- Il titolare in evidenza, i rivali sotto e più tenui: la gerarchia è la notizia, e un
+                   uomo già preso è sbiadito perché è dell'undici e non più dell'asta. -->
+              <span
+                class="flex w-full min-w-0 flex-col leading-tight"
+                [class.opacity-30]="one.taken"
+                [class.opacity-70]="!one.taken && !first"
+                nz-tooltip
+                [nzTooltipTitle]="hint(one)"
+              >
+                <!-- IL NOME SI PRENDE LA PRIMA RIGA, e i ruoli scendono sotto: con i badge davanti, in una
+                     colonna stretta il nome veniva troncato a ZERO e restavano i soli quadratini -
+                     misurato a schermo il 18/08/2026, sul campetto della vista Squadre. -->
+                <span class="flex w-full min-w-0 items-center gap-1">
+                  <span
+                    class="min-w-0 flex-1 truncate text-[11px]"
+                    [class.font-semibold]="first"
+                    [class.border-dashed]="!one.onTable"
+                    >{{ one.name }}</span
+                  >
+                  <!-- Le icone viaggiano col NOME dovunque sia disegnato (operatore, 11/08/2026). -->
+                  <ui-flags class="text-[10px]" [playerId]="one.fcId" />
+                  @if (disputed(one); as said) {
+                    <!-- I due modelli non sono d'accordo su di lui: la board risponde a «chi parte
+                         titolare», il motore a «in quante giornate prende voto». Nessuno dei due si
+                         corregge, ma la carta lo dice invece di tacerlo. -->
+                    <span
+                      class="shrink-0 text-[10px] leading-none text-warning"
+                      nz-tooltip
+                      [nzTooltipTitle]="said"
+                      >⚖</span
+                    >
+                  }
+                  <!-- L'OVERALL, lo stesso 0-99 della tabella Giocatori: un uomo non porta due giudizi in
+                       due schermate. `—` dove il foglio non lo valuta: ignoto, mai zero. -->
+                  <span
+                    class="flex h-4 min-w-4 shrink-0 items-center justify-center rounded-sm bg-primary
+                           px-0.5 text-[9px] font-semibold leading-none text-on-primary tabular-nums"
+                    [class.opacity-60]="one.overall == null"
+                    >{{ one.overall ?? '—' }}</span
+                  >
+                </span>
+                <!-- I MINUTI ATTESI per una partita del club: la quota di calendario del motore per i
+                     minuti che fa quando gioca. Assenze comprese, ed è dichiarato nel tooltip. -->
+                <span class="flex w-full min-w-0 items-center gap-1 pl-0.5 text-[9px] tabular-nums text-muted">
+                  @for (role of rolesOf(one); track role) {
+                    <ui-role [role]="role" size="sm" />
+                  }
+                  @if (one.expectedMinutes != null) {
+                    {{ one.expectedMinutes }}′ attesi
+                  } @else if (one.perMatch != null) {
+                    {{ one.perMatch }}′ quando gioca
+                  } @else {
+                    minuti ignoti
+                  }
+                  @if (one.price != null) {
+                    · {{ one.price }}
+                  }
+                </span>
+              </span>
+            }
+            @if (!man.duelsKnown) {
+              <span
+                class="w-full truncate text-[9px] leading-tight text-muted/80"
+                nz-tooltip
+                nzTooltipTitle="Di lui non conosciamo il ruolo reale granulare, quindi il ballottaggio è IGNOTO - che non vuol dire «senza rivali»."
+                >⇄ ballottaggio ignoto</span
+              >
+            }
+          </span>
+        }
+      </div>
+    }
+  </div>
+
+  <p class="mt-2 text-xs text-muted">
+    Modulo <strong>{{ drawn.module }}</strong>
+    @if (drawn.solvedOn) {
+      <span> (risolto su {{ drawn.solvedOn }}: una trasformazione ha spezzato una linea)</span>
+    }
+    @if (drawn.typical && drawn.typical !== drawn.module) {
+      <span> · di solito gioca {{ drawn.typical }}</span>
+    }
+    @if (drawn.why) {
+      <span> · {{ drawn.why }}</span>
+    }
+  </p>
+
+  @if (hidden(); as said) {
+    <p class="mt-1 text-xs text-muted">{{ said }}</p>
+  }
+
+  @for (problem of drawn.problems; track problem) {
+    <p class="mt-1 text-xs text-warning">⚠ {{ problem }}</p>
+  }
+
+  <!-- L'interruttore dei ruoli, in fondo al campetto: è come si LEGGE la carta, non cosa si guarda,
+       quindi vale in tutt'e due le schermate e sopravvive a un refresh. -->
+  <div class="mt-2 flex items-center justify-end gap-2 text-xs text-muted">
+    <span>Ruoli</span>
+    <span class="flex overflow-hidden rounded-md border border-border">
+      @for (kind of ['mantra', 'classic']; track kind) {
+        <button
+          type="button"
+          class="px-2 py-0.5 text-xs transition-colors"
+          [class.bg-primary]="roleKind() === kind"
+          [class.text-on-primary]="roleKind() === kind"
+          (click)="roleKind.set(kind === 'classic' ? 'classic' : 'mantra')"
+        >
+          {{ kind === 'mantra' ? 'Mantra' : 'Classic' }}
+        </button>
+      }
+    </span>
+  </div>
+} @else if (noBoards()) {
+  <nz-empty
+    nzNotFoundContent="Nessun foglio di questa piattaforma porta le board: o è stato costruito prima che
+      esistessero, o la macchina che l'ha costruito non aveva un display. Rilancia «snapshot --league NOME»
+      e poi «export»."
+  />
+} @else {
+  <nz-empty
+    nzNotFoundContent="Per questa squadra il foglio non porta una board: il pannello non è riuscito a
+      disegnarla, oppure il nome del club non combacia con quello del foglio."
+  />
+}

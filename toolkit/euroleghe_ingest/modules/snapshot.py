@@ -48,7 +48,7 @@ from euroleghe_ingest import config, matching
 from euroleghe_ingest.context import Context
 from euroleghe_ingest.engine import cups as engine_cups
 from euroleghe_ingest.engine import estimate as est
-from euroleghe_ingest.engine import evaluate, features
+from euroleghe_ingest.engine import evaluate, features, model
 from euroleghe_ingest.modules import fixtures, positions
 from euroleghe_ingest.sources import MANTRA_BY_CLASSIC
 
@@ -4495,13 +4495,20 @@ def auction_level(obs, data: features.WindowData, levels: Mapping[str, float] | 
 
 
 def _surplus(prediction, data: features.WindowData) -> float | None:
-    """(FM - the slot's replacement level) x appearances. Falls back to VALUE without a level."""
-    if not prediction or prediction.fm_pred is None or prediction.pv_pred is None:
+    """(FM - the slot's replacement level) x appearances. Falls back to VALUE without a level.
+
+    THE SHEET'S SURPLUS IS THE UNWEIGHTED EXPECTATION, and that is a decision rather than an omission
+    (operator, 17/08/2026). The league declares a `reliability_exponent` and the Auction TAB applies it
+    to its own ranking - «quello che incassi non sono le sue presenze, sono quelle che potevi vedere
+    arrivare» - but the weight belongs to whoever ranks and not to the column, which is the position
+    `estimate.surplus` had already written down. Both go through `model.surplus_of` now, with the
+    exponent as an explicit argument, so the two can no longer drift under one name: they used to, and
+    it cost 2-3 names of every top 25 (rho 0.989-0.998 over the three sheets).
+    """
+    if not prediction:
         return None
     _slot, level = auction_level(prediction.obs, data)
-    if level is None:
-        return prediction.fm_pred * prediction.pv_pred
-    return (prediction.fm_pred - level) * prediction.pv_pred
+    return model.surplus_of(prediction.fm_pred, prediction.pv_pred, level)
 
 
 def _surplus_over(prediction, level: float | None) -> float | None:
@@ -4512,9 +4519,9 @@ def _surplus_over(prediction, level: float | None) -> float | None:
     league fields, the cell is empty and says nothing, «vuoto = ignoto». A fallback would put a value
     among surpluses, which is the defect that once made 11 of a sheet's top 12 rows estimates.
     """
-    if not prediction or prediction.fm_pred is None or prediction.pv_pred is None or level is None:
+    if not prediction or level is None:
         return None
-    return (prediction.fm_pred - level) * prediction.pv_pred
+    return model.surplus_of(prediction.fm_pred, prediction.pv_pred, level)
 
 
 def _write_csv(path: Path, columns, rows) -> None:
@@ -5123,6 +5130,14 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
             "_note": "The league the sheet was built for, from config/league_config.json. It fixes the "
                      "REPLACEMENT LEVEL that engine_surplus is measured against - a number quoted "
                      "without it is not comparable with another league's.",
+            # ...and the two numbers that are recorded here WITHOUT being applied to a column, which is
+            # worth saying: a reader who found them in the manifest could only conclude the columns used
+            # them. `reliability_exponent` weights a RANKING (the Auction tab's, `evaluate.auction_view`)
+            # and `min_availability` gates one; `engine_surplus` is the exact expected surplus and every
+            # row is in the sheet. Operator's decision, 17/08/2026 - see `engine/model.surplus_of`.
+            "_ranking_only": "reliability_exponent and min_availability describe the Auction tab's "
+                             "RANKING, not the columns of this sheet: engine_surplus is the unweighted "
+                             "expected surplus and no row is filtered out of the file.",
         },
         # The two CALENDARS, because a share of a season needs to say which one, and they are not the
         # same length: the platform's (31 euro rounds in 2025-26, 38 on default) is what engine_pv_pred

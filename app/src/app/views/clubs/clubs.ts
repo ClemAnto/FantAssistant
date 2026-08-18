@@ -10,12 +10,12 @@ import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 
 import { ClubsStore } from '../../core/clubs-store';
 import { Platform, PlayersStore } from '../../core/players-store';
+import { ClubBoard } from '../../ui/club-board/club-board';
 import { ClubCrest } from '../../ui/club-crest/club-crest';
 import { MatchesTable } from '../../ui/matches-table/matches-table';
 import { SquadTable } from '../../ui/squad-table/squad-table';
 import { bindQuery } from '../../core/view-state';
 import { APP_VERSION } from '../../version';
-import { BoardPitch } from './board-pitch/board-pitch';
 
 /**
  * The two questions this page can answer about the same rosa.
@@ -40,7 +40,7 @@ export type SquadMode = 'values' | 'matches';
   selector: 'app-clubs',
   templateUrl: './clubs.html',
   imports: [
-    BoardPitch,
+    ClubBoard,
     ClubCrest,
     FormsModule,
     MatchesTable,

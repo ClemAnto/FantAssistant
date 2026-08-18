@@ -2629,21 +2629,27 @@ def auction_view(data: features.WindowData, predictions: list[Prediction],
         floor_act = (data.replacement_actual.get(role) or floor) if surplus_like else None
 
         def over_floor(fm, appearances, _floor=floor):
-            """Points over the bench, optionally discounted for how little you can count on him.
+            """Points over the bench, discounted for how little of him you could see coming.
 
             The bare product is the EXACT expected surplus: on the days he does not play you field the
             replacement and bank nothing, so a man with three good games is worth three good games. What
             the reliability weight adds is the part expectation cannot see - a slot whose Pv forecast is
             12 is also a high-variance slot, and transfers are limited. It makes the measure
             super-linear in appearances, and it is a declared preference, not an accuracy claim.
+
+            THIS IS THE ONE PLACE THE WEIGHT IS APPLIED, and the arithmetic is `model.surplus_of` so
+            that it cannot drift from the sheet's: a RANKING is what the weight is a property of, and
+            `engine_surplus` on the sheet is deliberately the unweighted expectation (operator,
+            17/08/2026 - see `model.surplus_of` for the measured size of the difference).
+
+            No level, no answer: `None` rather than a VALUE fallback, because this function's callers
+            already choose the VALUE branch above by looking at `_floor`.
             """
-            if fm is None or appearances is None or _floor is None:
+            if _floor is None:
                 return None
-            surplus = (fm - _floor) * appearances
-            if not data.reliability or not data.matchdays_target:
-                return surplus
-            share = model.clip(appearances / data.matchdays_target, 0.0, 1.0)
-            return surplus * share ** data.reliability
+            return model.surplus_of(fm, appearances, _floor,
+                                    reliability=data.reliability,
+                                    matchdays=data.matchdays_target)
 
         def surplus_act(obs, _floor=floor_act):
             return over_floor(obs.fm_act, obs.pv_act, _floor)

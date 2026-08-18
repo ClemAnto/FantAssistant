@@ -58,6 +58,14 @@ MAN_COLUMNS = {
     "starter_prob": "desc_starter_prob",
 }
 
+#: WHEN A SECOND MODULE IS WORTH DRAWING TOO: the operator's own bar, «due o piu' moduli con percentuali
+#: importanti (>30%)» (18/08/2026). The app draws little buttons to switch between them, and it can only do
+#: that if the ELEVEN of each one travels: an eleven of a real club is a prediction about a person, so it is
+#: drawn HERE by the panel's own functions and never recomputed in the app («A drawing is a claim too»).
+#: Measured on the shipped bundle: 8 clubs of 37 on euro and 3 of 20 on Serie A have two shapes over the
+#: bar, so this adds an eleven to a fifth of the clubs and nothing to the rest.
+ALTERNATIVE_MIN_ODDS = 0.30
+
 #: How many rivals a starter may carry. The operator's own bound: «eventualmente uno o due ballottaggi».
 #: A man with NONE is not a man without rivals - a starter whose granular role is unknown has no duel the
 #: sheet can express, and `duels_known` says which of the two it is («vuoto = ignoto, mai zero»).
@@ -85,6 +93,44 @@ def _man(view: Any, row: dict, x: float | None = None) -> dict:
     return out
 
 
+def _drawn(view: Any, club: str, shape: str, mode: str, with_rivals: bool) -> tuple[str, dict]:
+    """The PICTURE and the drawn lines of one club in one shape, by calling the panel's own functions.
+
+    Extracted so that the drawn board and the ALTERNATIVE modules cannot drift: the app switches between
+    them with a button, and two shapes drawn by two pieces of code would be two definitions of a board -
+    the very thing this module exists to prevent. Nothing here decides WHICH shape: that is
+    `view.board_shape` for the drawn one, and the odds for the others.
+    """
+    eleven = view.eleven(club, shape, mode)
+    lanes, _geometry, picture = view.lanes_for(eleven)
+    lines: dict[str, list] = {}
+    for line in LINES:
+        # The panel's EXACT sequence: `_lane` puts the line in screen order (and decides the side of the
+        # men whose side is unknown, alternately), `_placed` spreads them, `_line_codes` names the marker
+        # each of them wears - with the corrections that make a centre-forward a `Pc` and not an `As`.
+        # Skipping `_lane` was a latent divergence from the screen: it does not change WHO is in the
+        # eleven (so no published judge number moves) but it can change the side an unknown-side man is
+        # drawn on, and the marker is read off that side.
+        slots = view._lane(lanes.get(line) or [], line)
+        placed = view._placed(slots, line)
+        markers = view._line_codes(placed, line)
+        drawn = []
+        for index, (x, row, rivals) in enumerate(placed):
+            man = _man(view, row, x)
+            # The role he wears IN THIS MODULE, which is one code and not his whole list: that is what the
+            # pitch shows, and it is the panel's own answer rather than a re-derivation.
+            man["badge"] = markers[index] if index < len(markers) else None
+            if with_rivals:
+                # The panel's own order, capped: the first two are the ones a pitch can show.
+                man["duels"] = [_man(view, rival) for rival in (rivals or [])[:MAX_DUELS]]
+                # A starter whose granular real role is unknown has no duel the sheet can express: that
+                # is «unknown», never «no rival», and the flag says which.
+                man["duels_known"] = bool(row.get("desc_real_roles"))
+            drawn.append(man)
+        lines[line] = drawn
+    return picture, lines
+
+
 def extract_boards(config, sheet: Path, mode: str = "typical", *,
                    apply_rulings: bool = False,
                    with_rivals: bool = False) -> dict[str, dict]:
@@ -108,33 +154,24 @@ def extract_boards(config, sheet: Path, mode: str = "typical", *,
             try:
                 odds = view.shape_odds(club, info, mode)
                 shape, why = view.board_shape(club, info, mode)
-                eleven = view.eleven(club, shape, mode)
-                lanes, _geometry, picture = view.lanes_for(eleven)
-                lines: dict[str, list] = {}
-                for line in LINES:
-                    # The panel's EXACT sequence: `_lane` puts the line in screen order (and decides the side
-                    # of the men whose side is unknown, alternately), `_placed` spreads them, `_line_codes`
-                    # names the marker each of them wears - with the corrections that make a centre-forward a
-                    # `Pc` and not an `As`. Skipping `_lane` was a latent divergence from the screen: it does
-                    # not change WHO is in the eleven (so no published judge number moves) but it can change
-                    # the side an unknown-side man is drawn on, and the marker is read off that side.
-                    slots = view._lane(lanes.get(line) or [], line)
-                    placed = view._placed(slots, line)
-                    markers = view._line_codes(placed, line)
-                    drawn = []
-                    for index, (x, row, rivals) in enumerate(placed):
-                        man = _man(view, row, x)
-                        # The role he wears IN THIS MODULE, which is one code and not his whole list: that is
-                        # what the pitch shows, and it is the panel's own answer rather than a re-derivation.
-                        man["badge"] = markers[index] if index < len(markers) else None
-                        if with_rivals:
-                            # The panel's own order, capped: the first two are the ones a pitch can show.
-                            man["duels"] = [_man(view, rival) for rival in (rivals or [])[:MAX_DUELS]]
-                            # A starter whose granular real role is unknown has no duel the sheet can
-                            # express: that is «unknown», never «no rival», and the flag says which.
-                            man["duels_known"] = bool(row.get("desc_real_roles"))
-                        drawn.append(man)
-                    lines[line] = drawn
+                picture, lines = _drawn(view, club, shape, mode, with_rivals)
+                # ...AND THE OTHER MODULES THE CLUB REALLY MIGHT DRAW, so the app can switch between them
+                # instead of showing one answer as if it were the only one. Same functions, same flags: the
+                # alternative is a board like the drawn one, and the only thing that changes is the shape
+                # it is solved on. A shape that reshapes into the same picture is dropped - it would be a
+                # button that changes nothing - and a broken one is skipped without taking the club down.
+                alternatives = {}
+                for other, p in (odds or {}).items():
+                    if other == shape or p < ALTERNATIVE_MIN_ODDS:
+                        continue
+                    try:
+                        other_picture, other_lines = _drawn(view, club, other, mode, with_rivals)
+                    except Exception:                       # noqa: BLE001 - one shape, not the club
+                        continue
+                    if other_picture == picture:
+                        continue
+                    alternatives[other] = {"picture": other_picture, "p": round(p, 3),
+                                           "lines": other_lines}
                 boards[club] = {
                     "coach": info.get("coach"), "new_coach": info.get("new_coach"),
                     "formation_typical": info.get("formation_typical"),
@@ -142,6 +179,10 @@ def extract_boards(config, sheet: Path, mode: str = "typical", *,
                     "board_shape": shape, "why": why, "picture": picture,
                     "odds": {s: round(p, 3) for s, p in list(odds.items())[:4]},
                     "lines": lines,
+                    # The other modules over the bar, each with its own eleven and its own probability.
+                    # Empty for four clubs of five, which is the point: a button that offers a shape
+                    # nobody expects would be an invitation to doubt the right answer.
+                    "alternatives": alternatives,
                 }
             except Exception as exc:    # noqa: BLE001 - one broken club must not hide the other 19
                 boards[club] = {"error": repr(exc)}
@@ -209,6 +250,10 @@ def write_boards(config, folder: Path, mode: str = "typical") -> dict:
         json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8")
     drawn = {club: board for club, board in boards.items() if "error" not in board}
     men = sum(len(line) for board in drawn.values() for line in board["lines"].values())
+    # How many clubs offer a second module and how many elevens that is: a count nobody prints is a
+    # feature nobody can tell from a broken one (the lesson of the badges the bundle already carried).
+    with_alternatives = sum(1 for board in drawn.values() if board.get("alternatives"))
+    alternative_shapes = sum(len(board.get("alternatives") or {}) for board in drawn.values())
     duels = sum(len(man.get("duels") or [])
                 for board in drawn.values() for line in board["lines"].values() for man in line)
     blind = sum(1 for board in drawn.values() for line in board["lines"].values()
@@ -219,6 +264,8 @@ def write_boards(config, folder: Path, mode: str = "typical") -> dict:
         "drawn": len(drawn),
         "failed": {club: board["error"] for club, board in boards.items() if "error" in board},
         "men": men,
+        "clubs_with_alternatives": with_alternatives,
+        "alternative_shapes": alternative_shapes,
         "duels": duels,
         "no_granular_role": blind,
         "disagreements": {club: why for club, why in problems.items() if why},

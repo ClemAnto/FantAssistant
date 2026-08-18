@@ -1,3 +1,4 @@
+<!-- UI text is ITALIAN in app/ (see app/CLAUDE.md); code and comments stay English. -->
 <div class="flex flex-wrap items-center gap-3">
   <nz-select
     class="min-w-56"
@@ -25,157 +26,24 @@
       {{ counted().total }} in listone · {{ counted().taken }} già presi
     </span>
   }
-
-  @if (pitch(); as drawn) {
-    <span class="ml-auto flex flex-wrap items-center gap-2 text-sm">
-      <span class="rounded-full border border-border px-2 py-0.5 font-semibold tabular-nums">
-        {{ drawn.module }}
-      </span>
-      @if (drawn.coach) {
-        <span class="text-muted">{{ drawn.coach }}@if (drawn.newCoach) {<span> · nuovo</span>}</span>
-      }
-    </span>
-  }
 </div>
 
-@if (pitch(); as drawn) {
-  <!-- The pitch, in the visual language of the operator's own `ui-lineup-pitch`: a green field with an inset
-       white outline, one flex ZONE per line of the module, the men spread evenly across it. The KEEPER is at
-       the top and the forwards at the bottom - the operator's own direction, the team attacking downward.
-       Ordered across by the panel's own x, so a flank stays a flank; not placed AT that x, because four chips
-       at their true coordinates overlap on a phone and this is read at a table. -->
-  <div
-    class="mt-4 flex w-full max-w-[500px] flex-col gap-1 rounded-lg p-2 outline outline-1
-           -outline-offset-4 outline-fg/25 sm:gap-2 sm:p-3"
-    style="background-image: linear-gradient(
-      to bottom,
-      color-mix(in oklab, var(--color-role-defence) 30%, var(--color-surface)),
-      color-mix(in oklab, var(--color-role-defence) 12%, var(--color-surface))
-    )"
-  >
-    @for (row of drawn.rows; track row.line) {
-      <div class="flex items-stretch gap-1 sm:gap-2">
-        @for (man of row.men; track $index) {
-          <!-- Already taken: 30% opacity. He is part of this club's eleven and not part of this auction any
-               more, and both facts have to be readable at once. -->
-          <span
-            class="flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-md border border-border
-                   bg-surface/90 px-1 py-1 text-center"
-            [class.opacity-30]="man.taken"
-            [class.border-dashed]="!man.onTable"
-            nz-tooltip
-            [nzTooltipTitle]="hint(man)"
-          >
-            <!-- ONE role: the marker the module gave him (`Td`, `Dc`, `Pc`), not his whole code list. Beside
-                 the name, his LISTONE role - what the game scores by and what a bid is made against. -->
-            @if (man.badge) {
-              <ui-role [role]="man.badge" size="md" />
-            }
-            <span class="flex w-full items-center justify-center gap-1">
-              <span class="min-w-0 truncate text-[11px] font-medium leading-tight">{{ man.name }}</span>
-              <!-- The marks travel with the NAME wherever it is drawn (operator, 11/08/2026): a long absence
-                   is exactly the kind of fact a claim built on last season's minutes cannot carry. -->
-              <ui-flags class="text-[10px]" [playerId]="man.fcId" />
-              <!-- The worth in 99ths, AFTER the name, always present: a square rather than a number in the flow,
-                   because it is the one figure on the chip that is a RANK of this listone and not a measurement
-                   of the man. `—` where the sheet cannot price him: unknown, never a zero. -->
-              <span
-                class="flex h-4 min-w-4 shrink-0 items-center justify-center rounded-sm bg-primary px-0.5
-                       text-[9px] font-semibold leading-none text-on-primary tabular-nums"
-                [class.opacity-60]="man.value99 == null"
-                >{{ man.value99 ?? '—' }}</span
-              >
-            </span>
-            @if (man.mantra.length) {
-              <span class="w-full truncate text-[9px] uppercase leading-tight text-muted">
-                {{ man.mantra.join('/') }}
-              </span>
-            }
-            <!-- Always MINUTI MEDI A PARTITA, never the season total: a total is a number nobody can compare
-                 at a glance, an average is «gioca 45 minuti» and that is the question a pitch is asked. -->
-            <span class="w-full truncate text-[10px] tabular-nums text-muted">
-              @if (man.perMatch != null) {
-                {{ man.perMatch }}′
-              } @else {
-                minuti ignoti
-              }
-              @if (man.price != null) {
-                · {{ man.price }}
-              }
-            </span>
+<!-- IL DISEGNO È DI TUTTI: lo stesso componente della vista Squadre (operatore, 18/08/2026), e questa
+     schermata gli passa in più soltanto quello che un tavolo sa - chi è già stato preso e quanto chiede. -->
+<ui-club-board
+  class="mt-4"
+  [board]="board()"
+  [noBoards]="noBoards()"
+  [overall]="overall()"
+  [expectedShares]="shares()"
+  [table]="table()"
+/>
 
-            <!-- The ballottaggi: at most two, in the panel's own order. A rival already taken is faded for the
-                 same reason the starter is, and «unknown» is not «no rival». -->
-            @if (duelHint(man); as duels) {
-              <span
-                class="w-full truncate text-[9px] leading-tight text-muted/80"
-                nz-tooltip
-                [nzTooltipTitle]="duels"
-              >
-                @if (man.duelsKnown) {
-                  <span
-                    >⇄
-                    @for (rival of man.duels; track rival.fcId; let last = $last) {
-                      <span [class.opacity-40]="rival.taken">{{ rival.name }}</span>@if (!last) {<span>, </span>}
-                    }
-                  </span>
-                } @else {
-                  <span>⇄ ignoto</span>
-                }
-              </span>
-            }
-          </span>
-        }
-      </div>
-    }
-  </div>
-
-  <p class="mt-2 text-xs text-muted">
-    Modulo <strong>{{ drawn.module }}</strong>
-    @if (drawn.solvedOn) {
-      <span> (risolto su {{ drawn.solvedOn }}: una trasformazione ha spezzato una linea)</span>
-    }
-    @if (drawn.typical && drawn.typical !== drawn.module) {
-      <span> · di solito gioca {{ drawn.typical }}</span>
-    }
-    @if (drawn.why) {
-      <span> · {{ drawn.why }}</span>
-    }
-    @if (drawn.taken) {
-      <span> · {{ drawn.taken }} degli undici già presi</span>
-    }
-  </p>
-
-  @if (drawn.odds.length) {
-    <p class="mt-1 text-xs text-muted">
-      Quanto è probabile ogni modulo:
-      @for (odd of drawn.odds; track odd.shape; let last = $last) {
-        <span class="tabular-nums">{{ odd.shape }} {{ odd.p * 100 | number: '1.0-0' }}%</span>@if (!last) {
-          <span> · </span>
-        }
-      }
-    </p>
-  }
-
-  @for (problem of drawn.problems; track problem) {
-    <p class="mt-1 text-xs text-warning">⚠ {{ problem }}</p>
-  }
-
-  <p class="mt-2 text-xs text-muted">
-    È la <strong>board del toolkit</strong>, non un undici ricalcolato qui: la disegna la classe del pannello
-    guidata senza finestra, con le <strong>tue</strong> decisioni per club applicate — quindi questo campetto e
-    quello del pannello sono la stessa chiamata. I ruoli sono quelli <strong>reali</strong> (i dodici codici),
-    i minuti sono del suo campionato, e «⇄» sono i ballottaggi che il pannello calcola per quel posto: al
-    massimo due, e «ignoto» non vuol dire «senza rivali».
-  </p>
-} @else if (noBoards()) {
-  <nz-empty
-    class="mt-4"
-    nzNotFoundContent="Questo foglio è stato costruito prima delle board, oppure la macchina che l'ha costruito non aveva un display: nessuna board da disegnare. Rilancia «snapshot --league NOME» e poi «export»."
-  />
-} @else if (club()) {
-  <nz-empty
-    class="mt-4"
-    nzNotFoundContent="Per questa squadra il foglio non porta una board: il nome del club al tavolo non combacia con quello del foglio, oppure il pannello non è riuscito a disegnarla."
-  />
-}
+<p class="mt-2 text-xs text-muted">
+  È la <strong>board del toolkit</strong>, non un undici ricalcolato qui: la disegna la classe del pannello
+  guidata senza finestra, con le <strong>tue</strong> decisioni per club applicate — quindi questo campetto e
+  quello del pannello sono la stessa chiamata. Sopra ogni posto c'è il <strong>ruolo reale</strong> che quel
+  posto chiede (i dodici codici), sotto i calciatori che se lo giocano col loro Overall e i minuti attesi per
+  partita del club; un uomo compare in <strong>un posto solo</strong>, e i ballottaggi sotto il 20% di
+  titolarità non si disegnano.
+</p>

@@ -683,10 +683,39 @@ quante giornate costa), quindi non si è perso niente e la tabella ha due colonn
 
 ---
 
+## 10. OVERALL e VALORE sono la stessa formula, e sono due domande (17 agosto 2026, notte)
+
+Misurato leggendo le formule invece dei risultati. L'Overall della tabella Giocatori è `quota di calendario
+× FMa`; il **Valore** del pannello asta è `FMa × Pv × confidenza`, scalato a 0-99. Tolto il calendario —
+una costante — sono lo stesso numero, con **due differenze** che nessuno dei due schermi diceva:
+
+* **la penale della STIMA**: l'asta moltiplica per `est_confidence`, la tabella no. Non è un dettaglio di
+  coda: sul foglio classic di Serie A **294 righe su 589 sono stimate**, confidenza mediana **0,50** — metà
+  del listone. **Doekhi è 167° in Overall e 390° in Valore**, stesso giorno e stessa app; Ghedjemis 111°
+  contro 369°. Su euro tocca 22 righe su 1.009, quindi il difetto è quasi invisibile proprio dove
+  l'operatore guarda di più (ρ 0,993 su euro contro **0,950** su Serie A);
+* **la PORTA INVIOLATA**: l'Overall converte al punteggio della TUA lega e la aggiunge ai 68-107 portieri
+  (`clean_sheet_bonus_gk` = 1,0 × il tasso del club, ~+0,3 di fantamedia); il Valore resta nel punteggio
+  della fonte, che quel termine non lo applica. Quindi un portiere ha due «quanto vale una sua partita».
+
+**Decisione dell'operatore: restano due domande e si DICHIARANO** — «quanto vale» contro «quanto conviene
+comprarlo a questo tavolo», e la seconda ha ragione di scontare l'indeterminazione perché è quella che
+decide un rilancio. Quindi nessun numero si muove e le due colonne si nominano a vicenda: il pannello sotto
+la tabella Giocatori porta le due differenze coi numeri qui sopra, e il tooltip della colonna Valore dice lo
+specchio. Cambiare invece una delle due aritmetiche sarebbe stato allineare due risposte a una domanda che
+non è una sola — l'errore opposto e altrettanto caro.
+
+**Un difetto di sole etichette, corretto lo stesso giorno**: la colonna **Bonus porta la FANTAMEDIA** (voto
+compreso, come il suo stesso dettaglio dice), mentre la formula stampata sotto la tabella — «presenze ×
+(voti+bonus)» — invita a sommare Voti e Bonus, cioè a contare il voto due volte. Il codice non lo fa mai; la
+frase ora dice che «voti+bonus» è **un numero solo**.
+
 ## 8. Aperti
 
-1. **`season_stats.clean_sheets`** — derivabile da `match_ratings` per tutte e 11 le stagioni, nessun
-   provider di mezzo. Finché non c'è, il +1 della porta inviolata è prezzato dal lettore e vale zero.
+1. ~~**`season_stats.clean_sheets`**~~ — **FATTO il 16/08/2026**: 970 stagioni-portiere e **4.872** porte
+   inviolate, con tre guardie e il disaccordo fra le fonti dichiarato invece che ritagliato (§6-bis). La
+   voce restava aperta qui per svista, ed era già segnata come chiusa nella todolist: due elenchi che
+   dicono due cose sullo stesso lavoro sono la ragione per cui questa correzione vale una riga.
 2. ~~Storico del valore di mercato~~ — **FATTO il 16/08/2026**: modulo `market`, endpoint JSON
    `transfermarkt.it/ceapi/marketValueDevelopment/graph/{pid}` (senza muro di consenso), tabella
    `market_value_history`. Acquisiti **1.055 quotati, 22.269 punti**, dal 2005 al 2026, mediana 20 punti
@@ -698,9 +727,75 @@ quante giornate costa), quindi non si è perso niente e la tabella ha due colonn
    cresciute con l'acquisizione allargata che ha tolto il filtro di sopravvivenza per l'harness
    (§7-untricies) — di cui **26.314 viaggiano** nel bundle, tagliati un anno prima della finestra `heavy`.
    Come CANALE invece è chiusa in senso negativo, e quella misura sta nel gate.
-3. **Minuti per competizione e in nazionale** — le pagine ci sono e rispondono 200, ma la tabella non è
-   nell'HTML: c'è un **muro di consenso** e i dati arrivano solo dopo. Il prefisso `/x/` che salva il
-   modulo infortuni lì non basta (provate quattro forme). La strada seria è registrare le chiamate che la
-   pagina fa dopo il consenso, non indovinare endpoint: dei quattro tentati, 4 su 6 hanno risposto 404.
+3. ~~**Minuti per competizione e in nazionale**~~ — **ROTTA TROVATA il 17/08/2026**, e la storia scritta
+   qui («muro di consenso, i dati arrivano solo dopo») era falsa: registrando le chiamate della pagina in
+   un browser headless si vede che la tabella non sta in quella pagina affatto - la serve un HOST diverso,
+   `tmapi.transfermarkt.technology`, in JSON e **senza nessun muro**. Non c'era niente da aggirare, c'era
+   qualcosa da guardare. Dettagli nella root `CLAUDE.md` («Una fonte che nasconde la sua tabella») e nella
+   todolist; quello che manca è l'acquisizione, non la strada.
 4. **Coppe da Sofascore** — 403 `challenge` su tutti gli endpoint dal 16/08/2026, dopo una corsa su 93
    club. In attesa, e senza insistere.
+
+---
+
+## 11. LE DEFINIZIONI DELL'OPERATORE, dettate il 18 agosto 2026 — e il difetto che ne è uscito
+
+Non sono una misura: sono **decisioni sue**, scritte qui perché d'ora in poi il codice le deve rispettare
+alla lettera e perché due delle tre hanno spostato dei numeri.
+
+* **Overall** = «giudizio assoluto sul rendimento», 0-99, e la formula è
+  `partite a voto previste × (Media Voto attesa + Bonus attesi)`.
+* **Lead** (era «Valore» nel pannello d'asta) = «punti in più che porterebbe alla tua squadra rispetto a un
+  suo rimpiazzo», cioè **Overall − valore del rimpiazzo**, col rimpiazzo tarato su una lega da dieci.
+
+### 11.1 La colonna «Bonus» portava la fantamedia, e adesso porta i bonus
+
+Fino al 17/08 la lettura BONUS era `est_fm`, cioè la fantamedia col **voto dentro**: sommarla a «Voti»
+contava il voto due volte, e la frase sotto la tabella doveva avvertire di non farlo. Un avvertimento è la
+confessione che due colonne non si possono leggere insieme. Dal 18/08 la colonna è **`est_fm − est_mv`**, il
+tasso di bonus a presenza che il foglio si aspetta - lo stesso numero che il foglio scrive nella propria nota
+(`est_note`: «−0,82 di bonus a presenza») - così **MVa + Bonus è esattamente il fattore dell'Overall**. Per un
+portiere è NEGATIVA per costruzione, e va letta così: i gol che subisce sono la parte grossa di quel conto.
+
+### 11.2 «Lead» si è spostato di colonna, e ogni domanda ha un nome solo
+
+Il 17/08 «Lead» era il nome della colonna che conta dal rimpiazzo che ENTRA (era «Margine»). Con la
+definizione del 18/08 il nome appartiene alla colonna dell'asta, che conta dal **marginale di ROSA** - lo
+stesso zero del `engine_surplus` del foglio, scelta sua fra i due - quindi:
+
+| colonna | dove | zero | confidenza della stima | unità |
+|---|---|---|---|---|
+| **Surplus** | tabella Giocatori | marginale di rosa (`engine_replacement_fm`) | no | fantapunti |
+| **Margine** | tabella Giocatori | il rimpiazzo che entra (`desc_replacement_fielded`) | no | fantapunti |
+| **Lead** | pannello asta | marginale di rosa | **sì** | fantapunti |
+| **+/10g** | pannello asta | il migliore fra i LIBERI, e si muove a ogni scelta | sì | fantapunti / 10 giornate |
+
+Due cose decise con la definizione. Il Lead è in **fantapunti e non su 0-99**: un lead negativo (peggio del
+rimpiazzo) è una notizia, e una scala 0-99 lo schiaccerebbe a zero cancellando proprio quella. E **la
+confidenza della stima resta**, per sua scelta esplicita: chi decide un rilancio sconta quello che non sa -
+quindi Lead ≠ Overall − rimpiazzo per le 294 righe stimate su 589 del foglio Serie A, e le due intestazioni
+lo dicono a vicenda invece di lasciarlo scoprire al tavolo (§10).
+
+### 11.3 IL DIFETTO CHE LA SUA DOMANDA HA TROVATO: «come è possibile che Audero abbia una MVa di 6,61?»
+
+Non è una previsione del suo voto: è un **residuo**. La MVa non si stima, si DERIVA (`estimate.mv_from`,
+«un numero e una derivazione», §7 del foglio) come `FM attesa − il suo malus storico a presenza`. Misurato:
+
+| | partite | MV | FM | bonus/presenza |
+|---|---|---|---|---|
+| Audero 2025-26 (**Cremonese**) | 34 | 6,07 | 4,78 | −1,29 (50 gol presi) |
+| Audero 2024-25 (Como) | 8 | 5,81 | 3,56 | −2,25 |
+| blend a presenze, quello che il foglio usa | 42 | | | **−1,46** |
+| Butez 2025-26 (Como) | 38 | 6,08 | 5,38 | −0,70 |
+
+La FM attesa dei due portieri del **Como** è la stessa (5,147 e 5,151): il motore dice che valgono uguale per
+partita. Ma il malus che sottrae ad Audero è quello preso alla **Cremonese**, quindi 5,147 + 1,461 = **6,608**
+e il residuo assorbe il cambio di squadra - una MV che non ha mai fatto (6,07 · 5,81 · 6,34 · 6,17 nelle
+ultime quattro stagioni). Butez non lo mostra solo perché le sue due metà vengono dallo stesso club.
+
+**Non è cosmetico**: la lettura VOTI legge `est_mv`, quindi Audero esce **99/99 fra i portieri** e Butez 46 -
+un ordinamento deciso da un artefatto. È tutto in `est_*` (reporting: nessun `engine_*` si muove), e la cura
+non è una scelta ma una misura, **APERTA**: il malus deve appartenere al club per cui la FM è prevista - o si
+tira verso il tasso di ruolo quando l'uomo ha cambiato squadra, o si ricava dai gol che il motore già predice
+al club nuovo (per i portieri lo fa). È la stessa famiglia di «una trasformazione appartiene alla popolazione
+su cui è stata fittata», vista sull'altro lato: qui le due metà della sottrazione appartengono a due club.

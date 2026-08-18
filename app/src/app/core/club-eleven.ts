@@ -63,6 +63,13 @@ export interface PitchMan {
   minutesPerClubMatch: number | null;
   /** The panel's own claim: who starts when everybody is fit. It is what put him on the pitch. */
   claim: number | null;
+  /**
+   * ...and the ENGINE's own answer about the same man: the share of the calendar it expects him to be
+   * RATED in. Null when the sheet cannot price him, which is «ignoto» and never «non gioca».
+   */
+  expectedShare: number | null;
+  /** Where the two disagree by more than `BOARD_ENGINE_GAP`. Null = they agree, or one is missing. */
+  disagreement: BoardDisagreement | null;
   /** Where the panel draws him across the line: 0 is one touchline, 1 the other. Flanks already ordered. */
   x: number;
   /** Already off the board at this table. */
@@ -73,6 +80,26 @@ export interface PitchMan {
   onTable: boolean;
   /** The 0-99 worth, on the scale of the whole session listone so it means one thing all evening. */
   value99: number | null;
+  /** Il ruolo di listone CLASSIC (`P`/`D`/`C`/`A`), l'altra metà dell'interruttore dei ruoli. */
+  classic: string | null;
+  /**
+   * L'OVERALL 0-99 della tabella Giocatori, che è il numero che il campetto mostra dal 18/08/2026.
+   *
+   * Non è il «valore» dell'asta e non è il Lead: è «quanto vale in assoluto», la stessa colonna che si
+   * legge fra i Calciatori, così un uomo non porta due giudizi diversi in due schermate. Null quando il
+   * foglio non lo valuta: ignoto, mai zero.
+   */
+  overall: number | null;
+  /**
+   * I MINUTI ATTESI PER PARTITA DEL CLUB: la quota di calendario che il motore gli prevede per i minuti
+   * che fa QUANDO gioca (scelta dell'operatore, 18/08/2026, fra tre numeri veri).
+   *
+   * Nel bundle non esiste una colonna di minuti previsti, quindi questo è un prodotto DICHIARATO di due
+   * numeri pubblicati - `engine_pv_pred / giornate` per `desc_minutes_full_season / desc_season_matches` -
+   * e va letto come «quanti minuti ti aspetti da lui in una partita qualunque del suo club», assenze
+   * comprese. Ignoto se manca una delle due metà, mai zero.
+   */
+  expectedMinutes: number | null;
   /** At most two, in the panel's own order. */
   duels: PitchMan[];
   /** False when his granular real role is unknown: then the duels are UNKNOWN, not absent. */
@@ -99,6 +126,13 @@ export interface Pitch {
   odds: { shape: string; p: number }[];
   rows: PitchRow[];
   taken: number;
+  /**
+   * QUANTI BALLOTTAGGI IL CAMPETTO NON MOSTRA, e per quale delle due ragioni - un filtro silenzioso è un
+   * filtro che inganna, ed è la stessa regola del conteggio delle righe pigre («il conteggio non deve
+   * mentire»). `floor` sono i rivali sotto `PITCH_CLAIM_FLOOR`, `duplicate` quelli che il pannello aveva
+   * messo su due posti e che si vedono su uno solo.
+   */
+  hiddenDuels: { floor: number; duplicate: number };
   /** Where the module's numbers and the drawn men disagree. Shown, never smoothed over. */
   problems: string[];
 }
@@ -189,10 +223,112 @@ export interface OnTable {
   onTable: boolean;
   /** His worth on the 0-99 scale of THIS session's listone. Null when the sheet cannot price him. */
   value99: number | null;
+  /** L'OVERALL 0-99 della tabella Giocatori: il numero che il campetto mostra accanto al nome. */
+  overall?: number | null;
+  /**
+   * The share of the calendar the ENGINE expects him to be rated in (`engine_pv_pred / matchdays`, or
+   * his declared estimate). Optional: a caller that has no sheet in hand passes nothing and no
+   * disagreement is ever marked, which is «ignoto» and not «d'accordo».
+   */
+  expectedShare?: number | null;
+}
+
+/**
+ * WHICH OF THE TWO MODELS IS THE OPTIMISTIC ONE about a man the board puts on the pitch.
+ *
+ * `board` = the claim is the higher number: the panel gives him the shirt and the engine expects him in
+ * clearly fewer rounds. `engine` = the other way: the board keeps him low - often it simply had nobody
+ * better for that place - while the engine expects him rated in far more of the calendar.
+ */
+export type BoardDisagreement = 'board' | 'engine';
+
+/**
+ * How far apart the two have to be before the pitch says so: a FIFTH of the calendar.
+ *
+ * THE TWO ARE NOT THE SAME QUESTION and neither is being corrected here (operator's decision,
+ * 17/08/2026). `claim` is `presence.py`'s standing - «chi parte titolare quando stanno tutti bene» - and
+ * `engine_pv_pred` is «in quante giornate prenderà un voto», which a substitute also collects. So they
+ * are allowed to differ; what is NOT allowed is a card that shows an eleven and prices those same men on
+ * a forecast that contradicts it without a word, which is the defect `presence.py` names about itself:
+ * «una board che non disegna nessuno dove il motore prevede qualcuno sono due risposte a una domanda».
+ *
+ * The number is a DISPLAY choice like the two injury thresholds, declared here and owned by no gate -
+ * but it is measured rather than picked: over the drawn men of the shipped bundle (17/08/2026) the gap
+ * |claim − quota| has median 0.07 and p90 0.20 on euro, median 0.05 and p90 0.14 on Serie A. At 0.20 the
+ * mark lands on 10% of the euro eleven (about one man per club) and 3% on Serie A - rare enough to mean
+ * something. At 0.15 it would be one man in five, which is a decoration.
+ */
+export const BOARD_ENGINE_GAP = 0.2;
+
+/**
+ * SOTTO QUESTA TITOLARITÀ un BALLOTTAGGIO non si mostra (operatore, 18/08/2026: «se non ci sono
+ * ballottaggi accetta qualsiasi claim; nel caso di ballottaggi scarta quelli sotto il 0,20»).
+ *
+ * Vale sui RIVALI e non sul titolare: l'undici disegnato resta di undici uomini - un posto vuoto sarebbe
+ * una board diversa da quella del toolkit, che è la cosa che questo file non fa - mentre un rivale con
+ * otto centesimi di titolarità è rumore su una carta che si legge in due secondi.
+ *
+ * Misurato sulle board del bundle (17/08/2026) prima di scegliere la soglia, su 610 rivali di euro:
+ * a 0,20 se ne scartano 95 e 40 posizioni su 357 restano senza ballottaggio; a 0,30 sarebbero 161 e 72
+ * (un ballottaggio vero su quattro sparirebbe), a 0,15 solo 62 - il decimo percentile dei rivali sta a
+ * 0,145, quindi taglierebbe appena la coda. Come le due soglie degli infortuni: è una scelta di
+ * VISUALIZZAZIONE, nessun gate la possiede, e sta scritto qui perché il prossimo lettore non la prenda
+ * per una misura.
+ */
+export const PITCH_CLAIM_FLOOR = 0.2;
+
+/** Which of the two is the optimist, when they are far enough apart to be worth saying. */
+export function disagreementOf(
+  claim: number | null,
+  expectedShare: number | null,
+  gap = BOARD_ENGINE_GAP,
+): BoardDisagreement | null {
+  if (claim == null || expectedShare == null) return null;
+  const difference = claim - expectedShare;
+  if (Math.abs(difference) < gap) return null;
+  return difference > 0 ? 'board' : 'engine';
+}
+
+/**
+ * The sentence a disagreement is written as - ONE of them, read by both pitches.
+ *
+ * It names the two questions rather than declaring a winner, because neither model is being corrected:
+ * the reader is the one who decides which of the two he is buying on.
+ */
+export function disagreementHint(man: PitchMan): string | null {
+  if (!man.disagreement || man.claim == null || man.expectedShare == null) return null;
+  const claim = `${Math.round(man.claim * 100)}%`;
+  const share = `${Math.round(man.expectedShare * 100)}%`;
+  return man.disagreement === 'board'
+    ? `i due modelli non sono d'accordo: la board gli dà la maglia (titolarità ${claim}) e il motore lo `
+      + `prevede a voto nel ${share} delle giornate — la board risponde a «chi parte titolare», il motore `
+      + `a «in quante giornate prende un voto», e un subentrato il voto lo prende`
+    : `i due modelli non sono d'accordo: il motore lo prevede a voto nel ${share} delle giornate e la `
+      + `board lo tiene a ${claim} di titolarità — spesso vuol dire che per quel posto non aveva nessuno `
+      + `di meglio, non che quel posto è suo`;
+}
+
+/**
+ * I MODULI FRA CUI SI PUÒ PASSARE, il disegnato compreso e in ordine di probabilità.
+ *
+ * Vengono dal TOOLKIT (`boards.ALTERNATIVE_MIN_ODDS`, sopra il 30%): l'app non calcola nessun undici di un
+ * club vero, quindi se il bundle non li porta la lista ha un elemento solo e i tastini non compaiono - che
+ * è il comportamento di prima e non un errore.
+ */
+export function shapesOf(board: Board | null): { shape: string; picture: string; p: number | null }[] {
+  if (!board) return [];
+  const drawn = board.board_shape ?? board.picture ?? '';
+  const odds = board.odds ?? {};
+  const out = [{ shape: drawn, picture: board.picture ?? drawn, p: odds[drawn] ?? null }];
+  for (const [shape, one] of Object.entries(board.alternatives ?? {})) {
+    out.push({ shape, picture: one.picture ?? shape, p: one.p ?? odds[shape] ?? null });
+  }
+  return out.sort((left, right) => (right.p ?? 0) - (left.p ?? 0));
 }
 
 function toMan(man: BoardMan, resolve: (man: BoardMan) => OnTable): PitchMan {
   const live = resolve(man);
+  const expectedShare = live.expectedShare ?? null;
   return {
     fcId: man.fc_id ?? null,
     name: man.name ?? '—',
@@ -208,7 +344,17 @@ function toMan(man: BoardMan, resolve: (man: BoardMan) => OnTable): PitchMan {
     })(),
     minutesPerClubMatch: man.minutes_per_match != null && man.minutes_per_match !== ''
       ? Number(man.minutes_per_match) : null,
+    classic: man.classic ?? null,
+    overall: live.overall ?? null,
     claim: man.claim ?? null,
+    expectedShare,
+    expectedMinutes: (() => {
+      const minutes = int(man.minutes);
+      const matches = int(man.matches);
+      const perMatch = minutes != null && matches ? minutes / matches : null;
+      return expectedShare == null || perMatch == null ? null : Math.round(expectedShare * perMatch);
+    })(),
+    disagreement: disagreementOf(man.claim ?? null, expectedShare),
     x: typeof man.x === 'number' ? man.x : 0.5,
     taken: live.taken,
     price: live.price,
@@ -220,24 +366,104 @@ function toMan(man: BoardMan, resolve: (man: BoardMan) => OnTable): PitchMan {
 }
 
 /**
+ * UN UOMO IN BALLOTTAGGIO SU UN POSTO SOLO (operatore, 18/08/2026: «non voglio che un calciatore compaia in
+ * ballottaggio in più di un item, verifica dove il suo claim è più alto e mostralo solo in quella
+ * posizione»), e i rivali sotto la soglia via.
+ *
+ * Che il problema sia vero è misurato, non supposto: sulle board del bundle **171 voci di ballottaggio su
+ * 610** sono ripetizioni dello stesso uomo su euro (35 club su 37) e 104 su 371 su Serie A (tutti e 20 i
+ * club) - il pannello calcola i rivali POSTO per posto, e un vice che copre due maglie compare due volte.
+ *
+ * Dove tenerlo: il claim è UNO per uomo, quindi «dove è più alto» non può distinguere fra due posti, e la
+ * regola che lo rispetta è quella che risponde alla stessa domanda con i numeri che cambiano fra i due
+ * posti - dove ha più probabilità di giocare davvero:
+ *
+ *   1. dove il posto chiede uno dei SUOI codici granulari, il migliore prima (`placeCodes` è già l'ordine
+ *      di preferenza): un vice terzino destro è un ballottaggio a destra e non in mezzo;
+ *   2. a pari fit, dove il TITOLARE è più debole, perché è là che entrerebbe;
+ *   3. a pari tutto, il primo nell'ordine di disegno, così il risultato non dipende dall'iterazione.
+ */
+function oneItemEach(rows: PitchRow[]): { floor: number; duplicate: number } {
+  interface Spot { row: PitchRow; starter: PitchMan; rival: PitchMan; fit: number; }
+  const seen = new Map<number, Spot>();
+  /**
+   * Chi si scarta si segna per OGGETTO e non per id, e la differenza è un difetto vero che il test ha
+   * preso: due voci con lo stesso `fc_id` sotto lo stesso titolare - un id ripetuto nei dati - facevano
+   * cancellare anche quella che si voleva tenere, perché il filtro girava sull'id.
+   */
+  const drop = new Set<PitchMan>();
+  const counted = { floor: 0, duplicate: 0 };
+  for (const row of rows) {
+    for (const starter of row.men) {
+      for (const rival of starter.duels) {
+        // Sotto la soglia non è un ballottaggio: via, e il titolare resta comunque disegnato.
+        if (rival.claim != null && rival.claim < PITCH_CLAIM_FLOOR) {
+          drop.add(rival);
+          counted.floor += 1;
+          continue;
+        }
+        if (rival.fcId == null) continue;
+        const asked = placeCodes(row.line, starter.badge);
+        const his = new Set(rival.codes.map((code) => code.trim().toUpperCase()));
+        const at = asked.findIndex((code) => his.has(code));
+        const fit = at < 0 ? asked.length : at;
+        const before = seen.get(rival.fcId);
+        if (!before) {
+          seen.set(rival.fcId, { row, starter, rival, fit });
+          continue;
+        }
+        const better = fit < before.fit
+          || (fit === before.fit && (starter.claim ?? 1) < (before.starter.claim ?? 1));
+        counted.duplicate += 1;
+        if (better) {
+          drop.add(before.rival);
+          seen.set(rival.fcId, { row, starter, rival, fit });
+        } else {
+          drop.add(rival);
+        }
+      }
+    }
+  }
+  if (drop.size) {
+    for (const row of rows) {
+      for (const starter of row.men) {
+        starter.duels = starter.duels.filter((rival) => !drop.has(rival));
+      }
+    }
+  }
+  return counted;
+}
+
+/**
  * The pitch of one board: rows from the module's numbers, men where the panel puts them.
  *
  * A row is drawn even when the board placed FEWER men on it than the module asks for - the gap is the
  * information (an empty flank reads as a gap, which is exactly what the panel's own geometry is for), and
  * `problems` names it. Filling it would be inventing a man the toolkit did not place.
  */
-export function pitchOf(board: Board | null, resolve: (man: BoardMan) => OnTable): Pitch | null {
+export function pitchOf(
+  board: Board | null,
+  resolve: (man: BoardMan) => OnTable,
+  /**
+   * QUALE modulo disegnare, fra quelli che il toolkit ha mandato (`shapesOf`). Niente = quello scelto dal
+   * pannello, che è la risposta del modello e resta il default: un'alternativa si vede perché la si chiede.
+   */
+  shape?: string | null,
+): Pitch | null {
   if (!board || board.error) return null;
-  const module = board.picture ?? board.board_shape ?? null;
+  const chosen = shape && shape !== (board.board_shape ?? board.picture)
+    ? board.alternatives?.[shape] : null;
+  const module = (chosen ? chosen.picture : board.picture ?? board.board_shape) ?? null;
+  const drawnLines = chosen?.lines ?? board.lines;
   const counts = lineCounts(module);
-  if (!counts || !board.lines) return null;
+  if (!counts || !drawnLines) return null;
 
   const rows: PitchRow[] = [];
   const problems: string[] = [];
   let taken = 0;
   for (const line of DRAW_ORDER) {
     const wanted = counts[line] ?? 0;
-    const drawn = (board.lines[line] ?? []).map((man) => toMan(man, resolve));
+    const drawn = (drawnLines[line] ?? []).map((man) => toMan(man, resolve));
     if (!wanted && !drawn.length) continue;
     if (wanted !== drawn.length) {
       problems.push(`linea ${line}: il modulo dice ${wanted}, i disegnati sono ${drawn.length}`);
@@ -251,7 +477,9 @@ export function pitchOf(board: Board | null, resolve: (man: BoardMan) => OnTable
     rows.push({ line, wanted, men: [...drawn].sort((left, right) => left.x - right.x) });
   }
 
-  const solved = board.board_shape ?? null;
+  const hiddenDuels = oneItemEach(rows);
+
+  const solved = chosen ? shape ?? null : board.board_shape ?? null;
   return {
     module: module ?? '',
     solvedOn: solved && solved !== module ? solved : null,
@@ -264,6 +492,7 @@ export function pitchOf(board: Board | null, resolve: (man: BoardMan) => OnTable
     odds: Object.entries(board.odds ?? {}).map(([shape, p]) => ({ shape, p })),
     rows,
     taken,
+    hiddenDuels,
     problems,
   };
 }

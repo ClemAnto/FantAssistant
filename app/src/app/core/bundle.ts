@@ -162,6 +162,19 @@ export interface Board {
   why?: string | null;
   odds?: Record<string, number>;
   lines?: Record<'P' | 'D' | 'M' | 'T' | 'A', BoardMan[]>;
+  /**
+   * GLI ALTRI MODULI CHE IL CLUB POTREBBE DAVVERO DISEGNARE, con il loro undici (dal 18/08/2026).
+   *
+   * Uno per ogni forma sopra il 30% di probabilità (`boards.ALTERNATIVE_MIN_ODDS`), disegnato dal TOOLKIT
+   * con le stesse funzioni del modulo scelto - un undici di un club vero è una previsione su una persona,
+   * quindi l'app non ne calcola nessuno: legge questi. Assente su un bundle più vecchio, e allora il
+   * campetto mostra solo il modulo disegnato, che è il comportamento di prima.
+   */
+  alternatives?: Record<string, {
+    picture?: string | null;
+    p?: number;
+    lines?: Record<'P' | 'D' | 'M' | 'T' | 'A', BoardMan[]>;
+  }>;
   /** Present when the panel could not draw this club at all: then there is nothing to show. */
   error?: string;
 }
