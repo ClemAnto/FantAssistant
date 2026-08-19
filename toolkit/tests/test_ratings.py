@@ -145,6 +145,17 @@ def test_backfill_rosters_from_ratings(tmp_path):
 
 
 def test_fix_club_leagues(tmp_path):
+    """La lega di un club viene dalle sue PARTITE, mai dalle righe di `rosters`.
+
+    Il test dell'anello. La versione precedente leggeva la maggioranza delle righe di `rosters`, e
+    `backfill_rosters_from_ratings` scrive in quelle righe la lega del CLUB: bastava un uomo passato in
+    Serie A per tirarci dentro tutta la squadra. Costo misurato il 19/08/2026: otto club stranieri o di
+    Serie B archiviati come `serie_a` - Leicester, Everton, Nizza, Valencia, Wolfsburg, Hertha, Palermo,
+    Pescara - e 419 righe che entravano nella popolazione di Serie A delle finestre vecchie del gate.
+
+    Qui il caso e' quello vero, in piccolo: il Leicester ha DUE righe di `rosters` che dicono `serie_a`
+    (un uomo che poi e' venuto in Italia) e tutte le sue PARTITE in Premier. Vince la Premier.
+    """
     from euroleghe_ingest.config import Config
     from euroleghe_ingest.context import Context
     from euroleghe_ingest.modules import rosters
@@ -152,14 +163,35 @@ def test_fix_club_leagues(tmp_path):
     cfg = Config(data_dir=tmp_path / "data", db_path=tmp_path / "data" / "euro.db")
     (tmp_path / "data").mkdir()
     conn = init_db(cfg.db_path)
-    conn.execute("INSERT INTO clubs(fc_club_id, canonical_name, league) VALUES (1, 'Genoa', 'premier_league')")
-    conn.executemany("INSERT INTO players(fc_id, canonical_name) VALUES (?, ?)", [(1, "A"), (2, "B"), (3, "C")])
-    conn.executemany("INSERT INTO rosters(fc_id, season, fc_club_id, league) VALUES (?, ?, 1, ?)", [
-        (1, "2023-24", "serie_a"), (2, "2023-24", "serie_a"), (3, "2024-25", "premier_league"),
+    conn.executemany("INSERT INTO clubs(fc_club_id, canonical_name, league) VALUES (?, ?, ?)",
+                     [(1, "Leicester City", "serie_a"),      # l'anello lo aveva reso italiano
+                      (2, "Hertha Berlino", "serie_a"),      # nessuna partita che la nomini
+                      (3, "Napoli", "serie_a")])             # sano, e non si tocca
+    conn.executemany("INSERT INTO players(fc_id, canonical_name) VALUES (?, ?)",
+                     [(1, "A"), (2, "B"), (3, "C"), (4, "D")])
+    conn.executemany("INSERT INTO rosters(fc_id, season, fc_club_id, league) VALUES (?, ?, ?, ?)", [
+        (1, "2022-23", 1, "serie_a"), (2, "2022-23", 1, "serie_a"),   # le due righe che mentivano
+        (3, "2022-23", 2, "serie_a"), (4, "2022-23", 3, "serie_a"),
     ])
+    conn.executemany(
+        "INSERT INTO external_match_stats(fc_id, season, source, match_id, competition, club) "
+        "VALUES (?, ?, 'sofascore', ?, ?, ?)",
+        [(1, "2022-23", f"m{n}", "premier_league", "Leicester City") for n in range(10)]
+        + [(4, "2022-23", f"n{n}", "serie_a", "Napoli") for n in range(10)])
     conn.commit()
     rosters.fix_club_leagues(Context(config=cfg, conn=conn))
-    assert conn.execute("SELECT league FROM clubs WHERE fc_club_id = 1").fetchone()[0] == "serie_a"
+
+    league = dict(conn.execute("SELECT canonical_name, league FROM clubs"))
+    assert league["Leicester City"] == "premier_league", "le partite battono le righe di rosters"
+    assert league["Napoli"] == "serie_a", "un club sano non si tocca"
+    assert league["Hertha Berlino"] is None, (
+        "dice Serie A e su `default` non ha giocato mai: e' una contraddizione, e ignoto e' meglio di falso")
+    # ...e le righe seguono il club, o il filtro `r.league = 'serie_a'` le lascerebbe passare comunque.
+    rows = dict(conn.execute(
+        "SELECT r.fc_id, r.league FROM rosters r JOIN clubs c ON c.fc_club_id = r.fc_club_id"))
+    assert rows[1] == rows[2] == "premier_league"
+    assert rows[3] is None
+    assert rows[4] == "serie_a"
 
 
 def test_derive_season_stats_from_ratings(tmp_path):

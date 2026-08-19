@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import sqlite3
 
+from euroleghe_ingest import config
 from euroleghe_ingest.context import Context
 from euroleghe_ingest.matching import club_identity
 from euroleghe_ingest.sources import SEASON_SOURCES, iter_records
@@ -164,17 +165,90 @@ def backfill_rosters_from_ratings(ctx: Context) -> None:
     print(f"[rosters] created {created} roster entries from ratings")
 
 
+# La quota di partite che un campionato deve avere perche' sia IL campionato del club. Alta di
+# proposito: un club sta in una lega sola, e le poche righe che dicono un'altra cosa sono un uomo
+# trasferito a stagione in corso. Sui sei club che questa funzione ha corretto il 19/08/2026 l'evidenza
+# era 100% su tutti e sei, quindi la soglia non decide niente qui - esiste per il caso che non c'e'.
+CLUB_LEAGUE_SHARE = 0.6
+
+
 def fix_club_leagues(ctx: Context) -> None:
-    """Set each club's league to the most common league among its rosters. This corrects clubs
-    mislabeled by a single transferred player whose listone league differed from the club's real
-    one (e.g. Genoa/Torino ending up as premier_league/bundesliga)."""
+    """La lega di un club, DALLE PARTITE CHE HA GIOCATO - non dalle righe di `rosters`.
+
+    LA VERSIONE PRECEDENTE LEGGEVA LA MAGGIORANZA DELLE SUE RIGHE DI `rosters`, e con
+    `_backfill_from_ratings` che scrive nelle righe la lega del CLUB era un anello: la lega del club
+    veniva dalle righe, le righe la prendevano dal club, e bastava un uomo passato in Serie A per farci
+    entrare tutta la squadra. Costo misurato il 19/08/2026: **sei club stranieri archiviati come
+    `serie_a`** - Leicester City, Everton, Nizza, Valencia, Wolfsburg, Hertha Berlino - con **419 righe di
+    `rosters`** fra 2018-19 e 2022-23, tutti con ZERO partite in `match_ratings` su `default` e migliaia
+    su `euro`. Non e' cosmetico: `features.load` filtra la popolazione di Serie A con
+    `r.league = 'serie_a'`, quindi quelle righe entravano nelle finestre vecchie del gate su `default` -
+    Maddison, Tielemans, Castagne e i loro compagni misurati come se giocassero in Italia. Trovato
+    guardando SETTE zeri sospetti in una misura: erano uomini del Leicester che quella stagione avevano
+    giocato 30, 37, 35 partite, in Premier.
+
+    La fonte nuova non puo' chiudere l'anello perche' non passa da `rosters`: e' il CAMPIONATO delle
+    partite che i suoi giocatori hanno giocato per lui (`external_match_stats`), unito per CHIAVE
+    CANONICA e non per la stringa che la fonte usa - senza quella, tre club dei sei non si trovavano
+    affatto (`Nizza`/`Nice`, `Wolfsburg`/`VfL Wolfsburg`).
+
+    E UN CLUB CHE LE PARTITE NON SANNO NOMINARE NON DIVENTA SERIE A PER DIFETTO. Hertha Berlino non ha
+    partite in nessuna delle cinque leghe (gioca in seconda divisione) e restava `serie_a`: qui diventa
+    NULL, che e' vero e che la tiene fuori dal filtro di Serie A. Un club di Serie A ha partite di Serie A;
+    dichiararsi tale con zero righe su `default` e' una contraddizione, non un'incertezza.
+    """
     conn = ctx.require_conn()
-    fixed = 0
-    for (club_id, current) in conn.execute("SELECT fc_club_id, league FROM clubs").fetchall():
-        row = conn.execute(
-            "SELECT league FROM rosters WHERE fc_club_id = ? AND league IS NOT NULL "
-            "GROUP BY league ORDER BY COUNT(*) DESC LIMIT 1", (club_id,)).fetchone()
-        if row and row[0] and row[0] != current:
-            conn.execute("UPDATE clubs SET league = ? WHERE fc_club_id = ?", (row[0], club_id))
-            fixed += 1
-    print(f"[rosters] fixed {fixed} club leagues to the majority roster league")
+    matches: dict[str, dict[str, int]] = {}
+    for club, competition, played in conn.execute(
+            "SELECT club, competition, COUNT(*) FROM external_match_stats "
+            "WHERE club IS NOT NULL AND competition IS NOT NULL GROUP BY club, competition"):
+        key = club_identity(club)
+        if key:
+            bucket = matches.setdefault(key, {})
+            bucket[competition] = bucket.get(competition, 0) + played
+    in_scope = set(config.CHAMPIONSHIPS)
+
+    named, emptied = [], []
+    for club_id, name, current in conn.execute(
+            "SELECT fc_club_id, canonical_name, league FROM clubs").fetchall():
+        counts = {competition: played for competition, played in
+                  (matches.get(club_identity(name or "")) or {}).items() if competition in in_scope}
+        total = sum(counts.values())
+        best = max(counts, key=counts.get) if counts else None
+        if best and counts[best] / total >= CLUB_LEAGUE_SHARE:
+            if best != current:
+                conn.execute("UPDATE clubs SET league = ? WHERE fc_club_id = ?", (best, club_id))
+                named.append((name, current, best, counts[best], total))
+            continue
+        # Nessuna partita che lo nomini. Si tocca SOLO la contraddizione: dice Serie A e su `default`
+        # non ha giocato mai. Un club senza evidenza e senza contraddizione resta com'e' - non sapere
+        # non e' una ragione per riscrivere.
+        if current == "serie_a" and not conn.execute(
+                "SELECT 1 FROM match_ratings WHERE platform = 'default' AND team = ? LIMIT 1",
+                (name,)).fetchone():
+            conn.execute("UPDATE clubs SET league = NULL WHERE fc_club_id = ?", (club_id,))
+            emptied.append(name)
+
+    # ...e le righe di `rosters` seguono il club, o il filtro le lascerebbe passare lo stesso: la lega
+    # su una riga e' una COPIA di quella del club, e una copia che non si aggiorna e' il difetto.
+    moved = 0
+    for club_id, league in conn.execute(
+            "SELECT fc_club_id, league FROM clubs WHERE league IS NOT NULL").fetchall():
+        moved += conn.execute(
+            "UPDATE rosters SET league = ? WHERE fc_club_id = ? AND (league IS NULL OR league != ?)",
+            (league, club_id, league)).rowcount
+    orphaned = conn.execute(
+        "UPDATE rosters SET league = NULL WHERE league IS NOT NULL AND fc_club_id IN "
+        "(SELECT fc_club_id FROM clubs WHERE league IS NULL)").rowcount
+
+    for name, was, now, played, total in named:
+        print(f"[rosters] {name}: {was} -> {now} ({played}/{total} partite)")
+    for name in emptied:
+        print(f"[rosters] {name}: serie_a -> ignota (nessuna partita che la nomini, zero su `default`)")
+    print(f"[rosters] {len(named)} leghe di club corrette dalle PARTITE, {len(emptied)} svuotate · "
+          f"{moved} righe di rosters allineate, {orphaned} svuotate")
+    if named or emptied:
+        # Una migrazione dichiara cosa ri-derivare: e' la regola nata dai trasferimenti fantasma.
+        print("[rosters] da rifare, in ordine: arrivals -> i FOGLI -> estimates -> export. E le "
+              "finestre vecchie del gate su `default` cambiano POPOLAZIONE: i numeri pubblicati su "
+              "Tm3/Tm2/Tm1 sono stati misurati con quelle righe dentro.")
