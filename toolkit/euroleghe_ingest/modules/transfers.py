@@ -526,3 +526,63 @@ def reingest_from_cache(ctx: Context) -> None:
     conn.commit()
     print(f"[transfers] {spells} coach spells · {stored} transfers "
           f"({len(unresolved)} names unresolved) · {flagged} new_coach flags")
+
+
+def refresh_current_season(ctx: Context, season: str) -> tuple[str | None, dict]:
+    """Re-read the TARGET season's transfer page of every perimeter club, at most once a day.
+
+    A CACHE OVER A FACT THAT CHANGES NEEDS AN EXPIRY, and this one had none: the page is keyed
+    `transfermarkt_transfers_{tm_id}_{year}.html` and `run` skips it when the file exists, so the summer
+    market was frozen at whatever day the pages were first pulled. Measured 18/08/2026:
+    `transfers_history` held nothing newer than **2026-07-01** and the pages dated from 27-29/07, in the
+    middle of the window it is there to describe - the same defect as the friendlies layer (v9.47) and
+    the same cure, an expiry in the caller's hands.
+
+    The expiry is ONE DAY and it is read off the file's own mtime, so three sheets built the same
+    afternoon pay for it once. Overwriting is safe here, unlike a squad payload: a season's transfer page
+    is CUMULATIVE, so the newer copy contains everything the older one did.
+
+    Only the target season, and only the perimeter: the older seasons are finished facts and re-reading
+    them would be 59 clubs x 12 seasons for nothing.
+    """
+    conn = ctx.require_conn()
+    counts = {"clubs": 0, "fetched": 0, "stale": 0}
+    today = dt.datetime.now(tz=dt.UTC).date().isoformat()
+    year = season.split("-")[0]
+    clubs = _perimeter_ids(conn)
+    counts["clubs"] = len(clubs)
+    todo = []
+    for _club_id, tm_id in clubs:
+        path = _cache(ctx.config, "transfers", f"{tm_id}_{year}")
+        if not path.exists() or dt.datetime.fromtimestamp(
+                path.stat().st_mtime, tz=dt.UTC).date().isoformat() < today:
+            todo.append((tm_id, path))
+    counts["stale"] = len(todo)
+    if not todo:
+        return None, counts                   # already read today: nothing to pay for
+    print(f"[transfers] {season}: {len(todo)} of {len(clubs)} club pages older than today - re-reading")
+    session = _client()
+    try:
+        for index, (tm_id, path) in enumerate(todo, start=1):
+            if ctx.cancelled():
+                raise KeyboardInterrupt
+            _polite_sleep(ctx.cancel_event)
+            html = _get_html(session, TRANSFERS_ENDPOINT.format(tm_id=tm_id, year=year))
+            if html:
+                _atomic_write_text(path, html)
+                counts["fetched"] += 1
+            if index % 10 == 0 or index == len(todo):
+                print(f"[transfers] {index}/{len(todo)} club pages")
+    except KeyboardInterrupt:
+        print("[transfers] interrupted - already-downloaded pages are cached")
+    except Exception as exc:   # noqa: BLE001 - the network is not allowed to cost a sheet
+        return f"transfer refresh failed ({exc}) - the sheet uses the transfers already in the DB", counts
+    finally:
+        session.close()
+    if not counts["fetched"]:
+        # A source that refuses is a measurement: saying "0 fetched" as though it were "nothing to do"
+        # is what hid the live-squad no-op for three days.
+        return (f"the transfer pages did not answer ({len(todo)} clubs asked): the market that built "
+                f"these squads is as old as the last run that reached them"), counts
+    reingest_from_cache(ctx)
+    return None, counts

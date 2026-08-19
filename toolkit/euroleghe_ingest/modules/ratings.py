@@ -621,3 +621,85 @@ def reingest_listone_from_cache(ctx: Context) -> None:
     conn.commit()
     if files:
         print(f"[ratings] reingested {total} listone rows from {len(files)} cached files")
+
+
+def refresh_listone(ctx: Context, platform: str, season: str) -> tuple[str | None, dict]:
+    """Re-read ONE listone (platform, season) and say what it changed. (failure, counts).
+
+    THE OFFICIAL LIST IS A VOLATILE STATE IN AUGUST, and until 18/08/2026 nothing but a full `ratings`
+    run re-read it: `snapshot` refreshed the probabili and the granular roles and left the listone
+    wherever the last acquisition had put it. Measured that day, on the operator's case («Vicario oggi e'
+    stato ufficializzato alla Juventus, perche' lo snapshot non lo ha aggiornato?»): the 2026-27 listone
+    on disk had been downloaded on 07/08, eleven days earlier, and carried no row for him at all - so no
+    sheet could show him anywhere, at Juventus or at Tottenham, whatever else was refreshed.
+
+    It is the cheapest of the three refreshes - one login and one request per platform, against ~40 club
+    pages for the roles - and it is the only one that carries the two facts a bid is made against: WHICH
+    CLUB the game says a man is at, and his ask price. The squad provider is the authority on who is in a
+    squad (operator, 17/08/2026) and it does not quote anybody.
+
+    Never raises: a sheet without the refresh is worse than no sheet, but only just. It returns the
+    DIFF - new rows and moved clubs - because a change that does not declare what it changed is one that
+    surfaces at the table (the club-identity migration taught that, 06/08/2026), and because a listone
+    that moves a club moves `arrivals`, which is a diff between rosters and is NOT re-derived here.
+    """
+    conn = ctx.require_conn()
+    counts: dict = {"rows": 0, "new": 0, "moved": [], "season_stated": None}
+    try:
+        user, pwd = _credentials(ctx.config)
+    except Exception as exc:   # noqa: BLE001 - no credentials is a configuration fact, not a crash
+        return f"listone refresh skipped ({exc}): the sheet uses the listone already in the DB", counts
+    user_agent = os.environ.get("EUROLEGHE_USER_AGENT", "FantAssistant/0.1 (+personal-use)")
+    # THE DIFF IS AGAINST THIS PLATFORM'S OWN PREVIOUS LIST, read off the cache file about to be
+    # overwritten - never against `rosters`, which by design keeps the LAST read of either listone and
+    # cannot say which one wrote it. Measured on 19/08/2026, and the note was the thing that lied: the
+    # euro list has Gutierrez at Bayer Leverkusen and the Serie A list has him at Napoli, so re-reading
+    # them in turn reported him as «changed club» each time - a ping-pong between two opinions printed
+    # as a transfer, together with Dominguez B. and Maldini. A name that does not match its number.
+    cached = ctx.config.cache_dir / f"listone_{platform}_{season}.xlsx"
+    before: dict[int, str] = {}
+    if cached.exists():
+        try:
+            before = {rec["fc_id"]: rec["team"] for rec in parse_listone(cached.read_bytes(), season)}
+        except (OSError, ValueError, KeyError) as exc:
+            print(f"[ratings] previous {platform} listone unreadable ({exc}) - "
+                  f"reporting the re-read without a diff")
+    session = _new_session(user_agent)
+    try:
+        login(session, user, pwd)
+        cid = resolve_championship_id(session, platform, season)
+        if not cid:
+            return (f"listone refresh: no championship id for {platform}/{season} - the sheet uses the "
+                    f"listone already in the DB"), counts
+        data = download_listone(session, cid)
+        if not data:
+            return (f"listone refresh: the quotazioni endpoint did not answer for {platform}/{season} - "
+                    f"the sheet uses the listone already in the DB"), counts
+        stated = listone_season(data)
+        counts["season_stated"] = stated
+        if stated and stated != season:
+            # The same guard `run` applies: the page serves "the current list", and a 2025-26 listone
+            # filed as 2026-27 is invisible - it would overwrite this season's prices with last one's.
+            return (f"listone refresh: the list served for {platform}/{season} says it is {stated} - "
+                    f"refused, the sheet uses the listone already in the DB"), counts
+        records = parse_listone(data, season)
+        _atomic_write(cached, data)            # ...after `before` was read from the copy it replaces
+        counts["rows"] = upsert_listone(conn, season, records, platform)
+        conn.commit()
+    except Exception as exc:   # noqa: BLE001 - the network is not allowed to cost a sheet
+        return (f"listone refresh failed ({exc}) - the sheet uses the listone already in the DB"), counts
+    finally:
+        session.close()
+    after = {rec["fc_id"]: rec["team"] for rec in records}
+    names = {fc_id: name for fc_id, name in conn.execute(
+        "SELECT fc_id, canonical_name FROM players")}
+    counts["new"] = len(set(after) - set(before)) if before else 0
+    counts["moved"] = sorted(
+        (names.get(fc_id, str(fc_id)), before[fc_id], club)
+        for fc_id, club in after.items()
+        if fc_id in before and before[fc_id] != club)
+    print(f"[ratings] listone {platform}/{season} re-read: {counts['rows']} rows · "
+          f"{counts['new']} new · {len(counts['moved'])} moved club")
+    for name, was, now in counts["moved"][:20]:
+        print(f"[ratings]   {name}: {was} -> {now}")
+    return None, counts

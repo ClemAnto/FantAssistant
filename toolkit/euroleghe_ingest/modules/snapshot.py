@@ -26,9 +26,10 @@ plausible-looking number. Two of those are worth knowing before reading the shee
     so corners and free kicks cannot be attributed. Penalties are, and they are revealed from our own
     votes rather than from an editorial list.
 
-The auction date is `min(the target season's 15 August, today)`: for the season being auctioned that is
-today, so today's probabili and injuries count; for a season already played it is that season's own
-auction day, so a dry run cannot read the future it is pretending not to know.
+The auction date is TODAY for the season being auctioned, so today's probabili, injuries, squads and
+listone count; for a season already PLAYED it is that season's conventional 15 August, so a dry run
+cannot read the future it is pretending not to know. It used to be `min(15 August, today)` for both,
+which is the same thing until 15 August and freezes the sheet in the past afterwards (revision 27).
 """
 
 from __future__ import annotations
@@ -56,7 +57,9 @@ NAME = "snapshot"
 DESCRIPTION = "Today's auction snapshot: refresh the volatile state, then one row per player + per club"
 DEPENDS_ON: list[str] = ["rosters"]
 RAW_INPUTS: list[str] = []
-NETWORK = True          # only the editorial refresh; everything else is computed from the DB
+# The three VOLATILE STATES a sheet refreshes, and nothing else: today's editorial pages, today's live
+# squads + granular roles, and the target season's listone. Everything else is computed from the DB.
+NETWORK = True
 
 # How many recent matches "form" is measured over. The user's own number, and it is a WINDOW, not a
 # model parameter: nothing downstream fits on it.
@@ -267,7 +270,35 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      foglio Serie A e su euro era all'Atletico. Misurato sulla finestra Serie A di quel giorno: 499 righe
 #      quotate contro **730** osservate. `--listone-only` torna al foglio di prima. Il gate non si muove: il
 #      suo `squad_source` resta `listone` e un test lo asserisce.
-SHEET_REVISION = 26
+#  27  18/08/2026 - IL FOGLIO STA SU OGGI, e le fonti ufficiali si rileggono davvero. Tre difetti, una
+#      domanda dell'operatore («Vicario oggi e' stato ufficializzato alla Juventus, perche' lo snapshot
+#      non lo ha aggiornato?»): (a) la data d'asta era `min(15 agosto, oggi)`, quindi dal 16/08 ogni
+#      foglio stava tre giorni indietro e tutto cio' che e' datato dopo era invisibile PER COSTRUZIONE -
+#      comprese le probabili scaricate quella mattina; (b) di conseguenza il refresh della rosa live era
+#      un no-op silenzioso, perche' `fetch_roles` chiedeva i file di cache del 15/08 che erano gia' su
+#      disco (0 richieste, «0 clubs to fetch»); (c) il listone non veniva riletto mai - quello sul disco
+#      era del 07/08 e di Vicario non aveva nessuna riga. Ora la data e' OGGI per la stagione che si
+#      compra (il 15 agosto convenzionale resta solo per una stagione gia' passata, dove serve a impedire
+#      il look-ahead), l'osservazione della rosa live e' datata col giorno in cui si osserva, e
+#      `snapshot --refresh` rilegge anche il listone dichiarando chi ha cambiato club.
+#   28 (19/08/2026) - la board porta `minutes_next`, i minuti che ci si aspetta da un uomo in una partita
+#      che gioca la stagione che viene (`engine/minutes.py`). Non e' una colonna del foglio - il claim
+#      esiste solo nel pannello - ma viaggia nella cartella del foglio, quindi una cartella senza il campo
+#      e' da rifare: l'app disegna `—` invece del numero, che e' onesto e non e' quello che si vuole.
+#   29 (19/08/2026) - LE PRESENZE DEL RUNG `older` NON SONO PIU' IL SUO VECCHIO PV. Da sempre quel gradino
+#      REGREDISCE la fantamedia verso l'ancora e consegnava le presenze intatte, senza nemmeno convertirle
+#      fra i due calendari: lo stesso difetto, sull'altra meta' della coppia. Trovato dove una presenza
+#      grezza pesa di piu' - l'Overall dell'app e' `presenze x (voto + bonus)` - su Arthur Melo, 32 voti
+#      alla Fiorentina nel 2023-24 e niente da allora, letto 32 su 38 e QUARTO di tutto il listone di
+#      Serie A con una fantamedia da 6,34. Misurato sulla popolazione che quel pv la usa davvero (niente
+#      misurato a t-1 su nessuna delle due piattaforme e nessun minuto di lega all'estero), leave-one-
+#      season-out, chi non gioca contato per lo zero che e': MAE 0,3749 -> 0,2689 su default (n=221, 8
+#      stagioni, +28,3%, positivo su 8 su 8) e 0,3510 -> 0,2993 su euro (n=48, 3 stagioni, +14,7%).
+#      `est.OLDER_SHARE` / `OLDER_PV_BETA`, per piattaforma perche' le due dicono cose diverse e il
+#      meccanismo si spiega; il valore euro e' fragile e la nota lo dichiara. Si muovono `est_pv`, e
+#      quindi `est_surplus`, `desc_spm`/`desc_dvm` e i due surplus di coppa, sulle 46 righe `older` del
+#      foglio Serie A e sulle omologhe di euro. `engine_*` non si muove di un decimale: e' un ripiego.
+SHEET_REVISION = 29
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
@@ -301,7 +332,16 @@ SQUAD_COMPLETENESS = 0.90
 # whatever the DB is missing that day, so the honest reading is "this much of the WORK is behind us",
 # with the stage name beside it saying which work. The label is what the operator reads.
 STAGES: tuple[tuple[str, str, float], ...] = (
-    ("refresh", "today's probabili", 8.0),
+    ("refresh", "today's probabili + the listone", 14.0),
+    # The three network refreshes added 18/08/2026, each bounded by the perimeter (59 clubs with a
+    # Transfermarkt id) and each cached PER DAY, so the second and third sheet of an afternoon pay ~0.
+    # Costs from the first real run of the chain; re-read them off the timing line like the others.
+    ("market", "the summer market", 365.0),
+    ("contracts", "the clubs' own squad pages", 215.0),
+    ("strength", "the clubs' Elo", 69.0),
+    ("derive", "the layers a new listone moves", 20.0),
+    # ...and the stages a run without `--refresh` does not walk at all, so the bar's denominator is the
+    # work this build will really do.
     ("squads", "real squads", 14.0),
     ("roles", "granular real roles", 293.0),
     ("prepare", "engine features", 5.0),
@@ -313,6 +353,12 @@ STAGES: tuple[tuple[str, str, float], ...] = (
     ("write", "csv + manifest", 0.5),
     ("boards", "the drawn boards", 6.0),
 )
+
+
+#: The stages a build WITHOUT `--refresh` does not walk. Derived from one place so the bar and the
+#: chain cannot disagree: every network stage plus the offline re-derivation that only a refresh causes.
+SKIPPED_WITHOUT_REFRESH: tuple[str, ...] = (
+    "refresh", "market", "contracts", "strength", "derive", "roles")
 
 
 class Progress:
@@ -434,8 +480,19 @@ def resolve_window(conn, season: str | None = None, today: str | None = None,
     input_season = earlier[-1] if earlier else target
     # `as_of` is taken literally, 15 August is not imposed on it: the point of a back-dated snapshot is to
     # stand on a DAY inside a season - "what did this squad look like on 1 March" - and clamping it to the
-    # pre-season would answer a different question. Without it, the auction is the usual mid-August one.
-    auction = as_of or min(f"{target.split('-')[0]}-08-15", today)
+    # pre-season would answer a different question.
+    #
+    # Without it: TODAY for the season being auctioned, and the conventional 15 August only for a target
+    # season already PAST, where it is what stops a dry run from reading the future it pretends not to
+    # know. It used to be `min(15 August, today)`, which is the same thing until 15 August and FREEZES the
+    # sheet afterwards - the mirror of the `elo.auction_dates` defect (a conventional day filed before it
+    # had arrived), met on the other side of the same date. Measured on 18/08/2026, the day the operator
+    # asked why an official transfer was not in the sheet: every run stood on 2026-08-15 and therefore
+    # (a) discarded that day's own probabili and injuries, dated after it, (b) turned the live-squad
+    # refresh into a silent no-op, because `fetch_roles` asks for `sofascore_squad_*_{date}.json` and the
+    # 15/08 files were already on disk - so the freshest squad the sheet could ever see was frozen three
+    # days back, and would have stayed frozen for the whole season.
+    auction = as_of or (today if target >= season_of(today) else f"{target.split('-')[0]}-08-15")
     return features.Window("SNAP", input_season, target, auction), note
 
 
@@ -2252,7 +2309,7 @@ def injury_history(conn, auction_date: str, seasons: list[str],
     return out
 
 
-def evidence_age(conn, window: features.Window) -> tuple[dict, list[str]]:
+def evidence_age(conn, window: features.Window, platform: str | None = None) -> tuple[dict, list[str]]:
     """How old the SQUAD and TRANSFER evidence behind this sheet is. Returns (facts, notes).
 
     Asked for by the operator, on a case: «Gutierrez non è più nel Napoli». The sheet was right about what
@@ -2267,7 +2324,8 @@ def evidence_age(conn, window: features.Window) -> tuple[dict, list[str]]:
     the window that feeds this sheet - the summer before the target season, which is exactly the market an
     August auction is about.
     """
-    facts: dict = {"squad_sources": {}, "transfers_latest": None, "transfers_in_window": 0}
+    facts: dict = {"squad_sources": {}, "transfers_latest": None, "transfers_in_window": 0,
+                   "listone_read_on": None}
     notes: list[str] = []
     today = window.auction_date
     for source, latest in conn.execute(
@@ -2282,12 +2340,40 @@ def evidence_age(conn, window: features.Window) -> tuple[dict, list[str]]:
         "SELECT COUNT(*) FROM transfers_history WHERE date >= ?", (since,)).fetchone()[0]
     stale = {source: latest for source, latest in facts["squad_sources"].items()
              if not latest or latest < today}
+    # ...and WHICH command moves each date. A note that names the wrong module is worse than one that names
+    # none: two of these four are refreshed by the snapshot itself, so seeing them stale means the refresh
+    # was off or failed - a different diagnosis from "nobody has run `injuries` in three weeks".
+    fills = {"fc_site": "`snapshot` refreshes it; `fc_site` on its own",
+             "sofascore": "`snapshot` refreshes it; `positions --layer roles` on its own",
+             "transfermarkt": "`injuries` caches the squad pages",
+             "appearances": "`positions --layer matches`"}
     if stale:
         notes.append("SQUAD EVIDENCE is older than the sheet's own date (" + today + "): "
                      + " · ".join(f"{source} last observed {latest or 'never'}"
+                                  f" ({fills.get(source, 'no command declared')})"
                                   for source, latest in sorted(stale.items()))
                      + ". A squad is a volatile state: a man transferred since then is still drawn where "
-                       "he was. Re-run `fc_site` and `transfers` to move these dates.")
+                       "he was.")
+    # ...and the LISTONE, which is a volatile state too and was the one nobody dated. Its reading day is
+    # `fvm_history.observed_on`: the fantavalore moves weekly and on events, so every re-read leaves a
+    # dated row, which makes it the honest answer to «when did we last ask the game who is where». Only
+    # reported when the list EXISTS for this platform and season - a season with no listone yet is a
+    # different statement, and it already has its own note.
+    quoted = conn.execute(
+        "SELECT COUNT(*) FROM listone_quotes WHERE season = ? AND platform = ?",
+        (window.target_season, platform)).fetchone()[0] if platform else 0
+    if quoted:
+        facts["listone_read_on"] = conn.execute(
+            "SELECT MAX(observed_on) FROM fvm_history WHERE season = ? AND platform = ?",
+            (window.target_season, platform)).fetchone()[0]
+        if not facts["listone_read_on"] or facts["listone_read_on"] < today:
+            notes.append(
+                f"THE LISTONE behind this sheet was last read "
+                f"{facts['listone_read_on'] or 'on a day nothing recorded'}, before the sheet's own date "
+                f"({today}): the club the GAME says a player is at, and his ask price, are that old. An "
+                f"official transfer announced since then is not here at all - not at his new club and "
+                f"not with a quotation. `snapshot` re-reads it; `ratings --platform {platform} --season "
+                f"{window.target_season}` does it on its own.")
     if facts["transfers_in_window"]:
         pass                                   # counted per row instead; the note is written with the rows
     if not facts["transfers_in_window"]:
@@ -2837,12 +2923,18 @@ def estimation_layer(conn, window: features.Window, platform: str,
     # against and what it preferred on five windows of six.
     older_join = (" JOIN rosters r ON r.fc_id = s.fc_id AND r.season = s.season "
                   "AND r.league = 'serie_a' ") if platform == "default" else ""
+    # ...and the CALENDAR that season was played on travels with it, because the pv is a count and the sheet
+    # needs a share: 32 votes are 84% of a Serie A season and 100% of a euro one, and the first version of
+    # this rung handed the number across untouched (`est.presences_from_older`).
+    calendars = {(plat, season): rounds for plat, season, rounds in conn.execute(
+        "SELECT platform, season, COUNT(DISTINCT matchday) FROM match_ratings GROUP BY platform, season")}
     for fc_id, season, plat, pv, mv, fm in conn.execute(
             f"SELECT s.fc_id, s.season, s.platform, s.pv, s.mv, s.fm FROM season_stats s{older_join} "
             f"WHERE s.season < ? AND s.fm IS NOT NULL AND s.pv >= ? AND s.fc_id IN ({marks}) "
             f"ORDER BY s.season ASC, s.pv ASC",
             (window.input_season, est.FULL_SEASON_VOTES, *ids)):
-        layer[fc_id]["older"] = {"season": season, "platform": plat, "pv": pv, "mv": mv, "fm": fm}
+        layer[fc_id]["older"] = {"season": season, "platform": plat, "pv": pv, "mv": mv, "fm": fm,
+                                 "calendar": calendars.get((plat, season))}
     # ...and the FOOTBALL HE PLAYED ELSEWHERE, which is what a new signing has instead of a season here.
     # One row per (player, competition) in `external_stats`: the league he played MOST in is his origin,
     # and its own rounds are the denominator (`features.league_rounds`, the same one `desc_arrival_origin_
@@ -2962,17 +3054,25 @@ def _rung_for(obs, prediction, layer: dict, anchors: dict, data,
                     if abroad.get("rounds") else None)
     from_abroad = est.presences_from_abroad(calendar, platform, abroad_share)
 
-    def presences(source_pv, source_calendar_ratio=1.0, recent_first=False):
+    def presences(source_pv=None, source_calendar_ratio=1.0, recent_first=False, from_older=None):
         """His presences, if the engine has none: the other calendar's, scaled by the two calendars.
 
         `recent_first` prefers LAST season's measured minutes to the rung's own source, and it is used
         exactly where the rung's source is older than they are: a season two years back says less about
         how much he will play than the one he has just finished somewhere else.
+
+        `from_older` is the last of those sources and the only one that is not handed over as it stands:
+        an old pv is worth almost nothing as a forecast of appearances (`est.presences_from_older` carries
+        the measurement), so it is regressed toward the share that population really gets - the same
+        treatment the fantamedia beside it has had since 06/08/2026.
         """
         if pv_pred is not None:
             return pv_pred
         if recent_first and from_abroad is not None:
             return from_abroad
+        if from_older is not None:
+            return est.presences_from_older(calendar, platform, from_older.get("pv"),
+                                            from_older.get("calendar"))
         if source_pv is None:
             return None
         return round(source_pv * source_calendar_ratio, 1)
@@ -3011,11 +3111,17 @@ def _rung_for(obs, prediction, layer: dict, anchors: dict, data,
         value = est.regress(older["fm"], anchor)
         base = (est.regress(older["mv"], anchor_mv)
                 if older.get("mv") is not None and anchor_mv is not None else None)
-        return est.Estimate(value, presences(older["pv"], recent_first=True), "older",
-                            est.older_confidence(back),
-                            f"his last measured season is {older['season']} on {older['platform']} "
-                            f"({older['pv']} votes, {older['fm']:.2f}), {back} seasons back - pulled "
-                            f"{int((1 - est.OLDER_BETA) * 100)}% toward {level}", mv=base)
+        pv_est = presences(recent_first=True, from_older=older)
+        said = (f"his last measured season is {older['season']} on {older['platform']} "
+                f"({older['pv']} votes, {older['fm']:.2f}), {back} seasons back - pulled "
+                f"{int((1 - est.OLDER_BETA) * 100)}% toward {level}")
+        # ...and the row says what happened to the PRESENCES too, because they are transformed now and a
+        # note that explains one half of a pair invites the reader to trust the other half raw.
+        if pv_pred is None and from_abroad is None and older.get("calendar"):
+            said += (f"; his {older['pv']} votes are {older['pv'] / older['calendar']:.0%} of that "
+                     f"calendar and read as {pv_est} of {calendar} here - an old pv barely predicts "
+                     f"appearances, so it is pulled toward the share this population really gets")
+        return est.Estimate(value, pv_est, "older", est.older_confidence(back), said, mv=base)
     # The last rung, and it has TWO cases that the first version told apart with one constant. A man
     # nobody has ever measured gets the unmeasured share; a man measured ELSEWHERE - the new signing from
     # abroad - gets his own minutes converted by a line fitted on exactly that population
@@ -4546,7 +4652,210 @@ def refresh_editorial(ctx: Context) -> str | None:
     return None
 
 
-def refresh_real_roles(ctx: Context, clubs, date: str, progress: Progress | None = None) -> str | None:
+def refresh_listone_for(ctx: Context, platform: str, season: str) -> tuple[str | None, dict]:
+    """The target season's official list, re-read. One login + one request; never raises.
+
+    A thin wrapper so the import stays where the other two refreshes keep theirs, and so a caller that
+    does not want the network (a back-dated sheet, a test) simply does not call it. The measurement that
+    put it here is in `ratings.refresh_listone`.
+    """
+    from euroleghe_ingest.modules import ratings
+
+    try:
+        return ratings.refresh_listone(ctx, platform, season)
+    except Exception as exc:   # noqa: BLE001 - a snapshot must still be produced without the refresh
+        return f"listone refresh failed ({exc}) - the sheet uses the listone already in the DB", {}
+
+
+def refresh_official_sources(ctx: Context, platform: str, window: features.Window,
+                             progress: Progress | None = None) -> list[str]:
+    """EVERY official channel a sheet stands on, refreshed in one place. Returns the notes it earned.
+
+    «Vorrei che quando si esegue lo snapshot tutte queste cose avvengano in automatico» (operatore,
+    18/08/2026), after a day in which an official transfer was in no sheet because NOTHING inside a
+    snapshot re-read the sources that carry one. The five channels, in the order the spec's own
+    dependency table gives them - not a preference:
+
+      editorial   today's probabili + indisponibili (fantacalcio.it, 2 requests)
+      listone     the club the GAME says a man is at, and his ask price (1 login + 1 request)
+      market      the target season's transfers, per perimeter club (Transfermarkt, 59 pages/day)
+      contracts   today's squad page per club - the third squad source + the contract expiries
+      strength    today's ClubElo snapshot, which `desc_level_elo` (R19, adopted) is built on
+      derive      what a re-read listone OBLIGES offline: `arrivals`, a diff between rosters
+
+    ONE DOOR, and that is the point of the function rather than a tidiness. Each of these was added by
+    appending a call to `run`, and the second one broke a test in a way worth keeping: the test stubbed
+    the two network doors it knew about, the third one was not among them, and the run really logged in
+    and downloaded a season's listone into a temporary database. A caller that must not touch the
+    network - a test, a back-dated sheet - now has exactly one name to stub, and cannot fall behind
+    when a sixth channel arrives.
+
+    NOTHING HERE IS ALLOWED TO COST A SHEET. Every step returns its failure as a note instead of
+    raising: an auction sheet built on slightly older evidence, with the age written on it, beats no
+    sheet at all - and a source that refuses is a measurement the operator must read, not a silence.
+    Every step is also bounded by the PERIMETER and cached per DAY, so the second and third sheet of an
+    afternoon pay for none of it.
+    """
+    notes: list[str] = []
+    if progress:
+        progress.stage("refresh")
+    failure = refresh_editorial(ctx)
+    if failure:
+        notes.append(failure)
+    failure, listone = refresh_listone_for(ctx, platform, window.target_season)
+    if failure:
+        notes.append(failure)
+    elif listone.get("moved"):
+        movers = " · ".join(f"{name} {was}→{now}" for name, was, now in listone["moved"][:12])
+        notes.append(f"the {window.target_season} listone was re-read today: {listone['new']} players "
+                     f"are new to it and {len(listone['moved'])} changed club ({movers}"
+                     + (" …" if len(listone["moved"]) > 12 else "") + ").")
+    if progress:
+        progress.stage("market")
+    failure, _market = refresh_market(ctx, window.target_season)
+    if failure:
+        notes.append(failure)
+    if progress:
+        progress.stage("contracts")
+    failure, _squads = refresh_squad_pages(ctx)
+    if failure:
+        notes.append(failure)
+    if progress:
+        progress.stage("strength")
+    failure = refresh_club_strength(ctx, window.auction_date)
+    if failure:
+        notes.append(failure)
+    # ...and the offline re-derivation, whenever `arrivals` is BEHIND the listone - not merely when this
+    # run moved something, which forgets a move made by the run before it.
+    stale, read_on, derived_on = arrivals_are_stale(ctx.require_conn())
+    if stale:
+        if progress:
+            progress.stage("derive")
+        print(f"[snapshot] arrivals were derived {derived_on or 'never'} and the listone was read "
+              f"{read_on}: re-deriving")
+        failure = rederive_after_listone(ctx)
+        if failure:
+            notes.append(failure)
+    return notes
+
+
+def refresh_market(ctx: Context, season: str) -> tuple[str | None, dict]:
+    """The summer market: the target season's transfer page per perimeter club, once a day."""
+    from euroleghe_ingest.modules import transfers
+
+    try:
+        return transfers.refresh_current_season(ctx, season)
+    except Exception as exc:   # noqa: BLE001 - a snapshot must still be produced without the refresh
+        return f"transfer refresh failed ({exc}) - the sheet uses the transfers already in the DB", {}
+
+
+def refresh_squad_pages(ctx: Context) -> tuple[str | None, dict]:
+    """The third squad source and the contract expiries: today's Transfermarkt squad page per club."""
+    from euroleghe_ingest.modules import injuries
+
+    try:
+        return injuries.refresh_current_squads(ctx)
+    except Exception as exc:   # noqa: BLE001 - a snapshot must still be produced without the refresh
+        return f"squad-page refresh failed ({exc}) - the sheet uses the squads already in the DB", {}
+
+
+def refresh_club_strength(ctx: Context, auction_date: str) -> str | None:
+    """Today's ClubElo snapshot, asked for AT MOST ONCE A DAY. `elo.auction_dates` picks the days.
+
+    `desc_level_elo` is R19, ADOPTED on `default`, and the club card is built on it - and when this was
+    added the newest snapshot in the DB was 2026-01-14, seven months and two transfer windows old,
+    because the only date anybody asked for was a convention that had already passed.
+
+    The once-a-day guard is not caution, it is a measurement: on 18/08/2026 the endpoint TIMED OUT on
+    both dates and the mirror had nothing newer, so the stage cost **68 seconds of waiting per sheet**
+    and brought nothing - three sheets an afternoon would pay it three times. `fetch_snapshots` cannot
+    prevent that on its own: it skips a date whose FILE exists, and a failed fetch leaves no file.
+    The attempt is remembered in `ingest_runs` and NOT as an empty cache file - a marker that says
+    «the source answered nothing» when the source did not answer at all is the defect of 17/08/2026.
+    """
+    from euroleghe_ingest.db.database import record_run
+    from euroleghe_ingest.modules import elo
+
+    conn = ctx.require_conn()
+    today = dt.datetime.now(tz=dt.UTC).date().isoformat()
+    asked = conn.execute("SELECT MAX(started_at) FROM ingest_runs WHERE module = 'elo'").fetchone()[0]
+    if not (asked and asked[:10] >= today):    # not asked today yet - whatever today's answer turns out
+        started = dt.datetime.now(tz=dt.UTC).isoformat(timespec="seconds")
+        try:
+            elo.run(ctx)
+        except Exception as exc:   # noqa: BLE001 - a snapshot is still produced without the refresh
+            record_run(conn, "elo", started, "error", f"from snapshot: {exc}")
+            return (f"club-strength refresh failed ({exc}) - the sheet uses the newest Elo already in "
+                    f"the DB")
+        record_run(conn, "elo", started, "ok", "from snapshot")
+    # ...and the AGE is reported whether or not this run is the one that asked. The guard is about the
+    # REQUEST - not paying 70 seconds of timeouts three times an afternoon - and the note is about the
+    # STATE, which is the same for every sheet built that day. Conflating them made the second and third
+    # sheet of 19/08/2026 silent about an Elo 217 days old, which is the defect this whole session is
+    # about: a sheet that cannot say how old its evidence is invites trust it has not earned.
+    newest = conn.execute("SELECT MAX(date) FROM club_elo").fetchone()[0]
+    if newest and newest < auction_date:
+        days = (dt.date.fromisoformat(auction_date) - dt.date.fromisoformat(newest)).days
+        return (f"CLUB STRENGTH is {days} days old: ClubElo served nothing for {auction_date} and the "
+                f"newest snapshot on file is {newest}. `desc_level_elo` (R19, adopted on default) and "
+                f"the club card are built on it, so they describe the clubs as they were then.")
+    return None
+
+
+def arrivals_are_stale(conn) -> tuple[bool, str | None, str | None]:
+    """(stale?, when the listone was last read, when `arrivals` was last derived).
+
+    Read from the DATA and not from a flag, which is what makes it survive a run that dies halfway: the
+    listone's reading day is `fvm_history.observed_on` (the fantavalore moves at every salient event, so
+    every re-read leaves a dated row) and the re-derivation's is its own line in `ingest_runs`.
+
+    Asking THIS run's diff instead was the first version and it was wrong in the case that matters: the
+    listone moved 13 men on 18/08/2026, the re-derivation did not happen in the same command, and every
+    later run saw «0 moved» and skipped it - so `arrivals` would have stayed at its 08/08 state, ten days
+    and two markets behind, with nothing saying so. A condition on an EVENT forgets; a condition on the
+    two dates cannot.
+    """
+    listone = conn.execute("SELECT MAX(observed_on) FROM fvm_history").fetchone()[0]
+    derived = conn.execute(
+        "SELECT MAX(started_at) FROM ingest_runs WHERE module = 'arrivals' AND status = 'ok'"
+    ).fetchone()[0]
+    if not listone:
+        return False, listone, derived           # no listone reading on file: nothing to be behind
+    return (derived is None or derived[:10] < listone), listone, derived
+
+
+def rederive_after_listone(ctx: Context) -> str | None:
+    """What a re-read listone OBLIGES, from the spec's own dependency table («se cambia il listone»).
+
+    `arrivals` is a diff between rosters, so a listone that moves a man's club invents or hides an
+    arrival until it is re-derived - and `desc_arrival`, the arrival tiers, the FM-equivalent and the
+    arrival discount all hang off it. It is OFFLINE, which is the whole reason it can be automatic where
+    the rest of that table cannot.
+
+    `stats` is in the same row of the table and is deliberately NOT run here: it reads the Drive raw
+    exports (`iter_records`), not `rosters`, so a listone re-read cannot move it. Verify the function,
+    not the row that looks like it.
+
+    The `ingest_runs` line is written HERE because this command OWNS the invocation - the project's rule
+    is that a module never logs its own run - and because that line is what `arrivals_are_stale` reads
+    next time.
+    """
+    from euroleghe_ingest.db.database import record_run
+    from euroleghe_ingest.modules import arrivals
+
+    started = dt.datetime.now(tz=dt.UTC).isoformat(timespec="seconds")
+    try:
+        arrivals.run(ctx)
+    except Exception as exc:   # noqa: BLE001 - a snapshot must still be produced without it
+        record_run(ctx.require_conn(), "arrivals", started, "error", f"from snapshot: {exc}")
+        return (f"arrivals could not be re-derived ({exc}): a listone that moved a club leaves "
+                f"`desc_arrival` and the arrival tiers describing yesterday's rosters")
+    record_run(ctx.require_conn(), "arrivals", started, "ok", "re-derived by snapshot")
+    return None
+
+
+def refresh_real_roles(ctx: Context, clubs, date: str,
+                       progress: Progress | None = None) -> tuple[str | None, dict]:
     """Today's granular real role for every player of the perimeter. One request per CLUB.
 
     THE THIRD FACT THAT CANNOT BE BACKFILLED. The provider serves only "now": asking its player
@@ -4560,13 +4869,23 @@ def refresh_real_roles(ctx: Context, clubs, date: str, progress: Progress | None
     """
     try:
         positions.derive_club_xref(ctx)
-        positions.fetch_roles(ctx, clubs=sorted(clubs) if clubs else None, date=date,
-                              on_club=(lambda done, total: progress.tick(done, total, "clubs observed"))
-                              if progress else None)
+        counts = positions.fetch_roles(
+            ctx, clubs=sorted(clubs) if clubs else None, date=date,
+            on_club=(lambda done, total: progress.tick(done, total, "clubs observed"))
+            if progress else None)
     except Exception as exc:   # noqa: BLE001 - a snapshot must still be produced without the refresh
         return (f"real-role refresh failed ({exc}) - the sheet uses the most recent stored "
-                f"observation, and there is no way to reconstruct today's")
-    return None
+                f"observation, and there is no way to reconstruct today's"), {}
+    # A SOURCE THAT REFUSES IS A MEASUREMENT, and it must reach the sheet. `fetch_roles` asks and moves
+    # on when a club's page is unavailable, which is right for a long resumable acquisition and silent
+    # for the operator: on 16/08/2026 the provider went back to 403 `challenge` on every endpoint, and a
+    # run against a closed door produces a sheet whose LIVE SQUAD - the authority on who is in a squad
+    # since the operator's 17/08 ruling - is as old as the last day it answered, with nothing on screen.
+    if counts.get("requests") and not counts.get("clubs"):
+        return (f"the live-squad provider refused all {counts['requests']} requests: today's squads and "
+                f"granular roles were NOT observed, so the sheet stands on the most recent stored "
+                f"reading and a man transferred since then is still drawn where he was"), counts
+    return None, counts
 
 
 def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
@@ -4620,28 +4939,30 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
     if isinstance(clubs, str):
         clubs = [clubs]
     notes: list[str] = []
-    if date and refresh:
-        # Refusing would be worse than saying it: today's probabili describe today's team, and pasting
-        # them onto a March sheet is exactly the look-ahead this whole module is dated to avoid.
-        refresh = False
-        notes.append(f"as of {date}: the editorial refresh was skipped, because today's probabili are "
-                     f"not the probabili of that day. Whatever the weekly job recorded at or before "
-                     f"{date} is used instead - possibly nothing.")
-    # The percentage the panel shows: the stages this run will actually walk, so a build with no network
-    # step does not stall the bar at the two stages it is skipping.
-    progress = Progress(skip=() if refresh else ("refresh", "roles"))
-    if refresh:
-        progress.stage("refresh")
-        failure = refresh_editorial(ctx)
-        if failure:
-            notes.append(failure)
-
+    # The window FIRST, because it is the day the sheet stands on that decides whether refreshing makes
+    # sense at all. THE THREE VOLATILE STATES ARE STATES OF NOW: today's probabili describe today's team,
+    # the live squad is the squad today, and the listone is the list on sale today. Pasting any of them
+    # onto a sheet dated otherwise is exactly the look-ahead this whole module is dated to avoid - so a
+    # sheet that does not stand on today does not refresh, and says so. The guard used to read `if date`,
+    # which covered `--date` and missed `--season 2025-26`: that combination refreshed all three onto a
+    # season already played (found by a test on 18/08/2026, which downloaded a real listone into a
+    # temporary database - the second reason a guard belongs here rather than at each call site).
     window, note = resolve_window(conn, season, as_of=date)
     if note:
         notes.append(note)
+    if refresh and window.auction_date != dt.datetime.now(tz=dt.UTC).date().isoformat():
+        refresh = False
+        notes.append(f"as of {window.auction_date}: the refresh of the volatile states (probabili, live "
+                     f"squads, listone) was skipped, because today's are not that day's. Whatever was "
+                     f"recorded at or before {window.auction_date} is used instead - possibly nothing.")
+    # The percentage the panel shows: the stages this run will actually walk, so a build with no network
+    # step does not stall the bar at the two stages it is skipping.
+    progress = Progress(skip=() if refresh else SKIPPED_WITHOUT_REFRESH)
     print(f"[snapshot] {setup['name'] or f'{platform}/{game}'} ({platform}/{game}, "
           f"{setup['teams']} teams) · auctioning {window.target_season} from "
           f"{window.input_season} · as of {window.auction_date}")
+    if refresh:
+        notes += refresh_official_sources(ctx, platform, window, progress)
 
     # The real squads first: the row set of the sheet is who is in a club TODAY, listone or not.
     progress.stage("squads")
@@ -4650,10 +4971,17 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
     # observed for the PERIMETER - the clubs this platform actually lets you buy from.
     if refresh:
         progress.stage("roles")
-        failure = refresh_real_roles(
+        # Dated with the day of the OBSERVATION, not with the sheet's: the provider serves "now" and
+        # nothing else, so a payload downloaded today is a fact about today whatever day the sheet
+        # stands on. Passing the sheet's date used to do two harmful things at once - it filed today's
+        # squads under a past date on a back-dated run (a forgery the whole dating discipline exists to
+        # prevent), and from 16/08/2026 it asked for a date whose cache files already existed, which is
+        # how the refresh became a no-op that reported "0 clubs to fetch" and looked like nothing to do.
+        observed_on = dt.datetime.now(tz=dt.UTC).date().isoformat()
+        failure, role_counts = refresh_real_roles(
             ctx, clubs or perimeter_clubs(conn, platform,
                                           (window.input_season, window.target_season)),
-            window.auction_date, progress=progress)
+            observed_on, progress=progress)
         if failure:
             notes.append(failure)
         # ...and then the squads AGAIN, because the roles step is what DOWNLOADS `/team/{id}/players`,
@@ -4692,7 +5020,7 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
     # HOW OLD the squad and transfer evidence is, said out loud before anything reads it (see
     # `evidence_age`): the operator's case was a sheet that was right about what it had, and what it had
     # was days old with the whole summer market missing.
-    evidence, evidence_notes = evidence_age(conn, window)
+    evidence, evidence_notes = evidence_age(conn, window, platform)
     notes += evidence_notes
     measured, measured_note = measured_season(conn, window)
     before = window.auction_date if measured == window.target_season else None

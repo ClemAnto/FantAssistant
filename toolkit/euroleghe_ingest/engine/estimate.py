@@ -24,7 +24,10 @@ THE LADDER, and every rung carries the measurement that put it there (05/08/2026
                       all, it is the same season seen from the other calendar.                   conf 0.95
   * `older`           his most recent season further back. Using an old fantamedia as the prediction gives
                       MAE 0.396 at t-2 and 0.434 at t-3 against 0.368 at t-1 (rho 0.712 / 0.649 / 0.741):
-                      a season two years old is worth nearly as much as last year's.       conf 0.85 / 0.75
+                      a season two years old is worth nearly as much as last year's - for the FANTAMEDIA.
+                      His PRESENCES are a different question and were measured 19/08/2026, three years
+                      late: an old pv is worth almost nothing on default and the population's own share
+                      answers instead (`OLDER_SHARE`, `presences_from_older`).            conf 0.85 / 0.75
   * `shrunk`          a season here with 1..14 votes: his own mean is real but thin, so it is blended with
                       the club-adjusted anchor in proportion to the votes he HAS - which is exactly the
                       operator's «aggiungiamo i voti che mancano come la media del ruolo», written as
@@ -100,6 +103,64 @@ ABROAD_SHARE: dict[str, tuple[float, float]] = {
 # His share of a foreign calendar cannot exceed it, and the line's intercept keeps it off zero - so the
 # clip is about the INPUT being outside the range it was fitted on, not about tidying the output.
 ABROAD_MAX_SHARE: float = 1.0
+
+
+# ...and the man whose only measured season is OLD - the `older` rung, MEASURED 19/08/2026 because it never
+# had been. The rung has always REGRESSED his fantamedia toward the anchor (`OLDER_BETA`, and the comment
+# there says why: an old number used raw is the naive baseline the core beats) and handed over his old
+# PRESENCES untouched - not even converted between the two calendars. It is the same defect that comment
+# describes, on the other half of the pair, and it surfaced where a raw presence hurts most: the app's
+# Overall is `presenze x (voto + bonus)`, so Arthur Melo - 32 votes at Fiorentina in 2023-24, nothing since
+# - read 32 of 38 and came out FOURTH of the whole Serie A listone with an unremarkable 6.34 of fantamedia.
+#
+# THE POPULATION IS THE MEN WHOSE OLD PV ACTUALLY SHIPS, and that is not everybody the rung prices: nothing
+# measured at t-1 on either platform AND no league minutes abroad at t-1, because `presences_from_abroad`
+# answers first for those. Scored on the share of the target calendar he really got, LEAVE-ONE-SEASON-OUT
+# (the anchor never sees the season it is scored on), with a man quoted and never rated counting as the ZERO
+# he was - the sheet predicts for everybody quoted, so scoring only the survivors would grade a different
+# question:
+#
+#                                     default (n=221, 8 seasons)   euro (n=48, 3 seasons)
+#   his old pv, raw (what shipped)           MAE 0.3749                 MAE 0.3510
+#   ...just converted between calendars           0.3756                     0.3064   (+12.7%)
+#   the population's own share alone              0.2704                     0.3482
+#   anchor + b(his share - anchor)                0.2689 (+28.3%)            0.2993 (+14.7%)
+#
+# WHAT THE TWO PLATFORMS SAY IS NOT THE SAME THING, and the mechanism is why. On default the median old
+# share is 0.632 and the median outcome 0.289, so his old season carries almost nothing: b* is 0.10, INSIDE
+# the grid, positive on 8 seasons of 8 (+13.9% to +36.7%) and picked by the cross-fit on 6 folds of 8. And
+# the anchor it lands on, 0.29, is to the decimal the `unmeasured` constant above: a man quoted in Serie A
+# who did not play last season anywhere is, FOR PRESENCES, a man nobody has ever measured. On euro he is
+# not (0.61 against that platform's 0.19), because there «nothing measured at t-1» usually means «played in
+# a championship we do not cover» rather than «did not play» - the five leagues are the perimeter, not the
+# world.
+# THE EURO VALUE IS FRAGILE AND IS ADOPTED SAYING SO: 3 seasons and 48 rows, whose own optima are 0.90 /
+# 0.00 / 0.55 - the direction is identified (every point of the grid beats the raw pv, +3.7% to +16.1%) and
+# the value is not. 0.55 is the minimum of the leave-one-out curve on the other convention (score only the
+# men who played: +20.3%) and sits in the flat basin of this one. It comes out without argument the first
+# time another season says otherwise.
+OLDER_SHARE: dict[str, float] = {"default": 0.29, "euro": 0.61}
+OLDER_PV_BETA: dict[str, float] = {"default": 0.10, "euro": 0.55}
+
+
+def presences_from_older(calendar: int | None, platform: str, pv_old: float | None,
+                         calendar_old: int | None) -> float | None:
+    """The presences of a man whose most recent measured season is two or more years back.
+
+    His own share of THAT calendar, pulled toward the share his population really gets - the same shape
+    `regress` gives the fantamedia below, and for the same reason. The two calendars are part of the
+    arithmetic: 32 votes are 84% of a Serie A season and 100% of a euro one, and handing the number
+    across without converting it was worth 12.7% of error on its own.
+    """
+    anchor, beta = OLDER_SHARE.get(platform), OLDER_PV_BETA.get(platform)
+    if not calendar or anchor is None or beta is None:
+        return None
+    if not pv_old or not calendar_old:
+        # «Vuoto = ignoto»: with no readable old season the population's own share answers, which is what
+        # this rung's neighbours already do - never his pv on somebody else's calendar.
+        return round(calendar * anchor, 1)
+    his = min(1.0, pv_old / calendar_old)
+    return round(calendar * min(1.0, max(0.0, anchor + beta * (his - anchor))), 1)
 
 
 def default_presences(calendar: int | None, platform: str, kind: str = "unmeasured") -> float | None:

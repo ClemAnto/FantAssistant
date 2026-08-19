@@ -495,6 +495,48 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.56 (19 agosto 2026 — un vecchio PV non è una previsione di presenze)
+
+`SHEET_REVISION` **28 → 29**. `engine_*` invariato (`backtest --verify` 22/22: `evaluate` non importa
+`estimate`). Nato da una domanda dell'operatore sull'app — «come fa Arthur Melo ad avere 99 di overall?» — e
+il difetto era nel foglio, non nell'app.
+
+Il gradino `older` di `engine/estimate.py` **regrediva la fantamedia** verso l'ancora dal 06/08/2026 e
+consegnava le presenze **grezze**, senza nemmeno convertirle fra i due calendari: 32 voti alla Fiorentina nel
+2023-24 diventavano 32 giornate su 38 di Serie A 2026-27 per un uomo che da allora non ha giocato. Con
+l'Overall dell'app che è `presenze × (voto + bonus)`, quello lo metteva **quarto di tutto il listone** con una
+fantamedia da 6,34.
+
+Misurato sulla popolazione che quel pv la usa davvero (niente misurato a t−1 su nessuna delle due
+piattaforme e nessun minuto di lega all'estero, perché per quelli risponde prima `presences_from_abroad`),
+leave-one-season-out, chi non gioca contato per lo zero che è:
+
+| | default (n=221, 8 stagioni) | euro (n=48, 3 stagioni) |
+|---|---|---|
+| il vecchio pv grezzo (in vigore) | MAE 0,3749 | MAE 0,3510 |
+| solo convertito fra i calendari | 0,3756 | 0,3064 |
+| l'ancora della popolazione | 0,2704 | 0,3482 |
+| **ancora + b(sua quota − ancora)** | **0,2689 (+28,3%)** | **0,2993 (+14,7%)** |
+
+`est.OLDER_SHARE` = {default 0,29 · euro 0,61} e `OLDER_PV_BETA` = {default 0,10 · euro 0,55}, per
+piattaforma perché le due dicono cose diverse e il meccanismo si spiega: su default «niente misurato a t−1»
+vuol dire *non ha giocato* (quota vecchia mediana 0,632 → esito 0,289, b interno alla griglia, positivo su
+8 stagioni su 8), su euro vuol dire più spesso *ha giocato dove non copriamo* — le cinque leghe sono il
+perimetro, non il mondo — e l'ancora sale a 0,61. Il valore euro è **fragile e adottato dicendolo**: 3
+stagioni, ottimi propri 0,90 / 0,00 / 0,55, direzione identificata e valore no.
+
+Due cose che valgono oltre il gradino. **L'ancora di default, 0,29, è al decimale la costante `unmeasured`
+già in file**, misurata anni prima su un'altra popolazione: un quotato che l'anno scorso non ha giocato da
+nessuna parte è, per le presenze, un uomo che nessuno ha mai visto. E **questa regressione può solo
+abbassare**, per costruzione — il gradino si accende solo sopra i 15 voti, cioè sopra l'ancora — che è
+l'opposto di quella sulla fantamedia e va detto invece di essere presentato come una simmetria.
+
+Si muovono `est_pv` e quindi `est_surplus`, `desc_spm`/`desc_dvm` e i due surplus di coppa su **46 righe di
+600** del foglio Serie A (46 sul mantra, 0 su euro). Arthur Melo: Pv 32 → 13,1, Overall 99 → 18 (4° → 489°),
+Fantapunti 152 → 62, Lead 11,5 → 4,7, con FM, MV, Voti e Bonus invariati. `est_note` adesso dichiara anche la
+trasformazione delle presenze, perché una nota che spiega metà di una coppia invita a fidarsi dell'altra metà
+cruda. Dettaglio, le due cure scartate e il perché: `docs/model/letture-app-v1.md` §13.
+
 ## Novità v9.55 (16 agosto 2026, sera tardi — l'ALTRO ZERO sul foglio: il rimpiazzo che ENTRA)
 
 `SHEET_REVISION` **21 → 22** (due colonne `desc_*_fielded`), `engine_*` invariato (`backtest --verify`
@@ -1446,6 +1488,134 @@ quella dei 97 club. Allargarla muove numeri pubblicati e vuole una corsa di gate
 toccata qui. ⚠️ E un secondo difetto trovato e **non** corretto: 36 righe del campionato **austriaco** sono
 archiviate sotto lo slug `bundesliga` (Red Bull Salzburg, Austria Klagenfurt) e portano tutte un voto
 sintetico tarato sulla Bundesliga tedesca — stessa famiglia di §7-nonies.
+
+## Novità v9.44 (18-19 agosto 2026 — IL FOGLIO STAVA FERMO AL 15 AGOSTO, e tre canali ufficiali muti)
+
+`SHEET_REVISION` **26 → 27**. Nata da una domanda dell'operatore: «Vicario oggi è stato ufficializzato alla
+Juventus, perché lo snapshot non lo ha aggiornato?». La risposta è che **nessuno dei canali che porta una
+notizia ufficiale veniva riletto**, e due dei tre erano rotti in silenzio. Ogni pezzo è misurato sul DB e
+sulla cache di quel giorno.
+
+**(a) La data d'asta era una convenzione già passata.** `resolve_window` calcolava
+`auction = min(15 agosto della stagione bersaglio, oggi)`: identico a «oggi» fino al 15 agosto e **congelato**
+dopo. Il 18/08 ogni foglio stava dunque sul **2026-08-15**, e per definizione (`Window.auction_date`: «tutto
+ciò che è datato dopo è invisibile al modello») buttava via le probabili e gli indisponibili scaricati quella
+stessa mattina. È lo **specchio** del difetto di `elo.auction_dates` (§v9.37): là una data convenzionale
+veniva usata *prima* di essere arrivata, qui *dopo*. Ora: **oggi** per la stagione che si compra, il 15 agosto
+convenzionale solo per una stagione **già giocata** — dove serve a impedire il look-ahead — e mai una data
+futura.
+
+**(b) Conseguenza cara: il refresh della rosa live era un no-op silenzioso.** `refresh_real_roles` passava la
+data del FOGLIO a `fetch_roles`, che salta un club se `sofascore_squad_{id}_{data}.json` esiste già. Con la
+data ferma al 15/08 e i file del 15/08 sul disco, dal 16 agosto in poi la corsa faceva **zero richieste** e
+stampava «0 clubs to fetch», cioè *nulla da fare*: la rosa più fresca che un foglio potesse vedere era
+congelata al 15/08 **per sempre**. La stessa riga filava anche un secondo danno su una corsa retrodatata —
+archiviare le rose di oggi sotto una data passata, esattamente la falsificazione che tutta la disciplina delle
+date esiste per impedire. Ora l'osservazione è datata col **giorno in cui si osserva**, e il rifiuto di un
+provider diventa una **nota sul foglio** e non solo una riga di log (il 403 `challenge` del 16/08 era
+invisibile da lì).
+
+**(c) Il parser delle probabili era morto dal 5 agosto.** Il sito ha tolto la stagione dall'href del
+giocatore: `/serie-a/squadre/{club}/{slug}/{fc_id}/{season}` → `/serie-a/squadre/{club}/{slug}/{fc_id}`, e
+`_PLAYER_HREF` la **pretendeva**. Misurato sulla cache: **442 record il 04/08, ZERO ogni giorno dal 05/08 al
+18/08**, con 20 team-card e ~460 `li.player-item` nella pagina — due settimane di uno dei tre fatti che *non
+si possono ricostruire*, pagate in rete e buttate. Il log diceva «no player links yet», indistinguibile da una
+pagina non ancora pubblicata. La stagione ora si legge dai link del calendario della pagina stessa
+(`page_round`, `/calendario/{giornata}/{stagione}/`) — resta **la pagina a dire di che stagione parla**, che è
+la regola del 07/08 — e l'href, quando ce l'ha, continua a decidere, così una pagina archiviata si rilegge
+com'era. Verificato sull'intera cache: 04/08 → (38, 2025-26), 15-18/08 → (1, 2026-27). E una pagina che
+elenca giocatori e non ne restituisce nessuno ora **dichiara il parser rotto**. Le nove giornate perse sono
+state **recuperate offline** da `reingest_from_cache`: `probable_starter` 2026-27 da 0 a **4.173 righe**
+(05/08 → 18/08).
+
+**(d) Il listone non veniva riletto da nessuno.** `snapshot` rinfrescava probabili e ruoli granulari e
+lasciava il listone dov'era: quello sul disco era del **07/08**, undici giorni prima, e di Vicario non aveva
+**nessuna riga** — quindi non era «alla squadra sbagliata», non c'era affatto. Aggiunto
+`ratings.refresh_listone(platform, season)` — un login e **una** richiesta, il più economico dei tre refresh —
+chiamato da `snapshot --refresh` dopo la risoluzione della finestra e prima delle rose. Rilettura del listone
+Serie A 2026-27 di quel giorno: **499 → 521 righe, 18 nuove, 13 cambi di club** (Vicario Qt.I **16** / FVM
+**55** alla Juventus; e con lui Lucumì→Juventus, Frattesi→Lazio, Molina→Roma, Gutierrez→Napoli — il caso di
+§v9.42). La nota del foglio **dichiara chi si è mosso** e ricorda che `arrivals` è un diff fra rose e **non**
+viene ri-derivato da uno snapshot (regola del 06/08).
+
+**(e) Il refresh ora si fa solo se il foglio sta su OGGI.** La guardia era `if date` — copriva `--date` e
+mancava `--season 2025-26`, combinazione che rinfrescava tutt'e tre gli stati su una stagione già giocata. Il
+difetto è stato trovato da un test, che ha davvero scaricato un listone dentro un database temporaneo: una
+ragione in più perché la guardia stia **in un posto solo**, sulla data del foglio, e non a ogni chiamata.
+
+**(f) E poi la richiesta vera: «vorrei che quando si esegue lo snapshot tutte queste cose avvengano in
+automatico».** Adesso `snapshot --refresh` rinfresca **cinque** canali ufficiali più una ri-derivazione,
+in un unico posto (`refresh_official_sources`) e nell'ordine che dà la tabella delle dipendenze di questo
+documento — non una preferenza:
+
+| stadio | cosa rilegge | costo misurato | ripetuto in giornata |
+|---|---|---|---|
+| `refresh` | probabili + indisponibili, e il **listone** | 2 richieste + 1 login e 1 richiesta · **2,4 s** | 2,4 s |
+| `market` | i trasferimenti della stagione bersaglio, per club del perimetro | 59 pagine · **365 s** | **0,0 s** |
+| `contracts` | la pagina rosa di ogni club (terza fonte delle rose + scadenze) | 59 pagine · **215 s** | 2,5 s |
+| `strength` | lo snapshot ClubElo del giorno | 1-2 richieste · **70 s** | **0,0 s** |
+| `derive` | `arrivals`, se è indietro rispetto al listone | offline · **4,7 s** | — |
+
+Misurato il 18/08/2026 sul foglio Serie A: **1.847 s** la prima corsa della giornata, **92 s** la seconda e
+la terza (contro 561 s prima di questa sessione, perché i ruoli granulari erano già in cache). Il grosso
+della prima corsa è Transfermarkt, 118 pagine in tutto, e si paga UNA volta al giorno.
+
+Tre proprietà che valgono più dell'elenco. **Una porta sola**: ogni canale era stato aggiunto come una
+chiamata in più dentro `run`, e il secondo ha rotto un test che diceva di imbavagliare «tutte» le porte di
+rete — ne conosceva due, erano tre, e la corsa ha davvero fatto login e scaricato un listone dentro un
+database temporaneo. Un elenco che il chiamante deve inseguire è un elenco su cui resta indietro, quindi
+adesso c'è un nome solo da sostituire e un test che lo pretende. **Niente costa un foglio**: ogni stadio
+restituisce il suo fallimento come NOTA invece di sollevare — un foglio su evidenza un po' più vecchia,
+con l'età scritta sopra, batte nessun foglio — e una fonte che rifiuta è una misura da leggere, non un
+silenzio. **La cache dei trasferimenti aveva una scadenza mancante**: la pagina è chiavata `{tm_id}_{anno}`
+e si saltava se il file esisteva, quindi il mercato estivo era fermo al giorno in cui era stato tirato giù
+la prima volta (`transfers_history` non aveva niente dopo il **1º luglio**, con le pagine del 27-29/07).
+Ora scade in un giorno, letta dall'mtime del file: tre fogli costruiti nello stesso pomeriggio la pagano
+una volta. Sovrascrivere è sicuro qui e non lo era per il payload delle rose: una pagina di trasferimenti
+è CUMULATIVA, la copia nuova contiene tutto quello che c'era nella vecchia.
+
+**Due stadi si sono rivelati cari per il motivo sbagliato, e la misura ha pagato la correzione.**
+`contracts` costava **1.317 s** perché chiamava l'intero `reingest_from_cache` degli infortuni — 561
+pagine kader, il passo omonimi e **4.133** file per giocatore — per aggiornare un fatto che nessuno di
+quelli porta: la sola istantanea dei contratti (`ingest_contract_snapshot`, estratta e con due chiamanti,
+così il rebuild non ha una seconda strada) costa **2,5 s**. E l'altra fonte che quella pagina alimenta,
+le righe `transfermarkt` di `squad_snapshot`, non ha bisogno di nessun ingest: `derive_squads` legge il
+file datato direttamente col parser di quel modulo. `strength` costava **70 s a foglio** e non portava
+niente, perché ClubElo va in **timeout** e il mirror non ha nulla di più recente del 2026-01-14: si chiede
+al massimo una volta al giorno, e il tentativo si ricorda in `ingest_runs` e **non** come file di cache
+vuoto — un marcatore che dice «la fonte non ha risposto niente» quando la fonte non ha risposto affatto è
+il difetto del 17/08. Il foglio adesso porta la nota: «CLUB STRENGTH is 216 days old», che è quanto vale
+oggi `desc_level_elo` (R19, adottata su `default`).
+
+**Due note dicevano una cosa per un'altra, ed è lo stesso difetto di sempre.** Il diff del listone si
+faceva contro `rosters`, che per progetto tiene l'**ultima** lettura di uno qualsiasi dei due listoni e non
+sa dire quale l'ha scritta: i due non sono d'accordo su Gutierrez (euro lo dà al Bayer Leverkusen, Serie A
+al Napoli), su Dominguez B. e su Maldini, quindi rileggerli a turno stampava un ping-pong fra due opinioni
+come «ha cambiato club», tre volte a testa. Ora il confronto è con la **copia precedente del file di quel
+listone**, letta dalla cache un istante prima di sovrascriverla: un diff di piattaforma, non di riga
+condivisa. E la nota sull'età dell'Elo era sparita dal secondo e dal terzo foglio della giornata, perché la
+guardia «una volta al giorno» si portava via anche il messaggio: **la guardia riguarda la RICHIESTA, la
+nota riguarda lo STATO**, che è lo stesso per tutti i fogli di quel giorno. Un foglio che non sa dire quanto
+è vecchia la sua evidenza invita a una fiducia che non si è guadagnato — cioè esattamente il difetto da cui
+è partita questa sessione.
+
+**La ri-derivazione si chiede alle DATE, non a cosa questa corsa ha mosso.** Prima girava se il diff del
+listone di *questa* corsa non era vuoto, e questo dimentica: il 18/08 il listone ha spostato 13 uomini in
+un comando che non ri-derivava, e ogni corsa successiva avrebbe letto «0 spostati» e saltato, lasciando
+`arrivals` al suo stato dell'**08/08**. Ora la condizione è `MAX(fvm_history.observed_on)` contro
+`MAX(ingest_runs.started_at)` di `arrivals` andato a buon fine — due fatti già registrati, e una corsa
+fallita non conta come ri-derivazione. La riga di `ingest_runs` la scrive lo snapshot, che è chi possiede
+l'invocazione (un modulo non registra mai sé stesso).
+
+**Cosa NON è automatico, detto invece che sottinteso**: il layer per-partita, gli infortuni per giocatore
+(una richiesta a testa), i voti, e `stats` — che sta nella stessa riga della tabella delle dipendenze e
+legge gli export Drive, **non** `rosters`, quindi un listone riletto non può muoverlo. Verificare la
+funzione, non la riga che le somiglia.
+
+**Quello che il foglio dice adesso quando non può sapere**: `evidence_age` porta anche l'età del **listone**
+(`fvm_history.observed_on`, che è la serie datata delle sue letture) e nomina il comando che la muove. Prima
+datava le rose e i trasferimenti e taceva sull'unica fonte che dice **a che prezzo** e **in che squadra** il
+gioco mette un uomo.
 
 ## Novità v9.43 (17 agosto 2026, notte tarda — LE RIGHE SONO LE ROSE OSSERVATE, e la fonte dice DOVE è)
 

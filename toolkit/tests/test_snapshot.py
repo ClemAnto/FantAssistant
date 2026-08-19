@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import contextlib
 import csv
+import datetime as dt
 import inspect
 import io
 import json
@@ -187,23 +188,35 @@ def test_the_live_squad_is_read_after_the_run_that_downloads_it(tmp_path, monkey
                          (f"90{fc_id}", fc_id))
     ctx.conn.commit()
 
+    observed: list[str] = []
+
     def fake_roles(context, clubs, date, progress=None):
         """What the real roles step does to the disk: one dated payload per club - Thuram is gone."""
         payload = {"players": [{"player": {"id": 901, "name": "Lautaro"}},
                                {"player": {"id": 903, "name": "Sommer"}}]}
         path = context.config.cache_dir / f"sofascore_squad_2697_{date}.json"
         path.write_text(json.dumps(payload), encoding="utf-8")
+        observed.append(date)
+        return None, {"clubs": 1, "requests": 1}
 
     monkeypatch.setattr(snapshot, "refresh_real_roles", fake_roles)
-    monkeypatch.setattr(snapshot, "refresh_editorial", lambda context: None)
-    snapshot.run(ctx, platform="euro", game="classic", refresh=True, season="2025-26")
+    # ONE door for the whole official-source chain. This test used to stub the two network calls it knew
+    # about by name, and the third one added later slipped past it: the run really logged in and
+    # downloaded a season's listone into a temporary database. A test must not have to track that list.
+    monkeypatch.setattr(snapshot, "refresh_official_sources",
+                        lambda context, platform, window, progress=None: [])
+    # ...and the sheet has to stand on TODAY, or the three volatile states are not refreshed at all -
+    # which is the rule this same session established, and it is what makes the assertion below sound.
+    today = dt.datetime.now(tz=dt.UTC).date().isoformat()
+    snapshot.run(ctx, platform="euro", game="classic", refresh=True, season=snapshot.season_of(today))
 
     live = {(row[0], row[1]) for row in ctx.conn.execute(
         "SELECT fc_id, valid_from FROM squad_snapshot WHERE source = 'sofascore'")}
     assert live, "the payload written during the run never reached `squad_snapshot`"
     day = next(iter(live))[1]
     assert {fc_id for fc_id, _ in live} == {1, 3}, "the live squad is the payload, absences included"
-    assert day == "2025-08-15", "a live squad is dated with the payload's own day, not the run's"
+    assert day == today and observed == [today], (
+        "a live squad is dated with the day it was OBSERVED - the provider serves only 'now'")
 
 
 def test_the_last_ten_series_tells_bench_from_injured_from_unknown(tmp_path):
@@ -3698,6 +3711,10 @@ def test_the_other_platform_rung_is_only_for_the_same_football():
                                      minutes INTEGER);
         CREATE TABLE external_match_stats (fc_id INTEGER, season TEXT, competition TEXT,
                                            real_md INTEGER);
+        -- the CALENDAR of every platform-season, which the `older` rung needs to turn an old pv into a
+        -- share before it regresses it (`est.presences_from_older`): 32 votes are 84% of a Serie A season
+        -- and a whole euro one, so the count cannot travel between the two on its own.
+        CREATE TABLE match_ratings (season TEXT, platform TEXT, matchday INTEGER);
         INSERT INTO clubs VALUES (1, 'Juventus');
         -- 5951 played 2025-26 in the Premier League; 7 played it in Serie A
         INSERT INTO rosters VALUES (5951, '2025-26', 1, 'A', 'premier_league'), (7, '2025-26', 1, 'A', 'serie_a'),
@@ -3889,3 +3906,181 @@ def test_the_alternative_modules_are_drawn_by_the_same_function_as_the_board():
     # E il conteggio si stampa: uno zero silenzioso non si distingue da una funzione rotta.
     written = inspect.getsource(boards.write_boards)
     assert "clubs_with_alternatives" in written and "alternative_shapes" in written
+
+
+def test_a_sheet_being_prepared_stands_on_today_and_never_on_a_convention_already_past(tmp_path):
+    """The operator's case, 18/08/2026: «Vicario oggi è stato ufficializzato alla Juventus, perché lo
+    snapshot non lo ha aggiornato?»
+
+    The auction date was `min(the target season's 15 August, today)`, which is today until 15 August and
+    FREEZES the sheet afterwards - and everything dated after it is invisible by construction. On 18/08
+    every run stood on 2026-08-15, so it threw away the probabili and the injuries fetched that same
+    morning, and - the expensive half - `refresh_real_roles` asked `fetch_roles` for the payloads of a
+    date whose cache files were already on disk, which made the live-squad refresh a permanent no-op
+    reporting «0 clubs to fetch». The freshest squad the sheet could ever see was frozen three days back.
+
+    The 15 August convention is not deleted: for a season already PLAYED it is what stops a dry run from
+    reading the future it pretends not to know, and that half is asserted here too.
+    """
+    from euroleghe_ingest.db.database import init_db
+    from euroleghe_ingest.modules import snapshot
+
+    conn = init_db(tmp_path / "euro.db")
+    conn.executemany("INSERT INTO players(fc_id, canonical_name) VALUES (?, ?)",
+                     [(1, "A"), (2, "B"), (3, "C")])
+    conn.executemany("INSERT INTO rosters(fc_id, season) VALUES (?, ?)",
+                     [(1, "2024-25"), (2, "2025-26"), (3, "2026-27")])
+    conn.commit()
+
+    window, _note = snapshot.resolve_window(conn, today="2026-08-18")
+    assert window.target_season == "2026-27"
+    assert window.auction_date == "2026-08-18", (
+        "the sheet of the auction being prepared stands on TODAY: a conventional day that has already "
+        "passed hides every fact dated since, including the day's own refresh")
+
+    # Before 15 August the two answers coincide, which is why the defect took a season to appear.
+    assert snapshot.resolve_window(conn, today="2026-08-07")[0].auction_date == "2026-08-07"
+
+    # A season already played keeps its own conventional auction day - this is the look-ahead guard.
+    past, _note = snapshot.resolve_window(conn, season="2025-26", today="2026-08-18")
+    assert past.auction_date == "2025-08-15" and past.target_season == "2025-26"
+
+    # ...and a season that has not started yet is never dated in the future.
+    ahead, _note = snapshot.resolve_window(conn, season="2026-27", today="2026-05-01")
+    assert ahead.auction_date == "2026-05-01"
+
+    # `--date` is still taken literally: standing on a day INSIDE a season is the point of a back-dated
+    # sheet, and clamping it to the pre-season would answer a different question.
+    assert snapshot.resolve_window(conn, as_of="2026-03-01")[0].auction_date == "2026-03-01"
+
+
+def test_the_live_squad_is_dated_by_the_day_it_is_observed_not_by_the_sheets_day():
+    """Two different dates, and passing one for the other cost the sheet its freshest source.
+
+    The provider serves "now" and nothing else, so a payload downloaded today is a fact about today
+    whatever day the sheet stands on. Dated with the SHEET's day it did two harmful things at once: on a
+    back-dated run it would file today's squads under a past date - the forgery the whole dating
+    discipline exists to prevent - and on a today-run, from 16/08/2026, it asked for a date whose cache
+    files already existed, so `fetch_roles` had nothing to fetch and said so serenely.
+
+    Source-reading, deliberately: the alternative is a network test, and what has to hold is which
+    ARGUMENT the caller passes.
+    """
+    import inspect
+
+    from euroleghe_ingest.modules import snapshot
+
+    body = inspect.getsource(snapshot.run)
+    assert "observed_on = dt.datetime.now(tz=dt.UTC).date().isoformat()" in body, \
+        "the roles/live-squad refresh must be dated with the day of the OBSERVATION"
+    assert "refresh_real_roles(\n            ctx" in body and "observed_on, progress=progress)" in body, \
+        "...and that day is what reaches fetch_roles, not window.auction_date"
+    # A source that refuses is a measurement and must reach the sheet, not only the log.
+    assert "refused all" in inspect.getsource(snapshot.refresh_real_roles), \
+        "a provider refusing every request must produce a NOTE on the sheet"
+
+
+def test_a_snapshot_re_reads_the_official_list_and_declares_what_it_changed():
+    """The third volatile state, and until 18/08/2026 the only one a snapshot never refreshed.
+
+    `snapshot` refreshed the probabili and the granular roles; the LISTONE - the club the game says a man
+    is at, and his ask price - was left wherever the last `ratings` run had put it. Measured on the
+    operator's case: the 2026-27 list on disk had been downloaded on 07/08, eleven days earlier, and
+    carried no row for the player he was asking about, so no sheet could show him at any club at all.
+
+    Two properties are pinned. It DECLARES what it changed (a listone that moves a club moves `arrivals`,
+    which is a diff between rosters and is not re-derived here - the 06/08/2026 rule), and it refuses a
+    list that says it is another season, which is the same guard `ratings.run` already applies.
+    """
+    import inspect
+
+    from euroleghe_ingest.modules import ratings, snapshot
+
+    source = inspect.getsource(ratings.refresh_listone)
+    assert "listone_season(data)" in source and "refused" in source, \
+        "a list that states another season would overwrite this season's prices with last one's"
+    chain = inspect.getsource(snapshot.refresh_official_sources)
+    assert '"moved"' in source and "rederive_after_listone" in chain, \
+        "the diff is reported, and what it obliges - `arrivals` - is re-derived in the same run"
+    assert "refresh_listone_for(ctx, platform, window.target_season)" in chain
+    # ...and it never costs a sheet: no credentials, no network, no listone - the sheet is still built.
+    assert "return f\"listone refresh skipped" in source
+
+
+def test_every_official_source_is_refreshed_behind_ONE_door():
+    """«Vorrei che quando si esegue lo snapshot tutte queste cose avvengano in automatico» (operatore).
+
+    Five channels are refreshed now, and the way they were added is the reason this test exists: each
+    arrived as one more call appended to `run`, and the second one broke a test that stubbed the network
+    "at every door" - it knew two doors, there were three, and the run really logged in and downloaded a
+    season's listone into a temporary database. A list a caller has to track is a list a caller falls
+    behind on.
+
+    So: `run` calls the chain and never a single refresh directly, every network stage is one a run
+    without `--refresh` skips, and every stage the chain walks is costed. The roles step is the declared
+    exception and is asserted as such - it runs AFTER the squads, because the payload it downloads IS
+    the live squad.
+    """
+    import inspect
+
+    from euroleghe_ingest.modules import snapshot
+
+    body = inspect.getsource(snapshot.run)
+    chain = inspect.getsource(snapshot.refresh_official_sources)
+    assert "refresh_official_sources(ctx, platform, window, progress)" in body
+
+    for door in ("refresh_editorial", "refresh_listone_for", "refresh_market",
+                 "refresh_squad_pages", "refresh_club_strength", "rederive_after_listone"):
+        assert f"{door}(" in chain, f"{door} must be part of the chain"
+        assert f"{door}(" not in body, (
+            f"{door} is called straight from run(): a caller that must not touch the network would have "
+            f"to know about it, which is exactly how the listone door was missed")
+    assert "refresh_real_roles(" in body, \
+        "the roles step is the declared exception: it runs after the squads, because it downloads them"
+
+    costed = {key for key, _label, _seconds in snapshot.STAGES}
+    walked = set(re.findall(r'progress\.stage\("(\w+)"\)', chain))
+    assert walked <= costed, f"a stage with no measured cost breaks the progress bar: {walked - costed}"
+    assert walked <= set(snapshot.SKIPPED_WITHOUT_REFRESH), (
+        "every stage of the chain must be one a run without --refresh skips, or the bar counts work "
+        f"that will never happen: {walked - set(snapshot.SKIPPED_WITHOUT_REFRESH)}")
+
+
+def test_the_re_derivation_asks_the_two_DATES_and_not_what_this_run_happened_to_move(tmp_path):
+    """`arrivals` is a diff between rosters: a listone that moves a club invents or hides an arrival
+    until it is re-derived, and `desc_arrival`, the tiers, the FM-equivalent and the arrival discount all
+    hang off it (the 06/08/2026 rule, paid for with phantom transfers).
+
+    The first version of the automatic chain re-derived it when THIS run's listone diff was non-empty,
+    and that forgets: on 18/08/2026 the listone moved 13 men in a command that did not re-derive, and
+    every later run would have read «0 moved» and skipped - leaving `arrivals` at its 08/08 state, ten
+    days and two markets behind, with nothing saying so. A condition on an EVENT forgets; a condition on
+    the two dates cannot, and both dates are already recorded facts.
+    """
+    from euroleghe_ingest.db.database import init_db, record_run
+    from euroleghe_ingest.modules import snapshot
+
+    conn = init_db(tmp_path / "euro.db")
+    conn.execute("INSERT INTO players(fc_id, canonical_name) VALUES (1, 'A')")
+    conn.commit()
+    assert snapshot.arrivals_are_stale(conn)[0] is False, \
+        "no listone reading on file: there is nothing to be behind"
+
+    conn.execute("INSERT INTO fvm_history(fc_id, season, observed_on, platform, fvm) "
+                 "VALUES (1, '2026-27', '2026-08-18', 'default', 55)")
+    conn.commit()
+    stale, read_on, derived_on = snapshot.arrivals_are_stale(conn)
+    assert stale and read_on == "2026-08-18" and derived_on is None, "never derived = behind"
+
+    record_run(conn, "arrivals", "2026-08-08T09:55:54+00:00", "ok")
+    assert snapshot.arrivals_are_stale(conn)[0], "derived ten days before the listone was read"
+
+    record_run(conn, "arrivals", "2026-08-18T23:10:00+00:00", "ok")
+    assert snapshot.arrivals_are_stale(conn)[0] is False, "derived on the day the listone was read"
+
+    # A failed re-derivation must NOT count as one: the next run has to try again.
+    conn.execute("INSERT INTO fvm_history(fc_id, season, observed_on, platform, fvm) "
+                 "VALUES (1, '2026-27', '2026-08-19', 'euro', 55)")
+    record_run(conn, "arrivals", "2026-08-19T08:00:00+00:00", "error", "boom")
+    conn.commit()
+    assert snapshot.arrivals_are_stale(conn)[0], "an errored run is not a re-derivation"

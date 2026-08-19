@@ -710,6 +710,94 @@ compreso, come il suo stesso dettaglio dice), mentre la formula stampata sotto l
 (voti+bonus)» — invita a sommare Voti e Bonus, cioè a contare il voto due volte. Il codice non lo fa mai; la
 frase ora dice che «voti+bonus» è **un numero solo**.
 
+## 13. Un vecchio PV non è una previsione di presenze (19 agosto 2026)
+
+Domanda dell'operatore: **«come fa Arthur Melo ad avere 99 di overall?»** Il conto della sua riga era
+giusto e il numero dentro no.
+
+    Overall = quota calendario × FM attesa = (32/38) × 6,342 = 5,34  →  4° su 600 → rank99 = 99
+
+La FM è quella di un centrocampista qualunque (davanti a lui Malen 5,69, Yildiz 5,55, Lautaro 5,36): a
+portarlo lassù erano le **presenze**, 32 giornate su 38, la quota più alta di tutta la cima del listone.
+Quelle 32 sono l'ultima stagione misurata di un uomo che in Serie A non gioca dal 2024 — Fiorentina
+2023-24, 32 voti — consegnata **grezza** dal gradino `older` di `engine/estimate.py`.
+
+**Il difetto non era nell'app.** Quel gradino REGREDISCE la fantamedia verso l'ancora dal 06/08/2026
+(`OLDER_BETA` = 0,40, e il commento dice perché: una fantamedia vecchia usata cruda è la baseline naive che
+il core batte, ed è distorta in ALTO proprio per gli uomini che quel gradino serve) e consegnava le presenze
+intatte, **senza nemmeno convertirle fra i due calendari**. Lo stesso difetto, sull'altra metà della coppia,
+rimasto in piedi tre mesi perché nessuna colonna lo mostrava: l'Overall è un PRODOTTO, quindi è la prima
+lettura che una presenza sbagliata sposta di 480 posizioni.
+
+### La cura scelta, e le due che sono state scartate
+
+Erano tre, e la più onesta è la sola che tocca il numero invece del suo effetto:
+
+1. **scontare l'Overall con `est_confidence`** (0,75 qui) come già fanno Fantapunti e Lead. Curerebbe UNA
+   colonna e lascerebbe in piedi la frase falsa nelle altre — la lettura Presenze diceva **98** e il
+   tooltip «l'84% del calendario a voto» — e sarebbe un **doppio conteggio**: l'incertezza di una riga
+   stimata è già a schermo, nel peso delle stelline (`weight` 0,5 per una stima). È la regola che questo
+   progetto ha già pagato: *quando lo stesso sintomo va rattoppato in due punti diversi, il difetto sta
+   nella quantità che entrambi leggono*.
+2. **lasciare tutto e spiegarlo nel tooltip.** Una nota non cura una graduatoria: al tavolo si legge la
+   colonna, non la nota.
+3. **regredire il PV come già si regredisce la FM** — adottata, con un coefficiente MISURATO e non scelto.
+
+### La misura (`est.OLDER_SHARE` / `OLDER_PV_BETA`)
+
+Popolazione = gli uomini il cui vecchio pv **parte davvero**: niente di misurato a t−1 su nessuna delle due
+piattaforme *e* nessun minuto di lega all'estero (per quelli risponde prima `presences_from_abroad`).
+Bersaglio = la quota del calendario che ha poi realmente ottenuto, **leave-one-season-out**, con un quotato
+che non gioca contato per **lo zero che è** (il foglio prevede per tutti i quotati: punteggiare solo i
+sopravvissuti sarebbe un'altra domanda).
+
+| | default (n=221, 8 stagioni) | euro (n=48, 3 stagioni) |
+|---|---|---|
+| il suo vecchio pv, grezzo (in vigore) | MAE 0,3749 | MAE 0,3510 |
+| …solo convertito fra i calendari | 0,3756 | 0,3064 (+12,7%) |
+| l'ancora della popolazione, da sola | 0,2704 | 0,3482 |
+| **ancora + b(sua quota − ancora)** | **0,2689 (+28,3%)** | **0,2993 (+14,7%)** |
+
+**Le due piattaforme non dicono la stessa cosa, e il meccanismo spiega perché.** Su default la quota vecchia
+mediana è 0,632 e l'esito 0,289: la sua vecchia stagione non porta quasi nulla, b\* = **0,10**, interno alla
+griglia, positivo su **8 stagioni su 8** (+13,9% … +36,7%) e scelto dal cross-fit su 6 pieghe di 8. E
+l'ancora su cui atterra, **0,29**, è al decimale la costante `unmeasured` che già esisteva: *un quotato di
+Serie A che l'anno prima non ha giocato da nessuna parte è, PER LE PRESENZE, un uomo che nessuno ha mai
+misurato*. Su euro no (0,61 contro il suo 0,19), perché lì «niente misurato a t−1» vuol dire più spesso
+«ha giocato in un campionato che non copriamo» che «non ha giocato»: le cinque leghe sono il perimetro,
+non il mondo.
+
+**Il valore euro è fragile e si adotta dicendolo**: 3 stagioni, 48 righe, ottimi propri 0,90 / 0,00 / 0,55 —
+la DIREZIONE è identificata (ogni punto della griglia batte il pv grezzo, da +3,7% a +16,1%), il valore no.
+0,55 è il minimo della curva sull'altra convenzione (+20,3%) e sta nella conca piatta di questa. Esce senza
+discutere alla prima stagione che dica altro. Sul foglio euro di oggi le righe `older` sono **0**, quindi
+oggi quella costante non muove niente.
+
+**Una asimmetria va detta**: a differenza della regressione sulla fantamedia, questa può solo ABBASSARE, e
+per costruzione — il gradino si accende solo per chi aveva ≥ 15 voti nella stagione vecchia, cioè una quota
+già sopra l'ancora. Non è un taglio arbitrario: è che quegli uomini, misurati, poi giocano 0,29 di stagione.
+
+### Che cosa si muove
+
+46 righe su 600 del foglio Serie A (46 anche sul mantra, 0 su euro), tutte in giù. Arthur Melo:
+
+| | prima | dopo |
+|---|---|---|
+| Pv attese | 32,0 | **13,1** |
+| Overall | **99** (4° su 600) | **18** (489°) |
+| Presenze | 98 | 17 |
+| Fantapunti | 152 | 62 |
+| Lead | 11,5 | 4,7 |
+| FM / MV / Voti / Bonus | 6,34 / 6,11 / 78 / 59 | invariati |
+
+`engine_*` non si muove di un decimale — è un ripiego, e `evaluate` non importa `estimate`: `backtest
+--verify` resta **22/22**. `SHEET_REVISION` 28 → **29**, quindi ogni cartella precedente va rifatta, i
+quattro pacchetti del viaggio nel tempo compresi (rifatti).
+
+E la riga lo dice: `est_note` ora scrive anche cosa è successo alle presenze — «his 32 votes are 84% of that
+calendar and read as 13.1 of 38 here» — perché una nota che spiega metà di una coppia invita a fidarsi
+dell'altra metà cruda.
+
 ## 8. Aperti
 
 1. ~~**`season_stats.clean_sheets`**~~ — **FATTO il 16/08/2026**: 970 stagioni-portiere e **4.872** porte

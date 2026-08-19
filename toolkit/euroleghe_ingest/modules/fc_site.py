@@ -15,9 +15,11 @@ Every fetch is snapshotted to data/cache/fc_site_{page}_{date}.html. Those snaps
 series: `rebuild` replays them in date order, so the history of a state survives a rebuild even
 though the site only ever shows "now".
 
-Identity: the probabili page carries the fc_id in each player's href (.../{slug}/{fc_id}/{season}),
-so that list is exact. The indisponibili page gives a surname and a club, so it goes through the
-tiered matcher.
+Identity: the probabili page carries the fc_id in each player's href (.../{slug}/{fc_id}), so that
+list is exact. The indisponibili page gives a surname and a club, so it goes through the tiered
+matcher. The SEASON used to sit in that same href and the site dropped it on 05/08/2026; it is read
+from the page's own fixture links instead (`page_round`), because the page has to say which season it
+is talking about and the day of the reading cannot.
 """
 
 from __future__ import annotations
@@ -55,7 +57,19 @@ PAGES: dict[str, str] = {
 # The site publishes the editorial pages a few weeks into the preseason; until then it says so.
 NOT_PUBLISHED = "dati non ancora disponibili"
 _SNAPSHOT = re.compile(r"fc_site_([a-z_]+)_(\d{4}-\d{2}-\d{2})\.html$")
-_PLAYER_HREF = re.compile(r"/squadre/[^/]+/[^/]+/(\d+)/(\d{4}-\d{2})")
+# The player link. The season segment is OPTIONAL because the site dropped it: until 04/08/2026 the href
+# was `/serie-a/squadre/{club}/{slug}/{fc_id}/{season}` and from 05/08 it is `.../{fc_id}` - so a pattern
+# that REQUIRED the season stopped matching, and `parse_probable_starters` returned 0 records from a page
+# carrying 20 team cards and 461 players. Measured on the cache: 442 records on 04/08, ZERO from 05/08 to
+# 18/08, i.e. two weeks of probabili paid for over the network and thrown away, with the sheet's starter
+# and duel columns empty and `squad_snapshot`'s `fc_site` source frozen at 04/08.
+_PLAYER_HREF = re.compile(r"/squadre/[^/]+/[^/]+/(\d+)(?:/(\d{4}-\d{2}))?")
+# ...so the SEASON is read from the page instead, and it is still the PAGE saying it rather than the clock
+# (the 07/08/2026 rule: the page keeps serving the last round of the season that ended until the new one
+# starts, and the day of the reading cannot tell which season it is about). Every fixture on it links to
+# `/calendario/{matchday}/{season}/{slug}/{id}`, and one page is one round: measured over the cache, the
+# 04/08 page yields exactly (38, 2025-26) and the 15-18/08 ones exactly (1, 2026-27).
+_PAGE_ROUND = re.compile(r"/calendario/(\d+)/(\d{4}-\d{2})/")
 _PERCENT = re.compile(r"(\d+)\s*%")
 
 # The three lists the indisponibili page splits players into -> our state vocabulary.
@@ -92,9 +106,32 @@ def snapshot_path(config, page: str, date: str):
 
 
 # ---------- parsing (pure, offline-testable) ----------
+def page_round(html: str) -> tuple[int | None, str | None]:
+    """(matchday, season) the page is talking about, from its own fixture links - or (None, None).
+
+    The page states it and the clock cannot: in August the probabili page keeps serving the LAST round of
+    the season that ended until the new one starts, and on 04/08/2026 that was 810 hrefs of 2025-26 at
+    probability 1.0 - line-ups that were FIELDED, not forecast. Read from `/calendario/{md}/{season}/`,
+    which every fixture on the page carries; when the page shows more than one round (it never has), the
+    most frequent wins, because a page is a round and a tie would mean this is no longer the right anchor.
+    """
+    counts: dict[tuple[int, str], int] = {}
+    for matchday, season in _PAGE_ROUND.findall(html):
+        key = (int(matchday), season)
+        counts[key] = counts.get(key, 0) + 1
+    if not counts:
+        return None, None
+    (matchday, season), _n = max(counts.items(), key=lambda kv: kv[1])
+    return matchday, season
+
+
 def parse_probable_starters(html: str) -> list[dict]:
     """team-card blocks -> one record per listed player. fc_id comes from the href, not the name."""
     soup = BeautifulSoup(html, "lxml")
+    # The season the page is about. Only a FALLBACK for the href's own segment, so a cached page from
+    # before 05/08/2026 is still read exactly as it was: `rebuild` replays those files, and a parser that
+    # changed its mind about them would rewrite history.
+    _matchday, page_season = page_round(html)
     out: list[dict] = []
     for card in soup.select("div.team-card"):
         name_node = card.select_one(".team-name")
@@ -116,7 +153,7 @@ def parse_probable_starters(html: str) -> list[dict]:
                 role = item.select_one(".role")
                 out.append({
                     "fc_id": int(match.group(1)),
-                    "season": match.group(2),
+                    "season": match.group(2) or page_season,
                     "team": team,
                     "formation": formation,
                     "role": (role.get("data-value") or "").upper() if role else None,
@@ -369,6 +406,20 @@ def ingest_snapshot(ctx: Context, page: str, html: str, date: str, season: str) 
         # record of a match already played: in August this list reads ['2025-26'] on a page fetched today.
         print(f"[fc_site] {page} {date}: {stored} probabilities over {teams} teams"
               + (f" · season {', '.join(seasons)}" if seasons else " · no player links yet"))
+        # A PAGE THAT HAS PLAYERS AND YIELDS NO RECORDS IS A BROKEN PARSER, and it must say so instead of
+        # printing a serene zero. That is exactly what happened for two weeks from 05/08/2026, when the
+        # site dropped the season segment from the player href: 20 team cards, 461 `li.player-item`, and
+        # "no player links yet" every day - indistinguishable, on the log, from a page not published yet.
+        # `is_published` cannot catch it: the site publishes the page, we stop reading it.
+        listed = html.count("player-item")
+        if listed and not records:
+            print(f"[fc_site] {page} {date}: PARSER BROKEN - the page lists {listed} players and none "
+                  f"was read. The selectors or the href shape changed: fix them before trusting any "
+                  f"starter column, because this state cannot be backfilled.")
+        if records and not seasons:
+            print(f"[fc_site] {page} {date}: the page does not say which SEASON it is about (no "
+                  f"/calendario/ link and no season in the hrefs), so the rows are stored with an "
+                  f"unknown season and no sheet will read them - empty is unknown, never current.")
     elif page.startswith("indisponibili"):
         records = parse_unavailable(html)
         stored, unresolved = upsert_availability(conn, records, season, date)

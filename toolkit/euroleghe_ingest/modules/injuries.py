@@ -616,7 +616,22 @@ def reingest_from_cache(ctx: Context) -> None:
     print(f"[injuries] {stored} dated absences over {players} players "
           f"({orphans} cached pages without a resolved identity)")
 
-    # 3) the contract snapshot: the most recent dated squad page wins.
+    ingest_contract_snapshot(ctx)
+
+
+def ingest_contract_snapshot(ctx: Context) -> None:
+    """The contract snapshot alone: the most recent dated squad page per club -> the contract flags.
+
+    Extracted from `reingest_from_cache` on 18/08/2026 so a SNAPSHOT can refresh the contract expiries
+    without paying for the rest of it. Measured that day, and the number is the reason: the full
+    reingest re-parses 561 kader pages, runs the homonym pass and walks **4,133** per-player injury
+    files - 1,317 seconds, of which the part that reads today's squad pages is a handful. A stage that
+    costs twenty minutes to refresh one dated fact is a stage nobody will leave switched on.
+
+    One definition, two callers: the rebuild path still reaches it through `reingest_from_cache`, so
+    there is no second way of writing these flags.
+    """
+    conn = ctx.require_conn()
     season = conn.execute("SELECT MAX(season) FROM rosters").fetchone()[0]
     latest: dict[str, tuple[str, object]] = {}
     for path in sorted(ctx.config.cache_dir.glob("transfermarkt_squad_*.html")):
@@ -663,3 +678,38 @@ def run(ctx: Context, *, seasons=None, limit: int | None = None, refresh: bool =
     if layer in ("injuries", "all"):
         fetch_injury_pages(ctx, seasons, limit, refresh)
     reingest_from_cache(ctx)
+
+
+def refresh_current_squads(ctx: Context) -> tuple[str | None, dict]:
+    """Today's Transfermarkt squad page for every perimeter club. The THIRD squad source, dated.
+
+    It is the page that carries the contract column - `flags.contract_until` / `exit_risk`, one of the
+    three facts that cannot be backfilled - and it is one of the four sources `squad_snapshot` joins.
+    Nothing refreshed it inside a sheet's life: measured 18/08/2026, `squad_snapshot`'s `transfermarkt`
+    rows were last observed on **2026-07-29**, three weeks old, while the other three sources were of
+    the day. A squad is a volatile state and the sheet said so in a note nobody could act on inside the
+    same command.
+
+    Only the CURRENT squad page (`seasons=()`), never the per-season kader ones: those are finished
+    facts and would be 59 clubs x 12 seasons. The cache file carries the day, so the second and third
+    sheet built the same afternoon cost nothing.
+    """
+    today = dt.datetime.now(tz=dt.UTC).date().isoformat()
+    before = len(list(ctx.config.cache_dir.glob(f"transfermarkt_squad_*_{today}.html")))
+    try:
+        fetch_squads(ctx, (), refresh=False)
+        # ONLY the contract snapshot, not the whole reingest: the rest of it re-parses 561 kader pages,
+        # the homonym pass and 4,133 per-player injury files for a fact none of them carries - measured
+        # at 1,317 seconds inside a sheet, against a handful for this. The OTHER thing today's page
+        # feeds, `squad_snapshot`'s transfermarkt rows, needs no ingest at all: `snapshot.derive_squads`
+        # reads the dated cache file directly with this module's own parser.
+        ingest_contract_snapshot(ctx)
+    except Exception as exc:   # noqa: BLE001 - the network is not allowed to cost a sheet
+        return (f"squad-page refresh failed ({exc}) - the sheet uses the Transfermarkt squads already "
+                f"in the DB"), {"fetched": 0}
+    after = len(list(ctx.config.cache_dir.glob(f"transfermarkt_squad_*_{today}.html")))
+    counts = {"fetched": after - before, "today": after}
+    if not after:
+        return (f"no Transfermarkt squad page answered today: the contract expiries and one of the four "
+                f"squad sources stay as old as the last run that reached them"), counts
+    return None, counts

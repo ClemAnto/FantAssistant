@@ -136,6 +136,14 @@ def auction_dates(conn, today: str | None = None) -> list[str]:
     today = today or dt.datetime.now(tz=dt.UTC).date().isoformat()
     if latest:
         dates.add(min(f"{latest.split('-')[0]}-08-15", today))
+        # ...AND today, which is the other half of the same argument and was missing (18/08/2026). The
+        # line above answers "the conventional auction day, unless it has not arrived"; once it HAS
+        # arrived it is frozen, so from 16 August the newest strength anybody could read was the 15th's
+        # - and the sheet now stands on today. Measured when it was found: `club_elo` held nothing newer
+        # than 2026-01-14, so `desc_level_elo` (R19, ADOPTED on default) was reading a club's strength
+        # from seven months and two transfer windows earlier. Additive on purpose: the pre-registered
+        # dates are untouched, and nothing published moves - this only adds the day being asked about.
+        dates.add(today)
     return sorted(dates)
 
 

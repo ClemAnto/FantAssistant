@@ -83,3 +83,51 @@ def test_a_reading_says_which_season_it_is_about_and_not_only_when_it_was_taken(
     # and the trap: asked for a season the page never described, it answers nothing at all
     assert snapshot.latest_starters(ctx.conn, "2026-08-04", "2026-27") == ({}, None), (
         "the last round of the season that ended is not a forecast for the next one")
+
+
+_PROBABILI_NEW_HREF = """
+<html><body>
+<a class="match-score" href="https://www.fantacalcio.it/serie-a/calendario/1/2026-27/inter-monza/17959">1</a>
+<div class="team-card">
+  <div class="team-name">Inter</div>
+  <div class="team-formation">3-5-2</div>
+  <ul class="player-list starters">
+    <li class="player-item" data-status="success">
+      <a class="player-link" href="https://www.fantacalcio.it/serie-a/squadre/inter/martinez-jo/5116">M.</a>
+      <span class="role" data-value="p"></span>
+      <span class="progress-value">90%</span>
+    </li>
+  </ul>
+</div>
+</body></html>
+"""
+
+
+def test_the_probabili_survive_the_site_dropping_the_season_from_the_href():
+    """05/08/2026: the player href went from `.../{slug}/{fc_id}/{season}` to `.../{slug}/{fc_id}`, and a
+    pattern that REQUIRED the season stopped matching. Measured on the cache the day it was found: 442
+    records on 04/08, then ZERO every day from 05/08 to 18/08 - two weeks of a state that cannot be
+    backfilled, paid for over the network and thrown away, while the log said "no player links yet".
+
+    The season still has to come from the PAGE and never from the clock (the 07/08/2026 rule: the page
+    keeps serving the last round of the season that ended). It is in every fixture link, and one page is
+    one round - so `page_round` is the anchor and the href's own segment, when it is there, still wins.
+    """
+    assert fc_site.page_round(_PROBABILI_NEW_HREF) == (1, "2026-27")
+    records = fc_site.parse_probable_starters(_PROBABILI_NEW_HREF)
+    assert [rec["fc_id"] for rec in records] == [5116], "the new href shape must be read"
+    assert records[0]["season"] == "2026-27", "the season comes from the page's own fixture links"
+
+    # A page from BEFORE the change is still read exactly as it was: `rebuild` replays those files, and a
+    # parser that changed its mind about them would rewrite history. Here the href says 2025-26 while the
+    # fixture link says 2026-27 - the href wins, because it is the more specific statement.
+    mixed = _PROBABILI_HTML.replace("2026-27", "2025-26").replace(
+        "</body>",
+        '<a href="https://www.fantacalcio.it/serie-a/calendario/1/2026-27/inter-monza/1"></a></body>')
+    assert {rec["season"] for rec in fc_site.parse_probable_starters(mixed)} == {"2025-26"}, (
+        "the href of an archived page states its own season and must keep deciding it")
+
+    # ...and a page that says nothing at all leaves the season unknown, never today's: an unknown season
+    # is filtered out by every reader, which is the safe direction.
+    bare = _PROBABILI_NEW_HREF.replace("/serie-a/calendario/1/2026-27/inter-monza/17959", "/x")
+    assert fc_site.parse_probable_starters(bare)[0]["season"] is None

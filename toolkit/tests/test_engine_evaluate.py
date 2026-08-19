@@ -1004,6 +1004,50 @@ def test_a_new_signing_is_not_an_unknown_man():
     assert est.presences_from_abroad(38, "default", 5.0) <= 38
 
 
+def test_an_old_pv_is_not_a_forecast_of_appearances():
+    """The `older` rung regressed the fantamedia and handed the PRESENCES over raw - the same defect on
+    the other half of the pair, and unmeasured for three months.
+
+    The case: Arthur Melo, 32 votes at Fiorentina in 2023-24 and nothing since, read 32 of 38 and came
+    out FOURTH of the whole Serie A listone in the app's Overall (`presenze x (voto + bonus)`) with an
+    unremarkable 6.34 of fantamedia. Measured 19/08/2026 on the men whose old pv actually ships - nothing
+    at t-1 on either platform and no league minutes abroad - leave-one-season-out, a quoted man who never
+    played counting as the zero he was: MAE 0.3749 -> 0.2689 on default (n=221, 8 seasons, +28.3%,
+    positive on 8 of 8) and 0.3510 -> 0.2993 on euro (n=48, 3 seasons, +14.7%).
+    """
+    from euroleghe_ingest.engine import estimate as est
+
+    # a Serie A regular of three years ago: 32 of 38 is 84% of that calendar, and it does NOT come across
+    was = 32 / 38
+    now = est.presences_from_older(38, "default", 32, 38)
+    assert now == pytest.approx(round(38 * (0.29 + 0.10 * (was - 0.29)), 1))
+    assert now < 15, "a man who did not play last season is not a starter because he was one in 2023"
+
+    # ...and the two calendars are part of the arithmetic: the same 32 votes are a WHOLE euro season
+    assert est.presences_from_older(38, "default", 32, 31) > now
+
+    # the direction holds on both platforms - more of a season then, more of a season now - while the
+    # weight is each platform's own, because they were measured apart and say different things
+    assert (est.presences_from_older(38, "default", 30, 38)
+            > est.presences_from_older(38, "default", 16, 38))
+    assert (est.presences_from_older(31, "euro", 28, 31)
+            > est.presences_from_older(31, "euro", 16, 31))
+    assert est.OLDER_PV_BETA["euro"] > est.OLDER_PV_BETA["default"]
+
+    # on default the anchor IS the unmeasured constant, measured independently and landing on the same
+    # number: a man quoted here who played nowhere last season is, for presences, a man nobody has seen
+    assert est.OLDER_SHARE["default"] == pytest.approx(
+        est.PRESENCE_SHARE["unmeasured"]["default"], abs=0.005)
+
+    # «vuoto = ignoto»: with no readable old calendar the population's own share answers, never his pv
+    assert est.presences_from_older(38, "default", 32, None) == pytest.approx(38 * 0.29, abs=0.05)
+    assert est.presences_from_older(38, "default", None, 38) == pytest.approx(38 * 0.29, abs=0.05)
+    assert est.presences_from_older(None, "default", 32, 38) is None
+    assert est.presences_from_older(38, "nowhere", 32, 38) is None
+    # and nothing can come out above the calendar it is a share of
+    assert est.presences_from_older(38, "euro", 60, 31) <= 38
+
+
 def test_the_estimate_carries_a_base_vote_and_never_guesses_it_apart():
     """`est_mv` = `est_fm` minus the bonus per appearance, so the pair cannot contradict itself.
 
