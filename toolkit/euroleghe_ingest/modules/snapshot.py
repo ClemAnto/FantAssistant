@@ -554,9 +554,21 @@ def derive_squads(ctx: Context, date: str | None = None,
     Dated on purpose: a squad is a fact about a DAY, and in August it changes weekly. Same discipline as
     every other volatile state - the snapshot then reads "the squad as of the auction date".
     """
+    from euroleghe_ingest.db import database
+
     conn = ctx.require_conn()
     date = date or dt.datetime.now(tz=dt.UTC).date().isoformat()
     counts = {"fc_site": 0, "sofascore": 0, "transfermarkt": 0, "appearances": 0}
+
+    # A SECOND WRITER CAN BE HOLDING THE LOCK, and this phase is where it hurts most: it is the FIRST thing
+    # a snapshot writes, so a long acquisition running beside it kills a run before it has produced
+    # anything. Measured 19/08/2026 - a `timepack --all --refresh` died here after 8 minutes and three
+    # packs, with `database is locked` on the first INSERT, while another session held the write lock.
+    # `busy_timeout` (5s, one statement) cannot cover a lock held for minutes; the growing wait can, and it
+    # is ONE definition for every writer (`db.database.retry_on_lock`) precisely because the private copy
+    # `performance.store` grew on 17/08 could not be reached from here.
+    def write(sql: str, args: tuple) -> None:
+        database.retry_on_lock(lambda: conn.execute(sql, args), what="real squads")
     # Normalized ON WRITE: the three sources spell a club three ways, and a squad table keyed on the
     # provider's spelling cannot be joined to `clubs` - which is how a real squad ends up with no
     # league, no fixtures and no club in the sheet.
@@ -577,7 +589,7 @@ def derive_squads(ctx: Context, date: str | None = None,
                 "SELECT fc_id, team, role FROM probable_starter WHERE valid_from = ?"
                 + (" AND season = ?" if season else ""),
                 (latest_probabili, season) if season else (latest_probabili,)):
-            conn.execute(
+            write(
                 "INSERT OR REPLACE INTO squad_snapshot(fc_id, valid_from, club, source, role_hint) "
                 "VALUES (?, ?, ?, 'fc_site', ?)",
                 (fc_id, latest_probabili, canonical(team), role))
@@ -614,7 +626,7 @@ def derive_squads(ctx: Context, date: str | None = None,
             fc_id = player_ids.get(str(player.get("id") or ""))
             if fc_id is None:
                 continue
-            conn.execute(
+            write(
                 "INSERT OR REPLACE INTO squad_snapshot(fc_id, valid_from, club, source, role_hint) "
                 "VALUES (?, ?, ?, 'sofascore', NULL)", (fc_id, observed, club))
             counts["sofascore"] = counts.get("sofascore", 0) + 1
@@ -641,7 +653,7 @@ def derive_squads(ctx: Context, date: str | None = None,
             fc_id = xref.get(rec["tm_id"])
             if fc_id is None:
                 continue
-            conn.execute(
+            write(
                 "INSERT OR REPLACE INTO squad_snapshot(fc_id, valid_from, club, source, role_hint) "
                 "VALUES (?, ?, ?, 'transfermarkt', NULL)", (fc_id, key.group(2), canonical(club)))
             counts["transfermarkt"] += 1
@@ -671,11 +683,14 @@ def derive_squads(ctx: Context, date: str | None = None,
         name = canonical(club)
         if name not in known_clubs or name in with_page:
             continue
-        conn.execute(
+        write(
             "INSERT OR REPLACE INTO squad_snapshot(fc_id, valid_from, club, source, role_hint) "
             "VALUES (?, ?, ?, 'appearances', NULL)", (fc_id, date, name))
         counts["appearances"] += 1
-    conn.commit()
+    # ...and the COMMIT waits too: SQLite takes the write lock at the first statement and needs to upgrade
+    # it here, so a reader that arrived in between - the Tk panel is one - can refuse a phase that has
+    # already done all its work.
+    database.retry_on_lock(conn.commit, what="real squads")
     total = conn.execute("SELECT COUNT(DISTINCT fc_id) FROM squad_snapshot").fetchone()[0]
     print(f"[snapshot] real squads: {total} players "
           f"(fc_site {counts['fc_site']}, sofascore {counts['sofascore']}, "

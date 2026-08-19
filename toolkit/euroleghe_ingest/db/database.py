@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import sqlite3
+import time
+from collections.abc import Callable
 from pathlib import Path
+from typing import TypeVar
 
 SCHEMA_PATH = Path(__file__).with_name("schema.sql")
 
@@ -16,6 +19,51 @@ def connect(db_path: Path) -> sqlite3.Connection:
     conn.execute("PRAGMA foreign_keys = ON")
     conn.execute("PRAGMA busy_timeout = 5000")   # wait for a lock instead of failing (GUI may read)
     return conn
+
+
+T = TypeVar("T")
+
+# HOW LONG A WRITER WAITS FOR ANOTHER ONE, and why there are two mechanisms and not one.
+# `busy_timeout` above is the FIRST line and its scope is one statement: SQLite itself waits 5 seconds for
+# the lock and then hands back `database is locked`. That is enough for contention and useless against a
+# writer that HOLDS the lock longer than that - which is the normal shape of this project's work, where a
+# reparse or a long acquisition keeps it for minutes. Measured twice: on 17/08/2026 an hour of Transfermarkt
+# downloads died on the first write (`performance.store`, which grew a private retry that day), and on
+# 19/08/2026 a timepack rebuild died after 8 minutes in `snapshot.derive_squads` - two modules, one cause,
+# and the second one had no protection because the first one's cure was written where only it could reach.
+# So the wait lives HERE now, in one definition, and `performance.store` reads it instead of keeping a copy:
+# a rule that two callers need is a rule that must not be written twice (this project has paid for that).
+# The waits are 1, 2, 4, 8, 16 seconds - 31 in all - and each one is PRINTED: a run that hangs silently on a
+# lock is indistinguishable from a run that is working, and the operator has two sessions on one database.
+# Plain quotes and no typography in those two strings on purpose: the Windows console this runs on is
+# cp1252 and turns «» into a question mark, which is not what you want to read while a run is stuck.
+LOCK_ATTEMPTS: int = 6
+
+
+def retry_on_lock(action: Callable[[], T], *, what: str, attempts: int = LOCK_ATTEMPTS) -> T:
+    """Run a write, WAITING with a growing pause while another process holds the lock.
+
+    Only a lock is waited for: any other `OperationalError` is a real defect (a missing column, a broken
+    statement) and is raised at once, because retrying it would turn a bug into a hang. When the budget
+    runs out the error is raised too, with what was being written in the message - the alternative is a
+    run that reports success having written nothing.
+    """
+    for attempt in range(attempts):
+        try:
+            return action()
+        except sqlite3.OperationalError as err:
+            if "locked" not in str(err).lower() or attempt == attempts - 1:
+                if "locked" in str(err).lower():
+                    raise sqlite3.OperationalError(
+                        f"{err} - giving up on '{what}' after "
+                        f"{sum(2 ** i for i in range(attempts - 1))}s of waiting: another process is "
+                        f"holding the write lock (a long acquisition, or a second session)") from err
+                raise
+            wait = 2 ** attempt
+            print(f"[db] '{what}': the database is locked, waiting {wait}s "
+                  f"(attempt {attempt + 1} of {attempts - 1})")
+            time.sleep(wait)
+    raise AssertionError("unreachable: the loop either returns or raises")
 
 
 # Columns added to schema.sql after a database may already exist. CREATE TABLE IF NOT EXISTS does

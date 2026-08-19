@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from euroleghe_ingest.config import Config
 from euroleghe_ingest.context import Context
 from euroleghe_ingest.db.database import init_db
@@ -90,6 +92,62 @@ def _headless_root():
         pytest.skip("no display available")
     root.withdraw()
     return root
+
+
+def test_a_writer_waits_for_the_lock_instead_of_dying(capsys):
+    """UNA definizione dell'attesa, e sta dove un secondo chiamante la trova.
+
+    Misurata due volte sullo stesso guasto: il 17/08/2026 un'ora di download di Transfermarkt e' morta
+    sulla prima scrittura (`performance.store`, che quel giorno si e' scritta un'attesa PRIVATA) e il
+    19/08/2026 un `timepack --all --refresh` e' morto dopo 8 minuti in `snapshot.derive_squads`, che quella
+    cura non poteva raggiungerla. `busy_timeout` (5s, una statement) non copre un lock tenuto per minuti.
+    """
+    import sqlite3
+
+    from euroleghe_ingest.db import database
+
+    # riprova finche' il lock non si libera, e lo DICE: una corsa che attende in silenzio non si distingue
+    # da una che sta lavorando, e l'operatore ha due sessioni su un database solo
+    calls = []
+
+    def flaky():
+        calls.append(1)
+        if len(calls) < 3:
+            raise sqlite3.OperationalError("database is locked")
+        return "scritto"
+
+    assert database.retry_on_lock(flaky, what="prova", attempts=4) == "scritto"
+    assert len(calls) == 3
+    assert "locked" in capsys.readouterr().out, "un'attesa muta e' un blocco invisibile"
+
+    # un errore che NON e' un lock e' un difetto vero: si alza subito, o un bug diventa un blocco
+    def broken():
+        calls.append(1)
+        raise sqlite3.OperationalError("no such column: nonesiste")
+
+    calls.clear()
+    with pytest.raises(sqlite3.OperationalError, match="no such column"):
+        database.retry_on_lock(broken, what="prova", attempts=4)
+    assert len(calls) == 1, "un difetto non si riprova"
+
+    # e quando il budget finisce si alza, dicendo che cosa non e' stato scritto: una corsa che riporta
+    # successo senza aver scritto niente e' peggio di una che muore
+    def stuck():
+        raise sqlite3.OperationalError("database is locked")
+
+    with pytest.raises(sqlite3.OperationalError, match="giving up on .prova."):
+        database.retry_on_lock(stuck, what="prova", attempts=2)
+
+
+def test_the_wait_is_not_written_twice():
+    """`performance.store` la LEGGE e non ne tiene una copia: due copie sono due comportamenti."""
+    import inspect
+
+    from euroleghe_ingest.modules import performance
+
+    source = inspect.getsource(performance.store)
+    assert "retry_on_lock" in source
+    assert "time.sleep" not in source, "l'attesa e' tornata a essere privata"
 
 
 def test_role_and_vote_helpers():

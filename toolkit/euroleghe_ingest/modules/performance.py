@@ -29,10 +29,10 @@ from __future__ import annotations
 
 import json
 import random
-import sqlite3
 import time
 
 from euroleghe_ingest.context import Context
+from euroleghe_ingest.db import database
 from euroleghe_ingest.modules.injuries import REQUEST_DELAY, REQUEST_JITTER, _client
 
 NAME = "performance"
@@ -133,7 +133,7 @@ def targets(conn, seasons: tuple[str, ...] | None, limit: int | None) -> list[tu
     return out[:limit] if limit else out
 
 
-def store(conn, fc_id: int, games: list[dict], *, attempts: int = 6) -> int:
+def store(conn, fc_id: int, games: list[dict]) -> int:
     """Scrive le righe di un giocatore, ASPETTANDO se il DB e' occupato invece di morire.
 
     Misurato il 17/08/2026 e non previsto: questa corsa e quella delle coppe scrivono nello stesso SQLite,
@@ -141,15 +141,13 @@ def store(conn, fc_id: int, games: list[dict], *, attempts: int = 6) -> int:
     e' stato un'ora di download buttata su un `database is locked` alla prima scrittura. La cache per
     giocatore rende la ripresa gratis, ma una corsa lunga che muore per un lock e' una corsa che nessuno
     lancia due volte: quindi si riprova con attesa crescente, e se davvero non si puo' scrivere lo si dice.
+
+    L'attesa NON e' piu' scritta qui (19/08/2026): stava in questo modulo e solo questo modulo la aveva,
+    quindi `snapshot.derive_squads` e' morto per lo stesso lock due giorni dopo. Adesso e' una definizione
+    sola in `db.database.retry_on_lock`, che e' dove un secondo chiamante puo' trovarla.
     """
-    for attempt in range(attempts):
-        try:
-            return _store_once(conn, fc_id, games)
-        except sqlite3.OperationalError as err:
-            if "locked" not in str(err).lower() or attempt == attempts - 1:
-                raise
-            time.sleep(2 ** attempt)
-    return 0
+    return database.retry_on_lock(lambda: _store_once(conn, fc_id, games),
+                                  what=f"Transfermarkt appearances of {fc_id}")
 
 
 def _store_once(conn, fc_id: int, games: list[dict]) -> int:

@@ -370,8 +370,24 @@ because there the competition is one of our own keys and `mv_synth` is calibrate
 mixing them would be §7-nonies again.
 Two habits travel with it: **a long acquisition must survive a lock** (this run and the cups run write the
 same SQLite, and the second holds the write lock through its reparse for longer than `busy_timeout` - an hour
-of downloads died on `database is locked`, so `store` now retries with a growing wait); and **a cache over a
+of downloads died on `database is locked`, so the write now retries with a growing wait); and **a cache over a
 growing series has its expiry in the caller's hands**, like the market curve.
+**...and that cure was written where only one caller could reach it, which cost the same failure twice**
+(19/08/2026): `performance.store` grew a PRIVATE retry, so when `snapshot.derive_squads` met the same lock two
+days later - a `timepack --all --refresh` dead after 8 minutes and three packs, on the FIRST write of a phase
+that had already done a minute of work - there was nothing to protect it. One definition now,
+`db.database.retry_on_lock` (1, 2, 4, 8, 16 seconds, each one PRINTED, a non-lock `OperationalError` raised at
+once because retrying a real defect turns a bug into a hang), read by both callers and reachable by every
+other writer; a test asserts that `store` does not keep a copy. Proven on the real function under a real
+6-second lock: three waits and the phase finishes, 7658 rows written where before it died.
+**Two sessions on one repository is now the normal case, and git alone does not cover it.** A worktree per
+session cures the WORKING TREE - separate branches, no `git add -A` sweeping up somebody's half-finished
+work, no two sessions writing the same file blind (it happened: 414 lines of `snapshot.py` from two hands).
+It cures nothing about `data/`, which is gitignored and therefore NOT copied into a worktree: point it at
+the real one with `EUROLEGHE_DATA_DIR` and you are back to one write lock, or copy the 49 MB and the two
+sessions measure on two different databases, which is worse than a lock. So the rule has a second half that
+is not a git feature: **one session owns the DB** (acquisitions, `snapshot`, `export`) and the other works on
+the app, the docs, or read-only.
 
 ## Three harnesses, not two - and the third one reads the app's own code
 **`toolkit/bench/draft/` (10/08/2026).** `backtest` judges RULES, `sweep` judges CONSTANTS, and this judges

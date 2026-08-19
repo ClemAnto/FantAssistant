@@ -495,6 +495,42 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.57 (19 agosto 2026 — l'attesa sul lock in UN posto solo, e cosa il worktree non cura)
+
+Nessuna colonna si muove, `SHEET_REVISION` non sale: è meccanica.
+
+Lo stesso guasto due volte in due giorni. Il 17/08 un'ora di download di Transfermarkt è morta sulla prima
+scrittura perché la corsa delle coppe teneva il write lock più dei 5 secondi di `busy_timeout`, e `store` si
+è scritta **un'attesa privata**. Il 19/08 un `timepack --all --refresh` è morto **dopo 8 minuti e tre
+pacchetti** dentro `snapshot.derive_squads`, che quella cura non poteva raggiungerla: la prima INSERT di una
+fase che aveva già fatto un minuto di lavoro.
+
+Adesso l'attesa è **una definizione sola**, `db.database.retry_on_lock`: 1, 2, 4, 8, 16 secondi (31 in
+tutto), ognuno **stampato** — una corsa che attende in silenzio non si distingue da una che lavora, e
+l'operatore ha due sessioni su un database solo — e un `OperationalError` che **non** è un lock si alza
+subito, perché riprovare un difetto vero trasforma un bug in un blocco. `performance.store` la legge invece
+di tenerne una copia, e un test lo asserisce leggendo il suo sorgente. `busy_timeout` resta 5 secondi e resta
+la prima linea: il suo scopo è una statement, non una fase.
+
+Verificato sulla funzione vera e non su una copia: con un secondo processo che tiene il lock per 6 secondi,
+`derive_squads` stampa tre attese e finisce, **7658 righe scritte** dove prima moriva. Il `commit()` è
+protetto come le INSERT, perché SQLite prende il lock alla prima scrittura e deve promuoverlo lì: un lettore
+arrivato nel frattempo — il pannello Tk è uno — può rifiutare una fase che ha già fatto tutto il lavoro.
+
+**E il worktree, che era la domanda dell'operatore.** Cura l'ALBERO DI LAVORO: branch separati, nessun
+`git add -A` che rastrella il lavoro a metà di un altro, nessuna sessione che scrive lo stesso file alla cieca
+(è appena successo: 414 righe di `snapshot.py` da due mani). Non cura `data/`, che è gitignorata e quindi
+**non viene copiata** in un worktree nuovo: o la punti a quella vera con `EUROLEGHE_DATA_DIR` e torni a un
+write lock solo, o te ne copi 49 MB e le due sessioni misurano su **due database diversi** — che è peggio di
+un lock, perché un numero citato senza sapere da quale DB non è un numero. Idem `data/cache/`,
+`data/reports/`, `data/export/`, e `app/node_modules` da reinstallare. Quindi la regola ha una seconda metà
+che non è una funzione di git: **una sola sessione possiede il DB** (acquisizioni, `snapshot`, `export`),
+l'altra sta sull'app, sui docs o in sola lettura.
+
+Restano scoperti gli altri scrittori (`positions` ha una decina di `commit()`, poi `fc_site`, `injuries`,
+`elo`): adottare l'attesa è una riga per ognuno, e non è stato fatto oggi perché quei file sono in mano
+all'altra sessione.
+
 ## Novità v9.56 (19 agosto 2026 — un vecchio PV non è una previsione di presenze)
 
 `SHEET_REVISION` **28 → 29**. `engine_*` invariato (`backtest --verify` 22/22: `evaluate` non importa
