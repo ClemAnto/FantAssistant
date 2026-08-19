@@ -1,5 +1,13 @@
 # 00 — BRIDGE · Punto d'ingresso del progetto (leggere per primo)
-**Aggiornato: 17 agosto 2026, notte (L'APP RISCRITTA A VOCE e le quattro voci del residuo chiuse —
+**Aggiornato: 19 agosto 2026 (UN VECCHIO PV NON È UNA PREVISIONE DI PRESENZE — `SHEET_REVISION` 29: il
+gradino `older` regrediva la fantamedia e consegnava le presenze intatte, e con l'Overall che è un PRODOTTO
+questo metteva un uomo che in Serie A non gioca dal 2024 al QUARTO posto del listone; coefficiente misurato
+per piattaforma su 8 e 3 stagioni fuori campione, 46 righe che scendono. Più l'attesa sul lock del DB in una
+definizione sola, perché la stessa cura scritta in privato il 17/08 è costata lo stesso guasto il 19/08, e la
+regola per due sessioni in parallelo: worktree per il codice, UNA sola sessione possiede il DB)** ·
+precedente: 18 agosto 2026 (le DEFINIZIONI dell'operatore applicate ovunque, un campetto solo per asta e
+Squadre, il foglio che stava fermo al 15 agosto e tre canali ufficiali muti — `SHEET_REVISION` 27-28) ·
+precedente: 17 agosto 2026, notte (L'APP RISCRITTA A VOCE e le quattro voci del residuo chiuse —
 `SHEET_REVISION` 26: Overall = `Presenze × (Voti+Bonus)`, le tre letture sulle colonne del foglio e su TUTTI
 i calciatori, la costanza diventata un simbolo di varianza, colonne trascinabili e lazy load senza doppio
 scroll; e sul motore la QUARTA armatura `zeros` con due rifiuti su 15 finestre, i minuti per competizione e
@@ -41,9 +49,54 @@ con la stampa dell'08/08/2026, ordinato per resa misurata).
 L'altra fase, quella settimanale, è **`formazione-settimanale-v1.md`** (progetto): chi gioca domenica, perché
 la pagina delle probabili non basta e quali vincoli valgono già oggi.
 
-## STATO AL 18 AGOSTO 2026 — LEGGI QUESTO PRIMA DI TUTTO
+## STATO AL 19 AGOSTO 2026 — LEGGI QUESTO PRIMA DI TUTTO
 
 Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
+
+**Il 19/08 in quattro righe.** Nessuna corsa di gate, `--verify` **22/22**, toolkit **466 test**,
+`SHEET_REVISION` **28 → 29** (i tre fogli, le board e i quattro pacchetti del viaggio nel tempo rifatti,
+bundle esportato e tirato nell'app). Due commit: `88e6f79` (il PV vecchio, più il lavoro non committato
+dell'altra sessione — revisione 27, «il foglio stava fermo al 15 agosto») e `65d5399` (l'attesa sul lock).
+**Il sito è ancora al 16/08**: il deploy non è stato fatto e resta la voce appesa più vecchia.
+
+**Le tre cose che valgono oltre la feature.**
+1. **UNA TRASFORMAZIONE APPLICATA A METÀ DI UNA COPPIA È UN NUMERO CHE MENTE, e la metà scoperta diventa
+   la graduatoria.** Domanda dell'operatore: «come fa Arthur Melo ad avere 99 di overall?». Il conto era
+   giusto — `Overall = quota calendario × FM attesa = (32/38) × 6,342 = 5,34`, quarto su 600 — e il numero
+   dentro no: quelle 32 giornate erano l'ultima stagione misurata di un uomo che in Serie A non gioca dal
+   2024 (Fiorentina 2023-24), consegnate **grezze** dal gradino `older`, che dal 06/08 regrediva la
+   fantamedia e non le presenze. Misurato sulla popolazione il cui vecchio pv parte davvero: MAE 0,3749 →
+   **0,2689** su default (n=221, 8 stagioni, +28,3%, positivo su 8 su 8) e 0,3510 → **0,2993** su euro (n=48,
+   3 stagioni, +14,7%). `est.OLDER_SHARE` {0,29 · 0,61} e `OLDER_PV_BETA` {0,10 · 0,55}, **per piattaforma**
+   perché su default «niente misurato a t−1» vuol dire *non ha giocato* e su euro *ha giocato dove non
+   copriamo* — le cinque leghe sono il perimetro, non il mondo — e il valore euro è **fragile e lo dichiara**
+   (3 stagioni, ottimi propri 0,90/0,00/0,55: direzione identificata, valore no). Arthur: Pv 32 → 13,1,
+   Overall 99 → **18**, Fantapunti 152 → 62, Lead 11,5 → 4,7, FM e MV invariate. Due cose che restano:
+   l'ancora di default 0,29 è **al decimale** la costante `unmeasured` misurata anni prima su un'altra
+   popolazione, e questa regressione **può solo abbassare** per costruzione (il gradino si accende solo sopra
+   i 15 voti), che è l'opposto di quella sulla fantamedia e va detto invece di spacciarlo per simmetria.
+   Dettaglio e le due cure SCARTATE: `letture-app-v1.md` §13, spec «Novità v9.56».
+2. **La cura scritta dove solo un chiamante la trova costa lo stesso guasto due volte.** Il 17/08 un'ora di
+   download è morta su `database is locked` e `performance.store` si è scritta un'attesa PRIVATA; il 19/08 un
+   `timepack --all --refresh` è morto dopo **8 minuti e tre pacchetti** dentro `snapshot.derive_squads`, che
+   quella cura non poteva raggiungerla. Una definizione sola adesso (`db.database.retry_on_lock`: 1-2-4-8-16
+   secondi, ognuno **stampato**, un `OperationalError` che non è un lock alzato subito perché riprovare un
+   difetto vero trasforma un bug in un blocco), letta da entrambi, e un test asserisce che `store` non ne
+   tenga una copia. Verificata sulla funzione vera sotto un lock vero di 6 secondi: tre attese e la fase
+   finisce, **7658 righe scritte** dove prima moriva. Spec «Novità v9.57».
+3. **Due sessioni su un repository è ormai il caso normale, e git da solo non lo copre.** Il worktree cura
+   l'ALBERO (branch separati, nessun `git add -A` che rastrella il lavoro a metà di un altro: è appena
+   successo, 414 righe di `snapshot.py` da due mani) e **non cura `data/`**, che è gitignorata e quindi non
+   viene copiata — o la punti a quella vera con `EUROLEGHE_DATA_DIR` e torni a un write lock solo, o te ne
+   copi 49 MB e le due sessioni misurano su **due database diversi**, che è peggio di un lock. Seconda metà
+   della regola, che non è una funzione di git: **una sola sessione possiede il DB** (acquisizioni,
+   `snapshot`, `export`), l'altra sta sull'app, sui docs o in sola lettura. Scritto in `CLAUDE.md`.
+
+**Aperti che ne nascono** (`todolist-mantra-euroleghe-v5.md`, «Chiusura 19/08»): il gradino **`shrunk`**
+consegna il pv di t−1 grezzo allo stesso modo — **108 righe su 600**, più delle 46 di `older`, popolazione
+diversa quindi misura da rifare e coefficienti da NON riusare — e l'attesa sul lock agli altri scrittori
+(`positions`, `fc_site`, `injuries`, `elo`: una riga ognuno, non fatta perché quei file erano in mano
+all'altra sessione).
 
 **Il 18/08 in quattro righe.** Una giornata senza gate: l'operatore ha **dettato le definizioni** delle
 colonne («Overall = Presenze × (Voti + Bonus)», «Lead = punti in più rispetto al suo rimpiazzo, su una

@@ -43,6 +43,26 @@ a schermo senza che nessuno l'abbia ancora misurato (`press --against outcome`).
   accanto a quella del bersaglio, non provando un coefficiente diverso: cambiare il coefficiente
   risponderebbe a una domanda che nessuno ha fatto.
 
+**Chiusura 19/08 (un vecchio PV non è una previsione di presenze, e l'attesa sul lock)**: nessuna corsa di
+gate, `--verify` 22/22, `SHEET_REVISION` **28 → 29** (fogli, board e i quattro pacchetti rifatti). Le due
+voci che ne nascono sono entrambe «lo stesso difetto un gradino più in là», che è il modo in cui questa lista
+si allunga meglio — e resta appeso il **deploy**, oggi più vecchio di ieri: il sito è al 16/08 e il bundle
+locale è del 19/08 con la revisione 29.
+
+- [ ] **DA MISURARE — il gradino `shrunk` consegna il pv di t−1 grezzo**, che è esattamente il difetto
+  chiuso oggi un gradino più in alto. Là la fantamedia era regredita e le presenze no; qui la fantamedia è
+  MESCOLATA con l'ancora in proporzione ai voti che ha (`est.shrink`) e le presenze passano intatte: un uomo
+  con 8 voti l'anno scorso legge `est_pv` = 8. Sono **108 righe su 600** del foglio Serie A, contro le 46 di
+  `older`, quindi la posta è più grossa. Popolazione DIVERSA (chi ha giocato qui, poco) quindi la misura è
+  un'altra e va rifatta col protocollo di §13 di [letture-app-v1.md](letture-app-v1.md): leave-one-season-out,
+  chi non gioca contato per lo zero che è, e la convenzione dichiarata. Non riusare 0,10/0,55: sono di
+  un'altra popolazione, che è la regola che questo progetto paga da sempre.
+- [ ] **L'attesa sul lock agli altri scrittori.** `db.database.retry_on_lock` esiste e la usano due
+  chiamanti (`performance.store`, `snapshot.derive_squads`); scoperti restano `positions` (una decina di
+  `commit()`, ed è il modulo che una corsa lunga chiama di più), `fc_site`, `injuries`, `elo`. È una riga per
+  ognuno e non è stata fatta il 19/08 perché quei file erano in mano a un'altra sessione: toccarli alla cieca
+  è il difetto che la giornata ha appena curato.
+
 **Chiusura 16/08 (letture dell'app)**: le cinque colonne 0-99 della consultazione hanno ora un documento
 proprio, [letture-app-v1.md](letture-app-v1.md), con le costanti, le misure che le hanno scelte e — quello
 che conta di più — **le alternative rifiutate con i loro numeri** (lo zero «schierato», che manda Simeone

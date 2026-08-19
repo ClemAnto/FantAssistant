@@ -1,5 +1,5 @@
 # Stato progetto & continuità — v5
-**Aggiornato: 18 agosto 2026 (le DEFINIZIONI dell'operatore — Overall, Lead, Margine, Bonus — applicate ovunque; UN campetto solo per asta e Squadre, con l'item-posto e i moduli alternativi scritti dal toolkit; tre difetti della tabella misurati in browser)** · precedente: 17 agosto 2026, notte (la coppa continentale in mezzo al campionato: misurata, sul foglio e RESPINTA dal gate; l'app riscritta a voce; il surplus che aveva due aritmetiche)
+**Aggiornato: 19 agosto 2026 (un vecchio PV non è una previsione di presenze: il gradino `older` regrediva la fantamedia e consegnava le presenze intatte, e l'Overall dell'app è un PRODOTTO — `SHEET_REVISION` 29; e l'attesa sul lock del DB in una definizione sola, con la regola per due sessioni in parallelo)** · precedente: 18 agosto 2026 (le DEFINIZIONI dell'operatore — Overall, Lead, Margine, Bonus — applicate ovunque; UN campetto solo per asta e Squadre, con l'item-posto e i moduli alternativi scritti dal toolkit; tre difetti della tabella misurati in browser)** · precedente: 17 agosto 2026, notte (la coppa continentale in mezzo al campionato: misurata, sul foglio e RESPINTA dal gate; l'app riscritta a voce; il surplus che aveva due aritmetiche)
 Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da qui + i file della cartella "Modello Previsionale Fantacalcio".
 *Glossario: T1/T2 = finestre di test (23/24->24/25, 24/25->25/26) · MAE = errore medio assoluto · cross-fitted = parametri stimati su una finestra, testati sull'altra · M2e = modello portieri decomposto (abilità + tasso gol subiti del club; la metà Elo del nome non è nel motore) · Pv_att = presenze attese · fc_id = id fantacalcio.it · EV = valore atteso · scoring_config = punteggi configurabili per lega · xG/xA = expected goals/assists · 2.5 pieno = backtest motore completo con flag.*
 
@@ -7,6 +7,49 @@ Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da q
 App per leghe EuroLeghe/fantacalcio.it (Classic+Mantra, 5 campionati) con motore previsionale. Metodo: ogni regola entra SOLO se batte il baseline fuori campione su finestre indipendenti (gate pre-registrato). Doc madre: modello-previsionale-v3.8.md.
 
 ## ⚠️ Lo stato corrente è in `00-BRIDGE-punto-di-ingresso.md`, blocco «STATO AL 5 AGOSTO 2026»
+
+### 19 agosto 2026, in una riga: un vecchio PV non è una previsione di presenze — e la cura scritta in privato è costata lo stesso guasto due volte
+
+Due commit (`88e6f79`, `65d5399`), nessuna corsa di gate, `--verify` **22/22**, toolkit **466 test**,
+`SHEET_REVISION` **28 → 29**. Il sito è ancora al 16/08: il **deploy resta appeso**.
+
+1. **Il difetto, e da dove è venuto.** «Come fa Arthur Melo ad avere 99 di overall?». Il conto della riga era
+   corretto — `Overall = quota calendario × FM attesa`, `(32/38) × 6,342 = 5,34`, quarto su 600 — e a
+   spingerlo era la metà della coppia che nessuno aveva guardato: quelle 32 giornate sono l'ultima stagione
+   misurata di un uomo che in Serie A non gioca dal 2024, consegnate **grezze** (nemmeno convertite fra i due
+   calendari) dal gradino `older`, che la **fantamedia** la regredisce verso l'ancora dal 06/08. Con l'Overall
+   che è un PRODOTTO, una presenza sbagliata vale 480 posizioni.
+2. **La cura scelta fra tre, e le due scartate contano.** Scontare l'Overall con `est_confidence` curava UNA
+   colonna, lasciava «98 di Presenze» accanto e **contava due volte** un'incertezza che è già a schermo nel
+   peso delle stelline; una nota nel tooltip non cura una graduatoria, perché al tavolo si legge la colonna.
+   Quindi: regredire il PV come già si regredisce la FM, con un coefficiente **misurato**.
+3. **La misura** (`est.OLDER_SHARE` {0,29 · 0,61}, `OLDER_PV_BETA` {0,10 · 0,55}). Popolazione = gli uomini
+   il cui vecchio pv parte davvero (niente misurato a t−1 su nessuna piattaforma *e* nessun minuto di lega
+   all'estero), leave-one-season-out, chi non gioca contato per **lo zero che è**: MAE 0,3749 → **0,2689** su
+   default (n=221, 8 stagioni, +28,3%, positivo su 8 su 8) e 0,3510 → **0,2993** su euro (n=48, 3 stagioni,
+   +14,7%). Per piattaforma perché il MECCANISMO è diverso — su default «niente a t−1» vuol dire *non ha
+   giocato* (quota vecchia 0,632 → esito 0,289), su euro *ha giocato dove non copriamo* — e il valore euro è
+   dichiarato **fragile** (ottimi propri 0,90/0,00/0,55: direzione identificata, valore no). Arthur: Pv 32 →
+   13,1, Overall 99 → **18**, Fantapunti 152 → 62, Lead 11,5 → 4,7; FM, MV, Voti e Bonus invariati. 46 righe
+   su 600, tutte in giù — e **questa regressione può solo abbassare per costruzione**, perché il gradino si
+   accende solo sopra i 15 voti: l'opposto di quella sulla fantamedia, e va detto. Due regali: l'ancora di
+   default **coincide al decimale** con la costante `unmeasured` misurata anni prima su un'altra popolazione,
+   e il conteggio dei calendari da solo vale +12,7% su euro.
+4. **L'attesa sul lock, e perché era già scritta.** Il 17/08 `performance.store` si era fatta un'attesa
+   PRIVATA dopo un'ora di download morta su `database is locked`; il 19/08 un `timepack --all --refresh` è
+   morto dopo **8 minuti e tre pacchetti** in `snapshot.derive_squads`, che quella cura non poteva
+   raggiungerla. Ora `db.database.retry_on_lock` è l'unica definizione (1-2-4-8-16 secondi, ognuno
+   **stampato**, un `OperationalError` che non è un lock alzato subito), letta da entrambi, con un test che
+   vieta la copia. Verificata **sulla funzione vera** sotto un lock vero di 6 secondi: tre attese e la fase
+   finisce, 7658 righe scritte dove prima moriva.
+5. **E la regola per due sessioni in parallelo**, nata da una domanda dell'operatore: il worktree cura
+   l'albero (branch separati, nessun `git add -A` che rastrella il lavoro a metà di un altro — è appena
+   successo) e **non cura `data/`**, gitignorata e quindi non copiata: o la punti a quella vera con
+   `EUROLEGHE_DATA_DIR` e torni a un write lock solo, o te ne copi 49 MB e le due sessioni misurano su due
+   database diversi. Seconda metà: **una sola sessione possiede il DB**. In `CLAUDE.md`.
+
+Aperti che ne nascono: il gradino **`shrunk`** consegna il pv di t−1 grezzo allo stesso modo (108 righe su
+600, popolazione diversa quindi misura da rifare) e l'attesa sul lock agli altri scrittori.
 
 ### 17 agosto 2026, in una riga: la COPPA CONTINENTALE in mezzo al campionato — misurata, sul foglio, e respinta dal gate
 

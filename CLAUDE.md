@@ -1211,6 +1211,30 @@ man made an unknown keeper outrank his club's third keeper, while the data says 
 with no previous season and 0.421 for one with a thin one — the thin man plays more, and the ordering should
 come from that.
 
+**A transform applied to HALF of a pair is a number that lies, and the uncovered half becomes the ranking**
+(19/08/2026, from the operator's «come fa Arthur Melo ad avere 99 di overall?»). The `older` rung regressed the
+fantamedia toward the anchor from 06/08 and handed the PRESENCES over raw — not even converted between the two
+calendars — so 32 votes at Fiorentina in 2023-24 read as 32 matchdays of 38 for a man who has not played in
+Serie A since, and the app's Overall being a PRODUCT put him FOURTH of the whole listone off a 6.34 of
+fantamedia. Measured on the men whose old pv actually ships (nothing at t−1 on either platform AND no league
+minutes abroad, because the abroad line answers first), leave-one-season-out, a quoted man who never played
+counting as the ZERO he was: MAE 0.3749 → **0.2689** on default (n=221, 8 seasons, +28.3%, positive on 8 of 8)
+and 0.3510 → 0.2993 on euro (n=48, 3 seasons, +14.7%). `est.OLDER_SHARE` and `OLDER_PV_BETA`, per platform
+because the MECHANISM differs — on default «nothing measured at t−1» means *he did not play*, on euro *he
+played in a championship we do not cover* — with euro's value declared FRAGILE (its three seasons want
+0.90/0.00/0.55: the direction is identified, the value is not). Four things worth keeping past the rung.
+**The cure that treats the SYMPTOM is the one to refuse**: discounting the Overall by `est_confidence` would
+have fixed one column, left «98 di Presenze» beside it, and double-counted an uncertainty the screen already
+shows in the stars' weight — the same «two patches, one defect» shape this file records elsewhere. **An
+anchor measured independently landing on a number already in the file is evidence, not a coincidence**:
+default's 0.29 IS the `unmeasured` constant, i.e. a man quoted here who played nowhere last season is, for
+presences, a man nobody has ever seen. **A shrinkage that can only LOWER is not automatically a haircut** —
+this one can, by construction, because the rung fires only above 15 votes, and the population's measured
+outcome really is 0.29 of a season; saying so is the point, since the fantamedia's own regression pulls both
+ways and presenting them as symmetric would be false. And **the same defect usually lives one rung further
+on**: `shrunk` hands t−1's pv over raw on 108 rows against these 46, unmeasured, and its coefficients must be
+its own. Numbers and the refused cures: `docs/model/letture-app-v1.md` §13, spec «Novità v9.56».
+
 ## An empty cell is a statement, and a football prior is a hypothesis
 Two habits this project keeps, both paid for:
 - **Say why a number is missing.** A blank SURPLUS is not a zero: below `MIN_PV_PREV` = 15 votes the core
