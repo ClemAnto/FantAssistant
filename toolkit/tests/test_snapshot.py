@@ -91,7 +91,16 @@ def test_columns_declare_which_half_is_gated():
     # filed under `engine_` would read as something that passed the gate, and under `desc_` as something
     # somebody measured.
     estimated = [c for c in snapshot.PLAYER_COLUMNS if c.startswith("est_")]
-    assert engine and desc and actual and estimated
+    # `pi_*` e' la QUINTA classe, ed e' separata da `est_*` per la stessa ragione per cui `est_*` e'
+    # separata da `engine_*`: rispondono a due domande. `est_fm` e' «un numero per tutti, penalizzato per
+    # quello che non si sa» e dove non c'e' storia scende sull'ANCORA del ruolo; `pi_fm` e' «quanto vale
+    # una sua partita secondo il calcio che ha davvero giocato», e legge le sue partite all'estero
+    # regredendole verso quell'ancora con un `b` misurato. Differiscono su 129 righe del foglio mantra di
+    # Serie A: sotto un prefisso solo sarebbero due risposte con un nome solo.
+    projected = [c for c in snapshot.PLAYER_COLUMNS if c.startswith("pi_")]
+    assert engine and desc and actual and estimated and projected
+    assert {"pi_fm", "pi_basis", "pi_matches"} <= set(projected), (
+        "una proiezione che non dice da quale calcio viene, e su quante partite, non e' contestabile")
     assert {"est_surplus", "est_basis", "est_confidence", "est_note"} <= set(estimated), (
         "an estimate that does not say what it is built from and what it cost is not usable")
     # ...and BOTH halves of the pair: the operator's rule is that every player always has a realistic FM
@@ -102,7 +111,7 @@ def test_columns_declare_which_half_is_gated():
     known = {"fc_id", "name", "club", "league", "role_classic", "roles_mantra", "price_initial",
              "price_initial_mantra", "fvm_reporting_only"}
     assert set(snapshot.PLAYER_COLUMNS) == (known | set(engine) | set(desc) | set(actual)
-                                            | set(estimated))
+                                            | set(estimated) | set(projected))
     # the price that may be read is the pre-auction one; the end-of-season value is labelled
     assert "price_initial" in known and "fvm_reporting_only" in known
 

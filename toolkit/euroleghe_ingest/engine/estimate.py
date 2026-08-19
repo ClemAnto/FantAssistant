@@ -82,6 +82,39 @@ PRESENCE_SHARE: dict[str, dict[str, float]] = {
     "thin": {"default": 0.42, "euro": 0.29},
 }
 
+# ...E LA STESSA COSTANTE, MISURATA PER RUOLO, perche' a ruoli mescolati era tre volte troppo alta per i
+# portieri. Trovata il 19/08/2026 dalla domanda dell'operatore («un terzo portiere dovrebbe avere pv=0,
+# perche' risulta 15?»), cercando prima nel posto sbagliato: il foglio prevede 56 presenze da portiere per
+# club contro le 38 che un club distribuisce davvero (una a partita, le sostituzioni sono rarissime), e la
+# cura sembrava un vincolo di bilancio. Misurato, il bilancio SUGLI ALTRI RUOLI e' gia' giusto - D +7%,
+# C +4%, A -0% contro P +47% - quindi non c'era niente da normalizzare: c'era una costante applicata fuori
+# dalla popolazione su cui era stata misurata.
+#
+#   unmeasured, media della quota realizzata      P       D       C       A     (in vigore per tutti)
+#   default (n 178/298/296/211)                 0.098   0.308   0.332   0.282        0.29
+#   euro    (n 186/234/269/177)                 0.076   0.229   0.223   0.293        0.19
+#
+# IL CONTROLLO CHE LA RENDE ADOTTABILE e' che l'aggregato non si muove: pesando i quattro ruoli sulla loro
+# numerosita' si ottiene 0.272 su default e 0.207 su euro, cioe' lo 0.29 e lo 0.19 che erano in vigore.
+# Non si sta cambiando la misura, la si sta DIVIDENDO - e il pezzo che era sbagliato e' uno solo.
+# Per il portiere la mediana e' letteralmente ZERO e il 77% di loro non gioca: la costante pooled gli dava
+# 11 giornate su 38, e nessuna curva della scala poteva rimediare a un ingresso sbagliato di tre volte.
+#
+# DUE COSE RIFIUTATE PRIMA DI QUESTA, e stanno scritte perche' nessuno le riprovi. Il vincolo di bilancio
+# per club «a cascata» (il primo portiere tiene la sua previsione, gli altri si dividono il resto) pareva
+# il piu' sensato e su una finestra di sei fa **-17.9%**: quando tutta la porta di un club sta sulla
+# costante le previsioni sono indistinguibili, il «primo» esce a sorte e l'avanzo finisce addosso al
+# secondo - Sherri da 11 a 27 giornate previste contro 7 realizzate, Meret da 25 a 6 contro 34. E il
+# vincolo IN PROPORZIONE, che non inventa avanzi, passa su euro (+9.0%, 4 finestre su 4) e non su default
+# (-4.7% sulla peggiore): resta una voce da rimisurare DOPO questa correzione, non prima, perche' meta'
+# dell'eccesso che doveva curare era la costante.
+PRESENCE_SHARE_BY_ROLE: dict[str, dict[str, dict[str, float]]] = {
+    "unmeasured": {
+        "default": {"P": 0.098, "D": 0.308, "C": 0.332, "A": 0.282},
+        "euro": {"P": 0.076, "D": 0.229, "C": 0.223, "A": 0.293},
+    },
+}
+
 # ...and the man who HAS a measured season, only not on THIS platform - the new signing from abroad.
 # Pricing him at the share above says «nobody has ever seen him play», which is false and expensive:
 # measured over the men with no season here at t-1 and league minutes abroad at t-1 who then played here
@@ -163,11 +196,19 @@ def presences_from_older(calendar: int | None, platform: str, pv_old: float | No
     return round(calendar * min(1.0, max(0.0, anchor + beta * (his - anchor))), 1)
 
 
-def default_presences(calendar: int | None, platform: str, kind: str = "unmeasured") -> float | None:
-    """The presences of a man whose appearances nobody can predict, from the measured shares above."""
+def default_presences(calendar: int | None, platform: str, kind: str = "unmeasured",
+                      role: str | None = None) -> float | None:
+    """The presences of a man whose appearances nobody can predict, from the measured shares above.
+
+    `role` picks the per-ROLE share where one is measured, and the pooled one answers otherwise: without
+    it a third keeper reads 11 appearances of 38 where his population's median is ZERO. Optional on
+    purpose - a caller that does not know the role gets the aggregate, which is what shipped before and
+    is still true about the population as a whole.
+    """
     if not calendar:
         return None
-    share = PRESENCE_SHARE.get(kind, {}).get(platform)
+    share = (PRESENCE_SHARE_BY_ROLE.get(kind, {}).get(platform, {}).get(role or "")
+             or PRESENCE_SHARE.get(kind, {}).get(platform))
     return None if share is None else round(calendar * share, 1)
 
 
@@ -186,6 +227,99 @@ def presences_from_abroad(calendar: int | None, platform: str,
     intercept, slope = line
     share = min(max(intercept + slope * minutes_share, 0.0), ABROAD_MAX_SHARE)
     return round(calendar * share, 1)
+
+
+# ...E QUANTO IL CLUB HA INVESTITO SU DI LUI RISPETTO A CHI GLI CONTENDE LA MAGLIA - misurato il
+# 19/08/2026, dalla domanda dell'operatore: «Ramos ha giocato 30 partite su 34 con 44 minuti a presenza,
+# 13 da titolare: al Milan sara' titolare, 18 su 38 e' troppo poco. Come possiamo migliorarlo con
+# parametri oggettivi?»
+#
+# TRE COSE CHE NON HANNO FUNZIONATO, scritte perche' nessuno le riprovi: le PRESENZE all'estero al posto
+# dei minuti (-0.7% su default, -6.9% su euro, 1/6 e 0/6 finestre - il modello del pannello lo fa gia' e
+# prevede 0.73 per il profilo di Ramos contro lo 0.47 realizzato); il PASSO DI LIVELLO Elo (-3.1% / +1.1%,
+# correlazioni parziali +0.08 / +0.18); e il reparto definito dal MACRO-ruolo, che mette insieme ali e
+# centravanti e legge Leao come rivale pieno di Ramos (-0.6% su default, peggiore finestra -7.3%).
+#
+# QUELLO CHE FUNZIONA E' IL CONFRONTO COI RIVALI PER QUELLA MAGLIA, e i rivali si pesano invece di
+# contarli. Con `tm_appearances.position_id` - la posizione partita per partita di Transfermarkt, l'unico
+# posto del progetto dove esiste una posizione granulare STORICA - la domanda «e' un rivale?» diventa una
+# quota: Leao ha giocato da centravanti nel 27% delle sue partite e da esterno nel 60%, quindi contende a
+# Ramos un quarto di maglia, non una. Due termini, e il secondo e' il canale che il gate aveva respinto:
+#
+#   top       il suo valore diviso il migliore dei rivali PESATO dalla rivalita' (tappato a 3)
+#   absolute  il suo valore di mercato in percentile di listone
+#
+# `absolute` non e' una ri-litigazione di §7-quinquies/§7-untricies: li' era misurato su TUTTO il listone
+# dentro `presence.standing` e valeva +0.26%, qui e' misurato sulla popolazione per cui esiste - i soli
+# uomini che il core non prezza - e vale quattro volte tanto. Il progetto lo aveva gia' scritto: «l'arm
+# che passa e' cieco sugli uomini per cui esiste».
+#
+# CROSS-FIT leave-one-window-out, popolazione ripulita dai sei club stranieri archiviati come `serie_a`:
+#
+#                                    default (259, 6 finestre)   euro (560, 4 finestre)
+#   reparto per codice mantra            +4.86%, 6/6                +4.00%, 3/4
+#   reparto per POSIZIONI pesate         +4.74%, 5/6 (peggio -0.55%)  +5.56%, 4/4
+#
+# SI SPEDISCONO LE POSIZIONI su tutt'e due, ed e' una scelta con un prezzo dichiarato: su default costa
+# 0.12 punti contro il mantra ed e' l'unica delle due con una finestra negativa, dentro il rumore di un
+# cross-fit a sei pieghe; su euro rende 1.56 punti. In cambio c'e' UNA definizione invece di due, e liste
+# di rivali che al tavolo si possono contestare a occhio (Ramos: Gimenez 100% x18M, Nkunku 68% x25M, e
+# Leao fuori). Chi Transfermarkt non ha mai visto ripiega sul codice mantra - 2 righe su 259 e 8 su 560 -
+# e la riga dichiara quale reparto ha risposto.
+INVESTMENT_SHARE: dict[str, tuple[float, float, float, float]] = {
+    #          intercetta   quota all'estero   top sul reparto   percentile di valore
+    "default": (-0.001,       0.463,             0.049,            0.311),
+    "euro":    (-0.055,       0.687,             0.073,            0.300),
+}
+# Oltre il triplo del migliore del reparto la differenza non dice piu' niente: un tappo, non una taratura.
+INVESTMENT_TOP_CAP: float = 3.0
+
+
+def presences_from_investment(calendar: int | None, platform: str, abroad_share: float | None,
+                              top: float | None, value_percentile: float | None) -> float | None:
+    """Le presenze di un nuovo arrivo, corrette da quanto il club ha investito su di lui.
+
+    `abroad_share` e' l'USCITA di `presences_from_abroad` come quota del calendario, non i minuti grezzi:
+    i due strati restano componibili e il rapporto fra la retta vecchia e questa resta leggibile.
+
+    None quando manca un ingrediente, e allora il chiamante tiene `presences_from_abroad`: e' un
+    RAFFINAMENTO di quella retta, non un suo sostituto, e senza i due termini nuovi non ha niente da
+    aggiungere. Mai uno zero - «vuoto = ignoto».
+    """
+    coeffs = INVESTMENT_SHARE.get(platform)
+    if (not calendar or coeffs is None or abroad_share is None
+            or top is None or value_percentile is None):
+        return None
+    intercept, on_abroad, on_top, on_value = coeffs
+    share = intercept + on_abroad * abroad_share + on_top * top + on_value * value_percentile
+    return round(calendar * min(max(share, 0.0), ABROAD_MAX_SHARE), 1)
+
+
+def rivalry(mine: dict[int, float], his: dict[int, float]) -> float:
+    """Quanto due uomini si contendono la stessa maglia: l'intersezione dei due profili di posizione.
+
+    Un profilo e' la distribuzione delle posizioni in cui ha giocato sulle ULTIME DUE STAGIONI (scelta
+    dell'operatore, 19/08/2026, dichiarata e non misurata). `sum_p min(pA, pB)` vale 1 per due uomini che
+    hanno sempre giocato nello stesso posto e 0 per due che non si sono mai incrociati; Ramos (68% ST)
+    contro Leao (27% ST, 60% LW) da' 0.27.
+    """
+    return sum(min(share, his.get(position, 0.0)) for position, share in mine.items())
+
+
+def weighted_top(value: float | None, rivals: list[tuple[float, float]],
+                 cap: float = INVESTMENT_TOP_CAP) -> float | None:
+    """Il suo valore diviso il migliore dei rivali PESATO dalla rivalita'. `rivals` = [(peso, valore)].
+
+    Un rivale al 27% conta il 27% del suo valore, che e' come Leao esce dal reparto di Ramos senza doverlo
+    dichiarare a mano. Senza rivali leggibili torna il tappo: un uomo solo nel suo ruolo e' il massimo di
+    quello che questa grandezza sa dire, non un ignoto.
+    """
+    if value is None:
+        return None
+    best = max((weight * worth for weight, worth in rivals), default=0.0)
+    if best <= 0:
+        return cap
+    return min(cap, value / best)
 
 
 # How many measured players of a role a club needs before its own level is trusted over the role anchor.

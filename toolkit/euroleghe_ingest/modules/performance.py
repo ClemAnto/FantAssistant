@@ -98,6 +98,11 @@ def parse_games(payload: dict | None) -> list[dict]:
             "assists": goals.get("assists"),
             "yellows": cards.get("yellowCards"),
             "reds": cards.get("redCards"),
+            # LA POSIZIONE DI QUELLA PARTITA, id della fonte e non tradotto. Zero e' un valore che il
+            # payload usa davvero (19% delle partite di Ramos), quindi si tiene com'e' e lo interpreta
+            # chi legge: qui non si sa se sia «non pervenuta» o «panchina», e trasformarlo in NULL
+            # deciderebbe la questione senza averla misurata.
+            "position_id": general.get("positionId"),
         })
     return out
 
@@ -154,9 +159,9 @@ def _store_once(conn, fc_id: int, games: list[dict]) -> int:
     conn.executemany(
         """INSERT OR REPLACE INTO tm_appearances(
                fc_id, tm_game_id, played_on, season, competition, is_national, club_id,
-               minutes, state, goals, assists, yellows, reds)
+               minutes, state, goals, assists, yellows, reds, position_id)
            VALUES (:fc_id, :tm_game_id, :played_on, :season, :competition, :is_national, :club_id,
-                   :minutes, :state, :goals, :assists, :yellows, :reds)""",
+                   :minutes, :state, :goals, :assists, :yellows, :reds, :position_id)""",
         [{**game, "fc_id": fc_id} for game in games])
     return len(games)
 

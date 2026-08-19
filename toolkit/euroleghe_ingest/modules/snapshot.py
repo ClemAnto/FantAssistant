@@ -39,6 +39,7 @@ import datetime as dt
 import io
 import json
 import os
+import sqlite3
 import time
 from collections.abc import Mapping
 from dataclasses import replace
@@ -49,8 +50,8 @@ from euroleghe_ingest import config, matching
 from euroleghe_ingest.context import Context
 from euroleghe_ingest.engine import cups as engine_cups
 from euroleghe_ingest.engine import estimate as est
-from euroleghe_ingest.engine import evaluate, features, model
-from euroleghe_ingest.modules import fixtures, positions
+from euroleghe_ingest.engine import evaluate, features, model, projection
+from euroleghe_ingest.modules import arrivals, fixtures, positions
 from euroleghe_ingest.sources import MANTRA_BY_CLASSIC
 
 NAME = "snapshot"
@@ -298,7 +299,36 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      meccanismo si spiega; il valore euro e' fragile e la nota lo dichiara. Si muovono `est_pv`, e
 #      quindi `est_surplus`, `desc_spm`/`desc_dvm` e i due surplus di coppa, sulle 46 righe `older` del
 #      foglio Serie A e sulle omologhe di euro. `engine_*` non si muove di un decimale: e' un ripiego.
-SHEET_REVISION = 29
+#   30 (19/08/2026) - QUANTO IL CLUB HA INVESTITO SU DI LUI, RISPETTO A CHI GLI CONTENDE LA MAGLIA.
+#      Dalla contestazione dell'operatore su Gonçalo Ramos: 30 partite su 34 in Ligue 1 con 13 da titolare,
+#      e il foglio gli dava 18,1 presenze su 38. Tre canali provati e respinti (le presenze all'estero al
+#      posto dei minuti, il passo di livello Elo, il reparto per macro-ruolo), uno adottato: il rapporto
+#      fra il suo valore di mercato e quello del migliore dei rivali PESATO dalla rivalita', piu' il suo
+#      percentile di valore. La rivalita' e' l'intersezione dei profili di posizione sulle ultime DUE
+#      stagioni (scelta dichiarata dell'operatore), da `tm_appearances.position_id` - la posizione partita
+#      per partita di Transfermarkt, acquisita oggi: 3.446 giocatori, 2.047.914 partite, zero richieste
+#      senza risposta. Leao ha giocato da centravanti nel 27% delle sue partite, quindi contende a Ramos
+#      un quarto di maglia e non una. Cross-fit leave-one-window-out: +4,74% su default (5 finestre di 6)
+#      e +5,56% su euro (4 su 4); il reparto per codice mantra fa +4,86% e +4,00%, e la scelta di
+#      spedire le POSIZIONI costa 0,12 punti su default per guadagnarne 1,56 su euro con una definizione
+#      sola - il prezzo sta scritto in `est.INVESTMENT_SHARE`. Ripiego sul codice mantra per chi la fonte
+#      non ha mai visto (2 righe su 259 e 8 su 560) e la riga dichiara quale reparto ha risposto.
+#      Si muovono `est_pv` e tutto quello che lo moltiplica - `est_surplus`, `desc_spm`/`desc_dvm`, i due
+#      surplus di coppa - e quindi anche Overall, Lead, Margine e Fantapunti dell'app, che e' la scelta
+#      (b) dell'operatore: un uomo ha una previsione sola. `engine_*` non si muove: e' sempre un ripiego.
+#   31 (19/08/2026) - LA QUOTA DI RIPIEGO E' DEL RUOLO, e le tre colonne `pi_*` di Fpi viaggiano.
+#      Dalla domanda dell'operatore, «un terzo portiere dovrebbe avere pv=0, perche' risulta 15?»: la
+#      costante era misurata a ruoli MESCOLATI e per un portiere valeva tre volte troppo - 0.098 contro
+#      lo 0.29 in vigore su default, 0.076 contro 0.19 su euro, con il 77% di quella popolazione che non
+#      gioca affatto e la mediana a ZERO. Pesati sulla loro numerosita' i quattro ruoli ridanno
+#      l'aggregato in vigore (0.272 e 0.207): la misura non cambia, si DIVIDE, e il pezzo sbagliato era
+#      uno solo. Cercata prima nel posto sbagliato, e vale scriverlo: il foglio prevedeva 56 presenze da
+#      portiere per club contro le 38 che un club distribuisce davvero, e sembrava un vincolo di
+#      bilancio - ma sugli altri ruoli il bilancio era gia' giusto (D +7%, C +4%, A -0%), quindi non
+#      c'era niente da normalizzare. Le due normalizzazioni provate e respinte, con i numeri e con i
+#      nomi che le hanno fatte cadere, stanno in `est.PRESENCE_SHARE_BY_ROLE`.
+#      Si muovono `est_pv` e tutto quello che lo moltiplica; `engine_*` no.
+SHEET_REVISION = 31
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
@@ -2888,6 +2918,112 @@ def left_his_club(obs, moves: dict | None, live: dict | None = None,
     return None, None
 
 
+# Quante partite servono perche' un profilo di posizioni sia un profilo e non un aneddoto. Cinque: sotto,
+# si ripiega sul codice mantra del listone e la riga lo dichiara.
+PEER_MIN_GAMES = 5
+# Su quante stagioni si conta la quota di posizione. DUE, ed e' una scelta DICHIARATA dell'operatore
+# (19/08/2026, «la quota si conta sulle ultime 2 stagioni»), non una misura: un ruolo cambia, e due
+# stagioni sono abbastanza recenti da dire quello di adesso e abbastanza lunghe da avere un campione.
+PEER_SEASONS = 2
+
+
+def _peer_groups(conn, window: features.Window, data_ids, marks: str) -> dict[int, dict]:
+    """{fc_id: {top, value_percentile, source, rivals}} - chi gli contende la maglia, e quanto.
+
+    IL REPARTO SI PESA INVECE DI CONTARLO, e la ragione e' una domanda dell'operatore (19/08/2026): «se
+    Leao e Pulisic sono giudicati ST per la fonte devi vedere se ci sono percentuali in merito, perche' e'
+    vero che hanno giocato in quel ruolo ma in pochissime situazioni». Aveva ragione, e la fonte lo dice:
+    Leao ha giocato da centravanti nel 27% delle sue partite di club e da esterno sinistro nel 60%.
+
+    TUTTO E' DATATO PRIMA DELL'ASTA: il profilo sulle due stagioni CHIUSE (mai la bersaglio - quella e' il
+    futuro, ed e' l'errore che la prima versione della misura conteneva), il valore all'ultimo punto della
+    curva a quella data, la rosa dal listone bersaglio, che ad agosto e' gia' pubblicato.
+
+    `source` dice quale reparto ha risposto - `positions` o `mantra` - perche' una colonna con due basi
+    deve dire quale delle due sta parlando.
+    """
+    seasons = tuple(f"{int(window.input_season.split('-')[0]) - back}-"
+                    f"{str(int(window.input_season.split('-')[0]) - back + 1)[-2:]}"
+                    for back in range(PEER_SEASONS))
+    season_marks = ",".join("?" * len(seasons))
+    counts: dict[int, dict[int, float]] = {}
+    try:
+        for fc_id, position, played in conn.execute(
+                f"SELECT fc_id, position_id, COUNT(*) FROM tm_appearances "
+                f"WHERE season IN ({season_marks}) AND state = 'played' AND is_national = 0 "
+                # `position_id` 0 e' il bucket «non pervenuta» della fonte (11% delle righe): contarlo
+                # come una posizione inventerebbe un ruolo che nessuno ha giocato.
+                f"AND position_id IS NOT NULL AND position_id != 0 GROUP BY fc_id, position_id", seasons):
+            counts.setdefault(fc_id, {})[position] = float(played)
+    except sqlite3.OperationalError:
+        # Un DB che quel layer non ce l'ha (una base vecchia, una fixture): il reparto torna a essere il
+        # codice del listone per tutti e la riga lo dichiara, che e' il ripiego gia' previsto. Uno strato
+        # opzionale che manca non fa cadere un foglio.
+        counts = {}
+    profile: dict[int, dict[int, float]] = {}
+    for fc_id, spread in counts.items():
+        total = sum(spread.values())
+        if total >= PEER_MIN_GAMES:
+            profile[fc_id] = {position: n / total for position, n in spread.items()}
+
+    value: dict[int, float] = {}
+    try:
+        for fc_id, worth in conn.execute(
+                "SELECT fc_id, value FROM market_value_history m WHERE observed_on <= ? "
+                "AND value IS NOT NULL AND observed_on = (SELECT MAX(observed_on) "
+                "FROM market_value_history x WHERE x.fc_id = m.fc_id AND x.observed_on <= ?)",
+                (window.auction_date, window.auction_date)):
+            value[fc_id] = float(worth)
+    except sqlite3.OperationalError:
+        return {}                    # senza la curva dei valori non c'e' confronto: il canale tace
+    if not value:
+        return {}
+    ladder = sorted(value.values())
+
+    squad: dict[str, list[tuple[int, frozenset, float]]] = {}
+    for fc_id, club, roles in conn.execute(
+            "SELECT r.fc_id, c.canonical_name, r.roles FROM rosters r "
+            "JOIN clubs c ON c.fc_club_id = r.fc_club_id "
+            "WHERE r.season = ? AND r.role_classic IS NOT NULL", (window.target_season,)):
+        if fc_id in value:
+            squad.setdefault(club, []).append(
+                (fc_id, frozenset(model.split_roles(roles)), value[fc_id]))
+    club_of = {fc_id: club for club, men in squad.items() for fc_id, _codes, _worth in men}
+
+    out: dict[int, dict] = {}
+    for fc_id in data_ids:
+        mine = value.get(fc_id)
+        club = club_of.get(fc_id)
+        if mine is None or club is None:
+            continue
+        mates = [(other, codes, worth) for other, codes, worth in squad.get(club, []) if other != fc_id]
+        if not mates:
+            continue
+        my_profile = profile.get(fc_id)
+        weighted = [(est.rivalry(my_profile, profile[other]), worth)
+                    for other, _codes, worth in mates if other in profile] if my_profile else []
+        if weighted:
+            top, source = est.weighted_top(mine, weighted), "positions"
+        else:
+            # Chi la fonte non ha mai visto: il reparto torna a essere il codice del listone, e la riga
+            # lo dichiara. Un uomo senza reparto non avrebbe denominatore e il canale gli diventerebbe
+            # muto, cioe' uno zero travestito da misura.
+            my_codes = frozenset(model.split_roles(
+                (conn.execute("SELECT roles FROM rosters WHERE fc_id = ? AND season = ?",
+                              (fc_id, window.target_season)).fetchone() or [None])[0]))
+            same = [worth for _other, codes, worth in mates if my_codes & codes]
+            top = (min(est.INVESTMENT_TOP_CAP, mine / max(same)) if same
+                   else est.INVESTMENT_TOP_CAP)
+            source = "mantra"
+        out[fc_id] = {
+            "top": top,
+            "value_percentile": sum(1 for worth in ladder if worth < mine) / len(ladder),
+            "source": source,
+            "rivals": len(weighted) if weighted else len(mates),
+        }
+    return out
+
+
 def estimation_layer(conn, window: features.Window, platform: str,
                      observations) -> dict[int, dict]:
     """Everything the fallback valuation needs, gathered once: {fc_id: {...}} - see `engine.estimate`.
@@ -2965,6 +3101,13 @@ def estimation_layer(conn, window: features.Window, platform: str,
         if competition in rounds and (seen is None or minutes > seen["minutes"]):
             layer[fc_id]["abroad"] = {"minutes": minutes, "rounds": rounds[competition],
                                       "league": competition}
+    # ...E CHI GLI CONTENDE LA MAGLIA, pesato: il reparto per POSIZIONE VERA e non per etichetta.
+    # La misura e le tre alternative respinte stanno in `est.INVESTMENT_SHARE`; qui c'e' solo la raccolta
+    # dei tre ingredienti, che sono tutti datati PRIMA dell'asta - il profilo sulle due stagioni chiuse,
+    # il valore all'ultimo punto della curva a quella data, la rosa del listone bersaglio, che ad agosto
+    # e' pubblicata.
+    for fc_id, peers in _peer_groups(conn, window, data_ids=ids, marks=marks).items():
+        layer[fc_id]["peers"] = peers
     # HIS BONUS PER APPEARANCE, pv-weighted over every season we have measured of him, and the same rate
     # per ROLE to pad it with. It is what turns the estimated fantamedia into an estimated base VOTE
     # (`est.bonus_rate` carries the measurement): every player then has an MV as well as an FM, which is
@@ -3068,6 +3211,17 @@ def _rung_for(obs, prediction, layer: dict, anchors: dict, data,
     abroad_share = ((abroad.get("minutes") or 0) / (90 * abroad["rounds"])
                     if abroad.get("rounds") else None)
     from_abroad = est.presences_from_abroad(calendar, platform, abroad_share)
+    # ...e poi QUANTO IL CLUB HA INVESTITO SU DI LUI rispetto a chi gli contende la maglia, che e' il solo
+    # ingrediente oggettivo che distingua un titolare annunciato da un riempi-rosa a parita' di minuti
+    # (`est.INVESTMENT_SHARE`, e le tre alternative respinte stanno li'). E' un RAFFINAMENTO della retta
+    # sopra e non un suo sostituto: senza i due termini nuovi resta quella, mai uno zero.
+    peers = (layer.get("players", {}).get(obs.fc_id, {}) or {}).get("peers") or {}
+    if from_abroad is not None and calendar:
+        with_money = est.presences_from_investment(
+            calendar, platform, from_abroad / calendar,
+            peers.get("top"), peers.get("value_percentile"))
+        if with_money is not None:
+            from_abroad = with_money
 
     def presences(source_pv=None, source_calendar_ratio=1.0, recent_first=False, from_older=None):
         """His presences, if the engine has none: the other calendar's, scaled by the two calendars.
@@ -3149,7 +3303,10 @@ def _rung_for(obs, prediction, layer: dict, anchors: dict, data,
                 f"({abroad_share:.0%} of it) - {level} for the fantamedia, which is what the gate "
                 f"preferred")
     return est.Estimate(anchor, presences(None) or from_abroad
-                        or est.default_presences(calendar, platform, "unmeasured"),
+                        # Il RUOLO entra nella costante: la quota di un portiere e' 0.098 e non 0.29,
+                        # e senza passarlo il terzo portiere di ogni club leggeva 11 giornate su 38
+                        # contro una mediana di zero.
+                        or est.default_presences(calendar, platform, "unmeasured", obs.role_classic),
                         "anchor", est.CONFIDENCE["anchor"], note, mv=anchor_mv)
 
 
@@ -3862,6 +4019,15 @@ PLAYER_COLUMNS: tuple[str, ...] = (
     # `est_mv` is the base vote behind `est_fm`, derived from it and never guessed apart: FM - MV is the
     # bonus per appearance the row expects, so the two can never say different things about one player.
     "est_fm", "est_mv", "est_pv", "est_surplus", "est_basis", "est_confidence", "est_note",
+    # Fpi: QUANTO VALE UNA SUA PARTITA secondo il calcio che ha davvero giocato, anche altrove.
+    # Non e' `est_fm` con un altro nome: dove il core non lo prezza, `est_fm` scende sull'ANCORA del ruolo
+    # («e' un attaccante della Juve»), mentre questa legge le sue partite vere all'estero - voto base
+    # calibrato piu' gol e assist - e le regredisce verso l'ancora con il `b` misurato della sua coppia
+    # piattaforma-gioco (`engine/projection.py`, +4.7%/+11.7% cross-fit su 6 e 5 finestre). Dove non c'e'
+    # nulla da leggere resta `est_fm`, e `pi_basis` dice sempre quale delle due ha parlato: `core`,
+    # `abroad` o il gradino di `estimate`. `pi_matches` porta su quante partite, perche' dieci non sono
+    # una stagione e la riga non deve lasciarlo credere.
+    "pi_fm", "pi_basis", "pi_matches",
     # L'ALTRO ZERO, e sono due DOMANDE diverse invece che due risposte alla stessa (metrica §21).
     # `engine_surplus` conta dal marginale di ROSA - l'ottantesimo centrocampista di dieci squadre - che
     # è la risposta a «chi conviene comprare»; queste due contano dal rimpiazzo che ENTRA, il rango
@@ -4078,7 +4244,7 @@ def _easy_label(answer: dict | None) -> str | None:
 
 def build_rows(conn, data: features.WindowData, predictions, layers: dict,
                perimeter: set[str] | None = None, window: features.Window | None = None,
-               platform: str = "euro") -> list[dict]:
+               platform: str = "euro", event_scoring: dict | None = None) -> list[dict]:
     """One row per purchasable player, engine columns first, descriptive after.
 
     `perimeter` filters the OUTPUT, never the model population. The engine's standardisations are
@@ -4143,6 +4309,13 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
     fielded_levels = ({obs.fc_id: auction_level(obs, data, data.replacement_fielded,
                                                 slot=slots.get(obs.fc_id))
                        for obs in data.observations} if data.replacement_fielded else {})
+    # L'EQUIVALENTE SINTETICO delle partite che ognuno ha giocato altrove, una volta per foglio e non per
+    # riga: e' una query sola sul layer per-partita. Serve al ramo `abroad` di Fpi, che e' la ragione per
+    # cui un nuovo arrivo smette di essere «un attaccante della Juve» e diventa le sue trenta partite.
+    # I termini PIATTI del punteggio (gol, assist, cartellini), non il dizionario per lega: e' quello che
+    # `foreign_fm_equivalent` legge, ed e' lo stesso che usa `arrivals.enrich`.
+    equivalents = (arrivals.foreign_fm_equivalent(conn, event_scoring, window.input_season)
+                   if conn is not None and event_scoring else {})
     ranks: dict[int, int] = {}
     for role in {slot for slot in slots.values() if slot}:
         ranked = sorted(
@@ -4183,6 +4356,27 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
         # compare. That is not hypothetical: unlevelled estimates were 11 of the top 12 rows.
         slot, replacement = levels.get(obs.fc_id, (None, None))
         guess_surplus = est.surplus(guess.fm, guess.pv, replacement, guess.confidence)
+        # Fpi: il valore di una sua partita dal calcio che ha davvero giocato. Il core quando c'e', poi
+        # l'equivalente sintetico delle sue partite all'estero regredito verso l'ancora, poi la stima.
+        # I portieri non passano dal ramo estero e la funzione lo sa (misurato -0.9%: il loro fantavoto e'
+        # dominato dai gol subiti, che quell'equivalente non ha).
+        pi_fm, pi_basis, pi_matches = guess.fm, guess.basis, None
+        if prediction is not None and prediction.fm_pred is not None:
+            pi_fm, pi_basis = prediction.fm_pred, "core"
+        else:
+            equivalent, matches = equivalents.get(obs.fc_id, (None, 0))
+            # L'ANCORA E' QUELLA DELLA CASCATA, non `prediction.anchor`: per un uomo che il core non
+            # prezza quella previsione spesso non esiste affatto, e passandola si spegneva il ramo
+            # proprio sui nomi per cui e' stato costruito (Ramos leggeva `anchor` con trenta partite di
+            # Ligue 1 sul groppone). Stessa riga di `_rung_for`, cosi' le due non possono divergere.
+            role = obs.role_classic or ""
+            anchor = est.club_anchor(
+                data.anchors.get(role) or (prediction.anchor if prediction else None) or 6.0,
+                *(estimation.get("club_level", {}).get((obs.club_target or "", role)) or (None, 0)))
+            from_abroad = projection.fm_from_abroad(
+                equivalent, matches, anchor, platform, data.game, obs.role_classic)
+            if from_abroad is not None:
+                pi_fm, pi_basis, pi_matches = from_abroad[0], "abroad", from_abroad[2]
         # L'ALTRO ZERO, sulla riga: il rimpiazzo che entra e il surplus misurato su di lui. Una colonna
         # sola per tutta la lista, quindi chi il motore non prezza la riceve dalla STIMA con la stessa
         # penale del suo `est_surplus` - ordinare per questa colonna deve poter ordinare l'intero foglio,
@@ -4256,6 +4450,9 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             "est_basis": guess.basis,
             "est_confidence": _round(guess.confidence, 2),
             "est_note": guess.note,
+            "pi_fm": _round(pi_fm, 3),
+            "pi_basis": pi_basis,
+            "pi_matches": pi_matches,
             # L'ALTRO ZERO: il rimpiazzo che ENTRA (rango `squadre x posti schierati`) e il surplus
             # misurato su di lui. Stesso slot e stessa aritmetica di `engine_surplus`, cambia solo la
             # profondità - vedi `features.fielded_places`.
@@ -5260,7 +5457,8 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
                      f"{window.target_season}, so the perimeter is unknown and nothing was filtered")
         perimeter = None
     progress.stage("rows")
-    rows = build_rows(conn, data, predictions, layers, perimeter, window, platform)
+    rows = build_rows(conn, data, predictions, layers, perimeter, window, platform,
+                      ctx.config.load_scoring())
     # CHI NON E' PIU' IN ROSA ESCE DAL FOGLIO (operatore, 17/08/2026: «l'autorita' di chi e' in rosa e'
     # sofascore»). Prima restava con un `⇥` perche' l'autorita' era il listone; ora l'autorita' e' la fonte
     # che vede la rosa ogni giorno, e una riga che si puo' comprare da un club dove non c'e' e' peggio di una

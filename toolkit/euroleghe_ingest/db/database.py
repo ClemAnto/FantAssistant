@@ -102,6 +102,12 @@ ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     # rows of Red Bull Salzburg and Austria Klagenfurt were filed as top-5 football and took a synthetic
     # vote calibrated on Germany. ClubElo's CSV has carried the column since the first run.
     ("club_levels", "country", "TEXT"),
+    # LA POSIZIONE PARTITA PER PARTITA di Transfermarkt (19/08/2026). Nata dalla domanda dell'operatore
+    # «se Leao e Pulisic sono giudicati ST per la fonte devi vedere se ci sono percentuali in merito»:
+    # `player_roles` da' un INSIEME di codici senza pesi, e «ha giocato ST tre volte» e «e' il centravanti»
+    # diventavano la stessa cosa. Il payload che `performance` gia' scarica porta `positionId` su ogni
+    # partita e il parser lo scartava; backfill offline dai 1.120 file in cache, zero richieste.
+    ("tm_appearances", "position_id", "INTEGER"),
     ("external_match_stats", "shots", "INTEGER"),
     ("external_match_stats", "shots_on_target", "INTEGER"),
     ("external_match_stats", "big_chances_created", "INTEGER"),

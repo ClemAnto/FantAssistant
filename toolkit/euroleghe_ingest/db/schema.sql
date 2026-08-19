@@ -299,6 +299,15 @@ CREATE TABLE IF NOT EXISTS tm_appearances (
     assists     INTEGER,
     yellows     INTEGER,
     reds        INTEGER,
+    -- LA POSIZIONE IN CUI HA GIOCATO QUELLA PARTITA, id della fonte, mai tradotto qui (19/08/2026).
+    -- E' l'unico posto in tutto il progetto dove esiste una posizione granulare STORICA: i dodici codici
+    -- di `player_roles` sono un'istantanea di oggi (14 date, dal 28/07/2026) e la posizione del layer
+    -- per-partita di Sofascore e' G/D/M/F. Con questa colonna la domanda «di chi e' quella maglia» smette
+    -- di essere un'etichetta e diventa una QUOTA: Leao ha giocato da centravanti nel 27% delle sue
+    -- partite di club e da esterno sinistro nel 60%, Ramos da centravanti nel 68%.
+    -- Il payload la portava dalla prima corsa (`statistics.generalStatistics.positionId`) e il parser la
+    -- buttava via - stessa forma di `goalsConceded` fino al gate §7-decies e di `team.id` prima di esso.
+    position_id INTEGER,
     PRIMARY KEY (fc_id, tm_game_id)
 );
 

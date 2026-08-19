@@ -289,6 +289,13 @@ SHEET_COLUMNS: tuple[str, ...] = (
     "desc_riser_starts",
     "desc_riser_window",
     "desc_riser_keeper",
+    # Fpi: quanto vale una sua partita secondo il calcio che ha DAVVERO giocato, con la base da cui viene
+    # e su quante partite. Senza queste tre la colonna Fpi dell'app resta muta - e il contratto e' una
+    # LISTA ESPLICITA proprio perche' una colonna nuova non viaggi per sbaglio ne' resti a casa in
+    # silenzio: quando e' rimasta a casa, la tabella disegnava un trattino su 603 righe.
+    "pi_fm",
+    "pi_basis",
+    "pi_matches",
 )
 
 
@@ -297,7 +304,11 @@ SHEET_COLUMNS: tuple[str, ...] = (
 # una pagina di rosa non si scarica per un giorno passato. Pretenderle li avrebbe fatti scartare tutti,
 # cioe' avrebbe spento il viaggio nel tempo per aggiungere una colonna. Un foglio che non le ha le porta
 # NULL, che e' «ignoto» e si legge come tale (`optionalIndex` fa la stessa cosa dall'altra parte).
-SHEET_COLUMNS_OPTIONAL: frozenset[str] = frozenset({"desc_live_club", "desc_live_club_on"})
+# ...e le tre di Fpi, nate il 19/08/2026: i pacchetti del viaggio nel tempo sono stati scritti prima e non
+# le hanno. Pretenderle li scarterebbe tutti, cioe' spegnerebbe il viaggio nel tempo per aggiungere una
+# colonna - lo stesso errore che le due della rosa live avevano gia' evitato una volta.
+SHEET_COLUMNS_OPTIONAL: frozenset[str] = frozenset({
+    "desc_live_club", "desc_live_club_on", "pi_fm", "pi_basis", "pi_matches"})
 
 
 def _sheet_folders(reports: Path, target: str) -> list[Path]:
