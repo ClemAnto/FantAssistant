@@ -43,6 +43,39 @@ a schermo senza che nessuno l'abbia ancora misurato (`press --against outcome`).
   accanto a quella del bersaglio, non provando un coefficiente diverso: cambiare il coefficiente
   risponderebbe a una domanda che nessuno ha fatto.
 
+**Chiusura 19/08 sera (Fπ, il reparto pesato, e otto club stranieri archiviati come `serie_a`)**: nessuna
+corsa di gate, `--verify` 22/22, `SHEET_REVISION` **29 → 31**, **v0.1.19 pubblicata** — il deploy appeso da
+tre chiusure non è più appeso. Cinque voci nuove, e due sono debiti dichiarati al momento di adottare.
+
+- [ ] **DA RIMISURARE, ma solo DOPO — il vincolo di bilancio sulle presenze da portiere.** Dopo la costante
+  di ripiego per ruolo resta **+23%** di eccesso: un club distribuisce 38 voti da portiere e il foglio ne
+  prevede ~47. Il vincolo *in proporzione* è già misurato — **+9,0% su euro (4/4)** e **−4,7% sulla
+  peggiore di default** — quindi non è né adottabile né archiviabile; quello *a cascata* è respinto
+  (−17,9%, gate §7-septiestricies (d)). La rimisura va fatta **su questa correzione**, perché metà
+  dell'eccesso che doveva curare era la costante: rifarla sui numeri vecchi risponderebbe a una domanda
+  che non esiste più.
+- [ ] **DA GUARDARE INSIEME — la scala di Fπ è tarata globalmente.** Il miglior portiere legge **65-72**
+  contro il 99 del miglior attaccante, che è vero come totale (un portiere non fa bonus) e discutibile
+  come lettura, esattamente la tensione che l'Overall ha già risolto una volta col rimpiazzo per ruolo
+  (`letture-app-v1.md` §9). La variante per ruolo esiste e non è stata spedita: è una scelta da fare
+  guardandola su una lista vera, non da dedurre — e il precedente dice che l'eleganza qui ha già sbagliato
+  una volta (lo zero «schierato» respinto perché rompeva un ordinamento che l'operatore aveva già corretto).
+- [ ] **Il reparto per RUOLO REALE** (invece che per posizioni Transfermarkt), pre-registrato per quando la
+  heatmap coprirà 2021-22→2023-24. Oggi il ruolo granulare è un'osservazione di OGGI e non può dire dove un
+  uomo giocava due anni fa, perciò il profilo si costruisce da `tm_appearances.position_id`; il giorno che
+  la heatmap è storica la domanda «chi gli contende la maglia» ha una seconda risposta indipendente, e le
+  due si confrontano invece di scegliersi.
+- [ ] **Macchinari morti nell'Overall dell'app**, trovati leggendo e non misurando: `FRAGILITY_RISK`,
+  `STARTER_SHARE`, `STARTER_CONCAVITY`, `DECLARED_RISK`, `CLUB_PRIOR` e tre campi (`spells`, `declared`,
+  `fragility`) che nessuno legge, più **un commento falso** in `player-ratings-store.ts:112` che descrive
+  un'aritmetica che il codice non fa. Costa poco toglierli e vale più del poco: un parametro morto è un
+  parametro che il prossimo lettore crederà vivo — è la stessa classe della metà Elo dei portieri, che è
+  sopravvissuta in quattro commenti per settimane.
+- [ ] **Il buco del Como sul foglio euro**: **24 dei 29 quotati** mancano perché `_TARGET_FROM_AUTHORITY`
+  filtra sui team presenti in `match_ratings`, e un club appena arrivato nel perimetro euro non ce l'ha.
+  È la stessa forma del difetto del PERIMETRO curato il 08/08 («il listone sa di una promozione prima che
+  si giochi»), un livello più in là.
+
 **Chiusura 19/08 (un vecchio PV non è una previsione di presenze, e l'attesa sul lock)**: nessuna corsa di
 gate, `--verify` 22/22, `SHEET_REVISION` **28 → 29** (fogli, board e i quattro pacchetti rifatti). Le due
 voci che ne nascono sono entrambe «lo stesso difetto un gradino più in là», che è il modo in cui questa lista

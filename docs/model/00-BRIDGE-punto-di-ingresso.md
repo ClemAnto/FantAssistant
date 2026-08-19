@@ -1,5 +1,5 @@
 # 00 — BRIDGE · Punto d'ingresso del progetto (leggere per primo)
-**Aggiornato: 19 agosto 2026 (UN VECCHIO PV NON È UNA PREVISIONE DI PRESENZE — `SHEET_REVISION` 29: il
+**Aggiornato: 19 agosto 2026, sera (Fπ — UNA COLONNA CHE PRONOSTICA INVECE DI SOMMARE: nasce dalla verifica di coerenza fra FVM e Overall, che ha trovato una divergenza SISTEMATICA e non un errore di conto — Overall è un totale senza zero, quindi premia chi gioca sempre a 5,8 e lascia indietro chi in Italia non ha mai giocato. Tre parametri misurati fuori campione benché nessun gate li possieda (l'equivalente estero regredito, il calendario della finestra come DEVIAZIONE, l'investimento del club rispetto a chi gli contende la maglia), la scala 0-99 dettata dall'operatore in cinque passaggi con una curva sotto l'ancora, quattro idee respinte e otto club stranieri archiviati come `serie_a`. `SHEET_REVISION` 31, v0.1.19 pubblicata)** · precedente: 19 agosto 2026 (UN VECCHIO PV NON È UNA PREVISIONE DI PRESENZE — `SHEET_REVISION` 29: il
 gradino `older` regrediva la fantamedia e consegnava le presenze intatte, e con l'Overall che è un PRODOTTO
 questo metteva un uomo che in Serie A non gioca dal 2024 al QUARTO posto del listone; coefficiente misurato
 per piattaforma su 8 e 3 stagioni fuori campione, 46 righe che scendono. Più l'attesa sul lock del DB in una

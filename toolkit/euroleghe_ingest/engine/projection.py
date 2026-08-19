@@ -205,8 +205,18 @@ CALENDAR_PER_100: dict[str, float] = {"P": 0.175, "D": 0.076, "C": 0.076, "A": 0
 # insieme. L'operatore l'ha visto su un nome - «uno come Stones con 6.4x16 non puo' avere Fpi=0» - e
 # aveva ragione: Stones fa 103 fantapunti ed e' il 417° di 600, non l'ultimo.
 #
-#   sopra l'ancora:  50 -> 99   fra la media dei primi 250 e il migliore
-#   sotto l'ancora:   1 -> 50   fra il peggiore del listone e la media dei primi 250
+#   sopra l'ancora:  50 -> 99   fra la media dei primi 250 e il migliore, dritto
+#   sotto l'ancora:   0 -> 50   fra il peggiore del listone e la media, con una CURVA
+#
+# «NON DEVE ESSERE UNA RETTA MA UNA CURVA» (operatore, stesso giorno), e la ragione e' che ha dichiarato
+# tre bande di lettura sotto l'ancora - sotto 10 «inutile», sotto 30 «scarso», sotto 50 «riserva» - e con
+# il tratto dritto la prima era VUOTA, cioe' due bande scritte e una sola usata. La curvatura e' scelta
+# perche' le tre esistano, misurata sul foglio mantra di Serie A (600 uomini):
+#
+#     gamma    <10 inutile   10-30 scarso   30-50 riserva   50+ titolare
+#      1.0           0            152            322            126
+#      1.6          11            245            221            123
+#      2.0          80            214            185            121
 #
 # Sopra non cambia NIENTE (stesso segmento, stessi numeri: Malen 99, Yildiz 94, Kelly 66, Pongracic 55) e
 # sotto la coda si distende: Stones 0 -> 27, Skorupski 0 -> 27, Pisseri 0 -> 14. Uomini a zero da 183 a
@@ -237,6 +247,8 @@ CALENDAR_PER_100: dict[str, float] = {"P": 0.175, "D": 0.076, "C": 0.076, "A": 0
 # salire a 89 fantapunti e la media leggerebbe 26. Non e' una taratura da trovare: e' che il TOTALE di un
 # mediocre che gioca sempre e' davvero grosso, ed e' la colonna Lead che risponde all'altra domanda.
 ANCHOR_SCORE = 50.0
+# La curvatura del tratto BASSO: 1 sarebbe la retta, 1.6 e' quella che rende esistenti le tre bande.
+LOW_CURVE = 1.6
 # Quanti uomini fanno il riferimento. Dichiarato dall'operatore; coincide con `teams x squad_slots` della
 # sua lega classic, cioe' con quanti ne vengono comprati al suo tavolo.
 ANCHOR_TOP = 250
@@ -264,16 +276,18 @@ def anchor_value(scores, ranked_by=None, top: int = ANCHOR_TOP) -> float | None:
 
 
 def scale99(value: float | None, mean: float | None, best: float | None, worst: float | None,
-            anchor: float = ANCHOR_SCORE) -> int | None:
-    """I fantapunti previsti sulla scala 0-99, a due tratti: peggiore -> 1, media dei primi 250 -> 50,
-    migliore -> 99.
+            curve: float = LOW_CURVE, anchor: float = ANCHOR_SCORE) -> int | None:
+    """I fantapunti previsti sulla scala 0-99: peggiore -> 0, media dei primi 250 -> 50, migliore -> 99,
+    dritto sopra l'ancora e in curva sotto.
 
-    Tre punti fissi e due segmenti, per la ragione scritta sopra: con una retta sola la coda collassa
-    tutta su zero. Nessuno legge 0 - il peggiore del listone e' l'ultimo, non un uomo di cui non si sa, e
-    quella differenza la porta il None.
+    QUESTA E' LA DEFINIZIONE DI RIFERIMENTO E NON QUELLA CHE SPEDISCE: la scala vive in
+    `app/src/app/core/projection.ts`, perche' dipende dalla POOL e la pool si conosce li'. Le due devono
+    restare identiche - una scala con due definizioni finirebbe per dare due numeri allo stesso uomo, che
+    e' il difetto che questo progetto ha gia' pagato altrove - e questa copia e' rimasta indietro di una
+    richiesta per un'ora, il 19/08/2026, restando a due rette mentre l'app curvava.
 
-    None resta None: un uomo senza previsione non e' l'ultimo della scala, e' uno che non si sa dove
-    mettere. Anche una pool incoerente (media fuori dai suoi estremi) torna None invece di inventare.
+    None resta None, ed e' diverso da 0: 0 dice «non giochera'», None «non si sa dove metterlo».
+    Anche una pool incoerente (media fuori dai suoi estremi) torna None invece di inventare.
     """
     if value is None or mean is None or best is None or worst is None:
         return None
@@ -281,7 +295,8 @@ def scale99(value: float | None, mean: float | None, best: float | None, worst: 
         return None
     if value >= mean:
         return int(min(99, round(anchor + (99.0 - anchor) * (value - mean) / (best - mean))))
-    return int(max(1, round(1.0 + (anchor - 1.0) * (value - worst) / (mean - worst))))
+    share = max(0.0, (value - worst) / (mean - worst))
+    return int(max(0, round(anchor * share ** curve)))
 
 
 @dataclass(frozen=True)

@@ -8,6 +8,11 @@ letta da dentro `engine/`, che la firma di `projection` rende impossibile perche
 
 from __future__ import annotations
 
+import pathlib
+import re
+
+import pytest
+
 from euroleghe_ingest.engine import projection
 
 ANCHOR_C = 6.10          # l'ancora di un centrocampista, dell'ordine di quella vera
@@ -191,28 +196,63 @@ def test_vuoto_e_ignoto_anche_qui():
 
 
 def test_i_tre_punti_fissi_della_scala():
-    """Peggiore -> 1, media dei primi 250 -> 50, migliore -> 99. I numeri veri del foglio di Serie A."""
+    """Peggiore -> 0, media dei primi 250 -> 50, migliore -> 99. I numeri veri del foglio di Serie A."""
     worst, mean, best = 38.0, 158.0, 213.0
-    assert projection.scale99(worst, mean, best, worst) == 1
+    assert projection.scale99(worst, mean, best, worst) == 0
     assert projection.scale99(mean, mean, best, worst) == 50
     assert projection.scale99(best, mean, best, worst) == 99
 
 
-def test_nessuno_legge_zero_e_la_coda_resta_distesa():
+def test_la_coda_resta_distesa_e_lo_zero_e_solo_dell_ultimo():
     """Il difetto che ha fatto cambiare la scala: «uno come Stones con 6.4x16 non puo' avere Fpi=0».
 
     Con una retta sola fra i due soli punti alti, prolungata all'ingiu', lo zero cadeva a 102 fantapunti e
     183 uomini su 600 leggevano 0 insieme. Stones ne fa 103 ed e' il 417° di 600.
     """
     worst, mean, best = 38.0, 158.0, 213.0
-    assert projection.scale99(103.0, mean, best, worst) == 28       # Stones
-    assert projection.scale99(102.0, mean, best, worst) == 27       # Skorupski, portiere titolare
-    assert projection.scale99(70.0, mean, best, worst) == 14        # Pisseri, terzo portiere
-    assert projection.scale99(91.0, mean, best, worst) == 23
-    # ...e sopra l'ancora non cambia NIENTE rispetto alla retta sola: stesso segmento, stessi numeri.
+    assert projection.scale99(103.0, mean, best, worst) == 19       # Stones
+    assert projection.scale99(102.0, mean, best, worst) == 18       # Skorupski, portiere titolare
+    assert projection.scale99(70.0, mean, best, worst) == 6         # Pisseri, terzo portiere
+    assert projection.scale99(91.0, mean, best, worst) == 14
+    # ...e sopra l'ancora non cambia NIENTE ne' con la retta ne' con la curva: e' l'altro segmento.
     assert projection.scale99(176.0, mean, best, worst) == 66       # Kelly
     assert projection.scale99(164.0, mean, best, worst) == 55       # Pongracic
     assert projection.scale99(207.0, mean, best, worst) == 94       # Yildiz
+
+
+def test_la_curva_fa_esistere_le_tre_bande_che_la_retta_lasciava_vuote():
+    """«Non deve essere una retta ma una curva» + le tre bande dichiarate (<10 inutile, <30 scarso,
+    <50 riserva). Con gamma = 1 la prima non contiene nessuno: due bande scritte e una sola usata."""
+    worst, mean, best = 38.0, 158.0, 213.0
+    pool = [worst + (mean - worst) * i / 200.0 for i in range(200)]
+    def bands(curve):
+        scores = [projection.scale99(one, mean, best, worst, curve) for one in pool]
+        return (sum(1 for s in scores if s < 10), sum(1 for s in scores if 10 <= s < 30))
+    useless_line, _poor_line = bands(1.0)
+    useless_curve, poor_curve = bands(projection.LOW_CURVE)
+    assert useless_curve > useless_line, "la curva e' li' per far esistere la banda degli inutili"
+    assert poor_curve > 0
+    assert projection.LOW_CURVE > 1.0
+
+
+def test_la_scala_di_riferimento_e_quella_che_spedisce_sono_LA_STESSA():
+    """Le due copie devono concordare, o due definizioni daranno due numeri allo stesso uomo.
+
+    Questa e' rimasta indietro di una richiesta per un'ora il 19/08/2026 (due rette qui, curva nell'app):
+    il test legge le costanti dal sorgente TypeScript invece di ricopiarle, che e' l'unico modo perche'
+    se ne accorga chi ne cambia una sola.
+    """
+    shipped = (pathlib.Path(__file__).resolve().parents[2]
+               / "app" / "src" / "app" / "core" / "projection.ts")
+    if not shipped.exists():                        # un checkout del solo toolkit e' legittimo
+        pytest.skip("l'app non e' in questo albero")
+    source = shipped.read_text(encoding="utf-8")
+    for name, value in (("LOW_CURVE", projection.LOW_CURVE),
+                        ("ANCHOR_SCORE", projection.ANCHOR_SCORE),
+                        ("ANCHOR_TOP", float(projection.ANCHOR_TOP))):
+        found = re.search(rf"export const {name} = ([0-9.]+);", source)
+        assert found, f"{name} non si legge piu' nel sorgente dell'app"
+        assert float(found.group(1)) == float(value), f"{name}: le due scale hanno divorziato"
 
 
 def test_le_due_pendenze_sono_diverse_ed_e_deliberato():

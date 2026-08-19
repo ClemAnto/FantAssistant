@@ -1,5 +1,5 @@
 # Stato progetto & continuità — v5
-**Aggiornato: 19 agosto 2026 (un vecchio PV non è una previsione di presenze: il gradino `older` regrediva la fantamedia e consegnava le presenze intatte, e l'Overall dell'app è un PRODOTTO — `SHEET_REVISION` 29; e l'attesa sul lock del DB in una definizione sola, con la regola per due sessioni in parallelo)** · precedente: 18 agosto 2026 (le DEFINIZIONI dell'operatore — Overall, Lead, Margine, Bonus — applicate ovunque; UN campetto solo per asta e Squadre, con l'item-posto e i moduli alternativi scritti dal toolkit; tre difetti della tabella misurati in browser)** · precedente: 17 agosto 2026, notte (la coppa continentale in mezzo al campionato: misurata, sul foglio e RESPINTA dal gate; l'app riscritta a voce; il surplus che aveva due aritmetiche)
+**Aggiornato: 19 agosto 2026, sera (Fπ: una colonna che PRONOSTICA invece di sommare — tre parametri misurati fuori campione, la scala dettata dall'operatore in cinque passaggi, quattro idee respinte, e otto club stranieri archiviati come `serie_a`; `SHEET_REVISION` 31, v0.1.19 pubblicata)** · precedente: 19 agosto 2026 (un vecchio PV non è una previsione di presenze: il gradino `older` regrediva la fantamedia e consegnava le presenze intatte, e l'Overall dell'app è un PRODOTTO — `SHEET_REVISION` 29; e l'attesa sul lock del DB in una definizione sola, con la regola per due sessioni in parallelo)** · precedente: 18 agosto 2026 (le DEFINIZIONI dell'operatore — Overall, Lead, Margine, Bonus — applicate ovunque; UN campetto solo per asta e Squadre, con l'item-posto e i moduli alternativi scritti dal toolkit; tre difetti della tabella misurati in browser)** · precedente: 17 agosto 2026, notte (la coppa continentale in mezzo al campionato: misurata, sul foglio e RESPINTA dal gate; l'app riscritta a voce; il surplus che aveva due aritmetiche)
 Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da qui + i file della cartella "Modello Previsionale Fantacalcio".
 *Glossario: T1/T2 = finestre di test (23/24->24/25, 24/25->25/26) · MAE = errore medio assoluto · cross-fitted = parametri stimati su una finestra, testati sull'altra · M2e = modello portieri decomposto (abilità + tasso gol subiti del club; la metà Elo del nome non è nel motore) · Pv_att = presenze attese · fc_id = id fantacalcio.it · EV = valore atteso · scoring_config = punteggi configurabili per lega · xG/xA = expected goals/assists · 2.5 pieno = backtest motore completo con flag.*
 
@@ -7,6 +7,77 @@ Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da q
 App per leghe EuroLeghe/fantacalcio.it (Classic+Mantra, 5 campionati) con motore previsionale. Metodo: ogni regola entra SOLO se batte il baseline fuori campione su finestre indipendenti (gate pre-registrato). Doc madre: modello-previsionale-v3.8.md.
 
 ## ⚠️ Lo stato corrente è in `00-BRIDGE-punto-di-ingresso.md`, blocco «STATO AL 5 AGOSTO 2026»
+
+### 19 agosto 2026, sera — Fπ: una colonna che pronostica invece di sommare, e la domanda che l'ha aperta era una verifica di coerenza
+
+Quattro commit (`dd95cae`, `3a54c42`, `d7d0fbf`, `8e6830c`), nessuna corsa di gate, `--verify` **22/22**,
+toolkit **498 test** (1 skip: nessun display), app **314 test**, `SHEET_REVISION` **29 → 31**, **v0.1.19
+pubblicata** — il deploy era appeso dal 16/08 e adesso non lo è più.
+
+**1. Da dove è nata, e non era una richiesta di funzione.** «Prendi la tabella dei calciatori e analizzala:
+mi aspetterei che più o meno i calciatori con alto FVM abbiano un alto OVERALL». La divergenza è
+sistematica e non è un errore di conto: **Overall è un totale senza zero**, quindi premia chi gioca sempre
+a 5,8 (Pongracic, Kelly) e lascia indietro chi in Italia non ha mai giocato (Ramos, Kolo Muani), per cui il
+foglio scende sull'ancora di ruolo. Il FVM è invece un giudizio sulla notizia. Da lì la richiesta di una
+colonna nuova **con Overall immobile**: «lasciamolo un termine matematico sempre semplice».
+
+**2. Che cos'è Fπ.** `presenze × (valore di una sua partita + calendario − rimpiazzo)`, dove il valore di
+una partita viene dal calcio che ha giocato **altrove** quando dall'Italia non c'è niente. Il nome è suo
+(«qualcosa di più checazz»: π come proiezione). Tre parametri, tutti misurati fuori campione anche se
+nessun gate li possiede — dettaglio e tabelle in `gate-motore-v1.md` **§7-septiestricies**:
+
+  * `BETA_ABROAD` — quanto dell'equivalente estero è previsione: +6,6% / +5,3% / +11,7% / +9,0% sulle
+    quattro combinazioni piattaforma×gioco, ottimi tutti interni, portieri esclusi col loro numero (−0,9%).
+  * `CALENDAR_PER_100` — quanto vale un avversario più debole, contro il null dei margini rimescolati:
+    P +0,175 · D +0,076 · C +0,076 · A +0,128 per 100 Elo. Applicato come **deviazione** della finestra
+    scelta dal girone intero, quindi **a stagione piena vale zero**: è il selettore delle giornate che lo
+    accende.
+  * `INVESTMENT_SHARE` — quanto il club ha speso su di lui **rispetto a chi gli contende la maglia**:
+    +4,74% (5/6) su default e +5,56% (4/4) su euro.
+
+**3. La scala l'ha dettata l'operatore, in cinque passaggi.** 0 = terzo portiere · <10 inutile · <30 scarso
+· <50 riserva · **50 = media dei primi 250 per Overall** · 99 = il migliore, e sotto l'ancora **una curva**
+(γ = 1,6) e non una retta. Ogni precisazione ha corretto qualcosa di vero: con la media di TUTTI il
+riferimento è 121 e un difensore mediocre leggeva 73; con una retta sola **183 uomini su 600 leggevano 0
+insieme** («uno come Stones con 6.4×16 non può avere Fpi=0»); con il tratto dritto la banda «inutile» era
+**vuota**. Dettaglio, alternative misurate e prezzo dichiarato: `letture-app-v1.md` §14.
+
+**4. Quattro idee respinte per arrivarci**, e stanno scritte perché nessuno le riprovi: le presenze
+all'estero al posto dei minuti (−0,7% / −6,9%), il passo di livello Elo (−3,1% / +1,1%), il reparto per
+macro-ruolo (−0,6%, che legge Leão come rivale pieno di Ramos), e **due vincoli di bilancio sui portieri** —
+a cascata −17,9%, in proporzione +9,0% su euro e −4,7% sulla peggiore di default.
+
+**5. Il difetto che la misura ha trovato per strada.** Nella popolazione comparivano «sette zeri»: erano
+**Leicester, Nizza e altri sei club esteri archiviati come `serie_a`**, perché `fix_club_leagues` derivava
+la lega dal listone che li nominava. Riscritta sulle competizioni davvero giocate (`external_match_stats`,
+unite per `club_identity`): **419 righe riallineate, 8 club**. I numeri pubblicati non si muovono **per
+fortuna e non per costruzione** — la contaminazione era tutta ≤2022-23 e T1/T2 sono successive. E la
+conclusione che avevo scritto prima di pulire («la retta è troppo generosa») era **falsa**.
+
+**6. Un'acquisizione, e tre strati ricostruiti.** `tm_appearances.position_id`: la posizione partita per
+partita di Transfermarkt, **3.446 giocatori, 2.047.914 partite, zero fallite** — l'unica posizione
+granulare **storica** del progetto, ed è ciò che rende contabile «chi gli contende la maglia». E il
+reingest di `positions` del 17/08 aveva svuotato tre strati derivati senza che un conteggio lo dicesse:
+`mv_synth` 36 → **243.482**, equivalenti FM degli arrivi 170 → **2.264**, heatmap 0 → **2.240**.
+
+**7. Errori miei, tenuti sul verbale perché due sono di metodo.** L'ancora mantra era stata misurata
+passando `model.fractional_anchor` la **stringa grezza** `"dc;ds"` invece della tupla: la funzione itera i
+CARATTERI e `c`, `b`, `e`… sono chiavi mantra valide, quindi l'ancora risultava **di un altro ruolo** — e
+attorno al numero sbagliato avevo già scritto una spiegazione plausibile. Il coefficiente del calendario per
+i portieri era **−0,006** misurato su una ricostruzione che non ha il termine dei gol subiti; sul fantavoto
+vero è **+0,175**, il più alto di tutti. E un eccesso di presenze «+42%» era calcolato con il denominatore
+sbagliato: corretto dall'operatore («il bilancio dovrebbe essere massimo 38×16»), l'eccesso totale è **+0%**
+e solo i portieri sfondano.
+
+**8. Aperto, e dichiarato.** *(a)* Resta **+23% di eccesso di presenze da portiere** dopo la correzione
+della costante: il vincolo in proporzione è pre-registrato e va rimisurato **dopo**, non prima. *(b)* La
+scala è tarata **globalmente**: il miglior portiere legge 65-72 contro il 99 del miglior attaccante, e la
+variante per ruolo è una scelta da fare guardandola, non da dedurre. *(c)* Nell'Overall dell'app restano
+macchinari **morti** (`FRAGILITY_RISK`, `STARTER_SHARE`, `STARTER_CONCAVITY`, `DECLARED_RISK`, `CLUB_PRIOR`
+e tre campi non letti) più un commento falso in `player-ratings-store.ts:112`. *(d)* Sul foglio euro
+**mancano 24 dei 29 quotati del Como**: `_TARGET_FROM_AUTHORITY` filtra sui team di `match_ratings`. *(e)* Il
+reparto per **ruolo reale** (invece che per posizioni Transfermarkt) è pre-registrato per quando la heatmap
+coprirà 2021-22→2023-24.
 
 ### 19 agosto 2026, in una riga: un vecchio PV non è una previsione di presenze — e la cura scritta in privato è costata lo stesso guasto due volte
 

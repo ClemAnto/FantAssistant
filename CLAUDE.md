@@ -1194,7 +1194,8 @@ McTominay predicted +16.0 and returned **+50.2**.
 oggettivamente ... penalizziamo il SURPLUS (l'indeterminazione è comunque una nota negativa) ma dobbiamo cmq
 avere un valore di riferimento».** A blank is still a statement (below), but a blank cannot be COMPARED, and
 an auction is nothing but comparison. So the sheet carries a fourth class of column beside `engine_*` (gated),
-`desc_*` (measured) and `actual_*` (after the fact): **`est_*`**, the fallback valuation — `engine/estimate.py`,
+`desc_*` (measured) and `actual_*` (after the fact) — and since 19/08/2026 a FIFTH,
+**`pi_*`** (Fπ's per-match value, see below): **`est_*`**, the fallback valuation — `engine/estimate.py`,
 a declared cascade where every rung carries the measurement that put it there (the other platform's same
 season: mean difference **+0.001**, 92% within 0.3 over 870 player-seasons · an older season: MAE 0.396 at t-2
 against 0.368 at t-1 · a thin season blended with the club's own level for that role, whose measured spread is
@@ -1468,6 +1469,42 @@ they are what he reads at a table - so they are recorded here and not re-derived
 And **one pitch drawn by one component** in both the auction and the Squadre screens, where an item is a
 PLACE and not a man (the real role it asks for on top, the men disputing it below, each in ONE place
 only): `docs/model/formazioni-tipo-v1.md` §6-quinquies, with its measured floors.
+
+## A COLUMN THAT FORECASTS is not a column that sums, and its scale is not its measurement
+**19/08/2026, from a coherence check the operator asked for**: «the players with a high FVM should more or
+less have a high OVERALL». The divergence is systematic and not an arithmetic error — **Overall is a TOTAL
+with no zero**, so it rewards whoever plays every week at 5.8 and leaves behind whoever has never played in
+Italy, for whom the sheet falls back to the role anchor, while the FVM is a judgement about the NEWS. Hence
+**Fπ** (`engine/projection.py`, sheet columns `pi_*`, the fifth class): `presences × (value of one of his
+matches + calendar − replacement)`, with Overall left **untouched** at his request («keep it a simple
+mathematical term»). Three parameters, all measured out-of-sample although no gate owns them (§7-septiestricies).
+Five things it settled that outlive the column:
+- **The synthetic history is padded, not refused.** «At least ten plausible matches» is true to the letter
+  because below ten the missing ones are the ANCHOR, so at zero matches Fπ *is* the anchor — no extra branch,
+  and the row says how many are his.
+- **A calendar term is a DEVIATION, never a level.** A club's average margin over the whole season IS its
+  strength, and that is already inside its players' measured fantamedia; applied as a level it would pay
+  every Inter player a permanent bonus. Over a full round-robin the term is exactly ZERO by construction —
+  which is also the truth about a calendar — and only a short window moves it.
+- **A rival is a SHARE, not a yes or no.** Whether a signing plays is answered by what the club spent on him
+  *relative to whoever disputes his shirt*, and the peer group weighted by per-match positions
+  (`tm_appearances.position_id`, the only HISTORICAL granular position here) beats the one built from the
+  macro-role, which reads a left winger as a full rival of a centre-forward (−0.6%, worst window −7.3%).
+- **An anchor defined by the column it is scaling moves by itself.** The 50 is the mean of the top 250
+  chosen by OVERALL and averaged on Fπ: with one column doing both, every retouch of Fπ shifts its own
+  reference. A test holds it.
+- **A scale is presentation and lives where the POOL is known** — in the app — while the value of a match is
+  a prediction about a person and lives where the harnesses are. The reference copy in `engine/` had already
+  diverged from the shipped one within the hour (two straight segments against a curve), so the test now
+  reads the TypeScript constants instead of copying them: two definitions eventually give one man two numbers.
+
+**And two measurement defects of a kind worth naming.** `model.fractional_anchor` wants the TUPLE of mantra
+codes and was handed the raw listone string `"dc;ds"`, which iterates CHARACTERS — and `c`, `b`, `e`, `m`,
+`w`, `t`, `a` are all valid mantra keys, so the anchor was not missing, it was **another role's**, and a
+plausible story had already been written around the wrong number. **An ambiguous join is worse than a
+missing one, and the argument of a call is a join too.** Then the calendar coefficient for keepers read
+−0.006 measured on a reconstruction that has no goals-conceded term; on the real fantavoto it is **+0.175**,
+the highest of the four roles — «verify the FUNCTION, not the column that looks like it», fifth instance.
 
 ## A number on the card is a MEASUREMENT or a FORECAST, and the two never share a figure
 **19/08/2026, and the operator moved the same vice twice in two days.** The pitch chip carried

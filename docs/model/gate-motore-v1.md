@@ -4563,6 +4563,145 @@ deve muovere UNA variabile: l'esposizione dell'anno di input come controllo, non
 **(f) le colonne derivate**: fatte, `desc_surplus_cup` e `desc_surplus_fielded_cup` (revisione 24), con la
 stessa penale di confidenza dei gated - senza quella la coppa sembrava PAGARE su una riga stimata.
 
+## 7-septiestricies. Fπ: TRE PARAMETRI MISURATI FUORI GATE, e quattro idee respinte per arrivarci (19 agosto 2026)
+
+**Da dove nasce.** «Prendi la tabella dei calciatori e analizzala: mi aspetterei che più o meno i
+calciatori con alto FVM abbiano un alto OVERALL e viceversa». Il confronto ha trovato una divergenza
+sistematica e non un errore di conto: **Overall è un TOTALE senza zero** (`presenze × (MVa + bonus)`),
+quindi premia chi gioca sempre a 5,8 e lascia indietro chi il campionato italiano non l'ha mai giocato —
+Ramos, Kolo Muani — perché per loro il foglio scende sull'ancora di ruolo. Il FVM invece è un giudizio
+sulla NOTIZIA. Da lì la richiesta: una colonna nuova, con Overall **immobile** («lasciamo Overall come
+termine matematico sempre semplice»), e la condizione che l'operatore ha chiamato «assolutamente
+fondamentale»: **uno storico verosimile di almeno dieci partite anche quando dall'Italia non c'è niente**.
+
+**Non è una regola del motore e non passa dal gate**: `engine_*` non si muove di un decimale,
+`backtest --verify` resta **22/22**. Ma «non gatata» non è «non misurata» — i tre parametri sotto sono
+misurati fuori campione con i criteri di questo documento, e chi ne cambia uno rifà la misura.
+
+### (a) Quanto dell'equivalente estero sopravvive come previsione — `BETA_ABROAD`
+
+Seconda volta che questa domanda arriva al DB. La prima fu **R1** («prezza un nuovo arrivo con la sua
+FM-equivalente all'estero»), respinta su cinque finestre di sei perché fa peggio dell'ancora di ruolo, e
+**quel verdetto è ancora vero**: l'equivalente messo AL POSTO dell'ancora legge MAE 0,4096 contro 0,3781
+su default e 0,4217 contro 0,4176 su euro. Cambia la forma della domanda, non il verdetto — non si
+sostituisce l'ancora, si misura quanto dell'ECCESSO su di essa è previsione, la stessa forma di
+`OLDER_BETA`. Popolazione: chi ha un esito sulla piattaforma a *t* (pv ≥ 15), che il core NON prezza
+(pv(t−1) < 15), con un equivalente a *t−1* su almeno dieci partite; ancora ricalcolata sulle sole
+stagioni < *t*, `b` scelto **leave-one-season-out**.
+
+| piattaforma / gioco | n | ancora | b\* | trattenuto | guadagno | stagioni |
+|---|---|---|---|---|---|---|
+| default / classic | 289 | 0,3772 | 0,40 | 0,3522 | **+6,6%** | 6/6 |
+| default / mantra | 289 | 0,3742 | 0,45 | 0,3544 | **+5,3%** | 5/6 |
+| euro / classic | 929 | 0,4234 | 0,50 | 0,3740 | **+11,7%** | 5/5 |
+| euro / mantra | 929 | 0,3963 | 0,45 | 0,3606 | **+9,0%** | 5/5 |
+
+Tutti e quattro gli ottimi sono **interni** alla griglia (0 = l'ancora, 1 = l'equivalente grezzo).
+default/mantra è robusto e non strict, e sta scritto invece di essere arrotondato. **I portieri restano
+fuori con il loro numero**: la loro aritmetica è un'altra (§7-decies) e lì `b` è **0** — euro n=54,
+0,3190 contro 0,3217, cioè **−0,9%**; su default n=6, cioè niente. Si riapre quando il campione cresce.
+
+⚠️ **La prima versione di questa tabella era CONTAMINATA e diceva 0,50 / 0,60 a mantra, con una
+spiegazione plausibile accanto** («l'ancora per slot è più fine, quindi da sola predice peggio e resta
+più spazio al calcio suo»). Falsa in tutt'e due i pezzi: `model.fractional_anchor` vuole la TUPLA dei
+codici e la misura le passava la stringa grezza `"dc;ds"`, che itera i **caratteri** — e `c`, `b`, `e`,
+`m`, `w`, `t`, `a` sono chiavi valide del dizionario mantra, quindi l'ancora non risultava assente,
+risultava **di un altro ruolo**. Corretta, l'ancora mantra predice MEGLIO della classic (0,3742 contro
+0,3772; 0,3963 contro 0,4234), che è quello che una partizione più fine deve fare. Due regole del
+progetto in una riga di codice: «un difetto si spiega da sé con una storia plausibile, se lo si lascia
+fare», e **un join ambiguo è peggio di uno mancante** — a salvarci è stato un `None` che ha fatto
+crashare lo script su un'altra combinazione.
+
+### (b) Quanto vale un avversario più debole, in fantavoto — `CALENDAR_PER_100`
+
+Misurato su **74.978 partite** di Serie A col fantavoto VERO di `match_ratings`, **dentro l'uomo** (si
+demedia in ogni coppia uomo-stagione, o si misura che i forti giocano nei club forti) e contro il null
+dei margini **rimescolati dentro l'uomo** — Miller-Sanjurjo applicata qui. Per +100 di Elo di margine:
+
+| ruolo | fantavoto vero | null | solo voto base | coppie |
+|---|---|---|---|---|
+| P | **+0,175** | +0,019 | −0,014 | 171 |
+| D | **+0,076** | +0,002 | +0,046 | 1061 |
+| C | **+0,076** | +0,012 | +0,037 | 1059 |
+| A | **+0,128** | +0,025 | +0,045 | 590 |
+
+**Il portiere è quello che guadagna di più, e la prima misura diceva il contrario**: fatta sulla
+ricostruzione di `foreign_fm_equivalent`, che non ha il termine dei gol subiti, leggeva **−0,006** e
+avrebbe spedito un coefficiente nullo esattamente nel ruolo dove il calendario conta il doppio. «Verify
+the FUNCTION, not the column that looks like it», quarta o quinta volta. Le cinque leghe (243.483
+partite, fantavoto ricostruito) confermano gli altri tre: D +0,062 · C +0,081 · A +0,143.
+
+**Il termine è una DEVIAZIONE, non un livello**, ed è la metà che si dimentica: il margine medio di un
+club su tutta la stagione è la sua forza, che sta già dentro la fantamedia misurata dei suoi giocatori.
+Applicarlo come livello regalerebbe un bonus permanente ai giocatori dell'Inter — «a difference between
+two groups is not a virtue of whoever carries it». Quindi si applica alla differenza fra il margine
+della FINESTRA scelta e quello della stagione intera, e **a girone completo vale esattamente zero**.
+Un valore solo per tutt'e due i giochi, perché l'unità è il fantavoto di UNA partita, che classic e
+mantra condividono.
+
+### (c) L'investimento del club rispetto a chi gli contende la maglia — `INVESTMENT_SHARE`
+
+Dalla domanda dell'operatore su Ramos: «30 partite su 34 con 44 minuti a presenza, 13 da titolare: al
+Milan sarà titolare, 18 su 38 è troppo poco. Come possiamo migliorarlo con parametri oggettivi?».
+
+**Tre cose che non hanno funzionato**, scritte perché nessuno le riprovi: le **presenze** all'estero al
+posto dei minuti (−0,7% default, −6,9% euro, 1/6 e 0/6 — e per il profilo di Ramos prevede 0,73 contro
+lo 0,47 realizzato); il **passo di livello Elo** (−3,1% / +1,1%, parziali +0,08 / +0,18); e il reparto
+definito dal **macro-ruolo**, che mette insieme ali e centravanti e legge Leão come rivale pieno di
+Ramos (−0,6% default, peggiore finestra −7,3%).
+
+Quello che funziona è il confronto coi rivali **per quella maglia**, e i rivali si **pesano** invece di
+contarli: con `tm_appearances.position_id` — la posizione partita per partita di Transfermarkt, l'unico
+posto del progetto dove esista una posizione granulare STORICA — «è un rivale?» diventa una quota. Leão
+ha giocato da centravanti nel 27% delle partite, quindi contende a Ramos un quarto di maglia. Due
+termini: `top` (il suo valore diviso il migliore dei rivali pesato, tappato a 3) e `absolute` (il valore
+di mercato in percentile di listone). Cross-fit **leave-one-window-out**:
+
+| reparto | default (259, 6 finestre) | euro (560, 4 finestre) |
+|---|---|---|
+| per codice mantra | +4,86%, 6/6 | +4,00%, 3/4 |
+| per POSIZIONI pesate (adottato) | +4,74%, 5/6 (peggio −0,55%) | **+5,56%, 4/4** |
+
+Si spediscono le posizioni su tutt'e due, col prezzo dichiarato: su default costa 0,12 punti ed è
+l'unica con una finestra negativa; in cambio c'è UNA definizione invece di due e liste di rivali
+contestabili a occhio. **`absolute` non ri-litiga §7-quinquies/§7-untricies**: lì era misurato su tutto
+il listone dentro `presence.standing` e valeva +0,26%, qui è misurato **sulla popolazione per cui
+esiste** — i soli uomini che il core non prezza — e vale quattro volte tanto. Il progetto l'aveva già
+scritto: «l'arm che passa è cieco sugli uomini per cui esiste».
+
+### (d) La costante di ripiego, misurata PER RUOLO — e due vincoli di bilancio respinti
+
+Dalla domanda «un terzo portiere dovrebbe avere pv=0, perché risulta 15?». Cercata prima nel posto
+sbagliato: il foglio prevede **56 presenze da portiere per club contro le 38** che un club distribuisce
+davvero, e la cura sembrava un vincolo di bilancio. Misurato, il bilancio **sugli altri ruoli è già
+giusto** — D +7% · C +4% · A −0% contro **P +47%** — quindi non c'era niente da normalizzare: c'era una
+costante applicata fuori dalla popolazione su cui era stata misurata.
+
+| `unmeasured`, quota realizzata | P | D | C | A | in vigore per tutti |
+|---|---|---|---|---|---|
+| default (n 178/298/296/211) | **0,098** | 0,308 | 0,332 | 0,282 | 0,29 |
+| euro (n 186/234/269/177) | **0,076** | 0,229 | 0,223 | 0,293 | 0,19 |
+
+Il controllo che la rende adottabile: pesando i quattro ruoli sulla loro numerosità si riottiene 0,272
+su default e 0,207 su euro, cioè lo 0,29 e lo 0,19 in vigore. **Non si cambia la misura, la si DIVIDE**,
+e il pezzo sbagliato era uno solo — per il portiere la mediana è letteralmente zero e il 77% non gioca.
+
+**Due vincoli di bilancio respinti.** *A cascata* (il primo portiere tiene la sua previsione, gli altri
+si dividono il resto) pareva il più sensato e fa **−17,9%**: quando tutta la porta di un club sta sulla
+costante le previsioni sono indistinguibili, il «primo» esce a sorte e l'avanzo finisce addosso al
+secondo — Sherri da 11 a 27 previste contro 7 realizzate, Meret da 25 a 6 contro 34. *In proporzione*
+passa su euro (**+9,0%, 4/4**) e non su default (**−4,7%** sulla peggiore). **Voce da rimisurare DOPO
+questa correzione, non prima**, perché metà dell'eccesso che doveva curare era la costante.
+
+### Cosa NON entra in Fπ, dichiarato perché non venga eroso
+
+**Nessun prezzo, in nessuna forma** — scelta dell'operatore fra tre («solo calcio misurato +
+calendario»), ed è anche l'unica che tiene leggibile il confronto col FVM: una colonna che leggesse la
+quotazione sarebbe in parte il FVM, e la divergenza smetterebbe di essere informazione. **Nessuna nota
+dichiarata arriva dentro `engine/`**: le tre note dell'operatore entrano come fattore `availability` che
+il CHIAMANTE applica sopra, e la firma di `projection()` lo rende impossibile perché non ha di che
+leggerle. La scala è in [letture-app-v1.md](letture-app-v1.md) §14, perché è presentazione e non misura.
+
 ## 8. Casi di regressione (in `model.REGRESSION_CASES`, stampati da `backtest --cases`)
 
 Lewandowski (età/minuti) · Wirtz (cambio lega) · Torres F. (propensione per-90) · Ezzalzouli (nuovo nel

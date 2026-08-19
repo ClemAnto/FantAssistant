@@ -913,3 +913,121 @@ suo — il grigio del bordo — perché dipingerlo come un numero basso sarebbe 
 cella vuota come uno zero.
 
 È **visualizzazione**: nessuna valutazione la legge, nessun gate la possiede.
+
+---
+
+## 14. Fπ, e la SCALA che l'operatore ha dettato in cinque passaggi (19 agosto 2026)
+
+Le misure che fanno il numero stanno nel gate ([gate-motore-v1.md](gate-motore-v1.md)
+**§7-septiestricies**): qui c'è che cosa la colonna DICE, come si legge, e le alternative rifiutate.
+
+### 14.1 Che cos'è, e perché sta accanto a Overall invece che al posto suo
+
+Overall è `presenze × (MVa + bonus)`: un **totale, senza zero**, sui numeri che il foglio già porta. Fπ
+risponde a un'altra domanda — «quanto renderà **in più del rimpiazzo**, su queste giornate» — e per farlo
+tocca gli **ingredienti**, mai la formula dell'altra: la prima cosa che l'operatore ha chiesto è che
+Overall resti «un termine matematico sempre semplice». Tre differenze, e sono tutto:
+
+| | Overall | Fπ |
+|---|---|---|
+| valore di una partita | `est_fm` (ancora di ruolo dove non c'è misura) | il calcio giocato **altrove**, regredito (`pi_fm`) |
+| zero | nessuno | il rimpiazzo di rosa, come Lead |
+| calendario | nessuno | la deviazione della **finestra scelta** dal girone intero |
+
+**Le due colonne stanno affiancate proprio per poter dissentire**: dove Fπ si stacca da Overall c'è una
+notizia che Overall non può vedere, e dove si stacca dal FVM c'è un prezzo che il campo non giustifica.
+La cella dice **da quale calcio** viene il valore (`pi_basis`) e **su quante partite** (`pi_matches`),
+perché dieci non sono una stagione.
+
+**Lo storico sintetico è arrivato alla lettera.** «Dobbiamo sempre avere uno storico di almeno 10 partite
+sintetiche verosimili»: sotto le dieci non si rifiuta, si **padda con l'ancora** — chi ne ha otto ne ha
+otto sue e due dell'ancora — che è il suo stesso rimedio del 05/08/2026 scritto come aritmetica. A zero
+partite Fπ **è** l'ancora, senza un ramo in più.
+
+### 14.2 La scala: tre punti fissi, e la ragione di ognuno
+
+Dettata dall'operatore e precisata **cinque volte**, il che è il modo in cui è arrivata giusta:
+
+1. «un calciatore con una media uguale alla media della scala abbia un Fπ di **50** circa»
+2. «media **di lista**» → «non la media di lista ma la media di un **titolare**»
+3. → «la media di lista sui **primi 250** calciatori», «primi nel senso **migliori**»
+4. «migliori nel senso con la FMa migliore» → «anzi prendiamo i primi 250 **per overall**»
+5. «non deve essere una retta ma una **curva**», con le bande: 0 = terzo portiere o chi non giocherà
+   mai · <10 inutile · <30 scarso · <50 riserva
+
+**Perché i primi 250 e non tutti**: la media del listone intero è 121 fantapunti e comprende trecento
+uomini che nessuno compra, quindi «medio» finiva per voler dire «più che discreto» — Pongracic, un
+difensore da 5,83 che gioca 28 partite, leggeva **73**. Sui primi 250 la media è 158 e lui legge **56**,
+che è il numero che l'operatore aveva in testa (aveva detto 60, e Kelly 70 contro i 66 che escono). E 250
+non è tondo per caso: è `squadre × slot` della sua lega classic (10 × 25), cioè gli uomini che a quel
+tavolo vengono davvero comprati. Resta una **costante dichiarata**, non derivata.
+
+**Chi sceglie i 250 è Overall, chi li media è Fπ**, e non è pedanteria: un'ancora definita dalla colonna
+che sta scalando **si sposta da sola** a ogni ritocco di quella colonna. Un test lo protegge.
+
+**Perché due tratti e non una retta.** Con i due soli punti alti (50 e 99) la retta prolungata all'ingiù
+tocca lo zero a **102 fantapunti**, e **183 uomini su 600 leggevano 0 tutti insieme**. L'operatore l'ha
+visto su un nome — «uno come Stones con 6.4×16 non può avere Fpi=0» — e aveva ragione: Stones fa 103
+fantapunti ed è il **417° di 600**, non l'ultimo.
+
+**Perché una curva e non due rette.** Con il tratto basso dritto le tre bande che aveva dichiarato non
+esistevano tutte: gli «inutili» erano **zero uomini**, cioè una banda scritta e mai usata. La curvatura è
+scelta perché le tre esistano (600 uomini, foglio mantra Serie A):
+
+| γ | <10 inutile | 10-30 scarso | 30-50 riserva | 50+ titolare |
+|---|---|---|---|---|
+| 1,0 (retta) | **0** | 152 | 322 | 126 |
+| **1,6 (spedita)** | 11 | 245 | 221 | 123 |
+| 2,0 | 80 | 214 | 185 | 121 |
+
+Sopra l'ancora **non cambia niente** — Malen 99, Yildiz 94, Kelly 66, Pongracic 55 — perché la curva
+agisce solo dove il modello prezza tutti con le stesse costanti di ripiego.
+
+**Il prezzo, dichiarato**: le due pendenze sono diverse, quindi attraverso l'ancora il doppio dei
+fantapunti **non** è il doppio del punteggio. È presentazione, non misura. L'argomento che la regge:
+sotto l'ancora ci sono **108 uomini ammassati fra 95 e 115 fantapunti** perché il modello li prezza con
+una costante, quindi comprimere lì non butta via informazione — non ce n'è. Dove ce n'è, sopra, la
+proporzionalità è intatta.
+
+### 14.3 Le due alternative di scala, misurate e non discusse
+
+Sul foglio mantra di Serie A (518 uomini):
+
+| scala | valori distinti | gruppo più affollato | uomini a 99 | media | dispersione |
+|---|---|---|---|---|---|
+| percentile (`rank99`, come Overall) | 98/99 | 23 | **4** | 49,4 | 28,7 |
+| lineare sul massimo | 73/99 | 42 | 1 | 56,2 | 17,6 |
+| **ancorata (questa)** | 84/99 | 37 | 1 | 50,0 | 20,1 |
+
+Il percentile è **più** frazionato, e va detto perché la richiesta nasceva da lì («meno calciatori che
+convergono tutti allo stesso punteggio»): quello che fa male non è la dispersione, è la **cima** —
+quattro uomini leggono 99 e Yildiz, che gioca 30 partite a 7,00, legge lo stesso numero del migliore del
+listone. Qui ne legge 94 e a 99 c'è un uomo solo.
+
+**E una cosa che l'ancora non può fare, scritta perché è stata chiesta**: «Pongracic dovrebbe leggere
+60». Pongracic produce 164 fantapunti contro i 121 di media del listone, cioè il **36% sopra la media**;
+su qualunque scala in cui la media legge 50 lui atterra nei 70 (qui 55 perché l'ancora è più alta). Per
+portarlo a 60 il pavimento dovrebbe salire a 89 fantapunti e la media leggerebbe 26. Non è una taratura
+da trovare: **il totale di un mediocre che gioca sempre è davvero grosso**, ed è la colonna Lead che
+risponde all'altra domanda.
+
+### 14.4 Dove vive la scala, e la copia che aveva già divorziato
+
+La scala sta in **`app/src/app/core/projection.ts`** e non nel toolkit, per la stessa ragione per cui i
+campetti stanno nel toolkit: dipende dalla **pool**, e la pool si conosce nell'app. Il VALORE di una
+partita invece è una previsione su una persona e viaggia nel foglio (`pi_fm`).
+
+⚠️ **`engine/projection.py` ne tiene la definizione di riferimento, e per un'ora del 19/08 le due non
+concordavano** — Python a due rette con pavimento 1, TypeScript in curva con pavimento 0 — perché la
+richiesta della curva è arrivata dopo la copia. Trovato in chiusura di sessione, curato allineando il
+riferimento e con **un test che legge le costanti dal sorgente TypeScript** invece di ricopiarle: è
+l'unico modo perché se ne accorga chi ne cambia una sola. È la stessa regola che tiene un solo
+`player-status` per tutte le liste — due definizioni finiscono per dare due numeri allo stesso uomo.
+
+### 14.5 Il grafico, e perché è un istogramma
+
+In **Grafici**, «Distribuzione di Fπ»: dieci decili, colorati per banda. Un istogramma e non una seconda
+torta di proposito — la torta dice come si **divide** il listone, l'istogramma che **forma** ha, ed è la
+forma che giudica una scala: un ammasso a un'estremità in una torta non si vede. Il conteggio degli
+uomini **senza** Fπ è scritto accanto e non lasciato fuori dal totale, che è «vuoto = ignoto» applicato a
+un grafico.

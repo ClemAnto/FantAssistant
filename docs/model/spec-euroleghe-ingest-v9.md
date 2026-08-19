@@ -495,6 +495,78 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.58 (19 agosto 2026, sera — Fπ sul foglio, il reparto pesato dalle posizioni, e otto club stranieri archiviati come `serie_a`)
+
+`SHEET_REVISION` **29 → 31**. `engine_*` invariato, `backtest --verify` **22/22**, toolkit **498 test**.
+Tre lavori che si sono chiamati a vicenda: una colonna nuova, l'acquisizione che l'ha resa possibile, e il
+difetto di dati che la misura ha scoperto.
+
+### La quinta classe di colonne: `pi_*`
+
+Il foglio portava quattro classi — `engine_*` (gatate), `desc_*` (misurate), `actual_*` (a posteriori),
+`est_*` (ripiego). Adesso cinque: **`pi_fm` · `pi_basis` · `pi_matches`**, il valore di una partita
+secondo il calcio che un uomo ha giocato **altrove**, con la sua provenienza e quante partite lo
+sostengono. Sono di **reporting** come `est_*`: nessun percorso del gate le legge.
+
+La colonna 0-99 che l'operatore vede — **Fπ** — NON è nel foglio, ed è deliberato: dipende dalla POOL, e
+la pool si conosce nell'app. La divisione è la stessa dei campetti al contrario — una previsione su una
+persona sta dove ci sono i banchi che la giudicano (`engine/projection.py`), una scelta di presentazione
+sta dove si vede (`app/src/app/core/projection.ts`). Le misure: gate §7-septiestricies. La scala e le sue
+alternative rifiutate: `letture-app-v1.md` §14.
+
+**`engine/projection.py`**, dependency-free come tutto `engine/`: `macro_role` (P/D/C/A da uno qualunque
+dei due vocabolari), `fm_from_abroad`, `calendar_lift`, `anchor_value`, `scale99`, `projection`. Un difetto
+trovato **prima** di spedire perché l'operatore ha chiesto di verificare tutt'e quattro le combinazioni:
+i due parametri sono chiavati sul MACRO-ruolo, e su un foglio mantra `role == "P"` non sarebbe mai scattato
+(i portieri su un ramo misurato −0,9%) e `CALENDAR_PER_100.get("pc")` avrebbe dato **calendario
+silenziosamente zero su metà dei fogli** — la stessa forma del difetto che costò la razione classic al
+pannello d'asta.
+
+**E il contratto d'esportazione va aggiornato a mano**: le tre colonne erano sul foglio e non in
+`export.SHEET_COLUMNS`, quindi il bundle non ne portava nessuna e la tabella dell'app disegnava 603
+trattini. Una colonna che non è nel contratto **non viaggia**, ed è la seconda volta che questa lezione si
+paga.
+
+### `tm_appearances.position_id`: la posizione partita per partita, e l'unica STORICA del progetto
+
+Il ruolo granulare di Sofascore è un'osservazione **di oggi** (il provider ignora il `seasonId`), quindi
+non può dire in che posizione un uomo giocava due anni fa. Transfermarkt sì: il payload di `performance`
+porta la posizione di ogni singola partita. Acquisita per **3.446 giocatori, 2.047.914 partite, zero
+fallite**, con `position_id` parsato, in schema e in `ADDED_COLUMNS` (migrazione additiva, come da regola).
+
+È ciò che rende contabile la domanda «chi gli contende la maglia»: `_peer_groups` costruisce per ogni uomo
+il **profilo di posizione delle ultime due stagioni** (scelta dell'operatore: «la quota si conta sulle
+ultime 2 stagioni»), e la rivalità è l'intersezione dei due profili — Leão contende a Ramos un quarto di
+maglia, non una. Ripiego sul codice mantra dove Transfermarkt non ha mai visto l'uomo (**2 righe su 259**
+su default, 8 su 560 su euro), e la riga **dichiara quale reparto ha risposto**.
+
+### Otto club stranieri archiviati come `serie_a`, e l'anello che ce li metteva
+
+Trovato misurando: nella popolazione della misura sull'estero comparivano «sette zeri» — uomini con un
+esito italiano e nessuna partita — che erano **Leicester, Nizza e altri sei**, club esteri con
+`clubs.league = 'serie_a'`. Non un errore di battitura: `fix_club_leagues` derivava la lega dal listone
+che li aveva nominati, e un club che compare una volta in un contesto Serie A ci restava.
+
+Riscritta: la lega si deriva da **`external_match_stats`**, cioè dalle competizioni in cui il club ha
+davvero giocato, unite per `club_identity` (mai per nome — quarta istanza), con `CLUB_LEAGUE_SHARE` = 0,6;
+un club dichiarato `serie_a` con **zero** rating `default` diventa NULL, perché «vuoto = ignoto» vale
+anche per una lega. **419 righe di rose riallineate, 8 club corretti**, e la migrazione **stampa** cosa ha
+cambiato e cosa ri-derivare, come da regola del 06/08.
+
+**I numeri pubblicati non si muovono e la ragione va detta**: tutta la contaminazione stava su stagioni
+≤2022-23, mentre T1/T2 sono successive — `--verify` resta 22/22 **per fortuna, non per costruzione**. La
+misura sull'estero invece è stata rifatta sulla popolazione pulita, e la conclusione che avevo scritto
+prima («la retta è troppo generosa») era **falsa**: puliti i sei club, l'angolo di Ramos realizza 0,788
+con **zero** non-giocanti.
+
+### Tre strati derivati ricostruiti offline
+
+Il reingest di `positions` del 17/08 aveva svuotato quello che dipendeva da lui, e un conteggio non lo
+diceva. Ripristinati senza rete: **`mv_synth`** 36 → 243.482 righe (`synth`), gli **equivalenti FM** degli
+arrivi 170 → 2.264, la **heatmap** 0 → 2.240. Vale la pena scriverlo perché è la regola «una catena che
+alimenta una catena si rifà come catena» incontrata per la seconda volta, e perché **nessun allarme è
+scattato**: le tabelle erano non-vuote.
+
 ## Novità v9.57 (19 agosto 2026 — l'attesa sul lock in UN posto solo, e cosa il worktree non cura)
 
 Nessuna colonna si muove, `SHEET_REVISION` non sale: è meccanica.
