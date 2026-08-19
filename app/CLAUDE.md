@@ -80,6 +80,13 @@ table the bundle does not carry gets it added to `export.CONTRACT` in the toolki
   optimistic updates); components read it through `computed`. No repeated `load()` calls. Timers and the
   clock stay imperative by nature.
 - Template control flow: **`@if` / `@for` / `@switch`**, not `*ngIf` / `*ngFor` / `*ngSwitch`.
+- **A `computed` never WRITES a signal**, and this is not style: Angular throws
+  (`throwInvalidWriteToSignalError`), so the computed raises on every read and whatever the template was
+  binding is simply not drawn. It cost the whole Fπ histogram on 20/08/2026 - a `computed` that counted
+  the bars and set a `piMissing` signal on the way out, invisible to `ng build` and to every unit test,
+  because nothing outside a browser ever read it. When one pass has to produce two numbers, return BOTH
+  from one `computed` and expose each with its own derivation - and if the counting is domain logic, it
+  belongs in `core/` where a test can reach it.
 - **`takeUntilDestroyed()`** from `@angular/core/rxjs-interop` for Observable teardown.
 - **Clean names**: camelCase, no `_`, `$` or `@` as prefix or suffix. Observables get an explicit name
   (`userStream`, `userQueue`), **never a `$` suffix**.
@@ -147,8 +154,16 @@ The full rationale is Jingle Machine's `THEMING.md`; these are the rules that mu
   indistinguishable from a clean page - it has already happened twice.
 - What a rectangle cannot measure is verified **functionally**: an enlarged touch target is tested with a
   click 8px above the border, not by reading `getBoundingClientRect()`.
-- Before delivering a change: **the production build must pass** (`ng build` - the most reliable check,
-  type-check plus bundling), and the tests if they were touched.
+- Before delivering a change: **the production build must pass** (`ng build`) AND **`ng test`**, and for
+  anything visible, the page opened in a real browser.
+- **A green `ng build` says nothing about the tests, and on 20/08/2026 it hid a suite that would not even
+  compile.** `ng build` uses `tsconfig.app.json`, which does not include `*.spec.ts`: a spec with a type
+  error type-checks nowhere, and the Angular test builder refuses to BUILD the whole suite over it - so
+  one bad line in one spec takes out all 27 files at once and prints no test count. It shipped
+  (`projection.spec.ts`, `at(103)` is `number | null`) in a commit whose own message says «build di
+  produzione verde», and the consolidation that followed claimed «app 314 test» - a number that cannot
+  have come from a run. Two habits: `ng test` is a SEPARATE gate from `ng build`, and a test count is
+  quoted from the run that printed it, never from the last time it was true.
 - **A dependency that works in dev is NOT proven.** `ng serve` pre-bundles dependencies and synthesises
   the named exports of UMD/CJS libraries; `ng build` does not. A library can work in dev and break only
   in the package, at runtime, under a minified name (`i is not a function`), with TypeScript none the

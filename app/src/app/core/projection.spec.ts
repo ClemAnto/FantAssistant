@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { ANCHOR_TOP, anchorValue, piBand, scale99 } from './projection';
+import { ANCHOR_TOP, anchorValue, piBand, piHistogram, scale99 } from './projection';
 
 // I numeri veri del foglio mantra di Serie A del 19/08/2026.
 const WORST = 38;
@@ -27,7 +27,7 @@ describe('la scala di Fπ', () => {
     expect(at(103)).toBeGreaterThan(0);            // Stones
     expect(at(102)).toBeGreaterThan(0);            // Skorupski
     expect(at(103)).toBeLessThan(30);              // ...ma resta nella banda «scarso»
-    expect(at(70)).toBeLessThan(at(103));          // Pisseri, terzo portiere
+    expect(at(70)!).toBeLessThan(at(103)!);        // Pisseri, terzo portiere
   });
 
   it('è monotona: più fantapunti, mai meno punteggio', () => {
@@ -79,5 +79,26 @@ describe('le bande dichiarate', () => {
     expect(piBand(45)).toBe('riserva');
     expect(piBand(70)).toBe('titolare');
     expect(piBand(null)).toBeNull();
+  });
+});
+
+describe("l'istogramma di Fπ", () => {
+  it("mette ogni punteggio nella sua decina, e il 99 nell'ultima", () => {
+    const { buckets } = piHistogram([0, 9, 10, 49, 50, 90, 99]);
+    expect(buckets).toEqual([2, 1, 0, 0, 1, 1, 0, 0, 0, 2]);
+    expect(buckets).toHaveLength(10);
+  });
+
+  it('conta i mancanti a parte: senza previsione non è previsto a zero', () => {
+    const { buckets, missing } = piHistogram([null, undefined, 0, 55]);
+    expect(missing).toBe(2);
+    expect(buckets[0]).toBe(1);
+    expect(buckets.reduce((sum, one) => sum + one, 0)).toBe(2);
+  });
+
+  it('su una pool vuota non inventa nessun mucchio', () => {
+    const { buckets, missing } = piHistogram([]);
+    expect(missing).toBe(0);
+    expect(buckets.every((one) => one === 0)).toBe(true);
   });
 });

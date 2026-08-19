@@ -1,5 +1,5 @@
 # Stato progetto & continuità — v5
-**Aggiornato: 19 agosto 2026, sera (Fπ: una colonna che PRONOSTICA invece di sommare — tre parametri misurati fuori campione, la scala dettata dall'operatore in cinque passaggi, quattro idee respinte, e otto club stranieri archiviati come `serie_a`; `SHEET_REVISION` 31, v0.1.19 pubblicata)** · precedente: 19 agosto 2026 (un vecchio PV non è una previsione di presenze: il gradino `older` regrediva la fantamedia e consegnava le presenze intatte, e l'Overall dell'app è un PRODOTTO — `SHEET_REVISION` 29; e l'attesa sul lock del DB in una definizione sola, con la regola per due sessioni in parallelo)** · precedente: 18 agosto 2026 (le DEFINIZIONI dell'operatore — Overall, Lead, Margine, Bonus — applicate ovunque; UN campetto solo per asta e Squadre, con l'item-posto e i moduli alternativi scritti dal toolkit; tre difetti della tabella misurati in browser)** · precedente: 17 agosto 2026, notte (la coppa continentale in mezzo al campionato: misurata, sul foglio e RESPINTA dal gate; l'app riscritta a voce; il surplus che aveva due aritmetiche)
+**Aggiornato: 20 agosto 2026 (il grafico di Fπ non si vedeva MAI: una `computed` che scriveva un signal — vietato in Angular — e una suite dell'app che non compilava da `d7d0fbf`, quindi le prove dichiarate ieri non venivano da una corsa; 317 verdi)** · precedente: 19 agosto 2026, sera (Fπ: una colonna che PRONOSTICA invece di sommare — tre parametri misurati fuori campione, la scala dettata dall'operatore in cinque passaggi, quattro idee respinte, e otto club stranieri archiviati come `serie_a`; `SHEET_REVISION` 31, v0.1.19 pubblicata)** · precedente: 19 agosto 2026 (un vecchio PV non è una previsione di presenze: il gradino `older` regrediva la fantamedia e consegnava le presenze intatte, e l'Overall dell'app è un PRODOTTO — `SHEET_REVISION` 29; e l'attesa sul lock del DB in una definizione sola, con la regola per due sessioni in parallelo)** · precedente: 18 agosto 2026 (le DEFINIZIONI dell'operatore — Overall, Lead, Margine, Bonus — applicate ovunque; UN campetto solo per asta e Squadre, con l'item-posto e i moduli alternativi scritti dal toolkit; tre difetti della tabella misurati in browser)** · precedente: 17 agosto 2026, notte (la coppa continentale in mezzo al campionato: misurata, sul foglio e RESPINTA dal gate; l'app riscritta a voce; il surplus che aveva due aritmetiche)
 Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da qui + i file della cartella "Modello Previsionale Fantacalcio".
 *Glossario: T1/T2 = finestre di test (23/24->24/25, 24/25->25/26) · MAE = errore medio assoluto · cross-fitted = parametri stimati su una finestra, testati sull'altra · M2e = modello portieri decomposto (abilità + tasso gol subiti del club; la metà Elo del nome non è nel motore) · Pv_att = presenze attese · fc_id = id fantacalcio.it · EV = valore atteso · scoring_config = punteggi configurabili per lega · xG/xA = expected goals/assists · 2.5 pieno = backtest motore completo con flag.*
 
@@ -7,6 +7,47 @@ Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da q
 App per leghe EuroLeghe/fantacalcio.it (Classic+Mantra, 5 campionati) con motore previsionale. Metodo: ogni regola entra SOLO se batte il baseline fuori campione su finestre indipendenti (gate pre-registrato). Doc madre: modello-previsionale-v3.8.md.
 
 ## ⚠️ Lo stato corrente è in `00-BRIDGE-punto-di-ingresso.md`, blocco «STATO AL 5 AGOSTO 2026»
+
+### 20 agosto 2026 — il grafico che non si vedeva, e le tre verifiche che non potevano vederlo
+
+Nessuna corsa di gate, nessun numero del motore toccato, `SHEET_REVISION` ferma a 31: sessione di
+riparazione sull'app, aperta da una frase dell'operatore — «il grafico della distribuzione dei Fpi non
+si vede».
+
+**Non si vedeva mai, da quando è stato scritto.** La `computed` che costruiva le barre **scriveva** un
+signal (`piMissing.set(...)`) prima di restituire, e Angular lo vieta: `piBars()` sollevava un'eccezione a
+ogni lettura del template, quindi la sezione non veniva disegnata. Provato lanciando la primitiva di
+Angular su una `computed` finta, non dedotto leggendo il codice. Curato spostando il conto dove un test lo
+raggiunge (`piHistogram` in `core/projection.ts`, tre prove) e leggendo lo stesso `computed` due volte,
+barre e mancanti, senza scritture — che ha portato via anche un secondo difetto che nessuno aveva
+notato: l'intestazione leggeva i mancanti **prima** che le barre li scrivessero.
+
+**La lezione non è il difetto, sono le tre verifiche che l'hanno mancato.** `ng build` compila i template
+e non li **esegue**, quindi una `computed` che esplode alla prima lettura passa il build — il commit
+diceva «build di produzione verde» ed era vero. `ng build` non compila nemmeno gli spec
+(`tsconfig.app.json` esclude `src/**/*.spec.ts`), e un errore di tipo in `projection.spec.ts` faceva
+**fallire la costruzione della suite intera**: 27 file caduti insieme senza stampare un conteggio, cioè
+`ng test` non girava da `d7d0fbf` — e le «314 prove» dichiarate nella consolidazione di ieri sera non
+possono venire da una corsa su quel commit. Il terzo buco è che il conto viveva dentro il componente,
+dove nessun test lo raggiungeva. Regole scritte in `app/CLAUDE.md`: **una `computed` non scrive un
+signal**, **`ng test` è un cancello separato da `ng build`**, e **un conteggio di test si cita dalla corsa
+che l'ha stampato**.
+
+**Due difetti di contorno, dello stesso commit e della stessa famiglia.** La sezione portava
+`class="card"`, una classe che in questo progetto **non esiste** (nessun `.card` negli stili, nessun
+`@utility`): il grafico galleggiava senza riquadro, ed è la regola «no custom styling classes» già
+scritta. E l'hint di Fπ era 280 caratteri contro un `TOOLTIP_MAX` di 140 — la scala dichiarata è
+passata in `RATING_DETAIL.pi`, dov'è il suo posto. Più un'etichetta falsa trovata rileggendo: la prima
+barra copre 0-9 e diceva «non gioca», che non è vero per chi sta fra 1 e 9.
+
+**Verificato**: app **317 prove** su 27 file (3 nuove), `ng build` verde, e il `dist` aperto in Edge
+headless — 10 barre, etichette 0…90, la più alta 185px, «603 calciatori · 3 senza Fπ», **zero errori
+di console**, e i due riquadri che misurano lo stesso box (bordo 1px, fondo `rgb(20,20,28)`). Dettaglio:
+`letture-app-v1.md` §14.6.
+
+**Aperto**: niente di nuovo: resta quello di ieri (tre pacchetti del viaggio nel tempo da rigenerare, il
+bump di `SHEET_REVISION` fuori dal commit). Il toolkit non è stato toccato, quindi `--verify` resta 22/22
+dell'ultima corsa e non è stato rieseguito.
 
 ### 19 agosto 2026, sera — Fπ: una colonna che pronostica invece di sommare, e la domanda che l'ha aperta era una verifica di coerenza
 

@@ -116,3 +116,25 @@ export function scale99(
   const share = Math.max(0, (value - worst) / (mean - worst));
   return Math.max(0, Math.round(ANCHOR_SCORE * Math.pow(share, curve)));
 }
+
+/**
+ * L'istogramma di Fπ a decine, e quanti restano senza.
+ *
+ * Sta qui e non nella vista per la ragione di sempre: è il CONTO di una figura, e un conto che vive
+ * dentro una `computed` di un componente non ha nessuno che lo giudichi. La vista ci mette i colori,
+ * che sono presentazione; i mucchi e il buco sono un fatto sulla pool.
+ *
+ * L'ultima decina porta 90-99 (la scala si ferma a 99), e i null NON sono un mucchio: un uomo senza
+ * previsione non è un uomo previsto a zero, quindi si contano a parte e la figura dice quanti sono.
+ */
+export function piHistogram(
+  scores: readonly (number | null | undefined)[],
+): { readonly buckets: readonly number[]; readonly missing: number } {
+  const buckets = Array.from({ length: 10 }, () => 0);
+  let missing = 0;
+  for (const score of scores) {
+    if (score == null) missing += 1;
+    else buckets[Math.min(9, Math.max(0, Math.floor(score / 10)))] += 1;
+  }
+  return { buckets, missing };
+}

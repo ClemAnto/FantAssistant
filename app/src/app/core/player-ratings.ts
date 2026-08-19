@@ -1572,9 +1572,9 @@ export const RATING_LABEL: Record<RatingKey, string> = {
 };
 
 export const RATING_HINT: Record<RatingKey, string> = {
-  pi: 'Il rendimento PREVISTO: le stesse presenze dell\'Overall, ma il valore di una partita letto dal '
-    + 'calcio che ha davvero giocato, anche in un altro campionato. Scala dichiarata: 0 non gioca, '
-    + 'sotto 10 inutile, sotto 30 scarso, sotto 50 riserva, 50 è la media dei primi 250 per Overall.',
+  // La scala dichiarata sta nel DETTAGLIO qui sotto: in un hover non ci stava, e il test lo diceva.
+  pi: 'Il rendimento PREVISTO: le presenze dell\'Overall, ma il valore di una partita letto dal '
+    + 'calcio che ha davvero giocato, anche altrove.',
   overall:
     'FANTAPUNTI in tutto: giornate a voto attese × quanto vale una sua partita. Un totale, non un margine, '
     + 'e non il «Valore» dell\'asta.',
@@ -1597,7 +1597,9 @@ export const RATING_DETAIL: Record<RatingKey, string> = {
   pi: 'Dove il motore lo prezza, Fπ e Overall dicono la stessa cosa. Dove NON lo prezza, Overall scende '
     + 'sull\'ancora del ruolo («è un attaccante della Juve») mentre Fπ legge le sue partite vere altrove '
     + 'e le regredisce verso quell\'ancora con un coefficiente misurato fuori campione. La cella dice '
-    + 'sempre su quante partite, perché dieci non sono una stagione.',
+    + 'sempre su quante partite, perché dieci non sono una stagione. La scala è dichiarata e non un '
+    + 'percentile: 0 non gioca, sotto 10 inutile, sotto 30 scarso, sotto 50 riserva, e 50 è la media '
+    + 'dei primi 250 per Overall.',
   overall:
     'È il TOTALE che porta: le giornate a voto che il motore gli prevede per la stagione che viene, per '
     + 'quello che vale una sua partita nel punteggio della TUA lega (fantamedia attesa, con la porta '

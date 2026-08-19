@@ -1135,3 +1135,25 @@ Nota: **nessuna delle feature generate il 27/07 e' entrata nel motore**, e **nes
       e l'app dice «di punizioni e angoli i dati non dicono nulla» invece di far finta.
       **Nessuna adozione senza gate**, come sempre: qui il canale è già stato bocciato una volta, quindi la
       barra è la stessa e il confronto è contro il modello che i minuti li legge già.
+
+## Aperto dopo la sessione del 20/08/2026 (app, `letture-app-v1.md` §14.6)
+
+Due voci, nate dallo stesso difetto: l'istogramma di Fπ non si è mai disegnato e né il build né i test
+potevano accorgersene.
+
+* **Una prova che APRE le pagine, e pretende zero errori di console.** È la voce di leva più alta di questa
+  sessione: le 27 suite dell'app sono **tutte su `core/`** (funzioni pure), quindi nessuna esegue un
+  template — e una `computed` che solleva a ogni lettura è esattamente il difetto che vive in quel buco.
+  L'attrezzo esiste già e non va scritto: `app/scripts/e2e-table.mjs` serve il `dist`, lancia Edge headless
+  e parla CDP, con `--path`. Serve la variante che gira le tre pagine (Calciatori, Asta, Grafici, e le
+  Squadre), raccoglie `Runtime.consoleAPICalled`/`exceptionThrown` e **fallisce su un errore qualsiasi**,
+  più un conteggio di quello che ha guardato (una passata che apre zero pagine deve fallire, non passare).
+  Costo: mezz'ora, nessuna dipendenza nuova.
+* **`PI_BANDS` mette il punteggio di CONFINE nella banda di sotto, e le parole dell'operatore dicono il
+  contrario.** Le soglie sono scritte come `score > above`, quindi 10 legge «inutile», 30 «scarso» e **50
+  «riserva»** — mentre la sua dichiarazione, che l'app stampa sotto il grafico, dice «sotto 10 inutile ·
+  sotto 30 scarso · sotto 50 riserva · **50+ titolare**». Il 50 è l'ANCORA, quindi è il confine che pesa.
+  **Oggi non si vede da nessuna parte** e per questo non è stato cambiato in chiusura: l'unico chiamante
+  che spedisce è il tooltip delle decine, che passa `low + 1` (11, 21, 31…) e non tocca mai un confine.
+  Cura, quando si tocca: soglie `atLeast` 50/30/10/1 più lo 0 «non gioca» — riproduce le sue parole alla
+  lettera e non muove nessuno degli altri 97 punteggi (il test attuale, 0/5/25/45/70, resta identico).

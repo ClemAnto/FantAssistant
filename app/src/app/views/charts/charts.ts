@@ -14,7 +14,7 @@ import { PlayerRatingsStore } from '../../core/player-ratings-store';
 import { CLASSIC_ROLES, ClassicRole, Platform } from '../../core/players-store';
 import { ValuationStore } from '../../core/valuation-store';
 import { bindQuery } from '../../core/view-state';
-import { PI_BANDS, piBand } from '../../core/projection';
+import { piBand, piHistogram } from '../../core/projection';
 import { Bar, BarChart } from '../../ui/bar-chart/bar-chart';
 import { PieChart, PieSlice } from '../../ui/pie-chart/pie-chart';
 import { APP_VERSION } from '../../version';
@@ -110,21 +110,22 @@ export class Charts {
    * l'istogramma dice «che FORMA ha», ed è la seconda che giudica una scala. Un ammasso a un'estremità è
    * una scala che non sta dicendo niente, e in una torta non si vede.
    *
+   * IL CONTO STA IN `core/projection` e qui ci sono solo i colori. Prima era una `computed` che contava
+   * e SCRIVEVA il signal dei mancanti: Angular vieta di scrivere un signal dentro una `computed`, quindi
+   * `piBars()` sollevava un'eccezione ogni volta che il template la leggeva e il grafico non si vedeva
+   * affatto. Due letture dello STESSO conto, e nessuna scrittura.
+   */
+  private readonly piCounts = computed(() =>
+    piHistogram(this.pool().map((one) => one.rating?.pi.score)),
+  );
+
+  /**
    * Le bande sotto le barre sono le parole dell'operatore (`PI_BANDS`), non un'invenzione della vista:
    * 0 non gioca, sotto 10 inutile, sotto 30 scarso, sotto 50 riserva, poi titolare.
    */
-  protected readonly piBars = computed<Bar[]>(() => {
-    const buckets = Array.from({ length: 10 }, () => 0);
-    let missing = 0;
-    for (const man of this.pool()) {
-      const score = man.rating?.pi.score;
-      if (score == null) missing += 1;
-      else buckets[Math.min(9, Math.floor(score / 10))] += 1;
-    }
-    this.piMissing.set(missing);
-    return buckets.map((count, at) => {
+  protected readonly piBars = computed<Bar[]>(() =>
+    this.piCounts().buckets.map((count, at) => {
       const low = at * 10;
-      const label = piBand(low === 0 ? 0 : low + 1) ?? '';
       return {
         label: `${low}`,
         value: count,
@@ -133,14 +134,15 @@ export class Charts {
         fill: at >= 5 ? 'var(--color-success)'
           : at >= 3 ? 'var(--color-primary)'
             : at >= 1 ? 'var(--color-warning)' : 'var(--color-danger)',
-        hint: `Fπ ${low}-${low + 9} · ${label}`,
+        // La decina prende il nome della banda che la occupa, tranne la PRIMA: 0 «non gioca» e 1-9
+        // «inutile» sono due frasi diverse, e chiamarla solo «non gioca» sarebbe falso per chi ci sta.
+        hint: `Fπ ${low}-${low + 9} · ${at === 0 ? 'non gioca o inutile' : piBand(low + 1) ?? ''}`,
       };
-    });
-  });
+    }),
+  );
 
   /** Quanti restano senza Fπ: una figura che non lo dice sta contando una pool che non è quella. */
-  protected readonly piMissing = signal(0);
-  protected readonly piBandLabels = PI_BANDS;
+  protected readonly piMissing = computed(() => this.piCounts().missing);
 
   /** Quanti sono e quanti di loro un Overall non ce l'hanno: ogni figura dice su quanti è calcolata. */
   protected readonly counted = computed(() => this.pool().length);

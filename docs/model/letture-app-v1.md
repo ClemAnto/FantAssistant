@@ -1031,3 +1031,47 @@ torta di proposito — la torta dice come si **divide** il listone, l'istogramma
 forma che giudica una scala: un ammasso a un'estremità in una torta non si vede. Il conteggio degli
 uomini **senza** Fπ è scritto accanto e non lasciato fuori dal totale, che è «vuoto = ignoto» applicato a
 un grafico.
+
+### 14.6 Il grafico non si vedeva, e la causa non era il disegno (20 agosto 2026)
+
+«Il grafico della distribuzione dei Fpi non si vede» — e non si vedeva **mai**, da quando è stato scritto.
+La `computed` che costruiva le barre contava anche gli uomini senza Fπ e **scriveva** il conto in un signal
+(`piMissing.set(...)`) prima di restituire: Angular lo vieta (`throwInvalidWriteToSignalError`), quindi
+`piBars()` sollevava un'eccezione a ogni lettura del template e la sezione non veniva disegnata. Verificato
+lanciando la primitiva di Angular su una `computed` finta, non dedotto dal codice.
+
+**Perché nessuna delle verifiche di allora poteva vederlo**, che è la parte che vale:
+
+  * `ng build` **compila i template e non li esegue**, quindi una `computed` che esplode alla prima
+    lettura passa il build senza una riga di avviso. Il commit dichiarava «build di produzione verde» ed
+    era vero.
+  * `ng build` **non compila nemmeno gli spec** (`tsconfig.app.json` esclude `src/**/*.spec.ts`), e
+    `projection.spec.ts` portava un errore di tipo (`at(103)` è `number | null`): l'esecutore dei test si
+    rifiutava di **costruire** la suite, cioè tutti e 27 i file cadevano insieme senza stampare un
+    conteggio. La suite dell'app non girava da `d7d0fbf`, quindi le «314 prove» della consolidazione del
+    19/08 sera non possono venire da una corsa su quel commit. Oggi sono **317** e girano.
+  * il conto viveva **dentro il componente**, dove nessun test lo raggiungeva.
+
+Curato spostando il conto dove si può giudicare — `piHistogram(scores)` in `core/projection.ts`, con tre
+prove (il 99 nell'ultima decina, i null contati a parte, la pool vuota) — e leggendo lo STESSO `computed`
+due volte, barre e mancanti, senza scritture. Come effetto collaterale è sparito un secondo difetto che
+nessuno aveva notato: l'intestazione leggeva `piMissing()` **prima** che le barre lo scrivessero, quindi
+«senza Fπ» era comunque il numero del disegno precedente.
+
+**Due difetti di contorno dello stesso commit, entrambi invisibili a un test.** La sezione portava
+`class="card"`, **una classe che in questo progetto non esiste** (nessun `.card` negli stili, nessun
+`@utility`): il riquadro non c'era e il grafico galleggiava sulla pagina. È la regola già scritta in
+`app/CLAUDE.md` — «no custom styling classes» — e adesso la sezione porta le stesse utility della sorella
+(`rounded-card border border-border bg-surface p-4`), misurate uguali in browser: bordo 1px, fondo
+`rgb(20,20,28)`. E il tooltip di Fπ era lungo **280 caratteri** contro un `TOOLTIP_MAX` di 140: la scala
+dichiarata è passata in `RATING_DETAIL.pi`, dov'è il suo posto, e l'hint sta in 133.
+
+**La convenzione delle decine, scritta perché una barra ne contiene due bande.** Ogni decina prende il nome
+della banda che la occupa (`piBand(low + 1)`), e il punteggio esatto di confine sta nella banda di sotto —
+un numero su dieci, rumore — ma non è solo rumore in `PI_BANDS`, dove le soglie sono `score > above` e il **50, che è l'ancora, legge «riserva»** mentre la dichiarazione stampata sotto il grafico dice «50+ titolare»: latente, perché l'unico chiamante che spedisce passa `low + 1` e non tocca mai un confine, e per questo è una voce di todolist e non una correzione fatta di corsa in chiusura. L'eccezione è la PRIMA barra: 0 «non gioca» e 1-9 «inutile» sono due frasi
+diverse e la seconda non è un dettaglio di confine, quindi il tooltip dice **«non gioca o inutile»**.
+Chiamarla solo «non gioca» era falso per chi ci sta dentro.
+
+**Collaudo**: 317 prove su 27 file, `ng build` verde, e il browser vero sul `dist` — 10 barre, etichette
+0…90, la più alta 185px, «603 calciatori · 3 senza Fπ», **zero errori di console**. Una figura si collauda
+aprendola: nessuno degli altri due controlli poteva.
