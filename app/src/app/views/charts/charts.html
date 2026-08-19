@@ -143,5 +143,47 @@
         </span>
       </p>
     </section>
+
+    <!-- La SECONDA figura, e volutamente di un altro tipo: la torta dice come si divide il listone,
+         l'istogramma che forma ha. È la seconda che giudica una scala. -->
+    <section class="card flex flex-col gap-4">
+      <header class="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 class="text-lg font-semibold">Distribuzione di Fπ</h2>
+        <span class="text-sm text-muted">
+          {{ counted() }} calciatori
+          @if (piMissing()) {
+            · {{ piMissing() }} senza Fπ
+          }
+        </span>
+      </header>
+
+      @if (!rated()) {
+        <div class="flex items-center gap-3 text-muted">
+          <nz-spin nzSimple nzSize="small" />
+          Calcolo le letture su tutto il listone...
+        </div>
+      } @else {
+        <ui-bars [bars]="piBars()" unit="calciatori" />
+      }
+
+      <p class="max-w-3xl text-xs leading-relaxed text-muted">
+        Fπ non è un percentile: è una <strong class="text-fg">scala dichiarata</strong>, quindi la forma
+        di questo istogramma dice qualcosa. I tre punti fissi sono il peggiore del listone a 0, la media
+        dei primi 250 per Overall a 50 e il migliore a 99, con una curva sotto l'ancora - dove il motore
+        prezza quasi tutti con la stessa costante di ripiego e non c'è informazione da distendere.
+        <span class="mt-1 block">
+          Le parole:
+          <strong class="text-fg">0</strong> non gioca ·
+          <strong class="text-fg">&lt;10</strong> inutile ·
+          <strong class="text-fg">&lt;30</strong> scarso ·
+          <strong class="text-fg">&lt;50</strong> riserva ·
+          <strong class="text-fg">50+</strong> titolare.
+        </span>
+        <span class="mt-1 block">
+          <strong class="text-fg">Senza Fπ</strong> è la stessa cosa che senza Overall: nessuna presenza
+          prevista, quindi nessuna risposta - e uno zero direbbe un'altra cosa.
+        </span>
+      </p>
+    </section>
   }
 </div>

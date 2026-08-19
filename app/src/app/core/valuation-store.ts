@@ -221,6 +221,18 @@ interface EngineExpectation {
   /** The sheet's `est_mv`, absent on a bundle written before revision 18. */
   mv: number | null;
   /**
+   * The sheet's `pi_fm`: what a match of his is worth read from the football he ACTUALLY played.
+   *
+   * Not `fm` under another name. Where the engine cannot price him, `fm` (that is `est_fm`) falls back to
+   * the role's anchor - «he is a Juventus forward» - while this one reads his real matches abroad and
+   * regresses them toward that anchor with a measured coefficient. Absent before sheet revision 31, and
+   * then the column stays silent instead of quietly borrowing `est_fm`: two bases under one name is the
+   * defect this project keeps paying for.
+   */
+  piFm: number | null;
+  piBasis: string | null;
+  piMatches: number | null;
+  /**
    * The fantamedia of the man you would field INSTEAD - `engine_replacement_fm`, the marginal rostered
    * player of his role slot, computed by the toolkit with this league's own teams and slots.
    *
@@ -759,6 +771,9 @@ export class ValuationStore {
         // ...e la MEDIA VOTO attesa, che dal 17/08/2026 è la lettura VOTI: `est_mv`, il numero che il
         // foglio deriva dalla fantamedia togliendo il bonus a presenza che le prevede.
         mv: one.mv,
+        // ...e il valore di una sua partita secondo Fπ, che dove il motore non lo prezza legge le sue
+        // partite vere all'estero invece dell'ancora del ruolo.
+        piFm: one.piFm, piBasis: one.piBasis, piMatches: one.piMatches,
       });
     }
     return out;
@@ -814,6 +829,10 @@ export class ValuationStore {
           pv: at('engine_pv_pred'), estPv: at('est_pv'),
           fm: at('engine_fm_pred'), estFm: at('est_fm'),
           mv: at('est_mv'), replacement: at('engine_replacement_fm'),
+          // Fπ: il valore di una sua partita secondo il calcio che ha DAVVERO giocato, anche altrove.
+          // Assente prima della revisione 31, e allora la colonna resta muta invece di ripiegare su
+          // `est_fm` in silenzio: due basi sotto un nome solo è il difetto che questo progetto paga.
+          piFm: at('pi_fm'), piBasis: at('pi_basis'), piMatches: at('pi_matches'),
           surplus: at('engine_surplus'), estSurplus: at('est_surplus'),
           // L'ALTRO ZERO: una colonna sola, perché il foglio la scrive già per tutta la lista - motore
           // dove c'è, stima altrove, con la stessa penale. Assente prima della revisione 22.
@@ -857,6 +876,9 @@ export class ValuationStore {
             confidence:
               columns.confidence < 0 ? 1 : ((row[columns.confidence] as number | null) ?? 1),
             mv: columns.mv < 0 ? null : ((row[columns.mv] as number | null) ?? null),
+            piFm: columns.piFm < 0 ? null : ((row[columns.piFm] as number | null) ?? null),
+            piBasis: columns.piBasis < 0 ? null : ((row[columns.piBasis] as string) ?? null),
+            piMatches: columns.piMatches < 0 ? null : ((row[columns.piMatches] as number | null) ?? null),
             replacementFm:
               columns.replacement < 0 ? null : ((row[columns.replacement] as number | null) ?? null),
             basis: columns.basis < 0 ? null : ((row[columns.basis] as string) ?? null),

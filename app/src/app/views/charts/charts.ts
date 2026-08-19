@@ -14,6 +14,8 @@ import { PlayerRatingsStore } from '../../core/player-ratings-store';
 import { CLASSIC_ROLES, ClassicRole, Platform } from '../../core/players-store';
 import { ValuationStore } from '../../core/valuation-store';
 import { bindQuery } from '../../core/view-state';
+import { PI_BANDS, piBand } from '../../core/projection';
+import { Bar, BarChart } from '../../ui/bar-chart/bar-chart';
 import { PieChart, PieSlice } from '../../ui/pie-chart/pie-chart';
 import { APP_VERSION } from '../../version';
 
@@ -50,6 +52,7 @@ const ROLE_LABEL: Record<ClassicRole, string> = {
     NzSelectModule,
     NzSpinModule,
     NzTooltipModule,
+    BarChart,
     PieChart,
     RouterLink,
   ],
@@ -99,6 +102,45 @@ export class Charts {
       hint: band.above == null ? 'Senza Overall: il motore non gli prevede presenze' : `Overall ${band.label}`,
     })),
   );
+
+  /**
+   * LA DISTRIBUZIONE DI Fπ, a decine, e non una seconda torta.
+   *
+   * Sono due domande diverse e vanno disegnate diversamente: la torta dice «come si divide il listone»,
+   * l'istogramma dice «che FORMA ha», ed è la seconda che giudica una scala. Un ammasso a un'estremità è
+   * una scala che non sta dicendo niente, e in una torta non si vede.
+   *
+   * Le bande sotto le barre sono le parole dell'operatore (`PI_BANDS`), non un'invenzione della vista:
+   * 0 non gioca, sotto 10 inutile, sotto 30 scarso, sotto 50 riserva, poi titolare.
+   */
+  protected readonly piBars = computed<Bar[]>(() => {
+    const buckets = Array.from({ length: 10 }, () => 0);
+    let missing = 0;
+    for (const man of this.pool()) {
+      const score = man.rating?.pi.score;
+      if (score == null) missing += 1;
+      else buckets[Math.min(9, Math.floor(score / 10))] += 1;
+    }
+    this.piMissing.set(missing);
+    return buckets.map((count, at) => {
+      const low = at * 10;
+      const label = piBand(low === 0 ? 0 : low + 1) ?? '';
+      return {
+        label: `${low}`,
+        value: count,
+        // Il colore segue la BANDA e non la posizione: due decine che vogliono dire la stessa cosa
+        // devono avere lo stesso colore, o la figura racconta una gradazione che non esiste.
+        fill: at >= 5 ? 'var(--color-success)'
+          : at >= 3 ? 'var(--color-primary)'
+            : at >= 1 ? 'var(--color-warning)' : 'var(--color-danger)',
+        hint: `Fπ ${low}-${low + 9} · ${label}`,
+      };
+    });
+  });
+
+  /** Quanti restano senza Fπ: una figura che non lo dice sta contando una pool che non è quella. */
+  protected readonly piMissing = signal(0);
+  protected readonly piBandLabels = PI_BANDS;
 
   /** Quanti sono e quanti di loro un Overall non ce l'hanno: ogni figura dice su quanti è calcolata. */
   protected readonly counted = computed(() => this.pool().length);

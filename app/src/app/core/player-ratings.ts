@@ -1,4 +1,5 @@
 import { BundleTable, PlayerNote, ScoringConfig, ScoringTerms, columnIndex, optionalIndex } from './bundle';
+import { anchorValue, scale99 } from './projection';
 import { FRAGILITY_YEARS, Fragility, Spell, fragilityOf, isOpen } from './player-status';
 import { Platform, PlayerRow } from './players-store';
 import { short } from './tooltip';
@@ -292,7 +293,7 @@ export const INJURY_WINDOW_DAYS = 365;
 
 const DAY_MS = 86_400_000;
 
-export type RatingKey = 'overall' | 'votes' | 'bonus' | 'presence';
+export type RatingKey = 'overall' | 'pi' | 'votes' | 'bonus' | 'presence';
 
 /**
  * The three readings, in the order a row is read. `overall` is not one of them: it is what they make.
@@ -303,10 +304,10 @@ export type RatingKey = 'overall' | 'votes' | 'bonus' | 'presence';
  * ma non è più un percentile fra gli altri: era una lettura che nessuno ordinava, e una colonna in meno è
  * una tabella che si legge.
  */
-export const DETAIL_KEYS: Exclude<RatingKey, 'overall'>[] = ['votes', 'bonus', 'presence'];
+export const DETAIL_KEYS: Exclude<RatingKey, 'overall' | 'pi'>[] = ['votes', 'bonus', 'presence'];
 
 /** Every column, the summary first: it is the one that is scanned, the four are the reason for it. */
-export const RATING_KEYS: RatingKey[] = ['overall', ...DETAIL_KEYS];
+export const RATING_KEYS: RatingKey[] = ['overall', 'pi', ...DETAIL_KEYS];
 
 /**
  * L'OVERALL A COLORI, le bande dalla migliore in giù - richiesta dell'operatore del 18/08/2026 sul
@@ -429,6 +430,17 @@ export interface EngineForecast {
    * essere calcolato su MVa»): prima quella colonna era la media voto di CARRIERA, un'altra domanda.
    */
   mv: number | null;
+  /**
+   * `pi_fm`: quanto vale una sua partita secondo il calcio che ha DAVVERO giocato.
+   *
+   * Non è `fm` con un altro nome. Dove il motore non lo prezza, `fm` (cioè `est_fm`) scende sull'ANCORA
+   * del ruolo - «è un attaccante della Juve» - mentre questa legge le sue partite vere all'estero e le
+   * regredisce verso quell'ancora con un coefficiente misurato. Differiscono su 129 righe del foglio
+   * mantra di Serie A; `piBasis` dice sempre quale delle due ha parlato.
+   */
+  piFm: number | null;
+  piBasis: string | null;
+  piMatches: number | null;
 }
 
 /** One season of a player, as `season_stats` states it for one platform. */
@@ -1028,13 +1040,13 @@ export function ratingsFor(input: {
    * the case that found it (Idzes and Dimarco, below).
    */
   const calendarShare = new Map<number, number | null>();
-  const raw: Record<Exclude<RatingKey, 'overall'>, Map<number, number | null>> = {
+  const raw: Record<Exclude<RatingKey, 'overall' | 'pi'>, Map<number, number | null>> = {
     votes: new Map(), bonus: new Map(), presence: new Map(),
   };
-  const notes: Record<Exclude<RatingKey, 'overall'>, Map<number, string>> = {
+  const notes: Record<Exclude<RatingKey, 'overall' | 'pi'>, Map<number, string>> = {
     votes: new Map(), bonus: new Map(), presence: new Map(),
   };
-  const weights: Record<Exclude<RatingKey, 'overall'>, Map<number, number>> = {
+  const weights: Record<Exclude<RatingKey, 'overall' | 'pi'>, Map<number, number>> = {
     votes: new Map(), bonus: new Map(), presence: new Map(),
   };
   /**
@@ -1377,6 +1389,7 @@ export function ratingsFor(input: {
     bonus: rank99(raw.bonus),
     presence: rank99(raw.presence),
     overall: new Map(),
+    pi: new Map(),
   };
 
   const overallRaw = new Map<number, number | null>();
@@ -1411,6 +1424,39 @@ export function ratingsFor(input: {
    * dall'ancora (ribaltano Bremer e Kelly a 0,7).
    */
   ranked.overall = rank99(overallRaw);
+
+  /**
+   * Fπ: LO STESSO CONTO CON UN VALORE A PARTITA DIVERSO, e una scala dichiarata invece di un percentile.
+   *
+   * Il fattore delle presenze è identico a quello dell'Overall; cambia il valore di una partita, che qui
+   * è `pi_fm` - le sue partite VERE all'estero regredite verso l'ancora, dove il motore non lo prezza -
+   * invece dell'ancora secca. Il bonus della porta inviolata entra su tutt'e due per la stessa ragione:
+   * fa parte di quanto vale la partita di un portiere, e toglierlo da una sola delle due colonne le
+   * renderebbe incomparabili.
+   *
+   * La SCALA è in `projection.ts` con i tre punti fissi che l'operatore ha dettato, e l'ancora si sceglie
+   * per OVERALL: un riferimento definito dalla colonna che sta scalando si sposterebbe a ogni suo ritocco.
+   */
+  const piRaw = new Map<number, number | null>();
+  for (const player of pool) {
+    const id = player.fcId;
+    const perMatch = expectedShare.get(id)?.piFm ?? null;
+    piRaw.set(id, worthOf({
+      matches: calendarShare.get(id) ?? null,
+      votes: perMatch == null ? null : perMatch + cleanSheetLift(player),
+      eventPoints: null,
+    }));
+  }
+  {
+    const ids = [...piRaw.keys()];
+    const scores = ids.map((id) => piRaw.get(id) ?? null);
+    const byOverall = ids.map((id) => overallRaw.get(id) ?? null);
+    const mean = anchorValue(scores, byOverall);
+    const measured = scores.filter((one): one is number => one != null);
+    const best = measured.length ? Math.max(...measured) : null;
+    const worst = measured.length ? Math.min(...measured) : null;
+    for (const id of ids) ranked.pi.set(id, scale99(piRaw.get(id) ?? null, mean, best, worst));
+  }
 
   /**
    * Le due soglie per ruolo, prese DALLA POOL: il quintile basso e quello alto della sd di quel ruolo.
@@ -1452,11 +1498,24 @@ export function ratingsFor(input: {
     };
   };
 
+  /** Cosa dice la cella di Fπ: il totale, i due fattori, e DA QUALE calcio viene il valore a partita. */
+  const piNote = (id: number, forecast: EngineForecast | null,
+                  worth: number | null, presence: number | null): string => {
+    if (worth == null || presence == null || forecast?.piFm == null) {
+      return 'il motore non gli prevede presenze';
+    }
+    const from = forecast.piBasis === 'abroad'
+      ? ` · da ${forecast.piMatches} partite vere all'estero`
+      : forecast.piBasis === 'core' ? '' : ` · su ${forecast.piBasis}, il foglio non lo valuta qui`;
+    return short(`${worth.toFixed(2)} fantapunti a giornata · ${Math.round(presence * 100)}%`
+      + ` del calendario × ${forecast.piFm.toFixed(2)} a partita${from}`);
+  };
+
   const out = new Map<number, PlayerRating>();
   for (const player of pool) {
     const id = player.fcId;
     const worth = overallRaw.get(id) ?? null;
-    const reading = (key: Exclude<RatingKey, 'overall'>): Rating => ({
+    const reading = (key: Exclude<RatingKey, 'overall' | 'pi'>): Rating => ({
       raw: raw[key].get(id) ?? null,
       score: ranked[key].get(id) ?? null,
       weight: weights[key].get(id) ?? 0,
@@ -1485,6 +1544,12 @@ export function ratingsFor(input: {
             // la sua carriera. Due basi sotto una colonna sola devono dirsi.
             + (worthOfOne.fromEngine ? '' : ' · su CARRIERA, il foglio non lo valuta'),
       },
+      pi: {
+        raw: piRaw.get(id) ?? null,
+        score: ranked.pi.get(id) ?? null,
+        weight: sureness.reduce((sum, one) => sum + one, 0) / sureness.length,
+        note: piNote(id, expectedShare.get(id) ?? null, piRaw.get(id) ?? null, presence),
+      },
       votes: reading('votes'),
       bonus: reading('bonus'),
       presence: reading('presence'),
@@ -1497,6 +1562,8 @@ export function ratingsFor(input: {
 /** What each column is called, and what its star actually says. Written once, drawn everywhere. */
 export const RATING_LABEL: Record<RatingKey, string> = {
   overall: 'Overall',
+  // Il nome è dell'operatore (19/08/2026): «Fπ», FantaPi, e `Fpi` dove l'encoding non regge.
+  pi: 'Fπ',
   votes: 'Voti',
   // «Bonus» e basta (operatore, 16/08/2026): il malus è sottinteso, e la colonna lo dice già da sé -
   // per un portiere il numero è NEGATIVO, perché i gol che subisce sono la parte grossa di quel conto.
@@ -1505,6 +1572,9 @@ export const RATING_LABEL: Record<RatingKey, string> = {
 };
 
 export const RATING_HINT: Record<RatingKey, string> = {
+  pi: 'Il rendimento PREVISTO: le stesse presenze dell\'Overall, ma il valore di una partita letto dal '
+    + 'calcio che ha davvero giocato, anche in un altro campionato. Scala dichiarata: 0 non gioca, '
+    + 'sotto 10 inutile, sotto 30 scarso, sotto 50 riserva, 50 è la media dei primi 250 per Overall.',
   overall:
     'FANTAPUNTI in tutto: giornate a voto attese × quanto vale una sua partita. Un totale, non un margine, '
     + 'e non il «Valore» dell\'asta.',
@@ -1524,6 +1594,10 @@ export const RATING_HINT: Record<RatingKey, string> = {
  * NOT count and what it cost to get right belongs where it can be read twice, not in a hover.
  */
 export const RATING_DETAIL: Record<RatingKey, string> = {
+  pi: 'Dove il motore lo prezza, Fπ e Overall dicono la stessa cosa. Dove NON lo prezza, Overall scende '
+    + 'sull\'ancora del ruolo («è un attaccante della Juve») mentre Fπ legge le sue partite vere altrove '
+    + 'e le regredisce verso quell\'ancora con un coefficiente misurato fuori campione. La cella dice '
+    + 'sempre su quante partite, perché dieci non sono una stagione.',
   overall:
     'È il TOTALE che porta: le giornate a voto che il motore gli prevede per la stagione che viene, per '
     + 'quello che vale una sua partita nel punteggio della TUA lega (fantamedia attesa, con la porta '

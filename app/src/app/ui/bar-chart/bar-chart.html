@@ -1,0 +1,42 @@
+<!-- UI text is ITALIAN in app/ (see app/CLAUDE.md); code and comments stay English. -->
+@if (drawn().length) {
+  <div class="w-full">
+    <svg
+      [attr.viewBox]="'0 0 100 ' + baseline"
+      class="h-48 w-full"
+      preserveAspectRatio="none"
+      role="img"
+      aria-label="Distribuzione"
+    >
+      @for (bar of drawn(); track bar.label) {
+        <rect
+          [attr.x]="bar.x"
+          [attr.y]="bar.y"
+          [attr.width]="bar.width"
+          [attr.height]="bar.height"
+          [attr.fill]="bar.fill"
+          rx="0.6"
+        >
+          <title>{{ bar.hint || bar.label }}: {{ bar.value }} {{ unit() }}</title>
+        </rect>
+      }
+      <line
+        x1="0"
+        [attr.y1]="height"
+        x2="100"
+        [attr.y2]="height"
+        stroke="var(--color-border)"
+        stroke-width="0.4"
+      />
+    </svg>
+    <!-- Le etichette stanno FUORI dall'SVG: con `preserveAspectRatio="none"` il disegno si stira in
+         orizzontale, e un testo dentro si stirerebbe con lui. -->
+    <div class="flex w-full text-center text-xs text-muted">
+      @for (bar of drawn(); track bar.label) {
+        <span class="flex-1">{{ bar.label }}</span>
+      }
+    </div>
+  </div>
+} @else {
+  <p class="text-muted">Nessun dato da mostrare.</p>
+}
