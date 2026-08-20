@@ -1531,6 +1531,46 @@ tanti calciatori in alternativa e posizioni senza alternative» turned the dedup
 over the whole pitch (real-role fit dominating, a convex crowd price, a price for moving inside the line),
 and the empty places went 126 → 91 on Serie A and 218 → 165 on euro with the same men drawn.
 
+## A DERIVED pair has two halves, and WHICH ONE you predict is a decision
+**20/08/2026, found by the operator on a striker: «come e' possibile che Malen ha solo 5,67 come MVa?».**
+`FM = MV + bonus per appearance`, so one half is predicted and the other falls out - and the sheet derived
+the MV, `engine_fm_pred` (already regressed toward the anchor) minus his own RAW bonus rate, taken whole
+from fifteen votes up. So the whole regression landed on the base vote: 18 votes, a measured MV of **6.75**,
+a column reading **5.67** - below every base vote of his career. It is the defect the comment beside it
+already described for every OTHER rung («deriving it there too would dump the whole regression onto the base
+vote, which is how Kolo Muani first came out at 5.29 against the 6.06 he actually averaged»), committed by
+the one rung that derived. «One number and one derivation» was right and is kept; what was wrong was which
+half. Now the MV is predicted (`est.mv_predict`) and the RATE is what falls out - `fm - mv` is still the
+bonus per appearance the row expects. Every parameter cross-fit on 2092 Serie A and 1708 euro season pairs:
+`MV_BETA` 0.45 / 0.40, **unanimous on 10 folds of 10 and 5 of 5**; `MV_FROM_FM` 0.55, interior; the club's
+level is base vote only in part (`CLUB_MV_SHARE`, and the part is ordered as football says - a solid defence
+is marks, a strong attack is bonus). `SHEET_REVISION` 32, `engine_*` untouched.
+Five things that outlive the column, and four of them are rules this project already had.
+- **A POOLED correlation justifies nothing about an individual.** The reason written in the file for taking
+  his own rate whole was «r = +0.842, far above anything else this project carries season to season». It
+  reproduces to the decimal and it is pooled over the roles: **within the role it is +0.488**, and nearly
+  all the rest is the gap between a keeper at -1.29 and a forward at +0.74. Same lesson as the age channel,
+  met on the parameter that had been adopted by citing it.
+- **The parameter was not mistuned, it was at the EDGE of its grid - and the edge was the worst point.**
+  b = 1 gives MAE 0.2470 against **0.2449 at b = 0**: taking his own rate whole loses to ignoring it
+  entirely, and the optimum at 0.45 is 0.2163. The rule «never adopt a parameter at the edge of its grid»
+  existed; here the edge had never been looked at, because nobody drew the grid.
+- **The operator's football sentence was itself a measurement.** «Chi segna ha sempre o quasi un voto buono»
+  is `r(MV, bonus rate)` = **+0.787** within the role for forwards (+0.79 euro, C +0.63, D +0.50, P +0.28),
+  so subtracting the rate from a fixed FM imposed a slope of **-1** on a relation the data puts at +0.39.
+  When he says a number is impossible, measure the relation he is describing before defending the formula.
+- **A CONTRADICTION is evidence, and it costs no season of waiting.** The base vote is what the two
+  platforms SHARE, so the same man had to read the same MVa on both sheets and did not (Gimenez 5.83 on
+  classic against 7.08 on euro, 46 men of 269 over 0.40). That is a defect provable with no outcome at all;
+  it is now 0.107 of mean gap and 6 men of 269.
+- **And the number that was needed was already in the file.** The replaced block recorded «anchor +
+  b(his - anchor) 0.148 at b = 0.45» and then refused it, for fear of a second free number contradicting
+  the first. Deriving the RATE removes the fear entirely - so the refusal, not the measurement, was the
+  mistake. When a comment says «measured, and refused on purpose», check that the purpose still holds.
+Numbers, the refused channel (his own rate ON TOP of his own base vote: d = 0 on ten folds of ten - the
+population relation is already inside the base vote being read) and the per-sheet verdicts:
+[docs/model/letture-app-v1.md](docs/model/letture-app-v1.md) §15, spec «Novita' v9.59».
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,

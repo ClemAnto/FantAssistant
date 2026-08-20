@@ -823,6 +823,12 @@ dell'altra metà cruda.
    todolist; quello che manca è l'acquisizione, non la strada.
 4. **Coppe da Sofascore** — 403 `challenge` su tutti gli endpoint dal 16/08/2026, dopo una corsa su 93
    club. In attesa, e senza insistere.
+5. **I timepack sono fermi a `SHEET_REVISION` 29** (verificato il 20/08/2026: tutt'e dodici i fogli delle
+   quattro date). Non è un difetto nato con la MVa prevista — erano già vecchi di due revisioni quando il
+   bundle stava a 31 — ma adesso ne sono tre indietro, e la macchina del tempo mostra la MVa **derivata**
+   su quelle date mentre le colonne di oggi mostrano quella prevista: due numeri con lo stesso nome nella
+   stessa app. Si cura con `timepack --all --refresh`, che scrive il DB (quindi va fatto dalla sessione che
+   lo possiede) e che il 19/08 è morto su un lock — la cura è in `db.database.retry_on_lock`.
 
 ---
 

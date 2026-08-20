@@ -1,5 +1,5 @@
 # Stato progetto & continuità — v5
-**Aggiornato: 20 agosto 2026 (il grafico di Fπ non si vedeva MAI: una `computed` che scriveva un signal — vietato in Angular — e una suite dell'app che non compilava da `d7d0fbf`, quindi le prove dichiarate ieri non venivano da una corsa; 317 verdi)** · precedente: 19 agosto 2026, sera (Fπ: una colonna che PRONOSTICA invece di sommare — tre parametri misurati fuori campione, la scala dettata dall'operatore in cinque passaggi, quattro idee respinte, e otto club stranieri archiviati come `serie_a`; `SHEET_REVISION` 31, v0.1.19 pubblicata)** · precedente: 19 agosto 2026 (un vecchio PV non è una previsione di presenze: il gradino `older` regrediva la fantamedia e consegnava le presenze intatte, e l'Overall dell'app è un PRODOTTO — `SHEET_REVISION` 29; e l'attesa sul lock del DB in una definizione sola, con la regola per due sessioni in parallelo)** · precedente: 18 agosto 2026 (le DEFINIZIONI dell'operatore — Overall, Lead, Margine, Bonus — applicate ovunque; UN campetto solo per asta e Squadre, con l'item-posto e i moduli alternativi scritti dal toolkit; tre difetti della tabella misurati in browser)** · precedente: 17 agosto 2026, notte (la coppa continentale in mezzo al campionato: misurata, sul foglio e RESPINTA dal gate; l'app riscritta a voce; il surplus che aveva due aritmetiche)
+**Aggiornato: 20 agosto 2026, notte (LA MVa ERA LA METÀ DERIVATA DELLA COPPIA, ED ERA LA METÀ SBAGLIATA — trovata dall’operatore su due righe del foglio classic: `est_mv` era `engine_fm_pred` (già regredita) meno il suo tasso di bonus GREZZO, quindi tutta la regressione finiva sul voto base e Malen leggeva 5,67 contro i 6,75 misurati. Adesso la MVa è la metà PREVISTA e il tasso è quello che ne esce; tre parametri fuori campione con cross-fit UNANIME, un canale rifiutato come zero dichiarato, e la richiesta dell’operatore («chi segna ha sempre o quasi un voto buono») che era essa stessa una misura: r = +0,787 dentro il ruolo. `SHEET_REVISION` 32, `engine_*` fermo, v0.1.20 pubblicata)** · precedente: 20 agosto 2026 (il grafico di Fπ non si vedeva MAI: una `computed` che scriveva un signal — vietato in Angular — e una suite dell'app che non compilava da `d7d0fbf`, quindi le prove dichiarate ieri non venivano da una corsa; 317 verdi)** · precedente: 19 agosto 2026, sera (Fπ: una colonna che PRONOSTICA invece di sommare — tre parametri misurati fuori campione, la scala dettata dall'operatore in cinque passaggi, quattro idee respinte, e otto club stranieri archiviati come `serie_a`; `SHEET_REVISION` 31, v0.1.19 pubblicata)** · precedente: 19 agosto 2026 (un vecchio PV non è una previsione di presenze: il gradino `older` regrediva la fantamedia e consegnava le presenze intatte, e l'Overall dell'app è un PRODOTTO — `SHEET_REVISION` 29; e l'attesa sul lock del DB in una definizione sola, con la regola per due sessioni in parallelo)** · precedente: 18 agosto 2026 (le DEFINIZIONI dell'operatore — Overall, Lead, Margine, Bonus — applicate ovunque; UN campetto solo per asta e Squadre, con l'item-posto e i moduli alternativi scritti dal toolkit; tre difetti della tabella misurati in browser)** · precedente: 17 agosto 2026, notte (la coppa continentale in mezzo al campionato: misurata, sul foglio e RESPINTA dal gate; l'app riscritta a voce; il surplus che aveva due aritmetiche)
 Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da qui + i file della cartella "Modello Previsionale Fantacalcio".
 *Glossario: T1/T2 = finestre di test (23/24->24/25, 24/25->25/26) · MAE = errore medio assoluto · cross-fitted = parametri stimati su una finestra, testati sull'altra · M2e = modello portieri decomposto (abilità + tasso gol subiti del club; la metà Elo del nome non è nel motore) · Pv_att = presenze attese · fc_id = id fantacalcio.it · EV = valore atteso · scoring_config = punteggi configurabili per lega · xG/xA = expected goals/assists · 2.5 pieno = backtest motore completo con flag.*
 
@@ -7,6 +7,47 @@ Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da q
 App per leghe EuroLeghe/fantacalcio.it (Classic+Mantra, 5 campionati) con motore previsionale. Metodo: ogni regola entra SOLO se batte il baseline fuori campione su finestre indipendenti (gate pre-registrato). Doc madre: modello-previsionale-v3.8.md.
 
 ## ⚠️ Lo stato corrente è in `00-BRIDGE-punto-di-ingresso.md`, blocco «STATO AL 5 AGOSTO 2026»
+
+### 20 agosto 2026, notte — la MVa era la metà DERIVATA della coppia, ed era la metà sbagliata
+
+Aperta da due domande dell'operatore sul foglio classic, che sono la stessa domanda: **«come è possibile
+che Malen ha solo 5,67 come MVa? come è possibile che McTominay ha solo 5,72?»** Nessuno dei due numeri era
+un errore di aritmetica ed entrambi erano falsi.
+
+`est_mv` non veniva stimata, veniva **derivata**: `est_fm` meno il suo tasso di bonus **grezzo**, con
+`est_fm` che per una riga `core` è `engine_fm_pred` — già regredito verso l'ancora — e il tasso preso al
+100% da quindici voti in su. Tutta la regressione della fantamedia finiva sul voto base: Malen 18 voti, MV
+misurata **6,75**, colonna **5,67**, cioè 1,08 sotto il voto base più basso di tutta la sua carriera.
+
+**Adesso la MVa è la metà PREVISTA e il tasso è quello che ne esce.** Resta un numero e una derivazione, e
+`fm − mv` resta il tasso di bonus della riga: cambia soltanto quale metà assorbe la regressione, e sono
+algebricamente la stessa trasformazione. Tre parametri, tutti fuori campione su 2092 coppie Serie A e 1708
+euro, leave-one-season-out: `MV_BETA` 0,45 default / 0,40 euro con cross-fit **unanime** su 10 fold di 10 e
+5 di 5 (e il motore *gated* prevede già il voto base di un portiere con `model.GK_MV_BETA` = 0,40, stessa
+forma arrivata dall'altro lato); `MV_FROM_FM` 0,55 su entrambe, ottimo **interno**; `CLUB_MV_SHARE` P 0,17 ·
+D 0,59 · C 0,44 · A 0,33. Più un canale **rifiutato e scritto come zero**: il suo tasso in aggiunta al suo
+voto base non aggiunge niente (d = 0 su dieci fold di dieci).
+
+Verdetto sui tre fogli rigenerati, MVa contro la MV misurata di ciascuno: errore assoluto medio **0,171 →
+0,085** su classic e **0,189 → 0,100** su euro, r(errore, tasso di bonus) **−0,437 → +0,069** e **−0,291 →
++0,007**, righe sotto il peggior MV di sempre 70 → 46 e 93 → 59. La coerenza che l'operatore ha chiesto,
+come pendenza di MVa su FMa dentro il ruolo: attaccanti **+0,13 → +0,37**, contro un riferimento di
+popolazione di +0,31. E la prova che non serve nessun esito: lo stesso uomo sui due fogli, |scarto| medio
+**0,223 → 0,107**, oltre 0,40 **da 46 a 6** su 269.
+
+`SHEET_REVISION` **32**, `engine_fm_pred` e `engine_pv_pred` identici su tutte le righe (`evaluate.py` non
+importa `estimate.py`), **499 test verdi**, bundle riesportato e **v0.1.20 pubblicata**. Le lezioni durature
+— una correlazione POOLED non giustifica un parametro individuale, il parametro era all'ESTREMO di una
+griglia che nessuno aveva disegnato e l'estremo era il punto peggiore, una contraddizione interna è una
+prova che non costa una stagione — stanno nella root `CLAUDE.md`; i numeri e le forme rifiutate in
+`letture-app-v1.md` §15 e nella spec «Novità v9.59».
+
+**Due cose lasciate aperte e dichiarate**: i **timepack sono a revisione 29** (lo erano già prima di questa
+sessione, quando il bundle stava a 31), quindi la macchina del tempo mostra ancora la MVa vecchia sulle
+quattro date fino a un `timepack --all --refresh`; e `master` è **20 commit avanti** su `origin`, non
+pushato — il push pubblica anche `docs/model/`, quindi è una decisione dell'operatore. Nota di metodo: un'altra
+sessione ha committato `a6de7ff` mentre questa scriveva il DB con `snapshot` ed `export`. È andata liscia,
+ed è esattamente la situazione che la regola «una sola sessione possiede il DB» vuole evitare.
 
 ### 20 agosto 2026 — il grafico che non si vedeva, e le tre verifiche che non potevano vederlo
 
