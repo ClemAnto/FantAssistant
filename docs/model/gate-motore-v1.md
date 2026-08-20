@@ -4702,6 +4702,297 @@ dichiarata arriva dentro `engine/`**: le tre note dell'operatore entrano come fa
 il CHIAMANTE applica sopra, e la firma di `projection()` lo rende impossibile perché non ha di che
 leggerle. La scala è in [letture-app-v1.md](letture-app-v1.md) §14, perché è presentazione e non misura.
 
+## 7-octiestricies. LA FEE: quattro bracci pre-registrati respinti, e uno post-hoc adottato su euro (20 agosto 2026)
+
+Dalla domanda dell'operatore su Kolo Muani: «l'anno scorso ha giocato circa 30 partite col Tottenham e
+mi aspetto almeno 28 partite: perché le partite attese sono solo 20?». Le 20 sono `est_pv` e vengono
+dalla retta all'estero, che legge i **minuti** (1670 su 3420 = 48,8%) e non le presenze — quella scelta è
+misurata in §7-septiestricies (c) — poi rifinita dal canale investimento. Il quale legge il suo **valore
+di mercato al 03/06/2026**, cioè un prezzo che **precede il trasferimento**, perché quella curva si
+aggiorna a trimestri: confrontato coi 30 M di David esce `top` = 0,83, il *secondo* centravanti della
+Juve. La **fee** — 41,2 M, in `transfers_history` da sempre — non la leggeva nessuno, e il progetto
+l'aveva già nominata («the signal that would see them is the FEE») senza mai misurarla.
+
+**Popolazione**, quella di `INVESTMENT_SHARE` e non una più comoda: nessuna stagione su quella
+piattaforma a *t−1*, minuti di lega all'estero a *t−1*, un reparto leggibile, e un esito a *t*. Il
+filtro riproduce **esattamente** il numero di finestre pubblicato allora (6 su default, 4 su euro) con
+n a ±10% (302 contro 259, 534 contro 560): la differenza è il perimetro, `listone_quotes` invece delle
+osservazioni del pannello. Le finestre con fee sono **T0/T1/T2** — tre, perché `transfers_history`
+comincia nel 2023. Cross-fit **leave-one-window-out**, MAE sulla quota di calendario realizzata.
+
+**I QUATTRO BRACCI PRE-REGISTRATI SONO TUTTI CADUTI**, e la pre-registrazione è stata scritta prima di
+guardare un numero:
+
+| braccio | default (57 righe) | euro (148 righe) |
+|---|---|---|
+| la fee al posto del valore dentro `top` | −1,08%, 1/3 | −0,50%, 1/3 |
+| ...più il percentile della fee | −9,76%, 1/3 | −0,68%, 1/3 |
+| il rapporto fee / suo valore | −0,45%, 2/3 | −0,84%, 1/3 |
+
+Le parziali sono positive (+0,235 il rapporto su default, +0,17 su euro) e le correlazioni **grezze
+negative** (−0,058, −0,122): quel poco che c'è è tutto «a parità di quello che si legge già», la stessa
+forma respinta per il passo di livello Elo a +0,08/+0,18. E il fatto più grosso della tabella non è
+usabile: **chi ha una fee pubblicata gioca più di chi non l'ha** (0,542 contro 0,428 su default, 0,565
+contro 0,490 su euro), ma «la fonte ha pubblicato una cifra» è una proprietà della fonte, non una misura
+— e la copertura **cresce** con la finestra (euro 19% → 39% → 54%), la stessa forma di sopravvivenza che
+§7-untricies aveva trovato nella curva dei valori.
+
+**QUELLO CHE PASSA È LA FEE IN RAPPORTO A QUELLO CHE IL CLUB HA SPESO IN TUTTO**, ed è **POST-HOC**: i
+quattro bracci sopra erano caduti, quindi questo è stato guardato dopo aver visto una curva. Si dichiara
+invece di nasconderlo. Due cose lo rendono meno fragile di quanto sembri: il **criterio non è stato
+allargato** (pavimento 0,5%, robusto/strict, cross-fit, tutto invariato — e questo braccio passa
+*strict*), e la forma è **la sola che il progetto avesse scritto prima di oggi**, CLAUDE.md, «the FEE, 54%
+and 27% of what their clubs spent» — la pre-registrazione ha usato la fee grezza, ed è un errore mio.
+
+| | default (57) | euro (148) |
+|---|---|---|
+| quota di spesa, sulle righe con fee | **+4,08%, 3/3** | **+4,30%, 3/3** |
+| ...con la SPESA DEL CLUB nel modello | +3,41%, 3/3 | +2,71%, 3/3 |
+| la sola spesa del club | −1,65%, 1/3 | −0,02%, 2/3 |
+| su TUTTA la popolazione | +1,18% | +1,16% |
+| soglia sulle fee pubblicate 0 / 3 / 5 / 8 | +4,1 · +4,1 · **−0,50** · +1,41 | +4,3 · +6,4 · +5,0 · +6,3 (**3/3 sempre**) |
+
+**I DUE CONTROLLI CHE DECIDONO**, e il primo è la trappola di sempre: il denominatore è la spesa del
+club, quindi una quota alta potrebbe voler dire «il club ha speso poco» e non «hanno speso su di lui» —
+*a difference between two groups is not a virtue of whoever carries it*, quarta volta. Messa la spesa del
+club nel modello come termine suo la quota **sopravvive** su tutt'e due, e la spesa da sola non porta
+niente: parla dell'uomo. Il secondo è che quel denominatore è la somma delle fee che la **fonte** ha
+pubblicato: tenendo solo i club con almeno 5 fee pubblicate euro resta strict a **ogni** punto della
+griglia, e **default crolla** — +4,08% → −0,50%, peggiore finestra −6,66%, togliendo **tre righe su 57**.
+
+**ADOTTATA SU EURO (`INVESTMENT_FEE_WEIGHT` = 0,21) E NON SU DEFAULT (0,0)**, che è l'asimmetria di R19:
+su default la direzione è identica (k = +0,40 contro +0,21) e il valore **non è identificato** su 57
+righe dove tre righe ribaltano il verdetto. Lo zero è una misura, non una prudenza, e si rifà alla quarta
+finestra.
+
+**IL TERMINE È ADDITIVO sopra la retta congelata**, e non un rifit congiunto: è la differenza fra +1,16%
+e **+0,35%** sulla popolazione intera. Rifittare tutti i coefficienti con un termine in più muove anche
+chi la fee non l'ha, e su euro T0 costava −0,86% a gente che non c'entra; così invece chi non ha una fee
+resta identico **per costruzione**, che è come il modulo dice già di comporre.
+
+**Nessuna soglia sulle fee pubblicate, e la ragione è misurata.** La prima versione del conto d'effetto
+guardava il **solo anno d'asta** e leggeva quote di 1,00 — Geubbels, 4,6 M sui 5 M «spesi» dal Lecce,
+**+30 giornate su 38**. Era un artefatto della *mia* finestra, non della fonte: con la finestra che la
+misura usa davvero (da gennaio della stagione di input alla data d'asta, cioè come una rosa si
+costruisce) sul foglio 2026-27 le righe a quota 1,00 sono **zero su 410**, e una soglia toccherebbe 8
+righe. Metterla «per prudenza» avrebbe voluto dire scegliere un punto di griglia guardando i guadagni.
+
+**QUANTO PESA DAVVERO, perché un canale va dichiarato anche quando delude.** Chiamata la funzione vera
+(`snapshot._peer_groups` sul 2026-27 euro): 321 righe di 895 hanno una quota, mediana **0,091**, massimo
+0,545, e le 574 senza fee hanno `fee_share` **None** e non zero. Il massimo effetto sul foglio è **+3,6
+giornate** su 31 (Areso) e la mediana **+0,6**. **Kolo Muani ha una quota di 0,142** — 41,2 M sui 290,7 M
+che la Juventus ha speso in due mercati — e ne guadagnerebbe **+1,0 giornata**, non le otto che mancano
+fra le 20 del foglio e le 28 che l'operatore aspetta; e sul foglio euro **non lo tocca affatto**, perché
+là il core lo prezza (`engine_pv_pred` 17,3) e questo gradino esiste solo dove il core non risponde. *A
+channel that passes need not rescue the case that suggested it*, come il passo di livello con Ramos.
+
+**REPORTING**: si muove `est_pv` del foglio euro e tutto quello che lo moltiplica; `engine_*` non si
+muove di un decimale e `backtest --verify` resta 22/22. `SHEET_REVISION` 33.
+
+**Un difetto della fonte trovato per strada, e vale oltre questa misura**: `season_stats` di **euro
+2021-22 porta `pv` = 0 su tutte le 954 righe** — è il «21/22 vuoto alla fonte» che CLAUDE.md già
+registra, e la fonte scrive **0 e non NULL**. Un harness che legga quella stagione come esito scora 353
+uomini come «non ha mai giocato»; letta come input, nessuno risulta prezzato dal core e l'intero listone
+cade nella popolazione (euro Tm1 a n=807). Le due finestre euro che quel buco costa sono escluse
+guardando la **somma** dei pv e non la presenza delle righe.
+
+## 7-noviestricies. PRE-REGISTRAZIONE (20 agosto 2026) — il cambio squadra è una PENDENZA, e il reparto in cui arriva
+
+Scritta **prima di lanciare il gate**, e nata da due domande dell'operatore: «le partite previste e il
+minutaggio quanto spesso sono uguali alla stagione scorsa quando NON si cambia squadra? e quando si
+cambia?», e «se quando si cambia squadra non possiamo affidarci ai dati della scorsa stagione, dobbiamo
+adottare un'altra strategia».
+
+### Quello che la misura preliminare dice (esito contro esito, non una previsione)
+
+Su 3.865 coppie di stagioni consecutive di Serie A e 3.188 di euro, tenendo **solo chi resta nel
+campionato della piattaforma** — il filtro è necessario: senza di esso 81 movers di 1.095 (e 33 titolari
+di 356) leggono zero perché sono usciti dalla Serie A e non perché hanno perso il posto, e il titolare
+che cambia risultava 0,547 invece di 0,585:
+
+| quota di calendario a *t−1* | resta | cambia |
+|---|---|---|
+| **> 0,70** (default) | 0,848 → **0,715** | 0,848 → **0,585** |
+| **< 0,35** (default) | 0,172 → **0,249** | 0,181 → **0,371** |
+| **> 0,70** (euro) | 0,856 → 0,709 | 0,851 → 0,634 |
+
+Il trasferimento non abbassa tutti: **tira tutti verso il centro**. La persistenza complessiva si dimezza
+(ρ +0,516 → +0,268 su default; minuti +0,548 → +0,326), e la quota entro ±0,10 di calendario passa dal
+44% al 26% per i titolari. La pendenza implicita è **0,649 per chi resta contro 0,255 per chi cambia**
+(euro 0,593 / 0,338), mentre `model.PV_SHARE_COEFFS` ne usa **una sola, 0,50, per tutti** e tratta il
+cambio come una COSTANTE (+0,04 a tutti, titolari compresi).
+
+### Le due regole, autonome e separate
+
+Il gate giudica ogni candidato come `R0 + regola`, quindi ognuna porta la sua retta completa. **Separate
+di proposito** — «una regola = un'ipotesi» — così il verdetto dice quale metà lavora; la combinazione si
+legge in `ALL`.
+
+* **R22** — `quota, (Mv−6,2), cambio, cambio × quota`. Il cambio squadra come pendenza e non come
+  costante. Nessun prezzo dentro.
+* **R23** — `quota, (Mv−6,2), cambio, top, percentile di valore`. Il REPARTO in cui arriva: `top` = il suo
+  valore di mercato diviso quello del compagno più caro che condivide un codice mantra (tappato a 3), e il
+  suo percentile di valore nel listone, entrambi all'ULTIMO punto della curva **entro la data d'asta**.
+
+### Che cosa mi aspetto, scritto prima perché il risultato non possa essere raccontato dopo
+
+1. **R22 passa, e il guadagno cade su chi RESTA, non su chi cambia.** Misurato fuori campione
+   leave-one-season-out: +3,60% su chi resta e **+0,40%** su chi cambia (euro +1,04% / −0,57%). Il motivo
+   è che lo 0,50 in vigore è un compromesso fra due gruppi, e separarli libera la pendenza dei restanti;
+   chi si muove resta imprevedibile (MAE 0,25 contro 0,21) e nessuna pendenza lo cura. Se il gate
+   riportasse il contrario — un guadagno concentrato sui movers — è la misura preliminare a essere
+   sbagliata, non una conferma da festeggiare.
+2. **R23 rende più di R22** (+1,23% sui movers e +4,92% sui restanti su default; +3,22% / +3,55% su euro,
+   robusto o strict) **e va guardato con più sospetto**, perché il percentile di valore è un PREZZO — una
+   opinione di Transfermarkt — dentro un canale gatato. Non ri-litiga §7-quinquies/§7-untricies (là era
+   `presence.standing` su tutto il listone, +0,26%), ma se passa stiamo mettendo un prezzo dove la regola
+   dell'operatore dice «per ultimo». **Se R22 e R23 passano entrambe, si spedisce R22 e R23 si porta a
+   lui con i numeri**: la scelta è sua, non della tabella.
+3. **La copertura di R23 cala indietro nel tempo** e va dichiarata per finestra, non in aggregato:
+   `market_value_history` ha 4.088 righe nel 2016 contro 7.712 nel 2025. Una finestra con copertura sotto
+   il 50% non è evidenza su niente.
+
+### Criteri: quelli di questo documento, non uno nuovo
+
+Dieci finestre Serie A e cinque euro, `backtest` con la cross-fit che già usa, **strict e robusto
+riportati accanto** (pavimento 0,5% sulla media, maggioranza delle finestre, nessuna sotto −2%), bersaglio
+le **presenze**, e le guardie di sempre: FM e VALUE non peggiorano, i nomi e il valore catturato delle
+liste d'asta non peggiorano. Per piattaforma, perché l'evidenza in questo progetto è per piattaforma.
+**Nessuna griglia si allarga dopo aver visto una curva**; se una delle due cade su un criterio, cade.
+
+### IL VERDETTO (20 agosto 2026), e la prima versione non misurava niente
+
+**R23 è adottata, R22 no.** Per piattaforma, come l'evidenza:
+
+| | finestre | media | peggiore | verdetto |
+|---|---|---|---|---|
+| **R23** default/classic | 9 su 10 | **+2,84%** | −0,28% | robusto → adottata |
+| **R23** default/mantra | 9 su 10 | +2,84% | −0,28% | robusto → adottata |
+| **R23** euro/mantra | **5 su 5** | **+3,82%** | +1,71% | passa → adottata |
+| **R23** euro/classic | — | — | — | cade: i nomi d'asta 43 → 42 |
+| **R22** default | 8 su 10 | +1,71% | **−3,97%** | una finestra sotto −2% → no |
+| **R22** euro | 3 su 5 | −0,44% | −15,5% sui movers | contro → no |
+
+Le tre leghe che l'operatore gioca davvero passano o sono robuste. **R22 cade sulla sua stessa
+aspettativa pre-registrata**: il guadagno doveva cadere su chi resta, e su euro la regola PEGGIORA
+proprio i movers (−2,93%, peggiore −15,5%) — cioè la popolazione per cui era stata scritta. La
+pre-registrazione diceva «se il gate riportasse il contrario è la misura preliminare a essere sbagliata»;
+il gate ha riportato il contrario e la regola non si spedisce.
+
+**Il difetto che ha invalidato il primo verdetto, e vale più della regola.** R23 era scritta in fondo alla
+catena `if/elif` di `_rule_pv` con una guardia `share is None`, e nel set adottato R3/R3c rispondono
+prima: nel confronto *sarebbe stata adottata FACENDO NIENTE*, con un guadagno che veniva tutto dal
+fitting degli altri parametri. Riscritta come **correzione additiva a termini centrati sulla media**,
+applicata dopo l'aggiustamento di R19, il gate è stato rifatto da zero. Due abitudini:
+
+* **una regola che passa senza che nessuno abbia visto la sua riga muoversi non ha passato niente** — la
+  guardia è chiedere quante righe cambiano, prima di leggere il guadagno;
+* **due numeri identici alla cifra dopo un cambio di codice sono un artefatto, non una conferma.** Dopo
+  la riscrittura il report portava gli stessi numeri di prima: era il file della corsa precedente
+  (`generated_at` 06:48), perché avevo lanciato `nohup … &` dentro un comando già in background e la
+  notifica descriveva la shell involucro, non il gate.
+
+### Il prezzo dentro un canale gatato, e la decisione dell'operatore
+
+La pre-registrazione avvertiva che il percentile di valore è un PREZZO. **La regola è stata aggiustata da
+lui, il 20/08/2026**: «le quotazioni fantacalcistiche vanno usate solo come ultima spiaggia, i prezzi di
+Transfermarket che non è un valore che già interdipende dalle fantamedie, non è da considerare una
+quotazione fantacalcistica». Misurato invece di decretato — ed è la stessa forma dell'argomento del
+07/08/2026, che riguardava il listone e non Transfermarkt:
+
+| | con la fantamedia di *t−1* | con le presenze di *t−1* | predice le presenze a parità dell'altro prezzo |
+|---|---|---|---|
+| **Qt.I** (listone) | **+0,626** | **+0,502** | +0,255 (default) |
+| **prezzo Transfermarkt** | +0,436 | +0,393 | +0,025 (default) |
+
+Il Qt.I predice la titolarità MEGLIO **proprio perché è circolare**: contiene già l'opinione del suo
+autore su quanto giocherà. Il prezzo di mercato no, e la distinzione dell'operatore è misurata.
+
+Un numero da tenere con la regola: su **default il coefficiente del percentile è −0,0037**, cioè zero —
+tutto l'effetto è `top`, il confronto col compagno più caro che gli disputa il posto. Su euro il
+percentile porta +0,1034. Quindi su Serie A la regola adottata è, di fatto, senza prezzo. `scartiamo
+"solo top" per evitare complicazioni inutili` (sua decisione): una forma sola su tutt'e due le
+piattaforme.
+
+## 7-quadragies. UN NUMERATORE CHE NON SI MUOVE COL SUO DENOMINATORE (20 agosto 2026)
+
+Nato da una domanda dell'operatore su una cosa che gli avevo segnalato io: «dove le presenze salgono, il
+minutaggio a partita scende — quindi sono due parametri da tenere separati?». La risposta è no, e la
+ragione per cui quel comportamento esisteva è un difetto strutturale, non una proprietà del calcio.
+
+### Il difetto
+
+`minutes.start_rate_next` prevede `P(start | presenza)` come
+
+    modelled = presence_share / expected_share
+
+dove il **numeratore** è `presence.presence` (il modello del PANNELLO) e il **denominatore**
+`engine_pv_pred / matchdays_target` (il modello del MOTORE). Sono due modelli, e `presence.py` non importa
+`evaluate`: quindi **ogni regola nuova del motore muove il denominatore e nessuna muove il numeratore**.
+Adottare R23 il giorno prima ha alzato le presenze attese e per costruzione ABBASSATO il minutaggio
+previsto degli uomini a cui le aveva alzate. Nella realtà i due si muovono INSIEME: r = **+0,566** su
+default e **+0,448** su euro fra i due cambi realizzati, e i 671 che hanno giocato molto più spesso
+dell'anno prima sono passati da **55,3' a 66,5'** a presenza.
+
+Il pezzo che mancava esisteva già: **`presence.voto_share` è la risposta dello STESSO modello alla domanda
+del motore** (`sweep.PREDICTORS` mappa «appearances» proprio su di lui). E `presence / voto_share`
+semplifica `availability`, che in `P(start|presenza)` non c'entra: un uomo fragile non è un uomo che
+subentra. Due indizi che il difetto fosse quello, disponibili prima di misurare: il bias del termine di
+modello era **+0,085 / +0,109** — verso l'alto, il verso di un denominatore più corto del numeratore — e
+su euro il calendario di piattaforma è un SOTTOINSIEME di quello del campionato.
+
+### Gli arm, con l'incumbent come punto della griglia
+
+Due manopole nuove in `minutes.Params`, inerti ai default, così ogni braccio passa per la **funzione che
+spedisce** e il confronto muove una cosa per volta: `model_share` (la quota del pannello) e `news_weight`
+(il DISACCORDO fra motore e pannello, col segno che ha nella realtà). Esito = i minuti a presenza
+realizzati della stagione bersaglio, minimo tre presenze, sulle finestre del gate in regime
+**pre-stagione** — i timepack sono datati dopo la quinta giornata e la docstring del modulo registra che
+là il segno si rovescia, quindi sono esclusi e non guardati. Argomenti letti dalle stesse funzioni che
+scrivono le colonne del pannello (`snapshot.titolarita`, `snapshot.propensity`).
+
+| arm | default (6 finestre con dati su 10) | euro (4 su 5) |
+|---|---|---|
+| **A1 coppia coerente** (`model_share`, mix 0,30) | +1,25%, **3 su 6**, peggiore −1,14% | **+1,44%, 4 su 4**, peggiore +0,84% |
+| A2 = A1 + notizia | identico ad A1: **g = 0 su ogni fold** | identico ad A1 |
+| A3 = incumbent + notizia | identico all'incumbent | identico all'incumbent |
+| *(a parte)* solo la mix 0,30 → 0,40 | +0,66%, 6 su 6, peggiore +0,36% | **−0,09%**, 3 su 4 |
+
+**Adottata su euro** (`minutes.COHERENT_PLATFORMS`), **non su default**, dove la maggioranza non c'è. E la
+spaccatura è **l'aspettativa pre-registrata**, col suo meccanismo: su default i due modelli sono
+praticamente d'accordo sulle presenze (scarto medio −0,009, mediana −0,038), quindi non c'è quasi niente
+da riparare e il guadagno ha la taglia del rumore; su euro il motore legge sistematicamente più basso
+(−0,083, mediana −0,106) e il rapporto era gonfio — il bias del tasso scende da **+0,048 a +0,032**. Per
+ruolo su euro nessuno perde: D +1,20% · C +1,46% · A +1,85%. Il numero a schermo si muove di −1,0' in
+media (mediana −2,1', da −11,6' a +16,3'), e su chi arriva da un altro campionato **+1,1'**.
+
+### Il termine «notizia»: misurato e respinto
+
+Il disaccordo fra motore e pannello CORRELA col cambio realizzato di titolarità (+0,162 su default, +0,132
+su euro) e non abbassa l'errore: **ogni fold di tutt'e due le piattaforme sceglie g = 0**. Resta nel file
+a zero come archivio sweepabile della bocciatura. La griglia è **a un lato solo di proposito**: un peso
+NEGATIVO è la direzione perversa che `model_share` esiste per togliere, e cercare un coefficiente col
+segno sbagliato non è misurare.
+
+### Tre cose che restano oltre la manopola
+
+1. **Ho ritirato dei numeri prima di questa misura, ed è la stessa lezione di sempre.** I minutaggi che
+   avevo mostrato all'operatore («55,0' → 53,2'») erano calcolati passando le presenze GREZZE dell'anno
+   scorso come `presence_share`, mentre il pannello passa il suo modello: *verify the FUNCTION, not the
+   column that looks like it*, sesta istanza, e questa volta l'ho commessa io in una risposta a schermo.
+   Il VERSO invece si legge nel codice e non nella misura, e quello era giusto.
+2. **La mix non si è mossa, e la ragione è procedurale.** Sotto A1 il suo ottimo è 0,40 su TUTT'E DUE le
+   piattaforme con minimo interno, vale +0,66% strict su default e −0,09% su euro. La sua griglia era
+   stata rifittata *per rendere onesto il confronto fra gli arm*, non per spostare il parametro: adottarla
+   nella stessa corsa sarebbe decidere dopo aver visto una curva. Va nel seguito pre-registrato, insieme
+   alla forma che MISCELA i due denominatori invece di scegliere (di quella sono stati misurati solo gli
+   estremi, quindi un ottimo interno sarebbe una notizia).
+3. **Sul foglio Serie A questo canale è quasi tutto spento, e non per la piattaforma.** Un uomo che il
+   core non prezza (nessuna stagione in Serie A: Kolo Muani, Stones, Ramos G.) ha `engine_pv_pred` vuoto,
+   quindi `expected_share` è None e il tasso resta la sua misura dell'anno scorso — il termine di modello
+   non entra affatto. Il foglio ha il suo numero, `est_pv`, e il pannello non glielo passa. Non è
+   misurato, quindi non si cambia: è la prossima voce.
+
 ## 8. Casi di regressione (in `model.REGRESSION_CASES`, stampati da `backtest --cases`)
 
 Lewandowski (età/minuti) · Wirtz (cambio lega) · Torres F. (propensione per-90) · Ezzalzouli (nuovo nel

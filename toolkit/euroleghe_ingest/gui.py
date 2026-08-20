@@ -5428,6 +5428,12 @@ class SnapshotView(ttk.Frame):
             _number(row.get("desc_start_share"), None),
             self.presence(row, "season"),
             predicted / rounds if predicted and rounds else None,
+            minutes.DEFAULTS,
+            # ...and OUR OWN answer to the question `engine_pv_pred` answers, where the coherent pair is
+            # adopted (`minutes.COHERENT_PLATFORMS`). Without it the rate divides the panel's numerator by
+            # the engine's denominator, and since `presence.py` does not import `evaluate`, every new
+            # engine rule moved the denominator alone.
+            minutes.model_share_for(self.manifest.get("platform"), self.voto_share(row)),
         )
 
     @staticmethod

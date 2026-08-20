@@ -331,7 +331,37 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      c'era niente da normalizzare. Le due normalizzazioni provate e respinte, con i numeri e con i
 #      nomi che le hanno fatte cadere, stanno in `est.PRESENCE_SHARE_BY_ROLE`.
 #      Si muovono `est_pv` e tutto quello che lo moltiplica; `engine_*` no.
-SHEET_REVISION = 32
+#   33 (20/08/2026) - QUANTO IL CLUB HA PAGATO PER AVERLO, sul totale che ha speso. Dalla domanda
+#      dell'operatore su Kolo Muani: 30 partite col Tottenham, ne aspetta 28, il foglio ne dava 20. La
+#      causa era leggibile e nessuno la leggeva: il canale investimento usa il VALORE DI MERCATO, che per
+#      lui e' del 03/06/2026 e quindi PRECEDE il trasferimento (Transfermarkt aggiorna a trimestri),
+#      mentre la fee - 41,2M - era in `transfers_history` da sempre. Quattro bracci pre-registrati sulla
+#      fee GREZZA sono caduti tutti (-1,1% a -9,8% su default, -0,5% a -0,8% su euro); quello che passa e'
+#      la fee in rapporto alla spesa totale del club, che e' anche la sola forma che il progetto avesse
+#      scritto prima («the FEE, 54% and 27% of what their clubs spent»), ed e' POST-HOC e lo dichiara.
+#      Cross-fit leave-one-window-out su T0/T1/T2 - tre finestre, perche' le fee cominciano nel 2023:
+#      **euro +4,30% 3/3 strict** sulle righe con fee (+1,16% su tutta la popolazione), e regge i due
+#      controlli che decidono - la spesa del club messa nel modello (+2,71%, e da sola la spesa non porta
+#      niente: -0,02%) e la soglia sulle fee pubblicate (strict a 0/3/5/8). Su **default non si adotta**:
+#      stessa direzione (k +0,40 contro +0,21) e valore non identificato, il verdetto si ribalta togliendo
+#      TRE righe su 57. Additivo sopra il numero del gradino precedente, quindi chi non ha una fee resta
+#      identico per costruzione. Pesa poco e va detto: mediana +0,6 giornate su 31, massimo +3,9, e Kolo
+#      Muani ne guadagna +1,0 - non le otto che mancano ai suoi 28. Si muovono `est_pv` del foglio euro e
+#      tutto quello che lo moltiplica; `engine_*` no, e i fogli Serie A non si muovono affatto.
+#   34 (20/08/2026) - R23 ADOTTATA, e il minutaggio della board non e' piu' al rovescio su euro.
+#      R23 (`quota, Mv, cambio, top, percentile`: il REPARTO in cui un uomo arriva, misurato sul compagno
+#      piu' caro che gli disputa il posto) e' robusta su default 9 finestre su 10 (+2,84%) e passa su
+#      euro/mantra 5 su 5 (+3,82%), quindi si muovono `engine_pv_pred` e TUTTO quello che lo moltiplica -
+#      Overall, Lead, Margine, Fantapunti, Fpi. Cade su euro/classic (i nomi d'asta 43 -> 42) e la
+#      decisione e' scritta in chiaro nel gate, §7-noviestricies.
+#      E l'adozione ha reso visibile il difetto accanto: `minutes.start_rate_next` divideva il numeratore
+#      del PANNELLO per il denominatore del MOTORE, e `presence.py` non importa `evaluate` - quindi ogni
+#      regola nuova alzava le presenze e ABBASSAVA per costruzione i minuti previsti a partita, mentre i
+#      due cambi realizzati si muovono insieme (r +0,566 / +0,448). Ora su euro il denominatore e' la
+#      risposta del pannello alla stessa domanda (`presence.voto_share`, +1,44% su 4 finestre su 4,
+#      strict): si muove `minutes_next` dentro `boards.json`, di -1,0' in media e +1,1' su chi arriva da
+#      un altro campionato. Su default non si adotta e non si muove niente (§7-quadragies).
+SHEET_REVISION = 34
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
@@ -2993,6 +3023,26 @@ def _peer_groups(conn, window: features.Window, data_ids, marks: str) -> dict[in
                 (fc_id, frozenset(model.split_roles(roles)), value[fc_id]))
     club_of = {fc_id: club for club, men in squad.items() for fc_id, _codes, _worth in men}
 
+    # ...E QUANTO IL CLUB HA PAGATO PER AVERLO sul totale che ha speso (`est.presences_from_fee`, e la
+    # misura del 20/08/2026 con i quattro bracci respinti sta la'). La FINESTRA DELLE FEE e' la stessa
+    # della misura - da gennaio della stagione di input alla data d'asta, due mercati estivi e due di
+    # gennaio - perche' una rosa si costruisce in piu' di una sessione, e perche' guardare il solo anno
+    # d'asta faceva leggere quote di 1,00 ai club di cui la fonte ha pubblicato una fee sola.
+    since = f"{int(window.input_season[:4])}-01-01"
+    spent: dict[str, float] = {}
+    paid: dict[int, float] = {}
+    for fc_id, to_club, amount in conn.execute(
+            "SELECT fc_id, to_club, fee FROM transfers_history WHERE date <= ? AND date >= ? "
+            "AND fee IS NOT NULL AND fee > 0 ORDER BY date", (window.auction_date, since)):
+        key = matching.club_key(to_club or "")
+        if not key:
+            continue
+        spent[key] = spent.get(key, 0.0) + float(amount)
+        # la fee che conta e' quella del trasferimento verso il club del listone BERSAGLIO, non l'ultima
+        # che la fonte abbia scritto su di lui: un ritorno da prestito porta la stessa data e nessuna cifra.
+        if key == matching.club_key(club_of.get(fc_id) or ""):
+            paid[fc_id] = float(amount)
+
     out: dict[int, dict] = {}
     for fc_id in data_ids:
         mine = value.get(fc_id)
@@ -3018,11 +3068,18 @@ def _peer_groups(conn, window: features.Window, data_ids, marks: str) -> dict[in
             top = (min(est.INVESTMENT_TOP_CAP, mine / max(same)) if same
                    else est.INVESTMENT_TOP_CAP)
             source = "mantra"
+        club_spend = spent.get(matching.club_key(club)) or 0.0
         out[fc_id] = {
             "top": top,
             "value_percentile": sum(1 for worth in ladder if worth < mine) / len(ladder),
             "source": source,
             "rivals": len(weighted) if weighted else len(mates),
+            # None e non zero per chi una fee non l'ha: la fonte non distingue prestito, parametro zero e
+            # cifra non dichiarata, quindi «senza fee» e' IGNOTO e il gradino non deve muoverlo.
+            "fee": paid.get(fc_id),
+            "fee_share": (min(1.0, paid[fc_id] / club_spend)
+                          if fc_id in paid and club_spend else None),
+            "club_spend": club_spend or None,
         }
     return out
 
@@ -3227,6 +3284,16 @@ def _rung_for(obs, prediction, layer: dict, anchors: dict, data,
             peers.get("top"), peers.get("value_percentile"))
         if with_money is not None:
             from_abroad = with_money
+        # ...e infine QUANTO HANNO PAGATO PER AVERLO sul totale speso, che e' l'unico ingrediente fresco
+        # per un uomo appena comprato: la curva dei valori si aggiorna a trimestri, quindi per lui porta
+        # ancora il prezzo di prima del trasferimento. ADDITIVO sopra il numero appena calcolato - senza
+        # fee non aggiunge niente e la riga resta identica - e ZERO su `default`, dove il verdetto si
+        # ribalta togliendo tre righe su 57 (`est.INVESTMENT_FEE_WEIGHT` porta la misura e le due
+        # controprove: la spesa del club nel modello, e la soglia sulle fee pubblicate).
+        with_fee = est.presences_from_fee(
+            calendar, platform, from_abroad / calendar, peers.get("fee_share"))
+        if with_fee is not None:
+            from_abroad = with_fee
 
     def presences(source_pv=None, source_calendar_ratio=1.0, recent_first=False, from_older=None):
         """His presences, if the engine has none: the other calendar's, scaled by the two calendars.

@@ -295,6 +295,88 @@ def presences_from_investment(calendar: int | None, platform: str, abroad_share:
     return round(calendar * min(max(share, 0.0), ABROAD_MAX_SHARE), 1)
 
 
+# ...E QUANTO IL CLUB HA PAGATO PER AVERLO, in rapporto a quello che ha speso in tutto - misurato il
+# 20/08/2026, dalla domanda dell'operatore su Kolo Muani: «l'anno scorso ha giocato circa 30 partite col
+# Tottenham e mi aspetto almeno 28: perche' le partite attese sono solo 20?». Il canale sopra leggeva il
+# suo VALORE DI MERCATO al 03/06/2026, cioe' un prezzo che PRECEDE il trasferimento (quella curva si
+# aggiorna a trimestri), e lo confrontava coi 30M di David: `top` = 0,83, il secondo centravanti della
+# Juve. La fee - 41,2M in `transfers_history` - era in casa e nessuno la leggeva; il progetto l'aveva
+# gia' nominata («the signal that would see them is the FEE») e mai misurata.
+#
+# LA FEE GREZZA NON FUNZIONA, e sono quattro bracci PRE-REGISTRATI tutti respinti: la fee al posto del
+# valore dentro `top` (-1,08% default, -0,50% euro), piu' il percentile della fee (-9,76% / -0,68%), e il
+# rapporto fee/valore (-0,45% / -0,84%), tutti 1-2 finestre su 3. Le parziali sono positive (+0,235 il
+# rapporto su default) e le correlazioni GREZZE negative (-0,058, -0,122), cioe' quel poco che c'e' e'
+# tutto «a parita' di quello che si legge gia'» - la stessa forma che questo progetto ha respinto per il
+# passo di livello Elo a +0,08/+0,18.
+#
+# QUELLO CHE FUNZIONA E' LA FEE IN RAPPORTO A QUELLO CHE IL CLUB HA SPESO IN TUTTO, che e' anche la sola
+# forma il progetto avesse scritto prima di oggi («the FEE, 54% and 27% of what their clubs spent»). E'
+# POST-HOC e si dichiara: i quattro bracci sopra sono caduti prima, quindi questo braccio e' stato
+# guardato dopo aver visto una curva - il criterio NON e' stato allargato (pavimento 0,5%, robusto/strict,
+# cross-fit leave-one-window-out, tutto invariato), ma l'evidenza vale meno di una pre-registrata.
+#
+# CROSS-FIT leave-one-window-out su T0/T1/T2 - TRE finestre, perche' `transfers_history` comincia nel 2023:
+#
+#                                          default (57 righe)      euro (148 righe)
+#   quota di spesa, sulle righe con fee       +4,08%, 3/3            +4,30%, 3/3   STRICT
+#   ...con la SPESA DEL CLUB nel modello      +3,41%, 3/3            +2,71%, 3/3
+#   la sola spesa del club                    -1,65%, 1/3            -0,02%, 2/3   (non e' lei)
+#   su TUTTA la popolazione                   +1,18%                 +1,16%
+#
+# DUE CONTROLLI CHE DECIDONO, e il primo e' la trappola di sempre: il denominatore e' la spesa del club,
+# quindi una quota alta potrebbe voler dire «il club ha speso poco» invece di «hanno speso su di lui» -
+# «a difference between two groups is not a virtue of whoever carries it», quarta volta. Messa la spesa
+# del club nel modello come termine suo, la quota SOPRAVVIVE su tutt'e due (riga 2) e la spesa da sola non
+# porta niente (riga 3): parla dell'uomo. Il secondo e' che quel denominatore e' la somma delle fee che la
+# FONTE ha pubblicato, non quello che il club ha speso: tenendo solo i club con almeno 5 fee pubblicate
+# euro resta strict a ogni soglia della griglia (0/3/5/8: +4,3% · +6,4% · +5,0% · +6,3%, sempre 3/3) e
+# **default crolla** (+4,08% -> -0,50%, peggiore finestra -6,66%) togliendo TRE righe su 57.
+#
+# QUINDI SI ADOTTA SU EURO E NON SU DEFAULT, ed e' la stessa asimmetria di R19: su default la direzione e'
+# identica (k = +0,40 contro +0,21) e il VALORE non e' identificato su 57 righe, dove tre righe ribaltano
+# il verdetto. Da rimisurare quando arriva una quarta finestra, e allora esce senza discutere se peggiora.
+#
+# IL TERMINE E' ADDITIVO SOPRA LA RETTA CONGELATA e non un rifit congiunto, che e' la differenza fra
+# +1,16% e +0,35% sulla popolazione intera: rifittare tutti i coefficienti con un termine in piu' muove
+# anche chi la fee non l'ha, e su euro T0 costava -0,86% a gente che non c'entra. Cosi' invece chi non ha
+# una fee resta identico per costruzione, ed e' come il modulo dice gia' di comporre («un RAFFINAMENTO di
+# quella retta, non un suo sostituto»).
+#
+# NESSUNA SOGLIA sulle fee pubblicate, e la ragione e' misurata e non comoda: la prima versione di questo
+# conto guardava il solo anno d'asta e leggeva quote di 1,00 (Geubbels, 4,6M sui 5M «spesi» dal Lecce,
+# +30 giornate su 38) - un artefatto della MIA finestra, non della fonte. Con la finestra che la misura
+# usa davvero (da gennaio della stagione di input alla data d'asta, cioe' come una rosa si costruisce) sul
+# foglio 2026-27 le righe a quota 1,00 sono **ZERO** su 410, e la soglia toccherebbe 8 righe su 410.
+# Metterla per prudenza avrebbe voluto dire scegliere un punto di griglia guardando i guadagni.
+#
+# QUANTO PESA DAVVERO, perche' un canale va dichiarato anche quando delude: sul foglio 2026-27 la mediana
+# e' **+0,6 giornate** su 31 e il massimo +3,9. Kolo Muani ha una quota di 0,142 (41,2M sui 290,7M che la
+# Juventus ha speso in due mercati) e ne guadagna **+1,0**, non le otto che mancano ai suoi 28 - e su euro
+# non lo tocca affatto, perche' li' il core lo prezza. «A channel that passes need not rescue the case
+# that suggested it», come il passo di livello con Ramos.
+INVESTMENT_FEE_WEIGHT: dict[str, float] = {"default": 0.0, "euro": 0.21}
+
+
+def presences_from_fee(calendar: int | None, platform: str, share: float | None,
+                       fee_share: float | None) -> float | None:
+    """Le presenze corrette da quanto il club ha pagato per lui sul totale che ha speso.
+
+    `share` e' l'USCITA del gradino precedente come quota del calendario - `presences_from_investment` se
+    ha risposto, `presences_from_abroad` altrimenti - e `fee_share` la sua quota della spesa del club.
+    Additivo, per la ragione scritta sopra: senza fee non ha niente da aggiungere e il chiamante tiene il
+    numero che aveva, identico.
+
+    None quando manca un ingrediente o quando la piattaforma pesa zero (default): «vuoto = ignoto», e un
+    peso di zero e' una MISURA - la riga 3 della tabella sopra - non un canale spento per prudenza.
+    """
+    weight = INVESTMENT_FEE_WEIGHT.get(platform)
+    if not calendar or not weight or share is None or fee_share is None:
+        return None
+    moved = share + weight * min(max(fee_share, 0.0), 1.0)
+    return round(calendar * min(max(moved, 0.0), ABROAD_MAX_SHARE), 1)
+
+
 def rivalry(mine: dict[int, float], his: dict[int, float]) -> float:
     """Quanto due uomini si contendono la stessa maglia: l'intersezione dei due profili di posizione.
 

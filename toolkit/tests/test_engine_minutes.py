@@ -110,3 +110,90 @@ def test_the_parameters_are_swept_and_not_frozen():
     hotter = replace(minutes.DEFAULTS, model_mix=1.0)
     one = minutes.per_appearance("C", 2400.0, 30.0, 0.8, 0.3, 0.8, hotter)
     assert one != _predicted(presence_share=0.3)
+
+
+def test_the_incumbent_is_a_point_of_the_grid_and_not_an_alternative_to_it():
+    """`model_share=None` and `news_weight=0` must reproduce the number that ships, to the decimal.
+
+    The two knobs were added to MEASURE the coherent pair (20/08/2026), and a measurement whose baseline
+    is not literally today's function measures two things at once.
+    """
+    assert minutes.DEFAULTS.news_weight == 0.0
+    assert minutes.per_appearance("C", 2400.0, 30.0, 0.8, 0.7, 0.8, minutes.DEFAULTS, None) \
+        == _predicted()
+    assert minutes.start_rate_next(0.7, 0.8, 0.8) == minutes.start_rate_next(0.7, 0.8, 0.8,
+                                                                            minutes.DEFAULTS, None)
+
+
+def test_the_coherent_pair_takes_the_denominator_from_the_panel_and_not_from_the_engine():
+    """One model on both halves of the ratio: `presence.voto_share` answers the engine's own question.
+
+    Adopted on euro alone (+1.44%, 4 windows of 4, strict) and NOT on default, where the two models
+    nearly agree and the gain is noise-sized (3 of 6). Here it is the arithmetic that is pinned: with the
+    panel's share passed, the engine's number stops being the denominator.
+    """
+    with_engine = minutes.start_rate_next(0.5, 0.8, 0.8)
+    with_panel = minutes.start_rate_next(0.5, 0.8, 0.8, minutes.DEFAULTS, 0.6)
+    assert abs(with_engine - (0.30 * (0.5 / 0.8) + 0.70 * 0.8)) < 1e-9
+    assert abs(with_panel - (0.30 * (0.5 / 0.6) + 0.70 * 0.8)) < 1e-9
+    assert with_panel > with_engine
+    # ...and the cap still belongs to the ratio and not to the engine: he cannot start more often than
+    # he plays, whichever model names the appearances
+    assert minutes.start_rate_next(0.7, 0.8, 1.0, minutes.DEFAULTS, 0.6) == 1.0
+
+
+def test_a_rule_that_raises_the_appearances_no_longer_lowers_the_minutes_where_it_is_adopted():
+    """THE DEFECT THIS EXISTS FOR, pinned in both directions because the adoption is per platform.
+
+    `presence.py` does not import `evaluate`, so every engine rule moves the denominator and none of them
+    moves the numerator: adopting R23 on 19/08/2026 raised the appearances of exactly the men whose
+    minutes-per-appearance it then lowered, while the realised changes move TOGETHER (r +0.566 / +0.448).
+    With the panel's own share as the denominator the coupling is gone; on `default`, where the coherent
+    pair has no verdict, it is still there, and that is a measured decision rather than an oversight.
+    """
+    before = _predicted(expected_share=0.60)
+    after = _predicted(expected_share=0.85)
+    assert after < before, "on default the engine's number is still the denominator"
+    paired = [minutes.per_appearance("C", 2400.0, 30.0, 0.8, 0.7, x, minutes.DEFAULTS, 0.75)
+              for x in (0.60, 0.85)]
+    assert paired[0] == paired[1], "with one model on both halves the appearances cannot move it"
+
+
+def test_the_refused_news_term_is_the_engines_disagreement_and_it_weighs_nothing():
+    """Measured and refused: every fold of both platforms picked 0. Kept as the record of the refusal."""
+    hot = replace(minutes.DEFAULTS, news_weight=1.0)
+    assert minutes.start_rate_next(0.7, 0.9, 0.8, hot, 0.75) \
+        > minutes.start_rate_next(0.7, 0.9, 0.8, minutes.DEFAULTS, 0.75)
+    # ...and it needs the panel's share to mean anything: a disagreement has two sides
+    assert minutes.start_rate_next(0.7, 0.9, 0.8, hot) == minutes.start_rate_next(0.7, 0.9, 0.8)
+
+
+def test_a_platform_the_manifest_cannot_name_gets_the_incumbent():
+    """Per-platform adoption, and the fallback is what ships today - never the euro parameter."""
+    assert minutes.model_share_for("euro", 0.62) == 0.62
+    assert minutes.model_share_for("default", 0.62) is None
+    assert minutes.model_share_for(None, 0.62) is None
+    assert minutes.model_share_for("", 0.62) is None
+
+
+def test_the_panel_passes_its_own_share_and_only_where_it_is_adopted():
+    """The measurement judged `minutes.per_appearance`; this is the other half - that the CALLER wires it.
+
+    A defect this project has paid for twice: the flag the parser accepts and the dispatcher drops, and the
+    bundle folder the export writes and the pull does not copy. So the panel is driven, not read.
+    """
+    from euroleghe_ingest.gui import SnapshotView as View
+
+    view = View.__new__(View)
+    view.presence = lambda row, horizon="season": 0.70
+    view.voto_share = lambda row: 0.60
+    row = {"role_classic": "C", "desc_minutes_full_season": "2400", "desc_season_matches": "30",
+           "desc_start_share": "0.8", "engine_pv_pred": "24.8"}
+    view.manifest = {"platform": "euro", "matchdays": {"platform_target": 31}}
+    on_euro = view.minutes_next(row)
+    view.manifest = {"platform": "default", "matchdays": {"platform_target": 31}}
+    on_default = view.minutes_next(row)
+    assert on_euro == minutes.per_appearance("C", 2400.0, 30.0, 0.8, 0.70, 24.8 / 31,
+                                             minutes.DEFAULTS, 0.60)
+    assert on_default == minutes.per_appearance("C", 2400.0, 30.0, 0.8, 0.70, 24.8 / 31)
+    assert on_euro != on_default

@@ -103,9 +103,56 @@ class Params:
     # 0.7, 1.0): the curve is flat between 0 and 0.2 (+7.8/+7.7 against +7.7/+7.7) and falls after, so the
     # interior point is taken rather than the edge, which is this project's own rule about a grid.
     anchor: float = 0.20
+    # How much the ENGINE'S DISAGREEMENT with the panel about the appearances moves the start rate.
+    # MEASURED 20/08/2026 AND REFUSED, and it stays here at zero as the sweepable record of that: grid
+    # (0, 0.1, 0.2, 0.3, 0.5, 0.75, 1.0), cross-fit over the gate's own windows, and EVERY fold of both
+    # platforms picks 0. It was worth trying because the disagreement does correlate with the realised
+    # change in start rate (+0.162 default, +0.132 euro) - it just does not lower the error, which is the
+    # difference between a signal and a term. The grid is one-sided on purpose: a NEGATIVE weight is the
+    # perverse direction `model_share` exists to remove, and looking for a coefficient with the wrong
+    # sign is not measuring, it is fishing.
+    news_weight: float = 0.0
 
 
 DEFAULTS = Params()
+
+# WHERE THE COHERENT PAIR IS ADOPTED, and it is per PLATFORM because the evidence is (20/08/2026,
+# gate §7-quadragies). `start_rate_next` divides the PANEL's starts share by the ENGINE's appearances
+# share - two models, and only the denominator receives the engine's new rules, so adopting R23 the day
+# before LOWERED this forecast for exactly the men it raised the appearances of. `presence.voto_share` is
+# the panel's own answer to the engine's question, so passing it makes the ratio one model's and cancels
+# `availability` on the way: being injury-prone is not being a substitute.
+# Judged on the gate's own windows (pre-season regime - the timepacks are dated after the fifth round and
+# the module's docstring records that the sign flips there), outcome = the realised minutes per appearance
+# of the target season, minimum three appearances, arms varied through THIS function so the incumbent is a
+# point of the grid:
+#
+#   euro     +1.44% mean, 4 windows of 4, worst +0.84%   -> STRICT, adopted
+#   default  +1.25% mean, 3 windows of 6, worst -1.14%   -> no majority, NOT adopted
+#
+# The split was the pre-registered expectation and its mechanism says why: on default the two models
+# nearly agree about the appearances (mean gap -0.009, median -0.038) so there is little to repair and the
+# gain is noise-sized, while on euro the platform's calendar is a SUBSET of the club's championship and
+# the engine reads systematically lower (-0.083, median -0.106) - the ratio was inflated, and the measured
+# bias of the rate falls from +0.048 to +0.032. Per role on euro, no role losing: D +1.20% · C +1.46% ·
+# A +1.85%. The number on the card moves -1.0' on average (median -2.1', from -11.6' to +16.3').
+# TWO PRE-REGISTERED FOLLOW-UPS, written here rather than done now, because both would be a decision taken
+# after seeing a curve: BLEND the two denominators instead of choosing one (only the endpoints have been
+# measured, so an interior optimum would be news); and `model_mix`, whose optimum under the coherent pair
+# is 0.40 on BOTH platforms with an interior minimum - worth +0.66% on default (6 windows of 6, strict) and
+# **-0.09% on euro**. Its grid was re-fitted in that run to make the arm comparison fair and not to move
+# the parameter, and this project has already paid for widening a decision after the fact.
+COHERENT_PLATFORMS: frozenset[str] = frozenset({"euro"})
+
+
+def model_share_for(platform: str | None, model_share: float | None) -> float | None:
+    """The panel's own appearances share, on the platforms where using it as the denominator is adopted.
+
+    A caller that does not know its platform gets None, which is the incumbent: a sheet whose manifest
+    cannot say where it comes from must not be silently given a euro parameter.
+    """
+    return model_share if (platform or "") in COHERENT_PLATFORMS else None
+
 
 # A season's worth of minutes cannot exceed a match, and cannot be nothing at all.
 MAX_MINUTES = 90.0
@@ -113,7 +160,8 @@ MIN_MINUTES = 1.0
 
 
 def start_rate_next(presence_share: float | None, expected_share: float | None,
-                    start_share: float | None, params: Params = DEFAULTS) -> float | None:
+                    start_share: float | None, params: Params = DEFAULTS,
+                    model_share: float | None = None) -> float | None:
     """P(start | appearance) for the season that is coming, or None when a half is missing.
 
     TWO SHARES AND NEVER TWO COUNTS. `presence_share` is a share of his championship's rounds (38) and
@@ -126,18 +174,32 @@ def start_rate_next(presence_share: float | None, expected_share: float | None,
     side with everybody fit» while `engine_pv_pred` predicts real appearances, so claim/quota would be
     inflated by 1/availability. Measured: bias +0.062 against +0.085 on one window - closer, and it is
     still the blend below that does the work.
+
+    TWO MODELS UNDER ONE DIVISION, which is what `model_share` exists to repair. `presence_share` is the
+    PANEL's forecast and `expected_share` the ENGINE's, and `presence.py` does not import `evaluate` - so
+    every new engine rule moves the denominator and none of them moves the numerator, and a rule that
+    raises the appearances lowers this rate by construction. `model_share` is the panel's OWN answer to
+    the engine's question (`presence.voto_share`), which makes the ratio one model's and cancels
+    `availability` - being injury-prone is not being a substitute. `news_weight` then lets the engine's
+    DISAGREEMENT with the panel enter with the sign the realised changes have. Both default to the
+    incumbent, so today's number is a point of the grid rather than an alternative to it.
     """
     if start_share is None:
         return None
     if presence_share is None or not expected_share:
         return start_share
-    modelled = min(1.0, max(0.0, presence_share / expected_share))
-    return params.model_mix * modelled + (1.0 - params.model_mix) * start_share
+    base = model_share if model_share else expected_share
+    modelled = min(1.0, max(0.0, presence_share / base))
+    rate = params.model_mix * modelled + (1.0 - params.model_mix) * start_share
+    if params.news_weight and model_share:
+        rate = min(1.0, max(0.0, rate + params.news_weight * (expected_share - model_share)))
+    return rate
 
 
 def per_appearance(role: str | None, minutes: float | None, matches: float | None,
                    start_share: float | None, presence_share: float | None,
-                   expected_share: float | None, params: Params = DEFAULTS) -> float | None:
+                   expected_share: float | None, params: Params = DEFAULTS,
+                   model_share: float | None = None) -> float | None:
     """The minutes he is expected to play IN A MATCH HE PLAYS, next season. None = unknown, never zero.
 
     It answers a DIFFERENT question from the average it starts from: `minutes / matches` is what he did,
@@ -162,7 +224,7 @@ def per_appearance(role: str | None, minutes: float | None, matches: float | Non
         line = "?"
     if line == "P":
         return measured
-    rate = start_rate_next(presence_share, expected_share, start_share, params)
+    rate = start_rate_next(presence_share, expected_share, start_share, params, model_share)
     if rate is None:
         return measured
     start, sub = START_MINUTES[line], SUB_MINUTES[line]

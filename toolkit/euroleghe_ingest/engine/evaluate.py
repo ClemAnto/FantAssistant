@@ -159,6 +159,16 @@ RULES: tuple[Rule, ...] = (
     Rule("R21", "le presenze attese scendono della quota di stagione che una coppa continentale in "
                 "mezzo al campionato gli porta via, col coefficiente misurato per la sua popolazione",
          True, metric="pv"),
+    # R22/R23 - pre-registrate §7-noviestricies, dalle due domande dell'operatore sulla persistenza.
+    # AUTONOME E SEPARATE di proposito: `compare` giudica ogni candidato come `R0 + regola`, quindi
+    # ognuna porta la sua retta completa, e tenerle divise fa dire al verdetto QUALE metà lavora. La
+    # combinazione si legge in `ALL`.
+    Rule("R22", "il cambio squadra è una PENDENZA sulla quota della stagione scorsa e non una costante: "
+                "misurato 0.65 per chi resta contro 0.26 per chi cambia, contro l'unico 0.50 in vigore",
+         True, metric="pv"),
+    Rule("R23", "il REPARTO in cui arriva entra nelle presenze attese: il suo valore di mercato contro "
+                "il compagno più caro che condivide un codice mantra, e il suo percentile di valore",
+         True, metric="pv"),
 )
 
 #: Quante giornate di PRIOR vale ogni punto della griglia di R20. La chiave è la regola stessa.
@@ -178,7 +188,9 @@ CANDIDATES: tuple[str, ...] = ("R0c", "R1", "R1b", "R2", "R3", "R3c", "R4", "R4b
                                # R21: la coppa continentale in mezzo al campionato (17/08/2026). Il suo
                                # coefficiente è misurato altrove e non si fitta qui; quello che il gate
                                # decide è se applicarlo migliora le presenze previste.
-                               "R21")
+                               "R21",
+                               # R22/R23: pre-registrate §7-noviestricies (20/08/2026).
+                               "R22", "R23")
 
 # R18b - R18 with the history weighted for RECENCY, pre-registered on 10/08/2026 with this grid and no
 # other. One candidate name per decay so the report states the whole grid instead of a chosen value, and
@@ -331,7 +343,22 @@ ADOPTED: dict[str, tuple[str, ...]] = {
     # disaccordo fra guardie invece di scegliere il numero che passa dove si guarda.
     # INERTE su ogni finestra pre-stagione, quindi non muove un decimale dei numeri pubblicati né dei
     # fogli d'agosto: agisce solo dove esiste la domanda, cioè a stagione iniziata.
-    "euro": ("R0c", "R3c", "R18", "R20K6"),
+    # R23 adottata il 20/08/2026 su TUTT'E DUE le piattaforme, ed è la prima volta che un prezzo entra in
+    # un canale gatato. Il gate: 5/5 finestre su euro (media +4,1%, peggiore +1,3%) e 10/10 su Serie A
+    # (+5,6%, peggiore +0,2%), FM e VALUE intatte, i nomi d'asta in AUMENTO (43 → 47 su euro, 138 → 149 su
+    # Serie A). `passes` True su tutt'e quattro le combinazioni, che nessuna delle due letture contesta.
+    # PERCHÉ NON VIOLA «la quotazione va per ultima», e la distinzione è dell'operatore (20/08/2026):
+    # quella regola vive su un argomento preciso - il Qt.I non è un valore oggettivo, contiene già
+    # l'opinione del suo autore sulla titolarità, quindi prevedere la titolarità con lui è circolare - e
+    # quell'argomento riguarda il LISTONE. Il prezzo Transfermarkt è un'altra cosa, e non per decreto:
+    # misurato, il Qt.I correla +0,626 con la fantamedia di t-1 e +0,502 con le sue presenze, contro
+    # +0,436 e +0,393 del prezzo di mercato (euro +0,566/+0,427 contro +0,355/+0,283). Il Qt.I predice
+    # anche MEGLIO - +0,255 contro +0,025 su default, a parità di tutto il resto - e quello è esattamente
+    # ciò che lo rende inammissibile e non ciò che lo rende buono. R23 non legge il Qt.I in nessuna forma.
+    # R22 NON è adottata, e non per un pelo: su euro è robusta e PEGGIORA proprio chi cambia squadra
+    # (-2,93%, 3/5, peggiore finestra -15,5%), che è la popolazione per cui era stata scritta; su Serie A
+    # ha una finestra a -3,97%, fuori dalla tolleranza del 2%. Dettagli in gate §7-noviestricies.
+    "euro": ("R0c", "R3c", "R18", "R20K6", "R23"),
     # R19 is the FIRST rule here adopted on the ROBUST verdict alone, and it is written down as such.
     # Decision taken in the open on 06/08/2026, which is what the protocol asks for when the two verdicts
     # disagree. What it rests on: 9 of the 10 Serie A windows improve (the tenth costs 1.5%, inside the 2%
@@ -343,7 +370,9 @@ ADOPTED: dict[str, tuple[str, ...]] = {
     # NOT on euro, and that is not caution but measurement: 0 windows of 5, mean -1.1%, and on mantra the
     # auction names fall 152 -> 145, outside the no-harm allowance. Adoption is per platform because the
     # evidence is.
-    "default": ("R3", "R7", "R13", "R19", "R20K10"),
+    # R23 anche qui, con l'evidenza più forte delle due (10 finestre su 10). Vedi la nota su euro sopra
+    # per la ragione per cui un prezzo di mercato non è una quotazione fantacalcistica.
+    "default": ("R3", "R7", "R13", "R19", "R20K10", "R23"),
 }
 # What the corrected criteria changed, and why the list is shorter than it was:
 # * accuracy rules are judged on the players they MOVE, with a 0.5% floor. That made R4 and R10 much
@@ -664,6 +693,8 @@ class Params:
     share_euro: tuple[float, ...] | None = None   # R3c: minutes on the euro rounds
     share_persistence: tuple[float, ...] | None = None   # R15: availability persistence
     share_both: tuple[float, ...] | None = None          # R3d: euro minutes + the pattern
+    share_slope: tuple[float, ...] | None = None   # R22: il cambio squadra come PENDENZA sulla quota
+    share_peers: tuple[float, ...] | None = None   # R23: il reparto in cui arriva
     penalty_lam: float | None = None              # R6: penalty duty
     elo_lam: float | None = None                  # R5: club-strength anchor shift
     budget_lam: float | None = None               # R16: club goal budget x his share
@@ -867,6 +898,57 @@ def fit_params(data: features.WindowData, rules: tuple[str, ...]) -> Params:
                    and obs.persistence_prev is not None and obs.role_classic != "P"]
         params.share_persistence = fit_linear(samples)
         params.notes["R15_n"] = len(samples)
+
+    # R22 - il cambio squadra come PENDENZA e non come costante. Stessa popolazione della retta base, un
+    # termine in più: `cambio x quota`. Il termine costante RESTA - l'ipotesi è che la pendenza cambi,
+    # non che il livello non conti - così il verdetto riguarda l'interazione e nient'altro.
+    if "R22" in rules:
+        samples = [((obs.share_prev(data.matchdays_prev), _mv_term(obs),
+                     1.0 if obs.club_change else 0.0,
+                     (1.0 if obs.club_change else 0.0) * obs.share_prev(data.matchdays_prev)),
+                    obs.pv_act / matchdays)
+                   for obs in data.observations
+                   if obs.pv_prev is not None and obs.pv_act is not None and obs.role_classic != "P"]
+        params.share_slope = fit_linear(samples)
+        params.notes["R22_n"] = len(samples)
+        movers = sum(1 for obs in data.observations
+                     if obs.pv_prev is not None and obs.pv_act is not None
+                     and obs.role_classic != "P" and obs.club_change)
+        params.notes["R22_movers"] = movers
+
+    # R23 - il REPARTO in cui arriva, come CORREZIONE ADDITIVA e non come retta che ne sostituisce
+    # un'altra. La prima versione era una retta completa in coda alla catena, e sarebbe stata adottata
+    # facendo NIENTE: nel set adottato R3 (o R3c) risponde prima e la guardia `share is None` la spegneva.
+    # È la famiglia «un flag che il parser accetta e il dispatcher butta», stavolta dentro il motore - e
+    # l'unico modo di vederla era chiedersi quale ramo risponde quando la regola viaggia coi suoi
+    # compagni, non da sola.
+    # Additiva, quindi COMPONE: si somma a qualunque quota la catena abbia prodotto - quella di R3, di
+    # R3c o di B0 - e la misura resta leggibile perché il gate valuta la configurazione che spedisce.
+    # I due termini sono CENTRATI sulla loro media di finestra: senza centrarli la correzione sposterebbe
+    # il livello di tutti, cioè rifarebbe il lavoro dell'intercetta che la catena ha già fatto.
+    # La copertura è il punto debole dichiarato in pre-registrazione (`market_value_history` ha 4.088
+    # righe nel 2016 contro 7.712 nel 2025), quindi si REGISTRA per finestra: una piega con copertura
+    # bassa non è evidenza, e un aggregato la nasconderebbe.
+    if "R23" in rules:
+        eligible = [obs for obs in data.observations
+                    if obs.pv_prev is not None and obs.pv_act is not None and obs.role_classic != "P"]
+        readable = [obs for obs in eligible
+                    if obs.peer_top is not None and obs.value_percentile is not None]
+        if readable:
+            mean_top = sum(obs.peer_top for obs in readable) / len(readable)
+            mean_pct = sum(obs.value_percentile for obs in readable) / len(readable)
+            # il residuo di B0, che è una base FISSA e non dipende da quali altre regole sono accese:
+            # così i due coefficienti significano la stessa cosa in ogni configurazione.
+            samples = [((obs.peer_top - mean_top, obs.value_percentile - mean_pct),
+                        obs.pv_act / matchdays
+                        - model.expected_share(obs.share_prev(data.matchdays_prev),
+                                               obs.mv_prev if obs.mv_prev is not None else 0.0,
+                                               obs.club_change))
+                       for obs in readable]
+            fitted = fit_linear(samples, intercept=False)
+            params.share_peers = (mean_top, mean_pct, *fitted) if fitted else None
+        params.notes["R23_n"] = len(readable)
+        params.notes["R23_coverage"] = (round(len(readable) / len(eligible), 3) if eligible else None)
 
     if "R7" in rules:
         samples = [((obs.share_prev(data.matchdays_prev), 1.0 if obs.club_change else 0.0),
@@ -1445,6 +1527,16 @@ def _rule_pv(obs: features.Observation, data: features.WindowData, rules: tuple[
         if intensity is not None and availability is not None:
             share = model.linear_share(params.recent_share, (intensity, availability))
 
+    # R22 sta in CODA e porta una retta completa: messa in testa spegnerebbe R3/R3c in una corsa `ALL`,
+    # cioè toglierebbe i minuti, che sono adottati. Da sola (`R0 + regola`, come il gate la giudica)
+    # nessun ramo sopra è attivo e risponde lei.
+    if (share is None and "R22" in rules and params.share_slope and obs.pv_prev is not None
+            and not _is_goalkeeper(obs)):
+        moved = 1.0 if obs.club_change else 0.0
+        share = model.linear_share(params.share_slope,
+                                   (obs.share_prev(data.matchdays_prev), _mv_term(obs),
+                                    moved, moved * obs.share_prev(data.matchdays_prev)))
+
     if share is None and "R0c" in rules and obs.pv_prev is None and params.mean_share is not None:
         share = params.mean_share
 
@@ -1471,6 +1563,16 @@ def _rule_pv(obs: features.Observation, data: features.WindowData, rules: tuple[
         z_level = derived.level_z.get(obs.fc_id)
         if z_level is not None:
             share += params.level_lam * z_level
+    # R23 - IL REPARTO IN CUI ARRIVA, come correzione additiva su qualunque quota la catena abbia
+    # prodotto. Sta qui e non fra i rami che SOSTITUISCONO la quota per la ragione scritta in
+    # `fit_params`: da lì, nel set adottato, non sarebbe mai stata raggiunta.
+    # «Vuoto = ignoto»: senza un valore di mercato leggibile la regola TACE e la catena risponde da sé,
+    # invece di far entrare uno zero travestito da misura in un canale gatato.
+    if ("R23" in rules and params.share_peers and obs.peer_top is not None
+            and obs.value_percentile is not None and not _is_goalkeeper(obs)):
+        mean_top, mean_pct, on_top, on_value = params.share_peers
+        share += (on_top * (obs.peer_top - mean_top)
+                  + on_value * (obs.value_percentile - mean_pct))
     if "R17" in rules and params.crowding_lam is not None:
         baseline_rules = tuple(rule for rule in rules if rule in SHARE_REPLACING or rule == "R0")
         crowding_x = _crowding_features(data, baseline_rules, params, derived)

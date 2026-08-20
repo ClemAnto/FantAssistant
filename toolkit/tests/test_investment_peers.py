@@ -123,3 +123,58 @@ def test_i_quattro_ruoli_pesati_ridanno_l_aggregato_in_vigore():
         shares = est.PRESENCE_SHARE_BY_ROLE["unmeasured"][platform]
         weighted = sum(shares[role] * n for role, n in sizes.items()) / sum(sizes.values())
         assert abs(weighted - est.PRESENCE_SHARE["unmeasured"][platform]) < 0.03, platform
+
+
+def test_la_fee_non_muove_chi_non_ce_l_ha():
+    """La ragione per cui il gradino e' ADDITIVO e non un rifit congiunto.
+
+    Rifittare tutti i coefficienti con un termine in piu' muove anche chi la fee non l'ha, e su euro T0
+    costava -0.86% a gente che non c'entra: e' la differenza fra +1.16% e +0.35% sulla popolazione intera.
+    Senza `fee_share` il gradino torna None e il chiamante tiene il numero che aveva, IDENTICO - «vuoto =
+    ignoto», non uno zero e nemmeno un ritocco.
+    """
+    assert est.presences_from_fee(31, "euro", 0.5, None) is None
+    assert est.presences_from_fee(31, "euro", None, 0.3) is None
+    assert est.presences_from_fee(0, "euro", 0.5, 0.3) is None
+
+
+def test_su_default_il_peso_e_zero_e_quello_e_una_misura():
+    """Non e' un canale spento per prudenza: su default il verdetto si ribalta togliendo TRE righe su 57
+    (+4.08% -> -0.50%, peggiore finestra -6.66%, tenendo i club con almeno 5 fee pubblicate), quindi la
+    direzione c'e' - k = +0.40 contro il +0.21 di euro - e il valore non e' identificato. Lo zero e' la
+    riga 3 della tabella in `INVESTMENT_FEE_WEIGHT`, e il giorno che arriva una quarta finestra si rifa'.
+    """
+    assert est.INVESTMENT_FEE_WEIGHT["default"] == 0.0
+    assert est.presences_from_fee(38, "default", 0.5, 0.4) is None, (
+        "un peso di zero non deve restituire un numero: il chiamante terrebbe lo stesso valore, "
+        "ma una riga che dice «ho applicato il canale» sarebbe falsa")
+    assert est.INVESTMENT_FEE_WEIGHT["euro"] > 0.0
+
+
+def test_la_fee_alza_in_proporzione_e_non_sfonda_il_calendario():
+    """Monotona nella quota di spesa, e tappata al calendario: la quota e' fra 0 e 1 per costruzione
+    (una fee non puo' essere piu' del totale che la contiene), ma un ingrediente sporco non deve poter
+    produrre 34 giornate su 31 - lo stesso tappo che `presences_from_abroad` mette sul suo ingresso.
+    """
+    base = 0.55
+    small = est.presences_from_fee(31, "euro", base, 0.10)
+    big = est.presences_from_fee(31, "euro", base, 0.50)
+    assert small is not None and big is not None
+    assert round(31 * base, 1) < small < big <= 31
+    assert est.presences_from_fee(31, "euro", 0.98, 0.90) == 31, "tappato al calendario"
+    assert est.presences_from_fee(31, "euro", base, 0.0) == round(31 * base, 1), (
+        "quota zero e' «il club non ha speso su di lui», e non muove niente")
+
+
+def test_il_caso_che_ha_aperto_tutto_pesa_poco_e_va_detto():
+    """Kolo Muani: 41,2M sui 290,7M che la Juventus ha speso in due mercati = quota 0.142.
+
+    Il test esiste per fermare l'aspettativa, non l'aritmetica: il canale gli da' circa UNA giornata, non
+    le otto che mancano fra le 20 del foglio e le 28 che l'operatore aspetta. «A channel that passes need
+    not rescue the case that suggested it», come il passo di livello con Ramos.
+    """
+    share_before = 20.2 / 38
+    gained = est.presences_from_fee(31, "euro", share_before, 41.2 / 290.65)
+    assert gained is not None
+    assert 0.5 <= gained - round(31 * share_before, 1) <= 2.0, (
+        f"atteso circa +1 giornata, letto {gained - round(31 * share_before, 1):+.1f}")

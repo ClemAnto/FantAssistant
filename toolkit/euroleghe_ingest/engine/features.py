@@ -88,6 +88,11 @@ WINDOWS: dict[str, Window] = {
 # comparison against the documents stays pinned to them however many windows exist.
 PUBLISHED_WINDOWS: tuple[str, ...] = ("T1", "T2")
 
+# Oltre il triplo del compagno più caro del suo reparto la differenza non dice più niente: un tappo, non
+# una taratura. È lo stesso valore di `estimate.INVESTMENT_TOP_CAP`, ripetuto qui perché questo modulo
+# non importa `estimate` - e un test lega i due, così non possono divergere in silenzio.
+PEER_TOP_CAP: float = 3.0
+
 # LE FINESTRE IN-SEASON: l'asta giocata a stagione iniziata (gate §7-duotricies).
 #
 # TENUTE FUORI da `WINDOWS` di proposito. Sono un esercizio DIVERSO - si prevede il resto della stagione,
@@ -268,6 +273,15 @@ class Observation:
     cup_conf: str | None = None
     cup_capped: bool = False
     cup_at_risk: float = 0.0
+    # IL REPARTO IN CUI ARRIVA (R23, pre-registrata §7-noviestricies): il suo valore di mercato diviso
+    # quello del compagno più caro che condivide un codice mantra, e il suo percentile di valore nel
+    # listone - entrambi all'ultimo punto della curva ENTRO la data d'asta, quindi leggibili quel giorno.
+    # È lo stesso conto che `snapshot._peer_groups` fa per il ripiego, portato dove il gate lo raggiunge:
+    # là esiste solo per gli uomini che il core non prezza, e la misura preliminare dice che rende di più
+    # su quelli che prezza. `peer_top` senza compagni leggibili è il TAPPO e non uno zero - un uomo solo
+    # nel suo ruolo è il massimo che questa grandezza sappia dire - mentre None è «non ha un valore».
+    peer_top: float | None = None
+    value_percentile: float | None = None
     # actual outcome - SCORING ONLY, never an input.
     # Su una finestra IN-SEASON queste tre sono le giornate DOPO la data d'asta e non il totale di
     # stagione: l'esito conterrebbe altrimenti le giornate che il modello ha appena letto, e ricopiarle
@@ -1188,6 +1202,35 @@ def load(conn: sqlite3.Connection, window: Window, platform: str,
                 in conn.execute("SELECT fc_id, type, tier, origin_league, foreign_fm_equiv "
                                 "FROM arrivals WHERE season = ? AND platform = ?",
                                 (window.target_season, platform))}
+    # IL REPARTO IN CUI ARRIVA (R23): valore di mercato all'ultimo punto della curva ENTRO la data d'asta,
+    # il percentile in quel listone, e il rapporto col compagno più caro che condivide un codice mantra.
+    # Lo stesso conto di `snapshot._peer_groups`, portato dove il gate lo raggiunge - e con la stessa cura
+    # che il reparto sia definito dai CODICI e non dal macro-ruolo, che metterebbe insieme ali e
+    # centravanti (misurato −0,6% su default quando quel canale fu adottato).
+    peer_top: dict[int, float] = {}
+    value_percentile: dict[int, float] = {}
+    values = {fc_id: float(worth) for fc_id, worth in conn.execute(
+        "SELECT fc_id, value FROM market_value_history m WHERE observed_on <= ? AND value IS NOT NULL "
+        "AND observed_on = (SELECT MAX(observed_on) FROM market_value_history x "
+        "WHERE x.fc_id = m.fc_id AND x.observed_on <= ?)",
+        (window.auction_date, window.auction_date))}
+    if values:
+        ladder = sorted(values.values())
+        squads: dict[str, list[tuple[int, frozenset, float]]] = {}
+        for fc_id, club, roles_raw in conn.execute(
+                "SELECT r.fc_id, c.canonical_name, r.roles FROM rosters r JOIN clubs c "
+                "ON c.fc_club_id = r.fc_club_id WHERE r.season = ? AND r.role_classic IS NOT NULL",
+                (window.target_season,)):
+            if fc_id in values:
+                squads.setdefault(club, []).append(
+                    (fc_id, frozenset(split_roles(roles_raw)), values[fc_id]))
+        for men in squads.values():
+            for fc_id, codes, mine in men:
+                rivals = [worth for other, theirs, worth in men if other != fc_id and (codes & theirs)]
+                # senza rivali leggibili il TAPPO, non uno zero: è il massimo che la grandezza sappia dire
+                peer_top[fc_id] = min(PEER_TOP_CAP, mine / max(rivals)) if rivals else PEER_TOP_CAP
+                value_percentile[fc_id] = sum(1 for worth in ladder if worth < mine) / len(ladder)
+
     elo_date = conn.execute("SELECT MAX(date) FROM club_elo WHERE date <= ?",
                             (window.auction_date,)).fetchone()[0]
     elo = {club: value for club, value in conn.execute(
@@ -1326,6 +1369,7 @@ def load(conn: sqlite3.Connection, window: Window, platform: str,
             # a player who arrived himself is not his own competition
             same_role_arrivals=max(0, competition.get((club_target or "", role_classic or ""), 0)
                                    - (1 if fc_id in arrived else 0)),
+            peer_top=peer_top.get(fc_id), value_percentile=value_percentile.get(fc_id),
             starter_prob=starters.get(fc_id), penalty_rank=rank, penalty_confidence=confidence,
             pv_seen=seen_totals.get(fc_id, 0 if seen_rounds else None),
             # Su una finestra in-season l'esito è il RESTO della stagione; su una pre-stagione resta il

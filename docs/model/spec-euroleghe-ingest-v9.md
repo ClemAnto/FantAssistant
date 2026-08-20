@@ -495,6 +495,93 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.61 (20 agosto 2026 — R23 adottata, e un numeratore che non si muoveva col suo denominatore)
+
+Due cose nate dalla stessa domanda dell'operatore su Kolo Muani, e la seconda è un difetto che la prima
+ha reso visibile.
+
+### R23: il reparto in cui arriva
+
+`quota, (Mv−6,2), cambio, top, percentile di valore`, dove `top` è il suo valore di mercato diviso quello
+del compagno più caro che gli disputa il posto (tappato a 3) e il percentile è quello del listone, entrambi
+all'ULTIMO punto della curva **entro la data d'asta**. **Adottata**: robusta su default/classic e
+default/mantra (9 finestre su 10, +2,84%, peggiore −0,28%), passa su euro/mantra (5 su 5, +3,82%, peggiore
++1,71%), cade su euro/classic (i nomi d'asta 43 → 42). **R22 no** — cade sulla sua stessa aspettativa
+pre-registrata: il guadagno doveva cadere su chi RESTA, e su euro peggiora proprio i movers (−2,93%). Su
+default il coefficiente del percentile è **−0,0037**, cioè zero: là la regola è di fatto senza prezzo.
+La regola dell'operatore sulle quotazioni è stata **aggiustata da lui** e verificata: il Qt.I correla
++0,626 con la fantamedia di *t−1* e +0,502 con le presenze, contro +0,436 / +0,393 di Transfermarkt, e
+predice la titolarità meglio (+0,255 contro +0,025) **proprio perché è circolare**. Dettagli, e il difetto
+che ha invalidato il primo verdetto (R23 sarebbe stata adottata FACENDO NIENTE, in fondo a una catena
+`if/elif` dove R3 risponde prima): gate §7-noviestricies.
+
+### `minutes.start_rate_next`: due modelli sotto una divisione
+
+Il tasso di titolarità dell'anno che viene era **numeratore del pannello diviso denominatore del motore**
+(`presence.presence` / `engine_pv_pred`), e `presence.py` non importa `evaluate`: quindi ogni regola nuova
+del motore muoveva il denominatore e nessuna il numeratore. Adottare R23 alzava le presenze attese e per
+costruzione ABBASSAVA i minuti previsti a partita degli uomini a cui le aveva alzate — mentre nella realtà
+i due si muovono insieme (r +0,566 su default, +0,448 su euro; i 671 che hanno giocato molto più spesso
+sono passati da 55,3' a 66,5' a presenza).
+
+Il pezzo che mancava c'era già: **`presence.voto_share` è la risposta dello STESSO modello alla domanda del
+motore**, e il rapporto fra i due semplifica `availability` — un uomo fragile non è un uomo che subentra.
+Passarlo come denominatore (`minutes.model_share_for`, per piattaforma) vale **+1,44% su euro, 4 finestre
+su 4, peggiore +0,84%**, con il bias del tasso da +0,048 a +0,032 e nessun ruolo che perde; su **default
+non si adotta** (3 finestre su 6), e la spaccatura è l'aspettativa pre-registrata: là i due modelli sono
+d'accordo (scarto mediano −0,038 contro −0,106 su euro, dove il calendario di piattaforma è un
+sottoinsieme). Il termine che avrebbe fatto SALIRE i minuti con le presenze è stato misurato e **respinto**
+— g = 0 su ogni fold, pur correlando +0,162 col cambio realizzato. Numeri, i due seguiti pre-registrati
+(la mix, il cui ottimo interno è 0,40 su entrambe le piattaforme, e la forma che miscela i denominatori) e
+la voce che resta aperta (sul foglio Serie A un uomo che il core non prezza non ha `engine_pv_pred`, quindi
+il termine di modello non entra affatto: il foglio ha `est_pv` e il pannello non glielo passa):
+gate §7-quadragies.
+
+**Ritirati dei numeri per farla.** I minutaggi mostrati all'operatore un'ora prima erano calcolati passando
+le presenze GREZZE dell'anno scorso dove il pannello passa il suo modello: *verify the FUNCTION, not the
+column that looks like it*, e questa volta in una risposta a schermo invece che in un audit.
+
+## Novità v9.60 (20 agosto 2026 — la FEE: quanto il club ha pagato sul totale che ha speso)
+
+**Domanda dell'operatore su Kolo Muani**: «l'anno scorso ha giocato circa 30 partite col Tottenham e mi
+aspetto almeno 28 partite: perché le partite attese sono solo 20?». Le 20 sono `est_pv`, e la catena che
+le produce era leggibile fino in fondo: la retta all'estero legge i **minuti** (1670 su 3420 = 48,8%, con
+21 presenze da titolare su 30 e 55,7 minuti a presenza) e non le partite — scelta misurata, le presenze
+al posto dei minuti fanno −0,7% e −6,9% — poi il canale investimento la rifinisce leggendo il suo
+**valore di mercato al 03/06/2026**, che **precede il trasferimento** perché quella curva si aggiorna a
+trimestri. Confrontato coi 30 M di David: `top` = 0,83, il *secondo* centravanti della Juve. La **fee**,
+41,2 M, era in `transfers_history` e nessun percorso la leggeva.
+
+**Che cosa cambia.** `est.presences_from_fee` + `est.INVESTMENT_FEE_WEIGHT`, un gradino **additivo** sopra
+`presences_from_investment`: `+ peso × (fee / tutto quello che il club ha speso)`. `_peer_groups` porta
+`fee`, `fee_share` e `club_spend`, con la **finestra delle fee uguale a quella della misura** — da gennaio
+della stagione di input alla data d'asta, cioè due mercati estivi e due di gennaio, perché una rosa si
+costruisce in più di una sessione. Chi una fee non l'ha porta `fee_share` **None e non zero**: la fonte non
+distingue prestito, parametro zero e cifra non dichiarata. `SHEET_REVISION` **33**; si muove `est_pv` del
+foglio euro e tutto quello che lo moltiplica, `engine_*` no, `backtest --verify` resta 22/22.
+
+**Adottata su euro (0,21) e non su default (0,0)**, e i numeri con i due controlli che decidono stanno in
+[gate-motore-v1.md](gate-motore-v1.md) §7-octiestricies. In sintesi: quattro bracci **pre-registrati** sulla
+fee grezza tutti respinti; la fee in rapporto alla spesa del club fa **+4,30% 3/3 strict** su euro (+1,16%
+su tutta la popolazione) e regge sia la spesa del club messa nel modello sia la soglia sulle fee
+pubblicate, mentre su **default il verdetto si ribalta togliendo tre righe su 57**. Braccio **post-hoc** e
+lo dichiara.
+
+**Tre cose che valgono oltre questa voce.** *Un denominatore può essere una proprietà della FONTE e non del
+club*: la prima versione del conto d'effetto guardava il solo anno d'asta e leggeva quote di 1,00 (Geubbels,
+4,6 M sui 5 M «spesi» dal Lecce, +30 giornate) — un artefatto della finestra, e con quella giusta le righe a
+quota 1,00 sono **zero su 410**. *Un termine additivo non è la stessa cosa di un rifit congiunto*: +1,16%
+contro +0,35% sulla popolazione intera, perché rifittare muove anche chi la fee non l'ha. E *`season_stats`
+di euro 2021-22 porta `pv` = 0 su tutte le 954 righe* — la fonte scrive 0 e non NULL, quindi una finestra si
+esclude guardando la **somma** dei pv e non la presenza delle righe, o 353 uomini vengono scorati come «non
+ha mai giocato».
+
+**Non risolve il caso da cui nasce, e va detto**: Kolo Muani ha una quota di 0,142 (41,2 M sui 290,7 M
+spesi dalla Juventus) e ne guadagnerebbe **+1,0 giornata**; sul foglio euro non lo tocca affatto, perché là
+il core lo prezza. Le 28 partite che l'operatore aspetta sono un giudizio che nessun canale misurato
+raggiunge — e per la **titolarità** un canale dichiarato oggi non esiste (`board_rulings.json` è il modulo,
+`player_notes.json` sono le tre note), che è la voce aperta.
+
 ## Novità v9.59 (20 agosto 2026 — la MVa era la metà DERIVATA della coppia, ed era la metà sbagliata)
 
 **Domanda dell'operatore su due righe del foglio classic**: «come è possibile che Malen ha solo 5,67 come
