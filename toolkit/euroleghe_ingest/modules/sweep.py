@@ -449,8 +449,13 @@ def build_inputs(conn, data: features.WindowData, ctx: Context | None = None) ->
     # calendar he played it ON. The same rule the panel applies (`SnapshotView.season_calendar`), here so
     # the two cannot drift: a Ligue 1 season is 34 rounds and reading it against Serie A's 38 gives away
     # 12% of him. Only where his WHOLE measured season was elsewhere - a January transfer has minutes on
-    # two calendars and no single denominator is right for him.
+    # two calendars and no single denominator is right for him...
     league_calendar = features.league_rounds(conn, season)
+    # ...and THAT man now has one, counted over both windows instead of over the arriving club's whole
+    # calendar (`features.measured_season_rounds`, read by the panel too so the two cannot drift). It
+    # enters `contested` and nothing else: `league_matches` below stays the calendar of the season being
+    # predicted, which is what the absences are counted against.
+    measured_calendar = features.measured_season_rounds(conn, season, snapshot.LEAGUE_COMPETITIONS)
     # ...and the BIRTH YEARS, once: the age channel is a threshold on the target season's age, so the
     # year the window predicts is what it is measured against and not today's date.
     birth_years = {fc_id: year for fc_id, year in conn.execute(
@@ -497,6 +502,7 @@ def build_inputs(conn, data: features.WindowData, ctx: Context | None = None) ->
             appearances=float(mine.get("matches") or 0),
             minutes=float((rates.get(obs.fc_id) or {}).get("minutes") or 0),
             league_matches=season_rounds,
+            measured_rounds=measured_calendar.get(obs.fc_id),
             fixtures=fixtures.get(key or "", 0.0),
             rounds_measured=(min(measured_rounds * lift, season_rounds)
                              if measured_rounds is not None else None),

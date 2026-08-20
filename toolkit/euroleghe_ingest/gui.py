@@ -5051,6 +5051,11 @@ class SnapshotView(ttk.Frame):
             appearances=_number(row.get("desc_season_matches")),
             minutes=_number(row.get("desc_minutes_full_season")),
             league_matches=self.season_calendar(row),
+            # ...and, for the man who played two championships in one season, the rounds his MEASURED
+            # season is a share of - which `league_matches` cannot be, because it is also the calendar the
+            # absences are counted against. `features.measured_season_rounds` writes it and only
+            # `presence.contested` reads it; empty for everybody else, which is most of the sheet.
+            measured_rounds=_number(row.get("desc_season_rounds"), None),
             fixtures=self.club_fixtures(row.get("club")) or self.SEASON_MATCHES,
             # counted rounds where a calendar existed, and `rounds_seasons` = 0 says it did not
             rounds_measured=(_number(row.get("desc_injury_rounds_measured"))
@@ -5284,9 +5289,17 @@ class SnapshotView(ttk.Frame):
         rounds each championship played are on the row (`desc_arrival_origin_rounds`, from the per-match
         layer of the input season), so nothing here is a constant that a league changing size would break.
 
-        Only for a man whose whole measured season was played elsewhere. A January transfer has minutes on
-        both calendars and there is no single right denominator for him, so he keeps his club's - stated
-        rather than silently averaged. An unknown origin is «vuoto = ignoto» and keeps it too.
+        Only for a man whose whole measured season was played elsewhere. An unknown origin is «vuoto =
+        ignoto» and keeps his club's.
+
+        THE JANUARY TRANSFER IS NOT CURED HERE, and it used to be declared uncurable here: «minutes on
+        both calendars and no single right denominator, so he keeps his club's». That was true about THIS
+        number and it chose the worse of the two - Malen played every one of Roma's last 18 rounds and read
+        18/38 = 0.444, `riserva`. The reason it cannot be cured here is that this number is also what the
+        absences are divided by (`presence.availability`), and those are counted per FULL season: shortening
+        it would fix a share and break a unit. So the denominator of the MEASURED season travels separately
+        (`desc_season_rounds` -> `presence.Inputs.measured_rounds`, read only by `contested`) and this one
+        stays the calendar of the season being predicted.
         """
         origin = _number(row.get("desc_arrival_origin_rounds"), None)
         if origin and _number(row.get("desc_minutes_elsewhere")) and not _number(
@@ -5443,6 +5456,18 @@ class SnapshotView(ttk.Frame):
         "desc_season_matches", "desc_season_starts", "desc_minutes_full_season",
         "desc_elsewhere_matches",
     )
+    #: ...and the THREE of them `appearance_share` can actually read - the window is not among them, and
+    #: that is the whole point of having two tuples. A guard must test the football the FORMULA reads: with
+    #: the window counted as evidence, a man whose only measured football is ten matches somewhere else
+    #: passed the guard and then divided ZERO appearances by his new club's calendar, so `status_of` was
+    #: handed a measured-looking 0.000 and answered `riserva` - «non entrera' spesso», the strongest thing
+    #: the ladder can say, about a man nobody has seen in this championship. Alajbegovic (32M, ten matches
+    #: in Austria) and Adams A. read exactly that on the sheet of 20/08/2026, 7 rows of 605.
+    #: `standing` has a branch for this man (`presence.window_only`); `appearance_share` has none, and
+    #: giving it one is a MODEL change the gate would own - saying «unknown» is not.
+    APPEARANCE_FOOTBALL: ClassVar[tuple[str, ...]] = (
+        "desc_season_matches", "desc_season_starts", "desc_minutes_full_season",
+    )
 
     def play_share(self, row: dict) -> float | None:
         """The share of the matches he is FIT FOR that he is expected to get a voto in. None = unknown.
@@ -5458,8 +5483,13 @@ class SnapshotView(ttk.Frame):
         cost a real row on the first sheet that carried the ladder: Terracciano F. read `riserva` - the
         strongest thing this scale can say about a man - with nothing measured about him at all and the
         engine expecting him in 29 giornate of 38.
+
+        ...AND THE COLUMNS IT ASKS ABOUT ARE THE ONES THE FORMULA READS (`APPEARANCE_FOOTBALL`), which is
+        not the same tuple: the window measured elsewhere is football on file and is invisible to
+        `appearance_share`, so counting it let the guard wave through exactly the men it exists for. Second
+        instance of one shape - the guard saw the evidence, the formula could not.
         """
-        if not any(row.get(column) for column in self.MEASURED_FOOTBALL):
+        if not any(row.get(column) for column in self.APPEARANCE_FOOTBALL):
             return None
         return presence.appearance_share(self.presence_inputs(row), self.PRESENCE)
 

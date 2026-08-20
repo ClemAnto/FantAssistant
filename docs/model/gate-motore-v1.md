@@ -5001,6 +5001,114 @@ segno sbagliato non è misurare.
    non entra affatto. Il foglio ha il suo numero, `est_pv`, e il pannello non glielo passa. Non è
    misurato, quindi non si cambia: è la prossima voce.
 
+## 7-unquadragies. IL DENOMINATORE DI CHI CAMBIA CAMPIONATO A GENNAIO, e il regime nuovo che non paga (20 agosto 2026)
+
+Nata da una frase dell'operatore su una lista che gli avevo appena mostrato — «Malen è stato uno dei
+migliori giocatori della scorsa stagione, non può essere una riserva» — su un uomo che il foglio Serie A
+chiamava `riserva` con il **secondo FVM di tutto il listone** (365, dietro Martinez L.). Tre difetti
+distinti più uno trovato per strada: tre sono aritmetici e corretti, uno è un canale ed è **misurato e
+respinto**.
+
+### (a) Numeratore di un campionato, denominatore di un altro — CORRETTO
+
+`external_stats` tiene **una riga per campionato**, quindi il numeratore di ogni quota di stagione è di un
+campionato solo; il denominatore era il calendario intero del club che compra. Malen ha giocato 21 partite
+di Premier con l'Aston Villa fino al **07/01** e poi **tutte** le ultime 18 giornate della Roma, 18 da
+titolare, 82 minuti, 14 gol — e leggeva **18/38 = 0,444**, cioè `riserva`, la cosa più forte che quella
+scala sappia dire. Le stesse 20 giornate gliele contava **due volte**: come sconto sul numeratore
+(`at_club_weight` 0,937, per i 680 minuti in Premier) e come denominatore.
+
+L'esenzione era **dichiarata** in `SnapshotView.season_calendar` — «a January transfer has minutes on both
+calendars and there is no single right denominator for him, so he keeps his club's» — e «nessun
+denominatore giusto» scegliendo il peggiore dei due è la famiglia del 49% di Kane su 25 presenze in 34
+giornate, un piano più sotto. Cura: `features.measured_season_rounds`, dove ogni campionato porta **le
+giornate in cui c'era**, letta dal pannello E dallo sweep così non possono divergere, e passata a
+`presence.contested` da un campo NUOVO (`Inputs.measured_rounds`) e non da `league_matches` — perché quello
+è anche il divisore delle assenze, che sono contate **per stagione intera**: accorciarlo avrebbe corretto
+una quota e rotto un'unità.
+
+Tre cose che valgono oltre la colonna, e la seconda l'ha trovata la misura sul dato vero:
+
+1. **Il denominatore segue il NUMERATORE, non il calendario che sarebbe comodo avere.** La prima versione
+   sommava le due finestre (21 + 18 = 39) e non curava niente: la metà Premier di Malen **non è
+   nell'aggregato**, quindi sarebbero state 18 presenze su 39 giornate. Dove tutt'e due gli aggregati
+   esistono la risposta è la stessa (39 su 39), che è ciò che ne fa una regola e non un rattoppo.
+2. **Il confine di una permanenza è la DATA dell'altra, mai le sue presenze.** Legare la finestra alla
+   prima e all'ultima presenza restituisce tutte le giornate in cui c'era e non è stato scelto — la stessa
+   lusinga da cui è protetto chi smette di giocare a marzo. Chukwueze ha giocato **una** partita col Milan
+   il 23/08 e a fine settembre era al Fulham: per le sue presenze è una stagione di una giornata giocata
+   tutta (quota 1,000), per il giorno in cui è comparso altrove sono le **cinque** giornate che erano. La
+   finestra di mercato non è osservabile (ogni riga di `transfers_history` è datata 1º luglio), quindi
+   l'intervallo fra due permanenze è addebitato a **tutt'e due**: nessuno è lusingato.
+3. **Chi ha un solo campionato non è nel risultato e non cambia di un decimale** — compreso chi ha smesso
+   di giocare a marzo. Una giornata in cui c'era e non è stato scelto è una prova su di lui; una giornata
+   giocata in un altro paese non è sua da perdere.
+
+Effetto misurato, foglio Serie A del 20/08, revisione 35 → 36: **18 righe** hanno una stagione spezzata e
+**9 salgono di gradino**. Sul foglio ricostruito: `riserva` 156 → 144, `panchina` 103 → 111, Malen `play`
+0,444 → **0,888** e `claim` 0,405 → 0,810, e con il cancello della board **riserva → titolarissimo**;
+Raspadori riserva → **ballottaggio**; Lucca, Boga, Ngonge, Posch, Pavard, Gueye a `panchina`. Non è gratis e
+va detto: la board è un'assegnazione, quindi chi entra fa uscire qualcuno — **Scamacca e Castro S. da
+`ballottaggio` a `panchina`, Ngom a `riserva`**, con la loro quota INVARIATA. `engine_*` non si muove:
+`evaluate` non importa `presence`.
+
+### (b) Uno zero misurato dove non c'è misura — CORRETTO
+
+`play_share` chiedeva `MEASURED_FOOTBALL`, che contiene la **finestra misurata altrove**;
+`appearance_share` quella finestra non la sa leggere (il ramo `window_only` esiste in `standing`, non lì, e
+`window_standing` è comunque 0,0). Quindi un uomo con dieci partite in un campionato che non copriamo e
+nessuna qui **passava la guardia** e poi divideva ZERO presenze per 38: `status_of(0.000)` risponde
+`riserva`, che è una frase sul calcio, su un uomo che nessuno ha visto giocare qui. Alajbegovic (32M di
+cartellino) e Adams A. leggevano esattamente quello, **7 righe su 605** — sul foglio nuovo sono 7 gradini
+vuoti (Adams A., Alajbegovic, Oulai, Koulierakis, Kaiki, Viery, Mangas), che è quello che sono. Seconda
+istanza di una forma sola: **la guardia vedeva la prova che la formula non poteva leggere.**
+
+### (c) Il posto conquistato a stagione in corso — MISURATO E RESPINTO
+
+La domanda non è quella già respinta in `place_changes` (il *lift* «promotion in minutes», +0,049 su 8
+istanze, 6/8): è **quale campione leggere**, perché un uomo che prende la maglia alla 26ª ha una stagione
+con due regimi e la scala ne legge la media. Pre-registrazione scritta prima della corsa — popolazione (un
+club, un campionato, in squadra alla ≤ 3ª e alla ≥ 36ª, quotato in S+1 così che «nessuna presenza» sia uno
+zero misurato e non un uomo finito in un campionato che non copriamo), coorte (esiste un taglio con salto
+≥ 0,35 di quota), bersaglio (la quota di presenze di S+1), candidati (stagione intera · solo il regime
+nuovo · miscela con `w` scelto leave-one-season-out), criterio (≥ 0,5% di MAE sulla media, maggioranza di
+stagioni in miglioramento, nessuna sotto −2%, `w` interno alla griglia).
+
+**795 uomini, 6 stagioni (2019-20 → 2024-25).** Il regime nuovo **da solo** è molto peggio: MAE 0,2982
+contro 0,2139 della stagione intera, **+39% di errore**. La miscela ha l'ottimo a `w` = **0,1** (0,2126) e
+fuori campione fa **+0,54% di media, 4 stagioni su 6, peggiore −0,82%**, con `w` = 0,1 scelto da tutte e
+sei le pieghe. Passa il criterio per un pelo e **non serve a niente**: sul foglio vero muove **4 gradini su
+123** righe «posto conquistato», e due dei quattro (Taylor K., Gandelman) sono uomini che (a) aveva già
+curato. Santos A., il caso che l'operatore ha nominato, andrebbe da 0,368 a **0,431**, e la soglia per
+uscire da `riserva` è 0,500. Quindi **non adottato**, e la ragione è quella che il progetto aveva già
+scritto — «un effetto DENTRO la stagione non è un effetto FRA le stagioni» (§7-duodecies) — con il
+meccanismo ora visibile in un numero: se il regime nuovo è il 39% peggiore come predittore, la miscela può
+portargli un peso di 0,1, e un decimo di un cambio di regime sono 0,05 giornate di stagione.
+
+**E il giudice dà ragione all'operatore su 4 casi su 4**, che è l'altra metà della risposta: la stampa
+dell'08/08 schiera Malen (Roma), Raspadori (Atalanta), Alisson Santos (Napoli) e Taylor (Lazio), e la
+board non ne disegnava nessuno. Tre di quei quattro li cura (a); **Santos A. no** — era al Napoli da luglio
+e ha debuttato alla 24ª, quindi il suo 14/38 è vero — e per lui il residuo è nella BOARD, non nella quota.
+Che è dove va misurato: `todolist-formazioni-tipo-v1.md`, non qui.
+
+Il giudice sull'aggregato **non si muove**, e va detto così: modulo MATCH 10 / ALT 5 / DIFF 5 e uomini
+**165/220** prima e dopo. Per club cambiano due cose e si compensano — **Roma 10/11 → 11/11** (Malen entra
+e l'undici diventa perfetto) e **Lecce 8/11 → 7/11** (entra Kaba, che la stampa non schiera); l'Atalanta
+resta 7/11 scambiando Raspadori dentro con Scamacca fuori. Quindi la correzione sta in piedi
+sull'ARITMETICA — è un difetto, non un canale — e il giudice esterno è **neutro**: non la conferma e non la
+smentisce, e presentarlo come una conferma sarebbe leggere 20 club come se fossero mille.
+
+### (d) …e quel giudice era SPENTO per default
+
+Trovato lanciandolo: `press --sheet ... --against press` leggeva «module MATCH 0, ALT 0, DIFF 20 | men
+**0/0**» e poi andava in errore formattando un modulo None. `load_reference` tiene l'ULTIMA lettura per
+club ordinando per `(observed_on, source)`, e la tabella aveva 20 club letti l'8 agosto **con modulo e
+undici** e 20 letti il 17 **senza né l'uno né l'altro**: le righe vuote vincevano. Con `--source press` lo
+stesso comando legge MATCH 10, ALT 5, DIFF 5 e **165/220** uomini. Cura: una lettura senza modulo E senza
+undici non scavalca una che ne ha — «vuoto = ignoto, mai zero» applicato al riferimento di un giudice — e
+la riga di report regge un None. Uno zero uniforme è la cosa che questo progetto ha imparato a non
+credere, e stavolta spegneva l'unico giudice che esista prima che si giochi una partita.
+
 ## 8. Casi di regressione (in `model.REGRESSION_CASES`, stampati da `backtest --cases`)
 
 Lewandowski (età/minuti) · Wirtz (cambio lega) · Torres F. (propensione per-90) · Ezzalzouli (nuovo nel

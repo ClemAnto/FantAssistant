@@ -2894,3 +2894,58 @@ interazione dell'app.
 non si trova — la tabella chiede 1900px e non è la schermata che si usa su un tablet, e se un giorno lo
 diventasse la cura è quella riga di `ng-zorro.css` e non una caccia al difetto. La versione dell'app non è
 stata alzata e niente è stato pubblicato: il bump lo fa `npm run deploy:pages` quando l'operatore decide.
+
+---
+
+## 20/08/2026, sera — Il denominatore di chi cambia campionato a gennaio, e il giudice che era spento
+
+**Nato da una frase dell'operatore su una lista che gli avevo appena mostrato** (le prime dieci `riserva`
+per FVM): «Malen è stato uno dei migliori giocatori della scorsa stagione, non può essere una riserva». Era
+vero, ed erano **tre difetti distinti più uno trovato per strada**. Numeri, pre-registrazione e misura
+respinta: [gate-motore-v1.md](gate-motore-v1.md) §7-unquadragies · convenzioni in `CLAUDE.md` ·
+voci M5/M6/M7 in [todolist-formazioni-tipo-v1.md](todolist-formazioni-tipo-v1.md).
+
+**Corretti** (`SHEET_REVISION` 36, tre fogli ricostruiti, `export` e bundle dell'app rifatti):
+- **il numeratore è di un campionato e il denominatore era di un altro.** `features.measured_season_rounds`:
+  ogni campionato porta le giornate in cui c'era, letto dal pannello E dallo sweep, dentro
+  `presence.contested` da un campo nuovo (`Inputs.measured_rounds`) e non da `league_matches`, che è anche
+  il divisore delle assenze — contate per stagione intera, quindi accorciarlo avrebbe rotto un'unità.
+  18 righe con la stagione spezzata sul foglio Serie A, **9 salgono di gradino**: Malen `play` 0,444 →
+  0,888 e `claim` 0,405 → **0,810**, e la board lo disegna (`titolarissimo`); Raspadori `ballottaggio`.
+  Il prezzo è detto: la board è un'assegnazione, quindi Scamacca, Castro S. e Ngom scendono **a quota
+  invariata**.
+- **uno zero misurato dove non c'era misura.** La guardia di `play_share` contava la finestra misurata
+  altrove, che `appearance_share` non sa leggere: 7 righe (Alajbegovic, Adams A., Oulai, Koulierakis,
+  Kaiki, Viery, Mangas) leggevano `riserva` su zero misurazioni, e ora sono vuote.
+- **il giudice era SPENTO per default.** 20 letture di stampa vuote del 17/08 scavalcavano 20 piene
+  dell'08/08 e `press --against press` rispondeva `men 0/0`. Ora una lettura senza modulo né undici non
+  scavalca una che ne ha.
+
+**Misurato e respinto**: leggere solo il regime nuovo di chi ha conquistato il posto a stagione in corso.
+795 uomini, 6 stagioni, criterio scritto prima: da solo è il **39% peggiore** come predittore (MAE 0,2982
+contro 0,2139), la miscela vale `w` = 0,1 e muove **4 gradini su 123** — due dei quattro già curati dal
+primo difetto. Santos A., il caso che l'operatore ha nominato, andrebbe a 0,431 contro la soglia di 0,500.
+
+**Il giudice, e non gli si fa dire più di quello che dice.** Referenza stampa dell'08/08, 20 club, foglio
+alla revisione 36: moduli **10 + 5 + 5**, uomini **165/220**, con **Roma 11/11** e Lecce 8/11 → 7/11.
+L'aggregato è **identico prima e dopo** la correzione, misurato sullo stesso foglio nello stesso
+pomeriggio: il giudice esterno non la conferma e non la smentisce, e la correzione sta in piedi
+sull'aritmetica. I numeri si citano da `data/reports/press_comparison.json` (20/08, 17:25 UTC).
+
+**Verificato**: **532 test verdi** (7 nuovi in `tests/test_measured_rounds.py`, 1 in `tests/test_press.py`),
+`engine_*` non toccato — `evaluate` non importa `presence` — tre fogli a revisione 36, `export` con i tre
+fogli e i quattro timepack, bundle dell'app tirato (11,7 MB). **Ruff non è installato in questo ambiente**,
+quindi non è dichiarato pulito.
+
+**Aperto, e dichiarato:**
+1. **Lo sweep non è stato rifatto.** `contested` cambia per 67 uomini a stagione anche nella sua
+   popolazione, quindi una ri-corsa dovrebbe confermare che nessun parametro adottato cambia verdetto —
+   nessuno l'ha verificato, ed è la regola «per attribuire un cambiamento devi muovere UNA variabile».
+2. **Chi arriva da un campionato che non copriamo non ha confine** e si tiene il calendario intero: costa
+   Taylor K. (una riga di Eredivisie datata 10/08), che la stampa schiera. La cura è un'ACQUISIZIONE, non
+   un filtro più largo — la versione larga è stata misurata e cambia 0 righe su 67.
+3. **Il residuo di Santos A. è nella BOARD, non nella quota** (era al Napoli da luglio e ha debuttato alla
+   24ª, quindi il suo 14/38 è vero): voce aperta in `todolist-formazioni-tipo-v1.md`, da misurare col fit
+   e con i due giudici, su una popolazione e non su un caso.
+4. **I timepack restano alla revisione 29** contro la 36 dei fogli: l'app lo dice adesso, ed è la ragione
+   per cui quel campo esiste.

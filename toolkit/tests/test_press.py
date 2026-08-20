@@ -373,3 +373,31 @@ def test_the_harness_reproduces_the_archived_2026_08_08_comparison(tmp_path):
     assert summary["module_match"] == 9 and summary["module_alt"] == 5
     assert summary["module_diff"] == 6 and summary["no_board"] == 0
     assert (summary["xi_shared"], summary["xi_of"]) == (160, 220)
+
+
+def test_an_empty_reading_does_not_displace_a_full_one():
+    """The judge was silently OFF on 20/08/2026: 20 blank rows of the 17th beat 20 full ones of the 8th.
+
+    `load_reference` keeps the LAST row per club by (observed_on, source), which is right when both
+    readings say something and is how a uniform «men 0/0» got reported - the zero this project has learnt
+    not to believe. «Vuoto = ignoto, mai zero», applied to a judge's own reference.
+    """
+    import sqlite3
+
+    from euroleghe_ingest.modules import press
+
+    conn = sqlite3.connect(":memory:")
+    conn.execute("""CREATE TABLE press_formations (club TEXT, season TEXT, observed_on TEXT,
+                        source TEXT, coach TEXT, module TEXT, module_alternatives TEXT, xi TEXT,
+                        duels TEXT, confidence REAL)""")
+    conn.executemany("INSERT INTO press_formations VALUES (?, '2026-27', ?, ?, NULL, ?, NULL, ?, NULL, NULL)", [
+        ("Napoli", "2026-08-08", "press", "4-3-3", '{"ATT": ["Alisson Santos"]}'),
+        ("Napoli", "2026-08-17", "transfermarkt", None, None),
+    ])
+    loaded = press.load_reference(conn, "2026-27")
+    entry = next(iter(loaded.values()))
+    assert entry["module"] == "4-3-3" and entry["observed_on"] == "2026-08-08"
+    # ...and a later reading that DOES say something still wins, which is what the ordering is for.
+    conn.execute("INSERT INTO press_formations VALUES ('Napoli', '2026-27', '2026-08-18', 'press',"
+                 " NULL, '3-4-3', NULL, '{\"ATT\": [\"Lucca\"]}', NULL, NULL)")
+    assert next(iter(press.load_reference(conn, "2026-27").values()))["module"] == "3-4-3"

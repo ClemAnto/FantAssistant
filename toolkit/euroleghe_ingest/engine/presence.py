@@ -269,6 +269,14 @@ class Inputs:
     # his club's calendar: the championship's rounds, and every fixture we know it played
     league_matches: float = 38.0
     fixtures: float = 0.0
+    # ...and, ONLY when the two are not the same number, the rounds his MEASURED season is a share of:
+    # `features.measured_season_rounds`, filled for a man who played two championships in one season.
+    # `league_matches` is the calendar being PREDICTED and stays what it is, because `absences_per_season`
+    # counts absences per FULL season and dividing that by a shortened exposure would change its unit;
+    # this one is the denominator of what was OBSERVED, and only `contested` reads it. None = the two
+    # coincide, which is every man who did not change championship - and «vuoto = ignoto» keeps his
+    # club's calendar rather than guessing a window.
+    measured_rounds: float | None = None
     # Absences, in LEAGUE ROUNDS. `rounds_by_season` is most recent first, aligned with
     # `params.injury_weights`, with None for a season we had no calendar to count on - which is what makes
     # the weights SWEEPABLE: a pre-weighted total would freeze them at the values it was written with.
@@ -556,7 +564,14 @@ def contested(inputs: Inputs, params: Params = DEFAULTS) -> float:
         missed = inputs.rounds_measured
     else:
         missed = absences_per_season(inputs, params) or 0.0
-    return max(inputs.league_matches - missed, 1.0)
+    # The calendar his measured season BELONGS TO, which is his club's for everybody who spent it in one
+    # championship and the sum of two windows for the man who changed in January (`measured_rounds`).
+    # Charging him the rounds of a championship he was playing in another country during is the same
+    # defect as Kane's 49% off 25 starts in 34 rounds, one level down: there the numerator was league-only
+    # and the denominator every competition, here the numerator is one championship and the denominator
+    # two. It cost Malen 18/38 = 0.444 where he played 18 of 18.
+    calendar = inputs.measured_rounds if inputs.measured_rounds else inputs.league_matches
+    return max(calendar - missed, 1.0)
 
 
 def window_only(inputs: Inputs, params: Params = DEFAULTS) -> bool:

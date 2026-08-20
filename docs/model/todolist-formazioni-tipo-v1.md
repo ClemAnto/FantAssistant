@@ -10,6 +10,19 @@ dell'archivio di partenza. La referenza è un DATO (`press_formations`) e il con
 questi numeri si citano da `data/reports/press_comparison.json`, mai a memoria. Il perché di quella
 regola è la voce 3-ter.
 
+**Stato del giudice al 20/08/2026 sera, `SHEET_REVISION` 36** (referenza stampa dell'08/08, 20 club):
+moduli **10 + 5 + 5**, uomini **165/220 = 75%**; sul board invece 9 + 3 + 8, che è la lettura sul
+vocabolario e non un secondo verdetto. Dove il disegno regge di più: **Roma 11/11** (undici perfetto),
+Juventus, Milan e Torino 10/11; dove meno: Lazio 5/11, Lecce e Fiorentina e Cagliari 7/11. Numeri da
+`data/reports/press_comparison.json` del 20/08 17:25 UTC.
+Due cose dette come stanno. La correzione di quella sera (voce M5) lascia l'aggregato **identico** —
+165/220 prima e dopo, misurati sullo stesso foglio nello stesso pomeriggio — e sposta due club in
+direzioni opposte (Roma 10→11, Lecce 8→7): il giudice esterno **non la conferma e non la smentisce**, e
+presentarlo come una conferma sarebbe leggere 20 club come se fossero mille. E la differenza con la riga
+di sopra (11 + 5 + 4, 166/220 alla revisione 13) è la **deriva di tutto quello che è stato adottato in
+mezzo** — R19, R20, R23, i minuti previsti, la MVa — che nessuno ha attribuito e che non va attribuita a
+questa voce: prima della correzione lo stesso foglio leggeva già 10 + 5 + 5 e 165/220.
+
 **Le voci, una riga ciascuna**: 0 fatta · 0-bis fatta (il secondo giudice) · 1 fatta · 1-bis chiusa
 (chiusa: non misurabile, 3-7 uomini per stagione) · 2 fatta · 3 fatta · 3-bis dato sì regola no ·
 4 chiusa da due giudici concordi · 5 misurata e non adottata · 5-bis (proposta dell'operatore) misurata
@@ -34,7 +47,7 @@ in [formazioni-tipo-v1.md](formazioni-tipo-v1.md) §1, §3, §6-ter e nella spec
 | # | segnalazione | esito |
 |---|---|---|
 | M1 | «Scamacca risulta Sp» | **nessun difetto**: due punte pure in linea di due, una sola maglia Pc, e lo spareggio finisce sui minuti (Krstovic 1786 vs 1319). Comportamento voluto, documentato |
-| M2 | «Malen non titolare» | **causa trovata, non è un bug**: trasferimento di gennaio, denominatore del club (limite già dichiarato in v9.37). Candidato a sweep: denominatore sull'unione degli spell (0.405 → ~0.59) |
+| M2 | «Malen non titolare» | **CORRETTA il 20/08/2026, ed era un difetto**: v. la tranche in fondo. La stima di allora (unione degli spell, ~0.59) sottostimava perché il NUMERATORE porta un campionato solo: il claim va a **0.810** e la board lo disegna |
 | M3 | «nel Bologna davanti c'è un centrocampista, non Dovbyk» | **ADOTTATA**: il posto unico della linea d'attacco è di una punta (`_off_the_front(lone=True)`). 1 board su 57, due giudici identici |
 | M4 | «il Napoli è un 4-3-3, non un 3-5-2» | **giudizio dichiarato, non canale**: `config/board_rulings.json`. Il canale che lo leggerebbe (famiglia di difesa del ritiro) misurato e rifiutato, 11/16 contro 14/16 della board |
 
@@ -516,3 +529,24 @@ del layer misurato di questa sessione.
 - Refresh `transfers` eseguito (nessuna riga post-01/07: v. voce 2).
 - Il meccanismo consolidato in [formazioni-tipo-v1.md](formazioni-tipo-v1.md); referenza stampa
   e confronto salvati in `data/reports/press-formations-2026-08-08/`.
+
+
+**MANUTENZIONE, seconda tornata (20/08/2026, sera)** — nata da una frase dell'operatore su una lista di
+`riserva` ordinata per FVM: «Malen è stato uno dei migliori giocatori della scorsa stagione, non può essere
+una riserva». La scala della titolarità ha reso VISIBILE un difetto che questa lista aveva già incontrato e
+archiviato come limite dichiarato (M2, 08/08): la stessa causa, trovata dall'altro capo, perché `riserva`
+è la cosa più forte che una scala sappia dire e un limite silenzioso diventa una frase sbagliata. Numeri,
+pre-registrazione e misura respinta: [gate-motore-v1.md](gate-motore-v1.md) §7-unquadragies.
+
+| # | segnalazione | esito |
+|---|---|---|
+| M5 | «Malen non può essere una riserva» | **ADOTTATA** (`features.measured_season_rounds`): ogni campionato porta le giornate in cui c'era. 18 righe con la stagione spezzata, 9 salgono di gradino; Malen `claim` 0.405 → **0.810** e la Roma va **11/11** contro la stampa. Prezzo dichiarato: chi entra fa uscire qualcuno (Scamacca, Castro S., Ngom scendono a quota invariata), e il giudice sull'aggregato resta 165/220 |
+| M6 | «Raspadori e Santos dovrebbero essere almeno in ballottaggio» | **metà e metà**: Raspadori è un arrivo di gennaio e M5 lo porta a `ballottaggio`; **Santos A. no** — era al Napoli da luglio e ha debuttato alla 24ª, quindi il suo 14/38 è vero. Il canale che lo prenderebbe (leggere solo il regime nuovo) è stato misurato su 795 uomini e 6 stagioni e **respinto**: da solo è il 39% peggiore come predittore, e la miscela vale 4 gradini su 123 |
+| M7 | il giudice era SPENTO per default | **CORRETTA**: una lettura di stampa senza modulo né undici scavalcava quella piena del giorno prima, e `press --against press` leggeva `men 0/0`. «Vuoto = ignoto, mai zero» applicato al riferimento di un giudice |
+
+**VOCE APERTA, e nasce da M6** — la stampa schiera **Alisson Santos** (Napoli), e la board no, con la sua
+quota di stagione che è giusta: quindi la domanda non è più «quale campione leggere» ma «chi entra
+nell'undici», che è il mestiere di questa lista e non del gate. Da misurare con i due giudici sulla
+popolazione «uomo con una quota di stagione bassa e un regime nuovo alto», non su un caso: se il claim non
+lo prende, il candidato è il FIT (chi altro vuole quella maglia) e non la quota. Pre-registrare prima di
+scrivere codice, come le voci 5 e 7.

@@ -244,6 +244,15 @@ def load_reference(conn, season: str, source: str | None = None) -> dict[str, di
 
     Ordered by (observed_on, source) with the last row winning, so when two sources publish the same
     day the choice is deterministic and the report can say which reading judged each club.
+
+    ...BUT AN EMPTY READING DOES NOT DISPLACE A FULL ONE, and that is not a refinement: it is «vuoto =
+    ignoto, mai zero» applied to a judge's own reference, and without it this judge was SILENTLY OFF.
+    On 20/08/2026 the table held 20 clubs read on the 8th with a module and an eleven, and 20 read on the
+    17th with neither; the later rows won, so `press --sheet ... --against press` reported «module MATCH 0,
+    ALT 0, DIFF 20 | men 0/0» - a uniform zero, which this project has learnt not to believe - and then
+    crashed formatting a None module. The same run with `--source press` read MATCH 10, ALT 5, DIFF 5 and
+    165/220 men. A judge that answers zero because its reference is blank is worse than a judge that says
+    it cannot rule.
     """
     sql = ("SELECT club, observed_on, source, coach, module, module_alternatives, xi, duels,"
            " confidence FROM press_formations WHERE season = ?")
@@ -258,7 +267,10 @@ def load_reference(conn, season: str, source: str | None = None) -> dict[str, di
         for field in _JSON_COLUMNS:
             if entry.get(field):
                 entry[field] = json.loads(entry[field])
-        out[club_identity(entry["club"])] = entry
+        key = club_identity(entry["club"])
+        if not entry.get("module") and not entry.get("xi") and out.get(key):
+            continue                     # nothing to judge with: leave the reading that has something
+        out[key] = entry
     return out
 
 
@@ -595,7 +607,7 @@ def compare_sheet(ctx: Context, sheet: Path, *, mode: str = "typical", source: s
         if "module" not in row:
             print(f"  {row['club']:14s} NO BOARD (press: {row['press_module']}) - {row['error']}")
             continue
-        print(f"  {row['club']:14s} press {row['press_module']:8s} ours {row['our_drawn']:8s}"
+        print(f"  {row['club']:14s} press {row['press_module'] or '-':8s} ours {row['our_drawn'] or '-':8s}"
               f" [{row['module']:5s}] XI {row['xi_shared']:2d}/{row['xi_of']:2d}"
               f" | press-only: {', '.join(row['only_press']) or '-'}"
               f" | ours-only: {', '.join(row['only_ours']) or '-'}")

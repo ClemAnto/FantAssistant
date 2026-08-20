@@ -834,6 +834,69 @@ the sweep under the same rule. Two limits stated rather than averaged away: only
 measured season was elsewhere - a January transfer has minutes on two calendars and no denominator is right
 for him - and an origin we cannot name keeps his club's, «vuoto = ignoto». Details: spec «Novità v9.37».
 
+## Un denominatore segue il suo NUMERATORE, e il confine di una permanenza è la data dell'altra
+**20/08/2026, e la scala della titolarità ha reso visibile un difetto che questo progetto aveva già
+incontrato e archiviato come limite dichiarato.** Nato da una frase dell'operatore su una lista di
+`riserva` ordinata per FVM: «Malen è stato uno dei migliori giocatori della scorsa stagione, non può essere
+una riserva» — un uomo col **secondo FVM di tutto il listone** che aveva giocato **tutte** le ultime 18
+giornate della Roma, 18 da titolare, 82 minuti, 14 gol, e leggeva 18/38 = 0,444.
+`external_stats` tiene UNA RIGA PER CAMPIONATO, quindi il numeratore di ogni quota di stagione è di un
+campionato solo, mentre il denominatore era il calendario intero del club che compra: le 20 giornate
+passate in Premier gliele contava **due volte**, come sconto sul numeratore (`at_club_weight` 0,937) e come
+denominatore. L'esenzione era DICHIARATA in `season_calendar` («no single right denominator for him, so he
+keeps his club's») e scegliendo il peggiore dei due — la stessa famiglia del 49% di Kane su 25 presenze in
+34 giornate, un piano più sotto. `features.measured_season_rounds`: ogni campionato porta le giornate in
+cui c'era, letto dal pannello E dallo sweep, e passato a `presence.contested` da un campo NUOVO
+(`Inputs.measured_rounds`) e non da `league_matches` — quello è anche il divisore delle assenze, che sono
+contate per stagione intera, e accorciarlo avrebbe corretto una quota e **rotto un'unità**.
+Quattro cose che restano, e tre le ha trovate la misura invece della rilettura:
+- **Il denominatore segue il NUMERATORE, non il calendario che sarebbe comodo avere.** La prima versione
+  sommava le due finestre (21 + 18 = 39) e non curava niente, perché la metà Premier di Malen non è
+  nell'aggregato: 18 presenze su 39 giornate. Dove tutt'e due gli aggregati esistono la risposta è la
+  stessa (39 su 39), ed è questo che ne fa una regola e non un rattoppo.
+- **Il confine di una permanenza è la DATA dell'altra, mai le sue presenze.** Legarla alla prima e
+  all'ultima presenza restituisce ogni giornata in cui c'era e non è stato scelto — la stessa lusinga da
+  cui è protetto chi smette di giocare a marzo. Chukwueze ha giocato UNA partita col Milan il 23/08 e a
+  fine settembre era al Fulham: per le sue presenze è una stagione di una giornata giocata tutta, per il
+  giorno in cui è comparso altrove sono le CINQUE giornate che erano. La finestra di mercato non è
+  osservabile (ogni riga di `transfers_history` è datata 1º luglio), quindi l'intervallo fra due
+  permanenze è addebitato a tutt'e due: nessuno è lusingato.
+- **Chi ha un solo campionato non è nel risultato e non cambia di un decimale.** Una giornata in cui c'era
+  e non è stato scelto è una prova su di lui; una giornata giocata in un altro paese non è sua da perdere.
+- **E il limite è un'ACQUISIZIONE, non una formula.** Una permanenza si delimita solo col calcio che è su
+  file, e il livello per-partita tiene i cinque campionati più i serbatoi: chi arriva da fuori non ha
+  confine e si tiene il calendario intero. Costa uno dei quattro uomini su cui la stampa dissente (Taylor
+  K., all'Ajax fino a gennaio, **una** riga di Eredivisie datata 10/08). La versione che delimita con
+  qualunque competizione di lega è stata scritta e **misurata prima di essere tenuta**: 0 righe su 67, e
+  quindi è stata tolta — una manopola che non muove niente è una manopola che nessuno ha misurato.
+Effetto: `SHEET_REVISION` 36, 18 righe con la stagione spezzata sul foglio Serie A e **9 che salgono di
+gradino** (Malen `claim` 0,405 → 0,810 e la board lo disegna; Raspadori `ballottaggio`), col prezzo detto
+— la board è un'assegnazione, quindi Scamacca, Castro S. e Ngom scendono a quota invariata. `engine_*` non
+si muove. Il giudice stampa resta 165/220 in aggregato e sposta Roma a 11/11 e Lecce a 7/11: **non
+conferma e non smentisce**, e la correzione sta in piedi sull'aritmetica.
+E il canale vicino è **misurato e respinto**: leggere solo il regime nuovo di chi ha conquistato il posto a
+stagione in corso (795 uomini, 6 stagioni) è il **39% peggiore** come predittore da solo, la miscela vale
+`w` = 0,1 e muove **4 gradini su 123**. La ragione era già scritta — «un effetto dentro la stagione non è
+un effetto fra le stagioni» — e ora ha un numero. Dettaglio: `gate-motore-v1.md` §7-unquadragies.
+
+## Una guardia deve interrogare il calcio che la FORMULA legge
+**Stessa sera, e è la seconda istanza di una forma sola.** `play_share` chiedeva `MEASURED_FOOTBALL`, che
+contiene la finestra misurata altrove; `appearance_share` quella finestra non la sa leggere (il ramo
+`window_only` vive in `standing`, non lì). Quindi un uomo con dieci partite in un campionato che non
+copriamo e nessuna qui PASSAVA la guardia e poi divideva ZERO presenze per 38, e `status_of(0.000)`
+risponde `riserva` — una frase sul calcio, detta su un uomo che nessuno ha visto giocare qui (Alajbegovic,
+32M di cartellino; Adams A.). 7 righe su 605, ora vuote. La guardia vedeva la prova che la formula non
+poteva leggere: «vuoto = ignoto, mai zero» rotto dal lato per cui la guardia era stata scritta.
+
+## Una lettura VUOTA non scavalca una piena, nemmeno se è più recente
+**Stessa sera, e spegneva l'unico giudice che esista prima che si giochi una partita.** `press --sheet ...
+--against press` leggeva «module MATCH 0, ALT 0, DIFF 20 | men **0/0**» e poi andava in errore formattando
+un modulo None: `load_reference` tiene l'ULTIMA lettura per club ordinando per `(observed_on, source)`, e
+la tabella aveva 20 club letti l'8 agosto CON modulo e undici e 20 letti il 17 senza né l'uno né l'altro.
+Con `--source press` lo stesso comando leggeva 10/5/5 e 165/220. Ora una lettura senza modulo E senza
+undici non scavalca una che ne ha. Uno zero uniforme è la cosa che questo progetto ha imparato a non
+credere; qui non era un difetto di misura, era il giudice **spento per default**.
+
 ## The unit is the MATCH, never the matchday
 Matches get postponed, so a round can be played weeks after the one that follows it, and a date can carry
 one round's fixtures plus another's catch-ups. Two consequences, both measured on 29/07/2026 rather than

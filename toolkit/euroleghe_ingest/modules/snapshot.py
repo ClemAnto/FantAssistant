@@ -377,7 +377,27 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      Tabella completa e alternative respinte in `engine/status.py`. Le tre colonne sono VUOTE su una
 #      macchina senza display: senza il disegno «e' nell'undici?» e' ignoto, e un gradino inventato la'
 #      sarebbe peggio di una cella vuota. Nessuna colonna `engine_*` si muove.
-SHEET_REVISION = 35
+#   36 (20/08/2026) - IL DENOMINATORE DI CHI CAMBIA CAMPIONATO A GENNAIO: `desc_season_rounds`, le
+#      giornate di cui la sua stagione MISURATA e' una quota, riempita solo per chi ha giocato due
+#      campionati in una stagione (`features.measured_season_rounds`, letta dal pannello E dallo sweep).
+#      Il numeratore era di un campionato solo - l'aggregato di stagione tiene una riga per campionato -
+#      e il denominatore era il calendario intero del club che lo compra: Malen ha giocato TUTTE le ultime
+#      18 giornate della Roma, 18 da titolare, 82 minuti, 14 gol, e leggeva 18/38 = 0,444, cioe' `riserva`,
+#      con il secondo FVM di tutto il listone. Le stesse 20 giornate gliele contava due volte, una come
+#      sconto sul numeratore (`at_club_weight` 0,937, i minuti in Premier) e una come denominatore.
+#      L'esenzione era DICHIARATA in `SnapshotView.season_calendar` («no single right denominator for him,
+#      so he keeps his club's») e sceglieva il peggiore dei due; ora ogni campionato porta le giornate in
+#      cui c'era davvero, e chi ne ha uno solo non ha la colonna e non cambia di un decimale - compreso chi
+#      ha smesso di giocare a marzo, che non deve vedersi accorciare il denominatore fino all'ultima
+#      presenza. Si muovono `desc_titolarita*`, il claim e quindi le BOARD (7 uomini corroborati sul foglio
+#      Serie A, tutti e 7 salgono di gradino: Malen 0,444 -> 0,937 e claim 0,405 -> 0,855). `engine_*` non
+#      si muove: `evaluate` non importa `presence`.
+#      Nella stessa passata, il #3 della stessa analisi: la guardia di `play_share` contava la FINESTRA
+#      misurata altrove come calcio sul tavolo, e `appearance_share` non la sa leggere - quindi un uomo con
+#      dieci partite in Austria e zero qui divideva ZERO presenze per 38 e la scala leggeva 0,000 come una
+#      misura, rispondendo `riserva`. Ora quella guardia interroga le tre colonne che la formula legge
+#      davvero (`APPEARANCE_FOOTBALL`) e quei sette gradini tornano VUOTI, che e' quello che sono.
+SHEET_REVISION = 36
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
@@ -4226,6 +4246,10 @@ PLAYER_COLUMNS: tuple[str, ...] = (
     # is DISCOUNTED where a shirt is handed out, never dropped: `SnapshotView.LOAN_DISCOUNT`.
     "desc_season_starts_club", "desc_season_starts_elsewhere",
     "desc_minutes_club", "desc_minutes_elsewhere", "desc_at_club_before",
+    # ...and the ROUNDS that season is a share of, which is his club's calendar for everybody who spent it
+    # in one championship and is therefore EMPTY for them - filled only for the man who changed
+    # championship mid-season, whose numerator is one league's and whose denominator used to be another's.
+    "desc_season_rounds",
     "desc_elsewhere_matches", "desc_elsewhere_minutes", "desc_elsewhere_where",
     "desc_duel_rivals", "desc_duel_names",
     # WHO HE DOES NOT COEXIST WITH. Per team-mate he SHARED A SQUAD WITH, the share of the matches
@@ -4696,6 +4720,8 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             "desc_start_share": season_play.get("share"),
             # Whose season it was. Empty for a player the per-match layer has no row for: unknown, and
             # an unknown split must not discount him.
+            # The calendar his measured season is a share of, when it is not his club's - see the layer.
+            "desc_season_rounds": (layers.get("measured_rounds") or {}).get(obs.fc_id),
             "desc_season_starts_club": at_club.get("starts"),
             "desc_season_starts_elsewhere": at_club.get("starts_elsewhere"),
             "desc_minutes_club": at_club.get("minutes"),
@@ -5445,6 +5471,14 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
         # CHAMPIONSHIP» broken for exactly the men it was written for. From the per-match layer, per
         # season, so a league that changes size is not a constant anybody has to remember.
         "league_rounds": features.league_rounds(conn, window.input_season),
+        # ...and the same rule for the man who played TWO of those championships in one season: the rounds
+        # he was in each of them for, summed. `league_rounds` cures the man whose WHOLE season was
+        # elsewhere; this one cures the January transfer, which that cure declared out of scope («no single
+        # right denominator for him») and therefore left on the arriving club's whole calendar - 18 of 38
+        # for a man who played 18 of 18. Dated like every other layer, so a back-dated sheet counts only
+        # the rounds that had been played.
+        "measured_rounds": features.measured_season_rounds(
+            conn, measured, LEAGUE_COMPETITIONS, before=before),
         "positions": {fc_id: (avg_x, avg_y) for fc_id, avg_x, avg_y in conn.execute(
             "SELECT fc_id, avg_x, avg_y FROM positions WHERE season = ? AND source = 'sofascore'",
             (window.input_season,))},

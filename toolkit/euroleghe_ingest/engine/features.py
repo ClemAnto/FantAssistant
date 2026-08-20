@@ -412,6 +412,139 @@ def league_rounds(conn: sqlite3.Connection, season: str) -> dict[str, int]:
         "GROUP BY competition", (season,))}
 
 
+def measured_season_rounds(conn: sqlite3.Connection, season: str,
+                           championships: Sequence[str],
+                           before: str | None = None) -> dict[int, float]:
+    """fc_id -> the rounds his MEASURED season is a share of, for a man who played TWO championships.
+
+    «Numerator and denominator must be counted over the same competitions» (spec «Novita' v9.11»), and
+    for a man who changed championship in January there are two of each. The denominator was the arriving
+    club's whole calendar, which charges him the rounds of a championship he was not in - Malen played 21
+    Premier matches to 07/01 and then EVERY ONE of Roma's last 18 rounds, 18 from the start, 82 minutes,
+    14 goals, and read 18/38 = 0.444 of a season: `riserva`, the strongest negative word the ladder has,
+    about the second-highest FVM of the listone. `SnapshotView.season_calendar` said so in its own
+    docstring - «a January transfer has minutes on both calendars and there is no single right denominator
+    for him, so he keeps his club's» - and «no single right denominator» chose the worse of the two.
+
+    So each championship contributes THE ROUNDS HE WAS IN IT FOR: the full calendar when he was there from
+    the first round to the last, and the window between his own first and last appearance when another
+    championship precedes or follows it.
+
+    AND ONLY THE CHAMPIONSHIPS HIS NUMERATOR IS COUNTED OVER, which is the whole point and was nearly got
+    wrong: the numerator is `starting_record`, i.e. the `external_stats` rows, and those are acquired per
+    (player, championship) - Malen's Premier half is NOT among them, so summing both windows would have
+    divided 18 appearances by 39 rounds and cured nothing. Same rule read from the other side: the
+    denominator follows the numerator, never the calendar it would be nice to have. Where both aggregates
+    do exist the answer is the same number (21 + 18 = 39 rounds for 39 appearances), which is what makes it
+    a rule and not a patch.
+
+    A man with ONE championship is absent from the result and keeps his club's calendar - including the man
+    who simply stopped being picked in March, whose denominator must NOT be shortened to his last
+    appearance: a round he was there for and did not play is evidence about him, a round played in another
+    country is not his to lose. So is a man whose numerator's championship has no per-match rows to bound a
+    window with: «vuoto = ignoto», and no window invented.
+
+    `before` reads the layer up to a date, for a back-dated sheet. There the NUMERATOR is the per-match
+    layer too (`starting_record`'s dated path), so the competitions are its own and the last championship
+    ends at the last round observed instead of at the calendar - the season is still running.
+
+    THE LIMIT, AND IT IS AN ACQUISITION AND NOT A FORMULA: a spell can only be bounded by football that is
+    ON FILE, and the per-match layer holds the five championships plus the feeders. A man arriving from
+    outside them has no boundary and keeps his club's whole calendar - understated, declared, and it costs
+    one of the four men the press judge disagrees with: Taylor K. was at Ajax until January and then played
+    18 of Lazio's last 19 rounds, and his Eredivisie season is ONE row dated 10/08, which says he had been
+    in Serie A from the first round. Bounding spells with every league-class competition instead was
+    written and MEASURED before being kept: it changes 0 rows of 67 on 2025-26, because those leagues are
+    not acquired at all - so it was removed rather than left as a knob nobody has measured. What would
+    reach him is his old league's per-match layer, not a wider filter here.
+
+    Read by the panel (`SnapshotView.presence_inputs` -> `presence.Inputs.measured_rounds`) and by
+    `sweep.build_inputs`, so the two cannot drift. It feeds `presence.contested` ONLY: `league_matches`
+    stays the calendar of the season being PREDICTED, because `absences_per_season` is an absence count per
+    FULL season and dividing it by a shortened exposure would change its unit, not its accuracy.
+    """
+    if not championships:
+        return {}
+    in_scope = set(championships)
+    placeholders = ",".join("?" * len(championships))
+    rounds = {league: total for league, total in league_rounds(conn, season).items()
+              if league in in_scope}
+    # WHEN each round of each championship began, so a spell can be bounded by a DATE instead of by his
+    # own appearances - see `_rounds_before` below.
+    calendar_days: dict[str, list[tuple[str, int]]] = {}
+    for competition, real_md, opened in conn.execute(
+            f"""SELECT competition, real_md, MIN(match_date) FROM external_match_stats
+                WHERE season = ? AND competition IN ({placeholders}) AND real_md IS NOT NULL
+                  AND match_date IS NOT NULL
+                GROUP BY competition, real_md""", (season, *championships)):
+        calendar_days.setdefault(competition, []).append((opened, int(real_md)))
+    for days in calendar_days.values():
+        days.sort()
+
+    def _rounds_before(competition: str, day: str) -> int:
+        """How many rounds of it had BEGUN by that day: the football he was there for, or was not."""
+        return max((md for opened, md in calendar_days.get(competition, ()) if opened < day),
+                   default=0)
+
+    dated = (f"""SELECT fc_id, competition, MIN(real_md), MAX(real_md), MIN(match_date), MAX(match_date)
+                 FROM external_match_stats
+                 WHERE season = ? AND source = 'sofascore' AND COALESCE(minutes, 0) > 0
+                   AND competition IN ({placeholders}) AND real_md IS NOT NULL
+                   AND match_date IS NOT NULL AND match_date < ?
+                 GROUP BY fc_id, competition""" if before else
+             f"""SELECT fc_id, competition, MIN(real_md), MAX(real_md), MIN(match_date), MAX(match_date)
+                 FROM external_match_stats
+                 WHERE season = ? AND source = 'sofascore' AND COALESCE(minutes, 0) > 0
+                   AND competition IN ({placeholders}) AND real_md IS NOT NULL
+                 GROUP BY fc_id, competition""")
+    params = (season, *championships, before) if before else (season, *championships)
+    spells: dict[int, list[tuple]] = {}
+    for fc_id, competition, first_md, last_md, first_date, last_date in conn.execute(dated, params):
+        spells.setdefault(fc_id, []).append((first_date or "", competition,
+                                             int(first_md), int(last_md), last_date or ""))
+    # The competitions the NUMERATOR is summed over: the season aggregate's own rows. On the dated path the
+    # numerator is the per-match layer itself, so there is nothing to intersect with.
+    counted: dict[int, set[str]] = {}
+    if not before:
+        for fc_id, competition in conn.execute(
+                f"""SELECT fc_id, competition FROM external_stats
+                    WHERE season = ? AND source = 'sofascore' AND COALESCE(matches, 0) > 0
+                      AND competition IN ({placeholders})""", (season, *championships)):
+            counted.setdefault(fc_id, set()).add(competition)
+    out: dict[int, float] = {}
+    for fc_id, played in spells.items():
+        if len(played) < 2:
+            continue                     # one championship: his club's calendar is already the right one
+        played.sort()                    # by the day he first appeared in each
+        mine = counted.get(fc_id) if not before else in_scope
+        total = 0.0
+        for position, (_date, competition, first_md, last_md, _last_date) in enumerate(played):
+            if mine is not None and competition not in mine:
+                continue                 # not in his numerator, so not in his denominator
+            calendar = rounds.get(competition)
+            # THE BOUNDARY IS THE OTHER SPELL'S DATE AND NEVER HIS OWN APPEARANCES, which is the same
+            # asymmetry the man who stopped playing in March is protected from, met inside a split season:
+            # bounding a spell by his first and last appearance in it hands back every round he was there
+            # for and was not picked. Chukwueze played ONE match for Milan on 23/08 and went to Fulham at
+            # the end of September - by his own appearances that is a one-round season played in full, by
+            # the day he turned up elsewhere it is the five rounds it was. The transfer window itself is
+            # unobservable (`transfers_history` dates every row 1 July), so the gap between two spells is
+            # charged to BOTH of them: nobody is flattered, and a spell can never come out shorter than the
+            # rounds he really played in it.
+            start = 1 if position == 0 else min(_rounds_before(competition, played[position - 1][4]) + 1,
+                                                first_md)
+            if position < len(played) - 1:
+                end = max(_rounds_before(competition, played[position + 1][0]), last_md)
+            elif before:
+                end = max(_rounds_before(competition, before), last_md)
+            else:
+                end = max(calendar or 0, last_md)
+            total += max(end - start + 1, 1)
+        if total:
+            out[fc_id] = float(total)
+    return out
+
+
 def euro_minutes_shares(conn: sqlite3.Connection, season: str) -> dict[int, float]:
     """Minutes played IN THE ROUNDS THE EURO CALENDAR ACTUALLY USES, as a share of those rounds.
 
