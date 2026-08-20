@@ -322,3 +322,53 @@ def test_the_newest_sheet_of_each_league_wins(tmp_path):
 
     revisions = {entry["league"]: entry["sheet_revision"] for entry in manifest["engine_sheets"]}
     assert revisions == {"EuroLeghe": 13, "Leghe": 11}
+
+
+def test_a_timepacks_revision_survives_the_trip_into_the_bundle(tmp_path):
+    """La revisione dei fogli di un pacchetto DEVE arrivare all'app, e prima veniva cancellata.
+
+    `write_timepacks` fa `entry.pop("manifest")` - il manifest della lega serve solo a serializzare il
+    foglio - e quella era l'unica riga dove la revisione viveva: esisteva in `data/timepacks/` e sulla
+    strada del bundle sparivano. Risultato: l'app non poteva sapere che stava mostrando il motore di
+    cinque revisioni fa, che e' esattamente il difetto per cui `SHEET_REVISION` esiste.
+    Il pacchetto qui la dichiara SOLO dentro la lega, come i quattro scritti prima del 20/08/2026: il
+    ripiego e' parte del contratto, non una gentilezza.
+    """
+    source = tmp_path / "data" / "timepacks" / "2025-09-05"
+    (source / "sheets").mkdir(parents=True)
+    columns = list(export.SHEET_COLUMNS)
+    with (source / "sheets" / "leghe.csv").open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=columns)
+        writer.writeheader()
+        writer.writerow({**{name: "" for name in columns},
+                         "fc_id": "1", "name": "Uno", "engine_pv_pred": "20"})
+    (source / "manifest.json").write_text(json.dumps({
+        "date": "2025-09-05", "target_season": "2025-26", "window": "estiva",
+        "leagues": [{"league": "Leghe", "platform": "default", "game": "classic",
+                     "sheet": "sheets/leghe.csv", "boards": None, "rows": 1,
+                     "teams": 10, "squad_slots": None, "matchdays_target": 38,
+                     "manifest": {"league": "Leghe", "platform": "default", "game": "classic",
+                                  "input_season": "2024-25", "sheet_revision": 29}}],
+    }), encoding="utf-8")
+
+    ctx = Context(config=Config(data_dir=tmp_path / "data"))
+    folder = tmp_path / "out"
+    written = export.write_timepacks(ctx, folder, compress=False)
+
+    assert [one["sheet_revision"] for one in written] == [29], "il manifest del bundle la dichiara"
+    inside = json.loads((folder / "timepacks" / "2025-09-05" / "manifest.json").read_text("utf-8"))
+    assert inside["sheet_revision"] == 29, "e il pacchetto la dichiara al SUO livello"
+    assert inside["input_season"] == "2024-25", "come faceva gia' la stagione d'ingresso"
+    assert "manifest" not in inside["leagues"][0], "il manifest della lega resta consumato"
+
+
+def test_not_declaring_a_revision_is_not_being_up_to_date(tmp_path):
+    """None e' «ignoto» e non «pari a oggi»: un pacchetto muto non deve leggersi come aggiornato."""
+    from euroleghe_ingest.modules import timepack
+
+    assert timepack.pack_revision({"sheet_revision": 34}) == 34
+    assert timepack.pack_revision({"leagues": [{"manifest": {"sheet_revision": 29}}]}) == 29
+    assert timepack.pack_revision({"sheet_revision": 34,
+                                   "leagues": [{"manifest": {"sheet_revision": 29}}]}) == 34
+    assert timepack.pack_revision({"leagues": [{"boards": None}]}) is None
+    assert timepack.pack_revision({}) is None

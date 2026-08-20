@@ -42,6 +42,7 @@ export class TimeMachine {
   protected readonly busy = this.travel.busy;
   protected readonly today = this.travel.today;
   protected readonly fidelity = this.travel.fidelity;
+  protected readonly staleBy = this.travel.staleBy;
 
   /** Le date offerte, con la frase che dice PERCHÉ è quella: «dopo il mercato estivo». */
   protected readonly options = computed(() =>
@@ -53,6 +54,15 @@ export class TimeMachine {
     })));
 
   protected readonly chosen = computed(() => (this.travelling() ? this.today() : null));
+
+  /**
+   * «pacchetto di 5 revisioni fa». Il plurale sta QUI e non nel template: un `@if` in mezzo a una
+   * parola inserisce spazi nel testo reso («revision i  fa»), invisibile a occhio e visibile a un test.
+   */
+  protected readonly staleLabel = computed(() => {
+    const behind = this.staleBy();
+    return behind === 1 ? 'pacchetto di 1 revisione fa' : `pacchetto di ${behind} revisioni fa`;
+  });
 
   /** La stagione che si sta guardando: cambia col pacchetto, e cambiare stagione cambia il LISTONE. */
   protected readonly season = computed(() => this.travel.pack()?.target_season ?? null);
@@ -72,6 +82,12 @@ export class TimeMachine {
     + 'e serve i codici di oggi) e la SCADENZA DI CONTRATTO, che sta solo sulla pagina rosa di oggi. E una '
     + 'contaminazione a favore del modello, dichiarata dal gate: trasferimenti, arrivi e rose sono derivati '
     + 'oggi, quindi la board conosce un mercato che quel giorno non era ancora chiuso.';
+
+  protected readonly stale =
+    'Il pacchetto è stato costruito con una versione precedente dei fogli, quindi le colonne del motore e '
+    + 'i campetti sono quelli che il toolkit calcolava allora: le regole adottate dopo non ci sono. Per '
+    + 'una data passata è quasi sempre quello che si vuole, ma va saputo. Si rifà con '
+    + '`python -m euroleghe_ingest timepack --refresh`.';
 
   protected readonly partial =
     'Per questa data il bundle non porta il motore di allora: sono retrodatate le letture, il trend e i '

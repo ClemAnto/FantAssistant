@@ -41,6 +41,8 @@ export interface TimePack {
   window?: string;
   leagues: number;
   path: string;
+  /** La `SHEET_REVISION` dei suoi fogli: sotto quella del bundle è il motore di allora. */
+  sheet_revision?: number | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -84,6 +86,28 @@ export class TimeTravel {
   /** Che cosa il viaggio in corso riesce a retrodatare: tutto, o solo quello che nel bundle è datato. */
   readonly fidelity = computed<'none' | 'partial' | 'full'>(() =>
     !this.travelling() ? 'none' : this.pack() ? 'full' : 'partial');
+
+  /**
+   * La revisione dei fogli DI OGGI, pubblicata da chi legge il manifest - il servizio non conosce il
+   * bundle, esattamente come per `packs`.
+   */
+  readonly revision = signal<number | null>(null);
+
+  /**
+   * Di quante revisioni il pacchetto in uso è indietro, o null quando non c'è niente da dire.
+   *
+   * Null in tre casi che NON sono lo stesso e vanno tenuti distinti: non si sta viaggiando, il pacchetto
+   * non dichiara la sua revisione («ignoto», e i pacchetti scritti prima del 20/08/2026 stanno qui), o è
+   * pari a quella di oggi. Un numero significa che le colonne del motore sono quelle di allora, il che è
+   * quasi sempre l'intenzione - il viaggio nel tempo esiste per vedere il passato - ma va scritto, perché
+   * un pacchetto vecchio di cinque revisioni non contiene le regole adottate dopo.
+   */
+  readonly staleBy = computed(() => {
+    const pack = this.pack();
+    const now = this.revision();
+    if (!pack || pack.sheet_revision == null || now == null) return null;
+    return pack.sheet_revision < now ? now - pack.sheet_revision : null;
+  });
 
   /**
    * Se una data è dentro il tempo che l'app riconosce. Vuoto resta vuoto: «ignoto», mai «prima».

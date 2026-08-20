@@ -38,6 +38,7 @@ from pathlib import Path
 from euroleghe_ingest import __version__
 from euroleghe_ingest.context import Context
 from euroleghe_ingest.db.database import apply_schema, connect
+from euroleghe_ingest.modules import timepack
 
 NAME = "export"
 DESCRIPTION = "Write the app's data bundle (SQLite + JSON) from the engine's input contract"
@@ -393,13 +394,20 @@ def write_timepacks(ctx: Context, folder: Path, compress: bool = True) -> list[d
         # dell'app leggono (MV e FM), e cercarla dentro il manifest di una lega vorrebbe dire che due
         # leghe potrebbero dichiararne due diverse - non possono, ma il lettore non lo saprebbe.
         first = next((one for one in (info.get("leagues") or []) if one.get("manifest")), None)
+        # ...e con essa la REVISIONE, per la stessa ragione e per una in più: `entry.pop("manifest")`
+        # qui sopra consuma il manifest della lega, che è l'unico posto dove la revisione viveva - così
+        # il campo esisteva in `data/timepacks/` e veniva CANCELLATO sulla strada del bundle, e l'app non
+        # poteva sapere che un pacchetto era di cinque revisioni fa. `info` può già portarla al suo
+        # livello (i pacchetti nuovi la scrivono lì): si preferisce quella e si ricade sulla lega.
         info = {**info, "leagues": leagues,
-                "input_season": ((first or {}).get("manifest") or {}).get("input_season")}
+                "input_season": ((first or {}).get("manifest") or {}).get("input_season"),
+                "sheet_revision": timepack.pack_revision(info)}
         out.mkdir(parents=True, exist_ok=True)
         _atomic_write_bytes(out / "manifest.json",
                             json.dumps(info, indent=2, ensure_ascii=False).encode("utf-8"))
         written.append({"date": info["date"], "target_season": info.get("target_season"),
                         "input_season": info.get("input_season"),
+                        "sheet_revision": info.get("sheet_revision"),
                         "window": info.get("window"), "leagues": len(leagues),
                         "path": f"timepacks/{info['date']}/manifest.json"})
         print(f"[export] timepacks/{info['date']}: {len(leagues)} fogli")

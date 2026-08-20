@@ -1571,6 +1571,55 @@ Numbers, the refused channel (his own rate ON TOP of his own base vote: d = 0 on
 population relation is already inside the base vote being read) and the per-sheet verdicts:
 [docs/model/letture-app-v1.md](docs/model/letture-app-v1.md) §15, spec «Novita' v9.59».
 
+## Two models under one division, and only one of them gets the news
+**20/08/2026, from the operator's question about a number I had flagged myself**: «where the appearances
+go up, the minutes per match go down — so are they two parameters to keep separate?». No: the realised
+changes move TOGETHER (r **+0.566** default, **+0.448** euro; the 671 who played much more often went from
+**55.3' to 66.5'** per appearance), and the behaviour he was asking about was a defect.
+`minutes.start_rate_next` forecast `P(start | appearance)` as `presence.presence / (engine_pv_pred /
+matchdays)` — **numerator from the PANEL, denominator from the ENGINE** — and `presence.py` does not import
+`evaluate`, so every new engine rule moves the denominator and none of them moves the numerator. Adopting
+R23 the day before therefore LOWERED the forecast minutes of exactly the men whose appearances it raised.
+The missing piece already existed: **`presence.voto_share` is the same model's answer to the engine's own
+question** (`sweep.PREDICTORS` maps «appearances» onto it), and their ratio cancels `availability`, which
+has no business in «does he start» — being injury-prone is not being a substitute. Adopted on **euro**
+(+1.44%, 4 windows of 4, strict; the rate's bias +0.048 → +0.032), **not on default** (3 of 6) — and the
+split is the PRE-REGISTERED expectation with its mechanism: on default the two models nearly agree (median
+gap −0.038) so there is little to repair, on euro the platform's calendar is a SUBSET and the engine reads
+systematically lower (−0.106). The term that would have made the minutes RISE with the appearances was
+measured and **refused** — g = 0 on every fold, although the disagreement does correlate +0.162 with the
+realised change: the difference between a signal and a term. Gate §7-quadragies.
+Three habits, and the first two are old ones met from a new side. **Before building a channel, ask what its
+output can even change** — here the question was the reverse: ask what ALREADY changes it, because a
+denominator nobody declared was carrying every rule. **A parameter belongs to the population it was
+measured on, and «platform» is such a population**, so a structural repair can still be per-platform. And
+the one that cost this session: **I retracted numbers to get here.** The minutaggi shown to the operator an
+hour earlier passed last season's RAW appearances where the panel passes its model — *verify the FUNCTION,
+not the column that looks like it*, sixth instance, this time in an answer on screen rather than in an
+audit. The direction I had described was right and readable in the code; the magnitudes were mine.
+
+## A field that exists and is DELETED IN TRANSIT is worse than a field nobody wrote
+**20/08/2026, same session, and I reported the wrong diagnosis first.** The four time-travel packs were
+built at `SHEET_REVISION` **29** against today's **34** — five revisions, R23 among them — and nothing in
+the app could say so, so the time machine showed an old engine under a chosen date, which is the one thing
+that box exists not to do. I told the operator the packs «cannot say it». They can: `timepack.build` copies
+the snapshot's manifest into `leagues[].manifest`, revision included. It is `export.write_timepacks` that
+**deletes** it, because `entry.pop("manifest")` consumes that manifest after serialising the sheet. Third
+instance of one shape — the folder `export` writes and `pull-bundle` does not copy, the flag the parser
+accepts and the dispatcher drops — and the general form is: **when a fact is missing at the far end of a
+chain, look for where it is dropped before deciding it was never measured.**
+Two rules travel with the cure. **One definition of «which revision is this pack at»**
+(`timepack.pack_revision`, read by `build`, `--plan` and `export`): two copies would give two answers about
+one pack, and the first to be wrong would be the one the app draws. And **a rebuild that does not rebuild
+the sheets must not restamp them** — the «already built» branch recovers the revision from what the sheets
+declare instead of writing today's, because writing today's is the exact lie the field exists to prevent;
+by the same rule `null` stays TWO different things, «does not declare it» and «up to date», and the app
+shows no warning for either, for opposite reasons.
+And the reason I got it wrong is written down because it is the project's own rule: **an audit that reports
+a suspicious ZERO must call the function before it reports anything at all** — I read `engine_sheets` and a
+top-level `sheet_revision` on a manifest that has neither, and took a uniform `None` for a hole. One hour
+after writing that same lesson into the gate.
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,

@@ -495,6 +495,43 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.62 (20 agosto 2026 — un pacchetto del viaggio nel tempo non poteva dire di essere vecchio)
+
+`SHEET_REVISION` esiste perché «un foglio non può dire se è scaduto, quindi glielo si fa dire». I quattro
+pacchetti del viaggio nel tempo erano **il solo artefatto che non lo diceva**: costruiti il 19/08 a
+revisione **29**, mentre i fogli di oggi sono a **34** — cinque revisioni, fra cui R23 e i due gradini
+`est_pv` — e l'unico modo di scoprirlo era guardare la data di un file.
+
+**E il campo c'era.** `timepack.build` copia il manifest dello snapshot dentro `leagues[].manifest`,
+`sheet_revision` compreso; è `export.write_timepacks` che lo **cancella**, perché `entry.pop("manifest")`
+consuma quel manifest dopo averlo usato per serializzare il foglio. Quindi il dato esisteva in
+`data/timepacks/` e sparivano sulla strada del bundle: l'app non poteva sapere di stare mostrando il
+motore di cinque revisioni fa. Stessa forma del difetto già pagato due volte (la cartella che `export`
+scrive e `pull-bundle` non copia, il flag che il parser accetta e il dispatcher butta): **il pezzo che
+manca non è la misura, è il passaggio**.
+
+Cosa cambia, e in un posto solo. `timepack.pack_revision(payload)` è **l'unica** definizione di «a che
+revisione sta questo pacchetto» e la leggono `build`, `--plan` ed `export` — due copie darebbero due
+risposte sullo stesso pacchetto, e la prima a sbagliare sarebbe quella che l'app mostra. La revisione
+**sale al livello del pacchetto** per la stessa ragione per cui c'era già salita `input_season` (una corsa
+di `timepack` scrive le tre leghe con la stessa revisione, quindi cercarla dentro una farebbe credere che
+possano dichiararne tre). `--plan` dice «revisione 29 contro 34 di oggi — INDIETRO, `--refresh` per
+rifarlo». E il ramo «già costruito» di `build` **recupera** la revisione da quello che i fogli dichiarano
+e non la riscrive con quella di oggi: i fogli non sono stati rifatti, e scriverci la revisione corrente
+sarebbe la bugia esatta che il campo esiste per impedire.
+
+Nell'app il box del viaggio nel tempo scrive **«ⓘ pacchetto di 5 revisioni fa: motore di allora»** accanto
+alle tre istantanee che già dichiarava. `null` resta **due cose diverse e nessuna delle due è «aggiornato»**:
+un pacchetto che non dichiara la revisione (scritti prima di oggi) e uno pari a quella corrente non
+mostrano avviso, per ragioni opposte, e il test inchioda tutt'e tre i casi. Il plurale sta in una
+`computed` e non nel template: un `@if` in mezzo a una parola inserisce spazi nel testo reso
+(«revision i  fa»), invisibile a occhio e visibile a un test.
+
+**Sono stato io a dire all'operatore che il campo non c'era**, guardando `engine_sheets` e un
+`sheet_revision` di primo livello su un manifest che ha né l'uno né l'altro, e leggendo il `None` come un
+buco. È la regola del progetto — *un audit che riporta uno ZERO sospetto deve chiamare la funzione prima
+di riportare qualsiasi cosa* — sbagliata un'ora dopo averne scritto la sezione nel gate.
+
 ## Novità v9.61 (20 agosto 2026 — R23 adottata, e un numeratore che non si muoveva col suo denominatore)
 
 Due cose nate dalla stessa domanda dell'operatore su Kolo Muani, e la seconda è un difetto che la prima

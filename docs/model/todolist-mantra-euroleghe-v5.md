@@ -2,6 +2,37 @@
 
 ## Aperti alla chiusura dell'8 agosto 2026 — nessuno con scadenza
 
+**Chiusura 20/08 (il reparto in cui arriva, e un numeratore che non si muoveva col suo denominatore)**: una
+corsa di gate vera, `ADOPTED` cambiata su tutt'e due le piattaforme, fogli e bundle rifatti. Quello che
+resta sono **tre voci, ognuna con il numero che la misura già ha** — nessuna è una misura da inventare:
+
+1. **Il minutaggio non riceve nessun termine di modello per chi il core non prezza.** Su Serie A 310 righe
+   su 605 non hanno `engine_pv_pred` (meno di 15 voti su questa piattaforma), quindi `expected_share` è
+   None e `minutes.per_appearance` resta la sua misura dell'anno scorso ristretta verso il ruolo — è il caso
+   di Kolo Muani, Stones, Ramos G., cioè esattamente gli uomini di cui si discuteva. Il foglio HA il numero
+   (`est_pv`) e il pannello non glielo passa. Da pre-registrare: passarlo, con la sua `est_confidence` come
+   peso, e giudicarlo sull'esito che `minutes.py` usa già (minuti a presenza realizzati, minimo tre
+   presenze). Attenzione a non contare due volte l'incertezza: `est_confidence` moltiplica già il surplus.
+2. **I due seguiti pre-registrati sul tasso di titolarità** (gate §7-quadragies). (a) `model_mix`: sotto la
+   coppia coerente l'ottimo è **0,40 su entrambe le piattaforme con minimo interno**, vale +0,66% strict su
+   default (6 finestre su 6) e **−0,09% su euro**; non è stata spostata perché la sua griglia era stata
+   rifittata *per rendere onesto il confronto fra gli arm*, e decidere dopo aver visto una curva è l'altro
+   modo di fittare. (b) La forma che **miscela** i due denominatori invece di scegliere: sono stati misurati
+   solo gli estremi (w = 0 e w = 1), quindi un ottimo interno sarebbe una notizia — e sarebbe anche la sola
+   strada per dare un verdetto a `default`, dove la forma binaria si ferma a 3 finestre su 6.
+3. **I quattro pacchetti del viaggio nel tempo sono a revisione 29 contro 34** e vanno rifatti
+   (`timepack --all --refresh`, ~1 h, prende il lock di scrittura sul DB, quindi una sessione sola).
+   Non è urgente: da oggi l'app **dichiara** «pacchetto di 5 revisioni fa: motore di allora», e il difetto
+   era quello — non che il pacchetto fosse vecchio, ma che nessuno potesse saperlo.
+
+**Respinte in questa sessione, con i numeri, per non riproporle**: **R22** (il cambio squadra come pendenza
+del modello delle presenze — su euro peggiora **proprio i movers**, −2,93%, peggiore −15,5%; su default una
+finestra a −3,97%); la **fee grezza** in quattro forme pre-registrate (−1,1% a −9,8% su default); il termine
+**«notizia»** nel tasso di titolarità, cioè il disaccordo fra motore e pannello sulle presenze usato per far
+salire i minuti insieme alle presenze (**g = 0 su ogni fold** di entrambe le piattaforme, pur correlando
++0,162 con il cambio realizzato di titolarità: è la differenza fra un segnale e un termine).
+
+
 **Chiusura 17/08 (la coppa continentale in mezzo al campionato)**: la penalità è misurata, sta sul foglio
 (`SHEET_REVISION` 24) e l'app la disegna; dentro `engine_pv_pred` è stata provata e **respinta**
 (§7-quattuortricies-bis), e il **post-torneo estivo è falsificato col segno opposto**. Quello che resta

@@ -1,5 +1,5 @@
 # Stato progetto & continuità — v5
-**Aggiornato: 20 agosto 2026, notte (LA MVa ERA LA METÀ DERIVATA DELLA COPPIA, ED ERA LA METÀ SBAGLIATA — trovata dall’operatore su due righe del foglio classic: `est_mv` era `engine_fm_pred` (già regredita) meno il suo tasso di bonus GREZZO, quindi tutta la regressione finiva sul voto base e Malen leggeva 5,67 contro i 6,75 misurati. Adesso la MVa è la metà PREVISTA e il tasso è quello che ne esce; tre parametri fuori campione con cross-fit UNANIME, un canale rifiutato come zero dichiarato, e la richiesta dell’operatore («chi segna ha sempre o quasi un voto buono») che era essa stessa una misura: r = +0,787 dentro il ruolo. `SHEET_REVISION` 32, `engine_*` fermo, v0.1.20 pubblicata)** · precedente: 20 agosto 2026 (il grafico di Fπ non si vedeva MAI: una `computed` che scriveva un signal — vietato in Angular — e una suite dell'app che non compilava da `d7d0fbf`, quindi le prove dichiarate ieri non venivano da una corsa; 317 verdi)** · precedente: 19 agosto 2026, sera (Fπ: una colonna che PRONOSTICA invece di sommare — tre parametri misurati fuori campione, la scala dettata dall'operatore in cinque passaggi, quattro idee respinte, e otto club stranieri archiviati come `serie_a`; `SHEET_REVISION` 31, v0.1.19 pubblicata)** · precedente: 19 agosto 2026 (un vecchio PV non è una previsione di presenze: il gradino `older` regrediva la fantamedia e consegnava le presenze intatte, e l'Overall dell'app è un PRODOTTO — `SHEET_REVISION` 29; e l'attesa sul lock del DB in una definizione sola, con la regola per due sessioni in parallelo)** · precedente: 18 agosto 2026 (le DEFINIZIONI dell'operatore — Overall, Lead, Margine, Bonus — applicate ovunque; UN campetto solo per asta e Squadre, con l'item-posto e i moduli alternativi scritti dal toolkit; tre difetti della tabella misurati in browser)** · precedente: 17 agosto 2026, notte (la coppa continentale in mezzo al campionato: misurata, sul foglio e RESPINTA dal gate; l'app riscritta a voce; il surplus che aveva due aritmetiche)
+**Aggiornato: 20 agosto 2026, sera (IL REPARTO IN CUI ARRIVA — R23 adottata (robusta 9/10 su Serie A, 5/5 su euro/mantra, cade su euro/classic), R22 respinta sulla sua stessa aspettativa pre-registrata, e la fee in rapporto alla spesa del club adottata su euro; più il difetto che l'adozione ha reso visibile: `minutes.start_rate_next` divideva il numeratore del PANNELLO per il denominatore del MOTORE, quindi una regola che alzava le presenze ABBASSAVA i minuti previsti a partita — corretto su euro, +1,44% su 4 finestre su 4; e la revisione dei pacchetti del viaggio nel tempo, che c'era e veniva cancellata in transito. `SHEET_REVISION` 34, `--verify` 22/22, 510 test del toolkit e 318 dell'app)** · precedente:20 agosto 2026, notte (LA MVa ERA LA METÀ DERIVATA DELLA COPPIA, ED ERA LA METÀ SBAGLIATA — trovata dall’operatore su due righe del foglio classic: `est_mv` era `engine_fm_pred` (già regredita) meno il suo tasso di bonus GREZZO, quindi tutta la regressione finiva sul voto base e Malen leggeva 5,67 contro i 6,75 misurati. Adesso la MVa è la metà PREVISTA e il tasso è quello che ne esce; tre parametri fuori campione con cross-fit UNANIME, un canale rifiutato come zero dichiarato, e la richiesta dell’operatore («chi segna ha sempre o quasi un voto buono») che era essa stessa una misura: r = +0,787 dentro il ruolo. `SHEET_REVISION` 32, `engine_*` fermo, v0.1.20 pubblicata)** · precedente: 20 agosto 2026 (il grafico di Fπ non si vedeva MAI: una `computed` che scriveva un signal — vietato in Angular — e una suite dell'app che non compilava da `d7d0fbf`, quindi le prove dichiarate ieri non venivano da una corsa; 317 verdi)** · precedente: 19 agosto 2026, sera (Fπ: una colonna che PRONOSTICA invece di sommare — tre parametri misurati fuori campione, la scala dettata dall'operatore in cinque passaggi, quattro idee respinte, e otto club stranieri archiviati come `serie_a`; `SHEET_REVISION` 31, v0.1.19 pubblicata)** · precedente: 19 agosto 2026 (un vecchio PV non è una previsione di presenze: il gradino `older` regrediva la fantamedia e consegnava le presenze intatte, e l'Overall dell'app è un PRODOTTO — `SHEET_REVISION` 29; e l'attesa sul lock del DB in una definizione sola, con la regola per due sessioni in parallelo)** · precedente: 18 agosto 2026 (le DEFINIZIONI dell'operatore — Overall, Lead, Margine, Bonus — applicate ovunque; UN campetto solo per asta e Squadre, con l'item-posto e i moduli alternativi scritti dal toolkit; tre difetti della tabella misurati in browser)** · precedente: 17 agosto 2026, notte (la coppa continentale in mezzo al campionato: misurata, sul foglio e RESPINTA dal gate; l'app riscritta a voce; il surplus che aveva due aritmetiche)
 Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da qui + i file della cartella "Modello Previsionale Fantacalcio".
 *Glossario: T1/T2 = finestre di test (23/24->24/25, 24/25->25/26) · MAE = errore medio assoluto · cross-fitted = parametri stimati su una finestra, testati sull'altra · M2e = modello portieri decomposto (abilità + tasso gol subiti del club; la metà Elo del nome non è nel motore) · Pv_att = presenze attese · fc_id = id fantacalcio.it · EV = valore atteso · scoring_config = punteggi configurabili per lega · xG/xA = expected goals/assists · 2.5 pieno = backtest motore completo con flag.*
 
@@ -7,6 +7,75 @@ Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da q
 App per leghe EuroLeghe/fantacalcio.it (Classic+Mantra, 5 campionati) con motore previsionale. Metodo: ogni regola entra SOLO se batte il baseline fuori campione su finestre indipendenti (gate pre-registrato). Doc madre: modello-previsionale-v3.8.md.
 
 ## ⚠️ Lo stato corrente è in `00-BRIDGE-punto-di-ingresso.md`, blocco «STATO AL 5 AGOSTO 2026»
+
+### 20 agosto 2026, sera — il reparto in cui arriva, e un numeratore che non si muoveva col suo denominatore
+
+Una catena sola, aperta dalla domanda dell'operatore su **Kolo Muani**: «l'anno scorso ha giocato circa 30
+partite col Tottenham e mi aspetto che ne giochi almeno 28 — perché le partite attese sono solo 20?».
+
+**La fee** (`SHEET_REVISION` 33). Il canale investimento leggeva il **valore di mercato**, che per lui è del
+03/06/2026 e quindi **precede il trasferimento** (Transfermarkt aggiorna a trimestri), mentre la fee —
+41,2M — era in `transfers_history` da sempre. Quattro bracci pre-registrati sulla fee **grezza** sono
+caduti tutti (−1,1% a −9,8% su default); quello che passa è la fee **in rapporto alla spesa totale del
+club**, che è anche la sola forma che il progetto avesse già scritto, ed è **post-hoc e lo dichiara**:
+euro **+4,30% 3/3 strict**, su default non si adotta (il verdetto si ribalta togliendo tre righe su 57).
+Pesa poco e va detto: mediana +0,6 giornate su 31, e Kolo Muani ne guadagna **+1,0** — non le otto che
+mancano ai suoi 28. Gate §7-octiestricies.
+
+**R22 e R23**, pre-registrate insieme (§7-noviestricies) e giudicate insieme. **R23 adottata**: `quota, Mv,
+cambio, top, percentile`, dove `top` è il suo valore di mercato diviso quello del compagno più caro che gli
+disputa il posto. Robusta su default/classic e default/mantra (**9 finestre su 10, +2,84%**, peggiore
+−0,28%), passa su euro/mantra (**5 su 5, +3,82%**), cade su euro/classic (i nomi d'asta 43 → 42): le tre
+leghe che l'operatore gioca passano o sono robuste. **R22 no** — cade sulla sua stessa aspettativa
+pre-registrata, perché su euro **peggiora proprio i movers** (−2,93%, peggiore −15,5%), che è la popolazione
+per cui era stata scritta. Su default il coefficiente del percentile è **−0,0037**, cioè zero: là la regola
+adottata è di fatto **senza prezzo**.
+
+**La regola sulle quotazioni, aggiustata dall'operatore** e verificata invece di decretata: «i prezzi di
+Transfermarket, che non è un valore che già interdipende dalle fantamedie, non sono da considerare una
+quotazione fantacalcistica». Il Qt.I correla **+0,626** con la fantamedia di *t−1* e +0,502 con le presenze,
+contro **+0,436** / +0,393 del prezzo di mercato, e predice la titolarità meglio (+0,255 contro +0,025)
+**proprio perché è circolare**: contiene già l'opinione del suo autore su quanto giocherà.
+
+**E poi il difetto che l'adozione ha reso visibile**, trovato dalla sua domanda su una cosa che avevo
+segnalato io («dove le presenze salgono il minutaggio scende — sono due parametri separati?»).
+`minutes.start_rate_next` prevedeva `P(start|presenza)` come **numeratore del pannello diviso denominatore
+del motore**, e `presence.py` non importa `evaluate`: ogni regola nuova muoveva il denominatore e nessuna il
+numeratore, quindi R23 **abbassava** i minuti previsti degli uomini a cui aveva alzato le presenze — mentre
+i due cambi realizzati si muovono **insieme** (r +0,566 default, +0,448 euro; i 671 che hanno giocato molto
+più spesso sono passati da 55,3' a 66,5'). Il pezzo che mancava c'era già: `presence.voto_share` è la
+risposta dello **stesso** modello alla domanda del motore, e il loro rapporto semplifica `availability`.
+Adottato su **euro** (+1,44%, 4 finestre su 4, **strict**; bias del tasso +0,048 → +0,032), non su default
+(3 su 6) — e la spaccatura è l'aspettativa pre-registrata col suo meccanismo. Il termine che avrebbe fatto
+**salire** i minuti con le presenze è misurato e **respinto**: g = 0 su ogni fold. Gate §7-quadragies.
+
+**E la revisione dei pacchetti del viaggio nel tempo, che c'era e veniva cancellata in transito.** I quattro
+pacchetti stanno a revisione **29** contro 34, cinque revisioni fra cui R23 — e l'app non poteva saperlo,
+perché `export.write_timepacks` consuma il manifest della lega (`entry.pop`) che era il solo posto dove la
+revisione viveva. Terza istanza di una forma già pagata due volte (la cartella che `export` scrive e
+`pull-bundle` non copia, il flag che il dispatcher butta). Ora c'è **una** definizione
+(`timepack.pack_revision`, letta da `build`, `--plan` ed `export`), la revisione sale al livello del
+pacchetto, `--plan` dice «revisione 29 contro 34 — INDIETRO», e il box dell'app scrive «pacchetto di 5
+revisioni fa: motore di allora». Spec v9.62.
+
+**Stato.** `SHEET_REVISION` **34**, `backtest --verify` **22/22**, toolkit **510 test passati e 1 saltato** (Tk senza display), app **318 test** e
+build verde. Tre fogli rigenerati (EuroLeghe 1023 righe, Leghe e Leghe Mantra 605), bundle riesportato
+(413.972 righe, 50,2 MB) e tirato nell'app. Verificato sull'**artefatto** e non sul codice: nella board euro
+**270 uomini su 381 si sono mossi** (media −1,2': il numero era sistematicamente alto), nelle due Serie A il
+movimento è simmetrico e centrato sullo zero — che è la firma esatta dell'adozione per piattaforma.
+
+**Due numeri ritirati per arrivarci, e la ragione è la lezione.** I minutaggi mostrati all'operatore un'ora
+prima passavano le presenze **grezze** dove il pannello passa il suo modello, e la mia diagnosi sui
+pacchetti («non possono dire la revisione») era un `None` letto come un buco su due chiavi che quel manifest
+non ha. Due volte *verify the FUNCTION, not the column that looks like it*, la seconda un'ora dopo averne
+scritto la sezione nel gate.
+
+**Restano aperte tre cose, tutte scritte con il loro numero**: sul foglio Serie A un uomo che il core non
+prezza non ha `engine_pv_pred`, quindi il termine di modello del minutaggio **non entra affatto** (il foglio
+ha `est_pv` e il pannello non glielo passa); i due seguiti pre-registrati sul tasso di titolarità (la `mix`,
+il cui ottimo interno è 0,40 su entrambe le piattaforme — +0,66% strict su default e −0,09% su euro — e la
+forma che **miscela** i due denominatori invece di scegliere); e i **quattro pacchetti da rifare**
+(`timepack --all --refresh`, ~1 h, prende il lock di scrittura).
 
 ### 20 agosto 2026, notte — la MVa era la metà DERIVATA della coppia, ed era la metà sbagliata
 

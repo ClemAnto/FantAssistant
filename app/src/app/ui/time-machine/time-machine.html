@@ -49,6 +49,13 @@
         ⚠ motore NON retrodatato: per questa data manca il pacchetto
       </p>
     }
+    @if (staleBy()) {
+      <!-- Un pacchetto indietro di revisione porta il motore di allora: dirlo, non lasciarlo scoprire
+           dalla data di un file - è il difetto per cui `sheet_revision` esiste. -->
+      <p class="mt-1 text-muted" nz-tooltip [nzTooltipTitle]="stale">
+        ⓘ {{ staleLabel() }}: motore di allora
+      </p>
+    }
     <!-- Questa riga resta anche col pacchetto: tre fatti sono istantanee e al tempo non tornano. -->
     <p class="mt-1 text-muted" nz-tooltip [nzTooltipTitle]="frozen">
       ⓘ restano di oggi: probabili, ruolo granulare, scadenza contratto

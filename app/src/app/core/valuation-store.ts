@@ -603,6 +603,10 @@ export class ValuationStore {
       // Le date disponibili le pubblica chi legge il manifest: il servizio del viaggio nel tempo non
       // conosce il bundle, e il box non deve conoscere nessuno dei due.
       this.travel.packs.set(manifest.timepacks ?? []);
+      // ...e la revisione dei fogli DI OGGI, perché il box possa dire se il pacchetto è indietro. Il
+      // manifest la porta al suo livello; il primo foglio è il ripiego per un bundle scritto prima.
+      this.travel.revision.set(
+        manifest.sheet_revision ?? manifest.engine_sheets?.[0]?.sheet_revision ?? null);
       const chosen = this.travel.pack();
       this.loadedPack = chosen?.date ?? null;
       const pack = chosen ? await this.bundle.timepack(chosen.path) : null;
@@ -683,7 +687,9 @@ export class ValuationStore {
           league: one.league, platform: one.platform, game: one.game,
           teams: one.teams, squad_slots: one.squad_slots,
           matchdays_target: one.matchdays_target,
-          sheet_revision: null, generated_at: null,
+          // La revisione è quella del PACCHETTO e non null: era buttata qui, ed è il solo posto da cui
+          // si può sapere che queste colonne vengono da un motore di cinque revisioni fa.
+          sheet_revision: pack.sheet_revision ?? null, generated_at: null,
           auction_date: pack.date, rows: one.rows ?? 0, priced: 0, estimated: 0,
           path: `timepacks/${pack.date}/${one.sheet}`,
           boards: one.boards ? `timepacks/${pack.date}/${one.boards}` : null,

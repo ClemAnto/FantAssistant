@@ -99,6 +99,21 @@ def significant_dates(conn, seasons: list[str]) -> list[dict]:
     return sorted(out, key=lambda one: one["date"])
 
 
+def pack_revision(payload: dict) -> int | None:
+    """A che `SHEET_REVISION` stanno i fogli di questo pacchetto, o None se non lo dichiara.
+
+    UNA definizione, letta da `build`, da `--plan` e da `export.write_timepacks`: due copie darebbero due
+    risposte sullo stesso pacchetto, e la prima a sbagliare sarebbe quella che l'app mostra. Preferisce il
+    campo del pacchetto e ricade sulla prima lega, perché i pacchetti scritti prima del campo (20/08/2026)
+    la portano solo là dentro - e non dichiararla è diverso da essere aggiornati.
+    """
+    mine = payload.get("sheet_revision")
+    if mine is not None:
+        return mine
+    return next(((one.get("manifest") or {}).get("sheet_revision")
+                 for one in (payload.get("leagues") or []) if (one.get("manifest") or {})), None)
+
+
 def _pack_dir(ctx: Context, date: str) -> Path:
     return ctx.config.data_dir / "timepacks" / date
 
@@ -119,6 +134,10 @@ def build(ctx: Context, entry: dict, leagues: dict, *, refresh: bool = False) ->
         # tenerlo vecchio vorrebbe dire che una riga del manifest descrive un'altra misura.
         payload = json.loads((folder / "manifest.json").read_text(encoding="utf-8"))
         payload.update(window=entry.get("window"), rounds_played=entry.get("rounds_played"))
+        # ...e la revisione si RECUPERA da quello che i fogli dichiarano, mai si riscrive con quella di
+        # oggi: i fogli non sono stati rifatti, e scriverci la revisione corrente sarebbe la bugia esatta
+        # che il campo esiste per impedire. Un pacchetto scritto prima del campo lo prende cosi'.
+        payload["sheet_revision"] = pack_revision(payload)
         (folder / "manifest.json").write_text(
             json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
         print(f"[timepack] {date}: già costruito ({folder}) - `--refresh` per rifare i fogli")
@@ -164,6 +183,15 @@ def build(ctx: Context, entry: dict, leagues: dict, *, refresh: bool = False) ->
     payload = {
         "date": date,
         "target_season": season,
+        # LA REVISIONE DEI FOGLI, al livello del pacchetto e non dentro una lega. Sale qui per la stessa
+        # ragione di `input_season` in `export.write_timepacks`: una corsa di `timepack` scrive le tre
+        # leghe con la stessa `SHEET_REVISION`, quindi cercarla dentro una di esse farebbe credere al
+        # lettore che potrebbero dichiararne tre diverse. Serve a UNA cosa e va detto: un pacchetto sotto
+        # la revisione corrente porta il motore di allora, e senza questo campo l'unico modo di scoprirlo
+        # era guardare la data del file - che e' la definizione del difetto per cui `SHEET_REVISION`
+        # esiste («un foglio non puo' dire se e' scaduto, quindi glielo si fa dire»).
+        "sheet_revision": next((one["manifest"].get("sheet_revision") for one in built
+                                if one.get("manifest")), None),
         # Perché è QUESTA data, e che cosa c'era in campo quel giorno: senza, fra un anno il numero non
         # si spiega più da solo.
         "window": entry.get("window"),
@@ -201,10 +229,24 @@ def run(ctx: Context, date: str | None = None, plan: bool = False,
     wanted = significant_dates(conn, past)
     if plan or not (date or build_all):
         print(f"[timepack] stagioni: {', '.join(past)}")
+        from euroleghe_ingest.modules import snapshot
         for one in wanted:
-            built = "già costruito" if _pack_dir(ctx, one["date"]).exists() else "da costruire"
+            folder = _pack_dir(ctx, one["date"])
+            built = "già costruito" if folder.exists() else "da costruire"
             played = ", ".join(f"{league} {rounds}"
                                for league, rounds in sorted(one["rounds_played"].items()))
+            # Un pacchetto INDIETRO di revisione porta il motore di allora: non è un errore, è un fatto
+            # da vedere senza andare a leggere la data di un file. `--refresh` è quello che lo rifà.
+            if folder.exists():
+                mine = pack_revision(
+                    json.loads((folder / "manifest.json").read_text(encoding="utf-8")))
+                if mine is None:
+                    built += ", revisione non dichiarata (pacchetto scritto prima del campo)"
+                elif mine < snapshot.SHEET_REVISION:
+                    built += (f", revisione {mine} contro {snapshot.SHEET_REVISION} di oggi - "
+                              f"INDIETRO, `--refresh` per rifarlo")
+                else:
+                    built += f", revisione {mine}"
             print(f"  {one['date']}  {one['season']}  finestra {one['window']} - {built}")
             print(f"      giornate giocate: {played or 'nessuna'}")
         return {"dates": wanted}

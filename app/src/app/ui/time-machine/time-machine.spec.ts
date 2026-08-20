@@ -58,6 +58,32 @@ describe('ui-time-machine', () => {
     expect(text).toContain('probabili');
   });
 
+  it('un pacchetto INDIETRO di revisione lo dice, e uno pari o muto non inventa un avviso', () => {
+    const travel = TestBed.inject(TimeTravel);
+    const pack = {
+      date: '2025-09-05', target_season: '2025-26', input_season: '2024-25',
+      window: 'estiva', leagues: 3, path: 'timepacks/2025-09-05/manifest.json',
+      sheet_revision: 29,
+    };
+    travel.packs.set([pack]);
+    travel.revision.set(34);
+    const fixture = box();
+    travel.travelTo('2025-09-05');
+    fixture.detectChanges();
+    expect(travel.staleBy()).toBe(5);
+    expect((fixture.nativeElement as HTMLElement).textContent ?? '').toContain('5 revisioni fa');
+
+    // pari a oggi: niente da dire. E «non dichiarata» NON è «aggiornata», ma nemmeno un avviso che
+    // nessuno può verificare - resta null in entrambi i casi, per due ragioni diverse.
+    travel.packs.set([{ ...pack, sheet_revision: 34 }]);
+    fixture.detectChanges();
+    expect(travel.staleBy()).toBeNull();
+    travel.packs.set([{ ...pack, sheet_revision: null }]);
+    fixture.detectChanges();
+    expect(travel.staleBy()).toBeNull();
+    expect((fixture.nativeElement as HTMLElement).textContent ?? '').not.toContain('revisioni fa');
+  });
+
   it('torna a oggi, e una data futura non è un viaggio nel tempo', () => {
     const travel = TestBed.inject(TimeTravel);
     travel.travelTo('2025-11-03');

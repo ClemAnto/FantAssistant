@@ -28,6 +28,14 @@ export interface TimePackFile {
   input_season: string | null;
   window?: string;
   rounds_played?: Record<string, number>;
+  /**
+   * La `SHEET_REVISION` con cui i fogli di QUESTO pacchetto sono stati scritti.
+   *
+   * Un pacchetto sotto la revisione del bundle porta il motore di allora - non è un errore, è un fatto
+   * che va detto: si rifà con `timepack --refresh`. Null su un pacchetto costruito prima del campo
+   * (20/08/2026), che è «non dichiarata» e non «aggiornata».
+   */
+  sheet_revision?: number | null;
   known_gaps?: string[];
   leagues: {
     league: string;
@@ -81,6 +89,8 @@ export interface BundleManifest {
   timepacks?: {
     date: string; target_season: string; input_season: string | null;
     window?: string; leagues: number; path: string;
+    /** La revisione dei fogli del pacchetto: sotto quella del bundle è il motore di allora. */
+    sheet_revision?: number | null;
   }[];
   /** True only for the generated bundle the public build ships: invented clubs, players and
    *  votes. The real one is paid content and never leaves the machine. */

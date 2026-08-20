@@ -49,6 +49,41 @@ con la stampa dell'08/08/2026, ordinato per resa misurata).
 L'altra fase, quella settimanale, è **`formazione-settimanale-v1.md`** (progetto): chi gioca domenica, perché
 la pagina delle probabili non basta e quali vincoli valgono già oggi.
 
+## STATO AL 20 AGOSTO 2026 — LEGGI QUESTO PRIMA DI TUTTO
+
+Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
+
+**Il 20/08 in cinque righe.** Una corsa di gate vera (la prima da giorni), `--verify` **22/22**, toolkit
+**510 test** e app **318**, `SHEET_REVISION` **32 → 34**, tre fogli e bundle rifatti e tirati nell'app.
+`ADOPTED` cambia: **R23 entra su tutt'e due le piattaforme** — `("R0c", "R3c", "R18", "R20K6", "R23")` su
+euro, `("R3", "R7", "R13", "R19", "R20K10", "R23")` su default — quindi **`engine_pv_pred` si è mosso** e
+con lui Overall, Lead, Margine, Fantapunti e Fπ. Nessun deploy: il sito è fermo a v0.1.20.
+
+**Le tre cose adottate, coi verdetti.** **R23** (il REPARTO in cui un uomo arriva: il suo valore di mercato
+sul compagno più caro che gli disputa il posto, più il percentile del listone) robusta su default 9 finestre
+su 10 (+2,84%) e 5 su 5 su euro/mantra (+3,82%), cade su euro/classic. **R22** (il cambio squadra come
+pendenza invece che come costante) **respinta** sulla sua stessa aspettativa pre-registrata: su euro
+peggiora proprio i movers. **La fee sulla spesa del club** dentro il canale investimento, euro +4,30% 3/3
+strict, su default no. E fuori dal gate ma misurato con gli stessi criteri: **il denominatore del tasso di
+titolarità** in `minutes.py`, su euro (+1,44%, 4 su 4, strict).
+
+**Il difetto che vale più delle tre adozioni**, perché è di forma e non di taratura:
+`minutes.start_rate_next` divideva il numeratore del **pannello** per il denominatore del **motore**, e
+`presence.py` non importa `evaluate` — quindi ogni regola nuova muoveva solo il denominatore, e adottare R23
+ABBASSAVA i minuti previsti a partita degli uomini a cui aveva alzato le presenze, mentre nella realtà i due
+si muovono insieme (r +0,566). Vedi gate §7-quadragies e CLAUDE.md, «Two models under one division».
+
+**Tre voci aperte, con i numeri**: sul foglio Serie A un uomo che il core non prezza non ha
+`engine_pv_pred`, quindi il minutaggio non riceve nessun termine di modello (il foglio ha `est_pv`, il
+pannello non glielo passa); i due seguiti pre-registrati sul tasso (`model_mix`, ottimo interno 0,40 su
+entrambe le piattaforme, +0,66% strict su default e −0,09% su euro; e la forma che **miscela** i due
+denominatori invece di scegliere); i **quattro pacchetti del viaggio nel tempo** sono a revisione 29 contro
+34 e vanno rifatti (`timepack --all --refresh`, ~1 h) — adesso l'app lo **dice** invece di lasciarlo
+scoprire, che era il vero difetto.
+
+**Commit**: `cf3e607` (R23 + la fee + il tasso di titolarità), più la chiusura, sul branch
+`motore/reparto-e-tasso-titolarita` — `master` era in uso da un'altra sessione.
+
 ## STATO AL 19 AGOSTO 2026 — LEGGI QUESTO PRIMA DI TUTTO
 
 Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
