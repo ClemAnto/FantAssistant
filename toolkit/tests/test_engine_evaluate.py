@@ -1048,34 +1048,66 @@ def test_an_old_pv_is_not_a_forecast_of_appearances():
     assert est.presences_from_older(38, "euro", 60, 31) <= 38
 
 
-def test_the_estimate_carries_a_base_vote_and_never_guesses_it_apart():
-    """`est_mv` = `est_fm` minus the bonus per appearance, so the pair cannot contradict itself.
+def test_the_base_vote_is_predicted_and_the_bonus_rate_is_what_falls_out():
+    """The MV is the half that is PREDICTED, and `est_fm - est_mv` is still the bonus rate. One derivation.
 
-    Measured 15/08/2026 on 3750 Serie A player-seasons with >= 15 votes: the bonus rate is a property of
-    the man (r = +0.842 from one season to the next) and its size is the ROLE's - keepers -1.29 against
-    +0.05 for defenders - so padding a short sample with the role's own rate is what «spannometrico ma
-    ragionato» means here. A direct estimate of the MV was measured too (anchor + 0.45(his - anchor), MAE
-    0.148 against 0.166 for the anchor alone) and refused on purpose: a second free number could
-    contradict the first.
+    Until 19/08/2026 it was the other way round - `FM_pred` minus his own RAW bonus rate - and the operator
+    found it on a striker: «come e' possibile che Malen ha solo 5.67 come MVa?». Three measurements decided
+    it and they live in `est.MV_BETA` / `MV_FROM_FM` / `CLUB_MV_SHARE`: taking his own rate whole is the
+    WORST point of its own grid (MAE 0.2470 against 0.2449 for ignoring it entirely and 0.2163 at 0.45);
+    predicting his MV instead is cross-fit unanimous at 0.45 on ten Serie A folds and 0.40 on five euro
+    ones; and the relation the operator named - «chi segna ha sempre o quasi un voto buono» - is +0.787
+    within the role for forwards, so a fixed FM minus a free rate imposed a slope of -1 on it.
     """
-    from euroleghe_ingest.engine import estimate as est
+    from euroleghe_ingest.engine import estimate as est, model
 
-    # nothing measured of him: the role's rate answers, which is how everybody still gets an MV
-    assert est.bonus_rate(None, None, 0.74) == pytest.approx(0.74)
-    assert est.bonus_rate(0.90, 0, 0.74) == pytest.approx(0.74)
-    # a full sample is entirely his
-    assert est.bonus_rate(0.90, est.FULL_SEASON_VOTES, 0.74) == pytest.approx(0.90)
-    assert est.bonus_rate(0.90, 60, 0.74) == pytest.approx(0.90), "never past his own rate"
-    # a third of a sample is a third of his own, the same shrink as everywhere else
-    assert est.bonus_rate(0.90, 5, 0.74) == pytest.approx(0.74 + (0.90 - 0.74) / 3)
-    # and with no role rate at all his own stands rather than nothing
-    assert est.bonus_rate(0.90, 5, None) == pytest.approx(0.90)
+    # THE ANCHORS ARE TWO, and a keeper's base vote sits ABOVE his fantamedia because his bonus is a malus
+    assert est.mv_anchor(6.85, 0.74, None, "A") == pytest.approx(6.11)
+    assert est.mv_anchor(5.20, -1.29, None, "P") == pytest.approx(6.49)
+    assert est.mv_anchor(6.85, None, None, "A") is None, "no role rate, no base-vote anchor"
+    # ...and only PART of a club's level is base vote: a strong attack is bonus, a solid defence is marks
+    assert est.mv_anchor(6.85, 0.74, 7.35, "A") == pytest.approx(6.11 + 0.33 * 0.50)
+    assert est.mv_anchor(6.20, 0.05, 6.70, "D") == pytest.approx(6.15 + 0.59 * 0.50)
+    assert (est.mv_anchor(6.85, 0.74, 7.35, "A") - est.mv_anchor(6.85, 0.74, 6.85, "A")
+            < 0.50), "the club's whole fantamedia advantage is not base vote"
 
-    # the derivation itself, and the identity that makes the pair readable: fm - mv IS the bonus rate
-    assert est.mv_from(6.85, 0.74) == pytest.approx(6.11)
-    assert est.mv_from(5.20, -1.29) == pytest.approx(6.49), "a keeper's fantamedia is BELOW his vote"
-    assert est.mv_from(None, 0.74) is None
-    assert est.mv_from(6.85, None) is None
+    # HIS OWN MEASURED BASE VOTE, regressed toward that anchor - the same shape the GATED engine already
+    # uses for a keeper, and very nearly the same coefficient, arrived at from the other side
+    assert est.MV_BETA["euro"] == pytest.approx(model.GK_MV_BETA)
+    assert est.mv_predict(6.75, 18, 6.11, 7.92, 0.74, "default") == pytest.approx(6.11 + 0.45 * 0.64)
+    # a thin sample is padded toward the anchor exactly as `shrink` pads a thin fantamedia
+    assert est.mv_predict(6.75, 5, 6.11, 7.92, 0.74, "default") == pytest.approx(
+        6.11 + 0.45 * (5 / est.FULL_SEASON_VOTES) * 0.64)
+    # and it pulls BOTH ways, or it would be a haircut
+    assert est.mv_predict(5.70, 30, 6.11, 6.20, 0.74, "default") > 5.70
+
+    # THE CASE THAT CAUSED IT. Malen: 6.75 of measured base vote, a fantamedia predicted at 7.92, and the
+    # old shape read 7.92 - 2.25 = 5.67 - below every base vote of his career.
+    malen = est.mv_predict(6.75, 18, 6.11, 7.916, 0.74, "default")
+    assert 6.2 < malen < 6.8, malen
+    assert malen > 7.916 - 2.25, "the whole regression toward the anchor must not land on the base vote"
+    assert 1.0 < 7.916 - malen < 2.0, "and what falls out is still a big bonus rate, because he makes one"
+
+    # WHERE HE HAS NO MEASURED BASE VOTE the fantamedia answers, and it must never reach the old shape:
+    # `FM - the role's rate` is the g = infinity end of the same formula and it loses to both interiors.
+    blind = est.mv_predict(None, None, 6.11, 7.916, 0.74, "default")
+    assert 6.11 < blind < 7.916 - 0.74
+    # ...and it RISES with the fantamedia, which is the operator's rule as arithmetic
+    assert est.mv_predict(None, None, 6.11, 8.5, 0.74, "default") > blind
+    assert est.mv_predict(None, None, 6.11, 6.5, 0.74, "default") < blind
+
+    # THE COHERENCE THE OPERATOR ASKED FOR, as a property: a higher expected fantamedia can never buy a
+    # LOWER expected base vote. The old shape broke this by construction, since MV was FM minus a rate
+    # free to grow faster than the FM it was subtracted from.
+    for own, votes in ((6.75, 18), (6.20, 30), (None, None)):
+        got = [est.mv_predict(own, votes, 6.11, fm / 100, 0.74, "default")
+               for fm in range(600, 900, 10)]
+        assert got == sorted(got), (own, votes)
+
+    # ...and his own RATE is not read at all on top of his own MV, which is a MEASURED zero and not an
+    # omission: a joint grid picks it at zero on ten folds of ten, because the population relation is
+    # already inside the base vote being read (same shape as the refused age channel).
+    assert est.MV_OWN_RATE_WEIGHT == 0.0
 
     # an Estimate built without one is still valid: an older bundle simply has no MV to show
     assert est.Estimate(6.0, 20.0, "anchor", 0.5, "").mv is None

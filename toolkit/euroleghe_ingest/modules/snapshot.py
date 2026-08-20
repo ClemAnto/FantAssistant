@@ -201,13 +201,16 @@ SQUAD_APPEARANCE_MONTHS = 14
 #  18  15/08/2026 - AND THE OTHER HALF OF THE PAIR: `est_mv`, so every player always has a realistic MV
 #      as well as an FM (the operator's rule of 05/08, one column further). It is DERIVED and never
 #      guessed apart - `MV = FM - bonus per appearance` - with his own rate padded toward his role's by
-#      the votes he has (`est.bonus_rate`, the same shrink as everywhere else). Measured on 3750 Serie A
+#      the votes he has (`est.bonus_rate`, the same shrink as everywhere else - REPLACED at 32). Measured on 3750 Serie A
 #      player-seasons: the rate is a property of the man (r = +0.842 from one season to the next) and it
 #      is huge for keepers (-1.29) against +0.05 for defenders, so a single number would have been
 #      useless. A direct estimate of the MV was available and about as good (anchor + 0.45(his - anchor),
 #      MAE 0.148 against 0.166 for the anchor alone and 0.170 for his own raw MV) and is refused on
 #      purpose: a second free number could contradict the first, and «fm - mv» would stop being a bonus
 #      rate anybody chose. Reporting, like the whole `est_*` prefix: `engine_*` does not move a decimal.
+#      CORRECTED at revision 32: the direct estimate this entry refused is the one that ships, and the
+#      reason given for refusing it was wrong - deriving the RATE keeps one number and one derivation just
+#      as well, and puts the regression toward the anchor on the half that can carry it.
 #  19  16/08/2026 - IL VALORE DI MERCATO SI LEGGE AL GIORNO DELL'ASTA. `desc_market_value` (e la quota di
 #      squadra che ne esce) veniva dalla fotografia della stagione di INPUT, vecchia fino a un anno;
 #      adesso e' l'ultimo punto della CURVA a quella data (`market_value_history`), con la fotografia
@@ -328,7 +331,7 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      c'era niente da normalizzare. Le due normalizzazioni provate e respinte, con i numeri e con i
 #      nomi che le hanno fatte cadere, stanno in `est.PRESENCE_SHARE_BY_ROLE`.
 #      Si muovono `est_pv` e tutto quello che lo moltiplica; `engine_*` no.
-SHEET_REVISION = 31
+SHEET_REVISION = 32
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
@@ -3108,20 +3111,11 @@ def estimation_layer(conn, window: features.Window, platform: str,
     # e' pubblicata.
     for fc_id, peers in _peer_groups(conn, window, data_ids=ids, marks=marks).items():
         layer[fc_id]["peers"] = peers
-    # HIS BONUS PER APPEARANCE, pv-weighted over every season we have measured of him, and the same rate
-    # per ROLE to pad it with. It is what turns the estimated fantamedia into an estimated base VOTE
-    # (`est.bonus_rate` carries the measurement): every player then has an MV as well as an FM, which is
-    # the operator's rule of 05/08 applied to the other half of the pair. The sheet's own platform is
-    # preferred and the other one answers for a man this calendar has never measured - a bonus rate is a
-    # per-appearance quantity, so the two calendars measure the same thing.
-    for fc_id, plat, votes, rate in conn.execute(
-            f"SELECT fc_id, platform, SUM(pv), SUM((fm - mv) * pv) / SUM(pv) FROM season_stats "
-            f"WHERE season <= ? AND pv > 0 AND fm IS NOT NULL AND mv IS NOT NULL "
-            f"AND fc_id IN ({marks}) GROUP BY fc_id, platform",
-            (window.input_season, *ids)):
-        seen = layer[fc_id].get("bonus")
-        if seen is None or plat == platform:
-            layer[fc_id]["bonus"] = {"votes": votes, "rate": rate, "platform": plat}
+    # THE ROLE'S BONUS PER APPEARANCE, which is what separates a fantamedia from a base vote and therefore
+    # the only thing needed to turn one anchor into the other (`est.mv_anchor`). His OWN rate is no longer
+    # collected: since 19/08/2026 the estimated MV is PREDICTED from his own measured MV and the rate is
+    # what falls out of the pair, so a per-player rate would be an input to nothing - and taking it whole,
+    # which is what this query fed, is the worst point of its own grid (`est.MV_BETA` carries the numbers).
     role_bonus: dict[str, float] = {}
     for role, rate in conn.execute(
             """
@@ -3154,23 +3148,24 @@ def estimate_for(obs, prediction, layer: dict, anchors: dict, data,
                  window: features.Window, platform: str = "euro") -> est.Estimate:
     """The rung, and then the BASE VOTE that goes with whatever fantamedia it produced.
 
-    The MV is derived and never estimated on its own (`est.bonus_rate`): one number, one derivation, and
-    `fm - mv` stays the bonus per appearance the row expects of him instead of being the difference between
-    two independent guesses. It is filled for EVERY row, `core` included - the operator's rule is that
-    every player always has a realistic FM and MV, not only the ones the engine can price.
+    The MV is PREDICTED and the bonus rate is what falls out (`est.mv_predict`): still one number and one
+    derivation, so `fm - mv` stays the bonus per appearance the row expects of him instead of being the
+    difference between two independent guesses - but the regression toward the anchor now lands on the
+    rate, which can carry it, and not on the base vote, which cannot. It is filled for EVERY row, `core`
+    included - the operator's rule is that every player always has a realistic FM and MV.
     """
     guess = _rung_for(obs, prediction, layer, anchors, data, window, platform)
     if guess.mv is None:
-        # Only the `core` rung reaches here: the engine predicts a fantamedia and no base vote, so this
-        # is the one place the MV is DERIVED - fm_pred minus his own bonus per appearance, padded with
-        # his role's for the appearances he has not got. Every other rung transforms a measured season,
-        # and there the MV is transformed the same way as the FM (see `_rung_for`): deriving it there
-        # too would dump the whole regression toward the anchor onto the base vote, which is how Kolo
-        # Muani first came out at 5.29 of MV against the 6.06 he actually averaged.
-        mine = layer.get("players", {}).get(obs.fc_id, {}).get("bonus") or {}
-        rate = est.bonus_rate(mine.get("rate"), mine.get("votes"),
-                              layer.get("role_bonus", {}).get(obs.role_classic or ""))
-        guess = replace(guess, mv=est.mv_from(guess.fm, rate))
+        # A rung whose source carried no base vote at all - 166 `core` rows of 998 on the euro sheet, 11
+        # of 295 on Serie A. Then the only thing left to read it off is the FANTAMEDIA the row already
+        # carries, which is the operator's «chi segna ha sempre o quasi un voto buono» as arithmetic:
+        # `est.MV_FROM_FM`, an interior optimum that beats both taking the anchor alone and taking
+        # `FM - the role's rate`, which is what this branch used to do for EVERYBODY.
+        role = obs.role_classic or ""
+        guess = replace(guess, mv=est.mv_predict(
+            None, None,
+            est.mv_anchor(anchors.get(role), layer.get("role_bonus", {}).get(role), None, role),
+            guess.fm, layer.get("role_bonus", {}).get(role), platform))
     if guess.mv is None or guess.fm is None:
         return guess
     said = f"MV attesa {guess.mv:.2f}, cioè {guess.fm - guess.mv:+.2f} di bonus a presenza"
@@ -3186,20 +3181,30 @@ def _rung_for(obs, prediction, layer: dict, anchors: dict, data,
     in a league the calendar does not cover is descriptive, and the anchor beats it at predicting here.
     """
     role = obs.role_classic or ""
+    role_anchor = anchors.get(role) or (prediction.anchor if prediction else None) or 6.0
     anchor = est.club_anchor(
-        anchors.get(role) or (prediction.anchor if prediction else None) or 6.0,
+        role_anchor,
         *(layer.get("club_level", {}).get((obs.club_target or "", role)) or (None, 0)))
-    # The anchor of the BASE VOTE, which is the fantamedia anchor minus the role's own bonus per
-    # appearance: a keeper's MV anchor sits ABOVE his FM anchor (-1.29 of bonus), a forward's well below
-    # (+0.74). Every rung that transforms a measured season transforms his MV toward this one exactly as
-    # it transforms his FM toward the other, so `fm - mv` stays a bonus rate and never becomes the
-    # leftover of two unrelated shrinkages.
+    # The anchor of the BASE VOTE, and it is NOT the fantamedia anchor minus anything: a keeper's sits
+    # ABOVE his FM anchor (-1.29 of bonus) and a forward's well below (+0.74), and the CLUB's own level is
+    # base vote only in part - a solid defence is clean sheets and good marks, a strong attack is bonus,
+    # and `est.CLUB_MV_SHARE` carries how much of each. Every rung that transforms a measured season
+    # transforms his MV toward this one exactly as it transforms his FM toward the other, so `fm - mv`
+    # stays a bonus rate and never becomes the leftover of two unrelated shrinkages.
     role_bonus = layer.get("role_bonus", {}).get(role)
-    anchor_mv = None if role_bonus is None else anchor - role_bonus
+    anchor_mv = est.mv_anchor(role_anchor, role_bonus, anchor, role)
     mine = layer.get("players", {}).get(obs.fc_id, {})
     calendar = data.matchdays_target or 0
     if prediction is not None and prediction.fm_pred is not None:
-        return est.Estimate(prediction.fm_pred, prediction.pv_pred, "core", est.CONFIDENCE["core"], "")
+        # The engine predicts a fantamedia and no base vote, so the MV is this rung's own answer - and it
+        # is PREDICTED from his own measured base vote, never derived by subtracting his raw bonus rate
+        # from a fantamedia that has already been regressed toward the anchor. That subtraction is what
+        # put Malen at 5.67 of MV against the 6.75 he really averaged; `est.mv_predict` carries the
+        # measurement, and `fm - mv` is still the bonus per appearance the row expects of him.
+        return est.Estimate(
+            prediction.fm_pred, prediction.pv_pred, "core", est.CONFIDENCE["core"], "",
+            mv=est.mv_predict(obs.mv_prev, obs.pv_prev, anchor_mv, prediction.fm_pred,
+                              role_bonus, platform))
     other, older = mine.get("other"), mine.get("older")
     pv_pred = prediction.pv_pred if prediction else None
 

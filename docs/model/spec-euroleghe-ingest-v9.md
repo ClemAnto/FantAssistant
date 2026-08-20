@@ -495,6 +495,69 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.59 (20 agosto 2026 — la MVa era la metà DERIVATA della coppia, ed era la metà sbagliata)
+
+**Domanda dell'operatore su due righe del foglio classic**: «come è possibile che Malen ha solo 5,67 come
+MVa? come è possibile che McTominay ha solo 5,72?». Nessuno dei due numeri era un errore di aritmetica, ed
+entrambi erano falsi. `est_mv` non veniva stimata, veniva **derivata**: `est_fm` meno il suo tasso di bonus
+**grezzo**, con `est_fm` che per una riga `core` è `engine_fm_pred` — un numero già regredito verso l'ancora
+— e il tasso preso al 100% da quindici voti in su (`BONUS_FULL_VOTES` = 15). Tutta la regressione della
+fantamedia finiva sul voto base: Malen 18 voti, FM 9,00, **MV misurata 6,75**, tasso +2,25, FM prevista
+7,92, MVa **5,67**, cioè 1,08 sotto il voto base più basso di tutta la sua carriera.
+
+È lo stesso difetto che il commento accanto descriveva già per tutti gli ALTRI gradini («deriving it there
+too would dump the whole regression onto the base vote, which is how Kolo Muani first came out at 5.29
+against the 6.06 he actually averaged»), commesso dall'unico gradino che derivava.
+
+**Cosa cambia nel codice.** `engine/estimate.py`: `bonus_rate` e `mv_from` **spariscono**, e al loro posto
+ci sono `mv_anchor` (l'ancora del voto base: quella del ruolo più la parte del livello del club che È voto
+base) e `mv_predict` (il suo voto base misurato regredito verso quell'ancora, e dove non ce n'è, letto sulla
+fantamedia). `modules/snapshot.py`: il gradino `core` restituisce una `mv` invece di lasciarla a un
+post-passaggio, la query per-giocatore sul suo TASSO non serve più e non viene più fatta, e `anchor_mv` non
+è più «l'ancora della FM meno il tasso del ruolo». `SHEET_REVISION` **32**. `engine_*` non si muove di un
+decimale: `evaluate.py` non importa `estimate.py`, e `engine_fm_pred` / `engine_pv_pred` sono identici su
+tutte le righe dei due fogli rigenerati.
+
+**I tre parametri, tutti fuori campione** (2092 coppie di stagioni Serie A e 1708 euro con ≥ 15 voti in
+entrambe, leave-one-season-out):
+
+- `MV_BETA` = **0,45** default · **0,40** euro, cross-fit **unanime** su 10 fold di 10 e 5 di 5
+  (MAE 0,1478 / 0,1491 contro 0,1656 / 0,1618 per la sola ancora del ruolo). Riscontro che nessuno ha
+  fittato per questo: il motore GATED prevede già il voto base di un portiere con `model.GK_MV_BETA` =
+  **0,40** nella stessa forma.
+- `MV_FROM_FM` = **0,55** su entrambe le piattaforme, fold 0,50-0,65, ottimo **interno**: batte sia la sola
+  ancora (0,1656) sia `FM − tasso_ruolo` (**0,1847**), che è quello che il ripiego faceva prima per tutti.
+- `CLUB_MV_SHARE` = P 0,17 · D 0,59 · C 0,44 · A 0,33, misurato dentro stagione su 469 / 451 / 453 / 360
+  club-stagioni. Ordinato come dice il calcio: una difesa solida sono voti, un attacco forte sono bonus.
+- `MV_OWN_RATE_WEIGHT` = **0**, e lo zero è dichiarato: il suo TASSO in più al suo voto base non aggiunge
+  niente (d = 0 su dieci fold di dieci; su euro 0,05-0,10 per 0,0013 di MAE). La relazione di popolazione è
+  già dentro il voto base che si sta leggendo — errore del canale età, evitato scrivendolo.
+
+**Tre cose che valgono oltre la colonna.**
+
+1. **Una giustificazione POOLED non giustifica niente su un individuo.** «Il tasso è una proprietà
+   dell'uomo: r = +0,842 da una stagione all'altra» si riproduce alla decimale ed è la correlazione su
+   tutti i ruoli insieme; **dentro il ruolo è +0,488**, e quasi tutto il resto è la separazione fra un
+   portiere a −1,29 e un attaccante a +0,74. È la regola del canale età («una differenza fra due GRUPPI non
+   è una virtù di chi la porta») incontrata sul parametro che era stato adottato citandola.
+2. **Il parametro non era mistarato, era all'ESTREMO della sua griglia, e l'estremo era il punto
+   peggiore**: b = 1 dà MAE 0,2470 contro 0,2449 di b = 0 — prendere il suo tasso intero perde contro
+   ignorarlo del tutto — e 0,2163 dell'ottimo a 0,45. Il progetto ha una regola su non adottare un
+   parametro al bordo di una griglia; qui il bordo non era stato nemmeno guardato.
+3. **La coerenza si può verificare senza esito**: il voto base è la cosa che le due piattaforme
+   condividono, quindi lo stesso uomo doveva leggere la stessa MVa sui due fogli e non lo faceva (Gimenez
+   5,83 classic contro 7,08 euro; 46 uomini di 269 oltre 0,40 di scarto). Adesso |scarto| medio **0,223 →
+   0,107** e oltre 0,40 **da 46 a 6**. Una contraddizione interna vale una misura, e non costa una stagione
+   di attesa.
+
+**E la richiesta che l'operatore ha aggiunto insieme al via era essa stessa una misura**: «un attaccante con
+una FMa alta è impossibile che abbia una MVa così bassa: chi segna ha sempre o quasi un voto buono». Dentro
+il ruolo, `r(MV, tasso di bonus)` = **+0,787** per gli attaccanti (+0,79 euro, C +0,63, D +0,50, P +0,28) —
+quindi la sottrazione imponeva su quella relazione una pendenza di **−1**. Sui fogli veri la pendenza di MVa
+su FMa dentro il ruolo passa da P +0,31 · D +0,40 · C +0,28 · **A +0,13** a P +0,43 · D +0,59 · C +0,47 ·
+**A +0,37**, contro un riferimento di popolazione di +0,18 · +0,54 · +0,38 · +0,31. Numeri completi, verdetti
+per foglio e le forme rifiutate: [letture-app-v1.md](letture-app-v1.md) §15.
+
 ## Novità v9.58 (19 agosto 2026, sera — Fπ sul foglio, il reparto pesato dalle posizioni, e otto club stranieri archiviati come `serie_a`)
 
 `SHEET_REVISION` **29 → 31**. `engine_*` invariato, `backtest --verify` **22/22**, toolkit **498 test**.

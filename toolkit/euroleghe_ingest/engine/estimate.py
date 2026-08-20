@@ -338,8 +338,9 @@ class Estimate:
     confidence: float
     note: str
     # The base vote behind that fantamedia. It is DERIVED from `fm` and never estimated on its own - see
-    # `bonus_rate` - so the pair can never contradict itself: fm - mv IS the bonus per appearance the row
-    # expects of him, which is a number a reader can disagree with.
+    # `mv_predict` - and the BONUS RATE is what falls out of the pair: `fm - mv` is the bonus per
+    # appearance the row expects of him, which is a number a reader can disagree with. Until 19/08/2026 the
+    # derived half was this one instead, and it was the wrong half (see `MV_BETA`).
     mv: float | None = None
 
     @property
@@ -374,9 +375,15 @@ def shrink(fm: float, votes: int, anchor: float, full: int = FULL_SEASON_VOTES) 
     return value, confidence
 
 
-# THE BONUS PER APPEARANCE, which is what separates a fantamedia from a base vote: FM = MV + (bonuses -
-# maluses) / Pv, so MV = FM - this. Measured 15/08/2026 on our own DB, 3750 Serie A player-seasons with
-# >= 15 votes, after the operator asked for an MV for everybody:
+# THE BASE VOTE, and which half of the pair is DERIVED. `FM = MV + (bonuses - maluses) / Pv`, so one of the
+# two is predicted and the other one falls out; the pair can never contradict itself either way. Until
+# 19/08/2026 the derived half was the MV (`FM_pred - his own raw bonus rate`) and that was the wrong choice,
+# found by the operator on a striker: «come e' possibile che Malen ha solo 5.67 come MVa?». It is the same
+# defect the `_rung_for` comment already warns about for every OTHER rung - «deriving it there too would
+# dump the whole regression toward the anchor onto the base vote» - committed by the one rung that derived.
+#
+# The role's bonus per appearance, still the anchor of the RATE. Measured 15/08/2026, 3750 Serie A
+# player-seasons with >= 15 votes:
 #
 #     role   n     mean    sd     p10     p90
 #     P     247   -1.293  0.388  -1.77   -0.82      (the goals-conceded malus, and it is huge)
@@ -384,38 +391,100 @@ def shrink(fm: float, votes: int, anchor: float, full: int = FULL_SEASON_VOTES) 
 #     C    1395   +0.239  0.301  -0.08   +0.64
 #     A     760   +0.735  0.519  +0.17   +1.43
 #
-# It is a PROPERTY OF THE MAN and not noise: from one season to the next it repeats at **r = +0.842**,
-# which is far above anything else this project carries season to season. That is why the estimate blends
-# HIS OWN rate toward his role's instead of using the role's alone.
+# WHY THE OLD SHAPE WAS WRONG, measured 19/08/2026 on 2092 Serie A and 1708 euro season pairs with >= 15
+# votes in both (`rate = anchor + b(his - anchor)`, MAE against next season's rate):
 #
-# Why derive the MV instead of estimating it directly. Measured on the same table, predicting a season's MV
-# from the one before: his own MV raw MAE **0.170**, the role anchor alone **0.166**, anchor + b(his -
-# anchor) **0.148** at b = 0.45 - the same shape and nearly the same coefficient as `OLDER_BETA`. So a
-# direct estimate is available and about as good; it is refused because it would be a SECOND number free to
-# contradict the first, and «fm - mv» would then be a bonus rate nobody chose. One number and one
-# derivation keeps the pair readable.
-BONUS_FULL_VOTES: int = FULL_SEASON_VOTES
+#     b       0.00     0.45      1.00
+#     MAE    0.2449   0.2163    0.2470      <- b = 1 is the WORST point of the grid
+#
+# Taking a man's own rate whole loses to IGNORING IT ENTIRELY. And the justification written here for taking
+# it whole - «r = +0.842, far above anything else this project carries season to season» - reproduces to the
+# decimal and is a POOLED correlation: within the role it is **+0.488** (P +0.51 D +0.40 C +0.51 A +0.49),
+# and nearly all of the rest is the separation between a keeper at -1.29 and a forward at +0.74. Same lesson
+# the age channel taught: a difference between two GROUPS is not a virtue of whoever carries it.
+#
+# WHY THE MV IS THE HALF TO PREDICT. The operator's football reason came first - «un attaccante con una FMa
+# alta e' impossibile che abbia una MVa cosi' bassa: chi segna ha sempre o quasi un voto buono» - and it is
+# true and large: within the role, `r(MV, bonus rate)` is **+0.787** for Serie A forwards (+0.79 on euro,
+# C +0.63, D +0.50, P +0.28). Subtracting the rate from a fixed FM imposes a slope of -1 on a relation the
+# data puts at +0.39, which is why the column collapsed for exactly the men who make the most bonus.
+# The arithmetic reason is that the two are the SAME transform: with the same b on both halves,
+# `FM_pred - (role_rate + b(rate - role_rate))` IS `anchor_mv + b(MV - anchor_mv)`, so nothing is lost by
+# predicting the MV instead - the only difference is which half absorbs the regression toward the anchor.
+# And the number this file needed was already in this file: the block replaced here recorded «anchor +
+# b(his - anchor) 0.148 at b = 0.45» and then refused it for fear of a second number free to contradict the
+# first. Deriving the RATE instead removes that fear entirely - there is still one number and one
+# derivation, and `fm - mv` is still the bonus rate the row expects.
+#
+# HOW MUCH OF HIS OWN BASE VOTE SURVIVES. Leave-one-season-out on the pairs above, and the cross-fit is
+# UNANIMOUS: 0.45 on all ten Serie A folds, 0.40 on all five euro folds (MAE 0.1478 / 0.1491 against 0.1656
+# / 0.1618 for the role anchor alone). Corroboration nobody fitted for this: the GATED engine already
+# predicts a keeper's base vote as `GK_MV_ANCHOR + GK_MV_BETA x (mv_prev - anchor)` with
+# `model.GK_MV_BETA = 0.40` - the same shape and the same value, arrived at from the other side.
+MV_BETA: dict[str, float] = {"default": 0.45, "euro": 0.40}
+
+# ...and whether his own RATE adds anything once his own base vote is read. It does not: a joint grid over
+# (b, d) in `MV = anchor + b(his MV - anchor) + d(his rate - role rate)` picks **d = 0 on ten folds of ten**
+# on default, and on euro d = 0.05-0.10 worth 0.0013 of MAE - under any floor this project uses. The
+# population relation is real and it is ALREADY INSIDE his own MV; counting it again is the age channel's
+# mistake, and stating the zero is the point - it is a measurement and not an omission.
+MV_OWN_RATE_WEIGHT: float = 0.0
+
+# WHERE HE HAS NO MEASURED BASE VOTE AT ALL - 166 `core` rows of 998 on the euro sheet, 11 of 295 on Serie
+# A, plus every `anchor` rung - the operator's sentence is the only thing left to read it off, so it is read
+# off the FANTAMEDIA the row already carries. Self-consistently, since the rate is `FM - MV`:
+#
+#     MV = anchor_mv + g x (FM - MV - role_rate)   ->   MV = (anchor_mv + g x (FM - role_rate)) / (1 + g)
+#
+# Cross-fit on the same pairs: **g = 0.55 on both platforms**, folds 0.50-0.65, an INTERIOR optimum that
+# beats both ends - MAE 0.1534 against 0.1656 for the anchor alone (g = 0) and 0.1847 for `FM - role_rate`
+# (g = infinity), which is what the old code did here. Its effective slope on the FM, `g / (1 + g)` = 0.355,
+# lands on the cross-sectional +0.385 / +0.350 measured independently, which is the check that it is the
+# same relation and not a second one.
+MV_FROM_FM: float = 0.55
+
+# HOW MUCH OF A CLUB'S LEVEL IS BASE VOTE. `club_anchor` moves the FANTAMEDIA anchor toward the club's own
+# mean for the role, and the old code took the MV anchor as `that - role_rate`, which hands the club's whole
+# advantage to the base vote. Measured within season over 469 / 451 / 453 / 360 club-seasons (both
+# platforms, each club's mean MV regressed on its mean FM), a club's advantage is base vote only in part,
+# and the part is ORDERED the way football says it should be: a solid defence is clean sheets and good
+# marks, a strong attack is bonus. Serie A 25/26 in one line - between the best and the worst club the
+# spread is 1.33 of FM for forwards against 0.56 of MV, 0.75 against 0.42 for defenders.
+CLUB_MV_SHARE: dict[str, float] = {"P": 0.17, "D": 0.59, "C": 0.44, "A": 0.33}
+CLUB_MV_SHARE_DEFAULT: float = 0.42
 
 
-def bonus_rate(own: float | None, votes: int | None, role_rate: float | None) -> float | None:
-    """His bonus per appearance, padded with his role's for the appearances he has not got.
+def mv_anchor(role_anchor: float | None, role_rate: float | None,
+              club_anchor_fm: float | None, role: str) -> float | None:
+    """The anchor of the BASE VOTE: the role's own, moved by the part of the club's level that IS base vote.
 
-    The same arithmetic as `shrink` and for the same reason: a rate off three matches is his in name only.
-    With nothing measured at all it IS the role's rate, which is what «spannometrico ma ragionato» means.
+    A keeper's sits ABOVE his fantamedia anchor (-1.29 of rate) and a forward's well below (+0.74), which is
+    the whole reason the two anchors cannot be one number. Null when the role's rate is unknown, because a
+    base-vote anchor guessed without it would be a fantamedia wearing another name.
     """
-    if own is None or not votes:
-        return role_rate
-    if role_rate is None:
-        return own
-    weight = max(0.0, min(1.0, votes / BONUS_FULL_VOTES))
-    return weight * own + (1.0 - weight) * role_rate
-
-
-def mv_from(fm: float | None, rate: float | None) -> float | None:
-    """The base vote behind a fantamedia: `MV = FM - bonus per appearance`. Null if either half is."""
-    if fm is None or rate is None:
+    if role_anchor is None or role_rate is None:
         return None
-    return fm - rate
+    base = role_anchor - role_rate
+    if club_anchor_fm is None:
+        return base
+    return base + CLUB_MV_SHARE.get(role, CLUB_MV_SHARE_DEFAULT) * (club_anchor_fm - role_anchor)
+
+
+def mv_predict(own: float | None, votes: int | None, anchor_mv: float | None,
+               fm: float | None, role_rate: float | None, platform: str) -> float | None:
+    """His PREDICTED base vote. Whatever comes out, `fm - this` is the bonus per appearance the row expects.
+
+    Two routes, the better one first: his own measured base vote regressed toward the anchor (`MV_BETA`,
+    cross-fit unanimous), padded for the votes he has NOT got exactly as `shrink` pads a thin fantamedia;
+    and where he has none, read off the fantamedia itself (`MV_FROM_FM`), which is the operator's «chi segna
+    ha sempre o quasi un voto buono» written as arithmetic.
+    """
+    if anchor_mv is not None and own is not None and votes:
+        weight = max(0.0, min(1.0, votes / FULL_SEASON_VOTES))
+        return anchor_mv + MV_BETA.get(platform, MV_BETA["default"]) * weight * (own - anchor_mv)
+    if anchor_mv is None or fm is None or role_rate is None:
+        return anchor_mv
+    return (anchor_mv + MV_FROM_FM * (fm - role_rate)) / (1.0 + MV_FROM_FM)
 
 
 def older_confidence(seasons_back: int) -> float:

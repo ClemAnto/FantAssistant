@@ -1075,3 +1075,138 @@ Chiamarla solo «non gioca» era falso per chi ci sta dentro.
 **Collaudo**: 317 prove su 27 file, `ng build` verde, e il browser vero sul `dist` — 10 barre, etichette
 0…90, la più alta 185px, «603 calciatori · 3 senza Fπ», **zero errori di console**. Una figura si collauda
 aprendola: nessuno degli altri due controlli poteva.
+
+## 15. La MVa era la metà DERIVATA della coppia, ed era la metà sbagliata (20 agosto 2026)
+
+Due domande dell'operatore sul foglio classic, la stessa domanda: **«come è possibile che Malen ha solo
+5,67 come MVa? come è possibile che McTominay ha solo 5,72?»** Nessuno dei due numeri era un errore di
+aritmetica, ed entrambi erano falsi.
+
+`est_mv` non veniva stimata: veniva **derivata**, `est_mv = est_fm − il suo tasso di bonus grezzo`. E i due
+addendi non stavano sulla stessa scala. `est_fm` per una riga `core` è `engine_fm_pred`, cioè un numero già
+**regredito verso l'ancora**; il tasso era il suo storico crudo al 100% (`BONUS_FULL_VOTES` = 15, quindi da
+quindici voti in su il peso era 1 e l'ancora del ruolo non lo toccava). Tutta la regressione della
+fantamedia finiva sul voto base.
+
+| | stagione misurata | FM | MV misurata | tasso | FM prevista | MVa vecchia |
+|---|---|---|---|---|---|---|
+| Malen | 2025-26 default, 18 voti | 9,00 | **6,75** | +2,25 | 7,92 | **5,67** |
+| McTominay | 24-25 e 25-26, 67 voti | 7,17 | **6,30** | +0,99 | 6,71 | **5,72** |
+
+Malen 1,08 **sotto il voto base più basso di tutta la sua carriera** (6,19-6,75). È esattamente il difetto
+che il commento accanto già descriveva per tutti gli ALTRI gradini — «deriving it there too would dump the
+whole regression onto the base vote, which is how Kolo Muani first came out at 5.29 against the 6.06 he
+actually averaged» — commesso dall'unico gradino che derivava.
+
+**Quanto era largo.** Righe `core` con almeno 15 voti misurati, MVa contro la sua MV misurata pesata sulle
+presenze: 70 su 284 (classic) e 93 su 692 (euro) stavano **sotto il loro peggior voto base di sempre**, e
+l'errore non era rumore — era proporzionale al bonus, r = **−0,44** su classic e −0,29 su euro:
+
+| tasso di bonus | <0,3 | 0,3-0,8 | 0,8-1,5 | >1,5 |
+|---|---|---|---|---|
+| errore medio, classic | +0,05 | −0,07 | **−0,42** | **−0,69** |
+| errore medio, euro | +0,12 | +0,05 | −0,08 | **−0,51** |
+
+E la prova che non serviva nessun esito per chiamarlo difetto: **lo stesso uomo aveva due MVa diverse a
+seconda del foglio**, quando il voto base è precisamente la cosa che le due piattaforme condividono —
+Gimenez 5,83 su classic contro 7,08 su euro, 46 uomini di 269 oltre 0,40 di scarto. Malen su euro leggeva
+6,39 solo perché lì il tasso era mediato su quattro stagioni e si era abbassato per caso.
+
+### 15.1 Perché era troppo: b = 1 è il punto peggiore della sua stessa griglia
+
+Prevedere il tasso di una stagione da quello precedente, 2092 coppie Serie A e 1708 euro con ≥ 15 voti in
+entrambe, `tasso = ancora_ruolo + b(suo − ancora)`, MAE sul tasso dell'anno dopo:
+
+| b | 0,00 | 0,45 | 1,00 (il codice) |
+|---|---|---|---|
+| MAE | 0,2449 | **0,2163** | **0,2470** |
+
+Prendere il suo tasso intero perde perfino contro **ignorarlo del tutto**. E la giustificazione scritta nel
+file — «r = +0,842, far above anything else this project carries season to season» — si riproduce alla
+decimale ed è una correlazione **POOLED**: dentro il ruolo è **+0,488** (P +0,51 · D +0,40 · C +0,51 ·
+A +0,49), e quasi tutto il resto è la separazione fra un portiere a −1,29 e un attaccante a +0,74. Stessa
+lezione del canale età: una differenza fra due GRUPPI non è una virtù di chi la porta.
+
+### 15.2 La richiesta dell'operatore era una misura: «chi segna ha sempre o quasi un voto buono»
+
+Aggiunta da lui insieme al via: **«dobbiamo assolutamente fare in modo che FMa e MVa siano coerenti: un
+attaccante con una FMa alta è impossibile che abbia una MVa così bassa»**. È vera e grande — dentro il
+ruolo, `r(MV, tasso di bonus)` è **+0,787** per gli attaccanti di Serie A (+0,79 su euro, C +0,63, D +0,50,
+P +0,28). Sottrarre il tasso da una FM fissa impone su quella relazione una pendenza di **−1**, ed è per
+questo che la colonna crollava esattamente per chi fa più bonus.
+
+**Le due strade sono la stessa trasformazione**, e questo è il motivo per cui non si perde niente a
+scambiarle: con la stessa b su entrambe le metà, `FM_pred − (tasso_ruolo + b(tasso − tasso_ruolo))` **è**
+`ancora_mv + b(MV − ancora_mv)`. Cambia solo quale metà assorbe la regressione verso l'ancora. E il numero
+che serviva era **già in quel file**: il blocco sostituito diceva «anchor + b(his − anchor) 0,148 a
+b = 0,45» e poi lo rifiutava per paura di un secondo numero libero di contraddire il primo. Derivare il
+TASSO invece della MV toglie quella paura del tutto: resta un numero e una derivazione, e `fm − mv` resta
+il tasso di bonus che la riga si aspetta.
+
+### 15.3 I tre parametri, tutti fuori campione
+
+- **`MV_BETA` = 0,45 (default) · 0,40 (euro)** — quanto del suo voto base misurato sopravvive come
+  previsione. Leave-one-season-out sulle coppie sopra, cross-fit **unanime**: 0,45 su tutte e dieci le
+  finestre Serie A, 0,40 su tutte e cinque le euro (MAE 0,1478 / 0,1491 contro 0,1656 / 0,1618 per la sola
+  ancora del ruolo). **Riscontro che nessuno ha fittato per questo**: il motore GATED prevede già il voto
+  base di un portiere come `GK_MV_ANCHOR + GK_MV_BETA × (mv_prev − ancora)` con `model.GK_MV_BETA = 0,40`,
+  la stessa forma e lo stesso valore, arrivati dall'altro lato.
+- **`MV_FROM_FM` = 0,55, su entrambe le piattaforme** — dove non ha nessun voto base misurato (166 righe
+  `core` di 998 su euro, 11 di 295 su Serie A, più ogni gradino `anchor`) la frase dell'operatore è l'unica
+  cosa che resta, e si legge sulla FM che la riga porta già. Auto-consistente, perché il tasso è `FM − MV`:
+  `MV = (ancora_mv + g(FM − tasso_ruolo)) / (1 + g)`. Ottimo INTERNO, fold 0,50-0,65, MAE 0,1534 contro
+  0,1656 per la sola ancora (g = 0) e **0,1847 per `FM − tasso_ruolo`**, che è quello che il codice faceva
+  qui per tutti. La sua pendenza effettiva sulla FM, `g/(1+g)` = 0,355, cade sulla +0,385 / +0,350
+  trasversale misurata a parte: è la stessa relazione e non una seconda.
+- **`CLUB_MV_SHARE` = P 0,17 · D 0,59 · C 0,44 · A 0,33** — quanto del livello di un CLUB è voto base.
+  `club_anchor` muove l'ancora della FANTAMEDIA verso la media del club per quel ruolo, e il codice
+  prendeva l'ancora della MV come «quella meno il tasso del ruolo», che regala al voto base tutto il
+  vantaggio del club. Misurato dentro stagione su 469 / 451 / 453 / 360 club-stagioni, il vantaggio è voto
+  base solo in parte, e la parte è **ordinata come dice il calcio**: una difesa solida sono porte inviolate
+  e voti, un attacco forte sono bonus. Serie A 25/26 in una riga — fra il club migliore e il peggiore lo
+  scarto è 1,33 di FM per gli attaccanti contro 0,56 di MV, 0,75 contro 0,42 per i difensori.
+- **E un canale rifiutato, perché lo zero va detto**: il suo TASSO in più al suo voto base non aggiunge
+  niente. Griglia congiunta su (b, d) in `MV = ancora + b(sua MV − ancora) + d(suo tasso − tasso_ruolo)`:
+  **d = 0 su dieci fold di dieci** su default, su euro 0,05-0,10 per 0,0013 di MAE, sotto qualsiasi soglia
+  di questo progetto. La relazione di popolazione è reale ed è **già dentro il suo voto base**; contarla
+  due volte è l'errore del canale età. `MV_OWN_RATE_WEIGHT` = 0 sta nel codice con quella misura accanto, e
+  un test lo asserisce.
+
+### 15.4 Il verdetto sui fogli veri
+
+`SHEET_REVISION` **32**. Rigenerati i tre fogli e confrontati riga per riga con quelli del 19/08, contro la
+MV misurata di ciascuno:
+
+| | classic prima | classic dopo | euro prima | euro dopo |
+|---|---|---|---|---|
+| errore assoluto medio | 0,171 | **0,085** | 0,189 | **0,100** |
+| r(errore, tasso di bonus) | −0,437 | **+0,069** | −0,291 | **+0,007** |
+| scaglione tasso > 1,5 | −0,688 | **−0,104** | −0,512 | **+0,000** |
+| sotto il suo peggior MV di sempre | 70 | **46** | 93 | **59** |
+
+E la coerenza che l'operatore ha chiesto, come pendenza di MVa su FMa dentro il ruolo, col riferimento
+misurato sulla popolazione accanto:
+
+| | P | D | C | A |
+|---|---|---|---|---|
+| foglio, prima | +0,31 | +0,40 | +0,28 | **+0,13** |
+| foglio, dopo | +0,43 | +0,59 | +0,47 | **+0,37** |
+| popolazione (default) | +0,18 | +0,54 | +0,38 | +0,31 |
+
+Le pendenze nuove sono un filo più ripide di quelle vere, e la ragione è la stessa che rende onesta la
+colonna: la FMa del foglio è una previsione regredita, quindi ha meno dispersione della FM misurata, e la
+stessa covarianza su una varianza minore dà una pendenza maggiore. Va detto anche l'altro lato: la MVa
+adesso è **meno dispersa** del vero (attaccanti sd 0,139 contro 0,248 nella popolazione), che è quello che
+fa una regressione verso la media e che è giusto per una previsione — una colonna che riproducesse la
+dispersione dell'esito sarebbe sovrasicura.
+
+Sui due nomi da cui è partito tutto: **Malen 5,67 → 6,51** (misurata 6,75) e **McTominay 5,72 → 6,20**
+(misurate 6,30 e 6,54), col bonus che resta +1,41 e +0,50 — grande per chi lo fa grande. E la prova che non
+dipende dall'esito: lo stesso uomo sui due fogli, **|scarto| medio 0,223 → 0,107, oltre 0,40 da 46 a 6 su
+269**.
+
+`engine_*` non si muove di un decimale — `evaluate.py` non importa `estimate.py`, quindi `engine_fm_pred` e
+`engine_pv_pred` sono identici su tutte le righe di tutt'e due i fogli e `backtest --verify` non è
+interessato. Come per il caso di Arthur Melo (§13), **il difetto non era nell'app**: la formula
+`Overall = P × (MVa + Bonus)` e la colonna `Bonus = FMa − MVa` erano e restano giuste, e ripartivano male
+un totale corretto fra i due addendi che l'operatore legge.
