@@ -51,6 +51,7 @@ from euroleghe_ingest.context import Context
 from euroleghe_ingest.engine import cups as engine_cups
 from euroleghe_ingest.engine import estimate as est
 from euroleghe_ingest.engine import evaluate, features, model, projection
+from euroleghe_ingest.engine import status as status_engine
 from euroleghe_ingest.modules import arrivals, fixtures, positions
 from euroleghe_ingest.sources import MANTRA_BY_CLASSIC
 
@@ -361,7 +362,22 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      risposta del pannello alla stessa domanda (`presence.voto_share`, +1,44% su 4 finestre su 4,
 #      strict): si muove `minutes_next` dentro `boards.json`, di -1,0' in media e +1,1' su chi arriva da
 #      un altro campionato. Su default non si adotta e non si muove niente (§7-quadragies).
-SHEET_REVISION = 34
+#   35 (20/08/2026) - LA TITOLARITÀ IN UNA PAROLA: `desc_titolarita` e i due numeri che la compongono
+#      (`desc_titolarita_play` e `desc_minutes_next`). Sei gradini dettati
+#      dall'operatore - bandiera, titolarissimo, titolare, ballottaggio, panchina, riserva - letti come
+#      DUE assi, la quota di partite e un pavimento di minuti, che e' come li ha scritti. La quota e'
+#      CONDIZIONATA («delle partite per cui e' disponibile», `presence.appearance_share`) perche' e' cosi'
+#      che lo stato torna con la formazione tipo, che e' quello che ha chiesto: `claim` e' `standing`
+#      senza lo sconto infortuni per la stessa ragione. E la board e' un CANCELLO, non un ornamento: chi
+#      l'undici non schiera non puo' essere `titolare`, chi schiera non scende sotto `ballottaggio` - ed e'
+#      anche il classificatore migliore, perche' a parita' di claim i disegnati hanno reso 0,512 di q75
+#      contro 0,328. Misurato su quattro finestre pre-stagione retrodatate (due piattaforme x due
+#      stagioni): `bandiera` mantiene la promessa 4 volte su 4 (0,864-0,925 di quota, 76-80 minuti),
+#      `titolare` 4 su 4, `titolarissimo` e' il gradino debole (residuo, 0,7-1,0 uomini per club, 3 su 4).
+#      Tabella completa e alternative respinte in `engine/status.py`. Le tre colonne sono VUOTE su una
+#      macchina senza display: senza il disegno «e' nell'undici?» e' ignoto, e un gradino inventato la'
+#      sarebbe peggio di una cella vuota. Nessuna colonna `engine_*` si muove.
+SHEET_REVISION = 35
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
@@ -787,7 +803,7 @@ COMPETITION_CLASSES: tuple[tuple[str, tuple[str, ...]], ...] = (
 # already league-only. The DENOMINATOR was the club's whole fixture list, and the competition mix is
 # different for every club (Arsenal 58 elevens = 38 + 14 + 6, Bayern 50, Napoli 38 = Serie A alone).
 # A percentage of one and a percentage of the other are not the same quantity, so the shirts read
-# titolarità that could not be compared across clubs: Kane 25 starts of 34 Bundesliga rounds printed
+# starting shares that could not be compared across clubs: Kane 25 starts of 34 Bundesliga rounds printed
 # 50%, and a European campaign was indistinguishable from a bench.
 # `CHAMPIONSHIPS` and not `LEAGUES`: the question here is «is this a league match?», not «is it one of
 # our five?». A promoted club's last season was a real championship with a real calendar, and counting
@@ -3397,7 +3413,7 @@ def _votes(count: int) -> str:
 def measured_season(conn, window) -> tuple[str, str | None]:
     """(the season the descriptive layers measure, a note). Which season "so far" even means.
 
-    Standing on 1 March 2026 the interesting titolarità is THIS season's, up to that day - not last
+    Standing on 1 March 2026 the interesting record is THIS season's, up to that day - not last
     season's total, which is what a pre-season snapshot has to use because nothing else exists yet. So
     the target season is measured when it has really been played by then, and the previous one otherwise.
     """
@@ -3757,8 +3773,13 @@ def measured_sides(conn, season: str, notes: list[str]) -> dict[int, float]:
             for fc_id, avg_y, _roles in rows}
 
 
-def titolarita(conn, season: str, before: str | None = None) -> dict[int, dict]:
+def starting_record(conn, season: str, before: str | None = None) -> dict[int, dict]:
     """How often he STARTED over the full real season: (starts, matches, share).
+
+    NOT «titolarita», which in this project means something else and used to name this function: here
+    titolarita is the share of the matches he gets a VOTO in, whether or not he was on the team sheet
+    (operator's definition, 20/08/2026 - see CLAUDE.md). What this counts is the man printed in the
+    eleven, which is a different fact and now says so in its own name.
 
     This - not any valuation - is what says whether a coach fields him. Read over the whole season
     because the "schieramento tipo" is a habit over a year; the last ten matches are a separate column
@@ -3834,7 +3855,7 @@ def at_current_club(conn, season: str, observations, squads: dict[int, str],
     signing from the eleven.
 
     From the per-match layer, the only place that stores a club per appearance, and over the CHAMPIONSHIP
-    rounds only - the same sample as `titolarita` and `propensity`, so the three halves of one season can
+    rounds only - the same sample as `starting_record` and `propensity`, so the three halves of one season can
     be read against each other. Counting the cups here made `desc_minutes_club` and
     `desc_minutes_full_season` two different numbers for the same season in the same row (Kane 2994
     against 2382), and the share was taken over a sample whose size depended on how far his club went in
@@ -4001,7 +4022,7 @@ def club_context(conn, data: features.WindowData, starters_date: str | None,
             # ...and how many of those are the CHAMPIONSHIP's. This is the denominator of a share of the
             # season: the platform's calendar is made of league rounds, the numerators are league-only
             # (`external_stats` stores nothing else), and the club-to-club spread of the other number is
-            # 66%-100% (Arsenal 38 of 58, Napoli 38 of 38). A titolarità divided by the whole fixture
+            # 66%-100% (Arsenal 38 of 58, Napoli 38 of 38). A season share divided by the whole fixture
             # list is not comparable between two clubs, which is what made Kane read 49%.
             "league_XIs": lines[4] if lines and lines[4] is not None else 0,
             # The championship those rounds belong to, so the sheet says which calendar it counted.
@@ -4184,7 +4205,20 @@ PLAYER_COLUMNS: tuple[str, ...] = (
     "desc_preseason_starts", "desc_preseason_matches",
     "desc_avg_x", "desc_avg_y", "desc_side_measured",
     "desc_starter_prob", "desc_starter_status", "desc_expected_minutes",
-    # Titolarità: how often he STARTS. Two horizons, because they answer different questions - the
+    # ...and LA TITOLARITÀ IN UNA PAROLA (`engine/status.py`): bandiera | titolarissimo | titolare |
+    # ballottaggio | panchina | riserva, the operator's own vocabulary, dictated 20/08/2026. It is made of
+    # the two numbers beside it - the share of the matches he is FIT FOR that he gets a voto in, and the
+    # minutes he is expected to play in a match he plays - plus the DRAWN eleven, which gates it: a man the
+    # board does not field cannot be `titolare`, and one it does never falls below `ballottaggio`. That
+    # gate is why these three are written by the same pass that draws the boards, and why they are EMPTY on
+    # a machine with no display: without the drawing the state is unknown, not a rung. Measured delivery
+    # per rung, on four back-dated pre-season windows, in the module's own docstring.
+    # `desc_minutes_next` is NOT `desc_expected_minutes` and the two must not be read for each other:
+    # that one is a SEASON TOTAL (minutes per club match x the appearances the engine predicts), this one
+    # is one match's - «how long does he stay on when he plays». Same word, two denominators.
+    "desc_titolarita", "desc_titolarita_play", "desc_minutes_next",
+    # How often he STARTS, which is NOT what this project calls titolarita (that is the share of the
+    # matches he gets a VOTO in, above). Two horizons, because they answer different questions - the
     # season's share is the coach's habit over a year, the recent one is the shape of the side now.
     "desc_season_starts", "desc_season_matches", "desc_start_share",
     # ...and how much of that season was played at the club he is at NOW: the two halves of it, so that a
@@ -4410,7 +4444,7 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
         starter = layers["starters"].get(obs.fc_id, {})
         duel = layers["duels"].get(obs.fc_id, {})
         prop = layers["propensity"].get(obs.fc_id, {})
-        season_play = layers["titolarita"].get(obs.fc_id, {})
+        season_play = layers["starting_record"].get(obs.fc_id, {})
         at_club = layers["at_club"].get(obs.fc_id, {})
         card = layers["discipline"].get(obs.fc_id, {})
         state = layers["contract"].get(obs.fc_id, {})
@@ -4653,6 +4687,10 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             # predicts. The recent share is what carries bench time; the season-long one is the
             # fallback for a player whose club we have no recent matches for.
             "desc_expected_minutes": _round(_expected_minutes(obs, form, pv_pred), 0),
+            # Filled AFTER the boards are drawn, by the same pass, because the ladder reads the drawn
+            # eleven - see PLAYER_COLUMNS. Declared here so the column exists whatever the environment:
+            # a schema that changes with the display would be worse than an empty cell.
+            "desc_titolarita": None, "desc_titolarita_play": None, "desc_minutes_next": None,
             "desc_season_starts": season_play.get("starts"),
             "desc_season_matches": season_play.get("matches"),
             "desc_start_share": season_play.get("share"),
@@ -5364,7 +5402,7 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
         "starters": starters,
         "availability": availability_now(conn, window.auction_date),
         "propensity": propensity(conn, measured, before),
-        "titolarita": titolarita(conn, measured, before),
+        "starting_record": starting_record(conn, measured, before),
         # The same season, split by WHOSE it was: what he played at the club he is at now, and what
         # somewhere else. The totals cannot say it - only the per-match layer stores a club.
         "at_club": at_current_club(conn, measured, data.observations, squads, before),
@@ -5703,6 +5741,25 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
               f" · {board_summary['men']} men · {board_summary['duels']} ballottaggi"
               f" · {board_summary['no_granular_role']} men with no granular real role, whose duels are"
               f" UNKNOWN and not absent")
+        # LA TITOLARITÀ IN UNA PAROLA, merged into the rows and the file re-written. It has to be this way
+        # round and not the other: the ladder is gated by the DRAWN eleven, which does not exist until the
+        # panel has been driven over the sheet that was just written. The cost is one extra write of a file
+        # already on disk; the alternative was a second definition of who is in the eleven.
+        statuses = board_summary.get("statuses") or {}
+        for row in rows:
+            one = statuses.get(row.get("fc_id"))
+            if not one:
+                continue
+            row["desc_titolarita"] = one.get("status")
+            row["desc_titolarita_play"] = _round(one.get("play"), 3)
+            row["desc_minutes_next"] = _round(one.get("minutes"), 0)
+        _write_csv(folder / "players.csv", PLAYER_COLUMNS, rows)
+        ladder = board_summary.get("ladder") or {}
+        print("[snapshot] titolarità: "
+              + " · ".join(f"{ladder[word]} {word}" for word in status_engine.LADDER if ladder.get(word))
+              + (f" · {ladder['unknown']} unknown" if ladder.get("unknown") else "")
+              + f" (over {sum(ladder.values())} rows of {len(rows)}; the rest are at a club whose board"
+                f" could not be drawn, so «is he in the eleven» is unknown and no rung is written)")
         for club, why in board_summary["failed"].items():
             print(f"[snapshot] WARNING: board not drawn for {club}: {why}")
         for club, why in board_summary["disagreements"].items():

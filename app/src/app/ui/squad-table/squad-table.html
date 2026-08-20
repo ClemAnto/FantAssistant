@@ -74,6 +74,18 @@
                 Ruolo reale
               </th>
             }
+            @case ('titolarita') {
+              <th [class]="dragMark(key)"
+                nzWidth="46px"
+                class="text-center"
+                [nzSortOrder]="sortOrderOf(key)" (nzSortOrderChange)="sortWith(key, $event)"
+                [nzSortDirections]="highFirst"
+                nz-tooltip
+                nzTooltipTitle="La titolarità in una parola, decisa dal toolkit sull'undici tipo: BAN bandiera · TIS titolarissimo · TIT titolare · BLT ballottaggio · PAN panchina · RIS riserva. Qui «titolarità» vuol dire prendere il voto, anche da subentrato."
+              >
+                Tit.
+              </th>
+            }
             @case ('expected') {
               <th [class]="dragMark(key)"
                 nzWidth="48px"
@@ -241,6 +253,15 @@
                   </span>
                 } @else {
                   <span class="opacity-60">ignoto</span>
+                }
+              </td>
+            }
+            @case ('titolarita') {
+              <td class="text-center" [title]="titolaritaHint(man)">
+                @if (titolaritaShort(man); as code) {
+                  <span [class]="titolaritaTone(man)">{{ code }}</span>
+                } @else {
+                  —
                 }
               </td>
             }

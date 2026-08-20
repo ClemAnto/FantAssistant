@@ -1,5 +1,13 @@
 # Gate del motore — v1 · protocollo, verdetti, ipotesi falsificate
 
+> **Vocabolario (20/08/2026).** In questa pagina «titolarità» è usata nel senso COMUNE — la quota di
+> giornate in cui un uomo PARTE dall'inizio — perché è quello che i parametri sono stati spazzati contro
+> (`standing` prevede chi parte, e lo sweep lo giudica sulle titolarità di partenza realizzate). Dal
+> 20/08/2026 la parola, nel resto del progetto, vuol dire un'altra cosa: **prendere il voto**, anche da
+> subentrato (definizione dell'operatore, vedi 00-BRIDGE e CLAUDE.md). I verbali qui sotto NON sono stati
+> riscritti apposta: cambiarli cambierebbe la misura che registrano.
+
+
 **Chiuso: 27 luglio 2026** · Documento autosufficiente: cosa è stato provato, con che protocollo, con
 che numeri, e cosa NON va riproposto.
 *Glossario: B0 = motore attuale (baseline) · finestre **Tm7…T2**, dieci su Serie A (dal 15/16→16/17) e

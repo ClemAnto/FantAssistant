@@ -1,5 +1,5 @@
 # Stato progetto & continuità — v5
-**Aggiornato: 20 agosto 2026, sera (IL REPARTO IN CUI ARRIVA — R23 adottata (robusta 9/10 su Serie A, 5/5 su euro/mantra, cade su euro/classic), R22 respinta sulla sua stessa aspettativa pre-registrata, e la fee in rapporto alla spesa del club adottata su euro; più il difetto che l'adozione ha reso visibile: `minutes.start_rate_next` divideva il numeratore del PANNELLO per il denominatore del MOTORE, quindi una regola che alzava le presenze ABBASSAVA i minuti previsti a partita — corretto su euro, +1,44% su 4 finestre su 4; e la revisione dei pacchetti del viaggio nel tempo, che c'era e veniva cancellata in transito. `SHEET_REVISION` 34, `--verify` 22/22, 510 test del toolkit e 318 dell'app)** · precedente:20 agosto 2026, notte (LA MVa ERA LA METÀ DERIVATA DELLA COPPIA, ED ERA LA METÀ SBAGLIATA — trovata dall’operatore su due righe del foglio classic: `est_mv` era `engine_fm_pred` (già regredita) meno il suo tasso di bonus GREZZO, quindi tutta la regressione finiva sul voto base e Malen leggeva 5,67 contro i 6,75 misurati. Adesso la MVa è la metà PREVISTA e il tasso è quello che ne esce; tre parametri fuori campione con cross-fit UNANIME, un canale rifiutato come zero dichiarato, e la richiesta dell’operatore («chi segna ha sempre o quasi un voto buono») che era essa stessa una misura: r = +0,787 dentro il ruolo. `SHEET_REVISION` 32, `engine_*` fermo, v0.1.20 pubblicata)** · precedente: 20 agosto 2026 (il grafico di Fπ non si vedeva MAI: una `computed` che scriveva un signal — vietato in Angular — e una suite dell'app che non compilava da `d7d0fbf`, quindi le prove dichiarate ieri non venivano da una corsa; 317 verdi)** · precedente: 19 agosto 2026, sera (Fπ: una colonna che PRONOSTICA invece di sommare — tre parametri misurati fuori campione, la scala dettata dall'operatore in cinque passaggi, quattro idee respinte, e otto club stranieri archiviati come `serie_a`; `SHEET_REVISION` 31, v0.1.19 pubblicata)** · precedente: 19 agosto 2026 (un vecchio PV non è una previsione di presenze: il gradino `older` regrediva la fantamedia e consegnava le presenze intatte, e l'Overall dell'app è un PRODOTTO — `SHEET_REVISION` 29; e l'attesa sul lock del DB in una definizione sola, con la regola per due sessioni in parallelo)** · precedente: 18 agosto 2026 (le DEFINIZIONI dell'operatore — Overall, Lead, Margine, Bonus — applicate ovunque; UN campetto solo per asta e Squadre, con l'item-posto e i moduli alternativi scritti dal toolkit; tre difetti della tabella misurati in browser)** · precedente: 17 agosto 2026, notte (la coppa continentale in mezzo al campionato: misurata, sul foglio e RESPINTA dal gate; l'app riscritta a voce; il surplus che aveva due aritmetiche)
+**Aggiornato: 20 agosto 2026, tarda sera (LA TITOLARITA' IN UNA PAROLA, E LA PAROLA STESSA DEFINITA - sei gradini dettati dall'operatore, letti come DUE assi (quota di partite + pavimento di minuti) e non come una probabilita' congiunta, che e' stata costruita per prima e misurata inservibile; la quota e' CONDIZIONATA e la board e' un CANCELLO, che e' anche il classificatore migliore (q75 0,512 contro 0,328 a parita' di claim); resa misurata su quattro finestre retrodatate, `bandiera` e `titolare` mantengono la promessa 4 volte su 4. `SHEET_REVISION` 35, `engine_*` fermo, colonna `Tit.` a tre caratteri in tabella, v0.1.21. E il termine definito dall'operatore: titolarita' = prende il voto, quota da titolare = parte dall'inizio, con la bonifica del codice e una nota datata sui verbali storici)** · precedente: 20 agosto 2026, sera (IL REPARTO IN CUI ARRIVA — R23 adottata (robusta 9/10 su Serie A, 5/5 su euro/mantra, cade su euro/classic), R22 respinta sulla sua stessa aspettativa pre-registrata, e la fee in rapporto alla spesa del club adottata su euro; più il difetto che l'adozione ha reso visibile: `minutes.start_rate_next` divideva il numeratore del PANNELLO per il denominatore del MOTORE, quindi una regola che alzava le presenze ABBASSAVA i minuti previsti a partita — corretto su euro, +1,44% su 4 finestre su 4; e la revisione dei pacchetti del viaggio nel tempo, che c'era e veniva cancellata in transito. `SHEET_REVISION` 34, `--verify` 22/22, 510 test del toolkit e 318 dell'app)** · precedente:20 agosto 2026, notte (LA MVa ERA LA METÀ DERIVATA DELLA COPPIA, ED ERA LA METÀ SBAGLIATA — trovata dall’operatore su due righe del foglio classic: `est_mv` era `engine_fm_pred` (già regredita) meno il suo tasso di bonus GREZZO, quindi tutta la regressione finiva sul voto base e Malen leggeva 5,67 contro i 6,75 misurati. Adesso la MVa è la metà PREVISTA e il tasso è quello che ne esce; tre parametri fuori campione con cross-fit UNANIME, un canale rifiutato come zero dichiarato, e la richiesta dell’operatore («chi segna ha sempre o quasi un voto buono») che era essa stessa una misura: r = +0,787 dentro il ruolo. `SHEET_REVISION` 32, `engine_*` fermo, v0.1.20 pubblicata)** · precedente: 20 agosto 2026 (il grafico di Fπ non si vedeva MAI: una `computed` che scriveva un signal — vietato in Angular — e una suite dell'app che non compilava da `d7d0fbf`, quindi le prove dichiarate ieri non venivano da una corsa; 317 verdi)** · precedente: 19 agosto 2026, sera (Fπ: una colonna che PRONOSTICA invece di sommare — tre parametri misurati fuori campione, la scala dettata dall'operatore in cinque passaggi, quattro idee respinte, e otto club stranieri archiviati come `serie_a`; `SHEET_REVISION` 31, v0.1.19 pubblicata)** · precedente: 19 agosto 2026 (un vecchio PV non è una previsione di presenze: il gradino `older` regrediva la fantamedia e consegnava le presenze intatte, e l'Overall dell'app è un PRODOTTO — `SHEET_REVISION` 29; e l'attesa sul lock del DB in una definizione sola, con la regola per due sessioni in parallelo)** · precedente: 18 agosto 2026 (le DEFINIZIONI dell'operatore — Overall, Lead, Margine, Bonus — applicate ovunque; UN campetto solo per asta e Squadre, con l'item-posto e i moduli alternativi scritti dal toolkit; tre difetti della tabella misurati in browser)** · precedente: 17 agosto 2026, notte (la coppa continentale in mezzo al campionato: misurata, sul foglio e RESPINTA dal gate; l'app riscritta a voce; il surplus che aveva due aritmetiche)
 Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da qui + i file della cartella "Modello Previsionale Fantacalcio".
 *Glossario: T1/T2 = finestre di test (23/24->24/25, 24/25->25/26) · MAE = errore medio assoluto · cross-fitted = parametri stimati su una finestra, testati sull'altra · M2e = modello portieri decomposto (abilità + tasso gol subiti del club; la metà Elo del nome non è nel motore) · Pv_att = presenze attese · fc_id = id fantacalcio.it · EV = valore atteso · scoring_config = punteggi configurabili per lega · xG/xA = expected goals/assists · 2.5 pieno = backtest motore completo con flag.*
 
@@ -7,6 +7,72 @@ Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da q
 App per leghe EuroLeghe/fantacalcio.it (Classic+Mantra, 5 campionati) con motore previsionale. Metodo: ogni regola entra SOLO se batte il baseline fuori campione su finestre indipendenti (gate pre-registrato). Doc madre: modello-previsionale-v3.8.md.
 
 ## ⚠️ Lo stato corrente è in `00-BRIDGE-punto-di-ingresso.md`, blocco «STATO AL 5 AGOSTO 2026»
+
+### 20 agosto 2026, tarda sera — la titolarità in UNA PAROLA, e la parola stessa definita
+
+**Due richieste dell'operatore nella stessa sessione, e la seconda è quella che vale più a lungo.**
+
+**1. La scala.** «Vorrei che quando si genera lo snapshot, per ogni calciatore venga deciso se è
+1) bandiera … 2) titolarissimo … 3) titolare … 4) ballottaggio … 5) panchina … 6) riserva», col vincolo
+**«questo stato deve essere coerente con la formazione tipo (che adesso mi sembra buona)»**.
+
+Letta come **due assi** — una quota di partite e un pavimento di minuti — che è come le sei righe sono
+scritte, e i due numeri esistevano già: `presence.appearance_share` e `minutes.per_appearance`. La lettura
+alternativa (una probabilità congiunta «>90% delle partite in cui gioca almeno 75'») è stata costruita per
+prima e **misurata inservibile**: la q75 prevista arriva a 0,86, quindi `bandiera` è vuota per costruzione
+e `titolare` pure, e su un foglio Serie A dava **10/0/0/184** sui primi quattro gradini.
+
+La quota è **condizionata** («delle partite per cui è disponibile»), che è ciò che rende lo stato coerente
+con la board: `claim` è `standing` senza sconto infortuni per la stessa ragione. E **la board è un
+cancello**: chi l'undici tipo non schiera non può essere `titolare`, chi schiera non scende sotto
+`ballottaggio` — non solo coerenza, ma il classificatore migliore, perché a parità di claim i disegnati
+hanno reso una q75 di **0,512 contro 0,328**. Senza cancello: 19 `titolarissimo` che la board non schiera
+e 83 disegnati chiamati `panchina`.
+
+Misurato su **quattro finestre pre-stagione retrodatate** (due piattaforme × due stagioni), esito reale:
+`bandiera` mantiene la promessa 4/4 (quota 0,864-0,925, minuti 76-80'), `titolare` 4/4 (0,846-0,898,
+67-68'), `panchina` e `riserva` ordinate e distanti. **`titolarissimo` è il gradino debole** — è il
+residuo fra gli altri due, 0,7-1,0 uomini per club, e su una finestra rende 0,700 contro 0,80. **Lo
+squilibrio fra ruoli è nella definizione** (una partita da titolare dura 84,5' per un difensore e 78,5'
+per un attaccante), quindi `bandiera` tiene 11 portieri, 33 difensori, 13 centrocampisti e 4 attaccanti:
+riportato e non curato di nascosto, perché una differenza fra GRUPPI la decide lui.
+
+Dove vive: `engine/status.py`, tre colonne del foglio (`SHEET_REVISION` **35**) scritte dallo **stesso
+passaggio che disegna le board** — il gradino legge l'undici, quindi calcolarlo altrove potrebbe
+descrivere un undici diverso da quello esportato — e quindi **vuote su una macchina senza display**.
+`engine_*` fermo, `backtest --verify` **22/22**.
+
+**In tabella** (richiesta della sera): colonna `Tit.`, **tre caratteri**, BAN · TIS · TIT · BLT · PAN ·
+RIS, accanto alla P, ordinabile per rango e non per sigla, scala letta dal peso e non dal colore. `BLT` e
+non `BAL` perché `BAN`/`BAL` differiscono per l'ultimo carattere e sono i gradini 1 e 4. v0.1.21.
+
+**2. Il termine.** «Nel linguaggio comune "titolarità" indica se un calciatore parte dall'inizio; nel
+nostro progetto invece deve indicare che gioca abbastanza da **prendere il voto**, anche se non parte dal
+principio». La scala era già su quell'asse, quindi la definizione la conferma. Convenzione scritta in
+CLAUDE.md e in cima al 00-BRIDGE — **titolarità = prende il voto · quota da titolare = parte
+dall'inizio** — e bonificati i posti dove la parola nominava la quantità sbagliata: `snapshot.titolarita`
+→ `starting_record`, `SnapshotView.titolarita` → `starting_record`, i commenti del pannello, le stringhe
+che l'app mostra. **Non riscritti apposta** i verbali di `docs/model/`: registrano misure fatte sulle
+titolarità DI PARTENZA, e riscriverle cambierebbe la misura invece di chiarirla — `gate-motore-v1.md`
+porta ora una nota datata che dice in che senso va letto.
+
+**Il difetto della sessione era mio, e l'ha trovato la verifica in browser.** `e2e-table.mjs` disegna la
+tabella vera; l'allineamento era a posto, ma nelle righe c'era **Terracciano F. → `riserva`** con
+**nessuna partita misurata** e il motore che gliene prevede 29 su 38. `presence.Inputs` tiene le presenze
+come float, quindi una colonna assente e uno zero misurato arrivano identici e la quota legge 0,000:
+«vuoto = ignoto, mai zero», commesso da chi aveva appena riscritto la regola. Il guardiano sta nella RIGA
+(`SnapshotView.play_share`), perché è l'unico posto dove la distinzione sopravvive. Costa **95 righe su
+605** (Serie A) e 166 su 1023 (euro) che passano da `riserva` a vuoto.
+
+**Tre cose restano aperte e sono decisioni dell'operatore, non misure**: se i 95 senza calcio misurato
+debbano leggersi `riserva` (la sua definizione del gradino 6 lo direbbe, ma il fondo di una scala di
+calcio non è un secchio per l'ignoto); se `titolarissimo`, gradino residuo e debole, vada ridefinito; e
+se il pavimento dei minuti vada misurato DENTRO il ruolo, visto che in minuti assoluti premia i
+difensori. Più una parola con due sensi nello stesso file: «ballottaggio» è una RELAZIONE sul campetto e
+un GRADINO sulla scala — promuovere ogni rivale al gradino 4 è stato misurato e non conviene (i rivali
+nominati rendono 0,551 contro lo 0,80 promesso).
+
+Numeri e alternative respinte: [letture-app-v1.md](letture-app-v1.md) §16, spec «Novità v9.63».
 
 ### 20 agosto 2026, sera — il reparto in cui arriva, e un numeratore che non si muoveva col suo denominatore
 

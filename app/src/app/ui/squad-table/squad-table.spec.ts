@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { SORTABLE_COLUMNS, SQUAD_COLUMNS, orderColumns } from './squad-table';
+import { TITOLARITA_SHORT } from '../../core/titolarita';
 
 /**
  * I DUE ZERI, affiancati - e la ragione per cui questo test esiste è che la prossima persona che legge
@@ -18,6 +19,26 @@ import { SORTABLE_COLUMNS, SQUAD_COLUMNS, orderColumns } from './squad-table';
  * anche per chi ha già una preferenza salvata.
  */
 describe('le colonne della tabella', () => {
+  it('porta la TITOLARITÀ accanto alla P, e la si può ordinare', () => {
+    // Le due colonne rispondono alla stessa domanda in due unità - «quanto gioca» a parole e in
+    // partite - quindi stanno vicine: una parola letta a mezza tabella di distanza dal suo numero è
+    // una parola che nessuno confronta. E si ordina per la SCALA, non per la sigla: in ordine
+    // alfabetico verrebbe BAL, BAN, PAN, RIS, TIS, TIT, cioè nessun ordine.
+    const keys = SQUAD_COLUMNS.map((one) => one.key);
+    expect(keys).toContain('titolarita');
+    expect(keys.indexOf('expected')).toBe(keys.indexOf('titolarita') + 1);
+    expect(SORTABLE_COLUMNS).toContain('titolarita');
+  });
+
+  it('è larga quanto tre caratteri e non di più', () => {
+    // L'operatore ha chiesto TRE caratteri: la larghezza è la prova che nessuno ci rimetterà la parola
+    // intera, che è quello che il tooltip già fa. La somma delle colonne accese decide quando la
+    // tabella scorre di lato, quindi una colonna larga è un costo pagato da tutte le altre.
+    const column = SQUAD_COLUMNS.find((one) => one.key === 'titolarita');
+    expect(column?.width).toBeLessThanOrEqual(48);
+    expect(Object.values(TITOLARITA_SHORT).every((code) => code.length === 3)).toBe(true);
+  });
+
   it('porta tutt\'e due i surplus, uno accanto all\'altro', () => {
     const keys = SQUAD_COLUMNS.map((one) => one.key);
     expect(keys).toContain('surplus');

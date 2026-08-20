@@ -541,7 +541,7 @@ Misurato chiamando la funzione che spedisce, stessi rivali disegnati, prima e do
 Nessuno compare due volte, nemmeno su due LINEE diverse - il difetto che la versione per riga aveva
 reintrodotto (Pasalic, ballottaggio in mezzo e sulla trequarti insieme).
 
-**Un ballottaggio sotto il 20% di titolarità non si disegna** («se non ci sono ballottaggi accetta qualsiasi
+**Un ballottaggio sotto il 20% di quota da titolare non si disegna** («se non ci sono ballottaggi accetta qualsiasi
 claim; nel caso di ballottaggi scarta quelli sotto il 0,20»). Vale sui RIVALI e non sul titolare, o l'undici
 avrebbe un posto vuoto che il toolkit non ha lasciato. Misurato prima di scegliere, su 610 rivali di euro: a
 0,20 se ne scartano 95 e 40 posizioni su 357 restano senza ballottaggio; a 0,30 sarebbero 161 e 72, cioè un
@@ -590,11 +590,11 @@ MISURATI su 247.825 presenze di lega (`external_match_stats`, 19/08/2026), per r
 | ? | 42.995 | 83,4 | 12.710 | 20,5 |
 
 `P` prossimo è una MISCELA di due letture, non una sola: la quota misurata l'anno scorso (`desc_start_share`,
-che divide per le sue PRESENZE - la colonna che il pannello dichiara sbagliata per la titolarità è quella
+che divide per le sue PRESENZE - la colonna che il pannello dichiara sbagliata come quota da titolare è quella
 giusta qui, perché la cosa che si sta dividendo è una presenza) e quella implicita nel modello
 (`presence / (engine_pv_pred / giornate)`, **due quote e non due conteggi**, o sarebbe il denominatore
 sbagliato di sempre). Il peso del modello è **0,30**, e la ragione è misurata e scomoda: **la previsione del
-modello è PEGGIORE della misura** come stima della titolarità che verrà.
+modello è PEGGIORE della misura** come stima della quota da titolare che verrà.
 
 | stima di P | bias | MAE | correlazione con P reale |
 |---|---:|---:|---:|
@@ -626,7 +626,7 @@ del residuo personale sopravvive, e il braccio che non fa altro che contrarre (P
 88′ su quattro presenze non sono una promessa. **Il portiere non si riscala**: la sua P è 1 per regolamento e
 il modello non lo sa (MAE 3,65 → 6,19 e 2,24 → 5,88), quindi per lui la misura È la previsione. E il tetto
 della famiglia, sostituendo il P VERO, è MAE **3,78 / 3,54 (+74%)**: la forma è giusta e quel che manca è una
-previsione della titolarità - **è quello che riaprirebbe la questione, non una formula più grande**.
+previsione di chi parte titolare - **è quello che riaprirebbe la questione, non una formula più grande**.
 
 Il numero si muove poco e dove deve: mediana |Δ| **4,2-4,5 minuti**, e solo il **13%** degli uomini si sposta
 di dieci minuti o più. Chi non ha una stagione misurata non ha previsione e la carta lo dice: vuoto = ignoto.

@@ -38,7 +38,7 @@ from euroleghe_ingest import ui_theme as theme
 from euroleghe_ingest.config import Config
 from euroleghe_ingest.context import Context
 from euroleghe_ingest.db.database import connect, init_db, record_run, table_names
-from euroleghe_ingest.engine import minutes, presence
+from euroleghe_ingest.engine import minutes, presence, status as status_engine
 from euroleghe_ingest.matching import club_abbreviation, club_identity
 from euroleghe_ingest.modules import IMPLEMENTED, load, recent_form
 from euroleghe_ingest.modules.positions import (
@@ -2253,7 +2253,7 @@ class SnapshotView(ttk.Frame):
     # ML (0.60 against the defence's 0.25) steps forward - which is what a 3-5-2 looks like - and a DM
     # among the midfielders drops behind the mezzale. Clamped, because this places a man within his
     # line and must never move him into the next one: which line he is in comes from the formation and
-    # the titolarità, and that decision is not this function's to reopen.
+    # who starts, and that decision is not this function's to reopen.
     LINE_DEPTH: ClassVar[dict[str, float]] = {"P": 0.0, "D": 0.25, "C": 0.60, "A": 0.90}
 
     SIDE: ClassVar[dict[str, float]] = {"ds": -1.0, "dd": 1.0}
@@ -4613,9 +4613,9 @@ class SnapshotView(ttk.Frame):
     # a replacement level that depends on the league's squad size - an absolute 5.0 would mean one thing
     # in an 8-team league and another in a 12-team one. On the 2026-27 euro sheet p90 is 5.5 points.
     TOP_SURPLUS_PERCENTILE: ClassVar[float] = 0.90
-    # What replaced titolarita, and it is the better question: does he ALWAYS play a real number of
+    # What replaced the start share, and it is the better question: does he ALWAYS play a real number of
     # minutes? Read per match off the trend detail and only on LEAGUE matches - which is also what makes
-    # it comparable between clubs, where titolarita is not: titolarita's denominator is the club's own
+    # it comparable between clubs, where the start share is not: its denominator is the club's own
     # matches and we parse a different mix of competitions per club (Arsenal 58 = 38 league + 14
     # European + 6 cup, Napoli 38 = league only), so Kane reads 49% for playing nearly everything.
     # 70 minutes is "he finished the match" allowing for a late substitution; 70% of the league matches
@@ -4669,7 +4669,7 @@ class SnapshotView(ttk.Frame):
             surplus = _number(starter.get("engine_surplus"))
             always, matches = self.full_match_share(starter)
             # the duel is a RATIO between two men of the same club, so the denominator that makes
-            # titolarita incomparable between clubs cancels out and it can be read straight
+            # start share incomparable between clubs cancels out and it can be read straight
             share = self.claim(starter, horizon)
             challenger = max((self.claim(row, horizon) for row in rivals), default=0.0)
             if (matches >= self.TOP_MINUTES_MATCHES and always >= self.TOP_MINUTES_ALWAYS
@@ -5301,13 +5301,13 @@ class SnapshotView(ttk.Frame):
         A's 38), and every numerator here is league-only because the season aggregate is: `external_stats`
         stores one row per championship and nothing else. Counting the cups in the denominator therefore
         divided one competition set by another, and the mix is different for every club - Arsenal 58
-        elevens against 38 rounds, Bayern 50 against 34, Napoli 38 against 38 - so the titolarità on a
-        shirt could not be compared with the one next to it: Kane read 49% off 25 starts in 34 rounds, and
-        a European campaign was indistinguishable from a bench.
+        elevens against 38 rounds, Bayern 50 against 34, Napoli 38 against 38 - so a share of a season on
+        one shirt could not be compared with the one next to it: Kane read 49% off 25 starts in 34 rounds,
+        and a European campaign was indistinguishable from a bench.
 
         Floored by the starts of its busiest player: the two come from different sources (parsed line-ups
-        and the provider's season stats), and a denominator smaller than its numerator would print a 120%
-        titolare. `complete_XIs` is the fallback for a sheet built before `league_XIs` existed.
+        and the provider's season stats), and a denominator smaller than its numerator would print a share
+        above 100%. `complete_XIs` is the fallback for a sheet built before `league_XIs` existed.
         """
         known = getattr(self, "_calendar", None)
         if known is not None and club in known:
@@ -5413,7 +5413,8 @@ class SnapshotView(ttk.Frame):
 
         `desc_start_share` is his measured start-per-appearance rate, and this is the first thing that
         reads it: its own docstring says it «reaches no decision at all» and that its denominator - HIS
-        APPEARANCES rather than the club's rounds - is the wrong one for titolarità. For this question it
+        APPEARANCES rather than the club's rounds - is the wrong one for a share of the season. For this
+        question it
         is the right one, because the quantity being split is an appearance.
         """
         # The share of the PLATFORM's calendar the engine expects him to be rated in - the denominator of
@@ -5436,9 +5437,53 @@ class SnapshotView(ttk.Frame):
             minutes.model_share_for(self.manifest.get("platform"), self.voto_share(row)),
         )
 
+    #: The four columns that would carry a season of his football. All empty = nobody has measured him,
+    #: which is not the same statement as «he played none of it».
+    MEASURED_FOOTBALL: ClassVar[tuple[str, ...]] = (
+        "desc_season_matches", "desc_season_starts", "desc_minutes_full_season",
+        "desc_elsewhere_matches",
+    )
+
+    def play_share(self, row: dict) -> float | None:
+        """The share of the matches he is FIT FOR that he is expected to get a voto in. None = unknown.
+
+        `voto_share` without the injury discount (`engine.presence.appearance_share`), and the reason is
+        the same one that makes `claim` be `standing`: the question here is the COACH's, and a state that
+        has to agree with the typical eleven cannot carry a discount the eleven deliberately refuses.
+
+        NONE, AND NOT ZERO, for a man with no football on file at all - «vuoto = ignoto, mai zero», met
+        here in the shape this project has already paid for twice. `presence.Inputs` stores appearances as
+        a float, so an absent column and a measured zero arrive as the same 0.0 and the share reads 0.000;
+        the distinction survives only in the ROW, which is why it is drawn here and not in the model. It
+        cost a real row on the first sheet that carried the ladder: Terracciano F. read `riserva` - the
+        strongest thing this scale can say about a man - with nothing measured about him at all and the
+        engine expecting him in 29 giornate of 38.
+        """
+        if not any(row.get(column) for column in self.MEASURED_FOOTBALL):
+            return None
+        return presence.appearance_share(self.presence_inputs(row), self.PRESENCE)
+
+    def titolarita_status(self, row: dict, in_eleven: bool) -> str | None:
+        """Which of the six words describes his hold on the shirt (`engine.status`).
+
+        Where the panel's numbers stop and the ladder starts, exactly like `presence_inputs` and
+        `minutes_next`: the words, their two bars and the four windows they were measured on live in
+        `engine/status.py`, so a harness can reach them and the panel cannot drift from what it publishes.
+
+        `in_eleven` is not read off the row because it is not a fact about the row: it is the drawing's,
+        and the drawing is solved per club (`eleven`). The caller that has just built the board passes it -
+        which is also what stops this from becoming a second answer to «does he play».
+        """
+        return status_engine.status_of(self.play_share(row), self.minutes_next(row), in_eleven)
+
     @staticmethod
-    def titolarita(row: dict, horizon: str) -> tuple[float, float]:
+    def starting_record(row: dict, horizon: str) -> tuple[float, float]:
         """(start share, minutes) - how often he STARTS, and how long he stays on. DISPLAY, not selection.
+
+        NOT «titolarita», which used to be this function's name and in this project means something else:
+        the share of the matches he gets a VOTO in, whether or not he was on the team sheet (operator's
+        definition, 20/08/2026 - see CLAUDE.md, and `engine/status.py` for the ladder built on it). What
+        this reads is who STARTS, which is a different fact, and the name now says so.
 
         It used to say «the only criterion for who plays», and that is `claim` - this is read by `eleven`
         for its SECOND element alone, as the tie-break between two equal claims. The `season` share itself
@@ -5462,7 +5507,7 @@ class SnapshotView(ttk.Frame):
         """(role, starter, rivals) per shirt. Two modes, two questions, and neither uses a valuation.
 
         `typical` - the side he fields when everyone is available, ranked by `claim` (= `standing`, with
-        `titolarita`'s STARTS as the tie-break and nothing else). Injuries and suspensions are deliberately
+        `starting_record`'s STARTS as the tie-break and nothing else). Injuries and suspensions are deliberately
         IGNORED: a man out today is still the first choice of the shape, and pretending otherwise would make
         the "tipo" eleven a snapshot of this week.
         This used to say «ranked by the season's start share», which is false twice over and cost a gate
@@ -5557,7 +5602,7 @@ class SnapshotView(ttk.Frame):
              and (mode != "next"    # a man who is out cannot play the next match; the tipo eleven can
                   or (not row.get("desc_injury_open")
                       and row.get("desc_availability_now") not in ("injured", "suspended")))),
-            key=lambda row: (-self.claim(row, horizon), -self.titolarita(row, horizon)[1]))
+            key=lambda row: (-self.claim(row, horizon), -self.starting_record(row, horizon)[1]))
         rank = {id(row): index for index, row in enumerate(eligible)}
         out: list[tuple[str, dict, list[dict]]] = []
         taken: set[str] = set()          # one shirt per man, across every line
@@ -5689,7 +5734,7 @@ class SnapshotView(ttk.Frame):
             free = [row for row in bench if row.get("name") not in starters]
             able = ([row for row in free if self.can_replace(starter, row)]
                     or [row for row in free if self.can_replace(starter, row, mirrored=True)])
-            # An alternative is whoever else can wear THIS shirt. Two men of equal titolarità in one slot
+            # An alternative is whoever else can wear THIS shirt. Two men of equal claim in one slot
             # alternate, and the shirt then reads 50% - the sentence an auction needs ("50%, in
             # ballottaggio") instead of two 100%s.
             named = [name.strip() for name in (starter.get("desc_duel_names") or "").split(";")
@@ -8686,7 +8731,7 @@ class ToolkitGUI:
                        "descriptive and must not become a coefficient without a pre-registered gate "
                        "run. Whatever no source states is reported as not measurable.\n\n"
                        "AS OF a past date: the ten matches are the ten before it, the squads and the "
-                       "availability are the ones known then, and titolarita and the bonus rates are "
+                       "availability are the ones known then, and the start record and the bonus rates are "
                        "measured on that season UP TO that day. The probabili are not refetched - "
                        "today's are not that day's - so the weekly XI falls back to who was playing."
                   ).grid(row=7, column=0, columnspan=2, sticky="w", pady=(6, 0))

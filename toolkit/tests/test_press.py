@@ -198,20 +198,22 @@ def test_a_press_club_missing_from_the_sheet_is_reported_not_dropped(tmp_path):
     assert all(row["status"] == "NO BOARD" for row in rows)
 
 
-def test_extraction_drives_the_real_panel_headless(tmp_path):
-    """`extract_boards` runs the panel's own class through the panel's own loader: the board shape,
-    the drawn picture and eleven placed men with claims come back for a synthetic one-club sheet."""
+#: A legal 4-3-3 worth of men, plus whatever a caller adds behind them.
+ELEVEN = ([("P", "por", "GK")]
+          + [("D", "dc", "DL"), ("D", "dc", "DC"), ("D", "dc", "DC"), ("D", "dc", "DR")]
+          + [("C", "c", "DM"), ("C", "c", "MC"), ("C", "c", "MC"),
+             ("C", "c", "ML"), ("C", "c", "MR")]
+          + [("A", "pc", "ST"), ("A", "pc", "LW"), ("A", "pc", "RW")])
+
+
+def _one_club_sheet(tmp_path, roles=ELEVEN, starts="20", minutes="1800"):
+    """A synthetic one-club sheet on disk, in the shape `SnapshotView.load_sheet` expects."""
     import csv
 
     from euroleghe_ingest.modules import snapshot
 
     folder = tmp_path / "data" / "reports" / "auction-snapshot-2026-27-euro-classic-2026-08-08"
     folder.mkdir(parents=True)
-    roles = ([("P", "por", "GK")]
-             + [("D", "dc", "DL"), ("D", "dc", "DC"), ("D", "dc", "DC"), ("D", "dc", "DR")]
-             + [("C", "c", "DM"), ("C", "c", "MC"), ("C", "c", "MC"),
-                ("C", "c", "ML"), ("C", "c", "MR")]
-             + [("A", "pc", "ST"), ("A", "pc", "LW"), ("A", "pc", "RW")])
     with open(folder / "players.csv", "w", encoding="utf-8-sig", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=list(snapshot.PLAYER_COLUMNS))
         writer.writeheader()
@@ -219,8 +221,10 @@ def test_extraction_drives_the_real_panel_headless(tmp_path):
             writer.writerow({"fc_id": index, "name": f"Uomo{index}", "club": "Test",
                              "role_classic": role, "roles_mantra": mantra,
                              "desc_real_roles": real, "desc_real_role_primary": real,
-                             "desc_start_share": "0.80", "desc_season_starts": "20",
-                             "desc_minutes_full_season": "1800"})
+                             "desc_start_share": "0.80",
+                             "desc_season_starts": starts if index < 11 else "2",
+                             "desc_season_matches": starts if index < 11 else "3",
+                             "desc_minutes_full_season": minutes if index < 11 else "180"})
     with open(folder / "clubs.csv", "w", encoding="utf-8-sig", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=["club", "formation_typical",
                                                     "formation_typical_share",
@@ -231,14 +235,25 @@ def test_extraction_drives_the_real_panel_headless(tmp_path):
                          "complete_XIs": "30"})
     (folder / "manifest.json").write_text(
         json.dumps({"engine": {"rules": ["R0"]}, "target_season": "2026-27"}), encoding="utf-8")
+    return folder
 
+
+def _extract(tmp_path, folder, **kwargs):
     try:
-        boards = press.extract_boards(
-            Config(data_dir=tmp_path / "data", db_path=tmp_path / "data" / "euro.db"), folder)
+        return press.extract_boards(
+            Config(data_dir=tmp_path / "data", db_path=tmp_path / "data" / "euro.db"), folder,
+            **kwargs)
     except Exception as exc:                      # a display is an environment, not a failure
         if "display" in str(exc).lower() or "tcl" in str(exc).lower():
             pytest.skip(f"no display available: {exc}")
         raise
+
+
+def test_extraction_drives_the_real_panel_headless(tmp_path):
+    """`extract_boards` runs the panel's own class through the panel's own loader: the board shape,
+    the drawn picture and eleven placed men with claims come back for a synthetic one-club sheet."""
+    folder = _one_club_sheet(tmp_path)
+    boards = _extract(tmp_path, folder)
     assert set(boards) == {"Test"}
     board = boards["Test"]
     assert "error" not in board, board.get("error")
@@ -246,6 +261,95 @@ def test_extraction_drives_the_real_panel_headless(tmp_path):
     placed = [man for line in ("P", "D", "M", "T", "A") for man in board["lines"][line]]
     assert len(placed) == 11
     assert all(isinstance(man["claim"], float) for man in placed)
+
+
+def test_the_titolarita_ladder_covers_the_whole_sheet_and_obeys_the_board(tmp_path):
+    """The operator's coherence requirement, checked where it can actually break (20/08/2026).
+
+    Not a test of which rung: a test that the gate is wired in BOTH directions on real rows, because from
+    inside `engine/status.py` the gate looks redundant and is the first thing a simplification deletes.
+    The three men behind the eleven have a real but thin season, so their numbers alone would not stop
+    them - only the drawing does.
+    """
+    from euroleghe_ingest.engine import status as status_engine
+
+    roles = ELEVEN + [("D", "dc", "DC"), ("C", "c", "MC"), ("A", "pc", "ST")]
+    folder = _one_club_sheet(tmp_path, roles)
+    statuses: dict[int, dict] = {}
+    boards = _extract(tmp_path, folder, with_rivals=True, statuses=statuses)
+    drawn = {man["fc_id"] for line in boards["Test"]["lines"].values() for man in line}
+    assert len(drawn) == 11
+    # every row of the sheet gets an answer, not only the eleven
+    assert set(statuses) == set(range(len(roles)))
+    assert all(one["status"] in status_engine.LADDER for one in statuses.values())
+    ceiling = status_engine.rank_of("ballottaggio")
+    for fc_id, one in statuses.items():
+        rank = status_engine.rank_of(one["status"])
+        assert one["in_eleven"] is (fc_id in drawn)
+        if fc_id in drawn:
+            assert rank <= ceiling, f"{fc_id} is drawn and reads {one['status']}"
+        else:
+            assert rank >= ceiling, f"{fc_id} is not drawn and reads {one['status']}"
+    # ...and the men ON the pitch carry it too, so a card is self-contained
+    placed = [man for line in boards["Test"]["lines"].values() for man in line]
+    assert all(man["status"] in status_engine.LADDER for man in placed)
+
+
+def test_a_man_with_no_football_on_file_gets_NO_rung_and_not_riserva(tmp_path):
+    """«Vuoto = ignoto, mai zero», in the shape that cost a real row on the first sheet that shipped.
+
+    `presence.Inputs` stores appearances as a float, so an absent column and a measured zero both arrive
+    as 0.0 and the share reads 0.000 - which the ladder would call `riserva`, the strongest thing it can
+    say about a man. Terracciano F. read exactly that with nothing measured about him at all and the
+    engine expecting him in 29 giornate of 38.
+    """
+    import csv
+
+    from euroleghe_ingest.engine import status as status_engine
+    from euroleghe_ingest.modules import snapshot
+
+    roles = ELEVEN + [("C", "c", "MC")]
+    folder = _one_club_sheet(tmp_path, roles)
+    # ...and strip the twelfth man's football, which is what a July arrival's row looks like.
+    path = folder / "players.csv"
+    with path.open(encoding="utf-8-sig", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    for row in rows:
+        if int(row["fc_id"]) == len(roles) - 1:
+            for column in ("desc_season_matches", "desc_season_starts",
+                           "desc_minutes_full_season", "desc_elsewhere_matches"):
+                row[column] = ""
+    with path.open("w", encoding="utf-8-sig", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(snapshot.PLAYER_COLUMNS))
+        writer.writeheader()
+        writer.writerows(rows)
+
+    statuses: dict[int, dict] = {}
+    _extract(tmp_path, folder, with_rivals=True, statuses=statuses)
+    unmeasured = statuses[len(roles) - 1]
+    assert unmeasured["status"] is None, unmeasured
+    assert unmeasured["play"] is None
+    # ...and the men who DO have a season still get one, so the guard has not switched the ladder off.
+    assert statuses[0]["status"] in status_engine.LADDER
+
+
+def test_a_rival_is_judged_on_the_DRAWN_eleven_and_not_on_the_shape_being_looked_at(tmp_path):
+    """An alternative module is a button, not a fact about a man: his rung must not change with it.
+
+    Same reason the badge is read off the drawn board - «the label is a fact about the man». Without the
+    explicit `eleven_ids`, a man the club fields only in a shape it probably will not play would read
+    `titolare` as soon as somebody clicked the other picture.
+    """
+    from euroleghe_ingest.engine import status as status_engine
+
+    folder = _one_club_sheet(tmp_path, ELEVEN + [("C", "c", "MC")])
+    boards = _extract(tmp_path, folder, with_rivals=True)
+    drawn = {man["fc_id"] for line in boards["Test"]["lines"].values() for man in line}
+    for alternative in (boards["Test"].get("alternatives") or {}).values():
+        for line in alternative["lines"].values():
+            for man in line:
+                if man["fc_id"] not in drawn:
+                    assert status_engine.rank_of(man["status"]) >= status_engine.rank_of("ballottaggio")
 
 
 ARCHIVED = Path(__file__).resolve().parents[2] / "data" / "reports" / "press-formations-2026-08-08"

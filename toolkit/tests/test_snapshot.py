@@ -1394,7 +1394,7 @@ def test_the_shape_decides_where_a_man_is_drawn_and_not_his_own_code(monkeypatch
     monkeypatch.setattr(View, "presence", lambda _self, row, _horizon: row.get("share", 0.0))
     monkeypatch.setattr(View, "claim",
                         lambda _self, row, _horizon="season": row.get("share", 0.0))
-    monkeypatch.setattr(View, "titolarita", lambda _self, row, _horizon: (0.0, row.get("share", 0.0)))
+    monkeypatch.setattr(View, "starting_record", lambda _self, row, _horizon: (0.0, row.get("share", 0.0)))
     eleven = view.eleven("Test", "4-3-3", "typical")
     lanes, _geometry, _drawn = view.lanes_for(eleven)
     placed = view._placed(view._lane(lanes["A"], "A"), "A")
@@ -1547,7 +1547,7 @@ def test_unticking_a_player_rebuilds_the_eleven_without_him(monkeypatch):
     monkeypatch.setattr(View, "squad", lambda _self, _club: rows)
     monkeypatch.setattr(View, "presence", lambda _self, row, _horizon: row.get("share", 0.0))
     monkeypatch.setattr(View, "claim", lambda _self, row, _horizon="season": row.get("share", 0.0))
-    monkeypatch.setattr(View, "titolarita", lambda _self, row, _horizon: (0.0, row.get("share", 0.0)))
+    monkeypatch.setattr(View, "starting_record", lambda _self, row, _horizon: (0.0, row.get("share", 0.0)))
 
     picked = {starter["name"] for _role, starter, _rivals in view.eleven("Test", "4-3-3", "typical")}
     assert "Nine" in picked and "Deputy nine" not in picked
@@ -1589,7 +1589,7 @@ def test_a_line_may_take_another_lines_starter_if_the_hole_closes_better(monkeyp
     monkeypatch.setattr(View, "squad", lambda _self, _club: rows)
     monkeypatch.setattr(View, "presence", lambda _self, row, _horizon: row.get("share", 0.0))
     monkeypatch.setattr(View, "claim", lambda _self, row, _horizon="season": row.get("share", 0.0))
-    monkeypatch.setattr(View, "titolarita", lambda _self, row, _horizon: (0.0, row.get("share", 0.0)))
+    monkeypatch.setattr(View, "starting_record", lambda _self, row, _horizon: (0.0, row.get("share", 0.0)))
 
     def drawn(shape="4-4-2"):
         return {row["name"]: (role, view._slot_side.get(id(row)))
@@ -1743,7 +1743,7 @@ def test_a_transformed_shape_never_turns_a_winger_into_a_second_striker(monkeypa
     monkeypatch.setattr(View, "squad", lambda _self, _club: rows)
     monkeypatch.setattr(View, "presence", lambda _self, row, _horizon: row.get("share", 0.0))
     monkeypatch.setattr(View, "claim", lambda _self, row, _horizon="season": row.get("share", 0.0))
-    monkeypatch.setattr(View, "titolarita", lambda _self, row, _horizon: (0.0, row.get("share", 0.0)))
+    monkeypatch.setattr(View, "starting_record", lambda _self, row, _horizon: (0.0, row.get("share", 0.0)))
 
     def drawn(shape):
         eleven = view.eleven("Test", shape, "typical")
@@ -1826,7 +1826,7 @@ def test_the_front_line_is_for_forwards_and_the_trequartisti_stand_behind_it(mon
     monkeypatch.setattr(View, "squad", lambda _self, _club: rows)
     monkeypatch.setattr(View, "presence", lambda _self, row, _horizon: row.get("share", 0.0))
     monkeypatch.setattr(View, "claim", lambda _self, row, _horizon="season": row.get("share", 0.0))
-    monkeypatch.setattr(View, "titolarita", lambda _self, row, _horizon: (0.0, row.get("share", 0.0)))
+    monkeypatch.setattr(View, "starting_record", lambda _self, row, _horizon: (0.0, row.get("share", 0.0)))
 
     lanes, _geometry, picture = view.lanes_for(view.eleven("Roma", "3-4-3", "typical"))
     assert picture == "3-4-2-1", picture
@@ -1876,7 +1876,7 @@ def test_a_centre_forward_is_never_drawn_as_a_winger(monkeypatch):
     monkeypatch.setattr(View, "squad", lambda _self, _club: rows)
     monkeypatch.setattr(View, "presence", lambda _self, row, _horizon: row.get("share", 0.0))
     monkeypatch.setattr(View, "claim", lambda _self, row, _horizon="season": row.get("share", 0.0))
-    monkeypatch.setattr(View, "titolarita", lambda _self, row, _horizon: (0.0, row.get("share", 0.0)))
+    monkeypatch.setattr(View, "starting_record", lambda _self, row, _horizon: (0.0, row.get("share", 0.0)))
 
     lanes, _geometry, picture = view.lanes_for(view.eleven("Atalanta", "3-4-3", "typical"))
     assert picture == "3-4-2-1", picture
@@ -1943,7 +1943,7 @@ def test_the_module_never_loses_its_symmetry_to_a_second_opinion(monkeypatch):
     monkeypatch.setattr(View, "squad", lambda _self, _club: rows)
     monkeypatch.setattr(View, "presence", lambda _self, row, _horizon: row.get("share", 0.0))
     monkeypatch.setattr(View, "claim", lambda _self, row, _horizon="season": row.get("share", 0.0))
-    monkeypatch.setattr(View, "titolarita", lambda _self, row, _horizon: (0.0, row.get("share", 0.0)))
+    monkeypatch.setattr(View, "starting_record", lambda _self, row, _horizon: (0.0, row.get("share", 0.0)))
 
     lanes, _geometry, picture = view.lanes_for(view.eleven("Liverpool", "4-5-1", "typical"))
     assert picture == "4-5-1", picture
@@ -1992,7 +1992,7 @@ def test_a_rows_flank_is_contested_by_everybody_who_plays_there(monkeypatch):
     monkeypatch.setattr(View, "squad", lambda _self, _club: rows)
     monkeypatch.setattr(View, "presence", lambda _self, row, _horizon: row.get("share", 0.0))
     monkeypatch.setattr(View, "claim", lambda _self, row, _horizon="season": row.get("share", 0.0))
-    monkeypatch.setattr(View, "titolarita", lambda _self, row, _horizon: (0.0, row.get("share", 0.0)))
+    monkeypatch.setattr(View, "starting_record", lambda _self, row, _horizon: (0.0, row.get("share", 0.0)))
 
     lanes, _geometry, picture = view.lanes_for(view.eleven("Bologna", "4-5-1", "typical"))
     assert picture == "4-5-1", picture
@@ -2038,7 +2038,7 @@ def test_a_midfield_row_is_never_more_than_five(monkeypatch):
     monkeypatch.setattr(View, "squad", lambda _self, _club: rows)
     monkeypatch.setattr(View, "presence", lambda _self, row, _horizon: row.get("share", 0.0))
     monkeypatch.setattr(View, "claim", lambda _self, row, _horizon="season": row.get("share", 0.0))
-    monkeypatch.setattr(View, "titolarita", lambda _self, row, _horizon: (0.0, row.get("share", 0.0)))
+    monkeypatch.setattr(View, "starting_record", lambda _self, row, _horizon: (0.0, row.get("share", 0.0)))
 
     lanes, _geometry, picture = view.lanes_for(view.eleven("Test", "3-6-1", "typical"))
     assert len(lanes["M"]) <= View.MIDFIELD_ROW, picture
@@ -2081,7 +2081,7 @@ def test_a_midfield_row_gets_two_flank_men_of_role_and_never_a_centre_back(monke
     monkeypatch.setattr(View, "squad", lambda _self, _club: rows)
     monkeypatch.setattr(View, "presence", lambda _self, row, _horizon: row.get("share", 0.0))
     monkeypatch.setattr(View, "claim", lambda _self, row, _horizon="season": row.get("share", 0.0))
-    monkeypatch.setattr(View, "titolarita", lambda _self, row, _horizon: (0.0, row.get("share", 0.0)))
+    monkeypatch.setattr(View, "starting_record", lambda _self, row, _horizon: (0.0, row.get("share", 0.0)))
 
     lanes, _geometry, _picture = view.lanes_for(view.eleven("Test", "4-5-1", "typical"))
     row = {name: view._slot_side.get(id(next(entry[0] for entry in lanes["M"]
@@ -2119,7 +2119,7 @@ def test_the_mediano_stands_in_the_middle_of_his_row(monkeypatch):
     monkeypatch.setattr(View, "squad", lambda _self, _club: rows)
     monkeypatch.setattr(View, "presence", lambda _self, row, _horizon: row.get("share", 0.0))
     monkeypatch.setattr(View, "claim", lambda _self, row, _horizon="season": row.get("share", 0.0))
-    monkeypatch.setattr(View, "titolarita", lambda _self, row, _horizon: (0.0, row.get("share", 0.0)))
+    monkeypatch.setattr(View, "starting_record", lambda _self, row, _horizon: (0.0, row.get("share", 0.0)))
 
     lanes, _geometry, picture = view.lanes_for(view.eleven("Test", "4-5-1", "typical"))
     assert picture == "4-5-1", picture
@@ -2162,7 +2162,7 @@ def test_a_front_three_of_punte_recruits_the_wings_it_needs(monkeypatch):
     monkeypatch.setattr(View, "squad", lambda _self, _club: rows)
     monkeypatch.setattr(View, "presence", lambda _self, row, _horizon: row.get("share", 0.0))
     monkeypatch.setattr(View, "claim", lambda _self, row, _horizon="season": row.get("share", 0.0))
-    monkeypatch.setattr(View, "titolarita", lambda _self, row, _horizon: (0.0, row.get("share", 0.0)))
+    monkeypatch.setattr(View, "starting_record", lambda _self, row, _horizon: (0.0, row.get("share", 0.0)))
 
     lanes, _geometry, _picture = view.lanes_for(view.eleven("Test", "4-3-3", "typical"))
     front = view._placed(lanes["A"], "A")
@@ -2214,7 +2214,7 @@ def test_a_pure_attacker_is_not_a_wing_back_in_a_back_three(monkeypatch):
     monkeypatch.setattr(View, "squad", lambda _self, _club: rows)
     monkeypatch.setattr(View, "presence", lambda _self, row, _horizon: row.get("share", 0.0))
     monkeypatch.setattr(View, "claim", lambda _self, row, _horizon="season": row.get("share", 0.0))
-    monkeypatch.setattr(View, "titolarita", lambda _self, row, _horizon: (0.0, row.get("share", 0.0)))
+    monkeypatch.setattr(View, "starting_record", lambda _self, row, _horizon: (0.0, row.get("share", 0.0)))
 
     eleven = view.eleven("Test", "3-4-3", "typical")
     where = {starter["name"]: lane for lane, starter, _rivals in eleven}
@@ -2276,7 +2276,7 @@ def test_a_four_five_one_whose_five_plays_ahead_of_itself_is_a_four_two_three_on
     monkeypatch.setattr(View, "squad", lambda _self, _club: rows)
     monkeypatch.setattr(View, "presence", lambda _self, row, _horizon: row.get("share", 0.0))
     monkeypatch.setattr(View, "claim", lambda _self, row, _horizon="season": row.get("share", 0.0))
-    monkeypatch.setattr(View, "titolarita", lambda _self, row, _horizon: (0.0, row.get("share", 0.0)))
+    monkeypatch.setattr(View, "starting_record", lambda _self, row, _horizon: (0.0, row.get("share", 0.0)))
 
     lanes, _geometry, picture = view.lanes_for(view.eleven("Test", "4-5-1", "typical"))
     assert picture == "4-2-3-1", picture
@@ -2463,7 +2463,7 @@ def test_the_preseason_is_a_reading_and_never_a_criterion():
     assert view.preseason({"name": "x", "club": "Atalanta"}) == "", "no friendlies, no line"
 
     # ...and NOTHING that chooses or places a man may read those columns
-    for name in ("claim", "presence", "standing", "titolarita", "_slot_price", "_off_the_front",
+    for name in ("claim", "presence", "standing", "starting_record", "_slot_price", "_off_the_front",
                  "voto_share", "availability", "presence_inputs"):
         source = inspect.getsource(getattr(View, name))
         assert "preseason" not in source, f"{name} must not read the pre-season"
@@ -3028,7 +3028,7 @@ def test_a_front_place_goes_to_a_forward_even_when_a_trequartista_claims_more(mo
         monkeypatch.setattr(View, "squad", lambda _self, _club: rows)
         monkeypatch.setattr(View, "presence", lambda _self, row, _h: row.get("share", 0.0))
         monkeypatch.setattr(View, "claim", lambda _self, row, _h="season": row.get("share", 0.0))
-        monkeypatch.setattr(View, "titolarita", lambda _self, row, _h: (0.0, row.get("share", 0.0)))
+        monkeypatch.setattr(View, "starting_record", lambda _self, row, _h: (0.0, row.get("share", 0.0)))
         eleven = view.eleven("Lille", "4-5-1", "typical")
         assert len(eleven) == 11
         return [row["name"] for lane, row, _rivals in eleven if lane == "A"]
@@ -3074,7 +3074,7 @@ def test_the_lone_front_place_goes_to_a_centre_forward_not_to_a_jolly(monkeypatc
         monkeypatch.setattr(View, "squad", lambda _self, _club: rows)
         monkeypatch.setattr(View, "presence", lambda _self, row, _h: row.get("share", 0.0))
         monkeypatch.setattr(View, "claim", lambda _self, row, _h="season": row.get("share", 0.0))
-        monkeypatch.setattr(View, "titolarita", lambda _self, row, _h: (0.0, row.get("share", 0.0)))
+        monkeypatch.setattr(View, "starting_record", lambda _self, row, _h: (0.0, row.get("share", 0.0)))
         eleven = view.eleven("Bologna", "4-5-1", "typical")
         assert len(eleven) == 11
         return [row["name"] for lane, row, _rivals in eleven if lane == "A"]

@@ -297,6 +297,14 @@ SHEET_COLUMNS: tuple[str, ...] = (
     "pi_fm",
     "pi_basis",
     "pi_matches",
+    # LA TITOLARITÀ IN UNA PAROLA e i due numeri che la compongono (`engine/status.py`): il gradino, la
+    # quota delle partite per cui e' DISPONIBILE in cui prende un voto, e i minuti che ci sta quando
+    # gioca. Viaggiano tutt'e tre perche' una parola senza i suoi numeri non si puo' contestare - e la
+    # parola non si ricalcola nell'app per la stessa ragione per cui non si ridisegna la board: legge
+    # l'undici tipo, quindi e' una previsione su una persona e sta dove le previsioni si misurano.
+    "desc_titolarita",
+    "desc_titolarita_play",
+    "desc_minutes_next",
 )
 
 
@@ -308,8 +316,13 @@ SHEET_COLUMNS: tuple[str, ...] = (
 # ...e le tre di Fpi, nate il 19/08/2026: i pacchetti del viaggio nel tempo sono stati scritti prima e non
 # le hanno. Pretenderle li scarterebbe tutti, cioe' spegnerebbe il viaggio nel tempo per aggiungere una
 # colonna - lo stesso errore che le due della rosa live avevano gia' evitato una volta.
+# ...e le tre della titolarita', nate il 20/08/2026, per lo stesso motivo e per uno in piu': oltre ai
+# pacchetti gia' scritti, un foglio prodotto su una macchina SENZA DISPLAY non le ha affatto, perche' il
+# gradino legge l'undici disegnato. Pretenderle vorrebbe dire che un export su quella macchina non
+# esporta niente, cioe' spegnere il bundle per aggiungere una parola.
 SHEET_COLUMNS_OPTIONAL: frozenset[str] = frozenset({
-    "desc_live_club", "desc_live_club_on", "pi_fm", "pi_basis", "pi_matches"})
+    "desc_live_club", "desc_live_club_on", "pi_fm", "pi_basis", "pi_matches",
+    "desc_titolarita", "desc_titolarita_play", "desc_minutes_next"})
 
 
 def _sheet_folders(reports: Path, target: str) -> list[Path]:

@@ -76,6 +76,16 @@ export interface SquadMan extends PlayerRow {
    * two numbers can never say different things about one player.
    */
   expectedMv: number | null;
+  /**
+   * LA TITOLARITÀ IN UNA PAROLA: quale delle sei parole descrive la sua presa sulla maglia, e i due
+   * numeri da cui esce (`core/titolarita.ts` per il vocabolario, `engine/status.py` per la misura).
+   *
+   * Vuoto = ignoto e non «riserva»: un foglio più vecchio della revisione 35, o costruito senza display,
+   * non porta il gradino perché non porta l'undici disegnato che lo decide.
+   */
+  titolarita: string | null;
+  titolaritaPlay: number | null;
+  minutesNext: number | null;
   /** Which rung of the cascade produced the estimate, and the sentence the toolkit wrote for it. */
   estimateBasis: string | null;
   estimateNote: string | null;
@@ -232,6 +242,17 @@ interface EngineExpectation {
   piFm: number | null;
   piBasis: string | null;
   piMatches: number | null;
+  /**
+   * LA TITOLARITÀ IN UNA PAROLA (`desc_titolarita`), coi due numeri che l'hanno decisa.
+   *
+   * Letta e mai ricalcolata, come la board: il gradino legge l'undici tipo disegnato, quindi è una
+   * previsione su una persona. Assente prima della revisione 35 del foglio, e su un foglio costruito
+   * senza display - lì manca il disegno, quindi «è nell'undici?» è ignoto e il toolkit non scrive nessun
+   * gradino invece di inventarne uno. In tutt'e due i casi la colonna resta muta.
+   */
+  titolarita: string | null;
+  titolaritaPlay: number | null;
+  minutesNext: number | null;
   /**
    * The fantamedia of the man you would field INSTEAD - `engine_replacement_fm`, the marginal rostered
    * player of his role slot, computed by the toolkit with this league's own teams and slots.
@@ -522,6 +543,9 @@ export class ValuationStore {
           expectedFm: engine?.fm ?? null,
           expectedFmIsEstimate: engine?.fmIsEstimate ?? false,
           expectedMv: engine?.mv ?? null,
+          titolarita: engine?.titolarita ?? null,
+          titolaritaPlay: engine?.titolaritaPlay ?? null,
+          minutesNext: engine?.minutesNext ?? null,
           estimateBasis: engine?.basis ?? null,
           estimateNote: engine?.note ?? null,
           surplus: engine?.surplus ?? null,
@@ -839,6 +863,9 @@ export class ValuationStore {
           // Assente prima della revisione 31, e allora la colonna resta muta invece di ripiegare su
           // `est_fm` in silenzio: due basi sotto un nome solo è il difetto che questo progetto paga.
           piFm: at('pi_fm'), piBasis: at('pi_basis'), piMatches: at('pi_matches'),
+          // La titolarità in una parola, revisione 35+, e i due numeri che la compongono.
+          titolarita: at('desc_titolarita'), titolaritaPlay: at('desc_titolarita_play'),
+          minutesNext: at('desc_minutes_next'),
           surplus: at('engine_surplus'), estSurplus: at('est_surplus'),
           // L'ALTRO ZERO: una colonna sola, perché il foglio la scrive già per tutta la lista - motore
           // dove c'è, stima altrove, con la stessa penale. Assente prima della revisione 22.
@@ -885,6 +912,12 @@ export class ValuationStore {
             piFm: columns.piFm < 0 ? null : ((row[columns.piFm] as number | null) ?? null),
             piBasis: columns.piBasis < 0 ? null : ((row[columns.piBasis] as string) ?? null),
             piMatches: columns.piMatches < 0 ? null : ((row[columns.piMatches] as number | null) ?? null),
+            titolarita:
+              columns.titolarita < 0 ? null : ((row[columns.titolarita] as string) ?? null),
+            titolaritaPlay: columns.titolaritaPlay < 0
+              ? null : ((row[columns.titolaritaPlay] as number | null) ?? null),
+            minutesNext: columns.minutesNext < 0
+              ? null : ((row[columns.minutesNext] as number | null) ?? null),
             replacementFm:
               columns.replacement < 0 ? null : ((row[columns.replacement] as number | null) ?? null),
             basis: columns.basis < 0 ? null : ((row[columns.basis] as string) ?? null),

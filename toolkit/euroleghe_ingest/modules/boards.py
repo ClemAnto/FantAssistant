@@ -72,17 +72,21 @@ ALTERNATIVE_MIN_ODDS = 0.30
 MAX_DUELS = 2
 
 
-def _man(view: Any, row: dict, x: float | None = None) -> dict:
+def _fc_id(row: dict) -> int | None:
+    """The row's `fc_id` as the integer everything joins on. One reader, because three callers need it."""
+    try:
+        return int(float(row.get("fc_id")))
+    except (TypeError, ValueError):
+        return None
+
+
+def _man(view: Any, row: dict, x: float | None = None, in_eleven: bool = False) -> dict:
     """One drawn man: his identity, where he is drawn, what he is, and how much he plays."""
     out: dict[str, Any] = {}
     for key, column in MAN_COLUMNS.items():
         value = row.get(column)
         out[key] = value if value not in ("", None) else None
-    if out.get("fc_id") is not None:
-        try:
-            out["fc_id"] = int(float(out["fc_id"]))
-        except (TypeError, ValueError):
-            out["fc_id"] = None
+    out["fc_id"] = _fc_id(row)
     if x is not None:
         out["x"] = round(float(x), 3)
     # The claim is the panel's own standing - who starts when everybody is fit - and it is what picked him.
@@ -99,19 +103,41 @@ def _man(view: Any, row: dict, x: float | None = None) -> dict:
         out["minutes_next"] = None if predicted is None else round(predicted, 0)
     except Exception:                                   # noqa: BLE001 - one man, never the board
         out["minutes_next"] = None
+    # ...and WHICH OF THE SIX WORDS he is (`engine/status.py`). Written on the man the pitch draws so a
+    # card is self-contained, and computed from the same call as the sheet-wide map below - one answer per
+    # player, not one per place. `in_eleven` is the DRAWN board's, never an alternative shape's: the label
+    # is a fact about the man, and it must not change because a button was pressed.
+    try:
+        out["status"] = view.titolarita_status(row, in_eleven)
+    except Exception:                                   # noqa: BLE001 - one man, never the board
+        out["status"] = None
     return out
 
 
-def _drawn(view: Any, club: str, shape: str, mode: str, with_rivals: bool) -> tuple[str, dict]:
-    """The PICTURE and the drawn lines of one club in one shape, by calling the panel's own functions.
+def _drawn(view: Any, club: str, shape: str, mode: str, with_rivals: bool,
+           eleven_ids: set[int] | None = None) -> tuple[str, dict, set[int]]:
+    """The PICTURE, the drawn lines and WHO IS IN THEM, by calling the panel's own functions.
 
     Extracted so that the drawn board and the ALTERNATIVE modules cannot drift: the app switches between
     them with a button, and two shapes drawn by two pieces of code would be two definitions of a board -
     the very thing this module exists to prevent. Nothing here decides WHICH shape: that is
     `view.board_shape` for the drawn one, and the odds for the others.
+
+    `eleven_ids` is whose titolarita counts as «in the eleven». It is left None for the DRAWN board, which
+    is its own answer, and passed explicitly for the alternatives so that a man the club fields only in a
+    shape it probably will not play does not read `titolare` off a button.
     """
     eleven = view.eleven(club, shape, mode)
     lanes, _geometry, picture = view.lanes_for(eleven)
+    # WHO is placed has to be known before the first man is built: `in_eleven` is a property of the board
+    # and not of the row, and a rival for one place can be a starter at another.
+    placed_by_line = {}
+    for line in LINES:
+        slots = view._lane(lanes.get(line) or [], line)
+        placed_by_line[line] = view._placed(slots, line)
+    own_ids = {fid for placed in placed_by_line.values() for _x, row, _rivals in placed
+               if (fid := _fc_id(row)) is not None}
+    ids = own_ids if eleven_ids is None else eleven_ids
     lines: dict[str, list] = {}
     for line in LINES:
         # The panel's EXACT sequence: `_lane` puts the line in screen order (and decides the side of the
@@ -120,33 +146,73 @@ def _drawn(view: Any, club: str, shape: str, mode: str, with_rivals: bool) -> tu
         # Skipping `_lane` was a latent divergence from the screen: it does not change WHO is in the
         # eleven (so no published judge number moves) but it can change the side an unknown-side man is
         # drawn on, and the marker is read off that side.
-        slots = view._lane(lanes.get(line) or [], line)
-        placed = view._placed(slots, line)
+        placed = placed_by_line[line]
         markers = view._line_codes(placed, line)
         drawn = []
         for index, (x, row, rivals) in enumerate(placed):
-            man = _man(view, row, x)
+            man = _man(view, row, x, in_eleven=_fc_id(row) in ids)
             # The role he wears IN THIS MODULE, which is one code and not his whole list: that is what the
             # pitch shows, and it is the panel's own answer rather than a re-derivation.
             man["badge"] = markers[index] if index < len(markers) else None
             if with_rivals:
                 # The panel's own order, capped: the first two are the ones a pitch can show.
-                man["duels"] = [_man(view, rival) for rival in (rivals or [])[:MAX_DUELS]]
+                man["duels"] = [_man(view, rival, in_eleven=_fc_id(rival) in ids)
+                                for rival in (rivals or [])[:MAX_DUELS]]
                 # A starter whose granular real role is unknown has no duel the sheet can express: that
                 # is «unknown», never «no rival», and the flag says which.
                 man["duels_known"] = bool(row.get("desc_real_roles"))
             drawn.append(man)
         lines[line] = drawn
-    return picture, lines
+    return picture, lines, own_ids
+
+
+def _statuses(view: Any, drawn: dict[str, set[int]]) -> dict[int, dict]:
+    """Which of the six words describes every man of the sheet, plus the two numbers behind the word.
+
+    Sheet-wide and not eleven-wide, because the question is asked of every row an auction can bid on -
+    and produced HERE, from the same loaded view as the boards, because the ladder READS the drawing
+    (`engine/status.py`): a state computed anywhere else could describe a different eleven than the one
+    exported, which is the reason `boards.json` already lives inside the sheet's own folder.
+
+    A club whose board could not be drawn gets NO state at all rather than the ungated ladder: without the
+    eleven, «is he in it» is unknown, and calling a starter `panchina` because a drawing failed is exactly
+    the kind of silent wrongness this project keeps paying for. Empty is unknown, never a rung.
+    """
+    out: dict[int, dict] = {}
+    for row in view.players:
+        fid = _fc_id(row)
+        club = row.get("club") or ""
+        if fid is None or club not in drawn:
+            continue
+        try:
+            play = view.play_share(row)
+            predicted = view.minutes_next(row)
+            out[fid] = {
+                "status": view.titolarita_status(row, fid in drawn[club]),
+                # The two numbers the word is made of, so a row can explain its own label - «a number must
+                # say what it is measured against». `play` is a share of the matches he is FIT for.
+                "play": None if play is None else round(play, 3),
+                "minutes": None if predicted is None else round(predicted, 0),
+                "in_eleven": fid in drawn[club],
+            }
+        except Exception:                                   # noqa: BLE001 - one man, never the sheet
+            continue
+    return out
 
 
 def extract_boards(config, sheet: Path, mode: str = "typical", *,
                    apply_rulings: bool = False,
-                   with_rivals: bool = False) -> dict[str, dict]:
+                   with_rivals: bool = False,
+                   statuses: dict[int, dict] | None = None) -> dict[str, dict]:
     """What the panel would draw for every club of `sheet`, by calling the REAL functions.
 
     `apply_rulings` defaults to FALSE, which is the judges' setting and the safe one: a caller that forgets
     to think about it gets the model's own answer and not the operator's. The panel's data path opts in.
+
+    Pass a dict as `statuses` to get the sheet-wide titolarita ladder filled into it. It is an output
+    parameter rather than a second return value so the two judges, which do not want it, keep calling this
+    exactly as they did - and it is produced here rather than in a pass of its own because it reads the
+    DRAWN eleven, and a second load of the sheet could draw a different one.
     """
     import tkinter as tk
 
@@ -158,12 +224,14 @@ def extract_boards(config, sheet: Path, mode: str = "typical", *,
         view = SnapshotView(root, config)
         view.load_sheet(Path(sheet), apply_rulings=apply_rulings)
         boards: dict[str, dict] = {}
+        drawn_ids: dict[str, set[int]] = {}
         for club in sorted(view.clubs):
             info = view.clubs[club]
             try:
                 odds = view.shape_odds(club, info, mode)
                 shape, why = view.board_shape(club, info, mode)
-                picture, lines = _drawn(view, club, shape, mode, with_rivals)
+                picture, lines, eleven_ids = _drawn(view, club, shape, mode, with_rivals)
+                drawn_ids[club] = eleven_ids
                 # ...AND THE OTHER MODULES THE CLUB REALLY MIGHT DRAW, so the app can switch between them
                 # instead of showing one answer as if it were the only one. Same functions, same flags: the
                 # alternative is a board like the drawn one, and the only thing that changes is the shape
@@ -174,7 +242,8 @@ def extract_boards(config, sheet: Path, mode: str = "typical", *,
                     if other == shape or p < ALTERNATIVE_MIN_ODDS:
                         continue
                     try:
-                        other_picture, other_lines = _drawn(view, club, other, mode, with_rivals)
+                        other_picture, other_lines, _ = _drawn(view, club, other, mode, with_rivals,
+                                                               eleven_ids=eleven_ids)
                     except Exception:                       # noqa: BLE001 - one shape, not the club
                         continue
                     if other_picture == picture:
@@ -195,6 +264,8 @@ def extract_boards(config, sheet: Path, mode: str = "typical", *,
                 }
             except Exception as exc:    # noqa: BLE001 - one broken club must not hide the other 19
                 boards[club] = {"error": repr(exc)}
+        if statuses is not None:
+            statuses.update(_statuses(view, drawn_ids))
         return boards
     finally:
         root.destroy()
@@ -246,7 +317,9 @@ def write_boards(config, folder: Path, mode: str = "typical") -> dict:
     Beside the sheet ON PURPOSE: a board that could come from a different sheet than the one exported is a
     mismatch nobody would ever see. So it is produced from the folder just written and lives in it.
     """
-    boards = extract_boards(config, folder, mode=mode, apply_rulings=True, with_rivals=True)
+    statuses: dict[int, dict] = {}
+    boards = extract_boards(config, folder, mode=mode, apply_rulings=True, with_rivals=True,
+                            statuses=statuses)
     payload = {
         "sheet": Path(folder).name,
         "mode": mode,
@@ -254,6 +327,10 @@ def write_boards(config, folder: Path, mode: str = "typical") -> dict:
         # ones the two judges read. Same function, opposite flag.
         "apply_rulings": True,
         "clubs": boards,
+        # THE TITOLARITA LADDER for every man of the sheet, keyed by `fc_id` (`engine/status.py`). It
+        # travels here and not only in the sheet's own column because the pitch shows it on a card, and a
+        # reader that has the board already has the state - one file, one drawing, one set of words.
+        "titolarita": {str(fid): one for fid, one in sorted(statuses.items())},
     }
     (Path(folder) / "boards.json").write_text(
         json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8")
@@ -268,6 +345,9 @@ def write_boards(config, folder: Path, mode: str = "typical") -> dict:
     blind = sum(1 for board in drawn.values() for line in board["lines"].values()
                 for man in line if not man.get("duels_known"))
     problems = {club: disagreements(board) for club, board in drawn.items()}
+    ladder: dict[str, int] = {}
+    for one in statuses.values():
+        ladder[one["status"] or "unknown"] = ladder.get(one["status"] or "unknown", 0) + 1
     return {
         "clubs": len(boards),
         "drawn": len(drawn),
@@ -278,4 +358,8 @@ def write_boards(config, folder: Path, mode: str = "typical") -> dict:
         "duels": duels,
         "no_granular_role": blind,
         "disagreements": {club: why for club, why in problems.items() if why},
+        # The ladder, so `snapshot` can put it in the sheet's own column and print how it fell out. A rung
+        # nobody counts is a rung nobody can tell from a broken one.
+        "statuses": statuses,
+        "ladder": ladder,
     }

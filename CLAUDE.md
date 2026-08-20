@@ -69,6 +69,68 @@ at an Italian table, by the operator. Code, comments, logs, identifiers and the 
 English, and the toolkit's Tkinter panel is NOT covered: its strings stay English. See
 [app/CLAUDE.md](app/CLAUDE.md).
 
+## «TITOLARITÀ» has ONE meaning here, and it is not the common one
+**Operator's definition, 20/08/2026, and it binds every file:** «nel linguaggio comune "titolarità" è il
+fattore che indica se un calciatore parte dall'inizio in campo, nel nostro progetto invece dobbiamo usarlo
+per indicare che un calciatore **gioca abbastanza da prendere il voto** (anche se non parte dal principio in
+campo)». A fantacalcio squad scores what the votes score, and a substitute who comes on every week scores
+every week - so the quantity the project is about is the APPEARANCE, and the word follows the quantity.
+
+Two words, two quantities, and they must not be swapped:
+- **titolarità** = the share of matchdays he gets a VOTO in, started or not. `presence.voto_share` (of every
+  round) and `presence.appearance_share` (of the rounds he was fit for), `engine_pv_pred` on the platform's
+  calendar, `desc_titolarita_play` on the sheet.
+- **quota da titolare / who starts** = the share he is on the TEAM SHEET for. `presence.standing`, `claim`,
+  `presence.presence`, `SnapshotView.starting_record`, `snapshot.starting_record`, `desc_start_share`. In
+  prose say «parte titolare», «quota da titolare», «chi comincia la partita» - never the bare word.
+
+The six-rung ladder (`engine/status.py`, `desc_titolarita`) is named in this sense: its axis is the
+appearance share, and `titolare` there means «he plays almost every match, for most of it», not «he is on
+the team sheet». **`titolarissimo` and `bandiera` are the operator's own vocabulary and are stored
+untranslated**, the way `mantra_modules.json` stores `por` and `pc`: the repo is English, the game's own
+words are not, and inventing an English `titolarissimo` nobody uses would be worse than the exception.
+
+Cleaned up on 20/08/2026 wherever the word NAMED a quantity: `snapshot.titolarita` → `starting_record`,
+`SnapshotView.titolarita` → `starting_record` (both docstrings say why), the panel's comments, and the
+strings the app actually shows (`club-eleven.disagreementHint`, the pitch card's footer, `club-board`).
+**Deliberately NOT rewritten**: the historical records in `docs/model/` - the gate, the continuity notes,
+the todolists - where the word logs a measurement that was made on the STARTING share, and rewriting it
+would alter the record instead of clarifying it. Those pages now carry a dated note saying which sense
+they are written in; from here on the definition above is the only one.
+
+## Six words for one shirt, and the drawing is a GATE
+**20/08/2026, the operator's own ladder** — bandiera, titolarissimo, titolare, ballottaggio, panchina,
+riserva — read as **two axes and not one**, which is how he wrote the six lines: a share of the matches and
+a MINUTES floor, with the fourth rung dropping the floor. Both numbers already existed and neither is
+invented (`presence.appearance_share` and `minutes.per_appearance`), so `engine/status.py` only says where
+the two of them put a man. The joint reading — «>90% of the matches in which he plays at least 75'» — was
+built FIRST and measured unusable: the predicted q75 tops out at 0.86, so `bandiera` is empty by
+construction and `titolare` with it, and a Serie A sheet came out **10/0/0/184** on the first four rungs.
+The share is CONDITIONAL, «of the matches he is fit for», which is what makes the state agree with the
+typical eleven — `claim` is `standing` without the injury discount for the same reason.
+
+**The board is a gate, and it is also the better classifier.** A man the eleven does not field cannot be
+`titolare`; one it does never falls below `ballottaggio`. At the SAME claim, the men the board drew
+realised a q75 of **0.512 against 0.328** for the men it did not: the fit knows what shape the club plays
+and who else wants the shirt, and a share of a season does not. Without the gate a Serie A sheet showed 19
+`titolarissimo` the board does not field and 83 drawn men called `panchina`.
+
+Measured on four back-dated pre-season windows (two platforms x two seasons), against what those men really
+did: `bandiera` and `titolare` keep their promise **4 times out of 4**; `titolarissimo` is the weak rung
+(the residual between the other two, 0.7-1.0 men per club, 3 of 4). Three columns of the sheet
+(`SHEET_REVISION` 35) written by the SAME pass that draws the boards — the rung reads the drawn eleven, so
+computing it elsewhere could describe a different eleven than the one exported — and therefore **empty on a
+machine with no display**, which is stated rather than filled in. `engine_*` does not move.
+
+Three things stay on the record because they are the operator's to rule on, not measurements: the minutes
+floor in ABSOLUTE minutes is not neutral between roles (a start lasts 84.5' for a defender and 78.5' for a
+forward, so `bandiera` holds 11 keepers and 4 forwards); `titolarissimo` is small by construction; and a man
+with NO football on file gets no rung at all rather than `riserva` — «vuoto = ignoto, mai zero», met again
+and committed by whoever had just rewritten the rule (a keeper read `riserva` with nothing measured and the
+engine expecting him in 29 rounds of 38). The guard lives in the ROW (`SnapshotView.play_share`) because
+`presence.Inputs` stores appearances as a float and an absent column and a measured zero arrive identical.
+Numbers, the refused readings and the open decisions: `docs/model/letture-app-v1.md` §16.
+
 ## Reading order for a new session
 The knowledge base now lives in **git** under [docs/model/](docs/model/) (Italian, source of truth; Drive
 is a mirror/archive). Before any work read, in order:
@@ -755,9 +817,9 @@ quantity, which `platform` being a first-class dimension should have prevented.
 club's own league.** The season aggregate (`external_stats`) stores one row per championship and nothing
 else, so every per-player numerator is league-only; the denominator used to be every eleven we parsed in
 any competition - Arsenal 58, Bayern 50, Napoli 38 (Serie A alone) - which is 66%-100% of the calendar
-depending on the club, so a titolarità could not be compared with the one next to it (Kane: 49% off 25
+depending on the club, so a share of a season could not be compared with the one next to it (Kane: 49% off 25
 starts in 34 rounds). Fixed 29/07/2026: `clubs.csv` carries `league_XIs`, and the correlation between a
-club's league share and its players' mean titolarità went from **+0.796 to −0.172**. Two corollaries worth
+club's league share and its players' mean starting share went from **+0.796 to −0.172**. Two corollaries worth
 keeping: a count from an external source arrives in ITS units (Transfermarkt counts absences over every
 competition, so they are counted as league rounds inside the union of the spells, never scaled), and
 `engine_pv_pred` lives on the PLATFORM's calendar (31 euro rounds, 38 default - in the manifest), which is
@@ -1278,7 +1340,7 @@ engine's (`evaluate.py` does not import it), so this moves who the board draws a
 `level_gap_weight` = 0.06, adopted 07/08/2026 (gate §7-duovicies). Born from the operator's question, «cosa
 differenzia un giocatore acquistato per riempire la rosa da uno preso per giocare titolare?», with the
 obvious candidate refused on an argument that holds: **the listone's Qt.I is not an objective value, it
-already contains its author's opinion about the man's titolarità**, so predicting titolarità with it is
+already contains its author's opinion about how much the man will play**, so predicting it with the price is
 circular. The objective answer is not the level but the STEP — `Elo(club he left) − Elo(club buying him)`,
 partial r **+0.220** at equal minutes against **+0.117** for the absolute level, i.e. what matters is not
 the prestige of where he came from but the difference with where he goes. That is also why it is not R5 in
@@ -1525,7 +1587,7 @@ cross-fit: **+7.5% and +7.6%**, no role losing, the keeper excluded because for 
 forecast. Two habits: **the regime of the judge is part of the judgement** - a pilot run on the time-travel
 packs (dated after the fifth round, so they measure the season in progress) gave the opposite sign - and
 the ceiling with the TRUE P is +74%, which says the form is right and what is missing is a forecast of
-titolarità: that is where to go back, not to a bigger formula.
+who STARTS: that is where to go back, not to a bigger formula.
 And where a rival is DRAWN is an assignment, not a per-man choice: the same day, «evitiamo posizioni con
 tanti calciatori in alternativa e posizioni senza alternative» turned the dedup rule into one allocation
 over the whole pitch (real-role fit dominating, a convex crowd price, a price for moving inside the line),

@@ -349,7 +349,7 @@ ADOPTED: dict[str, tuple[str, ...]] = {
     # Serie A). `passes` True su tutt'e quattro le combinazioni, che nessuna delle due letture contesta.
     # PERCHÉ NON VIOLA «la quotazione va per ultima», e la distinzione è dell'operatore (20/08/2026):
     # quella regola vive su un argomento preciso - il Qt.I non è un valore oggettivo, contiene già
-    # l'opinione del suo autore sulla titolarità, quindi prevedere la titolarità con lui è circolare - e
+    # l'opinione del suo autore su quanto giocherà, quindi prevederlo con lui è circolare - e
     # quell'argomento riguarda il LISTONE. Il prezzo Transfermarkt è un'altra cosa, e non per decreto:
     # misurato, il Qt.I correla +0,626 con la fantamedia di t-1 e +0,502 con le sue presenze, contro
     # +0,436 e +0,393 del prezzo di mercato (euro +0,566/+0,427 contro +0,355/+0,283). Il Qt.I predice

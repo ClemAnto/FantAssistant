@@ -51,7 +51,7 @@ share'_i = share_i + λ·x_i         λ unico, fittato cross-window, segno attes
 ```
 
 **Perché la MEDIA e non il p90**: la media degli attaccanti schierati per XI È il budget di
-titolarità che il club distribuisce agli attaccanti per giornata — esattamente la quantità
+maglie da titolare che il club distribuisce agli attaccanti per giornata — esattamente la quantità
 che la somma delle share previste non può superare. Il p90 sovrastima i club eterogenei
 (Fiorentina: p90 = 3 contro media 1.71) e nel `simultaneous_caps` esisteva solo per
 compensare l'inflazione multi-ruolo dei listing, che qui non c'è (lo slot provider è unico).

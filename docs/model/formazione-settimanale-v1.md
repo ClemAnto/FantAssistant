@@ -30,7 +30,7 @@ come rete, e oggi sono vuote — ma restano `desc_*`: nessuna regola le legge.
 - la **condizione tardiva** (affaticamento, rientro da infortunio, provino del sabato);
 - le **voci di mercato** in corso, che tolgono un uomo dalla lista dei convocati prima di ogni referto.
 
-**Non deve** ricalcolare ciò che è già misurato — minuti, titolarità sul campionato, duelli per ruolo reale,
+**Non deve** ricalcolare ciò che è già misurato — minuti, partite da titolare sul campionato, duelli per ruolo reale,
 infortuni datati, forma del club sulle ultime dieci. Un articolo che «conferma» un dato che abbiamo lo
 peggiora: aggiunge rumore con l'aria dell'evidenza.
 

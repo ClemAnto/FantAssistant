@@ -850,7 +850,7 @@ def test_a_line_considers_every_real_role_a_man_plays_not_just_his_first(monkeyp
                         lambda _self, row, _horizon: row.get("share", 0.0))
     monkeypatch.setattr(gui.SnapshotView, "claim",
                         lambda _self, row, _horizon="season": row.get("share", 0.0))
-    monkeypatch.setattr(gui.SnapshotView, "titolarita",
+    monkeypatch.setattr(gui.SnapshotView, "starting_record",
                         lambda _self, row, _horizon: (0.0, row.get("share", 0.0)))
 
     eleven = view.eleven("Napoli", "4-3-3", "typical")
@@ -1086,7 +1086,7 @@ def test_the_eleven_is_chosen_by_titolarita_and_never_by_a_valuation():
     for row in view.players:
         row["club"] = "Test"
 
-    assert view.titolarita(regular, "season")[0] > view.titolarita(expensive, "season")[0]
+    assert view.starting_record(regular, "season")[0] > view.starting_record(expensive, "season")[0]
 
     # the ATTACK, which is the line these three belong to: a squad of three strikers also has to fill the
     # other seven shirts of a 4-4-2, and it does (an adapted player beats an empty shirt - see

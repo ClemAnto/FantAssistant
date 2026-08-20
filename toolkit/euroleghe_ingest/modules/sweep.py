@@ -140,7 +140,7 @@ GRIDS: dict[str, tuple] = {
     "level_weight": (-0.02, 0.0, 0.02, 0.04, 0.06, 0.08, 0.12),
     # THE SALTO (pre-registered 07/08/2026, gate §7-duovicies), from the operator's question about what
     # separates a squad filler from a designated starter - with the listone's Qt.I ruled OUT by him, because
-    # it already contains its author's opinion about the man's titolarità and predicting titolarità with it
+    # it already contains its author's opinion about how much the man will play and predicting that with it
     # is circular. `elo_prev - elo_target`, standardised: how far he steps DOWN by moving. Measured at equal
     # minutes, r = +0.220 against the residual, against +0.117 for the absolute origin level. The grid is the
     # level channel's own, so the two are directly comparable, plus one negative step because a hypothesis
@@ -328,7 +328,7 @@ def build_inputs(conn, data: features.WindowData, ctx: Context | None = None) ->
     season = window.input_season
     resolve = snapshot.club_index(conn)
     calendar, fixtures, parsed_league = _calendars(conn, season)
-    played = snapshot.titolarita(conn, season)
+    played = snapshot.starting_record(conn, season)
     rates = snapshot.propensity(conn, season)
     # squads = {}: for a past window there is no squad snapshot to read, and the club that matters is the
     # one the TARGET listone puts him at - which is published before the auction, so it is legal here.

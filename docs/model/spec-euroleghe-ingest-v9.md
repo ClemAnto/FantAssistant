@@ -495,6 +495,85 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.63 (20 agosto 2026 — la titolarità in UNA PAROLA, e la parola stessa definita)
+
+**Richiesta dell'operatore**: «vorrei che quando si genera lo snapshot, per ogni calciatore venga deciso se
+è 1) bandiera … 2) titolarissimo … 3) titolare … 4) ballottaggio … 5) panchina … 6) riserva», con il
+vincolo che **«questo stato deve essere coerente con la formazione tipo (che adesso mi sembra buona)»**.
+E, poche ore dopo, la definizione del termine: **«titolarità» qui vuol dire che un calciatore gioca
+abbastanza da prendere il VOTO, anche se non parte dal principio in campo** — non il senso comune.
+
+### Che cosa entra
+
+**`engine/status.py`** (senza dipendenze, come il resto di `engine/`): le sei parole, le loro due sbarre e
+le quattro finestre su cui è misurata la resa. Non inventa nessun numero — legge i due che esistono già,
+`presence.appearance_share` (la quota delle giornate **per cui è disponibile** in cui prende un voto) e
+`minutes.per_appearance` (i minuti che sta in campo quando gioca, il chip della card, adottato il 19/08).
+La lettura ALTERNATIVA — una probabilità congiunta «>90% delle partite in cui gioca almeno 75 minuti» — è
+stata costruita per prima e **misurata inservibile**: la q75 prevista arriva a 0,86, quindi `bandiera` è
+vuota per costruzione e `titolare` pure, perché q65 e q75 distano il 6% su un difensore. Dava 10/0/0/184
+sui primi quattro gradini di un foglio Serie A.
+
+**`presence.appearance_share`** è `voto_share` **senza** lo sconto infortuni, estratta come primo fattore e
+non ricalcolata: `appearance_share × availability == voto_share`, con un test che lo tiene. La lettura
+condizionata è ciò che rende lo stato coerente con la board — l'undici tipo è «la squadra che schiera
+quando stanno tutti bene», e `claim` è `standing` senza lo sconto per la stessa ragione. Misurato:
+**tirarla verso la media del foglio non serve** (prior 3/5/10/20 giornate, peggio su 3 finestre su 4;
+scarto medio promessa-resa 0,076 contro 0,078/0,079/0,088/0,109).
+
+**La board è un CANCELLO**: chi l'undici non schiera non può essere `titolare`, chi schiera non scende
+sotto `ballottaggio`. È la richiesta letta alla lettera ed è anche il classificatore migliore — a parità di
+claim, i disegnati hanno reso una q75 di **0,512 contro 0,328**. Senza cancello: 19 `titolarissimo` che la
+board non schiera e 83 disegnati chiamati `panchina` o `riserva`.
+
+**Tre colonne, `SHEET_REVISION` 35**: `desc_titolarita`, `desc_titolarita_play`, `desc_minutes_next`.
+Scritte dallo **stesso passaggio che disegna le board** (il gradino legge l'undici disegnato, quindi
+calcolarlo altrove potrebbe descrivere un undici diverso da quello esportato) e quindi **vuote su una
+macchina senza display**: opzionali nel contratto di `export`, o un export lì non esporterebbe niente. La
+stessa mappa viaggia in `boards.json` sotto `titolarita`, e la parola è scritta su ogni uomo disegnato e su
+ogni suo rivale — giudicato sull'undici **disegnato** e non sul modulo che si sta guardando, o l'etichetta
+cambierebbe premendo un bottone.
+
+Resa misurata per gradino su quattro finestre pre-stagione retrodatate (due piattaforme × due stagioni),
+tabella completa in `engine/status.py` e in [letture-app-v1.md §16](letture-app-v1.md): `bandiera` e
+`titolare` mantengono la promessa **4 volte su 4**, `titolarissimo` è il gradino debole (è il residuo fra
+gli altri due: 0,7-1,0 uomini per club, 3 su 4). Lo squilibrio fra ruoli — `bandiera` tiene 11 portieri, 33
+difensori, 13 centrocampisti e 4 attaccanti — è nella definizione (una partita da titolare dura 84,5' per
+un difensore e 78,5' per un attaccante) ed è **riportato e non curato**: una differenza fra due GRUPPI non
+è un merito di chi la porta, quindi la decide l'operatore. `engine_*` non si muove, `backtest --verify`
+resta **22/22**.
+
+### La colonna in tabella, e il vuoto che non è un gradino (sera dello stesso giorno)
+
+Colonna **`Tit.`** nella tabella dei calciatori, tre caratteri come chiesto: **BAN · TIS · TIT · BLT ·
+PAN · RIS**, accanto alla P perché è la stessa domanda in parole, ordinabile per RANGO e non per sigla, e
+la scala si legge dal peso e non dal colore (in quest'app il colore porta un significato). `BLT` e non
+`BAL` perché `BAN`/`BAL` differiscono per l'ultimo carattere e sono i gradini 1 e 4. Vocabolario in
+`app/src/app/core/titolarita.ts` — una definizione sola, perché tre schermate mostreranno la stessa parola
+— e il gradino non si ricalcola mai nell'app, come la board. v0.1.21, 326 prove verdi, build di produzione
+e `e2e-table.mjs` sulla tabella vera.
+
+**E la verifica in browser ha trovato un difetto appena introdotto**: Terracciano F. leggeva `riserva` con
+**nessuna partita misurata** e il motore che gliene prevede 29 su 38. `presence.Inputs` tiene le presenze
+come float, quindi una colonna assente e uno zero misurato arrivano identici (0.0) e la quota legge 0,000
+— «vuoto = ignoto, mai zero», commesso da chi aveva appena riscritto la regola. La distinzione vive solo
+nella RIGA, quindi il guardiano sta in `SnapshotView.play_share`: se nessuna delle quattro colonne che
+porterebbero una sua stagione ha un valore, la quota è `None` e il gradino non si scrive. Costa **95
+righe su 605** (Serie A) e **166 su 1023** (euro) che passano da `riserva` a vuoto, e sono uomini di cui
+non esiste una partita. Leggerli come `riserva` citando «non si sa nemmeno se andrà in panchina» sarebbe
+usare il fondo di una scala di calcio come secchio per l'ignoto; se l'operatore preferisce il contrario è
+una riga, ed è una sua decisione.
+
+### E il vocabolario, che è la metà che vale più a lungo
+
+`titolarità` = prende il voto · `quota da titolare` = parte dall'inizio. Bonificati i posti in cui la
+parola NOMINAVA la quantità sbagliata: `snapshot.titolarita` → **`starting_record`**,
+`SnapshotView.titolarita` → **`starting_record`** (il docstring di tutt'e due dice perché), i commenti del
+pannello, e le stringhe che l'app mostra davvero (`club-eleven.disagreementHint`, il piede del campetto,
+`club-board`). **Non riscritti apposta** i verbali di `docs/model/` — il gate e le todolist registrano
+misure fatte sulle titolarità DI PARTENZA, e riscriverle cambierebbe la misura invece di chiarirla: quelle
+pagine portano ora una nota datata che dice in che senso vanno lette (00-BRIDGE, `gate-motore-v1.md`).
+
 ## Novità v9.62 (20 agosto 2026 — un pacchetto del viaggio nel tempo non poteva dire di essere vecchio)
 
 `SHEET_REVISION` esiste perché «un foglio non può dire se è scaduto, quindi glielo si fa dire». I quattro

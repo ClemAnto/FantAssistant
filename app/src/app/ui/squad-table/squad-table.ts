@@ -38,6 +38,7 @@ import { PlayerFlags } from '../player-flags/player-flags';
 import { RoleBadge } from '../role-badge/role-badge';
 import { RoleSet } from '../role-set/role-set';
 import { StarRating } from '../star-rating/star-rating';
+import { TITOLARITA_SHORT, isTitolarita, titolaritaNote, titolaritaRank } from '../../core/titolarita';
 
 const ROLE_LABEL: Record<ClassicRole, string> = {
   P: 'Portiere',
@@ -71,6 +72,10 @@ export const SQUAD_COLUMNS: readonly { key: string; label: string; width: number
   { key: 'mantra', label: 'Mantra', width: 78 },
   { key: 'club', label: 'Squadra', width: 130 },
   { key: 'codes', label: 'Ruolo reale', width: 100 },
+  // LA TITOLARITÀ IN UNA PAROLA, tre caratteri (operatore, 20/08/2026), accanto alla P perché è la
+  // stessa domanda detta a parole: quanto gioca. La sigla è un promemoria e il tooltip porta la parola
+  // intera coi due numeri che l'hanno decisa, perché un gradino si ribalta su un minuto.
+  { key: 'titolarita', label: 'Tit.', width: 46 },
   { key: 'expected', label: 'P (partite attese)', width: 48 },
   // Le quattro colonne di fantamedia sono più larghe delle cifre che portano: dentro ognuna il numero sta
   // in un riquadro colorato, e un riquadro più largo della colonna manderebbe la tabella a scorrere.
@@ -120,7 +125,8 @@ export const SQUAD_COLUMNS: readonly { key: string; label: string; width: number
  * `role` e `name` sono le due colonne fisse, che si ordinano come tutte le altre.
  */
 export const SORTABLE_COLUMNS: readonly string[] = [
-  'role', 'name', 'club', 'expected', 'expectedFm', 'expectedMv', 'surplus', 'surplusFielded',
+  'role', 'name', 'club', 'titolarita', 'expected', 'expectedFm', 'expectedMv', 'surplus',
+  'surplusFielded',
   'value', 'fvm', 'market', 'pv', 'mv', 'fm', ...RATING_KEYS,
 ];
 
@@ -443,6 +449,7 @@ export class SquadTable {
       case 'role': return this.byRole;
       case 'name': return this.byName;
       case 'club': return this.byClub;
+      case 'titolarita': return this.byTitolarita;
       case 'expected': return this.byExpected;
       case 'expectedFm': return this.byExpectedFm;
       case 'expectedMv': return this.byExpectedMv;
@@ -754,6 +761,14 @@ export class SquadTable {
   protected readonly byFm = (left: SquadMan, right: SquadMan): number =>
     (left.fm ?? -1) - (right.fm ?? -1);
 
+  /**
+   * La scala e non l'alfabeto: si ordina per il RANGO (0 = bandiera), invertito perché la freccia «alto
+   * per primo» di questa tabella vuol dire «il migliore in cima», e sulla scala il migliore è lo zero.
+   * Chi non ha gradino sta in fondo come ogni altro vuoto della tabella.
+   */
+  protected readonly byTitolarita = (left: SquadMan, right: SquadMan): number =>
+    (titolaritaRank(right.titolarita) ?? 99) - (titolaritaRank(left.titolarita) ?? 99);
+
   protected readonly byExpected = (left: SquadMan, right: SquadMan): number =>
     (left.expected ?? -1) - (right.expected ?? -1);
 
@@ -762,6 +777,36 @@ export class SquadTable {
 
   protected readonly byExpectedMv = (left: SquadMan, right: SquadMan): number =>
     (left.expectedMv ?? -1) - (right.expectedMv ?? -1);
+
+  /** La sigla di tre caratteri, o null per uno stato che il foglio non porta. */
+  protected titolaritaShort(man: SquadMan): string | null {
+    return isTitolarita(man.titolarita) ? TITOLARITA_SHORT[man.titolarita] : null;
+  }
+
+  /** La parola intera, la promessa e i due numeri: la sigla non spiega, il tooltip sì. */
+  protected titolaritaHint(man: SquadMan): string {
+    return (
+      titolaritaNote(man.titolarita, man.titolaritaPlay, man.minutesNext)
+      ?? 'Il foglio non porta il gradino: nessuna partita sua è misurata, oppure il foglio non porta '
+        + 'l’undici tipo che lo decide (prima della revisione 35, o costruito senza schermo). In '
+        + 'tutt’e due i casi è IGNOTO e non «riserva»: quella è un’affermazione sul calcio che gioca.'
+    );
+  }
+
+  /**
+   * Quanto è forte la parola, come CONTRASTO e non come colore.
+   *
+   * La regola dell'app è che il colore porta un significato («rosso = pericolo», i dati vanno neutri),
+   * quindi sei tinte su una scala ordinale direbbero «allarme» dove c'è solo una riserva. La scala si
+   * legge dal peso: i due gradini alti in grassetto, i due bassi smorzati, i due di mezzo normali.
+   */
+  protected titolaritaTone(man: SquadMan): string {
+    const rank = titolaritaRank(man.titolarita);
+    if (rank == null) return 'text-muted';
+    if (rank <= 1) return 'font-semibold';
+    if (rank >= 4) return 'text-muted';
+    return '';
+  }
 
   /** What P is, said once in its header: a number of matches needs the calendar it is out of. */
   protected readonly expectedHeader = computed(() => {

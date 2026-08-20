@@ -177,7 +177,7 @@ export class ClubBoard {
     if (!counted || (!counted.floor && !counted.duplicate)) return '';
     const bits: string[] = [];
     if (counted.floor) {
-      bits.push(`${counted.floor} sotto il ${Math.round(PITCH_CLAIM_FLOOR * 100)}% di titolarità`);
+      bits.push(`${counted.floor} sotto il ${Math.round(PITCH_CLAIM_FLOOR * 100)}% da titolare`);
     }
     if (counted.duplicate) bits.push(`${counted.duplicate} già mostrati su un altro posto`);
     return `Ballottaggi non disegnati: ${bits.join(' · ')}.`;

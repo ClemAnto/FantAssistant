@@ -182,7 +182,7 @@ class Params:
     # Pre-registered 07/08/2026 (gate §7-duovicies) from the operator's question - «cosa differenzia un
     # giocatore acquistato per riempire la rosa da uno preso per giocare titolare?» - after he refused the
     # obvious candidate on an argument that holds: the listone's Qt.I is not an objective value, it already
-    # contains its author's opinion about the man's titolarità, so predicting titolarità with it is partly
+    # contains its author's opinion about how much the man will play, so predicting that with the price is partly
     # circular. Measured at EQUAL MINUTES (the confound that ate the first attempt: the index `minutes x
     # Elo` correlates +0.769 with the minutes themselves, so it is the regression rewritten and not new
     # information): the gap scores r = +0.220 against the residual, the absolute origin level +0.117.
@@ -680,6 +680,32 @@ def presence(inputs: Inputs, params: Params = DEFAULTS) -> float:
     return min(standing(inputs, params) * availability(inputs, params), 1.0)
 
 
+def appearance_share(inputs: Inputs, params: Params = DEFAULTS) -> float:
+    """The share of the rounds he is IN CONTENTION FOR in which he is expected to get a VOTO.
+
+    The same question `voto_share` answers, asked WITHOUT the injury discount - «when he is fit, does the
+    coach use him?». It is `voto_share`'s own first factor, split out because two callers need the two
+    different questions and computing one from the other by division would be a second definition:
+
+      * `voto_share` (this x `availability`) answers the AUCTION's question - how many matchdays will he
+        give me - and an injury-prone man must be discounted there;
+      * this one answers the COACH's, and is what the titolarita ladder is built on (`engine/status.py`),
+        for the same reason `claim` is `standing` and not `presence`: the typical eleven is the side with
+        everybody fit, so a state that has to agree with it cannot carry the injury discount. A man who
+        played every match he was available for reads 1.0 here and is right to: what he missed is a fact
+        about his body, and the app draws it as its own mark.
+
+    Measured 20/08/2026 and left UNSHRUNK, which is not an oversight: shrinking it toward the sheet's mean
+    by the same rule `standing` obeys was tried on four back-dated pre-season windows (prior rounds 3, 5,
+    10, 20) and is worse on three of four - mean gap between what each rung promises and what it delivered
+    0.076 unshrunk against 0.078 / 0.079 / 0.088 / 0.109. The reason is the conditional reading itself:
+    the man a shrinkage would protect against is the one with a short sample because he was hurt, and the
+    denominator here has already taken those rounds off.
+    """
+    rounds = contested(inputs, params)
+    return min(inputs.appearances * at_club_weight(inputs, params) / rounds, 1.0)
+
+
 def voto_share(inputs: Inputs, params: Params = DEFAULTS) -> float:
     """The share of the season's matchdays he is expected to get a VOTO in - not to START in.
 
@@ -690,6 +716,4 @@ def voto_share(inputs: Inputs, params: Params = DEFAULTS) -> float:
     An appearance is taken as a voto, which is the honest limit of the layer: the season aggregate cannot
     tell a ten-minute cameo from a full match.
     """
-    rounds = contested(inputs, params)
-    appearances = min(inputs.appearances * at_club_weight(inputs, params) / rounds, 1.0)
-    return min(appearances * availability(inputs, params), 1.0)
+    return min(appearance_share(inputs, params) * availability(inputs, params), 1.0)

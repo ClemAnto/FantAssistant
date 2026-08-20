@@ -485,7 +485,7 @@ prima di scrivere codice:
   irriducibili: il gioco assegna punti per ruolo.
 
 Quindi la legalità si decide sui ruoli del listone. I codici misurati restano dove già pagano (la fantamedia
-prevista, la titolarità, il fianco), e non entrano nel vincolo.
+prevista, la quota da titolare, il fianco), e non entrano nel vincolo.
 
 ### 12.5 L'algoritmo esiste già, ma nel posto sbagliato
 
@@ -1866,7 +1866,7 @@ Tre cambi, e ognuno porta la sua misura nel codice dove sta:
   Per club: modulo disegnato (`picture`, dopo `_reshape`) e quello su cui il fit è stato risolto quando
   differiscono, modulo tipico, allenatore, probabilità dei moduli; per uomo: `fc_id`, **x** (la posizione
   orizzontale del pannello, fasce già ordinate), **ruoli reali** granulari, minuti e partite del suo
-  campionato, titolarità, e **fino a due ballottaggi**. Verificato sul bundle: 37 + 20 + 20 club, 407 + 220 +
+  campionato, quota da titolare, e **fino a due ballottaggi**. Verificato sul bundle: 37 + 20 + 20 club, 407 + 220 +
   220 uomini, 649 + 378 + 378 ballottaggi, **zero** disaccordi fra i numeri del modulo e i disegnati, zero
   uomini senza `x` o senza `fc_id`.
   Il disegno è la tua regola: ogni numero è quanti uomini stanno su quella linea, il portiere non è mai uno di

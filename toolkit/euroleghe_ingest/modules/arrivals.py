@@ -136,7 +136,7 @@ def keeper_fm_equivalent(conn, scoring: dict[str, float], season: str) -> dict[i
     Where it comes from: `external_stats.goals_conceded`, the provider's own season aggregate - goals the
     team conceded WHILE HE WAS ON THE PITCH, which for a keeper is the malus. It is a per-SEASON number,
     so the malus is his season rate, and numerator and denominator are read on the same COMPETITION (his
-    league), never on "every eleven we parsed": that rule is why titolarità was wrong before v9.11.
+    league), never on "every eleven we parsed": that rule is why the starting share was wrong before v9.11.
 
     Two things this cannot do, both declared rather than approximated:
     * `pen_saved` does not exist in the provider aggregate, so the +3 term is absent. It biases the

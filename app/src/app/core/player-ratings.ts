@@ -99,7 +99,7 @@ export const FRAGILITY_RISK = 1;
  * fa ad avere un overall così alto?» - e poi: «non può stare sopra Simeone o Davis, che hanno dimostrato
  * di essere più affidabili». La prima versione leggeva le PRESENZE previste dal motore, e con quelle i
  * tre sono lo stesso uomo: 24, 25 e 24 partite su 38. Il motore conta le presenze A VOTO, e un subentrato
- * ne prende - quindi la titolarità da lì non si vede.
+ * ne prende - quindi chi parte dall'inizio da lì non si vede.
  *
  * Si vede dalle partite da TITOLARE della sua ultima stagione, che è un fatto misurato e non una
  * preferenza: Esposito 15 su 36 presenze, Simeone 27, Davis 27, Yildiz 33. È quello che «hanno
@@ -814,7 +814,7 @@ export function matchHistories(
     external, 'fc_id', 'season', 'source', 'competition', 'real_md', 'minutes', 'mv_synth',
   );
   // Chi COMINCIA le partite, che è una cosa diversa da chi le gioca: `pv` conta le presenze a voto e un
-  // subentrato ne prende, quindi la titolarità non si legge da lì. La colonna è opzionale per un bundle
+  // subentrato ne prende, quindi chi parte dall'inizio non si legge da lì. La colonna è opzionale per un bundle
   // vecchio, e allora la quota resta ignota invece di diventare zero.
   const eStarted = optionalIndex(external, 'started');
   const eDate = optionalIndex(external, 'match_date');
@@ -880,7 +880,7 @@ export function matchHistories(
     }
   }
 
-  // La titolarità dell'ULTIMA stagione che ha giocato: «hanno dimostrato di essere affidabili» è una
+  // La quota da TITOLARE dell'ULTIMA stagione che ha giocato: «hanno dimostrato di essere affidabili» è una
   // cosa sul passato recente, e una stagione da titolare di tre anni fa non è una garanzia di oggi.
   for (const [fcId, history] of out) {
     const last = [...history.seasons].sort().at(-1);

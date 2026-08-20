@@ -271,12 +271,12 @@ export type BoardDisagreement = 'board' | 'engine';
 export const BOARD_ENGINE_GAP = 0.2;
 
 /**
- * SOTTO QUESTA TITOLARITÀ un BALLOTTAGGIO non si mostra (operatore, 18/08/2026: «se non ci sono
+ * SOTTO QUESTA QUOTA DA TITOLARE un BALLOTTAGGIO non si mostra (operatore, 18/08/2026: «se non ci sono
  * ballottaggi accetta qualsiasi claim; nel caso di ballottaggi scarta quelli sotto il 0,20»).
  *
  * Vale sui RIVALI e non sul titolare: l'undici disegnato resta di undici uomini - un posto vuoto sarebbe
  * una board diversa da quella del toolkit, che è la cosa che questo file non fa - mentre un rivale con
- * otto centesimi di titolarità è rumore su una carta che si legge in due secondi.
+ * otto centesimi di quota da titolare è rumore su una carta che si legge in due secondi.
  *
  * Misurato sulle board del bundle (17/08/2026) prima di scegliere la soglia, su 610 rivali di euro:
  * a 0,20 se ne scartano 95 e 40 posizioni su 357 restano senza ballottaggio; a 0,30 sarebbero 161 e 72
@@ -310,11 +310,12 @@ export function disagreementHint(man: PitchMan): string | null {
   const claim = `${Math.round(man.claim * 100)}%`;
   const share = `${Math.round(man.expectedShare * 100)}%`;
   return man.disagreement === 'board'
-    ? `i due modelli non sono d'accordo: la board gli dà la maglia (titolarità ${claim}) e il motore lo `
-      + `prevede a voto nel ${share} delle giornate — la board risponde a «chi parte titolare», il motore `
-      + `a «in quante giornate prende un voto», e un subentrato il voto lo prende`
+    ? `i due modelli non sono d'accordo: la board gli dà la maglia (parte titolare nel ${claim} delle `
+      + `giornate) e il motore lo prevede a voto nel ${share} — la board risponde a «chi parte dall'inizio», `
+      + `il motore a «in quante giornate prende un voto», che è la titolarità qui, e un subentrato il voto `
+      + `lo prende`
     : `i due modelli non sono d'accordo: il motore lo prevede a voto nel ${share} delle giornate e la `
-      + `board lo tiene a ${claim} di titolarità — spesso vuol dire che per quel posto non aveva nessuno `
+      + `board lo tiene al ${claim} da titolare — spesso vuol dire che per quel posto non aveva nessuno `
       + `di meglio, non che quel posto è suo`;
 }
 

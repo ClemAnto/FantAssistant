@@ -800,6 +800,23 @@ dell'altra metà cruda.
 
 ## 8. Aperti
 
+**Sulla scala della titolarità (20/08/2026), tre decisioni che sono sue e non misure** — §16:
+- i **95 uomini su 605** (Serie A; 166 su 1023 su euro) senza una partita misurata leggono **vuoto** e non
+  `riserva`. La sua definizione del gradino 6 («non si sa nemmeno se andrà in panchina») direbbe il
+  contrario; la ragione per non farlo è che quella frase descrive un uomo ai margini di una rosa e non un
+  buco nei dati. È una riga di codice in tutt'e due i sensi.
+- **`titolarissimo` è un gradino residuo** (sopra l'80% ma non sopra il 90%, con la sbarra dei minuti
+  alta): 0,7-1,0 uomini per club e la promessa mantenuta 3 volte su 4. Se lo vuole più largo, la sbarra da
+  muovere è quella dei minuti e non quella della quota.
+- il **pavimento dei minuti è in minuti assoluti**, quindi premia i ruoli che restano in campo:
+  `bandiera` tiene 11 portieri, 33 difensori, 13 centrocampisti e 4 attaccanti. Un pavimento misurato
+  DENTRO il ruolo è la cura, e va misurata prima di essere adottata.
+- e **«ballottaggio» ha due sensi nello stesso file**: sul campetto è una RELAZIONE (si giocano quel
+  posto), sulla scala è un GRADINO (gioca quasi ogni partita). Promuovere ogni rivale nominato al gradino
+  4 è stato misurato e non conviene (rendono 0,551 di quota contro lo 0,80 promesso), quindi resta la
+  parola con due sensi - stessa famiglia del termine chiarito lo stesso giorno.
+
+
 1. ~~**`season_stats.clean_sheets`**~~ — **FATTO il 16/08/2026**: 970 stagioni-portiere e **4.872** porte
    inviolate, con tre guardie e il disaccordo fra le fonti dichiarato invece che ritagliato (§6-bis). La
    voce restava aperta qui per svista, ed era già segnata come chiusa nella todolist: due elenchi che
@@ -1216,3 +1233,164 @@ dipende dall'esito: lo stesso uomo sui due fogli, **|scarto| medio 0,223 → 0,1
 interessato. Come per il caso di Arthur Melo (§13), **il difetto non era nell'app**: la formula
 `Overall = P × (MVa + Bonus)` e la colonna `Bonus = FMa − MVa` erano e restano giuste, e ripartivano male
 un totale corretto fra i due addendi che l'operatore legge.
+
+## 16. LA TITOLARITÀ IN UNA PAROLA: sei gradini dettati, due assi, e la board come cancello (20 agosto 2026)
+
+**Richiesta dell'operatore**, alla lettera: «vorrei che quando si genera lo snapshot, per ogni calciatore
+venga deciso se è 1) bandiera => giocherà ogni partita (>90%) almeno 75' · 2) titolarissimo => giocherà
+quasi ogni partita (>80%) almeno 75' · 3) titolare => giocherà quasi ogni partita (>80%) almeno 65' ·
+4) ballottaggio => giocherà quasi ogni partita (>80%) · 5) panchina => spesso entrerà in campo ma senza
+certezze · 6) riserva => non entrerà spesso / non si sa nemmeno se andrà in panchina», con un vincolo:
+**«questo stato deve essere coerente con la formazione tipo (che adesso mi sembra buona)»**.
+
+E, poche ore dopo, la definizione del termine che regge tutto — riportata qui perché è la ragione per cui
+l'asse è quello che è: **«nel linguaggio comune "titolarità" è il fattore che indica se un calciatore parte
+dall'inizio in campo, nel nostro progetto invece dobbiamo usarlo per indicare che un calciatore gioca
+abbastanza da prendere il voto (anche se non parte dal principio in campo)»**. La scala qui sotto era già
+costruita così — l'asse è la quota di giornate **a voto** e non la quota da titolare — e la definizione la
+conferma invece di correggerla. Il vocabolario e la bonifica dei posti che usavano la parola nell'altro
+senso stanno in CLAUDE.md.
+
+### 16.1 Due assi e non uno, che è come le sei righe sono scritte
+
+Ogni riga porta una PERCENTUALE di partite e un pavimento di MINUTI, e la quarta lascia cadere i minuti.
+Sono quindi due domande indipendenti, e tutt'e due hanno già una risposta in casa: la quota di partite è
+`presence.appearance_share` e i minuti sono `minutes.per_appearance`, il numero del chip della card
+(adottato +7,5%/+7,6% il 19/08). Questo modulo non inventa un terzo numero: dice soltanto dove i due che
+esistono mettono un uomo.
+
+La lettura alternativa — «>90% delle partite in cui gioca almeno 75 minuti», cioè UNA probabilità
+congiunta — è stata costruita e misurata per prima, ed è **inservibile**: la q75 prevista arriva al
+massimo a 0,86, quindi `bandiera` è vuota per costruzione, e `titolare` (q65 > 0,80) è vuota anch'essa
+perché q65 e q75 distano il 6% su un difensore, quindi chi supera l'una supera l'altra. Sul foglio Serie A
+retrodatato al 15/08/2025 quella scala dava **10 / 0 / 0 / 184** sui primi quattro gradini. Scartata coi
+suoi numeri, non per gusto.
+
+### 16.2 La quota è CONDIZIONATA, ed è quello che la rende coerente con la board
+
+`appearance_share` è «delle partite per cui è **disponibile**», cioè `voto_share` senza lo sconto
+infortuni. Non è un ammorbidimento: è la stessa scelta che fa `claim` essere `standing` e non `presence` —
+l'undici tipo è «la squadra che schiera quando sono tutti disponibili», e uno stato che deve tornare con
+quel disegno non può portare dentro uno sconto che il disegno rifiuta apposta. Con `voto_share` grezza, chi
+gioca ogni volta che sta bene ma si è rotto a marzo leggerebbe `panchina` mentre la board continua a
+disegnarlo: due risposte a una domanda. Quello che ha saltato è un fatto sul suo corpo e l'app lo disegna
+già come marchio suo (`core/player-status.ts`).
+
+Misurato: **lo shrinkage di quella quota non serve**. Tirarla verso la media del foglio con la stessa
+regola che `standing` già obbedisce (prior di 3, 5, 10, 20 giornate) è peggio su tre finestre su quattro —
+scarto medio fra promessa e resa 0,076 senza contro 0,078 / 0,079 / 0,088 / 0,109. Il motivo è la lettura
+condizionata stessa: l'uomo che uno shrinkage proteggerebbe è quello col campione corto perché era
+infortunato, e quelle giornate il denominatore le ha già tolte.
+
+### 16.3 La board è un CANCELLO, e non è un ornamento
+
+Chi l'undici tipo non schiera non può essere `titolare`; chi schiera non scende sotto `ballottaggio`.
+È la richiesta dell'operatore letta alla lettera — e, misurato, **è anche il classificatore migliore**:
+a parità di claim, gli uomini che la board disegna hanno reso una q75 di **0,512 contro 0,328** di quelli
+che non disegna (banda 0,6-0,7; 0,362 contro 0,242 nella banda 0,5-0,6). Il fit sa che modulo gioca il club
+e chi altro vuole quella maglia; una quota di stagione no.
+
+Senza cancello, sul foglio 2025 l'operatore avrebbe visto per primi **19 uomini `titolarissimo` che la
+board non schiera** e **83 disegnati chiamati `panchina` o `riserva`**.
+
+### 16.4 Che cosa ha reso ogni gradino, su quattro finestre
+
+Fogli pre-stagione retrodatati (`snapshot --season S --date S-08-15`, lo stato di un'asta d'agosto), due
+piattaforme × due stagioni. Esito = quello che quegli uomini hanno poi fatto: la quota delle partite del
+club in cui erano in campo **fra quelle per cui erano disponibili** (una giornata dentro uno spell
+d'infortunio datato esce dal denominatore, la stessa sottrazione che `contested` fa in entrata) e i minuti
+medi in una partita giocata.
+
+| gradino | promessa | Serie A 25-26 | Serie A 24-25 | euro 25-26 | euro 24-25 |
+|---|---|---|---|---|---|
+| bandiera | >0,90 / 75' | **0,864 / 76'** | **0,925 / 79'** | **0,901 / 80'** | **0,896 / 78'** |
+| titolarissimo | >0,80 / 75' | 0,700 / 62' | 0,774 / 76' | 0,802 / 71' | 0,867 / 77' |
+| titolare | >0,80 / 65' | **0,846 / 67'** | **0,892 / 68'** | **0,881 / 67'** | **0,898 / 68'** |
+| ballottaggio | >0,80 | 0,678 / 57' | 0,717 / 60' | 0,789 / 62' | 0,791 / 61' |
+| panchina | >0,50 | 0,610 / 49' | 0,645 / 52' | 0,662 / 55' | 0,683 / 56' |
+| riserva | — | 0,343 / 47' | 0,386 / 47' | 0,433 / 49' | 0,430 / 50' |
+| uomini per club (1/2/3) | | 3,0 / 0,7 / 2,2 | 2,2 / 0,8 / 1,8 | 2,6 / 1,0 / 2,9 | 2,4 / 1,0 / 2,9 |
+
+`bandiera` e `titolare` mantengono la promessa su 4 finestre su 4, e il pavimento di minuti della prima è
+superato di quattro punti. `panchina` e `riserva` sono ordinate e ben distanti. **`titolarissimo` è il
+gradino debole** e va detto: è il RESIDUO fra gli altri due (sopra l'80% ma non sopra il 90%, con la
+sbarra dei minuti alta), quindi è piccolo — 0,7-1,0 uomini per club — e su una finestra di quattro rende
+0,700 contro il suo 0,80. `ballottaggio` resta sotto la sua promessa su Serie A perché il cancello ci mette
+dentro **tutti** i disegnati che non arrivano a nessuna sbarra: è il punto del cancello, ed è il suo prezzo.
+
+Senza cancello gli stessi due gradini rendono 0,832 / 0,871 / 0,878 / 0,884 e 0,797 / 0,894 / 0,862 /
+0,865: **il cancello migliora sei di quegli otto numeri e non ne peggiora nessuno**.
+
+### 16.5 Lo squilibrio fra ruoli è nella definizione, ed è riportato e non curato
+
+Un pavimento in minuti assoluti non è neutro fra i ruoli: una partita da titolare dura 84,5' per un
+difensore e 78,5' per un attaccante (`minutes.START_MINUTES`, misurato su 247.825 presenze), quindi
+`bandiera` sulla finestra 2025 tiene **11 portieri, 33 difensori, 13 centrocampisti e 4 attaccanti**. È la
+sbarra dell'operatore che fa quello che dice, e la regola di questo progetto è che *una differenza fra due
+GRUPPI non è un merito di chi la porta* — quindi sta scritto qui perché sia lui a decidere, non sostituito
+di nascosto da un pavimento per ruolo. La cura, se la vorrà, è un pavimento misurato dentro il ruolo, e va
+misurata prima di essere adottata come tutto il resto.
+
+### 16.6 Dove vive e perché lì
+
+Tre colonne del foglio — `desc_titolarita`, `desc_titolarita_play`, `desc_minutes_next` — scritte **dallo
+stesso passaggio che disegna le board**, perché il gradino legge l'undici disegnato: uno stato calcolato
+altrove potrebbe descrivere un undici diverso da quello esportato, che è la ragione per cui `boards.json`
+sta già dentro la cartella del foglio. Su una macchina **senza display** le tre colonne sono **vuote**:
+senza il disegno «è nell'undici?» è ignoto, e un gradino inventato lì sarebbe peggio di una cella vuota.
+La stessa mappa viaggia anche dentro `boards.json` (`titolarita`, per `fc_id`) e la parola è scritta su ogni
+uomo disegnato e su ogni suo rivale, così una card è autosufficiente — **una risposta per giocatore, non una
+per posto**: il rivale è giudicato sull'undici DISEGNATO e non sul modulo che si sta guardando, altrimenti
+la sua etichetta cambierebbe premendo un bottone.
+
+Nessuna colonna `engine_*` si muove (`backtest --verify` resta **22/22**) e nessun gate possiede queste
+soglie: `PLAY_OFTEN` = 0,50 è l'unico numero che l'operatore non ha dettato ed è **dichiarato** («spesso» è
+più spesso che no), con la resa misurata accanto — sceglierlo per far fare bella figura alla sua classe
+sarebbe fitting.
+
+Come leggerlo su un club vero, Napoli sul foglio del 20/08/2026: **bandiera** McTominay (1,00 · 78'),
+Di Lorenzo (0,96 · 85'), Rrahmani (0,96 · 82'), Hojlund (0,94 · 76'), Buongiorno (0,94 · 75') ·
+**titolare** Lobotka (1,00 · 75'), Politano (1,00 · 66') · **ballottaggio** De Bruyne (1,00 · 64'),
+Spinazzola (0,97 · 64'), Zambo Anguissa (0,82 · 67'), Milinkovic-Savic (0,75 · 90') · **panchina** Gilmour,
+Olivera, Beukema, Lukaku · **riserva** Meret (0,42 · 89'). I due portieri raccontano da soli che cosa
+misura la colonna: chi para novanta minuti quando gioca, e quanto spesso gioca.
+
+### 16.7 In tabella: tre caratteri, e il vuoto che non è un gradino (20 agosto 2026, sera)
+
+**Richiesta dell'operatore**: «nella tabella dei calciatori mostrami una colonna con questo valore
+(mostrami solo 3 caratteri)». Colonna **`Tit.`**, larga 46px, fra «Ruolo reale» e «P» — la P è la stessa
+domanda in partite e la parola in lettere, e una parola letta a mezza tabella dal suo numero è una parola
+che nessuno confronta. Sigle: **BAN · TIS · TIT · BLT · PAN · RIS**.
+
+`ballottaggio` non è `BAL` e la ragione è una sola: `BAN`/`BAL` differiscono per l'**ultimo** carattere e
+sono il gradino 1 e il gradino 4, cioè le due parole più lontane della scala avrebbero avuto le due sigle
+più simili. `BLT` costa una lettera di leggibilità e la spende dove serve; `TIS`/`TIT` sono gradini
+vicini e confonderli costa poco. Si ORDINA per il rango e non per la sigla (in ordine alfabetico verrebbe
+BAL, BAN, PAN, RIS, TIS, TIT, cioè nessun ordine), e la scala si legge dal **peso** e non dal colore — i
+due gradini alti in grassetto, i due bassi smorzati — perché in quest'app il colore porta un significato
+(«rosso = pericolo») e sei tinte su una scala ordinale direbbero «allarme» dove c'è una riserva.
+
+**E la verifica in browser ha trovato un difetto, che era mio.** `e2e-table.mjs` disegna la tabella vera e
+ne misura le colonne; la colonna era allineata, ma leggendo le righe è saltato fuori **Terracciano F.,
+`riserva`** — la cosa più forte che questa scala sappia dire di un uomo — con **nessuna partita misurata**
+e il motore che gliene prevede **29 su 38**. `presence.Inputs` tiene le presenze come float, quindi una
+colonna assente e uno zero misurato arrivano tutt'e due come 0.0 e la quota legge 0,000: «vuoto = ignoto,
+mai zero», incontrato per l'ennesima volta e commesso da chi aveva appena riscritto la regola. La
+distinzione sopravvive solo nella RIGA, quindi il guardiano sta lì (`SnapshotView.play_share`, quattro
+colonne: se nessuna delle quattro porta calcio giocato, la quota è **None** e il gradino non si scrive).
+
+Quanto pesa: **95 righe su 605** (Serie A) e **166 su 1023** (euro) passano da `riserva` a vuoto. Sono
+uomini di cui non esiste una partita: quasi tutti sono nelle rose osservate e fuori dal listone. La
+tentazione era leggerli come `riserva` citando la definizione stessa dell'operatore — «non si sa nemmeno
+se andrà in panchina» — e la ragione per non farlo è che quella frase descrive un uomo ai margini di una
+rosa, non un buco nei dati: è il fondo di una scala di calcio, non un secchio per l'ignoto. Se lui
+preferisce il contrario è una riga di codice, ed è una decisione sua e non una misura.
+
+Tre uomini restano dove i due modelli non sono d'accordo, e vanno letti così: **Malen** (`riserva`, quota
+0,44 misurata su 18 presenze, la board della Roma non lo schiera) contro un motore che gli dà 28,3
+giornate; **Di Gregorio** (`panchina`, quota 0,789 — sotto la sbarra dello 0,80 per un centesimo) che la
+board della Juventus disegna come **rivale** di Vicario. Su quest'ultimo la parola «ballottaggio» ha due
+sensi nello stesso file: sul campetto è una RELAZIONE (si gioca quel posto) e sulla scala è un GRADINO
+(gioca quasi ogni partita). Promuovere ogni rivale al gradino 4 è stato misurato e **non si fa**: i
+rivali nominati hanno reso 0,551 di quota contro lo 0,80 che quel gradino promette. Resta la parola con
+due sensi, che è la stessa famiglia del termine chiarito oggi e va decisa in chiaro.

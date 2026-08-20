@@ -65,7 +65,7 @@ export interface RotationWatch {
 
 /**
  * IL TERZO FATTO SULLA MAGLIA, ed è lo specchio del secondo: dato per riserva, gioca da titolare.
- * Ferran Torres 2025-26 (64° percentile del ruolo, 73 minuti e 5 titolarità sulle prime 5) e Castro
+ * Ferran Torres 2025-26 (64° percentile del ruolo, 73 minuti e 5 partite da titolare sulle prime 5) e Castro
  * 2024-25 (46°, 76 minuti e 4 su 5) sono i casi da cui nasce.
  *
  * MISURATO su quattro stagioni: chi si legge così parte titolare in almeno metà delle partite che
