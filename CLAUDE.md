@@ -1682,6 +1682,80 @@ a suspicious ZERO must call the function before it reports anything at all** —
 top-level `sheet_revision` on a manifest that has neither, and took a uniform `None` for a hole. One hour
 after writing that same lesson into the gate.
 
+## Un controllo può esistere nel DOM e non esistere sullo schermo
+**20/08/2026, dalla richiesta dell'operatore: «l'ordinamento delle colonne sulla tabella tramite D&D
+funziona malissimo, riscrivilo da capo».** Il gesto era già NOSTRO (CDK era stato mandato via il 18/08) e
+la riscrittura ha trovato cinque difetti, ma i due che valgono oltre questa tabella non erano nel gesto:
+erano nel fatto che una misura del DOM diceva sì e lo schermo diceva no.
+
+- **Un nodo che non è una `<th>` dentro la riga di intestazione si mangia una colonna della griglia**, e
+  questa è la causa vera dei «buchi / disallineamenti» che per due giorni sono stati attribuiti a CDK.
+  `nz-tooltip` costruisce il suo componente con la `ViewContainerRef` dell'elemento su cui sta e poi ne
+  STACCA l'elemento dal DOM, perché il tooltip vero vive in un overlay; Angular però continua a contare
+  quel nodo fra quelli della vista, quindi quando un `@for` con `track` RIORDINA e sposta la vista, lo
+  reinserisce. Col tooltip sulla `<th>`, il nodo reinserito era un `<nz-tooltip>` figlio diretto del
+  `<tr>`: il browser gli dà una casella, la riga finisce su 23 colonne contro le 22 del colgroup, e ogni
+  intestazione dopo quella spostata sta 84px a destra dei propri dati - con l'ultima schiacciata a
+  larghezza ZERO. Il colgroup era giusto, il corpo era giusto, e nessun conteggio di celle se ne
+  accorgeva (22 e 22). Cura: il tooltip su uno `<span>` dentro la cella, dove un nodo di troppo non
+  sposta niente.
+- **E un rettangolo dentro la sua cella può essere coperto da un altro elemento.** Aggiungendo l'imbuto
+  del filtro a ogni colonna, 16 intestazioni su 22 lo avevano TAGLIATO fuori dalla propria cella (fino a
+  32px oltre il bordo su una colonna larga 68), e una volta tirato fuori dal flusso e appoggiato al bordo
+  destro, `document.elementFromPoint` sulle sue coordinate rispondeva `nz-table-sorters`:
+  `.ant-table-column-sorters::after` di antd è un `inset: 0` che copre la cella intera. Due difetti
+  diversi con lo stesso sintomo - un filtro che c'è e non si clicca - e nessuno dei due visibile a
+  `element.click()`, che passa sopra la CSS. **Un controllo si verifica con un puntatore vero, alle
+  coordinate che il browser dichiara, dopo un hover vero**; ed è la stessa regola che `app/CLAUDE.md` già
+  scriveva per i target ingranditi («si prova con un click 8px sopra il bordo»), applicata al contrario.
+
+**E i due difetti che ha trovato la SUITE e2e, scritta dopo — perché «riscrivilo pulito» non è «funziona».**
+Il primo è il più insidioso che questa tabella abbia avuto: **il primo trascinamento di una pagina
+funzionava e tutti quelli dopo non facevano niente**. Un `mousedown` seguito da un movimento sopra del
+testo fa partire il trascinamento NATIVO di Chromium, che si prende il puntatore e smette di mandare
+`pointermove` (manda `drag`). Nessuna misura di geometria, di ordine o di DOM può vederlo: dal di fuori si
+legge come «il riordino funziona a volte», che è il difetto più difficile da inseguire. **Si è visto
+contando gli eventi che ARRIVAVANO invece di quelli spediti**: `pointerdown` 1, `pointermove` **2 su 18**.
+Cura: `selectstart` e `dragstart` spenti dal `pointerdown` (non dalla soglia - il drag nativo parte prima
+che noi abbiamo deciso che è un trascinamento) e la selezione rimasta in giro azzerata, che è proprio
+quella che rende «trascinabile» il testo sotto il dito. Il conteggio è rimasto come asserzione: se il drag
+nativo torna, è la prima cosa che crolla. Il secondo è che **metà delle destinazioni non era
+raggiungibile**: la tabella chiede ~1900px contro i 1600 di una finestra, quindi un varco fuori dal
+viewport non si può scegliere perché il dito non ci arriva - la pagina ora scorre da sé vicino al bordo.
+E una lezione sull'arnese, non sull'app: il primo tentativo di misurare il varco in coda ha detto «non
+esiste» perché trascinava una colonna FUORI dallo schermo. **Un passo che misura due incognite insieme
+attribuisce il difetto a quella sbagliata**: il varco in testa e in coda è una proprietà dell'aritmetica e
+si misura su una tabella che sta nella finestra (spegnendo le colonne che non c'entrano), mentre «le
+colonne fuori schermo sono raggiungibili?» è un'altra domanda e ha il suo passo.
+
+Tre abitudini che restano, e la prima è la sola ragione per cui i due difetti sono stati trovati.
+**L'arnese deve raccogliere quello che la PAGINA urla**: passare da un imbuto all'altro senza chiudere il
+primo lasciava lo schermo senza pannello, e la causa era leggibile solo nella console (`TypeError: Cannot
+read properties of null (reading 'classList')` - due `NzDropdownDirective` che attaccano lo stesso
+`TemplateRef` a due overlay, perché il click apre l'overlay SUBITO e nessun segnale arriva in tempo; la
+cura è un `nz-dropdown-menu` per colonna con il contenuto scritto una volta e istanziato da
+`ngTemplateOutlet`). **Un gesto è fatto di pixel, e ogni pixel dove non risponde è un pezzo di gesto che
+«non funziona»**: la prima versione decideva su QUALE COLONNA si lasciava, e fra due celle non c'è nessuna
+colonna - `null`, e il rilascio non spostava niente, cioè portare una colonna in testa o in coda non
+faceva assolutamente nulla. La cura è ragionare per VARCHI (`column-drag.ts`: `n + 1` posizioni, esistono
+sempre, mezzerie e non bordi). E **diciannove celle quasi identiche in uno `@switch` sono il posto dove si
+dimentica `text-right` sulla diciannovesima**: l'intestazione è ora UNA `<th>` ripetuta e larghezza,
+allineamento, verso dell'ordinamento e tipo di filtro stanno accanto alla chiave in `SquadColumn` - che è
+anche la ragione per cui il filtro è stato aggiunto una volta e non diciannove.
+
+**Il filtro per colonna che ne è nato** (`column-filter.ts`, richiesta dello stesso giorno) ripete due
+regole di casa invece di inventarne. **Non è `nzFilterFn`**, per la ragione già misurata il 18/08
+sull'ordinamento: quello filtra `nzData`, cioè le sessanta righe già caricate, e «FMa ≥ 6,50» avrebbe
+risposto su un campione riempiendosi poi scorrendo - si filtra la lista INTERA, prima di ordinarla e prima
+di ritagliarla (misurato: 610 → 109, e il conteggio sotto la tabella lo DICE). E **il vuoto è una
+risposta**: un ignoto non è «sotto il minimo» perché non ha un numero da confrontare, quindi un estremo lo
+esclude per costruzione, e «solo gli ignoti» è una scelta dichiarata (`blanks`) perché «chi non ha una
+stagione misurata in questo listone» è una delle domande vere di un'asta. I filtri si ricordano come le
+colonne spente e l'ordinamento - sono una preferenza sulla TABELLA, quindi valgono in tutt'e due le viste -
+e la contro-obiezione è vera: un filtro salvato è invisibile. Per questo ogni filtro attivo porta la sua
+etichetta SOPRA la tabella, fuori da ogni pannello che si chiude, con la sua crocetta e con quanti uomini
+sta nascondendo su quanti.
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,

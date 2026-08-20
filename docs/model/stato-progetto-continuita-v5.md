@@ -2836,3 +2836,61 @@ bloccato da una corsa dell'operatore), quindi in modalità viaggio nel tempo il 
 finché non si rifà `timepack --date <data> --refresh` più `export` e `data:pull`. E `snapshot.py` porta il
 bump a `SHEET_REVISION` 28 in mezzo a lavoro dell'operatore ancora non committato: quel file resta fuori
 dal commit di questa sessione, apposta.
+
+## CHIUSURA della sessione 20/08/2026 (sera) — due funzioni riscritte, e quattro difetti che stavano fra il DOM e lo schermo
+
+Due richieste, entrambe sull'app e nessuna sul motore: «l'ordinamento delle colonne sulla tabella tramite
+D&D funziona malissimo, riscrivilo da capo in maniera pulita», poi «dammi anche la possibilità di filtrare i
+risultati per colonna in maniera adeguata», poi «fai dei test e2e adeguati». Il risultato è nell'ordine
+inverso della richiesta: **la terza ha trovato metà dei difetti delle prime due**, e sono difetti che nessuna
+misura del DOM poteva vedere. Numeri, tabella dei passi e ogni caso: `letture-app-v1.md` §17.
+
+**Il gesto.** Cinque difetti, e il primo spiega perché «funziona malissimo» era esatto: decideva su quale
+COLONNA si lasciava, e fra due celle non c'è nessuna colonna — `null`, e il rilascio non spostava niente,
+cioè **portare una colonna in testa o in coda non faceva assolutamente nulla**. Ora ragiona per VARCHI
+(`app/src/app/ui/squad-table/column-drag.ts`, puro e testato): `n + 1` posizioni, esistono sempre, taglio
+sulle mezzerie. Poi il segno che non diceva dove (contorno invece di barra sul varco), la selezione del testo
+che non si spegneva, il click da mangiare che poteva restare appeso e divorare un ordinamento molto più
+tardi, e l'impossibilità di annullare.
+
+**Il filtro.** Tre domande e non una, perché le colonne portano tre cose (una parola, un elenco da spuntare
+con i conteggi, un intervallo con gli estremi veri scritti dentro le caselle), su TUTTE e 22 le colonne — che
+è la ragione per cui l'intestazione è diventata **una `<th>` ripetuta** invece di diciannove celle quasi
+identiche in uno `@switch`. Non è `nzFilterFn` per la ragione già misurata sull'ordinamento il 18/08: quello
+filtra le sessanta righe caricate. Si filtra la lista intera prima di ordinarla: **610 → 109**, e il
+conteggio sotto la tabella lo dice. E il vuoto è una risposta dichiarata: un ignoto non è «sotto il minimo»,
+e «solo gli ignoti» è una domanda vera (395 dei 610 quotati non hanno una MV misurata).
+
+**I quattro difetti che il DOM non poteva vedere, e sono la parte che vale oltre questa tabella.**
+
+- **Un nodo che non è una `<th>` dentro la riga di intestazione si mangia una colonna della griglia**, e
+  questa era la causa vera dei «buchi / disallineamenti» attribuiti a CDK per due giorni. `nz-tooltip`
+  stacca il proprio elemento dal DOM (il tooltip vive in un overlay) e Angular lo reinserisce quando un
+  `@for` con `track` riordina: la riga finiva su 23 colonne contro 22, **84px di buco** e l'ultima
+  intestazione a larghezza ZERO. Colgroup giusto, corpo giusto, conteggi 22 e 22.
+- **Un rettangolo dentro la sua cella può essere coperto da un altro elemento**: 16 imbuti su 22 tagliati
+  fuori dalla cella, e una volta fuori dal flusso coperti da `.ant-table-column-sorters::after`.
+  `element.click()` li apriva sempre; un mouse vero non li raggiungeva mai.
+- **Il primo trascinamento della pagina funzionava e tutti quelli dopo no**: il drag NATIVO di Chromium si
+  prendeva il puntatore — `pointerdown` 1, `pointermove` **2 su 18**. Visto solo **contando gli eventi che
+  arrivavano** invece di quelli spediti.
+- **Metà delle destinazioni non era raggiungibile** (tabella ~1900px, finestra 1600): la pagina ora scorre
+  da sé vicino al bordo.
+
+**Tre abitudini che restano.** L'arnese deve raccogliere quello che la **pagina urla**: il pannello condiviso
+fra due imbuti lasciava lo schermo vuoto e la causa era leggibile solo in console (due
+`NzDropdownDirective` che attaccano lo stesso `TemplateRef`; la cura è un overlay per colonna con il
+contenuto scritto una volta). Un **controllo si verifica con un puntatore vero**, alle coordinate che il
+browser dichiara, dopo un hover vero. E **un passo che misura due incognite insieme attribuisce il difetto a
+quella sbagliata**: il primo tentativo di verificare il varco in coda ha detto «non esiste» mentre
+trascinava una colonna fuori dallo schermo.
+
+**Verificato**: `ng build` verde, `ng test` **351 su 351** in 30 file (2 file e 25 casi nuovi),
+`node app/scripts/e2e-table.mjs --hunt 3` → **nessun problema** su 19 passi, tre schermate per la parte che
+un numero non giudica. `engine_*` non toccato, nessun `SHEET_REVISION`, nessuna corsa sul DB: è tutta
+interazione dell'app.
+
+**Aperto, e dichiarato**: il gesto scopre l'imbuto al passaggio del MOUSE, quindi col dito un imbuto spento
+non si trova — la tabella chiede 1900px e non è la schermata che si usa su un tablet, e se un giorno lo
+diventasse la cura è quella riga di `ng-zorro.css` e non una caccia al difetto. La versione dell'app non è
+stata alzata e niente è stato pubblicato: il bump lo fa `npm run deploy:pages` quando l'operatore decide.

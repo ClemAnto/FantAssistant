@@ -31,6 +31,28 @@
   </nz-radio-group>
 </div>
 
+<!-- I FILTRI ATTIVI, SEMPRE VISIBILI e mai dentro un pannello che si chiude.
+     È la metà indispensabile del filtro per colonna: i filtri si ricordano fra un refresh e l'altro
+     (sono una preferenza sulla TABELLA, come le colonne spente e l'ordinamento), e un filtro ricordato
+     che non si vede è un filtro che la prossima sessione legge come «il listone ha dodici uomini» - il
+     difetto che questo progetto paga da sempre. Ogni etichetta si toglie da sé, e accanto c'è quanti
+     uomini stanno nascosti su quanti. -->
+@if (filterChips().length) {
+  <div class="mb-2 flex flex-wrap items-center gap-1 rounded-card border border-border bg-surface px-2 py-1.5">
+    <nz-icon nzType="filter" nzTheme="fill" class="text-primary" />
+    <span class="mr-1 text-xs text-muted">Filtri di colonna</span>
+    @for (chip of filterChips(); track chip.key) {
+      <nz-tag nzMode="closeable" (nzOnClose)="clearFilter(chip.key)">
+        <span class="text-fg">{{ chip.label }}</span>&ngsp;<span class="text-muted">{{ chip.said }}</span>
+      </nz-tag>
+    }
+    <button nz-button nzType="link" nzSize="small" (click)="clearFilters()">azzera tutti</button>
+    <span class="text-xs text-muted">
+      {{ hiddenByFilters() }} calciatori nascosti su {{ rows().length }}
+    </span>
+  </div>
+}
+
 <!-- NIENTE PAGINAZIONE: le righe arrivano scorrendo (`lazyRows`, operatore 17/08/2026). `nzFrontPagination`
      resta FALSE e non è un pager nascosto: col pager soltanto nascosto la tabella mostrava i primi dieci
      uomini di una rosa di 26 mentre il conteggio sopra diceva 26 - una lista mostrata i cui numeri
@@ -45,174 +67,77 @@
   [style.min-width]="minWidth()"
 >
   <thead>
-    <!-- LE COLONNE SI TRASCINANO prendendole per la testa (operatore, 17/08/2026), e dal 18/08/2026 il
-         gesto è NOSTRO e non di CDK: un gestore solo sulla riga, che dalla posizione del dito ricava la
-         colonna e al rilascio riscrive soltanto il segnale dell'ordine. CDK muoveva il DOM che Angular
-         possiede - da cui i «buchi / disallineamenti» - e nemmeno riordinava; le due misure stanno in
-         `squad-table.ts` sopra `grabAt` e si rifanno con `node scripts/e2e-table.mjs`. R e Nome si
-         trascinano come le altre? No: sono l'identità della riga e restano ferme. L'ordinamento invece è
-         di tutte, comprese loro, e vive in `sortKey`/`sortWay` (localStorage). -->
-    <!-- L'ORDINAMENTO NON È DI nz-table: niente `nzSortFn`, perché ordinerebbe solo le righe già
+    <!-- UNA `<th>` SOLA, ripetuta (20/08/2026). Prima erano diciannove celle quasi identiche in uno
+         `@switch`: larghezza, allineamento, verso dell'ordinamento e tooltip ora vengono da
+         `SQUAD_COLUMNS`/`FIXED_COLUMNS`, e una colonna nuova è una riga di quell'elenco. È anche la
+         ragione per cui l'imbuto del filtro esiste su tutte: andava aggiunto una volta, non diciannove.
+
+         LE COLONNE SI TRASCINANO prendendole per la testa (operatore, 17/08/2026) e il gesto è NOSTRO:
+         un gestore solo sulla riga, che dalla posizione del dito ricava il VARCO in cui la colonna
+         cadrebbe, e al rilascio riscrive soltanto il segnale dell'ordine. Nessun nodo spostato da
+         nessuno: le due misure che hanno mandato via CDK - il DOM che Angular possiede, e il drop che
+         tornava con l'indice di partenza - stanno in `squad-table.ts` sopra `grabAt`, insieme ai cinque
+         difetti che la riscrittura del 20/08 ha curato. Si rifà con `node scripts/e2e-table.mjs`.
+         R e Nome si trascinano come le altre? No: sono l'identità della riga e restano ferme. Ordinare
+         e filtrare invece è di tutte, comprese loro.
+
+         L'ORDINAMENTO NON È DI nz-table: niente `nzSortFn`, perché ordinerebbe solo le righe già
          caricate (misurato: cima 95 contro un massimo di 99 sul listone). Le intestazioni EMETTONO la
-         scelta e il componente ordina la lista intera prima di ritagliarla. -->
+         scelta e il componente ordina la lista intera prima di ritagliarla - e per la stessa ragione il
+         FILTRO non è `nzFilterFn`: l'imbuto chiede, e a filtrare è `kept()`, su tutte le righe. -->
     <tr (pointerdown)="grabAt($event)">
-      <th nzWidth="44px" [nzSortOrder]="sortOrderOf('role')" (nzSortOrderChange)="sortWith('role', $event)">R</th>
-      <th nzWidth="116px" [nzSortOrder]="sortOrderOf('name')" (nzSortOrderChange)="sortWith('name', $event)">Nome</th>
-      <!-- Il segno del gesto è una classe sola per intestazione (`dragMark`): sbiadita quella in mano,
-           contornata quella dove finirebbe. Nessuna anteprima che vola, nessun nodo staccato - il difetto
-           di prima era proprio là, e l'«effetto strano al rilascio» era la sua animazione di rientro. -->
-      @for (key of visible(); track key) {
-          @switch (key) {
-            @case ('mantra') {
-              <th [class]="dragMark(key)" nzWidth="78px">Mantra</th>
-            }
-            @case ('club') {
-              <th [class]="dragMark(key)" nzWidth="130px" [nzSortOrder]="sortOrderOf(key)" (nzSortOrderChange)="sortWith(key, $event)">Squadra</th>
-            }
-            @case ('codes') {
-              <th [class]="dragMark(key)" nzWidth="100px" nz-tooltip nzTooltipTitle="Dove gioca davvero, osservato oggi. In GRASSETTO il ruolo che occuperebbe nella formazione tipo.">
-                Ruolo reale
-              </th>
-            }
-            @case ('titolarita') {
-              <th [class]="dragMark(key)"
-                nzWidth="46px"
-                class="text-center"
-                [nzSortOrder]="sortOrderOf(key)" (nzSortOrderChange)="sortWith(key, $event)"
-                [nzSortDirections]="highFirst"
-                nz-tooltip
-                nzTooltipTitle="La titolarità in una parola, decisa dal toolkit sull'undici tipo: BAN bandiera · TIS titolarissimo · TIT titolare · BLT ballottaggio · PAN panchina · RIS riserva. Qui «titolarità» vuol dire prendere il voto, anche da subentrato."
-              >
-                Tit.
-              </th>
-            }
-            @case ('expected') {
-              <th [class]="dragMark(key)"
-                nzWidth="48px"
-                class="text-right"
-                [nzSortOrder]="sortOrderOf(key)" (nzSortOrderChange)="sortWith(key, $event)"
-                [nzSortDirections]="highFirst"
-                nz-tooltip
-                [nzTooltipTitle]="expectedHeader()"
-              >
-                P
-              </th>
-            }
-            @case ('expectedFm') {
-              <th [class]="dragMark(key)"
-                nzWidth="70px"
-                class="text-right"
-                [nzSortOrder]="sortOrderOf(key)" (nzSortOrderChange)="sortWith(key, $event)"
-                [nzSortDirections]="highFirst"
-                nz-tooltip
-                [nzTooltipTitle]="expectedFmHeader"
-              >
-                FMa
-              </th>
-            }
-            @case ('expectedMv') {
-              <th [class]="dragMark(key)"
-                nzWidth="70px"
-                class="text-right"
-                [nzSortOrder]="sortOrderOf(key)" (nzSortOrderChange)="sortWith(key, $event)"
-                [nzSortDirections]="highFirst"
-                nz-tooltip
-                nzTooltipTitle="Media voto ATTESA: il foglio la ricava dalla FM attesa, e la differenza fra le due è il bonus che si aspetta da lui."
-              >
-                MVa
-              </th>
-            }
-            @case ('surplus') {
-              <th [class]="dragMark(key)"
-                nzWidth="64px"
-                class="text-right"
-                [nzSortOrder]="sortOrderOf(key)" (nzSortOrderChange)="sortWith(key, $event)"
-                [nzSortDirections]="highFirst"
-                nz-tooltip
-                [nzTooltipTitle]="surplusHeader"
-              >
-                Surplus
-              </th>
-            }
-            @case ('surplusFielded') {
-              <th [class]="dragMark(key)"
-                nzWidth="68px"
-                class="text-right"
-                [nzSortOrder]="sortOrderOf(key)" (nzSortOrderChange)="sortWith(key, $event)"
-                [nzSortDirections]="highFirst"
-                nz-tooltip
-                [nzTooltipTitle]="surplusFieldedHeader"
-              >
-                Margine
-              </th>
-            }
-            @case ('value') {
-              <th [class]="dragMark(key)"
-                nzWidth="92px"
-                class="text-right"
-                [nzSortOrder]="sortOrderOf(key)" (nzSortOrderChange)="sortWith(key, $event)"
-                [nzSortDirections]="highFirst"
-                nz-tooltip
-                [nzTooltipTitle]="valueHeader"
-              >
-                Fantapunti
-              </th>
-            }
-            @case ('fvm') {
-              <th [class]="dragMark(key)"
-                nzWidth="58px"
-                class="text-right"
-                [nzSortOrder]="sortOrderOf(key)" (nzSortOrderChange)="sortWith(key, $event)"
-                [nzSortDirections]="highFirst"
-                nz-tooltip
-                [nzTooltipTitle]="fvmHeader()"
-              >
-                FVM
-              </th>
-            }
-            @case ('market') {
-              <th [class]="dragMark(key)"
-                nzWidth="92px"
-                class="text-right"
-                [nzSortOrder]="sortOrderOf(key)" (nzSortOrderChange)="sortWith(key, $event)"
-                [nzSortDirections]="highFirst"
-                nz-tooltip
-                [nzTooltipTitle]="marketHeader"
-              >
-                Mercato
-              </th>
-            }
-            @case ('pv') {
-              <th [class]="dragMark(key)"
-                nzWidth="48px"
-                class="text-right"
-                [nzSortOrder]="sortOrderOf(key)" (nzSortOrderChange)="sortWith(key, $event)"
-                [nzSortDirections]="highFirst"
-                nz-tooltip
-                [nzTooltipTitle]="pvHeader()"
-              >
-                Pv
-              </th>
-            }
-            @case ('mv') {
-              <th [class]="dragMark(key)" nzWidth="64px" class="text-right" [nzSortOrder]="sortOrderOf(key)" (nzSortOrderChange)="sortWith(key, $event)" [nzSortDirections]="highFirst">MV</th>
-            }
-            @case ('fm') {
-              <th [class]="dragMark(key)" nzWidth="64px" class="text-right" [nzSortOrder]="sortOrderOf(key)" (nzSortOrderChange)="sortWith(key, $event)" [nzSortDirections]="highFirst">FM</th>
-            }
-            @default {
-              <!-- Le letture 0-99: una cella sola per tutte, etichetta e tooltip dal loro record. -->
-              <th [class]="dragMark(key)"
-                nzWidth="84px"
-                [nzSortOrder]="sortOrderOf(key)" (nzSortOrderChange)="sortWith(key, $event)"
-                [nzSortDirections]="highFirst"
-                nz-tooltip
-                [nzTooltipTitle]="ratingHint[asRating(key)]"
-              >
-                {{ ratingLabel[asRating(key)] }}
-              </th>
-            }
+      @for (key of heads(); track key) {
+        <th
+          [class]="headClass(key)"
+          [nzWidth]="widthOf(key)"
+          [nzShowSort]="sortable(key)"
+          [nzSortOrder]="sortOrderOf(key)"
+          (nzSortOrderChange)="sortWith(key, $event)"
+          [nzSortDirections]="directionsOf(key)"
+          [nzCustomFilter]="!!filterKind(key)"
+        >
+          <!-- IL TOOLTIP STA SULLO SPAN E NON SULLA `<th>`, ed è la cura di un difetto MISURATO il
+               20/08/2026 - quello che l'operatore vedeva come «buchi / disallineamenti» dopo un
+               trascinamento, e che per due giorni è stato attribuito a CDK.
+               `nz-tooltip` crea un componente con la `ViewContainerRef` dell'elemento su cui sta, e poi
+               ne STACCA l'elemento dal DOM (il contenuto vero vive in un overlay). Angular però continua
+               a considerare quel nodo parte della vista: quando un `@for` con `track` RIORDINA, sposta
+               tutti i nodi radice della vista spostata - e reinserisce anche quello. Con il tooltip sulla
+               `<th>`, il nodo reinserito era un `<nz-tooltip>` figlio diretto del `<tr>`: il browser gli
+               dà una casella della griglia, quindi la riga di intestazione finiva su 23 colonne invece di
+               22. Misurato: dopo un trascinamento «Squadra» finiva a 1219px e «Overall» a 1433 invece di
+               1349 - 84px di buco - e l'ultima intestazione si schiacciava a larghezza ZERO.
+               Sullo span il nodo di troppo resta DENTRO la cella, dove non sposta niente. Lo verifica
+               `scripts/e2e-table.mjs`, che ora conta i figli del `<tr>` che non sono `<th>`. -->
+          <span nz-tooltip [nzTooltipTitle]="headHint(key)">{{ headOf(key) }}</span>
+          @if (filterKind(key)) {
+            <!-- `nz-filter-trigger` porta l'imbuto di antd (e il suo stato «acceso») e ferma il click,
+                 che altrimenti ordinerebbe la colonna aprendo il filtro.
+
+                 UN `nz-dropdown-menu` PER COLONNA e non uno condiviso, e la ragione è misurata il
+                 20/08/2026: condividendolo, passare da un imbuto all'altro SENZA chiudere il primo
+                 (cioè quello che fa una mano) lasciava lo schermo senza pannello e la pagina urlava
+                 `TypeError: Cannot read properties of null (reading 'classList')`. Il click su un
+                 imbuto apre il suo overlay SUBITO, dentro il gestore di ng-zorro, quindi per un
+                 istante due `NzDropdownDirective` attaccano lo stesso `TemplateRef` a due overlay - e
+                 il secondo trova i nodi del primo già spostati. Nessun segnale può arrivare in tempo:
+                 la cura è avere due template, che è anche come lo fa il filtro di ng-zorro.
+                 Il CONTENUTO resta scritto una volta sola (`#panelBody`, sotto la tabella) e ogni
+                 colonna lo istanzia col suo `key`: un `ngTemplateOutlet` crea una vista nuova ogni
+                 volta, che è esattamente ciò che un portal condiviso non può fare. -->
+            <nz-filter-trigger
+              [nzVisible]="openFilter() === key"
+              (nzVisibleChange)="showFilter(key, $event)"
+              [nzActive]="isFiltered(key)"
+              [nzDropdownMenu]="filterPanel"
+            >
+              <nz-icon nzType="filter" nzTheme="fill" />
+            </nz-filter-trigger>
+            <nz-dropdown-menu #filterPanel="nzDropdownMenu">
+              <ng-container *ngTemplateOutlet="panelBody; context: { $implicit: key }" />
+            </nz-dropdown-menu>
           }
+        </th>
       }
     </tr>
   </thead>
@@ -412,12 +337,135 @@
   </tbody>
 </nz-table>
 
-<!-- Il conteggio che non mente: quante righe sono a schermo e quante sono in tutto. -->
+<!-- IL PANNELLO DEL FILTRO, SCRITTO UNA VOLTA e istanziato da ogni colonna col suo `key`.
+     Una definizione e non diciannove - «intervallo» deve voler dire la stessa cosa su tutte le colonne -
+     ma UN OVERLAY PER COLONNA, perché due imbuti che si contendono lo stesso `TemplateRef` lasciano lo
+     schermo senza pannello (la misura sta accanto al trigger, in `<thead>`). `ngTemplateOutlet` è quello
+     che concilia le due cose: crea una vista nuova a ogni apertura, cosa che un portal condiviso non può
+     fare. Tre forme, perché le colonne portano tre cose: una parola da cercare, un elenco da spuntare,
+     un intervallo di numeri. -->
+<ng-template #panelBody let-key>
+  <div class="ant-table-filter-dropdown w-72 p-3">
+    @switch (filterKind(key)) {
+      @case ('text') {
+        <span class="mb-1 block text-xs text-muted">Cerca in «{{ headOf(key) }}»</span>
+        <nz-input-wrapper nzAllowClear (nzClear)="setFilter(key, { text: '' })">
+          <nz-icon nzInputPrefix nzType="search" class="text-muted" />
+          <input
+            nz-input
+            type="search"
+            placeholder="nome o parte del nome"
+            [ngModel]="filterOf(key).text ?? ''"
+            (ngModelChange)="setFilter(key, { text: $event })"
+          />
+        </nz-input-wrapper>
+        <p class="mt-1 text-xs text-muted">
+          Accenti e maiuscole non contano: «hojlund» trova «Højlund».
+        </p>
+      }
+
+      @case ('pick') {
+        @if (openOptionsAreMany()) {
+          <nz-input-wrapper class="mb-2" nzAllowClear (nzClear)="pickSearch.set('')">
+            <nz-icon nzInputPrefix nzType="search" class="text-muted" />
+            <input
+              nz-input
+              type="search"
+              placeholder="cerca fra le voci"
+              [ngModel]="pickSearch()"
+              (ngModelChange)="pickSearch.set($event)"
+            />
+          </nz-input-wrapper>
+        }
+        <!-- Il numero accanto a ogni voce è quanti uomini la portano, contato su TUTTE le righe: sulle
+             righe già filtrate ballerebbe a ogni spunta. -->
+        <div class="max-h-64 overflow-y-auto">
+          @for (option of openOptions(); track option.value) {
+            <label
+              nz-checkbox
+              class="flex w-full items-center py-0.5"
+              [ngModel]="isPicked(key, option.value)"
+              (ngModelChange)="togglePick(key, option.value, $event)"
+            >
+              <span class="truncate" [class.text-muted]="!option.value">{{ option.label }}</span>
+              <span class="ml-1 text-xs text-muted">{{ option.count }}</span>
+            </label>
+          } @empty {
+            <p class="text-xs text-muted">Nessuna voce.</p>
+          }
+        </div>
+      }
+
+      @case ('range') {
+        <span class="mb-1 block text-xs text-muted">Da / a, estremi compresi</span>
+        <div class="flex items-center gap-2">
+          <nz-input-number
+            class="w-full"
+            nzSize="small"
+            [nzStep]="rangeStep(key)"
+            [nzPlaceHolder]="openRange() ? ('da ' + openRange()!.min) : 'min'"
+            [ngModel]="filterOf(key).min ?? null"
+            (ngModelChange)="setFilter(key, { min: $event })"
+          />
+          <span class="text-muted">–</span>
+          <nz-input-number
+            class="w-full"
+            nzSize="small"
+            [nzStep]="rangeStep(key)"
+            [nzPlaceHolder]="openRange() ? ('a ' + openRange()!.max) : 'max'"
+            [ngModel]="filterOf(key).max ?? null"
+            (ngModelChange)="setFilter(key, { max: $event })"
+          />
+        </div>
+        <!-- GLI IGNOTI SONO UNA SCELTA e non un caso limite: mezza tabella porta celle vuote per
+             costruzione, e in questo progetto vuoto vuol dire IGNOTO e mai zero. Con un estremo scelto
+             escono da sé - non hanno un numero da confrontare - e «solo ignoti» è una domanda vera:
+             chi non ha una stagione misurata in questo listone. -->
+        <span class="mb-1 mt-3 block text-xs text-muted">Le celle vuote</span>
+        <nz-radio-group
+          nzSize="small"
+          [ngModel]="blanksOf(key)"
+          (ngModelChange)="setBlanks(key, $event)"
+        >
+          <label nz-radio-button nzValue="any" nz-tooltip
+            nzTooltipTitle="Il filtro non dice niente sugli ignoti: con un estremo scelto escono comunque, perché non hanno un numero da confrontare.">Non conta</label>
+          <label nz-radio-button nzValue="known" nz-tooltip
+            nzTooltipTitle="Solo chi ha un numero in questa colonna.">Con numero</label>
+          <label nz-radio-button nzValue="only" nz-tooltip
+            nzTooltipTitle="Solo chi NON ha un numero: ignoto, mai zero.">Solo ignoti</label>
+        </nz-radio-group>
+      }
+    }
+
+    <div class="mt-3 flex items-center justify-between border-t border-border pt-2">
+      <button
+        nz-button
+        nzType="link"
+        nzSize="small"
+        [disabled]="!isFiltered(key)"
+        (click)="clearFilter(key)"
+      >
+        Azzera
+      </button>
+      <button nz-button nzType="primary" nzSize="small" (click)="showFilter(key, false)">
+        Chiudi
+      </button>
+    </div>
+  </div>
+</ng-template>
+
+<!-- Il conteggio che non mente: quante righe sono a schermo, quante sono in tutto e - da quando le
+     colonne si filtrano - su quante partiva. Tre numeri e non due, perché «1.028 calciatori» sotto una
+     tabella filtrata sarebbe di nuovo una lista i cui numeri descrivono un'altra lista. -->
 <p class="mt-2 text-xs text-muted">
   @if (lazy.complete()) {
     <strong>{{ lazy.total() }}</strong> calciatori, tutti a schermo.
   } @else {
     <strong>{{ lazy.shown() }}</strong> di {{ lazy.total() }} a schermo — scorri per gli altri.
+  }
+  @if (hiddenByFilters()) {
+    · i filtri di colonna ne nascondono <strong>{{ hiddenByFilters() }}</strong> su
+    {{ rows().length }}.
   }
 </p>
 

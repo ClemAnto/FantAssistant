@@ -92,29 +92,76 @@
     overflow: visible;
   }
 
-  /* L'ANTEPRIMA DEL TRASCINAMENTO di una colonna: CDK clona la cella e la fa volare, e una cella staccata
-     dalla tabella non ha più le regole della tabella - va vestita qui, o è un rettangolo trasparente.
-     Misurato in e2e il 17/08/2026: `th 64x39`, cioè la larghezza giusta e nessuno sfondo. */
-  .cdk-drag-preview {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: 1px solid var(--color-primary);
-    border-radius: var(--radius-card);
-    background-color: var(--color-control);
-    color: var(--color-fg);
-    box-shadow: 0 8px 24px rgb(0 0 0 / 35%);
-    font-size: 0.75rem;
-    font-weight: 500;
-    padding: 0.25rem 0.5rem;
-    /* NIENTE RIENTRO: al rilascio l'anteprima sparisce dove è, invece di volare al posto d'origine mentre
-       la riga è già stata ridisegnata nell'ordine nuovo. È l'altra metà della cura dell'«effetto strano». */
-    transition: none;
+  /* LE DUE REGOLE `.cdk-drag-*` CHE STAVANO QUI SONO STATE TOLTE il 20/08/2026: vestivano l'anteprima e
+     il segnaposto di CDK, che non è una dipendenza di questo progetto da quando il gesto è nostro - era
+     CSS per un pacchetto che non c'è. Il segno del trascinamento (la cella sbiadita, la barra sul varco,
+     il cursore) sta dove sta il gesto: un binding solo, `dragMark`/`headClass` in `squad-table.ts`, che
+     è l'unico posto che sa se un gesto è in corso. */
+
+  /* Il pannello del filtro di colonna: antd gli dà il fondo e l'ombra, e il minimo di 120px che gli
+     mette addosso è per un elenco di spunte - qui dentro ci stanno due caselle numeriche affiancate,
+     quindi la larghezza la decide il contenuto. */
+  .ant-table-filter-dropdown {
+    min-width: 0;
   }
 
-  /* Il posto che la colonna lascia mentre viaggia: si vede che è un buco, non una colonna vuota. */
-  .cdk-drag-placeholder {
-    opacity: 0.3;
+  /* L'IMBUTO DEL FILTRO NON OCCUPA LARGHEZZA, e non è una preferenza: è una misura.
+
+     Con l'imbuto nel flusso, 16 intestazioni su 22 lo avevano TAGLIATO fuori dalla propria cella - fino a
+     32px oltre il bordo su «Margine», che è larga 68 - cioè markup che esiste e pixel che non si possono
+     cliccare. È il peggiore dei due difetti possibili: un filtro che c'è nel DOM e non c'è sullo schermo,
+     e nessun conteggio di imbuti se ne accorge (22 su 22 li trovava tutti). Misurato in e2e il
+     20/08/2026, e la misura è rimasta lì: `scripts/e2e-table.mjs` confronta il rettangolo dell'imbuto con
+     quello della sua cella.
+     Le colonne sono larghe quanto le cifre che portano (`SQUAD_COLUMNS`, e quella larghezza decide quando
+     la tabella scorre di lato): allargarle tutte di 22px costerebbe quasi 500px di scorrimento su una
+     tabella che ne chiede già 1900. Quindi l'imbuto esce dal flusso e si appoggia al bordo destro della
+     cella, e la larghezza delle colonne non cambia di un pixel.
+     Non serve `position: relative` sulla `th`: lo sticky qui sopra la rende già un elemento posizionato,
+     quindi è lei il contenitore - e aggiungerlo la scollerebbe dall'alto, che è l'altro difetto.
+     IL LIMITE, dichiarato invece di scoperto: senza mouse non c'è passaggio del mouse, quindi col dito un
+     imbuto SPENTO non si scopre. Questa tabella chiede 1900px e non è la schermata che si usa su un
+     tablet; se un giorno lo diventasse, la cura è questa riga e non una caccia al difetto. Un imbuto
+     ACCESO invece si vede sempre, perché quale colonna stia filtrando è un fatto e non un'affordance. */
+  .ant-table-filter-column .ant-table-filter-trigger {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    margin: 0;
+    padding: 0 0.25rem;
+    /* Lo stesso fondo dell'intestazione: si appoggia sopra l'etichetta, e senza fondo la coprirebbe
+       illeggibilmente invece di sostituirla. */
+    background-color: var(--color-control);
+    color: var(--color-muted);
+    opacity: 0;
+    /* SOPRA I SORTERS, e questa riga è la differenza fra un imbuto e un imbuto che non si clicca.
+       `.ant-table-column-sorters::after` di antd è un `inset: 0` che copre la cella intera per rendere
+       cliccabile tutta l'intestazione: senza questo z-index il rettangolo dell'imbuto è dentro la cella,
+       larghezza 20px, e sotto quel punto `elementFromPoint` risponde `nz-table-sorters`. Misurato in e2e
+       il 20/08/2026 con un mouse vero - `element.click()` non lo vedeva, perché passa sopra la CSS. */
+    z-index: 1;
+  }
+
+  .ant-table-thead > tr > th:hover .ant-table-filter-trigger,
+  .ant-table-filter-trigger.active,
+  .ant-table-filter-trigger.ant-table-filter-open {
+    opacity: 1;
+  }
+
+  .ant-table-filter-trigger.active {
+    color: var(--color-primary);
+  }
+
+  /* ...e MENTRE SI TRASCINA, nessun imbuto. Ha un fondo opaco e sta sul bordo destro della cella, che è
+     esattamente dove il gesto disegna la barra del varco «dopo l'ultima colonna»: la coprirebbe, e il
+     varco di coda è proprio quello che la riscrittura del 20/08/2026 esiste per far funzionare. La classe
+     è quella che `headClass` mette su ogni colonna mobile durante un gesto, quindi la condizione è la
+     stessa: una verità sola, letta da due parti. */
+  .ant-table-thead > tr > th.cursor-grabbing .ant-table-filter-trigger {
+    opacity: 0;
   }
 
   .ant-table-tbody > tr > td {

@@ -136,6 +136,27 @@ export function storedList<T>(key: string, accepts: (one: unknown) => one is T):
   return value;
 }
 
+/**
+ * ...e lo stesso per una cosa CON UNA FORMA, che è quello che sono i filtri per colonna.
+ *
+ * `sanitise` non è un type guard ma un LETTORE: prende quello che c'è sul disco e torna sempre un valore
+ * valido, anche da `null`. La differenza conta perché una mappa salvata può essere buona a metà - un
+ * filtro di una versione precedente accanto a tre attuali - e un guard butterebbe tutto: qui il lettore
+ * tiene quello che capisce. Come sopra, un valore che non si capisce più è una preferenza persa, che va
+ * bene; una pagina che non si apre no.
+ */
+export function storedJson<T>(key: string, sanitise: (raw: unknown) => T): WritableSignal<T> {
+  let initial: T;
+  try {
+    initial = sanitise(JSON.parse(read(key) ?? 'null'));
+  } catch {
+    initial = sanitise(null);
+  }
+  const value = signal<T>(initial);
+  effect(() => write(key, JSON.stringify(value())));
+  return value;
+}
+
 /** ...and the same for a plain yes/no, which is what a collapsed panel is. */
 export function storedFlag(key: string, initial: boolean): WritableSignal<boolean> {
   const saved = read(key);

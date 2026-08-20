@@ -2507,7 +2507,21 @@ rating confrontato fra campionati: ❌, λ −0.45/+0.05). Copertura del motore 
 ## Convenzioni operative
 git = casa canonica (Drive solo su richiesta esplicita) · risposte in chat in **italiano**, tutto il repo (codice, commenti, log, nomi file, .md) in **inglese**; i doc KB in `docs/model/` restano in italiano · `fc_id` chiave primaria · credenziali solo in `.env` · **quando l'utente scrive "chiudi"**: consolidare tutti gli .md di `docs/model/` (+ CLAUDE.md se serve) con stato/decisioni/commit/prossimi passi e committare.
 
-**Ultima sessione (29/07/2026)**: lo snapshot d'asta e' ora un tavolo di lavoro - percentuale = quota di
+**Ultima sessione (20/08/2026, sera)**: due funzioni dell'app riscritte su richiesta — il riordino delle
+colonne della tabella («funziona malissimo, riscrivilo da capo») e il **filtro per colonna** — e la lezione
+sta nella terza richiesta, «fai dei test e2e adeguati», che ha trovato metà dei difetti delle prime due.
+Quattro di loro erano invisibili a ogni misura del DOM: un `<nz-tooltip>` reinserito da `@for` come figlio
+diretto del `<tr>` si mangiava una colonna della griglia (**84px di buco**, ultima intestazione a larghezza
+zero — ed era la causa vera dei «buchi / disallineamenti» attribuiti a CDK); 16 imbuti su 22 esistevano nel
+DOM e non si potevano cliccare; il **primo** trascinamento di una pagina funzionava e tutti quelli dopo no
+(il drag nativo di Chromium si prendeva il puntatore: `pointermove` 2 su 18); e metà delle destinazioni era
+fuori dallo schermo. Il gesto ora ragiona per **varchi** invece che per colonne — che è perché portare una
+colonna in testa o in coda non faceva niente — e il filtro fa tre domande (parola, elenco, intervallo) sulla
+lista INTERA (610 → 109), col vuoto trattato come IGNOTO e mai zero e ogni filtro attivo dichiarato sopra la
+tabella. `engine_*` non toccato. Dettaglio: [letture-app-v1.md](letture-app-v1.md) §17 e la chiusura in
+[stato-progetto-continuita-v5.md](stato-progetto-continuita-v5.md).
+
+**Sessione del 29/07/2026**: lo snapshot d'asta e' ora un tavolo di lavoro - percentuale = quota di
 giornate (standing x availability), campetto a griglia che rispecchia il modulo, precampionato ingerito
 (`positions --layer extra`, tag `sofascore_extra`, descrittivo e mai gated), snapshot AS OF una data e per
 un singolo club. Poi, nella seconda passata dello stesso giorno: la stagione misurata arriva **spaccata fra

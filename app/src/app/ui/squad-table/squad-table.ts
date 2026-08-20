@@ -1,10 +1,17 @@
-import { DecimalPipe } from '@angular/common';
+import { DecimalPipe, NgTemplateOutlet } from '@angular/common';
 import { Component, computed, inject, input, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { NzButtonModule } from 'ng-zorro-antd/button';
+import { NzCheckboxModule } from 'ng-zorro-antd/checkbox';
 import { NzCollapseModule } from 'ng-zorro-antd/collapse';
+import { NzDropdownModule } from 'ng-zorro-antd/dropdown';
+import { NzIconModule } from 'ng-zorro-antd/icon';
+import { NzInputModule } from 'ng-zorro-antd/input';
+import { NzInputNumberModule } from 'ng-zorro-antd/input-number';
 import { NzRadioModule } from 'ng-zorro-antd/radio';
 import { NzSelectModule } from 'ng-zorro-antd/select';
 import { NzTableModule, NzTableSortOrder } from 'ng-zorro-antd/table';
+import { NzTagModule } from 'ng-zorro-antd/tag';
 import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 
 import {
@@ -32,7 +39,21 @@ import { TimeTravel } from '../../core/time-travel';
 import { SquadMan, ToneKey, ValuationStore } from '../../core/valuation-store';
 import { itDate, short } from '../../core/tooltip';
 import { lazyRows } from '../../core/lazy-rows';
-import { stored, storedList } from '../../core/view-state';
+import { stored, storedJson, storedList } from '../../core/view-state';
+import { gapAt, withColumnMoved } from './column-drag';
+import {
+  Blanks,
+  ColumnFilter,
+  FilterKind,
+  NO_VALUE,
+  describeFilter,
+  fold,
+  isActive,
+  passesPick,
+  passesRange,
+  passesText,
+  readFilters,
+} from './column-filter';
 import { ClubCrest } from '../club-crest/club-crest';
 import { PlayerFlags } from '../player-flags/player-flags';
 import { RoleBadge } from '../role-badge/role-badge';
@@ -59,29 +80,40 @@ const ROLE_POOL_WORD: Record<string, string> = {
 };
 
 /**
- * Le colonne che si possono spegnere, con quanto occupano.
+ * TUTTO QUELLO CHE UNA COLONNA È, in un posto solo - e il posto è questo e non il template.
  *
- * `R` e `Nome` non sono qui perché non sono colonne opzionali: sono l'identità della riga, e una tabella
- * senza il nome non è una tabella più corta, è un'altra cosa.
- *
- * La LARGHEZZA sta accanto alla chiave e non nel template per una ragione misurata: la tabella scorre di
- * lato oltre una certa somma (`nzScroll.x`), e quella somma deve essere quella delle colonne ACCESE. Con
- * un numero fisso, spegnere metà tabella lasciava una barra orizzontale su una tabella che ci stava.
+ * Fino al 20/08/2026 l'intestazione era uno `@switch` di diciannove `<th>` quasi identici, che è come si
+ * fa a mettere `class="text-right"` su diciotto e a dimenticarlo sul diciannovesimo. Con la larghezza,
+ * l'allineamento e il tipo di filtro qui accanto alla chiave, il template disegna UNA cella e la ripete:
+ * una colonna nuova è una riga di questo elenco, non venti righe di HTML da copiare.
  */
-export const SQUAD_COLUMNS: readonly { key: string; label: string; width: number }[] = [
-  { key: 'mantra', label: 'Mantra', width: 78 },
-  { key: 'club', label: 'Squadra', width: 130 },
-  { key: 'codes', label: 'Ruolo reale', width: 100 },
+export interface SquadColumn {
+  key: string;
+  /** Come si chiama nel selettore delle colonne, dove c'è spazio per una parola intera. */
+  label: string;
+  /** ...e come in TESTA alla colonna, dove ce n'è per le cifre che porta. Assente = la stessa. */
+  head?: string;
+  width: number;
+  /** A destra i numeri, al centro le sigle, a sinistra le parole. Assente = a sinistra. */
+  align?: 'center' | 'right';
+  /** Che domanda si fa a questa colonna (`column-filter.ts`). Assente = non si filtra. */
+  filter?: FilterKind;
+}
+
+export const SQUAD_COLUMNS: readonly SquadColumn[] = [
+  { key: 'mantra', label: 'Mantra', width: 78, filter: 'pick' },
+  { key: 'club', label: 'Squadra', width: 130, filter: 'pick' },
+  { key: 'codes', label: 'Ruolo reale', width: 100, filter: 'pick' },
   // LA TITOLARITÀ IN UNA PAROLA, tre caratteri (operatore, 20/08/2026), accanto alla P perché è la
   // stessa domanda detta a parole: quanto gioca. La sigla è un promemoria e il tooltip porta la parola
   // intera coi due numeri che l'hanno decisa, perché un gradino si ribalta su un minuto.
-  { key: 'titolarita', label: 'Tit.', width: 46 },
-  { key: 'expected', label: 'P (partite attese)', width: 48 },
+  { key: 'titolarita', label: 'Tit.', width: 46, align: 'center', filter: 'pick' },
+  { key: 'expected', label: 'P (partite attese)', head: 'P', width: 48, align: 'right', filter: 'range' },
   // Le quattro colonne di fantamedia sono più larghe delle cifre che portano: dentro ognuna il numero sta
   // in un riquadro colorato, e un riquadro più largo della colonna manderebbe la tabella a scorrere.
-  { key: 'expectedFm', label: 'FMa', width: 70 },
-  { key: 'expectedMv', label: 'MVa', width: 70 },
-  { key: 'surplus', label: 'Surplus', width: 64 },
+  { key: 'expectedFm', label: 'FMa', width: 70, align: 'right', filter: 'range' },
+  { key: 'expectedMv', label: 'MVa', width: 70, align: 'right', filter: 'range' },
+  { key: 'surplus', label: 'Surplus', width: 64, align: 'right', filter: 'range' },
   // ...e lo stesso conto dall'ALTRO ZERO, affiancato invece che al posto suo: sono due domande («chi
   // conviene comprare» contro «quanto costa una giornata saltata») e nessuna delle due vince, quindi si
   // vedono insieme e si sceglie soltanto per quale ordinare (operatore, 16/08/2026, §21.1 della metrica).
@@ -89,7 +121,7 @@ export const SQUAD_COLUMNS: readonly { key: string; label: string; width: number
   // alla colonna dell'asta, che conta dal marginale di ROSA - lo stesso zero di «Surplus» qui accanto.
   // Due colonne con un nome solo sarebbero due domande indistinguibili, che è il difetto che questo
   // progetto paga da sempre: questa resta il conto dall'altro zero, il rimpiazzo che ENTRA davvero.
-  { key: 'surplusFielded', label: 'Margine', width: 68 },
+  { key: 'surplusFielded', label: 'Margine', width: 68, align: 'right', filter: 'range' },
   // LE DUE COLONNE «−C» (Surplus e Margine al netto della coppa) SONO STATE TOLTE, decisione
   // dell'operatore del 17/08/2026 sera, il giorno stesso in cui erano nate. Il FATTO resta dove è
   // misurato - il foglio porta `desc_surplus_cup` / `desc_surplus_fielded_cup`, il globo segna chi parte
@@ -100,21 +132,39 @@ export const SQUAD_COLUMNS: readonly { key: string; label: string; width: number
   // fantaVALORE di mercato, e i due si chiamavano uguale pur essendo uno in fantapunti e l'altro in
   // crediti. Il nome nuovo dice l'UNITÀ, che è la sola cosa che non si può confondere con un prezzo.
   // La chiave resta `value`: gli identificatori del codice stanno in inglese e non seguono l'etichetta.
-  { key: 'value', label: 'Fantapunti', width: 92 },
-  { key: 'fvm', label: 'FVM', width: 58 },
+  { key: 'value', label: 'Fantapunti', width: 92, align: 'right', filter: 'range' },
+  { key: 'fvm', label: 'FVM', width: 58, align: 'right', filter: 'range' },
   // ...e accanto all'FVM il prezzo che il MERCATO VERO gli dà, con la sua tendenza (`market-trend.ts`).
   // Si chiama «Mercato» e non «Valore» perché in questa tabella `value` sono i Fantapunti e `mv` è la
   // media voto: due colonne che già portano quelle due lettere, e un terzo «V» le renderebbe indistinguibili.
-  { key: 'market', label: 'Mercato', width: 92 },
+  { key: 'market', label: 'Mercato', width: 92, align: 'right', filter: 'range' },
   // LE PARTITE A VOTO DELLA STAGIONE MISURATA (operatore, 18/08/2026), davanti alle due medie di cui
   // sono il DENOMINATORE: una FM di 7,00 su tre presenze e una su trentotto sono due fatti diversi, e
   // finora quel numero stava solo nel tooltip. Zero non e' vuoto: quotato e mai a voto (`pv` = 0) e' un
   // fatto, e chi non ha giocato affatto in questo listone porta un trattino.
-  { key: 'pv', label: 'Pv', width: 48 },
-  { key: 'mv', label: 'MV', width: 64 },
-  { key: 'fm', label: 'FM', width: 64 },
-  ...RATING_KEYS.map((key) => ({ key, label: RATING_LABEL[key], width: 84 })),
+  { key: 'pv', label: 'Pv', width: 48, align: 'right', filter: 'range' },
+  { key: 'mv', label: 'MV', width: 64, align: 'right', filter: 'range' },
+  { key: 'fm', label: 'FM', width: 64, align: 'right', filter: 'range' },
+  ...RATING_KEYS.map((key) => ({ key, label: RATING_LABEL[key], width: 84, filter: 'range' as const })),
 ];
+
+/**
+ * LE DUE COLONNE FISSE: il ruolo e il nome.
+ *
+ * Non stanno in `SQUAD_COLUMNS` perché non si spengono e non si trascinano - sono l'identità della riga,
+ * e una tabella senza il nome non è una tabella più corta, è un'altra cosa. Ma si ORDINANO come tutte, e
+ * dal 20/08/2026 si FILTRANO come tutte: «cerca un nome» e «solo i portieri» sono le due domande che si
+ * fanno più spesso, e la vista SQUADRE non ha un pannello di filtri dove chiederle.
+ */
+export const FIXED_COLUMNS: readonly SquadColumn[] = [
+  { key: 'role', label: 'Ruolo', head: 'R', width: 44, filter: 'pick' },
+  { key: 'name', label: 'Nome', width: 116, filter: 'text' },
+];
+
+/** Ogni colonna per chiave, fisse comprese: il template ne chiede una alla volta. */
+const COLUMN_BY_KEY = new Map<string, SquadColumn>(
+  [...FIXED_COLUMNS, ...SQUAD_COLUMNS].map((one) => [one.key, one]),
+);
 
 /**
  * Le colonne per cui si può ORDINARE, che non sono tutte: `mantra` e `codes` portano una lista di
@@ -152,11 +202,29 @@ export function orderColumns(saved: readonly string[], offered: readonly string[
   return out;
 }
 
-/** Quello che una riga occupa comunque: il ruolo e il nome. */
-const FIXED_WIDTH = 44 + 116;
+/** Quello che una riga occupa comunque, sommato dalle colonne stesse invece di ricopiato a mano. */
+const FIXED_WIDTH = FIXED_COLUMNS.reduce((sum, one) => sum + one.width, 0);
 
-/** Quanti pixel prima che un click diventi un trascinamento: lo stesso valore che usava CDK. */
+/** Quanti pixel prima che un click diventi un trascinamento: sotto, è un click che ordina. */
 const DRAG_THRESHOLD_PX = 5;
+
+/** A quanti pixel dal bordo della finestra la pagina comincia a scorrere da sé, e di quanto per volta. */
+const DRAG_EDGE_PX = 60;
+const DRAG_SCROLL_STEP_PX = 24;
+
+/** Il verso naturale di una colonna di testo: la A per prima. Una costante, non un letterale nel
+ *  template - `nzSortDirections` è un input, e un array nuovo a ogni lettura è un `ngOnChanges` a ogni
+ *  ciclo (la stessa trappola già scritta sopra `ratingSorters`). */
+const TEXT_FIRST: NzTableSortOrder[] = ['ascend', 'descend', null];
+
+/** Le colonne di PAROLE: il ruolo (nell'ordine del listone), il nome e la squadra. */
+const TEXT_SORTED: readonly string[] = ['role', 'name', 'club'];
+
+/** Le due che stanno sempre in testa, come chiavi: il template le ripete davanti alle mobili. */
+const FIXED_KEYS: readonly string[] = FIXED_COLUMNS.map((one) => one.key);
+
+/** Le colonne di FANTAMEDIA, dove un estremo si muove di un decimo: fra 6,0 e 7,0 c'è un'asta intera. */
+const DECIMAL_COLUMNS: readonly string[] = ['expectedFm', 'expectedMv', 'mv', 'fm'];
 
 /**
  * What a quoted man is worth, as a table: measured season, engine forecast, four readings.
@@ -177,11 +245,19 @@ const DRAG_THRESHOLD_PX = 5;
     ClubCrest,
     DecimalPipe,
     FormsModule,
+    NzButtonModule,
+    NzCheckboxModule,
     NzCollapseModule,
+    NzDropdownModule,
+    NzIconModule,
+    NzInputModule,
+    NzInputNumberModule,
     NzRadioModule,
     NzSelectModule,
     NzTableModule,
+    NzTagModule,
     NzTooltipModule,
+    NgTemplateOutlet,
     PlayerFlags,
     RoleBadge,
     RoleSet,
@@ -228,9 +304,14 @@ export class SquadTable {
   protected readonly sortWay = stored<NonNullable<NzTableSortOrder>>(
     'squad.sortWay', 'descend', ['ascend', 'descend']);
 
-  /** Le righe nell'ordine scelto: TUTTE, perché è la lista intera che si ordina. */
+  /**
+   * Le righe nell'ordine scelto: tutte quelle che i FILTRI hanno lasciato passare.
+   *
+   * L'ordine dei tre passaggi è filtra → ordina → ritaglia, e non è indifferente: ritagliare prima di
+   * filtrare darebbe «i primi sessanta della lista, filtrati», cioè una lista che si riempie scorrendo.
+   */
   protected readonly sorted = computed<SquadMan[]>(() => {
-    const rows = this.rows();
+    const rows = this.kept();
     const compare = this.comparatorOf(this.sortKey());
     if (!compare) return [...rows];
     const way = this.sortWay() === 'ascend' ? 1 : -1;
@@ -334,109 +415,582 @@ export class SquadTable {
   protected readonly visible = computed(() =>
     this.ordered().filter((key) => !this.hidden().includes(key)));
 
-  /* ---------------------------------------------------------------- riordinare le colonne
+  /* ---------------------------------------------------------------- l'intestazione, UNA cella
    *
-   * NIENTE CDK DRAG-DROP, e non è una preferenza: è la cura del difetto che l'operatore ha visto come
-   * «buchi / disallineamenti» il 18/08/2026, e ognuno dei due pezzi è misurato in e2e
-   * (`scripts/e2e-table.mjs`, che guida un browser vero perché in jsdom non esistono né il colgroup né il
-   * gesto).
-   *
-   *   * CDK MUOVE IL DOM che Angular possiede. Le intestazioni nascono da un `@for` dentro il `<tr>`, e
-   *     CDK ci infila il suo placeholder e ne stacca l'elemento trascinato: al rilascio Angular ridisegna
-   *     la riga nell'ordine nuovo riusando gli stessi nodi, e per qualche frame - o per sempre, quando le
-   *     due riconciliazioni divergono - una cella resta dove non è più. Il segno che si vede a schermo è
-   *     un'intestazione senza la sua colonna sotto.
-   *   * E NON RIORDINAVA NEMMENO. Guidato con eventi di mouse veri, CDK trascinava (preview, placeholder e
-   *     `cdk-drop-list-dragging` tutti presenti) ma nessuna intestazione vicina si spostava di un pixel e
-   *     `squad.order` restava `[]`: il drop arrivava con l'indice di partenza. Sei ordini SEMINATI a mano
-   *     invece si disegnano allineati, quindi il difetto è del gesto e non del rendering - ed è la ragione
-   *     per cui la cura è cambiare gesto e non aggiustare la tabella.
-   *
-   * Quello che c'è adesso è un gesto di quindici righe che non tocca il DOM: segna quale colonna è in mano
-   * e quale sarebbe la sua destinazione, e al rilascio riscrive SOLO il segnale dell'ordine. Angular
-   * ridisegna una volta, da una sola verità.
+   * Il template disegna una `<th>` sola e la ripete su `heads()`: larghezza, allineamento, verso
+   * dell'ordinamento, tooltip e tipo di filtro vengono da `SquadColumn`. Prima erano diciannove `<th>`
+   * quasi identiche in uno `@switch`, che è come si fa a dimenticare `text-right` sulla diciannovesima -
+   * e ora sono anche il posto dove il filtro va aggiunto una volta invece di diciannove.
    */
 
-  /** La colonna in mano, e quella su cui finirebbe. Null = niente in volo. */
-  protected readonly dragged = signal<string | null>(null);
-  protected readonly dropOn = signal<string | null>(null);
+  /** Tutte le intestazioni in ordine: le due fisse davanti, poi le mobili come l'utente le ha messe. */
+  protected readonly heads = computed(() => [...FIXED_KEYS, ...this.visible()]);
+
+  /** Quello che sta scritto in testa: la versione corta, dove ce n'è una. */
+  protected headOf(key: string): string {
+    const column = COLUMN_BY_KEY.get(key);
+    return column?.head ?? column?.label ?? key;
+  }
+
+  protected widthOf(key: string): string {
+    return `${COLUMN_BY_KEY.get(key)?.width ?? 80}px`;
+  }
+
+  /**
+   * L'allineamento, il cursore e il segno del trascinamento: UN binding, così nessuno può divergere.
+   *
+   * Il cursore sta qui e non nel CSS globale perché è una proprietà delle colonne MOBILI, e solo questo
+   * componente sa quali sono: una regola `nth-child(n+3)` in `ng-zorro.css` ricopierebbe in un foglio di
+   * stile il numero di colonne fisse, cioè un fatto che vive in `FIXED_COLUMNS`. `touch-pan-y` lascia
+   * alla pagina lo scorrimento verticale col dito e tiene per sé l'asse X, che è quello del riordino.
+   */
+  protected headClass(key: string): string {
+    const align = COLUMN_BY_KEY.get(key)?.align;
+    const cell = align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : '';
+    const grab = FIXED_KEYS.includes(key)
+      ? ''
+      : `touch-pan-y ${this.dragKey() ? 'cursor-grabbing' : 'cursor-grab'}`;
+    return `${cell} ${grab} ${this.dragMark(key)}`.replace(/\s+/g, ' ').trim();
+  }
+
+  protected sortable(key: string): boolean {
+    return SORTABLE_COLUMNS.includes(key);
+  }
+
+  /** Il verso: la A per prima sulle parole, il numero più alto per primo su tutto il resto. */
+  protected directionsOf(key: string): NzTableSortOrder[] {
+    return TEXT_SORTED.includes(key) ? TEXT_FIRST : this.highFirst;
+  }
+
+  /**
+   * Il tooltip dell'intestazione, uno per colonna e vuoto dove non c'è niente da spiegare.
+   *
+   * Le frasi vivono nei campi che già le portavano; le tre che stavano scritte nel template (il ruolo
+   * reale, la titolarità, la MVa) sono diventate campi come le altre - identiche alla lettera, perché
+   * una riscrittura del gesto non è il posto dove cambiare quello che una colonna dichiara di essere.
+   */
+  protected headHint(key: string): string {
+    switch (key) {
+      case 'codes': return this.codesHeader;
+      case 'titolarita': return this.titolaritaHeader;
+      case 'expected': return this.expectedHeader();
+      case 'expectedFm': return this.expectedFmHeader;
+      case 'expectedMv': return this.expectedMvHeader;
+      case 'surplus': return this.surplusHeader;
+      case 'surplusFielded': return this.surplusFieldedHeader;
+      case 'value': return this.valueHeader;
+      case 'fvm': return this.fvmHeader();
+      case 'market': return this.marketHeader;
+      case 'pv': return this.pvHeader();
+      default:
+        return RATING_KEYS.includes(key as RatingKey) ? this.ratingHint[key as RatingKey] : '';
+    }
+  }
+
+  protected readonly codesHeader =
+    'Dove gioca davvero, osservato oggi. In GRASSETTO il ruolo che occuperebbe nella formazione tipo.';
+
+  protected readonly titolaritaHeader =
+    'La titolarità in una parola, decisa dal toolkit sull\'undici tipo: BAN bandiera · TIS titolarissimo '
+    + '· TIT titolare · BLT ballottaggio · PAN panchina · RIS riserva. Qui «titolarità» vuol dire '
+    + 'prendere il voto, anche da subentrato.';
+
+  protected readonly expectedMvHeader =
+    'Media voto ATTESA: il foglio la ricava dalla FM attesa, e la differenza fra le due è il bonus che '
+    + 'si aspetta da lui.';
+
+  /* ---------------------------------------------------------------- riordinare le colonne
+   *
+   * NIENTE CDK, e non è una preferenza: è la cura del difetto che l'operatore ha visto come «buchi /
+   * disallineamenti» il 18/08/2026 (CDK muoveva il DOM che Angular possiede, e nemmeno riordinava - le
+   * due misure stanno in `docs/model/letture-app-v1.md`, e il pacchetto non è più una dipendenza).
+   *
+   * RISCRITTO DA CAPO il 20/08/2026, perché la prima versione funzionava male e i motivi sono cinque,
+   * ognuno con la sua cura. Sono tutti la stessa famiglia: un gesto è fatto di pixel, e ogni pixel dove
+   * non risponde è un pezzo di gesto che «non funziona».
+   *
+   *   1. SI LASCIAVA SU UNA COLONNA, e fra due celle non c'è nessuna colonna. `columnAt` tornava `null`
+   *      oltre l'ultima intestazione, sopra le due fisse e in ogni fessura fra due bordi, e il rilascio
+   *      con `null` non spostava niente: portare una colonna in TESTA o in CODA - che è quello che si
+   *      fa - non faceva assolutamente nulla. Adesso il gesto ragiona per VARCHI (`gapAt`): ce n'è uno
+   *      più delle colonne, esistono sempre, e le mezzerie danno il verso giusto senza soglie.
+   *   2. IL SEGNO NON DICEVA DOVE. Un contorno intorno alla colonna «di destinazione» non distingue
+   *      «prima di lei» da «dopo di lei», che sono due risultati diversi: si trascinava a occhio e si
+   *      scopriva l'esito al rilascio. Adesso una barra sul VARCO, che è esattamente la cosa scelta.
+   *   3. SI SELEZIONAVA IL TESTO. Nessuno spegneva la selezione, quindi trascinare un'intestazione
+   *      evidenziava di blu mezza riga - il sintomo che si legge come «si è rotto qualcosa».
+   *   4. IL CLICK DA MANGIARE POTEVA RESTARE APPESO. Il listener era `{once: true}` sulla riga: se dopo
+   *      il rilascio non arrivava un click (rilascio fuori, gesto annullato), restava lì e si mangiava
+   *      il PRIMO click legittimo dopo - cioè un ordinamento che non partiva, molto più tardi e senza
+   *      una causa visibile. Adesso ha un proprietario che lo smonta.
+   *   5. NON SI POTEVA ANNULLARE, né rilasciare fuori dalla finestra in modo prevedibile: `Escape` non
+   *      faceva niente e `pointercancel` nemmeno.
+   *
+   * Quello che NON è cambiato è la scelta di fondo, che resta giusta: il gesto non tocca il DOM. Segna
+   * quale colonna è in mano e in quale varco cadrebbe, e al rilascio riscrive SOLO il segnale
+   * dell'ordine - Angular ridisegna una volta, da una sola verità.
+   */
+
+  /** La colonna in mano. `null` = niente in volo, ed è anche l'interruttore di tutti i segni a schermo. */
+  protected readonly dragKey = signal<string | null>(null);
+
+  /** In quale VARCO cadrebbe: `0` = prima della prima colonna mobile, `n` = dopo l'ultima. */
+  protected readonly dragGap = signal<number | null>(null);
+
+  /** Il click che segue il rilascio, da mangiare una volta. Tenuto qui perché va anche smontato. */
+  private swallowClick: (() => void) | null = null;
 
   /**
    * Preso per la testa: si aspetta un movimento vero prima di chiamarlo trascinamento.
    *
    * La soglia esiste perché la stessa intestazione fa DUE cose - un click ordina, un trascinamento
-   * riordina - e senza di essa un click sarebbe un riordino di zero pixel. Quando un trascinamento è
-   * davvero avvenuto, il click che il browser manda dopo viene mangiato una volta sola: altrimenti
-   * lasciare la colonna al suo nuovo posto la ordinerebbe anche.
+   * riordina - e senza di essa un click sarebbe un riordino di zero pixel.
+   *
+   * I tre listener del volo stanno su `window` e non sulla riga, e non è indifferente: senza cattura del
+   * puntatore un `pointermove` ha per bersaglio quello che sta sotto il dito, quindi uscendo dalla
+   * tabella una riga non li sentirebbe più e il gesto si fermerebbe a metà. Un tocco invece è catturato
+   * dal browser da sé, e in tutt'e due i casi gli eventi arrivano a `window`: è il solo posto che li
+   * sente sempre. `setPointerCapture` sarebbe la cura opposta, e su un evento sintetico può fallire -
+   * un gesto che muore perché una cattura non è andata a buon fine è peggio di un listener in più.
    */
   protected grabAt(event: PointerEvent): void {
     if (event.button !== 0) return;
-    const row = (event.currentTarget as HTMLElement).closest('tr');
-    if (!row) return;
-    // QUALE colonna è in mano lo dice la posizione, non un gestore per intestazione: la riga ne ha una
-    // sola e l'ordine a schermo è già l'unica verità che serve.
-    const key = this.columnAt(row, event.clientX);
-    if (!key) return;
+    const target = event.target as HTMLElement | null;
+    // L'imbuto del filtro è un pulsante dentro l'intestazione: aprirlo non è prendere la colonna.
+    if (!target || target.closest('.ant-table-filter-trigger')) return;
+    const head = target.closest('th');
+    const row = head?.closest('tr');
+    if (!head || !row) return;
+    const key = this.keyOf(row, head);
+    // Le due fisse sono l'identità della riga e non si spostano: `visible()` non le contiene.
+    if (!key || !this.visible().includes(key)) return;
+
     const startX = event.clientX;
     let dragging = false;
+    /*
+     * IL TRASCINAMENTO NATIVO DEL BROWSER VA SPENTO SUBITO, e questo è il difetto che costava il gesto
+     * dal SECONDO in poi: un `mousedown` seguito da un movimento sopra del testo fa partire il drag
+     * NATIVO di Chromium, che si prende il puntatore e smette di mandare `pointermove` - manda `drag`.
+     * Misurato in e2e il 20/08/2026 contando gli eventi che arrivavano davvero: `pointerdown` 1,
+     * `pointermove` **2 su 18**, e a metà volo nessuna colonna in mano. Il primo trascinamento della
+     * pagina funzionava, tutti quelli dopo no, e a schermo si legge come «funziona a volte».
+     * Si spengono dal `pointerdown` e non dalla soglia, perché il drag nativo parte prima che noi
+     * abbiamo deciso che è un trascinamento; e si spegne anche la SELEZIONE, perché una selezione
+     * rimasta in giro è proprio ciò che rende «trascinabile» il testo sotto il dito. Nessun
+     * `preventDefault` sul `pointerdown` stesso: sopprimerebbe anche il click, che qui deve ordinare.
+     */
+    const stopNative = (native: Event): void => native.preventDefault();
+    document.addEventListener('selectstart', stopNative);
+    document.addEventListener('dragstart', stopNative);
+
+    const end = (moved: boolean): void => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', cancel);
+      window.removeEventListener('keydown', onKey);
+      document.removeEventListener('selectstart', stopNative);
+      document.removeEventListener('dragstart', stopNative);
+      const gap = this.dragGap();
+      this.dragKey.set(null);
+      this.dragGap.set(null);
+      if (!dragging) return;
+      // Il click che il browser manda dopo il rilascio è la coda del gesto, non una scelta: va mangiato
+      // anche quando il gesto è stato annullato, perché il click arriva comunque.
+      this.eatNextClick(row);
+      if (moved && gap != null) this.moveColumn(key, gap);
+    };
 
     const move = (moving: PointerEvent): void => {
       if (!dragging && Math.abs(moving.clientX - startX) < DRAG_THRESHOLD_PX) return;
-      dragging = true;
-      this.dragged.set(key);
-      this.dropOn.set(this.columnAt(row, moving.clientX));
+      if (!dragging) {
+        dragging = true;
+        this.dragKey.set(key);
+        // E la selezione che c'era PRIMA va via: è quella che il browser proverebbe a trascinare.
+        document.getSelection()?.removeAllRanges();
+      }
+      this.dragGap.set(this.gapUnder(row, moving.clientX));
+      this.edgeScroll(moving.clientX);
     };
-    const up = (): void => {
-      window.removeEventListener('pointermove', move);
-      window.removeEventListener('pointerup', up);
-      const onto = this.dropOn();
-      this.dragged.set(null);
-      this.dropOn.set(null);
-      if (!dragging) return;
-      // Il click che segue il rilascio non deve ordinare: è la coda del gesto, non una scelta.
-      row.addEventListener('click', (click) => {
-        click.stopPropagation();
-        click.preventDefault();
-      }, { capture: true, once: true });
-      if (onto && onto !== key) this.moveColumn(key, onto);
+    const up = (): void => end(true);
+    const cancel = (): void => end(false);
+    const onKey = (pressed: KeyboardEvent): void => {
+      if (pressed.key === 'Escape') end(false);
     };
+
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', cancel);
+    window.addEventListener('keydown', onKey);
   }
 
   /**
-   * Il segno del gesto: sbiadita quella in mano, contornata quella su cui finirebbe.
+   * Il segno del gesto: sbiadita la colonna in mano, una barra sul varco dove finirebbe.
    *
-   * Una classe sola per intestazione invece di tre binding ognuna, e nessun nodo spostato da nessuno: è
-   * tutta la differenza col riordino di prima.
+   * Una classe sola per intestazione e nessun nodo spostato da nessuno. La barra è un'OMBRA INTERNA e
+   * non un bordo: un bordo su una tabella a larghezze fisse ruba due pixel al contenuto e sposta le
+   * cifre di tutte le celle sotto, cioè disegnerebbe il disallineamento che questo gesto deve curare.
    */
   protected dragMark(key: string): string {
-    if (!this.dragged()) return '';
-    if (this.dragged() === key) return 'opacity-40';
-    return this.dropOn() === key ? 'outline outline-primary' : '';
+    if (!this.dragKey()) return '';
+    const marks: string[] = [];
+    if (this.dragKey() === key) marks.push('opacity-40');
+    const gap = this.dragGap();
+    const list = this.visible();
+    if (gap != null) {
+      // Il varco `n` non ha una colonna a destra: si disegna sul bordo DESTRO dell'ultima.
+      if (list[gap] === key) marks.push('shadow-[inset_3px_0_0_0_var(--color-primary)]');
+      else if (gap === list.length && list.at(-1) === key) {
+        marks.push('shadow-[inset_-3px_0_0_0_var(--color-primary)]');
+      }
+    }
+    return marks.join(' ');
   }
 
-  /** Su quale colonna sta il dito, letto dalle intestazioni vere: l'ordine a schermo è l'unica verità. */
-  private columnAt(row: Element, x: number): string | null {
+  /**
+   * VICINO AL BORDO, LA PAGINA SCORRE - altrimenti metà delle destinazioni non sono raggiungibili.
+   *
+   * Questa tabella chiede circa 1900px e una finestra ne ha 1600: le ultime colonne sono FUORI dallo
+   * schermo, e senza questo un varco fuori dal viewport non si può scegliere, perché il dito non ci
+   * arriva. Misurato guidando il gesto con un mouse vero il 20/08/2026: trascinando una colonna in coda
+   * finiva fuori, e da lì non si poteva più riprendere.
+   * Scorre la PAGINA e non un contenitore, che è la stessa scelta dello sticky dell'intestazione (in
+   * `ng-zorro.css` c'è il perché); e ogni `pointermove` ne sposta un passo, quindi la velocità è quella
+   * della mano - nessun timer da fermare, nessuna animazione che continua dopo il rilascio.
+   */
+  private edgeScroll(x: number): void {
+    const near = x < DRAG_EDGE_PX
+      ? -1
+      : x > window.innerWidth - DRAG_EDGE_PX
+        ? 1
+        : 0;
+    if (near) window.scrollBy({ left: near * DRAG_SCROLL_STEP_PX, behavior: 'instant' });
+  }
+
+  /** Le intestazioni MOBILI, in ordine: le fisse stanno in testa e non si spostano. */
+  private movableHeads(row: Element): HTMLElement[] {
     const heads = Array.from(row.querySelectorAll<HTMLElement>('th'));
-    // Le due fisse (ruolo e nome) non sono nell'elenco delle spostabili: si scartano dall'inizio.
-    const movable = heads.slice(heads.length - this.visible().length);
-    const at = movable.findIndex((head) => {
-      const box = head.getBoundingClientRect();
-      return x >= box.left && x <= box.right;
-    });
+    return heads.slice(FIXED_COLUMNS.length);
+  }
+
+  /** Di quale colonna è questa intestazione, letto dalla POSIZIONE: la riga è l'unica verità. */
+  private keyOf(row: Element, head: Element): string | null {
+    const at = this.movableHeads(row).indexOf(head as HTMLElement);
     return at < 0 ? null : (this.visible()[at] ?? null);
   }
 
-  /** Sposta una colonna dove sta un'altra, scrivendo l'ordine INTERO - comprese le spente. */
-  private moveColumn(key: string, onto: string): void {
-    const all = [...this.ordered()];
-    const from = all.indexOf(key);
-    const to = all.indexOf(onto);
-    if (from < 0 || to < 0 || from === to) return;
-    all.splice(from, 1);
-    all.splice(to, 0, key);
-    this.order.set(all);
+  /** In quale varco sta il dito, misurato sulle intestazioni vere e non su una somma di larghezze. */
+  private gapUnder(row: Element, x: number): number {
+    return gapAt(this.movableHeads(row).map((head) => head.getBoundingClientRect()), x);
+  }
+
+  /** Sposta una colonna in un varco, scrivendo l'ordine INTERO - comprese le spente. */
+  private moveColumn(key: string, gap: number): void {
+    const moved = withColumnMoved(this.ordered(), this.visible(), key, gap);
+    if (moved) this.order.set(moved);
+  }
+
+  /**
+   * Mangia il prossimo click e poi si smonta, in qualunque dei due modi finisca.
+   *
+   * Il `setTimeout` è la parte che nella prima versione mancava: un `{once: true}` che non scatta resta
+   * appeso e si mangia un click legittimo molto più tardi, cioè produce un ordinamento che non parte e
+   * nessuna causa visibile. Il click di un rilascio arriva nello stesso giro di eventi, quindi zero
+   * millisecondi bastano e non c'è nessuna attesa da indovinare.
+   */
+  private eatNextClick(row: Element): void {
+    this.swallowClick?.();
+    const eat = (click: Event): void => {
+      click.stopPropagation();
+      click.preventDefault();
+      this.swallowClick?.();
+    };
+    const timer = setTimeout(() => this.swallowClick?.(), 0);
+    this.swallowClick = () => {
+      clearTimeout(timer);
+      row.removeEventListener('click', eat, { capture: true });
+      this.swallowClick = null;
+    };
+    row.addEventListener('click', eat, { capture: true });
+  }
+
+  /* ---------------------------------------------------------------- filtrare, una colonna per volta
+   *
+   * PERCHÉ NON È IL FILTRO DI nz-table, e la ragione è la stessa dell'ordinamento (misurata il
+   * 18/08/2026): `nzFilterFn` filtra `nzData`, e `nzData` sono le righe GIÀ CARICATE. «FMa ≥ 6,50»
+   * avrebbe risposto sulle prime sessanta di cinquecentonovantadue e la tabella si sarebbe riempita
+   * scorrendo - una lista mostrata i cui numeri descrivono un'altra lista. Quindi si filtra la lista
+   * INTERA, prima di ordinarla e prima di ritagliarla, e le intestazioni si limitano a chiedere.
+   *
+   * Le tre domande e come si decide chi passa stanno in `column-filter.ts`, pure e coperte da un test.
+   * Qui c'è solo quello che ha bisogno del componente: quale numero legge una colonna, quali valori si
+   * possono spuntare, e la frase che ogni filtro attivo scrive SOPRA la tabella - perché un filtro
+   * ricordato che non si vede è un filtro che la prossima sessione legge come «il listone ha dodici
+   * uomini». Per la stessa ragione la barra dei filtri attivi non sta dentro un pannello che si chiude.
+   */
+
+  /**
+   * I FILTRI, ricordati come le colonne spente e l'ordine, e per lo stesso motivo: sono una preferenza
+   * sulla TABELLA, quindi valgono in tutt'e due le viste e sopravvivono a un refresh.
+   *
+   * La contro-obiezione è vera e la cura è dichiarata: un filtro salvato è invisibile, e questo progetto
+   * paga da sempre il difetto delle liste che non dicono cosa sono. Per questo ogni filtro attivo ha la
+   * sua etichetta sopra la tabella, con la sua crocetta, e il conteggio sotto dice quanti uomini sono
+   * stati nascosti su quanti.
+   */
+  private readonly filters = storedJson<Record<string, ColumnFilter>>('squad.filters', readFilters);
+
+  /** Quale imbuto è aperto. Uno alla volta, così il pannello condiviso sa di chi parla. */
+  protected readonly openFilter = signal<string | null>(null);
+
+  /**
+   * I filtri che si APPLICANO qui: quelli delle colonne che questa vista offre.
+   *
+   * Una rosa di club non ha la colonna «Squadra», e un filtro per squadra rimasto acceso dalla vista
+   * CALCIATORI la svuoterebbe senza che ci sia un imbuto da cui togliersolo. Stessa regola di
+   * `setVisible`: quello che questa vista non offre, non lo tocca e non lo legge.
+   */
+  private readonly liveFilters = computed(() => {
+    const filters = this.filters();
+    const offered = new Set([
+      ...FIXED_COLUMNS.map((one) => one.key),
+      ...this.columns().map((one) => one.key),
+    ]);
+    return Object.keys(filters)
+      .filter((key) => offered.has(key) && isActive(filters[key]))
+      .map((key) => ({ key, filter: filters[key] }));
+  });
+
+  /** Le righe che passano i filtri. TUTTE le righe: è la lista intera che si filtra. */
+  protected readonly kept = computed<SquadMan[]>(() => {
+    const live = this.liveFilters();
+    if (!live.length) return this.rows();
+    return this.rows().filter((man) => live.every((one) => this.passes(man, one.key, one.filter)));
+  });
+
+  /** Quanti uomini i filtri stanno nascondendo: il numero che rende onesta la tabella. */
+  protected readonly hiddenByFilters = computed(() => this.rows().length - this.kept().length);
+
+  /** Un'etichetta per filtro attivo: la colonna e, in parole, che cosa chiede. */
+  protected readonly filterChips = computed(() =>
+    this.liveFilters().map((one) => ({
+      key: one.key,
+      label: COLUMN_BY_KEY.get(one.key)?.label ?? one.key,
+      said: describeFilter(this.filterKind(one.key) ?? 'range', one.filter,
+        (value) => this.pickLabel(one.key, value)),
+    })));
+
+  /** Come si filtra questa colonna, o `null` per quelle che non si filtrano. */
+  protected filterKind(key: string): FilterKind | null {
+    return COLUMN_BY_KEY.get(key)?.filter ?? null;
+  }
+
+  /** Il filtro di una colonna, sempre un oggetto: il template lo legge senza guardie. */
+  protected filterOf(key: string): ColumnFilter {
+    return this.filters()[key] ?? {};
+  }
+
+  protected isFiltered(key: string): boolean {
+    return isActive(this.filters()[key]);
+  }
+
+  /** Cambia una metà del filtro di una colonna. Un filtro che non chiede più niente esce dalla mappa. */
+  protected setFilter(key: string, patch: Partial<ColumnFilter>): void {
+    const next = { ...this.filterOf(key), ...patch };
+    const all = { ...this.filters() };
+    if (isActive(next)) all[key] = next;
+    else delete all[key];
+    this.filters.set(all);
+  }
+
+  protected clearFilter(key: string): void {
+    const all = { ...this.filters() };
+    delete all[key];
+    this.filters.set(all);
+  }
+
+  /** Azzera solo quello che questa vista applica: l'altra schermata non ha chiesto niente. */
+  protected clearFilters(): void {
+    const all = { ...this.filters() };
+    for (const one of this.liveFilters()) delete all[one.key];
+    this.filters.set(all);
+  }
+
+  /**
+   * L'imbuto: apre e chiude, e ne resta aperto uno solo.
+   *
+   * `nz-filter-trigger` emette anche il `false` di chi si chiude quando un altro si apre, quindi la
+   * chiusura vale solo se parla della colonna che è davvero aperta - altrimenti l'ultimo a parlare
+   * chiuderebbe quello appena aperto.
+   */
+  protected showFilter(key: string, open: boolean): void {
+    if (open) {
+      this.openFilter.set(key);
+      this.pickSearch.set('');
+      return;
+    }
+    if (this.openFilter() === key) this.openFilter.set(null);
+  }
+
+  /**
+   * La ricerca DENTRO un elenco da spuntare: le squadre di un listone sono quaranta, e scorrerle per
+   * trovarne una è il modo lento di fare la cosa veloce. Si azzera ad ogni apertura, perché è una
+   * scorciatoia per arrivare alla spunta e non un filtro: quello che filtra sono le spunte.
+   */
+  protected readonly pickSearch = signal('');
+
+  /** Spuntare e togliere una voce, che è quello che fa una casella dell'elenco. */
+  protected togglePick(key: string, value: string, on: boolean): void {
+    const chosen = new Set(this.filterOf(key).pick ?? []);
+    if (on) chosen.add(value);
+    else chosen.delete(value);
+    this.setFilter(key, { pick: [...chosen] });
+  }
+
+  protected isPicked(key: string, value: string): boolean {
+    return (this.filterOf(key).pick ?? []).includes(value);
+  }
+
+  /**
+   * LE VOCI DA SPUNTARE della colonna aperta, contate sulle righe - e contate PRIMA dei filtri.
+   *
+   * Il numero accanto a ogni voce è quanti uomini la portano, e va letto sul TOTALE: contarlo sulle
+   * righe già filtrate lo farebbe ballare a ogni spunta, e «Napoli (3)» dopo aver scelto i portieri
+   * direbbe che il Napoli ha tre giocatori. `NO_VALUE` compare solo se qualcuno davvero non ce l'ha.
+   *
+   * Un `computed` e non un metodo del template: gira su tutte le righe, e un metodo lo rifarebbe a ogni
+   * ciclo di change detection per il solo fatto che un pannello è aperto.
+   */
+  protected readonly openOptions = computed(() => {
+    const key = this.openFilter();
+    if (!key || this.filterKind(key) !== 'pick') return [];
+    const counts = new Map<string, number>();
+    for (const man of this.rows()) {
+      const values = this.pickValues(man, key);
+      for (const one of values.length ? values : [NO_VALUE]) {
+        counts.set(one, (counts.get(one) ?? 0) + 1);
+      }
+    }
+    const wanted = fold(this.pickSearch());
+    return [...counts]
+      .map(([value, count]) => ({ value, count, label: this.pickLabel(key, value) }))
+      .filter((one) => !wanted || fold(one.label).includes(wanted))
+      .sort((left, right) => this.pickOrder(key, left.value) - this.pickOrder(key, right.value)
+        || left.label.localeCompare(right.label, 'it'));
+  });
+
+  /** Quante voci ha in tutto: sotto una dozzina la ricerca è un controllo in più che non serve. */
+  protected readonly openOptionsAreMany = computed(() => this.openOptions().length > 12
+    || !!this.pickSearch());
+
+  /** Quello che una riga porta in una colonna da spuntare. Lista vuota = non ce l'ha. */
+  private pickValues(man: SquadMan, key: string): readonly string[] {
+    switch (key) {
+      case 'role': return [man.role];
+      case 'club': return [man.club];
+      case 'mantra': return man.mantraCodes;
+      case 'codes': return man.codes;
+      case 'titolarita': return man.titolarita ? [man.titolarita] : [];
+      default: return [];
+    }
+  }
+
+  /** Come si chiama una voce a schermo: la stessa parola che la cella mostra, non un'altra. */
+  private pickLabel(key: string, value: string): string {
+    if (value === NO_VALUE) return 'ignoto';
+    if (key === 'role') return ROLE_LABEL[value as ClassicRole] ?? value;
+    if (key === 'titolarita') {
+      return isTitolarita(value) ? `${TITOLARITA_SHORT[value]} · ${value}` : value;
+    }
+    return value;
+  }
+
+  /**
+   * L'ordine dell'elenco: la SCALA dove ce n'è una, l'alfabeto dove non c'è.
+   *
+   * Il ruolo va P, D, C, A - l'ordine del listone - e la titolarità dalla bandiera alla riserva: in
+   * ordine alfabetico verrebbe BAL, BAN, PAN, RIS, TIS, TIT, cioè nessun ordine. Chi non ha il valore
+   * sta in fondo, come ogni altro vuoto di questa tabella.
+   */
+  private pickOrder(key: string, value: string): number {
+    if (value === NO_VALUE) return 99;
+    if (key === 'role') return ROLE_ORDER[value] ?? 9;
+    if (key === 'titolarita') return titolaritaRank(value) ?? 98;
+    return 0;
+  }
+
+  /**
+   * GLI ESTREMI VERI della colonna aperta, che il pannello scrive dentro le caselle vuote.
+   *
+   * È la differenza fra un filtro che si può usare e uno da indovinare: «FMa» va da 3,50 a 8,10 e
+   * «Fantapunti» da −20 a 340, e senza vederlo scritto il primo tentativo è sempre sbagliato. Contati
+   * su TUTTE le righe, come i conteggi delle spunte, e per la stessa ragione.
+   */
+  protected readonly openRange = computed(() => {
+    const key = this.openFilter();
+    if (!key || this.filterKind(key) !== 'range') return null;
+    let min: number | null = null;
+    let max: number | null = null;
+    for (const man of this.rows()) {
+      const value = this.numberOf(man, key);
+      if (value == null) continue;
+      if (min == null || value < min) min = value;
+      if (max == null || value > max) max = value;
+    }
+    if (min == null || max == null) return null;
+    // Arrotondati verso l'esterno, così il suggerimento non esclude gli estremi che dichiara.
+    return { min: Math.floor(min * 100) / 100, max: Math.ceil(max * 100) / 100 };
+  });
+
+  /** Di quanto si muove una freccia dell'estremo: un decimale dove la colonna ne ha uno. */
+  protected rangeStep(key: string): number {
+    return DECIMAL_COLUMNS.includes(key) ? 0.1 : 1;
+  }
+
+  /** Il tre-vie sugli ignoti, che è la parte del filtro che questo progetto non può non avere. */
+  protected setBlanks(key: string, blanks: Blanks): void {
+    this.setFilter(key, { blanks });
+  }
+
+  protected blanksOf(key: string): Blanks {
+    return this.filterOf(key).blanks ?? 'any';
+  }
+
+  /** Se una riga passa il filtro di una colonna: una domanda per tipo, mai una per colonna. */
+  private passes(man: SquadMan, key: string, filter: ColumnFilter): boolean {
+    switch (this.filterKind(key)) {
+      case 'text': return passesText(man.name, filter);
+      case 'pick': return passesPick(this.pickValues(man, key), filter);
+      case 'range': return passesRange(this.numberOf(man, key), filter);
+      default: return true;
+    }
+  }
+
+  /**
+   * IL NUMERO che una colonna porta, e per ognuna è LO STESSO che ordina e che si vede.
+   *
+   * Non un secondo modo di leggere la stessa cella: due letture finirebbero per non essere d'accordo, e
+   * il primo posto dove si vedrebbe è un filtro che nasconde una riga il cui numero a schermo lo passa.
+   * Il mercato si ordina per VALORE e non per tendenza (la ragione sta su `byMarket`), quindi si filtra
+   * per valore.
+   */
+  private numberOf(man: SquadMan, key: string): number | null {
+    switch (key) {
+      case 'expected': return man.expected;
+      case 'expectedFm': return man.expectedFm;
+      case 'expectedMv': return man.expectedMv;
+      case 'surplus': return man.surplus;
+      case 'surplusFielded': return man.surplusFielded;
+      case 'value': return man.value;
+      case 'fvm': return man.fvm;
+      case 'market': return this.trend(man)?.value ?? null;
+      case 'pv': return man.pv;
+      case 'mv': return man.mv;
+      case 'fm': return man.fm;
+      default:
+        return RATING_KEYS.includes(key as RatingKey)
+          ? (man.rating?.[key as RatingKey].score ?? null)
+          : null;
+    }
   }
 
   /* ---------------------------------------------------------------- ordinare

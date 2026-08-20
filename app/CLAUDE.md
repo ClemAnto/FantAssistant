@@ -154,6 +154,26 @@ The full rationale is Jingle Machine's `THEMING.md`; these are the rules that mu
   indistinguishable from a clean page - it has already happened twice.
 - What a rectangle cannot measure is verified **functionally**: an enlarged touch target is tested with a
   click 8px above the border, not by reading `getBoundingClientRect()`.
+- **`element.click()` proves nothing about a control, because it passes over the CSS.** Measured
+  20/08/2026 on the table's filter funnels: the rectangle was inside its own cell and
+  `document.elementFromPoint` on its centre answered `nz-table-sorters` — antd's
+  `.ant-table-column-sorters::after` is an `inset: 0` that covers the whole header. A synthetic `.click()`
+  opened the panel every time; a real pointer never reached it. So a control is verified with a REAL
+  pointer, at the coordinates the browser reports, after a real hover — and the harness reports what sits
+  under that point, because «the button is there» is a fact about the DOM and not about the screen.
+- **Collect what the PAGE shouts.** A defect that reads as «the panel does not open» usually has an
+  exception behind it, and without the console in the report you end up guessing the mechanism. The table
+  harness now fails on any page exception, even when every geometric measure is green: an exception means
+  something was not tried.
+- **For a gesture, count the events that ARRIVE, not the ones you sent.** Measured 20/08/2026: the first
+  column drag of a page worked and every one after it did nothing, because a `mousedown` plus a move over
+  text starts Chromium's own native drag, which takes the pointer and stops sending `pointermove`.
+  `pointerdown` 1, `pointermove` **2 of 18** — and no measure of geometry, order or DOM could see it. From
+  the outside it reads as «it works sometimes», which is the hardest kind of defect to chase.
+- **A step that measures two unknowns at once blames the wrong one.** The first attempt to check «can a
+  column be dropped past the LAST one» answered «that gap does not exist» while it was dragging a column
+  that sat OFF SCREEN. Split it: the gap arithmetic is measured on a table that fits the window, and «are
+  the off-screen columns reachable» is its own step.
 - Before delivering a change: **the production build must pass** (`ng build`) AND **`ng test`**, and for
   anything visible, the page opened in a real browser.
 - **A green `ng build` says nothing about the tests, and on 20/08/2026 it hid a suite that would not even

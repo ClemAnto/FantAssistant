@@ -1394,3 +1394,176 @@ sensi nello stesso file: sul campetto è una RELAZIONE (si gioca quel posto) e s
 (gioca quasi ogni partita). Promuovere ogni rivale al gradino 4 è stato misurato e **non si fa**: i
 rivali nominati hanno reso 0,551 di quota contro lo 0,80 che quel gradino promette. Resta la parola con
 due sensi, che è la stessa famiglia del termine chiarito oggi e va decisa in chiaro.
+
+### Correzione del 20/08/2026 (sera): due denominatori sbagliati sotto la stessa scala
+
+I gradini di sopra restano quelli misurati; quello che è cambiato è **cosa entra nella quota**, e la scala
+ha reso i due difetti visibili perché `riserva` è la cosa più forte che sappia dire. Numeri, criteri e
+misura respinta: [gate-motore-v1.md](gate-motore-v1.md) §7-unquadragies. In breve, foglio Serie A, revisione
+35 → 36:
+
+- **chi cambia campionato a gennaio** aveva il numeratore di un campionato e il denominatore di un altro
+  (Malen: 18 giornate su 18 giocate, lette 18/38 = 0,444). Ora ogni campionato porta le giornate in cui
+  c'era: 18 righe interessate, **9 salgono di gradino**, `riserva` 156 → 144 e `panchina` 103 → 111. Malen
+  `play` 0,444 → 0,888 e la board lo disegna, quindi `titolarissimo`; Raspadori `ballottaggio`.
+- **chi ha solo una finestra misurata altrove** leggeva uno ZERO che nessuno ha misurato, perché la guardia
+  contava come «calcio sul tavolo» una finestra che `appearance_share` non sa leggere: 7 righe, ora vuote.
+- e il prezzo, che va detto: la board è un'assegnazione, quindi chi entra fa uscire qualcuno — **Scamacca e
+  Castro S. scendono a `panchina`, Ngom a `riserva`, con la loro quota invariata**. Il giudice esterno
+  sull'aggregato non si muove (165/220 uomini prima e dopo); per club si compensano Roma 10/11 → **11/11** e
+  Lecce 8/11 → 7/11.
+- **respinto**: leggere solo il regime nuovo di chi ha conquistato il posto a stagione in corso (795 uomini,
+  6 stagioni: da solo è il 39% peggiore come predittore, la miscela vale 4 gradini su 123). Il residuo di
+  quel caso — Santos A., che era in rosa da luglio e ha debuttato alla 24ª — è nella BOARD e non nella
+  quota, e la stampa lo schiera.
+
+## 17. IL GESTO E IL FILTRO DELLA TABELLA: quattro difetti che stavano fra il DOM e lo schermo (20 agosto 2026, sera)
+
+Due richieste dell'operatore nella stessa sessione — «l'ordinamento delle colonne sulla tabella tramite
+D&D funziona malissimo, riscrivilo da capo in maniera pulita» e «dammi anche la possibilità di filtrare i
+risultati per colonna in maniera adeguata» — e la parte che vale oltre questa tabella non è nessuna delle
+due funzioni: è che **quattro difetti su sei erano invisibili a ogni misura del DOM**. Il markup c'era, i
+conteggi tornavano, e lo schermo diceva un'altra cosa. Tutti trovati guidando un browser vero
+(`app/scripts/e2e-table.mjs`), e ognuno ha lasciato la sua asserzione lì dentro.
+
+### 17.1 Il gesto, riscritto — e i cinque modi in cui non funzionava
+
+Il gesto era già NOSTRO dal 18/08 (CDK era stato mandato via perché muoveva il DOM che Angular possiede e
+perché il drop tornava con l'indice di partenza; il pacchetto non è più nemmeno una dipendenza). Quello
+che «funzionava malissimo» era il resto:
+
+1. **Si lasciava su una COLONNA, e fra due celle non c'è nessuna colonna.** `columnAt` tornava `null`
+   oltre l'ultima intestazione, sopra le due fisse e in ogni fessura fra due bordi, e un rilascio con
+   `null` non spostava niente: **portare una colonna in testa o in coda — che è quello che si fa — non
+   faceva assolutamente nulla.** Ora il gesto ragiona per **VARCHI** (`app/src/app/ui/squad-table/
+   column-drag.ts`): ce n'è uno più delle colonne, esistono sempre, e il taglio è sulle **mezzerie** e non
+   sui bordi. `withColumnMoved` traduce il varco visibile in una posizione della lista INTERA ancorandosi
+   alla vicina di DESTRA, così le colonne spente non si spostano di un posto.
+2. **Il segno non diceva DOVE.** Un contorno intorno alla colonna «di destinazione» non distingue «prima
+   di lei» da «dopo di lei», che sono due risultati diversi. Ora una barra sul varco, come ombra INTERNA e
+   non come bordo: un bordo su una tabella a larghezze fisse ruba due pixel al contenuto e sposterebbe le
+   cifre di tutte le celle sotto, cioè disegnerebbe il disallineamento che il gesto deve curare.
+3. **Si selezionava il testo** durante il trascinamento — il sintomo che si legge come «si è rotto
+   qualcosa».
+4. **Il click da mangiare poteva restare appeso.** Il listener era `{once: true}` sulla riga: se dopo il
+   rilascio non arrivava un click (rilascio fuori, gesto annullato) restava lì e si mangiava il PRIMO
+   click legittimo dopo, cioè un ordinamento che non parte molto più tardi e senza una causa visibile.
+5. **Non si poteva annullare**: `Escape` non faceva niente e `pointercancel` nemmeno.
+
+Le funzioni pure hanno il loro test (25 casi fra `column-drag.spec.ts` e `column-filter.spec.ts`), e ogni
+caso è uno dei modi in cui non funzionava — non un caso limite inventato.
+
+### 17.2 I quattro difetti che il DOM non poteva vedere
+
+**Un nodo che non è una `<th>` dentro la riga di intestazione si mangia una colonna della griglia, e
+questa è la causa vera dei «buchi / disallineamenti».** Per due giorni erano stati attribuiti a CDK.
+`nz-tooltip` costruisce il suo componente con la `ViewContainerRef` dell'elemento su cui sta e poi ne
+STACCA l'elemento dal DOM, perché il tooltip vero vive in un overlay; Angular però continua a contare quel
+nodo fra quelli della vista, quindi quando un `@for` con `track` RIORDINA e sposta la vista, **lo
+reinserisce**. Col tooltip sulla `<th>`, il nodo reinserito era un `<nz-tooltip>` figlio diretto del
+`<tr>`: il browser gli dà una casella, la riga finisce su **23 colonne contro le 22 del colgroup**, e ogni
+intestazione dopo quella spostata sta **84px** a destra dei propri dati — con l'ultima schiacciata a
+larghezza **ZERO** (misurato: «Squadra» a 1219px e «Overall» a 1433 invece di 1349). Il colgroup era
+giusto, il corpo era giusto, i conteggi erano 22 e 22. Cura: il tooltip su uno `<span>` dentro la cella.
+
+**E un rettangolo dentro la sua cella può essere coperto da un altro elemento.** Messo l'imbuto del filtro
+su ogni colonna, **16 intestazioni su 22** lo avevano tagliato fuori dalla propria cella (fino a 32px oltre
+il bordo su «Margine», larga 68) — le colonne sono larghe quanto le cifre che portano e allargarle tutte di
+22px costerebbe quasi 500px di scorrimento. Tirato fuori dal flusso e appoggiato al bordo destro,
+`document.elementFromPoint` sulle sue coordinate rispondeva **`nz-table-sorters`**:
+`.ant-table-column-sorters::after` di antd è un `inset: 0` che copre la cella intera. Due difetti diversi
+con lo stesso sintomo — un filtro che c'è e non si clicca — e **nessuno dei due visibile a
+`element.click()`**, che passa sopra la CSS. Un controllo si verifica con un puntatore vero, alle
+coordinate che il browser dichiara, dopo un hover vero.
+
+**Il primo trascinamento di una pagina funzionava e tutti quelli dopo non facevano niente.** Un `mousedown`
+seguito da un movimento sopra del testo fa partire il trascinamento NATIVO di Chromium, che si prende il
+puntatore e smette di mandare `pointermove` (manda `drag`). Nessuna misura di geometria, di ordine o di DOM
+può vederlo: dal di fuori si legge come «il riordino funziona a volte», che è il difetto più difficile da
+inseguire. **Si è visto contando gli eventi che ARRIVAVANO invece di quelli spediti**: `pointerdown` 1,
+`pointermove` **2 su 18**. Cura: `selectstart` e `dragstart` spenti dal `pointerdown` (non dalla soglia —
+il drag nativo parte prima che noi abbiamo deciso che è un trascinamento) e la selezione rimasta in giro
+azzerata, che è proprio quella che rende «trascinabile» il testo sotto il dito.
+
+**E metà delle destinazioni non era raggiungibile**: la tabella chiede ~1900px contro i 1600 di una
+finestra, quindi un varco fuori dal viewport non si può scegliere perché il dito non ci arriva. Ora la
+pagina scorre da sé entro 60px dal bordo, un passo per `pointermove` — la velocità è quella della mano,
+nessun timer da fermare.
+
+**Un errore di misura, e non dell'app.** Il primo tentativo di verificare il varco in coda ha risposto
+«non esiste» mentre stava trascinando una colonna FUORI dallo schermo. **Un passo che misura due incognite
+insieme attribuisce il difetto a quella sbagliata**: il varco in testa e in coda è una proprietà
+dell'ARITMETICA e si misura su una tabella che sta nella finestra (spegnendo le colonne che non c'entrano),
+mentre «le colonne fuori schermo sono raggiungibili?» è un'altra domanda e ha il suo passo.
+
+### 17.3 Il filtro per colonna, e le due regole di casa che ripete
+
+`column-filter.ts`, puro e testato, con l'imbuto su **tutte e 22** le colonne — comprese le due fisse, che
+è la ragione per cui l'intestazione è diventata **UNA `<th>` ripetuta** invece di diciannove celle quasi
+identiche in uno `@switch`: larghezza, allineamento, verso dell'ordinamento e tipo di filtro stanno ora
+accanto alla chiave in `SquadColumn`, e il filtro andava aggiunto una volta e non diciannove.
+
+**Non è `nzFilterFn`**, per la ragione già misurata il 18/08 sull'ordinamento: quello filtra `nzData`, cioè
+le sessanta righe già caricate, e «FMa ≥ 6,50» avrebbe risposto su un campione riempiendosi poi scorrendo —
+una lista mostrata i cui numeri descrivono un'altra lista. Si filtra la lista INTERA, prima di ordinarla e
+prima di ritagliarla: misurato **610 → 109**, e il conteggio sotto la tabella lo DICE.
+
+**Tre domande e non una**, perché le colonne portano tre cose: una PAROLA da cercare (il nome, senza accenti
+né maiuscole), un ELENCO da spuntare (ruolo, squadra, codici mantra, ruolo reale, gradino di titolarità —
+con il conteggio di quanti uomini portano ogni voce, contato su TUTTE le righe perché sulle righe già
+filtrate ballerebbe a ogni spunta, e con la sua ricerca oltre la dozzina di voci) e un INTERVALLO di numeri
+(tutte le altre, con gli estremi VERI della colonna scritti dentro le caselle vuote — «FMa» va da 4,15 a
+7,92, e senza vederlo il primo tentativo è sempre sbagliato).
+
+**E il vuoto è una risposta, non un caso limite.** Metà di questa tabella porta celle vuote per
+costruzione, e qui vuoto vuol dire IGNOTO e mai zero: un ignoto **non è «sotto il minimo»** perché non ha
+un numero da confrontare, quindi un estremo lo esclude per costruzione, e «solo gli ignoti» è una scelta
+DICHIARATA (`blanks`: non conta / con numero / solo ignoti) perché «chi non ha una stagione misurata in
+questo listone» è una delle domande vere di un'asta — sono 395 dei 610 quotati sulla MV.
+
+**I filtri si ricordano** come le colonne spente e l'ordinamento (è una preferenza sulla TABELLA, quindi
+vale in tutt'e due le viste), e la contro-obiezione è vera e la cura è dichiarata: un filtro salvato è
+invisibile, e questo progetto paga da sempre il difetto delle liste che non dicono cosa sono. Per questo
+ogni filtro attivo porta la sua **etichetta SOPRA la tabella**, fuori da ogni pannello che si chiude, con
+la sua crocetta e con quanti uomini sta nascondendo su quanti; e un filtro su una colonna che una vista
+non OFFRE non si applica — nella rosa di un club «Squadra» non c'è, e un filtro per squadra rimasto acceso
+la svuoterebbe senza un imbuto da cui togliersolo (misurato: rosa del Napoli, filtro club ignorato, filtro
+FMa applicato, 10 di 34).
+
+**Un pannello per colonna e non uno condiviso.** Il contenuto è scritto una volta (`#panelBody`) e ogni
+colonna lo istanzia col suo `key` via `ngTemplateOutlet`, ma l'OVERLAY è suo: condividendo un
+`nz-dropdown-menu`, passare da un imbuto all'altro **senza chiudere il primo** — cioè quello che fa una
+mano — lasciava lo schermo senza pannello, e la pagina urlava `TypeError: Cannot read properties of null
+(reading 'classList')`. Il click apre l'overlay SUBITO, dentro il gestore di ng-zorro, quindi per un
+istante due `NzDropdownDirective` attaccano lo stesso `TemplateRef` a due overlay e il secondo trova i nodi
+del primo già spostati. **Nessun segnale può arrivare in tempo**: la cura è avere due template, che è anche
+come lo fa il filtro di ng-zorro. Trovato solo perché l'arnese ha cominciato a raccogliere quello che la
+PAGINA urla: un'eccezione ora fa fallire la corsa anche con ogni misura verde.
+
+### 17.4 Che cosa misura la suite, e su quali numeri
+
+`node app/scripts/e2e-table.mjs [--hunt N]` — 19 passi, **nessun problema**, browser vero perché in jsdom
+non esistono né il colgroup, né lo scorrimento che carica le righe, né il gesto:
+
+| che cosa | come si vede se si rompe |
+| --- | --- |
+| allineamento testa/corpo, prima e dopo | scarto in pixel per colonna, più i figli del `<tr>` che non sono `<th>` |
+| ordinamento su TUTTA la lista | cima contro massimo del listone dopo aver caricato ogni riga |
+| varco in coda / in testa | la colonna ci finisce o no, su una tabella che sta nella finestra |
+| Escape a metà volo | «era in mano» + ordine invariato |
+| trascinare per l'imbuto | l'ordine non deve muoversi, e nessuna colonna deve risultare in mano |
+| eventi che arrivano al gesto | `pointermove` ≥ 10 su 18: sotto, il browser ha preso il puntatore |
+| scorrimento sul bordo | `scrollX` 0 → 207 (massimo 195) |
+| il click di coda | la chiave d'ordinamento sul disco non deve cambiare |
+| imbuti | 22 su 22 presenti, **zero** tagliati, spenti a opacità 0, l'acceso a 1, raggiunto con un mouse vero |
+| intervallo | estremi suggeriti veri, tre-vie sugli ignoti, 610 → 109, il conteggio lo dice |
+| elenco | «Napoli» spuntato → 34 righe, e in colonna resta SOLO «Napoli» |
+| «solo ignoti» | 610 → 215, e ogni cella della colonna è un trattino |
+| persistenza | ordine, ordinamento e filtri dopo un refresh, con l'etichetta e l'imbuto accesi |
+| l'altra vista | rosa di un club: nessuna colonna «Squadra», filtro club ignorato, filtro FMa applicato |
+| ordini SEMINATI (`--hunt`) | un buco che compare qui è della TABELLA, uno che compare solo dopo un gesto è del gesto |
+| quello che la pagina urla | qualunque eccezione o errore di console fa fallire la corsa |
+
+**Verificato**: `ng build` verde, `ng test` **351 su 351** in 30 file, la suite e2e senza problemi con tre
+ordini seminati, e le tre schermate (`dist/e2e-filtro-numeri.png`, `e2e-filtro-elenco.png`, `e2e-table.png`)
+per la parte che un numero non giudica. Nessun `engine_*` toccato: è tutta interazione dell'app.
