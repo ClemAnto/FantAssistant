@@ -1,0 +1,69 @@
+{
+  "date": "2026-02-05",
+  "target_season": "2025-26",
+  "window": "invernale",
+  "rounds_played": {
+    "bundesliga": 20,
+    "la_liga": 22,
+    "ligue_1": 20,
+    "premier_league": 24,
+    "serie_a": 23
+  },
+  "leagues": [
+    {
+      "league": "EuroLeghe",
+      "platform": "euro",
+      "game": "mantra",
+      "sheet": "sheets/euroleghe.json.gz",
+      "boards": "boards/euroleghe.json",
+      "rows": 1067,
+      "teams": 12,
+      "squad_slots": {
+        "P": 3,
+        "D": 8,
+        "C": 8,
+        "A": 6
+      },
+      "matchdays_target": 14
+    },
+    {
+      "league": "Leghe",
+      "platform": "default",
+      "game": "classic",
+      "sheet": "sheets/leghe.json.gz",
+      "boards": "boards/leghe.json",
+      "rows": 673,
+      "teams": 10,
+      "squad_slots": {
+        "P": 3,
+        "D": 8,
+        "C": 8,
+        "A": 6
+      },
+      "matchdays_target": 15
+    },
+    {
+      "league": "Leghe Mantra",
+      "platform": "default",
+      "game": "mantra",
+      "sheet": "sheets/leghe-mantra.json.gz",
+      "boards": "boards/leghe-mantra.json",
+      "rows": 673,
+      "teams": 10,
+      "squad_slots": {
+        "P": 2,
+        "D": 7,
+        "C": 10,
+        "A": 4
+      },
+      "matchdays_target": 15
+    }
+  ],
+  "known_gaps": [
+    "probabili formazioni: il sito pubblica solo «adesso», quindi per una data passata non ce ne sono - le colonne dei titolari e dei ballottaggi da probabili sono vuote.",
+    "ruolo granulare: il provider ignora la stagione richiesta, quindi i codici sono quelli di OGGI anche su un foglio del passato.",
+    "scadenza di contratto: esiste solo sulla pagina rosa di oggi.",
+    "contaminazione a favore del modello: trasferimenti, arrivi e rose sono derivati oggi, quindi la board conosce un mercato che quel giorno non era chiuso."
+  ],
+  "input_season": "2024-25"
+}
