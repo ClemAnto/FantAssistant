@@ -114,6 +114,48 @@ def pack_revision(payload: dict) -> int | None:
                  for one in (payload.get("leagues") or []) if (one.get("manifest") or {})), None)
 
 
+def wanted_dates(ctx: Context) -> tuple[list[str], list[dict]]:
+    """Le stagioni impacchettabili e le date significative dentro di esse.
+
+    UNA definizione, letta da `run` e da `outdated`: la stagione in corso non si impacchetta (il suo
+    mercato non e' chiuso, ed e' quella che l'app mostra dal vivo), le due precedenti si.
+    """
+    conn = ctx.require_conn()
+    seasons = [row[0] for row in conn.execute(
+        "SELECT DISTINCT season FROM rosters ORDER BY season DESC LIMIT ?", (SEASONS_BACK + 1,))]
+    past = sorted(seasons)[:-1][-SEASONS_BACK:]
+    return past, significant_dates(conn, past)
+
+
+def outdated(ctx: Context) -> list[str]:
+    """Le date GIA' impacchettate i cui fogli stanno sotto la `SHEET_REVISION` di oggi.
+
+    Una definizione sola della decisione, non della sola lettura: `pack_revision` dice a che revisione
+    sta un pacchetto, questa dice se e' INDIETRO - ed e' la stessa lista che `--plan` stampa e che
+    `update` ricostruisce. Due letture darebbero due risposte sullo stesso pacchetto, e quella sbagliata
+    sarebbe il motore che l'app disegna sotto una data scelta.
+
+    Un manifest illeggibile conta come indietro: non e' un pacchetto di cui si possa dire che e'
+    aggiornato, ed e' la stessa regola del campo assente («non dichiararla e' diverso da essere
+    aggiornati»).
+    """
+    from euroleghe_ingest.modules import snapshot
+
+    stale: list[str] = []
+    for entry in wanted_dates(ctx)[1]:
+        folder = _pack_dir(ctx, entry["date"])
+        if not folder.exists():
+            continue                      # da costruire, non da rifare: e' un'altra cosa
+        try:
+            mine = pack_revision(json.loads((folder / "manifest.json").read_text(encoding="utf-8")))
+        except (OSError, ValueError):
+            stale.append(entry["date"])
+            continue
+        if mine is None or mine < snapshot.SHEET_REVISION:
+            stale.append(entry["date"])
+    return stale
+
+
 def _pack_dir(ctx: Context, date: str) -> Path:
     return ctx.config.data_dir / "timepacks" / date
 
@@ -216,20 +258,15 @@ def build(ctx: Context, entry: dict, leagues: dict, *, refresh: bool = False) ->
 
 def run(ctx: Context, date: str | None = None, plan: bool = False,
         build_all: bool = False, refresh: bool = False, **kwargs) -> dict:
-    conn = ctx.require_conn()
     config = ctx.config
     # `my_leagues()` è un METODO e non una property: chiamarlo senza parentesi restituisce la funzione,
     # e l'errore arriva un secondo dopo su `.items()`. Costato una corsa di quattro pacchetti.
     leagues = config.my_leagues()
-    seasons = [row[0] for row in conn.execute(
-        "SELECT DISTINCT season FROM rosters ORDER BY season DESC LIMIT ?", (SEASONS_BACK + 1,))]
-    # La stagione in corso non si impacchetta: il suo mercato non è chiuso, ed è quella che l'app mostra
-    # già dal vivo. Le due precedenti sì.
-    past = sorted(seasons)[:-1][-SEASONS_BACK:]
-    wanted = significant_dates(conn, past)
+    past, wanted = wanted_dates(ctx)
     if plan or not (date or build_all):
         print(f"[timepack] stagioni: {', '.join(past)}")
         from euroleghe_ingest.modules import snapshot
+        stale = set(outdated(ctx))
         for one in wanted:
             folder = _pack_dir(ctx, one["date"])
             built = "già costruito" if folder.exists() else "da costruire"
@@ -238,13 +275,17 @@ def run(ctx: Context, date: str | None = None, plan: bool = False,
             # Un pacchetto INDIETRO di revisione porta il motore di allora: non è un errore, è un fatto
             # da vedere senza andare a leggere la data di un file. `--refresh` è quello che lo rifà.
             if folder.exists():
-                mine = pack_revision(
-                    json.loads((folder / "manifest.json").read_text(encoding="utf-8")))
-                if mine is None:
-                    built += ", revisione non dichiarata (pacchetto scritto prima del campo)"
-                elif mine < snapshot.SHEET_REVISION:
-                    built += (f", revisione {mine} contro {snapshot.SHEET_REVISION} di oggi - "
-                              f"INDIETRO, `--refresh` per rifarlo")
+                try:
+                    mine = pack_revision(
+                        json.loads((folder / "manifest.json").read_text(encoding="utf-8")))
+                except (OSError, ValueError):
+                    mine = None   # illeggibile: outdated lo conta indietro, e qui non si schianta
+                # La DECISIONE la prende `outdated`, non questa riga: il messaggio spiega, e spiegare
+                # non e' decidere. Prima erano due condizioni e potevano non dire la stessa cosa.
+                if one["date"] in stale:
+                    behind = (f"revisione {mine} contro {snapshot.SHEET_REVISION} di oggi" if mine
+                              else "revisione non dichiarata (pacchetto scritto prima del campo)")
+                    built += f", {behind} - INDIETRO, `--refresh` per rifarlo"
                 else:
                     built += f", revisione {mine}"
             print(f"  {one['date']}  {one['season']}  finestra {one['window']} - {built}")

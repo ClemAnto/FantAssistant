@@ -76,6 +76,13 @@ OPERATION_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Setup - once", ("initdb", "bootstrap", "rebuild", "fetch:plan")),
     ("Start of season", ("rosters", "stats", "elo", "transfers", "injuries", "market", "performance",
       "tournaments", "arrivals", "recent_form", "fbref")),
+    # "Everything, in order" is the answer to the question the panel exists for, so it wants to be the
+    # first thing seen - and THIRD in this tuple is where that happens, because the two columns are cut
+    # by row count: from here it heads the SECOND column, at the top, beside the metrics. Put first it
+    # heads the left one and pushes it to 669px against the 664 a maximised window gives - the last
+    # button clipped, which is the "below the fold" defect the split below exists to prevent. Measured
+    # on this display, so it is a reason and not a preference: 669/453 put first, 589/533 put here.
+    ("Everything, in order", ("update",)),
     ("During the season - every matchday",
      ("ratings", "matchdays", "positions", "synth", "fc_site", "fixtures", "validate")),
     ("Before an auction", ("snapshot", "press", "export")),
@@ -83,6 +90,7 @@ OPERATION_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
 
 # Labels for the operations that are not pipeline modules (those just use their own name).
 OPERATION_LABELS: dict[str, str] = {
+    "update": "Update everything",
     "initdb": "Initialize DB",
     "rebuild": "Rebuild all",
     "bootstrap": "Bootstrap (from zero)",
@@ -105,6 +113,12 @@ OPERATIONS: tuple[tuple[str, str], ...] = tuple(
 
 # One descriptive tooltip per button (what it does, in plain terms).
 TOOLTIPS: dict[str, str] = {
+    "update": "THE WHOLE UPDATE, in dependency order: every source (re-reading what changes), then "
+              "everything derived from it, then one sheet per declared league, the time-travel packs "
+              "that are behind, the app bundle and the app's own copy of it. About 22 hours end to end "
+              "and fully resumable - the dialog lets you pick the phases and prints the plan first, and "
+              "'offline only' skips the network half, which is what a code change actually needs. It "
+              "publishes NOTHING: `deploy:pages` pushes to a public branch and is not part of it.",
     "initdb": "Create an empty database and apply the schema (all tables). Loads no data.",
     "rebuild": "Rebuild the whole database from scratch from the raw files in data/raw: runs every "
                "pipeline step in order and ends with validate. Safe to run repeatedly (idempotent).",
@@ -249,6 +263,10 @@ def operation_state(command: str, counts: dict[str, int] | None, has_sources: bo
 
     if command == "initdb":
         return "completed" if has_db else "todo"
+    if command == "update":
+        # Never "completed": an update is about NOW, the same honest state a snapshot has. Unavailable
+        # with no database, because then the button that builds one is `bootstrap` and not this.
+        return "todo" if has_db else "unavailable"
     if command == "rebuild":
         if not has_sources:
             return "unavailable"
@@ -8790,11 +8808,99 @@ class ToolkitGUI:
         dlg.wait_window()
         return out or None
 
+    def _update_dialog(self) -> dict | None:
+        """The whole update, with its plan in view before anything starts.
+
+        A button that can start twenty-two hours of downloads does not start them on one click. The
+        phases are checkboxes carrying their own measured cost, the Run button carries the TOTAL in its
+        own label - so the size of what is about to happen cannot be missed - and "show the plan" prints
+        the same plan the CLI prints, including what each action would do on THIS machine (which leagues
+        are declared, which packs are behind). Same discipline as `bootstrap --plan` and `fetch --plan`,
+        which is where it comes from.
+
+        Two presets and not a free-for-all, because the two real questions are different: "everything"
+        after a market window, "offline only" after a code change - there the data is fine and only the
+        deliverable is stale, and the network half would cost a night for nothing.
+        """
+        from euroleghe_ingest.modules import update
+
+        dlg = tk.Toplevel(self.root)
+        dlg.title("Update everything")
+        dlg.transient(self.root)
+        dlg.grab_set()
+        dlg.resizable(False, False)
+        frm = ttk.Frame(dlg, padding=12)
+        frm.pack(fill="both", expand=True)
+
+        ttk.Label(frm, justify="left", wraplength=470,
+                  text="Every source, then everything derived from it, in dependency order: the sheets "
+                       "(one per declared league), the time-travel packs that are behind, the app "
+                       "bundle and the app's own copy. It publishes nothing.\n"
+                       "ONE session owns the DB - close the other one first, or you meet on the write "
+                       "lock.").pack(anchor="w", pady=(0, 10))
+
+        cost = {phase.key: sum(step.minutes for step in update.plan((phase.key,)))
+                for phase in update.PHASES}
+        picked: dict[str, tk.BooleanVar] = {}
+        for phase in update.PHASES:
+            var = tk.BooleanVar(value=True)
+            picked[phase.key] = var
+            row = ttk.Frame(frm)
+            row.pack(fill="x")
+            box = ttk.Checkbutton(row, text=phase.title, variable=var,
+                                  command=lambda: _retotal())
+            box.pack(side="left")
+            ttk.Label(row, text=f"~{update.hours(cost[phase.key])}",
+                      style="CardMuted.TLabel").pack(side="right")
+            Tooltip(box, phase.why)
+
+        foot = ttk.Frame(frm)
+        foot.pack(fill="x", pady=(10, 0))
+        total = tk.StringVar()
+        ttk.Label(foot, textvariable=total, style="CardMuted.TLabel").pack(side="left")
+
+        out: dict = {}
+
+        def confirm(plan_only: bool) -> None:
+            chosen = tuple(key for key in update.PHASE_KEYS if picked[key].get())
+            if not chosen:
+                return          # nothing to run: the dialog stays open rather than starting a no-op
+            out["phases"] = chosen
+            out["plan_only"] = plan_only
+            dlg.destroy()
+
+        def preset(keys) -> None:
+            for key, var in picked.items():
+                var.set(key in keys)
+            _retotal()
+
+        def _retotal() -> None:
+            minutes = sum(cost[key] for key, var in picked.items() if var.get())
+            total.set(f"total ~{update.hours(minutes)}" if minutes else "nothing selected")
+            run.configure(text=f"Run  (~{update.hours(minutes)})" if minutes else "Run")
+
+        buttons = ttk.Frame(frm)
+        buttons.pack(fill="x", pady=(10, 0))
+        ttk.Button(buttons, text="Cancel", command=dlg.destroy).pack(side="right")
+        run = ttk.Button(buttons, text="Run", command=lambda: confirm(False))
+        run.pack(side="right", padx=(6, 6))
+        ttk.Button(buttons, text="Show the plan",
+                   command=lambda: confirm(True)).pack(side="right")
+        ttk.Button(buttons, text="everything", width=11,
+                   command=lambda: preset(update.PHASE_KEYS)).pack(side="left")
+        ttk.Button(buttons, text="offline only", width=12,
+                   command=lambda: preset([key for key in update.PHASE_KEYS
+                                           if key != "acquire"])).pack(side="left", padx=(6, 0))
+        _retotal()
+        dlg.wait_window()
+        return out or None
+
     # Operations that ask for options before running: command -> dialog method name.
     DIALOGS: ClassVar[dict[str, str]] = {"ratings": "_ratings_dialog",
                                          "positions": "_positions_dialog",
                                          "injuries": "_injuries_dialog",
-                                         "snapshot": "_snapshot_dialog"}
+                                         "snapshot": "_snapshot_dialog",
+                                         "update": "_update_dialog"}
 
     @staticmethod
     def _follow_ups(command: str, params: dict) -> tuple[str, ...]:
@@ -8890,7 +8996,7 @@ class ToolkitGUI:
             while True:
                 item = self.log_queue.get_nowait()
                 if item == "__DONE__":
-                    built_snapshot = self._running == "snapshot"
+                    built_snapshot = self._running in ("snapshot", "update")
                     self._set_busy(False)
                     self._refresh_all(built_snapshot=built_snapshot)
                     self.snapshot.building(False)

@@ -41,7 +41,12 @@ PIPELINE: tuple[str, ...] = (
 # richiama il motore a una data passata e ne impacchetta il risultato per il viaggio nel tempo dell'app.
 # `zeros` e' la terza armatura di misura, e la ragione per cui non e' dentro `backtest` sta nel suo
 # docstring: il gate prepara le finestre senza lega, quindi lo zero non lo vede affatto.
-STANDALONE: tuple[str, ...] = ("fetch", "rebuild", "bootstrap", "backtest", "sweep", "estimates", "zeros",
+# `update` sta qui e non nella PIPELINE per la stessa ragione di `snapshot`: non produce una tabella.
+# E' l'ORDINE di un aggiornamento completo, eseguibile - acquisizione (il piano di `bootstrap`, con i
+# refresh accesi), derivazioni offline, un foglio per lega dichiarata, i pacchetti del viaggio nel tempo,
+# il bundle e la copia locale dell'app. Un ordine che si ricorda e' un ordine che si sbaglia, e sbagliarlo
+# non da' errore: da' fogli costruiti su un input vecchio.
+STANDALONE: tuple[str, ...] = ("fetch", "rebuild", "bootstrap", "update", "backtest", "sweep", "estimates", "zeros",
                               "export", "snapshot", "timepack")
 
 ALL_MODULES: tuple[str, ...] = STANDALONE + PIPELINE

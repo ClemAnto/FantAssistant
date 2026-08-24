@@ -54,6 +54,10 @@ def test_every_option_the_parser_accepts_REACHES_the_module():
         "market": ("limit", "refresh", "all_seasons"),
         "press": ("sheet", "against", "fetch_duels", "source", "observed_on"),
         "zeros": ("platform", "game"),
+        # `update` ne dichiara sette e ognuna cambia COSA GIRA: --plan e --offline decidono se e cosa,
+        # --phase/--from/--to/--skip quali passi, --season quante stagioni di listone, --no-refresh se
+        # i layer volatili si rileggono. Una scartata qui e' una corsa di ore diversa da quella chiesta.
+        "update": ("plan", "offline", "phase", "steps_from", "steps_to", "skip", "refresh"),
     }
     for command, options in wanted.items():
         head = 'args.command == "' + command + '":'

@@ -495,6 +495,80 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.64 (20 agosto 2026 — UN TASTO per l'aggiornamento, e l'ordine che stava in tre posti non eseguibili)
+
+**Richiesta dell'operatore**: «metti un tasto nel toolkit che fa tutto questo», dopo aver chiesto quale
+fosse la procedura per aggiornare i dati dell'app e del toolkit. La procedura esisteva e **non era
+eseguibile da nessuna parte**: stava in questa spec («Dipendenze e ri-derivazioni»), nel docstring di
+`bootstrap` e nella memoria di chi aveva letto l'una o l'altro. Un ordine che si ricorda è un ordine che
+prima o poi si sbaglia, e sbagliarlo **non dà errore**: dà fogli costruiti su un input vecchio, che è
+esattamente il difetto già pagato con `mv_synth` stantio (gli arrivi lavoravano su un terzo del loro
+input) e con «una catena che alimenta una catena va rifatta come catena».
+
+**`modules/update.py`** — nessun passo nuovo: i passi che già esistono, in SEI FASI dichiarate, ognuna col
+suo costo, e `--plan` che le stampa senza toccare niente.
+
+| fase | cosa | costo misurato |
+|---|---|---|
+| `acquire` | ogni fonte, in ordine di dipendenza, rileggendo quello che cambia | ~21h33 |
+| `derive` | `stats.derive_from_ratings` → `matchdays` → `synth` → `arrivals` → `validate` | ~13 min |
+| `sheets` | un foglio per LEGA DICHIARATA (`snapshot --league NAME`) | ~24 min |
+| `packs` | `timepack`: costruisce le date mancanti, **rifà solo quelle indietro di revisione** | ~20 min |
+| `bundle` | `export` | ~3 min |
+| `app` | `npm run data:pull` — la copia LOCALE, mai la pubblicazione | ~1 min |
+
+CLI: `update [--plan] [--offline] [--phase NAME] [--from/--to/--skip STEP] [--season] [--no-refresh]`.
+Pannello: card **«EVERYTHING, IN ORDER»** con un bottone che apre un dialogo dove le fasi sono caselle col
+proprio costo, il tasto Run porta il TOTALE nella sua etichetta (`Run (~22h34)`), due preset
+(«everything» / «offline only») e «Show the plan», che stampa nel log lo stesso piano della CLI.
+
+### Cinque decisioni, e ognuna è una regola di casa applicata
+- **L'acquisizione non è ridefinita: è `bootstrap.plan(refresh=True)`.** Due liste dello stesso ordine
+  divergono, e la prima a sbagliare sarebbe quella che il bottone lancia. Un test lo tiene: se qualcuno
+  ricopia la lista di `bootstrap` dentro `update` per aggiungerci un passo, quel test cade — che è
+  esattamente il momento in cui deve cadere.
+- **`refresh` è la differenza fra le due domande**, e vale solo dove la FONTE si muove: `positions:season`,
+  `:roles`, `:extra`, `transfers`, `fixtures`, `injuries:ids`, `injuries`, `market`, `performance`. NON
+  sui fatti FINITI (una giornata giocata, uno stemma, un torneo disputato, la heatmap di una stagione
+  chiusa): là un refresh ricosterebbe tutto il download senza poter portare una riga nuova. Il test
+  asserisce **entrambe** le metà.
+- **`rebuild` NON è una fase.** Droppa tutte le tabelle e la sua catena offline non copre `recent_form`,
+  `performance` e `fixtures`: dentro un aggiornamento svuoterebbe tre tabelle per rimetterne due. Serve
+  quando cambia lo SCHEMA, ed è una scelta esplicita — seguita da quei tre moduli, che leggono la cache
+  e non costano rete.
+- **La PUBBLICAZIONE non è una fase.** `npm run deploy:pages` fa un push su un branch PUBBLICO: è
+  un'azione verso fuori e non entra in un bottone che dice «aggiorna». Un test guarda l'unico passo che
+  esce in shell e chiede che il comando sia `npm run data:pull` e nient'altro.
+- **Un fallimento non ferma la corsa, la SOMMA sì.** Fermarsi al primo intoppo significa che una notte di
+  download non produce niente; quindi ogni passo che cade viene preso, nominato e portato nel riepilogo -
+  con l'eccezione dell'acquisizione, abbandonata dopo **tre rifiuti di fila** («una passata che comincia a
+  farsi rifiutare è una passata da abbandonare», 17/08). E il riepilogo dice la conseguenza che nessuno
+  vedrebbe: **`export` prende il foglio PIÙ RECENTE per lega**, quindi una lega il cui foglio è fallito
+  viaggia comunque nel bundle, con i numeri di ieri sotto la data di oggi.
+
+### Quello che il lavoro ha trovato, e che il tasto non aveva chiesto
+- **`bootstrap` non acquisiva tutto.** Al suo piano mancavano SETTE passi: `market`, `performance`,
+  `fixtures`, `positions:roles`, `positions:extra`, `positions:heatmap`, `positions:crests`. Una macchina
+  partita da zero restava senza curva dei valori, senza `tm_appearances`, senza calendari, **senza il
+  ruolo granulare** (e quindi senza poter disegnare una board) e senza stemmi. Ora sono nel piano, con la
+  ragione per cui non possono stare più su: 22 passi, ~21h33.
+- **`timepack.outdated`** — UNA definizione di «questo pacchetto è indietro», letta da `--plan` (che lo
+  scrive per data) e da `update` (che rifà esattamente quelle). Prima la decisione era una condizione
+  scritta due volte, e un manifest illeggibile non contava affatto: ora conta come indietro, per la stessa
+  ragione per cui un campo assente non è «aggiornato». Oggi tutte e quattro le date sono a 29 contro 36.
+- **La card sfondava la colonna, misurato.** Messa PRIMA, «Everything, in order» porta la colonna sinistra
+  a **669px contro i 664** che una finestra massimizzata le dà: l'ultimo bottone tagliato, cioè il difetto
+  «sotto la piega» che le due colonne esistono per evitare. Messa TERZA nella tupla, apre la SECONDA
+  colonna in cima, accanto alle metriche: 589/533, e sta. Il minsize 900x660 non basta a 589px, ma quella
+  colonna è **identica a prima** di questo lavoro (17 righe): non è una regressione, è una soglia che il
+  pannello già superava.
+- **`validate` falliva già.** Sul DB di oggi la catena offline gira intera e `validate` cade su
+  `tm_appearances.yellows` e `.reds`, **interamente NULL su 2.047.508 righe** — e `performance.py` le legge
+  dal payload (`cards.yellowCards` / `redCards`). Riprodotto lanciando `validate` da solo: preesistente,
+  nessuno dei due file è stato toccato qui. È una riga del riepilogo e non un allarme del tasto, ma va
+  guardata: o la fonte non le porta a quel livello e allora è un `ALLOWED_EMPTY` dichiarato, o il parser
+  legge una chiave sbagliata e sono due colonne da recuperare offline dalla cache.
+
 ## Novità v9.63 (20 agosto 2026 — la titolarità in UNA PAROLA, e la parola stessa definita)
 
 **Richiesta dell'operatore**: «vorrei che quando si genera lo snapshot, per ogni calciatore venga deciso se
@@ -4459,7 +4533,9 @@ ruoli granulari — non si ricalcolano affatto: sono osservazioni datate, e rifa
 
 ## Comandi
 ```
-python -m euroleghe_ingest bootstrap --plan                # NUOVA MACCHINA: piano, ordine, costo (~17 h)
+python -m euroleghe_ingest update --plan                   # TUTTO, in ordine: fasi, passi, costo (~22 h)
+python -m euroleghe_ingest update --offline                # solo il deliverable: derivazioni, fogli, pacchetti, bundle
+python -m euroleghe_ingest bootstrap --plan                # NUOVA MACCHINA: piano, ordine, costo (~21 h)
 python -m euroleghe_ingest fetch --plan                    # cosa manca qui, e il comando che lo colma
 python -m euroleghe_ingest positions                       # aggregati stagione, 5 leghe (~90 richieste)
 python -m euroleghe_ingest positions --layer match         # layer per-partita, club del perimetro (ore)

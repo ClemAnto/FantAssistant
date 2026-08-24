@@ -60,8 +60,19 @@ class Step:
     optional: bool = False
 
 
-def plan(seasons: tuple[str, ...] | None = None) -> tuple[Step, ...]:
-    """The acquisition order. Each step's comment says why it cannot move earlier."""
+def plan(seasons: tuple[str, ...] | None = None, *,
+         refresh: bool = False) -> tuple[Step, ...]:
+    """The acquisition order. Each step's comment says why it cannot move earlier.
+
+    ONE definition, read by two commands with two different questions: `bootstrap` fills an empty cache,
+    `update` re-reads what has changed since it was written. `refresh=True` is that difference, and it is
+    set on the steps whose SOURCE moves - today's squad page, an August friendly, a postponed fixture, a
+    market value, a season aggregate mid-season - because on those a cache without an expiry is a freeze
+    and not a saving (09/08/2026: the extra layer sat at 28/07 for every club, in the very window that
+    layer exists for). It is deliberately NOT set where the fact is FINISHED: a played round's incidents,
+    a club's badge, a tournament already played, the votes of a matchday already in the table -
+    re-downloading those buys nothing and costs the whole run again.
+    """
     listone_seasons = list(seasons) if seasons else None
     return (
         Step("inbox", "fetch", optional=True, minutes=1,
@@ -80,13 +91,29 @@ def plan(seasons: tuple[str, ...] | None = None) -> tuple[Step, ...]:
              params={"platform": "euro", "seasons": listone_seasons},
              why="the euro platform: the FM/Mv TARGET, on its own calendar"),
         Step("positions:season", "positions", minutes=10,
-             params={"layer": "season"},
+             params={"layer": "season", "refresh": refresh},
              why="SofaScore season facts for the 5 leagues -> external_stats, player_xref, and the "
                  "league of every club (which the euro listone does not carry)"),
-        Step("transfers", "transfers", minutes=20,
-             why="club ids, coach spells (new_coach) and the transfer market with fees"),
+        Step("positions:roles", "positions", minutes=5,
+             params={"layer": "roles", "refresh": refresh},
+             why="the GRANULAR real role (GK | DL DC DR | DM | ML MC MR | AM | LW RW | ST) plus the "
+                 "preferred foot, one request per club. The only thing that separates a left back from "
+                 "a centre back - `role_classic` calls both D - so the boards cannot be drawn without "
+                 "it. ALWAYS re-read: the provider accepts a seasonId and ignores it, so this is an "
+                 "observation of TODAY and is stored dated"),
+        Step("positions:crests", "positions", minutes=3,
+             params={"layer": "crests"},
+             why="the clubs' badges plus the index that says which file is whose - the app draws them. "
+                 "A badge is a FINISHED fact, so it is never re-downloaded"),
+        Step("transfers", "transfers", minutes=20, params={"refresh": refresh},
+             why="club ids, coach spells (new_coach) and the transfer market with fees. RE-READ on an "
+                 "update: the summer market is exactly what a cached July page does not have"),
         Step("elo", "elo", minutes=1,
              why="ClubElo: one request per auction date, every club in Europe"),
+        Step("fixtures", "fixtures", minutes=5, params={"refresh": refresh},
+             why="each club's upcoming matches -> `fixtures`, which feeds the sheet's easy-matches count "
+                 "and the calendar margin. RE-READ on an update: a postponement moves a match by weeks, "
+                 "and the unit here is the MATCH and never the matchday"),
         Step("fc_site", "fc_site", minutes=1,
              why="today's probabili/indisponibili snapshot + the revealed penalty hierarchy. Its HISTORY "
                  "cannot be backfilled and is deliberately NOT scheduled (operator, 05/08/2026): re-run it "
@@ -101,12 +128,33 @@ def plan(seasons: tuple[str, ...] | None = None) -> tuple[Step, ...]:
              params={"layer": "complete"},
              why="the matches the perimeter filter skipped: without it a non-perimeter club is "
                  "measured on its hardest half only (bias 0.05 to 0.22 of FM-equivalent)"),
+        Step("positions:extra", "positions", minutes=20,
+             params={"layer": "extra", "days": 1100, "refresh": refresh},
+             why="the matches no league calendar holds - pre-season friendlies, cups, continental ties - "
+                 "which in July is what the last-ten window is MADE of. `days=1100` reaches three "
+                 "seasons: the listing is paginated 30 events at a time, and the 150-day default was the "
+                 "flag the dispatcher used to drop (797 events instead of the thousands intended)"),
+        Step("positions:heatmap", "positions", minutes=120,
+             params={"layer": "heatmap"},
+             why="avg_x/avg_y per player-season, one request each: the cloud that names a flank better "
+                 "than the code does (97.9% against 93.9%). Fills the GAPS only and is never refreshed - "
+                 "a season's cloud is finished when the season is, and the one in progress is "
+                 "deliberately not read (a sheet takes the heatmap from the season BEFORE)"),
         Step("injuries:ids", "injuries", minutes=25,
-             params={"layer": "ids"},
+             params={"layer": "ids", "refresh": refresh},
              why="Transfermarkt squad pages: player ids + the contract-expiry snapshot"),
         Step("injuries", "injuries", minutes=180,
-             params={"layer": "injuries"},
+             params={"layer": "injuries", "refresh": refresh},
              why="THE OTHER LONG ONE: the injury history, one request per player. Resumable"),
+        Step("market", "market", minutes=60, params={"refresh": refresh},
+             why="the market-value CURVE per player from Transfermarkt's own JSON - every change with "
+                 "its date. AFTER injuries:ids, because the tm ids are its. RE-READ on an update: the "
+                 "curve moves at every salient event, and what an auction reads is its last point on or "
+                 "before the auction day"),
+        Step("performance", "performance", minutes=50, params={"refresh": refresh},
+             why="Transfermarkt's per-match layer -> tm_appearances: the competition of every match, the "
+                 "minutes, and whether it was a NATIONAL-team game. Same tm ids, same reason to re-read "
+                 "- its own docstring says a file downloaded yesterday is short by construction"),
         Step("recent_form", "recent_form", minutes=90,
              params={},
              why="the last matches of the players with no history (the ones an auction overpays)"),

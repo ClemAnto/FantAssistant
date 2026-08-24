@@ -73,6 +73,9 @@ MONO = "Consolas"
 # ---------------------------------------------------------------- icons
 # One glyph per operation. Read as: what the step DOES, not which site it comes from.
 OPERATION_ICONS: dict[str, str] = {
+    # NOT the same arrow as `rebuild`: one replays the cache into the DB, the other walks every source
+    # and ends at the bundle the app reads. Two glyphs, because they are two different nights.
+    "update": "⟳",
     "initdb": "▣",
     "rebuild": "↻",
     "bootstrap": "⏻",
