@@ -304,6 +304,76 @@ press --sheet data/reports/auction-snapshot-...    # giudica le board di quel fo
 - Report: `data/reports/press_comparison.json`. Un test blocca la riproduzione del confronto
   archiviato dell'08/08 (9/5/6, 160/220).
 
+## 5-quater. IL TERZO GIUDICE: la giornata GIÀ GIOCATA (`--against round`, 24/08/2026)
+
+`press` aveva due giudici e nessuno dei due parla quando serve. La **stampa** è una previsione di altri,
+e c'è; l'**esito** è quello che i club hanno fatto davvero — nessuna opinione, contato nel vocabolario a
+tre linee delle board — ma esiste solo a stagione finita, quindi vuole un foglio retrodatato. Fra
+l'asta di agosto e maggio non c'è niente. Il terzo giudice è l'esito **ristretto alle giornate già
+giocate**: stessa prova, stessa aritmetica, stesso null, disponibile dal primo fine settimana.
+
+`press --sheet DIR --against round --round N` (ripetibile). Un club che ha giocato più di una delle
+giornate scelte è giudicato sull'**ultima**, e la voce porta la **data**: l'unità è la PARTITA e mai la
+giornata, così un rinvio si vede invece di essere mediato. Il verdetto sul modulo si dà sulla
+`board_shape` e non sulla figura disegnata, per la stessa ragione dell'esito: `club_match_lineups` tiene
+tre linee e un 4-2-3-1 non lo sa dire. Report: `data/reports/board_round_check.json`.
+
+**Due popolazioni, e non sono la stessa.** La FORMA è contata su ogni riga di formazione e non passa
+dall'imbuto delle identità, quindi è completa; gli UOMINI passano da `player_xref`, quindi il
+denominatore sono i nomi che l'imbuto ha risolto e il report lo dice club per club (`xi_resolved`). Un
+riferimento da 10 su 11 contato come 11 ci addebiterebbe un errore che non abbiamo fatto.
+
+**Una board con meno di undici uomini non è una previsione sbagliata**, è un club il cui contingente su
+quel foglio non riesce a schierarne uno: `short_board` la conta a parte, come il null conta a parte una
+neopromossa. È servito subito — vedi Como più sotto.
+
+### Il verdetto della 1ª giornata 2026-27 (fogli del 20/08, board estratte dal CSV congelato)
+
+Serie A, 18 club su 20 (Roma-Fiorentina ancora in corso):
+
+| | board | null (stessa formazione dell'anno prima) |
+|---|---|---|
+| modulo MATCH | **9/18** | 7/18 |
+| uomini in comune | **119/186 = 64,0%** | 104/186 = 55,9% |
+
+EuroLeghe, 24 club (23 con la board piena):
+
+| | board | null |
+|---|---|---|
+| modulo MATCH | **18/23** | 16/24 |
+| uomini in comune | **147/233 = 63,1%** | 124/243 = 51,0% |
+
+**E il numero che conta di più non è quello.** Degli uomini che abbiamo disegnato e che il club NON ha
+schierato dal primo minuto, **il 37,7%** (Serie A) e **il 34,0%** (euro) è entrato lo stesso. Quindi dei
+198 uomini disegnati sul foglio Serie A, 119 hanno cominciato e **148 sono andati in campo (74,7%)** —
+che è la domanda del progetto, perché la titolarità qui è «gioca abbastanza da prendere il voto» e non
+«parte titolare». Il Milan è il caso limite e vale come esempio: 3/11 sugli undici iniziali, ma dei
+nostri otto «errori» **cinque sono entrati** (Modric 34', Rabiot 34', Bartesaghi 24', Saelemaekers 24',
+Gabbia 14') contro un undici tutto nuovo (Maignan; Gila, De Winter, Pavlovic; Chukwueze, Musah, Jashari,
+Estupiñán; Loftus-Cheek, Cissé A., Ramos G.).
+
+**UNA GIORNATA NON È UN VERDETTO**, ed è la regola di casa: nove partite, una sola estrazione di una
+forma che quel club schiererà trentotto volte, con la preparazione ancora addosso e il mercato aperto.
+Quello che si può dire è che in AGGREGATO le board battono il null su tutte e quattro le misure, di 8-12
+punti sugli uomini e di due moduli su Serie A. Si rimisura a ogni giornata con lo stesso comando.
+
+### Due difetti trovati arrivandoci, e il primo impediva la misura stessa
+
+- **`positions.perimeter_club_keys` leggeva i VOTI euro della stagione bersaglio**, che ad agosto non
+  esistono: `perimeter_club_keys('2026-27')` tornava vuoto e tutto lo strato per-partita rispondeva «no
+  euro ratings yet - perimeter unknown, skipping». Cioè le prime giornate della stagione nuova non si
+  potevano scaricare affatto, in silenzio e con exit 0. È **lo stesso difetto già trovato e curato nel
+  perimetro del FOGLIO l'08/08/2026** («The sheet's PERIMETER is the TARGET listone»), sopravvissuto un
+  modulo più in là. Curato instradandolo su `snapshot.perimeter_clubs` — una definizione sola, il listone
+  bersaglio prima e i voti come ripiego: 0 → 37 club. Il listone sa di una promozione prima che si giochi;
+  i voti di una stagione lo sanno solo dopo.
+- **Il foglio euro del 20/08 porta 5 righe del Como** contro le 29 quotate su quel listone (ogni altro
+  club ne ha 20+), e sono le cinque senza calcio misurato lì. La board del Como su euro è quindi di
+  quattro uomini e legge 0/10 — che è un fatto sul foglio, non sulla board, ed è per questo che
+  `short_board` esiste. Il DB di oggi è coerente (Como 29, `league` = serie_a, una sola riga in `clubs`),
+  quindi era uno stato transitorio di quella costruzione: da riverificare sul foglio che l'aggiornamento
+  ricostruisce.
+
 ## 6. Tre cose che il confronto dell'08/08/2026 ha esposto
 
 1. **Un trequartista di claim massimo può cadere tra le linee.** Como: Paz N. ha il claim più alto

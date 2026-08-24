@@ -354,7 +354,11 @@ own verdict does not, and cannot be used to adopt it.
   COMPUTED by the panel from `desc_level_elo` minus the club's Elo, and `row.get()` on a missing name
   returns None for every row. Conclusion drawn: «100% blind on a channel adopted the day before», which
   would have been a grave defect. Truth, once the function was called: 67 of 158 arrivals carry it, 55 of
-  the 81 among the errors. The corollary is procedural, not mnemonic: **an audit that reports a suspicious
+  the 81 among the errors. **And a module that says «skipping» is reporting a zero** (24/08/2026): the
+  per-match layer answered «no euro ratings yet - perimeter unknown, skipping» and exited 0, so the whole
+  first round of the new season could not be downloaded - and the acquisition was launched THREE times
+  before anybody called `perimeter_club_keys` and saw the empty set. The corollary is procedural, not
+  mnemonic: **an audit that reports a suspicious
   ZERO must call the function before it reports anything at all** — a uniform None is far more often a
   wrong key than a real hole. The same night produced the mirror error, applying `level_gap` outside its
   measured population (transfers) to a PROMOTED squad, which penalised eleven men for a step none of them
@@ -755,6 +759,12 @@ fantacalcio.it credentials **only** in the local `.env` (see `.env.example`). NE
 in the repository, or in logs. `.env` is in `.gitignore` and `.claudeignore`.
 **The GitHub repo is PUBLIC** (`origin` = github.com/ClemAnto/FantAssistant, branch `master`): every
 commit publishes `docs/model/` - the model knowledge base - so treat anything committed as public.
+**And an ignore rule is only as wide as its anchor** (25/08/2026): every line of the data section is
+anchored to `/data/`, so a `bundle.sqlite` written in the repository ROOT was ignored by nothing - and
+there was one. A public repo carrying paid content is one `git add -A` away from publishing it, so the
+guard is now the un-anchored `*.sqlite` / `*.db` (measured before widening it: `git ls-files '*.sqlite'
+'*.db'` = 0, so it hides nothing legitimate). The ignore is the net, not the cure: what still has to be
+found is how `export` came to write outside its own declared folder.
 
 ## The quotation is a judgement, so it goes LAST
 **Operator's rule, 04/08/2026: «utilizziamo la quotazione quando non abbiamo altre risorse oggettive».** A
@@ -1028,7 +1038,25 @@ or neither**. Guarded by 394 boards (every club x every shape of its repertoire 
 0 rows over the maximum, 0 unpaired flank codes, 0 lopsided rows. Details: spec «Novità v9.17».
 
 ## A judgement needs its NULL, and the reference decides what may be compared
-**Two judges now score the boards, and the second one is the stronger** (08/08/2026, `press` module).
+**THREE judges score the boards, and the third is the one that exists when it is useful** (24/08/2026).
+`press --against round --round N` is the OUTCOME restricted to the rounds ALREADY PLAYED: the same
+evidence, the same arithmetic and the same null as `outcome`, available from the first weekend instead
+of from May. The press is a forecast by other people; the outcome needs a finished season and therefore
+a back-dated sheet; between an August auction and May there was nothing, and the sheet the operator buys
+from is current in exactly that gap. It is judged on the `board_shape` for `outcome`'s own reason
+(`club_match_lineups` holds three lines and cannot say 4-2-3-1), the unit is the MATCH and never the
+matchday (`real_md`, and the entry carries the date so a postponement is visible), and the SHAPE is
+complete while the MEN come through the identity funnel - so the report says, per club, how many of the
+eleven it resolved. On the 1st round of 2026-27: Serie A modules 9/18 against a null of 7/18 and men
+64,0% against 55,9%; euro 18/23 against 16/24 and 63,1% against 51,0% - four measures of four above the
+null, on NINE matches, which is not a verdict and is stated as such. Two things travel with it. **A board
+with fewer than eleven men is not a wrong forecast** but a club whose contingent on that sheet cannot
+field one (`short_board`, counted apart the way the null counts a promoted club apart) - the euro sheet
+of 20/08 carried 5 Como rows against 29 quoted. And **«is this round scored?» is asked per CLUB, never
+per round**: a round is scored from its first match, so a global flag turns every man of a match still
+being played into a MEASURED no-voto - twenty-two zeros invented by the question.
+
+**Two judges scored the boards before that, and the second one is the stronger** (08/08/2026, `press` module).
 `press --sheet DIR --against press|outcome`: the press is a FORECAST by other people and the only judge
 that exists before a ball is kicked; the OUTCOME is what the clubs actually did (the modal shape of a
 finished season and its eleven most-started men) and needs a back-dated sheet

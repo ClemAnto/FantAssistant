@@ -61,6 +61,31 @@ def build_parser() -> argparse.ArgumentParser:
     p_boot.add_argument("--season", action="append", metavar="YYYY-YY",
                         help="limit the votes/listone download to these seasons (repeatable)")
 
+    # The whole update, in dependency order. Same vocabulary as `bootstrap` (--plan / --from / --to /
+    # --skip) because it CONTAINS bootstrap's own plan: one order, two questions.
+    p_upd = sub.add_parser("update", help=load("update").DESCRIPTION)
+    p_upd.add_argument("--plan", action="store_true",
+                       help="print the plan - phases, steps, cost, and what each action would do "
+                            "here - and touch nothing")
+    p_upd.add_argument("--offline", action="store_true",
+                       help="skip the ACQUISITION phase: re-derive, rebuild the sheets and the packs, "
+                            "write the bundle. The common case after a code change, when the data is "
+                            "fine and only the deliverable is stale")
+    p_upd.add_argument("--phase", action="append", metavar="NAME",
+                       choices=list(load("update").PHASE_KEYS),
+                       help="only these phases, in the declared order (repeatable): "
+                            + ", ".join(load("update").PHASE_KEYS))
+    p_upd.add_argument("--from", dest="steps_from", metavar="STEP",
+                       help="start from this step (see --plan for the names)")
+    p_upd.add_argument("--to", dest="steps_to", metavar="STEP", help="stop after this step")
+    p_upd.add_argument("--skip", action="append", metavar="STEP", default=[],
+                       help="skip a step (repeatable)")
+    p_upd.add_argument("--season", action="append", metavar="YYYY-YY",
+                       help="limit the votes/listone download to these seasons (repeatable)")
+    p_upd.add_argument("--no-refresh", dest="refresh", action="store_false",
+                       help="do not re-read the layers whose source moves (friendlies, fixtures, squad "
+                            "pages, market values): faster, and it fills gaps only")
+
     # Gate harness: read-only on the DB, writes only a report under data/reports/.
     p_backtest = sub.add_parser("backtest", help=load("backtest").DESCRIPTION)
     p_backtest.add_argument("--window", action="append", choices=list(ALL_WINDOWS),
@@ -317,12 +342,19 @@ def build_parser() -> argparse.ArgumentParser:
             p.add_argument("--fetch-duels", dest="fetch_duels", metavar="URL",
                            help="scarica un articolo di ballottaggi (le «squadre-tipo» di Transfermarkt), "
                                 "lo parsa e lo importa come riferimento datato. Serve --season")
-            p.add_argument("--against", choices=["press", "outcome", "duels"], default="press",
+            p.add_argument("--against", choices=["press", "outcome", "duels", "round"],
+                           default="press",
                            help="which judge: 'press' = the stored forecast for the season being "
                                 "auctioned; 'outcome' = what the clubs ACTUALLY did, which needs a "
                                 "back-dated sheet (snapshot --season 2025-26 --date 2025-08-15) and "
                                 "is the stronger evidence - nobody's opinion, and counted in the same "
-                                "vocabulary as the boards")
+                                "vocabulary as the boards; 'round' = the same evidence over the "
+                                "rounds ALREADY PLAYED of the season being auctioned (--round N), "
+                                "the only outcome judge that exists while the sheet is still current")
+            p.add_argument("--round", dest="rounds", action="append", type=int, metavar="N",
+                           help="with --against round: which real matchday(s) to judge on "
+                                "(repeatable; default 1). A club that played more than one is judged "
+                                "on its last")
             p.add_argument("--no-report", dest="report", action="store_false",
                            help="print only, do not write data/reports/press_comparison.json")
         if name == "injuries":
@@ -447,6 +479,12 @@ def main(argv: list[str] | None = None) -> int:
                                      date=args.date, clubs=args.club, league=args.league,
                                      keep_departed=args.keep_departed,
                                      listone_only=args.listone_only)
+            elif args.command == "update":
+                load("update").run(ctx, plan_only=args.plan, offline=args.offline,
+                                   phases=tuple(args.phase) if args.phase else None,
+                                   steps_from=args.steps_from, steps_to=args.steps_to,
+                                   skip=tuple(args.skip), seasons=args.season,
+                                   refresh=args.refresh)
             elif args.command == "timepack":
                 load("timepack").run(ctx, date=args.date, plan=args.plan,
                                      build_all=args.build_all, refresh=args.refresh)
@@ -459,7 +497,7 @@ def main(argv: list[str] | None = None) -> int:
                 load("press").run(ctx, import_files=args.import_files, season=args.season,
                                   source=args.source, observed_on=args.observed_on,
                                   sheet=args.sheet, against=args.against, report=args.report,
-                                  fetch_duels=args.fetch_duels)
+                                  fetch_duels=args.fetch_duels, rounds=args.rounds)
             elif args.command == "sweep":
                 load("sweep").run(ctx, windows=args.window, platforms=args.platform,
                                   games=args.game, report=args.report)

@@ -109,8 +109,14 @@ def test_compare_verdicts_and_name_matching(tmp_path):
     assert "Unknown D" in by_club["Hellas Verona"]["only_ours"]
     # the initial is dropped, the surname token joins: 'De Ketelaere C.' finds 'De Ketelaere'
     assert "De Ketelaere" not in by_club["Atalanta"]["only_press"]
-    assert summary == {"judged_on": "picture", "clubs": 2, "no_board": 0, "module_match": 0,
-                       "module_alt": 1, "module_diff": 1, "xi_shared": 12, "xi_of": 22}
+    # `short_board` counts the boards that drew FEWER THAN ELEVEN men - here Atalanta's two. That is a
+    # club whose contingent on the sheet cannot field an eleven, not a wrong forecast, so it is
+    # reported apart instead of being scored as a miss (the euro sheet of 20/08/2026 carried 5 Como
+    # rows against 29 quoted, and a 0-of-10 there would have been a fact about the sheet).
+    assert by_club["Atalanta"]["our_xi"] == 2 and by_club["Hellas Verona"]["our_xi"] == 11
+    assert summary == {"judged_on": "picture", "clubs": 2, "no_board": 0, "short_board": 1,
+                       "module_match": 0, "module_alt": 1, "module_diff": 1,
+                       "xi_shared": 12, "xi_of": 22}
 
 
 def test_the_verdict_is_given_on_the_shape_the_reference_can_express(tmp_path):
@@ -401,3 +407,85 @@ def test_an_empty_reading_does_not_displace_a_full_one():
     conn.execute("INSERT INTO press_formations VALUES ('Napoli', '2026-27', '2026-08-18', 'press',"
                  " NULL, '3-4-3', NULL, '{\"ATT\": [\"Lucca\"]}', NULL, NULL)")
     assert next(iter(press.load_reference(conn, "2026-27").values()))["module"] == "3-4-3"
+
+# ---------- the round judge (24/08/2026) ----------
+def _one_round(ctx, *, score_only=("Inter",)):
+    """Two clubs, one played round, and only SOME of them scored by the platform's voti.
+
+    That asymmetry is the whole point: a round is «scored» from its first match, so a club still
+    playing must leave the voto UNKNOWN instead of reading as a measured no-voto.
+    """
+    conn = ctx.conn
+    conn.execute("INSERT INTO clubs(fc_club_id, canonical_name) VALUES (1, 'Inter')")
+    conn.execute("INSERT INTO clubs(fc_club_id, canonical_name) VALUES (2, 'Milan')")
+    for fc_id, name, club in ((10, "Lautaro Martinez", 1), (11, "Barella", 1),
+                              (20, "Leao", 2), (21, "Modric", 2)):
+        conn.execute("INSERT INTO players(fc_id, canonical_name) VALUES (?, ?)", (fc_id, name))
+        conn.execute("INSERT INTO rosters(fc_id, season, fc_club_id) VALUES (?, '2026-27', ?)",
+                     (fc_id, club))
+        conn.execute("INSERT INTO player_xref(fc_id, source, source_id) VALUES (?, 'sofascore', ?)",
+                     (fc_id, str(fc_id)))
+    for match_id, club, back, middle, front in (("m1", "Inter", 3, 5, 2), ("m1", "Torino", 3, 4, 3),
+                                                ("m2", "AC Milan", 4, 3, 3), ("m2", "Lazio", 4, 5, 1)):
+        conn.execute(
+            """INSERT INTO club_match_lineups(season, source, match_id, club, competition, real_md,
+                                              match_date, starters, goalkeepers, defenders,
+                                              midfielders, forwards)
+               VALUES ('2026-27', 'sofascore', ?, ?, 'serie_a', 1, '2026-08-22', 11, 1, ?, ?, ?)""",
+            (match_id, club, back, middle, front))
+    for fc_id, match_id, club, started, minutes in ((10, "m1", "Inter", 1, 90), (11, "m1", "Inter", 0, 0),
+                                                    (20, "m2", "AC Milan", 1, 76),
+                                                    (21, "m2", "AC Milan", 0, 14)):
+        conn.execute(
+            """INSERT INTO external_match_stats(fc_id, season, source, match_id, competition,
+                                                real_md, match_date, club, started, minutes)
+               VALUES (?, '2026-27', 'sofascore', ?, 'serie_a', 1, '2026-08-22', ?, ?, ?)""",
+            (fc_id, match_id, club, started, minutes))
+    # only the clubs in `score_only` have their voti published for the round
+    for fc_id, team, status in ((10, "Inter", "played"), (11, "Inter", "no_vote"),
+                                (20, "Milan", "played"), (21, "Milan", "no_vote")):
+        if team in score_only:
+            conn.execute(
+                """INSERT INTO match_ratings(fc_id, season, matchday, platform, team, status)
+                   VALUES (?, '2026-27', 1, 'default', ?, ?)""", (fc_id, team, status))
+    conn.commit()
+
+
+def test_the_round_reference_reads_the_eleven_that_was_actually_fielded(tmp_path):
+    """The judge that exists from the first weekend: the shape off `club_match_lineups` (three lines,
+    so the verdict is given on the board and never on the drawn picture) and the starters off the
+    per-match layer."""
+    ctx = _ctx(tmp_path)
+    _one_round(ctx)
+    reference = press.round_reference(ctx.conn, "2026-27", rounds=(1,))
+    assert set(reference) == {"inter", "milan"}
+    inter = reference["inter"]
+    assert inter["module"] == "3-5-2" and inter["observed_on"] == "2026-08-22"
+    assert inter["xi"]["XI"] == ["Lautaro Martinez"] and inter["xi_resolved"] == 1
+    assert reference["milan"]["module"] == "4-3-3"
+
+
+def test_a_round_that_is_scored_for_one_club_leaves_the_other_unknown(tmp_path):
+    """«Vuoto = ignoto, mai zero», applied to a judgement. A global «is round 1 scored?» flag turns
+    every man of a match still being played into a measured no-voto - twenty-two zeros invented by
+    the question - so the answer is asked per CLUB."""
+    ctx = _ctx(tmp_path)
+    _one_round(ctx, score_only=("Inter",))
+    sheet = tmp_path / "sheet"
+    sheet.mkdir()
+    (sheet / "players.csv").write_text(
+        "fc_id,name,club,desc_titolarita,desc_titolarita_play\n"
+        "10,Lautaro Martinez,Inter,bandiera,0.9\n"
+        "11,Barella,Inter,titolare,0.8\n"
+        "20,Leao,Milan,bandiera,0.9\n"
+        "21,Modric,Milan,ballottaggio,0.5\n", encoding="utf-8")
+    verdict = press.judge_ladder(ctx.conn, sheet, "2026-27", "default", rounds=(1,))
+    assert verdict["n"] == 4 and verdict["clubs_played"] == 2
+    # Inter is scored: one voto of two. Milan is not: nobody of it counts toward the voto denominator.
+    assert verdict["voto_known"] == 2
+    assert verdict["base"]["voto"] == 1 and verdict["base"]["voto_of"] == 2
+    # ...and STARTING is known for all four, because it comes from the lineups and not from the voti
+    assert verdict["base"]["started"] == 2 and verdict["base"]["n"] == 4
+    milan = [one for one in verdict["detail"] if one["club"] == "Milan"]
+    assert all(one["voto"] is None for one in milan)
+    assert {one["name"] for one in milan if one["minutes"] > 0} == {"Leao", "Modric"}

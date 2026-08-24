@@ -333,6 +333,70 @@ def outcome_reference(conn, season: str, clubs: list[str] | None = None,
     return out
 
 
+def round_reference(conn, season: str, rounds: tuple[int, ...] = (1,),
+                    clubs: list[str] | None = None) -> dict[str, dict]:
+    """THE JUDGE THAT ARRIVES FIRST: the elevens actually FIELDED in the rounds already played.
+
+    Same evidence as `outcome` - what the clubs DID, nobody's opinion, counted in the provider's own
+    three lines so no 4-2-3-1 translation muddies it - restricted to a window that exists from the
+    first weekend. That is the whole point: `outcome` needs a finished season and therefore a
+    back-dated sheet, the press is a forecast, and neither can tell you in August whether the board
+    you are about to buy from is right. This one can, one round after the ball starts rolling.
+
+    Read it for what it is, and the limits are the measurement: ONE round is one draw of a shape a
+    club will field thirty-eight times, so a DIFF here is not yet a wrong board - a suspension, a
+    knock or a European tie three days later moves an eleven without moving a habit. What a single
+    round can say is where the boards agree with reality in AGGREGATE, and against the same null
+    every other judge here carries.
+
+    The unit is the MATCH and never the matchday: `rounds` selects `real_md`, and the entry records
+    the DATE the match was played, so a postponement is visible instead of being averaged in. A club
+    that played more than one of the selected rounds is judged on its LAST one.
+
+    Two populations, and they are not the same: the SHAPE is counted off `club_match_lineups`, which
+    is built over every lineup entry and needs no identity, while the MEN come through
+    `player_xref` - so the shape verdict is complete and the men verdict is over the names the
+    identity funnel resolved. `xi_resolved` says how many of the eleven that is, per club, because a
+    10/11 reference silently scored as 11 would credit us with a miss.
+    """
+    from euroleghe_ingest import config
+    from euroleghe_ingest.modules.snapshot import lineup_spellings
+
+    holes = ",".join("?" * len(config.CHAMPIONSHIPS))
+    round_holes = ",".join("?" * len(rounds))
+    wanted = clubs or [row[0] for row in conn.execute(
+        """SELECT DISTINCT c.canonical_name FROM rosters r JOIN clubs c USING(fc_club_id)
+           WHERE r.season = ? AND c.canonical_name IS NOT NULL ORDER BY 1""", (season,))]
+    spellings = lineup_spellings(conn, lambda name: (club_identity(name), name))
+    out: dict[str, dict] = {}
+    for club in wanted:
+        mine = spellings.get(club_identity(club), [club])
+        club_holes = ",".join("?" * len(mine))
+        played = conn.execute(
+            f"""SELECT match_id, club, competition, real_md, match_date,
+                       defenders, midfielders, forwards
+                FROM club_match_lineups
+                WHERE season = ? AND club IN ({club_holes}) AND real_md IN ({round_holes})
+                  AND competition IN ({holes})
+                  AND starters = 11 AND goalkeepers + defenders + midfielders + forwards = 11
+                ORDER BY match_date DESC, real_md DESC LIMIT 1""",
+            (season, *mine, *rounds, *config.CHAMPIONSHIPS)).fetchone()
+        if not played:
+            continue
+        match_id, spelling, competition, real_md, match_date, back, middle, front = played
+        starters = [name for name, in conn.execute(
+            """SELECT p.canonical_name FROM external_match_stats e JOIN players p USING(fc_id)
+               WHERE e.season = ? AND e.match_id = ? AND e.club = ? AND e.started = 1
+               ORDER BY COALESCE(e.minutes, 0) DESC""", (season, match_id, spelling))]
+        out[club_identity(club)] = {
+            "club": club, "observed_on": match_date, "source": f"round {real_md}",
+            "coach": None, "module": f"{back}-{middle}-{front}", "module_alternatives": [],
+            "xi": {"XI": starters}, "duels": [],
+            "confidence": f"{competition} md{real_md}", "xi_resolved": len(starters),
+        }
+    return out
+
+
 def null_model(conn, season: str, reference: dict[str, dict]) -> dict:
     """The baseline the outcome verdict has to beat: LAST SEASON'S answer, for the same clubs.
 
@@ -377,6 +441,179 @@ def _name_tokens(name: str) -> set[str]:
 
 def _names_match(one: str, other: str) -> bool:
     return bool(_name_tokens(one) & _name_tokens(other))
+
+
+# ---------- the LADDER against the round it predicted (24/08/2026) ----------
+# The six rungs, in the operator's own order and his own words. A rung is a claim about the APPEARANCE
+# share («gioca abbastanza da prendere il voto»), so the promise to score is the VOTO and not the team
+# sheet - the two are reported side by side because they are two quantities and the file that named
+# them says they must never be swapped.
+LADDER_RUNGS = ("bandiera", "titolarissimo", "titolare", "ballottaggio", "panchina", "riserva")
+
+
+def _round_matches(conn, season: str, rounds: tuple[int, ...]) -> dict[str, tuple]:
+    """club identity -> (match_id, the provider's spelling, competition, real_md, date) for that round.
+
+    The club-level row is the right anchor for the same reason `fielded_next` uses it: it exists even
+    for a club whose players we cannot all resolve, so «his club did not play» and «we could not
+    identify him» stay two different answers.
+    """
+    from euroleghe_ingest import config
+    from euroleghe_ingest.modules.snapshot import lineup_spellings
+
+    holes = ",".join("?" * len(config.CHAMPIONSHIPS))
+    round_holes = ",".join("?" * len(rounds))
+    spelling_of: dict[str, str] = {}
+    for identity, names in lineup_spellings(
+            conn, lambda name: (club_identity(name), name)).items():
+        for name in names:
+            spelling_of[name] = identity
+    out: dict[str, tuple] = {}
+    for match_id, club, competition, real_md, date in conn.execute(
+            f"""SELECT match_id, club, competition, real_md, match_date FROM club_match_lineups
+                WHERE season = ? AND real_md IN ({round_holes}) AND competition IN ({holes})
+                  AND starters = 11
+                ORDER BY match_date""", (season, *rounds, *config.CHAMPIONSHIPS)):
+        identity = spelling_of.get(club, club_identity(club))
+        out[identity] = (match_id, club, competition, real_md, date)
+    return out
+
+
+def judge_ladder(conn, sheet: Path, season: str, platform: str,
+                 rounds: tuple[int, ...] = (1,)) -> dict:
+    """The sheet's own titolarita ladder against the round that has now been played.
+
+    Twenty boards are twenty draws; a sheet is six hundred rows, so this is where a single round
+    carries enough evidence to say something. It scores the rung the sheet gave each man
+    (`desc_titolarita`) against what he did, and it does NOT re-derive either side: the rung is read
+    from the CSV the panel wrote before the round, the outcome from the tables the round wrote after
+    it.
+
+    TWO OUTCOMES, because «titolarita» and «who starts» are two quantities and this project has a rule
+    against swapping them. The VOTO (`match_ratings.status = 'played'`) is the one the ladder promises
+    - it is the definition of the word here - and it exists only where the platform's own calendar has
+    scored that round: on `euro` in August it does not, and the judge says so instead of substituting
+    a proxy. STARTING is the provider's `started`, available for all five leagues.
+
+    THREE ANSWERS THAT ARE NOT A ZERO, and each is counted apart rather than scored as a miss: his
+    club has not played the round (a postponement, or a league that has not started); we have no
+    provider identity for him, so his absence from a lineup is a fact about the funnel and not about
+    him; and a round the platform has not scored leaves the voto UNKNOWN rather than false.
+    «Vuoto = ignoto, mai zero», applied to a judgement instead of a column.
+    """
+    import csv
+
+    rows = list(csv.DictReader((sheet / "players.csv").open(encoding="utf-8-sig")))
+    matches = _round_matches(conn, season, rounds)
+    identified = {int(fc_id) for (fc_id,) in conn.execute(
+        "SELECT DISTINCT fc_id FROM player_xref WHERE source = 'sofascore'")}
+    # the voto is read per (platform, matchday); on `default` the platform's matchday IS the real
+    # round, on `euro` it is whatever `matchday_map` says - and in August it says nothing, which is
+    # exactly the honest answer.
+    euro_md = {real: md for md, real in conn.execute(
+        "SELECT euro_md, real_md FROM matchday_map WHERE season = ?", (season,))}
+    # ...and whether the round is scored is asked PER CLUB, never per round. A round is «scored» from
+    # its first match, so a global flag turns every man of a match still being played into a measured
+    # `no_voto` - twenty-two zeros invented by the question. `match_ratings.team` is the voti's own
+    # spelling, so the join is by identity like every other club join here.
+    scored_clubs: dict[int, set[str]] = {}
+
+    out = {"season": season, "platform": platform, "rounds": list(rounds), "sheet": sheet.name,
+           "rungs": {}, "n": 0, "no_match": 0, "unresolved": 0, "voto_known": 0}
+    on_sheet: set[str] = set()
+    buckets: dict[str, dict] = {}
+    detail: list[dict] = []
+    for row in rows:
+        fc_id = int(row["fc_id"])
+        played = matches.get(club_identity(row["club"]))
+        if not played:
+            out["no_match"] += 1
+            continue
+        match_id, spelling, _competition, real_md, date = played
+        if fc_id not in identified:
+            out["unresolved"] += 1
+            continue
+        got = conn.execute(
+            """SELECT started, COALESCE(minutes, 0) FROM external_match_stats
+               WHERE season = ? AND match_id = ? AND club = ? AND fc_id = ?""",
+            (season, match_id, spelling, fc_id)).fetchone()
+        started = bool(got and got[0])
+        minutes = int(got[1]) if got else 0
+        md = real_md if platform == "default" else euro_md.get(real_md)
+        voto = None
+        if md is not None:
+            if md not in scored_clubs:
+                scored_clubs[md] = {club_identity(team) for (team,) in conn.execute(
+                    """SELECT DISTINCT team FROM match_ratings WHERE season = ? AND platform = ?
+                       AND matchday = ? AND team IS NOT NULL""", (season, platform, md))}
+            if club_identity(row["club"]) in scored_clubs[md]:
+                said = conn.execute(
+                    """SELECT status FROM match_ratings
+                       WHERE fc_id = ? AND season = ? AND platform = ? AND matchday = ?""",
+                    (fc_id, season, platform, md)).fetchone()
+                # a man the voti of a SCORED round do not carry did not take one: without this the
+                # only men counted would be the ones who played, which scores the outcome on itself.
+                voto = bool(said and said[0] == "played")
+        out["n"] += 1
+        out["voto_known"] += voto is not None
+        on_sheet.add(club_identity(row["club"]))
+        rung = (row.get("desc_titolarita") or "").strip() or "(none)"
+        bucket = buckets.setdefault(rung, {"n": 0, "started": 0, "on_pitch": 0, "voto": 0,
+                                           "voto_of": 0, "minutes": 0})
+        bucket["n"] += 1
+        bucket["started"] += started
+        bucket["on_pitch"] += bool(minutes > 0 or started)
+        bucket["minutes"] += minutes
+        if voto is not None:
+            bucket["voto_of"] += 1
+            bucket["voto"] += voto
+        detail.append({"fc_id": fc_id, "name": row["name"], "club": row["club"], "rung": rung,
+                       "play_share": row.get("desc_titolarita_play"), "date": date,
+                       "started": started, "minutes": minutes, "voto": voto})
+    for rung, bucket in buckets.items():
+        out["rungs"][rung] = {
+            **bucket,
+            "start_rate": bucket["started"] / bucket["n"] if bucket["n"] else None,
+            "pitch_rate": bucket["on_pitch"] / bucket["n"] if bucket["n"] else None,
+            "voto_rate": bucket["voto"] / bucket["voto_of"] if bucket["voto_of"] else None,
+            "minutes_avg": bucket["minutes"] / bucket["n"] if bucket["n"] else None,
+        }
+    total = {"n": out["n"], "started": sum(b["started"] for b in buckets.values()),
+             "on_pitch": sum(b["on_pitch"] for b in buckets.values()),
+             "voto": sum(b["voto"] for b in buckets.values()),
+             "voto_of": sum(b["voto_of"] for b in buckets.values())}
+    out["base"] = {
+        **total,
+        "start_rate": total["started"] / total["n"] if total["n"] else None,
+        "pitch_rate": total["on_pitch"] / total["n"] if total["n"] else None,
+        "voto_rate": total["voto"] / total["voto_of"] if total["voto_of"] else None,
+    }
+    out["clubs_played"] = len(on_sheet)
+    out["detail"] = detail
+    return out
+
+
+def print_ladder(verdict: dict) -> None:
+    """The ladder's verdict, ordered as the ladder is - and every rate beside the sheet's own base."""
+    base = verdict["base"]
+    print(f"[press] LADDER on {verdict['clubs_played']} club(s) OF THIS SHEET that played round(s) "
+          f"{', '.join(map(str, verdict['rounds']))}: {verdict['n']} men scored"
+          f" · {verdict['no_match']} whose club has not played"
+          f" · {verdict['unresolved']} with no provider identity"
+          f" · voto known for {verdict['voto_known']}")
+    order = [rung for rung in LADDER_RUNGS if rung in verdict["rungs"]]
+    order += [rung for rung in verdict["rungs"] if rung not in order]
+    for rung in order:
+        got = verdict["rungs"][rung]
+        voto = ("     -" if got["voto_rate"] is None
+                else f"{got['voto_rate']:6.1%} ({got['voto']}/{got['voto_of']})")
+        print(f"  {rung:15s} n={got['n']:4d}  started {got['start_rate']:6.1%}"
+              f"  on the pitch {got['pitch_rate']:6.1%}  VOTO {voto}"
+              f"  minutes {got['minutes_avg']:5.1f}")
+    voto = "     -" if base["voto_rate"] is None else f"{base['voto_rate']:6.1%}"
+    print(f"  {'BASE (sheet)':15s} n={base['n']:4d}  started {base['start_rate']:6.1%}"
+          f"  on the pitch {base['pitch_rate']:6.1%}  VOTO {voto}"
+          f"   <- the null every rung has to beat")
 
 
 # The board extraction lives in `boards.py`: it has two callers with OPPOSITE needs - the judges must not
@@ -426,6 +663,11 @@ def compare(boards: dict[str, dict], reference: dict[str, dict],
                    "DIFF")
         rows.append({**base, "our_board": board["board_shape"], "our_drawn": drawn,
                      "module": verdict, "xi_shared": len(shared), "xi_of": len(press_xi),
+                     # how many men our own board actually drew. A board with fewer than eleven is not
+                     # a wrong forecast, it is a club whose CONTINGENT on this sheet cannot field one -
+                     # and scoring it as a miss would credit the reference with a defect of ours. Same
+                     # reason the null model counts a promoted club apart instead of at 0 of 11.
+                     "our_xi": len(our_names),
                      "only_press": [name for name in press_xi if name not in shared],
                      "only_ours": [ours for ours in our_names
                                    if not any(_names_match(name, ours) for name in press_xi)]})
@@ -434,6 +676,7 @@ def compare(boards: dict[str, dict], reference: dict[str, dict],
         "judged_on": on,
         "clubs": len(rows),
         "no_board": len(rows) - len(scored),
+        "short_board": sum(1 for row in scored if row.get("our_xi", 11) < 11),
         "module_match": sum(1 for row in scored if row["module"] == "MATCH"),
         "module_alt": sum(1 for row in scored if row["module"] == "ALT"),
         "module_diff": sum(1 for row in scored if row["module"] == "DIFF"),
@@ -522,7 +765,8 @@ def judge_duels(conn, boards: dict, reference: dict, season: str) -> dict:
 
 
 def compare_sheet(ctx: Context, sheet: Path, *, mode: str = "typical", source: str | None = None,
-                  against: str = "press", report: bool = True) -> dict | None:
+                  against: str = "press", report: bool = True,
+                  rounds: tuple[int, ...] = (1,)) -> dict | None:
     """The repeatable judgement: sheet folder in, per-club verdicts and one summary out.
 
     Two judges, and `against` picks one. `press` is a FORECAST by other people, available for the
@@ -535,6 +779,8 @@ def compare_sheet(ctx: Context, sheet: Path, *, mode: str = "typical", source: s
     season = manifest.get("target_season")
     if against == "outcome":
         reference = outcome_reference(ctx.conn, season)
+    elif against == "round":
+        reference = round_reference(ctx.conn, season, rounds=rounds)
     elif against == "duels":
         # IL RIFERIMENTO DEI BALLOTTAGGI HA UNA SUA FONTE, e prenderlo con `source=None` era il difetto:
         # `load_reference` restituiva l'ultima lettura QUALUNQUE - cioè le formazioni della stampa dell'08/08,
@@ -547,7 +793,9 @@ def compare_sheet(ctx: Context, sheet: Path, *, mode: str = "typical", source: s
         print(f"[press] no {against} reference for {season}"
               + (f" from source {source}" if source else "")
               + (" - import one first (press --import FILE --season ...)" if against == "press"
-                 else " - the season has no complete elevens on file"))
+                 else f" - no complete eleven on file for round(s) {', '.join(map(str, rounds))}"
+                      " (acquire it: positions --layer match --season " + str(season) + ")"
+                 if against == "round" else " - the season has no complete elevens on file"))
         return None
     # WITHOUT the operator's rulings: a ruling is often made looking at this very judge, and a
     # judge must never score the operator's own answers. The default is False; saying it here
@@ -557,7 +805,7 @@ def compare_sheet(ctx: Context, sheet: Path, *, mode: str = "typical", source: s
     # esattamente lo zero uniforme che questo progetto ha imparato a NON credere - era la chiamata.
     boards = extract_boards(ctx.config, sheet, mode=mode, apply_rulings=False,
                             with_rivals=(against == "duels"))
-    if against == "outcome":
+    if against in ("outcome", "round"):
         # the outcome reference covers every club with elevens on file (46 for 2025-26, all five
         # leagues); a sheet is one platform's perimeter, so score the intersection and say so
         wanted = {club_identity(club) for club in boards}
@@ -578,7 +826,9 @@ def compare_sheet(ctx: Context, sheet: Path, *, mode: str = "typical", source: s
                                       indent=1, ensure_ascii=False), encoding="utf-8")
             print(f"[press] report -> {out}")
         return verdict
-    on = "board" if against == "outcome" else "picture"
+    # `round` is counted off `club_match_lineups` exactly as `outcome` is - three lines, and it
+    # cannot say 4-2-3-1 at all - so it is judged on the same shape string, for the same reason.
+    on = "board" if against in ("outcome", "round") else "picture"
     rows, summary = compare(boards, reference, on=on)
     # ...and the SAME comparison on our other shape string, which quantifies how much of the
     # disagreement is VOCABULARY rather than disposition (item 6b). Not a tolerance and not a second
@@ -587,12 +837,27 @@ def compare_sheet(ctx: Context, sheet: Path, *, mode: str = "typical", source: s
     # says how many clubs sit on that difference instead of leaving it as an anecdote.
     other = "board" if on == "picture" else "picture"
     _rows_other, summary_other = compare(boards, reference, on=other)
-    null = null_model(ctx.conn, season, reference) if against == "outcome" else None
+    null = null_model(ctx.conn, season, reference) if against in ("outcome", "round") else None
+    # The boards are twenty draws of a shape; the SHEET is six hundred rows, and the round that has
+    # just been played judges both. The ladder verdict rides with the board one because it is the same
+    # reference applied to the same folder - one command, one report, and no second definition of
+    # «which round are we judging on».
+    ladder = (judge_ladder(ctx.conn, sheet, season, manifest.get("platform") or "default",
+                           rounds=rounds) if against == "round" else None)
     print(f"[press] {sheet.name} vs {len(reference)} {against} club(s):"
           f" module MATCH {summary['module_match']}, ALT {summary['module_alt']},"
           f" DIFF {summary['module_diff']}"
           + (f", NO BOARD {summary['no_board']}" if summary["no_board"] else "")
-          + f" | men {summary['xi_shared']}/{summary['xi_of']}")
+          + f" | men {summary['xi_shared']}/{summary['xi_of']}"
+          + (f" · {summary['short_board']} club(s) whose contingent on this sheet cannot field an "
+             f"eleven - a defect of the SHEET, not of the board" if summary["short_board"] else ""))
+    if against == "round":
+        short = [(entry["club"], entry.get("xi_resolved") or 0) for entry in reference.values()
+                 if (entry.get("xi_resolved") or 0) < 11]
+        print(f"[press] the SHAPE is counted off every lineup entry and is complete; the MEN come"
+              f" through the identity funnel, so the denominator is the names it resolved:"
+              f" {summary['xi_of']} of {11 * len(reference)} possible"
+              + (f" · short: {', '.join(f'{club} {got}/11' for club, got in short)}" if short else ""))
     print(f"[press] the same boards judged on the {other} instead:"
           f" MATCH {summary_other['module_match']}, ALT {summary_other['module_alt']},"
           f" DIFF {summary_other['module_diff']} - the difference is VOCABULARY, not disposition"
@@ -607,19 +872,24 @@ def compare_sheet(ctx: Context, sheet: Path, *, mode: str = "typical", source: s
         if "module" not in row:
             print(f"  {row['club']:14s} NO BOARD (press: {row['press_module']}) - {row['error']}")
             continue
+        short = "" if row.get("our_xi", 11) >= 11 else f" (our board drew {row['our_xi']})"
         print(f"  {row['club']:14s} press {row['press_module'] or '-':8s} ours {row['our_drawn'] or '-':8s}"
-              f" [{row['module']:5s}] XI {row['xi_shared']:2d}/{row['xi_of']:2d}"
+              f" [{row['module']:5s}] XI {row['xi_shared']:2d}/{row['xi_of']:2d}{short}"
               f" | press-only: {', '.join(row['only_press']) or '-'}"
               f" | ours-only: {', '.join(row['only_ours']) or '-'}")
+    if ladder:
+        print_ladder(ladder)
     payload = {
         "generated_at": dt.datetime.now(tz=dt.UTC).isoformat(timespec="seconds"),
         "sheet": sheet.name, "season": season, "mode": mode, "against": against,
+        "rounds": list(rounds) if against == "round" else None,
         "summary": summary, "summary_on_" + other: summary_other, "null_model": null,
-        "clubs": rows,
+        "ladder": ladder, "clubs": rows,
     }
     if report:
         dest = ctx.config.data_dir / "reports" / (
-            "press_comparison.json" if against == "press" else "board_outcome_check.json")
+            "press_comparison.json" if against == "press" else
+            "board_round_check.json" if against == "round" else "board_outcome_check.json")
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_text(json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8")
         print(f"[press] report -> {dest}")
@@ -629,7 +899,7 @@ def compare_sheet(ctx: Context, sheet: Path, *, mode: str = "typical", source: s
 def run(ctx: Context, *, import_files: list[str] | None = None, season: str | None = None,
         source: str | None = None, observed_on: str | None = None, sheet: str | None = None,
         against: str = "press", report: bool = True, fetch_duels: str | None = None,
-        **_kwargs) -> None:
+        rounds: tuple[int, ...] | list[int] | None = None, **_kwargs) -> None:
     if fetch_duels:
         if not season:
             raise ValueError("--fetch-duels needs the season the article predicts (--season YYYY-YY)")
@@ -650,4 +920,5 @@ def run(ctx: Context, *, import_files: list[str] | None = None, season: str | No
             print("[press] nothing to do: no archived reference under data/raw/press/. Import one "
                   "with --import FILE --season YYYY-YY, or judge a sheet with --sheet DIR.")
     if sheet:
-        compare_sheet(ctx, Path(sheet), source=source, against=against, report=report)
+        compare_sheet(ctx, Path(sheet), source=source, against=against, report=report,
+                      rounds=tuple(rounds) if rounds else (1,))

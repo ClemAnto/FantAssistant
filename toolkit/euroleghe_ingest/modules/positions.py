@@ -223,14 +223,22 @@ def download_season_stats(session, league: str, season_id: int, cancel_event=Non
 
 # ---------- per-match layer (rounds -> lineups) ----------
 def perimeter_club_keys(conn, season: str) -> set[str]:
-    """Club keys of the EuroLeghe perimeter for a season (the clubs that appear in the euro ratings).
+    """Club keys of the EuroLeghe perimeter for a season: the clubs you can actually buy from.
 
     Only their matches are worth downloading: EuroLeghe carries ~8 clubs per foreign league, so this
     cuts the per-match scrape to roughly a third of each round.
+
+    ONE DEFINITION OF THE PERIMETER, and it is `snapshot.perimeter_clubs` - the TARGET listone first,
+    the ratings only as the fallback for a season the listone does not cover. Read from the ratings
+    alone (as this did until 24/08/2026) the perimeter of the season being auctioned is EMPTY until
+    its first euro matchday is scored, so in August the whole per-match layer answered «no euro
+    ratings yet - perimeter unknown, skipping» and the opening rounds of the new season could not be
+    downloaded at all - the exact defect already found and cured in the SHEET's perimeter on
+    08/08/2026, surviving one module over. The listone knows a promotion before a ball is kicked; a
+    season's ratings only know it afterwards.
     """
-    teams = [team for (team,) in conn.execute(
-        "SELECT DISTINCT team FROM match_ratings WHERE platform = 'euro' AND season = ? "
-        "AND team IS NOT NULL", (season,))]
+    from euroleghe_ingest.modules.snapshot import perimeter_clubs
+    teams = perimeter_clubs(conn, "euro", (season,))
     return {club_key(CLUB_ALIASES.get(team, team)) for team in teams}
 
 

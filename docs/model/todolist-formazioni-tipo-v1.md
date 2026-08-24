@@ -23,6 +23,19 @@ di sopra (11 + 5 + 4, 166/220 alla revisione 13) è la **deriva di tutto quello 
 mezzo** — R19, R20, R23, i minuti previsti, la MVa — che nessuno ha attribuito e che non va attribuita a
 questa voce: prima della correzione lo stesso foglio leggeva già 10 + 5 + 5 e 165/220.
 
+**Stato del giudice al 24/08/2026, TERZO giudice — la 1ª giornata giocata davvero** (`press --against
+round --round 1`, fogli del 20/08): Serie A moduli **9 MATCH su 18** contro il null 7/18, uomini
+**119/186 = 64,0%** contro 55,9%; euro **18/23** contro 16/24, uomini **147/233 = 63,1%** contro 51,0%.
+Quattro misure su quattro sopra il null. E dei nostri 198 uomini disegnati in Serie A, 119 hanno
+cominciato e **148 sono andati in campo (74,7%)** — che è la domanda vera, perché la titolarità qui è
+«gioca abbastanza da prendere il voto». Numeri da `data/reports/board_round_check.json`, mai a memoria.
+**Una giornata non è un verdetto**: nove partite.
+
+**La lista è RIAPERTA in manutenzione dal 24-25/08/2026**: sette voci (M8-M14, in fondo), nate dal terzo
+giudice come la chiusura dell'08/08 prevedeva. Nessuna è una regola nuova da adottare: sono un difetto di
+foglio da verificare (M8), la forma del giudice stesso (M9, M11), una definizione doppia da unificare
+(M10), una calibrazione da rimisurare (M12), una dipendenza (M13) e il giro settimanale (M14).
+
 **Le voci, una riga ciascuna**: 0 fatta · 0-bis fatta (il secondo giudice) · 1 fatta · 1-bis chiusa
 (chiusa: non misurabile, 3-7 uomini per stagione) · 2 fatta · 3 fatta · 3-bis dato sì regola no ·
 4 chiusa da due giudici concordi · 5 misurata e non adottata · 5-bis (proposta dell'operatore) misurata
@@ -543,6 +556,32 @@ pre-registrazione e misura respinta: [gate-motore-v1.md](gate-motore-v1.md) §7-
 | M5 | «Malen non può essere una riserva» | **ADOTTATA** (`features.measured_season_rounds`): ogni campionato porta le giornate in cui c'era. 18 righe con la stagione spezzata, 9 salgono di gradino; Malen `claim` 0.405 → **0.810** e la Roma va **11/11** contro la stampa. Prezzo dichiarato: chi entra fa uscire qualcuno (Scamacca, Castro S., Ngom scendono a quota invariata), e il giudice sull'aggregato resta 165/220 |
 | M6 | «Raspadori e Santos dovrebbero essere almeno in ballottaggio» | **metà e metà**: Raspadori è un arrivo di gennaio e M5 lo porta a `ballottaggio`; **Santos A. no** — era al Napoli da luglio e ha debuttato alla 24ª, quindi il suo 14/38 è vero. Il canale che lo prenderebbe (leggere solo il regime nuovo) è stato misurato su 795 uomini e 6 stagioni e **respinto**: da solo è il 39% peggiore come predittore, e la miscela vale 4 gradini su 123 |
 | M7 | il giudice era SPENTO per default | **CORRETTA**: una lettura di stampa senza modulo né undici scavalcava quella piena del giorno prima, e `press --against press` leggeva `men 0/0`. «Vuoto = ignoto, mai zero» applicato al riferimento di un giudice |
+
+**MANUTENZIONE, terza tornata (24-25/08/2026)** — è nata come la lista prevedeva: «rimisurare i due
+giudici quando arriva una referenza nuova». La referenza nuova è la più forte che ci sia, la **giornata
+giocata davvero**, ed è entrata come TERZO giudice dell'esito (`press --against round --round N`,
+[formazioni-tipo-v1.md](formazioni-tipo-v1.md) §5-quater). Verdetto della 1ª: Serie A moduli **9/18**
+contro il null 7/18 e uomini **119/186 = 64,0%** contro 55,9%; euro **18/23** contro 16/24 e **147/233 =
+63,1%** contro 51,0%. Batte il null su quattro misure su quattro, e **una giornata non è un verdetto** —
+nove partite, una sola estrazione di una forma che il club schiererà trentotto volte.
+
+Le voci aperte che ne escono, ordinate per resa attesa.
+
+| # | voce | perché, e come si decide |
+|---|---|---|
+| M8 | **Il foglio euro del 20/08 porta 5 righe del Como contro 29 quotate** | ogni altro club ne ha 20+, e le cinque sono quelle senza calcio misurato lì: la board del Como su euro è di **quattro uomini** e legge 0/10. Il DB di oggi è coerente (29 righe, `league` = serie_a, una sola riga in `clubs`), quindi era uno stato transitorio di quella costruzione — e questa è esattamente la storia plausibile di cui diffidare. **Prima cosa da guardare sul foglio che l'aggiornamento ricostruisce**: se si ripete, un club sparisce da un foglio su cui si compra e nessun test lo vede. La guardia c'è già ed è `short_board`, che lo conta a parte invece di addebitarlo alla board |
+| M9 | **Il giudice sa scorere una sola partita per club, non una serie** | `round_reference` con `--round 1 --round 2` prende l'ULTIMA partita di ciascun club, che è la domanda «com'è l'undici adesso» e non «quante volte abbiamo avuto ragione». Servono le due: la seconda si fa scorando OGNI giornata a sé e sommando, e senza di essa la scala non accumulerà mai il campione che le manca (`titolarissimo` è a **n = 12** sui disponibili). Da fare prima della 3ª giornata, o il campione si perde man mano |
+| M10 | **Due definizioni di «qual è la sua partita»** | `judge_ladder` àncora l'uomo al club del FOGLIO, `snapshot.fielded_next` lo àncora al club LIVE (`obs.club_target or squads[...]`), e tutt'e due leggono `started`/`minutes` dallo stesso strato con codice diverso. Misurato sui due fogli del 20/08: **0 righe divergono** (la regola del 17/08 toglie dal foglio chi è partito), quindi oggi non morde — ma il **9-10% delle righe non ha `desc_live_club` affatto**, cioè il controllo incrociato è cieco proprio dove l'imbuto lo è. Cura: una funzione sola `(partita, giocatore) -> (parte, minuti)` con la regola dell'àncora scritta una volta. È la regola di casa «una regola che seleziona una popolazione ha UNA definizione, letta dai due lati» |
+| M11 | **Il report del giudice non porta il foglio nel nome** | `board_round_check.json` (e `press_comparison.json` prima di lui) è uno solo: giudicare le tre leghe dichiarate in una sessione lascia in piedi l'ultima, e le prime due si perdono in silenzio. Ci sono cascato in sessione e ho aggirato copiando a mano. Cura: il nome del foglio nel nome del file, come già fa la cartella del foglio |
+| M12 | **La banda 0,6-0,8 della quota prevista è INVERTITA** | prevede 72,2% e realizza **39,5%**, sotto la banda 0,4-0,6 che realizza 50,8%; e la 0,8-1,0 è sovra-sicura di 22 punti (92,3% contro 69,9%). Su una giornata sola non è un verdetto, ma **un'inversione in mezzo a una scala non è rumore che si spiega da sé**. Da rimisurare alla 2ª e alla 3ª con M9; se tiene, la causa va cercata prima di toccare qualunque parametro. Numeri: [letture-app-v1.md](letture-app-v1.md) §16-bis |
+| M13 | **Su euro il VOTO non è leggibile e il giudice scora solo «chi comincia»** | `matchday_map` non ha righe 2026-27 — il calendario euro non ha ancora una giornata segnata — quindi `judge_ladder` lascia il voto IGNOTO su tutte le 578 righe euro, che è la risposta onesta e non un difetto. Dipendenza, non lavoro: rigirare `matchdays` appena la prima giornata euro è segnata, poi rigiudicare |
+| M14 | **Il giudizio non è nel giro settimanale dell'operatore** | «le board hanno tenuto?» è la domanda del lunedì, e oggi è un comando da ricordare a memoria con il percorso del foglio dentro. Candidata: una fase di `update` (dopo `sheets`, sul foglio PRECEDENTE — mai su quello appena scritto, che conosce la giornata) o un bottone nel pannello. Costo basso, e senza di essa M9 e M12 non si accumulano perché nessuno rigira il comando |
+
+**Una regola di metodo, pagata in questa sessione**: lo strato per-partita ha risposto «no euro ratings
+yet - perimeter unknown, **skipping**» ed è uscito con exit 0, e l'acquisizione è stata lanciata **tre
+volte** prima che qualcuno chiamasse `perimeter_club_keys` e vedesse lo zero. La lista aveva già la
+regola nella forma «un audit che riporta uno ZERO sospetto chiama la funzione prima di riportare
+qualunque cosa»: **un modulo che dice «skipping» sta riportando uno zero**, e vale la stessa regola.
 
 **VOCE APERTA, e nasce da M6** — la stampa schiera **Alisson Santos** (Napoli), e la board no, con la sua
 quota di stagione che è giusta: quindi la domanda non è più «quale campione leggere» ma «chi entra

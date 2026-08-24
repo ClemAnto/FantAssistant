@@ -495,6 +495,94 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.65 (24-25 agosto 2026 — il TERZO giudice: la giornata giocata davvero, e il perimetro che ad agosto era vuoto)
+
+**Richiesta dell'operatore**: «vedi le formazioni che sono state schierate rispetto alle nostre
+previsioni e fai un resoconto per capire se stiamo andando nella giusta direzione», più
+l'aggiornamento completo. La prima metà ha trovato, arrivandoci, il difetto che la rendeva impossibile.
+
+### `positions.perimeter_club_keys` leggeva i VOTI della stagione bersaglio
+
+Ad agosto non esistono. `perimeter_club_keys('2026-27')` tornava un insieme vuoto e tutto lo strato
+per-partita rispondeva **«no euro ratings yet - perimeter unknown, skipping»** uscendo con **exit 0**:
+le prime giornate della stagione nuova non erano scaricabili affatto, in silenzio. È **lo stesso difetto
+già trovato e curato nel perimetro del FOGLIO l'08/08/2026** («The sheet's PERIMETER is the TARGET
+listone, never last season's ratings»), sopravvissuto un modulo più in là — il listone sa di una
+promozione prima che si giochi, i voti di una stagione lo sanno solo dopo.
+
+Curato instradandolo su `snapshot.perimeter_clubs`: **una definizione sola**, il listone bersaglio prima
+e i voti come ripiego. Misurato prima di tenerlo, e il numero è quello che ne fa una cura e non un
+rattoppo: sulle quattro stagioni in cui esistono tutt'e due, le due definizioni danno **0 differenze**
+(2022-23, 2023-24, 2024-25, 2025-26); su 2026-27 si passa da **0 a 37 club**.
+
+Effetto: 1ª giornata acquisita su quattro campionati (Serie A 9 partite su 10, Premier 9, Ligue 1 9/9,
+Liga 6 + 9 della 2ª; la Bundesliga parte il 28), completata con `--layer complete`.
+
+### `press --against round`: il TERZO giudice delle board
+
+`press` aveva due giudici e nessuno dei due parla quando serve: la **stampa** è una previsione di altri,
+l'**esito** vuole una stagione finita e quindi un foglio retrodatato. Fra l'asta di agosto e maggio non
+c'era niente. Il terzo è l'esito **ristretto alle giornate già giocate** — stessa prova, stessa
+aritmetica, stesso null — e la sua aggiunta è `round_reference` più due righe di instradamento, non un
+secondo confronto: verdetto sulla `board_shape` come per l'esito (`club_match_lineups` tiene tre linee e
+un 4-2-3-1 non lo sa dire), `null_model` invariato, report in `data/reports/board_round_check.json`.
+
+* **L'unità è la PARTITA e mai la giornata**: `--round N` (ripetibile) seleziona `real_md`, un club che
+  ne ha giocate più d'una è giudicato sull'ULTIMA, e la voce porta la data — un rinvio si vede.
+* **Due popolazioni, e non sono la stessa.** La forma è contata su ogni riga di formazione e non passa
+  dall'imbuto delle identità; gli uomini sì, quindi il denominatore sono i nomi risolti e il report lo
+  dice club per club (`xi_resolved`). Un riferimento da 10 su 11 contato come 11 ci addebiterebbe un
+  errore che non abbiamo fatto.
+* **`short_board`**: una board con meno di undici uomini non è una previsione sbagliata, è un club il cui
+  contingente su quel foglio non riesce a schierarne uno. Contata a parte, come il null conta a parte una
+  neopromossa — ed è servita subito (il Como sul foglio euro del 20/08 ha 5 righe contro 29 quotate).
+
+### `judge_ladder`: la scala della titolarità contro la giornata, sulla stessa chiamata
+
+Venti board sono venti estrazioni; un foglio è **seicento righe**. Il gradino viene dal CSV scritto
+prima, l'esito dalle tabelle scritte dopo, e non si ri-deriva niente. **Due esiti, mai uno**: il VOTO
+(`match_ratings.status = 'played'`) è quello che il gradino promette e c'è solo dove il calendario della
+piattaforma ha segnato la giornata (su `euro` ad agosto no, e il giudice lo dice invece di sostituirlo con
+un surrogato); CHI COMINCIA è lo `started` del provider e c'è per tutti e cinque i campionati.
+
+**La domanda «è segnata?» si fa per CLUB, mai per giornata** — una giornata è segnata dalla sua prima
+partita, quindi un flag globale trasforma ogni uomo di una partita ancora in corso in un no-voto MISURATO:
+ventidue zeri inventati dalla domanda. C'è un test che lo tiene.
+
+Tre risposte che non sono uno zero e si contano a parte: il club non ha giocato, non abbiamo un'identità
+del provider, la giornata non è segnata per lui.
+
+### Numeri della 1ª giornata
+
+Fogli del 20/08, board ri-estratte dal CSV congelato (`boards.py` non tocca il DB, quindi il giudizio è
+incontaminato da tutto quello che è stato acquisito dopo):
+
+| | board | null «stessa formazione dell'anno prima» |
+|---|---|---|
+| Serie A (18 club) — moduli | **9/18** | 7/18 |
+| — uomini | **119/186 = 64,0%** | 104/186 = 55,9% |
+| euro (23 board piene) — moduli | **18/23** | 16/24 |
+| — uomini | **147/233 = 63,1%** | 124/243 = 51,0% |
+
+Dei 198 uomini disegnati in Serie A, 119 hanno cominciato e **148 sono andati in campo (74,7%)**: il
+**37,7%** dei nostri «errori» è entrato lo stesso, e quella è la domanda vera. La scala è **monotona** sui
+408 disponibili (bandiera 84,0% di voto contro un base di 45,6%, riserva 32,0%), con `titolarissimo` che
+pareggia `titolare` — il gradino già dichiarato debole. Dettaglio e calibrazione:
+[formazioni-tipo-v1.md](formazioni-tipo-v1.md) §5-quater e [letture-app-v1.md](letture-app-v1.md) §16-bis.
+**Una giornata non è un verdetto**: nove partite.
+
+### E una rete che mancava: il `.gitignore` non copriva un bundle fuori da `data/`
+
+Ogni riga della sezione dati è ancorata a `/data/`, e nella RADICE del repository c'era un
+`bundle.sqlite` (0 byte, 20/08) che niente ignorava. Su un repository **pubblico** che porta contenuto a
+pagamento bastava un `git add -A`. Turata con `*.sqlite` / `*.db` non ancorati, misurando prima che non
+nascondano niente di legittimo (`git ls-files '*.sqlite' '*.db'` = 0). La CAUSA resta aperta in roadmap:
+`export` scrive `folder / "bundle.sqlite"` e quel `folder` è arrivato a essere la radice — un export che
+può scrivere fuori dalla propria cartella dichiarata è il difetto, l'ignore è solo la rete.
+
+**Non tocca il motore**: `engine_*` invariato, nessuna revisione di foglio, nessun parametro spostato.
+`SHEET_REVISION` resta 36.
+
 ## Novità v9.64 (20 agosto 2026 — UN TASTO per l'aggiornamento, e l'ordine che stava in tre posti non eseguibili)
 
 **Richiesta dell'operatore**: «metti un tasto nel toolkit che fa tutto questo», dopo aver chiesto quale

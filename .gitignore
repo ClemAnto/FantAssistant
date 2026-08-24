@@ -31,6 +31,13 @@
 # del codice dell'app: un artefatto di build, mai una copia da committare.
 /toolkit/bench/draft/*.json
 /toolkit/bench/draft/appcode.mjs
+# ...E LA STESSA ROBA SCRITTA FUORI DA `data/`, che e' il buco trovato il 25/08/2026: ogni riga qui
+# sopra e' ancorata a `/data/`, quindi un `bundle.sqlite` finito nella RADICE del repository non era
+# ignorato da niente - e ce n'era uno (0 byte, 20/08). Su un repository PUBBLICO che porta contenuto a
+# pagamento, un `git add -A` e' tutto quello che serve. Nessun .sqlite e nessun .db e' tracciato oggi
+# (misurato: `git ls-files '*.sqlite' '*.db'` = 0), quindi la regola non nasconde niente di legittimo.
+*.sqlite
+*.db
 
 # --- Python ---
 __pycache__/

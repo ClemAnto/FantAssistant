@@ -2949,3 +2949,89 @@ quindi non è dichiarato pulito.
    e con i due giudici, su una popolazione e non su un caso.
 4. **I timepack restano alla revisione 29** contro la 36 dei fogli: l'app lo dice adesso, ed è la ragione
    per cui quel campo esiste.
+
+
+## CHIUSURA della sessione 24-25/08/2026 — la prima giornata ha giocato, e il giudice che la legge non esisteva
+
+**Richiesta dell'operatore**, due metà: «vedi le formazioni che sono state schierate rispetto alle nostre
+previsioni e fai un resoconto per capire se stiamo andando nella giusta direzione» e «riesegui lo snapshot
+di tutto e rivaluta i dati aggiornati». Poi, a valle: «vedi se ci sono aspetti da migliorare o correggere e
+mettile nella roadmap».
+
+**Il difetto che rendeva la prima metà impossibile, e nessuno lo sapeva.**
+`positions.perimeter_club_keys` leggeva i VOTI euro della stagione bersaglio, che ad agosto non esistono:
+lo strato per-partita rispondeva «no euro ratings yet - perimeter unknown, **skipping**» e usciva con
+**exit 0**. Le prime giornate della stagione nuova non erano scaricabili affatto. È lo stesso difetto già
+curato nel perimetro del FOGLIO l'08/08 («il perimetro è il listone BERSAGLIO»), sopravvissuto un modulo
+più in là. Instradato su `snapshot.perimeter_clubs` — una definizione sola — e **misurato prima di
+tenerlo**: 0 differenze fra la definizione vecchia e la nuova sulle quattro stagioni in cui esistono
+tutt'e due, 0 → 37 club su 2026-27. È quel numero a farne una cura.
+
+**Il TERZO giudice** (`press --sheet DIR --against round --round N`, spec «Novità v9.65»): l'esito
+ristretto alle giornate già giocate. La stampa è una previsione di altri, l'esito vuole una stagione
+finita; fra l'asta di agosto e maggio non c'era niente, e adesso c'è dal primo fine settimana. Con lui
+`judge_ladder`, che scora la scala della titolarità sulla stessa chiamata — venti board sono venti
+estrazioni, un foglio è seicento righe.
+
+**Verdetto della 1ª giornata** (fogli del 20/08, board ri-estratte dal CSV congelato: `boards.py` non tocca
+il DB, quindi il giudizio è incontaminato da tutto ciò che è stato acquisito dopo):
+
+| | board | null |
+|---|---|---|
+| Serie A (18 club) moduli | **9/18** | 7/18 |
+| Serie A uomini | **119/186 = 64,0%** | 55,9% |
+| euro (23 board piene) moduli | **18/23** | 16/24 |
+| euro uomini | **147/233 = 63,1%** | 51,0% |
+
+Quattro misure su quattro sopra il null. E dei 198 uomini disegnati in Serie A, 119 hanno cominciato e
+**148 sono andati in campo (74,7%)**: il 37,7% dei nostri «errori» è entrato lo stesso, e quella è la
+domanda vera. La scala è **monotona** sui 408 disponibili (bandiera 84,0% di voto contro un base di 45,6%,
+riserva 32,0%), con `titolarissimo` che pareggia `titolare` — il gradino già dichiarato debole, e a n = 12
+non è comunque una prova. **Una giornata non è un verdetto**: nove partite.
+
+**Aggiornamento completo**: `ratings` su tutt'e due le piattaforme (listone e FVM rifatti, 539 default e
+961 euro; md1 Serie A dentro, 18 squadre e 249 voti), strato per-partita 2026-27 acquisito e completato.
+Poi `update` lanciato intero — **18 passi su 31 al momento della chiusura, nessun fallimento**, fermo
+dentro `injuries` (la lunga). È ripartibile: rilanciare `update` riprende da dove è.
+
+**Committato**: `5cbc02c` (il comando `update`, lavoro del 20/08 rimasto non committato — e girato per ore
+su codice che esisteva solo nell'albero di lavoro) e il commit di questa sessione.
+
+**Aperto, e dichiarato:**
+1. **`update` non è finito**: dopo `injuries` restano `market`, `performance`, `recent_form`, le
+   derivazioni, i tre fogli, i timepack e il bundle. Finché non gira la fase `sheets`, **i fogli e il
+   bundle sono ancora quelli del 20/08** e i timepack restano alla revisione 29.
+2. **`engine_pv_pred` non è mai stato messo davanti alla giornata giocata.** Quello che è stato scorato è
+   `desc_titolarita_play`, cioè il modello del PANNELLO; la colonna del MOTORE — quella che alimenta ogni
+   valutazione, e quella che R20 e R23 hanno spostato il 20/08 — ha adesso una prova fuori campione che
+   nessuno ha guardato. **Voce di leva più alta**, in `todolist-mantra-euroleghe-v5.md`.
+3. **Il Como sul foglio euro del 20/08 ha 5 righe contro 29 quotate** (ogni altro club 20+). Il DB di oggi
+   è coerente, quindi era uno stato transitorio — ed è esattamente la storia plausibile di cui diffidare.
+   Prima cosa da guardare sul foglio che l'aggiornamento ricostruisce (voce M8).
+4. **La banda 0,6-0,8 della quota prevista è invertita** (prevede 72,2%, realizza 39,5%, sotto la banda
+   0,4-0,6 che realizza 50,8%) e la 0,8-1,0 è sovra-sicura di 22 punti. Su una giornata non è un verdetto,
+   ma un'inversione in mezzo a una scala non è rumore che si spiega da sé (voce M12).
+5. **Sette voci di manutenzione riaprono `todolist-formazioni-tipo-v1.md`** (M8-M14): il difetto del Como,
+   la forma del giudice (scora una partita per club e non una serie; il report non porta il foglio nel
+   nome), la definizione doppia di «qual è la sua partita» fra `judge_ladder` e `fielded_next`, la
+   calibrazione, la dipendenza da `matchday_map` per il voto su euro, e il giro settimanale.
+6. **Il `.gitignore` non copriva un bundle scritto fuori da `data/`** — turato; la CAUSA no: `export` è
+   arrivato a scrivere `bundle.sqlite` nella radice del repository.
+7. **Il BRIDGE non è stato toccato** e gli manca la voce del terzo giudice: un'ALTRA sessione lo stava
+   modificando in parallelo (più `app/` e `docs/model/todolist-buste-chiuse-v1.md`, che è untracked — una
+   voce del BRIDGE che lo cita sarebbe un link a un file che non c'è). Da aggiungere quando quella sessione
+   ha committato.
+
+**Due sessioni su un repository, viste dal vivo**: questa possedeva il DB (acquisizioni, `snapshot`,
+`export`), l'altra scriveva in `app/`. È la divisione che la regola prescrive e ha funzionato; la
+conseguenza pratica è che **nessuna delle due può fare `git add -A`**, e nessuna delle due lo ha fatto.
+
+**Verificato**: suite completa **548 passed, 1 skipped** (due test nuovi in `tests/test_press.py`, di cui
+uno protegge il «voto ignoto per il club la cui partita non è ancora segnata»). `engine_*` invariato,
+nessuna revisione di foglio spostata, `SHEET_REVISION` resta 36.
+
+**Due errori di metodo, scritti perché non si ripetano.** L'acquisizione è stata lanciata **tre volte**
+prima che qualcuno chiamasse `perimeter_club_keys` e vedesse lo zero: la regola esisteva già nella forma
+«un audit che riporta uno ZERO sospetto chiama la funzione prima di riportare qualunque cosa», e **un
+modulo che dice «skipping» sta riportando uno zero**. E «il cambio di perimetro non muove il passato» è
+stato affermato prima e misurato dopo: la storia era giusta, l'ordine no.

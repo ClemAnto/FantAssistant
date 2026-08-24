@@ -577,6 +577,56 @@ pure (spec «Novità v9.34»): il SURPLUS mantra che era il VALORE, e `club_elo`
 **Progetto:** App EuroLega Fantacalcio · **Rif.:** modello-previsionale v3.8 · **Aggiornata: 5 agosto 2026**
 Convenzione: [ ] da fare · [x] fatto · [!] bloccato · *Sigle: fc_id = id fantacalcio.it · FM = fantamedia · T1/T2 = finestre di test 23/24->24/25 e 24/25->25/26 · 2.5 pieno = backtest motore completo con flag.*
 
+## Aperto dopo la sessione del 24-25/08/2026 (la 1ª giornata giocata, e quello che si è visto arrivandoci)
+
+*La sessione ha fatto due cose: giudicare le board contro la giornata vera (voci M8-M14 di
+[todolist-formazioni-tipo-v1.md](todolist-formazioni-tipo-v1.md)) e rigirare l'aggiornamento completo.
+Queste sono le voci che NON sono di board: pipeline, gate e igiene. Ordinate per resa.*
+
+* **`engine_pv_pred` non è mai stato messo davanti alla giornata giocata — e la colonna misurata è
+  un'altra.** Quello che è stato scorato è `desc_titolarita_play`, cioè il modello del PANNELLO; la
+  colonna che alimenta ogni valutazione, ogni surplus e ogni consiglio al tavolo è quella del MOTORE, ed
+  è quella che R20 e R23 hanno spostato quattro giorni fa. È la stessa asimmetria di sempre
+  (`presence.py` non importa `evaluate`) vista dal lato del giudizio, ed è **la voce di leva più alta di
+  questa sessione**: un'adozione di gate del 20/08 ha adesso una prova fuori campione che nessuno ha
+  guardato. Da pre-registrare prima di guardarla: bersaglio «ha preso il voto», popolazione i
+  disponibili secondo il foglio, null la costante, e il confronto con `desc_titolarita_play` sulle stesse
+  righe — se il motore perde contro il pannello su una colonna che è il suo mestiere, è una notizia.
+  Attenzione all'unità: `engine_pv_pred` vive sul calendario della PIATTAFORMA (31 giornate euro, 38
+  default), quindi va diviso per il suo, non per 38.
+
+* **Il `.gitignore` non copriva un `bundle.sqlite` scritto FUORI da `data/`** — e ce n'era uno nella
+  radice del repository (0 byte, 20/08/2026). Ogni riga della sezione dati è ancorata a `/data/`, quindi
+  su un repository **PUBBLICO** che porta contenuto a pagamento bastava un `git add -A`. Turata subito
+  con `*.sqlite` / `*.db` non ancorati (misurato prima: `git ls-files '*.sqlite' '*.db'` = **0**, quindi
+  la regola non nasconde niente di legittimo). **Quello che resta aperto è la causa**: `export` scrive
+  `folder / "bundle.sqlite"` e quel `folder` è arrivato a essere la radice del repo — un export che può
+  scrivere fuori dalla propria cartella dichiarata è il difetto, l'ignore è solo la rete. Da guardare:
+  chi può passargli un `folder` non sotto `data/export/<stagione>/`, e se non deve, rifiutarlo.
+
+* **`update` è girato per ore su codice NON committato.** `modules/update.py` e `tests/test_update.py`
+  sono ancora `??` — il modulo che guida l'intero aggiornamento esiste solo nell'albero di lavoro. Non è
+  un difetto del codice, è un rischio di sessione: da committare prima della prossima corsa lunga.
+
+* **Due sessioni sullo stesso repository, viste dal vivo.** Mentre questa possedeva il DB
+  (acquisizioni, `snapshot`, `export`), un'altra stava scrivendo in `app/` (`core/sealed-bid.ts`,
+  `app.routes.ts`, `views/players/players.html`). È esattamente la divisione che la regola prescrive — una
+  sessione possiede il DB, l'altra lavora sull'app — e ha funzionato; va detto perché la conseguenza
+  pratica è che **nessuna delle due può fare `git add -A`**, e nessuna delle due lo ha fatto.
+
+* **Una lezione di attrezzo, non di modello**: una corsa lunga mandata in un `grep` diventa cieca (il
+  buffering a blocchi non fa uscire niente finché non finisce), quindi non si può seguirla e si finisce a
+  interrogare il DB per sapere a che punto è. Le acquisizioni si guardano su un file di log, mai
+  attraverso un filtro.
+
+**Misurato in questa sessione e da non rimisurare** — il perimetro dello strato per-partita instradato
+sul listone bersaglio (`positions.perimeter_club_keys` → `snapshot.perimeter_clubs`) **non muove nulla
+sul passato**: 2022-23, 2023-24, 2024-25 e 2025-26 danno **0 differenze** fra la definizione vecchia (i
+voti euro) e la nuova (il listone), e 2026-27 va da **0 a 37 club**. È quello che ne fa una cura e non
+un rattoppo: dove esistono tutt'e due, le due definizioni coincidono esattamente. Ed è stato misurato
+DOPO aver affermato che non cambiava niente, il che è l'ordine sbagliato — la storia plausibile era
+giusta, e resta il modo in cui questo progetto si è già fatto male.
+
 ## FASE 0 — Fattibilita' [x] (21/7)
 Invariata (storico 9 stagioni, endpoint Excel, fallback SofaScore, scala ricalibrata, ruoli Mantra). Rif: dataset-euroleghe-README.md.
 

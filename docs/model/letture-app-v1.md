@@ -1417,6 +1417,60 @@ misura respinta: [gate-motore-v1.md](gate-motore-v1.md) §7-unquadragies. In bre
   quel caso — Santos A., che era in rosa da luglio e ha debuttato alla 24ª — è nella BOARD e non nella
   quota, e la stampa lo schiera.
 
+## 16-bis. LA SCALA CONTRO LA PRIMA GIORNATA: la prima prova dal vivo (24 agosto 2026)
+
+La scala era stata misurata su quattro finestre di pre-stagione retrodatate. Il 22-24/08 si è giocata la
+prima giornata vera, e il foglio del 20/08 — scritto prima, mai riscritto — è un pronostico congelato su
+605 righe. Venti board sono venti estrazioni; **un foglio è seicento righe**, ed è lì che una giornata
+sola porta abbastanza prove. Gira con lo stesso comando delle board
+(`press --sheet DIR --against round --round 1`, funzione `judge_ladder`), e non ri-deriva niente: il
+gradino viene dal CSV di prima, l'esito dalle tabelle di dopo.
+
+**Due esiti, mai uno.** Il VOTO (`match_ratings.status = 'played'`) è quello che il gradino promette —
+è la definizione della parola qui — e c'è solo dove il calendario della piattaforma ha segnato quella
+giornata: su `euro` ad agosto non c'è, e il giudice lo dice invece di sostituirlo con un surrogato.
+CHI COMINCIA è lo `started` del provider e c'è per tutti e cinque i campionati.
+
+Serie A, 496 uomini di 18 club, sui **408 che il foglio non dava indisponibili**:
+
+| gradino | n | VOTO | lift sul base | parte titolare |
+|---|---|---|---|---|
+| bandiera | 50 | **84,0%** | 1,84x | 80,0% |
+| titolarissimo | 12 | 66,7% | 1,46x | 50,0% |
+| titolare | 30 | 66,7% | 1,46x | 63,3% |
+| ballottaggio | 80 | 56,2% | 1,23x | 46,2% |
+| panchina | 73 | 34,2% | 0,75x | 24,7% |
+| riserva | 122 | 32,0% | 0,70x | 25,4% |
+| BASE (il foglio) | 408 | 45,6% | — | 38,5% |
+
+**Monotona**, con `titolarissimo` che PAREGGIA `titolare` invece di superarlo — che è esattamente il
+gradino già dichiarato debole (il residuo fra gli altri due, 3 finestre su 4). Su tutti e 496, cioè
+tenendo dentro infortunati e squalificati, `titolarissimo` scende a 58,8% e va SOTTO `titolare` (66,0%):
+l'inversione è degli indisponibili, non del gradino, e con n = 12 non è comunque una prova.
+I 42 uomini **senza gradino** — «vuoto = ignoto, mai zero» — prendono il voto il **16,7%** delle volte:
+la guardia mette in fondo chi non abbiamo visto giocare, che è dove sta.
+
+### E la CALIBRAZIONE dice un'altra cosa dalla graduatoria
+
+`desc_titolarita_play` letto come probabilità della singola giornata, sui 367 disponibili che lo portano:
+
+| banda prevista | n | previsto | VOTO realizzato |
+|---|---|---|---|
+| 0,0-0,2 | 52 | 7,8% | 17,3% |
+| 0,2-0,4 | 42 | 31,8% | 33,3% |
+| 0,4-0,6 | 61 | 50,2% | 50,8% |
+| 0,6-0,8 | 76 | 72,2% | **39,5%** |
+| 0,8-1,0 | 136 | 92,3% | 69,9% |
+
+Brier del modello **0,2592** contro **0,2498** della costante: separa bene (dal 17% al 70%) e **è
+sovra-sicuro in alto**, e la banda 0,6-0,8 è addirittura sotto quella 0,4-0,6. Due cose vanno dette
+insieme o il numero mente. La prima è che la quota è CONDIZIONATA alla forma («delle partite per cui è
+in condizione») e una giornata sola non lo è: qui è stata ristretta ai disponibili secondo il foglio
+stesso, che è la correzione che si poteva fare e non l'unica che servirebbe. La seconda è che è **una
+giornata**, la prima, con la preparazione addosso e il mercato aperto — la regola di casa vale anche
+contro di noi. Quello che resta da guardare alla seconda e alla terza è la banda 0,6-0,8: un'inversione
+in mezzo alla scala non è rumore che si spiega da sé.
+
 ## 17. IL GESTO E IL FILTRO DELLA TABELLA: quattro difetti che stavano fra il DOM e lo schermo (20 agosto 2026, sera)
 
 Due richieste dell'operatore nella stessa sessione — «l'ordinamento delle colonne sulla tabella tramite
