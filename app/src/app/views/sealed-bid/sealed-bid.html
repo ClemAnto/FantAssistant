@@ -66,6 +66,19 @@
           {{ snapshots().length }} round caricat{{ snapshots().length === 1 ? 'o' : 'i' }} ·
           {{ latest().length }} calciatori assegnati
         </span>
+        @if (unnamed()) {
+          <!-- Un'aggiudicazione che il listone non sa nominare: i crediti sono comunque tolti a chi li
+               ha spesi, il RUOLO no - quindi quelle rose leggono uno slot libero che non hanno. Detto,
+               perché è l'unica cosa di questa pagina che l'operatore non può controllare guardando. -->
+          <span
+            class="text-xs text-warning"
+            nz-tooltip
+            nzTooltipTitle="Questi id non sono nel listone del bundle: forse il bundle è più vecchio del mercato, o il foglio li ha tolti. I crediti che sono costati sono contati lo stesso, ma non so di che ruolo fossero, quindi quelle rose risultano con uno slot libero in più del vero."
+          >
+            <nz-icon nzType="alert" />
+            {{ unnamed() }} assegnat{{ unnamed() === 1 ? 'o' : 'i' }} che il listone non riconosce
+          </span>
+        }
         <button
           nz-button
           nzType="text"
@@ -218,7 +231,14 @@
         <div
           class="text-xs text-muted"
           nz-tooltip
-          nzTooltipTitle="Gli altri non hanno un numero: il motore non li prezza, oppure il foglio prevede loro meno presenze della soglia della lega. Vuoto non è zero, quindi restano sul tabellone dei rivali ma non entrano in un piano nostro."
+          [nzTooltipTitle]="
+            'Gli altri non hanno un numero: il motore non li prezza, oppure il foglio prevede loro meno ' +
+            'presenze della soglia della lega. Vuoto non è zero, quindi restano sul tabellone dei rivali ' +
+            'ma non entrano in un piano nostro. Le medie di mercato di questa pagina (quanto vale uno ' +
+            'slot, cosa possono ancora comprare i crediti) sono misurate sul ' +
+            (rateCoverage() * 100 | number: '1.0-0') +
+            '% dei nomi che la domanda assorbirà: degli altri si assume che valgano come questi.'
+          "
         >
           {{ market().valued }} con un numero
         </div>
@@ -748,10 +768,13 @@
                 </div>
               }
               @if (missingSureRoles(current).length) {
+                <!-- Il numero è quello che il PIANO pretende davvero, cioè `sureTarget` (P1 D4 C4 A2,
+                     con «un paio per ruolo» come pavimento) e non il pavimento da solo: un avviso che
+                     cita 2 mentre il vincolo ne chiede 4 è un'etichetta che non torna col suo numero. -->
                 <div class="mt-1 text-warning">
                   <nz-icon nzType="alert" />
-                  Non arrivo a {{ surePerRole }} uomini che giocano SEMPRE in:
-                  {{ missingSureRoles(current).join(', ') }}. Alla tua portata non ne ho trovati: o alzi
+                  Non arrivo a tanti uomini che giocano SEMPRE quanti ne schiera un undici in:
+                  {{ missingSureWords(current) }}. Alla tua portata non ne ho trovati: o alzi
                   il tetto lasciando qualche slot per il round dopo, o li prendi appena tornano in lista.
                 </div>
               }
@@ -1219,6 +1242,9 @@
         <div class="flex flex-col text-xs leading-tight">
           <div class="mb-0.5 font-semibold">
             {{ state.team }} · {{ state.men.length }} uomini · {{ state.spent }} crediti spesi
+            @if (state.unknown) {
+              · +{{ state.unknown }} che il listone non nomina
+            }
           </div>
           @for (row of rosterRows(state); track row.man.fcId) {
             <div class="flex items-baseline gap-2">

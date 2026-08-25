@@ -33,7 +33,6 @@ import {
   RoleAdvice,
   RoleStrength,
   RoundLog,
-  SURE_PER_ROLE,
   Settled,
   Snapshot,
   TACTIC_HINT,
@@ -52,9 +51,11 @@ import {
   Contested,
   contestedOf,
   dealsOf,
+  emptyByRole,
   gainOf,
   gainScale,
   ladderOf,
+  marketRate,
   parseAwards,
   playsOften,
   precedentsOf,
@@ -66,6 +67,7 @@ import {
   settle,
   strategyCheck,
   strengthsOf,
+  sureTarget,
   tacticOf,
   teamStates,
   verdicts,
@@ -123,6 +125,19 @@ interface Settings {
 }
 
 const SETTINGS: Settings = { budget: 1000, rounds: 9, roleLock: true, from: 2, to: 38, reserve: 0 };
+
+/** The stored preferences over the defaults, with every number that is not a number left behind. */
+function mergeSettings(stored: Partial<Settings>): Settings {
+  const out = { ...SETTINGS };
+  for (const key of Object.keys(SETTINGS) as (keyof Settings)[]) {
+    const value = stored[key];
+    if (value == null) continue;
+    if (typeof SETTINGS[key] === 'number' && !Number.isFinite(value as number)) continue;
+    if (typeof value !== typeof SETTINGS[key]) continue;
+    (out as Record<string, unknown>)[key] = value;
+  }
+  return out;
+}
 
 function readJson<T>(key: string, fallback: T): T {
   try {
@@ -191,7 +206,9 @@ export class SealedBid {
   // Merged with the defaults, never taken whole: a preference written by an earlier version of this page
   // has no competition window, and `undefined - undefined + 1` is a NaN that would silently empty the
   // whole board. «A stored value the code no longer understands» is the case `view-state.ts` guards too.
-  protected readonly settings = signal<Settings>({ ...SETTINGS, ...readJson<Partial<Settings>>(KEY.rules, {}) });
+  // The same guard is applied to what IS there, not only to what is missing: a `budget` of null saved
+  // by an earlier session (the emptied number field, see `setSetting`) survives a reload otherwise.
+  protected readonly settings = signal<Settings>(mergeSettings(readJson<Partial<Settings>>(KEY.rules, {})));
   /** The operator's own substitutions: the man the plan proposed -> the man he prefers. */
   protected readonly swaps = signal<Record<number, number>>(readJson<Record<number, number>>(KEY.swaps, {}));
   /**
@@ -346,6 +363,17 @@ export class SealedBid {
     [...this.states().values()].sort((left, right) => right.spent - left.spent),
   );
 
+  /**
+   * How many awarded men this listone cannot name. Zero is the normal case and it is SHOWN when it is not.
+   *
+   * Their credits are charged (see `teamStates`) but their role is not, so those squads read with slots
+   * they have already used. A silent count here is indistinguishable from a bundle that matches the
+   * league, which is the one thing the operator cannot check by looking.
+   */
+  protected readonly unnamed = computed(() =>
+    [...this.states().values()].reduce((sum, one) => sum + one.unknown, 0),
+  );
+
   /** Names for the «which one is mine» selector, alphabetical so it can be found. */
   protected readonly teamNames = computed(() =>
     [...this.states().keys()].sort((left, right) => left.localeCompare(right)),
@@ -427,8 +455,17 @@ export class SealedBid {
     const gone = new Set(this.dropped());
     const shown = bids.filter((bid) => !gone.has(bid.candidate.man.fcId));
     for (const fcId of this.extras()) {
+      // NO SWAP LOOKUP HERE, and the reason is a bug that reached the e2e: `swaps` is keyed by «the man
+      // the SOLVER proposed» while `extras` is keyed by «the man HE added», and those two key spaces
+      // overlap - the same person can be both. Measured 25/08/2026: the solver proposed Esposito Se.,
+      // the operator swapped that slot for Soulè and later added Esposito Se. by hand, and reading
+      // `swaps[Esposito]` put SOULÈ in the hand-written envelope while Esposito never appeared - the
+      // plan read 265 of 257 credits for a name nobody had chosen twice.
+      //
+      // A hand-written envelope is edited by editing HIS list (see `swapTo`), so there is nothing to
+      // resolve: the id in `extras` is always the man on screen.
       const candidate = byMan.get(fcId);
-      if (!candidate || shown.some((bid) => bid.candidate.man.fcId === fcId)) continue;
+      if (!candidate || shown.some((bid) => bid.candidate.man.fcId === candidate.man.fcId)) continue;
       const offer = Math.max(1, candidate.ask.ask);
       // Appended and never sorted in: a list that reshuffles when you add a name cannot be checked
       // against the one you were looking at a second ago.
@@ -451,6 +488,16 @@ export class SealedBid {
     // would go quiet exactly when he has just broken the rule by hand.
     const mine = this.mine()!;
     const check = strategyCheck(shown.map((bid) => bid.candidate.man), mine, this.rules());
+    // `expectedGain` and `unfilled` are recomputed HERE and not inherited from `auto`: the first is
+    // printed beside `gain` on the same line, so after a deletion the automatic one could read HIGHER
+    // than the total it is a fraction of; the second is the «slot che non riesco a riempire» warning,
+    // which went silent exactly when he had just emptied a slot by hand. `marketGain` is the only
+    // figure that legitimately stays the automatic one - it is the NULL, «the same slots and the same
+    // budget bought the way the room buys», and it must not move when we change our own answer.
+    const filled = emptyByRole();
+    for (const bid of shown) filled[bid.candidate.man.role] += 1;
+    const unfilled = emptyByRole();
+    for (const role of ROLES) unfilled[role] = Math.max(0, mine.free[role] - filled[role]);
     return {
       ...auto,
       bids: shown,
@@ -458,6 +505,11 @@ export class SealedBid {
       expectedSpend: shown.reduce((sum, bid) => sum + bid.offer * (bid.chance ?? 1), 0),
       expectedWins: shown.reduce((sum, bid) => sum + (bid.chance ?? 1), 0),
       gain: shown.reduce((sum, bid) => sum + (bid.candidate.gain ?? 0), 0),
+      expectedGain: shown.reduce(
+        (sum, bid) => sum + (bid.candidate.gain ?? 0) * (bid.chance ?? 1),
+        0,
+      ),
+      unfilled,
       missingSure: check.missingSure,
       keeperGamble: check.keeperGamble,
     };
@@ -547,6 +599,24 @@ export class SealedBid {
     };
   });
 
+  /**
+   * Quanta parte della tariffa di mercato è MISURATA e quanta è l'ipotesi «gli altri sono come questi».
+   *
+   * `marketRate` prende la media sui nomi che il foglio prezza e la proietta su tutti gli slot, perché
+   * contare come zero un uomo che non sa prezzare sarebbe una frase su di lui che nessuno ha misurato.
+   * Questa è la quota che regge quella media, pesata sulla domanda: il numero che dice quanto fidarsi.
+   */
+  protected readonly rateCoverage = computed(() => {
+    const rate = marketRate(this.states(), this.free(), this.rules());
+    let wanted = 0;
+    let covered = 0;
+    for (const role of ROLES) {
+      wanted += rate.demand[role];
+      covered += rate.demand[role] * rate.covered[role];
+    }
+    return wanted ? covered / wanted : 0;
+  });
+
   /** The market as a whole: money left, slots left, and how much of the board carries a number. */
   protected readonly market = computed(() => {
     const states = [...this.states().values()];
@@ -587,8 +657,6 @@ export class SealedBid {
         }
         this.problem.set(null);
         this.setSnapshots([...this.snapshots(), awards]);
-        // The first import cannot know which squad is his, so the selector opens empty and says so.
-        if (!this.me() && awards.length) this.openBid.set(null);
       })
       .catch((err: unknown) => {
         this.problem.set(
@@ -598,6 +666,15 @@ export class SealedBid {
     return false;
   };
 
+  /**
+   * A new export closes a round, so everything that was ABOUT that round goes with it.
+   *
+   * The swaps and the numbers always did; the deletions and the hand-written envelopes did NOT, and
+   * both are silent: a name he took out of the round-3 plan stayed out of the round-4 plan without a
+   * word, and a name he added in round 3 came back as an envelope he never asked for. `banned` is the
+   * one that survives on purpose - «escludi» is a statement about the MAN, not about a round - and it
+   * is visible on screen with its own way back.
+   */
   protected setSnapshots(next: Snapshot[]): void {
     this.snapshots.set(next);
     writeJson(KEY.snapshots, next);
@@ -605,6 +682,10 @@ export class SealedBid {
     writeJson(KEY.swaps, {});
     this.offers.set({});
     writeJson(KEY.offers, {});
+    this.dropped.set([]);
+    writeJson(KEY.dropped, []);
+    this.extras.set([]);
+    writeJson(KEY.extras, []);
     this.openBid.set(null);
   }
 
@@ -619,8 +700,22 @@ export class SealedBid {
     writeJson(KEY.swaps, {});
   }
 
+  /**
+   * One setting, kept usable whatever the field emits.
+   *
+   * `nz-input-number` sends `null` the instant the box is EMPTIED - `setValueByTyping('')` calls
+   * `updateValue(null)` - and that null was being stored and persisted. With `budget` null every
+   * manager's credits read `null - spent`, i.e. NEGATIVE, every ceiling collapsed to zero and
+   * `state.spent / budget` printed «Infinity%» as his committed share; and because the value is
+   * written to localStorage the page came back broken after a reload. A number field that has been
+   * cleared has no number in it yet, so the last good one stands until he types the next.
+   */
   protected setSetting<K extends keyof Settings>(key: K, value: Settings[K]): void {
-    const next = { ...this.settings(), [key]: value };
+    const current = this.settings();
+    if (typeof current[key] === 'number' && (value == null || !Number.isFinite(value as number))) {
+      return;
+    }
+    const next = { ...current, [key]: value };
     this.settings.set(next);
     writeJson(KEY.rules, next);
   }
@@ -636,12 +731,41 @@ export class SealedBid {
     return alternativesTo(bid, this.candidates(), plan, mine.credits - plan.spend);
   }
 
-  /** Swap the man in one slot. Recorded against the man the PLAN proposed, so it survives a re-solve. */
-  protected swapTo(bid: Bid, other: Candidate): void {
+  /**
+   * The KEY a SOLVER slot is recorded under: the man the plan proposed for it, whoever is in it now.
+   *
+   * Only the automatic bids, and that is the whole point: a hand-written envelope is not a slot the
+   * solver owns, so it is edited in its own list and never gets a `swaps` entry - the two key spaces
+   * would otherwise collide on the same person (see the extras loop in `plan`).
+   */
+  private slotKey(shownId: number): number {
+    const swaps = this.swaps();
     const auto = this.autoPlan();
-    const original =
-      auto?.bids.find((one) => (this.swaps()[one.candidate.man.fcId] ?? one.candidate.man.fcId) === bid.candidate.man.fcId)
-        ?.candidate.man.fcId ?? bid.candidate.man.fcId;
+    const proposed = auto?.bids.find(
+      (one) => (swaps[one.candidate.man.fcId] ?? one.candidate.man.fcId) === shownId,
+    );
+    return proposed?.candidate.man.fcId ?? shownId;
+  }
+
+  /**
+   * Swap the man in one row - and WHICH list it belongs to decides how.
+   *
+   * A suggested envelope keeps its slot and records «somebody else here», against the man the solver
+   * proposed, so the note survives a re-solve. A hand-written one has no slot to keep: changing it is
+   * editing his own list, so the id in `extras` is replaced outright. Two lists, two gestures, no
+   * shared key - which is what the collision above cost.
+   */
+  protected swapTo(bid: Bid, other: Candidate): void {
+    const shown = bid.candidate.man.fcId;
+    const extras = this.extras();
+    if (extras.includes(shown)) {
+      const next = [...new Set(extras.map((one) => (one === shown ? other.man.fcId : one)))];
+      this.extras.set(next);
+      writeJson(KEY.extras, next);
+      this.openBid.set(null);
+      return;
+    }
+    const original = this.slotKey(shown);
     const next = { ...this.swaps(), [original]: other.man.fcId };
     if (other.man.fcId === original) delete next[original];
     this.swaps.set(next);
@@ -691,11 +815,14 @@ export class SealedBid {
    */
   protected dropBid(bid: Bid): void {
     const fcId = bid.candidate.man.fcId;
+    // A hand-written envelope always shows the id it is stored under (`swapTo` replaces it in place),
+    // so the face IS the key here - and removing it is undoing his own addition, not overriding a
+    // suggestion.
     const extras = this.extras().filter((one) => one !== fcId);
     if (extras.length !== this.extras().length) {
-      // It was a name HE added: removing it is undoing that, not overriding a suggestion.
       this.extras.set(extras);
       writeJson(KEY.extras, extras);
+      if (this.openBid() === fcId) this.openBid.set(null);
       return;
     }
     const next = [...new Set([...this.dropped(), fcId])];
@@ -1152,17 +1279,28 @@ export class SealedBid {
     return role as ClassicRole;
   }
 
-  /** How many men who simply play the operator wants per role, and what the plan is short of. */
-  protected readonly surePerRole = SURE_PER_ROLE;
-
   /** Real awards of that band, named with what they cost: «Thuram 182 · Vlasic 3 · Dybala 2». */
   protected exampleList(band: LadderBand): string {
     return band.examples.map((one) => `${one.name} ${one.paid}`).join(' · ') || 'nessuno';
   }
 
-  /** Which roles the plan cannot give its two dependable men, as letters: «D, C». */
+  /** Which roles the plan cannot give its dependable men, as letters: «D, C». */
   protected missingSureRoles(plan: { missingSure: Record<ClassicRole, number> }): string[] {
     return ROLES.filter((role) => plan.missingSure[role] > 0);
+  }
+
+  /**
+   * ...and the same roles WITH THE NUMBER THE RULE ACTUALLY ASKS FOR: «D 2 su 4, C 1 su 4».
+   *
+   * `SURE_PER_ROLE` is the FLOOR of that rule and not the rule: `sureTarget` raises it to what an
+   * eleven fields (P1 D4 C4 A2), which is the same criterion the department verdict calls «scoperto»
+   * with. The warning used to quote the floor, so it announced «non arrivo a 2» about a constraint
+   * that had asked for four - a sentence that does not match its own arithmetic.
+   */
+  protected missingSureWords(plan: { missingSure: Record<ClassicRole, number> }): string {
+    return ROLES.filter((role) => plan.missingSure[role] > 0)
+      .map((role) => `${role} (ne mancano ${plan.missingSure[role]} su ${sureTarget(role)})`)
+      .join(', ');
   }
 
   /**

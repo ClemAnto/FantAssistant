@@ -121,6 +121,27 @@ describe('teamStates', () => {
     expect(states.get('Them')!.credits).toBe(100);
     expect(states.get('Them')!.slotsFree).toBe(6);
   });
+
+  // A bundle older than the market, or a man the sheet has since dropped: the id is in the export and
+  // in no listone. His money has still left that manager's pocket, and reading him as unspent made a
+  // rival look RICHER than he is - which is the number every rival model on this page is built on.
+  it('charges an award this listone cannot name, and COUNTS it instead of dropping it', () => {
+    const states = teamStates(
+      [
+        { team: 'Us', fcId: pool[0].fcId, paid: 10 },
+        { team: 'Us', fcId: 999_999, paid: 40 },
+      ],
+      byId,
+      RULES,
+    );
+    const us = states.get('Us')!;
+    expect(us.spent).toBe(50);
+    expect(us.credits).toBe(50);
+    expect(us.unknown).toBe(1);
+    // The ROLE is what cannot be attributed, so he takes no slot and the screen says how many rows that was.
+    expect(us.men).toHaveLength(1);
+    expect(us.taken).toEqual({ P: 1, D: 0, C: 0, A: 0 });
+  });
 });
 
 describe('roleDemand', () => {
@@ -1325,5 +1346,60 @@ describe('contestedOf', () => {
     const candidates = candidatesOf({ pool, states, precedents: PRECEDENTS, rules, me: 'Us' });
     const rows = contestedOf({ candidates, states, rules, me: 'Us' });
     expect(rows.some((one) => one.candidate.man.fcId === unquoted.fcId)).toBe(false);
+  });
+});
+
+
+describe('«vuoto = ignoto» dove decide un prezzo e una classifica', () => {
+  const rules: LeagueRules = { ...RULES, slots: { P: 0, D: 2, C: 0, A: 0 } };
+
+  it('non usa come PRECEDENTE un aggiudicato che il listone non quota', () => {
+    // Filed at pressure 0 and fvm 0 - which is what the old code did - he became the nearest
+    // neighbour of every genuinely cheap candidate and tirava giù il loro prezzo consigliato.
+    next = 1;
+    const quoted = man('D', 30, 20);
+    const unquoted = man('D', null, 25);
+    const pool = [quoted, unquoted];
+    const rounds = roundsOf(
+      [[
+        { team: 'Rival', fcId: quoted.fcId, paid: 30 },
+        { team: 'Rival', fcId: unquoted.fcId, paid: 4 },
+      ]],
+      index(pool),
+      rules,
+    );
+    const out = precedentsOf(rounds, pool);
+    expect(out.map((one) => one.fcId)).toEqual([quoted.fcId]);
+  });
+
+  it('non conta come ZERO, nella tariffa di mercato, un uomo che il foglio non prezza', () => {
+    next = 1;
+    // Two defenders the demand will absorb: one worth 20 of gain, one the sheet cannot price at all.
+    const priced = man('D', 30, 20);
+    const blind = man('D', 28, 20, { expected: null });
+    const states = teamStates([], index([priced, blind]), rules, ['Us', 'Rival']);
+    const rate = marketRate(states, [priced, blind], rules);
+    const alone = marketRate(states, [priced], rules);
+    // The man nobody can price must not halve the rate: the mean is over what IS measured.
+    expect(rate.perSlot.D).toBeCloseTo(alone.perSlot.D, 5);
+    // ...and the screen can say how much of it was measurement.
+    expect(rate.covered.D).toBeLessThan(1);
+    expect(rate.covered.D).toBeGreaterThan(0);
+  });
+});
+
+describe('rivalPlan senza il blocco dei ruoli', () => {
+  it('taglia la lista sul TOTALE che può ancora comprare, non su ogni ruolo', () => {
+    next = 1;
+    const pool = [man('D', 40, 20), man('D', 30, 18), man('C', 35, 19), man('C', 25, 17)];
+    const rules: LeagueRules = { ...RULES, slots: { P: 0, D: 2, C: 2, A: 0 }, roleLock: false };
+    const states = teamStates([], index(pool), rules, ['Us', 'Rival']);
+    const board = candidatesOf({ pool, states, precedents: PRECEDENTS, rules, me: 'Us' });
+    const rival = states.get('Rival')!;
+    // Four open slots by role, but suppose only two men can still be bought in total.
+    const capped = { ...rival, slotsFree: 2 };
+    expect(rivalPlan(capped, board, rules)).toHaveLength(2);
+    // With the lock ON the total is not the constraint - the roles are - so nothing is cut.
+    expect(rivalPlan(capped, board, { ...rules, roleLock: true })).toHaveLength(4);
   });
 });

@@ -74,15 +74,21 @@ export interface LeagueRules {
    */
   horizon: number;
   /**
-   * `SURPLUS x (Pv/matchdays)^exponent`, from `config/league_config.json`. You set the lineup before
-   * knowing whether he plays, so what you collect is the appearances you could SEE COMING; 0.5 is the
-   * measured shape of that catchability and not a risk knob.
+   * `SURPLUS x (Pv/matchdays)^exponent`. You set the lineup before knowing whether he plays, so what
+   * you collect is the appearances you could SEE COMING; 0.5 is the measured shape of that
+   * catchability and not a risk knob.
+   *
+   * DECLARED HERE, and the provenance is worth stating rather than borrowing: the bundle's manifest
+   * carries `squad_slots` and `matchdays_target` and nothing else of the league config, so this and
+   * `minAvailability` below are read from `DEFAULT_RULES` and from no file. Citing them as
+   * «`config/league_config.json`'s» - which an earlier draft of this comment did - would be quoting a
+   * number to a source that never gave it.
    */
   reliability: number;
   /**
-   * The share of the season below which a man is not RANKED at all. Also the league config's: a man who
-   * played once is not a man you could have fielded, so he does not belong in a ranking of who to buy -
-   * which is a category question and not a discount.
+   * The share of the season below which a man is not RANKED at all: a man who played once is not a man
+   * you could have fielded, so he does not belong in a ranking of who to buy - which is a category
+   * question and not a discount. Declared here too, for the reason stated just above.
    */
   minAvailability: number;
 }
@@ -142,6 +148,13 @@ export interface TeamState {
    * he looks in the standings.
    */
   ceiling: number;
+  /**
+   * Awards of his this listone cannot name: charged to his credits, absent from his roster.
+   *
+   * Never silently zero. It is the one number that says «this squad is bigger than the rows below it»,
+   * and without it a stale bundle reads as a manager with free slots he does not have.
+   */
+  unknown: number;
 }
 
 /** A cumulative export of every roster, as the league site writes it. */
@@ -155,7 +168,13 @@ export interface Round {
   before: Map<string, TeamState>;
 }
 
-const EMPTY_COUNT = (): Record<ClassicRole, number> => ({ P: 0, D: 0, C: 0, A: 0 });
+/**
+ * A fresh zero per role. Exported because the SCREEN counts roles too (the slots one plan leaves
+ * empty), and a second literal would be a second place to forget a role the day one is added.
+ */
+export const emptyByRole = (): Record<ClassicRole, number> => ({ P: 0, D: 0, C: 0, A: 0 });
+
+const EMPTY_COUNT = emptyByRole;
 
 /**
  * Parse a league roster export: `team,fc_id,credits`, with `$,$,$` separating one squad from the next.
@@ -202,14 +221,26 @@ export function teamStates(
       free: { ...rules.slots },
       slotsFree: ROLES.reduce((sum, role) => sum + rules.slots[role], 0),
       ceiling: 0,
+      unknown: 0,
     });
   }
   for (const award of awards) {
     const state = out.get(award.team);
+    if (!state) continue;
     const man = byId.get(award.fcId);
-    if (!state || !man) continue;
-    state.men.push({ ...man, paid: award.paid });
+    // A PRICE IS A FACT WHOEVER HE IS. The credits are charged even when this listone does not carry
+    // the man - a bundle older than the market, or somebody the sheet has since dropped because two
+    // signals said he had left the club - because his money has left that manager's pocket either way,
+    // and `credits`/`ceiling` are what every rival model on this page is built on. Skipping the award
+    // outright made him read RICHER than he is, silently. What cannot be attributed is the ROLE, so he
+    // gets no roster row and no slot: `unknown` says how many rows that was, and the screen states it
+    // rather than letting a squad look one man short of nothing.
     state.spent += award.paid;
+    if (!man) {
+      state.unknown += 1;
+      continue;
+    }
+    state.men.push({ ...man, paid: award.paid });
     state.taken[man.role] += 1;
   }
   for (const state of out.values()) {
@@ -346,13 +377,24 @@ export function precedentsOf(rounds: readonly Round[], pool: readonly Bidder[]):
     for (const award of round.awards) {
       const man = byId.get(award.fcId);
       if (!man) continue;
+      const pressure = pressureFor.get(award.team)?.get(award.fcId);
+      // A MAN THIS LISTONE DOES NOT QUOTE IS NOT A COMPARABLE, and reading his two axes as zeros is
+      // the exact `?? 0` that `pressureOf` twenty lines up refuses: it would file him at the bottom of
+      // the demand and at the cheapest price, where he becomes the nearest neighbour of every genuinely
+      // cheap candidate and drags their ask down with him. He was bought - that is a fact - but we
+      // cannot say WHERE he sat, so he prices nobody.
+      //
+      // Measured before removing it (25/08/2026): of the 125 awards of round 1 of the operator's
+      // league, ZERO fall here, so the ladder and every ask are unchanged today. It is the case that
+      // has not happened yet - a bundle older than the market - that this closes.
+      if (pressure == null || man.fvm == null) continue;
       out.push({
         fcId: award.fcId,
         name: man.name,
         team: award.team,
         paid: award.paid,
-        pressure: pressureFor.get(award.team)?.get(award.fcId) ?? 0,
-        fvm: man.fvm ?? 0,
+        pressure,
+        fvm: man.fvm,
         round: round.index,
       });
     }
@@ -469,7 +511,7 @@ const LADDER_SHAPE: { key: LadderKey; label: string; hint: string; keep: (pressu
   },
   {
     key: 'middle',
-    label: 'metà (33-67%)',
+    label: 'metà (34-67%)',
     hint:
       'A metà della domanda: lo raggiungono ancora, ma dopo i nomi grossi del ruolo. Qui il prezzo ' +
       'crolla rispetto alla testa, ed è la banda dove una busta decisa vale di più.',
@@ -477,7 +519,7 @@ const LADDER_SHAPE: { key: LadderKey; label: string; hint: string; keep: (pressu
   },
   {
     key: 'tail',
-    label: 'coda (0-33%)',
+    label: 'coda (1-34%)',
     hint:
       'In coda alla domanda: ci arrivano solo gli ultimi slot liberi del ruolo. Pochi contendenti, ' +
       'quindi spesso basta una busta bassa - ma è anche dove nascono le parità.',
@@ -1367,7 +1409,7 @@ export function rivalPlan(
 ): Candidate[] {
   const out: Candidate[] = [];
   for (const role of ROLES) {
-    const want = rules.roleLock ? state.free[role] : Math.min(state.free[role], state.slotsFree);
+    const want = state.free[role];
     if (!want) continue;
     const men = board
       .filter((one) => one.man.role === role)
@@ -1384,7 +1426,13 @@ export function rivalPlan(
       );
     out.push(...men.slice(0, want));
   }
-  return out.sort((left, right) => (right.man.fvm ?? 0) - (left.man.fvm ?? 0));
+  const ranked = out.sort((left, right) => (right.man.fvm ?? 0) - (left.man.fvm ?? 0));
+  // WITHOUT THE ROLE LOCK a manager's slots are one pool, so what caps his list is the TOTAL he can
+  // still buy and not the count of each role - and the cap has to be applied to the ranked list, or it
+  // is no cap at all. The old form (`min(free[role], slotsFree)` inside the loop) could never bind:
+  // `slotsFree` is the SUM of `free[*]`, so it is always the larger of the two and the minimum was
+  // always `free[role]` - a rule the flag was written to express and that was not implemented.
+  return rules.roleLock ? ranked : ranked.slice(0, state.slotsFree);
 }
 
 /** One free man seen from the ROOM's side: who can bid on him, who is favourite, and can we reach him. */
@@ -1616,6 +1664,14 @@ export interface MarketRate {
   /** Gain per credit over the whole room: the pool the money left will actually chase. */
   perCredit: number;
   demand: Record<ClassicRole, number>;
+  /**
+   * How much of that demand could be PRICED at all, role by role: measured men over men looked at.
+   *
+   * On the 2026-27 Serie A sheet one row in five carries no gain (121 of 605, and 43 of them keepers),
+   * so this is not a rounding note: it says how much of the rate is measurement and how much is the
+   * assumption below.
+   */
+  covered: Record<ClassicRole, number>;
 }
 
 /**
@@ -1631,20 +1687,30 @@ export function marketRate(
 ): MarketRate {
   const demand = roleDemand(states);
   const perSlot: Record<ClassicRole, number> = { P: 0, D: 0, C: 0, A: 0 };
+  const covered: Record<ClassicRole, number> = { P: 0, D: 0, C: 0, A: 0 };
   let gainAhead = 0;
   for (const role of ROLES) {
     const men = pool
       .filter((man) => man.role === role)
-      .map((man) => ({ man, gain: gainOf(man, rules) ?? 0 }))
-      .sort((left, right) => (right.man.fvm ?? 0) - (left.man.fvm ?? 0))
-      .slice(0, demand[role]);
-    const total = men.reduce((sum, one) => sum + one.gain, 0);
-    perSlot[role] = men.length ? total / men.length : 0;
-    gainAhead += total;
+      // The ROOM's order and not ours - it buys the price - so the men the open slots will absorb are
+      // the dearest ones, whether or not our sheet can put a number on them.
+      .sort((left, right) => (right.fvm ?? 0) - (left.fvm ?? 0))
+      .slice(0, demand[role])
+      .map((man) => gainOf(man, rules));
+    const priced = men.filter((one): one is number => one != null);
+    // A MAN THE SHEET CANNOT PRICE IS NOT A MAN WORTH NOTHING. Averaging him in as a zero - which this
+    // did - drags the rate down in proportion to how much of the listone we cannot read (a fifth of it,
+    // and three fifths of the keepers), and every number built on the rate moves with it: `toCome`, the
+    // standings, `reach` and the conduct star. So the mean is taken over what IS measured and then
+    // projected onto all the slots, which is the assumption «the ones we cannot read are like the ones
+    // we can» - stated here rather than hidden, and `covered` says how much of it is measurement.
+    perSlot[role] = priced.length ? priced.reduce((sum, one) => sum + one, 0) / priced.length : 0;
+    covered[role] = men.length ? priced.length / men.length : 0;
+    gainAhead += perSlot[role] * demand[role];
   }
   let creditsAhead = 0;
   for (const state of states.values()) creditsAhead += state.credits;
-  return { perSlot, perCredit: creditsAhead > 0 ? gainAhead / creditsAhead : 0, demand };
+  return { perSlot, perCredit: creditsAhead > 0 ? gainAhead / creditsAhead : 0, demand, covered };
 }
 
 /** What a manager's round was worth, and against what. */

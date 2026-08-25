@@ -886,6 +886,12 @@ async function main() {
             await realClick(session, centre(modal.firstBox));
             await wait(450);
             const afterAdd = await evaluate(session, readPlan);
+            // QUESTA asserzione ha già trovato un difetto vero (25/08/2026) e per questo va letta come
+            // una guardia e non come una formalità: `swaps` è indicizzato sull'uomo che il risolutore
+            // aveva proposto, `extras` su quello aggiunto a mano, e la stessa persona può essere tutt'e
+            // due. Con la ricerca degli swap applicata anche agli extra, aggiungere proprio l'uomo che
+            // era stato sostituito metteva in busta il SOSTITUTO: 265 crediti su 257 per un nome che
+            // nessuno aveva scelto due volte, e il nome scelto da nessuna parte.
             note('un nome scelto a mano entra nel piano', {
               said: `${beforeAdd.bids.length} → ${afterAdd.bids.length} buste · ${afterAdd.spend} di ${afterAdd.budget}`,
               problems: [
