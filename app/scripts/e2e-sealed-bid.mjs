@@ -335,7 +335,27 @@ function readAdvice() {
     rows: rows.length,
     roles: rows.map((one) => one.dataset.advice),
     withWords: rows.filter((one) => (one.textContent ?? '').length > 120).length,
+    // The number the verdict is DECIDED on has to be on screen beside the word, or «scoperto» is a
+    // claim nobody can check: «N maglie vuote su M». One per department, and the module is named in
+    // every sentence so the target can be doubted where it is used.
+    withHoles: rows.filter((one) => /maglie vuote su \d/.test(one.textContent ?? '')).length,
+    named: rows.filter((one) => /\d-\d-\d/.test(one.textContent ?? '')).length,
+    words: rows.map((one) => (one.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 150)),
   };
+}
+
+/**
+ * THE MODULE THE ENVELOPES ARE TUNED ON, declared beside the plan's own title.
+ *
+ * Measured and not assumed, because it is a choice the operator has to be able to refuse: a target that
+ * lives only inside the solver is a target nobody can correct.
+ */
+function readReference() {
+  const title = [...document.querySelectorAll('h2')].find((one) =>
+    (one.textContent ?? '').startsWith('Le tue buste'),
+  );
+  const tag = title?.parentElement?.querySelector('nz-tag');
+  return { found: !!tag, name: tag?.textContent?.trim() ?? null };
 }
 
 /** What actually sits under a point - the only honest answer to «is the control reachable». */
@@ -700,11 +720,25 @@ async function main() {
 
       const advice = await evaluate(session, readAdvice);
       note('la rosa è giudicata reparto per reparto', {
-        said: `${advice.rows} reparti (${advice.roles.join(' ')}), ${advice.withWords} con un consiglio scritto`,
+        said: `${advice.rows} reparti (${advice.roles.join(' ')}), ${advice.withWords} con un consiglio scritto, ` +
+          `${advice.withHoles} col numero dei posti vuoti, ${advice.named} che nominano il modulo`,
         problems: [
           ...(advice.rows === 4 ? [] : [`${advice.rows} reparti invece di 4`]),
           ...(advice.withWords === advice.rows
             ? [] : [`${advice.withWords} reparti su ${advice.rows} portano un consiglio`]),
+          // The keepers are exempt by design (their rule is the SHIRT, not a count of places), so three
+          // of four is the target here and the count says which.
+          ...(advice.withHoles >= advice.rows - 1
+            ? [] : [`solo ${advice.withHoles} reparti su ${advice.rows} dicono quante maglie restano vuote`]),
+        ],
+      });
+      const reference = await evaluate(session, readReference);
+      note('le buste dicono su quale modulo sono tarate', {
+        said: reference.found ? `modulo di riferimento «${reference.name}»` : 'nessun modulo dichiarato',
+        problems: [
+          ...(reference.found ? [] : ['il modulo su cui è tarato il piano non è a schermo']),
+          ...(/^\d-\d-\d$/.test(reference.name ?? '')
+            ? [] : [`«${reference.name}» non è un modulo`]),
         ],
       });
 

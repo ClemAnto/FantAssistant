@@ -144,6 +144,19 @@
       <label
         class="flex items-center gap-2 text-sm"
         nz-tooltip
+        nzTooltipTitle="Se la lega paga il modificatore di difesa il bonus vuole QUATTRO difensori in campo, quindi le buste si tarano su un modulo che li schiera (4-3-3) invece che sul 3-4-3, quando quattro difensori che giocano sono a portata. Non entra in nessuna valutazione: quanto valga il modificatore non è misurato da nessuna parte."
+      >
+        <span class="text-muted">Modificatore di difesa</span>
+        <nz-switch
+          nzSize="small"
+          [ngModel]="settings().defenceModifier"
+          (ngModelChange)="setSetting('defenceModifier', $event)"
+        />
+      </label>
+
+      <label
+        class="flex items-center gap-2 text-sm"
+        nz-tooltip
         nzTooltipTitle="Le giornate che la competizione copre davvero. Se il torneo parte dalla seconda, quello che incassi sono 37 giornate su 38: cambia tutti i numeri della pagina nella stessa proporzione, quindi non sposta di una riga né la classifica né i consigli."
       >
         <span class="text-muted">Giornate</span>
@@ -295,6 +308,19 @@
           <div class="mb-2 flex flex-wrap items-baseline justify-between gap-2">
             <div class="flex items-baseline gap-2">
               <h2 class="text-base font-semibold text-fg">Le tue buste · round {{ round() }}</h2>
+              <!-- IL MODULO SU CUI E' TARATO TUTTO, dichiarato a schermo: una scelta automatica deve
+                   essere dubitabile, quindi c'è anche il secondo. Si legge dal PIANO e non da un
+                   secondo calcolo: due scelte dello stesso modulo finirebbero per non essere
+                   d'accordo, e l'operatore leggerebbe un bersaglio che il piano non sta comprando. -->
+              @if (reference(); as ref) {
+                <nz-tag
+                  class="text-xs"
+                  [nzColor]="ref.noRulebook ? 'warning' : 'default'"
+                  nz-tooltip
+                  [nzTooltipTitle]="ref.why"
+                  >{{ plan()?.reference?.name ?? ref.chosen.name }}</nz-tag
+                >
+              }
               @if (plan(); as current) {
                 <span class="text-xs text-muted">
                   {{ current.bids.length }} su {{ mine()!.slotsFree }} slot ·
@@ -513,7 +539,7 @@
                       [nzPopoverContent]="statsTip"
                       (mouseenter)="hoverStats.set(bid.candidate.man.fcId)"
                     >
-                      <ui-gain [gain]="bid.candidate.gain" [scale]="scale()" />
+                      <ui-gain [gain]="bid.gain" [scale]="scale()" />
                     </span>
                     <span
                       class="w-14 shrink-0 text-right text-xs"
@@ -776,9 +802,13 @@
               @if (current.keeperGamble) {
                 <div class="mt-1 text-warning">
                   <nz-icon nzType="alert" />
-                  {{ current.keeperGamble }} portiere in ballottaggio comprato da solo: con tre soli slot
-                  è la scommessa da evitare. Prendi anche il compagno che se la gioca con lui, oppure
-                  scegli un portiere che gioca sempre.
+                  <!-- «in ballottaggio» non è più esatto da quando la regola guarda la MAGLIA e non il
+                       club (`ownsShirt`, 25/08/2026): qui dentro finisce anche il terzo portiere preso
+                       accanto a uno che non è quello disegnato, che in nessun ballottaggio sta. Una frase
+                       che non torna col numero accanto è la cosa che questo progetto paga più spesso. -->
+                  {{ current.keeperGamble }} portiere su cui busti da solo: nessuno che giochi sempre, e
+                  nessuno che copra la maglia. Con tre soli slot è la scommessa da evitare - prendi anche
+                  chi la maglia se la gioca davvero, oppure un portiere che gioca sempre.
                 </div>
               }
               @if (missingSureRoles(current).length) {
@@ -1032,12 +1062,16 @@
                   [nzTooltipTitle]="stateHint(line)"
                   >{{ line.state }}</nz-tag
                 >
+                <!-- IL NUMERO SU CUI IL VERDETTO SI DECIDE, accanto alla parola: «scoperto» con 0,6
+                     di fianco è una frase diversa da «scoperto» da solo. Il conteggio dei titolari
+                     resta perché è vero e si legge volentieri, ma non è più quello che decide. -->
                 <span
                   class="text-xs text-muted"
                   nz-tooltip
-                  nzTooltipTitle="Quanti dei tuoi, in questo ruolo, giocano quasi ogni giornata - e quanti ne schiera un undici."
+                  nzTooltipTitle="Quante delle maglie di questo ruolo restano VUOTE in una giornata tipo, contando le quote di presenza di tutti i tuoi (non solo dei titolarissimi) e le buste di questo round. Un reparto è scoperto quando ne resta vuota una intera."
                 >
-                  {{ line.starters }} che giocano su {{ line.fielded }} da schierare
+                  {{ line.holes | number: '1.0-1' }} maglie vuote su {{ line.fielded }} ·
+                  {{ line.starters }} titolari
                 </span>
                 <span
                   class="text-xs text-muted"

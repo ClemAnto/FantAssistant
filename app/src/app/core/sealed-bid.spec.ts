@@ -15,6 +15,12 @@ import {
   askFor,
   boardFor,
   buyable,
+  HOLE_TARGET,
+  Reference,
+  STANDARD_ELEVEN,
+  expectedHoles,
+  referenceShape,
+  shapesOf,
   calibrationOf,
   canAdd,
   candidatesOf,
@@ -43,6 +49,9 @@ import {
   verdicts,
   winChance,
   gainOf,
+  keeperGain,
+  marginalGains,
+  squadGain,
 } from './sealed-bid';
 import { ClassicRole } from './players-store';
 
@@ -284,7 +293,7 @@ describe('the competition horizon', () => {
     const planWith = (rules: LeagueRules) => {
       const states = teamStates([], index(pool), { ...rules, slots: need }, ['Us', 'Rival']);
       const candidates = candidatesOf({ pool, states, precedents: PRECEDENTS, rules, me: 'Us' });
-      return allocate(candidates, need, 100);
+      return allocate(candidates, need, 100, rules);
     };
     const full = planWith(FULL);
     const short = planWith(SHORT);
@@ -319,7 +328,7 @@ describe('allocate', () => {
 
   it('fills every slot it is asked for, inside the budget', () => {
     const { candidates } = board();
-    const plan = allocate(candidates, { P: 0, D: 2, C: 0, A: 1 }, 100);
+    const plan = allocate(candidates, { P: 0, D: 2, C: 0, A: 1 }, 100, RULES);
     expect(plan.bids).toHaveLength(3);
     expect(plan.bids.filter((bid) => bid.candidate.man.role === 'D')).toHaveLength(2);
     expect(plan.spend).toBeLessThanOrEqual(100);
@@ -331,7 +340,7 @@ describe('allocate', () => {
     // unspent credit is worth nothing at the end of a market. So the knapsack must do strictly better
     // than the efficient plan built under the same quotas and the same cap.
     const { candidates } = board();
-    const plan = allocate(candidates, NEED, 100);
+    const plan = allocate(candidates, NEED, 100, RULES);
     const taken = { P: 0, D: 0, C: 0, A: 0 } as Record<'P' | 'D' | 'C' | 'A', number>;
     let left = 100;
     let efficient = 0;
@@ -348,11 +357,11 @@ describe('allocate', () => {
 
   it('reaches both dear men when the budget holds them, and neither when it does not', () => {
     const { pool, candidates } = board();
-    const rich = new Set(allocate(candidates, NEED, 200).bids.map((bid) => bid.candidate.man.fcId));
+    const rich = new Set(allocate(candidates, NEED, 200, RULES).bids.map((bid) => bid.candidate.man.fcId));
     expect(rich.has(pool[0].fcId)).toBe(true); // the dear forward
     expect(rich.has(pool[3].fcId)).toBe(true); // the dear defender
 
-    const poor = allocate(candidates, NEED, 70);
+    const poor = allocate(candidates, NEED, 70, RULES);
     const chosen = new Set(poor.bids.map((bid) => bid.candidate.man.fcId));
     expect(chosen.has(pool[0].fcId)).toBe(false);
     expect(chosen.has(pool[3].fcId)).toBe(false);
@@ -363,7 +372,7 @@ describe('allocate', () => {
 
   it('writes every envelope at one of the three declared numbers, and marks what it raised', () => {
     const { candidates } = board();
-    const plan = allocate(candidates, { P: 0, D: 2, C: 0, A: 1 }, 100);
+    const plan = allocate(candidates, { P: 0, D: 2, C: 0, A: 1 }, 100, RULES);
     for (const bid of plan.bids) {
       // The optimiser chooses among «colpo», «consigliato» and «quasi sicuro»; the mop-up can only
       // move a non-shot up to the last of the three. Anything else would be a number nobody decided.
@@ -381,14 +390,14 @@ describe('allocate', () => {
 
   it('reports the slots it could not fill instead of quietly returning fewer bids', () => {
     const { candidates } = board();
-    const plan = allocate(candidates, { P: 2, D: 0, C: 0, A: 0 }, 100);
+    const plan = allocate(candidates, { P: 2, D: 0, C: 0, A: 0 }, 100, RULES);
     expect(plan.unfilled.P).toBe(2);
     expect(plan.bids).toHaveLength(0);
   });
 
   it('carries the null it has to beat: the same slots bought the way the room buys', () => {
     const { candidates } = board();
-    const plan = allocate(candidates, { P: 0, D: 2, C: 0, A: 1 }, 100);
+    const plan = allocate(candidates, { P: 0, D: 2, C: 0, A: 1 }, 100, RULES);
     expect(plan.marketGain).toBeGreaterThan(0);
     // Never worse, and allowed to TIE: where our ranking and the room's agree on the same men, the two
     // totals are the same sum added in a different order, so the comparison carries a float tolerance
@@ -591,7 +600,7 @@ describe('a man this listone does not quote', () => {
     // He is worth more than two of the three quoted men, and at a false price of 2 credits he would win a
     // slot outright - which is exactly how he got into a real recommendation before this was fixed.
     expect(gainOf(pool[3], RULES)!).toBeGreaterThan(gainOf(pool[2], RULES)!);
-    const plan = allocate(candidates, { P: 0, D: 0, C: 0, A: 2 }, 100);
+    const plan = allocate(candidates, { P: 0, D: 0, C: 0, A: 2 }, 100, RULES);
     expect(plan.bids.map((one) => one.candidate.man.fcId)).not.toContain(pool[3].fcId);
   });
 
@@ -609,7 +618,7 @@ describe('a man this listone does not quote', () => {
 
   it('IS still offerable by hand: the automatic choice must be doubtable', () => {
     const { pool, candidates } = board();
-    const plan = allocate(candidates, { P: 0, D: 0, C: 0, A: 2 }, 100);
+    const plan = allocate(candidates, { P: 0, D: 0, C: 0, A: 2 }, 100, RULES);
     const others = alternativesTo(plan.bids[0], candidates, plan, 50);
     expect(others.map((one) => one.candidate.man.fcId)).toContain(pool[3].fcId);
   });
@@ -655,7 +664,7 @@ describe('a plan says what it will PROBABLY cost, not only its ceiling', () => {
 
   it('carries a chance on every bid and the two aggregates that follow from them', () => {
     const { need, candidates } = board();
-    const plan = allocate(candidates, need, 200);
+    const plan = allocate(candidates, need, 200, RULES);
     expect(plan.bids.every((one) => one.chance != null)).toBe(true);
     expect(plan.expectedWins).toBeCloseTo(
       plan.bids.reduce((sum, one) => sum + (one.chance ?? 1), 0), 6,
@@ -668,7 +677,7 @@ describe('a plan says what it will PROBABLY cost, not only its ceiling', () => {
   it('expects to pay LESS than the ceiling and to win fewer than every envelope', () => {
     // Losing costs nothing, so «257 di 257» is the worst case quoted as if it were the forecast.
     const { need, candidates } = board();
-    const plan = allocate(candidates, need, 200);
+    const plan = allocate(candidates, need, 200, RULES);
     expect(plan.expectedSpend).toBeLessThan(plan.spend);
     expect(plan.expectedWins).toBeLessThan(plan.bids.length);
     expect(plan.expectedWins).toBeGreaterThan(0);
@@ -683,7 +692,7 @@ describe('a plan says what it will PROBABLY cost, not only its ceiling', () => {
     const states = teamStates([], index(pool), rules, ['Us', 'Rival']);
     const candidates = candidatesOf({ pool, states, precedents: PRECEDENTS, rules, me: 'Us' });
     // Money to burn: whatever stays cheap here stays cheap because the plan MEANT it to.
-    const plan = allocate(candidates, need, 400);
+    const plan = allocate(candidates, need, 400, RULES);
     for (const bid of plan.bids.filter((one) => one.shot)) {
       expect(bid.raised).toBe(false);
       expect(bid.offer).toBe(CHEAP_SHOT);
@@ -707,7 +716,7 @@ describe('a plan says what it will PROBABLY cost, not only its ceiling', () => {
     const base = candidates
       .slice(0, 3)
       .reduce((sum, one) => sum + one.ask.ask, 0);
-    const plan = allocate(candidates, need, base + cheapest);
+    const plan = allocate(candidates, need, base + cheapest, RULES);
     const raised = plan.bids.filter((one) => one.raised);
     // Whatever was raised must be the best chance-per-credit going, and the cheap defenders are. The
     // list can legitimately be EMPTY now: the objective already prices every step it was offered, so
@@ -730,7 +739,7 @@ describe('a plan says what it will PROBABLY cost, not only its ceiling', () => {
 
   it('reads the chance of the RAISED offer, not of the one it started from', () => {
     const { need, candidates } = board();
-    const plan = allocate(candidates, need, 200);
+    const plan = allocate(candidates, need, 200, RULES);
     for (const bid of plan.bids) {
       expect(bid.chance).toBe(winChance(bid.offer, bid.candidate.ask));
     }
@@ -833,7 +842,7 @@ describe('alternativesTo', () => {
       rules,
       me: 'Us',
     });
-    const plan = allocate(candidates, { P: 0, D: 0, C: 0, A: 1 }, 100);
+    const plan = allocate(candidates, { P: 0, D: 0, C: 0, A: 1 }, 100, RULES);
     const others = alternativesTo(plan.bids[0], candidates, plan, 100 - plan.spend);
     expect(others.every((one) => one.candidate.man.role === 'A')).toBe(true);
     expect(others.some((one) => one.candidate.man.fcId === plan.bids[0].candidate.man.fcId)).toBe(false);
@@ -1040,6 +1049,35 @@ describe('the operator\'s rules about the SQUAD', () => {
     const sure = man('P', 30, 30, { titolarita: 'bandiera', club: 'Milan' });
     expect(strategyCheck([sure], squadOf([], []), rules).keeperGamble).toBe(0);
   });
+
+  /**
+   * THE JUVENTUS GOAL OF 25/08/2026, with the sheet's own numbers, because the defect was invisible to
+   * every fixture that had two men in it: «Di Gregorio e Perin sono riserve e senza Vicario non ha senso
+   * offrire delle buste per loro». Two club-mates were a pair whatever their rung, so the screen read
+   * `keeperGamble` 0 on a plan that owned neither side of the fight it was betting on.
+   */
+  it('does not take two men the board draws NEITHER for the two sides of a fight', () => {
+    next = 1;
+    const behind = man('P', 10, 25.9, { titolarita: 'panchina', expected: 26.9, club: 'Juventus' });
+    const third = man('P', 5, 10, { titolarita: 'riserva', expected: 13.3, club: 'Juventus' });
+    const shirt = man('P', 55, 14.9, { titolarita: 'ballottaggio', expected: 23.6, club: 'Juventus' });
+    const squad = squadOf([], []);
+    // The two the operator was offered: a pair on the club, and nobody wearing the shirt.
+    expect(strategyCheck([behind, third], squad, rules).keeperGamble).toBe(2);
+    // ...and the arithmetic is not what refuses them: it PREFERS them, because 26.9 + 13.3 appearances
+    // tile a 38-round season while 26.9 + 23.6 overlap. Hence a constraint and not a currency.
+    expect(keeperGain([behind, third], rules)).toBeGreaterThan(keeperGain([behind, shirt], rules));
+    expect(strategyCheck([behind, shirt], squad, rules).keeperGamble).toBe(0);
+  });
+
+  it('does not refuse a pair it cannot READ: an unknown rung is not evidence against it', () => {
+    next = 1;
+    // A sheet built where the boards could not be drawn carries no rung at all. Refusing every pair
+    // there - or swapping men over it - would be «vuoto = ignoto» broken from the other side.
+    const one = man('P', 20, 20, { titolarita: null, club: 'Juve' });
+    const two = man('P', 15, 15, { titolarita: null, club: 'Juve' });
+    expect(strategyCheck([one, two], squadOf([], []), rules).keeperGamble).toBe(0);
+  });
 });
 
 describe('the plan under those rules', () => {
@@ -1058,7 +1096,7 @@ describe('the plan under those rules', () => {
     const states = teamStates([], index(pool), { ...rules, slots: need }, ['Us', 'Rival']);
     const squad = states.get('Us')!;
     const candidates = candidatesOf({ pool, states, precedents: PRECEDENTS, rules, me: 'Us' });
-    const plan = allocate(candidates, need, 100, { squad, rules });
+    const plan = allocate(candidates, need, 100, rules, squad);
     const names = plan.bids.map((one) => one.candidate.man.fcId);
     expect(names).toContain(regular.fcId);
     expect(plan.missingSure.D).toBe(SURE_PER_ROLE - 1);
@@ -1075,11 +1113,36 @@ describe('the plan under those rules', () => {
     const states = teamStates([], index(pool), { ...rules, slots: need }, ['Us', 'Rival']);
     const squad = states.get('Us')!;
     const candidates = candidatesOf({ pool, states, precedents: PRECEDENTS, rules, me: 'Us' });
-    const plan = allocate(candidates, need, 100, { squad, rules });
+    const plan = allocate(candidates, need, 100, rules, squad);
     expect(plan.bids).toHaveLength(1);
     // With ONE slot the pair is impossible, so the cure is the man who is not in a fight at all.
     expect(plan.bids[0].candidate.man.fcId).toBe(dependable.fcId);
     expect(plan.keeperGamble).toBe(0);
+  });
+
+  it('swaps the third keeper for the man who is actually fighting for the shirt', () => {
+    // The same Juventus goal, one level up: with TWO keeper slots the plan can hold a pair, so the cure
+    // is the pair - and the pair is the man the board draws, not the cheapest club-mate on the board.
+    next = 1;
+    const behind = man('P', 10, 25.9, { titolarita: 'panchina', expected: 26.9, club: 'Juventus' });
+    const third = man('P', 5, 10, { titolarita: 'riserva', expected: 13.3, club: 'Juventus' });
+    const shirt = man('P', 55, 14.9, { titolarita: 'ballottaggio', expected: 23.6, club: 'Juventus' });
+    const pool = [behind, third, shirt];
+    const need = { P: 2, D: 0, C: 0, A: 0 };
+    const states = teamStates([], index(pool), { ...rules, slots: need }, ['Us', 'Rival']);
+    const squad = states.get('Us')!;
+    const candidates = candidatesOf({ pool, states, precedents: PRECEDENTS, rules, me: 'Us' });
+    const plan = allocate(candidates, need, 200, rules, squad);
+    const names = plan.bids.map((one) => one.candidate.man.fcId);
+    expect(names).toContain(behind.fcId);
+    expect(names).toContain(shirt.fcId);
+    expect(names).not.toContain(third.fcId);
+    expect(plan.keeperGamble).toBe(0);
+    // ...and where the money does not reach him the gamble STANDS and is COUNTED, which is the third
+    // move and not a failure: the man who wears the shirt asks 90 credits of the ladder here.
+    const tight = allocate(candidates, need, 100, rules, squad);
+    expect(tight.bids.map((one) => one.candidate.man.fcId)).toContain(third.fcId);
+    expect(tight.keeperGamble).toBe(2);
   });
 
   it('mixes serious bids with cheap shots: a strong man nobody wants is tried for two credits', () => {
@@ -1093,7 +1156,7 @@ describe('the plan under those rules', () => {
     const states = teamStates([], index(pool), { ...rules, slots: need }, ['Us', 'Rival']);
     const squad = states.get('Us')!;
     const candidates = candidatesOf({ pool, states, precedents: PRECEDENTS, rules, me: 'Us' });
-    const plan = allocate(candidates, need, 40, { squad, rules });
+    const plan = allocate(candidates, need, 40, rules, squad);
     // The quiet one is cheap by the ladder itself; what matters is that the plan reaches BOTH good
     // men on a budget that could not pay the going rate for the contested one.
     const chosen = plan.bids.map((one) => one.candidate.man.fcId);
@@ -1113,7 +1176,7 @@ describe('boardFor and canAdd', () => {
     const states = teamStates([], index(pool), rules, ['Us', 'Rival']);
     const squad = states.get('Us')!;
     const candidates = candidatesOf({ pool, states, precedents: PRECEDENTS, rules, me: 'Us' });
-    const plan = allocate(candidates, need, 100, { squad, rules });
+    const plan = allocate(candidates, need, 100, rules, squad);
     return { pool, candidates, plan, squad };
   };
 
@@ -1158,7 +1221,7 @@ describe('boardFor and canAdd', () => {
     const states = teamStates([], index(pool), rules, ['Us', 'Rival']);
     const squad = states.get('Us')!;
     const candidates = candidatesOf({ pool, states, precedents: PRECEDENTS, rules, me: 'Us' });
-    const plan = allocate(candidates, { P: 0, D: 1, C: 0, A: 0 }, 100, { squad, rules });
+    const plan = allocate(candidates, { P: 0, D: 1, C: 0, A: 0 }, 100, rules, squad);
     const spare = boardFor('D', candidates, plan)[0];
     const check = canAdd(spare, { ...plan, spend: squad.credits }, squad, rules);
     expect(check.ok).toBe(true);
@@ -1258,16 +1321,212 @@ describe('dealsOf', () => {
 
 
 describe('sureTarget', () => {
-  it('is what an ELEVEN needs, with «un paio per ruolo» as the floor', () => {
-    // The rule the department verdict is written on, so the plan and the verdict cannot disagree:
-    // four defenders and four midfielders play every week, two forwards do, and the floor never
-    // drops below the operator's own pair.
-    expect(sureTarget('D')).toBe(4);
-    expect(sureTarget('C')).toBe(4);
-    expect(sureTarget('A')).toBe(2);
-    expect(sureTarget('P')).toBe(SURE_PER_ROLE);
+  it('is his FLOOR, «un paio per ruolo», and non piu\' le maglie di un undici', () => {
+    // It used to be `max(2, fielded)`, which is how a defence of five men kept asking for a fourth
+    // signing. The consistency rule it existed for did not go away: the verdict and the repair now read
+    // the same `expectedHoles`, and the count is back to being what the operator actually asked for.
+    expect(sureTarget('D')).toBe(SURE_PER_ROLE);
+    expect(sureTarget('C')).toBe(SURE_PER_ROLE);
+    expect(sureTarget('A')).toBe(SURE_PER_ROLE);
+    // The keepers are not in this rule at all: a pair is two men of whom one plays each week.
+    expect(sureTarget('P')).toBe(0);
   });
 });
+
+describe('un reparto e\' un INSIEME, non un conteggio di titolari', () => {
+  const rules: LeagueRules = { ...RULES, slots: { P: 3, D: 8, C: 8, A: 6 } };
+
+  /** I cinque difensori veri dell'operatore, col gradino e le presenze del foglio Serie A rev. 36. */
+  const hisDefence = () => {
+    next = 1;
+    return [
+      man('D', 30, 30, { titolarita: 'bandiera', expected: 33.2, name: 'Solet' }),
+      man('D', 30, 28, { titolarita: 'bandiera', expected: 30.9, name: 'Kalulu' }),
+      man('D', 25, 24, { titolarita: 'bandiera', expected: 25.6, name: 'Di Lorenzo' }),
+      man('D', 25, 22, { titolarita: 'ballottaggio', expected: 25.2, name: 'Bisseck' }),
+      man('D', 20, 16, { titolarita: 'ballottaggio', expected: 18.9, name: 'Molina N.' }),
+    ];
+  };
+
+  it('conta i posti VUOTI a giornata, e con cinque difensori sono meno di uno', () => {
+    const five = hisDefence();
+    // Le quote sono 0,87 · 0,81 · 0,67 · 0,66 · 0,50: coprono 3,36 posti su 4.
+    expect(expectedHoles(five, 'D', 4, rules)).toBeCloseTo(0.64, 1);
+    expect(expectedHoles(five, 'D', 3, rules)).toBeCloseTo(0.17, 1);
+    // ...e i soli tre `bandiera` non coprirebbero quattro maglie: e' la differenza che il conteggio
+    // dei gradini non vedeva, perche' `playsOften` risponde false a un `ballottaggio`.
+    expect(expectedHoles(five.slice(0, 3), 'D', 4, rules)).toBeGreaterThan(1);
+    expect(five.filter((one) => playsOften(one, rules) === true)).toHaveLength(3);
+  });
+
+  it('un posto senza nessuno e\' un posto vuoto, e uno senza maglie non e\' un buco', () => {
+    expect(expectedHoles([], 'D', 4, rules)).toBe(4);
+    expect(expectedHoles(hisDefence(), 'D', 0, rules)).toBe(0);
+  });
+
+  it('chi non ha presenze leggibili resta FUORI dal conto invece di contare come assente', () => {
+    next = 1;
+    const known = man('C', 20, 20, { titolarita: 'bandiera', expected: 38 });
+    const unknown = man('C', 20, 20, { titolarita: null, expected: null });
+    // Un uomo che copre tutto il calendario copre la maglia; l'ignoto non la copre e non la buca.
+    expect(expectedHoles([known, unknown], 'C', 1, rules)).toBeCloseTo(0, 5);
+    expect(expectedHoles([known, unknown], 'C', 2, rules)).toBeCloseTo(1, 5);
+  });
+
+  it('non dice piu\' SCOPERTO su una difesa che copre le sue maglie', () => {
+    const five = hisDefence();
+    const awards = five.map((one) => ({ team: 'Us', fcId: one.fcId, paid: 10 }));
+    const states = teamStates(awards, index(five), rules, ['Us', 'Rival']);
+    const mine = states.get('Us')!;
+    const candidates = candidatesOf({ pool: five, states, precedents: PRECEDENTS, rules, me: 'Us' });
+    const scale = gainScale(five, rules);
+    const shape: Reference = { name: '4-3-3', places: { P: 1, D: 4, C: 3, A: 3 } };
+    const line = adviceFor({ mine, states, candidates, scale, rules, reference: shape }).find(
+      (one) => one.role === 'D',
+    )!;
+    expect(line.starters).toBe(3);
+    expect(line.fielded).toBe(4);
+    expect(line.holes).toBeCloseTo(0.64, 1);
+    expect(line.state).not.toBe('scoperto');
+    // Col vecchio conteggio dei gradini erano «3 titolari su 4» e quindi scoperto: e' l'obiezione
+    // dell'operatore del 25/08/2026, e la frase adesso porta il numero da cui esce.
+    expect(line.advice).toContain('4-3-3');
+  });
+
+  it('...e lo dice quando il buco c\'e\' davvero', () => {
+    next = 1;
+    const two = [
+      man('D', 30, 30, { titolarita: 'bandiera', expected: 33.2 }),
+      man('D', 30, 28, { titolarita: 'bandiera', expected: 30.9 }),
+    ];
+    const awards = two.map((one) => ({ team: 'Us', fcId: one.fcId, paid: 10 }));
+    const states = teamStates(awards, index(two), rules, ['Us', 'Rival']);
+    const mine = states.get('Us')!;
+    const candidates = candidatesOf({ pool: two, states, precedents: PRECEDENTS, rules, me: 'Us' });
+    const scale = gainScale(two, rules);
+    const shape: Reference = { name: '4-3-3', places: { P: 1, D: 4, C: 3, A: 3 } };
+    const line = adviceFor({ mine, states, candidates, scale, rules, reference: shape }).find(
+      (one) => one.role === 'D',
+    )!;
+    expect(line.holes).toBeGreaterThan(HOLE_TARGET);
+    expect(line.state).toBe('scoperto');
+  });
+});
+
+describe('il modulo di riferimento si SCEGLIE', () => {
+  // Un budget vero, perche' «quelli rimanenti» si misura sul TETTO: con i crediti in rosso nessuno e'
+  // raggiungibile e la scelta cadrebbe sulla copertura di oggi invece che su quella che puoi comprare.
+  const rules: LeagueRules = { ...RULES, budget: 1000, slots: { P: 3, D: 8, C: 8, A: 6 } };
+  /** Il rulebook vero, come lo legge la pagina: nessuna trascrizione a mano. */
+  const RULEBOOK = {
+    modules: {
+      '3-4-3': { D: ['D', 'D', 'D'], M: ['C', 'C', 'C', 'C'], T: [], A: ['A', 'A', 'A'] },
+      '4-3-3': { D: ['D', 'D', 'D', 'D'], M: ['C', 'C', 'C'], T: [], A: ['A', 'A', 'A'] },
+      '3-5-2': { D: ['D', 'D', 'D'], M: ['C', 'C', 'C', 'C', 'C'], T: [], A: ['A', 'A'] },
+      '5-3-2': { D: ['D', 'D', 'D', 'D', 'D'], M: ['C', 'C', 'C'], T: [], A: ['A', 'A'] },
+    },
+  };
+
+  it('legge le maglie dal regolamento, e ogni modulo ne schiera undici', () => {
+    const shapes = shapesOf(RULEBOOK);
+    expect(shapes.map((one) => one.name)).toEqual(['3-4-3', '4-3-3', '3-5-2', '5-3-2']);
+    for (const shape of shapes) {
+      expect(shape.places.P + shape.places.D + shape.places.C + shape.places.A).toBe(11);
+    }
+    expect(shapes.find((one) => one.name === '4-3-3')!.places).toEqual({ P: 1, D: 4, C: 3, A: 3 });
+  });
+
+  it('senza regolamento taro sull\'undici standard, e lo DICE', () => {
+    next = 1;
+    const states = teamStates([], index([]), rules, ['Us']);
+    const choice = referenceShape({
+      squad: states.get('Us')!,
+      candidates: [],
+      rules,
+      shapes: [],
+    });
+    expect(choice.noRulebook).toBe(true);
+    expect(choice.chosen).toEqual(STANDARD_ELEVEN);
+    expect(choice.why).toContain('1-4-4-2');
+  });
+
+  it('col modificatore di difesa attivo sceglie il 4-3-3 se il quarto difensore e\' a portata', () => {
+    next = 1;
+    const squad: Bidder[] = [
+      man('D', 30, 30, { titolarita: 'bandiera', expected: 33.2 }),
+      man('D', 30, 28, { titolarita: 'bandiera', expected: 30.9 }),
+      man('D', 25, 24, { titolarita: 'bandiera', expected: 25.6 }),
+      man('D', 25, 22, { titolarita: 'ballottaggio', expected: 25.2 }),
+      man('D', 20, 16, { titolarita: 'ballottaggio', expected: 18.9 }),
+    ];
+    // Il resto della rosa copre le sue maglie in tutt'e due i moduli, cosi' l'unica cosa che li
+    // distingue e' la domanda difesa/centrocampo - che e' quello che questa prova vuole misurare.
+    squad.push(
+      ...[38, 38, 38, 38].map((expected) => man('C', 30, 30, { titolarita: 'bandiera', expected })),
+      ...[38, 38, 38].map((expected) => man('A', 30, 30, { titolarita: 'bandiera', expected })),
+    );
+    const board = [man('D', 20, 18, { titolarita: 'titolare', expected: 34 })];
+    const pool = [...squad, ...board];
+    const awards = squad.map((one) => ({ team: 'Us', fcId: one.fcId, paid: 10 }));
+    const states = teamStates(awards, index(pool), rules, ['Us', 'Rival']);
+    const mine = states.get('Us')!;
+    const candidates = candidatesOf({ pool, states, precedents: PRECEDENTS, rules, me: 'Us' });
+    const shapes = shapesOf(RULEBOOK);
+    const on = referenceShape({ squad: mine, candidates, rules, shapes });
+    expect(on.chosen.name).toBe('4-3-3');
+    expect(on.why).toContain('modificatore');
+    // Spento, fra i due decide la sola copertura: il 3-4-3 lascia meno posti vuoti.
+    const off = referenceShape({
+      squad: mine,
+      candidates,
+      rules: { ...rules, defenceModifier: false },
+      shapes,
+    });
+    expect(off.chosen.name).toBe('3-4-3');
+    // E in ogni caso il secondo si dichiara: una scelta automatica deve essere dubitabile.
+    expect(off.runnerUp?.name).toBe('4-3-3');
+  });
+
+  it('ripiega sugli altri cinque solo quando nessuno dei due dichiarati e\' copribile', () => {
+    next = 1;
+    // Cinque difensori che giocano sempre, nessun attaccante e nessuno slot libero: il 3-4-3 e il
+    // 4-3-3 chiedono TRE attaccanti che non ci sono e non si possono comprare, il 5-3-2 ne chiede due.
+    const squad = [
+      ...[38, 38, 38, 38, 38].map((expected) =>
+        man('D', 30, 30, { titolarita: 'bandiera', expected }),
+      ),
+      ...[38, 38, 38].map((expected) => man('C', 30, 30, { titolarita: 'bandiera', expected })),
+      ...[38, 38].map((expected) => man('A', 30, 30, { titolarita: 'bandiera', expected })),
+    ];
+    const tight: LeagueRules = { ...rules, slots: { P: 0, D: 5, C: 3, A: 2 } };
+    const awards = squad.map((one) => ({ team: 'Us', fcId: one.fcId, paid: 10 }));
+    const states = teamStates(awards, index(squad), tight, ['Us', 'Rival']);
+    const mine = states.get('Us')!;
+    const choice = referenceShape({
+      squad: mine,
+      candidates: [],
+      rules: tight,
+      shapes: shapesOf(RULEBOOK),
+    });
+    expect(choice.chosen.name).toBe('5-3-2');
+    expect(choice.fellBack).toBe(true);
+    expect(choice.why).toContain('copribile');
+  });
+
+  it('il piano PORTA il modulo su cui e\' stato tarato, e nessuno lo ricalcola', () => {
+    next = 1;
+    const pool = [man('A', 40, 30, { titolarita: 'bandiera', expected: 34 })];
+    const need = { P: 0, D: 0, C: 0, A: 1 };
+    const states = teamStates([], index(pool), { ...rules, slots: need }, ['Us', 'Rival']);
+    const squad = states.get('Us')!;
+    const candidates = candidatesOf({ pool, states, precedents: PRECEDENTS, rules, me: 'Us' });
+    const shape: Reference = { name: '3-4-3', places: { P: 1, D: 3, C: 4, A: 3 } };
+    expect(allocate(candidates, need, 100, rules, squad, shape).reference).toEqual(shape);
+    // Chi non lo passa legge quello che leggeva ieri, non una supposizione nuova.
+    expect(allocate(candidates, need, 100, rules, squad).reference).toEqual(STANDARD_ELEVEN);
+  });
+});
+
 
 describe('il piano rispecchia il giudizio di reparto', () => {
   const rules: LeagueRules = { ...RULES, slots: { P: 0, D: 4, C: 0, A: 0 }, budget: 300 };
@@ -1287,7 +1546,7 @@ describe('il piano rispecchia il giudizio di reparto', () => {
     const states = teamStates([], index(pool), rules, ['Us', 'Rival']);
     const squad = states.get('Us')!;
     const candidates = candidatesOf({ pool, states, precedents: PRECEDENTS, rules, me: 'Us' });
-    const plan = allocate(candidates, need, 300, { squad, rules });
+    const plan = allocate(candidates, need, 300, rules, squad);
     return { pool, states, squad, candidates, plan, need };
   };
 
@@ -1417,6 +1676,34 @@ describe('chi e\' fuori per un mese non si consiglia', () => {
     expect(buyable(man('D', 10, 10, { outDays: LONG_OUT_DAYS }))).toBe(false);
   });
 
+  /**
+   * IL CASO LUKAKU (25/08/2026): il foglio lo prezza ancora e la stanza puo' ancora bustarci, ma chi e'
+   * fuori rosa non e' un uomo su cui scrivere una busta. E' una DICHIARAZIONE dell'operatore e non una
+   * misura - `config/player_notes.json` - e vale per il solo `out_of_squad`: chi ha litigato o ha chiesto
+   * di andare via domenica gioca ancora, e leggerlo come un'assenza sarebbe inventare un fatto da un
+   * altro.
+   */
+  it("non consiglia chi e' dichiarato fuori rosa, e non e' un infortunio", () => {
+    expect(buyable(man('A', 100, 30, { outOfSquad: true }))).toBe(false);
+    expect(buyable(man('A', 100, 30, { outOfSquad: false }))).toBe(true);
+    expect(buyable(man('A', 100, 30))).toBe(true);
+  });
+
+  it("lo tiene fuori anche dai NOMI CONTESI, che e' dove l'operatore l'ha visto", () => {
+    next = 1;
+    const gone = man('A', 100, 30, { outOfSquad: true });
+    const here = man('A', 40, 20);
+    const pool = [gone, here];
+    const states = teamStates([], index(pool), { ...RULES, slots: { P: 0, D: 0, C: 0, A: 2 } }, [
+      'Us',
+      'Rival',
+    ]);
+    const candidates = candidatesOf({ pool, states, precedents: PRECEDENTS, rules: RULES, me: 'Us' });
+    const contested = contestedOf({ candidates, states, rules: RULES, me: 'Us' });
+    expect(contested.map((one) => one.candidate.man.fcId)).not.toContain(gone.fcId);
+    expect(contested.map((one) => one.candidate.man.fcId)).toContain(here.fcId);
+  });
+
   const board = () => {
     next = 1;
     // Il migliore del ruolo e' fuori per due mesi: senza la regola il piano lo prende comunque.
@@ -1433,7 +1720,7 @@ describe('chi e\' fuori per un mese non si consiglia', () => {
 
   it('non entra nel piano automatico, per quanto sia il migliore', () => {
     const { hurt, need, squad, candidates } = board();
-    const plan = allocate(candidates, need, 200, { squad, rules });
+    const plan = allocate(candidates, need, 200, rules, squad);
     expect(plan.bids.some((one) => one.candidate.man.fcId === hurt.fcId)).toBe(false);
     expect(plan.bids).toHaveLength(2);
   });
@@ -1442,7 +1729,7 @@ describe('chi e\' fuori per un mese non si consiglia', () => {
     const { hurt, squad, candidates } = board();
     // UNA busta sola su due slot da difensore, cosi' la regola degli slot non e' quella che risponde:
     // quello che si sta misurando e' se l'infortunato puo' essere scelto A MANO, non se c'e' posto.
-    const plan = allocate(candidates, { P: 0, D: 1, C: 0, A: 0 }, 200, { squad, rules });
+    const plan = allocate(candidates, { P: 0, D: 1, C: 0, A: 0 }, 200, rules, squad);
     // Il tabellone e' la stanza, non il nostro piano: gli altri possono bustarci, e l'operatore puo'
     // sapere che rientra sabato.
     expect(boardFor('D', candidates, plan).some((one) => one.man.fcId === hurt.fcId)).toBe(true);
@@ -1478,7 +1765,7 @@ describe('un uomo che il motore non prezza si puo\' comunque SCEGLIERE', () => {
     const states = teamStates([], index(pool), rules, ['Us', 'Rival']);
     const squad = states.get('Us')!;
     const candidates = candidatesOf({ pool, states, precedents: PRECEDENTS, rules, me: 'Us' });
-    const plan = allocate(candidates, { P: 1, D: 0, C: 0, A: 0 }, 200, { squad, rules });
+    const plan = allocate(candidates, { P: 1, D: 0, C: 0, A: 0 }, 200, rules, squad);
     return { first, third, other, pool, states, squad, candidates, plan };
   };
 
@@ -1524,5 +1811,179 @@ describe('un uomo che il motore non prezza si puo\' comunque SCEGLIERE', () => {
     })[0];
     expect(keeper.advice).toContain(mate.name);
     expect(keeper.targets.some((one) => one.man.fcId === mate.fcId)).toBe(true);
+  });
+});
+
+
+describe('il reparto portieri e` UN POSTO SOLO', () => {
+  /** The real 2026-27 Serie A rows the operator's own busta was built on. */
+  const falcone = () => man('P', 25, 31.1, { name: 'Falcone', club: 'Lecce', expected: 32.1 });
+  const palmisani = () => man('P', 8, 18.2, { name: 'Palmisani', club: 'Frosinone', expected: 23.2 });
+
+  it('vale esattamente `gainOf` quando il portiere e` uno solo', () => {
+    const one = falcone();
+    expect(keeperGain([one], RULES)).toBeCloseTo(gainOf(one, RULES)!, 9);
+  });
+
+  it('non somma due portieri di due club: le giornate in cui giocano entrambi si contano una volta', () => {
+    const [uno, due] = [falcone(), palmisani()];
+    const apart = gainOf(uno, RULES)! + gainOf(due, RULES)!;
+    const together = keeperGain([uno, due], RULES);
+    // The plan used to read 42.8 and collects 32.9: Palmisani is worth his 14.2 on the 15.5% of the
+    // matchdays Falcone misses, plus what a deputy is worth to Falcone himself. He does ADD something -
+    // the department beats either man alone - and it is a third of what the busta was crediting him.
+    expect(apart).toBeCloseTo(42.8, 1);
+    expect(together).toBeCloseTo(32.9, 1);
+    expect(together).toBeGreaterThan(gainOf(uno, RULES)!);
+  });
+
+  it('un vice fa salire anche il portiere che hai gia`, perche` lo sconto e` sul REPARTO', () => {
+    // «You set the lineup before knowing whether he plays» is a sentence about a slot with nobody
+    // behind it: with a deputy listed, the automatic substitution catches the matchday whoever plays.
+    const alone = keeperGain([falcone()], RULES);
+    const covered = keeperGain([falcone(), palmisani()], RULES);
+    expect(covered - alone).toBeGreaterThan(gainOf(palmisani(), RULES)! * 0.155);
+    // A club pair that covers the whole calendar carries no catchability discount at all: what is
+    // uncertain there is WHICH of the two plays, and you own both.
+    const whole = [
+      man('P', 10, 24.1, { club: 'Napoli', expected: 25 }),
+      man('P', 45, 12.9, { club: 'Napoli', expected: 14.6 }),
+    ];
+    expect(keeperGain(whole, RULES)).toBeCloseTo(35.5, 1);
+    expect(keeperGain(whole, RULES)).toBeGreaterThan(alone);
+  });
+
+  it('non fa giocare due portieri dello stesso club nella stessa giornata', () => {
+    // Their two forecasts sum to 1.16 of a calendar, which the rulebook forbids: the department may
+    // never be worth more than one man playing every match at the better of the two rates.
+    const first = man('P', 20, 30, { club: 'Uno', expected: 30 });
+    const second = man('P', 8, 11, { club: 'Uno', expected: 14 });
+    const ceiling = (30 / 30) * RULES.matchdays;
+    expect(keeperGain([first, second], RULES)).toBeLessThan(ceiling);
+  });
+
+  it('preferisce il COMPAGNO di squadra a un portiere altrove che da solo varrebbe di piu`', () => {
+    // The pairing intuition falls out of the arithmetic instead of being a repair bolted on top: the
+    // club-mate covers exactly the matchdays the first man misses, the stranger overlaps with them.
+    const first = man('P', 40, 30, { club: 'Uno', expected: 30 });
+    const mate = man('P', 8, 11, { club: 'Uno', expected: 14 });
+    const stranger = man('P', 8, 12, { club: 'Due', expected: 16 });
+    expect(gainOf(stranger, RULES)!).toBeGreaterThan(gainOf(mate, RULES)!);
+    expect(keeperGain([first, mate], RULES)).toBeGreaterThan(keeperGain([first, stranger], RULES));
+  });
+
+  it('non conta chi il foglio non prezza, e non lo lascia nemmeno fare ombra a un altro', () => {
+    const priced = falcone();
+    const blank = man('P', 5, 0, { club: 'Roma', expected: 30, surplus: null } as never);
+    expect(keeperGain([priced, blank], RULES)).toBeCloseTo(keeperGain([priced], RULES), 9);
+  });
+
+  it('e i marginali sommano ESATTAMENTE alla differenza fra i due reparti', () => {
+    const held = [falcone()];
+    const coming = [palmisani(), man('P', 3, 9, { club: 'Como', expected: 20 })];
+    const adds = marginalGains(coming, held, RULES);
+    const summed = coming.reduce((sum, one) => sum + (adds.get(one.fcId) ?? 0), 0);
+    expect(summed).toBeCloseTo(
+      keeperGain([...held, ...coming], RULES) - keeperGain(held, RULES),
+      9,
+    );
+  });
+
+  it('vale anche per una ROSA intera: tre portieri non sono tre reparti', () => {
+    const keepers = [falcone(), palmisani(), man('P', 3, 9, { club: 'Como', expected: 20 })];
+    const outfield = [man('D', 40, 10), man('C', 30, 12)];
+    const squad = [...keepers, ...outfield];
+    const added = squad.reduce((sum, one) => sum + (gainOf(one, RULES) ?? 0), 0);
+    expect(squadGain(squad, RULES)).toBeLessThan(added);
+    // ...and the three roles that are not one place are untouched.
+    expect(squadGain(outfield, RULES)).toBeCloseTo(
+      outfield.reduce((sum, one) => sum + gainOf(one, RULES)!, 0),
+      9,
+    );
+  });
+
+  it('e la classifica non premia piu` chi ha speso in porta', () => {
+    next = 1;
+    const pool = [
+      man('P', 60, 31.1, { club: 'Lecce', expected: 32.1 }),
+      man('P', 50, 30, { club: 'Roma', expected: 31 }),
+      man('D', 60, 30, { club: 'Inter', expected: 31 }),
+    ];
+    const rules: LeagueRules = { ...RULES, budget: 100, slots: { P: 2, D: 1, C: 0, A: 0 } };
+    const states = teamStates(
+      [
+        { team: 'DuePortieri', fcId: pool[0].fcId, paid: 40 },
+        { team: 'DuePortieri', fcId: pool[1].fcId, paid: 40 },
+        { team: 'UnoSolo', fcId: pool[2].fcId, paid: 40 },
+      ],
+      index(pool),
+      rules,
+      ['DuePortieri', 'UnoSolo'],
+    );
+    const read = verdicts({ states, pool: [], rules });
+    // Two keepers of two clubs used to read as two departments. He is still ahead of a manager with
+    // one man - the second keeper does cover something - but by what he can field and no longer by the
+    // two numbers added, which is 12 points of standing he was being credited for a shirt he has once.
+    const two = read.get('DuePortieri')!.gain;
+    const one = read.get('UnoSolo')!.gain;
+    const summed = pool.slice(0, 2).reduce((sum, man) => sum + gainOf(man, rules)!, 0);
+    expect(two).toBeGreaterThan(one);
+    expect(two).toBeLessThan(summed);
+    expect(summed - two).toBeGreaterThan(10);
+    expect(strengthsOf(states, rules).get('DuePortieri')!.find((row) => row.role === 'P')!.gain)
+      .toBeCloseTo(keeperGain(pool.slice(0, 2), rules), 9);
+  });
+});
+
+describe('la busta non compra piu` il secondo portiere al prezzo del primo', () => {
+  const board = () => {
+    next = 1;
+    const pool = [
+      man('P', 25, 31.1, { club: 'Lecce', expected: 32.1 }),
+      man('P', 8, 18.2, { club: 'Frosinone', expected: 23.2 }),
+      man('D', 40, 20),
+      man('D', 8, 18),
+      man('D', 4, 3),
+    ];
+    const rules: LeagueRules = { ...RULES, slots: { P: 2, D: 1, C: 0, A: 0 } };
+    const states = teamStates([], index(pool), rules, ['Us', 'Rival']);
+    return {
+      pool,
+      rules,
+      candidates: candidatesOf({ pool, states, precedents: PRECEDENTS, rules, me: 'Us' }),
+    };
+  };
+
+  it('scrive accanto a ogni busta quello che AGGIUNGE, e il totale e` la somma di quelle righe', () => {
+    const { candidates, rules } = board();
+    const plan = allocate(candidates, { P: 2, D: 1, C: 0, A: 0 }, 200, rules);
+    const keepers = plan.bids.filter((one) => one.candidate.man.role === 'P');
+    expect(keepers).toHaveLength(2);
+    // The second keeper is the one the old arithmetic paid a full gain for.
+    const second = keepers[1];
+    expect(second.gain).toBeLessThan((second.candidate.gain ?? 0) / 3);
+    expect(plan.gain).toBeCloseTo(
+      plan.bids.reduce((sum, one) => sum + one.gain, 0),
+      9,
+    );
+    expect(plan.gain).toBeCloseTo(squadGain(plan.bids.map((one) => one.candidate.man), rules), 9);
+  });
+
+  it('e un portiere che hai gia` in rosa toglie valore a quello che stai per comprare', () => {
+    const { pool, candidates, rules } = board();
+    const empty = teamStates([], index(pool), rules, ['Us']).get('Us')!;
+    const owning = teamStates(
+      [{ team: 'Us', fcId: pool[0].fcId, paid: 80 }],
+      index(pool),
+      rules,
+      ['Us'],
+    ).get('Us')!;
+    const need = { P: 1, D: 0, C: 0, A: 0 };
+    const fresh = allocate(candidates.filter((one) => one.man.fcId !== pool[0].fcId), need, 100, rules, empty);
+    const after = allocate(candidates.filter((one) => one.man.fcId !== pool[0].fcId), need, 100, rules, owning);
+    expect(fresh.bids[0].candidate.man.fcId).toBe(pool[1].fcId);
+    expect(after.bids[0].candidate.man.fcId).toBe(pool[1].fcId);
+    // Same man, same envelope, a fifth of the value: you already own the shirt he would have covered.
+    expect(after.bids[0].gain).toBeLessThan(fresh.bids[0].gain / 3);
   });
 });

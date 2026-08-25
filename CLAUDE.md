@@ -1609,7 +1609,8 @@ percentiles of the WHOLE listone, cut once (`ui/gain-chip`): on the free board t
 **Three rules are DECLARED by the operator and applied as CONSTRAINTS, never as weights** — no gate owns
 them, and each one reports where it cannot be met, because a constraint that gives up in silence reads
 exactly like one that was satisfied. (1) As many men who simply PLAY as an eleven fields, per role
-(`sureTarget`, P1 D4 C4 A2, with «un paio per ruolo» as the floor), counting the squad. (2) THE KEEPERS
+(counting the squad — `sureTarget`, and since the same evening this is his FLOOR of two per role while
+what «covered» means moved to the department's own holes, below). (2) THE KEEPERS
 ARE A DIFFERENT GAME: you field one, so what has to turn up is the SHIRT — own both sides of a fight or
 own somebody who is not in one — which is also why they are exempt from (1), a pair being two men of whom
 one plays each week. (3) The plan MIXES serious bids with 2-credit shots, and that is arithmetic and not
@@ -1634,6 +1635,62 @@ CDP pointer TELEPORTS, so a popover stays open where a hand would have closed it
 field and the suite read «I typed 95 and the box says 55», two defects the app did not have. A long
 TOOLTIP covers the control it is explaining. And a step that cannot find its target must SAY SO — «zero
 problems» and «I did not look» must never read the same.
+
+**A CLUB-MATE IS NOT THE OTHER SIDE OF A FIGHT, and A PER-MAN BINARY CANNOT ANSWER A QUESTION ABOUT A
+SET** — the two corrections of 25/08/2026 (late), both found by the operator on real recommendations, and
+the second one is the durable half. Rule (2) above was applied only where the mate is SEARCHED for, so the
+three places that decide whether a pair EXISTS looked at the club and nothing else: Di Gregorio
+(`panchina`) + Perin (`riserva`) read **zero gambles** while the shirt belonged to Vicario
+(`ballottaggio`), who was in no envelope — «senza Vicario non ha senso offrire delle buste per loro». One
+definition now (`ownsShirt`): TWO claimants on that shirt, one of whom the BOARD DRAWS, which is the
+toolkit's own gate quoted («a man the eleven fields never falls below `ballottaggio`») and not a threshold
+of ours. The arithmetic is not what refuses the wrong pair — it PREFERS it (33.9 points against 30.7,
+because 26.9 + 13.3 appearances tile a 38-round season while 26.9 + 23.6 overlap), which is why this is a
+constraint and not a currency. An UNKNOWN rung does not refuse a pair while the mate search still requires
+a read one: to ACT on a man you need evidence, to REFUSE him you need evidence too.
+
+The same evening, one department along: «la difesa è SCOPERTA» on five defenders of whom three are
+`bandiera` and two `ballottaggio`. `playsOften` answers false to a `ballottaggio`, so the verdict counted
+3 of 4 places — true about each man and the wrong question about the SET: those five own shares (0.87 ·
+0.81 · 0.67 · 0.66 · 0.50) cover **3.36 places of four, i.e. 0.64 of a hole a matchday**. So «coperto» is
+now `expectedHoles` — the men of a role are independent draws, «how many have a vote» is a convolution,
+the expected shortfall is a sum over it, exact and not simulated — with `HOLE_TARGET` = 1 whole place
+DECLARED (what a hole costs is measured, when to spend a credit on it is a preference). One definition,
+THREE readers: the verdict, the plan's repair, and the choice of the reference shape. His morning rule
+(«le buste consigliate devono rispecchiare i consigli che dai reparto per reparto») survives while its
+mechanism changes, and `sureTarget` goes back to being his floor of two — which is what stops the plan
+asking a fourth regular defender of a man who has five.
+
+**THE REFERENCE MODULE IS CHOSEN, AND THE DEFENCE MODIFIER IS A DECLARED INPUT** (same evening, his
+instruction). It was hard-coded to 1-4-4-2 — `features.fielded_places`, correctly quoted and neither of
+the two shapes the room plays: «il 3-4-3 è molto gettonato ma per chi usa il modificatore di difesa anche
+il 4-3-3 è molto frequente ... devi tarare le buste scegliendo quale dei due prendere come riferimento in
+base ai calciatori già in rosa e quelli rimanenti». So `referenceShape` reads the places from
+`classic_modules.json` (configuration, read and never transcribed) and picks: his two shapes FIRST, the
+rulebook's other five only when neither is coverable and only if one is STRICTLY better, so a tie never
+moves the target he is buying against. Shapes are compared on what cannot be filled (holes minus the
+regulars still reachable within his ceiling — the «e quelli rimanenti» half) and then on the holes. The
+modifier is `LeagueRules.defenceModifier`, a switch beside the budget and the slots because it is a
+REGULATION («deve essere una informazione da mettere come input»), and it decides the SHAPE and touches no
+valuation: it pays on the average vote of the defensive block and nobody here has measured that. Two
+consequences worth stating: both his shapes field THREE forwards, so a third forward is a starter and not
+depth — which corrects a measurement of that same evening made on A = 2 — and the plan CARRIES the shape
+it used (`BidPlan.reference`), drawn beside its own title, because an automatic choice must be doubtable.
+
+**A DECLARED NOTE IS THE CHANNEL FOR WHAT THE MODEL CANNOT REACH, and the page has to READ it.** «Vedo
+Lukaku nei nomi contesi ma ormai non è più in serie A» — and the sheet keeps him for a reason:
+`snapshot._still_buyable` removes a man only when a TRANSFER names where he went, while the live squad read
+that no longer lists him leaves `desc_live_club` pointing at his last sighting (Napoli, 10/08, on a sheet
+whose Napoli was re-read on the 20th without him). The evidence is in the bundle — **40 rows of 605** are
+absent from their club's freshest read — and it is NOT adopted as a rule: Djimsiti, Bennacer and Angelino
+are among them, a payload is «the first team as the provider chose to publish it», and the absence signal
+was measured 83.1% precise at a completeness gate the app cannot see. What was missing was that the page
+ignored `config/player_notes.json` altogether: `Bidder.outOfSquad` now travels with the row and `buyable`
+refuses him, so he leaves the automatic plan AND the contested names, stays on the board and stays
+offerable by hand. Only `out_of_squad`: `dispute` and `wants_out` are states of a RELATIONSHIP and a man in
+either can still be fielded, so reading them as an absence would be inventing a fact from a different one.
+Open for the toolkit, with its population already counted: `_still_buyable` must read the DATE of the
+sighting and not only the club.
 
 ## Quello che è già successo non si prevede — e l'app può viaggiare nel tempo
 **16/08/2026, e sono due facce dello stesso problema.** Un'asta giocata a stagione iniziata è l'esercizio

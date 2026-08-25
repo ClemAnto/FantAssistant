@@ -25,7 +25,11 @@ import {
   Bid,
   Candidate,
   DEFAULT_RULES,
-  FIELDED_PLACES,
+  Reference,
+  ReferenceChoice,
+  STANDARD_ELEVEN,
+  referenceShape,
+  shapesOf,
   GainScale,
   LadderBand,
   LONG_OUT_DAYS,
@@ -54,11 +58,13 @@ import {
   contestedOf,
   dealsOf,
   emptyByRole,
+  expectedGainOf,
   gainBandOf,
   gainOf,
   gainScale,
   ladderOf,
   numbered,
+  marginalGains,
   marketRate,
   parseAwards,
   playsOften,
@@ -127,9 +133,27 @@ interface Settings {
    * consequence - how many credits and how many slots you expect to be left with - and let him choose.
    */
   reserve: number;
+  /**
+   * Does the league pay the DEFENCE MODIFIER? An input, in his own words (25/08/2026).
+   *
+   * «sì è attivo e deve essere una informazione da mettere come input (come le impostazioni delle
+   * rose)». It is a regulation, so it is declared and never inferred - and it changes what an eleven has
+   * to look like, because the bonus needs four defenders on the pitch: `referenceShape` reads it to
+   * choose between the 3-4-3 and the 4-3-3 the envelopes are tuned on.
+   */
+  defenceModifier: boolean;
 }
 
-const SETTINGS: Settings = { budget: 1000, rounds: 9, roleLock: true, from: 2, to: 38, reserve: 0 };
+const SETTINGS: Settings = {
+  budget: 1000,
+  rounds: 9,
+  roleLock: true,
+  from: 2,
+  to: 38,
+  reserve: 0,
+  // His league's own, declared on 25/08/2026 - the same standing as `roleLock` above it.
+  defenceModifier: true,
+};
 
 /** The stored preferences over the defaults, with every number that is not a number left behind. */
 function mergeSettings(stored: Partial<Settings>): Settings {
@@ -275,9 +299,19 @@ export class SealedBid {
   private readonly linesFailed = signal(false);
   /** Which player's numbers the GAIN popover is about. One popover at a time, so one signal. */
   protected readonly hoverStats = signal<number | null>(null);
+  /**
+   * The classic rulebook's shapes, from the bundle's own `classic_modules.json`.
+   *
+   * Empty until it is in, and empty is a STATE and not a default: `referenceShape` says so on screen and
+   * tunes on the standard eleven meanwhile, because a page that silently used 1-4-4-2 while claiming to
+   * choose between 3-4-3 and 4-3-3 would be the «silent fallback» this project keeps paying for. Read
+   * and never transcribed - the file is configuration.
+   */
+  private readonly shapes = signal<Reference[]>([]);
 
   constructor() {
     void this.store.load().then(() => this.loadSeasons());
+    void this.bundle.classicModules().then((file) => this.shapes.set(shapesOf(file)));
   }
 
   /**
@@ -328,6 +362,7 @@ export class SealedBid {
       budget: settings.budget,
       rounds: settings.rounds,
       roleLock: settings.roleLock,
+      defenceModifier: settings.defenceModifier,
       matchdays,
       horizon: to - from + 1,
       slots: slots
@@ -347,11 +382,19 @@ export class SealedBid {
    * The days he is still out travel WITH the row because that is what makes them impossible to forget:
    * `buyable` is asked inside `priced`, deep in the solver, where no service can be injected.
    */
-  protected readonly pool = computed<(SquadMan & { outDays: number | null })[]>(() => {
+  protected readonly pool = computed<
+    (SquadMan & { outDays: number | null; outOfSquad: boolean })[]
+  >(() => {
     const listone = this.store.rosters().get(PLATFORM) ?? [];
-    return this.store
-      .valuations(PLATFORM, listone)
-      .map((one) => ({ ...one, outDays: this.outDaysFor(one.fcId) }));
+    const declared = this.status.declared();
+    return this.store.valuations(PLATFORM, listone).map((one) => ({
+      ...one,
+      outDays: this.outDaysFor(one.fcId),
+      // FUORI ROSA e' una DICHIARAZIONE, non una misura: nessuna riga del bundle la porta, e il foglio
+      // non puo' saperlo (vedi `Bidder.outOfSquad`). Viaggia con la riga per la stessa ragione dei
+      // giorni di infortunio - `buyable` la chiede dentro il solver, dove nessun servizio arriva.
+      outOfSquad: declared.get(one.fcId)?.kind === 'out_of_squad',
+    }));
   });
 
   /**
@@ -448,6 +491,25 @@ export class SealedBid {
       .filter((one): one is NonNullable<typeof one> => !!one),
   );
 
+  /**
+   * WHICH MODULE THE ENVELOPES ARE TUNED ON - computed once here and read by the plan, the verdicts and
+   * the line on screen.
+   *
+   * Once, because two choices of one shape would eventually disagree and the operator would be reading a
+   * target the plan is not buying against. The plan CARRIES the one it used (`BidPlan.reference`), which
+   * is what the department advice is then given.
+   */
+  protected readonly reference = computed<ReferenceChoice | null>(() => {
+    const mine = this.mine();
+    if (!mine) return null;
+    return referenceShape({
+      squad: mine,
+      candidates: this.candidates(),
+      rules: this.rules(),
+      shapes: this.shapes(),
+    });
+  });
+
   private readonly autoPlan = computed(() => {
     const mine = this.mine();
     if (!mine) return null;
@@ -455,7 +517,14 @@ export class SealedBid {
     // count what is already in it: two men per role who simply play, and never a lone bet on a keeper.
     // The cap is his credits MINUS whatever he decided to hold back for the rounds after this one.
     const cap = Math.max(1, mine.credits - Math.max(0, this.settings().reserve));
-    return allocate(this.candidates(), mine.free, cap, { squad: mine, rules: this.rules() });
+    return allocate(
+      this.candidates(),
+      mine.free,
+      cap,
+      this.rules(),
+      mine,
+      this.reference()?.chosen,
+    );
   });
 
   /**
@@ -476,7 +545,9 @@ export class SealedBid {
       if (!other) return bid;
       const offer = other.ask.ask;
       // A name HE chose is a serious bid, never a lottery ticket: he picked the man, not the odds.
-      return { candidate: other, offer, raised: false, shot: false, chance: winChance(offer, other.ask) };
+      // The gain is recomputed for the whole list below, so it is left at zero here rather than
+      // carried over from the man he replaced.
+      return { candidate: other, gain: 0, offer, raised: false, shot: false, chance: winChance(offer, other.ask) };
     });
     // Then what he took out and what he put in. The order matters: a name he added is not a suggestion
     // to be swapped, and a name he removed must not come back through the extras.
@@ -497,7 +568,7 @@ export class SealedBid {
       const offer = Math.max(1, candidate.ask.ask);
       // Appended and never sorted in: a list that reshuffles when you add a name cannot be checked
       // against the one you were looking at a second ago.
-      shown.push({ candidate, offer, raised: false, shot: false, chance: winChance(offer, candidate.ask) });
+      shown.push({ candidate, gain: 0, offer, raised: false, shot: false, chance: winChance(offer, candidate.ask) });
     }
     // The operator's own number wins over everything: it is the one thing on this screen that is not a
     // suggestion. The chance is re-read from it, so the percentage always describes the offer beside it.
@@ -515,7 +586,17 @@ export class SealedBid {
     // the same way, by the same function the solver uses: a warning that describes the automatic plan
     // would go quiet exactly when he has just broken the rule by hand.
     const mine = this.mine()!;
-    const check = strategyCheck(shown.map((bid) => bid.candidate.man), mine, this.rules());
+    const check = strategyCheck(
+      shown.map((bid) => bid.candidate.man),
+      mine,
+      this.rules(),
+      auto.reference,
+    );
+    // WHAT EACH ENVELOPE ADDS, re-read after every hand edit and not only in the automatic plan: in
+    // goal the department is one place, so removing a keeper changes what the other one is worth. The
+    // same function the solver used, so the rows on screen and the total under them cannot disagree.
+    const adds = marginalGains(shown.map((bid) => bid.candidate.man), mine.men, this.rules());
+    for (const bid of shown) bid.gain = adds.get(bid.candidate.man.fcId) ?? 0;
     // `expectedGain` and `unfilled` are recomputed HERE and not inherited from `auto`: the first is
     // printed beside `gain` on the same line, so after a deletion the automatic one could read HIGHER
     // than the total it is a fraction of; the second is the «slot che non riesco a riempire» warning,
@@ -532,14 +613,12 @@ export class SealedBid {
       spend: shown.reduce((sum, bid) => sum + bid.offer, 0),
       expectedSpend: shown.reduce((sum, bid) => sum + bid.offer * (bid.chance ?? 1), 0),
       expectedWins: shown.reduce((sum, bid) => sum + (bid.chance ?? 1), 0),
-      gain: shown.reduce((sum, bid) => sum + (bid.candidate.gain ?? 0), 0),
-      expectedGain: shown.reduce(
-        (sum, bid) => sum + (bid.candidate.gain ?? 0) * (bid.chance ?? 1),
-        0,
-      ),
+      gain: shown.reduce((sum, bid) => sum + bid.gain, 0),
+      expectedGain: expectedGainOf(shown, mine.men, this.rules()),
       unfilled,
       missingSure: check.missingSure,
       keeperGamble: check.keeperGamble,
+      holes: check.holes,
     };
   });
 
@@ -575,6 +654,8 @@ export class SealedBid {
       // The envelopes ON SCREEN, so the verdict describes the plan he is looking at - not the automatic
       // one he may have edited five clicks ago.
       bids: this.plan()?.bids ?? [],
+      // The shape the PLAN used, not a second choice of ours: one reference per screen.
+      reference: this.plan()?.reference,
     });
   });
 
@@ -1399,9 +1480,9 @@ export class SealedBid {
     return playsOften(man, this.rules());
   }
 
-  /** How many an eleven fields in that role: what a department has to cover before depth pays. */
+  /** How many an eleven fields in that role, on the shape THIS plan is tuned on. */
   protected fielded(role: ClassicRole): number {
-    return FIELDED_PLACES[role];
+    return (this.plan()?.reference ?? this.reference()?.chosen ?? STANDARD_ELEVEN).places[role];
   }
 
   /**

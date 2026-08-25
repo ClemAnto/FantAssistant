@@ -30,7 +30,8 @@ diverse con due risposte diverse — la stessa forma dei due zeri del surplus.
 Codice: **`app/src/app/core/sealed-bid.ts`** (dominio, zero Angular, 55 prove nel suo spec),
 **`app/src/app/views/sealed-bid/`** (la pagina, rotta `/sealed-bid`),
 **`app/scripts/e2e-sealed-bid.mjs`** (arnese e2e a zero dipendenze, sullo schema di `e2e-table.mjs`).
-Alla chiusura della sessione: **406 prove verdi**, `ng build` verde, e2e **senza problemi**.
+Alla chiusura della sessione: **406 prove verdi**, `ng build` verde, e2e **senza problemi** — e a
+fine giornata **482** (i §7-8 qui sotto), sempre col build verde e l'e2e senza problemi.
 
 - **Lo stato di ogni squadra** dal CSV delle rose che la lega esporta: speso, residuo, slot liberi per
   ruolo, e il **tetto** (il massimo che può stare in UNA busta lasciando un credito per ogni altro slot).
@@ -477,3 +478,362 @@ quattro pubblicazioni). Branch `motore/reparto-e-tasso-titolarita`, sito **v0.1.
 round 3, che il registro delle buste rende possibile), gli item 1.1-1.3 (vogliono le buste perdenti di
 tutto il round 1), e 2.3 / 3.3 (vogliono un `export` con la stagione in corso: verificato, il bundle si
 ferma a 2025-26). Nessuno dei tre dipende da codice di questa pagina.
+
+---
+
+## 6 — Il reparto portieri è UN POSTO SOLO (25/08/2026, sera)
+
+**Nato da una domanda dell'operatore su un piano vero**: la busta consigliava **Falcone (81) +
+Palmisani (15)** e lui ha chiesto «non sarebbe meglio puntare su Provedel+Martinez o Meret+Milinkovic?».
+L'intuizione era giusta e il difetto stava sotto, nell'aritmetica: **in porta si schiera UN uomo**, e
+niente in `sealed-bid.ts` lo sapeva. `gainOf` è un fatto su UN uomo, lo zaino somma i suoi oggetti, e la
+regola della coppia (`ensureKeepers`) parla della MAGLIA, non del conto. Sui due nomi del piano:
+**42,8 di gain sommati contro 32,9 che se ne incassano** — le giornate in cui giocano tutt'e due valgono
+una volta sola, e Palmisani entrava nel piano prezzato **14,2** per portarne **4,3**.
+
+### Il modello, dichiarato perché sia rifiutabile
+
+Non prevede calcio, che è il confine di questo file: le presenze sono quelle del foglio (`expected`), il
+valore di una di esse è quello del foglio (`surplus / expected`), e quello che si deduce qui è **quali di
+quelle presenze sei in campo a incassare**. Tre assunzioni e una regola:
+
+- gioca una data giornata con probabilità `expected / matchdays`;
+- **due portieri di UN club non giocano la stessa partita** — è il regolamento, non un'ipotesi — e le
+  loro quote si riscalano quando le due previsioni del foglio sfondano il calendario. Napoli 2026-27:
+  Milinkovic-Savic 25,0 + Meret 14,6 + Contini 8,0 = **47,6 presenze su 38**, cioè il motore che dice di
+  non sapere chi vince quella maglia;
+- portieri di club DIVERSI sono indipendenti;
+- e incassi il migliore di chi si presenta, che è quello che compra l'ordine della panchina.
+
+**Misurato e scartato**: riscalare le quote di un club su TUTTI i suoi portieri invece che su quelli che
+possiedi. Si legge come la versione più rigorosa — un club schiera esattamente un portiere a giornata —
+e a pagarla è il **riempitivo** del foglio: le quattro riserve non misurate del Lecce portano 3,7
+presenze a testa, che è «vuoto = ignoto» e non una previsione, e dividere per il loro 46,9 manda Falcone
+da **0,845 a 0,684** di stagione. Un uomo con una stagione misurata non lo sgonfiano uomini che nessuno
+ha misurato.
+
+### Lo sconto di «catchability» sta sul REPARTO, e la prima versione lo aveva sull'uomo
+
+È la correzione che il foglio VERO ha smentito entro l'ora, ed è la parte che vale oltre la porta.
+`gainOf` sconta `quota ^ reliability` perché «schieri prima di sapere se gioca» — **una frase su uno slot
+con nessuno dietro**. In porta ne elenchi tre e la sostituzione automatica prende il primo con un voto,
+quindi quello che devi vedere arrivare è se avrai UN portiere, non se avrai QUEL portiere. Addebitato per
+uomo conta due volte proprio il rischio che una coppia serve a togliere: **Meret + Milinkovic leggevano
+26,4 contro i 35,5 che valgono**, cioè meno di un Falcone da solo, e la busta avrebbe continuato a
+sconsigliare l'unica cosa che funziona. Preso una volta sola, su quello che il reparto COPRE, un uomo
+solo riproduce `gainOf` alla virgola — e dice una cosa vera che la versione per-uomo non poteva dire:
+**comprare un vice fa salire il portiere che hai già** (Falcone da solo è scontato a 0,919 del suo
+surplus, Falcone con un secondo a 0,969).
+
+### La soglia delle presenze NON si applica dentro il reparto
+
+E la distinzione è quella che dice il commento della soglia stessa: **gatta il RANKING** — chi si può
+proporre — e `priced` continua a farlo a monte, quindi niente che prima non potesse essere proposto lo
+diventa. Quello che copre un uomo che hai **già** è un'altra domanda, e un portiere che gioca un terzo di
+stagione è esattamente la seconda metà di una coppia (§4-ter: Martínez è atteso in 10,6 giornate su 38,
+il 28% contro il 35% della lega).
+
+### I reparti veri, letti dalla funzione che spedisce (foglio Serie A rev. 36)
+
+| reparto | gain del reparto | gain sommati | FVM |
+|---|---|---|---|
+| Falcone da solo | 28,6 | 28,6 | 25 |
+| **Falcone + Palmisani (la busta)** | **32,9** | 42,8 | 33 |
+| Provedel + Martinez | 25,6 | 16,2 | **68** |
+| Meret + Milinkovic | **35,5** | 27,5 | **55** |
+| Provedel + Milinkovic | 30,3 | 35,7 | **15** |
+| **Falcone + Provedel** | **34,9** | 44,8 | **30** |
+| Palmisani + Desplanches | 29,8 | 27,7 | 16 |
+| Falcone + Provedel + Milinkovic | **37,5** | 64,3 | 40 |
+
+Dove «sommati» è la vecchia aritmetica, che oltre a contare due volte le giornate condivise **non
+contava affatto** chi sta sotto la soglia — per questo su due righe è più bassa e non più alta.
+
+### La risposta all'operatore, che sta in piedi sul prezzo e non sul motore
+
+Nelle due coppie che proponeva, **il mercato paga la metà che il motore dice che NON gioca**: Martínez
+Qt.I 17 / FVM 63 contro Provedel 2 / 5, Meret 11 / 45 contro Milinkovic-Savic 5 / 10 — mentre il motore
+disegna Provedel e Milinkovic titolari (claim 0,664 e 0,669, `ballottaggio` tutt'e due) e legge gli altri
+due `riserva`. Da dire per intero, perché il nostro claim legge **i minuti dell'anno scorso**
+(`standing_weights` = 0/1) e quelli di Provedel sono della Lazio: il Qt.I dei redattori è un'opinione su
+quanto giocherà, e qui dice il contrario. Quello che si può affermare non è chi ha ragione, è **quanto
+costa scommetterci**: le metà a sconto costano FVM 5 e 10.
+
+E un fatto **misurato sul DB** su Palmisani, che il foglio non può leggere: la sua FM è **4,911 =
+esattamente l'ancora di ruolo**, perché il Frosinone non ha una stagione di Serie A e quindi del suo club
+nel numero non entra niente. Su **21 portieri titolari di neopromosse in 10 stagioni** (`season_stats`,
+platform `default`, pv ≥ 25) lo scarto dalla media portieri della loro stagione è **−0,370** (mediana
+−0,373, **17 su 21 sotto**) — il Frosinone stesso: Sportiello 2018-19 **4,16**, Turati 2023-24 **4,42**.
+È una misura, non un canale: nessun gate la possiede e niente la legge, sta qui perché la prossima
+sessione non la rifaccia da capo.
+
+### Cosa si è mosso nel codice
+
+`keeperGain` (il reparto), `squadGain` (le tre somme più il reparto) e `marginalGains` (la catena che
+somma ESATTAMENTE alla differenza fra due reparti, così una riga e il totale sotto non possono
+raccontare due storie). Li leggono: **l'obiettivo** dello zaino — `exact` prezza dentro lo STATO e
+`greedy` riprezza a ogni passo, perché un difetto corretto solo nel resoconto rietichetta una scelta già
+fatta su un numero 15 punti troppo grande — **le righe della busta** (`Bid.gain`, ricalcolate anche dopo
+ogni modifica a mano), **la spesa attesa in gain** (2^k esiti dei portieri, enumerati e non pesati uno a
+uno), il **null di mercato**, la **classifica** (`verdicts`) e la **tabella per ruolo** (`strengthsOf`),
+dove tre portieri non sono più tre reparti. `LeagueRules` è diventato un parametro OBBLIGATORIO di
+`allocate`: un piano non si può valutare senza sapere in che lega sta, e lasciare il vecchio conto come
+ripiego sarebbe «una scorciatoia giusta per un chiamante e muta per un altro».
+
+### Dove questo modello CONTRADDICE una misura, e la misura è la prova più forte
+
+`metrica-asta-surplus-v1.md` **§24.5**, committata la stessa mattina (`b627c33`, 11 stagioni di Serie A,
+coppie appaiate contro controlli di due club diversi), legge la coppia di portieri dello stesso club a
+**−0,59 punti a stagione, intervallo che contiene lo zero, e lo stesso club vince nel 41% dei casi** —
+mentre questa deduzione le dà **+6/+10** sopra il diversificare a pari qualità. Sulla COPERTURA le due
+vanno d'accordo (5,2 giornate scoperte in meno su 38 nella misura, 4,8 in questo modello); il disaccordo
+è se quella copertura diventi punti, e la risposta misurata è **no, perché quel buco lo copriva già il
+TERZO portiere, che è in rosa comunque**.
+
+Non è stato tarato niente per chiudere la distanza: tarare una deduzione su una misura che la smentisce è
+il modo di smettere di essere verificabili. **Spedisce la metà che nessuna delle due contesta** — due
+portieri non si SOMMANO — e la metà aperta sta scritta nel commento della funzione, così il prossimo
+lettore non prende il bonus della coppia per misurato. Per consigliare vale §24.6: **prenderli entrambi va
+bene se il secondo lo si paga da secondo**; il club non è un criterio d'asta, lo sconto sì.
+
+**Non è misurato e lo dice**: è aritmetica più un modello dichiarato, nessun gate lo possiede,
+`engine_*` non si muove di un decimale. Da aggiungere al §5: **5.4 · le coppie che il nuovo obiettivo
+propone coprono davvero più giornate, e diventano punti?** — il piano scrive già quello che si aspettava,
+quindi a fine mercato si contano le giornate coperte e i punti incassati, coppie contro diversificate. È
+il modo di chiudere il disaccordo qui sopra, ed è un conteggio, non una stima.
+
+**Verificato**: 467 test verdi (31 file), `tsc` pulito. e2e non rilanciato — vuole il bundle vero e una
+sessione del browser.
+
+---
+
+## 7 — Un compagno di club non è l'altro lato di una LOTTA (25/08/2026, sera tarda)
+
+**Trovato dall'operatore su un piano suo, e ha nominato l'uomo che mancava**: «Di Gregorio e Perin sono
+riserve e senza Vicario non ha senso offrire delle buste per loro». La regola era **già scritta** nel
+commento di `KEEPER_DISPUTE` — «a `riserva` is never the mate that covers it: he is the third keeper,
+which is a different job» — e applicata soltanto dove il compagno si CERCA. I tre posti che decidono se
+una coppia ESISTE guardavano il club e nient'altro, quindi due compagni erano una coppia qualunque fosse
+il loro gradino.
+
+**Cosa leggeva lo schermo** (chiamando le funzioni vere sui numeri veri del foglio Serie A rev. 36):
+
+| insieme | `keeperGamble` prima | dopo | reparto |
+|---|---|---|---|
+| Di Gregorio (`panchina`, 26,9) + Perin (`riserva`, 13,3) | **0** | **2** | 33,9 pt |
+| Di Gregorio + Vicario (`ballottaggio`, 23,6) | 0 | **0** | 30,7 pt |
+| Vicario + Perin | 0 | **2** | 24,5 pt |
+
+Cioè: il pannello diceva «reparto risolto» su un piano che non possedeva **nessuno dei due lati** della
+lotta su cui stava scommettendo, e la maglia era di Vicario, che non era in nessuna busta.
+
+**L'aritmetica non è quello che li rifiuta: li PREFERISCE.** `keeperPlaces` spartisce il calendario di un
+club fra i portieri che POSSIEDI, quindi 26,9 + 13,3 presenze piastrellano una stagione da 38 mentre
+26,9 + 23,6 si sovrappongono — la coppia sbagliata legge **33,9 punti contro 30,7**. È esattamente quello
+che il commento di `keeperGain` diceva di sé («that one is about the SHIRT, not about arithmetic»): il
+vincolo è il posto dove si cura, e una prova lo afferma.
+
+### La regola, e le due metà che servono entrambe
+
+`ownsShirt(insieme, club)`: servono **DUE pretendenti** a quella maglia, e **uno dei due la board lo deve
+disegnare**. Nessuna soglia nuova — è il **gate del toolkit**, citato: un uomo che l'undici tipo schiera
+non scende sotto `ballottaggio` e uno che non schiera non può essere `titolare`, quindi `ballottaggio` o
+meglio *è* «la board lo disegna» (`KEEPER_SHIRT` = 3) e `panchina` *è* «al suo posto disegna un altro».
+La prima versione chiedeva solo «un uomo disegnato più chiunque» e lo stesso portone della Juventus l'ha
+ripresa: Vicario + Perin sarebbe passata, e se la maglia la vince Di Gregorio in porta non c'è nessuno.
+
+**Un gradino IGNOTO non rifiuta una coppia**, e l'asimmetria col posto dove il compagno si cerca (là
+`?? 99`, cioè l'ignoto è escluso) è voluta: **per AGIRE su un uomo serve una prova, per RIFIUTARLO serve
+una prova**. Un foglio costruito dove le board non si potevano disegnare non porta nessun gradino, e
+trasformare lì ogni coppia in un avviso — o peggio scambiare uomini su quella base — sarebbe «vuoto =
+ignoto» rotto dal lato opposto. Il prezzo è detto: un piano fatto a mano che affianca a un portiere non
+disegnato un terzo portiere illeggibile passa ancora.
+
+Quattro chiamanti, una definizione: il riparo (`ensureKeepers.paired`), la ricerca del compagno, il
+contatore che lo schermo legge (`strategyCheck`) e le coppie offerte dal consiglio di reparto
+(`keeperOptions`, che ora costruisce la coppia **intorno all'uomo disegnato** invece di prendere i due
+migliori per gain — con tre pretendenti poteva pescarne due che stanno dietro a un terzo). Le cinque
+coppie del tabellone Serie A restano tutte e cinque, adesso col disegnato in testa.
+
+**E la frase a schermo è cambiata con la regola**: «N portiere in ballottaggio comprato da solo» non era
+più esatta, perché in quel conto finisce anche il terzo portiere preso accanto a chi non è il disegnato, e
+un'etichetta che non torna col numero accanto è il difetto che questo progetto paga più spesso.
+
+### 7-bis · APERTO, e va deciso non misurato: fuori dalla porta un reparto NON è un posto solo
+
+Nato dalla domanda dell'operatore la stessa sera: «rispetto ai consigli per reparto, l'attacco è coperto
+ma nelle offerte consigli di spendere di più per un attaccante, è normale?». **Sì, ed è il modello di
+oggi**: `squadGain` somma i reparti di fuori uomo per uomo e la correzione «il reparto è un posto solo»
+esiste solo per i portieri, quindi il quinto attaccante entra nello zaino al suo prezzo pieno. Il giudizio
+di reparto risponde a un'altra domanda («l'undici lo copro con gente che gioca?»), quindi le due
+schermate non si contraddicono — ma una delle due sa una cosa che l'altra non sa.
+
+Misurato con la stessa aritmetica di `keeperGain` generalizzata a `m` maglie, sul tabellone vero (uomini
+che GIOCANO, `FIELDED_PLACES`, quello che l'ennesimo aggiunge diviso quello che il piano gli accredita).
+**Attenzione: questa tabella è misurata su A = 2, cioè sull'1-4-4-2 che era cablato, e il §8-bis la
+CORREGGE** — i due moduli che l'operatore gioca schierano tre attaccanti, e con tre maglie il terzo vale
+il 100%. Resta come la misura che era, perché il numero non è sbagliato: è la domanda che aveva il
+riferimento sbagliato.
+
+| ruolo | 3º uomo | 4º | 5º | 6º | 7º |
+|---|---|---|---|---|---|
+| A (2 maglie) | **44%** | 12% | 8% | 1% | 0% |
+| C (4 maglie) | 100% | 100% | **69%** | 52% | 21% |
+| D (4 maglie) | 100% | 100% | **65%** | 28% | 11% |
+
+Tre ragioni per NON adottarlo di corsa, e sono la ragione per cui questo è un item e non una modifica.
+**Muove ogni numero della pagina** (`squadGain` lo leggono la classifica, le stelle, la tabella per ruolo,
+l'obiettivo dello zaino), e una modifica così si fa quando la si può giudicare. **Il modello è più severo
+del gioco**: dà per fissa una maglia per ruolo, mentre il classic sceglie il MODULO — 3-4-3 schiera tre
+attaccanti — quindi il terzo e il quarto attaccante hanno un valore d'OPZIONE che questo conto azzera, ed
+è proprio quello che il banco del draft aveva misurato come `COVER_COPIES` = 2 (coprire il modulo due
+volte, +10,6 punti a giornata). **E il precedente più vicino contraddice le deduzioni di questa
+famiglia**: §24.5 legge la coppia di portieri a −0,59 contro i +6/+10 che la deduzione le dava. Quindi la
+strada è misurarlo sul banco (una politica «sconta la profondità» contro il piano di oggi, sulle finestre
+del gate) prima di toccare la pagina.
+
+### 7-ter · Chi non è più in Serie A: la prova è nel bundle, e non basta come REGOLA
+
+«Vedo Lukaku nei nomi contesi ma ormai non è più in serie A». Il foglio lo tiene, e la ragione è
+`snapshot._still_buyable`: un uomo esce dal foglio solo se ha un **marchio di partenza**
+(`desc_left_for`, cioè un trasferimento che dice DOVE è andato) *e* la lettura della rosa lo vede fuori
+dal perimetro. La lettura viva invece **non lo vede più affatto**, e `live_club_of` restituisce l'ULTIMO
+avvistamento col suo giorno: Lukaku legge `desc_live_club` = Napoli **10/08**, su un foglio del 20/08 in
+cui il Napoli è stato riletto (30 righe su 34) senza di lui. Cioè la data c'è e la funzione guarda solo il
+club.
+
+Misurato sul foglio Serie A rev. 36: **40 righe su 605** hanno l'ultimo avvistamento più vecchio della
+lettura più recente del loro club (Dallinga, Lukaku, Mosconi, Posch, Circati...). **E non si adotta come
+regola**: fra quelle 40 ci sono Djimsiti, Bennacer e Angelino, che quasi certamente ci sono ancora — un
+payload è «la prima squadra come la fonte ha deciso di pubblicarla», e la precisione dell'assenza era
+misurata **83,1%** col gate di completezza (`SQUAD_COMPLETENESS` 0.90), che l'app non può vedere. Una
+regola nuova qui vuole la sua misura, non una deduzione.
+
+**Quello che è stato fatto invece è il canale che esiste per i fatti che il modello non può raggiungere**:
+`config/player_notes.json`, `kind: 'out_of_squad'` — Lukaku c'era già come `dispute` dal 15/08 e adesso è
+la dichiarazione dell'operatore del 25/08, datata e revocabile. La pagina delle buste **non leggeva le
+note**, ed è il pezzo che mancava: ora `Bidder.outOfSquad` viaggia con la riga (come i giorni di
+infortunio, «`buyable` si chiede dentro il solver dove nessun servizio arriva») e `buyable` lo rifiuta,
+quindi esce dal piano automatico **e dai nomi contesi**, resta sul tabellone e resta offerbile a mano.
+**Solo `out_of_squad`**: `dispute` e `wants_out` sono stati di un RAPPORTO e chi è in rotta domenica gioca
+ancora, quindi leggerli come un'assenza sarebbe inventare un fatto da un altro — che è la frase con cui si
+apre il file delle note.
+
+Resta aperto per il toolkit, con la sua popolazione già contata: **`_still_buyable` deve leggere la DATA
+dell'avvistamento**, non solo il club, e la forma giusta («era nell'ultimo payload completo del suo
+club?») va misurata come fu misurata la precisione dell'assenza. Finché non lo è, la nota dichiarata è la
+cura, e un `export` + `data:pull` è quello che serve comunque: il foglio è del 20/08 e il mercato è vivo.
+
+**Verificato**: 472 test verdi (31 file), `ng build` verde. Le tre tabelle qui sopra vengono da sonde che
+chiamano le funzioni spedite sul bundle vero, non da una copia dell'aritmetica.
+
+---
+
+## 8 — Il modulo di riferimento si SCEGLIE, e un reparto è un insieme (25/08/2026, notte)
+
+Due richieste dell'operatore nella stessa serata, e sono **una correzione sola** — la seconda smonta la
+prima se la prima arriva da sola.
+
+> «confermo che il 3-4-3 nel classic è una formazione molto gettonata ma per chi usa il modificatore di
+> difesa (o altri tipi di modificatore) anche il 4-3-3 è molto frequente ... devi tarare le buste
+> scegliendo quali dei due moduli prendere come riferimento in base ai calciatori già in rosa e quelli
+> rimanenti»
+
+> «però non capisco perché nei consigli di reparto dici che la difesa è SCOPERTA — Molina N., Solet, Di
+> Lorenzo, Kalulu, Bisseck sono 5 ottimi difensori (quasi tutti titolarissimi), quindi la difesa va solo
+> puntellata e non vale la pena spendere crediti che possono essere usati in altri reparti»
+
+### Cosa c'era, e perché le due cose sono la stessa
+
+Il riferimento era **cablato a 1-4-4-2** (`FIELDED_PLACES`, citato da `features.fielded_places` del
+toolkit), che non è nessuno dei due moduli che gioca la stanza; e «coperto» era il **conteggio degli uomini
+col gradino `titolare` o meglio**. Misurato sui suoi cinque, dal foglio Serie A rev. 36:
+
+| | gradino | quota di calendario |
+|---|---|---|
+| Solet | `bandiera` | 0,87 |
+| Kalulu | `bandiera` | 0,81 |
+| Di Lorenzo | `bandiera` | 0,67 |
+| Bisseck | `ballottaggio` | 0,66 |
+| Molina N. | `ballottaggio` | 0,50 |
+
+`playsOften` risponde **false** a un `ballottaggio`, quindi 3 titolari su 4 maglie → `scoperto`. Vero su
+ogni uomo e **la domanda sbagliata sull'insieme**: quelle cinque quote coprono **3,36 posti su 4**, cioè
+**0,64 di buco a giornata**. È la stessa lezione dei portieri di due ore prima, un piano più su: *un
+binario per uomo non risponde a una domanda su un reparto*.
+
+E qui sta l'incastro: **col modificatore attivo il riferimento giusto ha QUATTRO difensori**, quindi la
+sola scelta del modulo avrebbe lasciato «scoperto» dov'era. Serviva l'altra metà.
+
+### Le tre decisioni dell'operatore, registrate come input e non dedotte
+
+- **Il modificatore di difesa è ATTIVO e «deve essere una informazione da mettere come input (come le
+  impostazioni delle rose)»**: `LeagueRules.defenceModifier`, interruttore nella barra delle impostazioni
+  accanto a «ruolo pieno = fuori», ricordato come le altre. Decide la **forma** e **non entra in nessuna
+  valutazione**: quanto valga il modificatore — paga sulla media voto del blocco difensivo — non è
+  misurato da nessuna parte in questo progetto, e dirlo è il punto.
+- **I suoi due moduli vengono primi**, e gli **altri cinque del regolamento** si consultano solo quando
+  nessuno dei due è copribile («sì, gli altri cinque»). Un pareggio non muove il bersaglio: si cambia
+  modulo solo se un altro è **strettamente** meglio, altrimenti il riferimento ballerebbe mentre compra.
+- **Le maglie si leggono dal regolamento** (`classic_modules.json`, letto dal bundle e mai trascritto: è
+  configurazione, e porta la sua verifica di trascrizione). Senza quel file la pagina taro sull'undici
+  standard **e lo dice a schermo**, perché un ripiego silenzioso è indistinguibile da una funzione rotta.
+
+### Come si sceglie, e cosa costa una forma
+
+`expectedHoles(uomini, ruolo, maglie)`: le quote di presenza dei suoi uomini sono estrazioni indipendenti
+(`expected / matchdays`), quindi «quanti hanno il voto» è una convoluzione e i posti vuoti attesi sono una
+somma su di essa. **Esatto, non simulato**, e nulla è tarato: l'unica scelta è `HOLE_TARGET` = **1**, cioè
+«una maglia intera vuota in una giornata tipo», **dichiarata** e non misurata — quanto COSTA un buco si sa
+(la panchina, mezzo punto di fantamedia sotto il rimpiazzo), quando valga la pena spendere un credito per
+chiuderlo è una preferenza.
+
+Il costo di una forma è la somma dei suoi buchi, e i moduli si confrontano **prima** su quello che non si
+può riempire (`unfillable`: buchi meno gli uomini che giocano ancora raggiungibili col suo tetto — è la
+metà «e quelli rimanenti» della sua frase) e **poi** sui buchi stessi.
+
+**Una definizione, tre lettori**: il verdetto a schermo, il vincolo del piano (`ensureSure`) e la scelta
+del modulo. Che è anche il modo in cui la sua regola del mattino — «le buste consigliate devono
+rispecchiare i consigli che dai reparto per reparto» — **resta in piedi mentre il meccanismo cambia**:
+`sureTarget` torna a essere il suo **pavimento** («un paio per ruolo») invece di `max(2, maglie)`, ed è
+proprio quello che smette di chiedere un quarto difensore a chi ne ha cinque.
+
+### Verificato sui numeri veri
+
+Chiamando le funzioni spedite sul bundle vero, con la sua difesa e il modificatore acceso:
+
+```
+moduli letti dal regolamento: 3-4-3 (D3C4A3) · 3-5-2 · 4-3-3 (D4C3A3) · 4-4-2 · 4-5-1 · 5-3-2 · 5-4-1
+modificatore ATTIVO -> 4-3-3   (secondo 5-3-2)
+  buchi: D 0,64 su 4
+  difesa: SOLIDO · titolari 3 · «le 4 maglie del 4-3-3 le copri (0,6 di buco a giornata, 5 uomini in
+          rosa): qui non serve altro. I crediti rendono di più dove sei scoperto.»
+```
+
+Prima: `scoperto`, «ti manca 1 titolare per coprire l'undici (3 su 4)». E sulla pagina vera (e2e col round
+seminato): il modulo è **dichiarato accanto al titolo del piano** col perché e col secondo nel tooltip, e
+**4 reparti su 4** portano a schermo il numero da cui il verdetto esce — due passi nuovi dell'arnese, così
+«scoperto» non è più una parola senza il suo numero.
+
+### 8-bis · E questo CORREGGE la tabella del §7-bis
+
+Quel conto («il 3º attaccante aggiunge il 44% di quello che il piano gli accredita») era misurato su
+**A = 2**, cioè sull'1-4-4-2 cablato. Entrambi i moduli che l'operatore gioca schierano **TRE**
+attaccanti, e con tre maglie il terzo attaccante è un **titolare**:
+
+| ruolo · maglie | 3º uomo | 4º | 5º | 6º |
+|---|---|---|---|---|
+| A · 3 maglie | **100%** | 52% | 30% | 8% |
+| C · 3 maglie (4-3-3) | 100% | 58% | 26% | 24% |
+| C · 4 maglie (3-4-3) | 100% | 100% | 69% | 52% |
+| D · 4 maglie | 100% | 100% | 65% | 28% |
+
+Quindi «l'attacco è coperto ma consigli di spendere di più per un attaccante» era in buona parte **il
+riferimento sbagliato**, non lo zaino: con due maglie il terzo attaccante sembrava profondità, con tre è
+uno che scende in campo. Quello che resta aperto del §7-bis è solo la **coda** — dal quinto in poi, in ogni
+ruolo, il piano accredita a un uomo più di quello che l'undici raccoglie — e resta un item da misurare sul
+banco, non una modifica da fare a mano.
+
+**Verificato**: 482 test verdi (31 file), `ng build` verde, e2e sulla pagina vera «nessun problema» con i
+due passi nuovi. I numeri di questa sezione vengono da sonde che chiamano le funzioni spedite sul bundle
+vero.

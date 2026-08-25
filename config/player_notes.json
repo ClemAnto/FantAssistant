@@ -43,9 +43,9 @@
 
   "2026-27": {
     "2531": {
-      "kind": "dispute",
-      "note": "In rotta con la societa' dalla fine della scorsa stagione, destinazione ignota",
-      "decided_on": "2026-08-15"
+      "kind": "out_of_squad",
+      "note": "Non e' piu' in Serie A (operatore, 25/08/2026). Prima era una rottura con la societa' a destinazione ignota; il trasferimento non risulta da nessuna parte nel bundle - l'ultima lettura della rosa che lo vede al Napoli e' del 10/08, e il Napoli e' stato riletto il 20/08 senza di lui",
+      "decided_on": "2026-08-25"
     }
   }
 }

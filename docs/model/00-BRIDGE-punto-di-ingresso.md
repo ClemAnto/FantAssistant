@@ -94,9 +94,23 @@ Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo b
 **Il 25/08 in cinque righe.** Sessione tutta in `app/` (il DB lo possedeva l'altra sessione, che ha
 chiuso il 24-25 con la giornata 1 e il perimetro): la pagina **`/sealed-bid`** ha adesso una moneta con
 un nome, una strategia dettata dall'operatore e la sua todolist chiusa per quanto riguarda il codice.
-**456 test** (erano 406), `ng build` verde, e2e senza problemi sul round vero, e il sito è stato
-pubblicato **quattro volte** (v0.1.22 → v0.1.25). `engine_*`, i fogli e le revisioni non si muovono: qui
-non si prevede nessun calciatore, si decide cosa fare delle buste.
+**482 test** (erano 406), `ng build` verde, e2e senza problemi sul round vero, e il sito è stato
+pubblicato **quattro volte** (v0.1.22 → v0.1.25; le correzioni della sera tarda non sono ancora
+pubblicate). `engine_*`, i fogli e le revisioni non si muovono: qui non si prevede nessun calciatore, si
+decide cosa fare delle buste.
+
+**E la sera tarda ha corretto tre cose che l'operatore ha visto sullo schermo**, tutte scritte in
+`todolist-buste-chiuse-v1.md` §7-8. **Un compagno di club non è l'altro lato di una lotta**: servono DUE
+pretendenti alla maglia e uno lo deve disegnare la board (`ownsShirt`), o Di Gregorio + Perin leggono
+«reparto risolto» mentre la maglia è di Vicario — e l'aritmetica non li rifiuta, li *preferisce* (33,9
+contro 30,7), che è perché è un vincolo e non una moneta. **Un binario per uomo non risponde a una domanda
+su un reparto**: «coperto» adesso è `expectedHoles`, i posti che restano vuoti in una giornata tipo, con
+`HOLE_TARGET` = 1 dichiarata — cinque difensori di cui due `ballottaggio` coprono 3,36 maglie su 4 e non
+sono «scoperti». **Il modulo di riferimento si SCEGLIE** fra i suoi due (3-4-3 / 4-3-3, gli altri cinque
+del regolamento solo se nessuno dei due è copribile) leggendo le maglie da `classic_modules.json`, col
+**modificatore di difesa come input dichiarato** (`LeagueRules.defenceModifier`): decide la forma e non
+entra in nessuna valutazione. Corollario che ribalta una misura della stessa sera: i suoi due moduli
+schierano TRE attaccanti, quindi il terzo attaccante è un titolare e non profondità.
 
 **La moneta si chiama GAIN** = `surplus × (giornate della competizione / 38) × √(presenze attese / 38)`.
 Le due alternative sono escluse per iscritto: l'**Overall** è un totale SENZA zero (in un'asta si compra
@@ -105,8 +119,9 @@ e non sconta una stagione che devi poter schierare. Disegnato sempre uguale (`ui
 fasce tagliate una volta sola sul listone intero: sul tabellone dei liberi si muoverebbero sotto i piedi.
 
 **Tre regole DICHIARATE, ognuna nata da un'obiezione dell'operatore a un consiglio vero** (nessun gate le
-possiede, e ognuna riporta dove non riesce a rispettarsi): tanti uomini che giocano sempre quanti ne
-schiera un undici, per ruolo (`sureTarget`, P1 D4 C4 A2 col «paio per ruolo» come pavimento); i portieri
+possiede, e ognuna riporta dove non riesce a rispettarsi): un pavimento di due uomini che giocano sempre
+per ruolo (`sureTarget`; la stessa sera ha smesso di essere `max(2, maglie dell'undici)`, perché «coperto»
+lo dicono i posti vuoti del reparto e non un conteggio); i portieri
 sono un gioco a parte — o la coppia dello stesso club o un titolare vero, mai una scommessa da sola su un
 ballottaggio; e il piano mescola buste toste e **colpi da 2 crediti** perché l'obiettivo dello zaino è
 `gain × probabilità che quella cifra basti` e non il gain — perdere non costa niente, e nel round 1 di
