@@ -55,6 +55,24 @@ FEEDER_LEAGUES: tuple[str, ...] = (
 # five?» - the cups and the continental ties arrive with the provider's own slug and are neither.
 CHAMPIONSHIPS: tuple[str, ...] = LEAGUES + FEEDER_LEAGUES
 
+# ...and how TRANSFERMARKT spells those same six, because its per-match layer (`tm_appearances`) is a
+# SECOND source for a fact we already define: how many minutes of a championship a man played. Declared
+# rather than derived, like `club_levels_xref`: a provider's competition code is its own vocabulary, and
+# an entity joins through a canonical key and never through the string a source uses to name it.
+# DELIBERATELY only these six. The provider serves 1081 competitions and the temptation is to accept them
+# all; measured, feeding a championship we do NOT cover into `est.presences_from_abroad` is worse than the
+# constant it would replace (-6.9% on default, 3 seasons of 10), because that line has no LEVEL term and
+# reads half a Primeira Liga season like half a Premier League one. Widening this map is therefore a
+# MEASUREMENT and not a transcription - see `snapshot.estimation_layer`.
+TM_CHAMPIONSHIPS: dict[str, str] = {
+    "IT1": "serie_a",
+    "GB1": "premier_league",
+    "ES1": "la_liga",
+    "L1": "bundesliga",
+    "FR1": "ligue_1",
+    "IT2": "serie_b",
+}
+
 # The two dimensions a played league is defined on, and which one it is defaults to. `platform` decides
 # which matches count toward the fantamedia (euro bundles a subset of the real rounds), `game` the role
 # vocabulary and the currency - and both change every number in the sheet, so neither can be guessed.

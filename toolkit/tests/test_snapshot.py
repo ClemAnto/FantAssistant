@@ -3720,6 +3720,10 @@ def test_the_other_platform_rung_is_only_for_the_same_football():
                                      minutes INTEGER);
         CREATE TABLE external_match_stats (fc_id INTEGER, season TEXT, competition TEXT,
                                            real_md INTEGER);
+        -- ...and the SECOND source for those same minutes, empty here for the same reason: what is under
+        -- test is the competition filter, and the fill only ever answers where the aggregate is silent.
+        CREATE TABLE tm_appearances (fc_id INTEGER, season TEXT, competition TEXT, minutes INTEGER,
+                                     is_national INTEGER);
         -- the CALENDAR of every platform-season, which the `older` rung needs to turn an old pv into a
         -- share before it regresses it (`est.presences_from_older`): 32 votes are 84% of a Serie A season
         -- and a whole euro one, so the count cannot travel between the two on its own.
@@ -4093,3 +4097,65 @@ def test_the_re_derivation_asks_the_two_DATES_and_not_what_this_run_happened_to_
     record_run(conn, "arrivals", "2026-08-19T08:00:00+00:00", "error", "boom")
     conn.commit()
     assert snapshot.arrivals_are_stale(conn)[0], "an errored run is not a re-derivation"
+
+
+def test_a_championship_we_cover_reads_its_minutes_from_whichever_source_has_them(tmp_path):
+    """`est.presences_from_abroad` read `external_stats` alone, so a man whose season aggregate has a hole
+    was priced as "nobody has ever seen him play" with a whole season on file: 455 rows of a Serie A
+    sheet, Milla with 38 La Liga matches and 3277 minutes reading 12.6 matchdays of 38.
+
+    The fill is a SECOND SOURCE for a fact we already define, not a new channel - same quantity, same
+    denominator (`features.league_rounds`), same fitted line - and that the two providers measure the same
+    thing is measured: on 10,580 (player, season) pairs where both name the same championship the shares
+    differ by a median +0.0000 and correlate +0.9957. Three things this fixes in place, all of which a
+    later edit could quietly undo:
+
+      * `external_stats` WINS where it has an answer, and the row says which source counted the minutes.
+        Reversing the precedence would silently move the population the published line was fitted on.
+      * ONLY the six championships `config.TM_CHAMPIONSHIPS` declares. Feeding a league we do not cover
+        into that line is measured WORSE than the constant it replaces (-6.9% on default, 3 seasons of
+        10): the line has no level term and reads half a Primeira Liga season like half a Premier League
+        one. Varela G. - 34 Primeira Liga matches, 1522 minutes - therefore keeps the constant.
+      * the denominator is the CHAMPIONSHIP's rounds and never the provider's own round id, which outside
+        the perimeter is not a matchday at all (`uefa-europa-league` declares 636 of them).
+    """
+    import collections
+
+    from euroleghe_ingest import config
+    from euroleghe_ingest.db.database import init_db
+    from euroleghe_ingest.engine import features
+    from euroleghe_ingest.modules import snapshot
+
+    conn = init_db(tmp_path / "euro.db")
+    # 1 has both sources, 2 only Transfermarkt on a championship we cover, 3 only Transfermarkt on one
+    # we do not, 4 only Transfermarkt in a CUP - which is not a share of any calendar.
+    for fc_id in (1, 2, 3, 4):
+        conn.execute("INSERT INTO players(fc_id, canonical_name) VALUES (?, ?)", (fc_id, f"P{fc_id}"))
+    conn.execute("INSERT INTO external_stats(fc_id, season, source, competition, minutes) "
+                 "VALUES (1, '2025-26', 'sofascore', 'la_liga', 1800)")
+    for fc_id, code, minutes in ((1, "ES1", 999), (2, "ES1", 1900), (3, "PO1", 1522), (4, "CDR", 400)):
+        conn.execute(
+            "INSERT INTO tm_appearances(fc_id, tm_game_id, played_on, season, competition, minutes) "
+            "VALUES (?, ?, '2026-03-01', '2025-26', ?, ?)", (fc_id, f"g{fc_id}", code, minutes))
+    # the denominator the fill must use, and it comes from the per-match layer like every other reader's
+    for md in range(1, 39):
+        conn.execute("INSERT INTO external_match_stats(fc_id, season, source, match_id, competition, "
+                     "real_md, minutes) VALUES (1, '2025-26', 'sofascore', ?, 'la_liga', ?, 90)",
+                     (f"m{md}", md))
+    conn.commit()
+
+    window = features.Window("SNAP", "2025-26", "2026-27", "2026-08-20")
+    obs = collections.namedtuple("Obs", ["fc_id"])
+    layer = snapshot.estimation_layer(conn, window, "default", [obs(i) for i in (1, 2, 3, 4)])["players"]
+
+    assert layer[1]["abroad"] == {"minutes": 1800, "rounds": 38, "league": "la_liga",
+                                 "source": "external_stats"}, \
+        "the season aggregate answers first, and the row must be able to say so"
+    assert layer[2]["abroad"] == {"minutes": 1900, "rounds": 38, "league": "la_liga",
+                                 "source": "tm_appearances"}, \
+        "a hole in the aggregate is filled from the per-match layer, on the SAME denominator"
+    assert layer[3].get("abroad") is None, \
+        "a championship the line was never fitted on: measured worse than the constant, so not read"
+    assert layer[4].get("abroad") is None, "a cup is not a matchday of any championship"
+    assert "PO1" not in config.TM_CHAMPIONSHIPS and set(config.TM_CHAMPIONSHIPS.values()) == \
+        set(config.CHAMPIONSHIPS), "the declared map is the six we measure a season over, no more"

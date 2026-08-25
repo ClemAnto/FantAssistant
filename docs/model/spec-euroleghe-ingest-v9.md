@@ -495,6 +495,48 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.66 (25 agosto 2026 — i minuti di un campionato che copriamo hanno una SECONDA fonte)
+
+**Dalla domanda dell'operatore su un nome:** «Varela del Monza si è dimostrato essere un ottimo calciatore,
+come mai non abbiamo nessun suo valore nel db?». La riga c'era e il valore no: `engine_unpriced_reason` «no
+season on this platform», `est_basis` `anchor`, `est_pv` **10,7** su 38 — la costante di chi non è mai stato
+visto giocare — mentre lui aveva **34 partite di Primeira Liga, 1522 minuti, 6 gol**.
+
+`est.presences_from_abroad` (v9.56) legge `external_stats`, che tiene **sei** competizioni: le cinque più il
+serbatoio. Chi ha giocato altrove cade sulla costante, e su quel gradino ci finiscono **due popolazioni
+diverse** che questa passata ha separato e giudicato a parte (gate §7-duoquadragies):
+
+- **buco su un campionato che copriamo** — Milla 38 partite di Liga e 3277 minuti che leggevano 12,6
+  giornate su 38, Schmid 34 di Bundesliga, Cissé A. 38 di Serie B. Sono uomini di cui `external_stats` non
+  ha la riga (5 su 8 non hanno un id sofascore, gli altri l'aggregato non è mai stato scaricato).
+  → **ADOTTATO**: i minuti li porta `tm_appearances` dove l'aggregato tace. `config.TM_CHAMPIONSHIPS`
+  dichiara la corrispondenza fra i codici del provider e i nostri sei nomi; il denominatore resta
+  `features.league_rounds` e la retta resta quella pubblicata, quindi **nessun parametro nuovo**. Fuori
+  campione **+6,0%** (default, n=455, 7 stagioni su 9). Che sia la STESSA quantità è misurato e non supposto:
+  10.580 coppie, differenza mediana **+0,0000**, correlazione **+0,9957**.
+- **calcio fuori perimetro** — il caso di Varela. → **RIFIUTATO per misura**: −6,9% su default (3 stagioni
+  su 10), e non lo salvano né un filtro sull'età mediana della competizione né un rifit. La retta non ha un
+  termine di **livello** e legge mezza stagione di Primeira Liga come mezza di Premier League.
+
+`SHEET_REVISION` **37**, 9 righe del foglio Serie A si muovono (`est_pv` di Milla 12,6 → **24,5**), 0 su
+euro perché là quei nomi li prezza il core, `backtest --verify` **22/22**. La nota della riga dice quale
+fonte ha contato i minuti, perché una riga che non sa dire da dove viene il suo numero non è controllabile.
+
+**Tre cose trovate per strada, e due sono difetti.**
+1. **Il numero di giornate di una competizione si stima per (uomo, CLUB) e non per uomo**: chi cambia
+   squadra a stagione in corso porta in `tm_appearances` le righe di tutt'e due (`state = 'not in squad'`,
+   minuti NULL), e la Serie A leggeva **73** giornate. Corretto, lo stimatore riproduce
+   `features.league_rounds` **39 volte su 40** e **5 uomini su file bastano** perché sia esatto.
+2. **`features.league_rounds` per l'estero non restituisce giornate di campionato.** Legge `MAX(real_md)`
+   dal livello per-partita, dove le competizioni fuori perimetro arrivano con lo slug del provider e il suo
+   id di turno: `uefa-europa-league` dichiara **636** giornate, `coppa-italia` 32. Oggi è **inerte** perché
+   `external_stats` porta solo i sei nomi nostri, ed è una trappola per chi allargasse quel lettore: per
+   questo il ripiego passa per i sei nomi e non per la chiave del provider.
+3. **L'arnese va verificato sui NUMERI pubblicati prima di giudicare qualsiasi cosa.** La retta di v9.56 è
+   stata riprodotta (n=322 contro 323, coefficienti (0,336, 0,327) contro (0,339, 0,320)) e la prima passata
+   leggeva n=890 con un guadagno diverso, perché aveva la popolazione sbagliata («meno di 15 voti a t−1»
+   invece di «nessuna riga»). Senza i numeri pubblicati non ci sarebbe stato modo di accorgersene.
+
 ## Novità v9.65 (24-25 agosto 2026 — il TERZO giudice: la giornata giocata davvero, e il perimetro che ad agosto era vuoto)
 
 **Richiesta dell'operatore**: «vedi le formazioni che sono state schierate rispetto alle nostre

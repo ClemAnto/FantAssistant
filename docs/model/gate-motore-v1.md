@@ -5109,6 +5109,88 @@ undici non scavalca una che ne ha — «vuoto = ignoto, mai zero» applicato al 
 la riga di report regge un None. Uno zero uniforme è la cosa che questo progetto ha imparato a non
 credere, e stavolta spegneva l'unico giudice che esista prima che si giochi una partita.
 
+## 7-duoquadragies. I MINUTI ESTERI HANNO UNA SECONDA FONTE, e vale solo dove la retta è fittata (25 agosto 2026)
+
+**Nata da una domanda dell'operatore su un nome:** «Varela del Monza si è dimostrato essere un ottimo
+calciatore, come mai non abbiamo nessun suo valore nel db?». La riga c'era; il valore no —
+`engine_unpriced_reason` «no season on this platform», `est_basis` `anchor`, `est_pv` **10,7** su 38, che è
+la costante «nessuno lo ha mai visto giocare». E lui una stagione l'aveva giocata: **34 partite di Primeira
+Liga al Gil Vicente, 1522 minuti, 6 gol**, più 34 di Liga 2 col Benfica B l'anno prima. Sono 238 righe in
+`tm_appearances` che nessuno leggeva per questo (di quella tabella si legge solo `position_id`, i rivali per
+la maglia).
+
+`est.presences_from_abroad` legge `external_stats`, che tiene **sei competizioni** (le cinque più il
+serbatoio). Quindi cadono sulla costante due popolazioni diverse, e la misura le separa.
+
+**L'arnese prima del risultato.** La retta pubblicata è stata **riprodotta** prima di giudicare qualunque
+cosa: popolazione «nessuna riga a t−1 su questa piattaforma», n = **322** contro i 323 dichiarati, retta
+0,2274 · banda 0,2440 · costante 0,2794, coefficienti **(0,336, 0,327)** contro i (0,339, 0,320) di
+`est.ABROAD_SHARE`. La prima passata invece leggeva n=890 e un guadagno del +9,3%, perché il criterio era
+«meno di 15 voti a t−1» e non «nessuna riga»: due popolazioni, e i numeri pubblicati sono la prova di quale
+delle due.
+
+**La quota è LA STESSA quantità, e questo è misurato.** Sulle **10.580** coppie (uomo, stagione) dove le due
+fonti nominano lo stesso campionato, la differenza fra la quota da Transfermarkt e quella da
+`external_stats` è mediana **+0,0000**, media −0,0026, dentro 0,05 nel **99,6%** dei casi, correlazione
+**+0,9957**. Quindi alimentare la retta dalla seconda fonte non è un canale nuovo e non introduce un
+parametro: è la stessa quantità, lo stesso denominatore, la stessa retta.
+
+**Criterio pre-registrato** (scritto prima della corsa): entra se, leave-one-season-out sugli uomini che
+oggi prendono la costante per ruolo, il MAE scende nella maggioranza delle stagioni, con guadagno medio
+sopra lo 0,5% e nessuna stagione sotto −2%; l'ammissibilità di una competizione si decide su una griglia di
+UN parametro e si adotta solo in un punto interno.
+
+| popolazione | piatt. | n | costante | retta | guadagno | vince | peggiore | rifit |
+|---|---|---|---|---|---|---|---|---|
+| buco su un campionato IN PERIMETRO | default | 455 | 0,2886 | **0,2712** | **+6,0%** | 7/9 | −2,6% | 0,2638 |
+| " | euro | 117 | 0,2718 | 0,2525 | +7,1% | 5/7 | −70,0% | 0,2585 |
+| calcio FUORI perimetro | default | 411 | 0,2448 | 0,2617 | **−6,9%** | 3/10 | −36,7% | 0,2405 |
+| " | euro | 468 | 0,2551 | 0,2554 | −0,1% | 4/7 | −66,7% | 0,2576 |
+
+**ADOTTATO il primo, RIFIUTATO il secondo**, e il secondo è il caso da cui la domanda è nata. Fuori
+perimetro non lo salva niente: né il pavimento sull'età mediana della competizione (il filtro
+giovanili/riserve: ogni punto della griglia resta negativo su default, e il guadagno cresce fino al bordo,
+che è la condizione per NON adottare), né un **rifit** — 0,2405 contro 0,2448 della costante è un pareggio,
+e la pendenza rifittata è 0,20-0,25 contro lo 0,32 pubblicato, cioè i minuti esteri portano MENO segnale.
+La ragione è che la retta non ha un termine di **livello**: legge mezza stagione di Primeira Liga come mezza
+di Premier League, e non lo sono. Stessa forma di `synth.calibrated_competitions` — dove un numero si può
+applicare è una proprietà della popolazione su cui è stato fittato.
+
+Sul lato adottato il guadagno è **insensibile** al pavimento d'età (+6,0% a +6,3% su tutta la griglia), che
+è quello che deve fare: quei sei sono campionati senior per costruzione, quindi il filtro non ha niente da
+togliere. Nota di onestà: **letto come regola previsionale il braccio adottato fallirebbe il terzo comma
+del criterio** (peggiore stagione −2,6% contro il −2% pre-registrato). Entra perché non è una regola
+previsionale ma un **ripiego di sorgente** sulla popolazione su cui la retta è già adottata, e la prova che
+lo sia è il +0,9957 sopra, non la tabella; la tabella dice solo che non fa danno. Stessa forma della passata
+`known` di `positions._store_identities`, che portò `external_stats` da 11.732 a 16.970 righe senza essere
+una regola.
+
+**Effetto**, chiamando la funzione vera e non una copia: **9 righe** del foglio Serie A (8 `anchor` + 1
+`older`), **0** su euro — là quei nomi li prezza il core. Milla 3277 minuti di Liga, `est_pv` da **12,6 a
+24,5**; Schmid 12,6 → 24,8; Cissé A. 13,2 → 19,0; Alhassane 11,7 → 19,0. `SHEET_REVISION` 37,
+`backtest --verify` **22/22**.
+
+**Tre cose che restano, e due sono difetti trovati per strada.**
+- **Un massimo non è un conteggio, se la riga di un altro club è nella tabella.** Il numero di giornate di
+  una competizione si stima col massimo delle partite di un uomo, e per (uomo, **club**): chi cambia
+  squadra a stagione in corso porta le righe di tutt'e due con `state = 'not in squad'` e minuti NULL, così
+  la Serie A leggeva **73** giornate (38 + 35). Corretto per club, lo stimatore riproduce
+  `features.league_rounds` **39 volte su 40** (l'unico scarto è la stagione in corso), e **5 uomini su file
+  bastano** perché sia esatto (con 3 sono 37/39, con 1 sono 25/39). Misurato, non scelto.
+- **`features.league_rounds` per l'estero non è un numero di giornate.** Legge `MAX(real_md)` dal livello
+  per-partita, dove le competizioni fuori perimetro arrivano con lo slug del provider e il suo id di turno:
+  `uefa-europa-league` dichiara **636** giornate, `coppa-italia` 32. Oggi è **inerte** — `external_stats`
+  porta solo i sei nomi, quindi il filtro `competition in rounds` non incontra mai quegli slug — ed è una
+  trappola per il prossimo che allarghi quel lettore. Per questo il ripiego passa per i sei nomi nostri e
+  non per la chiave del provider.
+- **E per l'estero non esiste un denominatore autorevole.** Le due fonti indipendenti concordano entro una
+  giornata **23 volte su 33**: il provider sottostima le stagioni in corso (Superliga 4 giornate) e il mio
+  stimatore le leghe coi playoff (Belgio 30 contro 40). Quindi il rifiuto del braccio estero è stato
+  ri-misurato con un denominatore a livello di **competizione** (la mediana fra le sue stagioni, che è quello
+  che un numero di giornate è: stabile) prima di essere scritto — e resta negativo. Quello che riaprirebbe
+  la questione non è un'altra misura di questa forma: è un **termine di livello** dentro la retta, oppure il
+  numero di giornate dei campionati esteri come fatto DICHIARATO.
+
 ## 8. Casi di regressione (in `model.REGRESSION_CASES`, stampati da `backtest --cases`)
 
 Lewandowski (età/minuti) · Wirtz (cambio lega) · Torres F. (propensione per-90) · Ezzalzouli (nuovo nel

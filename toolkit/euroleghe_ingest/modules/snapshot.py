@@ -397,7 +397,15 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      dieci partite in Austria e zero qui divideva ZERO presenze per 38 e la scala leggeva 0,000 come una
 #      misura, rispondendo `riserva`. Ora quella guardia interroga le tre colonne che la formula legge
 #      davvero (`APPEARANCE_FOOTBALL`) e quei sette gradini tornano VUOTI, che e' quello che sono.
-SHEET_REVISION = 36
+#   37 I MINUTI DI UN CAMPIONATO CHE COPRIAMO LI PORTA ANCHE TRANSFERMARKT, dove l'aggregato di stagione
+#      ha un buco. `est.presences_from_abroad` leggeva solo `external_stats`, quindi 455 righe del foglio
+#      Serie A prendevano la costante «nessuno lo ha mai visto giocare» avendo su file una stagione intera
+#      (Milla 38 partite di Liga, 3277 minuti, che leggeva 12,6 giornate su 38). Stessa quantita', stesso
+#      denominatore, stessa retta: solo i minuti da un'altra fonte, e che sia la stessa quantita' e'
+#      misurato (10.580 coppie, differenza mediana +0,0000, correlazione +0,9957). Vale +6,0% fuori
+#      campione. NON per i campionati fuori perimetro: misurato -6,9%, e quella e' una popolazione su cui
+#      la retta non e' fittata.
+SHEET_REVISION = 37
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
@@ -3196,7 +3204,45 @@ def estimation_layer(conn, window: features.Window, platform: str,
         seen = layer[fc_id].get("abroad")
         if competition in rounds and (seen is None or minutes > seen["minutes"]):
             layer[fc_id]["abroad"] = {"minutes": minutes, "rounds": rounds[competition],
-                                      "league": competition}
+                                      "league": competition, "source": "external_stats"}
+    # ...E QUANDO QUELL'AGGREGATO NON C'E' MA IL CALCIO SI', I MINUTI LI PORTA TRANSFERMARKT. Non e' un
+    # canale nuovo: e' la STESSA quantita' («i suoi minuti di quel campionato / 90 x le sue giornate»),
+    # lo STESSO denominatore (`features.league_rounds`) e la STESSA retta, con la sola differenza che i
+    # minuti li conta un altro provider dove il primo tace. Che sia la stessa quantita' e' MISURATO e non
+    # supposto: sulle 10.580 coppie (uomo, stagione) dove entrambe le fonti nominano lo stesso campionato
+    # la differenza di quota e' mediana **+0.0000**, media -0.0026, dentro 0.05 nel 99.6% dei casi,
+    # correlazione **+0.9957**. Costava 455 righe di foglio Serie A che leggevano la costante
+    # «nessuno lo ha mai visto giocare» avendo su file una stagione intera: Milla 38 partite di Liga e
+    # 3277 minuti, Schmid 34 di Bundesliga, Cisse' A. 38 di Serie B.
+    #
+    # ⚠️ SOLO I CAMPIONATI SU CUI LA RETTA E' FITTATA, che sono questi sei e non «l'estero». Misurato
+    # leave-one-season-out sugli uomini che oggi prendono la costante: dove il campionato e' uno dei sei e
+    # l'aggregato ha un buco la retta vale **+6.0%** (default, n=455, 7 stagioni su 9, peggiore -2.6%);
+    # dove il campionato e' uno che NON copriamo perde **-6.9%** (default, n=411, 3 su 10, peggiore
+    # -36.7%) e non la salva ne' un filtro sull'eta' della competizione ne' un rifit (0.2405 contro 0.2448
+    # della costante). La ragione e' che la retta non ha un termine di LIVELLO: mezza stagione di Primeira
+    # Liga e mezza di Premier League le legge uguali, e non lo sono. Stessa forma di
+    # `synth.calibrated_competitions` - dove un numero si puo' applicare e' una proprieta' della
+    # popolazione su cui e' stato fittato. Varela G. resta quindi sulla costante, e ora per misura.
+    #
+    # Il codice del provider e' suo e non nostro, quindi la corrispondenza e' DICHIARATA come in
+    # `club_levels_xref`; e si passa per `league_rounds` con questi sei nomi e non con la sua chiave,
+    # perche' quella funzione legge il livello per-partita e per le competizioni FUORI perimetro li' il
+    # `real_md` non e' una giornata di campionato (`uefa-europa-league` ne dichiara 636).
+    missing = tuple(fc_id for fc_id in ids if layer[fc_id].get("abroad") is None)
+    if missing:
+        holes = ",".join("?" * len(missing))
+        codes = ",".join("?" * len(config.TM_CHAMPIONSHIPS))
+        for fc_id, code, minutes in conn.execute(
+                f"SELECT fc_id, competition, SUM(COALESCE(minutes, 0)) FROM tm_appearances "
+                f"WHERE season = ? AND COALESCE(is_national, 0) = 0 AND COALESCE(minutes, 0) > 0 "
+                f"AND competition IN ({codes}) AND fc_id IN ({holes}) GROUP BY fc_id, competition",
+                (window.input_season, *config.TM_CHAMPIONSHIPS, *missing)):
+            competition = config.TM_CHAMPIONSHIPS[code]
+            seen = layer[fc_id].get("abroad")
+            if competition in rounds and (seen is None or minutes > seen["minutes"]):
+                layer[fc_id]["abroad"] = {"minutes": minutes, "rounds": rounds[competition],
+                                          "league": competition, "source": "tm_appearances"}
     # ...E CHI GLI CONTENDE LA MAGLIA, pesato: il reparto per POSIZIONE VERA e non per etichetta.
     # La misura e le tre alternative respinte stanno in `est.INVESTMENT_SHARE`; qui c'e' solo la raccolta
     # dei tre ingredienti, che sono tutti datati PRIMA dell'asta - il profilo sulle due stagioni chiuse,
@@ -3407,9 +3453,15 @@ def _rung_for(obs, prediction, layer: dict, anchors: dict, data,
     # his fantamedia here, and it does predict how much he PLAYS.
     note = f"nothing measured anywhere: {level}"
     if from_abroad is not None:
+        # ...and WHICH source counted those minutes, because for some men the season aggregate has a hole
+        # and the per-match layer of another provider is what filled it. A row that cannot say where its
+        # number came from cannot be checked against the one beside it.
+        counted = ("" if abroad.get("source") != "tm_appearances"
+                   else ", counted on transfermarkt's per-match layer because the season aggregate has "
+                        "no row for him")
         note = (f"no season here, so his {abroad['league']} minutes stand in for the calendar "
-                f"({abroad_share:.0%} of it) - {level} for the fantamedia, which is what the gate "
-                f"preferred")
+                f"({abroad_share:.0%} of it){counted} - {level} for the fantamedia, which is what the "
+                f"gate preferred")
     return est.Estimate(anchor, presences(None) or from_abroad
                         # Il RUOLO entra nella costante: la quota di un portiere e' 0.098 e non 0.29,
                         # e senza passarlo il terzo portiere di ogni club leggeva 11 giornate su 38

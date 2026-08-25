@@ -911,6 +911,50 @@ Con `--source press` lo stesso comando leggeva 10/5/5 e 165/220. Ora una lettura
 undici non scavalca una che ne ha. Uno zero uniforme è la cosa che questo progetto ha imparato a non
 credere; qui non era un difetto di misura, era il giudice **spento per default**.
 
+## Una seconda fonte per lo stesso fatto non e' un canale nuovo — ma solo dentro la sua popolazione
+**25/08/2026, dalla domanda dell'operatore su un nome: «Varela del Monza si e' dimostrato essere un ottimo
+calciatore, come mai non abbiamo nessun suo valore nel db?».** La riga c'era, il valore no: `est_pv` **10,7**
+su 38, che e' la costante «nessuno lo ha mai visto giocare», addosso a un uomo con **34 partite di Primeira
+Liga, 1522 minuti, 6 gol**. `est.presences_from_abroad` legge `external_stats`, che tiene **sei**
+competizioni (le cinque piu' il serbatoio), e su quel gradino cadono **due popolazioni diverse**. Misurate a
+parte (gate §7-duoquadragies), danno risposte opposte:
+- **il campionato lo copriamo e l'aggregato ha un buco** — Milla 38 partite di Liga e 3277 minuti che
+  leggevano 12,6 giornate su 38. **ADOTTATO**: i minuti li porta `tm_appearances` dove l'aggregato tace,
+  `config.TM_CHAMPIONSHIPS` dichiara i codici del provider, e **niente altro cambia** — stessa quantita',
+  stesso denominatore (`features.league_rounds`), stessa retta, zero parametri nuovi. Fuori campione +6,0%
+  (n=455, 7 stagioni su 9). Che sia la stessa quantita' e' MISURATO: 10.580 coppie, differenza mediana
+  **+0,0000**, correlazione **+0,9957**.
+- **il campionato non lo copriamo** — il caso da cui la domanda e' nata. **RIFIUTATO per misura**: −6,9% su
+  default (3 stagioni su 10), e non lo salvano ne' un filtro sull'eta' mediana della competizione (ogni
+  punto negativo, e il guadagno cresce fino al BORDO della griglia) ne' un rifit (0,2405 contro 0,2448 della
+  costante, con la pendenza a 0,20-0,25 contro lo 0,32 pubblicato). La retta non ha un termine di LIVELLO e
+  legge mezza stagione di Primeira Liga come mezza di Premier League. Varela resta sulla costante, ora per
+  misura e non per distrazione; a riaprire la questione servirebbe un termine di livello, o il numero di
+  giornate dei campionati esteri come fatto DICHIARATO.
+
+Quattro abitudini, e tre le ha imposte la misura invece della rilettura.
+**La distinzione che decide e' «predittore nuovo» contro «secondo lettore dello stesso fatto»**, ed e' la
+stessa di `synth.calibrated_competitions`: dove un numero si puo' applicare e' una proprieta' della
+popolazione su cui e' stato fittato, quindi la seconda fonte entra dentro quei sei campionati e si fermerebbe
+al primo che non lo e'. Detto per intero: letto come REGOLA previsionale il braccio adottato fallirebbe il
+terzo comma del criterio pre-registrato (peggiore stagione −2,6% contro −2%); entra perche' e' un ripiego di
+sorgente, e la prova e' il +0,9957, non la tabella dei MAE.
+**L'arnese si verifica sui numeri PUBBLICATI prima di giudicare qualunque cosa**: la retta di v9.56 e' stata
+riprodotta (n=322 contro 323, coefficienti (0,336, 0,327) contro (0,339, 0,320)), e la prima passata leggeva
+n=890 perche' la popolazione era «meno di 15 voti a t−1» invece di «nessuna riga» — senza i numeri pubblicati
+non c'era modo di accorgersene, e la seconda passata ne ha trovato un altro (il 2015-16 mette in popolazione
+mezza Serie A, perche' a t−1 nessuno ha una riga).
+**Un massimo non e' un conteggio, se la tabella porta anche le righe di un altro club**: il numero di
+giornate di una competizione si stima per (uomo, **club**), perche' chi cambia squadra a stagione in corso
+porta le righe di tutt'e due (`state = 'not in squad'`, minuti NULL) e la Serie A leggeva **73** giornate.
+Corretto, lo stimatore riproduce `features.league_rounds` **39 volte su 40**, e **5 uomini su file bastano**
+perche' sia esatto (con 3 sono 37/39, con 1 sono 25/39) — misurato, non scelto.
+**E `features.league_rounds` per l'estero NON restituisce giornate di campionato**: legge `MAX(real_md)` dal
+livello per-partita, dove le competizioni fuori perimetro arrivano con lo slug del provider e il suo id di
+turno — `uefa-europa-league` ne dichiara **636**, `coppa-italia` 32. Oggi e' inerte perche' `external_stats`
+porta solo i sei nomi nostri; e' una trappola per il prossimo che allarghi quel lettore, ed e' la ragione per
+cui il ripiego passa per i nostri sei nomi e non per la chiave del provider.
+
 ## The unit is the MATCH, never the matchday
 Matches get postponed, so a round can be played weeks after the one that follows it, and a date can carry
 one round's fixtures plus another's catch-ups. Two consequences, both measured on 29/07/2026 rather than
