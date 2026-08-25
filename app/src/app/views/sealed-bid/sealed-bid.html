@@ -1,0 +1,1380 @@
+<!-- UI text is ITALIAN in app/ (see app/CLAUDE.md); code and comments stay English. -->
+<div class="mx-auto flex min-h-full max-w-[1800px] flex-col gap-3 p-4">
+  <header class="flex flex-wrap items-baseline justify-between gap-3">
+    <div class="flex flex-wrap items-baseline gap-3">
+      <h1 class="text-2xl font-semibold text-fg">Buste chiuse</h1>
+      <span
+        class="rounded-full border border-border px-2 py-0.5 text-xs text-muted"
+        title="Versione della webapp - cambia a ogni pubblicazione"
+        >v{{ appVersion }}</span
+      >
+      @if (sheet(); as entry) {
+        <span
+          class="text-xs text-muted"
+          nz-tooltip
+          [nzTooltipTitle]="
+            'Foglio ' +
+            entry.league +
+            ' · ' +
+            (entry.game === 'mantra' ? 'Mantra' : 'Classic') +
+            ' · ' +
+            (entry.teams ?? '?') +
+            ' squadre · revisione ' +
+            (entry.sheet_revision ?? 0) +
+            ' · generato il ' +
+            (entry.generated_at ?? entry.auction_date ?? '?').slice(0, 10) +
+            '. I numeri di ogni giocatore sono del motore e non si ricalcolano qui.'
+          "
+        >
+          {{ entry.league }} · rev. {{ entry.sheet_revision ?? 0 }} ·
+          {{ (entry.generated_at ?? entry.auction_date ?? '').slice(0, 10) }}
+        </span>
+      }
+    </div>
+    <div class="flex items-baseline gap-2">
+      <a nz-button nzType="text" routerLink="/">
+        <nz-icon nzType="team" />
+        Calciatori
+      </a>
+    </div>
+  </header>
+
+  @if (store.status() === 'error') {
+    <nz-alert
+      nzType="error"
+      nzShowIcon
+      nzMessage="Non riesco a leggere il bundle"
+      [nzDescription]="store.error() ?? ''"
+    />
+  }
+  @if (problem(); as issue) {
+    <nz-alert nzType="warning" nzShowIcon nzMessage="Attenzione" [nzDescription]="issue" nzCloseable (nzOnClose)="problem.set(null)" />
+  }
+
+  <!-- ── il regolamento della lega: non sta nel bundle, quindi lo dichiara l'operatore ────────── -->
+  <nz-card nzSize="small">
+    <div class="flex flex-wrap items-center gap-x-6 gap-y-3">
+      <nz-upload [nzBeforeUpload]="takeFile" [nzShowUploadList]="false" nzAccept=".csv,text/csv">
+        <button nz-button nzType="primary" nzSize="small">
+          <nz-icon nzType="inbox" />
+          Carica le rose del round {{ snapshots().length + 1 }}
+        </button>
+      </nz-upload>
+
+      @if (snapshots().length) {
+        <span class="text-xs text-muted">
+          {{ snapshots().length }} round caricat{{ snapshots().length === 1 ? 'o' : 'i' }} ·
+          {{ latest().length }} calciatori assegnati
+        </span>
+        <button
+          nz-button
+          nzType="text"
+          nzSize="small"
+          nz-tooltip
+          nzTooltipTitle="Toglie l'ultimo file caricato, se ne hai caricato uno sbagliato."
+          (click)="dropLast()"
+        >
+          <nz-icon nzType="reload" />
+          Annulla l'ultimo
+        </button>
+      }
+
+      <label class="flex items-center gap-2 text-sm">
+        <span class="text-muted">La mia squadra</span>
+        <nz-select
+          nzSize="small"
+          class="min-w-52"
+          nzPlaceHolder="scegli"
+          [ngModel]="me()"
+          (ngModelChange)="chooseMe($event)"
+        >
+          @for (name of teamNames(); track name) {
+            <nz-option [nzValue]="name" [nzLabel]="name" />
+          }
+        </nz-select>
+      </label>
+
+      <label class="flex items-center gap-2 text-sm">
+        <span class="text-muted">Budget</span>
+        <nz-input-number
+          nzSize="small"
+          [nzMin]="1"
+          [nzStep]="50"
+          [ngModel]="settings().budget"
+          (ngModelChange)="setSetting('budget', $event)"
+        />
+      </label>
+
+      <label class="flex items-center gap-2 text-sm">
+        <span class="text-muted">Round previsti</span>
+        <nz-input-number
+          nzSize="small"
+          [nzMin]="1"
+          [ngModel]="settings().rounds"
+          (ngModelChange)="setSetting('rounds', $event)"
+        />
+      </label>
+
+      <label
+        class="flex items-center gap-2 text-sm"
+        nz-tooltip
+        nzTooltipTitle="Se il regolamento vieta di bustare su un ruolo già pieno, una squadra con 8 difensori è FUORI dal mercato dei difensori. È il fatto più sfruttabile che abbiamo su un rivale, perché non è un'ipotesi."
+      >
+        <span class="text-muted">Ruolo pieno = fuori</span>
+        <nz-switch
+          nzSize="small"
+          [ngModel]="settings().roleLock"
+          (ngModelChange)="setSetting('roleLock', $event)"
+        />
+      </label>
+
+      <label
+        class="flex items-center gap-2 text-sm"
+        nz-tooltip
+        nzTooltipTitle="Le giornate che la competizione copre davvero. Se il torneo parte dalla seconda, quello che incassi sono 37 giornate su 38: cambia tutti i numeri della pagina nella stessa proporzione, quindi non sposta di una riga né la classifica né i consigli."
+      >
+        <span class="text-muted">Giornate</span>
+        <nz-input-number
+          nzSize="small"
+          class="w-16"
+          [nzMin]="1"
+          [nzMax]="rules().matchdays"
+          [ngModel]="settings().from"
+          (ngModelChange)="setSetting('from', $event)"
+        />
+        <span class="text-muted">→</span>
+        <nz-input-number
+          nzSize="small"
+          class="w-16"
+          [nzMin]="1"
+          [nzMax]="rules().matchdays"
+          [ngModel]="settings().to"
+          (ngModelChange)="setSetting('to', $event)"
+        />
+        <span class="text-xs text-fg">
+          {{ rules().horizon }} di {{ rules().matchdays }}
+        </span>
+      </label>
+
+      <label
+        class="flex items-center gap-2 text-sm"
+        nz-tooltip
+        nzTooltipTitle="Crediti che NON vuoi impegnare in questo round, tenuti per i round successivi. Di serie è zero: nessuno ha misurato quanto valga un credito tenuto per il round 5, quindi la scelta è tua e la pagina ti dice solo dove ti lascia."
+      >
+        <span class="text-muted">Tieni da parte</span>
+        <nz-input-number
+          nzSize="small"
+          class="w-20"
+          [nzMin]="0"
+          [nzStep]="10"
+          [ngModel]="settings().reserve"
+          (ngModelChange)="setSetting('reserve', $event)"
+        />
+      </label>
+
+      <span class="text-xs text-muted">
+        Rose {{ rules().slots.P }}-{{ rules().slots.D }}-{{ rules().slots.C }}-{{ rules().slots.A }}
+        (dal foglio)
+      </span>
+    </div>
+  </nz-card>
+
+  @if (!snapshots().length) {
+    <nz-empty
+      nzNotFoundContent="Carica il CSV delle rose che la lega esporta a fine round. Ogni file è la fotografia COMPLETA delle rose: i round sono le differenze fra un file e il successivo, quindi caricali in ordine."
+    />
+  } @else if (!mine()) {
+    <nz-alert
+      nzType="info"
+      nzShowIcon
+      nzMessage="Scegli la tua squadra"
+      nzDescription="Senza sapere quale delle squadre è la tua non posso né calcolare quello che ti serve né togliere i tuoi slot dalla domanda dei rivali."
+    />
+  } @else {
+    <!-- ── il mercato che resta ─────────────────────────────────────────────────────────────── -->
+    <div class="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <nz-card nzSize="small">
+        <div class="text-xs text-muted">Crediti ancora in gioco</div>
+        <div class="text-xl font-semibold text-fg">{{ market().credits | number: '1.0-0' }}</div>
+        <div class="text-xs text-muted">
+          per {{ market().slots }} slot · {{ market().perSlot | number: '1.1-1' }} a slot
+        </div>
+      </nz-card>
+      <nz-card nzSize="small">
+        <div class="text-xs text-muted">Domanda ancora aperta dei rivali</div>
+        <div class="flex items-baseline gap-3 text-xl font-semibold text-fg">
+          @for (role of roles; track role) {
+            <span class="flex items-baseline gap-1">
+              <ui-role [role]="role" size="xs" />
+              {{ market().demand[role] }}
+            </span>
+          }
+        </div>
+        <div class="text-xs text-muted">i tuoi slot non sono contati</div>
+      </nz-card>
+      <nz-card nzSize="small">
+        <div class="text-xs text-muted">Liberi sul listone</div>
+        <div class="text-xl font-semibold text-fg">{{ market().free }}</div>
+        <div
+          class="text-xs text-muted"
+          nz-tooltip
+          nzTooltipTitle="Gli altri non hanno un numero: il motore non li prezza, oppure il foglio prevede loro meno presenze della soglia della lega. Vuoto non è zero, quindi restano sul tabellone dei rivali ma non entrano in un piano nostro."
+        >
+          {{ market().valued }} con un numero
+        </div>
+      </nz-card>
+
+      <!-- ── la scala dei prezzi del round scorso, con i casi veri nel tooltip ──────────────── -->
+      <nz-card nzSize="small">
+        <div
+          class="flex items-baseline gap-1 text-xs text-muted"
+          nz-tooltip
+          nzTooltipTitle="Come si legge: ogni riga è una fascia di «quanto lo volevano gli altri». Se nel suo ruolo restano tanti posti liberi in giro, lui sta in TESTA e si paga; se i posti finiscono prima di lui è FUORI DALLA DOMANDA e spesso bastano 1-2 crediti. La mediana è il prezzo di mezzo: metà di quella fascia è costata meno."
+        >
+          Quanto è costato vincere, nel round scorso
+          <nz-icon nzType="question-circle" class="text-xs" />
+        </div>
+        <div class="mt-1 flex flex-col gap-0.5 text-xs">
+          @for (band of ladder(); track band.key) {
+            <div
+              class="flex items-baseline justify-between gap-2"
+              nz-tooltip
+              [nzTooltipTitle]="
+                band.hint +
+                ' Casi veri: ' +
+                exampleList(band) +
+                '. ' +
+                band.cheap +
+                ' di ' +
+                band.count +
+                ' sono andati via a 1-2 crediti.'
+              "
+            >
+              <span class="text-muted">{{ band.label }}</span>
+              <span class="text-fg">
+                mediana <span class="font-semibold">{{ band.median }}</span>
+                <span class="text-muted"> · {{ band.cheap }}/{{ band.count }} a 1-2</span>
+              </span>
+            </div>
+          } @empty {
+            <span class="text-muted">Nessun round concluso: la scala nasce dalle aggiudicazioni.</span>
+          }
+        </div>
+      </nz-card>
+    </div>
+
+    <div class="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,7fr)_minmax(0,9fr)]">
+      <div class="flex min-w-0 flex-col gap-3">
+        <!-- ── le nostre buste ────────────────────────────────────────────────────────────── -->
+        <nz-card nzSize="small">
+          <div class="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+            <div class="flex items-baseline gap-2">
+              <h2 class="text-base font-semibold text-fg">Le tue buste · round {{ round() }}</h2>
+              @if (plan(); as current) {
+                <span class="text-xs text-muted">
+                  {{ current.bids.length }} su {{ mine()!.slotsFree }} slot ·
+                  <span
+                    nz-tooltip
+                    nzTooltipTitle="Il tetto: quello che spendi se le vinci TUTTE. È l'unico numero che il budget deve rispettare, non la previsione."
+                    [class.text-danger]="overBudget()"
+                    >{{ current.spend }}</span
+                  >
+                  di {{ mine()!.credits }} crediti
+                </span>
+              }
+            </div>
+            <div class="flex items-baseline gap-1">
+              <button
+                nz-button
+                nzType="text"
+                nzSize="small"
+                nz-tooltip
+                nzTooltipTitle="Scrivi una busta su un nome che il piano non ha scelto: apre tutto il ruolo, e ti dice subito se la busta è valida (slot libero e crediti)."
+                (click)="openBrowse(firstOpenRole(), null)"
+              >
+                <nz-icon nzType="plus" />
+                Aggiungi
+              </button>
+              @if (hasSwaps()) {
+                <button
+                  nz-button
+                  nzType="text"
+                  nzSize="small"
+                  nz-tooltip
+                  nzTooltipTitle="Rimette il piano com'era prima delle tue modifiche: annulla i nomi che hai cambiato, le offerte che hai riscritto, le buste che hai tolto e quelle che hai aggiunto. Non tocca le buste già registrate."
+                  (click)="clearSwaps()"
+                >
+                  <nz-icon nzType="rollback" />
+                  Torna ai consigli
+                </button>
+              }
+              @if (sent(); as log) {
+                <span
+                  class="text-xs text-muted"
+                  nz-tooltip
+                  nzTooltipTitle="Le buste di questo round sono registrate. Quando carichi l'export del round successivo ti dico com'è andata - e le perse e le parità restano scritte, perché sono l'unica informazione che nessun altro al tavolo ha."
+                >
+                  <nz-icon nzType="check-circle" /> {{ log.bids.length }} registrate
+                </span>
+                <button nz-button nzType="text" nzSize="small" (click)="forgetRound(log.round)">
+                  <nz-icon nzType="close" />
+                </button>
+              } @else {
+                <button
+                  nz-button
+                  nzType="primary"
+                  nzSize="small"
+                  nz-tooltip
+                  nzTooltipTitle="Salva le buste così come stanno. Servono a due cose: dirti com'è andata quando carichi il prossimo export, e misurare se le probabilità qui sopra sono oneste."
+                  (click)="sendBids()"
+                >
+                  <nz-icon nzType="inbox" />
+                  Registra queste buste
+                </button>
+              }
+            </div>
+          </div>
+
+          <!-- ── com'è andato il round precedente, se le buste erano registrate ────────────── -->
+          @if (lastSettled(); as past) {
+            <div class="mb-2 rounded-md border border-border p-2">
+              <div class="flex flex-wrap items-baseline justify-between gap-2 text-xs">
+                <span class="font-semibold text-fg">Round {{ past.log.round }}: com'è andata</span>
+                <span class="text-muted">
+                  {{ past.read.won }} vinte su {{ past.read.sent }} ·
+                  {{ past.read.spent }} crediti ·
+                  <span
+                    nz-tooltip
+                    nzTooltipTitle="Le probabilità che le buste portavano QUANDO sono state spedite, sommate. Se il numero è molto sopra le vinte, i prezzi consigliati sono ottimisti; molto sotto, sono timidi. Funziona solo perché le probabilità sono state salvate allora e non ricalcolate adesso."
+                    >ne prevedeva {{ past.read.expected | number: '1.1-1' }}</span
+                  >
+                  @if (past.read.tied) {
+                    ·
+                    <span
+                      class="text-warning"
+                      nz-tooltip
+                      nzTooltipTitle="Nessuno se li è aggiudicati e noi avevamo bustato: qualcuno ha scritto il nostro stesso numero. È un fatto sulla stanza che l'export non dice a nessuno."
+                      >{{ past.read.tied }} in parità</span
+                    >
+                  }
+                </span>
+              </div>
+              <div class="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs">
+                @for (one of past.rows; track one.bid.fcId) {
+                  <span
+                    [class.text-fg]="one.outcome.kind === 'won'"
+                    [class.text-muted]="one.outcome.kind === 'lost'"
+                    [class.text-warning]="one.outcome.kind === 'unassigned'"
+                    nz-tooltip
+                    [nzTooltipTitle]="outcomeLabel(one)"
+                  >
+                    {{ one.man?.name ?? one.bid.fcId }}
+                    <span class="text-muted">{{ one.bid.offer }}</span>
+                  </span>
+                }
+              </div>
+            </div>
+          }
+
+          @if (bannedMen().length) {
+            <div class="mb-2 flex flex-wrap items-center gap-1 text-xs text-muted">
+              <span>Esclusi dal tabellone:</span>
+              @for (man of bannedMen(); track man.fcId) {
+                <button
+                  type="button"
+                  class="flex items-baseline gap-1 rounded-md border border-border px-1.5 py-0.5 transition hover:opacity-80"
+                  nz-tooltip
+                  nzTooltipTitle="Clicca per rimetterlo sul tabellone e ricalcolare."
+                  (click)="unban(man.fcId)"
+                >
+                  <span class="text-fg">{{ man.name }}</span>
+                  <nz-icon nzType="close" class="text-xs" />
+                </button>
+              }
+            </div>
+          }
+
+          @if (overBudget()) {
+            <nz-alert
+              class="mb-2"
+              nzType="warning"
+              nzShowIcon
+              nzMessage="Le tue scelte superano il budget"
+              nzDescription="Il totale delle offerte è sopra i crediti che hai. Cambia un nome, abbassa un'offerta o togli una busta."
+            />
+          }
+
+          @if (plan(); as current) {
+            <!-- Un'intestazione, perché una colonna senza nome ognuno la legge a modo suo: il GAIN in
+                 particolare veniva scambiato per il prezzo. -->
+            <div class="flex items-baseline gap-2 border-b border-border pb-1 text-xs text-muted">
+              <span class="min-w-0 flex-1">Giocatore</span>
+              <span
+                class="w-12 shrink-0 text-right"
+                nz-tooltip
+                nzTooltipTitle="GAIN: quanti punti ti fa guadagnare in stagione rispetto a chi prenderesti al suo posto. Il colore dice la fascia: verde pieno ottimo, verde chiaro buono, grigio medio, ambra scarso."
+                >Gain</span
+              >
+              <span
+                class="w-14 shrink-0 text-right"
+                nz-tooltip
+                nzTooltipTitle="Quanto lo vogliono gli altri: quanto in profondità arrivano, nel suo ruolo, gli slot che le altre squadre devono ancora riempire."
+                >Contesa</span
+              >
+              <span class="w-5 shrink-0"></span>
+              <span
+                class="w-20 shrink-0 text-center"
+                nz-tooltip
+                nzTooltipTitle="Il numero da scrivere nella busta. Puoi cambiarlo: la probabilità accanto si aggiorna mentre scrivi."
+                >Offerta</span
+              >
+              <span
+                class="w-12 shrink-0 text-right"
+                nz-tooltip
+                nzTooltipTitle="Quante volte su 100 un'offerta così è bastata, guardando i nomi simili già assegnati."
+                >Prob.</span
+              >
+              <span class="w-10 shrink-0"></span>
+            </div>
+
+            <div class="flex flex-col divide-y divide-border">
+              @for (bid of current.bids; track bid.candidate.man.fcId) {
+                <div class="group flex items-baseline gap-2 py-1.5">
+                  <button
+                    type="button"
+                    class="flex min-w-0 flex-1 items-baseline gap-2 text-left transition hover:opacity-80"
+                    [attr.data-bid]="bid.candidate.man.fcId"
+                    (click)="toggleBid(bid.candidate.man.fcId)"
+                  >
+                    <ui-role [role]="bid.candidate.man.role" size="xs" />
+                    <span class="min-w-0 flex-1 truncate">
+                      <span class="font-medium text-fg">{{ bid.candidate.man.name }}</span>
+                      <span class="ml-1 text-xs text-muted">{{ bid.candidate.man.club }}</span>
+                      @if (bid.candidate.man.surplusIsEstimate) {
+                        <span
+                          class="ml-1 text-xs text-muted"
+                          nz-tooltip
+                          nzTooltipTitle="Numero stimato e non del motore: il motore non lo prezza, il foglio ripiega su una stima e la penalità di incertezza è già dentro."
+                          >~</span
+                        >
+                      }
+                      @if (plays(bid.candidate.man) === true) {
+                        <nz-icon
+                          class="ml-1 text-xs text-success"
+                          nzType="check-circle"
+                          nz-tooltip
+                          nzTooltipTitle="Gioca quasi ogni giornata: è uno di quelli che il voto lo portano a casa."
+                        />
+                      }
+                      <!-- Infortuni, rientri e note dichiarate: gli stessi marchi della tabella
+                           calciatori, dallo stesso servizio - due definizioni di «è infortunato»
+                           finirebbero per non essere d'accordo, e la prima volta lo scopriresti al tavolo. -->
+                      <ui-flags class="ml-1" [playerId]="bid.candidate.man.fcId" />
+                      @if (bid.shot) {
+                        <nz-tag
+                          nzColor="default"
+                          class="ml-1 text-xs"
+                          nz-tooltip
+                          nzTooltipTitle="Colpo a sorpresa: forte, ma gli altri non sembrano volerlo. Ci proviamo con pochi crediti - se qualcuno busta sul serio lo perdi, e perdere non costa niente."
+                          >colpo</nz-tag
+                        >
+                      }
+                    </span>
+                    <span
+                      class="w-12 shrink-0 text-right"
+                      data-cell="gain"
+                      nz-popover
+                      nzPopoverPlacement="left"
+                      [nzPopoverContent]="statsTip"
+                      (mouseenter)="hoverStats.set(bid.candidate.man.fcId)"
+                    >
+                      <ui-gain [gain]="bid.candidate.gain" [scale]="scale()" [hint]="gainExplain(bid.candidate)" />
+                    </span>
+                    <span
+                      class="w-14 shrink-0 text-right text-xs"
+                      [class.text-danger]="(bid.candidate.pressure ?? 0) >= 0.67"
+                      [class.text-muted]="(bid.candidate.pressure ?? 0) < 0.67"
+                      nz-tooltip
+                      [nzTooltipTitle]="
+                        pressureLabel(bid.candidate.pressure) +
+                        ' (FVM ' +
+                        (bid.candidate.man.fvm ?? 0) +
+                        '): gli altri ordinano per quotazione, e questa dice fin dove arrivano gli slot ancora liberi del suo ruolo.'
+                      "
+                    >
+                      {{ pressureText(bid.candidate.pressure) }}
+                    </span>
+                    <!-- L'iconcina compare quando ci passi sopra: dice che la riga si può APRIRE per
+                         cambiare nome. Prima era sempre lì, spenta, e nessuno la leggeva come un gesto. -->
+                    <nz-icon
+                      class="w-5 shrink-0 text-xs text-primary opacity-0 transition group-hover:opacity-100"
+                      nzType="swap"
+                      nz-tooltip
+                      nzTooltipTitle="Clicca la riga: ti mostro perché questo prezzo e con chi altro puoi sostituirlo."
+                    />
+                  </button>
+
+                  <!-- L'offerta è un CAMPO e non un'etichetta: il numero è l'unica cosa di questa riga
+                       che non è un consiglio, e la percentuale accanto lo segue mentre lo cambi. -->
+                  <span
+                    class="shrink-0"
+                    data-cell="offer"
+                    nz-tooltip
+                    [nzTooltipTitle]="askExplain(bid.candidate)"
+                  >
+                    <nz-input-number
+                      nzSize="small"
+                      class="w-20"
+                      [nzMin]="1"
+                      [nzMax]="mine()!.credits"
+                      [ngModel]="bid.offer"
+                      (ngModelChange)="setOffer(bid, $event)"
+                    />
+                  </span>
+                  <span
+                    class="w-12 shrink-0 text-right text-xs"
+                    data-cell="chance"
+                    [class.text-danger]="(bid.chance ?? 1) < 0.5 && !bid.shot"
+                    [class.text-muted]="(bid.chance ?? 1) >= 0.5 || bid.shot"
+                    nz-tooltip
+                    [nzTooltipTitle]="chanceExplain(bid)"
+                  >
+                    {{ bid.chance == null ? '?' : (bid.chance * 100 | number: '1.0-0') + '%' }}
+                  </span>
+                  @if (isMyNumber(bid)) {
+                    <nz-icon
+                      class="shrink-0 text-xs text-primary"
+                      nzType="check-circle"
+                      nz-tooltip
+                      nzTooltipTitle="Numero tuo, non consigliato."
+                    />
+                  } @else {
+                    <span class="w-3.5 shrink-0"></span>
+                  }
+                  <button
+                    type="button"
+                    class="shrink-0 text-xs text-muted opacity-0 transition hover:text-danger group-hover:opacity-100"
+                    [attr.data-drop]="bid.candidate.man.fcId"
+                    nz-tooltip
+                    nzTooltipTitle="Togli questa busta. Lo slot resta vuoto: se vuoi un altro nome al suo posto usa «Aggiungi», e «Torna ai consigli» rimette tutto com'era."
+                    (click)="dropBid(bid)"
+                  >
+                    <nz-icon nzType="delete" />
+                  </button>
+                </div>
+
+                @if (openBid() === bid.candidate.man.fcId) {
+                  <div class="mb-1.5">
+                    <div class="rounded-md border border-border p-2" data-panel="alternatives">
+                      <!-- ── il ragionamento sul prezzo, in parole ─────────────────────────── -->
+                      <div class="mb-2 border-b border-border pb-2">
+                        <div class="mb-1 text-xs font-semibold text-fg">
+                          Perché {{ bid.offer }} crediti su {{ bid.candidate.man.name }}
+                        </div>
+                        @for (step of askSteps(bid); track step.title) {
+                          <div class="mb-1 text-xs">
+                            <span class="font-medium text-fg">{{ step.title }}</span>
+                            <span class="text-muted"> — {{ step.text }}</span>
+                          </div>
+                        }
+                      </div>
+
+                      <div class="mb-1 flex items-baseline justify-between gap-2">
+                        <span class="text-xs text-muted">
+                          Al suo posto, nello stesso slot. Clicca per sostituire.
+                        </span>
+                        <span class="flex items-baseline gap-1">
+                          <button
+                            nz-button
+                            nzType="text"
+                            nzSize="small"
+                            nz-tooltip
+                            nzTooltipTitle="Se di questo nome sai qualcosa che il foglio non sa, toglilo dal tabellone: il piano si rifà da capo intorno agli altri, quindi le altre righe CAMBIANO. «Torna ai consigli» lo rimette."
+                            (click)="banMan(bid.candidate)"
+                          >
+                            <nz-icon nzType="stop" />
+                            Escludi e ricalcola
+                          </button>
+                          <button
+                            nz-button
+                            nzType="text"
+                            nzSize="small"
+                            (click)="openBrowse(bid.candidate.man.role, bid.candidate.man.fcId)"
+                          >
+                            <nz-icon nzType="unordered-list" />
+                            Vedi tutti i {{ bid.candidate.man.role }}
+                          </button>
+                        </span>
+                      </div>
+                      @for (other of alternativesFor(bid); track other.candidate.man.fcId) {
+                        <button
+                          type="button"
+                          class="flex w-full items-baseline gap-2 py-1 text-left text-sm transition hover:opacity-80"
+                          [attr.data-alt]="other.candidate.man.fcId"
+                          (click)="swapTo(bid, other.candidate)"
+                        >
+                          <span class="min-w-0 flex-1 truncate">
+                            <span class="text-fg">{{ other.candidate.man.name }}</span>
+                            <span class="ml-1 text-xs text-muted">{{ other.candidate.man.club }}</span>
+                            @if (plays(other.candidate.man) === true) {
+                              <nz-icon
+                                class="ml-1 text-xs text-success"
+                                nzType="check-circle"
+                                nz-tooltip
+                                nzTooltipTitle="Gioca quasi ogni giornata."
+                              />
+                            }
+                            <ui-flags class="ml-1" [playerId]="other.candidate.man.fcId" />
+                          </span>
+                          <span
+                            class="w-12 shrink-0 text-right"
+                            nz-popover
+                            nzPopoverPlacement="left"
+                            [nzPopoverContent]="statsTip"
+                            (mouseenter)="hoverStats.set(other.candidate.man.fcId)"
+                          >
+                            <ui-gain
+                              [gain]="other.candidate.gain"
+                              [scale]="scale()"
+                              [hint]="gainExplain(other.candidate)"
+                            />
+                          </span>
+                          <span
+                            class="w-12 shrink-0 text-right text-xs"
+                            [class.text-danger]="other.delta < 0"
+                            nz-tooltip
+                            nzTooltipTitle="Differenza di gain rispetto al nome che sostituirebbe."
+                          >
+                            {{ other.delta > 0 ? '+' : '' }}{{ other.delta | number: '1.1-1' }}
+                          </span>
+                          <span
+                            class="w-14 shrink-0 text-right text-xs text-muted"
+                            nz-tooltip
+                            [nzTooltipTitle]="pressureLabel(other.candidate.pressure)"
+                          >
+                            {{ pressureText(other.candidate.pressure) }}
+                          </span>
+                          <span
+                            class="w-14 shrink-0 text-right text-xs"
+                            [class.text-danger]="!other.affordable"
+                            nz-tooltip
+                            [nzTooltipTitle]="askExplain(other.candidate)"
+                          >
+                            {{ other.candidate.ask.ask }}
+                          </span>
+                        </button>
+                        <!-- IL MOTIVO, non solo il delta: un'alternativa è peggiore per costruzione
+                             (lo zaino ha già scelto il meglio), quindi un numero negativo da solo non
+                             aiuta - e l'effetto sul tetto si legge PRIMA del click. -->
+                        <div class="mb-1 pl-1 text-xs text-muted">{{ swapReason(bid, other) }}</div>
+                      } @empty {
+                        <div class="py-1 text-sm text-muted">Nessun altro con un numero in questo ruolo.</div>
+                      }
+                    </div>
+                  </div>
+                }
+              }
+            </div>
+
+            <div class="mt-2 border-t border-border pt-2 text-xs text-muted">
+              <div class="mb-1">
+                <span
+                  nz-tooltip
+                  nzTooltipTitle="Perdere una busta non costa niente, quindi il tetto non è la previsione: questa è la somma delle offerte pesate per quanto spesso sono bastate. È quello che ti aspetti di pagare davvero, e quello che ti resta per il round dopo."
+                >
+                  Spesa attesa
+                  <span class="font-semibold text-fg">{{ current.expectedSpend | number: '1.0-0' }}</span>
+                  dei {{ current.spend }} del tetto
+                </span>
+                ·
+                <span
+                  nz-tooltip
+                  nzTooltipTitle="Quante di queste buste, secondo le stesse frequenze, ti aspetti di vincere. Le altre tornano disponibili al round successivo e i crediti restano tuoi: per questo il piano mescola offerte serie e colpi a pochi crediti."
+                >
+                  buste attese
+                  <span class="font-semibold text-fg">{{ current.expectedWins | number: '1.1-1' }}</span>
+                  di {{ current.bids.length }}
+                </span>
+              </div>
+              @if (nextRounds(); as next) {
+                <div class="mb-1">
+                  <span
+                    nz-tooltip
+                    nzTooltipTitle="Dove ti lascia questo round, secondo le stesse frequenze: le buste che ti aspetti di PERDERE sono slot che dovrai ancora riempire, e i crediti che non spendi restano tuoi. Se il tuo «a slot» è molto sotto quello del mercato, stai impegnando troppo adesso."
+                  >
+                    Dopo questo round: <span class="font-semibold text-fg">{{ next.creditsLeft | number: '1.0-0' }}</span>
+                    crediti per <span class="font-semibold text-fg">{{ next.slotsLeft | number: '1.1-1' }}</span>
+                    slot ancora da riempire
+                    @if (next.perSlot != null) {
+                      ({{ next.perSlot | number: '1.0-0' }} a slot contro i
+                      {{ next.marketPerSlot | number: '1.0-0' }} che paga il mercato adesso)
+                    }
+                    · {{ next.roundsLeft }} round dopo questo
+                  </span>
+                </div>
+              }
+              <span
+                nz-tooltip
+                nzTooltipTitle="Il gain che ti aspetti di portare a casa: ogni nome pesato per quanto spesso una busta così è bastata. Il numero accanto è quello che avresti vincendole TUTTE, che non succede mai."
+              >
+                Gain atteso <span class="font-semibold text-fg">{{ current.expectedGain | number: '1.0-0' }}</span>
+                dei {{ current.gain | number: '1.0-0' }} se le vincessi tutte
+              </span>
+              ·
+              <span
+                nz-tooltip
+                nzTooltipTitle="Il confronto: gli stessi slot e lo stesso budget, riempiti col criterio con cui compra la stanza, cioè la quotazione. Stesso risolutore, opinione diversa - un confronto che può essere stupido fa sembrare buono qualunque piano."
+                >{{ current.marketGain | number: '1.0-0' }} comprando come compra il mercato</span
+              >
+              @if (current.marketGain > 0) {
+                ({{ (current.gain / current.marketGain - 1) * 100 | number: '1.0-0' }}%)
+              }
+              @if (current.unfilled.P + current.unfilled.D + current.unfilled.C + current.unfilled.A > 0) {
+                · <span class="text-danger">slot che non riesco a riempire: </span>
+                @for (role of roles; track role) {
+                  @if (current.unfilled[role]) {
+                    <span>{{ role }}&times;{{ current.unfilled[role] }} </span>
+                  }
+                }
+              }
+
+              <!-- ── le due regole dell'operatore, e dove il piano NON riesce a rispettarle ──── -->
+              @if (current.keeperGamble) {
+                <div class="mt-1 text-warning">
+                  <nz-icon nzType="alert" />
+                  {{ current.keeperGamble }} portiere in ballottaggio comprato da solo: con tre soli slot
+                  è la scommessa da evitare. Prendi anche il compagno che se la gioca con lui, oppure
+                  scegli un portiere che gioca sempre.
+                </div>
+              }
+              @if (missingSureRoles(current).length) {
+                <div class="mt-1 text-warning">
+                  <nz-icon nzType="alert" />
+                  Non arrivo a {{ surePerRole }} uomini che giocano SEMPRE in:
+                  {{ missingSureRoles(current).join(', ') }}. Alla tua portata non ne ho trovati: o alzi
+                  il tetto lasciando qualche slot per il round dopo, o li prendi appena tornano in lista.
+                </div>
+              }
+            </div>
+          }
+        </nz-card>
+
+      </div>
+
+      <!-- ── le dieci squadre ───────────────────────────────────────────────────────────────── -->
+      <nz-card nzSize="small">
+        <div class="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+          <h2 class="text-base font-semibold text-fg">Le rose e i probabili obiettivi</h2>
+          <label class="flex items-center gap-2 text-xs text-muted">
+            <span>Mostra le rose per intero</span>
+            <nz-switch
+              nzSize="small"
+              [ngModel]="showRosters()"
+              (ngModelChange)="toggleRosters($event)"
+            />
+          </label>
+        </div>
+        <div class="grid grid-cols-1 gap-2 sm:grid-cols-2 2xl:grid-cols-3">
+          @for (state of teams(); track state.team) {
+            <div
+              class="rounded-md border p-2"
+              [attr.data-team]="state.team"
+              [class.border-primary]="state.team === me()"
+              [class.border-border]="state.team !== me()"
+            >
+              <div class="flex items-baseline justify-between gap-1">
+                <span
+                  class="min-w-0 flex-1 truncate text-sm font-semibold text-fg"
+                  nz-tooltip
+                  [nzTooltipTitle]="rosterTip"
+                  (mouseenter)="hovered.set(state)"
+                  >{{ state.team }}</span
+                >
+                @if (verdictOf().get(state.team); as verdict) {
+                  <span
+                    class="shrink-0 text-xs text-muted"
+                    nz-tooltip
+                    [nzTooltipTitle]="
+                      'Qualità già in rosa ' +
+                      (verdict.gain | number: '1.0-0') +
+                      ', più ' +
+                      (verdict.toCome | number: '1.0-0') +
+                      ' che i crediti rimasti possono ancora comprare - ma solo per gli slot che gli restano davvero. La somma è la posizione.'
+                    "
+                    >#{{ verdict.rank }}</span
+                  >
+                }
+              </div>
+
+              <!-- ── i due giudizi in stelline ──────────────────────────────────────────────── -->
+              @if (ratingOf().get(state.team); as rating) {
+                <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted">
+                  <span class="flex items-center gap-1" nz-tooltip [nzTooltipTitle]="squadStarsHint(rating)">
+                    <span>Rosa</span>
+                    <nz-rate [ngModel]="rating.squad" nzDisabled />
+                  </span>
+                  <span class="flex items-center gap-1" nz-tooltip [nzTooltipTitle]="conductStarsHint(rating)">
+                    <span>Asta</span>
+                    <nz-rate [ngModel]="rating.conduct" nzDisabled />
+                  </span>
+                </div>
+              }
+
+              <div class="mt-1 flex flex-wrap items-baseline gap-1">
+                <nz-tag
+                  nzColor="default"
+                  class="text-xs"
+                  nz-tooltip
+                  [nzTooltipTitle]="tacticHint(state)"
+                  >{{ tacticLabel[tacticOfTeam(state)] }}</nz-tag
+                >
+                <span
+                  class="text-xs text-muted"
+                  nz-tooltip
+                  nzTooltipTitle="Crediti rimasti, slot ancora da riempire e il massimo che può mettere in UNA busta lasciando un credito per ogni altro slot."
+                >
+                  {{ state.credits }} cr · {{ state.slotsFree }} slot
+                  @if (state.slotsFree) {
+                    · max {{ state.ceiling }}
+                  }
+                </span>
+              </div>
+
+              <div class="mt-1 flex flex-wrap items-baseline gap-2 text-xs">
+                @for (line of strengthOf().get(state.team) ?? []; track line.role) {
+                  <span
+                    class="flex items-baseline gap-0.5"
+                    nz-tooltip
+                    [nzTooltipTitle]="
+                      line.held +
+                      ' in rosa, ' +
+                      line.free +
+                      ' slot liberi · ' +
+                      line.rank +
+                      'º della lega in questo ruolo (confronto DENTRO il ruolo: i portieri coi portieri).'
+                    "
+                  >
+                    <ui-role [role]="line.role" size="xs" />
+                    <span [class.text-danger]="line.free === 0" [class.text-muted]="line.free > 0">
+                      {{ line.held }}/{{ line.held + line.free }}
+                    </span>
+                    @if (line.free === 0 && settings().roleLock) {
+                      <nz-icon
+                        class="text-xs text-danger"
+                        nzType="lock"
+                        nz-tooltip
+                        nzTooltipTitle="Ruolo pieno: non può più bustare qui."
+                      />
+                    }
+                  </span>
+                }
+              </div>
+
+              <!-- ── la rosa per intero, quando l'interruttore è acceso ─────────────────────── -->
+              @if (showRosters()) {
+                <div class="mt-1 border-t border-border pt-1">
+                  <div class="flex flex-col text-xs leading-tight">
+                    @for (row of rosterRows(state); track row.man.fcId) {
+                      <div class="flex items-baseline gap-1">
+                        <ui-role [role]="row.man.role" size="xs" />
+                        <span class="min-w-0 flex-1 truncate text-fg">{{ row.man.name }}</span>
+                        <span class="w-8 shrink-0 truncate text-muted">{{ clubMark(row.man.club) }}</span>
+                        <span
+                          class="w-10 shrink-0 text-right"
+                          nz-popover
+                          nzPopoverPlacement="left"
+                          [nzPopoverContent]="statsTip"
+                          (mouseenter)="hoverStats.set(row.man.fcId)"
+                        >
+                          <ui-gain [gain]="row.gain" [scale]="scale()" />
+                        </span>
+                        <span class="w-9 shrink-0 text-right text-muted">{{ row.man.paid }}</span>
+                      </div>
+                    }
+                    @for (hole of holesOf(state); track hole.role) {
+                      <div class="flex items-baseline gap-1 opacity-60">
+                        <ui-role [role]="hole.role" size="xs" />
+                        <span class="min-w-0 flex-1 truncate text-muted">
+                          {{ hole.count }} slot da riempire
+                        </span>
+                      </div>
+                    }
+                  </div>
+                </div>
+              }
+
+              @if (state.team !== me()) {
+                <div class="mt-1 border-t border-border pt-1">
+                  <div
+                    class="text-xs text-muted"
+                    nz-tooltip
+                    nzTooltipTitle="Cosa proverà a prendere: ordina per quotazione, come ha fatto nel round scorso, dentro i ruoli che ha ancora aperti e sotto il massimo che può mettere in una busta."
+                  >
+                    Probabili obiettivi
+                  </div>
+                  <div class="flex flex-wrap gap-x-2 text-xs">
+                    @for (target of (rivalTargets().get(state.team) ?? []).slice(0, 5); track target.man.fcId) {
+                      <span
+                        class="truncate text-fg"
+                        nz-tooltip
+                        [nzTooltipTitle]="
+                          target.man.name +
+                          ' (' +
+                          target.man.role +
+                          ', FVM ' +
+                          (target.man.fvm ?? 0) +
+                          '): lo ordina per quotazione, ha lo slot libero e il suo tetto (' +
+                          state.ceiling +
+                          ') ci arriva.'
+                        "
+                        >{{ target.man.name }}</span
+                      >
+                    } @empty {
+                      <span class="text-muted">nessuno alla sua portata</span>
+                    }
+                  </div>
+                </div>
+              } @else if (plan(); as current) {
+                <div class="mt-1 border-t border-border pt-1">
+                  <div
+                    class="text-xs text-muted"
+                    nz-tooltip
+                    nzTooltipTitle="I tuoi obiettivi non sono una previsione: sono le buste che stai per spedire. Si cambiano dalla lista qui a fianco."
+                  >
+                    I tuoi obiettivi ({{ current.bids.length }} buste)
+                  </div>
+                  <div class="flex flex-wrap gap-x-2 text-xs">
+                    @for (bid of current.bids; track bid.candidate.man.fcId) {
+                      <span
+                        class="truncate text-fg"
+                        nz-tooltip
+                        [nzTooltipTitle]="
+                          bid.candidate.man.name +
+                          ' (' +
+                          bid.candidate.man.role +
+                          '): offerta ' +
+                          bid.offer +
+                          ' crediti, ' +
+                          (bid.chance == null ? 'senza casi simili' : (bid.chance * 100 | number: '1.0-0') + '% di prenderlo') +
+                          (bid.shot ? ', colpo a sorpresa' : '') +
+                          '.'
+                        "
+                        >{{ bid.candidate.man.name }}
+                        <span class="text-muted">{{ bid.offer }}</span>
+                      </span>
+                    } @empty {
+                      <span class="text-muted">nessuna busta in questo round</span>
+                    }
+                  </div>
+                </div>
+              }
+            </div>
+          }
+        </div>
+      </nz-card>
+    </div>
+
+    <!-- ── SOTTO l'area di lavoro: quello che si legge, non quello che si fa ─────────────────────
+         Le tre card di lettura stanno qui e non nella colonna di sinistra perché la colonna decide
+         l'altezza della pagina: con dentro anche queste, «le buste + le rose» non entravano più in una
+         schermata (misurato: 1705px contro 907 di finestra), che è la cosa che si guarda al tavolo. -->
+    <div class="grid grid-cols-1 gap-3 xl:grid-cols-3">
+      <!-- ── la tua rosa, reparto per reparto ───────────────────────────────────────────── -->
+      <nz-card nzSize="small">
+        <h2 class="mb-2 text-base font-semibold text-fg">La tua rosa, reparto per reparto</h2>
+        <div class="flex flex-col gap-2">
+          @for (line of advice(); track line.role) {
+            <div class="rounded-md border border-border p-2" [attr.data-advice]="line.role">
+              <div class="flex flex-wrap items-baseline gap-2">
+                <ui-role [role]="line.role" size="sm" />
+                <span class="text-sm font-semibold text-fg">{{ line.held }}/{{ line.held + line.free }}</span>
+                <nz-tag
+                  [nzColor]="stateColour(line.state)"
+                  class="text-xs"
+                  nz-tooltip
+                  [nzTooltipTitle]="stateHint(line)"
+                  >{{ line.state }}</nz-tag
+                >
+                <span
+                  class="text-xs text-muted"
+                  nz-tooltip
+                  nzTooltipTitle="Quanti dei tuoi, in questo ruolo, giocano quasi ogni giornata - e quanti ne schiera un undici."
+                >
+                  {{ line.starters }} che giocano su {{ line.fielded }} da schierare
+                </span>
+                <span
+                  class="text-xs text-muted"
+                  nz-tooltip
+                  nzTooltipTitle="Il tuo posto in questo ruolo dentro la lega. Il confronto è DENTRO il ruolo: i portieri coi portieri, gli attaccanti con gli attaccanti."
+                  >{{ line.rank }}º di {{ line.of }}</span
+                >
+              </div>
+              <div class="mt-1 text-xs text-muted">{{ line.advice }}</div>
+
+              <!-- LE BUSTE DI QUESTO REPARTO, accanto al verdetto che le ha chieste: il piano e il
+                   consiglio sono due risposte alla stessa domanda, e messe una sotto l'altra non
+                   possono più dire due cose diverse. -->
+              @if (line.bidding.length) {
+                <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <span class="text-xs text-muted">Ci busti su:</span>
+                  @for (man of line.bidding; track man.man.fcId) {
+                    <span class="flex items-baseline gap-1 text-xs">
+                      <span
+                        nz-popover
+                        nzPopoverPlacement="top"
+                        [nzPopoverContent]="statsTip"
+                        (mouseenter)="hoverStats.set(man.man.fcId)"
+                      >
+                        <ui-gain [gain]="man.gain" [scale]="scale()" [hint]="gainExplain(man)" />
+                      </span>
+                      <span class="text-fg">{{ man.man.name }}</span>
+                      @if (plays(man.man) === true) {
+                        <nz-icon
+                          class="text-xs text-success"
+                          nzType="check-circle"
+                          nz-tooltip
+                          nzTooltipTitle="Gioca quasi ogni giornata."
+                        />
+                      }
+                    </span>
+                  }
+                </div>
+              }
+
+              @if (line.targets.length) {
+                <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <span class="text-xs text-muted">Ancora liberi:</span>
+                  @for (target of line.targets; track target.man.fcId) {
+                    <button
+                      type="button"
+                      class="flex items-baseline gap-1 text-xs transition hover:opacity-80"
+                      nz-tooltip
+                      [nzTooltipTitle]="
+                        askExplain(target) +
+                        ' Il prezzo qui è quello che di solito BASTA: nella busta puoi metterne di più.'
+                      "
+                      (click)="openBrowse(line.role, null)"
+                    >
+                      <span
+                        nz-popover
+                        nzPopoverPlacement="top"
+                        [nzPopoverContent]="statsTip"
+                        (mouseenter)="hoverStats.set(target.man.fcId)"
+                      >
+                        <ui-gain [gain]="target.gain" [scale]="scale()" [hint]="gainExplain(target)" />
+                      </span>
+                      <span class="text-fg">{{ target.man.name }}</span>
+                      <span class="text-muted">{{ clubMark(target.man.club) }}</span>
+                      <span class="text-muted">{{ target.ask.ask }} cr</span>
+                    </button>
+                  }
+                </div>
+              }
+            </div>
+          }
+        </div>
+      </nz-card>
+
+      <!-- ── quanto ha pagato la lega finora ────────────────────────────────────────────── -->
+      <nz-card nzSize="small">
+        <h2 class="mb-2 text-base font-semibold text-fg">Chi ha speso, e chi ha fatto l'affare</h2>
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div>
+            <div
+              class="mb-1 text-xs text-muted"
+              nz-tooltip
+              nzTooltipTitle="Le buste più alte davvero pagate nei round già chiusi: dice dove la stanza è disposta a spingersi, e quali soldi non sono più in gioco."
+            >
+              I più pagati
+            </div>
+            @for (deal of deals().dearest; track deal.fcId) {
+              <div
+                class="flex items-baseline gap-2 py-0.5 text-xs"
+                nz-tooltip
+                [nzTooltipTitle]="
+                  deal.name + ' (' + deal.club + ') è andato a ' + deal.team + ' per ' + deal.paid +
+                  ' crediti nel round ' + deal.round + ': ' + (deal.gain | number: '1.1-1') + ' di gain.'
+                "
+              >
+                <ui-role [role]="deal.role" size="xs" />
+                <span class="min-w-0 flex-1 truncate text-fg">{{ deal.name }}</span>
+                <span class="w-16 shrink-0 truncate text-muted">{{ deal.team }}</span>
+                <span
+                  class="w-10 shrink-0 text-right"
+                  nz-popover
+                  nzPopoverPlacement="left"
+                  [nzPopoverContent]="statsTip"
+                  (mouseenter)="hoverStats.set(deal.fcId)"
+                >
+                  <ui-gain [gain]="deal.gain" [scale]="scale()" />
+                </span>
+                <span class="w-10 shrink-0 text-right font-semibold text-fg">{{ deal.paid }}</span>
+              </div>
+            } @empty {
+              <div class="text-xs text-muted">Nessun round concluso.</div>
+            }
+          </div>
+          <div>
+            <div
+              class="mb-1 text-xs text-muted"
+              nz-tooltip
+              nzTooltipTitle="Chi ha preso più punti per ogni credito speso. Attenzione al divisore: a 1 credito sembrano tutti affari, per questo accanto trovi sempre il gain e il prezzo. È un resoconto, non il criterio con cui il piano compra."
+            >
+              Miglior rapporto qualità/prezzo
+            </div>
+            @for (deal of deals().bargains; track deal.fcId) {
+              <div
+                class="flex items-baseline gap-2 py-0.5 text-xs"
+                nz-tooltip
+                [nzTooltipTitle]="
+                  deal.name + ' (' + deal.club + ') è andato a ' + deal.team + ' per ' + deal.paid +
+                  ' crediti nel round ' + deal.round + ': ' + (deal.gain | number: '1.1-1') + ' di gain.'
+                "
+              >
+                <ui-role [role]="deal.role" size="xs" />
+                <span class="min-w-0 flex-1 truncate text-fg">{{ deal.name }}</span>
+                <span class="w-16 shrink-0 truncate text-muted">{{ deal.team }}</span>
+                <span
+                  class="w-10 shrink-0 text-right"
+                  nz-popover
+                  nzPopoverPlacement="left"
+                  [nzPopoverContent]="statsTip"
+                  (mouseenter)="hoverStats.set(deal.fcId)"
+                >
+                  <ui-gain [gain]="deal.gain" [scale]="scale()" />
+                </span>
+                <span class="w-10 shrink-0 text-right text-muted">{{ deal.paid }}</span>
+              </div>
+            } @empty {
+              <div class="text-xs text-muted">Nessun round concluso.</div>
+            }
+          </div>
+        </div>
+      </nz-card>
+
+      <!-- ── i nomi contesi, cioè gli obiettivi dei rivali letti al contrario ──────────────── -->
+      <nz-card nzSize="small">
+        <div
+          class="mb-2 flex items-baseline gap-1"
+          nz-tooltip
+          nzTooltipTitle="Le liste dei rivali sono quasi identiche fra loro, perché ordinano tutti per quotazione. Girate al contrario dicono qualcosa di nuovo: per ogni nome, quanti possono davvero bustarci e chi è il favorito. «Non ci arriva» non è un'opinione: è il suo tetto contro il prezzo tipico di quel nome."
+        >
+          <h2 class="text-base font-semibold text-fg">I nomi contesi</h2>
+          <nz-icon nzType="question-circle" class="text-xs text-muted" />
+        </div>
+        <div class="flex flex-col gap-1">
+          @for (one of contested(); track one.candidate.man.fcId) {
+            <div class="flex items-baseline gap-2 text-xs" [attr.data-contested]="one.candidate.man.fcId">
+              <ui-role [role]="one.candidate.man.role" size="xs" />
+              <span class="min-w-0 flex-1 truncate">
+                <span class="text-fg">{{ one.candidate.man.name }}</span>
+                <span class="ml-1 text-muted">{{ clubMark(one.candidate.man.club) }}</span>
+              </span>
+              <span
+                class="w-10 shrink-0 text-right"
+                nz-popover
+                nzPopoverPlacement="left"
+                [nzPopoverContent]="statsTip"
+                (mouseenter)="hoverStats.set(one.candidate.man.fcId)"
+              >
+                <ui-gain [gain]="one.candidate.gain" [scale]="scale()" />
+              </span>
+              <span
+                class="w-14 shrink-0 text-right text-muted"
+                nz-tooltip
+                [nzTooltipTitle]="
+                  one.chasers.length +
+                  ' rivali possono bustarci' +
+                  (one.priced_out.length
+                    ? ' · non ci arrivano col proprio tetto: ' + one.priced_out.join(', ')
+                    : '') +
+                  '.'
+                "
+                >{{ one.chasers.length }} su {{ one.chasers.length + one.priced_out.length }}</span
+              >
+              <span
+                class="w-28 shrink-0 truncate text-right"
+                [class.text-danger]="!one.ours"
+                [class.text-muted]="one.ours"
+                nz-tooltip
+                [nzTooltipTitle]="
+                  (one.favourite
+                    ? one.favourite + ' è il favorito: ha lo slot aperto, il tetto per pagarlo e ce l\'ha già in lista.'
+                    : 'Nessuno ce l\'ha in cima alla propria lista.') +
+                  (one.ours ? ' Tu ci arrivi.' : ' TU non ci arrivi col tuo tetto.')
+                "
+                >{{ one.favourite ?? '—' }}</span
+              >
+            </div>
+          } @empty {
+            <div class="text-xs text-muted">Nessun nome libero con un numero.</div>
+          }
+        </div>
+      </nz-card>
+    </div>
+
+    <!-- ── la rosa di una squadra, dentro il tooltip del suo nome ────────────────────────────── -->
+    <ng-template #rosterTip>
+      @if (hovered(); as state) {
+        <div class="flex flex-col text-xs leading-tight">
+          <div class="mb-0.5 font-semibold">
+            {{ state.team }} · {{ state.men.length }} uomini · {{ state.spent }} crediti spesi
+          </div>
+          @for (row of rosterRows(state); track row.man.fcId) {
+            <div class="flex items-baseline gap-2">
+              <span class="w-3 shrink-0">{{ row.man.role }}</span>
+              <span class="min-w-0 flex-1 truncate">{{ row.man.name }}</span>
+              <span class="w-8 shrink-0">{{ clubMark(row.man.club) }}</span>
+              <span class="w-10 shrink-0 text-right">{{ row.gain == null ? '—' : (row.gain | number: '1.1-1') }}</span>
+              <span class="w-8 shrink-0 text-right">{{ row.man.paid }}</span>
+            </div>
+          }
+          @if (holesOf(state).length) {
+            <div class="mt-0.5">
+              Mancano:
+              @for (hole of holesOf(state); track hole.role) {
+                <span>{{ hole.role }}&times;{{ hole.count }} </span>
+              }
+            </div>
+          }
+        </div>
+      }
+    </ng-template>
+
+    <!-- ── cosa c'è dietro il GAIN: le due stagioni, nelle unità del gioco ──────────────────── -->
+    <ng-template #statsTip>
+      @if (statsCard(); as card) {
+        <div class="min-w-64 text-xs">
+          <div class="mb-1 flex items-baseline justify-between gap-3">
+            <span class="font-semibold text-fg">{{ card.man.name }}</span>
+            <span class="text-muted">{{ card.man.club }}</span>
+          </div>
+          <div class="flex items-baseline justify-between gap-3 border-b border-border pb-1 text-muted">
+            <span>statistica</span>
+            <span class="flex gap-3">
+              <span class="w-12 text-right">{{ card.past }}</span>
+              <span class="w-12 text-right">{{ card.now }}</span>
+            </span>
+          </div>
+          @for (row of card.rows; track row.label) {
+            <div class="flex items-baseline justify-between gap-3 py-0.5" [title]="row.hint">
+              <span class="text-muted">{{ row.label }}</span>
+              <span class="flex gap-3 tabular-nums">
+                <span class="w-12 text-right text-fg">{{ row.past }}</span>
+                <span class="w-12 text-right text-fg">{{ row.now }}</span>
+              </span>
+            </div>
+          }
+          <div class="mt-1 flex items-baseline justify-between gap-3 border-t border-border pt-1">
+            <span class="text-muted">FVM · Surplus{{ card.estimate ? ' (stimato)' : '' }}</span>
+            <span class="tabular-nums text-fg">
+              {{ card.fvm ?? '—' }} · {{ card.surplus == null ? '—' : (card.surplus | number: '1.1-1') }}
+            </span>
+          </div>
+          <div class="flex items-baseline justify-between gap-3">
+            <span class="text-muted">GAIN</span>
+            <span class="tabular-nums font-semibold text-fg">
+              {{ card.gain == null ? '—' : (card.gain | number: '1.1-1') }}
+            </span>
+          </div>
+          <div class="mt-1 text-muted">{{ card.note }}</div>
+        </div>
+      }
+    </ng-template>
+
+    <!-- ── tutto il ruolo, in una modale: per sostituire o per aggiungere una busta ──────────── -->
+    <nz-modal
+      [nzVisible]="!!browse()"
+      [nzTitle]="browseTitle()"
+      [nzFooter]="null"
+      nzWidth="760px"
+      (nzOnCancel)="closeBrowse()"
+    >
+      <div *nzModalContent>
+        @if (browse(); as open) {
+          <div class="mb-2 flex flex-wrap items-center gap-2">
+            @if (!open.bidId) {
+              <nz-radio-group
+                nzSize="small"
+                nzButtonStyle="solid"
+                [ngModel]="open.role"
+                (ngModelChange)="browseRole($event)"
+              >
+                @for (role of roles; track role) {
+                  <label nz-radio-button [nzValue]="role">{{ role }}</label>
+                }
+              </nz-radio-group>
+            }
+            <input
+              nz-input
+              nzSize="small"
+              class="w-56"
+              placeholder="cerca per nome o squadra"
+              [ngModel]="browseSearch()"
+              (ngModelChange)="browseSearch.set($event)"
+            />
+            <span class="text-xs text-muted">{{ browseRows().length }} liberi</span>
+          </div>
+
+          <div class="max-h-[60vh] overflow-y-auto">
+            @for (one of browseRows(); track one.man.fcId) {
+              <button
+                type="button"
+                class="flex w-full items-baseline gap-2 border-b border-border py-1 text-left text-sm transition hover:opacity-80"
+                [attr.data-browse]="one.man.fcId"
+                (click)="pickFromBrowse(one)"
+              >
+                <ui-role [role]="one.man.role" size="xs" />
+                <span class="min-w-0 flex-1 truncate">
+                  <span class="text-fg">{{ one.man.name }}</span>
+                  <span class="ml-1 text-xs text-muted">{{ one.man.club }}</span>
+                  @if (one.man.titolarita) {
+                    <span class="ml-1 text-xs text-muted">{{ one.man.titolarita }}</span>
+                  }
+                  <ui-flags class="ml-1" [playerId]="one.man.fcId" />
+                </span>
+                <span
+                  class="w-12 shrink-0 text-right"
+                  nz-popover
+                  nzPopoverPlacement="left"
+                  [nzPopoverContent]="statsTip"
+                  (mouseenter)="hoverStats.set(one.man.fcId)"
+                >
+                  <ui-gain [gain]="one.gain" [scale]="scale()" [hint]="gainExplain(one)" />
+                </span>
+                <span
+                  class="w-12 shrink-0 text-right text-xs text-muted"
+                  nz-tooltip
+                  [nzTooltipTitle]="pressureLabel(one.pressure)"
+                >
+                  {{ pressureText(one.pressure) }}
+                </span>
+                <span
+                  class="w-16 shrink-0 text-right text-xs text-fg"
+                  nz-tooltip
+                  [nzTooltipTitle]="askExplain(one)"
+                >
+                  {{ one.ask.ask }} cr
+                </span>
+                @if (!open.bidId && addCheck(one); as check) {
+                  <span
+                    class="w-28 shrink-0 text-right text-xs"
+                    [class.text-danger]="!check.ok"
+                    [class.text-warning]="check.ok && check.tight"
+                    [class.text-muted]="check.ok && !check.tight"
+                    nz-tooltip
+                    [nzTooltipTitle]="check.why ?? 'Puoi aggiungerlo: hai lo slot libero e i crediti bastano.'"
+                  >
+                    {{ check.ok ? (check.tight ? 'sfori il tetto' : 'puoi aggiungerlo') : 'non valida' }}
+                  </span>
+                }
+              </button>
+            } @empty {
+              <div class="py-2 text-sm text-muted">Nessun giocatore libero con questi criteri.</div>
+            }
+          </div>
+        }
+      </div>
+    </nz-modal>
+  }
+</div>

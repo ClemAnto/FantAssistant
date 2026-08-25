@@ -1,0 +1,12 @@
+<!-- QUADRATO SMUSSATO, come il punteggio di `ui-stars`: una fila di riquadri uguali si scorre a colpo
+     d'occhio, mentre larghezze diverse fanno leggere la forma invece del colore. -->
+@if (band() === 'ignoto') {
+  <span class="text-muted" [title]="label()">&mdash;</span>
+} @else {
+  <span
+    class="inline-flex h-5 min-w-10 items-center justify-center rounded-md px-1 text-xs font-medium tabular-nums"
+    [class]="tone()"
+    [title]="label()"
+    >{{ gain() | number: '1.1-1' }}</span
+  >
+}

@@ -222,4 +222,14 @@
   ui-stars .ant-rate-star:not(:last-child) {
     margin-inline-end: calc(var(--spacing) / 2);
   }
+
+  /* Same reading, same size, in the sealed-bid page: two stars per team card sit inside a line of
+     text, and antd's 20px would make the card twice as tall as its own numbers. */
+  app-sealed-bid .ant-rate {
+    font-size: var(--text-xs);
+  }
+
+  app-sealed-bid .ant-rate-star:not(:last-child) {
+    margin-inline-end: calc(var(--spacing) / 4);
+  }
 }

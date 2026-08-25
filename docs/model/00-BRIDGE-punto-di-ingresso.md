@@ -73,6 +73,11 @@ leggerlo prima di riproporre una strategia) → `spec-euroleghe-ingest-v9.md` �
 Per la BOARD (formazioni tipo): **`formazioni-tipo-v1.md`** (come nasce: modulo, claim, fit — formule e
 costanti) e **`todolist-formazioni-tipo-v1.md`** (il piano per renderle più veritiere, nato dal confronto
 con la stampa dell'08/08/2026, ordinato per resa misurata).
+Per le ASTE A BUSTA CHIUSA (terzo gioco, diverso sia dall'asta dal vivo sia dal draft):
+**`todolist-buste-chiuse-v1.md`** — il regolamento della lega dell'operatore, cosa la pagina
+`/sealed-bid` già fa, le misure del round 1 (fra cui: la stanza compra sull'FVM a +0,719 e sul nostro
+surplus a +0,508; la seconda offerta è ≤3 in cinque casi su nove e quando non lo è vale 17-186) e gli
+item aperti per resa attesa. Contiene anche **un'idea misurata e scartata**, da non riprovare.
 L'altra fase, quella settimanale, è **`formazione-settimanale-v1.md`** (progetto): chi gioca domenica, perché
 la pagina delle probabili non basta e quali vincoli valgono già oggi.
 
