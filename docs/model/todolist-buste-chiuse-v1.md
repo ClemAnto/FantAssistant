@@ -378,6 +378,37 @@ E un effetto collaterale corretto subito: la card «con un numero» contava `pri
 avrebbe detto 295 dove il tabellone ne ha 308 — un'etichetta che non torna col suo numero. Adesso il
 tabellone si conta con `numbered` (i due numeri, infortunio o no) e il tooltip dice quanti sono fuori.
 
+### 4-ter — «Come mai non mi esce il portiere Martinez dell'Inter?» (25/08/2026)
+
+La domanda dell'operatore ha trovato un difetto vero, e la risposta comincia con un numero: **Josep
+Martínez è atteso in 10,6 giornate su 38, cioè il 28% contro la soglia di presenze della lega che sta al
+35%**. Sotto quella soglia `gainOf` non risponde — «un uomo che ha giocato una volta non è un uomo che
+avresti potuto schierare», ed è una scelta del config della lega, non nostra — quindi non ha un GAIN.
+
+Che non sia nel PIANO è giusto. Che non fosse nemmeno nelle **alternative** e nella **modale** era un
+difetto, e di quelli che il commento del codice smentiva da sé: `boardFor` prometteva «un uomo senza
+quotazione resta qui, la riga dice che il prezzo è ignoto e non lo nasconde» e poi filtrava `gain != null`,
+che nasconde un'incognita diversa (il VALORE) da quella che il commento nominava (il PREZZO). E i rivali
+continuavano a mostrarlo, perché `rivalPlan` chiede la quotazione e non il gain: la stessa persona era sul
+tabellone loro e non sul nostro.
+
+Curato: dalla lista da cui si scegli **a mano** non si filtra più niente tranne chi è già nel piano. Gli
+uomini senza numero finiscono in coda (l'ordinamento mette i null per ultimi, e fra loro per FVM), col
+trattino dove starebbe il gain. Misurato in pagina: la porta passa da 29 a **59 nomi liberi, 43 senza
+numero**, e Martínez è il primo di quelli — pressione 100%, prezzo tipico 78 crediti. Con lui la
+differenza di gain in colonna diventa **vuota e non zero**: `(gain ?? 0) - gain` diceva «vale esattamente
+l'altro in meno», che è una misura che nessuno ha fatto.
+
+E il terzo portiere adesso ha un nome: il consiglio sulla porta, quando è coperta, **nomina il compagno di
+squadra del portiere che hai già** con il suo prezzo — era la terza delle regole dell'operatore sui
+portieri e finora era solo una frase, per la ragione che la rende necessaria: un terzo portiere sta sotto
+la soglia delle presenze per definizione, quindi nessuna lista filtrata sul gain poteva proporlo.
+
+Due lezioni sull'arnese, tutte e due dello stesso tipo: un passo e2e che non trova il suo bersaglio deve
+DIRLO (il controllo sulla porta si saltava in silenzio, e «zero problemi» si legge come «tutto bene»), e
+uno STATO del DOM si legge invece di dedurlo da una stringa — quale ruolo la modale sta mostrando è il
+radio con la classe `-checked`, e due tentativi di parsarlo dal titolo hanno risposto `null`.
+
 ### 5 — Nato il 25/08/2026: quello che adesso va MISURATO
 
 **5.1 · Scorare la strategia del misto sul round 2.** L'obiettivo del piano è cambiato — da «massimo

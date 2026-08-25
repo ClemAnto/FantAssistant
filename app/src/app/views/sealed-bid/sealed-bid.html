@@ -666,11 +666,20 @@
                           </span>
                           <span
                             class="w-12 shrink-0 text-right text-xs"
-                            [class.text-danger]="other.delta < 0"
+                            [class.text-danger]="(other.delta ?? 0) < 0"
+                            [class.text-muted]="other.delta == null"
                             nz-tooltip
-                            nzTooltipTitle="Differenza di gain rispetto al nome che sostituirebbe."
+                            [nzTooltipTitle]="
+                              other.delta == null
+                                ? 'Uno dei due non ha un numero del motore, quindi la differenza non si può fare: vuoto, non zero.'
+                                : 'Differenza di gain rispetto al nome che sostituirebbe.'
+                            "
                           >
-                            {{ other.delta > 0 ? '+' : '' }}{{ other.delta | number: '1.1-1' }}
+                            @if (other.delta == null) {
+                              ?
+                            } @else {
+                              {{ other.delta > 0 ? '+' : '' }}{{ other.delta | number: '1.1-1' }}
+                            }
                           </span>
                           <span
                             class="w-14 shrink-0 text-right text-xs text-muted"

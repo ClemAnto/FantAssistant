@@ -2123,9 +2123,18 @@ export function strengthsOf(
  * eventually disagree about who is available. It is the rule this project keeps paying for: a displayed
  * list whose figures describe a different list is worse than no list.
  *
- * NOT `priced`: a man without a quotation is kept here on purpose, because «the automatic choice must be
- * doubtable» and he is exactly the kind of name the operator may know something about that the listone
- * does not. The row says his price is unknown; it does not hide him.
+ * NOTHING IS FILTERED OUT HERE BUT THE MEN ALREADY IN THE PLAN, and the comment used to promise that
+ * while the code did not: it required a GAIN, which hid two different unknowns behind one condition.
+ * The operator found it on a name (25/08/2026): «come mai non mi esce il portiere Martinez dell'Inter?»
+ * - Josep Martínez is expected in 10.6 matchdays of 38, i.e. 28% against the league's own 35% floor, so
+ * the engine gives him no comparable number and he vanished from the alternatives AND from the modal,
+ * while the RIVALS' lists (which ask for a quotation, not for a gain) went on showing him.
+ *
+ * He belongs here for the reason this list exists: it is what the operator picks from BY HAND, and the
+ * third keeper - «uno che gioca sempre, o il compagno di squadra di un portiere che hai già» - is by
+ * construction a man below that floor. `candidates` is sorted with the unpriced last, so he sits at the
+ * bottom with a dash where his number would be: listed apart, never proposed. The PLAN still refuses
+ * him (`priced` is the gate there), which is the split that was asked for.
  */
 export function boardFor(
   role: ClassicRole,
@@ -2135,11 +2144,7 @@ export function boardFor(
 ): Candidate[] {
   const chosen = new Set(plan.bids.map((one) => one.candidate.man.fcId));
   return candidates.filter(
-    (one) =>
-      one.man.role === role &&
-      one.gain != null &&
-      one.man.fcId !== exclude &&
-      !chosen.has(one.man.fcId),
+    (one) => one.man.role === role && one.man.fcId !== exclude && !chosen.has(one.man.fcId),
   );
 }
 
@@ -2161,12 +2166,18 @@ export function alternativesTo(
   plan: BidPlan,
   budgetLeft: number,
   howMany = 6,
-): { candidate: Candidate; delta: number; affordable: boolean }[] {
+): { candidate: Candidate; delta: number | null; affordable: boolean }[] {
   return boardFor(bid.candidate.man.role, candidates, plan, bid.candidate.man.fcId)
     .slice(0, howMany)
     .map((candidate) => ({
       candidate,
-      delta: (candidate.gain ?? 0) - (bid.candidate.gain ?? 0),
+      // NULL and not zero when either side has no number: `(gain ?? 0) - gain` reads as «he is worth
+      // exactly the other man less», which is a measurement nobody made. Now that an unpriced man can
+      // stand in this list, the column has to be able to say «non lo so».
+      delta:
+        candidate.gain == null || bid.candidate.gain == null
+          ? null
+          : candidate.gain - bid.candidate.gain,
       affordable: candidate.ask.ask - bid.offer <= budgetLeft,
     }));
 }
@@ -2378,11 +2389,23 @@ export function adviceFor(input: {
           '.';
       } else {
         state = 'da completare';
-        targets = (cheapRegulars.length ? cheapRegulars : regulars).slice(0, 3);
+        // IL COMPAGNO DI SQUADRA DI UN PORTIERE CHE HA GIÀ, per nome: è la terza delle sue regole sui
+        // portieri, e finora era solo una frase. Si prende dal tabellone INTERO e non dai soli uomini
+        // con un numero, perché un terzo portiere sta sotto la soglia delle presenze per definizione -
+        // è il motivo per cui non ne aveva mai visto uno consigliato.
+        const clubs = new Set(mine.men.filter((one) => one.role === 'P').map((one) => one.club));
+        const mates = candidates
+          .filter((one) => one.man.role === 'P' && clubs.has(one.man.club))
+          .sort((left, right) => left.ask.ask - right.ask.ask);
+        targets = mates.length ? mates.slice(0, 2) : (cheapRegulars.length ? cheapRegulars : regulars).slice(0, 3);
         advice =
           `La porta è coperta. I ${free} slot che restano sono da terzo portiere: o uno che gioca ` +
           'sempre, o il compagno di squadra di un portiere che hai già - non un altro titolare pagato ' +
-          'a prezzo pieno che poi guardi dalla panchina.';
+          'a prezzo pieno che poi guardi dalla panchina.' +
+          (mates.length
+            ? ` In rosa hai la porta di ${[...clubs].join(', ')}: il compagno costa ${mates[0].ask.ask} ` +
+              `crediti (${mates[0].man.name}) e ti copre quella maglia qualunque dei due giochi.`
+            : '');
       }
       advice += plannedWords(bidding, arriving, rules);
       if (unknown) {

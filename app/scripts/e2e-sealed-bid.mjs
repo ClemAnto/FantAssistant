@@ -234,8 +234,16 @@ function modalRows() {
   // «non valida» row is supposed to do nothing, and a test that clicked one would be testing that.
   const valid = rows.find((one) => /puoi aggiungerlo/i.test(one.textContent ?? '')) ?? rows[0];
   const box = valid?.getBoundingClientRect();
+  // IL RUOLO SI LEGGE DAL BOTTONE ACCESO, non dal titolo. Due tentativi di parsarlo da una stringa
+  // hanno risposto `null` (`.ant-modal-title`, poi il contenuto della modale), e una terza stringa da
+  // indovinare sarebbe stata la stessa scommessa: quale ruolo la modale sta mostrando e' uno STATO del
+  // DOM - il radio con la classe `-checked` - e uno stato si legge, non si deduce.
+  const checked = document.querySelector('.ant-radio-button-wrapper-checked');
   return {
     open: !!document.querySelector('nz-modal-container, .ant-modal'),
+    // Il ruolo su cui e' aperta: serve per TORNARCI dopo aver guardato un altro ruolo - senza, il
+    // passo dopo cliccava una riga che non era piu' quella che aveva misurato.
+    role: checked ? (checked.textContent ?? '').trim() : null,
     rows: rows.length,
     first: valid?.textContent.replace(/\s+/g, ' ').trim().slice(0, 60) ?? null,
     firstId: valid ? Number(valid.dataset.browse) : null,
@@ -243,6 +251,34 @@ function modalRows() {
     // How many rows the modal could judge at all: a modal that shows no verdict is a modal that
     // cannot say «questa busta è valida», which is the whole reason the operator asked for it.
     judged: rows.filter((one) => /(puoi aggiungerlo|non valida|sfori il tetto)/i.test(one.textContent ?? '')).length,
+  };
+}
+
+/** Il bottone di un ruolo dentro la modale: e' cosi' che si guarda tutta la porta. */
+function roleRadioBox(role) {
+  // Due selettori, perche' quello che finisce nel DOM e' la CLASSE di antd e non sempre l'attributo
+  // della direttiva: cercare solo `label[nz-radio-button]` faceva sparire il passo in silenzio, che e'
+  // il difetto peggiore di un arnese - «zero problemi» e «non ho guardato» si leggono uguali.
+  const nodes = document.querySelectorAll('label[nz-radio-button], .ant-radio-button-wrapper');
+  const node = [...nodes].find((one) => (one.textContent ?? '').trim() === role);
+  if (!node) return null;
+  const r = node.getBoundingClientRect();
+  return { x: r.x, y: r.y, w: r.width, h: r.height };
+}
+
+/**
+ * Quanti nomi la modale elenca e quanti di loro NON hanno un numero del motore.
+ *
+ * La domanda dell'operatore («come mai non mi esce il portiere Martinez dell'Inter?») era proprio
+ * questa: chi sta sotto la soglia delle presenze non ha un GAIN, e la lista da cui si scegli a mano lo
+ * nascondeva. Il trattino e' il segno che c'e' e che il suo numero non si sa.
+ */
+function modalUnpriced() {
+  const rows = [...document.querySelectorAll('button[data-browse]')];
+  return {
+    rows: rows.length,
+    dashes: rows.filter((one) => /—/.test(one.textContent ?? '')).length,
+    names: rows.filter((one) => /—/.test(one.textContent ?? '')).slice(0, 3).map((one) => (one.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 40)),
   };
 }
 
@@ -872,15 +908,49 @@ async function main() {
         } else {
           await realClick(session, centre(addBox));
           await wait(500);
-          const modal = await evaluate(session, modalRows);
+          let modal = await evaluate(session, modalRows);
           note('la modale mostra tutto il ruolo, con la validità di ogni busta', {
-            said: `aperta=${modal.open} · ${modal.rows} liberi, ${modal.judged} giudicati · primo: ${modal.first ?? '-'}`,
+            said: `aperta=${modal.open} · ruolo=${modal.role} · ${modal.rows} liberi, ${modal.judged} giudicati · primo: ${modal.first ?? '-'}`,
             problems: [
               ...(modal.open ? [] : ['il click non ha aperto la modale']),
               ...(modal.rows > 0 ? [] : ['la modale non elenca nessun giocatore']),
               ...(modal.judged > 0 ? [] : ['nessuna riga dice se la busta sarebbe valida']),
             ],
           });
+          // ...e la PORTA per intero, che e' la lista in cui l'operatore cercava il terzo portiere.
+          const keeperTab = await evaluate(session, roleRadioBox, 'P');
+          if (!keeperTab) {
+            note('la modale elenca anche chi il motore non prezza', {
+              said: 'saltato',
+              problems: ['non trovo il selettore del ruolo dentro la modale'],
+            });
+          } else {
+            await realClick(session, centre(keeperTab));
+            await wait(450);
+            const keepers = await evaluate(session, modalUnpriced);
+            note('la modale elenca anche chi il motore non prezza', {
+              said: `${keepers.rows} portieri liberi, ${keepers.dashes} senza numero, i primi: ${keepers.names.join(' | ')}`,
+              problems: [
+                ...(keepers.rows > 0 ? [] : ['nessun portiere elencato']),
+                // Sotto la soglia delle presenze della lega ci sono 43 portieri su 72 in questo bundle:
+                // se il trattino non compare mai, la lista sta di nuovo nascondendo chi non ha un numero.
+                ...(keepers.dashes > 0
+                  ? [] : ['nessuna riga senza numero: la lista nasconde chi il motore non prezza']),
+              ],
+            });
+          }
+
+          // Si torna al ruolo su cui la modale era aperta e si RILEGGE la lista: le coordinate di prima
+          // erano di un'altra lista, e cliccarle avrebbe aggiunto (o non aggiunto) un altro nome.
+          if (keeperTab && modal.role) {
+            const backTab = await evaluate(session, roleRadioBox, modal.role);
+            if (backTab) {
+              await realClick(session, centre(backTab));
+              await wait(450);
+            }
+            modal = await evaluate(session, modalRows);
+          }
+
           if (modal.firstBox) {
             const beforeAdd = await evaluate(session, readPlan);
             await realClick(session, centre(modal.firstBox));

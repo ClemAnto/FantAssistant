@@ -757,7 +757,7 @@ export class SealedBid {
     this.openBid.set(this.openBid() === fcId ? null : fcId);
   }
 
-  protected alternativesFor(bid: Bid): { candidate: Candidate; delta: number; affordable: boolean }[] {
+  protected alternativesFor(bid: Bid): { candidate: Candidate; delta: number | null; affordable: boolean }[] {
     const mine = this.mine();
     const plan = this.plan();
     if (!mine || !plan) return [];
@@ -1265,7 +1265,7 @@ export class SealedBid {
    * meno», «gioca sempre» - and the effect on the money, which used to arrive as an over-budget banner
    * AFTER the click.
    */
-  protected swapReason(bid: Bid, other: { candidate: Candidate; delta: number }): string {
+  protected swapReason(bid: Bid, other: { candidate: Candidate; delta: number | null }): string {
     const words: string[] = [];
     const price = other.candidate.ask.ask - bid.offer;
     if (price <= -3) words.push(`costa ${Math.abs(price)} crediti in meno`);
@@ -1276,7 +1276,8 @@ export class SealedBid {
     if (this.plays(other.candidate.man) === true && this.plays(bid.candidate.man) !== true) {
       words.push('gioca quasi ogni giornata');
     }
-    if (other.delta > 0) words.push(`rende ${other.delta.toFixed(1)} di gain in più`);
+    if (other.delta == null) words.push('il motore non lo prezza: sceglierlo è una tua decisione');
+    else if (other.delta > 0) words.push(`rende ${other.delta.toFixed(1)} di gain in più`);
     else if (other.delta < -3) words.push(`rende ${Math.abs(other.delta).toFixed(1)} di gain in meno`);
     if (!words.length) words.push('stesso profilo, a un prezzo simile');
     const effect =

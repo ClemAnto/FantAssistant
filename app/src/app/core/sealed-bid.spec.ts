@@ -1462,3 +1462,67 @@ describe('chi e\' fuori per un mese non si consiglia', () => {
     expect(line.targets.some((one) => one.man.fcId === hurt.fcId)).toBe(false);
   });
 });
+
+
+describe('un uomo che il motore non prezza si puo\' comunque SCEGLIERE', () => {
+  const rules: LeagueRules = { ...RULES, slots: { P: 3, D: 0, C: 0, A: 0 } };
+
+  const setup = () => {
+    next = 1;
+    // Il caso vero: il secondo portiere dell'Inter, 10,6 presenze attese su 38 - sotto la soglia della
+    // lega (35%), quindi senza GAIN - che l'operatore non trovava da nessuna parte.
+    const first = man('P', 200, 30, { titolarita: 'titolare', club: 'Inter' });
+    const third = man('P', 63, 6, { titolarita: 'riserva', expected: 10.6, club: 'Inter' });
+    const other = man('P', 90, 20, { titolarita: 'titolare', club: 'Milan' });
+    const pool = [first, third, other];
+    const states = teamStates([], index(pool), rules, ['Us', 'Rival']);
+    const squad = states.get('Us')!;
+    const candidates = candidatesOf({ pool, states, precedents: PRECEDENTS, rules, me: 'Us' });
+    const plan = allocate(candidates, { P: 1, D: 0, C: 0, A: 0 }, 200, { squad, rules });
+    return { first, third, other, pool, states, squad, candidates, plan };
+  };
+
+  it('non ha un GAIN, quindi non entra nel piano automatico', () => {
+    const { third, plan } = setup();
+    expect(gainOf(third, rules)).toBe(null);
+    expect(plan.bids.some((one) => one.candidate.man.fcId === third.fcId)).toBe(false);
+  });
+
+  it('ma sta nella lista da cui si scegli a mano, e ci sta in fondo', () => {
+    const { third, candidates, plan } = setup();
+    const board = boardFor('P', candidates, plan);
+    expect(board.some((one) => one.man.fcId === third.fcId)).toBe(true);
+    // Gli uomini senza numero stanno in coda: visibili, non in cima.
+    expect(board.at(-1)!.man.fcId).toBe(third.fcId);
+  });
+
+  it('e la differenza di gain con lui e\' VUOTA, non zero', () => {
+    const { third, candidates, plan } = setup();
+    const alternatives = alternativesTo(plan.bids[0], candidates, plan, 100);
+    const row = alternatives.find((one) => one.candidate.man.fcId === third.fcId)!;
+    expect(row.delta).toBe(null);
+  });
+
+  it('e il consiglio sui portieri lo NOMINA come terzo, se hai la porta di quel club', () => {
+    next = 1;
+    const owned = man('P', 200, 30, { titolarita: 'titolare', club: 'Inter' });
+    const mate = man('P', 63, 6, { titolarita: 'riserva', expected: 10.6, club: 'Inter' });
+    const pool = [owned, mate];
+    const states = teamStates(
+      [{ team: 'Us', fcId: owned.fcId, paid: 40 }],
+      index(pool),
+      rules,
+      ['Us', 'Rival'],
+    );
+    const candidates = candidatesOf({ pool, states, precedents: PRECEDENTS, rules, me: 'Us' });
+    const keeper = adviceFor({
+      mine: states.get('Us')!,
+      states,
+      candidates,
+      scale: gainScale(pool, rules),
+      rules,
+    })[0];
+    expect(keeper.advice).toContain(mate.name);
+    expect(keeper.targets.some((one) => one.man.fcId === mate.fcId)).toBe(true);
+  });
+});
