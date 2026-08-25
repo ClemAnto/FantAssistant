@@ -1,0 +1,51 @@
+{
+  "_comment": [
+    "The operator's DECLARED notes on single players: who is out of the squad, who has fallen out with",
+    "his club, who has asked to leave. Same standing as `board_rulings.json` and the same reason - it is",
+    "a judgement the model cannot reach, so it is declared rather than inferred (root CLAUDE.md, «A",
+    "judgement the model cannot reach is DECLARED, not adopted as a parameter»).",
+    "",
+    "WHY IT IS DECLARED AND NOT MEASURED. Nothing in this project observes a quarrel. The database holds",
+    "`flags.exit_risk` (a contract expiring within twelve months - a fact about a CONTRACT, never about a",
+    "relationship), the transfers layer (a move that HAS happened) and the live squad read (a man absent",
+    "from a payload, which is evidence of a departure and not of a dispute). Reading any of the three as",
+    "«he has fallen out with the club» would be inventing a fact from a different one. So it is written",
+    "down by whoever knows it, dated, and revocable by deleting the entry.",
+    "",
+    "WHAT IT MAY NEVER DO. Nothing under `engine/` reads this file and nothing should: a declared fact",
+    "that moved a FITTED number would make every measurement the operator's own answer, which is exactly",
+    "what the two board judges refuse (`apply_rulings=False`). It enters no valuation, no gate, no board.",
+    "",
+    "WHAT IT MAY DO, since 15/08/2026 and by the operator's own decision («penalizzarli gravemente",
+    "nell'overall»): the APP's Overall column reads it. That column is reporting too - no gate owns it, no",
+    "judge scores it, nothing is fitted on it - so a declared fact and a measured one can meet there",
+    "without contaminating anything that is judged. The discount is declared in `player-ratings.ts`",
+    "(DECLARED_RISK) and the row's tooltip says which word caused it.",
+    "",
+    "SHAPE: {season: {fc_id: {kind, note, decided_on}}}.",
+    "  * `fc_id`   the fantacalcio.it id, this project's primary key - never a name, because a name join",
+    "              is the defect this repository has already paid for four times. The auction panel and",
+    "              the players table both show the id in the row's tooltip.",
+    "  * `kind`    one of `out_of_squad` (fuori rosa), `dispute` (rottura con la societa'), `wants_out`",
+    "              (ha chiesto di andare via). One icon serves all three - the operator's own grouping,",
+    "              11/08/2026 - and the word decides what the tooltip says.",
+    "  * `note`    free text, shown as written: what happened and where it was read.",
+    "  * `decided_on` the day it was declared. A note is about a market that moves, so a reader can see",
+    "              how old it is instead of trusting it forever.",
+    "",
+    "HOW IT TRAVELS: `export` copies it into the bundle's `config/`, `npm run data:pull` into the app's",
+    "`public/data/`, and the app reads the season the bundle targets. Adding a name therefore costs an",
+    "export, a pull and a deploy - the operator's own choice of 11/08/2026, over an app-local list, so",
+    "the declaration lives in git and is the same on every device."
+  ],
+
+  "edition": "2026/2027",
+
+  "2026-27": {
+    "2531": {
+      "kind": "dispute",
+      "note": "In rotta con la societa' dalla fine della scorsa stagione, destinazione ignota",
+      "decided_on": "2026-08-15"
+    }
+  }
+}
