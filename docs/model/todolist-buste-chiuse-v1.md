@@ -947,3 +947,11 @@ lezione si': un numero che scende va confrontato con l'obiettivo che lo produce 
 **Verificato su questo albero**: **487 prove verdi** (31 file), `ng build` verde. La tabella qui sopra
 viene da una sonda che chiama le funzioni spedite sul foglio vero; l'e2e non e' stato rigirato dopo
 `keeperAnchored` — l'ultima passata «senza problemi» e' quella del round finto della sezione sopra.
+
+**Committato e pushato**: `f35b082` (le due sezioni qui sopra), sul branch
+`motore/reparto-e-tasso-titolarita` insieme ai quattro commit del pomeriggio
+(`b627c33..f35b082`). Un commit solo perche' i due blocchi si intrecciano negli stessi file
+(`sealed-bid.ts` e la sua spec); il corpo li tiene distinti. Quello che resta aperto non e' cambiato:
+la coda della profondita' (§7-bis / §8-bis, si misura sul banco), il prezzo del modificatore di difesa,
+`_still_buyable` che deve leggere la data (toolkit), gli item 1.1-1.3 (le buste perdenti del round 1) e
+2.3 / 3.3 (un `export` con la stagione in corso), piu' il §5, che sono misure.

@@ -1736,6 +1736,38 @@ either can still be fielded, so reading them as an absence would be inventing a 
 Open for the toolkit, with its population already counted: `_still_buyable` must read the DATE of the
 sighting and not only the club.
 
+**A SILENT RESET READS EXACTLY LIKE «THERE WAS NOTHING TO KEEP», and the round log was written only by
+hand** (25/08/2026, from «caricare le nuove rose conservando la tornata precedente»). A new roster export
+CLOSES the round on screen, so `setSnapshots` clears the swaps, the hand-written offers and the envelopes
+added or removed — rightly, they are all facts about that round. But the RECORD (`logs`, the only entrance
+to `settle`) was written only by the «registra» button, so whoever loaded the file that opened the
+envelopes without pressing it lost that round for ever, and the page went on preparing the next one
+without saying it had thrown anything away. `closeRound` puts them on the record BEFORE the export
+replaces them and the order is forced — reading them afterwards reads the empty — while a round he
+registered himself is never overwritten: what he sent beats what the screen still showed. Two habits
+travel with it: **two records are two kinds of evidence and the row says which** (`RoundLog.auto`, «as I
+sent them» against «as they stood when the export arrived»), and **zero new awards is not a round** — it
+is the same state read again, and the page cannot know whether a round ended with nothing assigned or he
+only wanted fresher rosters, so it says what it did and NAMES the way back instead of inferring the
+regulation. What is not weakened is the calibration: the chances still come from a ladder built before the
+new export was in, so a forecast is never scored by a round it has already read.
+
+**And «SOLITARIA» WAS THE WORD NOBODY READ** (same evening, and the third instance of one shape in a day):
+the keeper rule was still a per-man rail, so a `ballottaggio` bought BESIDE a `bandiera` was swapped out
+of the plan and counted as a gamble, while the department behind him was covered. `keeperAnchored` — a
+keeper who plays, or a shirt owned outright — with no threshold and no new constant, because the
+operator's own sentence IS the test, and re-read at every repair step since a repair can bring the anchor
+in. Same question for the counter the screen reads, or the verdict would say one thing and the solver do
+another. And `expectedHoles` now knows the keepers: two men of one club never play the same match, so the
+cover is the department's own sum (`keeperCovered`, the one `keeperGain` already discounts by) and not a
+convolution of independent draws, which read Milinkovic-Savic + Meret at **0.87** of the calendar where
+they cover **1.00**. The answer to the request is that the objective gets there BY ITSELF once it can
+afford it (at 257 of ceiling Provedel + Palmisani, with 17 credits more Falcone + Provedel: department
+26.8 → 34.9, holes 0.18 → 0.07) — not a judgement about the goal, the budget. And a number that FALLS is
+compared with the objective that produced it before being called a defect: `gain` is the total if you win
+everything, so more money buys dearer and likelier envelopes and that total drops by construction, while
+`expectedGain` rises on all seven ceilings tried (107 · 118 · 135 · 144 · 156 · 162 · 180).
+
 ## Quello che è già successo non si prevede — e l'app può viaggiare nel tempo
 **16/08/2026, e sono due facce dello stesso problema.** Un'asta giocata a stagione iniziata è l'esercizio
 più redditizio che il gate abbia mai misurato (**R20**, §7-duotricies: +28% di MAE sulle presenze a

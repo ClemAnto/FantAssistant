@@ -3407,3 +3407,100 @@ round seminato: 13 buste, riferimento «4-3-3», nessuna eccezione.
    misurata prima di adottarla.
 4. **Il foglio è del 20/08 e il mercato è vivo**: un `export` + `data:pull` dalla sessione che possiede il
    DB serve comunque, e sistemerebbe Lukaku senza la nota dichiarata.
+
+## CHIUSURA della sessione 25/08/2026 (notte) — la tornata che si chiude va agli atti da sola, e «solitaria» era la parola che non si leggeva
+
+Sessione tutta in `app/`, sempre sulla pagina delle buste, e chiude la giornata: due richieste
+dell'operatore, **487 test verdi** (31 file, erano 482), `ng build` verde, tutto committato e **pushato**
+(`b627c33..f35b082`, branch `motore/reparto-e-tasso-titolarita`). `engine_*`, i fogli, le revisioni e il
+gate non si muovono: qui non si prevede nessun calciatore. Dettaglio pieno:
+`docs/model/todolist-buste-chiuse-v1.md`, ultime due sezioni.
+
+### 1. «Caricare le nuove rose conservando la tornata precedente»
+
+Il bottone c'era già — `takeFile` accoda un export e i round sono le sue differenze, quindi le tornate
+precedenti restavano. Quello che non restava era **la tornata che si CHIUDEVA**: il registro delle buste
+(`logs`, l'unico ingresso di `settle`) si scriveva solo premendo «Registra queste buste», quindi chi
+caricava il file che apriva le buste senza averlo premuto perdeva il round per sempre — niente registro,
+niente riepilogo, e la pagina preparava il successivo **senza dire che aveva buttato via qualcosa**. È la
+forma che questo progetto paga da sempre: un azzeramento silenzioso si legge esattamente come «non c'era
+niente da tenere».
+
+`closeRound` mette le buste agli atti **prima** che l'export le sostituisca, e l'ordine è forzato —
+`setSnapshots` cancella swap, offerte riscritte e buste tolte o aggiunte, cioè tutto quello da cui
+`plan()` è costruito, quindi leggerle dopo significa leggere il vuoto. Un round che lui ha registrato a
+mano **non** si sovrascrive: quello che ha spedito batte quello che lo schermo mostrava ancora.
+
+**Due prove diverse, e si dichiara quale delle due è.** `RoundLog.auto` viaggia sulla riga invece di
+essere buttato via: «le buste come le ho spedite» e «le buste com'erano in pagina quando è arrivato
+l'export» non sono la stessa prova, e sta scritto accanto al risultato e non solo nel tooltip. Quello che
+**non** si indebolisce è la calibrazione — le probabilità vengono da una scala costruita prima che il
+nuovo export entrasse, quindi la previsione non è mai giudicata da un round che ha già letto.
+
+**E il caricamento dice cosa ha fatto**: quale round ha chiuso, quante aggiudicazioni nuove ha portato,
+quante buste sono finite agli atti passando. **Zero aggiudicazioni nuove non è un round** — è lo stesso
+stato riletto — e la pagina non può sapere se un round è finito senza assegnazioni o se lui voleva solo
+aggiornare le rose: quindi **lo dice e nomina «Annulla l'ultimo»** invece di inferire il regolamento.
+
+### 2. «Il consiglio di offrire Falcone + Provedel è ottimo, vorrei che ci fosse anche nelle buste consigliate»
+
+Terzo difetto della stessa famiglia in un giorno. La regola dei portieri era ancora **un binario per
+uomo**: per ogni portiere non `sure` e senza la maglia sua, `ensureKeepers` provava ad accoppiarlo e poi
+lo **sostituiva** — quindi un `ballottaggio` a sconto comprato ACCANTO a un `bandiera` veniva scambiato
+via e contato come scommessa, mentre il reparto dietro di lui era coperto. La regola dice «mai una
+scommessa **solitaria** su una maglia contesa» e la parola che nessuno leggeva era «solitaria»: con
+Falcone dentro, Provedel non è solitario di niente. È la correzione che lui stesso aveva imposto la
+mattina un reparto più in là («un binario per uomo non può rispondere a una domanda su un INSIEME»),
+arrivata in porta con mezza giornata di ritardo.
+
+`keeperAnchored` — c'è qualcuno in porta che semplicemente si presenta: un portiere che gioca, oppure una
+maglia posseduta per intero (`ownsShirt`). **Nessuna soglia e nessuna costante nuova**: la frase
+dell'operatore È il test. Riletta a ogni passo del riparo e non una volta, perché una riparazione può
+portare dentro l'ancora, e da quel momento non c'è più niente da riparare. Stessa domanda per il
+contatore che lo schermo legge (`strategyCheck`), o il verdetto direbbe una cosa e il risolutore ne
+farebbe un'altra.
+
+E `expectedHoles` conosce adesso il caso portieri: due uomini di un club **non giocano la stessa
+partita**, quindi la copertura è la somma del reparto (`keeperCovered`, la stessa che sconta `keeperGain`,
+fattorizzata invece di riscritta) e non una convoluzione di estrazioni indipendenti, che leggeva
+Milinkovic-Savic + Meret a **0,87** di calendario dove coprono **1,00**. Una domanda, una risposta,
+qualunque sia il ruolo.
+
+**E la risposta alla richiesta è che il piano ci arriva da solo, quando può permetterselo.** Misurato sul
+foglio vero con una scala di prezzi della forma del round 1 (quindi «cosa fa un piano con una scala così»,
+mai «cosa sarà il tuo round 2»), 12 slot liberi: a tetto 257 sceglie Provedel 9 + Palmisani 9 (reparto
+26,8 · buchi 0,18), con **17 crediti in più** sceglie **Falcone + Provedel** (34,9 · 0,07). Cioè la forma
+che voleva è quella che l'obiettivo sceglie appena la può pagare — non è un giudizio sulla porta, è il
+budget, e nella sua lega Falcone costa 81 e non 26.
+
+### L'arnese, e la metà che valeva quanto la cura
+
+- **La suite consegna il file all'INPUT vero** (`DOM.setFileInputFiles`): il passo che c'era scriveva le
+  istantanee in `localStorage` e quindi non passava mai da `nzBeforeUpload`, dal parser e da `closeRound`
+  — cioè provava `settle` e non il bottone. Il passo nuovo **non registra niente di proposito**, che è
+  esattamente il caso che si perdeva.
+- **`--fake` costruisce un round dal listone del bundle** (id veri, squadre e prezzi inventati): prima,
+  senza il CSV della lega, la suite misurava **solo lo stato vuoto**, cioè l'intera pagina era non provata
+  su qualunque macchina che quel file non ce l'avesse. Sul round finto: 110 aggiudicazioni su 10 squadre,
+  2 export in memoria, round 3 sullo schermo, **14 buste agli atti** (`auto=true`), riepilogo 11 vinte su
+  14 e 2 in parità; lo stesso file ricaricato risponde «Questo export non aggiunge nessuna
+  aggiudicazione».
+
+### Un allarme dato e ritirato, perché la verifica è andata prima del resoconto
+
+Sulla stessa tabella era stato scritto che il piano «non è monotono nel budget» (120 crediti → 243, 257 →
+222), che per un ottimizzatore sarebbe impossibile. È sbagliato: `gain` è il totale **se vinci tutte le
+buste**, e con più soldi l'obiettivo compra offerte più care e più probabili, quindi quel tetto scende per
+costruzione. Il numero che deve salire è `expectedGain`, e sale su tutti e sette i tetti provati:
+**107 · 118 · 135 · 144 · 156 · 162 · 180**. La lezione resta: un numero che scende va confrontato con
+l'obiettivo che lo produce prima di chiamarlo difetto.
+
+### Aperto, e nessuno dipende dal codice di questa pagina
+
+Invariato rispetto alla chiusura precedente: la **coda della profondità** (§7-bis/§8-bis, si misura sul
+banco), **quanto vale il modificatore di difesa**, **`_still_buyable` deve leggere la data** (toolkit, 40
+righe su 605), gli item **1.1-1.3** (vogliono le buste perdenti di tutto il round 1) e **2.3 / 3.3** (un
+`export` con la stagione in corso: misurato, il bundle si ferma a 2025-26). Più il **§5**, che sono misure
+e non lavori, e che il registro automatico adesso rende possibili anche quando lui non premeva il bottone.
+Nota di chiusura: l'**e2e non è stato rigirato** dopo `keeperAnchored` — l'ultima passata «senza problemi»
+è quella del round finto — e sta scritto nella todolist invece di essere lasciato implicito.
