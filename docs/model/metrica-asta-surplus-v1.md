@@ -1480,3 +1480,122 @@ lega, quindi `data.replacement` è vuoto, la metrica è VALUE e γ non entra in 
 test che protegge la cosa è scritto sull'**asimmetria** e non su una delle due metà (`test_engine_evaluate.
 test_the_weight_is_the_ranking_s_and_the_sheet_s_column_is_the_bare_expectation`): senza quello il prossimo
 lettore «aggiusta» il lato che gli capita davanti per primo.
+
+---
+
+## 24. DUE UOMINI DELLO STESSO CLUB: l'assicurazione esiste e non diventa punti (25 agosto 2026)
+
+**Domanda dell'operatore**, in due tempi: prima «pro e contro nell'avere due attaccanti della stessa
+squadra come Scamacca + Krstovic o Simeone + Zapata rispetto ad avere due attaccanti di pari livello ma di
+squadre diverse», poi ristretta a quello che è il caso vero — «solo calciatori con lo stesso ruolo …
+è conveniente averli entrambi della stessa squadra (in modo da averne uno che sicuramente gioca) o è
+meglio diversificare».
+
+**Il null è la seconda metà della sua stessa frase** e non è stato inventato qui: «di pari livello ma di
+squadre diverse». Quindi ogni coppia dello stesso club è confrontata con un massimo di 25 coppie della
+STESSA stagione, di club diversi, appaiate su quota-voto (±0,06) e fantamedia (±0,25). Serie A
+(`platform='default'`), 11 stagioni intere da 38 giornate, attaccanti con ≥10 voti a testa, trasferiti in
+corsa esclusi perché hanno due denominatori: **1.081 coppie con almeno 5 controlli**.
+
+### 24.1 Due posti schierati: la media non si muove, la varianza sì di poco
+
+Differenza appaiata (coppia dello stesso club MENO i suoi controlli), con l'assente rimpiazzato dalla
+panchina:
+
+| | differenza | |
+|---|---|---|
+| punti per giornata | **−0,0033 ± 0,0039** | l'IC contiene lo zero: nessun costo |
+| sd settimanale | **+0,0854 ± 0,0182** (+3,9%) | positiva su **11 stagioni di 11** |
+| giornate con NESSUNO dei due | **−0,0137 ± 0,0029** | mezza giornata su 38, a favore |
+
+Il meccanismo della varianza è il voto e non il gol: i fantavoti di due compagni correlano **+0,13**
+contro **0,00** dei controlli, i GOL **+0,007** contro −0,001 — non si rubano niente, si muove insieme il
+voto base. E +3,9% sulla coppia, propagato in quadratura a undici titolari con sd 6,0, vale **+0,5%**.
+
+**Il segno di questo blocco è stato girato da un errore corretto, ed è la regola di casa applicata a se
+stessa.** La prima passata trattava un'assenza come uno ZERO e leggeva la varianza dello stesso club più
+BASSA (−1,41 di varianza, 37% positive): con «una giornata mancata non è uno zero, entra il migliore della
+panchina» (§ il fielded replacement, A = 6,79) la sd diventa più ALTA. Verificato a 6,00 e 7,50: +0,068 e
++0,090, stessa direzione.
+
+### 24.2 Quello che l'intuizione azzecca: la coppia si auto-assicura
+
+Quando uno dei due non prende voto, l'altro passa da **0,596 a 0,683** di quota-voto (+0,087, n=2379) e da
+**6,617 a 6,789** di fantamedia (+0,172, n=1804). Sui controlli di club diverso lo stesso conto dà
+**−0,005 e −0,038**, cioè zero — che è la taratura del null, non un risultato a parte.
+Stessa direzione ex-ante, contro la previsione ingenua (quota-voto dell'anno prima): le due sorprese sono
+**anticorrelate fra compagni (−0,076) e CORRELATE fra club diversi (+0,173)**, e «crollano entrambi oltre
+il 10%» succede al **9,6%** delle coppie dello stesso club contro il **13,1%** delle altre. Il timore
+«sbaglio la squadra e sbaglio due volte» è, misurato, il contrario.
+
+### 24.3 Il numero della singola coppia è rumore, e c'è la prova interna
+
+Persistenza fra due stagioni consecutive della stessa coppia allo stesso club (242 casi): **−0,018** per
+il legame delle presenze, **+0,002** per la correlazione dei fantavoti. E non regge nemmeno dentro un
+anno: fra andata e ritorno **+0,014** su 228 coppie. L'effetto medio +0,13 è un fatto sulla popolazione;
+il numero del singolo duo non è misurabile né prevedibile.
+**La prova più economica è una coppia sola**: Scamacca + Krstović, stessa stagione 2025-26, letta sui due
+calendari — **phi −0,05 sul campionato e −0,21 su EuroLeghe**. Un fatto solo, due numeri, perché le
+giornate euro sono un sottoinsieme delle 38.
+
+Le due coppie della domanda, per il verbale: Krstović + Scamacca corr. fantavoti **−0,003** (controlli
+−0,043), doppio buco pari ai controlli; Simeone + Zapata corr. **+0,598** (controlli 0,000) ma su 19
+giornate di co-presenza, con il doppio buco **−0,044** sotto i controlli.
+
+### 24.4 L'unico criterio EX-ANTE che regge è il ruolo, ed è debole
+
+I ruoli Mantra sono pubblicati ad agosto, quindi si possono usare in asta. Due centravanti puri si
+contendono il posto circa il doppio di ogni altra combinazione:
+
+| | phi medio | n |
+|---|---|---|
+| `pc` + `pc` | **−0,151 ± 0,024** | 333 |
+| ogni altra combinazione | **−0,061 ± 0,014** | 1035 |
+
+Differenza **−0,090 ± 0,028**: reale. Resta una tendenza e non una legge — Álvarez e Sørloth, due `pc`,
+leggono **+0,39** e giocano insieme.
+
+### 24.5 La domanda vera: un posto, due candidati dello stesso ruolo
+
+Qui il modello è diverso — due uomini per una maglia sola — e **la prima versione era sbagliata in un modo
+che vale più del risultato**: faceva schierare «il migliore dei due che ha preso il voto», cioè una scelta
+che al fantacalcio non esiste, perché la formazione si consegna PRIMA delle partite. Con la regola vera
+(schieri il designato — quello con la previsione migliore, mai l'esito — e l'altro subentra dalla
+panchina), coppie appaiate su ciò che si sapeva ad agosto:
+
+| ruolo | punti a stagione, stesso club vs diversificare | vince lo stesso club |
+|---|---|---|
+| portieri | **−0,59** (IC contiene lo zero) | 41% |
+| difensori | **−0,35** | 46% |
+| centrocampisti | **−0,68** | 45% |
+| attaccanti | **+1,03** (IC largo) | 48% |
+| **totale** | **−0,42** (−0,011 ± 0,009 a giornata, n=3980) | **46%** |
+
+Con il modello impossibile gli stessi dati dicono **−2,21 a stagione** (portieri **−5,89**, lo stesso club
+perde in 31 coppie su 32). **La distanza fra −2,21 e −0,42 è il prezzo dell'informazione che non si ha**,
+e va tolta dal conto invece che incassata.
+I portieri sono appaiati sulle presenze REALIZZATE e non ex-ante (il filtro sulla stagione precedente
+svuotava il campione: n=32), e sono il caso più istruttivo — l'assicurazione **funziona alla grande**,
+**5,2 giornate su 38 in meno** senza nessuno dei due, e non produce punti. Il motivo è che a coprire quel
+buco non è il compagno di squadra ma la PANCHINA, cioè il terzo uomo di quel ruolo che è in rosa comunque:
+il secondo della stessa squadra copre giornate che erano già coperte.
+
+### 24.6 Dove si perde davvero: il prezzo, non la struttura
+
+Due uomini dello stesso club e dello stesso ruolo consegnano **1,2 ± 0,3 voti in meno** su 76 possibili
+(difensori −1,2, centrocampisti −1,3): si mangiano le presenze a vicenda. Quindi la conclusione operativa
+non è sulla forma della rosa ma sul prezzo — **prenderli entrambi va bene se il secondo lo si paga da
+secondo**; pagarli tutt'e due da titolari significa comprare due volte 38 giornate quando in due ne
+giocheranno una cinquantina. La squadra non è un criterio d'asta, lo sconto sì.
+
+### 24.7 Che cosa resta, oltre a questa domanda
+
+* **Il modello di una decisione deve rispettare QUANDO la decisione si prende.** Fra il massimo ex-post e
+  l'ordine dichiarato prima ballano 1,8 punti a stagione e il senso del consiglio.
+* **Un'assicurazione si valuta contro quello che già copre, non contro il nulla.** La panchina esisteva
+  prima della coppia.
+* **Una differenza fra due GRUPPI non è una virtù di chi la porta**, di nuovo: qui l'effetto medio è reale
+  e il numero individuale è rumore, e i due si somigliano abbastanza da essere scambiati.
+* Aperto e non misurato: tutto è su Serie A/classic e sul fantavoto standard: su MANTRA due uomini dello
+  stesso ruolo occupano slot tipizzati e la domanda cambia, perché lì la legalità dell'undici è un
+  vincolo e non una preferenza.
