@@ -18,18 +18,23 @@
  *   * THE TOOLTIPS - the numbers that carry a `nz-tooltip` must actually produce one on hover.
  *   * WHAT THE PAGE SHOUTS - any console error or exception fails the run, even with every measure green.
  *
- * The league's own data never enters this file: pass `--csv <path>` to seed a real round, or run it
- * without and only the empty state is measured.
+ * The league's own data never enters this file: pass `--csv <path>` to seed a real round, or `--fake`
+ * to build one from the BUNDLE'S OWN listone (real ids, invented teams and prices) - which is what
+ * makes the whole page measurable on a machine that has no league file. Without either, only the empty
+ * state is measured.
  *
- * Usage: node scripts/e2e-sealed-bid.mjs [--csv path] [--team "Nome"] [--headed] [--json] [--keep-plan]
+ * Usage: node scripts/e2e-sealed-bid.mjs [--csv path | --fake] [--team "Nome"] [--headed] [--json]
+ *                                        [--keep-plan] [--teams N]
  *
- * `--keep-plan` skips the last block, which WRITES a synthetic next round to exercise `settle`. Use it
- * when the screenshot has to show the page as the operator will actually see it.
+ * `--keep-plan` skips the last two blocks, which WRITE a next round to exercise `settle` - the first by
+ * handing a second CSV to the real upload input, the second through storage. Use it when the screenshot
+ * has to show the page as the operator will actually see it.
  */
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
+import { gunzipSync } from 'node:zlib';
 import { tmpdir } from 'node:os';
 import { extname, join, resolve } from 'node:path';
 
@@ -45,6 +50,38 @@ const BROWSERS = [
   'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
   'C:/Program Files/Google/Chrome/Application/chrome.exe',
 ];
+
+/**
+ * UN ROUND FINTO, costruito dal listone del bundle, per far girare la suite dove il file della lega non
+ * c'e' - che fino a oggi voleva dire misurare solo lo stato vuoto e lasciare l'intera pagina non provata.
+ *
+ * Non e' un campione di niente e non misura nessuna strategia: gli id sono veri perche' devono esistere
+ * nel foglio, le squadre e i prezzi sono inventati, e nessun passo della suite li interpreta. Ogni rosa
+ * riceve la stessa forma (1 P, 4 D, 4 C, 2 A) presa dalla testa di ogni ruolo, cosi' il mercato che la
+ * pagina legge e' deterministico e la corsa di domani dice la stessa cosa di quella di oggi.
+ */
+async function fakeRound(teams = 10) {
+  const file = join(DIST, 'data', 'sheets', 'leghe.json.gz');
+  if (!existsSync(file)) return null;
+  const sheet = JSON.parse(gunzipSync(await readFile(file)));
+  const at = (name) => sheet.columns.indexOf(name);
+  const [idAt, roleAt, valueAt] = [at('fc_id'), at('role_classic'), at('engine_surplus')];
+  if (idAt < 0 || roleAt < 0) return null;
+  const names = Array.from({ length: teams }, (one, index) => `Squadra ${index + 1}`);
+  const out = [];
+  for (const [role, each] of [['P', 1], ['D', 4], ['C', 4], ['A', 2]]) {
+    const pool = sheet.rows
+      .filter((row) => row[roleAt] === role)
+      .sort((left, right) => (right[valueAt] ?? 0) - (left[valueAt] ?? 0))
+      .slice(0, each * teams);
+    // Un prezzo che scende con la bonta' del nome: serve solo a far spendere le rose in modo diverso,
+    // perche' una stanza in cui tutti hanno gli stessi crediti non prova la classifica.
+    pool.forEach((row, index) => {
+      out.push({ team: names[index % teams], fcId: row[idAt], paid: Math.max(1, 60 - index) });
+    });
+  }
+  return out;
+}
 
 const argv = process.argv.slice(2);
 const flag = (name) => argv.includes(name);
@@ -503,6 +540,42 @@ function seedSecond(payload) {
   return true;
 }
 
+/** How many exports are in storage: what says whether a round was really closed. */
+function storedSnapshots() {
+  try {
+    return JSON.parse(localStorage.getItem('fantassistant.sealedBid.snapshots') ?? '[]').length;
+  } catch {
+    return 0;
+  }
+}
+
+/** Il round che la pagina sta PREPARANDO, letto dall'intestazione che l'operatore legge. */
+function roundOnScreen() {
+  const heading = [...document.querySelectorAll('h2')].find((one) =>
+    /Le tue buste/i.test(one.textContent ?? ''));
+  const found = heading?.textContent.match(/round\s+(\d+)/i);
+  return {
+    round: found ? Number(found[1]) : null,
+    bids: document.querySelectorAll('button[data-bid]').length,
+  };
+}
+
+/** L'avviso che dice cosa ha fatto l'ultimo export. Un caricamento muto e' un caricamento fallito. */
+function readLoadNote() {
+  const shown = [...document.querySelectorAll('nz-alert')].find((one) =>
+    /chiuso|aggiudicazion/i.test(one.textContent ?? ''));
+  if (!shown) return { shown: false };
+  return { shown: true, text: shown.textContent.replace(/\s+/g, ' ').trim().slice(0, 220) };
+}
+
+/** Rimette la pagina al primo export e senza registri: il passo dopo deve partire da dove partiva. */
+function rewindToFirst() {
+  const snaps = JSON.parse(localStorage.getItem('fantassistant.sealedBid.snapshots'));
+  localStorage.setItem('fantassistant.sealedBid.snapshots', JSON.stringify([snaps[0]]));
+  localStorage.setItem('fantassistant.sealedBid.logs', JSON.stringify([]));
+  return true;
+}
+
 /** What the «com'è andata» strip says, if it is there at all. */
 function readSettled() {
   const strip = [...document.querySelectorAll('div')].find((one) =>
@@ -525,6 +598,25 @@ function readSettled() {
 }
 
 // ------------------------------------------------------------------ pointer
+
+/**
+ * Consegna un file all'input del caricamento, che e' l'unico modo di provare il BOTTONE vero.
+ *
+ * `element.click()` su un input file non apre niente e non prova niente; `DOM.setFileInputFiles` fa
+ * esattamente quello che fa una mano che sceglie un file, e da li' in poi il codice della pagina e' lo
+ * stesso che gira al tavolo - `nzBeforeUpload`, il parser, il round che si chiude.
+ */
+async function handFile(session, path) {
+  await session.send('DOM.enable');
+  const doc = await session.send('DOM.getDocument');
+  const found = await session.send('DOM.querySelector', {
+    nodeId: doc.root.nodeId,
+    selector: 'input[type=file]',
+  });
+  if (!found?.nodeId) return false;
+  await session.send('DOM.setFileInputFiles', { files: [path], nodeId: found.nodeId });
+  return true;
+}
 
 async function hover(session, point) {
   await session.send('Input.dispatchMouseEvent', {
@@ -653,12 +745,12 @@ async function main() {
       ],
     });
 
-    if (!csv) {
-      note('nessun --csv', { said: 'solo lo stato vuoto è stato misurato' });
-    } else {
-      // ---------------------------------------------------- seed a real round
+    // Il round da cui parte tutto: il file della lega se c'e', altrimenti quello finto costruito dal
+    // listone del bundle. Sono due SORGENTI e non due percorsi - da qui in giu' la suite non sa piu'
+    // quale delle due ha in mano, e misura la pagina invece del fixture.
+    const awards = [];
+    if (csv) {
       const text = await readFile(csv, 'utf8');
-      const awards = [];
       for (const raw of text.split(/\r?\n/)) {
         const line = raw.trim();
         if (!line || line.startsWith('$')) continue;
@@ -669,6 +761,18 @@ async function main() {
         if (one.team && Number.isFinite(one.fcId) && Number.isFinite(one.paid)) awards.push(one);
       }
       if (!awards.length) throw new Error(`no awards parsed from ${csv}`);
+    } else if (flag('--fake')) {
+      const made = await fakeRound(Number(value('--teams', '10')));
+      if (!made?.length) throw new Error(`no sheet to build a fake round from in ${DIST}`);
+      awards.push(...made);
+    }
+
+    if (!awards.length) {
+      note('nessun round da cui partire', {
+        said: "solo lo stato vuoto e' stato misurato: passa --csv <file> oppure --fake",
+      });
+    } else {
+      // ---------------------------------------------------- seed the round
       const mine = team ?? awards[0].team;
       await evaluate(session, seed, { awards, team: mine, settings });
       await session.send('Page.reload');
@@ -1121,6 +1225,90 @@ async function main() {
           ...(/Partite a voto/i.test(stats.text) ? [] : ['il popover del GAIN non porta le partite a voto']),
         ],
       });
+
+      // ---------------------------------------------------- CARICARE LE ROSE CHIUDE IL ROUND, senza averlo registrato
+      //
+      // E' il caso che il 25/08/2026 perdeva la tornata: l'export che chiude un round manda via il
+      // piano (swap, offerte scritte a mano, buste tolte e aggiunte), quindi chi non aveva premuto
+      // «Registra queste buste» non poteva piu' chiedere com'era andata - e non se ne accorgeva, perche'
+      // la pagina si limitava a preparare il round dopo. Quindi qui NON si registra niente: si consegna
+      // il file all'input VERO e si guarda se il round e' finito agli atti da solo.
+      //
+      // Riavvolge alla fine, perche' il passo che segue parte dal round 2 e con questi uomini in rosa
+      // misurerebbe un piano che nessuno vedra'.
+      const planNow = await evaluate(session, readPlan);
+      if (!flag('--keep-plan') && planNow?.bids?.length >= 4) {
+        const rival = awards.find((one) => one.team !== mine)?.team ?? 'Rivale';
+        const rows = planNow.bids;
+        const won = rows.slice(0, rows.length - 3);
+        const lost = rows[rows.length - 3];
+        // Gli ultimi due non finiscono in nessuna rosa: ci abbiamo bustato e non li ha presi nessuno,
+        // che nel regolamento di questa lega puo' voler dire una cosa sola - qualcuno ha scritto il
+        // nostro stesso numero.
+        const lines = [
+          ...awards.map((one) => `${one.team},${one.fcId},${one.paid}`),
+          ...won.map((one) => `${mine},${one.fcId},1`),
+          `${rival},${lost.fcId},99`,
+        ];
+        const path = join(profile, 'round-2.csv');
+        await writeFile(path, `${lines.join('\n')}\n`, 'utf8');
+        const handed = await handFile(session, path);
+        await wait(1500);
+        const logs = await evaluate(session, storedLogs);
+        const kept = await evaluate(session, storedSnapshots);
+        const said = await evaluate(session, readLoadNote);
+        const read = await evaluate(session, readSettled);
+        const now = await evaluate(session, roundOnScreen);
+        const log = logs?.[0];
+        note('caricare le rose chiude il round, e la tornata va agli atti da sola', {
+          said: handed
+            ? `${kept} export in memoria · round ${now.round} sullo schermo · `
+              + `${log?.bids?.length ?? 0} buste agli atti (auto=${log?.auto ?? false}) · `
+              + `riepilogo: ${read.shown ? `${read.won} vinte su ${read.sent}, ${read.tied} in parita'` : 'assente'}`
+              + `${'\n'}    avviso: ${said.text ?? 'assente'}`
+            : "non trovo l'input del caricamento",
+          problems: [
+            ...(handed ? [] : ["non c'e' nessun <input type=file> da cui caricare le rose"]),
+            ...(kept === 2 ? [] : [`dopo il caricamento gli export sono ${kept}, dovevano essere 2`]),
+            ...(now.round === 3 ? [] : [`la pagina prepara il round ${now.round}, doveva essere il 3`]),
+            // La riga che questo passo esiste per proteggere: senza registro non c'e' riepilogo, e
+            // senza riepilogo la tornata e' persa per sempre.
+            ...(log?.bids?.length === rows.length
+              ? [] : [`agli atti ${log?.bids?.length ?? 0} buste, ne erano ${rows.length}`]),
+            ...(log?.auto ? [] : ['il registro non dichiara di essere stato scritto dal caricamento']),
+            ...(log?.bids?.every((one) => 'chance' in one)
+              ? [] : ["una busta agli atti non porta la probabilita' che aveva"]),
+            ...(read.shown ? [] : ['dopo il caricamento non compare il riepilogo del round']),
+            ...(read.won === won.length ? [] : [`vinte ${read.won}, ne avevo preparate ${won.length}`]),
+            ...(read.sent === rows.length ? [] : [`spedite ${read.sent}, ne erano ${rows.length}`]),
+            ...(read.tied === 2 ? [] : [`parita' ${read.tied}, dovevano essere 2`]),
+            ...(said.shown ? [] : ['il caricamento non dice cosa ha fatto: quale round ha chiuso e con quante aggiudicazioni']),
+          ],
+        });
+        // ...e lo stesso file una seconda volta, che e' l'errore vero: un export che non porta nessun
+        // nome nuovo non e' un round, e la pagina ne ha appena contato uno. Non puo' sapere se un round
+        // e' finito senza assegnazioni o se lui voleva solo aggiornare le rose, quindi lo DICE e nomina
+        // la via d'uscita invece di decidere al posto suo.
+        await handFile(session, path);
+        await wait(1200);
+        const again = await evaluate(session, readLoadNote);
+        const twice = await evaluate(session, storedSnapshots);
+        note('un export che non aggiunge niente lo dice, invece di far finta di un round', {
+          said: `${twice} export in memoria · avviso: ${again.text ?? 'assente'}`,
+          problems: [
+            ...(again.shown ? [] : ['ricaricare lo stesso export non dice niente']),
+            ...(/non aggiunge/i.test(again.text ?? '')
+              ? [] : ["l'avviso non dice che non c'e' nessuna aggiudicazione nuova"]),
+            ...(/Annulla l'ultimo/i.test(again.text ?? '')
+              ? [] : ["l'avviso non nomina la via per tornare indietro"]),
+            ...(twice === 3 ? [] : [`dopo il secondo caricamento gli export sono ${twice}, dovevano essere 3`]),
+          ],
+        });
+
+        await evaluate(session, rewindToFirst);
+        await session.send('Page.reload');
+        await wait(1800);
+      }
 
       // ---------------------------------------------------- registering the envelopes, and surviving a reload
       //

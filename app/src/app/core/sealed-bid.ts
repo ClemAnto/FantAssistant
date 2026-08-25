@@ -794,6 +794,21 @@ export function keeperGain(men: readonly Bidder[], rules: LeagueRules): number {
 }
 
 /**
+ * THE SHARE OF MATCHDAYS ON WHICH ONE OF THESE KEEPERS TURNS UP - the same sum `keeperGain` discounts by.
+ *
+ * Factored out and not written twice, because it is the number two different questions need: what the
+ * department is WORTH, and whether it has a HOLE. Two copies would eventually disagree about one squad.
+ *
+ * It reads a man the sheet cannot price as covering nothing, which is «vuoto = ignoto» and not a claim
+ * that he never plays: what it must never do is promise cover the plan cannot count on.
+ */
+export function keeperCovered(men: readonly Bidder[], rules: LeagueRules): number {
+  const places = keeperPlaces(men, rules);
+  const cover = keeperCover(places);
+  return Math.min(1, places.reduce((sum, place, at) => sum + place.play * cover[at], 0));
+}
+
+/**
  * What a whole squad is worth: the three departments added, and the keepers read as the one place.
  *
  * ONE definition and three readers - the plan, the standings (`verdicts`) and the role-by-role table
@@ -1250,6 +1265,24 @@ function claimsTheShirt(man: Bidder): boolean {
   return rung == null || rung <= KEEPER_DISPUTE;
 }
 
+/**
+ * IS THERE ANYBODY IN GOAL WHO SIMPLY TURNS UP - a keeper who plays, or a shirt owned outright?
+ *
+ * The operator's rule is «mai una scommessa SOLITARIA su una maglia contesa» (25/08/2026), and the word
+ * that was not being read is «solitaria»: a `ballottaggio` bought beside a `bandiera` is not a lone bet
+ * on anything, and the department behind him is covered. Asked per man, the rule was swapping a cheap
+ * upside out of a plan that already had its anchor - the same defect he had corrected that morning one
+ * department along, «un binario per uomo non può rispondere a una domanda su un INSIEME».
+ *
+ * No threshold and no new constant: the sentence itself is the test. What is left over - HOW MUCH of
+ * the calendar the department covers - is `expectedHoles` for role P, and it is already on the screen.
+ */
+export function keeperAnchored(men: readonly Bidder[], rules: LeagueRules): boolean {
+  const keepers = men.filter((man) => man.role === 'P');
+  if (keepers.some((man) => playsOften(man, rules) === true)) return true;
+  return keepers.some((man) => ownsShirt(keepers, man.club));
+}
+
 function ownsShirt(keepers: readonly Bidder[], club: string): boolean {
   const claimants = keepers.filter(
     (man) => man.role === 'P' && man.club === club && claimsTheShirt(man),
@@ -1287,11 +1320,16 @@ function ensureKeepers(
       one.candidate.man.club,
     );
 
+  // Re-read at every step and not once: a repair can bring the anchor in, and from that moment there is
+  // nothing left to repair.
+  const anchored = () =>
+    keeperAnchored([...out.map((one) => one.candidate.man), ...squad.men], rules);
+
   const keepers = out
     .filter((one) => one.candidate.man.role === 'P')
     .sort((left, right) => (right.candidate.gain ?? 0) - (left.candidate.gain ?? 0));
   for (const keeper of keepers) {
-    if (!out.includes(keeper) || sure(keeper) || paired(keeper)) continue;
+    if (!out.includes(keeper) || sure(keeper) || paired(keeper) || anchored()) continue;
     const held = taken();
 
     // 1. the other side of the same fight, put in the place of another lone bet.
@@ -1384,12 +1422,16 @@ export function strategyCheck(
     missingSure[role] = Math.max(0, reachable - held - coming);
   }
   const keepers = men.filter((man) => man.role === 'P');
-  const keeperGamble = keepers.filter((man) => {
-    if (playsOften(man, rules) === true) return false;
-    // The same `ownsShirt` the solver applies, on the list the operator actually has in front of him:
-    // two men of one club are a pair only if one of them is the man the board draws.
-    return !ownsShirt([...keepers, ...squad.men], man.club);
-  }).length;
+  // THE SAME QUESTION THE SOLVER ASKS, and it is about the department: with an anchor in goal nobody is
+  // betting alone, so the warning goes quiet instead of naming a man the plan has already covered.
+  const keeperGamble = keeperAnchored([...keepers, ...squad.men], rules)
+    ? 0
+    : keepers.filter((man) => {
+        if (playsOften(man, rules) === true) return false;
+        // The same `ownsShirt` the solver applies, on the list the operator actually has in front of
+        // him: two men of one club are a pair only if one of them is the man the board draws.
+        return !ownsShirt([...keepers, ...squad.men], man.club);
+      }).length;
   return { missingSure, keeperGamble, holes };
 }
 
@@ -2479,6 +2521,16 @@ export interface SentBid {
 export interface RoundLog {
   round: number;
   bids: SentBid[];
+  /**
+   * Written by the page itself when the next export arrived, instead of by the «registra» button.
+   *
+   * DECLARED and never hidden, because the two records are not the same evidence: a recorded round is
+   * the envelopes as he SENT them, an automatic one is the envelopes as they STOOD when the export
+   * closing that round was loaded - and he may have edited the plan in between. What the flag does NOT
+   * weaken is the calibration: the chances still come from a ladder built before the new export was in,
+   * so the forecast is never scored against a round it has already read.
+   */
+  auto?: boolean;
 }
 
 /**
@@ -2787,6 +2839,11 @@ export function expectedHoles(
   rules: LeagueRules,
 ): number {
   if (!places) return 0;
+  // THE KEEPERS ARE ONE PLACE AND THEIR SHARES ARE NOT INDEPENDENT DRAWS: two men of one club never
+  // play the same match, so «is one of mine playing» is the department's own covered share and not a
+  // convolution - which reads Milinkovic-Savic + Meret as 0.87 of the calendar where they cover 1.00.
+  // Same entry point on purpose: one question about empty places, one answer, whatever the role.
+  if (role === 'P') return Math.max(0, places - keeperCovered(men, rules));
   const shares = men
     .filter((man) => man.role === role && man.expected != null)
     .map((man) => Math.min(1, Math.max(0, (man.expected as number) / rules.matchdays)));

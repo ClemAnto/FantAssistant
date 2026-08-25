@@ -294,6 +294,19 @@ export class SealedBid {
   /** Which team's roster the tooltip is about. One tooltip is open at a time, so one signal is enough. */
   protected readonly hovered = signal<TeamState | null>(null);
   protected readonly problem = signal<string | null>(null);
+  /**
+   * What the last roster export DID, so the page never changes underneath him in silence.
+   *
+   * Three facts, and each one is there because its absence was readable as its opposite: which round it
+   * closed, how many awards it brought that the previous export did not have (zero means it is the same
+   * state read again, not a round), and how many envelopes were put on the record on the way past.
+   */
+  protected readonly loaded = signal<{
+    closed: number;
+    fresh: number;
+    recorded: number;
+    first: boolean;
+  } | null>(null);
   /** Last season and the one in progress, per player. Empty until the two tables are in. */
   private readonly lines = signal<Map<number, Map<string, SeasonLine>>>(new Map());
   private readonly linesFailed = signal(false);
@@ -770,7 +783,7 @@ export class SealedBid {
           return;
         }
         this.problem.set(null);
-        this.setSnapshots([...this.snapshots(), awards]);
+        this.closeRound(awards);
       })
       .catch((err: unknown) => {
         this.problem.set(
@@ -779,6 +792,29 @@ export class SealedBid {
       });
     return false;
   };
+
+  /**
+   * A NEW EXPORT CLOSES THE ROUND ON SCREEN, so the round is put on the record BEFORE it is replaced.
+   *
+   * The order is the whole point and it is forced: `setSnapshots` clears the swaps, the hand-written
+   * numbers and the envelopes added or removed by hand, i.e. everything `plan()` is built from - so a
+   * round that was never registered used to vanish the instant its own result arrived, and «com'è
+   * andata» could no longer be asked about it. The envelopes are read first, appended to the log if
+   * that round has none (a round he registered himself is never overwritten: what he sent beats what
+   * the screen still showed), and only then does the new export go in.
+   *
+   * What the page then SAYS is the other half. An export that adds no award is not a round - it is the
+   * same state read again - and appending it would invent one, so the count of new awards is reported
+   * either way and the way back («Annulla l'ultimo») is named in the message rather than assumed.
+   */
+  private closeRound(awards: Snapshot): void {
+    const closing = this.round();
+    const recorded = this.recordBids(true);
+    const before = new Set(this.latest().map((one) => one.fcId));
+    const fresh = awards.filter((one) => !before.has(one.fcId)).length;
+    this.setSnapshots([...this.snapshots(), awards]);
+    this.loaded.set({ closed: closing, fresh, recorded, first: closing === 1 });
+  }
 
   /**
    * A new export closes a round, so everything that was ABOUT that round goes with it.
@@ -805,6 +841,10 @@ export class SealedBid {
 
   protected dropLast(): void {
     this.setSnapshots(this.snapshots().slice(0, -1));
+    // The note describes an export that is no longer there, and a message about a state nobody is in
+    // any more is worse than no message: it is the only thing on screen that would still be arguing
+    // for the round he has just taken back.
+    this.loaded.set(null);
   }
 
   protected chooseMe(team: string): void {
@@ -1089,29 +1129,93 @@ export class SealedBid {
   /** The newest settled round: the scoreboard the operator reads before writing the next envelopes. */
   protected readonly lastSettled = computed(() => this.settledRounds()[0] ?? null);
 
+  /**
+   * WHAT THE LAST EXPORT DID, in words - and the case that reads as a warning is the empty one.
+   *
+   * An export that brings no award the previous one did not have is the same state read again, and the
+   * page has just counted it as a round anyway: it cannot know whether a round really ended with
+   * nothing assigned or whether he only wanted to refresh the rosters, so it says what it did and names
+   * the way back instead of choosing for him. The «se non l'hai registrata» half is stated only when
+   * there was nothing to record, or it would read as an accusation about a round that IS on the record.
+   */
+  protected readonly loadedNote = computed<{
+    type: 'info' | 'warning';
+    message: string;
+    description: string;
+  } | null>(() => {
+    const done = this.loaded();
+    if (!done) return null;
+    const kept = done.recorded
+      ? ` Le ${done.recorded} buste che avevi in pagina sono state messe agli atti da sole, quindi il round resta leggibile.`
+      : '';
+    if (!done.fresh && !done.first) {
+      return {
+        type: 'warning',
+        message: `Questo export non aggiunge nessuna aggiudicazione`,
+        description:
+          `Rispetto a quello di prima non c'è un nome nuovo, quindi come round è vuoto. Se l'hai ` +
+          `caricato solo per aggiornare le rose, togli l'ultimo con «Annulla l'ultimo»: adesso la ` +
+          `pagina sta preparando il round ${this.round()}.` + kept,
+      };
+    }
+    return {
+      type: 'info',
+      message: done.first
+        ? `Rose caricate: ${done.fresh} aggiudicazioni`
+        : `Round ${done.closed} chiuso: ${done.fresh} aggiudicazioni nuove`,
+      description:
+        `Adesso la pagina prepara il round ${this.round()}.` +
+        kept +
+        (done.first ? '' : ' Com’è andata la tornata sta sotto «Le tue buste».'),
+    };
+  });
+
   // ---------------------------------------------------------------- actions
 
   /** Record the envelopes exactly as they stand. Never edited afterwards - that is the whole point. */
   protected sendBids(): void {
+    this.recordBids(false);
+  }
+
+  /**
+   * Put this round's envelopes on the record, and say how many went in.
+   *
+   * `auto` is the caller saying WHO is writing - the button or the arriving export - and it travels
+   * onto the row instead of being thrown away, because the two are different evidence (see
+   * `RoundLog.auto`). A round that already has a record is left alone whichever way round it happens:
+   * what he registered himself is what he sent, and the screen's last state is only a fallback.
+   */
+  private recordBids(auto: boolean): number {
     const plan = this.plan();
-    if (!plan) return;
+    if (!plan || !plan.bids.length) return 0;
+    const round = this.round();
+    if (auto && this.logs().some((one) => one.round === round)) return 0;
     const log: RoundLog = {
-      round: this.round(),
+      round,
       bids: plan.bids.map((bid) => ({
         fcId: bid.candidate.man.fcId,
         offer: bid.offer,
         chance: bid.chance,
       })),
+      ...(auto ? { auto: true } : {}),
     };
     const next = [...this.logs().filter((one) => one.round !== log.round), log];
     this.logs.set(next);
     writeJson(KEY.logs, next);
+    return log.bids.length;
   }
 
   protected forgetRound(round: number): void {
     const next = this.logs().filter((one) => one.round !== round);
     this.logs.set(next);
     writeJson(KEY.logs, next);
+  }
+
+  /** Chi ha scritto il registro di un round, detto per intero - il tooltip e' il posto che ha spazio. */
+  protected recordedHint(log: RoundLog): string {
+    return log.auto
+      ? "Registrate da sole quando hai caricato l'export che ha chiuso il round: sono le buste com'erano in pagina in quel momento, non per forza quelle che hai spedito. Se le avevi cambiate dopo averle mandate, togli il registro con la crocetta e riscrivilo."
+      : "Le buste di questo round sono registrate. Quando carichi l'export del round successivo ti dico com'è andata - e le perse e le parità restano scritte, perché sono l'unica informazione che nessun altro al tavolo ha.";
   }
 
   protected outcomeLabel(one: Settled): string {

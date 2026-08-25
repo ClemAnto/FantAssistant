@@ -50,6 +50,19 @@
   @if (problem(); as issue) {
     <nz-alert nzType="warning" nzShowIcon nzMessage="Attenzione" [nzDescription]="issue" nzCloseable (nzOnClose)="problem.set(null)" />
   }
+  <!-- Cosa ha fatto l'ultimo export: quale round ha chiuso, quante aggiudicazioni ha portato e quante
+       buste sono finite agli atti passando. Un caricamento che cambia tutta la pagina in silenzio e'
+       indistinguibile da un caricamento che non ha funzionato. -->
+  @if (loadedNote(); as note) {
+    <nz-alert
+      [nzType]="note.type"
+      nzShowIcon
+      [nzMessage]="note.message"
+      [nzDescription]="note.description"
+      nzCloseable
+      (nzOnClose)="loaded.set(null)"
+    />
+  }
 
   <!-- ── il regolamento della lega: non sta nel bundle, quindi lo dichiara l'operatore ────────── -->
   <nz-card nzSize="small">
@@ -360,12 +373,10 @@
                 </button>
               }
               @if (sent(); as log) {
-                <span
-                  class="text-xs text-muted"
-                  nz-tooltip
-                  nzTooltipTitle="Le buste di questo round sono registrate. Quando carichi l'export del round successivo ti dico com'è andata - e le perse e le parità restano scritte, perché sono l'unica informazione che nessun altro al tavolo ha."
-                >
-                  <nz-icon nzType="check-circle" /> {{ log.bids.length }} registrate
+                <span class="text-xs text-muted" nz-tooltip [nzTooltipTitle]="recordedHint(log)">
+                  <nz-icon nzType="check-circle" /> {{ log.bids.length }} registrate{{
+                    log.auto ? ' da sole' : ''
+                  }}
                 </span>
                 <button nz-button nzType="text" nzSize="small" (click)="forgetRound(log.round)">
                   <nz-icon nzType="close" />
@@ -390,7 +401,17 @@
           @if (lastSettled(); as past) {
             <div class="mb-2 rounded-md border border-border p-2">
               <div class="flex flex-wrap items-baseline justify-between gap-2 text-xs">
-                <span class="font-semibold text-fg">Round {{ past.log.round }}: com'è andata</span>
+                <span class="font-semibold text-fg">
+                  Round {{ past.log.round }}: com'è andata
+                  <!-- CHI ha scritto il registro sta accanto al risultato, non solo nel tooltip: un
+                       round messo agli atti dal caricamento e' il piano com'era in pagina, non per
+                       forza quello spedito, e la differenza cambia come si legge la calibrazione. -->
+                  @if (past.log.auto) {
+                    <span class="font-normal text-muted" nz-tooltip [nzTooltipTitle]="recordedHint(past.log)">
+                      · agli atti da sole
+                    </span>
+                  }
+                </span>
                 <span class="text-muted">
                   {{ past.read.won }} vinte su {{ past.read.sent }} ·
                   {{ past.read.spent }} crediti ·

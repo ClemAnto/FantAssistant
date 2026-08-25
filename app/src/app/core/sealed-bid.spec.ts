@@ -49,6 +49,8 @@ import {
   verdicts,
   winChance,
   gainOf,
+  keeperAnchored,
+  keeperCovered,
   keeperGain,
   marginalGains,
   squadGain,
@@ -1985,5 +1987,66 @@ describe('la busta non compra piu` il secondo portiere al prezzo del primo', () 
     expect(after.bids[0].candidate.man.fcId).toBe(pool[1].fcId);
     // Same man, same envelope, a fifth of the value: you already own the shirt he would have covered.
     expect(after.bids[0].gain).toBeLessThan(fresh.bids[0].gain / 3);
+  });
+});
+
+
+describe('una scommessa in porta e` SOLITARIA solo se il reparto non ha un ancora', () => {
+  const RULES_P: LeagueRules = { ...RULES, slots: { P: 2, D: 0, C: 0, A: 0 } };
+  const falcone = () => man('P', 25, 31.1, { name: 'Falcone', club: 'Lecce', expected: 32.1, titolarita: 'bandiera' });
+  const provedel = () => man('P', 5, 22.0, { name: 'Provedel', club: 'Inter', expected: 20.6, titolarita: 'ballottaggio' });
+  const milinkovic = () => man('P', 10, 24.1, { name: 'Milinkovic', club: 'Napoli', expected: 25, titolarita: 'ballottaggio' });
+  const meret = () => man('P', 45, 12.9, { name: 'Meret', club: 'Napoli', expected: 14.6, titolarita: 'panchina' });
+
+  it('un uomo che gioca e` un ancora, e da solo un ballottaggio non lo e`', () => {
+    expect(keeperAnchored([falcone(), provedel()], RULES_P)).toBe(true);
+    expect(keeperAnchored([provedel()], RULES_P)).toBe(false);
+    expect(keeperAnchored([provedel(), milinkovic()], RULES_P)).toBe(false);
+  });
+
+  it('...e possedere la maglia intera di un club lo e` anche senza nessuno che gioca sempre', () => {
+    // Due pretendenti, uno dei quali la board disegna: e` la definizione di `ownsShirt` e non una nuova.
+    expect(keeperAnchored([milinkovic(), meret()], RULES_P)).toBe(true);
+  });
+
+  it('il piano non scambia piu` un ballottaggio a sconto quando l`ancora c`e` gia`', () => {
+    next = 1;
+    const pool = [falcone(), provedel(), man('P', 27, 29.3, { name: 'Caprile', club: 'Cagliari', expected: 32.1, titolarita: 'bandiera' })];
+    const rules: LeagueRules = { ...RULES, budget: 1000, slots: { P: 2, D: 0, C: 0, A: 0 } };
+    const states = teamStates([], index(pool), rules, ['Us', 'Rival']);
+    const candidates = candidatesOf({ pool, states, precedents: PRECEDENTS, rules, me: 'Us' });
+    const mine = states.get('Us')!;
+    const askOf = (name: string) => candidates.find((one) => one.man.name === name)!.ask.ask;
+    // Il tetto che arriva all'ancora piu` la puntata a sconto, e NON al terzo `bandiera`: e` la
+    // situazione in cui la riparazione agiva, perche` Provedel e` l'unico non-sicuro del piano.
+    const cap = askOf('Falcone') + askOf('Provedel');
+    expect(cap).toBeLessThan(askOf('Falcone') + askOf('Caprile'));
+    const plan = allocate(candidates, { P: 2, D: 0, C: 0, A: 0 }, cap, rules, mine);
+    const names = plan.bids.map((one) => one.candidate.man.name);
+    // Con Falcone dentro, Provedel non e` una scommessa solitaria: la riparazione non lo tocca e la
+    // pagina non stampa un avviso su un reparto che e` coperto.
+    expect(names).toContain('Falcone');
+    expect(names).toContain('Provedel');
+    expect(plan.keeperGamble).toBe(0);
+  });
+
+  it('...e resta una scommessa quando in porta non c`e` nessun altro', () => {
+    const squad = teamStates([], index([]), RULES_P, ['Us']).get('Us')!;
+    const solo = strategyCheck([provedel()], squad, RULES_P);
+    expect(solo.keeperGamble).toBe(1);
+    const anchored = strategyCheck([provedel(), falcone()], squad, RULES_P);
+    expect(anchored.keeperGamble).toBe(0);
+  });
+
+  it('e i buchi in porta si contano sull`ESCLUSIVITA` del club, non su tiri indipendenti', () => {
+    // Due portieri di un club coprono il calendario intero; due di club diversi con le stesse quote no.
+    const pair = [milinkovic(), meret()];
+    const apart = [
+      man('P', 10, 24.1, { club: 'Napoli', expected: 25, titolarita: 'ballottaggio' }),
+      man('P', 45, 12.9, { club: 'Roma', expected: 14.6, titolarita: 'panchina' }),
+    ];
+    expect(keeperCovered(pair, RULES_P)).toBeCloseTo(1, 6);
+    expect(expectedHoles(pair, 'P', 1, RULES_P)).toBeCloseTo(0, 6);
+    expect(expectedHoles(apart, 'P', 1, RULES_P)).toBeGreaterThan(0.1);
   });
 });

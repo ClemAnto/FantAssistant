@@ -837,3 +837,113 @@ banco, non una modifica da fare a mano.
 **Verificato**: 482 test verdi (31 file), `ng build` verde, e2e sulla pagina vera «nessun problema» con i
 due passi nuovi. I numeri di questa sezione vengono da sonde che chiamano le funzioni spedite sul bundle
 vero.
+
+---
+
+## 25/08/2026 (sera) — «caricare le nuove rose conservando la tornata precedente»
+
+Richiesta dell'operatore, e il bottone c'era gia': `takeFile` accodava un export e i round sono le sue
+differenze, quindi le tornate precedenti restavano. Quello che non restava era **la tornata che si
+chiudeva**.
+
+### Il difetto: un registro che si scriveva solo a mano
+
+Un export nuovo chiude un round, quindi `setSnapshots` azzera swap, offerte riscritte, buste tolte e
+buste aggiunte — ed e' giusto, sono tutte cose *di quel round*. Ma il **registro** delle buste
+(`logs`, che e' l'unico ingresso di `settle`) si scriveva **solo** premendo «Registra queste buste»:
+chi non lo premeva, caricando il file che apriva le buste perdeva la tornata per sempre — niente
+registro, niente riepilogo, e la pagina si limitava a preparare il round dopo **senza dire che aveva
+buttato via qualcosa**. E' la stessa forma del difetto che questo progetto paga da sempre: un
+azzeramento silenzioso si legge esattamente come «non c'era niente da tenere».
+
+Cura in `closeRound`: le buste vanno agli atti **prima** che l'export le sostituisca, e l'ordine e'
+forzato — `setSnapshots` cancella tutto quello da cui `plan()` e' costruito, quindi leggerle dopo
+significa leggere il vuoto. Un round che lui ha registrato **non** si sovrascrive: quello che ha
+spedito batte quello che lo schermo mostrava ancora.
+
+### Due prove diverse, e si dichiara quale delle due e'
+
+`RoundLog.auto` viaggia sulla riga invece di essere buttato via, perche' «le buste come le ho spedite»
+e «le buste com'erano in pagina quando e' arrivato l'export» non sono la stessa prova: fra le due lui
+puo' averle cambiate. Sta scritto accanto al risultato («agli atti da sole») e non solo nel tooltip.
+Quello che **non** si indebolisce e' la calibrazione: le probabilita' vengono comunque da una scala
+costruita **prima** che il nuovo export entrasse, quindi la previsione non e' mai giudicata da un round
+che ha gia' letto — la ragione per cui `logs` esiste.
+
+### E il caricamento dice cosa ha fatto
+
+Quale round ha chiuso, quante aggiudicazioni nuove ha portato, quante buste sono finite agli atti
+passando. **Zero aggiudicazioni nuove non e' un round**: e' lo stesso stato riletto, e la pagina ne ha
+appena contato uno. Non puo' sapere se un round e' finito senza assegnazioni o se lui voleva solo
+aggiornare le rose, quindi **lo dice e nomina «Annulla l'ultimo»** invece di decidere al posto suo —
+inferire il regolamento e' proprio la cosa che qui non si fa.
+
+### L'arnese, e la meta' che valeva quanto la cura
+
+- **La suite consegna il file all'INPUT vero** (`DOM.setFileInputFiles`), non a `localStorage`: il passo
+  che c'era gia' scriveva le istantanee in memoria e quindi non passava mai da `nzBeforeUpload`, dal
+  parser e da `closeRound` — cioe' provava `settle` e non il bottone. Il passo nuovo **non registra
+  niente di proposito**, che e' esattamente il caso che si perdeva.
+- **`--fake` costruisce un round dal listone del bundle** (id veri, squadre e prezzi inventati, 1 P ·
+  4 D · 4 C · 2 A per rosa). Prima, senza il CSV della lega, la suite misurava **solo lo stato vuoto**:
+  l'intera pagina era non provata su qualunque macchina che quel file non ce l'avesse.
+
+Misurato sul round finto: 110 aggiudicazioni su 10 squadre, 14 buste in piano, **2 export in memoria ·
+round 3 sullo schermo · 14 buste agli atti (`auto=true`) · riepilogo 11 vinte su 14, 2 in parita'**, e
+lo stesso file ricaricato una seconda volta risponde «Questo export non aggiunge nessuna
+aggiudicazione». 482 prove verdi, `ng build` verde, e2e **senza problemi**.
+
+---
+
+## 7 — «Solitaria» era la parola che non si leggeva (25/08/2026, sera)
+
+**Richiesta dell'operatore**: «il consiglio di offrire Falcone + Provedel e' ottimo, vorrei che anche
+nelle buste consigliate ci fosse questo risultato». Misurato prima di toccare niente, e il difetto era il
+terzo della stessa famiglia in un giorno.
+
+La regola dei portieri era ancora **un binario per uomo**: per ogni portiere non `sure` e senza la maglia
+sua, `ensureKeepers` provava ad accoppiarlo e poi lo **sostituiva** con uno che gioca sempre. Quindi un
+`ballottaggio` a sconto comprato ACCANTO a un `bandiera` veniva scambiato via — e la pagina lo contava
+come scommessa — mentre il reparto dietro di lui era coperto. La regola dell'operatore dice «mai una
+scommessa **solitaria** su una maglia contesa», e la parola che nessuno leggeva era «solitaria»: con
+Falcone dentro, Provedel non e' solitario di niente. E' la stessa correzione che lui stesso aveva imposto
+la mattina un reparto piu' in la' («un binario per uomo non puo' rispondere a una domanda su un
+INSIEME»), arrivata in porta con mezza giornata di ritardo.
+
+`keeperAnchored` — c'e' qualcuno in porta che semplicemente si presenta: un portiere che gioca, oppure una
+maglia posseduta per intero (`ownsShirt`). **Nessuna soglia e nessuna costante nuova**: la frase
+dell'operatore E' il test. Quanto del calendario resti scoperto e' un'altra domanda e ce l'ha gia'
+`expectedHoles`, che ora conosce il caso portieri — due uomini di un club non giocano la stessa partita,
+quindi la copertura e' la somma del reparto (`keeperCovered`, la stessa che sconta `keeperGain`) e non una
+convoluzione di tiri indipendenti, che leggeva Milinkovic-Savic + Meret a 0,87 di calendario dove coprono
+**1,00**. Una domanda, una risposta, qualunque sia il ruolo.
+
+### E la risposta alla richiesta e' che il piano ci arriva da solo, quando puo' permetterselo
+
+Misurato sul foglio vero con una scala di prezzi della forma del round 1 (i precedenti veri stanno nel
+localStorage, quindi questo dice «cosa fa un piano con una scala cosi'», mai «cosa sara' il tuo round 2»),
+12 slot liberi:
+
+| tetto | porta | reparto | buchi |
+|---|---|---|---|
+| 257 | Provedel 9 + Palmisani 9 | 26,8 | 0,18 |
+| **+17** | **Falcone + Provedel** | **34,9** | **0,07** |
+
+Cioe' **la forma che l'operatore voleva e' quella che l'obiettivo sceglie appena la puo' pagare**: a 257
+rinuncia a 8,1 punti di reparto per liberare 17 crediti che rendono di piu' altrove. Non e' un giudizio
+sulla porta, e' il budget — e nella sua lega Falcone costa **81** e non 26, quindi lo stesso scambio la'
+e' tre volte piu' caro. Il `gamble` va da 1 a **0** e i buchi restano stampati, che e' il numero giusto da
+guardare.
+
+### Un allarme che ho dato e ritirato, perche' la verifica e' andata prima del resoconto
+
+Leggendo la stessa tabella ho scritto che il piano «non e' monotono nel budget»: 120 crediti rendevano
+**243** e 257 ne rendevano **222**, che per un ottimizzatore sarebbe impossibile. E' sbagliato: `gain` e'
+il totale **se vinci tutte le buste**, e con piu' soldi l'obiettivo compra offerte piu' care e piu'
+probabili, quindi quel tetto scende per costruzione. Il numero che deve salire e' `expectedGain`, e sale
+su tutti e sette i tetti provati: **107 · 118 · 135 · 144 · 156 · 162 · 180**. Il difetto non c'era; la
+lezione si': un numero che scende va confrontato con l'obiettivo che lo produce prima di chiamarlo difetto.
+
+**Verificato su questo albero**: **487 prove verdi** (31 file), `ng build` verde. La tabella qui sopra
+viene da una sonda che chiama le funzioni spedite sul foglio vero; l'e2e non e' stato rigirato dopo
+`keeperAnchored` — l'ultima passata «senza problemi» e' quella del round finto della sezione sopra.
