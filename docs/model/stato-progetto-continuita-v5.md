@@ -1,5 +1,5 @@
 # Stato progetto & continuità — v5
-**Aggiornato: 20 agosto 2026, tarda sera (LA TITOLARITA' IN UNA PAROLA, E LA PAROLA STESSA DEFINITA - sei gradini dettati dall'operatore, letti come DUE assi (quota di partite + pavimento di minuti) e non come una probabilita' congiunta, che e' stata costruita per prima e misurata inservibile; la quota e' CONDIZIONATA e la board e' un CANCELLO, che e' anche il classificatore migliore (q75 0,512 contro 0,328 a parita' di claim); resa misurata su quattro finestre retrodatate, `bandiera` e `titolare` mantengono la promessa 4 volte su 4. `SHEET_REVISION` 35, `engine_*` fermo, colonna `Tit.` a tre caratteri in tabella, v0.1.21. E il termine definito dall'operatore: titolarita' = prende il voto, quota da titolare = parte dall'inizio, con la bonifica del codice e una nota datata sui verbali storici)** · precedente: 20 agosto 2026, sera (IL REPARTO IN CUI ARRIVA — R23 adottata (robusta 9/10 su Serie A, 5/5 su euro/mantra, cade su euro/classic), R22 respinta sulla sua stessa aspettativa pre-registrata, e la fee in rapporto alla spesa del club adottata su euro; più il difetto che l'adozione ha reso visibile: `minutes.start_rate_next` divideva il numeratore del PANNELLO per il denominatore del MOTORE, quindi una regola che alzava le presenze ABBASSAVA i minuti previsti a partita — corretto su euro, +1,44% su 4 finestre su 4; e la revisione dei pacchetti del viaggio nel tempo, che c'era e veniva cancellata in transito. `SHEET_REVISION` 34, `--verify` 22/22, 510 test del toolkit e 318 dell'app)** · precedente:20 agosto 2026, notte (LA MVa ERA LA METÀ DERIVATA DELLA COPPIA, ED ERA LA METÀ SBAGLIATA — trovata dall’operatore su due righe del foglio classic: `est_mv` era `engine_fm_pred` (già regredita) meno il suo tasso di bonus GREZZO, quindi tutta la regressione finiva sul voto base e Malen leggeva 5,67 contro i 6,75 misurati. Adesso la MVa è la metà PREVISTA e il tasso è quello che ne esce; tre parametri fuori campione con cross-fit UNANIME, un canale rifiutato come zero dichiarato, e la richiesta dell’operatore («chi segna ha sempre o quasi un voto buono») che era essa stessa una misura: r = +0,787 dentro il ruolo. `SHEET_REVISION` 32, `engine_*` fermo, v0.1.20 pubblicata)** · precedente: 20 agosto 2026 (il grafico di Fπ non si vedeva MAI: una `computed` che scriveva un signal — vietato in Angular — e una suite dell'app che non compilava da `d7d0fbf`, quindi le prove dichiarate ieri non venivano da una corsa; 317 verdi)** · precedente: 19 agosto 2026, sera (Fπ: una colonna che PRONOSTICA invece di sommare — tre parametri misurati fuori campione, la scala dettata dall'operatore in cinque passaggi, quattro idee respinte, e otto club stranieri archiviati come `serie_a`; `SHEET_REVISION` 31, v0.1.19 pubblicata)** · precedente: 19 agosto 2026 (un vecchio PV non è una previsione di presenze: il gradino `older` regrediva la fantamedia e consegnava le presenze intatte, e l'Overall dell'app è un PRODOTTO — `SHEET_REVISION` 29; e l'attesa sul lock del DB in una definizione sola, con la regola per due sessioni in parallelo)** · precedente: 18 agosto 2026 (le DEFINIZIONI dell'operatore — Overall, Lead, Margine, Bonus — applicate ovunque; UN campetto solo per asta e Squadre, con l'item-posto e i moduli alternativi scritti dal toolkit; tre difetti della tabella misurati in browser)** · precedente: 17 agosto 2026, notte (la coppa continentale in mezzo al campionato: misurata, sul foglio e RESPINTA dal gate; l'app riscritta a voce; il surplus che aveva due aritmetiche)
+**Aggiornato: 25 agosto 2026 (UNA SECONDA FONTE PER LO STESSO FATTO - i minuti di un campionato che copriamo li porta anche Transfermarkt dove l'aggregato di stagione ha un buco: stessa quantita', stesso denominatore, stessa retta, ZERO parametri nuovi, +6,0% fuori campione, e l'equivalenza delle due fonti misurata su 10.580 coppie (differenza mediana +0,0000, correlazione +0,9957). E il caso da cui la domanda e' nata - Varela, 34 partite di Primeira Liga - e' RIFIUTATO per misura: fuori perimetro la retta perde -6,9%, perche' non ha un termine di livello. `SHEET_REVISION` 37, `engine_*` fermo, --verify 22/22, 550 test)** · precedente: 20 agosto 2026, tarda sera (LA TITOLARITA' IN UNA PAROLA, E LA PAROLA STESSA DEFINITA - sei gradini dettati dall'operatore, letti come DUE assi (quota di partite + pavimento di minuti) e non come una probabilita' congiunta, che e' stata costruita per prima e misurata inservibile; la quota e' CONDIZIONATA e la board e' un CANCELLO, che e' anche il classificatore migliore (q75 0,512 contro 0,328 a parita' di claim); resa misurata su quattro finestre retrodatate, `bandiera` e `titolare` mantengono la promessa 4 volte su 4. `SHEET_REVISION` 35, `engine_*` fermo, colonna `Tit.` a tre caratteri in tabella, v0.1.21. E il termine definito dall'operatore: titolarita' = prende il voto, quota da titolare = parte dall'inizio, con la bonifica del codice e una nota datata sui verbali storici)** · precedente: 20 agosto 2026, sera (IL REPARTO IN CUI ARRIVA — R23 adottata (robusta 9/10 su Serie A, 5/5 su euro/mantra, cade su euro/classic), R22 respinta sulla sua stessa aspettativa pre-registrata, e la fee in rapporto alla spesa del club adottata su euro; più il difetto che l'adozione ha reso visibile: `minutes.start_rate_next` divideva il numeratore del PANNELLO per il denominatore del MOTORE, quindi una regola che alzava le presenze ABBASSAVA i minuti previsti a partita — corretto su euro, +1,44% su 4 finestre su 4; e la revisione dei pacchetti del viaggio nel tempo, che c'era e veniva cancellata in transito. `SHEET_REVISION` 34, `--verify` 22/22, 510 test del toolkit e 318 dell'app)** · precedente:20 agosto 2026, notte (LA MVa ERA LA METÀ DERIVATA DELLA COPPIA, ED ERA LA METÀ SBAGLIATA — trovata dall’operatore su due righe del foglio classic: `est_mv` era `engine_fm_pred` (già regredita) meno il suo tasso di bonus GREZZO, quindi tutta la regressione finiva sul voto base e Malen leggeva 5,67 contro i 6,75 misurati. Adesso la MVa è la metà PREVISTA e il tasso è quello che ne esce; tre parametri fuori campione con cross-fit UNANIME, un canale rifiutato come zero dichiarato, e la richiesta dell’operatore («chi segna ha sempre o quasi un voto buono») che era essa stessa una misura: r = +0,787 dentro il ruolo. `SHEET_REVISION` 32, `engine_*` fermo, v0.1.20 pubblicata)** · precedente: 20 agosto 2026 (il grafico di Fπ non si vedeva MAI: una `computed` che scriveva un signal — vietato in Angular — e una suite dell'app che non compilava da `d7d0fbf`, quindi le prove dichiarate ieri non venivano da una corsa; 317 verdi)** · precedente: 19 agosto 2026, sera (Fπ: una colonna che PRONOSTICA invece di sommare — tre parametri misurati fuori campione, la scala dettata dall'operatore in cinque passaggi, quattro idee respinte, e otto club stranieri archiviati come `serie_a`; `SHEET_REVISION` 31, v0.1.19 pubblicata)** · precedente: 19 agosto 2026 (un vecchio PV non è una previsione di presenze: il gradino `older` regrediva la fantamedia e consegnava le presenze intatte, e l'Overall dell'app è un PRODOTTO — `SHEET_REVISION` 29; e l'attesa sul lock del DB in una definizione sola, con la regola per due sessioni in parallelo)** · precedente: 18 agosto 2026 (le DEFINIZIONI dell'operatore — Overall, Lead, Margine, Bonus — applicate ovunque; UN campetto solo per asta e Squadre, con l'item-posto e i moduli alternativi scritti dal toolkit; tre difetti della tabella misurati in browser)** · precedente: 17 agosto 2026, notte (la coppa continentale in mezzo al campionato: misurata, sul foglio e RESPINTA dal gate; l'app riscritta a voce; il surplus che aveva due aritmetiche)
 Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da qui + i file della cartella "Modello Previsionale Fantacalcio".
 *Glossario: T1/T2 = finestre di test (23/24->24/25, 24/25->25/26) · MAE = errore medio assoluto · cross-fitted = parametri stimati su una finestra, testati sull'altra · M2e = modello portieri decomposto (abilità + tasso gol subiti del club; la metà Elo del nome non è nel motore) · Pv_att = presenze attese · fc_id = id fantacalcio.it · EV = valore atteso · scoring_config = punteggi configurabili per lega · xG/xA = expected goals/assists · 2.5 pieno = backtest motore completo con flag.*
 
@@ -7,6 +7,82 @@ Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da q
 App per leghe EuroLeghe/fantacalcio.it (Classic+Mantra, 5 campionati) con motore previsionale. Metodo: ogni regola entra SOLO se batte il baseline fuori campione su finestre indipendenti (gate pre-registrato). Doc madre: modello-previsionale-v3.8.md.
 
 ## ⚠️ Lo stato corrente è in `00-BRIDGE-punto-di-ingresso.md`, blocco «STATO AL 5 AGOSTO 2026»
+
+### 25 agosto 2026 — una SECONDA FONTE per lo stesso fatto, e il caso da cui la domanda è nata è rifiutato
+
+**Sessione sul toolkit, in parallelo a quella su `app/sealed-bid` (che possiede l'albero di `app/`).**
+Nata da una domanda dell'operatore su un nome: «Varela del Monza si è dimostrato essere un ottimo
+calciatore, come mai non abbiamo nessun suo valore nel db?».
+
+**Il referto.** La riga c'era, il valore no: `engine_unpriced_reason` «no season on this platform»,
+`est_basis` `anchor`, `est_pv` **10,7** su 38 — che è la costante «nessuno lo ha mai visto giocare» — e
+`est_surplus` 6,6 su classic, −5,4 su mantra. Lui invece aveva giocato: **34 partite di Primeira Liga al
+Gil Vicente, 1522 minuti, 6 gol**, più 34 di Liga 2 col Benfica B l'anno prima. Sono **238 righe** in
+`tm_appearances`, che nessuno leggeva per questo: di quella tabella si legge solo `position_id`, i rivali
+per la maglia.
+
+**La causa e la sua misura.** `est.presences_from_abroad` legge `external_stats`, che tiene **sei**
+competizioni (le cinque più il serbatoio). Su quel gradino cadono quindi **due popolazioni diverse**, e
+misurate a parte danno risposte opposte (gate §7-duoquadragies, criterio pre-registrato prima della corsa):
+
+| popolazione | piatt. | n | costante | retta | guadagno | vince | peggiore |
+|---|---|---|---|---|---|---|---|
+| buco su un campionato IN PERIMETRO | default | 455 | 0,2886 | **0,2712** | **+6,0%** | 7/9 | −2,6% |
+| calcio FUORI perimetro | default | 411 | 0,2448 | 0,2617 | **−6,9%** | 3/10 | −36,7% |
+
+**ADOTTATO il primo.** Dove il campionato lo copriamo e l'aggregato ha un buco, i minuti li porta
+`tm_appearances`: `config.TM_CHAMPIONSHIPS` dichiara i codici del provider, il denominatore resta
+`features.league_rounds` e la retta resta quella pubblicata — **zero parametri nuovi**. Non è un canale
+nuovo ma un **ripiego di sorgente**, e che le due fonti misurino la stessa cosa è misurato: su **10.580**
+coppie (uomo, stagione) dove nominano lo stesso campionato la differenza di quota è mediana **+0,0000**,
+media −0,0026, dentro 0,05 nel 99,6% dei casi, correlazione **+0,9957**. Effetto chiamando la funzione
+vera: **9 righe** del foglio Serie A (8 `anchor` + 1 `older`) — Milla 3277 minuti di Liga, `est_pv` da
+**12,6 a 24,5**; Schmid 12,6 → 24,8; Cissé A. 13,2 → 19,0; Alhassane 11,7 → 19,0 — e **0** su euro, dove
+quei nomi li prezza il core. `SHEET_REVISION` **37**, `engine_*` fermo, `--verify` **22/22**, 550 test.
+
+**RIFIUTATO il secondo, che è il caso di Varela.** Non lo salva un pavimento sull'età mediana della
+competizione (ogni punto della griglia resta negativo su default, e il guadagno cresce fino al **bordo**,
+che è la condizione per non adottare) né un **rifit** (0,2405 contro 0,2448 della costante, con pendenza
+0,20-0,25 contro lo 0,32 pubblicato: i minuti esteri portano *meno* segnale). La ragione è che quella
+retta non ha un termine di **livello** e legge mezza stagione di Primeira Liga come mezza di Premier
+League. Varela resta a 10,7 giornate, **ora per misura e non per distrazione**.
+
+**Detta per intero la parte scomoda**: letto come REGOLA previsionale il braccio adottato fallirebbe il
+terzo comma del criterio pre-registrato (peggiore stagione −2,6% contro il −2% richiesto). Entra perché è
+un ripiego di sorgente sulla popolazione dove la retta è già adottata, e la prova è il +0,9957, non la
+tabella dei MAE — quella dice solo che non fa danno. Stessa forma della passata `known` di
+`positions._store_identities`, che portò `external_stats` da 11.732 a 16.970 righe senza essere una regola.
+
+**Quattro cose che restano, e tre le ha imposte la misura.**
+1. **L'arnese si verifica sui numeri PUBBLICATI prima di giudicare qualunque cosa.** La retta di v9.56 è
+   stata riprodotta (n=**322** contro i 323 dichiarati, coefficienti (0,336, 0,327) contro (0,339, 0,320))
+   e servivano due correzioni per arrivarci: la popolazione è «nessuna riga a t−1» e non «meno di 15 voti»
+   (n=890 e un guadagno diverso), e il **2015-16 va escluso** perché a t−1 nessuno ha una riga, quindi ci
+   finiva dentro mezza Serie A — 418 casi su 1620, che leggevano +17,6% e spostavano l'aggregato.
+2. **Un massimo non è un conteggio, se la tabella porta anche le righe di un altro club.** Le giornate di
+   una competizione si stimano per (uomo, **club**): chi cambia squadra a stagione in corso porta le righe
+   di tutt'e due (`state = 'not in squad'`, minuti NULL) e la Serie A leggeva **73** giornate. Corretto, lo
+   stimatore riproduce `features.league_rounds` **39 volte su 40**, e **5 uomini su file bastano** perché
+   sia esatto (con 3 sono 37/39, con 1 sono 25/39).
+3. **`features.league_rounds` per l'estero NON restituisce giornate di campionato**: legge `MAX(real_md)`
+   dal livello per-partita, dove le competizioni fuori perimetro arrivano con lo slug del provider e il suo
+   id di turno — `uefa-europa-league` ne dichiara **636**, `coppa-italia` 32. Oggi è **inerte** perché
+   `external_stats` porta solo i sei nomi nostri, ed è una trappola per chi allargasse quel lettore.
+4. **E per l'estero non esiste un denominatore autorevole**: le due fonti indipendenti concordano entro una
+   giornata **23 volte su 33**, sbagliando in direzioni diverse (il provider sottostima le stagioni in
+   corso, il mio stimatore le leghe coi playoff). Per questo il rifiuto del braccio estero è stato
+   ri-misurato con un denominatore a livello di **competizione** prima di essere scritto.
+
+**Aperto, e non è un'altra misura di questa forma**: a riaprire il caso Varela servirebbe un **termine di
+livello** dentro `ABROAD_SHARE`, oppure il numero di giornate dei campionati esteri come fatto
+**DICHIARATO** (come `international_cups.json`). Più due voci che questa sessione ha reso visibili e non ha
+chiuso: gli **8 uomini** del foglio con un buco su un campionato in perimetro sono un difetto di
+acquisizione/identità (5 su 8 non hanno un id sofascore) che il ripiego rende innocuo per questa colonna e
+non cura alla radice; e i fogli in `data/export/` sono del 20/08 a revisione **36**, quindi servono
+`snapshot` + `export` + `data:pull` dalla macchina dell'operatore — non lanciati qui perché scrivono sul DB
+mentre l'altra sessione è aperta, e senza display i campetti non viaggerebbero.
+
+**Commit**: `fa684f2` sul branch `motore/reparto-e-tasso-titolarita`.
 
 ### 20 agosto 2026, tarda sera — la titolarità in UNA PAROLA, e la parola stessa definita
 
@@ -1247,6 +1323,15 @@ stabile sotto il pavimento d'ampiezza) · **forza-club dagli xA**, che passa for
 dell'ipotesi non confermi nulla.
 ⚠️ **Proxy da non riusare**: una correlazione a livello di club (misura di input ↔ gol del club l'anno
 dopo) **non predice** quale misura aiuti la fantamedia di un giocatore — è contro-informativa.
+
+**Aggiunta il 25/08** (dettaglio e numeri in `gate-motore-v1.md` §7-duoquadragies): **i minuti di un
+campionato FUORI perimetro dentro `est.presences_from_abroad`** — −6,9% su default (3 stagioni su 10,
+peggiore −36,7%), −0,1% su euro. Non la salvano il pavimento sull'età mediana della competizione (ogni
+punto negativo, e il guadagno cresce fino al bordo della griglia) né un rifit (0,2405 contro 0,2448 della
+costante, pendenza 0,20-0,25 contro lo 0,32 pubblicato). Motivo: la retta non ha un termine di **livello**
+e legge mezza stagione di Primeira Liga come mezza di Premier League. ⚠️ Non riproporla nella stessa forma:
+serve un termine di livello, o le giornate dei campionati esteri come fatto dichiarato. Lo stesso ripiego
+DENTRO i sei campionati è invece adottato, e non è la stessa voce.
 
 **Non misurabili con i dati attuali**: modello piazzati (`assists_set_piece` NULL su tutte le righe di
 voti di ogni stagione) e rigoristi difensori (n=7).

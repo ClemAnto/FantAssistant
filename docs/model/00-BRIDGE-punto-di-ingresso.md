@@ -142,6 +142,23 @@ commento del codice promuoveva esattamente il contrario di quello che il codice 
 **Commit**: `a0f249d` (la pagina), `7772493` (i sette difetti), `165dc27` (il caso Martinez) più i tre
 `chore` delle pubblicazioni, sul branch `motore/reparto-e-tasso-titolarita`.
 
+**E il 25/08 ha avuto una SECONDA sessione, sul toolkit** (le due si sono divise l'albero: `app/` a
+quella sopra, il DB e `toolkit/` a questa). Nata dalla domanda dell'operatore «Varela del Monza si è
+dimostrato essere un ottimo calciatore, come mai non abbiamo nessun suo valore nel db?»: la riga c'era, il
+valore no — `est_pv` **10,7** su 38, la costante «nessuno lo ha mai visto giocare», addosso a un uomo con
+**34 partite di Primeira Liga e 1522 minuti** su file in `tm_appearances`, tabella di cui si leggeva solo
+`position_id`. `est.presences_from_abroad` legge `external_stats`, che tiene **sei** competizioni, e su quel
+gradino cadevano **due popolazioni diverse**: misurate a parte danno risposte opposte, e questo è il punto
+della sessione. Dove il campionato lo copriamo e l'aggregato ha un buco i minuti li porta adesso
+Transfermarkt — stessa quantità, stesso denominatore, stessa retta, **zero parametri nuovi**, +6,0% fuori
+campione, con l'equivalenza delle due fonti misurata su **10.580** coppie (differenza mediana +0,0000,
+correlazione +0,9957); **9 righe** del foglio Serie A si muovono (Milla da 12,6 a **24,5** giornate), 0 su
+euro. Dove il campionato NON lo copriamo — cioè il caso di Varela — è **rifiutato per misura**: −6,9% su
+default, e la ragione è che quella retta non ha un termine di **livello**. `SHEET_REVISION` **37**,
+`engine_*` fermo, `--verify` **22/22**, 550 test, commit `fa684f2`. Dettaglio: `gate-motore-v1.md`
+§7-duoquadragies, spec «Novità v9.66». ⚠️ I fogli in `data/export/` restano a revisione **36**: servono
+`snapshot` + `export` + `data:pull` dalla macchina dell'operatore.
+
 ## STATO AL 20 AGOSTO 2026 — LEGGI QUESTO PRIMA DI TUTTO
 
 Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.

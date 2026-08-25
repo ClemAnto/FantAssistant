@@ -1621,3 +1621,43 @@ non esistono né il colgroup, né lo scorrimento che carica le righe, né il ges
 **Verificato**: `ng build` verde, `ng test` **351 su 351** in 30 file, la suite e2e senza problemi con tre
 ordini seminati, e le tre schermate (`dist/e2e-filtro-numeri.png`, `e2e-filtro-elenco.png`, `e2e-table.png`)
 per la parte che un numero non giudica. Nessun `engine_*` toccato: è tutta interazione dell'app.
+
+## 18. I minuti esteri hanno una SECONDA fonte, e solo dentro i sei campionati (25/08/2026)
+
+Dalla domanda dell'operatore su un nome: «Varela del Monza si è dimostrato essere un ottimo calciatore, come
+mai non abbiamo nessun suo valore nel db?». Riguarda le stesse colonne del §13 — `est_pv` e quindi
+`est_surplus`, `Lead`, `Margine` e Fπ, che sono tutti un prodotto in cui le presenze entrano.
+
+**Il difetto.** `est.presences_from_abroad` (§13 e spec v9.56) converte i minuti di campionato di chi non ha
+una stagione qui, e li legge da `external_stats`, che tiene **sei** competizioni: le cinque più il serbatoio.
+Chi ha giocato altrove cade quindi sulla costante `unmeasured` — 0,282 × 38 = **10,7 giornate** per un
+attaccante — che è la quota di un uomo di cui *non esiste misura da nessuna parte*. Varela ne aveva una: 34
+partite di Primeira Liga, 1522 minuti, 6 gol, 238 righe in `tm_appearances`.
+
+**Le due popolazioni su quel gradino, e danno risposte opposte** (leave-one-season-out, criterio
+pre-registrato, numeri in `gate-motore-v1.md` §7-duoquadragies):
+
+| popolazione | n | costante | retta | guadagno | vince | esito |
+|---|---|---|---|---|---|---|
+| buco su un campionato in perimetro | 455 | 0,2886 | **0,2712** | **+6,0%** | 7/9 | **adottata** |
+| calcio fuori perimetro | 411 | 0,2448 | 0,2617 | **−6,9%** | 3/10 | **rifiutata** |
+
+**Cosa cambia in app.** Nove righe del foglio Serie A, tutte in fondo alla cascata: Milla `est_pv` da 12,6 a
+**24,5** giornate, Schmid 12,6 → 24,8, Cissé A. 13,2 → 19,0, Alhassane 11,7 → 19,0, Correia T. 11,7 → 17,8,
+Comert 11,7 → 17,6, Kevin Carlos 10,7 → 16,4, Akpoguma 11,7 → 13,1. Su EuroLeghe **nessuna**, perché quei
+nomi li prezza il core. La **fantamedia non si muove**: resta l'àncora, che è quello che il gate preferì a R1
+su cinque finestre di sei — quello che un uomo ha fatto altrove predice **quanto gioca**, non **quanto vale**
+a voto, e sono due domande già separate.
+
+E la riga dice quale fonte ha contato i minuti (`est_note`: «…counted on transfermarkt's per-match layer
+because the season aggregate has no row for him»), per la ragione di sempre: una riga che non sa dire da dove
+viene il suo numero non è controllabile contro quella accanto.
+
+**Tre cose per chi legge queste colonne.** Il ripiego non è un canale nuovo ma un **secondo lettore dello
+stesso fatto** — stessa quantità, stesso denominatore, stessa retta, zero parametri — e che lo sia è misurato
+su 10.580 coppie (differenza mediana **+0,0000**, correlazione **+0,9957**), non supposto. Letto invece come
+regola previsionale il braccio adottato **fallirebbe** il terzo comma del criterio (peggiore stagione −2,6%
+contro il −2% richiesto), e questo è detto e non nascosto. E **Varela resta a 10,7**: non è una svista
+rimasta aperta, è un rifiuto misurato, perché quella retta non ha un termine di livello e legge mezza
+stagione di Primeira Liga come mezza di Premier League.
+
