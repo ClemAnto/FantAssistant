@@ -127,6 +127,16 @@ export interface Bidder {
   titolarita: string | null;
   /** `desc_spm`: the same surplus converted into credits on the market's own budget. Reporting only. */
   spm: number | null;
+  /**
+   * DAYS HE IS STILL EXPECTED TO BE OUT, when he is out now. Null when he is not, or when nobody knows.
+   *
+   * The operator's rule of 25/08/2026 - «non suggerire calciatori che hanno infortuni lunghi in corso
+   * (>= 1 mese)» - and it is a fact about a person, so it is not this module's to compute: the page reads
+   * it from `PlayerStatus`, the one place that decides «e' fuori oggi», and hands it over here. Optional
+   * on purpose: a caller that knows nothing about injuries (a test, an older screen) passes nothing and
+   * the rule does not fire, instead of silently reading every man as fit.
+   */
+  outDays?: number | null;
 }
 
 export const ROLES: ClassicRole[] = ['P', 'D', 'C', 'A'];
@@ -610,16 +620,14 @@ export function appearancesIn(man: Bidder, rules: LeagueRules): number | null {
   return man.expected * (rules.horizon / rules.matchdays);
 }
 
-/** The four words a GAIN is drawn with, plus the fifth that is not a word about football. */
+/**
+ * The four words a GAIN is drawn with, plus the fifth that is not a word about football.
+ *
+ * The band IS the word - `ottimo`, `buono`, `medio`, `scarso` - so there is no lookup table beside it:
+ * one existed and mapped every key to its own name, which is an indirection that can only ever return
+ * what it was given and would hide a divergence between key and label the day somebody introduced one.
+ */
 export type GainBand = 'ottimo' | 'buono' | 'medio' | 'scarso' | 'ignoto';
-
-export const GAIN_WORD: Record<GainBand, string> = {
-  ottimo: 'ottimo',
-  buono: 'buono',
-  medio: 'medio',
-  scarso: 'scarso',
-  ignoto: 'ignoto',
-};
 
 /**
  * Where the four bands are cut. Percentiles of the LISTONE and not thresholds anybody chose.
@@ -744,19 +752,56 @@ export function candidatesOf(input: {
 }
 
 /**
+ * FOR HOW LONG AN INJURY IS «LONG», when the question is whether to suggest him.
+ *
+ * A month, the operator's own word (25/08/2026). It is deliberately NOT `player-status`'s 45 days: that
+ * number decides when to draw a warning icon beside a name, this one decides whether a man enters a
+ * plan, and a threshold borrowed from a different question is the defect this project keeps paying for.
+ */
+export const LONG_OUT_DAYS = 30;
+
+/**
+ * Is he available to be BOUGHT, as opposed to available to be marked?
+ *
+ * He is only kept out of what WE propose. He stays on the board, on the rivals' shortlists and in the
+ * lists the operator picks from by hand - the room can still bid on him, and the operator may know
+ * something the bundle does not. A man missing from the board would be a fact hidden; a man missing
+ * from the PLAN is a suggestion refused, which is what was asked.
+ */
+export function buyable(man: Bidder): boolean {
+  const out = man.outDays;
+  return out == null || out < LONG_OUT_DAYS;
+}
+
+/**
  * The men a plan may actually contain: the ones this app can put BOTH numbers on.
  *
  * Two different unknowns and a plan needs neither: no `gain` means we cannot say what he is worth, no
  * `pressure` means we cannot say what he will cost - and a bid is a pair. Whoever fails either test is
  * still on the board and still offerable by hand; he is only kept out of the automatic answer.
  */
-export function priced(
+export function numbered(
   candidates: readonly Candidate[],
 ): (Candidate & { gain: number; pressure: number })[] {
   return candidates.filter(
     (one): one is Candidate & { gain: number; pressure: number } =>
       one.gain != null && one.pressure != null,
   );
+}
+
+/**
+ * ...and the men a PLAN may contain: the numbered ones who are also available to be bought.
+ *
+ * Two functions because they answer two questions and the screen asks both: «how much of the board can
+ * this app put numbers on» is a fact about the BOARD - the market card prints it - while this one is
+ * about our own suggestions. The long-term injured man fails HERE and nowhere else, which is the
+ * cheapest place that is also the right one: `priced` is what the allocator, both repairs and the
+ * market rate read, and it is not what the board, the rivals or the hand-made lists read.
+ */
+export function priced(
+  candidates: readonly Candidate[],
+): (Candidate & { gain: number; pressure: number })[] {
+  return numbered(candidates).filter((one) => buyable(one.man));
 }
 
 /** One recommended envelope. */
@@ -2186,7 +2231,9 @@ export function keeperOptions(
   candidates: readonly Candidate[],
   rules: LeagueRules,
 ): KeeperOptions {
-  const free = candidates.filter((one) => one.man.role === 'P' && one.gain != null);
+  const free = candidates.filter(
+    (one) => one.man.role === 'P' && one.gain != null && buyable(one.man),
+  );
   const owned = mine.men.filter((man) => man.role === 'P');
   const byClub = new Map<string, Candidate[]>();
   for (const one of free) {
@@ -2284,8 +2331,14 @@ export function adviceFor(input: {
 
     // What is still out there, in the two shapes the advice can point at: quality, and men who play.
     const taken = new Set(bidding.map((one) => one.man.fcId));
+    // `buyable` here too: «il migliore libero e' X» is a SUGGESTION, and suggesting a man who will be
+    // out for another month is the thing that was refused - even though he stays on the board next door.
     const board = candidates.filter(
-      (one) => one.man.role === role && one.gain != null && !taken.has(one.man.fcId),
+      (one) =>
+        one.man.role === role &&
+        one.gain != null &&
+        buyable(one.man) &&
+        !taken.has(one.man.fcId),
     );
     const reachable = board.filter((one) => one.ask.ask <= mine.ceiling);
     const tops = reachable.filter((one) => gainBandOf(one.gain, scale) === 'ottimo');

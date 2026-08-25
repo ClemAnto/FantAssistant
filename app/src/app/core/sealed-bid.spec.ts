@@ -14,6 +14,7 @@ import {
   adviceFor,
   askFor,
   boardFor,
+  buyable,
   calibrationOf,
   canAdd,
   candidatesOf,
@@ -21,6 +22,7 @@ import {
   dealsOf,
   gainBandOf,
   gainScale,
+  LONG_OUT_DAYS,
   ladderOf,
   marketRate,
   playsOften,
@@ -1401,5 +1403,62 @@ describe('rivalPlan senza il blocco dei ruoli', () => {
     expect(rivalPlan(capped, board, rules)).toHaveLength(2);
     // With the lock ON the total is not the constraint - the roles are - so nothing is cut.
     expect(rivalPlan(capped, board, { ...rules, roleLock: true })).toHaveLength(4);
+  });
+});
+
+
+describe('chi e\' fuori per un mese non si consiglia', () => {
+  const rules: LeagueRules = { ...RULES, slots: { P: 0, D: 2, C: 0, A: 0 } };
+
+  it('legge i giorni che RESTANO, e non sa niente di chi non li porta', () => {
+    expect(buyable(man('D', 10, 10))).toBe(true);
+    expect(buyable(man('D', 10, 10, { outDays: null }))).toBe(true);
+    expect(buyable(man('D', 10, 10, { outDays: LONG_OUT_DAYS - 1 }))).toBe(true);
+    expect(buyable(man('D', 10, 10, { outDays: LONG_OUT_DAYS }))).toBe(false);
+  });
+
+  const board = () => {
+    next = 1;
+    // Il migliore del ruolo e' fuori per due mesi: senza la regola il piano lo prende comunque.
+    const hurt = man('D', 40, 30, { outDays: 60 });
+    const fit = man('D', 20, 20);
+    const spare = man('D', 10, 10);
+    const pool = [hurt, fit, spare];
+    const need = { P: 0, D: 2, C: 0, A: 0 };
+    const states = teamStates([], index(pool), rules, ['Us', 'Rival']);
+    const squad = states.get('Us')!;
+    const candidates = candidatesOf({ pool, states, precedents: PRECEDENTS, rules, me: 'Us' });
+    return { hurt, fit, spare, pool, need, states, squad, candidates };
+  };
+
+  it('non entra nel piano automatico, per quanto sia il migliore', () => {
+    const { hurt, need, squad, candidates } = board();
+    const plan = allocate(candidates, need, 200, { squad, rules });
+    expect(plan.bids.some((one) => one.candidate.man.fcId === hurt.fcId)).toBe(false);
+    expect(plan.bids).toHaveLength(2);
+  });
+
+  it('resta comunque sul tabellone, nelle alternative e scegliibile a mano', () => {
+    const { hurt, squad, candidates } = board();
+    // UNA busta sola su due slot da difensore, cosi' la regola degli slot non e' quella che risponde:
+    // quello che si sta misurando e' se l'infortunato puo' essere scelto A MANO, non se c'e' posto.
+    const plan = allocate(candidates, { P: 0, D: 1, C: 0, A: 0 }, 200, { squad, rules });
+    // Il tabellone e' la stanza, non il nostro piano: gli altri possono bustarci, e l'operatore puo'
+    // sapere che rientra sabato.
+    expect(boardFor('D', candidates, plan).some((one) => one.man.fcId === hurt.fcId)).toBe(true);
+    const hurtCandidate = candidates.find((one) => one.man.fcId === hurt.fcId)!;
+    expect(canAdd(hurtCandidate, plan, squad, rules).ok).toBe(true);
+  });
+
+  it('e non viene suggerito nemmeno dal giudizio di reparto', () => {
+    const { hurt, states, squad, candidates, pool } = board();
+    const line = adviceFor({
+      mine: squad,
+      states,
+      candidates,
+      scale: gainScale(pool, rules),
+      rules,
+    }).find((one) => one.role === 'D')!;
+    expect(line.targets.some((one) => one.man.fcId === hurt.fcId)).toBe(false);
   });
 });

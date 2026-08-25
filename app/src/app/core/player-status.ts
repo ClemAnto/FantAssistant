@@ -452,6 +452,31 @@ export class PlayerStatus {
   readonly cups = signal<Map<number, PlayerMark>>(new Map());
 
   /** Every mark a man carries, in the order they are drawn. Empty is the normal case. */
+  /**
+   * L'INFORTUNIO DI ADESSO in numeri invece che in una frase: da quanti giorni e' fuori, fino a quando
+   * se una data di rientro esiste, e quanti giorni ne restano.
+   *
+   * `marksFor` risponde con una nota da leggere, che basta a un'icona e non basta a una DECISIONE: «non
+   * suggerire chi ha un infortunio lungo in corso» e' una soglia, e una soglia vuole un numero. Qui
+   * stanno i fatti - `remaining` e' null quando nessuna data di rientro e' scritta, che non e' zero -
+   * e QUALE dei due numeri conti lo decide chi chiede, perche' dipende dalla domanda.
+   */
+  openInjury(
+    playerId: number | null | undefined,
+  ): { days: number; until: string | null; remaining: number | null } | null {
+    if (playerId == null) return null;
+    const today = this.today();
+    for (const spell of this.spells().get(playerId) ?? []) {
+      if (!isOpen(spell, today)) continue;
+      return {
+        days: spellDays(spell, today),
+        until: spell.to,
+        remaining: spell.to ? Math.max(0, daysBetween(today, spell.to)) : null,
+      };
+    }
+    return null;
+  }
+
   marksFor(playerId: number | null | undefined): PlayerMark[] {
     if (playerId == null) return [];
     const marks: PlayerMark[] = [];

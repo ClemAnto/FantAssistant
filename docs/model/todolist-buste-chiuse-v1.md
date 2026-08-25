@@ -345,6 +345,39 @@ E un difetto vero trovato dalla suite: **«Aggiungi» apriva il ruolo sbagliato*
 con uno slot libero, e se il piano aveva già una busta per quello slot ogni riga della modale diceva
 «non valida» — una porta su un muro. Adesso apre il primo ruolo che può davvero prendere un'altra busta.
 
+### 4-bis — Due richieste del 25/08/2026 (pomeriggio), e una regola nuova
+
+**Il `title` del riquadro GAIN è stato TOLTO.** Ogni riquadro sta dentro un popover che apre le due
+stagioni, e il tooltip nativo del browser gli si accavallava sopra: una cosa sola sotto il dito. Quello
+che diceva il `title` — cos'è il GAIN per QUEL giocatore, la sua fascia e su quale pool è tagliata — è
+finito **dentro** il popover, dove c'è lo spazio per scriverlo per intero. Con lui sono spariti
+l'input `hint` del componente e `GAIN_WORD`, che era una mappa da ogni parola a sé stessa.
+
+**«Non suggerire calciatori che hanno infortuni lunghi in corso (≥ 1 mese)».** `LONG_OUT_DAYS` = 30, e
+tre cose vanno dette perché la regola è chirurgica per scelta:
+- **Conta quanto RESTA fuori, non quanto è già stato fuori.** Chi ha saltato due mesi e rientra sabato è
+  un uomo che vuoi; chi è fuori da una settimana con rientro previsto a novembre non lo è. Quindi si
+  legge la data di rientro quando c'è, e quando non c'è si legge quanto è già durata — che è anche il
+  caso che nessuno sa datare, cioè l'assenza aperta.
+- **Esce dai CONSIGLI, non dal tabellone.** `priced` è il filtro (lo leggono il risolutore, le due
+  riparazioni e la tariffa di mercato), mentre il tabellone, gli obiettivi dei rivali, le alternative e
+  la modale continuano a mostrarlo: la stanza può bustarci, e l'operatore può sapere che rientra sabato.
+  Resta scegliibile a mano e il popover scrive perché non è consigliato.
+- **La soglia NON è quella dell'icona** (45 giorni in `player-status`): quella decide quando disegnare un
+  avviso accanto a un nome, questa decide se un uomo entra in un piano, e una soglia presa in prestito da
+  un'altra domanda è il difetto che questo progetto paga da sempre.
+
+Misurata prima di tenerla, sul bundle vero: **16 righe su 605** vengono escluse (mediana 77 giorni fuori,
+una sola sopra i 180, cioè probabilmente uno spell mai chiuso alla fonte), e sul piano del round 2 tolgono
+**Konè I.** (fuori da 131 giorni) e Perrone, sostituiti da Fagioli e Bernardeschi. Il limite dichiarato:
+uno spell aperto senza data di rientro si crede come lo dice la fonte — la stessa fonte che disegna
+l'icona — quindi un infortunio mai chiuso alla fonte tiene un uomo fuori dai consigli finché non lo
+chiudono. È il prezzo di avere UNA definizione di «è fuori oggi» invece di due.
+
+E un effetto collaterale corretto subito: la card «con un numero» contava `priced`, quindi dopo la regola
+avrebbe detto 295 dove il tabellone ne ha 308 — un'etichetta che non torna col suo numero. Adesso il
+tabellone si conta con `numbered` (i due numeri, infortunio o no) e il tooltip dice quanti sono fuori.
+
 ### 5 — Nato il 25/08/2026: quello che adesso va MISURATO
 
 **5.1 · Scorare la strategia del misto sul round 2.** L'obiettivo del piano è cambiato — da «massimo

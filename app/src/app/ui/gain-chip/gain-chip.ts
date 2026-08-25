@@ -1,7 +1,7 @@
 import { DecimalPipe } from '@angular/common';
 import { Component, computed, input } from '@angular/core';
 
-import { GAIN_WORD, GainBand, GainScale, gainBandOf } from '../../core/sealed-bid';
+import { GainBand, GainScale, gainBandOf } from '../../core/sealed-bid';
 
 /**
  * The colour of each band. Four words, four steps, and the neutral one in the middle.
@@ -48,30 +48,7 @@ const BAND_TONE: Record<GainBand, string> = {
 export class GainChip {
   readonly gain = input.required<number | null>();
   readonly scale = input.required<GainScale>();
-  /** What the number rests on, appended to the title: the row's own caveat, never a second number. */
-  readonly hint = input<string>('');
-
   protected readonly band = computed<GainBand>(() => gainBandOf(this.gain(), this.scale()));
 
   protected readonly tone = computed(() => BAND_TONE[this.band()]);
-
-  protected readonly label = computed(() => {
-    const scale = this.scale();
-    const hint = this.hint() ? ` · ${this.hint()}` : '';
-    if (this.band() === 'ignoto') {
-      return (
-        'GAIN ignoto: il motore non lo prezza, o il foglio gli dà meno presenze della soglia della lega. ' +
-        `Vuoto non è zero.${hint}`
-      );
-    }
-    // The word, then the POOL it is a word about: a band quoted without its pool means nothing, and this
-    // one is a percentile of the whole listone - not of the men still free, or the colour would move
-    // under his feet as the market empties.
-    return (
-      `GAIN ${this.gain()!.toFixed(1)} · ${GAIN_WORD[this.band()]} — surplus del motore sulle giornate ` +
-      `della competizione, scontato per quanta stagione si vede arrivare. Fasce sui ${scale.sample} ` +
-      `quotati che il foglio prezza: ottimo da ${scale.top.toFixed(0)}, buono da ${scale.good.toFixed(0)}, ` +
-      `medio da ${scale.fair.toFixed(0)}.${hint}`
-    );
-  });
 }

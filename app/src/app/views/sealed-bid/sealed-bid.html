@@ -234,7 +234,12 @@
           [nzTooltipTitle]="
             'Gli altri non hanno un numero: il motore non li prezza, oppure il foglio prevede loro meno ' +
             'presenze della soglia della lega. Vuoto non è zero, quindi restano sul tabellone dei rivali ' +
-            'ma non entrano in un piano nostro. Le medie di mercato di questa pagina (quanto vale uno ' +
+            'ma non entrano in un piano nostro. ' +
+            (market().hurt
+              ? 'Di quelli col numero, ' + market().hurt + ' sono fuori per infortunio da almeno un mese: ' +
+                'restano bustabili a mano ma non li consiglio. '
+              : '') +
+            'Le medie di mercato di questa pagina (quanto vale uno ' +
             'slot, cosa possono ancora comprare i crediti) sono misurate sul ' +
             (rateCoverage() * 100 | number: '1.0-0') +
             '% dei nomi che la domanda assorbirà: degli altri si assume che valgano come questi.'
@@ -508,7 +513,7 @@
                       [nzPopoverContent]="statsTip"
                       (mouseenter)="hoverStats.set(bid.candidate.man.fcId)"
                     >
-                      <ui-gain [gain]="bid.candidate.gain" [scale]="scale()" [hint]="gainExplain(bid.candidate)" />
+                      <ui-gain [gain]="bid.candidate.gain" [scale]="scale()" />
                     </span>
                     <span
                       class="w-14 shrink-0 text-right text-xs"
@@ -656,7 +661,7 @@
                             <ui-gain
                               [gain]="other.candidate.gain"
                               [scale]="scale()"
-                              [hint]="gainExplain(other.candidate)"
+                             
                             />
                           </span>
                           <span
@@ -1048,7 +1053,7 @@
                         [nzPopoverContent]="statsTip"
                         (mouseenter)="hoverStats.set(man.man.fcId)"
                       >
-                        <ui-gain [gain]="man.gain" [scale]="scale()" [hint]="gainExplain(man)" />
+                        <ui-gain [gain]="man.gain" [scale]="scale()" />
                       </span>
                       <span class="text-fg">{{ man.man.name }}</span>
                       @if (plays(man.man) === true) {
@@ -1084,7 +1089,7 @@
                         [nzPopoverContent]="statsTip"
                         (mouseenter)="hoverStats.set(target.man.fcId)"
                       >
-                        <ui-gain [gain]="target.gain" [scale]="scale()" [hint]="gainExplain(target)" />
+                        <ui-gain [gain]="target.gain" [scale]="scale()" />
                       </span>
                       <span class="text-fg">{{ target.man.name }}</span>
                       <span class="text-muted">{{ clubMark(target.man.club) }}</span>
@@ -1301,8 +1306,18 @@
             <span class="text-muted">GAIN</span>
             <span class="tabular-nums font-semibold text-fg">
               {{ card.gain == null ? '—' : (card.gain | number: '1.1-1') }}
+              <span class="ml-1 font-normal text-muted">{{ card.band }}</span>
             </span>
           </div>
+          <!-- Quello che diceva il `title` del riquadro, che si accavallava a questo popover: cos'e' il
+               GAIN per QUESTO uomo, e su quale pool sono tagliate le fasce. -->
+          <div class="mt-1 max-w-80 text-muted">{{ card.words }}</div>
+          @if (card.bands) {
+            <div class="max-w-80 text-muted">{{ card.bands }}</div>
+          }
+          @if (card.out) {
+            <div class="max-w-80 text-warning">{{ card.out }}</div>
+          }
           <div class="mt-1 text-muted">{{ card.note }}</div>
         </div>
       }
@@ -1366,7 +1381,7 @@
                   [nzPopoverContent]="statsTip"
                   (mouseenter)="hoverStats.set(one.man.fcId)"
                 >
-                  <ui-gain [gain]="one.gain" [scale]="scale()" [hint]="gainExplain(one)" />
+                  <ui-gain [gain]="one.gain" [scale]="scale()" />
                 </span>
                 <span
                   class="w-12 shrink-0 text-right text-xs text-muted"

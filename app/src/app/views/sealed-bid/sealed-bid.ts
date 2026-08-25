@@ -28,6 +28,7 @@ import {
   FIELDED_PLACES,
   GainScale,
   LadderBand,
+  LONG_OUT_DAYS,
   LeagueRules,
   ROLES,
   RoleAdvice,
@@ -45,6 +46,7 @@ import {
   alternativesTo,
   appearancesIn,
   boardFor,
+  buyable,
   calibrationOf,
   canAdd,
   candidatesOf,
@@ -52,9 +54,11 @@ import {
   contestedOf,
   dealsOf,
   emptyByRole,
+  gainBandOf,
   gainOf,
   gainScale,
   ladderOf,
+  numbered,
   marketRate,
   parseAwards,
   playsOften,
@@ -74,6 +78,7 @@ import {
   winChance,
 } from '../../core/sealed-bid';
 import { Bundle } from '../../core/bundle';
+import { PlayerStatus } from '../../core/player-status';
 import { SeasonLine, seasonLines } from '../../core/season-line';
 import { SquadMan, ValuationStore } from '../../core/valuation-store';
 import { shortNames } from '../../core/clubs-store';
@@ -196,6 +201,8 @@ function writeJson(key: string, value: unknown): void {
 export class SealedBid {
   protected readonly store = inject(ValuationStore);
   private readonly bundle = inject(Bundle);
+  /** Chi e' fuori oggi, e da quanto: una definizione sola, la stessa che disegna l'icona in riga. */
+  private readonly status = inject(PlayerStatus);
   protected readonly appVersion = APP_VERSION;
   protected readonly roles = ROLES;
   protected readonly tacticLabel = TACTIC_LABEL;
@@ -334,11 +341,32 @@ export class SealedBid {
     };
   });
 
-  /** Every quoted man of this listone, with the sheet's own numbers on him. */
-  protected readonly pool = computed<SquadMan[]>(() => {
+  /**
+   * Every quoted man of this listone, with the sheet's own numbers on him - and his injury of today.
+   *
+   * The days he is still out travel WITH the row because that is what makes them impossible to forget:
+   * `buyable` is asked inside `priced`, deep in the solver, where no service can be injected.
+   */
+  protected readonly pool = computed<(SquadMan & { outDays: number | null })[]>(() => {
     const listone = this.store.rosters().get(PLATFORM) ?? [];
-    return this.store.valuations(PLATFORM, listone);
+    return this.store
+      .valuations(PLATFORM, listone)
+      .map((one) => ({ ...one, outDays: this.outDaysFor(one.fcId) }));
   });
+
+  /**
+   * QUANTO RESTA FUORI, che e' la domanda che decide una busta - non quanto e' gia' stato fuori.
+   *
+   * Chi ha saltato due mesi e rientra sabato e' un uomo che vuoi; chi e' fuori da una settimana con
+   * rientro previsto a novembre non lo e'. Quindi si legge la data di rientro quando c'e'; quando non
+   * c'e' l'unica cosa misurata e' quanto e' gia' durata - ed e' anche il caso che nessuno sa datare,
+   * cioe' esattamente l'assenza aperta che l'operatore non vuole vedere consigliata.
+   */
+  private outDaysFor(fcId: number): number | null {
+    const open = this.status.openInjury(fcId);
+    if (!open) return null;
+    return open.remaining ?? open.days;
+  }
 
   private readonly byId = computed(() => new Map(this.pool().map((one) => [one.fcId, one])));
 
@@ -417,7 +445,7 @@ export class SealedBid {
   protected readonly bannedMen = computed(() =>
     this.banned()
       .map((fcId) => this.byId().get(fcId))
-      .filter((one): one is SquadMan => !!one),
+      .filter((one): one is NonNullable<typeof one> => !!one),
   );
 
   private readonly autoPlan = computed(() => {
@@ -629,7 +657,12 @@ export class SealedBid {
       perSlot: slots ? credits / slots : 0,
       demand: roleDemand(this.states(), this.me() || null),
       free: this.free().length,
-      valued: priced(board).length,
+      // `numbered` e non `priced`: questa card descrive il TABELLONE, cioè quello su cui la stanza può
+      // bustare, non quello che il piano si permette di consigliare. Contare qui la regola sugli
+      // infortuni farebbe dire all'etichetta «con un numero» una cosa diversa dal suo numero - il
+      // difetto che questo progetto ha già pagato con la colonna «Bonus».
+      valued: numbered(board).length,
+      hurt: numbered(board).length - priced(board).length,
     };
   });
 
@@ -1156,9 +1189,15 @@ export class SealedBid {
     );
   }
 
-  protected gainExplain(candidate: Candidate): string {
-    const man = candidate.man;
-    if (candidate.gain == null) {
+  /**
+   * Cosa c'e' dietro il GAIN di QUESTO uomo, in parole. Vive nel popover e non piu' in un `title`.
+   *
+   * Prende l'uomo e non il candidato perche' il popover ha solo lui: il candidato e' una riga di una
+   * lista, l'uomo e' la persona su cui si sta passando il dito.
+   */
+  protected gainWords(man: SquadMan): string {
+    const gain = gainOf(man, this.rules());
+    if (gain == null) {
       return man.surplus == null
         ? 'Il motore non lo prezza: nessun numero, che non è uno zero.'
         : 'Il foglio gli dà meno presenze della soglia della lega: non entra in una classifica di chi comprare.';
@@ -1452,8 +1491,26 @@ export class SealedBid {
       },
     ];
     const played = of(now)?.matches ?? 0;
+    const gain = gainOf(man, this.rules());
+    const scale = this.scale();
+    const band = gainBandOf(gain, scale);
+    const out = man.outDays ?? null;
     return {
       man,
+      band,
+      // La fascia e la POOL su cui e' tagliata: una banda citata senza la sua pool non vuol dire niente,
+      // ed e' il listone intero e non i liberi - o il colore si muoverebbe sotto i piedi.
+      bands:
+        scale.sample === 0
+          ? ''
+          : `Fasce sui ${scale.sample} quotati che il foglio prezza: ottimo da ${scale.top.toFixed(0)}, ` +
+            `buono da ${scale.good.toFixed(0)}, medio da ${scale.fair.toFixed(0)}.`,
+      words: this.gainWords(man),
+      // Perche' NON lo trovi fra i consigli, detto dove si guarda il suo numero.
+      out:
+        out != null && out >= LONG_OUT_DAYS
+          ? `Fuori per altri ${out} giorni: non entra nei consigli, ma puoi sceglierlo a mano.`
+          : '',
       past,
       now,
       rows,
