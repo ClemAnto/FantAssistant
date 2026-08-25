@@ -3035,3 +3035,145 @@ prima che qualcuno chiamasse `perimeter_club_keys` e vedesse lo zero: la regola 
 «un audit che riporta uno ZERO sospetto chiama la funzione prima di riportare qualunque cosa», e **un
 modulo che dice «skipping» sta riportando uno zero**. E «il cambio di perimetro non muove il passato» è
 stato affermato prima e misurato dopo: la storia era giusta, l'ordine no.
+
+---
+
+## CHIUSURA della sessione 25/08/2026 — due uomini dello stesso club, e un modello che chiedeva una scelta impossibile
+
+**Sessione di sola MISURA: nessun codice del toolkit e dell'app è stato toccato**, il DB non è stato
+scritto (si è lavorato su una copia) e nessun numero pubblicato si muove. Il prodotto è
+[metrica-asta-surplus-v1.md](metrica-asta-surplus-v1.md) **§24**.
+
+**Domanda dell'operatore**, in due tempi: due attaccanti dello stesso club (Scamacca + Krstović,
+Simeone + Zapata) contro due di pari livello di club diversi; poi, ristretta, «solo calciatori con lo
+stesso ruolo — meglio entrambi della stessa squadra, così uno gioca di sicuro, o diversificare?».
+
+**Risposte, tutte con il null che era già nella sua frase** (coppie appaiate per quota-voto e fantamedia,
+club diversi, 11 stagioni di Serie A, 1.081 coppie):
+
+* due posti schierati: punti **−0,0033 ± 0,0039** (nessun costo), sd **+0,085 ± 0,018** (+3,9%, positiva su
+  11 stagioni di 11), doppio buco **−0,0137 ± 0,0029**. La correlazione è sul VOTO (+0,13 contro 0,00) e
+  non sul gol (+0,007);
+* l'assicurazione è REALE — quando uno salta, l'altro va da 0,596 a 0,683 di quota-voto e da 6,617 a 6,789
+  di fantamedia, contro **−0,005 e −0,038** dei controlli — e «crollano entrambi» capita al **9,6%** delle
+  coppie dello stesso club contro il **13,1%** delle altre;
+* un posto e due candidati dello stesso ruolo, con la regola vera del gioco: **−0,42 punti a stagione**,
+  lo stesso club vince nel **46%** delle coppie. Praticamente una moneta;
+* dove si perde per davvero: **1,2 ± 0,3 voti in meno su 76**. È una questione di PREZZO del secondo, non
+  di forma della rosa.
+
+**L'errore che ha insegnato più del risultato, e la sessione lo ha commesso due volte in due forme.** La
+prima misura trattava un'assenza come uno ZERO e leggeva la varianza dello stesso club più bassa: con la
+panchina che rimpiazza (6,79) il segno si gira. La seconda faceva schierare «il migliore dei due che ha
+preso il voto» — **una scelta che non esiste, perché la formazione si consegna prima delle partite** — e
+dava −2,21 punti a stagione contro i −0,42 della regola vera. Da qui la voce nuova del CLAUDE.md: **il
+modello di una decisione deve rispettare QUANDO la decisione si prende**, e **un'assicurazione si valuta
+contro quello che già copre** (la panchina c'era comunque).
+
+**Un criterio ex-ante trovato e uno rifiutato.** I ruoli Mantra sono pubblicati ad agosto e predicono il
+ballottaggio: `pc`+`pc` **−0,151 ± 0,024** contro **−0,061 ± 0,014** delle altre combinazioni (differenza
+−0,090 ± 0,028, reale ma debole — Álvarez e Sørloth leggono +0,39). La STORIA della singola coppia invece
+non predice niente: **−0,018** e **+0,002** fra stagioni consecutive, **+0,014** fra andata e ritorno dello
+stesso anno. La prova più economica è interna: Scamacca + Krstović, stessa stagione, leggono phi **−0,05**
+sul campionato e **−0,21** su EuroLeghe.
+
+**Stato della macchina, da sapere prima di ripartire**: `data/euroleghe.db` aveva alle 01:22 un **journal
+orfano** di 3,35 MB (una corsa interrotta, nessun processo vivo). Non è stato toccato — le misure sono
+girate su una copia nello scratchpad, dove il rollback è avvenuto lì. Il DB vero è ancora in quello stato:
+**il prossimo che lo apre in scrittura fa il rollback**, che è l'operazione corretta e va lasciata fare.
+
+**Prossimi passi possibili**, nessuno urgente e nessuno aperto come voce di todolist: la misura è tutta su
+Serie A/classic, e su MANTRA due uomini dello stesso ruolo occupano slot tipizzati — lì la domanda cambia,
+perché la legalità dell'undici è un vincolo e non una preferenza.
+
+## CHIUSURA della sessione 25/08/2026 — la moneta ha un nome, la strategia è dettata, e la todolist si chiude
+
+Sessione interamente in `app/`: l'altra sessione possedeva il DB e ha chiuso il 24-25 con la giornata 1 e
+il perimetro, quindi qui non si è toccato né un foglio né una revisione. **456 test** (da 406), `ng build`
+verde, e2e senza problemi sul round vero, **quattro pubblicazioni** (v0.1.22 → v0.1.25). Il documento di
+riferimento è `todolist-buste-chiuse-v1.md`, che da oggi è **chiuso per tutto quello che dipende dal
+codice**; qui sta solo quello che vale oltre quella pagina.
+
+**La moneta, e le due che sono state escluse per iscritto.** `GAIN = surplus × (giornate della
+competizione / 38) × √(presenze attese / 38)`. Non l'**Overall**, che per definizione dell'operatore
+(18/08) è un TOTALE senza zero: in un'asta si compra sempre *al posto di qualcun altro*, e senza
+rimpiazzo la colonna incorona chi gioca e non dice cosa guadagna lo SLOT. Non il **surplus nudo**, che è
+già la sottrazione giusta ma prezza 38 giornate su un mercato che ne compra 37 e non sconta una stagione
+che devi poter schierare. Il disegno è unico (`ui/gain-chip`) e le fasce sono percentili del **listone
+intero** tagliati una volta sola: sui liberi si muoverebbero sotto i piedi — lo stesso uomo diventerebbe
+«ottimo» perché qualcun altro è stato comprato, che è una frase sul mercato e non su di lui.
+
+**Le tre regole dell'operatore, e perché sono CONSTRAINT e non pesi.** Ognuna è arrivata come obiezione a
+un consiglio vero, e ognuna è un fatto sull'INSIEME che nessun numero per-uomo può esprimere:
+1. «per completare un reparto meglio chi gioca SEMPRE, anche in squadre minori» (su Cabal, `panchina` con
+   17,6 presenze attese, consigliato a 2 crediti) → `sureTarget`, che è `max(2, posti che schiera un
+   undici)` = P1 D4 C4 A2, contando chi è già in rosa;
+2. i **portieri** sono un gioco diverso e l'ha spiegato su Di Gregorio: ne schieri UNO, quindi quello che
+   deve presentarsi è la MAGLIA e non l'uomo — o possiedi tutt'e due i contendenti, o ne possiedi uno che
+   non è in ballottaggio. Per questo la porta è **esente** dalla regola 1: una coppia è fatta apposta di
+   due uomini di cui gioca uno;
+3. «un misto di offerte toste e offerte cheap» → **l'obiettivo dello zaino non è più il gain, è
+   `gain × chance(prezzo)`**, con tre prezzi per uomo (colpo a 2, consigliato, quasi sicuro). Non è un
+   gusto: **perdere non costa niente**, quindi quello che vale una busta non è quanto vale l'uomo, è
+   quanto vale per quante volte un numero così è bastato. Il mix esce da solo — su chi vogliono tutti due
+   crediti non bastano quasi mai, su un forte che la stanza non insegue bastano spesso — e le 37
+   aggiudicazioni su 125 a 1-2 crediti del round 1 dicono che è reale.
+Tutte e tre **riportano dove non riescono a rispettarsi** (`missingSure`, `keeperGamble`), perché un
+vincolo che si arrende in silenzio si legge come un vincolo rispettato.
+
+**Il difetto peggiore della code-review era un CONTO, non un modello.** `teamStates` scartava
+un'aggiudicazione il cui `fc_id` il listone non sa nominare, quindi non ne addebitava i crediti: quel
+fantallenatore leggeva **più ricco di quello che è**, e `credits`/`ceiling` sono il fondamento di ogni
+modello dei rivali (chi può bustare, il tetto, il favorito). Adesso i crediti si addebitano sempre — **un
+prezzo è un fatto chiunque sia lui** — mentre il RUOLO no, perché non è attribuibile, e `unknown` conta
+quelle righe e la pagina le dichiara. Succede con un bundle più vecchio del mercato.
+
+**Due spazi di chiavi che si sovrappongono sono un difetto che nessun test unitario vede.** `swaps` è
+indicizzato sull'uomo che il RISOLUTORE ha proposto, `extras` su quello aggiunto A MANO, e la stessa
+persona può essere tutt'e due: applicare la ricerca degli swap anche agli extra faceva entrare in busta il
+SOSTITUTO di un uomo aggiunto a mano (265 crediti su 257 per un nome scelto una volta sola). L'ha trovato
+la suite e2e, e la cura è alla radice e non una guardia: una busta scritta a mano si modifica nella SUA
+lista, quindi non condivide nessuna chiave con gli slot del risolutore.
+
+**«Vuoto = ignoto» ha due facce, e la seconda è nascondere l'uomo.** Tre istanze in un giorno:
+`precedentsOf` filava un aggiudicato senza quotazione a pressione 0 e FVM 0 (misurato prima di toccarlo:
+**0 dei 125 aggiudicati** cascano lì, quindi la cura non muove niente oggi e chiude il caso di domani);
+`marketRate` faceva la media contando come **zero** chi il foglio non prezza — una riga su cinque, 43 dei
+72 portieri — e con lei scendevano classifica, `reach` e la stella della condotta; e `boardFor` **nascondeva**
+chi non ha un GAIN dalla lista da cui l'operatore scegli a mano, mentre il suo stesso commento promuoveva
+il contrario. La regola completa: un uomo senza numero non vale zero **e** non è invisibile — sta in coda,
+col trattino, e il piano automatico non lo propone.
+
+**Una soglia si prende dalla domanda, non da un'altra soglia.** «Non suggerire chi ha un infortunio lungo
+in corso (≥ 1 mese)»: `LONG_OUT_DAYS` = 30, e NON i 45 giorni di `player-status` — quel numero decide
+quando disegnare un'icona, questo se un uomo entra in un piano. E conta quanto **resta** fuori, non quanto
+è già stato fuori: chi ha saltato due mesi e rientra sabato è un uomo che vuoi. Misurata prima di tenerla:
+16 righe su 605 escluse, mediana 77 giorni.
+
+**Tre lezioni sull'arnese e2e, tutte della stessa famiglia — quello che il DOM dice non è quello che lo
+schermo fa.** Un puntatore CDP si **teletrasporta**, quindi un popover resta aperto dove una mano lo
+avrebbe chiuso: copriva il campo dell'offerta, e la suite leggeva «ho scritto 95 e il campo legge 55»,
+cioè due difetti dell'app che l'app non aveva. Un **tooltip lungo copre il controllo che spiega** (l'SpM è
+finito nel pannello, dove c'è posto). E un **passo che non trova il suo bersaglio deve dirlo**: il
+controllo nuovo sulla porta si saltava in silenzio, e «zero problemi» si legge come «tutto bene». Con un
+corollario: quale ruolo la modale sta mostrando è uno **stato del DOM** (il radio con la classe
+`-checked`) e si legge, invece di parsarlo da un titolo — due tentativi hanno risposto `null`.
+
+**Aperto, e dichiarato:**
+1. **Le tre regole e l'obiettivo nuovo non sono misurati contro l'alternativa.** Il registro delle buste
+   salva la probabilità *al momento della spedizione*, quindi col round 3 si può fare il conto onesto:
+   quante ne prevedeva, quante ne ha vinte, e quanto gain è entrato contro quello che avrebbe portato il
+   piano vecchio. È il §5 della todolist e sarebbe la prima volta che questa pagina giudica sé stessa.
+2. **Item bloccati su un'ACQUISIZIONE e non sul codice**: le buste perdenti di tutto il round 1 (oggi
+   dieci, da screenshot), e un bundle che contenga la stagione in corso — verificato, `match_ratings` nel
+   pacchetto si ferma a 2025-26, quindi «la giornata giocata accanto al nome» e il foglio in-season
+   vogliono un `export` dalla sessione che possiede il DB.
+3. **Il valore di un credito tenuto per i round dopo** non è misurato: la pagina dice dove ti lascia
+   questo round e offre una riserva dichiarata a zero, e lì si ferma.
+4. **Uno spell aperto senza data di rientro si crede come lo dice la fonte** — la stessa che disegna
+   l'icona — quindi un infortunio mai chiuso tiene un uomo fuori dai consigli finché non lo chiudono. È il
+   prezzo di avere UNA definizione di «è fuori oggi» invece di due.
+
+**Commit**: `a0f249d` (la pagina), `7772493` (i sette difetti della review), `165dc27` (il caso Martinez),
+più `52404da`, `6916058`, `befbdda`, `5bbf98e` (i bump delle quattro pubblicazioni) sul branch
+`motore/reparto-e-tasso-titolarita`. Sito: **v0.1.25**.

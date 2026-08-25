@@ -148,7 +148,11 @@ for first pick is ruinous) -> `spec-euroleghe-ingest-v9.md` -> `nota-modello-set
 the consolidated notes in the same folder. For BOARD work (typical elevens): `formazioni-tipo-v1.md`
 (how the board is decided — shape, claim, fit, with every constant) and `todolist-formazioni-tipo-v1.md`
 (the improvement plan born from the 08/08/2026 press comparison, ordered by measured yield; its standing
-rule: the press is a JUDGE, never an input of the claim).
+rule: the press is a JUDGE, never an input of the claim). For the SEALED-BID page (`/sealed-bid`, the
+third game): **`todolist-buste-chiuse-v1.md`** — the league's own regulation, what the page does, the
+round-1 measurements, and the operator's three declared rules; closed on 25/08/2026 for everything that
+depends on code, so what is left there is measurement and acquisition. See «A sealed bid is a third
+game» below.
 Drive dataset IDs (xlsx/csv, not in git) are in [docs/DRIVE-MANIFEST.md](docs/DRIVE-MANIFEST.md).
 The BOARD list `todolist-formazioni-tipo-v1.md` is **closed** (08/08/2026): five adoptions, six measured
 refusals, and the standing rule that the press is a JUDGE and never an input. What remains is
@@ -1015,6 +1019,26 @@ the voto - `Var(ln pv)` is 90% of `Var(ln` total fantapunti`)`. And a Serie A ma
 offline from `match_ratings` (`platform='default'`): `goals` is net of penalties AND own goals, so
 goals-for = `SUM(goals) + SUM(pen_scored)` and goals-against comes from the `role='P'` rows.
 
+## The model of a decision must respect WHEN the decision is taken
+**25/08/2026, and it flipped the advice by a factor of five.** Asked whether two players of the SAME club
+are worth having, the one-slot model fielded «the better of the two who got a vote» — a choice nobody can
+make, because the line-up is handed in BEFORE kick-off. Scored that way, diversifying is worth −2.21 points
+a season (goalkeepers −5.89, the same club losing 31 pairs of 32); scored with the game's own rule — you
+name a starter and the other comes off the bench — it is **−0.42, and the same club wins 46% of the pairs**:
+a coin. The gap between the two numbers is the price of information nobody has, and it must be subtracted
+rather than banked. Same family as «vuoto = ignoto» and as the fielded zero: the first pass of that same
+measurement read an absence as a ZERO and reported the variance of a same-club pair as LOWER, and putting
+the bench back in (A = 6.79) turned the sign round.
+Two habits travel with it. **An insurance is priced against what already covers you, not against nothing** —
+with two keepers of one club the rounds where neither plays fall by 5.2 of 38, a big effect that yields no
+points, because the man who covers that hole is the BENCH, the third keeper who is on the roster anyway.
+And **an effect real in the population can be pure noise per individual**: the fantavoto correlation of
+same-club team-mates is +0.13 against a null of 0.00, yet it does not persist between seasons (+0.002) nor
+between the two halves of one (+0.014) — Scamacca + Krstović read −0.05 on the championship calendar and
+−0.21 on EuroLeghe, one fact and two numbers. What IS knowable in August is the mantra role: `pc`+`pc`
+clash at −0.151 against −0.061 for every other pairing (difference −0.090 ± 0.028). Numbers, the refused
+readings and the pair-by-pair table: `docs/model/metrica-asta-surplus-v1.md` §24.
+
 ## A drawn module is a real module, and a SECOND opinion must not undo a priced one
 **Where a decision is already priced, do not re-derive it somewhere else.** The eleven is assigned to the
 module's own places and every place is priced as a whole (`_assign`/`_slot_price`, Hungarian); `lanes_for`
@@ -1565,6 +1589,51 @@ Two more of the same family, both from the same session:
   of eight hours before, **8 changed and all 8 are the value family**, no adopted parameter moves); and what
   would reopen this is not another measurement of the same kind but the WAGES, which is what §7-quinquies
   had already declared.
+
+## A sealed bid is a THIRD game, and what decides a bid is «what will it TAKE»
+**25/08/2026, `app/src/app/core/sealed-bid.ts` + `views/sealed-bid/`, details in
+`docs/model/todolist-buste-chiuse-v1.md`.** Every manager writes one number in an envelope, the highest
+pays HIS OWN number, losing costs NOTHING, and a tie awards the man to nobody. Nothing on that page
+predicts a footballer — the valuation is the sheet's, read and never recomputed — and everything it
+computes is about SLOTS, CREDITS and RIVALS, which is the same boundary that put a real club's board in
+the toolkit and a fanta eleven in the app.
+
+**The currency is the GAIN and the two alternatives are refused for reasons already written down**:
+`surplus × (competition rounds / matchdays) × (Pv/matchdays)^reliability`. Not the OVERALL, which is a
+total with NO zero (an auction is always «instead of somebody else», so with no zero the column crowns
+whoever plays and says nothing about what a SLOT gains); not the bare SURPLUS, which prices 38 matchdays
+on a market that buys 37 and does not discount a season you have to be able to FIELD. Its bands are
+percentiles of the WHOLE listone, cut once (`ui/gain-chip`): on the free board the same man would turn
+`ottimo` because somebody else was bought, which is a statement about the market and not about him.
+
+**Three rules are DECLARED by the operator and applied as CONSTRAINTS, never as weights** — no gate owns
+them, and each one reports where it cannot be met, because a constraint that gives up in silence reads
+exactly like one that was satisfied. (1) As many men who simply PLAY as an eleven fields, per role
+(`sureTarget`, P1 D4 C4 A2, with «un paio per ruolo» as the floor), counting the squad. (2) THE KEEPERS
+ARE A DIFFERENT GAME: you field one, so what has to turn up is the SHIRT — own both sides of a fight or
+own somebody who is not in one — which is also why they are exempt from (1), a pair being two men of whom
+one plays each week. (3) The plan MIXES serious bids with 2-credit shots, and that is arithmetic and not
+taste: since losing costs nothing, what an envelope is worth is `gain × chance(price)` and not the gain,
+so the knapsack chooses the NUMBER as well as the name. Evidence it is real: 37 of 125 awards in round 1
+of the operator's league cost one or two credits, Mora (FVM 100) and Dybala (70) among them.
+
+**Four lessons that outlive the page.** A PRICE IS A FACT WHOEVER HE IS: an award whose id the listone
+cannot name still leaves that manager's pocket, and skipping it read him RICHER than he is — every rival
+model on the page is built on `credits`/`ceiling`, so what cannot be attributed is the ROLE, and the
+count of such rows is stated. TWO KEY SPACES THAT OVERLAP is a defect no unit test sees: `swaps` is keyed
+by the man the SOLVER proposed and `extras` by the man added BY HAND, the same person can be both, and
+reading one map with the other's key put a substitute in a hand-written envelope. «VUOTO = IGNOTO» HAS A
+SECOND FACE — hiding the man: a name without a number is not worth zero *and* is not invisible, so he
+sits last with a dash and only the automatic plan refuses him (found on «come mai non mi esce il portiere
+Martinez dell'Inter?», who is expected in 10.6 matchdays of 38 against a 35% floor). And A THRESHOLD
+COMES FROM ITS OWN QUESTION: «do not suggest a man out for a month» is 30 days and not the 45 that decide
+whether to draw an icon.
+
+**And three about the harness, all the same shape — what the DOM says is not what the screen does.** A
+CDP pointer TELEPORTS, so a popover stays open where a hand would have closed it: it covered the offer
+field and the suite read «I typed 95 and the box says 55», two defects the app did not have. A long
+TOOLTIP covers the control it is explaining. And a step that cannot find its target must SAY SO — «zero
+problems» and «I did not look» must never read the same.
 
 ## Quello che è già successo non si prevede — e l'app può viaggiare nel tempo
 **16/08/2026, e sono due facce dello stesso problema.** Un'asta giocata a stagione iniziata è l'esercizio

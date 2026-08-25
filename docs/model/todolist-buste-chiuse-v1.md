@@ -454,3 +454,26 @@ rifare dalla sessione che possiede il DB. Più i tre item nuovi del §5, che son
 Verificato alla chiusura: `ng build` verde, **444 test** verdi, e2e **senza problemi** sul round vero
 (12 buste, i due hover, togli/aggiungi/escludi, le rose per intero, 420 elementi con tooltip, nessuna
 eccezione in console).
+
+---
+
+## Chiusura del 25/08/2026 — dove sta tutto, e cosa resta
+
+**Codice**: `app/src/app/core/sealed-bid.ts` (dominio), `app/src/app/core/season-line.ts` (le due
+stagioni del popover), `app/src/app/ui/gain-chip/` (il riquadro del GAIN),
+`app/src/app/views/sealed-bid/` (la pagina), `app/scripts/e2e-sealed-bid.mjs` (l'arnese).
+`PlayerStatus.openInjury` è l'unico posto che dice «è fuori oggi», in numeri.
+
+**Verificato alla chiusura**: `ng build` verde, **456 test** (31 file), e2e **senza problemi** sul round
+vero — 12 buste, i due hover, togli / aggiungi / escludi, la porta per intero con 43 nomi senza numero, le
+rose per intero, nessuna eccezione in console.
+
+**Commit**: `a0f249d` (la pagina: GAIN, strategia, todolist), `7772493` (i sette difetti della
+code-review più quello introdotto dalla correzione), `165dc27` (chi il motore non prezza torna nella lista
+a mano, e il terzo portiere per nome), più `52404da`, `6916058`, `befbdda`, `5bbf98e` (i bump delle
+quattro pubblicazioni). Branch `motore/reparto-e-tasso-titolarita`, sito **v0.1.25**.
+
+**Cosa resta, in ordine di resa attesa**: il §5 (misurare la strategia nuova contro quella vecchia col
+round 3, che il registro delle buste rende possibile), gli item 1.1-1.3 (vogliono le buste perdenti di
+tutto il round 1), e 2.3 / 3.3 (vogliono un `export` con la stagione in corso: verificato, il bundle si
+ferma a 2025-26). Nessuno dei tre dipende da codice di questa pagina.

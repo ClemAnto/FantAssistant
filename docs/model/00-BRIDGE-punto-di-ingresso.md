@@ -75,11 +75,57 @@ costanti) e **`todolist-formazioni-tipo-v1.md`** (il piano per renderle più ver
 con la stampa dell'08/08/2026, ordinato per resa misurata).
 Per le ASTE A BUSTA CHIUSA (terzo gioco, diverso sia dall'asta dal vivo sia dal draft):
 **`todolist-buste-chiuse-v1.md`** — il regolamento della lega dell'operatore, cosa la pagina
-`/sealed-bid` già fa, le misure del round 1 (fra cui: la stanza compra sull'FVM a +0,719 e sul nostro
+`/sealed-bid` fa, le misure del round 1 (fra cui: la stanza compra sull'FVM a +0,719 e sul nostro
 surplus a +0,508; la seconda offerta è ≤3 in cinque casi su nove e quando non lo è vale 17-186) e gli
 item aperti per resa attesa. Contiene anche **un'idea misurata e scartata**, da non riprovare.
+**Dal 25/08/2026 la todolist è CHIUSA per tutto quello che dipende dal codice** e il documento porta,
+nell'ordine: la moneta (**GAIN**, e perché non l'Overall né il surplus nudo), la **strategia dettata
+dall'operatore** in tre regole dichiarate (due uomini per ruolo che giocano sempre — alzati a quanti ne
+schiera un undici; i portieri a coppia o due titolari veri; il misto di buste toste e colpi da 2
+crediti, che è l'obiettivo `gain × probabilità`), le sette correzioni della code-review e il caso
+Martinez. Chi tocca quella pagina legga prima §4-bis, §4-ter e §5.
 L'altra fase, quella settimanale, è **`formazione-settimanale-v1.md`** (progetto): chi gioca domenica, perché
 la pagina delle probabili non basta e quali vincoli valgono già oggi.
+
+## STATO AL 25 AGOSTO 2026 — LEGGI QUESTO PRIMA DI TUTTO
+
+Le sezioni sotto sono un **registro cronologico**: dove una contraddice questo blocco, vince questo.
+
+**Il 25/08 in cinque righe.** Sessione tutta in `app/` (il DB lo possedeva l'altra sessione, che ha
+chiuso il 24-25 con la giornata 1 e il perimetro): la pagina **`/sealed-bid`** ha adesso una moneta con
+un nome, una strategia dettata dall'operatore e la sua todolist chiusa per quanto riguarda il codice.
+**456 test** (erano 406), `ng build` verde, e2e senza problemi sul round vero, e il sito è stato
+pubblicato **quattro volte** (v0.1.22 → v0.1.25). `engine_*`, i fogli e le revisioni non si muovono: qui
+non si prevede nessun calciatore, si decide cosa fare delle buste.
+
+**La moneta si chiama GAIN** = `surplus × (giornate della competizione / 38) × √(presenze attese / 38)`.
+Le due alternative sono escluse per iscritto: l'**Overall** è un totale SENZA zero (in un'asta si compra
+sempre al posto di qualcun altro), il **surplus nudo** prezza 38 giornate su un mercato che ne compra 37
+e non sconta una stagione che devi poter schierare. Disegnato sempre uguale (`ui/gain-chip`), con le
+fasce tagliate una volta sola sul listone intero: sul tabellone dei liberi si muoverebbero sotto i piedi.
+
+**Tre regole DICHIARATE, ognuna nata da un'obiezione dell'operatore a un consiglio vero** (nessun gate le
+possiede, e ognuna riporta dove non riesce a rispettarsi): tanti uomini che giocano sempre quanti ne
+schiera un undici, per ruolo (`sureTarget`, P1 D4 C4 A2 col «paio per ruolo» come pavimento); i portieri
+sono un gioco a parte — o la coppia dello stesso club o un titolare vero, mai una scommessa da sola su un
+ballottaggio; e il piano mescola buste toste e **colpi da 2 crediti** perché l'obiettivo dello zaino è
+`gain × probabilità che quella cifra basti` e non il gain — perdere non costa niente, e nel round 1 di
+questa lega 37 aggiudicazioni su 125 sono costate 1-2 crediti.
+
+**Sette difetti trovati dalla code-review e uno introdotto dalla correzione**, tutti in
+`todolist-buste-chiuse-v1.md`: il più grave è che `teamStates` **non addebitava** i crediti di
+un'aggiudicazione il cui id il listone non sa nominare (quel rivale leggeva più ricco di quello che è, e
+`credits`/`ceiling` sono il fondamento di ogni modello dei rivali); il più insidioso è che due spazi di
+chiavi si sovrapponevano — `swaps` è indicizzato sull'uomo che il risolutore ha proposto, `extras` su
+quello aggiunto a mano, e la stessa persona può essere tutt'e due.
+
+**E una richiesta che ha trovato un difetto**: «come mai non mi esce il portiere Martinez dell'Inter?».
+Perché è atteso in 10,6 giornate su 38 (28%) contro la soglia della lega al 35%, quindi non ha un GAIN —
+giusto che non entri nel piano, sbagliato che non fosse nella lista da cui si scegli **a mano**, dove il
+commento del codice promuoveva esattamente il contrario di quello che il codice faceva.
+
+**Commit**: `a0f249d` (la pagina), `7772493` (i sette difetti), `165dc27` (il caso Martinez) più i tre
+`chore` delle pubblicazioni, sul branch `motore/reparto-e-tasso-titolarita`.
 
 ## STATO AL 20 AGOSTO 2026 — LEGGI QUESTO PRIMA DI TUTTO
 
@@ -395,6 +441,28 @@ cambiando il NULL**, e ogni volta verso il basso — il pool degli screen del ma
 il denominatore dello screen di rotazione (2,42x → 1,52x), la definizione di esito dello specchio (base
 dal 22% al 41%). Due di quelle tre volte il difetto era una misura fatta su una **reimplementazione**
 invece che sulla funzione che spedisce. Regole nuove nel `CLAUDE.md` di radice.
+
+### 25/08/2026: **due uomini dello stesso club**, e un modello che chiedeva una scelta impossibile
+
+Sessione di sola MISURA — nessun codice toccato, DB non scritto, `engine_*` fermo. Numeri in
+[metrica-asta-surplus-v1.md](metrica-asta-surplus-v1.md) **§24** (citare da lì), regola nuova nel CLAUDE.md
+(«The model of a decision must respect WHEN the decision is taken»).
+
+Domanda dell'operatore: due attaccanti dello stesso club contro due di pari livello di club diversi, poi
+ristretta a «stesso ruolo — meglio insieme, così uno gioca di sicuro, o diversificare?». Il null era già
+nella sua frase: coppie appaiate per quota-voto e fantamedia, club diversi, 11 stagioni di Serie A.
+**Verdetto: praticamente indifferente.** Su due posti schierati i punti non si muovono
+(**−0,0033 ± 0,0039**) e la sd sale del 3,9% (11 stagioni su 11); su un posto e due candidati dello stesso
+ruolo è **−0,42 punti a stagione**, con lo stesso club che vince nel **46%** delle coppie. L'assicurazione
+che l'operatore cercava **esiste** (con due portieri di un club le giornate scoperte calano di 5,2 su 38,
+e «crollano entrambi» capita al 9,6% contro il 13,1%) e **non diventa punti**, perché a coprire quel buco è
+la PANCHINA, che è in rosa comunque. Dove si perde davvero è il PREZZO: **1,2 ± 0,3 voti in meno su 76**.
+
+Due errori commessi e corretti, che valgono più del risultato: leggere un'assenza come uno ZERO (girava il
+segno della varianza) e far schierare «il migliore dei due che ha preso il voto», **una scelta che non
+esiste perché la formazione si consegna prima** — −2,21 punti a stagione contro i −0,42 veri. Un criterio
+ex-ante trovato (il ruolo mantra: `pc`+`pc` **−0,151** contro **−0,061**) e uno rifiutato (la storia della
+coppia non persiste: −0,018 fra stagioni, +0,014 fra andata e ritorno).
 
 ### ULTIMO IN ORDINE DI TEMPO — 16/08/2026, pomeriggio e sera: il viaggio nel tempo, e tre voci del gate
 
