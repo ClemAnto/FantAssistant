@@ -82,7 +82,18 @@ non cura alla radice; e i fogli in `data/export/` sono del 20/08 a revisione **3
 `snapshot` + `export` + `data:pull` dalla macchina dell'operatore — non lanciati qui perché scrivono sul DB
 mentre l'altra sessione è aperta, e senza display i campetti non viaggerebbero.
 
-**Commit**: `fa684f2` sul branch `motore/reparto-e-tasso-titolarita`.
+**E una voce nuova, trovata mentre si verificava un numero che avevo scritto io.** La suite del toolkit
+**non ha fallimenti**, e il conteggio *deriva* fra corse identiche: **550/0, 549/1, 548/2** passed/skipped a
+codice invariato. I due che saltano sono `test_ingest.py:92` e `test_press.py:254`, entrambi su Tk, e il
+messaggio del secondo dice il perche' - `invalid command name "tcl_findLibrary"`, cioe' Tk che non si
+inizializza piu' dopo che altri test hanno creato e distrutto root nello stesso processo. Le guardie
+d'ambiente sono legittime (Tk e' un ambiente, non una dipendenza), ma **un test che salta in silenzio si
+legge come uno che passa** - la stessa forma di «"zero problemi" e "non ho guardato" non devono leggersi
+uguale», applicata alla nostra suite invece che a un arnese e2e. Quindi da qui in avanti il numero da citare
+e' «nessun fallimento, 548-550 passati con 0-2 salti su Tk» e non un intero solo; e la cura, se si vuole, e'
+che quelle guardie STAMPINO cosa hanno saltato invece di sparire nel conteggio.
+
+**Commit**: `fa684f2` e `ac805cc` sul branch `motore/reparto-e-tasso-titolarita`.
 
 ### 20 agosto 2026, tarda sera — la titolarità in UNA PAROLA, e la parola stessa definita
 
