@@ -371,6 +371,25 @@ spec «Novità v9.53», cosa mostra in [assistente-asta-v1.md](assistente-asta-v
 7. **Il NETTO non è una moneta di draft** (10/08 sera): −52,3% sui rivali, 0/5, 34 crediti in 25 giri.
    λ è il tasso fra un credito e un fantapunto, e in un draft non spendi crediti, spendi SCELTE.
 
+## 9. La lista PER RUOLO e il «posto più arretrato» (operatore, 26/08/2026) — aperto solo come POLITICA
+
+La pagina `/strategy` (`pagina-strategia-v1.md`) razionava una cosa che questa lista non aveva ancora
+affrontato: **quanti nomi di un ruolo vale la pena avere in testa**, che su classic è `slot ×
+partecipanti` e su mantra sono le quote delle forme (`slotShares`, il segnaposto del §15.4).
+
+Della regola dell'operatore — «un C/T conviene prenderlo per metterlo come C, così la T la lasci a un
+T/A» — sono state misurate e **respinte** le due forme che la applicano a una lista (§25 della metrica: il
+filtro lascia i braccetti a zero nomi, il riordino porta il blocco dei trequartisti da 256 a −9 di gain).
+Quello che resta aperto è la sola forma che questo banco può giudicare:
+
+- **Comprare dai «nativi» è una POLITICA?** Cioè: una rosa costruita preferendo, a parità di gain, chi non
+  può giocare più arretrato copre meglio i posti del modulo? La resa da battere è la politica adottata
+  oggi (valore + copertura su due undici + `SURVIVOR_DISCOUNT`), il metro è quello di sempre (paired,
+  cinque finestre, punti a giornata), e il criterio va pre-registrato prima della corsa. **Aspettativa
+  dichiarata: piccola.** Il matching di `mantra-legal.ts` fa già quell'assegnazione in modo esatto quando
+  la rosa è formata, quindi la regola potrebbe non avere niente da aggiungere — ed è esattamente la
+  domanda «prima di costruire un canale, chiedersi cosa può cambiare la sua uscita».
+
 ## Cosa è già stato RESPINTO — non riproporre senza rileggere
 
 - **«Valore all'inizio, surplus quando gli slot scarseggiano»** (schedula θ): peggio in modo monotono

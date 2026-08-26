@@ -1238,3 +1238,29 @@ potevano accorgersene.
   che spedisce è il tooltip delle decine, che passa `low + 1` (11, 21, 31…) e non tocca mai un confine.
   Cura, quando si tocca: soglie `atLeast` 50/30/10/1 più lo 0 «non gioca» — riproduce le sue parole alla
   lettera e non muove nessuno degli altri 97 punteggi (il test attuale, 0/5/25/45/70, resta identico).
+
+## Aperto dopo la sessione del 26-27/08/2026 (app, `pagina-strategia-v1.md`)
+
+Nata dalla pagina **`/strategy`**, che c'è e funziona: quello che segue è quello che LEI non fa, in ordine
+di resa attesa. La prima voce è la più grossa di tutta questa coda.
+
+* **La pagina non sa cosa hai già in rosa.** I blocchi sono il mercato intero, quindi rispondono a «chi
+  esiste per questo posto» e non a «cosa mi manca»: le due funzioni che sanno rispondere ci sono già e
+  stanno altrove — `expectedHoles` (i posti che restano vuoti in una giornata tipo, con la sua
+  `HOLE_TARGET` dichiarata) e `fanta-eleven` / `mantra-legal` (l'undici che quella rosa schiera davvero).
+  Agganciarle vuol dire togliere dai blocchi chi è già stato comprato e ordinare i reparti per BUCO invece
+  che per ruolo. Attenzione al confine già pagato due volte: la copertura si conta sui POSTI e non con una
+  quota per ruolo.
+* **«Solo di mestiere» non è mai stata misurata come politica** — voce 9 di `todolist-draft-v1.md`, con
+  l'aspettativa dichiarata piccola e la ragione (il matching fa già quell'assegnazione).
+* **Il budget non entra in nessun numero.** Farlo entrare è dividere una spesa fra reparti, e serve il
+  prezzo ombra di un credito (`assistente-asta-v1.md` §4.2): è un item, non una riga. Fino a lì la barra
+  dichiara che non fa niente, che è meglio di un numero che sembra contare.
+* **La moneta del draft su CLASSIC** non è mai stata misurata: oggi la pagina estende quella misurata su
+  mantra, e lo dice. Se un giorno si gioca un draft classic, quella misura viene prima.
+* **La domanda mantra è ancora il segnaposto delle forme** (§15.4 della metrica): il punto fisso —
+  assumere una distribuzione di moduli, simulare il draft, ri-derivarla — resta da fare, e questa pagina è
+  il primo posto dove si vedrebbe muovere.
+* **La profondità dentro il centrocampo** (E/M/C/W) non è separata dal rulebook (linea minima 2 per tutti
+  e quattro, medie 2,00-2,80): oggi l'ordine lì è quello dichiarato in `mantra_modules.json`. Se un giorno
+  decide qualcosa, va misurata e non ereditata.

@@ -1,5 +1,5 @@
 # Stato progetto & continuità — v5
-**Aggiornato: 25 agosto 2026 (UNA SECONDA FONTE PER LO STESSO FATTO - i minuti di un campionato che copriamo li porta anche Transfermarkt dove l'aggregato di stagione ha un buco: stessa quantita', stesso denominatore, stessa retta, ZERO parametri nuovi, +6,0% fuori campione, e l'equivalenza delle due fonti misurata su 10.580 coppie (differenza mediana +0,0000, correlazione +0,9957). E il caso da cui la domanda e' nata - Varela, 34 partite di Primeira Liga - e' RIFIUTATO per misura: fuori perimetro la retta perde -6,9%, perche' non ha un termine di livello. `SHEET_REVISION` 37, `engine_*` fermo, --verify 22/22, 550 test)** · precedente: 20 agosto 2026, tarda sera (LA TITOLARITA' IN UNA PAROLA, E LA PAROLA STESSA DEFINITA - sei gradini dettati dall'operatore, letti come DUE assi (quota di partite + pavimento di minuti) e non come una probabilita' congiunta, che e' stata costruita per prima e misurata inservibile; la quota e' CONDIZIONATA e la board e' un CANCELLO, che e' anche il classificatore migliore (q75 0,512 contro 0,328 a parita' di claim); resa misurata su quattro finestre retrodatate, `bandiera` e `titolare` mantengono la promessa 4 volte su 4. `SHEET_REVISION` 35, `engine_*` fermo, colonna `Tit.` a tre caratteri in tabella, v0.1.21. E il termine definito dall'operatore: titolarita' = prende il voto, quota da titolare = parte dall'inizio, con la bonifica del codice e una nota datata sui verbali storici)** · precedente: 20 agosto 2026, sera (IL REPARTO IN CUI ARRIVA — R23 adottata (robusta 9/10 su Serie A, 5/5 su euro/mantra, cade su euro/classic), R22 respinta sulla sua stessa aspettativa pre-registrata, e la fee in rapporto alla spesa del club adottata su euro; più il difetto che l'adozione ha reso visibile: `minutes.start_rate_next` divideva il numeratore del PANNELLO per il denominatore del MOTORE, quindi una regola che alzava le presenze ABBASSAVA i minuti previsti a partita — corretto su euro, +1,44% su 4 finestre su 4; e la revisione dei pacchetti del viaggio nel tempo, che c'era e veniva cancellata in transito. `SHEET_REVISION` 34, `--verify` 22/22, 510 test del toolkit e 318 dell'app)** · precedente:20 agosto 2026, notte (LA MVa ERA LA METÀ DERIVATA DELLA COPPIA, ED ERA LA METÀ SBAGLIATA — trovata dall’operatore su due righe del foglio classic: `est_mv` era `engine_fm_pred` (già regredita) meno il suo tasso di bonus GREZZO, quindi tutta la regressione finiva sul voto base e Malen leggeva 5,67 contro i 6,75 misurati. Adesso la MVa è la metà PREVISTA e il tasso è quello che ne esce; tre parametri fuori campione con cross-fit UNANIME, un canale rifiutato come zero dichiarato, e la richiesta dell’operatore («chi segna ha sempre o quasi un voto buono») che era essa stessa una misura: r = +0,787 dentro il ruolo. `SHEET_REVISION` 32, `engine_*` fermo, v0.1.20 pubblicata)** · precedente: 20 agosto 2026 (il grafico di Fπ non si vedeva MAI: una `computed` che scriveva un signal — vietato in Angular — e una suite dell'app che non compilava da `d7d0fbf`, quindi le prove dichiarate ieri non venivano da una corsa; 317 verdi)** · precedente: 19 agosto 2026, sera (Fπ: una colonna che PRONOSTICA invece di sommare — tre parametri misurati fuori campione, la scala dettata dall'operatore in cinque passaggi, quattro idee respinte, e otto club stranieri archiviati come `serie_a`; `SHEET_REVISION` 31, v0.1.19 pubblicata)** · precedente: 19 agosto 2026 (un vecchio PV non è una previsione di presenze: il gradino `older` regrediva la fantamedia e consegnava le presenze intatte, e l'Overall dell'app è un PRODOTTO — `SHEET_REVISION` 29; e l'attesa sul lock del DB in una definizione sola, con la regola per due sessioni in parallelo)** · precedente: 18 agosto 2026 (le DEFINIZIONI dell'operatore — Overall, Lead, Margine, Bonus — applicate ovunque; UN campetto solo per asta e Squadre, con l'item-posto e i moduli alternativi scritti dal toolkit; tre difetti della tabella misurati in browser)** · precedente: 17 agosto 2026, notte (la coppa continentale in mezzo al campionato: misurata, sul foglio e RESPINTA dal gate; l'app riscritta a voce; il surplus che aveva due aritmetiche)
+**Aggiornato: 27 agosto 2026 (LA PAGINA STRATEGIA, E UNA LISTA PER RUOLO CHE NON PUO' ESPRIMERE UN VINCOLO CONGIUNTO - `/strategy` dichiara il regolamento della lega e disegna un blocco per ruolo coi migliori nomi: il GAIN e' il surplus a rilanci e il VALORE in un draft (misurato, non scelto), e la lunghezza di ogni lista e' la domanda della stanza - slot x partecipanti su classic (8 difensori x 8 = 64), le quote delle forme su mantra (Dc 51 - M 27 - C 26 ... B col pavimento a 10). La regola dell'operatore sul «posto piu' arretrato» e' vera nel problema che descrive (15 dei primi 16 trequartisti possono giocare da C) e RESPINTA in tutt'e due le forme che la applicano: il filtro lascia i braccetti a ZERO nomi, il riordino porta la somma dei gain di quel blocco da 256 a MENO 9 - quindi marca e non filtra, con la lettura letterale a un clic. `engine_*` e i fogli fermi, 509 test dell'app, `70c8ed6`)** · precedente: 25 agosto 2026 (UNA SECONDA FONTE PER LO STESSO FATTO - i minuti di un campionato che copriamo li porta anche Transfermarkt dove l'aggregato di stagione ha un buco: stessa quantita', stesso denominatore, stessa retta, ZERO parametri nuovi, +6,0% fuori campione, e l'equivalenza delle due fonti misurata su 10.580 coppie (differenza mediana +0,0000, correlazione +0,9957). E il caso da cui la domanda e' nata - Varela, 34 partite di Primeira Liga - e' RIFIUTATO per misura: fuori perimetro la retta perde -6,9%, perche' non ha un termine di livello. `SHEET_REVISION` 37, `engine_*` fermo, --verify 22/22, 550 test)** · precedente: 20 agosto 2026, tarda sera (LA TITOLARITA' IN UNA PAROLA, E LA PAROLA STESSA DEFINITA - sei gradini dettati dall'operatore, letti come DUE assi (quota di partite + pavimento di minuti) e non come una probabilita' congiunta, che e' stata costruita per prima e misurata inservibile; la quota e' CONDIZIONATA e la board e' un CANCELLO, che e' anche il classificatore migliore (q75 0,512 contro 0,328 a parita' di claim); resa misurata su quattro finestre retrodatate, `bandiera` e `titolare` mantengono la promessa 4 volte su 4. `SHEET_REVISION` 35, `engine_*` fermo, colonna `Tit.` a tre caratteri in tabella, v0.1.21. E il termine definito dall'operatore: titolarita' = prende il voto, quota da titolare = parte dall'inizio, con la bonifica del codice e una nota datata sui verbali storici)** · precedente: 20 agosto 2026, sera (IL REPARTO IN CUI ARRIVA — R23 adottata (robusta 9/10 su Serie A, 5/5 su euro/mantra, cade su euro/classic), R22 respinta sulla sua stessa aspettativa pre-registrata, e la fee in rapporto alla spesa del club adottata su euro; più il difetto che l'adozione ha reso visibile: `minutes.start_rate_next` divideva il numeratore del PANNELLO per il denominatore del MOTORE, quindi una regola che alzava le presenze ABBASSAVA i minuti previsti a partita — corretto su euro, +1,44% su 4 finestre su 4; e la revisione dei pacchetti del viaggio nel tempo, che c'era e veniva cancellata in transito. `SHEET_REVISION` 34, `--verify` 22/22, 510 test del toolkit e 318 dell'app)** · precedente:20 agosto 2026, notte (LA MVa ERA LA METÀ DERIVATA DELLA COPPIA, ED ERA LA METÀ SBAGLIATA — trovata dall’operatore su due righe del foglio classic: `est_mv` era `engine_fm_pred` (già regredita) meno il suo tasso di bonus GREZZO, quindi tutta la regressione finiva sul voto base e Malen leggeva 5,67 contro i 6,75 misurati. Adesso la MVa è la metà PREVISTA e il tasso è quello che ne esce; tre parametri fuori campione con cross-fit UNANIME, un canale rifiutato come zero dichiarato, e la richiesta dell’operatore («chi segna ha sempre o quasi un voto buono») che era essa stessa una misura: r = +0,787 dentro il ruolo. `SHEET_REVISION` 32, `engine_*` fermo, v0.1.20 pubblicata)** · precedente: 20 agosto 2026 (il grafico di Fπ non si vedeva MAI: una `computed` che scriveva un signal — vietato in Angular — e una suite dell'app che non compilava da `d7d0fbf`, quindi le prove dichiarate ieri non venivano da una corsa; 317 verdi)** · precedente: 19 agosto 2026, sera (Fπ: una colonna che PRONOSTICA invece di sommare — tre parametri misurati fuori campione, la scala dettata dall'operatore in cinque passaggi, quattro idee respinte, e otto club stranieri archiviati come `serie_a`; `SHEET_REVISION` 31, v0.1.19 pubblicata)** · precedente: 19 agosto 2026 (un vecchio PV non è una previsione di presenze: il gradino `older` regrediva la fantamedia e consegnava le presenze intatte, e l'Overall dell'app è un PRODOTTO — `SHEET_REVISION` 29; e l'attesa sul lock del DB in una definizione sola, con la regola per due sessioni in parallelo)** · precedente: 18 agosto 2026 (le DEFINIZIONI dell'operatore — Overall, Lead, Margine, Bonus — applicate ovunque; UN campetto solo per asta e Squadre, con l'item-posto e i moduli alternativi scritti dal toolkit; tre difetti della tabella misurati in browser)** · precedente: 17 agosto 2026, notte (la coppa continentale in mezzo al campionato: misurata, sul foglio e RESPINTA dal gate; l'app riscritta a voce; il surplus che aveva due aritmetiche)
 Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da qui + i file della cartella "Modello Previsionale Fantacalcio".
 *Glossario: T1/T2 = finestre di test (23/24->24/25, 24/25->25/26) · MAE = errore medio assoluto · cross-fitted = parametri stimati su una finestra, testati sull'altra · M2e = modello portieri decomposto (abilità + tasso gol subiti del club; la metà Elo del nome non è nel motore) · Pv_att = presenze attese · fc_id = id fantacalcio.it · EV = valore atteso · scoring_config = punteggi configurabili per lega · xG/xA = expected goals/assists · 2.5 pieno = backtest motore completo con flag.*
 
@@ -7,6 +7,77 @@ Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da q
 App per leghe EuroLeghe/fantacalcio.it (Classic+Mantra, 5 campionati) con motore previsionale. Metodo: ogni regola entra SOLO se batte il baseline fuori campione su finestre indipendenti (gate pre-registrato). Doc madre: modello-previsionale-v3.8.md.
 
 ## ⚠️ Lo stato corrente è in `00-BRIDGE-punto-di-ingresso.md`, blocco «STATO AL 5 AGOSTO 2026»
+
+### 26-27 agosto 2026 — la pagina STRATEGIA, e la regola del «posto più arretrato» misurata e respinta in due forme
+
+**Sessione sull'app.** Le modifiche del toolkit presenti nell'albero erano di un'altra sessione e sono
+rimaste fuori dal commit: `git add -A` qui vuol dire portarsi via il lavoro a metà di qualcun altro.
+Verbale completo: **[pagina-strategia-v1.md](pagina-strategia-v1.md)**; la misura della regola sta anche
+in `metrica-asta-surplus-v1.md` §25, perché è una misura su una politica.
+
+**Cosa c'è di nuovo.** `/strategy`: si dichiara il regolamento della lega (listone, gioco, rose, budget,
+rilanci o draft, partecipanti) e la pagina disegna un blocco per ruolo con i migliori nomi. Non prevede
+nessun calciatore — la valutazione è del foglio, letta e mai ricalcolata — e quello che deduce riguarda
+posti, partecipanti e regolamento.
+
+**Due decisioni dichiarate, entrambe con la loro misura alle spalle.**
+1. **Il GAIN dipende dal TIPO D'ASTA**: surplus a rilanci (la risorsa scarsa è il credito, cioè quello che
+   il surplus sottrae), VALORE in un draft (là si spendono pick, e il surplus addebita una scarsità
+   per-slot che il rulebook non impone: −4,0% sulle cinque finestre del banco). Limite detto: quella
+   misura è su mantra, quindi «draft + classic» estende una conclusione fuori dalla sua popolazione.
+2. **La lunghezza di una lista è la domanda della stanza**: `slot × partecipanti` su classic (P 30 · D 80 ·
+   C 80 · A 60 con dieci squadre e rose 3/8/8/6), e su mantra le quote delle forme via `slotShares` /
+   `demandFromShapes` — Dc 51 · M 27 · C 26 · A 24 · E 23 · W 17 · T 16 · Pc 15 · Dd/Ds 13 · B 10 · Por 20
+   — col pavimento dichiarato «almeno uno per partecipante», perché i ruoli si sovrappongono e la domanda
+   per ruolo sottostima il prosciugamento.
+
+**La richiesta dell'operatore della sera del 26/08** — «conviene sempre schierare un calciatore nella
+posizione del modulo più difensiva rispetto ai suoi ruoli ... che ne pensi se nei blocchi consideriamo solo
+la posizione più difensiva?» — descrive un problema **reale e misurabile**: fra i primi 16 trequartisti del
+foglio Serie A mantra **15** possono giocare da C (12 sono anche fra i primi 26 dei centrali), gli
+attaccanti esterni 19 su 24, gli esterni 18 su 23, i braccetti 10 su 10. Ma le due forme che la applicano
+sono state misurate e respinte:
+
+| forma | effetto |
+|---|---|
+| solo il posto più arretrato | BRACCETTI a **zero** nomi su tutt'e due i listoni, esterni 19 su una domanda di 23, trequartisti 17 |
+| nativi prima, taglio alla domanda | somma dei gain: T da 256 a **−9** (−103%), A da 116 a **−94**, W −39%, E −32%; spariscono McTominay 27,8 · Dimarco 37,0 |
+
+**Adottato**: il gain ordina sempre e chi ha un posto più arretrato porta un marchio (`↓C`), con la
+lettura letterale a un clic («Solo di mestiere», 241 nomi su 255, i braccetti vuoti **con la spiegazione**)
+e il prezzo scritto nel tooltip. La ragione di fondo è già nel §16 della metrica, incontrata dal lato del
+display: **una quota per ruolo non può esprimere quello che il rulebook raziona**, e dove quel principio
+decide davvero — l'assegnazione — l'app lo applica già in modo esatto col matching di `mantra-legal.ts`.
+
+**«Più difensivo» è misurato sul rulebook**: la linea più arretrata in cui i moduli mettono quel ruolo
+(Dd/Dc/Ds/B 1 · E/M/C/W 2 · T/A 3 · Pc 4), a pari linea l'ordine dichiarato in `mantra_modules.json`. Si
+tiene il minimo e non la media, perché le medie (M 2,00 · C 2,06 · E 2,07) separerebbero su sette
+centesimi tre mestieri che il regolamento tiene alla stessa profondità: dentro il centrocampo quella
+parola non separa niente, e lo si dice.
+
+**Sul codice, una cosa che vale oltre la pagina.** Il foglio è scelto da **(listone, gioco)** e non dalla
+piattaforma — il bundle ne porta tre, e il surplus di un uomo è un fatto sul gioco per cui lo compri —
+quindi `ValuationStore` espone `sheets` e `expectationsFor(sheet)`: il lettore delle colonne del motore era
+già uno e resta uno, si è solo aperto a un foglio NOMINATO. Con lui `valueFromEngine` e
+`sealed-bid.scaleOf`, perché le fasce di colore del gain devono voler dire la stessa cosa sulle due pagine.
+
+**Tre cose che la pagina dice invece di riempire in silenzio**: una combinazione che il bundle non porta
+(euro/classic oggi) non viene riempita col foglio dell'altro gioco; se squadre e rose dichiarate non
+coincidono col foglio il GAIN resta il suo e le liste seguono la dichiarazione; il budget non entra ancora
+in nessun numero.
+
+**Verificato**: `ng build` verde, **509 test in 32 file**, e `scripts/e2e-strategy.mjs` — arnese nuovo,
+zero dipendenze come gli altri due — che guida il browser vero: 250 righe esaminate, contatori contro le
+righe disegnate, gain monotono, bottone raggiunto da un puntatore vero, dodici blocchi mantra col
+vocabolario del regolamento, marchi (t 15/16 · b 10/10 · por 0/20), la coda non coperta dal box del viaggio
+nel tempo (828 contro 853), console pulita. Due difetti **dell'arnese** trovati per strada: una porta di
+debug fissa gli faceva misurare la pagina della corsa precedente, e confrontava il ruolo come lo DISEGNA la
+CSS invece del codice. `engine_*`, i fogli e le revisioni **fermi**.
+
+**Aperti, per resa attesa**: (1) la pagina non sa cosa hai già in rosa — agganciarla a `expectedHoles` e
+`fanta-eleven` è l'item più grosso; (2) «Solo di mestiere» come POLITICA è pre-registrabile sul banco dei
+draft; (3) il budget non fa niente, e farlo entrare richiede il prezzo ombra di un credito; (4) la domanda
+mantra resta il segnaposto delle forme (§15.4).
 
 ### 25 agosto 2026 — una SECONDA FONTE per lo stesso fatto, e il caso da cui la domanda è nata è rifiutato
 

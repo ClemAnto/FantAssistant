@@ -2272,3 +2272,29 @@ titolare di una piccola a cinque crediti.
 E il risultato che vale oltre i due marchi: **perdere il posto è più prevedibile che conquistarlo** —
 90,4% contro 76,8%. Un uomo che smette di giocare di solito è stato tolto per una ragione che dura; uno
 che ne inizia cinque può stare coprendo qualcuno.
+
+---
+
+## 32. La pagina STRATEGIA: cosa si prepara PRIMA di sedersi (26-27 agosto 2026)
+
+Documento proprio: **`pagina-strategia-v1.md`**. Qui il posto che occupa fra le altre pagine, che è la
+domanda a cui questo documento risponde.
+
+Le tre pagine d'asta rispondono a tre domande diverse e nessuna può sostituire un'altra:
+
+| pagina | quando | domanda | moneta |
+|---|---|---|---|
+| `/auction` | al tavolo, in diretta | «chi prendo ADESSO, e fino a quanto» | valore/netto sul pool vivo |
+| `/sealed-bid` | fra due tornate | «che numero scrivo nella busta» | GAIN × probabilità di vincerla |
+| `/strategy` | **prima** | «quanti uomini per reparto, e quali nomi devo avere in testa» | surplus (rilanci) o valore (draft) |
+
+Quello che aggiunge è **la lunghezza di una lista**, che nessun'altra pagina calcolava: la domanda della
+stanza intera per quel ruolo — `slot × partecipanti` su classic (8 difensori per 8 partecipanti = 64), le
+quote delle forme su mantra, dove la rosa non ha quote per ruolo. È la sola cosa che dice quando una lista
+è finita: sotto quella lunghezza, «ho un'alternativa» è una speranza.
+
+Due regole di UI che sono requisiti, entrambe già scritte altrove e riconfermate qui: **il regolamento
+dichiarato sta SEMPRE a schermo** (barra fissa: listone, gioco, rose, budget, partecipanti, tipo d'asta e
+quale valuta ordina), e **una scelta automatica deve essere dubitabile** — il foglio che prezza le liste è
+nominato con la sua revisione, e dove la lega dichiarata non coincide con quella del foglio la pagina
+lo dice invece di riallineare da sola.

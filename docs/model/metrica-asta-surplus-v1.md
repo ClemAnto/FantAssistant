@@ -1599,3 +1599,53 @@ giocheranno una cinquantina. La squadra non è un criterio d'asta, lo sconto sì
 * Aperto e non misurato: tutto è su Serie A/classic e sul fantavoto standard: su MANTRA due uomini dello
   stesso ruolo occupano slot tipizzati e la domanda cambia, perché lì la legalità dell'undici è un
   vincolo e non una preferenza.
+
+---
+
+## 25. IL «POSTO PIÙ ARRETRATO»: la regola dell'operatore misurata in due forme, e respinta in entrambe (27 agosto 2026)
+
+Nata dalla pagina STRATEGIA (`pagina-strategia-v1.md`, che porta il resoconto per intero) e messa qui
+perché è una misura sulla POLITICA di una lista, che è la materia di questo documento. La regola,
+dettata il 26/08/2026: «conviene sempre schierare un calciatore nella posizione del modulo più difensiva
+rispetto ai suoi ruoli. Ad esempio un C/T conviene prenderlo per metterlo come C in modo da lasciare la
+posizione T a un calciatore più offensivo (ad esempio un T/A) ... che ne pensi se nei blocchi
+consideriamo solo la posizione più difensiva dei ruoli del calciatore?».
+
+**Il problema che descrive è vero e si misura.** Metà del listone porta più di un ruolo (267 su 541 su
+default, 492 su 966 su euro), e i blocchi offensivi si ripetono l'uno con l'altro: fra i primi 16
+trequartisti per gain del foglio Serie A mantra, **15 possono giocare da C** e 12 sono anche fra i primi
+26 dei centrali; gli attaccanti esterni 19 su 24; gli esterni 18 su 23 (su euro `Ds` ∩ `E` è **13 su
+13**); i braccetti 10 su 10.
+
+**Prima forma — tenere solo il posto più arretrato: RESPINTA.** Il blocco dei BRACCETTI resta a **zero**
+nomi su tutt'e due i listoni (ogni braccetto quotato è anche un `Dc`, un `Dd` o un `Ds`), gli esterni a
+19 su una domanda di 23, i trequartisti a 17 su 16 (14 sui soli quotati). Tre blocchi di dodici non
+riempiono più la propria lista, e quello che deve rispondere a «chi mi copre il braccetto» non risponde.
+
+**Seconda forma — nativi prima e taglio alla domanda: RESPINTA, e peggio della prima.** Somma dei gain
+(surplus) dei nomi che il blocco mostra, foglio Serie A mantra, 609 righe:
+
+| blocco | per gain | nativi prima | differenza |
+|---|---|---|---|
+| T | 256 | **−9** | **−103%** |
+| A | 116 | **−94** | −182% |
+| W | 173 | 106 | −39% |
+| E | 308 | 208 | −32% |
+| Dc | 318 | 262 | −18% |
+| C | 434 | 402 | −8% |
+
+Spariscono McTominay 27,8 · Da Cunha 22,2 · Rabiot 21,1 (T), Dimarco **37,0** (W), Santos A. 17,6 (A). I
+trequartisti puri del listone sono deboli, quindi il blocco finisce **sotto il rimpiazzo**: una lista i
+cui primi nomi valgono meno della panchina non è una lista da cui comprare.
+
+**Adottato**: il gain ordina sempre e chi ha un posto più arretrato porta un MARCHIO (`↓C`), con la
+lettura letterale a un clic e il prezzo scritto. La ragione di fondo è già in §16 di questo documento,
+incontrata dal lato del display: **una quota per ruolo non può esprimere quello che il rulebook raziona**.
+Dove il principio dell'operatore decide davvero è un'ASSEGNAZIONE, e lì l'app lo applica in modo esatto —
+il matching di `mantra-legal.ts` sposta il C/T su C da solo appena possiedi un T.
+
+**Come si definisce «più difensivo»**, perché senza definizione non c'è misura: la linea più arretrata in
+cui i moduli mettono quel ruolo (Dd/Dc/Ds/B 1 · E/M/C/W 2 · T/A 3 · Pc 4), a pari linea l'ordine
+dichiarato in `mantra_modules.json`. Si tiene il minimo e non la media perché le medie (M 2,00 · C 2,06 ·
+E 2,07) separerebbero su sette centesimi tre mestieri che il regolamento tiene alla stessa profondità:
+**dentro il centrocampo quella parola non separa niente**, ed è un limite dichiarato e non un dettaglio.

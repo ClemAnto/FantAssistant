@@ -153,6 +153,9 @@ third game): **`todolist-buste-chiuse-v1.md`** — the league's own regulation, 
 round-1 measurements, and the operator's three declared rules; closed on 25/08/2026 for everything that
 depends on code, so what is left there is measurement and acquisition. See «A sealed bid is a third
 game» below.
+For the STRATEGY page (what is prepared BEFORE sitting down): **`pagina-strategia-v1.md`** — the league
+settings, the currency per auction type, how many names a role needs, and the two REFUSED forms of the
+«most defensive place» rule with their numbers. See «A list per role cannot express a joint constraint».
 Drive dataset IDs (xlsx/csv, not in git) are in [docs/DRIVE-MANIFEST.md](docs/DRIVE-MANIFEST.md).
 The BOARD list `todolist-formazioni-tipo-v1.md` is **closed** (08/08/2026): five adoptions, six measured
 refusals, and the standing rule that the press is a JUDGE and never an input. What remains is
@@ -1767,6 +1770,56 @@ afford it (at 257 of ceiling Provedel + Palmisani, with 17 credits more Falcone 
 compared with the objective that produced it before being called a defect: `gain` is the total if you win
 everything, so more money buys dearer and likelier envelopes and that total drops by construction, while
 `expectedGain` rises on all seven ceilings tried (107 · 118 · 135 · 144 · 156 · 162 · 180).
+
+## A LIST PER ROLE CANNOT EXPRESS A JOINT CONSTRAINT, which is why the strategy page MARKS
+**26-27/08/2026, `app/src/app/core/strategy.ts` + `views/strategy/`, details in
+`docs/model/pagina-strategia-v1.md`.** A fourth page (`/strategy`): the operator declares his league -
+listone, game, roster shape, budget, raises or draft, participants - and it draws one BLOCK per role with
+the best names. Nothing here predicts a footballer either: the valuation is the sheet's, read and never
+recomputed, and what is deduced is about PLACES, PARTICIPANTS and the rulebook.
+
+**THE CURRENCY IS THE AUCTION'S, and it is measured rather than chosen**: the SURPLUS with raises (there
+the scarce resource is the credit, which is exactly what the surplus subtracts against) and the VALUE in a
+draft (there you spend PICKS, and the surplus charges a per-slot scarcity the rulebook does not impose:
+−4.0% over the bench's five windows). Stated rather than hidden: that measurement was made on MANTRA, so
+«draft + classic» extends a conclusion outside the population it was taken on.
+
+**THE LENGTH OF A LIST IS THE ROOM'S OWN DEMAND**, which is the operator's own rule («sufficiente ad avere
+sempre un'alternativa considerando la distribuzione di quel ruolo per ogni partecipante»): on classic it is
+a count - eight defenders for eight participants is 64, and the guarantee is exact - while on mantra the
+roster has no per-role quota at all, so the demand comes from the SHAPES (`slotShares` /
+`demandFromShapes`, the placeholder §15.4 already declares). One floor is declared: at least one man per
+participant, because the roles OVERLAP and a per-role demand underestimates the drain - a `Dc;B` bought as
+a `Dc` is one braccetto fewer for everybody else.
+
+**AND THE OPERATOR'S OWN RULE WAS RIGHT ABOUT THE PROBLEM AND REFUSED IN BOTH ITS FORMS** («conviene
+sempre schierare un calciatore nella posizione del modulo più difensiva rispetto ai suoi ruoli ... un C/T
+conviene prenderlo per metterlo come C in modo da lasciare la posizione T a un T/A»). The problem is real
+and measurable: of the top 16 trequartisti of the Serie A mantra sheet, **15** can play as a C and 12 are
+also in the C block's top 26; the esterni 18 of 23; the braccetti 10 of 10 - those blocks repeat the one
+behind them. But keeping only each man's DEEPEST place leaves the BRACCETTI at **zero** names on both
+listoni (every quoted braccetto is also a `Dc`, a `Dd` or a `Ds`), the esterni at 19 against a demand of
+23; and putting the natives FIRST and cutting at the demand is worse - the trequartisti block's total gain
+goes from 256 to **−9** and the attaccanti esterni from 116 to **−94**, with McTominay 27.8 and Dimarco
+37.0 disappearing. **A list whose first names are worth less than the bench is not a list to buy from.**
+So the rule MARKS (`↓C` beside the gain) and the literal reading is one click away with its price stated.
+The reason is `metrica-asta-surplus-v1.md` §16 met from the display side - a per-role quota cannot express
+what the rulebook rations - and where the principle really decides, the ASSIGNMENT, the app already
+applies it exactly: `mantra-legal.ts`'s matching moves the C/T to C by itself once you own a T.
+
+**«More defensive» is MEASURED on the rulebook**, never a hand-written list: the deepest LINE the modules
+ever put that role in (Dd/Dc/Ds/B 1 · E/M/C/W 2 · T/A 3 · Pc 4), ties broken by the order the rulebook
+declares. The MINIMUM and not the mean, and the reason is a stated limit: the means put M at 2.00, C at
+2.06 and E at 2.07 - three different jobs at one depth (a wing back is a flank, a mediano is the centre) -
+so deciding between them on seven hundredths would be inventing an order. **Inside the midfield that word
+separates nothing**, and saying so is the point.
+
+Three things the page SAYS instead of filling in silently, all of them this project's own habits: a
+(listone, game) combination the bundle does not carry - euro/classic today - is never filled with the
+other game's sheet, because a surplus is a fact about the GAME you are buying for (hence
+`ValuationStore.sheets` and `expectationsFor(sheet)`: one reader of the engine columns, now reachable for a
+NAMED sheet); a declared league that disagrees with the sheet's own teams and slots keeps the sheet's GAIN
+and gets the declared LENGTHS, with the mismatch drawn; and the budget enters no number yet.
 
 ## Quello che è già successo non si prevede — e l'app può viaggiare nel tempo
 **16/08/2026, e sono due facce dello stesso problema.** Un'asta giocata a stagione iniziata è l'esercizio

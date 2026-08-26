@@ -1661,3 +1661,29 @@ contro il −2% richiesto), e questo è detto e non nascosto. E **Varela resta a
 rimasta aperta, è un rifiuto misurato, perché quella retta non ha un termine di livello e legge mezza
 stagione di Primeira Liga come mezza di Premier League.
 
+
+---
+
+## 19. La pagina STRATEGIA: la stessa valutazione, un'altra domanda (26-27 agosto 2026)
+
+Il resoconto per intero sta in **`pagina-strategia-v1.md`**; qui restano le tre cose che riguardano le
+LETTURE, cioè il mestiere di questo documento.
+
+1. **Il GAIN non è una colonna nuova, è una delle due che ci sono già, scelta dal TIPO D'ASTA**: il
+   `surplus` del foglio con i rilanci, il VALORE (`fm × pv`) in un draft. Misurato, non scelto
+   (`metrica-asta-surplus-v1.md` §15-16). Il valore è un totale senza zero — la lezione del §9 di questo
+   documento — e lì non fa danno perché il confronto è **sempre dentro un ruolo**: fra due uomini dello
+   stesso blocco lo zero che manca è lo stesso.
+2. **Le fasce di colore sono le stesse delle buste chiuse**, e non una seconda tavolozza: `ui-gain` coi
+   percentili del listone intero, tagliati una volta (`sealed-bid.scaleOf`, estratta per questo). Un verde
+   deve voler dire la stessa cosa sulle due pagine, o il colore diventa una frase sulla lista invece che
+   sull'uomo.
+3. **Il marchio `↓C`** dice che quell'uomo ha un posto più arretrato, quindi in quel blocco è un ripiego.
+   È la regola dell'operatore resa LEGGIBILE invece che applicata: applicarla come filtro o come ordine è
+   stato misurato e respinto (§25 di `metrica-asta-surplus-v1.md`, con i numeri) — il blocco dei
+   trequartisti passerebbe da 256 a **−9** di gain.
+
+E una lezione di questa cartella incontrata di nuovo: **un'impostazione che cambia quello che stai
+guardando non si mette dove per vederla devi chiudere quello che stai guardando.** Lo switch delle due
+letture sta nella barra sempre a schermo, non nella finestra delle impostazioni; e su classic **non c'è**,
+perché là un uomo ha un ruolo solo e non muoverebbe una riga.
