@@ -222,8 +222,14 @@ const NO_TONES: ValueTones = {
 /** Quali colonne portano un colore. Una chiave sola per la cella, la nota e il rango. */
 export type ToneKey = keyof ValueTones;
 
-/** What the engine's sheet says it expects of a player, prediction and declared fallback alike. */
-interface EngineExpectation {
+/**
+ * What the engine's sheet says it expects of a player, prediction and declared fallback alike.
+ *
+ * Exported since 26/08/2026 because the STRATEGY page reads a sheet this store does not keep - the mantra
+ * one of a platform whose first sheet is classic - through `expectationsFor`, and a second declaration of
+ * these columns would be a second answer about one file.
+ */
+export interface EngineExpectation {
   pv: number | null;
   pvIsEstimate: boolean;
   fm: number | null;
@@ -314,6 +320,29 @@ interface EngineExpectation {
   surplusCup: number | null;
   surplusFieldedCup: number | null;
   cupNote: string | null;
+}
+
+/**
+ * IL VALORE di una riga di foglio: fantamedia attesa × presenze attese, senza sottrarre niente.
+ *
+ * Una definizione sola, e sta qui perché due pagine la chiedono della stessa riga: la tabella delle
+ * valutazioni (`valuations`, dove diventa la colonna «Fantapunti») e la pagina della STRATEGIA, che in un
+ * draft la usa come valuta - misurata migliore del surplus in quel formato. L'aritmetica è quella di
+ * `valueOf`, che è la sola che questo progetto ha; questa funzione è la sua lettura di un
+ * `EngineExpectation`, non una seconda formula.
+ *
+ * La confidenza moltiplica anche qui, per la stessa ragione per cui moltiplica il surplus: una colonna
+ * sola deve poter ordinare tutta la lista, misurati e stimati insieme.
+ */
+export function valueFromEngine(engine: EngineExpectation | undefined): number | null {
+  return valueOf({
+    basis: engine?.fmIsEstimate ? 'estimated' : 'measured',
+    fm: engine?.fm ?? null,
+    pv: engine?.pv ?? null,
+    slot: null,
+    confidence: engine?.confidence ?? 1,
+    note: null,
+  });
 }
 
 type Status = 'idle' | 'loading' | 'ready' | 'error';
@@ -415,6 +444,17 @@ export class ValuationStore {
   private readonly boards = signal<Map<Platform, { file: BoardsFile; sheet: EngineSheetEntry }>>(
     new Map(),
   );
+
+  /**
+   * EVERY sheet this snapshot declares - of the time pack when one is open, of the manifest otherwise.
+   *
+   * `sheetFor(platform)` answers «the sheet this listone's tables are drawn from» and is what the tables
+   * want; this is the whole list, for a page that CHOOSES one (platform, game): the bundle can carry
+   * three, and «Serie A mantra» is a sheet no per-platform accessor can name. It comes from here and not
+   * from the manifest directly so that the choice travels through time with everything else - a pack's
+   * leagues are the sheets of that date, and reading the manifest would quietly show today's.
+   */
+  readonly sheets = signal<EngineSheetEntry[]>([]);
 
   /** One load for every caller: a second view must AWAIT the first one, not walk past it. */
   private pending: Promise<void> | null = null;
@@ -561,16 +601,7 @@ export class ValuationStore {
           valueCup: engine?.valueCup ?? null,
           surplusCup: engine?.surplusCup ?? null,
           surplusFieldedCup: engine?.surplusFieldedCup ?? null,
-          // La confidenza moltiplica anche qui, per la stessa ragione per cui moltiplica il surplus:
-          // una colonna sola deve poter ordinare tutta la lista, misurati e stimati insieme.
-          value: valueOf({
-            basis: engine?.fmIsEstimate ? 'estimated' : 'measured',
-            fm: engine?.fm ?? null,
-            pv: engine?.pv ?? null,
-            slot: null,
-            confidence: engine?.confidence ?? 1,
-            note: null,
-          }),
+          value: valueFromEngine(engine),
           fvm: (mantra
             ? values.get(`${platform}|${player.fcId}`)?.mantra
             : values.get(`${platform}|${player.fcId}`)?.classic) ?? null,
@@ -719,6 +750,7 @@ export class ValuationStore {
           boards: one.boards ? `timepacks/${pack.date}/${one.boards}` : null,
         }))
         : (manifest.engine_sheets ?? []);
+      this.sheets.set(sheets);
       const boards = await this.boardsByPlatform(sheets);
       this.boards.set(boards);
       this.expected.set(await this.expectedByPlatform(boards, sheets));
@@ -839,6 +871,12 @@ export class ValuationStore {
    *
    * The number lives on the platform's own calendar (31 euro rounds, 38 default), which the manifest
    * states per sheet - the tooltip says which, or «22 partite» would be a number without a total.
+   *
+   * ONE SHEET PER PLATFORM, which is a CHOICE and not the whole truth: a platform can declare a classic
+   * sheet and a mantra one (`default` carries both), and the two disagree on the surplus because the
+   * replacement level is per role SLOT and the two games do not have the same slots. The tables that read
+   * this store show one listone, so they take the platform's first sheet the way the boards do; whoever
+   * needs a NAMED sheet asks `expectationsFor` for it.
    */
   private async expectedByPlatform(
     chosen: ReadonlyMap<Platform, { sheet: EngineSheetEntry }>,
@@ -851,102 +889,140 @@ export class ValuationStore {
       if (!sheet) continue;
       // The calendar of THIS sheet, recorded with its numbers: what the pv values are a share of.
       rounds.set(platform, sheet.matchdays_target ?? null);
-      try {
-        const table = await this.bundle.table(sheet.path.replace(/\.json(\.gz)?$/, ''));
-        const [id] = columnIndex(table, 'fc_id');
-        const at = (name: string) => optionalIndex(table, name);
-        const columns = {
-          pv: at('engine_pv_pred'), estPv: at('est_pv'),
-          fm: at('engine_fm_pred'), estFm: at('est_fm'),
-          mv: at('est_mv'), replacement: at('engine_replacement_fm'),
-          // Fπ: il valore di una sua partita secondo il calcio che ha DAVVERO giocato, anche altrove.
-          // Assente prima della revisione 31, e allora la colonna resta muta invece di ripiegare su
-          // `est_fm` in silenzio: due basi sotto un nome solo è il difetto che questo progetto paga.
-          piFm: at('pi_fm'), piBasis: at('pi_basis'), piMatches: at('pi_matches'),
-          // La titolarità in una parola, revisione 35+, e i due numeri che la compongono.
-          titolarita: at('desc_titolarita'), titolaritaPlay: at('desc_titolarita_play'),
-          minutesNext: at('desc_minutes_next'),
-          surplus: at('engine_surplus'), estSurplus: at('est_surplus'),
-          // L'ALTRO ZERO: una colonna sola, perché il foglio la scrive già per tutta la lista - motore
-          // dove c'è, stima altrove, con la stessa penale. Assente prima della revisione 22.
-          surplusFielded: at('desc_surplus_fielded'),
-          replacementFielded: at('desc_replacement_fielded'),
-          spm: at('desc_spm'), dvm: at('desc_dvm'),
-          confidence: at('est_confidence'),
-          basis: at('est_basis'), note: at('est_note'),
-          // La coppa continentale in mezzo al campionato, revisione 23+: assenti prima, e allora la
-          // colonna è muta invece di dire «nessuno parte».
-          cup: at('desc_cup'), cupCountry: at('desc_cup_country'),
-          cupCapped: at('desc_cup_capped'), cupRounds: at('desc_cup_rounds'),
-          pvCup: at('desc_pv_cup'), valueCup: at('desc_value_cup'),
-          surplusCup: at('desc_surplus_cup'),
-          surplusFieldedCup: at('desc_surplus_fielded_cup'),
-          cupNote: at('desc_cup_note'),
-        };
-        const read = (row: unknown[], engineAt: number, estimateAt: number) => {
-          const engine = engineAt < 0 ? null : (row[engineAt] as number | null);
-          const estimate = estimateAt < 0 ? null : (row[estimateAt] as number | null);
-          return { value: engine ?? estimate, isEstimate: engine == null && estimate != null };
-        };
-        for (const row of table.rows) {
-          const pv = read(row, columns.pv, columns.estPv);
-          const fm = read(row, columns.fm, columns.estFm);
-          const surplus = read(row, columns.surplus, columns.estSurplus);
-          if (pv.value == null && fm.value == null) continue;
-          out.set(`${platform}|${Number(row[id])}`, {
-            pv: pv.value,
-            pvIsEstimate: pv.isEstimate,
-            fm: fm.value,
-            fmIsEstimate: fm.isEstimate,
-            surplus: surplus.value,
-            surplusIsEstimate: surplus.isEstimate,
-            surplusFielded: columns.surplusFielded < 0
-              ? null : ((row[columns.surplusFielded] as number | null) ?? null),
-            replacementFielded: columns.replacementFielded < 0
-              ? null : ((row[columns.replacementFielded] as number | null) ?? null),
-            spm: columns.spm < 0 ? null : ((row[columns.spm] as number | null) ?? null),
-            dvm: columns.dvm < 0 ? null : ((row[columns.dvm] as number | null) ?? null),
-            confidence:
-              columns.confidence < 0 ? 1 : ((row[columns.confidence] as number | null) ?? 1),
-            mv: columns.mv < 0 ? null : ((row[columns.mv] as number | null) ?? null),
-            piFm: columns.piFm < 0 ? null : ((row[columns.piFm] as number | null) ?? null),
-            piBasis: columns.piBasis < 0 ? null : ((row[columns.piBasis] as string) ?? null),
-            piMatches: columns.piMatches < 0 ? null : ((row[columns.piMatches] as number | null) ?? null),
-            titolarita:
-              columns.titolarita < 0 ? null : ((row[columns.titolarita] as string) ?? null),
-            titolaritaPlay: columns.titolaritaPlay < 0
-              ? null : ((row[columns.titolaritaPlay] as number | null) ?? null),
-            minutesNext: columns.minutesNext < 0
-              ? null : ((row[columns.minutesNext] as number | null) ?? null),
-            replacementFm:
-              columns.replacement < 0 ? null : ((row[columns.replacement] as number | null) ?? null),
-            basis: columns.basis < 0 ? null : ((row[columns.basis] as string) ?? null),
-            note: columns.note < 0 ? null : ((row[columns.note] as string) ?? null),
-            cup: columns.cup < 0 ? null : ((row[columns.cup] as string) ?? null),
-            cupCountry:
-              columns.cupCountry < 0 ? null : ((row[columns.cupCountry] as string) ?? null),
-            // «yes»/«no» e non un booleano: il foglio scrive parole, e questo progetto ha già pagato una
-            // volta un `Boolean(...)` su una colonna che sembrava un flag e portava una parola.
-            cupCapped: columns.cupCapped >= 0 && row[columns.cupCapped] === 'yes',
-            cupRounds:
-              columns.cupRounds < 0 ? null : ((row[columns.cupRounds] as number | null) ?? null),
-            pvCup: columns.pvCup < 0 ? null : ((row[columns.pvCup] as number | null) ?? null),
-            valueCup:
-              columns.valueCup < 0 ? null : ((row[columns.valueCup] as number | null) ?? null),
-            surplusCup:
-              columns.surplusCup < 0 ? null : ((row[columns.surplusCup] as number | null) ?? null),
-            surplusFieldedCup: columns.surplusFieldedCup < 0
-              ? null : ((row[columns.surplusFieldedCup] as number | null) ?? null),
-            cupNote: columns.cupNote < 0 ? null : ((row[columns.cupNote] as string) ?? null),
-          });
-        }
-      } catch {
+      const columns = await this.expectationsFor(sheet);
+      if (!columns) {
         // A sheet the bundle does not carry: the column stays empty and says «ignoto», which is the
         // truth - the engine has not been run for this platform.
         rounds.delete(platform);
+        continue;
       }
+      for (const [fcId, one] of columns) out.set(`${platform}|${fcId}`, one);
     }
     this.expectedRounds.set(rounds);
+    return out;
+  }
+
+  /**
+   * The engine columns of ONE NAMED SHEET, keyed by `fc_id` - and the only reader of them there is.
+   *
+   * The store keeps the platform's own sheet for every list that shows a listone; this exists for the
+   * question the platform cannot answer, «what does the MANTRA sheet of Serie A say», which is what the
+   * strategy page asks (`views/strategy/`): its two currencies are the surplus and the value, and the
+   * surplus of a man is a fact about the game he is being bought for.
+   *
+   * Cached by PATH, because a path names one immutable file: the same sheet is never read twice, a time
+   * pack's sheets live under their own date so they cannot collide with today's, and no caller can get a
+   * different answer from another. Null - never an empty map - when the bundle does not carry it, so
+   * «not exported» stays distinguishable from «exported and empty».
+   */
+  expectationsFor(sheet: EngineSheetEntry): Promise<Map<number, EngineExpectation> | null> {
+    let pending = this.sheetColumns.get(sheet.path);
+    if (!pending) {
+      pending = this.readSheet(sheet);
+      this.sheetColumns.set(sheet.path, pending);
+    }
+    return pending;
+  }
+
+  private readonly sheetColumns = new Map<
+    string,
+    Promise<Map<number, EngineExpectation> | null>
+  >();
+
+  private async readSheet(sheet: EngineSheetEntry): Promise<Map<number, EngineExpectation> | null> {
+    const out = new Map<number, EngineExpectation>();
+    try {
+      const table = await this.bundle.table(sheet.path.replace(/\.json(\.gz)?$/, ''));
+      const [id] = columnIndex(table, 'fc_id');
+      const at = (name: string) => optionalIndex(table, name);
+      const columns = {
+        pv: at('engine_pv_pred'), estPv: at('est_pv'),
+        fm: at('engine_fm_pred'), estFm: at('est_fm'),
+        mv: at('est_mv'), replacement: at('engine_replacement_fm'),
+        // Fπ: il valore di una sua partita secondo il calcio che ha DAVVERO giocato, anche altrove.
+        // Assente prima della revisione 31, e allora la colonna resta muta invece di ripiegare su
+        // `est_fm` in silenzio: due basi sotto un nome solo è il difetto che questo progetto paga.
+        piFm: at('pi_fm'), piBasis: at('pi_basis'), piMatches: at('pi_matches'),
+        // La titolarità in una parola, revisione 35+, e i due numeri che la compongono.
+        titolarita: at('desc_titolarita'), titolaritaPlay: at('desc_titolarita_play'),
+        minutesNext: at('desc_minutes_next'),
+        surplus: at('engine_surplus'), estSurplus: at('est_surplus'),
+        // L'ALTRO ZERO: una colonna sola, perché il foglio la scrive già per tutta la lista - motore
+        // dove c'è, stima altrove, con la stessa penale. Assente prima della revisione 22.
+        surplusFielded: at('desc_surplus_fielded'),
+        replacementFielded: at('desc_replacement_fielded'),
+        spm: at('desc_spm'), dvm: at('desc_dvm'),
+        confidence: at('est_confidence'),
+        basis: at('est_basis'), note: at('est_note'),
+        // La coppa continentale in mezzo al campionato, revisione 23+: assenti prima, e allora la
+        // colonna è muta invece di dire «nessuno parte».
+        cup: at('desc_cup'), cupCountry: at('desc_cup_country'),
+        cupCapped: at('desc_cup_capped'), cupRounds: at('desc_cup_rounds'),
+        pvCup: at('desc_pv_cup'), valueCup: at('desc_value_cup'),
+        surplusCup: at('desc_surplus_cup'),
+        surplusFieldedCup: at('desc_surplus_fielded_cup'),
+        cupNote: at('desc_cup_note'),
+      };
+      const read = (row: unknown[], engineAt: number, estimateAt: number) => {
+        const engine = engineAt < 0 ? null : (row[engineAt] as number | null);
+        const estimate = estimateAt < 0 ? null : (row[estimateAt] as number | null);
+        return { value: engine ?? estimate, isEstimate: engine == null && estimate != null };
+      };
+      for (const row of table.rows) {
+        const pv = read(row, columns.pv, columns.estPv);
+        const fm = read(row, columns.fm, columns.estFm);
+        const surplus = read(row, columns.surplus, columns.estSurplus);
+        if (pv.value == null && fm.value == null) continue;
+        out.set(Number(row[id]), {
+          pv: pv.value,
+          pvIsEstimate: pv.isEstimate,
+          fm: fm.value,
+          fmIsEstimate: fm.isEstimate,
+          surplus: surplus.value,
+          surplusIsEstimate: surplus.isEstimate,
+          surplusFielded: columns.surplusFielded < 0
+            ? null : ((row[columns.surplusFielded] as number | null) ?? null),
+          replacementFielded: columns.replacementFielded < 0
+            ? null : ((row[columns.replacementFielded] as number | null) ?? null),
+          spm: columns.spm < 0 ? null : ((row[columns.spm] as number | null) ?? null),
+          dvm: columns.dvm < 0 ? null : ((row[columns.dvm] as number | null) ?? null),
+          confidence:
+            columns.confidence < 0 ? 1 : ((row[columns.confidence] as number | null) ?? 1),
+          mv: columns.mv < 0 ? null : ((row[columns.mv] as number | null) ?? null),
+          piFm: columns.piFm < 0 ? null : ((row[columns.piFm] as number | null) ?? null),
+          piBasis: columns.piBasis < 0 ? null : ((row[columns.piBasis] as string) ?? null),
+          piMatches: columns.piMatches < 0 ? null : ((row[columns.piMatches] as number | null) ?? null),
+          titolarita:
+            columns.titolarita < 0 ? null : ((row[columns.titolarita] as string) ?? null),
+          titolaritaPlay: columns.titolaritaPlay < 0
+            ? null : ((row[columns.titolaritaPlay] as number | null) ?? null),
+          minutesNext: columns.minutesNext < 0
+            ? null : ((row[columns.minutesNext] as number | null) ?? null),
+          replacementFm:
+            columns.replacement < 0 ? null : ((row[columns.replacement] as number | null) ?? null),
+          basis: columns.basis < 0 ? null : ((row[columns.basis] as string) ?? null),
+          note: columns.note < 0 ? null : ((row[columns.note] as string) ?? null),
+          cup: columns.cup < 0 ? null : ((row[columns.cup] as string) ?? null),
+          cupCountry:
+            columns.cupCountry < 0 ? null : ((row[columns.cupCountry] as string) ?? null),
+          // «yes»/«no» e non un booleano: il foglio scrive parole, e questo progetto ha già pagato una
+          // volta un `Boolean(...)` su una colonna che sembrava un flag e portava una parola.
+          cupCapped: columns.cupCapped >= 0 && row[columns.cupCapped] === 'yes',
+          cupRounds:
+            columns.cupRounds < 0 ? null : ((row[columns.cupRounds] as number | null) ?? null),
+          pvCup: columns.pvCup < 0 ? null : ((row[columns.pvCup] as number | null) ?? null),
+          valueCup:
+            columns.valueCup < 0 ? null : ((row[columns.valueCup] as number | null) ?? null),
+          surplusCup:
+            columns.surplusCup < 0 ? null : ((row[columns.surplusCup] as number | null) ?? null),
+          surplusFieldedCup: columns.surplusFieldedCup < 0
+            ? null : ((row[columns.surplusFieldedCup] as number | null) ?? null),
+          cupNote: columns.cupNote < 0 ? null : ((row[columns.cupNote] as string) ?? null),
+        });
+      }
+    } catch {
+      return null;
+    }
     return out;
   }
 }

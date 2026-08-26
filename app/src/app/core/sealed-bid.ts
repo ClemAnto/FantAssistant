@@ -890,15 +890,27 @@ export interface GainScale {
  * about him. The colour of a name must mean the same thing in round 2 and in round 9.
  */
 export function gainScale(pool: readonly Bidder[], rules: LeagueRules): GainScale {
-  const gains = pool
-    .map((man) => gainOf(man, rules))
+  return scaleOf(pool.map((man) => gainOf(man, rules)));
+}
+
+/**
+ * The same three cuts, from the gains themselves - so a page with ANOTHER definition of «gain» paints
+ * its chips on the same bands instead of inventing a second palette.
+ *
+ * It exists because the STRATEGY page ranks by the currency the auction type asks for (the surplus with
+ * raises, the value in a draft: `core/strategy.ts`), which is not this file's gain. What must not differ
+ * is what a colour MEANS - the best tenth of the pool is `ottimo` wherever it is drawn - and that is
+ * exactly what `GAIN_SHARES` and `ui-gain` are for. Nulls are dropped and never read as a zero.
+ */
+export function scaleOf(gains: readonly (number | null)[]): GainScale {
+  const sorted = gains
     .filter((one): one is number => one != null)
     .sort((left, right) => left - right);
   return {
-    top: quantile(gains, GAIN_SHARES.top),
-    good: quantile(gains, GAIN_SHARES.good),
-    fair: quantile(gains, GAIN_SHARES.fair),
-    sample: gains.length,
+    top: quantile(sorted, GAIN_SHARES.top),
+    good: quantile(sorted, GAIN_SHARES.good),
+    fair: quantile(sorted, GAIN_SHARES.fair),
+    sample: sorted.length,
   };
 }
 

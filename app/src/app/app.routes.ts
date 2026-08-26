@@ -14,6 +14,10 @@ export const routes: Routes = [
     loadComponent: () => import('./views/charts/charts').then((m) => m.Charts),
   },
   {
+    path: 'strategy',
+    loadComponent: () => import('./views/strategy/strategy').then((m) => m.Strategy),
+  },
+  {
     path: 'sealed-bid',
     loadComponent: () => import('./views/sealed-bid/sealed-bid').then((m) => m.SealedBid),
   },

@@ -225,6 +225,8 @@ export interface PlayerNotesFile {
 /** The shape of `mantra_modules.json`, as the toolkit ships it. */
 export interface MantraModulesFile {
   edition?: string;
+  /** The listone's roles in the rulebook's own order. See `MantraModules.roles` for who reads them. */
+  roles?: string[];
   slot_roles: Record<string, string[]>;
   modules: Record<string, Record<string, string[]>>;
 }

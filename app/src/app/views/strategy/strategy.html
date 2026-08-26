@@ -1,0 +1,437 @@
+<!-- UI text is ITALIAN in app/ (see app/CLAUDE.md); code and comments stay English.
+
+     LA PAGINA NON SCORRE, e le liste sì: 64 difensori non stanno in una finestra, quindi la scelta è fra
+     una pagina lunga da scorrere - dove per confrontare il primo attaccante col primo portiere si perde di
+     vista l'altro - e dodici colonne ferme, ognuna che scorre per sé. Al tavolo si guardano i reparti
+     insieme, quindi l'altezza è quella della finestra (`h-[100dvh]`) e ogni blocco si ritaglia la sua
+     parte: `min-h-0` su tutta la catena, altrimenti una griglia in `1fr` si allarga per stare dietro al
+     contenuto e la pagina ricomincia a scorrere. -->
+<div class="flex h-[100dvh] flex-col gap-2 overflow-hidden p-3">
+  <header class="flex shrink-0 flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+    <div class="flex flex-wrap items-baseline gap-3">
+      <h1 class="text-xl font-semibold text-fg">Strategia</h1>
+      <span
+        class="rounded-full border border-border px-2 py-0.5 text-xs text-muted"
+        title="Versione della webapp - cambia a ogni pubblicazione"
+        >v{{ appVersion }}</span
+      >
+      @if (sheet(); as entry) {
+        <span
+          class="text-xs text-muted"
+          nz-tooltip
+          [nzTooltipTitle]="
+            'Foglio ' +
+            entry.league +
+            ' · ' +
+            (entry.game === 'mantra' ? 'Mantra' : 'Classic') +
+            ' · ' +
+            (entry.teams ?? '?') +
+            ' squadre · rose ' +
+            ((entry.squad_slots?.['P'] ?? 0) + '/' + (entry.squad_slots?.['D'] ?? 0) + '/' + (entry.squad_slots?.['C'] ?? 0) + '/' + (entry.squad_slots?.['A'] ?? 0)) +
+            ' · revisione ' +
+            (entry.sheet_revision ?? 0) +
+            ' · generato il ' +
+            (entry.generated_at ?? entry.auction_date ?? '?').slice(0, 10) +
+            '. I numeri di ogni giocatore sono del motore, letti dal foglio e mai ricalcolati qui.'
+          "
+        >
+          {{ entry.league }} · rev. {{ entry.sheet_revision ?? 0 }} ·
+          {{ (entry.generated_at ?? entry.auction_date ?? '').slice(0, 10) }}
+        </span>
+      }
+    </div>
+    <div class="flex items-baseline gap-1">
+      <button nz-button nzType="primary" nzSize="small" (click)="openSettings()">
+        <nz-icon nzType="setting" />
+        Impostazioni lega
+      </button>
+      <a nz-button nzType="text" nzSize="small" routerLink="/">
+        <nz-icon nzType="team" />
+        Calciatori
+      </a>
+      <a nz-button nzType="text" nzSize="small" routerLink="/sealed-bid">
+        <nz-icon nzType="inbox" />
+        Buste chiuse
+      </a>
+    </div>
+  </header>
+
+  <!-- LA BARRA DEL REGOLAMENTO sta sempre a schermo e non dentro la finestra che l'ha scritto: una
+       impostazione nascosta dentro un pannello chiuso non si trova, ed è quella che decide ogni numero
+       sotto. Dice anche QUALE valuta ordina le liste, perché è la conseguenza meno visibile della
+       scelta «rilanci o draft». -->
+  <div
+    class="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-border bg-surface px-3 py-1.5 text-xs"
+  >
+    <span class="font-medium text-fg">{{ summary().listone }} · {{ summary().game }}</span>
+    <span class="text-muted">
+      {{ summary().teams }} partecipanti · rose {{ summary().roster }} ·
+      <span
+        nz-tooltip
+        nzTooltipTitle="I crediti di partenza: su questa pagina non entrano in nessun numero - le liste sono un ordinamento, non un piano di spesa - e sono qui perché il regolamento è uno."
+        >{{ summary().budget }} crediti</span
+      >
+      · {{ summary().auction }}
+    </span>
+    <!-- COME SI LEGGE UN BLOCCO: solo su mantra, perche' a classic un uomo ha un ruolo solo e la scelta
+         non cambierebbe una riga. Uno switch che non fa niente e' peggio di uno switch che non c'e'. -->
+    @if (game() === 'mantra') {
+      <nz-radio-group nzSize="small" [ngModel]="settings().view" (ngModelChange)="setView($event)">
+        @for (choice of viewOptions; track choice.value) {
+          <label nz-radio-button [nzValue]="choice.value" nz-tooltip [nzTooltipTitle]="choice.hint">{{
+            choice.label
+          }}</label>
+        }
+      </nz-radio-group>
+    }
+    <span class="ml-auto flex items-center gap-2">
+      <span
+        class="rounded-md bg-control px-2 py-0.5 font-medium text-fg"
+        nz-tooltip
+        [nzTooltipTitle]="gainHint[settings().auction]"
+      >
+        GAIN = {{ gainLabel[settings().auction] }}
+      </span>
+      <span
+        class="text-muted"
+        nz-tooltip
+        [nzTooltipTitle]="
+          'Le fasce del colore sono percentili del listone intero (' +
+          scale().sample +
+          ' uomini prezzati), tagliate una volta: il miglior decimo è ottimo, il miglior terzo buono, fino al quarantesimo percentile medio. ' +
+          counted().unranked +
+          ' uomini non sono in nessuna classifica perché il foglio non li prezza: un numero che non c\'è non si ordina.'
+        "
+      >
+        {{ counted().shown }} nomi su {{ counted().demand }} · {{ counted().unranked }} senza numero
+      </span>
+    </span>
+  </div>
+
+  @if (store.status() === 'error') {
+    <nz-alert
+      class="shrink-0"
+      nzType="error"
+      nzShowIcon
+      nzMessage="Non riesco a leggere il bundle"
+      [nzDescription]="store.error() ?? ''"
+    />
+  }
+
+  <!-- Una combinazione che il bundle non porta non viene riempita con l'altra: il surplus di un uomo è un
+       fatto sul gioco per cui lo compri, e mostrare il foglio classic sotto l'etichetta mantra sarebbe la
+       lista di un gioco con i numeri di un altro. -->
+  @if (store.status() === 'ready' && !sheet()) {
+    <nz-alert
+      class="shrink-0"
+      nzType="warning"
+      nzShowIcon
+      nzMessage="Nessun foglio per questa combinazione"
+      [nzDescription]="
+        'Il bundle non porta un foglio ' +
+        summary().listone +
+        ' · ' +
+        summary().game +
+        '. Quelli che porta: ' +
+        available() +
+        '. Cambia listone o gioco nelle impostazioni, oppure rifai un export del toolkit per la lega che ti serve.'
+      "
+    />
+  }
+
+  @if (warning(); as issue) {
+    <nz-alert class="shrink-0" nzType="warning" nzShowIcon [nzDescription]="issue" nzMessage="Regolamento mantra assente" />
+  }
+
+  @if (mismatch(); as gap) {
+    <nz-alert
+      class="shrink-0"
+      nzType="info"
+      nzShowIcon
+      nzMessage="Il foglio è tarato su un'altra lega"
+      [nzDescription]="
+        'Il foglio dichiara ' +
+        gap +
+        '. Il GAIN resta il suo (l\'app non ha un motore e non lo ricalcola: il surplus è contato dal rimpiazzo di quelle squadre e di quegli slot), mentre la LUNGHEZZA delle liste segue quello che hai dichiarato tu. Se vuoi che coincidano, apri le impostazioni e usa «allinea al foglio».'
+      "
+    />
+  }
+
+  @if (sheet() && (reading() || store.status() === 'loading')) {
+    <div class="flex flex-1 items-center justify-center text-sm text-muted">
+      Sto leggendo il foglio {{ sheet()?.league }}…
+    </div>
+  } @else if (sheet()) {
+    <!-- I BLOCCHI: uno per ruolo, ognuno con la sua altezza e il suo scorrimento. -->
+    <div
+      class="grid min-h-0 flex-1 gap-2"
+      [style.grid-template-columns]="'repeat(' + columns() + ', minmax(0, 1fr))'"
+      [style.grid-auto-rows]="'minmax(0, 1fr)'"
+    >
+      @for (block of blocks(); track block.role; let last = $last) {
+        <section
+          class="flex min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-surface"
+        >
+          <header
+            class="flex shrink-0 items-center gap-1.5 border-b border-border bg-control/40 px-2 py-1"
+          >
+            <ui-role [role]="block.role" size="sm" />
+            <span class="min-w-0 truncate text-xs font-medium text-fg">{{ block.label }}</span>
+            <span
+              class="ml-auto shrink-0 text-[10px] tabular-nums text-muted"
+              nz-tooltip
+              [nzTooltipTitle]="
+                'La stanza comprerà circa ' +
+                block.demand +
+                ' uomini di questo ruolo (' +
+                summary().teams +
+                ' partecipanti), quindi la lista è lunga così: anche se ogni rivale riempie il reparto prima di te, un\'alternativa resta. Il listone ne porta ' +
+                block.pool +
+                (block.unranked ? ', di cui ' + block.unranked + ' senza un numero del foglio (non sono in classifica: vuoto non è zero)' : '') +
+                '.' +
+                (game() === 'mantra'
+                  ? ' Di questo posto per mestiere - cioè che non possono giocare più arretrati - in lista ce ne sono ' +
+                    block.natives +
+                    ' su ' +
+                    block.men.length +
+                    ', e in tutto il listone ' +
+                    block.nativePool +
+                    '.'
+                  : '')
+              "
+            >
+              {{ block.men.length }}/{{ block.demand }}
+            </span>
+          </header>
+
+          @if (block.men.length) {
+            <!-- L'ULTIMA LISTA SI SCOSTA DAL BOX DEL VIAGGIO NEL TEMPO, che è `fixed` in basso a destra
+                 e sta fuori dall'outlet: su una pagina che scorre gli galleggia sopra la fine del
+                 contenuto, qui invece il blocco è alto quanto la finestra e il box gli coprirebbe per
+                 sempre le ultime due righe. Un nome coperto a un'asta è il difetto peggiore che questa
+                 pagina possa avere, quindi la coda della lista si può portare sopra il box scorrendo. -->
+            <ol class="min-h-0 flex-1 overflow-y-auto" [class.pb-11]="last">
+              @for (row of block.men; track row.man.fcId; let i = $index) {
+                <li
+                  class="flex items-center gap-1 px-1.5 py-0.5 text-xs odd:bg-control/25"
+                  [attr.data-behind]="row.fromBehind ? '1' : null"
+                  [title]="
+                    row.man.name +
+                    ' · ' +
+                    row.man.club +
+                    (row.fromBehind ? ' · lo metteresti da ' + row.deepest : '')
+                  "
+                >
+                  <span class="w-5 shrink-0 text-right text-[10px] tabular-nums text-muted">{{
+                    i + 1
+                  }}</span>
+                  <ui-crest
+                    size="sm"
+                    [club]="row.man.club"
+                    [clubId]="row.man.clubId"
+                    [crests]="store.crests()"
+                  />
+                  <ui-roles [roles]="row.shown" size="xs" />
+                  <span class="min-w-0 flex-1 truncate text-fg">{{ row.man.name }}</span>
+                  <ui-flags class="shrink-0 text-[10px]" [playerId]="row.man.fcId" />
+                  <!-- LA FRECCIA: ha un posto più arretrato, quindi qui è un ripiego e lì è un acquisto.
+                       Marcata e non spostata (la misura che lo ha deciso sta in `BlockView`), e a DESTRA
+                       del nome: a sinistra spostava ogni nome di qualche pixel e la colonna si leggeva a
+                       zig-zag, che è esattamente quello che l'occhio scorre. Il colore è quello dei dati
+                       e non un allarme: non è una brutta notizia, è un'altra domanda. -->
+                  @if (row.fromBehind) {
+                    <span
+                      class="shrink-0 text-[10px] text-muted"
+                      nz-tooltip
+                      [nzTooltipTitle]="
+                        'Lo metteresti da ' +
+                        row.deepest +
+                        ', che è il suo posto più arretrato: qui è un ripiego, e questa posizione la lasceresti a chi non arriva a coprire quella.'
+                      "
+                      >&darr;{{ row.deepest }}</span
+                    >
+                  }
+                  <!-- IL TILDE: il numero sta in piedi sul ripiego dichiarato e non sulla previsione del
+                       motore. Stessa convenzione del pannello del toolkit, perché una stima che si legge
+                       come una misura è la cosa peggiore che una lista possa fare. -->
+                  @if (row.estimated) {
+                    <span
+                      class="shrink-0 text-[10px] text-muted"
+                      nz-tooltip
+                      nzTooltipTitle="Il motore non lo prezza: questo è il ripiego dichiarato (est_*), penale di confidenza già dentro."
+                      >~</span
+                    >
+                  }
+                  <ui-gain [gain]="row.gain" [scale]="scale()" />
+                </li>
+              }
+            </ol>
+          } @else {
+            <p class="flex flex-1 items-center justify-center px-2 text-center text-[11px] text-muted">
+              @if (settings().view === 'natives' && !block.nativePool && block.pool) {
+                Nessuno dei {{ block.pool }} uomini che coprono questo posto ci sta di mestiere: hanno
+                tutti un ruolo più arretrato. Passa a «Tutti» per vederli.
+              } @else if (block.pool) {
+                Nessuno dei {{ block.pool }} uomini di questo ruolo ha un numero sul foglio.
+              } @else {
+                Questo listone non quota nessuno di questo ruolo.
+              }
+            </p>
+          }
+        </section>
+      }
+    </div>
+  }
+
+  <!-- ── il regolamento: non sta nel bundle, quindi lo dichiara l'operatore ─────────────────────── -->
+  <nz-modal
+    [nzVisible]="editing()"
+    nzTitle="Impostazioni lega"
+    nzOkText="Applica"
+    nzCancelText="Annulla"
+    (nzOnOk)="applySettings()"
+    (nzOnCancel)="cancelSettings()"
+    (nzVisibleChange)="editing.set($event)"
+  >
+    <div *nzModalContent class="flex flex-col gap-4">
+      <label class="flex flex-wrap items-center gap-3">
+        <span class="w-28 shrink-0 text-sm text-muted">Listone</span>
+        <nz-radio-group
+          nzSize="small"
+          [ngModel]="form().platform"
+          (ngModelChange)="patch({ platform: $event })"
+        >
+          <label nz-radio-button nzValue="default">Serie A</label>
+          <label nz-radio-button nzValue="euro">EuroLeghe</label>
+        </nz-radio-group>
+      </label>
+
+      <label class="flex flex-wrap items-center gap-3">
+        <span class="w-28 shrink-0 text-sm text-muted">Gioco</span>
+        <nz-radio-group
+          nzSize="small"
+          [ngModel]="form().game"
+          (ngModelChange)="patch({ game: $event })"
+        >
+          <label nz-radio-button nzValue="classic">Classic</label>
+          <label nz-radio-button nzValue="mantra">Mantra</label>
+        </nz-radio-group>
+      </label>
+
+      <!-- LA COMPOSIZIONE DELLA ROSA nei termini del gioco scelto, e sono due vocabolari: classic conta
+           per macro-ruolo perché è per macro-ruolo che vincola una formazione, mantra ha posti tipati e
+           quindi solo portieri e uomini di movimento. -->
+      @if (form().game === 'classic') {
+        <div class="flex flex-wrap items-center gap-3">
+          <span class="w-28 shrink-0 text-sm text-muted">Rose</span>
+          @for (role of classicRoles; track role) {
+            <label class="flex items-center gap-1 text-sm">
+              <ui-role [role]="role" size="sm" />
+              <nz-input-number
+                class="w-16"
+                nzSize="small"
+                [nzMin]="1"
+                [nzMax]="30"
+                [nzStep]="1"
+                [ngModel]="form().slots.classic[role]"
+                (ngModelChange)="patchClassic(role, $event)"
+              />
+            </label>
+          }
+        </div>
+      } @else {
+        <div class="flex flex-wrap items-center gap-3">
+          <span class="w-28 shrink-0 text-sm text-muted">Rose</span>
+          <label class="flex items-center gap-1 text-sm">
+            <ui-role role="Por" size="sm" />
+            <nz-input-number
+              class="w-16"
+              nzSize="small"
+              [nzMin]="1"
+              [nzMax]="10"
+              [nzStep]="1"
+              [ngModel]="form().slots.mantra.por"
+              (ngModelChange)="patchMantra('por', $event)"
+            />
+          </label>
+          <label class="flex items-center gap-2 text-sm">
+            <span class="text-muted">Movimento</span>
+            <nz-input-number
+              class="w-16"
+              nzSize="small"
+              [nzMin]="1"
+              [nzMax]="40"
+              [nzStep]="1"
+              [ngModel]="form().slots.mantra.mov"
+              (ngModelChange)="patchMantra('mov', $event)"
+            />
+          </label>
+        </div>
+      }
+
+      <label class="flex flex-wrap items-center gap-3">
+        <span class="w-28 shrink-0 text-sm text-muted">Budget</span>
+        <nz-input-number
+          class="w-24"
+          nzSize="small"
+          [nzMin]="1"
+          [nzMax]="100000"
+          [nzStep]="50"
+          [ngModel]="form().budget"
+          (ngModelChange)="patch({ budget: $event })"
+        />
+        <span class="text-xs text-muted">crediti di partenza</span>
+      </label>
+
+      <label class="flex flex-wrap items-center gap-3">
+        <span class="w-28 shrink-0 text-sm text-muted">Tipo d'asta</span>
+        <nz-radio-group
+          nzSize="small"
+          [ngModel]="form().auction"
+          (ngModelChange)="patch({ auction: $event })"
+        >
+          <label nz-radio-button nzValue="rilanci">Rilanci</label>
+          <label nz-radio-button nzValue="draft">Draft</label>
+        </nz-radio-group>
+        <span class="text-xs text-muted" nz-tooltip [nzTooltipTitle]="gainHint[form().auction]">
+          ordina per {{ gainLabel[form().auction] }}
+        </span>
+      </label>
+
+      <label class="flex flex-wrap items-center gap-3">
+        <span class="w-28 shrink-0 text-sm text-muted">Partecipanti</span>
+        <nz-input-number
+          class="w-20"
+          nzSize="small"
+          [nzMin]="2"
+          [nzMax]="24"
+          [nzStep]="1"
+          [ngModel]="form().teams"
+          (ngModelChange)="patch({ teams: $event })"
+        />
+      </label>
+
+      <!-- Cosa questa scelta implica, detto prima di applicarla: quale foglio prezzerà le liste. -->
+      <div class="border-t border-border pt-3 text-xs text-muted">
+        @if (formSheet(); as entry) {
+          <p>
+            Prezza le liste il foglio <span class="text-fg">{{ entry.league }}</span> (revisione
+            {{ entry.sheet_revision ?? 0 }}, {{ entry.teams ?? '?' }} squadre, rose
+            {{ (entry.squad_slots?.['P'] ?? 0) }}/{{ (entry.squad_slots?.['D'] ?? 0) }}/{{
+              (entry.squad_slots?.['C'] ?? 0)
+            }}/{{ (entry.squad_slots?.['A'] ?? 0) }}).
+          </p>
+          <button nz-button nzType="text" nzSize="small" class="mt-1" (click)="alignToSheet()">
+            <nz-icon nzType="swap" />
+            Allinea squadre e rose al foglio
+          </button>
+        } @else {
+          <p>
+            Il bundle non porta un foglio per questa combinazione, quindi le liste resterebbero vuote.
+            Porta: {{ available() }}.
+          </p>
+        }
+      </div>
+    </div>
+  </nz-modal>
+</div>

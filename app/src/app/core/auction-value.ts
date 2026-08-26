@@ -101,6 +101,15 @@ export function demandBySlot(rows: Iterable<EngineNumbers>): Map<string, number>
 
 /** The game's own rules, as `config/mantra_modules.json` states them. */
 export interface MantraModules {
+  /**
+   * The listone's own roles, in the order the rulebook writes them (`Por`, `Dd`, `Dc`, ... `Pc`).
+   *
+   * Optional because a bundle written before it was read simply does not carry it, and because nothing
+   * about LEGALITY needs it: the places are what a matching walks. It is here for whoever has to draw
+   * the vocabulary itself - `strategy.mantraBlocks` - so that list is read from the regulation instead
+   * of transcribed into our code, which is the rule the two rulebooks are held to.
+   */
+  roles?: string[];
   /** Slot type -> the listone roles allowed to occupy it (`DC/B` -> `Dc`, `B`). */
   slot_roles: Record<string, string[]>;
   /** Module name -> its lines of slot types (`3-4-3` -> D/M/T/A). The keeper is outside the lines. */
