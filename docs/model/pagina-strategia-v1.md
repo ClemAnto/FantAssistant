@@ -310,6 +310,29 @@ resta un `signal` nostro, e la lista si ridisegna da quello. E `column-drag.ts` 
 tabella: ci era andato in `core/` solo perché le liste usavano `gapAt` sull'asse verticale, e venuto meno
 il motivo resta co-locato con la sua vista, come vuole `app/CLAUDE.md`.
 
+**COME SONO VESTITI I DUE PEZZI, dettato dall'operatore la sera del 27/08** («l'item draggato deve avere un
+bg e l'item di anteprima deve avere opacity 0.3»): il SEGNAPOSTO - la riga che stai muovendo, che resta
+nella lista come il buco dove finirà - ha un fondo pieno (`bg-primary/25`), e l'ANTEPRIMA che vola sotto il
+dito è un fantasma a **opacità 0,3**. È coerente: con l'anteprima trasparente la cosa solida deve essere il
+posto.
+
+Tre cose imparate mettendole, e sono tutte misurate perché una resa non si guarda:
+
+1. **Un fondo scritto in `@layer components` non dipinge**, perché la riga porta `odd:bg-control/25` che è
+   una UTILITY, e le utility stanno in un layer DOPO: l'ordine dei layer batte la specificità, quindi la
+   regola leggeva `rgba(0, 0, 0, 0)` col build verde. Le due vestizioni sono quindi varianti sulla riga
+   (`[&.cdk-drag-placeholder]:bg-primary/25`), dove competono nello stesso layer e vincono per specificità.
+2. **`cdkDragPreviewClass` vuole un ARRAY.** Con una stringa sola («bg-surface rounded-md opacity-30») CDK
+   la passa a `classList.add()`, che su un nome con spazi solleva `InvalidCharacterError`: il gesto muore
+   **in silenzio** - pagina intera disegnata bene, zero anteprime, niente in console - e l'arnese lo ha
+   visto solo perché conta le anteprime a metà volo.
+3. **L'anteprima non accetta un fondo da nessuna classe.** Né `bg-surface`, né la variante
+   `[&.cdk-drag-preview]:bg-surface`, né un colore **letterale** (`bg-[#141d19]`): la regola è nel foglio
+   costruito, la classe è sull'elemento, il token risolve, e il computato resta `rgba(0, 0, 0, 0)` -
+   mentre `opacity-30` dalla stessa lista si applica. **Non è spiegato**, e per questo non c'è CSS che
+   finga di dipingerlo: il fondo dell'anteprima era un'aggiunta per la leggibilità, non la richiesta, e
+   sta fra gli aperti (§12).
+
 **Verificato con un puntatore vero**, che per un gesto è l'unica verifica che vale (i numeri sono qui
 sopra), più `orderedBy` / `withRowAt` a test unitario - compreso il caso che il modello esiste per
 risolvere: un nome preso dalla parte a gain e portato in cima **non butta fuori dall'ordine** chi era già
@@ -395,6 +418,10 @@ mostrata.
 8. **I moduli si possono PESARE** invece che contarli uguali (§12 e §15.4 della metrica): se l'operatore
    dichiara i due o tre schemi che il suo tavolo gioca davvero, la domanda per ruolo si sposta di molto -
    `T` da 10 a 34, `W` da 10 a 34, `E` da 10 a 46, `Pc` da 12 a 23 su dieci squadre.
-9. **Il D-Factor non è misurato.** Se la lega lo accende, un modulo con un posto ibrido in mezzo (`M/C`,
+9. **L'anteprima del trascinamento non accetta un fondo** (§10, punto 3): opacità sì, background no, con
+   qualunque classe e anche con un colore letterale. Da capire guardando gli stili che CDK inietta a
+   runtime - `document.styleSheets` va interrogato durante il volo, che è la sola finestra in cui
+   l'anteprima esiste. Costo stimato: mezz'ora; resa: leggibilità del fantasma, niente di funzionale.
+10. **Il D-Factor non è misurato.** Se la lega lo accende, un modulo con un posto ibrido in mezzo (`M/C`,
    `E/W`) fa schierare SEI uomini di ruolo difensivo fra cui scegliere i cinque migliori, e quel vantaggio
    nessuno lo ha quantificato.

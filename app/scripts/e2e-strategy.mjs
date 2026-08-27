@@ -393,12 +393,56 @@ function cdkPieces() {
     const t = one.style.transform;
     return !!t && t !== 'none';
   });
+  const preview = document.querySelector('.cdk-drag-preview');
+  const placeholder = document.querySelector('.cdk-drag-placeholder');
+  const paint = (element) => {
+    if (!element) return null;
+    const style = getComputedStyle(element);
+    return {
+      opacity: style.opacity, background: style.backgroundColor, shadow: style.boxShadow,
+      // Le classi che l'elemento porta DAVVERO: la clonazione di CDK e' l'unica cosa che decide se una
+      // variante Tailwind scritta sulla riga arriva anche sull'anteprima.
+      classes: String(element.className).slice(0, 200),
+      inline: element.getAttribute('style') ?? null,
+      parent: element.parentElement?.tagName.toLowerCase() ?? null,
+      // Il token è arrivato fin qui? Un `var()` che non risolve vale «trasparente» col build verde.
+      token: style.getPropertyValue('--color-surface').trim() || null,
+      hasClass: element.classList.contains('[&.cdk-drag-preview]:bg-surface'),
+      // LA DOMANDA DECISIVA: il browser dice che quel selettore combacia con questo elemento? Tutto il
+      // resto (la classe c'e', il token risolve, la regola e' nel CSS) puo' essere vero e la regola non
+      // applicarsi comunque - e allora la causa e' nel selettore, non nel colore.
+      matches: (() => {
+        const out = [];
+        for (const sheet of document.styleSheets) {
+          let rules;
+          try { rules = sheet.cssRules; } catch { continue; }
+          for (const rule of rules) {
+            const walk = (one) => {
+              if (one.cssRules) { for (const kid of one.cssRules) walk(kid); return; }
+              if (!one.selectorText || !one.selectorText.includes('cdk-drag')) return;
+              let hit = false;
+              try { hit = element.matches(one.selectorText); } catch { hit = false; }
+              out.push({ sel: one.selectorText.slice(0, 90), hit, css: one.style.cssText.slice(0, 60) });
+            };
+            walk(rule);
+          }
+        }
+        return out;
+      })(),
+    };
+  };
   return {
     previews: document.querySelectorAll('.cdk-drag-preview').length,
     placeholders: document.querySelectorAll('.cdk-drag-placeholder').length,
     dragging: document.querySelectorAll('.cdk-drop-list-dragging').length,
     moved: moved.length,
     example: moved[0]?.style.transform ?? null,
+    // Come sono VESTITI, che è la richiesta dell'operatore del 27/08: l'anteprima trasparente, il
+    // segnaposto con un fondo. Si misurano i valori CALCOLATI, perché una schermata mostra una resa e
+    // non un numero - e un `color-mix()` che punta a un token cancellato smette di dipingere col build
+    // verde.
+    preview: paint(preview),
+    placeholder: paint(placeholder),
   };
 }
 
@@ -596,6 +640,13 @@ async function main() {
     let flight = null;
     await dragTo(session, fifth, { x: first.x, y: first.top - 4 }, 8, async () => {
       flight = await evaluate(session, cdkPieces);
+      // La schermata a metà volo è la sola che mostri l'anteprima: al rilascio non esiste più.
+      if (flag('--shot')) {
+        const mid = await session.send('Page.captureScreenshot', { format: 'png' });
+        const where = join(ROOT, 'dist', 'e2e-strategy-drag.png');
+        await writeFile(where, Buffer.from(mid.data, 'base64'));
+        console.log(`· screenshot a metà volo: ${where}`);
+      }
     });
     // ...e subito DOPO il rilascio, prima che qualunque altra cosa succeda.
     const settled = await evaluate(session, cdkPieces);
@@ -649,6 +700,11 @@ async function main() {
         ...(flight?.previews === 1 ? [] : [`a metà volo ci sono ${flight?.previews} anteprime invece di 1`]),
         ...(flight?.placeholders === 1
           ? [] : [`a metà volo ci sono ${flight?.placeholders} segnaposti invece di 1`]),
+        // I due valori che l'operatore ha chiesto, misurati e non guardati.
+        ...(flight?.preview?.opacity === '0.3'
+          ? [] : [`l'anteprima ha opacità ${flight?.preview?.opacity} invece di 0.3`]),
+        ...(flight?.placeholder?.background && !/rgba\(0, 0, 0, 0\)|transparent/.test(flight.placeholder.background)
+          ? [] : [`il segnaposto non ha un fondo: ${flight?.placeholder?.background}`]),
         ...(settled?.previews === 0 && settled?.placeholders === 0 && settled?.dragging === 0
           ? [] : [`al rilascio resta qualcosa di CDK: ${JSON.stringify(settled)}`]),
         ...(settled?.moved === 0

@@ -118,6 +118,13 @@ The full rationale is Jingle Machine's `THEMING.md`; these are the rules that mu
   `@import`ed **inside** the single `styles.css` entry - not added as separate entries in `angular.json` -
   and `styles.css` must stay a `.css` file.
 - **No literal values** (`#45fff3`, `rounded-[20px]`): a token utility or `var(--color-*)`.
+- **A rule in `@layer components` LOSES to any Tailwind utility on the same property**, because layer order
+  beats specificity — and a rule that does not paint keeps the build green, which is the worst kind of
+  wrong. Measured 27/08/2026: dressing CDK's drag placeholder in `ng-zorro.css` read
+  `rgba(0, 0, 0, 0)` on screen because the row carried `odd:bg-control/25`. Cure: put it where it can
+  compete, i.e. as a Tailwind variant on the element (`[&.cdk-drag-placeholder]:bg-primary/25`) — same
+  layer, higher specificity. So when overriding something a UTILITY also sets, do not reach for
+  `components`; and always verify by reading the COMPUTED value.
 - **No custom styling classes** (`.fa-*`, `.jm-*`): style native tags (`input`, `button`, `textarea`),
   their states and attributes (`:hover`, `:checked`, `type="password"`), and the ng-zorro classes
   (`.ant-*`) - all driven by tokens.

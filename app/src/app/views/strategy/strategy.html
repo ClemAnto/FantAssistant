@@ -269,17 +269,27 @@
               (cdkDropListDropped)="dropped(block.role, $event)"
             >
               @for (row of block.men; track row.man.fcId; let i = $index) {
+                <!-- IL VESTITO DELL'ANTEPRIMA LO METTE CDK (`cdkDragPreviewClass`), e non una variante
+                     sulla riga: misurato il 27/08/2026, `[&.cdk-drag-preview]:bg-*` NON dipinge
+                     sull'anteprima - la regola è nel CSS, la classe è sull'elemento, il token risolve, e
+                     il fondo resta trasparente - mentre la stessa forma sul SEGNAPOSTO dipinge. Con
+                     `cdkDragPreviewClass` la classe è normale e sta solo sulla copia che vola, quindi non
+                     c'è nessuna variante da far combaciare. Opacità 0,3 e un fondo sono la richiesta
+                     dell'operatore: l'anteprima è un fantasma, e quello che deve leggersi è la lista
+                     sotto con il buco che dice dove finirà. -->
                 <!-- SI TRASCINA LA RIGA INTERA, e non una maniglia: su questa riga non c'e' nessun'altra
                      azione al click, quindi una maniglia da 12px sarebbe un bersaglio piccolo aggiunto
                      per niente. `cdkDragData` porta l'identita' del nome - il rilascio
                      dichiara un indice, e chi si e' mosso lo dice questo - e `data-id` resta perche'
                      l'arnese e2e verifica il gesto leggendo la lista disegnata. -->
                 <li
-                  class="flex cursor-grab items-center gap-1 px-1.5 py-0.5 text-xs odd:bg-control/25"
+                  class="flex cursor-grab items-center gap-1 px-1.5 py-0.5 text-xs odd:bg-control/25
+                         [&.cdk-drag-placeholder]:bg-primary/25"
                   [attr.data-id]="row.man.fcId"
                   [attr.data-behind]="row.fromBehind ? '1' : null"
                   cdkDrag
                   [cdkDragData]="row.man.fcId"
+                  [cdkDragPreviewClass]="previewClass"
                   [title]="
                     row.man.name +
                     ' · ' +

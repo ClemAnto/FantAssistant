@@ -390,6 +390,25 @@ export class Strategy {
 
   protected readonly game = computed<StrategyGame>(() => this.settings().game);
 
+  /**
+   * Le classi che CDK mette sull'ANTEPRIMA - l'opacità 0,3 chiesta dall'operatore (27/08/2026).
+   *
+   * UN ARRAY, e la ragione è misurata: una stringa sola con gli spazi finisce in `classList.add()`, che su
+   * un nome con spazi solleva `InvalidCharacterError` - e il gesto muore in SILENZIO, con la pagina intera
+   * che si disegna bene, zero anteprime e nessun errore in console. Un array è una classe per voce, che è
+   * quello che quel metodo accetta. Un campo e non un letterale nel template, perché un array scritto in
+   * un binding è un oggetto nuovo a ogni giro di change detection.
+   *
+   * E NIENTE FONDO, che è un fatto misurato e non una scelta: sull'anteprima **nessuna classe di
+   * background si applica** - né `bg-surface`, né la stessa cosa come variante sulla riga
+   * (`[&.cdk-drag-preview]:bg-surface`), né un colore LETTERALE (`bg-[#141d19]`) - mentre `opacity-30`
+   * dalla stessa lista si applica. La regola è nel foglio costruito, la classe è sull'elemento, il token
+   * risolve, e il fondo resta `rgba(0, 0, 0, 0)`: non è spiegato, quindi non c'è CSS che finga di
+   * dipingerlo. Quello che si vede è l'opacità, che è quello che era stato chiesto; il fondo era
+   * un'aggiunta per la leggibilità e resta un item aperto (`pagina-strategia-v1.md` §12).
+   */
+  protected readonly previewClass = ['rounded-md', 'opacity-30'];
+
   // ---------------------------------------------------------------- il riordino
 
   /**

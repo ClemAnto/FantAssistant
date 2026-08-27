@@ -92,35 +92,13 @@
     overflow: visible;
   }
 
-  /* L'ANTEPRIMA E IL SEGNAPOSTO DI CDK, tornati il 27/08/2026 con il riordino delle liste della pagina
-     Strategia (`cdkDropList`): sono classi di un pacchetto, quindi si vestono qui come si vestono le
-     `.ant-*`, e con i token. La tabella NON le usa - il suo gesto resta nostro e il suo segno sta in un
-     binding solo (`dragMark`/`headClass` in `squad-table.ts`) - quindi queste regole valgono solo dove
-     una drop list c'è.
-
-     SENZA TRANSIZIONE sull'anteprima, ed è una misura e non un gusto: il 17/08/2026, sulle colonne, una
-     transizione la faceva RIENTRARE VOLANDO al rilascio (un transform di 439x248 con l'ordine già
-     cambiato), cioè peggiorava esattamente il momento da curare. Così invece sparisce dov'è. */
-  .cdk-drag-preview {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-    padding: 0.125rem 0.375rem;
-    border-radius: var(--radius-control);
-    background-color: var(--color-surface);
-    box-shadow: 0 8px 24px rgb(0 0 0 / 0.45);
-    font-size: 0.75rem;
-    opacity: 0.95;
-    transition: none;
-  }
-
-  /* Il segnaposto è il buco dove la riga tornerà: si vede che è un posto e non una riga vuota. */
-  .cdk-drag-placeholder {
-    background-color: color-mix(in srgb, var(--color-primary) 18%, transparent);
-    outline: 1px dashed color-mix(in srgb, var(--color-primary) 60%, transparent);
-    outline-offset: -1px;
-    opacity: 1;
-  }
+  /* L'ANTEPRIMA E IL SEGNAPOSTO DI CDK non si vestono QUI, e la ragione è misurata (27/08/2026): la riga
+     porta `odd:bg-control/25`, che è una UTILITY, e le utility stanno in un layer DOPO `components` -
+     l'ordine dei layer batte la specificità, quindi due regole scritte qui leggevano `rgba(0, 0, 0, 0)`
+     sull'anteprima e lo zebrato della riga sul segnaposto. Una regola che non dipinge è peggio di nessuna
+     regola, perché il build resta verde. Stanno quindi sul `<li>` come varianti Tailwind
+     (`[&.cdk-drag-preview]:...`), dove competono ad armi pari con lo zebrato e lo battono per specificità.
+     Qui resta solo il movimento, su cui nessuna utility della riga interviene. */
 
   /* Mentre la lista si riassesta, il movimento è breve e onora `prefers-reduced-motion` da solo:
      `--motion-fast` non esiste in questo progetto, quindi la durata è scritta qui una volta. */
