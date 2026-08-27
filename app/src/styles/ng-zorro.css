@@ -92,11 +92,42 @@
     overflow: visible;
   }
 
-  /* LE DUE REGOLE `.cdk-drag-*` CHE STAVANO QUI SONO STATE TOLTE il 20/08/2026: vestivano l'anteprima e
-     il segnaposto di CDK, che non è una dipendenza di questo progetto da quando il gesto è nostro - era
-     CSS per un pacchetto che non c'è. Il segno del trascinamento (la cella sbiadita, la barra sul varco,
-     il cursore) sta dove sta il gesto: un binding solo, `dragMark`/`headClass` in `squad-table.ts`, che
-     è l'unico posto che sa se un gesto è in corso. */
+  /* L'ANTEPRIMA E IL SEGNAPOSTO DI CDK, tornati il 27/08/2026 con il riordino delle liste della pagina
+     Strategia (`cdkDropList`): sono classi di un pacchetto, quindi si vestono qui come si vestono le
+     `.ant-*`, e con i token. La tabella NON le usa - il suo gesto resta nostro e il suo segno sta in un
+     binding solo (`dragMark`/`headClass` in `squad-table.ts`) - quindi queste regole valgono solo dove
+     una drop list c'è.
+
+     SENZA TRANSIZIONE sull'anteprima, ed è una misura e non un gusto: il 17/08/2026, sulle colonne, una
+     transizione la faceva RIENTRARE VOLANDO al rilascio (un transform di 439x248 con l'ordine già
+     cambiato), cioè peggiorava esattamente il momento da curare. Così invece sparisce dov'è. */
+  .cdk-drag-preview {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.125rem 0.375rem;
+    border-radius: var(--radius-control);
+    background-color: var(--color-surface);
+    box-shadow: 0 8px 24px rgb(0 0 0 / 0.45);
+    font-size: 0.75rem;
+    opacity: 0.95;
+    transition: none;
+  }
+
+  /* Il segnaposto è il buco dove la riga tornerà: si vede che è un posto e non una riga vuota. */
+  .cdk-drag-placeholder {
+    background-color: color-mix(in srgb, var(--color-primary) 18%, transparent);
+    outline: 1px dashed color-mix(in srgb, var(--color-primary) 60%, transparent);
+    outline-offset: -1px;
+    opacity: 1;
+  }
+
+  /* Mentre la lista si riassesta, il movimento è breve e onora `prefers-reduced-motion` da solo:
+     `--motion-fast` non esiste in questo progetto, quindi la durata è scritta qui una volta. */
+  .cdk-drag-animating,
+  .cdk-drop-list-dragging .cdk-drag:not(.cdk-drag-placeholder) {
+    transition: transform 150ms cubic-bezier(0, 0, 0.2, 1);
+  }
 
   /* Il pannello del filtro di colonna: antd gli dà il fondo e l'ombra, e il minimo di 120px che gli
      mette addosso è per un elenco di spunte - qui dentro ci stanno due caselle numeriche affiancate,

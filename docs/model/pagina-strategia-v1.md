@@ -285,18 +285,33 @@ sul ruolo, non sulla revisione che stiamo leggendo, quindi un export nuovo la co
 gioco ci sono perché quelle sono liste di uomini DIVERSE, e un ordine che scavalcasse da una all'altra
 sarebbe l'ordine di una lista addosso a un'altra.
 
-**IL GESTO È QUELLO DELLA TABELLA, su un altro asse.** `column-drag.ts` è passato in `core/` (l'aritmetica
-di `gapAt` è a una dimensione: quale sia l'asse è affare del chiamante, e `rowGapAt` le passa le mezzerie
-verticali) e le due cure che sono costate una serata il 20/08 viaggiano con lui: il **drag nativo di
-Chromium va spento dal `pointerdown`** e non dalla soglia, e i listener del volo stanno su `window`. Una
-differenza c'è, e la impone il layout: **scorre la LISTA e non la pagina**, perché la pagina non scorre
-affatto, e con un bordo di 60px come quello della tabella un terzo di un blocco sarebbe sempre «vicino al
-bordo» (qui 24px, passo 14).
+**IL GESTO È DI CDK** (`cdkDropList` / `cdkDrag`), scelta dell'operatore del 27/08/2026, e con lui
+arrivano l'anteprima, il segnaposto, lo scorrimento della lista al bordo e il drag nativo del browser già
+spento: le quattro cose che il gesto scritto in casa rifaceva a mano (~120 righe, tolte). Il pacchetto era
+**già installato** - `ng-zorro-antd` dipende da `@angular/cdk` 22.1.1 - quindi non è una dipendenza nuova:
+è una riga di `package.json` che ora la DICHIARA invece di ereditarla di nascosto.
 
-**Verificato con un puntatore vero**, che per un gesto è l'unica verifica che vale: «Falcone» dal 5° al 1°
-posto, **eventi arrivati `pointerdown` 1 · `pointermove` 9 su 9 · `pointerup` 1** (nessun drag nativo che
-si prende il puntatore), il nome ancora primo **dopo un ricaricamento**, e la ✕ che rimette il gain. Più
-`orderedBy` / `withRowMoved` / `rowGapAt` a test unitario, compreso il caso che il modello esiste per
+**IL PRECEDENTE, e la metà che è stata ribaltata.** CDK era stato mandato via dalla TABELLA il 18/08/2026
+con due accuse: che muovesse il DOM di Angular e che il drop tornasse con l'indice di partenza. Ma i
+«buchi / disallineamenti» che l'operatore aveva visto **non erano suoi**: erano un `nz-tooltip` che si
+mangiava una colonna della griglia (§17 di `letture-app-v1.md`, trovato il 20/08). Quello che restava di
+misurato era il fotogramma al rilascio su una riga di `<th>` a larghezze fisse - e qui le righe sono `<li>`
+di una lista che scorre, cioè il caso per cui `cdkDropList` esiste.
+
+**Quindi si è misurato invece di discutere**, e il metro è proprio quel fotogramma. A metà volo: **1
+anteprima, 1 segnaposto, 3 righe traslate** (`translate3d(0px, 24px, 0px)`: i vicini che fanno posto). Al
+rilascio: **0 anteprime, 0 segnaposti, 0 `transform` residui** - cioè il difetto che costò la cacciata non
+si presenta. Il resto tiene come prima: `pointerdown` 1 · `pointermove` 9 su 9 · `pointerup` 1, il nome
+ancora primo dopo un ricaricamento, la crocetta che rimette il gain.
+
+Quello che NON è cambiato è il modello: `withRowAt` riceve l'INDICE FINALE che CDK dichiara
+(`cdkDropListDropped`) e restituisce il prefisso. Il DOM lo muove e lo rimette a posto CDK; l'ordine vero
+resta un `signal` nostro, e la lista si ridisegna da quello. E `column-drag.ts` è tornato accanto alla
+tabella: ci era andato in `core/` solo perché le liste usavano `gapAt` sull'asse verticale, e venuto meno
+il motivo resta co-locato con la sua vista, come vuole `app/CLAUDE.md`.
+
+**Verificato con un puntatore vero**, che per un gesto è l'unica verifica che vale (i numeri sono qui
+sopra), più `orderedBy` / `withRowAt` a test unitario - compreso il caso che il modello esiste per
 risolvere: un nome preso dalla parte a gain e portato in cima **non butta fuori dall'ordine** chi era già
 sistemato sotto di lui.
 

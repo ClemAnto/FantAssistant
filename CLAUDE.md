@@ -1855,14 +1855,19 @@ after would cut him from the very list he was put in. The key is `listone|gioco|
 NOT the sheet: a preference is a fact about his league and the role, not about the revision we are reading,
 so a new export keeps it while a different game never inherits it.
 
-**The gesture is the table's, on another axis**, and that is why `column-drag.ts` now lives in `core/`:
-`gapAt`'s arithmetic is one-dimensional, so which axis it is belongs to the caller (`rowGapAt` hands it the
-vertical midpoints). The two cures of 20/08 travel with it — Chromium's native drag is switched off from
-`pointerdown` and not from the threshold, the in-flight listeners live on `window` — and one thing differs
-because the layout imposes it: **the LIST scrolls, not the page**, since the page does not scroll at all.
+**The gesture is CDK's** (`cdkDropList`), the operator's own choice of 27/08/2026 — and it reopens a door
+this project had closed, which is why the record matters more than the swap. CDK was thrown out of the
+TABLE on 18/08 on two counts, and **one of them was later disproved**: the «buchi / disallineamenti» he had
+seen were an `nz-tooltip` eating a grid column, not CDK (`letture-app-v1.md` §17). What remained measured
+was the release frame on a fixed-layout row of `<th>`; a list of `<li>` that scrolls is what `cdkDropList`
+is for. So it was MEASURED rather than argued, on exactly that frame: mid-flight **1 preview, 1 placeholder,
+3 rows translated**; at release **0 previews, 0 placeholders, 0 leftover transforms**. The package was
+already installed (ng-zorro depends on it), so this declares a dependency instead of adding one — and
+`column-drag.ts` went back beside the table, because a module moves for a reason and that reason is gone.
 Verified the only way a gesture can be: with a real pointer, **counting the events that ARRIVE**
 (`pointerdown` 1 · `pointermove` 9 of 9 · `pointerup` 1), the name still first after a reload, the ✕
-restoring the gain.
+restoring the gain. What did NOT change is the model: `withRowAt` takes the final index CDK declares and
+returns the prefix — the DOM is CDK's to move, the order stays ours.
 
 **And the modules that list ranks were measured the same day** (`metrica-asta-surplus-v1.md` §26): all
 eleven mantra shapes field **5 defensive and 5 offensive places** — the rulebook says so about itself,

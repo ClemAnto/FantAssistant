@@ -257,18 +257,29 @@
                  contenuto, qui invece il blocco è alto quanto la finestra e il box gli coprirebbe per
                  sempre le ultime due righe. Un nome coperto a un'asta è il difetto peggiore che questa
                  pagina possa avere, quindi la coda della lista si può portare sopra il box scorrendo. -->
-            <ol class="min-h-0 flex-1 overflow-y-auto" [class.pb-11]="last">
+            <!-- LA LISTA È UNA DROP LIST DI CDK (scelta dell'operatore, 27/08/2026): l'anteprima, il
+                 segnaposto, lo scorrimento al bordo e il drag nativo spento sono suoi. `cdkDropListData`
+                 le passa i nomi COME SONO A SCHERMO, così l'indice che dichiara al rilascio è un indice
+                 su questa lista e non su un'altra. -->
+            <ol
+              class="min-h-0 flex-1 overflow-y-auto"
+              [class.pb-11]="last"
+              cdkDropList
+              [cdkDropListData]="block.men"
+              (cdkDropListDropped)="dropped(block.role, $event)"
+            >
               @for (row of block.men; track row.man.fcId; let i = $index) {
                 <!-- SI TRASCINA LA RIGA INTERA, e non una maniglia: su questa riga non c'e' nessun'altra
                      azione al click, quindi una maniglia da 12px sarebbe un bersaglio piccolo aggiunto
-                     per niente. `data-id` e' l'identita' che il gesto legge dal DOM (la lista disegnata
-                     e' la sola verita' su cosa hai in mano) e che l'arnese e2e usa per verificarlo. -->
+                     per niente. `cdkDragData` porta l'identita' del nome - il rilascio
+                     dichiara un indice, e chi si e' mosso lo dice questo - e `data-id` resta perche'
+                     l'arnese e2e verifica il gesto leggendo la lista disegnata. -->
                 <li
                   class="flex cursor-grab items-center gap-1 px-1.5 py-0.5 text-xs odd:bg-control/25"
                   [attr.data-id]="row.man.fcId"
                   [attr.data-behind]="row.fromBehind ? '1' : null"
-                  [class]="rowMark(block.role, row.man.fcId, i, block.men.length)"
-                  (pointerdown)="grabAt($event, block.role)"
+                  cdkDrag
+                  [cdkDragData]="row.man.fcId"
                   [title]="
                     row.man.name +
                     ' · ' +

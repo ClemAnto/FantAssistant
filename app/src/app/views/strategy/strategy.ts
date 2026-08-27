@@ -1,3 +1,4 @@
+import { CdkDrag, CdkDragDrop, CdkDropList } from '@angular/cdk/drag-drop';
 import { Component, computed, effect, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -10,11 +11,12 @@ import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 
 import { Bundle, EngineSheetEntry, MantraModulesFile } from '../../core/bundle';
 import { GlobalOptions, LeagueSettings } from '../../core/global-options';
-import { withRowMoved, rowGapAt } from '../../core/manual-order';
+import { withRowAt } from '../../core/manual-order';
 import { GainScale, scaleOf } from '../../core/sealed-bid';
 import {
   AuctionKind,
   BlockView,
+  RankedMan,
   RoleBlock,
   StrategyBidder,
   StrategyGame,
@@ -68,13 +70,6 @@ function readPriority(): Record<string, number[]> {
   }
 }
 
-/** Quanti pixel prima che un click diventi un trascinamento: sotto, e' un click che ordina. */
-const DRAG_THRESHOLD_PX = 5;
-
-/** A quanti pixel dal bordo la lista comincia a scorrere da se', e di quanto per volta. */
-const DRAG_EDGE_PX = 60;
-const DRAG_SCROLL_STEP_PX = 24;
-
 /** Come si chiama a schermo ognuna delle due valute, e cosa dice quel numero. */
 const GAIN_LABEL: Record<AuctionKind, string> = {
   rilanci: 'SURPLUS',
@@ -103,6 +98,8 @@ const GAIN_HINT: Record<AuctionKind, string> = {
 @Component({
   selector: 'app-strategy',
   imports: [
+    CdkDrag,
+    CdkDropList,
     ClubCrest,
     FormsModule,
     GainChip,
@@ -177,10 +174,6 @@ export class Strategy {
   /** Quanti blocchi porta un ordine suo: la barra lo dice, o una preferenza salvata è invisibile. */
   protected readonly arranged = computed(() => this.priorityHere().size);
 
-  /** Il nome in mano, il suo blocco e il varco dove finirebbe. Null = nessun trascinamento in volo. */
-  private readonly dragId = signal<number | null>(null);
-  private readonly dragRole = signal<string | null>(null);
-  private readonly dragGap = signal<number | null>(null);
 
   /** Le colonne del motore del foglio scelto, per `fc_id`. Null = non ancora lette, o foglio assente. */
   private readonly engine = signal<Map<number, EngineExpectation> | null>(null);
@@ -397,125 +390,32 @@ export class Strategy {
 
   protected readonly game = computed<StrategyGame>(() => this.settings().game);
 
-  // ---------------------------------------------------------------- il gesto che riordina
+  // ---------------------------------------------------------------- il riordino
 
   /**
-   * PRESA UNA RIGA: si aspetta un movimento vero prima di chiamarlo trascinamento.
+   * IL RILASCIO DI CDK, che è l'unica cosa che questa pagina deve sapere del gesto.
    *
-   * E' il gesto della tabella (`ui/squad-table`, riscritto il 20/08/2026) su un altro asse, e ne porta
-   * dietro le due cure che sono costate una serata:
+   * Il trascinamento è di `@angular/cdk/drag-drop` per scelta dell'operatore (27/08/2026), e con lui
+   * arrivano l'anteprima, il segnaposto, lo scorrimento della lista al bordo e il drag nativo del browser
+   * già spento: le quattro cose che il gesto scritto in casa rifaceva a mano. Il pacchetto era già
+   * installato - `ng-zorro-antd` dipende da `@angular/cdk` - quindi non è una dipendenza nuova, solo una
+   * riga di `package.json` che ora la DICHIARA invece di ereditarla di nascosto.
    *
-   *  - IL TRASCINAMENTO NATIVO DEL BROWSER VA SPENTO SUBITO, dal `pointerdown` e non dalla soglia: un
-   *    `mousedown` piu' un movimento sopra del testo fa partire il drag nativo di Chromium, che si prende
-   *    il puntatore e smette di mandare `pointermove` - misurato contando gli eventi che ARRIVANO,
-   *    `pointerdown` 1 e `pointermove` 2 su 18. Dal di fuori si legge come «funziona a volte».
-   *  - I LISTENER DEL VOLO STANNO SU `window` e non sulla riga: senza cattura del puntatore un
-   *    `pointermove` ha per bersaglio quello che sta sotto il dito, quindi uscendo dalla lista la riga
-   *    non lo sentirebbe piu' e il gesto morirebbe a meta'.
+   * Quello che NON cambia è il modello: `withRowAt` riceve l'indice finale che CDK dichiara e restituisce
+   * il PREFISSO (i nomi sistemati in cima, sotto continua il gain). Il DOM lo muove e lo rimette a posto
+   * CDK; l'ordine vero resta il nostro signal, e la lista si ridisegna da quello.
    *
-   * Nessun click da mangiare, a differenza della tabella: qui una riga non fa niente al click, quindi
-   * non c'e' una seconda azione da distinguere. E nessun `touch-action`: su un telefono il dito serve a
-   * SCORRERE la lista, e il riordino e' un gesto da mouse - dichiarato, non dimenticato.
+   * IL PRECEDENTE, perché ce n'è uno e va letto: CDK era stato mandato via dalla TABELLA il 18/08/2026 con
+   * due accuse, e una delle due è stata poi ribaltata - i «buchi / disallineamenti» erano un `nz-tooltip`
+   * che si mangiava una colonna della griglia (`letture-app-v1.md` §17), non CDK. Quello che restava di
+   * misurato era il fotogramma al rilascio su una riga di `<th>` a larghezze fisse; qui le righe sono
+   * `<li>` di una lista che scorre, cioè il caso per cui `cdkDropList` esiste. L'arnese e2e misura
+   * esattamente quel fotogramma: zero anteprime, zero segnaposti, zero `transform` residui.
    */
-  protected grabAt(event: PointerEvent, role: string): void {
-    if (event.button !== 0) return;
-    const target = event.target as HTMLElement | null;
-    const row = target?.closest('li[data-id]') as HTMLElement | null;
-    const list = row?.closest('ol') as HTMLElement | null;
-    if (!row || !list) return;
-    const id = Number(row.dataset['id']);
-    if (!Number.isFinite(id)) return;
-
-    const startY = event.clientY;
-    let dragging = false;
-    const stopNative = (native: Event): void => native.preventDefault();
-    document.addEventListener('selectstart', stopNative);
-    document.addEventListener('dragstart', stopNative);
-
-    const end = (moved: boolean): void => {
-      window.removeEventListener('pointermove', move);
-      window.removeEventListener('pointerup', up);
-      window.removeEventListener('pointercancel', cancel);
-      window.removeEventListener('keydown', onKey);
-      document.removeEventListener('selectstart', stopNative);
-      document.removeEventListener('dragstart', stopNative);
-      const gap = this.dragGap();
-      this.dragId.set(null);
-      this.dragRole.set(null);
-      this.dragGap.set(null);
-      if (dragging && moved && gap != null) this.moveRow(role, list, id, gap);
-    };
-
-    const move = (moving: PointerEvent): void => {
-      if (!dragging && Math.abs(moving.clientY - startY) < DRAG_THRESHOLD_PX) return;
-      if (!dragging) {
-        dragging = true;
-        this.dragId.set(id);
-        this.dragRole.set(role);
-        // E la selezione che c'era PRIMA va via: e' quella che il browser proverebbe a trascinare.
-        document.getSelection()?.removeAllRanges();
-      }
-      const boxes = rowsOf(list).map((one) => one.getBoundingClientRect());
-      this.dragGap.set(rowGapAt(boxes, moving.clientY));
-      this.edgeScroll(list, moving.clientY);
-    };
-    const up = (): void => end(true);
-    const cancel = (): void => end(false);
-    const onKey = (pressed: KeyboardEvent): void => {
-      if (pressed.key === 'Escape') end(false);
-    };
-
-    window.addEventListener('pointermove', move);
-    window.addEventListener('pointerup', up);
-    window.addEventListener('pointercancel', cancel);
-    window.addEventListener('keydown', onKey);
-  }
-
-  /**
-   * VICINO AL BORDO LA LISTA SCORRE, e qui scorre la LISTA e non la pagina.
-   *
-   * E' la differenza col gesto della tabella, ed e' il layout a imporla: la pagina non scorre affatto
-   * (`h-[100dvh]`), quindi senza questo la meta' bassa di un blocco da 80 nomi non sarebbe raggiungibile
-   * col dito. Un passo per `pointermove`, come la': la velocita' e' quella della mano, nessun timer da
-   * fermare e nessuna animazione che continua dopo il rilascio.
-   */
-  private edgeScroll(list: HTMLElement, y: number): void {
-    const box = list.getBoundingClientRect();
-    const near = y < box.top + DRAG_EDGE_PX ? -1 : y > box.bottom - DRAG_EDGE_PX ? 1 : 0;
-    if (near) list.scrollBy({ top: near * DRAG_SCROLL_STEP_PX, behavior: 'instant' });
-  }
-
-  /**
-   * Il segno del gesto: sbiadita la riga in mano, una barra sul varco dove finirebbe.
-   *
-   * La barra e' un'OMBRA INTERNA e non un bordo, per la stessa ragione della tabella: un bordo aggiunge
-   * due pixel all'altezza della riga e fa saltare di un passo tutte quelle sotto, cioe' muoverebbe la
-   * lista mentre la stai puntando.
-   */
-  protected rowMark(role: string, id: number, index: number, of: number): string {
-    if (this.dragRole() !== role) return '';
-    const marks: string[] = [];
-    if (this.dragId() === id) marks.push('opacity-40');
-    const gap = this.dragGap();
-    if (gap != null) {
-      if (gap === index) marks.push('shadow-[inset_0_3px_0_0_var(--color-primary)]');
-      else if (gap === of && index === of - 1) {
-        marks.push('shadow-[inset_0_-3px_0_0_var(--color-primary)]');
-      }
-    }
-    return marks.join(' ');
-  }
-
-  /**
-   * Scrive il suo ordine dopo un rilascio: la sequenza e' quella A SCHERMO, letta dal DOM.
-   *
-   * Dal DOM e non da `blocks()` perche' la lista disegnata e' la sola verita' su cosa ha in mano - la
-   * stessa ragione per cui la tabella legge la posizione delle intestazioni invece di fidarsi di una
-   * somma di larghezze.
-   */
-  private moveRow(role: string, list: HTMLElement, id: number, gap: number): void {
-    const shown = rowsOf(list).map((one) => Number(one.dataset['id']));
-    const moved = withRowMoved(this.priorityHere().get(role) ?? [], shown, id, gap);
+  protected dropped(role: string, event: CdkDragDrop<RankedMan[]>): void {
+    const shown = event.container.data.map((row) => row.man.fcId);
+    const id = event.item.data as number;
+    const moved = withRowAt(this.priorityHere().get(role) ?? [], shown, id, event.currentIndex);
     if (!moved) return;
     const { platform, game } = this.settings();
     this.priority.update((one) => ({ ...one, [`${platform}|${game}|${role}`]: moved }));
@@ -553,9 +453,4 @@ export class Strategy {
       // Un browser che rifiuta la memoria disegna la pagina: dimentica l'ordine al ricaricamento.
     }
   }
-}
-
-/** Le righe dei GIOCATORI di una lista, in ordine. Il confine e' `data-id`: solo loro ne hanno uno. */
-function rowsOf(list: HTMLElement): HTMLElement[] {
-  return Array.from(list.querySelectorAll<HTMLElement>('li[data-id]'));
 }

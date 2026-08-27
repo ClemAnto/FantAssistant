@@ -40,7 +40,7 @@ import { SquadMan, ToneKey, ValuationStore } from '../../core/valuation-store';
 import { itDate, short } from '../../core/tooltip';
 import { lazyRows } from '../../core/lazy-rows';
 import { stored, storedJson, storedList } from '../../core/view-state';
-import { gapAt, withColumnMoved } from '../../core/column-drag';
+import { gapAt, withColumnMoved } from './column-drag';
 import {
   Blanks,
   ColumnFilter,

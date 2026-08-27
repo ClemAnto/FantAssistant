@@ -102,6 +102,11 @@ arnese e2e con un solo rosso, che è di un'altra sessione (sotto). Il codice di 
 committati; `views/strategy/strategy.{ts,html}` **no**, perché oggi importano `core/global-options`, che è
 di quella sessione e non è ancora in albero: un commit che non compila è peggio di un commit che manca.
 
+**IL GESTO DEL RIORDINO È DI CDK** dalla fine della serata (scelta sua): il precedente contro CDK era per
+metà sbagliato - i «buchi» della tabella erano un `nz-tooltip` - e la prova è stata rifatta sul fotogramma
+che l'aveva fatto cacciare (al rilascio 0 anteprime, 0 segnaposti, 0 transform residui). Il pacchetto era
+già installato, ora è dichiarato; il modello del prefisso non cambia.
+
 **I MODULI MANTRA, valutati su richiesta** (`pagina-strategia-v1.md` §11, numeri in
 `metrica-asta-surplus-v1.md` §26). Tutti e undici schierano **5 difensivi + 5 offensivi**, e lo dichiara il
 rulebook stesso, che rifiuta i modificatori classici perché «*gli schemi sono già bilanciati*». Sui posti da

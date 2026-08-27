@@ -29,6 +29,15 @@ la pagina, perché la pagina non scorre affatto. **Verificato con un puntatore v
 arrivano**: `pointerdown` 1 · `pointermove` **9 su 9** · `pointerup` 1, il nome ancora primo dopo un
 ricaricamento, la crocetta che rimette il gain. `ng build` verde, **533 test in 34 file**.
 
+**E IN CODA ALLA SERATA IL GESTO È PASSATO A CDK**, per scelta sua («nella pagina strategia userei il
+riordinamento d&d di cdk»), che riapre una porta che il progetto aveva chiuso il 18/08. Il precedente era
+per metà sbagliato - i «buchi» della tabella erano il `nz-tooltip`, non CDK - e per metà su un'altra
+struttura, quindi si è misurato il fotogramma che l'aveva fatto cacciare: a metà volo 1 anteprima, 1
+segnaposto e 3 righe traslate; al rilascio **0 anteprime, 0 segnaposti, 0 transform residui**. Il pacchetto
+era già installato (ng-zorro dipende da lui): adesso è dichiarato. ~120 righe di gesto in meno, il modello
+del prefisso intatto (`withRowAt` prende l'indice finale di CDK), e `column-drag.ts` tornato accanto alla
+tabella perché il motivo per cui era andato in `core/` è venuto meno. 531 test, quattro arnesi verdi.
+
 **I MODULI MANTRA, valutati su richiesta.** Tutti e undici schierano **5 posti difensivi e 5 offensivi**, e
 non è un caso: il rulebook rifiuta i modificatori classici scrivendo che «*gli schemi sono già
 bilanciati*». Sui posti da BONUS invece vanno da **3 a 5** (4-1-4-1 cinque, e nel nome è il più difensivo;

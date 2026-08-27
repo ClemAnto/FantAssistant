@@ -148,7 +148,7 @@ async function click(session, point) {
  * tasto alzato e la pagina non ha niente in mano. E i passi sono tanti perche' il gesto ha una soglia -
  * un salto solo la supererebbe, ma non assomiglierebbe a una mano.
  */
-async function dragTo(session, from, to, steps = 8) {
+async function dragTo(session, from, to, steps = 8, midFlight = null) {
   await session.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: from.x, y: from.y, button: 'none' });
   await wait(40);
   await session.send('Input.dispatchMouseEvent', {
@@ -163,6 +163,8 @@ async function dragTo(session, from, to, steps = 8) {
       buttons: 1,
     });
     await wait(25);
+    // A metà volo si guarda quello che esiste SOLO mentre si trascina: l'anteprima e il segnaposto.
+    if (midFlight && step === Math.ceil(steps / 2)) await midFlight();
   }
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseReleased', x: Math.round(to.x), y: Math.round(to.y), button: 'left', clickCount: 1,
@@ -376,6 +378,30 @@ function armEvents() {
   return true;
 }
 
+/**
+ * I PEZZI DI CDK: l'anteprima e il segnaposto (che a metà volo devono esserci) e i `transform` rimasti
+ * addosso alle righe (che al rilascio devono essere zero).
+ *
+ * È la misura per cui CDK era stato mandato via dalla tabella il 18/08/2026: al rilascio quattro
+ * intestazioni restavano traslate di 64px mentre l'ordine era già cambiato, cioè si vedevano celle nuove
+ * con lo spostamento della posizione vecchia. Qui le righe sono `<li>` di una lista che scorre, e questa
+ * funzione è quello che permette di dirlo invece di crederlo.
+ */
+function cdkPieces() {
+  const rows = [...document.querySelectorAll('app-strategy ol li[data-id]')];
+  const moved = rows.filter((one) => {
+    const t = one.style.transform;
+    return !!t && t !== 'none';
+  });
+  return {
+    previews: document.querySelectorAll('.cdk-drag-preview').length,
+    placeholders: document.querySelectorAll('.cdk-drag-placeholder').length,
+    dragging: document.querySelectorAll('.cdk-drop-list-dragging').length,
+    moved: moved.length,
+    example: moved[0]?.style.transform ?? null,
+  };
+}
+
 function modalOpen() {
   const modal = document.querySelector('nz-modal-container');
   if (!modal) return null;
@@ -567,7 +593,12 @@ async function main() {
     const first = await evaluate(session, rowGeometry, 0, 0);
     if (!fifth || !first) throw new Error('non trovo le righe del primo blocco: il passo non misura niente');
     // Bersaglio: sopra la mezzeria della prima riga, cioe' il varco 0.
-    await dragTo(session, fifth, { x: first.x, y: first.top - 4 });
+    let flight = null;
+    await dragTo(session, fifth, { x: first.x, y: first.top - 4 }, 8, async () => {
+      flight = await evaluate(session, cdkPieces);
+    });
+    // ...e subito DOPO il rilascio, prima che qualunque altra cosa succeda.
+    const settled = await evaluate(session, cdkPieces);
     const events = await evaluate(session, () => window.__strategyEvents);
     const afterDrag = await evaluate(session, rowGeometry, 0, 0);
     const blocksAfter = (await evaluate(session, readBlocks)) ?? [];
@@ -609,9 +640,19 @@ async function main() {
 
     note('il riordino a mano', {
       said: `«${fifth.name}» dal 5° posto al 1° · eventi arrivati ${JSON.stringify(events)} · `
+        + `a metà volo ${JSON.stringify(flight)} · al rilascio ${JSON.stringify(settled)} · `
         + `dopo il rilascio «${afterDrag?.name}» · dopo il ricaricamento «${reloaded?.name}» · `
         + `dopo la crocetta «${cleared?.name}» · chip nella barra: ${chip}`,
       problems: [
+        // Le tre cose che il difetto della tabella lasciava a schermo, misurate qui: mentre trascini
+        // l'anteprima e il segnaposto DEVONO esserci, e al rilascio non deve restare niente.
+        ...(flight?.previews === 1 ? [] : [`a metà volo ci sono ${flight?.previews} anteprime invece di 1`]),
+        ...(flight?.placeholders === 1
+          ? [] : [`a metà volo ci sono ${flight?.placeholders} segnaposti invece di 1`]),
+        ...(settled?.previews === 0 && settled?.placeholders === 0 && settled?.dragging === 0
+          ? [] : [`al rilascio resta qualcosa di CDK: ${JSON.stringify(settled)}`]),
+        ...(settled?.moved === 0
+          ? [] : [`al rilascio ${settled?.moved} righe restano traslate (es. ${settled?.example})`]),
         ...(events?.down === 1 ? [] : [`pointerdown arrivati ${events?.down} invece di 1`]),
         ...(events?.move >= 6
           ? [] : [`pointermove arrivati ${events?.move} su 9: il browser si e' preso il puntatore`]),

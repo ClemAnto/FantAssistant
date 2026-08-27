@@ -1,5 +1,3 @@
-import { gapAt } from './column-drag';
-
 /**
  * L'ORDINE PERSONALE dell'operatore sopra una lista che ha già il suo (27/08/2026).
  *
@@ -22,27 +20,12 @@ import { gapAt } from './column-drag';
  * della lista disegnata vengono dal suo ordine, e sotto quel numero la lista è ancora la misura. Un blocco
  * che non lo dicesse sarebbe una lista i cui numeri descrivono un'altra lista - il difetto che questo
  * progetto paga più spesso.
- */
-
-/** Una riga a schermo: dove comincia e dove finisce sull'asse verticale, in coordinate del viewport. */
-export interface RowBox {
-  top: number;
-  bottom: number;
-}
-
-/**
- * IN QUALE VARCO cadrebbe il dito su una lista verticale: `0` = sopra la prima riga, `n` = sotto l'ultima.
  *
- * È `gapAt`, che è aritmetica a una dimensione: le si passano le mezzerie di questo asse invece dell'altro.
- * Una seconda implementazione darebbe due risposte alla stessa domanda, e la prima l'ha già pagata la
- * tabella (i varchi contro i bordi, `docs/model/letture-app-v1.md` §17).
+ * IL GESTO NON STA QUI, ed è di CDK (`cdkDropList` / `cdkDrag`, scelta dell'operatore del 27/08/2026).
+ * Questo file riceve un INDICE FINALE - quello che `cdkDropListDropped` dichiara - e non sa niente di
+ * pixel: è la metà della cosa che si può misurare senza un browser, e resta vera qualunque sia la mano
+ * che muove le righe.
  */
-export function rowGapAt(rows: readonly RowBox[], y: number): number {
-  return gapAt(
-    rows.map((row) => ({ left: row.top, right: row.bottom })),
-    y,
-  );
-}
 
 /**
  * La lista come va disegnata: prima i nomi del SUO ordine che sono ancora qui, poi tutti gli altri.
@@ -72,30 +55,28 @@ export function orderedBy<T>(
 /**
  * L'ordine personale dopo un trascinamento, o `null` se il nome non si muove.
  *
- * `shown` è la sequenza che si sta guardando (già ordinata da `orderedBy`), `gap` il varco in cui il dito
- * ha lasciato. Il prefisso che ne esce contiene **tutto quello che sta sopra il nome mollato**, più quello
- * che era già sistemato: è la regola più prevedibile che ci sia, e senza di lei portare in cima un nome
- * dalla parte a gain butterebbe fuori dall'ordine i nomi sistemati che gli stavano sotto.
+ * `shown` è la sequenza che si sta guardando (già ordinata da `orderedBy`) e `at` è l'indice DOVE il nome
+ * è stato lasciato - quello che `cdkDropListDropped` chiama `currentIndex`, cioè un indice sulla lista
+ * già senza di lui. Il prefisso che ne esce contiene **tutto quello che sta sopra il nome mollato**, più
+ * quello che era già sistemato: è la regola più prevedibile che ci sia, e senza di lei portare in cima un
+ * nome dalla parte a gain butterebbe fuori dall'ordine i nomi sistemati che gli stavano sotto.
  *
- * `null` e non una copia uguale: al chiamante serve sapere se c'è qualcosa da scrivere - la stessa
- * convenzione di `withColumnMoved`, per la stessa ragione.
+ * `null` e non una copia uguale: al chiamante serve sapere se c'è qualcosa da scrivere.
  */
-export function withRowMoved(
+export function withRowAt(
   order: readonly number[],
   shown: readonly number[],
   id: number,
-  gap: number,
+  at: number,
 ): number[] | null {
   const from = shown.indexOf(id);
   if (from < 0) return null;
-  // Il varco è contato sulla lista CON la riga dentro: togliendola, i varchi sotto scalano di uno.
-  const wanted = gap > from ? gap - 1 : gap;
-  const at = Math.max(0, Math.min(wanted, shown.length - 1));
-  if (at === from) return null;
+  const where = Math.max(0, Math.min(at, shown.length - 1));
+  if (where === from) return null;
   const rest = shown.filter((one) => one !== id);
-  rest.splice(at, 0, id);
+  rest.splice(where, 0, id);
   // Quanti nomi restano «sistemati»: quelli di prima (più questo, se non c'era) e comunque tutti quelli
   // sopra il punto in cui è stato lasciato.
   const keep = order.includes(id) ? order.length : order.length + 1;
-  return rest.slice(0, Math.max(keep, at + 1));
+  return rest.slice(0, Math.max(keep, where + 1));
 }

@@ -1483,7 +1483,14 @@ conteggi tornavano, e lo schermo diceva un'altra cosa. Tutti trovati guidando un
 ### 17.1 Il gesto, riscritto — e i cinque modi in cui non funzionava
 
 Il gesto era già NOSTRO dal 18/08 (CDK era stato mandato via perché muoveva il DOM che Angular possiede e
-perché il drop tornava con l'indice di partenza; il pacchetto non è più nemmeno una dipendenza). Quello
+perché il drop tornava con l'indice di partenza; il pacchetto non è più nemmeno una dipendenza).
+**CORREZIONE DEL 27/08/2026**: ~~il pacchetto non è più nemmeno una dipendenza~~ - lo è di nuovo, dichiarata
+in `package.json`, perché il riordino delle liste della pagina Strategia usa `cdkDropList` (§19.1). Due cose
+di questo paragrafo restano vere e una no: CDK sposta davvero il DOM di Angular e su questa TABELLA il drop
+tornava con l'indice di partenza; ma l'accusa dei «buchi / disallineamenti», che è quella che l'operatore
+aveva visto, **non era sua** - era il `nz-tooltip` qui sotto, e per due giorni è stata attribuita a lui.
+Sulla tabella il gesto resta nostro (nessuno ha misurato che cambiarlo convenga); sulle LISTE è di CDK, e
+il fotogramma al rilascio è stato misurato lì: zero anteprime, zero segnaposti, zero transform residui. Quello
 che «funzionava malissimo» era il resto:
 
 1. **Si lasciava su una COLONNA, e fra due celle non c'è nessuna colonna.** `columnAt` tornava `null`
@@ -1705,9 +1712,10 @@ blocco porta la crocetta che torna alla misura (e compare solo se c'è un ordine
 conta i blocchi sistemati. Una lista mezza preferenza e mezza misura che non dichiara dove passa il confine
 è la solita lista i cui numeri descrivono un'altra lista.
 
-Il GESTO è quello del riordino delle colonne (§17) su un altro asse: `column-drag.ts` è passato in `core/`
-perché l'aritmetica di `gapAt` è a una dimensione, e con lui viaggiano le due cure del 20/08 (il drag nativo
-di Chromium spento dal `pointerdown`, i listener del volo su `window`). L'unica differenza è che qui scorre
-la LISTA e non la pagina, perché la pagina non scorre affatto. Verificato con un puntatore vero e contando
-gli eventi che ARRIVANO: `pointerdown` 1 · `pointermove` 9 su 9 · `pointerup` 1, il nome ancora primo dopo
-un ricaricamento, la crocetta che rimette la misura.
+Il GESTO è **di CDK** (`cdkDropList`), per scelta dell'operatore della sera del 27/08/2026 - e la scelta
+riapre una porta che questo documento aveva chiuso: vedi la correzione in fondo a §17.1. Il precedente
+contro CDK era per metà sbagliato (i «buchi» erano il `nz-tooltip`, non lui) e per metà su un'altra
+struttura (una riga di `<th>` a larghezze fisse contro una lista di `<li>` che scorre), quindi si è
+misurato il fotogramma che l'aveva fatto cacciare: a metà volo 1 anteprima e 1 segnaposto, al rilascio
+**0 anteprime, 0 segnaposti, 0 `transform` residui**. Il resto tiene: `pointerdown` 1 · `pointermove` 9 su
+9 · `pointerup` 1, il nome ancora primo dopo un ricaricamento, la crocetta che rimette la misura.
