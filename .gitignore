@@ -57,6 +57,9 @@ node_modules/
 /app/dist/
 /app/out/
 /app/.angular/
+# ...e la stessa cache quando `ng` gira con la RADICE come cwd (succede guidando gli arnesi e2e da qui):
+# la regola sopra è ancorata a `/app/`, e un'ignore vale solo quanto la sua ancora - lezione del 25/08.
+/.angular/
 
 # --- OS / editor ---
 .DS_Store
