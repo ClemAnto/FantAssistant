@@ -461,6 +461,18 @@ the real one with `EUROLEGHE_DATA_DIR` and you are back to one write lock, or co
 sessions measure on two different databases, which is worse than a lock. So the rule has a second half that
 is not a git feature: **one session owns the DB** (acquisitions, `snapshot`, `export`) and the other works on
 the app, the docs, or read-only.
+**And a third half, paid for on 27/08/2026: two sessions edited ONE view.** While one was adding the manual
+order to `views/strategy/`, the other moved the league settings into `core/global-options.ts` and deleted
+that page's settings modal. The two merged well — both used anchored patches, and the second even reused the
+first's types — but for two hours the shared tree **did not compile** (a half-finished refactor left two
+constructors in `valuation-store.ts`) and the e2e harness read 15 failures that were all downstream of one.
+Three habits: **verify in a WORKTREE on HEAD plus your own files**, with `node_modules` and `public/data`
+attached by junction (`mklink /J`, removed with `rmdir`, which takes the link and not the target) — it is the
+only way to have a green gate while the shared tree is mid-someone-else's-work; **never commit another
+session's file**, and never commit your own half that cannot compile without theirs (the view stayed out, the
+`core/` half went in); and **leave the harness RED where the defect is real**, naming the cause — here a
+button that calls `GlobalOptions.open()` while the panel opens on its own signal, which the harness pinned
+down not by reading code but by measuring `hasModalHost: true` with `containers: 0`.
 
 ## Three harnesses, not two - and the third one reads the app's own code
 **`toolkit/bench/draft/` (10/08/2026).** `backtest` judges RULES, `sweep` judges CONSTANTS, and this judges
@@ -1820,6 +1832,48 @@ other game's sheet, because a surplus is a fact about the GAME you are buying fo
 `ValuationStore.sheets` and `expectationsFor(sheet)`: one reader of the engine columns, now reachable for a
 NAMED sheet); a declared league that disagrees with the sheet's own teams and slots keeps the sheet's GAIN
 and gets the declared LENGTHS, with the mismatch drawn; and the budget enters no number yet.
+
+## A PREFERENCE ON TOP OF A MEASUREMENT IS A PREFIX, and the boundary between them is drawn
+**27/08/2026, `core/manual-order.ts`, on the operator's request** — «nei vari blocchi le liste devono essere
+riordinabili in modo che posso impostare il mio personale ordine di priorità». The strategy blocks are
+ranked by a measurement (the GAIN); what he adds by hand is a PREFERENCE, and the two must not blend.
+
+**The model is a PREFIX**: what is stored is the sequence of names he ARRANGED, and everything he has not
+touched stays below in the measured order. The simpler design — store the whole visible list on every drag —
+degrades badly and the reason is measurable: a new arrival the sheet prices at 40 would land **below eighty
+defenders**, i.e. invisible, while under the prefix he appears at the top of the measured half, right under
+the arranged names. It is «vuoto = ignoto» applied to an ORDER: a name nobody ranked is not a name ranked
+last. Storing the MOVES instead («three places up») does not survive a list that changes length, which is
+what every settings change does.
+
+**And the boundary is DRAWN, not implied**: the position number of his own names is bright, the block
+carries a ✕ that returns to the measurement (and appears only when there is an order to undo), the bar
+counts the arranged blocks. A list that is half preference and half measurement and does not say where the
+line falls is the defect this project keeps paying for. `RoleBlock.pinned` is that number, and the order is
+applied BEFORE the demand cut — a name arranged at the eightieth place must stay visible, and applying it
+after would cut him from the very list he was put in. The key is `listone|gioco|ruolo` and deliberately
+NOT the sheet: a preference is a fact about his league and the role, not about the revision we are reading,
+so a new export keeps it while a different game never inherits it.
+
+**The gesture is the table's, on another axis**, and that is why `column-drag.ts` now lives in `core/`:
+`gapAt`'s arithmetic is one-dimensional, so which axis it is belongs to the caller (`rowGapAt` hands it the
+vertical midpoints). The two cures of 20/08 travel with it — Chromium's native drag is switched off from
+`pointerdown` and not from the threshold, the in-flight listeners live on `window` — and one thing differs
+because the layout imposes it: **the LIST scrolls, not the page**, since the page does not scroll at all.
+Verified the only way a gesture can be: with a real pointer, **counting the events that ARRIVE**
+(`pointerdown` 1 · `pointermove` 9 of 9 · `pointerup` 1), the name still first after a reload, the ✕
+restoring the gain.
+
+**And the modules that list ranks were measured the same day** (`metrica-asta-surplus-v1.md` §26): all
+eleven mantra shapes field **5 defensive and 5 offensive places** — the rulebook says so about itself,
+refusing the classic modifiers because «gli schemi sono già bilanciati» — while the places a BONUS man can
+take run from 3 to 5, and the 4-2-3-1 does not offer a higher probability, it DEMANDS four of them. The
+ceiling in POINTS varies by **1.15%** and its winner changes with the reading, the listone and the budget:
+the shape is not a lever. What changes is the price — the surplus 100 credits buy falls monotonically from
+`Por` 44 and `B` 38 to **`Pc` 8.5** — so two `Pc` places are the most expensive way to fill the offensive
+five, **and the answer flips in a draft**, where picks are the scarce resource and the `Pc` gives the
+highest absolute surplus of any role. You pay the absolute fantamedia and win with the marginal one; the
+shape is chosen after the auction, from what you own.
 
 ## Quello che è già successo non si prevede — e l'app può viaggiare nel tempo
 **16/08/2026, e sono due facce dello stesso problema.** Un'asta giocata a stagione iniziata è l'esercizio

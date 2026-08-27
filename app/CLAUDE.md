@@ -165,6 +165,13 @@ The full rationale is Jingle Machine's `THEMING.md`; these are the rules that mu
   exception behind it, and without the console in the report you end up guessing the mechanism. The table
   harness now fails on any page exception, even when every geometric measure is green: an exception means
   something was not tried.
+- **A MOVING target is not clickable, and the coordinates are the ones at CLICK time.** Measured
+  27/08/2026 on the global options panel: the click on «Annulla» arrived **zero** times while
+  `elementFromPoint` on its centre answered its own `<span>` — an antd modal enters with a zoom animation
+  and for ~200ms its buttons MOVE, so the click landed where the button no longer was. The harness now
+  clicks only what has stopped moving (`clickSteady`: two identical reads in a row, then click). Same
+  family as the funnels below, seen from the side of TIME — and again it took counting the clicks that
+  ARRIVE to see it, because every geometric measure was green.
 - **For a gesture, count the events that ARRIVE, not the ones you sent.** Measured 20/08/2026: the first
   column drag of a page worked and every one after it did nothing, because a `mousedown` plus a move over
   text starts Chromium's own native drag, which takes the pointer and stops sending `pointermove`.

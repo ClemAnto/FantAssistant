@@ -1687,3 +1687,27 @@ E una lezione di questa cartella incontrata di nuovo: **un'impostazione che camb
 guardando non si mette dove per vederla devi chiudere quello che stai guardando.** Lo switch delle due
 letture sta nella barra sempre a schermo, non nella finestra delle impostazioni; e su classic **non c'è**,
 perché là un uomo ha un ruolo solo e non muoverebbe una riga.
+
+### 19.1 L'ordine personale delle liste (27 agosto 2026)
+
+Quarta cosa che riguarda le letture, e nasce da una richiesta: «nei vari blocchi le liste devono essere
+riordinabili in modo che posso impostare il mio personale ordine di priorità». Il dettaglio sta in
+`pagina-strategia-v1.md` §10; qui la regola che vale per qualunque lista di questa app.
+
+**Una PREFERENZA sopra una MISURA si dichiara, e il modello è un PREFISSO.** Si salva la sequenza dei nomi
+che l'operatore ha sistemato, e sotto continua l'ordine misurato: così un nome NUOVO compare in cima alla
+parte misurata invece che in fondo alla lista. Salvare la lista intera - la scelta più semplice - metterebbe
+un arrivo che il foglio prezza 40 sotto ottanta difensori, cioè invisibile: la stessa famiglia di «vuoto =
+ignoto», applicata all'ordine.
+
+**E il confine fra le due metà si DICE**: il numero di posizione dei suoi nomi è in grassetto chiaro, il
+blocco porta la crocetta che torna alla misura (e compare solo se c'è un ordine da annullare), la barra
+conta i blocchi sistemati. Una lista mezza preferenza e mezza misura che non dichiara dove passa il confine
+è la solita lista i cui numeri descrivono un'altra lista.
+
+Il GESTO è quello del riordino delle colonne (§17) su un altro asse: `column-drag.ts` è passato in `core/`
+perché l'aritmetica di `gapAt` è a una dimensione, e con lui viaggiano le due cure del 20/08 (il drag nativo
+di Chromium spento dal `pointerdown`, i listener del volo su `window`). L'unica differenza è che qui scorre
+la LISTA e non la pagina, perché la pagina non scorre affatto. Verificato con un puntatore vero e contando
+gli eventi che ARRIVANO: `pointerdown` 1 · `pointermove` 9 su 9 · `pointerup` 1, il nome ancora primo dopo
+un ricaricamento, la crocetta che rimette la misura.

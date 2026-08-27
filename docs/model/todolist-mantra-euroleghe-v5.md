@@ -1264,3 +1264,17 @@ di resa attesa. La prima voce è la più grossa di tutta questa coda.
 * **La profondità dentro il centrocampo** (E/M/C/W) non è separata dal rulebook (linea minima 2 per tutti
   e quattro, medie 2,00-2,80): oggi l'ordine lì è quello dichiarato in `mantra_modules.json`. Se un giorno
   decide qualcosa, va misurata e non ereditata.
+
+## Aperto dopo la sessione del 27/08/2026 sera (app, `pagina-strategia-v1.md` §12)
+
+* ~~Il bottone «Impostazioni lega» della pagina Strategia non apre niente~~ — **CHIUSO la sera stessa**
+  (l'operatore l'ha visto, l'arnese l'aveva segnato): erano due segnali per una porta, e il pannello ora
+  legge `panelOpen`. Resta una sola cosa da fare, e non è tecnica: **la cura sta in un file dell'altra
+  sessione, quindi va nel loro commit** - se quel file viene sovrascritto, il bottone torna morto.
+* **Pesare i moduli invece di contarli uguali.** La domanda per ruolo della pagina media le undici forme
+  (segnaposto §15.4); se l'operatore dichiara i due o tre schemi che il suo tavolo gioca, si sposta di
+  molto — `T` da 10 a 34, `W` da 10 a 34, `E` da 10 a 46, `Pc` da 12 a 23 su dieci squadre. È l'input che
+  mancava al punto fisso, e adesso c'è chi può dichiararlo.
+* **Il D-Factor non è misurato.** Se la lega lo accende, un modulo con un posto ibrido in mezzo (`M/C`,
+  `E/W`) permette di schierare SEI uomini di ruolo difensivo e sceglierne i cinque migliori: quel vantaggio
+  nessuno lo ha quantificato, e il rulebook dice solo come si conta.

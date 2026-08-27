@@ -1649,3 +1649,93 @@ cui i moduli mettono quel ruolo (Dd/Dc/Ds/B 1 · E/M/C/W 2 · T/A 3 · Pc 4), a 
 dichiarato in `mantra_modules.json`. Si tiene il minimo e non la media perché le medie (M 2,00 · C 2,06 ·
 E 2,07) separerebbero su sette centesimi tre mestieri che il regolamento tiene alla stessa profondità:
 **dentro il centrocampo quella parola non separa niente**, ed è un limite dichiarato e non un dettaglio.
+
+---
+
+## 26. I MODULI MANTRA valgono l'1%, e il bonus non costa lo stesso in tutti i reparti (27 agosto 2026)
+
+Nato da due domande dell'operatore («sono tutti equilibrati o alcuni permettono di schierare più giocatori
+offensivi?», e poi «col 4-2-3-1 c'è più probabilità di bonus, oppure moduli con 2 Pc sono più
+convenienti?»). Misurato sul rulebook (`config/mantra_modules.json`, edizione 2026/27) e sui due fogli
+mantra del bundle; il riassunto operativo sta in `pagina-strategia-v1.md` §11.
+
+### 26.1 Il rulebook è bilanciato, e lo dice di sé
+
+Tutti e undici gli schemi schierano **5 posti difensivi e 5 offensivi** sulla partizione che il file
+dichiara (`defensive_roles` = Dd Ds Dc B E M · `offensive_roles` = C T W A Pc). È il progetto e non un
+caso: il file **rifiuta i modificatori classici** e scrive perché - «*l'incompatibilità fra il sistema
+Mantra e i modificatori classici è concettuale e non tecnica: gli schemi sono già bilanciati*». Al posto
+loro ci sono due fattori opzionali e mutuamente esclusivi (R-Factor sui voti di base, D-Factor sui cinque
+difensivi migliori), che sono una scelta di lega e non una regola.
+
+Controllo di trascrizione fatto e riportato: i **6 `lineup_bans`** sono la prosa della tabella dei posti -
+0 incoerenze con `slot_roles` - quindi i tetti qui sotto non hanno un secondo strato di vincoli. La prima
+passata del controllo ne segnalava 3, ed era un difetto del CONTROLLO (confrontava il ruolo `Dc` con la
+chiave `DC`), non del rulebook.
+
+### 26.2 Su chi fa BONUS invece non sono equilibrati: da 3 a 5 posti
+
+Contati sui POSTI (il rulebook raziona i posti) e non sui ruoli che un uomo porta - contarli sui ruoli dà
+6 dove i posti dicono 3, ed è la prima cosa che ho sbagliato in questa misura:
+
+| modulo | bonus max | bonus obbligati |
+|---|---|---|
+| **4-1-4-1** | **5** (`C/T · T · E/W · W` + `A/PC`) | 3 |
+| 4-2-3-1 | 4 | **4** |
+| 3-4-2-1 · 3-5-1-1 · 4-4-1-1 | 4 | 3 / 2 / 2 |
+| 3-4-3 · 4-3-3 · 3-4-1-2 · 4-3-1-2 | 3 | 3 |
+| 3-5-2 · 4-4-2 | 3 | 2 |
+
+Il 4-1-4-1, che nel nome è il più difensivo, ne schiera più di ogni altro; il 3-4-3, che nel nome è il più
+offensivo, si ferma a 3 perché il suo centrocampo (`E M/C C E`) non ha un posto da bonus. E il **pavimento
+del 4-2-3-1 (4)** non è una probabilità in più: è una pretesa sulla rosa.
+
+Tetto per ruolo, che è il vincolo vero al tavolo: solo 3-4-3 e 4-3-3 schierano **tre** `A`, e proprio loro
+ne schierano **una sola** `Pc` (la linea è `W/A W/A A/PC`); due `Pc` li permettono solo 3-4-1-2, 3-5-2,
+4-4-2 e 4-3-1-2.
+
+### 26.3 In PUNTI il modulo vale l'1%, su quattro letture
+
+Per ogni modulo, il miglior undici che il listone concede - assegnazione esatta sui posti tipizzati (greedy
+sul matroide trasversale, la stessa definizione di `core/mantra-legal.ts`), sui dieci di movimento, perché
+il portiere è lo stesso posto in tutti gli schemi:
+
+| lettura | scarto primo-ultimo | primo |
+|---|---|---|
+| euro, fantamedia attesa | 0,83 su 72,7 = **1,15%** | 4-4-2 |
+| euro, valore di stagione | 2,06% | 3-5-2 |
+| Serie A, fantamedia attesa | **1,42%** | 3-5-2 |
+| a budget uguale (200-500 crediti) | 1,6% euro · 1,3% Serie A | 4-3-1-2 · 4-3-3 |
+
+Il vincitore **cambia** con la lettura, col listone e col budget: la scelta dello schema non è una leva.
+Il confronto a budget è un GOLOSO sotto il vincolo del matroide, quindi una lettura e non un verdetto - e
+la sua prima passata comprava riempitivi da 1 credito (la trappola già pagata dal banco dei draft,
+`TAIL_PRICE_FLOOR`), curata restringendo la popolazione agli uomini che il core prezza E che sono attesi in
+almeno il 60% del calendario.
+
+### 26.4 Il numero grosso: quanto surplus compra un credito, per ruolo
+
+I dieci migliori per surplus di ogni ruolo, surplus del foglio ogni 100 di FVM mantra:
+
+| | Por | B | Ds | Dd | Dc | E | M | C | T | W | A | Pc |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| **euro** | 44 | 38 | 30 | 25 | 27 | 25 | 18 | 15 | 11 | 13 | 8 | **8,5** |
+| **Serie A** | 78 | 55 | 52 | 50 | 27 | 31 | 23 | 19 | 24 | 18 | 6 | **3,1** |
+
+L'ordine è monotono e **rovesciato** rispetto alla fantamedia: più un ruolo porta bonus, meno punti dà per
+credito. Il meccanismo è lo zero: **paghi la fantamedia assoluta e vinci con quella marginale**, e il
+rimpiazzo di un `Pc` è 7,19 contro 6,38 di un `W` (euro). Quindi due posti da `Pc` sono il modo più CARO
+di riempire i cinque offensivi.
+
+**E qui la risposta si ribalta col tipo d'asta**, che è la stessa distinzione di §15-16: in ASSOLUTO il
+`Pc` dà il surplus più alto di tutti (22,1 su euro), quindi a RILANCI - dove la risorsa scarsa è il
+credito - il bonus conviene comprarlo sulla trequarti, mentre in un DRAFT - dove si spendono scelte - il
+posto da `Pc` è il migliore che ci sia.
+
+**Conseguenza operativa**: il modulo non si scegli prima dell'asta. Si comprano i nomi per surplus
+assicurandosi di poter coprire due posti da T/W e uno o due da Pc, e la forma segue la rosa.
+
+Tre limiti dichiarati: l'FVM è un **giudizio del mercato** e non un valore misurato, quindi «costa meno»
+vuol dire «il mercato lo prezza meno» - ed è lì che sta il margine; il tetto ignora che non si può
+comprare tutti; e la scala Serie A poggia su 284 uomini con tutti e quattro i numeri contro 935 su euro,
+quindi lì la direzione è solida e i decimali no.

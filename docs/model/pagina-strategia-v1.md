@@ -1,11 +1,12 @@
 # La pagina STRATEGIA — quanti uomini per ruolo, e chi sono (v1)
-**Aggiornato: 27 agosto 2026** (nata il 26 agosto su richiesta dell'operatore; la regola del «posto più
-arretrato» è del 26 sera e la sua misura del 27). Commit `70c8ed6`.
+**Aggiornato: 27 agosto 2026, sera** (nata il 26 agosto su richiesta dell'operatore; la regola del «posto
+più arretrato» è del 26 sera e la sua misura del 27; l'ORDINE PERSONALE delle liste e la valutazione dei
+moduli sono del 27). Commit `70c8ed6` e quello di chiusura del 27.
 **Casa**: `app/src/app/core/strategy.ts` (+ `strategy.spec.ts`), `app/src/app/views/strategy/`,
 `app/scripts/e2e-strategy.mjs`. Rotta `/strategy`, link «Strategia» dall'intestazione di Calciatori.
 
 Documento autosufficiente: chi tocca quella pagina legga §3 (la moneta), §5 (le due forme respinte) e
-§10 (gli aperti) prima di scrivere una riga.
+§12 (gli aperti) prima di scrivere una riga.
 
 ---
 
@@ -31,6 +32,14 @@ motore era già uno solo e resta uno solo (`readSheet`), si è solo smesso di po
 primo foglio di quella piattaforma».
 
 ## 2. Le impostazioni della lega (dichiarate, non nel bundle)
+
+**NOTA DEL 27/08/2026, sera: il regolamento non è più di questa pagina.** Un'altra sessione ha spostato le
+sei dichiarazioni in un servizio unico (`core/global-options.ts` + `ui/global-options/`, pannello fisso in
+basso a sinistra) perché valgono per ogni vista e le Buste chiuse ne tenevano una seconda copia - due
+dichiarazioni della stessa lega prima o poi si contraddicono. La pagina le LEGGE (`options.league()`) e
+tiene di suo solo quello che è di una vista sola: come si legge un blocco (§5.4) e l'ordine personale
+(§10). Il paragrafo qui sotto descrive la forma originale, che è ancora quella dei campi; il bottone
+«Impostazioni lega» in intestazione apre quel pannello (§12.1).
 
 Bottone «Impostazioni lega», salvate in `localStorage` (`fantassistant.strategy.setup`):
 
@@ -246,7 +255,110 @@ Due difetti **dell'arnese** trovati per strada, entrambi della famiglia «misura
 - **confrontava il ruolo come lo DISEGNA la CSS** (maiuscolo) invece del codice, e inventava un difetto
   che la pagina non aveva.
 
-## 10. Aperti (per resa attesa)
+## 10. L'ORDINE PERSONALE delle liste (27 agosto 2026)
+
+Richiesta: «nei vari blocchi le liste devono essere riordinabili in modo che posso impostare il mio
+personale ordine di priorità». Si trascina una riga dentro il suo blocco; il resto sta in
+`core/manual-order.ts` (logica) e in `views/strategy/` (il gesto).
+
+**IL MODELLO È UN PREFISSO**, e la scelta è quella che degrada meglio quando la lista sotto cambia: si
+salva la sequenza dei nomi che lui ha SISTEMATO, gli altri restano sotto nell'ordine del gain. Le due
+alternative sono scritte perché sono peggiori e non vanno riprovate:
+
+- **salvare la lista intera** a ogni trascinamento è più semplice e mette un uomo NUOVO in fondo: un
+  arrivo che il foglio prezza 40 finirebbe sotto ottanta difensori, cioè invisibile. Col prefisso compare
+  in cima alla parte a gain, appena sotto i suoi;
+- **salvare le mosse** («questo tre posti su») non sopravvive a una lista che cambia lunghezza, che è
+  quello che succede a ogni cambio di impostazioni.
+
+Tre cose che il modello impone e che si vedono a schermo, perché una lista mezza preferenza e mezza
+misura deve dire dove passa il confine: il numero di posizione dei suoi è in **grassetto chiaro**, il
+blocco porta una **✕** che torna al gain (e compare solo se c'è un ordine da annullare), e la barra dice
+«*N* nel tuo ordine» con l'azzeramento globale sotto conferma. `RoleBlock.pinned` è il numero, e
+`blocksOf` lo calcola.
+
+**Si applica PRIMA del taglio alla domanda**: un nome sistemato all'ottantesimo posto deve restare
+visibile, e applicandolo dopo sarebbe tagliato via proprio dalla lista in cui l'hai messo.
+
+**La chiave è `listone|gioco|ruolo` e non contiene il foglio**: una preferenza è un fatto sulla sua lega e
+sul ruolo, non sulla revisione che stiamo leggendo, quindi un export nuovo la conserva; il listone e il
+gioco ci sono perché quelle sono liste di uomini DIVERSE, e un ordine che scavalcasse da una all'altra
+sarebbe l'ordine di una lista addosso a un'altra.
+
+**IL GESTO È QUELLO DELLA TABELLA, su un altro asse.** `column-drag.ts` è passato in `core/` (l'aritmetica
+di `gapAt` è a una dimensione: quale sia l'asse è affare del chiamante, e `rowGapAt` le passa le mezzerie
+verticali) e le due cure che sono costate una serata il 20/08 viaggiano con lui: il **drag nativo di
+Chromium va spento dal `pointerdown`** e non dalla soglia, e i listener del volo stanno su `window`. Una
+differenza c'è, e la impone il layout: **scorre la LISTA e non la pagina**, perché la pagina non scorre
+affatto, e con un bordo di 60px come quello della tabella un terzo di un blocco sarebbe sempre «vicino al
+bordo» (qui 24px, passo 14).
+
+**Verificato con un puntatore vero**, che per un gesto è l'unica verifica che vale: «Falcone» dal 5° al 1°
+posto, **eventi arrivati `pointerdown` 1 · `pointermove` 9 su 9 · `pointerup` 1** (nessun drag nativo che
+si prende il puntatore), il nome ancora primo **dopo un ricaricamento**, e la ✕ che rimette il gain. Più
+`orderedBy` / `withRowMoved` / `rowGapAt` a test unitario, compreso il caso che il modello esiste per
+risolvere: un nome preso dalla parte a gain e portato in cima **non butta fuori dall'ordine** chi era già
+sistemato sotto di lui.
+
+## 11. I MODULI MANTRA: quanto vale scegliere lo schema (27 agosto 2026)
+
+Domanda dell'operatore: «valuta tutti i moduli mantra e dimmi se sono tutti equilibrati o alcuni
+permettono di schierare più giocatori offensivi», e poi: «col 4-2-3-1 c'è più probabilità di schierare
+calciatori che portano bonus, oppure moduli con 2 Pc sono più convenienti?». Misurato sul rulebook e sui
+due fogli mantra; i numeri per intero stanno in `metrica-asta-surplus-v1.md` §26.
+
+**EQUILIBRATI, E PER COSTRUZIONE.** Tutti e undici gli schemi schierano **5 posti difensivi e 5 offensivi**
+sulla partizione che il file stesso dichiara. Non è un caso ed è il rulebook a dirlo: rifiuta i
+modificatori classici perché «*l'incompatibilità fra il sistema Mantra e i modificatori classici è
+concettuale e non tecnica: gli schemi sono già bilanciati*». Nessuno schema scambia un difensore per un
+attaccante.
+
+**NON EQUILIBRATI su chi fa BONUS** (T, W, A, Pc), da 3 a 5 posti: 4-1-4-1 **5** (il nome più difensivo di
+tutti, e i suoi quattro posti di trequarti sono `C/T · T · E/W · W`), 4-2-3-1 · 3-4-2-1 · 3-5-1-1 ·
+4-4-1-1 **4**, gli altri sei **3**. E il PAVIMENTO conta come il tetto: il 4-2-3-1 ha quattro posti che
+solo un uomo da bonus può occupare, quindi non offre una probabilità, **pretende** quattro nomi.
+
+**IL TETTO IN PUNTI È QUASI LO STESSO**: lo scarto fra il primo e l'ultimo modulo, sull'undici migliore
+che il listone concede, è **1,15% su euro e 1,42% su Serie A** - e il vincitore cambia con la lettura
+(fantamedia o valore di stagione), col listone e col budget. È rumore.
+
+**QUELLO CHE CAMBIA È IL PREZZO, e di molto**: il surplus che 100 crediti di FVM comprano scende
+monotonamente da `Por` 44 e `B` 38 fino a **`Pc` 8,5 e `A` 7,8** su euro (Serie A: `T` 24 contro `Pc`
+3,1). Quindi due posti da `Pc` sono il modo più CARO di riempire i cinque offensivi, non il più
+conveniente: paghi la fantamedia ASSOLUTA e vinci con quella MARGINALE, e il rimpiazzo di un `Pc` (7,19)
+è mezzo punto più alto di quello di un `W` (6,38).
+
+**MA LA RISPOSTA SI RIBALTA COL TIPO D'ASTA**, ed è la stessa distinzione della moneta (§3): in assoluto
+il `Pc` dà il surplus più alto di tutti i ruoli (22,1 su euro), quindi **a rilanci** conviene comprare il
+bonus sulla trequarti mentre **in un draft** - dove spendi scelte e non crediti - il posto da `Pc` è il
+migliore che ci sia.
+
+**La conseguenza pratica, che è quella da tenere: il modulo non si scegli prima dell'asta.** Tutti
+schierano cinque offensivi e la differenza vale l'1%; si comprano i nomi per surplus assicurandosi di
+poter coprire due posti da T/W e uno o due da Pc - il vincolo vero, perché 3-4-3 e 4-3-3 schierano tre
+attaccanti ma **una sola punta centrale** - e la forma segue la rosa, che è quello che `bestEleven` fa già.
+
+## 12.1 Il bottone che non apriva (27 agosto 2026, sera)
+
+**IL BOTTONE ORA APRE, e le due cose che l'hanno tenuto chiuso valgono più della cura** (27/08/2026,
+sera). L'operatore lo ha visto («nella pagina strategia non funziona il tasto impostazioni di lega») e
+l'arnese e2e lo aveva già segnato. **Erano DUE segnali per una porta**: il bottone chiama
+`GlobalOptions.open()`, che alza `panelOpen`, e quel segnale non lo leggeva nessuno - il pannello apriva
+col suo `editing` locale. Curato dove il difetto stava, nel pannello: un `effect` che legge `panelOpen`
+(in `untracked`, così dipende solo da lui) e `close()` alla chiusura, perché un signal che resta `true`
+non cambia e non farebbe scattare la seconda apertura. Il file è di un'altra sessione, quindi la cura è
+in albero e **non nel mio commit**: sarà nel loro.
+
+E la seconda, che è una regola sull'arnese: dopo la cura il passo diceva ««Annulla» non richiude la
+finestra», e non era vero. **Il click su «Annulla» arrivava ZERO volte** pur essendo il puntatore sulle
+coordinate che il browser aveva appena dichiarato, `elementFromPoint` compreso: il modale entra con la
+sua animazione e per ~200ms i suoi bottoni si SPOSTANO, quindi il click atterrava dove il bottone non era
+più. È la lezione dei filtri della tabella vista dal lato del tempo - un controllo si verifica alle
+coordinate che il browser dichiara *nel momento in cui si clicca* - e la cura è `clickSteady`: due letture
+uguali di fila, poi si clicca. Trovata contando i click che ARRIVANO, che è la sola misura che l'avrebbe
+mostrata.
+
+## 12. Aperti (per resa attesa)
 
 1. **La pagina non sa cosa hai già in rosa.** I blocchi sono il mercato intero; il passo naturale è
    sottrarre chi è già stato comprato e marcare i buchi del reparto — cioè agganciarsi a `expectedHoles`
@@ -262,3 +374,12 @@ Due difetti **dell'arnese** trovati per strada, entrambi della famiglia «misura
 5. **La profondità dentro il centrocampo** (E/M/C/W) non è separata dal rulebook: se un giorno decide
    qualcosa, va misurata invece di ereditata dall'ordine dichiarato.
 6. **La moneta del draft su CLASSIC** non è mai stata misurata (§3): oggi si estende quella di mantra.
+7. ~~Il bottone «Impostazioni lega» non apre niente~~ — **CHIUSO la sera del 27/08**, vedi §12.1: erano
+   due segnali per una porta, e la cura sta nel pannello (che ora legge `panelOpen`). Resta aperto solo
+   questo: la cura è in un file di un'altra sessione e quindi **non è in un mio commit**.
+8. **I moduli si possono PESARE** invece che contarli uguali (§12 e §15.4 della metrica): se l'operatore
+   dichiara i due o tre schemi che il suo tavolo gioca davvero, la domanda per ruolo si sposta di molto -
+   `T` da 10 a 34, `W` da 10 a 34, `E` da 10 a 46, `Pc` da 12 a 23 su dieci squadre.
+9. **Il D-Factor non è misurato.** Se la lega lo accende, un modulo con un posto ibrido in mezzo (`M/C`,
+   `E/W`) fa schierare SEI uomini di ruolo difensivo fra cui scegliere i cinque migliori, e quel vantaggio
+   nessuno lo ha quantificato.
