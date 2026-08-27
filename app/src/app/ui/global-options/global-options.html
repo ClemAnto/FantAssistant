@@ -1,0 +1,348 @@
+<!-- UI text is ITALIAN in app/ (see app/CLAUDE.md); code and comments stay English. -->
+<!-- Fisso in basso a SINISTRA: a destra c'è il viaggio nel tempo, e due scatole nello stesso angolo si
+     coprirebbero appena quella cresce. Fisso e fuori dall'outlet perché quello che dichiara vale per
+     ogni vista. -->
+<div
+  class="fixed bottom-3 left-3 z-(--z-dropdown) flex items-center gap-2 rounded-lg border bg-surface
+         px-3 py-2 text-xs shadow-lg"
+  [class.border-border]="!excludedClubs().length"
+  [class.border-warning]="excludedClubs().length"
+>
+  <button nz-button nzType="text" nzSize="small" (click)="openPanel()">
+    <nz-icon nzType="setting" />
+    Opzioni
+  </button>
+  <!-- UN FILTRO GLOBALE È INVISIBILE PER COSTRUZIONE: se qualcosa è escluso lo dice qui, con quanti
+       uomini nasconde, perché una lista che tace quello che ha tolto si legge come la lista intera. -->
+  @if (excludedClubs().length) {
+    <span
+      class="flex items-center gap-1 rounded-md bg-control px-2 py-0.5 font-medium text-fg"
+      nz-tooltip
+      [nzTooltipTitle]="excludedHint()"
+    >
+      <nz-icon nzType="eye-invisible" />
+      {{ excludedLabel() }}
+    </span>
+  }
+</div>
+
+<nz-modal
+  [nzVisible]="editing()"
+  nzTitle="Opzioni globali"
+  nzWidth="760px"
+  nzOkText="Applica"
+  nzCancelText="Annulla"
+  (nzOnOk)="apply()"
+  (nzOnCancel)="cancel()"
+  (nzVisibleChange)="visible($event)"
+>
+  <div *nzModalContent>
+    <nz-tabs nzSize="small">
+      <nz-tab nzTitle="Lega">
+        <div class="flex flex-col gap-4 pt-2">
+          <label class="flex flex-wrap items-center gap-3">
+            <span class="w-32 shrink-0 text-sm text-muted">Listone</span>
+            <nz-radio-group
+              nzSize="small"
+              [ngModel]="form().platform"
+              (ngModelChange)="patch({ platform: $event })"
+            >
+              <label nz-radio-button nzValue="default">Serie A</label>
+              <label nz-radio-button nzValue="euro">EuroLeghe</label>
+            </nz-radio-group>
+          </label>
+
+          <label class="flex flex-wrap items-center gap-3">
+            <span class="w-32 shrink-0 text-sm text-muted">Gioco</span>
+            <nz-radio-group
+              nzSize="small"
+              [ngModel]="form().game"
+              (ngModelChange)="patch({ game: $event })"
+            >
+              <label nz-radio-button nzValue="classic">Classic</label>
+              <label nz-radio-button nzValue="mantra">Mantra</label>
+            </nz-radio-group>
+          </label>
+
+          <!-- LA COMPOSIZIONE DELLA ROSA nei termini del gioco scelto, e sono due vocabolari: classic
+               conta per macro-ruolo perché è per macro-ruolo che vincola una formazione, mantra ha
+               posti tipati e quindi solo portieri e uomini di movimento. -->
+          @if (form().game === 'classic') {
+            <div class="flex flex-wrap items-center gap-3">
+              <span class="w-32 shrink-0 text-sm text-muted">Rose</span>
+              @for (role of classicRoles; track role) {
+                <label class="flex items-center gap-1 text-sm">
+                  <ui-role [role]="role" size="sm" />
+                  <nz-input-number
+                    class="w-16"
+                    nzSize="small"
+                    [nzMin]="1"
+                    [nzMax]="30"
+                    [nzStep]="1"
+                    [ngModel]="form().slots.classic[role]"
+                    (ngModelChange)="patchClassic(role, $event)"
+                  />
+                </label>
+              }
+            </div>
+          } @else {
+            <div class="flex flex-wrap items-center gap-3">
+              <span class="w-32 shrink-0 text-sm text-muted">Rose</span>
+              <label class="flex items-center gap-1 text-sm">
+                <ui-role role="Por" size="sm" />
+                <nz-input-number
+                  class="w-16"
+                  nzSize="small"
+                  [nzMin]="1"
+                  [nzMax]="10"
+                  [nzStep]="1"
+                  [ngModel]="form().slots.mantra.por"
+                  (ngModelChange)="patchMantra('por', $event)"
+                />
+              </label>
+              <label class="flex items-center gap-2 text-sm">
+                <span class="text-muted">Movimento</span>
+                <nz-input-number
+                  class="w-16"
+                  nzSize="small"
+                  [nzMin]="1"
+                  [nzMax]="40"
+                  [nzStep]="1"
+                  [ngModel]="form().slots.mantra.mov"
+                  (ngModelChange)="patchMantra('mov', $event)"
+                />
+              </label>
+            </div>
+          }
+
+          <label class="flex flex-wrap items-center gap-3">
+            <span class="w-32 shrink-0 text-sm text-muted">Budget</span>
+            <nz-input-number
+              class="w-24"
+              nzSize="small"
+              [nzMin]="1"
+              [nzMax]="100000"
+              [nzStep]="50"
+              [ngModel]="form().budget"
+              (ngModelChange)="patchNumber('budget', $event)"
+            />
+            <span class="text-xs text-muted">crediti di partenza</span>
+          </label>
+
+          <label class="flex flex-wrap items-center gap-3">
+            <span class="w-32 shrink-0 text-sm text-muted">Partecipanti</span>
+            <nz-input-number
+              class="w-20"
+              nzSize="small"
+              [nzMin]="2"
+              [nzMax]="24"
+              [nzStep]="1"
+              [ngModel]="form().teams"
+              (ngModelChange)="patchNumber('teams', $event)"
+            />
+          </label>
+
+          <label class="flex flex-wrap items-center gap-3">
+            <span class="w-32 shrink-0 text-sm text-muted">Tipo d'asta</span>
+            <nz-radio-group
+              nzSize="small"
+              [ngModel]="form().auction"
+              (ngModelChange)="patch({ auction: $event })"
+            >
+              <label nz-radio-button nzValue="rilanci">Rilanci</label>
+              <label nz-radio-button nzValue="draft">Draft</label>
+            </nz-radio-group>
+            <span
+              class="text-xs text-muted"
+              nz-tooltip
+              nzTooltipTitle="A rilanci la risorsa scarsa è il credito, che è quello che il surplus sottrae; in un draft si spendono scelte e non crediti, e la valuta misurata sul banco è il VALORE. Cambia l'ordine delle liste della Strategia, non la valutazione di nessuno."
+            >
+              cambia la valuta delle liste
+            </span>
+          </label>
+
+          <label
+            class="flex flex-wrap items-center gap-3"
+            nz-tooltip
+            nzTooltipTitle="Se il regolamento vieta di offrire su un ruolo già pieno, una squadra con 8 difensori è FUORI dal mercato dei difensori. È il fatto più sfruttabile che abbiamo su un rivale, perché non è un'ipotesi."
+          >
+            <span class="w-32 shrink-0 text-sm text-muted">Ruolo pieno = fuori</span>
+            <nz-switch
+              nzSize="small"
+              [ngModel]="form().roleLock"
+              (ngModelChange)="patch({ roleLock: $event })"
+            />
+          </label>
+
+          <label
+            class="flex flex-wrap items-center gap-3"
+            nz-tooltip
+            nzTooltipTitle="Se la lega paga il modificatore di difesa il bonus vuole QUATTRO difensori in campo, quindi le buste si tarano su un modulo che li schiera (4-3-3) invece che sul 3-4-3. Non entra in nessuna valutazione: quanto valga il modificatore non è misurato da nessuna parte."
+          >
+            <span class="w-32 shrink-0 text-sm text-muted">Modificatore difesa</span>
+            <nz-switch
+              nzSize="small"
+              [ngModel]="form().defenceModifier"
+              (ngModelChange)="patch({ defenceModifier: $event })"
+            />
+          </label>
+
+          <label
+            class="flex flex-wrap items-center gap-3"
+            nz-tooltip
+            nzTooltipTitle="Quante tornate dura il mercato a buste chiuse: la pagina Buste le usa per sapere quanto manca alla fine."
+          >
+            <span class="w-32 shrink-0 text-sm text-muted">Tornate (buste)</span>
+            <nz-input-number
+              class="w-20"
+              nzSize="small"
+              [nzMin]="1"
+              [nzStep]="1"
+              [ngModel]="form().rounds"
+              (ngModelChange)="patchNumber('rounds', $event)"
+            />
+          </label>
+
+          <label
+            class="flex flex-wrap items-center gap-3"
+            nz-tooltip
+            nzTooltipTitle="Le giornate che la competizione copre davvero. Se il torneo parte dalla seconda, quello che incassi sono 37 giornate su 38: cambia tutti i numeri nella stessa proporzione, quindi non sposta di una riga né una classifica né un consiglio. Chi la usa la taglia sul calendario del proprio foglio."
+          >
+            <span class="w-32 shrink-0 text-sm text-muted">Giornate</span>
+            <nz-input-number
+              class="w-16"
+              nzSize="small"
+              [nzMin]="1"
+              [ngModel]="form().from"
+              (ngModelChange)="patchNumber('from', $event)"
+            />
+            <span class="text-muted">→</span>
+            <nz-input-number
+              class="w-16"
+              nzSize="small"
+              [nzMin]="1"
+              [ngModel]="form().to"
+              (ngModelChange)="patchNumber('to', $event)"
+            />
+          </label>
+
+          <!-- Cosa questa scelta implica, detto prima di applicarla: quale foglio prezzerà le liste. -->
+          <div class="border-t border-border pt-3 text-xs text-muted">
+            @if (formSheet(); as entry) {
+              <p>
+                Prezza le liste il foglio <span class="text-fg">{{ entry.league }}</span> (revisione
+                {{ entry.sheet_revision ?? 0 }}, {{ entry.teams ?? '?' }} squadre, rose
+                {{ entry.squad_slots?.['P'] ?? 0 }}/{{ entry.squad_slots?.['D'] ?? 0 }}/{{
+                  entry.squad_slots?.['C'] ?? 0
+                }}/{{ entry.squad_slots?.['A'] ?? 0 }}).
+              </p>
+              <button nz-button nzType="text" nzSize="small" class="mt-1" (click)="alignToSheet()">
+                <nz-icon nzType="swap" />
+                Allinea squadre e rose al foglio
+              </button>
+            } @else if (available()) {
+              <p>
+                Il bundle non porta un foglio per questa combinazione, quindi le liste resterebbero
+                vuote. Porta: {{ available() }}.
+              </p>
+            }
+          </div>
+        </div>
+      </nz-tab>
+
+      <nz-tab [nzTitle]="clubsTab">
+        <div class="flex flex-col gap-3 pt-2">
+          <p class="text-xs text-muted">
+            Una squadra esclusa esce da OGNI vista e da ogni conto dell'app: i suoi uomini non compaiono
+            in nessuna lista, non entrano in nessun pool - le fasce di colore e le stelline sono
+            percentili, e un percentile è un fatto sul pool - e nessun consiglio li propone. Restano
+            invece le colonne del motore (surplus, rimpiazzo, Fantapunti), che le scrive il toolkit per
+            una lega intera: questa app le legge e non le ricalcola.
+          </p>
+
+          <div class="flex flex-wrap items-center gap-2">
+            <input
+              nz-input
+              nzSize="small"
+              type="text"
+              class="max-w-56"
+              placeholder="cerca una squadra"
+              [ngModel]="search()"
+              (ngModelChange)="search.set($event)"
+            />
+            <span class="text-xs text-muted">
+              {{ draftCount() }} escluse su {{ catalogueSize() }} squadre quotate
+            </span>
+            @if (draftCount()) {
+              <button nz-button nzType="text" nzSize="small" (click)="clearDraft()">
+                <nz-icon nzType="reload" />
+                Riammetti tutte
+              </button>
+            }
+          </div>
+
+          @if (!groups().length) {
+            <p class="text-sm text-muted">
+              @if (search()) {
+                Nessuna squadra con questo nome.
+              } @else {
+                Sto leggendo il bundle: l'elenco delle squadre arriva con il listone.
+              }
+            </p>
+          }
+
+          <!-- L'altezza è quella della finestra e non del contenuto: trentasette squadre su euro non
+               ci stanno, e una finestra che cresce oltre lo schermo nasconde i suoi stessi bottoni. -->
+          <div class="flex max-h-[50vh] flex-col gap-4 overflow-y-auto pr-1">
+            @for (group of groups(); track group.label) {
+              <div class="flex flex-col gap-2">
+                <div class="flex items-baseline gap-2">
+                  <span class="text-sm font-medium text-fg">{{ group.label }}</span>
+                  <span class="text-xs text-muted">{{ group.clubs.length }} squadre</span>
+                  <button
+                    nz-button
+                    nzType="text"
+                    nzSize="small"
+                    class="ml-auto"
+                    (click)="toggleGroup(group, !groupExcluded(group))"
+                  >
+                    {{ groupExcluded(group) ? 'Riammetti il campionato' : 'Escludi il campionato' }}
+                  </button>
+                </div>
+                <div class="grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-3">
+                  @for (club of group.clubs; track club.id) {
+                    <!-- UNA sola etichetta, che è anche il bersaglio del clic: due `<label>` annidate
+                         sono HTML non valido e il clic finisce su quella sbagliata. -->
+                    <label
+                      nz-checkbox
+                      class="flex items-center gap-2 text-sm"
+                      nz-tooltip
+                      [nzTooltipTitle]="
+                        club.men.default + ' quotati sul listone Serie A, ' + club.men.euro +
+                        ' su EuroLeghe'
+                      "
+                      [ngModel]="isExcluded(club)"
+                      (ngModelChange)="toggle(club, $event)"
+                    >
+                      <ui-crest [club]="club.name" [clubId]="club.id" [crests]="crests()" size="sm" />
+                      <span class="truncate" [class.text-muted]="isExcluded(club)">{{
+                        club.name
+                      }}</span>
+                    </label>
+                  }
+                </div>
+              </div>
+            }
+          </div>
+        </div>
+      </nz-tab>
+    </nz-tabs>
+  </div>
+</nz-modal>
+
+<ng-template #clubsTab>
+  Squadre escluse
+  @if (draftCount()) {
+    <span class="ml-1 rounded-full bg-control px-1.5 text-xs text-fg">{{ draftCount() }}</span>
+  }
+</ng-template>

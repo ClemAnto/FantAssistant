@@ -3,6 +3,7 @@ import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import { valueOf } from './auction-value';
 import { BoardsFile, Bundle, EngineSheetEntry, columnIndex, optionalIndex } from './bundle';
 import { DRAW_ORDER, occupiedCode } from './club-eleven';
+import { ClubOption, GlobalOptions } from './global-options';
 import { cupMark, windowFromNote } from './player-cup';
 import { EngineForecast, PlayerRating, rank99ByRole } from './player-ratings';
 import { PlayerRatingsStore } from './player-ratings-store';
@@ -381,6 +382,8 @@ export class ValuationStore {
   private readonly ratings = inject(PlayerRatingsStore);
   private readonly travel = inject(TimeTravel);
   private readonly marks = inject(PlayerStatus);
+  /** Le squadre reali escluse dalle opzioni globali: tagliano il perimetro, quindi anche ogni pool. */
+  private readonly options = inject(GlobalOptions);
 
   /**
    * Il marchio per giocatore, da qualunque foglio lo dichiari.
@@ -419,8 +422,29 @@ export class ValuationStore {
   readonly crests = signal<Record<string, string>>({});
 
   private readonly rostersByPlatform = signal<Map<Platform, PlayerRow[]>>(new Map());
-  /** Who each listone quotes for the target season. The one perimeter, handed to whoever draws a list. */
-  readonly rosters = this.rostersByPlatform.asReadonly();
+
+  /**
+   * Chi ogni listone quota per la stagione bersaglio, SENZA le squadre reali escluse dalle opzioni
+   * globali. È il perimetro unico, quello che ogni vista disegna.
+   *
+   * IL TAGLIO STA QUI, cioè prima di ogni numero che questo store calcola: le fasce di colore
+   * (`toneScores`), la profondità di un ruolo (`rolePool`) e le quattro letture a stelline sono
+   * PERCENTILI, e un percentile è un fatto su un pool. Lasciare gli esclusi nel pool e toglierli solo
+   * dalla tabella darebbe una lista i cui numeri descrivono un'altra lista - il difetto che il pannello
+   * del toolkit ha già pagato una volta.
+   *
+   * Quello che NON si ricalcola qui sono le colonne del MOTORE - surplus, rimpiazzo, Fantapunti - che le
+   * scrive il toolkit per una lega intera: l'app non ha un motore, e rifarlo qui sarebbe una seconda
+   * risposta a una domanda che il toolkit già dà. È lo stesso limite dichiarato del viaggio nel tempo, e
+   * si dice invece di lasciarlo scoprire.
+   */
+  readonly rosters = computed<Map<Platform, PlayerRow[]>>(() => {
+    const raw = this.rostersByPlatform();
+    if (!this.options.excluded().size) return raw;
+    const out = new Map<Platform, PlayerRow[]>();
+    for (const [platform, pool] of raw) out.set(platform, this.options.keep(pool));
+    return out;
+  });
 
   /** `fc_club_id` -> the championship the CLUB plays in, as the clubs table states it. */
   private readonly leagues = signal<Map<number, string | null>>(new Map());
@@ -490,7 +514,9 @@ export class ValuationStore {
     const measured = this.measured();
     const expected = this.expected();
     const out = new Map<string, ValueTones>();
-    for (const [platform, pool] of this.rostersByPlatform()) {
+    // Il pool è quello TAGLIATO (`rosters`): una fascia di colore è un percentile, e un percentile
+    // calcolato su uomini che la lista non mostra sarebbe un colore che descrive un'altra lista.
+    for (const [platform, pool] of this.rosters()) {
       const columns: Record<ToneKey, Map<number, number | null>> = {
         fm: new Map(), mv: new Map(), expectedFm: new Map(), expectedMv: new Map(), dvm: new Map(),
       };
@@ -528,7 +554,7 @@ export class ValuationStore {
   /** How many men of each role the colours were ranked against, so a tooltip can say the pool. */
   readonly rolePool = computed<Map<string, number>>(() => {
     const out = new Map<string, number>();
-    for (const [platform, pool] of this.rostersByPlatform()) {
+    for (const [platform, pool] of this.rosters()) {
       for (const player of pool) {
         const key = `${platform}|${player.role}`;
         out.set(key, (out.get(key) ?? 0) + 1);
@@ -644,6 +670,26 @@ export class ValuationStore {
     // uomo che il foglio non segna (una nazionale non qualificata, un'eccezione dichiarata, un calendario
     // che non copre quella lega) - il difetto «una lista mostrata i cui numeri descrivono un'altra lista».
     effect(() => this.marks.cups.set(this.cupMarks()));
+    /*
+     * LE QUATTRO LETTURE, e si chiedono da QUI e da nessun altro posto.
+     *
+     * Arrivano dopo che la pagina è disegnabile - vogliono lo strato per-partita, quindi la lista è già
+     * a schermo con un trattino nelle colonne a stelline: un percentile non si può mostrare uomo per
+     * uomo mentre arriva. Con loro viaggia la SHARE attesa dal motore, perché la stellina delle
+     * presenze parla di quello che giocherà, e il calendario di cui è una quota è quello del foglio (31
+     * giornate euro, 38 default).
+     *
+     * È un effetto e non una riga in fondo al caricamento perché le due cose da cui dipendono cambiano
+     * anche DOPO: la data del viaggio nel tempo e - da oggi - le squadre escluse. Un percentile è un
+     * fatto su un POOL, quindi un pool diverso è una domanda NUOVA e va rifatta invece che riusata;
+     * `ensure` è già chiavata su quello che cambia la risposta, quindi una chiamata che non cambia
+     * niente non costa niente.
+     */
+    effect(() => {
+      const pool = this.rosters();
+      if (this.status() !== 'ready') return;
+      void this.ratings.ensure(pool, this.expectedShares());
+    });
   }
 
   /** Il pacchetto su cui è costruita la risposta attuale (null = il bundle di oggi). */
@@ -701,6 +747,11 @@ export class ValuationStore {
       for (const row of clubs.rows) leagues.set(Number(row[cId]), (row[cLeague] as string) ?? null);
       this.leagues.set(leagues);
 
+      // L'ELENCO DA CUI SI SCEGLIE CHI ESCLUDERE, costruito dal listone GREZZO: un pannello che leggesse
+      // la lista già tagliata non saprebbe più nominare le squadre escluse, e non ci sarebbe modo di
+      // riammetterle. Le porta chi legge il bundle, perché il servizio delle opzioni non lo conosce.
+      this.options.catalogue.set(catalogueOf(this.rostersByPlatform(), leagues));
+
       const [vId, vSeason, vPlatform, vFvm, vFvmMantra] = columnIndex(
         quotes, 'fc_id', 'season', 'platform', 'fvm', 'fvm_mantra',
       );
@@ -755,14 +806,11 @@ export class ValuationStore {
       this.boards.set(boards);
       this.expected.set(await this.expectedByPlatform(boards, sheets));
 
+      // Le quattro letture le chiede l'effetto del costruttore, che è il solo posto da cui si chiedono:
+      // dipendono dal pool e dalle attese del motore, e tutte e due possono cambiare DOPO il
+      // caricamento - la data del viaggio nel tempo, una squadra esclusa. Una seconda chiamata qui
+      // sarebbe una seconda risposta alla stessa domanda.
       this.status.set('ready');
-      // The four readings need the heavy per-match layer, so they land AFTER the page is drawable: the
-      // list is on screen with a dash in the star columns, and the stars fill in when the ranking of
-      // the whole listone exists. A percentile cannot be shown player by player as it arrives.
-      //
-      // The engine's expected SHARE of the calendar travels with them: the presences star is about what
-      // he will play, and the calendar it is a share of is the sheet's own (31 euro rounds, 38 default).
-      void this.ratings.ensure(this.rosters(), this.expectedShares());
     } catch (err) {
       this.error.set(err instanceof Error ? err.message : String(err));
       this.status.set('error');
@@ -1025,4 +1073,39 @@ export class ValuationStore {
     }
     return out;
   }
+}
+
+/**
+ * LE SQUADRE REALI DA CUI SI PUÒ COMPRARE, con quanti uomini quotati porta ognuna su ogni listone.
+ *
+ * Costruito dai listoni e non dalla tabella `clubs`: dei 106 club che il bundle conosce, quelli che
+ * contano per una lista d'asta sono solo quelli che QUOTANO qualcuno, e i due listoni ne quotano insiemi
+ * diversi. Il conteggio viaggia con la riga perché è quello che rende la scelta consapevole: escludere
+ * una squadra è nascondere N uomini, e il pannello lo dice invece di lasciarlo scoprire.
+ *
+ * Un uomo senza `fc_club_id` non entra: non è una squadra da escludere, è una squadra che non sappiamo
+ * nominare - «vuoto = ignoto» - e `keeps` per lo stesso motivo non lo esclude mai.
+ */
+export function catalogueOf(
+  rosters: ReadonlyMap<Platform, readonly PlayerRow[]>,
+  leagues: ReadonlyMap<number, string | null>,
+): ClubOption[] {
+  const out = new Map<number, ClubOption>();
+  for (const [platform, pool] of rosters) {
+    for (const player of pool) {
+      if (player.clubId == null) continue;
+      const club =
+        out.get(player.clubId) ??
+        {
+          id: player.clubId,
+          name: player.club || `#${player.clubId}`,
+          // Il campionato del CLUB, dalla tabella `clubs` - mai la maggioranza dei suoi giocatori.
+          league: leagues.get(player.clubId) ?? null,
+          men: { default: 0, euro: 0 },
+        };
+      club.men[platform] += 1;
+      out.set(player.clubId, club);
+    }
+  }
+  return [...out.values()].sort((left, right) => left.name.localeCompare(right.name, 'it'));
 }

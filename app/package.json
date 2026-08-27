@@ -13,7 +13,8 @@
     "start": "ng serve",
     "test": "ng test",
     "version:bump": "node scripts/version.mjs --bump",
-    "watch": "ng build --watch --configuration development"
+    "watch": "ng build --watch --configuration development",
+    "favicon": "node scripts/make-favicon.mjs"
   },
   "private": true,
   "packageManager": "npm@11.9.0",

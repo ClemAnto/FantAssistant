@@ -6,7 +6,12 @@
   <title>FantAssistant</title>
   <base href="/">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <!-- Le due icone sono la STESSA icona: le genera `scripts/make-favicon.mjs` dalla stessa geometria
+       (`npm run favicon`), coi colori del tema. L'ICO prima con la sua misura e l'SVG dopo: il browser
+       prende l'ultima che sa leggere, quindi chi legge il vettore ha un'icona nitida a ogni zoom e chi
+       non lo legge resta sull'ICO invece di non avere niente. -->
+  <link rel="icon" href="favicon.ico" sizes="32x32">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
 </head>
 <body>
   <app-root></app-root>

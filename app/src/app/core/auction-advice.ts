@@ -1,6 +1,7 @@
 import { Injectable, computed, effect, inject, signal } from '@angular/core';
 
 import { AuctionFeed, AuctionPlayer, Zone, portaStandIns } from './auction-feed';
+import { GlobalOptions } from './global-options';
 import {
   EngineNumbers,
   MantraModules,
@@ -127,6 +128,8 @@ export class AuctionAdvice {
   private readonly feed = inject(AuctionFeed);
   private readonly bundle = inject(Bundle);
   private readonly status = inject(PlayerStatus);
+  /** Le squadre reali escluse dalle opzioni globali: qui tolgono uomini dal pool LIBERO, e nient'altro. */
+  private readonly options = inject(GlobalOptions);
 
   /** The league sheet in use, and the numbers it carries per `fc_id`. */
   readonly entry = signal<EngineSheetEntry | null>(null);
@@ -449,6 +452,25 @@ export class AuctionAdvice {
     return this.ranked().find((row) => row.player.id === player.id) ?? null;
   }
 
+  /**
+   * I LIBERI, senza le squadre reali che l'operatore ha escluso. Una definizione sola, due lettori.
+   *
+   * Il taglio è QUI e non sulle rose dei rivali, e la differenza non è una sfumatura: chi è escluso è uno
+   * che IO non comprerò, quindi esce da quello che mi viene proposto e da ogni scala che parla della mia
+   * lista; quello che i rivali hanno già preso resta dov'è, perché è un fatto sulla stanza e non sulla
+   * mia lista - e il classificatore dei rivali rigioca il draft su quello.
+   *
+   * Il club si risolve con `clubIds`, cioè la chiave canonica, perché un nome non è una chiave. Finché
+   * l'indice non è arrivato (lo legge la stessa passata che sceglie il foglio) nessuno viene escluso:
+   * meglio una lista intera che una lista tagliata da un join a metà.
+   */
+  private readonly free = computed<AuctionPlayer[]>(() => {
+    const available = this.feed.available();
+    if (!this.options.excluded().size) return available;
+    const ids = this.clubIds();
+    return available.filter((player) => this.options.keeps(ids.get(player.club) ?? null));
+  });
+
   /** Everything except `net`, which needs the whole list first: lambda is a property of the pool. */
   private readonly priced = computed<Omit<RankedPlayer, 'net' | 'netPer10'>[]>(() => {
     const numbers = this.numbers();
@@ -459,7 +481,7 @@ export class AuctionAdvice {
     const spread = this.spread();
     const valueMax = this.valueMax();
 
-    return this.feed.available().map((player) => {
+    return this.free().map((player) => {
       const row = numbers.get(player.id);
       const valuation = valuationOf(row);
       const slot = row?.slot ?? null;
@@ -558,7 +580,7 @@ export class AuctionAdvice {
   readonly listone = computed<{ player: AuctionPlayer; taken: boolean }[]>(() => {
     const rows: { player: AuctionPlayer; taken: boolean }[] = [];
     const seen = new Set<number>();
-    for (const player of this.feed.available()) {
+    for (const player of this.free()) {
       seen.add(player.id);
       rows.push({ player, taken: false });
     }
@@ -635,10 +657,20 @@ export class AuctionAdvice {
     return out;
   });
 
-  /** The REAL clubs at this listone, in alphabetical order - the axis of the pitch selector. */
+  /**
+   * The REAL clubs at this listone, in alphabetical order - the axis of the pitch selector.
+   *
+   * Le escluse non ci sono: `listone` porta ancora i loro uomini GIÀ PRESI (vedi `free`), quindi il
+   * taglio va rifatto qui sul club, o si offrirebbe il campetto di una squadra che non si compra.
+   */
   readonly realClubs = computed<string[]>(() => {
+    const ids = this.clubIds();
     const clubs = new Set<string>();
-    for (const row of this.listone()) if (row.player.club) clubs.add(row.player.club);
+    for (const row of this.listone()) {
+      if (row.player.club && this.options.keeps(ids.get(row.player.club) ?? null)) {
+        clubs.add(row.player.club);
+      }
+    }
     return [...clubs].sort((left, right) => left.localeCompare(right, 'it'));
   });
 

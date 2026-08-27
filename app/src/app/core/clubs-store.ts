@@ -62,7 +62,7 @@ const PERIMETER_SQUAD_MIN = 11;
  * A championship that is not in it keeps its place at the end, named; a club with no championship at
  * all comes last of all, under «campionato ignoto».
  */
-const LEAGUE_ORDER = ['serie_a', 'premier_league', 'la_liga', 'bundesliga', 'ligue_1'];
+export const LEAGUE_ORDER = ['serie_a', 'premier_league', 'la_liga', 'bundesliga', 'ligue_1'];
 
 /**
  * The short name drawn under each badge, UNIQUE inside the list it is drawn in.

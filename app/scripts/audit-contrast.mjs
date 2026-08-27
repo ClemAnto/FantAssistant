@@ -13,11 +13,11 @@
 //
 //   node scripts/audit-contrast.mjs
 import { readFileSync, readdirSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 
-const THEMES_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'src', 'styles', 'themes');
-const DEFAULT_THEME = 'default.css';
+// Il lettore dei token sta FUORI, perché lo legge anche il generatore del favicon: una definizione sola
+// di «quali colori dichiara questo tema».
+import { DEFAULT_THEME, THEMES_DIR, palette, ratio, rgb } from './theme-tokens.mjs';
 
 // AA: 4.5 for body text. `null` means REPORTED AND NOT SCORED - not a lowered threshold but
 // a pair no threshold governs, and the distinction is worth stating because relaxing a bar
@@ -32,21 +32,6 @@ const REPORTED = null;
 const SURFACES = ['page', 'surface', 'control'];
 const INKS = ['fg', 'muted', 'primary', 'danger', 'warning', 'success'];
 
-/** Every `--color-x: #hex` in a file, whichever block it sits in. */
-function palette(css) {
-  const found = new Map();
-  for (const [, name, value] of css.matchAll(/--color-([a-z0-9-]+)\s*:\s*(#[0-9a-fA-F]{3,8})\s*;/g)) {
-    found.set(name, value);
-  }
-  return found;
-}
-
-function rgb(hex) {
-  const h = hex.slice(1);
-  const full = h.length === 3 ? [...h].map((c) => c + c).join('') : h;
-  return [0, 2, 4].map((i) => parseInt(full.slice(i, i + 2), 16) / 255);
-}
-
 /** `color-mix(in srgb, a p%, b)` - a plain linear mix of the gamma-encoded channels. */
 function mix(a, b, p) {
   const [ra, ga, ba] = rgb(a);
@@ -57,16 +42,6 @@ function mix(a, b, p) {
       .toString(16)
       .padStart(2, '0');
   return `#${hex(at(ra, rb))}${hex(at(ga, gb))}${hex(at(ba, bb))}`;
-}
-
-function luminance(hex) {
-  const [r, g, b] = rgb(hex).map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-}
-
-function ratio(fg, bg) {
-  const [a, b] = [luminance(fg), luminance(bg)].sort((x, y) => y - x);
-  return (a + 0.05) / (b + 0.05);
 }
 
 /** The pairs the app actually paints, each with the threshold that applies to it. */

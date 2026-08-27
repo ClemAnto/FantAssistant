@@ -84,6 +84,7 @@ import {
   winChance,
 } from '../../core/sealed-bid';
 import { Bundle } from '../../core/bundle';
+import { GlobalOptions } from '../../core/global-options';
 import { PlayerStatus } from '../../core/player-status';
 import { SeasonLine, seasonLines } from '../../core/season-line';
 import { SquadMan, ValuationStore } from '../../core/valuation-store';
@@ -99,7 +100,7 @@ const PLATFORM = 'default' as const;
 const KEY = {
   snapshots: 'sealedBid.snapshots',
   me: 'sealedBid.me',
-  rules: 'sealedBid.rules',
+  reserve: 'sealedBid.reserve',
   swaps: 'sealedBid.swaps',
   logs: 'sealedBid.logs',
   offers: 'sealedBid.offers',
@@ -109,7 +110,18 @@ const KEY = {
   rosters: 'sealedBid.rosters',
 };
 
-/** What the operator sets by hand, because the league's regulation is not in the bundle. */
+/**
+ * What the operator sets by hand, because the league's regulation is not in the bundle.
+ *
+ * IL REGOLAMENTO NON È PIÙ DI QUESTA PAGINA: budget, tornate, ruolo pieno, modificatore di difesa e la
+ * finestra della competizione li dichiara UNA VOLTA il pannello delle opzioni globali
+ * (`core/global-options.ts`), perché valgono anche per la Strategia e per la tabella - due
+ * dichiarazioni della stessa lega prima o poi si contraddicono. Questa interfaccia resta la FORMA che
+ * la pagina legge, e i controlli qui sopra scrivono quel servizio invece di una copia locale.
+ *
+ * L'unico campo che è davvero di questa pagina è `reserve`: non è una regola della lega, è quanto si
+ * decide di NON impegnare in questa tornata.
+ */
 interface Settings {
   budget: number;
   rounds: number;
@@ -142,30 +154,6 @@ interface Settings {
    * choose between the 3-4-3 and the 4-3-3 the envelopes are tuned on.
    */
   defenceModifier: boolean;
-}
-
-const SETTINGS: Settings = {
-  budget: 1000,
-  rounds: 9,
-  roleLock: true,
-  from: 2,
-  to: 38,
-  reserve: 0,
-  // His league's own, declared on 25/08/2026 - the same standing as `roleLock` above it.
-  defenceModifier: true,
-};
-
-/** The stored preferences over the defaults, with every number that is not a number left behind. */
-function mergeSettings(stored: Partial<Settings>): Settings {
-  const out = { ...SETTINGS };
-  for (const key of Object.keys(SETTINGS) as (keyof Settings)[]) {
-    const value = stored[key];
-    if (value == null) continue;
-    if (typeof SETTINGS[key] === 'number' && !Number.isFinite(value as number)) continue;
-    if (typeof value !== typeof SETTINGS[key]) continue;
-    (out as Record<string, unknown>)[key] = value;
-  }
-  return out;
 }
 
 function readJson<T>(key: string, fallback: T): T {
@@ -225,6 +213,8 @@ function writeJson(key: string, value: unknown): void {
 export class SealedBid {
   protected readonly store = inject(ValuationStore);
   private readonly bundle = inject(Bundle);
+  /** Il regolamento della lega, dichiarato una volta sola per tutta l'app. */
+  private readonly options = inject(GlobalOptions);
   /** Chi e' fuori oggi, e da quanto: una definizione sola, la stessa che disegna l'icona in riga. */
   private readonly status = inject(PlayerStatus);
   protected readonly appVersion = APP_VERSION;
@@ -234,12 +224,37 @@ export class SealedBid {
   /** One cumulative roster export per round played. The rounds are their differences. */
   protected readonly snapshots = signal<Snapshot[]>(readJson<Snapshot[]>(KEY.snapshots, []));
   protected readonly me = signal<string>(readJson<string>(KEY.me, ''));
-  // Merged with the defaults, never taken whole: a preference written by an earlier version of this page
-  // has no competition window, and `undefined - undefined + 1` is a NaN that would silently empty the
-  // whole board. «A stored value the code no longer understands» is the case `view-state.ts` guards too.
-  // The same guard is applied to what IS there, not only to what is missing: a `budget` of null saved
-  // by an earlier session (the emptied number field, see `setSetting`) survives a reload otherwise.
-  protected readonly settings = signal<Settings>(mergeSettings(readJson<Partial<Settings>>(KEY.rules, {})));
+  /**
+   * I crediti che NON si vogliono impegnare in questa tornata: la sola cosa qui che non è il regolamento.
+   *
+   * Zero di serie, perché nessuno ha misurato quanto valga un credito tenuto per la tornata cinque; la
+   * pagina dice solo dove ti lascia. Il vecchio blob `sealedBid.rules` si legge ancora una volta per non
+   * perdere quello che c'era scritto - un azzeramento silenzioso si legge come «non c'era niente».
+   */
+  protected readonly reserve = signal<number>(
+    readJson<number | null>(KEY.reserve, null)
+      ?? readJson<{ reserve?: number }>('sealedBid.rules', {}).reserve
+      ?? 0,
+  );
+
+  /**
+   * IL REGOLAMENTO, letto dalle opzioni globali, più i crediti tenuti da parte.
+   *
+   * Letto e non copiato: è la stessa dichiarazione che la Strategia legge, quindi cambiarla da una delle
+   * due pagine non può lasciare l'altra a ragionare su un budget che non esiste più.
+   */
+  protected readonly settings = computed<Settings>(() => {
+    const league = this.options.league();
+    return {
+      budget: league.budget,
+      rounds: league.rounds,
+      roleLock: league.roleLock,
+      defenceModifier: league.defenceModifier,
+      from: league.from,
+      to: league.to,
+      reserve: this.reserve(),
+    };
+  });
   /** The operator's own substitutions: the man the plan proposed -> the man he prefers. */
   protected readonly swaps = signal<Record<number, number>>(readJson<Record<number, number>>(KEY.swaps, {}));
   /**
@@ -855,7 +870,7 @@ export class SealedBid {
   }
 
   /**
-   * One setting, kept usable whatever the field emits.
+   * One setting, kept usable whatever the field emits, and written WHERE THAT SETTING LIVES.
    *
    * `nz-input-number` sends `null` the instant the box is EMPTIED - `setValueByTyping('')` calls
    * `updateValue(null)` - and that null was being stored and persisted. With `budget` null every
@@ -863,15 +878,25 @@ export class SealedBid {
    * `state.spent / budget` printed «Infinity%» as his committed share; and because the value is
    * written to localStorage the page came back broken after a reload. A number field that has been
    * cleared has no number in it yet, so the last good one stands until he types the next.
+   *
+   * `reserve` è di questa tornata e resta qui; tutto il resto è il regolamento della lega e va nelle
+   * opzioni globali, che è il solo posto in cui è dichiarato.
    */
   protected setSetting<K extends keyof Settings>(key: K, value: Settings[K]): void {
     const current = this.settings();
     if (typeof current[key] === 'number' && (value == null || !Number.isFinite(value as number))) {
       return;
     }
-    const next = { ...current, [key]: value };
-    this.settings.set(next);
-    writeJson(KEY.rules, next);
+    if (key === 'reserve') {
+      this.reserve.set(value as number);
+      writeJson(KEY.reserve, value);
+      return;
+    }
+    if (key === 'roleLock' || key === 'defenceModifier') {
+      this.options.patch({ [key]: value as boolean });
+      return;
+    }
+    this.options.patchNumber(key as 'budget' | 'rounds' | 'from' | 'to', value as number);
   }
 
   protected toggleBid(fcId: number): void {

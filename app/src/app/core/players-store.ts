@@ -1,6 +1,7 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 
 import { Bundle, BundleManifest, BundleTable, ScoringConfig, columnIndex, optionalIndex } from './bundle';
+import { GlobalOptions } from './global-options';
 import { PlayerFlag, PlayerStatus } from './player-status';
 
 export type ClassicRole = 'P' | 'D' | 'C' | 'A';
@@ -218,6 +219,8 @@ export class PlayersStore {
   private readonly bundle = inject(Bundle);
   /** I marchi che un nome porta: li possiede `PlayerStatus`, e il filtro legge quelli e non una copia. */
   private readonly marks = inject(PlayerStatus);
+  /** Le squadre reali che l'operatore ha escluso: valgono per ogni vista, quindi tagliano il listone. */
+  private readonly options = inject(GlobalOptions);
 
   readonly status = signal<Status>('idle');
   readonly error = signal<string | null>(null);
@@ -257,7 +260,15 @@ export class PlayersStore {
   readonly withFriendlies = signal(false);
   readonly byMatchday = computed(() => !this.withCups() && !this.withFriendlies());
 
-  readonly roster = computed(() => this.rosters().get(this.platform()) ?? []);
+  /**
+   * Il listone di questa piattaforma, SENZA le squadre reali escluse dalle opzioni globali.
+   *
+   * Il taglio sta qui e non nei filtri perché non è un filtro: è la popolazione di cui la vista parla.
+   * `filtered`, l'elenco dei club, le colonne e ogni numero che descrive «questa lista» partono da qui,
+   * quindi non può succedere che una lista sia una e i suoi numeri di un'altra - il difetto che questo
+   * progetto ha già pagato più volte.
+   */
+  readonly roster = computed(() => this.options.keep(this.rosters().get(this.platform()) ?? []));
 
   readonly clubs = computed(() =>
     [...new Set(this.roster().map((p) => p.club))]
