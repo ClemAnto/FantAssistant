@@ -141,6 +141,90 @@ async function click(session, point) {
   await wait(250);
 }
 
+/**
+ * UN TRASCINAMENTO VERO: premi, muovi a passi col tasto GIU', lascia.
+ *
+ * `buttons: 1` su ogni movimento non e' decorazione: senza di lui il browser manda un `pointermove` col
+ * tasto alzato e la pagina non ha niente in mano. E i passi sono tanti perche' il gesto ha una soglia -
+ * un salto solo la supererebbe, ma non assomiglierebbe a una mano.
+ */
+async function dragTo(session, from, to, steps = 8) {
+  await session.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: from.x, y: from.y, button: 'none' });
+  await wait(40);
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mousePressed', x: from.x, y: from.y, button: 'left', clickCount: 1,
+  });
+  for (let step = 1; step <= steps; step += 1) {
+    await session.send('Input.dispatchMouseEvent', {
+      type: 'mouseMoved',
+      x: Math.round(from.x + ((to.x - from.x) * step) / steps),
+      y: Math.round(from.y + ((to.y - from.y) * step) / steps),
+      button: 'left',
+      buttons: 1,
+    });
+    await wait(25);
+  }
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseReleased', x: Math.round(to.x), y: Math.round(to.y), button: 'left', clickCount: 1,
+  });
+  await wait(300);
+}
+
+/**
+ * CLICCA UN BERSAGLIO CHE STA FERMO, e non uno che si sta muovendo.
+ *
+ * `boxOf` da' le coordinate al momento della MISURA; un modale che entra con la sua animazione zoom sposta
+ * i suoi bottoni per ~200ms, quindi un click a quelle coordinate atterra dove il bottone NON e' piu'.
+ * Misurato contando i click che ARRIVANO: `elementFromPoint` sul centro di «Annulla» rispondeva col suo
+ * stesso `span` (quindi «il bottone e' li'») e il click arrivato era **0**. E' la lezione dei filtri della
+ * tabella vista dal lato del tempo: un controllo si verifica alle coordinate che il browser dichiara *nel
+ * momento in cui si clicca*.
+ *
+ * Due letture uguali di fila e il bersaglio e' fermo; se non lo diventa mai, si clicca l'ultima e il
+ * chiamante lo scopre dal suo asserto - non si finge di aver cliccato.
+ */
+async function clickSteady(session, selector, text, tries = 20) {
+  let last = null;
+  for (let attempt = 0; attempt < tries; attempt += 1) {
+    const box = await evaluate(session, boxOf, selector, text);
+    if (!box) return null;
+    if (last && Math.round(last.x) === Math.round(box.x) && Math.round(last.y) === Math.round(box.y)) {
+      await click(session, box);
+      return box;
+    }
+    last = box;
+    await wait(80);
+  }
+  if (last) await click(session, last);
+  return last;
+}
+
+/**
+ * ASPETTA CHE LA FINESTRA CI SIA, invece di contare millisecondi.
+ *
+ * L'attesa a tempo del `click` bastava finche' nessun passo ricaricava la pagina: dopo un `Page.reload`
+ * l'overlay del modale si costruisce per la prima volta e 250ms non sempre bastano, quindi il passo
+ * leggeva «non si e' aperta» e i sette passi dopo cadevano con lui. Un passo che misura due incognite -
+ * «si apre?» e «e' gia' pronta?» - attribuisce il difetto a quella sbagliata.
+ */
+async function waitForClosed(session, tries = 20) {
+  for (let attempt = 0; attempt < tries; attempt += 1) {
+    if (!(await evaluate(session, modalOpen))?.visible) return true;
+    await wait(200);
+  }
+  return false;
+}
+
+async function waitForModal(session, tries = 40) {
+  let modal = null;
+  for (let attempt = 0; attempt < tries; attempt += 1) {
+    modal = await evaluate(session, modalOpen);
+    if (modal?.visible) return modal;
+    await wait(250);
+  }
+  return modal;
+}
+
 // ------------------------------------------------------------------ what runs IN the page
 
 /** Every block with its own rectangle, its header count and the rows the browser really drew. */
@@ -253,6 +337,43 @@ function readTail() {
     : false;
   return { role: last.querySelector('ui-role')?.innerText?.trim() ?? '', row, box, covered,
            text: (name.innerText ?? '').replace(/\s+/g, ' ').trim().slice(0, 40) };
+}
+
+/**
+ * Dove sta una riga, e chi e'. Le coordinate sono quelle che il BROWSER dichiara: un gesto si guida su
+ * quelle e non su una somma di altezze.
+ */
+function rowGeometry(block, index) {
+  const sections = [...document.querySelectorAll('app-strategy section')];
+  const rows = [...(sections[block]?.querySelectorAll('li[data-id]') ?? [])];
+  const one = rows[index];
+  if (!one) return null;
+  const box = one.getBoundingClientRect();
+  return {
+    x: Math.round(box.left + box.width / 2),
+    y: Math.round(box.top + box.height / 2),
+    top: Math.round(box.top),
+    id: Number(one.dataset.id),
+    name: (one.querySelector('span.flex-1')?.innerText ?? '').trim(),
+    of: rows.length,
+  };
+}
+
+/**
+ * CONTA GLI EVENTI CHE ARRIVANO, non quelli spediti.
+ *
+ * E' la lezione del 20/08/2026 sulla tabella: un `mousedown` piu' un movimento sopra del testo fa partire
+ * il drag NATIVO di Chromium, che si prende il puntatore e smette di mandare `pointermove`. Nessuna misura
+ * di geometria o di ordine lo vede - si legge come «funziona a volte», che e' il difetto piu' difficile da
+ * inseguire. Quindi la pagina si mette in ascolto e li conta.
+ */
+function armEvents() {
+  const seen = { down: 0, move: 0, up: 0 };
+  window.__strategyEvents = seen;
+  window.addEventListener('pointerdown', () => (seen.down += 1), true);
+  window.addEventListener('pointermove', () => (seen.move += 1), true);
+  window.addEventListener('pointerup', () => (seen.up += 1), true);
+  return true;
 }
 
 function modalOpen() {
@@ -439,26 +560,183 @@ async function main() {
       ],
     });
 
-    // 6. IL BOTTONE, con un puntatore vero alle coordinate che il browser dichiara.
-    const button = await evaluate(session, boxOf, 'button', 'Impostazioni lega');
-    if (!button) throw new Error('il bottone delle impostazioni non è a schermo');
-    await click(session, button);
-    const modal = await evaluate(session, modalOpen);
-    note('le impostazioni si aprono', {
-      said: `bottone a (${Math.round(button.x)},${Math.round(button.y)}), sotto il punto c'è `
-        + `${button.under} · finestra: ${modal?.visible ? 'aperta' : 'chiusa'}`,
+    // 5b. IL RIORDINO A MANO: si trascina una riga con un puntatore vero, si contano gli eventi che
+    //     ARRIVANO, e la preferenza deve sopravvivere a un ricaricamento.
+    await evaluate(session, armEvents);
+    const fifth = await evaluate(session, rowGeometry, 0, 4);
+    const first = await evaluate(session, rowGeometry, 0, 0);
+    if (!fifth || !first) throw new Error('non trovo le righe del primo blocco: il passo non misura niente');
+    // Bersaglio: sopra la mezzeria della prima riga, cioe' il varco 0.
+    await dragTo(session, fifth, { x: first.x, y: first.top - 4 });
+    const events = await evaluate(session, () => window.__strategyEvents);
+    const afterDrag = await evaluate(session, rowGeometry, 0, 0);
+    const blocksAfter = (await evaluate(session, readBlocks)) ?? [];
+    const chip = await evaluate(session, () => {
+      const bar = document.querySelector('app-strategy .bg-surface');
+      return (bar?.innerText ?? '').includes('nel tuo ordine');
+    });
+
+    if (flag('--shot')) {
+      const dragged = await session.send('Page.captureScreenshot', { format: 'png' });
+      const where = join(ROOT, 'dist', 'e2e-strategy-order.png');
+      await writeFile(where, Buffer.from(dragged.data, 'base64'));
+      console.log(`· screenshot ordine tuo: ${where}`);
+    }
+
+    // ...e dopo un ricaricamento il nome deve essere ancora primo: una preferenza che non sopravvive e'
+    // una preferenza che l'operatore riscrive a ogni sguardo.
+    await session.send('Page.reload');
+    let reloaded = null;
+    for (let attempt = 0; attempt < 60; attempt += 1) {
+      reloaded = await evaluate(session, rowGeometry, 0, 0);
+      if (reloaded) break;
+      await wait(500);
+    }
+
+    // ...e la crocetta del blocco torna al gain.
+    const cross = await evaluate(session, () => {
+      const section = document.querySelector('app-strategy section');
+      const button = section?.querySelector('header button');
+      if (!button) return null;
+      const box = button.getBoundingClientRect();
+      const x = box.left + box.width / 2;
+      const y = box.top + box.height / 2;
+      const under = document.elementFromPoint(x, y);
+      return { x, y, inside: button.contains(under) || under === button };
+    });
+    if (cross) await click(session, cross);
+    const cleared = await evaluate(session, rowGeometry, 0, 0);
+
+    note('il riordino a mano', {
+      said: `«${fifth.name}» dal 5° posto al 1° · eventi arrivati ${JSON.stringify(events)} · `
+        + `dopo il rilascio «${afterDrag?.name}» · dopo il ricaricamento «${reloaded?.name}» · `
+        + `dopo la crocetta «${cleared?.name}» · chip nella barra: ${chip}`,
       problems: [
-        ...(button.inside ? [] : [`sotto il punto del bottone c'è ${button.under}: un dito non lo raggiunge`]),
-        ...(modal?.visible ? [] : ['la finestra non si è aperta con un puntatore vero']),
-        ...(modal?.text?.includes('Partecipanti') ? [] : ['la finestra non porta il campo dei partecipanti']),
+        ...(events?.down === 1 ? [] : [`pointerdown arrivati ${events?.down} invece di 1`]),
+        ...(events?.move >= 6
+          ? [] : [`pointermove arrivati ${events?.move} su 9: il browser si e' preso il puntatore`]),
+        ...(afterDrag?.id === fifth.id
+          ? [] : [`in cima c'e' «${afterDrag?.name}» e non il nome trascinato`]),
+        ...(chip ? [] : ['la barra non dice che un blocco e\' nel suo ordine']),
+        ...(cross?.inside ? [] : ['la crocetta del blocco non e\' raggiungibile con un puntatore vero']),
+        ...(reloaded?.id === fifth.id
+          ? [] : [`dopo il ricaricamento in cima c'e' «${reloaded?.name}»: la preferenza non e' stata salvata`]),
+        ...(cleared?.id === first.id
+          ? [] : [`la crocetta non ha rimesso il gain: in cima c'e' «${cleared?.name}»`]),
       ],
     });
 
+    // 6. IL BOTTONE DELLA PAGINA, con un puntatore vero alle coordinate che il browser dichiara.
+    //
+    //    Dal 27/08/2026 il regolamento della lega non e' piu' di questa pagina: sta nelle OPZIONI
+    //    GLOBALI (`core/global-options.ts`), e questo bottone deve aprire quel pannello. Il passo
+    //    misura esattamente quello, e quando fallisce dice dove guardare: se il click ARRIVA e nessun
+    //    overlay nasce, il segnale che il bottone scrive non e' quello che il pannello legge.
+    const button = await evaluate(session, boxOf, 'button', 'Impostazioni lega');
+    if (!button) throw new Error('il bottone delle impostazioni non è a schermo');
+    // Si CONTA il click che arriva, non quello spedito: se la finestra non si apre, questo dice se il
+    // click e' stato mangiato (un overlay) o se e' arrivato e non ha fatto niente (la pagina).
+    await evaluate(session, () => {
+      window.__clicks = { onWindow: 0, onButton: 0, overlay: [] };
+      window.addEventListener('click', () => (window.__clicks.onWindow += 1), true);
+      const found = [...document.querySelectorAll('button')].find((one) =>
+        (one.innerText ?? '').toLowerCase().includes('impostazioni lega'),
+      );
+      found?.addEventListener('click', () => (window.__clicks.onButton += 1));
+      return true;
+    });
+    await click(session, button);
+    const clicks = await evaluate(session, () => ({
+      ...window.__clicks,
+      overlay: [...document.querySelectorAll('.cdk-overlay-container > *')].map(
+        (one) => `${one.tagName.toLowerCase()}.${String(one.className).split(' ')[0]}`,
+      ),
+      // C'E' UN OSPITE DEL MODALE NEL DOM? E' la domanda che ha risolto un'indagine intera: il click
+      // arrivava (`onButton` 1), nessun overlay lo mangiava, e la finestra non c'era perche' non era
+      // nel template. Un passo che dice solo «non si e' aperta» manda a cercare nel posto sbagliato.
+      hasModalHost: !!document.querySelector('nz-modal'),
+      containers: document.querySelectorAll('.cdk-overlay-container').length,
+    }));
+    const modal = await waitForModal(session);
+    // ...e il passo si RICHIUDE la porta dietro: lasciare il pannello aperto fa fallire il passo dopo
+    // sulla propria maschera, cioe' un passo che rompe un altro passo. Il referto dice se ce l'ha fatta.
+    // Si conta anche QUESTO click: «non si chiude» ha due cause possibili - il click non arriva, o arriva
+    // e non fa niente - e senza il conteggio si sceglie a caso quale inseguire.
+    await evaluate(session, () => {
+      window.__cancel = 0;
+      const found = [...document.querySelectorAll('.ant-modal-footer button')].find((one) =>
+        (one.innerText ?? '').toLowerCase().includes('annulla'),
+      );
+      found?.addEventListener('click', () => (window.__cancel += 1));
+      return !!found;
+    });
+    const shut = await clickSteady(session, '.ant-modal-footer button', 'Annulla');
+    const cancelClicks = await evaluate(session, () => window.__cancel);
+    const closed = await waitForClosed(session);
+    // Se non si richiude, il referto dice COM'E' rimasta: quante finestre ci sono, che rettangolo hanno e
+    // che classi porta la maschera. «Non si chiude» senza questo manda a indovinare il meccanismo.
+    const leftover = closed ? null : await evaluate(session, () => {
+      const all = [...document.querySelectorAll('nz-modal-container')];
+      return all.map((one) => {
+        const box = one.getBoundingClientRect();
+        const style = getComputedStyle(one);
+        return {
+          w: Math.round(box.width), h: Math.round(box.height),
+          display: style.display, visibility: style.visibility, opacity: style.opacity,
+          classes: String(one.className).slice(0, 80),
+        };
+      });
+    });
+    note('le impostazioni si aprono', {
+      said: `bottone a (${Math.round(button.x)},${Math.round(button.y)}), sotto il punto c'è `
+        + `${button.under} · finestra: ${modal?.visible ? 'aperta' : 'chiusa'} · `
+        + `click arrivati ${JSON.stringify(clicks)} · «Annulla» ${JSON.stringify(shut)} · `
+        + `richiusa: ${closed} (click su Annulla arrivati: ${cancelClicks})`
+        + `${leftover ? ' · rimasta ' + JSON.stringify(leftover) : ''}`,
+      problems: [
+        ...(button.inside ? [] : [`sotto il punto del bottone c'è ${button.under}: un dito non lo raggiunge`]),
+        ...(modal?.visible
+          ? []
+          : [
+              'il bottone «Impostazioni lega» non apre niente: il click arriva'
+                + ` (${clicks?.onButton} sul bottone) e nessun overlay nasce (${clicks?.containers} contenitori).`
+                + ' Il bottone chiama `GlobalOptions.open()`, che alza `panelOpen`, e quel segnale non lo'
+                + ' legge nessuno: il pannello globale apre col suo `editing`. Due segnali per una porta.',
+            ]),
+        ...(modal?.visible && !modal.text?.includes('Partecipanti')
+          ? ['la finestra si apre ma non porta il campo dei partecipanti'] : []),
+        ...(modal?.visible && !closed
+          ? [`«Annulla» non richiude la finestra (click arrivati: ${cancelClicks}): la sua maschera copre`
+             + ' i controlli dei passi dopo'] : []),
+      ],
+    });
+
+    const setTo = async (...labels) => {
+      // Il pannello globale si apre dal suo bottone, in basso a sinistra: quello della pagina oggi non
+      // apre niente (vedi il passo 6), e un arnese che passasse da lui misurerebbe due difetti insieme.
+      await waitForClosed(session);
+      const open = await evaluate(session, boxOf, 'button', 'Opzioni');
+      if (open) await click(session, open);
+      if (!(await waitForModal(session))?.visible) {
+        // Il passo dice DOVE guardare: il bottone c'era, e sotto il suo punto chi c'era?
+        return `il pannello globale non si e' aperto · bottone ${JSON.stringify(open)}`;
+      }
+      for (const label of labels) {
+        const radio = await clickSteady(session, 'label.ant-radio-button-wrapper', label);
+        if (!radio) return `non trovo l'opzione «${label}» nella finestra`;
+      }
+      const ok = await clickSteady(session, '.ant-modal-footer button', 'Applica');
+      if (!ok) return 'non trovo il bottone «Applica»';
+      await wait(1200);
+      return null;
+    };
+
+    // ...e si ASPETTA che sia via: una maschera che sta sfumando intercetta il click del passo dopo, e
+    // il difetto si legge come «il pannello non si apre» a proposito di niente.
+    await waitForClosed(session);
+
     // 7. MANTRA: si cambia gioco e la pagina cambia vocabolario, non solo etichetta.
-    const mantra = await evaluate(session, boxOf, 'label.ant-radio-button-wrapper', 'Mantra');
-    if (mantra) await click(session, mantra);
-    const apply = await evaluate(session, boxOf, '.ant-modal-footer button', 'Applica');
-    if (apply) await click(session, apply);
+    const toMantra = await setTo('Mantra');
     let after = [];
     for (let attempt = 0; attempt < 60; attempt += 1) {
       after = (await evaluate(session, readBlocks)) ?? [];
@@ -473,6 +751,7 @@ async function main() {
       said: `${after.length} blocchi (${roles}) · ${after.reduce((sum, one) => sum + one.rows, 0)} nomi · `
         + `contatori ${after.map((one) => one.counter).join('/')}`,
       problems: [
+        ...(toMantra ? [toMantra] : []),
         ...(after.length === 12 ? [] : [`${after.length} blocchi invece dei dodici ruoli mantra`]),
         ...(roles.includes('por') && roles.includes('dc') && roles.includes('pc')
           ? [] : [`il vocabolario mantra non è quello del regolamento: ${roles}`]),
@@ -560,20 +839,6 @@ async function main() {
 
     // 8. IL LISTONE: il foglio è scelto da (listone, gioco), e la combinazione che il bundle non porta
     //    deve DIRLO invece di riempirsi col foglio dell'altro gioco.
-    const setTo = async (...labels) => {
-      const open = await evaluate(session, boxOf, 'button', 'Impostazioni lega');
-      if (open) await click(session, open);
-      for (const label of labels) {
-        const radio = await evaluate(session, boxOf, 'label.ant-radio-button-wrapper', label);
-        if (!radio) return `non trovo l'opzione «${label}» nella finestra`;
-        await click(session, radio);
-      }
-      const ok = await evaluate(session, boxOf, '.ant-modal-footer button', 'Applica');
-      if (!ok) return 'non trovo il bottone «Applica»';
-      await click(session, ok);
-      await wait(1200);
-      return null;
-    };
 
     const toEuroClassic = await setTo('EuroLeghe', 'Classic');
     const empty = await evaluate(session, readPage);

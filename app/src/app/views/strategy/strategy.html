@@ -84,6 +84,28 @@
         }
       </nz-radio-group>
     }
+    @if (arranged()) {
+      <span
+        class="flex items-center gap-1 rounded-md bg-control px-2 py-0.5 text-fg"
+        nz-tooltip
+        nzTooltipTitle="In questi blocchi i primi nomi sono nel tuo ordine e sotto continua il gain. Trascina una riga per cambiarlo; la crocetta sul blocco torna al gain."
+      >
+        <nz-icon nzType="unordered-list" />
+        {{ arranged() }} nel tuo ordine
+        <button
+          nz-button
+          nzType="text"
+          nzSize="small"
+          nz-popconfirm
+          nzPopconfirmTitle="Azzero l'ordine di tutti i blocchi di questa combinazione?"
+          nzOkText="Azzera"
+          nzCancelText="No"
+          (nzOnConfirm)="clearAllOrders()"
+        >
+          <nz-icon nzType="close" />
+        </button>
+      </span>
+    }
     <span class="ml-auto flex items-center gap-2">
       <span
         class="rounded-md bg-control px-2 py-0.5 font-medium text-fg"
@@ -177,8 +199,28 @@
           >
             <ui-role [role]="block.role" size="sm" />
             <span class="min-w-0 truncate text-xs font-medium text-fg">{{ block.label }}</span>
+            <!-- LA CROCETTA COMPARE SOLO DOVE C'E' UN ORDINE SUO: un comando che non ha niente da
+                 annullare e' un comando che fa dubitare di aver toccato qualcosa. -->
+            @if (block.pinned) {
+              <button
+                nz-button
+                nzType="text"
+                nzSize="small"
+                class="ml-auto shrink-0"
+                nz-tooltip
+                [nzTooltipTitle]="
+                  'I primi ' +
+                  block.pinned +
+                  ' nomi sono nel tuo ordine. Torna al gain per questo blocco.'
+                "
+                (click)="clearOrder(block.role)"
+              >
+                <nz-icon nzType="close" />
+              </button>
+            }
             <span
-              class="ml-auto shrink-0 text-[10px] tabular-nums text-muted"
+              class="shrink-0 text-[10px] tabular-nums text-muted"
+              [class.ml-auto]="!block.pinned"
               nz-tooltip
               [nzTooltipTitle]="
                 'La stanza comprerà circa ' +
@@ -189,6 +231,11 @@
                 block.pool +
                 (block.unranked ? ', di cui ' + block.unranked + ' senza un numero del foglio (non sono in classifica: vuoto non è zero)' : '') +
                 '.' +
+                (block.pinned
+                  ? ' I primi ' +
+                    block.pinned +
+                    ' sono nel TUO ordine (trascinati a mano), sotto continua il gain.'
+                  : '') +
                 (game() === 'mantra'
                   ? ' Di questo posto per mestiere - cioè che non possono giocare più arretrati - in lista ce ne sono ' +
                     block.natives +
@@ -212,9 +259,16 @@
                  pagina possa avere, quindi la coda della lista si può portare sopra il box scorrendo. -->
             <ol class="min-h-0 flex-1 overflow-y-auto" [class.pb-11]="last">
               @for (row of block.men; track row.man.fcId; let i = $index) {
+                <!-- SI TRASCINA LA RIGA INTERA, e non una maniglia: su questa riga non c'e' nessun'altra
+                     azione al click, quindi una maniglia da 12px sarebbe un bersaglio piccolo aggiunto
+                     per niente. `data-id` e' l'identita' che il gesto legge dal DOM (la lista disegnata
+                     e' la sola verita' su cosa hai in mano) e che l'arnese e2e usa per verificarlo. -->
                 <li
-                  class="flex items-center gap-1 px-1.5 py-0.5 text-xs odd:bg-control/25"
+                  class="flex cursor-grab items-center gap-1 px-1.5 py-0.5 text-xs odd:bg-control/25"
+                  [attr.data-id]="row.man.fcId"
                   [attr.data-behind]="row.fromBehind ? '1' : null"
+                  [class]="rowMark(block.role, row.man.fcId, i, block.men.length)"
+                  (pointerdown)="grabAt($event, block.role)"
                   [title]="
                     row.man.name +
                     ' · ' +
@@ -222,9 +276,11 @@
                     (row.fromBehind ? ' · lo metteresti da ' + row.deepest : '')
                   "
                 >
-                  <span class="w-5 shrink-0 text-right text-[10px] tabular-nums text-muted">{{
-                    i + 1
-                  }}</span>
+                  <span
+                    class="w-5 shrink-0 text-right text-[10px] tabular-nums"
+                    [class]="i < block.pinned ? 'font-semibold text-fg' : 'text-muted'"
+                    >{{ i + 1 }}</span
+                  >
                   <ui-crest
                     size="sm"
                     [club]="row.man.club"
@@ -283,155 +339,6 @@
     </div>
   }
 
-  <!-- ── il regolamento: non sta nel bundle, quindi lo dichiara l'operatore ─────────────────────── -->
-  <nz-modal
-    [nzVisible]="editing()"
-    nzTitle="Impostazioni lega"
-    nzOkText="Applica"
-    nzCancelText="Annulla"
-    (nzOnOk)="applySettings()"
-    (nzOnCancel)="cancelSettings()"
-    (nzVisibleChange)="editing.set($event)"
-  >
-    <div *nzModalContent class="flex flex-col gap-4">
-      <label class="flex flex-wrap items-center gap-3">
-        <span class="w-28 shrink-0 text-sm text-muted">Listone</span>
-        <nz-radio-group
-          nzSize="small"
-          [ngModel]="form().platform"
-          (ngModelChange)="patch({ platform: $event })"
-        >
-          <label nz-radio-button nzValue="default">Serie A</label>
-          <label nz-radio-button nzValue="euro">EuroLeghe</label>
-        </nz-radio-group>
-      </label>
-
-      <label class="flex flex-wrap items-center gap-3">
-        <span class="w-28 shrink-0 text-sm text-muted">Gioco</span>
-        <nz-radio-group
-          nzSize="small"
-          [ngModel]="form().game"
-          (ngModelChange)="patch({ game: $event })"
-        >
-          <label nz-radio-button nzValue="classic">Classic</label>
-          <label nz-radio-button nzValue="mantra">Mantra</label>
-        </nz-radio-group>
-      </label>
-
-      <!-- LA COMPOSIZIONE DELLA ROSA nei termini del gioco scelto, e sono due vocabolari: classic conta
-           per macro-ruolo perché è per macro-ruolo che vincola una formazione, mantra ha posti tipati e
-           quindi solo portieri e uomini di movimento. -->
-      @if (form().game === 'classic') {
-        <div class="flex flex-wrap items-center gap-3">
-          <span class="w-28 shrink-0 text-sm text-muted">Rose</span>
-          @for (role of classicRoles; track role) {
-            <label class="flex items-center gap-1 text-sm">
-              <ui-role [role]="role" size="sm" />
-              <nz-input-number
-                class="w-16"
-                nzSize="small"
-                [nzMin]="1"
-                [nzMax]="30"
-                [nzStep]="1"
-                [ngModel]="form().slots.classic[role]"
-                (ngModelChange)="patchClassic(role, $event)"
-              />
-            </label>
-          }
-        </div>
-      } @else {
-        <div class="flex flex-wrap items-center gap-3">
-          <span class="w-28 shrink-0 text-sm text-muted">Rose</span>
-          <label class="flex items-center gap-1 text-sm">
-            <ui-role role="Por" size="sm" />
-            <nz-input-number
-              class="w-16"
-              nzSize="small"
-              [nzMin]="1"
-              [nzMax]="10"
-              [nzStep]="1"
-              [ngModel]="form().slots.mantra.por"
-              (ngModelChange)="patchMantra('por', $event)"
-            />
-          </label>
-          <label class="flex items-center gap-2 text-sm">
-            <span class="text-muted">Movimento</span>
-            <nz-input-number
-              class="w-16"
-              nzSize="small"
-              [nzMin]="1"
-              [nzMax]="40"
-              [nzStep]="1"
-              [ngModel]="form().slots.mantra.mov"
-              (ngModelChange)="patchMantra('mov', $event)"
-            />
-          </label>
-        </div>
-      }
-
-      <label class="flex flex-wrap items-center gap-3">
-        <span class="w-28 shrink-0 text-sm text-muted">Budget</span>
-        <nz-input-number
-          class="w-24"
-          nzSize="small"
-          [nzMin]="1"
-          [nzMax]="100000"
-          [nzStep]="50"
-          [ngModel]="form().budget"
-          (ngModelChange)="patch({ budget: $event })"
-        />
-        <span class="text-xs text-muted">crediti di partenza</span>
-      </label>
-
-      <label class="flex flex-wrap items-center gap-3">
-        <span class="w-28 shrink-0 text-sm text-muted">Tipo d'asta</span>
-        <nz-radio-group
-          nzSize="small"
-          [ngModel]="form().auction"
-          (ngModelChange)="patch({ auction: $event })"
-        >
-          <label nz-radio-button nzValue="rilanci">Rilanci</label>
-          <label nz-radio-button nzValue="draft">Draft</label>
-        </nz-radio-group>
-        <span class="text-xs text-muted" nz-tooltip [nzTooltipTitle]="gainHint[form().auction]">
-          ordina per {{ gainLabel[form().auction] }}
-        </span>
-      </label>
-
-      <label class="flex flex-wrap items-center gap-3">
-        <span class="w-28 shrink-0 text-sm text-muted">Partecipanti</span>
-        <nz-input-number
-          class="w-20"
-          nzSize="small"
-          [nzMin]="2"
-          [nzMax]="24"
-          [nzStep]="1"
-          [ngModel]="form().teams"
-          (ngModelChange)="patch({ teams: $event })"
-        />
-      </label>
-
-      <!-- Cosa questa scelta implica, detto prima di applicarla: quale foglio prezzerà le liste. -->
-      <div class="border-t border-border pt-3 text-xs text-muted">
-        @if (formSheet(); as entry) {
-          <p>
-            Prezza le liste il foglio <span class="text-fg">{{ entry.league }}</span> (revisione
-            {{ entry.sheet_revision ?? 0 }}, {{ entry.teams ?? '?' }} squadre, rose
-            {{ (entry.squad_slots?.['P'] ?? 0) }}/{{ (entry.squad_slots?.['D'] ?? 0) }}/{{
-              (entry.squad_slots?.['C'] ?? 0)
-            }}/{{ (entry.squad_slots?.['A'] ?? 0) }}).
-          </p>
-          <button nz-button nzType="text" nzSize="small" class="mt-1" (click)="alignToSheet()">
-            <nz-icon nzType="swap" />
-            Allinea squadre e rose al foglio
-          </button>
-        } @else {
-          <p>
-            Il bundle non porta un foglio per questa combinazione, quindi le liste resterebbero vuote.
-            Porta: {{ available() }}.
-          </p>
-        }
-      </div>
-    </div>
-  </nz-modal>
+  <!-- IL REGOLAMENTO NON SI DICHIARA PIÙ QUI: la finestra è una sola e sta nelle opzioni globali,
+       perché quello che dichiara vale per ogni vista. Il bottone in intestazione la apre. -->
 </div>

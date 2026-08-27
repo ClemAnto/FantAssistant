@@ -1,4 +1,5 @@
 import { MantraModules, demandFromShapes, slotShares } from './auction-value';
+import { orderedBy } from './manual-order';
 import { ClassicRole } from './players-store';
 
 /**
@@ -344,6 +345,14 @@ export interface RoleBlock {
   natives: number;
   /** ...e quanti di mestiere ne esistono in tutto fra quelli che il foglio prezza. */
   nativePool: number;
+  /**
+   * QUANTI DEI NOMI IN LISTA vengono dall'ordine personale dell'operatore, e non dal gain.
+   *
+   * Sono i primi `pinned`, per costruzione (`manual-order.orderedBy`): sotto quel numero la lista è
+   * ancora la misura. Il blocco lo DICE, perché una lista mezza preferenza e mezza misura che non
+   * dichiara dove passa il confine è una lista i cui numeri descrivono un'altra lista.
+   */
+  pinned: number;
 }
 
 /**
@@ -372,8 +381,16 @@ export function blocksOf(input: {
   pool: readonly StrategyBidder[];
   setup: StrategySetup;
   rules: MantraModules | null;
+  /**
+   * L'ORDINE PERSONALE per ruolo, quando c'è (`manual-order.ts`).
+   *
+   * Si applica PRIMA del taglio alla domanda, e non è un dettaglio: un nome che l'operatore ha sistemato
+   * deve essere visibile, e applicandolo dopo un uomo pinato oltre l'ottantesimo posto sarebbe stato
+   * tagliato via proprio dalla lista in cui l'ha messo.
+   */
+  priority?: ReadonlyMap<string, readonly number[]>;
 }): RoleBlock[] {
-  const { pool, setup, rules } = input;
+  const { pool, setup, rules, priority } = input;
   const demand = demandOf(setup, rules);
   const mantra = setup.game === 'mantra';
   // Una volta per tutto il foglio e non una per uomo: `deepestRole` rileggerebbe i moduli 600 volte.
@@ -417,8 +434,9 @@ export function blocksOf(input: {
     // è SEMPRE il gain, in tutt'e due le letture: vedi `BlockView` per la misura che lo ha deciso.
     ranked.sort((left, right) => right.gain - left.gain || left.man.name.localeCompare(right.man.name));
     const size = demand.get(role) ?? 0;
-    const chosen = setup.view === 'natives' ? ranked.filter((one) => !one.fromBehind) : ranked;
-    const men = chosen.slice(0, size);
+    const filtered = setup.view === 'natives' ? ranked.filter((one) => !one.fromBehind) : ranked;
+    const chosen = orderedBy(filtered, (one) => one.man.fcId, priority?.get(role) ?? []);
+    const men = chosen.men.slice(0, size);
     return {
       role,
       label: blockLabel(role, setup.game),
@@ -427,6 +445,7 @@ export function blocksOf(input: {
       pool: mine.length,
       unranked: mine.length - ranked.length,
       natives: men.filter((one) => !one.fromBehind).length,
+      pinned: Math.min(chosen.pinned, men.length),
       // Quanti di mestiere ne esistono in tutto, che è il numero che dice quanto costa la lettura
       // `natives`: sul listone vero i braccetti sono ZERO, e un blocco vuoto deve poter dire perché.
       nativePool: ranked.filter((one) => !one.fromBehind).length,

@@ -63,6 +63,24 @@ const value = (name, fallback) => {
 const wait = (ms) => new Promise((done) => setTimeout(done, ms));
 
 /** The dist folder, served with the SPA fallback the router needs. */
+/**
+ * Una porta che in questo momento nessuno tiene.
+ *
+ * Serviva: con un numero FISSO, se il browser della corsa precedente sopravvive (Chromium fa figli e
+ * `kill()` non li prende tutti) questo arnese si attacca a QUELLA pagina e misura lo stato di prima.
+ * Succede davvero - il 27/08/2026 `e2e-sealed-bid --fake` ha riportato **26 problemi** che erano tutti
+ * la pagina vuota di una corsa vecchia, e la prova e' che a browser puliti la stessa corsa e' verde.
+ */
+function freePort() {
+  return new Promise((done) => {
+    const probe = createServer();
+    probe.listen(0, '127.0.0.1', () => {
+      const { port } = probe.address();
+      probe.close(() => done(port));
+    });
+  });
+}
+
 function serve(dir) {
   const server = createServer(async (request, response) => {
     const path = decodeURIComponent(new URL(request.url, 'http://x').pathname);
@@ -782,7 +800,7 @@ async function main() {
 
   const { server, port } = await serve(DIST);
   const profile = await mkdtemp(join(tmpdir(), 'fant-e2e-'));
-  const debugPort = Number(value('--port', '9333'));
+  const debugPort = Number(value('--port', String(await freePort())));
   const path = value('--path', '/?vista=ratings');
   const url = `http://127.0.0.1:${port}${path}`;
   const browser = spawn(binary, [
@@ -1369,7 +1387,13 @@ async function main() {
     console.log(`· screenshot: ${out}`);
   } finally {
     session?.close();
-    browser.kill();
+    // Chromium fa figli: su Windows `kill()` prende il lanciatore e lascia il browser in piedi con la
+    // sua porta di debug aperta - che e' come una corsa finisce per misurare la pagina di quella prima.
+    if (process.platform === 'win32' && browser.pid) {
+      spawn('taskkill', ['/pid', String(browser.pid), '/T', '/F'], { stdio: 'ignore' });
+    } else {
+      browser.kill();
+    }
     server.close();
     await rm(profile, { recursive: true, force: true }).catch(() => {});
   }

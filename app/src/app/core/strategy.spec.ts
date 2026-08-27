@@ -288,3 +288,44 @@ describe('come si legge un blocco', () => {
     expect(block.natives).toBe(1);
   });
 });
+
+describe("l'ordine personale dentro un blocco", () => {
+  const setup: StrategySetup = {
+    ...CLASSIC,
+    teams: 2,
+    slots: { ...CLASSIC.slots, classic: { P: 1, D: 1, C: 1, A: 1 } },
+  };
+  const pool = [
+    man({ fcId: 101, name: 'Primo', surplus: 30 }),
+    man({ fcId: 102, name: 'Secondo', surplus: 20 }),
+    man({ fcId: 103, name: 'Terzo', surplus: 10 }),
+  ];
+
+  it('mette i suoi nomi in cima e DICE quanti sono', () => {
+    const block = blocksOf({
+      pool,
+      setup,
+      rules: null,
+      priority: new Map([['D', [103]]]),
+    }).find((one) => one.role === 'D')!;
+    expect(block.men.map((row) => row.man.name)).toEqual(['Terzo', 'Primo']);
+    expect(block.pinned).toBe(1);
+  });
+
+  it('e si applica PRIMA del taglio, o un nome sistemato in fondo non si vedrebbe mai', () => {
+    // La domanda è 2, quindi «Terzo» sarebbe tagliato: sistemato, deve restare a schermo.
+    const block = blocksOf({
+      pool,
+      setup,
+      rules: null,
+      priority: new Map([['D', [103]]]),
+    }).find((one) => one.role === 'D')!;
+    expect(block.demand).toBe(2);
+    expect(block.men.map((row) => row.man.fcId)).toContain(103);
+  });
+
+  it('senza un ordine suo nessun blocco ne dichiara uno', () => {
+    const blocks = blocksOf({ pool, setup, rules: null });
+    expect(blocks.every((one) => one.pinned === 0)).toBe(true);
+  });
+});

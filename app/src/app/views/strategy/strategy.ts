@@ -4,13 +4,13 @@ import { RouterLink } from '@angular/router';
 import { NzAlertModule } from 'ng-zorro-antd/alert';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzIconModule } from 'ng-zorro-antd/icon';
-import { NzInputNumberModule } from 'ng-zorro-antd/input-number';
-import { NzModalModule } from 'ng-zorro-antd/modal';
+import { NzPopconfirmModule } from 'ng-zorro-antd/popconfirm';
 import { NzRadioModule } from 'ng-zorro-antd/radio';
 import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 
 import { Bundle, EngineSheetEntry, MantraModulesFile } from '../../core/bundle';
-import { ClassicRole, Platform } from '../../core/players-store';
+import { GlobalOptions, LeagueSettings } from '../../core/global-options';
+import { withRowMoved, rowGapAt } from '../../core/manual-order';
 import { GainScale, scaleOf } from '../../core/sealed-bid';
 import {
   AuctionKind,
@@ -23,6 +23,7 @@ import {
   gainOf,
 } from '../../core/strategy';
 import { EngineExpectation, ValuationStore, valueFromEngine } from '../../core/valuation-store';
+import { stored } from '../../core/view-state';
 import { APP_VERSION } from '../../version';
 import { ClubCrest } from '../../ui/club-crest/club-crest';
 import { GainChip } from '../../ui/gain-chip/gain-chip';
@@ -30,55 +31,49 @@ import { PlayerFlags } from '../../ui/player-flags/player-flags';
 import { RoleBadge } from '../../ui/role-badge/role-badge';
 import { RoleSet } from '../../ui/role-set/role-set';
 
-const KEY = 'strategy.setup';
+/**
+ * IL REGOLAMENTO NON È PIÙ DI QUESTA PAGINA: sta in `core/global-options.ts` e vale per ogni vista.
+ *
+ * Qui resta solo quello che è di questa pagina e di nessun'altra - COME si legge un blocco - perché è
+ * una preferenza di lettura e non una regola della lega. Il resto (listone, gioco, rose, budget,
+ * partecipanti, tipo d'asta) lo dichiara il pannello delle opzioni globali, che questa pagina apre e
+ * non duplica: due finestre sulla stessa dichiarazione sarebbero due dichiarazioni.
+ */
+type Settings = LeagueSettings & { view: BlockView };
 
-/** Il regolamento della lega più il listone su cui si gioca: quello che l'operatore dichiara. */
-interface Settings extends StrategySetup {
-  platform: Platform;
-}
+/** Dove finisce l'ordine personale dei blocchi: una preferenza sua, non un fatto del bundle. */
+const PRIORITY_KEY = 'strategy.priority';
 
 /**
- * I valori di partenza, e sono quelli del regolamento CLASSIC standard (3/8/8/6, mille crediti, dieci
- * squadre) - cioè la lega dell'operatore. Non sono un default neutro e dirlo è il punto: appena il foglio
- * scelto dichiara altri numeri, la pagina lo SEGNALA invece di riallineare da sola, perché la
- * composizione della rosa è una sua dichiarazione e non un dato del bundle.
+ * L'ordine personale come sta sul disco, validato invece che creduto.
+ *
+ * Quello che c'e' scritto puo' venire da una versione precedente: un JSON illeggibile, o che non e' una
+ * mappa di liste di numeri, torna vuoto. Un ordine perso e' una preferenza persa, che va bene; una
+ * pagina che non si apre no.
  */
-const DEFAULTS: Settings = {
-  platform: 'default',
-  game: 'classic',
-  slots: { classic: { P: 3, D: 8, C: 8, A: 6 }, mantra: { por: 2, mov: 23 } },
-  budget: 1000,
-  auction: 'rilanci',
-  teams: 10,
-  // LA REGOLA DELL'OPERATORE MARCA E NON FILTRA, e la ragione è misurata (vedi `BlockView`): ogni
-  // blocco resta la classifica di chi può coprire quel posto, e chi lo coprirebbe scendendo da un posto
-  // più arretrato porta il suo marchio. «Solo di mestiere» resta a un clic.
-  view: 'all',
-};
-
-function readSettings(): Settings {
+function readPriority(): Record<string, number[]> {
   try {
-    const raw = localStorage.getItem(`fantassistant.${KEY}`);
-    if (raw == null) return DEFAULTS;
-    const stored = JSON.parse(raw) as Partial<Settings>;
-    // Fuso campo per campo e non con uno spread: una versione più vecchia di questa pagina può aver
-    // salvato un oggetto senza `slots.mantra`, e uno spread lo lascerebbe undefined dentro il conto.
-    return {
-      platform: stored.platform === 'euro' ? 'euro' : 'default',
-      game: stored.game === 'mantra' ? 'mantra' : 'classic',
-      slots: {
-        classic: { ...DEFAULTS.slots.classic, ...(stored.slots?.classic ?? {}) },
-        mantra: { ...DEFAULTS.slots.mantra, ...(stored.slots?.mantra ?? {}) },
-      },
-      budget: Number.isFinite(stored.budget) ? (stored.budget as number) : DEFAULTS.budget,
-      auction: stored.auction === 'draft' ? 'draft' : 'rilanci',
-      teams: Number.isFinite(stored.teams) ? (stored.teams as number) : DEFAULTS.teams,
-      view: stored.view === 'natives' ? 'natives' : 'all',
-    };
+    const raw = localStorage.getItem(`fantassistant.${PRIORITY_KEY}`);
+    const stored: unknown = raw == null ? null : JSON.parse(raw);
+    if (!stored || typeof stored !== 'object' || Array.isArray(stored)) return {};
+    const out: Record<string, number[]> = {};
+    for (const [key, ids] of Object.entries(stored as Record<string, unknown>)) {
+      if (!Array.isArray(ids)) continue;
+      const kept = ids.filter((one): one is number => typeof one === 'number' && Number.isFinite(one));
+      if (kept.length) out[key] = kept;
+    }
+    return out;
   } catch {
-    return DEFAULTS;
+    return {};
   }
 }
+
+/** Quanti pixel prima che un click diventi un trascinamento: sotto, e' un click che ordina. */
+const DRAG_THRESHOLD_PX = 5;
+
+/** A quanti pixel dal bordo la lista comincia a scorrere da se', e di quanto per volta. */
+const DRAG_EDGE_PX = 60;
+const DRAG_SCROLL_STEP_PX = 24;
 
 /** Come si chiama a schermo ognuna delle due valute, e cosa dice quel numero. */
 const GAIN_LABEL: Record<AuctionKind, string> = {
@@ -114,8 +109,7 @@ const GAIN_HINT: Record<AuctionKind, string> = {
     NzAlertModule,
     NzButtonModule,
     NzIconModule,
-    NzInputNumberModule,
-    NzModalModule,
+    NzPopconfirmModule,
     NzRadioModule,
     NzTooltipModule,
     PlayerFlags,
@@ -129,20 +123,64 @@ const GAIN_HINT: Record<AuctionKind, string> = {
 export class Strategy {
   protected readonly store = inject(ValuationStore);
   private readonly bundle = inject(Bundle);
+  /** Il regolamento della lega e le squadre escluse: dichiarati una volta, validi in ogni vista. */
+  private readonly options = inject(GlobalOptions);
   protected readonly appVersion = APP_VERSION;
   protected readonly gainLabel = GAIN_LABEL;
   protected readonly gainHint = GAIN_HINT;
-  protected readonly classicRoles: ClassicRole[] = ['P', 'D', 'C', 'A'];
 
-  protected readonly settings = signal<Settings>(readSettings());
+  /**
+   * IL REGOLAMENTO, letto dalle opzioni globali, più la sola preferenza che è di questa pagina.
+   *
+   * Letto e non copiato: se la Strategia ne tenesse una copia, cambiarlo dalle Buste chiuse lascerebbe
+   * questa pagina a ordinare con un budget e delle rose che nessuno dichiara più.
+   */
+  /**
+   * COME SI LEGGE UN BLOCCO: l'unica preferenza che resta di questa pagina.
+   *
+   * Non è il regolamento - non cambia chi si può comprare né quanti - è come si vuole leggere la
+   * classifica di un posto, quindi segue l'operatore da una sessione all'altra e sta in `localStorage`
+   * come le altre preferenze di lettura. Un valore che questa versione non capisce torna al default.
+   */
+  protected readonly view = stored<BlockView>('strategy.view', 'all', ['all', 'natives']);
 
-  /** La copia che si sta modificando nella finestra: annullare deve poter annullare davvero. */
-  protected readonly form = signal<Settings>(readSettings());
-  protected readonly editing = signal(false);
+  protected readonly settings = computed<Settings>(() => ({
+    ...this.options.league(),
+    view: this.view(),
+  }));
 
   /** Il rulebook mantra: le undici forme legali e quali ruoli accetta ogni posto. Letto, mai dedotto. */
   private readonly rulebook = signal<MantraModulesFile | null>(null);
   private readonly rulebookMissing = signal(false);
+
+  /**
+   * L'ORDINE PERSONALE per blocco: `listone|gioco|ruolo` -> gli `fc_id` come li ha sistemati lui.
+   *
+   * La chiave NON contiene il foglio: una preferenza è un fatto sulla sua lega e sul ruolo, non sulla
+   * revisione del foglio che stiamo leggendo, quindi un export nuovo la conserva. Contiene il listone e
+   * il gioco perché quelli sono liste di uomini DIVERSE, e un ordine che scavalcasse da una all'altra
+   * sarebbe l'ordine di una lista addosso a un'altra.
+   */
+  private readonly priority = signal<Record<string, number[]>>(readPriority());
+
+  /** Solo gli ordini di questa combinazione, per ruolo: è quello che `blocksOf` chiede. */
+  private readonly priorityHere = computed<Map<string, readonly number[]>>(() => {
+    const { platform, game } = this.settings();
+    const out = new Map<string, readonly number[]>();
+    for (const [key, ids] of Object.entries(this.priority())) {
+      const [where, which, role] = key.split('|');
+      if (where === platform && which === game && role && ids.length) out.set(role, ids);
+    }
+    return out;
+  });
+
+  /** Quanti blocchi porta un ordine suo: la barra lo dice, o una preferenza salvata è invisibile. */
+  protected readonly arranged = computed(() => this.priorityHere().size);
+
+  /** Il nome in mano, il suo blocco e il varco dove finirebbe. Null = nessun trascinamento in volo. */
+  private readonly dragId = signal<number | null>(null);
+  private readonly dragRole = signal<string | null>(null);
+  private readonly dragGap = signal<number | null>(null);
 
   /** Le colonne del motore del foglio scelto, per `fc_id`. Null = non ancora lette, o foglio assente. */
   private readonly engine = signal<Map<number, EngineExpectation> | null>(null);
@@ -219,8 +257,7 @@ export class Strategy {
   ];
 
   protected setView(view: BlockView): void {
-    this.settings.update((one) => ({ ...one, view }));
-    this.save(this.settings());
+    this.view.set(view);
   }
 
   /**
@@ -303,7 +340,12 @@ export class Strategy {
   );
 
   protected readonly blocks = computed<RoleBlock[]>(() =>
-    blocksOf({ pool: this.pool(), setup: this.setup(), rules: this.rulebook() }),
+    blocksOf({
+      pool: this.pool(),
+      setup: this.setup(),
+      rules: this.rulebook(),
+      priority: this.priorityHere(),
+    }),
   );
 
   /** Quanti nomi la pagina sta mostrando in tutto, e quanti il foglio non prezza affatto. */
@@ -331,87 +373,9 @@ export class Strategy {
 
   // ---------------------------------------------------------------- le impostazioni
 
+  /** La finestra è UNA e sta fuori dalle viste: questa pagina la apre e non ne tiene una sua. */
   protected openSettings(): void {
-    this.form.set(structuredClone(this.settings()));
-    this.editing.set(true);
-  }
-
-  protected patch(change: Partial<Settings>): void {
-    this.form.update((one) => ({ ...one, ...change }));
-  }
-
-  protected patchClassic(role: ClassicRole, value: number): void {
-    this.form.update((one) => ({
-      ...one,
-      slots: { ...one.slots, classic: { ...one.slots.classic, [role]: value } },
-    }));
-  }
-
-  protected patchMantra(which: 'por' | 'mov', value: number): void {
-    this.form.update((one) => ({
-      ...one,
-      slots: { ...one.slots, mantra: { ...one.slots.mantra, [which]: value } },
-    }));
-  }
-
-  /** Il foglio che la finestra sta scegliendo mentre la si compila: la sua riga lo nomina. */
-  protected readonly formSheet = computed<EngineSheetEntry | null>(() => {
-    const { platform, game } = this.form();
-    return (
-      this.store.sheets().find((one) => one.platform === platform && one.game === game) ?? null
-    );
-  });
-
-  /**
-   * ALLINEA AL FOGLIO: copia squadre e slot da come il toolkit ha costruito la lista.
-   *
-   * Esiste perché il foglio è la sola cosa che sa contro quale zero il suo surplus è contato, ma non
-   * scatta da sé: la composizione della rosa è una dichiarazione dell'operatore, e sovrascriverla in
-   * silenzio sarebbe decidere al posto suo.
-   */
-  protected alignToSheet(): void {
-    const sheet = this.formSheet();
-    const own = sheet?.squad_slots;
-    if (!sheet) return;
-    this.form.update((one) => ({
-      ...one,
-      teams: sheet.teams ?? one.teams,
-      slots: own
-        ? {
-            classic: {
-              P: own['P'] ?? one.slots.classic.P,
-              D: own['D'] ?? one.slots.classic.D,
-              C: own['C'] ?? one.slots.classic.C,
-              A: own['A'] ?? one.slots.classic.A,
-            },
-            // Su mantra il foglio parla ancora per macro-ruolo, quindi i portieri sono i suoi `P` e gli
-            // uomini di movimento la somma degli altri tre: è la traduzione, non una seconda regola.
-            mantra: {
-              por: own['P'] ?? one.slots.mantra.por,
-              mov: (own['D'] ?? 0) + (own['C'] ?? 0) + (own['A'] ?? 0) || one.slots.mantra.mov,
-            },
-          }
-        : one.slots,
-    }));
-  }
-
-  protected applySettings(): void {
-    const next = this.form();
-    this.settings.set(next);
-    this.editing.set(false);
-    this.save(next);
-  }
-
-  private save(what: Settings): void {
-    try {
-      localStorage.setItem(`fantassistant.${KEY}`, JSON.stringify(what));
-    } catch {
-      // Un browser che rifiuta la memoria disegna la pagina lo stesso: la dimentica al ricaricamento.
-    }
-  }
-
-  protected cancelSettings(): void {
-    this.editing.set(false);
+    this.options.open();
   }
 
   /** Le due domande che la barra deve poter rispondere senza aprire niente. */
@@ -432,4 +396,166 @@ export class Strategy {
   });
 
   protected readonly game = computed<StrategyGame>(() => this.settings().game);
+
+  // ---------------------------------------------------------------- il gesto che riordina
+
+  /**
+   * PRESA UNA RIGA: si aspetta un movimento vero prima di chiamarlo trascinamento.
+   *
+   * E' il gesto della tabella (`ui/squad-table`, riscritto il 20/08/2026) su un altro asse, e ne porta
+   * dietro le due cure che sono costate una serata:
+   *
+   *  - IL TRASCINAMENTO NATIVO DEL BROWSER VA SPENTO SUBITO, dal `pointerdown` e non dalla soglia: un
+   *    `mousedown` piu' un movimento sopra del testo fa partire il drag nativo di Chromium, che si prende
+   *    il puntatore e smette di mandare `pointermove` - misurato contando gli eventi che ARRIVANO,
+   *    `pointerdown` 1 e `pointermove` 2 su 18. Dal di fuori si legge come «funziona a volte».
+   *  - I LISTENER DEL VOLO STANNO SU `window` e non sulla riga: senza cattura del puntatore un
+   *    `pointermove` ha per bersaglio quello che sta sotto il dito, quindi uscendo dalla lista la riga
+   *    non lo sentirebbe piu' e il gesto morirebbe a meta'.
+   *
+   * Nessun click da mangiare, a differenza della tabella: qui una riga non fa niente al click, quindi
+   * non c'e' una seconda azione da distinguere. E nessun `touch-action`: su un telefono il dito serve a
+   * SCORRERE la lista, e il riordino e' un gesto da mouse - dichiarato, non dimenticato.
+   */
+  protected grabAt(event: PointerEvent, role: string): void {
+    if (event.button !== 0) return;
+    const target = event.target as HTMLElement | null;
+    const row = target?.closest('li[data-id]') as HTMLElement | null;
+    const list = row?.closest('ol') as HTMLElement | null;
+    if (!row || !list) return;
+    const id = Number(row.dataset['id']);
+    if (!Number.isFinite(id)) return;
+
+    const startY = event.clientY;
+    let dragging = false;
+    const stopNative = (native: Event): void => native.preventDefault();
+    document.addEventListener('selectstart', stopNative);
+    document.addEventListener('dragstart', stopNative);
+
+    const end = (moved: boolean): void => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', cancel);
+      window.removeEventListener('keydown', onKey);
+      document.removeEventListener('selectstart', stopNative);
+      document.removeEventListener('dragstart', stopNative);
+      const gap = this.dragGap();
+      this.dragId.set(null);
+      this.dragRole.set(null);
+      this.dragGap.set(null);
+      if (dragging && moved && gap != null) this.moveRow(role, list, id, gap);
+    };
+
+    const move = (moving: PointerEvent): void => {
+      if (!dragging && Math.abs(moving.clientY - startY) < DRAG_THRESHOLD_PX) return;
+      if (!dragging) {
+        dragging = true;
+        this.dragId.set(id);
+        this.dragRole.set(role);
+        // E la selezione che c'era PRIMA va via: e' quella che il browser proverebbe a trascinare.
+        document.getSelection()?.removeAllRanges();
+      }
+      const boxes = rowsOf(list).map((one) => one.getBoundingClientRect());
+      this.dragGap.set(rowGapAt(boxes, moving.clientY));
+      this.edgeScroll(list, moving.clientY);
+    };
+    const up = (): void => end(true);
+    const cancel = (): void => end(false);
+    const onKey = (pressed: KeyboardEvent): void => {
+      if (pressed.key === 'Escape') end(false);
+    };
+
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', cancel);
+    window.addEventListener('keydown', onKey);
+  }
+
+  /**
+   * VICINO AL BORDO LA LISTA SCORRE, e qui scorre la LISTA e non la pagina.
+   *
+   * E' la differenza col gesto della tabella, ed e' il layout a imporla: la pagina non scorre affatto
+   * (`h-[100dvh]`), quindi senza questo la meta' bassa di un blocco da 80 nomi non sarebbe raggiungibile
+   * col dito. Un passo per `pointermove`, come la': la velocita' e' quella della mano, nessun timer da
+   * fermare e nessuna animazione che continua dopo il rilascio.
+   */
+  private edgeScroll(list: HTMLElement, y: number): void {
+    const box = list.getBoundingClientRect();
+    const near = y < box.top + DRAG_EDGE_PX ? -1 : y > box.bottom - DRAG_EDGE_PX ? 1 : 0;
+    if (near) list.scrollBy({ top: near * DRAG_SCROLL_STEP_PX, behavior: 'instant' });
+  }
+
+  /**
+   * Il segno del gesto: sbiadita la riga in mano, una barra sul varco dove finirebbe.
+   *
+   * La barra e' un'OMBRA INTERNA e non un bordo, per la stessa ragione della tabella: un bordo aggiunge
+   * due pixel all'altezza della riga e fa saltare di un passo tutte quelle sotto, cioe' muoverebbe la
+   * lista mentre la stai puntando.
+   */
+  protected rowMark(role: string, id: number, index: number, of: number): string {
+    if (this.dragRole() !== role) return '';
+    const marks: string[] = [];
+    if (this.dragId() === id) marks.push('opacity-40');
+    const gap = this.dragGap();
+    if (gap != null) {
+      if (gap === index) marks.push('shadow-[inset_0_3px_0_0_var(--color-primary)]');
+      else if (gap === of && index === of - 1) {
+        marks.push('shadow-[inset_0_-3px_0_0_var(--color-primary)]');
+      }
+    }
+    return marks.join(' ');
+  }
+
+  /**
+   * Scrive il suo ordine dopo un rilascio: la sequenza e' quella A SCHERMO, letta dal DOM.
+   *
+   * Dal DOM e non da `blocks()` perche' la lista disegnata e' la sola verita' su cosa ha in mano - la
+   * stessa ragione per cui la tabella legge la posizione delle intestazioni invece di fidarsi di una
+   * somma di larghezze.
+   */
+  private moveRow(role: string, list: HTMLElement, id: number, gap: number): void {
+    const shown = rowsOf(list).map((one) => Number(one.dataset['id']));
+    const moved = withRowMoved(this.priorityHere().get(role) ?? [], shown, id, gap);
+    if (!moved) return;
+    const { platform, game } = this.settings();
+    this.priority.update((one) => ({ ...one, [`${platform}|${game}|${role}`]: moved }));
+    this.savePriority();
+  }
+
+  /** Torna al gain per quel blocco. Revocabile a ogni sguardo, come ogni cosa dichiarata di questa app. */
+  protected clearOrder(role: string): void {
+    const { platform, game } = this.settings();
+    this.priority.update((one) => {
+      const out = { ...one };
+      delete out[`${platform}|${game}|${role}`];
+      return out;
+    });
+    this.savePriority();
+  }
+
+  /** ...e per tutti i blocchi di questa combinazione: dodici crocette sono dodici gesti. */
+  protected clearAllOrders(): void {
+    const { platform, game } = this.settings();
+    this.priority.update((one) => {
+      const out: Record<string, number[]> = {};
+      for (const [key, ids] of Object.entries(one)) {
+        if (!key.startsWith(`${platform}|${game}|`)) out[key] = ids;
+      }
+      return out;
+    });
+    this.savePriority();
+  }
+
+  private savePriority(): void {
+    try {
+      localStorage.setItem(`fantassistant.${PRIORITY_KEY}`, JSON.stringify(this.priority()));
+    } catch {
+      // Un browser che rifiuta la memoria disegna la pagina: dimentica l'ordine al ricaricamento.
+    }
+  }
+}
+
+/** Le righe dei GIOCATORI di una lista, in ordine. Il confine e' `data-id`: solo loro ne hanno uno. */
+function rowsOf(list: HTMLElement): HTMLElement[] {
+  return Array.from(list.querySelectorAll<HTMLElement>('li[data-id]'));
 }

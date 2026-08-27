@@ -1,5 +1,12 @@
 /**
- * IL GESTO CHE RIORDINA LE COLONNE, la parte che non tocca il DOM.
+ * IL GESTO CHE RIORDINA, la parte che non tocca il DOM.
+ *
+ * Sta in `core/` dal 27/08/2026, non per ordine ma perché ha un secondo lettore: le liste per ruolo della
+ * pagina STRATEGIA si riordinano con lo stesso gesto, e l'aritmetica di `gapAt` è **a una dimensione** -
+ * quale sia l'asse è un affare del chiamante (`manual-order.rowGapAt` le passa top/bottom e la y). Un
+ * modulo di `core/` che importasse da `ui/` rovescerebbe gli strati; una seconda copia darebbe due
+ * risposte alla domanda «in quale varco».
+ *
  *
  * Sta in un file suo perché è l'unica metà del gesto che si possa MISURARE senza un browser: dove
  * finirebbe la colonna in mano, e che ordine ne viene. Il resto - i `pointer*`, la cattura, il click da
