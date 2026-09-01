@@ -177,6 +177,12 @@ class Observation:
     # the flat mean `fm_5y` already carries. R18b (pre-registered 10/08/2026) is the reason they exist.
     fm_seasons: tuple[float, ...] = ()
     mv_seasons: tuple[float, ...] = ()
+    # ...and the DIFFERENCE, per season, aligned - which the two tuples above cannot give you: `mv_seasons`
+    # drops the seasons with no base vote and `fm_seasons` keeps them, so zipping them would pair a
+    # fantamedia with ANOTHER season's voto. Today that pairs nothing wrong (0 season rows of 7453 carry an
+    # fm without an mv), which is exactly why nobody would find out when it starts. `engine/categories.py`
+    # reads it: bonus per appearance is what separates an `oro` from a `bronzo`.
+    bonus_seasons: tuple[float, ...] = ()
     minutes_prev: int | None = None
     starts_prev: int | None = None
     matches_prev: int | None = None
@@ -1359,7 +1365,16 @@ def load(conn: sqlite3.Connection, window: Window, platform: str,
                     (fc_id, frozenset(split_roles(roles_raw)), values[fc_id]))
         for men in squads.values():
             for fc_id, codes, mine in men:
-                rivals = [worth for other, theirs, worth in men if other != fc_id and (codes & theirs)]
+                # UNO ZERO DI QUESTA CURVA NON E' UN VALORE: Transfermarkt azzera chi si e' ritirato o e'
+                # senza contratto (misurato 26/08/2026: 531 uomini con l'ultimo punto a zero entro la data
+                # d'asta - Immobile, Milner, Umtiti, Florenzi, Varane), quindi un rivale a zero non e' un
+                # rivale «leggibile» e va escluso come se non ci fosse. Escluderlo dopo il filtro
+                # `IS NOT NULL` non basta: con TUTTI i rivali a zero `max()` da' zero e la divisione
+                # solleva - ed e' quello che il 26/08/2026 ha fatto morire la fase dei fogli sulla PRIMA
+                # lega, senza scriverne nessuno dei tre. Il ramo esisteva gia' e diceva la cosa giusta:
+                # mancava solo che «rivali» volesse dire «rivali con un valore».
+                rivals = [worth for other, theirs, worth in men
+                          if other != fc_id and (codes & theirs) and worth > 0]
                 # senza rivali leggibili il TAPPO, non uno zero: è il massimo che la grandezza sappia dire
                 peer_top[fc_id] = min(PEER_TOP_CAP, mine / max(rivals)) if rivals else PEER_TOP_CAP
                 value_percentile[fc_id] = sum(1 for worth in ladder if worth < mine) / len(ladder)
@@ -1427,6 +1442,7 @@ def load(conn: sqlite3.Connection, window: Window, platform: str,
     fm_history: dict[int, tuple[float, int, float | None]] = {}
     fm_seasons: dict[int, tuple[float, ...]] = {}
     mv_seasons: dict[int, tuple[float, ...]] = {}
+    bonus_seasons: dict[int, tuple[float, ...]] = {}
     career: dict[int, float | None] = {}
     for fc_id, seen in history.items():
         best: dict[str, tuple[int, float, float | None]] = {}
@@ -1445,6 +1461,8 @@ def load(conn: sqlite3.Connection, window: Window, platform: str,
         fm_seasons[fc_id] = tuple(reversed(recent_five))
         mv_seasons[fc_id] = tuple(
             reversed([best[season][2] for season in chosen if best[season][2] is not None]))
+        bonus_seasons[fc_id] = tuple(reversed(
+            [best[season][1] - best[season][2] for season in chosen if best[season][2] is not None]))
 
     # LA FINESTRA IN-SEASON, se lo è: quali giornate della stagione bersaglio erano già giocate il giorno
     # dell'asta. Vuoto per tutte e dieci le finestre pubblicate (data d'asta al 15 agosto), quindi qui
@@ -1475,6 +1493,7 @@ def load(conn: sqlite3.Connection, window: Window, platform: str,
             fm_career=career.get(fc_id),
             fm_seasons=fm_seasons.get(fc_id, ()),
             mv_seasons=mv_seasons.get(fc_id, ()),
+            bonus_seasons=bonus_seasons.get(fc_id, ()),
             minutes_prev=minutes, starts_prev=starts, matches_prev=matches,
             goals_prev=goals, assists_prev=assists, xg_prev=xg, xa_prev=xa, rating_prev=rating,
             minutes_share_euro_prev=euro_minutes.get(fc_id),

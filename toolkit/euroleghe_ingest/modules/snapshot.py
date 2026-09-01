@@ -48,6 +48,7 @@ from typing import NamedTuple
 
 from euroleghe_ingest import config, matching
 from euroleghe_ingest.context import Context
+from euroleghe_ingest.engine import categories as categories_engine
 from euroleghe_ingest.engine import cups as engine_cups
 from euroleghe_ingest.engine import estimate as est
 from euroleghe_ingest.engine import evaluate, features, model, projection
@@ -405,7 +406,27 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      misurato (10.580 coppie, differenza mediana +0,0000, correlazione +0,9957). Vale +6,0% fuori
 #      campione. NON per i campionati fuori perimetro: misurato -6,9%, e quella e' una popolazione su cui
 #      la retta non e' fittata.
-SHEET_REVISION = 37
+#   38 (01/09/2026) - LE CINQUE CATEGORIE DELL'OPERATORE, dentro il ruolo: `desc_category` piu' i due
+#      numeri che la decidono. Oro, argento, bronzo, cristallo, scommessa - piu' `scarto`, che e' la sua
+#      parola nella frase che definisce la scommessa («potrebbe fare bene rispetto agli SCARTI») e serve
+#      perche' ogni calciatore deve portare una categoria. DUE ASSI ASIMMETRICI, ed e' tutto il contenuto:
+#      «gioca sempre» e' una PREVISIONE (`engine_pv_pred` sul calendario, con ripiego su `est_pv`), «porta
+#      bonus» e' un TRATTO misurato (`fm - mv` per stagione, cinque stagioni, media troncata da cinque in
+#      su). Provate al rovescio, cadono i suoi stessi esempi: col tasso PREVISTO Dybala legge +0,48 -
+#      sotto la mediana attaccanti - e non e' un cristallo; con le presenze MISURATE Malen ne ha 18 e non
+#      e' un oro. Le sbarre sono ASSOLUTE per ruolo (sua decisione), misurate una volta come p60/p80 del
+#      tasso per stagione degli uomini di quel ruolo su cinque stagioni, `pv >= 15`. Perche' p60/p80: i
+#      suoi sette nomi sono la specifica e quelle due sbarre li riproducono tutti e sette, mentre p90
+#      manda Malen (1,33 contro 1,54) e Paz N. (0,74 contro 0,77) in argento. Consegna sul foglio Serie A:
+#      oro 13, argento 25, bronzo 57, cristallo 86, scommessa 218, scarto 210. Nuovo campo in
+#      `features.Observation` (`bonus_seasons`, la coppia ALLINEATA per stagione: `fm_seasons` e
+#      `mv_seasons` non lo sono, e oggi non sbagliano un accoppiamento su 7453 righe, che e' esattamente
+#      perche' nessuno se ne accorgerebbe quando comincia). REPORTING: `engine_*` non si muove -
+#      nessuna regola legge `bonus_seasons` e `evaluate` non vede una colonna `desc_*` - e il
+#      `backtest --verify` che lo dice a voce alta e' DOVUTO e non ancora fatto: il 01/09/2026
+#      l'acquisizione teneva il lock di scrittura, e un controllo che rompe la corsa che sta
+#      controllando e' peggio di un controllo fatto un'ora dopo.
+SHEET_REVISION = 38
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
@@ -4289,6 +4310,11 @@ PLAYER_COLUMNS: tuple[str, ...] = (
     # that one is a SEASON TOTAL (minutes per club match x the appearances the engine predicts), this one
     # is one match's - «how long does he stay on when he plays». Same word, two denominators.
     "desc_titolarita", "desc_titolarita_play", "desc_minutes_next",
+    # LE SEI PAROLE dentro il RUOLO: quanto vale un uomo per quello che PORTA, dove la scala accanto
+    # dice quanto GIOCA. Due assi asimmetrici per costruzione - una previsione e un tratto misurato -
+    # e i due numeri che li decidono, perche' una parola senza i suoi numeri e' una parola che nessuno
+    # puo' controllare. `engine/categories.py` porta la misura delle sbarre.
+    "desc_category", "desc_category_bonus", "desc_category_bars",
     # How often he STARTS, which is NOT what this project calls titolarita (that is the share of the
     # matches he gets a VOTO in, above). Two horizons, because they answer different questions - the
     # season's share is the coach's habit over a year, the recent one is the shape of the side now.
@@ -4603,6 +4629,18 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             # stima, con la stessa penale del suo `est_surplus`. Il test è sul NUMERO e non sull'oggetto:
             # una `prediction` esiste anche per chi il core rifiuta di prezzare.
             fielded_surplus = est.surplus(guess.fm, guess.pv, fielded_level, guess.confidence)
+        # LE SEI PAROLE dell'operatore, dentro il RUOLO (`engine/categories.py`): la quota di
+        # calendario e' una PREVISIONE (se no Malen, 18 presenze e tutte da gennaio, non «gioca sempre»)
+        # e il bonus a presenza e' un TRATTO misurato (se no Dybala legge +0,48, sotto la mediana
+        # attaccanti, e non «porta bonus»). La quota ripiega su `est_pv` perche' ogni riga deve portare
+        # una categoria come porta un surplus: chi il core non prezza non e' senza parola.
+        category_rate = categories_engine.bonus_rate(obs.bonus_seasons)
+        category_bars = categories_engine.bars_for(data.game, slot)
+        category_pv = pv_pred if pv_pred is not None else guess.pv
+        category = categories_engine.category_of(
+            (category_pv / data.matchdays_target)
+            if category_pv is not None and data.matchdays_target else None,
+            category_rate, category_bars)
         rows.append({
             "fc_id": obs.fc_id, "name": obs.name, "club": obs.club_target, "league": obs.league,
             "role_classic": obs.role_classic, "roles_mantra": ";".join(obs.roles_mantra),
@@ -4635,6 +4673,13 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             "pi_fm": _round(pi_fm, 3),
             "pi_basis": pi_basis,
             "pi_matches": pi_matches,
+            # LE SEI PAROLE: oro | argento | bronzo | cristallo | scommessa | scarto. I due numeri che la
+            # decidono viaggiano accanto, o la riga non puo' spiegare la propria parola: il TASSO misurato
+            # e le due SBARRE del suo slot, «porta bonus» e «tanti bonus».
+            "desc_category": category,
+            "desc_category_bonus": _round(category_rate, 3),
+            "desc_category_bars": ("/".join(f"{one:.2f}" for one in category_bars)
+                                   if category_bars else None),
             # L'ALTRO ZERO: il rimpiazzo che ENTRA (rango `squadre x posti schierati`) e il surplus
             # misurato su di lui. Stesso slot e stessa aritmetica di `engine_surplus`, cambia solo la
             # profondità - vedi `features.fielded_places`.

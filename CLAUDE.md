@@ -485,6 +485,16 @@ half-committed. Two things worth carrying: **authorship is measurable** (`git di
 feature's own vocabulary answers «whose is this file?» in one command, and the answer here was «both»),
 and **a spec cannot go in without its implementation** — `player-ratings.spec.ts` was exclusively mine
 and still had to stay out, because committing it alone leaves the repo RED.
+**And then the operator said «committa tutto», which is his call and turns the rule into a different
+one.** Owning both sessions, he can decide the shared tree goes in as it stands; what does NOT transfer
+with the decision is the reason the rule exists, so the answer is **measure before committing somebody
+else's half rather than trusting it** — 541 app tests over 35 files and 592 toolkit tests, green, i.e.
+the two halves really do merge. Two duties come with it and both are cheap: the commit **says it carries
+two sessions' work** and which half is whose, because a history that hides that cannot be bisected by
+whoever wrote neither; and a debt DECLARED inside the other half is inherited out loud (here their own
+`letture-app-v1.md` §20 says the `backtest --verify` for sheet revision 38 is «dovuto e non ancora
+fatto», the DB having been under a write lock). **Committing somebody's work is adopting their open
+items too.**
 
 ## A FIFTH harness, and a RANKING BY TOTAL is not a TABLE
 **01/09/2026, `bench/auction` + `bench/auction/league.py`, details in

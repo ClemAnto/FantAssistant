@@ -1100,21 +1100,48 @@ def fetch_heatmaps(ctx: Context, leagues, seasons, refresh: bool = False,
     session = _client()
     season_ids: dict[tuple[str, str], int | None] = {}
     done = 0
+    # Quello che questo giro ha DAVVERO fatto, non quello che si era proposto di fare. Il 25/08/2026 la
+    # fonte ha chiuso durante il livello extra e questa funzione ha annunciato «1985 to fetch (~91 min)»
+    # per poi finire in pochi secondi con lo stesso riepilogo di una corsa riuscita: zero scaricate e
+    # nessuno che lo dicesse. Un rifiuto qui non fa danni in cache - senza payload non si scrive niente,
+    # a differenza dei 91 file del 17/08 - ma «uno zero silenzioso non si distingue da una feature rotta».
+    refused = 0            # di fila, per la stessa guardia del livello extra
+    refused_total = 0
+    no_season = 0          # la fonte non ha nemmeno detto quale sia l'id di quella stagione
+    closed = False
     try:
         for league, season, provider_id, _fc_id in todo:
             if ctx.cancelled():
                 raise KeyboardInterrupt
-            if (league, season) not in season_ids:
+            fresh_lookup = (league, season) not in season_ids
+            if fresh_lookup:
                 _polite_sleep(ctx.cancel_event)
                 season_ids[(league, season)] = resolve_season_id(session, league, season)
             season_id = season_ids[(league, season)]
             if season_id is None:
+                # `resolve_season_id` e' una richiesta come le altre: None puo' dire «la fonte non ha
+                # risposto» oppure «quell'anno non e' in elenco», e solo il PRIMO dei due e' un rifiuto.
+                # La distinzione sta nel fatto che sia una risoluzione NUOVA: un None gia' in cache si
+                # ripresenta a ogni bersaglio di quella coppia, e contarlo farebbe scattare la guardia
+                # cinque volte su una stagione semplicemente non pubblicata.
+                no_season += 1
+                if fresh_lookup:
+                    refused += 1
+                    if refused >= REFUSAL_LIMIT:
+                        closed = True
+                        break
                 continue
             _polite_sleep(ctx.cancel_event)
             payload = _get_json(session, HEATMAP_ENDPOINT.format(
                 pid=provider_id, tid=tournament_id(league), sid=season_id))
             if payload is None:
+                refused += 1
+                refused_total += 1
+                if refused >= REFUSAL_LIMIT:
+                    closed = True
+                    break
                 continue
+            refused = 0
             _atomic_write_text(
                 ctx.config.cache_dir / f"sofascore_heatmap_{league}_{season}_{provider_id}.json",
                 json.dumps(payload, ensure_ascii=False))
@@ -1126,6 +1153,13 @@ def fetch_heatmaps(ctx: Context, leagues, seasons, refresh: bool = False,
         print("[positions] interrupted - every fetched heatmap is cached, rerun to continue")
     finally:
         session.close()
+    if closed:
+        print(f"[positions] heatmap: {REFUSAL_LIMIT} rifiuti di fila: la fonte ha chiuso, mi fermo "
+              f"(scaricate {done} di {len(todo)}, niente sovrascritto in cache)")
+    elif done < len(todo):
+        print(f"[positions] heatmap: scaricate {done} di {len(todo)} chieste "
+              f"({refused_total} rifiutate, {no_season} senza id di stagione) - "
+              "il resto resta da fare, ricorri quando la fonte riapre")
     ingest_heatmaps_from_cache(ctx)
 
 

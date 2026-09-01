@@ -66,9 +66,11 @@ e leggeva 22 righe invece di 10; Chrome headless che parte in tema scuro e confr
 stesso) e due erano veri, trovati dalle fotografie (una colonna **tagliata via** dalla card, stessa
 famiglia dei 276px «assenti e non strette» della tabella dell'app).
 
-**NON COMMITTATO, e va saputo**: la colonna **«Costanza»** dell'app (`player-ratings.ts` + i tre file di
-`squad-table/`) esiste e resta fuori, perché quegli stessi file li ha editati anche l'altra sessione. Vale
-comunque una lezione: la quantità **esisteva già** (`blend('consistency')`, `PASS_MARK = 6`) e veniva
+**LA COLONNA «COSTANZA»** dell'app (`player-ratings.ts` + i tre file di `squad-table/`, scheda in
+`letture-app-v1.md` §21) era rimasta fuori dal primo commit perché quegli stessi file li ha editati anche
+l'altra sessione; è entrata con un **secondo commit su decisione dell'operatore** («committa tutto»), dopo
+aver **misurato** che l'albero condiviso regge: 541 test dell'app su 35 file e 592 del toolkit, verdi.
+Due lezioni restano: la quantità **esisteva già** (`blend('consistency')`, `PASS_MARK = 6`) e veniva
 buttata via, e **la disuguaglianza è la misura** — il 6,0 secco è il 36,1% di 59.094 voti, quindi «almeno
 6» dà 0,658 e «più di 6» dà 0,297.
 

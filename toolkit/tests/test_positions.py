@@ -415,6 +415,54 @@ def test_ingest_heatmaps_from_cache_keeps_the_derived_role(tmp_path):
         assert tuple(row) == (80.0, 40.0, "A"), "the coordinates must not wipe the role"
 
 
+def test_the_heatmap_layer_says_what_it_really_fetched(tmp_path, monkeypatch, capsys):
+    """Uno zero silenzioso non si distingue da una feature rotta, e il 25/08/2026 questo strato l'ha fatto.
+
+    La fonte aveva chiuso durante il livello extra - dove la guardia dei 5 rifiuti l'ha detto e si e'
+    fermata - e questa funzione ha annunciato «1985 to fetch (~91 min)» per poi finire in pochi secondi
+    stampando lo STESSO riepilogo di una corsa riuscita. In cache non ha fatto danni (senza payload non
+    si scrive niente, a differenza dei 91 file del 17/08), ma nessuno poteva sapere che le heatmap
+    mancanti erano ancora tutte da prendere.
+
+    Due meta' e la seconda e' quella delicata: `resolve_season_id` e' una richiesta come le altre, quindi
+    None puo' dire «non ha risposto» oppure «quell'anno non e' in elenco», e contare il secondo farebbe
+    scattare la guardia su una stagione semplicemente non pubblicata - il None e' in cache per coppia
+    (lega, stagione) e si ripresenterebbe a ogni bersaglio.
+    """
+    def _seed(ctx):
+        conn = ctx.conn
+        for fc_id in range(1, 8):
+            _add_player(conn, fc_id, f"P{fc_id}", "Liverpool FC", "premier_league", season="2023-24")
+            conn.execute("INSERT INTO player_xref(fc_id, source, source_id) VALUES (?,'sofascore',?)",
+                         (fc_id, str(100 + fc_id)))
+            conn.execute("INSERT INTO external_stats(fc_id, season, source, competition, minutes) "
+                         "VALUES (?, '2023-24', 'sofascore', 'premier_league', 900)", (fc_id,))
+        conn.commit()
+
+    monkeypatch.setattr(positions, "_polite_sleep", lambda *_a, **_k: None)
+
+    # (a) la stagione si risolve e ogni heatmap viene rifiutata: la guardia lo dice e si ferma
+    ctx = _ctx(tmp_path / "closed")
+    _seed(ctx)
+    monkeypatch.setattr(positions, "resolve_season_id", lambda *_a, **_k: 41886)
+    monkeypatch.setattr(positions, "_get_json", lambda *_a, **_k: None)
+    positions.fetch_heatmaps(ctx, ("premier_league",), ("2023-24",))
+    out = capsys.readouterr().out
+    assert "la fonte ha chiuso" in out, out
+    assert "scaricate 0 di 7" in out, out
+    assert not list(ctx.config.cache_dir.glob("sofascore_heatmap_*.json")), "un rifiuto non scrive niente"
+
+    # (b) l'anno non e' in elenco: un solo tentativo NUOVO, quindi nessuna falsa chiusura - e il
+    #     riepilogo dice comunque che non ha scaricato niente
+    ctx = _ctx(tmp_path / "unlisted")
+    _seed(ctx)
+    monkeypatch.setattr(positions, "resolve_season_id", lambda *_a, **_k: None)
+    positions.fetch_heatmaps(ctx, ("premier_league",), ("2023-24",))
+    out = capsys.readouterr().out
+    assert "la fonte ha chiuso" not in out, out
+    assert "scaricate 0 di 7" in out and "7 senza id di stagione" in out, out
+
+
 def test_role_crosstab_counts_the_provider_vocabulary(tmp_path):
     ctx = _ctx(tmp_path)
     conn = ctx.conn

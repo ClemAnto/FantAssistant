@@ -12,6 +12,7 @@ import {
   rank99ByRole,
   seasonsClosedBy,
   starsOf,
+  steadyOf,
   worthOf,
 } from './player-ratings';
 import { Spell } from './player-status';
@@ -231,6 +232,24 @@ describe('eventTerms and eventPointsOf', () => {
  * The star scale, as the operator defined it word by word (15/08/2026): 3 = in media, 4 = molto sopra,
  * 5 = eccezionale, 2 = molto sotto, 1 = estremamente negativo, 0 = peggio di così si muore.
  */
+describe('steadyOf', () => {
+  it('conta il 6,0 secco come sufficiente, e non è un dettaglio', () => {
+    // LA DISUGUAGLIANZA È LA MISURA. Il 6,0 secco è il voto modale del fantacalcio - il 36,1% di
+    // 59.094 voti di Serie A su cinque stagioni - quindi «almeno 6» dà 0,658 e «più di 6» dà 0,297:
+    // scambiarle non sposterebbe un decimale, sposterebbe la colonna di 36 punti. Il regolamento del
+    // modificatore di difesa parte da «mv >= 6» e l'R-Factor da «almeno sufficiente»: vale la prima.
+    expect(steadyOf([6])).toBe(1);
+    expect(steadyOf([5.5])).toBe(0);
+    expect(steadyOf([6, 5.5, 7, 5])).toBe(0.5);
+  });
+
+  it('su nessuna partita risponde null, che non è zero', () => {
+    // «Vuoto = ignoto, mai zero»: chi non ha una partita misurata non è uno che non prende mai 6.
+    // Il campione corto invece non si nasconde qui ma nel PESO della lettura, come per le altre.
+    expect(steadyOf([])).toBeNull();
+  });
+});
+
 describe('starsOf', () => {
   it('puts the MIDDLE of the listone at three stars, not at two and a half', () => {
     // The defect this replaces: a linear scale called the median man «due stelle e mezza» and left the

@@ -190,6 +190,15 @@
                 }
               </td>
             }
+            @case ('categoria') {
+              <td class="text-center" [title]="categoriaHint(man)">
+                @if (categoriaShort(man); as code) {
+                  <span [class]="categoriaTone(man)">{{ code }}</span>
+                } @else {
+                  —
+                }
+              </td>
+            }
             @case ('expected') {
               <td class="text-right tabular-nums" [title]="expectedHint(man)">
                 @if (man.expected == null) {
@@ -227,6 +236,20 @@
                     [class]="tone(man, 'expectedMv')"
                     [class.opacity-60]="man.expectedFmIsEstimate"
                     >@if (man.expectedFmIsEstimate) {~}{{ man.expectedMv | number: '1.2-2' }}</span
+                  >
+                }
+              </td>
+            }
+            <!-- LA COSTANZA: la quota nuda, senza riquadro colorato. Scelta dell'operatore
+                 (01/09/2026) fra tre forme: il colore porta un significato e i dati vanno neutri,
+                 quindi il metro del RUOLO sta nel tooltip - dove c'è la mediana del suo. -->
+            @case ('steady') {
+              <td class="text-right tabular-nums" [title]="steadyHint(man)">
+                @if (man.rating?.steady?.share == null) {
+                  —
+                } @else {
+                  <span [class.text-muted]="(man.rating?.steady?.weight ?? 1) < 1"
+                    >{{ man.rating!.steady.share! * 100 | number: '1.0-0' }}%</span
                   >
                 }
               </td>

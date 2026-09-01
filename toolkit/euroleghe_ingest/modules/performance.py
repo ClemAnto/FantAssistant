@@ -96,8 +96,24 @@ def parse_games(payload: dict | None) -> list[dict]:
             "state": general.get("participationState") or None,
             "goals": goals.get("goalsScoredTotal"),
             "assists": goals.get("assists"),
-            "yellows": cards.get("yellowCards"),
-            "reds": cards.get("redCards"),
+            # I CARTELLINI, con le chiavi che il payload ha DAVVERO. `yellowCards`/`redCards` non sono
+            # mai esistite: `validate` le ha trovate NULL su 2.074.716 righe il 25/08/2026, alla sua
+            # prima corsa da quando la tabella esiste. Il vocabolario vero e' `yellowCardNet`,
+            # `yellowCardGross`, `fairPlayPoints`, `redCardsRescinded` (un rosso REVOCATO, non un rosso)
+            # piu' gli oggetti annidati `yellowCard`, `redCard`, `yellowRedCard`, presenti solo quando
+            # sono accaduti.
+            # Quale chiave sia la carta e' stato MISURATO e non dedotto: `match_ratings` porta i
+            # cartellini, e datando la giornata con lo strato per-partita si ottengono 70.719 coppie
+            # (uomo, data) con 10.756 gialli e 514 rossi dentro. Verdetto: `redCard` OPPURE
+            # `yellowRedCard` = i rossi al 100,00% (2 discordanze), `yellowCardNet` = i gialli al 99,89%
+            # contro il 99,56% di `yellowCardGross` - e la differenza fra i due non e' rumore, e' la
+            # semantica: Gross conta anche il giallo diventato secondo giallo, i voti lo contano rosso.
+            # Se l'oggetto `cardStatistics` manca del tutto non si sa niente e restano NULL: dove la
+            # fonte parla e' sempre presente (388.876 partite su 388.876 nel campione), quindi la sua
+            # assenza e' un payload di forma diversa e non «zero cartellini».
+            "yellows": (cards.get("yellowCardNet") if "cardStatistics" in stats else None),
+            "reds": ((1 if (cards.get("redCard") or cards.get("yellowRedCard")) else 0)
+                     if "cardStatistics" in stats else None),
             # LA POSIZIONE DI QUELLA PARTITA, id della fonte e non tradotto. Zero e' un valore che il
             # payload usa davvero (19% delle partite di Ramos), quindi si tiene com'e' e lo interpreta
             # chi legge: qui non si sa se sia «non pervenuta» o «panchina», e trasformarlo in NULL

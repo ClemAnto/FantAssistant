@@ -1719,3 +1719,126 @@ struttura (una riga di `<th>` a larghezze fisse contro una lista di `<li>` che s
 misurato il fotogramma che l'aveva fatto cacciare: a metà volo 1 anteprima e 1 segnaposto, al rilascio
 **0 anteprime, 0 segnaposti, 0 `transform` residui**. Il resto tiene: `pointerdown` 1 · `pointermove` 9 su
 9 · `pointerup` 1, il nome ancora primo dopo un ricaricamento, la crocetta che rimette la misura.
+
+## 20. LE SEI PAROLE DENTRO IL RUOLO: due assi asimmetrici, e sette nomi come specifica (1 settembre 2026)
+
+**Richiesta dell'operatore**: «dobbiamo fare in modo che ad ogni calciatore venga associata una categoria
+(valori da intendere all'interno del suo ruolo)» — oro (gioca sempre e porta tanti bonus: Malen, Dimarco,
+Paz), argento (gioca sempre, pochi bonus), bronzo (gioca sempre: Lobotka, Cristante), cristallo (gioca poco
+ma quando gioca porta bonus: Dybala, Berardi), scommessa (potrebbe fare bene rispetto agli scarti).
+
+Non ha dato una soglia: ha dato **sette nomi**, e quelli sono la specifica. `engine/categories.py`,
+`desc_category` + i due numeri che la decidono (revisione **38** del foglio), `core/categoria.ts` per il
+vocabolario e la colonna «Cat.» accanto a «Tit.». REPORTING: nessun gate possiede queste sbarre e
+`engine_*` non si muove per una ragione strutturale - nessuna regola legge `bonus_seasons`, e
+`evaluate` non vede una colonna `desc_*`. Il `backtest --verify` che lo dice a voce alta è **dovuto e
+non ancora fatto**: il 01/09/2026 l'acquisizione teneva il lock di scrittura (il DB è
+`journal_mode=delete`, quindi una lettura lunga lo blocca), e un controllo che rompe la corsa che sta
+controllando è peggio di un controllo fatto un'ora dopo.
+
+### 20.1 I due assi non sono la stessa specie di numero, ed è tutto il contenuto
+
+- **«gioca sempre» è una PREVISIONE**: `engine_pv_pred / giornate` (con ripiego su `est_pv`), cioè la
+  titolarità nell'unico senso di questo progetto. Deve essere la previsione: **Malen ha 18 presenze di Serie
+  A**, tutte da gennaio, quindi con le presenze MISURATE (0,47) leggerebbe `cristallo` e il suo primo
+  esempio di `oro` cadrebbe.
+- **«porta bonus» è un TRATTO MISURATO**: `fm - mv` per stagione, le cinque più recenti che qualcuno ha
+  misurato, media troncata da cinque in su. Deve essere il misurato: col tasso **previsto** Dybala legge
+  **+0,48**, sotto la mediana degli attaccanti, perché il motore regredisce un tasso che scende (1,72 →
+  0,91 → 0,45) — e il suo esempio di `cristallo` cadrebbe. Il suo storico dice **+1,19**.
+
+Le due direzioni sbagliate sono in un test, non in un commento: `test_scambiare_i_due_assi_fa_cadere_i_suoi_stessi_esempi`.
+
+### 20.2 Le sbarre sono ASSOLUTE per ruolo, e p60/p80 è la coppia che riproduce i sette nomi
+
+Sua decisione fra tre alternative: percentili ricalcolati sul foglio, tre fasce uguali, **soglie assolute
+per ruolo**. Misurate una volta come p60/p80 del tasso bonus per stagione degli uomini che ogni listone
+quotava in quel ruolo, cinque stagioni (2021-22 … 2025-26), una riga per (uomo, stagione) con **pv ≥ 15** —
+un tasso su tre partite è rumore, e una sbarra misurata sul rumore è una sbarra sul rumore. La stessa
+definizione dà il TRATTO e la SBARRA, quindi stanno su un metro solo.
+
+| | P / por | D | C | A | dc | m | c | t | w | a | pc |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| porta bonus (p60) | −1,10 | 0,10 | 0,33 | 0,87 | 0,05 | 0,16 | 0,22 | 0,50 | 0,55 | 0,75 | 1,00 |
+| tanti bonus (p80) | −0,93 | 0,22 | 0,57 | 1,25 | 0,17 | 0,32 | 0,40 | 0,71 | 0,77 | 1,06 | 1,39 |
+
+**Perché p60/p80 e non altro, coi numeri**: p90 manda **Malen (1,33 contro 1,54) e Paz N. (0,74 contro
+0,77) in argento**, cioè contraddice due dei tre esempi di `oro`; p70/p80 riproduce i sette ma lascia
+`argento` largo dieci percentili — **12 uomini su un foglio di 609** — che è una fascia che nessuno legge.
+Le sbarre sono stabili nel tempo (p90 di A su sei stagioni: 1,62 · 1,37 · 1,42 · 1,27 · 1,24 · 1,17), ed è
+questo che rende onesto scriverle una volta.
+
+**Il portiere ha le sbarre NEGATIVE** (−1,10 / −0,93) perché per lui `fm - mv` è dominato dai gol presi:
+«porta bonus» lì vuol dire «prende pochi gol e tiene la porta inviolata», che è esattamente quello per cui
+lo compri. Leggerlo dentro il ruolo è ciò che fa sopravvivere la parola al segno.
+
+### 20.3 La sesta parola è sua, e serve perché ogni riga deve averne una
+
+`scommessa` = **chi nessuno ha ancora misurato** (sua scelta fra tre letture: chi si gioca il posto e chi il
+mercato quota più di noi sono state scartate — la seconda contro la regola di casa che la quotazione va
+ultima). Ma allora chi è misurato, gioca poco e non porta bonus non è né una scommessa né una delle prime
+quattro: è lo **scarto**, che è la parola con cui lui stesso definisce la scommessa («potrebbe fare bene
+rispetto agli SCARTI»). Sono DUE gradini e non uno: il primo dice che non c'è misura, il secondo che la
+misura c'è ed è bassa, e ordinarli insieme perderebbe la differenza che li separa. Consegna, con **zero
+righe senza parola** su tutt'e tre i fogli:
+
+| foglio | oro | argento | bronzo | cristallo | scommessa | scarto | righe |
+|---|---|---|---|---|---|---|---|
+| Serie A classic | 13 | 25 | 57 | 86 | 218 | 210 | 609 |
+| Serie A mantra | 18 | 24 | 53 | 88 | 218 | 208 | 609 |
+| EuroLeghe mantra | 54 | 42 | 40 | 254 | 335 | 301 | 1026 |
+
+### 20.4 Due cose vere che sembrano difetti, e restano dette
+
+- **Un uomo può leggere diverso su due fogli.** Malen è `oro` su Serie A classic e `argento` sui due mantra,
+  perché `pc` è una classe più strettae più forte di `A` (p80 1,39 contro 1,25): è un top-20% fra gli
+  attaccanti e non fra i centravanti, che è una frase vera e utile. Lobotka è `bronzo` su Serie A e `scarto`
+  su EuroLeghe, perché i due calendari sono due (0,63 di 31 giornate contro 0,72 di 38). Una categoria è un
+  fatto su (foglio, ruolo), come il surplus accanto.
+- **Il colore è stato RIFIUTATO** anche se le parole sono colori: la regola dell'app è che il colore porta un
+  significato e i dati vanno neutri, quindi la scala si legge dal peso come per la titolarità. Si aggiunge
+  solo se lo chiede lui.
+- **Le sigle sono ORO · ARG · BRO · CRI · SCM · SRT**, e le ultime due non sono la troncatura naturale per la
+  stessa ragione per cui `ballottaggio` è `BLT`: `SCO`/`SCA` differirebbero per l'ultima lettera, e sono le
+  due parole che dicono il contrario l'una dell'altra. La guardia era scritta prima delle sigle e ha
+  **bocciato la prima coppia scelta** (`SCM`/`SCT`, distanza 1), che è esattamente il lavoro di un test.
+
+### 20.5 Il campo nuovo, e la trappola che ha evitato
+
+`features.Observation.bonus_seasons`: la coppia **allineata** per stagione. `fm_seasons` e `mv_seasons` non
+lo sono — la seconda scarta le stagioni senza media voto e la prima le tiene — quindi accoppiarle a zip
+sposerebbe una fantamedia con la media voto di un'altra stagione. Oggi non sbaglia un accoppiamento su
+**7453 righe** con `pv ≥ 15`: che è esattamente la ragione per cui nessuno se ne accorgerebbe quando
+comincia.
+
+## 21. LA COSTANZA: una quantità che c'era già e veniva buttata via (1 settembre 2026)
+
+**Richiesta dell'operatore**, nata dentro il lavoro sull'asta a rilanci: «aggiungiamo per tutti i
+calciatori un valore *costanza* che indica la quota di partite con voto base ≥ 6». Colonna «Cost.»
+(`squad-table`, 58px, filtro a intervallo), quota nuda, dopo «MVa». REPORTING: non entra in nessuna
+valutazione e non muove nessun ordinamento, quindi nessun gate la possiede.
+
+**Non c'era niente da misurare, c'era da LEGGERE.** `player-ratings.ts` calcolava già
+`blend('consistency')` con `PASS_MARK = 6` e la teneva solo come **coda del tooltip della varianza** —
+cioè il numero esisteva, era pesato per stagione e veniva scartato. È la stessa famiglia degli stemmi:
+«il dato c'era, nessuno l'ha chiesto». Estratta in `steadyOf(votes)` accanto a `spreadOf`, con
+`Steadiness` (`share`, `weight`, `note`) su `PlayerRating` — e il **peso** era la seconda cosa calcolata
+e buttata via, che è quella che permette alla cella di dire in grigio «questo numero poggia su poco».
+
+**E LA DISUGUAGLIANZA È LA MISURA, non un dettaglio di trascrizione.** Il 6,0 secco è il voto **modale**
+del fantacalcio: il **36,1% di 59.094 voti** di Serie A su cinque stagioni. Quindi «almeno 6» dà **0,658**
+e «più di 6» dà **0,297** — scambiare le due non sposterebbe un decimale, sposterebbe la colonna di
+**36 punti**. Il regolamento del R-Factor dice «almeno 6» e la colonna dice quello.
+
+**Le tre forme e quella scelta dall'operatore.** Non un riquadro colorato (il colore porta un significato
+e questi dati vanno neutri), non la distanza dalla mediana del suo ruolo in cella: la **quota nuda**, col
+metro del RUOLO nel tooltip, dove c'è la mediana del suo. La ragione è quella del §9 vista da vicino: le
+mediane per ruolo sono P 0,87 · D 0,66 · C 0,66 · A 0,61, quindi un numero crudo confrontato fra ruoli
+**premia i portieri per essere portieri** — e dirlo nel tooltip costa una riga, standardizzarlo in cella
+costerebbe la leggibilità del numero che ha chiesto.
+
+**Perché nella tabella e non in una valutazione**: misurata come moneta d'asta, la costanza **non può
+pagare** — un uomo muove l'R-Factor di 2,4 punti a stagione e il modificatore è governato dai buchi
+(r = −0,821). I numeri sono in [simulatore-asta-rilanci-v1.md](simulatore-asta-rilanci-v1.md) §8. Quindi
+la colonna serve a chi guarda, non a chi calcola: è esattamente la distinzione fra le colonne `desc_*` e
+`engine_*`, applicata a una lettura dell'app.

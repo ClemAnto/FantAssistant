@@ -360,7 +360,37 @@ export interface Rating {
 export type PlayerRating = Record<RatingKey, Rating> & {
   /** Il marchio di varianza accanto ai Voti, o null quando è nella norma o non è misurabile. */
   variance: VarianceMark | null;
+  /** La COSTANZA come colonna: quota di partite chiuse con almeno il 6 (`Steadiness`). */
+  steady: Steadiness;
 };
+
+/**
+ * LA COSTANZA: quanta parte delle partite che gioca chiude con almeno il 6 di voto BASE.
+ *
+ * RIMESSA COME COLONNA il 01/09/2026 su richiesta dell'operatore, e la forma è cambiata rispetto a
+ * quella che lui stesso aveva fatto togliere il 17/08 («era una lettura che nessuno ordinava»). Allora
+ * era un `rank99` fra le altre letture; adesso è la QUOTA, cioè il numero nella sua unità, e la
+ * differenza non è cosmetica: la ragione per cui serve è ASSOLUTA. In questa lega i due modificatori
+ * classici pagano tutt'e due sul voto base - `R = max(0, 2 - 0,5 x insufficienti)` e la media dei tre
+ * migliori difensori - quindi quello che conta è dove cade rispetto a una soglia del regolamento, non
+ * quanti uomini stanno sotto di lui. Un rank direbbe la seconda cosa e non la prima, ed è la stessa
+ * ragione per cui le sbarre delle categorie sono assolute e non percentili del foglio.
+ *
+ * Misurata sul VOTO e non sul fantavoto (la domanda è proprio «se non segna, prende 5?»), sulle
+ * stagioni per-partita che il bundle porta, con l'ancora del suo ruolo al suo club sotto
+ * `FULL_SAMPLE` presenze - e `weight` dice quanta parte del numero è SUA, come per ogni altra lettura.
+ * Quanto vale, misurato il 01/09/2026 su Serie A e cinque stagioni: fra un undici di popolazione e uno
+ * di uomini al p90 di costanza del loro ruolo ballano 27 punti di R-Factor a stagione, più 10 di
+ * modificatore di difesa - più del surplus di un attaccante top.
+ */
+export interface Steadiness {
+  /** La quota, 0-1. Null quando nemmeno l'ancora del ruolo può rispondere. */
+  share: number | null;
+  /** Quanta parte è sua: 1 = campione pieno di suo calcio, 0 = solo l'ancora del ruolo al suo club. */
+  weight: number;
+  /** Su che cosa poggia, in parole: il campione, la finestra, la mediana del suo ruolo. */
+  note: string;
+}
 
 /**
  * QUANTO BALLA IL SUO VOTO, come simbolo accanto al voto (operatore, 17/08/2026).
@@ -394,6 +424,25 @@ export const VARIANCE_TAIL = 0.2;
 
 /** Sotto quanti uomini misurati un ruolo non si bandisce: un quintile di otto portieri è un uomo. */
 export const VARIANCE_MIN_POOL = 20;
+
+/**
+ * LA COSTANZA di una lista di voti: quanti chiudono con almeno `PASS_MARK`, sul totale.
+ *
+ * Funzione a sé perché la stessa quota serve in tre posti (la colonna, il campetto dell'asta, le buste)
+ * e tre copie di un filtro finirebbero per non essere d'accordo su un dettaglio: la DISUGUAGLIANZA.
+ * «Almeno 6» e «più di 6» non sono due modi di dire la stessa cosa - il 6,0 secco è il voto MODALE del
+ * fantacalcio, il 36,1% di 59.094 voti di Serie A (misurato il 01/09/2026), quindi la quota passa da
+ * 0,658 a 0,297 secondo quale delle due si scrive. Il regolamento dice «almeno sufficiente» e vale la
+ * prima. Ed è anche il senso della colonna: chi gioca e non fa danni prende 6, ed è quello che i due
+ * modificatori pagano.
+ *
+ * Nessun minimo di partite, a differenza di `spreadOf`: il campione corto non si nasconde qui ma nel
+ * PESO, che è la quota di numero che è davvero suo, come per ogni altra lettura.
+ */
+export function steadyOf(votes: readonly number[]): number | null {
+  if (!votes.length) return null;
+  return votes.filter((vote) => vote >= PASS_MARK).length / votes.length;
+}
 
 /** La deviazione standard di una lista di voti, o null sotto `MIN_MATCHES`: una sd su tre partite non è una sd. */
 export function spreadOf(votes: readonly number[]): number | null {
@@ -1056,6 +1105,9 @@ export function ratingsFor(input: {
    */
   const steadyRaw = new Map<number, number | null>();
   const steadyNote = new Map<number, string>();
+  /** ...e quanta parte del numero è SUA, che serviva già e veniva buttata: senza il peso una quota
+   *  costruita sull'ancora del ruolo si legge come una misurata, che è il difetto di casa. */
+  const steadyWeight = new Map<number, number>();
   /** ...e la DISPERSIONE vera dei suoi voti, che è quello che il simbolo dichiara di dire. */
   const spread = new Map<number, { sd: number | null; size: number }>();
   /**
@@ -1116,15 +1168,14 @@ export function ratingsFor(input: {
     const votesPlayed = played?.votes ?? [];
     // ...e la DISPERSIONE degli stessi voti, che è quello che il simbolo accanto ai Voti dichiara di dire.
     spread.set(id, { sd: spreadOf(votesPlayed), size: votesPlayed.length });
+    const steadyShare = steadyOf(votesPlayed);
     const consistency: Sample = {
-      value: votesPlayed.length
-        ? votesPlayed.filter((vote) => vote >= PASS_MARK).length / votesPlayed.length
-        : null,
+      value: steadyShare,
       size: votesPlayed.length,
-      said: votesPlayed.length
-        ? `${Math.round((votesPlayed.filter((vote) => vote >= PASS_MARK).length / votesPlayed.length) * 100)}%`
-          + ` delle ${votesPlayed.length} partite chiuse con almeno ${PASS_MARK} (${window})`
-        : '',
+      said: steadyShare == null
+        ? ''
+        : `${Math.round(steadyShare * 100)}%`
+          + ` delle ${votesPlayed.length} partite chiuse con almeno ${PASS_MARK} (${window})`,
     };
     // ...and, with no column of its own, what one of his matches is WORTH beyond the base vote: every
     // bonus AND every malus the config prices, per appearance, on the same seasons and with the same
@@ -1252,6 +1303,7 @@ export function ratingsFor(input: {
   for (const [id, one] of blend('consistency')) {
     steadyRaw.set(id, one.value);
     steadyNote.set(id, one.said);
+    steadyWeight.set(id, one.weight);
   }
   const eventPoints = blend('points');
 
@@ -1485,15 +1537,16 @@ export function ratingsFor(input: {
     if (sd == null || !bands) return null;
     const band = sd >= bands.high ? 'high' : sd <= bands.low ? 'low' : null;
     if (!band) return null;
-    const steady = steadyNote.get(player.fcId);
+    // ...e la COSTANZA non si ripete qui: dal 01/09/2026 ha una colonna sua, e un numero detto in due
+    // posti è un numero che un giorno divergerà. Sono anche due domande diverse - la sd dice quanto
+    // BALLA il voto, la quota quanto spesso BASTA: un uomo fisso a 5,5 ha sd bassa e costanza zero.
     return {
       sd,
       band,
       note: short(
         `Varianza ${band === 'high' ? 'GRANDE' : 'PICCOLA'}: sd ${sd.toFixed(2)} sul voto, `
           + `${band === 'high' ? 'ultimo' : 'primo'} quinto del suo ruolo (soglie `
-          + `${bands.low.toFixed(2)} / ${bands.high.toFixed(2)})`
-          + (steady ? ` · ${steady}` : ''),
+          + `${bands.low.toFixed(2)} / ${bands.high.toFixed(2)})`,
       ),
     };
   };
@@ -1554,6 +1607,11 @@ export function ratingsFor(input: {
       bonus: reading('bonus'),
       presence: reading('presence'),
       variance: varianceFor(player),
+      steady: {
+        share: steadyRaw.get(id) ?? null,
+        weight: steadyWeight.get(id) ?? 0,
+        note: steadyNote.get(id) ?? '',
+      },
     });
   }
   return out;

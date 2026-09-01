@@ -151,12 +151,15 @@ verificato in un browser vero — e due difetti erano dell'arnese, non della pag
 misurava DUE incognite, e Chrome headless che parte in tema scuro e quindi confrontava lo scuro con sé
 stesso).
 
-**DA SAPERE PER LA PROSSIMA SESSIONE — la metà APP di questo lavoro NON è committata.** La colonna
-**«Costanza»** (`player-ratings.ts` + i tre file di `squad-table/`) esiste, è testata e resta fuori dal
-commit perché quegli stessi file sono stati editati **anche da un'altra sessione** (la colonna
-«Categoria», `letture-app-v1.md` §20): regola di casa, «mai committare il file di un'altra sessione, e mai
-la propria metà che non compila senza la loro». La sua scheda in `letture-app-v1.md` la scrive chi committa
-quel file. **Aperto e in ordine di resa**: lo sweep delle quattro manopole dichiarate del braccio vincente
+**LA METÀ APP È ENTRATA CON UN SECONDO COMMIT, su decisione dell'operatore («committa tutto»).** La
+colonna **«Costanza»** (`player-ratings.ts` + i tre file di `squad-table/`, scheda in
+`letture-app-v1.md` §21) era rimasta fuori dal primo commit perché quegli stessi file erano stati editati
+**anche da un'altra sessione** (la colonna «Categoria», §20) — regola di casa, «mai committare il file di
+un'altra sessione». Con la decisione presa, la cosa giusta era **misurare prima di committare** invece di
+fidarsi: **541 test dell'app su 35 file, verdi**, e 592 del toolkit, cioè le due metà si fondono e passano.
+Quindi quel commit porta il lavoro di DUE sessioni e lo dice; e con esso si eredita un debito che la §20
+dichiara da sé, **il `backtest --verify` della revisione 38, dovuto e non ancora fatto** (il 01/09 il DB era
+sotto lock di scrittura). **Aperto e in ordine di resa**: quel `--verify`, poi lo sweep delle quattro manopole dichiarate del braccio vincente
 (`URGENCY` 1,8 · `CAUTIOUS_CAP_SHARE` 0,15 · `ABUNDANCE` 1,0 · `CLUB_PENALTY` 0,45), il null da rifare
 sulla configurazione attuale, il mercato di riparazione (che è la sola cosa che cambierebbe l'ordine dei
 profili) e il profilo TIFOSO, dichiarato e spento.

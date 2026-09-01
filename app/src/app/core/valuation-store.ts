@@ -87,6 +87,17 @@ export interface SquadMan extends PlayerRow {
   titolarita: string | null;
   titolaritaPlay: number | null;
   minutesNext: number | null;
+  /**
+   * LE SEI PAROLE DENTRO IL RUOLO: quanto vale per quello che PORTA, dove la titolarità qui sopra dice
+   * quanto GIOCA - oro, argento, bronzo, cristallo, scommessa, scarto (`engine/categories.py`).
+   *
+   * Vuoto = ignoto: un foglio più vecchio della revisione 38 non porta la parola. `categoryBonus` è il
+   * suo tasso bonus a presenza misurato e `categoryBars` le due sbarre del suo slot, così la riga può
+   * spiegare la propria parola invece di chiedere fiducia.
+   */
+  category: string | null;
+  categoryBonus: number | null;
+  categoryBars: string | null;
   /** Which rung of the cascade produced the estimate, and the sentence the toolkit wrote for it. */
   estimateBasis: string | null;
   estimateNote: string | null;
@@ -260,6 +271,20 @@ export interface EngineExpectation {
   titolarita: string | null;
   titolaritaPlay: number | null;
   minutesNext: number | null;
+  /**
+   * LE SEI PAROLE DENTRO IL RUOLO (`desc_category`): oro, argento, bronzo, cristallo, scommessa, scarto.
+   *
+   * Letta e mai ricalcolata, come la titolarità qui sopra: i due assi che la decidono sono una PREVISIONE
+   * (le presenze che il motore aspetta) e un TRATTO misurato (il bonus a presenza delle sue stagioni), e
+   * le sbarre del ruolo sono misurate dove le misure si giudicano - `engine/categories.py`. Assente prima
+   * della revisione 38 del foglio, e allora la colonna resta muta invece di inventare una parola.
+   *
+   * `categoryBonus` è il suo tasso misurato e `categoryBars` le due sbarre del suo slot («porta bonus» /
+   * «tanti bonus»), perché una parola senza i suoi numeri è una parola che nessuno può controllare.
+   */
+  category: string | null;
+  categoryBonus: number | null;
+  categoryBars: string | null;
   /**
    * The fantamedia of the man you would field INSTEAD - `engine_replacement_fm`, the marginal rostered
    * player of his role slot, computed by the toolkit with this league's own teams and slots.
@@ -612,6 +637,9 @@ export class ValuationStore {
           titolarita: engine?.titolarita ?? null,
           titolaritaPlay: engine?.titolaritaPlay ?? null,
           minutesNext: engine?.minutesNext ?? null,
+          category: engine?.category ?? null,
+          categoryBonus: engine?.categoryBonus ?? null,
+          categoryBars: engine?.categoryBars ?? null,
           estimateBasis: engine?.basis ?? null,
           estimateNote: engine?.note ?? null,
           surplus: engine?.surplus ?? null,
@@ -994,6 +1022,9 @@ export class ValuationStore {
         // La titolarità in una parola, revisione 35+, e i due numeri che la compongono.
         titolarita: at('desc_titolarita'), titolaritaPlay: at('desc_titolarita_play'),
         minutesNext: at('desc_minutes_next'),
+        // Le sei parole dentro il ruolo, revisione 38+, coi due numeri che le decidono.
+        category: at('desc_category'), categoryBonus: at('desc_category_bonus'),
+        categoryBars: at('desc_category_bars'),
         surplus: at('engine_surplus'), estSurplus: at('est_surplus'),
         // L'ALTRO ZERO: una colonna sola, perché il foglio la scrive già per tutta la lista - motore
         // dove c'è, stima altrove, con la stessa penale. Assente prima della revisione 22.
@@ -1046,6 +1077,11 @@ export class ValuationStore {
             ? null : ((row[columns.titolaritaPlay] as number | null) ?? null),
           minutesNext: columns.minutesNext < 0
             ? null : ((row[columns.minutesNext] as number | null) ?? null),
+          category: columns.category < 0 ? null : ((row[columns.category] as string) ?? null),
+          categoryBonus: columns.categoryBonus < 0
+            ? null : ((row[columns.categoryBonus] as number | null) ?? null),
+          categoryBars:
+            columns.categoryBars < 0 ? null : ((row[columns.categoryBars] as string) ?? null),
           replacementFm:
             columns.replacement < 0 ? null : ((row[columns.replacement] as number | null) ?? null),
           basis: columns.basis < 0 ? null : ((row[columns.basis] as string) ?? null),

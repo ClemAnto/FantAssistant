@@ -164,20 +164,45 @@ def parse_probable_starters(html: str) -> list[dict]:
     return out
 
 
+def _list_of(header):
+    """The <ul> a section header owns: the first one BEFORE the next header, or None.
+
+    Bounded on purpose. `find_next_sibling("ul")` walks to the end of the column, and a section whose
+    own list is empty carries no <ul> at all - the site writes `<div class="empty-list-message">Nessuno`
+    instead - so the header SWALLOWED the next section's list. Measured over the 20 cached pages of
+    2026: 50 of the 611 lists were attributed that way, every one of them a `squalificati` header
+    taking the `diffidati` list, i.e. men one booking away from a ban stored as men actually banned.
+    """
+    for sibling in header.find_next_siblings():
+        if sibling.name == "header":
+            return None
+        if sibling.name == "ul":
+            return sibling
+    return None
+
+
 def parse_unavailable(html: str) -> list[dict]:
-    """team-card blocks -> (team, status, player surname, note) for injured/suspended/at-risk."""
+    """team-card blocks -> (team, status, player surname, note) for injured/suspended/at-risk.
+
+    The section is read from the <header> that NAMES it, never from the tag carrying the word, because
+    that tag changed under us. Until 26/08/2026 all three headers were `<strong class="label">`; on
+    01/09/2026 the injured one became an `<a class="label">` inside `<div class="aa-infirmary-label">`,
+    so `strong.label` still matched the two lists that had NOT moved and the injured list silently went
+    to zero. Measured on the cache: `strong.label` says "infortunati" 20 times on every page from 26/07
+    to 26/08 and ZERO times on 01/09, where the page names 50 injured men - Yildiz among them, with a
+    three-month risk on him. Same family as the `_PLAYER_HREF` change above, and the same cure: read
+    the thing the page cannot rename without renaming what the reader sees.
+    """
     soup = BeautifulSoup(html, "lxml")
     out: list[dict] = []
     for card in soup.select("div.team-card"):
         name_node = card.select_one(".team-name")
         team = name_node.get_text(strip=True) if name_node else None
-        for label in card.select("strong.label"):
-            status = LIST_STATUS.get(label.get_text(strip=True).lower())
+        for header in card.select("header"):
+            status = LIST_STATUS.get(header.get_text(" ", strip=True).lower())
             if not status:
                 continue
-            # the list follows its own header, as the next <ul> among the header's siblings
-            header = label.parent
-            group = header.find_next_sibling("ul") if header else None
+            group = _list_of(header)
             for item in group.select("li") if group else []:
                 name_tag = item.select_one(".item-name")
                 if not name_tag:
@@ -222,19 +247,38 @@ def upsert_probable_starters(conn, records: list[dict], date: str) -> int:
     return stored
 
 
-def _season_pools(conn, season: str):
-    """(by_club_key, league_pool) for the matcher, restricted to Serie A - these pages are Serie A."""
+def _season_pools(conn, season: str, platform: str = "default"):
+    """(by_club_key, league_pool) for the matcher, over the PAGE'S OWN perimeter.
+
+    Fino al 26/08/2026 questa funzione filtrava `r.league = 'serie_a'` e la sua docstring diceva «these
+    pages are Serie A» - vero quando le pagine erano due, falso dal 07/08/2026, quando sono state
+    agganciate quelle euro (`-indisponibili-euro-leghe`). Il pool non conteneva un solo giocatore di
+    Premier, Liga, Ligue 1 o Bundesliga, quindi un infortunato di quelle leghe non poteva combaciare PER
+    COSTRUZIONE: si risolvevano soltanto gli uomini quotati ANCHE in Serie A - misurato quel giorno,
+    **24 righe su 88**, con Bruno Guimaraes (Arsenal), Baleba (Manchester United), Asencio (Real Madrid)
+    scartati mentre stavano nel registro col nome identico e col club identico a quello che la pagina
+    dichiarava. Stessa forma del «ripiego corretto per un chiamante e muto per un altro»: una chiave che
+    non combacia si legge come un dato che non c'e'.
+
+    Il perimetro di una pagina euro e' il LISTONE euro, e «chi e' in quel listone» si chiede a
+    `listone_quotes`, che e' l'unica tabella con la piattaforma nella chiave (`rosters` tiene l'ultima
+    lettura e non sa dire quale dei due listoni l'ha scritta). Il ramo Serie A resta identico.
+    """
     by_club: dict[str, list] = {}
     pool: list = []
+    where, params = ("r.league = 'serie_a'", (season,))
+    if platform == "euro":
+        where = ("EXISTS (SELECT 1 FROM listone_quotes q WHERE q.fc_id = r.fc_id "
+                 "AND q.season = r.season AND q.platform = 'euro')")
     rows = conn.execute(
-        """
+        f"""
         SELECT r.fc_id, p.canonical_name, cl.canonical_name
         FROM rosters r
         JOIN players p USING(fc_id)
         LEFT JOIN clubs cl ON cl.fc_club_id = r.fc_club_id
-        WHERE r.season = ? AND r.league = 'serie_a'
+        WHERE r.season = ? AND {where}
         """,
-        (season,),
+        params,
     ).fetchall()
     for fc_id, our_name, our_club in rows:
         entry = build_pool_entry(fc_id, our_name)
@@ -243,9 +287,14 @@ def _season_pools(conn, season: str):
     return by_club, pool
 
 
-def upsert_availability(conn, records: list[dict], season: str, date: str) -> tuple[int, list[str]]:
-    """injured/suspended -> availability · booking_risk -> flags. Returns (stored, unresolved)."""
-    by_club, league_pool = _season_pools(conn, season)
+def upsert_availability(conn, records: list[dict], season: str, date: str,
+                        platform: str = "default") -> tuple[int, list[str]]:
+    """injured/suspended -> availability · booking_risk -> flags. Returns (stored, unresolved).
+
+    `platform` is the PAGE's, not a preference: an entry of the euro list is looked for among the men
+    that listone quotes (see `_season_pools`).
+    """
+    by_club, league_pool = _season_pools(conn, season, platform)
     stored = 0
     unresolved: list[str] = []
     for rec in records:
@@ -422,12 +471,23 @@ def ingest_snapshot(ctx: Context, page: str, html: str, date: str, season: str) 
                   f"unknown season and no sheet will read them - empty is unknown, never current.")
     elif page.startswith("indisponibili"):
         records = parse_unavailable(html)
-        stored, unresolved = upsert_availability(conn, records, season, date)
+        stored, unresolved = upsert_availability(
+            conn, records, season, date, "euro" if page.endswith("_euro") else "default")
         kinds: dict[str, int] = {}
         for rec in records:
             kinds[rec["status"]] = kinds.get(rec["status"], 0) + 1
         detail = " ".join(f"{key}={value}" for key, value in sorted(kinds.items()))
         print(f"[fc_site] {page} {date}: {stored}/{len(records)} resolved [{detail}]")
+        # THE SAME GUARD THE PROBABILI BRANCH ALREADY CARRIES, and this branch needed it: on 01/09/2026
+        # the injured header changed tag, the parser read 1 of the 41 men the page names, and the line
+        # above printed «1/1 resolved [suspended=1]» - a success. Every `.item-name` node is one record
+        # by construction, so the comparison is exact rather than a threshold: measured over the 22
+        # published pages in cache, records == item-name on 22 of 22.
+        listed = html.count('class="item-name"')
+        if listed != len(records):
+            print(f"[fc_site] {page} {date}: PARSER BROKEN - the page names {listed} men and "
+                  f"{len(records)} were read. The markup of a section moved: fix it before trusting "
+                  f"any availability column, because this state cannot be backfilled.")
         if unresolved:
             names = ", ".join(sorted(unresolved)[:8]).encode("ascii", "replace").decode()
             print(f"[fc_site] {len(unresolved)} names not matched: {names}")

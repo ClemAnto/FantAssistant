@@ -59,6 +59,7 @@ import { PlayerFlags } from '../player-flags/player-flags';
 import { RoleBadge } from '../role-badge/role-badge';
 import { RoleSet } from '../role-set/role-set';
 import { StarRating } from '../star-rating/star-rating';
+import { CATEGORIA_SHORT, categoriaNote, categoriaRank, isCategoria } from '../../core/categoria';
 import { TITOLARITA_SHORT, isTitolarita, titolaritaNote, titolaritaRank } from '../../core/titolarita';
 
 const ROLE_LABEL: Record<ClassicRole, string> = {
@@ -108,11 +109,26 @@ export const SQUAD_COLUMNS: readonly SquadColumn[] = [
   // stessa domanda detta a parole: quanto gioca. La sigla è un promemoria e il tooltip porta la parola
   // intera coi due numeri che l'hanno decisa, perché un gradino si ribalta su un minuto.
   { key: 'titolarita', label: 'Tit.', width: 46, align: 'center', filter: 'pick' },
+  // LE SEI PAROLE DENTRO IL RUOLO, accanto alla titolarità perché sono le due metà di una domanda
+  // sola: quella dice quanto GIOCA, questa quanto PORTA. Tre caratteri come l'altra, e il tooltip
+  // porta la frase intera coi due numeri - il tasso misurato e le sbarre del suo ruolo - perché una
+  // parola sola non si può controllare.
+  { key: 'categoria', label: 'Cat.', width: 46, align: 'center', filter: 'pick' },
   { key: 'expected', label: 'P (partite attese)', head: 'P', width: 48, align: 'right', filter: 'range' },
   // Le quattro colonne di fantamedia sono più larghe delle cifre che portano: dentro ognuna il numero sta
   // in un riquadro colorato, e un riquadro più largo della colonna manderebbe la tabella a scorrere.
   { key: 'expectedFm', label: 'FMa', width: 70, align: 'right', filter: 'range' },
   { key: 'expectedMv', label: 'MVa', width: 70, align: 'right', filter: 'range' },
+  // LA COSTANZA, quota di partite chiuse con almeno il 6 di voto BASE (operatore, 01/09/2026), qui
+  // perché è la seconda metà della colonna accanto: la MVa dice il livello, questa quanto spesso quel
+  // livello supera la soglia che il REGOLAMENTO paga. In questa lega i due modificatori classici si
+  // sommano e pagano tutt'e due sul voto base, quindi è una moneta e non una curiosità: fra un undici
+  // di popolazione e uno di uomini al p90 del loro ruolo ballano 27 punti di R-Factor a stagione più
+  // 10 di modificatore di difesa (misurato il 01/09/2026, cinque stagioni di Serie A).
+  // È una QUOTA e non un rank, ed è la differenza con la lettura 0-99 che l'operatore aveva fatto
+  // togliere il 17/08: le soglie dei modificatori sono assolute, e un rank dice quanti uomini stanno
+  // sotto di lui invece di dire se supera il 6.
+  { key: 'steady', label: 'Costanza', head: 'Cost.', width: 58, align: 'right', filter: 'range' },
   { key: 'surplus', label: 'Surplus', width: 64, align: 'right', filter: 'range' },
   // ...e lo stesso conto dall'ALTRO ZERO, affiancato invece che al posto suo: sono due domande («chi
   // conviene comprare» contro «quanto costa una giornata saltata») e nessuna delle due vince, quindi si
@@ -175,7 +191,9 @@ const COLUMN_BY_KEY = new Map<string, SquadColumn>(
  * `role` e `name` sono le due colonne fisse, che si ordinano come tutte le altre.
  */
 export const SORTABLE_COLUMNS: readonly string[] = [
-  'role', 'name', 'club', 'titolarita', 'expected', 'expectedFm', 'expectedMv', 'surplus',
+  'role', 'name', 'club', 'titolarita', 'categoria', 'expected', 'expectedFm', 'expectedMv',
+  'steady',
+  'surplus',
   'surplusFielded',
   'value', 'fvm', 'market', 'pv', 'mv', 'fm', ...RATING_KEYS,
 ];
@@ -473,9 +491,11 @@ export class SquadTable {
     switch (key) {
       case 'codes': return this.codesHeader;
       case 'titolarita': return this.titolaritaHeader;
+      case 'categoria': return this.categoriaHeader;
       case 'expected': return this.expectedHeader();
       case 'expectedFm': return this.expectedFmHeader;
       case 'expectedMv': return this.expectedMvHeader;
+      case 'steady': return this.steadyHeader;
       case 'surplus': return this.surplusHeader;
       case 'surplusFielded': return this.surplusFieldedHeader;
       case 'value': return this.valueHeader;
@@ -494,6 +514,18 @@ export class SquadTable {
     'La titolarità in una parola, decisa dal toolkit sull\'undici tipo: BAN bandiera · TIS titolarissimo '
     + '· TIT titolare · BLT ballottaggio · PAN panchina · RIS riserva. Qui «titolarità» vuol dire '
     + 'prendere il voto, anche da subentrato.';
+
+  protected readonly categoriaHeader =
+    'Quanto vale DENTRO IL SUO RUOLO, in una parola: ORO gioca sempre e porta tanti bonus · ARG '
+    + 'gioca sempre e porta bonus · BRO gioca sempre · CRI gioca poco ma porta bonus · SCM '
+    + 'nessuno l\'ha ancora misurato · SRT gioca poco e porta poco. Le sbarre sono del RUOLO: un '
+    + 'centrale e un centravanti non si confrontano fra loro.';
+
+  protected readonly steadyHeader =
+    'La COSTANZA: quante delle partite che gioca chiude con almeno 6 di voto BASE, non di fantavoto - '
+    + 'se non segna, prende 5? È la moneta dei due modificatori, che in questa lega si sommano e pagano '
+    + 'tutt\'e due sul voto base. Si confronta DENTRO IL RUOLO: la mediana è 86% per un portiere e 60% '
+    + 'per un attaccante, e il tooltip della riga porta quella del suo.';
 
   protected readonly expectedMvHeader =
     'Media voto ATTESA: il foglio la ricava dalla FM attesa, e la differenza fra le due è il bonus che '
@@ -890,6 +922,7 @@ export class SquadTable {
       case 'mantra': return man.mantraCodes;
       case 'codes': return man.codes;
       case 'titolarita': return man.titolarita ? [man.titolarita] : [];
+      case 'categoria': return man.category ? [man.category] : [];
       default: return [];
     }
   }
@@ -900,6 +933,9 @@ export class SquadTable {
     if (key === 'role') return ROLE_LABEL[value as ClassicRole] ?? value;
     if (key === 'titolarita') {
       return isTitolarita(value) ? `${TITOLARITA_SHORT[value]} · ${value}` : value;
+    }
+    if (key === 'categoria') {
+      return isCategoria(value) ? `${CATEGORIA_SHORT[value]} · ${value}` : value;
     }
     return value;
   }
@@ -915,6 +951,7 @@ export class SquadTable {
     if (value === NO_VALUE) return 99;
     if (key === 'role') return ROLE_ORDER[value] ?? 9;
     if (key === 'titolarita') return titolaritaRank(value) ?? 98;
+    if (key === 'categoria') return categoriaRank(value) ?? 98;
     return 0;
   }
 
@@ -978,6 +1015,10 @@ export class SquadTable {
       case 'expected': return man.expected;
       case 'expectedFm': return man.expectedFm;
       case 'expectedMv': return man.expectedMv;
+      // La quota per CENTO, così il filtro si scrive come si legge la cella: «da 70 a 100» e non
+      // «da 0,7 a 1». Gli estremi del pannello vengono da qui, quindi le due cose non possono divergere.
+      case 'steady':
+        return man.rating?.steady.share == null ? null : man.rating.steady.share * 100;
       case 'surplus': return man.surplus;
       case 'surplusFielded': return man.surplusFielded;
       case 'value': return man.value;
@@ -1004,9 +1045,11 @@ export class SquadTable {
       case 'name': return this.byName;
       case 'club': return this.byClub;
       case 'titolarita': return this.byTitolarita;
+      case 'categoria': return this.byCategoria;
       case 'expected': return this.byExpected;
       case 'expectedFm': return this.byExpectedFm;
       case 'expectedMv': return this.byExpectedMv;
+      case 'steady': return this.bySteady;
       case 'surplus': return this.bySurplus;
       case 'surplusFielded': return this.bySurplusFielded;
       case 'value': return this.byValue;
@@ -1332,6 +1375,50 @@ export class SquadTable {
   protected readonly byExpectedMv = (left: SquadMan, right: SquadMan): number =>
     (left.expectedMv ?? -1) - (right.expectedMv ?? -1);
 
+  /** La costanza: chi non ha nemmeno un'ancora sta in fondo, come ogni altro vuoto di questa tabella. */
+  protected readonly bySteady = (left: SquadMan, right: SquadMan): number =>
+    (left.rating?.steady.share ?? -1) - (right.rating?.steady.share ?? -1);
+
+  /**
+   * La scala e non l'alfabeto, come per la titolarità: `oro` in testa, chi non ha parola in fondo.
+   *
+   * `scommessa` e `scarto` restano DUE gradini e non uno: il primo dice che non c'è misura, il
+   * secondo che la misura c'è ed è bassa, e ordinarli insieme perderebbe esattamente la
+   * differenza che li separa.
+   */
+  protected readonly byCategoria = (left: SquadMan, right: SquadMan): number =>
+    (categoriaRank(right.category) ?? 99) - (categoriaRank(left.category) ?? 99);
+
+  /** La sigla di tre caratteri della categoria, o null per una riga che il foglio non classifica. */
+  protected categoriaShort(man: SquadMan): string | null {
+    return isCategoria(man.category) ? CATEGORIA_SHORT[man.category] : null;
+  }
+
+  /** La frase intera coi due numeri: la sigla è un promemoria, il tooltip la spiegazione. */
+  protected categoriaHint(man: SquadMan): string {
+    return (
+      categoriaNote(man.category, man.categoryBonus, man.categoryBars)
+      ?? 'Il foglio non porta la categoria: è più vecchio della revisione 38, oppure il motore non '
+        + 'gli prevede nemmeno le presenze. In tutt\'e due i casi è IGNOTO, che non è «scarto».'
+    );
+  }
+
+  /**
+   * Quanto è forte la parola, come CONTRASTO e non come colore - la stessa regola della titolarità.
+   *
+   * Qui la tentazione è più grossa perché le parole SONO colori (oro, argento, bronzo), ma la regola
+   * dell'app è che il colore porta un significato e i dati vanno neutri: tre tinte metalliche su una
+   * colonna di dati direbbero «premio» dove c'è una misura. Si legge dal peso, e il colore si
+   * aggiunge solo se lo chiede lui.
+   */
+  protected categoriaTone(man: SquadMan): string {
+    const rank = categoriaRank(man.category);
+    if (rank == null) return 'text-muted';
+    if (rank <= 1) return 'font-semibold';
+    if (rank >= 4) return 'text-muted';
+    return '';
+  }
+
   /** La sigla di tre caratteri, o null per uno stato che il foglio non porta. */
   protected titolaritaShort(man: SquadMan): string | null {
     return isTitolarita(man.titolarita) ? TITOLARITA_SHORT[man.titolarita] : null;
@@ -1523,6 +1610,22 @@ export class SquadTable {
    * appearances: he was quoted and never got a vote, so he has no average - which is not an average of
    * zero. Otherwise the number, with the appearances it rests on beside it.
    */
+  /**
+   * La costanza sulla riga: la frase che `player-ratings` ha già costruito, e non una seconda.
+   *
+   * Porta il campione, la finestra, la mediana del suo ruolo e - quando il numero non è tutto suo -
+   * l'ancora con cui è stato completato: è la stessa nota che il simbolo di varianza si portava dietro
+   * finché la costanza non aveva una colonna.
+   */
+  protected steadyHint(man: SquadMan): string {
+    const steady = man.rating?.steady;
+    if (!steady) return 'In calcolo.';
+    if (steady.share == null) {
+      return short('Nessuna partita misurata e nessuna ancora del ruolo: ignoto, mai zero.');
+    }
+    return short(steady.note);
+  }
+
   protected measuredHint(man: SquadMan, key: 'fm' | 'mv'): string {
     if (man.pv === 0) return short(`Mai a voto in ${this.measuredOn()}: non ha una media, che non è zero.`);
     if (man.fm == null && man.mv == null) {

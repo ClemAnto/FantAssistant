@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { SORTABLE_COLUMNS, SQUAD_COLUMNS, orderColumns } from './squad-table';
+import { CATEGORIA_LADDER, CATEGORIA_SHORT } from '../../core/categoria';
 import { TITOLARITA_SHORT } from '../../core/titolarita';
 
 /**
@@ -24,10 +25,15 @@ describe('le colonne della tabella', () => {
     // partite - quindi stanno vicine: una parola letta a mezza tabella di distanza dal suo numero è
     // una parola che nessuno confronta. E si ordina per la SCALA, non per la sigla: in ordine
     // alfabetico verrebbe BAL, BAN, PAN, RIS, TIS, TIT, cioè nessun ordine.
+    // Dall'01/09/2026 fra le due c'è la CATEGORIA, che è l'altra metà della stessa domanda («quanto
+    // porta», dove la titolarità dice «quanto gioca»): le tre restano un blocco unico, e quello che
+    // questo test protegge è che nessuno le separi mettendoci in mezzo una colonna di cifre.
     const keys = SQUAD_COLUMNS.map((one) => one.key);
     expect(keys).toContain('titolarita');
-    expect(keys.indexOf('expected')).toBe(keys.indexOf('titolarita') + 1);
+    expect(keys.indexOf('categoria')).toBe(keys.indexOf('titolarita') + 1);
+    expect(keys.indexOf('expected')).toBe(keys.indexOf('categoria') + 1);
     expect(SORTABLE_COLUMNS).toContain('titolarita');
+    expect(SORTABLE_COLUMNS).toContain('categoria');
   });
 
   it('è larga quanto tre caratteri e non di più', () => {
@@ -37,6 +43,31 @@ describe('le colonne della tabella', () => {
     const column = SQUAD_COLUMNS.find((one) => one.key === 'titolarita');
     expect(column?.width).toBeLessThanOrEqual(48);
     expect(Object.values(TITOLARITA_SHORT).every((code) => code.length === 3)).toBe(true);
+    // ...e la categoria accanto obbedisce alla stessa regola, con la stessa ragione.
+    expect(SQUAD_COLUMNS.find((one) => one.key === 'categoria')?.width).toBeLessThanOrEqual(48);
+    expect(Object.values(CATEGORIA_SHORT).every((code) => code.length === 3)).toBe(true);
+    // Due sigle uguali per due parole diverse renderebbero la colonna illeggibile: SCM e SCT esistono
+    // per questo, e sono le due che una troncatura a tre avrebbe reso quasi identiche.
+    expect(new Set(Object.values(CATEGORIA_SHORT)).size).toBe(CATEGORIA_LADDER.length);
+  });
+
+  it('porta la COSTANZA subito dopo la MVa, e la si può ordinare e filtrare', () => {
+    // Le due colonne sono le due metà del voto BASE: la MVa dice il livello, la costanza quanto spesso
+    // quel livello supera il 6, che è la soglia su cui pagano tutt'e due i modificatori di questa lega.
+    // Lette lontane sono due numeri, lette accanto sono una frase, e quello che il test protegge è che
+    // nessuno le separi. La colonna è arrivata il 01/09/2026 al posto della lettura 0-99 che l'operatore
+    // aveva fatto togliere il 17/08: quella era un rank sul listone, questa è la QUOTA, perché le soglie
+    // dei modificatori sono assolute e un rank non dice se supera il 6.
+    const keys = SQUAD_COLUMNS.map((one) => one.key);
+    expect(keys.indexOf('steady')).toBe(keys.indexOf('expectedMv') + 1);
+    expect(SORTABLE_COLUMNS).toContain('steady');
+    const column = SQUAD_COLUMNS.find((one) => one.key === 'steady');
+    expect(column?.filter).toBe('range');
+    expect(column?.align).toBe('right');
+    // L'intestazione è troncata e il nome intero vive nel selettore, come per Tit. e Cat.: in 58px non
+    // ci sta «Costanza», e una testa più larga del suo numero è larghezza pagata da tutte le altre.
+    expect(column?.head).toBe('Cost.');
+    expect(column?.label).toBe('Costanza');
   });
 
   it('porta tutt\'e due i surplus, uno accanto all\'altro', () => {
