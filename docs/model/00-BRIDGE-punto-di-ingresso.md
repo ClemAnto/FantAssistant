@@ -90,6 +90,76 @@ misurato), quanti nomi serve avere per ruolo (`slot × partecipanti` su classic,
 mantra) e **due forme respinte con i loro numeri** della regola «posto più arretrato», da non riprovare.
 L'altra fase, quella settimanale, è **`formazione-settimanale-v1.md`** (progetto): chi gioca domenica, perché
 la pagina delle probabili non basta e quali vincoli valgono già oggi.
+Per l'ASTA A RILANCI dal lato della STRATEGIA — non «chi comprare» ma «come si offre» —
+**`simulatore-asta-rilanci-v1.md`** (01/09/2026): il QUINTO banco (`bench/auction`), i cinque profili
+dichiarati dell'operatore, il prezzo del top che EMERGE dal secondo prezzo (48-75% del budget), il costo
+misurato di un buco (4,73), il campionato a 36 giornate — e le due cose che ne sono uscite e che nessun
+altro banco potevi vedere: **in 4 stagioni su 10 il campione non è chi fa più fantapunti** (la scala dei
+gol tronca a 66, r = −0,802 fra punti e giornate buttate) e **la costanza non può pagare** finché una rosa
+ha buchi (un uomo muove l'R-Factor di 2,4 punti l'anno, e il modificatore correla −0,821 coi buchi).
+Contiene anche la diversificazione fra club reali ADOTTATA con il suo prezzo, e quattro manopole
+dichiarate che nessuno ha ancora chiesto ai dati.
+
+## STATO AL 1 SETTEMBRE 2026 — LEGGI QUESTO PRIMA DI TUTTO
+
+**Il QUINTO banco esiste: `bench/auction`, che giudica le STRATEGIE D'ASTA a rilanci** — e la sera stessa
+un **campionato a calendario** sopra di esso. Verbale completo con tutti i numeri:
+[simulatore-asta-rilanci-v1.md](simulatore-asta-rilanci-v1.md). `engine_*`, i fogli e il bundle **non si
+muovono di un decimale**: qui non si prevede nessun calciatore, si misura come si offre.
+
+**Cosa legge dal motore**: la Qt.I (l'unica quotazione che non conosce l'esito), il `fm_pred`/`pv_pred`
+coi parametri tarati su una finestra adiacente come fa il gate, e il fantavoto **e il voto base** di ogni
+giornata realmente giocata. Cinque profili DICHIARATI dall'operatore, il regolamento della sua lega
+(3-8-8-6, R-Factor, mod.dif., riserva d'ufficio che azzera entrambi) e la soglia mentale dei 500 crediti.
+
+**Due cose che il meccanismo PRODUCE invece di assumere**: il prezzo del top d'attacco esce al 48-75% del
+budget (media 60%, il numero che l'operatore riporta dall'esperienza) dal solo secondo prezzo; e il costo
+di un buco è 4,73 fantapunti (pendenza su 110 rose, r = −0,798), che l'aritmetica del regolamento
+conferma. Da lì il risultato centrale: **il valore di un uomo in questa lega ha DUE termini che si
+sommano**, `surplus + copertura` — la prima versione del braccio motore aveva solo il primo e finì
+**ultima di undici**, con 284 crediti su 1000 in tasca. Con la copertura e i tetti dinamici per reparto
+vince: **+116 punti** sul miglior profilo umano e la dispersione più bassa del tavolo.
+
+**E il CAMPIONATO ha tirato fuori una quantità che nessun altro banco poteva vedere.** La scala dei gol
+tronca a 66, quindi **in 4 stagioni su 10 il campione non è chi ha fatto più fantapunti**: sulle 100 righe
+i punti in classifica correlano +0,815 coi fantapunti totali e **−0,802 con le giornate lasciate sotto i
+66**, che a loro volta correlano +0,661 coi buchi. **La copertura paga due volte**, e nessuna delle due
+strade passa per chi compri in cima. Il motore vince **5 titoli su 10** con 8,6 giornate buttate contro le
+14-17 di tutti gli altri.
+
+**Tre cose CHIESTE dall'operatore e chiuse**: i crediti non spesi (il pavimento di ogni tetto è ora quello
+che il portafoglio può permettersi per slot residuo — P4 da 495 a 973 su 1000, e il braccio motore era
+l'unico esente perché il suo ramo usciva prima: *una regola che vale per tutti tranne quello che stai
+giudicando non è una regola*); P4 che spende di più a centrocampo; e la **DIVERSIFICAZIONE fra club reali
+ADOTTATA** («come giocare in borsa su più titoli») — costa 1,6 punti sulla media, taglia il **9%** della
+dispersione, e concorda con `metrica-asta-surplus-v1.md` §24 che l'aveva misurata dall'altro lato.
+
+**Una cosa chiesta e MISURATA A ZERO: la costanza.** Il sintomo era giusto (il braccio incassava 6,5 di
+R-Factor contro i 20,5 di un rivale, e né il surplus né le presenze contengono il voto base), la cura no:
+un uomo muove l'R-Factor di **+2,4 punti a stagione** contro un `cover_value` che arriva a 180, e il
+modificatore è governato dai **buchi** (r = −0,821, 13,6 punti nel quartile con meno buchi contro 2,1 in
+quello con più) perché **una sola riserva d'ufficio azzera il bonus di tutta la giornata**. Accesa costa
+8,2 punti. Resta nel codice a zero con i numeri accanto.
+
+**Un difetto LATENTE che la richiesta dell'operatore ha fatto emergere**: chiamare i partecipanti A…L
+mostra che il pareggio d'offerta si rompeva in **ordine alfabetico**, quindi la lettera A avrebbe vinto
+ogni ex aequo. Ora lo rompe un sorteggio riproducibile per (partecipante, uomo); misurato prima di
+cambiarlo, l'ordine dei sei profili non si muove.
+
+**593 test del toolkit.** Artifact privato pubblicato con le dieci stagioni (classifica, asta e rose),
+verificato in un browser vero — e due difetti erano dell'arnese, non della pagina (un selettore che
+misurava DUE incognite, e Chrome headless che parte in tema scuro e quindi confrontava lo scuro con sé
+stesso).
+
+**DA SAPERE PER LA PROSSIMA SESSIONE — la metà APP di questo lavoro NON è committata.** La colonna
+**«Costanza»** (`player-ratings.ts` + i tre file di `squad-table/`) esiste, è testata e resta fuori dal
+commit perché quegli stessi file sono stati editati **anche da un'altra sessione** (la colonna
+«Categoria», `letture-app-v1.md` §20): regola di casa, «mai committare il file di un'altra sessione, e mai
+la propria metà che non compila senza la loro». La sua scheda in `letture-app-v1.md` la scrive chi committa
+quel file. **Aperto e in ordine di resa**: lo sweep delle quattro manopole dichiarate del braccio vincente
+(`URGENCY` 1,8 · `CAUTIOUS_CAP_SHARE` 0,15 · `ABUNDANCE` 1,0 · `CLUB_PENALTY` 0,45), il null da rifare
+sulla configurazione attuale, il mercato di riparazione (che è la sola cosa che cambierebbe l'ordine dei
+profili) e il profilo TIFOSO, dichiarato e spento.
 
 ## STATO AL 27 AGOSTO 2026, SERA — LEGGI QUESTO PRIMA DI TUTTO
 

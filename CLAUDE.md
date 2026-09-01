@@ -156,6 +156,9 @@ game» below.
 For the STRATEGY page (what is prepared BEFORE sitting down): **`pagina-strategia-v1.md`** — the league
 settings, the currency per auction type, how many names a role needs, and the two REFUSED forms of the
 «most defensive place» rule with their numbers. See «A list per role cannot express a joint constraint».
+For the RAISE AUCTION seen from the STRATEGY side — not «whom to buy» but «how to bid»:
+**`simulatore-asta-rilanci-v1.md`** (01/09/2026), the fifth harness and the championship over it.
+See «A fifth harness» below.
 Drive dataset IDs (xlsx/csv, not in git) are in [docs/DRIVE-MANIFEST.md](docs/DRIVE-MANIFEST.md).
 The BOARD list `todolist-formazioni-tipo-v1.md` is **closed** (08/08/2026): five adoptions, six measured
 refusals, and the standing rule that the press is a JUDGE and never an input. What remains is
@@ -384,7 +387,7 @@ own verdict does not, and cannot be used to adopt it.
   Cached Excel = raw source of truth -> `rebuild` re-ingests offline so scraped ratings survive.
 
 ## FOUR harnesses, and the fourth exists because the gate is BLIND to the question
-**17/08/2026.** `backtest` judges RULES, `sweep` judges CONSTANTS, `bench/draft` judges POLICIES - and
+**(FIVE since 01/09/2026 — `bench/auction`, below.)** **17/08/2026.** `backtest` judges RULES, `sweep` judges CONSTANTS, `bench/draft` judges POLICIES - and
 **`zeros`** judges the ZERO, because none of the other three can. The gate prepares its windows WITHOUT a
 league (`features.prepare(league=None)`), so `data.replacement` is empty and `auction_view` ranks by VALUE =
 FM x Pv: the choice of replacement level does not enter one published number, and `backtest --verify` would
@@ -473,6 +476,81 @@ session's file**, and never commit your own half that cannot compile without the
 `core/` half went in); and **leave the harness RED where the defect is real**, naming the cause — here a
 button that calls `GlobalOptions.open()` while the panel opens on its own signal, which the harness pinned
 down not by reading code but by measuring `hasModalHost: true` with `containers: 0`.
+**Same view again on 01/09/2026, and this time it cost a feature its commit.** One session added the
+«Costanza» column to `squad-table/` and `player-ratings.ts` while the other added «Categoria» to the
+SAME three files (plus `letture-app-v1.md` §20) — merged cleanly, both anchored, and one of their
+comments even landed INSIDE the other's block. So the rule bit as written: the toolkit half (the whole
+of `bench/auction`) went in and the app half stayed out, named in the continuity note rather than
+half-committed. Two things worth carrying: **authorship is measurable** (`git diff | grep` for each
+feature's own vocabulary answers «whose is this file?» in one command, and the answer here was «both»),
+and **a spec cannot go in without its implementation** — `player-ratings.spec.ts` was exclusively mine
+and still had to stay out, because committing it alone leaves the repo RED.
+
+## A FIFTH harness, and a RANKING BY TOTAL is not a TABLE
+**01/09/2026, `bench/auction` + `bench/auction/league.py`, details in
+`docs/model/simulatore-asta-rilanci-v1.md`.** `backtest` judges RULES, `sweep` CONSTANTS, `zeros` the
+ZERO, `bench/draft` DRAFT POLICIES — this judges **how you BID** at a raise auction: how much, for whom,
+in which department, against five profiles the operator dictated. It re-predicts no footballer (the Qt.I,
+`fm_pred`/`pv_pred` cross-fit on an adjacent window, and the realised fantavoto AND base vote come from
+the engine), so `engine_*` and the sheets do not move a decimal.
+
+**Where a place can be EMPTY, the worth of a man has TWO terms that are ADDED, never multiplied.** The
+surplus answers «how much better than the man who would play instead», which presumes somebody plays; in
+this league nobody may, and **a single deputy vote annuls both modifiers for the whole matchday**. The
+first version of the engine arm bid on the surplus alone and finished **last of eleven** with 284 credits
+of 1000 unspent; with `surplus + cover_value` (holes avoided × `HOLE_COST` = **4.73**, the slope over 110
+squads at r = −0.798, and the regulation's own arithmetic agrees) it wins by **+116 points** with the
+lowest dispersion of the table. The general form: **a metric that assumes the thing happens cannot price
+the risk that it does not.**
+
+**And a table is not the ranking by total, which is why the calendar was worth playing.** The goal ladder
+truncates at 66, so **in 4 windows of 10 the champion is not the top scorer**: over 100 rows, table points
+correlate +0.815 with the season total and **−0.802 with the matchdays left under 66**, which in turn
+correlate +0.661 with holes. So coverage pays TWICE and neither road goes through whoever you buy at the
+top — a quantity no amount of staring at the seasonal mean could have produced, because the bench was not
+settling the thing the way the league settles it. **Score the deliverable the way it is actually decided.**
+One number not to misread: table points against credits spent reads −0.418 and is CONFOUNDED by profile
+(the engine spends least and wins most) — a difference between groups, not a virtue of saving.
+
+**The value of a THRESHOLD cannot be written on a row.** The R-Factor is gone at four insufficient men, so
+the fifth steady player in a squad that already has four unreliable ones is worth nothing and the fourth
+is worth half a point: it is a Poisson-binomial over the ELEVEN (`expected_r_factor`, computed exactly),
+never a per-man figure. That is what refused the operator's own request for a steadiness term, on a
+diagnosis that was RIGHT (the arm banked 6.5 of R-Factor against a rival's 20.5, and neither the surplus
+nor the appearances contain the BASE vote): one man moves the R-Factor by **+2.4 points a season** against
+a `cover_value` reaching 180, and the modifier is governed by HOLES (r = **−0.821**, 13.6 points for the
+quartile with fewest against 2.1 for the most). Switched on it costs 8.2 points. Kept at zero with the
+numbers beside it — **what would make it pay is a squad with no holes, and no strategy on this bench gets
+there.** Its sibling ADOPTED the same day is the operator's diversification across real clubs
+(`CLUB_FREE` 2, `CLUB_PENALTY` 0.45): 1.6 points of cost, **9% off the dispersion**, agreeing with
+`metrica-asta-surplus-v1.md` §24 measured from the other side — and stated plainly, **this bench cannot
+see the benefit it buys**, because its sd is across seasons and the risk removed is within one.
+
+Four habits that outlive the harness, and three were paid for.
+- **A rule that applies to every profile but the one being judged is not a rule.** «Nobody ends an auction
+  with credits in his pocket» was enforced on the five human profiles and not on the engine arm, whose
+  branch returns before it: 888 of 1000 against a table spending 956-1000.
+- **A DECREASING LADDER IS A RATIONING PLAN**, so giving one to a profile defined as having no plan hands
+  it discipline under a misleading name — it was why the novice beat the expert, which is what the operator
+  spotted from the result. Flat, his holes went 32.7 → 43.8. **Model the declared behaviour, not a tidier
+  version of it.**
+- **A tie broken by a NAME is a latent bias, and latent is exactly when to fix one.** Bids that tied were
+  awarded alphabetically — invisible while participants are called after their profiles, an outright
+  advantage the moment they are named A...L. Measured before switching to a reproducible draw per
+  (participant, man): the order of the six profiles does not change, so nothing published moves.
+- **One definition, two readers**: `bench.matchday` was extracted from `season` because the championship
+  needs it per ROUND. Two definitions of «what did this squad score on matchday 12» would eventually give
+  one squad two totals, and the first place anybody notices is a standings table.
+
+**And three about verifying a rendered page, all the same shape as the app's own harness lessons.** A step
+that measures TWO unknowns attributes the defect to the wrong one (one selector counted the standings AND
+the twelve dearest buys, read 22 rows and blamed the page). **Headless Chrome defaults to DARK**, so the
+first run compared the dark ground with itself and declared broken a theme that worked — both media states
+have to be asked for explicitly, since the untold one is what most viewers see. And `document.fonts.check`
+is the wrong instrument for «is this face painting»: the computed `font-family` only echoes the
+declaration, and what decides is the WIDTH of one string in the face and in its own fallback. What no
+count could see, the SCREENSHOTS found: a roster card clipping its last column (`overflow:hidden` plus an
+auto-layout table, the same family as the app table's «276px of columns not narrow, ABSENT»).
 
 ## Three harnesses, not two - and the third one reads the app's own code
 **`toolkit/bench/draft/` (10/08/2026).** `backtest` judges RULES, `sweep` judges CONSTANTS, and this judges

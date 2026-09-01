@@ -54,6 +54,21 @@ for key in windows:
         ("R0", *evaluate.CANDIDATES),
     )
     preds = evaluate.predict_window(data, ("R0", *evaluate.ADOPTED[platform]), None, params)
+    # THE STEADINESS, and it must be AUCTION-SAFE: the share of matches he closed with at least 6 of BASE
+    # vote over the seasons up to the input one, never the target. It is the currency of both classic
+    # modifiers - the R-Factor counts who is under the pass mark and the defence modifier averages base
+    # votes - and neither the surplus nor the value contains it, because both are built on the fantavoto.
+    # Below `MIN_STEADY_VOTES` matches it stays ABSENT rather than computed on noise.
+    MIN_STEADY_VOTES = 15
+    steady = {}
+    for fc, votes, rate in conn.execute(
+        "select fc_id, count(*), avg(case when mv >= 6 then 1.0 else 0.0 end) from match_ratings"
+        " where platform=? and season <= ? and mv is not null group by fc_id",
+        (platform, win.input_season),
+    ):
+        if votes >= MIN_STEADY_VOTES:
+            steady[fc] = round(float(rate), 4)
+
     quotes = {
         fc: (qi, fvm)
         for fc, qi, fvm in conn.execute(
@@ -62,7 +77,7 @@ for key in windows:
             (win.target_season, platform),
         )
     }
-    rows = []
+    rows, others = [], []
     for pred in preds:
         obs = pred.obs
         # The SLOT is in the vocabulary the game is played with, because that is the vocabulary the
@@ -78,11 +93,33 @@ for key in windows:
         rep = (data.replacement or {}).get(slot)
         pair = quotes.get(obs.fc_id)
         price = pair[0] if pair else None
-        if not price or rep is None or pred.fm_pred is None or pred.pv_pred is None:
-            continue
-        if obs.fm_act is None or obs.pv_act is None:
+        # THE OTHER QUOTED MEN, whom an AUCTION bench must be able to buy: the ones the engine does not
+        # price (below `MIN_PV_PREV` it refuses to predict, and saying so is the point) and the ones who
+        # never played. The draft dropped them rightly - there a RANKING is what is measured - but in an
+        # auction they are half the listone, and they are the two ways a purchase turns out wrong:
+        # buying a man nobody has measured, and buying one who then never takes the pitch. Leaving them
+        # out would build an auction in which flops cannot exist. The outcome stays ABSENT and never
+        # zero where there is none: a man who did not play has no average.
+        if not price or rep is None or pred.fm_pred is None or pred.pv_pred is None                 or obs.fm_act is None or obs.pv_act is None:
+            if price:
+                others.append({
+                    "club": obs.club_target or obs.club_prev,
+                    "steady": steady.get(obs.fc_id),
+                    "id": obs.fc_id, "name": obs.name, "slot": slot.lower(),
+                    "roles": roles or [slot.lower()], "price": float(price),
+                    "fm_pred": float(pred.fm_pred) if pred.fm_pred is not None else None,
+                    "pv_pred": float(pred.pv_pred) if pred.pv_pred is not None else None,
+                    "fm_act": float(obs.fm_act) if obs.fm_act is not None else None,
+                    "pv_act": float(obs.pv_act) if obs.pv_act is not None else None,
+                })
             continue
         rows.append({
+            # THE REAL CLUB, which an auction bench needs and a draft one does not: five men of one club
+            # that has a bad season sink a squad together, so DIVERSIFYING is a decision a bidder makes.
+            # The TARGET season's club - the shirt he will actually wear - falling back on the input one
+            # for a man the target roster does not place yet.
+            "club": obs.club_target or obs.club_prev,
+            "steady": steady.get(obs.fc_id),
             # `slot` lowercase for the bench (its module files spell places in either case and `placesOf`
             # lowercases them), `roles` complete - on classic that is one macro-role and that IS the legality.
             "id": obs.fc_id, "name": obs.name, "slot": slot.lower(), "roles": roles or [slot.lower()],
@@ -99,24 +136,32 @@ for key in windows:
             "pv_act": float(obs.pv_act),
             "actual": float(obs.fm_act) * float(obs.pv_act),
         })
-    ids = {r["id"] for r in rows}
-    votes = {}
+    ids = {r["id"] for r in rows} | {r["id"] for r in others}
+    votes, base = {}, {}
     rounds = 0
-    for fc, md, fv in conn.execute(
-        "select fc_id, matchday, fantavoto from match_ratings"
+    # THE BASE VOTE beside the fantavoto, because the two classic modifiers are paid on THAT and not on
+    # the fantavoto: the R-Factor counts who is below 6 of pure vote, the defence modifier averages the
+    # three best defenders. A forward on 5.5 plus a goal carries 7.5 of fantavoto and an INSUFFICIENT
+    # base vote, so reading the fantavoto in its place would state the opposite of the regulation.
+    # The draft bench does not read it - modifiers do not enter there - and it does not disturb it.
+    for fc, md, fv, mv in conn.execute(
+        "select fc_id, matchday, fantavoto, mv from match_ratings"
         " where season=? and platform=? and fantavoto is not null",
         (win.target_season, platform),
     ):
         rounds = max(rounds, int(md))
         if fc in ids:
             votes.setdefault(str(fc), {})[str(md)] = round(float(fv), 2)
+            if mv is not None:
+                base.setdefault(str(fc), {})[str(md)] = round(float(mv), 2)
     out[key] = {
         "league": LEAGUE, "platform": platform, "game": game,
         "input": win.input_season, "target": win.target_season, "cross_fit": source,
-        "rounds": rounds, "players": rows, "votes": votes,
+        "rounds": rounds, "players": rows, "others": others, "votes": votes, "base": base,
     }
     print(f"{key}: {win.input_season} -> {win.target_season}, cross-fit on {source},"
-          f" {len(rows)} players, {rounds} matchdays, {len(votes)} with votes", flush=True)
+          f" {len(rows)} players, {rounds} matchdays, {len(votes)} with votes,"
+          f" {len(base)} with base votes, {len(others)} unpriced/unplayed", flush=True)
 
 # UTF-8 explicitly: without it Windows writes cp1252 and every accented name comes back mangled
 # to a UTF-8 reader (the scratchpad version had this defect - harmless for the numbers, and it

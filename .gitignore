@@ -31,6 +31,10 @@
 # del codice dell'app: un artefatto di build, mai una copia da committare.
 /toolkit/bench/draft/*.json
 /toolkit/bench/draft/appcode.mjs
+# ...e l'ancora vale quanto la cartella a cui e' appesa (lezione del 25/08, il bundle.sqlite nella
+# radice): `bench/auction/league.py --json` scrive nomi, prezzi e voti, e la riga sopra non lo copre.
+# Misurato prima di allargare: `git ls-files 'toolkit/bench/**/*.json'` = 0, quindi non nasconde niente.
+/toolkit/bench/**/*.json
 # ...E LA STESSA ROBA SCRITTA FUORI DA `data/`, che e' il buco trovato il 25/08/2026: ogni riga qui
 # sopra e' ancorata a `/data/`, quindi un `bundle.sqlite` finito nella RADICE del repository non era
 # ignorato da niente - e ce n'era uno (0 byte, 20/08). Su un repository PUBBLICO che porta contenuto a

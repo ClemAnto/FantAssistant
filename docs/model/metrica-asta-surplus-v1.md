@@ -1739,3 +1739,22 @@ Tre limiti dichiarati: l'FVM è un **giudizio del mercato** e non un valore misu
 vuol dire «il mercato lo prezza meno» - ed è lì che sta il margine; il tetto ignora che non si può
 comprare tutti; e la scala Serie A poggia su 284 uomini con tutti e quattro i numeri contro 935 su euro,
 quindi lì la direzione è solida e i decimali no.
+
+---
+
+## 27. L'asta a RILANCI ha un banco suo, e la moneta non è la domanda che decide (1 settembre 2026)
+
+I §15-18 misurano le politiche di un DRAFT (`bench/draft`). L'asta a rilanci ne ha ora uno proprio,
+`bench/auction`, e il documento è **`simulatore-asta-rilanci-v1.md`**: dieci aste al secondo prezzo su un
+tavolo di cinque profili dichiarati dall'operatore, poi un campionato di 36 giornate sulle giornate vere.
+
+Tre risultati che riguardano questo documento e vanno cercati là con i loro numeri:
+- il **prezzo del top d'attacco EMERGE** dal meccanismo (48-75% del budget, media 60%) invece di essere
+  assunto, che è la conferma di quello che l'operatore riporta dall'esperienza;
+- il **costo di un buco è misurato**, 4,73 fantapunti, e l'aritmetica del regolamento dice lo stesso —
+  quindi il valore di un uomo in questa lega ha **due termini che si sommano**, `surplus + copertura`, e
+  la prima versione che aveva solo il primo finì ultima di undici;
+- la **diversificazione fra club reali** (§24 di questo documento, dal lato della varianza settimanale) è
+  stata adottata là come CONSTRAINT: costa 1,6 punti sulla media e taglia il 9% della dispersione. Le due
+  misure guardano la stessa domanda da due lati e concordano nella direzione; **nessuna delle due vede il
+  beneficio dell'altra**, e sta scritto.
