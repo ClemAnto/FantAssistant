@@ -1838,7 +1838,10 @@ mediane per ruolo sono P 0,87 · D 0,66 · C 0,66 · A 0,61, quindi un numero cr
 costerebbe la leggibilità del numero che ha chiesto.
 
 **Perché nella tabella e non in una valutazione**: misurata come moneta d'asta, la costanza **non può
-pagare** — un uomo muove l'R-Factor di 2,4 punti a stagione e il modificatore è governato dai buchi
-(r = −0,821). I numeri sono in [simulatore-asta-rilanci-v1.md](simulatore-asta-rilanci-v1.md) §8. Quindi
-la colonna serve a chi guarda, non a chi calcola: è esattamente la distinzione fra le colonne `desc_*` e
-`engine_*`, applicata a una lettura dell'app.
+pagare** — un uomo muove l'R-Factor di **+1,5 punti a stagione** e il modificatore è governato dai buchi
+(r = −0,821), e sul codice attuale il termine è addirittura **inerte**, perché il tetto di reparto morde
+prima che possa riordinare un'offerta. I numeri sono in
+[simulatore-asta-rilanci-v1.md](simulatore-asta-rilanci-v1.md) §8 — dove sta anche il perché il «+2,4»
+scritto qui il 01/09 non si riproduce (rilievo 2 della review del 02/09, §13). Quindi la colonna serve a
+chi guarda, non a chi calcola: è esattamente la distinzione fra le colonne `desc_*` e `engine_*`,
+applicata a una lettura dell'app.

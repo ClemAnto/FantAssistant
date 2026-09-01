@@ -1755,6 +1755,7 @@ Tre risultati che riguardano questo documento e vanno cercati là con i loro num
   quindi il valore di un uomo in questa lega ha **due termini che si sommano**, `surplus + copertura`, e
   la prima versione che aveva solo il primo finì ultima di undici;
 - la **diversificazione fra club reali** (§24 di questo documento, dal lato della varianza settimanale) è
-  stata adottata là come CONSTRAINT: costa 1,6 punti sulla media e taglia il 9% della dispersione. Le due
+  stata adottata là come CONSTRAINT: costa 4,1 punti sulla media e taglia il 4,4% della dispersione (i
+  numeri del 01/09 — 1,6 e 9% — sono stati rimisurati il 02/09 dopo una review). Le due
   misure guardano la stessa domanda da due lati e concordano nella direzione; **nessuna delle due vede il
   beneficio dell'altra**, e sta scritto.

@@ -50,6 +50,14 @@ ruolo di listone in una stringa sola.
 
 ### 1 settembre 2026 — il quinto banco, e una classifica che non è la graduatoria dei punti
 
+> **NOTA DATATA (02/09/2026): parecchie cifre di questo verbale sono state CORRETTE il giorno dopo, e il
+> blocco resta com'era scritto** — riscriverlo altererebbe il verbale invece di chiarirlo, che è la
+> convenzione già applicata alle pagine sulla titolarità. Quello che è cambiato, e sta nel blocco del
+> 02/09 qui sopra: +116 → **+122** punti, r = +0,815/−0,802/+0,661 → **+0,833/−0,825/+0,701**, −0,418 →
+> **−0,177**, la diversificazione da «1,6 punti e 9%» a **4,1 punti e 4,4%**, e la costanza da «un uomo
+> muove 2,4 punti, accesa costa 8,2» a **+1,5 e INERTE**. Il §13 di
+> [simulatore-asta-rilanci-v1.md](simulatore-asta-rilanci-v1.md) tiene i perché.
+
 **Sessione sul toolkit, in parallelo a un'altra sull'app e sui moduli del motore** (la colonna
 «Categoria», `engine/categories.py`). Verbale completo:
 [simulatore-asta-rilanci-v1.md](simulatore-asta-rilanci-v1.md); `metrica-asta-surplus-v1.md` §27 rimanda.

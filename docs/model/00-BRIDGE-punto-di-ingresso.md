@@ -94,11 +94,12 @@ Per l'ASTA A RILANCI dal lato della STRATEGIA — non «chi comprare» ma «come
 **`simulatore-asta-rilanci-v1.md`** (01/09/2026): il QUINTO banco (`bench/auction`), i cinque profili
 dichiarati dell'operatore, il prezzo del top che EMERGE dal secondo prezzo (48-75% del budget), il costo
 misurato di un buco (4,73), il campionato a 36 giornate — e le due cose che ne sono uscite e che nessun
-altro banco potevi vedere: **in 4 stagioni su 10 il campione non è chi fa più fantapunti** (la scala dei
-gol tronca a 66, r = −0,802 fra punti e giornate buttate) e **la costanza non può pagare** finché una rosa
-ha buchi (un uomo muove l'R-Factor di 2,4 punti l'anno, e il modificatore correla −0,821 coi buchi).
-Contiene anche la diversificazione fra club reali ADOTTATA con il suo prezzo, e quattro manopole
-dichiarate che nessuno ha ancora chiesto ai dati.
+altro banco poteva vedere: **in 4 stagioni su 10 il campione non è chi fa più fantapunti** (la scala dei
+gol tronca a 66, r = **−0,825** fra punti e giornate buttate) e **la costanza non può pagare** finché una
+rosa ha buchi (un uomo muove l'R-Factor di **+1,5** punti l'anno, e il modificatore correla −0,821 coi
+buchi). Contiene anche la diversificazione fra club reali ADOTTATA con il suo prezzo, quattro manopole
+dichiarate che nessuno ha ancora chiesto ai dati, e — **§13** — il verbale della review del 02/09/2026:
+otto rilievi, cinque in codice appena spedito, tre trovati misurando e **uno sbagliato**.
 
 ## STATO AL 1 SETTEMBRE 2026 — LEGGI QUESTO PRIMA DI TUTTO
 
