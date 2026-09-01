@@ -78,33 +78,37 @@ Result on the declared table, ten windows:
 
 | arm | points | sd | worst | place | holes | R-Factor | modifier | spent | won |
 |---|---|---|---|---|---|---|---|---|---|
-| **ENGINE** | **2658.8** | **42.6** | **2578** | **1.90** | 13.8 | 13.8 | 14.2 | 933 | **6/10** |
+| **ENGINE** | **2665.5** | **45.7** | **2574** | **1.90** | 12.4 | 14.4 | 15.2 | 988 | **6/10** |
+| P1b no plan, novice | 2543.4 | 113.0 | 2180 | 5.30 | 44.4 | 3.5 | 4.0 | 1000 | 1/20 |
 | P1a no plan, expert | 2542.9 | 106.3 | 2268 | 5.25 | 17.4 | 11.2 | 14.6 | 980 | 0/20 |
-| P1b no plan, novice | 2542.1 | 113.6 | 2180 | 5.35 | 44.6 | 3.5 | 3.9 | 1000 | 1/20 |
-| P3 balanced | 2518.4 | 117.9 | 2206 | 6.27 | 28.7 | 9.1 | 10.1 | 986 | 3/30 |
-| P2 defence | 2482.8 | 63.7 | 2350 | 7.70 | 28.1 | 7.0 | 12.4 | 981 | 0/10 |
-| P4 top striker | 2439.5 | 116.6 | 2081 | 8.20 | 42.6 | 4.0 | 6.0 | 965 | 0/20 |
+| P3 balanced | 2513.1 | 123.3 | 2206 | 6.20 | 30.3 | 8.7 | 9.9 | 981 | 3/30 |
+| P2 defence | 2481.4 | 63.4 | 2350 | 7.70 | 28.3 | 7.0 | 12.2 | 977 | 0/10 |
+| P4 top striker | 2432.9 | 122.7 | 2036 | 8.35 | 43.8 | 3.9 | 5.8 | 965 | 0/20 |
 
-+116 points on the best human profile, and the LOWEST dispersion of the table (42.6 against 64-118) -
-its worst season, 2578, beats every other profile's mean.
++122 points on the best human profile, and the LOWEST dispersion of the table (45.7 against 63-123) -
+its worst season, 2574, beats every other profile's mean.
 
 ## The two components that were added after that, one adopted and one measured at zero
 
 Attributed ONE AT A TIME, which is the only way a change can be credited (the project's own rule):
 
-| engine arm | points | sd | place | R-Factor |
-|---|---|---|---|---|
-| cover only | 2650.0 | 61.6 | 2.30 | 12.6 |
-| + steadiness | 2641.8 | 73.0 | 2.70 | 12.4 |
-| **+ diversification** | 2648.4 | **56.0** | 2.50 | 12.6 |
-| both | 2640.2 | 68.2 | 2.90 | 12.4 |
+| engine arm | points | sd | place | R-Factor | holes |
+|---|---|---|---|---|---|
+| cover only | 2669.6 | 47.8 | 1.80 | 14.1 | 12.4 |
+| + steadiness | 2669.6 | 47.8 | 1.80 | 14.1 | 12.4 |
+| **+ diversification** | 2665.5 | **45.7** | 1.90 | 14.4 | 12.4 |
+| both | 2665.5 | 45.7 | 1.90 | 14.4 | 12.4 |
+
+(Re-measured 02/09/2026 on the current code. The 01/09 version of this table predates the purse-floor
+fix and its numbers are superseded.)
 
 **DIVERSIFICATION IS ADOPTED** (`CLUB_FREE` = 2, `CLUB_PENALTY` = 0.45), the operator's rule of
 01/09/2026 - «comprare 5 calciatori di una singola squadra reale significa rischiare il tracollo se quella
 squadra ha un anno storto». It costs 1.6 points, which is inside the noise, and cuts the standard
 deviation by **9%**. That is exactly what `metrica-asta-surplus-v1.md` §24 had already measured about the
 same question from the other side: two men of one club cost nothing on the MEAN and add 3.9% to the
-weekly standard deviation. **And this bench cannot see the benefit it buys** - its sd is measured ACROSS
+weekly standard deviation. (On the current code the cost is 4.1 points and the dispersion falls 47.8 ->
+45.7, i.e. **-4.4%** rather than the -9% first published.) **And this bench cannot see the benefit it buys** - its sd is measured ACROSS
 SEASONS, while the risk diversification removes is the weekly one WITHIN a season. So the honest reading
 is: the cost is measured here at ~0, the benefit is measured in §24, and the two agree in direction.
 
@@ -121,9 +125,13 @@ appearances contain the BASE vote. But:
   most - because one deputy vote annuls the whole bonus for the matchday. The arm's 6.5 was a symptom of
   its holes, not of who it bought.
 
-Switched on it costs 8.2 points and moves the R-Factor by −0.2. Kept at zero with the numbers beside it,
-so nobody re-tries it: what would make it pay is a squad with no holes, and no strategy on this bench
-gets there.
+AND ON THE CURRENT CODE IT IS INERT, which is stronger than the "−8.2 points" first published (that
+figure predates the purse-floor fix): at weight 0, 1 and 5 the arm reads 2665.5 IDENTICALLY. The term
+does reach the bid - 1.8 points on a real defender - and changes nothing, because `role_cap` binds first.
+It bites only at 20 (+2.2 points, i.e. 0.08%, an order of magnitude under the 0.5% floor) and collapses
+at 100 (−25.7, holes 12.4 -> 13.7), where it buys steadiness instead of coverage. Kept at zero with the
+numbers beside it: what would make it pay is a squad with no holes, and no strategy on this bench gets
+there.
 
 **And the null says how much of that is the engine.** The same strategy — same coverage ladder, same
 ceilings — reading availability off the PRICE RANK instead of `pv_pred`:
@@ -133,7 +141,13 @@ ceilings — reading availability off the PRICE RANK instead of `pv_pred`:
 | with the engine | 2712.9 | 1.50 | 5.1 | 7/10 |
 | blind (plan only) | 2690.6 | 1.80 | 8.3 | 7/10 |
 
-**The engine is worth +22.3 points, 6 windows of 10** — and that number is honest about its own fragility:
+**THOSE FOUR NUMBERS ARE SUPERSEDED AND NOT CITABLE**: they were taken on the configuration of 01/09
+morning, before the tie-break draw and before the purse-floor fix, and the blind arm was a throwaway
+variant that is not in the code. The comparison is worth having and must be re-run before it is quoted
+again. What follows is the reading it gave then, kept for the shape of the argument and not for the
+figures.
+
+**The engine was worth +22.3 points, 6 windows of 10** — and that number is honest about its own fragility:
 0.8% on a bare majority of windows would not pass this project's robust criterion. Against a STRONGER
 table (an earlier version whose novice was effectively a disciplined bidder) the same comparison read
 +57.7 on 7 of 10. So the reading is: **the plan is what beats a weak table, and the forecast is what
@@ -187,20 +201,25 @@ is not the side but the ROUND.
 
 | profile | seats | table pts | place | titles | fantapunti | under 66 | holes |
 |---|---|---|---|---|---|---|---|
-| **ENGINE** | 1 | **61.4** | **2.10** | **5/10** | 2529.5 | **8.6** | 10.4 |
-| P1b no plan, novice | 2 | 47.9 | 5.65 | 2/20 | 2413.0 | 15.5 | 43.5 |
-| P1a no plan, expert | 1 | 46.9 | 5.90 | 1/10 | 2424.6 | 14.0 | 17.6 |
-| P3 balanced | 3 | 46.3 | 5.70 | 1/30 | 2416.1 | 15.2 | 20.5 |
-| P2 defence | 1 | 45.6 | 6.10 | 0/10 | 2423.7 | 14.8 | 20.6 |
-| P4 top striker | 2 | 45.5 | 6.25 | 1/20 | 2380.7 | 16.9 | 25.4 |
+| **ENGINE** | 1 | **62.1** | **1.70** | **5/10** | 2536.3 | **8.0** | 8.4 |
+| P1b no plan, novice | 2 | 48.6 | 5.35 | 2/20 | 2413.8 | 15.8 | 43.6 |
+| P1a no plan, expert | 1 | 47.6 | 5.50 | 0/10 | 2424.6 | 14.0 | 17.6 |
+| P2 defence | 1 | 46.6 | 5.50 | 0/10 | 2425.3 | 14.8 | 20.3 |
+| P3 balanced | 3 | 45.9 | 6.03 | 1/30 | 2414.2 | 15.5 | 21.3 |
+| P4 top striker | 2 | 43.9 | 6.75 | 2/20 | 2371.3 | 17.8 | 28.1 |
 
 **The championship exposed a quantity the seasonal mean could not see.** In 4 windows of 10 the champion
-is NOT the top scorer. Over the 100 rows, table points correlate +0.815 with the season total and
-**-0.802 with the matchdays spent under 66** - nearly as strongly - while those matchdays correlate
-+0.661 with holes. So coverage pays TWICE, and neither road goes through whoever you buy at the top.
-One number not to misread: table points against credits spent reads -0.418, and it is CONFOUNDED by the
-profile (the engine spends least and wins most), so it is a difference between groups and not a virtue of
-saving.
+is NOT the top scorer (Tm3, T0, T1, T2). Over the 100 rows, table points correlate +0.833 with the season
+total and **-0.825 with the matchdays spent under 66** - nearly as strongly - while those matchdays
+correlate +0.701 with holes. So coverage pays TWICE, and neither road goes through whoever you buy at the
+top. One number not to misread: table points against credits spent reads -0.177, and it is CONFOUNDED by
+the profile (the engine spends least and wins most), so it is a difference between groups and not a virtue
+of saving.
+
+**AND THE TWO TABLES ABOVE ARE NOT ON ONE CALENDAR**, which is worth saying before anybody reads the
+championship as a regression: the bench scores 38 rounds and the championship 36 (4 x 9), so 2665.5 and
+2536.3 are **70.14 and 70.45 fantapunti per round** - the whole difference is the two rounds a
+four-leg calendar does not reach.
 
 **A latent defect the letters exposed.** A tie in the bidding used to be broken ALPHABETICALLY, invisible
 while everybody is named after his profile and a real advantage the moment they are called A...L. It is a

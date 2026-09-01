@@ -1,4 +1,5 @@
-# Simulatore d'asta a rilanci — `bench/auction` (v1, 1 settembre 2026)
+# Simulatore d'asta a rilanci — `bench/auction` (v1, 1 settembre 2026;
+# numeri rimisurati il 2 settembre 2026 dopo la review, §13)
 
 **Il QUINTO banco.** `backtest` giudica le REGOLE, `sweep` le COSTANTI, `zeros` lo ZERO, `bench/draft` le
 POLITICHE DI DRAFT — questo giudica le **STRATEGIE D'ASTA**: quanto offrire, per chi, in quale reparto,
@@ -129,15 +130,20 @@ Tavolo: 2 P1a, 2 P1b, 1 P2, 3 P3, 2 P4, più il braccio motore.
 
 | braccio | punti | sd | peggio | pos. | buchi | R-Fact. | mod.dif. | spesi | vinte |
 |---|---|---|---|---|---|---|---|---|---|
-| **MOTORE** | **2658,8** | **42,6** | **2578** | **1,90** | 13,8 | 13,8 | 14,2 | 933 | **6/10** |
+| **MOTORE** | **2665,5** | **45,7** | **2574** | **1,90** | 12,4 | 14,4 | 15,2 | 988 | **6/10** |
+| P1b senza piano, novizio | 2543,4 | 113,0 | 2180 | 5,30 | 44,4 | 3,5 | 4,0 | 1000 | 1/20 |
 | P1a senza piano, esperto | 2542,9 | 106,3 | 2268 | 5,25 | 17,4 | 11,2 | 14,6 | 980 | 0/20 |
-| P1b senza piano, novizio | 2542,1 | 113,6 | 2180 | 5,35 | 44,6 | 3,5 | 3,9 | 1000 | 1/20 |
-| P3 equilibrato | 2518,4 | 117,9 | 2206 | 6,27 | 28,7 | 9,1 | 10,1 | 986 | 3/30 |
-| P2 difesa | 2482,8 | 63,7 | 2350 | 7,70 | 28,1 | 7,0 | 12,4 | 981 | 0/10 |
-| P4 top d'attacco | 2439,5 | 116,6 | 2081 | 8,20 | 42,6 | 4,0 | 6,0 | 965 | 0/20 |
+| P3 equilibrato | 2513,1 | 123,3 | 2206 | 6,20 | 30,3 | 8,7 | 9,9 | 981 | 3/30 |
+| P2 difesa | 2481,4 | 63,4 | 2350 | 7,70 | 28,3 | 7,0 | 12,2 | 977 | 0/10 |
+| P4 top d'attacco | 2432,9 | 122,7 | 2036 | 8,35 | 43,8 | 3,9 | 5,8 | 965 | 0/20 |
 
-**+116 punti sul miglior profilo umano, e la dispersione più bassa del tavolo** (42,6 contro 64-118): la
-stagione peggiore del motore, 2578, batte la *media* di ogni altro profilo.
+**+122 punti sul miglior profilo umano, e la dispersione più bassa del tavolo** (45,7 contro 63-123): la
+stagione peggiore del motore, 2574, batte la *media* di ogni altro profilo.
+
+> **Le due tabelle di questo documento non sono sullo stesso calendario**, e va detto prima che qualcuno
+> legga il campionato come un peggioramento: il banco conta **38** giornate e il campionato **36** (4 × 9),
+> quindi 2665,5 e 2536,3 sono **70,14 e 70,45 fantapunti a giornata**. Tutta la differenza sono le due
+> giornate che un calendario a quattro gironi non raggiunge. (Rilievo 4 della review del 02/09/2026.)
 
 ### 5.1 Il NULL: quanto di quel margine è il motore e quanto è il piano
 
@@ -149,12 +155,17 @@ prezzo** invece che da `pv_pred`:
 | col motore | 2712,9 | 1,50 | 5,1 | 7/10 |
 | cieca (solo piano) | 2690,6 | 1,80 | 8,3 | 7/10 |
 
-**Il motore vale +22,3 punti, 6 finestre su 10** — e il numero è onesto sulla propria fragilità: lo 0,8%
-su una maggioranza stretta non passerebbe il criterio robusto di questo progetto. Contro un tavolo **più
-forte** (una versione precedente in cui il novizio era di fatto un offerente disciplinato) lo stesso
-confronto leggeva +57,7 su 7 di 10. Quindi la lettura è: **il piano è ciò che batte un tavolo debole, la
-previsione è ciò che serve contro uno buono.** *(Misurato sulla configurazione del 01/09 mattina, prima
-della diversificazione e della correzione del pareggio d'offerta: va rifatto prima di essere ricitato.)*
+> **QUESTI QUATTRO NUMERI SONO SUPERATI E NON CITABILI.** Sono stati presi sulla configurazione del
+> 01/09 mattina — prima del sorteggio sul pareggio d'offerta e prima della correzione del pavimento del
+> portafoglio — e il braccio cieco era una variante usa-e-getta che nel codice non c'è. Il confronto vale
+> e **va rifatto** prima di essere ricitato: è il secondo item aperto del §12. Quello che segue è la
+> lettura che diede allora, tenuta per la forma dell'argomento e non per le cifre.
+
+**Il motore valeva +22,3 punti, 6 finestre su 10** — e il numero era onesto sulla propria fragilità: lo
+0,8% su una maggioranza stretta non passerebbe il criterio robusto di questo progetto. Contro un tavolo
+**più forte** (una versione precedente in cui il novizio era di fatto un offerente disciplinato) lo stesso
+confronto leggeva +57,7 su 7 di 10. La lettura era: **il piano è ciò che batte un tavolo debole, la
+previsione è ciò che serve contro uno buono.**
 
 ---
 
@@ -189,13 +200,21 @@ permettersi **per slot residuo**: con 400 crediti e 3 slot, 133 a testa non è g
 
 | | prima | ora |
 |---|---|---|
-| P1a esperto | 828 | 984 |
+| P1a esperto | 828 | 980 |
 | P3 equilibrato | 840 | 981 |
-| P4 top attacco | **495** | 973 |
-| MOTORE | 888 | 924 |
+| P4 top attacco | **495** | 965 |
+| MOTORE | 888 | **988** |
 
 E il braccio motore era **l'unico esente**, perché il suo ramo esce prima di quella regola. *Una regola
 che vale per tutti tranne quello che stai giudicando non è una regola.*
+
+**E la prima correzione non bastava: il tetto di reparto si mangiava il pavimento** (rilievo 1 della review
+del 02/09/2026). `role_cap` limitava anche il pavimento, quindi il braccio motore teneva ancora 67 crediti
+mentre il tavolo ne teneva 0-20 — e gli umani non hanno *nessun* tetto per reparto. Un tetto è un arnese di
+RAZIONAMENTO, e razionare un portafoglio che non si può più spendere su altro non è prudenza, è spreco.
+Misurato togliendo il taglio: **2658,8 → 2665,5 punti**, spesa 933 → 988, buchi 13,8 → 12,4, posizione
+1,90 → 1,70; in campionato 61,4 → 62,1 e posizione 2,10 → **1,70**. La direzione conta: il difetto
+**penalizzava il braccio giudicato**, quindi ogni margine pubblicato prima era conservativo.
 
 ### 7.2 P4 spende «qualcosina in più a centrocampo»
 
@@ -210,14 +229,19 @@ minimizza questo pericolo (come giocare in borsa su più titoli)». `CLUB_FREE` 
 
 Attribuita muovendo **una variabile per volta**, che è l'unico modo di accreditare un cambiamento:
 
-| braccio motore | punti | sd | pos. | R-Fact. |
-|---|---|---|---|---|
-| solo copertura | 2650,0 | 61,6 | 2,30 | 12,6 |
-| + costanza | 2641,8 | 73,0 | 2,70 | 12,4 |
-| **+ diversificazione** | 2648,4 | **56,0** | 2,50 | 12,6 |
-| tutt'e due | 2640,2 | 68,2 | 2,90 | 12,4 |
+| braccio motore | punti | sd | pos. | R-Fact. | buchi |
+|---|---|---|---|---|---|
+| solo copertura | 2669,6 | 47,8 | 1,80 | 14,1 | 12,4 |
+| + costanza | 2669,6 | 47,8 | 1,80 | 14,1 | 12,4 |
+| **+ diversificazione** | 2665,5 | **45,7** | 1,90 | 14,4 | 12,4 |
+| tutt'e due | 2665,5 | 45,7 | 1,90 | 14,4 | 12,4 |
 
-Costa **1,6 punti** (dentro il rumore) e taglia la deviazione standard del **9%**. È esattamente quello
+*(Rimisurata il 02/09/2026 sul codice attuale: la versione del 01/09 precede la correzione del pavimento
+del portafoglio e i suoi numeri sono superati. Si vede anche, in questa tabella, il rilievo 2 della review:
+la riga della costanza è IDENTICA a quella sopra.)*
+
+Costa **4,1 punti** (dentro il rumore) e taglia la deviazione standard del **4,4%** — non del 9% pubblicato
+il 01/09, che era misurato sulla configurazione superata. È esattamente quello
 che `metrica-asta-surplus-v1.md` §24 aveva già misurato sulla stessa domanda dall'altro lato: due uomini
 di un club non costano niente sulla MEDIA e aggiungono il 3,9% alla deviazione standard SETTIMANALE.
 **E questo banco non vede il beneficio che compra**: la sua sd è misurata *fra stagioni*, mentre il
@@ -239,20 +263,31 @@ stagione contro i 20,5 di un rivale che comprava difensori affidabili — e né 
 contengono il voto BASE. La diagnosi era sana. La cura no, e la ragione è **aritmetica**, non di
 implementazione:
 
-- **un uomo può spostare l'R-Factor di +2,4 punti a stagione** (dalla mediana del suo ruolo al p90, gli
-  altri dieci alle loro mediane, calcolato esatto sulla **Poisson-binomiale** dell'undici) e di +10,8 nel
-  caso impossibile di passare da mai-sufficiente a sempre. Contro un `cover_value` che arriva a 180 per un
-  titolare in un reparto vuoto, **non riordina una singola offerta**;
+- **un uomo può spostare l'R-Factor di +1,5 punti a stagione** (dalla mediana del suo ruolo al p90, gli
+  altri dieci alle loro mediane, calcolato esatto sulla **Poisson-binomiale** dell'undici), +6,3 per
+  quattro difensori, **+18,8 per un undici in cui stanno al p90 tutti e undici** — che è una rosa che
+  nessuno può comprare, perché comprarla costa la copertura. E +10,8 nel caso impossibile di un uomo che
+  passa da mai-sufficiente a sempre. Contro un `cover_value` che arriva a 180 per un titolare in un
+  reparto vuoto, **niente di tutto questo riordina una singola offerta**.
+  > **Il «+2,4» pubblicato il 01/09 NON si riproduce** (rilievo 2 della review del 02/09/2026): la stessa
+  > costruzione dà **+1,5**, mentre il compagno estremo, +10,8, si riproduce *esatto* — ed è quello che
+  > localizza l'errore nel quantile e non nel meccanismo. La conclusione non cambia, si rafforza. Le
+  > mediane e i p90 su cui è calcolato, dalle dieci finestre: P 0,863/0,922 · D 0,640/0,778 ·
+  > C 0,665/0,783 · A 0,610/0,754, con l'undici di popolazione a 14,1 punti di R-Factor a stagione;
 - **e il modificatore è governato dai BUCHI, non dalla costanza.** Su 110 rose l'R-Factor incassato
   correla **−0,821** coi buchi: il quartile con meno buchi ne incassa 13,6 punti, quello con più 2,1.
   Una sola riserva d'ufficio azzera il bonus dell'intera giornata, quindi finché una rosa non è coperta la
   sua costanza **non viene letta affatto** — ed è per questo che il 6,5 del braccio era un sintomo dei suoi
   12 buchi e non di chi aveva comprato.
 
-Accesa a 1,0 costa **8,2 punti** a stagione e muove l'R-Factor incassato di **−0,2**: perturba le offerte
-senza comprare la cosa da cui prende il nome. Resta nel codice, a zero, con i numeri accanto, così nessuno
-la ririprova: **quello che la farebbe pagare è una rosa senza buchi, e su questo banco nessuna strategia ci
-arriva.**
+**E sul codice attuale è INERTE**, che è un'affermazione più forte dei «−8,2 punti» del 01/09 (quella cifra
+precede la correzione del pavimento del portafoglio ed è superata): a peso 0, 1 e 5 il braccio legge
+**2665,5 identico**. Il termine *arriva* all'offerta — 1,8 punti su un difensore vero — e non cambia
+niente, perché **`role_cap` morde prima**. Comincia a mordere solo a 20 (+2,2 punti, R-Factor 14,4 → 15,2),
+cioè lo **0,08%**: un ordine di grandezza sotto il pavimento dello 0,5% di questo progetto. E a 100 crolla
+(−25,7 punti, buchi 12,4 → 13,7), perché lì compra costanza invece di copertura, che è il distruttore del
+modificatore stesso. Resta nel codice, a zero, con i numeri accanto: **quello che la farebbe pagare è una
+rosa senza buchi, e su questo banco nessuna strategia ci arriva.**
 
 ### 8.1 Il valore di una soglia non si scrive su una riga
 
@@ -305,35 +340,34 @@ modo che la media stagionale non può vedere.
 
 | profilo | posti | punti | pos. | titoli | fantapunti | GF | GS | giornate <66 | buchi |
 |---|---|---|---|---|---|---|---|---|---|
-| **MOTORE** | 1 | **61,4** | **2,10** | **5/10** | 2529,5 | 46,7 | 33,1 | **8,6** | 10,4 |
-| P1b novizio | 2 | 47,9 | 5,65 | 2/20 | 2413,0 | 33,5 | 33,1 | 15,5 | 43,5 |
-| P1a esperto | 1 | 46,9 | 5,90 | 1/10 | 2424,6 | 32,5 | 35,5 | 14,0 | 17,6 |
-| P3 equilibrato | 3 | 46,3 | 5,70 | 1/30 | 2416,1 | 31,3 | 33,5 | 15,2 | 20,5 |
-| P2 difesa | 1 | 45,6 | 6,10 | 0/10 | 2423,7 | 32,9 | 33,8 | 14,8 | 20,6 |
-| P4 top attacco | 2 | 45,5 | 6,25 | 1/20 | 2380,7 | 28,3 | 30,4 | 16,9 | 25,4 |
+| **MOTORE** | 1 | **62,1** | **1,70** | **5/10** | 2536,3 | 48,2 | 33,2 | **8,0** | 8,4 |
+| P1b novizio | 2 | 48,6 | 5,35 | 2/20 | 2413,8 | 33,6 | 32,0 | 15,8 | 43,6 |
+| P1a esperto | 1 | 47,6 | 5,50 | 0/10 | 2424,6 | 32,5 | 34,2 | 14,0 | 17,6 |
+| P2 difesa | 1 | 46,6 | 5,50 | 0/10 | 2425,3 | 33,1 | 33,1 | 14,8 | 20,3 |
+| P3 equilibrato | 3 | 45,9 | 6,03 | 1/30 | 2414,2 | 30,5 | 33,6 | 15,5 | 21,3 |
+| P4 top attacco | 2 | 43,9 | 6,75 | 2/20 | 2371,3 | 26,9 | 30,6 | 17,8 | 28,1 |
 
 ### 9.2 E il calendario ha tirato fuori una quantità che la media stagionale non poteva vedere
 
-**In 4 stagioni su 10 il campione NON è chi ha fatto più fantapunti.** In T2 il titolo va a C (P4, 2478)
-mentre I (P2) ne fa 2527 e arriva terzo; in Tm2 il titolo va a F mentre il motore fa 34 fantapunti in più;
-in T1 succede il contrario. Non è rumore: è la troncatura a 66.
+**In 4 stagioni su 10 il campione NON è chi ha fatto più fantapunti** — Tm3, T0, T1 e T2. Non è rumore: è
+la troncatura a 66.
 
 Su 100 righe (10 squadre × 10 stagioni):
 
 | relazione | r |
 |---|---|
-| punti in classifica ↔ fantapunti totali | **+0,815** |
-| punti in classifica ↔ **giornate sotto i 66** | **−0,802** |
-| giornate sotto i 66 ↔ buchi | +0,661 |
-| punti in classifica ↔ buchi | −0,532 |
+| punti in classifica ↔ fantapunti totali | **+0,833** |
+| punti in classifica ↔ **giornate sotto i 66** | **−0,825** |
+| giornate sotto i 66 ↔ buchi | +0,701 |
+| punti in classifica ↔ buchi | −0,553 |
 
 Cioè: accanto a «quanto segni» c'è una **seconda quantità che decide quasi uguale**, e non l'avevamo
-misurata perché il banco non giocava le partite. Il motore ha 8,6 giornate buttate contro le 14-17 di
+misurata perché il banco non giocava le partite. Il motore ha 8,0 giornate buttate contro le 14-18 di
 tutti gli altri, e la catena è leggibile: meno buchi → meno giornate sotto la soglia → più partite vinte a
 parità di talento. **La copertura paga due volte, e nessuna delle due strade passa per chi compri in
 cima.**
 
-Un numero da non leggere male: punti in classifica ↔ crediti spesi legge **−0,418**, ma è **confuso dal
+Un numero da non leggere male: punti in classifica ↔ crediti spesi legge **−0,177**, ma è **confuso dal
 profilo** — il motore spende meno di tutti *e* vince, quindi è una differenza fra gruppi e non una virtù
 del risparmiare. Stessa regola dell'età: una differenza fra due gruppi non è un merito di chi la porta.
 
@@ -405,8 +439,14 @@ stessa famiglia dei «276px di colonne non strette, ASSENTI» della tabella dell
    questo banco esiste: `URGENCY` (1,8), `CAUTIOUS_CAP_SHARE` (0,15), `ABUNDANCE` (1,0), `CLUB_PENALTY`
    (0,45). Nessuna è stata chiesta ai dati. Regola di casa: **niente al bordo della griglia**, e il
    cross-fit leave-one-out come fa `sweep`.
-2. **Rifare il NULL** (§5.1) sulla configurazione attuale: quel +22,3 precede la diversificazione e la
-   correzione del pareggio d'offerta, quindi va rimisurato prima di essere ricitato.
+2. **Rifare il NULL** (§5.1) sulla configurazione attuale, e questa volta con un braccio cieco **nel
+   codice** invece di una variante usa-e-getta: quel +22,3 precede tre cambiamenti e i suoi numeri sono
+   stati ritirati come non citabili.
+2-bis. **Togliere l'ambiguità di `auction_level`**, che è il residuo del rilievo 8 della review: quella
+   funzione collassa un codice mantra e un ruolo di listone in **una stringa sola**, quindi nessuna
+   funzione che legga solo quella stringa può distinguere `a` (ala) da `A` (attaccante). Oggi l'unica
+   cosa che le separa è il CASO delle lettere, e un test lo punta; la cura vera è far viaggiare il
+   VOCABOLARIO accanto allo slot, che è un cambio alla forma del foglio e non a un lookup.
 3. **Il mercato di riparazione**, che è la sola cosa che cambierebbe l'ordine dei profili: chi lascia buchi
    oggi è punito per intero, e la lega gli darebbe tre finestre per curarli.
 4. **Il profilo TIFOSO**, ora che il club di ogni uomo viaggia nell'estrattore: serve solo la tabella di
@@ -416,3 +456,54 @@ stessa famiglia dei «276px di colonne non strette, ASSENTI» della tabella dell
    oggi la copertura le cura già indirettamente. Vale la pena chiedersi se esista una forma che le cura
    *direttamente* — ma prima di costruirla, la regola di casa: **chiedersi cosa può cambiare il suo
    output**, perché se la risposta è «gli stessi acquisti della copertura» non è un canale nuovo.
+
+---
+
+## 13. La review del 2 settembre 2026: otto rilievi, tre misurati
+
+Chiesta dall'operatore («fai una review del codice») sulle 3.700 righe dei due commit del 01/09, e chiusa
+sempre su sua richiesta («fixa tutto»). Vale registrarla perché **cinque degli otto rilievi sono in codice
+o documentazione MIEI, appena spediti**, e tre sono stati trovati misurando e non rileggendo.
+
+| # | dove | cosa | esito |
+|---|---|---|---|
+| 1 | `bench.py` | il pavimento «non tenere crediti» **tagliato dal tetto di reparto**: l'asimmetria dichiarata curata non lo era | **+6,7 punti**, spesa 933 → 988, posizione 1,90 → 1,70 |
+| 2 | doc §8 + 5 file | il **«+2,4»** non si riproduce | corretto a **+1,5**; il compagno +10,8 si riproduce esatto |
+| 3 | `player-ratings.ts` | il commento spedito diceva «27 punti … più del surplus di un attaccante top» | corretto: **18,8** e per un undici **non comprabile**, marginale +1,5 |
+| 4 | doc §5 / §9.1 | due tabelle di fantapunti su **calendari diversi** (38 e 36 giornate) affiancate senza dirlo | nota aggiunta: 70,14 contro 70,45 **a giornata** |
+| 5 | `bench.py` | `Team` accettava un `budget` che `role_cap` e `season` **ignoravano** | chiuso, latente e mai esercitato |
+| 6 | `extract.py` | una riga di **144 caratteri** con 17 spazi in mezzo, impronta di una patch mangiata dal heredoc | riformattata |
+| 7 | `squad-table` | l'optional chaining deciso in **due modi** per un campo obbligatorio | **RILIEVO SBAGLIATO**: la «cura» non compila, vedi sotto |
+| 8 | `categories.py` | `bars_for` regge **solo sul caso delle lettere**, e il docstring dichiarava l'impossibile | tabella classic case-insensitive, docstring corretto, **collisione puntata da un test** |
+
+**Tre cose che questa review insegna più dei rilievi.**
+
+**Il difetto più grosso penalizzava il braccio che stavo giudicando.** Il rilievo 1 rendeva il motore più
+povero di 55 crediti, quindi ogni margine pubblicato prima era **conservativo e non lusinghiero**. È il
+verso opposto di quello che si teme, e va detto proprio per questo: la direzione di un errore fa parte
+dell'errore.
+
+**Il «+2,4» è la regola di casa applicata a me stesso.** «Un coefficiente citato senza la sua provenienza
+non è un fatto»: qui la provenienza c'era (la costruzione era scritta), e proprio per questo si è potuto
+rifare il conto e trovarlo sbagliato. Il compagno che si riproduce *esatto* è quello che ha localizzato
+l'errore nel quantile invece che nel meccanismo — **quando due numeri escono dalla stessa funzione e uno
+solo si riproduce, il colpevole è l'ingresso**.
+
+**E la costanza è passata da «costa 8,2» a INERTE**, che è un risultato migliore e non lo stesso detto
+meglio: a peso 0, 1 e 5 il braccio legge la stessa cifra alla prima decimale, perché il tetto di reparto
+morde prima. Trovato col test che distingue «effetto piccolo» da «canale spento» — **dare al peso un
+valore assurdo** (20, poi 100) e guardare se qualcosa si muove. Un canale che non si muove nemmeno a
+venti volte il suo peso non è un canale debole: è un canale che non arriva.
+
+**E un rilievo su otto era SBAGLIATO, bocciato dal compilatore.** Il 7 leggeva come un'incoerenza il
+fatto che il template scriva `man.rating?.steady?.share` e il TypeScript `man.rating?.steady.share` su un
+campo che l'interfaccia dichiara obbligatorio. Togliendo la seconda guardia: `TS2532: Object is possibly
+undefined`. **Il `?.` di un template Angular non è il `?.` di TypeScript**: cortocircuita solo l'accesso
+immediato, non il resto della catena. Non erano due opinioni su un campo, erano **due linguaggi**, e la
+ragione è adesso scritta accanto al codice così che il prossimo non la "semplifichi" un'altra volta.
+La lezione generale: **una differenza fra un file e il suo template non è per forza una decisione non
+presa** — prima di uniformare due dialetti, chiedersi se sono la stessa lingua.
+
+E una del mio arnese di verifica, perché è la stessa famiglia: il primo controllo del valore marginale
+sostituiva **il portiere** col p90 di un attaccante (che è più basso) e leggeva −1,0. Verificare la
+funzione, non la cella che le assomiglia — settima istanza, questa volta dentro una review.

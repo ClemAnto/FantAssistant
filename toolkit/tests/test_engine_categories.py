@@ -112,3 +112,25 @@ def test_la_scala_ha_un_ordine_solo():
     assert categories.rank_of("scarto") == len(categories.LADDER) - 1
     assert categories.rank_of(None) is None
     assert categories.rank_of("titolare") is None, "le sei parole non sono quelle dell'altra scala"
+
+
+def test_le_due_lingue_si_incontrano_su_una_lettera_e_il_caso_e_il_discriminante():
+    """Rilievo della review del 02/09/2026, PUNTATO perche' non si puo' curare dentro `bars_for`.
+
+    Il rulebook mantra scrive minuscolo (`a` = ala, `c` = centrale) e il listone maiuscolo (`A` =
+    attaccante, `C` = centrocampista): la stessa lettera porta due classi diverse, e l'unica cosa che le
+    separa e' il CASO. Oggi ogni chiamante rispetta il contratto, ma questo repo altrove abbassa i ruoli
+    (`bench/draft/extract.py` scrive `slot.lower()`), quindi chi un giorno "normalizzasse" leggerebbe una
+    parola misurata sulla classe sbagliata. Questo test non lo impedisce: lo fa incontrare.
+    """
+    assert categories.bars_for("mantra", "A") == categories.BONUS_BARS["classic"]["A"]
+    assert categories.bars_for("mantra", "a") == categories.BONUS_BARS["mantra"]["a"]
+    assert categories.bars_for("mantra", "A") != categories.bars_for("mantra", "a")
+    assert categories.bars_for("mantra", "C") != categories.bars_for("mantra", "c")
+    # ...e sul foglio CLASSIC il caso non decide niente, perche' li' una lingua sola parla: un ruolo
+    # minuscolo risponde invece di leggere None, che era il difetto piu' piccolo dei due.
+    for role in ("P", "D", "C", "A"):
+        assert categories.bars_for("classic", role.lower()) == categories.BONUS_BARS["classic"][role]
+    # e un codice mantra non raggiunge MAI la tabella classic da un foglio mantra
+    assert categories.bars_for("mantra", "dc") == categories.BONUS_BARS["mantra"]["dc"]
+    assert categories.bars_for("mantra", "zz") is None

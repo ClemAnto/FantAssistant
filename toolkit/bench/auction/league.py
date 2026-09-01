@@ -174,7 +174,7 @@ def one_window(window: dict, table: tuple[tuple[str, str], ...]) -> dict:
                   for key in ("points", "r_factor", "defence", "holes", "zeros", "killed", "no_base")}
         by_role = {role: sum(m.get("paid", 0) for m in team.men[role]) for role in team.men}
         rows.append({**tally[letter], **{key: round(value, 1) for key, value in totals.items()},
-                     "spent": rules.BUDGET - team.left, "by_role": by_role,
+                     "spent": team.budget - team.left, "by_role": by_role,
                      "best": max(row["points"] for row in days[letter]),
                      "worst": min(row["points"] for row in days[letter]),
                      "under_floor": sum(1 for row in days[letter]

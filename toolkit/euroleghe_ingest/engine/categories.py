@@ -111,15 +111,31 @@ def bars_for(game: str, slot: str | None) -> tuple[float, float] | None:
 
     A mantra sheet falls back to the CLASSIC table for a man the listone gives no code to, which is the
     same third case `snapshot.auction_level` already handles and for the same reason: his row would
-    otherwise carry a word measured against nobody. The fallback is by SLOT NAME - on a mantra sheet that
-    man's `engine_role_slot` is his listone role, A or D, which is a key of the classic table and never
-    of the mantra one, so the two vocabularies cannot silently trade places.
+    otherwise carry a word measured against nobody.
+
+    AND THE DISCRIMINATOR IS THE CASE, which is worth stating exactly rather than claiming the two
+    vocabularies cannot meet - they DO. Reviewed 02/09/2026: the rulebook's codes are lowercase (`a` =
+    ala, `c` = centrale) and the listone's roles uppercase (`A` = attaccante, `C` = centrocampista), so
+    `bars_for("mantra", "a")` reads (0.75, 1.06) and `bars_for("mantra", "A")` reads (0.87, 1.25) - two
+    different classes behind one letter. Today every caller obeys the contract (`auction_level` returns
+    'P'/'D'/'C'/'A' on classic and the twelve codes on mantra), but this repository lowercases slots
+    elsewhere - `bench/draft/extract.py` writes `slot.lower()` - so a future caller that normalises would
+    get a word measured against the wrong class, silently. Hence: the classic table is read case-
+    INSENSITIVELY (a lowercase listone role on a classic sheet now answers instead of returning None),
+    the mantra path reaches it only for a slot that IS uppercase, and a test pins the collision so
+    nobody "tidies up" the case handling without meeting it.
+
+    What CANNOT be fixed here is a lowercase classic role on a MANTRA sheet: the ambiguity is born in
+    `auction_level`, which collapses a mantra code and a listone role into one string, so no function
+    reading that string alone can tell them apart. Curing it means carrying the vocabulary beside the
+    slot, and that is a change to the sheet's own shape rather than to this lookup.
     """
     if not slot:
         return None
     if game == "mantra":
-        return BONUS_BARS["mantra"].get(slot) or BONUS_BARS["classic"].get(slot)
-    return BONUS_BARS["classic"].get(slot)
+        return BONUS_BARS["mantra"].get(slot) or (
+            BONUS_BARS["classic"].get(slot) if slot.isupper() else None)
+    return BONUS_BARS["classic"].get(slot.upper())
 
 
 def bonus_rate(seasons: Sequence[float]) -> float | None:

@@ -509,17 +509,17 @@ surplus answers «how much better than the man who would play instead», which p
 this league nobody may, and **a single deputy vote annuls both modifiers for the whole matchday**. The
 first version of the engine arm bid on the surplus alone and finished **last of eleven** with 284 credits
 of 1000 unspent; with `surplus + cover_value` (holes avoided × `HOLE_COST` = **4.73**, the slope over 110
-squads at r = −0.798, and the regulation's own arithmetic agrees) it wins by **+116 points** with the
+squads at r = −0.798, and the regulation's own arithmetic agrees) it wins by **+122 points** with the
 lowest dispersion of the table. The general form: **a metric that assumes the thing happens cannot price
 the risk that it does not.**
 
 **And a table is not the ranking by total, which is why the calendar was worth playing.** The goal ladder
 truncates at 66, so **in 4 windows of 10 the champion is not the top scorer**: over 100 rows, table points
-correlate +0.815 with the season total and **−0.802 with the matchdays left under 66**, which in turn
-correlate +0.661 with holes. So coverage pays TWICE and neither road goes through whoever you buy at the
+correlate +0.833 with the season total and **−0.825 with the matchdays left under 66**, which in turn
+correlate +0.701 with holes. So coverage pays TWICE and neither road goes through whoever you buy at the
 top — a quantity no amount of staring at the seasonal mean could have produced, because the bench was not
 settling the thing the way the league settles it. **Score the deliverable the way it is actually decided.**
-One number not to misread: table points against credits spent reads −0.418 and is CONFOUNDED by profile
+One number not to misread: table points against credits spent reads −0.177 and is CONFOUNDED by profile
 (the engine spends least and wins most) — a difference between groups, not a virtue of saving.
 
 **The value of a THRESHOLD cannot be written on a row.** The R-Factor is gone at four insufficient men, so
@@ -527,19 +527,26 @@ the fifth steady player in a squad that already has four unreliable ones is wort
 is worth half a point: it is a Poisson-binomial over the ELEVEN (`expected_r_factor`, computed exactly),
 never a per-man figure. That is what refused the operator's own request for a steadiness term, on a
 diagnosis that was RIGHT (the arm banked 6.5 of R-Factor against a rival's 20.5, and neither the surplus
-nor the appearances contain the BASE vote): one man moves the R-Factor by **+2.4 points a season** against
+nor the appearances contain the BASE vote): one man moves the R-Factor by **+1.5 points a season** against
 a `cover_value` reaching 180, and the modifier is governed by HOLES (r = **−0.821**, 13.6 points for the
-quartile with fewest against 2.1 for the most). Switched on it costs 8.2 points. Kept at zero with the
-numbers beside it — **what would make it pay is a squad with no holes, and no strategy on this bench gets
-there.** Its sibling ADOPTED the same day is the operator's diversification across real clubs
-(`CLUB_FREE` 2, `CLUB_PENALTY` 0.45): 1.6 points of cost, **9% off the dispersion**, agreeing with
+quartile with fewest against 2.1 for the most). **On the current code it is INERT** — at weight 0, 1 and 5
+the arm reads the same figure to the decimal, because the department ceiling binds before the term can
+reorder anything; it bites only at 20 (0.08%, an order of magnitude under the floor) and collapses at 100.
+Kept at zero with the numbers beside it — **what would make it pay is a squad with no holes, and no
+strategy on this bench gets there.** Its sibling ADOPTED the same day is the operator's diversification across real clubs
+(`CLUB_FREE` 2, `CLUB_PENALTY` 0.45): 4.1 points of cost, **4.4% off the dispersion**, agreeing with
 `metrica-asta-surplus-v1.md` §24 measured from the other side — and stated plainly, **this bench cannot
 see the benefit it buys**, because its sd is across seasons and the risk removed is within one.
 
 Four habits that outlive the harness, and three were paid for.
 - **A rule that applies to every profile but the one being judged is not a rule.** «Nobody ends an auction
   with credits in his pocket» was enforced on the five human profiles and not on the engine arm, whose
-  branch returns before it: 888 of 1000 against a table spending 956-1000.
+  branch returns before it: 888 of 1000 against a table spending 956-1000. **And the first cure was
+  half a cure** (found in the review of 02/09): the arm's own per-department CEILING was still eating the
+  floor, so it kept 67 credits while the table kept 0-20 — a ceiling is a rationing device, and rationing
+  a purse that can no longer be spent on anything else is waste. Worth +6.7 points and half a place. Note
+  the direction both times: the defect PENALISED the arm being judged, so every margin published before
+  it was conservative rather than flattering — **the direction of an error is part of the error.**
 - **A DECREASING LADDER IS A RATIONING PLAN**, so giving one to a profile defined as having no plan hands
   it discipline under a misleading name — it was why the novice beat the expert, which is what the operator
   spotted from the result. Flat, his holes went 32.7 → 43.8. **Model the declared behaviour, not a tidier
@@ -551,6 +558,33 @@ Four habits that outlive the harness, and three were paid for.
 - **One definition, two readers**: `bench.matchday` was extracted from `season` because the championship
   needs it per ROUND. Two definitions of «what did this squad score on matchday 12» would eventually give
   one squad two totals, and the first place anybody notices is a standings table.
+
+**Three more from the REVIEW of all this, 02/09/2026** (`simulatore-asta-rilanci-v1.md` §13 has the
+table of eight findings; five were in code or docs shipped the day before).
+- **When two numbers come out of ONE function and only one reproduces, the culprit is the INPUT.** The
+  «+2.4 points of R-Factor for one man» published in six places does not reproduce — the same construction
+  gives +1.5 — while its companion, «+10.8 in the impossible extreme», reproduces EXACTLY. That asymmetry
+  is what located the error in the quantile rather than in the Poisson-binomial, and it cost one run
+  instead of an afternoon of reading.
+- **To tell a SMALL effect from a DEAD channel, give the weight an absurd value.** The steadiness term
+  read identically at 0, 1 and 5 — which looks like a broken harness — and at 20 it moves (+0.08%) and at
+  100 it collapses. So it is not weak, it does not ARRIVE: `role_cap` binds before it can reorder a bid,
+  and the term itself is worth 1.8 points inside a worth of 149. A channel that does not move at twenty
+  times its weight is a channel to explain, not to tune.
+- **Where a decision is marginal, publish the MARGINAL number.** A shipped comment priced steadiness at
+  «27 points of R-Factor, more than a top striker's surplus»; measured, it is 18.8 and it describes an
+  eleven where ALL ELEVEN men sit at their role's p90 — a squad nobody can buy, because buying it costs
+  the coverage. The number that decides a purchase is +1.5 for one man. An aggregate that requires an
+  unbuyable squad is not an advantage anybody can act on.
+
+**And one of those eight findings was WRONG, which is why a review gets verified like anything else.** It
+read as an inconsistency that a template writes `man.rating?.steady?.share` while the TypeScript writes
+`man.rating?.steady.share` on a field the interface declares required — and the "cure" does not compile:
+`TS2532: Object is possibly undefined`. **Angular's template `?.` is not TypeScript's `?.`**: it
+short-circuits the immediate access only, not the rest of the chain. Two dialects, not two opinions. So:
+**a difference between a file and its template is not necessarily a decision nobody took** — before
+unifying them, ask whether they are the same language. Caught by the compiler in seconds, which is the
+argument for running the suite after a review's fixes and not only after a feature's.
 
 **And three about verifying a rendered page, all the same shape as the app's own harness lessons.** A step
 that measures TWO unknowns attributes the defect to the wrong one (one selector counted the standings AND

@@ -247,19 +247,29 @@ def steady_value(man: dict, team: Team, matchdays: int) -> float:
 #: BASE vote, so the diagnosis was sound. The cure is not, and the reason is arithmetic rather than
 #: implementation:
 #:
-#:   * ONE MAN CAN MOVE THE R-FACTOR BY +2.4 POINTS A SEASON (from his role's median to its p90, the
-#:     other ten at their medians), and by +10.8 in the impossible case of going from never sufficient
-#:     to always. Against a `cover_value` that reaches 180 for a starter in an empty department, that
-#:     cannot reorder a single bid.
+#:   * ONE MAN CAN MOVE THE R-FACTOR BY +1.5 POINTS A SEASON (from his role's median to its p90, the
+#:     other ten at their medians, on the exact Poisson-binomial), +6.3 for four defenders and +18.8 for
+#:     an eleven where ALL ELEVEN sit at their role's p90 - which is a squad nobody can buy, because
+#:     buying it costs the coverage. And +10.8 in the impossible case of one man going from never
+#:     sufficient to always. Against a `cover_value` that reaches 180 for a starter in an empty
+#:     department, none of that can reorder a single bid.
+#:     (The +2.4 published on 01/09 does not reproduce and was corrected in the review of 02/09: the
+#:     same construction gives +1.5, while the +10.8 reproduces EXACTLY - which is what locates the
+#:     error in the quantile and not in this function.)
 #:   * AND THE MODIFIER IS GOVERNED BY HOLES, NOT BY STEADINESS. Over 110 simulated squads the R-Factor
 #:     collected correlates -0.821 with holes: the quartile with fewest holes banks 13.6 points of it,
 #:     the quartile with most banks 2.1. A single deputy vote annuls the whole bonus for the matchday,
 #:     so until a squad is covered its steadiness is never read at all - which is why the arm's 6.5 was
 #:     a symptom of its 12 holes and not of who it bought.
 #:
-#: Switched on at 1.0 it costs 8.2 points a season and moves the R-Factor collected by -0.2, i.e. it
-#: perturbs bids without buying the thing it is named after. Kept in the code, at zero, with the numbers:
-#: what it would take to make it pay is a squad with no holes, and no strategy on this bench gets there.
+#: AND MEASURED ON THE CURRENT CODE IT IS INERT, which is a stronger statement than the "-8.2 points" of
+#: 01/09 (that figure was taken before the purse floor stopped being clipped by the department ceiling,
+#: and is superseded): at weight 0, 1 and 5 the arm reads 2665.5 points, IDENTICALLY - the term reaches
+#: the bid (1.8 points on a real defender) and changes nothing, because `role_cap` binds first. It only
+#: begins to bite at 20 (+2.2 points, R-Factor 14.4 -> 15.2), i.e. 0.08% - an order of magnitude under
+#: this project's 0.5% floor - and at 100 it collapses (-25.7, holes 12.4 -> 13.7) because it starts
+#: buying steadiness instead of coverage, which is the modifier's own destroyer. Kept at zero with the
+#: numbers: what would make it pay is a squad with no holes, and no strategy on this bench gets there.
 STEADY_WEIGHT = 0.0
 
 #: HOW MANY MEN OF ONE REAL CLUB before the ceiling starts falling, and by how much each further one
@@ -316,6 +326,13 @@ class Team:
     def __init__(self, name: str, profile: str, recipe: dict[str, list[float]] | None,
                  budget: int = rules.BUDGET) -> None:
         self.name, self.profile, self.recipe = name, profile, recipe
+        # HIS OWN BUDGET AND NOT THE RULEBOOK'S, everywhere. The constructor took a `budget` and then
+        # `role_cap` split `rules.BUDGET` into departments while `season` reported
+        # `rules.BUDGET - left` as the spend: a participant built with any other purse would have got
+        # ceilings and a spend belonging to somebody else, silently. Nothing passes another budget today,
+        # which is exactly what makes it worth closing - a parameter half the class honours is a wrong
+        # answer waiting for its first caller.
+        self.budget = budget
         self.left = budget
         self.men: dict[str, list[dict]] = {role: [] for role in rules.SLOTS}
         self.cap = round(budget * MENTAL_CAP_SHARE)
@@ -351,7 +368,7 @@ class Team:
         """
         if not self.shares:
             return self.cap
-        want = round(rules.BUDGET * self.shares.get(role, 0.0))
+        want = round(self.budget * self.shares.get(role, 0.0))
         spent = sum(m.get("paid", 0) for m in self.men[role])
         free = max(1, rules.SLOTS[role] - len(self.men[role]))
         room = max(1, want - spent)
@@ -404,8 +421,19 @@ class Team:
             # engine arm was the only participant allowed to keep credits, because this branch returns
             # before the rule below - and it ended the auction on 888 of 1000 while the table spent
             # 956-1000. A rule that applies to every profile but the one being judged is not a rule.
+            #
+            # AND THE FLOOR IS NOT SUBJECT TO THE DEPARTMENT'S CEILING, which is the second half of the
+            # same defect and survived the first fix: `role_cap` was eating the floor, so the arm still
+            # kept 67 credits while the table kept 0-20. A ceiling is a RATIONING device, and rationing a
+            # purse that can no longer be spent on anything else is not caution, it is waste - the humans
+            # have no per-department ceiling at all. Measured when the clip was removed: 2658.8 -> 2665.5
+            # points, spend 933 -> 988, holes 13.8 -> 12.4, mean place 1.90 -> 1.70. Note the direction:
+            # the defect PENALISED the arm being judged, so every margin published before this was
+            # conservative rather than flattering - which is the only kind of bug to find in your own
+            # favour's opposite.
             slack = room / max(1, self.slots_left())
-            return min(room, self.cap, self.role_cap(role), max(bid, round(ABUNDANCE * slack)))
+            capped = min(room, self.cap, self.role_cap(role), bid)
+            return max(capped, min(room, self.cap, round(ABUNDANCE * slack)))
         ladder = self.recipe[role]
         want = ladder[held] if held < len(ladder) else ladder[-1]
         # THE EXPERT READS THE MAN AND NOT ONLY THE ASK PRICE: his ceiling is blended toward what the
@@ -545,7 +573,7 @@ def season(team: Team, votes: dict, base: dict, rounds: int) -> dict:
     order = line_up_order(team)
     days = [matchday(order, votes, base, str(day)) for day in range(1, rounds + 1)]
     return {**{key: sum(day[key] for day in days) for key in DAY_KEYS},
-            "spent": rules.BUDGET - team.left}
+            "spent": team.budget - team.left}
 
 
 def run(table: tuple[tuple[str, int], ...], with_engine: bool) -> dict:

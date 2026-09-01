@@ -379,9 +379,18 @@ export type PlayerRating = Record<RatingKey, Rating> & {
  * Misurata sul VOTO e non sul fantavoto (la domanda è proprio «se non segna, prende 5?»), sulle
  * stagioni per-partita che il bundle porta, con l'ancora del suo ruolo al suo club sotto
  * `FULL_SAMPLE` presenze - e `weight` dice quanta parte del numero è SUA, come per ogni altra lettura.
- * Quanto vale, misurato il 01/09/2026 su Serie A e cinque stagioni: fra un undici di popolazione e uno
- * di uomini al p90 di costanza del loro ruolo ballano 27 punti di R-Factor a stagione, più 10 di
- * modificatore di difesa - più del surplus di un attaccante top.
+ * QUANTO VALE, e la prima versione di questo commento lo diceva in un modo che la misura successiva
+ * smentisce - corretto il 02/09/2026 in una review. Diceva «27 punti di R-Factor a stagione, più 10 di
+ * modificatore di difesa - più del surplus di un attaccante top», e ci sono due cose sbagliate. Il
+ * numero: rifatto sullo stesso pool (10 finestre, mediane per ruolo P 0,86 · D 0,64 · C 0,67 · A 0,61,
+ * p90 0,92 · 0,78 · 0,78 · 0,75, Poisson-binomiale esatta sull'undici) sono **18,8** e non 27. E, che
+ * conta di più, il CONFRONTO: quei 18,8 sono fra un undici di popolazione e uno in cui **tutti e undici**
+ * gli uomini stanno al p90 del loro ruolo, che è una rosa che non si può comprare - comprarla costa la
+ * COPERTURA, e la copertura è la cosa che in questa lega paga il doppio. Il numero che decide un acquisto
+ * è quello MARGINALE: **+1,4 / +1,5 punti a stagione per un uomo**, +6,3 per quattro difensori.
+ * Per questo la costanza è una COLONNA e non una moneta: misurata come moneta d'asta è stata respinta
+ * (`docs/model/simulatore-asta-rilanci-v1.md` §8), perché 1,5 punti non riordinano un'offerta contro una
+ * copertura che ne vale 180. Serve a chi guarda, non a chi calcola.
  */
 export interface Steadiness {
   /** La quota, 0-1. Null quando nemmeno l'ancora del ruolo può rispondere. */

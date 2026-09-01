@@ -118,35 +118,39 @@ di un buco è 4,73 fantapunti (pendenza su 110 rose, r = −0,798), che l'aritme
 conferma. Da lì il risultato centrale: **il valore di un uomo in questa lega ha DUE termini che si
 sommano**, `surplus + copertura` — la prima versione del braccio motore aveva solo il primo e finì
 **ultima di undici**, con 284 crediti su 1000 in tasca. Con la copertura e i tetti dinamici per reparto
-vince: **+116 punti** sul miglior profilo umano e la dispersione più bassa del tavolo.
+vince: **+122 punti** sul miglior profilo umano e la dispersione più bassa del tavolo.
 
 **E il CAMPIONATO ha tirato fuori una quantità che nessun altro banco poteva vedere.** La scala dei gol
 tronca a 66, quindi **in 4 stagioni su 10 il campione non è chi ha fatto più fantapunti**: sulle 100 righe
-i punti in classifica correlano +0,815 coi fantapunti totali e **−0,802 con le giornate lasciate sotto i
-66**, che a loro volta correlano +0,661 coi buchi. **La copertura paga due volte**, e nessuna delle due
-strade passa per chi compri in cima. Il motore vince **5 titoli su 10** con 8,6 giornate buttate contro le
-14-17 di tutti gli altri.
+i punti in classifica correlano +0,833 coi fantapunti totali e **−0,825 con le giornate lasciate sotto i
+66**, che a loro volta correlano +0,701 coi buchi. **La copertura paga due volte**, e nessuna delle due
+strade passa per chi compri in cima. Il motore vince **5 titoli su 10** con 8,0 giornate buttate contro le
+14-18 di tutti gli altri, e chiude a posizione media **1,70**.
 
 **Tre cose CHIESTE dall'operatore e chiuse**: i crediti non spesi (il pavimento di ogni tetto è ora quello
-che il portafoglio può permettersi per slot residuo — P4 da 495 a 973 su 1000, e il braccio motore era
+che il portafoglio può permettersi per slot residuo — P4 da 495 a 965 su 1000, e il braccio motore era
 l'unico esente perché il suo ramo usciva prima: *una regola che vale per tutti tranne quello che stai
-giudicando non è una regola*); P4 che spende di più a centrocampo; e la **DIVERSIFICAZIONE fra club reali
-ADOTTATA** («come giocare in borsa su più titoli») — costa 1,6 punti sulla media, taglia il **9%** della
-dispersione, e concorda con `metrica-asta-surplus-v1.md` §24 che l'aveva misurata dall'altro lato.
+giudicando non è una regola*; **la review del 02/09 ha poi trovato che il tetto di reparto si mangiava
+ancora quel pavimento**, e togliere il taglio vale +6,7 punti e mezza posizione); P4 che spende di più a
+centrocampo; e la **DIVERSIFICAZIONE fra club reali ADOTTATA** («come giocare in borsa su più titoli») —
+costa 4,1 punti sulla media, taglia il **4,4%** della dispersione, e concorda con
+`metrica-asta-surplus-v1.md` §24 che l'aveva misurata dall'altro lato.
 
 **Una cosa chiesta e MISURATA A ZERO: la costanza.** Il sintomo era giusto (il braccio incassava 6,5 di
 R-Factor contro i 20,5 di un rivale, e né il surplus né le presenze contengono il voto base), la cura no:
-un uomo muove l'R-Factor di **+2,4 punti a stagione** contro un `cover_value` che arriva a 180, e il
-modificatore è governato dai **buchi** (r = −0,821, 13,6 punti nel quartile con meno buchi contro 2,1 in
-quello con più) perché **una sola riserva d'ufficio azzera il bonus di tutta la giornata**. Accesa costa
-8,2 punti. Resta nel codice a zero con i numeri accanto.
+un uomo muove l'R-Factor di **+1,5 punti a stagione** (il «+2,4» del 01/09 non si riproduce — rilievo 2
+della review) contro un `cover_value` che arriva a 180, e il modificatore è governato dai **buchi**
+(r = −0,821) perché **una sola riserva d'ufficio azzera il bonus di tutta la giornata**. Sul codice
+attuale è **INERTE**: a peso 0, 1 e 5 il braccio legge 2665,5 identico, perché il tetto di reparto morde
+prima. Resta nel codice a zero con i numeri accanto.
 
 **Un difetto LATENTE che la richiesta dell'operatore ha fatto emergere**: chiamare i partecipanti A…L
 mostra che il pareggio d'offerta si rompeva in **ordine alfabetico**, quindi la lettera A avrebbe vinto
 ogni ex aequo. Ora lo rompe un sorteggio riproducibile per (partecipante, uomo); misurato prima di
 cambiarlo, l'ordine dei sei profili non si muove.
 
-**593 test del toolkit.** Artifact privato pubblicato con le dieci stagioni (classifica, asta e rose),
+**593 test del toolkit** (594 dopo la review). Artifact privato pubblicato con le dieci stagioni
+(classifica, asta e rose),
 verificato in un browser vero — e due difetti erano dell'arnese, non della pagina (un selettore che
 misurava DUE incognite, e Chrome headless che parte in tema scuro e quindi confrontava lo scuro con sé
 stesso).
@@ -161,8 +165,12 @@ Quindi quel commit porta il lavoro di DUE sessioni e lo dice; e con esso si ered
 dichiara da sé, **il `backtest --verify` della revisione 38, dovuto e non ancora fatto** (il 01/09 il DB era
 sotto lock di scrittura). **Aperto e in ordine di resa**: quel `--verify`, poi lo sweep delle quattro manopole dichiarate del braccio vincente
 (`URGENCY` 1,8 · `CAUTIOUS_CAP_SHARE` 0,15 · `ABUNDANCE` 1,0 · `CLUB_PENALTY` 0,45), il null da rifare
-sulla configurazione attuale, il mercato di riparazione (che è la sola cosa che cambierebbe l'ordine dei
-profili) e il profilo TIFOSO, dichiarato e spento.
+sulla configurazione attuale — **con un braccio cieco nel codice**, perché i quattro numeri pubblicati il
+01/09 sono stati RITIRATI come non citabili — il mercato di riparazione (che è la sola cosa che
+cambierebbe l'ordine dei profili), l'ambiguità di `auction_level` (residuo del rilievo 8) e il profilo
+TIFOSO, dichiarato e spento. **La review del 02/09/2026 e i suoi otto rilievi stanno nel §13** di
+`simulatore-asta-rilanci-v1.md`: cinque erano in codice o documentazione appena spediti, tre sono stati
+trovati misurando.
 
 ## STATO AL 27 AGOSTO 2026, SERA — LEGGI QUESTO PRIMA DI TUTTO
 

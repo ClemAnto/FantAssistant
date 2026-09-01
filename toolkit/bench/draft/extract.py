@@ -100,7 +100,8 @@ for key in windows:
         # buying a man nobody has measured, and buying one who then never takes the pitch. Leaving them
         # out would build an auction in which flops cannot exist. The outcome stays ABSENT and never
         # zero where there is none: a man who did not play has no average.
-        if not price or rep is None or pred.fm_pred is None or pred.pv_pred is None                 or obs.fm_act is None or obs.pv_act is None:
+        if (not price or rep is None or pred.fm_pred is None or pred.pv_pred is None
+                or obs.fm_act is None or obs.pv_act is None):
             if price:
                 others.append({
                     "club": obs.club_target or obs.club_prev,

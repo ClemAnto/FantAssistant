@@ -17,7 +17,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from bench.auction import rules
 from bench.auction.bench import (DEPTH_WEIGHT, HOLE_COST, QUOTA_DEPTH, Team, auction, cover_value,
-                                 coverage_need, covered_places, engine_rate, role_shares, to_credits)
+                                 coverage_need, covered_places, engine_rate, role_shares, season,
+                                 to_credits)
 from bench.auction.league import LEAGUE_TABLE, LEGS, fixtures, round_robin, standings
 from bench.auction.profiles import MENTAL_CAP_SHARE, PROFILES, URGENCY
 
@@ -337,3 +338,44 @@ def test_the_operators_table_is_ten_participants_of_declared_profiles():
         "P1a no plan, expert": 1, "P1b no plan, novice": 2, "P2 defence": 1})
     for _letter, profile in LEAGUE_TABLE:
         assert profile == "ENGINE" or profile in PROFILES
+
+
+# ----------------------------------------------------------------------------- what the review found
+
+def test_the_purse_floor_is_not_clipped_by_the_department_ceiling():
+    """Rilievo 1 della review del 02/09/2026, e vale +6,7 punti.
+
+    «Nobody ends an auction with credits in his pocket» applies to the engine arm too, and its own
+    per-department ceiling must not eat that floor: a ceiling is a RATIONING device, and rationing a purse
+    that can no longer be spent on anything else is waste. Built here as the case that exposed it - one
+    slot left, a purse far larger than the department's remaining share - where the floor has to win.
+    """
+    pool = _pool()
+    team = Team("engine", "ENGINE", None)
+    team.shares, team.matchdays = role_shares(pool), 38
+    # fill every slot but one striker, so `slots_left` is 1 and the whole purse is spendable on him
+    for role, count in rules.SLOTS.items():
+        for index in range(count - (1 if role == "A" else 0)):
+            team.men[role].append({**_man(role, 38.0, ident=1000 + index), "paid": 1})
+    team.left = 400
+    man = _man("A", 38.0, surplus=1.0, price=5.0, ident=99)
+    # the department ceiling on its own is small here; the floor is the affordable share per slot
+    assert team.role_cap("A") < 300
+    assert team.bid(man) >= 300, "il pavimento del portafoglio è stato tagliato dal tetto di reparto"
+
+
+def test_a_participant_gets_ceilings_and_a_spend_from_HIS_OWN_purse():
+    """Rilievo 5: `Team` accettava un `budget` che `role_cap` e `season` ignoravano.
+
+    Nothing passes another budget today, which is exactly what makes it worth pinning - a parameter half
+    the class honours is a wrong answer waiting for its first caller.
+    """
+    pool = _pool()
+    shares = role_shares(pool)
+    full, half = Team("full", "ENGINE", None), Team("half", "ENGINE", None, budget=500)
+    for team in (full, half):
+        team.shares, team.matchdays = shares, 38
+    assert half.role_cap("A") == pytest.approx(full.role_cap("A") / 2, rel=0.02)
+    half.men["A"].append({**_man("A", 38.0, ident=7), "paid": 120})
+    half.left -= 120
+    assert season(half, {}, {}, 1)["spent"] == 120

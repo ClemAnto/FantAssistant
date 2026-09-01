@@ -242,7 +242,13 @@
             }
             <!-- LA COSTANZA: la quota nuda, senza riquadro colorato. Scelta dell'operatore
                  (01/09/2026) fra tre forme: il colore porta un significato e i dati vanno neutri,
-                 quindi il metro del RUOLO sta nel tooltip - dove c'è la mediana del suo. -->
+                 quindi il metro del RUOLO sta nel tooltip - dove c'è la mediana del suo.
+                 E LA SECONDA GUARDIA NON È DI TROPPO, anche se `steady` è obbligatorio su
+                 `PlayerRating` e nel .ts si scrive `rating?.steady.share`: il `?.` di un template
+                 Angular NON cortocircuita il resto della catena come quello di TypeScript, protegge
+                 solo l'accesso immediato, quindi togliendola il compilatore risponde «TS2532: Object
+                 is possibly undefined». Provato in una review il 02/09/2026 leggendola come
+                 un'incoerenza: sono due linguaggi, non due opinioni. -->
             @case ('steady') {
               <td class="text-right tabular-nums" [title]="steadyHint(man)">
                 @if (man.rating?.steady?.share == null) {
