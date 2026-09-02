@@ -108,6 +108,19 @@ ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     # diventavano la stessa cosa. Il payload che `performance` gia' scarica porta `positionId` su ogni
     # partita e il parser lo scartava; backfill offline dai 1.120 file in cache, zero richieste.
     ("tm_appearances", "position_id", "INTEGER"),
+    # LA QT.A DENTRO LA SERIE DATATA (03/09/2026), su decisione dell'operatore: «dobbiamo conservare
+    # l'intero andamento della Qt.A giornata per giornata». Era uno STATO VOLATILE tenuto come campo
+    # fisso - la quotazione attuale viene rivista tutta la stagione e `listone_quotes` ne teneva solo
+    # l'ultima lettura - cioe' esattamente il difetto che questo progetto ha come regola («gli stati
+    # volatili sono serie datate, mai flag statici») e che aveva gia' curato una volta, per il
+    # fantavalore, in agosto. Misurato prima di aggiungerla: raggruppando gli uomini per quanto
+    # COSTERANNO, sulle 20 aste vere della sua lega la Qt.A batte la Qt.I in 12 su 20 e perde
+    # dall'FVM in 12 su 20 - e quel confronto e' preso nel solo regime in cui la Qt.A non puo'
+    # mostrare cosa sa fare (tre giornate, 90 righe mosse su 565). Senza la serie, a febbraio la
+    # domanda non e' piu' rispondibile: e' quella la ragione della colonna, non il verdetto di oggi.
+    # La Qt.I NON entra: e' fissata una volta e non si muove, quindi una serie datata di una costante.
+    ("fvm_history", "price", "REAL"),
+    ("fvm_history", "price_mantra", "REAL"),
     ("external_match_stats", "shots", "INTEGER"),
     ("external_match_stats", "shots_on_target", "INTEGER"),
     ("external_match_stats", "big_chances_created", "INTEGER"),
@@ -164,6 +177,34 @@ def migrate(conn: sqlite3.Connection) -> list[str]:
                 # left NULL these would read as its own and be dropped on the next authoritative run.
                 conn.execute("UPDATE player_xref SET resolved_by = 'unknown' "
                              "WHERE resolved_by IS NULL")
+            if (table, column) == ("fvm_history", "price_mantra"):
+                # THE ONE READING THAT CAN BE ATTRIBUTED, and not a backfill of the series. A dated
+                # series cannot be reconstructed - the source serves the current quotation and not its
+                # weeks - but `listone_quotes` holds the LAST read and the day of that read is on
+                # file: the same pass writes both tables, so a man who has a `fvm_history` row on the
+                # newest day of his (season, platform) was in that listone, and the price standing in
+                # `listone_quotes` for him is the one read that day.
+                #    Restricted to those men on purpose. `listone_quotes` accumulates with COALESCE,
+                # so somebody absent from the last listone still carries an OLDER price - attributing
+                # that to the newest day would be inventing a reading, which is the defect
+                # `probable_starter.season` was added to stop. The rest of the series starts from the
+                # next run, which is what the column is for.
+                #    KEYED ON THE SECOND COLUMN OF THE PAIR, and it has to be: the loop adds them one
+                # at a time, so hung on the first one the UPDATE names a column that does not exist yet
+                # and the whole migration dies. Measured by it dying.
+                conn.execute(
+                    """
+                    UPDATE fvm_history SET
+                        price = (SELECT q.price FROM listone_quotes q
+                                  WHERE q.fc_id = fvm_history.fc_id AND q.season = fvm_history.season
+                                    AND q.platform = fvm_history.platform),
+                        price_mantra = (SELECT q.price_mantra FROM listone_quotes q
+                                  WHERE q.fc_id = fvm_history.fc_id AND q.season = fvm_history.season
+                                    AND q.platform = fvm_history.platform)
+                    WHERE observed_on = (SELECT MAX(h.observed_on) FROM fvm_history h
+                                          WHERE h.season = fvm_history.season
+                                            AND h.platform = fvm_history.platform)
+                    """)
     if applied:
         conn.commit()
     return applied

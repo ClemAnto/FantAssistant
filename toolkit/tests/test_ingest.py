@@ -427,3 +427,52 @@ def test_fantavoti_grid_marks_synthetic_matchdays(tmp_path):
         assert "1 in the euro calendar" in info and "1 outside it" in info
     finally:
         root.destroy()
+
+# ------------------------------- la Qt.A dentro la serie datata (03/09/2026)
+
+def test_the_dated_series_carries_the_QT_A_and_attributes_only_the_reading_it_can_prove(tmp_path):
+    """Uno stato VOLATILE va in una serie datata, mai in un campo fisso - la regola di casa, e la Qt.A
+    la violava: viene rivista tutta la stagione e `listone_quotes` ne teneva solo l'ultima lettura.
+
+    Tre cose insieme, e la terza e' quella che conta. La colonna c'e' su un DB nuovo; viene AGGIUNTA a
+    uno vecchio (senza migrazione ogni query che la nomina muore con «no such column»); e il recupero
+    attribuisce la Qt.A SOLO alla lettura piu' recente di quella (stagione, piattaforma), perche' quello
+    e' il solo giorno che si puo' provare - `listone_quotes` accumula con COALESCE, quindi chi mancava
+    dall'ultimo listone porta ancora un prezzo VECCHIO e datarlo a oggi sarebbe inventare una lettura.
+    """
+    from euroleghe_ingest.db import database
+
+    added = {(table, column) for table, column, _kind in database.ADDED_COLUMNS}
+    assert ("fvm_history", "price") in added and ("fvm_history", "price_mantra") in added
+    assert ("fvm_history", "price_initial") not in added,         "la Qt.I e' fissata una volta: una sua serie datata sarebbe una costante ripetuta"
+
+    conn = init_db(tmp_path / "t.db")
+    try:
+        assert {"price", "price_mantra"} <= {row[1] for row in
+                                            conn.execute("PRAGMA table_info(fvm_history)")}
+        # ...e ora un DB VECCHIO: la tabella rifatta come era prima della colonna
+        conn.executescript(
+            """
+            DROP TABLE fvm_history;
+            CREATE TABLE fvm_history (
+                fc_id INTEGER NOT NULL, season TEXT NOT NULL, observed_on TEXT NOT NULL,
+                platform TEXT NOT NULL DEFAULT 'unknown', fvm REAL, fvm_mantra REAL,
+                PRIMARY KEY (fc_id, season, observed_on, platform));
+            INSERT INTO players(fc_id, canonical_name) VALUES (1, 'Tizio'), (2, 'Caio');
+            INSERT INTO fvm_history(fc_id, season, observed_on, platform, fvm) VALUES
+                (1, '2026-27', '2026-08-19', 'default', 50),
+                (1, '2026-27', '2026-09-01', 'default', 60),
+                (2, '2026-27', '2026-08-19', 'default', 10);
+            INSERT INTO listone_quotes(fc_id, season, platform, price, price_initial) VALUES
+                (1, '2026-27', 'default', 19, 18),
+                (2, '2026-27', 'default', 7, 7);
+            """)
+        conn.commit()
+        assert database.migrate(conn), "la migrazione non ha aggiunto niente"
+        rows = {(r[0], r[1]): r[2] for r in conn.execute(
+            "SELECT fc_id, observed_on, price FROM fvm_history WHERE season = '2026-27'")}
+        assert rows[(1, "2026-09-01")] == 19, "la lettura piu' recente non ha preso la Qt.A"
+        assert rows[(1, "2026-08-19")] is None, "una lettura vecchia si e' presa il prezzo di oggi"
+        assert rows[(2, "2026-08-19")] is None,             "chi mancava dall'ultimo listone si e' visto datare un prezzo che non e' di quel giorno"
+    finally:
+        conn.close()

@@ -456,16 +456,25 @@ def upsert_listone(conn, season: str, records: list[dict], platform: str = DEFAU
             (rec["fc_id"], season, platform, rec["price"], rec.get("price_initial"), rec.get("fvm"),
              rec.get("fvm_mantra"), rec.get("price_mantra"), rec.get("price_initial_mantra")),
         )
-        # ...and the FVM also goes into its own DATED series, because that is what it is: it moves weekly and
-        # on events (injuries, transfers), so a single column per season keeps only the last reading and
-        # silently discards every earlier one. `rosters.fvm` stays as the latest value - the sheet and the
-        # reports read it - and `fvm_history` is the series that accumulates from today (it cannot be
-        # backfilled: the source serves one archived value per past season, not its weeks).
-        if rec.get("fvm") is not None or rec.get("fvm_mantra") is not None:
+        # ...and the VOLATILE numbers of the listone also go into their own DATED series, because that is
+        # what they are: the fantavalore moves weekly and on events (injuries, transfers) and the Qt.A is
+        # revised all season, so a single column per season keeps only the last reading and silently
+        # discards every earlier one. `rosters.fvm` and `listone_quotes` stay as the latest values - the
+        # sheet and the reports read them - and `fvm_history` is the series that accumulates from today
+        # (it cannot be backfilled: the source serves one archived value per past season, not its weeks).
+        #
+        # THE QT.A JOINED IT ON 03/09/2026, on the operator's decision («dobbiamo conservare l'intero
+        # andamento della Qt.A giornata per giornata»), and the row is now written whenever ANY of the
+        # four is present: before, a listone that carried prices and no fantavalore left no reading at
+        # all, and the day it was read could only be inferred from a table that does not date itself.
+        # One reading per matchday is a complete series, because that is when the quotation is revised.
+        if any(rec.get(k) is not None
+               for k in ("fvm", "fvm_mantra", "price", "price_mantra")):
             conn.execute(
-                "INSERT OR REPLACE INTO fvm_history(fc_id, season, observed_on, platform, fvm, fvm_mantra) "
-                "VALUES (?, ?, ?, ?, ?, ?)",
-                (rec["fc_id"], season, observed_on, platform, rec.get("fvm"), rec.get("fvm_mantra")))
+                "INSERT OR REPLACE INTO fvm_history(fc_id, season, observed_on, platform, fvm, "
+                "fvm_mantra, price, price_mantra) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (rec["fc_id"], season, observed_on, platform, rec.get("fvm"),
+                 rec.get("fvm_mantra"), rec.get("price"), rec.get("price_mantra")))
         n += 1
     return n
 

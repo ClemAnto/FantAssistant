@@ -495,6 +495,46 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.67 (3 settembre 2026 — la Qt.A entra nella SERIE DATATA, su decisione dell'operatore)
+
+**«Dobbiamo conservare l'intero andamento della Qt.A giornata per giornata».** La quotazione attuale
+viene rivista tutta la stagione e `listone_quotes` ne teneva **solo l'ultima lettura**: è lo stesso
+difetto che questa spec ha come regola dal primo giorno — *gli stati volatili sono serie datate, mai
+campi fissi* — e che era già stato curato una volta, per il fantavalore, ad agosto.
+
+`fvm_history` prende due colonne, `price` e `price_mantra` (`ADDED_COLUMNS`, quindi un DB esistente si
+migra da sé al primo comando), e la riga viene scritta quando **almeno uno** dei quattro numeri è
+presente: prima un listone che portava i prezzi e nessun fantavalore non lasciava alcuna lettura. La
+Qt.I **non** entra: è fissata una volta prima della stagione e non si muove, quindi una sua serie datata
+sarebbe una costante ripetuta ogni giorno.
+
+**Il nome della tabella resta `fvm_history` per scelta**, e il commento dello schema dice perché:
+rinominarla vuol dire ricostruire una tabella che sei lettori interrogano, il che compra ordine e
+rischia una serie che da nessuna parte si può ricostruire. Il commento è la cura; non «aggiustare» il
+nome senza una ragione più grande del nome.
+
+**UNA SOLA LETTURA È ATTRIBUIBILE ALL'INDIETRO, e la migrazione fa solo quella.** La serie non si può
+ricostruire (la fonte serve la quotazione di adesso, non le sue settimane), ma `listone_quotes` tiene
+l'ultima letta e il **giorno** di quella lettura è su file: la stessa passata scrive le due tabelle,
+quindi chi ha una riga di `fvm_history` nel giorno più recente della sua (stagione, piattaforma) era in
+quel listone. Ristretto a quei soli uomini **per necessità**: `listone_quotes` accumula con `COALESCE`,
+quindi chi mancava dall'ultimo listone porta ancora un prezzo VECCHIO, e datarlo a oggi sarebbe
+inventare una lettura — lo stesso difetto per cui è stato aggiunto `probable_starter.season`. Sul DB
+dell'operatore: 1.551 letture del 01/09 hanno preso la loro Qt.A, i dieci giorni precedenti restano
+NULL perché nessuno può provare quale prezzo portassero.
+
+**Cosa è misurato e cosa no.** Raggruppando gli uomini per quanto COSTERANNO davvero (dispersione dei
+prezzi pagati dentro un blocco di dieci, sulle 20 aste vere della lega dell'operatore in
+`docs/real-data/`): **FVM 0,350 · Qt.A 0,358 · Qt.I 0,382**, con la Qt.A che batte la Qt.I in 12 aste su
+20 e perde dall'FVM in 12 su 20. Ma quel confronto è preso **nel solo regime in cui la Qt.A non può
+mostrare cosa sa fare**: tre giornate giocate, 90 righe mosse su 565, scarto medio 0,18, e il 91% degli
+uomini nello stesso blocco con i due tagli. **La ragione della colonna non è il verdetto di oggi: è che
+senza la serie a febbraio quella domanda non sarebbe più rispondibile.**
+
+E una nota di aritmetica che è costata una migrazione morta: il recupero è agganciato alla **seconda**
+colonna della coppia, perché il ciclo le aggiunge una per volta e appeso alla prima l'`UPDATE` nomina
+una colonna che ancora non esiste.
+
 ## Novità v9.66 (25 agosto 2026 — i minuti di un campionato che copriamo hanno una SECONDA fonte)
 
 **Dalla domanda dell'operatore su un nome:** «Varela del Monza si è dimostrato essere un ottimo calciatore,

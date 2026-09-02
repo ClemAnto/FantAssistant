@@ -509,6 +509,25 @@ CREATE TABLE IF NOT EXISTS transfers_history (
 -- fantavalori, so a series keyed only on the day mixed them - and which one a day held depended on the
 -- order of that day's downloads. Rows written before 07/08/2026 carry platform 'unknown', which is what
 -- they are: attributing them now would be inventing provenance.
+-- 📌 AND SINCE 03/09/2026 IT CARRIES THE QT.A TOO, on the operator's decision - so the table is the
+-- dated series of every VOLATILE number of the listone and no longer of the fantavalore alone. The name
+-- predates the second pair and is kept on purpose: renaming it means rebuilding a table six readers
+-- join, which buys tidiness and risks a series that cannot be rebuilt from anywhere. This comment is
+-- the cure; do not "fix" the name without a reason bigger than the name.
+--    WHY THE QT.A BELONGS HERE. `price` is revised all season, so a single column per season keeps the
+-- last reading and silently discards every earlier one - which is the defect this project has already
+-- written down as a rule («volatile states = dated time series, never static flags») and had already
+-- cured once, for the fantavalore, in August. Measured before adding it (03/09/2026, on the 20 real
+-- auctions of the operator's league): grouping men by what they will COST, the Qt.A beats the Qt.I in
+-- 12 auctions of 20 (dispersion 0.358 against 0.382) and loses to the FVM in 12 of 20 (0.350) - and
+-- that comparison was taken in the one regime where the Qt.A cannot show what it does, three matchdays
+-- in, with 90 rows of 565 moved and a mean movement of 0.18. Without the series that question is not
+-- askable again in February, which is the whole reason for the column.
+--    AND THE QT.I IS DELIBERATELY NOT HERE: it is set once before the season and never moves, so a
+-- dated series of it would be a constant repeated daily. `listone_quotes` keeps it, once.
+--    ONE READING PER MATCHDAY IS A COMPLETE SERIES, because that is when the quotation is revised - so
+-- this does not need a daily job, it needs a run before each round. The series is only as complete as
+-- the runs are: today's fantavalore history already has gaps of five and ten days.
 CREATE TABLE IF NOT EXISTS fvm_history (
     fc_id       INTEGER NOT NULL REFERENCES players(fc_id),
     season      TEXT NOT NULL,
@@ -516,6 +535,8 @@ CREATE TABLE IF NOT EXISTS fvm_history (
     platform    TEXT NOT NULL DEFAULT 'unknown',
     fvm         REAL,
     fvm_mantra  REAL,
+    price       REAL,      -- Qt.A, the CURRENT quotation: see the note above
+    price_mantra REAL,     -- ...and the same in the mantra currency
     PRIMARY KEY (fc_id, season, observed_on, platform)
 );
 
