@@ -429,6 +429,127 @@ def set_tiers(pool: list[dict]) -> None:
             man["tier"] = rank // rules.TEAMS
 
 
+#: HOW HARD THE ARM DEVIATES FROM THE MARKET LADDER *INSIDE* A TIER, on the engine's own appearances.
+#:
+#: WHY HERE AND NOWHERE ELSE. At a DRAWN auction the arm bids on `profiles.engine_ladder` - the market's
+#: own multiple of the ask, tier by tier - and that ladder is indexed on a tier defined by the PRICE. So
+#: the arm's whole valuation apparatus (`engine_worth`, `cover_value`, `coverage_need`, `alternative`,
+#: `role_cap`) is NEVER CALLED at the urn: counted rather than read off the code, 1436 calls each at a
+#: called auction and ZERO at a drawn one. Whatever the arm was winning there, it was not winning it
+#: with football - which is exactly what §17.5 measured from the other side («our own ranking read on
+#: the price's rank instead of the engine's gives +12,4% against +12,3%, identical») and it said what to
+#: do about it: «if one day the informational advantage has to pay, this is not the form».
+#:
+#: WHERE A LADDER LEAVES ROOM. A tier is `rules.TEAMS` men wide because that is the conservation law, so
+#: the ladder prices ten men alike - a limit `profiles.MARKET` already states about the REAL market
+#: (inside the first band of the attack the real ladder still falls, 2.81 3.36 2.15 2.60 3.01 2.23 then
+#: 1.79 1.23 1.89 1.90). Measured on the ten windows, inside one (role, tier) band the PRICE spans
+#: 0.08-0.48 of its own median for the outfield roles while the expected APPEARANCE SHARE spans
+#: 0.31-0.33 of the calendar - the defenders' fourth tier is the cleanest case, price 0.08 and
+#: appearances 0.42 to 0.76, i.e. TWELVE MATCHDAYS at the same price. The keepers are wider on both
+#: axes (price 1.35, appearances 0.15 to 0.84 in the second tier). That is the room, and it is where
+#: the market cannot see and we can.
+#:
+#: AND THE QUANTITY IS NOT A CHOICE. `metrica-asta-surplus-v1.md` §18 measured our incremental edge over
+#: the quotation and it is ONE NUMBER WIDE: partial Spearman against the outcome, controlling for Qt.I,
+#: `pv_pred` reads +0.198 (euro) and +0.243 (Serie A) while `fm_pred` reads +0.046 and -0.032 and the
+#: SURPLUS +0.006 and -0.077. So the within-tier deviation is spent on the APPEARANCES and on nothing
+#: else - and the regulation says why it pays here: a single deputy vote annuls both modifiers of this
+#: league, so `HOLE_COST` is 4.73 and appearances are what a squad is actually buying.
+#:
+#: AND NOT A Z-SCORE, which is the third form and the one nobody should write: standardising inside a
+#: band of ten men gives an sd near zero wherever the band is compact, and then one hundredth of a
+#: matchday becomes a doubled bid. It is the defect `level_z` was paying for when the panel computed its
+#: population over one club's movers. The two forms that WERE measured both normalise by a bounded
+#: quantity instead - the band's widest man, or the rank itself - so neither can explode.
+#:
+#: IT CONSERVES BY CONSTRUCTION, which the ladder's own tilt needed a renormalisation to do: the mean of
+#: `u` over a full band is exactly 0, so the plan `Team.scale` prices still costs one budget. A tilt
+#: that does not conserve is not a strategy, it is a bigger purse (§17.4).
+#:
+#: ADOPTED 02/09/2026 at 0.80. Criterion pre-registered before the run, paired - the same arm on the
+#: same urns, with and without - ten windows, ten participants, the arm on one of the ten chairs.
+#: **ROBUST: +1.02%, 9 windows of 10 improve, the worst at -0.42%**, paired +26.4 fantapunti with a
+#: standard error of 4.5 (t = 5.9 over 800 seasons), holes 22.9 -> 18.8, mean place 4.20 -> 3.52, titles
+#: 175 -> 257 of 800. The optimum is INTERIOR and the plateau is flat inside 0.05% (0.70 reads +26.1,
+#: 0.90 +25.9), so the DIRECTION is the finding and the second decimal is not.
+#:
+#: AND THE LABEL WAS RETIRED BY THE BIGGER SAMPLE, which is §18.2's own discipline turned on this
+#: adoption. At forty draws (400 seasons) the same comparison read **STRICT** - +1.26%, 10 windows of
+#: 10, worst +0.33% - and at eighty draws one window crosses to -0.42%. The paired GAIN survives
+#: doubling the sample and gets sharper (+32.9 +- 6.3 -> +26.4 +- 4.5, t 5.2 -> 5.9); the VERDICT LABEL
+#: does not, because "every window improves" is a count on ten and one of those ten was a coin. So the
+#: adoption stands on the effect and is published as robust: a gain confirmed by a larger sample and a
+#: label refuted by it are two different things, and only the first one is evidence.
+#:
+#: AND UNLIKE THE LADDER'S OWN MARGIN, THIS ONE SURVIVES ITS OWN COMPETITION. §18.2 had to retire the
+#: arm's advantage over the best human because most of it was exclusivity (-2.8 with three arms at the
+#: table). Re-measured with THREE arms, the same paired comparison reads **+30.0, t = 7.4, 9 windows of
+#: 10, worst -0.48%** - because this term does not escalate a bid, it MOVES the same money inside a
+#: band, so three participants reading the same forecast all still gain. It is the first thing this
+#: bench has found that pays for our own opinion rather than for how we bid.
+#:
+#: THE SHAPE WAS CHOSEN BY MEASUREMENT AND THE LOSER IS ON THE RECORD. The rank form - the one the edge
+#: was measured in - peaks at 0.50 with +23.8 (t = 3.6, 9 windows of 10, worst -0.39%): robust, not
+#: strict. It reads "one rank better" where the magnitude form reads "twelve matchdays better", and
+#: inside a band that difference is the whole content of the channel.
+#:
+#: A DEAD CHANNEL AND A SMALL ONE LOOK ALIKE, so the weight was given an ABSURD value: at 3.00 the arm
+#: reads -0.15% with the worst window at -2.90% and the holes back to 22.5. So it ARRIVES and it has a
+#: ceiling - the deviation stops paying once it overrules the market by enough to lose the lot.
+INSIGHT = 0.80
+
+#: THE SHAPE OF THAT DEVIATION, and it is a question the measurement answers rather than taste.
+#: "rank" spends the edge as a RANK (linear in the order inside the band, +-1 at the ends), which is
+#: the form the edge was MEASURED in - a partial Spearman is about ranks. "share" spends the MAGNITUDE
+#: (the distance from the band's own mean over its widest man, so it still averages to exactly zero and
+#: still conserves), which says something the rank throws away: whether the best man of the band is a
+#: little better or twelve matchdays better.
+#:
+#: MEASURED: "share" is STRICT at 0.80 (+1.26%, worst window +0.33%) and "rank" is robust at 0.50
+#: (+0.92%, worst -0.39%). The magnitude wins, and the mechanism says why - inside a band the spread of
+#: the expected appearance share is 0.30 of a calendar, which is twelve matchdays, and a rank cannot
+#: tell that band from one where everybody plays the same.
+INSIGHT_SHAPE = "share"
+
+
+def set_insight(pool: list[dict]) -> None:
+    """WHERE EACH MAN STANDS INSIDE HIS OWN TIER on the engine's expected appearances: `u` in [-1, +1].
+
+    +1 is the man of the band furthest above its mean and -1 the one furthest below, and BOTH ends are
+    reached by construction, because the divisor is the band's own widest man. Whatever the shape, the
+    mean over a full band is 0, so the deviation cannot change what the plan costs (`Team.scale`).
+
+    Two shapes, and `INSIGHT_SHAPE` records which one the measurement chose: "share" reads the MAGNITUDE
+    (how far above the band's mean he is), "rank" reads only the ORDER. The adopted one is "share" -
+    +32.9 against +23.8 - because inside a band the spread of the expected appearance share is a third
+    of a calendar, and a rank cannot tell that band from one where everybody plays the same.
+
+    A man the engine does not price gets 0 and never the bottom of his band: «vuoto = ignoto, mai zero»,
+    which here would be the difference between "no opinion about him" and "we expect him not to play".
+    """
+    for role in rules.SLOTS:
+        bands: dict[int, list[dict]] = {}
+        for man in pool:
+            if role_of(man) == role:
+                bands.setdefault(man.get("tier", 0), []).append(man)
+        for band in bands.values():
+            for man in band:
+                man["insight"] = 0.0
+            known = sorted((m for m in band if m.get("pv_pred") is not None),
+                           key=lambda m: (-m["pv_pred"], m["id"]))
+            if len(known) < 2:
+                continue
+            if INSIGHT_SHAPE == "share":
+                mean = sum(m["pv_pred"] for m in known) / len(known)
+                widest = max(abs(m["pv_pred"] - mean) for m in known) or 1.0
+                for man in known:
+                    man["insight"] = (man["pv_pred"] - mean) / widest
+                continue
+            for index, man in enumerate(known):
+                man["insight"] = 1.0 - 2.0 * index / (len(known) - 1)
+
+
 def tier_asks(pool: list[dict]) -> dict[tuple[str, int], float]:
     """The MEAN ask price of each tier - what executing a plan costs, read off the listone in August.
 
@@ -700,6 +821,9 @@ class Team:
         #: WHAT EACH TIER ASKS, set per window by whoever builds the table - like `rate`. Left empty a
         #: recipe is read at its face value, which is what the unit tests do on purpose.
         self.asks: dict[tuple[str, int], float] = {}
+        #: HOW HARD THIS PARTICIPANT DEVIATES FROM THE LADDER INSIDE A TIER - see `INSIGHT`. Zero for
+        #: every human, because a human has no engine to read: the market ladder IS their opinion.
+        self.insight = 0.0
         #: THE ENGINE ARM'S LADDER, built once per auction from its own department shares. Cached on the
         #: participant because it depends on `shares`, which the caller sets after construction.
         self.ladder: dict[str, list[float]] | None = None
@@ -765,7 +889,13 @@ class Team:
         # (real 9,5), credits left in pocket 10,2% -> 6,2% (real 6,1%), and the champion's price in the
         # first quarter of his block 47,8% -> 43,9% against a real 43,1%.
         ahead = sum(1 for other in self.men[role] if other.get("tier", 0) <= tier)
-        return ladder[min(max(tier, ahead), len(ladder) - 1)]
+        rate = ladder[min(max(tier, ahead), len(ladder) - 1)]
+        # ...AND THE ONE THING THE LADDER CANNOT SAY, for whoever has an engine to read it with: which
+        # of the ten men of this band we expect to PLAY. See `INSIGHT` and `set_insight`. Zero for every
+        # human, and inert at a called auction by the mechanism - there the arm never reaches this
+        # function at all, because a ceiling in fantapunti is the better instrument when the dearest man
+        # left is always the one on the block.
+        return rate * (1.0 + self.insight * man.get("insight", 0.0)) if self.insight else rate
 
     def owed(self, role: str) -> int:
         """How many of the DEAREST men of this role his plan still says he must own.
@@ -1205,6 +1335,7 @@ def priced_pool(window: dict) -> list[dict]:
         fm, pv = man.get("fm_pred"), man.get("pv_pred")
         man["value"] = fm * pv if fm is not None and pv is not None else None
     set_tiers(pool)
+    set_insight(pool)
     return pool
 
 
@@ -1245,6 +1376,9 @@ def one_auction(pool: list[dict], table: tuple[tuple[str, int], ...], with_engin
         # line switches the ladder off in silence - which it did, and the giveaway was a table of
         # results identical to the decimal.
         engine.asks = tier_asks(pool)
+        # READ FROM THE MODULE AT CALL TIME, never bound at import: a knob turned where nobody reads it
+        # prints identical rows, which has now cost this bench two experiments (§16.9, §17.7).
+        engine.insight = INSIGHT
         engine.matchdays = window["rounds"]
         teams.append(engine)
     auction(pool, teams, order)

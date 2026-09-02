@@ -979,3 +979,103 @@ of the ask) so with ten bidders the second price never reaches one - while at a 
 of ten do not bid at all on the bottom of the listone. Its consequence is small and stated: ~3.9 men a
 squad at ~4 credits instead of 1, i.e. **12 credits of 1000**. It moves no verdict; it is the SHAPE of the
 market's floor, and a well-chosen threshold made it visible where a badly chosen one hid it.
+
+## THE INFORMATIONAL EDGE PAYS, AND IT PAYS *INSIDE* A TIER (02/09/2026, late night)
+
+The operator's request: «dobbiamo migliorare l'engine che ti consiglia le offerte per un'asta random».
+The document's own list of seven open items did not contain this one, because the diagnosis that opened
+it had not been made: **at the urn the arm was not reading a single number from the engine.**
+
+### The diagnosis, counted rather than deduced from the code
+
+Instrumented, over the ten windows, twice:
+
+| how many times the arm calls it | called | **drawn** |
+|---|---|---|
+| `engine_worth` (surplus + cover) | 1436 | **0** |
+| `cover_value` · `coverage_need` | 1436 · 1436 | **0 · 0** |
+| `Team.alternative` (the option value) | 1436 | **0** |
+| `Team.role_cap` (the department ceiling) | 1436 | **0** |
+| `Team.step` (the market ladder) | 0 | 5746 |
+
+It is a correct and undeclared consequence of the adoption above: at a drawn auction the arm borrows
+`profiles.engine_ladder()` and goes down the HUMAN branch, which prices `ask × step(tier) × scale` - and
+the TIER is defined by the PRICE (`set_tiers` sorts on Qt.I). So the arm that wins at the urn was a
+market bidder leaning on the defence, and its opinion about footballers entered nowhere. Which is exactly
+what §17.5 measured from the other side («the same ladder read on the price's rank gives +12.4% against
++12.3%, identical») and it also said what to do about it: *«if one day the informational advantage has to
+pay, this is not the form».*
+
+### Where a ladder leaves room, and what fills it
+
+A tier is `rules.TEAMS` men wide because that is the conservation law, so ten men are priced alike.
+Measured on the ten windows, inside one (role, tier) band:
+
+| | the PRICE spans | the expected APPEARANCES span |
+|---|---|---|
+| defenders, 4th tier | **0.08** of its own median | **0.33 of the calendar** (0.42 → 0.76) |
+| midfielders, 3rd | 0.12 | 0.32 (0.50 → 0.81) |
+| forwards, 1st | 0.48 | 0.31 (0.58 → 0.89) |
+| keepers, 2nd | 1.35 | **0.69** (0.15 → 0.84) |
+
+The defenders' band is the cleanest case: twelve matchdays of difference at the same price. And the quantity is not a choice:
+`metrica-asta-surplus-v1.md` §18 measured our whole incremental edge over the quotation as ONE number -
+partial Spearman against the outcome controlling for Qt.I, `pv_pred` +0.198 (euro) and **+0.243** (Serie
+A) against the fantamedia's +0.046 / −0.032 and the **surplus's +0.006 / −0.077**.
+
+`bench.INSIGHT` = 0.80, `bench.set_insight`: the ladder's step is multiplied by `1 + INSIGHT × u`, where
+`u` is the man's distance from his band's own mean over the band's widest man. **It conserves by
+construction** - the mean of `u` over a full band is exactly zero, so the plan `Team.scale` prices still
+costs one budget, which the ladder's own tilt needed a renormalisation for. A man the engine does not
+price sits at the MIDDLE of his band and never at the bottom.
+
+### The verdict, and the label the bigger sample retired
+
+Pre-registered before the run; paired - the same arm, the same urns, with and without - ten
+participants, the arm on one of the ten chairs:
+
+| | 40 urns (400 seasons) | **80 urns (800 seasons)** |
+|---|---|---|
+| paired gain | +32.9 ± 6.3 (t 5.2) | **+26.4 ± 4.5 (t 5.9)** |
+| per cent | +1.26% | **+1.02%** |
+| windows improving | 10 of 10 | **9 of 10** |
+| the worst | +0.33% | **−0.42%** |
+| verdict | **STRICT** | **robust** |
+| holes a season | 23.5 → 18.5 | 22.9 → **18.8** |
+| mean place | 4.27 → 3.50 | 4.20 → **3.52** |
+| titles | 81 → 122 of 400 | 175 → **257 of 800** |
+
+**The gain survives doubling the sample and gets sharper; the LABEL does not.** «Every window improves»
+is a count on ten and one of those ten was a coin. So the adoption stands on the effect (t = 5.9) and is
+published as robust - §18.2's own discipline turned on this adoption instead of yesterday's. The optimum
+is INTERIOR and the plateau flat inside 0.05% (0.70 reads +26.1, 0.90 +25.9), so the DIRECTION is the
+finding. And the channel ARRIVES: at an absurd 3.00 it reads −0.15% with the worst window at −2.90%.
+At a CALLED auction nothing moves by a decimal (2647.4, place 3.70, 10.5 holes), because there the arm
+never reaches `Team.step` - the mechanism switches it, not a flag, and there the appearances are already
+inside `cover_value`.
+
+### ...AND THIS MARGIN SURVIVES ITS OWN COMPETITION, which the ladder's did not
+
+Re-measured with THREE arms: **+30.0 ± 4.0 (t 7.4), 9 windows of 10, worst −0.48%**, holes 26.5 → 20.8.
+The term does not escalate a bid, it MOVES the same money inside a band, so three participants reading
+the same forecast all still gain. It is the first thing this bench has found that pays for our OPINION
+rather than for how we bid.
+
+### Two things measured and NOT adopted
+
+- **The RANK form** of the same deviation (linear in the order inside the band, which is the form the
+  edge was measured in): +23.8 (t 3.6), 9 windows of 10, worst −0.39%, holes 20.2 - robust, and beaten by
+  the magnitude, which says what a rank throws away.
+- **A weight PER DEPARTMENT.** Asked apart the way §19.1 requires: all four +32.9, D·C·A +25.5, P·D +9.7,
+  C·A +10.7, P alone +8.7 - **the parts do not make the whole** (9.7 + 10.7 = 20.4 against 32.9) and no
+  half reaches the floor with a `t` over 2, because what the term buys are the two modifiers and those
+  are a property of the ELEVEN. One global weight. Note the contrast with §19.1, and it is not a
+  contradiction: the keeper half of the LADDER tilt was worth nothing (+0.1%) because it was a statement
+  about the LEVEL of the band, while the keeper half of THIS term is worth +7.4 of the +32.9 because it
+  is a statement about WHICH of the ten plays - and for a keeper, of whom you field one, that is the only
+  question. In the data: first tier of T2, Svilar (pv 0.90) and Butez (0.57) ask 53 and 35 credits, so the
+  price cannot separate them, and the term offers **107 against 10**.
+- **`Team.keeps` counted on «who plays» instead of on the price tier** - a change of definition with no
+  new parameter: +6.6 ± 3.8 (t 1.71), +0.25%, holes 18.5 → 17.0. Under the 0.5% floor and under two
+  standard errors, so it does not go in; the direction is right and it is recorded as a candidate if the
+  floor is ever re-measured.

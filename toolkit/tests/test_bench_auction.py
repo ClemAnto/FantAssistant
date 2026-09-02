@@ -16,10 +16,11 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from bench.auction import rules
+from bench.auction import bench as bench_module
 from bench.auction.bench import (DEPTH_WEIGHT, HOLE_COST, PHASES, QUOTA_DEPTH, Team, Urn,
                                  auction, called_order, cover_value, coverage_need, covered_places,
                                  engine_rate, engine_worth, extraction_order, role_of, role_shares,
-                                 season, set_tiers, tier_asks, to_credits)
+                                 season, set_insight, set_tiers, tier_asks, to_credits)
 from bench.auction.league import LEAGUE_TABLE, LEGS, fixtures, round_robin, standings
 from bench.auction.profiles import (MARKET, MARKET_SHARE, MENTAL_CAP_SHARE, PROFILES,
                                     TILT, URGENCY, engine_ladder)
@@ -821,3 +822,99 @@ def test_the_engine_ladder_conserves_the_budget_and_leans_on_the_back():
     assert ladder["P"][0] / MARKET["P"][0] < 1.0, "il tilt e' tornato sui portieri"
     assert ladder["A"][0] / MARKET["A"][0] < 1.0
     assert ladder["D"][-1] / MARKET["D"][-1] < 1.0, "la coda non paga il premio della cima"
+
+
+def _banded(shares: dict[str, float]) -> list[dict]:
+    """One tier of ten defenders at the SAME price, whose expected appearances differ."""
+    pool = _pool()
+    band = [m for m in pool if role_of(m) == "D"][:rules.TEAMS]
+    for man in band:
+        man["price"] = 50.0
+    for man, share in zip(band, shares["D"]):
+        man["pv_pred"] = share
+    set_tiers(pool)
+    set_insight(pool)
+    return pool
+
+
+def test_the_within_tier_deviation_averages_to_ZERO_and_therefore_conserves():
+    """A tilt that does not conserve is not a strategy, it is a bigger purse - the same rule the
+    ladder's own tilt needed a renormalisation for, and this one gets for free: the deviation is the
+    distance from the band's OWN mean, so a full band sums to nothing and `Team.scale` still prices
+    the plan at one budget."""
+    pool = _banded({"D": [34.0, 30.0, 28.0, 26.0, 24.0, 22.0, 20.0, 18.0, 16.0, 12.0]})
+    band = [m for m in pool if role_of(m) == "D" and m["tier"] == 0]
+    assert len(band) == rules.TEAMS
+    assert sum(m["insight"] for m in band) == pytest.approx(0.0, abs=1e-9)
+    assert max(m["insight"] for m in band) == pytest.approx(1.0)
+    # ...and every band of every role, on the real shape of the synthetic listone
+    for role in rules.SLOTS:
+        for tier in range(rules.SLOTS[role]):
+            full = [m for m in pool if role_of(m) == role and m.get("tier") == tier]
+            if len(full) >= 2:
+                assert sum(m["insight"] for m in full) == pytest.approx(0.0, abs=1e-9)
+
+
+def test_a_man_the_engine_does_not_price_sits_at_the_MIDDLE_of_his_band_and_not_at_the_bottom():
+    """«Vuoto = ignoto, mai zero», applied to an opinion: "we have no forecast for him" and "we expect
+    him not to play" are two different sentences, and only the second one may lower a bid."""
+    pool = _banded({"D": [34.0, 30.0, 28.0, 26.0, 24.0, 22.0, 20.0, 18.0, 16.0, 12.0]})
+    band = [m for m in pool if role_of(m) == "D" and m["tier"] == 0]
+    band[3]["pv_pred"] = None
+    set_insight(pool)
+    assert band[3]["insight"] == 0.0
+    assert band[0]["insight"] > 0 and band[-1]["insight"] < 0
+
+
+def test_the_arm_pays_MORE_for_the_man_of_the_band_it_expects_to_PLAY():
+    """The one thing the market's ladder cannot say, and the only place it leaves room.
+
+    A tier is `rules.TEAMS` men wide, so the ladder prices ten men alike; measured on the ten windows,
+    inside a band the PRICE spans 0.08-0.48 of its own median while the expected appearance share spans
+    0.31-0.33 of the calendar - twelve matchdays at the same price. And the quantity is not a choice:
+    `metrica-asta-surplus-v1.md` §18 measured
+    our whole incremental edge over the quotation as ONE number, the appearances (+0,243 partial
+    Spearman on Serie A against -0,077 for the surplus). Worth +1,02% ROBUST over 800 seasons (paired
+    +26,4 +- 4,5, 9 windows of 10, worst -0,42%), holes 22,9 -> 18,8 - and it SURVIVES three arms at the
+    table (+30,0, t = 7,4), which the ladder's own margin did not.
+    """
+    pool = _banded({"D": [34.0, 30.0, 28.0, 26.0, 24.0, 22.0, 20.0, 18.0, 16.0, 12.0]})
+    band = [m for m in pool if role_of(m) == "D" and m["tier"] == 0]
+    best, worst = band[0], band[-1]
+    assert best["price"] == worst["price"], "il caso non isola le presenze dal prezzo"
+    arm = Team("engine", "ENGINE", None)
+    arm.shares, arm.matchdays, arm.asks = role_shares(pool), 38, tier_asks(pool)
+    arm.insight = 0.8
+    lots = called_order(pool)
+    drawn = _urn(lots, random=True)
+    assert arm.bid(best, drawn) > arm.bid(worst, drawn), "il braccio paga uguale chi gioca e chi no"
+    # ...and the channel is actually SWITCHED ON, which a mechanism test cannot say by itself: the
+    # weight above is the test's, the one the arm plays with is the module's. This is the line to
+    # change deliberately if a re-measurement ever turns the term off.
+    assert bench_module.INSIGHT > 0, "il canale e' spento: la misura lo ha ritirato?"
+    assert bench_module.INSIGHT_SHAPE == "share"
+    # ...and a HUMAN reads the market ladder unmodified, because he has no engine to read it with
+    human = Team("p3", "P3 balanced", PROFILES["P3 balanced"])
+    human.asks, human.matchdays = tier_asks(pool), 38
+    assert human.insight == 0.0
+    assert human.bid(best, drawn) == human.bid(worst, drawn)
+
+
+def test_the_within_tier_deviation_is_inert_at_a_CALLED_auction():
+    """Switched on by the MECHANISM and not by a flag, exactly like the ladder it deviates from: at a
+    called auction the arm never reaches `Team.step` at all, because there the man on the block is the
+    dearest one left and a ceiling in fantapunti is the better instrument.
+
+    Counted rather than read off the code, which is how the whole channel was found: over the ten
+    windows the arm calls `engine_worth`, `cover_value`, `coverage_need`, `alternative` and `role_cap`
+    1436 times each at a called auction and ZERO times at a drawn one.
+    """
+    pool = _banded({"D": [34.0, 30.0, 28.0, 26.0, 24.0, 22.0, 20.0, 18.0, 16.0, 12.0]})
+    band = [m for m in pool if role_of(m) == "D" and m["tier"] == 0]
+    arm = Team("engine", "ENGINE", None)
+    arm.shares, arm.matchdays, arm.asks = role_shares(pool), 38, tier_asks(pool)
+    lots = called_order(pool)
+    called = _urn(lots, random=False)
+    plain = [arm.bid(man, called) for man in band]
+    arm.insight = 3.0
+    assert [arm.bid(man, called) for man in band] == plain

@@ -826,6 +826,58 @@ consegna `asks`, quindi il dispatch non scattava. **Righe identiche non sono un 
 dello strumento**, e vanno sospettate prima della conclusione — la prima volta era
 `profiles.CAUTIOUS_CAP_SHARE` girata dove `bench` non la legge.
 
+## Un vantaggio informativo si spende dove la scala del mercato lascia spazio: DENTRO la fascia
+**02/09/2026 (notte tarda), `simulatore-asta-rilanci-v1.md` §21.** «Migliorare l'engine che consiglia le
+offerte per un'asta random», e la diagnosi non era in nessuna delle sette aperture della todolist perché
+nessuno l'aveva fatta: **all'urna il braccio motore non chiamava una sola funzione del motore.** Contato
+invece che dedotto dal codice — `engine_worth`, `cover_value`, `coverage_need`, `alternative`, `role_cap`:
+**1436 chiamate a chiamata e ZERO a estrazione** — perché l'adozione della scala di mercato manda il
+braccio sul ramo umano, che prezza `richiesta × passo(fascia) × scala` con la **fascia definita dal
+PREZZO**. Il braccio che vinceva all'urna era un offerente di mercato inclinato sulla difesa. *Quando una
+misura dice «la nostra opinione vale zero», la prima cosa da verificare è che venga LETTA* — §17.5 aveva
+misurato +12,4% contro +12,3% e la sua conclusione giusta era «la forma non è questa», non «non serve».
+
+**Una fascia è larga dieci uomini perché quella è la legge di conservazione, e lì c'è lo spazio.** Dentro
+una (ruolo, fascia) il PREZZO varia dello 0,08-0,48 della propria mediana e le PRESENZE ATTESE dello 0,31-0,33
+del calendario — dodici giornate allo stesso prezzo, e 0,69 per i portieri di seconda fascia. **E la
+quantità non è una scelta**: `metrica-asta-surplus-v1.md` §18 aveva già misurato il nostro vantaggio
+incrementale sulla quotazione come largo un numero solo (`pv_pred | Qt.I` +0,243 su Serie A, contro
+−0,077 del surplus e −0,032 della fantamedia), e il regolamento dice perché paga proprio qui: una sola
+riserva d'ufficio annulla tutt'e due i modificatori. `INSIGHT` 0,80 sulla MAGNITUDINE (la distanza dalla
+media della fascia sull'uomo più lontano della stessa fascia), che **conserva per costruzione** — media
+zero su una fascia piena, quindi nessuna rinormalizzazione, a differenza del tilt — e mette al **centro**
+della fascia, non in fondo, chi il motore non prezza. **+1,02% robust su 800 stagioni** (appaiato +26,4 ±
+4,5, t 5,9, 9 finestre su 10), buchi 22,9 → 18,8, titoli 175 → 257 su 800; a chiamata nemmeno un decimale,
+perché lì il braccio non arriva a `Team.step` e le presenze le legge già dentro `cover_value`.
+
+**E questo margine SOPRAVVIVE alla propria concorrenza**, che è la cosa che il §18.2 aveva dovuto ritirare
+per la scala (−2,8, un pareggio, con tre bracci): con tre bracci il confronto appaiato legge **+30,0 ± 4,0
+(t 7,4)**, perché il termine **non alza un'offerta, sposta gli stessi soldi dentro una fascia**. È la prima
+cosa che questo banco trova che paghi per la nostra OPINIONE invece che per il modo in cui offriamo.
+
+Quattro abitudini, e tre sono regole di casa incontrate da un lato nuovo.
+- **Un'ETICHETTA di verdetto può essere ritirata da un campione più grande mentre l'effetto si rafforza.**
+  A 40 urne era **STRICT** (10 finestre su 10, peggiore +0,33%), a 80 una finestra passa a −0,42%: il
+  guadagno si affila (+32,9 ± 6,3 → +26,4 ± 4,5, t 5,2 → 5,9), l'etichetta cade, perché «tutte le finestre
+  migliorano» è un conteggio su dieci e una era una monetina. *Un guadagno confermato da un campione più
+  grande e un'etichetta smentita da quello stesso campione sono due cose diverse, e solo la prima è una
+  prova* — la disciplina del §18.2 applicata alla propria adozione e non a quelle di ieri.
+- **Le parti non fanno il tutto dove quello che si compra è una SOGLIA sull'undici.** Un peso per reparto
+  è stato chiesto come il §19.1 impone (i portieri a parte) e respinto dall'aritmetica: 9,7 + 10,7 = 20,4
+  contro 32,9, e nessuna metà arriva al pavimento con un `t` sopra 2, perché i due modificatori sono una
+  proprietà dell'ELEVEN — sistemare un reparto e lasciarne tre rotti non incassa niente. Stessa famiglia
+  dell'R-Factor: *il valore di una soglia non si può scrivere su una riga.*
+- **Due frasi sullo stesso ruolo possono valere zero e sette punti.** La metà portieri del TILT valeva
+  niente (+0,1%) ed era una frase sul **livello** della fascia («offri 136 dove il mercato paga 81»); la
+  metà portieri di QUESTO termine vale **+7,4 dei +32,9** ed è una frase su **quale dei dieci** gioca — che
+  per un portiere, di cui se ne schiera uno, è la sola domanda. Svilar (pv 0,90) e Butez (0,57) chiedono 53
+  e 35 crediti: il prezzo non li distingue, il termine offre 107 contro 10.
+- **E la forma si sceglie sulla misura, non sulla provenienza.** Il RANGO era la forma in cui il vantaggio
+  è stato misurato (uno Spearman parziale è sui ranghi) e per questo è stato scritto per primo: +23,8
+  contro +32,9. La magnitudine vince perché dice quello che il rango butta via, cioè se lo scarto dentro la
+  fascia è una giornata o dodici. Respinta anche `Team.keeps` contata su «chi gioca» invece che sulla
+  fascia di prezzo: +0,25%, t 1,71, sotto il pavimento con la direzione giusta.
+
 ## Dieci contro dieci, e una soglia ASSOLUTA non si confronta fra budget diversi
 **02/09/2026 (notte tarda), `simulatore-asta-rilanci-v1.md` §18.** Due osservazioni dell'operatore, e
 tutt'e due hanno spostato numeri pubblicati poche ore prima.

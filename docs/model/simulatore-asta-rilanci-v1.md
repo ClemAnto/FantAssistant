@@ -1471,6 +1471,15 @@ piano). Dalla quinta fascia in giù si offre **1-5 crediti**, e sono ~13 uomini 
 Il §12 è del pomeriggio e va letto sapendo che metà della sua lista è stata fatta o superata. Questa la
 sostituisce.
 
+> **ANNOTATO la notte stessa dal §21, e non riscritto.** La cosa più grossa che è venuta dopo **non era
+> in questa lista**, perché la diagnosi che l'ha aperta non era ancora stata fatta: all'urna il braccio
+> non leggeva un solo numero del motore, e metterci dentro le presenze *dentro la fascia* vale +1,02%
+> robust su 800 stagioni e **sopravvive a tre bracci al tavolo** (+30,0, t 7,4), che è quello che il
+> vantaggio della scala non faceva. Il §21.8 aggiunge un rifiuto misurato (il posto tenuto per «chi
+> gioca», +0,25% e `t` 1,7) e il §21.3 una lettura che vale per gli item qui sotto: **la lista degli
+> aperti si ordina per resa attesa, ma la resa più grossa può stare in una diagnosi invece che in un
+> item** — quindi vale la pena chiedere, di ogni pezzo adottato, *quali numeri legge davvero*.
+
 ### 20.1 Fatti, e dove sono
 
 - **`CAUTIOUS_CAP_SHARE`** (era il punto 1 del §12): riancorato da 0,15 (il **p10** della cautela reale) a
@@ -1515,9 +1524,210 @@ sostituisce.
 ### 20.3 Cosa NON rifare, e perché
 
 - **Il valore d'opzione al di là di `ALT_WEIGHT` 0,5**: sei famiglie misurate, la migliore +5,2%, e il
-  difetto vero era di scala (§17.3). Non è una manopola da girare ancora.
+  difetto vero era di scala (§17.3). Non è una manopola da girare ancora. **E dal §21.1 c'è una ragione
+  in più che vale per tutta quella famiglia**: all'urna `Team.alternative` non viene chiamata nemmeno una
+  volta, quindi girare `ALT_WEIGHT` là non muove niente per costruzione — la sua griglia «piatta» del
+  §17.3 era già lo strumento che lo diceva.
+- **La forma a RANGO della deviazione dentro la fascia** (§21.5): +23,8 contro i +32,9 della magnitudine,
+  robust contro strict a 40 urne. La direzione è la stessa, la forma no.
+- **Un peso della deviazione PER REPARTO** (§21.7): le parti non fanno il tutto (9,7 + 10,7 = 20,4 contro
+  32,9) e nessuna metà arriva al pavimento con un `t` sopra 2, perché quello che il termine compra sono i
+  modificatori, che sono una proprietà dell'undici. Un peso globale.
+- **`Team.keeps` contato su «chi gioca» invece che sulla fascia di prezzo** (§21.8): +0,25%, `t` 1,71.
+  Sotto il pavimento; segnato come candidato se il pavimento verrà mai rimisurato.
 - **Il tilt sui portieri**: +0,1% su 4 finestre di 10, e tiltare i soli portieri è −1,6% (§19.1).
 - **Il nostro ORDINAMENTO come sostituto del rango di prezzo**: +12,4% contro +12,3%, cioè zero (§17.5).
   Se un giorno il vantaggio informativo deve pagare, la forma non è questa.
 - **Le tre cure di comportamento sul campione** (§16.5): il conto sui crediti da solo, quello su crediti
   e posto per tutti, il pavimento d'urgenza. Tutte e tre misurate e respinte con i loro numeri.
+
+## 21. Il vantaggio informativo paga, e paga DENTRO la fascia (2 settembre 2026, notte tarda)
+
+Richiesta dell'operatore: «dobbiamo migliorare l'engine che ti consiglia le offerte per un'asta random».
+Il §20.2 elencava sette aperture e nessuna era questa, perché la diagnosi che l'ha aperta non era nella
+lista: **all'urna il braccio motore non leggeva un solo numero del motore.**
+
+### 21.1 La diagnosi: quanto motore c'è in un'offerta all'urna? Zero
+
+Contato invece che dedotto dal codice, strumentando le funzioni e girando le dieci finestre due volte:
+
+| quante volte il braccio la chiama | a chiamata | **a estrazione** |
+|---|---|---|
+| `engine_worth` (surplus + copertura) | 1436 | **0** |
+| `cover_value` · `coverage_need` | 1436 · 1436 | **0 · 0** |
+| `Team.alternative` (il valore d'opzione) | 1436 | **0** |
+| `Team.role_cap` (il tetto di reparto) | 1436 | **0** |
+| `Team.step` (la scala di mercato) | 0 | 5746 |
+
+È una conseguenza corretta e non dichiarata dell'adozione del §17.4: all'urna il braccio prende in
+prestito `profiles.engine_ladder()` e passa dal ramo umano, e quel ramo prezza `richiesta × passo(fascia)
+× scala`. La **fascia la definisce il PREZZO** (`set_tiers` ordina per Qt.I). Quindi il braccio che vince
+all'urna era un offerente di mercato inclinato sulla difesa, e la sua opinione sui calciatori non entrava
+da nessuna parte — che è esattamente quello che il §17.5 aveva misurato dall'altro lato («la stessa scala
+letta sul rango di prezzo dà +12,4% contro +12,3%, identico») e che diceva anche cosa fare: *«se un giorno
+il vantaggio informativo deve pagare, la forma non è questa»*.
+
+### 21.2 Dove una scala lascia spazio: una fascia è larga DIECI uomini
+
+Una fascia è larga `TEAMS` uomini perché quella è la legge di conservazione, quindi il listino prezza
+dieci uomini uguali — un limite che `profiles.MARKET` dichiara già del mercato VERO (dentro la prima
+fascia dell'attacco la scala reale continua a scendere: 2,81 · 3,36 · 2,15 · 2,60 · 3,01 · 2,23 poi
+1,79 · 1,23 · 1,89 · 1,90). Misurato sulle dieci finestre, dentro una fascia (ruolo, fascia):
+
+| | il PREZZO varia di | le PRESENZE ATTESE variano di |
+|---|---|---|
+| difensori, 4ª fascia | **0,08** della propria mediana | **0,33 del calendario** (0,42 → 0,76) |
+| centrocampisti, 3ª | 0,12 | 0,32 (0,50 → 0,81) |
+| attaccanti, 1ª | 0,48 | 0,31 (0,58 → 0,89) |
+| portieri, 2ª | 1,35 | **0,69** (0,15 → 0,84) |
+
+La fascia dei difensori è il caso più pulito: **dodici giornate di differenza allo stesso prezzo.**
+Quello è lo spazio, ed è dove il mercato non vede e noi sì. (I portieri sono larghi su tutt'e due gli
+assi, e il §21.7 dice perché contano comunque.)
+
+### 21.3 E la quantità non è una scelta
+
+`metrica-asta-surplus-v1.md` §18 ha misurato il nostro vantaggio incrementale sulla quotazione ed è
+**largo un numero solo**: Spearman parziale contro l'esito, controllando per la Qt.I, `pv_pred` vale
++0,198 (euro) e **+0,243** (Serie A), la fantamedia +0,046 e −0,032, il **surplus +0,006 e −0,077**.
+Quindi la deviazione dentro la fascia si spende sulle **presenze** e su nient'altro — e il regolamento
+dice perché paga proprio qui: una sola riserva d'ufficio annulla tutt'e due i modificatori, per cui
+`HOLE_COST` è 4,73 e le presenze sono quello che una rosa sta davvero comprando.
+
+`bench.INSIGHT` e `bench.set_insight`: il passo della scala viene moltiplicato per `1 + INSIGHT × u`,
+dove `u` è la distanza dalla media della sua fascia divisa per l'uomo più lontano della stessa fascia.
+**Conserva per costruzione** — la media di `u` su una fascia piena è esattamente 0, quindi il piano che
+`Team.scale` prezza costa ancora un budget e non serve la rinormalizzazione che serviva al tilt del
+§17.4. E un uomo che il motore non prezza sta al **centro** della sua fascia e non in fondo: «vuoto =
+ignoto, mai zero» applicato a un'opinione, perché «non abbiamo una previsione su di lui» e «prevediamo
+che non giochi» sono due frasi diverse e solo la seconda può abbassare un'offerta.
+
+### 21.4 Il verdetto — e l'ETICHETTA ritirata dal campione più grande
+
+Criterio pre-registrato prima della corsa, confronto **appaiato** (lo stesso braccio, sulle stesse urne,
+con e senza il termine), dieci partecipanti, il braccio su una delle dieci sedie:
+
+| | 40 urne (400 stagioni) | **80 urne (800 stagioni)** |
+|---|---|---|
+| guadagno appaiato | +32,9 ± 6,3 (t 5,2) | **+26,4 ± 4,5 (t 5,9)** |
+| in percentuale | +1,26% | **+1,02%** |
+| finestre che migliorano | 10 su 10 | **9 su 10** |
+| la peggiore | +0,33% | **−0,42%** |
+| verdetto | **STRICT** | **robust** |
+| buchi in una stagione | 23,5 → 18,5 | 22,9 → **18,8** |
+| posto medio | 4,27 → 3,50 | 4,20 → **3,52** |
+| titoli | 81 → 122 su 400 | 175 → **257 su 800** |
+
+**Il guadagno sopravvive al raddoppio del campione e si affila; l'etichetta no.** «Tutte le finestre
+migliorano» è un conteggio su dieci, e una di quelle dieci era una monetina: a 80 urne passa a −0,42%.
+Quindi l'adozione sta in piedi sull'effetto (t = 5,9) e si pubblica come **robust** — è la disciplina del
+§18.2 applicata a questa adozione invece che a quelle di ieri. *Un guadagno confermato da un campione più
+grande e un'etichetta smentita da quello stesso campione sono due cose diverse, e solo la prima è una
+prova.*
+
+L'ottimo è **interno** e il plateau è piatto entro lo 0,05% (0,70 legge +26,1, 0,80 +26,4, 0,90 +25,9):
+la **direzione** è il risultato, il secondo decimale no. E il canale **arriva**: a un valore assurdo
+(3,00) legge **−0,15%** con la peggiore finestra a −2,90% e i buchi di nuovo a 22,5 — cioè ha anche un
+tetto, perché la deviazione smette di pagare quando scavalca il mercato quanto basta a perdere il lotto.
+
+**A CHIAMATA non si muove di un decimale** (2647,4 punti, posto 3,70, 10,5 buchi, identici al §19.2),
+perché lì il braccio non arriva nemmeno a `Team.step`: lo accende il MECCANISMO e non un flag, come la
+scala che devia. E lì le presenze le legge già, dentro `cover_value`.
+
+### 21.5 La forma: RANGO contro MAGNITUDINE, scelta dalla misura
+
+Sono state scritte e misurate tutt'e due, e la perdente resta a verbale.
+
+| forma | ottimo | guadagno appaiato | finestre | peggiore | buchi |
+|---|---|---|---|---|---|
+| **magnitudine** (distanza dalla media della fascia) | **0,80** | **+32,9 (t 5,2)** | 10/10 | +0,33% | **18,5** |
+| rango (lineare nell'ordine dentro la fascia) | 0,50 | +23,8 (t 3,6) | 9/10 | −0,39% | 20,2 |
+
+Il rango era la forma in cui il vantaggio è stato **misurato** (uno Spearman parziale è sui ranghi) e per
+questo è stata scritta per prima; la magnitudine vince perché dice quello che il rango butta via — dentro
+una fascia lo scarto di presenze attese vale un **terzo di calendario**, cioè dodici giornate, e un rango
+non distingue quella fascia da una in cui giocano tutti uguale. (Le due colonne di questa tabella sono a 40
+urne, dove sono state confrontate.)
+
+### 21.6 E QUESTO margine sopravvive alla propria concorrenza
+
+Il §18.2 aveva dovuto ritirare il vantaggio del braccio sul miglior umano perché la maggior parte era
+**esclusività** (−2,8 con tre bracci al tavolo). Rimisurato con **tre** bracci, lo stesso confronto
+appaiato legge **+30,0 ± 4,0 (t 7,4), 9 finestre su 10, peggiore −0,48%**, buchi 26,5 → 20,8.
+
+Il meccanismo dice perché: questo termine **non alza un'offerta, sposta gli stessi soldi dentro una
+fascia** — conserva per costruzione — quindi tre partecipanti che leggono la stessa previsione guadagnano
+tutti e tre. **È la prima cosa che questo banco trova che paghi per la nostra OPINIONE invece che per il
+modo in cui offriamo.**
+
+### 21.7 Il termine NON è scomponibile per reparto, e i portieri sono il contro-esempio del §19.1
+
+Chiesti a parte come il §19.1 impone (la griglia che cercò i portieri insieme alla difesa non li chiese
+mai da soli), 40 urne:
+
+| deviazione accesa su | guadagno appaiato | finestre | buchi |
+|---|---|---|---|
+| **tutti e quattro** | **+32,9 (t 5,2)** | 10/10 | **18,5** |
+| D · C · A (portieri esclusi) | +25,5 (t 4,2) | 9/10 | 20,4 |
+| solo P · D | +9,7 (t 1,6) | 8/10 | 20,3 |
+| solo C · A | +10,7 (t 1,9) | 5/10 | 23,0 |
+| solo P | +8,7 (t 1,5) | 7/10 | 21,1 |
+
+**Le parti non fanno il tutto**: 9,7 + 10,7 = 20,4 contro 32,9, e nessuna metà da sola arriva al
+pavimento dello 0,5% con un `t` sopra 2. La ragione è la stessa dell'R-Factor — *il valore di una soglia
+non si può scrivere su una riga*: quello che il termine compra sono i due modificatori, che sono una
+proprietà dell'**undici** e non di un reparto, quindi sistemare un dipartimento e lasciarne tre rotti non
+incassa niente. Un peso globale, quattro ruoli, nessun parametro per reparto.
+
+**E i portieri sono il contro-esempio esatto del §19.1.** Là la metà portieri del tilt valeva **niente**
+(+0,1%, 4 finestre su 10) e diceva «offri 136 crediti per un portiere di prima fascia dove il mercato ne
+paga 81»; qui la metà portieri vale **+7,4 punti** dei +32,9. Non è una contraddizione, sono due domande
+diverse sullo stesso ruolo: quella era una frase sul **livello** della fascia, questa è una frase su
+**quale dei dieci** gioca — e per un portiere, che se ne schiera uno, è la sola domanda che conta. Nel
+dato: prima fascia di T2, Svilar (pv 0,90) e Butez (pv 0,57) chiedono 53 e 35 crediti, cioè il prezzo non
+li distingue, e il termine offre **107 contro 10**.
+
+### 21.8 Una cura vicina, misurata e RESPINTA: il posto tenuto per «chi gioca»
+
+`Team.keeps` conta «quanti uomini migliori sono ancora nell'urna» sulla **fascia di prezzo**. Adesso che
+il braccio ha un'opinione su chi gioca, «migliore» potrebbe voler dire «quelli che noi rateremmo più su»
+— un cambio di DEFINIZIONE senza parametri nuovi, che è il tipo che questo progetto preferisce.
+
+Misurato (40 urne, sul braccio soltanto, gli umani restano sulla fascia di prezzo perché non hanno un
+motore con cui leggerla): **+6,6 ± 3,8 (t 1,71), +0,25%, 9 finestre su 10, peggiore −0,41%**, buchi 18,5
+→ 17,0 e titoli 122 → 133 su 400. **Sotto il pavimento dello 0,5% e con `t` sotto 2: non entra.** La
+direzione è giusta e la si segna, perché è un candidato pulito se un giorno il pavimento verrà rimisurato;
+oggi sarebbe adottare un numero che il campione non distingue da zero.
+
+### 21.9 Cosa cambia sul listino della sua lega (§19.3)
+
+Il §19.3 dà un multiplo per fascia; questo lo apre in tre, dentro la fascia. Finestra T2, `scala` 1,187:
+
+| reparto, fascia | il passo piatto | chi gioca più della fascia | il mediano | chi gioca meno |
+|---|---|---|---|---|
+| **P 1ª** | ×1,48 | Svilar (pv 0,90) → **107** | Di Gregorio (0,81) → 89 | Butez (0,57) → **10** |
+| **D 1ª** | ×1,91 | Angelino (0,78) → **174** | Cambiaso (0,70) → 96 | Wesley (0,62) → **19** |
+| **D 2ª** | ×1,56 | Rrahmani (0,78) → **87** | Hien (0,69) → 63 | Bremer (0,48) → **14** |
+| **C 1ª** | ×1,33 | McTominay (0,76) → **187** | Calhanoglu (0,69) → 100 | Gudmundsson A. (0,60) → **22** |
+| **A 1ª** | ×2,59 | Lukaku (0,76) → **368** | Thuram (0,72) → 303 | Gimenez (0,50) → **45** |
+| **A 2ª** | ×1,52 | Krstovic (0,73) → **156** | Lang (0,61) → 105 | Scamacca (0,38) → **20** |
+
+Detto in una riga per il tavolo: **la fascia dice quanto vale il posto, le presenze attese dicono quale
+dei dieci uomini di quella fascia lo occupa** — e la seconda metà vale l'1% di una stagione, che è più di
+tutto quello che il nostro giudizio sui calciatori avesse pagato finora a un'asta a rilanci.
+
+### 21.10 Limiti, detti e non spalmati
+
+- **È +1% di una stagione**, cioè +0,73 fantapunti a giornata su 36, con una deviazione standard fra
+  stagioni di ~105: 32% di titoli su 800 stagioni contro il 22% di prima e il 10% del caso. È un
+  vantaggio, non una certezza.
+- **Lo scarto dal miglior umano NON è la misura di questa adozione** e va letto col §18.2 in mano: a 20
+  urne legge +41,5 punti contro i +20,0 di prima, ma è una **media contro un massimo su cinque profili**,
+  cioè non appaiata. Quello che si pubblica è il confronto appaiato.
+- **Vive dentro `pv_pred`.** Se la previsione delle presenze migliora, questo canale migliora con lei; se
+  peggiora, questo la amplifica per costruzione. Il collo di bottiglia è lo stesso che il banco draft ha
+  misurato su quindici istanze di finestra (`todolist-draft-v1.md`), e adesso ha un secondo consumatore.
+- **La fascia resta definita dal PREZZO**, e apposta: sostituirla col nostro ordinamento è stato misurato
+  e vale zero (§17.5, +12,4% contro +12,3%). Questo termine non tocca il confine, devia dentro.
+- **`engine_*`, i fogli, il bundle e le revisioni non si muovono di un decimale**: qui non si prevede
+  nessun calciatore, si legge una previsione che esisteva già.
