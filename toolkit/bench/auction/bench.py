@@ -512,6 +512,49 @@ INSIGHT = 0.80
 #: tell that band from one where everybody plays the same.
 INSIGHT_SHAPE = "share"
 
+#: FROM WHICH TIER THE ARM LETS A LOT PASS BECAUSE THE MARKET WILL DISCOUNT HIM, and how many rosters
+#: still holding a place in that role count as «the table is wide open». Both come from the ARCHIVE and
+#: not from this bench's own optimum, and the difference matters - see below.
+#:
+#: WHAT THE ARCHIVE SAYS (10 real drawn auctions of this league, 2495 awards, `simulatore-asta-rilanci`
+#: §23.1): against how many of the ten rosters still hold a place in the role, the median paid/ask of a
+#: man of the FIRST TWO TIERS reads x1.00 / 0.91 / 0.80 - i.e. he never comes cheap, and ZERO of 552
+#: awards of the top tier of any role went for one credit. From the THIRD TIER the same curve reads
+#: x1.00 / 0.50 / 0.50, and from the fifth x1.00 / 0.36 / 0.21, with the share going at one credit
+#: climbing from 17% to 92%. So the discount exists exactly where the man is SUBSTITUTABLE: twenty men
+#: for ten starting places at the top, more men than places below it.
+#:
+#: WHAT IT BUYS, and the mechanism is not the one the name suggests. It is NOT «get the depth cheaper»:
+#: photographed, the arm's tail purchases go from 3 credits to 1 while their expected appearances barely
+#: move (pv 23.7 -> 23.2), and the credits it does not spend there buy **1.6 more men of the first two
+#: tiers** (10.5 -> 12.1 a squad). Paired, ten participants, the arm on one of the ten chairs:
+#: **+1.88% STRICT over 800 seasons** (+49.4 +- 4.3, t 11.6, 10 windows of 10, worst window +0.57%),
+#: holes 18.9 -> 13.3, mean place 3.53 -> 2.49. It SURVIVES ITS OWN COMPETITION - three arms read
+#: +1.54% strict (t 9.0, 10 of 10) - and it is INERT at a called auction to the decimal, switched by the
+#: mechanism like everything else here.
+#:
+#: AND IT MAKES OUR FORECAST WORTH MORE, which is the reason it is here rather than in a note: `INSIGHT`
+#: is worth +29.9 fantapunti inside the arm as it was and **+37.0** inside this one (+1.15% -> +1.39%,
+#: t 3.1 -> 5.4), and +0.56% robust even with three arms at the table. The timing buys the PLACES at the
+#: top of the market and the forecast decides WHICH man fills them: they compose, they are not
+#: substitutes - which is what our department shares turned out to be against the ladder tilt (§17.4).
+#:
+#: THE TIER BOUNDARY IS AN INTERIOR OPTIMUM AND IT LANDS ON THE ARCHIVE'S OWN BAND: 0 and 1 read +1.69%
+#: (the guard below makes the top tier unrefusable by construction), **2 reads +2.06%**, 3 +1.84%,
+#: 4 +1.47%, 5 +1.38%, all at 20 draws. Two measurements that had no reason to agree, agreeing.
+#:
+#: WHAT IS DELIBERATELY NOT TAKEN, and it is a judgement rather than a measurement: this bench's own
+#: optimum for the WIDE-OPEN threshold is not 9 but **3** (+3.85% against +2.06%), i.e. «wait until
+#: almost nobody wants the role». That is §22's patience again, and §22 was refused because the prices
+#: it harvested do not exist at a real table - the archive puts the third and fourth tiers at x0.50 late
+#: (8-13 credits) where this bench hands them over for one. So the threshold is the archive's band and
+#: not the bench's peak, and the ~2 points of the difference are left on the table on purpose. Checked
+#: rather than assumed: at the archive's band the arm pays 0.90-1.24 of the real late price for the
+#: first two tiers of the keepers and the midfield (the defence overpays at 1.9, which is the adopted
+#: tilt), so the men that decide a season are bought at real prices.
+DEPTH_TIER = 2
+DEPTH_HANDS = 9
+
 
 def set_insight(pool: list[dict]) -> None:
     """WHERE EACH MAN STANDS INSIDE HIS OWN TIER on the engine's expected appearances: `u` in [-1, +1].
@@ -969,6 +1012,30 @@ class Team:
         # for this squad and for the rivals who still want one.
         return urn.left(role) > open_here + hands - 1
 
+    def waits(self, man: dict, urn: Urn | None) -> bool:
+        """Whether the arm lets this lot pass because THE MARKET WILL DISCOUNT HIM. See `DEPTH_TIER`.
+
+        Not the same question as `keeps`, which asks «is somebody BETTER still to come?» and divides
+        the men left by the hands up. This one asks «will this same man be CHEAPER later?», and the
+        archive answers it: from the third tier down he costs half as much once the table thins and a
+        fifth at the end, while a man of the first two tiers never comes cheap at all.
+
+        Two guards, and neither is a parameter. The first is the one `Team.keeps` ends with - enough men
+        of his own tier or better must be left for this squad AND for every rival that still wants one -
+        so waiting can never cost the slot itself. The second is that guard's arithmetic doing something
+        this rule needs: with `rules.TEAMS` men per tier, a man of the TOP tier can never satisfy
+        `tier_left > open_here + hands - 1` while the table is wide open, so the rule cannot touch him
+        however the constant is set. That is why the tier grid reads the same at 0 and at 1.
+        """
+        if urn is None or not urn.random or man.get("tier", 0) < DEPTH_TIER:
+            return False
+        role = role_of(man)
+        open_here = rules.SLOTS[role] - len(self.men[role])
+        hands = max(1, urn.needing.get(role, 1))
+        if open_here <= 0 or hands < DEPTH_HANDS:
+            return False
+        return urn.tier_left(role, man.get("tier", 0)) > open_here + hands - 1
+
     def scale(self) -> float:
         """WHAT MULTIPLIES EVERY STEP OF THE RECIPE so the plan costs exactly what is left to spend.
 
@@ -1089,6 +1156,8 @@ class Team:
         if room < 1:
             return 0
         if self.recipe is None and urn is not None and urn.random and self.asks:
+            if self.waits(man, urn):
+                return 0
             # AT A DRAWN AUCTION THE ARM BIDS ON THE MARKET'S LADDER, tilted toward the back: see
             # `profiles.engine_ladder`. Worth +17,9% and 28 titles of 100 against 0, because a ceiling
             # in fantapunti cannot win a contested lot however well the footballer is judged. Switched

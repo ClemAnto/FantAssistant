@@ -955,3 +955,109 @@ def test_the_within_tier_deviation_is_inert_at_a_CALLED_auction():
     plain = [arm.bid(man, called) for man in band]
     arm.insight = 3.0
     assert [arm.bid(man, called) for man in band] == plain
+
+
+# ------------------------------- the timing of the depth (02/09/2026, night)
+
+def test_the_arm_lets_a_DEPTH_man_pass_while_the_table_is_still_wide_open():
+    """It asks «will he be CHEAPER later?», which is not `keeps`'s question («is somebody BETTER
+    coming?»), and the archive answers it: from the third tier down the median paid/ask falls to x0.50
+    once the table thins and x0.21-0.36 at the end, while the first two tiers read x0.91 and x0.80 and
+    zero of 552 awards of a top tier ever went for one credit.
+
+    Worth +1,88% STRICT over 800 paired seasons (t 11,6, 10 windows of 10, worst +0,57%), it survives
+    three arms (+1,54% strict) and it makes `INSIGHT` worth MORE (+29,9 -> +37,0 fantapunti), which is
+    the reason it is in the code: the timing buys the places at the top and the forecast picks who
+    fills them.
+    """
+    pool = _pool()
+    set_tiers(pool)
+    set_insight(pool)
+    lots = extraction_order(pool, 11)
+    arm = Team("engine", "ENGINE", None)
+    arm.shares, arm.matchdays, arm.asks = role_shares(pool), 38, tier_asks(pool)
+    arm.insight = bench_module.INSIGHT
+    deep = next(m for m in pool if role_of(m) == "D" and m.get("tier") == bench_module.DEPTH_TIER)
+    top = next(m for m in pool if role_of(m) == "D" and m.get("tier") == 0)
+
+    wide = _urn(lots, random=True)
+    wide.take(deep)
+    assert arm.waits(deep, wide), "il braccio compra la profondita' col tavolo ancora aperto"
+    assert arm.bid(deep, wide) == 0
+
+    # ...and the SAME man, once the rosters have started filling, is bought
+    thin = _urn(lots, random=True)
+    for role in rules.SLOTS:
+        thin.needing[role] = bench_module.DEPTH_HANDS - 1
+    thin.take(deep)
+    assert not arm.waits(deep, thin)
+    assert arm.bid(deep, thin) > 0, "il braccio non compra la profondita' nemmeno alla fine"
+
+
+def test_the_top_of_the_market_is_UNREFUSABLE_by_that_rule_whatever_the_constant():
+    """The archive says a man of the first two tiers never comes cheap, and the guard says the same
+    thing by arithmetic: with `rules.TEAMS` men per tier there can never be more men of the TOP tier
+    left than this squad's open slots plus the rivals' hands, so the rule cannot touch him however
+    `DEPTH_TIER` is set. That is why the measured grid reads the same at 0 and at 1.
+    """
+    pool = _pool()
+    set_tiers(pool)
+    lots = extraction_order(pool, 11)
+    arm = Team("engine", "ENGINE", None)
+    arm.shares, arm.matchdays, arm.asks = role_shares(pool), 38, tier_asks(pool)
+    urn = _urn(lots, random=True)
+    kept = bench_module.DEPTH_TIER
+    bench_module.DEPTH_TIER = 0
+    try:
+        for role in rules.SLOTS:
+            best = next(m for m in pool if role_of(m) == role and m.get("tier") == 0)
+            urn.take(best)
+            assert not arm.waits(best, urn), f"il migliore dei {role} rifiutato per attesa"
+    finally:
+        bench_module.DEPTH_TIER = kept
+
+
+def test_the_waiting_never_costs_the_SLOT_and_is_inert_at_a_called_auction():
+    """Two guards. A rule about a PRICE may never leave a place empty, so it stops the moment the urn
+    no longer holds enough men of his tier or better for this squad and for the rivals still wanting
+    one - `Team.keeps`'s own counting. And at a called auction there is nothing to wait for, because
+    the man on the block is the dearest one left: one rule, two mechanisms."""
+    pool = _pool()
+    set_tiers(pool)
+    arm = Team("engine", "ENGINE", None)
+    arm.shares, arm.matchdays, arm.asks = role_shares(pool), 38, tier_asks(pool)
+    deep = next(m for m in pool if role_of(m) == "D" and m.get("tier") == bench_module.DEPTH_TIER)
+
+    called = _urn(called_order(pool), random=False)
+    called.take(deep)
+    assert not arm.waits(deep, called), "attende a un'asta a chiamata"
+
+    short = _urn(extraction_order(pool, 3), random=True)
+    short.take(deep)
+    assert arm.waits(deep, short), "il caso non parte dalla condizione di attesa"
+    # ...drain the role until there is nothing left to wait for
+    for man in [m for m in pool if role_of(m) == "D" and m["id"] != deep["id"]]:
+        short.take(man)
+    assert not arm.waits(deep, short), "attende con l'urna vuota: lascerebbe il posto scoperto"
+
+
+def test_the_waiting_is_the_ARMS_and_a_human_reads_his_own_recipe():
+    """The five profiles are the operator's own sentences, so a strategy measured on the arm is not
+    given to them: a human's patience is `keeps` and nothing else."""
+    pool = _pool()
+    set_tiers(pool)
+    urn = _urn(extraction_order(pool, 5), random=True)
+    deep = next(m for m in pool if role_of(m) == "D" and m.get("tier") == bench_module.DEPTH_TIER)
+    urn.take(deep)
+    human = Team("p3", "P3 balanced", PROFILES["P3 balanced"])
+    human.asks, human.matchdays = tier_asks(pool), 38
+    before = human.bid(deep, urn)
+    kept = bench_module.DEPTH_TIER
+    bench_module.DEPTH_TIER = 0            # the rule at its most aggressive
+    try:
+        # the CONDITION holds for him too - it is a fact about the urn - and his bid ignores it,
+        # because `bid` consults it only on the branch a participant with no recipe of his own takes.
+        assert human.waits(deep, urn), "il caso non isola: la condizione di attesa non vale per lui"
+        assert human.bid(deep, urn) == before, "il tempismo del braccio ha cambiato un umano"
+    finally:
+        bench_module.DEPTH_TIER = kept

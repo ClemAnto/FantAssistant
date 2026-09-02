@@ -2140,3 +2140,103 @@ condizione è un fatto sull'ambiente che oggi sappiamo essere calibrato male al 
 - **Non rifare**: le cinque cure del §23.5, ognuna con il suo numero. E non rifare il test letterale
   sulla sua ipotesi (§23.3) su dieci aste: la cella dell'attacco di prima fascia ha n=10 e il segno è
   6/10, quindi quello che serve non è un'altra misura ma più aste.
+
+## 24. Il meccanismo che fa pagare i nostri consigli: il TEMPISMO compra i posti, il motore li riempie
+
+**02/09/2026 (notte), su richiesta dell'operatore: «prima di passare all'interfaccia troviamo un
+meccanismo giusto per avere un vantaggio dai consigli del motore».** Criterio pre-registrato prima di
+scrivere una riga (appaiato, dieci partecipanti, il braccio su una delle dieci sedie, schermatura a 20
+urne e verdetto a 80, ottimo interno, null a tre bracci, inerzia a chiamata) e **una guardia in più
+che questo banco si è guadagnata il pomeriggio stesso: i prezzi che la strategia finisce per pagare
+devono essere prezzi che l'ARCHIVIO ha visto davvero** — è quello che ha respinto la pazienza del §22.
+
+**ADOTTATO: `bench.DEPTH_TIER` = 2 e `bench.DEPTH_HANDS` = 9.** Il braccio lascia passare un uomo
+dalla TERZA FASCIA in giù finché nove o dieci rose hanno ancora un posto in quel ruolo, e solo finché
+restano abbastanza uomini di fascia non peggiore per sé e per i rivali che ne vogliono ancora uno.
+**+1,88% STRICT su 800 stagioni appaiate** (+49,4 ± 4,3, t 11,6, 10 finestre su 10, peggiore +0,57%),
+buchi 18,9 → 13,3, posto medio 3,53 → 2,49, spesa 988 → 980. Sul tavolo dichiarato il braccio chiude a
+**2690,6 punti con 101 titoli su 200** contro i 2581,9 e 27 titoli del miglior umano.
+
+### 24.1 Il meccanismo non è «la profondità a meno»: è 1,6 titolari in più
+
+Fotografato, ed è la cosa che rende questa adozione diversa da un risparmio:
+
+| | braccio attuale | con il tempismo |
+|---|---|---|
+| uomini delle prime due fasce | 10,5 a rosa | **12,1** |
+| uomini dalla terza in giù | 14,5 | 12,9 |
+| pagati per la profondità (mediana) | 3 crediti | **1** |
+| presenze attese di quella profondità | pv 23,7 | 23,2 |
+| quando compra la profondità (posizione del lotto) | 1,36 | 1,10 |
+
+La coda costa un terzo e **le presenze attese di quella coda non cambiano** (23,7 → 23,2): non compra
+peggio, compra lo stesso a meno. E i crediti che non mette lì comprano **1,6 uomini in più delle prime
+due fasce**, cioè dove il §23 ha misurato che il prezzo non scende mai.
+
+### 24.2 Perché è una risposta alla SUA domanda: il tempismo e il motore si COMPONGONO
+
+Va detto per primo perché è la metà scomoda: **questa regola non legge un solo numero del motore.**
+Legge la fascia di prezzo e il conto delle mani alzate, quindi è un vantaggio preso alla STRUTTURA
+dell'asta e non ai nostri consigli — un manager potrebbe applicarla a mano, e §24.5 è la frase per
+farlo. Quello che la rende la risposta alla domanda dell'operatore è la **composizione**, misurata
+apposta: `INSIGHT` (§21, la deviazione dentro la fascia sulle presenze attese — il solo numero su cui il
+nostro giudizio batte la quotazione) vale
+
+| | dentro il braccio di ieri | dentro quello che aspetta |
+|---|---|---|
+| guadagno appaiato di `INSIGHT` | +29,9 fantapunti (+1,15%) | **+37,0 (+1,39%)** |
+| t | 3,08 | **5,37** |
+| finestre · peggiore | 8/10 · −0,52% | **9/10 · −0,18%** |
+
+**Il tempismo compra i POSTI in cima al mercato e il motore decide QUALI uomini li occupano**, e il
+nostro giudizio vale un quarto in più dentro quella rosa. Sono complementari e non sostituti — che è
+esattamente il contrario di quello che erano le nostre quote di reparto contro il tilt della scala
+(§17.4: +1,1% sulla scala piatta, −1,2% su quella inclinata). E la composizione regge anche con **tre
+bracci** al tavolo (`INSIGHT` +0,56% robust, t 3,86), dove il tempismo da solo legge +1,54% strict.
+
+### 24.3 Le due cure vicine, misurate e respinte — e la seconda è un fatto sul banco
+
+- **Prezzare la coda a quello che costerà, senza aspettare.** La forma meglio fondata sulla carta: il
+  braccio non passa nessun lotto e semplicemente rifiuta di pagare il prezzo da tavolo aperto per un
+  uomo che il mercato scenderà, offrendo `passo × fattore misurato(fascia, mani)`. **Vale ZERO**: +0,02%
+  a peso 1, −0,09% a 0,5, −0,24% a 2. Quindi il meccanismo **non è il prezzo, è il momento**: a secondo
+  prezzo abbassare un tetto su un lotto che avresti vinto comunque non cambia niente, e sui lotti
+  contesi lo perdi e ricompri un uomo simile allo stesso prezzo.
+- **La COPERTURA all'urna** (il braccio non ha nessun termine di copertura a estrazione: §21.1 contava
+  zero chiamate a `coverage_need` lì). Applicata come moltiplicatore per reparto sulla scala:
+  **−0,00%, t 0,00**, 6 finestre su 10, buchi 19,2 → 18,0. Terza istanza della ridondanza col tilt che
+  il §17.4 aveva già misurato dai due lati. E la prima versione ha insegnato un fatto sul banco che vale
+  oltre questo candidato: **un moltiplicatore UNIFORME sulla scala è inerte per costruzione** — legge
+  identico al decimale, `se` = 0 — perché `Team.scale` normalizza il piano sulla borsa e lo cancella
+  esattamente. È il §17.4 letto dall'altro lato: *quello che una scala non può vedere è un cambiamento
+  che conserva.*
+
+### 24.4 L'ottimo del banco NON è quello che adottiamo, e questa è una decisione
+
+`DEPTH_TIER` ha un **ottimo interno** e cade sulla banda che l'archivio aveva misurato da sé — 0 e 1
+leggono +1,69% (la guardia rende il gradino più alto irrifiutabile per aritmetica), **2 legge +2,06%**,
+3 +1,84%, 4 +1,47%, 5 +1,38%. Due misure che non avevano ragione di concordare, che concordano.
+
+`DEPTH_HANDS` **no**: sul banco migliora in modo monotono fino in fondo — 10 → +0,94%, **9 → +2,06%**,
+8 → +2,72%, 7 → +3,18%, 6 → +3,36%, 5 → +3,58%, 3 → **+3,85%**, 1 → +3,69%. Cioè l'ottimo del banco è
+«aspetta finché quel ruolo non lo vuole quasi più nessuno», che è la pazienza del §22 con un'altra
+faccia — e il §22 è stato respinto perché **i prezzi che raccoglieva non esistono a un tavolo vero**.
+Quindi la soglia adottata è la **banda dell'archivio** (9-10 rose, dove il vero paga il prezzo pieno) e
+non il picco del banco, e i ~2 punti percentuali di differenza si lasciano sul tavolo per scelta.
+
+**Verificato invece di assunto, ed è la guardia che decide**: alla banda dell'archivio il braccio paga
+**0,90 · 1,24** del prezzo vero tardivo per le prime due fasce dei portieri e **0,99 · 1,23** per il
+centrocampo (la difesa sta a 1,9, che è il tilt adottato del §17.4), cioè **gli uomini che decidono una
+stagione li compra a prezzi reali**. Quello che resta fuori misura è la terza e quarta fascia, dove
+l'archivio dice ×0,50 tardi (8-13 crediti) e il banco glieli lascia a uno: è il difetto d'ambiente che
+il §23.4 ha localizzato (il SINCRONO), quindi una parte di questo margine è ancora esclusività e va
+detto — con tre bracci scende da +1,88% a +1,54% e non crolla.
+
+### 24.5 La regola per il tavolo, in una frase
+
+**Non pagare il prezzo da tavolo aperto per un uomo dalla terza fascia in giù: costerà la metà quando
+le rose cominciano a riempirsi, e un quinto alla fine. Quei crediti si spendono sulle prime due fasce,
+dove il prezzo non scende mai — e dentro quelle fasce si prende l'uomo che il motore dà per più
+presente.** Le due metà sono misurate su cose diverse e per questo si sommano: la prima sulle 10 aste
+vere della sua lega (§23.1), la seconda sul vantaggio incrementale del motore sulla quotazione
+(`metrica-asta-surplus-v1.md` §18) e sul banco (§21).

@@ -930,6 +930,52 @@ Quattro abitudini, e due sono errori commessi nella stessa sera.
   passata** — la cura riguarda un angolo in cui il tavolo dichiarato non entra mai, e che solo una
   strategia di attesa apre.
 
+## Il TEMPISMO compra i posti e il motore li riempie: due canali che si COMPONGONO
+**02/09/2026 (notte), `simulatore-asta-rilanci-v1.md` §24.** Richiesta dell'operatore: «prima di passare
+all'interfaccia troviamo un meccanismo giusto per avere un vantaggio dai consigli del motore».
+**ADOTTATO `bench.DEPTH_TIER` = 2 e `DEPTH_HANDS` = 9**: all'urna il braccio lascia passare un uomo dalla
+TERZA fascia in giù finché nove o dieci rose hanno ancora un posto in quel ruolo, e solo finché restano
+abbastanza uomini di fascia non peggiore per sé e per i rivali — la guardia di `Team.keeps`, quindi
+nessuna costante in più oltre alla banda misurata. **+1,88% STRICT su 800 stagioni appaiate** (t 11,6,
+10 finestre su 10, peggiore +0,57%), buchi 18,9 → 13,3, posto 3,53 → 2,49, **+1,54% strict con tre
+bracci**, inerte a chiamata al decimale.
+
+**IL MECCANISMO NON È «LA PROFONDITÀ A MENO», È 1,6 TITOLARI IN PIÙ.** Fotografato: la coda passa da 3
+crediti a 1 con le presenze attese ferme (pv 23,7 → 23,2), e i crediti risparmiati comprano **10,5 → 12,1
+uomini delle prime due fasce**, cioè dove il §23 ha misurato che il prezzo non scende mai.
+
+**E LA RAGIONE PER CUI È LA RISPOSTA ALLA SUA DOMANDA È LA COMPOSIZIONE, non la regola.** Va detta la
+metà scomoda per prima: questa regola **non legge un solo numero del motore** (legge la fascia di prezzo
+e il conto delle mani), quindi è un vantaggio preso alla STRUTTURA dell'asta. Quello che la rende un
+meccanismo per i nostri consigli è che `INSIGHT` — la deviazione dentro la fascia sulle presenze, il solo
+numero su cui battiamo la quotazione — vale **+29,9 fantapunti dentro il braccio di ieri e +37,0 dentro
+quello che aspetta** (t 3,08 → 5,37, peggiore finestra −0,52% → −0,18%), e +0,56% robust anche con tre
+bracci. *Il tempismo compra i POSTI in cima al mercato e il motore decide QUALI uomini li occupano*: sono
+complementari, che è l'esatto contrario di quello che erano le nostre quote di reparto contro il tilt
+(§17.4). **Prima di adottare un canale nuovo, misurare se rende più grande o più piccolo quello adottato
+prima** — le due risposte esistono entrambe in questo file.
+
+Due cure vicine respinte, e la seconda insegna un fatto sul banco.
+- **Prezzare la coda a quello che costerà, senza aspettare** — la forma meglio fondata sulla carta —
+  **vale ZERO** (+0,02% a peso 1, −0,09% a 0,5, −0,24% a 2). Quindi il meccanismo **non è il prezzo, è il
+  momento**: a secondo prezzo abbassare un tetto su un lotto che avresti vinto comunque non cambia
+  niente, e su uno conteso lo perdi e ricompri un uomo simile allo stesso prezzo.
+- **Un moltiplicatore UNIFORME sulla scala è inerte per costruzione**, e si è scoperto misurandolo (righe
+  identiche al decimale, `se` = 0): `Team.scale` normalizza il piano sulla borsa e lo cancella
+  esattamente. È il §17.4 letto dall'altro lato — *quello che una scala non può vedere è un cambiamento
+  che conserva* — e la cura è applicarlo per REPARTO, che poi si è misurato come terza istanza della
+  ridondanza col tilt (−0,00%, t 0,00).
+
+**E L'OTTIMO DEL BANCO NON È QUELLO CHE SI ADOTTA.** `DEPTH_TIER` ha un ottimo INTERNO che cade sulla
+banda misurata dall'archivio (+1,69 · +1,69 · **+2,06** · +1,84 · +1,47 · +1,38%): due misure senza
+ragione di concordare, che concordano. `DEPTH_HANDS` no — sul banco migliora in modo monotono fino in
+fondo (+0,94% a 10, **+2,06% a 9**, +2,72 · +3,18 · +3,36 · +3,58 · **+3,85% a 3**), cioè il picco è la
+pazienza del §22 con un'altra faccia, e quella era stata respinta perché **i prezzi che raccoglieva non
+esistono a un tavolo vero**. Quindi si adotta la banda dell'archivio e si lasciano due punti percentuali
+sul tavolo per scelta, con la guardia verificata: alla banda dell'archivio il braccio paga **0,90-1,24**
+del prezzo vero tardivo per le prime due fasce di portieri e centrocampo, cioè gli uomini che decidono
+una stagione li compra a prezzi reali.
+
 ## Il saldo esiste solo dove l'uomo è SOSTITUIBILE, e la causa di un difetto scritta a verbale può essere falsa
 **02/09/2026 (notte tarda), `simulatore-asta-rilanci-v1.md` §23.** Domanda dell'operatore: «conviene
 spendere di più appena un top del suo ruolo esce, o lasciar perdere perché gli acquisti in coda avverranno

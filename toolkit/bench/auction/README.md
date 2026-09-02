@@ -1305,3 +1305,95 @@ depends on the tail being EXPENSIVE. The term moves money inside a band toward t
 filling costs one credit, that money no longer buys anything the others do not have. It does not retire
 the adoption - the environment did not change - but it says under what condition it holds, and that
 condition is a fact about an environment we now know is mis-calibrated at the bottom.
+
+## THE MECHANISM THAT MAKES OUR ADVICE PAY: the timing buys the places, the engine fills them
+
+**ADOPTED 02/09/2026 (night), `bench.DEPTH_TIER` = 2 and `bench.DEPTH_HANDS` = 9**, on the operator's
+request: «before moving to the interface, let us find a right mechanism to get an advantage out of the
+engine's advice». Pre-registered criterion, plus the guard this bench earned the same afternoon: **the
+prices the strategy ends up paying must be prices the ARCHIVE has actually seen** - which is what
+refused §22's patience.
+
+The arm lets a man of the THIRD TIER OR BELOW pass while nine or ten rosters still hold a place in his
+role, and only while enough men of his own tier or better are left for itself and for the rivals that
+still want one. **+1.88% STRICT over 800 paired seasons** (+49.4 ± 4.3, t 11.6, 10 windows of 10, worst
+window +0.57%), holes 18.9 → 13.3, mean place 3.53 → 2.49. On the declared table the arm now reads
+**2690.6 points and 101 titles of 200** against the best human's 2581.9 and 27.
+
+### It is not «cheaper depth»: it is 1.6 more starters
+
+| | the arm as it was | with the timing |
+|---|---|---|
+| men of the first two tiers | 10.5 a squad | **12.1** |
+| men from the third tier down | 14.5 | 12.9 |
+| paid for that depth (median) | 3 credits | **1** |
+| expected appearances of that depth | pv 23.7 | 23.2 |
+
+The depth costs a third and its expected appearances do not move, so it is not buying worse: it is
+buying the same for less, and the credits it does not put there buy 1.6 more men of the bands where
+§23 measured that the price never falls.
+
+### Why it answers the operator's question: the timing and the forecast COMPOSE
+
+The uncomfortable half first: **this rule reads not one number of the engine.** It reads the price tier
+and a count of hands, so it is an advantage taken from the auction's STRUCTURE. What makes it the answer
+is the composition, measured for that purpose: `INSIGHT` (§21, the within-band deviation on expected
+appearances - the one number our forecast beats the quotation on) is worth
+
+| | inside yesterday's arm | inside the one that waits |
+|---|---|---|
+| paired gain of `INSIGHT` | +29.9 fantapunti (+1.15%) | **+37.0 (+1.39%)** |
+| t | 3.08 | **5.37** |
+| windows · worst | 8/10 · −0.52% | **9/10 · −0.18%** |
+
+**The timing buys the PLACES at the top of the market and the engine decides WHICH men fill them**, and
+our judgement is worth a quarter more inside that squad. They are complements and not substitutes -
+the exact opposite of what our department shares turned out to be against the ladder tilt (§17.4: +1.1%
+on the flat ladder, −1.2% on the tilted one). The composition survives THREE arms as well (`INSIGHT`
++0.56% robust, t 3.86, where the timing alone reads +1.54% strict).
+
+### Two neighbours measured and refused, and the second is a fact about the bench
+
+- **Pricing the tail at what it will cost, without waiting** - the better-founded form on paper: the arm
+  passes no lot and simply refuses to pay the wide-open price for a man the market will discount,
+  bidding `step x measured factor(tier, hands)`. **Worth ZERO**: +0.02% at weight 1, −0.09% at 0.5,
+  −0.24% at 2. So the mechanism is not the PRICE, it is the MOMENT: under a second price, lowering a
+  ceiling on a lot you would have won cheaply changes nothing, and on a contested lot you lose it and
+  buy a similar man at a similar price.
+- **Coverage at the urn** (the arm has no coverage term at a drawn auction at all - §21.1 counted zero
+  calls to `coverage_need` there). As a per-department multiplier on the ladder: **−0.00%, t 0.00**,
+  6 windows of 10. Third instance of the redundancy with the tilt that §17.4 had already measured from
+  both sides. And the first version taught a fact about the bench worth more than the candidate: **a
+  UNIFORM multiplier on the ladder is inert by construction** - identical to the decimal, se = 0 -
+  because `Team.scale` normalises the plan onto the purse and cancels it exactly. §17.4 read from the
+  other side: what a scale cannot see is a change that conserves.
+
+### The bench's own optimum is NOT what we adopt, and that is a decision
+
+`DEPTH_TIER` has an INTERIOR optimum and it lands on the band the archive measured independently: 0 and
+1 read +1.69% (the guard makes the top tier unrefusable by arithmetic), **2 reads +2.06%**, 3 +1.84%,
+4 +1.47%, 5 +1.38%. Two measurements with no reason to agree, agreeing.
+
+`DEPTH_HANDS` does not: on the bench it improves monotonically all the way down - 10 → +0.94%,
+**9 → +2.06%**, 8 → +2.72%, 7 → +3.18%, 6 → +3.36%, 5 → +3.58%, 3 → **+3.85%**, 1 → +3.69%. That peak is
+§22's patience wearing another face, and §22 was refused because the prices it harvested do not exist at
+a real table. So the adopted threshold is the ARCHIVE's band (9-10 rosters, where the real market pays
+the full price) and not the bench's peak, and the ~2 percentage points of difference are left on the
+table deliberately.
+
+Checked rather than assumed, and this is the guard that decides: at the archive's band the arm pays
+**0.90-1.24** of the real late price for the first two tiers of the keepers and **0.99-1.23** for the
+midfield (the defence sits at 1.9, which is §17.4's adopted tilt) - so the men that decide a season are
+bought at real prices. What is still out of scale is the third and fourth tier, where the archive says
+x0.50 late (8-13 credits) and the bench hands them over for one: that is the environment defect §23.4
+localised (LOCKSTEP), so part of this margin is still exclusivity - with three arms it falls from
++1.88% to +1.54% and does not collapse.
+
+### The rule for the table, in one sentence
+
+**Do not pay the wide-open price for a man from the third tier down: he will cost half once the rosters
+start filling and a fifth at the end. Spend those credits on the first two tiers, where the price never
+falls - and inside those bands take the man the engine expects to play more.** The two halves are
+measured on different things, which is why they add up: the first on the 10 real drawn auctions of his
+league (§23.1), the second on the engine's incremental edge over the quotation
+(`metrica-asta-surplus-v1.md` §18) and on this bench (§21).
