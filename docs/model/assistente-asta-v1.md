@@ -2306,3 +2306,61 @@ dichiarato sta SEMPRE a schermo** (barra fissa: listone, gioco, rose, budget, pa
 quale valuta ordina), e **una scelta automatica deve essere dubitabile** — il foglio che prezza le liste è
 nominato con la sua revisione, e dove la lega dichiarata non coincide con quella del foglio la pagina
 lo dice invece di riallineare da sola.
+
+## La PLANCIA a slot: FVM e MAX OFFERTA su ogni riga, e la coppia sull'hover
+
+**03/09/2026, decisione dell'operatore dopo la sessione di misura del banco d'asta
+(`simulatore-asta-rilanci-v1.md` §23-26).** La forma: quattro linee, una per ruolo; su ogni linea un
+blocco per ogni posto in rosa (3 · 8 · 8 · 6, che lui chiama **slot**, ed è la parola del gioco quindi
+è quella che si usa); dentro ogni slot **dieci calciatori, uno per partecipante**; su ogni riga
+**FVM e MAX OFFERTA**, e sull'hover **la coppia dello slot successivo da prendere al suo posto**.
+
+**Perché quella griglia è la struttura del mercato e non un'impaginazione.** Una rosa è di 25 uomini e
+un listone contiene esattamente 25 slot da `TEAMS` uomini, perché uno slot è un rango diviso il numero
+di squadre: quindi *una rosa è un uomo per slot*, ed è su quella griglia che vive ogni misura del banco
+— i consigli del motore valgono dentro uno slot (§25), lo sconto di fine fase esiste dallo slot 3 in giù
+(§23) e il tempismo adottato è una regola sugli slot (§24).
+
+**Il taglio è per FVM, congelato alla data dell'asta.** Misurato sulle 20 aste vere della sua lega,
+raggruppando gli uomini per quanto costeranno davvero: FVM 0,350 · Qt.A 0,358 · Qt.I 0,382 di
+dispersione dentro lo slot, e l'FVM del giorno dell'asta vince in 14 aste su 20. Ma la ragione migliore
+è la sua: **il blocco deve raggruppare gli uomini che la STANZA tratta come equivalenti, e la stanza
+legge l'FVM.** Congelato perché una coordinata che si rimescola fra due sessioni è una cattiva
+coordinata: passando da Qt.I a FVM oggi, 154 uomini su 527 cambiano slot e 50 entrano o escono dalla
+mappa.
+
+### Quattro cose che la misura impone, e la quarta corregge la richiesta
+
+1. **LA MAX OFFERTA È PER RUOLO, non una formula sola.** Misurata come «uno del primo slot contro due
+   del secondo», dieci stagioni vere, in quota del budget: **portiere ~13%** (il mercato chiede il 6%:
+   si compra), **centrocampista ~6,5%** (il mercato chiede il 9%), **attaccante ~18%** (il mercato
+   chiede il 25%), **difensore: nessun prezzo** — la coppia vince a ogni quota provata, già a 30
+   crediti (−0,10 a giornata) e −0,48 a 50. Una formula unica sarebbe sbagliata su due ruoli di quattro.
+2. **LA COPPIA SI CALCOLA SU CHI È ANCORA NELL'URNA, non sui due migliori di sempre.** L'alternativa
+   degrada mentre l'asta va avanti, ed è proprio quel conto che alla quarta ora non si tiene più a
+   mente: è il lavoro per cui la plancia esiste.
+3. **E DEVE ESSERE PAGABILE.** Una coppia da 160 crediti non è un'alternativa per chi ne ha 100: la max
+   offerta va sempre limitata a quello che la borsa consente (`min(quota misurata, room)`), altrimenti
+   la plancia consiglia un tetto che non si può nemmeno raggiungere.
+4. **PER IL PORTIERE LA COPPIA NON ESISTE, e l'hover deve dire un'altra cosa.** Ne schieri UNO: «due
+   dello slot successivo invece di uno» non è un'alternativa, è una panchina. Là l'alternativa è un
+   ALTRO PORTIERE dello stesso slot — ed è anche il ruolo dove il motore vale il doppio, perché a pari
+   prezzo la domanda è solo quale dei dieci gioca. Quindi l'hover del portiere mostra il secondo e il
+   terzo del suo stesso slot, non una coppia dello slot dopo.
+
+### E una regola su come si SCRIVE il numero
+
+**La max offerta va mostrata come BANDA e non come cifra esatta.** Le soglie sono misurate su dieci
+stagioni con 3-8 stagioni concordi su 10: la direzione è netta (il segno gira sempre fra il 13% e il
+19%, su tre slot e su tre ruoli indipendenti) e il punto esatto no. Scrivere «180» su una riga che
+decide un acquisto è una precisione che il dato non ha; «~170-190», o un colore che sfuma, dice la
+stessa cosa senza mentire. Quello che è solido e si può scrivere secco: **sopra il 20% del budget si
+sbaglia in qualunque slot** (da −0,3 a −1,2 punti a giornata) e **sotto il 10% non si sbaglia mai.**
+
+### Cosa la plancia NON deve dire
+
+**«Fuori dalla mappa» non vuol dire «inutile».** Sul foglio di oggi ci sono 527 acquistabili e la mappa
+ne contiene 250, ma nelle aste vere **5 uomini su 25 di ogni rosa vengono da sotto la mappa**, pagati un
+credito. Serve una 26ª striscia — la coda — col solo conto di quanti ne restano: una plancia che li
+nasconde convince ad aspettare, e aspettare fino a lasciare posti vuoti è l'errore più caro che questo
+banco abbia misurato.
