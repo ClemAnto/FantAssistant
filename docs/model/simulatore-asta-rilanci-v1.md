@@ -2331,3 +2331,62 @@ uno scambio dentro la fascia, cambia anche da quali fasce il braccio compra e qu
   la parte che solo il banco può stimare — 2,35 dei 25 acquisti a stagione, il **9%**. È anche il motivo
   per cui un'interfaccia serve: il collo di bottiglia non è la previsione, è quanto un'asta contesa ne
   lascia passare.
+
+## 26. «Paga la fantamedia dove hai copertura, le presenze dove quel posto lo regge lui da solo»
+
+**02/09/2026 (notte), la regola pratica dell'operatore, messa alla prova invece che lasciata come
+frase — e la misura ne conferma una metà e boccia l'altra.** Nasce da una sua domanda («è meglio un
+calciatore che gioca sempre o uno che salta qualche partita ma con un'ottima fantamedia?») e la risposta
+a QUELLA domanda è netta e dipende da una cosa sola: se in quel ruolo hai un ricambio.
+
+### 26.1 Per UN uomo: il ricambio decide tutto
+
+Quanta fantamedia serve per pareggiare uno che gioca tutte le 38 giornate a 6,30, se ne salta un po'
+(con `desc_replacement_fielded` = 6,37 a centrocampo, misurato in `metrica-asta-surplus-v1.md` §21, e
+`HOLE_COST` = 4,73 quando riserva non c'è):
+
+| giornate giocate | con un ricambio | senza ricambio |
+|---|---|---|
+| 34 | 6,29 | 7,60 |
+| 30 | 6,28 | 9,24 |
+| 22 | **6,25** | **14,32** |
+
+**Con un ricambio la fantamedia che serve non sale quasi**, perché il riserva vale quanto lui; senza
+ricambio serve un giocatore che non esiste. Sul dato vero (seconda fascia dei centrocampisti, 2025-26):
+Zambo Anguissa 6,81 di fantamedia in 18 giornate rende **123** punti suoi, che diventano **250** se hai
+un ricambio e **28** se non l'hai; Barella 6,72 in 34 giornate rende 228, cioè 254 e 210. **Con la
+panchina piena sono equivalenti; senza, uno dei due è un disastro.**
+
+### 26.2 Per una ROSA la regola si rovescia, ed è la parte che la misura corregge
+
+Tradotta in un piano d'acquisto — nei posti che servono a coprire l'undici si comprano le presenze, nei
+posti di scorta si compra il voto — e confrontata con le alternative a budget uguale sulle dieci
+stagioni vere:
+
+| piano | punti | buchi | R-Factor | appaiato |
+|---|---|---|---|---|
+| **presenze su tutti i 25 posti** | **2686** | **5,1** | **20,1** | — |
+| valore (fm × presenze) | 2683 | 6,5 | 16,9 | −3,8 ± 13,5 |
+| **la regola: presenze fino a coprire, poi fantamedia** | 2680 | 7,4 | 16,9 | **−6,4 ± 12,7** (5/10) |
+| il contrario: fantamedia prima, presenze in panchina | 2658 | 10,5 | 14,8 | −27,9 ± 16,2 (3/10) |
+| fantamedia su tutti i 25 | 2601 | 24,6 | 10,7 | −85,2 ± 46,1 (4/10) |
+
+**La DIREZIONE della regola è giusta**: il suo contrario costa 28 punti e la versione estrema (comprare
+chi segna) ne costa 85 con 24,6 buchi. **Il raffinamento invece vale zero**: comprare presenze su tutti
+e venticinque i posti è indistinguibile dalla regola (−6,4 ± 12,7, cinque stagioni su dieci).
+
+**E la ragione è che la regola contiene una contraddizione**: «dove hai copertura» presuppone che un
+posto di scorta non serva a coprire, ma **il lavoro di un riserva È coprire**. Se lo scegli per il voto
+invece che per le presenze, non può fare il lavoro per cui l'hai comprato — e il §26.1 dice che quel
+voto lo incasserai poche volte, perché per definizione gioca poco. La panchina è più corta di quanto
+sembri: di otto centrocampisti in rosa ne sono disponibili **5,3** in una giornata media (misurato in
+`metrica-asta-surplus-v1.md` §21), quindi un posto in cui «la copertura c'è già» non esiste.
+
+### 26.3 La versione che sopravvive
+
+**Per un uomo**: una fantamedia alta compensa le partite saldate solo se in quel ruolo hai un altro che
+gioca; e questo si può leggere al tavolo, perché è la copertura attesa del reparto (`covered_places`).
+**Per la rosa**: le presenze su tutti i posti, e la fantamedia solo come spareggio fra uomini con le
+stesse presenze attese — che è esattamente quello che il motore fa dentro una fascia (§25) e vale
+l'1%. Il portiere è il caso limite in cui le due cose coincidono: ne schieri uno, quindi non esiste
+copertura e conta solo chi gioca — ed è dove il motore vale il doppio che altrove (§21.7).

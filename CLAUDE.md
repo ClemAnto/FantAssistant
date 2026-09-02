@@ -930,6 +930,32 @@ Quattro abitudini, e due sono errori commessi nella stessa sera.
   passata** — la cura riguarda un angolo in cui il tavolo dichiarato non entra mai, e che solo una
   strategia di attesa apre.
 
+## Un RISERVA che compri per il voto non puo' fare il lavoro per cui l'hai comprato
+**02/09/2026 (notte), `simulatore-asta-rilanci-v1.md` §26.** Dalla domanda dell'operatore «e' meglio un
+calciatore che gioca sempre o uno che salta qualche partita ma con un'ottima fantamedia?», e la risposta
+per UN uomo dipende da una cosa sola: **se in quel ruolo hai un ricambio.** Con un ricambio, la
+fantamedia che serve per pareggiare uno che gioca tutte le 38 a 6,30 **non sale quasi** (6,29 a 34
+giornate, 6,25 a 22), perche' il riserva vale quanto lui (6,37 a centrocampo, misurato); senza ricambio
+serve **14,32**, cioe' un giocatore che non esiste. Sul dato vero: Zambo Anguissa (6,81 in 18 giornate)
+rende 123 punti suoi, **250** con un ricambio e **28** senza; Barella (6,72 in 34) rende 228, 254 e 210.
+
+**E POI L'OPERATORE NE HA RICAVATO UNA REGOLA — «paga la fantamedia dove hai copertura, le presenze
+dove quel posto lo regge lui da solo» — CHE LA MISURA CONFERMA A META'.** A budget uguale sulle dieci
+stagioni vere: presenze su tutti i 25 posti 2686 punti e 5,1 buchi; la regola (presenze fino a coprire
+l'undici, poi fantamedia sui posti di scorta) 2680, cioe' **−6,4 ± 12,7 e cinque stagioni su dieci: un
+pareggio**; il suo contrario −27,9; comprare chi segna su tutti i posti −85,2 con 24,6 buchi. Quindi la
+DIREZIONE e' giusta e il RAFFINAMENTO vale zero.
+
+**La ragione e' una contraddizione dentro la regola, e vale oltre questo caso**: «dove hai copertura»
+presuppone che un posto di scorta non serva a coprire, ma **il lavoro di un riserva E' coprire** — se lo
+scegli per il voto non puo' fare il lavoro per cui l'hai comprato, e quel voto lo incassi poche volte
+perche' per definizione gioca poco. La panchina e' anche piu' corta di quanto sembri: di otto
+centrocampisti in rosa ne sono disponibili **5,3** in una giornata media, quindi *un posto in cui la
+copertura c'e' gia' non esiste.* Quello che sopravvive: presenze su tutti i posti, e la fantamedia solo
+come spareggio fra uomini con le stesse presenze attese — che e' esattamente cio' che il motore fa
+dentro una fascia. Il portiere e' il caso limite dove le due cose coincidono, e non per caso e' dove il
+motore vale il doppio.
+
 ## I consigli si giudicano SENZA il tavolo, e una rosa ne schiera undici
 **02/09/2026 (notte), `simulatore-asta-rilanci-v1.md` §25, `python -m bench.auction.advice`.** Domanda
 dell'operatore: «riusciamo ad avere dei dati verosimili per capire se i consigli del motore favoriscono
