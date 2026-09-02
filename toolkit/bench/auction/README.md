@@ -9,6 +9,7 @@ python -m bench.auction.bench                      # CALLED: the dearest names f
 python -m bench.auction.bench --engine             # ...plus one participant bidding on the engine
 python -m bench.auction.bench --engine --random 20 # DRAWN: the platform picks the lot, 20 urns/window
 python -m bench.auction.bench --engine 3 --random 20   # ...three engine seats, which is the NULL
+python -m bench.auction.advice                     # does the ADVICE pay? asked without a table at all
 ```
 
 **Two mechanisms, one price rule** (02/09/2026, on the operator's own auction: «l'asta che dovrò
@@ -1397,3 +1398,86 @@ falls - and inside those bands take the man the engine expects to play more.** T
 measured on different things, which is why they add up: the first on the 10 real drawn auctions of his
 league (§23.1), the second on the engine's incremental edge over the quotation
 (`metrica-asta-surplus-v1.md` §18) and on this bench (§21).
+
+## DOES THE ADVICE FAVOUR WHOEVER USES IT? Asked without the table (`advice.py`, 02/09/2026)
+
+    python -m bench.auction.advice
+
+The operator's question, and the hardest one that can be put to this bench: **every number published
+here is conditional on the simulated room**, and §23.4 had just measured two reasons to distrust that
+room at the bottom of the market. So the answer is a judge that does not use the table at all.
+
+**What makes it possible is a conservation law the bench already has.** A roster is 25 men and a listone
+holds exactly 25 BANDS of ten (a tier is a rank over the teams), so *a squad is one man per band* - and
+the only decision the advice changes is WHICH of the ten men of a band you take. That decision is
+scored on what those men REALLY did (`fm_act`, `pv_act`, `actual` travel in every window, and
+`fm_pred`/`pv_pred` are cross-fit on an adjacent window exactly as the gate does it).
+
+### The advice is RIGHT, and inside a band the quotation says nothing
+
+Ten real seasons, 230 (season, role, band) decisions, no table anywhere. Realised fantapunti, against
+what a dart throw inside the band returns:
+
+| who you take inside the band | per pick | seasons |
+|---|---|---|
+| **the dearest, i.e. the quotation** | **−1.0 ± 3.7** (t −0.27) | 5/10 |
+| **the engine: who plays most matchdays** | **+18.1 ± 3.4** (t 5.34) | **10/10** |
+| the value (fm × pv) | +15.4 ± 3.5 (t 4.36) | 9/10 |
+| the surplus | +3.4 ± 3.6 (t 0.96) | 6/10 |
+
+Paired against the market's own pick on the same band: **+19.9 ± 5.2 fantapunti a pick** (t 3.84, 9
+seasons of 10, 37 identical choices of 211).
+
+The big fact is the first row: **inside a price band the quotation is worth less than a dart throw.**
+That is not a criticism of the listone, it is the conservation law - a band is ten men wide *because*
+the market prices them alike, so whatever separates them cannot be in the price. Ours is, and it is the
+one `metrica-asta-surplus-v1.md` §18 had already isolated: the APPEARANCES. The surplus, measured here
+from the outcome side, again adds nothing (t 0.96).
+
+### At the SQUAD level it is +26 a season, not 25 × 19.9
+
+Two squads, the same 25 bands, the SAME prices (849 credits each, so the comparison is about the
+choice), both playing the real season:
+
+| chosen by | fantapunti | holes | R-Factor | defence mod. |
+|---|---|---|---|---|
+| the quotation | 2653.7 | 18.2 | 11.4 | 13.9 |
+| **the engine (appearances)** | **2680.1** | **8.5** | 13.9 | 17.9 |
+| the value (fm × pv) | 2655.8 | 11.8 | 12.9 | 16.8 |
+
+Paired: **+26.4 ± 39.6 a season (+0.99%)**, 5 of 10 seasons, with the holes HALVED.
+
+**And the curve saturates**, which is what reconciles the two numbers. Swapping `k` of the 25 bands with
+the bands drawn AT RANDOM (200 subsets per size, because swapping them in a fixed order measures the
+order): +4.4 · +11.8 · +13.7 · +19.4 · +22.2 · +22.7 · **+26.4** at 2 · 5 · 8 · 11 · 15 · 20 · 25, with
+the holes 18.2 → 8.5. So the marginal band is worth **+2.36 fantapunti on the first five and +0.74 on
+the last five**.
+
+**Why +19.9 on a man becomes +1 on a squad: a squad FIELDS ELEVEN.** A man's extra appearances only pay
+if they would otherwise have left a place empty, and an eleven can be covered once - so what the advice
+buys is the COVER and not raw scoring. «The value of a threshold cannot be written on a row» (the
+R-Factor's lesson) met from a new side. Stated fully: the engine's squad scores LESS per appearance than
+the quotation's and wins because it does not miss; the two effects nearly cancel on points and do not
+cancel on the modifiers.
+
+**An agreement written and then RETRACTED.** The execution count says `INSIGHT` swaps **+2.35** of our
+preferred men into the squad a season, and 2.35 × 19.9 = +47 against the +37 the bench measures - it
+looked like two independent measurements agreeing. It is not: the saturation curve says one swap is
+worth +1 of squad score, not +19.9, so the agreement was a coincidence between a per-MAN number and a
+per-SQUAD one. What survives is the diagnosis underneath: the adopted term does more than swap inside a
+band, it also changes which bands the arm buys from and what it pays.
+
+### What these data can say and what they cannot
+
+- **They can say the advice is right**, and they say it strongly: t 5.3 against chance and t 3.8 against
+  the quotation, 10 and 9 seasons of 10, on real outcomes with no table.
+- **They cannot certify what it is worth in points**: +26.4 with a standard error of 39.6 (t 0.67) - ten
+  real seasons do not separate 1% of a season from zero, a season's own sd being ~100 fantapunti. **That
+  is why the bench exists**: it replays those same ten seasons over hundreds of urns and reads the same
+  ~+1% with t 5.9 (§21). The bench adds POWER, not football, and the price is a declared room.
+- **They cannot rank our own columns**: at the squad level the surplus reads +36.0 (t 1.10) against the
+  appearances' +26.4 (t 0.67) - the same thing inside its noise - while per pick the appearances win
+  clearly and the surplus does not.
+- **And they say nothing about how much of it you can EXECUTE**: that depends on the rivals and only the
+  bench can estimate it - 2.35 of 25 purchases a season, i.e. **9%**. Which is also the argument for an
+  interface: the bottleneck is not the forecast, it is what a contested auction lets through.

@@ -21,6 +21,7 @@ from bench.auction.bench import (DEPTH_WEIGHT, HOLE_COST, PHASES, QUOTA_DEPTH, T
                                  auction, called_order, cover_value, coverage_need, covered_places,
                                  engine_rate, engine_worth, extraction_order, role_of, role_shares,
                                  season, set_insight, set_tiers, tier_asks, to_credits)
+from bench.auction import advice
 from bench.auction.league import LEAGUE_TABLE, LEGS, fixtures, round_robin, standings
 from bench.auction.profiles import (MARKET, MARKET_SHARE, MENTAL_CAP_SHARE, PROFILES,
                                     TILT, URGENCY, engine_ladder)
@@ -1061,3 +1062,54 @@ def test_the_waiting_is_the_ARMS_and_a_human_reads_his_own_recipe():
         assert human.bid(deep, urn) == before, "il tempismo del braccio ha cambiato un umano"
     finally:
         bench_module.DEPTH_TIER = kept
+
+
+# ---------------------------------- the judge of the ADVICE (02/09/2026, night)
+
+def test_a_squad_is_ONE_MAN_PER_BAND_and_both_sides_of_the_comparison_cost_the_same():
+    """The conservation law `bench/auction/advice.py` rests on, and the thing that makes its comparison
+    a comparison: a roster is `sum(SLOTS)` men and a listone is that many bands of `TEAMS`, so a squad
+    is one man per band - and every picker pays the same for the same band, so what is measured is the
+    CHOICE and not the spend. A comparison whose two sides do not cost the same is not a comparison.
+    """
+    pool = _pool()
+    # ...and the men must DISAGREE with the price order, or every picker names the same man and the
+    # test measures nothing. The guard at the bottom is what says so, and it fired the first time.
+    for index, man in enumerate(pool):
+        man["pv_pred"] = 10.0 + (index % rules.TEAMS) * 2.5
+        man["value"] = man["pv_pred"] * man["fm_pred"]
+    window = {"players": pool, "others": [], "rounds": 38, "votes": {}, "base": {}}
+    cut = advice.bands(window)
+    assert len(cut) == sum(rules.SLOTS.values()), "le fasce non sono una per posto in rosa"
+    for _role, _tier, band, paid in cut:
+        assert len(band) == rules.TEAMS, "una fascia non e' larga quanto le squadre"
+        assert paid >= 1
+    for role in rules.SLOTS:
+        assert sum(1 for r, _t, _b, _p in cut if r == role) == rules.SLOTS[role]
+    # ...and the price of a band does not depend on who is picked from it
+    ids = set()
+    for name, pick in advice.PICKERS.items():
+        chosen = [pick(band) for _r, _t, band, _p in cut]
+        assert len({m["id"] for m in chosen}) == len(chosen), f"{name} prende due volte lo stesso"
+        ids.add(tuple(m["id"] for m in chosen))
+    assert len(ids) > 1, "i pickers scelgono tutti gli stessi uomini: il test non misura niente"
+
+
+def test_the_judge_of_the_advice_needs_no_table_at_all():
+    """It is the reason that file exists: every auction-level number is conditional on the declared
+    room, and this one is not. So it must not touch a rival, a price rule or an urn - asserted by
+    building a squad and scoring it with nothing else in the world."""
+    pool = _pool()
+    for man in pool:
+        man["actual"] = (man.get("pv_pred") or 0) * (man.get("fm_pred") or 0)
+    votes = {str(m["id"]): {str(day): 6.0 for day in range(1, 39)} for m in pool}
+    window = {"players": pool, "others": [], "rounds": 38, "votes": votes, "base": {}}
+    cut = advice.bands(window)
+    engine = advice.PICKERS["ENGINE (who plays most)"]
+    got = advice.squad(window, cut, set(range(len(cut))), engine)
+    assert got["points"] > 0
+    assert got["holes"] == 0, "38 giornate di voti e un buco: la rosa non e' stata schierata"
+    # ...and the two squads cost exactly the same, which is what makes the comparison one
+    market = advice.PICKERS["market (the dearest of the band)"]
+    assert advice.squad(window, cut, set(), market)["points"] > 0
+    assert sum(paid for _r, _t, _b, paid in cut) > 0

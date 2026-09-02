@@ -930,6 +930,52 @@ Quattro abitudini, e due sono errori commessi nella stessa sera.
   passata** — la cura riguarda un angolo in cui il tavolo dichiarato non entra mai, e che solo una
   strategia di attesa apre.
 
+## I consigli si giudicano SENZA il tavolo, e una rosa ne schiera undici
+**02/09/2026 (notte), `simulatore-asta-rilanci-v1.md` §25, `python -m bench.auction.advice`.** Domanda
+dell'operatore: «riusciamo ad avere dei dati verosimili per capire se i consigli del motore favoriscono
+veramente chi li usa?». È la più difficile che si possa fare a questo banco, perché **ogni numero
+pubblicato là è condizionato al tavolo simulato**. La risposta è un giudice che il tavolo non lo usa, e
+lo rende possibile una legge di conservazione che il banco aveva già dentro: **una rosa è di 25 uomini e
+un listone contiene 25 FASCE da dieci, quindi una rosa è un uomo per fascia** — e la sola decisione che
+i consigli cambiano è quale dei dieci prendere, che si giudica sull'esito vero.
+
+**DENTRO UNA FASCIA DI PREZZO LA QUOTAZIONE VALE MENO DI UN TIRO DI DADO**, ed è il fatto più forte di
+tutta la giornata: su dieci stagioni vere e 230 decisioni, prendere il più caro della fascia rende
+**−1,0 ± 3,7** fantapunti (t −0,27, 5 stagioni su 10) contro la media della fascia, mentre prendere chi
+il motore dà per più presente rende **+18,1 ± 3,4** (t 5,34, **10 su 10**) — appaiato contro la scelta
+del mercato, **+19,9 ± 5,2 per scelta** (t 3,84). Non è una critica al listone, è la conservazione: una
+fascia è larga dieci uomini *perché* il mercato li prezza uguali, quindi quello che li distingue non può
+stare nel prezzo. E il surplus, misurato qui dal lato dell'esito, conferma di non aggiungere niente
+(+3,4, t 0,96), che è quello che `metrica-asta-surplus-v1.md` §18 diceva dalla correlazione parziale.
+
+**MA +19,9 SU UN UOMO DIVENTA +1 SU UNA ROSA, PERCHÉ UNA ROSA NE SCHIERA UNDICI.** Due rose sulle stesse
+25 fasce e agli stessi prezzi (849 crediti entrambe), a giocare la stagione vera: **+26,4 ± 39,6 a
+stagione (+0,99%)** con i **buchi dimezzati** (18,2 → 8,5) e i due modificatori su (R 11,4 → 13,9,
+difesa 13,9 → 17,9). E la curva SATURA — a fasce estratte a sorte, la fascia marginale vale **+2,36 sulle
+prime cinque e +0,74 sulle ultime**. Le presenze in più di un uomo pagano solo se altrimenti lasciavano
+un posto vuoto, e **un undici si copre una volta sola**: quello che i consigli comprano è la COPERTURA e
+non il punteggio grezzo. È «il valore di una soglia non si può scrivere su una riga» (l'R-Factor) da un
+lato nuovo — e la rosa del motore segna *meno* per apparizione e vince perché non manca.
+
+**E UN ACCORDO FRA DUE MISURE È STATO SCRITTO E RITIRATO NELLA STESSA ORA.** Il conteggio
+dell'esecuzione dice che il termine adottato porta in rosa +2,35 dei nostri uomini preferiti, e 2,35 ×
+19,9 = +47 contro i +37 che il banco misura: sembrava la riconciliazione fra due misure indipendenti. La
+curva di saturazione dice che uno scambio vale +1 di punteggio-rosa, non +19,9, quindi era **una
+coincidenza fra un numero per UOMO e un numero per ROSA**. *Due numeri che concordano vanno moltiplicati
+solo se hanno la stessa unità, e «per scelta» e «per rosa» non ce l'hanno.*
+
+Tre cose che questi dati NON possono dire, e vanno dette perché è la parte utile della risposta.
+- **Non possono certificare quanto valgono in punti**: +26,4 con un errore standard di 39,6 (t 0,67) —
+  dieci stagioni vere non distinguono l'1% di una stagione da zero, perché la sd di una stagione è ~100
+  fantapunti. **Ed è per questo che il banco esiste**: rigioca quelle stesse dieci stagioni su centinaia
+  di urne e legge lo stesso ~+1% con t 5,9. *Il banco non aggiunge calcio, aggiunge POTENZA, e il prezzo
+  è un tavolo dichiarato.*
+- **Non possono ordinare le nostre colonne fra loro**: al livello della rosa il surplus legge +36,0
+  (t 1,10) contro i +26,4 delle presenze (t 0,67), cioè la stessa cosa dentro il rumore.
+- **Non dicono niente su quanto se ne ESEGUE al tavolo**, che dipende dai rivali e che solo il banco
+  stima: 2,35 acquisti su 25, il **9%**. È anche l'argomento per l'interfaccia — il collo di bottiglia
+  non è la previsione, è quanto un'asta contesa ne lascia passare.
+
 ## Il TEMPISMO compra i posti e il motore li riempie: due canali che si COMPONGONO
 **02/09/2026 (notte), `simulatore-asta-rilanci-v1.md` §24.** Richiesta dell'operatore: «prima di passare
 all'interfaccia troviamo un meccanismo giusto per avere un vantaggio dai consigli del motore».

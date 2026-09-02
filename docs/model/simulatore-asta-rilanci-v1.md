@@ -2240,3 +2240,94 @@ dove il prezzo non scende mai — e dentro quelle fasce si prende l'uomo che il 
 presente.** Le due metà sono misurate su cose diverse e per questo si sommano: la prima sulle 10 aste
 vere della sua lega (§23.1), la seconda sul vantaggio incrementale del motore sulla quotazione
 (`metrica-asta-surplus-v1.md` §18) e sul banco (§21).
+
+## 25. «I consigli del motore favoriscono veramente chi li usa?» — chiesto SENZA il tavolo
+
+**02/09/2026 (notte), domanda dell'operatore: «riusciamo a fare delle simulazioni ed avere dei dati
+verosimili per capire se i consigli del motore favoriscono veramente chi li usa?».** La domanda è la
+più difficile che si possa fare a questo banco, perché **ogni numero pubblicato qui è condizionato al
+tavolo simulato** — e il §23.4 ha appena misurato due ragioni per non fidarsi di quel tavolo al fondo del
+mercato. Quindi la risposta è un giudice NUOVO che il tavolo non lo usa affatto:
+`python -m bench.auction.advice`.
+
+**Quello che lo rende possibile è una legge di conservazione che questo banco ha già dentro.** Una rosa
+è di 25 uomini e un listone contiene esattamente **25 FASCE** da dieci (una fascia è un rango diviso il
+numero di squadre), quindi *una rosa è un uomo per fascia* — e la sola decisione che i consigli cambiano
+è **quale dei dieci uomini** di una fascia prendere. Quella decisione si può giudicare su quello che
+quegli uomini hanno **davvero fatto**: `fm_act`, `pv_act` e `actual` viaggiano in ogni finestra, e
+`fm_pred`/`pv_pred` sono cross-fit su una finestra adiacente come fa il gate.
+
+### 25.1 I consigli sono GIUSTI, e dentro una fascia la quotazione non dice niente
+
+Dieci stagioni vere, 230 decisioni (stagione, ruolo, fascia), nessun tavolo da nessuna parte. Reso in
+fantapunti realizzati, contro quello che rende una scelta a caso dentro la fascia:
+
+| chi scegli dentro la fascia | reso per scelta | stagioni |
+|---|---|---|
+| **il più caro, cioè la quotazione** | **−1,0 ± 3,7** (t −0,27) | 5/10 |
+| **il motore: chi gioca più giornate** | **+18,1 ± 3,4** (t 5,34) | **10/10** |
+| il valore (fm × pv) | +15,4 ± 3,5 (t 4,36) | 9/10 |
+| il surplus | +3,4 ± 3,6 (t 0,96) | 6/10 |
+
+E appaiato contro la scelta del mercato sulla stessa fascia: **+19,9 ± 5,2 fantapunti per scelta**
+(t 3,84, 9 stagioni su 10, 37 scelte identiche su 211).
+
+**Il fatto grosso è la prima riga: dentro una fascia di prezzo la quotazione vale meno di un tiro di
+dado.** Non è una critica al listone — è la conseguenza della legge di conservazione: la fascia è larga
+dieci uomini *perché* il mercato li prezza uguali, quindi l'informazione che li distingue non può essere
+nel prezzo. E la nostra c'è, ed è quella che `metrica-asta-surplus-v1.md` §18 aveva già isolato: le
+PRESENZE. Il surplus, misurato qui dal lato dell'esito, conferma di non aggiungere niente (t 0,96),
+che è la stessa cosa che quel §18 diceva dal lato della correlazione parziale.
+
+### 25.2 Ma a livello di ROSA vale +26 a stagione, non 25 × 19,9
+
+Due rose, le stesse 25 fasce, **gli stessi prezzi** (l'ask medio della fascia per il multiplo misurato
+del mercato, quindi le due rose costano identiche: 849 crediti), entrambe a giocare la stagione vera:
+
+| scelta da | fantapunti | buchi | R-Factor | mod. difesa |
+|---|---|---|---|---|
+| la quotazione | 2653,7 | 18,2 | 11,4 | 13,9 |
+| **il motore (presenze)** | **2680,1** | **8,5** | 13,9 | 17,9 |
+| il valore (fm × pv) | 2655,8 | 11,8 | 12,9 | 16,8 |
+
+Appaiato: **+26,4 ± 39,6 a stagione (+0,99%)**, 5 stagioni su 10. **I buchi si dimezzano** e salgono
+tutti e due i modificatori.
+
+**E la curva satura, che è il fatto che spiega la differenza fra i due numeri.** Scambiando `k` delle 25
+fasce, con le fasce estratte A SORTE (200 sottoinsiemi per taglia, perché scambiarle in ordine misura
+l'ordine): +4,4 · +11,8 · +13,7 · +19,4 · +22,2 · +22,7 · **+26,4** a 2 · 5 · 8 · 11 · 15 · 20 · 25
+fasce, con i buchi 18,2 → 16,5 → 14,1 → 12,7 → 11,0 → 9,6 → 9,0 → 8,5. Cioè la fascia marginale vale
+**+2,36 fantapunti sulle prime cinque e +0,74 sulle ultime cinque**.
+
+**Perché +19,9 su un uomo diventa +1 su una rosa: una rosa ne SCHIERA UNDICI.** Le presenze in più di un
+uomo si vedono solo se altrimenti lasciavano un posto vuoto, e un undici si può coprire una volta sola —
+quindi quello che i consigli comprano è la COPERTURA e non il punteggio grezzo. È «il valore di una
+soglia non si può scrivere su una riga» (l'R-Factor) incontrato da un lato nuovo. Detto per intero: la
+rosa scelta dal motore segna *meno* per apparizione della rosa scelta dal listone, e vince perché non
+manca; i due effetti quasi si annullano sul punteggio e non si annullano sui modificatori.
+
+**UN ACCORDO CHE HO SCRITTO E POI RITIRATO**, perché è esattamente il tipo di numero che questo progetto
+rimisura invece di citare. Il conteggio dell'esecuzione dice che `INSIGHT` porta in rosa **+2,35** dei
+nostri uomini preferiti a stagione, e 2,35 × 19,9 = +47 contro i +37 che il banco misura: sembrava una
+riconciliazione fra due misure indipendenti. **Non lo è**: la curva di saturazione dice che uno scambio
+al livello della rosa vale +1, non +19,9, quindi l'accordo era una coincidenza fra un numero per UOMO e
+un numero per ROSA. Quello che resta vero è la diagnosi che ci sta sotto: il termine adottato non è solo
+uno scambio dentro la fascia, cambia anche da quali fasce il braccio compra e quanto paga.
+
+### 25.3 Cosa questi dati possono dire e cosa no
+
+- **Possono dire che i consigli sono giusti**, e lo dicono con forza: t 5,3 contro il caso e t 3,8
+  contro la quotazione, 10 e 9 stagioni su 10, su esiti veri e senza nessun tavolo.
+- **Non possono certificare quanto valgono in punti**: +26,4 con un errore standard di 39,6 (t 0,67) —
+  dieci stagioni vere non distinguono l'1% di una stagione da zero, perché la deviazione standard di una
+  stagione è di ~100 fantapunti. **Ed è per questo che il banco esiste**: rigioca quelle stesse dieci
+  stagioni su centinaia di urne e legge lo stesso ~+1% con t 5,9 (§21). *Il banco non aggiunge calcio,
+  aggiunge POTENZA — e il prezzo è un tavolo dichiarato.*
+- **Non possono ordinare le nostre colonne fra loro**: al livello della rosa il surplus legge +36,0
+  (t 1,10) contro i +26,4 delle presenze (t 0,67), cioè la stessa cosa dentro il rumore, mentre per
+  scelta le presenze vincono chiaramente e il surplus no. Dieci stagioni di rose separano «il motore
+  batte la quotazione» da niente, e nient'altro di più fine.
+- **E non dicono niente su quanto se ne riesce a ESEGUIRE al tavolo**: quello dipende dai rivali, ed è
+  la parte che solo il banco può stimare — 2,35 dei 25 acquisti a stagione, il **9%**. È anche il motivo
+  per cui un'interfaccia serve: il collo di bottiglia non è la previsione, è quanto un'asta contesa ne
+  lascia passare.
