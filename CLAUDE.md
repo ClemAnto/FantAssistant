@@ -930,6 +930,62 @@ Quattro abitudini, e due sono errori commessi nella stessa sera.
   passata** — la cura riguarda un angolo in cui il tavolo dichiarato non entra mai, e che solo una
   strategia di attesa apre.
 
+## Il saldo esiste solo dove l'uomo è SOSTITUIBILE, e la causa di un difetto scritta a verbale può essere falsa
+**02/09/2026 (notte tarda), `simulatore-asta-rilanci-v1.md` §23.** Domanda dell'operatore: «conviene
+spendere di più appena un top del suo ruolo esce, o lasciar perdere perché gli acquisti in coda avverranno
+a prezzi bassi?», con la premessa che è un requisito — **l'utilità del suggerimento è sopperire alla poca
+lucidità al passare del tempo**, quindi «per ogni ruolo cosa ti serve e quali calciatori buoni per te
+devono ancora uscire» è già il risultato. E si scopre che quel conto E il prezzo sono lo **stesso
+oggetto**: quante rose vogliono ancora quel ruolo è il numero che decide il secondo prezzo.
+
+**LA RISPOSTA È UNA SOGLIA SULLA FASCIA E NON UNA CURVA**, misurata sulle 10 aste vere a estrazione della
+sua lega (2.495 aggiudicazioni), dentro la fascia perché un rapporto pagato/richiesta non è pulito dalla
+composizione (§15.7): contro «quante delle dieci rose hanno ancora un posto in quel ruolo», le **prime due
+fasce** leggono ×1,00 · 0,91 · **0,80** e non arrivano MAI in saldo (2-5% di aggiudicazioni a un credito,
+**zero su 552** per la prima fascia di ogni ruolo); la **terza e quarta** ×1,00 · **0,50** · 0,50; **dalla
+quinta giù** ×1,00 · **0,36** · **0,21**, con la quota a un credito che va dal 29% al 72%. Stesso segno sui
+due meccanismi. La ragione è la sostituibilità — venti uomini per dieci posti da titolare contro un
+riempimento che è più numeroso dei posti — quindi *conviene spendere appena esce* è giusto per i primi due
+gradini e sbagliato per tutto il resto. In crediti sulla sua lega: P 1ª 60 · D 1ª 52 · C 1ª 112 · **A 1ª
+270** (27% del budget, mai in saldo), e la quarta fascia di centrocampo e attacco passa da 20 crediti a UNO
+appena il tavolo si assottiglia.
+
+**E l'ipotesi letterale è stata ridimensionata dal test APPAIATO**: il k-esimo attaccante di prima fascia
+legge 5,71 · 9,85 · 8,90 · 10,34 volte la richiesta, cioè il primo estratto sembra costare metà — ma
+appaiando dentro l'asta è 160 crediti contro 255 con il primo più economico in **6 aste su 10**, e su
+dodici celle provate una a 9/10 è quello che produce il provare dodici celle. Il meccanismo a CHIAMATA è il
+contro-esempio che valida la lettura: là il segno si inverte in quasi ogni cella (0 su 7 tre volte) perché
+il primo uomo di una fascia **è** il più caro. *Un effetto misurato dove l'ordine è scelto non è lo stesso
+effetto misurato dove l'ordine è sorteggiato.*
+
+**LA CAUSA DI UN DIFETTO SCRITTA A VERBALE VA RIMISURATA COME QUALUNQUE ALTRO NUMERO.** Il §18.3 diceva
+che il fondo del mercato è sbagliato perché «ogni nostro partecipante ha un tetto positivo per ogni uomo,
+quindi con dieci offerenti il secondo prezzo non arriva a uno». Misurato: le offerte da un credito su un
+uomo valutato meno di mezzo sono **27 su 3.568** (1%) e i lotti più economici hanno **già una mano sola**.
+La causa vera è il **SINCRONO**: i dieci partecipanti condividono una sola vista dell'urna (`tier_left` e
+`hands` sono fatti sull'urna, non su di loro) e passano da «rifiuto» a «offro» insieme, quindi un uomo
+fuori serbatoio trova sempre due o tre mani dove al tavolo vero ne trova una. La struttura invece è quasi
+giusta (16,3% di acquisti fuori serbatoio contro 20,4%, 40,6 uomini del serbatoio invenduti contro ~50):
+sbaglia il prezzo, mediana 3 crediti contro 1.
+
+Cinque cure misurate e respinte, e tre lezioni che valgono oltre il banco.
+- **La DISPERSIONE è respinta dall'aritmetica e non dal calcio**: un lotto si chiude al SECONDO prezzo, e
+  il secondo massimo di dieci estrazioni disperse è più ALTO del secondo massimo di dieci valutazioni
+  identiche. Più rumore alza il fondo (10,0% → 11,2% a uno sbandamento assurdo). *Quando il bersaglio è
+  una statistica d'ordine, la dispersione non fa quello che l'intuizione dice.*
+- **Una regola nuova può essere già contenuta in una vecchia, e il modo di scoprirlo è la DIFFERENZA**:
+  «non offro su un uomo fuori serbatoio» ha effetto **zero** — 250 aggiudicazioni identiche, uomo per uomo
+  e credito per credito — perché `Team.keeps` lo fa già e più severamente. Diffare un'asta costa un minuto
+  e smaschera una regola inerte che una tabella di aggregati avrebbe fatto sembrare piccola.
+- **UNA CALIBRAZIONE MIGLIORE DELL'AMBIENTE PUÒ COSTARE UN CANALE PREVISIONALE, e allora si scrive
+  invece di adottarla.** Il secondo indice (il prezzo dipende anche da quante rose vogliono il ruolo) è
+  MISURATO e sistema quasi tutti i bersagli a chiamata (aggiudicazioni al minimo 6,5% → 19,1% contro
+  19,4%, gini 0,61 → 0,65 = 0,65); respinto perché **riordina i profili dichiarati** a chiamata (P3 dal
+  terzo al secondo, +32,1) e porta l'adozione del §21 da +1,49% a **−0,35%**. Il che lascia una
+  fragilità detta: **il margine di `INSIGHT` dipende dal fatto che la coda sia CARA** — sposta soldi
+  dentro una fascia verso chi gioca, e se il riempimento costa un credito quei soldi non comprano più
+  niente che gli altri non abbiano.
+
 ## Dieci contro dieci, e una soglia ASSOLUTA non si confronta fra budget diversi
 **02/09/2026 (notte tarda), `simulatore-asta-rilanci-v1.md` §18.** Due osservazioni dell'operatore, e
 tutt'e due hanno spostato numeri pubblicati poche ore prima.

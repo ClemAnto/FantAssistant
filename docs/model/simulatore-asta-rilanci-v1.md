@@ -1529,6 +1529,13 @@ sostituisce.
    muove un verdetto, ma è il **24% del mercato** con una forma diversa dalla nostra. La cura ovvia — una
    soglia sotto la quale non si offre — è una costante dichiarata in più: prima di aggiungerla, chiedersi
    cosa può cambiare il suo output.
+   > **FATTO il 02/09/2026 (notte tarda), §23, e la causa scritta qui sopra è SBAGLIATA**: le offerte da
+   > un credito su un uomo valutato meno di mezzo sono l'1% del totale, e i lotti più economici del banco
+   > hanno già una mano sola. La causa vera è il SINCRONO — i dieci partecipanti condividono una vista
+   > sola dell'urna e smettono di rifiutare insieme. Cinque cure misurate e respinte, la sola che
+   > funziona (il secondo indice sul numero di rose che vogliono ancora il ruolo) costa il riordino dei
+   > profili a chiamata e l'adozione del §21 all'urna. Quello che il punto ha PRODOTTO è la risposta alla
+   > domanda dell'operatore su quanto offrire, §23.1-23.2.
 3. **L'asta A CHIAMATA vera è una SCELTA**, non un ordine (§16.7): lì è il manager a scegliere quale nome
    mettere all'asta dentro il reparto in corso, e questo banco chiama il più caro per primo. È la ragione
    strutturale dei due bersagli fuori misura a chiamata (il lotto più caro al 24,0% contro il 27%, e il
@@ -1975,3 +1982,161 @@ cui un ragionamento aggregato avrebbe messo la colpa.
 3. **Quello che l'archivio può ancora dire lo dice su una domanda nuova**: cosa costa un uomo quando un
    solo compratore ha ancora quel ruolo aperto. È l'unico numero che deciderebbe il punto 2, e nelle 147
    aste non c'è perché nessuno si è mai astenuto da una fase.
+
+## 23. «Conviene spendere appena esce, o aspettare la coda?» — chiesto ai 147 dati veri
+
+**02/09/2026 (notte tarda), su indicazione dell'operatore.** Aperto come il punto 2 del §20.2 (il FONDO
+del mercato) e riorientato dalla sua stessa domanda, che ne è la forma decidibile: «lo studio dei casi
+reali deve aiutare il motore a suggerire quanto offrire: conviene spendere di più appena un top del suo
+ruolo esce (perché tanto quelli a seguire costeranno di più) oppure conviene lasciar perdere perché gli
+acquisti in coda avverranno a prezzi bassi?». Con la premessa che ha dato e che vale come requisito:
+**l'utilità del suggerimento è nel sopperire alla poca lucidità al passare del tempo**, quindi «per ogni
+ruolo cosa ti serve e quali calciatori buoni per te devono ancora uscire» è già il risultato — e come si
+vedrà, quel conto e il prezzo sono lo **stesso oggetto**: quante rose vogliono ancora quel ruolo è il
+numero che decide il secondo prezzo.
+
+### 23.1 La risposta: il saldo esiste solo dove l'uomo è SOSTITUIBILE
+
+Misurato sulle 10 aste vere a estrazione della sua lega (2.495 aggiudicazioni), dentro la fascia — così
+la composizione non inquina, che è il difetto isolato dal §15.7 — e contro **quante delle dieci rose
+hanno ancora un posto in quel ruolo** quando il lotto viene aggiudicato:
+
+| | tavolo aperto (9-10 rose) | si assottiglia (6-8) | si chiude (1-5) |
+|---|---|---|---|
+| **prime due fasce** (gli uomini che giocano) | ×1,00 (n=552) | ×0,91 (n=139) | **×0,80** (n=48) |
+| terza e quarta (la profondità utile) | ×1,00 (n=463) | **×0,50** (n=95) | ×0,50 (n=83) |
+| dalla quinta giù (il riempimento) | ×1,00 (n=570) | **×0,36** (n=165) | **×0,21** (n=172) |
+
+E la stessa cosa letta come «che probabilità ho di prenderlo a UN credito»: prime due fasce **2-5%
+sempre** (e **zero su 552** per la prima fascia di ogni ruolo), terza-quarta dal 17% al 92%, dalla
+quinta giù dal 29% al 72%.
+
+**Quindi la risposta è sì per i primi due gradini e no per tutto il resto, ed è una soglia e non una
+curva.** Un uomo delle prime due fasce non arriva mai in saldo: aspettare vale al massimo il 20% e
+rischia di non prenderlo affatto. Dal terzo gradino in giù aspettare **dimezza** il prezzo e dal quinto
+lo taglia di cinque volte. La ragione è la sostituibilità: le prime due fasce sono venti uomini per dieci
+posti da titolare e tutti li vogliono, mentre dal terzo gradino gli uomini sono più dei posti e la domanda
+della stanza evapora man mano che le rose si riempiono.
+
+**Lo stesso segno sui due meccanismi**, che è la cosa che ne fa una misura e non un artefatto
+dell'ordine: a chiamata ×1,00 · 0,69 · 0,69 per le prime due fasce, ×1,00 · 0,40 · 0,40 per la
+terza-quarta, ×1,00 · 0,26 · 0,15 per il riempimento.
+
+### 23.2 Quanto paga un tavolo vero, in crediti, sulla sua lega
+
+Mediana del pagato su budget 1000, dieci squadre, 3/8/8/6, asta a estrazione. Fra parentesi la quota di
+quelle aggiudicazioni andata a un credito.
+
+| ruolo · fascia | Qt.I | tavolo aperto | si assottiglia | si chiude |
+|---|---|---|---|---|
+| **P 1ª** | 16 | **60** (0%) | 78 (0%) | 91 (0%) |
+| P 2ª | 9 | 8 (21%) | 8 (19%) | 26 (20%) |
+| **D 1ª** | 16 | **52** (0%) | 35 (0%) | 41 (0%) |
+| D 2ª | 12 | 30 (3%) | 31 (0%) | 14 (14%) |
+| D 3ª | 9 | 20 (5%) | 11 (0%) | 13 (24%) |
+| D 4ª | 8 | 11 (21%) | 8 (29%) | 6 (25%) |
+| D 5ª-8ª | 6-7 | 4-7 (16-37%) | 1-3 (33-80%) | **1-2 (33-91%)** |
+| **C 1ª** | 23 | **112** (0%) | 80 (0%) | 111 (0%) |
+| C 2ª | 14 | 43 (0%) | 50 (12%) | 51 (0%) |
+| C 3ª | 12 | 32 (4%) | 34 (17%) | 12 (0%) |
+| C 4ª | 10 | 20 (11%) | **1** (58%) | 1 (60%) |
+| C 5ª-8ª | 6-9 | 2-20 (17-48%) | 1-23 (25-60%) | **1 (55-100%)** |
+| **A 1ª** | 26 | **270** (0%) | 113 (0%) | 208 (0%) |
+| A 2ª | 16 | 76 (3%) | 74 (15%) | 26 (0%) |
+| A 3ª | 13 | 53 (15%) | 62 (18%) | 13 (20%) |
+| A 4ª-6ª | 7-10 | 6-32 (14-36%) | **1** (61-67%) | **1** (59-67%) |
+
+Tre cose da leggere in quella tabella. **Il top d'attacco è il 27% del budget e non scende mai** (270
+crediti, zero aggiudicazioni a un credito su 71). **La quarta fascia è il confine**: a centrocampo e in
+attacco passa da 20 crediti a UNO appena il tavolo si assottiglia. E **la prima fascia dei portieri sale**
+(60 → 78 → 91): chi arriva tardi senza portiere paga, perché di portieri se ne schiera uno.
+
+### 23.3 La cosa che sembrava più forte, e che il test appaiato ha ridimensionato
+
+La sua ipotesi letterale — «conviene spendere di più appena un top esce perché quelli a seguire costeranno
+di più» — sembrava confermata alla grande dalla prima lettura: il k-esimo attaccante di prima fascia
+aggiudicato legge 5,71 · 9,85 · 8,90 · 10,34 · 10,60 volte la Qt.I, cioè **il primo estratto costa la
+metà dei quattro successivi**. Rimisurata **appaiando dentro l'asta** (il primo contro la mediana degli
+altri della sua stessa (ruolo, fascia), così quello che rende un'asta più cara di un'altra si annulla):
+160 crediti contro 255, ma **il primo è il più economico in 6 aste su 10**. Su un segno test è una
+monetina, e su dodici celle provate una a 9/10 (i centrocampisti di seconda fascia) è quello che produce
+il provare dodici celle.
+
+**E il meccanismo a chiamata è il contro-esempio che spiega perché la lettura all'urna è quella
+leggibile**: là il segno si inverte in quasi ogni cella (difensori di terza fascia 0 su 7, centrocampisti
+di terza 0 su 7, attaccanti di terza 0 su 7 — il primo è sempre il più caro), perché a chiamata il primo
+uomo di una fascia **È** il più caro. All'urna l'ordine dentro la fase è il sorteggio della piattaforma,
+quindi «è uscito adesso» è esogeno e il confronto è pulito. *Un effetto misurato dove l'ordine è scelto
+non è lo stesso effetto misurato dove l'ordine è sorteggiato.*
+
+### 23.4 Il FONDO del mercato: la causa scritta nel §18.3 è SBAGLIATA, e quella vera è il sincrono
+
+Il punto 2 del §20.2 diceva: «ogni nostro partecipante ha un tetto positivo per ogni uomo, quindi con
+dieci offerenti il secondo prezzo non arriva quasi mai a uno». **Misurato, è falso**: le offerte da
+esattamente un credito su un uomo che la ricetta valutava meno di mezzo credito sono **27 su 3.568**
+(1%), e i lotti più economici del banco hanno **già una sola mano alzata** — un lotto con un offerente
+solo costa un credito per la regola del prezzo, quindi il banco non ha bisogno che qualcuno smetta di
+offrire. Ha bisogno di più lotti con una mano sola: ne fa 24 per asta e il vero ne fa ~57.
+
+E la struttura, all'urna, è quasi giusta: il banco compra il **16,3%** dei suoi uomini da fuori il
+serbatoio (i migliori `posti × squadre` di ogni ruolo, la stessa legge di conservazione di
+`to_credits`) contro un vero del **20,4%**, e lascia **40,6** uomini del serbatoio invenduti contro
+~50. Quello che sbaglia è il **prezzo** di quegli uomini: mediana **3 crediti** con il 29% al minimo,
+contro un vero di **1** con il 59,5% al minimo.
+
+**La causa vera è il SINCRONO.** I dieci partecipanti del banco condividono una sola vista dell'urna
+(`tier_left` e `hands` sono fatti sull'urna, non su di loro) e differiscono solo per quanti posti hanno
+ancora liberi, quindi passano da «rifiuto» a «offro» quasi tutti insieme: un uomo fuori serbatoio trova
+sempre due o tre mani. Dieci manager veri hanno dieci liste diverse e finiscono la propria in dieci
+momenti diversi.
+
+### 23.5 Cinque cure misurate e respinte, e ognuna dice perché
+
+- **Il pavimento di un credito** (la causa dichiarata dal §18.3): 1% delle offerte. Non è quello.
+- **La DISPERSIONE in coda** (dare a tutti i profili uno sbandamento sui riempimenti, dove l'operatore
+  non ha dichiarato nessun comportamento): respinta **dall'aritmetica e non dal calcio**. Un lotto si
+  chiude al SECONDO prezzo, e il secondo massimo di dieci estrazioni disperse è più ALTO del secondo
+  massimo di dieci valutazioni identiche: più rumore alza il fondo, non lo abbassa. Misurato: 10,0% →
+  11,2% di aggiudicazioni al minimo a uno sbandamento assurdo, con la mediana che sale (1,4 → 1,9) e la
+  concentrazione che scende.
+- **UNA STANZA PAZIENTE** (la definizione del §22 data a tutti e non al solo braccio): 10,0% → **8,0%**,
+  cioè peggio, e a chiamata comincia a lasciare posti vuoti (1,64 su 25), che è lo strangolamento già
+  misurato dal §16.5. Rifiutare presto non fa arrivare il lotto a un credito: lo fa tornare più tardi,
+  quando chi lo vuole lo vuole tutto insieme.
+- **LA LISTA scritta esplicitamente** («non offro su un uomo che il serbatoio non contiene, finché ce ne
+  sono abbastanza dentro per i miei posti»): **effetto ZERO, verificato per differenza** — 250
+  aggiudicazioni identiche, uomo per uomo e credito per credito. Perché `Team.keeps` la implementa già,
+  e più severamente: rifiuta finché restano abbastanza uomini di fascia non peggiore. *Prima di
+  aggiungere una regola, si controlla se il file ne ha già una che la contiene.*
+- **IL SECONDO INDICE**, ed è l'unica che funziona: la scala di mercato è indicizzata sulla sola fascia,
+  e l'archivio dice che il prezzo dipende anche da quante rose vogliono ancora il ruolo (§23.1). Aggiunto
+  come secondo indice misurato, **a chiamata sistema quasi tutti i bersagli** — aggiudicazioni al minimo
+  6,5% → **19,1%** contro un vero di 19,4%, gini 0,61 → **0,65** contro 0,65, primi tre 49,8 → **52,9**
+  contro 52,3, uomini al minimo 1,63 → **4,77** contro 4,84 — e **all'urna è quasi inerte** (10,0% →
+  11,1% contro 26,5%), perché là i riempimenti escono mentre il tavolo è ancora aperto.
+  **RESPINTO per quello che costa**, e la misura è netta: a chiamata **riordina i profili dichiarati**
+  (P3 dal terzo al secondo posto, +32,1 punti), all'urna costa al braccio **−1,27%** (t −2,47, 3 finestre
+  su 10), e porta l'adozione del §21 da +1,49% a **−0,35%**. Comprare il fondo di un meccanismo che
+  l'operatore non gioca al prezzo di un canale previsionale adottato non è un affare.
+
+**E quel −0,35% è una fragilità che va scritta anche se l'indice non entra**: il margine di `INSIGHT`
+dipende dal fatto che la coda sia CARA. Il termine sposta soldi dentro una fascia verso chi gioca; se il
+riempimento costa un credito, quei soldi non comprano più niente che gli altri non abbiano. Non ritira
+l'adozione — l'ambiente non è cambiato, l'indice è respinto — ma dice a quale condizione vale, e la
+condizione è un fatto sull'ambiente che oggi sappiamo essere calibrato male al fondo.
+
+### 23.6 Cosa resta aperto, e cosa NON rifare
+
+- **Aperto, con la sua diagnosi in mano**: la disomogeneità della stanza. Serve che i dieci partecipanti
+  escano dal rifiuto in dieci momenti diversi, e la sola cosa che lo produce è una LISTA per
+  partecipante — cioè un fatto nuovo sul tavolo, con la sua lunghezza da misurare. Il bersaglio è
+  quantificato (26,5% delle aggiudicazioni a un credito all'urna, 19,4% a chiamata; 20,4% degli uomini
+  fuori serbatoio; mediana 1 credito) e il costo dell'errore è quello che il §18.3 aveva già stimato,
+  ~12 crediti su 1000.
+- **Aperto e più grosso, per il meccanismo a chiamata**: il §20.2 punto 3 lo diceva già e questa sessione
+  lo conferma dal lato dei numeri — il banco compra l'1,6% fuori serbatoio dove il vero compra il 19,6%,
+  e lascia 4 uomini del serbatoio invenduti dove il vero ne lascia ~50. Non è il fondo: è che a chiamata
+  **il manager SCEGLIE quale nome mettere all'asta** e il banco chiama il più caro.
+- **Non rifare**: le cinque cure del §23.5, ognuna con il suo numero. E non rifare il test letterale
+  sulla sua ipotesi (§23.3) su dieci aste: la cella dell'attacco di prima fascia ha n=10 e il segno è
+  6/10, quindi quello che serve non è un'altra misura ma più aste.

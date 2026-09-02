@@ -1200,3 +1200,108 @@ the award position at all. Corrected, and measured before adopting: on the decla
 so the re-offer this cures is a corner the declared table never enters. The patience finding survives
 it (+4.67%), so the loophole is not the phase boundary: it is inside the phase, and it is about who
 still has a slot.
+
+## WHEN TO SPEND: asked of the 147 real auctions (02/09/2026, late)
+
+The operator's question, and it is the decidable form of «the bottom of the market» (§20.2 item 2): «is
+it better to spend as soon as a top man of his role comes up, because the ones that follow will cost
+more - or to let it go, because the purchases at the end happen at low prices?» With the requirement he
+stated alongside it: the point of the advice is to make up for a manager's LUCIDITY draining away over
+six hours, so «knowing exactly, per role, what you still need and which good men are still to come» is
+already the result. It turns out to be the same object as the price: how many rosters still want the
+role IS what decides the second price.
+
+### The answer: the discount exists only where the man is SUBSTITUTABLE
+
+Measured on the 10 real drawn auctions of his league (2495 awards), inside the tier so the mix of tiers
+cannot masquerade as timing (§15.7), against how many of the ten rosters still hold a place in the role:
+
+| | table wide open (9-10) | thinning (6-8) | closing (1-5) |
+|---|---|---|---|
+| **first two tiers** (the men who play) | x1.00 (n=552) | x0.91 (n=139) | **x0.80** (n=48) |
+| third and fourth (the useful depth) | x1.00 (n=463) | **x0.50** (n=95) | x0.50 (n=83) |
+| fifth and below (the filling) | x1.00 (n=570) | **x0.36** (n=165) | **x0.21** (n=172) |
+
+And the same read as «what are my chances of getting him for ONE credit»: the first two tiers **2-5%
+throughout** (and ZERO of 552 for the top tier of any role), the third and fourth 17% to 92%, the fifth
+and below 29% to 72%.
+
+**So it is a threshold and not a curve: yes for the first two rungs, no for everything else.** A man of
+the first two tiers never comes cheap - waiting is worth at most 20% and risks not getting one at all -
+while from the third rung down waiting HALVES the price and from the fifth cuts it by five. The reason is
+substitutability: the first two tiers are twenty men for ten starting places and everybody wants one,
+whereas from the third rung the men outnumber the places and the room's demand evaporates as the rosters
+fill. **The same sign on both mechanisms** (called: x1.00 · 0.69 · 0.69 · / x1.00 · 0.40 · 0.40 /
+x1.00 · 0.26 · 0.15), which is what makes it a measurement rather than an artefact of the order.
+
+In credits on his league, the median paid (share of those awards that went for one credit): **P 1st tier
+60 (0%)** · P 2nd 8 (21%) · **D 1st 52 (0%)** · D 2nd 30 (3%) · D 3rd 20 (5%) · D 4th 11 (21%) · D 5th-8th
+4-7 (16-37%) · **C 1st 112 (0%)** · C 2nd 43 (0%) · C 3rd 32 (4%) · C 4th 20 (11%) · **A 1st 270 (0%)** ·
+A 2nd 76 (3%) · A 3rd 53 (15%) · A 4th-6th 6-32 (14-36%) - and once the table thins, the fourth tier of
+the midfield and the attack goes from 20 credits to ONE. Three things worth reading there: the top
+forward is 27% of the budget and never falls; the fourth tier is the boundary; and the first tier of the
+KEEPERS rises (60 → 78 → 91), because you field one and whoever arrives late without one pays.
+
+### The literal hypothesis, and the paired test that cut it down
+
+«The first top out is cheaper because the ones that follow cost more» looked strongly confirmed: the k-th
+first-tier forward awarded reads 5.71 · 9.85 · 8.90 · 10.34 · 10.60 times the Qt.I. Re-measured PAIRED
+within the auction (the first against the median of the others of his own (role, tier), so whatever makes
+one auction dearer cancels): 160 credits against 255, but **the first is the cheaper one in 6 auctions of
+10**. That is a coin on a sign test, and of twelve cells tried one at 9/10 is what trying twelve cells
+produces.
+
+**And the called mechanism is the counter-example that says why the drawn reading is the readable one**:
+there the sign flips in almost every cell (0 of 7 for the third tiers of D, C and A) because the first
+man of a tier IS the dearest. At the urn the order inside a phase is the platform's own draw, so «he came
+up now» is exogenous. An effect measured where the order is chosen is not the same effect measured where
+the order is drawn.
+
+### The bottom of the market: §18.3's stated cause is WRONG, and the real one is lockstep
+
+§20.2 item 2 said «every one of our participants has a positive ceiling for every man, so with ten
+bidders the second price almost never reaches one». **Measured, that is false**: bids of exactly one
+credit on a man the recipe valued under half a credit are **27 of 3568** (1%), and the cheapest lots of
+the bench already have ONE hand up. A lot with a single bidder costs one credit by the price rule, so the
+bench does not need anybody to stop bidding - it needs more single-bidder lots: 24 an auction against the
+real ~57.
+
+At the urn the STRUCTURE is nearly right: the bench buys **16.3%** of its men from outside the rostered
+pool (the dearest `slots x teams` of each role, `to_credits`'s own pool) against a real **20.4%**, and
+leaves **40.6** pool men unsold against a real ~50. What is wrong is the PRICE of those men: a median of
+**3 credits** with 29% at the floor against a real **1** with 59.5% at the floor.
+
+**The cause is LOCKSTEP.** The bench's ten participants share one view of the urn (`tier_left` and
+`hands` are facts about the urn, not about them) and differ only in how many slots they have left, so
+they flip from «refuse» to «bid» together and an off-pool man always finds two or three hands. Ten real
+managers hold ten different lists and run out of them at ten different moments.
+
+### Five cures measured and refused, each with its own arithmetic
+
+- **The floor of one credit** (the cause §18.3 declared): 1% of the priced bids. Not it.
+- **DISPERSION at the tail**: refused by arithmetic rather than by football. A lot clears at the SECOND
+  price, and the second highest of ten dispersed draws is HIGHER than the second highest of ten identical
+  valuations - more noise raises the bottom. Measured at an absurd spread: 10.0% → 11.2% of awards at the
+  floor, with the median rising and the concentration falling.
+- **A PATIENT ROOM** (§22's definition given to everybody instead of to the arm alone): 10.0% → **8.0%**,
+  i.e. worse, and at a called auction it starts leaving slots unfilled (1.64 of 25), which is §16.5's
+  measured strangling. Refusing early does not make the lot reach one credit: it makes it come back later,
+  when everybody who wants it wants it at once.
+- **THE LIST written out explicitly** («I do not bid on a man the pool does not contain while it still
+  holds enough for my slots»): **ZERO effect, verified by DIFFING an auction** - 250 awards identical, man
+  for man and credit for credit. `Team.keeps` already implements it and more strictly. Before adding a
+  rule, check whether the file already has one that contains it.
+- **THE SECOND INDEX**, the only one that works: `profiles.MARKET` is indexed by tier alone and the
+  archive says the price also depends on how many rosters still want the role. Added as a measured second
+  index it lands nearly every CALLED target - awards at the floor 6.5% → **19.1%** against a real 19.4%,
+  gini 0.61 → **0.65** = 0.65, top three 49.8 → **52.9** against 52.3, men at the minimum 1.63 → **4.77**
+  against 4.84 - and at the urn it is nearly inert (10.0% → 11.1% against 26.5%), because there the
+  fillers come up while the table is still wide open. **REFUSED for what it costs**: at a called auction
+  it REORDERS the declared profiles (P3 from third to second, +32.1 points), at the urn it costs the arm
+  **-1.27%** (t -2.47, 3 windows of 10), and it takes §21's adoption from +1.49% to **-0.35%**.
+
+**That -0.35% is a fragility worth writing down even though the index stays out**: `INSIGHT`'s margin
+depends on the tail being EXPENSIVE. The term moves money inside a band toward the men who play; if the
+filling costs one credit, that money no longer buys anything the others do not have. It does not retire
+the adoption - the environment did not change - but it says under what condition it holds, and that
+condition is a fact about an environment we now know is mis-calibrated at the bottom.
