@@ -1083,3 +1083,120 @@ rather than for how we bid.
   new parameter: +6.6 ± 3.8 (t 1.71), +0.25%, holes 18.5 → 17.0. Under the 0.5% floor and under two
   standard errors, so it does not go in; the direction is right and it is recorded as a candidate if the
   floor is ever re-measured.
+
+## READING THE RIVALS: asked of an ORACLE, and the answer is no (02/09/2026, late)
+
+The operator's question was «can identifying the rivals' strategies help us predict their moves and
+optimise ours?». Four families measured against the pre-registered criterion, all four refused - and
+the most interesting one is refused by a judge the internal criteria do not contain.
+
+**The rule that decides is the MECHANISM's, not the rivals'. At a SECOND-PRICE auction, knowing what
+it takes to win the lot in front of you is worth exactly ZERO**: above the clearing price you win and
+pay the second price anyway, below it you lose anyway. Rival information can only pay through the
+BUDGET - what you spend here you do not spend there - and the budget is already committed by
+construction (`Team.scale` normalises the plan onto what is left). Every measurement below is a
+different way of discovering that one fact.
+
+### The shadow price of a credit: the right frame, and it loses with PERFECT prices
+
+Keep the engine's worth in fantapunti and convert it into credits at the rate the state of the auction
+implies, re-read at every lot: `lambda` bisected until the best squad still buyable costs the purse,
+and `ceiling = price(m0) + (worth(man) - worth(m0)) / lambda`, where `m0` is the man that plan would
+use LAST for the role. No parameter, and it subsumes `engine_rate`, `Team.alternative` and `role_cap`.
+
+| prices feeding the plan | paired gain | holes | spend |
+|---|---|---|---|
+| the measured market ladder | **-6.86%** (t -6.21) | 15.1 → 38.6 | 977 → 917 |
+| **ORACLE** - what each lot will really take | **-7.56%** (t -7.52), 0 windows of 10 | 15.1 → 41.4 | 977 → 945 |
+
+Three defects paid for on the way, and each is a house rule met from a new side. **A worth-per-credit
+ratio ranks the junk first when what binds is the SLOTS** - the first oracle spent 25 credits of 1000
+on 25 one-credit men, and the same defect came back inside `keeps` an hour later. **A conservation is
+read PER ROLE**, which is what `to_credits` says about itself: summed over the dearest 250 men the urn
+was over-priced, the plan came out cheaper than the purse, the shadow price read ZERO and the arm
+offered 241 credits for the 16th keeper of the listone. And **a ceiling is not a squad**: with no
+`ABUNDANCE` floor the arm ended with two slots UNFILLED.
+
+### Topping up to take the lot: monotone and negative
+
+At a real raise auction the price CLIMBS in front of you, so this one needs no model at all - the
+oracle only stands in for a hand that keeps raising, since the bench's bids are sealed.
+
+| how far above its own ceiling | gain | holes |
+|---|---|---|
+| x1.5 | -3.67% | 16.5 → 28.4 |
+| x2 | -4.93% | 16.5 → 33.2 |
+| whatever it takes | -4.92% | 16.5 → 31.4 |
+| x2, only where the engine rates him above his own band | **-2.74%** | 16.5 → 23.3 |
+
+It is §17.4 from the other side - **a raise nobody pays for with a cut somewhere else is not a
+strategy, it is a bigger purse, and the purse does not grow.** Winning a lot you were losing costs the
+lots you were winning. Note the direction of the detail: restricting the raise to the men we rate above
+their band is the least bad variant, so §21's discrimination is right and the ESCALATION is wrong.
+
+### `keeps` on the DEAL, and `hands` on the rivals' MONEY - where the NULL beats the channel
+
+Reallocating instead of escalating conserves by construction, and reading «better» as «more worth per
+credit at what he will cost» is a change of definition with no new parameter. Refused hard: **-25.21%**
+with oracle prices and **-34.45%** with the ladder (113-154 holes), the ratio defect twice.
+
+Then the cheapest reading of all: a rival with twelve credits has a slot open and cannot contest a
+sixty-credit defender, so counting him counts a hand that is not up.
+
+| reading | gain | verdict |
+|---|---|---|
+| can afford 0.5 / 1.0 / 2.0 / 10.0 x the ask | +1.00 / +1.18 / +2.04 / +3.15% | robust ... strict |
+| **can afford what he will COST** (`profiles.MARKET`, no parameter) | **+0.22%** (t 1.02) | **NO** |
+| **NULL - `hands` x 0.25, reading nothing about anybody** | **+4.17%** | strict |
+| **NULL - `hands` x 0.1** | **+4.78%** | strict |
+
+**The null beats the channel and the parameter-free form is worth nothing: so this is not information
+about the rivals, it is PATIENCE.** The affordability reading was a roundabout way of lowering `hands`,
+and the lower the better - the optimum sat at the edge of the grid, which is this project's condition
+for not adopting a number at all.
+
+### The patience finding, and why it is NOT adopted
+
+At the limit (`hands` = 1, i.e. the division by the hands up simply is not there) it passes every
+internal criterion: **+2.83% (t 19.30) and +3.82% (t 26.01) over 800 paired seasons at x0.6 and x0.4,
+10 windows of 10, worst window +1.48% and +2.45%**; +4.99% (t 16.85) at x0.1 on 200; holes 19.2 → 6.0,
+mean place 3.52 → 1.24, zero slots unfilled. It survives THREE arms at the table (+2.76% strict), it
+has a ceiling (the absurd end reads +4.13%, less than the limit) and it is INERT at a called auction to
+the decimal, `keeps` being switched off there by the mechanism.
+
+The mechanism, photographed: the arm buys later (median lot position 1.10 → 1.52) and pays **0.78 →
+0.30 of the ask** for BETTER men (median pv 27.3 → 28.2, median tier 2 → 1).
+
+**And then the archive refuses it.** The 10 real drawn auctions of his league (2495 awards) say
+paid/ask falls 53% from the first half of a phase to the second - but inside the top two tiers only
+**14%** (4.08 → 3.51), so almost all of that fall is COMPOSITION, the defect §15.7 already isolated.
+By tier, with the bench's ratio carried into the archive's units (x `to_credits` = 3.46), the patient
+arm pays **0.07** of the real late price for a second-tier defender, **0.09** for a third-tier
+midfielder, **0.16** and **0.14** for a first- and second-tier forward. The BASE arm is in scale with
+reality (first tiers 5.20 vs 4.53 · 5.56 vs 3.07 · 5.14 vs 4.55 · 3.14 vs 8.83). So the gain is bought
+at a seventh to a fifteenth of what a real table charges for the men that decide a season, and that
+price exists only because nine rosters must fill their quotas while one buys nothing. **The archive
+cannot refute it either** - no real manager sits out a phase, so that price has never been observed.
+It is an exploitation of the table rather than a better valuation, and the decision on something the
+operator would actually have to play is his.
+
+What is established is the DIRECTION: the arm is too eager at the urn, and the division by the hands up
+inside `keeps` is the reason. What would make it adoptable is a number the archive does not carry -
+what a man of tier `k` costs late in his phase WHEN ONLY ONE BUYER still needs the role.
+
+### Where the defect was NOT, and one mechanism correction (adopted, free)
+
+**The table's money does not leave too early.** The spend curve INSIDE each phase reproduces the real
+one: 30/60/86% against 33/65/85% for the keepers, 31/55/80 against 31/54/77 for the defence, 26/52/81
+against 28/51/72 for the midfield, 28/65/92 against 36/65/88 for the attack. §16.1 checked the curve
+over the WHOLE auction; this is the finer target and it holds.
+
+**But the re-offer belonged to the wrong phase.** `auction` kept ONE queue, so the unsold men of all
+four phases came back after the entire first pass and whoever let a department go by met it again only
+once every other roster was full. The archive says a role's awards are CONTIGUOUS - 30 keepers, then
+80 defenders, then 80 midfielders, then 60 forwards, which is how this session could read the role off
+the award position at all. Corrected, and measured before adopting: on the declared table it moves
+**nothing** (0 differences over 1000 participant-seasons) and **0 awards happen after the first pass**,
+so the re-offer this cures is a corner the declared table never enters. The patience finding survives
+it (+4.67%), so the loophole is not the phase boundary: it is inside the phase, and it is about who
+still has a slot.

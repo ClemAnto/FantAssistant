@@ -669,6 +669,43 @@ def test_the_auction_is_played_ROLE_BY_ROLE_the_way_the_platform_plays_it():
     assert [role_of(m) for m in free] != [role_of(m) for m in extraction_order(pool, 99)]
 
 
+def test_a_passed_man_comes_back_INSIDE_his_own_phase():
+    """The re-offer belongs to the phase, and the archive is what says so.
+
+    `auction` used to keep ONE queue: the men nobody bid on, from all four phases, came back after the
+    whole first pass - so a participant who let a department go by met it again when every other
+    roster was already full, and nobody bid against him. In the real archive a role's awards are
+    CONTIGUOUS (a ten-team auction awards exactly 30 keepers, then 80 defenders, then 80 midfielders,
+    then 60 forwards), which is the same fact `PHASES` was adopted on.
+
+    Asserted on the PHASE OF EVERY MAN PRICED and not on the awards, because the declared table never
+    buys anybody in a re-offer at all (measured: 0 awards after the first pass, and 0 differences over
+    1000 participant-seasons when this was corrected) - so the awards cannot see the defect and the
+    lots can. It bites only for a strategy that refuses a whole phase, which is exactly the corner
+    where a bench that got this wrong would hand one out for a credit.
+    """
+    pool = _pool()
+    teams = _table()
+    for team in teams:
+        team.matchdays = 38
+    seen: list[int] = []
+    original = Team.bid
+
+    def bid(self, man, urn=None):
+        if self is teams[0]:
+            seen.append(PHASES.index(role_of(man)))
+        return original(self, man, urn)
+
+    Team.bid = bid
+    try:
+        auction(pool, teams, extraction_order(pool, 7))
+    finally:
+        Team.bid = original
+    assert seen, "nessun lotto prezzato"
+    assert len(seen) > sum(rules.SLOTS[role] for role in rules.SLOTS) * rules.TEAMS, \
+        "nessuna ri-offerta: il test non sta misurando niente"
+    assert seen == sorted(seen), "una fase e' stata riaperta dopo la successiva"
+
 def test_the_phase_boundaries_fall_where_the_ROSTER_puts_them():
     """The four measured positions are not a coincidence to be transcribed: they are the slot counts.
 

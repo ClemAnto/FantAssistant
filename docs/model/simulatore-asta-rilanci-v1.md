@@ -1487,6 +1487,16 @@ sostituisce.
 > gioca», +0,25% e `t` 1,7) e il §21.3 una lettura che vale per gli item qui sotto: **la lista degli
 > aperti si ordina per resa attesa, ma la resa più grossa può stare in una diagnosi invece che in un
 > item** — quindi vale la pena chiedere, di ogni pezzo adottato, *quali numeri legge davvero*.
+>
+> **ANNOTATO di nuovo dal §22, e di nuovo non riscritto.** Il §22 chiude per misura la famiglia
+> «leggere i rivali» (quattro forme, tutte respinte, la migliore a -2,7% **con l'informazione
+> perfetta**), quindi nessun item qui sotto va in quella direzione. Apre invece due cose che non
+> c'erano: la **DIREZIONE dei tempi** — il braccio compra troppo presto all'urna, fra +2,8% e +5,0% sul
+> banco, non adottato perché l'archivio non ha mai visto quei prezzi (§22.5) — e la domanda nuova da
+> fare al dato vero, *cosa costa un uomo quando un solo compratore ha ancora quel ruolo aperto*, che è
+> l'unico numero che deciderebbe la prima. Il punto 2 qui sotto (il FONDO del mercato) è della stessa
+> famiglia e sale di priorità: entrambi sono difetti di come il tavolo simulato si comporta quando
+> quasi nessuno vuole più un lotto.
 
 ### 20.1 Fatti, e dove sono
 
@@ -1553,6 +1563,11 @@ sostituisce.
 - **Il tilt sui portieri**: +0,1% su 4 finestre di 10, e tiltare i soli portieri è −1,6% (§19.1).
 - **Il nostro ORDINAMENTO come sostituto del rango di prezzo**: +12,4% contro +12,3%, cioè zero (§17.5).
   Se un giorno il vantaggio informativo deve pagare, la forma non è questa.
+- **Tutta la famiglia «leggere i rivali», in quattro forme e con l'informazione PERFETTA** (§22): il
+  prezzo ombra di un credito (-7,6% con i prezzi dell'oracolo), rilanciare per prendere il lotto (-2,7%
+  nella variante migliore, monotono nel quanto), `keeps` sul valore per credito (-25%), `hands` contate
+  sui crediti dei rivali (+0,22% nella forma senza parametri, e il suo NULL la batte). La ragione è del
+  meccanismo: a secondo prezzo il tetto è quasi gratis e il bilancio è già impegnato.
 - **Le tre cure di comportamento sul campione** (§16.5): il conto sui crediti da solo, quello su crediti
   e posto per tutti, il pavimento d'urgenza. Tutte e tre misurate e respinte con i loro numeri.
 
@@ -1746,3 +1761,217 @@ tutto quello che il nostro giudizio sui calciatori avesse pagato finora a un'ast
   e vale zero (§17.5, +12,4% contro +12,3%). Questo termine non tocca il confine, devia dentro.
 - **`engine_*`, i fogli, il bundle e le revisioni non si muovono di un decimale**: qui non si prevede
   nessun calciatore, si legge una previsione che esisteva già.
+
+## 22. «Individuare le strategie degli avversari può aiutarci?» — chiesto a un ORACOLO, e la risposta è no
+
+**02/09/2026 (notte tarda), su due domande dell'operatore: «cosa possiamo migliorare? come rendere i
+consigli capaci di farci ottenere i calciatori migliori a fine asta?» e «individuare le strategie degli
+avversari può aiutarci a prevedere le loro mosse e a ottimizzare le nostre?».** Criterio pre-registrato
+prima di scrivere una riga (confronto appaiato, dieci partecipanti, il braccio su una delle dieci sedie,
+strict/robust col pavimento dello 0,5%, schermatura a 20 urne e verdetto a 80, ottimo interno, valore
+assurdo, null a tre bracci). Quattro famiglie misurate, **tutte e quattro respinte**, e la più
+interessante è respinta da un giudice che i criteri interni non contengono.
+
+**LA REGOLA CHE DECIDE, ed è del meccanismo e non dei rivali: in un'asta a SECONDO PREZZO, sapere cosa
+serve per vincere il lotto che hai davanti vale ZERO.** Se il tuo tetto è sopra il prezzo vinci e paghi
+il secondo prezzo comunque; se è sotto perdi comunque. L'informazione sui rivali può pagare solo
+attraverso il BILANCIO — quello che spendi qui non lo spendi là — e quel bilancio è già impegnato per
+costruzione (`Team.scale` normalizza il piano su quello che resta). Da qui in poi ogni misura è un modo
+diverso di scoprire la stessa cosa.
+
+### 22.1 Il prezzo ombra di un credito: la cornice giusta, e perde anche con i prezzi PERFETTI
+
+Il candidato «da manuale», e nasce dalla diagnosi del §21.1: il braccio prezza in fantapunti e il mercato
+in multipli della richiesta, e la cura del §17.4 (prendere in prestito la scala del mercato) gli ha
+tolto l'opinione. La terza strada è convertire la sua opinione in crediti al tasso che lo STATO
+DELL'ASTA implica, riletto a ogni lotto:
+
+    lambda   = i fantapunti che un credito compra al margine, bisecato finché la miglior rosa ancora
+               comprabile costa esattamente quello che resta in borsa
+    tetto    = prezzo(m0) + (worth(uomo) - worth(m0)) / lambda      [i crediti sono scarsi]
+             = prezzo(m0) + (borsa - costo del piano)               [non lo sono]
+
+dove `m0` è l'uomo che quel piano userebbe per ULTIMO in quel ruolo, cioè quello che l'uomo sul banco
+sostituisce. Nessun parametro: sussume il tasso (`engine_rate`, preso una volta all'inizio),
+l'alternativa (`Team.alternative`, la stessa sottrazione fatta su un uomo invece che sul piano) e il
+tetto di reparto (`role_cap`, una quota fissa del budget dove questo è il valore marginale vero di un
+posto).
+
+| prezzi che alimentano il piano | guadagno appaiato | buchi | spesa |
+|---|---|---|---|
+| scala di mercato (`profiles.MARKET`) | **-6,86%** (t -6,21) | 15,1 → 38,6 | 977 → 917 |
+| **ORACOLO** (quello che il lotto prenderà davvero) | **-7,56%** (t -7,52), 0 finestre su 10 | 15,1 → 41,4 | 977 → 945 |
+
+**Con l'informazione perfetta sul prezzo di ogni lotto la cornice perde il 7,6%: quindi il difetto è la
+CORNICE, non la previsione.** Il piano assume di VINCERE gli uomini che mette in lista, e un piano fatto
+dei migliori `slots` uomini rimasti è il piano che hanno tutti e dieci: il braccio rifiutava chiunque
+altro aspettando uomini su cui aveva una probabilità su dieci. La correzione contata di casa — se `hands`
+mani sono alzate, i migliori vanno uno per testa, quindi fra due miei acquisti la stanza ne prende
+`hands - 1` — porta la prima versione da -7,65% a -6,86% e non la salva.
+
+Tre difetti pagati per arrivarci, e tutti e tre sono regole di casa incontrate da un lato nuovo.
+- **Un rapporto valore/credito ordina la spazzatura per prima quando il vincolo sono i POSTI.** Il primo
+  oracolo massimizzava il valore per credito e ha chiuso l'asta **spendendo 25 crediti su 1000** con 36
+  buchi: 25 uomini da un credito. Il problema è uno zaino con quote, quindi si risolve come uno zaino —
+  sul prezzo ombra. Lo stesso difetto è tornato la stessa sera dentro `keeps` (§22.3).
+- **Una conservazione si legge PER RUOLO**, che è quello che `to_credits` scrive di se stesso («the pool
+  used for the sum is the ROSTERED one»): un tavolo non compra i 250 uomini più cari, compra 3 portieri,
+  8 difensori, 8 centrocampisti e 6 attaccanti **a testa**. Sommata sui 250 più cari la scala
+  sovrastimava l'urna, il piano risultava più economico della borsa, il prezzo ombra leggeva **zero** e
+  il braccio offriva 241 crediti per il **sedicesimo portiere del listone**.
+- **Un tetto non è una rosa**: senza il pavimento `ABUNDANCE` il braccio finiva con due posti VUOTI. Il
+  candidato sostituisce il tetto, non la macchina che gli sta intorno.
+
+### 22.2 Rilanciare quando vedi salire il prezzo: monotono e negativo
+
+La forma che a un tavolo vero non ha bisogno di nessun modello — a un'asta a rilanci il prezzo SALE
+davanti a te, e decidere se andare avanti è quello che «rilanciare» significa. Il banco ha offerte
+sigillate, quindi l'oracolo qui sta al posto di una mano che continua ad alzare, non di una sfera di
+cristallo.
+
+| fin dove va sopra il proprio tetto | guadagno | buchi |
+|---|---|---|
+| ×1,5 | -3,67% | 16,5 → 28,4 |
+| ×2 | -4,93% | 16,5 → 33,2 |
+| ×3 | -4,93% | 16,5 → 31,3 |
+| qualunque cifra | -4,92% | 16,5 → 31,4 |
+| ×2, solo dove il motore lo rate sopra la sua fascia | **-2,74%** | 16,5 → 23,3 |
+| qualunque cifra, solo lì | -3,06% | 16,5 → 25,7 |
+
+**È il §17.4 dall'altro lato: un rilancio che nessuno paga con un taglio altrove non è una strategia, è
+un portafoglio più grande — e la borsa non cresce.** La spesa sale (984 → 995-999) e i buchi raddoppiano:
+vincere un lotto che stavi perdendo costa i lotti che stavi vincendo. Da notare la direzione del
+dettaglio: restringere il rilancio ai soli uomini che rateremmo sopra la loro fascia è la variante MENO
+peggiore, cioè la discriminazione del §21 è giusta e l'ESCALATION è sbagliata.
+
+### 22.3 Riallocare invece di rilanciare: `keeps` sul «buon affare»
+
+L'unica forma che CONSERVA per costruzione — non cambia un tetto, cambia QUALE lotto di una fascia si
+prende. `Team.keeps` rifiuta un uomo finché ne restano abbastanza di migliori perché questa rosa se ne
+aspetti uno; «migliore» lì è una FASCIA DI PREZZO, e leggerlo come «più valore per credito a quello che
+costerà» è un cambio di definizione senza parametri nuovi.
+
+**Respinto e non di poco: -25,21% con i prezzi dell'oracolo, -34,45% con la scala di mercato** (153-213
+crediti spesi su 1000, 113-154 buchi). La causa è il difetto del §22.1 una seconda volta: il rapporto
+valore/credito mette in testa gli uomini da un credito, quindi «esiste un affare migliore ancora
+nell'urna» è vero per quasi tutti e il braccio rifiuta tutti.
+
+### 22.4 `hands` contate sui SOLDI dei rivali — e IL NULL BATTE IL CANALE
+
+`Urn.needing` è «quanti partecipanti hanno ancora un posto aperto in questo ruolo», ed è il numero per
+cui `keeps` divide. Un rivale con dodici crediti ha un posto aperto e **non può** contendere un difensore
+da sessanta: contarlo è contare una mano che non è alzata. Definizione e non parametro, e osservabile a
+un tavolo vero (ogni aggiudicazione è pubblica, quindi la borsa di tutti è nota a tutti). Solo sul
+braccio: i cinque profili umani sono DICHIARATI e migliorare la loro pazienza cambierebbe l'ambiente
+invece della strategia sotto esame.
+
+| lettura | guadagno | verdetto |
+|---|---|---|
+| può pagare 0,5 × la richiesta | +1,00% | robust |
+| può pagare 1,0 × | +1,18% | robust |
+| può pagare 2,0 × | +2,04% | strict |
+| può pagare 4,0 × | +2,25% | robust |
+| può pagare 10,0 × | +3,15% | strict |
+| **può pagare quanto COSTERÀ** (`profiles.MARKET`, nessun parametro) | **+0,22%** (t 1,02) | **NO** |
+| **NULL — `hands` × 0,25, senza leggere un soldo di nessuno** | **+4,17%** | strict |
+| **NULL — `hands` × 0,1** | **+4,78%** | strict |
+
+**Il null batte il canale, e la forma senza parametri vale zero: quindi non è informazione sui rivali,
+è PAZIENZA.** La lettura sui crediti era solo un modo indiretto di abbassare `hands`, e più la
+abbassavi meglio andava — l'ottimo era al bordo della griglia, che è la condizione per cui questo
+progetto **non** adotta un numero. È «un numero ha bisogno del suo null» applicato a un canale che
+altrimenti sarebbe entrato a +2%.
+
+### 22.5 La pazienza, quello che misura e perché NON viene adottata
+
+Al limite (`hands` = 1, cioè la divisione per le mani semplicemente non c'è) è il risultato più grosso
+che questo banco abbia mai letto, e passa ogni criterio interno:
+
+| | 20 urne | **80 urne (800 stagioni)** |
+|---|---|---|
+| `hands` × 0,6 | +2,68% | **+2,83% (t 19,30)**, 10/10, peggiore +1,48% |
+| `hands` × 0,4 | +3,65% | **+3,82% (t 26,01)**, 10/10, peggiore +2,45% |
+| `hands` × 0,25 | +4,57% | — |
+| `hands` × 0,1 | **+4,99% (t 16,85)**, 10/10, peggiore +3,30% | — |
+| buchi · posto medio · posti vuoti (a ×0,1) | 19,2 → 6,0 · 3,52 → 1,24 · 0,00 | idem |
+
+- **Tre bracci al tavolo: +2,76% strict** — sopravvive alla propria concorrenza, che è quello che il
+  vantaggio della scala non faceva (§18.2).
+- **Valore assurdo** (mai comprare finché resta un uomo di fascia non peggiore, qualunque sia il numero
+  di posti): **+4,13%**, cioè meno del limite. Il canale ha un tetto, quindi è un effetto e non una fuga.
+- **A chiamata è INERTE** al decimale (2647,4 punti e 10,5 buchi identici): `keeps` è spento là per
+  costruzione, perché l'uomo sul banco è il più caro rimasto.
+- **Il meccanismo, fotografato**: il braccio compra più tardi (posizione mediana del lotto 1,10 → 1,52)
+  e paga **0,78 → 0,30 della richiesta**, comprando uomini MIGLIORI (pv mediana 27,3 → 28,2, fascia
+  mediana 2 → 1). Non raccoglie scarti: raccoglie uomini di prima fascia a un credito.
+
+**E qui entra il giudice esterno, che i criteri interni non contengono.** Le 10 aste vere a estrazione
+della sua lega (di 147; 2.495 aggiudicazioni) dicono cosa paga un tavolo dentro una fase:
+
+| pagato/richiesta per quarto della fase | 1º | 2º | 3º | 4º |
+|---|---|---|---|---|
+| P | 2,47 | 2,00 | 1,47 | 1,00 |
+| D | 1,77 | 1,67 | 1,24 | 0,90 |
+| C | 2,44 | 1,85 | 2,00 | 1,00 |
+| A | 2,82 | 3,40 | 3,15 | 0,25 |
+
+Il calo dalla prima alla seconda metà è del **53%**, ma **dentro le prime due fasce è del 14%** (4,08 →
+3,51) — cioè quasi tutto il calo è COMPOSIZIONE, che è il difetto isolato dal §15.7 («un indice che
+divide per la richiesta non è pulito dalla composizione»). E il confronto per fascia, riportando la
+scala del banco in unità d'archivio (× `to_credits` = 3,46), dice che il braccio paziente compra a
+prezzi che al tavolo vero non esistono:
+
+| | reale, tutta la fase | reale, seconda metà | braccio base | braccio paziente | paziente/reale tardi |
+|---|---|---|---|---|---|
+| D 2ª fascia | 2,12 | 1,67 | 3,54 | 0,11 | **0,07** |
+| C 3ª fascia | 1,80 | 1,00 | 2,07 | 0,09 | **0,09** |
+| A 1ª fascia | 8,83 | 8,00 | 3,14 | 1,24 | **0,16** |
+| A 2ª fascia | 4,55 | 5,07 | 3,23 | 0,70 | **0,14** |
+
+Il braccio BASE invece è in scala col vero (P 1ª 5,20 contro 4,53 · D 1ª 5,56 contro 3,07 · C 1ª 5,14
+contro 4,55 · A 1ª 3,14 contro 8,83, cioè paga troppo poco i top d'attacco e troppo la difesa, che è il
+tilt adottato). **Quindi non si adotta**: il guadagno è comprato a un settimo o a un quindicesimo del
+prezzo reale per gli uomini che decidono, e quel prezzo esiste solo perché nove rose devono riempire le
+loro quote mentre una non compra niente. L'archivio **non può smentirlo** — nessun manager vero si
+astiene da una fase, quindi quel prezzo non è mai stato osservato — e non può confermarlo. È uno
+sfruttamento del tavolo, non una valutazione migliore, e la decisione su una cosa che l'operatore
+dovrebbe giocare davvero è sua.
+
+**Quello che resta stabilito e vale la pena tenere è la DIREZIONE**: il braccio è troppo impaziente
+all'urna, e la divisione per le mani alzate dentro `keeps` è la ragione. Perché diventi adottabile serve
+un numero che l'archivio non ha: quanto costa un uomo di fascia `k` tardi nella sua fase **quando un solo
+compratore ha ancora quel ruolo aperto**.
+
+### 22.6 Dove il difetto NON era, e la correzione al meccanismo che ne è uscita (adottata, gratis)
+
+Due sospetti sono stati misurati e scagionati, e vale la pena averli scritti perché sono i due posti in
+cui un ragionamento aggregato avrebbe messo la colpa.
+
+- **I soldi del tavolo non partono troppo presto.** La curva della spesa DENTRO ogni fase — di quello che
+  una fase incassa, quanto è già uscito a ogni quarto — riproduce il vero: P 30/60/86% contro 33/65/85% ·
+  D 31/55/80 contro 31/54/77 · C 26/52/81 contro 28/51/72 · A 28/65/92 contro 36/65/88. Il §16.1 aveva
+  verificato la curva sull'asta INTERA; questa è il bersaglio più fino e regge.
+- **Ma il ri-offerta era di una fase sbagliata.** `bench.auction` teneva UNA coda: gli invenduti di tutte
+  e quattro le fasi tornavano dopo l'intera prima passata, quindi chi lasciava andare un reparto lo
+  ritrovava quando ogni altra rosa era piena. L'archivio dice che le aggiudicazioni di un ruolo sono
+  **contigue** (30 portieri, poi 80 difensori, poi 80 centrocampisti, poi 60 attaccanti — è così che in
+  questa sessione si è potuto leggere il ruolo dalla posizione dell'aggiudicazione, e la stessa cosa che
+  il §16.2 aveva misurato come 0,06 · 0,28 · 0,60 · 0,88). **Corretto e adottato**, e misurato prima: sul
+  tavolo dichiarato **0 differenze su 1.000 stagioni-partecipante**, e **0 aggiudicazioni avvengono dopo
+  la prima passata**, cioè il ri-offerta che questa cura riguarda è un angolo in cui il tavolo dichiarato
+  non entra mai. La pazienza sopravvive alla correzione (+4,67%), quindi la scappatoia non era il confine
+  di fase: è dentro la fase, e sta in chi ha ancora un posto.
+
+### 22.7 Cosa cambia per l'operatore, in tre righe
+
+1. **Prevedere le mosse degli avversari non paga a questo meccanismo**, e non per mancanza di un modello:
+   misurato con l'informazione PERFETTA vale -7,6% (prezzo ombra), -2,7/-4,9% (rilanciare per prendere il
+   lotto) e -25% (riallocare sul buon affare). Il secondo prezzo rende quasi gratis il tetto e il bilancio
+   è già impegnato: l'unica cosa che l'informazione può spostare è DOVE spendi, e la scala del mercato più
+   la deviazione dentro la fascia (§17, §21) già lo dicono.
+2. **La leva vera trovata stasera non è informativa, è di TEMPI**: il braccio compra troppo presto. Vale
+   fra +2,8% e +5,0% sul banco, sopravvive a tre bracci ed è inerte a chiamata — e non entra perché i
+   prezzi che raccoglie l'archivio non li ha mai visti.
+3. **Quello che l'archivio può ancora dire lo dice su una domanda nuova**: cosa costa un uomo quando un
+   solo compratore ha ancora quel ruolo aperto. È l'unico numero che deciderebbe il punto 2, e nelle 147
+   aste non c'è perché nessuno si è mai astenuto da una fase.

@@ -879,6 +879,57 @@ Quattro abitudini, e tre sono regole di casa incontrate da un lato nuovo.
   fascia è una giornata o dodici. Respinta anche `Team.keeps` contata su «chi gioca» invece che sulla
   fascia di prezzo: +0,25%, t 1,71, sotto il pavimento con la direzione giusta.
 
+## Leggere i rivali non paga a SECONDO PREZZO, e il null lo ha dimostrato meglio dell'oracolo
+**02/09/2026 (notte tarda), `simulatore-asta-rilanci-v1.md` §22.** «Individuare le strategie degli
+avversari può aiutarci a prevedere le loro mosse?» Quattro famiglie misurate col criterio pre-registrato
+e **con l'informazione PERFETTA** (un oracolo che legge il massimo dei rivali prima di offrire, quindi un
+TETTO di qualunque modello e non una politica), tutte e quattro respinte. **La ragione è del meccanismo:
+a un'asta a secondo prezzo sapere cosa serve per vincere il lotto che hai davanti vale ZERO** — se il tuo
+tetto è sopra vinci e paghi il secondo prezzo comunque, se è sotto perdi comunque — quindi
+l'informazione può pagare solo attraverso il BILANCIO, e il bilancio è già impegnato per costruzione
+(`Team.scale`). Il prezzo ombra di un credito (la Lagrangiana, che sussume tasso, alternativa e tetto di
+reparto senza parametri) legge **−7,6%** coi prezzi dell'oracolo; rilanciare per prendere il lotto
+−2,7/−4,9% ed è monotono nel quanto; `keeps` sul valore per credito −25%.
+
+**E la lezione più utile non è il no: è che IL NULL HA BATTUTO IL CANALE.** «Conta come mano alzata solo
+il rivale che può pagare» è una definizione senza parametri, osservabile (ogni aggiudicazione è pubblica)
+e valeva **+2,0%**; la sua forma esatta — «può pagare quanto COSTERÀ», con la scala misurata sulle aste
+vere — vale **+0,22%**, cioè niente; e «abbassa `hands` di un fattore, senza leggere un soldo di nessuno»
+vale **+4,8%**. Quindi non era informazione sui rivali, era PAZIENZA: il braccio compra troppo presto
+all'urna e la divisione per le mani alzate dentro `keeps` è la ragione. La direzione resta stabilita,
+il numero no.
+
+**E la pazienza è il caso in cui l'AMBIENTE boccia quello che ogni criterio interno approva.** +2,83% e
++3,82% su 800 stagioni appaiate (t 19,3 e 26,0, 10 finestre su 10, peggiore +1,5%), buchi 19,2 → 6,0,
+posto medio 3,52 → 1,24, sopravvive a tre bracci (+2,8% strict), ha un tetto (il valore assurdo legge
+meno del limite) ed è inerte a chiamata. **Non adottata**, perché l'archivio dice a che prezzo compra:
+**0,07 del prezzo vero** un difensore di seconda fascia tardi nella sua fase, 0,09 un centrocampista di
+terza, 0,14-0,16 un attaccante delle prime due — mentre il braccio BASE è in scala col vero. Quel prezzo
+esiste solo perché nove rose devono riempire le loro quote mentre una non compra niente, e **l'archivio
+non può nemmeno smentirlo: nessun manager vero si astiene da una fase, quindi quel prezzo non è mai stato
+osservato.** Sfruttamento del tavolo, non valutazione migliore — e su una cosa che l'operatore dovrebbe
+giocare davvero la decisione è sua.
+
+Quattro abitudini, e due sono errori commessi nella stessa sera.
+- **Un rilancio che nessuno paga con un taglio altrove è un portafoglio più grande** (§17.4 dall'altro
+  lato): la spesa sale a 995-999 su 1000 e i buchi raddoppiano, perché vincere un lotto che stavi
+  perdendo costa i lotti che stavi vincendo.
+- **Un rapporto valore/credito ordina la SPAZZATURA per prima quando il vincolo sono i POSTI**, e il
+  difetto è stato commesso due volte in un'ora: il primo oracolo ha chiuso l'asta spendendo **25 crediti
+  su 1000** (25 uomini da un credito, 36 buchi), e la stessa forma dentro `keeps` legge −25%. Con 25
+  posti e crediti che scadono il problema è uno zaino con quote, non una graduatoria.
+- **Una conservazione si legge PER RUOLO**, che è quello che `to_credits` scrive di se stesso: sommata sui
+  250 uomini più cari invece che sui 3+8+8+6 a testa, il piano risultava più economico della borsa, il
+  prezzo ombra leggeva **zero** e il braccio offriva 241 crediti per il sedicesimo portiere del listone.
+- **Un aggregato giusto può nascondere un difetto un piano sotto.** La curva della spesa DENTRO ogni fase
+  riproduce il vero (P 30/60/86% contro 33/65/85%, e le altre tre uguali), quindi i soldi del tavolo non
+  partono presto; il difetto era che il **ri-offerta teneva una coda sola** e gli invenduti di tutte e
+  quattro le fasi tornavano dopo l'intera prima passata, mentre nell'archivio le aggiudicazioni di un
+  ruolo sono CONTIGUE. Corretto e misurato prima di adottarlo: **0 differenze su 1.000
+  stagioni-partecipante**, perché sul tavolo dichiarato **0 aggiudicazioni avvengono dopo la prima
+  passata** — la cura riguarda un angolo in cui il tavolo dichiarato non entra mai, e che solo una
+  strategia di attesa apre.
+
 ## Dieci contro dieci, e una soglia ASSOLUTA non si confronta fra budget diversi
 **02/09/2026 (notte tarda), `simulatore-asta-rilanci-v1.md` §18.** Due osservazioni dell'operatore, e
 tutt'e due hanno spostato numeri pubblicati poche ore prima.

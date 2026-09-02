@@ -1204,6 +1204,9 @@ def auction(pool: list[dict], teams: list[Team], order: list[dict] | None = None
     striker's price EMERGE (48-75% of the budget across four seasons, mean 60%, which is the number the
     operator reports from experience) instead of being assumed by whoever wrote the model.
 
+    AND THE RE-OFFER BELONGS TO THE PHASE: a man nobody bid on comes back inside his own department and
+    never after all four of them, because in the archive a role's awards are contiguous. See the loop.
+
     A TIE IS BROKEN BY A DRAW AND NEVER BY THE NAME. It used to be alphabetical, which is invisible
     while every participant is called after his profile and becomes a real advantage the moment they are
     named after the operator's own table (A...L): the letter A would win every tie of the auction. At a
@@ -1217,36 +1220,46 @@ def auction(pool: list[dict], teams: list[Team], order: list[dict] | None = None
     lots = called_order(pool) if order is None else order
     urn = Urn(lots)
     urn.random = order is not None
-    waiting = lots
-    while waiting:
-        passed: list[dict] = []
-        for man in waiting:
-            # He is ON THE BLOCK, so he is out of the urn before anybody prices him: what a bidder may
-            # read is what is left AFTER this man, never what is coming next.
-            urn.take(man)
-            urn.demand = sum(t.slots_left() for t in teams)
-            for role in rules.SLOTS:
-                urn.needing[role] = sum(1 for t in teams if len(t.men[role]) < rules.SLOTS[role])
-            bids = sorted(((t.bid(man, urn), t) for t in teams),
-                          key=lambda x: (-x[0], x[1].draw(man["id"])))
-            if not bids or bids[0][0] < 1:
-                # NOBODY BID: he is not gone, he is BACK IN THE URN. See `Urn.back` for the five real
-                # auctions this was measured on. It is the mechanism and not a strategy, so it is not
-                # a parameter either.
-                passed.append(man)
-                urn.back(man)
-                continue
-            second = bids[1][0] if len(bids) > 1 else 0
-            paid = max(1, min(bids[0][0], second + 1))
-            bids[0][1].take(man, paid)
-            if all(t.slots_left() == 0 for t in teams):
-                return
-        # A CALLED AUCTION IS ONE PASS: there the manager chooses whom to put up, and nobody calls a
-        # man nobody wants. A pass that sells nothing ends the auction whatever the mechanism - there
-        # is no price at which those rosters and those men agree.
-        if not urn.random or len(passed) == len(waiting):
-            return
-        waiting = passed
+    # A PASSED MAN COMES BACK INSIDE HIS OWN PHASE, never after all four of them. The re-offer was
+    # written before `PHASES` and kept a single queue, so a participant who let a whole department go
+    # by met it again only once every other roster was full - and the archive says a role's awards are
+    # CONTIGUOUS (a ten-team auction awards exactly 30 keepers, then 80 defenders, then 80 midfielders,
+    # then 60 forwards, which is how the role can be read off the award position at all). MEASURED
+    # before adopting: on the declared table it moves NOTHING - 0 differences over 1000
+    # participant-seasons, and 0 awards happen after the first pass at all, so the re-offer this cures
+    # is a corner the declared table never enters. It is switched by the mechanism, like everything
+    # else here: a called auction is one queue and one pass.
+    for block in ([lots] if order is None else in_phases(lots)):
+        waiting = block
+        while waiting:
+            passed: list[dict] = []
+            for man in waiting:
+                # He is ON THE BLOCK, so he is out of the urn before anybody prices him: what a bidder may
+                # read is what is left AFTER this man, never what is coming next.
+                urn.take(man)
+                urn.demand = sum(t.slots_left() for t in teams)
+                for role in rules.SLOTS:
+                    urn.needing[role] = sum(1 for t in teams if len(t.men[role]) < rules.SLOTS[role])
+                bids = sorted(((t.bid(man, urn), t) for t in teams),
+                              key=lambda x: (-x[0], x[1].draw(man["id"])))
+                if not bids or bids[0][0] < 1:
+                    # NOBODY BID: he is not gone, he is BACK IN THE URN. See `Urn.back` for the five real
+                    # auctions this was measured on. It is the mechanism and not a strategy, so it is not
+                    # a parameter either.
+                    passed.append(man)
+                    urn.back(man)
+                    continue
+                second = bids[1][0] if len(bids) > 1 else 0
+                paid = max(1, min(bids[0][0], second + 1))
+                bids[0][1].take(man, paid)
+                if all(t.slots_left() == 0 for t in teams):
+                    return
+            # A CALLED AUCTION IS ONE PASS: there the manager chooses whom to put up, and nobody
+            # calls a man nobody wants. A pass that sells nothing ends the PHASE whatever the
+            # mechanism - there is no price at which those rosters and those men agree.
+            if not urn.random or len(passed) == len(waiting):
+                break
+            waiting = passed
 
 
 def line_up_order(team: Team) -> dict[str, list[dict]]:
