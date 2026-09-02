@@ -85,8 +85,10 @@ dei nemici. Accenderlo richiede il club di ogni uomo (ora c'è) più una **tabel
 ## 3. Due cose che il MECCANISMO produce invece di assumere
 
 **Il prezzo del top d'attacco.** L'aggiudicazione è al **secondo prezzo più uno**, che è quello che un
-rilancio *è*. Con quello solo, l'uomo più caro del listone esce al **48-75% del budget (media 60%)** — il
-numero che l'operatore riporta dall'esperienza, e la ragione per fidarsi del resto.
+rilancio *è*, e con quello solo l'uomo più caro del listone esce a una quota del budget che il meccanismo
+produce invece di assumere. *Il «48-75%, media 60%» scritto qui il 01/09 è stato RITIRATO il 02/09 (§14.6)
+perché non si riproduceva, e la sera stessa sostituito dalla misura sulle aste vere: **42,8% a chiamata e
+44,1% a estrazione**, 18-73% (§15.10).*
 
 **Il costo di un buco.** `HOLE_COST` = **4,73** fantapunti: la pendenza dei punti sui buchi su 110 rose
 simulate (r = −0,798). E l'aritmetica del regolamento dice la stessa cosa, che è ciò che ne fa un numero e

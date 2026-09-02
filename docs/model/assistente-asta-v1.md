@@ -89,6 +89,14 @@ su un nome è un evento, come registrare un acquisto: sta dentro la regola.
 
 ## 4. Cosa deve rispondere: tre domande, tre numeri, e non sono lo stesso numero
 
+> **02/09/2026 — la quarta domanda ha ora una risposta misurata, e sta altrove.** «Fino a quanto posso
+> offrire per questo?» non è una delle tre di questa sezione, e il banco d'asta l'ha misurata sulle aste
+> vere: `simulatore-asta-rilanci-v1.md` **§19.3** porta un LISTINO per fascia di ruolo, in crediti, per
+> una lega da dieci squadre e mille crediti — con accanto quanto ci paga di solito il mercato, che è
+> l'informazione che dice se alzare o lasciare. È il candidato naturale per una colonna di questa pagina,
+> e non è ancora nell'app.
+
+
 Le tre attese dell'operatore — *valutare cosa mi serve per completare una rosa competitiva*, *dare il
 giusto prezzo*, *approfittare degli affari* — sono tre quantità distinte. Mostrarne una sola, o fonderle in
 un punteggio, è il modo di perderle tutte e tre.

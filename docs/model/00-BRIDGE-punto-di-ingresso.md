@@ -124,10 +124,11 @@ coi parametri tarati su una finestra adiacente come fa il gate, e il fantavoto *
 giornata realmente giocata. Cinque profili DICHIARATI dall'operatore, il regolamento della sua lega
 (3-8-8-6, R-Factor, mod.dif., riserva d'ufficio che azzera entrambi) e la soglia mentale dei 500 crediti.
 
-**Due cose che il meccanismo PRODUCE invece di assumere**: il prezzo del top d'attacco esce al 48-75% del
-budget (media 60%, il numero che l'operatore riporta dall'esperienza) dal solo secondo prezzo; e il costo
-di un buco è 4,73 fantapunti (pendenza su 110 rose, r = −0,798), che l'aritmetica del regolamento
-conferma. Da lì il risultato centrale: **il valore di un uomo in questa lega ha DUE termini che si
+**Due cose che il meccanismo PRODUCE invece di assumere**: il prezzo del top d'attacco esce dal solo
+secondo prezzo (il «48-75%, media 60%» scritto qui il 01/09 **non si riproduceva** ed è stato sostituito
+il 02/09 dalla misura sulle aste vere — **42,8% a chiamata e 44,1% a estrazione**, 18-73%, su 20 aste
+identiche alla sua lega); e il costo di un buco è 4,73 fantapunti (pendenza su 110 rose, r = −0,798), che
+l'aritmetica del regolamento conferma. Da lì il risultato centrale: **il valore di un uomo in questa lega ha DUE termini che si
 sommano**, `surplus + copertura` — la prima versione del braccio motore aveva solo il primo e finì
 **ultima di undici**, con 284 crediti su 1000 in tasca. Con la copertura e i tetti dinamici per reparto
 vince: **+122 punti** sul miglior profilo umano e la dispersione più bassa del tavolo.

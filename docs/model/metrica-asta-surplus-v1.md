@@ -928,6 +928,14 @@ avvertimento sul pannello: le colonne `desc_easy_matches` e `desc_calendar_margi
 sfruttiamo?» La risposta è misurata e non è quella che sembra: il nostro vantaggio informativo è reale, largo
 un numero solo, e **più piccolo del loro**; la leva che paga davvero non usa informazione affatto.
 
+> **E il 02/09/2026 quella conclusione ha ricevuto la sua verifica più severa, su un altro banco.**
+> `bench/auction` ha misurato la stessa domanda dal lato dell'ASTA A RILANCI: dare al braccio motore la
+> scala di prezzo del mercato e lasciare che il nostro giudizio decida solo QUALE FASCIA un uomo occupa
+> vale **+12,3%**; la stessa scala letta sul rango di **PREZZO** invece che sul nostro vale **+12,4%**,
+> cioè identico. Il vantaggio, speso come una scala d'offerta, vale **zero** — e quello che il braccio
+> guadagna (da ultimo a primo del tavolo) non è un'opinione migliore sui calciatori, è offrire su una
+> scala che può vincere un lotto. Dettaglio: `simulatore-asta-rilanci-v1.md` §17.5.
+
 ### 18.1 Prima di sfruttarla, verificare che esista: parziali contro l'esito
 
 `edge.py`. Un vantaggio esiste solo se il nostro numero porta informazione che il PREZZO non ha — e «la nostra
@@ -1749,11 +1757,19 @@ I §15-18 misurano le politiche di un DRAFT (`bench/draft`). L'asta a rilanci ne
 tavolo di cinque profili dichiarati dall'operatore, poi un campionato di 36 giornate sulle giornate vere.
 
 Tre risultati che riguardano questo documento e vanno cercati là con i loro numeri:
-- il **prezzo del top d'attacco EMERGE** dal meccanismo (48-75% del budget, media 60%) invece di essere
-  assunto, che è la conferma di quello che l'operatore riporta dall'esperienza;
+- il **prezzo del top d'attacco EMERGE** dal meccanismo invece di essere assunto — ma il «48-75% del
+  budget, media 60%» scritto qui il 01/09 **non si riproduceva** e il 02/09 è stato sostituito dalla
+  misura sulle aste vere: **42,8% a chiamata e 44,1% a estrazione** (18-73%), su 20 aste identiche alla
+  sua lega. Il ricordo dell'operatore era più vicino al vero del 31,2% che il banco misurava, e un numero
+  ritirato per mancata riproduzione non è un numero smentito;
 - il **costo di un buco è misurato**, 4,73 fantapunti, e l'aritmetica del regolamento dice lo stesso —
   quindi il valore di un uomo in questa lega ha **due termini che si sommano**, `surplus + copertura`, e
   la prima versione che aveva solo il primo finì ultima di undici;
+- e **dal 02/09/2026 quel banco è tarato su 147 ASTE VERE** (`docs/real-data/`, gitignorato), che hanno
+  cambiato il MECCANISMO e non solo dei numeri: **un'asta si gioca a REPARTI** (P→D→C→A), **l'urna si
+  rimescola** (un nome rifiutato torna), e la scala di una ricetta è indicizzata sulla FASCIA di un uomo e
+  non su quanti uomini di quel reparto si possiedono. Cinque numeri pubblicati sono stati ritirati come
+  artefatti dell'ordine sbagliato. §15-§20 di quel documento;
 - la **diversificazione fra club reali** (§24 di questo documento, dal lato della varianza settimanale) è
   stata adottata là come CONSTRAINT: costa 4,1 punti sulla media e taglia il 4,4% della dispersione (i
   numeri del 01/09 — 1,6 e 9% — sono stati rimisurati il 02/09 dopo una review). Le due

@@ -76,8 +76,9 @@ giornata. La prima versione del braccio motore offriva sul solo surplus e finì 
 pendenza su 110 rose, r = −0,798, e confermato dall'aritmetica del regolamento) e i tetti dinamici per
 reparto vince: **+116 punti** sul miglior profilo umano, dispersione più bassa del tavolo, 6 aste su 10.
 
-**Due cose che il meccanismo produce invece di assumere**: il prezzo del top d'attacco esce al **48-75%
-del budget** (media 60%) dal solo secondo prezzo — il numero che l'operatore riporta dall'esperienza — e la
+**Due cose che il meccanismo produce invece di assumere**: il prezzo del top d'attacco esce dal solo
+secondo prezzo — il «48-75% del budget, media 60%» scritto questa sera **non si è riprodotto** ed è stato
+sostituito il 02/09 dalla misura sulle aste vere, **42,8% a chiamata e 44,1% a estrazione** (18-73%) — e la
 conversione della Qt.I in crediti è una **legge di conservazione** e non un coefficiente da scegliere.
 
 **Poi il CAMPIONATO** (richiesta della sera: il suo tavolo A…L, «2 andata e 2 ritorno» = 36 giornate,

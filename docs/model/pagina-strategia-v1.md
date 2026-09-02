@@ -398,6 +398,16 @@ mostrata.
 
 ## 12. Aperti (per resa attesa)
 
+> **02/09/2026 — il banco d'asta ha misurato quale REPARTO paga, e la pagina non lo dice.** Questa pagina
+> ordina ogni blocco per GAIN, che è una proprietà del calciatore; su dieci finestre per venti urne la
+> strategia che vince questa lega è una proprietà del REPARTO — **i quattro difensori migliori sono
+> l'investimento** (si paga fino a 97 · 63 · 32 · 25 dove il mercato paga 54 · 35 · 18 · 14), il portiere
+> e il primo centrocampista al prezzo di tutti, e **il top d'attacco si lascia andare** (il profilo che lo
+> inseguiva è ultimo su tutt'e due i meccanismi). Le quote di reparto che ne escono sono 9,8 · 25,4 · 23,9
+> · 40,9 contro un mercato che spende 9,1 · 16,3 · 27,2 · 47,4. Numeri e ricetta:
+> `simulatore-asta-rilanci-v1.md` §19.
+
+
 1. **La pagina non sa cosa hai già in rosa.** I blocchi sono il mercato intero; il passo naturale è
    sottrarre chi è già stato comprato e marcare i buchi del reparto — cioè agganciarsi a `expectedHoles`
    e a `fanta-eleven`, che quelle domande le sanno già rispondere. È l'item più grosso.
