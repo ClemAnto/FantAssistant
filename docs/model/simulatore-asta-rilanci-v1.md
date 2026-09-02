@@ -1251,6 +1251,14 @@ un'opinione migliore sui calciatori — è offrire su una scala che può vincere
 informativo sul listone, speso così, vale **zero**, e `metrica-asta-surplus-v1.md` §18 lo aveva già
 misurato largo un numero solo (le presenze).
 
+> **ANNOTATO dal §21 la notte stessa: il vantaggio valeva zero perché non veniva LETTO.** Contando le
+> chiamate, all'urna il braccio non invoca una sola funzione del motore — la scala prezza `richiesta ×
+> passo(fascia)` e la fascia la definisce il PREZZO. Quindi questo confronto misurava due volte lo stesso
+> offerente di mercato. Speso DENTRO la fascia, sulle presenze, lo stesso vantaggio vale **+1,02% robust**
+> e sopravvive a tre bracci. La frase che resta vera di questo paragrafo è la seconda: *quello che il
+> braccio guadagnava qui non era un'opinione migliore sui calciatori, era offrire su una scala che può
+> vincere un lotto* — e il §21 aggiunge l'opinione accanto, non al suo posto.
+
 **E le nostre quote di reparto sono ridondanti col tilt.** Sulla scala non inclinata valgono +1,1%
 (il surplus dice P 14,5 · D 20,1 · C 28,2 · A 37,2 contro il mercato 9,1 · 16,3 · 27,2 · 47,4, cioè
 pende dalla stessa parte); sulla scala inclinata costano **−1,2%** e migliorano 2 finestre su 10. Il tilt
@@ -1497,7 +1505,14 @@ sostituisce.
 1. **Il mercato di riparazione**, che resta la sola cosa che potrebbe cambiare l'ordine dei profili: chi
    lascia buchi è punito per intero, e la lega gli darebbe tre finestre per curarli. Adesso vale più di
    ieri, perché la ricetta adottata vince **sulla copertura** (22,1 buchi contro i 32,0 di P4) e un
-   mercato di riparazione è esattamente ciò che sconta quel vantaggio.
+   mercato di riparazione è esattamente ciò che sconta quel vantaggio. **E dal §21 vale più ancora**: il
+   braccio ora ne lascia 18,8, quindi la quota del suo margine che un mercato di riparazione
+   sconterebbe è cresciuta — è l'item che può ridurre questa adozione, non ingrandirla, e per questo va
+   fatto invece che rinviato.
+1-bis. **`pv_pred` ha un secondo consumatore** (§21.10). Il collo di bottiglia che il banco draft ha
+   misurato su quindici istanze di finestra ora non decide solo *chi* mettere in lista: decide *quanto*
+   offrire dentro una fascia. Un miglioramento della previsione delle presenze si moltiplica in due
+   posti, e un peggioramento pure — questo termine la amplifica per costruzione.
 2. **Il FONDO del mercato** (§18.3): il banco prende 2,5 uomini a un credito dove un tavolo vero ne
    prende 6,7, perché ogni nostro partecipante ha un tetto positivo per ogni uomo mentre a un tavolo vero
    nove manager su dieci **non offrono affatto** sul fondo del listone. Costa 12 crediti su 1000 e non

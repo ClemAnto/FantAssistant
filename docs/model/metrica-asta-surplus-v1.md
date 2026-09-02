@@ -935,6 +935,16 @@ un numero solo, e **più piccolo del loro**; la leva che paga davvero non usa in
 > cioè identico. Il vantaggio, speso come una scala d'offerta, vale **zero** — e quello che il braccio
 > guadagna (da ultimo a primo del tavolo) non è un'opinione migliore sui calciatori, è offrire su una
 > scala che può vincere un lotto. Dettaglio: `simulatore-asta-rilanci-v1.md` §17.5.
+>
+> **E la notte del 02/09 quella frase è stata metà smentita, dal solo banco che poteva farlo (§21).** La
+> ragione per cui il vantaggio valeva zero era che **non veniva LETTO**: contando le chiamate, all'urna il
+> braccio non invocava una sola funzione del motore (1436 a chiamata, ZERO a estrazione), perché la scala
+> prezza `richiesta × passo(fascia)` con la fascia definita dal PREZZO. Speso dove una scala lascia spazio
+> — DENTRO la fascia, che è larga dieci uomini — lo stesso vantaggio vale **+1,02% robust su 800 stagioni**
+> (appaiato +26,4 ± 4,5, t 5,9) e, unico fra tutto quello che quel banco ha adottato, **sopravvive alla
+> propria concorrenza** (+30,0 con tre bracci). E la quantità è proprio quella che il §18.1 misura qui
+> sotto: le PRESENZE. Quindi la conclusione giusta di quel confronto non era «la nostra opinione non
+> serve», era «la forma non è quella» — che è quello che il §17.5 aveva anche scritto.
 
 ### 18.1 Prima di sfruttarla, verificare che esista: parziali contro l'esito
 
@@ -1063,6 +1073,12 @@ cattura quelle informazioni peggio del prezzo.
 
 - L'asimmetria informativa è **reale, larga un numero (le presenze) e più piccola della loro su euro**. Non si
   sfrutta preferendo il nostro numero: su euro i nostri disaccordi col prezzo sono in media nostri errori.
+- **E c'è un posto in cui pagarla funziona, trovato il 02/09/2026**: dentro una fascia di prezzo, a un'asta
+  a rilanci con estrazione random. Là il mercato non sa distinguere dieci uomini (una fascia è un rango
+  diviso il numero di squadre) e le presenze attese fra loro variano di un terzo di calendario: `INSIGHT`
+  0,80, +1,02% robust, e resiste a tre bracci che giocano così. Non contraddice la riga sopra, la localizza
+  — il segnale è lo stesso (le presenze), quello che cambia è **dove** si spende.
+  Dettaglio: `simulatore-asta-rilanci-v1.md` §21.
 - Si sfrutta **sapendo cosa faranno**, non sapendo più di loro: `SURVIVOR_DISCOUNT` = 0,7, +4,54% strict, e il
   classificatore delle teste (§17.1) rende la simulazione migliore di quella con cui è stata misurata.
 - Il **surplus** non aggiunge niente sopra il prezzo (+0,006 su euro, −0,077 su Serie A, −0,028 a stagione

@@ -556,7 +556,8 @@ measured it from the other side.**
 > while the prices live on the market's ladder, so it could not win a contested lot at any level - it
 > bid a FIFTH of what the men it lost went for. On the market's ladder, tilted toward the back, it goes
 > from last of eleven to FIRST (+17.9%, 10 windows of 10, holes 79.8 → 22.4). See «MAKING THE ENGINE ARM
-> WIN AT AN URN» below - including the half that says our own ranking adds nothing to it.
+> WIN AT AN URN» below - including the half that says our own ranking adds nothing to it, and the LAST
+> section, which found that the ranking was not being read and spent it where it pays.
 
 It is not `ALT_WEIGHT`'s tuning: re-swept over the whole 0…1 grid it is **inert at a called auction**
 (identical at every point, which confirms that nothing published there depends on it) and at a drawn
@@ -887,7 +888,10 @@ and the two decimals are not.
 
 ### Three things that have to be said because they are the uncomfortable half
 
-**Our own RANKING adds nothing.** The same ladder read on the PRICE's ranking instead of the engine's
+**Our own RANKING adds nothing** - and see the last section of this file, which found out WHY and turned
+the sentence half round: the arm was not reading the engine at the urn at all, so this comparison was
+measuring the same market bidder twice. Spent INSIDE a tier it is worth +1.02% robust and survives three
+arms. **The same ladder read on the PRICE's ranking instead of the engine's**
 gives **+12.4% against +12.3%** - identical. What the arm gains here is not a better opinion about
 footballers, it is bidding on a scale that can win a lot. Our informational edge over the listone, spent
 this way, is worth **zero** - and `metrica-asta-surplus-v1.md` §18 had already measured that edge as one

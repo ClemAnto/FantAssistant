@@ -801,7 +801,8 @@ trovata dalla ricerca invece che copiata**, e il regolamento dice perché paga: 
 questa lega si pagano in **voti BASE** (il mod.dif sulla media dei tre difensori migliori, l'R-Factor su
 tutti gli undici) e i voti base sono quello che consegna una linea difensiva.
 
-**E QUI STA LA METÀ SCOMODA: il nostro ORDINAMENTO non aggiunge niente.** La stessa scala letta sul rango
+**E QUI STA LA METÀ SCOMODA: il nostro ORDINAMENTO non aggiunge niente** — *metà smentita la notte stessa
+dalla sezione seguente, che ha trovato perché: non veniva LETTO.* La stessa scala letta sul rango
 di PREZZO invece che su quello del motore dà **+12,4% contro +12,3%**, identico. Quello che il braccio
 guadagna non è un'opinione migliore sui calciatori, è offrire su una scala che può vincere un lotto — e
 `metrica-asta-surplus-v1.md` §18 aveva già misurato quel vantaggio largo un numero solo (le presenze).
