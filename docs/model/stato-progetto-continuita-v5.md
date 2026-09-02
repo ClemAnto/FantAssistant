@@ -3761,3 +3761,86 @@ righe su 605), gli item **1.1-1.3** (vogliono le buste perdenti di tutto il roun
 e non lavori, e che il registro automatico adesso rende possibili anche quando lui non premeva il bottone.
 Nota di chiusura: l'**e2e non è stato rigirato** dopo `keeperAnchored` — l'ultima passata «senza problemi»
 è quella del round finto — e sta scritto nella todolist invece di essere lasciato implicito.
+
+## CHIUSURA della sessione 02/09/2026 (dal pomeriggio alla notte) — 147 aste vere, e il difetto era l'ORDINE
+
+**Il verbale completo è `simulatore-asta-rilanci-v1.md` §15-§20**; qui lo stato, le decisioni e i passi
+successivi. Questo commit porta **due sessioni** in un albero: l'estrazione random (`Urn`,
+`extraction_order`, `ALT_WEIGHT`, `FLOOR_ON_BETTER`, il §14 del doc e i suoi test) era dell'altra sessione
+e non era committata; tutto quello che segue è di questa. Le due metà sono state **misurate insieme prima
+di committare** — 616 test verdi — e l'operatore ha deciso di committare tutto.
+
+### Cosa è arrivato, e cosa ha cambiato di natura
+
+L'operatore ha portato **`docs/real-data/`**: 147 aste vere sul listone ufficiale (19/08→01/09/2026),
+**60 con la sua rosa 3/8/8/6 giocate da dieci partecipanti**, 20 identiche alla sua lega, 29.421
+aggiudicazioni. Con quello il banco cambia natura: quanto paga un tavolo era DICHIARATO e diventa
+MISURATO. **La cartella è in `.gitignore`** — contenuto a pagamento più i nomi di leghe di persone vere, e
+questo repo è pubblico.
+
+Le sue quattro obiezioni erano giuste tutte e quattro, e avevano **una causa sola**: la scala di una
+ricetta era indicizzata su *quanti* uomini di quel reparto la rosa possiede, che è lo stesso numero della
+FASCIA solo se i lotti sono chiamati dal più caro.
+
+### Le adozioni, in ordine di grandezza
+
+1. **Un'asta si gioca A REPARTI** — P→D→C→A, misurato su 16 delle 20 aste come la sua con le posizioni
+   medie identiche a due decimali (0,06 · 0,28 · 0,60 · 0,88 = i posti in rosa). Nessun parametro. Da sé
+   spiega la curva della spesa (il banco ne aveva speso il 60% a metà asta dove il vero tiene il 70% in
+   tasca), gli uomini cari aggiudicati tardi e il prezzo piatto di un campione. §16.2.
+2. **La SCALA DI MERCATO come moneta del braccio motore** (`profiles.engine_ladder`), inclinata sulla
+   difesa: da **ultimo a primo** all'urna, +20,5% strict su 10 finestre di 10, buchi 87,9 → 22,1, spesa
+   590 → 991, 42 titoli su 200. §17, §19.
+3. **La scala indicizzata sul TIER** e su «quanti uomini almeno bravi come lui possiedo», più il posto
+   tenuto CONTATO (`Team.keeps`) e la ricetta normalizzata sul portafoglio (`Team.scale`). §15.2, §16.3.
+4. **Il rimescolo dell'urna**: un nome rifiutato torna, misurato su 5 aste vere dove ogni nome è estratto
+   5-9 volte. §15.6.
+5. **DIECI contro DIECI** (`bench.seated`): il braccio prende una sedia invece di aggiungersene una — era
+   un difetto, undici partecipanti portano il 10% di soldi e posti in più di quello per cui tutto è
+   calibrato. §18.1.
+
+### I numeri ritirati, che sono la metà del lavoro
+
+- «14,3 dei 50 migliori restano invenduti» e «il migliore va dallo 0% al 35% a seconda di quando esce»:
+  **artefatti del giro solo** sull'urna. Ora 1,3-1,9 invenduti contro 1,75 vero.
+- «Il più caro va al 48-75%, media 60%» era stato ritirato per mancata riproduzione: ora ha una risposta,
+  **42,8% a chiamata e 44,1% a estrazione** (18-73%). Il ricordo dell'operatore era più vicino al vero
+  del 31,2% che il banco misurava.
+- «Il braccio batte il miglior umano di +54,5» e «con tre sedie resta primo per 6,9»: **confronti non
+  appaiati su dieci urne**, cioè rumore. A dieci partecipanti e venti urne sono **+20** e **−2,8**.
+- «≤5 crediti» come bersaglio: **soglia assoluta**, non confrontabile fra budget. Sostituita da due conti
+  stabili (a un credito, ≤1% del budget), che hanno scoperto un difetto nascosto.
+- Il tilt sui **portieri**: +0,1% su 4 finestre di 10, e spendeva 42 crediti in più in porta.
+
+### La strada, per l'operatore
+
+Al suo tavolo (dieci partecipanti, estrazione, 20 urne per finestra): **braccio motore 2605,5 · P2 difesa
+2585,5 · P1b 2569,3 · P1a 2547,0 · P3 2541,5 · P4 top d'attacco ULTIMO 2523,8**, e a chiamata lo stesso
+ordine con P4 ultimo di 174 punti. La ricetta in crediti per 10×1000: **i quattro difensori migliori sono
+l'investimento** (97 · 63 · 32 · 25 dove il mercato paga 54 · 35 · 18 · 14), portiere e primo
+centrocampista al prezzo di tutti, **il top d'attacco si lascia andare** (234 contro 247), 1-5 crediti dalla
+quinta fascia su ~13 uomini di 25. Margine **+0,55 fantapunti a giornata**, 21% di titoli contro il 10% del
+caso — e **zero se in tre giocano così**. §19.3.
+
+### Le lezioni sull'arnese, che valgono oltre questo banco
+
+- **La fotografia batte il ragionamento**: tre cure sono state respinte ragionando su curve aggregate, e
+  la causa vera l'ha trovata stampare, per **un lotto solo**, chi aveva un posto, quanti crediti e quanto
+  offriva. Vale per un meccanismo come già valeva per il pannello Tk.
+- **Righe identiche non sono un risultato, sono un guasto dello strumento**: due volte in una sera una
+  manopola girata dove nessuno la legge (`profiles.CAUTIOUS_CAP_SHARE` contro `bench.`, e il braccio che
+  non riceveva `asks` perché aggiunto dopo il ciclo).
+- **Un confronto APPAIATO sopravvive a un campione che ne ammazza uno non appaiato**: +17,9% → +20,2%
+  contro +54,5 → +20.
+- **Un indice che divide per la richiesta non è pulito dalla composizione**, e una soglia assoluta non si
+  confronta fra budget: due strumenti sbagliati che hanno quasi fatto sbagliare due diagnosi.
+- **Quando i numeri di un meccanismo sembrano estremi, si legge il regolamento della cosa vera prima di
+  modellare un comportamento.** Qui mancava una regola (le fasi), non un parametro.
+
+### Prossimi passi
+
+Riscritti in `simulatore-asta-rilanci-v1.md` **§20**, in ordine di resa attesa: il mercato di riparazione
+(la sola cosa che può cambiare l'ordine dei profili), il fondo del mercato, la SCELTA di chi chiama a
+un'asta a chiamata, P5/P6 da sedere, `auction_level`, il tifoso, `CLUB_PENALTY`. E il §20.3 dice cosa
+**non** rifare, con i numeri: il valore d'opzione, il tilt sui portieri, il nostro ordinamento come
+sostituto del rango di prezzo, e le tre cure di comportamento sul campione.

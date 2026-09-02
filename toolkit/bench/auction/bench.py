@@ -28,14 +28,16 @@ here than at a real table.
 from __future__ import annotations
 
 import argparse
+import heapq
 import json
+import random
 import statistics as st
 import zlib
 from pathlib import Path
 
 from . import rules
-from .profiles import (ABUNDANCE, CAUTIOUS_CAP_SHARE, EXPERT_EYE, MENTAL_CAP_SHARE, PROFILES,
-                       SCATTER, URGENCY)
+from .profiles import (ABUNDANCE, CAUTIOUS_CAP_SHARE, EXPERT_EYE, MENTAL_CAP_SHARE, PLAN,
+                       PROFILES, SCATTER, URGENCY, engine_ladder)
 
 WINDOWS_FILE = Path(__file__).resolve().parents[1] / "draft" / "leghe-classic.json"
 
@@ -47,6 +49,30 @@ DECLARED_TABLE: tuple[tuple[str, int], ...] = (
     ("P1a no plan, expert", 2), ("P1b no plan, novice", 2),
     ("P2 defence", 1), ("P3 balanced", 3), ("P4 top striker", 2),
 )
+
+def seated(table: tuple[tuple[str, int], ...], engine_seats: int) -> list[str]:
+    """The profiles that sit down when `engine_seats` of the ten places go to the engine arm.
+
+    THE ARM TAKES A CHAIR, IT DOES NOT PULL ONE UP - the operator's instruction of 02/09/2026, and it
+    was a real defect: «dobbiamo necessariamente confrontare i dati reali di aste con 10 partecipanti a
+    simulazioni con 10 partecipanti altrimenti avremo delle incongruenze». This league has
+    `rules.TEAMS` = 10 teams, `to_credits` conserves ten budgets over the men ten squads roster, a TIER
+    is a rank divided by ten and the replacement level behind every surplus is the 10 x slots-th man -
+    so seating an eleventh participant put 10% more money and 10% more slots into an auction calibrated
+    for ten, and thirteen put 30%. `league.py` never had the defect (its ten letters include the arm).
+
+    WHICH human gives up his chair is declared and deterministic: the profile that currently has the
+    most seats, ties broken by the order the table declares them in - so the opposition keeps the
+    operator's own mix as closely as possible. With three arms his table of 2 · 2 · 1 · 3 · 2
+    becomes 1 · 1 · 1 · 2 · 2, which still seats every profile he described.
+    """
+    seats = [profile for profile, count in table for _ in range(count)]
+    order = [profile for profile, _count in table]
+    for _ in range(min(engine_seats, len(seats))):
+        crowded = max(order, key=lambda p: (seats.count(p), -order.index(p)))
+        seats.remove(crowded)
+    return seats
+
 
 def to_credits(pool: list[dict]) -> float:
     """The factor that turns the listone's Qt.I into the credits of THIS league.
@@ -292,6 +318,66 @@ CLUB_FREE = 2
 CLUB_PENALTY = 0.45
 
 
+def engine_worth(man: dict, team: Team) -> float:
+    """WHAT A MAN IS WORTH TO THIS SQUAD, in fantapunti - the quantity the engine arm bids on.
+
+    Two terms that count, added, and a third measured at zero. They answer different questions and no
+    single one is the worth of a man in this league: how much he SCORES over the man who would play
+    instead (surplus), and how many empty matchdays he REMOVES (cover). The arm had only the first and
+    finished last of eleven; with the second it wins. The third - steadiness, the currency of both
+    modifiers - is measured and switched off: see `STEADY_WEIGHT`.
+
+    Extracted from `bid` on 02/09/2026 because the random extraction needs it TWICE: once for the man
+    on the block and once for the man who would come up instead of him. Two copies of this sum would
+    eventually price the same footballer two ways, and the first place anybody would notice is a bid.
+    """
+    return ((man.get("surplus") or 0.0)
+            + cover_value(man, team, team.matchdays)
+            + STEADY_WEIGHT * steady_value(man, team, team.matchdays))
+
+
+#: HOW MUCH OF THE ALTERNATIVE STILL IN THE URN comes off a bid. 0 = the man is priced on his own
+#: worth, which is right when the ORDER guarantees nobody better is behind him; 1 = he is priced on
+#: what he adds over the man who would come up instead of him.
+#:
+#: ADOPTED at 0.75 for the DRAWN mechanism on 02/09/2026 (`Urn.random` switches it off at a called
+#: auction, and the reason is written there). Swept on the pre-registered grid 0 ... 1 at
+#: `ALT_RANK` = 1, 20 draws of each of the ten windows: 2276 -> 2568 points, +12.8%, with 10 windows
+#: of 10 improving, the worst at +6.7%, holes 69.0 -> 22.5 and the mean place 7.75 -> 2.90. The
+#: optimum is INTERIOR (0.70 reads 2563.5 and 0.80 reads 2560.0, 1.00 falls back to 2477.8), which is
+#: this project's condition for adopting a number at all.
+#:
+#: WHY IT IS NOT 1.0, which is the value the theory would write: the fallback is OPTIMISTIC - it
+#: assumes this squad wins one of the best `k` men left, and against ten rivals it often does not. So
+#: only three quarters of it comes off. The other reading of the same fact - keep the coefficient at 1
+#: and look further down the urn - was measured too (`ALT_RANK` 2 and 3 read 2549 and 2583) and the
+#: whole surface is flat inside 0.5%: two knobs for one effect, so the one that stays is the one whose
+#: companion is COUNTED rather than fitted.
+ALT_WEIGHT = 0.75
+
+#: WHETHER THE RATE IS RE-READ during the auction instead of fixed at its start. See `Team.live_rate`.
+#: MEASURED AND SWITCHED OFF, 02/09/2026: at `ALT_WEIGHT` 0.75 on the drawn mechanism it is worth
+#: 2486.8 -> 2497.5 (+0.4%, under this project's 0.5% floor) and at a called auction 2665.5 -> 2670.2.
+#: The spend it was built to correct barely moves (739 -> 748), which is the same shape as
+#: `STEADY_WEIGHT`: not a weak channel, a channel that does not ARRIVE. What actually stopped the arm
+#: hoarding was `FLOOR_ON_BETTER`, and for the opposite reason to the one this term assumes - it was
+#: not spending too little, it was spending on the wrong men.
+LIVE_RATE = False
+
+#: WHETHER THE SPENDING FLOOR REFUSES A MAN WORSE THAN THE ONE STILL TO COME. See `Team.bid`.
+#: ADOPTED 02/09/2026, measured at `ALT_WEIGHT` 0.75 on the drawn mechanism: 2486.8 -> 2565.8 points,
+#: holes 33.4 -> 22.9, mean place 4.34 -> 2.79 - and the spend FALLS from 739 to 564, which is the
+#: mechanism itself and not a side effect: what the floor was buying was slots, not points. Inert at a
+#: called auction by construction, because `alternative` is zero there.
+FLOOR_ON_BETTER = True
+
+#: HOW FAR DOWN THE URN the fallback sits, as a multiple of the participants still needing the role.
+#: 1.0 is the count itself - "the best k men left go one each, and I get the k-th" - and it is the
+#: OPTIMISTIC reading, because it assumes this squad wins one of them. Above 1 it assumes it does not,
+#: which is a pessimism that makes it bid harder now. Swept: see the README.
+ALT_RANK = 1.0
+
+
 def club_weight(man: dict, team: Team) -> float:
     """How much this squad still wants a man of HIS club: 1 up to `CLUB_FREE`, falling after."""
     club = man.get("club")
@@ -320,6 +406,271 @@ def role_shares(pool: list[dict]) -> dict[str, float]:
     return {role: (value / total if total else 0.0) for role, value in per_role.items()}
 
 
+def set_tiers(pool: list[dict]) -> None:
+    """WHICH TIER OF HIS ROLE EACH MAN BELONGS TO - his rank inside the role over the number of teams.
+
+    A conservation law and not a choice: in a league of ten there are ten first-choice defenders,
+    because each participant fields one of them. So «the n-th defender» of a recipe is the n-th TIER,
+    and that is what the recipe is indexed by (`Team.step`, and `profiles.TARGET_TIER` for why).
+
+    Ties are broken by id so the tiers are reproducible: two men on the same Qt.I must not swap bands
+    because the extraction file happens to list them in another order.
+    """
+    for role in rules.SLOTS:
+        men = sorted((m for m in pool if role_of(m) == role), key=lambda m: (-m["price"], m["id"]))
+        for rank, man in enumerate(men):
+            # THE RANK TRAVELS WITH THE TIER because a TARGET IS A NAME and not a band: «deve puntare
+            # sul TOP in attacco (L.Martinez/Thuram/ecc...) e fa di tutto per prenderlo». Read as «a
+            # first-tier forward» that sentence releases the moment he owns any of the ten, which is
+            # why the dearest man of the listone was going for 0,6% of a budget when the urn drew him
+            # late in his own block - nobody was still waiting for HIM. Real, inside the block: 43,1%
+            # · 45,4% · 37,6% · 34,7% by quarter.
+            man["rank"] = rank
+            man["tier"] = rank // rules.TEAMS
+
+
+def tier_asks(pool: list[dict]) -> dict[tuple[str, int], float]:
+    """The MEAN ask price of each tier - what executing a plan costs, read off the listone in August.
+
+    The mean and not the median, for the same reason `profiles.MARKET` is a ratio of sums: summed over
+    every tier of every role it has to give back the montepremi, or a recipe normalised to it
+    (`Team.scale`) would silently ration or inflate every bid at the table. The medians of a
+    right-skewed band add up to 79% of the money.
+    """
+    asks: dict[tuple[str, int], float] = {}
+    for role, slots in rules.SLOTS.items():
+        men = sorted((m for m in pool if role_of(m) == role), key=lambda m: -m["price"])
+        for tier in range(slots):
+            band = men[tier * rules.TEAMS:(tier + 1) * rules.TEAMS] or men[-1:]
+            asks[(role, tier)] = (st.mean(m["price"] for m in band) if band else 1.0)
+    return asks
+
+
+class Urn:
+    """WHAT IS STILL TO BE DRAWN - which at a RANDOM extraction is half of every decision.
+
+    At a called auction the ORDER does the rationing for you: the man on the block is by construction
+    the dearest one left, so "hold my credits for somebody better" is never a question anybody has to
+    ask. Drawn at random he can be the last striker of the listone or a third-choice full back, and
+    those two ask opposite things of the same purse.
+
+    So the bidders are allowed to see the urn - and only this much of it: what is STILL IN it. Never
+    what comes next, which nobody at a real table knows either.
+    """
+
+    def __init__(self, pool: list[dict]) -> None:
+        #: SLOTS STILL TO FILL ACROSS THE WHOLE TABLE, refreshed by `auction` at every lot. It lives on
+        #: the urn rather than being passed around because it is a fact about the auction and not about
+        #: any one bidder, and two copies of it would eventually disagree.
+        self.demand = 0
+        #: HOW MANY PARTICIPANTS still have a slot open in each role - i.e. how many hands go up when a
+        #: man of that role is drawn. Refreshed at every lot by `auction`, for the same reason.
+        self.needing: dict[str, int] = {role: 0 for role in rules.SLOTS}
+        #: WHETHER THE LOTS ARE DRAWN OR CALLED. It is not decoration: at a called auction the man on
+        #: the block is the dearest one left, so "is somebody better coming?" is a question the ORDER
+        #: has already answered, and asking it again with `alternative` is not caution but
+        #: misinformation - the best man left by SURPLUS can be dearer to refuse than he is worth.
+        #: Measured, and it is why the term is switched off there: on the ten called windows it is
+        #: worth +0.3% (under this project's 0.5% floor) with one window at -5.6%, i.e. it fails the
+        #: robust criterion; on the ten drawn ones it is +12.8% with 10 windows of 10 improving and the
+        #: worst at +6.7%. A parameter belongs to the mechanism it was measured on.
+        self.random = False
+        self._drawn: set[int] = set()
+        self._gone: dict[str, int] = {role: 0 for role in rules.SLOTS}
+        self._by_price: dict[str, list[dict]] = {}
+        self._by_worth: dict[str, list[dict]] = {}
+        for role in rules.SLOTS:
+            men = [man for man in pool if role_of(man) == role]
+            # SORTED THE WAY `set_tiers` RANKS, ties included: `tier_left` walks this list and stops
+            # at the first man of a worse tier, which is only valid if the list is in tier order.
+            self._by_price[role] = sorted(men, key=lambda m: (-m["price"], m["id"]))
+            self._by_worth[role] = sorted(men, key=lambda m: -(m.get("surplus") or 0.0))
+
+    def back(self, man: dict) -> None:
+        """NOBODY BID: he goes back into the urn, because that is what the platform does.
+
+        MEASURED on the operator's own auctions (`docs/real-data/`, the five whose extraction order
+        could be reconstructed): every one of the 518 quoted names is drawn 5 to 9 times, and Martinez
+        L., Malen, Dimarco, Paz N. and Thuram all appear among the extractions nobody bid on and are
+        sold later. So a drawn auction is not one pass over the listone - it keeps drawing until the
+        rosters are full.
+        """
+        self._drawn.discard(man["id"])
+        role = role_of(man)
+        self._gone[role] -= 1
+
+    def take(self, man: dict) -> None:
+        """This man is on the block, so he is out of the urn: what remains is what remains AFTER him."""
+        self._drawn.add(man["id"])
+        role = role_of(man)
+        self._gone[role] += 1
+        # Compacted when a third of a role has gone, which keeps every walk below short and the whole
+        # auction linear. Filtering on every draw would be quadratic and rebuilding never would make
+        # the walks quadratic instead.
+        if self._gone[role] * 3 > len(self._by_price[role]):
+            self._by_price[role] = [m for m in self._by_price[role] if m["id"] not in self._drawn]
+            self._by_worth[role] = [m for m in self._by_worth[role] if m["id"] not in self._drawn]
+            self._gone[role] = 0
+
+    def dearest(self, roles: tuple[str, ...]) -> float:
+        """The ask price of the dearest man still to come, among the roles asked for. 0 if none is."""
+        best = 0.0
+        for role in roles:
+            for man in self._by_price[role]:
+                if man["id"] not in self._drawn:
+                    best = max(best, man["price"])
+                    break
+        return best
+
+    def tier_left(self, role: str, tier: int) -> int:
+        """How many men of this role and no worse than `tier` are STILL TO BE DRAWN.
+
+        What «is a champion still to come?» means, and the whole of what stops one going unsold: the
+        rosters fill up long before the urn does (77 forwards for 60 slots), so a participant who never
+        keeps a slot cannot bid for a man drawn late however rich he is. See `Team.keeps`.
+        """
+        count = 0
+        for man in self._by_price[role]:
+            if man.get("tier", 0) > tier:
+                break
+            if man["id"] not in self._drawn:
+                count += 1
+        return count
+
+    def rank_left(self, role: str, ranks: int) -> int:
+        """How many of the `ranks` dearest men of this role are STILL TO BE DRAWN. See `set_tiers`."""
+        count = 0
+        for man in self._by_price[role]:
+            if man.get("rank", 0) >= ranks:
+                break
+            if man["id"] not in self._drawn:
+                count += 1
+        return count
+
+    def best_tier(self, roles: tuple[str, ...]) -> int:
+        """The tier of the best man still to come, among the roles asked for - a big number if none is."""
+        best = max(rules.SLOTS.values()) + 1
+        for role in roles:
+            for man in self._by_price[role]:
+                if man["id"] not in self._drawn:
+                    best = min(best, man.get("tier", 0))
+                    break
+        return best
+
+    def nth(self, role: str, rank: int) -> dict | None:
+        """The `rank`-th best man of this role still to come, by surplus. None if the urn is shorter."""
+        seen = 0
+        for man in self._by_worth[role]:
+            if man["id"] in self._drawn:
+                continue
+            if seen == rank:
+                return man
+            seen += 1
+        return None
+
+    def left(self, role: str) -> int:
+        return sum(1 for man in self._by_price[role] if man["id"] not in self._drawn)
+
+    def best_surplus(self, role: str, wanted: int) -> float:
+        """The surplus of the `wanted` best men of this role still to come. The same sum `engine_rate`
+        takes over the whole pool at the start, taken over the urn in the middle of the auction."""
+        total, taken = 0.0, 0
+        if wanted <= 0:
+            return 0.0
+        for man in self._by_worth[role]:
+            if man["id"] in self._drawn:
+                continue
+            surplus = man.get("surplus") or 0.0
+            if surplus <= 0:
+                break
+            total += surplus
+            taken += 1
+            if taken >= wanted:
+                break
+        return total
+
+    def market(self, wanted: int) -> float:
+        """What the rest of the auction will COST the table, if the dearest `wanted` men left are bought.
+
+        The conservation law `to_credits` is built on, read at a point in the middle of the auction
+        instead of at its start: the men a table rosters are the dearest ones, and their ask prices add
+        up to the budgets. So this is the money the table still has to put on the floor - and a
+        participant's own share of it is what tells him whether he is spending fast enough.
+        """
+        total, taken = 0.0, 0
+        for man in heapq.merge(*(self._by_price[role] for role in rules.SLOTS),
+                               key=lambda m: -m["price"]):
+            if man["id"] in self._drawn:
+                continue
+            total += man["price"]
+            taken += 1
+            if taken >= wanted:
+                break
+        return total
+
+
+#: THE ORDER THE PLATFORM PLAYS THE ROLES IN, and it is the biggest single thing this bench had wrong.
+#: MEASURED on the operator's own archive (`docs/real-data/`) and not chosen: of the 20 real auctions
+#: with his exact league, SIXTEEN put the mean award position of the four roles at 0.06 · 0.28 · 0.60 ·
+#: 0.88 - identical to two decimals across sixteen separate sessions, which is the signature of an order
+#: the platform imposes rather than a habit anybody has. And those four numbers are exactly where the
+#: ROSTER puts the boundaries: 3 keepers of 25 places, then 8 defenders, then 8 midfielders, then 6
+#: forwards. Within a role the men come in a random order (the position's standard deviation inside a
+#: role is 0.06-0.13 against 0.29 for a draw spread over the whole auction).
+#:
+#: WHAT IT EXPLAINS, all at once and with no behaviour added: a real table spends 8.8% of the montepremi
+#: in the first tenth of the awards and 38% in the last two, which is the department split (P 9.1 · D
+#: 16.3 · C 27.2 · A 47.4) accumulated in this order and nothing else; the dear men are awarded late
+#: because they are FORWARDS; and the price of a champion does not depend on when he is drawn, because
+#: whenever that is, it is inside the attack phase and every rival still has all six of his forward
+#: slots open and the money he kept for them.
+#:
+#: It is the rulebook, so it has no parameter - but 4 of those 20 auctions ran free, so the free order
+#: stays reachable (`--free`) and is what the unsold-champion figures were measured on.
+PHASES: tuple[str, ...] = ("P", "D", "C", "A")
+
+
+def in_phases(pool: list[dict]) -> list[list[dict]]:
+    """The pool split into the phases the platform plays, in order. See `PHASES`."""
+    blocks = [[man for man in pool if role_of(man) == role] for role in PHASES]
+    others = [man for man in pool if role_of(man) not in PHASES]
+    return [block for block in blocks if block] + ([others] if others else [])
+
+
+def called_order(pool: list[dict], phased: bool = True) -> list[dict]:
+    """The order of a CALLED auction: role by role, and inside a role the dearest first.
+
+    The phases are the platform's (see `PHASES`); 81 of 86 real called auctions are played in them.
+    What the manager chooses at a called auction is WHICH name to put up, and the archive says he
+    chooses it inside the role the auction has reached.
+    """
+    if not phased:
+        return sorted(pool, key=lambda m: -m["price"])
+    out: list[dict] = []
+    for block in in_phases(pool):
+        out += sorted(block, key=lambda m: -m["price"])
+    return out
+
+
+def extraction_order(pool: list[dict], seed: int, phased: bool = True) -> list[dict]:
+    """The order of a RANDOM extraction: the platform draws a name, and nobody chose it.
+
+    Sorted by id BEFORE the shuffle, so the draw depends on the seed and on nothing else - the order
+    the extraction file happens to list its men in is not a fact about the auction. Drawn INSIDE the
+    phase the auction has reached, which is what the real archive says (`PHASES`).
+    """
+    lots = sorted(pool, key=lambda m: m["id"])
+    shuffle = random.Random(seed)
+    if not phased:
+        shuffle.shuffle(lots)
+        return lots
+    out: list[dict] = []
+    for block in in_phases(lots):
+        shuffle.shuffle(block)
+        out += block
+    return out
+
+
 class Team:
     """One participant: a recipe, a purse, and the men it has bought."""
 
@@ -344,6 +695,14 @@ class Team:
         self.rate = 1.0            # set per window by `run`, for the engine bidder only
         self.shares: dict[str, float] = {}
         self.matchdays = 38
+        #: WHAT HE CAME TO THE TABLE WANTING, and the money he ring-fences for it: see `profiles.PLAN`.
+        self.plan = PLAN.get(profile, ())
+        #: WHAT EACH TIER ASKS, set per window by whoever builds the table - like `rate`. Left empty a
+        #: recipe is read at its face value, which is what the unit tests do on purpose.
+        self.asks: dict[tuple[str, int], float] = {}
+        #: THE ENGINE ARM'S LADDER, built once per auction from its own department shares. Cached on the
+        #: participant because it depends on `shares`, which the caller sets after construction.
+        self.ladder: dict[str, list[float]] | None = None
 
     def draw(self, player_id: int) -> float:
         """A number in [0, 1) fixed by (participant, man): the scatter has to be REPRODUCIBLE.
@@ -380,7 +739,213 @@ class Team:
     def slots_left(self) -> int:
         return sum(rules.SLOTS[r] - len(self.men[r]) for r in rules.SLOTS)
 
-    def bid(self, man: dict) -> int:
+    def open_roles(self) -> tuple[str, ...]:
+        """The roles this squad can still buy into - which is what its purse is being kept for."""
+        return tuple(r for r in rules.SLOTS if len(self.men[r]) < rules.SLOTS[r])
+
+    def step(self, man: dict) -> float:
+        """The multiple of the ask price this recipe puts on THIS man: the ladder, indexed by
+        `max(tier, held)`.
+
+        Both halves are needed. The TIER is what the ladder was always meant to say - «the first
+        defender» means the best one, not the first one you happen to meet - and indexing on what the
+        squad HELD was the same number only because a called auction offers the dearest man first. At a
+        random extraction it read as «1.9 times the ask for whatever defender comes up», which is what
+        put P2's whole purse into the 90th defender of the listone and left him nothing for Dimarco.
+        The HELD half is what stops a profile buying eight first-choice defenders at the first-choice
+        price. See `profiles.TARGET_TIER`.
+        """
+        role = role_of(man)
+        ladder = self.recipe[role]
+        tier = man.get("tier", 0)
+        # HOW MANY OF THIS ROLE THE SQUAD ALREADY OWNS WHO ARE AS GOOD OR BETTER, not how many it owns.
+        # Indexed on the plain count, a squad holding four forwards priced the best player of the game
+        # as its FIFTH - 0,18 times the ask - which is what made a champion drawn late in his own block
+        # worth a credit. Measured on the four targets: men bought at five credits or less 7,0 -> 8,0
+        # (real 9,5), credits left in pocket 10,2% -> 6,2% (real 6,1%), and the champion's price in the
+        # first quarter of his block 47,8% -> 43,9% against a real 43,1%.
+        ahead = sum(1 for other in self.men[role] if other.get("tier", 0) <= tier)
+        return ladder[min(max(tier, ahead), len(ladder) - 1)]
+
+    def owed(self, role: str) -> int:
+        """How many of the DEAREST men of this role his plan still says he must own.
+
+        Counted on the RANK and not on the tier: a plan for «the top forward» is a plan for one of the
+        dearest one or two names, and reading it as «any first-tier forward» released it the moment he
+        bought the tenth-best - which is how the best man of the listone came to go for 0,6% of a
+        budget when the urn drew him late in his own block.
+        """
+        total = 0
+        for line, count, _share in self.plan:
+            if line == role:
+                have = sum(1 for m in self.men[role] if m.get("rank", 99) < count)
+                total += max(0, count - have)
+        return total
+
+    def reserved(self, man: dict, urn: Urn | None) -> int:
+        """The credits ring-fenced for the targets this man is NOT - «conservando piu' crediti degli altri».
+
+        A cap on what he will spend on anybody else, never a change of his ceiling for the target
+        himself: «solo dopo aver preso un attaccante TOP comincia a piazzare qualche altra offerta
+        seria». It releases itself in the only two ways it can - he buys the target, or the urn runs out
+        of them - so a plan can never leave a squad unfinishable.
+        """
+        total = 0.0
+        for role, count, share in self.plan:
+            owed = self.owed(role)
+            if owed <= 0:
+                continue
+            if role_of(man) == role and man.get("rank", 99) < count:
+                continue            # he IS what the money is being kept for
+            if urn is not None and urn.rank_left(role, count) <= 0:
+                continue            # nothing left to wait for: the money is released
+            total += self.budget * share * owed / count
+        return round(total)
+
+    def keeps(self, man: dict, urn: Urn | None) -> bool:
+        """Whether buying this man would spend a slot that is being KEPT for a top man still to come.
+
+        «Conservare almeno uno o due posti per qualche occasione alla fine», and the operator's own
+        justification for the risk - «il rischio vale per un top di ruolo». How many slots that is, is
+        COUNTED and never declared - `profiles.py` records the numbers of the two declared
+        forms that came first, both of them worse.
+
+        INERT AT A CALLED AUCTION, and not by accident: there the dearest man is offered first, so
+        there is never a better one still to come and `tier_left` is zero. One rule, two mechanisms.
+        """
+        if urn is None:
+            return False
+        role = role_of(man)
+        open_here = rules.SLOTS[role] - len(self.men[role])
+        hands = max(1, urn.needing.get(role, 1))
+        # A PLAN KEEPS ITS PLACE AS WELL AS ITS MONEY, and only a plan does - «su 10 persone QUALCUNO
+        # dovrebbe conservare un posto in rosa aspettando proprio il campione». Given to everybody it
+        # strangles the auction (measured: 8,4 slots of 250 unfilled and 18 of the top 50 unsold,
+        # because all ten wait for the same man); given to the two profiles whose declared strategy IS
+        # that man, it costs at most three places across the table.
+        owed = self.owed(role)
+        if owed and man.get("rank", 99) >= max(c for r, c, _s in self.plan if r == role):
+            waiting = urn.rank_left(role, max(c for r, c, _s in self.plan if r == role))
+            if open_here <= min(owed, waiting) and urn.left(role) > open_here + hands - 1:
+                return True
+        # HOW MANY BETTER MEN THIS SQUAD CAN EXPECT TO WIN, counted and not chosen: if `hands`
+        # participants still want the role, the better men left go one each, so his share of them is
+        # their number over the hands up. Refusing costs him nothing while that share covers every slot
+        # he has left there - and the moment it does not, he bids.
+        mine = urn.tier_left(role, man.get("tier", 0) - 1) / hands
+        if mine < open_here:
+            return False
+        # ...AND ONLY WHILE REFUSING DOES NOT COST THE SLOT ITSELF: enough men of the role must be left
+        # for this squad and for the rivals who still want one.
+        return urn.left(role) > open_here + hands - 1
+
+    def scale(self) -> float:
+        """WHAT MULTIPLIES EVERY STEP OF THE RECIPE so the plan costs exactly what is left to spend.
+
+        A recipe is a DISTRIBUTION of the purse and its level is not a free parameter: the same
+        conservation law `to_credits` and `engine_rate` are built on, read on one participant. The plan
+        still to execute is the ladder over the slots still to fill, priced at what each tier asks; the
+        purse is what is left. So a participant who has saved bids up by himself, and one who has
+        overpaid rations himself - both in the SHAPE of his own plan, which is the half a flat floor per
+        remaining slot could not do.
+
+        It replaced that floor (`ABUNDANCE`, now the engine arm's alone) and it is the biggest single
+        cause of the flat auctions the operator objected to on 02/09/2026: «vedo costi distribuiti in
+        maniera troppo equilibrata». With 1000 credits and 25 slots the floor said «40 a man» about the
+        best striker of the listone and about the 200th defender alike - four participants of ten ended
+        with ZERO men under 5 credits, against 8-9 of 25 in the 131 real auctions.
+        """
+        if not self.asks or self.recipe is None:
+            return 1.0
+        plan = 0.0
+        for role, ladder in self.recipe.items():
+            for index in range(len(self.men[role]), rules.SLOTS[role]):
+                plan += ladder[min(index, len(ladder) - 1)] * self.asks.get((role, index), 1.0)
+        return (self.left / plan) if plan > 0 else 1.0
+
+    def live_rate(self, urn: Urn | None) -> float:
+        """The credits this purse can still put on one fantapunto - `engine_rate` re-read mid-auction.
+
+        `engine_rate` is a CONSERVATION LAW taken at the start: the men this bidder wants - the best
+        `slots[role]` by surplus - are made to add up to the whole purse, so bidding in proportion to
+        worth spends exactly the budget on exactly those men. Halfway through a random extraction both
+        halves have moved: the purse is smaller and the urn no longer holds that squad. Re-reading the
+        same law over what is LEFT is not a new parameter, it is the same one at the right moment - and
+        it is what stops the arm from ending an auction with credits it was never going to be able to
+        spend, since the rate rises by itself as the good men leave the urn.
+        """
+        if urn is None:
+            return self.rate
+        total = sum(urn.best_surplus(role, rules.SLOTS[role] - len(self.men[role]))
+                    for role in rules.SLOTS)
+        return (self.left / total) if total > 0 else self.rate
+
+    def alternative(self, man: dict, urn: Urn | None) -> float:
+        """What the man who would come up INSTEAD of him is worth to this squad.
+
+        THE ZERO OF A BID IS A QUESTION, and a random extraction asks a different one. `surplus`
+        already subtracts the man who would PLAY instead (the roster-marginal of the league); this
+        subtracts the man who would be BOUGHT instead, which is a fact about the urn and not about the
+        listone. Where they differ is exactly where the two mechanisms differ.
+
+        Which man that is, is counted and not chosen: if `k` participants still have a slot open in
+        this role, the best `k` men left will go one each, so the one this squad ends up with if it
+        lets this lot pass is the `k`-th of them. Nobody is assumed to bid badly.
+        """
+        if urn is None or not urn.random:
+            return 0.0
+        role = role_of(man)
+        other = urn.nth(role, max(0, round(ALT_RANK * urn.needing.get(role, 1)) - 1))
+        return engine_worth(other, self) if other is not None else 0.0
+
+    def pace(self, urn: Urn | None) -> float:
+        """How rich this purse is against what it can still SPEND - 1.0 is on schedule, 2.0 is double.
+
+        The other half of "nobody ends an auction with credits in his pocket", and the half a called
+        order never needs. `market` says what the rest of the auction will cost the table; this squad's
+        own share of that is its remaining slots over everybody's. A participant who has bought little
+        and hoarded much reads above 1 and starts bidding up by himself, which is what a real table
+        does when it notices the money is not going anywhere - and it is SELF-CORRECTING rather than a
+        rate anybody tuned, because it is the same conservation law `to_credits` is built on.
+        """
+        if urn is None:
+            return 1.0
+        demand = urn.demand
+        if demand <= 0:
+            return 1.0
+        fair = urn.market(demand) * self.slots_left() / demand
+        return self.left / max(1.0, fair)
+
+    def reach(self, man: dict, urn: Urn | None) -> float:
+        """How much of the "spend it or lose it" floor this man may claim, from 0 to 1.
+
+        THE DECLARED RULE IS «nobody ends an auction with credits in his pocket», and until 02/09/2026
+        it was implemented as a flat floor - the purse's affordable share per remaining slot, claimed by
+        every man on the block. Under a CALLED order that fires late by itself and only on the cheap,
+        because the man in front of you is the dearest one left and his ask price towers over the share.
+        Under a RANDOM extraction it fires on the FIRST lot drawn: everybody bids ~40 credits on a
+        third-choice full back because he happens to come up first, and the auction goes flat.
+
+        The rule was never about the man in front of you: it is about there being nothing better left to
+        keep the money for. So the floor is claimed in proportion to how this man's ask price compares
+        with the DEAREST man still to come in a role this squad still needs - full when he is as dear as
+        anything left, none of it when a striker is still in the urn.
+
+        And it reduces EXACTLY to the old behaviour on a called order: there the man on the block is the
+        dearest remaining, so the ratio is 1 on every bid that is computed at all (his role must be open
+        for this squad, or `bid` has already returned 0). One definition, two mechanisms - which is why
+        nothing published on the called auction moves.
+        """
+        if urn is None:
+            return 1.0
+        dearest = min(1.0, man["price"] / max(1.0, urn.dearest(self.open_roles())))
+        # ...OR because there is too much money left in this purse for what it can still buy. The two
+        # are different reasons to stop saving and either one is enough, so they are a MAXIMUM and not
+        # a product: a man who is the best thing left deserves the floor even from a poor purse, and a
+        # purse that is running out of things to buy has to spend on whoever comes up.
+        return min(1.0, max(dearest, self.pace(urn) - 1.0))
+
+    def bid(self, man: dict, urn: Urn | None = None) -> int:
         """The most this participant will pay for this man, 0 for "not interested".
 
         Closing the squad is always on: every slot still to fill costs at least one credit, so the
@@ -393,6 +958,18 @@ class Team:
         room = self.left - (self.slots_left() - 1)
         if room < 1:
             return 0
+        if self.recipe is None and urn is not None and urn.random and self.asks:
+            # AT A DRAWN AUCTION THE ARM BIDS ON THE MARKET'S LADDER, tilted toward the back: see
+            # `profiles.engine_ladder`. Worth +17,9% and 28 titles of 100 against 0, because a ceiling
+            # in fantapunti cannot win a contested lot however well the footballer is judged. Switched
+            # on by the mechanism and not by a flag - at a called auction the same ladder loses 2%.
+            if self.ladder is None:
+                self.ladder = engine_ladder()
+            kept, self.recipe = self.recipe, self.ladder
+            try:
+                return self.bid(man, urn)
+            finally:
+                self.recipe = kept
         if self.recipe is None:
             # THE ENGINE ARM, and the two things the first version was missing are both here.
             # COVERAGE: the bid is scaled by how much this squad still needs the role, on the graduated
@@ -404,19 +981,20 @@ class Team:
             # A single cap for every role is the defect that a fixed 15% was: 150 credits is a ceiling
             # nobody needs on a keeper and one that binds on a striker.
             need = coverage_need(self, role, self.matchdays)
-            # TWO TERMS THAT COUNT, ADDED, AND A THIRD MEASURED AT ZERO. They answer different questions
-            # and no single one is the worth of a man in this league: how much he SCORES over the man who
-            # would play instead (surplus), and how many empty matchdays he REMOVES (cover). The arm had
-            # only the first and finished last of eleven; with the second it wins. The third - steadiness,
-            # the currency of both modifiers - is measured and switched off: see `STEADY_WEIGHT`.
-            worth = ((man.get("surplus") or 0.0)
-                     + cover_value(man, self, self.matchdays)
-                     + STEADY_WEIGHT * steady_value(man, self, self.matchdays))
+            # WHAT HE IS WORTH (`engine_worth`), LESS WHAT COMES INSTEAD OF HIM. The second half is the
+            # whole of what a random extraction changes: at a called auction the man on the block is
+            # the dearest one left, so "wait for a better one" is not a question anybody has to ask,
+            # and the arm can bid his worth. Drawn at random he is just A man of that role, with 130
+            # more behind him - and paying his full worth for coverage that ten better men would also
+            # have given is how the arm bought pv 13-24 instead of pv 23-31 and finished with 74 holes.
+            mine, other = engine_worth(man, self), self.alternative(man, urn)
+            worth = max(0.0, mine - ALT_WEIGHT * other)
+            rate = self.live_rate(urn) if LIVE_RATE else self.rate
             # ...and ONE MULTIPLIER, which is not a fourth term because it is not about points: how much
             # this squad still wants the role at all (depth) and how concentrated it already is on this
             # man's real club (risk). Both are constraints - «differenziare» is a decision about the
             # tracollo you avoid, not about the points you expect.
-            bid = max(1, round(worth * self.rate * need * club_weight(man, self)))
+            bid = max(1, round(worth * rate * need * club_weight(man, self)))
             # ...AND THE SAME FLOOR AS EVERYBODY ELSE: what the purse can afford per remaining slot. The
             # engine arm was the only participant allowed to keep credits, because this branch returns
             # before the rule below - and it ended the auction on 888 of 1000 while the table spent
@@ -431,11 +1009,22 @@ class Team:
             # the defect PENALISED the arm being judged, so every margin published before this was
             # conservative rather than flattering - which is the only kind of bug to find in your own
             # favour's opposite.
-            slack = room / max(1, self.slots_left())
+            slack = room / max(1, self.slots_left()) * self.reach(man, urn)
             capped = min(room, self.cap, self.role_cap(role), bid)
+            if FLOOR_ON_BETTER and mine < other:
+                # "SPEND IT OR LOSE IT" NEVER MEANS BUYING A MAN WORSE THAN THE ONE WHO IS COMING.
+                # At a random extraction a slot is as scarce as a credit - the draft bench's own
+                # lesson, met halfway - so a floor that creates appetite for a man this squad does not
+                # want does not spend a credit, it spends a SLOT, and the credit stays in the purse
+                # anyway. The floor is there to raise a ceiling, never to invent a bid.
+                return capped
             return max(capped, min(room, self.cap, round(ABUNDANCE * slack)))
-        ladder = self.recipe[role]
-        want = ladder[held] if held < len(ladder) else ladder[-1]
+        # A SLOT KEPT FOR A CHAMPION IS NOT FOR SALE. First of all the tests, because it is a
+        # decision about the SLOT and not about the price: no ceiling, however low, can leave a place
+        # free for a man who has not been drawn yet.
+        if self.keeps(man, urn):
+            return 0
+        want = self.step(man)
         # THE EXPERT READS THE MAN AND NOT ONLY THE ASK PRICE: his ceiling is blended toward what the
         # engine's surplus says the man is worth, which is the auditable stand-in for «sa valutare al
         # momento l'asta ed il valore dei calciatori astati». The novice has no such term and reads the
@@ -451,32 +1040,35 @@ class Team:
         if self.scatter:
             spread = (self.draw(man["id"]) - 0.5) * 2 * self.scatter
             want = max(0.0, want * (1.0 + spread))
-        # NOBODY ENDS AN AUCTION WITH CREDITS IN HIS POCKET, and the operator put it as the thing a real
-        # table would obviously do: «avrebbero rilanciato sicuramente per qualche attaccante piu' forte
-        # alla fine piuttosto che restare con crediti non spesi».
-        #
-        # So the floor of a ceiling is what the purse can AFFORD PER REMAINING SLOT: with 400 credits and
-        # three slots to fill, 133 a man is not generous, it is arithmetic - every credit left over is a
-        # credit thrown away. `want` (the recipe) can raise that, never lower it.
-        #
-        # The first version tested `slack >= price` and only then paid the LIST price, which fires far too
-        # late: it left P1a with 828 of 1000, P3 with 840 and P4 with 495, all of them holding money while
-        # better strikers went past. This form has no threshold at all - it is simply the affordable
-        # share - and it is why it fires on the last rounds by itself.
-        slack = (self.left - (self.slots_left() - 1)) / max(1, self.slots_left())
-        if want > 0 and slack > 0:
-            want = max(want, ABUNDANCE * slack / max(1.0, man["price"]))
+        # NOBODY ENDS AN AUCTION WITH CREDITS IN HIS POCKET - and since 02/09/2026 that is the SCALE
+        # and no longer a floor per remaining slot: the recipe is normalised to what is left to spend,
+        # so the money goes where his own plan puts it instead of being spread evenly over whoever
+        # comes up. See `Team.scale` for the numbers that forced the change. Measured on the real
+        # auctions: 2,8% of a budget stays in pocket at a called auction and 6,1% at a drawn one, which
+        # is what a self-correcting scale gives and a flat floor did not.
+        want *= self.scale()
         if want <= 0:
             return 0
-        return min(room, self.cap, max(1, round(man["price"] * want)))
+        bid = min(room, self.cap, max(1, round(man["price"] * want)))
+        # ...AND THE MONEY HE IS KEEPING FOR A TARGET IS NOT AVAILABLE FOR ANYBODY ELSE. Never below one
+        # credit, so a plan can slow a squad down and never stop it closing.
+        held_back = self.reserved(man, urn)
+        return min(bid, max(1, room - held_back)) if held_back else bid
 
     def take(self, man: dict, paid: int) -> None:
         self.men[man["slot"].upper()].append({**man, "paid": paid})
         self.left -= paid
 
 
-def auction(pool: list[dict], teams: list[Team]) -> None:
-    """A called auction: the dearest names go first, and the winner pays the SECOND price plus one.
+def auction(pool: list[dict], teams: list[Team], order: list[dict] | None = None) -> None:
+    """One auction: the winner pays the SECOND price plus one. `order` says which name comes up when.
+
+    TWO MECHANISMS, ONE PRICE RULE. With `order` left out the names are CALLED dearest first, which is
+    what this bench measured until 02/09/2026. With `order` given - `extraction_order` - the platform
+    DRAWS them, which is the auction the operator will actually play, and the difference is not
+    cosmetic: at a called auction the order rations the purses for everybody (you cannot spend on a
+    striker who has not been called yet, and once he has, there is no better one behind him), while at
+    a random one the rationing is the bidder's own problem. See `Team.reach`.
 
     The second-price rule is not a convenience, it is what a raise IS - and it is what makes the top
     striker's price EMERGE (48-75% of the budget across four seasons, mean 60%, which is the number the
@@ -492,16 +1084,39 @@ def auction(pool: list[dict], teams: list[Team]) -> None:
     which is exactly when to fix one. What it does move is the dispersion (sd 51.9 -> 42.6), because a
     tie is now decided by the man rather than always by the same participant.
     """
-    for man in sorted(pool, key=lambda m: -m["price"]):
-        bids = sorted(((t.bid(man), t) for t in teams),
-                      key=lambda x: (-x[0], x[1].draw(man["id"])))
-        if not bids or bids[0][0] < 1:
-            continue
-        second = bids[1][0] if len(bids) > 1 else 0
-        paid = max(1, min(bids[0][0], second + 1))
-        bids[0][1].take(man, paid)
-        if all(t.slots_left() == 0 for t in teams):
+    lots = called_order(pool) if order is None else order
+    urn = Urn(lots)
+    urn.random = order is not None
+    waiting = lots
+    while waiting:
+        passed: list[dict] = []
+        for man in waiting:
+            # He is ON THE BLOCK, so he is out of the urn before anybody prices him: what a bidder may
+            # read is what is left AFTER this man, never what is coming next.
+            urn.take(man)
+            urn.demand = sum(t.slots_left() for t in teams)
+            for role in rules.SLOTS:
+                urn.needing[role] = sum(1 for t in teams if len(t.men[role]) < rules.SLOTS[role])
+            bids = sorted(((t.bid(man, urn), t) for t in teams),
+                          key=lambda x: (-x[0], x[1].draw(man["id"])))
+            if not bids or bids[0][0] < 1:
+                # NOBODY BID: he is not gone, he is BACK IN THE URN. See `Urn.back` for the five real
+                # auctions this was measured on. It is the mechanism and not a strategy, so it is not
+                # a parameter either.
+                passed.append(man)
+                urn.back(man)
+                continue
+            second = bids[1][0] if len(bids) > 1 else 0
+            paid = max(1, min(bids[0][0], second + 1))
+            bids[0][1].take(man, paid)
+            if all(t.slots_left() == 0 for t in teams):
+                return
+        # A CALLED AUCTION IS ONE PASS: there the manager chooses whom to put up, and nobody calls a
+        # man nobody wants. A pass that sells nothing ends the auction whatever the mechanism - there
+        # is no price at which those rosters and those men agree.
+        if not urn.random or len(passed) == len(waiting):
             return
+        waiting = passed
 
 
 def line_up_order(team: Team) -> dict[str, list[dict]]:
@@ -573,61 +1188,112 @@ def season(team: Team, votes: dict, base: dict, rounds: int) -> dict:
     order = line_up_order(team)
     days = [matchday(order, votes, base, str(day)) for day in range(1, rounds + 1)]
     return {**{key: sum(day[key] for day in days) for key in DAY_KEYS},
-            "spent": team.budget - team.left}
+            "spent": team.budget - team.left,
+            # SLOTS NEVER FILLED, which a called auction cannot produce and a random one can: the urn
+            # holds 359-430 men for 250 places, so a squad that waits for a keeper can find the urn
+            # empty. Counted apart from `holes` - a matchday with nobody to field is the CONSEQUENCE,
+            # an empty slot is the cause, and reporting only the first hides which of the two happened.
+            "unfilled": team.slots_left()}
 
 
-def run(table: tuple[tuple[str, int], ...], with_engine: bool) -> dict:
+def priced_pool(window: dict) -> list[dict]:
+    """The window's men with their Qt.I converted into the credits of this league - once per window."""
+    pool = [dict(man) for man in window["players"] + list(window.get("others", []))]
+    factor = to_credits(pool)
+    for man in pool:
+        man["price"] = max(1.0, man["price"] * factor)
+        fm, pv = man.get("fm_pred"), man.get("pv_pred")
+        man["value"] = fm * pv if fm is not None and pv is not None else None
+    set_tiers(pool)
+    return pool
+
+
+def window_seed(key: str, draw: int) -> int:
+    """The seed of one extraction, fixed by (window, draw) so a table can be re-read a year later."""
+    return zlib.crc32(f"{key}|{draw}".encode())
+
+
+def one_auction(pool: list[dict], table: tuple[tuple[str, int], ...], with_engine: bool | int,
+                window: dict, shares: dict[str, float], rate: float,
+                order: list[dict] | None) -> list[tuple[dict, Team]]:
+    """One auction on one order of the lots, and the season the squads it built then played."""
+    # THE ARM TAKES A CHAIR RATHER THAN PULLING ONE UP, so the table is always ten: see `seated`.
+    counted: dict[str, int] = {}
+    teams = []
+    for profile in seated(table, int(with_engine)):
+        counted[profile] = counted.get(profile, 0) + 1
+        teams.append(Team(f"{profile}#{counted[profile] - 1}", profile, PROFILES[profile]))
+    asks = tier_asks(pool)
+    for team in teams:
+        team.matchdays = window["rounds"]
+        team.asks = asks
+        # THE RATE BELONGS TO WHOEVER READS THE ENGINE, not only to the engine arm. Without it the
+        # expert compared a surplus in FANTAPUNTI with a price in CREDITS - the scale was out by the
+        # rate itself, so he undervalued every dear man and overvalued every cheap one, ended the
+        # auction 153 credits short and lost to the novice. The operator spotted it from the result:
+        # «non e' normale che il novizio batta l'esperto, il novizio dovrebbe avere dei buchi».
+        team.rate = rate
+    for seat in range(int(with_engine)):
+        # MORE THAN ONE SEAT IS THE NULL, not a feature: a strategy that only wins because the rest of
+        # the table wastes its money is not a strategy, and the cheapest way to ask is to sit it down
+        # against itself. See the README.
+        engine = Team(f"ENGINE#{seat}", "ENGINE", None)
+        engine.rate = rate
+        engine.shares = shares
+        # ...AND WHAT EACH TIER ASKS, like everybody else at the table: the arm reads them at a drawn
+        # auction (`profiles.engine_ladder`). It is appended after the loop above, so forgetting this
+        # line switches the ladder off in silence - which it did, and the giveaway was a table of
+        # results identical to the decimal.
+        engine.asks = tier_asks(pool)
+        engine.matchdays = window["rounds"]
+        teams.append(engine)
+    auction(pool, teams, order)
+    scored = [(season(t, window["votes"], window.get("base", {}), window["rounds"]), t)
+              for t in teams]
+    return [({**result, "place": place}, team)
+            for place, (result, team) in enumerate(sorted(scored, key=lambda x: -x[0]["points"]), 1)]
+
+
+def run(table: tuple[tuple[str, int], ...], with_engine: bool | int, draws: int = 0) -> dict:
+    """The ten windows. `draws` = 0 CALLS the lots dearest first; N > 0 DRAWS N extractions of each.
+
+    A RANDOM EXTRACTION IS NOT ONE EXPERIMENT, which is the whole reason for `draws`: the same window
+    on two urns is two different auctions, so a single order measures the luck of that order and
+    nothing else. Every figure is then the mean over `windows x draws` seasons, and the dispersion
+    carries what the mechanism itself adds - which is a quantity the called auction does not have.
+    """
     windows = json.loads(WINDOWS_FILE.read_text(encoding="utf-8"))
     per_profile: dict[str, list[dict]] = {}
     per_window: dict[str, dict[str, float]] = {}
     for key, window in windows.items():
-        pool = [dict(man) for man in window["players"] + list(window.get("others", []))]
-        factor = to_credits(pool)
-        for man in pool:
-            man["price"] = max(1.0, man["price"] * factor)
-            fm, pv = man.get("fm_pred"), man.get("pv_pred")
-            man["value"] = fm * pv if fm is not None and pv is not None else None
-        teams = [Team(f"{profile}#{i}", profile, PROFILES[profile])
-                 for profile, count in table for i in range(count)]
-        shares = role_shares(pool)
-        rate = engine_rate(pool)
-        for team in teams:
-            team.matchdays = window["rounds"]
-            # THE RATE BELONGS TO WHOEVER READS THE ENGINE, not only to the engine arm. Without it the
-            # expert compared a surplus in FANTAPUNTI with a price in CREDITS - the scale was out by the
-            # rate itself, so he undervalued every dear man and overvalued every cheap one, ended the
-            # auction 153 credits short and lost to the novice. The operator spotted it from the result:
-            # «non e' normale che il novizio batta l'esperto, il novizio dovrebbe avere dei buchi».
-            team.rate = rate
-        if with_engine:
-            engine = Team("ENGINE#0", "ENGINE", None)
-            engine.rate = rate
-            engine.shares = shares
-            engine.matchdays = window["rounds"]
-            teams.append(engine)
-        auction(pool, teams)
-        scored = [(season(t, window["votes"], window.get("base", {}), window["rounds"]), t)
-                  for t in teams]
-        for place, (result, team) in enumerate(sorted(scored, key=lambda x: -x[0]["points"]), 1):
-            per_profile.setdefault(team.profile, []).append({**result, "place": place, "window": key})
-        per_window[key] = {
-            profile: st.mean(r["points"] for r, t in scored if t.profile == profile)
-            for profile in {t.profile for t in teams}
-        }
-    return {"profiles": per_profile, "windows": per_window}
+        pool = priced_pool(window)
+        shares, rate = role_shares(pool), engine_rate(pool)
+        rows: list[tuple[dict, Team]] = []
+        for draw in range(max(1, draws)):
+            order = extraction_order(pool, window_seed(key, draw)) if draws else None
+            rows += one_auction(pool, table, with_engine, window, shares, rate, order)
+        for result, team in rows:
+            per_profile.setdefault(team.profile, []).append({**result, "window": key})
+        per_window[key] = {profile: st.mean(r["points"] for r, t in rows if t.profile == profile)
+                           for profile in {t.profile for _r, t in rows}}
+    return {"profiles": per_profile, "windows": per_window, "draws": draws}
 
 
 def report(result: dict) -> None:
     profiles = result["profiles"]
     order = sorted(profiles, key=lambda p: -st.mean(r["points"] for r in profiles[p]))
+    draws = result.get("draws") or 0
+    print(f"extraction: {draws} random draws per window" if draws
+          else "extraction: called, dearest first")
     print(f"{'profile':22s} {'points':>9s} {'sd':>7s} {'worst':>8s} {'place':>7s} "
-          f"{'holes':>7s} {'R':>6s} {'def':>6s} {'spent':>7s} {'wins':>8s}")
+          f"{'holes':>7s} {'empty':>6s} {'R':>6s} {'def':>6s} {'spent':>7s} {'wins':>8s}")
     for profile in order:
         rows = profiles[profile]
         pts = [r["points"] for r in rows]
         wins = sum(1 for r in rows if r["place"] == 1)
         print(f"{profile:22s} {st.mean(pts):9.1f} {st.pstdev(pts):7.1f} {min(pts):8.0f} "
               f"{st.mean(r['place'] for r in rows):7.2f} {st.mean(r['holes'] for r in rows):7.1f} "
+              f"{st.mean(r.get('unfilled', 0) for r in rows):6.2f} "
               f"{st.mean(r['r_factor'] for r in rows):6.1f} {st.mean(r['defence'] for r in rows):6.1f} "
               f"{st.mean(r['spent'] for r in rows):7.0f} {wins:4d}/{len(rows):<3d}")
     skipped = st.mean(r["no_base"] for rows in profiles.values() for r in rows)
@@ -639,12 +1305,17 @@ def report(result: dict) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="judge auction strategies on the gate's windows")
-    parser.add_argument("--engine", action="store_true",
-                        help="add one more participant that bids on the engine's surplus")
+    parser.add_argument("--engine", nargs="?", type=int, const=1, default=0, metavar="SEATS",
+                        help="add SEATS participants (default 1) that bid on the engine's own worth; "
+                             "more than one is the NULL - does the edge survive its own competition?")
+    parser.add_argument("--random", dest="draws", nargs="?", type=int, const=20, default=0,
+                        metavar="DRAWS",
+                        help="the platform DRAWS the lots instead of calling them, DRAWS times per "
+                             "window (default 20): one order measures the luck of that order")
     args = parser.parse_args()
     if not WINDOWS_FILE.exists():
         raise SystemExit(f"missing {WINDOWS_FILE.name}: run bench/draft/extract.py first")
-    report(run(DECLARED_TABLE, args.engine))
+    report(run(DECLARED_TABLE, args.engine, args.draws))
 
 
 if __name__ == "__main__":

@@ -69,3 +69,13 @@ node_modules/
 .DS_Store
 Thumbs.db
 *.log
+
+# Real auction archive (added 02/09/2026). Read from the production database and dropped here by the
+# operator; it carries the same PAID fantacalcio content the cache does (names and Qt.I of the official
+# listone) PLUS the league names of real people and what each of them paid. This repository is PUBLIC,
+# so it stays out of it - the same reason `/data/export/` does. What travels instead is the MEASURED
+# constants it produced (`toolkit/bench/auction/profiles.py`) and the numbers written down in
+# `docs/model/simulatore-asta-rilanci-v1.md` §15, which name no manager and quote no full listone.
+# Un-anchored on purpose: an ignore rule is only as wide as its anchor, and this folder is one
+# `git add -A` away from publishing somebody else's auction.
+real-data/

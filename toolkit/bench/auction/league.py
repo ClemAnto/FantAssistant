@@ -27,8 +27,8 @@ import statistics as st
 from pathlib import Path
 
 from . import rules
-from .bench import (Team, WINDOWS_FILE, auction, engine_rate, line_up_order, matchday, role_shares,
-                    to_credits)
+from .bench import (Team, WINDOWS_FILE, auction, engine_rate, extraction_order, line_up_order,
+                    matchday, priced_pool, role_shares, tier_asks, window_seed)
 from .profiles import PROFILES
 
 #: THE TABLE THE OPERATOR ASKED FOR, 01/09/2026, in his own order and with his own letters: A the
@@ -102,24 +102,21 @@ def squad_rows(team: Team, fielded: dict[int, int], scored: dict[int, float]) ->
     return out
 
 
-def one_window(window: dict, table: tuple[tuple[str, str], ...]) -> dict:
-    """Auction, then season, then championship - for one of the gate's windows."""
-    pool = [dict(man) for man in window["players"] + list(window.get("others", []))]
-    factor = to_credits(pool)
-    for man in pool:
-        man["price"] = max(1.0, man["price"] * factor)
-        fm, pv = man.get("fm_pred"), man.get("pv_pred")
-        man["value"] = fm * pv if fm is not None and pv is not None else None
+def one_window(window: dict, table: tuple[tuple[str, str], ...],
+               order: list[dict] | None = None, pool: list[dict] | None = None) -> dict:
+    """Auction, then season, then championship - for one of the gate's windows and one order of lots."""
+    pool = priced_pool(window) if pool is None else pool
     teams: dict[str, Team] = {}
-    shares, rate = role_shares(pool), engine_rate(pool)
+    shares, rate, asks = role_shares(pool), engine_rate(pool), tier_asks(pool)
     for letter, profile in table:
         team = Team(letter, profile, None if profile == "ENGINE" else PROFILES[profile])
         team.rate = rate
+        team.asks = asks
         team.matchdays = window["rounds"]
         if profile == "ENGINE":
             team.shares = shares
         teams[letter] = team
-    auction(pool, list(teams.values()))
+    auction(pool, list(teams.values()), order)
 
     letters = tuple(letter for letter, _ in table)
     calendar = fixtures(letters)
@@ -181,21 +178,52 @@ def one_window(window: dict, table: tuple[tuple[str, str], ...]) -> dict:
                                         if row["points"] < rules.GOAL_FLOOR),
                      "men": squad_rows(team, fielded[letter], scored[letter])})
     return {"key": window.get("key"), "input": window["input"], "target": window["target"],
-            "rounds": window["rounds"], "matchdays": len(calendar),
+            "rounds": window["rounds"], "matchdays": len(calendar), "draw": window.get("draw"),
             "table": standings(rows), "results": results}
 
 
-def run(table: tuple[tuple[str, str], ...] = LEAGUE_TABLE) -> dict:
+def compact(win: dict) -> dict:
+    """One drawn order, kept for the AGGREGATE and not for reading: no squads and no fixtures.
+
+    Twenty urns per window is twenty championships, and the whole of what they are for is the spread -
+    a single one measures the luck of that order and nothing else. The full detail of one of them is
+    kept separately, and the page that draws it has to say which one it is.
+    """
+    return {"key": win["key"], "draw": win["draw"],
+            "rows": [{"letter": r["letter"], "profile": r["profile"], "place": place,
+                      "table_points": r["table_points"], "points": r["points"],
+                      "goals_for": r["goals_for"], "goals_against": r["goals_against"],
+                      "under_floor": r["under_floor"], "holes": r["holes"], "spent": r["spent"]}
+                     for place, r in enumerate(standings(win["table"]), 1)]}
+
+
+def run(table: tuple[tuple[str, str], ...] = LEAGUE_TABLE, draws: int = 0) -> dict:
+    """The ten windows. `draws` = 0 calls the lots dearest first; N > 0 draws N extractions of each.
+
+    What comes back carries BOTH readings and neither may hide the other: `windows` is the full detail
+    of ONE order per window - the standings, the squads, every fixture - and `all` is every draw of
+    every window in the compact form the aggregate needs. A page that shows only the first is showing
+    one roll of the dice; one that shows only the second cannot be checked against a single auction.
+    """
     windows = json.loads(WINDOWS_FILE.read_text(encoding="utf-8"))
-    out = []
+    shown, every = [], []
     for key, window in windows.items():
-        out.append(one_window({**window, "key": key}, table))
+        pool = priced_pool(window)
+        for draw in range(max(1, draws)):
+            order = extraction_order(pool, window_seed(key, draw)) if draws else None
+            played = one_window({**window, "key": key, "draw": draw if draws else None},
+                                table, order, pool)
+            if draw == 0:
+                shown.append(played)
+            every.append(compact(played))
     return {"table": [{"letter": letter, "profile": profile} for letter, profile in table],
             "legs": LEGS, "goal_floor": rules.GOAL_FLOOR, "goal_step": rules.GOAL_STEP,
-            "windows": out}
+            "draws": draws, "windows": shown, "all": every}
 
 
 def report(result: dict) -> None:
+    print(f"extraction: {result['draws']} random draws per window" if result["draws"]
+          else "extraction: called, dearest first")
     for window in result["windows"]:
         print(f"\n=== {window['key']}  {window['input']} -> {window['target']}  "
               f"({window['matchdays']} matchdays) ===")
@@ -207,10 +235,10 @@ def report(result: dict) -> None:
                   f"{row['goals_against']:4d} {row['points']:7.1f} {row['under_floor']:4d} "
                   f"{row['holes']:6.0f} {row['spent']:6d}")
     per_profile: dict[str, list[dict]] = {}
-    for window in result["windows"]:
-        for place, row in enumerate(window["table"], 1):
-            per_profile.setdefault(row["profile"], []).append({**row, "place": place})
-    print("\n=== over the ten windows, per profile ===")
+    for window in result["all"]:
+        for row in window["rows"]:
+            per_profile.setdefault(row["profile"], []).append(row)
+    print(f"\n=== over the ten windows x {max(1, result['draws'])} draws, per profile ===")
     print(f"{'profile':22s} {'pt':>6s} {'place':>6s} {'titles':>7s} {'fanta':>8s} {'GF':>6s} "
           f"{'GA':>6s} {'<66':>5s} {'holes':>6s}")
     for profile in sorted(per_profile, key=lambda p: -st.mean(r["table_points"]
@@ -229,10 +257,13 @@ def report(result: dict) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="the auction, then a championship on a calendar")
     parser.add_argument("--json", type=Path, help="write the whole thing out for the artifact")
+    parser.add_argument("--random", dest="draws", nargs="?", type=int, const=20, default=0,
+                        metavar="DRAWS",
+                        help="the platform DRAWS the lots, DRAWS times per window (default 20)")
     args = parser.parse_args()
     if not WINDOWS_FILE.exists():
         raise SystemExit(f"missing {WINDOWS_FILE.name}: run bench/draft/extract.py first")
-    result = run()
+    result = run(LEAGUE_TABLE, args.draws)
     report(result)
     if args.json:
         # EXPLICIT UTF-8: on Windows the default encoding cannot re-read the names it just wrote.

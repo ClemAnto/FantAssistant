@@ -101,6 +101,17 @@ buchi). Contiene anche la diversificazione fra club reali ADOTTATA con il suo pr
 dichiarate che nessuno ha ancora chiesto ai dati, e — **§13** — il verbale della review del 02/09/2026:
 otto rilievi, cinque in codice appena spedito, tre trovati misurando e **uno sbagliato**.
 
+**E dal 02/09/2026 (notte) quel banco è tarato su ASTE VERE, non su comportamenti dichiarati**:
+`docs/real-data/` (gitignorato: contenuto a pagamento più nomi di leghe reali) porta **147 aste** sul
+listone ufficiale, **60 con la sua rosa giocate da dieci partecipanti**, 29.421 aggiudicazioni. Da leggere
+in `simulatore-asta-rilanci-v1.md` **§15-§20** prima di toccare il banco, perché ha cambiato il MECCANISMO
+e ritirato cinque numeri pubblicati: **un'asta si gioca a REPARTI** (P→D→C→A, misurato su 16 aste su 20 con
+le posizioni medie identiche a due decimali), **l'urna si RIMESCOLA** (un nome rifiutato torna), la scala
+di una ricetta è indicizzata sul **TIER** e non su quanti uomini possiedi, e il braccio motore offre sulla
+**scala di mercato** invece che in fantapunti — da ultimo a **primo** all'urna, +20,5% strict su 10
+finestre di 10. Il §19.3 traduce la ricetta vincente in un **listino in crediti** per la sua lega; il §20
+dice cosa fare dopo e cosa **non** rifare, con i numeri.
+
 ## STATO AL 1 SETTEMBRE 2026 — LEGGI QUESTO PRIMA DI TUTTO
 
 **Il QUINTO banco esiste: `bench/auction`, che giudica le STRATEGIE D'ASTA a rilanci** — e la sera stessa

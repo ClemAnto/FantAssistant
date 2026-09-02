@@ -16,11 +16,13 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from bench.auction import rules
-from bench.auction.bench import (DEPTH_WEIGHT, HOLE_COST, QUOTA_DEPTH, Team, auction, cover_value,
-                                 coverage_need, covered_places, engine_rate, role_shares, season,
-                                 to_credits)
+from bench.auction.bench import (DEPTH_WEIGHT, HOLE_COST, PHASES, QUOTA_DEPTH, Team, Urn,
+                                 auction, called_order, cover_value, coverage_need, covered_places,
+                                 engine_rate, engine_worth, extraction_order, role_of, role_shares,
+                                 season, set_tiers, tier_asks, to_credits)
 from bench.auction.league import LEAGUE_TABLE, LEGS, fixtures, round_robin, standings
-from bench.auction.profiles import MENTAL_CAP_SHARE, PROFILES, URGENCY
+from bench.auction.profiles import (MARKET, MARKET_SHARE, MENTAL_CAP_SHARE, PROFILES,
+                                    TILT, URGENCY, engine_ladder)
 
 
 # ----------------------------------------------------------------------------- the regulation
@@ -379,3 +381,443 @@ def test_a_participant_gets_ceilings_and_a_spend_from_HIS_OWN_purse():
     half.men["A"].append({**_man("A", 38.0, ident=7), "paid": 120})
     half.left -= 120
     assert season(half, {}, {}, 1)["spent"] == 120
+
+
+# ------------------------------------------------------------------- the RANDOM extraction (02/09/2026)
+
+def _urn(pool: list[dict], random: bool) -> Urn:
+    """An urn with nothing drawn yet and the table's demand already on it."""
+    urn = Urn(pool)
+    urn.random = random
+    urn.demand = sum(rules.SLOTS.values()) * rules.TEAMS
+    for role in rules.SLOTS:
+        urn.needing[role] = rules.TEAMS
+    return urn
+
+
+def test_the_extraction_is_reproducible_and_ignores_the_order_of_the_file():
+    """A bench whose numbers cannot be repeated cannot be cited - and the order the pool happens to be
+    listed in is not a fact about the auction, so the same seed on a shuffled pool draws the same lots."""
+    pool = _pool()
+    first = [man["id"] for man in extraction_order(pool, 4242)]
+    again = [man["id"] for man in extraction_order(list(reversed(pool)), 4242)]
+    other = [man["id"] for man in extraction_order(pool, 4243)]
+    assert first == again
+    assert first != other
+    assert sorted(first) == sorted(man["id"] for man in pool), "un lotto è sparito dall'urna"
+
+
+def test_a_called_auction_never_asks_what_is_still_to_come():
+    """The term that wins at a random extraction is INERT at a called one, and that is why nothing
+    published on the called mechanism moved.
+
+    The reason is the order itself: the man on the block is the dearest one left, so «is somebody
+    better coming?» is a question the order has already answered. Measured, it is also the right call -
+    on the ten called windows the term is worth +0.3% (under the 0.5% floor) with one window at -5.6%.
+    """
+    pool = _pool()
+    team = Team("engine", "ENGINE", None)
+    team.shares, team.matchdays = role_shares(pool), 38
+    lots = called_order(pool)
+    urn = _urn(lots, random=False)
+    urn.take(lots[0])
+    assert team.alternative(lots[1], urn) == 0.0
+    assert team.reach(lots[1], urn) == 1.0
+    drawn = _urn(lots, random=True)
+    drawn.take(lots[0])
+    assert team.alternative(lots[1], drawn) > 0.0
+
+
+def test_the_urn_forgets_what_has_been_drawn_even_after_it_compacts():
+    """`dearest`, `nth` and `left` all read the men STILL to come - across the lazy compaction that
+    keeps the walks short. A stale answer here would price a bid against a man already sold."""
+    pool = _pool()
+    urn = _urn(pool, random=True)
+    defenders = sorted((m for m in pool if m["slot"] == "d"), key=lambda m: -m["price"])
+    before = urn.left("D")
+    for man in defenders[: len(defenders) // 2 + 1]:      # enough to force a compaction
+        urn.take(man)
+    assert urn.left("D") == before - (len(defenders) // 2 + 1)
+    assert urn.dearest(("D",)) <= defenders[len(defenders) // 2 + 1]["price"]
+    still = urn.nth("D", 0)
+    assert still is not None and still["id"] not in {m["id"] for m in defenders[: len(defenders) // 2 + 1]}
+
+
+def test_the_alternative_is_the_k_th_best_left_where_k_is_who_still_wants_the_role():
+    """Counted, not chosen: if k participants still have a slot open there, the best k left go one
+    each, so the man this squad ends up with if it lets this lot pass is the k-th of them."""
+    pool = _pool()
+    team = Team("engine", "ENGINE", None)
+    team.shares, team.matchdays = role_shares(pool), 38
+    urn = _urn(pool, random=True)
+    urn.needing["A"] = 3
+    striker = next(m for m in pool if m["slot"] == "a")
+    urn.take(striker)
+    third = urn.nth("A", 2)
+    assert team.alternative(striker, urn) == pytest.approx(engine_worth(third, team))
+
+
+def test_the_spending_floor_refuses_a_man_worse_than_the_one_still_to_come():
+    """«Spend it or lose it» never means buying a man worse than the one who is coming.
+
+    At a random extraction a SLOT is as scarce as a credit, so a floor that invents appetite does not
+    spend a credit - it spends a place in the squad, and the credit stays in the purse anyway. Worth
+    2486.8 -> 2565.8 points and holes 33.4 -> 22.9 on the ten drawn windows.
+    """
+    pool = _pool()
+    team = Team("engine", "ENGINE", None)
+    team.shares, team.matchdays = role_shares(pool), 38
+    team.left = 900
+    urn = _urn(pool, random=True)
+    urn.needing["A"] = 1
+    poor = {"id": 9001, "name": "scarto", "slot": "a", "roles": ["a"], "price": 3.0,
+            "fm_pred": 6.0, "pv_pred": 2.0, "surplus": 0.1}
+    urn.take(poor)
+    assert engine_worth(poor, team) < team.alternative(poor, urn), "il caso di prova non è quello giusto"
+    floor = (team.left - (team.slots_left() - 1)) / team.slots_left()
+    assert team.bid(poor, urn) < floor, "il pavimento ha comprato un uomo peggiore di quello che esce dopo"
+
+
+def test_a_drawn_auction_keeps_every_invariant_a_called_one_keeps():
+    """Nobody overspends, nobody exceeds his slots, and nobody pays more than his own ceiling - the
+    three things that make the bench's numbers worth reading, asserted on the other mechanism too."""
+    pool = _pool()
+    teams = _table()
+    for team in teams:
+        team.matchdays = 38
+    auction(pool, teams, extraction_order(pool, 7))
+    for team in teams:
+        assert team.left >= 0
+        assert team.budget - team.left <= rules.BUDGET
+        for role, slots in rules.SLOTS.items():
+            assert len(team.men[role]) <= slots
+            for man in team.men[role]:
+                assert 1 <= man["paid"] <= round(rules.BUDGET * MENTAL_CAP_SHARE)
+    bought = Counter(man["id"] for team in teams for men in team.men.values() for man in men)
+    assert not [ident for ident, times in bought.items() if times > 1], "un uomo venduto due volte"
+
+# ------------------------------------------------- realistic dynamics, on real data (02/09/2026)
+
+def test_the_ladder_is_indexed_by_WHO_THE_MAN_IS_and_not_only_by_what_you_hold():
+    """The defect the operator found from the result: «almeno 3 devono essere suoi».
+
+    P2's whole strategy is the top of the defence, and the step was indexed by how many defenders he
+    already held - the same number as the tier ONLY when the lots are called dearest first. Drawn at
+    random he met the 90th defender of the listone first and paid the first-choice premium for him.
+    """
+    pool = _pool()
+    set_tiers(pool)
+    team = Team("p2", "P2 defence", PROFILES["P2 defence"])
+    best = next(m for m in pool if role_of(m) == "D" and m["tier"] == 0)
+    filler = next(m for m in pool if role_of(m) == "D" and m["tier"] == 7)
+    assert team.step(best) > 1.0, "il migliore della difesa non paga il gradino alto"
+    assert team.step(filler) < 0.3, "il 71esimo difensore paga come un titolare"
+    # ...and the HELD half still binds: with three defenders in the squad the fourth is his fourth,
+    # whatever tier he belongs to, or a profile buys eight first-choice men at the first-choice price.
+    for index in range(3):
+        team.men["D"].append({**_man("D", 30.0, ident=500 + index), "tier": 0, "paid": 1})
+    assert team.step(best) == pytest.approx(PROFILES["P2 defence"]["D"][3])
+
+
+def test_a_slot_is_not_spent_while_the_urn_can_still_supply_better_men():
+    """«Conservare almeno uno o due posti per qualche occasione alla fine» - counted, never declared.
+
+    Of the 50 dearest men of the listone, 14,3 went unsold at a drawn auction before this rule and
+    1,93 after, against 1,75 in the four real drawn auctions whose order could be reconstructed.
+    """
+    pool = _pool()
+    set_tiers(pool)
+    lots = called_order(pool)
+    urn = _urn(lots, random=True)
+    team = Team("p3", "P3 balanced", PROFILES["P3 balanced"])
+    filler = next(m for m in pool if role_of(m) == "D" and m["tier"] == 7)
+    # eight slots open and seventy better defenders in the urn: his share of them is seven, which does
+    # not cover eight, so he bids. With one slot left it covers it, and he waits.
+    assert not team.keeps(filler, urn)
+    for index in range(7):
+        team.men["D"].append({**_man("D", 30.0, ident=600 + index), "tier": 1, "paid": 1})
+    assert team.keeps(filler, urn)
+    assert team.bid(filler, urn) == 0, "ha comprato il riempimento sull'ultimo posto"
+
+
+def test_the_kept_slot_is_inert_at_a_called_auction():
+    """One rule, two mechanisms - and this is why nothing about a called auction depends on it: the
+    man on the block is the dearest one left, so there is never a better one still to come."""
+    pool = _pool()
+    set_tiers(pool)
+    lots = called_order(pool)
+    urn = _urn(lots, random=False)
+    team = Team("p3", "P3 balanced", PROFILES["P3 balanced"])
+    for man in lots[:40]:
+        urn.take(man)
+        assert not team.keeps(man, urn), f"{man['name']} rifiutato a un'asta a chiamata"
+
+
+def test_the_recipe_is_normalised_to_the_purse_and_a_saved_purse_bids_up():
+    """`Team.scale`: a recipe is a DISTRIBUTION of the purse, and its level is a conservation law.
+
+    It replaced a flat floor per remaining slot, which said «40 a man» about the best striker of the
+    listone and about the 200th defender alike - and left four participants of ten with ZERO men under
+    5 credits, against 8 of 25 in the 131 real auctions.
+    """
+    pool = _pool()
+    set_tiers(pool)
+    asks = tier_asks(pool)
+    rich = Team("rich", "P3 balanced", PROFILES["P3 balanced"])
+    poor = Team("poor", "P3 balanced", PROFILES["P3 balanced"])
+    rich.asks = poor.asks = asks
+    poor.left = 200
+    assert rich.scale() > 0
+    assert poor.scale() < rich.scale(), "chi ha speso troppo non si raziona"
+    man = next(m for m in pool if role_of(m) == "C" and m["tier"] == 0)
+    assert poor.bid(man) < rich.bid(man)
+    # and with no asks handed over - which is what the unit tests do - the recipe is read at face value
+    naked = Team("naked", "P3 balanced", PROFILES["P3 balanced"])
+    assert naked.scale() == 1.0
+
+
+def test_a_plan_ring_fences_its_credits_and_releases_them_by_itself():
+    """«Lo attende conservando piu' crediti degli altri ... solo dopo aver preso un attaccante TOP
+    comincia a piazzare qualche altra offerta seria».
+
+    Two things are asserted because both are what makes a plan safe: the money is not available to
+    anybody else while it is owed, and it comes back the moment the urn has no target left - so a plan
+    can slow a squad down and can never stop it closing.
+    """
+    pool = _pool()
+    set_tiers(pool)
+    urn = _urn(pool, random=True)
+    striker = Team("p4", "P4 top striker", PROFILES["P4 top striker"])
+    striker.asks = tier_asks(pool)
+    other = next(m for m in pool if role_of(m) == "C" and m["tier"] == 0)
+    target = next(m for m in pool if role_of(m) == "A" and m["tier"] == 0)
+    assert striker.reserved(target, urn) == 0, "il bersaglio non paga la propria riserva"
+    assert striker.reserved(other, urn) == round(rules.BUDGET * 0.40)
+    held = striker.bid(other, urn)
+    striker.men["A"].append({**target, "paid": 1})
+    assert striker.bid(other, urn) > held, "preso il top, non ha ripreso a offrire"
+    # ...and if the urn runs out of first-tier forwards the money is released without him buying one
+    empty = Team("p4b", "P4 top striker", PROFILES["P4 top striker"])
+    empty.asks = striker.asks
+    for man in pool:
+        if role_of(man) == "A" and man["tier"] == 0:
+            urn.take(man)
+    assert empty.reserved(other, urn) == 0
+
+
+def test_the_market_ladder_is_the_one_the_real_auctions_measured():
+    """A transcription check, the same one the two rulebooks make about themselves.
+
+    These numbers are not a model choice: they are `docs/real-data/`, 131 auctions of this roster and
+    29.421 purchases. What may be wrong here is only the transcription - so the shape is pinned (one
+    step per slot of each role), the attack's first tier is pinned as the dearest thing at the table,
+    and the tail is pinned below a quarter of the ask, which is «1-5 crediti per i pezzi comuni».
+    """
+    for role, slots in rules.SLOTS.items():
+        assert len(MARKET[role]) == slots, f"{role}: un gradino per posto in rosa"
+    assert MARKET["A"][0] > 2.0 > MARKET["C"][0] > MARKET["D"][0]
+    assert MARKET["D"][-1] <= 0.25 and MARKET["C"][-1] <= 0.25
+    # and every profile is built from it, so the level is stated once
+    for name, tilts in TILT.items():
+        for role in rules.SLOTS:
+            if role not in tilts:
+                assert PROFILES[name][role] == MARKET[role]
+
+
+def test_the_engine_arm_keeps_the_floor_the_humans_no_longer_have():
+    """`ABUNDANCE` is the engine arm's alone now, and that is a decision worth pinning.
+
+    The humans reach «nobody ends an auction with credits in his pocket» through `scale`; the engine
+    arm has no recipe to normalise, so it keeps the affordable share per remaining slot - the same
+    floor whose clipping was worth +6,7 points in the review of 02/09.
+    """
+    pool = _pool()
+    set_tiers(pool)
+    team = Team("engine", "ENGINE", None)
+    team.shares, team.matchdays, team.asks = role_shares(pool), 38, tier_asks(pool)
+    assert team.scale() == 1.0, "il braccio motore non ha una ricetta da normalizzare"
+    for role, count in rules.SLOTS.items():
+        for index in range(count - (1 if role == "A" else 0)):
+            team.men[role].append({**_man(role, 38.0, ident=1000 + index), "paid": 1})
+    team.left = 400
+    assert team.bid(_man("A", 38.0, surplus=1.0, price=5.0, ident=99)) >= 300
+
+# ------------------------------------- the order, the name and the step (02/09/2026, evening)
+
+def test_the_auction_is_played_ROLE_BY_ROLE_the_way_the_platform_plays_it():
+    """MEASURED, not chosen: 16 of the 20 real auctions with this league put the mean award position
+    of the four roles at 0.06 · 0.28 · 0.60 · 0.88, identical to two decimals across sixteen separate
+    sessions - and those numbers are exactly where the ROSTER puts the boundaries (3 keepers of 25
+    places, then 8, then 8, then 6).
+
+    It is the single biggest thing this bench had wrong: with a free order the table spent 46% of the
+    montepremi in the first tenth of the awards against a real 9%.
+    """
+    pool = _pool()
+    set_tiers(pool)
+    for order in (called_order(pool), extraction_order(pool, 99)):
+        seen = [role_of(man) for man in order]
+        first = [seen.index(role) for role in PHASES]
+        assert first == sorted(first), f"le fasi non sono in ordine: {first}"
+        # ...and each role is a BLOCK: the men of a role are contiguous
+        for role in PHASES:
+            spots = [i for i, r in enumerate(seen) if r == role]
+            assert spots == list(range(spots[0], spots[-1] + 1)), f"{role} non e' un blocco"
+    # the free order is still reachable, because 4 of those 20 auctions ran free
+    free = extraction_order(pool, 99, phased=False)
+    assert [role_of(m) for m in free] != [role_of(m) for m in extraction_order(pool, 99)]
+
+
+def test_the_phase_boundaries_fall_where_the_ROSTER_puts_them():
+    """The four measured positions are not a coincidence to be transcribed: they are the slot counts.
+
+    Checked as the real archive was read - the mean position of each role's awards - so if either the
+    roster or the phase order ever changes, this is what says so.
+    """
+    pool = _pool()
+    set_tiers(pool)
+    order = extraction_order(pool, 7)
+    # keep only the men a table would actually roster, which is what an award sequence contains
+    kept: list[dict] = []
+    held = {role: 0 for role in rules.SLOTS}
+    for man in order:
+        role = role_of(man)
+        if held[role] < rules.SLOTS[role] * rules.TEAMS:
+            held[role] += 1
+            kept.append(man)
+    means = {}
+    for role in PHASES:
+        spots = [i / (len(kept) - 1) for i, man in enumerate(kept) if role_of(man) == role]
+        means[role] = sum(spots) / len(spots)
+    assert means["P"] == pytest.approx(0.06, abs=0.02)
+    assert means["D"] == pytest.approx(0.28, abs=0.02)
+    assert means["C"] == pytest.approx(0.60, abs=0.02)
+    assert means["A"] == pytest.approx(0.88, abs=0.02)
+
+
+def test_the_step_counts_the_BETTER_men_owned_and_not_the_men_owned():
+    """A squad with four forwards was pricing the best player of the game as its FIFTH.
+
+    That is what made a champion drawn late in his own phase worth a credit: 0.18 times the ask
+    instead of 2.38. Measured on the four targets after the fix: men bought at five credits or less
+    7.0 -> 8.0 (real 9.5), credits left in pocket 10.2% -> 6.2% (real 6.1%), and the champion's price
+    inside his own block 47.8 / 31.0 / 12.3 / 1.6 -> 47.0 / 42.0 / 42.0 / 40.5 against a real
+    43.1 / 45.4 / 37.6 / 34.7.
+    """
+    pool = _pool()
+    set_tiers(pool)
+    team = Team("p4", "P4 top striker", PROFILES["P4 top striker"])
+    champion = next(m for m in pool if role_of(m) == "A" and m["tier"] == 0)
+    top_step = team.step(champion)
+    for index in range(4):                      # four forwards, none of them as good as he is
+        team.men["A"].append({**_man("A", 30.0, ident=700 + index), "tier": 3, "paid": 1})
+    assert team.step(champion) == top_step, "il campione prezzato come un quinto attaccante"
+    # ...and the guard the plain count was there for still holds: better men DO walk the ladder down
+    team.men["A"].append({**champion, "paid": 1})
+    assert team.step(champion) < top_step
+
+
+def test_a_TARGET_is_a_NAME_and_owning_the_tenth_best_does_not_release_the_plan():
+    """«Deve puntare sul TOP in attacco (L.Martinez/Thuram/ecc...) e fa di tutto per prenderlo.»
+
+    Read as «any first-tier forward» the plan released itself the moment he bought the tenth-best of
+    them - and with it went the money and the place that were being kept for the champion.
+    """
+    pool = _pool()
+    set_tiers(pool)
+    urn = _urn(pool, random=True)
+    team = Team("p4", "P4 top striker", PROFILES["P4 top striker"])
+    team.asks = tier_asks(pool)
+    other = next(m for m in pool if role_of(m) == "C" and m["tier"] == 0)
+    assert team.owed("A") == 1
+    tenth = next(m for m in pool if role_of(m) == "A" and m.get("rank") == rules.TEAMS - 1)
+    assert tenth["tier"] == 0, "il decimo del ruolo e' ancora di prima fascia"
+    team.men["A"].append({**tenth, "paid": 1})
+    assert team.owed("A") == 1, "il piano si e' liberato comprando il decimo"
+    assert team.reserved(other, urn) > 0
+    champion = next(m for m in pool if role_of(m) == "A" and m.get("rank") == 0)
+    team.men["A"].append({**champion, "paid": 1})
+    assert team.owed("A") == 0
+    assert team.reserved(other, urn) == 0
+
+
+def test_a_plan_keeps_its_PLACE_as_well_as_its_money_and_only_a_plan_does():
+    """«Su 10 persone QUALCUNO dovrebbe conservare un posto in rosa aspettando proprio il campione.»
+
+    Given to everybody the same rule strangles the auction - measured, 8.4 slots of 250 left unfilled
+    and 18 of the top 50 unsold, because all ten wait for the same man. Given to the profiles whose
+    declared strategy IS that man it costs at most three places across the table.
+    """
+    pool = _pool()
+    set_tiers(pool)
+    urn = _urn(pool, random=True)
+    # A MAN OF THE FIRST TIER WHO IS NOT THE TARGET: nobody better than him is left to wait for, so
+    # the counted rule (`Team.keeps`'s own arithmetic) releases every squad - and the plan does not.
+    # Built this way on purpose: a test that cannot separate the two rules is not testing either.
+    other = next(m for m in pool if role_of(m) == "A" and m["tier"] == 0 and m["rank"] > 0)
+    for man in pool:
+        if role_of(man) == "A" and 0 < man["rank"] < other["rank"]:
+            urn.take(man)
+    striker = Team("p4", "P4 top striker", PROFILES["P4 top striker"])
+    plain = Team("p3", "P3 balanced", PROFILES["P3 balanced"])
+    for team in (striker, plain):
+        for index in range(rules.SLOTS["A"] - 1):
+            team.men["A"].append({**_man("A", 30.0, ident=800 + index), "tier": 3, "paid": 1})
+    assert not plain.keeps(other, urn), "il conto non ha rilasciato il posto"
+    assert striker.keeps(other, urn), "il posto del campione e' stato venduto"
+    # ...and once the champion has been drawn and taken by somebody else, the place is free again
+    urn.take(next(m for m in pool if role_of(m) == "A" and m["rank"] == 0))
+    assert not striker.keeps(other, urn)
+
+# --------------------------------------- the engine arm on the market's ladder (02/09/2026, night)
+
+def test_the_arm_bids_on_the_MARKET_LADDER_at_a_drawn_auction_and_not_at_a_called_one():
+    """A ceiling in fantapunti cannot win a contested lot, however well the footballer is judged.
+
+    Photographed, the arm bid 0,16-0,47 of what the men it lost went for and bought at a median of ONE
+    credit. On the market's ladder tilted toward the back it goes from tenth of eleven to first at a
+    drawn auction (+17,9%, 10 windows of 10, holes 79,8 -> 22,4) - and the same ladder LOSES 2% at a
+    called auction, so the mechanism switches it, not a flag.
+    """
+    pool = _pool()
+    set_tiers(pool)
+    arm = Team("engine", "ENGINE", None)
+    arm.shares, arm.matchdays, arm.asks = role_shares(pool), 38, tier_asks(pool)
+    lots = called_order(pool)
+    drawn, called = _urn(lots, random=True), _urn(lots, random=False)
+    man = next(m for m in pool if role_of(m) == "D" and m["tier"] == 0)
+    drawn.take(man)
+    called.take(man)
+    on_ladder, on_worth = arm.bid(man, drawn), arm.bid(man, called)
+    assert on_ladder != on_worth, "il braccio offre lo stesso su tutt'e due i meccanismi"
+    # the ladder's own arithmetic - and `scale` has to be read WITH the ladder installed, because it
+    # normalises the plan the recipe describes and the arm has no recipe of its own
+    arm.recipe = engine_ladder()
+    expected = arm.recipe["D"][0] * man["price"] * arm.scale()
+    arm.recipe = None
+    assert on_ladder == pytest.approx(expected, rel=.05)
+    assert on_ladder > man["price"], "un difensore di prima fascia sotto la richiesta"
+    assert arm.recipe is None, "la ricetta presa in prestito e' rimasta addosso al braccio"
+
+
+def test_the_engine_ladder_conserves_the_budget_and_leans_on_the_back():
+    """A tilt that does not conserve is not a strategy, it is a bigger purse.
+
+    Whatever the back takes the front gives up, so the plan still costs one budget - and what the search
+    found is that the keepers and the defence carry it, which the regulation explains: both modifiers of
+    this league are paid in BASE VOTES (the defence one on the mean of the best three defenders, the
+    R-Factor on all eleven) and base votes are what a back line delivers.
+    """
+    ladder = engine_ladder()
+    for role in rules.SLOTS:
+        assert len(ladder[role]) == len(MARKET[role])
+    # conserving: the departments still add up to the market's own total spend
+    total = sum(sum(ladder[role]) / sum(MARKET[role]) * MARKET_SHARE[role] for role in ladder)
+    assert total == pytest.approx(1.0, abs=1e-9)
+    # ...and it leans on the DEFENCE and nothing else: the keepers were measured apart and the tilt on
+    # them is worth nothing (+0,1%, 4 windows of 10) while it spends 100 credits in goal instead of 58,
+    # so they are out of it - see `profiles.ENGINE_BACK`.
+    assert ladder["D"][0] / MARKET["D"][0] > 1.5
+    assert ladder["P"][0] / MARKET["P"][0] < 1.0, "il tilt e' tornato sui portieri"
+    assert ladder["A"][0] / MARKET["A"][0] < 1.0
+    assert ladder["D"][-1] / MARKET["D"][-1] < 1.0, "la coda non paga il premio della cima"

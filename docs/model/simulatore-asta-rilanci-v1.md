@@ -1,5 +1,6 @@
 # Simulatore d'asta a rilanci — `bench/auction` (v1, 1 settembre 2026;
-# numeri rimisurati il 2 settembre 2026 dopo la review, §13)
+# numeri rimisurati il 2 settembre 2026 dopo la review, §13;
+# **l'asta a ESTRAZIONE RANDOM, stesso giorno, §14**)
 
 **Il QUINTO banco.** `backtest` giudica le REGOLE, `sweep` le COSTANTI, `zeros` lo ZERO, `bench/draft` le
 POLITICHE DI DRAFT — questo giudica le **STRATEGIE D'ASTA**: quanto offrire, per chi, in quale reparto,
@@ -8,9 +9,16 @@ contro un tavolo di partecipanti che giocano ognuno a modo suo. E dal 01/09/2026
 stagionale dice chi fa più punti, una classifica dice chi *vince*.
 
 ```
-python -m bench.auction.bench --engine          # il tavolo dichiarato + un braccio che legge il motore
-python -m bench.auction.league --json out.json  # il tavolo A...L dell'operatore, 36 giornate, tutto
+python -m bench.auction.bench --engine                 # A CHIAMATA: si parte dai piu' cari
+python -m bench.auction.bench --engine --random 20     # A ESTRAZIONE: 20 urne per finestra
+python -m bench.auction.bench --engine 3 --random 20   # tre sedie al motore, che e' il NULL
+python -m bench.auction.league --random 20 --json out.json   # il campionato, tutto
 ```
+
+**Due meccanismi, una sola regola di prezzo** (02/09/2026, §14). Quello che questa pagina chiama *a
+chiamata* e' l'asta in cui i nomi piu' cari vanno per primi; *a estrazione* e' quella in cui il
+calciatore lo pesca la macchina — che e' l'asta che l'operatore giochera'. Tutti i numeri pubblicati
+sulla prima **non si muovono di un decimale**, ed e' verificato invece che sperato.
 
 Serve `bench/draft/leghe-classic.json`, rigenerato con `python extract.py leghe-classic.json "Leghe"` da
 `bench/draft/` (~2 minuti, sola lettura sul DB). **Non è in git**: porta nomi, prezzi e voti di contenuto
@@ -435,6 +443,10 @@ stessa famiglia dei «276px di colonne non strette, ASSENTI» della tabella dell
 
 ## 12. Prossimi passi, in ordine di resa attesa
 
+> **RISCRITTI nel §20 la notte del 02/09/2026**, dopo che i dati veri hanno fatto o superato metà
+> di questa lista: `CAUTIOUS_CAP_SHARE` è stato riancorato e trovato inerte, `URGENCY` chiesto ai
+> dati, `ABUNDANCE` è passato al solo braccio motore, e il NULL rifatto ha cambiato di segno.
+
 1. **Lo SWEEP delle quattro manopole dichiarate dentro il braccio vincente**, che è la ragione per cui
    questo banco esiste: `URGENCY` (1,8), `CAUTIOUS_CAP_SHARE` (0,15), `ABUNDANCE` (1,0), `CLUB_PENALTY`
    (0,45). Nessuna è stata chiesta ai dati. Regola di casa: **niente al bordo della griglia**, e il
@@ -507,3 +519,1003 @@ presa** — prima di uniformare due dialetti, chiedersi se sono la stessa lingua
 E una del mio arnese di verifica, perché è la stessa famiglia: il primo controllo del valore marginale
 sostituiva **il portiere** col p90 di un attaccante (che è più basso) e leggeva −1,0. Verificare la
 funzione, non la cella che le assomiglia — settima istanza, questa volta dentro una review.
+
+
+---
+
+## 14. L'asta a ESTRAZIONE RANDOM (2 settembre 2026)
+
+Richiesta dell'operatore: «l'asta che dovrò affrontare sarà ad **estrazione RANDOM** del calciatore che
+andrà in asta». Non è un cambio d'ordine con qualche conseguenza: è un gioco diverso, e la prima cosa da
+misurare non è chi vince ma **cosa fa il meccanismo**, a strategie ferme.
+
+Una domanda è stata fatta prima di scrivere una riga, perché le due risposte portavano a due lavori
+diversi: estrazione libera su tutto il listone, o a blocchi di ruolo (prima i portieri, poi i difensori)?
+La risposta è **libera**, e tutto quello che segue è misurato su quella.
+
+### 14.1 Cosa fa l'urna, prima di ogni strategia
+
+Stessa lega, stesso listone, stesse regole, stessi profili: cambia solo chi decide quale nome sale sul
+banco. Dieci finestre, venti estrazioni ciascuna.
+
+| | a chiamata | a estrazione |
+|---|---|---|
+| dei 50 migliori per valore del motore, quanti restano **INVENDUTI** | 0,1 | **14,3** |
+| il lotto più caro dell'asta, in quota di un budget | 31,2% (26-35%) | 18,4% (**11-48%**) |
+| quanto è andato via il migliore del listone | 31,2% | 10,8% (**0-35%**) |
+| crediti che il tavolo riesce a spendere, su 1000 | 978 | **709** |
+| buchi in una stagione, per partecipante | 25,4 | **50,0** |
+| pagato / Qt.I, primo decimo dei lotti … ultimo decimo | 1,13 … 4,78 | **1,30 … 5,03** |
+
+**L'estrazione SPRECA la cima del listone.** Quattordici dei cinquanta migliori non li compra nessuno:
+escono quando le rose sono già piene. E quanto costa il migliore smette di essere una sua proprietà —
+estratto presto vale un terzo di un budget, estratto tardi resta invenduto. Tutto quello che una
+strategia può fare sta a valle di questo.
+
+**Un partecipante, una finestra, venti urne: sd 170 fantapunti**, contro sd 199 fra le dieci stagioni
+stesse. **Il sorteggio conta quasi quanto la stagione**, ed è per questo che `--random` prende un numero
+di ESTRAZIONI: una sola misura la fortuna di quell'ordine e nient'altro.
+
+### 14.2 Il braccio che vinceva a chiamata finisce QUINTO SU SEI
+
+2665,5 → **2276,1** punti, posizione media 1,90 → 7,75, buchi 12,4 → **69,0**. Il meccanismo non è
+sottile: `cover_value` è grande finché un reparto è vuoto, quindi il braccio lo paga al **primo** uomo di
+quel ruolo che esce, e niente gli dice che dietro ce ne sono altri trenta. Ha comprato difensori attesi in
+15-24 giornate dove a chiamata ne comprava da 23-29.
+
+Due regole lo curano, e sono la stessa domanda che questo progetto si fa dappertutto: **qual è lo zero di
+questo numero?**
+
+- **LO ZERO DI UN'OFFERTA È CHI VERREBBE COMPRATO AL POSTO SUO** (`ALT_WEIGHT` = 0,75). Il surplus
+  sottrae già chi **giocherebbe** al posto suo — il marginale di rosa della lega. All'urna serve l'altra
+  sottrazione, e *quale* uomo sia è **contato e non scelto**: se `k` partecipanti hanno ancora un posto
+  libero in quel ruolo, i migliori `k` rimasti se li dividono uno a testa, quindi l'alternativa è il
+  `k`-esimo (`Urn.nth`, `ALT_RANK` = 1). Sweep su griglia pre-registrata 0 … 1, venti estrazioni per
+  ognuna delle dieci finestre: **2276,1 → 2568,0 (+12,8%), 10 finestre su 10 in miglioramento, la
+  peggiore +6,7%**, buchi 69,0 → 22,5, posizione 7,75 → 2,90. L'ottimo è **interno** (0,70 legge 2563,5,
+  0,80 legge 2560,0, 1,00 ricade a 2477,8). È 0,75 e non l'1,0 che scriverebbe la teoria perché
+  l'alternativa è **ottimista**: dà per scontato che quel posto lo vinca tu, e contro dieci rivali spesso
+  non è vero.
+- **«SPENDILI O LI PERDI» NON VUOL DIRE COMPRARE CHIUNQUE** (`FLOOR_ON_BETTER`). Il pavimento di spesa
+  esiste perché nessuno finisca con i crediti in tasca; all'urna sparava sul **primo** lotto, perché
+  l'uomo sul banco non è più il più caro rimasto. A estrazione **un posto in rosa è scarso quanto un
+  credito** — la lezione del banco draft incontrata a metà strada — quindi quel pavimento non spendeva un
+  credito, sprecava un POSTO, e il credito restava in tasca lo stesso. Vale 2486,8 → 2565,8, buchi 33,4 →
+  22,9, posizione 4,34 → 2,79.
+
+**Tutte e due sono spente a chiamata, e non da un flag che qualcuno deve ricordarsi**: lì `Urn.random` è
+falso, `alternative` risponde 0 e il cancello che la legge non può scattare. **Misurato prima di
+restringerle così**: sulle dieci finestre a chiamata il termine vale +0,3% (sotto il pavimento dello 0,5%
+di questo progetto) con una finestra a −5,6%, cioè **fallisce il criterio robusto lì** e lo passa
+largamente qui. Una manopola appartiene al meccanismo su cui è stata misurata, come appartiene a una
+piattaforma.
+
+### 14.3 Lo sweep, e le due cose misurate e lasciate a zero
+
+| `ALT_WEIGHT` | punti | sd | posizione | buchi | spesi | stagioni vinte |
+|---|---|---|---|---|---|---|
+| 0,00 (il braccio di prima) | 2276,1 | 184,8 | 7,75 | 69,0 | 898 | 2/200 |
+| 0,50 | 2505,9 | 118,5 | 4,15 | 29,8 | 842 | 30/200 |
+| 0,60 | 2551,0 | 95,2 | 3,18 | 22,0 | 774 | 56/200 |
+| 0,70 | 2563,5 | 105,5 | 2,93 | 21,4 | 636 | 60/200 |
+| **0,75** | **2568,0** | 112,2 | **2,90** | 22,5 | 560 | **66/200** |
+| 0,80 | 2560,0 | 118,4 | 3,13 | 25,2 | 500 | 62/200 |
+| 0,90 | 2522,7 | 141,5 | 3,82 | 32,7 | 377 | 52/200 |
+| 1,00 | 2477,8 | 155,4 | 4,67 | 40,3 | 318 | 30/200 |
+
+**`ALT_RANK` resta a 1 anche se 2 misura un filo meglio** (2572,8 a `ALT_WEIGHT` 0,75). Le due manopole
+sono **un effetto solo** — quanta parte del valore d'opzione si sottrae — e tutta la superficie fra loro è
+piatta dentro lo 0,5%. Due numeri fittati per una quantità sola è il modo in cui un banco comincia a
+fittare sé stesso: sopravvive quello il cui compagno è **contato** (`k` = chi ha ancora bisogno di quel
+ruolo) e non tarato.
+
+**`LIVE_RATE` è misurata e spenta.** Rileggere il tasso a metà asta — la stessa legge di conservazione di
+`engine_rate`, applicata a quello che è rimasto nell'urna — vale **+0,4%** (2486,8 → 2497,5), sotto il
+pavimento, e la spesa che doveva correggere si muove da 739 a 748. Stessa forma di `STEADY_WEIGHT`: non è
+un canale debole, è **un canale che non arriva**. Quello che ha davvero smesso di farlo tesoreggiare è il
+cancello sul pavimento, e per la ragione **opposta** a quella che questo termine assume — non spendeva
+troppo poco, spendeva sugli uomini sbagliati.
+
+### 14.4 Il risultato, e il null
+
+| profilo | sedie | punti | sd | posizione | buchi | spesi | stagioni vinte |
+|---|---|---|---|---|---|---|---|
+| **MOTORE** | 1 | **2568,0** | 112,2 | **2,90** | **22,5** | 560 | **66/200** |
+| P4 top d'attacco | 2 | 2427,8 | 163,5 | 5,45 | 46,6 | 733 | 30/400 |
+| P3 equilibrato | 3 | 2420,0 | 171,7 | 5,53 | 47,5 | 742 | 62/600 |
+| P1b senza piano, novizio | 2 | 2408,9 | 184,5 | 5,57 | 51,4 | 899 | 34/400 |
+| P2 difesa | 1 | 2258,4 | 235,6 | 7,64 | 73,5 | 705 | 4/200 |
+| P1a senza piano, esperto | 2 | 2206,3 | 226,1 | 8,41 | 80,8 | 689 | 4/400 |
+
+**L'esperto crolla, ed è un risultato e non un difetto.** `EXPERT_EYE` mescola il suo tetto verso quello
+che il surplus del motore dice del calciatore — il sostituto verificabile di «sa valutare al momento
+l'asta». A chiamata vale 13 punti; a estrazione lo porta da metà classifica all'**ultimo posto**, sotto il
+novizio che legge solo la quotazione. **Leggere un valore senza il valore d'opzione è peggio che non
+leggerne nessuno**, perché il surplus da solo dice «costa poco per quello che dà» di un uomo dietro al
+quale ce ne sono dieci migliori in fila.
+
+**IL NULL: tre sedie al motore su tredici partecipanti.** Una strategia che vince solo perché gli altri
+sprecano non è una strategia. Il margine si stringe e regge: **2506,2 contro 2414,8** del miglior umano
+(a estrazione), 2548,9 contro 2471,3 (a chiamata), con la spesa dei bracci che risale da 560 a 734 — la
+concorrenza sugli stessi uomini è esattamente ciò che rimette su i prezzi. Lascia però **0,73 posti a
+testa non riempiti**, che è il prezzo della pazienza quando in tre la praticano insieme.
+
+### 14.5 Il campionato, sorteggiato
+
+| profilo | sedie | punti classifica | posizione | titoli | fantapunti | giornate <66 | buchi |
+|---|---|---|---|---|---|---|---|
+| **MOTORE** | 1 | **61,0** | **3,03** | **70/200** | 2429,8 | **14,8** | 20,7 |
+| P3 equilibrato | 3 | 47,8 | 5,10 | 57/600 | 2291,4 | 20,9 | 45,2 |
+| P4 top d'attacco | 2 | 46,5 | 5,40 | 35/400 | 2274,9 | 21,6 | 48,2 |
+| P1b senza piano, novizio | 2 | 45,1 | 5,74 | 27/400 | 2254,3 | 22,3 | 52,4 |
+| P2 difesa | 1 | 42,3 | 6,12 | 10/200 | 2219,6 | 23,5 | 56,0 |
+| P1a senza piano, esperto | 1 | 31,3 | 8,26 | 1/200 | 2021,3 | 29,8 | 86,7 |
+
+**35% di titoli contro il 10% che darebbe una monetina**, e contro il **50%** del meccanismo a chiamata:
+la differenza non è la strategia, è l'urna. Il `--json` porta adesso tutte e due le letture e nessuna può
+nascondere l'altra — `windows` è il dettaglio completo di **un** ordine per finestra, `all` è ogni
+estrazione nella forma compatta che serve all'aggregato. La pagina pubblicata lo dice a schermo: il
+dettaglio è una delle venti, non la media.
+
+### 14.6 Un numero pubblicato che è stato RITIRATO
+
+Il README diceva «il migliore del listone esce fra il 48% e il 75% del budget, media 60% — il numero che
+l'operatore riporta dall'esperienza». **Non si riproduce.** Rimisurato sul codice attuale, dieci finestre,
+col braccio motore al tavolo e senza: **31,2% (26-35%), identico nei due casi.** Era stato preso su
+quattro stagioni e sulla configurazione del 01/09 mattina — prima del sorteggio sui pareggi e prima della
+cura sul pavimento del portafoglio, che sono esattamente le due cose che muovono quanto costa un lotto
+conteso.
+
+Resta scritto invece che cancellato, perché era stato **citato all'operatore come accordo con la sua
+esperienza**, e un accordo che non si riproduce vale meno del disaccordo che lo sostituisce. E se al suo
+tavolo il numero vero è davvero il 60%, quello che dice non è che il meccanismo sbaglia: dice che **la
+scarsità di questo banco è troppo bassa**, cioè che l'urna qui è corta (§14.7).
+
+### 14.7 Limiti che questo meccanismo AGGIUNGE
+
+- **L'urna qui è più corta di quella vera.** Il file di estrazione porta 359-430 nomi per 275 posti (1,4
+  per posto); un listone completo ne porta molti di più, quindi al tavolo vero gli scarti sono più
+  numerosi e i buoni più diluiti. La scarsità qui è **maggiore**, e con essa i prezzi — ed è la prima cosa
+  da sospettare di qualunque numero di questa pagina che sembri troppo stretto.
+- **Il mercato di riparazione non c'è**, che era già vero e adesso costa di più: i buchi raddoppiano, e
+  chi ne lascia è punito per intero da un banco che non gli dà tre finestre per curarli.
+- **Il tavolo non conosce il valore d'opzione.** Nessuno dei cinque profili applica la regola che applica
+  il braccio, quindi il margine è misurato contro avversari che non ce l'hanno. Il null a tre sedie è
+  quello che risponde, e risponde solo per il braccio contro sé stesso.
+
+### 14.8 Cosa servirebbe per rendere MISURATO quello che qui è dichiarato
+
+L'operatore ha offerto **dati veri di aste, random e non**. La cosa che quei dati deciderebbero, e che
+oggi è dichiarata, è la **curva pagato/Qt.I in funzione di QUANDO un nome esce**: qui la produce il
+modello (1,30 → 5,03 per decimo), e con un archivio di aggiudicazioni **in ordine cronologico** la si
+misura. Il prompt di raccolta è stato consegnato lo stesso giorno; le tre cose che servono e senza le
+quali una fonte non serve sono l'**ordine** delle aggiudicazioni, la **Qt.I di quel listone** (non la
+Qt.A, che è rivista in corsa) e i **crediti pagati**. Con quella curva diventano misurabili anche
+`ABUNDANCE` e il pavimento, che oggi sono i due numeri che decidono quanto un tavolo spende.
+
+## 15. I DATI VERI (2 settembre 2026): 147 aste, e quattro anomalie che diventano misure
+
+L'operatore ha portato l'archivio che il §14.8 chiedeva — `docs/real-data/`, letto dal database di
+produzione il **02/09/2026**: **147 aste** sul listone ufficiale (19/08 → 01/09/2026, stagione 2026-27,
+tutte classic Serie A a crediti), di cui **131 con la sua stessa rosa 3/8/8/6** e **20 identiche alla
+sua** (10 squadre, 1000 crediti). Sono **29.421 aggiudicazioni** su 1.177 rose. Le tre cose che il
+documento diceva servire — l'**ordine** delle aggiudicazioni, la **Qt.I di quel listone** e i **crediti
+pagati** — ci sono tutte e tre.
+
+Con quell'archivio il banco cambia natura: quello che era **dichiarato** (quanto paga un tavolo) diventa
+**misurato**, e i cinque profili restano dichiarati ma il loro *livello* no. È la stessa distinzione che
+il progetto fa fra la stampa e la board: **i dati veri sono un GIUDICE**, e dove entrano come input lo
+dicono.
+
+### 15.1 Le quattro anomalie dell'operatore, con il loro null
+
+Le sue parole del 02/09, e accanto il numero vero:
+
+| la sua obiezione | il banco (prima) | **il vero** | il banco (dopo) |
+|---|---|---|---|
+| «non è realistico che L.Martinez non venga preso» | 14,3 dei 50 migliori invenduti | **1,75** | **1,3** |
+| «P2 … almeno 3 [top di difesa] devono essere suoi» | 2 di 8 a chiamata, 0-1 a estrazione | ≥3 top di ruolo: 4% delle rose | **3,8** |
+| «P4 deve puntare sul TOP in attacco … lo attende» | il top preso in 1 finestra su 2 | il più caro = 42,8-44,1% di un budget | **50% / 43,5%** |
+| «costi distribuiti in maniera troppo equilibrata» | gini 0,07-0,17 su 4 profili di 10, **zero** uomini sotto i 5 crediti | gini **0,65-0,68**, **8-9,5** uomini di 25 a ≤5 crediti | gini 0,59-0,62, 4,3-6,9 uomini |
+
+Aveva ragione su tutte e quattro, e la quarta era la più grossa: quattro partecipanti su dieci
+chiudevano l'asta con **nessun** uomo sotto i 5 crediti e 23-25 uomini nella fascia 21-60. Una rosa vera
+ne ha 8-9 a due-cinque crediti e mette il **28-31% del proprio budget su un uomo solo**.
+
+### 15.2 La causa era UNA per tutte e quattro: la scala era indicizzata sulla cosa sbagliata
+
+`PROFILES` è una scala di disponibilità a pagare: «per l'n-esimo uomo di un reparto, il multiplo della
+Qt.I a cui arrivo». Il gradino era scelto da **quanti uomini di quel reparto la rosa possedeva già** — e
+quello è lo stesso numero del *tier* **solo se i lotti sono chiamati dal più caro**, perché lì il primo
+difensore che incontri È il migliore rimasto. A estrazione è un numero diverso, e la ricetta si leggeva
+«pago 1,5 volte la richiesta per il primo difensore che mi capita»: P2 incontrava il **90esimo difensore
+del listone** e gli pagava il premio da titolare, poi non aveva più niente per Dimarco.
+
+Il gradino ora è indicizzato su `max(tier, posseduti)`, dove il **tier** è il rango dentro il ruolo
+diviso il numero di squadre — una legge di conservazione e non una scelta: in una lega da dieci ci sono
+dieci primi difensori, perché ognuno ne schiera uno. Le due metà servono tutt'e due: la prima è quello
+che la scala voleva dire da sempre, la seconda è quello che impedisce a un profilo di comprare otto
+primi difensori al prezzo del primo.
+
+### 15.3 La SCALA DI MERCATO, misurata (e non è piatta da nessuna parte)
+
+Mediana di `pagato / richiesta` dentro il tier, 131 aste, normalizzata sul montepremi di ogni asta
+perché un'asta da 16 squadre non deve pesare più di una da 6:
+
+| | tier 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
+|---|---|---|---|---|---|---|---|---|
+| **P** | 1,25 | 0,34 | 0,50 | | | | | |
+| **D** | 0,87 | 0,69 | 0,50 | 0,43 | 0,23 | 0,24 | 0,18 | 0,19 |
+| **C** | 1,18 | 0,83 | 0,62 | 0,50 | 0,25 | 0,25 | 0,16 | 0,21 |
+| **A** | **2,38** | 1,34 | 0,92 | 0,30 | 0,18 | 0,18 |
+
+Un tavolo vero paga **2,38 volte** la richiesta per un attaccante di prima fascia e **0,16-0,25** dalla
+quinta in giù. È esattamente la frase dell'operatore — «offrire poco (1-5 crediti) per i pezzi comuni e
+aumentare il rilancio solo per i pezzi veramente pregiati» — e quello che ha sostituito era un **1,0
+piatto su ogni gradino** per i due profili senza piano, sbagliato dalle due parti insieme.
+
+Regala anche la spartizione fra i reparti, che nessuno ha più bisogno di dichiarare: **P 9,1% · D 16,3% ·
+C 27,2% · A 47,4%**. Quasi metà dei soldi va a sei uomini su venticinque. (Mediana per rosa 9/16/27/48,
+p10 4/8/17/32, p90 14/25/38/62.) Da confrontare con `role_shares` del braccio motore, che dal surplus
+ricava D 32,4% e A 33,8%: non è un errore — è una valutazione che dissente dal mercato — ma è la ragione
+per cui il braccio non compra mai un top d'attacco.
+
+**La MEDIANA e non il rapporto delle somme, e la scelta non è cosmetica.** Il rapporto delle somme
+(`Σpagato / Σrichiesta` dentro il tier) vale 1,03-1,06 volte la mediana in cima a un reparto e
+**1,4-1,7 volte** in coda, perché una manciata di riempimenti viene comprata in chiusura con quello che
+resta in tasca. Quell'inflazione è **vera** e questo banco la produce da sé (`scale` sale quando una rosa
+finisce i posti): metterla anche nella scala la conterebbe due volte, e misurato la conta — il rapporto
+delle somme dà **2,7** uomini sotto i 5 crediti contro **4,3** della mediana, su un vero di 8,0. **Una
+scala è il tetto di un acquisto ORDINARIO.** Quello che la mediana lascia per strada è la conservazione:
+sommata sui tier recupera solo il **79%** del montepremi, quindi un piano prezzato su di lei parte con
+una scala di **1,21** e il meccanismo mette il resto. Che è la divisione del lavoro giusta, ed è
+verificata: i crediti che restano in tasca vengono **2,8%** di un budget a chiamata contro un vero di
+**2,8%**.
+
+**Un limite dentro la prima fascia, detto invece di spalmato.** Un tier è larga `TEAMS` uomini perché
+quella è la legge di conservazione, e dentro la prima fascia dell'ATTACCO la scala vera continua a
+scendere: rango per rango legge 2,81 · 3,36 · 2,15 · 2,60 · 3,01 · 2,23 e poi 1,79 · 1,23 · 1,89 · 1,90.
+I sei attaccanti più cari costano più dei quattro dietro di loro, e questo banco li prezza tutti e dieci
+uguale.
+
+### 15.4 «Nessuno resta con i crediti in tasca» non è un pavimento: è una NORMALIZZAZIONE
+
+Il pavimento era «quello che il portafoglio si può permettere per posto rimasto», rivendicato da ogni
+uomo sul banco. Con 1000 crediti e 25 posti dice **«40 a testa»** del miglior attaccante del listone e
+del 200esimo difensore, e **era la prima causa dei costi troppo equilibrati**. Al suo posto (`Team.scale`)
+la ricetta è normalizzata su quello che resta da spendere: il piano ancora da eseguire è la scala sui
+posti ancora da riempire, prezzata a quanto chiede ogni tier, e il numeratore è il portafoglio. Chi ha
+risparmiato rialza da sé, chi ha strapagato si raziona — **nella forma del proprio piano**, che è la metà
+che un pavimento piatto non sapeva fare.
+
+**E la variante «niente scala a chi non ha un piano» è stata scritta e RESPINTA dalla misura**, benché
+l'argomento fosse di casa (una scala decrescente è un piano di razionamento, dare un piano a chi non ne
+ha uno è il difetto del 01/09): P1a chiude con il **49% a chiamata e il 71% a estrazione** in tasca, e il
+residuo aggregato passa da 2,8% (= il vero) a 6,0% e 22,9%. La ragione è che la scala di mercato è
+quello che il mercato **paga**, quindi chi offre esattamente quella vince solo la metà dei suoi uomini e
+non riesce a spendere il portafoglio. **Qui la scala non è un piano: è la legge che trasforma un prezzo
+in un tetto.**
+
+### 15.5 Il posto tenuto per un campione: CONTATO, non dichiarato
+
+«Su 10 persone qualcuno dovrebbe conservare un posto in rosa aspettando proprio il campione, rinunciando
+completamente a rilanciare su altri — il rischio vale per un top di ruolo», e in generale «conservare
+almeno uno o due posti per qualche occasione alla fine». Nessuno rifiutava L. Martinez per mancanza di
+soldi: le rose erano **piene** quando veniva estratto, perché 77 attaccanti entrano in 60 posti.
+
+La regola non ha una costante (`Team.keeps`): se `hands` partecipanti vogliono ancora quel ruolo, gli
+uomini migliori rimasti nell'urna vanno uno per testa, quindi la quota di questa rosa è il loro numero
+diviso le mani alzate — e finché quella quota copre tutti i posti che le restano lì, lasciar passare
+questo non costa niente. È il conto che `Team.alternative` fa per un CREDITO, fatto per un POSTO: la
+lezione del banco draft, «a estrazione un posto è scarso come un credito».
+
+**Le due forme DICHIARATE che sono venute prima erano peggiori e restano a verbale**: tenere l'ultimo
+posto di un reparto finché è in arrivo un uomo di **prima** fascia lascia 7,73 dei 50 migliori invenduti
+(quelli rifiutati sono i secondi e terzi dei reparti affollati), ed estenderlo alla **seconda** fascia
+porta a 10,67. Una soglia sposta il problema di un gradino invece di risolverlo. **Zero posti restano
+vuoti**, che è il rischio che la regola si prende.
+
+### 15.6 IL DIFETTO STRUTTURALE: a un'asta a estrazione vera L'URNA SI RIMESCOLA
+
+È la cosa più grossa che questi dati abbiano trovato, e non era nella lista dell'operatore. Nelle **cinque
+aste il cui ordine di estrazione è ricostruibile**, ognuno dei 518 nomi quotati viene estratto **da 5 a 9
+volte**, e **Martinez L., Malen, Dimarco, Paz N. e Thuram compaiono fra le estrazioni su cui nessuno ha
+offerto** e vengono venduti dopo. Un'asta a estrazione **non è un giro sul listone**: continua a estrarre
+finché le rose non sono piene.
+
+Il banco modellava un giro solo, e quel giro solo produceva da sé tre dei numeri pubblicati:
+
+- «**14,3 dei 50 migliori restano invenduti**» — artefatto. Col rimescolo sono **1,3**, contro **1,75**
+  vero.
+- «**il miglior giocatore va dallo 0% (mai aggiudicato) al 35% del budget a seconda di QUANDO esce**» —
+  artefatto, e la parte «mai aggiudicato» sparisce (0 volte su 60).
+- «un nome rifiutato non ha un sostituto garantito dietro» — la frase su cui poggia `ALT_WEIGHT`. Un nome
+  rifiutato **torna**, quindi quel parametro va rimisurato sul meccanismo che esiste (§15.8).
+
+Il rimescolo è **il regolamento della piattaforma**, non una strategia: non ha parametri, e un'asta a
+chiamata resta un giro solo perché lì è il manager a scegliere chi mettere all'asta e nessuno chiama un
+uomo che nessuno vuole.
+
+### 15.7 Quello che ancora NON torna, con il suo numero
+
+Un uomo solo, in 36 urne vere: **Malen costa il 42,2% di un budget se aggiudicato nel primo 40% dell'asta
+e il 42,5% dopo**, `r(quando, prezzo) = −0,147`. Martinez L. 37,7% e −0,207, Ramos G. 32,6% e −0,086. Il
+prezzo di un campione **non dipende da quando esce**. Sul banco, dopo tutte le correzioni di oggi, lo
+stesso uomo costa il **38,1%** se estratto nel primo quarto e l'**1,3%** nell'ultimo, `r = −0,904`.
+
+La diagnosi è nei residui per decimo, non nel prezzo: i nostri partecipanti spendono nei decimi 3-7 e
+arrivano all'ultimo quarto col portafoglio vuoto, mentre un tavolo vero ce li ha ancora.
+
+> **CHIUSO la sera del 02/09 (§16), e la cura proposta qui era SBAGLIATA.** «Tenere da parte i soldi del
+> miglior uomo ancora nell'urna» è stata scritta e misurata: lascia il **22,3%** dei crediti in tasca e
+> non muove il campione di un decimale (r −0,913 → −0,925), perché il vincolo era il POSTO e non il
+> credito. Quello che era rotto è l'**ORDINE** — un'asta vera si gioca a reparti, P→D→C→A — più l'indice
+> della scala, che prezzava il campione come un quinto attaccante. Dentro la sua fase il banco ora legge
+> 47,0 · 42,0 · 42,0 · 40,5 contro un vero di 43,1 · 45,4 · 37,6 · 34,7.
+
+**E una lezione sull'indice che ha quasi fatto sbagliare la diagnosi.** La curva `indice_prezzo` per
+decimo dell'asta (che `sintesi-posizione.csv` porta già calcolata) legge, a estrazione, 0,95 · 0,54 ·
+0,55 · 0,51 · 0,66 · 0,85 · 0,78 · 1,00 · **1,69** · 1,11: sembra un mercato che risparmia all'inizio e
+si azzuffa in chiusura. **Non è pulita dalla composizione**: l'indice divide per la Qt.I, ma il rapporto
+pagato/richiesta **cresce col calciatore** (2,38 per un attaccante di prima fascia, 0,19 per un difensore
+di ottava), e nel nono decimo gli aggiudicati hanno una Qt.I media **1,42 volte** quella dell'asta. Il
+picco è in buona parte *chi* viene aggiudicato lì, non *quanto* si paga. Il test che decide è quello per
+uomo, sopra — ed è per quello che ne è valsa la pena: la prima cura scritta su quella curva (un pavimento
+d'urgenza quando l'urna non basta più ai posti aperti) è stata **misurata e respinta**, perché non produce
+il picco (nono decimo 0,26 contro 0,45) e costa 2,8 → 1,7 punti di residuo.
+
+### 15.8 Il braccio MOTORE contro un tavolo realistico: il margine era il loro spreco
+
+Il verdetto pubblicato — «vince a chiamata di +122 punti, e a estrazione con `ALT_WEIGHT` = 0,75 di
++12,8%» — era misurato contro un tavolo che pagava 40 crediti a testa per chiunque, non teneva mai un
+posto e lasciava invenduti i campioni. Contro il tavolo calibrato sulle 131 aste vere:
+
+| | prima | ora |
+|---|---|---|
+| a chiamata | 2665,5 punti, posto medio 1,70 | **2604,2**, posto **4,40**, 0 titoli su 10 |
+| il tavolo, a chiamata | ~2414-2477 | **2539,5** |
+| a estrazione | ~2568, posto 2,90 | **2087,3**, posto **10,67 su 11**, 99,1 buchi, 674 crediti spesi su 1000 |
+| il tavolo, a estrazione | ~2414 | **2536,5** |
+
+Il tavolo ha guadagnato ~120 punti diventando realistico, e il braccio ne ha persi 480. **La frase che
+questo progetto aveva già scritto — «una strategia che vince solo perché il tavolo butta i suoi soldi non
+è una strategia» — era vera, e i dati veri l'hanno misurata dall'altro lato.**
+
+E non è la taratura di `ALT_WEIGHT`: rimisurata su tutta la griglia 0…1, a chiamata è **inerte** (identica
+a ogni punto, che conferma che niente di pubblicato lì dipende da lei) e a estrazione **ogni punto della
+griglia è ultimo** (il migliore è 0,5 con 2293,4, l'adottato 0,75 con 2087,3). Due sonde per capire
+perché: **senza il tetto di reparto** il braccio crolla anche a chiamata (2459,1, posto 9,00 — quel tetto
+è essenziale), e con i **tetti alzati di una volta e mezzo** guadagna a chiamata (2624,4, posto 3,50) e
+non recupera a estrazione (2160,9). 
+Rimisurata anche **col rimescolo attivo** (§15.6), perché la giustificazione di `ALT_WEIGHT` era proprio
+«un nome rifiutato non ha un sostituto garantito»: la griglia legge gli stessi numeri a un punto decimale
+(0,00 → 2265,7 · 0,50 → 2292,9 · 0,75 → 2105,4 · 1,00 → 1942,5, posto 10,0-10,9 su ogni punto). Quindi il
+crollo del braccio non è nemmeno un effetto del meccanismo nuovo: è il tavolo.
+
+La diagnosi è di LIVELLO e non di forma: `engine_rate` tara i suoi
+tetti perché i 25 uomini che vuole costino esattamente un budget, mentre un tavolo vero mette il 47% del
+montepremi in attacco e il 2,38 della richiesta sul primo attaccante. Il braccio perde ogni uomo
+contendibile e compra quello che nessuno vuole.
+
+### 15.9 I cinque profili esistono davvero? Sì, e ne mancavano due
+
+k-means sulle quote di reparto più la concentrazione, **1.177 rose vere**, k=5:
+
+| quota | P | D | C | A | top1 | a ≤2 crediti | chi è |
+|---|---|---|---|---|---|---|---|
+| 25,7% | 9% | 16% | 30% | 44% | 25% | 37% | equilibrato, con la coda a un credito |
+| 23,6% | 8% | 14% | 23% | 55% | 34% | 27% | **P4** |
+| 23,2% | 9% | 18% | 28% | 45% | 22% | 15% | **P3** |
+| 14,0% | 8% | 11% | 19% | **63%** | **46%** | 42% | *un campione e la manovalanza* |
+| 13,5% | 12% | **24%** | **38%** | 26% | 18% | 23% | *rinuncia al top d'attacco* (parente di **P2**) |
+
+Tre dei cinque gruppi sono i suoi. I due che mancavano sono dichiarati e **seduti fuori** dal tavolo
+dichiarato, perché chi siede al suo tavolo è una sua decisione e non una misura:
+
+- **P5 «rinuncia al top d'attacco»** (13,5%): spende il 62% fra difesa e centrocampo contro il 43,5% del
+  mercato, e il suo acquisto più caro è il 18% del budget contro il 26% della mediana. È lo specchio di
+  P4 e non è un P3 con un'altra faccia.
+- **P6 «un campione e la manovalanza»** (14%): il 63% del budget in attacco, il **46% su un uomo solo** e
+  il 42% della rosa a due crediti o meno. È P4 portato al limite, e paga il prezzo sul resto della rosa.
+
+Due cose che la stessa tabella dice sui profili esistenti: **possedere 3+ top di ruolo in un reparto è
+raro** (P 1% · D 4% · C 3% · A 1% delle rose), quindi P2 come lo vuole l'operatore è una strategia vera e
+**rara** — e il banco gliene fa prendere 3,8, cioè un po' più del suo stesso obiettivo; e la mediana è
+**un** top di ruolo per reparto, p90 due.
+
+### 15.10 La soglia mentale dei 500: CONFERMATA dalla misura
+
+«La soglia mentale dei 500 difficilmente si supera» era dichiarata. Su 29.421 acquisti veri: il p99,9 di
+un singolo acquisto è il **52,1%** di un budget, il massimo il **73,0%**, e sopra la metà del budget ci
+sono **39 acquisti (0,13%)**, cioè **0,30 per asta**. «Difficilmente» misurato vale un acquisto ogni tre
+aste. Il p50 è l'**1,6%** (16 crediti su 1000) e il p90 il **9,9%**.
+
+E il numero che il §13 aveva **ritirato** ora ha una risposta: il più caro di ogni asta costa il **42,8%**
+di un budget a chiamata (mediana, 18-73%) e il **44,1%** a estrazione (36-73%). Il ricordo dell'operatore
+(«48-75%, media 60%») era più vicino al vero del 31,2% che il banco misurava; il ritiro era giusto e la
+sostituzione è questa. Il banco ora legge 50,0% a chiamata e 43,5-45,3% a estrazione.
+
+### 15.11 I più pagati: gli stessi nomi, e l'urna concentra
+
+Sui 20+ tavoli come il suo, i 25 uomini più pagati sono **16 attaccanti · 6 centrocampisti · 2 portieri ·
+1 difensore** a chiamata e 15/7/2/1 a estrazione — praticamente gli stessi nomi nei due meccanismi.
+**Malen** (Qt.I 34) è l'uomo più caro dell'asta in **74 aste su 86** a chiamata e in **25 su 36** a
+estrazione, al 42,5-43,5% di un budget; poi Martinez L. (37,2-38,2%), Ramos G. (30,5-32,4%), Hojlund
+(26,2-30,2%), Thuram, Kolo Muani, Kean.
+
+**Il meccanismo non cambia chi, cambia quanto si concentra.** I sette più cari costano **di più** a
+estrazione (da +1,0 a +4,0 punti di budget; solo Thuram fa −1,8), mentre l'uomo mediano costa **meno**
+(1,0% → 0,6%) e solo **72 uomini su 292** sono più cari a estrazione. Lo stesso si legge nella scala:
+l'attacco di prima fascia va da 2,31 a **2,50** e la difesa dalla quinta all'ottava fascia da 0,25-0,26 a
+**0,14-0,17**. A estrazione i soldi si ammassano sui pochi nomi che contano.
+
+### 15.12 Cosa questi dati NON possono dire
+
+- **Non c'è l'esito sportivo.** Sono aste, non stagioni: quale strategia *paga* resta una domanda del
+  banco, e i dati veri tarano l'ambiente, non il verdetto.
+- **`modalita` è il setup di lega, e l'ordine si può cambiare in corsa.** 17 delle 131 aste sono finite su
+  un ordine diverso (11 alfabetico, 4 per-valore), e **13 di quelle sono fra le 36 «random»**. Le **20
+  aste identiche alla sua** non hanno **nessun** cambio d'ordine, quindi i numeri di concentrazione e del
+  più caro sono puliti; la scala di mercato, misurata su tutte e 131, no.
+- **L'ordine di estrazione esiste solo per cinque aste**, ricostruito dal seme e verificato: il database
+  registra gli acquisti, non le estrazioni. Il rimescolo (§15.6) è misurato lì, e il numero di giri
+  (5-9 passate) viene da quelle cinque.
+- **I ruoli non sono nel file leggero**: sono stati riattaccati per **identità** dal nostro `rosters`
+  (`fc_id` è la chiave primaria di questo progetto), 574 dei 587 quotati, 98%.
+- **11 aste hanno i residui non verificati** (l'host ha corretto i budget a mano) e sono escluse dalla
+  misura della tasca, non stimate.
+
+## 16. Allineare il banco alla realtà (2 settembre 2026, sera): l'ORDINE era il difetto
+
+Il §15 aveva lasciato tre scarti misurati e una diagnosi che si è rivelata sbagliata. Chiuderli ha
+richiesto **una correzione al meccanismo** e due all'indicizzazione, e ha bocciato tre cure scritte prima
+di essere misurate. Lo strumento che ha trovato tutto è uno solo: **la curva della spesa cumulata**, che
+il §15 non aveva guardato.
+
+### 16.1 Lo strumento: quanto del montepremi è già uscito, decimo per decimo
+
+Non l'indice per decimo (che il §15.7 aveva già dichiarato sporco di composizione), ma i **crediti**:
+
+| | 1° | 2° | 3° | 4° | 5° | 6° | 7° | 8° | 9° | 10° |
+|---|---|---|---|---|---|---|---|---|---|---|
+| **vero, a chiamata** | 9,0 | 18,6 | 24,8 | 27,8 | 40,5 | 50,4 | 54,3 | 77,0 | 95,5 | 100 |
+| **banco, ordine libero** | **46,1** | 65,6 | 78,3 | 85,9 | 90,8 | 94,4 | 96,7 | 98,3 | 99,4 | 100 |
+| **vero, a estrazione** | 8,8 | 13,7 | 18,6 | 23,9 | 30,9 | 40,7 | 50,4 | 61,9 | 87,2 | 100 |
+| **banco, ordine libero** | 9,3 | 21,2 | 35,2 | 48,1 | 60,2 | 71,5 | 83,0 | 92,1 | 98,4 | 100 |
+
+Un tavolo vero tiene in tasca **il 70% dei crediti** fino a metà asta e ne spende il 38% negli ultimi due
+decimi; il banco ne aveva speso il 60% a metà. E a chiamata era fuori scala di **cinque volte** nel primo
+decimo. Nessuna cura di comportamento può spostare una curva così: è la forma dell'ordine.
+
+### 16.2 IL DIFETTO: un'asta si gioca A REPARTI, e questo banco la giocava tutta insieme
+
+Posizione media dell'aggiudicazione dentro l'asta, per ruolo, sulle **20 aste identiche alla sua**:
+
+| | P | D | C | A | a reparti? |
+|---|---|---|---|---|---|
+| 16 aste su 20 | **0,06** | **0,28** | **0,60** | **0,88** | sì, e sempre P→D→C→A |
+| le altre 4 | ~0,5 | ~0,5 | ~0,5 | ~0,5 | no, ordine libero |
+
+**Quei quattro numeri sono identici a due decimali su sedici sessioni separate**, che è la firma di un
+ordine imposto dalla piattaforma e non di un'abitudine di qualcuno — e sono esattamente dove il
+REGOLAMENTO mette i confini: 3 portieri su 25 posti, poi 8 difensori, poi 8 centrocampisti, poi 6
+attaccanti. Dentro un reparto l'ordine è casuale (la deviazione standard della posizione dentro un ruolo
+è 0,06-0,13 contro 0,29 di un'estrazione sparsa su tutta l'asta). In aggregato: 81 aste a chiamata su 86
+e 32 a estrazione su 36.
+
+Adottato (`bench.PHASES`, `in_phases`, e le due funzioni d'ordine che le leggono). **Cosa spiega, tutto
+insieme e senza aggiungere un comportamento**: la curva della spesa (che è la spartizione fra reparti — P
+9,1 · D 16,3 · C 27,2 · A 47,4 — accumulata in quest'ordine e nient'altro); il fatto che gli uomini cari
+siano aggiudicati tardi (sono ATTACCANTI); e che il prezzo di un campione non dipenda da quando esce,
+perché ovunque esca è dentro la fase d'attacco, quando ogni rivale ha ancora tutti e sei i suoi posti e i
+soldi che ha tenuto per loro. L'ordine libero resta raggiungibile (`--free`) perché 4 aste su 20 lo
+giocano, ed è quello su cui sono misurati i numeri dell'invenduto del §15.
+
+Dopo l'adozione la curva a chiamata legge **8,3 · 19,9 · 24,1 · 25,6 · 40,0 · 48,1 · 50,5 · 78,3 · 98,1
+· 100** contro il vero **9,0 · 18,6 · 24,8 · 27,8 · 40,5 · 50,4 · 54,3 · 77,0 · 95,5 · 100**. È la
+verifica più stretta che questo banco abbia mai superato, e non è una taratura: le fasi non hanno
+parametri.
+
+### 16.3 «Il campione prezzato come un quinto attaccante»: l'indice contava gli uomini sbagliati
+
+Con le fasi, il campione cade sempre nella fase d'attacco, quindi la sua prova va letta **dentro la sua
+fase** — che è anche come è misurata quella vera (Malen finisce nel blocco attaccanti 34 volte su 36).
+
+| dentro il blocco d'attacco | 1° quarto | 2° | 3° | 4° |
+|---|---|---|---|---|
+| **vero** (Malen, 36 urne) | 43,1% | 45,4% | 37,6% | 34,7% |
+| **vero** (Martinez L.) | 36,8% | 41,0% | 35,0% | 27,8% |
+| banco, prima | 47,8% | 31,0% | 12,3% | **1,6%** |
+| **banco, ora** | 47,0% | 42,0% | 42,0% | **40,5%** |
+
+La causa l'ha trovata una **fotografia del tavolo nel momento in cui il campione esce**: nove mani con un
+posto in attacco, crediti [12, 12, 50, 68, 106, 145, 177, 369, 513] — e le tre offerte più alte
+**184, 150, 150**. Chi aveva 513 crediti offriva 184, cioè `2,38 × richiesta × scala` con una scala di
+0,54; e i due 150 erano il tetto cauto di P3. Ma il numero che contava era un altro: `Team.step`
+indicizzava la scala su **quanti uomini di quel reparto la rosa possiede**, quindi una rosa con quattro
+attaccanti prezzava il miglior giocatore del gioco come il suo **quinto** — 0,18 volte la richiesta
+invece di 2,38.
+
+Corretto: l'indice conta gli uomini che possiede **almeno bravi come lui** (`ahead`), non quanti ne
+possiede. La guardia per cui la metà «posseduti» esisteva regge intatta — chi compra un primo difensore
+scende comunque di gradino per il successivo — e i quattro bersagli si muovono tutti nella direzione
+giusta: uomini a ≤5 crediti **7,0 → 8,0** (vero 9,5), crediti in tasca **10,2% → 6,2%** (vero 6,1%),
+primo quarto del campione **47,8% → 43,9%** (vero 43,1%).
+
+### 16.4 Un OBIETTIVO è un NOME, non una fascia
+
+Restava la pendenza dentro la fase. `PLAN` diceva «un attaccante di prima fascia», e letta così la riserva
+si liberava **nel momento in cui P4 comprava il decimo migliore dei dieci**: dopo di che nessuno teneva
+più soldi né posto per il campione, e chi lo trovava tardi lo pagava un credito.
+
+Le parole dell'operatore dicono un'altra cosa: «deve puntare sul TOP in attacco
+(L.Martinez/Thuram/ecc...) e **fa di tutto per prenderlo**». Un obiettivo è uno dei `count` uomini più
+cari del ruolo, quindi il RANGO e non la fascia (`set_tiers` scrive `man["rank"]`, `Urn.rank_left` dice se
+è ancora da estrarre). Con il rango, la riserva di P4 vale finché quel nome non è uscito, e il posto lo
+segue: **un piano tiene il suo posto oltre ai suoi crediti**, e solo un piano lo fa.
+
+Quella metà è la sola cosa di questa sera che sia dichiarata invece che contata, e la ragione è misurata:
+data a **tutti** (ognuno tiene un posto per la migliore occasione ancora nell'urna) strozza l'asta —
+**8,4 posti su 250 restano vuoti** e 18 dei 50 migliori invenduti, perché tutti e dieci aspettano lo
+stesso uomo. Data ai due profili la cui strategia dichiarata È quell'uomo, costa al massimo tre posti su
+tutto il tavolo. È la frase dell'operatore letta alla lettera: «su 10 persone **qualcuno** dovrebbe
+conservare un posto in rosa aspettando proprio il campione».
+
+### 16.5 Tre cure scritte e RESPINTE dalla misura
+
+Restano a verbale perché ognuna sembrava ovvia:
+
+- **Il conto sui crediti da solo** («quello che pagherei per la migliore occasione ancora nell'urna non è
+  spendibile altrove»): i crediti in tasca passano da 5,3% a **22,3%** e il campione non si muove
+  (r −0,913 → −0,925). Tengono i soldi e non hanno più il posto dove spenderli — il vincolo era il posto,
+  non il credito.
+- **Il conto sui crediti E sul posto, per tutti**: 8,4 posti vuoti per asta, 18 dei 50 migliori
+  invenduti, tasca 23,3%. Dieci partecipanti che aspettano lo stesso uomo non sono dieci strategie, sono
+  un'asta bloccata.
+- **Un pavimento d'urgenza** («quando l'urna non basta più ai posti aperti, il posto vale la quota
+  spendibile»): non produce il picco che doveva produrre (nono decimo 0,26 contro 0,45) e costa 2,8 → 1,7
+  punti di residuo. Era scritta sulla curva sporca di composizione, cioè sull'indizio sbagliato.
+
+### 16.6 Il tetto cauto: dal decimo percentile al p25, e adesso è inerte
+
+`CAUTIOUS_CAP_SHARE` era **0,15** e nessuno l'aveva misurato. Nel dato vero l'acquisto più caro di una
+rosa è il **14,8% del budget al p10, il 18,4% al p25 e il 25,0% alla mediana**, e solo il **10,4%** delle
+1.177 rose lo tiene sotto il 15%: quel numero metteva P3 al decimo percentile della cautela, e con tre
+sedie su dieci decideva il secondo prezzo dell'uomo più caro dell'asta. Ora è **0,18**, il p25 — «sta nel
+quarto più cauto di un tavolo vero», che è quello che la frase dice — e a chiamata è anche il valore che
+avvicina di più i crediti in tasca al vero (3,4% a 0,15, 2,5% a 0,18, 1,4% a 0,22, contro 2,8%).
+
+**E adesso è quasi inerte**: su tutta la griglia 0,15 … 0,50 i quattro bersagli si muovono di meno di un
+punto. Quello che sembrava un tetto vincolante era il sintomo dell'indice del §16.3. **Una manopola che
+morde solo mentre un'altra cosa è rotta è una manopola da rimisurare dopo aver aggiustato quella, non
+prima.**
+
+### 16.7 Dove sta il banco adesso, contro i sette bersagli
+
+| | a chiamata | vero | a estrazione | vero |
+|---|---|---|---|---|
+| curva della spesa | 8,3 … 98,1 | 9,0 … 95,5 | 6,5 … 83,8 | 8,8 … 87,2 |
+| il lotto più caro | 50,0% | 42,8% | **43,5%** | 44,1% |
+| uomini a ≤5 crediti | 5,6 | 8,0 | **8,1** | 9,5 |
+| gini della spesa | 0,61 | 0,65 | **0,65** | 0,68 |
+| crediti in tasca | 3,4% | 2,8% | **7,4%** | 6,1% |
+| dei 50 migliori, invenduti | 0,0 | 0,0 | 1,4 | 1,75¹ |
+| posti non riempiti | 0,00 | — | 0,00 | — |
+
+¹ misurato sulle quattro aste vere a ordine libero; il nostro ordine libero legge 1,05.
+
+Quello che resta fuori bersaglio è **la coda a chiamata** (5,6 uomini a cinque crediti contro 8,0, e il
+lotto più caro al 50,0% contro 42,8%), e la ragione è strutturale e va detta: a un'asta a chiamata vera è
+il MANAGER a scegliere quale nome mettere all'asta dentro il reparto in corso, mentre questo banco chiama
+il più caro per primo. Il nostro campione è quindi sempre il primo attaccante chiamato, quando tutti hanno
+ancora tutti i crediti d'attacco — e va a 50% invece di 42%. Sull'estrazione, dove l'ordine è esogeno da
+tutt'e due le parti, cinque bersagli su sette sono dentro un punto e mezzo.
+
+### 16.8 Le classifiche che ne escono, e una strategia che cambia verdetto
+
+Con le fasi il campionato cambia di nuovo, e in un modo che ha senso: **P4 crolla a chiamata** (2365,4
+fantapunti, ultimo, **68 buchi**) perché la sua ricetta risparmia «in maniera netta negli altri reparti»
+e quei reparti ora si giocano **prima** — arriva alla fase d'attacco con i soldi e con una rosa che non
+copre. A estrazione resta a metà tavolo. Il braccio motore recupera qualcosa a chiamata (2604,2 → **2628,3**,
+posto 4,40 → **3,00**) e a estrazione resta **ultimo di undici** (2212,9 contro 2584,8 di P2): la
+diagnosi del §15.8 non cambia di una virgola.
+
+### 16.9 Due lezioni sull'arnese, e una vale oltre questo banco
+
+**Una manopola girata dove nessuno la legge dà righe identiche, e quelle righe sono l'indizio.** Il primo
+sweep del tetto cauto ha stampato gli stessi numeri a ogni valore da 0,15 a 0,50: `bench` importa la
+costante per nome (`from .profiles import CAUTIOUS_CAP_SHARE`), quindi modificare
+`profiles.CAUTIOUS_CAP_SHARE` non muove niente. È la stessa famiglia del `desc_level_gap` che non
+esisteva, vista dal lato di un esperimento invece di un audit — e come là, **la prima cosa da sospettare
+di un risultato piatto è lo strumento**.
+
+**E la fotografia batte il ragionamento.** Tre cure sono state scritte e respinte ragionando su curve
+aggregate; la causa vera l'ha trovata stampare, per un lotto solo, chi aveva ancora un posto, quanti
+crediti aveva e quanto offriva. Il progetto lo aveva già scritto per il pannello Tk («fotografa la SUA
+finestra prima di rispiegare il codice»): vale identico per un meccanismo.
+
+## 17. Far vincere il braccio MOTORE all'urna (2 settembre 2026, notte)
+
+Domanda dell'operatore: «dobbiamo fare in modo che la strategia dell'engine riesca a creare una rosa
+equilibrata, solida e vincente, quali accorgimenti possiamo adottare?». Il braccio all'urna era **ultimo
+di undici** (2212,9 contro 2584,8 del miglior umano, 79,8 buchi, 656 crediti spesi su 1000). Adesso è
+**primo** (2609,0 · posto 3,82 · 22,4 buchi · 987 spesi · 28 titoli su 100), e il campionato dice la
+stessa cosa (54,7 punti in classifica, 45 titoli su 200, e i **meno buchi del tavolo**).
+
+Sette famiglie di correzione sono state misurate. **Una sola conta**, e non è quella che sembrava.
+
+### 17.1 La fotografia, di nuovo, e prima del ragionamento
+
+Ruolo per ruolo, sui lotti che il braccio PERDE, quanto era il suo tetto rispetto al prezzo:
+
+| | P | D | C | A |
+|---|---|---|---|---|
+| tetto / prezzo sui lotti persi, a estrazione | 0,47 | **0,30** | **0,16** | 0,20 |
+| pagato / richiesta su quelli che prende | 0,66 | **0,15** | **0,10** | 0,31 |
+| gli stessi due numeri a chiamata | 0,69 · 0,95 | 0,85 · 0,82 | 0,79 · 0,72 | 0,63 · 1,32 |
+
+Non perde di un soffio: **offre un quinto**. E quello che prende lo paga un decimo della richiesta, cioè
+compra solo gli scarti — l'acquisto mediano del braccio costa **1 credito** contro i 15 del tavolo, e il
+**30,7%** dei suoi uomini è previsto sotto le 19 giornate contro il 17,9%. A chiamata lo stesso codice
+offre 0,63-0,85 e spende 987.
+
+### 17.2 Il difetto è di SCALA, e il conto dei buchi lo diceva già
+
+79,8 buchi contro 20,6 del miglior umano, a `HOLE_COST` = 4,73 sono **266 dei ~370 punti** che gli
+mancavano. Ma i buchi sono il sintomo: la causa è che il braccio prezza un uomo in **fantapunti**
+(`engine_worth` = surplus + copertura) e converte con un tasso globale, mentre il mercato lo prezza come
+**multiplo della sua richiesta**, fascia per fascia — ed è quella scala che conserva i crediti. *Un
+offerente i cui tetti non vivono sulla stessa scala dei prezzi non può vincere un lotto contendibile a
+nessun livello*: alzali e strapaga il primo uomo di ogni fase, abbassali e non compra niente.
+
+Le componenti di una singola offerta, fotografate (T2, prima urna):
+
+| | richiesta | surplus | copertura | alternativa | tetto reparto | offre | venduto a |
+|---|---|---|---|---|---|---|---|
+| Bastoni | 56 | 16,6 | 130,1 | 133,0 | 45 | **45** | 84 |
+| Vecino | 21 | 7,9 | 92,5 | 148,2 | 63 | **1** | 1 |
+| Thuram | 102 | 44,5 | 129,6 | 142,6 | 112 | **145** | 253 |
+| Martinez L. | 119 | 43,3 | 130,4 | 155,6 | 161 | **214** | 402 |
+
+### 17.3 Sei famiglie misurate e respinte, con i loro numeri
+
+Restano a verbale perché ognuna aveva un argomento, e due lo avevano buono:
+
+- **`ALT_WEIGHT`** (il valore d'opzione). Rimisurato sulla griglia 0…1 con le fasi: l'ottimo si sposta da
+  0,75 a **0,5** e vale **+5,2%** (2224 → 2340). È il migliore dei sei e non basta. La ragione per cui
+  si sposta è la stessa lezione delle fasi: dentro un reparto «arriva qualcuno di meglio» è quasi sempre
+  vero, quindi aspettare non informa più.
+- **L'alternativa sottratta solo sul SURPLUS**, non sulla copertura. L'argomento è forte — `cover_value`
+  è il valore di *non lasciare un posto vuoto*, non una proprietà dell'uomo, quindi le due coperture si
+  annullano e il braccio finisce per prezzare tutti al margine — e vale **+3,5%**, meno del semplice
+  `ALT_WEIGHT` 0,5. Diagnosi giusta, cura insufficiente.
+- **I buchi attesi ESATTI** (Poisson-binomiale sulle quote, come `expected_r_factor`) al posto di
+  `min(quota, deficit)`: **−0,3%** all'urna, +0,0% a chiamata (e i buchi a chiamata 10,8 → 8,6). Una
+  formulazione più pulita senza guadagno misurabile.
+- **Il tetto di reparto**: `URGENCY` 3 e 5 (+0,0% e −0,6%), pesato sul valore invece che spalmato sui
+  posti (−0,5%), niente tetto (−0,6% all'urna e **−9,9% a chiamata**, dove resta essenziale).
+- **Il tasso ricalibrato sulla quantità che l'offerta usa davvero** (`engine_worth` invece del solo
+  surplus — una vera incoerenza: la legge di conservazione è letta su una quantità e l'offerta ne usa
+  un'altra, tre volte più grande): **−10,4%**. I tetti diventano minuscoli.
+- **Le quote di reparto del mercato** al posto delle nostre: −0,1% all'urna, **+1,0% a chiamata**.
+
+### 17.4 Quello che ADOTTIAMO: la scala del mercato, inclinata sulla difesa
+
+`profiles.engine_ladder()`. Il braccio, a estrazione, offre come un umano competente — `passo(fascia) ×
+richiesta × scala` — dove la scala di partenza è quella **misurata sulle 131 aste vere** e il passo è
+inclinato:
+
+- **`ENGINE_BACK` = 1,9** su portieri e difensori;
+- **`ENGINE_TOP` = 2,2** sulle prime quattro fasce di ogni ruolo;
+- e tutto **rinormalizzato** perché il piano costi un budget: *un tilt che non conserva non è una
+  strategia, è un portafoglio più grande.*
+
+Effettivamente: ~1,7 volte il mercato sulle prime quattro fasce della DIFESA, ~0,9 sulla cima di C e A,
+e 0,4-0,8 sulle code. **È la strategia di P2, trovata dalla ricerca invece che copiata** — e il
+regolamento dice perché paga: i due modificatori di questa lega si pagano in **voti BASE** (il mod.dif
+sulla media dei tre difensori migliori, l'R-Factor su tutti gli undici) e i voti base sono quello che
+consegna una linea difensiva.
+
+> **I PORTIERI sono usciti dal tilt il §19.1**, e non per eleganza: la griglia li cercava insieme alla
+> difesa e non li ha mai chiesti a parte. Chiesti, la loro metà vale **niente** (+0,1%, 4 finestre su
+> 10) e spende 100 crediti in porta invece di 58, mentre tiltare i **soli** portieri è −1,6%.
+
+| | prima | ora |
+|---|---|---|
+| fantapunti, 10 finestre × 10 urne | 2212,9 | **2609,0** |
+| posto medio su undici | 10,27 | **3,82** |
+| buchi in una stagione | 79,8 | **22,4** |
+| crediti spesi su 1000 | 656 | **987** |
+| R-Factor · mod. difesa | 1,8 · 2,4 | **10,9 · 12,6** |
+| titoli | 0 su 100 | **28 su 100** |
+| scarto dal miglior umano | −371,8 | **+54,5** |
+
+> **RIMISURATO nel §18 a DIECI partecipanti e venti urne, e tre di questi numeri si spostano.** Il
+> guadagno dell'adozione (un confronto APPAIATO) migliora: **+20,2%**, 10 finestre di 10, peggiore
+> **+12,6%**. Lo scarto dal miglior umano scende da +54,5 a **+21,3** e il null a tre bracci da «+6,9,
+> resta primo» a **−2,8, un pareggio** — erano confronti NON appaiati su dieci urne, cioè rumore. E il
+> tavolo giocava a undici partecipanti dove tutto è calibrato per dieci.
+
+Verdetto nel vocabolario del gate: **STRICT**, 10 finestre di 10 migliorano, la peggiore **+10,1%**.
+L'ottimo è **interno** sulla griglia allargata (back 1,3…2,3 × top 1,3…3,5: i vicini leggono 2584,6 ·
+2584,9 · 2604,0 · 2569,9 contro 2609,0), ma il plateau è **piatto entro l'1%** — quindi la *direzione* è
+il risultato e i due decimali non lo sono.
+
+### 17.5 Tre cose che vanno dette perché sono la metà scomoda
+
+**Il nostro ORDINAMENTO non aggiunge niente.** La stessa scala letta sul rango di **PREZZO** invece che
+su quello del motore dà **+12,4% contro +12,3%**: identico. Quello che il braccio guadagna qui non è
+un'opinione migliore sui calciatori — è offrire su una scala che può vincere un lotto. Il vantaggio
+informativo sul listone, speso così, vale **zero**, e `metrica-asta-surplus-v1.md` §18 lo aveva già
+misurato largo un numero solo (le presenze).
+
+**E le nostre quote di reparto sono ridondanti col tilt.** Sulla scala non inclinata valgono +1,1%
+(il surplus dice P 14,5 · D 20,1 · C 28,2 · A 37,2 contro il mercato 9,1 · 16,3 · 27,2 · 47,4, cioè
+pende dalla stessa parte); sulla scala inclinata costano **−1,2%** e migliorano 2 finestre su 10. Il tilt
+le assorbe, quindi il parametro è stato **togliuto** invece di restare non letto.
+
+**E il margine NON sopravvive alla propria concorrenza**, che è più forte di come lo avevo scritto
+prima («resta primo per 6,9 punti»): rimisurato a dieci partecipanti e venti urne, con **tre** sedie al
+braccio il margine sul miglior umano è **−2,8**, cioè un pareggio (80 titoli su 600, il 13,3% contro il
+10% del caso). La maggior parte del vantaggio a una sedia È esclusività. Il meccanismo è misurato: i
+portieri di prima fascia passano da 0,62 a **0,85** della richiesta quando tre bracci li vogliono
+insieme, e ogni braccio ne prende 8,7 invece di 9,9. Vedi §18.2.
+
+### 17.6 E a CHIAMATA non si tocca niente
+
+La stessa scala a chiamata **perde**: 2575,7 contro 2628,3, 3 finestre su 10, peggiore −7,8%. Quindi è
+accesa **dal meccanismo** (`Urn.random`) e non da un flag che qualcuno deve ricordarsi, esattamente come
+`ALT_WEIGHT` è spento lì. *Un parametro appartiene al meccanismo su cui è stato misurato*, e a chiamata
+il braccio in fantapunti resta il migliore del tavolo (posto 3,00, 10,8 buchi).
+
+### 17.7 Un difetto trovato per la seconda volta nello stesso modo
+
+La prima corsa col codice adottato leggeva **identica** a quella di prima: `one_auction` aggiunge il
+braccio motore **dopo** il ciclo che consegna `asks` a tutti, quindi il braccio non li aveva e il dispatch
+non scattava. È la seconda volta in una sera che una tabella identica a se stessa denuncia una manopola
+girata dove nessuno la legge (la prima era `profiles.CAUTIOUS_CAP_SHARE`, §16.9). **Righe identiche non
+sono un risultato: sono un guasto dello strumento**, e vanno sospettate prima della conclusione.
+
+## 18. DIECI contro DIECI, e tre numeri del §17 ritirati (2 settembre 2026, notte tarda)
+
+Due osservazioni dell'operatore, entrambe giuste, ed entrambe hanno spostato numeri pubblicati poche ore
+prima. Vale la pena leggerle nell'ordine in cui sono arrivate, perché la seconda è nata dalla prima.
+
+### 18.1 «I dati reali parlano di aste a 8 o a 10 partecipanti … nelle nostre simulazioni invece abbiamo 11 o 13?»
+
+Sì, e era un difetto. `bench.py` metteva il braccio motore come **undicesimo** partecipante al tavolo
+dichiarato di dieci, e il null a tre bracci ne faceva **tredici** — mentre tutto quello contro cui il
+banco è calibrato dice DIECI: `rules.TEAMS` = 10, `to_credits` conserva dieci budget sui 250 uomini che
+dieci rose comprano, una FASCIA è un rango diviso dieci, e il livello di sostituzione dietro ogni surplus
+è il 10 × posti-esimo uomo. Undici partecipanti portano il **10% di soldi e posti in più** di quello che
+la calibrazione assume; tredici il **30%**. (`league.py` non ha mai avuto il difetto: le sue dieci lettere
+comprendono il braccio.)
+
+Curato con `bench.seated`: **il braccio prende una sedia, non se la aggiunge**. Chi cede il posto è
+dichiarato e deterministico — il profilo che in quel momento ha più sedie, a pari merito il primo
+dichiarato — così l'opposizione resta il più possibile la miscela dell'operatore: con tre bracci il suo
+2 · 2 · 1 · 3 · 2 diventa 1 · 1 · 1 · 2 · 2, e ogni profilo che ha descritto è ancora al tavolo.
+
+**E la scala di mercato è stata rimisurata sulle 60 aste vere a DIECI squadre** (di cui le 20 identiche
+alla sua lega), invece che su tutte e 131. Costo del cambio: quasi nullo — la normalizzazione sul
+montepremi stava facendo il suo lavoro — e il movimento più grosso è la terza fascia del centrocampo
+(0,62 → 0,74). La popolazione adesso è quella giusta, e **quella è la ragione, non la dimensione del
+cambiamento**.
+
+### 18.2 I tre numeri del §17 che vanno ritirati
+
+Rimisurati a **dieci** partecipanti e **venti** urne per finestra (200 stagioni per il braccio, 600 per
+il null), il verdetto dell'adozione **migliora** e i due numeri di contorno **crollano**:
+
+| | §17 (11 partecipanti, 10 urne) | **ora (10 partecipanti, 20 urne)** |
+|---|---|---|
+| il guadagno della scala di mercato | +17,9% · 10/10 · peggiore +10,1% | **+20,2% · 10/10 · peggiore +12,6%** |
+| il braccio, prima | 2212,9 · posto 10,27 · 79,8 buchi · 656 spesi | 2161,9 · posto 9,68 · 87,9 · 590 |
+| il braccio, ora | 2609,0 · posto 3,82 · 22,4 buchi · 987 spesi | **2599,6 · posto 4,29 · 22,5 · 989** |
+| scarto dal miglior umano | +54,5 | **+21,3** |
+| il null a tre bracci | +6,9, «resta primo» | **−2,8, un pareggio** |
+
+**Cosa regge e perché.** Il guadagno dell'adozione è un confronto **appaiato** — lo stesso braccio, sulle
+stesse urne, con e senza la scala — quindi il campione più grande lo *conferma* e lo rafforza. Lo scarto
+dal miglior umano e il null sono confronti **non appaiati** (una media contro il massimo su cinque
+profili), quindi erano rumore: il +54,5 era la coda di un campione da 10 urne, e a 20 urne legge +21,3.
+
+**E il null va detto come sta.** A tre bracci il braccio non «resta primo per 6,9 punti»: legge **−2,8**
+contro il miglior umano, cioè un pareggio, con 80 titoli su 600 (13,3%) contro il 10% del caso. La frase
+giusta è che **il vantaggio non sopravvive in modo misurabile alla propria concorrenza**: la maggior
+parte del margine era esclusività. Il meccanismo è misurato e non è un'ipotesi — i portieri delle prime
+quattro fasce, che sono il bersaglio del tilt, passano da **0,62 a 0,85 della richiesta** e i difensori da
+0,96 a 1,05 quando tre bracci li vogliono insieme, e ogni braccio ne porta a casa 8,7 invece di 9,9.
+
+Quello che il null **non** dice è che l'adozione sia sbagliata: a una sedia sola — che è il tavolo
+dell'operatore — il braccio è primo con 38 titoli su 200 contro il 10% del caso, e il confronto appaiato
+è strict su tutte e dieci le finestre.
+
+### 18.3 «≤5 crediti è una soglia ASSOLUTA … magari rivedi questo valore»
+
+Giusto, e la misura ha dato una risposta migliore della correzione che stavo per fare. Su 600 rose vere a
+dieci squadre, quanti dei 25 uomini costano meno di X:
+
+| soglia | budget 500 (360 rose) | budget 1000 (200 rose) | stabile? |
+|---|---|---|---|
+| ≤ 5 crediti | 10,7 | 8,5 | **no** — è la soglia che il §16 usava |
+| **a 1 credito** | **6,1** | **5,7** | **sì** |
+| ≤ 0,2% del budget | 6,1 | 6,5 | quasi |
+| ≤ 0,5% | 7,4 | 8,5 | no |
+| **≤ 1,0% del budget** | **10,7** | **11,0** | **sì** |
+
+Quindi il bersaglio non è più «≤5 crediti» ma **due conti liberi dal budget**: gli uomini presi al
+**minimo** (un credito) e quelli sotto l'**1% del budget**. Il fatto grosso che ne esce: **il 24% di
+tutti gli acquisti veri costa un credito o meno**, e la distribuzione del prezzo di un acquisto in quota
+del budget legge p10 0,20% · p25 0,30% · p50 1,60% · p75 4,80% · p90 10,00%.
+
+**E il bersaglio nuovo scopre un difetto che quello vecchio nascondeva.**
+
+| | a chiamata: banco / vero | a estrazione: banco / vero |
+|---|---|---|
+| uomini a **un credito** | **1,8 / 5,7** | **2,5 / 6,7** |
+| uomini sotto l'**1% del budget** | 9,9 / 10,5 | 10,7 / 11,7 |
+| il più caro, quota della spesa | 24,0% / 27% | 26,2% / 30% |
+| i primi tre | 50,1% / 51% | 51,9% / 55% |
+| gini della spesa | 0,60 / 0,63 | 0,60 / 0,67 |
+| crediti in tasca | 3,3% / 1,7% | 3,1% / 4,7% |
+
+La **coda** del nostro mercato è giusta (9,9 contro 10,5), il **fondo** no: i nostri tavoli pagano 2-5
+crediti dove un tavolo vero paga UNO. La causa è che ogni nostro partecipante ha un tetto positivo per
+ogni uomo (il gradino di coda, 0,17-0,21 della richiesta), quindi con dieci offerenti il secondo prezzo
+non arriva quasi mai a uno; a un tavolo vero nove manager su dieci **non offrono affatto** sul fondo del
+listone, e quel nome va al minimo. È il **24% del mercato** che ha una forma diversa dalla nostra.
+
+Detto con la sua conseguenza, che è piccola: sono ~3,9 uomini per rosa pagati ~4 crediti invece di 1,
+cioè **12 crediti su 1000**. Non muove un verdetto; è un difetto di calibrazione della *forma* del
+mercato, non della strategia, e sta a verbale perché una soglia scelta bene lo ha reso visibile e una
+scelta male lo nascondeva.
+
+## 19. Le simulazioni rifatte, e la strada da prendere (2 settembre 2026, chiusura)
+
+Rieseguito tutto sul setup corretto — **dieci partecipanti**, le fasi per reparto, la scala di mercato
+misurata sulle 60 aste vere a dieci squadre, il braccio che prende una sedia invece di aggiungersene una
+— e con una correzione in più trovata strada facendo.
+
+### 19.1 Il tilt sui PORTIERI non era guadagnato
+
+La griglia del §17 cercava `ENGINE_BACK` su portieri e difesa **insieme** e non li ha mai chiesti a
+parte. Chiesto:
+
+| tilt su | punti | posto | buchi | crediti in porta | scarto dal miglior umano |
+|---|---|---|---|---|---|
+| portieri + difesa | 2605,4 | 4,06 | 22,7 | **100** | +22,7 |
+| **solo difesa** | **2608,3** | 4,16 | 20,8 | **58** | +27,8 |
+| solo portieri | 2563,3 | 5,37 | 28,9 | 137 | −32,1 |
+| nessuno dei due | 2579,0 | 5,17 | 27,5 | 67 | +5,7 |
+
+La metà portieri vale **niente** (+0,1%, 4 finestre su 10) e costa 42 crediti di portafoglio spesi in
+porta; tilterei i soli portieri è **−1,6%**. Quindi i portieri escono dal tilt, e la ragione è la regola
+di casa applicata al caso in cui morde: **a pari merito sopravvive la forma che non porta un'istruzione
+non misurata**, e questa ne portava una visibile — «offri 136 crediti per un portiere di prima fascia»,
+dove il mercato ne paga 81.
+
+### 19.2 La classifica finale, dieci partecipanti
+
+**Fantapunti in una stagione**, dieci finestre × venti urne (200 stagioni per riga a estrazione):
+
+| a estrazione | punti | sd | posto | buchi | speso | R | dif | titoli |
+|---|---|---|---|---|---|---|---|---|
+| **braccio motore** | **2605,5** | 107 | **4,17** | 22,1 | 991 | 10,8 | 12,9 | **42/200** |
+| P2 difesa | 2585,5 | 116 | 4,64 | 23,5 | 987 | 10,4 | 13,8 | 38/200 |
+| P1b senza piano, inesperto | 2569,3 | 111 | 5,03 | 26,5 | 990 | 9,1 | 10,8 | 41/400 |
+| P1a senza piano, esperto | 2547,0 | 92 | 5,80 | 21,0 | 984 | 8,9 | 11,1 | 26/400 |
+| P3 equilibrato | 2541,5 | 105 | 5,92 | 28,8 | 977 | 8,2 | 9,9 | 37/400 |
+| P4 top d'attacco | 2523,8 | 113 | 6,34 | 32,0 | 911 | 7,1 | 8,1 | 16/400 |
+
+A chiamata: braccio **2647,4** (posto 3,70 · 10,5 buchi · 4 titoli su 10), poi P2 2598,8 · P3 2595,7 ·
+P1b 2592,9 · P1a 2589,1, e **P4 ultimo a 2473,0 con 43,4 buchi**. Il campionato a estrazione dice la
+stessa cosa: braccio 54,6 punti e **49 titoli su 200** (24,5% contro il 10% del caso), P2 52,3, P4 45,3.
+
+**Tre letture, e la terza è la più utile all'operatore.** Il braccio è primo su tutt'e due i meccanismi.
+Il miglior umano è **P2, la difesa**, su tutt'e due. E **P4 — inseguire il top d'attacco — è ultimo su
+tutt'e due**, che è l'archetipo più diffuso nei dati veri (il 37% delle rose): il mercato strapaga quel
+nome, e chi lo compra paga il conto in copertura (32,0 buchi contro i 22,1 del braccio).
+
+### 19.3 La ricetta in CREDITI, per la sua lega
+
+La ricetta adottata è un multiplo della richiesta, e la richiesta è la Qt.I riscalata sul montepremi.
+Con la mediana per fascia misurata sulle **20 aste vere identiche alla sua** (10 squadre, 1000 crediti)
+diventa un listino:
+
+| reparto | fascia | richiesta | **offri fino a** | il mercato paga | chi ci sta (nomi veri) |
+|---|---|---|---|---|---|
+| portieri | 1ª | 62 | 77 | 81 | Svilar, Martinez Jo., Carnesecchi |
+| | 2ª-3ª | 28 · 4 | 10 · 2 | 11 · 2 | Mandas, Falcone · Corvi, Motta |
+| **difensori** | **1ª** | 60 | **97** | 54 | Dimarco, Molina N., Wesley |
+| | **2ª** | 48 | **63** | 35 | Kalulu, Solet, Stones |
+| | **3ª** | 33 | **32** | 18 | Ramon, Vasquez, Cambiaso |
+| | **4ª** | 32 | **25** | 14 | Dragusin, Valeri, Bartesaghi |
+| | 5ª-8ª | 28 → 12 | 2-5 | 2-6 | Comuzzo, Bellanova, De Winter |
+| centrocampisti | 1ª | 95 | 107 | 112 | Paz N., McTominay, Calhanoglu |
+| | 2ª-4ª | 58 → 40 | 48 · 34 · 19 | 50 · 36 · 20 | McKennie, Atta, Conceicao |
+| | 5ª-8ª | 32 → 16 | 1-4 | 3-8 | Cristante, Frattesi, Lobotka |
+| attaccanti | 1ª | 107 | **234** | 247 | Martinez L., Malen, Thuram |
+| | 2ª | 65 | 83 | 87 | Davis K., Berardi, Krstovic |
+| | 3ª | 52 | 42 | 45 | Castro S., Santos A., Pinamonti |
+| | 4ª-6ª | 37 → 16 | 1-9 | 3-9 | Bowie, Bonny, Kvernadze |
+
+**Detta in una riga: i quattro difensori migliori sono l'investimento, tutto il resto è al prezzo del
+mercato o sotto.** Le quote di reparto che ne escono sono P 9,8% · **D 25,4%** · C 23,9% · A 40,9%
+contro il mercato 9,1 · 16,3 · 27,2 · 47,4 — quindi la difesa vale nove punti di budget in più e
+l'attacco sei in meno, e il portiere resta al prezzo di tutti.
+
+E le tre istruzioni negative, che contano quanto quelle positive: **il portiere non si strapaga**, il
+**primo centrocampista si paga il prezzo di tutti** (107 contro 112 — se qualcuno rilancia lo si lascia),
+e il **top d'attacco si lascia andare** (234 contro 247: lo si perde circa metà delle volte, ed è il
+piano). Dalla quinta fascia in giù si offre **1-5 crediti**, e sono ~13 uomini su 25.
+
+### 19.4 Cosa questa strada NON promette
+
+- **Il margine è piccolo.** +20 fantapunti sul miglior umano in una stagione da 36 giornate sono
+  **+0,55 a giornata**, con una deviazione standard fra stagioni di 107. Vince il 21% delle volte contro
+  il 10% del caso: è un vantaggio, non una certezza.
+- **Non sopravvive alla propria concorrenza** (§18.2): con tre sedie che giocano così lo scarto è −2,8.
+  Se al tavolo si mettono in due a comprare la difesa, i difensori di prima fascia passano da 0,62 a
+  0,85 della richiesta e il vantaggio se ne va con loro.
+- **Il fondo del mercato, qui, è più caro del vero** (§18.3): il banco prende 2,5 uomini a un credito
+  dove un tavolo vero ne prende 6,7. Quindi al tavolo vero i riempimenti costeranno **meno** di quanto
+  questa ricetta preveda — l'errore è nella direzione che aiuta.
+- **I crediti assoluti sono la mediana delle sue venti aste**, non il suo listone: la fascia dice quanto
+  pagare, il nome della fascia lo decide la Qt.I del listone dell'anno.
+
+## 20. Prossimi passi, riscritti dopo i dati veri (2 settembre 2026, chiusura)
+
+Il §12 è del pomeriggio e va letto sapendo che metà della sua lista è stata fatta o superata. Questa la
+sostituisce.
+
+### 20.1 Fatti, e dove sono
+
+- **`CAUTIOUS_CAP_SHARE`** (era il punto 1 del §12): riancorato da 0,15 (il **p10** della cautela reale) a
+  0,18 (il p25), e trovato **quasi inerte** — §16.6. Quello che sembrava un tetto vincolante era il
+  sintomo dell'indice della scala.
+- **`URGENCY`**: chiesto ai dati (3,0 e 5,0 → +0,0% e −0,6%) dentro la ricerca sul braccio, §17.3.
+- **`ABUNDANCE`**: non è più una manopola del tavolo, è del **solo braccio motore** — gli umani passano
+  per `Team.scale`, §16.4.
+- **Il NULL** (punto 2): rifatto a tre sedie **su dieci** e con l'ordine giusto, e il verdetto è cambiato
+  di segno — **−2,8, un pareggio** invece del «+22,3» ritirato, §18.2. Resta aperta la metà procedurale:
+  un braccio **cieco nel codice** invece di una variante usa-e-getta.
+
+### 20.2 Aperti, in ordine di resa attesa
+
+1. **Il mercato di riparazione**, che resta la sola cosa che potrebbe cambiare l'ordine dei profili: chi
+   lascia buchi è punito per intero, e la lega gli darebbe tre finestre per curarli. Adesso vale più di
+   ieri, perché la ricetta adottata vince **sulla copertura** (22,1 buchi contro i 32,0 di P4) e un
+   mercato di riparazione è esattamente ciò che sconta quel vantaggio.
+2. **Il FONDO del mercato** (§18.3): il banco prende 2,5 uomini a un credito dove un tavolo vero ne
+   prende 6,7, perché ogni nostro partecipante ha un tetto positivo per ogni uomo mentre a un tavolo vero
+   nove manager su dieci **non offrono affatto** sul fondo del listone. Costa 12 crediti su 1000 e non
+   muove un verdetto, ma è il **24% del mercato** con una forma diversa dalla nostra. La cura ovvia — una
+   soglia sotto la quale non si offre — è una costante dichiarata in più: prima di aggiungerla, chiedersi
+   cosa può cambiare il suo output.
+3. **L'asta A CHIAMATA vera è una SCELTA**, non un ordine (§16.7): lì è il manager a scegliere quale nome
+   mettere all'asta dentro il reparto in corso, e questo banco chiama il più caro per primo. È la ragione
+   strutturale dei due bersagli fuori misura a chiamata (il lotto più caro al 24,0% contro il 27%, e il
+   fondo). Modellare la scelta è un pezzo di comportamento nuovo: si misura sul dato vero, che ha 37 aste
+   a chiamata a dieci squadre.
+4. **P5 e P6 sono scritti e seduti fuori** (§15.9): «rinuncia al top d'attacco» (13,5% delle rose vere) e
+   «un campione e la manovalanza» (14%). Chi siede al tavolo è una decisione dell'operatore; il giorno che
+   li vuole, la misura da fare è se il verdetto sui sei profili tiene con loro dentro.
+5. **`auction_level`** (il 2-bis del §12, intatto): collassa un codice mantra e un ruolo di listone in una
+   stringa sola, e oggi le separa solo il CASO delle lettere. La cura è far viaggiare il vocabolario
+   accanto allo slot — un cambio alla forma del foglio, non un lookup.
+6. **Il profilo TIFOSO** (il 4 del §12, intatto): serve la tabella di rivalità dichiarata.
+7. **`CLUB_PENALTY`** (0,45) è l'unica delle quattro manopole del §12 che nessuno ha ancora chiesto ai
+   dati — e questo banco **non può** vederne il beneficio, perché la sua deviazione standard è fra
+   stagioni e il rischio che quella regola toglie è dentro una stagione (`metrica-asta-surplus-v1.md`
+   §24 lo misura dall'altro lato).
+
+### 20.3 Cosa NON rifare, e perché
+
+- **Il valore d'opzione al di là di `ALT_WEIGHT` 0,5**: sei famiglie misurate, la migliore +5,2%, e il
+  difetto vero era di scala (§17.3). Non è una manopola da girare ancora.
+- **Il tilt sui portieri**: +0,1% su 4 finestre di 10, e tiltare i soli portieri è −1,6% (§19.1).
+- **Il nostro ORDINAMENTO come sostituto del rango di prezzo**: +12,4% contro +12,3%, cioè zero (§17.5).
+  Se un giorno il vantaggio informativo deve pagare, la forma non è questa.
+- **Le tre cure di comportamento sul campione** (§16.5): il conto sui crediti da solo, quello su crediti
+  e posto per tutti, il pavimento d'urgenza. Tutte e tre misurate e respinte con i loro numeri.

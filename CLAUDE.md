@@ -596,6 +596,271 @@ declaration, and what decides is the WIDTH of one string in the face and in its 
 count could see, the SCREENSHOTS found: a roster card clipping its last column (`overflow:hidden` plus an
 auto-layout table, the same family as the app table's «276px of columns not narrow, ABSENT»).
 
+## ...and the same bench on a RANDOM EXTRACTION, where the ORDER stops rationing for you
+**02/09/2026, on the operator's own auction: «l'asta che dovrò affrontare sarà ad estrazione RANDOM del
+calciatore che andrà in asta».** Details and every refused variant: `simulatore-asta-rilanci-v1.md` §14.
+One question was asked before a line was written, because the two answers are two different jobs (free
+over the whole listone, or role by role); the answer is FREE, and every number is measured on that.
+
+**A change of ORDER is a change of GAME, and the first thing to measure is the mechanism with every
+strategy held still.** (Three numbers of this paragraph were SUPERSEDED the same evening by the
+operator's own auction archive - a real drawn auction RESHUFFLES the urn, so an unsold man comes back;
+see the section below.) Of the 50 best men by the engine's own value, **14.3 go UNSOLD** at a drawn
+auction against 0.1 at a called one — they come up when the rosters are already full — the table
+manages to spend 709 credits of 1000 against 978, holes double (25.4 → 50.0), and what the best man
+costs stops being a fact about him: 31.2% of a budget at a called auction, 11-48% at a drawn one
+depending on WHEN he is drawn. **One participant, one window, twenty urns: sd 170 fantapunti against
+the 199 that separates the ten seasons themselves** — so a single order measures the luck of that
+order, which is why `--random` takes a number of DRAWS and every figure is a mean over windows × draws.
+
+**The arm that won at a called auction finishes fifth of six at a drawn one** (2665.5 → 2276.1, holes
+12.4 → 69.0), and the cure is this project's own question asked once more: **what is the zero of this
+number?** The surplus already subtracts the man who would PLAY instead; a drawn auction needs the man
+who would be BOUGHT instead, and WHICH man that is, is COUNTED rather than chosen — if `k` participants
+still have that role open, the best `k` left go one each, so the fallback is the `k`-th of them.
+`ALT_WEIGHT` = 0.75 of it comes off the bid: **+12.8%, 10 windows of 10, worst +6.7%**, holes → 22.5,
+interior optimum. It is not the 1.0 the theory writes because the fallback is OPTIMISTIC — it assumes
+you win one of those `k`. Its companion refuses the mirror defect: **«spend it or lose it» never means
+buying a man worse than the one who is coming**, because at a random extraction **a slot is as scarce
+as a credit** (the draft bench's lesson met halfway) — that floor was not spending a credit, it was
+spending a PLACE, and the credit stayed in the purse anyway (+79 points, holes 33.4 → 22.9).
+
+Five things outlive the mechanism.
+- **A parameter belongs to the MECHANISM it was measured on**, exactly as it belongs to a platform: the
+  same term is worth +0.3% on the called windows with one at −5.6%, i.e. it fails the robust criterion
+  there. So it is switched off by the mechanism itself (`Urn.random`) and not by a flag anybody has to
+  remember, and every number published on the called auction reproduces to the decimal — asserted by a
+  test, not hoped.
+- **Two knobs for one effect is where a bench starts fitting itself.** `ALT_RANK` 2 measures a shade
+  better than 1 (2572.8 against 2568.0) and the whole surface is flat inside 0.5%; what survives is the
+  parametrisation whose companion is COUNTED rather than tuned.
+- **Reading a value without its option value is worse than reading none at all.** The profile who
+  blends his ceiling toward the engine's surplus (the expert) goes from mid-table to LAST, below the
+  novice who reads only the quotation — the surplus alone says «he is cheap for what he gives» about a
+  man ten better ones are queued behind.
+- **A strategy that wins only because the table wastes its money is not a strategy**, so it is sat down
+  against itself: three engine seats of thirteen still lead (2506.2 against 2414.8), with the arms'
+  spend rising 560 → 734 — competition for the same men is what puts the prices back.
+- **A number quoted as agreeing with the operator's experience is the first one to re-measure.** The
+  «top man goes for 48-75% of the budget, mean 60%» published in the README does NOT reproduce: 31.2%
+  (26-35%) on ten windows, identical with the engine arm at the table and without it. Withdrawn rather
+  than deleted, with what it would mean if his real figure is 60% — that this bench's urn is too short
+  (359-430 men for 275 places), which is a limit and not a defence.
+
+## ...e poi sono arrivati 147 DATI VERI, e il meccanismo aveva una regola in meno
+**02/09/2026 (sera), `docs/real-data/` — 147 aste vere sul listone ufficiale, 131 con la sua stessa rosa
+3/8/8/6 e 20 identiche alla sua, 29.421 aggiudicazioni su 1.177 rose. Dettaglio:
+`simulatore-asta-rilanci-v1.md` §15.** L'operatore ha portato l'archivio che il documento chiedeva, e
+con quello il banco cambia natura: quanto paga un tavolo era DICHIARATO e diventa MISURATO. Le sue
+quattro obiezioni («non è realistico che L.Martinez non venga preso» · «P2 … almeno 3 devono essere
+suoi» · «P4 deve puntare sul TOP in attacco» · «costi distribuiti in maniera troppo equilibrata») erano
+giuste tutte e quattro, e avevano **una causa sola**.
+
+**Una scala indicizzata sulla quantità sbagliata è invisibile sotto un meccanismo e letale sotto un
+altro.** Il gradino di una ricetta era scelto da quanti uomini di quel reparto la rosa già possedeva, che
+è lo stesso numero del TIER **solo se i lotti sono chiamati dal più caro**. A estrazione la ricetta si
+leggeva «pago 1,9 volte la richiesta per il primo difensore che mi capita», e P2 pagava il premio da
+titolare al **90esimo difensore del listone**. Ora l'indice è `max(tier, posseduti)`, e il tier — il rango
+dentro il ruolo diviso il numero di squadre — è una **legge di conservazione**: in una lega da dieci ci
+sono dieci primi difensori perché ognuno ne schiera uno.
+
+**I DATI VERI SONO UN GIUDICE DELL'AMBIENTE, e dove entrano come input lo dicono.** `profiles.MARKET` è
+quello che un tavolo vero paga per fascia (attacco di prima fascia **2,38** volte la richiesta, dalla
+quinta in giù **0,16-0,25**, e la spartizione fra reparti viene da sé: P 9,1 · D 16,3 · C 27,2 · **A
+47,4**). I cinque profili restano dichiarati — sono le sue frasi — ma il loro LIVELLO no. Quindi «il
+tavolo simulato riproduce la scala vera» **non è una prova di niente**: è come è costruito. La prova è
+quello che il MECCANISMO produce da sé, ed è quello che si segna — concentrazione della spesa (gini
+0,59-0,62 contro 0,65-0,68), crediti in tasca (**2,8% contro 2,8%**), campioni invenduti (1,3 contro 1,75).
+
+**Una scala è il tetto di un acquisto ORDINARIO.** La mediana di pagato/richiesta e non il rapporto delle
+somme, che in coda vale 1,4-1,7 volte la mediana perché qualche riempimento viene comprato in chiusura
+con quello che resta: quell'inflazione è vera e il banco la produce già da sé, e metterla anche nella
+scala la conta due volte (2,7 uomini sotto i 5 crediti contro 4,3, su un vero di 8,0). Il prezzo della
+mediana è la conservazione — somma il 79% del montepremi — e il meccanismo mette il resto.
+
+**IL DIFETTO PIÙ GROSSO NON ERA NELLA SUA LISTA: a un'asta a estrazione vera l'urna si rimescola.** Nelle
+cinque aste il cui ordine è ricostruibile, ognuno dei 518 nomi è estratto **da 5 a 9 volte**, e Martinez
+L., Malen, Dimarco, Paz N. e Thuram compaiono fra le estrazioni su cui nessuno ha offerto e sono venduti
+dopo. Il banco modellava un giro solo, e quel giro solo produceva da sé **tre numeri pubblicati**: i «14,3
+dei 50 migliori invenduti» (col rimescolo 1,3, vero 1,75), il «migliore che va dallo 0% al 35% a seconda
+di quando esce» (mai invenduto, 60 urne su 60), e la frase su cui poggia `ALT_WEIGHT` — «un nome rifiutato
+non ha un sostituto garantito». Un nome rifiutato **torna**. La regola generale: **quando i numeri di un
+meccanismo sembrano estremi, si va a leggere il regolamento della cosa vera prima di modellare un
+comportamento** — qui mancava una regola, non un parametro.
+
+**E «una strategia che vince solo perché il tavolo butta i suoi soldi non è una strategia» è stata
+misurata dall'altro lato** (e il crollo all'urna è stato poi CURATO la notte stessa, sezione seguente:
+il difetto era la SCALA dei tetti, non la valutazione). Contro il tavolo calibrato sul vero, il braccio
+motore passa da 2665,5 punti e posto medio 1,70 a **2604,2 e posto 4,40** a chiamata (0 titoli su 10) e
+da ~2568 a **2087,3, ultimo di undici**, a estrazione — mentre il tavolo guadagna ~120 punti diventando realistico. Non è la taratura:
+tutta la griglia di `ALT_WEIGHT` è ultima a estrazione e **inerte a chiamata** (identica a ogni punto), e
+due sonde dicono che la diagnosi è di LIVELLO — `engine_rate` tara i suoi tetti perché i suoi 25 uomini
+costino un budget, mentre un tavolo vero mette il 47% del montepremi in attacco.
+
+Quattro abitudini più piccole, tutte pagate nella stessa sera.
+- **Una soglia sposta il problema di un gradino invece di risolverlo.** Tenere l'ultimo posto per un uomo
+  di prima fascia lascia 7,73 dei 50 migliori invenduti, estenderlo alla seconda 10,67, alla terza 14,30.
+  La forma che funziona è CONTATA e non ha costanti: se `hands` partecipanti vogliono ancora quel ruolo, i
+  migliori rimasti vanno uno per testa, quindi la mia quota è il loro numero diviso le mani alzate — lo
+  stesso conto che `alternative` fa per un credito, fatto per un POSTO.
+- **Un indice che divide per la richiesta NON è pulito dalla composizione**, perché il rapporto
+  pagato/richiesta cresce col calciatore: la curva per decimo dell'asta legge 1,69 nel nono decimo, e in
+  quel decimo gli aggiudicati hanno una Qt.I media 1,42 volte quella dell'asta. La prima cura scritta su
+  quella curva è stata misurata e **respinta**; quello che decide è il test PER UOMO — Malen costa il
+  42,2% del budget aggiudicato presto e il 42,5% tardi, `r(quando, prezzo) = −0,147`.
+- **Una costante dichiarata può essere CONFERMATA dai dati**, e vale la pena guardare: «la soglia mentale
+  dei 500 difficilmente si supera» misurata è **0,30 acquisti per asta** sopra la metà del budget (39 su
+  29.421, p99,9 al 52,1%). E il numero che il progetto aveva **ritirato** — il più caro di un'asta al
+  «48-75%, media 60%» — ha ora una risposta: **42,8% a chiamata e 44,1% a estrazione** (18-73%). Il
+  ricordo dell'operatore era più vicino al vero del 31,2% che il banco misurava: **un numero ritirato per
+  mancata riproduzione non è un numero smentito.**
+- **Un archetipo che non siede al tavolo va cercato nei dati, non inventato.** k-means sulle 1.177 rose
+  vere: tre dei cinque gruppi sono i suoi P4, P3 e P2, e i due che mancavano sono «rinuncia al top
+  d'attacco» (13,5%: il 62% fra difesa e centrocampo) e «un campione e la manovalanza» (14%: il 46% del
+  budget su un uomo e il 42% della rosa a due crediti). Dichiarati, implementati e **seduti fuori** dal
+  tavolo dichiarato, perché chi siede al suo tavolo è una sua decisione e non una misura. La stessa
+  tabella dice anche che possedere 3+ top di ruolo in un reparto è **raro** (4% in difesa), quindi il P2
+  che lui descrive è una strategia vera e rara.
+
+Quello che ancora non tornava, con il suo numero: sul banco il campione costava il **38,1%** del budget se
+estratto nel primo quarto e l'**1,3%** nell'ultimo (`r = −0,904`), dove il vero è piatto. **Chiuso la
+stessa sera, e la cura che avevo scritto qui era sbagliata** — non era una quota di crediti da tenere, era
+l'ORDINE: vedi la sezione che segue.
+
+## ...e allineare il banco a quei dati ha trovato che il difetto era l'ORDINE
+**02/09/2026 (sera), `simulatore-asta-rilanci-v1.md` §16.** I tre scarti che il pomeriggio aveva lasciato
+si chiudono con **una correzione al meccanismo** e due all'indicizzazione, e con tre cure scritte prima
+di essere misurate e bocciate. Lo strumento che ha trovato tutto è uno: **la curva della spesa
+cumulata** — quanto del montepremi è già uscito, decimo per decimo. Un tavolo vero tiene in tasca il
+**70% dei crediti a metà asta**; il banco ne aveva speso il 60%, e a chiamata era fuori scala di **cinque
+volte** nel primo decimo (46,1% contro 9,0%). Nessun comportamento sposta una curva così.
+
+**UN'ASTA SI GIOCA A REPARTI, e questo banco la giocava tutta insieme.** Sulle 20 aste reali con la sua
+lega, **16 mettono la posizione media dell'aggiudicazione a 0,06 · 0,28 · 0,60 · 0,88** per P · D · C ·
+A — identiche a due decimali su sedici sessioni separate, che è la firma di un ordine imposto dalla
+piattaforma e non di un'abitudine, e sono esattamente dove il REGOLAMENTO mette i confini (3 portieri su
+25 posti, poi 8, poi 8, poi 6). Dentro un reparto l'ordine è casuale. Adottato senza parametri
+(`bench.PHASES`), spiega da sé la curva della spesa (= la spartizione fra reparti accumulata in
+quell'ordine), il fatto che gli uomini cari siano aggiudicati tardi (sono attaccanti) e che il prezzo di
+un campione non dipenda da quando esce. Dopo: **8,3 · 19,9 · 24,1 · 25,6 · 40,0 · 48,1 · 50,5 · 78,3 ·
+98,1** contro il vero **9,0 · 18,6 · 24,8 · 27,8 · 40,5 · 50,4 · 54,3 · 77,0 · 95,5**.
+
+Tre lezioni che valgono oltre il banco, e due sono su come si cerca.
+- **La fotografia batte il ragionamento.** Tre cure sono state respinte ragionando su curve aggregate; la
+  causa vera l'ha trovata stampare, **per un lotto solo**, chi aveva ancora un posto, quanti crediti
+  aveva e quanto offriva: nove mani, crediti [12, 12, 50, 68, 106, 145, 177, 369, 513], offerte 184 ·
+  150 · 150. Il progetto lo aveva già scritto per il pannello Tk («fotografa la SUA finestra prima di
+  rispiegare il codice»); vale identico per un meccanismo.
+- **Un indice che conta gli uomini sbagliati è invisibile fino al caso limite.** `step` era indicizzato su
+  *quanti* uomini del reparto la rosa possiede, quindi una rosa con quattro attaccanti prezzava **il
+  miglior giocatore del gioco come il suo quinto**, 0,18 volte la richiesta invece di 2,38. Ora conta
+  quelli che possiede **almeno bravi come lui**, la guardia anti-accumulo regge intatta, e i quattro
+  bersagli si muovono tutti (uomini a ≤5 crediti 7,0 → 8,0 su un vero di 9,5; tasca 10,2% → 6,2% su 6,1%).
+- **Un OBIETTIVO è un NOME, non una fascia.** «Un attaccante di prima fascia» si liberava nel momento in
+  cui P4 comprava **il decimo migliore dei dieci**; con il RANGO la riserva vale finché quel nome non è
+  uscito, e il posto la segue. Dentro la sua fase il campione passa da 47,8 · 31,0 · 12,3 · **1,6** a
+  47,0 · 42,0 · 42,0 · **40,5**, contro un vero di 43,1 · 45,4 · 37,6 · 34,7.
+
+**E tre cure respinte dalla misura, tutte e tre ovvie sulla carta**: tenere i crediti per la migliore
+occasione ancora nell'urna (tasca 5,3% → **22,3%** e il campione fermo — il vincolo era il POSTO, non il
+credito); tenere crediti **e** posto, per tutti (**8,4 posti su 250 vuoti**, 18 dei 50 migliori
+invenduti: dieci partecipanti che aspettano lo stesso uomo non sono dieci strategie, sono un'asta
+bloccata — data ai due profili la cui strategia È quell'uomo costa tre posti in tutto); e un pavimento
+d'urgenza scritto sulla curva sporca di composizione, che non produce il picco per cui era nato.
+
+Due chiuse. **`CAUTIOUS_CAP_SHARE` era 0,15, cioè il DECIMO PERCENTILE della cautela reale** (l'acquisto
+più caro di una rosa vera è il 14,8% del budget al p10, il 18,4% al p25, il 25,0% alla mediana; solo il
+10,4% delle 1.177 rose lo tiene sotto il 15%), e con tre sedie su dieci decideva il secondo prezzo
+dell'uomo più caro; ora è **0,18** e **è quasi inerte** — quello che sembrava un tetto vincolante era il
+sintomo dell'indice. *Una manopola che morde solo mentre un'altra cosa è rotta è una manopola da
+rimisurare dopo aver aggiustato quella.* E **una manopola girata dove nessuno la legge stampa righe
+identiche**: il primo sweep di quel tetto leggeva gli stessi numeri da 0,15 a 0,50 perché `bench` importa
+la costante per nome — la prima cosa da sospettare di un risultato piatto è lo strumento.
+
+## Un TETTO IN FANTAPUNTI non vince un lotto: il braccio motore e la scala del mercato
+**02/09/2026 (notte), `simulatore-asta-rilanci-v1.md` §17.** Il braccio motore era **ultimo di undici**
+all'urna (2212,9 contro 2584,8 del miglior umano, 79,8 buchi, 656 crediti spesi su 1000); adesso è
+**primo** (2609,0 · posto 3,82 · 22,4 buchi · 987 spesi · 28 titoli su 100, e i meno buchi del tavolo).
+Sette famiglie di correzione misurate, **una sola conta**, e non è quella che sembrava.
+
+**IL DIFETTO È DI SCALA, non di valutazione.** Il braccio prezza un uomo in FANTAPUNTI (`engine_worth` =
+surplus + copertura) e converte con un tasso globale; il mercato lo prezza come MULTIPLO DELLA SUA
+RICHIESTA, fascia per fascia, ed è quella scala che conserva i crediti. *Un offerente i cui tetti non
+vivono sulla stessa scala dei prezzi non può vincere un lotto contendibile a nessun livello*: alzali e
+strapaga il primo uomo di ogni fase, abbassali e non compra niente. Fotografato: sui lotti che perde
+offriva **0,16-0,47 del prezzo** e quello che prendeva lo pagava **0,10-0,15 della richiesta**, con un
+acquisto mediano da **un credito** e il 30,7% dei suoi uomini previsto sotto le 19 giornate. A chiamata lo
+stesso codice offre 0,63-0,85 e spende 987 — perché lì l'ordine gli mette davanti i cari per primi.
+
+**LA CURA È LA SCALA DEL MERCATO, INCLINATA SULLA DIFESA** (`profiles.engine_ladder`): il passo misurato
+sulle 131 aste vere, ×1,9 su portieri e difensori, ×2,2 sulle prime quattro fasce, **rinormalizzato**
+perché il piano costi un budget — *un tilt che non conserva non è una strategia, è un portafoglio più
+grande*. Verdetto STRICT, 10 finestre di 10, peggiore +10,1%, ottimo INTERNO su griglia allargata e
+plateau piatto entro l'1% (quindi la direzione è il risultato, i decimali no). **È la strategia di P2
+trovata dalla ricerca invece che copiata**, e il regolamento dice perché paga: i due modificatori di
+questa lega si pagano in **voti BASE** (il mod.dif sulla media dei tre difensori migliori, l'R-Factor su
+tutti gli undici) e i voti base sono quello che consegna una linea difensiva.
+
+**E QUI STA LA METÀ SCOMODA: il nostro ORDINAMENTO non aggiunge niente.** La stessa scala letta sul rango
+di PREZZO invece che su quello del motore dà **+12,4% contro +12,3%**, identico. Quello che il braccio
+guadagna non è un'opinione migliore sui calciatori, è offrire su una scala che può vincere un lotto — e
+`metrica-asta-surplus-v1.md` §18 aveva già misurato quel vantaggio largo un numero solo (le presenze).
+Anche le nostre quote di reparto sono **ridondanti col tilt**: +1,1% sulla scala piatta, **−1,2%** su
+quella inclinata (2 finestre su 10), quindi il parametro è stato togliuto invece di restare non letto. E
+con **tre** sedie al braccio su tredici resta primo ma per 6,9 punti invece di 54,5: parte del vantaggio
+è essere il solo a giocare così.
+
+Sei famiglie respinte, e due avevano un buon argomento: `ALT_WEIGHT` rimisurato con le fasi (l'ottimo si
+sposta da 0,75 a 0,5 e vale +5,2% — dentro un reparto «arriva qualcuno di meglio» è quasi sempre vero,
+quindi aspettare non informa più); l'alternativa sottratta **solo sul surplus** e non sulla copertura
+(+3,5%: la copertura è il valore di non lasciare un posto vuoto, non una proprietà dell'uomo, quindi le
+due si annullano — diagnosi giusta, cura insufficiente); i **buchi attesi esatti** col Poisson-binomiale
+al posto di `min(quota, deficit)` (−0,3%: più pulito, senza guadagno); il tetto di reparto in quattro
+varianti (la migliore +0,0%, e togliendolo **−9,9% a chiamata**, dove resta essenziale); il tasso
+ricalibrato sulla quantità che l'offerta usa davvero (−10,4%); le quote di mercato al posto delle nostre
+(−0,1% all'urna, +1,0% a chiamata).
+
+**E la stessa lezione sullo strumento, per la seconda volta in una sera.** La prima corsa col codice
+adottato leggeva identica a quella di prima: `one_auction` aggiunge il braccio **dopo** il ciclo che
+consegna `asks`, quindi il dispatch non scattava. **Righe identiche non sono un risultato: sono un guasto
+dello strumento**, e vanno sospettate prima della conclusione — la prima volta era
+`profiles.CAUTIOUS_CAP_SHARE` girata dove `bench` non la legge.
+
+## Dieci contro dieci, e una soglia ASSOLUTA non si confronta fra budget diversi
+**02/09/2026 (notte tarda), `simulatore-asta-rilanci-v1.md` §18.** Due osservazioni dell'operatore, e
+tutt'e due hanno spostato numeri pubblicati poche ore prima.
+
+**«I dati reali parlano di aste a 8 o a 10 partecipanti, nelle nostre simulazioni invece abbiamo 11 o
+13?»** Sì, e era un difetto: `bench.py` metteva il braccio motore come UNDICESIMO al tavolo dichiarato di
+dieci (e tredici col null a tre bracci), mentre tutto quello contro cui il banco è calibrato dice DIECI —
+`rules.TEAMS`, la conservazione di `to_credits` su dieci budget, la FASCIA che è un rango diviso dieci, il
+livello di sostituzione al 10 × posti-esimo uomo. Undici partecipanti portano il **10% di soldi e posti in
+più** di quello che la calibrazione assume, tredici il 30%. Curato con `bench.seated` — **il braccio
+prende una sedia, non se la aggiunge** — e la scala di mercato rimisurata sulle **60 aste vere a dieci
+squadre** invece che su tutte e 131, con un movimento quasi nullo (la normalizzazione sul montepremi
+faceva il suo lavoro): **la popolazione giusta è la ragione, non la dimensione del cambiamento**.
+
+**E un confronto APPAIATO sopravvive a un campione che ne ammazza uno non appaiato.** Rimisurato a dieci
+partecipanti e venti urne, il guadagno dell'adozione (lo stesso braccio, le stesse urne, con e senza la
+scala) **migliora**: da +17,9% a **+20,2%**, 10 finestre di 10, peggiore +12,6%. Ma lo scarto dal miglior
+umano (una media contro il MASSIMO su cinque profili) crolla da **+54,5 a +21,3**, e il null a tre bracci
+da «+6,9, resta primo» a **−2,8, un pareggio**: erano numeri non appaiati su dieci urne, cioè rumore. La
+frase giusta sul null è che **il vantaggio non sopravvive in modo misurabile alla propria concorrenza** —
+la maggior parte del margine a una sedia era esclusività, e il meccanismo è misurato (i portieri di prima
+fascia da 0,62 a **0,85** della richiesta quando tre bracci li vogliono insieme).
+
+**E «≤5 crediti» è una soglia ASSOLUTA, quindi non si confronta fra budget diversi** (l'operatore, sulla
+mia stessa frase): su 600 rose vere legge 10,7 a budget 500 contro 8,5 a 1000. La cura non è restringere
+la popolazione ma trovare la definizione LIBERA DAL BUDGET, e ce ne sono due — gli uomini presi al
+**minimo** (6,1 · 5,7) e quelli sotto l'**1% del budget** (10,7 · 11,0) — mentre 0,5% non è stabile. Il
+fatto che ne esce: **il 24% di tutti gli acquisti veri costa un credito o meno.** E il bersaglio nuovo ha
+scoperto un difetto che quello vecchio nascondeva: il banco legge **1,8-2,5 uomini a un credito contro
+5,7-6,7 veri** mentre la banda ≤1% torna (9,9-10,7 contro 10,5-11,7). La coda del nostro mercato è
+giusta, il **fondo** no — ogni nostro partecipante ha un tetto positivo per ogni uomo, quindi con dieci
+offerenti il secondo prezzo non arriva mai a uno, mentre a un tavolo vero nove manager su dieci **non
+offrono affatto** sul fondo del listone. Costa 12 crediti su 1000 e non muove un verdetto: è la FORMA del
+fondo del mercato, e **una soglia scelta bene la rende visibile dove una scelta male la nasconde.**
+
 ## Three harnesses, not two - and the third one reads the app's own code
 **`toolkit/bench/draft/` (10/08/2026).** `backtest` judges RULES, `sweep` judges CONSTANTS, and this judges
 **POLICIES**: what to take now, in which currency, under which rationing. It replays the gate's own windows as
