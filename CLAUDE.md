@@ -139,7 +139,10 @@ is a mirror/archive). Before any work read, in order:
 protocol, every verdict and every falsified hypothesis: read it before proposing any rule) ->
 **`metrica-asta-surplus-v1.md`** (what the Auction panel ranks by, and why it is not VALUE) ->
 **`assistente-asta-v1.md`** (what the assistant does with it at the table: three questions, three
-numbers, and the UI rules that are requirements) -> **`letture-app-v1.md`** (the app's five 0-99
+numbers, the UI rules that are requirements, and the SLOT BOARD) ->
+**`simulatore-asta-rilanci-v1.md`** (the fifth bench: HOW TO BID at a raise-and-draw auction, 28
+sections — §28 is the live list of open items and supersedes §20.2; read it before proposing an
+auction strategy) -> **`letture-app-v1.md`** (the app's five 0-99
 columns: reporting, ungated, every threshold measured — and the alternatives that were refused, with
 their numbers) -> **`todolist-draft-v1.md`** (the DRAFT improvement
 plan born from the 10/08/2026 five-window strategy campaign, ordered by measured yield; its standing

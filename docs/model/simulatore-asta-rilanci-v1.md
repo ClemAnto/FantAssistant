@@ -1512,6 +1512,11 @@ sostituisce.
 
 ### 20.2 Aperti, in ordine di resa attesa
 
+> **SUPERATO dal §28** (3 settembre 2026): due voci di questa lista sono state chiuse — il FONDO del
+> mercato, la cui causa scritta qui era falsa, e il secondo consumatore di `pv_pred`, ora
+> quantificato — e quattro se ne sono aperte. La lista viva è il §28.2.
+
+
 1. **Il mercato di riparazione**, che resta la sola cosa che potrebbe cambiare l'ordine dei profili: chi
    lascia buchi è punito per intero, e la lega gli darebbe tre finestre per curarli. Adesso vale più di
    ieri, perché la ricetta adottata vince **sulla copertura** (22,1 buchi contro i 32,0 di P4) e un
@@ -2517,3 +2522,63 @@ dei tre chiede.
   migliori rimasti» (21%) sono due numeri diversi e nessuno dei due è sbagliato**: la seconda
   alternativa è più flessibile perché l'ottimizzatore può spendere altrove. La banda vera per l'inizio
   d'asta è **18-21%**.
+
+## 28. Prossimi passi, riscritti dopo la sessione delle DOMANDE (3 settembre 2026)
+
+Il §20.2 è della notte del 2 settembre e va letto sapendo che la sessione seguente ne ha chiuso due voci
+e aperte quattro. Questa lo sostituisce.
+
+### 28.1 Fatti, e dove sono
+
+- **Il FONDO del mercato** (era il punto 2): diagnosticato e la causa scritta là era **falsa** — non è il
+  pavimento di un credito (l'1% delle offerte) ma il **SINCRONO**, §23.4. Cinque cure misurate e
+  respinte, e la sola che funziona costa il riordino dei profili e l'adozione del §21.
+- **`pv_pred` ha un secondo consumatore** (era il punto 1-bis): confermato e quantificato dal §25 — il
+  nostro vantaggio dentro uno slot è **+18,1 fantapunti per scelta** sull'esito vero, e su una rosa
+  diventa +0,7 punti a giornata perché ne schieri undici.
+
+### 28.2 Aperti, in ordine di resa attesa
+
+1. **La DISOMOGENEITÀ della stanza** (§23.4), che è il difetto d'ambiente più grosso che resti. I dieci
+   partecipanti condividono una vista sola dell'urna e smettono di rifiutare in sincrono, quindi un uomo
+   fuori serbatoio trova due o tre mani dove al tavolo vero ne trova una. Il bersaglio è quantificato
+   (26,5% delle aggiudicazioni a un credito all'urna contro il 10,0% del banco; 20,4% degli uomini fuori
+   serbatoio, mediana 1 credito) e serve un fatto NUOVO: una LISTA per partecipante, con la sua lunghezza
+   da misurare. **Vale più di ieri**, perché è anche la ragione per cui una parte del margine del
+   tempismo (§24) è ancora esclusività — e sistemarlo può ridurre quell'adozione, non ingrandirla.
+2. **Il MERCATO DI RIPARAZIONE**, che resta la sola cosa che potrebbe cambiare l'ordine dei profili: chi
+   lascia buchi è punito per intero e la lega gli darebbe tre finestre per curarli. Adesso ha anche un
+   secondo motivo: è là che la **Qt.A** diventa il prezzo contro cui si offre, e la sua serie datata è
+   stata creata il 03/09 proprio per poterlo misurare.
+3. **La PLANCIA A SLOT**, decisa e non scritta: la forma è in `assistente-asta-v1.md` con le quattro
+   correzioni che la misura impone (max offerta per RUOLO, coppia calcolata su chi resta e pagabile, per
+   il portiere la coppia non esiste, e il numero scritto come BANDA). Il lavoro è d'interfaccia, ma il
+   valore no: il collo di bottiglia misurato è che al tavolo passa il **9%** dei nostri consigli, e la
+   plancia attacca quel 9% invece di aggiungere un canale nuovo.
+4. **La domanda FVM contro Qt.A, da rifare a febbraio** (spec «Novità v9.67»): oggi la Qt.A si è mossa su
+   90 righe di 565 con uno scarto medio di 0,18, quindi il confronto è preso nel solo regime in cui non
+   può mostrare cosa sa fare. Con la serie datata la domanda sarà rispondibile; senza non lo era.
+5. **`DEPTH_HANDS` alla banda dell'archivio invece che all'ottimo del banco** (§24.4): il picco del banco
+   è a 3 mani (+3,85%) e si è adottato 9 (+2,06%) perché i prezzi del picco non esistono a un tavolo
+   vero. Se il punto 1 viene curato, questa è la prima cosa da rimisurare.
+6. **L'asta A CHIAMATA vera è una SCELTA** (era il punto 3 del §20.2, intatto e ora con più numeri): il
+   banco compra l'1,6% fuori serbatoio dove il vero compra il 19,6% e lascia 4 uomini del serbatoio
+   invenduti dove il vero ne lascia ~50. Non è il fondo: è che là il manager SCEGLIE quale nome mettere
+   all'asta e il banco chiama il più caro.
+7. **P5 e P6 seduti fuori**, **`auction_level`**, **il profilo TIFOSO**, **`CLUB_PENALTY`**: i quattro
+   item del §20.2 che nessuno ha toccato, intatti e con le loro ragioni.
+
+### 28.3 Cosa NON rifare, aggiornato
+
+Oltre alla lista del §20.3, questa sessione aggiunge:
+- **Tutta la famiglia «leggere i rivali»**, in quattro forme e **con un oracolo** (§22): −7,6% il prezzo
+  ombra, −2,7/−4,9% rilanciare per prendere il lotto, −25% riallocare sul buon affare, +0,22% `hands`
+  sui crediti nella forma senza parametri. E il NULL batte il canale.
+- **Le cinque cure sul fondo del mercato** (§23.5), ognuna col suo numero — fra cui la **dispersione**,
+  respinta dall'aritmetica delle statistiche d'ordine, e la **lista scritta esplicitamente**, che ha
+  effetto **zero** perché `Team.keeps` la contiene già (verificato diffando un'asta).
+- **La COPERTURA all'urna e il prezzare la coda senza aspettare** (§24.3): −0,00% e +0,02%. E il fatto
+  che le accompagna: **un moltiplicatore uniforme sulla scala è inerte per costruzione**, perché
+  `Team.scale` lo cancella.
+- **Il raffinamento della regola «fantamedia dove hai copertura»** (§26.2): la direzione è giusta e il
+  raffinamento vale zero, perché il lavoro di un riserva È coprire.

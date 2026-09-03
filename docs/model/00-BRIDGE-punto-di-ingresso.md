@@ -45,6 +45,26 @@ giusto così: `standing` prevede chi parte). Riscriverli cambierebbe il verbale 
 in un verbale datato prima del 20/08/2026 la parola va letta nel senso comune; da lì in avanti, in codice
 e in prosa nuova, vale la tabella qui sopra.
 
+## VOCABOLARIO: si dice «SLOT», e i risultati si riportano PER GIORNATA (operatore, 03/09/2026)
+
+Due convenzioni dichiarate dall'operatore e da rispettare in ogni file e in ogni risposta.
+
+**«SLOT» è la parola del gioco** per quello che il banco chiama una fascia: i 25 gruppi da `TEAMS`
+uomini in cui un listone si divide (3 portieri · 8 difensori · 8 centrocampisti · 6 attaccanti, uno per
+ogni posto in rosa). Non «blocco», non «fascia»: si tiene la parola del fantacalcio, come si tengono
+`titolarissimo`, `bandiera`, `por` e `pc`. Il verbale del banco usa ancora «fascia» dove registra una
+misura fatta con quel nome, e riscriverlo altererebbe il verbale invece di chiarirlo.
+
+**I risultati si riportano in punti A GIORNATA, mai in totali di stagione** — «per me è più facile capire
+di che grandezze parliamo». Un totale nasconde l'ordine di grandezza (+31 punti su 2665 sono **+0,8 a
+giornata**, cioè meno di un voto) e la giornata è anche l'unità in cui la differenza CONTA, perché la
+scala dei gol parte da **66** su una media di **~70**. Si divide per le giornate della finestra (38 sul
+banco, 36 nel campionato) e il totale, se serve, va fra parentesi. Un numero già per giornata
+(`HOLE_COST` = 4,73 per buco, i modificatori) si lascia com'è.
+Ancoraggi da citare: la scelta della strategia vale **+1,7** a giornata, il tempismo **+1,3**, due
+attaccanti del secondo slot invece di un top **+0,8**, i consigli del motore dentro uno slot **+0,7**, un
+buco **−4,7**.
+
 ## Il progetto in breve
 Motore previsionale per fantacalcio **EuroLeghe** (fantacalcio.it): valutazione calciatori Classic e Mantra sui 5 grandi campionati europei (Serie A, Premier, Liga, Bundesliga, Ligue 1 — perimetro: i ~35 top club del gioco). Prevede fantamedia (FM), presenze attese e VALORE stagionale = FM × presenze. Metodo scientifico: **ogni regola entra nel motore solo se batte il baseline fuori campione su finestre indipendenti** (gate pre-registrato). Stato: core validato (Mantra, Classic, portieri, presenze); manca lo strato flag/arrivi, sbloccato dal toolkit dati `euroleghe-ingest` (in implementazione).
 
@@ -65,8 +85,10 @@ La knowledge base è ora nel repo git **`FantAssistant`**, cartella **`docs/mode
 proporre qualsiasi regola) → **`metrica-asta-surplus-v1.md`** (con cosa il pannello ordina, e perché non
 è VALORE) → **`letture-app-v1.md`** (le colonne 0-99 della consultazione — tre più il riassunto dal 17/08: reporting, senza gate,
 ogni soglia misurata — e le alternative RIFIUTATE coi loro numeri, che è la parte che fa risparmiare una
-serata) → **`assistente-asta-v1.md`** (cosa l'assistente fa al tavolo: tre domande, tre numeri, e le
-regole di UI che sono requisiti) → **`todolist-draft-v1.md`** (il piano per i suggerimenti del draft e per le
+serata) → **`assistente-asta-v1.md`** (cosa l'assistente fa al tavolo: tre domande, tre numeri, le
+regole di UI che sono requisiti e la PLANCIA A SLOT) → **`simulatore-asta-rilanci-v1.md`**
+(il quinto banco: come si offre a un'asta a rilanci ed estrazione, 28 sezioni, e il §28 è la
+lista viva degli aperti — leggerlo prima di proporre una strategia d'asta) → **`todolist-draft-v1.md`** (il piano per i suggerimenti del draft e per le
 formule di valore/surplus, nato dalla campagna a cinque finestre del 10/08/2026, ordinato per resa misurata:
 leggerlo prima di riproporre una strategia) → `spec-euroleghe-ingest-v9.md` → `nota-modello-set-pieces-v2.md` →
 `modello-previsionale-v3.8.md` → consolidati di dettaglio. Tutti in `docs/model/`.
@@ -115,6 +137,54 @@ non conteneva**: all'urna quella scala non legge nessun numero del motore (conta
 la deviazione DENTRO la fascia sulle presenze attese vale +1,02% robust e — sola fra tutto quello che
 questo banco ha adottato — **sopravvive alla propria concorrenza**; il §21.9 apre il listino del §19.3 in
 tre dentro ogni fascia.
+
+## STATO AL 3 SETTEMBRE 2026 — LEGGI QUESTO PRIMA DI TUTTO
+
+**Una sessione di sole DOMANDE dell'operatore al tavolo, e sei conclusioni misurate.** Verbale completo:
+[simulatore-asta-rilanci-v1.md](simulatore-asta-rilanci-v1.md) **§22-28** (il §28 è la lista viva degli
+aperti e supera il §20.2), la plancia in [assistente-asta-v1.md](assistente-asta-v1.md), la Qt.A nella
+spec «Novità v9.67». `engine_*`, i fogli, il bundle e le revisioni **non si muovono di un decimale**.
+
+**LEGGERE I RIVALI NON PAGA, e lo dice un ORACOLO.** Quattro forme misurate dando al braccio il massimo
+dei rivali PRIMA di offrire — cioè il tetto di qualunque modello: prezzo ombra di un credito **−7,6%**,
+rilanciare per prendere il lotto −2,7/−4,9%, riallocare sul buon affare −25%, `hands` sui crediti dei
+rivali +0,22% nella forma senza parametri. La ragione è del meccanismo: **a secondo prezzo il tetto è
+quasi gratis e il bilancio è già impegnato.** E **il NULL ha battuto il canale** — «abbassa `hands`
+leggendo niente» vale +4,8% contro i +2,0% della lettura sui crediti, quindi era PAZIENZA e non
+informazione.
+
+**ADOTTATO IL TEMPISMO** (`bench.DEPTH_TIER` = 2, `DEPTH_HANDS` = 9): all'urna il braccio lascia passare
+un uomo dalla terza fascia in giù finché nove o dieci rose hanno ancora un posto in quel ruolo. **+1,88%
+STRICT su 800 stagioni appaiate** (t 11,6), +1,54% con tre bracci, inerte a chiamata. **Non è un
+risparmio: sono 1,6 TITOLARI IN PIÙ a rosa** (10,5 → 12,1) e fa valere `INSIGHT` da +29,9 a +37,0 —
+**i due canali si compongono**, al contrario delle quote di reparto contro il tilt.
+
+**UN GIUDICE DEI CONSIGLI CHE IL TAVOLO NON LO USA** (`python -m bench.auction.advice`): una rosa è un
+uomo per slot, quindi la sola decisione che i consigli cambiano è quale dei dieci — e si giudica
+sull'esito vero. **Dentro uno slot la quotazione vale −1,0 contro un tiro di dado e il motore +18,1**
+(t 5,3, 10 stagioni su 10). Su una ROSA diventano **+0,7 punti a giornata**, perché ne schieri undici e
+la copertura satura: un accordo aritmetico è stato scritto e **ritirato** nella stessa ora.
+
+**I TETTI D'OFFERTA SONO UNA QUOTA DEL BUDGET, DIVERSA PER RUOLO** (§27). Un credito vale **0,0055 punti
+a giornata**; la soglia è il **18% del budget**, invariante a 500/1000/2000. Il **primo slot non è una
+fascia piatta** (il primo costa 1,7-2,5 volte il decimo contro 1,0-1,3 dal secondo in giù), ed è per
+questo che la scelta del motore là perde e più in basso vince largo. Per ruolo: **portieri 13%** dove il
+mercato chiede il 6% (ne schieri UNO), **DIFENSORI nessun prezzo** (ne schieri quattro e il modificatore
+premia la media dei tre migliori), centrocampisti 6,5%, **attaccanti 18% contro il 25% chiesto**. Con due
+slot di profondità esauriti il tetto sale al **32%**.
+
+**Più**: la **Qt.A entra nella serie datata** (`fvm_history.price` — era uno stato volatile in un campo
+fisso, con la sola lettura attribuibile recuperata) e la **PLANCIA A SLOT** decisa, con le quattro
+correzioni che la misura impone.
+
+**Tre cose corrette strada facendo, e vanno lette perché sono il metodo:** la causa del difetto del fondo
+scritta nel §18.3 era **falsa** (non il pavimento di un credito ma il SINCRONO); la spiegazione «il
+mercato è meglio informato in cima» era **sbagliata** (là sbagliamo di MENO: il punto è che il primo slot
+non è una fascia piatta); e «difesa TOP è la strategia migliore» resta vero ma **non vuol dire comprare
+il difensore più caro** — là la coppia vince a qualunque prezzo.
+
+**Due convenzioni nuove, dichiarate dall'operatore**: si dice **SLOT** (la parola del gioco) e i
+risultati si riportano **in punti A GIORNATA**, mai in totali di stagione.
 
 ## STATO AL 1 SETTEMBRE 2026 — LEGGI QUESTO PRIMA DI TUTTO
 
