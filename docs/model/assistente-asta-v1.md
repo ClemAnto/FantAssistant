@@ -2364,3 +2364,90 @@ ne contiene 250, ma nelle aste vere **5 uomini su 25 di ogni rosa vengono da sot
 credito. Serve una 26ª striscia — la coda — col solo conto di quanti ne restano: una plancia che li
 nasconde convince ad aspettare, e aspettare fino a lasciare posti vuoti è l'errore più caro che questo
 banco abbia misurato.
+
+
+## 33. La PLANCIA, scritta (3 settembre 2026)
+
+`/plancia` — `views/plancia/` (la pagina, la riga del lotto, la mappa a slot, la griglia delle squadre),
+`core/plancia.ts` (il dominio, puro e testato), `core/plancia-store.ts` (le due sorgenti),
+`core/plancia-demo.ts` (il tavolo finto). Build verde, **568 test su 36 file**, pagina misurata in un
+browser vero: nessuna eccezione, la pagina non scorre, 215 righe hoverabili.
+
+### 33.1 La forma, decisa dall'operatore guardando la prima versione
+
+Tre zone, e la disposizione è sua (03/09/2026, dopo aver visto il primo layout):
+
+- **Il LOTTO è una RIGA sotto l'intestazione**, non una colonna: si legge da sinistra a destra come una
+  frase — chi è, quanto vale, perché, cosa compreresti invece — e lascia tutta la larghezza alla plancia,
+  che è la cosa che ha bisogno di spazio.
+- **Le SQUADRE sono una COLONNA a destra, a griglia** (2 × 5). Sigla, crediti grandi, quattro numerini
+  P·D·C·A: si accende solo il ruolo del lotto e solo su chi può ancora prenderlo. Il nome per esteso sta
+  nel tooltip, perché a 116px una sigla si riconosce e una frase no.
+- **La plancia è tutto il resto, e porta TUTTE le 250 righe.** Niente si apre e niente si chiude: alla
+  quarta ora «chi è rimasto in questo slot» si risponde guardando, non cliccando — e la scorciatoia che
+  l'ordine a reparti avrebbe dato («apri la fase in cui siamo») non esiste, perché la sua estrazione è
+  libera e tutti e quattro i ruoli sono vivi a ogni istante (§29 del banco).
+
+**Ogni blocco è largo uguale, i tre dei portieri compresi**: uno slot è un rango diviso il numero di
+squadre, quindi un blocco è **un'unità di mercato** qualunque ruolo porti, e disegnare i portieri più
+larghi direbbe che valgono più schermo di un difensore. Le linee corte si tagliano su una griglia di otto
+come le altre e lo spazio che avanza porta la **coda**, la **legenda** e **la tua borsa** (crediti, posti,
+*crediti per posto* — il vincolo che a estrazione libera si perde di vista) invece di allargare i blocchi.
+
+### 33.2 Una riga, un numero — e il numero ha due significati
+
+Una riga porta il nome e **un** numero: la **max offerta** finché è nell'urna, il **prezzo pagato** una
+volta che è di qualcuno. Due significati in una colonna è una cosa che questo progetto normalmente
+rifiuta, e qui è tenuta con la sua ragione detta: togliere il prezzo pagato costerebbe la metà più utile,
+perché **quello che la stanza ha davvero pagato per quello slot è l'unica lettura viva del mercato che
+esista**. Quale dei due è, lo dicono l'inchiostro della riga, la barra del colore del proprietario a
+sinistra e la legenda in chiaro sulla linea dei portieri.
+
+**Sull'hover, la coppia** — i due dello slot sotto che compreresti al suo posto, **ciascuno col suo costo
+max** e col totale. È su ogni riga e non solo sul lotto perché è il conto che nessuno tiene a mente, ed è
+calcolato **su chi è ancora nell'urna**: l'alternativa degrada mentre l'asta va avanti, ed è quello il
+lavoro per cui la plancia esiste. Costa 25 conti e non 250, perché la coppia è un fatto sul BLOCCO e non
+sull'uomo — i due migliori rimasti uno slot sotto sono gli stessi per tutti e dieci.
+
+### 33.3 Le quattro cose che la misura impone, tutte e quattro applicate
+
+Il §32bis le aveva scritte prima che esistesse il codice; nessuna è stata negoziata.
+
+1. **La max offerta è per RUOLO**, dalla `LADDER` del §19.3 tenuta come **quota del budget** e non in
+   crediti, perché il tetto scala col budget (verificato a 500 · 1000 · 2000).
+2. **La coppia si calcola su chi è ancora nell'urna.**
+3. **È pagabile**: sempre `min(quota misurata, borsa)`, e la riga lo dichiara con un lucchetto quando è la
+   borsa a decidere.
+4. **Per il portiere la coppia non esiste** — e qui la prima stesura ha sbagliato: mostrava il 2º e il 3º
+   del suo slot **sommati**. Ne schieri uno, quindi quei due sono alternative *fra loro* e il totale non
+   significa niente. `Alternative.together` decide se un totale esiste; dove non esiste non si stampa.
+
+E la regola su come si scrive il numero: **banda, mai una cifra secca**, con le due righe che la misura sa
+dire piatte disegnate sulla scala del budget (sotto il 10% non si sbaglia mai, sopra il 20% si sbaglia in
+qualunque slot).
+
+### 33.4 La connessione è FACOLTATIVA, e vale per tutt'e due le pagine d'asta
+
+Decisione dell'operatore, 03/09/2026: **`/plancia` e `/auction` aprono su un tavolo inventato con i
+settaggi standard** (10 · 1000 · 3/8/8/6) e il collegamento a fanta-asta-live è un bottone che apre una
+modale. Una pagina che apre su un campo codice mostra il layout della cosa invece della cosa, e i numeri
+si giudicano solo con i numeri accesi. Una sola modale per le due pagine (`ui/live-connect`): due copie
+avrebbero finito per validare il codice in due modi, e il formato **è** la ragione per cui il collegamento
+funziona (il codice È la chiave del database).
+
+L'ordine è forzato su `/auction`: prima `feed.restore()`, e la finzione parte **solo se non c'è niente da
+riprendere** — altrimenti sovrascriverebbe un'asta vera che l'operatore sta giocando.
+
+### 33.5 Quello che il tavolo vero non dice, dichiarato invece che indovinato
+
+fanta-asta-live pubblica la meccanica dei rilanci (`options.bids`: countdown, offerta minima, buzzer) e
+**nessun nodo che nomini il lotto attualmente in asta** è mai stato osservato da questo progetto. Quindi
+il lotto lo estrae la finzione in demo e **lo nomina l'operatore** da collegato, con un click sul nome
+nella plancia; `lotSource` dice quale dei due sta parlando. Un campo indovinato su un payload che nessuno
+ha letto è il difetto che questo repository ha già pagato più volte.
+
+### 33.6 Un lettore solo delle colonne del motore
+
+`core/engine-sheet.ts` (`engineNumbersFrom`) è stato estratto da `auction-advice.ts` e le due pagine lo
+condividono: tre viste stanno ormai sugli stessi `engine_*`, e due lettori di `engine_fm_pred` finiscono
+per dare a un uomo due valutazioni. Il primo posto in cui qualcuno se ne accorgerebbe è un tavolo.

@@ -1000,6 +1000,53 @@ Due convenzioni nate qui e da rispettare altrove.
   giornata, il tempismo +1,3, due attaccanti del secondo slot invece di un top +0,8, i consigli del
   motore dentro uno slot +0,7, un buco −4,7.
 
+## La sua asta e' a ESTRAZIONE LIBERA, e la PLANCIA e' scritta
+**03/09/2026, correzione dell'operatore sulla sua stessa asta + `app/src/app/views/plancia/`. Dettaglio:
+`simulatore-asta-rilanci-v1.md` §29 e `assistente-asta-v1.md` §33.** «L'asta estrae calciatori random
+NON per reparto, tutti insieme.» Il banco modella la sua asta con `bench.PHASES` (l'ordine P·D·C·A
+adottato perche' **16 delle 20 aste reali con la sua configurazione** portano quella firma): la sua non e'
+una di quelle. **Quello che NON cambia e' la parte grossa** — sconto di fine asta, banda del tempismo,
+scala per (ruolo, slot), tetti — perche' sono indicizzati su **quante rose vogliono ancora quel ruolo**, e
+la sostituibilita' non sa in che ordine escono i nomi; cambia tutto cio' che il §16 spiegava *con* le fasi.
+La regola generale: **il regolamento della cosa vera si chiede all'operatore, non si deduce da un archivio
+di aste che assomigliano alla sua.**
+
+**La CONNESSIONE a fanta-asta-live e' FACOLTATIVA su tutt'e due le pagine d'asta** (sua decisione,
+03/09/2026): `/plancia` e `/auction` aprono su un tavolo INVENTATO coi settaggi standard e il collegamento
+e' un bottone che apre una modale (`ui/live-connect`, una sola per le due pagine — due copie avrebbero
+validato il codice in due modi, e il codice E' la chiave del database). Su `/auction` l'ordine e' forzato:
+prima `feed.restore()`, la finzione parte solo se non c'e' un'asta vera da riprendere. Una pagina che apre
+su un campo codice mostra il layout della cosa invece della cosa.
+
+**E fanta-asta-live NON pubblica il lotto in asta**: nessun nodo del genere e' mai stato osservato per il
+meccanismo a rilanci (`options.bids` porta solo countdown, offerta minima e buzzer). Da collegati il lotto
+lo nomina l'operatore con un click sulla plancia, e `lotSource` dice quale dei due sta parlando — un campo
+indovinato su un payload che nessuno ha letto e' il difetto che questo repository ha gia' pagato.
+
+Quattro cose che restano, e tre le ha trovate la MISURA in un browser vero.
+- **UNA COPPIA CHE SI COMPRA INSIEME E DUE ALTERNATIVE FRA LORO NON HANNO LA STESSA ARITMETICA.** Per un
+  uomo di movimento l'alternativa e' la coppia dello slot sotto e il totale e' la cifra da confrontare col
+  suo prezzo; per un PORTIERE se ne schiera uno, quindi il 2º e il 3º del suo slot sono alternative *fra
+  loro* e sommarle confronta il suo prezzo con una cifra che nessuno pagherebbe (184 crediti contro una
+  banda di 80-97). `Alternative.together` decide se un totale esiste; dove non esiste non si stampa.
+  **Errore di unita', la famiglia piu' cara di questo progetto.**
+- **Un parametro appartiene alla popolazione su cui e' stato misurato, e «listone» e' una popolazione**:
+  la demo prezzava il listone EuroLeghe con la `LADDER` misurata sulle 20 aste della sua Serie A, perche'
+  sceglieva «il foglio che prezza piu' uomini». Ora sceglie classic/default per primo e l'intestazione lo
+  nomina comunque.
+- **Un tetto e' una QUOTA del budget e non una cifra**, quindi la scala del §19.3 vive nel codice come
+  quota (verificato a 500 · 1000 · 2000) — «una soglia assoluta non si confronta fra budget diversi»
+  applicata al codice invece che a un rapporto.
+- **Una riga puo' portare un numero con due significati SE lo dice**: sulla plancia e' la max offerta
+  finche' e' nell'urna e il prezzo pagato quando e' di qualcuno. Tenuto perche' togliere il secondo
+  costerebbe la meta' piu' utile — quello che la stanza ha davvero pagato per quello slot e' l'unica
+  lettura viva del mercato — e la riga dice quale dei due e' con l'inchiostro, la barra del proprietario e
+  una legenda in chiaro.
+
+**Un lettore solo delle colonne del motore**: `core/engine-sheet.ts` (`engineNumbersFrom`) estratto da
+`auction-advice.ts` e condiviso, perche' tre viste stanno ormai sugli stessi `engine_*` e due lettori di
+`engine_fm_pred` finiscono per dare a un uomo due valutazioni.
+
 ## I consigli si giudicano SENZA il tavolo, e una rosa ne schiera undici
 **02/09/2026 (notte), `simulatore-asta-rilanci-v1.md` §25, `python -m bench.auction.advice`.** Domanda
 dell'operatore: «riusciamo ad avere dei dati verosimili per capire se i consigli del motore favoriscono

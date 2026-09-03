@@ -33,6 +33,7 @@ import {
   startingPlaces,
 } from './auction-plan';
 import { Board, BoardsFile, Bundle, EngineSheetEntry } from './bundle';
+import { engineNumbersFrom } from './engine-sheet';
 import {
   PlaceChange,
   RotationWatch,
@@ -1175,46 +1176,8 @@ export class AuctionAdvice {
   }
 
   private async read(sheet: EngineSheetEntry): Promise<Map<number, EngineNumbers>> {
-    {
-      const table = await this.bundle.table(sheet.path.replace(/\.json(\.gz)?$/, ''));
-      const at = (name: string) => table.columns.indexOf(name);
-      const columns = {
-        id: at('fc_id'),
-        fm: at('engine_fm_pred'),
-        pv: at('engine_pv_pred'),
-        slot: at('engine_role_slot'),
-        replacement: at('engine_replacement_fm'),
-        surplus: at('engine_surplus'),
-        reason: at('engine_unpriced_reason'),
-        estFm: at('est_fm'),
-        estPv: at('est_pv'),
-        estConfidence: at('est_confidence'),
-        estBasis: at('est_basis'),
-        estNote: at('est_note'),
-        minutes: at('desc_minutes_full_season'),
-        matches: at('desc_season_matches'),
-      };
-      const numbers = new Map<number, EngineNumbers>();
-      for (const row of table.rows) {
-        const id = Number(row[columns.id]);
-        if (!id) continue;
-        numbers.set(id, {
-          fm: row[columns.fm] as number | null,
-          pv: row[columns.pv] as number | null,
-          slot: (row[columns.slot] as string | null) ?? null,
-          replacementFm: row[columns.replacement] as number | null,
-          surplusLeague: row[columns.surplus] as number | null,
-          unpricedReason: (row[columns.reason] as string | null) ?? null,
-          estFm: row[columns.estFm] as number | null,
-          estPv: row[columns.estPv] as number | null,
-          estConfidence: row[columns.estConfidence] as number | null,
-          estBasis: (row[columns.estBasis] as string | null) ?? null,
-          estNote: (row[columns.estNote] as string | null) ?? null,
-          minutesFullSeason: row[columns.minutes] as number | null,
-          seasonMatches: row[columns.matches] as number | null,
-        });
-      }
-      return numbers;
-    }
+    // One reader for every page that stands on these columns (`engine-sheet.ts`): two would give one
+    // man two valuations, and the first place anybody notices is at a table.
+    return engineNumbersFrom(await this.bundle.table(sheet.path.replace(/\.json(\.gz)?$/, '')));
   }
 }

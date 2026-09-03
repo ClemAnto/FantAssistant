@@ -10,6 +10,10 @@ export const routes: Routes = [
     loadComponent: () => import('./views/auction/auction').then((m) => m.Auction),
   },
   {
+    path: 'plancia',
+    loadComponent: () => import('./views/plancia/plancia').then((m) => m.Plancia),
+  },
+  {
     path: 'charts',
     loadComponent: () => import('./views/charts/charts').then((m) => m.Charts),
   },

@@ -21,6 +21,7 @@ import { AuctionFeed, DraftStatus, KeeperMode, Zone } from '../../core/auction-f
 import { PlayerFlags } from '../../ui/player-flags/player-flags';
 import { PlayerTrendStrip } from '../../ui/player-trend/player-trend';
 import { RoleBadge } from '../../ui/role-badge/role-badge';
+import { LiveConnect } from '../../ui/live-connect/live-connect';
 import { RoleSet } from '../../ui/role-set/role-set';
 import { ClubPitch } from './club-pitch/club-pitch';
 import { FantaPitch } from './fanta-pitch/fanta-pitch';
@@ -82,6 +83,7 @@ export type SortKey = keyof typeof SORTS;
     NzSegmentedModule,
     NzTagModule,
     NzTooltipModule,
+    LiveConnect,
     PlayerFlags,
     PlayerTrendStrip,
     RoleBadge,
@@ -97,7 +99,12 @@ export class Auction {
   protected readonly appVersion = APP_VERSION;
   protected readonly zoneLabel = ZONE_LABEL;
 
-  protected readonly code = signal('');
+  /**
+   * Whether the connection modal is open. The CODE itself lives in `ui-live-connect`: the operator's
+   * decision of 03/09/2026 made the connection optional for both auction pages, so the field belongs to
+   * the one component that asks for it and not to two pages that would validate it two ways.
+   */
+  protected readonly connecting = signal(false);
 
   /**
    * The switch carries the mode as its VALUE. With plain strings `nz-segmented` emits the label, so
@@ -109,8 +116,13 @@ export class Auction {
   ];
 
   constructor() {
-    // A refresh mid-auction must not cost a setup: re-join whatever session this browser was on.
-    void this.feed.restore();
+    // A refresh mid-auction must not cost a setup: re-join whatever session this browser was on - and
+    // only when there is nothing to re-join, open on the INVENTED table with standard settings
+    // (operator, 03/09/2026: the connection is optional and lives behind a button). The order is
+    // forced: starting the fixture first would overwrite a real auction the operator is in.
+    void this.feed.restore().then(() => {
+      if (!this.feed.hasTable()) void this.startDemo();
+    });
     try {
       const saved = localStorage.getItem(PLAN_VIEW_KEY);
       if (saved === 'estesa' || saved === 'compatta') this.planView.set(saved);
@@ -233,7 +245,6 @@ export class Auction {
       .join(', '),
   );
 
-  protected readonly connecting = computed(() => this.feed.status() === 'connecting');
 
   /** The saved-table marker. It must never read as live, and it must say which of the two it is. */
   protected readonly staleLabel = computed(() =>
@@ -389,10 +400,6 @@ export class Auction {
     return this.feed.myStrayKeeperPicks().some((entry) => entry.pick.index === index);
   }
 
-  protected async connect(): Promise<void> {
-    await this.feed.connect(this.code());
-  }
-
   /** The invented table: what the panel does, without an auction to follow. */
   protected async startDemo(): Promise<void> {
     await this.demo.start();
@@ -418,6 +425,8 @@ export class Auction {
     const wasDemo = this.feed.demo();
     this.feed.disconnect();
     if (!wasDemo) this.feed.forget();
-    this.code.set('');
+    // Back to the default state rather than to a code field: the page always has a table.
+    void this.demo.start();
   }
+
 }

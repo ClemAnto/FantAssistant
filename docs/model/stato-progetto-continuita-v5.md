@@ -3936,3 +3936,76 @@ Riscritti in `simulatore-asta-rilanci-v1.md` **§20**, in ordine di resa attesa:
 un'asta a chiamata, P5/P6 da sedere, `auction_level`, il tifoso, `CLUB_PENALTY`. E il §20.3 dice cosa
 **non** rifare, con i numeri: il valore d'opzione, il tilt sui portieri, il nostro ordinamento come
 sostituto del rango di prezzo, e le tre cure di comportamento sul campione.
+
+
+## CHIUSURA della sessione 03/09/2026 — la PLANCIA esiste, e la sua asta non è a reparti
+
+### La correzione che vale più del codice
+
+**«L'asta estrae calciatori random NON per reparto, tutti insieme.»** Il banco modella la sua asta con
+`bench.PHASES`, l'ordine P · D · C · A adottato il 02/09 perché **16 delle 20 aste reali con la sua
+configurazione** portano quella firma. La sua non è una di quelle. Quello che NON cambia è la parte
+grossa — sconto di fine asta, banda del tempismo, scala per (ruolo, slot), tetti — perché sono tutti
+indicizzati su **quante rose vogliono ancora quel ruolo** e la sostituibilità non sa in che ordine escono
+i nomi. Quello che cambia è tutto ciò che il §16 spiegava *con* le fasi, e una frase del §27.5 decade.
+Dettaglio: `simulatore-asta-rilanci-v1.md` **§29**.
+
+La lezione, già scritta il 02/09 dall'altro lato: **il regolamento della cosa vera si chiede
+all'operatore, non si deduce da un archivio di aste che assomigliano alla sua.**
+
+### La pagina
+
+`/plancia` (`views/plancia/`, `core/plancia.ts` + `plancia-store.ts` + `plancia-demo.ts` + `plancia.spec.ts`),
+dettaglio in `assistente-asta-v1.md` **§33**. Chiude la voce 3 del §28.2 del banco. Tre zone come le ha
+volute lui dopo aver visto la prima versione: il **lotto è una riga** sotto l'intestazione, le **squadre
+una colonna a destra a griglia**, e la plancia porta **tutte le 250 righe** — niente si apre e niente si
+chiude, perché a estrazione libera non c'è una fase da espandere. Ogni blocco largo uguale, una riga = un
+nome e un numero, e **sull'hover la coppia dello slot sotto coi costi max di ciascuno**.
+
+Il dominio è puro e testato: mappa a 25 slot tagliata per FVM, `LADDER` del §19.3 come **quota del
+budget**, sconto del §23.1, banda `DEPTH_TIER`/`DEPTH_HANDS`, verdetto a quattro stati con `ignoto` che
+non è un «lascia» morbido.
+
+### La connessione diventa facoltativa, per tutt'e due le pagine d'asta
+
+Sua decisione: `/plancia` e `/auction` **aprono su un tavolo finto** con i settaggi standard e il
+collegamento a fanta-asta-live è un bottone che apre una modale (`ui/live-connect`, una sola per le due
+pagine). Su `/auction` l'ordine è forzato: prima `feed.restore()`, la finzione parte solo se non c'è
+un'asta vera da riprendere.
+
+### Quattro difetti trovati dalla MISURA, non dalla rilettura
+
+Tutti e quattro dopo aver fotografato la pagina in un browser vero, che è la ragione per cui esiste
+quella regola:
+
+- **12 squadre invece delle 10 standard** (il foglio ne dichiarava 12, e lo slot è un rango diviso il
+  numero di squadre: cambiava la larghezza di ogni blocco).
+- **Nessun lotto all'apertura**: l'estratto poteva cadere nella CODA, che non ha blocco e quindi non ha
+  consiglio.
+- **Sommavo il 2º e il 3º portiere in un totale.** Di portieri se ne schiera uno, quindi quei due sono
+  alternative *fra loro*: 184 crediti confrontati con una banda di 80-97. `Alternative.together` decide
+  ora se un totale esiste. **Errore di unità, la famiglia più cara di questo progetto.**
+- **La demo prezzava il listone EuroLeghe con la scala misurata sulla sua Serie A**: parametro fuori
+  dalla popolazione su cui è stato fittato, di nuovo. Ora il foglio si sceglie classic/default per primo.
+
+Più uno di layout: il footer del prezzo sbatteva contro le barre fisse dell'app — il prezzo è finito
+nella riga del lotto, dove è un fatto sul lotto.
+
+### Detto invece che indovinato
+
+fanta-asta-live **non pubblica il lotto in asta**: nessun nodo del genere è mai stato osservato per il
+meccanismo a rilanci. Da collegati il lotto lo nomina l'operatore con un click sulla plancia, e
+`lotSource` dice quale dei due sta parlando.
+
+### Verifiche
+
+`ng build` verde, **`ng test` 568 test su 36 file** (26 nuovi sul dominio della plancia), pagina aperta in
+un browser headless sull'app COMPILATA: nessuna eccezione, `pageScrollY` 0, 25 blocchi × 10 righe, 10 card
+partecipante, e **l'hover provato con un puntatore vero** su 4 righe di 215 hoverabili — la coppia
+compare, col totale dove ha senso e senza dove non ce l'ha.
+
+### Prossimi passi
+
+`simulatore-asta-rilanci-v1.md` §28.2 meno la voce 3, che si chiude qui. In cima resta la
+**disomogeneità della stanza** (§23.4), e si aggiunge una voce nuova: **rimisurare il §16 senza le fasi**,
+perché il tavolo che l'operatore giocherà non le ha.

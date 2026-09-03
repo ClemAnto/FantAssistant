@@ -1,0 +1,47 @@
+<!-- UI text is ITALIAN in app/ (see app/CLAUDE.md); code and comments stay English. -->
+<nz-modal
+  [nzVisible]="open()"
+  nzTitle="Collegati a un'asta vera"
+  [nzFooter]="null"
+  nzWidth="420px"
+  (nzOnCancel)="open.set(false)"
+>
+  <div *nzModalContent class="flex flex-col gap-4">
+    <p class="text-sm text-muted">
+      Il codice della sessione di fanta-asta-live. Il collegamento è in <b>sola lettura</b>: non
+      compari fra i partecipanti e non puoi modificare l'asta.
+    </p>
+
+    <input
+      nz-input
+      nzSize="large"
+      maxlength="10"
+      placeholder="FA-xxx-xxx"
+      class="text-center"
+      [ngModel]="code()"
+      (ngModelChange)="code.set($event)"
+      (keyup.enter)="connect()"
+    />
+
+    @if (feed.error()) {
+      <nz-alert nzType="error" [nzMessage]="feed.error()!" />
+    }
+
+    <button
+      nz-button
+      nzType="primary"
+      nzSize="large"
+      nzBlock
+      [nzLoading]="busy()"
+      [disabled]="!code()"
+      (click)="connect()"
+    >
+      Collegati
+    </button>
+
+    <p class="text-xs text-muted">
+      Finché non ti colleghi il tavolo è <b>inventato</b>: le squadre, i crediti e gli acquisti già
+      fatti. I calciatori e i numeri del motore sono veri, così i consigli si vedono davvero.
+    </p>
+  </div>
+</nz-modal>

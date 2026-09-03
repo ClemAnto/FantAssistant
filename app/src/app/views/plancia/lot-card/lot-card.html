@@ -1,0 +1,203 @@
+<!-- UI text is ITALIAN in app/ (see app/CLAUDE.md); code and comments stay English.
+
+     IL LOTTO E' UNA RIGA sotto l'intestazione, non una colonna: si legge da sinistra a destra come si
+     legge una frase - chi e', quanto vale, perche', cosa compreresti invece - e lascia tutta la
+     larghezza alla plancia, che e' la cosa che ha bisogno di spazio.
+
+     NESSUNA ETICHETTA CHE SPIEGA: il verdetto e' un'icona e un colore, il ruolo e' un badge colorato,
+     la banda e' un rettangolo su una scala che porta gia' le sue due righe. -->
+<div class="flex items-stretch overflow-hidden rounded-lg border border-border bg-surface">
+  <!-- Il verdetto colora il bordo di sinistra: si legge prima del nome, che e' l'ordine giusto. -->
+  <div class="w-1 shrink-0" [class]="rail()"></div>
+
+  @if (lot(); as l) {
+    <div class="flex min-w-0 flex-1 items-center gap-3 px-3 py-1.5">
+      <!-- 1. CHI -->
+      <span
+        class="shrink-0 rounded px-1.5 py-0.5 text-xs font-bold text-page"
+        [class]="roleTone()"
+        nz-tooltip
+        [nzTooltipTitle]="
+          l.block.id +
+          ' — lo slot ' +
+          l.block.index +
+          ' del suo ruolo: il rango diviso il numero di squadre, quindi ogni rosa ne compra uno.'
+        "
+        >{{ l.block.id }}</span
+      >
+      <div class="min-w-0 shrink-0" style="width: 11rem">
+        <div class="truncate text-base leading-tight font-semibold text-fg">{{ l.man.name }}</div>
+        <div class="truncate text-[11px] text-muted">{{ l.man.club }}</div>
+      </div>
+
+      <nz-icon
+        class="shrink-0 text-2xl"
+        [class]="tone()"
+        [nzType]="icon()"
+        nz-tooltip
+        [nzTooltipTitle]="l.advice.reason"
+      />
+
+      <!-- 2. QUANTO — la banda, mai una cifra secca, sulla scala del budget. -->
+      <div class="flex shrink-0 flex-col gap-1">
+        <div class="flex items-baseline gap-1.5">
+          @if (l.advice.band; as band) {
+            <span class="text-xl leading-none font-bold tabular-nums" [class]="tone()">
+              {{ band.low }}<span class="px-0.5 text-muted">-</span>{{ band.high }}
+            </span>
+          } @else {
+            <span class="text-xl leading-none font-bold text-muted">—</span>
+          }
+          <span class="text-[11px] text-muted">cr</span>
+          @if (l.advice.band?.capped) {
+            <nz-icon
+              class="text-warning"
+              nzType="lock"
+              nz-tooltip
+              nzTooltipTitle="Il tetto qui non lo decide la misura ma la tua borsa: più di così non puoi offrire."
+            />
+          }
+          @if (l.advice.band?.overCeiling) {
+            <nz-icon
+              class="text-danger"
+              nzType="alert"
+              nz-tooltip
+              nzTooltipTitle="Sopra il 20% del budget si sbaglia in qualunque slot: da -0,3 a -1,2 punti a giornata."
+            />
+          }
+        </div>
+        <div class="relative h-1.5 w-40 rounded-full bg-page">
+          <div class="absolute inset-y-0 w-px bg-success/60" [style.left]="safeAt()"></div>
+          <div class="absolute inset-y-0 w-px bg-danger/60" [style.left]="wrongAt()"></div>
+          <div
+            class="absolute inset-y-0 rounded-full"
+            [class]="rail()"
+            [style.left]="bandLeft()"
+            [style.width]="bandWidth()"
+          ></div>
+          @if (l.price) {
+            <div
+              class="absolute -top-0.5 h-2.5 w-0.5 rounded-full bg-fg"
+              [style.left]="priceLeft()"
+            ></div>
+          }
+        </div>
+      </div>
+
+      <!-- Il prezzo sul tavolo: l'unica cosa che si tocca durante l'asta. -->
+      <span
+        class="flex shrink-0 items-center gap-1"
+        nz-tooltip
+        nzTooltipTitle="Il prezzo a cui sta il tavolo adesso."
+      >
+        <nz-input-number
+          nzSize="small"
+          [nzMin]="0"
+          [nzStep]="1"
+          [ngModel]="price()"
+          (ngModelChange)="price.set($event ?? 0)"
+        />
+        <span class="text-[11px] text-muted">sul tavolo</span>
+      </span>
+
+      <!-- 3. I TRE NUMERI -->
+      <div class="flex shrink-0 gap-1.5 text-center">
+        <div
+          class="rounded bg-control px-2 py-1"
+          nz-tooltip
+          [nzTooltipTitle]="
+            'Quanto paga di solito il tavolo per uno slot ' +
+            l.block.index +
+            ' di questo ruolo, con ' +
+            l.advice.hands +
+            ' rose ancora aperte.'
+          "
+        >
+          <div class="text-sm leading-none font-semibold tabular-nums text-fg">
+            {{ l.advice.expectedPrice }}
+          </div>
+          <div class="mt-0.5 text-[9px] text-muted">mercato</div>
+        </div>
+        <div
+          class="rounded bg-control px-2 py-1"
+          nz-tooltip
+          nzTooltipTitle="Quante rose hanno ancora un posto in questo ruolo E i crediti per arrivare alla banda: è il numero che decide il secondo prezzo."
+        >
+          <div class="text-sm leading-none font-semibold tabular-nums text-fg">
+            {{ l.advice.hands }}
+          </div>
+          <div class="mt-0.5 text-[9px] text-muted">mani</div>
+        </div>
+        <div
+          class="rounded bg-control px-2 py-1"
+          nz-tooltip
+          nzTooltipTitle="Quanti dei dieci uomini di questo slot sono ancora nell'urna. A zero, il tetto di chi sta sopra sale."
+        >
+          <div class="text-sm leading-none font-semibold tabular-nums text-fg">
+            {{ l.block.left }}
+          </div>
+          <div class="mt-0.5 text-[9px] text-muted">nello slot</div>
+        </div>
+      </div>
+
+      <!-- 4. PERCHE' — una riga sola, e prende lo spazio che resta. -->
+      <p class="min-w-0 flex-1 truncate text-xs text-muted">{{ l.advice.reason }}</p>
+
+      <!-- 5. L'ALTERNATIVA: cio' che rende dubitabile il verdetto. -->
+      @if (l.alternative; as alt) {
+        <div
+          class="flex shrink-0 items-center gap-2 rounded border border-dashed border-border px-2 py-1"
+          [class.border-solid]="l.advice.verdict === 'lascia'"
+          [class.bg-control]="l.advice.verdict === 'lascia'"
+          nz-tooltip
+          [nzTooltipTitle]="
+            alt.together
+              ? 'I due dello slot sotto che compreresti INSIEME al suo posto, ai prezzi che pagheresti: è ciò che rende dubitabile il verdetto.'
+              : 'Di portieri se ne schiera uno, quindi questi due non sono una coppia: sono due alternative a lui, una O l’altra.'
+          "
+        >
+          <div class="text-[10px] leading-tight text-muted">
+            <div class="tracking-wide uppercase">{{ alt.note }}</div>
+            @for (man of alt.men; track man.id; let i = $index) {
+              <span class="text-fg">{{ man.name }} {{ alt.costs[i] | number: '1.0-0' }}</span>
+              @if (i < alt.men.length - 1) {
+                <span class="px-1">{{ alt.together ? '+' : 'o' }}</span>
+              }
+            }
+          </div>
+          @if (alt.total !== null) {
+            <span class="text-base font-bold tabular-nums text-fg">{{ alt.total }}</span>
+          }
+        </div>
+      }
+    </div>
+  } @else {
+    <!-- NESSUN LOTTO: fra un'estrazione e l'altra la riga non sparisce, cambia domanda. -->
+    <div class="flex flex-1 items-center gap-6 px-3 py-2">
+      <span class="text-sm text-muted">Nessun lotto in asta</span>
+      <span class="flex items-baseline gap-1.5">
+        <span class="text-lg font-semibold tabular-nums text-fg">{{ urnLeft() }}</span>
+        <span class="text-[11px] text-muted">nell'urna</span>
+      </span>
+      <span class="flex items-baseline gap-1.5">
+        <span class="font-semibold tabular-nums text-fg">{{ myMissing().join('·') }}</span>
+        <span class="text-[11px] text-muted">i tuoi posti</span>
+      </span>
+      <span class="flex items-baseline gap-1.5">
+        <span class="text-lg font-semibold tabular-nums text-fg">{{ room() }}</span>
+        <span class="text-[11px] text-muted">i tuoi crediti</span>
+      </span>
+      <span
+        class="flex items-baseline gap-1.5"
+        nz-tooltip
+        nzTooltipTitle="I calciatori sotto la mappa: cinque uomini su venticinque di ogni rosa vengono da qui, pagati un credito."
+      >
+        <span class="font-semibold tabular-nums text-muted">{{ tail() }}</span>
+        <span class="text-[11px] text-muted">in coda</span>
+      </span>
+      <span class="ml-auto text-xs text-muted"
+        >Premi un nome sulla plancia per metterlo in asta.</span
+      >
+    </div>
+  }
+</div>

@@ -1,0 +1,138 @@
+<!-- UI text is ITALIAN in app/ (see app/CLAUDE.md); code and comments stay English.
+
+     TUTTE LE 250 RIGHE A SCHERMO. La griglia e' la struttura del mercato - una rosa e' 25 uomini e un
+     listone 25 SLOT da `teams` uomini, quindi una rosa e' un uomo per slot - e a estrazione libera
+     qualunque ruolo puo' uscire in qualunque momento, quindi non c'e' una fase da espandere: si vede
+     tutto o non si vede niente.
+
+     OGNI BLOCCO E' LARGO UGUALE: la linea piu' lunga ne ha otto, quindi ogni linea e' tagliata su una
+     griglia di otto e lo spazio che avanza porta la CODA e la legenda invece di allargare i blocchi. -->
+<div class="flex h-full min-h-0 flex-col gap-1.5">
+  @for (role of roles; track role) {
+    <div class="flex min-h-0 flex-1 gap-1.5">
+      <div class="flex w-3.5 shrink-0 items-center justify-center rounded" [class]="roleTone[role]">
+        <span class="text-[10px] font-bold text-page">{{ role }}</span>
+      </div>
+
+      <div class="grid min-w-0 flex-1 grid-cols-8 gap-1.5">
+        @for (block of byRole().get(role); track block.id) {
+          <div
+            class="flex min-h-0 min-w-0 flex-col overflow-hidden rounded border bg-surface"
+            [class]="blockTone(block)"
+          >
+            <!-- Intestazione: lo slot, quanti restano, e la mediana pagata. -->
+            <div
+              class="flex shrink-0 items-baseline gap-1 border-b border-border bg-control px-1.5 py-0.5"
+              nz-tooltip
+              [nzTooltipTitle]="blockTip(block)"
+            >
+              <span class="text-[9px] font-bold tracking-wide text-muted">{{ block.id }}</span>
+              <span class="ml-auto text-[11px] font-bold tabular-nums text-fg">{{
+                block.left
+              }}</span>
+              <span class="text-[9px] tabular-nums text-muted">{{
+                block.medianFvm | number: '1.0-0'
+              }}</span>
+            </div>
+
+            <!-- I dieci nomi. Una riga = un nome e UN numero: la max offerta se e' nell'urna, il
+                 prezzo pagato se e' di qualcuno. L'hover porta la coppia dello slot sotto. -->
+            <div class="flex min-h-0 flex-1 flex-col">
+              @for (man of block.rows; track man.id) {
+                <button
+                  type="button"
+                  class="flex min-h-0 flex-1 items-center gap-1 pr-1 pl-0.5 text-left text-[10px] leading-none"
+                  [class]="rowTone(man)"
+                  [disabled]="man.state === 'altro' || man.state === 'mio'"
+                  (click)="pick.emit(man)"
+                  nz-tooltip
+                  [nzTooltipTitle]="rowTip(man)"
+                  nzTooltipOverlayClassName="whitespace-pre-line"
+                >
+                  <span
+                    class="h-2.5 w-0.5 shrink-0 rounded-full"
+                    [style.background-color]="man.ownerColour ?? 'transparent'"
+                  ></span>
+                  <span class="min-w-0 flex-1 truncate">{{ man.name }}</span>
+                  <span class="shrink-0 tabular-nums">{{
+                    man.price != null ? (man.price | number: '1.0-0') : '—'
+                  }}</span>
+                </button>
+              }
+            </div>
+          </div>
+        }
+
+        <!-- LA CODA, nello spazio che avanza sulla linea dei portieri. Nasconderla convince ad
+             aspettare, e aspettare fino a lasciare posti vuoti e' l'errore piu' caro che questo banco
+             abbia misurato: cinque uomini su venticinque di ogni rosa vengono da qui. -->
+        @if (role === 'P' && spare('P') > 0) {
+          <div
+            class="flex items-center gap-3 rounded border border-dashed border-border px-3"
+            [style.grid-column]="'span 2'"
+            nz-tooltip
+            nzTooltipTitle="I calciatori sotto la mappa: si prendono a un credito. Contati e non nominati, perché quello che serve sapere è che ci sono."
+          >
+            <span class="text-[10px] font-bold tracking-widest text-muted uppercase">coda</span>
+            <span class="text-2xl leading-none font-bold tabular-nums text-fg">{{ tail() }}</span>
+            <span class="text-[11px] text-muted">a 1 credito</span>
+          </div>
+        }
+
+        <!-- LA LEGENDA, nello spazio che avanza in attacco: la colonna dei numeri porta due
+             significati e questo è il posto dove si dice quali. -->
+        @if (role === 'P' && spare('P') > 2) {
+          <div
+            class="flex flex-col justify-center gap-1 rounded border border-border bg-surface px-3 py-1"
+            [style.grid-column]="'span ' + (spare('P') - 2)"
+          >
+            <div class="flex items-center gap-1.5 text-[10px] text-muted">
+              <span class="h-2 w-2 rounded-full border border-muted"></span>
+              nell'urna: <b class="text-fg">max offerta</b>
+            </div>
+            <div class="flex items-center gap-1.5 text-[10px] text-muted">
+              <span class="h-2 w-2 rounded-full bg-muted"></span>
+              di un altro: <b class="text-fg">prezzo pagato</b>
+            </div>
+            <div class="flex items-center gap-1.5 text-[10px] text-muted">
+              <span class="h-2 w-2 rounded-full bg-primary"></span>
+              mio
+            </div>
+            <p class="text-[10px] leading-tight text-muted">
+              Passa sopra un nome per la coppia che compreresti al suo posto.
+            </p>
+          </div>
+        }
+        <!-- LA MIA BORSA, nello spazio che avanza in attacco: a estrazione libera il vincolo che si
+             perde di vista non e' quanto ho, e' quanto posso ancora spendere PER POSTO. -->
+        @if (role === 'A' && spare('A') > 0) {
+          <div
+            class="flex items-center justify-around gap-2 rounded border border-primary/40 bg-control px-3"
+            [style.grid-column]="'span ' + spare('A')"
+            nz-tooltip
+            nzTooltipTitle="La tua borsa: crediti rimasti, posti ancora da riempire (P·D·C·A) e quanto puoi spendere in media su ognuno."
+          >
+            <div class="text-center">
+              <div class="text-xl leading-none font-bold tabular-nums text-fg">
+                {{ myCredits() }}
+              </div>
+              <div class="mt-0.5 text-[9px] text-muted">crediti</div>
+            </div>
+            <div class="text-center">
+              <div class="text-sm leading-none font-semibold tabular-nums text-fg">
+                {{ myMissing().join('·') }}
+              </div>
+              <div class="mt-0.5 text-[9px] text-muted">posti</div>
+            </div>
+            <div class="text-center">
+              <div class="text-xl leading-none font-bold tabular-nums text-fg">
+                {{ perPlace() ?? '—' }}
+              </div>
+              <div class="mt-0.5 text-[9px] text-muted">per posto</div>
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+  }
+</div>

@@ -1,0 +1,144 @@
+<!-- UI text is ITALIAN in app/ (see app/CLAUDE.md); code and comments stay English.
+
+     LA PAGINA NON SCORRE, e le liste sì: al tavolo si guardano i quattro reparti insieme, quindi
+     l'altezza è quella della finestra (`h-[100dvh]`) e ogni riquadro si ritaglia la sua parte.
+     `min-h-0` su tutta la catena, altrimenti una griglia in `1fr` si allarga per stare dietro al
+     contenuto e la pagina ricomincia a scorrere - la stessa regola della pagina Strategia. -->
+<div class="flex h-[100dvh] flex-col gap-2 overflow-hidden p-2 pb-14">
+  <!-- LA BARRA DEL REGOLAMENTO: sempre a schermo, mai dentro un pannello che si chiude. -->
+  <header
+    class="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-border bg-surface px-3 py-1.5 text-xs"
+  >
+    <h1 class="text-sm font-semibold text-fg">Plancia</h1>
+
+    @if (feed.demo()) {
+      <span
+        class="flex items-center gap-1 rounded-md bg-warning/20 px-2 py-0.5 font-medium text-warning"
+        nz-tooltip
+        nzTooltipTitle="Il tavolo è inventato: squadre, crediti e acquisti già fatti. I calciatori e i numeri del motore sono veri."
+      >
+        <nz-icon nzType="disconnect" />
+        tavolo finto
+      </span>
+    } @else if (feed.connected()) {
+      <span
+        class="flex items-center gap-1 rounded-md bg-success/20 px-2 py-0.5 font-medium text-success"
+        nz-tooltip
+        [nzTooltipTitle]="'Collegato a ' + feed.code() + ', in sola lettura.'"
+      >
+        <nz-icon nzType="wifi" />
+        {{ feed.code() }}
+      </span>
+    }
+
+    <span class="text-muted">
+      {{ rules().teams }} partecipanti · rose {{ rules().roster }} · {{ rules().budget }} cr ·
+      <span
+        nz-tooltip
+        nzTooltipTitle="Un software esterno estrae un calciatore a caso da tutto il listone: qualsiasi ruolo, in qualsiasi momento."
+        >estrazione libera</span
+      >
+    </span>
+
+    <!-- L'AVANZAMENTO: a estrazione libera non c'è una fase, c'è quanto è già uscito per ruolo. -->
+    <span class="flex items-center gap-1">
+      @for (step of store.progress(); track step.role) {
+        <span
+          class="rounded bg-control px-1.5 py-0.5 tabular-nums"
+          [class.text-fg]="step.role === store.lot()?.block?.role"
+          [class.text-muted]="step.role !== store.lot()?.block?.role"
+          nz-tooltip
+          [nzTooltipTitle]="
+            step.done + ' posti di ' + step.role + ' già assegnati su ' + step.total
+          "
+        >
+          {{ step.role }} {{ step.done }}/{{ step.total }}
+        </span>
+      }
+    </span>
+
+    @if (store.sheet(); as sheet) {
+      <span
+        class="text-muted"
+        nz-tooltip
+        [nzTooltipTitle]="
+          'I numeri di ogni giocatore sono del motore, letti dal foglio ' +
+          sheet.league +
+          ' (revisione ' +
+          (sheet.sheet_revision ?? 0) +
+          ', generato il ' +
+          (sheet.generated_at ?? sheet.auction_date ?? '?').slice(0, 10) +
+          ') e mai ricalcolati qui.'
+        "
+        >{{ sheet.league }} · rev. {{ sheet.sheet_revision ?? 0 }}</span
+      >
+    }
+
+    <span class="ml-auto flex items-center gap-1">
+      @if (feed.demo()) {
+        <button
+          nz-button
+          nzType="text"
+          nzSize="small"
+          (click)="store.drawNext()"
+          nz-tooltip
+          nzTooltipTitle="Estrae il prossimo nome dall'urna. Solo sul tavolo finto: un'urna vera non è nostra da girare."
+        >
+          <nz-icon nzType="reload" />
+          estrai
+        </button>
+      }
+      <button nz-button nzType="primary" nzSize="small" (click)="connecting.set(true)">
+        <nz-icon nzType="wifi" />
+        {{ feed.connected() ? 'Cambia asta' : "Collegati a un'asta vera" }}
+      </button>
+      <a nz-button nzType="text" nzSize="small" routerLink="/strategy">
+        <nz-icon nzType="unordered-list" />
+        Strategia
+      </a>
+      <a nz-button nzType="text" nzSize="small" routerLink="/">
+        <nz-icon nzType="team" />
+        Calciatori
+      </a>
+    </span>
+  </header>
+
+  @if (store.error()) {
+    <nz-alert class="block shrink-0" nzType="error" [nzMessage]="store.error()!" />
+  }
+
+  <!-- LE TRE ZONE. Il LOTTO e' una riga sotto l'intestazione (si legge come una frase, da sinistra a
+       destra); le SQUADRE sono una colonna a destra, a griglia; tutto il resto e' la plancia, che ha
+       bisogno dell'altezza perche' porta 250 righe. -->
+  <plancia-lot-card
+    class="shrink-0"
+    [lot]="store.lot()"
+    [(price)]="store.lotPrice"
+    [budget]="store.budget()"
+    [room]="room()"
+    [urnLeft]="urnLeft()"
+    [tail]="store.tail()"
+    [myMissing]="myMissing()"
+  />
+
+  <div class="flex min-h-0 flex-1 gap-2">
+    <plancia-slot-matrix
+      class="min-h-0 min-w-0 flex-1"
+      [blocks]="store.blocks()"
+      [lotBlockId]="store.lot()?.block?.id ?? null"
+      [tail]="store.tail()"
+      [pairs]="store.pairs()"
+      [myCredits]="room()"
+      [myMissing]="myMissing()"
+      (pick)="onPick($event)"
+    />
+
+    <plancia-team-grid
+      class="w-60 shrink-0"
+      [teams]="store.teams()"
+      [role]="store.lot()?.block?.role ?? null"
+    />
+  </div>
+</div>
+
+<ui-live-connect [(open)]="connecting" />

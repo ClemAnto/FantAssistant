@@ -2582,3 +2582,57 @@ Oltre alla lista del §20.3, questa sessione aggiunge:
   `Team.scale` lo cancella.
 - **Il raffinamento della regola «fantamedia dove hai copertura»** (§26.2): la direzione è giusta e il
   raffinamento vale zero, perché il lavoro di un riserva È coprire.
+
+
+## 29. «L'asta estrae calciatori random NON per reparto, tutti insieme» (3 settembre 2026)
+
+**Correzione dell'operatore sulla sua stessa asta, e va letta prima del §16.** Il §16 ha adottato
+`bench.PHASES` — l'ordine per reparti P · D · C · A — perché **16 delle 20 aste reali con la sua
+configurazione** mettono la posizione media dell'aggiudicazione a 0,06 · 0,28 · 0,60 · 0,88, che è la
+firma di un ordine imposto dalla piattaforma. La sua asta non è una di quelle: l'estrazione è **libera
+su tutto il listone**, un nome alla volta, qualunque ruolo in qualunque momento.
+
+**Quello che questo NON tocca**, ed è la parte più grossa: ogni numero che la plancia legge è indicizzato
+su **quante rose vogliono ancora quel ruolo** e non sull'ordine — lo sconto di fine asta (§23.1), la
+banda del tempismo (§24), la scala per (ruolo, slot) del §19.3, i tetti del §27. Sono misure sulla
+sostituibilità e sulla domanda della stanza, e la sostituibilità non sa in che ordine escono i nomi.
+
+**Quello che tocca, e va rimisurato:** tutto quello che il §16 spiega *con* le fasi. La curva della spesa
+cumulata, il fatto che gli uomini cari siano aggiudicati tardi, e che il prezzo di un campione non dipenda
+da quando esce, sul suo tavolo hanno **un'altra causa o non sono veri** — e il §16 li aveva usati come
+prova che le fasi fossero il difetto mancante. Restano veri sulle 16 aste in cui l'ordine è a reparti;
+non sono più una descrizione del tavolo che l'operatore giocherà.
+
+**E una frase del §27.5 decade.** «Con l'ordine a reparti l'attacco si gioca per ultimo, quindi il caso da
+32% capita quando un top viene estratto tardi dentro la fase d'attacco» presuppone la fase: a estrazione
+libera la profondità di un ruolo si esaurisce **quando capita**, e il salto del tetto (+44% con due slot
+vuoti sotto) può arrivare a qualunque punto dell'asta. È un'informazione che nessuno può tenere a mente,
+ed è la ragione per cui la plancia la calcola e la disegna.
+
+La lezione è quella che questa sessione aveva già scritto dall'altro lato: **quando i numeri di un
+meccanismo sembrano estremi si legge il regolamento della cosa vera** — e il regolamento della cosa vera
+si chiede all'operatore, non si deduce da un archivio di aste che assomigliano alla sua.
+
+### 29.1 La PLANCIA è scritta (voce 3 del §28.2, chiusa)
+
+`app/src/app/core/plancia.ts` + `plancia-store.ts` + `plancia-demo.ts`, pagina `/plancia`, dettaglio in
+`assistente-asta-v1.md`. Il dominio è puro e testato (24 asserzioni): la mappa a 25 slot tagliata per FVM,
+la `LADDER` del §19.3 come **quota del budget** e non in crediti (perché il tetto scala col budget, §27.2),
+lo sconto del §23.1, la banda `DEPTH_TIER`/`DEPTH_HANDS` del §24, e il verdetto a quattro stati con
+`ignoto` che non è un «lascia» morbido.
+
+**Due difetti di unità trovati mentre si scriveva, e valgono oltre la pagina.**
+- **Sommavo il 2º e il 3º portiere in un totale.** Per un uomo di movimento l'alternativa è una COPPIA che
+  si compra insieme, e il totale è la cifra da confrontare col suo prezzo; per un portiere se ne schiera
+  **uno**, quindi il 2º e il 3º del suo slot sono due alternative *fra loro* e sommarle confronta il suo
+  prezzo con una cifra che nessuno pagherebbe (184 crediti per «Donnarumma + Raya» contro una banda di
+  80-97). `Alternative.together` decide se un totale esiste, e dove non esiste non si stampa.
+- **La demo prezzava il listone EuroLeghe con la scala misurata sulla sua Serie A.** Il foglio veniva
+  scelto come «quello che prezza più uomini», e la `LADDER` viene dalle 20 aste a 10 squadre e 1000
+  crediti sul listone classic: applicare un parametro fuori dalla popolazione su cui è stato fittato, di
+  nuovo. Ora il foglio si sceglie **classic/default per primo** e l'intestazione lo nomina comunque.
+
+**E una cosa che il banco non sa e la pagina dichiara**: fanta-asta-live pubblica la meccanica dei rilanci
+(`options.bids`) e **nessun nodo che nomini il lotto in asta** è mai stato osservato. Quindi da collegati
+il lotto lo nomina l'operatore con un click sulla plancia, e `lotSource` dice se è la finzione o lui —
+un campo indovinato su un payload che nessuno ha letto è il difetto che questo repository ha già pagato.

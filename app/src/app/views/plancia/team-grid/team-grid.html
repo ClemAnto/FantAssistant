@@ -1,0 +1,43 @@
+<!-- UI text is ITALIAN in app/ (see app/CLAUDE.md); code and comments stay English.
+
+     QUATTRO NUMERINI P·D·C·A e nessuna etichetta: si accende solo il ruolo del lotto, e solo sulle rose
+     che possono ancora prenderlo. Il pallino vale «mano ancora alzata», la crocetta «fuori gioco».
+     Il nome per esteso sta nel tooltip: a questa larghezza una sigla si riconosce e una frase no. -->
+<div class="grid h-full min-h-0 grid-cols-2 content-start gap-1.5 overflow-y-auto">
+  @for (team of teams(); track team.id) {
+    <div
+      class="flex flex-col gap-1 rounded-lg border px-1.5 py-1"
+      [class]="cardTone(team)"
+      nz-tooltip
+      [nzTooltipTitle]="tip(team)"
+    >
+      <div class="flex items-center gap-1">
+        <span
+          class="flex h-4 w-7 shrink-0 items-center justify-center rounded text-[9px] font-bold text-page"
+          [style.background-color]="team.colour"
+          >{{ sigla(team) }}</span
+        >
+        <span class="min-w-0 flex-1 truncate text-[10px] text-muted">{{ team.label }}</span>
+        @if (team.rival) {
+          <span class="h-1.5 w-1.5 shrink-0 rounded-full bg-primary"></span>
+        } @else if (team.out) {
+          <nz-icon class="shrink-0 text-[10px] text-muted" nzType="stop" />
+        }
+      </div>
+
+      <div class="flex items-baseline gap-1">
+        <span class="text-lg leading-none font-bold tabular-nums text-fg">{{ team.credits }}</span>
+        <span class="text-[9px] text-muted">cr</span>
+        <span class="ml-auto flex gap-1">
+          @for (role of roles; track role; let i = $index) {
+            <span
+              class="w-3 rounded text-center text-[10px] font-semibold tabular-nums"
+              [class]="slotTone(team, role, team.missing[i])"
+              >{{ team.missing[i] }}</span
+            >
+          }
+        </span>
+      </div>
+    </div>
+  }
+</div>

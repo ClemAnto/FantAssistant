@@ -52,7 +52,12 @@
         <nz-icon nzType="inbox" />
         Buste chiuse
       </a>
-      <!-- The only way into the live view: without it /auction is reachable by URL alone. -->
+      <!-- The only way into the two auction views: without these /auction and /plancia are reachable
+           by URL alone. Both open on an invented table and connect only when asked. -->
+      <a nz-button nzType="text" routerLink="/plancia">
+        <nz-icon nzType="aim" />
+        Plancia
+      </a>
       <a nz-button nzType="text" routerLink="/auction">
         <nz-icon nzType="wifi" />
         Segui un'asta
