@@ -956,6 +956,47 @@ come spareggio fra uomini con le stesse presenze attese — che e' esattamente c
 dentro una fascia. Il portiere e' il caso limite dove le due cose coincidono, e non per caso e' dove il
 motore vale il doppio.
 
+## Il TETTO di un'offerta e' una QUOTA del budget, ed e' diverso per RUOLO
+**03/09/2026, `simulatore-asta-rilanci-v1.md` §27**, dalle domande dell'operatore al tavolo. **Un
+credito speso sul resto della rosa vale 0,0055 punti a giornata** (misurato variando il budget), e senza
+quel tasso nessun tetto si puo' scrivere. Con quello, il tetto **scala col budget**: verificato a 500 ·
+1000 · 2000, il segno gira fra il **17,5% e il 19%** in tutti e tre i casi (88 · 190 · 380 crediti) —
+tre cifre, una soglia, che e' il §18.3 applicato a un tetto.
+
+**IL PRIMO SLOT NON E' UNA FASCIA PIATTA, e da li' viene tutto.** Il rapporto fra il prezzo del primo e
+del decimo dentro uno slot e' **1,0-1,3 dal secondo slot in giu'** e **1,7-2,5 nel primo**. Per questo la
+scelta del motore dentro il primo slot PERDE contro il piu' caro (D −16,4 · C −12,1 · A −6,3 per scelta)
+e vince largo dal secondo (+37,6 · +45,4 · +50,2) — e non perche' il mercato sia meglio informato in
+cima: la' sbagliamo di MENO (errore 5-6 giornate contro 7-8). *Dove il prezzo varia di due volte, il
+prezzo sta ancora dicendo qualcosa.* Quindi dentro uno slot si ordina per VALORE ATTESO (fantamedia ×
+presenze) e non per presenze pure: il criterio si adatta da se'.
+
+**E IL TETTO E' DIVERSO PER RUOLO, per una ragione che sta nel regolamento e non nei dati — quanti ne
+SCHIERI.** Uno del primo slot contro due del secondo, dieci stagioni: **portieri tetto ~13% dove il
+mercato chiede il 6% (si compra); DIFENSORI nessun prezzo** — negativo a ogni quota provata, gia' −0,10
+a giornata a 30 crediti; centrocampisti ~6,5% contro il 9% chiesto; **attaccanti ~18% contro il 25%
+chiesto**. Del portiere ne schieri UNO, quindi la sostituzione due-per-uno non esiste; dei difensori
+QUATTRO e il modificatore premia la media dei tre migliori, quindi la difesa vuole quantita' di voti
+decenti e non un fenomeno. **Questo corregge «difesa TOP e' la strategia migliore»**: resta vero (18% di
+titoli contro il 10% del caso) ma non vuol dire comprare il difensore piu' caro — vuol dire mettere piu'
+soldi nel reparto, spalmati, che e' quello che il tilt adottato fa da se'.
+
+**Slot per slot il tetto NON scende mentre il prezzo crolla** (1o 255 chiesti contro ~170 di tetto, 2o
+104 contro ~130, 3o 50 contro ~145): il mercato sfonda **in un posto solo**. E **se la profondita' si
+esaurisce il tetto sale, ma non subito**: 21% con lo slot 2 vivo, 22% con lo slot 2 esaurito (il terzo lo
+sostituisce quasi), **32% con due slot vuoti** — dove il primo slot vince 10 stagioni su 10 a 50 crediti.
+*Finche' sotto di lui c'e' profondita' un top vale 210; quando la profondita' e' finita ne vale 320.*
+
+Due convenzioni nate qui e da rispettare altrove.
+- **«SLOT» e' la parola del gioco**, non «blocco» o «fascia», su indicazione dell'operatore: si usa
+  quella, come si tengono `titolarissimo`, `bandiera`, `por` e `pc`.
+- **I risultati si riportano in punti A GIORNATA, mai in totali di stagione** (sua richiesta: «per me e'
+  piu' facile capire di che grandezze parliamo»). Un totale nasconde l'ordine di grandezza — +31 punti su
+  2665 sono **+0,8 a giornata** — e la giornata e' anche l'unita' in cui la differenza CONTA, perche' la
+  scala dei gol parte da 66 su una media di ~70. Ancoraggi: la scelta della strategia vale +1,7 a
+  giornata, il tempismo +1,3, due attaccanti del secondo slot invece di un top +0,8, i consigli del
+  motore dentro uno slot +0,7, un buco −4,7.
+
 ## I consigli si giudicano SENZA il tavolo, e una rosa ne schiera undici
 **02/09/2026 (notte), `simulatore-asta-rilanci-v1.md` §25, `python -m bench.auction.advice`.** Domanda
 dell'operatore: «riusciamo ad avere dei dati verosimili per capire se i consigli del motore favoriscono

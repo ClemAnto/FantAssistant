@@ -2390,3 +2390,130 @@ gioca; e questo si può leggere al tavolo, perché è la copertura attesa del re
 stesse presenze attese — che è esattamente quello che il motore fa dentro una fascia (§25) e vale
 l'1%. Il portiere è il caso limite in cui le due cose coincidono: ne schieri uno, quindi non esiste
 copertura e conta solo chi gioca — ed è dove il motore vale il doppio che altrove (§21.7).
+
+## 27. Il TETTO di un'offerta: per RUOLO, per SLOT e per STATO DELL'URNA
+
+**03/09/2026, dalle domande dell'operatore al tavolo: «un TOP d'attacco o due del secondo slot?», «la
+regola vale anche per centrocampisti, difensori e portieri?», «se lo slot 2 è esaurito il tetto sale?».
+Tutti i numeri sono PER GIORNATA su sua richiesta** («per me è più facile capire di che grandezze
+parliamo»), e la conversione è quella: un totale di stagione diviso 38.
+
+**IL PRIMO SLOT NON È UNA FASCIA PIATTA, e da lì viene tutto il resto.** Misurato il rapporto fra il
+prezzo del più caro e del decimo dentro ogni slot: dal secondo slot in giù è **1,0-1,3** (dieci uomini
+quotati uguale, e allora solo il motore li separa), nel primo è **1,7-2,5** (il più caro costa il doppio
+del decimo). È la ragione per cui la scelta del motore dentro il primo slot **perde** contro il più caro
+(per scelta: D −16,4 · C −12,1 · A −6,3 fantapunti sul totale dell'uomo) e vince largo dal secondo in
+giù (+37,6 · +45,4 · +50,2). Non è che il mercato sia meglio informato in cima — misurato, là sbagliamo
+di MENO (errore 5-6 giornate contro 7-8): è che là il prezzo sta ancora dicendo qualcosa.
+Conseguenza per la plancia: dentro uno slot si ordina per **valore atteso** (fantamedia × presenze) e
+non per presenze pure, così il criterio si adatta da sé — dove il prezzo è piatto domina la presenza,
+dove è una scala tiene conto anche del voto.
+
+### 27.1 Un top d'attacco contro due del secondo slot
+
+Quattro piani, stesso budget e stessa rosa, dieci stagioni vere, punti **a giornata**:
+
+| piano | pt/giornata | buchi | R-Factor | mod. dif. | speso in attacco |
+|---|---|---|---|---|---|
+| **due del secondo slot**, nessuno del primo | **70,9** | **5,0** | **19,1** | **22,6** | 325 |
+| nessun attaccante di 1° o 2° slot | 70,8 | 6,7 | 18,1 | 21,7 | 190 |
+| libero | 70,6 | 6,5 | 16,9 | 21,2 | 283 |
+| **un TOP** (uno dei 3 più cari) + il resto | **70,1** | 8,1 | 15,8 | 20,0 | **460** |
+
+Appaiato: la coppia vale **+0,8 punti a giornata**, 8 stagioni su 10. Il meccanismo è nelle colonne di
+destra — il top spende 135 crediti in più in attacco e li paga in buchi e nei due modificatori, che
+questa lega paga in **voti base di tutti e undici** e non in gol.
+**E il conto è generoso col top**: nel modello costa 271 crediti, mentre nelle aste vere l'acquisto più
+caro di una rosa è il **43% del budget** (~430). Gli ho fatto uno sconto del 40% e perde comunque.
+
+### 27.2 Il tasso di cambio, e perché il tetto è una QUOTA e non una cifra
+
+**Un credito speso sul resto della rosa vale 0,0055 punti a giornata** (5-6 punti a giornata per 1000
+crediti, misurato variando il budget). Senza quel numero nessun tetto si può scrivere; con quello, il
+tetto di un uomo è *(il suo vantaggio a giornata sull'alternativa) ÷ 0,0055*.
+
+E il tetto **scala col budget**, verificato a 500 · 1000 · 2000: il segno gira fra il **17,5% e il 19%**
+in tutti e tre i casi, cioè a 88 · 190 · 380 crediti. Tre numeri diversi, **una sola soglia** — che è la
+lezione del §18.3 («una soglia assoluta non si confronta fra budget diversi») applicata a un tetto.
+
+### 27.3 Per RUOLO, e la difesa fa l'opposto di quello che l'intuizione dice
+
+Uno del primo slot contro due del secondo, dieci stagioni:
+
+| ruolo | il mercato chiede | il tetto | verdetto |
+|---|---|---|---|
+| **portieri** | 60 (6%) | **~130 (13%)** | il tetto è il doppio: **si compra** |
+| **difensori** | 48 (5%) | **nessun prezzo** | negativo a ogni quota, già −0,10 a 30 crediti e −0,48 a 50 |
+| **centrocampisti** | 90 (9%) | ~65 (6,5%) | il mercato chiede un po' troppo |
+| **attaccanti** | 255 (25%) | ~180 (18%) | il mercato **sfonda** |
+
+**Il meccanismo è il regolamento e non i dati: quanti ne SCHIERI.** Del portiere ne schieri uno, quindi
+la sostituzione due-per-uno non esiste e non esiste copertura — là conta solo che ci sia, ed è anche il
+ruolo dove il motore vale il doppio (§21.7). Dei difensori ne schieri quattro e il modificatore premia
+la media dei **tre migliori**: la difesa vuole quantità di voti decenti, non un fenomeno, e la
+sostituzione due-per-uno funziona meglio che altrove.
+**Questo corregge una frase detta a voce nella stessa sessione**: «difesa TOP è la strategia migliore»
+resta vero (18% di titoli contro il 10% del caso) ma NON vuol dire comprare il difensore più caro —
+vuol dire mettere più soldi nel reparto, spalmati. È esattamente quello che il tilt adottato fa: paga
+sopra mercato le **prime quattro fasce** della difesa, non il singolo top.
+
+### 27.4 Slot per slot: il tetto non scende, il prezzo sì
+
+Uno dello slot k contro due dello slot k+1, in attacco:
+
+| slot | il mercato chiede | il tetto |
+|---|---|---|
+| 1° | 255 (25%) | ~170 (17%) |
+| 2° | 104 (10%) | ~130 (13%) |
+| 3° | 50 (5%) | ~145 (15%) |
+
+**Il tetto resta piantato fra il 13% e il 17% mentre il prezzo crolla 255 → 104 → 50.** Quindi il
+mercato sfonda **in un posto solo**, il primo slot; dal secondo in giù chiede molto meno di quanto quegli
+uomini valgono, e non serve un tetto — serve prenderli. Letto al rovescio è la frase che questa sessione
+ha trovato in cinque forme diverse: **il mercato sovrapprezza il primo slot e sottoprezza tutto il
+resto.**
+
+### 27.5 E se lo slot 2 è ESAURITO il tetto sale — ma non subito
+
+La domanda dell'operatore su un'asta in stato avanzato. Uno del primo slot contro i sei migliori
+attaccanti rimasti, al variare di quanta profondità è ancora viva:
+
+| stato dell'urna | pareggio | in crediti |
+|---|---|---|
+| slot 2 disponibile (inizio d'asta) | 21% | 208 |
+| **slot 2 esaurito** | 22% | 224 |
+| **slot 2 e 3 esauriti** | **32%** | **323** |
+
+**Esaurire il solo slot 2 quasi non muove niente** (21% → 22%), perché l'alternativa non è «due del
+secondo slot» ma «due dei migliori che restano», e il terzo slot è un sostituto quasi buono. **Il salto
+arriva a due slot vuoti: +44% di tetto**, e là il primo slot vince **10 stagioni su 10 a 50 crediti e 9
+su 10 a 150** — la lettura più netta della sessione. In pratica: *finché sotto di lui c'è profondità un
+top vale 210; quando la profondità è finita ne vale 320* — e chi aspetta troppo lo paga il 50% in più
+non perché il mercato impazzisca, ma perché ha ragione.
+Con l'ordine a reparti l'attacco si gioca per ultimo, quindi il caso da 32% capita quando un top viene
+estratto **tardi dentro la fase d'attacco** — che è esattamente la situazione in cui l'istinto direbbe
+di risparmiare.
+
+### 27.6 I tre nomi di oggi, e i limiti
+
+Sul foglio del 01/09, con la max offerta ancorata al 18% per l'uomo mediano dello slot e scalata sui
+punti a giornata di ciascuno: **Malen ~190 · Lautaro ~175 · Hojlund ~150**, contro un mercato che chiede
+**271 · 279 · 223**. Tutti e tre fuori soglia, e pagarli a mercato costa fra 0,4 e 0,7 punti a giornata.
+Hojlund è il caso interessante: 6,17 punti a giornata contro i 6,23 di Malen (33 giornate attese, le più
+alte del listone) con un FVM di 257 contro 414 — la stessa resa a un prezzo più basso.
+E la coppia da prendere invece: **Krstovic ~84 + Esposito F.P. ~75 = ~159**, cioè meno di quanto uno solo
+dei tre chiede.
+
+**Tre limiti, e il secondo è un fatto sul database.**
+- **Le soglie hanno 3-8 stagioni concordi su 10.** La direzione è netta (il segno gira sempre fra il 13%
+  e il 19%, su tre slot e tre ruoli indipendenti, e la differenza cresce col prezzo fino a −1,2 punti a
+  giornata al 30%) ma il punto esatto no. Quello che si può dire secco: **sopra il 20% del budget si
+  sbaglia in qualunque slot, sotto il 10% non si sbaglia mai.**
+- **L'FVM non esiste prima del 2022-23** (zero uomini su sei finestre di dieci; dove esiste copre 49-57
+  attaccanti su 80). Quindi ogni misura fatta sul rango di FVM vive su **quattro** stagioni, non su
+  dieci — ed è per questo che i tetti pubblicati qui sono misurati sul rango di **Qt.I**, mentre la
+  plancia taglia per FVM. La discrepanza è dichiarata, non risolta.
+- **Un tetto misurato contro «esattamente due del secondo slot» (18%) e uno misurato contro «i sei
+  migliori rimasti» (21%) sono due numeri diversi e nessuno dei due è sbagliato**: la seconda
+  alternativa è più flessibile perché l'ottimizzatore può spendere altrove. La banda vera per l'inizio
+  d'asta è **18-21%**.
