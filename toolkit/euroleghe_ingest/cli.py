@@ -67,10 +67,17 @@ def build_parser() -> argparse.ArgumentParser:
     p_upd.add_argument("--plan", action="store_true",
                        help="print the plan - phases, steps, cost, and what each action would do "
                             "here - and touch nothing")
-    p_upd.add_argument("--offline", action="store_true",
-                       help="skip the ACQUISITION phase: re-derive, rebuild the sheets and the packs, "
-                            "write the bundle. The common case after a code change, when the data is "
-                            "fine and only the deliverable is stale")
+    _upd_preset = p_upd.add_mutually_exclusive_group()
+    _upd_preset.add_argument("--offline", action="store_true",
+                             help="skip the ACQUISITION phase: re-derive, rebuild the sheets and the "
+                                  "packs, write the bundle. The common case after a code change, when "
+                                  "the data is fine and only the deliverable is stale")
+    _upd_preset.add_argument("--daily", action="store_true",
+                             help="the DAY-OF-A-SESSION preset: only the readings that are about "
+                                  "TODAY (probabili/indisponibili, the live squads and roles, the "
+                                  "fixtures, the Elo) plus the sheets, the bundle and the app's copy. "
+                                  "Leaves out the weekly archives (injuries, market, the per-match "
+                                  "layer, the votes) and says so")
     p_upd.add_argument("--phase", action="append", metavar="NAME",
                        choices=list(load("update").PHASE_KEYS),
                        help="only these phases, in the declared order (repeatable): "
@@ -368,6 +375,10 @@ def build_parser() -> argparse.ArgumentParser:
                            help="only the N most expensive players (for a pilot run)")
             p.add_argument("--refresh", action="store_true",
                            help="re-download pages even if already cached")
+            p.add_argument("--stale-days", type=int, metavar="N", dest="stale_days",
+                           help="re-download only the pages last read N or more days ago. This is how "
+                                "an INTERRUPTED --refresh is resumed: --stale-days 1 re-reads "
+                                "everything not read today, and pays nothing for the half already done")
 
     return parser
 
@@ -451,7 +462,8 @@ def main(argv: list[str] | None = None) -> int:
                                       refresh=args.refresh, layer=args.layer, days=args.days)
             elif args.command == "injuries":
                 load("injuries").run(ctx, seasons=args.season, layer=args.layer,
-                                     limit=args.limit, refresh=args.refresh)
+                                     limit=args.limit, refresh=args.refresh,
+                                     stale_days=args.stale_days)
             elif args.command == "performance":
                 load("performance").run(ctx, seasons=args.season, limit=args.limit,
                                         refresh=args.refresh)
@@ -481,6 +493,7 @@ def main(argv: list[str] | None = None) -> int:
                                      listone_only=args.listone_only)
             elif args.command == "update":
                 load("update").run(ctx, plan_only=args.plan, offline=args.offline,
+                                   daily=args.daily,
                                    phases=tuple(args.phase) if args.phase else None,
                                    steps_from=args.steps_from, steps_to=args.steps_to,
                                    skip=tuple(args.skip), seasons=args.season,

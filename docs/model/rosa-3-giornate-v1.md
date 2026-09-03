@@ -1,5 +1,7 @@
 # Una rosa per TRE GIORNATE — la seconda competizione classic, e i quattro difetti che ha trovato
-**Aggiornato: 3 settembre 2026, sera.** Nato da una richiesta dell'operatore: «costruiscimi una rosa
+**Aggiornato: 3 settembre 2026, sera tardi** (§11: il piano a due cambi, misurato; e la
+correzione di una riga del §8 che aveva scambiato una soglia di filtro per un risultato).
+Nato da una richiesta dell'operatore: «costruiscimi una rosa
 (Serie A) 3886 con un budget di 250 (il prezzo dei calciatori è la Qt.A) ottimizzata per le prossime 3
 giornate (dalla 3 alla 5)». Il regolamento è arrivato in **sei messaggi successivi**, e ogni messaggio
 ha spostato un numero: è la ragione per cui questo verbale tiene il regolamento in cima e le misure
@@ -253,9 +255,13 @@ fra 0,24 e 0,40.
 `anchor` (Mora 20 · Cissè A. 5 · Marin R. 2 · Mout 1 · Tornqvist 1) che il motore non sa prezzare e
 che io tengo fuori dagli undici. Ammettendoli al loro valore la sua rosa passa da 71,08 a **71,28**.
 Su Mora, 20 crediti, il mio numero non è un giudizio: è un'assenza di dati. Il resto (2,26) è reale.
-**Nessuno scambio a budget invariato guadagna più di 0,15 a giornata** — cercato su tutti i 25 contro
-l'intero serbatoio — quindi il divario non si cura con una mossa: serve spostare crediti dai
-ballottaggi d'attacco alle presenze, cioè due dei suoi dieci cambi.
+~~**Nessuno scambio a budget invariato guadagna più di 0,15 a giornata** — cercato su tutti i 25 contro
+l'intero serbatoio~~ — **FALSA, e il numero era una SOGLIA DI FILTRO letta nell'unità sbagliata**: 0,15
+era il `diff.mean() <= 0.15` con cui `cura.py` scartava le righe da stampare, in fantapunti sulle TRE
+giornate (cioè 0,05 a giornata), e il log che quella stessa riga aveva prodotto stampava in cima
+**Kean → Simeone +0,591 a giornata**. Il massimo vero di uno scambio singolo è **+0,58 a giornata**
+(§11). La conclusione che ne seguiva resta giusta — serve spostare crediti dai ballottaggi d'attacco
+alle presenze, cioè due dei suoi dieci cambi — ma per l'aritmetica del §11 e non per questa.
 
 
 ## §9. IL METODO, e i suoi errori
@@ -300,8 +306,7 @@ poteva vedere la cosa che gli si chiedeva**:
 
 ## §10. COSA RESTA APERTO
 
-- **Il piano a due cambi** per la rosa dell'operatore: quali due fuori e quali due dentro a budget
-  chiuso, per portare le presenze in attacco. Non misurato.
+- ~~**Il piano a due cambi**~~ **misurato il 03/09/2026, sera tardi: §11.**
 - **Mora e gli altri `anchor`**: se l'operatore sa che giocano, il motore non lo sa e non lo saprà
   finché non giocano. Il canale che li vedrebbe è l'acquisizione, non una formula — è la stessa
   conclusione del §"la retta non ha un termine di LIVELLO" della spec.
@@ -313,3 +318,71 @@ poteva vedere la cosa che gli si chiedeva**:
 - **Gomes (Venezia, 1 credito)**: l'unico uomo su cui la pagina probabili di oggi e la rosa live del
   provider litigano sul club e la seconda vince. La cura («dove le fonti litigano vince la più fresca
   che sappia nominare il club») vale **un uomo da un credito**, quindi è misurata e non implementata.
+
+
+## §11. IL PIANO A DUE CAMBI, misurato — e il secondo cambio è quello che il primo rende possibile
+
+**03/09/2026, sera tardi**, dall'unico punto aperto del §10. Cercato su tutte le coppie ammissibili:
+25 uomini che escono × 413 del serbatoio prezzabile, vincolati a 250/250 crediti sulla SOMMA (lui non
+ha crediti liberi), U23 ≥ 2 e max 3 per club. Lo schermo è l'obiettivo ESATTO del §9 — separabile per
+blocchi, quindi il guadagno di due mosse in reparti diversi è quasi la somma — e la verifica è la
+simulazione completa, appaiata sulle stesse 300.000 estrazioni, con modulo, capitano e switch
+ri-scelti come farebbe una rosa vera. Le due misure concordano a due centesimi (+1,425 esatto contro
++1,403 simulato sulla coppia migliore), che è la prova che lo schermo era lecito.
+
+**UN CAMBIO SOLO NON PUÒ SPOSTARE CREDITI FRA REPARTI, ed è tutto lì.** A budget invariato una mossa
+sola deve costare non più di chi esce, quindi il meglio che fa è **+0,58 a giornata** (Kean 24 →
+Simeone 14). La coppia arriva a **+1,13** perché la prima mossa ne LIBERA dieci: Bayo V. costa 1 e
+Adams A. ne costa 11, quindi il secondo cambio da solo **non era comprabile**. Il secondo cambio vale
+quanto il primo (+0,55 contro +0,58) ed esiste solo grazie a lui.
+
+**Le tre righe che contano** (a giornata, appaiate, la sua rosa parte da 71,09 con 0,739 buchi):
+
+| fuori | dentro | crediti | a giornata | buchi |
+|---|---|---|---|---|
+| Mora 20 · Kean 24 | Perrone 10 · Martinez L. 33 | 249 | **+1,403** ± 0,003 | 0,510 |
+| Mora 20 · Kean 24 | Paz N. 29 · Simeone 14 | 249 | +1,347 ± 0,007 | 0,507 |
+| **Bayo V. 1 · Kean 24** | **Adams A. 11 · Simeone 14** | **250** | **+1,130** ± 0,006 | **0,428** |
+
+Due cambi recuperano **1,40 dei 2,44** che separavano la sua rosa da quella costruita: il 57%, con due
+dei suoi dieci cambi. E **Kean esce in ogni piano buono** — 24 crediti per un uomo che parte titolare
+il 38% delle volte è il singolo punto più caro della rosa.
+
+**LA RIGA DA CONSIGLIARE È LA TERZA, e la ragione è che le prime due vendono un uomo che non vediamo.**
+Mora è `anchor`: 20 crediti su cui il motore non ha un numero suo, quindi lo demota in fondo all'ordine
+e non lo schiera mai. Un piano che dice «vendi Mora» sta in parte dicendo «vendi l'uomo che non vedo»,
+che non è un consiglio. Misurato muovendo UNA cosa sola — la stessa ricerca con la demozione degli
+`anchor` accesa e spenta:
+
+- la sua rosa legge **70,73** a giornata con gli anchor demoti e **71,08** credendoli: la nostra cecità
+  su cinque uomini (Mora 20 · Cissè A. 5 · Marin R. 2 · Mout 1 · Tornqvist 1) vale **0,35 a giornata**
+  sull'obiettivo esatto — lo stesso segno dei +0,20 che il §8 aveva misurato con la simulazione;
+- la coppia migliore passa da +1,425 a **+1,288** credendo Mora, quindi il 90% del suo guadagno NON
+  dipende dalla cecità: anche prendendo Mora per buono, quel piano paga;
+- la terza riga legge **+1,119 in tutt'e due le letture**, per costruzione: non tocca un anchor.
+
+Quindi le due risposte sono entrambe vere e vanno dette insieme: se si fida della nostra lettura, il
+piano migliore è Mora → Perrone e Kean → Martinez L.; se vuole un piano che non dipenda da quello che
+non sappiamo, è **Bayo V. → Adams A. e Kean → Simeone**, che vale un po' meno e **dimezza i buchi**
+(0,739 → 0,428, e l'attacco da 0,448 a 0,14). Dopo quel cambio l'attacco schiera Malen, Simeone e Adams
+A., tutti e tre allo 0,87 di quota da titolare, che è il tipo di reparto che il §"un riserva che compri
+per il voto non può fare il lavoro per cui l'hai comprato" descrive dall'altro lato.
+
+**Tre cose sul METODO, e la prima è un errore mio del pomeriggio.**
+- **Una SOGLIA DI FILTRO non è un RISULTATO, e nemmeno nella stessa unità.** Il §8 diceva «nessuno
+  scambio guadagna più di 0,15 a giornata» copiando il `<= 0.15` con cui lo script scartava le righe da
+  stampare — un totale su tre giornate, cioè 0,05 a giornata — mentre il log stesso stampava +0,591 in
+  cima. Due errori in una riga: il filtro preso per il massimo e le tre giornate prese per una. Si è
+  visto **rieseguendo la funzione invece di citare il log**, che è la regola di casa applicata a sé
+  stessi; e la conclusione che ne dipendeva («serve spostare crediti») per fortuna era giusta lo stesso.
+- **Niente `prune` in questa ricerca**, per la lezione del §9.4: la potatura scarta chi è dominato dentro
+  (ruolo, club) su prezzo e valore, e per un portiere la maglia chiusa non è un valore. Il serbatoio è
+  tutto il listone prezzabile, 413 uomini.
+- **Il vincolo di affidabilità resta quello del §6**: entra chi il motore sa prezzare (`est_confidence`
+  ≥ 0,75) oppure chi costa da scartina, perché un corpo non ha bisogno di una valutazione per essere un
+  corpo.
+
+**Un limite che il banco non può togliere**: la ricerca assume che l'uomo che entra sia LIBERO. Chi è
+già in un'altra rosa della sua lega non è comprabile, e quel dato non è in nessuna tabella qui — la
+pagina della sua lega non è leggibile (§10). Se Martinez L., Simeone o Adams A. sono presi, la tabella
+sopra si rilegge dalla riga successiva.

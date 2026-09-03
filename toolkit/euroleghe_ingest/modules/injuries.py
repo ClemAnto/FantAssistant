@@ -367,6 +367,27 @@ def _cache(config, kind: str, key: str):
     return config.cache_dir / f"transfermarkt_{kind}_{key}.html"
 
 
+def _stale(path, stale_days: int | None) -> bool:
+    """Is this cached page older than `stale_days` CALENDAR days? No file = always stale.
+
+    `--refresh` and «resumable» contradict each other on a walk of thousands of pages: an interrupted
+    refresh leaves half the cache read TODAY and half read a week ago, and re-running it re-downloads
+    both halves - two hours to fetch what was fetched an hour before. So the predicate is the AGE of
+    the reading and not a boolean: `stale_days=1` re-reads everything not read today (which is what
+    resuming means), `stale_days=7` is the cadence of a weekly archive, and `--refresh` stays exactly
+    what it was, "every page, whatever its date".
+
+    The comparison is on DATES, like `injuries.observed_on`, because that is the unit the reading is
+    dated in: what matters is «did we look today», never how many hours ago.
+    """
+    if not path.exists():
+        return True                    # there is no reading to be old: this is not a judgement call
+    if stale_days is None:
+        return False
+    read_on = dt.date.fromtimestamp(path.stat().st_mtime)
+    return (dt.date.today() - read_on).days >= stale_days
+
+
 def _perimeter_clubs(conn) -> list[tuple[int, str]]:
     return [(club_id, tm_id) for club_id, tm_id in conn.execute(
         "SELECT fc_club_id, source_id FROM club_xref WHERE source = 'transfermarkt' "
@@ -480,7 +501,8 @@ def _harvest_ids_from_transfer_cache(ctx: Context) -> int:
     return matched
 
 
-def fetch_squads(ctx: Context, seasons: tuple[str, ...], refresh: bool = False) -> None:
+def fetch_squads(ctx: Context, seasons: tuple[str, ...], refresh: bool = False,
+                 stale_days: int | None = None) -> None:
     """Cache one squad page per club-season (ids) plus today's squad page (contract expiry)."""
     conn = ctx.require_conn()
     clubs = _perimeter_clubs(conn)
@@ -494,7 +516,7 @@ def fetch_squads(ctx: Context, seasons: tuple[str, ...], refresh: bool = False) 
             for season in seasons:
                 year = season.split("-")[0]
                 path = _cache(ctx.config, "kader", f"{tm_id}_{year}")
-                if path.exists() and not refresh:
+                if not refresh and not _stale(path, stale_days):
                     continue
                 _polite_sleep(ctx.cancel_event)
                 html = _get_html(session, SQUAD_ENDPOINT.format(tm_id=tm_id, year=year))
@@ -535,12 +557,12 @@ def _players_to_walk(conn, seasons: tuple[str, ...], limit: int | None) -> list[
 
 
 def fetch_injury_pages(ctx: Context, seasons: tuple[str, ...], limit: int | None = None,
-                       refresh: bool = False) -> None:
+                       refresh: bool = False, stale_days: int | None = None) -> None:
     """One page per player (plus its pager), cached. Hours, resumable, interruptible."""
     conn = ctx.require_conn()
     players = _players_to_walk(conn, seasons, limit)
     todo = [(fc_id, tm_id) for fc_id, tm_id in players
-            if refresh or not _cache(ctx.config, "injuries", tm_id).exists()]
+            if refresh or _stale(_cache(ctx.config, "injuries", tm_id), stale_days)]
     print(f"[injuries] {len(players)} players with a Transfermarkt id · {len(todo)} still to fetch "
           f"(~{len(todo) * (REQUEST_DELAY + REQUEST_JITTER / 2) / 60:.0f} min)")
     session = _client()
@@ -685,10 +707,12 @@ def ingest_contract_snapshot(ctx: Context) -> None:
 
 
 def run(ctx: Context, *, seasons=None, limit: int | None = None, refresh: bool = False,
-        layer: str = "all", **kwargs) -> None:
+        layer: str = "all", stale_days: int | None = None, **kwargs) -> None:
     """layer='ids' (squad pages), 'injuries' (the long per-player walk), 'all', or 'reparse'.
 
-    Resumable: anything already cached is not downloaded again unless refresh=True.
+    Resumable: anything already cached is not downloaded again unless refresh=True - or unless it is
+    older than `stale_days`, which is how an INTERRUPTED refresh is resumed without paying twice for
+    the half already re-read.
     """
     conn = ctx.require_conn()
     if isinstance(seasons, str):
@@ -703,10 +727,10 @@ def run(ctx: Context, *, seasons=None, limit: int | None = None, refresh: bool =
     ctx.config.cache_dir.mkdir(parents=True, exist_ok=True)
 
     if layer in ("ids", "all"):
-        fetch_squads(ctx, seasons, refresh)
+        fetch_squads(ctx, seasons, refresh, stale_days)
         reingest_from_cache(ctx)          # the ids must be in the DB before the walk can order it
     if layer in ("injuries", "all"):
-        fetch_injury_pages(ctx, seasons, limit, refresh)
+        fetch_injury_pages(ctx, seasons, limit, refresh, stale_days)
     reingest_from_cache(ctx)
 
 

@@ -495,6 +495,66 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.69 (3 settembre 2026, sera tardi — il preset `--daily`, e `--refresh` che non sapeva riprendere)
+
+Due richieste dell'operatore in coda alla sessione precedente: **riprendere `injuries`** (fermo al 48% di
+una camminata da 3721 pagine, interrotta per liberare il write lock) e **un preset `--daily` per
+`update`**, «visto che il refresh utile è di ~45 minuti mentre injuries/market/positions:match sono
+archivi settimanali».
+
+### `injuries --stale-days N`: il predicato è l'ETÀ della lettura, non un booleano
+
+**`--refresh` e «riprendibile» si contraddicono su una camminata di migliaia di pagine.** Interrotta a
+metà, la cache resta divisa in due: 2564 file letti OGGI e 2100 letti il 1º settembre. Ri-lanciare
+`--refresh` ripaga tutt'e due le metà (due ore per scaricare quello che era stato scaricato un'ora
+prima); ri-lanciare senza non paga NESSUNA delle due, perché ogni file esiste. Non c'era modo di
+riprendere.
+
+`injuries._stale(path, stale_days)` mette al posto del booleano la quantità che decide: quanti giorni fa
+è stata presa la lettura — la stessa che `injuries.observed_on` archivia da stamattina, e per la stessa
+ragione. `--stale-days 1` rilegge tutto ciò che non è stato letto oggi (che è cosa vuol dire riprendere),
+`--stale-days 7` è la cadenza di un archivio settimanale, `--refresh` resta esattamente quello che era.
+Misurato sulla cache PRIMA di lanciare: `None` → 0 pagine, `1` → **2100 su 4664**, `7` → 24. La corsa
+ripresa ha annunciato **1891 giocatori su 3721, ~102 minuti** invece dei 3721 di un `--refresh`.
+
+Un file che non esiste è stale a prescindere dal parametro: **non c'è una lettura che possa essere
+vecchia**. Sta scritto nella funzione e non nel chiamante, e il test lo asserisce proprio perché la prima
+stesura aveva i due controlli nell'ordine inverso e la docstring diceva il contrario del codice.
+
+### `update --daily`: una SELEZIONE dell'ordine unico, e il criterio è cosa OSSERVA il passo
+
+`DAILY` è un dizionario `{chiave: perché}` e `plan(daily=True)` filtra la lista che già esiste — mai una
+seconda lista, per la ragione che il modulo scrive di sé: «due liste degli stessi passi divergono, e la
+prima a sbagliare è quella che il bottone esegue». Una chiave che non è un passo produrrebbe un preset
+silenziosamente più corto — la famiglia del flag che il dispatcher scarta — quindi un test asserisce che
+`DAILY ⊆ plan()`.
+
+**Il criterio non è il costo, è cosa il passo OSSERVA**: un fatto di OGGI che si perde se nessuno guarda
+oggi, o che si muove da un giorno all'altro. Dentro: `fc_site` (le cinque pagine editoriali, e la loro
+storia non si può ricostruire), `positions:roles` (il ruolo granulare e la ROSA VIVA — il provider accetta
+un `seasonId` e lo ignora, quindi è un'osservazione di oggi), `fixtures` (un rinvio sposta una partita di
+settimane), `elo` (una richiesta per data d'asta, e a stagione in corso quella data è oggi), più i fogli,
+il bundle e la copia dell'app. Fuori: tutto ciò che è FINITO (i voti di una giornata già giocata, uno
+stemma) o che è un ARCHIVIO la cui unità è la settimana.
+
+**La DERIVAZIONE è fuori, e non è una preferenza: è un'affermazione sul grafo.** `stats:derive`,
+`matchdays`, `synth` e `arrivals` leggono `match_ratings`, `external_match_stats`, `external_stats`,
+`matchday_map` e `rosters` — nessuna delle quali un passo quotidiano scrive. Su una corsa che non
+rilegge i voti riproducono le tabelle di ieri, e ci mettono tredici minuti. Lo stesso argomento mette
+fuori i PACCHETTI: un pacchetto si ricostruisce quando si muove `SHEET_REVISION`, che è un cambio di
+codice e non un giorno.
+
+Risultato: **7 passi, ~40 minuti** contro le 22h34 del piano intero, e i 24 passi lasciati fuori vengono
+STAMPATI con il loro costo — «un preset che salta gli archivi in silenzio si legge esattamente come un
+update completo che non ha trovato niente da fare». `--daily` e `--offline` sono mutuamente esclusivi nel
+parser: sono due sottoinsiemi diversi, e due flag che dicono entrambi «un pezzo» sono il modo in cui una
+corsa esce diversa da quella chiesta.
+
+Una sovrapposizione dichiarata invece che ottimizzata via: i fogli rinfrescano da sé probabili e
+indisponibili di Serie A (`snapshot.refresh_editorial`), quindi due delle cinque pagine di `fc_site`
+vengono scaricate due volte in una corsa quotidiana. Il passo resta perché le altre tre — `rigoristi` e
+le due pagine EURO — le prende lui e nessun altro, e sono snapshot anche quelle.
+
 ## Novità v9.68 (3 settembre 2026, sera — IL CLUB DEL LISTONE È UN FATTO DI PIATTAFORMA, e quattro difetti che si incastravano)
 
 Nati da una frase dell'operatore su tre nomi: «io mi trovo come portieri del como Butez+Sanchez+Vigorito»,

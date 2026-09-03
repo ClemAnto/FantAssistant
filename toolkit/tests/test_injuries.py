@@ -188,3 +188,35 @@ def test_reingest_from_cache_is_offline_and_idempotent(tmp_path):
         assert conn.execute("SELECT COUNT(*) FROM injuries").fetchone()[0] == 3
         assert conn.execute("SELECT COUNT(*) FROM flags WHERE flag = 'contract_until'"
                             ).fetchone()[0] == 1
+
+
+def test_an_interrupted_refresh_is_resumed_by_the_AGE_of_the_reading(tmp_path):
+    """`--refresh` and «resumable» contradict each other, and `--stale-days` is the way out.
+
+    A walk of 4664 pages interrupted halfway leaves half the cache read TODAY and half read days ago.
+    Re-running `--refresh` pays for both halves (two hours to fetch what was fetched an hour before);
+    re-running without it pays for NEITHER, because every file exists. So the predicate has to be the
+    AGE of the reading - the same quantity `injuries.observed_on` stores, and for the same reason.
+    """
+    import datetime as dt
+    import os
+
+    fresh = tmp_path / "read_today.html"
+    stale = tmp_path / "read_five_days_ago.html"
+    for one in (fresh, stale):
+        one.write_text("x", encoding="utf-8")
+    old = dt.datetime.now() - dt.timedelta(days=5)
+    os.utime(stale, (old.timestamp(), old.timestamp()))
+    missing = tmp_path / "never_read.html"
+
+    # stale_days=None is the historical behaviour: this predicate says nothing, and the caller's own
+    # `refresh or not exists()` decides. Nothing that ran before this flag moves.
+    assert injuries._stale(fresh, None) is False
+    assert injuries._stale(stale, None) is False
+    assert injuries._stale(missing, None) is True
+
+    # 1 = "not read today", which is what resuming means.
+    assert injuries._stale(fresh, 1) is False
+    assert injuries._stale(stale, 1) is True
+    # 7 = the cadence of a weekly archive: five days ago is not yet stale.
+    assert injuries._stale(stale, 7) is False

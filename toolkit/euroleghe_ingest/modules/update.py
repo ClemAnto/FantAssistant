@@ -154,12 +154,57 @@ DELIVER: tuple[Step, ...] = (
 )
 
 
+# THE DAILY PRESET: what a run made ON THE DAY OF A SESSION actually has to pay for.
+#
+# It is a SELECTION of the one order above and not a second list - same discipline as `--offline`,
+# and the same reason: two lists of the same steps drift, and the first one to be wrong is the one
+# the button runs. A key here that is not a step of `plan()` is a preset that silently gets shorter,
+# which is the «flag the parser accepts and the dispatcher drops» family; a test asserts the subset.
+#
+# The criterion is NOT the cost, it is WHAT THE STEP OBSERVES: a fact about TODAY that is lost if
+# nobody looks today, or one that moves between one day and the next. Everything left out is a fact
+# that is FINISHED (a played round's votes, a badge) or an ARCHIVE whose unit is the week (the injury
+# history, the market curve, the per-match layer) - and «a cache over a fact that is finished can live
+# forever» is exactly what makes leaving them out a saving rather than a gamble.
+#
+# THE DERIVATION IS DELIBERATELY OUT, and that is a claim about the graph rather than a preference:
+# `stats:derive`, `matchdays`, `synth` and `arrivals` read `match_ratings`, `external_match_stats`,
+# `external_stats`, `matchday_map` and `rosters` - not one of which a daily step writes. So on a run
+# that does not re-read the votes they reproduce yesterday's tables, and cost thirteen minutes to do
+# it. The same argument puts the PACKS out: a time-travel pack is rebuilt when SHEET_REVISION moves,
+# which is a code change and not a day.
+#
+# What is left out is left out LOUDLY (`--daily` prints it), because a preset that quietly skips the
+# archives reads exactly like a full update that found nothing to do.
+DAILY: dict[str, str] = {
+    "fc_site": "today's editorial pages, all FIVE of them. THE daily fact: the page publishes only "
+               "«now», so a day not captured is gone - and it is the fast channel the app draws its "
+               "alarms from. Two of the five overlap with what the sheets refresh by themselves "
+               "(`snapshot.refresh_editorial` takes probabili + indisponibili for Serie A); the step "
+               "stays because the other three - `rigoristi` and the two EURO pages - are taken here "
+               "and nowhere else, and they are snapshots too. Two downloads of one page is the price",
+    "positions:roles": "the granular real role AND the live squad, one request per club. The provider "
+                       "accepts a seasonId and ignores it, so this is an observation of TODAY; and the "
+                       "squad read is the authority on who is in a squad (operator, 17/08/2026)",
+    "fixtures": "each club's upcoming matches. A postponement moves a match by weeks, and both the "
+                "easy-matches count and the calendar margin are read off it",
+    "elo": "one request per auction date - and during a season in progress that date is TODAY, so a "
+           "new day is a new snapshot of every club's strength",
+    "sheets": "the deliverable: a sheet per declared league, built on the four readings above",
+    "bundle": "data/export/<season>/, which is the only thing the app can read",
+    "pull": "the app's own copy. Without it the app reads an older shape of the same bundle",
+}
+
+
 def plan(phases: tuple[str, ...] | None = None, *, seasons: tuple[str, ...] | None = None,
-         refresh: bool = True) -> tuple[Step, ...]:
+         refresh: bool = True, daily: bool = False) -> tuple[Step, ...]:
     """The whole update, in order. `phases` selects; everything else is fixed by the dependency graph.
 
     `refresh` goes straight to `bootstrap.plan`, so the two commands share ONE acquisition order and
     differ only in whether they re-read what has changed since the cache was written.
+
+    `daily` is a SELECTION of this same order (see `DAILY`), never a second one - so a step renamed
+    here is renamed there, and the preset cannot quietly get shorter.
     """
     wanted = set(phases) if phases else set(PHASE_KEYS)
     unknown = wanted - set(PHASE_KEYS)
@@ -171,6 +216,8 @@ def plan(phases: tuple[str, ...] | None = None, *, seasons: tuple[str, ...] | No
                        module=one.module, params=dict(one.params), optional=one.optional)
                   for one in bootstrap.plan(seasons, refresh=refresh)]
     steps += [one for one in DERIVE + DELIVER if one.phase in wanted]
+    if daily:
+        steps = [one for one in steps if one.key in DAILY]
     return tuple(steps)
 
 
@@ -296,8 +343,9 @@ ACTIONS = {"stats_derive": _run_stats_derive, "sheets": _run_sheets, "packs": _r
 
 
 def run(ctx: Context, *, phases: tuple[str, ...] | None = None, plan_only: bool = False,
-        offline: bool = False, steps_from: str | None = None, steps_to: str | None = None,
-        skip: tuple[str, ...] = (), seasons=None, refresh: bool = True, **kwargs) -> dict:
+        offline: bool = False, daily: bool = False, steps_from: str | None = None,
+        steps_to: str | None = None, skip: tuple[str, ...] = (), seasons=None,
+        refresh: bool = True, **kwargs) -> dict:
     """Run the update. `plan_only` prints the plan and touches nothing.
 
     A failure does not end the run: it is caught, named and carried to the SUMMARY, because stopping at
@@ -316,7 +364,7 @@ def run(ctx: Context, *, phases: tuple[str, ...] | None = None, plan_only: bool 
     if isinstance(seasons, str):
         seasons = (seasons,)
     steps = plan(tuple(phases) if phases else None,
-                 seasons=tuple(seasons) if seasons else None, refresh=refresh)
+                 seasons=tuple(seasons) if seasons else None, refresh=refresh, daily=daily)
 
     keys = [step.key for step in steps]
     for name, value in (("--from", steps_from), ("--to", steps_to)):
@@ -327,6 +375,8 @@ def run(ctx: Context, *, phases: tuple[str, ...] | None = None, plan_only: bool 
     selected = tuple(step for step in steps[start:stop] if step.key not in skip)
 
     print_plan(ctx, selected)
+    if daily:
+        _print_what_daily_leaves_out()
     if plan_only:
         return {"steps": [step.key for step in selected], "planned": True}
 
@@ -367,6 +417,24 @@ def run(ctx: Context, *, phases: tuple[str, ...] | None = None, plan_only: bool 
                       f"and going on with what is already on disk. A sweep that starts getting refused "
                       f"does not reopen the source by continuing.")
     return _summary(selected, done, failed, abandoned)
+
+
+
+def _print_what_daily_leaves_out() -> None:
+    """Name the archives the preset skips, and the cadence that is now the operator's to keep.
+
+    A preset that quietly skips them reads exactly like a full update that found nothing to do - the
+    «zero that is indistinguishable from a broken feature» this project keeps paying for. So the run
+    says what it did NOT read, in the same breath as what it did.
+    """
+    left = [one for one in plan() if one.key not in DAILY]
+    cost = sum(one.minutes for one in left)
+    print(f"[update] --daily: {len(left)} steps LEFT OUT (~{hours(cost)}), because their fact is "
+          f"finished or its unit is the week, not the day:")
+    print(f"      {', '.join(one.key for one in left)}")
+    print("[update] none of them feeds today's sheet: the derivation reads the votes and the season "
+          "aggregates, which this run does not re-read. Run the full `update` when a round has been "
+          "played, a listone re-read, or SHEET_REVISION moved (the packs).\n")
 
 
 def _summary(selected, done: list[str], failed: list[tuple[str, str]], abandoned: bool) -> dict:

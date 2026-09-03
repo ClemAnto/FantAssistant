@@ -244,3 +244,42 @@ def test_a_pack_is_behind_when_its_sheets_are_and_an_unreadable_one_counts_as_be
     _pack(ctx, "2025-09-05", {"leagues": [{"manifest": {"sheet_revision": now - 7}}]})
     (ctx.config.data_dir / "timepacks" / "2026-02-05").mkdir(parents=True)  # no manifest at all
     assert timepack.outdated(ctx) == ["2024-09-05", "2025-09-05", "2026-02-05"]
+
+
+def test_the_daily_preset_is_a_SELECTION_of_the_one_order_and_not_a_second_list():
+    """A key that is not a step is a preset that silently gets SHORTER, which nothing else would show.
+
+    Same family as the flag the parser accepts and the dispatcher drops: a typo here does not raise, it
+    produces a run that is missing a phase and looks exactly like a run that had nothing to do.
+    """
+    keys = {step.key for step in update.plan()}
+    unknown = sorted(set(update.DAILY) - keys)
+    assert not unknown, f"DAILY names steps that do not exist: {unknown}"
+    # ...and every step of the preset carries its own reason, because the criterion is WHAT IT
+    # OBSERVES and a list without reasons is a list nobody can argue with.
+    assert all(why.strip() for why in update.DAILY.values())
+
+
+def test_the_daily_preset_takes_todays_readings_and_leaves_the_archives_out():
+    """What decides is the FACT, not the cost: today's readings in, finished facts and archives out."""
+    daily = [step.key for step in update.plan(daily=True)]
+    # the reading that cannot be backfilled, and the deliverable it feeds
+    for wanted in ("fc_site", "positions:roles", "fixtures", "elo", "sheets", "bundle"):
+        assert wanted in daily, f"{wanted} is a daily fact and the preset drops it"
+    # the archives: their unit is the week (or the season), and re-reading them daily is hours
+    for archive in ("injuries", "market", "positions:match", "performance", "ratings:default",
+                    "positions:heatmap", "recent_form"):
+        assert archive not in daily, f"{archive} is a weekly archive and the preset pays for it"
+    # the DERIVATION is out on a claim about the graph: it reads the votes and the season aggregates,
+    # which a daily run does not re-read, so it would reproduce yesterday's tables in 13 minutes.
+    for derived in ("stats:derive", "matchdays", "synth", "arrivals", "packs"):
+        assert derived not in daily
+    # and the order is the plan's own, never a second one
+    assert daily == [step.key for step in update.plan() if step.key in update.DAILY]
+
+
+def test_the_daily_preset_says_what_it_left_out(capsys):
+    """A preset that quietly skips the archives reads like a full update that found nothing to do."""
+    update._print_what_daily_leaves_out()
+    out = capsys.readouterr().out
+    assert "LEFT OUT" in out and "injuries" in out and "market" in out

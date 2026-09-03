@@ -4213,3 +4213,77 @@ background aspetta che l'acquisizione dell'altra sessione finisca (tre prove: ca
 nessun journal, il DB che si lascia prendere in scrittura) e poi lancia `update --offline`. E le
 **probabili formazioni euro** restano lette e inutilizzabili: la pagina non dice di che stagione parla,
 e dedurlo dalla data è l'inferenza rifiutata il 07/08 con i numeri.
+
+
+## CHIUSURA della sessione 03/09/2026 (4) — i tre punti aperti, e una soglia di filtro presa per un risultato
+
+Nessuna domanda nuova: i tre «prossimi passi» che la chiusura (3) aveva lasciato scritti, eseguiti in
+quest'ordine perché il primo è un download di due ore che può girare mentre si lavora.
+
+### 1. `injuries` ripreso — e `--refresh` non sapeva riprendere
+
+La camminata era ferma al 48% (interrotta per liberare il write lock). **`--refresh` e «riprendibile»
+si contraddicono**: la cache era divisa in 2564 pagine lette oggi e 2100 lette il 1º settembre, e
+ri-lanciare `--refresh` ripaga tutt'e due le metà mentre senza non ne paga nessuna, perché ogni file
+esiste. Cura: **`injuries --stale-days N`**, il predicato sull'ETÀ della lettura invece che su un
+booleano — la stessa quantità che `injuries.observed_on` archivia da stamattina. Misurato sulla cache
+prima di lanciare (`None` → 0 · `1` → **2100 su 4664** · `7` → 24), la corsa ripresa annuncia **1891
+giocatori su 3721, ~102 minuti** invece di 3721. `--refresh` non cambia di un byte. Spec «Novità v9.69».
+
+Lanciata **due volte**, e la seconda per una ragione di casa: la prima girava con l'output bufferizzato,
+cioè un processo di due ore che per due ore non dice niente — indistinguibile da uno rotto. `-u`, e il
+prezzo sono i venti scaricati nel frattempo.
+
+### 2. `update --daily` — ~40 minuti contro 22h34, e la derivazione è fuori per un'affermazione sul grafo
+
+`DAILY` è un dizionario `{chiave: perché}` e `plan(daily=True)` FILTRA l'ordine unico: mai una seconda
+lista, e un test asserisce `DAILY ⊆ plan()` perché una chiave sbagliata darebbe un preset
+silenziosamente più corto. Il criterio è **cosa il passo OSSERVA**: dentro `fc_site`, `positions:roles`,
+`fixtures`, `elo` più fogli, bundle e copia dell'app; fuori i fatti FINITI e gli archivi settimanali.
+
+La parte che vale oltre il preset: **la fase di derivazione è inerte su una corsa quotidiana**, e non
+per scelta — `stats:derive`, `matchdays`, `synth` e `arrivals` leggono `match_ratings`,
+`external_match_stats`, `external_stats`, `matchday_map` e `rosters`, che nessun passo quotidiano
+scrive. Tredici minuti per riprodurre le tabelle di ieri. I 24 passi lasciati fuori sono STAMPATI col
+loro costo, e `--daily` è mutuamente esclusivo con `--offline`.
+
+### 3. Il piano a due cambi — e il §8 aveva scambiato una soglia di filtro per un risultato
+
+Il §8 diceva «nessuno scambio a budget invariato guadagna più di 0,15 a giornata». **Falso in due modi
+insieme**: 0,15 era il `diff.mean() <= 0.15` con cui lo script scartava le righe da stampare, ed era in
+fantapunti sulle TRE giornate (0,05 a giornata) — mentre il log prodotto da quella stessa riga stampava
+in cima **Kean → Simeone +0,591**. Trovato rieseguendo la funzione invece di citare il log. La
+conclusione che ne dipendeva («serve spostare crediti dai ballottaggi d'attacco alle presenze») resta
+giusta, con un'altra aritmetica sotto.
+
+Il piano, cercato su tutte le coppie ammissibili (25 × 413, somma ≤ 250, U23 ≥ 2, max 3 per club),
+schermato con l'obiettivo esatto e verificato con la simulazione appaiata su 300.000 estrazioni — le due
+misure concordano a due centesimi:
+
+- **Mora 20 + Kean 24 → Perrone 10 + Martinez L. 33**: **+1,403 a giornata**, buchi 0,739 → 0,510;
+- **Bayo V. 1 + Kean 24 → Adams A. 11 + Simeone 14**: **+1,130**, buchi → **0,428**, e non tocca un
+  `anchor`.
+
+**Un cambio solo non può spostare crediti fra reparti**: il meglio che fa è +0,58 (Kean → Simeone), e la
+coppia arriva a +1,13 perché quella prima mossa ne LIBERA dieci — il secondo cambio da solo non era
+comprabile. Due cambi recuperano **1,40 dei 2,44** che separavano la sua rosa da quella costruita.
+
+**La riga da consigliare è la seconda**, e la ragione è misurata muovendo una cosa sola: le prime due
+vendono Mora, che è `anchor`. La stessa ricerca con la demozione degli anchor accesa e spenta dice che
+la cecità su cinque uomini vale **0,35 a giornata**, che la coppia migliore ne conserva il 90% anche
+credendo Mora (+1,288), e che la riga anchor-free legge **+1,119 in tutt'e due le letture**. Limite che
+il banco non toglie: assume che chi entra sia LIBERO, e la pagina della sua lega resta illeggibile.
+
+### Verifiche
+
+**647 test + 1 skip** (erano 643): 1 su `_stale`, 3 sul preset, più la guardia del dispatcher estesa a
+`--daily` e `--stale-days`. `update --plan` intero e `--offline` invariati (31 e 9 passi), `--daily`
+7 passi/~40 min, `--daily --offline` respinto dal parser. **`engine_*`, i fogli e le revisioni fermi**:
+nessuna modifica tocca `evaluate`, `presence` o `snapshot`.
+
+### Aperto
+
+`injuries` sta scaricando (200/1891 alle 17:20): a fine corsa fa da sé il `reingest_from_cache`, e
+**allora `observed_on` si popola davvero** — il debito ereditato dalla chiusura (2) si salda lì, seguito
+da un `export` per portarlo nel bundle. Poi restano i punti del §10 del verbale della rosa: gli `anchor`
+sono un'ACQUISIZIONE e non una formula, e la pagina della sua lega vuole un browser pilotato.

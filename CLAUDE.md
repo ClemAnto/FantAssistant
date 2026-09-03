@@ -3033,6 +3033,52 @@ colonne, quindi non passa a vuoto. La stessa disciplina, lo stesso giorno, ha sm
 risponde «nessun problema» dopo aver guardato niente, che è il difetto che questo progetto si è già
 scritto due volte e ha commesso di nuovo.
 
+## Una SOGLIA DI FILTRO non e' un RISULTATO, e «riprendibile» e' una proprieta' del PREDICATO
+**03/09/2026 (sera tardi), i tre punti aperti della chiusura precedente. Dettaglio:
+`rosa-3-giornate-v1.md` §11 e spec «Novita' v9.69».**
+
+**Il verbale di poche ore prima diceva «nessuno scambio a budget invariato guadagna piu' di 0,15 a
+giornata», e quel numero era il filtro dello script.** `cura.py` scartava con `diff.mean() <= 0.15` le
+righe da STAMPARE, in fantapunti sulle TRE giornate — cioe' 0,05 a giornata — e il log prodotto da
+quella stessa riga aveva in cima **Kean → Simeone +0,591**. Due errori in una frase: la soglia presa per
+il massimo e il totale preso per la media. Si e' visto **rieseguendo la funzione invece di citare il
+log**, che e' «verifica la FUNZIONE, non la colonna che le somiglia» applicato a un verbale; e per
+fortuna la conclusione che ne dipendeva era giusta lo stesso, il che e' esattamente il modo in cui un
+numero sbagliato sopravvive. *Prima di pubblicare un massimo, guarda se e' il valore di una costante che
+sta nel codice due righe sopra.*
+
+**E il piano che ne e' nato dice perche' i cambi sono DUE: uno solo non puo' spostare crediti fra
+reparti.** A budget chiuso una mossa deve costare non piu' di chi esce (+0,58 il meglio); la coppia vale
+**+1,13 a giornata** perche' la prima LIBERA i dieci crediti che rendono comprabile la seconda, e il
+secondo cambio vale quanto il primo pur non esistendo senza di lui. Due cambi recuperano 1,40 dei 2,44
+che separavano la sua rosa dalla costruita, e dimezzano i buchi (0,739 → 0,428). **La riga da
+consigliare non e' la migliore**: le prime due vendono un `anchor`, cioe' un uomo che il motore non sa
+prezzare, e «vendi l'uomo che non vedo» non e' un consiglio. Misurato muovendo una cosa sola — la stessa
+ricerca con la demozione degli anchor accesa e spenta — la cecita' vale 0,35 a giornata, la coppia
+migliore ne conserva il 90% anche credendo l'anchor, e la riga che non ne tocca nessuno legge identica
+nelle due letture. *Quando una raccomandazione dipende da cio' che non sappiamo, la misura giusta e' la
+stessa ricerca con quella ignoranza spenta.*
+
+**`--refresh` e «riprendibile» si contraddicono su una camminata di migliaia di pagine, e la cura e'
+sostituire il booleano con l'ETA' della lettura.** `injuries` interrotto a meta' lascia 2564 pagine
+lette oggi e 2100 lette due giorni fa: `--refresh` ripaga tutt'e due le meta', senza non ne paga
+nessuna. `--stale-days N` (1 = «non letta oggi», 7 = la cadenza di un archivio settimanale) e' la stessa
+quantita' che `injuries.observed_on` archivia, ed e' misurata sulla cache PRIMA di lanciare (0 · 2100 ·
+24 pagine su 4664). Un file che non esiste e' stale a prescindere dal parametro: non c'e' una lettura
+che possa essere vecchia.
+
+**Un preset e' una SELEZIONE dell'ordine unico, e il criterio e' cosa il passo OSSERVA.** `update
+--daily` (7 passi, ~40 min contro 22h34) filtra `plan()` e non ne scrive una copia — un test asserisce
+`DAILY ⊆ plan()`, perche' una chiave sbagliata darebbe un preset silenziosamente piu' corto, che e' la
+famiglia del flag che il dispatcher scarta. Dentro c'e' cio' che si perde se nessuno guarda oggi
+(`fc_site`, `positions:roles`, `fixtures`, `elo`), fuori i fatti FINITI e gli archivi settimanali. **E
+la DERIVAZIONE e' fuori per un'affermazione sul grafo, non per preferenza**: `stats:derive`,
+`matchdays`, `synth` e `arrivals` leggono i voti e gli aggregati di stagione, che una corsa quotidiana
+non rilegge, quindi riprodurrebbero le tabelle di ieri in tredici minuti. I 24 passi lasciati fuori sono
+STAMPATI col loro costo — un preset che salta gli archivi in silenzio si legge come un update completo
+che non ha trovato niente da fare — e `--daily` e `--offline` sono mutuamente esclusivi, perche' due
+flag che dicono entrambi «un pezzo» fanno uscire una corsa diversa da quella chiesta.
+
 ## A fact about a PLATFORM lives in a table keyed by platform, and the CLUB is such a fact
 **03/09/2026, found by the operator with three names: «io mi trovo come portieri del como
 Butez+Sanchez+Vigorito» while the sheet carried Butez+TORNQVIST+Vigorito and Sanchez Ro. was not there at
