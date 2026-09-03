@@ -3,6 +3,62 @@
 Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da qui + i file della cartella "Modello Previsionale Fantacalcio".
 *Glossario: T1/T2 = finestre di test (23/24->24/25, 24/25->25/26) · MAE = errore medio assoluto · cross-fitted = parametri stimati su una finestra, testati sull'altra · M2e = modello portieri decomposto (abilità + tasso gol subiti del club; la metà Elo del nome non è nel motore) · Pv_att = presenze attese · fc_id = id fantacalcio.it · EV = valore atteso · scoring_config = punteggi configurabili per lega · xG/xA = expected goals/assists · 2.5 pieno = backtest motore completo con flag.*
 
+## 4 settembre 2026 — «FACILE» è una frase sul calcio, e la card di un calciatore
+
+**Da dove è nata**: «sto rivedendo la griglia portieri e le partite "facili" sono troppo poche», con
+tre esempi. Ed è finita, dodici richieste dopo, con una card trascinabile per confrontare i giocatori.
+Il verbale per intero è in [assistente-asta-v1.md](assistente-asta-v1.md) §34.3-bis … §34.3-septies;
+qui restano lo stato e i punti aperti.
+
+### Che cosa è cambiato nel motore (e cosa NON è cambiato)
+
+| | |
+|---|---|
+| `EASY_MARGIN` | 200 → **75**, in due decisioni sue (tre partite, poi dodici) |
+| `HOME_AWAY_GAP` | 29 → **70** (semi-scarto 35), misurato sulla PORTA INVIOLATA; il 29 resta come `RESULT_HOME_AWAY_GAP`, provenienza del coefficiente di calendario di Fπ |
+| `clean_sheet_probability` | rifittata sull'edge nuovo, e legge anche i **gol delle ultime dieci** dei due club (log-loss 0,54749 → 0,54282, 7 stagioni su 8) |
+| `EASY_PROBABILITY` | 0,3002 — la soglia vive sulla PROBABILITÀ, perché con tre predittori un margine sull'edge non può più esprimere «facile» |
+| `SHEET_REVISION` | 39 (questa sessione: `desc_easy_matches` e `desc_calendar_margin` cambiano valore) → **40** con la voce dell'altra sessione |
+| `engine_*`, `pi_*` | **fermi**: `calendar_lift` non ha chiamanti e il coefficiente cita ora per esteso il campo con cui è stato fittato |
+
+### Dove sta il lavoro
+
+`toolkit/euroleghe_ingest/modules/fixtures.py` (soglia, campo, `recent_goals`, il modello a tre
+predittori), `app/src/app/core/keeper-pairs.ts` (la regola dei 25 come quota, il marginale con i suoi
+DUE zeri, l'attribuzione delle colonne), `app/src/app/views/plancia/keeper-grid/` (diagonale vuota,
+sigle, cinque classi di colore, click, modale compatta), `app/src/app/views/plancia/slot-matrix/`
+(niente tooltip, l'hover che accende la coppia, i suoi in cima, il numerino),
+`app/src/app/views/plancia/man-card/` (**nuovo**: la card, più di una alla volta),
+`app/scripts/e2e-plancia-keepers.mjs` (ogni affermazione qui sopra è un asserto).
+
+### Punti aperti, in ordine di costo
+
+1. **Uno `snapshot`** per allineare `desc_easy_matches` e `desc_calendar_margin` al campo nuovo: sono
+   due colonne che nessuna vista dell'app legge (le legge il pannello Tk), quindi niente è rotto, ma
+   la revisione 40 le dichiara vecchie. Qui non si è potuto fare: **il display Tk di questa macchina è
+   instabile** e un test dello smoke lo salta, e uno snapshot senza display perde i campetti — che
+   sono quelli che danno il portiere titolare alla griglia.
+2. **Un `export`** dopo di quello (il bundle attuale è già stato rigenerato due volte oggi ed è
+   allineato al calendario nuovo: manca solo la parte dei fogli).
+3. **La scala numerica della difficoltà** che lui aveva proposto («0 facile, 0,5 quasi facile, >0,5
+   non facile») ha ora una base naturale — `(0,3002 − P) / 0,3002` — e resta da decidere se e dove
+   metterla: la proposta è sul tavolo, la forma è sua.
+
+### Due sessioni sullo stesso albero, ancora
+
+Il commit `0c34cc7` («l'ASTERISCO e' un fatto») è dell'ALTRA sessione e porta dentro anche tutta la
+prima metà di questo lavoro: la storia va letta sapendolo, perché il titolo nomina una feature sola.
+Misurato prima di procedere — 650 test toolkit + 2 skip, **617 app su 39 file**, `ng build` senza
+avvisi, banco e2e verde — e la voce 39 del registro delle revisioni dichiara quale metà è di chi.
+
+**E il commit di chiusura di oggi le porta ENTRAMBE, per necessità e non per scelta**: mentre scrivevo,
+l'altra sessione ha aggiunto `core/injury-window.ts` e i miei stessi file (`plancia.ts`,
+`plancia-store.ts`) lo IMPORTANO — un commit della sola metà mia lascerebbe il repository che non
+compila, che è la cosa che la regola delle due sessioni vieta esplicitamente. Quindi il messaggio dice
+quale metà è di chi, la misura è stata fatta sull'albero combinato, e la loro feature (la FINESTRA di
+un'assenza: `available` dentro `offerBand`, la quota di giornate in cui ci sarà) resta da raccontare
+nel loro verbale.
+
 ## Cos'e'
 App per leghe EuroLeghe/fantacalcio.it (Classic+Mantra, 5 campionati) con motore previsionale. Metodo: ogni regola entra SOLO se batte il baseline fuori campione su finestre indipendenti (gate pre-registrato). Doc madre: modello-previsionale-v3.8.md.
 

@@ -12,6 +12,7 @@ import {
   isOpen,
   spellDays,
   unavailableMark,
+  pressSaysTheSame,
 } from './player-status';
 
 const TODAY = '2026-08-11';
@@ -231,5 +232,27 @@ describe('chi la stampa dà per indisponibile', () => {
     const note = unavailableMark({ status: 'injured', on: TODAY }, TODAY)!.note;
     expect(note).toContain('oggi');
     expect(note).toContain('non dice per quanto');
+  });
+});
+
+describe('quando le due fonti dicono la stessa notizia', () => {
+  const injury = { flag: 'long_injury' as const, note: 'Frattura del piede: fuori dal 24/08' };
+  const back = { flag: 'back_from_long' as const, note: 'rientrato' };
+
+  it('la stampa non si disegna accanto a un infortunio ACCERTATO', () => {
+    expect(pressSaysTheSame({ status: 'injured', on: '2026-09-03' }, injury)).toBe(true);
+  });
+
+  it('una squalifica o un dubbio NON sono la stessa notizia e restano', () => {
+    expect(pressSaysTheSame({ status: 'suspended', on: '2026-09-03' }, injury)).toBe(false);
+    expect(pressSaysTheSame({ status: 'doubt', on: '2026-09-03' }, injury)).toBe(false);
+  });
+
+  it('se il canale ufficiale non disegna niente la stampa resta: e il caso per cui esiste', () => {
+    // Uno spell aperto piu corto di LONG_INJURY_DAYS non produce marchio: senza la stampa la riga
+    // resterebbe muta su un uomo che sabato non gioca.
+    expect(pressSaysTheSame({ status: 'injured', on: '2026-09-03' }, null)).toBe(false);
+    // ...e un RIENTRO recente non e uno stato di oggi: la stampa lo batte e resta.
+    expect(pressSaysTheSame({ status: 'injured', on: '2026-09-03' }, back)).toBe(false);
   });
 });

@@ -384,3 +384,123 @@ describe('chi oggi non gioca', () => {
     expect(advice.verdict).toBe('fermo');
   });
 });
+
+describe('chi ha una data di rientro', () => {
+  const window = { until: '2026-11-25', lost: 10, playable: 26, remaining: 36, share: 26 / 36 };
+
+  it('la quota di calendario scende SOTTO il pavimento della clamp, che vale per le opinioni', () => {
+    // Un uomo esattamente sulla mediana del suo slot, con e senza la finestra. `points` porta gia' la
+    // riduzione: senza la quota la clamp lo bloccherebbe a 0,65 e l'offerta direbbe «paga il 65%» a
+    // chi gioca il 58% delle giornate che restano.
+    const median = 200;
+    const share = 0.58;
+    const full = offerBand({
+      role: 'A',
+      slotIndex: 1,
+      budget: 1000,
+      room: 1000,
+      points: median,
+      medianPoints: median,
+    })!;
+    const clamped = offerBand({
+      role: 'A',
+      slotIndex: 1,
+      budget: 1000,
+      room: 1000,
+      points: median * share,
+      medianPoints: median,
+    })!;
+    const priced = offerBand({
+      role: 'A',
+      slotIndex: 1,
+      budget: 1000,
+      room: 1000,
+      points: median * share,
+      medianPoints: median,
+      available: share,
+    })!;
+    expect(clamped.share).toBeCloseTo(full.share * 0.65, 6);
+    expect(priced.share).toBeCloseTo(full.share * share, 6);
+    expect(priced.high).toBeLessThan(clamped.high);
+  });
+
+  it('senza un numero sul foglio, la quota prezza da sola', () => {
+    const band = offerBand({
+      role: 'C',
+      slotIndex: 2,
+      budget: 1000,
+      room: 1000,
+      points: null,
+      medianPoints: null,
+      available: 0.5,
+    })!;
+    expect(band.share).toBeCloseTo(LADDER.C[1] * 0.5, 6);
+  });
+
+  it('NON scende in fondo allo slot: scende da se\', di quanto dicono le sue giornate', () => {
+    // Due uomini dello stesso slot, il secondo migliore ma fuori fino a novembre: l'ordine lo decide
+    // il valore atteso gia' ridotto, e non un gradino che li separerebbe comunque.
+    const healthy = man(1, 'A', 100, 150);
+    const hurt: PlanciaMan = { ...man(2, 'A', 100, 260 * window.share), out: window };
+    const map = buildMap([healthy, hurt], 2, { P: 3, D: 8, C: 8, A: 6 });
+    expect(map.blocks[0].men.map((one) => one.id)).toEqual([2, 1]);
+  });
+
+  it('il verdetto resta un prezzo e la ragione dice la finestra', () => {
+    const advice = adviseLot({
+      role: 'A',
+      slotIndex: 1,
+      band: { low: 60, high: 70, share: 0.07, capped: false, overCeiling: false },
+      medianFvm: 60,
+      tablePrice: 50,
+      hands: 3,
+      teams: 10,
+      exhaustedBelow: 0,
+      priced: true,
+      out: window,
+    });
+    expect(advice.verdict).toBe('prendi');
+    expect(advice.reason).toContain('25/11/2026');
+    expect(advice.reason).toContain('26 giornate su 36');
+  });
+});
+
+describe('lo sconto per un club che ho già', () => {
+  it('scende col secondo uomo e scende di più col terzo', () => {
+    // Sua istruzione del 04/09/2026, e la forma è sua: l'offerta cala già dal SECONDO uomo di un club
+    // e peggiora dal terzo. Il banco misura invece `CLUB_FREE` = 2 e `CLUB_PENALTY` = 0,45 - i primi
+    // due gratis e il 45% dal terzo - quindi questa scala comincia un uomo prima ed è più cauta: i
+    // valori sono DICHIARATI, e questo test è il posto che lo dice.
+    const shape = {
+      role: 'A' as const,
+      slotIndex: 1,
+      budget: 1000,
+      room: 1000,
+      points: 100,
+      medianPoints: 100,
+    };
+    const alone = offerBand({ ...shape, sameClub: 0 })!;
+    const second = offerBand({ ...shape, sameClub: 1 })!;
+    const third = offerBand({ ...shape, sameClub: 2 })!;
+    expect(second.high).toBeLessThan(alone.high);
+    expect(third.high).toBeLessThan(second.high);
+    // Le due quote dichiarate, non un ordine qualsiasi: −10% e −25%.
+    expect(second.high / alone.high).toBeCloseTo(0.9, 2);
+    expect(third.high / alone.high).toBeCloseTo(0.75, 2);
+    // E dal quarto in poi non peggiora oltre: una scala che continua a scendere finirebbe a zero su
+    // una rosa che pesca molto da un club, e nessuno ha misurato quel fondo.
+    expect(offerBand({ ...shape, sameClub: 5 })!.high).toBe(third.high);
+  });
+
+  it('non tocca chi non ha compagni in rosa', () => {
+    const shape = {
+      role: 'D' as const,
+      slotIndex: 2,
+      budget: 1000,
+      room: 1000,
+      points: 50,
+      medianPoints: 50,
+    };
+    expect(offerBand({ ...shape, sameClub: 0 })).toEqual(offerBand(shape));
+  });
+});

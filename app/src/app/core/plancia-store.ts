@@ -23,6 +23,7 @@ import { Bundle, EngineSheetEntry } from './bundle';
 import { PlayerStatus } from './player-status';
 import { engineNumbersFrom } from './engine-sheet';
 import { GlobalOptions } from './global-options';
+import { OutWindow, outWindow } from './injury-window';
 import {
   CalendarBook,
   CalendarFile,
@@ -170,13 +171,26 @@ export class PlanciaStore {
    */
   private readonly men = computed<PlanciaMan[]>(() => {
     const numbers = this.numbers();
+    const book = this.calendar();
+    const today = this.status.today();
     const out: PlanciaMan[] = [];
     for (const player of this.listone()) {
       const role = roleOf(player);
       if (!role || !(player.fvm > 0)) continue;
       const valuation = valuationOf(numbers.get(player.id));
-      const points =
-        valuation.fm != null && valuation.pv != null ? valuation.fm * valuation.pv : null;
+      // LE GIORNATE CHE PERDE, contate sul calendario del SUO club (04/09/2026). Il foglio prezza una
+      // stagione intera; chi rientra a novembre non la gioca, quindi le presenze attese e i punti che
+      // ne discendono sono ridotti QUI - una volta sola, dove la riga nasce, cosi' l'ordine dentro lo
+      // slot, la banda e i due numeri sullo schermo leggono tutti la stessa valutazione.
+      const window = outWindow({
+        calendar: book?.forClub(player.club) ?? null,
+        club: player.club,
+        today,
+        until: this.status.openInjury(player.id)?.until ?? null,
+      });
+      const share = window?.share ?? 1;
+      const pv = valuation.pv == null ? null : valuation.pv * share;
+      const points = valuation.fm != null && pv != null ? valuation.fm * pv : null;
       out.push({
         id: player.id,
         name: player.name,
@@ -184,13 +198,16 @@ export class PlanciaStore {
         role,
         fvm: player.fvm,
         points,
-        pv: valuation.pv,
+        pv,
         // Dalla fantamedia e non da `points / pv`: quel rapporto tornerebbe lo stesso numero solo
         // finche' nessuno tocca `points`, e due strade per una cifra e' come un uomo finisce con due
         // valutazioni. Le presenze viaggiano accanto (`pv`), non dentro.
         edge: valuation.fm != null ? valuation.fm - EDGE_BASE : null,
         basis: valuation.basis as ValuationBasis,
-        outNow: !!this.status.unavailableNow(player.id),
+        out: window,
+        // ...e il VINCOLO resta solo per chi una durata non ce l'ha. I due non convivono: dove il
+        // numero c'e' fa lo stesso lavoro meglio, e tenere anche il gradino lo punirebbe due volte.
+        outNow: !window && !!this.status.unavailableNow(player.id),
         // La nota dichiarata, come informazione sulla riga: solo `out_of_squad`, perche' `dispute` e
         // `wants_out` sono stati di una RELAZIONE e chi ci sta dentro si schiera e si compra ancora.
         outOfSquad: this.status.declared().get(player.id)?.kind === 'out_of_squad',
@@ -200,6 +217,27 @@ export class PlanciaStore {
   });
 
   readonly map = computed<PlanciaMap>(() => buildMap(this.men(), this.teamsCount(), this.slots()));
+
+  /**
+   * QUANTI UOMINI HO GIÀ, PER CLUB REALE: il numero che fa scendere l'offerta su un suo compagno.
+   *
+   * Sua istruzione del 04/09/2026. Conta solo i MIEI acquisti - il club di un rivale non è un rischio
+   * mio - e per NOME canonico del club, che è quello che la riga porta: qui non si joina niente per
+   * id perché sono le stesse stringhe della stessa mappa.
+   */
+  private readonly mineByClub = computed<Map<string, number>>(() => {
+    const mine = this.mineId();
+    const out = new Map<string, number>();
+    if (mine == null) return out;
+    const byId = new Map<number, string>();
+    for (const man of this.men()) byId.set(man.id, man.club);
+    for (const pick of this.feed.picks()) {
+      if (pick.teamId !== mine) continue;
+      const club = byId.get(pick.playerId);
+      if (club) out.set(club, (out.get(club) ?? 0) + 1);
+    }
+    return out;
+  });
 
   /** Who owns whom, at what price - the only field of a live session that is right at every instant. */
   private readonly owners = computed(() => {
@@ -221,6 +259,7 @@ export class PlanciaStore {
     const lot = this.lotId();
     const budget = this.budget();
 
+    const sameClub = this.mineByClub();
     return this.map().blocks.map((block) => {
       const medianPoints = middleOf(block.men.map((man) => man.points));
       let left = 0;
@@ -241,6 +280,11 @@ export class PlanciaStore {
             room: budget,
             points: man.points,
             medianPoints,
+            available: man.out?.share,
+            // Quanti ne ho gia' del suo club: l'offerta scende, il suo valore no (sua istruzione
+            // del 04/09/2026). Sta in TUTT'E DUE i posti che chiamano `offerBand` - qui e sul lotto -
+            // o la riga direbbe una cifra e la card un'altra.
+            sameClub: sameClub.get(man.club) ?? 0,
           }) ?? null;
         return {
           ...man,
@@ -312,6 +356,8 @@ export class PlanciaStore {
       points: man.points,
       medianPoints,
       exhaustedBelow,
+      available: man.out?.share,
+      sameClub: this.mineByClub().get(man.club) ?? 0,
     });
 
     const hands = this.handsFor(block.role, band?.low ?? 1);
@@ -334,6 +380,7 @@ export class PlanciaStore {
         priced: man.basis !== 'none',
         outNow: man.outNow,
         outReason: this.status.unavailableNow(man.id)?.note ?? null,
+        out: man.out ?? null,
       }),
       alternative: alternativeFor(
         this.map(),
@@ -554,27 +601,76 @@ export class PlanciaStore {
   }
 
   /**
-   * LA CARD DI UN CALCIATORE: chi è aperto, e uno solo alla volta.
+   * LE CARD APERTE: PIÙ DI UNA, perché servono a confrontare - e ognuna con il suo POSTO.
    *
-   * Un id e non l'uomo, per la ragione di sempre: la riga si ricostruisce a ogni aggiudicazione, e una
-   * card che tenesse la COPIA di un uomo continuerebbe a mostrare il prezzo di dieci minuti prima -
-   * «una lista mostrata i cui numeri descrivono un'altra lista». Con l'id la card segue lo stato.
+   * Sua richiesta del 04/09/2026 («deve essere possibile aprire più card contemporaneamente così si
+   * possono confrontare»), e cambia la struttura e non il numero: un `id | null` che diventa un tetto
+   * di due sarebbe una soglia inventata da me. Sono ID e non uomini, per la ragione di sempre: la riga
+   * si ricostruisce a ogni aggiudicazione, e una card che tenesse la COPIA continuerebbe a mostrare il
+   * prezzo di dieci minuti prima - «una lista mostrata i cui numeri descrivono un'altra lista».
+   *
+   * IL POSTO È UN NUMERO ASSEGNATO ALLA NASCITA E NON L'INDICE NELL'ELENCO, e la differenza è una sua
+   * richiesta: «quando chiudo una card le altre non si devono spostare». Con la posizione letta
+   * dall'indice, chiudere la prima faceva scalare tutte le altre - e una card che si sposta da sé
+   * mentre la guardi è la cosa che rompe un confronto. Ogni card prende il POSTO LIBERO più basso e lo
+   * tiene finché è aperta: chiudere non muove nessuno, e la prossima riempie il buco invece di
+   * nascere sopra qualcuno.
    */
-  private readonly cardId = signal<number | null>(null);
+  private readonly cards = signal<{ id: number; slot: number }[]>([]);
 
-  readonly cardMan = computed<BoardMan | null>(() => {
-    const at = this.cardId();
-    if (at == null) return null;
+  readonly cardMen = computed<{ man: BoardMan; slot: number }[]>(() => {
+    const wanted = this.cards();
+    if (!wanted.length) return [];
+    const byId = new Map<number, BoardMan>();
     for (const block of this.blocks()) {
-      const found = block.rows.find((row) => row.id === at);
-      if (found) return found;
+      for (const row of block.rows) byId.set(row.id, row);
     }
-    // Fuori mappa: la coda si compra a un credito e non ha una riga, quindi non ha una card.
-    return null;
+    // Chi non è più in mappa esce da sé: la coda si compra a un credito e non ha una riga, quindi non
+    // ha una card - e una card che sopravvive alla propria riga mostrerebbe numeri di un altro giro.
+    return wanted
+      .map((one) => ({ man: byId.get(one.id), slot: one.slot }))
+      .filter((one): one is { man: BoardMan; slot: number } => !!one.man);
   });
 
+  /**
+   * CHI STA DAVANTI, che è una cosa DIVERSA dall'ordine di apertura.
+   *
+   * Sua richiesta del 04/09/2026: «quando trascino una card deve spostarsi sopra le altre». La prima
+   * versione aveva un solo elenco e ci leggeva tutte e due le cose - la posizione in cui la card nasce
+   * e la sua `z` - e portare una card davanti riordinando quell'elenco avrebbe fatto SALTARE tutte le
+   * altre di posto, perché il posto è calcolato dall'indice. Due domande, due stati: l'elenco tiene
+   * l'ordine di APERTURA e non si riordina mai, questo tiene l'ultima TOCCATA.
+   */
+  private readonly frontCardId = signal<number | null>(null);
+
+  readonly frontCard = computed(() => this.frontCardId());
+
   openCard(id: number | null): void {
-    this.cardId.set(id);
+    if (id == null) {
+      this.cards.set([]);
+      this.frontCardId.set(null);
+      return;
+    }
+    this.cards.update((open) => {
+      // Ri-cliccare un uomo già aperto non fa un doppione e non gli cambia posto: lo porta davanti.
+      if (open.some((one) => one.id === id)) return open;
+      // IL POSTO LIBERO PIÙ BASSO: così chiudere non sposta nessuno e aprire riempie il buco.
+      const taken = new Set(open.map((one) => one.slot));
+      let slot = 0;
+      while (taken.has(slot)) slot += 1;
+      return [...open, { id, slot }];
+    });
+    this.frontCardId.set(id);
+  }
+
+  /** Toccata: davanti alle altre. Un click o un trascinamento, che per questo sono la stessa cosa. */
+  raiseCard(id: number): void {
+    this.frontCardId.set(id);
+  }
+
+  closeCard(id: number): void {
+    this.cards.update((open) => open.filter((one) => one.id !== id));
+    if (this.frontCardId() === id) this.frontCardId.set(null);
   }
 
   /** I numeri del motore di un uomo, dal lettore unico: la card non ne apre un secondo. */
@@ -721,6 +817,91 @@ export class PlanciaStore {
       .filter((man) => !owners.has(man.id) && man.id !== this.lotId());
     if (!free.length) return this.setLot(null);
     this.setLot(free[Math.floor(Math.random() * free.length)].id);
+  }
+
+  /**
+   * ASSEGNA IL LOTTO A UNA ROSA: il doppio click sulla card di una squadra (operatore, 04/09/2026).
+   *
+   * È il gesto che rende la plancia utilizzabile alla SUA asta: là l'urna la gira un software di
+   * qualcun altro e questo pannello non è collegato (la connessione è un bottone, 03/09/2026), quindi
+   * l'unica cosa che il tavolo non può sapere da sé è chi si è preso il lotto e a quanto.
+   *
+   * IL PREZZO NON HA UN VALORE DI CORTESIA. Zero vuol dire «nessuno ha ancora offerto», non «un
+   * credito», e i crediti di ogni rosa sono la quantità su cui poggia ogni tetto di questa pagina -
+   * quindi un'assegnazione a un prezzo che nessuno ha scritto è un acquisto inventato, e si rifiuta
+   * dicendolo. La cifra è quella della riga del lotto, che lui tiene aggiornata mentre i rilanci
+   * salgono perché è la stessa che fa il verdetto.
+   *
+   * DUE RIFIUTI CHE SONO DEL REGOLAMENTO E NON MIEI: un reparto completo e una borsa che non arriva.
+   * Un doppio click è un gesto grosso, e un acquisto impossibile lasciato passare darebbe a una rosa
+   * ventisei posti o crediti negativi, cioè un tavolo che non esiste. Ognuno dice a schermo perché.
+   */
+  award(teamId: number): boolean {
+    const lot = this.lot();
+    if (!lot) {
+      this.error.set(
+        'Nessun calciatore in asta: estrai un nome, o aprilo dalla plancia e premi «in asta», ' +
+          'prima di assegnarlo a una rosa.',
+      );
+      return false;
+    }
+    const team = this.feed.teams().find((one) => one.id === teamId);
+    if (!team) return false;
+
+    const price = Math.round(this.lotPrice());
+    if (!(price > 0)) {
+      this.error.set(
+        `Scrivi quanto è stato pagato ${lot.man.name} nella riga del lotto: a prezzo zero ` +
+          "l'assegnazione sarebbe un acquisto inventato, e i crediti di ogni rosa reggono tutti i " +
+          'tetti di questa pagina.',
+      );
+      return false;
+    }
+    if ((team.missing[ROLE_ZONE[lot.block.role]] ?? 0) <= 0) {
+      this.error.set(`${team.label} ha il reparto ${lot.block.role} completo: non può prenderlo.`);
+      return false;
+    }
+    if (team.budgetLeft < price) {
+      this.error.set(
+        `${team.label} ha ${team.budgetLeft} crediti e ${lot.man.name} ne costa ${price}.`,
+      );
+      return false;
+    }
+    if (!this.feed.awardByHand(lot.man.id, teamId, price)) {
+      this.error.set(
+        this.live()
+          ? `Sei collegato a ${this.feed.code()}: le rose di un'asta vera le scrive il banditore, ` +
+              'e la prossima riga in arrivo cancellerebbe quello che scrivessimo noi.'
+          : `${lot.man.name} è già di qualcuno.`,
+      );
+      return false;
+    }
+    this.error.set(null);
+    // Il lotto si SVUOTA: l'uomo appena assegnato non è più nell'urna, e lasciarlo «in asta» sarebbe
+    // una riga che dice due cose diverse su di lui (lo stato del lotto viene letto prima di quello del
+    // proprietario). Il prossimo nome lo porta l'estrazione - vera o del banco.
+    this.setLot(null);
+    return true;
+  }
+
+  /**
+   * AZZERA LE ROSE: nessun acquisto, borse piene, tutti i nomi di nuovo nell'urna.
+   *
+   * Sua richiesta del 04/09/2026, e serve perché il tavolo inventato si gioca da sé un terzo dell'asta
+   * prima di consegnare la plancia (`DEMO_PROGRESS`): quegli acquisti sono di nessuno, e un'asta vera
+   * comincia da zero. Quello che NON si tocca è il regolamento - dieci sedie, 1000 crediti, 3·8·8·6 e
+   * le dieci etichette restano, perché sono le impostazioni della lega e non lo stato dell'asta.
+   */
+  resetSquads(): boolean {
+    if (!this.feed.emptySquads()) {
+      this.error.set(
+        `Sei collegato a ${this.feed.code()}: le rose di un'asta vera non sono nostre da azzerare.`,
+      );
+      return false;
+    }
+    this.error.set(null);
+    this.setLot(null);
+    return true;
   }
 
   private async loadListone(): Promise<AuctionPlayer[]> {

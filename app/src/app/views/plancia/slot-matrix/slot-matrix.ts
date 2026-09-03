@@ -3,6 +3,7 @@ import { Component, computed, input, output, signal } from '@angular/core';
 import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 
 import { PlayerFlags } from '../../../ui/player-flags/player-flags';
+import { outWindowNote } from '../../../core/injury-window';
 import { Alternative, ROLES, Role } from '../../../core/plancia';
 import { BoardBlock, BoardMan } from '../../../core/plancia-store';
 
@@ -147,6 +148,10 @@ export class SlotMatrix {
     // È l'unico posto in cui questa tabella usa il rosso, ed è l'uso che la regola dei colori consente -
     // stai per offrire su un uomo che sabato non c'è.
     if (man.outNow) return 'text-danger line-through decoration-danger/60 hover:bg-control';
+    // Chi ha una data di rientro NON e' barrato: e' comprabile, e quanto vale lo dice gia' il
+    // numero accanto. Il rosso resta perche' la notizia c'e', il taglio no perche' la riga non e'
+    // chiusa - un uomo cancellato e uno riprezzato sono due cose diverse e devono vedersi diverse.
+    if (man.out) return 'text-danger/75 hover:bg-control';
     return ROW_TONE[man.state];
   }
 
@@ -196,30 +201,12 @@ export class SlotMatrix {
     return this.insteadOf().has(man.id);
   }
 
-  protected rowTip(man: BoardMan): string {
-    if (man.state === 'altro') return `${man.name} — di ${man.ownerLabel}, pagato ${man.price} cr.`;
-    if (man.state === 'mio') return `${man.name} — è tuo, pagato ${man.price} cr.`;
-    // LA RAGIONE PER CUI È IN FONDO STA IN CIMA: un vincolo che agisce in silenzio è indistinguibile da
-    // un ordinamento rotto, e il prezzo resta sotto perché la decisione è comunque dell'operatore.
-    const out = man.outNow
-      ? `${man.name} — OGGI NON GIOCA. È in fondo al suo slot per questo, non perché valga meno.\n`
-      : '';
-    return out + this.priceTip(man);
-  }
-
-  /** Il prezzo, e la coppia che compreresti al suo posto. */
-  private priceTip(man: BoardMan): string {
-    const head =
-      `${man.name} (${man.club}) · FVM ${Math.round(man.fvm)} · max offerta ${man.price ?? '—'} cr` +
-      (man.state === 'asta' ? ' · IN ASTA ADESSO' : '');
-    const pair = this.pairs().get(man.id);
-    if (!pair) return `${head}\nNessuna alternativa: sotto di lui la profondità è finita.`;
-    const detail = pair.men
-      .map((entry, at) => `${entry.name} ${Math.round(pair.costs[at] ?? 0)}`)
-      // A pair is bought TOGETHER and a keeper's two alternatives are one OR the other: the joiner says
-      // which, and only the first of the two has a total that means anything.
-      .join(pair.together ? ' + ' : ' oppure ');
-    const total = pair.total === null ? '' : ` = ${Math.round(pair.total)} cr`;
-    return `${head}\nInvece di lui, ${pair.note}: ${detail}${total}`;
-  }
+  // NESSUN `title` SULLE RIGHE (sua istruzione, 04/09/2026: «da' fastidio»). Il tooltip nativo del
+  // browser spuntava sotto il puntatore su una plancia di 250 righe alte diciassette pixel, cioe'
+  // esattamente dove si sta leggendo, e copriva le righe vicine mentre si scorreva un reparto.
+  //
+  // Quello che diceva non e' perso e non e' stato riscritto altrove: il PREZZO e la banda stanno
+  // sulla card, che il click apre da se' (04/09), e l'ALTERNATIVA e' l'evidenziazione all'hover -
+  // gli stessi due uomini, mostrati dove vivono invece che elencati in un riquadro. Due canali per
+  // una frase sono come una riga finisce per dirne due versioni.
 }

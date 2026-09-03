@@ -164,7 +164,10 @@ export function listTypeOf(state: RawState): ListType | null {
  * is read from the championships of its own rows: Serie A alone is `default`, more than one is the
  * euro perimeter, and anything else stays null and says so rather than defaulting to a side.
  */
-export function platformOf(state: RawState, players: Iterable<AuctionPlayer> = []): Platform | null {
+export function platformOf(
+  state: RawState,
+  players: Iterable<AuctionPlayer> = [],
+): Platform | null {
   const listType = listTypeOf(state);
   if (listType === 'default' || listType === 'euro') return listType;
   if (listType !== 'custom') return null;
@@ -391,7 +394,13 @@ export function applyStreamEvent(
   const last = steps[steps.length - 1];
   const target = Array.isArray(node) ? node[Number(last)] : node[last];
 
-  if (kind === 'patch' && target && typeof target === 'object' && data && typeof data === 'object') {
+  if (
+    kind === 'patch' &&
+    target &&
+    typeof target === 'object' &&
+    data &&
+    typeof data === 'object'
+  ) {
     Object.assign(target, data);
     return mirror;
   }
@@ -724,6 +733,49 @@ export class AuctionFeed {
     this.status.set('demo');
   }
 
+  /**
+   * ONE PICK WRITTEN BY HAND, on the invented table only.
+   *
+   * The operator's own auction is run by somebody else's software and this panel is not connected to
+   * it (his decision of 03/09/2026: the connection is a button), so the only way the board can follow
+   * a real room is for him to say who took the lot - which is what the double click on a squad card
+   * asks for (04/09/2026).
+   *
+   * NEVER on a live session, and that is a requirement rather than caution: a real table's picks
+   * belong to the host, the next stream event would erase the row a moment after it appeared, and a
+   * mirror that disagrees with its table is the one defect this file is built to avoid. Refusing a man
+   * somebody already has is the same rule from the other side - two picks for one player would give
+   * him two owners, and `livePicks` would hand both of them out.
+   */
+  awardByHand(playerId: number, teamId: number, cost: number): boolean {
+    if (!this.demo()) return false;
+    const picks = (this.mirror.picks ?? []).filter(Boolean);
+    if (picks.some((pick) => !pick.released && pick.playerId === playerId)) return false;
+    // The index is the ORDER of the awards, so it continues the fixture's own numbering instead of
+    // restarting at the length: `livePicks` sorts on it, and a repeated index is a shuffled history.
+    const index = picks.reduce((top, pick) => Math.max(top, pick.index), -1) + 1;
+    this.mirror = { ...this.mirror, picks: [...picks, { index, teamId, playerId, cost }] };
+    this.state.set({ ...this.mirror });
+    return true;
+  }
+
+  /**
+   * EMPTIES EVERY SQUAD of the invented table: no picks, full budgets, every man back in the urn.
+   *
+   * It is what the board opens on at a REAL auction (his request of 04/09/2026), because the fixture
+   * plays a third of its own auction before handing over and those purchases are nobody's. The league
+   * itself - seats, budget, slots, the ten labels - is left exactly as it is: what is being reset is
+   * the rosters and not the regulation.
+   *
+   * Demo only, for `awardByHand`'s reason: a live table's picks are not ours to erase.
+   */
+  emptySquads(): boolean {
+    if (!this.demo()) return false;
+    this.mirror = { ...this.mirror, picks: [] };
+    this.state.set({ ...this.mirror });
+    return true;
+  }
+
   follow(teamId: number) {
     this.followedTeamId.set(teamId);
     this.remember();
@@ -796,10 +848,13 @@ export class AuctionFeed {
     const now = performance.now();
     if (now - this.lastSaved < SNAPSHOT_THROTTLE_MS) {
       if (!this.trailing) {
-        this.trailing = setTimeout(() => {
-          this.trailing = null;
-          this.rememberState();
-        }, SNAPSHOT_THROTTLE_MS - (now - this.lastSaved));
+        this.trailing = setTimeout(
+          () => {
+            this.trailing = null;
+            this.rememberState();
+          },
+          SNAPSHOT_THROTTLE_MS - (now - this.lastSaved),
+        );
       }
       return;
     }
@@ -904,7 +959,9 @@ export class AuctionFeed {
    * in step with the table without polling.
    */
   private openStream(code: string) {
-    const stream = new EventSource(`${DATABASE_URL}/sessions/${code}/state.json?auth=${this.token}`);
+    const stream = new EventSource(
+      `${DATABASE_URL}/sessions/${code}/state.json?auth=${this.token}`,
+    );
     this.stream = stream;
 
     const apply = (kind: 'put' | 'patch') => (event: MessageEvent) => {
@@ -946,5 +1003,4 @@ export class AuctionFeed {
     this.stream?.close();
     this.stream = null;
   }
-
 }

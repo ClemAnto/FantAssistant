@@ -2748,6 +2748,92 @@ il banco ora fotografa lo sfondo di tutte le 250 righe prima e dopo, e conta le 
 ha bisogno di conoscere nessun formato. E la riga sotto il puntatore si toglie dal conto, perché
 cambia da sé per il suo `hover:` di stato — non alzare la soglia, togliere il caso noto.
 
+### 34.3-septies LA CARD DI UN CALCIATORE, e il click che fa una cosa sola (4 settembre 2026)
+
+**Sua richiesta**: «quando clicco su un calciatore nella plancia si deve aprire una card compatta
+draggabile e chiudibile con le info principali del calciatore e le sue statistiche essenziali. Se è un
+portiere aggiungi un tastino "abbinamenti"».
+
+`views/plancia/man-card/`, 288px misurati, trascinabile dall'intestazione (`cdkDrag` +
+`cdkDragHandle`: una card che si sposta afferrandola in mezzo a un numero è una card in cui non si può
+selezionare un numero), chiudibile, e in `fixed` FUORI dalla griglia della plancia — dentro
+erediterebbe il suo `overflow` e si taglierebbe al primo trascinamento.
+
+**IL CLICK ORA FA UNA COSA SOLA.** Prima nominava il LOTTO per un uomo di movimento e apriva gli
+accoppiamenti per un portiere: due comportamenti sullo stesso gesto, a seconda del ruolo. Adesso apre
+la card, e le altre due sono BOTTONI suoi — «è il lotto in asta» e, per un portiere, «abbinamenti».
+*Un gesto che fa due cose diverse a seconda del ruolo è un gesto che va imparato; un gesto che apre
+una card no.* Resta asserito quello che il click non deve fare (istruzione del 03/09): non mette
+niente in asta.
+
+**LA CARD NON RICALCOLA NIENTE**, ed è la ragione per cui è una card e non una pagina. Ogni numero
+viene dal foglio attraverso l'unico lettore (`engine-sheet.ts`), che ha guadagnato due colonne che già
+viaggiavano — `desc_titolarita` (il gradino della sua scala a sei parole) e `desc_minutes_next` (i
+minuti attesi per partita) — e la banda dalla stessa funzione che disegna la riga: `BoardMan` porta
+ora la banda INTERA invece del solo massimo, perché due chiamate a `offerBand` con due insiemi di
+parametri sono come un uomo finisce con due prezzi. La card tiene un ID e non una copia dell'uomo:
+la riga si ricostruisce a ogni aggiudicazione, e una card con la copia mostrerebbe il prezzo di dieci
+minuti prima.
+
+**E NESSUNA RIGA È PIÙ SPENTA**: lo erano quelle di chi ha un padrone e non è portiere, perché non si
+potevano nominare come lotto e non c'era altro da fare. Ma la card si chiede anche di un uomo già
+venduto — a che prezzo è andato, quanto rendeva, chi ce l'ha — e i due gesti che dipendono dallo stato
+sono ora bottoni che appaiono quando hanno senso. *Disabilitare una riga per un'azione che non è più
+quella del click è una riga spenta per un motivo che non c'è più.*
+
+Due difetti trovati misurando, non guardando. **Un campo ricordato invece che letto**: il template
+diceva `man.outOfSquad`, che su `BoardMan` non esiste — la nota dichiarata si legge dal servizio
+`PlayerStatus`, come fa la pagina delle buste — «verifica la FUNZIONE, non la colonna che le somiglia»,
+in casa mia e a un'ora di distanza dall'averlo scritto nel verbale. E **un'icona non registrata**
+(`link`): `nz-icon` la va a cercare in rete, fallisce e urla in console, dove solo un arnese che
+raccoglie quello che la pagina urla la vede.
+
+Verificato in un browser vero: la card si apre a 288px con cinque voci di statistica, il trascinamento
+la porta da (643, 96) a (783, 166) — «draggabile» è una domanda su dei PIXEL, e un `cdkDrag` che non si
+muove lascia il DOM identico — il bottone apre «Con chi accoppiare Svilar Roma», e il lotto non cambia.
+
+**E LE CARD SONO PIÙ DI UNA, perché servono a CONFRONTARE** (sua richiesta immediatamente dopo): lo
+store tiene un ELENCO di id in ordine di apertura, la pagina disegna una card per uomo aperto, e
+ri-cliccare un nome già aperto non fa un doppione e non lo chiude — lo porta in primo piano, che è
+quello che un confronto chiede.
+
+Due cose che la richiesta ha deciso e che valgono oltre le card. **AFFIANCATE E NON A CASCATA**: la
+prima versione le sfalsava di 28px, e due card da 288px sfalsate così **si coprono per il 90%** —
+sarebbero due card che valgono una. Quattro per riga a 300px di passo, poi si scende di 44, dal bordo
+sinistro così la posizione non dipende dalla larghezza della finestra. **E NESSUN TETTO al numero**:
+il ciclo ricomincia invece di fermarsi, perché lui non ha chiesto un limite e una soglia su «quante
+card si possono aprire» sarebbe una soglia scelta da me e misurata da nessuno — la via d'uscita è un
+bottone «chiudi le N card» che appare quando ce n'è più di una.
+
+E il probe le CONTA invece di leggerne la prima: un `querySelector` direbbe «una card» sia con una che
+con sei. Misurato: due click su due nomi danno **2 card** a (16, 96) e (316, 96), la prima resta dove
+l'avevi trascinata, e il banco asserisce che la seconda non nasca sopra la prima.
+
+### 34.3-octies L'OFFERTA SCENDE SU UN CLUB CHE HO GIÀ (4 settembre 2026)
+
+**Sua istruzione**: «sarebbe preferibile avere calciatori di squadre diverse per differenziare il
+rischio … vorrei che la max-offerta per un calciatore della stessa squadra reale di un altro
+calciatore in rosa diminuisca, e peggiori ancora di più se in rosa abbiamo già 2 calciatori della
+stessa squadra». Fatto: `sameClubDiscount`, letto da TUTT'E DUE i posti che chiamano `offerBand` — la
+riga della plancia e il lotto — perché due chiamate con due parametri diversi sono come un uomo
+finisce con due prezzi.
+
+**LA FORMA È SUA E I VALORI SONO DICHIARATI, e vale la pena dire contro cosa.** Una misura su questo
+esiste e dice una cosa diversa: il banco ha adottato `CLUB_FREE` = 2 e `CLUB_PENALTY` = 0,45, cioè i
+primi DUE di un club non costano niente e la penalità scatta dal TERZO (02/09: 4,1 punti di costo
+contro il 4,4% di dispersione in meno). La sua regola comincia un uomo prima. E c'è una ragione,
+misurata dall'altro lato, per cui il banco non può decidere qui: **la sua sd è FRA STAGIONI mentre il
+rischio che si compra diversificando è DENTRO una** (`metrica-asta-surplus-v1.md` §24, «questo banco
+non può vedere il beneficio che compra»). Quindi la scala è la sua, i due numeri sono cauti apposta —
+**−10% sul secondo** (dove il banco non toglierebbe niente) e **−25% dal terzo** (dove il banco
+toglierebbe il 45%) — e non peggiora oltre il terzo, perché una scala che continua a scendere
+finirebbe a zero su una rosa che pesca molto da un club e nessuno ha misurato quel fondo.
+
+**È uno sconto sull'OFFERTA e non sul VALORE**, che è esattamente quello che ha chiesto: il giocatore
+vale quello che vale, cambia quanto sono disposto a pagarlo. Il conteggio è di uomini della MIA rosa
+(il club di un rivale non è un rischio mio) e i test lo asseriscono alle due quote dichiarate invece
+che come un ordine qualsiasi.
+
 ### 34.4 Dove vive cosa, e perché
 
 Il **toolkit** decide se una partita è facile e con che probabilità (`fixtures.schedule` → `calendar.json`

@@ -492,8 +492,12 @@ function readBoardRow(role, at) {
  * Si misura la POSIZIONE perche' «draggabile» e' una domanda su dei pixel: un `cdkDrag` che non si
  * muove lascia il DOM identico, quindi contare i nodi direbbe che tutto va bene.
  */
-function readCard() {
-  const card = document.querySelector('plancia-man-card [cdkdrag], plancia-man-card .fixed');
+function readCard(at = 0) {
+  // PIÙ DI UNA: le card aperte sono un elenco (sua richiesta del 04/09, per confrontare), quindi il
+  // probe le CONTA e legge quella chiesta - un `querySelector` che ne prende la prima e tace sulle
+  // altre direbbe «una card» sia con una che con sei.
+  const cards = [...document.querySelectorAll('plancia-man-card .fixed')];
+  const card = cards[at];
   if (!card) return null;
   const rect = card.getBoundingClientRect();
   if (!rect.width) return null;
@@ -508,6 +512,15 @@ function readCard() {
     (one) => (one.innerText ?? '').toLowerCase().includes('abbinamenti'));
   const pairsRect = pairs?.getBoundingClientRect();
   return {
+    open: cards.length,
+    // Chi sta davanti e dove sta ognuna: «sopra le altre» è una `z`, e «non si spostano» sono due
+    // coppie di coordinate prima e dopo. Nessuna delle due si legge da un conteggio di nodi.
+    stack: cards.map((one) => ({
+      name: (one.innerText ?? '').split('\n')[0].trim(),
+      z: Number(getComputedStyle(one).zIndex) || 0,
+      x: Math.round(one.getBoundingClientRect().left),
+      y: Math.round(one.getBoundingClientRect().top),
+    })),
     x: Math.round(rect.left),
     y: Math.round(rect.top),
     width: Math.round(rect.width),
@@ -709,6 +722,58 @@ async function main() {
       await drag(session, card.handle, 140, 70);
       moved = await evaluate(session, readCard);
     }
+    // DUE CARD, che è la richiesta: si apre un secondo nome e il primo deve restare, sfalsato.
+    const second = await evaluate(session, readBoardRow, 'A1', 0);
+    if (second) await click(session, second);
+    const both = await evaluate(session, readCard, 1);
+    const first = await evaluate(session, readCard, 0);
+    // ...e le due cose che ha chiesto subito dopo: quella TOCCATA passa davanti, e chiuderne una non
+    // sposta le altre. Si misurano su una `z` e su due coppie di coordinate.
+    const beforeRaise = await evaluate(session, readCard, 0);
+    if (beforeRaise?.handle) {
+      await session.send('Input.dispatchMouseEvent', {
+        type: 'mouseMoved', x: Math.round(beforeRaise.handle.x), y: Math.round(beforeRaise.handle.y),
+        button: 'none',
+      });
+      await session.send('Input.dispatchMouseEvent', {
+        type: 'mousePressed', x: Math.round(beforeRaise.handle.x),
+        y: Math.round(beforeRaise.handle.y), button: 'left', clickCount: 1,
+      });
+      await session.send('Input.dispatchMouseEvent', {
+        type: 'mouseReleased', x: Math.round(beforeRaise.handle.x),
+        y: Math.round(beforeRaise.handle.y), button: 'left', clickCount: 1,
+      });
+      await wait(200);
+    }
+    const raised = await evaluate(session, readCard, 0);
+    const front = (raised?.stack ?? []).find((one) => one.name === raised?.stack?.[0]?.name);
+    const zs = (raised?.stack ?? []).map((one) => one.z);
+    // La chiusura: si chiude la SECONDA e si guarda dove sta la prima, prima e dopo.
+    const secondCard = await evaluate(session, readCard, 1);
+    const wasAt = raised?.stack?.[0];
+    if (secondCard?.closer) await click(session, secondCard.closer);
+    const afterClose = await evaluate(session, readCard, 0);
+    const stillAt = afterClose?.stack?.[0];
+    note('due card aperte insieme', {
+      said: `${both?.open ?? 0} card aperte · posti (${first?.x}, ${first?.y}) e (${both?.x}, `
+        + `${both?.y}) · z ${JSON.stringify(zs)} · toccata la prima, davanti è «${front?.name}» · `
+        + `chiusa la seconda, la prima resta a (${stillAt?.x}, ${stillAt?.y})`,
+      problems: [
+        ...(both?.open === 2
+          ? [] : [`aprendo un secondo nome ci sono ${both?.open ?? 0} card invece di 2`]),
+        // Affiancate: due card nello stesso punto sono una card.
+        ...(both && first && (both.x !== first.x || both.y !== first.y)
+          ? [] : ['la seconda card nasce esattamente sopra la prima']),
+        // TOCCATA = DAVANTI: la `z` della prima deve superare quella dell'altra.
+        ...(zs.length === 2 && zs[0] > zs[1]
+          ? [] : [`toccando la prima card la sua z è ${zs[0]} contro ${zs[1]}: non passa davanti`]),
+        // CHIUDERNE UNA NON SPOSTA LE ALTRE.
+        ...(wasAt && stillAt && wasAt.x === stillAt.x && wasAt.y === stillAt.y
+          ? [] : [`chiudendo una card l'altra si è spostata da (${wasAt?.x}, ${wasAt?.y}) a `
+                  + `(${stillAt?.x}, ${stillAt?.y})`]),
+      ],
+    });
+
     note('la card di un calciatore', {
       said: `«${target?.name}» → card ${card ? 'aperta' : 'NON aperta'} a (${card?.x}, ${card?.y}) `
         + `larga ${card?.width}px · voci ${JSON.stringify(card?.labels)} · `

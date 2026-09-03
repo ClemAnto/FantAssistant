@@ -1,4 +1,4 @@
-import { Component, input } from '@angular/core';
+import { Component, computed, input, output } from '@angular/core';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 
@@ -30,6 +30,18 @@ export class TeamGrid {
   /** The role of the lot on the table: the only one of the four numbers that lights up. */
   readonly role = input<Role | null>(null);
 
+  /**
+   * Whether a double click can assign the lot right now - a table of ours, with a name on it.
+   *
+   * It only decides what the tooltip PROMISES: the gesture is emitted anyway, because the store is the
+   * one that knows why an award is impossible and says so on screen. A card that swallows a double
+   * click in silence is indistinguishable from a broken one.
+   */
+  readonly assignable = input(false);
+
+  /** «Il lotto va a questa rosa», by double click (operator, 04/09/2026). */
+  readonly assign = output<number>();
+
   protected readonly roles = ROLES;
 
   protected sigla(team: BoardTeam): string {
@@ -51,16 +63,22 @@ export class TeamGrid {
     return missing === 0 ? 'text-muted/50' : 'text-fg';
   }
 
+  /** Il gesto sta nel tooltip perché non si vede: due parole, e solo dove funziona davvero. */
+  private readonly assignHint = computed(() =>
+    this.assignable() ? ' Doppio click: il lotto va a questa rosa, al prezzo del lotto.' : '',
+  );
+
   protected tip(team: BoardTeam): string {
     const role = this.role();
+    const hint = this.assignHint();
     const purse = `${team.credits} crediti · posti ${team.missing.join('·')} (P·D·C·A)`;
-    if (team.me) return `La tua rosa — ${purse}.`;
-    if (team.out) return `${team.label} non arriva alla banda — ${purse}.`;
+    if (team.me) return `La tua rosa — ${purse}.${hint}`;
+    if (team.out) return `${team.label} non arriva alla banda — ${purse}.${hint}`;
     if (team.rival && role) {
-      return `${team.label} è un rivale su questo lotto: ha ancora un posto in ${role} e i crediti per pagarlo — ${purse}.`;
+      return `${team.label} è un rivale su questo lotto: ha ancora un posto in ${role} e i crediti per pagarlo — ${purse}.${hint}`;
     }
     if (role)
-      return `${team.label} ha il reparto ${role} completo: non rilancia su questo lotto — ${purse}.`;
-    return `${team.label} — ${purse}.`;
+      return `${team.label} ha il reparto ${role} completo: non rilancia su questo lotto — ${purse}.${hint}`;
+    return `${team.label} — ${purse}.${hint}`;
   }
 }

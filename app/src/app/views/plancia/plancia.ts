@@ -5,6 +5,7 @@ import { NzAlertModule } from 'ng-zorro-antd/alert';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzInputNumberModule } from 'ng-zorro-antd/input-number';
+import { NzPopconfirmModule } from 'ng-zorro-antd/popconfirm';
 import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 
 import { AuctionFeed } from '../../core/auction-feed';
@@ -46,6 +47,7 @@ import { TeamGrid } from './team-grid/team-grid';
     NzButtonModule,
     NzIconModule,
     NzInputNumberModule,
+    NzPopconfirmModule,
     NzTooltipModule,
     FlagMenu,
     KeeperPairs,
@@ -85,6 +87,15 @@ export class Plancia {
     this.store.blocks().reduce((sum, block) => sum + block.left, 0),
   );
 
+  /**
+   * Se il doppio click su una rosa può assegnare qualcosa: un tavolo nostro, e un nome in asta.
+   *
+   * Decide solo quello che il tooltip PROMETTE. Il gesto arriva comunque allo store, che è l'unico a
+   * sapere perché un'assegnazione non si può fare (reparto pieno, borsa corta, asta vera) e lo scrive
+   * a schermo - una card che si mangia un doppio click in silenzio è indistinguibile da una rotta.
+   */
+  protected readonly canAssign = computed(() => this.feed.demo() && !!this.store.lot());
+
   constructor() {
     // The board opens on a table, never on a code field: `startDemo` is a no-op when one is already up,
     // so coming back to the page does not throw away an auction in progress.
@@ -102,5 +113,16 @@ export class Plancia {
    */
   protected onPick(man: BoardMan): void {
     this.store.openCard(man.id);
+  }
+
+  /**
+   * IL DOPPIO CLICK SU UNA ROSA LE ASSEGNA IL LOTTO (sua richiesta, 04/09/2026).
+   *
+   * È l'unico fatto che la plancia non può ricavarsi da sé quando non è collegata: chi si è preso il
+   * nome estratto. Il prezzo è quello della riga del lotto, dove lui lo tiene aggiornato mentre i
+   * rilanci salgono, e lo store rifiuta - dicendolo - un acquisto che il regolamento non permette.
+   */
+  protected onAssign(teamId: number): void {
+    this.store.award(teamId);
   }
 }

@@ -11,9 +11,22 @@
      stessa funzione che disegna la riga: la card non ricalcola niente, o tre viste sugli stessi
      `engine_*` darebbero a un uomo tre valutazioni. -->
 @if (man(); as man) {
+  <!-- LA POSIZIONE È UNO STILE E NON UNA CLASSE, perché è un numero calcolato: Tailwind genera le
+       classi che vede scritte, e `top-[{{ n }}px]` non esiste.
+
+       LA `z` HA DUE LIVELLI e non uno: le card in fila stanno sull'ordine di apertura, e quella
+       TOCCATA per ultima passa davanti a tutte (sua richiesta: «quando trascino una card deve
+       spostarsi sopra le altre»). Il bordo la nomina, perché una card davanti senza un segno è
+       indistinguibile da una che si è mossa da sola. -->
   <div
     cdkDrag
-    class="fixed top-24 left-1/2 z-50 w-72 -translate-x-1/2 rounded-lg border border-border bg-surface shadow-xl"
+    class="fixed w-72 rounded-lg border border-border bg-surface shadow-xl"
+    [class.ring-1]="front()"
+    [class.ring-primary]="front()"
+    [style.top.px]="top()"
+    [style.left.px]="left()"
+    [style.z-index]="front() ? 200 : 50 + at()"
+    (pointerdown)="raise()"
   >
     <!-- L'INTESTAZIONE È LA MANIGLIA, e lo dice il cursore. -->
     <div

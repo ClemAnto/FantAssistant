@@ -1,9 +1,10 @@
 import { DecimalPipe } from '@angular/common';
 import { CdkDrag, CdkDragHandle } from '@angular/cdk/drag-drop';
-import { Component, computed, inject } from '@angular/core';
+import { Component, computed, inject, input } from '@angular/core';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 
+import { outWindowNote } from '../../../core/injury-window';
 import { EDGE_BASE } from '../../../core/plancia';
 import { BoardMan, PlanciaStore } from '../../../core/plancia-store';
 import { PlayerStatus } from '../../../core/player-status';
@@ -42,23 +43,80 @@ export class ManCard {
   private readonly store = inject(PlanciaStore);
   private readonly status = inject(PlayerStatus);
 
-  /** Chiudere è dello store, che è l'unico a sapere chi è aperto: due stati per una card sono due card. */
+  /**
+   * L'uomo di QUESTA card, passato dalla pagina: le card aperte sono più di una.
+   *
+   * L'uomo arriva come input e non si legge dallo store perché è la pagina che sa quante card ci
+   * sono - lo store tiene gli ID e la riga viva, il componente disegna quella che gli è data. Così
+   * ogni card resta agganciata al proprio uomo mentre la mappa si ricostruisce sotto.
+   */
+  readonly man = input.required<BoardMan>();
+
+  /**
+   * IL SUO POSTO, assegnato dallo store alla nascita e tenuto per tutta la vita della card.
+   *
+   * Non è l'indice nell'elenco: con l'indice, chiudere una card faceva scalare tutte le successive
+   * («quando chiudo una card le altre non si devono spostare»), e una card che si sposta da sé mentre
+   * la guardi rompe il confronto per cui è aperta.
+   */
+  readonly at = input<number>(0);
+
+  /** Chiudere è dello store, che è l'unico a sapere chi è aperto. */
   protected close(): void {
-    this.store.openCard(null);
+    this.store.closeCard(this.man().id);
   }
 
-  protected readonly man = computed(() => this.store.cardMan());
+  /**
+   * DOVE NASCE QUESTA CARD: AFFIANCATE, non a cascata.
+   *
+   * Le card servono a CONFRONTARE (sua richiesta), e due card sfalsate di 28px si coprono per il 90%:
+   * per confrontare devono stare una accanto all'altra. Quindi quattro per riga a 300px di passo (288
+   * di card piu' 12 di aria), poi si scende di 44px e si ricomincia - una griglia a cascata e non una
+   * pila. Il ciclo invece di un TETTO al numero: lui non ne ha chiesto un limite, e una soglia scelta
+   * da me su quante card si possono aprire e' una soglia che nessuno ha misurato.
+   *
+   * Dal bordo SINISTRO e non dal centro, cosi' la posizione non dipende dalla larghezza della finestra
+   * (una card centrata piu' una sfalsata e' una coppia che si sovrappone su uno schermo stretto). E
+   * tutte restano trascinabili: il posto vero glielo da' lui.
+   */
+  protected readonly left = computed(() => 16 + (this.at() % 4) * 300);
+  protected readonly top = computed(() => 96 + (Math.floor(this.at() / 4) % 3) * 44);
+
+  /**
+   * QUESTA CARD È DAVANTI? Dallo store, che tiene l'ultima toccata - e non dall'indice, che è
+   * l'ordine di APERTURA e serve al posto in cui la card nasce. Due domande, due stati: leggerle
+   * dallo stesso numero fa saltare le card di posto ogni volta che ne porti una avanti.
+   */
+  protected readonly front = computed(() => this.store.frontCard() === this.man().id);
+
+  /**
+   * TOCCATA: davanti alle altre, su `pointerdown` e non su `cdkDragStarted`.
+   *
+   * Un trascinamento comincia con un pointerdown, quindi questo copre la sua richiesta («quando
+   * trascino una card deve spostarsi sopra le altre») e anche il caso più frequente, che è un
+   * semplice click su una card mezza coperta per leggerla. E precede sempre il drag di CDK, quindi la
+   * card è già davanti nel primo fotogramma del movimento invece che dopo la soglia dei tre pixel.
+   */
+  protected raise(): void {
+    this.store.raiseCard(this.man().id);
+  }
 
   /** Il gradino, la banda e i minuti: le tre frasi che un'asta chiede di un nome. */
-  protected readonly numbers = computed(() => {
-    const man = this.man();
-    return man ? this.store.numbersFor(man.id) : null;
-  });
+  protected readonly numbers = computed(() => this.store.numbersFor(this.man().id));
 
   /** Cosa dice oggi la stampa (o un infortunio aperto): la ragione, non solo il fatto. */
+  /**
+   * LA FRASE ROSSA IN CIMA ALLA CARD, e ce ne sono due perche' sono due situazioni.
+   *
+   * Dove una data di rientro esiste, la nota e' il CONTO - quante giornate perde, quante ne gioca -
+   * perche' e' quello che spiega i due numeri qui sotto e la banda: le presenze attese della card
+   * sono gia' ridotte, e una riduzione senza il suo perche' si legge come un difetto. Dove la data
+   * non c'e', resta la frase del servizio: «oggi non gioca», che e' tutto quello che si sa.
+   */
   protected readonly outNote = computed(() => {
-    const man = this.man();
-    return man ? (this.status.unavailableNow(man.id)?.note ?? null) : null;
+    const window = this.man().out;
+    if (window) return outWindowNote(window);
+    return this.status.unavailableNow(this.man().id)?.note ?? null;
   });
 
   /**
@@ -69,18 +127,16 @@ export class ManCard {
    * mia. Il servizio è lo stesso che disegna le icone, quindi la card e la riga non possono dire due
    * cose diverse sullo stesso uomo.
    */
-  protected readonly outOfSquad = computed(() => {
-    const man = this.man();
-    return man ? this.status.declared().get(man.id)?.kind === 'out_of_squad' : false;
-  });
+  protected readonly outOfSquad = computed(
+    () => this.status.declared().get(this.man().id)?.kind === 'out_of_squad',
+  );
 
   protected readonly base = EDGE_BASE;
 
   /** `A1`, `P3`: lo slot come lo legge la plancia, dal blocco in cui l'uomo sta. */
   protected readonly slotLabel = computed(() => {
-    const man = this.man();
-    if (!man) return '';
-    const block = this.store.blocks().find((one) => one.rows.some((row) => row.id === man.id));
+    const id = this.man().id;
+    const block = this.store.blocks().find((one) => one.rows.some((row) => row.id === id));
     return block ? String(block.index) : '';
   });
 
@@ -93,10 +149,9 @@ export class ManCard {
    * e la riga un altro.
    */
   protected readonly fm = computed(() => {
-    const man = this.man();
     const engine = this.numbers();
-    if (!man || !engine) return null;
-    return man.basis === 'estimated' ? engine.estFm : engine.fm;
+    if (!engine) return null;
+    return this.man().basis === 'estimated' ? engine.estFm : engine.fm;
   });
 
   /** Il lotto e gli abbinamenti restano DUE gesti, e questa card non ne inventa un terzo. */

@@ -394,6 +394,27 @@ export function unavailableMark(entry: Unavailable, today: string): PlayerMark |
 }
 
 /**
+ * LE DUE FONTI DICONO LA STESSA NOTIZIA, e allora se ne disegna una sola.
+ *
+ * Richiesta dell'operatore (04/09/2026) su Yildiz, Thuram K. e Kone' I.: «non mostrare anche l'icona
+ * "La stampa lo da' indisponibile", e' ridondante». Due icone per un fatto solo occupano il posto di
+ * un fatto diverso, e quella che se ne va e' la piu' debole - una voce del giorno accanto a uno spell
+ * datato che porta la diagnosi e la data di rientro.
+ *
+ * STRETTA: infortunio contro INFORTUNIO. Una squalifica o un dubbio della vigilia non sono la stessa
+ * notizia e restano, anche su un uomo che ha pure uno spell aperto - un lungodegente squalificato e'
+ * raro e non e' una contraddizione. E se l'ufficiale NON disegna niente (uno spell aperto piu' corto
+ * di `LONG_INJURY_DAYS`) la stampa resta, o la riga perderebbe l'unico marchio che ha: e' il caso
+ * McTominay del 03/09, che e' esattamente il motivo per cui il canale veloce esiste.
+ */
+export function pressSaysTheSame(
+  entry: Unavailable | null | undefined,
+  injury: PlayerMark | null,
+): boolean {
+  return !!injury && injury.flag === 'long_injury' && entry?.status === 'injured';
+}
+
+/**
  * What every name is carrying, ready for any list that draws players.
  *
  * It is a service and not a computed of the auction panel because the operator asked for the marks «nei
@@ -417,7 +438,12 @@ export class PlayerStatus {
    * closed the day after it was written.
    */
   private readonly travel = inject(TimeTravel);
-  private readonly today = this.travel.today;
+  /**
+   * PUBBLICO dal 04/09/2026: chi riprezza un infortunio deve contare le giornate dallo STESSO giorno
+   * da cui questo servizio giudica i marchi, o una riga direbbe «fuori» e il numero accanto conterebbe
+   * da un'altra data - e in viaggio nel tempo le due date sarebbero diverse davvero.
+   */
+  readonly today = this.travel.today;
 
   readonly readAt = signal<string | null>(null);
 
@@ -682,11 +708,18 @@ export class PlayerStatus {
     if (playerId == null) return [];
     const marks: PlayerMark[] = [];
     // PRIMA di tutto lo stato di oggi secondo la stampa: è il più fresco - la pagina è riletta ogni
-    // giorno - ed è l'unico che può sapere di un uomo che si è fatto male stamattina. L'ufficiale gli
-    // sta accanto e non lo sostituisce: sono due prove diverse, e un uomo può portarle entrambe.
+    // giorno - ed è l'unico che può sapere di un uomo che si è fatto male stamattina.
+    //
+    // MA DOVE L'INFORTUNIO È ACCERTATO LA STAMPA NON SI DISEGNA (04/09/2026, sua richiesta su Yildiz,
+    // Thuram K. e Koné I.): «non mostrare anche l'icona "La stampa lo dà indisponibile", è
+    // ridondante». Due icone per un fatto solo occupano il posto di un fatto diverso, e la seconda è
+    // anche la più debole delle due - «una voce del giorno» accanto a uno spell datato che dice la
+    // diagnosi e il rientro. La deduplica è STRETTA e vale solo fra INFORTUNIO e infortunio: una
+    // squalifica o un dubbio della vigilia restano, perché non sono la stessa notizia e chi li porta
+    // può benissimo avere anche un infortunio aperto.
     const press = this.pressMarks().get(playerId);
-    if (press) marks.push(press);
-    const injury = this.injuryMarks().get(playerId);
+    const injury = this.injuryMarks().get(playerId) ?? null;
+    if (press && !pressSaysTheSame(this.unavailable().get(playerId), injury)) marks.push(press);
     if (injury) marks.push(injury);
     // Being hurt NOW and breaking down OFTEN are two different facts, and a man can carry both: the
     // state of today is drawn first, the habit beside it.

@@ -5,9 +5,16 @@
      Il nome per esteso sta nel tooltip: a questa larghezza una sigla si riconosce e una frase no. -->
 <div class="grid h-full min-h-0 grid-cols-2 content-start gap-1.5 overflow-y-auto">
   @for (team of teams(); track team.id) {
+    <!-- IL DOPPIO CLICK ASSEGNA IL LOTTO A QUESTA ROSA (operatore, 04/09/2026).
+         `select-none` perché un doppio click su del testo lo SELEZIONA, e una card che resta
+         evidenziata dopo il gesto si legge come se fosse rimasta «attiva» - la stessa cura che il
+         trascinamento delle colonne ha già pagato (20/08). Il cursore cambia solo dove il gesto fa
+         davvero qualcosa; dove non lo fa, è lo store a dire perché. -->
     <div
-      class="flex flex-col gap-1 rounded-lg border px-1.5 py-1"
+      class="flex flex-col gap-1 rounded-lg border px-1.5 py-1 select-none"
       [class]="cardTone(team)"
+      [class.cursor-pointer]="assignable()"
+      (dblclick)="assign.emit(team.id)"
       nz-tooltip
       [nzTooltipTitle]="tip(team)"
     >

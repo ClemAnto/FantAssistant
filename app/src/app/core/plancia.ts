@@ -19,6 +19,8 @@
  */
 
 import { ValuationBasis } from './auction-value';
+import { OutWindow } from './injury-window';
+import { itDate } from './tooltip';
 
 export type Role = 'P' | 'D' | 'C' | 'A';
 
@@ -72,13 +74,27 @@ export interface PlanciaMan {
   edge: number | null;
   basis: ValuationBasis;
   /**
-   * OGGI NON GIOCA: la stampa lo dà fuori, o un infortunio ufficiale è ancora aperto.
+   * OGGI NON GIOCA E NON SAPPIAMO PER QUANTO: la stampa lo dà fuori, o un infortunio ufficiale è
+   * ancora aperto, e nessuna delle due fonti dice fino a quando.
    *
-   * Non è una valutazione e non entra in nessun numero - non sappiamo per quanto starà fuori, quindi
-   * riprezzarlo sarebbe inventare. È un VINCOLO: lo fa scendere in fondo al suo slot e cambia il
-   * verdetto del lotto, sempre dicendolo. Popolato dallo store, che è l'unico a conoscere lo stato.
+   * Non è una valutazione e non entra in nessun numero - senza una durata riprezzarlo sarebbe
+   * inventare. È un VINCOLO: lo fa scendere in fondo al suo slot e cambia il verdetto del lotto,
+   * sempre dicendolo. Popolato dallo store, che è l'unico a conoscere lo stato.
+   *
+   * DOVE UNA DATA DI RIENTRO C'È, questo campo è FALSO e al suo posto c'è `out`: il vincolo esisteva
+   * perché mancava un numero, e dove il numero c'è fa lo stesso lavoro meglio, perché dice di quanto.
+   * I due non convivono mai su una riga, o l'uomo verrebbe penalizzato due volte per un fatto solo.
    */
   outNow?: boolean;
+  /**
+   * ...E QUANDO INVECE LA DURATA SI SA: quante giornate perde, e quindi quanta stagione compri.
+   *
+   * `points` e `pv` di questa riga sono GIÀ ridotti di `out.share` - una sola valutazione per uomo,
+   * quella che l'ordine dentro lo slot legge e che lo schermo mostra - e `offerBand` riceve la quota
+   * a parte perché la sua clamp non se la mangi. Il conto sta in `injury-window.ts`, che lo fa sul
+   * calendario del club e non sul calendario di nessun altro.
+   */
+  out?: OutWindow | null;
   /**
    * FUORI ROSA: la nota che l'operatore ha DICHIARATO su di lui (`config/player_notes.json`,
    * `kind: 'out_of_squad'`), letta dallo stesso servizio dello stato di salute perche' due letture di
@@ -189,10 +205,13 @@ export function buildMap(
  */
 function orderInside(men: PlanciaMan[]): PlanciaMan[] {
   return [...men].sort(
-    // CHI OGGI NON GIOCA VA IN FONDO, prima di ogni altra cosa. Vincolo e non peso: la sua posizione
-    // dentro lo slot resta quella di prima fra i suoi pari, cambia solo che non è il primo nome che
-    // l'occhio incontra alla quarta ora. Un uomo dato fuori dalla stampa e proposto in cima è
-    // esattamente il caso che l'operatore non vuole vedere (03/09/2026).
+    // CHI OGGI NON GIOCA E NON HA UNA DATA DI RIENTRO VA IN FONDO, prima di ogni altra cosa. Vincolo
+    // e non peso: la sua posizione dentro lo slot resta quella di prima fra i suoi pari, cambia solo
+    // che non è il primo nome che l'occhio incontra alla quarta ora. Un uomo dato fuori dalla stampa
+    // e proposto in cima è esattamente il caso che l'operatore non vuole vedere (03/09/2026).
+    //
+    // Chi la data ce l'ha NON scende qui: scende da sé, perché `points` porta già le giornate che
+    // perde, e di quanto scende è una misura invece di un gradino (04/09/2026).
     (a, b) =>
       Number(a.outNow ?? false) - Number(b.outNow ?? false) ||
       (b.points ?? -1) - (a.points ?? -1) ||
@@ -275,7 +294,39 @@ export interface OfferBand {
  *   * the ROOM. A pair costing 160 credits is no alternative to somebody who has 100, so the ceiling
  *     is always `min(measured quota, what the purse allows)` or the board advises a ceiling that
  *     cannot even be reached.
+ *
+ * E DAL 04/09/2026 UNA QUARTA, che non è un'opinione: la QUOTA DI CALENDARIO per cui l'uomo c'è.
+ * Arriva già dentro `points` (una valutazione sola per uomo), e viaggia anche a parte per una ragione
+ * precisa - la clamp qui sotto limita quanto la NOSTRA opinione può muovere una banda misurata sullo
+ * slot, e un infortunio non è un'opinione: è una quota di calendario, quindi può portare la banda
+ * sotto il pavimento della clamp, ma solo fino a quella quota e non oltre.
  */
+/**
+ * QUANTO SCENDE L'OFFERTA PER UN UOMO DI UN CLUB CHE HO GIÀ, per quanti ne ho già in rosa.
+ *
+ * Sua istruzione del 04/09/2026: «la max-offerta per un calciatore della stessa squadra reale di un
+ * altro calciatore in rosa diminuisca, e peggiori ancora di più se in rosa abbiamo già 2 calciatori
+ * della stessa squadra». La forma è sua e i valori sono DICHIARATI, non misurati - e vale la pena
+ * dire contro cosa, perché una misura su questo esiste e dice una cosa diversa.
+ *
+ * IL BANCO MISURA `CLUB_FREE` = 2 e `CLUB_PENALTY` = 0,45: i primi DUE di un club non costano niente e
+ * la penalità scatta dal TERZO (adottata il 02/09: 4,1 punti di costo contro il 4,4% di dispersione in
+ * meno). La sua regola comincia un uomo prima. E c'è una ragione, misurata dall'altro lato, per cui il
+ * banco non può decidere qui: la sua sd è FRA STAGIONI mentre il rischio che si compra diversificando
+ * è DENTRO una (`metrica-asta-surplus-v1.md` §24) - «questo banco non può vedere il beneficio che
+ * compra». Quindi la scala è la sua, dichiarata qui, e i due numeri sono cauti apposta: −10% sul
+ * secondo (dove il banco non toglie niente) e −25% dal terzo (dove il banco toglierebbe il 45%).
+ *
+ * Il conteggio è di uomini della MIA rosa, per club reale, e non tocca il valore del giocatore: è uno
+ * sconto sull'OFFERTA, cioè su quanto sono disposto a pagarlo, che è la cosa che lui ha chiesto.
+ */
+export const SAME_CLUB_DISCOUNT = [0, 0.1, 0.25];
+
+export function sameClubDiscount(held: number): number {
+  if (!(held > 0)) return 0;
+  return SAME_CLUB_DISCOUNT[Math.min(held, SAME_CLUB_DISCOUNT.length - 1)];
+}
+
 export function offerBand(input: {
   role: Role;
   slotIndex: number;
@@ -284,6 +335,10 @@ export function offerBand(input: {
   points: number | null;
   medianPoints: number | null;
   exhaustedBelow?: number;
+  /** `out.share`: la frazione delle giornate rimaste in cui ci sarà. Uno quando non manca. */
+  available?: number;
+  /** Quanti uomini del SUO club reale ho già in rosa: l'offerta scende, il suo valore no. */
+  sameClub?: number;
 }): OfferBand | null {
   const ladder = LADDER[input.role];
   const share = ladder[Math.min(input.slotIndex, ladder.length) - 1];
@@ -292,13 +347,23 @@ export function offerBand(input: {
   // The man's own weight inside his slot, held to +/-35%: the band is a fact about the SLOT and this
   // term only says where in it he stands. Letting it run free would turn a measured ceiling into a
   // ranking of our own, which is not what any of the ten windows judged.
+  //
+  // IL PAVIMENTO SCENDE FINO ALLA QUOTA DI CALENDARIO, e mai piu' giu': `points` porta gia' la
+  // riduzione, quindi bloccarlo a 0,65 direbbe «offri il 65%» a chi gioca il 58% della stagione - un
+  // tetto misurato su uomini che ci sono tutta la stagione applicato a chi non c'e'.
   const middle = input.medianPoints;
+  const floor = Math.min(0.65, input.available ?? 1);
   const own =
     input.points != null && middle != null && middle > 0
-      ? clamp(input.points / middle, 0.65, 1.35)
-      : 1;
+      ? clamp(input.points / middle, floor, 1.35)
+      : (input.available ?? 1);
 
-  const centre = share * input.budget * own * depthFactor(input.exhaustedBelow ?? 0);
+  const centre =
+    share *
+    input.budget *
+    own *
+    depthFactor(input.exhaustedBelow ?? 0) *
+    (1 - sameClubDiscount(input.sameClub ?? 0));
   const low = Math.round(centre * 0.9);
   const high = Math.round(centre * 1.1);
   const room = Math.max(0, Math.round(input.room));
@@ -387,9 +452,15 @@ export function adviseLot(input: {
   teams: number;
   exhaustedBelow: number;
   priced: boolean;
-  /** Oggi non gioca. Decide il verdetto prima di ogni prezzo, e non tocca la banda. */
+  /** Oggi non gioca e non si sa per quanto. Decide il verdetto prima di ogni prezzo, e non tocca la banda. */
   outNow?: boolean;
   outReason?: string | null;
+  /**
+   * ...e chi invece una data di rientro ce l'ha: il verdetto resta un PREZZO, perché un'asta iniziale
+   * compra la stagione e non sabato, e la banda che sta giudicando è già ridotta. Quello che cambia è
+   * che la ragione lo DICE: una banda più bassa senza il perché si legge come un ordinamento rotto.
+   */
+  out?: { until: string; lost: number; playable: number } | null;
 }): LotAdvice {
   const { band, tablePrice, slotIndex, hands, teams } = input;
   const expectedPrice = Math.max(
@@ -398,6 +469,13 @@ export function adviseLot(input: {
   );
   const waiting = worthWaiting(slotIndex, hands, teams);
   const shared = { band, hands, expectedPrice, waiting };
+  // La finestra sta IN TESTA alla ragione, non in coda: è la cosa che cambia il numero, e una ragione
+  // che comincia dal prezzo fa leggere il prezzo prima del perché.
+  const window = input.out
+    ? `Fuori fino al ${itDate(input.out.until)}: gioca ${input.out.playable} giornate su ` +
+      `${input.out.playable + input.out.lost}. `
+    : '';
+  const said = (reason: string) => window + reason;
 
   // PRIMA DI OGNI ALTRA COSA: se oggi non gioca, il verdetto è quello e non un prezzo. Sta davanti al
   // caso «non prezzato» perché è più forte - lì non sappiamo quanto vale, qui sappiamo che non gioca -
@@ -422,10 +500,11 @@ export function adviseLot(input: {
   if (tablePrice > band.high) {
     return {
       verdict: 'lascia',
-      reason:
+      reason: said(
         input.role === 'D'
           ? `Oltre ${band.high} non vale: la coppia dello slot successivo rende di più.`
           : `Oltre ${band.high} gli stessi crediti comprano più di lui.`,
+      ),
       ...shared,
     };
   }
@@ -433,7 +512,9 @@ export function adviseLot(input: {
   if (waiting) {
     return {
       verdict: 'aspetta',
-      reason: `Slot ${slotIndex} con ${hands} rose ancora aperte: il prezzo scende, lascialo passare.`,
+      reason: said(
+        `Slot ${slotIndex} con ${hands} rose ancora aperte: il prezzo scende, lascialo passare.`,
+      ),
       ...shared,
     };
   }
@@ -441,7 +522,7 @@ export function adviseLot(input: {
   if (input.exhaustedBelow >= 2) {
     return {
       verdict: 'prendi',
-      reason: 'Sotto di lui la profondità è finita: adesso vale la metà in più.',
+      reason: said('Sotto di lui la profondità è finita: adesso vale la metà in più.'),
       ...shared,
     };
   }
@@ -449,14 +530,14 @@ export function adviseLot(input: {
   if (slotIndex <= 2) {
     return {
       verdict: 'prendi',
-      reason: 'Primi due slot: non arrivano mai in saldo, aspettare vale al massimo il 20%.',
+      reason: said('Primi due slot: non arrivano mai in saldo, aspettare vale al massimo il 20%.'),
       ...shared,
     };
   }
 
   return {
     verdict: 'prendi',
-    reason: `Dentro la banda e sotto la mediana dello slot (${Math.round(input.medianFvm)} cr).`,
+    reason: said(`Dentro la banda e sotto la mediana dello slot (${Math.round(input.medianFvm)} cr).`),
     ...shared,
   };
 }

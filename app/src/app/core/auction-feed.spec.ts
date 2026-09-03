@@ -1,4 +1,7 @@
+import { TestBed } from '@angular/core/testing';
+
 import {
+  AuctionFeed,
   AuctionPlayer,
   RawState,
   applyStreamEvent,
@@ -318,5 +321,72 @@ describe('applyStreamEvent', () => {
     expect(teams.find((t) => t.id === 2)!.spent).toBe(100);
     expect(teams.find((t) => t.id === 3)!.onTheClock).toBe(true);
     expect(teams.find((t) => t.id === 2)!.orderIndex).toBe(7);
+  });
+});
+
+/**
+ * LE ROSE SCRITTE A MANO, che esistono solo sul tavolo inventato.
+ *
+ * Quello che va tenuto fermo sono i due confini, perche' se cedono non si vedono a schermo: un
+ * acquisto scritto da noi su un'asta VERA sarebbe cancellato dalla prima riga in arrivo (e nel
+ * frattempo il pannello mostrerebbe una rosa che al tavolo non esiste), e un uomo assegnato due volte
+ * avrebbe due proprietari, che `livePicks` consegnerebbe entrambi.
+ */
+describe('AuctionFeed: awardByHand / emptySquads', () => {
+  const fresh = () => {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({});
+    const feed = TestBed.inject(AuctionFeed);
+    feed.startDemo({
+      players: [...PLAYERS.values()],
+      state: structuredClone(STATE),
+      mineId: 0,
+    });
+    return feed;
+  };
+
+  it('assigns a man to a squad, at the price it is given', () => {
+    const feed = fresh();
+    const before = feed.teams().find((one) => one.id === 2)!;
+    expect(before.spent).toBe(0);
+
+    expect(feed.awardByHand(9999, 2, 120)).toBe(true);
+    const after = feed.teams().find((one) => one.id === 2)!;
+    expect(after.spent).toBe(120);
+    expect(after.budgetLeft).toBe(880);
+    // The index CONTINUES the table's own numbering: `livePicks` sorts on it, and two picks sharing
+    // one index are a history nobody can put back in order.
+    expect(feed.picks().at(-1)).toMatchObject({ index: 2, teamId: 2, playerId: 9999, cost: 120 });
+  });
+
+  it('refuses a man somebody already has', () => {
+    const feed = fresh();
+    // 5585 is the host's in the fixture: awarding him again would give him two owners.
+    expect(feed.awardByHand(5585, 3, 10)).toBe(false);
+    expect(feed.picks().length).toBe(2);
+    expect(feed.teams().find((one) => one.id === 3)!.spent).toBe(0);
+  });
+
+  it('empties every squad and leaves the regulation alone', () => {
+    const feed = fresh();
+    expect(feed.emptySquads()).toBe(true);
+    expect(feed.picks().length).toBe(0);
+    expect(feed.teams().every((one) => one.spent === 0)).toBe(true);
+    expect(feed.teams().every((one) => one.budgetLeft === 1000)).toBe(true);
+    // What is reset are the ROSTERS: seats, budget, slots and labels are the league's own facts.
+    expect(feed.teams().length).toBe(10);
+    expect(feed.budget()).toBe(1000);
+    expect(feed.teams().find((one) => one.id === 1)!.label).toBe('Ciccio');
+    expect(feed.teams().find((one) => one.id === 0)!.missing['gk']).toBe(3);
+  });
+
+  it('touches nothing at all when the table is not ours', () => {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({});
+    const feed = TestBed.inject(AuctionFeed);
+    expect(feed.demo()).toBe(false);
+    expect(feed.awardByHand(5585, 1, 10)).toBe(false);
+    expect(feed.emptySquads()).toBe(false);
+    expect(feed.picks().length).toBe(0);
   });
 });

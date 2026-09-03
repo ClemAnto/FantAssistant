@@ -100,6 +100,25 @@
           <nz-icon nzType="reload" />
           estrai
         </button>
+        <!-- AZZERA LE ROSE (sua richiesta, 04/09/2026): il tavolo inventato si gioca da sé un terzo
+             dell'asta prima di consegnare la plancia, e la sua asta comincia da zero. Dietro una
+             conferma perché butta via quello che c'è scritto - a un tavolo vero, tutto quello che ha
+             registrato fin lì - e la conferma DICE cosa tocca e cosa no. Nessun tooltip qui:
+             tooltip e popconfirm sullo stesso bottone sono due overlay, e il primo copre i tasti del
+             secondo (misurato il 20/08 sugli imbuti della tabella). -->
+        <button
+          nz-button
+          nzType="text"
+          nzSize="small"
+          nz-popconfirm
+          nzPopconfirmTitle="Azzero le rose di tutti: nessun acquisto, borse piene, tutti i nomi di nuovo nell'urna. Partecipanti, crediti e posti restano come sono."
+          nzOkText="Azzera"
+          nzCancelText="No"
+          (nzOnConfirm)="store.resetSquads()"
+        >
+          <nz-icon nzType="rollback" />
+          azzera le rose
+        </button>
       }
       <ui-flag-menu />
       <button nz-button nzType="primary" nzSize="small" (click)="connecting.set(true)">
@@ -118,7 +137,13 @@
   </header>
 
   @if (store.error()) {
-    <nz-alert class="block shrink-0" nzType="error" [nzMessage]="store.error()!" />
+    <nz-alert
+      class="block shrink-0"
+      nzType="error"
+      nzCloseable
+      [nzMessage]="store.error()!"
+      (nzOnClose)="store.error.set(null)"
+    />
   }
 
   <!-- LE TRE ZONE. Il LOTTO e' una riga sotto l'intestazione (si legge come una frase, da sinistra a
@@ -151,12 +176,29 @@
       class="w-60 shrink-0"
       [teams]="store.teams()"
       [role]="store.lot()?.block?.role ?? null"
+      [assignable]="canAssign()"
+      (assign)="onAssign($event)"
     />
   </div>
 </div>
 
 <ui-live-connect [(open)]="connecting" />
 <plancia-keeper-pairs />
-<!-- La card sta FUORI dalla griglia della plancia, in `fixed`: dentro erediterebbe il suo `overflow`
-     e si taglierebbe al primo trascinamento. -->
-<plancia-man-card />
+<!-- LE CARD stanno FUORI dalla griglia della plancia, in `fixed`: dentro erediterebbero il suo
+     `overflow` e si taglierebbero al primo trascinamento. Sono PIÙ DI UNA per sua richiesta (04/09:
+     «così si possono confrontare»), una per uomo aperto, sfalsate e trascinabili. -->
+@for (open of store.cardMen(); track open.man.id) {
+  <!-- Il POSTO viene dallo store e non da `$index`: chiudere una card non deve spostare le altre. -->
+  <plancia-man-card [man]="open.man" [at]="open.slot" />
+}
+@if (store.cardMen().length > 1) {
+  <!-- La via d'uscita, invece di un TETTO al numero di card: lui non ne ha chiesto un limite, e una
+       soglia scelta da me su quante se ne possono aprire è una soglia che nessuno ha misurato. -->
+  <button
+    type="button"
+    class="fixed bottom-3 left-1/2 z-[60] -translate-x-1/2 rounded-full border border-border bg-surface px-3 py-1 text-xs text-muted shadow-lg hover:text-fg"
+    (click)="store.openCard(null)"
+  >
+    chiudi le {{ store.cardMen().length }} card
+  </button>
+}
