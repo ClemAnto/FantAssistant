@@ -3,8 +3,7 @@
      coprirebbero appena quella cresce. Fisso e fuori dall'outlet perché quello che dichiara vale per
      ogni vista. -->
 <div
-  class="fixed bottom-3 left-3 z-(--z-dropdown) flex items-center gap-2 rounded-lg border bg-surface
-         px-3 py-2 text-xs shadow-lg"
+  class="fixed bottom-3 left-3 z-(--z-dropdown) flex items-center gap-2 rounded-lg border bg-surface px-3 py-2 text-xs shadow-lg"
   [class.border-border]="!excludedClubs().length"
   [class.border-warning]="excludedClubs().length"
 >
@@ -12,6 +11,9 @@
     <nz-icon nzType="setting" />
     Opzioni
   </button>
+  <!-- QUANTO SONO FRESCHI I DATI, su ogni pagina e senza aprire niente. Sta qui e non in una scatola
+       propria perché due riquadri fissi nello stesso angolo si coprono, e questo deve esserci sempre. -->
+  <ui-data-freshness />
   <!-- UN FILTRO GLOBALE È INVISIBILE PER COSTRUZIONE: se qualcosa è escluso lo dice qui, con quanti
        uomini nasconde, perché una lista che tace quello che ha tolto si legge come la lista intera. -->
   @if (excludedClubs().length) {
@@ -253,11 +255,11 @@
       <nz-tab [nzTitle]="clubsTab">
         <div class="flex flex-col gap-3 pt-2">
           <p class="text-xs text-muted">
-            Una squadra esclusa esce da OGNI vista e da ogni conto dell'app: i suoi uomini non compaiono
-            in nessuna lista, non entrano in nessun pool - le fasce di colore e le stelline sono
-            percentili, e un percentile è un fatto sul pool - e nessun consiglio li propone. Restano
-            invece le colonne del motore (surplus, rimpiazzo, Fantapunti), che le scrive il toolkit per
-            una lega intera: questa app le legge e non le ricalcola.
+            Una squadra esclusa esce da OGNI vista e da ogni conto dell'app: i suoi uomini non
+            compaiono in nessuna lista, non entrano in nessun pool - le fasce di colore e le
+            stelline sono percentili, e un percentile è un fatto sul pool - e nessun consiglio li
+            propone. Restano invece le colonne del motore (surplus, rimpiazzo, Fantapunti), che le
+            scrive il toolkit per una lega intera: questa app le legge e non le ricalcola.
           </p>
 
           <div class="flex flex-wrap items-center gap-2">
@@ -318,13 +320,20 @@
                       class="flex items-center gap-2 text-sm"
                       nz-tooltip
                       [nzTooltipTitle]="
-                        club.men.default + ' quotati sul listone Serie A, ' + club.men.euro +
+                        club.men.default +
+                        ' quotati sul listone Serie A, ' +
+                        club.men.euro +
                         ' su EuroLeghe'
                       "
                       [ngModel]="isExcluded(club)"
                       (ngModelChange)="toggle(club, $event)"
                     >
-                      <ui-crest [club]="club.name" [clubId]="club.id" [crests]="crests()" size="sm" />
+                      <ui-crest
+                        [club]="club.name"
+                        [clubId]="club.id"
+                        [crests]="crests()"
+                        size="sm"
+                      />
                       <span class="truncate" [class.text-muted]="isExcluded(club)">{{
                         club.name
                       }}</span>

@@ -481,6 +481,37 @@ export class PlayerStatus {
   /** The declared notes of this bundle's season, keyed by `fc_id`. Empty when nothing is declared. */
   readonly declared = signal<Map<number, PlayerNote>>(new Map());
 
+  /**
+   * IL GIORNO IN CUI ABBIAMO GUARDATO la fonte veloce, che è una domanda diversa da «quando è stato
+   * scritto il pacchetto».
+   *
+   * Serve perché la conseguenza è invisibile: oltre `UNAVAILABLE_FRESH_DAYS` i marchi si spengono da
+   * soli, e uno schermo senza allarmi si legge esattamente come «non c'è nessuno fuori». Quella è la
+   * stessa assenza con due significati che il 03/09/2026 ha fatto aggiungere `injuries.observed_on` al
+   * toolkit; qui la si dice invece di lasciarla dedurre.
+   *
+   * `null` è «il pacchetto non porta la tabella», che non è «nessuno è indisponibile».
+   */
+  readonly pressReadOn = computed<string | null>(() => {
+    let latest: string | null = null;
+    for (const entry of this.unavailable().values()) {
+      if (!latest || entry.on > latest) latest = entry.on;
+    }
+    return latest;
+  });
+
+  /** Da quanti giorni non guardiamo. `null` quando non abbiamo mai guardato. */
+  readonly pressAge = computed<number | null>(() => {
+    const on = this.pressReadOn();
+    return on ? daysBetween(on, this.today()) : null;
+  });
+
+  /** Gli allarmi sono SPENTI: la lettura è troppo vecchia perché un marchio possa comparire. */
+  readonly pressStale = computed(() => {
+    const age = this.pressAge();
+    return age == null || age > UNAVAILABLE_FRESH_DAYS;
+  });
+
   /** Chi la stampa dà per fuori OGGI: lo stato più fresco che questa app abbia. */
   private readonly pressMarks = computed(() => {
     const today = this.today();

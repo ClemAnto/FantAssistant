@@ -1,0 +1,20 @@
+<!-- UI text is ITALIAN in app/ (see app/CLAUDE.md); code and comments stay English.
+
+     Sta dentro la barra delle opzioni globali e non in una scatola sua: due riquadri fissi nello stesso
+     angolo si coprono, e questo deve stare a schermo SEMPRE - non essere una terza cosa da cercare. -->
+<span
+  class="flex items-center gap-1 rounded-md px-2 py-0.5 font-medium"
+  [class]="tone()"
+  nz-tooltip
+  [nzTooltipTitle]="hint()"
+  nzTooltipOverlayClassName="whitespace-pre-line"
+>
+  <nz-icon [nzType]="icon()" />
+  @if (stale()) {
+    <!-- La parola dice la CONSEGUENZA e non l'età: «vecchi di 5 giorni» non fa capire che gli allarmi
+         non compaiono più, «allarmi spenti» sì. -->
+    <span>allarmi spenti · {{ label() }}</span>
+  } @else {
+    <span>dati {{ label() }}</span>
+  }
+</span>

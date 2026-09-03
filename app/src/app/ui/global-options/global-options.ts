@@ -17,6 +17,7 @@ import { ClubOption, GlobalOptions, LeagueSettings } from '../../core/global-opt
 import { ClassicRole, competitionLabel } from '../../core/players-store';
 import { ValuationStore } from '../../core/valuation-store';
 import { ClubCrest } from '../club-crest/club-crest';
+import { DataFreshness } from '../data-freshness/data-freshness';
 import { RoleBadge } from '../role-badge/role-badge';
 
 /** Le squadre di un campionato, come si scelgono: un gruppo per campionato, nell'ordine del config. */
@@ -44,6 +45,7 @@ interface ClubGroup {
   templateUrl: './global-options.html',
   imports: [
     ClubCrest,
+    DataFreshness,
     FormsModule,
     NzButtonModule,
     NzCheckboxModule,
@@ -115,10 +117,10 @@ export class GlobalOptionsPanel {
     const hidden = this.hidden();
     if (!clubs.length) return '';
     return (
-      `Fuori da ogni vista e da ogni conto: ${clubs.map((one) => one.name).join(', ')}. `
-      + `Nasconde ${hidden.default} uomini del listone Serie A e ${hidden.euro} di EuroLeghe. `
-      + 'Le colonne del motore - surplus, rimpiazzo, Fantapunti - restano quelle del foglio: le scrive '
-      + 'il toolkit per una lega intera, e questa app non ha un motore per rifarle.'
+      `Fuori da ogni vista e da ogni conto: ${clubs.map((one) => one.name).join(', ')}. ` +
+      `Nasconde ${hidden.default} uomini del listone Serie A e ${hidden.euro} di EuroLeghe. ` +
+      'Le colonne del motore - surplus, rimpiazzo, Fantapunti - restano quelle del foglio: le scrive ' +
+      'il toolkit per una lega intera, e questa app non ha un motore per rifarle.'
     );
   });
 
@@ -163,8 +165,9 @@ export class GlobalOptionsPanel {
   /** Il foglio che la scelta (listone, gioco) implica: la finestra lo nomina PRIMA di applicarla. */
   protected readonly formSheet = computed<EngineSheetEntry | null>(() => {
     const { platform, game } = this.form();
-    return this.valuation.sheets().find((one) => one.platform === platform && one.game === game)
-      ?? null;
+    return (
+      this.valuation.sheets().find((one) => one.platform === platform && one.game === game) ?? null
+    );
   });
 
   /** Cosa il bundle porta davvero, per dirlo quando la combinazione scelta non c'è. */

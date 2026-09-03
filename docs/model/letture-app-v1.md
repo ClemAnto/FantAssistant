@@ -1869,3 +1869,80 @@ prima che possa riordinare un'offerta. I numeri sono in
 scritto qui il 01/09 non si riproduce (rilievo 2 della review del 02/09, §13). Quindi la colonna serve a
 chi guarda, non a chi calcola: è esattamente la distinzione fra le colonne `desc_*` e `engine_*`,
 applicata a una lettura dell'app.
+
+
+## 22. «OGGI NON GIOCA»: il canale veloce, e la freschezza detta a schermo (3 settembre 2026)
+
+**Due richieste dell'operatore nella stessa sessione, e la seconda esiste per una conseguenza della
+prima.** «È assolutamente necessario avere aggiornamenti sugli infortuni in tempo reale ... dobbiamo
+recepire anche la notizia di corridoio per alzare almeno un alert»; e poi «ho bisogno di sapere sempre
+nell'interfaccia se i dati sono aggiornati ad oggi in maniera evidente».
+
+### 22.1 Il dato c'era, e mancava una riga in una allowlist
+
+Misurato prima di costruire, come impone la regola di casa dopo che una volta ha risparmiato uno scraper
+intero. La tabella `availability` — che il modulo `fc_site` riempie dalla pagina *indisponibili* di
+fantacalcio.it, ogni giorno, per **tutti e cinque i campionati** — era già nel DB, già nel contratto di
+export e già scritta in `data/export/<season>/json/`. Non era nella allowlist `TABLES` di
+`app/scripts/pull-bundle.mjs`, quindi l'app non l'aveva mai vista. **Terza istanza** dello stesso difetto
+(i campetti il 10/08, la cartella aggiunta all'export e non al pull, e la regola scritta allora vale
+identica per una tabella).
+
+**Quanto vale, il giorno in cui è stato collegato**: 114 uomini del listone 2026-27 dati indisponibili —
+43 Serie A · 33 Premier · 19 Bundesliga · 13 Liga · 6 Ligue 1 — e **70 di quei 114 non avevano un
+infortunio aperto su Transfermarkt**, che è la fonte UFFICIALE che l'app già leggeva. Il 61%
+dell'informazione «è indisponibile adesso» esisteva solo lì. McTominay era uno dei 70: `availability` lo
+dava `injured` il 03/09, l'ufficiale era fermo a febbraio.
+
+### 22.2 Una TERZA domanda, con la sua soglia
+
+`PlayerStatus.unavailableNow()` non riusa nessuna delle due soglie che esistevano, e la ragione è la
+regola che questo progetto paga da sempre: **una soglia presa in prestito da un'altra domanda è un
+difetto**. `LONG_INJURY_DAYS` = 45 decide se DISEGNARE un'icona; `sealed-bid.LONG_OUT_DAYS` = 30 decide
+se un uomo merita una BUSTA per l'intera tornata; questa decide se schierarlo o comprarlo **per sabato**,
+e su quell'orizzonte non conta quanto durerà: conta che oggi è fuori. Due prove, la stampa (veloce) e
+l'infortunio ufficiale aperto (lento), e chi porta la prima e non la seconda *è* il caso da cui è nata.
+
+**Una lettura più vecchia di `UNAVAILABLE_FRESH_DAYS` = 3 SPEGNE il marchio invece di mentire**, perché
+«non abbiamo guardato» non è «è rientrato». È la stessa distinzione che lo stesso giorno ha fatto
+aggiungere `injuries.observed_on` al toolkit — la tabella non sapeva dire se un finestra vuota fosse
+un'assenza di infortuni o un'assenza di sguardo, e la risposta viveva nei timestamp di 4.662 file di
+cache, cioè fuori dal database.
+
+### 22.3 VINCOLO e non peso, su tre superfici decisionali
+
+Richiesta successiva: «segnalati nettamente nell'interfaccia e in qualsiasi gerarchia/ordinamento fatto
+per prendere decisioni nell'immediato». Applicato come CONSTRAINT e mai come peso — la stessa forma che
+la pagina delle buste dà alle tre regole dichiarate dall'operatore — **perché non sappiamo per quanto
+starà fuori e quindi non possiamo riprezzarlo**: possiamo solo non proporlo per primo.
+
+| superficie | cosa fa |
+|---|---|
+| plancia | prima chiave dell'ordine dentro lo slot · verdetto **`fermo`**, quinto stato prima di ogni prezzo · riga barrata in rosso · conto in barra |
+| pannello draft | `ranked` ordina per `sinksNow` prima che per valore |
+| buste chiuse | `buyable` lo rifiuta, accanto a fuori-rosa e infortunio lungo |
+
+Resta ovunque nella lista col suo prezzo: toglierlo nasconderebbe un fatto, e l'operatore può saperne più
+del pacchetto. Il tooltip apre con la ragione — «OGGI NON GIOCA. È in fondo al suo slot per questo, non
+perché valga meno» — perché **un vincolo che agisce in silenzio è indistinguibile da un ordinamento
+rotto**, e per la stessa ragione la barra della plancia dichiara quanti nomi ha fatto scendere.
+
+**Una tensione dichiarata e non risolta**: la plancia è un'asta, e un'asta iniziale compra per la
+STAGIONE. Far scendere un top perché è fuori questa settimana è giusto per «compro per sabato» e
+discutibile per «compro per maggio», e la voce di corridoio non dice per quanto — quindi non distingue
+mesi da sette giorni. Scelto il comportamento che l'operatore ha chiesto; la variante «scende solo se
+l'assenza è lunga o senza data di rientro» è una riga e usa una soglia che esiste già.
+
+### 22.4 La freschezza è a schermo perché la conseguenza è invisibile
+
+`ui/data-freshness`, dentro la barra fissa delle opzioni globali: su ogni pagina, senza aprire niente.
+**Due date, due domande, e nessuna si assume** — quando è stato SCRITTO il pacchetto
+(`manifest.generated_at`, da lì vengono fantamedia, presenze e surplus) e quando abbiamo GUARDATO la
+fonte veloce (l'ultima lettura degli indisponibili, da lì vengono gli allarmi). La seconda cambia ogni
+giorno, la prima a ogni export.
+
+**Il colore dice la CONSEGUENZA e non l'età.** Oltre i tre giorni la pastiglia diventa rossa e la scritta
+è «allarmi spenti», non «vecchi di cinque giorni»: oltre quella soglia i marchi non compaiono più, e uno
+schermo senza allarmi si legge come «non c'è nessuno fuori». Quando è tutto di oggi la pastiglia è
+NEUTRA, perché «va bene» non è una notizia. Verificata con un puntatore vero su tre pagine: presente,
+dentro la finestra, e `elementFromPoint` al suo centro risponde con sé stessa.

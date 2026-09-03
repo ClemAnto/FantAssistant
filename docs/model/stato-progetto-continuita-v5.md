@@ -4103,9 +4103,65 @@ audit che risponde «nessun problema» dopo aver guardato niente.
 bundle non porta la colonna**. La metà app legge `availability` e non quella, quindi niente è rotto: il
 valore arriva dopo una corsa di `injuries` e un `export`.
 
+> **SALDATO alle 13:17 dello stesso giorno**: la migrazione è passata sul DB vivo (`[db] migrated: added
+> injuries.observed_on`, stampata da un `update --plan`). Resta il solo `export`, che un guardiano in
+> background lancerà appena l'acquisizione in corso libera il database. Vedi la chiusura (3).
+
 ### Prossimi passi
 
 Invariati rispetto alla chiusura precedente (`simulatore-asta-rilanci-v1.md` §28.2, con in cima la
 disomogeneità della stanza e il §16 da rimisurare senza le fasi). Si aggiunge, se un giorno servisse:
 la probabilità di porta inviolata esiste **solo per la Serie A** — per gli altri quattro campionati
 servirebbero i gol subiti per partita-club, che oggi il layer non porta.
+
+
+## CHIUSURA della sessione 03/09/2026 (3) — l'allarme che arriva in tempo, e la freschezza detta a schermo
+
+Terza chiusura della giornata e **coda della metà «chi oggi non gioca»**, che il commit `3ef01e0` aveva
+portato dentro senza il suo verbale. Dettaglio in `letture-app-v1.md` **§22**. `engine_*`, i fogli e le
+revisioni **non si muovono**.
+
+### La domanda che ha aperto tutto, e la risposta che stava fuori dal database
+
+«Come mai non abbiamo nessun infortunio di serie a che risale a oggi o ieri?» Cinque interrogazioni e un
+elenco di file per scoprire che **il 96% delle pagine che avevamo in mano era stato letto il 1º
+settembre**: una pagina letta l'1 non può contenere un infortunio cominciato il 2, ed è
+un'impossibilità di costruzione e non un fatto sul calcio. Il buco non era della Serie A — nessuno dei
+cinque campionati aveva una riga del 2 o del 3 — e la finestra era comunque magra (fra l'1 e il 2 non si
+è giocata una partita nei cinque). Da qui **`injuries.observed_on`**: la data della LETTURA, presa dal
+file di cache e non dall'orologio, così un `rebuild` non ristampa oggi su una pagina letta a luglio.
+**Migrazione applicata sul DB vivo alle 13:17** — la riga di debito scritta nella chiusura (2) è saldata.
+
+### Il canale veloce c'era già, e mancava una riga
+
+`availability` era nel DB, nel contratto di export e nel `data/export/`: non era nella allowlist del
+`pull-bundle`. **Terza istanza** dello stesso difetto. Vale 114 indisponibili sul listone di cui **70
+senza un infortunio aperto sull'ufficiale**, McTominay compreso.
+
+### Il vincolo, e la parola che lo governa
+
+`unavailableNow()` è una TERZA domanda con la sua soglia (45 disegna un'icona, 30 merita una busta,
+questa decide per sabato), e agisce come **CONSTRAINT e mai come peso** su plancia, pannello draft e
+buste chiuse — perché non sappiamo per quanto starà fuori e riprezzarlo sarebbe inventare. Una lettura
+più vecchia di tre giorni **spegne** il marchio invece di mentire.
+
+### E la freschezza è a schermo perché la conseguenza è invisibile
+
+`ui/data-freshness` nella barra fissa: due date (pacchetto scritto · fonte veloce letta) e un colore che
+dice la conseguenza, non l'età — oltre i tre giorni «allarmi spenti», perché uno schermo senza allarmi si
+legge come «non c'è nessuno fuori».
+
+### Verifiche
+
+`ng build` verde, **593 test app su 37 file**, **638 toolkit**. Misurato in un browser sull'app
+compilata: 15 righe barrate sulla plancia **tutte in posizione 9-10 su 10** nel loro blocco, la barra che
+dichiara «15 oggi fuori», la pastiglia della freschezza presente su tre pagine e non coperta
+(`elementFromPoint` risponde con sé stessa). Nessuna eccezione.
+
+### Aperto
+
+Un `export` nuovo, perché il pacchetto è del 01/09 e McTominay è segnalato il 03: un guardiano in
+background aspetta che l'acquisizione dell'altra sessione finisca (tre prove: cache ferma da 10 minuti,
+nessun journal, il DB che si lascia prendere in scrittura) e poi lancia `update --offline`. E le
+**probabili formazioni euro** restano lette e inutilizzabili: la pagina non dice di che stagione parla,
+e dedurlo dalla data è l'inferenza rifiutata il 07/08 con i numeri.

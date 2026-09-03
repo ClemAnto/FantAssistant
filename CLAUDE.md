@@ -1010,6 +1010,49 @@ Due convenzioni nate qui e da rispettare altrove.
   giornata, il tempismo +1,3, due attaccanti del secondo slot invece di un top +0,8, i consigli del
   motore dentro uno slot +0,7, un buco −4,7.
 
+## Un'assenza recente ha DUE significati, e la piu' cara e' «non abbiamo guardato»
+**03/09/2026, da una domanda dell'operatore: «come mai non abbiamo nessun infortunio di serie a che
+risale a oggi o ieri?». Dettaglio: `letture-app-v1.md` §22.** Ci sono volute cinque interrogazioni e un
+elenco di file per rispondere, e la risposta era che **il 96% delle pagine in cache era stato letto il 1º
+settembre**: una pagina letta l'1 non puo' contenere un infortunio cominciato il 2. Impossibilita' di
+costruzione, non un fatto sul calcio — e il buco era uniforme sui cinque campionati, che e' la firma di
+una causa nostra. Da qui **`injuries.observed_on`**: la data della LETTURA, presa dal file di cache e mai
+dall'orologio, cosi' un `rebuild` che rigioca la cache non ristampa oggi su una pagina di luglio. La
+regola generale: **una tabella datata sull'EVENTO ha bisogno anche della data dell'OSSERVAZIONE**, o non
+sa distinguere un'assenza di fatti da un'assenza di sguardo — «vuoto = ignoto» applicato a una tabella
+intera invece che a una colonna. E se quella data vive fuori dal database (li' erano i timestamp di 4.662
+file), nessuna query puo' arrivarci.
+
+**IL CANALE VELOCE C'ERA GIA', E MANCAVA UNA RIGA IN UNA ALLOWLIST.** `availability` — la pagina
+*indisponibili* di fantacalcio.it, riletta ogni giorno su tutti e cinque i campionati — era nel DB, nel
+contratto di export e scritta in `data/export/`: non era in `TABLES` di `pull-bundle.mjs`, quindi l'app
+non l'aveva mai vista. **Terza istanza** del difetto dei campetti (10/08), e la regola scritta allora —
+«una cartella aggiunta all'EXPORT va aggiunta anche li'» — vale identica per una TABELLA. Quanto valeva:
+114 indisponibili del listone, e **70 di quei 114 senza un infortunio aperto sull'ufficiale** che l'app
+gia' leggeva. Misurare prima di costruire ha risparmiato uno scraper, per la seconda volta.
+
+**UNA SOGLIA PRESA IN PRESTITO DA UN'ALTRA DOMANDA E' UN DIFETTO, e qui le domande sono TRE.**
+`LONG_INJURY_DAYS` 45 decide se DISEGNARE un'icona, `sealed-bid.LONG_OUT_DAYS` 30 se un uomo merita una
+BUSTA per la tornata, e `unavailableNow()` se schierarlo o comprarlo **per sabato** — dove non conta
+quanto durera', conta che oggi e' fuori. Tre nomi, tre soglie, nessuna riusata.
+
+**E QUANDO NON SI SA PER QUANTO, SI VINCOLA INVECE DI RIPREZZARE.** Su richiesta dell'operatore i casi
+come McTominay scendono in fondo a ogni graduatoria che decide nell'immediato (plancia, pannello draft,
+buste chiuse) — ma come CONSTRAINT e mai come peso, la stessa forma delle tre regole dichiarate della
+pagina delle buste: una voce di corridoio non dice la durata, quindi riprezzarlo sarebbe inventare.
+Restano tutti in lista col loro prezzo, perche' toglierli nasconderebbe un fatto. Due corollari:
+**un vincolo che agisce in silenzio e' indistinguibile da un ordinamento rotto**, quindi la ragione sta
+in cima al tooltip e il conto e' dichiarato in barra; e la tensione resta detta invece di risolta — la
+plancia e' un'asta e un'asta iniziale compra per la STAGIONE, quindi far scendere un top fuori per sette
+giorni e' giusto per «compro per sabato» e discutibile per «compro per maggio».
+
+**E UNA LETTURA CHE SCADE SPEGNE IL MARCHIO, quindi la FRESCHEZZA sta a schermo** (`ui/data-freshness`,
+nella barra fissa, su ogni pagina). Due date e due domande — quando e' stato scritto il pacchetto, quando
+abbiamo guardato la fonte veloce — e **il colore dice la CONSEGUENZA e non l'eta'**: oltre tre giorni la
+pastiglia e' rossa e dice «allarmi spenti», perche' uno schermo senza allarmi si legge come «non c'e'
+nessuno fuori», che e' la bugia piu' cara che questa app possa dire. Quando e' tutto di oggi e' neutra:
+«va bene» non e' una notizia.
+
 ## La sua asta e' a ESTRAZIONE LIBERA, e la PLANCIA e' scritta
 **03/09/2026, correzione dell'operatore sulla sua stessa asta + `app/src/app/views/plancia/`. Dettaglio:
 `simulatore-asta-rilanci-v1.md` §29 e `assistente-asta-v1.md` §33.** «L'asta estrae calciatori random
