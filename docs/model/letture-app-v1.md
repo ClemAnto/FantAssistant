@@ -1909,6 +1909,15 @@ aggiungere `injuries.observed_on` al toolkit — la tabella non sapeva dire se u
 un'assenza di infortuni o un'assenza di sguardo, e la risposta viveva nei timestamp di 4.662 file di
 cache, cioè fuori dal database.
 
+**E la rilettura è stata fatta, il 03/09 sera tardi**: la camminata ripresa con `--stale-days 1` ha
+chiuso **1891 giocatori su 1891** senza un rifiuto, e ora `injuries` legge **35.995 righe tutte con
+`observed_on` = 2026-09-03** — «pagine lette fra il 2026-09-03 e il 2026-09-03», che è la frase che
+stamattina non si poteva dire. Quanto ha portato, detto per intero perché è piccolo: **9 assenze
+cominciate dal 1º settembre, 4 dal 2** — cioè esattamente quello che una pagina letta l'1 non poteva
+contenere — e sul listone Serie A **17 uomini con un infortunio aperto, 3 dei quali cominciato dal 1º**.
+Il buco era reale e stretto: il valore della cura non è il conteggio di oggi, è che da oggi la tabella
+sa dire quando è stata guardata.
+
 ### 22.3 VINCOLO e non peso, su tre superfici decisionali
 
 Richiesta successiva: «segnalati nettamente nell'interfaccia e in qualsiasi gerarchia/ordinamento fatto

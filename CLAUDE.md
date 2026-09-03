@@ -3065,7 +3065,10 @@ lette oggi e 2100 lette due giorni fa: `--refresh` ripaga tutt'e due le meta', s
 nessuna. `--stale-days N` (1 = «non letta oggi», 7 = la cadenza di un archivio settimanale) e' la stessa
 quantita' che `injuries.observed_on` archivia, ed e' misurata sulla cache PRIMA di lanciare (0 · 2100 ·
 24 pagine su 4664). Un file che non esiste e' stale a prescindere dal parametro: non c'e' una lettura
-che possa essere vecchia.
+che possa essere vecchia. La corsa ripresa ha chiuso 1891 su 1891 e `injuries` porta ora **35.995 righe
+tutte con `observed_on` = 03/09** — e quello che la rilettura ha portato va detto per intero perche' e'
+piccolo: **9 assenze cominciate dal 1º settembre, 4 dal 2**. *Il valore di una cura del genere non e' il
+conteggio del giorno in cui la si fa: e' che da quel giorno la tabella sa quando e' stata guardata.*
 
 **Un preset e' una SELEZIONE dell'ordine unico, e il criterio e' cosa il passo OSSERVA.** `update
 --daily` (7 passi, ~40 min contro 22h34) filtra `plan()` e non ne scrive una copia — un test asserisce

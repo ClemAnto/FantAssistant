@@ -4234,6 +4234,14 @@ Lanciata **due volte**, e la seconda per una ragione di casa: la prima girava co
 cioè un processo di due ore che per due ore non dice niente — indistinguibile da uno rotto. `-u`, e il
 prezzo sono i venti scaricati nel frattempo.
 
+**FINITA: 1891 su 1891, nessun rifiuto**, e con il `reingest_from_cache` che la chiude `injuries` porta
+ora **35.995 righe tutte con `observed_on` = 2026-09-03** — «pagine lette fra il 2026-09-03 e il
+2026-09-03», che è la frase che stamattina non si poteva dire. **Il debito ereditato dalla chiusura (2)
+è saldato.** Quanto ha portato, detto per intero perché è piccolo: **9 assenze cominciate dal 1º
+settembre, 4 dal 2** (esattamente ciò che una pagina letta l'1 non poteva contenere), e sul listone
+Serie A **17 uomini con un infortunio aperto, 3 cominciati dal 1º**. Il buco era reale e stretto: il
+valore della cura non è il conteggio di oggi, è che da oggi la tabella sa quando è stata guardata.
+
 ### 2. `update --daily` — ~40 minuti contro 22h34, e la derivazione è fuori per un'affermazione sul grafo
 
 `DAILY` è un dizionario `{chiave: perché}` e `plan(daily=True)` FILTRA l'ordine unico: mai una seconda
@@ -4283,7 +4291,16 @@ nessuna modifica tocca `evaluate`, `presence` o `snapshot`.
 
 ### Aperto
 
-`injuries` sta scaricando (200/1891 alle 17:20): a fine corsa fa da sé il `reingest_from_cache`, e
-**allora `observed_on` si popola davvero** — il debito ereditato dalla chiusura (2) si salda lì, seguito
-da un `export` per portarlo nel bundle. Poi restano i punti del §10 del verbale della rosa: gli `anchor`
-sono un'ACQUISIZIONE e non una formula, e la pagina della sua lega vuole un browser pilotato.
+**Un `export`**, e adesso ne vale due volte la pena: il pacchetto è del 01/09 e il DB porta gli
+infortuni riletti oggi (35.995 righe datate 03/09) più il foglio Serie A ricostruito a 638 righe. Non
+lanciato perché l'operatore ha chiuso la sessione senza rispondere alla domanda; è un comando solo
+(`update --daily --from sheets`, oppure `export` più `npm run data:pull`).
+
+Restano i punti del §10 del verbale della rosa: gli `anchor` sono un'ACQUISIZIONE e non una formula (e
+il §11 ne ha appena misurato il prezzo — 0,35 a giornata di cecità su cinque uomini), e la pagina della
+sua lega vuole un browser pilotato, che è anche l'unico modo di sapere quali dei nomi consigliati siano
+davvero liberi.
+
+E una cosa che questa sessione ha reso comoda e nessuno ha ancora usato: **`--stale-days` esiste per
+tutti gli archivi di `injuries`, non solo per riprendere**. `--stale-days 7` è la cadenza dichiarata di
+quell'archivio, quindi la corsa settimanale che il preset `--daily` lascia fuori ha già la sua forma.

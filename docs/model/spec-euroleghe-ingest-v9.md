@@ -515,7 +515,13 @@ riprendere.
 ragione. `--stale-days 1` rilegge tutto ciò che non è stato letto oggi (che è cosa vuol dire riprendere),
 `--stale-days 7` è la cadenza di un archivio settimanale, `--refresh` resta esattamente quello che era.
 Misurato sulla cache PRIMA di lanciare: `None` → 0 pagine, `1` → **2100 su 4664**, `7` → 24. La corsa
-ripresa ha annunciato **1891 giocatori su 3721, ~102 minuti** invece dei 3721 di un `--refresh`.
+ripresa ha annunciato **1891 giocatori su 3721, ~102 minuti** invece dei 3721 di un `--refresh`, e ha
+chiuso **1891 su 1891** senza un rifiuto: `injuries` porta ora **35.995 righe tutte con `observed_on` =
+2026-09-03**, cioè «pagine lette fra il 2026-09-03 e il 2026-09-03». Quello che la rilettura ha portato è
+piccolo e va detto per intero — **9 assenze cominciate dal 1º settembre, 4 dal 2**, sul listone Serie A
+17 uomini con un infortunio aperto di cui 3 cominciati dal 1º: il buco che l'operatore aveva trovato
+stamattina era reale e stretto, e il valore della cura è che da oggi la tabella sa dire quando è stata
+guardata. **Il debito ereditato dalla chiusura (2) è saldato**; resta un `export` per portarlo nel bundle.
 
 Un file che non esiste è stale a prescindere dal parametro: **non c'è una lettura che possa essere
 vecchia**. Sta scritto nella funzione e non nel chiamante, e il test lo asserisce proprio perché la prima
