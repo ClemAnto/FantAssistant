@@ -232,9 +232,9 @@ export class SealedBid {
    * perdere quello che c'era scritto - un azzeramento silenzioso si legge come «non c'era niente».
    */
   protected readonly reserve = signal<number>(
-    readJson<number | null>(KEY.reserve, null)
-      ?? readJson<{ reserve?: number }>('sealedBid.rules', {}).reserve
-      ?? 0,
+    readJson<number | null>(KEY.reserve, null) ??
+      readJson<{ reserve?: number }>('sealedBid.rules', {}).reserve ??
+      0,
   );
 
   /**
@@ -256,7 +256,9 @@ export class SealedBid {
     };
   });
   /** The operator's own substitutions: the man the plan proposed -> the man he prefers. */
-  protected readonly swaps = signal<Record<number, number>>(readJson<Record<number, number>>(KEY.swaps, {}));
+  protected readonly swaps = signal<Record<number, number>>(
+    readJson<Record<number, number>>(KEY.swaps, {}),
+  );
   /**
    * ...and his own NUMBERS, per man: what he decided to write instead of what was suggested.
    *
@@ -264,7 +266,9 @@ export class SealedBid {
    * else in this slot» against «the same man, at my price» - and a screen that could not tell them apart
    * would not know what to restore when «torna ai consigli» is pressed.
    */
-  protected readonly offers = signal<Record<number, number>>(readJson<Record<number, number>>(KEY.offers, {}));
+  protected readonly offers = signal<Record<number, number>>(
+    readJson<Record<number, number>>(KEY.offers, {}),
+  );
   /**
    * The envelopes we have actually SENT, one entry per round, with the chance each carried at the time.
    *
@@ -353,10 +357,7 @@ export class SealedBid {
   private loadSeasons(): void {
     const seasons = [this.store.inputSeason(), this.store.targetSeason()].filter(Boolean);
     if (!seasons.length) return;
-    void Promise.all([
-      this.bundle.table('season_stats'),
-      this.bundle.table('external_match_stats'),
-    ])
+    void Promise.all([this.bundle.table('season_stats'), this.bundle.table('external_match_stats')])
       .then(([seasonStats, matches]) =>
         this.lines.set(seasonLines({ seasonStats, matches, platform: PLATFORM, seasons })),
       )
@@ -411,7 +412,7 @@ export class SealedBid {
    * `buyable` is asked inside `priced`, deep in the solver, where no service can be injected.
    */
   protected readonly pool = computed<
-    (SquadMan & { outDays: number | null; outOfSquad: boolean })[]
+    (SquadMan & { outDays: number | null; outOfSquad: boolean; unavailableNow: boolean })[]
   >(() => {
     const listone = this.store.rosters().get(PLATFORM) ?? [];
     const declared = this.status.declared();
@@ -422,6 +423,9 @@ export class SealedBid {
       // non puo' saperlo (vedi `Bidder.outOfSquad`). Viaggia con la riga per la stessa ragione dei
       // giorni di infortunio - `buyable` la chiede dentro il solver, dove nessun servizio arriva.
       outOfSquad: declared.get(one.fcId)?.kind === 'out_of_squad',
+      // ...e la voce del giorno, che e' l'unica che arriva in tempo: l'ufficiale conferma dopo, e nel
+      // frattempo il piano scriverebbe buste su chi sabato non c'e'. Viaggia con la riga come le altre due.
+      unavailableNow: !!this.status.unavailableNow(one.fcId),
     }));
   });
 
@@ -575,7 +579,14 @@ export class SealedBid {
       // A name HE chose is a serious bid, never a lottery ticket: he picked the man, not the odds.
       // The gain is recomputed for the whole list below, so it is left at zero here rather than
       // carried over from the man he replaced.
-      return { candidate: other, gain: 0, offer, raised: false, shot: false, chance: winChance(offer, other.ask) };
+      return {
+        candidate: other,
+        gain: 0,
+        offer,
+        raised: false,
+        shot: false,
+        chance: winChance(offer, other.ask),
+      };
     });
     // Then what he took out and what he put in. The order matters: a name he added is not a suggestion
     // to be swapped, and a name he removed must not come back through the extras.
@@ -592,11 +603,19 @@ export class SealedBid {
       // A hand-written envelope is edited by editing HIS list (see `swapTo`), so there is nothing to
       // resolve: the id in `extras` is always the man on screen.
       const candidate = byMan.get(fcId);
-      if (!candidate || shown.some((bid) => bid.candidate.man.fcId === candidate.man.fcId)) continue;
+      if (!candidate || shown.some((bid) => bid.candidate.man.fcId === candidate.man.fcId))
+        continue;
       const offer = Math.max(1, candidate.ask.ask);
       // Appended and never sorted in: a list that reshuffles when you add a name cannot be checked
       // against the one you were looking at a second ago.
-      shown.push({ candidate, gain: 0, offer, raised: false, shot: false, chance: winChance(offer, candidate.ask) });
+      shown.push({
+        candidate,
+        gain: 0,
+        offer,
+        raised: false,
+        shot: false,
+        chance: winChance(offer, candidate.ask),
+      });
     }
     // The operator's own number wins over everything: it is the one thing on this screen that is not a
     // suggestion. The chance is re-read from it, so the percentage always describes the offer beside it.
@@ -623,7 +642,11 @@ export class SealedBid {
     // WHAT EACH ENVELOPE ADDS, re-read after every hand edit and not only in the automatic plan: in
     // goal the department is one place, so removing a keeper changes what the other one is worth. The
     // same function the solver used, so the rows on screen and the total under them cannot disagree.
-    const adds = marginalGains(shown.map((bid) => bid.candidate.man), mine.men, this.rules());
+    const adds = marginalGains(
+      shown.map((bid) => bid.candidate.man),
+      mine.men,
+      this.rules(),
+    );
     for (const bid of shown) bid.gain = adds.get(bid.candidate.man.fcId) ?? 0;
     // `expectedGain` and `unfilled` are recomputed HERE and not inherited from `auto`: the first is
     // printed beside `gain` on the same line, so after a deletion the automatic one could read HIGHER
@@ -709,7 +732,12 @@ export class SealedBid {
   protected readonly contested = computed<Contested[]>(() => {
     const me = this.me();
     if (!me) return [];
-    return contestedOf({ candidates: this.candidates(), states: this.states(), rules: this.rules(), me });
+    return contestedOf({
+      candidates: this.candidates(),
+      states: this.states(),
+      rules: this.rules(),
+      me,
+    });
   });
 
   /**
@@ -903,7 +931,9 @@ export class SealedBid {
     this.openBid.set(this.openBid() === fcId ? null : fcId);
   }
 
-  protected alternativesFor(bid: Bid): { candidate: Candidate; delta: number | null; affordable: boolean }[] {
+  protected alternativesFor(
+    bid: Bid,
+  ): { candidate: Candidate; delta: number | null; affordable: boolean }[] {
     const mine = this.mine();
     const plan = this.plan();
     if (!mine || !plan) return [];
@@ -1065,7 +1095,8 @@ export class SealedBid {
     return words
       ? rows.filter(
           (one) =>
-            one.man.name.toLowerCase().includes(words) || one.man.club.toLowerCase().includes(words),
+            one.man.name.toLowerCase().includes(words) ||
+            one.man.club.toLowerCase().includes(words),
         )
       : rows;
   });
@@ -1108,7 +1139,7 @@ export class SealedBid {
     this.problem.set(
       check.tight
         ? `${candidate.man.name} aggiunto a ${check.offer} crediti: così il tetto supera i crediti che ` +
-          'hai, quindi abbassa un\'altra offerta o togli una busta.'
+            "hai, quindi abbassa un'altra offerta o togli una busta."
         : null,
     );
     this.browse.set(null);
@@ -1129,8 +1160,8 @@ export class SealedBid {
   protected readonly round = computed(() => this.snapshots().length + 1);
 
   /** Have we already recorded what we are sending this round? */
-  protected readonly sent = computed(() =>
-    this.logs().find((one) => one.round === this.round()) ?? null,
+  protected readonly sent = computed(
+    () => this.logs().find((one) => one.round === this.round()) ?? null,
   );
 
   /**
@@ -1180,7 +1211,8 @@ export class SealedBid {
         description:
           `Rispetto a quello di prima non c'è un nome nuovo, quindi come round è vuoto. Se l'hai ` +
           `caricato solo per aggiornare le rose, togli l'ultimo con «Annulla l'ultimo»: adesso la ` +
-          `pagina sta preparando il round ${this.round()}.` + kept,
+          `pagina sta preparando il round ${this.round()}.` +
+          kept,
       };
     }
     return {
@@ -1348,7 +1380,7 @@ export class SealedBid {
         text:
           `Servono ${ask.safe} crediti, cioè ${ask.safe - bid.offer} in più: si passa da ${chance} a ` +
           `${safeChance} volte su 100. Se il nome ti serve davvero, questi crediti sono il prezzo della ` +
-          'tranquillità; se no, quei crediti valgono di più su un\'altra busta.',
+          "tranquillità; se no, quei crediti valgono di più su un'altra busta.",
       });
     }
     if (candidate.man.spm != null) {
@@ -1378,8 +1410,10 @@ export class SealedBid {
     for (const round of this.settledRounds()) {
       const tied = round.rows.find((one) => one.outcome.kind === 'unassigned');
       if (tied?.man) {
-        return `nel round ${round.log.round} ${tied.man.name} non è andato a nessuno, e ci avevamo ` +
-          `messo ${tied.bid.offer}`;
+        return (
+          `nel round ${round.log.round} ${tied.man.name} non è andato a nessuno, e ci avevamo ` +
+          `messo ${tied.bid.offer}`
+        );
       }
     }
     return null;
@@ -1488,10 +1522,13 @@ export class SealedBid {
     }
     if (other.delta == null) words.push('il motore non lo prezza: sceglierlo è una tua decisione');
     else if (other.delta > 0) words.push(`rende ${other.delta.toFixed(1)} di gain in più`);
-    else if (other.delta < -3) words.push(`rende ${Math.abs(other.delta).toFixed(1)} di gain in meno`);
+    else if (other.delta < -3)
+      words.push(`rende ${Math.abs(other.delta).toFixed(1)} di gain in meno`);
     if (!words.length) words.push('stesso profilo, a un prezzo simile');
     const effect =
-      price === 0 ? 'il tetto non cambia' : `il tetto ${price > 0 ? 'sale' : 'scende'} di ${Math.abs(price)}`;
+      price === 0
+        ? 'il tetto non cambia'
+        : `il tetto ${price > 0 ? 'sale' : 'scende'} di ${Math.abs(price)}`;
     return `${words.join(', ')} · ${effect}.`;
   }
 
@@ -1601,7 +1638,7 @@ export class SealedBid {
     if (line.state === 'solido') {
       return `Undici coperto e ${line.rank}º della lega in questo ruolo: qui i crediti rendono meno che altrove.`;
     }
-    return 'L\'undici è coperto, ma il reparto non è fra i migliori della lega: puoi ancora migliorarlo.';
+    return "L'undici è coperto, ma il reparto non è fra i migliori della lega: puoi ancora migliorarlo.";
   }
 
   /** Whether this man is one of those who play, for the row that says so. */
@@ -1735,7 +1772,7 @@ export class SealedBid {
         ? 'Il bundle non porta le tabelle delle statistiche: nessun numero da mostrare.'
         : played
           ? `Stagione in corso: ${played} partite di campionato sul file.`
-          : 'Della stagione in corso non c\'è ancora niente sul file: il bundle è di pre-stagione.',
+          : "Della stagione in corso non c'è ancora niente sul file: il bundle è di pre-stagione.",
     };
   });
 }

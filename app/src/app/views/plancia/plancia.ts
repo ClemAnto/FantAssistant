@@ -12,6 +12,7 @@ import { ROLES } from '../../core/plancia';
 import { BoardMan, PlanciaStore } from '../../core/plancia-store';
 import { LiveConnect } from '../../ui/live-connect/live-connect';
 import { APP_VERSION } from '../../version';
+import { KeeperPairs } from './keeper-pairs/keeper-pairs';
 import { LotCard } from './lot-card/lot-card';
 import { SlotMatrix } from './slot-matrix/slot-matrix';
 import { TeamGrid } from './team-grid/team-grid';
@@ -44,6 +45,7 @@ import { TeamGrid } from './team-grid/team-grid';
     NzIconModule,
     NzInputNumberModule,
     NzTooltipModule,
+    KeeperPairs,
     LiveConnect,
     LotCard,
     SlotMatrix,
@@ -87,5 +89,16 @@ export class Plancia {
 
   protected onPick(man: BoardMan): void {
     this.store.setLot(man.id);
+  }
+
+  /**
+   * Un portiere non va in asta col click: chiede con chi accoppiarlo.
+   *
+   * Due gesti distinti, per istruzione dell'operatore (03/09/2026). Una rosa schiera UN portiere, quindi
+   * la domanda che si fa su di lui non e' «quanto offro» ma «quale dei dieci», ed e' una domanda sul
+   * CALENDARIO: quante giornate della competizione hanno lui o il suo compagno con la porta al sicuro.
+   */
+  protected onKeeperPairs(man: BoardMan): void {
+    this.store.openPairs(man.id);
   }
 }

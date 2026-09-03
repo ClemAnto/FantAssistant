@@ -20,7 +20,18 @@ import { AuctionFeed, AuctionPlayer, Zone } from './auction-feed';
 import { demoPlayers } from './auction-demo';
 import { EngineNumbers, ValuationBasis, valuationOf } from './auction-value';
 import { Bundle, EngineSheetEntry } from './bundle';
+import { PlayerStatus } from './player-status';
 import { engineNumbersFrom } from './engine-sheet';
+import { GlobalOptions } from './global-options';
+import {
+  CalendarBook,
+  CalendarFile,
+  GridCell,
+  PairSuggestion,
+  calendarBookFrom,
+  coverGrid,
+  rankPairs,
+} from './keeper-pairs';
 import {
   Alternative,
   LotAdvice,
@@ -92,6 +103,14 @@ export interface Lot {
 export class PlanciaStore {
   private readonly bundle = inject(Bundle);
   private readonly feed = inject(AuctionFeed);
+  /**
+   * Chi oggi non gioca, dall'unico servizio che lo sa.
+   *
+   * La plancia non ricalcola quello stato: due definizioni di «è fuori» finirebbero per dare a un uomo
+   * due risposte, e la prima volta che qualcuno se ne accorge è a un tavolo.
+   */
+  private readonly status = inject(PlayerStatus);
+  private readonly options = inject(GlobalOptions);
 
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
@@ -156,6 +175,7 @@ export class PlanciaStore {
         points,
         pv: valuation.pv,
         basis: valuation.basis as ValuationBasis,
+        outNow: !!this.status.unavailableNow(player.id),
       });
     }
     return out;
@@ -286,6 +306,8 @@ export class PlanciaStore {
         teams: this.teamsCount(),
         exhaustedBelow,
         priced: man.basis !== 'none',
+        outNow: man.outNow,
+        outReason: this.status.unavailableNow(man.id)?.note ?? null,
       }),
       alternative: alternativeFor(
         this.map(),
@@ -341,6 +363,119 @@ export class PlanciaStore {
     return out;
   });
 
+  // ---------------------------------------------------------------------------------------------
+  // GLI ACCOPPIAMENTI FRA PORTIERI (03/09/2026). Una rosa ne schiera UNO, quindi il secondo portiere
+  // non e' profondita': e' l'uomo che gioca nelle giornate in cui il primo e' una scommessa. Tutto
+  // quello che serve per dirlo e' il CALENDARIO, e la parte che e' una misura - se una partita e'
+  // facile - arriva gia' decisa dal bundle.
+
+  private readonly calendarFile = signal<CalendarFile | null>(null);
+
+  /** Il calendario del bundle, o null: senza `fixtures` non c'e' niente da contare, e si dice. */
+  readonly calendar = computed<CalendarBook | null>(() => calendarBookFrom(this.calendarFile()));
+
+  /** Quale portiere e' aperto sulla modale. Un id e non un oggetto: la plancia si ridisegna sotto. */
+  readonly pairingId = signal<number | null>(null);
+
+  readonly pairingMan = computed<BoardMan | null>(() => {
+    const id = this.pairingId();
+    if (id == null) return null;
+    for (const block of this.blocks()) {
+      const man = block.rows.find((row) => row.id === id);
+      if (man) return man;
+    }
+    return null;
+  });
+
+  /**
+   * La finestra della competizione, dal regolamento che l'operatore dichiara una volta per tutta l'app.
+   *
+   * Ritagliata sulle giornate che il campionato ha davvero: `to` a 38 su una Bundesliga da 34 non e'
+   * una finestra piu' lunga, e' quattro giornate che non esistono. Il taglio si fa qui e non nel conto,
+   * cosi' la finestra che si stampa e' quella su cui si e' contato.
+   */
+  readonly pairingWindow = computed(() => {
+    const league = this.options.league();
+    const club = this.pairingMan()?.club ?? '';
+    const rounds = this.calendar()?.forClub(club)?.rounds ?? 0;
+    const from = Math.max(1, Math.round(league.from));
+    const to = rounds > 0 ? Math.min(rounds, Math.round(league.to)) : Math.round(league.to);
+    return { from, to: Math.max(from, to), rounds };
+  });
+
+  /**
+   * I portieri con cui accoppiarlo: quelli ANCORA NELL'URNA, perche' sono i soli che si possono ancora
+   * comprare, piu' i miei, che sono la coppia che ho gia'. Uno gia' di un altro non e' un consiglio.
+   *
+   * Solo dello STESSO campionato: una giornata di fantacalcio cade su un turno diverso in ogni lega e
+   * per la stagione bersaglio la mappa ne copre cinque su trentuno, quindi accoppiarli sarebbe
+   * inventare un calendario. Quelli lasciati fuori sono CONTATI e la modale lo dice.
+   */
+  readonly keeperPairs = computed<{
+    suggestions: PairSuggestion<BoardMan>[];
+    otherLeague: number;
+    taken: number;
+  }>(() => {
+    const man = this.pairingMan();
+    const book = this.calendar();
+    const calendar = man && book ? book.forClub(man.club) : null;
+    if (!man || !book || !calendar) return { suggestions: [], otherLeague: 0, taken: 0 };
+
+    const { from, to } = this.pairingWindow();
+    const candidates: { man: BoardMan; club: string }[] = [];
+    let otherLeague = 0;
+    let taken = 0;
+    for (const block of this.blocks()) {
+      if (block.role !== 'P') continue;
+      for (const row of block.rows) {
+        if (row.id === man.id) continue;
+        if (row.state === 'altro') {
+          taken += 1;
+          continue;
+        }
+        if (!calendar.has(row.club)) {
+          otherLeague += 1;
+          continue;
+        }
+        candidates.push({ man: row, club: row.club });
+      }
+    }
+    return {
+      suggestions: rankPairs(calendar, man.club, candidates, from, to),
+      otherLeague,
+      taken,
+    };
+  });
+
+  /**
+   * LA GRIGLIA: ogni squadra del campionato contro ogni altra, e il portiere che ogni club schiera.
+   *
+   * Il portiere titolare NON si sceglie qui: e' il primo della linea P della board che il TOOLKIT ha
+   * disegnato (`boards.json`), quindi l'undici di questa pagina e l'undici del pannello sono la stessa
+   * chiamata. Un club senza board porta la casella senza nome invece di un portiere scelto in un
+   * secondo modo.
+   */
+  private readonly boardKeepers = signal<Map<string, string>>(new Map());
+
+  readonly keeperOfClub = computed(() => this.boardKeepers());
+
+  readonly keeperGrid = computed<{
+    clubs: string[];
+    cells: Map<string, Map<string, GridCell>>;
+  } | null>(() => {
+    const man = this.pairingMan();
+    const calendar = man ? this.calendar()?.forClub(man.club) : null;
+    if (!calendar) return null;
+    const { from, to } = this.pairingWindow();
+    const clubs = calendar.clubNames();
+    return { clubs, cells: coverGrid(calendar, clubs, from, to) };
+  });
+
+  /** Apre gli accoppiamenti su un portiere. NON mette niente in asta: sono due gesti diversi. */
+  openPairs(id: number | null): void {
+    this.pairingId.set(id);
+  }
+
   readonly teams = computed<BoardTeam[]>(() => {
     const mine = this.mineId();
     const lot = this.lot();
@@ -375,6 +510,19 @@ export class PlanciaStore {
       );
       return { role, done: total - left, total };
     }),
+  );
+
+  /**
+   * Quanti uomini della mappa oggi non giocano: il conto che la pagina DICE.
+   *
+   * Un vincolo che agisce in silenzio è indistinguibile da un ordinamento rotto, quindi la plancia
+   * dichiara quanti nomi ha fatto scendere invece di limitarsi a farli scendere.
+   */
+  readonly outNowCount = computed(
+    () =>
+      this.map()
+        .blocks.flatMap((block) => block.men)
+        .filter((man) => man.outNow).length,
   );
 
   /** The tail: a count and no names, because a board that hides it talks you into waiting. */
@@ -496,6 +644,10 @@ export class PlanciaStore {
 
     this.sheet.set(chosen);
     this.numbers.set(engineNumbersFrom(table));
+    // Il calendario e i portieri titolari: nessuno dei due e' necessario per disegnare la plancia, quindi
+    // un bundle che non li porta la apre lo stesso e le modali che li leggono lo dicono.
+    void this.loadCalendar();
+    void this.loadBoardKeepers(chosen);
 
     const prices = await this.prices(manifest.target_season, chosen.platform);
     const players = demoPlayers(table, prices, false);
@@ -507,6 +659,31 @@ export class PlanciaStore {
     }
     this.listone.set(players);
     return players;
+  }
+
+  private async loadCalendar(): Promise<void> {
+    if (this.calendarFile()) return;
+    this.calendarFile.set(await this.bundle.calendar());
+  }
+
+  /**
+   * IL PORTIERE TITOLARE DI OGNI CLUB, letto dalla board che il TOOLKIT ha disegnato.
+   *
+   * Mai scelto qui. «L'app legge la board e mai la propria» vale per l'undici di un club vero, che e'
+   * una previsione su una persona: il primo della linea P di `boards.json` e' il portiere che il
+   * pannello schiera, e sceglierlo in un secondo modo darebbe a un club due portieri titolari. Un club
+   * senza board resta senza nome, che e' quello che la griglia deve mostrare.
+   */
+  private async loadBoardKeepers(sheet: EngineSheetEntry): Promise<void> {
+    if (!sheet.boards || this.boardKeepers().size) return;
+    const boards = await this.bundle.boards(sheet.boards);
+    if (!boards?.clubs) return;
+    const out = new Map<string, string>();
+    for (const [club, board] of Object.entries(boards.clubs)) {
+      const keeper = board.lines?.['P']?.[0]?.name;
+      if (keeper) out.set(club, keeper);
+    }
+    this.boardKeepers.set(out);
   }
 
   /**

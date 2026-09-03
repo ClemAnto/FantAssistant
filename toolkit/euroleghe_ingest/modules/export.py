@@ -35,10 +35,10 @@ import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
 
-from euroleghe_ingest import __version__
+from euroleghe_ingest import __version__, config
 from euroleghe_ingest.context import Context
 from euroleghe_ingest.db.database import apply_schema, connect
-from euroleghe_ingest.modules import timepack
+from euroleghe_ingest.modules import fixtures, timepack
 
 NAME = "export"
 DESCRIPTION = "Write the app's data bundle (SQLite + JSON) from the engine's input contract"
@@ -888,6 +888,39 @@ def run(ctx: Context, *, season: str | None = None, out: str | None = None,
     # the bundle would be a second source for the same fact - and the first reader to prefer it would be
     # showing a list whose figures describe a different list. The sheet's notes carry the provenance.
 
+    # THE CALENDAR STILL TO BE PLAYED, priced by the edge (`fixtures.schedule`).
+    #
+    # It is the one thing the app cannot deduce from the tables it already has: `fixtures` and
+    # `club_levels` are keyed on `matching.club_identity`, which is a Python alias table, so shipping
+    # them raw would ask a browser to reproduce the very join that once lost Milan, Roma and Napoli from
+    # every club's schedule. Resolved here, once, and the app joins on the canonical name it already
+    # reads on a sheet row. A file of its own rather than two entries in CONTRACT for the same reason
+    # `boards.json` is one: it is a DERIVED artefact, and its shape is the answer to a question rather
+    # than a table's rows.
+    #
+    # Not in the manifest's `tables` for the same reason: it is not one. The manifest names it, its
+    # season, its Elo year and the constants it was built with, so no reader has to transcribe a
+    # threshold - and a bundle without a `fixtures` run simply has no calendar, which the app must SAY.
+    calendar_path = None
+    try:
+        calendar = fixtures.schedule(conn, target, config.CHAMPIONSHIPS)
+    except sqlite3.Error as exc:          # a DB that predates the `fixtures` table
+        calendar = None
+        print(f"[export] note: no calendar ({exc}) - the app's keeper pairings will say so")
+    if calendar and calendar["leagues"]:
+        _atomic_write_bytes(folder / "calendar.json",
+                            json.dumps(calendar, ensure_ascii=False,
+                                       separators=(",", ":")).encode("utf-8"))
+        calendar_path = "calendar.json"
+        total = sum(len(one["matches"]) for one in calendar["leagues"].values())
+        unknown = sum(one["unclassified"] for one in calendar["leagues"].values())
+        print(f"[export] calendar.json: {total} matches over "
+              f"{len(calendar['leagues'])} championships, Elo {calendar['elo_year']}, "
+              f"{unknown} unpriced (a level missing on one side)")
+    else:
+        print("[export] note: `fixtures` is empty for this season - run `fixtures` before `export`, "
+              "or the app has no calendar to count easy matches on")
+
     # The engine's own numbers, so the app can rank by SURPLUS instead of by the listone's price. They
     # come from the sheet `snapshot` writes, not from a second engine run: the sheet is the artefact the
     # gate and the panel already agree on, and re-deriving it here would be a second implementation of
@@ -957,6 +990,16 @@ def run(ctx: Context, *, season: str | None = None, out: str | None = None,
         # `engine_pv_pred` is expressed on - so a competition of n rounds is scaled by n/N and never
         # guessed. Empty means the bundle carries no engine numbers, which the app must SAY rather than
         # fall back on the listone's price.
+        # THE CALENDAR the app counts easy matches on, and the constants it was built with, so no
+        # reader transcribes a threshold. Null = the bundle carries none, which the app must say
+        # instead of drawing an empty pairing.
+        "calendar": calendar_path,
+        "calendar_note": (
+            "fixtures.schedule: the matches still to be played, per championship, each carrying the "
+            "home side's EDGE (level + venue - opponent) and, where the coefficients were fitted, the "
+            "probability that each side concedes nothing. `easy_margin` is the operator's own frozen "
+            "threshold and is measured to mean P(clean sheet) = 0.40."
+        ),
         "engine_sheets": engine_sheets,
         # LE DATE del viaggio nel tempo, ognuna col suo motore. Vuoto = l'app può retrodatare solo quello
         # che è datato nel bundle (letture, trend, marchi) e lo dichiara, invece di far credere il resto.

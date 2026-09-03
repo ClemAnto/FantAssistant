@@ -45,6 +45,14 @@ export interface PlanciaMan {
   /** Expected appearances, the one number where we measurably beat the quotation (§21, §25). */
   pv: number | null;
   basis: ValuationBasis;
+  /**
+   * OGGI NON GIOCA: la stampa lo dà fuori, o un infortunio ufficiale è ancora aperto.
+   *
+   * Non è una valutazione e non entra in nessun numero - non sappiamo per quanto starà fuori, quindi
+   * riprezzarlo sarebbe inventare. È un VINCOLO: lo fa scendere in fondo al suo slot e cambia il
+   * verdetto del lotto, sempre dicendolo. Popolato dallo store, che è l'unico a conoscere lo stato.
+   */
+  outNow?: boolean;
 }
 
 export interface SlotBlock {
@@ -139,7 +147,15 @@ export function buildMap(
  */
 function orderInside(men: PlanciaMan[]): PlanciaMan[] {
   return [...men].sort(
-    (a, b) => (b.points ?? -1) - (a.points ?? -1) || b.fvm - a.fvm || a.id - b.id,
+    // CHI OGGI NON GIOCA VA IN FONDO, prima di ogni altra cosa. Vincolo e non peso: la sua posizione
+    // dentro lo slot resta quella di prima fra i suoi pari, cambia solo che non è il primo nome che
+    // l'occhio incontra alla quarta ora. Un uomo dato fuori dalla stampa e proposto in cima è
+    // esattamente il caso che l'operatore non vuole vedere (03/09/2026).
+    (a, b) =>
+      Number(a.outNow ?? false) - Number(b.outNow ?? false) ||
+      (b.points ?? -1) - (a.points ?? -1) ||
+      b.fvm - a.fvm ||
+      a.id - b.id,
   );
 }
 
@@ -300,7 +316,7 @@ export function worthWaiting(slotIndex: number, hands: number, teams: number): b
   return hands >= Math.min(DEPTH_HANDS, teams);
 }
 
-export type Verdict = 'prendi' | 'aspetta' | 'lascia' | 'ignoto';
+export type Verdict = 'prendi' | 'aspetta' | 'lascia' | 'ignoto' | 'fermo';
 
 export interface LotAdvice {
   verdict: Verdict;
@@ -329,6 +345,9 @@ export function adviseLot(input: {
   teams: number;
   exhaustedBelow: number;
   priced: boolean;
+  /** Oggi non gioca. Decide il verdetto prima di ogni prezzo, e non tocca la banda. */
+  outNow?: boolean;
+  outReason?: string | null;
 }): LotAdvice {
   const { band, tablePrice, slotIndex, hands, teams } = input;
   const expectedPrice = Math.max(
@@ -337,6 +356,18 @@ export function adviseLot(input: {
   );
   const waiting = worthWaiting(slotIndex, hands, teams);
   const shared = { band, hands, expectedPrice, waiting };
+
+  // PRIMA DI OGNI ALTRA COSA: se oggi non gioca, il verdetto è quello e non un prezzo. Sta davanti al
+  // caso «non prezzato» perché è più forte - lì non sappiamo quanto vale, qui sappiamo che non gioca -
+  // ed è un quinto stato e non un «lascia», perché la ragione è diversa e la decisione è dell'operatore:
+  // può volerlo lo stesso, a un prezzo che tenga conto di quello che la banda non sa.
+  if (input.outNow) {
+    return {
+      verdict: 'fermo',
+      reason: input.outReason ?? 'Oggi non gioca: da esaminare prima di offrire.',
+      ...shared,
+    };
+  }
 
   if (!input.priced || !band) {
     return {

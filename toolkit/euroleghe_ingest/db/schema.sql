@@ -584,6 +584,14 @@ CREATE TABLE IF NOT EXISTS injuries (
     matches_missed INTEGER,
     detail     TEXT,                            -- the source's own label, kept verbatim
     source     TEXT,
+    -- WHEN WE LOOKED, which is not when the injury started (03/09/2026, on the operator's question
+    -- «come mai non abbiamo nessun infortunio di serie a che risale a oggi o ieri?»). Without it the
+    -- table cannot tell «we have not re-read the source» from «nobody got hurt»: the answer that day
+    -- lived only in the mtimes of 4.662 cache files, i.e. OUTSIDE the database, and it took five
+    -- queries and a directory listing to reach. It is the «vuoto = ignoto, mai zero» rule applied to a
+    -- whole table instead of a column. It is the date the PAGE was read and never today's, so a
+    -- `rebuild` replaying the cache attributes each row to the day it was actually observed.
+    observed_on TEXT,
     PRIMARY KEY (fc_id, start_date)
 );
 

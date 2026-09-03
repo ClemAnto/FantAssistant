@@ -92,6 +92,66 @@ HOME_ADVANTAGE = HOME_AWAY_GAP / 2.0     # what a home side adds; an away side s
 # So the right weight is the one that was already there, and it is a CONSTANT.
 
 
+# ---------------------------------------------------------------------------------------------------
+# WHAT «FACILE» MEANS, MEASURED AGAINST THE QUESTION IT IS ASKED FOR (03/09/2026).
+#
+# `EASY_MARGIN` above was frozen by the operator on a different criterion - «the strongest club must
+# stop reading all of them» - and the auction board now asks it to answer a different sentence of his:
+# «una partita facile e' una partita dove la squadra in cui gioca il portiere e' probabile che subira'
+# 0 gol». Those are two claims, so the label was VALIDATED instead of reused on trust.
+#
+# Measured on 5354 Serie A club-matches, 2019-20..2026-27 (opponent and venue from the per-match layer,
+# goals conceded from the votes' own `role='P'` rows, so the count passes through no identity funnel;
+# both clubs' level from `club_levels`). Logistic on the SAME edge `easy_matches` computes:
+#
+#     edge  -200 -> 0.141      edge  +100 -> 0.320      edge  +300 -> 0.487
+#     edge     0 -> 0.249      edge  +200 -> 0.401      edge  +400 -> 0.575
+#
+# So the frozen margin of 200 IS the operator's sentence: at it, P(clean sheet) = 0.401, and the 40%
+# level is reached at an edge of 199. Two numbers already in this repository, measured on two unrelated
+# criteria a month apart, landing on each other - the threshold he chose by eye and `club_defence.
+# CLEAN_SHEET_SHARE` = 0.40, itself measured as the quota at which «una porta resta inviolata spesso».
+# Held out on the label itself: matches classified easy keep a clean sheet 42.8% of the time against
+# 23.9% for the rest. Calibration by decile of predicted probability is within 0.03 everywhere except
+# the top tenth, which the model OVER-states (0.473 predicted against 0.423 realised) - stated because
+# that is the decile the auction board's best pairings are made of.
+#
+# MEASURED AND NOT ADOPTED, on purpose: for a CLEAN SHEET the home advantage fits at a half-gap of
+# 30-35 Elo points and not at the 14.5 this module uses, which was fitted on the RESULT (log-loss of
+# the actual outcome, `HOME_AWAY_GAP` above). Held-out log-loss over 2320 matches: 0.57796 at H=35
+# against 0.57839 at H=14.5 and 0.57936 with no field effect at all - an interior optimum, so the
+# DIRECTION is identified (keeping a clean sheet is a more home-dependent thing than winning), and it
+# moves 3% of the classifications and 0.0004 of log-loss. That is not worth a SECOND home constant in a
+# module whose whole output is reporting: two constants for one venue is how a screen ends up with two
+# answers to «is this match at home». Recorded here so nobody re-measures it, and so that whoever wants
+# it has the number.
+CLEAN_SHEET_INTERCEPT = -1.104293
+CLEAN_SHEET_SLOPE_PER_100 = 0.351375
+# The population the two coefficients above belong to, and therefore the only league they may be
+# applied to. A fitted transform belongs to the population it was fitted on: the other four
+# championships have no goals-conceded layer here, so nothing was fitted there and nothing is claimed.
+CLEAN_SHEET_LEAGUES: frozenset[str] = frozenset({"serie_a"})
+CLEAN_SHEET_SAMPLE = 5354
+
+
+def edge(mine: float, theirs: float, at_home: bool, home_bonus: float = HOME_ADVANTAGE) -> float:
+    """How much stronger this club is in THIS match: its level, the venue, and the opponent's level.
+
+    One definition, because `easy_matches` counts with it and the calendar the app reads is built from
+    it - two spellings of one subtraction is how the same match ends up easy on one screen and not on
+    the other. Note the identity the callers rely on: the away side's edge is exactly minus the home
+    side's, so one number per match says both.
+    """
+    return (mine + (home_bonus if at_home else -home_bonus)) - theirs
+
+
+def clean_sheet_probability(club_edge: float) -> float:
+    """P(this club concedes nothing in this match), from the edge alone. Serie A only - see above."""
+    import math
+    return 1.0 / (1.0 + math.exp(-(CLEAN_SHEET_INTERCEPT
+                                   + CLEAN_SHEET_SLOPE_PER_100 * club_edge / 100.0)))
+
+
 def _elo_year(season: str) -> str:
     """The Elo snapshot a season is judged on: the year it kicks off in."""
     return season.split("-")[0]
@@ -144,9 +204,9 @@ def easy_matches(conn, season: str, club_key: str, *, league: str | None = None,
         if mine is None or theirs is None:
             unclassified += 1
             continue
-        edge = (mine + (home_bonus if at_home else -home_bonus)) - theirs
-        classified.append(edge)
-        if edge > margin:
+        gap = edge(mine, theirs, at_home, home_bonus)
+        classified.append(gap)
+        if gap > margin:
             easy += 1
     # The CONTINUOUS reading, which does not saturate where the count does - and it is a mean used to
     # JUDGE a calendar, so it drops the easiest and the hardest match (the operator's general rule). The
@@ -248,6 +308,104 @@ def store(conn, rows: list[dict]) -> int:
             row)
     conn.commit()
     return len(rows)
+
+
+def schedule(conn, season: str, leagues: tuple[str, ...] | list[str]) -> dict:
+    """THE CALENDAR STILL TO BE PLAYED, per championship, priced by the edge - for the app to read.
+
+    Why the toolkit computes it and the app only counts. Whether a match is EASY is a claim about
+    football - it needs both clubs' level, the venue and a threshold - and a claim about football is a
+    measurement, so it lives where the harnesses can reach it. Counting how many of them fall inside a
+    window and belong to a pair of clubs is arithmetic about the operator's own competition settings,
+    which live in the app. Same boundary that puts a real club's drawn board in `boards.py` and a fanta
+    eleven in `core/fanta-eleven.ts`.
+
+    THE APP JOINS BY THE CANONICAL KEY AND NEVER BY A NAME, which is why `clubs` here carries both: the
+    key `club_levels` and `fixtures` are keyed on, and OUR canonical name where the club is one of ours,
+    so a sheet row and a fixture meet on a string that was resolved once, here. A club outside the
+    perimeter has no name of ours and keeps its key - it is an opponent, not a row to buy from.
+
+    ONE NUMBER PER MATCH SAYS BOTH SIDES: the away edge is exactly minus the home edge, so `edge` is the
+    home side's and the reader negates it. The clean-sheet probability cannot be derived that way - it is
+    a logistic of the edge - so both are written, and both are NULL outside the league the coefficients
+    were fitted on, which is «a fitted transform belongs to the population it was fitted on» and not an
+    oversight.
+    """
+    year = _elo_year(season)
+    levels = {key: value for key, value in conn.execute(
+        "SELECT club_key, elo FROM club_levels WHERE year = ?", (year,))}
+    if not levels:
+        latest = conn.execute("SELECT MAX(year) FROM club_levels WHERE year <= ?", (year,)).fetchone()
+        year = (latest or [None])[0]
+        if year:
+            levels = {key: value for key, value in conn.execute(
+                "SELECT club_key, elo FROM club_levels WHERE year = ?", (year,))}
+
+    ours = {matching.club_identity(name): (fc_club_id, name) for fc_club_id, name in conn.execute(
+        "SELECT fc_club_id, canonical_name FROM clubs")}
+
+    out: dict[str, dict] = {}
+    for league in leagues:
+        rows = conn.execute(
+            "SELECT round, date, home_key, away_key FROM fixtures "
+            "WHERE season = ? AND league = ? AND played = 0 AND round IS NOT NULL "
+            "ORDER BY round, date", (season, league)).fetchall()
+        if not rows:
+            continue
+        rated = league in CLEAN_SHEET_LEAGUES
+        matches: list[list] = []
+        unclassified = 0
+        keys: set[str] = set()
+        for rnd, date, home, away in rows:
+            keys.update((home, away))
+            at_home, at_away = levels.get(home), levels.get(away)
+            if at_home is None or at_away is None:
+                # «vuoto = ignoto, mai zero»: a match whose two levels we cannot both read is carried
+                # with no edge at all, so the app draws it in the popover and counts it nowhere.
+                matches.append([rnd, date, home, away, None, None, None])
+                unclassified += 1
+                continue
+            gap = edge(at_home, at_away, True)
+            matches.append([
+                rnd, date, home, away, round(gap, 1),
+                round(clean_sheet_probability(gap), 4) if rated else None,
+                round(clean_sheet_probability(-gap), 4) if rated else None,
+            ])
+        out[league] = {
+            "rounds": max(int(row[0]) for row in rows),
+            "unclassified": unclassified,
+            # Whether the two probability columns carry anything, and WHY when they do not: a reader
+            # that finds them empty must know it is a population limit and not a missing run.
+            "clean_sheet_fitted": rated,
+            "clubs": sorted(
+                ({"key": key, "elo": levels.get(key),
+                  "name": ours.get(key, (None, None))[1],
+                  "fc_club_id": ours.get(key, (None, None))[0]}
+                 for key in keys),
+                key=lambda club: club["key"]),
+            "columns": ["round", "date", "home", "away", "edge_home", "cs_home", "cs_away"],
+            "matches": matches,
+        }
+    return {
+        "season": season,
+        "elo_year": year,
+        "observed_on": (conn.execute(
+            "SELECT MAX(observed_on) FROM fixtures WHERE season = ?", (season,)).fetchone()
+            or [None])[0],
+        "easy_margin": EASY_MARGIN,
+        "home_advantage": HOME_ADVANTAGE,
+        "clean_sheet": {
+            "intercept": CLEAN_SHEET_INTERCEPT,
+            "slope_per_100": CLEAN_SHEET_SLOPE_PER_100,
+            "sample": CLEAN_SHEET_SAMPLE,
+            "leagues": sorted(CLEAN_SHEET_LEAGUES),
+            "at_margin": round(clean_sheet_probability(EASY_MARGIN), 4),
+            "_note": "P(the club concedes nothing), logistic on the same edge the easy count uses. "
+                     "Fitted on Serie A only - the other championships have no goals-conceded layer "
+                     "here, so nothing was fitted there and nothing is claimed.",
+        },
+        "leagues": out,
+    }
 
 
 def club_keys_by_source_id(conn) -> dict[str, str]:

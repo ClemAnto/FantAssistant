@@ -128,6 +128,11 @@ ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("external_match_stats", "key_passes", "INTEGER"),
     ("external_match_stats", "touches", "INTEGER"),
     ("probable_starter", "team", "TEXT"),
+    # QUANDO ABBIAMO GUARDATO, sugli infortuni (03/09/2026). `injuries` portava solo `start_date`, che e'
+    # la data dell'infortunio e non del nostro sguardo, quindi la tabella non sapeva distinguere «non
+    # abbiamo riletto la fonte» da «non si e' fatto male nessuno» - e quel giorno la risposta stava solo
+    # nei timestamp dei file di cache, fuori dal database. Vedi il commento nello schema.
+    ("injuries", "observed_on", "TEXT"),
     ("probable_starter", "formation", "TEXT"),
     ("probable_starter", "starter", "INTEGER"),
     ("probable_starter", "role", "TEXT"),

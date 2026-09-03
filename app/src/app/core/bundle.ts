@@ -1,5 +1,7 @@
 import { Injectable } from '@angular/core';
 
+import type { CalendarFile } from './keeper-pairs';
+
 /** A table as the export writes it: a header and rows of positional values. */
 export interface BundleTable {
   table: string;
@@ -79,6 +81,8 @@ export interface BundleManifest {
   heavy_seasons: string[];
   sheet_revision?: number;
   /** Empty when the bundle carries no engine numbers - which the panel must SAY, not paper over. */
+  /** Il file del calendario, o null: il bundle e' stato costruito senza una corsa di `fixtures`. */
+  calendar?: string | null;
   engine_sheets?: EngineSheetEntry[];
   /**
    * Le date per cui il bundle porta il MOTORE di quel giorno (`timepack`), per il viaggio nel tempo.
@@ -251,6 +255,7 @@ export class Bundle {
   private readonly boardsByPath = new Map<string, Promise<BoardsFile | null>>();
   private readonly packsByPath = new Map<string, Promise<TimePackFile | null>>();
   private crestsPromise?: Promise<Record<string, string>>;
+  private calendarPromise?: Promise<CalendarFile | null>;
 
   manifest(): Promise<BundleManifest> {
     this.manifestPromise ??= fetch(`${this.base}/manifest.json`)
@@ -365,6 +370,27 @@ export class Bundle {
       .then((res) => (res.ok ? (res.json() as Promise<PlayerNotesFile>) : null))
       .catch(() => null);
     return this.playerNotesPromise;
+  }
+
+  /**
+   * IL CALENDARIO ANCORA DA GIOCARE, per campionato, gia' prezzato (`fixtures.schedule`).
+   *
+   * Il toolkit lo scrive perche' dire se una partita e' facile e' una MISURA - servono i due livelli, il
+   * campo e una soglia - mentre contare quante ne cadono in una finestra e' aritmetica sulle impostazioni
+   * che l'operatore dichiara qui. Ed e' anche l'unica cosa che l'app non potrebbe dedurre da sola:
+   * `fixtures` e `club_levels` sono chiavati su `matching.club_identity`, che e' una tabella di alias in
+   * Python, quindi rifarne il join qui vorrebbe dire ripetere quello che una volta ha perso Milan, Roma e
+   * Napoli dal calendario di tutti. Risolto una volta la', e l'app unisce sul nome canonico che gia'
+   * legge su una riga del foglio.
+   *
+   * Null su un bundle costruito senza una corsa di `fixtures`: chi legge lo DEVE dire, invece di
+   * disegnare accoppiamenti vuoti.
+   */
+  calendar(): Promise<CalendarFile | null> {
+    this.calendarPromise ??= fetch(`${this.base}/calendar.json`)
+      .then((res) => (res.ok ? (res.json() as Promise<CalendarFile>) : null))
+      .catch(() => null);
+    return this.calendarPromise;
   }
 
   /** fc_club_id -> file name, written by the export next to the badges themselves. */

@@ -1,0 +1,135 @@
+<!-- UI text is ITALIAN in app/ (see app/CLAUDE.md); code and comments stay English. -->
+@if (man(); as keeper) {
+  <nz-modal
+    [nzVisible]="true"
+    [nzTitle]="titleTpl"
+    [nzFooter]="null"
+    nzWidth="640px"
+    (nzOnCancel)="close()"
+  >
+    <ng-template #titleTpl>
+      <div class="flex items-baseline gap-2">
+        <span class="font-semibold">Con chi accoppiare {{ keeper.name }}</span>
+        <span class="text-xs font-normal text-muted">{{ keeper.club }}</span>
+      </div>
+    </ng-template>
+
+    <div *nzModalContent class="flex flex-col gap-3">
+      @if (noCalendar()) {
+        <p class="text-sm text-muted">
+          Il bundle non porta il calendario, quindi non c'è niente da contare. Lancia
+          <code>fixtures</code> nel toolkit e poi <code>export</code>.
+        </p>
+      } @else if (unknownClub()) {
+        <p class="text-sm text-muted">
+          Il calendario non conosce <b>{{ keeper.club }}</b
+          >: senza le sue partite non posso dire quante giornate coprirebbe.
+        </p>
+      } @else {
+        <!-- LA REGOLA, sopra i numeri: chi legge deve sapere che cosa ha contato la colonna. -->
+        <p class="text-xs leading-relaxed text-muted">
+          Giornate <b class="text-fg">{{ window().from }}–{{ window().to }}</b> del campionato.
+          <b class="text-fg">FACILI</b> = giornate in cui almeno uno dei due gioca una partita in
+          cui è probabile che la sua squadra non subisca gol (misurata: 42,8% di porte inviolate
+          contro 23,9% nelle altre).
+          @if (!noTieBreak()) {
+            <b class="text-fg">Coperte</b> = le stesse giornate contate con la probabilità invece
+            che con il sì/no.
+          }
+        </p>
+
+        @if (tiedAtTop() && !noTieBreak()) {
+          <p
+            class="rounded border border-warning/40 bg-warning/10 px-2 py-1 text-xs text-warning"
+            nz-tooltip
+            nzTooltipTitle="Alla soglia congelata dodici club di venti non hanno nessuna partita facile in tutta la stagione, quindi il conteggio pareggia quasi sempre: quello che ordina questi tre è la colonna «coperte»."
+          >
+            <nz-icon nzType="info-circle" /> Questi tre hanno lo stesso numero di giornate facili: a
+            ordinarli sono le giornate <b>coperte</b>.
+          </p>
+        }
+
+        @if (best().length) {
+          <div class="flex flex-col gap-1">
+            @for (pair of best(); track pair.man.id; let rank = $index) {
+              <div
+                class="flex items-center gap-2 rounded border border-primary/40 bg-primary/10 px-2 py-1.5"
+              >
+                <span
+                  class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-on-primary"
+                  >{{ rank + 1 }}</span
+                >
+                <span class="min-w-0 flex-1 truncate text-sm font-semibold text-fg">{{
+                  pair.man.name
+                }}</span>
+                <span class="w-24 shrink-0 truncate text-xs text-muted">{{ pair.club }}</span>
+                <span class="w-16 shrink-0 text-right text-sm font-bold tabular-nums text-fg">
+                  {{ pair.cover.facili }}
+                  <span class="text-[10px] font-normal text-muted">facili</span>
+                </span>
+                <span class="w-20 shrink-0 text-right text-xs tabular-nums text-muted">
+                  {{ pair.cover.covered == null ? '—' : (pair.cover.covered | number: '1.1-1') }}
+                  coperte
+                </span>
+              </div>
+            }
+          </div>
+        } @else {
+          <p class="text-sm text-muted">
+            Nessun altro portiere del suo campionato è ancora nell'urna.
+          </p>
+        }
+
+        @if (rest().length) {
+          <details class="rounded border border-border">
+            <summary class="cursor-pointer px-2 py-1 text-xs text-muted">
+              gli altri {{ rest().length }}
+            </summary>
+            <div class="flex max-h-56 flex-col overflow-y-auto">
+              @for (pair of rest(); track pair.man.id; let rank = $index) {
+                <div class="flex items-center gap-2 px-2 py-0.5 text-xs odd:bg-control/40">
+                  <span class="w-5 shrink-0 text-right tabular-nums text-muted">{{
+                    rank + 4
+                  }}</span>
+                  <span class="min-w-0 flex-1 truncate text-fg">{{ pair.man.name }}</span>
+                  <span class="w-24 shrink-0 truncate text-muted">{{ pair.club }}</span>
+                  <span class="w-16 shrink-0 text-right font-semibold tabular-nums text-fg">{{
+                    pair.cover.facili
+                  }}</span>
+                  <span class="w-20 shrink-0 text-right tabular-nums text-muted">{{
+                    pair.cover.covered == null ? '—' : (pair.cover.covered | number: '1.1-1')
+                  }}</span>
+                </div>
+              }
+            </div>
+          </details>
+        }
+
+        <!-- QUELLO CHE NON E' IN LISTA, contato e non nascosto: una lista che tace su chi ha
+             lasciato fuori si legge come una lista completa. -->
+        @if (result().taken || result().otherLeague) {
+          <p class="text-[11px] text-muted">
+            @if (result().taken) {
+              {{ result().taken }} portieri sono già di qualcun altro e non sono in lista.
+            }
+            @if (result().otherLeague) {
+              {{ result().otherLeague }} giocano in un altro campionato: una giornata di fantacalcio
+              cade su un turno diverso in ogni lega, quindi non sono confrontabili.
+            }
+          </p>
+        }
+
+        <div class="flex justify-end">
+          <button nz-button nzSize="small" (click)="gridOpen.set(true)">
+            <nz-icon nzType="table" />
+            mostra griglia
+          </button>
+        </div>
+      }
+    </div>
+  </nz-modal>
+
+  @if (gridOpen()) {
+    <plancia-keeper-grid [(open)]="gridOpen" [highlight]="keeper.club" />
+  }
+}

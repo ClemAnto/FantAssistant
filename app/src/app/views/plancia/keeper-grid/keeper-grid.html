@@ -1,0 +1,127 @@
+<!-- UI text is ITALIAN in app/ (see app/CLAUDE.md); code and comments stay English.
+
+     La griglia scorre dentro il suo riquadro e la modale no: venti colonne non stanno in una finestra,
+     e una pagina che scorre di lato al posto della tabella è il difetto che questo progetto ha già
+     pagato. Intestazioni appiccicate su due lati, così una casella al centro sa sempre di chi è. -->
+<nz-modal
+  [nzVisible]="open()"
+  [nzFooter]="null"
+  nzWidth="96vw"
+  nzTitle="Coppie di portieri, squadra per squadra"
+  (nzOnCancel)="open.set(false)"
+>
+  <div *nzModalContent class="flex flex-col gap-2">
+    <p class="text-xs leading-relaxed text-muted">
+      Giornate <b class="text-fg">{{ window().from }}–{{ window().to }}</b
+      >: in ogni casella, quante ne hanno <b class="text-fg">almeno una partita facile</b> fra le
+      due squadre. Sulle colonne, il portiere che il club schiera secondo il campetto del toolkit.
+      La tinta è relativa a <b class="text-fg">questa</b> griglia (il massimo è {{ top() }}); sulla
+      diagonale c'è il club <b class="text-fg">da solo</b>, che è il termine di paragone della sua
+      riga. Passa sopra una casella per il calendario di tutte e due, con una
+      <b class="text-success">V</b> sulle partite facili.
+    </p>
+
+    @if (!clubs().length) {
+      <p class="text-sm text-muted">
+        Il bundle non porta il calendario di questo campionato: non c'è una griglia da disegnare.
+      </p>
+    } @else {
+      <div class="max-h-[70vh] overflow-auto rounded border border-border">
+        <table class="border-separate border-spacing-0 text-[11px]">
+          <thead>
+            <tr>
+              <th
+                class="sticky top-0 left-0 z-20 border-r border-b border-border bg-surface px-2 py-1 text-left"
+              ></th>
+              @for (column of clubs(); track column) {
+                <!-- LO SFONDO E' UNA CLASSE SOLA, LEGATA, e non due che si contendono la stessa
+                     proprieta': `bg-surface` scritta fissa e `bg-primary` legata sono due utility nello
+                     stesso layer, e a decidere e' l'ordine del CSS generato - non quale delle due e'
+                     legata. Misurato qui il 03/09/2026: lo sfondo restava `--color-surface` mentre il
+                     TESTO passava a `--color-on-primary`, cioe' scuro su scuro, 1,08:1. -->
+                <th
+                  class="sticky top-0 z-10 border-r border-b border-border px-1 py-1 align-bottom"
+                  [class]="column === highlight() ? 'bg-primary text-on-primary' : 'bg-surface'"
+                >
+                  <div class="flex w-[74px] flex-col items-center gap-0.5">
+                    <span class="truncate font-semibold">{{ column }}</span>
+                    <span
+                      class="w-full truncate text-[9px] leading-tight"
+                      [class.text-muted]="column !== highlight()"
+                      >{{ keeperOf().get(column) ?? '—' }}</span
+                    >
+                  </div>
+                </th>
+              }
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of rows(); track row.club) {
+              <tr>
+                <th
+                  class="sticky left-0 z-10 border-r border-b border-border px-2 py-0.5 text-left font-semibold whitespace-nowrap"
+                  [class]="row.club === highlight() ? 'bg-primary text-on-primary' : 'bg-surface'"
+                >
+                  {{ row.club }}
+                </th>
+                @for (square of row.squares; track square.column) {
+                  <td
+                    class="border-r border-b border-border px-1 py-0.5 text-center tabular-nums"
+                    [class.text-muted]="square.diagonal"
+                    [class.font-semibold]="!square.diagonal"
+                    [style.background-color]="tone(square)"
+                    nz-popover
+                    nzPopoverPlacement="right"
+                    [nzPopoverTitle]="square.row + ' + ' + square.column"
+                    [nzPopoverContent]="detailTpl"
+                    (mouseenter)="hovered.set(square)"
+                  >
+                    {{ square.cell.facili }}
+                  </td>
+                }
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+</nz-modal>
+
+<!-- IL POPOVER: il calendario delle due squadre affiancato, una riga per giornata, la V dove la
+     regola scatta. Un solo template per tutte le caselle - quattrocento copie di questa tabella
+     sarebbero quattrocento viste costruite per mostrarne una. -->
+<ng-template #detailTpl>
+  @if (hovered(); as square) {
+    <div class="max-h-80 overflow-y-auto">
+      <table class="text-[11px]">
+        <thead>
+          <tr class="text-muted">
+            <th class="px-1 text-right font-normal">g.</th>
+            <th class="px-2 text-left font-normal">{{ square.row }}</th>
+            @if (!square.diagonal) {
+              <th class="px-2 text-left font-normal">{{ square.column }}</th>
+            }
+            <th class="px-1 text-center font-normal">facile</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of square.cell.rows; track row.round) {
+            <tr [class.text-muted]="!row.facile">
+              <td class="px-1 text-right tabular-nums">{{ row.round }}</td>
+              <td class="px-2 whitespace-nowrap" [class.font-semibold]="row.a?.easy">
+                {{ label(row, 'a') }}
+              </td>
+              @if (!square.diagonal) {
+                <td class="px-2 whitespace-nowrap" [class.font-semibold]="row.b?.easy">
+                  {{ label(row, 'b') }}
+                </td>
+              }
+              <td class="px-1 text-center font-bold text-success">{{ row.facile ? 'V' : '' }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</ng-template>

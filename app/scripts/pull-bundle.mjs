@@ -37,6 +37,20 @@ const TABLES = [
    * one channel it was acquired for - and it travels cut a year before the heavy window, with the last
    * point before the cut, so nobody arrives without a level. */
   'market_value_history',
+  /* CHI LA STAMPA DA' PER INDISPONIBILE, datato (03/09/2026, su richiesta dell'operatore: «dobbiamo
+   * recepire anche la notizia di corridoio per alzare almeno un alert»).
+   *
+   * E' il canale VELOCE, e la misura dice quanto vale: il giorno in cui e' stato aggiunto, 114 uomini
+   * del listone 2026-27 erano dati indisponibili dalla pagina indisponibili di fantacalcio.it - 43 di
+   * Serie A, 33 di Premier, 19 di Bundesliga, 13 di Liga, 6 di Ligue 1 - e **70 di quei 114 non avevano
+   * un infortunio aperto su Transfermarkt**, che e' la fonte UFFICIALE che l'app gia' legge. Il 61%
+   * dell'informazione «e' indisponibile adesso» esiste solo qui. McTominay era uno di quei 70.
+   *
+   * Era gia' nel contratto di export e gia' scritto in `data/export/<season>/json/`: mancava soltanto in
+   * questa lista, che e' la terza volta che questo difetto si presenta (i campetti il 10/08, e la regola
+   * scritta allora - «una cartella aggiunta all'EXPORT va aggiunta anche QUI» - vale identica per una
+   * tabella). Non e' una misura e nessun numero la legge: alza un marchio accanto a un nome. */
+  'availability',
 ];
 
 if (!existsSync(EXPORT_ROOT)) {
@@ -82,7 +96,20 @@ if (existsSync(join(src, 'config/player_notes.json'))) {
   copyFileSync(join(src, 'config/player_notes.json'), join(OUT, 'player_notes.json'));
 }
 
+/* IL CALENDARIO ancora da giocare, gia' prezzato dal toolkit (`fixtures.schedule`): per ogni partita il
+ * vantaggio della squadra di casa - livello, campo e avversario in una sottrazione sola - e, dove i
+ * coefficienti sono stati stimati, la probabilita' che ognuna delle due non subisca gol. Serve agli
+ * accoppiamenti fra portieri della plancia, ed e' l'unica cosa che l'app non potrebbe dedursi da se':
+ * `fixtures` e `club_levels` sono chiavati su una tabella di alias che vive in Python. Un bundle senza
+ * una corsa di `fixtures` non ce l'ha, e la modale lo dice invece di disegnare caselle vuote. */
 let bytes = statSync(join(OUT, 'manifest.json')).size;
+let calendar = false;
+if (existsSync(join(src, 'calendar.json'))) {
+  copyFileSync(join(src, 'calendar.json'), join(OUT, 'calendar.json'));
+  bytes += statSync(join(src, 'calendar.json')).size;
+  calendar = true;
+}
+
 const missing = [];
 for (const table of TABLES) {
   const file = `${table}.json.gz`;
@@ -167,13 +194,27 @@ if (existsSync(crestsIn)) {
 const manifest = JSON.parse(readFileSync(join(OUT, 'manifest.json'), 'utf8'));
 console.log(`bundle ${season} -> public/data`);
 console.log(`  schema_version ${manifest.schema_version}, generated ${manifest.generated_at}`);
-console.log(`  target ${manifest.target_season}, heavy seasons ${manifest.heavy_seasons.join(', ')}`);
-console.log(`  ${TABLES.length - missing.length}/${TABLES.length} tables, ${crests} crests, `
-  + `${sheets} engine sheets, ${boards} board files, ${packs} timepacks, `
-  + `${(bytes / 1024 / 1024).toFixed(1)} MB`);
+console.log(
+  `  target ${manifest.target_season}, heavy seasons ${manifest.heavy_seasons.join(', ')}`,
+);
+console.log(
+  `  ${TABLES.length - missing.length}/${TABLES.length} tables, ${crests} crests, ` +
+    `${sheets} engine sheets, ${boards} board files, ${packs} timepacks, ` +
+    `${calendar ? 'calendar' : 'NO calendar'}, ${(bytes / 1024 / 1024).toFixed(1)} MB`,
+);
+// Same rule as the boards: a silent zero reads exactly like a broken feature. Without it the plancia's
+// keeper pairings have nothing to count and say so, which is right - but nobody would know why.
+if (!calendar) {
+  console.warn(
+    '  NO calendar: gli accoppiamenti fra portieri non hanno partite da contare. Lancia ' +
+      '`python -m euroleghe_ingest fixtures` e poi `export`.',
+  );
+}
 if (!packs) {
-  console.warn('  nessun timepack: il viaggio nel tempo potrà retrodatare solo quello che è datato nel '
-    + 'bundle (letture, trend, marchi), non il motore. `python -m euroleghe_ingest timepack --all`');
+  console.warn(
+    '  nessun timepack: il viaggio nel tempo potrà retrodatare solo quello che è datato nel ' +
+      'bundle (letture, trend, marchi), non il motore. `python -m euroleghe_ingest timepack --all`',
+  );
 }
 if (missing.length) console.warn(`  MISSING: ${missing.join(', ')}`);
 /* Silence here would read as "the app can rank by surplus" while it cannot: without a sheet the
@@ -181,6 +222,8 @@ if (missing.length) console.warn(`  MISSING: ${missing.join(', ')}`);
 if (!sheets) console.warn('  NO engine sheets: run `snapshot --league NAME` then `export`.');
 // A silent zero is how a whole feature reads as broken: the pitch has nothing to draw and nobody knows why.
 if (!boards) {
-  console.warn('  NO boards: the pitch of a real club will say it has none. They are written by `snapshot`'
-    + ' (it needs a display) and carried by `export`.');
+  console.warn(
+    '  NO boards: the pitch of a real club will say it has none. They are written by `snapshot`' +
+      ' (it needs a display) and carried by `export`.',
+  );
 }

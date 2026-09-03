@@ -133,10 +133,25 @@
             >
               <nz-icon nzType="filter" nzTheme="fill" />
             </nz-filter-trigger>
-            <nz-dropdown-menu #filterPanel="nzDropdownMenu">
-              <ng-container *ngTemplateOutlet="panelBody; context: { $implicit: key }" />
-            </nz-dropdown-menu>
           }
+          <!-- IL MENU STA FUORI DAL BLOCCO, e l'`@if` dentro di lui invece che intorno.
+               `nz-th-addon` proietta l'imbuto in uno SLOT suo (`<ng-content select="nz-filter-trigger">`,
+               dentro `extraTemplate`), e Angular puo' proiettare il contenuto di un `@if` in uno slot
+               specifico solo se quel blocco ha UN nodo radice: con l'imbuto e il menu insieme erano due,
+               quindi il blocco intero finiva nello slot di DEFAULT e l'imbuto non arrivava mai dove antd
+               lo mette (NG8011, un avviso a ogni build). Qui non si vedeva perche' `nz-table-filter`
+               avvolge tutt'e due gli slot in `.ant-table-filter-column`, che e' il selettore su cui la
+               nostra CSS lo tira fuori dal flusso: il pixel era giusto per caso, il markup no.
+               Il menu non puo' stare in un `@if` suo - un `#ref` dichiarato dentro un blocco non si vede
+               da un blocco fratello - e non puo' uscire dalla `<th>`, perche' un nodo che non e' una
+               `<th>` dentro il `<tr>` si mangia una colonna della griglia (misurato il 20/08/2026, 84px
+               di buco). Quindi resta qui, con il CONTENUTO condizionato: per una colonna senza filtro e'
+               un elemento vuoto, e il pannello vero lo istanzia `ngTemplateOutlet` solo all'apertura. -->
+          <nz-dropdown-menu #filterPanel="nzDropdownMenu">
+            @if (filterKind(key)) {
+              <ng-container *ngTemplateOutlet="panelBody; context: { $implicit: key }" />
+            }
+          </nz-dropdown-menu>
         </th>
       }
     </tr>

@@ -17,8 +17,14 @@ import {
   worthWaiting,
 } from './plancia';
 
-function man(id: number, role: Role, fvm: number, points: number | null = fvm): PlanciaMan {
-  return { id, name: `M${id}`, club: 'C', role, fvm, points, pv: 30, basis: 'measured' };
+function man(
+  id: number,
+  role: Role,
+  fvm: number,
+  points: number | null = fvm,
+  outNow = false,
+): PlanciaMan {
+  return { id, name: `M${id}`, club: 'C', role, fvm, points, pv: 30, basis: 'measured', outNow };
 }
 
 /** A listone big enough to fill every slot of a ten-team league, plus a tail. */
@@ -288,5 +294,80 @@ describe('il verdetto', () => {
     const open = adviseLot({ ...shared, slotIndex: 6, band, tablePrice: 1, hands: 10 });
     const thin = adviseLot({ ...shared, slotIndex: 6, band, tablePrice: 1, hands: 2 });
     expect(open.expectedPrice).toBeGreaterThan(thin.expectedPrice);
+  });
+});
+
+describe('chi oggi non gioca', () => {
+  it('finisce in FONDO al suo slot, e non ne esce', () => {
+    // Il migliore dello slot è fuori: resta nello slot - toglierlo nasconderebbe un fatto - ma nessuno
+    // lo incontra per primo.
+    const men = [man(1, 'C', 100, 900, true), man(2, 'C', 90, 500), man(3, 'C', 80, 100)];
+    const block = buildMap(men, 3, { P: 0, D: 0, C: 1, A: 0 }).byRole.get('C')![0];
+    expect(block.men.map((entry) => entry.id)).toEqual([2, 3, 1]);
+    expect(block.men).toHaveLength(3);
+  });
+
+  it('è un VINCOLO e non un peso: fra i disponibili l’ordine non cambia di una riga', () => {
+    const free = buildMap([man(2, 'C', 90, 500), man(3, 'C', 80, 100)], 2, {
+      P: 0,
+      D: 0,
+      C: 1,
+      A: 0,
+    }).byRole.get('C')![0];
+    const withOut = buildMap(
+      [man(1, 'C', 100, 900, true), man(2, 'C', 90, 500), man(3, 'C', 80, 100)],
+      3,
+      {
+        P: 0,
+        D: 0,
+        C: 1,
+        A: 0,
+      },
+    ).byRole.get('C')![0];
+    expect(withOut.men.slice(0, 2).map((e) => e.id)).toEqual(free.men.map((e) => e.id));
+  });
+
+  it('il verdetto diventa FERMO, prima di ogni prezzo', () => {
+    const band = offerBand({
+      role: 'C',
+      slotIndex: 1,
+      budget: 1000,
+      room: 1000,
+      points: 100,
+      medianPoints: 100,
+    })!;
+    const advice = adviseLot({
+      role: 'C',
+      slotIndex: 1,
+      band,
+      medianFvm: 40,
+      tablePrice: 1,
+      hands: 10,
+      teams: 10,
+      exhaustedBelow: 0,
+      priced: true,
+      outNow: true,
+      outReason: 'La stampa lo dà indisponibile.',
+    });
+    expect(advice.verdict).toBe('fermo');
+    expect(advice.reason).toContain('stampa');
+    // ...e la banda resta quella: non sappiamo per quanto starà fuori, quindi non lo riprezziamo.
+    expect(advice.band).toBe(band);
+  });
+
+  it('batte anche il caso «non prezzato», perché è una prova più forte', () => {
+    const advice = adviseLot({
+      role: 'C',
+      slotIndex: 1,
+      band: null,
+      medianFvm: 40,
+      tablePrice: 0,
+      hands: 10,
+      teams: 10,
+      exhaustedBelow: 0,
+      priced: false,
+      outNow: true,
+    });
+    expect(advice.verdict).toBe('fermo');
   });
 });

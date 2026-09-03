@@ -77,6 +77,16 @@ _KADER_CACHE = re.compile(r"transfermarkt_kader_(\d+)_(\d{4})\.html$")
 _SQUAD_CACHE = re.compile(r"transfermarkt_squad_(\d+)_(\d{4}-\d{2}-\d{2})\.html$")
 _INJURY_CACHE = re.compile(r"transfermarkt_injuries_(\d+)(?:_p(\d+))?\.html$")
 
+
+def _read_on(path) -> str:
+    """The day a cached page was READ, from the file itself.
+
+    The filesystem is the only place that fact lives - the page carries no stamp we parse - and using
+    it rather than the clock is what makes the column survive a `rebuild`, which replays the cache
+    offline months later.
+    """
+    return dt.date.fromtimestamp(path.stat().st_mtime).isoformat()
+
 # The source's own Italian labels -> a small vocabulary. Ordered: the first key found wins, so
 # "lesione del legamento crociato" is a knee injury and not a generic muscle one.
 KIND_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
@@ -296,16 +306,23 @@ def resolve_squad(conn, fc_club_id: int, season: str, records: list[dict],
     return matched, unresolved
 
 
-def upsert_injuries(conn, fc_id: int, records: list[dict]) -> int:
+def upsert_injuries(conn, fc_id: int, records: list[dict], observed_on: str | None = None) -> int:
+    """The dated absences of one player, with the day the PAGE they come from was read.
+
+    `observed_on` is the cache file's own date and never today's: `rebuild` replays the cache offline,
+    so stamping the clock would file a page read in July under September. It answers the question
+    `start_date` cannot - «have we looked since?» - which is what an empty recent window means.
+    """
     for rec in records:
         conn.execute(
             """
             INSERT OR REPLACE INTO injuries(
-                fc_id, start_date, end_date, kind, days_out, matches_missed, detail, source)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 'transfermarkt')
+                fc_id, start_date, end_date, kind, days_out, matches_missed, detail, source,
+                observed_on)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'transfermarkt', ?)
             """,
             (fc_id, rec["start_date"], rec["end_date"], rec["kind"], rec["days_out"],
-             rec["matches_missed"], rec["detail"]),
+             rec["matches_missed"], rec["detail"], observed_on),
         )
     return len(records)
 
@@ -605,16 +622,29 @@ def reingest_from_cache(ctx: Context) -> None:
             orphans += 1
             continue
         records: list[dict] = []
+        read_on: str | None = None
         for path in paths:
             try:
                 records += parse_injury_history(path.read_text(encoding="utf-8"))
             except Exception as exc:   # noqa: BLE001
                 print(f"[injuries] skipping unreadable {path.name}: {exc}")
-        stored += upsert_injuries(conn, fc_id, records)
+                continue
+            # The FRESHEST of his pages: a player with three pages was read in one pass, and if a
+            # re-read only refreshed the first the honest answer is still «we looked that day».
+            when = _read_on(path)
+            if read_on is None or when > read_on:
+                read_on = when
+        stored += upsert_injuries(conn, fc_id, records, read_on)
         players += 1
     conn.commit()
+    seen = conn.execute(
+        "SELECT MIN(observed_on), MAX(observed_on) FROM injuries WHERE source = 'transfermarkt'"
+    ).fetchone()
     print(f"[injuries] {stored} dated absences over {players} players "
           f"({orphans} cached pages without a resolved identity)")
+    # The freshness of the SOURCE, printed because it is the thing a reader gets wrong: an empty recent
+    # window means «nobody got hurt» only if we looked, and this line says when we did.
+    print(f"[injuries] pages read between {seen[0]} and {seen[1]}")
 
     ingest_contract_snapshot(ctx)
 

@@ -6,9 +6,12 @@ import {
   buildSpells,
   declaredFor,
   declaredMark,
+  UNAVAILABLE_FRESH_DAYS,
+  buildUnavailable,
   injuryMark,
   isOpen,
   spellDays,
+  unavailableMark,
 } from './player-status';
 
 const TODAY = '2026-08-11';
@@ -153,9 +156,9 @@ describe('buildSpells nel viaggio nel tempo', () => {
     table: 'injuries',
     columns: ['fc_id', 'start_date', 'end_date', 'kind', 'days_out'],
     rows: [
-      [1, '2025-09-01', '2025-09-20', 'knee', 19],   // finito prima: intatto
-      [1, '2025-10-15', '2025-12-20', 'thigh', 66],  // ancora aperto al 3 novembre
-      [1, '2026-02-01', '2026-03-01', 'ankle', 28],  // non è ancora successo
+      [1, '2025-09-01', '2025-09-20', 'knee', 19], // finito prima: intatto
+      [1, '2025-10-15', '2025-12-20', 'thigh', 66], // ancora aperto al 3 novembre
+      [1, '2026-02-01', '2026-03-01', 'ankle', 28], // non è ancora successo
     ],
   };
 
@@ -173,5 +176,60 @@ describe('buildSpells nel viaggio nel tempo', () => {
     expect(spells.length).toBe(3);
     expect(spells[1].to).toBe('2025-12-20');
     expect(spells[1].days).toBe(66);
+  });
+});
+
+describe('chi la stampa dà per indisponibile', () => {
+  const table = (rows: (string | number)[][]): BundleTable =>
+    ({
+      table: 'availability',
+      columns: ['fc_id', 'valid_from', 'status', 'source'],
+      rows,
+    }) as BundleTable;
+
+  it('tiene solo l’ULTIMA lettura di ogni uomo: una riga vecchia non è uno stato di oggi', () => {
+    const seen = buildUnavailable(
+      table([
+        [7, '2026-08-30', 'injured', 'fc_site'],
+        [7, '2026-09-03', 'suspended', 'fc_site'],
+        [9, '2026-09-03', 'injured', 'fc_site'],
+      ]),
+    );
+    expect(seen.get(7)).toEqual({ status: 'suspended', on: '2026-09-03' });
+    expect(seen.get(9)?.status).toBe('injured');
+  });
+
+  it('viaggiando nel tempo non legge una lettura del futuro', () => {
+    const seen = buildUnavailable(
+      table([
+        [7, '2026-08-30', 'injured', 'fc_site'],
+        [7, '2026-09-03', 'suspended', 'fc_site'],
+      ]),
+      '2026-08-31',
+    );
+    expect(seen.get(7)?.on).toBe('2026-08-30');
+  });
+
+  it('una lettura vecchia si SPEGNE invece di mentire', () => {
+    // «Non abbiamo guardato» non è «è rientrato»: è la stessa regola per cui `injuries` ha preso
+    // `observed_on` il 03/09/2026.
+    const fresh = unavailableMark({ status: 'injured', on: '2026-08-11' }, TODAY);
+    expect(fresh?.flag).toBe('unavailable_press');
+    const stale = unavailableMark({ status: 'injured', on: '2026-08-01' }, TODAY);
+    expect(stale).toBeNull();
+    // Il confine è dichiarato, non dedotto dal caso di prova.
+    const edge = unavailableMark({ status: 'injured', on: '2026-08-11' }, '2026-08-14');
+    expect(UNAVAILABLE_FRESH_DAYS).toBe(3);
+    expect(edge).not.toBeNull();
+  });
+
+  it('dice CHE COSA la stampa ha detto, e che non è una diagnosi', () => {
+    expect(unavailableMark({ status: 'suspended', on: TODAY }, TODAY)?.note).toContain(
+      'Squalificato',
+    );
+    expect(unavailableMark({ status: 'doubt', on: TODAY }, TODAY)?.note).toContain('In dubbio');
+    const note = unavailableMark({ status: 'injured', on: TODAY }, TODAY)!.note;
+    expect(note).toContain('oggi');
+    expect(note).toContain('non dice per quanto');
   });
 });

@@ -342,6 +342,16 @@ function funnels() {
       // ...e se si VEDE. Spento sta a zero (non costa larghezza a una colonna di 46px), acceso
       // deve stare a uno, perche' quale colonna stia filtrando e' un fatto e non un'affordance.
       shown: trigger ? Number(getComputedStyle(trigger).opacity) : null,
+      // ...E IN QUALE SLOT E' FINITO, che e' una domanda diversa da «dove sta sullo schermo».
+      //
+      // `nz-th-addon` ha uno slot suo per l'imbuto (`<ng-content select="nz-filter-trigger">`), e
+      // Angular ci proietta il contenuto di un `@if` solo se quel blocco ha UN nodo radice. Con due
+      // (l'imbuto e il suo menu) finiva tutto nello slot di DEFAULT, cioe' dentro il titolo - e NON si
+      // vedeva, perche' `nz-table-filter` avvolge tutt'e due gli slot in `.ant-table-filter-column`,
+      // che e' il selettore su cui la nostra CSS lo tira fuori dal flusso. Pixel giusto, markup
+      // sbagliato, e un NG8011 a ogni build. Curato il 03/09/2026 e misurato qui: un imbuto DENTRO il
+      // titolo e' tornato nello slot di default.
+      inTitle: trigger ? !!trigger.closest('.ant-table-column-title') : null,
     };
   });
 }
@@ -1155,6 +1165,11 @@ async function main() {
           : [`imbuti tagliati dalla loro cella: ${funnelled.filter((one) => one.clipped)
             .map((one) => one.label + ' (' + one.clipped + 'px)').join(', ')}`
             + ' - ci sono nel DOM e non si possono cliccare']),
+        // ...e sono nello SLOT dell'imbuto e non in quello del titolo: un `@if` con due nodi radice
+        // li rimanderebbe li' in silenzio, col pixel ancora giusto e il build che urla NG8011.
+        ...(funnelled.every((one) => !one.inTitle) ? []
+          : [`imbuti finiti dentro il titolo invece che nello slot del filtro: `
+            + `${funnelled.filter((one) => one.inTitle).map((one) => one.label).join(', ')}`]),
         ...(shown?.numbers?.length === 2
           ? [] : ['il pannello di una colonna di numeri non ha i due estremi']),
         ...(shown?.numbers?.every((one) => one)

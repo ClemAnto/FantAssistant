@@ -1691,6 +1691,17 @@ describe('chi e\' fuori per un mese non si consiglia', () => {
     expect(buyable(man('A', 100, 30))).toBe(true);
   });
 
+  /**
+   * IL CASO McTOMINAY (03/09/2026): la stampa lo da' fuori oggi e la fonte UFFICIALE non ne sa niente -
+   * misurato quel giorno, 70 dei 114 indisponibili del listone non avevano un infortunio aperto su
+   * Transfermarkt. `outDays` quindi e' null e la vecchia regola lo lasciava passare: un piano che scrive
+   * una busta su un uomo che sabato non c'e'.
+   */
+  it('rifiuta chi la STAMPA dà fuori oggi, anche senza un infortunio ufficiale', () => {
+    expect(buyable(man('C', 100, 30, { outDays: null, unavailableNow: true }))).toBe(false);
+    expect(buyable(man('C', 100, 30, { outDays: null, unavailableNow: false }))).toBe(true);
+  });
+
   it("lo tiene fuori anche dai NOMI CONTESI, che e' dove l'operatore l'ha visto", () => {
     next = 1;
     const gone = man('A', 100, 30, { outOfSquad: true });

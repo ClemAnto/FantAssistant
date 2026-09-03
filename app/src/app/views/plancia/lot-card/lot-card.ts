@@ -14,6 +14,8 @@ const VERDICT_ICON: Record<Verdict, string> = {
   aspetta: 'clock-circle',
   lascia: 'close-circle',
   ignoto: 'question-circle',
+  // Il campanello, lo stesso marchio che la riga porta accanto al nome: una cosa sola vista due volte.
+  fermo: 'alert',
 };
 
 /**
@@ -25,6 +27,7 @@ const VERDICT_TONE: Record<Verdict, string> = {
   aspetta: 'text-warning',
   lascia: 'text-danger',
   ignoto: 'text-muted',
+  fermo: 'text-danger',
 };
 
 const VERDICT_RAIL: Record<Verdict, string> = {
@@ -32,6 +35,7 @@ const VERDICT_RAIL: Record<Verdict, string> = {
   aspetta: 'bg-warning',
   lascia: 'bg-danger',
   ignoto: 'bg-border',
+  fermo: 'bg-danger',
 };
 
 export const ROLE_TONE: Record<Role, string> = {

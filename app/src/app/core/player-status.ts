@@ -1,6 +1,13 @@
 import { Injectable, computed, effect, inject, signal } from '@angular/core';
 
-import { Bundle, BundleTable, PlayerNote, PlayerNotesFile, columnIndex, optionalIndex } from './bundle';
+import {
+  Bundle,
+  BundleTable,
+  PlayerNote,
+  PlayerNotesFile,
+  columnIndex,
+  optionalIndex,
+} from './bundle';
 import { TimeTravel } from './time-travel';
 import { itDate } from './tooltip';
 
@@ -47,7 +54,18 @@ export const FRAGILITY_YEARS = 3;
  * A DISPLAY threshold like the two above it, declared here so nobody reads it as a fitted parameter.
  * What it does to a VALUATION is a different matter and lives in `player-ratings.ts`.
  */
-export const FRAGILE_SHARE = 0.20;
+export const FRAGILE_SHARE = 0.2;
+
+/**
+ * Per quanti giorni una lettura degli INDISPONIBILI vale ancora.
+ *
+ * La pagina è riletta ogni giorno, quindi una lettura vecchia più di così vuol dire che non abbiamo
+ * guardato - e «non abbiamo guardato» non è «è tornato disponibile». Tre giorni copre un fine settimana
+ * in cui il pacchetto non è stato rigenerato; oltre, il marchio si spegne invece di mentire.
+ *
+ * SCELTA DI VISUALIZZAZIONE come le tre sopra, dichiarata qui perché nessuno la legga come misurata.
+ */
+export const UNAVAILABLE_FRESH_DAYS = 3;
 
 export type PlayerFlag =
   | 'long_injury'
@@ -69,6 +87,7 @@ export type PlayerFlag =
   | 'rotation_risk'
   | 'rotation_early'
   | 'starter_signs'
+  | 'unavailable_press'
   | 'intl_cup';
 
 /**
@@ -97,6 +116,8 @@ export const FLAG_LABEL: Record<PlayerFlag, string> = {
   rotation_risk: 'Preso per titolare, ma ruotato',
   rotation_early: 'Preso per titolare, segnali di incertezza',
   starter_signs: 'Dato per riserva, gioca da titolare',
+  // Il canale VELOCE, e la frase dice che non è l'ufficiale: «la stampa» invece di «infortunato».
+  unavailable_press: 'La stampa lo dà indisponibile',
   // «Coppa» da sola sarebbe ambigua: questa stessa vista ha già un filtro «Coppe e altre competizioni»,
   // che sono le coppe dei CLUB nella tabella delle partite. Qui il soggetto è la NAZIONALE.
   intl_cup: 'In nazionale a una coppa continentale, a campionato in corso',
@@ -110,6 +131,8 @@ export const FLAG_LABEL: Record<PlayerFlag, string> = {
  * filtro che non trova mai niente, cioè una bugia con l'aria di una funzione.
  */
 export const CONSULTABLE_FLAGS: PlayerFlag[] = [
+  // Sta in cima perché è lo stato di ADESSO e perché è il più fresco: la pagina è riletta ogni giorno.
+  'unavailable_press',
   // La coppa continentale c'è anche qui, a differenza degli screen e dei due marchi di rotazione: il suo
   // marchio lo registra `ValuationStore`, che ogni lista carica, non il pannello d'asta - quindi il filtro
   // «fammi vedere chi parte a gennaio» trova davvero qualcuno invece di essere una funzione vuota.
@@ -216,8 +239,9 @@ export function injuryMark(spells: readonly Spell[], today: string): PlayerMark 
   if (back) {
     return {
       flag: 'back_from_long',
-      note: `${back.detail ?? 'Infortunio'}: ${backDays} giorni fuori, rientrato il ${it(back.to!)}`
-        + ` (${daysBetween(back.to!, today)} giorni fa)`,
+      note:
+        `${back.detail ?? 'Infortunio'}: ${backDays} giorni fuori, rientrato il ${it(back.to!)}` +
+        ` (${daysBetween(back.to!, today)} giorni fa)`,
     };
   }
   return null;
@@ -278,8 +302,9 @@ export function fragilityMark(spells: readonly Spell[], today: string): PlayerMa
   if (one.share < FRAGILE_SHARE) return null;
   return {
     flag: 'fragile',
-    note: `${one.days} giorni fuori in ${FRAGILITY_YEARS} anni (${Math.round(one.share * 100)}%)`
-      + `, in ${one.episodes} episodi`,
+    note:
+      `${one.days} giorni fuori in ${FRAGILITY_YEARS} anni (${Math.round(one.share * 100)}%)` +
+      `, in ${one.episodes} episodi`,
   };
 }
 
@@ -314,6 +339,60 @@ export function buildSpells(table: BundleTable, cutoff?: string): Map<number, Sp
   return out;
 }
 
+/** Lo stato che la stampa dichiara oggi, con il giorno in cui lo ha detto. */
+export interface Unavailable {
+  status: string;
+  on: string;
+}
+
+/**
+ * Chi la stampa dà per indisponibile, dalla tabella `availability` del pacchetto.
+ *
+ * È il canale VELOCE e NON è l'ufficiale, e la differenza è tutto il punto: l'ufficiale (`injuries`,
+ * Transfermarkt) arriva quando il club conferma, e il giorno in cui questo è stato scritto **70 dei 114
+ * indisponibili del listone non avevano un infortunio aperto là**. La stampa scrive la voce di corridoio
+ * il giorno stesso; il marchio dice «c'è qualcosa da esaminare», non «starà fuori N giornate».
+ *
+ * Si tiene SOLO l'ultima lettura per uomo, ed è una scelta con una ragione: la tabella è datata e una
+ * riga vecchia non è uno stato di oggi. Chi non compare nell'ultima lettura non è «disponibile», è
+ * semplicemente non nominato - la pagina elenca gli indisponibili, non tutti.
+ */
+export function buildUnavailable(table: BundleTable, cutoff?: string): Map<number, Unavailable> {
+  const [id, from] = columnIndex(table, 'fc_id', 'valid_from');
+  const status = optionalIndex(table, 'status');
+  const out = new Map<number, Unavailable>();
+  for (const row of table.rows) {
+    const on = String(row[from] ?? '');
+    if (!on || (cutoff && on > cutoff)) continue;
+    const key = Number(row[id]);
+    if (!key) continue;
+    const previous = out.get(key);
+    if (previous && previous.on >= on) continue;
+    out.set(key, { status: status < 0 ? 'injured' : String(row[status] ?? 'injured'), on });
+  }
+  return out;
+}
+
+/** Come si legge quello stato, e quanto è fresca la lettura. */
+export function unavailableMark(entry: Unavailable, today: string): PlayerMark | null {
+  const age = daysBetween(entry.on, today);
+  // Una lettura vecchia si SPEGNE invece di mentire: «non abbiamo guardato» non è «è rientrato».
+  if (age > UNAVAILABLE_FRESH_DAYS || age < 0) return null;
+  const what =
+    entry.status === 'suspended'
+      ? 'Squalificato'
+      : entry.status === 'doubt'
+        ? 'In dubbio'
+        : 'Dato indisponibile';
+  const when = age === 0 ? 'oggi' : age === 1 ? 'ieri' : `il ${itDate(entry.on)}`;
+  return {
+    flag: 'unavailable_press',
+    note:
+      `${what} dalla stampa, letto ${when}. È la voce del giorno e non una diagnosi: non dice per ` +
+      `quanto, e può non essere ancora ufficiale. Da esaminare prima di offrire.`,
+  };
+}
+
 /**
  * What every name is carrying, ready for any list that draws players.
  *
@@ -326,6 +405,8 @@ export class PlayerStatus {
   private readonly bundle = inject(Bundle);
 
   private readonly spells = signal<Map<number, Spell[]>>(new Map());
+  /** L'ultima lettura degli indisponibili, per uomo. Vuota su un pacchetto che non porta la tabella. */
+  private readonly unavailable = signal<Map<number, Unavailable>>(new Map());
 
   /**
    * The day the marks are read against.
@@ -358,6 +439,23 @@ export class PlayerStatus {
   private async reread(): Promise<void> {
     const cutoff = this.travel.travelling() ? this.travel.today() : undefined;
     this.spells.set(buildSpells(await this.bundle.table('injuries'), cutoff));
+    await this.readUnavailable(cutoff);
+  }
+
+  /**
+   * La tabella degli indisponibili, che un pacchetto vecchio può non avere.
+   *
+   * Il fallimento è silenzioso di proposito ed è diverso da quello degli infortuni: là `loaded` resta
+   * falso perché il silenzio non va letto come «nessuno è infortunato»; qui la mappa resta VUOTA, che è
+   * anche lo stato normale di una lettura in cui non c'è nessun indisponibile. Quello che il marchio
+   * non deve mai fare è comparire in ritardo, e a questo pensa la freschezza.
+   */
+  private async readUnavailable(cutoff?: string): Promise<void> {
+    try {
+      this.unavailable.set(buildUnavailable(await this.bundle.table('availability'), cutoff));
+    } catch {
+      this.unavailable.set(new Map());
+    }
   }
 
   private async ensure(): Promise<void> {
@@ -367,7 +465,10 @@ export class PlayerStatus {
     this.readAt.set(manifest?.generated_at ?? null);
     // The DECLARED notes are about a SEASON, and the one that matters is the season this bundle is for:
     // a note about last summer's quarrel is not a fact about this auction.
-    this.declared.set(declaredFor(await this.bundle.playerNotes(), manifest?.target_season ?? null));
+    this.declared.set(
+      declaredFor(await this.bundle.playerNotes(), manifest?.target_season ?? null),
+    );
+    await this.readUnavailable();
     try {
       this.spells.set(buildSpells(await this.bundle.table('injuries')));
       this.loaded.set(true);
@@ -379,6 +480,75 @@ export class PlayerStatus {
 
   /** The declared notes of this bundle's season, keyed by `fc_id`. Empty when nothing is declared. */
   readonly declared = signal<Map<number, PlayerNote>>(new Map());
+
+  /** Chi la stampa dà per fuori OGGI: lo stato più fresco che questa app abbia. */
+  private readonly pressMarks = computed(() => {
+    const today = this.today();
+    const out = new Map<number, PlayerMark>();
+    for (const [id, entry] of this.unavailable()) {
+      const mark = unavailableMark(entry, today);
+      if (mark) out.set(id, mark);
+    }
+    return out;
+  });
+
+  /**
+   * Lo stato che la stampa dichiara, in fatti invece che in una frase, per chi deve DECIDERE.
+   *
+   * Stessa ragione di `openInjury`: una nota basta a un'icona e non basta a una soglia, e qui la soglia
+   * naturale è «non consigliarmi chi è dato fuori». `null` è «non è nominato», che non è «sta bene».
+   */
+  pressUnavailable(playerId: number | null | undefined): Unavailable | null {
+    if (playerId == null) return null;
+    const entry = this.unavailable().get(playerId);
+    if (!entry) return null;
+    return unavailableMark(entry, this.today()) ? entry : null;
+  }
+
+  /**
+   * NON GIOCA LA PROSSIMA, ed è la domanda che decide adesso.
+   *
+   * È una TERZA domanda e ha il suo nome, perché le altre due hanno altre soglie e mescolarle è il
+   * difetto che questo progetto paga da sempre: `LONG_INJURY_DAYS` (45) decide se DISEGNARE un'icona,
+   * `sealed-bid.LONG_OUT_DAYS` (30) decide se un uomo merita una BUSTA per l'intera tornata, e questa
+   * decide se schierarlo o comprarlo PER SABATO. Su quell'orizzonte non conta quanto durerà: conta che
+   * oggi è fuori.
+   *
+   * Due prove, e la prima è quella che arriva in tempo:
+   *   * la STAMPA, riletta ogni giorno - il canale che il 03/09/2026 sapeva di 70 indisponibili su 114
+   *     di cui la fonte ufficiale non sapeva niente;
+   *   * l'infortunio UFFICIALE ancora aperto, che è più lento ma più solido.
+   * Chi porta la prima e non la seconda è esattamente il caso McTominay, ed è il motivo della funzione.
+   *
+   * `null` NON è «sta bene»: la pagina elenca gli indisponibili, non tutti, quindi chi non è nominato è
+   * semplicemente non nominato. È «vuoto = ignoto» detto sul silenzio di una fonte.
+   */
+  unavailableNow(playerId: number | null | undefined): PlayerMark | null {
+    if (playerId == null) return null;
+    const press = this.pressMarks().get(playerId);
+    if (press) return press;
+    const open = this.openInjury(playerId);
+    if (!open) return null;
+    return {
+      flag: 'long_injury',
+      note:
+        `Infortunio in corso da ${open.days} giorni` +
+        (open.until ? `, rientro previsto il ${itDate(open.until)}` : ', senza data di rientro') +
+        '. Per la prossima giornata è fuori.',
+    };
+  }
+
+  /**
+   * Lo stesso fatto come ORDINE, per chi deve mettere in fila dei nomi.
+   *
+   * Ritorna 1 per chi oggi non gioca e 0 per tutti gli altri, così una graduatoria lo usa come PRIMA
+   * chiave e il resto dell'ordine non cambia di una riga. È un VINCOLO e non un peso - la stessa forma
+   * che la pagina delle buste dà alle tre regole dichiarate dall'operatore - perché non sappiamo per
+   * quanto starà fuori e quindi non possiamo riprezzarlo: possiamo solo non proporlo per primo.
+   */
+  sinksNow(playerId: number | null | undefined): number {
+    return this.unavailableNow(playerId) ? 1 : 0;
+  }
 
   private readonly injuryMarks = computed(() => {
     const today = this.today();
@@ -480,6 +650,11 @@ export class PlayerStatus {
   marksFor(playerId: number | null | undefined): PlayerMark[] {
     if (playerId == null) return [];
     const marks: PlayerMark[] = [];
+    // PRIMA di tutto lo stato di oggi secondo la stampa: è il più fresco - la pagina è riletta ogni
+    // giorno - ed è l'unico che può sapere di un uomo che si è fatto male stamattina. L'ufficiale gli
+    // sta accanto e non lo sostituisce: sono due prove diverse, e un uomo può portarle entrambe.
+    const press = this.pressMarks().get(playerId);
+    if (press) marks.push(press);
     const injury = this.injuryMarks().get(playerId);
     if (injury) marks.push(injury);
     // Being hurt NOW and breaking down OFTEN are two different facts, and a man can carry both: the

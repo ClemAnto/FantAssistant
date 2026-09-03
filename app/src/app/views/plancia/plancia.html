@@ -57,6 +57,19 @@
       }
     </span>
 
+    <!-- IL VINCOLO SI DICHIARA: un ordinamento che sposta dei nomi senza dirlo e' indistinguibile da un
+         ordinamento rotto, ed e' anche la sola cosa che l'operatore ha chiesto di vedere «nettamente». -->
+    @if (store.outNowCount(); as out) {
+      <span
+        class="flex items-center gap-1 rounded-md bg-danger/20 px-2 py-0.5 font-medium text-danger"
+        nz-tooltip
+        nzTooltipTitle="Uomini che oggi non giocano: la stampa li da' fuori o hanno un infortunio ufficiale aperto. Sono in fondo al loro slot e barrati - restano comprabili, ma non te li propone nessuno per primo."
+      >
+        <nz-icon nzType="alert" />
+        {{ out }} oggi fuori
+      </span>
+    }
+
     @if (store.sheet(); as sheet) {
       <span
         class="text-muted"
@@ -131,6 +144,7 @@
       [myCredits]="room()"
       [myMissing]="myMissing()"
       (pick)="onPick($event)"
+      (keeperPairs)="onKeeperPairs($event)"
     />
 
     <plancia-team-grid
@@ -142,3 +156,4 @@
 </div>
 
 <ui-live-connect [(open)]="connecting" />
+<plancia-keeper-pairs />

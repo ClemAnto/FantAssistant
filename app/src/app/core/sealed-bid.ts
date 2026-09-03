@@ -169,6 +169,14 @@ export interface Bidder {
    * about the notes passes nothing, instead of silently reading every man as in the squad.
    */
   outOfSquad?: boolean;
+  /**
+   * OGGI NON GIOCA secondo la stampa, che è il canale veloce e non l'ufficiale.
+   *
+   * Serve perché l'ufficiale arriva tardi: il 03/09/2026, 70 dei 114 indisponibili del listone non
+   * avevano un infortunio aperto su Transfermarkt, e uno di quei 70 era McTominay. Un piano che li
+   * ignora scrive buste su uomini che sabato non ci sono.
+   */
+  unavailableNow?: boolean;
 }
 
 export const ROLES: ClassicRole[] = ['P', 'D', 'C', 'A'];
@@ -542,7 +550,12 @@ export interface LadderBand {
   examples: Precedent[];
 }
 
-const LADDER_SHAPE: { key: LadderKey; label: string; hint: string; keep: (pressure: number) => boolean }[] = [
+const LADDER_SHAPE: {
+  key: LadderKey;
+  label: string;
+  hint: string;
+  keep: (pressure: number) => boolean;
+}[] = [
   {
     key: 'head',
     label: 'testa (67-100%)',
@@ -720,7 +733,8 @@ function keeperPlaces(men: readonly Bidder[], rules: LeagueRules): KeeperPlace[]
   // automatic substitution walks - and among equals the one who turns up more often.
   out.sort((left, right) => right.perMatch - left.perMatch || right.share - left.share);
   const byClub = new Map<string, number>();
-  for (const place of out) byClub.set(place.man.club, (byClub.get(place.man.club) ?? 0) + place.play);
+  for (const place of out)
+    byClub.set(place.man.club, (byClub.get(place.man.club) ?? 0) + place.play);
   for (const place of out) {
     const club = byClub.get(place.man.club) ?? 0;
     if (club > 1) place.play /= club;
@@ -805,7 +819,10 @@ export function keeperGain(men: readonly Bidder[], rules: LeagueRules): number {
 export function keeperCovered(men: readonly Bidder[], rules: LeagueRules): number {
   const places = keeperPlaces(men, rules);
   const cover = keeperCover(places);
-  return Math.min(1, places.reduce((sum, place, at) => sum + place.play * cover[at], 0));
+  return Math.min(
+    1,
+    places.reduce((sum, place, at) => sum + place.play * cover[at], 0),
+  );
 }
 
 /**
@@ -984,7 +1001,10 @@ export function candidatesOf(input: {
       pressure: press,
       // With no quotation there is no neighbourhood to look him up in, so the ask carries no
       // precedents rather than the cheapest ones the board happens to hold.
-      ask: press == null ? { mid: 1, ask: 1, safe: 1, comparables: [] } : askFor(press, man.fvm ?? 0, precedents),
+      ask:
+        press == null
+          ? { mid: 1, ask: 1, safe: 1, comparables: [] }
+          : askFor(press, man.fvm ?? 0, precedents),
       reachedBy: rivals
         .filter((state) => (rules.roleLock ? state.free[man.role] > 0 : state.slotsFree > 0))
         .map((state) => state.team),
@@ -1020,6 +1040,9 @@ export function buyable(man: Bidder): boolean {
   // sheet still prices him at - and it is the same KIND of refusal as the long injury: he stays on the
   // board and stays offerable by hand, because the declaration is revocable and the room may not know.
   if (man.outOfSquad) return false;
+  // La voce del giorno vale quanto una diagnosi QUANDO la domanda è «lo propongo adesso»: non sappiamo
+  // per quanto starà fuori, e proprio per questo non lo si propone - il dubbio è il motivo, non l'ostacolo.
+  if (man.unavailableNow) return false;
   const out = man.outDays;
   return out == null || out < LONG_OUT_DAYS;
 }
@@ -1327,10 +1350,7 @@ function ensureKeepers(
   // ONE definition of «his shirt is covered», and it is `ownsShirt`: a club-mate is not the other side
   // of a fight unless one of the two is the man the board draws.
   const paired = (one: Picked) =>
-    ownsShirt(
-      [...out.map((other) => other.candidate.man), ...squad.men],
-      one.candidate.man.club,
-    );
+    ownsShirt([...out.map((other) => other.candidate.man), ...squad.men], one.candidate.man.club);
 
   // Re-read at every step and not once: a repair can bring the anchor in, and from that moment there is
   // nothing left to repair.
@@ -1359,7 +1379,9 @@ function ensureKeepers(
         !held.has(one.man.fcId),
     );
     const giver = out
-      .filter((one) => one.candidate.man.role === 'P' && one !== keeper && !sure(one) && !paired(one))
+      .filter(
+        (one) => one.candidate.man.role === 'P' && one !== keeper && !sure(one) && !paired(one),
+      )
       .sort((left, right) => (left.candidate.gain ?? 0) - (right.candidate.gain ?? 0))[0];
     if (mate && giver && spend() - giver.price + mate.ask.ask <= cap) {
       out = out.map((one) =>
@@ -1371,7 +1393,8 @@ function ensureKeepers(
     // 2. somebody who is not in a fight at all
     const dependable = priced(candidates)
       .filter(
-        (one) => one.man.role === 'P' && playsOften(one.man, rules) === true && !held.has(one.man.fcId),
+        (one) =>
+          one.man.role === 'P' && playsOften(one.man, rules) === true && !held.has(one.man.fcId),
       )
       .sort((left, right) => (right.gain ?? 0) - (left.gain ?? 0))
       .find((one) => spend() - keeper.price + one.ask.ask <= cap);
@@ -1427,7 +1450,9 @@ export function strategyCheck(
     holes[role] = expectedHoles([...squad.men, ...men], role, reference.places[role], rules);
     // P is exempt: see `ensureKeepers` - a pair is two men of whom one plays each week.
     if (role === 'P') continue;
-    const held = squad.men.filter((man) => man.role === role && playsOften(man, rules) === true).length;
+    const held = squad.men.filter(
+      (man) => man.role === role && playsOften(man, rules) === true,
+    ).length;
     const coming = men.filter((man) => man.role === role && playsOften(man, rules) === true).length;
     // Only where he can still act: a role with no slot left is a fact about the past, not a warning.
     const reachable = Math.min(sureTarget(role), held + squad.free[role]);
@@ -1498,9 +1523,7 @@ function ensureSure(
     const pool = priced(candidates)
       .filter(
         (one) =>
-          one.man.role === role &&
-          playsOften(one.man, rules) === true &&
-          !taken.has(one.man.fcId),
+          one.man.role === role && playsOften(one.man, rules) === true && !taken.has(one.man.fcId),
       )
       .sort((left, right) => (right.gain ?? 0) - (left.gain ?? 0));
     // ...and whoever gives one up: the weakest man of that role who does not play.
@@ -1512,7 +1535,8 @@ function ensureSure(
       if (short <= 0) break;
       const slack = cap - out.reduce((sum, one) => sum + one.price, 0) + giver.price;
       const swap = pool.find(
-        (one) => one.ask.ask <= slack && !out.some((had) => had.candidate.man.fcId === one.man.fcId),
+        (one) =>
+          one.ask.ask <= slack && !out.some((had) => had.candidate.man.fcId === one.man.fcId),
       );
       if (!swap) break;
       // A sicurezza is a SERIOUS bid: he is there to turn up, so he is written at the price that wins.
@@ -1593,7 +1617,11 @@ function offersFor(
     // A price the ladder has already passed is not a second option: two identical numbers would only
     // make the same envelope look like a choice.
     if (out.some((one) => one.price === at)) continue;
-    out.push({ price: at, value: gain * (winChance(at, candidate.ask) ?? 0), shot: shot && at < candidate.ask.ask });
+    out.push({
+      price: at,
+      value: gain * (winChance(at, candidate.ask) ?? 0),
+      shot: shot && at < candidate.ask.ask,
+    });
   }
   return out;
 }
@@ -1689,9 +1717,7 @@ export function allocate(
   };
   const states = ROLES.reduce((product, role) => product * (need[role] + 1), 1) * (cap + 1);
   const solved =
-    states <= DP_LIMIT
-      ? exact(shortlist, need, cap, offers)
-      : greedy(shortlist, need, cap, offers);
+    states <= DP_LIMIT ? exact(shortlist, need, cap, offers) : greedy(shortlist, need, cap, offers);
   // The operator's rules are applied to the SOLVED list and not folded into the objective: a constraint
   // that becomes a weight stops being checkable, and these have to be able to report where they failed.
   // The KEEPERS go first, because pairing a shirt is structural and the sicurezze rule then counts the
@@ -1711,7 +1737,12 @@ export function allocate(
   // uses on the list the operator ends up with: a report computed anywhere else would describe a
   // different set of envelopes the first time he swaps a name.
   const check = squad
-    ? strategyCheck(chosen.map((one) => one.candidate.man), squad, rules, reference)
+    ? strategyCheck(
+        chosen.map((one) => one.candidate.man),
+        squad,
+        rules,
+        reference,
+      )
     : { missingSure: EMPTY_COUNT(), keeperGamble: 0, holes: EMPTY_COUNT() };
 
   // What each envelope adds to what is already held - the same chain the total is made of, so a row and
@@ -1794,7 +1825,9 @@ function keepersIn(chosen: readonly Picked[]): Bidder[] {
 
 /** ONE key for the two memos of `allocate`, so a worth and the envelopes priced on it cannot drift. */
 function keeperKey(candidate: Candidate, chosen: readonly Picked[]): string {
-  const ids = keepersIn(chosen).map((man) => man.fcId).sort((left, right) => left - right);
+  const ids = keepersIn(chosen)
+    .map((man) => man.fcId)
+    .sort((left, right) => left - right);
   return `${candidate.man.fcId}|${ids.join(',')}`;
 }
 
@@ -1865,7 +1898,10 @@ function exact(
   shortlist: readonly Candidate[],
   need: Record<ClassicRole, number>,
   cap: number,
-  offers: (one: Candidate, chosen: readonly Picked[]) => { price: number; value: number; shot: boolean }[],
+  offers: (
+    one: Candidate,
+    chosen: readonly Picked[],
+  ) => { price: number; value: number; shot: boolean }[],
 ): Picked[] {
   type Cell = { gain: number; chosen: Picked[] };
   let best = new Map<string, Cell>([[`0,0,0,0|0`, { gain: 0, chosen: [] }]]);
@@ -1920,7 +1956,10 @@ function greedy(
   shortlist: readonly Candidate[],
   need: Record<ClassicRole, number>,
   cap: number,
-  offers: (one: Candidate, chosen: readonly Picked[]) => { price: number; value: number; shot: boolean }[],
+  offers: (
+    one: Candidate,
+    chosen: readonly Picked[],
+  ) => { price: number; value: number; shot: boolean }[],
 ): Picked[] {
   const taken = EMPTY_COUNT();
   const chosen: Picked[] = [];
@@ -2177,9 +2216,7 @@ export function dealsOf(
   }
   return {
     dearest: [...deals].sort((left, right) => right.paid - left.paid).slice(0, howMany),
-    bargains: [...deals]
-      .sort((left, right) => right.perCredit - left.perCredit)
-      .slice(0, howMany),
+    bargains: [...deals].sort((left, right) => right.perCredit - left.perCredit).slice(0, howMany),
   };
 }
 
@@ -2473,7 +2510,9 @@ export function ratingsOf(input: {
     return new Map(order.map(([team], at) => [team, at + 1]));
   };
 
-  const squadRank = rankOf(new Map(teams.map((one) => [one.team, scores.get(one.team)?.gain ?? 0])));
+  const squadRank = rankOf(
+    new Map(teams.map((one) => [one.team, scores.get(one.team)?.gain ?? 0])),
+  );
   const spentSomething = teams.filter((one) => (scores.get(one.team)?.perHundred ?? null) != null);
   const perHundredRank = rankOf(
     new Map(spentSomething.map((one) => [one.team, scores.get(one.team)!.perHundred!])),
@@ -2579,7 +2618,7 @@ export function settle(
   me: string,
 ): Settled[] | null {
   const after = snapshots[log.round - 1];
-  if (!after) return null;                       // that round has not been exported yet
+  if (!after) return null; // that round has not been exported yet
   const before = new Set((snapshots[log.round - 2] ?? []).map((one) => one.fcId));
   const awarded = new Map<number, Award>();
   for (const award of after) {
@@ -2616,7 +2655,14 @@ export interface Calibration {
 }
 
 export function calibrationOf(settled: readonly Settled[]): Calibration {
-  const out: Calibration = { sent: settled.length, won: 0, lost: 0, tied: 0, spent: 0, expected: 0 };
+  const out: Calibration = {
+    sent: settled.length,
+    won: 0,
+    lost: 0,
+    tied: 0,
+    spent: 0,
+    expected: 0,
+  };
   for (const one of settled) {
     out.expected += one.bid.chance ?? 0;
     if (one.outcome.kind === 'won') {
@@ -2940,7 +2986,9 @@ export function referenceShape(input: {
     if (!squad.free[role]) continue;
     const regulars = priced(candidates).filter(
       (one) =>
-        one.man.role === role && playsOften(one.man, rules) === true && one.ask.ask <= squad.ceiling,
+        one.man.role === role &&
+        playsOften(one.man, rules) === true &&
+        one.ask.ask <= squad.ceiling,
     ).length;
     gettable[role] = Math.min(squad.free[role], regulars);
   }
@@ -2966,7 +3014,7 @@ export function referenceShape(input: {
   // be reachable, or it is a bonus on a shape nobody can field.
   const fourAtTheBack = pool.filter((one) => one.shape.places.D >= 4 && one.unfillable.D <= 0);
   const preferred = rules.defenceModifier && fourAtTheBack.length ? fourAtTheBack : pool;
-  const order = (left: typeof all[number], right: typeof all[number]) =>
+  const order = (left: (typeof all)[number], right: (typeof all)[number]) =>
     left.cannot - right.cannot ||
     left.open - right.open ||
     Math.max(0, named(left)) - Math.max(0, named(right));
@@ -2989,10 +3037,20 @@ export function referenceShape(input: {
       (rules.defenceModifier && best.shape.places.D >= 4
         ? ' (modificatore di difesa attivo: con quattro difensori che giocano a portata, il quarto lo vuoi)'
         : '') +
-      (fellBack ? ", perché nessuno dei due moduli dichiarati era copribile" : '') +
-      (short.length ? `. Scoperto in ${short.join(', ')}.` : '. Ogni reparto copre le sue maglie.') +
+      (fellBack ? ', perché nessuno dei due moduli dichiarati era copribile' : '') +
+      (short.length
+        ? `. Scoperto in ${short.join(', ')}.`
+        : '. Ogni reparto copre le sue maglie.') +
       (runnerUp ? ` Secondo: ${runnerUp.name}.` : '');
-  return { chosen: best.shape, runnerUp, holes: best.holes, unfillable: best.unfillable, fellBack, noRulebook, why };
+  return {
+    chosen: best.shape,
+    runnerUp,
+    holes: best.holes,
+    unfillable: best.unfillable,
+    fellBack,
+    noRulebook,
+    why,
+  };
 }
 
 /**
@@ -3163,7 +3221,9 @@ export function adviceFor(input: {
 
   return ROLES.map((role) => {
     const line = strengths.find((one) => one.role === role);
-    const bidding = bids.filter((one) => one.candidate.man.role === role).map((one) => one.candidate);
+    const bidding = bids
+      .filter((one) => one.candidate.man.role === role)
+      .map((one) => one.candidate);
     const arriving = bidding.filter((one) => playsOften(one.man, rules) === true).length;
     const held = mine.taken[role];
     const free = mine.free[role];
@@ -3189,10 +3249,7 @@ export function adviceFor(input: {
     // out for another month is the thing that was refused - even though he stays on the board next door.
     const board = candidates.filter(
       (one) =>
-        one.man.role === role &&
-        one.gain != null &&
-        buyable(one.man) &&
-        !taken.has(one.man.fcId),
+        one.man.role === role && one.gain != null && buyable(one.man) && !taken.has(one.man.fcId),
     );
     const reachable = board.filter((one) => one.ask.ask <= mine.ceiling);
     const tops = reachable.filter((one) => gainBandOf(one.gain, scale) === 'ottimo');
@@ -3242,7 +3299,9 @@ export function adviceFor(input: {
         const mates = candidates
           .filter((one) => one.man.role === 'P' && clubs.has(one.man.club))
           .sort((left, right) => left.ask.ask - right.ask.ask);
-        targets = mates.length ? mates.slice(0, 2) : (cheapRegulars.length ? cheapRegulars : regulars).slice(0, 3);
+        targets = mates.length
+          ? mates.slice(0, 2)
+          : (cheapRegulars.length ? cheapRegulars : regulars).slice(0, 3);
         advice =
           `La porta è coperta. I ${free} slot che restano sono da terzo portiere: o uno che gioca ` +
           'sempre, o il compagno di squadra di un portiere che hai già - non un altro titolare pagato ' +
@@ -3257,8 +3316,20 @@ export function adviceFor(input: {
         advice += ` ${unknown} dei tuoi non ha un gradino misurato: non li ho contati come titolari.`;
       }
       return {
-        role, held, free, starters, unknown, fielded, holes,
-        gain: line?.gain ?? 0, rank, of, state, advice, targets, bidding,
+        role,
+        held,
+        free,
+        starters,
+        unknown,
+        fielded,
+        holes,
+        gain: line?.gain ?? 0,
+        rank,
+        of,
+        state,
+        advice,
+        targets,
+        bidding,
       };
     }
 
@@ -3286,7 +3357,9 @@ export function adviceFor(input: {
         `${rank}º della lega in questo ruolo e le ${fielded} maglie del ${reference.name} le copri ` +
         `(${holesWord} di buco a giornata, ${held} uomini in rosa): qui non serve altro. Riempi i ` +
         `${free} slot con l'ultimo prezzo` +
-        (cheapRegulars.length ? ` - ${cheapRegulars.length} uomini a 1-2 crediti prendono comunque il voto.` : '.') +
+        (cheapRegulars.length
+          ? ` - ${cheapRegulars.length} uomini a 1-2 crediti prendono comunque il voto.`
+          : '.') +
         ' I crediti rendono di più dove sei scoperto.';
     } else {
       state = 'da completare';
@@ -3391,7 +3464,8 @@ export function canAdd(
   if (inRole >= mine.free[role]) {
     return {
       ok: false,
-      why: `Hai già una busta per ognuno dei ${mine.free[role]} slot da ${role} che ti restano: ` +
+      why:
+        `Hai già una busta per ognuno dei ${mine.free[role]} slot da ${role} che ti restano: ` +
         'togline una, o sostituisci un nome invece di aggiungerlo.',
       offer,
       tight: false,

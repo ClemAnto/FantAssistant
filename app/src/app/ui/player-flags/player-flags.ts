@@ -43,6 +43,10 @@ const ICON: Record<PlayerFlag, string> = {
   rotation_early: 'clock-circle',
   // The mirror: he is taking off, and it is the one piece of GOOD news among the marks.
   starter_signs: 'rocket',
+  // UN CAMPANELLO: è un ALLARME e non una diagnosi. Non la croce della medicina (quella dice
+  // «infortunato», e questa notizia può non essere ancora ufficiale né essere un infortunio) e non
+  // l'orologio della rotazione: dice «guarda qui prima di offrire».
+  unavailable_press: 'alert',
   // Il globo: parte per un torneo continentale. Non un aereo e non un calendario - quello che manca a
   // gennaio non è un viaggio né una data, è che gioca per un ALTRO continente.
   intl_cup: 'global',
@@ -89,11 +93,14 @@ const TONE: Record<PlayerFlag, string> = {
   rotation_early: 'text-warning opacity-50',
   // Green confirms, and this is the only mark that is good news for the man carrying it.
   starter_signs: 'text-success',
+  // ROSSO, ed è l'eccezione che la regola dei colori consente: qui il pericolo è reale e immediato -
+  // stai per offrire su un uomo che oggi non è disponibile - ed è il solo marchio che deve fermare la
+  // mano. Gli altri avvisi restano ambra proprio perché questo non lo sia.
+  unavailable_press: 'text-danger',
   // Ambra come gli altri avvisi MISURATI su quello che stai comprando: non è un verdetto su di lui - una
   // convocazione è un merito - ma quelle giornate non le avrai.
   intl_cup: 'text-warning',
 };
-
 
 /**
  * The marks a name carries, drawn wherever a player is listed.
@@ -122,8 +129,8 @@ export class PlayerFlags {
   protected hint(mark: PlayerMark): string {
     const read = this.status.readAt();
     return short(
-      `${FLAG_LABEL[mark.flag]} — ${mark.note}`
-        + (read ? ` · letto il ${read.slice(0, 10).split('-').reverse().join('/')}` : ''),
+      `${FLAG_LABEL[mark.flag]} — ${mark.note}` +
+        (read ? ` · letto il ${read.slice(0, 10).split('-').reverse().join('/')}` : ''),
     );
   }
 }

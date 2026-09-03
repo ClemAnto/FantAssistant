@@ -2451,3 +2451,131 @@ ha letto è il difetto che questo repository ha già pagato più volte.
 `core/engine-sheet.ts` (`engineNumbersFrom`) è stato estratto da `auction-advice.ts` e le due pagine lo
 condividono: tre viste stanno ormai sugli stessi `engine_*`, e due lettori di `engine_fm_pred` finiscono
 per dare a un uomo due valutazioni. Il primo posto in cui qualcuno se ne accorgerebbe è un tavolo.
+
+## 34. Accoppiare due portieri: il calendario, e cosa «facile» vuol dire davvero (3 settembre 2026)
+
+**Richiesta dell'operatore**: cliccando un portiere sulla plancia si apre una modale coi migliori
+accoppiamenti con altri portieri; si guarda il calendario ristretto alle **impostazioni della
+competizione**, per ogni giornata si vede quali portieri hanno una partita **facile** («una partita dove
+la squadra in cui gioca il portiere è probabile che subirà 0 gol», valutando l'avversario e il
+casa/trasferta), e la giornata conta come FACILE per la coppia **se almeno uno dei due** ce l'ha. I tre
+portieri con più giornate FACILI vanno indicati. Poi un tasto «mostra griglia» apre una seconda modale
+con squadre su righe e colonne (col portiere titolare sulle colonne), il numero di partite facili in
+ogni casella e, sull'hover, il calendario di tutte e due con una **V** sulle facili.
+
+### 34.1 La sua definizione di «facile» è stata VALIDATA, non riutilizzata sulla fiducia
+
+`EASY_MARGIN` = 200 (§23.4) era stato congelato da lui su un criterio diverso — «il club più forte deve
+smettere di leggere *tutte*» — mentre la frase di oggi è un'altra affermazione: *è probabile che non
+subisca gol*. Due frasi, quindi si misura.
+
+Misurato su **5354 partite-club di Serie A, 2019-20…2026-27**: avversario e campo dal layer per partita
+(`external_match_stats`), gol subiti dalle righe `role='P'` dei voti — quindi il conteggio non passa dal
+funnel delle identità — e i due livelli da `club_levels`. Logistica sullo **stesso** vantaggio che
+`easy_matches` già calcola:
+
+| vantaggio Elo | −200 | 0 | +100 | **+200** | +300 | +400 |
+|---|---|---|---|---|---|---|
+| P(porta inviolata) | 0.141 | 0.249 | 0.320 | **0.401** | 0.487 | 0.575 |
+
+**Il margine congelato È la sua frase**: a 200 la probabilità è **0.401**, e il livello 40% si raggiunge a
+un vantaggio di **199**. Quel 40% è anche `club_defence.CLEAN_SHEET_SHARE`, misurato un mese prima su un
+criterio del tutto scorrelato («da quale quota una porta resta inviolata spesso»). Due strade indipendenti
+sullo stesso numero — che è evidenza, non una coincidenza da conservare per fortuna, ed è per questo che un
+test la fissa. Verifica dell'etichetta: le partite classificate facili chiudono a zero il **42,8%** delle
+volte contro il **23,9%** delle altre.
+
+Calibrazione per decile della probabilità prevista: entro 0,03 dappertutto **tranne l'ultimo decimo**, che
+il modello **sovrastima** (0,473 previsto contro 0,423 reale). Va detto perché è proprio il decile di cui
+sono fatte le coppie migliori.
+
+### 34.2 Misurato e NON adottato: il vantaggio campo della porta inviolata è più grande
+
+Per una **porta inviolata** il campo si fitta a un semi-scarto di **30-35** punti Elo, non ai 14,5 che
+questo modulo usa e che §23.1 ha misurato sul **RISULTATO**. Log-loss fuori campione su 2320 partite:
+**0,57796** a H=35 contro **0,57839** a H=14,5 e **0,57936** senza nessun effetto campo — ottimo interno,
+quindi la **direzione** è identificata (tenere la porta inviolata dipende dal campo più di quanto ci
+dipenda vincere). Vale però **0,0004 di log-loss e il 3% delle classificazioni**, e sarebbe una **seconda**
+costante di campo dentro un modulo il cui output è tutto reporting: due costanti per un solo campo è come
+uno schermo finisce con due risposte a «questa partita è in casa». Scritto qui perché nessuno lo rimisuri.
+
+### 34.3 IL CONTEGGIO SATURA IN BASSO, e per questo le due colonne sono due
+
+Alla soglia congelata, sul calendario 2026-27, **dodici club di venti non hanno NESSUNA partita facile in
+tutta la stagione** (Inter 25, Napoli 15, Milan 14, Juventus 14, Roma 13, Atalanta 13, Lazio 2, Bologna 2,
+gli altri 0). È la saturazione che §23.3 aveva già scritto — «il conteggio satura a OGNI soglia, è una
+proprietà di un conteggio e non del valore» — vista dall'altro capo: quasi tutte le coppie pareggiano a
+zero, e una classifica su quel solo numero direbbe «compra il portiere dell'Inter» a chiunque.
+
+Decisione dell'operatore, messa davanti alla misura: **la soglia 200 resta e decide, e a rompere il
+pareggio è una colonna continua**. Le due sono nominate a schermo e non si mescolano mai in una cifra sola:
+
+- **FACILI** = la sua regola alla lettera, giornate in cui almeno uno dei due supera il margine;
+- **coperte** = le stesse giornate contate con la probabilità al posto della monetina, cioè
+  `Σ_giornata 1 − (1−p_A)(1−p_B)`.
+
+**Respinta** l'alternativa di abbassare la soglia a 138 (P=35%), che farebbe tornare a discriminare il
+conteggio (165 facili contro 98, 11 club a zero contro 12): sarebbe una soglia scelta perché il conteggio
+non piaceva, che è esattamente ciò che questo progetto vieta.
+
+### 34.4 Dove vive cosa, e perché
+
+Il **toolkit** decide se una partita è facile e con che probabilità (`fixtures.schedule` → `calendar.json`
+nel bundle): è una previsione sul calcio, quindi sta dove le previsioni si misurano. L'**app** conta
+(`core/keeper-pairs.ts`): quali giornate cadono nella finestra dichiarata e cosa coprono due club. Lo
+stesso confine che mette la board di un club vero in `boards.py` e l'undici della MIA rosa in
+`fanta-eleven.ts`.
+
+Ed è anche l'unica cosa che l'app non potrebbe dedursi: `fixtures` e `club_levels` sono chiavati su
+`matching.club_identity`, che è una tabella di alias in Python — rifarne il join in un browser vorrebbe
+dire ripetere quello che una volta ha perso Milan, Roma e Napoli dal calendario di tutti. Risolto una
+volta là, e l'app unisce sul nome canonico che già legge su una riga del foglio (verificato: 20 club di
+20 risolti sul foglio Serie A).
+
+Tre cose che il conto dichiara invece di riempirle:
+- **un club di un altro campionato non è accoppiabile**: una giornata di fantacalcio cade su un turno
+  diverso in ogni lega, e per la stagione bersaglio `matchday_map` ne copre **cinque su trentuno** —
+  allinearli sarebbe inventare un calendario. Quelli lasciati fuori sono contati e la modale lo dice;
+- **la probabilità esiste solo dove i coefficienti sono stati stimati** (Serie A): fuori, il vantaggio
+  Elo c'è e la probabilità è `null`, perché una trasformazione fittata appartiene alla popolazione su cui
+  è stata fittata;
+- **una giornata che nessuno dei due gioca non è una giornata mancata**: il denominatore sono le giornate
+  che i due hanno davvero, mai `to − from`.
+
+### 34.5 Il portiere titolare della griglia NON è scelto qui
+
+È il primo della linea P della board che il toolkit disegna (`boards.json`). «L'app legge la board e mai
+la propria» vale per l'undici di un club vero, e sceglierlo in un secondo modo darebbe a un club due
+portieri titolari. Un club senza board porta la colonna senza nome. La **diagonale** è il club **da solo**
+— non accoppiato con sé stesso — perché è il termine di paragone della sua riga: quanto guadagni davvero
+mettendogli accanto qualcun altro.
+
+### 34.6 Il click su un portiere NON mette il calciatore in asta
+
+Istruzione dell'operatore, sulla proposta opposta: «cliccare non deve mettere il calciatore in asta, non è
+un comportamento che ho chiesto». Sono due gesti distinti — su un uomo di movimento il click nomina il
+lotto, su un portiere apre gli accoppiamenti — e la ragione è che una rosa schiera **un** portiere: la
+domanda che si fa sulla sua riga non è «quanto offro» ma «quale dei dieci». Una riga di portiere già presa
+resta cliccabile, perché «con chi lo accoppio» ha senso anche sui presi.
+
+### 34.7 Verificato in un browser vero, e i due difetti che ha trovato
+
+`app/scripts/e2e-plancia-keepers.mjs`, con un puntatore vero e contando quello che ARRIVA. Legge
+`calendar.json` dallo stesso server dell'app e **ricalcola** cosa dovrebbe dire la riga in cima: 28
+giornate facili per Svilar (Roma) + Martinez Jo. (Inter), e lo schermo dice 28. Griglia 20×20, 20 colonne
+col portiere titolare, 400/400 caselle con uno sfondo dipinto, popover con 4 colonne e le V pari al numero
+della casella, console pulita.
+
+Due difetti trovati dalla misura e non dallo sguardo:
+- **due utility di sfondo sullo stesso elemento**: `bg-surface` scritta fissa e `bg-primary` legata sono
+  nello stesso layer, e a decidere è l'ordine del CSS generato. Lo sfondo restava `--color-surface` mentre
+  il TESTO passava a `--color-on-primary`: scuro su scuro, **1,08:1**. Curato legando **una** classe sola.
+  È la lezione di `app/CLAUDE.md` del 27/08 incontrata dal lato peggiore — la metà che dipingeva era
+  quella sbagliata, quindi il difetto rendeva il testo illeggibile invece di lasciarlo com'era;
+- **due icone non registrate** (`table`, `info-circle`): `nz-icon` le va a cercare in rete, fallisce e
+  urla in console. Trovate perché l'arnese raccoglie quello che la pagina urla, non perché si vedesse.
+
+E un difetto **dell'arnese** che vale la pena segnare: il primo passo che ricalcolava le giornate attese
+le **stampava** accanto a quelle dello schermo senza confrontarle — cioè un audit che risponde «nessun
+problema» dopo aver guardato niente. Messo il confronto, ha subito trovato il proprio bug di parsing
+(`Number("28 facili")`), che è la prova che è vivo.

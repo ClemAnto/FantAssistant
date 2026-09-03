@@ -43,8 +43,8 @@
                   type="button"
                   class="flex min-h-0 flex-1 items-center gap-1 pr-1 pl-0.5 text-left text-[10px] leading-none"
                   [class]="rowTone(man)"
-                  [disabled]="man.state === 'altro' || man.state === 'mio'"
-                  (click)="pick.emit(man)"
+                  [disabled]="inert(man)"
+                  (click)="press(man)"
                   nz-tooltip
                   [nzTooltipTitle]="rowTip(man)"
                   nzTooltipOverlayClassName="whitespace-pre-line"

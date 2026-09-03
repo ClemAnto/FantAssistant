@@ -235,7 +235,9 @@ export class AuctionAdvice {
    * actually played. `sofascore_extra` (friendlies, cups) is excluded on purpose - the calibration walked
    * the league calendar, and a friendly goal must never enter a number a threshold was fitted on.
    */
-  private readonly window = signal<Map<number, { minutes: number; xg: number; xa: number }>>(new Map());
+  private readonly window = signal<Map<number, { minutes: number; xg: number; xa: number }>>(
+    new Map(),
+  );
 
   /**
    * The screens, as marks ready to draw. The pool is the listone in play, and the price is the FVM.
@@ -437,7 +439,16 @@ export class AuctionAdvice {
       const net = netOf(row.surplus, row.price, lambda);
       return { ...row, net, netPer10: per(net, spread) };
     });
-    rows.sort((a, b) => (b.value ?? -1e9) - (a.value ?? -1e9));
+    // CHI OGGI NON GIOCA SCENDE, prima di ogni valore (03/09/2026, richiesta dell'operatore: i casi come
+    // McTominay vanno segnalati «in qualsiasi gerarchia fatta per prendere decisioni nell'immediato»).
+    // È un VINCOLO e non un peso - non sappiamo per quanto starà fuori, quindi non lo riprezziamo - e la
+    // sua riga porta comunque il campanello rosso, così la ragione dell'ordine è leggibile sulla riga
+    // stessa. Resta nella lista: toglierlo nasconderebbe un fatto, e l'operatore può saperne più di noi.
+    rows.sort(
+      (a, b) =>
+        this.status.sinksNow(a.player.id) - this.status.sinksNow(b.player.id) ||
+        (b.value ?? -1e9) - (a.value ?? -1e9),
+    );
     return rows;
   });
 
@@ -493,7 +504,9 @@ export class AuctionAdvice {
       const surplus = surplusOf(valuation, replacement, horizon);
       // MY zero is the better of the league's marginal man and the best I already hold there: a slot
       // I have covered is worth what it ADDS, which is the whole point of the personal replacement.
-      const personal = slot ? Math.max(replacement ?? 0, mine.get(slot) ?? 0) || replacement : replacement;
+      const personal = slot
+        ? Math.max(replacement ?? 0, mine.get(slot) ?? 0) || replacement
+        : replacement;
       return {
         player,
         zone: this.feed.zoneOf(player),
@@ -826,8 +839,14 @@ export class AuctionAdvice {
     const rivalValues: number[] = [];
     for (const team of input.teams) {
       if (team.id === input.mineId) continue;
-      const choice = predictRivalPick(team, pool, places, input.keeperCap, Infinity,
-                                      input.heads?.get(team.id));
+      const choice = predictRivalPick(
+        team,
+        pool,
+        places,
+        input.keeperCap,
+        Infinity,
+        input.heads?.get(team.id),
+      );
       if (choice) pool = pool.filter((player) => player.id !== choice.id);
       rivalValues.push(team.rosterValue + (choice?.price ?? 0));
     }
@@ -844,11 +863,18 @@ export class AuctionAdvice {
       mine,
       // Who will be gone before our next turn: the biggest lever on the bench (+4.54%, strict on 5/5), and
       // it needs no informational edge - only the platform's order rule and the rivals' public squads.
-      gone: mine ? goneBeforeOurNextTurn({
-        teams: input.teams, order: input.order, pool: input.pool,
-        places: startingPlaces(input.shapes), mineId: input.mineId,
-        keeperCap: input.keeperCap, maxAheadPicks: input.maxAheadPicks, heads: input.heads,
-      }) : null,
+      gone: mine
+        ? goneBeforeOurNextTurn({
+            teams: input.teams,
+            order: input.order,
+            pool: input.pool,
+            places: startingPlaces(input.shapes),
+            mineId: input.mineId,
+            keeperCap: input.keeperCap,
+            maxAheadPicks: input.maxAheadPicks,
+            heads: input.heads,
+          })
+        : null,
     });
   });
 
@@ -930,7 +956,9 @@ export class AuctionAdvice {
       this.coverage.set({ matched, total: wanted.size });
       // BOTH rulebooks matter now: the panel's own rationing was measured per GAME, so on classic it
       // needs the classic places rather than nothing at all (measured: no rationing costs 4.93%).
-      this.shapes.set(game === 'mantra' ? await this.bundle.modules() : await this.bundle.classicModules());
+      this.shapes.set(
+        game === 'mantra' ? await this.bundle.modules() : await this.bundle.classicModules(),
+      );
       this.measured.set(await this.lastSeason(chosen, manifest.input_season));
       // Read from the CHOSEN sheet and no other: the window is measured per sheet, so taking it from
       // one and the valuation from another would put two different populations on one row.
@@ -1008,7 +1036,12 @@ export class AuctionAdvice {
     try {
       const table = await this.bundle.table('external_match_stats');
       const [id, when, source, minutes, xg, xa] = [
-        'fc_id', 'season', 'source', 'minutes', 'xg', 'xa',
+        'fc_id',
+        'season',
+        'source',
+        'minutes',
+        'xg',
+        'xa',
       ].map((name) => table.columns.indexOf(name));
       if (id < 0 || when < 0 || minutes < 0) return new Map();
       const rows = new Map<number, { minutes: number; xg: number; xa: number }[]>();
@@ -1043,9 +1076,7 @@ export class AuctionAdvice {
    * a match he did not play counts ZERO because availability is half of what a fantamedia is worth, a
    * match nobody could score is left out of the denominator rather than counted as a bad one.
    */
-  private async readMeasuredWindows(
-    sheet: EngineSheetEntry,
-  ): Promise<{
+  private async readMeasuredWindows(sheet: EngineSheetEntry): Promise<{
     trends: Map<number, PlayerTrend>;
     places: Map<number, PlaceChange>;
     rotations: Map<number, RotationWatch>;
@@ -1162,7 +1193,9 @@ export class AuctionAdvice {
   private async clubIndex(): Promise<Map<string, number>> {
     try {
       const table = await this.bundle.table('clubs');
-      const [id, name] = ['fc_club_id', 'canonical_name'].map((column) => table.columns.indexOf(column));
+      const [id, name] = ['fc_club_id', 'canonical_name'].map((column) =>
+        table.columns.indexOf(column),
+      );
       const out = new Map<string, number>();
       for (const row of table.rows) {
         const club = row[name] as string | null;

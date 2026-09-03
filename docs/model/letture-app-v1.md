@@ -1537,6 +1537,30 @@ con lo stesso sintomo — un filtro che c'è e non si clicca — e **nessuno dei
 `element.click()`**, che passa sopra la CSS. Un controllo si verifica con un puntatore vero, alle
 coordinate che il browser dichiara, dopo un hover vero.
 
+**...e il PIXEL può essere giusto mentre il markup è sbagliato, per tredici giorni** (3 settembre 2026,
+segnalato dall'operatore che leggeva l'avviso nel terminale). `ng build` stampava a ogni corsa un
+**NG8011**: `nz-th-addon` ha uno slot suo per l'imbuto (`<ng-content select="nz-filter-trigger">`, dentro
+`extraTemplate`), e Angular ci proietta il contenuto di un `@if` **solo se quel blocco ha UN nodo radice**
+— l'imbuto e il suo `nz-dropdown-menu` erano due, quindi il blocco intero finiva nello slot di **default**,
+cioè dentro il titolo, e l'imbuto non è mai arrivato dove antd lo mette.
+
+**Non si vedeva, e la ragione è che la nostra cura di agosto lo compensava per intero**:
+`nz-table-filter` avvolge tutt'e due gli slot in `.ant-table-filter-column`, che è esattamente il
+selettore su cui la nostra CSS tira l'imbuto fuori dal flusso e lo appoggia al bordo destro della cella.
+Quindi tutte le misure di agosto — 24 imbuti su 24, zero tagliati, `elementFromPoint` sull'icona,
+pannello che si apre — erano **vere**, e restano vere: quello che era sbagliato non era il pixel, era il
+posto nel DOM. La cura è un `@if` con un nodo radice solo (l'imbuto) e il menu fuori dal blocco con
+l'`@if` **dentro** di lui: un `#ref` dichiarato in un blocco non si vede da un blocco fratello, e il menu
+non può uscire dalla `<th>` perché un nodo che non è una `<th>` dentro il `<tr>` si mangia una colonna
+della griglia — cioè il difetto qui sopra.
+
+Due cose da tenere. **Un avviso del compilatore che nessuna misura conferma non è un falso allarme: è una
+misura che non stiamo facendo** — qui l'arnese guardava dove l'imbuto *appare* e nessuno guardava in quale
+slot *è*. Ora lo guarda (`funnels().inTitle`). E **un asserto nuovo si prova rimettendo il difetto**: con
+il markup vecchio la corsa nomina tutte e 24 le colonne, quindi l'asserto è vivo e non passa a vuoto — la
+stessa disciplina che lo stesso giorno ha smascherato un audit che stampava un numero atteso senza
+confrontarlo.
+
 **Il primo trascinamento di una pagina funzionava e tutti quelli dopo non facevano niente.** Un `mousedown`
 seguito da un movimento sopra del testo fa partire il trascinamento NATIVO di Chromium, che si prende il
 puntatore e smette di mandare `pointermove` (manda `drag`). Nessuna misura di geometria, di ordine o di DOM

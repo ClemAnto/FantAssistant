@@ -76,6 +76,31 @@ export class SlotMatrix {
   /** Naming a lot is a two-click job and this is the first click: press a name, it goes on the table. */
   readonly pick = output<BoardMan>();
 
+  /**
+   * ...except on a KEEPER, where the click asks with whom to pair him and puts nothing on the table.
+   *
+   * Two gestures and not one with two effects, the operator's instruction of 03/09/2026. The reason it
+   * is the keeper's own row and not a second control: a squad fields ONE keeper, so «which of the ten»
+   * is the only question that row ever asks, while for a man of movement the question is the lot.
+   */
+  readonly keeperPairs = output<BoardMan>();
+
+  protected press(man: BoardMan): void {
+    if (man.role === 'P') this.keeperPairs.emit(man);
+    else this.pick.emit(man);
+  }
+
+  /**
+   * A row nobody can act on is disabled - and for a KEEPER there is always something to act on.
+   *
+   * «Con chi accoppio questo» is worth asking about a keeper who is already MINE (it is the pair I own)
+   * and about one somebody else has bought (he is the pair a rival owns). Naming a lot is not: a man
+   * with an owner cannot come up again.
+   */
+  protected inert(man: BoardMan): boolean {
+    return man.role !== 'P' && (man.state === 'altro' || man.state === 'mio');
+  }
+
   protected readonly roles = ROLES;
   protected readonly roleTone = ROLE_TONE;
 
@@ -110,6 +135,10 @@ export class SlotMatrix {
   }
 
   protected rowTone(man: BoardMan): string {
+    // CHI OGGI NON GIOCA si vede prima di leggere il nome: barrato e in rosso, sopra ogni altro stato.
+    // È l'unico posto in cui questa tabella usa il rosso, ed è l'uso che la regola dei colori consente -
+    // stai per offrire su un uomo che sabato non c'è.
+    if (man.outNow) return 'text-danger line-through decoration-danger/60 hover:bg-control';
     return ROW_TONE[man.state];
   }
 
@@ -121,7 +150,16 @@ export class SlotMatrix {
   protected rowTip(man: BoardMan): string {
     if (man.state === 'altro') return `${man.name} — di ${man.ownerLabel}, pagato ${man.price} cr.`;
     if (man.state === 'mio') return `${man.name} — è tuo, pagato ${man.price} cr.`;
+    // LA RAGIONE PER CUI È IN FONDO STA IN CIMA: un vincolo che agisce in silenzio è indistinguibile da
+    // un ordinamento rotto, e il prezzo resta sotto perché la decisione è comunque dell'operatore.
+    const out = man.outNow
+      ? `${man.name} — OGGI NON GIOCA. È in fondo al suo slot per questo, non perché valga meno.\n`
+      : '';
+    return out + this.priceTip(man);
+  }
 
+  /** Il prezzo, e la coppia che compreresti al suo posto. */
+  private priceTip(man: BoardMan): string {
     const head =
       `${man.name} (${man.club}) · FVM ${Math.round(man.fvm)} · max offerta ${man.price ?? '—'} cr` +
       (man.state === 'asta' ? ' · IN ASTA ADESSO' : '');
