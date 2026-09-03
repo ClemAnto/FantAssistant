@@ -4412,10 +4412,15 @@ def perimeter_clubs(conn, platform: str, seasons: tuple[str, ...]) -> set[str]:
     the fallback for a window whose listone `listone_quotes` does not cover.
     """
     target = max(seasons) if seasons else None
+    # THE CLUB COMES FROM THE QUOTE'S OWN ROW, not from `rosters` (03/09/2026). `rosters` holds one
+    # club per player-season and the two listoni are read at different moments, so the last download
+    # decided it: five quoted Serie A men were filed at Bournemouth, Aston Villa, Bayer, Lipsia and
+    # Stuttgart by the EuroLeghe read, and this very function then put them outside the championship
+    # that quotes them. `rosters` stays the fallback for a row written before the columns existed.
     quoted = {club for (club, contingent) in conn.execute(
         "SELECT c.canonical_name, COUNT(*) FROM listone_quotes q "
-        "JOIN rosters r ON r.fc_id = q.fc_id AND r.season = q.season "
-        "JOIN clubs c ON c.fc_club_id = r.fc_club_id "
+        "LEFT JOIN rosters r ON r.fc_id = q.fc_id AND r.season = q.season "
+        "JOIN clubs c ON c.fc_club_id = COALESCE(q.fc_club_id, r.fc_club_id) "
         "WHERE q.platform = ? AND q.season = ? GROUP BY c.canonical_name",
         (platform, target)) if contingent >= PERIMETER_SQUAD_MIN}
     if quoted:

@@ -1220,8 +1220,15 @@ def _penalty_state(conn: sqlite3.Connection, auction_date: str) -> dict[int, tup
 # on 202 Qt.I and 226 FVM for the players quoted in both, and `rosters` keeps whichever was downloaded
 # last (schema.sql). The row SET still comes from `rosters` - who is quoted at all - so no published gate
 # number changes population; what changes is that the price on a euro window is the EuroLeghe price.
+# ...and since 03/09/2026 so do the CLUB and the LEAGUE, for the same reason and from the same row:
+# `rosters` keeps one club per player-season and the two listoni are read at different moments, so a man
+# who moved between a foreign club and an Italian one this summer was filed at whichever the last
+# download said. `COALESCE` keeps it INERT on every row written before the columns existed, so no
+# published window moves until somebody backfills the history - and whoever does must re-run
+# `backtest --verify`, because that backfill CAN move a gate population.
 _TARGET_FROM_LISTONE = """
-    SELECT r.fc_id, r.role_classic, r.roles, r.league, q.price, r.fc_club_id,
+    SELECT r.fc_id, r.role_classic, r.roles, COALESCE(q.league, r.league) AS league, q.price,
+           COALESCE(q.fc_club_id, r.fc_club_id) AS fc_club_id,
            q.price_initial, q.fvm, q.fvm_mantra, q.price_mantra, q.price_initial_mantra
     FROM rosters r
     LEFT JOIN listone_quotes q ON q.fc_id = r.fc_id AND q.season = r.season
@@ -1260,13 +1267,30 @@ _TARGET_FROM_AUTHORITY = """
     UNION ALL
     -- ...e i quotati che la fonte non ha mai visto: tengono il club del listone, perché un uomo che il
     -- provider non riesce a identificare non è un uomo senza squadra (`observed_players`, la stessa regola).
-    SELECT r.fc_id, r.role_classic, r.roles, r.league, q.price, r.fc_club_id,
+    SELECT r.fc_id, r.role_classic, r.roles, COALESCE(q.league, r.league) AS league, q.price,
+           COALESCE(q.fc_club_id, r.fc_club_id) AS fc_club_id,
            q.price_initial, q.fvm, q.fvm_mantra, q.price_mantra, q.price_initial_mantra
     FROM rosters r
     LEFT JOIN listone_quotes q ON q.fc_id = r.fc_id AND q.season = r.season AND q.platform = :platform
     WHERE r.season = :target
-      AND r.fc_id NOT IN (SELECT fc_id FROM squad_snapshot WHERE source = 'sofascore'
-                          AND valid_from <= :auction)
+      -- ESSERE QUOTATO SU QUESTO LISTONE E' PROVA POSITIVA DI ESSERE IN QUESTO CAMPIONATO, e fino al
+      -- 03/09/2026 questo ramo chiedeva che la fonte non l'avesse MAI visto - quindi un uomo che la
+      -- fonte vede in un club ESTERO cadeva fuori da tutt'e due i rami: il primo lo esclude perche' il
+      -- suo club non e' del campionato, questo perche' la fonte l'ha visto. Misurato quel giorno sul
+      -- foglio Serie A: 35 quotati assenti, 7 dei quali la pagina probabili dava titolari - Woltemade
+      -- (23 crediti, dato al Newcastle e schierato dalla Juventus), Beto (14, dato all'Everton e
+      -- schierato dalla Fiorentina), Mbangula, Sarr P., Caleta-Car, Sanchez Ro. (il secondo portiere
+      -- del Como, dato al Chelsea). La regola dell'operatore del 17/08 dice che l'autorita' sulla rosa
+      -- e' la fonte, e quella regola serve a leggere un'ASSENZA da un club: usarla per affermare un
+      -- club estero CONTRO il listone che lo quota e' portarla fuori dal suo dominio - «vuoto = ignoto»
+      -- vale per l'assenza, non per un positivo straniero. Quindi il ramo prende ora tutti i quotati che
+      -- la fonte NON colloca in un club di questa piattaforma, e la riga porta il club del LISTONE
+      -- mentre `desc_live_club` dice dove la fonte lo vede: la contraddizione si riporta, non si applica.
+      AND r.fc_id NOT IN (
+            SELECT fc_id FROM (SELECT fc_id, club, MAX(valid_from) FROM squad_snapshot
+                               WHERE valid_from <= :auction AND source = 'sofascore' GROUP BY fc_id)
+            WHERE club IN (SELECT DISTINCT team FROM match_ratings
+                           WHERE platform = :platform AND team IS NOT NULL))
 """
 
 

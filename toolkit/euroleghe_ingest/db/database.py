@@ -127,6 +127,13 @@ ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("external_match_stats", "big_chances_missed", "INTEGER"),
     ("external_match_stats", "key_passes", "INTEGER"),
     ("external_match_stats", "touches", "INTEGER"),
+    # IL CLUB DEL LISTONE, PER PIATTAFORMA (03/09/2026). Vedi il commento nello schema: il prezzo era
+    # gia' stato spostato qui il 07/08, il club era rimasto in `rosters` - una riga per player-season -
+    # quindi l'ultimo download decideva per tutt'e due i fogli, e la `league` era congelata al primo
+    # valore mai scritto da un COALESCE nel verso sbagliato. Backfillabile come i prezzi: la cache tiene
+    # un file di listone per (piattaforma, stagione), quindi `ratings --quotes-from-cache` li riempie.
+    ("listone_quotes", "fc_club_id", "INTEGER"),
+    ("listone_quotes", "league", "TEXT"),
     ("probable_starter", "team", "TEXT"),
     # QUANDO ABBIAMO GUARDATO, sugli infortuni (03/09/2026). `injuries` portava solo `start_date`, che e'
     # la data dell'infortunio e non del nostro sguardo, quindi la tabella non sapeva distinguere «non

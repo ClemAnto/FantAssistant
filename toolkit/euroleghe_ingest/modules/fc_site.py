@@ -233,10 +233,26 @@ def upsert_probable_starters(conn, records: list[dict], date: str) -> int:
             conn.execute("INSERT INTO players(fc_id, canonical_name) VALUES (?, ?)",
                          (rec["fc_id"], str(rec["fc_id"])))
         conn.execute(
-            "INSERT OR REPLACE INTO probable_starter("
+            # A ROW THAT KNOWS ITS SEASON IS NEVER REPLACED BY ONE THAT DOES NOT. The PK is
+            # (fc_id, valid_from) and the euro pages - stored with an unknown season on purpose, so
+            # no sheet reads them - are ingested AFTER the Serie A page in the same run: with a plain
+            # INSERT OR REPLACE they were overwriting the Serie A reading of every player whose club
+            # is also on the euro platform, i.e. exactly the ten biggest clubs, and the day's
+            # freshest probabili survived only for Cagliari, Frosinone, Genoa & co. Found 03/09/2026
+            # because the full `update` repairs it by accident (the sheets step re-reads the Serie A
+            # page after the euro one), so any run that stops before the sheets left the day
+            # clobbered. Same rule as `load_reference` (20/08/2026), on the WRITER's side: an empty
+            # reading does not override a full one, not even a more recent one.
+            "INSERT INTO probable_starter("
             "    fc_id, valid_from, probability, source, team, formation, starter, role, status, "
             "    season) "
-            "VALUES (?, ?, ?, 'fc_site', ?, ?, ?, ?, ?, ?)",
+            "VALUES (?, ?, ?, 'fc_site', ?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT(fc_id, valid_from) DO UPDATE SET "
+            "    probability = excluded.probability, source = excluded.source, "
+            "    team = excluded.team, formation = excluded.formation, "
+            "    starter = excluded.starter, role = excluded.role, status = excluded.status, "
+            "    season = excluded.season "
+            "WHERE NOT (probable_starter.season IS NOT NULL AND excluded.season IS NULL)",
             (rec["fc_id"], date, rec["probability"], rec.get("team"), rec.get("formation"),
              1 if rec.get("starter") else 0, rec.get("role"), rec.get("status"),
              # The parser has always read it out of the href and it was thrown away here: the page states

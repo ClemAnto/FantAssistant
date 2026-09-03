@@ -162,6 +162,10 @@ settings, the currency per auction type, how many names a role needs, and the tw
 For the RAISE AUCTION seen from the STRATEGY side — not «whom to buy» but «how to bid»:
 **`simulatore-asta-rilanci-v1.md`** (01/09/2026), the fifth harness and the championship over it.
 See «A fifth harness» below.
+For a roster built for a HANDFUL OF MATCHDAYS instead of a season — a SECOND classic competition, 250
+credits on the Qt.A, its own modifiers, five substitutions and a SWITCH that fires on starting:
+**`rosa-3-giornate-v1.md`** (03/09/2026). It also carries the four platform-club defects it found and
+the calibration of the editorial page onto P(vote) and P(starts). See the two sections near the end.
 Drive dataset IDs (xlsx/csv, not in git) are in [docs/DRIVE-MANIFEST.md](docs/DRIVE-MANIFEST.md).
 The BOARD list `todolist-formazioni-tipo-v1.md` is **closed** (08/08/2026): five adoptions, six measured
 refusals, and the standing rule that the press is a JUDGE and never an input. What remains is
@@ -3028,6 +3032,125 @@ colonne, quindi non passa a vuoto. La stessa disciplina, lo stesso giorno, ha sm
 **stampava** il numero atteso accanto a quello dello schermo senza confrontarlo — cioè un banco che
 risponde «nessun problema» dopo aver guardato niente, che è il difetto che questo progetto si è già
 scritto due volte e ha commesso di nuovo.
+
+## A fact about a PLATFORM lives in a table keyed by platform, and the CLUB is such a fact
+**03/09/2026, found by the operator with three names: «io mi trovo come portieri del como
+Butez+Sanchez+Vigorito» while the sheet carried Butez+TORNQVIST+Vigorito and Sanchez Ro. was not there at
+all.** Behind it were FOUR defects with one root, and his judgement was the right one («se i trasferimenti
+non corrispondono e la Qt.A non corrisponde è un problema GRAVISSIMO»). Details:
+`spec-euroleghe-ingest-v9.md` «Novità v9.68», measurements in `docs/model/rosa-3-giornate-v1.md`.
+
+`listone_quotes` was given `platform` in the key for PRICES on 07/08/2026 and the CLUB was left in
+`rosters`, which holds ONE row per (fc_id, season) while `ratings:euro` runs after `ratings:default`. So
+**221 rows of 289** men quoted on both listoni carried the EURO price; the `league` was frozen at the first
+value ever written by a `COALESCE(rosters.league, excluded.league)` in the wrong direction, so no re-read
+could correct it and the pair could disagree with itself (club from the last read, league from the first);
+and five quoted Serie A men sat outside `perimeter_clubs` because they were filed at Bournemouth, Aston
+Villa, Bayer, Lipsia and Stuttgart. The two listoni are read at DIFFERENT MOMENTS, so a man who changed
+country this summer is at two different clubs on them: Di Gregorio is **Juventus on Serie A and Bournemouth
+on euro**. Cured the way the prices were: `listone_quotes.fc_club_id` / `.league`, written by `ratings`,
+read by `perimeter_clubs` and both population queries with a `COALESCE` onto `rosters` - **inert on every
+row written before the columns existed**, so no published window moves until somebody backfills the
+history, and whoever does must re-run `backtest --verify`.
+
+**And the fourth is a RIGHT RULE taken outside its domain, which is the durable half.** With
+`squad_source='squad'` the population has two arms: one takes whoever the provider places at a club this
+platform plays, the other took whoever the provider has NEVER seen. A man the provider sees at a FOREIGN
+club satisfies neither, so **35 quoted Serie A men were absent from the sheet, 7 of them given as probable
+starters that day** - Woltemade (23 credits, filed at Newcastle and fielded by Juventus), Beto (14, filed
+at Everton and fielded by Fiorentina), Diego Carlos, Belghali, Sarr P., Mbangula, Zeballos. The operator's
+rule of 17/08 («l'autorità di chi è in rosa è sofascore») exists to read an ABSENCE from a club; using it
+to assert a foreign club AGAINST the listone that quotes him is a different sentence - «vuoto = ignoto»
+covers the absence, not a foreign positive. **Being quoted on THIS platform's listone is positive evidence
+of being in THIS championship**, so the row keeps the LISTONE's club and `desc_live_club` says where the
+provider sees him: the contradiction is reported, not applied. Effect: absent **35 → 22**, wrong clubs
+**8 → 0** (Kean was filed at Fiorentina and is at Como, 24 credits), and the 22 that remain are CORRECT
+removals - three sources agree (live squad, a transfer naming the same destination, and absence from
+today's probabili).
+
+**Fifth, the same day and the same family: the probabili page was erasing itself.** The PK of
+`probable_starter` is `(fc_id, valid_from)`, the write was `INSERT OR REPLACE`, and the EURO page - stored
+with an unknown season on purpose so no sheet reads it - is ingested AFTER the Serie A one in the same run.
+It therefore overwrote the day's reading of every man whose club is also on euro, i.e. exactly the ten
+biggest clubs: **479 probabilities over 20 teams reduced to 250 over 10**, with Maignan, Svilar, Dimarco
+and Malen reading 0.063 = «absent from the page» on a page that carried them. Nobody had noticed because
+the FULL `update` repairs it by accident (the `sheets` step re-reads the Serie A page after the euro one),
+so only a run that stops earlier leaves the day clobbered. Cured with an `ON CONFLICT ... WHERE`: **a row
+that knows its season is never replaced by one that does not.** It is `load_reference` (20/08) on the
+WRITER's side.
+
+Three habits, and two are about how one searches.
+- **A DOMINATION PRUNE IS RIGHT FOR A VALUE AND WRONG FOR A STRUCTURE.** A prune drops a man another of
+  the same role and club beats on price and per-round value - and the THIRD KEEPER of a club is dominated
+  by the second, yet needed, because what you buy is the shirt being closed and not him. It silently
+  excluded **ten clubs of twenty** from a comparison of keeper trios, including the winner, and produced a
+  recommendation the operator broke with one question: «se prima mi indichi Butez come miglior portiere
+  perché dopo mi suggerisci Bologna?».
+- **A CLASSIFICATION WRITTEN AS AN `if/elif` CHAIN IN AN ARBITRARY ORDER IS NOT A MEASUREMENT**: the first
+  label eats the other causes' cases. It made me report «22 missing because they have no measured football»
+  when the counter-check said 182 of 205 men in that condition were on the sheet.
+- **THE MANIFEST IS A MINUTE-BOOK: read it before deducing.** What closed this diagnosis was calling the
+  real functions (`features.prepare`, `perimeter_clubs`) and reading the sheet's own manifest, which
+  records how many rows it left out and why («129 players were left out: their club is not one this
+  platform plays»). Two false infeasibilities were declared before that: a seed that cannot build a legal
+  roster is not proof that none exists.
+
+## A rule that fires on STARTING needs the other quantity, and one keeper of a club plays
+**03/09/2026, a roster for three matchdays: `docs/model/rosa-3-giornate-v1.md`.** A second classic
+competition (250 credits on the **Qt.A**, 3/8/8/6, matchdays 3-5, at least 2 U23 born from 2004, max 3 per
+club), whose regulation arrived in SIX messages - and every message moved a number, so the rule is the one
+already written: **the regulation of the real thing is asked, never deduced.** Its declared rules: the
+defence modifier needs FOUR defenders fielded and reads the best three plus THE KEEPER, +0.5 from 6.00 in
+steps of 0.25 up to +3; the captain doubles the BONUSES only; there is NO voto d'ufficio, so an uncovered
+place is a ZERO; five automatic substitutions a matchday; and ONE **SWITCH** pair, which fires when the
+pitch man does not START and costs no substitution.
+
+**The switch fires on STARTING, so it needs the quantity this project keeps separate** («titolarità» = he
+gets a vote, «quota da titolare» = he is on the team sheet). Both curves are measured out of sample on the
+two rounds already played, 932 observations: P(vote) runs 0.013 to 0.952 with **absent from the page
+0.063**, and P(STARTS) runs 0.020 to 0.910 with absent 0.028. The fact that binds them is that **P(vote |
+he started) = 1.000 in EVERY bucket**, so `P(vote | not started) = (q − s)/(1 − s)` is exact rather than
+fitted - checked against the direct count in all seven buckets. And the editorial reading BEATS the engine
+near the round: Brier **0.133 against 0.175** for `est_pv/38`. Coming on instead of starting costs BONUSES
+and not the mark (base vote D −0.013 · C +0.009 · A −0.008; fantavoto **A −0.439** · C −0.129 · D −0.050):
+a substitute has less time to score, so the switch pays in attack and the modifier never sees it.
+
+**EXACTLY ONE KEEPER OF A CLUB PLAYS.** This project had written the fact down from the other side
+(`keeperCovered` on the sealed-bid page is the department's own SUM, not a convolution) and was not reading
+it here: the simulation drew keepers independently, so a trio of one club read an **8% chance of NOBODY in
+goal** - a ZERO in this league - where the truth is 0.0000, and a pair read as two independent 87% men.
+Cured in the OBJECTIVE as well as in the simulation, which was the worse half: choosing on independent
+keepers and scoring on exclusive ones is optimising one quantity and measuring another. **And the
+operator's own structure beat mine**: three FIRST-CHOICE keepers of three clubs for 18 credits against the
+trio of one club for 24 - the trio pays two deputies who never play for a perfect cover the dice ask for
+once in two hundred. His proposal also exposed that the engine ordered the declared line-up ONCE and kept
+it for all three rounds, when **a line-up is handed in every matchday**: that understated every roster a
+little and his a lot, because three clubs have three calendars and three keepers of one club share one.
+
+**The +3 of the defence modifier exists and cannot be bought.** He was right that the modifier reads
+REALISED votes («può anche darti i 3 punti se becchi la giornata buona»), and the mechanism is in the data
+- a defender who scores reads **6.998 of base vote against 5.888** - but a goal is 3.7% of a defender's
+appearances, and the rung reads **0.02% a matchday**. The reason contradicts the intuition and is worth
+keeping: a defender's base-vote residual is skewed **LEFT** (−0.275), so `P(residual ≥ +1.5)` is 0.61%
+empirical against 0.60% gaussian - substituting the empirical residuals for a normal changed nothing, the
+opposite of what I expected. The within-club correlation is real and measured with the right null
+(defender-defender same club, same match **+0.359** over 32,861 pairs against **−0.011** for two defenders
+of different clubs in the same round) and it does **not** help the modifier (−0.006), because the ladder is
+locally LINEAR where a buyable defence sits: variance is neutral there. It is «the value of a threshold
+cannot be written on a row» read from the dispersion's side.
+
+Three smaller ones that generalise.
+- **The reliability filter belongs to the ELEVEN, not to the one-credit fillers.** Applying
+  `est_confidence >= 0.75` to both declared the operator's own «2-5-4-4 plus ten scartine» INFEASIBLE: the
+  listone has 17 midfielders at a credit and only THREE survive the filter, because a one-credit man is by
+  definition one nobody has seen play, and his structure needs four. A body needs no valuation to be a body.
+- **A per-role backup beats letting an optimiser place the free slots**: his 2-5-4-4 reads 73.33 a matchday
+  against 73.20 for fifteen free slots placed wherever they pay, and costs 0.21 against the unconstrained
+  optimum - which by itself already puts **82% of the budget in the first eleven**, so «prioritise the
+  eleven» is what it does and pushing further trades coverage for quality at a loss.
+- **A credit is worth ~0.02 points a matchday here** (190 credits instead of 250 costs 1.3 a matchday), so
+  holding some back for later changes is nearly free - and a keeper is not worth paying for at all: the
+  keepers' FMa spans 4.91 to 5.24 and the cheapest man had the listone's highest expected base vote.
 
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);

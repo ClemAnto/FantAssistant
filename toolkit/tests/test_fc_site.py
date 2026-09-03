@@ -85,6 +85,43 @@ def test_a_reading_says_which_season_it_is_about_and_not_only_when_it_was_taken(
         "the last round of the season that ended is not a forecast for the next one")
 
 
+def test_a_row_that_knows_its_season_survives_the_euro_read_of_the_same_day(tmp_path):
+    """The euro pages are deliberately stored with an UNKNOWN season, so no sheet reads them - and they
+    are ingested AFTER the Serie A page in the same run, over the same (fc_id, valid_from) key. With a
+    plain INSERT OR REPLACE the euro read was overwriting the day's Serie A reading of every player
+    whose club is also on the euro platform - exactly the ten biggest clubs - and the day survived only
+    where the full `update` happened to re-read the Serie A page later (the sheets step). Found
+    03/09/2026 on a run that stopped before the sheets: 479 probabilities written over 20 teams, 250
+    left over 10. The writer-side form of the 20/08 rule: an empty reading does not override a full
+    one, not even a more recent one.
+    """
+    ctx = _ctx(tmp_path)
+    fc_site.upsert_probable_starters(
+        ctx.conn, fc_site.parse_probable_starters(_PROBABILI_HTML), "2026-09-03")
+    # the euro page resolves the same men with no season in the hrefs
+    euro = [{"fc_id": 5000, "probability": 0.6, "team": "Fiorentina", "formation": None,
+             "starter": 1, "role": "A", "status": "ok", "season": None}]
+    fc_site.upsert_probable_starters(ctx.conn, euro, "2026-09-03")
+    season, prob = ctx.conn.execute(
+        "SELECT season, probability FROM probable_starter WHERE fc_id = 5000").fetchone()
+    assert season == "2026-27" and prob == 0.85, (
+        "the season-blind euro row must not replace the same day's Serie A reading")
+    # ...while the OTHER direction still updates: a season-carrying re-read replaces a blind row
+    fc_site.upsert_probable_starters(ctx.conn, euro, "2026-09-04")
+    fresh = [dict(euro[0], probability=0.9, season="2026-27")]
+    fc_site.upsert_probable_starters(ctx.conn, fresh, "2026-09-04")
+    season, prob = ctx.conn.execute(
+        "SELECT season, probability FROM probable_starter "
+        "WHERE fc_id = 5000 AND valid_from = '2026-09-04'").fetchone()
+    assert season == "2026-27" and prob == 0.9
+    # ...and a same-season refresh later in the day keeps refreshing, as it always did
+    again = [dict(fresh[0], probability=0.55)]
+    fc_site.upsert_probable_starters(ctx.conn, again, "2026-09-04")
+    assert ctx.conn.execute(
+        "SELECT probability FROM probable_starter "
+        "WHERE fc_id = 5000 AND valid_from = '2026-09-04'").fetchone()[0] == 0.55
+
+
 _PROBABILI_NEW_HREF = """
 <html><body>
 <a class="match-score" href="https://www.fantacalcio.it/serie-a/calendario/1/2026-27/inter-monza/17959">1</a>

@@ -116,6 +116,22 @@ CREATE TABLE IF NOT EXISTS listone_quotes (
     fvm_mantra     REAL,
     price_mantra         REAL,
     price_initial_mantra REAL,
+    -- ...AND WHICH CLUB THAT LISTONE PUT HIM AT, which is the other half of the same fact and was left
+    -- in `rosters` until 03/09/2026. A quotation is a fact about a platform and so is the CLUB beside
+    -- it: the two listoni are read at different moments and a man who moved between a foreign club and
+    -- an Italian one this summer is at DIFFERENT clubs on the two of them. With the club living only in
+    -- `rosters` (one row per player-season) the last download decided it for both sheets, and the
+    -- `league` was worse still - the upsert wrote `COALESCE(rosters.league, excluded.league)`, so the
+    -- FIRST value ever written froze and no later read could correct it. Measured that day on the
+    -- 2026-27 Serie A sheet: Sanchez Ro. (Como's second keeper, quoted 8) carried `premier_league` from
+    -- the EuroLeghe read and Di Gregorio, Suzuki, Gutierrez, Nkunku and Jovanovic were filed at
+    -- Bournemouth, Aston Villa, Bayer, Lipsia and Stuttgart - so `perimeter_clubs`, which takes the club
+    -- from `rosters`, put five quoted Serie A men outside the championship they are quoted in. And 221
+    -- of the 289 men quoted on both listoni had `rosters.price` carrying the EURO figure (Butez 12
+    -- instead of 15), which is the same defect on the column the cure of 07/08 had already moved here.
+    -- So: anything that decides something PER PLATFORM reads these two, exactly as it reads the prices.
+    fc_club_id     INTEGER REFERENCES clubs(fc_club_id),
+    league         TEXT,
     PRIMARY KEY (fc_id, season, platform)
 );
 

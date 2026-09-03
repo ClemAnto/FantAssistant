@@ -495,6 +495,87 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.68 (3 settembre 2026, sera — IL CLUB DEL LISTONE È UN FATTO DI PIATTAFORMA, e quattro difetti che si incastravano)
+
+Nati da una frase dell'operatore su tre nomi: «io mi trovo come portieri del como Butez+Sanchez+Vigorito»,
+mentre il foglio ne portava Butez+**Tornqvist**+Vigorito e Sanchez Ro. non c'era affatto. Cercando quello
+sono venuti fuori **quattro difetti distinti con una radice sola** — un fatto di PIATTAFORMA tenuto in una
+tabella che non ha la piattaforma nella chiave — e il suo giudizio è stato quello giusto: «se i trasferimenti
+non corrispondono e la Qt.A non corrisponde è un problema GRAVISSIMO». Verbale delle misure che ne sono nate:
+[rosa-3-giornate-v1.md](rosa-3-giornate-v1.md).
+
+**1. IL PREZZO: 221 righe su 289 portavano quello dell'ALTRA piattaforma.** `listone_quotes` aveva già la
+piattaforma nella chiave dal 07/08 e i suoi prezzi erano giusti (Butez 15 su Serie A, 12 su euro); ma
+`rosters` tiene **una riga per (fc_id, season)** e `ratings:euro` gira dopo `ratings:default`, quindi
+`rosters.price` finiva col valore euro per **221 dei 289** uomini quotati su entrambi i listoni. Lo schema
+lo dichiarava già («queste sei colonne sono l'ultima lettura e non sanno quale»), e la misura dice quanto
+costa fidarsene.
+
+**2. LA `league` ERA CONGELATA AL PRIMO VALORE MAI SCRITTO.** L'upsert scriveva
+`league = COALESCE(rosters.league, excluded.league)`, cioè il verso sbagliato: nessuna rilettura poteva
+correggerla. Sanchez Ro. — secondo portiere del Como, quotato 8 sul listone Serie A — restava
+`premier_league` per sempre, preso da un download EuroLeghe. E la coppia era **incoerente con se stessa**,
+perché il club accanto veniva dall'ultima lettura e la league dalla prima. Ora entrambe seguono l'ultima
+lettura, come i prezzi due righe sopra: la riga significa una cosa sola, «l'ultimo listone ha detto questo».
+
+**3. IL CLUB VA DOVE STA GIÀ IL PREZZO** — `listone_quotes.fc_club_id` e `.league`, con migrazione in
+`ADDED_COLUMNS` e backfill ri-leggendo i due listoni 2026-27 (1.582 righe). I due listoni sono letti in
+momenti diversi, quindi un uomo che ha cambiato paese quest'estate sta a club DIVERSI sui due: Di Gregorio
+è **Juventus su Serie A e Bournemouth su euro**, Nkunku Milan e Lipsia, Tornqvist **Monza** e Como. Con il
+club solo in `rosters`, `perimeter_clubs` metteva **cinque quotati Serie A fuori dal campionato che li
+quota**. I lettori (`perimeter_clubs`, `features._TARGET_FROM_LISTONE`, `_TARGET_FROM_AUTHORITY`) prendono
+ora il club dalla riga della quota con un `COALESCE` sul vecchio: **inerte su tutto lo storico**, quindi
+nessuna finestra pubblicata si muove finché nessuno riempie le stagioni passate — e chi lo farà deve
+rilanciare `backtest --verify`, perché quel backfill PUÒ spostare una popolazione del gate.
+
+**4. ESSERE QUOTATO SU QUESTO LISTONE È PROVA POSITIVA DI ESSERE IN QUESTO CAMPIONATO.** Il difetto più
+grosso, e il più insidioso perché nasce da una regola giusta portata fuori dal suo dominio. Con
+`squad_source='squad'` la popolazione ha due rami: il primo prende chi la fonte colloca in un club del
+campionato, il secondo prendeva chi la fonte **non ha mai visto**. Un uomo che la fonte vede in un club
+**estero** non soddisfa nessuno dei due, e cadeva fuori dal foglio: **35 quotati Serie A assenti, 7 dei
+quali la pagina probabili di quel giorno dava titolari** — Woltemade (23 crediti, dato al Newcastle e
+schierato dalla Juventus), Beto (14, dato all'Everton e schierato dalla Fiorentina), Diego Carlos, Belghali,
+Sarr P., Mbangula, Zeballos. La regola dell'operatore del 17/08 («l'autorità su chi è in rosa è la fonte»)
+serve a leggere un'**ASSENZA** da un club; usarla per affermare un club estero *contro* il listone che lo
+quota è un'altra cosa — «vuoto = ignoto» vale per l'assenza, non per un positivo straniero. Il secondo ramo
+prende ora tutti i quotati che la fonte NON colloca in un club di questa piattaforma, la riga porta il club
+del LISTONE e `desc_live_club` dice dove la fonte lo vede: la contraddizione si riporta, non si applica.
+
+**Effetto sul foglio Serie A 2026-27**: quotati assenti **35 → 22**, righe col club smentito dalla pagina
+probabili di oggi **8 → 0** (c'erano Kean dato Fiorentina e oggi al Como per 24 crediti, Gudmundsson→Lazio,
+Rowe→Atalanta, Mandragora→Torino), Tornqvist al Monza, e i portieri del Como sono ora esattamente i tre che
+l'operatore vede. **I 22 che restano sono rimozioni CORRETTE**, e la prova è che tre fonti concordano: rosa
+live del provider, un trasferimento che nomina la stessa destinazione, e l'assenza dalla pagina probabili di
+oggi (Nkunku→Lipsia, Di Gregorio→Bournemouth, Perin→Palermo, Petagna→Pisa). Una sola eccezione, **Gomes,
+1 credito**: la quarta parte della cura — «dove le fonti litigano sul club vince la più fresca che sappia
+nominarlo» — vale quindi un uomo da un credito, ed è misurata e non implementata.
+
+**5. E LA PAGINA PROBABILI SI CANCELLAVA DA SÉ.** Trovato lo stesso giorno cercando le notizie del
+pomeriggio: la PK di `probable_starter` è `(fc_id, valid_from)`, la scrittura era `INSERT OR REPLACE`, e la
+pagina **euro** — archiviata con stagione ignota di proposito, così nessun foglio la legge — viene ingerita
+DOPO quella Serie A nello stesso giro. Sovrascriveva quindi la lettura del giorno di ogni uomo il cui club
+sta anche su euro, cioè esattamente i dieci club grossi: **479 probabilità su 20 squadre ridotte a 250 su
+10**, con Maignan, Svilar, Dimarco e Malen che leggevano 0,063 = «assente dai probabili» su una pagina che
+li portava. Nessuno se n'era accorto perché l'`update` COMPLETO ripara per caso (il passo `sheets` rilegge i
+probabili Serie A dopo la pagina euro): ogni corsa che si ferma prima lascia il giorno cancellato. Curato in
+`upsert_probable_starters` con un `ON CONFLICT ... WHERE`: **una riga che conosce la sua stagione non viene
+mai sostituita da una che non la conosce.** È `load_reference` (20/08) dal lato dello SCRITTORE.
+
+**Verifiche**: 5 test nuovi in `tests/test_listone_platform_club.py` (i due listoni tengono club e prezzo
+propri · una rilettura corregge la league invece di trovarla congelata · le colonne sono inerti su una riga
+scritta prima che esistessero · un quotato che la fonte vede all'estero resta in popolazione, **una volta
+sola** · dentro il campionato la fonte decide ancora dove sta), 1 in `test_fc_site.py`, **suite 643 passati
++ 1 skip**, **`backtest --verify` 22/22 riprodotte**, `engine_*` non si muove.
+
+**Una nota di procedura che vale oltre queste cinque cure.** La prima diagnosi del punto 5 era SBAGLIATA
+(«la pagina esce squadra per squadra») e la prima classificazione delle 35 assenze pure (una catena
+`if/elif` in ordine arbitrario, dove la prima etichetta si mangia i casi delle altre: ho riferito «22 senza
+calcio misurato» quando la controprova diceva che 182 su 205 uomini in quella condizione erano invece
+presenti). Quello che ha chiuso la diagnosi è **chiamare le funzioni vere** — `features.prepare`,
+`perimeter_clubs`, `keeper_shirt_probs` — e leggere il **manifest del foglio**, che registra da sé quante
+righe ha lasciato fuori e perché. Il manifest è un verbale: si legge prima di dedurre.
+
+
 ## Novità v9.67 (3 settembre 2026 — la Qt.A entra nella SERIE DATATA, su decisione dell'operatore)
 
 **«Dobbiamo conservare l'intero andamento della Qt.A giornata per giornata».** La quotazione attuale

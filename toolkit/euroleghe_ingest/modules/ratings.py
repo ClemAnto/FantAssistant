@@ -430,7 +430,13 @@ def upsert_listone(conn, season: str, records: list[dict], platform: str = DEFAU
                 price_initial_mantra = COALESCE(excluded.price_initial_mantra,
                                                 rosters.price_initial_mantra),
                 fc_club_id    = COALESCE(excluded.fc_club_id, rosters.fc_club_id),
-                league        = COALESCE(rosters.league, excluded.league)
+                -- WAS `COALESCE(rosters.league, excluded.league)`, which froze the FIRST value ever
+                -- written and let no later read correct it: Sanchez Ro. kept `premier_league` from an
+                -- EuroLeghe download while the Serie A listone quoted him at Como, and the club beside
+                -- it came from the LAST read - so the pair could disagree with itself. Now both follow
+                -- the last read, like the prices two lines up, and the row means one consistent thing:
+                -- "the latest listone said this". What DECIDES per platform is `listone_quotes`.
+                league        = COALESCE(excluded.league, rosters.league)
             """,
             (rec["fc_id"], season, club_id, roles, rec["role_classic"], league,
              rec["price"], rec.get("price_initial"), rec.get("fvm"), rec.get("fvm_mantra"),
@@ -442,8 +448,8 @@ def upsert_listone(conn, season: str, records: list[dict], platform: str = DEFAU
         conn.execute(
             """
             INSERT INTO listone_quotes(fc_id, season, platform, price, price_initial, fvm, fvm_mantra,
-                                       price_mantra, price_initial_mantra)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                       price_mantra, price_initial_mantra, fc_club_id, league)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(fc_id, season, platform) DO UPDATE SET
                 price                = COALESCE(excluded.price, listone_quotes.price),
                 price_initial        = COALESCE(excluded.price_initial, listone_quotes.price_initial),
@@ -451,10 +457,15 @@ def upsert_listone(conn, season: str, records: list[dict], platform: str = DEFAU
                 fvm_mantra           = COALESCE(excluded.fvm_mantra, listone_quotes.fvm_mantra),
                 price_mantra         = COALESCE(excluded.price_mantra, listone_quotes.price_mantra),
                 price_initial_mantra = COALESCE(excluded.price_initial_mantra,
-                                                listone_quotes.price_initial_mantra)
+                                                listone_quotes.price_initial_mantra),
+                -- the CLUB follows THIS listone and is never coalesced away: it is the fact the table
+                -- exists to keep apart, and a stale one is what put five quoted Serie A men abroad.
+                fc_club_id           = COALESCE(excluded.fc_club_id, listone_quotes.fc_club_id),
+                league               = COALESCE(excluded.league, listone_quotes.league)
             """,
             (rec["fc_id"], season, platform, rec["price"], rec.get("price_initial"), rec.get("fvm"),
-             rec.get("fvm_mantra"), rec.get("price_mantra"), rec.get("price_initial_mantra")),
+             rec.get("fvm_mantra"), rec.get("price_mantra"), rec.get("price_initial_mantra"),
+             club_id, league),
         )
         # ...and the VOLATILE numbers of the listone also go into their own DATED series, because that is
         # what they are: the fantavalore moves weekly and on events (injuries, transfers) and the Qt.A is
