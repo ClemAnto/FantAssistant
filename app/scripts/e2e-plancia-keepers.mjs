@@ -253,16 +253,40 @@ function readPairs() {
     // The club of the keeper the modal is ABOUT, read from the screen rather than guessed from a name.
     mineClub: titleParts.at(-1) ?? null,
     text: modal.innerText.replace(/\s+/g, ' ').trim().slice(0, 700),
+    // READ BY LABEL AND NOT BY POSITION. The row grew a column («quante ne ha da solo») and this
+    // probe, which indexed `cells[3]`, started reporting «la coppia in cima dice 22 solo giornate
+    // facili» - a sentence that means nothing, i.e. the instrument accusing the page of its own
+    // defect. Every figure on that row carries its own word next to it, so the word is the key.
     best: rows.map((row) => {
       const cells = [...row.children].map((one) => (one.innerText ?? '').replace(/\s+/g, ' ').trim());
-      return { rank: cells[0], name: cells[1], club: cells[2], facili: cells[3], covered: cells[4] };
+      const numbered = (word) => {
+        const found = cells.find((one) => one.toLowerCase().includes(word));
+        return found ? (found.match(/[-+]?[\d.,]+/) ?? [null])[0] : null;
+      };
+      const plain = cells.filter((one) => !/facili|aggiunte|coperte|solo/i.test(one));
+      return {
+        rank: plain[0],
+        name: plain[1],
+        club: plain[2],
+        facili: numbered('facili'),
+        alone: numbered('solo'),
+        gain: numbered('aggiunte'),
+        covered: numbered('coperte'),
+      };
     }),
     hasGridButton: [...modal.querySelectorAll('button')].some((one) =>
       (one.innerText ?? '').includes('mostra griglia')),
   };
 }
 
-/** The grid: its size, its headers, and whether the diagonal really is the club alone. */
+/**
+ * The grid: its size, its headers, whether the diagonal is EMPTY, and whether it fits its modal.
+ *
+ * «Non sfonda orizzontalmente» is a fact about two numbers the browser reports and nothing else can
+ * substitute for: the scroll box's own `scrollWidth` against its `clientWidth` (does the table need
+ * more room than the box gives it) and the modal's width against the viewport (has the modal itself
+ * grown past the window). A cell count says nothing about either.
+ */
 function readGrid() {
   const modal = [...document.querySelectorAll('nz-modal-container')].find((one) =>
     (one.innerText ?? '').includes('Coppie di portieri'));
@@ -270,9 +294,33 @@ function readGrid() {
   if (!table) return null;
   const head = [...table.querySelectorAll('thead th')].slice(1);
   const body = [...table.querySelectorAll('tbody tr')];
+  const box = table.closest('.overflow-auto');
+  const dialog = modal.querySelector('.ant-modal');
   return {
     columns: head.length,
     rows: body.length,
+    // Does the table need more width than its box has, and has the modal outgrown the window?
+    boxScroll: box ? box.scrollWidth : null,
+    boxWidth: box ? box.clientWidth : null,
+    tableWidth: Math.round(table.getBoundingClientRect().width),
+    modalWidth: dialog ? Math.round(dialog.getBoundingClientRect().width) : null,
+    viewport: window.innerWidth,
+    // Vertically: where the dialog starts and ends against the window. A modal that runs off the
+    // bottom is measured here and nowhere else - no count of cells can see it.
+    modalTop: dialog ? Math.round(dialog.getBoundingClientRect().top) : null,
+    modalBottom: dialog ? Math.round(dialog.getBoundingClientRect().bottom) : null,
+    viewportHeight: window.innerHeight,
+    // How many lines of prose sit above the table: he asked for one, and a paragraph that creeps back
+    // is what pushes the table off the screen again.
+    noteHeight: (() => {
+      const note = modal.querySelector('p');
+      return note ? Math.round(note.getBoundingClientRect().height) : null;
+    })(),
+    // The diagonal: nothing written in it, and the club-alone figure moved to the row's own header.
+    diagonalText: body.map((row, at) =>
+      ([...row.querySelectorAll('td')][at]?.innerText ?? '').trim()).join(''),
+    aloneOnHeader: body.filter((row) =>
+      /\d/.test((row.querySelector('th')?.innerText ?? ''))).length,
     // Each column names the club AND the keeper the toolkit's board draws for it.
     headers: head.map((one) => (one.innerText ?? '').replace(/\s+/g, ' ').trim()),
     withKeeper: head.filter((one) => {
@@ -284,11 +332,32 @@ function readGrid() {
       values: [...row.querySelectorAll('td')].map((one) => Number(one.innerText.trim())),
     })),
     // Every cell has a real background, so the shading is not a dead `color-mix()` on a lost token.
+    // The diagonal is EXPECTED to have none of ours: it is not a pair, so it is not painted either.
     painted: [...table.querySelectorAll('tbody td')].filter((one) => {
       const bg = getComputedStyle(one).backgroundColor;
       return bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent';
     }).length,
     total: table.querySelectorAll('tbody td').length,
+    // THE TINTS, counted: «sembra tutto verde e non risalta niente» is a fact about how many distinct
+    // colours reach the screen and how the cells are spread over them - a cell count cannot see it.
+    tints: (() => {
+      const seen = new Map();
+      for (const cell of table.querySelectorAll('tbody td')) {
+        const style = getComputedStyle(cell);
+        const bg = style.backgroundColor;
+        // The TEXT on each tint travels with it: a scale whose darkest class cannot be read is a
+        // scale that hid the number, and the number is what makes the colour checkable.
+        const found = seen.get(bg) ?? { count: 0, colour: style.color };
+        found.count += 1;
+        seen.set(bg, found);
+      }
+      return [...seen.entries()].map(([background, one]) => ({
+        background, colour: one.colour, count: one.count,
+      }));
+    })(),
+    legend: [...(modal.querySelectorAll('p span span') ?? [])]
+      .map((one) => getComputedStyle(one).backgroundColor)
+      .filter((one) => one && one !== 'rgba(0, 0, 0, 0)').length,
   };
 }
 
@@ -307,13 +376,16 @@ function readHighlight(club) {
   if (!table) return null;
   const heads = [...table.querySelectorAll('thead th')].slice(1);
   const rowHeads = [...table.querySelectorAll('tbody th')];
-  const pick = (list) => list.find((one) => (one.innerText ?? '').trim().startsWith(club));
+  // The headers DRAW three letters and DECLARE the club in `title` - so the club is read from the
+  // declaration and not from the label. Matching on the drawn text found nothing once the cells were
+  // narrowed, which reads exactly like a highlight that stopped painting: two different defects.
+  const pick = (list) => list.find((one) => (one.getAttribute('title') ?? '').startsWith(club));
   const read = (element) => {
     if (!element) return null;
     const style = getComputedStyle(element);
     return { background: style.backgroundColor, colour: style.color };
   };
-  const plain = read(heads.find((one) => !(one.innerText ?? '').trim().startsWith(club)));
+  const plain = read(heads.find((one) => !(one.getAttribute('title') ?? '').startsWith(club)));
   return { column: read(pick(heads)), row: read(pick(rowHeads)), plain };
 }
 
@@ -333,21 +405,150 @@ function cellAt(rowIndex, columnIndex) {
   };
 }
 
-/** The popover the hover opened: how many matchdays it lists and how many carry the V. */
+/**
+ * The popover the hover opened: the matchdays, the CHECK ICONS, and which club each column is about.
+ *
+ * Three things are measured here that a count of rows cannot see. The mark is an ICON now and not the
+ * letter V, so it is counted as `.anticon-check` - counting text would read zero and blame the rule.
+ * The column headers carry their club's full name in `title`, which is what lets the caller check the
+ * attribution against the bundle: the cell is shared with its mirror, so below the diagonal `a` and
+ * `b` are NOT the row and the column, and the operator saw one club's fixtures under the other's name.
+ * And `scrollWidth` against `clientWidth` says whether this list can be read without dragging it
+ * sideways, which is the other thing he asked for.
+ */
 function readPopover() {
   const popover = document.querySelector('nz-popover-component .ant-popover-inner, .ant-popover-inner');
   if (!popover) return null;
   const rect = popover.getBoundingClientRect();
   if (!rect.width) return null;
   const rows = [...popover.querySelectorAll('tbody tr')];
+  const box = popover.querySelector('.overflow-y-auto') ?? popover;
+  const heads = [...popover.querySelectorAll('thead th')];
   return {
     title: (popover.querySelector('.ant-popover-title')?.innerText ?? '').trim(),
-    columns: popover.querySelectorAll('thead th').length,
+    columns: heads.length,
+    // The two middle headers, by the full name they declare - not by the three letters they draw.
+    clubs: heads.slice(1, 3).map((one) => one.getAttribute('title')),
     rows: rows.length,
-    ticks: rows.filter((one) => (one.lastElementChild?.innerText ?? '').trim() === 'V').length,
+    ticks: rows.filter((one) => one.querySelector('.anticon-check')).length,
+    // Which matches are marked easy, per column, and the matchday they sit on: his own rule is
+    // «evidenzia solo le partite facili», so the marks are read one by one and not as a total.
+    marked: rows.map((one) => {
+      const cells = [...one.children];
+      return {
+        round: Number((cells[0]?.innerText ?? '').trim()),
+        a: (cells[1]?.innerText ?? '').trim(),
+        b: (cells[2]?.innerText ?? '').trim(),
+        easyA: Boolean(cells[1]?.classList.contains('text-success')),
+        easyB: Boolean(cells[2]?.classList.contains('text-success')),
+        tick: Boolean(one.querySelector('.anticon-check')),
+      };
+    }),
+    scrollX: box.scrollWidth - box.clientWidth,
     sample: rows.slice(0, 3).map((one) =>
       [...one.children].map((cell) => (cell.innerText ?? '').trim()).join(' | ')),
   };
+}
+
+/**
+ * ONE ROW OF THE BOARD, and what lights up while the pointer is on it.
+ *
+ * The tooltip is gone (his instruction) and the hover now RINGS the two men he would buy instead, so
+ * the thing to measure is a count of rings - not the presence of a panel. Reads the ring from the
+ * computed outline width, because a class name is not a pixel.
+ */
+function readBoardRow(role, at) {
+  const column = [...document.querySelectorAll('plancia-slot-matrix .grid > div')].find((one) =>
+    (one.innerText ?? '').trim().startsWith(role));
+  const rows = [...(column?.querySelectorAll('button') ?? [])];
+  const row = rows[at];
+  if (!row) return null;
+  const rect = row.getBoundingClientRect();
+  const cells = [...row.querySelectorAll('span')].map((one) => (one.innerText ?? '').trim());
+  // WHAT CHANGES IS WHAT COUNTS, so the probe returns every row's background as a STRING and the
+  // caller diffs the two readings. Two attempts at reading it directly failed and both failures are
+  // worth keeping: counting outlines read 250 of 250 (every button has one - the instrument saying
+  // «everything is marked», i.e. nothing), and parsing the red channel read 0, because Chrome
+  // computes a `color-mix(in srgb …)` as `color(srgb 1 0.17 0.47 / 0.1)` and not as `rgb()` - a
+  // channel test on that string compares 1 with 8. A diff needs no format at all.
+  const shades = [...document.querySelectorAll('plancia-slot-matrix button')].map(
+    (one) => getComputedStyle(one).backgroundColor,
+  );
+  return {
+    x: rect.left + rect.width / 2,
+    y: rect.top + rect.height / 2,
+    text: (row.innerText ?? '').replace(/\s+/g, ' ').trim(),
+    numbers: cells.filter((one) => /^[-+]?[\d.,]+$/.test(one)),
+    hasTooltipDirective: row.hasAttribute('nz-tooltip'),
+    shades,
+    names: [...document.querySelectorAll('plancia-slot-matrix button')].map(
+      (one) => (one.innerText ?? '').split('\n')[0].trim()),
+  };
+}
+
+/**
+ * LA CARD DI UN CALCIATORE: dov'e', cosa dice, e i due bottoni.
+ *
+ * Si misura la POSIZIONE perche' «draggabile» e' una domanda su dei pixel: un `cdkDrag` che non si
+ * muove lascia il DOM identico, quindi contare i nodi direbbe che tutto va bene.
+ */
+function readCard() {
+  const card = document.querySelector('plancia-man-card [cdkdrag], plancia-man-card .fixed');
+  if (!card) return null;
+  const rect = card.getBoundingClientRect();
+  if (!rect.width) return null;
+  const handle = card.querySelector('[cdkdraghandle]');
+  const hrect = handle?.getBoundingClientRect();
+  const buttons = [...card.querySelectorAll('button')].map((one) =>
+    (one.innerText ?? '').replace(/\s+/g, ' ').trim());
+  const closer = [...card.querySelectorAll('button')].find(
+    (one) => one.getAttribute('aria-label') === 'chiudi');
+  const closeRect = closer?.getBoundingClientRect();
+  const pairs = [...card.querySelectorAll('button')].find(
+    (one) => (one.innerText ?? '').toLowerCase().includes('abbinamenti'));
+  const pairsRect = pairs?.getBoundingClientRect();
+  return {
+    x: Math.round(rect.left),
+    y: Math.round(rect.top),
+    width: Math.round(rect.width),
+    text: (card.innerText ?? '').replace(/\s+/g, ' ').trim().slice(0, 240),
+    labels: [...card.querySelectorAll('dt')].map((one) => (one.innerText ?? '').trim()),
+    buttons,
+    handle: hrect ? { x: hrect.left + hrect.width / 2, y: hrect.top + hrect.height / 2 } : null,
+    closer: closeRect
+      ? { x: closeRect.left + closeRect.width / 2, y: closeRect.top + closeRect.height / 2 }
+      : null,
+    pairs: pairsRect
+      ? { x: pairsRect.left + pairsRect.width / 2, y: pairsRect.top + pairsRect.height / 2 }
+      : null,
+  };
+}
+
+/** A REAL drag: press, several moves (a single jump is not a drag), release. */
+async function drag(session, from, dx, dy, steps = 8) {
+  const at = { x: Math.round(from.x), y: Math.round(from.y) };
+  await session.send('Input.dispatchMouseEvent', { type: 'mouseMoved', ...at, button: 'none' });
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mousePressed', ...at, button: 'left', clickCount: 1,
+  });
+  for (let step = 1; step <= steps; step += 1) {
+    await session.send('Input.dispatchMouseEvent', {
+      type: 'mouseMoved',
+      x: Math.round(at.x + (dx * step) / steps),
+      y: Math.round(at.y + (dy * step) / steps),
+      button: 'left',
+      buttons: 1,
+    });
+    await wait(20);
+  }
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseReleased',
+    x: Math.round(at.x + dx),
+    y: Math.round(at.y + dy),
+    button: 'left',
+    clickCount: 1,
+  });
+  await wait(250);
 }
 
 function modalCount() {
@@ -377,7 +578,8 @@ async function main() {
     url,
   ], { stdio: 'ignore' });
 
-  const report = { url, steps: [], problems: [] };
+  const theme = value('--theme', null);
+  const report = { url, steps: [], problems: [], theme: theme ?? 'default' };
   const note = (step, detail) => {
     report.steps.push({ step, ...detail });
     console.log(`· ${step}: ${detail.said ?? ''}`);
@@ -390,8 +592,21 @@ async function main() {
     session = await attach(debugPort);
     await session.send('Page.enable');
     await session.send('Runtime.enable');
+    // IL TEMA SI CHIEDE PER NOME, non con `prefers-color-scheme`: questa app non ha un tema chiaro
+    // che segue il sistema, ha temi NOMINATI su `:root[data-theme="x"]` (app/src/styles/themes/). Un
+    // `Emulation.setEmulatedMedia` qui non muove un pixel - misurato, le celle restavano identiche -
+    // e un flag che non muove niente è peggio di nessun flag: leggerebbe «nessun problema» su una
+    // cosa che non ha guardato. Con `--theme magenta` la scala dei colori si rimisura sui token di
+    // quel tema, che è la variazione che questa app ha davvero.
     await session.send('Page.navigate', { url });
     await wait(1500);
+    if (theme) {
+      await evaluate(session, (name) => {
+        document.documentElement.dataset.theme = name;
+        return document.documentElement.dataset.theme;
+      }, theme);
+      await wait(200);
+    }
 
     // 0. THE BUNDLE the page is reading, so the arithmetic below is checked against ITS numbers and
     //    not against a copy of them. A harness that recomputes from its own fixture proves nothing
@@ -404,8 +619,16 @@ async function main() {
         + `margine ${calendar.easy_margin} = P(porta inviolata) ${calendar.clean_sheet?.at_margin}`,
       problems: [
         ...(serieA ? [] : ['il bundle non porta il calendario di serie_a: non c’è niente da misurare']),
-        ...(calendar.clean_sheet?.at_margin > 0.39 && calendar.clean_sheet?.at_margin < 0.41
-          ? [] : [`il margine congelato non vale più 0.40 di porta inviolata (${calendar.clean_sheet?.at_margin})`]),
+        // IL MARGINE È DICHIARATO, e quello che promette si asserisce al valore che ha davvero.
+        // Per un giorno valeva 0.40 come `club_defence.CLEAN_SHEET_SHARE`; il 03/09/2026 (sera)
+        // l'operatore l'ha portato a 100 su tre partite sue, quindi la promessa è 0.32 e va scritta
+        // qui - o uno schermo costruito a 0.32 si legge con il numero di un'altra soglia.
+        ...(calendar.easy_margin === 75
+          ? [] : [`il margine nel bundle è ${calendar.easy_margin} e non i 75 dichiarati: `
+                  + `il pacchetto è più vecchio della decisione`]),
+        ...(calendar.clean_sheet?.at_margin > 0.29 && calendar.clean_sheet?.at_margin < 0.31
+          ? [] : [`a margine ${calendar.easy_margin} la porta inviolata dovrebbe valere ~0.30 e vale `
+                  + `${calendar.clean_sheet?.at_margin}`]),
       ],
     });
 
@@ -425,22 +648,102 @@ async function main() {
       ],
     });
 
-    // 2. THE CLICK: it opens the pairings, and it does NOT put the man on the table. Two facts, and
-    //    the second is the operator's own instruction of 03/09/2026 - so it is asserted, not assumed.
+    // 1b. LA RIGA: tre numeri e nessun tooltip, e l'hover accende i due che comprerebbe invece.
+    const before = await evaluate(session, readBoardRow, 'A1', 0);
+    if (before) await hover(session, before);
+    const during = await evaluate(session, readBoardRow, 'A1', 0);
+    await hover(session, { x: 5, y: 5 });
+    const after = await evaluate(session, readBoardRow, 'A1', 0);
+    const changed = (one, two) => {
+      const out = [];
+      for (let at = 0; at < (one?.shades?.length ?? 0); at += 1) {
+        if (one.shades[at] !== two?.shades?.[at]) out.push(one.names[at]);
+      }
+      return out;
+    };
+    // La riga SOTTO IL PUNTATORE cambia da sola (ha il suo `hover:` di stato), e non e' una delle due
+    // alternative: si toglie dal conto invece di alzare la soglia, o l'asserto direbbe «due» anche
+    // quando l'alternativa e' una sola e la terza e' lei.
+    const own = (before?.text ?? '').split(' ')[0];
+    const lit = changed(before, during).filter((one) => one !== own);
+    const leftOver = changed(before, after);
+    note('una riga della plancia', {
+      said: `«${before?.text}» · numeri ${JSON.stringify(before?.numbers)} · `
+        + `tooltip ${before?.hasTooltipDirective ? 'ANCORA LI' : 'no'} · `
+        + `accese all'hover ${lit.length} (${lit.join(', ')}) · `
+        + `rimaste accese dopo ${leftOver.length}`,
+      problems: [
+        ...(before ? [] : ['la prima riga di A1 non si trova']),
+        // TRE numeri per riga: quanto rende sopra il sei per partita, le partite attese fra
+        // parentesi, e la max offerta. Il secondo si asserisce col suo FORMATO, perche' e' quello
+        // che lo distingue dagli altri due - e la parentesi e' la meta' del messaggio.
+        ...(before?.numbers?.length === 2
+          ? [] : [`la riga porta ${before?.numbers?.length} numeri liberi invece di 2: `
+                  + `${JSON.stringify(before?.numbers)}`]),
+        ...(/\(\d+\)/.test(before?.text ?? '')
+          ? [] : [`la riga non porta le partite attese fra parentesi: «${before?.text}»`]),
+        ...(before?.hasTooltipDirective
+          ? ['la riga ha ancora il tooltip: doveva sparire'] : []),
+        // L'hover accende la coppia alternativa, e lasciando la riga si spegne: un'evidenziazione
+        // che resta accesa e' indistinguibile da una che non risponde.
+        // La coppia sono DUE uomini, quindi due righe: una sola vorrebbe dire che l'alternativa e'
+        // letta a metà, e zero che il gesto non arriva.
+        ...(lit.length === 2
+          ? [] : [`passando su un nome si accendono ${lit.length} righe invece di 2: `
+                  + `${lit.join(', ') || 'nessuna'}`]),
+        ...(leftOver.length === 0
+          ? [] : [`uscendo dalla riga restano accese ${leftOver.join(', ')}`]),
+      ],
+    });
+
+    // 1c. LA CARD: il click su un nome la apre (04/09/2026), si trascina dall'intestazione, e i due
+    //     gesti di prima sono BOTTONI suoi. Il click NON mette niente in asta, che è l'istruzione del
+    //     03/09 e resta asserita qui: è la cosa che questa pagina non deve fare.
     const lotBefore = await evaluate(session, readLot);
     const target = board?.rows?.[0];
     if (target) await click(session, target);
+    const card = await waitFor(session, readCard, 20);
+    const lotAfterCard = await evaluate(session, readLot);
+    let moved = null;
+    if (card?.handle) {
+      await drag(session, card.handle, 140, 70);
+      moved = await evaluate(session, readCard);
+    }
+    note('la card di un calciatore', {
+      said: `«${target?.name}» → card ${card ? 'aperta' : 'NON aperta'} a (${card?.x}, ${card?.y}) `
+        + `larga ${card?.width}px · voci ${JSON.stringify(card?.labels)} · `
+        + `bottoni ${JSON.stringify(card?.buttons)} · trascinata a (${moved?.x}, ${moved?.y})`,
+      problems: [
+        ...(card ? [] : ['cliccando un nome non si apre nessuna card']),
+        ...(lotAfterCard === lotBefore
+          ? [] : ['il click ha ANCHE messo il calciatore in asta: non è un comportamento richiesto']),
+        // Compatta: una card che copre la plancia non è una card.
+        ...(card && card.width <= 340
+          ? [] : [`la card è larga ${card?.width}px: non è compatta`]),
+        ...(card && card.labels.length >= 4
+          ? [] : [`la card porta ${card?.labels?.length ?? 0} voci di statistica: sono poche`]),
+        ...(card?.handle ? [] : ['la card non ha una maniglia: non si può trascinare']),
+        // «Draggabile» è una domanda su dei PIXEL: un cdkDrag che non si muove lascia il DOM identico.
+        ...(card && moved && (Math.abs(moved.x - card.x) > 40 || Math.abs(moved.y - card.y) > 20)
+          ? [] : [`trascinando l'intestazione la card resta a (${moved?.x}, ${moved?.y}) invece di `
+                  + `spostarsi da (${card?.x}, ${card?.y})`]),
+        ...(card?.pairs ? [] : ['un portiere non ha il bottone «abbinamenti»']),
+      ],
+    });
+
+    // 2. IL BOTTONE «ABBINAMENTI» della card apre la modale: due gesti, e il secondo è un bottone.
+    if (moved?.pairs ?? card?.pairs) await click(session, moved?.pairs ?? card.pairs);
     const pairs = await waitFor(session, readPairs, 40);
     const lotAfter = await evaluate(session, readLot);
-    note('il click su un portiere', {
-      said: `«${target?.name}» → modale «${pairs?.title ?? 'nessuna'}» · `
+    note('il bottone «abbinamenti»', {
+      said: `modale «${pairs?.title ?? 'nessuna'}» · `
         + `il lotto era «${lotBefore.slice(0, 40)}…» ed è «${lotAfter.slice(0, 40)}…»`,
       problems: [
-        ...(pairs ? [] : ['il click su un portiere non ha aperto gli accoppiamenti']),
+        ...(pairs ? [] : ['il bottone «abbinamenti» non ha aperto la modale']),
         ...(lotAfter === lotBefore
-          ? [] : ['il click ha ANCHE messo il portiere in asta: non è un comportamento richiesto']),
+          ? [] : ['aprire gli abbinamenti ha messo il portiere in asta']),
         ...(pairs?.title?.includes(target?.name ?? '\u0000')
-          ? [] : [`la modale non nomina il portiere cliccato (${pairs?.title})`]),
+          ? [] : [`la modale non nomina il portiere della card (${pairs?.title})`]),
       ],
     });
 
@@ -452,7 +755,8 @@ async function main() {
     const expected = expectedFor(calendar, pairs?.mineClub, pairs?.best?.[0]?.club, from, to);
     note('i tre migliori', {
       said: (pairs?.best ?? []).map((one) =>
-        `${one.rank}. ${one.name} (${one.club}) ${one.facili} / ${one.covered}`).join(' · ')
+        `${one.rank}. ${one.name} (${one.club}) ${one.facili} facili (+${one.gain}, `
+        + `da solo ${one.alone}) / ${one.covered}`).join(' · ')
         + ` — finestra ${from}–${to}`,
       problems: [
         ...(pairs?.best?.length === 3 ? [] : [`${pairs?.best?.length ?? 0} migliori invece di 3`]),
@@ -485,25 +789,68 @@ async function main() {
     const gridButton = await clickSteady(session, 'button', 'mostra griglia');
     const grid = await waitFor(session, readGrid, 40);
     const square = (grid?.rows ?? 0) === (grid?.columns ?? 0);
-    const diagonalOk = (grid?.cells ?? []).every((row, at) => {
-      const own = row.values[at];
-      // A club paired with anybody covers at least what it covers alone: the diagonal is the floor
-      // of its own row, and a diagonal that is not would mean the pair is losing matchdays.
-      return own != null && row.values.every((one) => one >= own);
-    });
+    // The diagonal is EMPTY by the operator's decision of 03/09/2026: a club with itself is not a
+    // pair, and a number in that cell reads as if it were. What it used to say - the club alone -
+    // moved onto the row's own header, so the assertion moved with it instead of being deleted.
+    const offDiagonal = (grid?.total ?? 0) - (grid?.rows ?? 0);
     note('la griglia', {
       said: `${grid?.rows ?? 0}x${grid?.columns ?? 0} · ${grid?.withKeeper ?? 0} colonne col portiere `
-        + `titolare · ${grid?.painted ?? 0}/${grid?.total ?? 0} caselle con uno sfondo dipinto`,
+        + `titolare · ${grid?.painted ?? 0}/${offDiagonal} caselle dipinte fuori diagonale · `
+        + `tabella ${grid?.tableWidth}px in un riquadro da ${grid?.boxWidth}px, `
+        + `modale ${grid?.modalWidth}x[${grid?.modalTop}..${grid?.modalBottom}] su `
+        + `${grid?.viewport}x${grid?.viewportHeight} di finestra · nota ${grid?.noteHeight}px · `
+        + `${grid?.tints?.length} tinte`,
       problems: [
         ...(gridButton ? [] : ['il bottone «mostra griglia» non c’è']),
         ...(grid ? [] : ['la griglia non si è aperta']),
         ...(square ? [] : ['la griglia non è quadrata: righe e colonne devono essere le stesse squadre']),
         ...(grid && grid.withKeeper === grid.columns
           ? [] : [`${(grid?.columns ?? 0) - (grid?.withKeeper ?? 0)} colonne senza il nome del portiere`]),
-        ...(diagonalOk ? [] : ['una coppia copre MENO del club da solo: la diagonale non è il pavimento della sua riga']),
-        // Una casella senza sfondo è un `color-mix()` su un token perduto: il build resta verde.
-        ...(grid && grid.painted === grid.total
-          ? [] : [`${(grid?.total ?? 0) - (grid?.painted ?? 0)} caselle senza sfondo dipinto`]),
+        // La diagonale: niente scritto e niente dipinto, e il «da solo» su ogni intestazione di riga.
+        ...(grid && grid.diagonalText === ''
+          ? [] : [`la diagonale porta ancora un numero: «${grid?.diagonalText}»`]),
+        ...(grid && grid.aloneOnHeader === grid.rows
+          ? [] : [`${(grid?.rows ?? 0) - (grid?.aloneOnHeader ?? 0)} righe senza il «da solo» `
+                  + `sull’intestazione: il numero della diagonale è stato perso, non spostato`]),
+        // LA SCALA DEI COLORI, misurata: cinque classi devono ARRIVARE a schermo, e nessuna deve
+        // ingoiare la griglia - una classe che copre metà delle caselle è la scala lineare di prima,
+        // che l'operatore ha letto come «tutto verde». La diagonale porta la sua tinta trasparente,
+        // quindi le tinte attese sono le cinque più quella.
+        ...(grid && grid.tints.length >= 5
+          ? [] : [`solo ${grid?.tints?.length} tinte distinte sulla griglia: la scala non arriva`]),
+        // IL NUMERO SI DEVE LEGGERE SU OGNI TINTA. Una cella dipinta è una cella con un numero
+        // sopra, e la tinta più scura è quella che lo mangia per prima: si misura, non si guarda.
+        ...(grid?.tints ?? [])
+          .filter((one) => one.background !== 'rgba(0, 0, 0, 0)'
+            && contrast(one.background, one.colour) < 4.5)
+          .map((one) => `il numero su ${one.background} ha contrasto `
+            + `${contrast(one.background, one.colour).toFixed(2)}:1 (${one.count} caselle)`),
+        ...(grid && Math.max(...grid.tints.map((one) => one.count)) <= grid.total * 0.45
+          ? [] : [`una tinta sola copre ${Math.max(...(grid?.tints ?? []).map((one) => one.count))} `
+                  + `caselle su ${grid?.total}: non risalta niente`]),
+        ...(grid && grid.legend >= 4
+          ? [] : [`la legenda mostra ${grid?.legend} tinte: una scala a classi senza legenda è una `
+                  + `figura che nessuno può controllare`]),
+        // NON SFONDA: due numeri del browser, e nessun conteggio di celle può sostituirli.
+        ...(grid && grid.boxScroll <= grid.boxWidth
+          ? [] : [`la tabella chiede ${grid?.boxScroll}px in un riquadro da ${grid?.boxWidth}px: `
+                  + `${(grid?.boxScroll ?? 0) - (grid?.boxWidth ?? 0)}px di scorrimento laterale`]),
+        ...(grid && grid.modalWidth <= grid.viewport
+          ? [] : [`la modale è larga ${grid?.modalWidth}px su una finestra da ${grid?.viewport}px`]),
+        // NON ESCE IN BASSO (sua richiesta, 03/09/2026), e nemmeno in alto.
+        ...(grid && grid.modalTop >= 0 && grid.modalBottom <= grid.viewportHeight
+          ? [] : [`la modale va da ${grid?.modalTop} a ${grid?.modalBottom} su una finestra alta `
+                  + `${grid?.viewportHeight}: esce dallo schermo`]),
+        ...(grid && grid.noteHeight != null && grid.noteHeight <= 48
+          ? [] : [`la riga di spiegazione è alta ${grid?.noteHeight}px: era una riga, è tornata un `
+                  + `paragrafo e spinge la tabella fuori`]),
+        // E NON È TROPPO LARGA: una modale che eccede la sua tabella di più dei due padding del corpo
+        // è spazio morto, che è la seconda metà della richiesta («è troppo larga») e si misura sulla
+        // stessa coppia di numeri. Dove le squadre sono più di venti la tabella è più larga del tetto
+        // e la differenza è negativa, quindi l'asserto non morde dove non deve.
+        ...(grid && grid.modalWidth - grid.tableWidth <= 160
+          ? [] : [`la modale eccede la griglia di ${grid.modalWidth - grid.tableWidth}px: `
+                  + `tabella ${grid.tableWidth}px in una modale da ${grid.modalWidth}px`]),
       ],
     });
 
@@ -527,24 +874,48 @@ async function main() {
       ],
     });
 
-    // 5. THE POPOVER, which exists only while the pointer is on the cell. A cell OFF the diagonal, so
-    //    it must list two calendars and not one.
-    const cell = await evaluate(session, cellAt, 0, 1);
+    // 5. THE POPOVER, which exists only while the pointer is on the cell. A cell BELOW the diagonal
+    //    on purpose: that is the half where the shared cell's `a` and `b` are not the row and the
+    //    column, and where the operator found one club's fixtures drawn under the other's name.
+    const cell = await evaluate(session, cellAt, 2, 0);
+    // IL PASSAGGIO DEL PUNTATORE NON DEVE APRIRE NIENTE (sua istruzione, 03/09/2026): su quattrocento
+    // caselle un pannello che si apre passando copre proprio quelle che stavi leggendo. Si misura
+    // muovendo il puntatore e guardando che NON compaia, prima di cliccare - «zero problemi» e «non
+    // ho guardato» non devono leggersi uguale.
     if (cell) await hover(session, cell);
+    await wait(400);
+    const onHover = await evaluate(session, readPopover);
+    if (cell) await click(session, cell);
     const popover = await waitFor(session, readPopover, 20);
+    // The attribution, checked against the BUNDLE: each column must carry the fixtures of the club
+    // its own header declares. A second implementation of the sentence, not the app's own function.
+    const attribution = attributionOf(calendar, popover, from, to);
+    // His rule, one row at a time: the check is there when at least one of the two is easy, and only
+    // the easy match is highlighted.
+    const rule = (popover?.marked ?? []).filter(
+      (row) => row.tick !== (row.easyA || row.easyB)).length;
     note('il popover di una casella', {
-      said: `«${popover?.title ?? '—'}» · ${popover?.rows ?? 0} giornate, ${popover?.ticks ?? 0} con la V, `
-        + `${popover?.columns ?? 0} colonne · es. ${(popover?.sample ?? []).join(' // ')}`,
+      said: `«${popover?.title ?? '—'}» · ${popover?.rows ?? 0} giornate, ${popover?.ticks ?? 0} col check, `
+        + `${popover?.columns ?? 0} colonne (${(popover?.clubs ?? []).join(' | ')}) · `
+        + `scorrimento laterale ${popover?.scrollX}px · es. ${(popover?.sample ?? []).join(' // ')}`,
       problems: [
-        ...(popover ? [] : ['passando sopra una casella non compare nessun popover']),
+        ...(onHover ? ['il puntatore che passa apre già il pannello: doveva aprirlo il click'] : []),
+        ...(popover ? [] : ['cliccando una casella non compare nessun popover']),
         ...(popover?.rows ? [] : ['il popover non elenca nessuna partita']),
-        // Fuori diagonale sono DUE squadre: giornata, la prima, la seconda, la V.
+        // Fuori diagonale sono DUE squadre: giornata, la prima, la seconda, il check.
         ...(popover?.columns === 4
           ? [] : [`il popover ha ${popover?.columns} colonne invece delle 4 di una coppia`]),
         ...(popover && popover.ticks === cell?.value
-          ? [] : [`le V nel popover (${popover?.ticks}) non sono il numero della casella (${cell?.value})`]),
+          ? [] : [`i check nel popover (${popover?.ticks}) non sono il numero della casella `
+                  + `(${cell?.value})`]),
+        ...(rule === 0
+          ? [] : [`${rule} righe in cui il check non corrisponde a «almeno una delle due è facile»`]),
+        ...(popover && popover.scrollX <= 0
+          ? [] : [`la lista delle partite scorre di lato di ${popover?.scrollX}px`]),
+        ...attribution.problems,
       ],
     });
+    if (attribution.said) console.log(`    ↳ ${attribution.said}`);
 
     if (flag('--shot')) {
       const shot = await session.send('Page.captureScreenshot', { format: 'png' });
@@ -596,12 +967,19 @@ function expectedFor(calendar, mineName, club, from, to) {
   const theirs = keyOf.get(club);
   if (!theirs) return { problems: [`il club «${club}» non è nel calendario`], said: null };
 
+  // THE SAME SENTENCE THE PAGE APPLIES, and since 03/09/2026 that sentence lives on the PROBABILITY:
+  // the clean-sheet model reads the last ten matches' goals of both clubs, so an edge threshold can no
+  // longer express «facile». This is still a second implementation and not a call into the app - the
+  // point is that the two agree - but it has to be the second implementation of the CURRENT rule.
+  const threshold = calendar.easy_probability;
   const easyByRound = (key) => {
     const out = new Map();
-    for (const [round, , home, away, edge] of league.matches) {
+    for (const [round, , home, away, edge, csHome, csAway] of league.matches) {
       if (round < from || round > to) continue;
-      if (home === key) out.set(round, edge != null && edge > calendar.easy_margin);
-      if (away === key) out.set(round, edge != null && -edge > calendar.easy_margin);
+      const decide = (own, cs) =>
+        threshold != null && cs != null ? cs > threshold : own != null && own > calendar.easy_margin;
+      if (home === key) out.set(round, decide(edge, csHome));
+      if (away === key) out.set(round, decide(edge == null ? null : -edge, csAway));
     }
     return out;
   };
@@ -620,6 +998,59 @@ function expectedFor(calendar, mineName, club, from, to) {
   const rounds = new Set([...a.keys(), ...b.keys()]);
   const facili = [...rounds].filter((round) => a.get(round) || b.get(round)).length;
   return { expected: facili, said: `atteso ${facili} per la coppia in cima`, problems: [] };
+}
+
+/**
+ * WHOSE FIXTURES ARE UNDER WHOSE NAME, recomputed from the bundle.
+ *
+ * The grid computes each cell once and lets the cell and its mirror read one object - which is right,
+ * two passes over one question is how a cell and its mirror disagree - and the price is that `a` and
+ * `b` are the order the PAIR was built in. Labelling them from the axes therefore swaps them below the
+ * diagonal, which is what the operator saw on «Com + Ata»: Atalanta's matches under Como, and the
+ * highlight with them. So the header declares its club and this checks the opponents against the
+ * calendar, one column at a time.
+ */
+function attributionOf(calendar, popover, from, to) {
+  const league = calendar?.leagues?.serie_a;
+  if (!league || !popover?.marked?.length) return { problems: [], said: null };
+  const nameOf = new Map(league.clubs.map((one) => [one.key, one.name]));
+  const keyOf = new Map(league.clubs.map((one) => [one.name, one.key]));
+  const fixtures = (key) => {
+    const out = new Map();
+    for (const [round, , home, away] of league.matches) {
+      if (from && (round < from || round > to)) continue;
+      if (home === key) out.set(round, nameOf.get(away) ?? away);
+      if (away === key) out.set(round, `@ ${nameOf.get(home) ?? home}`);
+    }
+    return out;
+  };
+  const problems = [];
+  const said = [];
+  for (const [at, side] of [[0, 'a'], [1, 'b']]) {
+    const club = popover.clubs?.[at];
+    const key = club ? keyOf.get(club) : null;
+    if (!key) {
+      problems.push(`la colonna ${at + 1} del popover non dichiara di che club è (title «${club}»)`);
+      continue;
+    }
+    const mine = fixtures(key);
+    // The label truncates on screen, so compare on the PREFIX and count what actually disagrees.
+    const wrong = popover.marked.filter((row) => {
+      const drawn = row[side];
+      const real = mine.get(row.round);
+      if (!drawn || drawn === '—' || !real) return false;
+      const cut = drawn.replace(/\u2026$/, '');
+      return !real.startsWith(cut) && !cut.startsWith(real);
+    });
+    said.push(`${club}: ${popover.marked.length - wrong.length}/${popover.marked.length} righe`);
+    if (wrong.length) {
+      const one = wrong[0];
+      problems.push(`sotto «${club}» ci sono le partite di un altro club: alla giornata ${one.round} `
+        + `il popover scrive «${one[side]}» e il calendario dice «${mine.get(one.round)}» `
+        + `(${wrong.length} righe su ${popover.marked.length})`);
+    }
+  }
+  return { problems, said: `attribuzione delle colonne · ${said.join(' · ')}` };
 }
 
 /** WCAG contrast of two `rgb()` strings. A colour pair is measured, never looked at. */

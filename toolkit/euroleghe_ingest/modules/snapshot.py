@@ -426,7 +426,20 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      `backtest --verify` che lo dice a voce alta e' DOVUTO e non ancora fatto: il 01/09/2026
 #      l'acquisizione teneva il lock di scrittura, e un controllo che rompe la corsa che sta
 #      controllando e' peggio di un controllo fatto un'ora dopo.
-SHEET_REVISION = 38
+#   39 (03/09/2026, sera) - IL VANTAGGIO CAMPO DELLA PORTA INVIOLATA E I GOL DELLE ULTIME DIECI.
+#      `desc_easy_matches` e `desc_calendar_margin` cambiano valore perche' cambia l'`edge` che li
+#      produce: il semi-scarto casalingo passa da 14,5 (misurato sul RISULTATO) a 35 (misurato sulla
+#      PORTA INVIOLATA, che e' la domanda che questo modulo serve), la soglia da 200 a 75 - due
+#      decisioni dell'operatore su tre e poi dodici partite portate da lui - e il verdetto legge la
+#      PROBABILITA', che da oggi porta anche i gol fatti e subiti nelle ultime dieci partite dei due
+#      club (log-loss fuori campione 0,54749 -> 0,54282, 7 stagioni su 8). `engine_*` e i `pi_*` non
+#      si muovono di un decimale: `calendar_lift` non ha chiamanti e il coefficiente di calendario
+#      cita ora per esteso il campo con cui e' stato fittato. Dettaglio: assistente-asta-v1.md
+#      §34.3-bis e §34.3-ter.
+#      NOTA DI CONVIVENZA: la 40 e' di un'ALTRA sessione (i «ceduti» del listone, l'asterisco che dice
+#      chi non gioca piu' qui) e la sua voce la scrive lei. Questo file e' stato toccato da due mani
+#      nello stesso pomeriggio: chi committa misura tutt'e due le meta' invece di fidarsi.
+SHEET_REVISION = 40
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
@@ -5745,6 +5758,43 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
             f"they are computed on. `--keep-departed` keeps everybody. Removed: " + " · ".join(
                 f"{row['name']} -> {row['desc_left_for']}" for row in departed[:6])
             + (f" · and {len(departed) - 6} more" if len(departed) > 6 else ""))
+    # ...E IL LISTONE STESSO DICE CHI NON GIOCA PIU' QUI, che e' un TERZO fatto e il piu' forte dei tre
+    # (operatore, 03/09/2026, sulla plancia: «Lukaku non deve essere tolto per la nota "fuori rosa" ma
+    # perche' non gioca piu' in serie A»). Il file delle quotazioni ha due fogli - `Tutti` e `Ceduti` -
+    # e sul sito la stessa cosa e' l'ASTERISCO accanto al nome: e' la piattaforma che dichiara chi ha
+    # lasciato il campionato, cioe' l'autorita' su cosa si puo' comprare, perche' e' il listone da cui
+    # si compra. `parse_listone` leggeva tutt'e due i fogli e li FONDEVA - un ceduto ha comunque
+    # giocato e i suoi voti vanno attribuiti, quindi leggerli e' giusto - e cosi' l'unica colonna che
+    # rispondeva alla domanda non esisteva.
+    # I due segnali che questo foglio consultava non potevano supplire, e vale la pena dirlo: il
+    # TRASFERIMENTO di Lukaku al Fenerbahce e' entrato nel DB solo la sera del 03/09, e la LETTURA
+    # DELLA ROSA non aggiorna mai chi va in un campionato che non leggiamo - la fonte lo vedeva al
+    # Napoli il 10/08 e il Napoli e' stato riletto ogni giorno fino al 03/09 senza di lui.
+    # Il conteggio e' SUO e non si somma agli altri due: fuori perimetro = «il suo club non gioca
+    # qui», partito = «non e' piu' in quel club», ceduto = «il listone non lo quota piu' come
+    # acquistabile qui». Tre affermazioni diverse, tre note.
+    sold_here = {int(one[0]) for one in conn.execute(
+        "SELECT fc_id FROM listone_quotes WHERE season = ? AND platform = ? AND sold = 1",
+        (window.target_season, platform))}
+    ceded = [row for row in rows if int(row["fc_id"]) in sold_here]
+    if ceded and not keep_departed:
+        rows = [row for row in rows if int(row["fc_id"]) not in sold_here]
+        notes.append(
+            f"⚑ {len(ceded)} players were REMOVED from the sheet: the LISTONE itself files them "
+            f"under 'Ceduti' (the asterisk beside the name on the site), i.e. the platform says they no "
+            f"longer play in this championship - and the listone is the authority on what can be bought, "
+            f"because it is what you buy from. It is a fact per PLATFORM: a man ceduto on the Serie A "
+            f"listone can be quoted and buyable on the EuroLeghe one. `--keep-departed` keeps everybody. "
+            f"Removed: " + " · ".join(row["name"] for row in ceded[:8])
+            + (f" · and {len(ceded) - 8} more" if len(ceded) > 8 else ""))
+    elif not sold_here:
+        # Uno zero uniforme e' la cosa che questo progetto ha imparato a non credere: se la colonna e'
+        # NULL su tutta la stagione, la lettura del listone precede la colonna e va rifatta offline
+        # (`ratings --quotes-from-cache`), che e' diverso da «nessuno e' stato ceduto».
+        notes.append(
+            "no player is filed as 'Ceduti' on this platform's listone for this season: either nobody "
+            "has left, or `listone_quotes.sold` predates the column (re-read the listone offline with "
+            "`ratings --quotes-from-cache`) - the two are not the same and this note cannot tell them apart")
     # I due conteggi sono due fatti diversi e non si sommano in silenzio: fuori perimetro = «il suo club non
     # gioca qui», partito = «non e' piu' in quel club». Il primo e' quello che questa nota racconta.
     outside = len(data.observations) - len(rows) - (0 if keep_departed else len(departed))

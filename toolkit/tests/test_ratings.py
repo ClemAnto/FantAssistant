@@ -281,6 +281,11 @@ def test_parse_and_upsert_listone(tmp_path):
     assert by[222]["roles"] == ["dc", "ds"] and by[222]["role_classic"] == "D"
     assert by[111]["team"] == "Cagliari" and by[111]["price"] == 5
     assert by[333]["roles"] == ["dd", "dc"] and by[333]["team"] == "Salernitana"   # from 'Ceduti'
+    # DA QUALE FOGLIO VIENE e' un fatto: 'Ceduti' e' la piattaforma che dichiara «non gioca piu' qui»
+    # (l'asterisco sul sito), e per anni le due meta' sono state fuse - leggerle tutt'e due e' giusto,
+    # dimenticare quale diceva cosa e' il difetto che il 03/09/2026 ha lasciato Lukaku sul foglio.
+    assert by[333]["sold"] is True
+    assert by[111]["sold"] is False and by[222]["sold"] is False
 
     conn = init_db(tmp_path / "euro.db")
     conn.execute("INSERT INTO players(fc_id, canonical_name) VALUES (222, 'Caio')")
@@ -296,6 +301,20 @@ def test_parse_and_upsert_listone(tmp_path):
         "SELECT c.canonical_name, r.league, r.roles FROM rosters r JOIN clubs c "
         "ON c.fc_club_id = r.fc_club_id WHERE r.fc_id = 111 AND r.season='2023-24'").fetchone()
     assert tuple(created) == ("Cagliari", "serie_a", "por")  # brand-new player got a full roster row
+
+    # ...e la dichiarazione arriva in `listone_quotes`, che e' la tabella per PIATTAFORMA: un ceduto
+    # sul listone Serie A puo' essere quotato e comprabile su quello EuroLeghe.
+    sold = dict(conn.execute("SELECT fc_id, sold FROM listone_quotes WHERE season='2023-24' "
+                             "AND platform='default'"))
+    assert sold == {111: 0, 222: 0, 333: 1}
+
+    # E NON E' IRREVERSIBILE: se la lettura dopo lo rimette fra i comprabili, torna comprabile. Un
+    # `COALESCE` qui congelerebbe il primo `1` e nessuna rilettura potrebbe correggerlo, che e' il
+    # difetto gia' pagato da `rosters.league`.
+    back = [dict(r, sold=False) for r in recs if r["fc_id"] == 333]
+    ratings.upsert_listone(conn, "2023-24", back, "default")
+    assert conn.execute("SELECT sold FROM listone_quotes WHERE fc_id=333 AND season='2023-24' "
+                        "AND platform='default'").fetchone()[0] == 0
 
 
 def test_ratings_consistency_check(tmp_path):

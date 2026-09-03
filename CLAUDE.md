@@ -2975,6 +2975,8 @@ etichetta SOPRA la tabella, fuori da ogni pannello che si chiude, con la sua cro
 sta nascondendo su quanti.
 
 ## Una soglia SCELTA A OCCHIO può essere già la risposta, e va verificata contro la domanda NUOVA
+*(e la sera dello stesso giorno l'operatore l'ha spostata a 100 su tre esempi suoi: ultimo capoverso
+del primo punto. `EASY_MARGIN` = **100** è il valore vivo, 200 è la storia.)*
 **03/09/2026, `assistente-asta-v1.md` §34, dalla richiesta di accoppiare due portieri sulla plancia.**
 `EASY_MARGIN` = 200 era stato congelato dall'operatore il 10/08 su un criterio suo — «il club più forte
 deve smettere di leggere *tutte* le partite come facili» — e la richiesta di oggi gli chiede un'altra
@@ -2997,13 +2999,117 @@ Tre cose che restano oltre il caso.
   Quello che si adotta è la sua regola che DECIDE più una colonna continua che rompe il pareggio, con
   due nomi a schermo e mai una cifra sola — la stessa disciplina del §23.3 («il margine continuo viaggia
   accanto al conteggio») incontrata dal capo opposto, la saturazione in BASSO invece che in alto.
+  **E QUELLA STESSA SERA LA SOGLIA È SCESA A 100, che non contraddice il paragrafo qui sopra: lo
+  conferma.** Il rifiuto era per una soglia scelta guardando il conteggio; questa è scelta guardando il
+  CALCIO, perché l'operatore ha portato tre partite («ATALANTA vs CAGLIARI è facile per l'Atalanta ...»)
+  e poi la sua stessa lettura di una casella, con un puntino su ogni partita che secondo lui è facile.
+  **Un giudizio dell'operatore su casi concreti è un dato, e si misura contro il codice invece di
+  discuterlo**: sulle 19 giornate della casella Como + Fiorentina la soglia 100 concorda con i suoi
+  segni **17 volte su 19** e la 200 dodici, e le sue sette giornate segnate sono tutte facili a 100 e
+  **nessuna** a 200. La prima cosa misurata sono stati i suoi ESEMPI e non la soglia: due dei tre erano
+  già facili a 200 (+236,9 e +270,8), quindi la sua lista vincolava una partita sola, Como-Genoa a
+  +104,2 — «prima di cambiare una costante, guarda quanta della richiesta è già soddisfatta». Il prezzo
+  è detto: a 100 una facile chiude a zero il **39,5%** delle volte contro il 42,7% (e il 21,0% delle
+  altre), cioè il potere separante non scende — è **piatto fra 50 e 250**, lift 1,88 contro 1,79 — e
+  quello che cambia è cosa promette la parola. E il valore è 100 e non 75, che pure passerebbe uno dei
+  suoi esempi (Genoa-Como, il Como in TRASFERTA a +75,2, che è la partita dentro la sua finestra 3-5),
+  perché a 75 tornano a leggere tutta la stagione facile Inter 38/38, Bayern 34/34 e PSG 35/35: **una
+  soglia che resuscita il difetto che lui aveva chiesto di spegnere è una soglia da fermare un gradino
+  prima.** L'accordo col 40% di `club_defence.CLEAN_SHEET_SHARE` non c'è più, e il test non si cancella:
+  si SPACCA IN DUE, perché sono due affermazioni di natura diversa — il livello 40% a un vantaggio di
+  199 è un invariante della CURVA e resta asserito, la soglia è una dichiarazione e si asserisce al
+  valore che promette davvero (0,32), così nessuno legge 0,40 su una griglia costruita a 0,32.
 - **Una costante appartiene alla DOMANDA su cui è stata misurata, non solo alla popolazione.** Per una
-  porta inviolata il vantaggio campo si fitta a **30-35** punti Elo e non ai 14,5 che `fixtures.py` usa,
-  che erano misurati sul RISULTATO (log-loss fuori campione 0,57796 contro 0,57839, ottimo interno,
-  quindi la direzione è identificata: tenere la porta inviolata dipende dal campo più che vincere).
-  **Non adottata**: vale 0,0004 di log-loss e il 3% delle classificazioni, e sarebbe una SECONDA
-  costante di campo in un modulo il cui output è tutto reporting — due costanti per un solo campo è come
-  uno schermo finisce con due risposte a «questa partita è in casa».
+  porta inviolata il vantaggio campo si fitta a **30-35** punti Elo e non ai 14,5 che `fixtures.py`
+  usava, che erano misurati sul RISULTATO (log-loss fuori campione 0,57796 contro 0,57839, ottimo
+  interno, quindi la direzione è identificata: tenere la porta inviolata dipende dal campo più che
+  vincere). Non adottata quel giorno per un buon argomento — due costanti per un solo campo è come uno
+  schermo finisce con due risposte a «questa partita è in casa» — e **ADOTTATA la sera dello stesso
+  giorno, perché l'operatore ha portato l'evidenza che mancava: dodici partite segnate a mano come
+  facili, e TUTTE E DODICI in casa.** Nessuno gli aveva chiesto del campo; una regolarità così in un
+  giudizio sul calcio è una misura sul modello. E il dilemma delle due costanti si è sciolto guardando
+  chi le LEGGE: ogni lettore di `edge()` chiede «quanto è facile», nessuno chiede il risultato, quindi
+  la costante non è doppia — il 29 era la risposta all'altra domanda e resta come provenienza
+  (`RESULT_HOME_AWAY_GAP`, che il coefficiente di calendario di Fπ cita per esteso invece di
+  riferirsi a una costante che si è mossa). *Un cambio di INPUT vuole la trasformazione RIFITTATA*: la
+  logistica è stata rifittata sull'edge che il campo nuovo produce, o la probabilità sarebbe stata
+  scalibrata esattamente dove il campo entra.
+- **E POI L'OPERATORE HA CHIESTO UN CANALE, e la sua frase era il meccanismo.** «Oltre all'elo valuta
+  la media gol dell'attacco e i gol subiti della difesa … le ultime 5 o 10 partite», perché **«una
+  squadra forte non è detto che segni tanto»** — l'Elo è un rating di RISULTATI e non distingue chi
+  vince 3-2 da chi vince 1-0, che è esattamente la differenza fra prendere gol e non prenderne.
+  Misurato e **adottato**: log-loss fuori campione 0,54749 → **0,54282**, 7 stagioni su 8, lift
+  dell'etichetta 1,95 → 2,01, e a parità di Elo un avversario che segna 0,8 invece di 2,0 sposta la
+  probabilità da 0,199 a 0,289. Tre cose che la misura ha deciso **contro la formulazione della
+  richiesta**: la finestra è DIECI e non cinque (5 vale la metà, e la curva è piatta da 10 a 38 col
+  minimo sul bordo, che non si adotta); il casa/fuori NON paga (metà campione per un termine che
+  l'edge già porta); e le due metà non valgono uguale — l'attacco avversario −0,0030, la propria
+  difesa −0,0005. **La prima misura di tutto questo era mia e sbagliata**: camminando le partite in
+  ordine di data e aggiornando la storia man mano, le DUE RIGHE DI UNA PARTITA condividono la data,
+  quindi la seconda leggeva la partita dentro il proprio predittore — quattro volte il guadagno e
+  «più corta la finestra meglio è», monotono fino al bordo, che è il campanello scritto qui sopra.
+  Due conseguenze strutturali: la soglia si sposta sulla PROBABILITÀ (con tre predittori un margine
+  sull'edge non può più dire «facile», e le due soglie sono appaiate per costruzione così un club
+  senza forma non cambia colore per essere stato promosso), e la finestra ha un ORIZZONTE di quindici
+  mesi, perché le ultime dieci di Serie A di una promossa sono di due stagioni fa e «vuoto = ignoto»
+  vale anche sul tempo.
+- **UNA CASELLA CONDIVISA NON SI PUÒ ETICHETTARE DAGLI ASSI** (03/09/2026 sera, trovato dall'operatore
+  su una casella: «quii non mi trovo»). La griglia calcola METÀ delle coppie e fa leggere alla casella e
+  alla sua speculare lo stesso oggetto — che è giusto, «due passate su una domanda sola è come una
+  casella e la sua speculare finiscono per non essere d'accordo» — e il prezzo si paga un piano sopra:
+  `a` e `b` sono l'ordine in cui la COPPIA è stata costruita, non la riga e la colonna di chi guarda.
+  Sotto la diagonale il popover disegnava **le partite dell'Atalanta sotto Como**, col segno di «facile»
+  sulla colonna sbagliata. La cura è che la casella **dichiari di chi è ciascuna colonna** invece di
+  farlo dedurre da chi la legge (e il titolo segue lo stesso ordine: due ordini per una coppia sono come
+  qualcuno rilegge le colonne al rovescio). *Un'ottimizzazione che condivide un oggetto fra due contesti
+  deve portarsi dietro il suo contesto*, e la prova è un asserto che RICALCOLA l'attribuzione dal bundle
+  su una casella scelta **sotto** la diagonale — la metà dove il difetto vive; una sopra passa sempre.
+- **IL TOTALE DI UNA COPPIA NASCONDE CHI L'HA PORTATO, e LO ZERO È LA DOMANDA — due volte** (03/09,
+  sera, sua osservazione: «il Napoli e la Juve singolarmente hanno 31 partite facili, il Como ne ha 22
+  e solo insieme al Bologna arriva a 33»). Verificato e più forte dell'esempio: **111 caselle su 190
+  aggiungono due giornate o meno** al migliore dei propri due club e **5 su 190** battono il miglior
+  singolo di tre o più — il secondo portiere è quasi tutto ridondanza, che è «un'assicurazione si
+  prezza contro quello che ti copre già» incontrata dal lato del display. Il marginale è ora a schermo
+  accanto al totale, e serve DUE zeri con due nomi: nella lista l'uomo che ho è fissato, quindi il
+  riferimento è il MIO calendario (e allora il marginale non riordina niente, perché è una costante);
+  sulla griglia nessuno dei due è mio, quindi è il MIGLIORE DEI DUE, e quello riordina. La prima
+  versione sottraeva il massimo anche nella lista e **un test l'ha rifiutata**: con quello zero un
+  compagno forte finisce sotto uno debole, perché la formula risponde di nascosto a «quanto aggiungo
+  IO a lui». *Quando un commento afferma che un ordinamento non cambia, l'asserto che lo prova è
+  gratis e va scritto: qui ha smentito il commento nello stesso minuto in cui lo scrivevo.*
+- **UNA COLONNA CHE SPIEGA UN ORDINAMENTO DEVE ESSERE QUELLO STESSO ORDINAMENTO** (03/09, sera
+  tardi). Chiesto un numerino «che mi indichi il valore a colpo d'occhio: quanti punti a partita fa
+  guadagnare rispetto al 6», scritto come `fm − 6`, e lui ha trovato il difetto in un secondo
+  guardando lo schermo: «perché Hojlund (+1,1) sta prima di Martinez (+1,6)? Immagino per le
+  presenze». Sì — dentro uno slot la plancia ordina per VALORE ATTESO, e un numero che non sa niente
+  delle presenze non può che contraddire quell'ordine. Ora è `fm × pv / giornate − 6`, cioè la stessa
+  quantità dell'ordine traslata, quindi monotona con essa per costruzione (×100 e senza virgola, sua
+  scelta). Le due alternative sono state misurate e messe davanti a lui: quella con la scala più
+  bella — sottrarre il RICAMBIO invece del 6 — **riordina**, e un numero più alto sotto uno più basso
+  è il difetto che si stava curando. *Il prezzo della forma scelta è dichiarato e si vede: il
+  riferimento è «6 in tutte le giornate», che nessuno raggiunge, quindi la colonna è in gran parte
+  negativa.*
+- **QUELLO CHE SI MISURA È QUELLO CHE CAMBIA, e un formato di colore non si dà per scontato** (stessa
+  sera, sull'evidenziazione della coppia alternativa all'hover). Due tentativi di leggerla
+  direttamente hanno mentito in due modi opposti: contare i BORDI leggeva 250 caselle su 250 (ogni
+  bottone ne ha uno — lo strumento che dice «è marcato tutto», cioè niente), e leggere il canale
+  ROSSO leggeva 0, perché Chrome computa un `color-mix(in srgb …)` come `color(srgb 1 0.17 0.47/0.1)`
+  e non come `rgb()`, quindi un test sui canali confronta 1 con 8. La forma che regge è fotografare
+  lo sfondo di TUTTE le righe prima e dopo e contare le DIFFERENZE, che non ha bisogno di conoscere
+  nessun formato — e togliere dal conto la riga sotto il puntatore, che cambia da sé: *non alzare la
+  soglia, togliere il caso noto.* E il gesto sta su `mouseenter` e non su `pointerenter` per una
+  misura, non per gusto: col pointer event il banco leggeva zero righe accese dopo un hover vero, e
+  **un gesto che il banco non riesce a far scattare è un gesto che non si può verificare.**
+- **UNA SCALA DI COLORE SI TARA SULLA DISTRIBUZIONE, non sul massimo** (03/09, sera: «sembra tutto
+  verde e non risalta niente»). La causa non era la tinta: i valori di quella griglia sono ammassati in
+  alto — cento caselle su 190 fra il 68% e il 100% del massimo — quindi una scala lineare le dipinge
+  tutte fra il 48% e il 70%, indistinguibili proprio dove si decide. Cinque CLASSI PER QUANTILE (un
+  quinto ciascuna per costruzione, la più bassa senza tinta), col colore assegnato al VALORE e non alla
+  cella, o due caselle che dicono 32 avrebbero due colori. Misurato: 5 tinte, nessuna oltre il 45%
+  delle caselle, il numero leggibile su ognuna, la legenda a schermo. *E un flag dell'arnese scritto e
+  tolto nella stessa ora*: `--light` emulava `prefers-color-scheme` su un'app che ha temi NOMINATI, le
+  celle restavano identiche, e **un flag che non muove niente è peggio di nessun flag** perché legge
+  «nessun problema» su una cosa che non ha guardato.
 - **Il confine fra toolkit e app si taglia sulla natura del fatto, non sulla comodità.** Se una partita
   è facile è una previsione sul calcio → `fixtures.schedule` → `calendar.json` nel bundle; quante ne
   cadono nella finestra dichiarata e cosa coprono due club è aritmetica sulle impostazioni dell'operatore
@@ -3200,6 +3306,55 @@ Three smaller ones that generalise.
 - **A credit is worth ~0.02 points a matchday here** (190 credits instead of 250 costs 1.3 a matchday), so
   holding some back for later changes is nearly free - and a keeper is not worth paying for at all: the
   keepers' FMa spans 4.91 to 5.24 and the cheapest man had the listone's highest expected base vote.
+
+## L'ASTERISCO del listone e' un fatto, e lo scaricavamo gia' da anni
+**03/09/2026, dalla segnalazione dell'operatore sulla plancia («come e' possibile che c'e' Lukaku? Non
+e' piu' un calciatore del Napoli!!!!») e dalla sua correzione, che vale piu' della segnalazione:
+«Lukaku non deve essere tolto per la nota "fuori rosa" ma perche' non gioca piu' in serie A», poi la
+regola intera — «i calciatori acquistabili sulla plancia devono essere presenti nel listone (serie-a o
+euroleghe) e non devono avere l'asterisco». Dettaglio: `assistente-asta-v1.md` §35, spec «Novita'
+v9.70».**
+
+**DUE FATTI CHE SI SOMIGLIANO E NON SONO LO STESSO, e la prima cura ha usato quello sbagliato.** Una
+nota DICHIARATA `out_of_squad` esisteva dal 25/08 e la plancia non la leggeva; farla RIFIUTARE l'uomo lo
+toglieva dallo schermo con la ragione sbagliata — «fuori rosa» e' uno stato dentro un club, «non gioca
+piu' qui» e' un fatto sul CAMPIONATO. E' la stessa regola per cui `dispute` e `wants_out` non toccano
+niente, applicata a se stessa: *un fatto vicino non e' il fatto, e usarlo perche' e' quello che si ha in
+mano e' inventare.* Ritirata; la nota e' tornata a essere un'icona.
+
+**IL DATO C'ERA E LO FONDEVAMO.** Il file delle quotazioni ha un foglio `Tutti` e un foglio **`Ceduti`**
+— sul sito e' l'asterisco accanto al nome — e `parse_listone` li leggeva tutt'e due e li fondeva, con
+una buona ragione scritta nel suo docstring (un ceduto ha comunque giocato e i suoi voti vanno
+attribuiti) e una conseguenza che nessuno aveva notato: «si puo' ancora comprare?» non stava in nessuna
+colonna. *Una fusione giustificata da una domanda non e' giustificata per tutte le domande, e la prova
+e' che nessuna colonna risponde piu' alla seconda.* Cura: `listone_quotes.sold` (piu' migrazione),
+scritto da `ratings` e letto da `snapshot`; **fatto per PIATTAFORMA** come il prezzo e il club, terza
+istanza della regola del 07/08 — 57 ceduti sul listone Serie A e 79 su quello euro, e sette di quelli
+(Di Gregorio, Suzuki, Nkunku, Dia, David, Gutierrez, El Aynaoui) sono ceduti in Serie A e **comprabili
+su euro**. Non irreversibile: nessun `COALESCE`, l'ultima lettura decide, o chi rientra in `Tutti` non
+tornerebbe mai comprabile. Effetto, `SHEET_REVISION` 40: **36 righe fuori** dal foglio Serie A, 48 da
+quello euro.
+
+**I due segnali che il foglio consultava non potevano supplire, ed e' un limite di FORMA e non di
+freschezza**: il trasferimento al Fenerbahce e' entrato nel DB solo quella sera, e `_still_buyable`
+pretende comunque che la fonte lo VEDA in un club fuori perimetro — impossibile per chi va in un
+campionato che non leggiamo (ultimo avvistamento: Napoli, 10/08, con la rosa del Napoli riletta ogni
+giorno fino al 03/09 senza di lui). *Quando due segnali non possono per costruzione rispondere alla
+domanda, la risposta non e' tararli meglio: e' cercare chi la domanda la risponde per mestiere* — qui il
+listone, che e' l'autorita' su cosa si compra perche' e' cio' da cui si compra.
+
+**E l'errore procedurale della serata, due volte in un'ora: uno ZERO da chiave sbagliata.** «Lukaku non
+e' nel foglio» (letto con `row.get` su righe che sono LISTE) e «zero quotati assenti dalla lettura
+fresca» (interrogando `squad_snapshot` con `source='squad'`, che non esiste: e' `sofascore`). La regola
+di casa dice di chiamare la funzione prima di riportare uno zero sospetto; la variante che serviva qui
+e' piu' piccola e piu' meccanica: **prima di credere a uno zero, stampa la FORMA di cio' che stai
+leggendo** — le chiavi di una riga, i valori distinti di una colonna.
+
+**Le ICONCINE sulle righe e il menu' che le spegne** (sua richiesta, stessa sera): `ui-flags` sulla
+plancia, due per riga al massimo (17px), taglio in coda dove i marchi sono gia' in ordine di importanza
+e il resto DETTO con un `+N`; `core/flag-prefs.ts` tiene la scelta in `localStorage` per tutta l'app, e
+**tiene la lista degli SPENTI**, cosi' un marchio nuovo nasce acceso invece di essere spento in silenzio
+da una preferenza salvata mesi prima. Un test lega il menu' al vocabolario dei `PlayerFlag`.
 
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);

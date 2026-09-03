@@ -132,6 +132,18 @@ CREATE TABLE IF NOT EXISTS listone_quotes (
     -- So: anything that decides something PER PLATFORM reads these two, exactly as it reads the prices.
     fc_club_id     INTEGER REFERENCES clubs(fc_club_id),
     league         TEXT,
+    -- CEDUTO: la PIATTAFORMA dice che non gioca piu' in questo campionato (03/09/2026). Il listone ha
+    -- due fogli, `Tutti` e `Ceduti`, e sul sito la stessa cosa e' l'ASTERISCO accanto al nome; il
+    -- parser li leggeva tutt'e due - giustamente, perche' un ceduto ha comunque giocato e i suoi voti
+    -- vanno attribuiti - e li fondeva, quindi «si puo' ancora comprare?» non era in nessuna colonna.
+    -- Trovato dall'operatore su Lukaku, che il foglio dava al Napoli con `est_pv` 14,4 mentre il
+    -- listone lo aveva fra i ceduti da giorni: i due segnali che il foglio consultava (il
+    -- trasferimento e la lettura della rosa) non potevano dirlo - il primo e' arrivato solo la sera
+    -- del 03/09 e il secondo non aggiorna mai chi va in un campionato che non leggiamo.
+    -- E' un fatto PER PIATTAFORMA come il prezzo e il club: Di Gregorio e' fra i ceduti del listone
+    -- Serie A e sul listone EuroLeghe e' al Bournemouth, cioe' comprabile la'.
+    -- Non e' irreversibile: l'ultima lettura decide, quindi chi torna in `Tutti` torna comprabile.
+    sold           INTEGER,
     PRIMARY KEY (fc_id, season, platform)
 );
 

@@ -48,6 +48,8 @@ export interface CalendarFile {
   elo_year: string;
   observed_on: string | null;
   easy_margin: number;
+  /** The label's threshold on the PROBABILITY - see `LeagueCalendar`. Older bundles have none. */
+  easy_probability?: number;
   home_advantage: number;
   clean_sheet: {
     intercept: number;
@@ -105,7 +107,25 @@ export class LeagueCalendar {
     clubs: CalendarClub[],
     matches: CalendarRow[],
     readonly easyMargin: number,
+    /**
+     * The threshold the label is decided by WHERE THE PROBABILITY EXISTS - and since 03/09/2026 the
+     * probability reads the last ten matches' goals of both clubs, not only the Elo.
+     *
+     * So the verdict cannot live on the edge any more: two matches at the same edge against a side
+     * scoring 0.8 and one scoring 2.0 are not the same match, which is the whole point of the channel
+     * the operator asked for. The two thresholds are pinned together in the toolkit (`EASY_PROBABILITY`
+     * is the edge-only model's answer at `EASY_MARGIN`), so a club whose form we cannot read - a
+     * promoted side - is labelled exactly as before instead of changing colour for being new.
+     */
+    readonly easyProbability: number | null,
   ) {
+    /** His rule, with the unit it is decided in: the probability where there IS one - a threshold in
+     *  the file and a probability on the match - and the edge everywhere else. Never both, or one
+     *  screen would answer «facile» in two ways. */
+    const isEasy = (edge: number | null, cleanSheet: number | null) =>
+      easyProbability != null && cleanSheet != null
+        ? cleanSheet > easyProbability
+        : edge != null && edge > easyMargin;
     for (const club of clubs) {
       if (club.name) {
         this.keyByName.set(club.name, club.key);
@@ -120,7 +140,7 @@ export class LeagueCalendar {
         home: true,
         edge,
         cleanSheet: csHome,
-        easy: edge != null && edge > easyMargin,
+        easy: isEasy(edge, csHome),
       });
       const awayEdge = edge == null ? null : -edge;
       this.put(away, {
@@ -130,7 +150,7 @@ export class LeagueCalendar {
         home: false,
         edge: awayEdge,
         cleanSheet: csAway,
-        easy: awayEdge != null && awayEdge > easyMargin,
+        easy: isEasy(awayEdge, csAway),
       });
     }
   }
@@ -242,11 +262,63 @@ export function pairCover(a: ClubMatch[], b: ClubMatch[], sameClub = false): Pai
   };
 }
 
+/**
+ * WHAT ONE CLUB COVERS ON ITS OWN, which is a pair with itself and therefore already defined.
+ *
+ * Written once because three callers need it - the grid's own gain, a suggestion's gain, and the
+ * operator's rule below - and three copies of a subtraction is how one screen ends up with two
+ * answers to «quante ne ha da solo».
+ */
+export function aloneCover(calendar: LeagueCalendar, club: string, from: number, to: number): number {
+  const own = calendar.window(club, from, to);
+  return pairCover(own, own, true).facili;
+}
+
+/**
+ * HIS RULE, 03/09/2026, in his own words and with his own number: «non consigliare i portieri di
+ * squadre che da sole hanno già 25 o più partite facili».
+ *
+ * It replaced the first reading of «togli i TOP dai suggerimenti», which had been taken as «via il
+ * primo SLOT» - i.e. by PRICE - and he retracted that himself («forse ti ho portato fuori strada
+ * io»). The measurement agreed with him before he wrote it: on Butez, the price cut removed eleven of
+ * the fourteen best partners, Skorupski among them, while Provedel came top not because he is dear
+ * (FVM 5) but because he is Inter's, whose calendar carries 34 easy matchdays on its own.
+ *
+ * IT IS A QUOTA AND NOT A COUNT, and that is the only thing added to what he said: 25 is his number
+ * on a whole championship, and on the three-matchday window of his other league nobody has 25 of
+ * anything - «una soglia di scoring è una QUOTA del calendario che si sta prevedendo, non un numero»
+ * (the R20 lesson, met on a screen). So the rule is «two thirds of his own window», which on 38
+ * rounds IS his 25.
+ */
+export const EASY_ALREADY_SHARE = 25 / 38;
+
 /** A candidate keeper, ranked. */
 export interface PairSuggestion<T> {
   man: T;
   club: string;
   cover: PairCover;
+  /**
+   * WHAT THIS SECOND KEEPER ADDS TO MINE - the union minus MY OWN calendar, and nothing else.
+   *
+   * The operator's observation, 03/09/2026: «il Napoli e la Juve, singolarmente, hanno 31 partite
+   * facili; il Como ne ha 22 e solo insieme al Bologna arriva a 33» - a pair's TOTAL hides who brought
+   * it. Measured on this bundle: of the grid's 190 pairs, **111 add two matchdays or fewer** to the
+   * better of their own two clubs and only **5** beat the best single club by three or more. Same
+   * shape as «an insurance is priced against what already covers you, not against nothing».
+   *
+   * AND THE ZERO IS THE QUESTION, so there are two of them and they have two names. Here the man I
+   * already have is FIXED - he is the one I clicked - so what I want to know is what a partner adds to
+   * HIM (`gain`), which also means this cannot reorder the list: `aloneMine` is a constant, and
+   * ranking by the union or by the union minus a constant is the same ranking. On the GRID neither
+   * club is mine, so the reference is the better of the two (`GridCell.gain`) - and THAT one does
+   * reorder, which is exactly the reading his observation is about. Subtracting the better of the two
+   * here was tried first and a test caught it: it ranks a strong partner below a weak one, because it
+   * silently answers «how much do I add to HIM».
+   */
+  gain: number;
+  /** The two clubs on their own, so the row can be read without arithmetic. */
+  aloneMine: number;
+  aloneTheirs: number;
 }
 
 /**
@@ -268,16 +340,28 @@ export function rankPairs<T>(
   to: number,
 ): PairSuggestion<T>[] {
   const ours = calendar.window(mine, from, to);
+  const aloneMine = pairCover(ours, ours, true).facili;
   const byClub = new Map<string, PairCover>();
+  const aloneByClub = new Map<string, number>();
   const out: PairSuggestion<T>[] = [];
   for (const candidate of candidates) {
     if (!calendar.has(candidate.club)) continue;
+    const theirs = calendar.window(candidate.club, from, to);
     let cover = byClub.get(candidate.club);
     if (!cover) {
-      cover = pairCover(ours, calendar.window(candidate.club, from, to), candidate.club === mine);
+      cover = pairCover(ours, theirs, candidate.club === mine);
       byClub.set(candidate.club, cover);
+      aloneByClub.set(candidate.club, pairCover(theirs, theirs, true).facili);
     }
-    out.push({ man: candidate.man, club: candidate.club, cover });
+    const aloneTheirs = aloneByClub.get(candidate.club) ?? 0;
+    out.push({
+      man: candidate.man,
+      club: candidate.club,
+      cover,
+      aloneMine,
+      aloneTheirs,
+      gain: cover.facili - aloneMine,
+    });
   }
   return out.sort(
     (left, right) =>
@@ -289,9 +373,33 @@ export function rankPairs<T>(
 
 /** One cell of the club x club grid. */
 export interface GridCell {
+  /**
+   * WHOSE matches `PairRow.a` carries, and whose `b` - and they are on the cell because the cell is
+   * SHARED with its mirror.
+   *
+   * Computing half the grid and letting both halves read one object is right (two passes over one
+   * question is how a cell and its mirror end up disagreeing), and it has a price that was paid on
+   * screen: `a` and `b` are the order the pair was BUILT in, not the row and the column of the cell
+   * you are looking at, so below the diagonal a caller labelling them from its axes swaps them. It
+   * did - the operator's «Com + Ata» drew Atalanta's fixtures under Como and Como's under Atalanta,
+   * which puts the mark on the wrong side of the row. The labels now travel with the numbers.
+   */
+  clubA: string;
+  clubB: string;
   facili: number;
   covered: number | null;
   rows: PairRow[];
+  /**
+   * The two clubs alone, and what the pair adds TO THE BETTER OF THEM.
+   *
+   * A different zero from `PairSuggestion.gain` and deliberately so: on the grid neither club is the
+   * one I own, so the honest reference is the better calendar of the two - which is what says that
+   * «Como + Bologna 34» is a pair of two middling calendars while «Bologna + Napoli 38» already had
+   * 32 inside it. Two questions, two names, and neither borrows the other's number.
+   */
+  aloneA: number;
+  aloneB: number;
+  gain: number;
 }
 
 /**
@@ -309,10 +417,28 @@ export function coverGrid(
 ): Map<string, Map<string, GridCell>> {
   const windows = new Map(clubs.map((club) => [club, calendar.window(club, from, to)]));
   const grid = new Map<string, Map<string, GridCell>>(clubs.map((club) => [club, new Map()]));
+  // Each club ALONE, once: the diagonal computes it anyway, and the gain needs it for both sides.
+  const alone = new Map(clubs.map((club) => {
+    const own = windows.get(club) ?? [];
+    return [club, pairCover(own, own, true).facili];
+  }));
   for (let i = 0; i < clubs.length; i += 1) {
     for (let j = i; j < clubs.length; j += 1) {
       const cover = pairCover(windows.get(clubs[i]) ?? [], windows.get(clubs[j]) ?? [], i === j);
-      const cell: GridCell = { facili: cover.facili, covered: cover.covered, rows: cover.rows };
+      const aloneA = alone.get(clubs[i]) ?? 0;
+      const aloneB = alone.get(clubs[j]) ?? 0;
+      const cell: GridCell = {
+        clubA: clubs[i],
+        clubB: clubs[j],
+        facili: cover.facili,
+        covered: cover.covered,
+        rows: cover.rows,
+        aloneA,
+        aloneB,
+        // On the diagonal the pair IS the club, so it adds nothing to itself: zero, and not a number
+        // that would read as a gain.
+        gain: i === j ? 0 : cover.facili - Math.max(aloneA, aloneB),
+      };
       grid.get(clubs[i])!.set(clubs[j], cell);
       grid.get(clubs[j])!.set(clubs[i], cell);
     }
@@ -382,5 +508,10 @@ export function leagueCalendarFrom(file: CalendarFile, league: string): LeagueCa
     })),
     one.matches,
     file.easy_margin,
+    // A bundle written before 03/09/2026 carries no probability threshold, and NULL is the honest
+    // answer: without it the label stays on the edge exactly as it was, because an older artefact is
+    // read with the rule it was written under and never with today's. A number would have been worse
+    // than nothing - a threshold nothing can clear reads as «no easy match anywhere».
+    file.easy_probability ?? null,
   );
 }

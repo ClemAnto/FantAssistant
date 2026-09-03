@@ -30,6 +30,13 @@ export function engineNumbersFrom(table: BundleTable): Map<number, EngineNumbers
     estNote: at('est_note'),
     minutes: at('desc_minutes_full_season'),
     matches: at('desc_season_matches'),
+    // IL GRADINO e i minuti che si aspetta: `desc_titolarita` è la scala a sei parole
+    // dell'operatore (bandiera · titolarissimo · titolare · ballottaggio · panchina · riserva) e
+    // `desc_minutes_next` la previsione dei minuti per partita. Sono le due frasi che un'asta chiede
+    // di un nome, e stanno qui e non in una seconda lettura perché due lettori dello stesso foglio
+    // finiscono per dare a un uomo due risposte.
+    titolarita: at('desc_titolarita'),
+    minutesNext: at('desc_minutes_next'),
   };
 
   const numbers = new Map<number, EngineNumbers>();
@@ -50,6 +57,11 @@ export function engineNumbersFrom(table: BundleTable): Map<number, EngineNumbers
       estNote: (row[columns.estNote] as string | null) ?? null,
       minutesFullSeason: row[columns.minutes] as number | null,
       seasonMatches: row[columns.matches] as number | null,
+      // Una colonna che il foglio non ha (una revisione più vecchia) legge -1 dall'`indexOf`, e
+      // `row[-1]` è `undefined`: si normalizza a null qui, dove la colonna viene letta, o ogni
+      // lettore a valle finirebbe per inventarsi il proprio ripiego.
+      titolarita: (row[columns.titolarita] as string | null) ?? null,
+      minutesNext: (row[columns.minutesNext] as number | null) ?? null,
     });
   }
   return numbers;

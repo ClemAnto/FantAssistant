@@ -41,6 +41,17 @@ export interface EngineNumbers {
   /** MEASURED last season: minutes over his own championship, and the matches they were played in. */
   minutesFullSeason: number | null;
   seasonMatches: number | null;
+  /**
+   * IL GRADINO della scala dell'operatore, come parola: `bandiera` … `riserva`.
+   *
+   * Vuoto - e non «riserva» - quando il foglio non lo porta: il gradino lo scrive la stessa passata
+   * che disegna i campetti, quindi su una macchina senza display la colonna è vuota per costruzione,
+   * e «vuoto = ignoto, mai zero» qui vale alla lettera (un keeper letto `riserva` con niente
+   * misurato è il difetto che ha fatto nascere la guardia).
+   */
+  titolarita: string | null;
+  /** I minuti che si aspetta per partita GIOCATA: una previsione, non la media dell'anno scorso. */
+  minutesNext: number | null;
 }
 
 /** Which of the two valuations a row is standing on. A ranking that mixes them says which is which. */

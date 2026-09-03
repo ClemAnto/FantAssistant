@@ -2,6 +2,7 @@ import { Component, computed, inject, input } from '@angular/core';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 
+import { FlagPrefs } from '../../core/flag-prefs';
 import { FLAG_LABEL, PlayerFlag, PlayerMark, PlayerStatus } from '../../core/player-status';
 import { short } from '../../core/tooltip';
 
@@ -9,7 +10,7 @@ import { short } from '../../core/tooltip';
  * One icon per state, and the injury keeps the icon the consultation table already uses for it: a mark is a
  * vocabulary, so the same fact must not have two symbols in one app.
  */
-const ICON: Record<PlayerFlag, string> = {
+export const FLAG_ICON: Record<PlayerFlag, string> = {
   long_injury: 'medicine-box',
   back_from_long: 'medicine-box',
   // A cracked thing: he breaks, and it is about a HABIT and not about today - so not the medicine box,
@@ -58,7 +59,7 @@ const ICON: Record<PlayerFlag, string> = {
  * the same fact seen from after. Amber and not red: an injury is a fact about a player, never a failure, and
  * this app keeps red for danger.
  */
-const TONE: Record<PlayerFlag, string> = {
+export const FLAG_TONE: Record<PlayerFlag, string> = {
   long_injury: 'text-warning',
   back_from_long: 'text-warning opacity-50',
   // Amber, like the injuries it is made of: a warning about what you are buying, never a verdict on him.
@@ -117,13 +118,40 @@ const TONE: Record<PlayerFlag, string> = {
 })
 export class PlayerFlags {
   private readonly status = inject(PlayerStatus);
+  /**
+   * Quali marchi l'operatore vuole vedere. Letto QUI, che e' l'unico posto che li disegna: una
+   * preferenza applicata da ogni chiamante sarebbe una preferenza applicata in modi diversi.
+   */
+  private readonly prefs = inject(FlagPrefs);
 
   readonly playerId = input.required<number | null | undefined>();
 
-  protected readonly icon = ICON;
-  protected readonly tone = TONE;
+  /**
+   * Quante icone al massimo, per le righe strette (la plancia ne ha 250 alte 17px).
+   *
+   * Il taglio e' in CODA e non a caso, perche' `marksFor` restituisce gia' i marchi in ordine di
+   * importanza - prima quello che uno E', poi quello che fa, poi le letture - quindi le prime `max`
+   * sono le prime che si vorrebbero vedere. Quello che viene tagliato NON sparisce: il tooltip della
+   * riga porta tutto, e il numero di quelli non disegnati e' detto invece che nascosto.
+   */
+  readonly max = input<number | null>(null);
 
-  protected readonly marks = computed(() => this.status.marksFor(this.playerId()));
+  protected readonly icon = FLAG_ICON;
+  protected readonly tone = FLAG_TONE;
+
+  /** Tutti i marchi dell'uomo, meno quelli che l'operatore ha spento nel menu'. */
+  private readonly shown = computed(() =>
+    this.status.marksFor(this.playerId()).filter((mark) => this.prefs.shows(mark.flag)),
+  );
+
+  protected readonly marks = computed(() => {
+    const cap = this.max();
+    const all = this.shown();
+    return cap != null && all.length > cap ? all.slice(0, cap) : all;
+  });
+
+  /** Quanti ne restano fuori per il taglio: zero quando si vedono tutti. */
+  protected readonly hiddenByCap = computed(() => this.shown().length - this.marks().length);
 
   /** The state, what it is, and WHEN it was read: an open spell in an old bundle may have closed since. */
   protected hint(mark: PlayerMark): string {

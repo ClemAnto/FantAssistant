@@ -495,6 +495,41 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.70 (3 settembre 2026, sera tardi — L'ASTERISCO: il listone dice chi non gioca più qui)
+
+Dalla segnalazione dell'operatore sulla plancia («come è possibile che c'è Lukaku? Non è più un
+calciatore del Napoli!!!!») e dalla sua regola: «i calciatori acquistabili devono essere presenti nel
+listone (serie-a o euroleghe) e **non devono avere l'asterisco**».
+
+**Il file delle quotazioni ha due fogli che contano — `Tutti` e `Ceduti` — e sul sito la stessa cosa è
+l'asterisco accanto al nome.** `parse_listone` li leggeva tutt'e due e li **fondeva**, con la ragione
+scritta nel suo docstring (un ceduto ha comunque giocato e i suoi voti vanno attribuiti: leggerli è
+giusto) e una conseguenza mai notata — «si può ancora comprare?» non stava in nessuna colonna. Lukaku
+era fra i ceduti su tutt'e due i listoni mentre il foglio lo dava al Napoli con `est_pv` 14,4.
+
+**`listone_quotes.sold`** (più la migrazione in `ADDED_COLUMNS`, additiva): scritto da `ratings` con la
+provenienza del foglio, letto da `snapshot`, che toglie quelle righe con una nota **sua** — fuori
+perimetro, partito e ceduto sono tre affermazioni diverse e non si sommano in silenzio. Vive in
+`listone_quotes` e non in `rosters` perché è un fatto **per PIATTAFORMA**, terza istanza della regola
+del 07/08: 57 ceduti sul listone Serie A e 79 su quello EuroLeghe, e sette di quelli (Di Gregorio,
+Suzuki, El Aynaoui, Nkunku, Dia, David, Gutierrez) sono ceduti in Serie A e **comprabili su euro**,
+perché sono andati in un campionato che euro gioca. Scritto **senza `COALESCE`**: l'ultima lettura
+decide in tutt'e due i versi, o chi rientra in `Tutti` non tornerebbe mai comprabile — il difetto già
+pagato da `rosters.league`. Backfill senza rete: `ratings --quotes-from-cache` (16.533 righe da 21 file
+in cache).
+
+Effetto, **`SHEET_REVISION` 40**: 36 righe fuori dal foglio Serie A classic, 36 dal mantra Serie A, 48
+da quello euro. `engine_*` non si muove — la popolazione del motore non cambia, cambia chi finisce sul
+foglio — e i tre fogli del bundle sono stati rigenerati con `export` + `data:pull`.
+
+**Perché i due segnali che il foglio già consultava non potevano supplire**, e va scritto perché è un
+limite di FORMA e non di freschezza: il trasferimento di Lukaku al Fenerbahce è entrato nel DB solo la
+sera del 03/09 (`transfers_history.first_seen`), e `_still_buyable` pretende comunque che la fonte lo
+VEDA in un club fuori perimetro — impossibile per chi va in un campionato che non leggiamo. L'ultima
+lettura utile lo dava al Napoli il 10/08, con la rosa del Napoli riletta ogni giorno fino al 03/09 senza
+di lui. L'item «`_still_buyable` deve leggere la DATA dell'avvistamento» resta aperto e non urgente: da
+solo quel segnale nomina **104 quotati su 590**, con Leao, David e Nkunku in cima.
+
 ## Novità v9.69 (3 settembre 2026, sera tardi — il preset `--daily`, e `--refresh` che non sapeva riprendere)
 
 Due richieste dell'operatore in coda alla sessione precedente: **riprendere `injuries`** (fermo al 48% di
@@ -1659,7 +1694,14 @@ che mancava l'ingestione del calendario. Adesso c'è: `fixtures.easy_matches()` 
 mostra come **k/n (p%)** più un **coefficiente di difficoltà**, calcolando il calendario una volta per
 (club, campionato).
 
-Le costanti sono dichiarate: `EASY_MARGIN` = 200 punti Elo, `HOME_AWAY_GAP` = **29** punti,
+Le costanti sono dichiarate: `EASY_MARGIN` = **75** punti Elo (era 200 dal 10/08 al 03/09/2026 sera,
+quando l'operatore l'ha spostata in due passaggi su tre partite e poi su dodici portate da lui:
+`assistente-asta-v1.md` §34.3-bis), `EASY_PROBABILITY` = **0,3002** che è la stessa soglia letta sulla
+PROBABILITÀ — dove i coefficienti esistono il verdetto vive là, perché da §34.3-ter la porta inviolata
+legge anche i gol delle ultime dieci partite dei due club e due partite allo stesso edge non sono più la
+stessa partita. `HOME_AWAY_GAP` = **70** punti (semi-scarto 35, misurato sulla porta inviolata; il 29
+misurato sul RISULTATO resta come `RESULT_HOME_AWAY_GAP`, provenienza del coefficiente di calendario di
+Fπ e senza lettori qui),
 `HOME_ADVANTAGE` = metà del gap. Il 29 è **misurato** sui risultati delle stagioni passate, non scelto: la
 prima versione usava fattori moltiplicativi ×1,1 in casa e ×0,8 fuori, e la colonna finiva per dire solo
 «in casa o fuori» (zero partite facili in trasferta su 1111, log-loss 1,258 contro 0,628 della forma

@@ -27,6 +27,8 @@ const numbers = (over: Partial<EngineNumbers> = {}): EngineNumbers => ({
   estNote: null,
   minutesFullSeason: null,
   seasonMatches: null,
+  titolarita: null,
+  minutesNext: null,
   ...over,
 });
 

@@ -1,7 +1,8 @@
 import { DecimalPipe } from '@angular/common';
-import { Component, computed, input, output } from '@angular/core';
+import { Component, computed, input, output, signal } from '@angular/core';
 import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 
+import { PlayerFlags } from '../../../ui/player-flags/player-flags';
 import { Alternative, ROLES, Role } from '../../../core/plancia';
 import { BoardBlock, BoardMan } from '../../../core/plancia-store';
 
@@ -15,7 +16,11 @@ const ROLE_TONE: Record<Role, string> = {
 /** The state of a row. Four states, and the ink alone has to separate them at 17px. */
 const ROW_TONE: Record<BoardMan['state'], string> = {
   asta: 'bg-success/20 text-fg font-semibold',
-  mio: 'bg-primary/15 text-fg',
+  // I MIEI: un grigio un po' piu' chiaro (sua richiesta, 03/09/2026). Erano nel primario, che e' il
+  // colore con cui questa pagina segna quello su cui si sta DECIDENDO - e un uomo che ho gia' preso
+  // non e' una decisione, e' un fatto. Il grigio li tiene visibili in cima al blocco senza chiamare
+  // l'occhio dove non c'e' niente da fare.
+  mio: 'bg-control/70 text-fg',
   altro: 'text-muted/60',
   urna: 'text-fg hover:bg-control',
 };
@@ -44,7 +49,7 @@ const COLUMNS = 8;
 @Component({
   selector: 'plancia-slot-matrix',
   templateUrl: './slot-matrix.html',
-  imports: [DecimalPipe, NzTooltipModule],
+  imports: [DecimalPipe, NzTooltipModule, PlayerFlags],
   host: { class: 'block min-h-0' },
 })
 export class SlotMatrix {
@@ -83,22 +88,25 @@ export class SlotMatrix {
    * is the keeper's own row and not a second control: a squad fields ONE keeper, so «which of the ten»
    * is the only question that row ever asks, while for a man of movement the question is the lot.
    */
-  readonly keeperPairs = output<BoardMan>();
+  // L'evento del portiere non c'e' piu': un click emette `pick` per tutti e gli abbinamenti sono un
+  // bottone della card. Un output che nessuno emette e' un contratto che mente a chi lo legge.
 
+  /** Un click, un evento, per ogni ruolo: chi lo ascolta apre la card. */
   protected press(man: BoardMan): void {
-    if (man.role === 'P') this.keeperPairs.emit(man);
-    else this.pick.emit(man);
+    this.pick.emit(man);
   }
 
   /**
-   * A row nobody can act on is disabled - and for a KEEPER there is always something to act on.
+   * NESSUNA RIGA È SPENTA, da quando il click apre una CARD (04/09/2026).
    *
-   * «Con chi accoppio questo» is worth asking about a keeper who is already MINE (it is the pair I own)
-   * and about one somebody else has bought (he is the pair a rival owns). Naming a lot is not: a man
-   * with an owner cannot come up again.
+   * Prima lo era per chi ha un padrone e non è portiere: non si poteva nominare come lotto, e non
+   * c'era altro da fare su di lui. Ma la card si chiede anche di un uomo già venduto - a che prezzo è
+   * andato, quanto rendeva, chi ce l'ha - e i due gesti che dipendono dallo stato sono ora BOTTONI
+   * dentro la card, che appaiono quando hanno senso. *Disabilitare una riga per un'azione che non è
+   * più quella del click è una riga spenta per un motivo che non c'è più.*
    */
-  protected inert(man: BoardMan): boolean {
-    return man.role !== 'P' && (man.state === 'altro' || man.state === 'mio');
+  protected inert(_man: BoardMan): boolean {
+    return false;
   }
 
   protected readonly roles = ROLES;
@@ -147,6 +155,47 @@ export class SlotMatrix {
    * buy instead of him, each at his own max offer and with the total. It is what makes a bid doubtable,
    * and it is on every row and not only on the lot because that is the count nobody holds in his head.
    */
+  /**
+   * L'UOMO SOTTO IL PUNTATORE, e i due che comprerei invece di lui.
+   *
+   * Sostituisce il tooltip di riga («è fastidioso», 03/09/2026): la coppia alternativa non si
+   * RISCRIVE in un riquadro, si ACCENDE dove i due uomini stanno gia' - una riga della mappa e' il
+   * posto dove quel nome vive, e un pannello che copre le righe vicine nasconde proprio il confronto
+   * per cui esiste.
+   *
+   * Su `mouseenter` e non su `pointerenter`, e la ragione e' una misura: con i pointer events il
+   * banco leggeva ZERO righe accese dopo un hover vero (`Input.dispatchMouseEvent` e' quello che
+   * genera un puntatore reale qui, ed e' anche quello che il vecchio tooltip usava). Un gesto che il
+   * banco non riesce a far scattare e' un gesto che non si puo' verificare, e quindi non si spedisce:
+   * su un touch un hover non esiste comunque.
+   */
+  private readonly hovered = signal<number | null>(null);
+
+  /** Gli id dei due uomini alternativi all'uomo in hover: un insieme, non una lista da riscorrere. */
+  private readonly insteadOf = computed<Set<number>>(() => {
+    const at = this.hovered();
+    if (at == null) return new Set();
+    const pair = this.pairs().get(at);
+    return new Set((pair?.men ?? []).map((one) => one.id));
+  });
+
+  protected hover(man: BoardMan | null): void {
+    this.hovered.set(man?.id ?? null);
+  }
+
+  /**
+   * La tinta dell'alternativa: rosso leggerissimo, su token e mai un colore letterale.
+   *
+   * Il 10% e non di piu' perche' la riga porta un nome e due numeri che devono restare leggibili: la
+   * tinta e' un richiamo, non qualcosa da leggere al posto del testo.
+   */
+  protected readonly INSTEAD_TINT = 'color-mix(in srgb, var(--color-danger) 10%, transparent)';
+
+  /** Vero se questa riga e' uno dei due che comprerei invece dell'uomo sotto il puntatore. */
+  protected instead(man: BoardMan): boolean {
+    return this.insteadOf().has(man.id);
+  }
+
   protected rowTip(man: BoardMan): string {
     if (man.state === 'altro') return `${man.name} — di ${man.ownerLabel}, pagato ${man.price} cr.`;
     if (man.state === 'mio') return `${man.name} — è tuo, pagato ${man.price} cr.`;

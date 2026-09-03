@@ -278,7 +278,9 @@ def parse_listone(data: bytes, season: str) -> list[dict]:
 
     Reads both 'Tutti' (current squads) AND 'Ceduti' (players sold mid/pre-season who still played
     and are in the voti); both carry Id | R | RM | Nome | Squadra | Qt.A with the player's Serie A
-    club, so the Ceduti sheet fills those left out of 'Tutti'. The per-role sheets are subsets of
+    club, so the Ceduti sheet fills those left out of 'Tutti'. WHICH of the two a row comes from is
+    kept (`sold`): it is the platform's own answer to «is he still in this championship», the one the
+    site draws as an asterisk, and merging the two sheets threw it away. The per-role sheets are subsets of
     'Tutti' and are skipped. Id=fc_id, R=Classic role, RM=Mantra roles.
     Rows above each header (the season title) and any non-integer Id are skipped.
 
@@ -319,6 +321,15 @@ def parse_listone(data: bytes, season: str) -> list[dict]:
                     "fvm_mantra": _num(cell("FVM M")),
                     "price_mantra": _num(cell("Qt.A M")),
                     "price_initial_mantra": _num(cell("Qt.I M")),
+                    # DA QUALE FOGLIO VIENE, che e' un fatto e non un dettaglio del parser: 'Ceduti'
+                    # e' la dichiarazione della PIATTAFORMA che quel calciatore non gioca piu' in
+                    # questo campionato (sul sito e' l'asterisco accanto al nome). Le due meta' sono
+                    # state fuse per anni perche' un ceduto ha comunque giocato e i suoi voti vanno
+                    # attribuiti - vero, e non e' una ragione per dimenticare quale delle due dice
+                    # che si puo' ancora comprare. E' un fatto per PIATTAFORMA: Di Gregorio e' fra i
+                    # ceduti del listone Serie A e sul listone EuroLeghe e' al Bournemouth, cioe'
+                    # comprabile - quindi vive in `listone_quotes` e non in `rosters`.
+                    "sold": name == "Ceduti",
                 })
         return out
     finally:
@@ -448,8 +459,8 @@ def upsert_listone(conn, season: str, records: list[dict], platform: str = DEFAU
         conn.execute(
             """
             INSERT INTO listone_quotes(fc_id, season, platform, price, price_initial, fvm, fvm_mantra,
-                                       price_mantra, price_initial_mantra, fc_club_id, league)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                       price_mantra, price_initial_mantra, fc_club_id, league, sold)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(fc_id, season, platform) DO UPDATE SET
                 price                = COALESCE(excluded.price, listone_quotes.price),
                 price_initial        = COALESCE(excluded.price_initial, listone_quotes.price_initial),
@@ -461,11 +472,15 @@ def upsert_listone(conn, season: str, records: list[dict], platform: str = DEFAU
                 -- the CLUB follows THIS listone and is never coalesced away: it is the fact the table
                 -- exists to keep apart, and a stale one is what put five quoted Serie A men abroad.
                 fc_club_id           = COALESCE(excluded.fc_club_id, listone_quotes.fc_club_id),
-                league               = COALESCE(excluded.league, listone_quotes.league)
+                league               = COALESCE(excluded.league, listone_quotes.league),
+                -- NON coalesced: l'ultima lettura del listone decide, in tutt'e due i versi. Un
+                -- `COALESCE` qui congelerebbe il primo `1` mai scritto e chi rientra in `Tutti` non
+                -- tornerebbe mai comprabile - lo stesso difetto che `rosters.league` ha pagato.
+                sold                 = excluded.sold
             """,
             (rec["fc_id"], season, platform, rec["price"], rec.get("price_initial"), rec.get("fvm"),
              rec.get("fvm_mantra"), rec.get("price_mantra"), rec.get("price_initial_mantra"),
-             club_id, league),
+             club_id, league, 1 if rec.get("sold") else 0),
         )
         # ...and the VOLATILE numbers of the listone also go into their own DATED series, because that is
         # what they are: the fantavalore moves weekly and on events (injuries, transfers) and the Qt.A is

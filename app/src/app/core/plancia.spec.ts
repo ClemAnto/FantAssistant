@@ -15,6 +15,7 @@ import {
   discountFor,
   offerBand,
   worthWaiting,
+  EDGE_BASE,
 } from './plancia';
 
 function man(
@@ -24,7 +25,19 @@ function man(
   points: number | null = fvm,
   outNow = false,
 ): PlanciaMan {
-  return { id, name: `M${id}`, club: 'C', role, fvm, points, pv: 30, basis: 'measured', outNow };
+  return {
+    id,
+    name: `M${id}`,
+    club: 'C',
+    role,
+    fvm,
+    points,
+    pv: 30,
+    // `fantamedia − 6`, per PARTITA giocata: le presenze stanno accanto (`pv`) e non dentro
+    edge: points == null ? null : points / 30 - EDGE_BASE,
+    basis: 'measured',
+    outNow,
+  };
 }
 
 /** A listone big enough to fill every slot of a ten-team league, plus a tail. */

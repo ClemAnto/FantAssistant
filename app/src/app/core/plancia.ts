@@ -44,6 +44,32 @@ export interface PlanciaMan {
   points: number | null;
   /** Expected appearances, the one number where we measurably beat the quotation (§21, §25). */
   pv: number | null;
+  /**
+   * QUANTO RENDE SOPRA IL SEI, PER PARTITA GIOCATA: `fantamedia prevista − 6`.
+   *
+   * Richiesta dell'operatore (03/09/2026): «un numerino che mi indichi il suo valore a colpo
+   * d'occhio ... quanti punti (tra media voto e bonus) a partita fa guadagnare rispetto al 6». La
+   * prima versione era per PARTITA GIOCATA (`fm − 6`) e lui ha trovato subito il difetto guardando
+   * lo schermo: «perche' Hojlund (+1,1) sta prima di Martinez (+1,6)? Immagino per le presenze».
+   * Si': dentro uno slot la plancia ordina per VALORE ATTESO (§23.2), e un numero che non sa niente
+   * delle presenze non puo' che contraddire quell'ordine.
+   *
+   * Portarlo A GIORNATA (`fm × pv / giornate − 6`) e' stato provato per una versione e RITIRATO da
+   * lui: «i punteggi non tornano - meglio il delta medio a partita e tra parentesi il num di partite
+   * atteso». Aveva ragione due volte. Il riferimento «sei in TUTTE le giornate» non lo raggiunge
+   * nessuno, quindi la colonna diventava quasi tutta negativa e larga (−247 su un attaccante da 19
+   * presenze), e soprattutto **schiacciava due fatti in una cifra**: quanto vale una sua partita e
+   * quante ne gioca. Adesso sono due numeri accanto, il secondo fra parentesi - che e' la disciplina
+   * che questa pagina applica gia' al conteggio delle facili e alla sua attesa, «due numeri, due
+   * domande, mai una cifra sola». E l'ordine del blocco resta il valore atteso, che quei due numeri
+   * ora SPIEGANO invece di contraddire: Hojlund +1,1 (33) sopra Martinez +1,6 (30) si legge.
+   *
+   * Il SEI e' la media di riferimento di un voto - una convenzione del gioco, non una misura nostra -
+   * e vive in `EDGE_BASE`, qui, che e' l'unico posto dove questa colonna e' definita. `null` quando
+   * il foglio non lo prezza («vuoto = ignoto, mai zero»: uno zero qui si leggerebbe come «rende
+   * esattamente il sei»).
+   */
+  edge: number | null;
   basis: ValuationBasis;
   /**
    * OGGI NON GIOCA: la stampa lo dà fuori, o un infortunio ufficiale è ancora aperto.
@@ -53,6 +79,19 @@ export interface PlanciaMan {
    * verdetto del lotto, sempre dicendolo. Popolato dallo store, che è l'unico a conoscere lo stato.
    */
   outNow?: boolean;
+  /**
+   * FUORI ROSA: la nota che l'operatore ha DICHIARATO su di lui (`config/player_notes.json`,
+   * `kind: 'out_of_squad'`), letta dallo stesso servizio dello stato di salute perche' due letture di
+   * una dichiarazione darebbero a un uomo due risposte.
+   *
+   * E' INFORMAZIONE e non un motivo per toglierlo dal tabellone, ed e' una distinzione dell'operatore
+   * (03/09/2026): «non deve essere tolto per la nota "fuori rosa" ma perche' non gioca piu' in serie
+   * A». Fuori rosa e' uno stato DENTRO un club - uno cosi' e' ancora nel campionato e qualcuno lo
+   * comprera' - mentre chi ha lasciato il campionato lo dice il LISTONE col foglio `Ceduti` (sul sito
+   * l'asterisco), e quelle righe il foglio non le porta piu' affatto (`listone_quotes.sold`). Quindi
+   * qui non filtra niente: si disegna, e chi guarda decide.
+   */
+  outOfSquad?: boolean;
 }
 
 export interface SlotBlock {
@@ -73,6 +112,9 @@ export interface SlotBlock {
   /** What the room pays for this slot, from the men themselves: the median FVM. */
   medianFvm: number;
 }
+
+/** Il voto di riferimento del gioco: sopra questo un uomo guadagna, sotto perde. */
+export const EDGE_BASE = 6;
 
 export interface PlanciaMap {
   blocks: SlotBlock[];

@@ -30,8 +30,9 @@
         <p class="text-xs leading-relaxed text-muted">
           Giornate <b class="text-fg">{{ window().from }}–{{ window().to }}</b> del campionato.
           <b class="text-fg">FACILI</b> = giornate in cui almeno uno dei due gioca una partita in
-          cui è probabile che la sua squadra non subisca gol (misurata: 42,8% di porte inviolate
-          contro 23,9% nelle altre).
+          cui è probabile che la sua squadra non subisca gol — dal livello dei due club, dal campo e
+          dai gol delle loro ultime dieci partite (misurata: 39% di porte inviolate contro il 20%
+          nelle altre).
           @if (!noTieBreak()) {
             <b class="text-fg">Coperte</b> = le stesse giornate contate con la probabilità invece
             che con il sì/no.
@@ -63,9 +64,33 @@
                   pair.man.name
                 }}</span>
                 <span class="w-24 shrink-0 truncate text-xs text-muted">{{ pair.club }}</span>
+                <!-- QUANTE NE HA DA SOLO: un compagno che ne porta 34 da sé è il consiglio ovvio (e
+                     caro), uno che ne porta 21 e ne aggiunge 11 è un accoppiamento. Scritto invece
+                     di filtrato, così la soglia la mette lui guardando due numeri. -->
+                <span class="w-14 shrink-0 text-right text-xs tabular-nums text-muted">
+                  {{ pair.aloneTheirs }}
+                  <span class="text-[10px]">solo</span>
+                </span>
                 <span class="w-16 shrink-0 text-right text-sm font-bold tabular-nums text-fg">
                   {{ pair.cover.facili }}
                   <span class="text-[10px] font-normal text-muted">facili</span>
+                </span>
+                <!-- QUANTO AGGIUNGE, che è il numero che decide se spenderci (sua osservazione,
+                     03/09/2026): un totale non dice chi lo ha portato, e su questa griglia 111
+                     coppie di 190 aggiungono due giornate o meno al migliore dei propri due club. -->
+                <span
+                  class="w-16 shrink-0 text-right text-xs tabular-nums"
+                  [class.text-success]="pair.gain >= 5"
+                  [class.text-muted]="pair.gain < 5"
+                  [nzTooltipTitle]="
+                    keeper.club + ' da solo ' + pair.aloneMine + ' · ' + pair.club + ' da solo ' +
+                    pair.aloneTheirs + ' · insieme ' + pair.cover.facili + ': accanto al tuo ne ' +
+                    'aggiunge ' + pair.gain
+                  "
+                  nz-tooltip
+                >
+                  +{{ pair.gain }}
+                  <span class="text-[10px] font-normal text-muted">aggiunte</span>
                 </span>
                 <span class="w-20 shrink-0 text-right text-xs tabular-nums text-muted">
                   {{ pair.cover.covered == null ? '—' : (pair.cover.covered | number: '1.1-1') }}
@@ -93,9 +118,15 @@
                   }}</span>
                   <span class="min-w-0 flex-1 truncate text-fg">{{ pair.man.name }}</span>
                   <span class="w-24 shrink-0 truncate text-muted">{{ pair.club }}</span>
+                  <span class="w-14 shrink-0 text-right tabular-nums text-muted">{{
+                    pair.aloneTheirs
+                  }}</span>
                   <span class="w-16 shrink-0 text-right font-semibold tabular-nums text-fg">{{
                     pair.cover.facili
                   }}</span>
+                  <span class="w-16 shrink-0 text-right tabular-nums text-muted"
+                    >+{{ pair.gain }}</span
+                  >
                   <span class="w-20 shrink-0 text-right tabular-nums text-muted">{{
                     pair.cover.covered == null ? '—' : (pair.cover.covered | number: '1.1-1')
                   }}</span>
@@ -107,6 +138,19 @@
 
         <!-- QUELLO CHE NON E' IN LISTA, contato e non nascosto: una lista che tace su chi ha
              lasciato fuori si legge come una lista completa. -->
+        @if (result().deputies || result().covered) {
+          <p class="text-xs leading-relaxed text-muted">
+            @if (result().deputies) {
+              {{ result().deputies }} sono i vice del loro club e non sono in lista: di un club gioca
+              UN portiere, quindi non aggiungono una giornata a nessuno.
+            }
+            @if (result().covered) {
+              {{ result().covered }} giocano in squadre che da sole hanno già due terzi della finestra
+              in partite facili — non sono un accoppiamento, sono il calendario più facile che c'è.
+              Restano sulla griglia.
+            }
+          </p>
+        }
         @if (result().taken || result().otherLeague) {
           <p class="text-[11px] text-muted">
             @if (result().taken) {

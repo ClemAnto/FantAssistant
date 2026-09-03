@@ -37,6 +37,7 @@ const file = (
   elo_year: '2026',
   observed_on: '2026-09-01',
   easy_margin: MARGIN,
+  easy_probability: 0.3002,
   home_advantage: 14.5,
   clean_sheet: {
     intercept: -1.104293,
@@ -171,11 +172,59 @@ describe('rankPairs', () => {
   });
 });
 
+describe('la regola di FACILE', () => {
+  it('decide sulla PROBABILITA’ dove c’e’, e sull’edge dove non c’e’', () => {
+    // Da 03/09/2026 la probabilita' legge anche i gol delle ultime dieci partite dei due club, quindi
+    // due partite allo stesso vantaggio Elo NON sono la stessa partita: il verdetto vive sulla
+    // probabilita' e l'edge resta la spiegazione. Qui l'edge e' identico e sotto la soglia dei 200
+    // della finestra di prova, e a decidere sono le due probabilita'.
+    const calendar = calendarOf([
+      match(1, 'inter', 'lecce', 100, 0.35, 0.20),
+      match(2, 'lecce', 'inter', 100, 0.25, 0.10),
+    ]);
+    expect(calendar.window('Inter', 1, 1)[0].easy).toBe(true);
+    expect(calendar.window('Lecce', 2, 2)[0].easy).toBe(false);
+  });
+
+  it('senza probabilita’ resta sull’edge, che e’ la regola con cui il pacchetto e’ stato scritto', () => {
+    // Un campionato senza logistica (e un pacchetto scritto prima della soglia) non ha una
+    // probabilita': la' il verdetto e' l'edge contro il margine, esattamente come prima.
+    const calendar = calendarOf([match(1, 'inter', 'lecce', 300), match(2, 'lecce', 'inter', -300)]);
+    expect(calendar.window('Inter', 1, 1)[0].easy).toBe(true);
+    expect(calendar.window('Lecce', 1, 1)[0].easy).toBe(false);
+  });
+});
+
 describe('coverGrid', () => {
   it('e’ simmetrica, e le due meta’ sono lo STESSO oggetto', () => {
     const calendar = calendarOf([match(1, 'inter', 'lecce', 300), match(2, 'como', 'inter', -300)]);
     const grid = coverGrid(calendar, ['Inter', 'Lecce', 'Como'], 1, 38);
     expect(grid.get('Inter')!.get('Como')).toBe(grid.get('Como')!.get('Inter'));
+  });
+
+  it('dice DI CHI e’ ogni colonna, perche’ la casella e’ condivisa con la sua speculare', () => {
+    // Il difetto che questo asserto chiude, trovato dall'operatore il 03/09/2026 su «Com + Ata»: la
+    // casella si calcola una volta per la coppia (i, j) e si legge da tutt'e due i lati, quindi sotto
+    // la diagonale `a` e `b` NON sono la riga e la colonna - e chi le etichettava dagli assi disegnava
+    // le partite di una squadra sotto il nome dell'altra, portandosi dietro il segno di «facile».
+    const calendar = calendarOf(
+      [match(1, 'inter', 'lecce', 300), match(2, 'como', 'parma', 300)],
+      {
+        clubs: [
+          ['inter', 'Inter'],
+          ['lecce', 'Lecce'],
+          ['como', 'Como'],
+          ['parma', 'Parma'],
+        ],
+      },
+    );
+    const grid = coverGrid(calendar, ['Inter', 'Como'], 1, 38);
+    const cell = grid.get('Como')!.get('Inter')!;
+    expect(cell).toBe(grid.get('Inter')!.get('Como'));
+    // La casella dice l'ordine vero, e in quell'ordine ogni colonna porta le partite del proprio club.
+    expect([cell.clubA, cell.clubB]).toEqual(['Inter', 'Como']);
+    expect(cell.rows.find((row) => row.round === 1)!.a!.opponent).toBe('Lecce');
+    expect(cell.rows.find((row) => row.round === 2)!.b!.opponent).toBe('Parma');
   });
 
   it('mette il club DA SOLO sulla diagonale, che e’ il paragone della sua riga', () => {
@@ -184,6 +233,58 @@ describe('coverGrid', () => {
     expect(grid.get('Inter')!.get('Inter')!.facili).toBe(2);
     // ...e accanto a Lecce non guadagna niente, perche' Lecce non ha partite facili qui.
     expect(grid.get('Inter')!.get('Lecce')!.facili).toBe(2);
+  });
+});
+
+describe('quanto AGGIUNGE il secondo portiere', () => {
+  it('e’ l’unione meno il migliore dei due da solo, e sulla diagonale e’ zero', () => {
+    // L'osservazione dell'operatore (03/09/2026): «il Napoli e la Juve, singolarmente, hanno 31
+    // partite facili; il Como ne ha 22 e solo insieme al Bologna arriva a 33». Un totale non dice chi
+    // lo ha portato, quindi la coppia porta anche il MARGINALE. Qui l'Inter ha due giornate facili da
+    // sola, il Lecce una che l'Inter non ha: insieme 3, quindi il Lecce ne aggiunge una.
+    const calendar = calendarOf([
+      match(1, 'inter', 'como', 300),
+      match(2, 'inter', 'lecce', 300),
+      match(3, 'lecce', 'como', 300),
+    ]);
+    const grid = coverGrid(calendar, ['Inter', 'Lecce'], 1, 38);
+    const cell = grid.get('Inter')!.get('Lecce')!;
+    expect([cell.aloneA, cell.aloneB, cell.facili, cell.gain]).toEqual([2, 1, 3, 1]);
+    // Un club con se stesso non aggiunge niente a se stesso: zero, e non un numero che si leggerebbe
+    // come un guadagno.
+    expect(grid.get('Inter')!.get('Inter')!.gain).toBe(0);
+  });
+
+  it('viaggia anche sui suggerimenti, e NON ne cambia l’ordine', () => {
+    // Il primo portiere e' quello che ha cliccato, quindi il suo «da solo» e' una costante: ordinare
+    // per unione o per unione-meno-una-costante e' lo stesso ordine. Detto qui perche' e' la
+    // differenza fra «cambia la decisione» e «cambia la classifica».
+    const calendar = calendarOf([
+      match(1, 'inter', 'como', 300),
+      match(2, 'lecce', 'como', 300),
+      match(3, 'lecce', 'inter', 300),
+    ]);
+    const ranked = rankPairs(
+      calendar,
+      'Como',
+      [{ man: 'a', club: 'Inter' }, { man: 'b', club: 'Lecce' }],
+      1,
+      38,
+    );
+    for (const one of ranked) {
+      // Il MIO calendario e' lo zero, non il migliore dei due: la domanda della lista e' «quanto
+      // aggiunge accanto al mio», e col massimo si risponderebbe di nascosto a «quanto aggiungo io a
+      // lui», che ordina un compagno forte sotto uno debole. Trovato da questo test, non rileggendo.
+      expect(one.gain).toBe(one.cover.facili - one.aloneMine);
+    }
+    // L'affermazione da provare non e' un ordine letterale - sarebbe un test su questo fixture - ma
+    // che i due ordini COINCIDANO: `aloneMine` e' lo stesso numero per tutti, quindi ordinare per
+    // unione o per guadagno da' la stessa lista.
+    const byGain = [...ranked].sort(
+      (left, right) => right.gain - left.gain || left.club.localeCompare(right.club, 'it'),
+    );
+    expect(byGain.map((one) => one.club)).toEqual(ranked.map((one) => one.club));
+    expect(new Set(ranked.map((one) => one.aloneMine)).size).toBe(1);
   });
 });
 

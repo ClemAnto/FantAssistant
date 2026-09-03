@@ -168,6 +168,11 @@ ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     # been in the schema since day one, so it needs no migration - this one does, and without it every
     # query naming it fails with "no such column".
     ("players", "capped_on", "TEXT"),
+    # IL CEDUTO del listone (03/09/2026, vedi schema.sql): il foglio `Ceduti` e' la risposta della
+    # piattaforma a «gioca ancora in questo campionato», e senza questa colonna il parser la fondeva
+    # con `Tutti`. NULL = «letto prima che la colonna esistesse», che non e' «comprabile»: chi legge
+    # tratta il vuoto come ignoto e un `ratings --quotes-from-cache` lo riempie senza rete.
+    ("listone_quotes", "sold", "INTEGER"),
 )
 
 

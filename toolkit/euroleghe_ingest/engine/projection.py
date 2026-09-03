@@ -148,7 +148,13 @@ CONFIDENCE_ABROAD_SPAN: float = 0.35
 # col fantavoto VERO di `match_ratings`, DENTRO l'uomo (si demedia in ogni coppia uomo-stagione, o si
 # misurerebbe che i forti giocano nei club forti) e contro il null dei margini RIMESCOLATI dentro l'uomo,
 # che e' la regola di Miller-Sanjurjo applicata qui. Per +100 di Elo di margine (Elo mio - suo, col
-# vantaggio casalingo di `fixtures.HOME_ADVANTAGE`):
+# vantaggio casalingo di 14,5 punti Elo - il valore che `fixtures.HOME_ADVANTAGE` aveva quel giorno e
+# che il 03/09/2026 (sera) e' passato a 35, perche' quella costante risponde a «e' probabile che non
+# prenda gol» mentre questo coefficiente e' misurato sul FANTAVOTO. Scritto per esteso e non piu' come
+# riferimento: un coefficiente citato senza la sua provenienza non e' un fatto, e chi un giorno
+# collegasse `calendar_lift` (oggi non ha chiamanti) deve passargli margini calcolati col campo su cui
+# e' stato fittato - `fixtures.RESULT_HOME_AWAY_GAP / 2` - o applicherebbe una trasformazione a un
+# input diverso dal suo:
 #
 #     ruolo   fantavoto vero   null      solo voto base    coppie
 #     P          +0.175       +0.019        -0.014           171

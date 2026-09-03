@@ -1,0 +1,71 @@
+<!-- UI text is ITALIAN in app/ (see app/CLAUDE.md); code and comments stay English. -->
+<button
+  nz-button
+  nzType="text"
+  nzSize="small"
+  nz-dropdown
+  [nzDropdownMenu]="flagMenu"
+  nzTrigger="click"
+  nzPlacement="bottomRight"
+  nz-tooltip
+  nzTooltipTitle="Quali segnali disegnare accanto ai nomi. La scelta ti segue da una pagina all'altra."
+>
+  <nz-icon nzType="alert" />
+  segnali
+  @if (off(); as hidden) {
+    <span class="ml-1 rounded bg-control px-1 text-[10px] tabular-nums text-muted"
+      >−{{ hidden }}</span
+    >
+  }
+</button>
+
+<nz-dropdown-menu #flagMenu="nzDropdownMenu">
+  <div
+    class="max-h-[70vh] w-72 overflow-y-auto rounded-lg border border-border bg-surface py-1 shadow-lg"
+  >
+    <!-- LE DUE VIE, in cima: la plancia nuda e il ritorno indietro, che un menù di interruttori deve
+         avere in un click - dodici click per rimettere tutto a posto sono una funzione che nessuno usa. -->
+    <div class="flex items-center gap-2 border-b border-border px-3 py-1.5">
+      <span class="text-[10px] font-bold tracking-widest text-muted uppercase">segnali</span>
+      <button
+        type="button"
+        class="ml-auto rounded px-1.5 py-0.5 text-[11px] text-muted hover:bg-control hover:text-fg"
+        (click)="prefs.showAll(); $event.stopPropagation()"
+      >
+        tutti
+      </button>
+      <button
+        type="button"
+        class="rounded px-1.5 py-0.5 text-[11px] text-muted hover:bg-control hover:text-fg"
+        (click)="prefs.hideAll(); $event.stopPropagation()"
+      >
+        nessuno
+      </button>
+    </div>
+
+    @for (group of groups; track group.title) {
+      <div class="px-3 pt-1.5 pb-0.5 text-[10px] font-semibold tracking-wide text-muted">
+        {{ group.title }}
+      </div>
+      @for (flag of group.flags; track flag) {
+        <!-- L'ICONA ACCANTO ALLA FRASE, col suo inchiostro: si sceglie riconoscendo il simbolo visto
+             sulla riga, non leggendo un elenco di parole. -->
+        <button
+          type="button"
+          class="flex w-full items-center gap-2 px-3 py-1 text-left text-xs hover:bg-control"
+          [class.opacity-40]="!shows(flag)"
+          (click)="toggle(flag, $event)"
+        >
+          <nz-icon
+            class="shrink-0 text-[11px]"
+            [nzType]="shows(flag) ? 'check-circle' : 'minus-circle'"
+            [class.text-primary]="shows(flag)"
+            [class.text-muted]="!shows(flag)"
+          />
+          <nz-icon class="shrink-0" [nzType]="icon[flag]" [class]="tone[flag]" />
+          <span class="min-w-0 flex-1 truncate text-fg">{{ label[flag] }}</span>
+        </button>
+      }
+    }
+  </div>
+</nz-dropdown-menu>

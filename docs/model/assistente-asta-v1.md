@@ -2518,6 +2518,236 @@ pareggio è una colonna continua**. Le due sono nominate a schermo e non si mesc
 conteggio (165 facili contro 98, 11 club a zero contro 12): sarebbe una soglia scelta perché il conteggio
 non piaceva, che è esattamente ciò che questo progetto vieta.
 
+### 34.3-bis …e la sera dello stesso giorno è scesa a **100**, su TRE ESEMPI dell'operatore
+
+Il rifiuto qui sopra regge come è scritto — una soglia scelta guardando il *conteggio* — e non è quello
+che è successo poche ore dopo: l'operatore ha portato tre partite («ATALANTA vs CAGLIARI è facile per
+l'Atalanta · COMO vs GENOA è facile per il Como · ATALANTA vs LECCE») e poi la sua lettura di una casella,
+con un puntino su ogni partita che secondo lui è facile e un trattino sulle giornate che di conseguenza lo
+sono. **Un giudizio dell'operatore su casi concreti è un dato**, e si misura contro il codice.
+
+**Misurati per primi gli ESEMPI e non la soglia**, che è la parte che ha ridotto la questione a un
+decimale: due dei tre erano **già facili a 200** — Atalanta-Cagliari +236,9 (g4) e Atalanta-Lecce +270,8
+(g37) / +241,8 (g13) — quindi la sua lista vincolava **una partita sola**, Como-Genoa a **+104,2** (Como
+in casa, g38; la stessa sfida alla g3 è Genoa-Como e il Como è in trasferta, +75,2).
+
+**La sua stessa casella come giudice.** Sulle 19 giornate visibili di Como + Fiorentina, contro i suoi
+segni:
+
+| soglia | giornate d'accordo con lui | le sue 7 giornate segnate |
+|---|---|---|
+| 200 | 12/19 | 0 facili |
+| **100** | **17/19** | **7 facili** |
+
+Le due divergenze a 100 sono spiegate e non tolte: la g5 (Como **@ Frosinone**, +169,8) è una trasferta
+che lui non ha segnato, e la g19 (Fiorentina-Lecce, +112,4) è fuori dallo screenshot. Il suo puntino più
+basso è a **+78,5** (Fiorentina-Cagliari): sotto la soglia adottata, e quella giornata resta comunque
+facile per l'altra partita, quindi **nessun trattino cambia**.
+
+**Il prezzo dell'etichetta, tenuto fuori campione sullo stesso campione di 5354 partite-club:**
+
+| soglia | P(cs) alla soglia | classificate facili | cs \| facili | cs \| altre | lift |
+|---|---|---|---|---|---|
+| 200 | 0.401 | 13,0% | 0,427 | 0,239 | 1,79 |
+| **100** | **0.320** | 28,7% | **0,395** | 0,210 | **1,88** |
+| 75 | 0.301 | 33,2% | 0,387 | 0,202 | 1,91 |
+
+Il potere separante **non scende** — è piatto fra 50 e 250 e legge un filo meglio in basso — quindi non è
+un allargamento che svuota l'etichetta: quello che cambia è cosa promette la parola, 39,5% di porte
+inviolate invece di 42,7%. Per questo è una SCELTA e non un fit.
+
+**Ed è 100 e non 75**, che pure passerebbe il suo secondo esempio nella versione in trasferta: a 75
+tornano a leggere **tutta** la stagione facile Inter 38/38, Bayern 34/34 e PSG 35/35, cioè risorge il
+difetto che il 10/08 gli aveva fatto congelare 200. *Una soglia che resuscita il difetto che lui ha
+chiesto di spegnere è una soglia da fermare un gradino prima.* A 100 nessun club di Serie A legge tutte
+le sue partite come facili (Inter 34/38) e i club a zero passano da 12 a 8 su 20; sulla finestra 3-5 la
+griglia passa da **136 caselle di 190 a zero** a 45.
+
+**L'accordo col 40% è finito, e il test non si cancella: si spacca in due.** Il livello 40% a un
+vantaggio di 199 è un invariante della CURVA e resta asserito (è anche `club_defence.CLEAN_SHEET_SHARE`);
+la soglia è una dichiarazione e si asserisce al valore che promette davvero, **0,32**. Così nessuno legge
+0,40 su una griglia costruita a 0,32 — e chi muove la costante deve ridichiarare la frase invece di
+ereditarne una vera per un'altra soglia. Vale per i tre lettori: `fixtures.EASY_MARGIN`,
+`test_fixtures_schedule.py` e l'arnese e2e, che ora controlla che il **bundle** porti 100 (un pacchetto
+più vecchio della decisione è la cosa che l'operatore ha visto per prima: la colonna «ok» vuota).
+
+### 34.3-ter I GOL ENTRANO NEL MODELLO, e la sua frase era il meccanismo (3 settembre 2026, sera)
+
+**Sua richiesta**: «oltre all'elo valutassi anche la media gol dell'attacco e i gol subiti in media
+della difesa … potresti prendere le ultime 5 o 10 partite di ogni squadra». E il meccanismo l'ha detto
+lui: **«una squadra forte non è detto che segni tanto, e una squadra debole non è detto che segni
+poco»** — l'Elo è un rating di RISULTATI, quindi non distingue chi vince 3-2 da chi vince 1-0, e una
+porta inviolata è esattamente quella differenza.
+
+**MISURATO E ADOTTATO.** Log-loss leave-one-season-out su 4.940 partite-club e 8 stagioni: **0,54749
+(solo Elo) → 0,54282**, migliore in **7 stagioni su 8**. Sull'etichetta alla sua soglia il lift passa
+da 1,95 a **2,01** e il **9%** delle partite cambia lato. Quanto vale il canale, in chiaro: a parità di
+Elo, un avversario che segna 0,8 a partita contro uno che segna 2,0 porta la probabilità da **0,289 a
+0,199** — nove punti che il livello non vedeva.
+
+| | intercetta | per 100 di edge | gol subiti da me | gol fatti da loro |
+|---|---|---|---|---|
+| coefficienti | −0,140474 | +0,278270 | −0,319126 | −0,410066 |
+
+**Tre cose che la misura ha deciso CONTRO il modo in cui la richiesta era formulata**, e sono la parte
+che vale la pena scrivere:
+- **la finestra è DIECI e non cinque.** Una media su 5 partite è quasi rumore: fuori campione vale
+  −0,0024 contro −0,0044 delle 10, e la curva è **piatta da 10 a 38** (−0,0044 · −0,0047 · −0,0050) col
+  minimo nominale **sul bordo della griglia** — che questo progetto non adotta, e che qui vorrebbe dire
+  «tutta la stagione», cioè non forma. Dieci è anche la finestra che il progetto già chiama recente per
+  un club, quindi è una definizione riusata e non una nuova.
+- **il casa/fuori NON paga**: «media gol casa/fuori» legge −0,0021 contro −0,0035 delle dieci semplici
+  sulle stesse righe — cinque partite in casa sono metà campione per un termine che l'edge già porta.
+- **le due metà non valgono uguale**: l'attacco avversario da solo −0,0030, la mia difesa **−0,0005**
+  (5 stagioni su 8). Restano entrambe perché insieme fanno −0,0047 e 7/8, ma la frase da ricordare è
+  che **quello che decide una porta inviolata è soprattutto chi hai davanti**.
+
+**E LA PRIMA MISURA ERA SBAGLIATA NELLE MIE MANI**, il che è la ragione per cui i numeri qui sopra sono
+i secondi: camminando le partite-club in ordine di data e aggiungendo ciascun risultato alla storia del
+club man mano, **le due righe di UNA partita condividono la data**, quindi la seconda leggeva una storia
+che conteneva già quella partita. Leggeva un guadagno **quattro volte** più grande e «più la finestra è
+corta meglio è», in modo monotono fino al bordo della griglia — e quella monotonia è il campanello che
+questo progetto si è già scritto. La storia ora si costruisce PRIMA, intera, e ogni riga legge solo le
+partite con data **strettamente precedente** alla propria.
+
+**Due conseguenze di struttura, entrambe dichiarate nell'artefatto.** La soglia si sposta sulla
+PROBABILITÀ (`EASY_PROBABILITY` = 0,3002, che è la sua soglia di 75 di edge letta sul modello a solo
+Elo): con tre predittori un margine sull'edge non può più esprimere «facile», perché due partite allo
+stesso edge contro attacchi diversi non sono la stessa partita — e le due soglie sono **appaiate per
+costruzione**, così un club senza forma è etichettato esattamente come prima invece di cambiare colore
+per essere stato promosso. E **le dieci partite hanno un ORIZZONTE di quindici mesi**: le ultime dieci
+di Serie A del Frosinone sono di due stagioni fa (leggeva 0,90/0,90 dal 2023-24), e una lettura così
+vecchia non è una lettura di oggi — «vuoto = ignoto» applicato al tempo. In settembre le tre promosse
+non hanno forma e vengono prezzate dal solo Elo, che è la risposta onesta su una squadra che nessuno ha
+visto in questo campionato: 272 partite su 380 leggono i gol.
+
+**Cosa cambia sullo schermo, sui due club che l'operatore ha segnalato come assurdi** («Udinese e Lecce
+hanno 0 partite facili»): l'**Udinese passa da 0 (margine 200) a 3 (margine 75) a 10 su 38**, perché ha
+la miglior difesa delle ultime dieci (0,90 gol subiti) e l'Elo non lo vedeva. Il **Lecce resta a 0**, e
+non è un difetto: è 18° su 20 per livello, i soli club sotto di lui valgono 19 punti Elo, la sua partita
+migliore è Lecce-Monza a **+56** e il suo margine medio di stagione è **−135**. La verifica è stata
+fatta chiamando la funzione che spedisce sul database vero e stampando i due calendari interi, non
+leggendo il JSON che lo schermo aveva in mano.
+
+### 34.3-quater IL TOTALE DI UNA COPPIA NASCONDE CHI L'HA PORTATO (3 settembre 2026, sera)
+
+**Sua osservazione, e vale più di un difetto**: «il Napoli e la Juve, singolarmente, hanno 31 partite
+facili; il Como ne ha 22 e solo insieme al Bologna arriva a 33». Verificata sul pacchetto corrente
+(Napoli 32 · Juventus 32 · Como 23 · Bologna 21 · Como+Bologna 34), e il fatto generale è più forte
+dell'esempio:
+
+- **111 caselle su 190 aggiungono due giornate o meno** al migliore dei propri due club;
+- **5 su 190** battono il miglior club singolo (Inter 35) di tre o più giornate.
+
+Quindi il secondo portiere è quasi tutto ridondanza, ed è la stessa forma che il progetto ha già
+misurato dall'altro lato: **un'assicurazione si prezza contro quello che ti copre già, non contro
+niente** (`metrica-asta-surplus-v1.md` §24, i due portieri dello stesso club). Il numero della casella
+è una copertura vera e resta; quello che mancava è il MARGINALE, e adesso è a schermo in tre punti — la
+colonna «aggiunte» sui tre consigli, la stessa cifra sulla lista completa, e la scomposizione in cima
+al pannello di una casella («ATA da solo 28 · CAG da solo 6 · insieme 30, quindi il secondo ne aggiunge
++2»).
+
+**E LO ZERO È LA DOMANDA, quindi sono DUE e hanno due nomi**, che è la cosa che questo caso insegna al
+di là dei portieri. Nella LISTA l'uomo che ho è fissato — è quello che ho cliccato — quindi il
+riferimento è il MIO calendario (`PairSuggestion.gain`), e con quello il marginale **non riordina
+niente**: il mio «da solo» è una costante, e ordinare per unione o per unione-meno-una-costante dà la
+stessa lista. Sulla GRIGLIA nessuno dei due club è mio, quindi il riferimento è il **migliore dei due**
+(`GridCell.gain`) — e quello riordina, che è esattamente la lettura di cui parla la sua osservazione.
+La prima versione sottraeva il massimo anche nella lista, e **un test l'ha rifiutata**: con quello zero
+un compagno forte finisce sotto uno debole, perché la formula risponde di nascosto a «quanto aggiungo
+IO a lui».
+
+### 34.3-quinquies La griglia: colori a classi, e il pannello sul CLICK
+
+Tre richieste della stessa sera, tutte misurate a schermo e non guardate.
+
+**«Ora sembra tutto verde e non risalta niente.»** La causa non era la tinta ma la SCALA: la
+distribuzione di questa griglia è ammassata in alto — più di cento caselle su 190 stanno fra il 68% e
+il 100% del massimo — quindi una scala lineare le dipingeva tutte fra il 48% e il 70% di verde,
+indistinguibili proprio dove si decide. Cinque **classi per quantile** (un quinto delle caselle
+ciascuna per costruzione, la più bassa senza tinta) e i PARI sempre nella stessa classe, perché la
+classe si assegna al VALORE col suo percentile medio e non alla cella — due caselle che dicono 32 con
+due colori sarebbero peggio di nessun colore. Misurato dall'arnese: **5 tinte distinte**, nessuna che
+copra più del 45% delle caselle, il numero leggibile su ognuna (contrasto ≥ 4,5:1 su tutte) e la
+legenda a schermo, perché una scala a classi senza legenda è una figura che nessuno può controllare.
+
+**«Fai comparire la lista dei match solo sul click.»** `nzPopoverTrigger` su `click`, e la cella si
+registra su **`pointerdown` e non su `click`**: `nz-popover` apre sul click stesso, e due ascoltatori
+sullo stesso elemento scattano nell'ordine in cui sono stati registrati — scrivere il segnale nel
+`(click)` è una corsa il cui premio è il calendario della casella PRECEDENTE. `pointerdown` precede
+sempre il click, e questo rende l'ordine un fatto invece di una speranza (stessa famiglia dei due
+dropdown che si litigavano un template il 20/08). L'arnese ora misura anche che **il puntatore che
+passa NON apra niente**, prima di cliccare: «zero problemi» e «non ho guardato» non devono leggersi
+uguale.
+
+**«Compatta la modale, non farla uscire in basso.»** Il paragrafo è diventato UNA riga con la legenda
+dentro e il resto nel tooltip di un'icona (16px misurati, con l'asserto che se torna un paragrafo il
+banco lo dice), la modale è `nzCentered` col riquadro tagliato su `calc(100vh - 190px)`, e il banco
+misura il dialogo contro la finestra **su tutt'e due gli assi**: 1137 × [141..766] su 1574 × 907. La
+versione precedente guardava solo la larghezza, che è il motivo per cui «esce in basso» è arrivato come
+segnalazione e non come asserto.
+
+**E un flag dell'arnese è stato scritto e tolto nella stessa ora**: `--light` emulava
+`prefers-color-scheme`, e questa app non ha un tema chiaro che segue il sistema — ha temi NOMINATI su
+`:root[data-theme]`. Misurato, le celle restavano identiche: **un flag che non muove niente è peggio di
+nessun flag**, perché leggerebbe «nessun problema» su una cosa che non ha guardato. Sostituito con
+`--theme <nome>`, che la scala dei colori la rimisura davvero (verificata su `magenta`).
+
+### 34.3-sexies La riga della plancia: due numeri, nessun tooltip, e i suoi in cima
+**(3 settembre 2026, sera tardi — cinque sue istruzioni di seguito, tutte verificate a schermo.)**
+
+**«Togliamo il tooltip sui calciatori, è fastidioso … all'hover evidenzia la coppia che posso comprare
+al suo posto.»** Su 250 righe un pannello che si apre passando copre proprio le righe che stai
+leggendo, e l'informazione è la stessa: quindi la coppia alternativa non si RISCRIVE in un riquadro, si
+ACCENDE dove i due uomini già stanno. **Con uno SFONDO e non un bordo** (sua seconda istruzione: un
+bordo su una riga alta dieci pixel sposta il testo e si legge come un salto), rosso al 10% e come
+stile INLINE, perché quelle righe hanno già una classe di sfondo per lo stato — due utility sulla
+stessa proprietà si decidono sull'ordine del CSS generato e non su quale delle due è legata (il
+difetto del 27/08), mentre un inline condizionale vince quando c'è e lascia dipingere la classe
+quando non c'è.
+
+**E il gesto è su `mouseenter` e non su `pointerenter` per una MISURA**: col pointer event il banco
+leggeva ZERO righe accese dopo un hover vero. *Un gesto che il banco non riesce a far scattare è un
+gesto che non si può verificare, quindi non si spedisce* — su un touch un hover non esiste comunque.
+Verificato: passando su Malen si accendono **Simeone e Laurientè** (i due di A2), e uscendo si
+spengono tutt'e due.
+
+**«Ogni calciatore, oltre alla max offerta, un numerino che mi indichi il suo valore a colpo
+d'occhio: quanti punti (tra media voto e bonus) a partita fa guadagnare rispetto al 6.»** Fatto — e
+la prima versione, `fm − 6` per partita giocata, è durata pochi minuti perché lui ha trovato il
+difetto guardando lo schermo: **«perché Hojlund (+1,1) sta prima di Martinez (+1,6)? Immagino per le
+presenze»**. Sì: dentro uno slot la plancia ordina per VALORE ATTESO (§23.2), e un numero che non sa
+niente delle presenze non può che contraddire quell'ordine.
+
+*Una colonna che spiega un ordinamento deve ESSERE quello stesso ordinamento, o è un terzo punteggio
+che si contraddice col secondo.* Quindi il numero è `fm × pv / giornate − 6` — la stessa quantità
+dell'ordine, traslata di sei, quindi monotona con essa per costruzione — **per cento e senza virgola,
+sua scelta** (`+23` invece di `+0,23`). Le altre due forme sono state misurate e messe davanti a lui
+prima di scegliere: `fm − 6` non sa delle presenze, e `(fm − ricambio) × pv / giornate` ha una scala
+più bella (Malen +1,82 · Martinez +1,56 · Hojlund +1,30) ma **riordina** — metterebbe Martinez sopra
+Hojlund, cioè un numero più alto sotto uno più basso, a meno di cambiare l'ordine dello slot, che è
+un'adozione misurata (+18,1 ± 3,4 fantapunti per scelta, 10 stagioni su 10).
+
+Il prezzo della forma scelta è dichiarato e si vede: il riferimento è «6 in TUTTE le giornate», che
+nessuno raggiunge, quindi la colonna è in gran parte negativa (Malen **+23**, Hojlund +17, Martinez
+−2, e i portieri intorno a −150/−300, che è vero — un portiere rende meno punti a giornata). Dentro
+uno slot discrimina bene, ed è lì che il confronto si fa.
+
+**«I calciatori presi nella tua rosa, spostali in alto nel blocco e cambia lo sfondo in un grigio un
+po' più chiaro.»** Fatto, e l'ordine sotto di loro **non si muove**: `sort` in JS è stabile, quindi
+questo è un PREFISSO e non un riordino — la stessa forma dell'ordine personale dei blocchi della
+pagina strategia. Il grigio al posto del primario ha anche una ragione che vale oltre il colore: il
+primario è il colore con cui questa pagina segna quello su cui si sta DECIDENDO, e un uomo già preso
+non è una decisione, è un fatto.
+
+**E il banco ha imparato due cose su come si misura una tinta.** Contare i bordi leggeva 250 su 250
+(ogni bottone ne ha uno: lo strumento che dice «è marcato tutto», cioè niente), e leggere il canale
+rosso leggeva 0, perché Chrome computa un `color-mix(in srgb …)` come `color(srgb 1 0.17 0.47 / 0.1)`
+e non come `rgb()` — un test sui canali confronta 1 con 8. **Quello che conta è quello che CAMBIA**:
+il banco ora fotografa lo sfondo di tutte le 250 righe prima e dopo, e conta le differenze, che non
+ha bisogno di conoscere nessun formato. E la riga sotto il puntatore si toglie dal conto, perché
+cambia da sé per il suo `hover:` di stato — non alzare la soglia, togliere il caso noto.
+
 ### 34.4 Dove vive cosa, e perché
 
 Il **toolkit** decide se una partita è facile e con che probabilità (`fixtures.schedule` → `calendar.json`
@@ -2546,9 +2776,15 @@ Tre cose che il conto dichiara invece di riempirle:
 
 È il primo della linea P della board che il toolkit disegna (`boards.json`). «L'app legge la board e mai
 la propria» vale per l'undici di un club vero, e sceglierlo in un secondo modo darebbe a un club due
-portieri titolari. Un club senza board porta la colonna senza nome. La **diagonale** è il club **da solo**
-— non accoppiato con sé stesso — perché è il termine di paragone della sua riga: quanto guadagni davvero
-mettendogli accanto qualcun altro.
+portieri titolari. Un club senza board porta la colonna senza nome.
+
+La **diagonale è VUOTA**, per decisione dell'operatore del 03/09/2026 sera («gli incroci ATA/ATA, BOL/BOL
+dovrebbero essere caselle vuote»): un club con sé stesso non è una coppia, e una casella col numero dentro
+si legge come se lo fosse. Quello che quella casella misurava — il club **da solo**, cioè il termine di
+paragone della sua riga — non si butta: è un fatto su UN club e non su una coppia, quindi sta accanto al
+suo nome sull'intestazione della riga, che è il posto dove i fatti su un club vivono. Un asserto dell'arnese
+lo controlla: la diagonale non scrive niente e **ogni** riga porta il suo «da solo», o il numero è stato
+perso invece che spostato.
 
 ### 34.6 Il click su un portiere NON mette il calciatore in asta
 
@@ -2579,3 +2815,99 @@ E un difetto **dell'arnese** che vale la pena segnare: il primo passo che ricalc
 le **stampava** accanto a quelle dello schermo senza confrontarle — cioè un audit che risponde «nessun
 problema» dopo aver guardato niente. Messo il confronto, ha subito trovato il proprio bug di parsing
 (`Number("28 facili")`), che è la prova che è vivo.
+
+### 34.8 UNA CASELLA CONDIVISA NON SI PUÒ ETICHETTARE DAGLI ASSI (3 settembre 2026, sera)
+
+Il difetto più grosso di questa modale, trovato dall'operatore su una casella e non da nessun test:
+nel popover di «Com + Ata» **le partite dell'Atalanta erano disegnate sotto Como e quelle del Como sotto
+Atalanta**, e con esse il segno di «facile». Le sue parole: «quii non mi trovo».
+
+La causa è una scelta giusta pagata al piano di sopra. `coverGrid` calcola **metà** griglia e fa leggere
+alla casella e alla sua speculare **lo stesso oggetto** — «due passate su una domanda sola è come una
+casella e la sua speculare finiscono per non essere d'accordo», che è la ragione per cui è scritta così —
+e il prezzo è che `PairRow.a` e `.b` sono l'ordine in cui la **COPPIA** è stata costruita, non la riga e
+la colonna di chi la guarda. Sotto la diagonale i due sono invertiti, e il template le etichettava dagli
+assi.
+
+Curato dove non si può più sbagliare: la casella **dichiara di chi è ciascuna colonna** (`GridCell.clubA`
+/ `clubB`), il popover intitola le colonne con quelle e non con `row`/`column`, e anche il titolo della
+casella («Ata + Cag») segue lo stesso ordine — due ordini per una coppia sono come qualcuno rilegge le
+colonne al rovescio. Due prove, non una: uno spec sull'oggetto (sotto la diagonale la casella è la stessa
+e i suoi due nomi sono nell'ordine vero) e un asserto dell'arnese che **ricalcola l'attribuzione dal
+bundle**, colonna per colonna, su una casella scelta **sotto** la diagonale — cioè nella metà dove il
+difetto viveva: `Atalanta 37/37 righe · Cagliari 37/37`.
+
+Le altre quattro richieste della stessa sera, tutte misurate a schermo:
+- **la tabella deve stare nella modale.** Venti colonne da 74px più l'intestazione chiedevano ~1610px
+  contro i ~1430 che 96vw lascia: le colonne portano ora la **sigla** (`shortNames`, una definizione
+  sola per tutta l'app, che sa che il pool fa parte dell'etichetta) col nome intero nel `title` — un
+  ATTRIBUTO e non un nodo, perché un elemento che non è una `<th>` dentro la riga di intestazione si
+  mangia una colonna della griglia (gli 84px del 20/08). Misurato: tabella **1065px in un riquadro da
+  1461px**, modale 1506 su 1574 di finestra, e il riquadro scorre comunque perché uno schermo più
+  piccolo esiste;
+- **la spunta al posto della «V»** (`nz-icon` `check`), che ha portato con sé un asserto da riscrivere:
+  l'arnese contava il TESTO «V» e con l'icona avrebbe letto zero dando la colpa alla regola;
+- **niente scorrimento laterale nella lista delle partite**: larghezza dichiarata, `table-fixed`, nomi
+  troncati col nome intero nel `title`, e la misura è `scrollWidth − clientWidth` = **0px**;
+- **la regola della spunta letta riga per riga** e non come totale: «c'è quando almeno una delle due è
+  facile, ed è evidenziata solo la partita facile». L'arnese confronta le due cose su ogni riga (0
+  discordanze su 37), che è più di quanto dica il totale già asserito.
+
+
+## 35. L'ASTERISCO del listone: chi non gioca piu' in questo campionato (3 settembre 2026, sera)
+
+Dalla segnalazione dell'operatore su una schermata della plancia — **Lukaku nello slot A3 del Napoli**,
+max offerta 30 crediti — e dalla sua correzione, che e' la meta' importante: «Lukaku non deve essere
+tolto per la nota "fuori rosa" ma perche' **non gioca piu' in serie A**», e poi la regola per intero:
+«i calciatori acquistabili sulla plancia devono essere presenti nel listone (serie-a o euroleghe) e non
+devono avere l'asterisco».
+
+**La prima cura era la meta' sbagliata, ed e' stata ritirata.** Una nota DICHIARATA (`out_of_squad`)
+c'era dal 25/08 e la plancia non la leggeva; farla rifiutare l'uomo lo toglieva dallo schermo con la
+ragione sbagliata — «fuori rosa» e' uno stato DENTRO un club, «non gioca piu' qui» e' un fatto sul
+CAMPIONATO, e leggere il primo come il secondo e' inventare un fatto da un altro, che e' esattamente
+la regola per cui `dispute` e `wants_out` non toccano niente. La nota e' tornata a essere quello che
+e': un'icona.
+
+**L'ASTERISCO ESISTE NEI DATI E LO SCARICAVAMO GIA'.** Il file delle quotazioni ha sei fogli e due
+contano: `Tutti` e **`Ceduti`** — sul sito la stessa cosa e' l'asterisco accanto al nome. Lukaku era
+fra i ceduti su TUTT'E DUE i listoni. `parse_listone` leggeva entrambi i fogli e li FONDEVA, con una
+buona ragione scritta nel suo docstring (un ceduto ha comunque giocato e i suoi voti vanno attribuiti)
+e una conseguenza mai notata: la domanda «si puo' ancora comprare?» non stava in nessuna colonna.
+Cura: `listone_quotes.sold`, scritto da `ratings`, letto da `snapshot`, con la migrazione additiva.
+**E' un fatto per PIATTAFORMA** come il prezzo e il club (regola del 07/08, ora incontrata una terza
+volta): sul listone Serie A sono ceduti **57** uomini, su quello EuroLeghe **79**, e sette di quelli —
+Di Gregorio, Suzuki, El Aynaoui, Nkunku, Dia, David, Gutierrez — sono ceduti in Serie A e **comprabili
+su euro**, perche' sono andati in un campionato che euro gioca. Non e' irreversibile: l'ultima lettura
+decide, quindi chi rientra in `Tutti` torna comprabile (nessun `COALESCE`, che congelerebbe il primo
+`1` — il difetto gia' pagato da `rosters.league`).
+
+Effetto misurato, `SHEET_REVISION` 40: **36 righe fuori dal foglio Serie A** (Leao, Gimenez, Morata,
+Lukaku, Buksa, Kuhn...), 36 dal mantra Serie A, **48** dal foglio euro; il bundle dell'app non porta
+piu' Lukaku su nessuno dei tre.
+
+**I due segnali che il foglio gia' consultava non potevano supplire**, ed e' la ragione per cui questo
+canale serviva davvero: il TRASFERIMENTO al Fenerbahce e' entrato nel DB solo la sera del 03/09
+(`first_seen`), e `_still_buyable` chiede comunque che la fonte lo VEDA in un club fuori perimetro —
+cosa impossibile per chi va in un campionato che non leggiamo. L'ultima lettura utile lo dava al Napoli
+il **10/08**, e il Napoli e' stato riletto ogni giorno fino al 03/09 senza di lui. Resta a verbale
+l'item gia' aperto («`_still_buyable` deve leggere la DATA dell'avvistamento»): con l'asterisco non e'
+piu' urgente, e la ragione per cui non lo si e' fatto stasera e' che il segnale automatico da solo
+nomina **104 quotati su 590**, con Leao, David e Nkunku in cima.
+
+**Le ICONCINE sulle righe, e un menu' per spegnerle** (sua richiesta, stessa sera). `ui-flags` sulla
+riga della plancia, **due al massimo** perche' una riga e' alta 17px: il taglio e' in coda — dove
+`marksFor` mette gia' i marchi in ordine di importanza — e quante ne restano fuori e' DETTO (`+N`),
+perche' una riga che ne disegna due su cinque senza dirlo si legge come un uomo che ne ha due. Quali
+disegnare lo decide `core/flag-prefs.ts`, una preferenza sola per tutta l'app (in `localStorage`, come
+`view-state.ts` prescrive per «come si legge»), col menu' in barra: ogni voce porta la SUA icona col
+suo inchiostro, piu' «tutti» e «nessuno». **Si tiene la lista degli SPENTI e non degli accesi**, cosi'
+un marchio nuovo nasce acceso invece di essere spento in silenzio da una preferenza salvata mesi prima
+— «vuoto = ignoto» applicato a una preferenza. Un test lega il menu' al vocabolario: se qualcuno
+aggiunge un `PlayerFlag` e non lo mette in un gruppo, l'icona comparirebbe sulle righe senza un
+interruttore.
+
+Misurato in un browser vero, con un puntatore vero: 250 righe, **62 icone su 55 righe**; il bottone non
+e' coperto (`elementFromPoint`); il menu' apre **23 voci** (21 marchi + le due vie); «nessuno» porta le
+icone a **0**, «tutti» le riporta a 62, spegnere «Si infortuna spesso» le porta a **25**, e dopo un
+RICARICAMENTO restano 25. Zero errori in console. Suite: 603 test app, 650 toolkit.

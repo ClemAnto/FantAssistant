@@ -101,6 +101,7 @@
           estrai
         </button>
       }
+      <ui-flag-menu />
       <button nz-button nzType="primary" nzSize="small" (click)="connecting.set(true)">
         <nz-icon nzType="wifi" />
         {{ feed.connected() ? 'Cambia asta' : "Collegati a un'asta vera" }}
@@ -144,7 +145,6 @@
       [myCredits]="room()"
       [myMissing]="myMissing()"
       (pick)="onPick($event)"
-      (keeperPairs)="onKeeperPairs($event)"
     />
 
     <plancia-team-grid
@@ -157,3 +157,6 @@
 
 <ui-live-connect [(open)]="connecting" />
 <plancia-keeper-pairs />
+<!-- La card sta FUORI dalla griglia della plancia, in `fixed`: dentro erediterebbe il suo `overflow`
+     e si taglierebbe al primo trascinamento. -->
+<plancia-man-card />

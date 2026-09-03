@@ -2,23 +2,67 @@
 
      La griglia scorre dentro il suo riquadro e la modale no: venti colonne non stanno in una finestra,
      e una pagina che scorre di lato al posto della tabella è il difetto che questo progetto ha già
-     pagato. Intestazioni appiccicate su due lati, così una casella al centro sa sempre di chi è. -->
+     pagato. Intestazioni appiccicate su due lati, così una casella al centro sa sempre di chi è.
+
+     LE CASELLE SONO STRETTE PERCHE' LA TABELLA DEVE STARE NELLA MODALE (richiesta dell'operatore,
+     03/09/2026): venti colonne da 74px più l'intestazione chiedevano ~1610px contro i ~1430 che 96vw
+     lascia su questo schermo, quindi la tabella sfondava. Le colonne portano la SIGLA (`shortNames`,
+     una definizione sola per tutta l'app) e il `title` nativo porta il nome intero - un ATTRIBUTO e
+     non un nodo: un elemento che non è una `<th>` dentro la riga di intestazione si mangia una
+     colonna della griglia, che è il difetto degli 84px del 20/08. Il riquadro scorre comunque,
+     perché uno schermo più piccolo esiste.
+
+     E LA MODALE È LARGA QUANTO LA GRIGLIA, non quanto la finestra (sua richiesta, subito dopo): con le
+     caselle strette la tabella chiede ~1065px e il 96vw ne lasciava 440 di vuoto. `min()` perché i
+     vincoli sono DUE, il contenuto e lo schermo, e il tetto è la tabella più i due padding del corpo -
+     dove le squadre sono più di venti (euro ne porta 37) la tabella supera il tetto e scorre dentro il
+     suo riquadro, che è ciò per cui il riquadro esiste. -->
 <nz-modal
   [nzVisible]="open()"
   [nzFooter]="null"
-  nzWidth="96vw"
+  nzWidth="min(96vw, 1140px)"
+  nzCentered
   nzTitle="Coppie di portieri, squadra per squadra"
   (nzOnCancel)="open.set(false)"
 >
-  <div *nzModalContent class="flex flex-col gap-2">
-    <p class="text-xs leading-relaxed text-muted">
-      Giornate <b class="text-fg">{{ window().from }}–{{ window().to }}</b
-      >: in ogni casella, quante ne hanno <b class="text-fg">almeno una partita facile</b> fra le
-      due squadre. Sulle colonne, il portiere che il club schiera secondo il campetto del toolkit.
-      La tinta è relativa a <b class="text-fg">questa</b> griglia (il massimo è {{ top() }}); sulla
-      diagonale c'è il club <b class="text-fg">da solo</b>, che è il termine di paragone della sua
-      riga. Passa sopra una casella per il calendario di tutte e due, con una
-      <b class="text-success">V</b> sulle partite facili.
+  <div *nzModalContent class="flex min-w-0 flex-col gap-2">
+    <!-- UNA RIGA, non un paragrafo (sua richiesta: «compatta un po' la modale ... puoi togliere la
+         descrizione testuale»). Quello che NON si può togliere è la LEGENDA - una scala a classi senza
+         legenda è una figura che nessuno può controllare - e la spiegazione intera resta a un dito di
+         distanza, nel tooltip dell'icona, invece di occupare tre righe ogni volta che la griglia si
+         apre. Il tooltip sta su uno `<span>` fuori da qualunque `<tr>`: qui non ci sono colonne da
+         mangiare, ma la regola è la stessa. -->
+    <p class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
+      <span>
+        Giornate <b class="text-fg">{{ window().from }}–{{ window().to }}</b
+        >: giornate con <b class="text-fg">almeno una partita facile</b> fra le due.
+      </span>
+      <span class="inline-flex items-center gap-1">
+        <span class="text-[10px]">meno</span>
+        @for (step of legend(); track step.at) {
+          <span
+            class="inline-block h-3 w-4 rounded-sm border border-border"
+            [style.background-color]="step.background"
+          ></span>
+        }
+        <span class="text-[10px]">più</span>
+      </span>
+      <span>Clicca una casella per il calendario.</span>
+      <span
+        class="cursor-help"
+        nz-tooltip
+        [nzTooltipTitle]="
+          'FACILI = giornate in cui almeno uno dei due gioca una partita in cui è probabile che la sua ' +
+          'squadra non subisca gol, dal livello dei due club, dal campo e dai gol delle loro ultime ' +
+          'dieci partite (misurata: 39% di porte inviolate contro il 20% nelle altre). La tinta è a ' +
+          'cinque gradini sui valori di QUESTA griglia, un quinto delle caselle per gradino, e il ' +
+          'massimo qui è ' + top() + '. Sulle colonne il portiere che il club schiera secondo il ' +
+          'campetto del toolkit. Un club con se stesso non è una coppia: la diagonale è vuota e quanto ' +
+          'copre un club da solo è il numeretto accanto al suo nome.'
+        "
+      >
+        <nz-icon nzType="info-circle" nzTheme="outline" />
+      </span>
     </p>
 
     @if (!clubs().length) {
@@ -26,7 +70,9 @@
         Il bundle non porta il calendario di questo campionato: non c'è una griglia da disegnare.
       </p>
     } @else {
-      <div class="max-h-[70vh] overflow-auto rounded border border-border">
+      <div
+        class="max-h-[calc(100vh-190px)] w-full min-w-0 overflow-auto rounded border border-border"
+      >
         <table class="border-separate border-spacing-0 text-[11px]">
           <thead>
             <tr>
@@ -40,11 +86,12 @@
                      legata. Misurato qui il 03/09/2026: lo sfondo restava `--color-surface` mentre il
                      TESTO passava a `--color-on-primary`, cioe' scuro su scuro, 1,08:1. -->
                 <th
-                  class="sticky top-0 z-10 border-r border-b border-border px-1 py-1 align-bottom"
+                  class="sticky top-0 z-10 border-r border-b border-border px-0.5 py-1 align-bottom"
                   [class]="column === highlight() ? 'bg-primary text-on-primary' : 'bg-surface'"
+                  [title]="column + ' - ' + (keeperOf().get(column) ?? 'campetto assente')"
                 >
-                  <div class="flex w-[74px] flex-col items-center gap-0.5">
-                    <span class="truncate font-semibold">{{ column }}</span>
+                  <div class="flex w-[46px] flex-col items-center gap-0.5">
+                    <span class="font-semibold uppercase">{{ sigla(column) }}</span>
                     <span
                       class="w-full truncate text-[9px] leading-tight"
                       [class.text-muted]="column !== highlight()"
@@ -59,24 +106,40 @@
             @for (row of rows(); track row.club) {
               <tr>
                 <th
-                  class="sticky left-0 z-10 border-r border-b border-border px-2 py-0.5 text-left font-semibold whitespace-nowrap"
+                  class="sticky left-0 z-10 border-r border-b border-border px-1 py-0.5 text-left whitespace-nowrap"
                   [class]="row.club === highlight() ? 'bg-primary text-on-primary' : 'bg-surface'"
+                  [title]="row.club + ' da solo: ' + row.alone + ' giornate con una partita facile'"
                 >
-                  {{ row.club }}
+                  <span class="font-semibold uppercase">{{ sigla(row.club) }}</span>
+                  <span class="ml-1 text-[9px]" [class.text-muted]="row.club !== highlight()">{{
+                    row.alone
+                  }}</span>
                 </th>
                 @for (square of row.squares; track square.column) {
+                  <!-- UNA `<td>` SOLA CON I BINDING CONDIZIONALI, e non due rami di un `@if`: la
+                       diagonale è vuota e non apre niente, e `nzPopoverTrigger` a null è come si
+                       spegne una direttiva che non si può togliere. Diciannove celle quasi identiche
+                       sono il posto dove si dimentica una classe sulla diciannovesima.
+
+                       LO SFONDO LO DECIDE `tone()` E NESSUN ALTRO: una classe di sfondo legata accanto
+                       a uno `style` inline è una utility che non dipinge mai (lo stile inline vince),
+                       cioe' esattamente il difetto del 27/08 in versione muta. Sulla diagonale
+                       `tone()` risponde `transparent`, e il vuoto è la risposta giusta: non è una
+                       domanda, quindi non ha nemmeno una tinta. -->
                   <td
-                    class="border-r border-b border-border px-1 py-0.5 text-center tabular-nums"
-                    [class.text-muted]="square.diagonal"
+                    class="border-r border-b border-border px-0.5 py-0.5 text-center tabular-nums"
                     [class.font-semibold]="!square.diagonal"
                     [style.background-color]="tone(square)"
                     nz-popover
                     nzPopoverPlacement="right"
-                    [nzPopoverTitle]="square.row + ' + ' + square.column"
+                    [nzPopoverTrigger]="square.diagonal ? null : 'click'"
+                    [nzPopoverTitle]="
+                      sigla(square.cell.clubA) + ' + ' + sigla(square.cell.clubB)
+                    "
                     [nzPopoverContent]="detailTpl"
-                    (mouseenter)="hovered.set(square)"
+                    (pointerdown)="onCell(square)"
                   >
-                    {{ square.cell.facili }}
+                    {{ square.diagonal ? '' : square.cell.facili }}
                   </td>
                 }
               </tr>
@@ -88,36 +151,73 @@
   </div>
 </nz-modal>
 
-<!-- IL POPOVER: il calendario delle due squadre affiancato, una riga per giornata, la V dove la
-     regola scatta. Un solo template per tutte le caselle - quattrocento copie di questa tabella
-     sarebbero quattrocento viste costruite per mostrarne una. -->
+<!-- IL POPOVER: il calendario delle due squadre affiancato, una riga per giornata, il check dove la
+     regola scatta (almeno una delle due partite facile) e il grassetto SOLO sulla partita facile. Un
+     solo template per tutte le caselle - quattrocento copie di questa tabella sarebbero quattrocento
+     viste costruite per mostrarne una.
+
+     LE COLONNE SI ETICHETTANO DALLA CASELLA E NON DAGLI ASSI (`cell.clubA` / `cell.clubB`): la casella
+     è condivisa con la sua speculare, quindi sotto la diagonale `row` e `column` sono l'ordine
+     SBAGLIATO - l'operatore ha visto «Com + Ata» disegnare le partite dell'Atalanta sotto Como, e con
+     esse il grassetto sulla colonna sbagliata.
+
+     NIENTE SCORRIMENTO DI LATO: larghezza dichiarata, `table-fixed`, i nomi troncati col nome intero
+     nel `title`. Una lista di sedici righe che si legge scorrendo in due direzioni non si legge. -->
 <ng-template #detailTpl>
   @if (hovered(); as square) {
-    <div class="max-h-80 overflow-y-auto">
-      <table class="text-[11px]">
+    <div class="max-h-80 w-[19rem] overflow-x-hidden overflow-y-auto">
+      <p class="mb-1 text-[11px] text-muted">
+        {{ sigla(square.cell.clubA) }} da solo <b class="text-fg">{{ square.cell.aloneA }}</b> ·
+        {{ sigla(square.cell.clubB) }} da solo <b class="text-fg">{{ square.cell.aloneB }}</b> ·
+        insieme <b class="text-fg">{{ square.cell.facili }}</b>, quindi il secondo ne aggiunge
+        <b [class.text-success]="square.cell.gain >= 5" [class.text-fg]="square.cell.gain < 5"
+          >+{{ square.cell.gain }}</b
+        >
+      </p>
+      <table class="w-full table-fixed text-[11px]">
+        <colgroup>
+          <col class="w-7" />
+          <col />
+          <col />
+          <col class="w-7" />
+        </colgroup>
         <thead>
           <tr class="text-muted">
             <th class="px-1 text-right font-normal">g.</th>
-            <th class="px-2 text-left font-normal">{{ square.row }}</th>
-            @if (!square.diagonal) {
-              <th class="px-2 text-left font-normal">{{ square.column }}</th>
-            }
-            <th class="px-1 text-center font-normal">facile</th>
+            <th class="truncate px-2 text-left font-normal uppercase" [title]="square.cell.clubA">
+              {{ sigla(square.cell.clubA) }}
+            </th>
+            <th class="truncate px-2 text-left font-normal uppercase" [title]="square.cell.clubB">
+              {{ sigla(square.cell.clubB) }}
+            </th>
+            <th class="px-1 text-center font-normal">ok</th>
           </tr>
         </thead>
         <tbody>
           @for (row of square.cell.rows; track row.round) {
             <tr [class.text-muted]="!row.facile">
               <td class="px-1 text-right tabular-nums">{{ row.round }}</td>
-              <td class="px-2 whitespace-nowrap" [class.font-semibold]="row.a?.easy">
+              <td
+                class="truncate px-2"
+                [class.font-semibold]="row.a?.easy"
+                [class.text-success]="row.a?.easy"
+                [title]="label(row, 'a')"
+              >
                 {{ label(row, 'a') }}
               </td>
-              @if (!square.diagonal) {
-                <td class="px-2 whitespace-nowrap" [class.font-semibold]="row.b?.easy">
-                  {{ label(row, 'b') }}
-                </td>
-              }
-              <td class="px-1 text-center font-bold text-success">{{ row.facile ? 'V' : '' }}</td>
+              <td
+                class="truncate px-2"
+                [class.font-semibold]="row.b?.easy"
+                [class.text-success]="row.b?.easy"
+                [title]="label(row, 'b')"
+              >
+                {{ label(row, 'b') }}
+              </td>
+              <td class="px-1 text-center text-success">
+                @if (row.facile) {
+                  <nz-icon nzType="check" nzTheme="outline" />
+                }
+              </td>
             </tr>
           }
         </tbody>

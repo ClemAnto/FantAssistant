@@ -10,10 +10,12 @@ import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 import { AuctionFeed } from '../../core/auction-feed';
 import { ROLES } from '../../core/plancia';
 import { BoardMan, PlanciaStore } from '../../core/plancia-store';
+import { FlagMenu } from '../../ui/flag-menu/flag-menu';
 import { LiveConnect } from '../../ui/live-connect/live-connect';
 import { APP_VERSION } from '../../version';
 import { KeeperPairs } from './keeper-pairs/keeper-pairs';
 import { LotCard } from './lot-card/lot-card';
+import { ManCard } from './man-card/man-card';
 import { SlotMatrix } from './slot-matrix/slot-matrix';
 import { TeamGrid } from './team-grid/team-grid';
 
@@ -45,9 +47,11 @@ import { TeamGrid } from './team-grid/team-grid';
     NzIconModule,
     NzInputNumberModule,
     NzTooltipModule,
+    FlagMenu,
     KeeperPairs,
     LiveConnect,
     LotCard,
+    ManCard,
     SlotMatrix,
     TeamGrid,
   ],
@@ -87,18 +91,16 @@ export class Plancia {
     void this.store.startDemo();
   }
 
-  protected onPick(man: BoardMan): void {
-    this.store.setLot(man.id);
-  }
-
   /**
-   * Un portiere non va in asta col click: chiede con chi accoppiarlo.
+   * IL CLICK APRE LA CARD, e nient'altro (istruzione dell'operatore, 04/09/2026).
    *
-   * Due gesti distinti, per istruzione dell'operatore (03/09/2026). Una rosa schiera UN portiere, quindi
-   * la domanda che si fa su di lui non e' «quanto offro» ma «quale dei dieci», ed e' una domanda sul
-   * CALENDARIO: quante giornate della competizione hanno lui o il suo compagno con la porta al sicuro.
+   * Prima nominava il LOTTO per un uomo di movimento e apriva gli accoppiamenti per un portiere - due
+   * gesti diversi sullo stesso click, che era già una sua correzione del 03/09 («cliccare non deve
+   * mettere il calciatore in asta»). Adesso il click fa una cosa sola per tutti e le altre due sono
+   * BOTTONI dentro la card: nominare il lotto, e per un portiere gli abbinamenti. Un gesto che fa due
+   * cose diverse a seconda del ruolo è un gesto che va imparato; un gesto che apre una card no.
    */
-  protected onKeeperPairs(man: BoardMan): void {
-    this.store.openPairs(man.id);
+  protected onPick(man: BoardMan): void {
+    this.store.openCard(man.id);
   }
 }

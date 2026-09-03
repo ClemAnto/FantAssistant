@@ -6,3 +6,13 @@
     [nzTooltipTitle]="hint(mark)"
   />
 }
+@if (hiddenByCap(); as more) {
+  <!-- IL TAGLIO SI DICHIARA: una riga che disegna due icone su cinque senza dirlo si legge come un uomo
+       che ne ha due. -->
+  <span
+    class="text-[9px] leading-none text-muted"
+    nz-tooltip
+    [nzTooltipTitle]="'e altri ' + more + ' segnali: aprilo per leggerli tutti'"
+    >+{{ more }}</span
+  >
+}

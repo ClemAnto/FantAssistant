@@ -35,8 +35,29 @@
               }}</span>
             </div>
 
-            <!-- I dieci nomi. Una riga = un nome e UN numero: la max offerta se e' nell'urna, il
-                 prezzo pagato se e' di qualcuno. L'hover porta la coppia dello slot sotto. -->
+            <!-- I DIECI NOMI, e NIENTE TOOLTIP (sua istruzione, 03/09/2026: «è fastidioso»): su una
+                 plancia di 250 righe un pannello che si apre passando copre proprio le righe che stai
+                 leggendo. Al suo posto l'hover EVIDENZIA nella mappa i due uomini che comprerebbe
+                 invece di lui - che è la stessa informazione, mostrata dove i due uomini vivono
+                 invece che riscritta in un riquadro sopra.
+
+                 TRE NUMERI E OGNUNO DICE UNA COSA SOLA: quanto rende sopra il sei per partita
+                 giocata, fra parentesi le partite attese, e a destra la max offerta (o il prezzo
+                 pagato, con la barra del proprietario a dirlo). La versione intermedia li fondeva in
+                 una cifra a giornata e lui l'ha ritirata - «i punteggi non tornano, meglio il delta
+                 medio a partita e tra parentesi il num di partite atteso» - perché il riferimento
+                 «sei in TUTTE le giornate» non lo raggiunge nessuno (la colonna diventava −247 su un
+                 attaccante da 19 presenze) e perché due fatti in una cifra non si leggono. Così
+                 l'ordine del blocco, che è il valore atteso, viene SPIEGATO da quello che c'è
+                 scritto: `+1,1 (33)` sopra `+1,6 (30)` si capisce a colpo d'occhio.
+
+                 L'EVIDENZIAZIONE È UNO SFONDO E NON UN BORDO (sua istruzione, subito dopo): un bordo
+                 su una riga alta dieci pixel sposta il testo e si legge come un salto, una tinta non
+                 muove niente. Rosso leggerissimo, e come stile INLINE perché queste righe hanno già
+                 una classe di sfondo per lo stato (mio · di un altro · in asta): due utility sulla
+                 stessa proprietà si decidono sull'ordine del CSS generato e non su quale delle due è
+                 legata (il difetto del 27/08), mentre un inline condizionale vince quando c'è e
+                 lascia dipingere la classe quando non c'è. -->
             <div class="flex min-h-0 flex-1 flex-col">
               @for (man of block.rows; track man.id) {
                 <button
@@ -45,15 +66,34 @@
                   [class]="rowTone(man)"
                   [disabled]="inert(man)"
                   (click)="press(man)"
-                  nz-tooltip
-                  [nzTooltipTitle]="rowTip(man)"
-                  nzTooltipOverlayClassName="whitespace-pre-line"
+                  (mouseenter)="hover(man)"
+                  (mouseleave)="hover(null)"
+                  [style.background-color]="instead(man) ? INSTEAD_TINT : null"
+                  [title]="rowTip(man)"
                 >
                   <span
                     class="h-2.5 w-0.5 shrink-0 rounded-full"
                     [style.background-color]="man.ownerColour ?? 'transparent'"
                   ></span>
                   <span class="min-w-0 flex-1 truncate">{{ man.name }}</span>
+                  <!-- LE ICONCINE, fra il nome e i numeri (operatore, 03/09/2026). Due al massimo,
+                       perche' una riga e' alta 17px e la terza mangerebbe il nome: `ui-flags` taglia in
+                       coda, dove i marchi sono gia' in ordine di importanza, e DICE quante ne restano
+                       fuori. Quali disegnarne lo decide il menu' in barra, che e' una preferenza sola
+                       per tutta l'app. -->
+                  <ui-flags
+                    class="shrink-0 text-[10px] leading-none"
+                    [playerId]="man.id"
+                    [max]="2"
+                  />
+                  <span class="shrink-0 tabular-nums opacity-60">{{
+                    man.edge == null
+                      ? '·'
+                      : (man.edge > 0 ? '+' : '') + (man.edge | number: '1.1-1')
+                  }}</span>
+                  <span class="shrink-0 tabular-nums opacity-40">{{
+                    man.pv == null ? '' : '(' + (man.pv | number: '1.0-0') + ')'
+                  }}</span>
                   <span class="shrink-0 tabular-nums">{{
                     man.price != null ? (man.price | number: '1.0-0') : '—'
                   }}</span>

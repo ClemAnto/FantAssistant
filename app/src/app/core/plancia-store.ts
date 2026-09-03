@@ -26,14 +26,17 @@ import { GlobalOptions } from './global-options';
 import {
   CalendarBook,
   CalendarFile,
+  EASY_ALREADY_SHARE,
   GridCell,
   PairSuggestion,
+  aloneCover,
   calendarBookFrom,
   coverGrid,
   rankPairs,
 } from './keeper-pairs';
 import {
   Alternative,
+  EDGE_BASE,
   LotAdvice,
   PlanciaMan,
   PlanciaMap,
@@ -60,6 +63,14 @@ export interface BoardMan extends PlanciaMan {
   state: ManState;
   /** What he was paid, once somebody has him; the max offer while he is still in the urn. */
   price: number | null;
+  /**
+   * La banda INTERA, che la riga calcola comunque per stamparne il massimo.
+   *
+   * Tenuta invece di ricalcolata perché la card di un calciatore vuole i due estremi: due chiamate a
+   * `offerBand` con due insiemi di parametri sono come un uomo finisce con due prezzi, e questa è la
+   * stessa funzione che disegna la riga. `null` dove il foglio non lo prezza o dove è già di qualcuno.
+   */
+  band: { low: number; high: number } | null;
   ownerId: number | null;
   ownerLabel: string | null;
   ownerColour: string | null;
@@ -174,8 +185,15 @@ export class PlanciaStore {
         fvm: player.fvm,
         points,
         pv: valuation.pv,
+        // Dalla fantamedia e non da `points / pv`: quel rapporto tornerebbe lo stesso numero solo
+        // finche' nessuno tocca `points`, e due strade per una cifra e' come un uomo finisce con due
+        // valutazioni. Le presenze viaggiano accanto (`pv`), non dentro.
+        edge: valuation.fm != null ? valuation.fm - EDGE_BASE : null,
         basis: valuation.basis as ValuationBasis,
         outNow: !!this.status.unavailableNow(player.id),
+        // La nota dichiarata, come informazione sulla riga: solo `out_of_squad`, perche' `dispute` e
+        // `wants_out` sono stati di una RELAZIONE e chi ci sta dentro si schiera e si compra ancora.
+        outOfSquad: this.status.declared().get(player.id)?.kind === 'out_of_squad',
       });
     }
     return out;
@@ -215,25 +233,33 @@ export class PlanciaStore {
         if (state === 'urna' || state === 'asta') left += 1;
         if (state === 'mio') hasMine = true;
         const team = owner ? teams.get(owner.teamId) : null;
+        const band =
+          offerBand({
+            role: block.role,
+            slotIndex: block.index,
+            budget,
+            room: budget,
+            points: man.points,
+            medianPoints,
+          }) ?? null;
         return {
           ...man,
           state,
-          price:
-            owner?.price ??
-            offerBand({
-              role: block.role,
-              slotIndex: block.index,
-              budget,
-              room: budget,
-              points: man.points,
-              medianPoints,
-            })?.high ??
-            null,
+          band,
+          price: owner?.price ?? band?.high ?? null,
           ownerId: owner?.teamId ?? null,
           ownerLabel: team?.label ?? null,
           ownerColour: team?.colour ?? null,
         };
       });
+
+      // I MIEI IN CIMA AL BLOCCO (sua richiesta, 03/09/2026), e sotto di loro l'ordine MISURATO
+      // resta intatto: `sort` in JS e' stabile, quindi questo e' un PREFISSO e non un riordino - la
+      // stessa forma dell'ordine personale dei blocchi della pagina strategia. Il resto del blocco
+      // continua a leggersi per valore atteso, che e' l'ordine che §23.2 ha adottato.
+      rows.sort(
+        (left_, right_) => (right_.state === 'mio' ? 1 : 0) - (left_.state === 'mio' ? 1 : 0),
+      );
 
       return { ...block, rows, left, mine: hasMine };
     });
@@ -415,16 +441,23 @@ export class PlanciaStore {
     suggestions: PairSuggestion<BoardMan>[];
     otherLeague: number;
     taken: number;
+    deputies: number;
+    covered: number;
   }>(() => {
     const man = this.pairingMan();
     const book = this.calendar();
     const calendar = man && book ? book.forClub(man.club) : null;
-    if (!man || !book || !calendar) return { suggestions: [], otherLeague: 0, taken: 0 };
+    if (!man || !book || !calendar) {
+      return { suggestions: [], otherLeague: 0, taken: 0, deputies: 0, covered: 0 };
+    }
 
     const { from, to } = this.pairingWindow();
+    const first = this.boardKeeperIds();
     const candidates: { man: BoardMan; club: string }[] = [];
     let otherLeague = 0;
     let taken = 0;
+    let deputies = 0;
+    let covered = 0;
     for (const block of this.blocks()) {
       if (block.role !== 'P') continue;
       for (const row of block.rows) {
@@ -437,6 +470,34 @@ export class PlanciaStore {
           otherLeague += 1;
           continue;
         }
+        // SOLO I PRIMI PORTIERI (istruzione dell'operatore, 03/09/2026: «non mostrare sia Meret che
+        // Milinkovic S.»). Chi il campetto NON schiera non e' un accoppiamento: di un club gioca un
+        // portiere, quindi il vice non aggiunge una giornata a nessuno. Il primo si legge dal
+        // campetto del toolkit - la stessa mappa che intesta le colonne della griglia - e per
+        // IDENTITA'. Dove il campetto non c'e' la mappa non ha una voce e non si esclude nessuno:
+        // «vuoto = ignoto», e nascondere un portiere di cui non sappiamo il posto e' inventare.
+        const owner = first.get(row.club);
+        if (owner != null && owner !== row.id) {
+          deputies += 1;
+          continue;
+        }
+        // NON I PORTIERI DI UN CLUB CHE E' GIA' COPERTO DA SOLO: la sua regola del 03/09/2026,
+        // «non consigliare i portieri di squadre che da sole hanno gia' 25 o piu' partite facili»,
+        // che ha sostituito la prima lettura («via il primo slot», cioe' per PREZZO) ritrattandola
+        // lui stesso. Il PREZZO era la quantita' sbagliata: su Butez quel taglio escludeva undici
+        // dei quattordici migliori compagni - Skorupski compreso, che e' venuto a cercare - mentre
+        // Provedel usciva primo non perche' costa (FVM 5) ma perche' e' dell'Inter, che da sola ne
+        // ha 34. «Scontato» e' una proprieta' del CALENDARIO, non del cartellino.
+        //
+        // La soglia vive nel core come QUOTA della finestra (`EASY_ALREADY_SHARE`), o su una
+        // competizione di tre giornate nessuno avrebbe mai 25 di niente.
+        if (
+          aloneCover(calendar, row.club, from, to) >=
+          EASY_ALREADY_SHARE * this.windowRounds(calendar, row.club, from, to)
+        ) {
+          covered += 1;
+          continue;
+        }
         candidates.push({ man: row, club: row.club });
       }
     }
@@ -444,8 +505,21 @@ export class PlanciaStore {
       suggestions: rankPairs(calendar, man.club, candidates, from, to),
       otherLeague,
       taken,
+      deputies,
+      covered,
     };
   });
+
+  /** Quante partite ha un club DENTRO la finestra: il denominatore della sua quota, contato e mai
+   *  `to - from` - una giornata che quel club non gioca non e' una giornata mancata. */
+  private windowRounds(
+    calendar: NonNullable<ReturnType<CalendarBook['forClub']>>,
+    club: string,
+    from: number,
+    to: number,
+  ): number {
+    return calendar.window(club, from, to).length;
+  }
 
   /**
    * LA GRIGLIA: ogni squadra del campionato contro ogni altra, e il portiere che ogni club schiera.
@@ -458,6 +532,9 @@ export class PlanciaStore {
   private readonly boardKeepers = signal<Map<string, string>>(new Map());
 
   readonly keeperOfClub = computed(() => this.boardKeepers());
+
+  /** Chi il campetto schiera, per identita': la sola cosa che dice «primo portiere» senza inventarla. */
+  private readonly boardKeeperIds = signal<Map<string, number>>(new Map());
 
   readonly keeperGrid = computed<{
     clubs: string[];
@@ -474,6 +551,35 @@ export class PlanciaStore {
   /** Apre gli accoppiamenti su un portiere. NON mette niente in asta: sono due gesti diversi. */
   openPairs(id: number | null): void {
     this.pairingId.set(id);
+  }
+
+  /**
+   * LA CARD DI UN CALCIATORE: chi è aperto, e uno solo alla volta.
+   *
+   * Un id e non l'uomo, per la ragione di sempre: la riga si ricostruisce a ogni aggiudicazione, e una
+   * card che tenesse la COPIA di un uomo continuerebbe a mostrare il prezzo di dieci minuti prima -
+   * «una lista mostrata i cui numeri descrivono un'altra lista». Con l'id la card segue lo stato.
+   */
+  private readonly cardId = signal<number | null>(null);
+
+  readonly cardMan = computed<BoardMan | null>(() => {
+    const at = this.cardId();
+    if (at == null) return null;
+    for (const block of this.blocks()) {
+      const found = block.rows.find((row) => row.id === at);
+      if (found) return found;
+    }
+    // Fuori mappa: la coda si compra a un credito e non ha una riga, quindi non ha una card.
+    return null;
+  });
+
+  openCard(id: number | null): void {
+    this.cardId.set(id);
+  }
+
+  /** I numeri del motore di un uomo, dal lettore unico: la card non ne apre un secondo. */
+  numbersFor(id: number): EngineNumbers | null {
+    return this.numbers().get(id) ?? null;
   }
 
   readonly teams = computed<BoardTeam[]>(() => {
@@ -679,11 +785,16 @@ export class PlanciaStore {
     const boards = await this.bundle.boards(sheet.boards);
     if (!boards?.clubs) return;
     const out = new Map<string, string>();
+    const ids = new Map<string, number>();
     for (const [club, board] of Object.entries(boards.clubs)) {
-      const keeper = board.lines?.['P']?.[0]?.name;
-      if (keeper) out.set(club, keeper);
+      const first = board.lines?.['P']?.[0];
+      if (first?.name) out.set(club, first.name);
+      // The ID and not the name: «an entity joins through its canonical key, never through the string
+      // a source uses to name it» - and the suggestions filter on exactly this.
+      if (first?.fc_id != null) ids.set(club, Number(first.fc_id));
     }
     this.boardKeepers.set(out);
+    this.boardKeeperIds.set(ids);
   }
 
   /**
