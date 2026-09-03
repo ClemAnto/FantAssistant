@@ -4009,3 +4009,103 @@ compare, col totale dove ha senso e senza dove non ce l'ha.
 `simulatore-asta-rilanci-v1.md` §28.2 meno la voce 3, che si chiude qui. In cima resta la
 **disomogeneità della stanza** (§23.4), e si aggiunge una voce nuova: **rimisurare il §16 senza le fasi**,
 perché il tavolo che l'operatore giocherà non le ha.
+
+## CHIUSURA della sessione 03/09/2026 (2) — la soglia che l'operatore aveva scelto a occhio era già la risposta
+
+Due sessioni sullo stesso albero, e questa chiusura copre **la metà accoppiamenti-portieri**; l'altra
+(«chi oggi non gioca»: `player-status.ts`, `ui/player-flags`, `injuries.observed_on`) è entrata nello
+stesso commit su decisione dell'operatore («committa tutto») ed è **misurata, non creduta** — vedi
+«Verifiche» sotto. Commit `3ef01e0`, che dichiara nel messaggio quale metà è di chi.
+
+### La richiesta
+
+«Quando nella plancia si clicca su un portiere si apra una modale con i migliori accoppiamenti con altri
+portieri»: calendario ristretto alle impostazioni della competizione, per ogni giornata quali portieri
+hanno una partita **facile** («una partita dove la squadra in cui gioca il portiere è probabile che
+subirà 0 gol», valutando avversario e casa/trasferta), la giornata conta se **almeno uno dei due** ce
+l'ha, i tre migliori indicati. Poi un tasto «mostra griglia» con squadre su righe e colonne, il numero di
+partite facili in ogni casella e, sull'hover, il calendario di tutte e due con una **V** sulle facili.
+
+### Il risultato principale: `EASY_MARGIN` = 200 È la sua frase, e nessuno lo aveva mai verificato
+
+La soglia era stata congelata da lui il 10/08 su un criterio del tutto diverso — «il club più forte deve
+smettere di leggere *tutte*» — mentre la frase di oggi è un'altra affermazione. Misurato su **5354
+partite-club di Serie A** (2019-20…2026-27; avversario e campo dal layer per partita, gol subiti dalle
+righe `role='P'` dei voti, quindi il conteggio non passa dal funnel delle identità):
+
+| vantaggio Elo | −200 | 0 | +100 | **+200** | +300 | +400 |
+|---|---|---|---|---|---|---|
+| P(porta inviolata) | 0.141 | 0.249 | 0.320 | **0.401** | 0.487 | 0.575 |
+
+A 200 la probabilità è **0.401** e il 40% cade a **199**. Quel 40% è anche
+`club_defence.CLEAN_SHEET_SHARE`, misurato un mese prima su un criterio scorrelato. Verifica
+dell'etichetta: le partite classificate facili chiudono a zero il **42,8%** delle volte contro il
+**23,9%** delle altre. Calibrazione entro 0,03 per decile tranne l'ultimo, che il modello **sovrastima**
+(0,473 contro 0,423) — detto perché è il decile delle coppie migliori.
+
+### La decisione dell'operatore, presa davanti alla misura
+
+Il conteggio **satura in basso**: alla soglia congelata, dodici club di venti non hanno **nessuna**
+partita facile in tutta la stagione, quindi quasi tutte le coppie pareggiano a zero e una classifica su
+quel solo numero direbbe «compra il portiere dell'Inter» a chiunque. Messo davanti a tre opzioni ha
+scelto: **la sua soglia decide, e a rompere il pareggio è una colonna continua** («coperte» = giornate
+attese con almeno una porta inviolata, `Σ 1 − (1−p_A)(1−p_B)`). Due numeri, due etichette, mai una cifra
+sola. **Respinto** abbassare la soglia a 138 (P=35%): sarebbe una soglia scelta perché il conteggio non
+piaceva. Seconda sua istruzione: **il click su un portiere non mette il calciatore in asta**.
+
+### Misurato e NON adottato
+
+Per una **porta inviolata** il vantaggio campo si fitta a **30-35** punti Elo e non ai 14,5 che
+`fixtures.py` usa, misurati sul **RISULTATO**. Log-loss fuori campione su 2320 partite: 0,57796 a H=35
+contro 0,57839 a H=14,5 e 0,57936 senza effetto campo — ottimo interno, quindi la direzione è
+identificata. Vale 0,0004 e il 3% delle classificazioni: **non abbastanza per una seconda costante di
+campo** in un modulo il cui output è tutto reporting. Scritto perché nessuno lo rimisuri.
+
+### Il confine, e la cosa che l'app non poteva dedursi
+
+Il **toolkit** decide se una partita è facile e con che probabilità (`fixtures.schedule` →
+`calendar.json` nel bundle); l'**app** conta (`core/keeper-pairs.ts`). E `fixtures`/`club_levels` sono
+chiavati su `matching.club_identity`, che è una tabella di alias in Python: rifarne il join in un browser
+vorrebbe dire ripetere quello che una volta ha perso Milan, Roma e Napoli dal calendario di tutti.
+Risolto una volta là (20 club di 20 sul foglio Serie A). Il portiere titolare della griglia lo dà la
+board del toolkit, mai una scelta nostra; la diagonale è il club **da solo**.
+
+Tre cose dichiarate invece che riempite: un club di un altro campionato **non è accoppiabile** (una
+giornata cade su un turno diverso in ogni lega e `matchday_map` per la stagione bersaglio ne copre cinque
+su trentuno); la probabilità esiste **solo** dove i coefficienti sono stati stimati; una giornata che
+nessuno dei due gioca **non è** una giornata mancata.
+
+### Il NG8011 che il terminale stampava da tredici giorni (segnalato dall'operatore)
+
+`nz-th-addon` proietta l'imbuto in uno slot suo, e Angular ci manda il contenuto di un `@if` solo se il
+blocco ha **un** nodo radice: erano due (imbuto + menu), quindi finiva nello slot di default. **Non si
+vedeva perché la nostra CSS di agosto lo compensava per intero** — `.ant-table-filter-column` avvolge
+tutti e due gli slot, quindi il pixel era giusto e il markup no. Curato; `e2e-table` ora lo **asserisce**
+(`inTitle`), e l'asserto è stato provato rimettendo il difetto: nomina tutte e 24 le colonne.
+
+### Verifiche
+
+**637 test toolkit** (1 skip) e **593 app su 37 file**, `ng build` **senza avvisi**, e tutti e cinque i
+banchi e2e verdi su un browser vero: `e2e-plancia-keepers` (nuovo), `e2e-table`, `e2e-sealed-bid`,
+`e2e-strategy`, `e2e-options`. Il banco nuovo legge `calendar.json` dallo stesso server dell'app e
+**ricalcola** cosa deve dire la riga in cima (28 giornate per Svilar + Martinez Jo.), invece di fidarsi
+della funzione che sta giudicando. Catena export→bundle→app provata per intero: `export` scrive
+`calendar.json` e lo nomina nel manifest, `data:pull` lo copia e lo conta.
+
+Difetti trovati **dalla misura e non dallo sguardo**: due utility di sfondo sullo stesso `<th>` (lo
+sfondo non cambiava, il testo sì — 1,08:1 di contrasto) e due icone non registrate che urlavano in
+console. E un difetto **dell'arnese**: un passo che stampava il numero atteso senza confrontarlo, cioè un
+audit che risponde «nessun problema» dopo aver guardato niente.
+
+### Debito ereditato dall'altra metà, dichiarato
+
+`injuries.observed_on` è nello schema e nella migrazione, ma **il DB vivo non è ancora migrato e il
+bundle non porta la colonna**. La metà app legge `availability` e non quella, quindi niente è rotto: il
+valore arriva dopo una corsa di `injuries` e un `export`.
+
+### Prossimi passi
+
+Invariati rispetto alla chiusura precedente (`simulatore-asta-rilanci-v1.md` §28.2, con in cima la
+disomogeneità della stanza e il §16 da rimisurare senza le fasi). Si aggiunge, se un giorno servisse:
+la probabilità di porta inviolata esiste **solo per la Serie A** — per gli altri quattro campionati
+servirebbero i gol subiti per partita-club, che oggi il layer non porta.

@@ -498,6 +498,16 @@ whoever wrote neither; and a debt DECLARED inside the other half is inherited ou
 `letture-app-v1.md` §20 says the `backtest --verify` for sheet revision 38 is «dovuto e non ancora
 fatto», the DB having been under a write lock). **Committing somebody's work is adopting their open
 items too.**
+**Seconda istanza il 03/09/2026, e stavolta la procedura ha retto.** Di nuovo due sessioni sugli stessi
+file (`plancia.ts`, `plancia-store.ts`, `slot-matrix.ts`, `pull-bundle.mjs`): la metà accoppiamenti-
+portieri e la metà «chi oggi non gioca». Quello che si aggiunge alla regola è **come** si misura
+l'autorship, perché è la domanda che si fa per prima e ha una risposta in un comando: un `git diff |
+grep` per il VOCABOLARIO di ciascuna feature, file per file, che qui ha separato le due metà e ha
+trovato i quattro file condivisi. Poi l'albero combinato ai gate di tutt'e due (637 test toolkit, 593
+app, cinque banchi e2e verdi) invece di fidarsi. Il commit nomina le due metà e dichiara il debito
+ereditato: `injuries.observed_on` è nello schema e nella migrazione, ma il DB vivo non è migrato e il
+bundle non la porta — la metà app legge `availability`, quindi niente è rotto e il valore arriva dopo
+una corsa di `injuries` e un `export`.
 
 ## A FIFTH harness, and a RANKING BY TOTAL is not a TABLE
 **01/09/2026, `bench/auction` + `bench/auction/league.py`, details in
@@ -2916,6 +2926,65 @@ colonne spente e l'ordinamento - sono una preferenza sulla TABELLA, quindi valgo
 e la contro-obiezione è vera: un filtro salvato è invisibile. Per questo ogni filtro attivo porta la sua
 etichetta SOPRA la tabella, fuori da ogni pannello che si chiude, con la sua crocetta e con quanti uomini
 sta nascondendo su quanti.
+
+## Una soglia SCELTA A OCCHIO può essere già la risposta, e va verificata contro la domanda NUOVA
+**03/09/2026, `assistente-asta-v1.md` §34, dalla richiesta di accoppiare due portieri sulla plancia.**
+`EASY_MARGIN` = 200 era stato congelato dall'operatore il 10/08 su un criterio suo — «il club più forte
+deve smettere di leggere *tutte* le partite come facili» — e la richiesta di oggi gli chiede un'altra
+frase: «una partita facile è una partita dove è **probabile che la squadra non subisca 0 gol**». Due
+affermazioni diverse sullo stesso numero, quindi si misura invece di riusarlo sulla fiducia.
+Misurato su **5354 partite-club di Serie A** (2019-20…2026-27; avversario e campo dal layer per partita,
+gol subiti dalle righe `role='P'` dei voti — quindi **il conteggio non passa dal funnel delle identità**,
+che è la regola «un fatto di club non si conta sui suoi membri» applicata a una porta): a un vantaggio di
+200 la probabilità di porta inviolata è **0,401**, e il livello 40% cade a **199**. Quel 40% è anche
+`club_defence.CLEAN_SHEET_SHARE`, misurato un mese prima su un criterio scorrelato. **Due strade
+indipendenti sullo stesso numero sono evidenza**, e per questo un test le lega insieme: chi muove una
+delle due costanti deve ristabilire l'accordo invece di perderlo in silenzio. L'etichetta regge: le
+partite classificate facili chiudono a zero il **42,8%** delle volte contro il **23,9%** delle altre.
+Tre cose che restano oltre il caso.
+- **Un CONTEGGIO che satura non si cura abbassando la soglia, si affianca a una misura continua.** Alla
+  soglia congelata dodici club di venti non hanno NESSUNA partita facile in stagione, quindi quasi tutte
+  le coppie pareggiano a zero e la classifica non distingue niente. Abbassare a 138 farebbe tornare a
+  discriminare il conteggio ed è stato **respinto**: sarebbe una soglia scelta perché il conteggio non
+  piaceva, cioè «un criterio non si allarga perché una regola ci è caduta» applicato a una colonna.
+  Quello che si adotta è la sua regola che DECIDE più una colonna continua che rompe il pareggio, con
+  due nomi a schermo e mai una cifra sola — la stessa disciplina del §23.3 («il margine continuo viaggia
+  accanto al conteggio») incontrata dal capo opposto, la saturazione in BASSO invece che in alto.
+- **Una costante appartiene alla DOMANDA su cui è stata misurata, non solo alla popolazione.** Per una
+  porta inviolata il vantaggio campo si fitta a **30-35** punti Elo e non ai 14,5 che `fixtures.py` usa,
+  che erano misurati sul RISULTATO (log-loss fuori campione 0,57796 contro 0,57839, ottimo interno,
+  quindi la direzione è identificata: tenere la porta inviolata dipende dal campo più che vincere).
+  **Non adottata**: vale 0,0004 di log-loss e il 3% delle classificazioni, e sarebbe una SECONDA
+  costante di campo in un modulo il cui output è tutto reporting — due costanti per un solo campo è come
+  uno schermo finisce con due risposte a «questa partita è in casa».
+- **Il confine fra toolkit e app si taglia sulla natura del fatto, non sulla comodità.** Se una partita
+  è facile è una previsione sul calcio → `fixtures.schedule` → `calendar.json` nel bundle; quante ne
+  cadono nella finestra dichiarata e cosa coprono due club è aritmetica sulle impostazioni dell'operatore
+  → `core/keeper-pairs.ts`. Ed è anche l'unica cosa che l'app **non potrebbe** dedursi: `fixtures` e
+  `club_levels` sono chiavati su `matching.club_identity`, che è una tabella di alias in Python, quindi
+  rifarne il join in un browser vorrebbe dire ripetere il join che una volta ha perso Milan, Roma e
+  Napoli dal calendario di tutti. Risolto una volta là, e l'app unisce sul nome canonico che già legge su
+  una riga del foglio.
+
+## Un AVVISO DEL COMPILATORE che nessuna misura conferma è una misura che non stiamo facendo
+**03/09/2026, `letture-app-v1.md`, segnalato dall'operatore che leggeva il terminale.** `ng build`
+stampava un **NG8011** a ogni corsa da tredici giorni: `nz-th-addon` ha uno slot suo per l'imbuto del
+filtro (`<ng-content select="nz-filter-trigger">`) e Angular ci proietta il contenuto di un `@if` **solo
+se quel blocco ha UN nodo radice** — l'imbuto e il suo `nz-dropdown-menu` erano due, quindi il blocco
+intero finiva nello slot di **default**, dentro il titolo.
+**Non si vedeva perché la nostra CSS lo compensava per intero**: `nz-table-filter` avvolge tutt'e due gli
+slot in `.ant-table-filter-column`, che è esattamente il selettore su cui la cura di agosto tira l'imbuto
+fuori dal flusso. Quindi tutte le misure di agosto — 24 imbuti su 24, zero tagliati, `elementFromPoint`
+sull'icona, pannello che si apre — erano **vere e restano vere**: sbagliato era il posto nel DOM, non il
+pixel. L'arnese guardava dove l'imbuto *appare*, e nessuno guardava in quale slot *è*.
+Due abitudini. **Un `#ref` dichiarato dentro un blocco non si vede da un blocco fratello**, quindi la
+cura è il menu fuori dal blocco con l'`@if` DENTRO di lui — e non può uscire dalla `<th>`, perché un nodo
+che non è una `<th>` dentro il `<tr>` si mangia una colonna della griglia (gli 84px del 20/08). E **un
+asserto nuovo si prova rimettendo il difetto**: con il markup vecchio la corsa nomina tutte e 24 le
+colonne, quindi non passa a vuoto. La stessa disciplina, lo stesso giorno, ha smascherato un audit che
+**stampava** il numero atteso accanto a quello dello schermo senza confrontarlo — cioè un banco che
+risponde «nessun problema» dopo aver guardato niente, che è il difetto che questo progetto si è già
+scritto due volte e ha commesso di nuovo.
 
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
